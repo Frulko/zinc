@@ -57,6 +57,13 @@ export class TablePhysics {
 }
 
 const TAG = 1000;   // a body's tag is its part * TAG + its index
+/** Puts `b` at place `i` of a list that is filled in two passes, each in rising order: at the end, the list is in the order of the file. */
+function place(list: Body[], i: i32, b: Body): void {
+  const at: i32 = Math.min(i, list.length);
+  list.push(b);
+  for (let k = list.length - 1; k > at; k--) list[k] = list[k - 1];
+  list[at] = b;
+}
 
 export class JoltPhysics extends TablePhysics {
   private t: TableDef;
@@ -90,51 +97,11 @@ export class JoltPhysics extends TablePhysics {
     w.body(Shape.box(1, glass, plen / 2 + 30), { motion: Motion.Static, position: [pw + 1, 0, plen / 2], tag: Part.Glass * TAG });
     w.body(Shape.box(pw / 2 + 2, glass, 1), { motion: Motion.Static, position: [pw / 2, 0, -1], tag: Part.Glass * TAG });
 
-    for (let i = 0; i < t.walls.length; i++) {
-      const e = t.walls[i], s = new Solid();
-      wall(s, tessellate(e.points, e.closed), e.z, e.z + e.height, e.thickness);
-      this.fixed(s, e.surface, Part.Wall, i);
-    }
-    for (let i = 0; i < t.ramps.length; i++) {
-      const e = t.ramps[i], s = new Solid();
-      track(s, tessellate(e.points, false), e.profile, e.width, e.thickness, e.wall, e.skirt && e.style === 'solid' ? t.physics.ball.radius * 2 + 0.4 : 0);
-      this.fixed(s, e.surface, Part.Ramp, i);
-    }
-    for (let i = 0; i < t.floors.length; i++) {
-      const e = t.floors[i], s = new Solid();
-      floor(s, tessellate(e.points, true), e.z, e.thickness);
-      this.fixed(s, e.surface, Part.Floor, i);
-    }
-    for (let i = 0; i < t.bumpers.length; i++) {
-      const e = t.bumpers[i], m = this.surface(e.surface);
-      w.body(Shape.cylinder(e.height / 2, e.radius), { motion: Motion.Static, position: [e.at[0], e.z + e.height / 2, e.at[1]], friction: m[0], restitution: m[1], tag: Part.Bumper * TAG + i });
-    }
-    for (let i = 0; i < t.slingshots.length; i++) {
-      const e = t.slingshots[i];
-      this.bar(e.a, e.b, e.z, e.height, e.thickness, e.surface, Part.Slingshot, i);
-    }
-    for (let i = 0; i < t.targets.length; i++) {
-      const e = t.targets[i], c = Math.cos(rad(e.angle)), sn = Math.sin(rad(e.angle)), h = e.width / 2;
-      this.targetBodies.push(this.bar([e.at[0] + sn * h, e.at[1] - c * h], [e.at[0] - sn * h, e.at[1] + c * h], e.z, e.height, e.thickness, e.surface, Part.Target, i));
-    }
-    for (let i = 0; i < t.gates.length; i++) {
-      const e = t.gates[i];
-      this.gateBodies.push(this.bar(e.a, e.b, e.z, e.height, 0.2, e.surface, Part.Gate, i));
-    }
-    for (let i = 0; i < t.models.length; i++) this.model(table, i);
-
-    for (let i = 0; i < t.flippers.length; i++) {
-      const e = t.flippers[i], outline = flipperOutline(e.length, e.baseRadius, e.tipRadius), pts: number[] = [];
-      for (let k = 0; k + 1 < outline.length; k += 2) {
-        pts.push(outline[k]); pts.push(0); pts.push(outline[k + 1]);
-        pts.push(outline[k]); pts.push(e.height); pts.push(outline[k + 1]);
-      }
-      const m = this.surface(e.surface);
-      this.flipperBodies.push(w.body(Shape.convexHull(pts, 0.05), { motion: Motion.Kinematic, position: [e.pivot[0], e.z, e.pivot[1]], rotation: quatFromAxisAngle(0, 1, 0, -rad(e.rest)),
-        friction: m[0], restitution: m[1], tag: Part.Flipper * TAG + i }));
-      this.flipperAngle.push(e.rest);
-      this.pressed.push(false);
-    }
+    // The playfield's own bodies first, in the order of the file, then the plunger and the balls, then what stands on an
+    // upper level. Jolt's answers depend on the order bodies are made in (its contacts are solved in an order that comes
+    // from their numbers), so a table that gains an upper playfield still plays the same, to the bit, below it.
+    for (let i = 0; i < t.flippers.length; i++) { this.flipperAngle.push(t.flippers[i].rest); this.pressed.push(false); }
+    this.stand(table, false);
     const pl = t.plunger, pm = this.surface(pl.surface);
     this.plungerBody = w.body(Shape.box(0.5, pl.height / 2, pl.width / 2), { motion: Motion.Kinematic, position: [pl.at[0], pl.z + pl.height / 2, pl.at[1]],
       rotation: quatFromAxisAngle(0, 1, 0, -rad(pl.angle)), friction: pm[0], restitution: pm[1], tag: Part.Plunger * TAG });
@@ -145,7 +112,60 @@ export class JoltPhysics extends TablePhysics {
         tag: Part.Ball * TAG + i }));
       this.balls.push(new BallState());
     }
+    this.stand(table, true);
     w.optimize();
+  }
+
+  /** Makes the bodies of what stands on the playfield (`up` false) or on an upper level (`up` true). */
+  private stand(table: Table, up: boolean): void {
+    const t = this.t, w = this.world;
+    for (let i = 0; i < t.walls.length; i++) {
+      const e = t.walls[i], s = new Solid();
+      if ((e.z > 0) !== up) continue;
+      wall(s, tessellate(e.points, e.closed), e.z, e.z + e.height, e.thickness);
+      this.fixed(s, e.surface, Part.Wall, i);
+    }
+    for (let i = 0; i < t.ramps.length && !up; i++) {
+      const e = t.ramps[i], s = new Solid();
+      track(s, tessellate(e.points, false), e.profile, e.width, e.thickness, e.wall, e.skirt && e.style === 'solid' ? t.physics.ball.radius * 2 + 0.4 : 0);
+      this.fixed(s, e.surface, Part.Ramp, i);
+    }
+    for (let i = 0; i < t.floors.length && up; i++) {
+      const e = t.floors[i], s = new Solid();
+      floor(s, tessellate(e.points, true), e.z, e.thickness);
+      this.fixed(s, e.surface, Part.Floor, i);
+    }
+    for (let i = 0; i < t.bumpers.length; i++) {
+      const e = t.bumpers[i], m = this.surface(e.surface);
+      if ((e.z > 0) !== up) continue;
+      w.body(Shape.cylinder(e.height / 2, e.radius), { motion: Motion.Static, position: [e.at[0], e.z + e.height / 2, e.at[1]], friction: m[0], restitution: m[1], tag: Part.Bumper * TAG + i });
+    }
+    for (let i = 0; i < t.slingshots.length; i++) {
+      const e = t.slingshots[i];
+      if ((e.z > 0) === up) this.bar(e.a, e.b, e.z, e.height, e.thickness, e.surface, Part.Slingshot, i);
+    }
+    // the lists the game reaches by an element's index are filled in the order of the file: a body of the second pass takes its place among those of the first
+    for (let i = 0; i < t.targets.length; i++) {
+      const e = t.targets[i], c = Math.cos(rad(e.angle)), sn = Math.sin(rad(e.angle)), h = e.width / 2;
+      if ((e.z > 0) !== up) continue;
+      place(this.targetBodies, i, this.bar([e.at[0] + sn * h, e.at[1] - c * h], [e.at[0] - sn * h, e.at[1] + c * h], e.z, e.height, e.thickness, e.surface, Part.Target, i));
+    }
+    for (let i = 0; i < t.gates.length; i++) {
+      const e = t.gates[i];
+      if ((e.z > 0) === up) place(this.gateBodies, i, this.bar(e.a, e.b, e.z, e.height, 0.2, e.surface, Part.Gate, i));
+    }
+    for (let i = 0; i < t.models.length; i++) if ((t.models[i].at[2] > 0) === up) this.model(table, i);
+    for (let i = 0; i < t.flippers.length; i++) {
+      const e = t.flippers[i], outline = flipperOutline(e.length, e.baseRadius, e.tipRadius), pts: number[] = [];
+      if ((e.z > 0) !== up) continue;
+      for (let k = 0; k + 1 < outline.length; k += 2) {
+        pts.push(outline[k]); pts.push(0); pts.push(outline[k + 1]);
+        pts.push(outline[k]); pts.push(e.height); pts.push(outline[k + 1]);
+      }
+      const m = this.surface(e.surface);
+      place(this.flipperBodies, i, w.body(Shape.convexHull(pts, 0.05), { motion: Motion.Kinematic, position: [e.pivot[0], e.z, e.pivot[1]], rotation: quatFromAxisAngle(0, 1, 0, -rad(e.rest)),
+        friction: m[0], restitution: m[1], tag: Part.Flipper * TAG + i }));
+    }
   }
 
   /** Friction and restitution of a surface of the table; the format's defaults for '' (no surface named). */
@@ -169,7 +189,7 @@ export class JoltPhysics extends TablePhysics {
     if (e.collide === 'none') return;
     // the points of the piece in its own axes (x, up, y): the corners of a box, a ring of a cylinder, the vertices of a mesh
     const pts: number[] = [];
-    if (e.mesh !== '' && table.source !== null) {
+    if (e.mesh !== '' && table.source !== null && table.source.has(e.mesh)) {
       for (const line of table.source.text(e.mesh).split('\n')) {
         if (!line.startsWith('v ')) continue;
         const v = line.split(' ').filter((s: string) => s.length > 0);

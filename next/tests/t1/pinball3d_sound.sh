@@ -135,7 +135,7 @@ out=$(probe $t 40.5 55 1.37 200 0 0 1)
 has "stand1 hit" "$(snd "t['targets'][3]['sounds']['hit']")" "a shot at the standup"
 out=$(probe $t 23 50 1.37 0 0 0 4 bump@0.2)
 has "rule" "$(snd "[a['target'] for w in t['rules']['when'] if w['event'] == 'tilt' for a in w['do'] if a['do'] == 'sound'][0]")" "the tilt"
-mkdir "$tmp/multi"
+cp -R "$folder" "$tmp/multi"   # the whole folder: the table names its images, models and sounds
 python3 - "$folder/table.json" "$tmp/multi/table.json" <<'PY'
 import json, sys
 t = json.load(open(sys.argv[1]))

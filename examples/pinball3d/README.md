@@ -2,17 +2,17 @@
 
 A pinball in real 3D, in the spirit of the desktop tables of the 90s: the table upright at the left and the score panel
 at the right, or the whole table on a vertical screen. The ball is a real sphere on a tilted board (`zinc:physics3d`,
-Jolt): it climbs the ramp, rides a wire rail above the playfield, drops into a lane, and the dock throws it in the air.
-The scene is drawn by `zinc:3d` on the GPU and heard through `zinc:audio`. **Nothing about the table is in the code**: walls,
+Jolt): it climbs the ramp, rides a wire rail above the playfield, drops into a lane, and the dock lifts it to an upper
+playfield with a flipper of its own. The scene is drawn by `zinc:3d` on the GPU and heard through `zinc:audio`. **Nothing about the table is in the code**: walls,
 lanes, flippers, bumpers, ramps, lights, looks, sounds, music, rules, missions, the camera and the panel all come from one file,
 [`assets/tables/tidal-lock/table.json`](assets/tables/tidal-lock/table.json), whose format is described field by field in
 [docs/pinball-table-format.md](../../docs/pinball-table-format.md). Another table is another file.
 
-![a ball in play](../../docs/img/pinball3d-play.png)
+![a ball in play](../../docs/img/pinball3d-look-play.jpg)
 
 | | |
 | --- | --- |
-| ![waiting for a player](../../docs/img/pinball3d-attract.png) | ![the portrait layout](../../docs/img/pinball3d-portrait.png) |
+| ![waiting for a player](../../docs/img/pinball3d-look-attract.jpg) | ![the portrait layout](../../docs/img/pinball3d-look-portrait.jpg) |
 
 ## Run it
 
@@ -54,11 +54,37 @@ A tug crew works the docks of a mining station held in tidal lock above a gas gi
   award times the rank and promotes: Deckhand, Rigger, Tug Pilot, Dock Master, Station Chief, Orbit Marshal, Tide Warden.
 - **The ramp** climbs 5.5 cm, turns over the top lanes and hands the ball to a wire rail that drops it in the left inlane.
   Five laps save the ball for 15 s.
-- **The dock** catches a slow ball, holds it a second and throws it over the lane guides. Each catch is a lock; the third
-  starts **multiball**: three balls, scores doubled, the ramp pays a jackpot that grows.
+- **The dock** catches a slow ball, holds it a second and lifts it to the **control deck**, an upper playfield 5.5 cm above
+  the board with its own flipper (on the left button), two beacons to light for a bonus multiplier, and the station's
+  tower to bounce off. A ball that leaves the deck falls back on the playfield and is turned by the relays into the right
+  inlane. Each catch is a lock; the third starts **multiball**: three balls, scores doubled, the ramp pays a jackpot that grows.
 - **Lanes**: light the three for one more bonus multiplier (up to 5); the flippers move the lit lanes.
 - **Ball save** for 8 s after a launch; **extra ball** lit at the dock at ranks 3 and 6; **tilt** after two warnings: the
   flippers die and the ball's bonus is lost. The five best scores are kept between runs.
+
+## The look
+
+Everything the eye sees is named in the table file too, and made by code: nothing is fetched or copied from a game.
+
+- **A painted playfield.** A look's `texture` is an image of the table folder laid flat over the element as the top view
+  shows it: the playfield's painting (space, the gas giant, the hull of the station, the lanes and their legends), the
+  upper playfield's, the ramp's chevrons, the bumper caps, the flippers, the ball.
+- **Lights that light.** A light of the table is an insert that the rules turn on, and with a `glow` it throws a pool of
+  light on the board around it: there the playfield shows its `textureLit`, the same painting with every light lit, which
+  fades to the plain one at the rim of the pool. `lighting.general` names the lights that are the general illumination:
+  while they are off (a tilt, a game that is over) the lamps of the scene fall to `dimmed`. A bumper, a slingshot or a
+  target shows its look's glow when it is hit, and while the light the table gives it is lit.
+- **Modelled pieces.** A `model` is a mesh file (OBJ) or a simple solid, decorative or with a collision box or hull: the
+  station's tower on the deck (the ball bounces off it, and a rule scores it), the tug on the apron, the plates over the
+  slingshots; the cabinet, the apron and the backboard are boxes with an image.
+- **A backglass.** Each layout's panel has an `image` behind the score.
+- **Two renderers.** A window draws on the GPU with 4 samples a pixel and mipmaps; a headless or deterministic run draws
+  with the software renderer, whose frames are the goldens of the tests. They are the same picture (0.06 % of the pixels
+  apart with multisampling and filtering off, structural similarity 0.96 as a window shows it).
+
+[`tools/tidal_lock_art.py`](tools/tidal_lock_art.py) draws the 14 images and builds the 4 models of Tidal Lock (700 KB) from
+the table file itself: the pads under the lights, the rings of the bumpers, the docking ring and the pools of light are
+painted where table.json puts those elements (`python3 tools/tidal_lock_art.py`; it needs Pillow).
 
 ## Sound
 
@@ -100,9 +126,12 @@ The game is a library that a window, a test or an editor drives; `src/main.ts` i
 | `tools/probe.ts` | one shot without a window: put the ball somewhere with a speed, read the events (and the sounds) and where it went |
 | `tools/soundcheck.ts` | every sound of a table played without a loudspeaker: its length, its peak, the size of the files |
 | `tools/tidal_lock_sounds.py` | makes the sounds of Tidal Lock again: cuts the CC0 recordings, synthesises the rest |
+| `tools/tidal_lock_art.py` | makes the images and the models of Tidal Lock again, laid out from its table file |
 
 The physics runs at the table's rate (960 steps a second) whatever the frame rate, with the board flat and gravity
-leaning by the table's slope. Flippers and the plunger are kinematic bodies the game moves; the ball is swept through
+leaning by the table's slope. The bodies of the playfield are made first, then the balls, then what stands on an upper
+level, because the engine's answers depend on that order: a table that gains an upper playfield plays the same, to the
+bit, below it. Flippers and the plunger are kinematic bodies the game moves; the ball is swept through
 each step (continuous collision); bumpers and slingshots add their kick when touched; rollovers, spinners, gates and the
 ends of ramps are lines the game tests against each ball's move, so a fast ball never slips past a switch.
 
@@ -119,7 +148,8 @@ single shots), `pinball3d_sound.sh` (the scripted game's sound log, every sound 
 
 - Sounds come from two speakers by a balance, not from a place in space; a bump of the table has no sound (the format has no
   event for it); the music of a state starts at its beginning each time.
-- A look's `texture` is read and not drawn yet (the generated meshes have no texture coordinates).
+- The renderer has no transparency and no light of its own on a piece: a pool of light is a patch of the lit painting,
+  on the playfield only (a light on an upper floor lights its insert alone), and two pools must not overlap.
+- An image is laid flat, as the top view shows the element: a wall or the face of a target cannot carry one.
 - A high score enters as `YOU`: there is no entry of initials.
-- Tidal Lock has no upper playfield; the format has them (`floors`, and every element's `z`).
 - Text of a table is drawn with the characters and sizes baked into the program: ASCII, 18 sizes from 10 to 96.

@@ -3,6 +3,8 @@
 // moves: balls, flippers, the plunger, targets, spinners, and what lights up. Nothing here knows a rule or a score.
 import { Scene, Camera, Node, Mesh, Material, Light, Shading, cube, sphere, parseObj, quatFromAxisAngle, quatMultiply } from 'zinc:3d';
 import { Table, TableDef, LookDef, LayoutDef } from './format/table';
+import { TableSource } from './format/source';
+import { tableImage } from './images';
 import { Solid, Polyline, tessellate, wall, track, wire, slab, lathe, plate, floor, prism, flipperOutline, rad } from './geometry';
 
 export function rgb(hex: string): u32 { return parseInt(hex.slice(1), 16); }
@@ -12,7 +14,10 @@ function dim(hex: string): u32 {
   const r = ((c >> 16) & 255) * 0.2 + 10, g = ((c >> 8) & 255) * 0.2 + 10, b = (c & 255) * 0.2 + 12;
   return (Math.floor(r) << 16) | (Math.floor(g) << 8) | Math.floor(b);
 }
-function meshOf(s: Solid): Mesh { return new Mesh(s.pos, s.idx, s.nrm, [], []); }
+function scaled(c: u32, k: number): u32 {
+  return (Math.round(((c >> 16) & 255) * k) << 16) | (Math.round(((c >> 8) & 255) * k) << 8) | Math.round((c & 255) * k);
+}
+function meshOf(s: Solid): Mesh { return new Mesh(s.pos, s.idx, s.nrm, s.uv, []); }
 
 /** Something that can show its look's `glow`. */
 class Glowing {
@@ -27,6 +32,7 @@ export class TableScene {
   scene: Scene = new Scene();
   camera: Camera = new Camera();
   private def: TableDef;
+  private source: TableSource | null;
   private looks: Map<string, Material> = new Map<string, Material>();
   private glows: Map<string, Material> = new Map<string, Material>();
   private plain: Material;
@@ -44,18 +50,29 @@ export class TableScene {
   private lights: Material[] = [];
   private lightOn: u32[] = [];
   private lightOff: u32[] = [];
+  /** Per light: the pool of light it throws on the playfield while it is on; null for none. */
+  private pools: (Node | null)[] = [];
+  private litBoard: Material | null = null;
+  private general: number = -1;
 
   constructor(table: Table) {
     const t = table.def;
     this.def = t;
-    this.plain = this.materialOf({ id: '', color: '#b0b8c0', shading: 'smooth', specular: '#000000', shininess: 30, glow: '#000000', texture: '' });
+    this.source = table.source;
+    this.plain = this.materialOf({ id: '', color: '#b0b8c0', shading: 'smooth', specular: '#000000', shininess: 30, glow: '#000000', texture: '', textureLit: '' });
     for (const l of t.looks) {
       this.looks.set(l.id, this.materialOf(l));
       if (l.glow !== '#000000') { const g = new Material(rgb(l.glow)); g.shading = Shading.Unlit; this.glows.set(l.id, g); }
+      // the playfield under a light that is on: the same look with the image of the lit table
+      if (l.id === t.playfield.look && l.textureLit !== '') {
+        const lit = this.materialOf(l);
+        lit.texture = this.image(l.textureLit);
+        if (lit.texture >= 0) this.litBoard = lit;
+      }
     }
     this.scene.background = rgb(t.lighting.background);
-    this.scene.ambient = rgb(t.lighting.ambient);
     for (const lamp of t.lighting.lamps) this.scene.lights.push(new Light(lamp.direction[0], lamp.direction[2], lamp.direction[1], rgb(lamp.color)));
+    this.setGeneral(1);
     this.ballMesh = sphere(t.physics.ball.radius, 20, 12);
     this.ballLook = this.look(t.physics.ball.look);
     this.board(t);
@@ -69,17 +86,21 @@ export class TableScene {
     m.shading = l.shading === 'flat' ? Shading.Flat : l.shading === 'unlit' ? Shading.Unlit : Shading.Smooth;
     m.specular = rgb(l.specular);
     m.shininess = l.shininess;
-    // ponytail: `texture` is in the format and not drawn yet: the generated meshes carry no texture coordinates. With
-    // them, the image of a table folder loads through zinc:gfx imageFromBytes
+    m.texture = this.image(l.texture);
     return m;
   }
+  /** The image `file` of the table's folder as a texture; -1 when there is none. */
+  private image(file: string): i32 { return tableImage(this.source, file); }
   private look(id: string): Material { const m = this.looks.get(id); return m === undefined ? this.plain : m; }
+  /** Lays the image of a look, when it has one, over what was added to `s` from vertex `from` on. */
+  private drape(s: Solid, look: string, from: i32): void { if (this.look(look).texture >= 0) s.drape(from); }
   private glow(id: string): Material | null { const m = this.glows.get(id); return m === undefined ? null : m; }
   private add(s: Solid, m: Material): Node { return this.scene.add(new Node(meshOf(s), m)); }
 
   private board(t: TableDef): void {
     const s = new Solid(), w = t.playfield.width, l = t.playfield.length;
     plate(s, [0, 0, w, 0, w, l, 0, l], 0);
+    this.drape(s, t.playfield.look, 0);
     // its edges, so that the board has a thickness when seen from the side
     const edge = new Polyline();
     edge.closed = true;
@@ -97,26 +118,42 @@ export class TableScene {
       if (s === undefined) { s = new Solid(); byLook.set(look, s); order.push(look); }
       return s;
     };
-    for (const w of t.walls) wall(of(w.look), tessellate(w.points, w.closed), w.z, w.z + w.height, w.thickness);
+    // each element takes the image of its look for itself: over its own box of the top view
+    for (const w of t.walls) {
+      const s = of(w.look), from = s.count();
+      wall(s, tessellate(w.points, w.closed), w.z, w.z + w.height, w.thickness);
+      this.drape(s, w.look, from);
+    }
     for (const g of t.gates) {
-      const s = of(g.look);
+      const s = of(g.look), from = s.count();
       slab(s, g.a[0], g.a[1], g.b[0], g.b[1], g.z + g.height - 0.3, g.z + g.height, 0.2);
       lathe(s, g.a[0], g.a[1], g.z, [[0.2, 0], [0.2, g.height], [0, g.height]], 8);
       lathe(s, g.b[0], g.b[1], g.z, [[0.2, 0], [0.2, g.height], [0, g.height]], 8);
+      this.drape(s, g.look, from);
     }
     for (const r of t.ramps) {
-      const line = tessellate(r.points, false), s = of(r.look);
+      const line = tessellate(r.points, false), s = of(r.look), from = s.count();
       if (r.style === 'wire') {
         const side = r.width / 2 + 0.12;
         for (const k of [1, -1]) { wire(s, line, r.profile, k * side * 0.55, 0, 0.12); wire(s, line, r.profile, k * side, r.wall, 0.12); }
       } else track(s, line, r.profile, r.width, r.thickness, r.wall, r.skirt ? t.physics.ball.radius * 2 + 0.4 : 0);
+      this.drape(s, r.look, from);
     }
-    for (const f of t.floors) floor(of(f.look), tessellate(f.points, true), f.z, f.thickness);
-    for (const k of t.kickers) lathe(of(k.look), k.at[0], k.at[1], k.z, [[k.radius, 0], [k.radius, 0.25], [k.radius + 0.45, 0.25], [k.radius + 0.45, 0]], 20);
+    for (const f of t.floors) {
+      const s = of(f.look), from = s.count();
+      floor(s, tessellate(f.points, true), f.z, f.thickness);
+      this.drape(s, f.look, from);
+    }
+    for (const k of t.kickers) {
+      const s = of(k.look), from = s.count();
+      lathe(s, k.at[0], k.at[1], k.z, [[k.radius, 0], [k.radius, 0.25], [k.radius + 0.45, 0.25], [k.radius + 0.45, 0]], 20);
+      this.drape(s, k.look, from);
+    }
     for (const sp of t.spinners) {
-      const s = of(sp.look);
+      const s = of(sp.look), from = s.count();
       lathe(s, sp.a[0], sp.a[1], sp.z, [[0.18, 0], [0.18, sp.height + 0.4], [0, sp.height + 0.4]], 8);
       lathe(s, sp.b[0], sp.b[1], sp.z, [[0.18, 0], [0.18, sp.height + 0.4], [0, sp.height + 0.4]], 8);
+      this.drape(s, sp.look, from);
     }
     for (const look of order) this.add(byLook.get(look) as Solid, this.look(look));
 
@@ -132,12 +169,15 @@ export class TableScene {
 
     for (const m of t.models) {
       let mesh: Mesh;
-      if (m.mesh !== '' && table.source !== null) mesh = parseObj(table.source.text(m.mesh));
+      const file = table.source !== null && m.mesh !== '' && table.source.has(m.mesh);
+      if (m.mesh !== '' && !file) console.warn(`pinball3d: the model ${m.mesh} is not in the table's folder: "${m.id}" is drawn as its simple shape`);
+      if (file && table.source !== null) mesh = parseObj(table.source.text(m.mesh));
       else if (m.shape === 'box') mesh = cube(1);
       else if (m.shape === 'sphere') mesh = sphere(0.5, 24, 14);
       else {
         const s = new Solid();
         lathe(s, 0, 0, 0, m.shape === 'cone' ? [[0.5, 0], [0, 1]] : [[0.5, 0], [0.5, 1], [0, 1]], 24);
+        this.drape(s, m.look, 0);
         // a solid stands along z in table coordinates: here it is its own little table
         mesh = meshOf(s);
       }
@@ -154,6 +194,7 @@ export class TableScene {
     for (const f of t.flippers) {
       const s = new Solid();
       prism(s, flipperOutline(f.length, f.baseRadius, f.tipRadius), f.height);
+      this.drape(s, f.look, 0);
       const n = this.add(s, this.look(f.look));
       n.setPosition(f.pivot[0], f.z, f.pivot[1]);
       this.flippers.push(n);
@@ -164,6 +205,7 @@ export class TableScene {
       // the tip, and the rod behind it, along +x before the node is turned to the plunger's angle
       slab(s, -0.5, 0, 0.5, 0, 0, p.height, p.width);
       slab(s, -p.travel - 6, 0, -0.5, 0, p.height * 0.3, p.height * 0.7, h * 0.5);
+      this.drape(s, p.look, 0);
       const n = this.add(s, this.look(p.look));
       const q = quatFromAxisAngle(0, 1, 0, -rad(p.angle));
       n.rotation[0] = q[0]; n.rotation[1] = q[1]; n.rotation[2] = q[2]; n.rotation[3] = q[3];
@@ -174,6 +216,8 @@ export class TableScene {
       const body = new Solid(), cap = new Solid();
       lathe(body, b.at[0], b.at[1], b.z, [[b.radius, 0], [b.radius, b.height * 0.7], [b.radius * 0.7, b.height * 0.7]], 20);
       lathe(cap, b.at[0], b.at[1], b.z + b.height * 0.7, [[b.radius * 1.15, 0], [b.radius * 1.15, b.height * 0.2], [b.radius * 0.8, b.height * 0.3], [0, b.height * 0.3]], 20);
+      this.drape(body, b.look, 0);
+      this.drape(cap, b.cap, 0);
       const n = this.add(body, this.look(b.look));
       this.add(cap, this.look(b.cap));
       this.bumpers.push(new Glowing(n, this.look(b.look), this.glow(b.look)));
@@ -181,6 +225,7 @@ export class TableScene {
     for (const sl of t.slingshots) {
       const s = new Solid();
       slab(s, sl.a[0], sl.a[1], sl.b[0], sl.b[1], sl.z, sl.z + sl.height, sl.thickness);
+      this.drape(s, sl.look, 0);
       const n = this.add(s, this.look(sl.look));
       this.slingshots.push(new Glowing(n, this.look(sl.look), this.glow(sl.look)));
     }
@@ -189,6 +234,7 @@ export class TableScene {
       // the face looks along `angle`: the plate lies across it
       const c = Math.cos(rad(g.angle)), sn = Math.sin(rad(g.angle)), h = g.width / 2;
       slab(s, g.at[0] + sn * h, g.at[1] - c * h, g.at[0] - sn * h, g.at[1] + c * h, 0, g.height, g.thickness);
+      this.drape(s, g.look, 0);
       const n = this.add(s, this.look(g.look));
       n.setPosition(0, g.z, 0);
       this.targets.push(new Glowing(n, this.look(g.look), this.glow(g.look)));
@@ -198,6 +244,7 @@ export class TableScene {
       const s = new Solid();
       // a plate hung on its axle: along x, hanging in z, turned about x by the game
       slab(s, -len / 2 + 0.3, 0, len / 2 - 0.3, 0, -sp.height / 2, sp.height / 2, 0.12);
+      this.drape(s, sp.look, 0);
       const n = this.add(s, this.look(sp.look));
       n.setPosition((sp.a[0] + sp.b[0]) / 2, sp.z + sp.height / 2 + 0.4, (sp.a[1] + sp.b[1]) / 2);
       this.spinners.push(n);
@@ -231,7 +278,27 @@ export class TableScene {
       this.lights.push(m);
       this.lightOn.push(rgb(l.color));
       this.lightOff.push(dim(l.color));
+      this.pools.push(this.pool(t, l.at[0], l.at[1], l.z, l.glow));
     }
+  }
+  /** The pool of light of a light: a disc of the playfield, just above it, that shows the playfield's lit image in
+   *  place of the plain one; its image fades to the plain one at the rim, so no edge shows. Hidden until the light is on.
+   *  ponytail: on the playfield only; a light on an upper floor lights its insert alone (the floor's look would need
+   *  its own lit image and the floor's box). */
+  private pool(t: TableDef, x: number, y: number, z: number, radius: number): Node | null {
+    const lit = this.litBoard;
+    if (lit === null || radius <= 0 || z !== 0) return null;
+    const s = new Solid(), ring: number[] = [], w = t.playfield.width, l = t.playfield.length;
+    for (let i = 0; i < 24; i++) {
+      // cut at the edges of the board
+      ring.push(Math.max(0, Math.min(w, x + Math.cos(i * Math.PI / 12) * radius)));
+      ring.push(Math.max(0, Math.min(l, y + Math.sin(i * Math.PI / 12) * radius)));
+    }
+    plate(s, ring, 0.015);
+    s.drapeBox(0, 0, 0, w, l);
+    const n = this.add(s, lit);
+    n.visible = false;
+    return n;
   }
 
   // ---------------------------------------------------------------- what the game sets
@@ -241,8 +308,11 @@ export class TableScene {
     const c = l.camera;
     this.camera.setPosition(c.position[0], c.position[2], c.position[1]).lookAt(c.target[0], c.target[2], c.target[1]);
     this.camera.fov = c.fov;
-    this.camera.near = 4;
-    this.camera.far = 2000;
+    // as tight around the table as the eye allows: the pools of light lie a hair above the board, and the depth must tell them apart
+    const dx = c.position[0] - c.target[0], dy = c.position[1] - c.target[1], dz = c.position[2] - c.target[2], d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    const reach = Math.sqrt(this.def.playfield.width * this.def.playfield.width + this.def.playfield.length * this.def.playfield.length);
+    this.camera.near = Math.max(4, d - reach);
+    this.camera.far = d + reach;
     // looking straight down, "up" on the screen is up the table
     const flat = Math.abs(c.position[0] - c.target[0]) + Math.abs(c.position[1] - c.target[1]) < 0.001;
     this.camera.up[0] = 0; this.camera.up[1] = flat ? 0 : 1; this.camera.up[2] = flat ? -1 : 0;
@@ -280,7 +350,19 @@ export class TableScene {
     const q = quatMultiply(this.spinnerYaw[i], quatFromAxisAngle(1, 0, 0, turns * Math.PI)), r = this.spinners[i].rotation;
     r[0] = q[0]; r[1] = q[1]; r[2] = q[2]; r[3] = q[3];
   }
-  setLight(i: i32, on: boolean): void { this.lights[i].color = on ? this.lightOn[i] : this.lightOff[i]; }
+  setLight(i: i32, on: boolean): void {
+    this.lights[i].color = on ? this.lightOn[i] : this.lightOff[i];
+    const pool = this.pools[i];
+    if (pool !== null) pool.visible = on;
+  }
+  /** The general illumination: 1 the lamps and the ambient light of the table in full, 0 what its `dimmed` leaves. */
+  setGeneral(level: number): void {
+    if (level === this.general) return;
+    this.general = level;
+    const g = this.def.lighting, k = g.dimmed + (1 - g.dimmed) * Math.max(0, Math.min(1, level));
+    this.scene.ambient = scaled(rgb(g.ambient), k);
+    for (let i = 0; i < this.scene.lights.length; i++) this.scene.lights[i].color = scaled(rgb(g.lamps[i].color), k);
+  }
 
   /** Draws the table in a box of the window; returns the triangles drawn. */
   render(x: number, y: number, w: number, h: number): i32 { return this.camera.render(this.scene, x, y, w, h); }

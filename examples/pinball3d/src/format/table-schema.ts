@@ -20,9 +20,11 @@ export const EVENTS = ['hit', 'down', 'roll', 'spin', 'capture', 'eject', 'enter
 export const ROLES: string[][] = [
   ['point', 'a place of the top view, [x, y]; with a third number, its height z above the playfield'],
   ['path', 'a line of the top view: rows [x, y], or [x, y, bulge] when the stretch to the next point is an arc'],
+  ['area', 'an outline of the top view, written as a path whose last point joins the first by itself: what it encloses is the thing'],
   ['direction', 'an angle of the top view: 0 points right, 90 down the table'],
   ['profile', 'a height along a path: rows [fraction of the length, height]'],
   ['rotation', 'a turn in space, [around x, around y, around z]; the third number turns the thing in the top view, as a direction does'],
+  ['offset', 'a step counted from the element\'s own place, [dx, dy] or [dx, dy, dz]: it turns and mirrors with its element, and does not move when the element moves'],
 ];
 
 const ELEMENTS = 'elements', GROUPS = 'groups', ANY = 'elements|groups|game';
@@ -58,7 +60,8 @@ export function tableSchema(): Schema {
   look.color('specular', '#000000', 'The colour of the highlights (metal, glass); black for none.');
   look.num('shininess', 30, 'How tight the highlights are: 5 is satin, 200 is chrome.').range(1, 1000);
   look.color('glow', '#000000', 'The colour the element takes when it is lit (a bumper that fires, a target that is the next step of a mission); black: it does not light.');
-  look.asset('texture', 'An image of the table folder mapped on the element (PNG or JPEG).');
+  look.asset('texture', 'An image of the table folder (PNG or JPEG) laid flat over the element as the top view shows it: its corners at the corners of the box around the element (the painting of a playfield, of a floor, of a bumper\'s cap). A model keeps the mapping of its mesh.');
+  look.asset('textureLit', 'The same image with the lights of the table lit: it shows in the pool of light around each light that is on (a light\'s `glow`). For the look of the playfield.');
 
   const sound = new Schema('sound', 'A sound: a recorded file of the table folder, or a tone generated when the table loads. Elements name one per event in their `sounds`.');
   sound.id('sounds', 'Its name.');
@@ -176,6 +179,7 @@ export function tableSchema(): Schema {
   bumper.num('threshold', 15, 'The ball must arrive at least this fast to set it off.').range(0, 1000).withUnit('cm/s');
   body(bumper, '', 'The body; its `glow` shows when it fires.');
   bumper.ref('cap', 'looks', 'The look of its cap.');
+  bumper.ref('light', 'lights', 'A light that lights its body: its look\'s `glow` also shows while that light is lit.');
   bumper.obj('sounds', soundsOf('bumper', ['hit'], ['When it fires.']), 'Its sounds.');
 
   const slingshot = new Schema('slingshot', 'A slingshot: a rubber band stretched from a to b that kicks the ball away, to the left of the direction a to b (as seen in the top view).');
@@ -188,6 +192,7 @@ export function tableSchema(): Schema {
   slingshot.num('kick', 120, 'The speed it adds to the ball.').range(0, 2000).withUnit('cm/s');
   slingshot.num('threshold', 25, 'The ball must arrive at least this fast to set it off.').range(0, 1000).withUnit('cm/s');
   body(slingshot, 'Rubber by default.', 'Its `glow` shows when it fires.');
+  slingshot.ref('light', 'lights', 'A light that lights it: its look\'s `glow` also shows while that light is lit.');
   slingshot.obj('sounds', soundsOf('slingshot', ['hit'], ['When it fires.']), 'Its sounds.');
 
   const kicker = new Schema('kicker', 'A hole that catches the ball, holds it, then throws it out: a saucer (same place), a subway (it comes out elsewhere), or a launcher that throws it in the air.');
@@ -197,7 +202,7 @@ export function tableSchema(): Schema {
   kicker.num('radius', 1.7, 'The radius of the hole.').range(0.5, 20).withUnit('cm');
   kicker.num('captureSpeed', 220, 'A ball faster than this rolls over the hole.').range(10, 4000).withUnit('cm/s');
   kicker.num('hold', 1.2, 'Seconds it keeps the ball (rules may keep it longer: a lock).').range(0, 60).withUnit('seconds');
-  kicker.tuple('exit', [0, 0, 0], 'Where the ball comes out, counted from the hole: [0, 0, 0] is the hole itself, [0, 0, 6] the same place on a level 6 cm higher.').withUnit('cm');
+  kicker.tuple('exit', [0, 0, 0], 'Where the ball comes out, counted from the hole: [0, 0, 0] is the hole itself, [0, 0, 6] the same place on a level 6 cm higher.').withRole('offset').withUnit('cm');
   kicker.num('speed', 180, 'The speed it throws the ball at.').range(0, 4000).withUnit('cm/s');
   kicker.num('angle', 90, 'The direction it throws the ball in, in the top view.').range(-360, 360).withRole('direction').withUnit('degrees');
   kicker.num('elevation', 0, 'How steeply upwards it throws the ball, in degrees: 0 rolls it out, 45 throws it in an arc.').range(0, 90).withUnit('degrees');
@@ -215,7 +220,7 @@ export function tableSchema(): Schema {
   target.num('height', 2.4, 'How tall it is.').range(0.5, 20).withUnit('cm');
   target.num('thickness', 0.5, 'How thick it is.').range(0.1, 5).withUnit('cm');
   body(target, 'Plastic by default.', 'Its `glow` shows when it is lit.');
-  target.ref('light', 'lights', 'A light on the playfield that goes with it (rules light it by this name or by the target\'s).');
+  target.ref('light', 'lights', 'A light on the playfield that goes with it (rules light it by this name or by the target\'s); the target\'s `glow` also shows while it is lit.');
   target.obj('sounds', soundsOf('target', ['hit', 'reset'], ['When the ball hits it.', 'When it is raised again.']), 'Its sounds.');
 
   const rollover = new Schema('rollover', 'A switch in the playfield that a ball rolling over it closes: the line from a to b across a lane.');
@@ -252,7 +257,7 @@ export function tableSchema(): Schema {
 
   const floor = new Schema('floor', 'A level above the playfield: an upper playfield or a platform, whose outline is a closed path and whose top is at height z. Walls, flippers, targets and the rest stand on it by their own z.');
   element(floor, 'floor');
-  floor.rows('points', 2, 3, 3, 'The outline seen from above (closed by itself), as for a wall.').withRole('path').withUnit('cm');
+  floor.rows('points', 2, 3, 3, 'The outline seen from above (closed by itself), as for a wall.').withRole('area').withUnit('cm');
   floor.num('z', 5, 'The height of its top.').range(0.5, 100).withUnit('cm');
   floor.num('thickness', 0.4, 'How thick it is.').range(0.1, 10).withUnit('cm');
   body(floor, '', '');
@@ -268,6 +273,7 @@ export function tableSchema(): Schema {
   light.num('size', 1.1, 'Its radius, or half its length.').range(0.2, 20).withUnit('cm');
   light.num('angle', -90, 'Where an arrow points, or how a bar lies.').range(-360, 360).withRole('direction').withUnit('degrees');
   light.color('color', '#ffcc33', 'Its colour when on; off, it shows a dark shade of it.');
+  light.num('glow', 0, 'How far around it its light falls on the playfield when it is on: the radius of its pool of light, which shows the playfield\'s `textureLit`. 0: only the insert lights up. Two pools should not overlap.').range(0, 30).withUnit('cm');
 
   const model = new Schema('model', 'A modelled or decorative piece: a mesh file, or a simple solid.');
   element(model, 'model');
@@ -278,6 +284,7 @@ export function tableSchema(): Schema {
   model.tuple('scale', [1, 1, 1], 'Its size along x, y and z.');
   model.choice('collide', ['none', 'box', 'hull'], 'none: the ball goes through (decoration); box: it meets its bounding box; hull: its convex hull.');
   body(model, '', '');
+  model.obj('sounds', soundsOf('model', ['hit'], ['When the ball hits it (a model that collides); without a name, the ball\'s `knock`.']), 'Its sounds.');
 
   // ---------------------------------------------------------------- rules
   const condition = new Schema('condition', 'One thing that must hold for a rule to act.');
@@ -297,7 +304,7 @@ export function tableSchema(): Schema {
 
   const rule = new Schema('rule', 'When something happens, and some things hold, do some things. Rules are read in order; all that match act.');
   rule.ref('on', ANY, 'The element, or the group of elements, that the event comes from; "game" for the events of the game itself.').must();
-  rule.choice('event', EVENTS, 'hit: a bumper, slingshot, target or wall was hit; down: a drop target went down; roll: a rollover; spin: half a turn of a spinner; capture, eject: a kicker; enter, exit: a ramp; pass: a gate; flip: a flipper; launch: the plunger. From "game": start, ballStart, drain, ballSaved, tilt, missionDone, rankUp, multiballStart, multiballEnd, jackpot, extraBall, gameOver.').must();
+  rule.choice('event', EVENTS, 'hit: a bumper, slingshot, target, wall or model was hit; down: a drop target went down; roll: a rollover; spin: half a turn of a spinner; capture, eject: a kicker; enter, exit: a ramp; pass: a gate; flip: a flipper; launch: the plunger. From "game": start, ballStart, drain, ballSaved, tilt, missionDone, rankUp, multiballStart, multiballEnd, jackpot, extraBall, gameOver.').must();
   rule.list('if', condition, 'Every one must hold.');
   rule.list('do', action, 'What happens.');
 
@@ -367,6 +374,7 @@ export function tableSchema(): Schema {
   const panel = new Schema('panel', 'The score panel.');
   panel.tuple('box', [0, 0, 0, 0], 'Its background: [x, y, width, height] in the window; all zeros for none (items drawn over the table).').withUnit('px');
   panel.color('color', '#0a0e1c', 'The colour of its background.');
+  panel.asset('image', 'An image of the table folder drawn over the background, filling the box (the backglass); the part that does not fit the box is cut.');
   panel.list('items', item, 'What it shows.');
 
   const layout = new Schema('layout', 'One way to put the table and the panel in a window.');
@@ -387,6 +395,8 @@ export function tableSchema(): Schema {
   lighting.color('background', '#05060c', 'What is seen around the table.');
   lighting.color('ambient', '#5a5f70', 'The light that reaches everything.');
   lighting.list('lamps', lamp, 'Up to 4 lamps.');
+  lighting.ref('general', 'lights|light groups', 'The lights that are the general illumination of the table: the lamps and the ambient light shine in full while they are lit, and fall to `dimmed` while they are off (a tilt, a game that is over). None: the scene is always fully lit.');
+  lighting.num('dimmed', 0.35, 'How much of the light of the scene is left when the general illumination is off, 0 (dark) to 1.').range(0, 1);
 
   // ---------------------------------------------------------------- the file
   const table = new Schema('table', 'A table file.');

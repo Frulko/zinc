@@ -28,6 +28,15 @@ rules, and the four pieces of music) is computed sample by sample by `tools/tida
 filters and envelopes written in the script, and music composed in it. No sample and no melody is taken from anywhere.
 They are part of this repository and under its terms.
 
+## Images and models
+
+Every file of `art/` is drawn or built by `tools/tidal_lock_art.py`: the painting of the playfield and its lit twin, the
+upper playfield, the ramp, the bumper caps, the flippers, the ball, the gas giant, the apron, the backboard, the plates
+of the slingshots, the two backglass pictures, the palette, and the modelled pieces (`station.obj`, `tug.obj`, the two
+`plastic-*.obj`). Nothing is fetched, traced or copied: shapes, colours and legends are in the script. They are part of
+this repository and under its terms. The legends are set in Inter (`lib/fonts`, SIL Open Font License 1.1), whose
+licence allows it in pictures without condition.
+
 ## Tools
 
 The files are encoded as MP3 by ffmpeg with LAME (the MP3 patents have expired); the game decodes them with miniaudio

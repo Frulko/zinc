@@ -36,9 +36,11 @@ taken from the table "Tidal Lock"; a test keeps it current. Format `"zinc-pinbal
   any element by the roles of its fields, without knowing their names.
   *point*: a place of the top view, [x, y]; with a third number, its height z above the playfield.
   *path*: a line of the top view: rows [x, y], or [x, y, bulge] when the stretch to the next point is an arc.
+  *area*: an outline of the top view, written as a path whose last point joins the first by itself: what it encloses is the thing.
   *direction*: an angle of the top view: 0 points right, 90 down the table.
   *profile*: a height along a path: rows [fraction of the length, height].
   *rotation*: a turn in space, [around x, around y, around z]; the third number turns the thing in the top view, as a direction does.
+  *offset*: a step counted from the element's own place, [dx, dy] or [dx, dy, dz]: it turns and mirrors with its element, and does not move when the element moves.
 
 ## table
 
@@ -191,10 +193,11 @@ A material as the eye sees it. Elements name one in their `look`.
 | `specular` | colour | `"#000000"` | The colour of the highlights (metal, glass); black for none. |
 | `shininess` | number | `30` (1 to 1000) | How tight the highlights are: 5 is satin, 200 is chrome. |
 | `glow` | colour | `"#000000"` | The colour the element takes when it is lit (a bumper that fires, a target that is the next step of a mission); black: it does not light. |
-| `texture` | file | none | An image of the table folder mapped on the element (PNG or JPEG). |
+| `texture` | file | none | An image of the table folder (PNG or JPEG) laid flat over the element as the top view shows it: its corners at the corners of the box around the element (the painting of a playfield, of a floor, of a bumper's cap). A model keeps the mapping of its mesh. |
+| `textureLit` | file | none | The same image with the lights of the table lit: it shows in the pool of light around each light that is on (a light's `glow`). For the look of the playfield. |
 
 ```json
-{ "id": "board", "color": "#16224a" }
+{ "id": "board", "color": "#c4c8d6", "texture": "art/playfield.jpg", "textureLit": "art/playfield-lit.jpg" }
 ```
 
 ## sound
@@ -390,10 +393,20 @@ A pop bumper: a round post that kicks the ball away when it is touched.
 | `surface` | name of surfaces | none | What the ball feels: friction and bounce.  |
 | `look` | name of looks | none | What it looks like. The body; its `glow` shows when it fires. |
 | `cap` | name of looks | none | The look of its cap. |
+| `light` | name of lights | none | A light that lights its body: its look's `glow` also shows while that light is lit. |
 | `sounds` | [bumper sounds](#bumper-sounds) |  | Its sounds. |
 
 ```json
-{ "id": "pop1", "group": "pops", "at": [17.5, 31], "surface": "rubber", "look": "pop", "cap": "popCap", "sounds": { "hit": "bumper" } }
+{
+  "id": "pop1",
+  "group": "pops",
+  "at": [17.5, 31],
+  "surface": "rubber",
+  "look": "pop",
+  "cap": "popCap",
+  "light": "popsLight",
+  "sounds": { "hit": "bumper" }
+}
 ```
 
 ## bumper sounds
@@ -425,6 +438,7 @@ A slingshot: a rubber band stretched from a to b that kicks the ball away, to th
 | `threshold` | number, cm/s | `25` (0 to 1000) | The ball must arrive at least this fast to set it off. |
 | `surface` | name of surfaces | none | What the ball feels: friction and bounce. Rubber by default. |
 | `look` | name of looks | none | What it looks like. Its `glow` shows when it fires. |
+| `light` | name of lights | none | A light that lights it: its look's `glow` also shows while that light is lit. |
 | `sounds` | [slingshot sounds](#slingshot-sounds) |  | Its sounds. |
 
 ```json
@@ -456,7 +470,7 @@ A hole that catches the ball, holds it, then throws it out: a saucer (same place
 | `radius` | number, cm | `1.7` (0.5 to 20) | The radius of the hole. |
 | `captureSpeed` | number, cm/s | `220` (10 to 4000) | A ball faster than this rolls over the hole. |
 | `hold` | number, seconds | `1.2` (0 to 60) | Seconds it keeps the ball (rules may keep it longer: a lock). |
-| `exit` | 3 numbers, cm | `[0, 0, 0]` | Where the ball comes out, counted from the hole: [0, 0, 0] is the hole itself, [0, 0, 6] the same place on a level 6 cm higher. |
+| `exit` | 3 numbers, cm (*offset*) | `[0, 0, 0]` | Where the ball comes out, counted from the hole: [0, 0, 0] is the hole itself, [0, 0, 6] the same place on a level 6 cm higher. |
 | `speed` | number, cm/s | `180` (0 to 4000) | The speed it throws the ball at. |
 | `angle` | number, degrees (*direction*) | `90` (-360 to 360) | The direction it throws the ball in, in the top view. |
 | `elevation` | number, degrees | `0` (0 to 90) | How steeply upwards it throws the ball, in degrees: 0 rolls it out, 45 throws it in an arc. |
@@ -470,9 +484,8 @@ A hole that catches the ball, holds it, then throws it out: a saucer (same place
   "at": [40.5, 24.5],
   "captureSpeed": 230,
   "hold": 1,
-  "speed": 210,
-  "angle": 150,
-  "elevation": 32,
+  "exit": [-2.4, -18.3, 5.5],
+  "speed": 40,
   "look": "dock",
   "light": "dockLight",
   "sounds": { "capture": "dockClamp", "eject": "dockThrow" }
@@ -509,7 +522,7 @@ A target: a small plate the ball hits. A standup stays; a drop target goes down 
 | `thickness` | number, cm | `0.5` (0.1 to 5) | How thick it is. |
 | `surface` | name of surfaces | none | What the ball feels: friction and bounce. Plastic by default. |
 | `look` | name of looks | none | What it looks like. Its `glow` shows when it is lit. |
-| `light` | name of lights | none | A light on the playfield that goes with it (rules light it by this name or by the target's). |
+| `light` | name of lights | none | A light on the playfield that goes with it (rules light it by this name or by the target's); the target's `glow` also shows while it is lit. |
 | `sounds` | [target sounds](#target-sounds) |  | Its sounds. |
 
 ```json
@@ -654,14 +667,14 @@ A level above the playfield: an upper playfield or a platform, whose outline is 
 |---|---|---|---|
 | `id` | text | required | The name of the floor: rules, the editor and the event log use it. Unique among all the elements of the table. |
 | `group` | text | `""` | A name shared by several elements, so that one rule speaks of all of them ("pops", "lanes"). |
-| `points` | rows of 2 or 3 numbers, cm (*path*) | required | The outline seen from above (closed by itself), as for a wall. |
+| `points` | rows of 2 or 3 numbers, cm (*area*) | required | The outline seen from above (closed by itself), as for a wall. |
 | `z` | number, cm | `5` (0.5 to 100) | The height of its top. |
 | `thickness` | number, cm | `0.4` (0.1 to 10) | How thick it is. |
 | `surface` | name of surfaces | none | What the ball feels: friction and bounce.  |
 | `look` | name of looks | none | What it looks like.  |
 
 ```json
-{ "id": "deck", "points": [[4, 8], [18, 8], [18, 24], [4, 24]], "z": 5.5, "surface": "wood", "look": "board" }
+{ "id": "deck", "points": [[36, 3.2], [50.2, 3.2], [50.2, 24], [36, 24]], "z": 5.5, "surface": "wood", "look": "deckBoard" }
 ```
 
 ## light
@@ -678,9 +691,10 @@ A lamp under the playfield or on an element, that the rules turn on, off or blin
 | `size` | number, cm | `1.1` (0.2 to 20) | Its radius, or half its length. |
 | `angle` | number, degrees (*direction*) | `-90` (-360 to 360) | Where an arrow points, or how a bar lies. |
 | `color` | colour | `"#ffcc33"` | Its colour when on; off, it shows a dark shade of it. |
+| `glow` | number, cm | `0` (0 to 30) | How far around it its light falls on the playfield when it is on: the radius of its pool of light, which shows the playfield's `textureLit`. 0: only the insert lights up. Two pools should not overlap. |
 
 ```json
-{ "id": "laneLight1", "group": "lanes", "at": [19.25, 22.2], "color": "#66f0ff" }
+{ "id": "laneLight1", "group": "lanes", "at": [19.25, 22.2], "color": "#66f0ff", "glow": 2.2 }
 ```
 
 ## model
@@ -699,9 +713,22 @@ A modelled or decorative piece: a mesh file, or a simple solid.
 | `collide` | `"none"` `"box"` `"hull"` | `"none"` | none: the ball goes through (decoration); box: it meets its bounding box; hull: its convex hull. |
 | `surface` | name of surfaces | none | What the ball feels: friction and bounce.  |
 | `look` | name of looks | none | What it looks like.  |
+| `sounds` | [model sounds](#model-sounds) |  | Its sounds. |
 
 ```json
 { "id": "giant", "shape": "sphere", "at": [5.2, 5.6, 0], "scale": [8.6, 8.6, 5], "look": "giant" }
+```
+
+## model sounds
+
+The sound of each event of a model (names of `sounds`); an event without a name is silent.
+
+| field | type | default | |
+|---|---|---|---|
+| `hit` | name of sounds | none | When the ball hits it (a model that collides); without a name, the ball's `knock`. |
+
+```json
+"sounds": { "hit": "steel" }
 ```
 
 ## rules
@@ -865,7 +892,30 @@ How the table is played and scored. Everything here is data: the game has no rul
       "if": [{ "test": "counter", "target": "served", "value": 1 }],
       "do": [{ "do": "sound", "target": "jingleBall" }]
     },
-    { "on": "game", "event": "ballStart", "do": [{ "do": "count", "target": "served", "value": 1 }] }
+    { "on": "game", "event": "ballStart", "do": [{ "do": "count", "target": "served", "value": 1 }] },
+    { "on": "game", "event": "start", "do": [{ "do": "light", "target": "gi", "mode": "on" }] },
+    { "on": "game", "event": "ballStart", "do": [{ "do": "light", "target": "gi", "mode": "on" }] },
+    { "on": "game", "event": "tilt", "do": [{ "do": "light", "target": "gi", "mode": "off" }] },
+    { "on": "game", "event": "gameOver", "do": [{ "do": "light", "target": "gi", "mode": "off" }] },
+    {
+      "on": "beacons",
+      "event": "hit",
+      "if": [{ "test": "lights", "target": "self", "is": "off" }],
+      "do": [{ "do": "light", "target": "self", "mode": "on" }, { "do": "score", "value": 2500 }]
+    },
+    { "on": "beacons", "event": "hit", "do": [{ "do": "score", "value": 500 }, { "do": "bonus", "value": 250 }] },
+    {
+      "on": "beacons",
+      "event": "hit",
+      "if": [{ "test": "lights", "target": "beaconLights", "is": "on" }],
+      "do": [
+        { "do": "score", "value": 15000 },
+        { "do": "light", "target": "beaconLights", "mode": "off" },
+        { "do": "multiplier", "value": 1 },
+        { "do": "say", "target": "BEACONS LIT: BONUS UP" }
+      ]
+    },
+    { "on": "tower", "event": "hit", "do": [{ "do": "score", "value": 750 }] }
   ],
   "highScores": [
     { "name": "TID", "score": 400000 },
@@ -949,7 +999,7 @@ When something happens, and some things hold, do some things. Rules are read in 
 | field | type | default | |
 |---|---|---|---|
 | `on` | name of elements / groups / game | required | The element, or the group of elements, that the event comes from; "game" for the events of the game itself. |
-| `event` | `"hit"` `"down"` `"roll"` `"spin"` `"capture"` `"eject"` `"enter"` `"exit"` `"pass"` `"flip"` `"launch"` `"start"` `"ballStart"` `"drain"` `"ballSaved"` `"tilt"` `"missionDone"` `"rankUp"` `"multiballStart"` `"multiballEnd"` `"jackpot"` `"extraBall"` `"gameOver"` | required | hit: a bumper, slingshot, target or wall was hit; down: a drop target went down; roll: a rollover; spin: half a turn of a spinner; capture, eject: a kicker; enter, exit: a ramp; pass: a gate; flip: a flipper; launch: the plunger. From "game": start, ballStart, drain, ballSaved, tilt, missionDone, rankUp, multiballStart, multiballEnd, jackpot, extraBall, gameOver. |
+| `event` | `"hit"` `"down"` `"roll"` `"spin"` `"capture"` `"eject"` `"enter"` `"exit"` `"pass"` `"flip"` `"launch"` `"start"` `"ballStart"` `"drain"` `"ballSaved"` `"tilt"` `"missionDone"` `"rankUp"` `"multiballStart"` `"multiballEnd"` `"jackpot"` `"extraBall"` `"gameOver"` | required | hit: a bumper, slingshot, target, wall or model was hit; down: a drop target went down; roll: a rollover; spin: half a turn of a spinner; capture, eject: a kicker; enter, exit: a ramp; pass: a gate; flip: a flipper; launch: the plunger. From "game": start, ballStart, drain, ballSaved, tilt, missionDone, rankUp, multiballStart, multiballEnd, jackpot, extraBall, gameOver. |
 | `if` | list of [condition](#condition) |  | Every one must hold. |
 | `do` | list of [action](#action) |  | What happens. |
 
@@ -1010,12 +1060,16 @@ The light of the scene.
 | `background` | colour | `"#05060c"` | What is seen around the table. |
 | `ambient` | colour | `"#5a5f70"` | The light that reaches everything. |
 | `lamps` | list of [lamp](#lamp) |  | Up to 4 lamps. |
+| `general` | name of lights / light groups | none | The lights that are the general illumination of the table: the lamps and the ambient light shine in full while they are lit, and fall to `dimmed` while they are off (a tilt, a game that is over). None: the scene is always fully lit. |
+| `dimmed` | number | `0.35` (0 to 1) | How much of the light of the scene is left when the general illumination is off, 0 (dark) to 1. |
 
 ```json
 "lighting": {
   "background": "#04050b",
-  "ambient": "#565c72",
-  "lamps": [{ "direction": [0.2, 0.35, -1], "color": "#d8dcf0" }, { "direction": [-0.6, -0.3, -0.5], "color": "#2a3c66" }]
+  "ambient": "#4a5068",
+  "lamps": [{ "direction": [0.2, 0.35, -1], "color": "#b8bcd0" }, { "direction": [-0.6, -0.3, -0.5], "color": "#2a3c66" }],
+  "general": "gi",
+  "dimmed": 0.3
 }
 ```
 
@@ -1029,7 +1083,7 @@ A light that shines on the whole table from far away.
 | `color` | colour | `"#ffffff"` | Its colour. |
 
 ```json
-{ "direction": [0.2, 0.35, -1], "color": "#d8dcf0" }
+{ "direction": [0.2, 0.35, -1], "color": "#b8bcd0" }
 ```
 
 ## layouts
@@ -1045,9 +1099,10 @@ The two layouts. The game takes portrait when its window is taller than wide, la
 "layouts": {
   "landscape": {
     "view": [0, 0, 600, 800],
-    "camera": { "position": [25.5, 186, 172], "target": [25.5, 57.5, 0], "fov": 26.5 },
+    "camera": { "position": [25.5, 190, 176], "target": [25.5, 57, 0] },
     "panel": {
       "box": [600, 0, 680, 800],
+      "image": "art/backglass.jpg",
       "items": [
         { "show": "title", "box": [640, 40, 600, 60], "size": 44, "color": "#7fd8ff" },
         { "show": "score", "box": [640, 150, 600, 90], "size": 72, "label": "SCORE" },
@@ -1065,9 +1120,10 @@ The two layouts. The game takes portrait when its window is taller than wide, la
   "portrait": {
     "window": [800, 1280],
     "view": [0, 200, 800, 1080],
-    "camera": { "position": [25.5, 176, 190], "target": [25.5, 57, 0], "fov": 25.5 },
+    "camera": { "position": [25.5, 180, 194], "target": [25.5, 56, 0], "fov": 27 },
     "panel": {
       "box": [0, 0, 800, 200],
+      "image": "art/backglass-wide.jpg",
       "items": [
         { "show": "title", "box": [20, 12, 380, 40], "size": 30, "color": "#7fd8ff" },
         { "show": "score", "box": [400, 8, 380, 70], "size": 56, "align": "right" },
@@ -1097,9 +1153,10 @@ One way to put the table and the panel in a window.
 ```json
 "landscape": {
   "view": [0, 0, 600, 800],
-  "camera": { "position": [25.5, 186, 172], "target": [25.5, 57.5, 0], "fov": 26.5 },
+  "camera": { "position": [25.5, 190, 176], "target": [25.5, 57, 0] },
   "panel": {
     "box": [600, 0, 680, 800],
+    "image": "art/backglass.jpg",
     "items": [
       { "show": "title", "box": [640, 40, 600, 60], "size": 44, "color": "#7fd8ff" },
       { "show": "score", "box": [640, 150, 600, 90], "size": 72, "label": "SCORE" },
@@ -1127,7 +1184,7 @@ The fixed eye that looks at the table, in table coordinates.
 | `fov` | number, degrees | `28` (5 to 120) | The vertical field of view, in degrees. |
 
 ```json
-"camera": { "position": [25.5, 186, 172], "target": [25.5, 57.5, 0], "fov": 26.5 }
+"camera": { "position": [25.5, 190, 176], "target": [25.5, 57, 0] }
 ```
 
 ## panel
@@ -1138,11 +1195,13 @@ The score panel.
 |---|---|---|---|
 | `box` | 4 numbers, px | `[0, 0, 0, 0]` | Its background: [x, y, width, height] in the window; all zeros for none (items drawn over the table). |
 | `color` | colour | `"#0a0e1c"` | The colour of its background. |
+| `image` | file | none | An image of the table folder drawn over the background, filling the box (the backglass); the part that does not fit the box is cut. |
 | `items` | list of [panel item](#panel-item) |  | What it shows. |
 
 ```json
 "panel": {
   "box": [600, 0, 680, 800],
+  "image": "art/backglass.jpg",
   "items": [
     { "show": "title", "box": [640, 40, 600, 60], "size": 44, "color": "#7fd8ff" },
     { "show": "score", "box": [640, 150, 600, 90], "size": 72, "label": "SCORE" },

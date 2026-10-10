@@ -1,10 +1,11 @@
 // The score panel: the items the layout of the table names, each in its box, drawn with zinc:gfx over or beside the 3D
 // view. What an item shows comes from the game; where, how big and in what colour comes from the table.
-import { rect, font, drawText, textWidth } from 'zinc:gfx';
+import { rect, font, drawText, textWidth, imageWidth, imageHeight, drawImageRect } from 'zinc:gfx';
 import { PanelItemDef } from './format/table';
 import { Game, Phase } from './game';
 import { View } from './view';
 import { rgb } from './scene';
+import { tableImage } from './images';
 
 // The sizes text is drawn in. A size is baked into the program only when the program names it (zinc bakes fonts from
 // the source), so a table's sizes are rounded to the nearest of these.
@@ -45,11 +46,23 @@ function label(v: View, item: PanelItemDef): void {
   drawText(FONTS[k], Math.round(x), v.y(item.box) - Math.round(SIZES[k] * 1.3), item.label, 0x7080a0, 255, 1);
 }
 
+/** The backglass: the panel's image fills the box, keeping its proportions; what does not fit is cut, centred. */
+function backglass(v: View, g: Game, file: string, box: number[]): void {
+  const im = tableImage(g.table.source, file);
+  if (im < 0) return;
+  const iw = imageWidth(im), ih = imageHeight(im), bw = v.w(box), bh = v.h(box);
+  const k = Math.max(bw / iw, bh / ih), sw = bw / k, sh = bh / k;
+  drawImageRect(im, (iw - sw) / 2, (ih - sh) / 2, sw, sh, v.x(box), v.y(box), bw, bh);
+}
+
 /** Draws the panel of the view's layout for the state of the game. `hint`: the line that says how to play. */
 export function drawPanel(v: View, g: Game, hint: string): void {
   const p = v.layout.panel, rules = g.rules, t = g.table.def;
   fonts();
-  if (p.box[2] > 0 && p.box[3] > 0) rect(v.x(p.box), v.y(p.box), v.w(p.box), v.h(p.box), rgb(p.color));
+  if (p.box[2] > 0 && p.box[3] > 0) {
+    rect(v.x(p.box), v.y(p.box), v.w(p.box), v.h(p.box), rgb(p.color));
+    if (p.image !== '') backglass(v, g, p.image, p.box);
+  }
   const play = g.phase === Phase.Play, step = rules.currentStep();
   for (const item of p.items) {
     // what the item says now; an item with nothing to say shows nothing, not even its caption

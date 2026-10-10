@@ -29,7 +29,7 @@ case('reference', lambda t: set_at(t, ['walls', 2, 'surface'], 'rubberr'), 'wall
 case('missing', lambda t: t.pop('plunger'), 'plunger: is missing')
 case('version', lambda t: set_at(t, ['version'], 2), 'version: this game reads tables up to version 1, the file is version 2')
 case('profile', lambda t: set_at(t, ['ramps', 0, 'profile'], [[0, 0], [0.4, 5], [0.9, 5]]), 'ramps[0].profile[2]: the last row must end at 1 (the end of the path), not 0.9')
-case('rule', lambda t: set_at(t, ['rules', 'when', 5, 'do', 0, 'target'], 'lanez'), 'rules.when[5].do[0].target: "lanez" is not one of the light groups (lanes, arrows, locks, ranks)')
+case('rule', lambda t: set_at(t, ['rules', 'when', 5, 'do', 0, 'target'], 'lanez'), 'rules.when[5].do[0].target: "lanez" is not one of the light groups (lanes, arrows, locks, ranks, gi, beaconLights)')
 case('twice', lambda t: set_at(t, ['targets', 1, 'id'], 'drop1'), 'targets[1].id: "drop1" is used twice')
 case('colour', lambda t: set_at(t, ['looks', 3, 'color'], 'red'), 'looks[3].color: must be a colour like "#40c8ff", not "red"')
 case('event', lambda t: set_at(t, ['rules', 'missions', 2, 'steps', 1, 'event'], 'captured'), 'rules.missions[2].steps[1].event: must be one of hit, down, roll, spin, capture, eject,')

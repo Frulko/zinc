@@ -8,7 +8,7 @@ import { tableSchema, VERSION } from './table-schema';
 import { TableSource } from './source';
 
 export interface SurfaceDef { id: string; friction: number; restitution: number }
-export interface LookDef { id: string; color: string; shading: string; specular: string; shininess: number; glow: string; texture: string }
+export interface LookDef { id: string; color: string; shading: string; specular: string; shininess: number; glow: string; texture: string; textureLit: string }
 export interface SoundDef { id: string; file: string; wave: string; hz: number; seconds: number; volume: number; volumeVariation: number; pitch: number; pitchVariation: number; loop: boolean }
 export interface MusicDef { attract: string; play: string; multiball: string; gameOver: string }
 export interface PlayfieldDef { width: number; length: number; slope: number; glass: number; surface: string; look: string }
@@ -26,8 +26,8 @@ export interface FlipperDef {
 }
 export interface PlungerSounds { pull: string; release: string }
 export interface PlungerDef { at: number[]; z: number; angle: number; travel: number; pullTime: number; speed: number; width: number; height: number; surface: string; look: string; sounds: PlungerSounds }
-export interface BumperDef { id: string; group: string; at: number[]; z: number; radius: number; height: number; kick: number; threshold: number; surface: string; look: string; cap: string; sounds: HitSounds }
-export interface SlingshotDef { id: string; group: string; a: number[]; b: number[]; z: number; height: number; thickness: number; kick: number; threshold: number; surface: string; look: string; sounds: HitSounds }
+export interface BumperDef { id: string; group: string; at: number[]; z: number; radius: number; height: number; kick: number; threshold: number; surface: string; look: string; cap: string; light: string; sounds: HitSounds }
+export interface SlingshotDef { id: string; group: string; a: number[]; b: number[]; z: number; height: number; thickness: number; kick: number; threshold: number; surface: string; look: string; light: string; sounds: HitSounds }
 export interface KickerSounds { capture: string; eject: string }
 export interface KickerDef {
   id: string; group: string; at: number[]; z: number; radius: number; captureSpeed: number; hold: number; exit: number[];
@@ -42,8 +42,8 @@ export interface SpinnerDef { id: string; group: string; a: number[]; b: number[
 export interface RampSounds { enter: string; exit: string }
 export interface RampDef { id: string; group: string; points: number[][]; profile: number[][]; width: number; wall: number; thickness: number; style: string; skirt: boolean; surface: string; look: string; sounds: RampSounds }
 export interface FloorDef { id: string; group: string; points: number[][]; z: number; thickness: number; surface: string; look: string }
-export interface LightDef { id: string; group: string; at: number[]; z: number; shape: string; size: number; angle: number; color: string }
-export interface ModelDef { id: string; group: string; mesh: string; shape: string; at: number[]; rotation: number[]; scale: number[]; collide: string; surface: string; look: string }
+export interface LightDef { id: string; group: string; at: number[]; z: number; shape: string; size: number; angle: number; color: string; glow: number }
+export interface ModelDef { id: string; group: string; mesh: string; shape: string; at: number[]; rotation: number[]; scale: number[]; collide: string; surface: string; look: string; sounds: HitSounds }
 export interface ConditionDef { test: string; target: string; is: string; value: number }
 export interface ActionDef { do: string; target: string; value: number; mode: string; seconds: number }
 export interface RuleDef { on: string; event: string; if: ConditionDef[]; do: ActionDef[] }
@@ -58,11 +58,11 @@ export interface RulesDef {
 }
 export interface CameraDef { position: number[]; target: number[]; fov: number }
 export interface PanelItemDef { show: string; box: number[]; size: number; color: string; align: string; label: string }
-export interface PanelDef { box: number[]; color: string; items: PanelItemDef[] }
+export interface PanelDef { box: number[]; color: string; image: string; items: PanelItemDef[] }
 export interface LayoutDef { window: number[]; view: number[]; camera: CameraDef; panel: PanelDef }
 export interface LayoutsDef { landscape: LayoutDef; portrait: LayoutDef }
 export interface LampDef { direction: number[]; color: string }
-export interface LightingDef { background: string; ambient: string; lamps: LampDef[] }
+export interface LightingDef { background: string; ambient: string; lamps: LampDef[]; general: string; dimmed: number }
 export interface CreditDef { files: string[]; author: string; source: string; licence: string }
 export interface TableDef {
   format: string; version: i32; name: string; author: string; description: string; credits: CreditDef[];
@@ -112,7 +112,8 @@ export function formatSchema(): Schema {
 export function filesOf(t: TableDef): string[] {
   const out: string[] = [];
   const add = (f: string): void => { if (f !== '' && out.indexOf(f) < 0) out.push(f); };
-  for (const l of t.looks) add(l.texture);
+  for (const l of t.looks) { add(l.texture); add(l.textureLit); }
+  add(t.layouts.landscape.panel.image); add(t.layouts.portrait.panel.image);
   for (const s of t.sounds) add(s.file);
   for (const m of t.models) add(m.mesh);
   return out;

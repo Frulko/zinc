@@ -113,9 +113,11 @@ export class Game {
   private kickerSrc: Source[] = [];
   private rampSrc: Source[] = [];
   private gateSrc: Source[] = [];
+  private modelSrc: Source[] = [];
   private plungerSrc: Source = new Source('plunger', '', -1);
-  /** The walls some rule or mission listens to: only those report their hits. */
+  /** The walls, and the models, some rule or mission listens to: only those report their hits. */
   private wallHeard: boolean[] = [];
+  private modelHeard: boolean[] = [];
   // lines
   private rolloverLine: Line[] = [];
   private spinnerLine: Line[] = [];
@@ -133,6 +135,12 @@ export class Game {
   private targetGlow: number[] = [];
   /** Per target: when to raise it again (a drop target the rules reset), -1 for none. */
   private raiseAt: number[] = [];
+  // what show() needs of the lights: the light of each bumper and slingshot (-1: none), which lights are the general
+  // illumination, and whether each light shone at the last show()
+  private bumperLight: i32[] = [];
+  private slingLight: i32[] = [];
+  private generalLight: boolean[] = [];
+  private lightLit: boolean[] = [];
 
   constructor(table: Table) {
     this.table = table;
@@ -146,8 +154,9 @@ export class Game {
     const light = (id: string): i32 => id === '' ? -1 : this.rules.lightIndex(id);
     for (const e of t.walls) { this.wallSrc.push(new Source(e.id, e.group, -1)); this.wallHeard.push(this.heard(e.id, e.group)); this.wallAt.push(-1); }
     for (const e of t.flippers) { this.flipperSrc.push(new Source(e.id, e.group, -1)); this.flipped.push(false); }
-    for (const e of t.bumpers) { this.bumperSrc.push(new Source(e.id, e.group, -1)); this.bumperGlow.push(0); }
-    for (const e of t.slingshots) { this.slingSrc.push(new Source(e.id, e.group, -1)); this.slingGlow.push(0); }
+    for (const e of t.bumpers) { this.bumperSrc.push(new Source(e.id, e.group, -1)); this.bumperGlow.push(0); this.bumperLight.push(light(e.light)); }
+    for (const e of t.slingshots) { this.slingSrc.push(new Source(e.id, e.group, -1)); this.slingGlow.push(0); this.slingLight.push(light(e.light)); }
+    for (const l of t.lights) { this.generalLight.push(t.lighting.general !== '' && (l.id === t.lighting.general || l.group === t.lighting.general)); this.lightLit.push(false); }
     for (const e of t.targets) { this.targetSrc.push(new Source(e.id, e.group, light(e.light))); this.targetGlow.push(0); this.raiseAt.push(-1); }
     for (const e of t.rollovers) { this.rolloverSrc.push(new Source(e.id, e.group, light(e.light))); this.rolloverLine.push(new Line(e.a[0], e.a[1], e.b[0], e.b[1], e.z, r * 1.5)); }
     for (const e of t.spinners) {
@@ -156,6 +165,7 @@ export class Game {
       this.spin.push(0); this.spinSpeed.push(0);
     }
     for (const e of t.kickers) { this.kickerSrc.push(new Source(e.id, e.group, light(e.light))); this.held.push(0); this.ejectAt.push(0); this.kickerRest.push(0); }
+    for (const e of t.models) { this.modelSrc.push(new Source(e.id, e.group, -1)); this.modelHeard.push(this.heard(e.id, e.group)); }
     for (const e of t.gates) { this.gateSrc.push(new Source(e.id, e.group, -1)); this.gateLine.push(new Line(e.a[0], e.a[1], e.b[0], e.b[1], e.z, e.height)); }
     for (const e of t.ramps) {
       this.rampSrc.push(new Source(e.id, e.group, -1));
@@ -479,7 +489,14 @@ export class Game {
       const s = t.physics.ball.sounds;
       if (part === Part.Ball) this.cue('ball hit', s.hit, this.knock(speed), ball.x);
       else if (part === Part.Board || part === Part.Floor) { if (speed > 60) this.cue('ball land', s.land, this.knock(speed), ball.x); }   // rolling on is no landing
-      else if (speed > 30 && rules.now - this.knockAt >= RATTLE) { this.knockAt = rules.now; this.cue('ball knock', s.knock, this.knock(speed), ball.x); }
+      else if (speed > 30 && rules.now - this.knockAt >= RATTLE) {
+        this.knockAt = rules.now;
+        // a modelled piece that collides is an element like another: rules hear its hits, and it may name its sound
+        const own = part === Part.Model ? t.models[i].sounds.hit : '';
+        if (part === Part.Model && this.modelHeard[i]) rules.emit(this.modelSrc[i], 'hit');
+        if (own !== '') this.cue(`${t.models[i].id} hit`, own, this.knock(speed), ball.x);
+        else this.cue('ball knock', s.knock, this.knock(speed), ball.x);
+      }
     }
   }
 
@@ -552,12 +569,22 @@ export class Game {
     }
     for (let i = 0; i < t.flippers.length; i++) scene.setFlipper(i, ph.flipperAngle[i]);
     scene.setPlunger(ph.plungerPull);
-    for (let i = 0; i < t.targets.length; i++) scene.setTarget(i, !rules.targetDown[i] && this.raiseAt[i] < 0, play && rules.now < this.targetGlow[i]);
-    for (let i = 0; i < t.bumpers.length; i++) scene.setBumper(i, play && rules.now < this.bumperGlow[i]);
-    for (let i = 0; i < t.slingshots.length; i++) scene.setSlingshot(i, play && rules.now < this.slingGlow[i]);
+    // waiting for a player, the lights run in a chase under the general illumination; a game that is over leaves them as they were
+    const chase: i32 = Math.floor(this.clock * 6), attract = this.phase === Phase.Attract;
+    let general = 0, generals = 0;
+    for (let i = 0; i < t.lights.length; i++) {
+      const isGeneral = this.generalLight[i];
+      const on = attract ? (isGeneral || (i + chase) % 5 === 0) : rules.lit(i);
+      this.lightLit[i] = on;
+      scene.setLight(i, on);
+      if (isGeneral) { generals++; if (on) general++; }
+    }
+    scene.setGeneral(generals === 0 ? 1 : general / generals);
+    // an element glows when it is hit, and while the light the table gives it is lit
+    const lit = (light: i32): boolean => light >= 0 && this.lightLit[light];
+    for (let i = 0; i < t.targets.length; i++) scene.setTarget(i, !rules.targetDown[i] && this.raiseAt[i] < 0, (play && rules.now < this.targetGlow[i]) || lit(this.targetSrc[i].light));
+    for (let i = 0; i < t.bumpers.length; i++) scene.setBumper(i, (play && rules.now < this.bumperGlow[i]) || lit(this.bumperLight[i]));
+    for (let i = 0; i < t.slingshots.length; i++) scene.setSlingshot(i, (play && rules.now < this.slingGlow[i]) || lit(this.slingLight[i]));
     for (let i = 0; i < t.spinners.length; i++) scene.setSpinner(i, this.spin[i]);
-    // waiting for a player, the lights run in a chase
-    const chase: i32 = Math.floor(this.clock * 6);
-    for (let i = 0; i < t.lights.length; i++) scene.setLight(i, play ? rules.lit(i) : (i + chase) % 5 === 0);
   }
 }

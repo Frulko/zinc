@@ -127,12 +127,36 @@ export class Solid {
   pos: number[] = [];
   nrm: number[] = [];
   idx: i32[] = [];
+  /** Where each vertex is in the image of a look: u, v pairs, (0, 0) the image's top left corner. */
+  uv: number[] = [];
 
   /** A vertex at table (x, y, z) with table normal (nx, ny, nz). */
   vertex(x: number, y: number, z: number, nx: number, ny: number, nz: number): i32 {
     this.pos.push(x); this.pos.push(z); this.pos.push(y);
     this.nrm.push(nx); this.nrm.push(nz); this.nrm.push(ny);
+    this.uv.push(0); this.uv.push(0);
     return this.pos.length / 3 - 1;
+  }
+  count(): i32 { return this.pos.length / 3; }
+  /** Lays an image flat over the vertices from `from` on, as the top view shows them: its top left corner at the top
+   *  left of the box around them, its bottom right corner at the bottom right. The image of a playfield, of a floor,
+   *  of a bumper's cap. */
+  drape(from: i32): void {
+    const p = this.pos, n = this.count();
+    let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+    for (let i = from; i < n; i++) {
+      x0 = Math.min(x0, p[i * 3]); x1 = Math.max(x1, p[i * 3]);
+      y0 = Math.min(y0, p[i * 3 + 2]); y1 = Math.max(y1, p[i * 3 + 2]);
+    }
+    this.drapeBox(from, x0, y0, x1 - x0, y1 - y0);
+  }
+  /** The same over a box of the top view given: the vertices from `from` on take the place in the image they have in the box. */
+  drapeBox(from: i32, x: number, y: number, w: number, h: number): void {
+    const p = this.pos, n = this.count();
+    for (let i = from; i < n; i++) {
+      this.uv[i * 2] = w > 0 ? (p[i * 3] - x) / w : 0;
+      this.uv[i * 2 + 1] = h > 0 ? (p[i * 3 + 2] - y) / h : 0;
+    }
   }
   /** A triangle, turned so that its front is on the side its vertices' normals point to. */
   triangle(a: i32, b: i32, c: i32): void {

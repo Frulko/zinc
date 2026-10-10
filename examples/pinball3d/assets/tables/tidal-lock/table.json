@@ -75,6 +75,31 @@
       "author": "the Zinc project",
       "source": "tools/tidal_lock_sounds.py",
       "licence": "original work, synthesised by the script; nothing sampled"
+    },
+    {
+      "files": [
+        "art/playfield.jpg",
+        "art/playfield-lit.jpg",
+        "art/ball.jpg",
+        "art/flipper.png",
+        "art/cap.png",
+        "art/ramp.jpg",
+        "art/giant.jpg",
+        "art/apron.jpg",
+        "art/backboard.jpg",
+        "art/plastic.png",
+        "art/palette.png",
+        "art/deck.jpg",
+        "art/plastic-left.obj",
+        "art/plastic-right.obj",
+        "art/tug.obj",
+        "art/station.obj",
+        "art/backglass.jpg",
+        "art/backglass-wide.jpg"
+      ],
+      "author": "the Zinc project",
+      "source": "tools/tidal_lock_art.py",
+      "licence": "original work, drawn and modelled by the script; its text is set in Inter (SIL Open Font License 1.1)"
     }
   ],
   "playfield": { "glass": 9.5, "surface": "wood", "look": "board" },
@@ -88,21 +113,28 @@
     { "id": "bat", "friction": 0.7, "restitution": 0.55 }
   ],
   "looks": [
-    { "id": "board", "color": "#16224a" },
-    { "id": "steel", "color": "#9aa4b4", "specular": "#8090a8", "shininess": 60 },
-    { "id": "chrome", "color": "#d8dce4", "specular": "#ffffff", "shininess": 140 },
+    { "id": "board", "color": "#c4c8d6", "texture": "art/playfield.jpg", "textureLit": "art/playfield-lit.jpg" },
+    { "id": "steel", "color": "#7c869c", "specular": "#303848", "shininess": 40 },
+    { "id": "chrome", "color": "#ffffff", "specular": "#ffffff", "shininess": 140, "texture": "art/ball.jpg" },
     { "id": "post", "color": "#c8283c", "shading": "flat" },
-    { "id": "bat", "color": "#f0f0f6", "specular": "#606070" },
+    { "id": "bat", "color": "#ffffff", "specular": "#606070", "texture": "art/flipper.png" },
     { "id": "band", "color": "#a01f3f", "glow": "#ff5f8a" },
     { "id": "pop", "color": "#20386e", "glow": "#7fd8ff" },
-    { "id": "popCap", "color": "#ff7a33", "specular": "#553a22", "shininess": 40 },
+    { "id": "popCap", "color": "#ffffff", "specular": "#553a22", "shininess": 40, "texture": "art/cap.png" },
     { "id": "amber", "color": "#b37a14", "glow": "#ffd866" },
     { "id": "cyan", "color": "#167a86", "glow": "#66f0ff" },
-    { "id": "ramp", "color": "#2a62b8" },
+    { "id": "ramp", "color": "#ffffff", "specular": "#405070", "shininess": 50, "texture": "art/ramp.jpg" },
     { "id": "wire", "color": "#c9d2e0", "specular": "#8090a8", "shininess": 120 },
     { "id": "dock", "color": "#3c4660", "specular": "#8fa0c8", "shininess": 40 },
-    { "id": "giant", "color": "#c98848" },
-    { "id": "hull", "color": "#70788c", "specular": "#d0d8f0", "shininess": 50 }
+    { "id": "giant", "color": "#ffffff", "texture": "art/giant.jpg" },
+    { "id": "hull", "color": "#70788c", "specular": "#d0d8f0", "shininess": 50 },
+    { "id": "cabinet", "color": "#141a2c", "shading": "flat" },
+    { "id": "trim", "color": "#39435e", "shading": "flat" },
+    { "id": "apron", "color": "#ffffff", "shading": "flat", "texture": "art/apron.jpg" },
+    { "id": "backboard", "color": "#ffffff", "shading": "flat", "texture": "art/backboard.jpg" },
+    { "id": "plastic", "color": "#ffffff", "shading": "flat", "texture": "art/plastic.png" },
+    { "id": "parts", "color": "#ffffff", "shading": "flat", "texture": "art/palette.png" },
+    { "id": "deckBoard", "color": "#c4c8d6", "texture": "art/deck.jpg" }
   ],
   "sounds": [
     { "id": "flipperUp", "file": "sounds/flipper-up.mp3", "volume": 0.9, "volumeVariation": 0.1, "pitchVariation": 0.05 },
@@ -228,7 +260,27 @@
       "look": "post",
       "sounds": { "hit": "rubber" }
     },
-    { "id": "spinnerGuide", "points": [[41, 34], [41, 50]], "height": 2.2, "surface": "metal", "look": "steel", "sounds": { "hit": "steel" } }
+    { "id": "spinnerGuide", "points": [[41, 34], [41, 50]], "height": 2.2, "surface": "metal", "look": "steel", "sounds": { "hit": "steel" } },
+    {
+      "id": "deckRim",
+      "group": "deckWalls",
+      "points": [[36.4, 22.6], [36.4, 3.6], [49.8, 3.6], [49.8, 13], [46.1, 19.2], [44.3, 23.9]],
+      "z": 5.5,
+      "height": 3.9,
+      "surface": "metal",
+      "look": "steel",
+      "sounds": { "hit": "steel" }
+    },
+    {
+      "id": "deckDrain",
+      "group": "deckWalls",
+      "points": [[36.4, 22.6], [40.9, 23.9]],
+      "z": 5.5,
+      "height": 3.9,
+      "surface": "metal",
+      "look": "steel",
+      "sounds": { "hit": "steel" }
+    }
   ],
   "gates": [
     { "id": "laneGate", "a": [50, 28.5], "b": [46.7, 28.5], "look": "wire", "sounds": { "pass": "gateClick" } }
@@ -252,13 +304,52 @@
       "surface": "bat",
       "look": "bat",
       "sounds": { "up": "flipperUp", "down": "flipperDown" }
+    },
+    {
+      "id": "deckFlipper",
+      "group": "flippers",
+      "pivot": [37.8, 17.2],
+      "z": 5.5,
+      "length": 5.2,
+      "baseRadius": 0.75,
+      "tipRadius": 0.4,
+      "surface": "bat",
+      "look": "bat",
+      "sounds": { "up": "flipperUp", "down": "flipperDown" }
     }
   ],
   "plunger": { "at": [48.35, 100], "speed": 480, "surface": "metal", "look": "steel", "sounds": { "pull": "plungerPull", "release": "plungerShot" } },
   "bumpers": [
-    { "id": "pop1", "group": "pops", "at": [17.5, 31], "surface": "rubber", "look": "pop", "cap": "popCap", "sounds": { "hit": "bumper" } },
-    { "id": "pop2", "group": "pops", "at": [30.2, 31], "surface": "rubber", "look": "pop", "cap": "popCap", "sounds": { "hit": "bumper" } },
-    { "id": "pop3", "group": "pops", "at": [23.85, 41], "surface": "rubber", "look": "pop", "cap": "popCap", "sounds": { "hit": "bumper" } }
+    {
+      "id": "pop1",
+      "group": "pops",
+      "at": [17.5, 31],
+      "surface": "rubber",
+      "look": "pop",
+      "cap": "popCap",
+      "light": "popsLight",
+      "sounds": { "hit": "bumper" }
+    },
+    {
+      "id": "pop2",
+      "group": "pops",
+      "at": [30.2, 31],
+      "surface": "rubber",
+      "look": "pop",
+      "cap": "popCap",
+      "light": "popsLight",
+      "sounds": { "hit": "bumper" }
+    },
+    {
+      "id": "pop3",
+      "group": "pops",
+      "at": [23.85, 41],
+      "surface": "rubber",
+      "look": "pop",
+      "cap": "popCap",
+      "light": "popsLight",
+      "sounds": { "hit": "bumper" }
+    }
   ],
   "slingshots": [
     { "id": "slingLeft", "group": "slings", "a": [8.9, 71.6], "b": [13.3, 84], "surface": "rubber", "look": "band", "sounds": { "hit": "slingshot" } },
@@ -278,9 +369,8 @@
       "at": [40.5, 24.5],
       "captureSpeed": 230,
       "hold": 1,
-      "speed": 210,
-      "angle": 150,
-      "elevation": 32,
+      "exit": [-2.4, -18.3, 5.5],
+      "speed": 40,
       "look": "dock",
       "light": "dockLight",
       "sounds": { "capture": "dockClamp", "eject": "dockThrow" }
@@ -323,8 +413,8 @@
     {
       "id": "stand1",
       "group": "stand",
-      "at": [44.2, 55],
-      "angle": 180,
+      "at": [45.4, 54.2],
+      "angle": 226,
       "surface": "plastic",
       "look": "cyan",
       "sounds": { "hit": "standup", "reset": "shieldUp" }
@@ -332,10 +422,32 @@
     {
       "id": "stand2",
       "group": "stand",
-      "at": [44.2, 59.5],
-      "angle": 180,
+      "at": [43.5, 56.6],
+      "angle": 226,
       "surface": "plastic",
       "look": "cyan",
+      "sounds": { "hit": "standup", "reset": "shieldUp" }
+    },
+    {
+      "id": "beacon1",
+      "group": "beacons",
+      "at": [41.2, 4.2],
+      "z": 5.5,
+      "height": 2,
+      "surface": "plastic",
+      "look": "cyan",
+      "light": "beaconLight1",
+      "sounds": { "hit": "standup", "reset": "shieldUp" }
+    },
+    {
+      "id": "beacon2",
+      "group": "beacons",
+      "at": [44.4, 4.2],
+      "z": 5.5,
+      "height": 2,
+      "surface": "plastic",
+      "look": "cyan",
+      "light": "beaconLight2",
       "sounds": { "hit": "standup", "reset": "shieldUp" }
     }
   ],
@@ -373,31 +485,60 @@
       "sounds": { "enter": "wireRing", "exit": "railZap" }
     }
   ],
+  "floors": [
+    { "id": "deck", "points": [[36, 3.2], [50.2, 3.2], [50.2, 24], [36, 24]], "z": 5.5, "surface": "wood", "look": "deckBoard" }
+  ],
   "lights": [
-    { "id": "laneLight1", "group": "lanes", "at": [19.25, 22.2], "color": "#66f0ff" },
-    { "id": "laneLight2", "group": "lanes", "at": [23.85, 22.2], "color": "#66f0ff" },
-    { "id": "laneLight3", "group": "lanes", "at": [28.45, 22.2], "color": "#66f0ff" },
-    { "id": "rampArrow", "group": "arrows", "at": [36, 68.5], "shape": "arrow", "size": 1.6, "color": "#5fa8ff" },
-    { "id": "bankArrow", "group": "arrows", "at": [8.2, 51.4], "shape": "arrow", "size": 1.6, "angle": 180, "color": "#ffd866" },
-    { "id": "popsLight", "group": "arrows", "at": [23.85, 34.6], "size": 1.4, "color": "#7fd8ff" },
-    { "id": "spinArrow", "group": "arrows", "at": [43.85, 52], "shape": "arrow", "size": 1.4, "color": "#c0ff7a" },
-    { "id": "slingLight", "group": "arrows", "at": [23.85, 78], "size": 1.3, "color": "#ff5f8a" },
-    { "id": "dockLight", "at": [38.2, 29.2], "shape": "arrow", "size": 1.5, "angle": -62, "color": "#ffb347" },
-    { "id": "lock1", "group": "locks", "at": [34.2, 23.2], "size": 0.9, "color": "#ff7a33" },
-    { "id": "lock2", "group": "locks", "at": [35.6, 21], "size": 0.9, "color": "#ff7a33" },
-    { "id": "lock3", "group": "locks", "at": [37.4, 19.2], "size": 0.9, "color": "#ff7a33" },
-    { "id": "extra", "at": [42.2, 31.6], "size": 1.2, "color": "#ff4d4d" },
-    { "id": "shootAgain", "at": [23.85, 100.5], "size": 1.4, "color": "#ff4d4d" },
-    { "id": "rank1", "group": "ranks", "at": [23.85, 71], "shape": "bar", "size": 1.5, "angle": 0, "color": "#9f8cff" },
-    { "id": "rank2", "group": "ranks", "at": [23.85, 68.2], "shape": "bar", "size": 1.5, "angle": 0, "color": "#9f8cff" },
-    { "id": "rank3", "group": "ranks", "at": [23.85, 65.4], "shape": "bar", "size": 1.5, "angle": 0, "color": "#9f8cff" },
-    { "id": "rank4", "group": "ranks", "at": [23.85, 62.6], "shape": "bar", "size": 1.5, "angle": 0, "color": "#9f8cff" },
-    { "id": "rank5", "group": "ranks", "at": [23.85, 59.8], "shape": "bar", "size": 1.5, "angle": 0, "color": "#9f8cff" },
-    { "id": "rank6", "group": "ranks", "at": [23.85, 57], "shape": "bar", "size": 1.5, "angle": 0, "color": "#9f8cff" }
+    { "id": "laneLight1", "group": "lanes", "at": [19.25, 22.2], "color": "#66f0ff", "glow": 2.2 },
+    { "id": "laneLight2", "group": "lanes", "at": [23.85, 22.2], "color": "#66f0ff", "glow": 2.2 },
+    { "id": "laneLight3", "group": "lanes", "at": [28.45, 22.2], "color": "#66f0ff", "glow": 2.2 },
+    { "id": "rampArrow", "group": "arrows", "at": [36, 68.5], "shape": "arrow", "size": 1.6, "color": "#5fa8ff", "glow": 4.5 },
+    { "id": "bankArrow", "group": "arrows", "at": [8.2, 51.4], "shape": "arrow", "size": 1.6, "angle": 180, "color": "#ffd866", "glow": 4.5 },
+    { "id": "popsLight", "group": "arrows", "at": [23.85, 34.6], "size": 1.4, "color": "#7fd8ff", "glow": 4.5 },
+    { "id": "spinArrow", "group": "arrows", "at": [43.85, 52], "shape": "arrow", "size": 1.4, "color": "#c0ff7a", "glow": 3.5 },
+    { "id": "slingLight", "group": "arrows", "at": [23.85, 78], "size": 1.3, "color": "#ff5f8a", "glow": 5 },
+    { "id": "dockLight", "at": [38.2, 29.2], "shape": "arrow", "size": 1.5, "angle": -62, "color": "#ffb347", "glow": 2.6 },
+    { "id": "lock1", "group": "locks", "at": [34.2, 23.2], "size": 0.9, "color": "#ff7a33", "glow": 1.1 },
+    { "id": "lock2", "group": "locks", "at": [35.6, 21], "size": 0.9, "color": "#ff7a33", "glow": 1.1 },
+    { "id": "lock3", "group": "locks", "at": [37.4, 19.6], "size": 0.9, "color": "#ff7a33", "glow": 1.1 },
+    { "id": "extra", "at": [42.2, 31.6], "size": 1.2, "color": "#ff4d4d", "glow": 2 },
+    { "id": "shootAgain", "at": [23.85, 100.5], "size": 1.4, "color": "#ff4d4d", "glow": 4 },
+    { "id": "rank1", "group": "ranks", "at": [23.85, 71], "shape": "bar", "size": 1.5, "angle": 0, "color": "#9f8cff", "glow": 1.3 },
+    { "id": "rank2", "group": "ranks", "at": [23.85, 68.2], "shape": "bar", "size": 1.5, "angle": 0, "color": "#9f8cff", "glow": 1.3 },
+    { "id": "rank3", "group": "ranks", "at": [23.85, 65.4], "shape": "bar", "size": 1.5, "angle": 0, "color": "#9f8cff", "glow": 1.3 },
+    { "id": "rank4", "group": "ranks", "at": [23.85, 62.6], "shape": "bar", "size": 1.5, "angle": 0, "color": "#9f8cff", "glow": 1.3 },
+    { "id": "rank5", "group": "ranks", "at": [23.85, 59.8], "shape": "bar", "size": 1.5, "angle": 0, "color": "#9f8cff", "glow": 1.3 },
+    { "id": "rank6", "group": "ranks", "at": [23.85, 57], "shape": "bar", "size": 1.5, "angle": 0, "color": "#9f8cff", "glow": 1.3 },
+    { "id": "gi1", "group": "gi", "at": [10, 78.6], "size": 0.5, "color": "#fff0c8", "glow": 2.5 },
+    { "id": "gi2", "group": "gi", "at": [37.7, 78.6], "size": 0.5, "color": "#fff0c8", "glow": 2.5 },
+    { "id": "gi3", "group": "gi", "at": [14.2, 15.6], "size": 0.5, "color": "#fff0c8", "glow": 2.5 },
+    { "id": "gi4", "group": "gi", "at": [33.5, 15.6], "size": 0.5, "color": "#fff0c8", "glow": 2.5 },
+    { "id": "beaconLight1", "group": "beaconLights", "at": [41.2, 6.6], "z": 5.5, "size": 0.8, "color": "#66f0ff" },
+    { "id": "beaconLight2", "group": "beaconLights", "at": [44.4, 6.6], "z": 5.5, "size": 0.8, "color": "#66f0ff" }
   ],
   "models": [
     { "id": "giant", "shape": "sphere", "at": [5.2, 5.6, 0], "scale": [8.6, 8.6, 5], "look": "giant" },
-    { "id": "station", "shape": "cylinder", "at": [45.6, 5.8, 0], "scale": [5, 5, 3.4], "look": "hull" }
+    { "id": "railLeft", "group": "cabinet", "at": [-1.1, 53.5, 1.5], "scale": [2.2, 112.4, 9], "look": "cabinet" },
+    { "id": "railRight", "group": "cabinet", "at": [52.1, 53.5, 1.5], "scale": [2.2, 112.4, 9], "look": "cabinet" },
+    { "id": "backboard", "group": "cabinet", "at": [25.5, -1.1, 4], "scale": [55.4, 2.2, 14], "look": "backboard" },
+    { "id": "lockBar", "group": "cabinet", "at": [25.5, 108.6, 0.5], "scale": [55.4, 3.2, 7], "look": "trim" },
+    { "id": "apron", "group": "cabinet", "at": [23.3, 105.6, 3.1], "scale": [46.6, 4, 0.3], "look": "apron" },
+    { "id": "plasticLeft", "group": "plastics", "mesh": "art/plastic-left.obj", "at": [9.97, 79.03, 0], "look": "plastic" },
+    { "id": "plasticRight", "group": "plastics", "mesh": "art/plastic-right.obj", "at": [37.73, 79.03, 0], "look": "plastic" },
+    { "id": "tug", "mesh": "art/tug.obj", "at": [6.2, 105.6, 3.25], "rotation": [0, 0, -18], "scale": [1.3, 1.3, 1.3], "look": "parts" },
+    {
+      "id": "tower",
+      "mesh": "art/station.obj",
+      "at": [47.4, 6.4, 5.5],
+      "scale": [0.55, 0.55, 0.55],
+      "collide": "hull",
+      "surface": "metal",
+      "look": "parts",
+      "sounds": { "hit": "steel" }
+    },
+    { "id": "deckPost1", "group": "deckPosts", "shape": "cylinder", "at": [36.7, 3.9, 0], "scale": [0.7, 0.7, 5.1], "look": "steel" },
+    { "id": "deckPost2", "group": "deckPosts", "shape": "cylinder", "at": [49.6, 3.9, 0], "scale": [0.7, 0.7, 5.1], "look": "steel" },
+    { "id": "deckPost3", "group": "deckPosts", "shape": "cylinder", "at": [49.9, 21.6, 0], "scale": [0.7, 0.7, 5.1], "look": "steel" }
   ],
   "rules": {
     "ranks": ["Deckhand", "Rigger", "Tug Pilot", "Dock Master", "Station Chief", "Orbit Marshal", "Tide Warden"],
@@ -539,7 +680,30 @@
         "if": [{ "test": "counter", "target": "served", "value": 1 }],
         "do": [{ "do": "sound", "target": "jingleBall" }]
       },
-      { "on": "game", "event": "ballStart", "do": [{ "do": "count", "target": "served", "value": 1 }] }
+      { "on": "game", "event": "ballStart", "do": [{ "do": "count", "target": "served", "value": 1 }] },
+      { "on": "game", "event": "start", "do": [{ "do": "light", "target": "gi", "mode": "on" }] },
+      { "on": "game", "event": "ballStart", "do": [{ "do": "light", "target": "gi", "mode": "on" }] },
+      { "on": "game", "event": "tilt", "do": [{ "do": "light", "target": "gi", "mode": "off" }] },
+      { "on": "game", "event": "gameOver", "do": [{ "do": "light", "target": "gi", "mode": "off" }] },
+      {
+        "on": "beacons",
+        "event": "hit",
+        "if": [{ "test": "lights", "target": "self", "is": "off" }],
+        "do": [{ "do": "light", "target": "self", "mode": "on" }, { "do": "score", "value": 2500 }]
+      },
+      { "on": "beacons", "event": "hit", "do": [{ "do": "score", "value": 500 }, { "do": "bonus", "value": 250 }] },
+      {
+        "on": "beacons",
+        "event": "hit",
+        "if": [{ "test": "lights", "target": "beaconLights", "is": "on" }],
+        "do": [
+          { "do": "score", "value": 15000 },
+          { "do": "light", "target": "beaconLights", "mode": "off" },
+          { "do": "multiplier", "value": 1 },
+          { "do": "say", "target": "BEACONS LIT: BONUS UP" }
+        ]
+      },
+      { "on": "tower", "event": "hit", "do": [{ "do": "score", "value": 750 }] }
     ],
     "highScores": [
       { "name": "TID", "score": 400000 },
@@ -551,15 +715,18 @@
   },
   "lighting": {
     "background": "#04050b",
-    "ambient": "#565c72",
-    "lamps": [{ "direction": [0.2, 0.35, -1], "color": "#d8dcf0" }, { "direction": [-0.6, -0.3, -0.5], "color": "#2a3c66" }]
+    "ambient": "#4a5068",
+    "lamps": [{ "direction": [0.2, 0.35, -1], "color": "#b8bcd0" }, { "direction": [-0.6, -0.3, -0.5], "color": "#2a3c66" }],
+    "general": "gi",
+    "dimmed": 0.3
   },
   "layouts": {
     "landscape": {
       "view": [0, 0, 600, 800],
-      "camera": { "position": [25.5, 186, 172], "target": [25.5, 57.5, 0], "fov": 26.5 },
+      "camera": { "position": [25.5, 190, 176], "target": [25.5, 57, 0] },
       "panel": {
         "box": [600, 0, 680, 800],
+        "image": "art/backglass.jpg",
         "items": [
           { "show": "title", "box": [640, 40, 600, 60], "size": 44, "color": "#7fd8ff" },
           { "show": "score", "box": [640, 150, 600, 90], "size": 72, "label": "SCORE" },
@@ -577,9 +744,10 @@
     "portrait": {
       "window": [800, 1280],
       "view": [0, 200, 800, 1080],
-      "camera": { "position": [25.5, 176, 190], "target": [25.5, 57, 0], "fov": 25.5 },
+      "camera": { "position": [25.5, 180, 194], "target": [25.5, 56, 0], "fov": 27 },
       "panel": {
         "box": [0, 0, 800, 200],
+        "image": "art/backglass-wide.jpg",
         "items": [
           { "show": "title", "box": [20, 12, 380, 40], "size": 30, "color": "#7fd8ff" },
           { "show": "score", "box": [400, 8, 380, 70], "size": 56, "align": "right" },
