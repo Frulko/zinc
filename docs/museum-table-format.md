@@ -271,7 +271,7 @@ A sequence is one moment of the visit: what lies on the table, and where one can
 | `links` | none | Where one can go |
 | `narration` | none | The id of an audio medium played with the sequence |
 | `duration` | 0 | Seconds the sequence lasts in a guided presentation, and before `next`. 0: as long as its narration, else until the visitor moves on |
-| `next` | none | The sequence that follows by itself at the end; without it the sequence stays |
+| `next` | none | The sequence that follows by itself at the end, with a fade, once no hand is on the table; without it the sequence stays. In a sequence open as an overlay, a `next` that names the sequence underneath closes the overlay |
 
 An item places one medium:
 
@@ -282,7 +282,7 @@ An item places one medium:
 | `width` | required | The width on the table. A photograph keeps its proportions |
 | `height` | from the medium | The height of a model, a panorama or a film; a text panel grows with its text |
 | `rotation` | 0 | Degrees, clockwise. Photographs and text cards are then free under the fingers |
-| `at`, `until` | 0, 0 | When the item appears and disappears; `until` 0: it stays to the end |
+| `at`, `until` | 0, 0 | When the item appears and disappears, on the clock of the sequence, which starts when the sequence is on the table and stops while another one is open over it; `until` 0: it stays to the end. A card comes and goes in 0.4 s |
 
 A link leads to another sequence:
 
@@ -290,11 +290,11 @@ A link leads to another sequence:
 | --- | --- | --- |
 | `to` | required | The id of the sequence |
 | `label` | required text | What the button says; for a hotspot, what is announced |
-| `x`, `y` | required | A button: its centre on the table, within `table.reach` of an edge. A hotspot (`on`): its centre on the item, as fractions of the item's box (0.5, 0.5 is the middle) |
-| `on` | none | The id of a medium shown in this sequence: the link is a hotspot on that item and moves with it |
+| `x`, `y` | required | A button: its centre on the table, within `table.reach` of an edge. A hotspot (`on`): its centre on the item, as fractions (0.5, 0.5 is the middle) of the picture for a photograph or a film, of the box for a model, a panorama or a text panel |
+| `on` | none | The id of a medium shown in this sequence: the link is a hotspot on that item, a ring with the label beside it. On a card it moves, turns and grows with the card, and is on its front only; when the medium lies twice in the sequence, on the first |
 | `at`, `until` | 0, 0 | When the link is offered |
-| `transition` | `fade` | `fade`, `slide` or `none` |
-| `overlay` | false | The target opens over this sequence, which waits underneath and comes back when the overlay closes |
+| `transition` | `fade` | `fade` (the table goes dark and comes back, half a second), `slide` (the new sequence pushes the old one out; an overlay comes in from the side) or `none` |
+| `overlay` | false | The target opens over this sequence, which is dimmed and waits underneath as the visitor left it, its clock stopped. It comes back when a link or the `next` of the overlay leads to it. One overlay at a time: a second one takes the place of the first |
 
 ## Presentations
 
@@ -319,7 +319,8 @@ sizes greater than 0, times 0 or more; `start`, `links[].to`, `next`, `presentat
 
 | in the file | player |
 | --- | --- |
-| photographs and text panels as cards, 3D models with points of interest, buttons to other sequences | yes |
-| `.glb` / `.gltf` models, panoramas, audio narration, films, subtitles | read and validated; shown as a labelled placeholder until their tasks |
-| hotspots, overlays, transitions, timed items, `next`, presentations, the storyboard | ZN-650.05 |
+| photographs and text panels as cards, 3D models (`.obj`, `.glb`, `.gltf`) and panoramas with points of interest and the links of their points | yes |
+| timed items and links, buttons, hotspots, overlays, the three transitions, `next` | yes |
+| a film | its poster on a card, until ZN-650.08 |
+| narration and subtitles, presentations, the storyboard | ZN-650.05, in progress |
 | orientation toward the last touch, attract loop, reset, text size and high contrast, kiosk mode, statistics, updates | ZN-650.06 and later |

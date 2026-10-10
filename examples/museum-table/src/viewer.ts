@@ -11,6 +11,7 @@ import { loadGltf } from 'zinc:3d/gltf';
 import { Project, Media, Point, Colours, LIGHTS } from './project';
 import { Fingers, Finger } from './touch';
 import { Orbit } from './orbit';
+import { drawPanel } from './panel';
 import { sans, bold, wrap, leading } from './type';
 import { word } from './words';
 
@@ -64,6 +65,10 @@ export class ObjectView extends Orbit {
   h = 0;
   /** The point of interest whose description is open. */
   opened: Point | null = null;
+  /** The sequence the button of a description asked for ('' for none: the caller goes there and empties it). */
+  followed = '';
+  /** The box of that button, in table units ([] without one). */
+  private button: number[] = [];
   light = 'studio';
   /** The camera moved off the object's centre by two fingers, in the object's units. */
   panX = 0;
@@ -137,7 +142,7 @@ export class ObjectView extends Orbit {
     const v = this.media.view;
     if (smoothly) { this.glide(v.yaw, v.pitch, v.distance, 0.6); this.recentring = true; }
     else { this.place(v.yaw, v.pitch, v.distance); this.panX = 0; this.panY = 0; }
-    this.opened = null;
+    this.opened = null; this.followed = ''; this.button = [];
   }
 
   /** One of the lighting presets of the format. The lights stay with the camera: turning the object moves it in the light. */
@@ -188,6 +193,8 @@ export class ObjectView extends Orbit {
   }
 
   private tapped(f: Finger): void {
+    const o = this.opened, link = this.button;
+    if (o !== null && link.length === 4 && f.x >= link[0] && f.x < link[0] + link[2] && f.y >= link[1] && f.y < link[1] + link[3]) { this.followed = o.to; return; }
     const b = this.buttons();
     if (Math.abs(f.y - b[1]) <= 38) {
       if (Math.abs(f.x - b[0]) <= b[2] / 2 + 10) { this.setLight(LIGHTS[(LIGHTS.indexOf(this.light) + 1) % LIGHTS.length]); return; }
@@ -257,17 +264,11 @@ export class ObjectView extends Orbit {
       rrect(this.px - 5 * k, this.py - 5 * k, 10 * k, 10 * k, 5 * k, open ? c.accent : c.text, 255);
     }
     const o = this.opened;
-    if (o !== null) {   // the description, on a card at the right of the box
-      const pw = 400 * k, pad = 22 * k, title = bold(22 * k), body = sans(17 * k);
-      const lines = wrap(body, this.project.say(o.text, L), pw - 2 * pad, 0), titles = wrap(title, this.project.say(o.title, L), pw - 2 * pad, 2);
-      const ph = 2 * pad + titles.length * leading(title) + 8 * k + lines.length * leading(body);
-      const px = this.sx + this.sw - pw - 28 * k, py = this.sy + 130 * k;
-      rrect(px, py, pw, ph, 4 * k, c.paper, 255);
-      rrect(px, py, 5 * k, ph, 2 * k, c.accent, 255);
-      let ty = py + pad;
-      for (const line of titles) { drawText(title, px + pad, ty, line, c.ink, 255, 0); ty += leading(title); }
-      ty += 8 * k;
-      for (const line of lines) { drawText(body, px + pad, ty, line, c.ink, 255, 0); ty += leading(body); }
+    this.button = [];
+    if (o !== null) {   // the description, on a panel at the right of the box
+      const to = o.to.length > 0 ? this.project.sequence(o.to) : null;
+      const b = drawPanel(this.sx + this.sw - 428 * k, this.sy + 130 * k, 400 * k, k, this.project.say(o.title, L), this.project.say(o.text, L), to !== null ? this.project.say(to.title, L) : '', c);
+      if (b.length === 4) this.button = [(b[0] - ox) / k, (b[1] - oy) / k, b[2] / k, b[3] / k];
     } else if (m.points.length > 0) {
       const hint = word('points', L);
       drawText(small, this.sx + this.sw - textWidth(small, hint, 0) - 28 * k, this.sy + 30 * k, hint, c.muted, 255, 0);
