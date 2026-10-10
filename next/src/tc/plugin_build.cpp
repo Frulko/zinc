@@ -7,6 +7,7 @@
 #include "yyjson.h"
 
 #include <dlfcn.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
 
 #include <algorithm>
@@ -233,7 +234,20 @@ void fetchPrebuilt(const std::string& name, const std::string& key, const std::s
   out.fetched = true;
 }
 
-bool buildPlugin(const frontend::FoundPlugin& p, const std::string& engineRoot, const std::string& projectDir, const std::string& target, PluginLib& out, std::string& err) {
+// The defines a plugin is compiled with: the runtime's own, the manifest's, the options as ZP_ defines.
+std::vector<std::string> buildDefines(const frontend::FoundPlugin& p, const frontend::PluginTarget& ts, const std::string& engineRoot, const std::string& projectDir, const std::string& target) {
+  std::vector<std::string> defines{"ZRT_HEAP_BYTES=536870912u", gCross.on || pluginTarget() == "linux" ? "ZRT_PLATFORM=\"linux\"" : "ZRT_PLATFORM=\"macos\"", "ZRT_POINT_POOL=262144", "ZRT_GROW_DRAW_CMDS"};
+  for (const std::string& d : ts.defines) defines.push_back(d);
+  for (const std::string& d : frontend::pluginDefines(p, projectDir, engineRoot + "/..", target)) defines.push_back(d);
+  return defines;
+}
+bool systemCompiler(const std::string& projectDir) {   // ZINC_PLUGIN_CC=system or zinc.json "pluginCompiler": "system"
+  if (const char* pc = std::getenv("ZINC_PLUGIN_CC"); pc && *pc) return std::string(pc) == "system";
+  std::string zj;
+  return readAll(projectDir + "/zinc.json", zj) && (zj.find("\"pluginCompiler\": \"system\"") != std::string::npos || zj.find("\"pluginCompiler\":\"system\"") != std::string::npos);
+}
+
+bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRoot, const std::string& projectDir, const std::string& target, PluginLib& out, std::string& err) {
   auto t0 = std::chrono::steady_clock::now();
   const frontend::PluginManifest& m = p.manifest;
   out = PluginLib{};
@@ -293,9 +307,7 @@ bool buildPlugin(const frontend::FoundPlugin& p, const std::string& engineRoot, 
   for (const std::string& l : ts.linkFlags) libs.push_back(l.rfind("-", 0) == 0 ? rel(l) : q(rel(l)));
   out.linkArgs = libs;
   // flags: the runtime's own, the manifest's defines, the options as ZP_ defines
-  std::vector<std::string> defines{"ZRT_HEAP_BYTES=536870912u", gCross.on || pluginTarget() == "linux" ? "ZRT_PLATFORM=\"linux\"" : "ZRT_PLATFORM=\"macos\"", "ZRT_POINT_POOL=262144", "ZRT_GROW_DRAW_CMDS"};
-  for (const std::string& d : ts.defines) defines.push_back(d);
-  for (const std::string& d : frontend::pluginDefines(p, projectDir, engineRoot + "/..", target)) defines.push_back(d);
+  const std::vector<std::string> defines = buildDefines(p, ts, engineRoot, projectDir, target);
   std::string flags = "-std=c++17 -O2 -fPIC -fno-exceptions -fno-rtti -fwrapv -ffp-contract=off -fno-threadsafe-statics -w";
   for (const std::string& f : ts.flags) flags += " " + rel(f);
   for (const std::string& c : cflags) flags += " " + c;
@@ -333,9 +345,7 @@ bool buildPlugin(const frontend::FoundPlugin& p, const std::string& engineRoot, 
       std::fprintf(stderr, "zinc: plugin '%s': its prebuilt libraries for %s were built for other options or another engine; building it here\n", m.name.c_str(), (gCross.on ? gCross.name : target).c_str());
     }
   }
-  bool system = false;   // ZINC_PLUGIN_CC=system or zinc.json "pluginCompiler": "system"
-  if (const char* pc = std::getenv("ZINC_PLUGIN_CC"); pc && *pc) system = std::string(pc) == "system";
-  else if (std::string zj; readAll(projectDir + "/zinc.json", zj)) system = zj.find("\"pluginCompiler\": \"system\"") != std::string::npos || zj.find("\"pluginCompiler\":\"system\"") != std::string::npos;
+  const bool system = systemCompiler(projectDir);
   std::string cxx, cc, ccId;
   if (!compilers(system, cxx, cc, ccId, err)) return false;
   // cache keys: by content and by what the compiler is, never by where the plugin, the engine or the compiler sits on this machine
@@ -440,6 +450,138 @@ bool buildPlugin(const frontend::FoundPlugin& p, const std::string& engineRoot, 
   }
   out.seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
   log::write("plugin", log::Info, m.name + ": " + (out.fetched ? "fetched from the index" : out.rebuilt ? "built" : "cache hit") + " (" + dir + ")", out.seconds * 1000);   // ZN-368
+  return true;
+}
+
+// ---- The start's fast path (ZN-617): what the last build of a plugin found, kept in a stamp beside its cache entries and taken while no
+// input changed, so a start runs no pkg-config, regenerates no thunk and hashes no file. Inputs (the spec, the sources and the files beside
+// them, plugin.json, the .pc files pkg-config read, the engine's ABI headers, zinc itself) are compared by inode, size and mtime; the
+// libraries by inode, size and ctime, which no program can set back, so a library changed since is not taken (the slow path checks its
+// digest). The stamp's name holds what is not a file: the plugin's directory, the target, the defines (options from zinc.json), the
+// compiler choice and the pkg-config environment.
+namespace {
+#ifdef __APPLE__
+long long mtimeNs(const struct stat& st) { return static_cast<long long>(st.st_mtimespec.tv_sec) * 1000000000LL + st.st_mtimespec.tv_nsec; }
+long long ctimeNs(const struct stat& st) { return static_cast<long long>(st.st_ctimespec.tv_sec) * 1000000000LL + st.st_ctimespec.tv_nsec; }
+#else
+long long mtimeNs(const struct stat& st) { return static_cast<long long>(st.st_mtim.tv_sec) * 1000000000LL + st.st_mtim.tv_nsec; }
+long long ctimeNs(const struct stat& st) { return static_cast<long long>(st.st_ctim.tv_sec) * 1000000000LL + st.st_ctim.tv_nsec; }
+#endif
+/** "<ino> <size> <time>" of a file (mtime for an input, ctime for a library); empty when it is missing. */
+std::string statLine(const std::string& path, bool library) {
+  struct stat st;
+  if (::stat(path.c_str(), &st) != 0) return "";
+  return std::to_string(static_cast<unsigned long long>(st.st_ino)) + " " + std::to_string(static_cast<long long>(st.st_size)) + " " + std::to_string(library ? ctimeNs(st) : mtimeNs(st));
+}
+std::string stampPath(const frontend::FoundPlugin& p, const std::string& engineRoot, const std::string& projectDir, const std::string& target) {
+  const frontend::PluginTarget& ts = p.manifest.targetSettings.at(target);
+  Hash h;
+  h.add("stamp 1"); h.add(fs::path(p.dir).lexically_normal().string()); h.add(target); h.add(gCross.on ? gCross.name : "");
+  for (const std::string& d : buildDefines(p, ts, engineRoot, projectDir, target)) h.add(d);
+  const bool system = systemCompiler(projectDir);
+  h.add(system ? "system" : "zig");
+  for (const char* v : {"CXX", "CC", "PKG_CONFIG_PATH", "PKG_CONFIG_LIBDIR", "PKG_CONFIG_SYSROOT_DIR"}) { const char* e = std::getenv(v); h.add(e ? e : "-"); }
+  return home() + "/cache/" + (gCross.on ? gCross.name : target) + "/plugin-stamps/" + p.manifest.name + "-" + h.hex().substr(0, 16);
+}
+/** The files the build read: what a stamp compares. */
+std::vector<std::string> stampInputs(const frontend::FoundPlugin& p, const std::string& engineRoot, const std::string& target) {
+  const frontend::PluginManifest& m = p.manifest;
+  const frontend::PluginTarget& ts = m.targetSettings.at(target);
+  std::vector<std::string> in{(fs::path(p.dir) / "plugin.json").string(), executablePath()};
+  const std::string root = engineRoot, runtime = root + "/../runtime";
+  for (const std::string& hp : {root + "/include/zn/native.h", root + "/src/native/zrt_compat.h", runtime + "/zrt.h", runtime + "/zrt_raster.h", runtime + "/gl_replay.cpp", runtime + "/include/hal.h"}) in.push_back(hp);
+  std::vector<std::string> dirs;
+  std::error_code ec;
+  if (m.kind != "display") {
+    const fs::path nativeDir = fs::path(p.dir) / "native";
+    for (const auto& e : fs::directory_iterator(nativeDir, ec)) in.push_back(e.path().string());   // the spec, every implementation, the headers beside them
+    dirs.push_back(nativeDir.string());
+    in.push_back(nativeDir.string());   // a directory's mtime moves when a file is added or removed
+  }
+  for (const std::string& s : ts.sources) {
+    const fs::path sp = fs::path(p.dir) / s;
+    in.push_back(sp.string());
+    const std::string d = sp.parent_path().string();
+    if (std::find(dirs.begin(), dirs.end(), d) == dirs.end()) { dirs.push_back(d); in.push_back(d); for (const auto& e : fs::directory_iterator(d, ec)) in.push_back(e.path().string()); }
+  }
+  if (!ts.pkg.empty() && haveCommand("pkg-config")) {   // the .pc files of the packages and of everything they require
+    std::string all, o;
+    for (const std::string& pkg : ts.pkg) all += " " + q(pkg);
+    capture("todo='" + all + "'; seen=' '; while [ -n \"$(echo $todo)\" ]; do set -- $todo; x=$1; shift; todo=\"$*\"; case \"$seen\" in *\" $x \"*) continue;; esac; seen=\"$seen$x \"; pkg-config --path \"$x\" 2>/dev/null; todo=\"$todo $(pkg-config --print-requires --print-requires-private \"$x\" 2>/dev/null | awk '{print $1}' | tr '\\n' ' ')\"; done", o);
+    std::istringstream ls(o);
+    for (std::string line; std::getline(ls, line);) if (!line.empty()) in.push_back(line);
+  }
+  std::sort(in.begin(), in.end());
+  in.erase(std::unique(in.begin(), in.end()), in.end());
+  return in;
+}
+void writeStamp(const std::string& path, const PluginLib& out, const std::vector<std::string>& inputs) {
+  std::string t = "zinc-plugin-stamp 1\nmodule " + out.module + "\nflags " + (out.display ? "1" : "0") + (out.prebuilt ? "1" : "0") + (out.fetched ? "1" : "0") + "\nkey " + out.key + "\n";
+  for (const auto& [kind, f] : {std::pair<const char*, const std::string*>{"shared", &out.shared}, {"archive", &out.archive}, {"vendor", &out.vendor}}) {
+    if (f->empty()) continue;
+    const std::string st = statLine(*f, true);
+    if (st.empty()) return;
+    t += std::string("lib ") + kind + " " + st + " " + *f + "\n";
+  }
+  for (const std::string& a : out.linkArgs) t += "link " + a + "\n";
+  for (const std::string& f : inputs) { const std::string st = statLine(f, false); t += "in " + (st.empty() ? "- - -" : st) + " " + f + "\n"; }
+  std::error_code ec;
+  fs::create_directories(fs::path(path).parent_path(), ec);
+  { std::ofstream(path + ".tmp") << t; }
+  fs::rename(path + ".tmp", path, ec);
+}
+/** The stamp's results, when every input and library is as it was. */
+bool readStamp(const std::string& path, PluginLib& out) {
+  std::string t;
+  if (!readAll(path, t)) return false;
+  std::istringstream ls(t);
+  std::string line;
+  if (!std::getline(ls, line) || line != "zinc-plugin-stamp 1") return false;
+  PluginLib r;
+  r.plugin = out.plugin;
+  while (std::getline(ls, line)) {
+    const std::size_t sp = line.find(' ');
+    const std::string tag = line.substr(0, sp), rest = sp == std::string::npos ? "" : line.substr(sp + 1);
+    if (tag == "module") r.module = rest;
+    else if (tag == "flags" && rest.size() == 3) { r.display = rest[0] == '1'; r.prebuilt = rest[1] == '1'; r.fetched = rest[2] == '1'; }
+    else if (tag == "key") r.key = rest;
+    else if (tag == "link") r.linkArgs.push_back(rest);
+    else if (tag == "lib" || tag == "in") {   // lib <kind> <ino> <size> <time> <path> / in <ino> <size> <time> <path>
+      std::istringstream f(rest);
+      std::string kind, ino, size, time, p;
+      if (tag == "lib") f >> kind;
+      f >> ino >> size >> time;
+      std::getline(f, p);
+      if (!p.empty() && p[0] == ' ') p.erase(0, 1);
+      const std::string now = statLine(p, tag == "lib");
+      if (now != (ino == "-" ? std::string() : ino + " " + size + " " + time)) return false;
+      if (kind == "shared") r.shared = p; else if (kind == "archive") r.archive = p; else if (kind == "vendor") r.vendor = p;
+    }
+  }
+  if (r.archive.empty() || (r.shared.empty() && !gCross.on)) return false;
+  out = r;
+  return true;
+}
+}  // namespace
+
+bool buildPlugin(const frontend::FoundPlugin& p, const std::string& engineRoot, const std::string& projectDir, const std::string& target, PluginLib& out, std::string& err) {
+  const auto t0 = std::chrono::steady_clock::now();
+  const frontend::PluginManifest& m = p.manifest;
+  bool known = false;
+  for (const std::string& t : m.targets) known = known || t == target;
+  std::string stamp;
+  if (known && !std::getenv("ZINC_PLUGIN_NO_STAMP")) {
+    stamp = stampPath(p, engineRoot, projectDir, target);
+    out = PluginLib{};
+    out.plugin = m.name;
+    if (readStamp(stamp, out)) {
+      out.seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+      log::write("plugin", log::Info, m.name + ": unchanged since its last build (" + stamp + ")", out.seconds * 1000);
+      return true;
+    }
+  }
+  if (!buildPluginSlow(p, engineRoot, projectDir, target, out, err)) return false;
+  if (!stamp.empty()) writeStamp(stamp, out, stampInputs(p, engineRoot, target));
   return true;
 }
 

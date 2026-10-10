@@ -101,6 +101,11 @@ plugin for the same target compute the same key. `ZINC_PLUGIN_CC=system` (or `"p
 `zinc.json`) uses `$CXX` / `$CC` or the system `c++` / `cc` instead, under a key that carries its `--version` line.
 The interpreter loads a plugin's library at the first call of one of its functions, not when the program starts: a program that
 imports a plugin it does not call yet starts without it (the cache entry keeps the module's exports for the checker).
+A start does not recompute the key either: the last build left a stamp in `~/.zinc/cache/<target>/plugin-stamps/` with what it found
+(the libraries, the link arguments) and the files it read (the spec, the sources and their directories, `plugin.json`, the `.pc` files
+pkg-config used and those they require, the ABI headers, zinc itself). While none of them changed (inode, size, mtime) and the libraries
+are untouched (inode, size, ctime), the start runs no pkg-config and hashes nothing; otherwise the plugin is checked and rebuilt as above.
+`ZINC_PLUGIN_NO_STAMP=1` ignores the stamps.
 
 ## Plugin repositories
 
