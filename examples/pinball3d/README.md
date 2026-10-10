@@ -22,6 +22,7 @@ zinc run examples/pinball3d -- --layout=portrait              # force a layout (
 zinc run examples/pinball3d -- --table=my-table               # a table folder, its table.json, or a package (.zpinball)
 zinc run examples/pinball3d -- --demo --stats                 # a blind player plays; the time of the physics and of the drawing every 5 s
 zinc run examples/pinball3d -- --volume=0.3                   # the volume of everything (0: silence); --sounds prints each sound as it plays
+zinc run examples/pinball3d -- --scores=scores.txt            # keep the high scores in a file (default: the application's storage)
 ```
 
 ## Controls
@@ -34,7 +35,9 @@ zinc run examples/pinball3d -- --volume=0.3                   # the volume of ev
 | bump the table from the left, the right, the front | X, . (period), Up | X, Y, Up | |
 | start | Enter, 1 | Start | |
 
-The plunger also starts a game. Every action is remapped by a settings file, `settings.json` beside `zinc.json` or
+The plunger also starts a game. A score that enters the table of the best is signed with three letters: the flippers go
+down and up the alphabet, the plunger (or start) takes the letter; after 30 seconds the letter in hand fills what is left.
+Every action is remapped by a settings file, `settings.json` beside `zinc.json` or
 `--settings=<file>`; an action it does not name keeps its inputs:
 
 ```json
@@ -60,7 +63,7 @@ A tug crew works the docks of a mining station held in tidal lock above a gas gi
   inlane. Each catch is a lock; the third starts **multiball**: three balls, scores doubled, the ramp pays a jackpot that grows.
 - **Lanes**: light the three for one more bonus multiplier (up to 5); the flippers move the lit lanes.
 - **Ball save** for 8 s after a launch; **extra ball** lit at the dock at ranks 3 and 6; **tilt** after two warnings: the
-  flippers die and the ball's bonus is lost. The five best scores are kept between runs.
+  flippers die and the ball's bonus is lost. The five best scores are signed and kept between runs.
 
 ## The look
 
@@ -151,5 +154,4 @@ single shots), `pinball3d_sound.sh` (the scripted game's sound log, every sound 
 - The renderer has no transparency and no light of its own on a piece: a pool of light is a patch of the lit painting,
   on the playfield only (a light on an upper floor lights its insert alone), and two pools must not overlap.
 - An image is laid flat, as the top view shows the element: a wall or the face of a target cannot carry one.
-- A high score enters as `YOU`: there is no entry of initials.
 - Text of a table is drawn with the characters and sizes baked into the program: ASCII, 18 sizes from 10 to 96.

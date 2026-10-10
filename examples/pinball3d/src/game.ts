@@ -20,6 +20,8 @@ export class Controls {
 }
 
 export const enum Phase { Attract, Play, Over }
+/** Seconds a player has to sign a high score. */
+const SIGN_TIME = 30;
 /** Seconds before the same wall, or the ball's own knock, sounds again. */
 const RATTLE = 0.12;
 
@@ -80,6 +82,12 @@ export class Game {
   steps: i32 = 0;
   highScores: string[] = [];
   highValues: number[] = [];
+  /** While a player signs a high score: its place in the table (-1: nobody signs), and the letters chosen so far. */
+  entering: i32 = -1;
+  initials: string = '';
+  /** How many high scores were signed since the table was switched on: who keeps the scores saves them when it grows. */
+  signed: i32 = 0;
+  private letter: i32 = 0;
   /** The sounds asked for and not played yet, oldest first: the player of sounds empties the list (audio.ts). */
   cues: Cue[] = [];
   /** The speed of the fastest ball that rolls on something (cm/s), 0 when none does, and where it is across the table (-1 to 1). */
@@ -250,6 +258,7 @@ export class Game {
     for (let i = 0; i < this.held.length; i++) this.held[i] = 0;
     for (let i = 0; i < this.wallAt.length; i++) this.wallAt[i] = -1;
     this.knockAt = -1;
+    this.entering = -1;
     this.rules.now = 0;
     this.rules.log = [];
     this.rules.start();
@@ -291,9 +300,38 @@ export class Game {
     for (let i = 0; i < this.highValues.length; i++) {
       if (score <= this.highValues[i]) continue;
       for (let k = this.highValues.length - 1; k > i; k--) { this.highValues[k] = this.highValues[k - 1]; this.highScores[k] = this.highScores[k - 1]; }
-      this.highValues[i] = score; this.highScores[i] = 'YOU';
+      this.highValues[i] = score;
+      // the player signs it: three letters, chosen with the flippers
+      this.entering = i; this.initials = ''; this.letter = 0;
+      this.overUntil = this.clock + SIGN_TIME;
+      this.showInitials();
       return;
     }
+  }
+  /** The name being signed, as the table of high scores and the panel show it: the letters chosen, the one in hand, blanks. */
+  private showInitials(): void {
+    let name = this.initials;
+    if (name.length < 3) name += String.fromCharCode(65 + this.letter);
+    while (name.length < 3) name += '_';
+    this.highScores[this.entering] = name;
+    this.rules.message = `YOUR INITIALS: ${name}`;
+  }
+  /** Signing a high score: the flippers go down and up the alphabet, the plunger or start takes the letter; after
+   *  the third, or when the time is up (the letter in hand then fills what is left), the name is in the table. */
+  private sign(c: Controls): void {
+    const p = this.prev;
+    if (c.left && !p.left) this.letter = (this.letter + 25) % 26;
+    if (c.right && !p.right) this.letter = (this.letter + 1) % 26;
+    if ((c.plunger && !p.plunger) || (c.start && !p.start)) { this.initials += String.fromCharCode(65 + this.letter); this.letter = 0; }
+    const late = this.clock > this.overUntil;
+    while (late && this.initials.length < 3) this.initials += String.fromCharCode(65 + this.letter);
+    if (this.initials.length < 3) { this.showInitials(); return; }
+    this.highScores[this.entering] = this.initials;
+    this.rules.note(`high score: ${this.initials} ${this.highValues[this.entering]}`);
+    this.rules.message = `WELL PLAYED, ${this.initials}`;
+    this.entering = -1;
+    this.signed++;
+    this.overUntil = this.clock + 3;
   }
 
   /** Puts the ball in play at a place of the table with a velocity, instead of in front of the plunger: an editor's
@@ -337,8 +375,9 @@ export class Game {
     this.clock += dt;
     this.steps++;
     if (this.phase !== Phase.Play) {
-      if (this.phase === Phase.Over && this.clock > this.overUntil) this.phase = Phase.Attract;
-      if ((c.start && !p.start) || (this.phase === Phase.Attract && c.plunger && !p.plunger)) this.start();
+      if (this.entering >= 0) this.sign(c);
+      else if (this.phase === Phase.Over && this.clock > this.overUntil) this.phase = Phase.Attract;
+      else if ((c.start && !p.start) || (this.phase === Phase.Attract && c.plunger && !p.plunger)) this.start();
       this.remember(c);
       this.heardStep();
       return;

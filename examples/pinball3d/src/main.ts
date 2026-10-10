@@ -8,6 +8,7 @@
 //   --log                                            print every event of the game as it happens (scripted runs compare it)
 //   --sounds                                         print every sound as it is played, with its volume, pitch and place, and each change of music
 //   --volume=<0 to 1>                                the volume of everything (0: silence)
+//   --scores=<file>                                  keep the high scores in this file instead of the application's storage
 //   --stats                                          print the time of the physics and of the drawing every 5 seconds
 //   --demo                                           a player who cannot see holds the controls: start, the plunger every 5 s, the flippers in turn
 import { onFrame, width, height, rect } from 'zinc:gfx';
@@ -20,7 +21,7 @@ import { Table, TableError, loadTable, TABLE_FILE } from './format/table';
 import { BuiltinSource, openTable } from './format/source';
 import { TableScene, rgb } from './scene';
 import { View } from './view';
-import { Game, Controls, Phase } from './game';
+import { Game, Controls } from './game';
 import { Bindings, readControls } from './input';
 import { drawPanel } from './panel';
 import { TableAudio } from './audio';
@@ -61,12 +62,13 @@ audio.logging = flag('sounds');
 if (option('volume') !== '') setVolume(parseFloat(option('volume')));
 if (audio.logging) console.log(`audio ${audio.describe()}`);
 const logging = flag('log'), stats = flag('stats'), demo = flag('demo');
-// a scripted or golden run keeps nothing between runs: its high scores are the table's
-const keeps = env('ZINC_DETERMINISTIC') === '' || env('ZINC_DETERMINISTIC') === '0';
-const scoresKey = `pinball3d.scores.${table.def.name}`;
+// the high scores players signed are kept between runs: in the file --scores names, else in the application's storage
+// (a scripted or golden run keeps nothing there: its high scores are the table's). "NAME score" lines, the best first
+const scoresFile = option('scores'), scoresKey = `pinball3d.scores.${table.def.name}`;
+const keeps = scoresFile !== '' || env('ZINC_DETERMINISTIC') === '' || env('ZINC_DETERMINISTIC') === '0';
 if (keeps) {
-  // "NAME score" lines, the best first
-  const lines = storage.get(scoresKey).split('\n');
+  const kept = scoresFile === '' ? storage.get(scoresKey) : fs.exists(scoresFile) ? fs.readText(scoresFile) : '';
+  const lines = kept.split('\n');
   for (let i = 0; i < lines.length && i < game.highScores.length; i++) {
     const cut = lines[i].indexOf(' ');
     if (cut > 0) { game.highScores[i] = lines[i].slice(0, cut); game.highValues[i] = parseFloat(lines[i].slice(cut + 1)); }
@@ -76,7 +78,7 @@ if (keeps) {
 let view = new View(table.def, width(), height(), option('layout'));
 scene.setCamera(view.layout);
 let seenW = width(), seenH = height();
-let owed = 0, logged = 0, wasOver = false;
+let owed = 0, logged = 0, saved = 0;
 let physicsMs = 0, drawMs = 0, frames = 0, statsAt = 5, played = 0;
 const hint = 'Z and /: flippers   SPACE: plunger   X . UP: bump   ENTER: start';
 
@@ -105,12 +107,12 @@ onFrame((dt: number) => {
   const t1 = clock();
   if (audio.logging) { for (const line of audio.log) console.log(line); audio.log = []; }
   if (logging) { for (; logged < game.rules.log.length; logged++) console.log(game.rules.log[logged]); if (game.rules.log.length < logged) logged = 0; }
-  if (keeps && game.phase === Phase.Over && !wasOver) {
+  if (keeps && game.signed !== saved) {   // a player signed a high score
+    saved = game.signed;
     const lines: string[] = [];
     for (let i = 0; i < game.highScores.length; i++) lines.push(`${game.highScores[i]} ${game.highValues[i]}`);
-    storage.set(scoresKey, lines.join('\n'));
+    if (scoresFile === '') storage.set(scoresKey, lines.join('\n')); else fs.writeText(scoresFile, `${lines.join('\n')}\n`);
   }
-  wasOver = game.phase === Phase.Over;
 
   game.show(scene);
   rect(0, 0, seenW, seenH, rgb(table.def.lighting.background));

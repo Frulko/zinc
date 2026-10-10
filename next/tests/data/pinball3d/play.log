@@ -201,43 +201,4 @@
 42.657 end of ball 3: bonus 5000, score 79360
 42.657 game gameOver
 42.657 game over: score 79360
-0.000 game start
-0.000 game ballStart
-0.000 ball 1
-0.217 right flip
-0.833 left flip
-0.833 deckFlipper flip
-1.167 plunger launch
-1.271 launched roll
-1.276 laneGate pass
-1.450 right flip
-1.477 drop1 hit
-1.477 drop1 down +2000 = 2000
-1.718 lane1 roll +1300 = 3300
-2.067 left flip
-2.067 deckFlipper flip
-2.683 right flip
-3.300 left flip
-3.300 deckFlipper flip
-3.587 slingLeft hit +110 = 3410
-3.917 right flip
-4.533 left flip
-4.533 deckFlipper flip
-5.150 right flip
-5.527 game drain
-5.527 game ballSaved
-5.767 left flip
-5.767 deckFlipper flip
-6.383 right flip
-7.000 left flip
-7.000 deckFlipper flip
-7.127 plunger launch
-7.231 launched roll
-7.236 laneGate pass
-7.446 drop2 hit
-7.446 drop2 down +2000 = 5410
-7.555 pop1 hit +500 = 5910
-7.617 right flip
-8.233 left flip
-8.233 deckFlipper flip
-8.850 right flip
+42.657 high score: ZAA 79360

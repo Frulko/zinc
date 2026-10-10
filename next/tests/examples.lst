@@ -33,6 +33,7 @@ modules-showcase/src/main.tsx | OK |  |
 native-module/src/main.ts | OK |  | 
 nuxt-ui/src/main.tsx | OK |  | 
 pinball/src/main.ts | OK |  | 
+pinball3d/src/main.ts | OK |  | 
 pocket-hero/main.tsx | OK |  | 
 process/cli/main.ts | OK |  | 
 process/shell/main.tsx | OK |  | 

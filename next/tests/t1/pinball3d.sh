@@ -12,6 +12,8 @@
 #   and drops in the left inlane; the dock catches a ball, holds it and lifts it to the upper playfield, where it rolls to the deck's flipper,
 #   leaves by the chute and falls back on the playfield, or is flipped into a beacon; a ball on the deck bounces off the modelled tower (a
 #   mesh file with a convex hull); a flip sends the ball away at arcade speed; with the locks it needs, multiball serves and shoots two more balls.
+# - A high score is signed (ZN-649.09): the scripted game's score enters the table, its hands choose three letters with the flippers and the
+#   plunger, and the name is kept in the file --scores names; a second run reads it back.
 # - Nothing of the table is in the code: no name, text, file or coordinate of table.json appears in the sources, and every file it names is there.
 # To make the goldens again after an intended change: tests/t1/pinball3d.sh --update (with ZINC set).
 cd "$(dirname "$0")/../.." || exit 2
@@ -94,6 +96,14 @@ echo "$out" | grep -q " game multiballStart" && [ "$(echo "$out" | grep -c ' plu
 out=$(probe $t 23 50 1.37 0 0 0 4 bump@0.2 left@0.9)
 echo "$out" | grep -q " game tilt" || { echo "pinball3d: bumps do not tilt the table: $(echo "$out" | tail -5 | tr '\n' ';')"; fail=1; }
 echo "$out" | grep -q " left flip" && { echo "pinball3d: a flipper answers on a tilted table"; fail=1; }
+# a high score is signed with the flippers and the plunger, and kept between runs: the last line of the scripted game's log names it, the
+# file --scores names holds it, and the same game played again with that file finds it there: the same score no longer beats the table
+for run in 1 2; do
+  ZINC_INPUT="$data/play.input" ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_SIZE=640x400 ZINC_FRAMES=3600 "$ZINC" run $ex -- --log "--scores=$tmp/scores.txt" >"$tmp/sign$run.log" 2>&1
+done
+signed=$(sed -n 's/^[0-9.]* high score: \([A-Z][A-Z][A-Z] [0-9]*\)$/\1/p' "$tmp/sign1.log" | tail -1)
+[ -n "$signed" ] && [ "$(grep -c "^$signed\$" "$tmp/scores.txt")" = 1 ] || { echo "pinball3d: a high score is not signed and kept (signed '$signed'; the file: $(tr '\n' ';' < "$tmp/scores.txt"))"; fail=1; }
+grep -q " high score: " "$tmp/sign2.log" && { echo "pinball3d: the second run did not read the kept scores: the same score entered the table again"; fail=1; }
 # touch: a finger (here the pointer) on the left half of the table's view is the left flipper button
 printf '20 pad Start\n24 padup Start\n40 move 100 300\n41 down\n50 up\n' > "$tmp/touch.input"
 ZINC_INPUT="$tmp/touch.input" ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_SIZE=640x400 ZINC_FRAMES=60 "$ZINC" run $ex -- --log 2>&1 | grep -q " left flip" || { echo "pinball3d: a touch on the left of the table does not flip"; fail=1; }
