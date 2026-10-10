@@ -29,6 +29,10 @@ declare module 'zinc:sys' {
   export function kill(pid: i32, signal: string): boolean;
   export function pid(): i32;
   export function cwd(): string;
+  /** The directory the user ran the program from (`zinc run <project>` starts the program in the project): resolve relative paths given as arguments against it. */
+  export function launchDir(): string;
+  /** The system's preferred language as a BCP 47 tag ("fr-FR"): LC_ALL, LC_MESSAGES or LANG when set, else the system's setting. */
+  export function locale(): string;
   export function chdir(dir: string): boolean;
   export function setEnv(name: string, value: string): void;
   export function unsetEnv(name: string): void;

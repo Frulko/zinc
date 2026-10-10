@@ -25,6 +25,8 @@ export const kill = (pid, name) => {
 };
 export const pid = () => process.pid;
 export const cwd = () => process.cwd();
+export const launchDir = () => process.env.ZINC_LAUNCH_DIR || process.cwd();
+export const locale = () => { for (const k of ['LC_ALL', 'LC_MESSAGES', 'LANG']) { const v = process.env[k]; if (v && v !== 'C' && v !== 'POSIX' && !v.startsWith('C.')) return v.replace(/[.@].*$/, '').replace(/_/g, '-'); } return Intl.DateTimeFormat().resolvedOptions().locale || 'en-US'; };
 export const chdir = d => { try { process.chdir(d); return true; } catch { return false; } };
 export const setEnv = (n, v) => { process.env[n] = v; };
 export const unsetEnv = n => { delete process.env[n]; };

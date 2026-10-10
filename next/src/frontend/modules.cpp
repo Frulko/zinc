@@ -243,6 +243,10 @@ export function kill(pid: i32, signal: string): boolean {
 }
 export function pid(): i32 { return __host_sysPid(); }
 export function cwd(): string { return __host_sysCwd(); }
+/** The directory the user ran the program from: \`zinc run <project>\` starts the program in the project, so relative paths given as arguments are resolved against this one. */
+export function launchDir(): string { return __host_sysLaunchDir(); }
+/** The system's preferred language as a BCP 47 tag ("fr-FR"): LC_ALL, LC_MESSAGES or LANG when set, else the system's setting (an app started from the Finder has no LANG). */
+export function locale(): string { return __host_sysLocale(); }
 export function chdir(dir: string): boolean { return __host_sysChdir(dir); }
 export function setEnv(name: string, value: string): void { __host_sysSetEnv(name, value); }
 export function unsetEnv(name: string): void { __host_sysUnsetEnv(name); }

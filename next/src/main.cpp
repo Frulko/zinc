@@ -767,7 +767,7 @@ static int exec(const fs::path& app, bool built, const std::string& entry, const
   const fs::path ed = fs::path(entry).parent_path();   // zinc:assets reads ZINC_ASSETS, set for the interpreter below main's compile: the same directory here
   for (const fs::path& d : {ed / "assets", ed.parent_path() / "assets"}) if (fs::is_directory(d)) { setenv("ZINC_ASSETS", d.c_str(), 0); break; }
   zn::log::step("run", built ? "native" : "native, cached build (--interp to interpret)");
-  if (!projectDir.empty()) { std::error_code ec; fs::current_path(projectDir, ec); }
+  if (!projectDir.empty()) { std::error_code ec; setenv("ZINC_LAUNCH_DIR", fs::current_path(ec).c_str(), 0); fs::current_path(projectDir, ec); }   // sys.launchDir (ZN-687)
   std::vector<std::string> av = {app.string()};
   av.insert(av.end(), progArgs.begin(), progArgs.end());
   std::vector<char*> cav;
@@ -1496,7 +1496,11 @@ int main(int argc, char** argv) {
     std::string out;
     bool trace = std::getenv("ZN_TRACE_FREE") != nullptr;
     std::string absPath = std::filesystem::absolute(path).string();
-    if (!projectDir.empty()) { std::error_code ec; std::filesystem::current_path(projectDir, ec); }  // the program's relative file names (media/...) are the project's
+    if (!projectDir.empty()) {   // the program's relative file names (media/...) are the project's; sys.launchDir is where the user was (ZN-687)
+      std::error_code ec;
+      setenv("ZINC_LAUNCH_DIR", std::filesystem::current_path(ec).c_str(), 0);
+      std::filesystem::current_path(projectDir, ec);
+    }
 #ifdef ZN_HOST_GFX
     if (path.size() <= 4 || path.substr(path.size() - 4) != ".zbc") {   // a compiled run, as the old toolchain's `zinc run` was (ZN-398, D43)
       std::vector<std::string> progArgs;

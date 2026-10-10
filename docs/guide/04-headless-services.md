@@ -109,6 +109,7 @@ at once.
 | Need | Module |
 |---|---|
 | Arguments, environment, working directory, pid, stdout without a newline, stdin | `zinc:sys`: `args`, `env` / `setEnv` / `unsetEnv` / `envKeys`, `cwd` / `chdir`, `pid`, `write` / `writeErr`, `isatty`, `onStdin(cb)` (chunks, `''` at EOF) |
+| Where the user ran the program from, the user's language | `zinc:sys`: `launchDir()` (`zinc run <project>` starts the program in the project, so resolve a relative path given as an argument against `launchDir()`, not `cwd()`), `locale()` (a BCP 47 tag such as `fr-FR`: `LC_ALL`, `LC_MESSAGES` or `LANG` when set, else the system's first preferred language, which an app started from the Finder has without any variable) |
 | Files and directories | `zinc:fs`: text and bytes, `stat` / `lstat`, `readDir` (with types), `mkdir(p, true)` (mkdir -p), `remove(p, true)` (rm -rf), `rename`, `copyFile`, `realpath`, `mkdtemp` / `tmpdir`, `symlink` / `readlink`, `chmod`, `watch` (polling, 100 ms) |
 | Machine information | `zinc:os`: `hostname`, `homedir`, `tmpdir`, `arch`, `type`, `release`, `uptime`, `loadavg`, `totalmem` / `freemem`, `cpus`, `networkInterfaces`, `userInfo` |
 | Child processes | `zinc:process` ([docs](../plugins/process.md)): spawn with stdin / stdout / stderr pipes, kill, exit code |

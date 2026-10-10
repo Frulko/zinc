@@ -7,6 +7,7 @@
 #include "zn/alloc_stats.h"
 #include <sys/wait.h>
 #include <dirent.h>
+#include <dlfcn.h>
 #include <fcntl.h>
 #include <pwd.h>
 #include <sys/stat.h>
@@ -76,6 +77,45 @@ std::string gPermDenied;    // why the last process, socket, mqtt or osc call wa
 bool refused(const char* feature, const std::string& detail) { gPermDenied = zn::host::perm::check(feature, detail); return !gPermDenied.empty(); }
 std::string takeRefusal() { std::string s; s.swap(gPermDenied); return s; }
 std::string gPayload;   // the payload of the event evNext returned last
+// The working directory the program started in (ZN-687: sys.launchDir of a built program), kept before its first chdir.
+const std::string& startDir() { static const std::string d = [] { char b[4096]; return std::string(getcwd(b, sizeof b) ? b : ""); }(); return d; }
+// "fr_FR.UTF-8@euro" -> "fr-FR"
+std::string bcp47(std::string v) {
+  const size_t cut = v.find_first_of(".@");
+  if (cut != std::string::npos) v.resize(cut);
+  std::replace(v.begin(), v.end(), '_', '-');
+  return v;
+}
+// The system's preferred language (ZN-687): the environment first, then on macOS the first of the user's languages (CoreFoundation, opened when
+// asked: programs do not link it, ZN-592.01), else en-US.
+std::string systemLocale() {
+  for (const char* k : {"LC_ALL", "LC_MESSAGES", "LANG"}) {
+    const char* v = getenv(k);
+    if (v && *v && strcmp(v, "C") != 0 && strcmp(v, "POSIX") != 0 && strncmp(v, "C.", 2) != 0) return bcp47(v);
+  }
+#ifdef __APPLE__
+  if (void* cf = dlopen("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation", RTLD_LAZY | RTLD_LOCAL)) {
+    using Langs = const void* (*)();
+    using Count = long (*)(const void*);
+    using At = const void* (*)(const void*, long);
+    using Str = unsigned char (*)(const void*, char*, long, unsigned);
+    using Rel = void (*)(const void*);
+    auto langs = reinterpret_cast<Langs>(dlsym(cf, "CFLocaleCopyPreferredLanguages"));
+    auto count = reinterpret_cast<Count>(dlsym(cf, "CFArrayGetCount"));
+    auto at = reinterpret_cast<At>(dlsym(cf, "CFArrayGetValueAtIndex"));
+    auto str = reinterpret_cast<Str>(dlsym(cf, "CFStringGetCString"));
+    auto rel = reinterpret_cast<Rel>(dlsym(cf, "CFRelease"));
+    if (langs && count && at && str && rel) {
+      const void* a = langs();
+      char b[64] = {0};
+      const bool ok = a && count(a) > 0 && str(at(a, 0), b, sizeof b, 0x08000100u /* kCFStringEncodingUTF8 */);
+      if (a) rel(a);
+      if (ok && b[0]) return bcp47(b);
+    }
+  }
+#endif
+  return "en-US";
+}
 void ret(HostArg* r, const std::string& s) { gOut = s; r->p = gOut.data(); r->n = static_cast<std::uint32_t>(gOut.size()); }
 std::string str(const HostArg& a) { return std::string(static_cast<const char*>(a.p), a.n); }
 
@@ -284,7 +324,9 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostSysAllocations: r->d = static_cast<double>(zn::rt::gAllocs); break;
     case Rt::HostSysLiveBlocks: r->d = static_cast<double>(zn::rt::gAllocs - zn::rt::gFrees); break;
     case Rt::HostSysCwd: { char b[4096]; ret(r, getcwd(b, sizeof b) ? b : ""); break; }
-    case Rt::HostSysChdir: r->i = chdir(s(0).c_str()) == 0; break;
+    case Rt::HostSysLaunchDir: { const char* d = getenv("ZINC_LAUNCH_DIR"); ret(r, d && *d ? std::string(d) : startDir()); break; }   // zinc run sets it before entering the project
+    case Rt::HostSysLocale: ret(r, systemLocale()); break;
+    case Rt::HostSysChdir: startDir(); r->i = chdir(s(0).c_str()) == 0; break;
     case Rt::HostSysSetEnv: setenv(s(0).c_str(), s(1).c_str(), 1); break;
     case Rt::HostSysUnsetEnv: unsetenv(s(0).c_str()); break;
     case Rt::HostSysEnvKeysCount: {

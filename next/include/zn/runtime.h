@@ -317,7 +317,10 @@
   X(HostGfxOpenWindow, "host.gfxOpenWindow", "sii>i", 2) X(HostGfxCloseWindow, "host.gfxCloseWindow", "i>n", 2) X(HostGfxWindowOpen, "host.gfxWindowOpen", "i>i", 2) \
   X(HostGfxBeginWindow, "host.gfxBeginWindow", "i>n", 2) X(HostGfxEndWindow, "host.gfxEndWindow", ">n", 2) \
   /* zinc:gfx loadFont (ZN-669): a TrueType file named at run time (a baked family or a file of the assets) at exactly px pixels; graphics row, appended */ \
-  X(HostGfxLoadFont, "host.gfxLoadFont", "sd>i", 2)
+  X(HostGfxLoadFont, "host.gfxLoadFont", "sd>i", 2) \
+  /* zinc:sys launchDir and locale (ZN-687): the directory the user ran the program from (zinc run starts it in the project), and the system's */ \
+  /* preferred language as a BCP 47 tag (LC_ALL, LC_MESSAGES, LANG first); system rows, appended */ \
+  X(HostSysLaunchDir, "host.sysLaunchDir", ">s", 2) X(HostSysLocale, "host.sysLocale", ">s", 2)
 
 namespace zn {
 
@@ -349,6 +352,8 @@ inline constexpr bool isGfxTailRow(Rt r) {
   return r == Rt::HostGfxCommands || r == Rt::HostGfxCommandsFree || r == Rt::HostGfxSetResize || r == Rt::HostGfxSetTransform || r == Rt::HostGfxResetTransform || r == Rt::HostGfxDrawImageRect || r == Rt::HostGfxImageFromBytes ||
          (r >= Rt::HostGfxOpenWindow && r <= Rt::HostGfxEndWindow) || r == Rt::HostGfxLoadFont;
 }
+// The system rows appended after the gfx ones: the engines that install the host rows (QuickJS) add them too.
+inline constexpr bool isSysTailRow(Rt r) { return r == Rt::HostSysLaunchDir || r == Rt::HostSysLocale; }
 inline constexpr bool isSysRow(Rt r) { return (r >= Rt::HostSysFirst && r <= Rt::HostHostLast && !(r >= Rt::HostGfxCreateImage && r <= Rt::HostGfxEndImage)) || (r >= Rt::HostLoopWait && !isGfxTailRow(r) && !isLayoutRow(r) && !isGlRow(r)); }
 inline const RtInfo& rtInfo(Rt r) { return kRtInfo[static_cast<unsigned>(r)]; }
 inline unsigned rtParamCount(const RtInfo& r) { return static_cast<unsigned>(std::strchr(r.sig, '>') - r.sig); }
