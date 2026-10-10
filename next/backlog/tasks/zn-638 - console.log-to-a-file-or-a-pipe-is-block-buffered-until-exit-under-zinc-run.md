@@ -2,8 +2,10 @@
 id: ZN-638
 title: console.log to a file or a pipe is block buffered until exit under zinc run
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-10 15:00'
+updated_date: '2026-10-10 16:33'
 labels:
   - devtools
   - size-S

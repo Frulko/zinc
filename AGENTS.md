@@ -29,7 +29,7 @@ Binding rules: `next/RULES.md` (never stop, simulators for hardware, proven libr
 ```sh
 cd next
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release     # once
-cmake --build build --target zinc -j8               # after a change: only the target you need
+tools/build zinc                                    # after a change: only the target you need (load-aware, see below)
 build/zinc run ../examples/hero                     # run a program or project (--interp, --engine quickjs, --profile esp32)
 build/zinc doctor                                   # engine, renderer, pinned tools, host tools, plugins
 tests/run --only <name>                             # one test; tests/run --changed: the tests mapped to your changes
@@ -54,11 +54,15 @@ The work is a backlog of precise tasks managed with **Backlog.md** (`backlog` CL
 
 Independent tasks can be worked in parallel: a coordinator session hands them out, and each agent works one task in its own git worktree and branch, so no two agents share a working tree, a build directory or an index.
 
-- **Choose** with `next/tools/next-task --list 10`: tasks with no dependency between them that touch different modules (their labels, `next/tests/affected.json`). Two tasks in the shared core (IR, runtime, raster, layout, text, `lib/std/ui.ts`) never run together. Three agents at most on the development Mac: each worktree builds its own `next/build` from cold, with `-j4`.
+- **Choose** with `next/tools/next-task --list 10`: tasks with no dependency between them that touch different modules (their labels, `next/tests/affected.json`). Two tasks in the shared core (IR, runtime, raster, layout, text, `lib/std/ui.ts`) never run together. Two building agents at most beside the loop on the development Mac (12 threads); agents that do not build (research, documents, a fix in a test) do not count.
+- **Claim**: before the agents start, the coordinator sets the assignee of every task it hands out (`backlog task edit <id> -a @parallel`) and commits that on main: `next/tools/next-task` skips a task that has an assignee, so the loop on main never takes it. A task that is given back gets `assignee: []` again in its file.
+- **Chains**: small tasks of one module go to one agent, in order, one commit per task: one worktree, one warm build, no conflict between them.
 - **The base**: a new worktree may start from `origin/main`, which is behind while the owner has not pushed. The agent's first command is `git reset --hard main` (the local main), before it reads or builds anything.
 - **The agent** works its task as `/zn-start <id>` says, in its worktree, and commits code, test and task file on its branch. It leaves alone the files every task writes: `next/RESUME.md`, `next/backlog/priority.json`, `next/backlog/keys.json`, `docs/reports/zinc-next-decisions.md`, `docs/reports/zinc-next-perf.md`. It creates no task and no decision number (ids are allocated per tree and would collide): follow-up tasks, decisions and measured numbers go in the task notes and in its final report.
 - **The coordinator** integrates one branch at a time on main (`git cherry-pick main..<branch>`, linear history), builds once, runs the tests of the integrated tasks, then writes what the agents left: decision records, the performance log, the follow-up tasks, `next/RESUME.md`. Then `git worktree remove <path>` and `git branch -D <branch>`.
 - **A conflict** at integration is resolved by the coordinator when it is a few lines; otherwise the task goes back to an agent in a fresh worktree of the updated main.
+- **Builds** go through `next/tools/build [target...]` in every tree, never a bare `cmake --build -jN`: one job per physical core, and make starts no new job while the load average is above 1.5 times the core count (the limit of this Mac is heat, not memory), so trees that build at once share the cores instead of piling up, and a new build directory is configured with ccache (paths relative to the repository), so a fresh worktree reuses what another tree compiled. A task that changes only a test, a tool or a document builds nothing: it runs its test against the main tree's binary (`ZINC=<main>/next/build/zinc`, read-only).
+- **No synthetic load**: never start `yes` loops, stress runs or a second full build to "test under load" while other trees work; say what was not proven instead.
 - **Tests**: an agent runs its task's own test. Tests that open a window, bind a fixed port or measure time (benchmarks, `system_instance`, the macOS window tests) run only after integration, alone: a number measured while other agents build is not valid.
 
 ## Decide alone: the owner is not at the keyboard (owner, 2026-10-10)
@@ -86,7 +90,7 @@ The goal of a session is progress on the backlog: finish tasks, improve and comp
 - End-to-end runs (full T1, T2, the demos, `examples_all`, the WebGL conformance, benchmarks, fuzz) belong to large milestones or to changes in the shared core (IR, runtime, raster, layout, text). Start them in the background and keep working; never wait for them.
 - A command that runs for more than a minute is a background job. Do not re-run a suite that already passed for code you did not touch, and do not re-verify what you already checked in the session.
 - Known failures recorded in `next/RESUME.md` and the backlog (machine, GPU or architecture specific) are not investigated again during an unrelated task.
-- Build only the target you need (`cmake --build build --target zinc`), never the whole tree for a change in one library.
+- Build only the target you need (`tools/build zinc`), never the whole tree for a change in one library.
 - Be critical and pragmatic: one targeted check that can fail beats a sweep of 300 tests that cannot.
 
 ## Tests
@@ -114,4 +118,4 @@ The goal of a session is progress on the backlog: finish tasks, improve and comp
 
 ## The development machine
 
-An Intel Mac (x86_64, 32 GB): `-j8` builds; Homebrew builds every formula from source (no Intel bottles); Node 24, pnpm and `backlog` live in `~/.local`; `timeout` is a link to gtimeout; `ZINC_QEMU` is set in `~/.zshrc`. Known machine-specific test failures are listed in `next/RESUME.md`.
+An Intel Mac (x86_64, 6 cores, 12 threads, 32 GB): builds through `next/tools/build`; ccache is installed (`brew install ccache`); Homebrew builds every formula from source (no Intel bottles); Node 24, pnpm and `backlog` live in `~/.local`; `timeout` is a link to gtimeout; `ZINC_QEMU` is set in `~/.zshrc`. Known machine-specific test failures are listed in `next/RESUME.md`.

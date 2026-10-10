@@ -4,8 +4,10 @@ title: >-
   Lint: WebGL limits and macros defined outside include/zn (shared_headers
   fails)
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-08 19:36'
+updated_date: '2026-10-10 16:33'
 labels:
   - webgl
   - cleanup

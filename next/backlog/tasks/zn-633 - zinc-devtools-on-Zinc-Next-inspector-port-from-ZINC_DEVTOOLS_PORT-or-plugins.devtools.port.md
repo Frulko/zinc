@@ -4,8 +4,10 @@ title: >-
   zinc:devtools on Zinc Next: inspector port from ZINC_DEVTOOLS_PORT or
   plugins.devtools.port
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-10 14:27'
+updated_date: '2026-10-10 16:33'
 labels:
   - devtools
   - size-S

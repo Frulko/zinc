@@ -2,8 +2,10 @@
 id: ZN-637
 title: 'Prototype: build plugins/devtools with the new Spec member net'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-10 14:28'
+updated_date: '2026-10-10 16:33'
 labels:
   - devtools
   - size-S

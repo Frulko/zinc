@@ -2,8 +2,10 @@
 id: ZN-635
 title: 'Network log: mask credentials in query strings and bodies (opt-in names)'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-10 14:27'
+updated_date: '2026-10-10 16:33'
 labels:
   - devtools
   - size-S

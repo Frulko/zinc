@@ -2,8 +2,10 @@
 id: ZN-636
 title: HAR written on SIGTERM or periodically
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-10 14:28'
+updated_date: '2026-10-10 16:33'
 labels:
   - devtools
   - size-S
