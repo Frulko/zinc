@@ -29,6 +29,7 @@ export default {
   begin(): void { tris = 0; },
   ambient(): void {},
   light(): void {},
+  specular(): void {},
   draw(m: number): void { tris += meshes[m] ?? 0; },
   end(): number { return tris; },
   present(): void {},

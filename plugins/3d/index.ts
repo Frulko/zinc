@@ -229,8 +229,14 @@ export class Material {
   vertexColors = false;
   shading: Shading = Shading.Smooth;
   doubleSided = false;
+  /** Colour of the highlights (Blinn-Phong), 0 = none; `shininess` is the exponent (higher: smaller, sharper highlights). */
+  specular: u32 = 0;
+  shininess = 30;
   constructor(color: u32) { this.color = color; }
 }
+
+// The specular state last sent to the renderer: begin() resets it to none, so it is sent only when it changes.
+let specColor: u32 = 0, specShin = 30;
 
 /** Directional light: the direction light travels, in world space. */
 export class Light {
@@ -267,6 +273,10 @@ export class Node {
     const m = this.mesh, mat = this.material;
     if (m !== null && mat !== null) {
       const flags: i32 = (mat.vertexColors ? 1 : 0) | (mat.shading === Shading.Flat ? 2 : 0) | (mat.shading === Shading.Unlit ? 4 : 0) | (mat.doubleSided ? 8 : 0);
+      if (mat.specular !== specColor || (specColor !== 0 && mat.shininess !== specShin)) {
+        specColor = mat.specular; specShin = mat.shininess;
+        R.specular(specColor, specShin);
+      }
       R.draw(m.handle, this.world, mat.color, mat.texture, flags);
     }
     for (const c of this.children) c.draw(this.world);
@@ -306,6 +316,7 @@ export class Camera {
     mat4LookAt(this.view, this.position, this.target, this.up);
     R.begin(this.rt, scene.background, this.view, this.ortho ? this.height : this.fov * Math.PI / 180, this.near, this.far, this.ortho);
     R.ambient(scene.ambient);
+    specColor = 0;
     for (const l of scene.lights) R.light(l.direction[0], l.direction[1], l.direction[2], l.color);
     scene.draw(IDENTITY);
     const tris = R.end();

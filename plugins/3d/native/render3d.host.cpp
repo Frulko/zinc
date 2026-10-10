@@ -271,6 +271,9 @@ struct Engine : NativeRender3D {
   float amb[3] = {0, 0, 0};
   int nl = 0;
   float ld[4][3], lc[4][3];
+  // specular reflection (ZN-563.04): reflectance at normal incidence, exponent, three.js's Blinn-Phong factor (G 1/4, D (s / 2 + 1) / pi with
+  // the lights already divided by pi), and the eye in world space (from the view matrix)
+  float spec[3] = {0, 0, 0}, shin = 30, specK = 0, eye[3] = {0, 0, 0};
   int32_t tris = 0;
   V* vs = nullptr; uint8_t* oc = nullptr; int32_t cap = 0;
 
@@ -343,6 +346,19 @@ struct Engine : NativeRender3D {
     for (int32_t i = 0, n = cur->w * cur->h; i < n; i++) px[i] = clear & 0xFFFFFF;
     memset(cur->z, 0xFF, sizeof(ZT) * (size_t)cur->w * cur->h);
     viewProjection(vp, (float)cur->w / cur->h, view, proj, nearN, farN, ortho);
+    eyeOf(view);
+    spec[0] = spec[1] = spec[2] = 0;
+  }
+  /** The camera's position: the view matrix is [R t], the eye -R^T t. */
+  void eyeOf(Array<N> view) {
+    float V[16];
+    for (int i = 0; i < 16; i++) V[i] = i < view.length() ? F(view.a->data[i]) : (i % 5 == 0 ? 1.0f : 0.0f);
+    for (int i = 0; i < 3; i++) eye[i] = -(V[i * 4] * V[12] + V[i * 4 + 1] * V[13] + V[i * 4 + 2] * V[14]);
+  }
+  void specular(uint32_t c, N s) override {
+    spec[0] = (c >> 16 & 255) / 255.0f; spec[1] = (c >> 8 & 255) / 255.0f; spec[2] = (c & 255) / 255.0f;
+    shin = F(s); if (!(shin >= 1)) shin = 1; if (shin > 2048) shin = 2048;
+    specK = 0.25f * (shin * 0.5f + 1);
   }
   void ambient(uint32_t c) override { amb[0] = (c >> 16 & 255) / 255.0f; amb[1] = (c >> 8 & 255) / 255.0f; amb[2] = (c & 255) / 255.0f; }
   void light(N dx, N dy, N dz, uint32_t c) override {
@@ -353,8 +369,9 @@ struct Engine : NativeRender3D {
     lc[nl][0] = (c >> 16 & 255) / 255.0f; lc[nl][1] = (c >> 8 & 255) / 255.0f; lc[nl][2] = (c & 255) / 255.0f;
     nl++;
   }
-  /** Light reaching a surface with object-space normal (nx, ny, nz) under model matrix M, times base colour. */
-  void shade(const float* M, float nx, float ny, float nz, uint32_t base, float* o) const {
+  /** Light reaching a surface with object-space normal (nx, ny, nz) under model matrix M, times base colour; with a specular reflection
+   *  and the surface's world position `wp`, plus the highlights (clamped to 255). */
+  void shade(const float* M, float nx, float ny, float nz, uint32_t base, float* o, const float* wp = nullptr) const {
     float x = M[0] * nx + M[4] * ny + M[8] * nz, y = M[1] * nx + M[5] * ny + M[9] * nz, z = M[2] * nx + M[6] * ny + M[10] * nz;
     float l = sqrtf(x * x + y * y + z * z);
     if (l > 0) { x /= l; y /= l; z /= l; }
@@ -364,7 +381,24 @@ struct Engine : NativeRender3D {
       if (k > 0) { r += k * lc[i][0]; g += k * lc[i][1]; b += k * lc[i][2]; }
     }
     o[0] = (base >> 16 & 255) * (r > 1 ? 1 : r); o[1] = (base >> 8 & 255) * (g > 1 ? 1 : g); o[2] = (base & 255) * (b > 1 ? 1 : b);
+    if (!wp) return;
+    float vx = eye[0] - wp[0], vy = eye[1] - wp[1], vz = eye[2] - wp[2], vl = sqrtf(vx * vx + vy * vy + vz * vz);
+    if (vl > 0) { vx /= vl; vy /= vl; vz /= vl; }
+    float sr = 0, sg = 0, sb = 0;
+    for (int i = 0; i < nl; i++) {
+      const float lx = -ld[i][0], ly = -ld[i][1], lz = -ld[i][2], k = x * lx + y * ly + z * lz;
+      if (k <= 0) continue;
+      float hx = lx + vx, hy = ly + vy, hz = lz + vz, hl = sqrtf(hx * hx + hy * hy + hz * hz);
+      if (hl <= 0) continue;
+      const float nh = (x * hx + y * hy + z * hz) / hl;
+      if (nh <= 0) continue;
+      const float s = k * specK * powf(nh, shin);
+      sr += s * lc[i][0]; sg += s * lc[i][1]; sb += s * lc[i][2];
+    }
+    o[0] += 255 * spec[0] * sr; o[1] += 255 * spec[1] * sg; o[2] += 255 * spec[2] * sb;
+    for (int c = 0; c < 3; c++) if (o[c] > 255) o[c] = 255;
   }
+  bool specOn() const { return spec[0] > 0 || spec[1] > 0 || spec[2] > 0; }
 
   void draw(int32_t id, Array<N> model, uint32_t color, int32_t tex, int32_t flags) override {
     Mesh* m = meshes.at(id);
@@ -376,6 +410,7 @@ struct Engine : NativeRender3D {
     bool textured = tex >= 0 && m->uv && texture(tex, c.tex);
     bool lit = !(flags & UNLIT), flat = flags & FLAT, vcol = (flags & VCOL) && m->col;
     bool smooth = !flat && (lit || vcol);
+    const bool sp = lit && specOn();
     for (int32_t i = 0; i < m->nv; i++) {
       const float* p = m->pos + i * 3;
       V& o = vs[i];
@@ -387,7 +422,10 @@ struct Engine : NativeRender3D {
       if (textured) { o.u = m->uv[i * 2]; o.v = m->uv[i * 2 + 1]; } else o.u = o.v = 0;
       if (smooth) {
         uint32_t base = vcol ? m->col[i] : color;
-        if (lit) shade(M, m->nrm[i * 3], m->nrm[i * 3 + 1], m->nrm[i * 3 + 2], base, &o.r);
+        if (lit && sp) {
+          const float wp[3] = {M[0] * p[0] + M[4] * p[1] + M[8] * p[2] + M[12], M[1] * p[0] + M[5] * p[1] + M[9] * p[2] + M[13], M[2] * p[0] + M[6] * p[1] + M[10] * p[2] + M[14]};
+          shade(M, m->nrm[i * 3], m->nrm[i * 3 + 1], m->nrm[i * 3 + 2], base, &o.r, wp);
+        } else if (lit) shade(M, m->nrm[i * 3], m->nrm[i * 3 + 1], m->nrm[i * 3 + 2], base, &o.r);
         else { o.r = (float)(base >> 16 & 255); o.g = (float)(base >> 8 & 255); o.b = (float)(base & 255); }
       } else o.r = o.g = o.b = 0;
     }
@@ -406,7 +444,11 @@ struct Engine : NativeRender3D {
           const float *p0 = m->pos + i0 * 3, *p1 = m->pos + i1 * 3, *p2 = m->pos + i2 * 3;
           float ax = p1[0] - p0[0], ay = p1[1] - p0[1], az = p1[2] - p0[2], bx = p2[0] - p0[0], by = p2[1] - p0[1], bz = p2[2] - p0[2];
           float s[3];
-          shade(M, ay * bz - az * by, az * bx - ax * bz, ax * by - ay * bx, base, s);
+          if (sp) {   // the face's centre for the highlight
+            const float cx = (p0[0] + p1[0] + p2[0]) / 3, cy = (p0[1] + p1[1] + p2[1]) / 3, cz = (p0[2] + p1[2] + p2[2]) / 3;
+            const float wp[3] = {M[0] * cx + M[4] * cy + M[8] * cz + M[12], M[1] * cx + M[5] * cy + M[9] * cz + M[13], M[2] * cx + M[6] * cy + M[10] * cz + M[14]};
+            shade(M, ay * bz - az * by, az * bx - ax * bz, ax * by - ay * bx, base, s, wp);
+          } else shade(M, ay * bz - az * by, az * bx - ax * bz, ax * by - ay * bx, base, s);
           c.flat = pack(s[0], s[1], s[2]);
         } else c.flat = base & 0xFFFFFF;
       }

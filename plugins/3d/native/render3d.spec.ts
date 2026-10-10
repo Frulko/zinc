@@ -17,6 +17,9 @@ export interface Spec extends NativeModule {
   ambient(color: u32): void;
   /** Adds a directional light (direction the light travels, world space) for this frame; up to 4. */
   light(dx: number, dy: number, dz: number, color: u32): void;
+  /** The specular reflection of the next draws (Blinn-Phong, ZN-563.04): `color` 0xRRGGBB is the reflectance at normal incidence, 0 none
+   *  (begin resets it); `shininess` is the exponent. Lit draws only; per vertex in the software renderer, per pixel on the GPU. */
+  specular(color: u32, shininess: number): void;
   /** Draws a mesh with a column-major model matrix. texture: image id or -1. flags: 1 vertex colours, 2 flat
    *  shading, 4 unlit, 8 double sided. */
   draw(mesh: i32, model: number[], color: u32, texture: i32, flags: i32): void;

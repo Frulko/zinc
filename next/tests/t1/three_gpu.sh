@@ -14,6 +14,11 @@ for e in three/cubes:three-cubes three/gltf-viewer:three-gltf-viewer; do
   ex=${e%%:*}; name=${e#*:}
   shot "$ex" 30 "$name" && { tools/pngdiff "$tmp/$name-30.png" "tests/golden/examples/$name-30.png" --ssim 0.95 >"$tmp/q" || { echo "$ex on the GPU: $(tail -1 "$tmp/q") against the software frame"; fail=1; }; }
 done
+# highlights (ZN-563.04): Phong and Standard spheres, per vertex in software (the golden, exact) and per pixel on the GPU
+ZINC_3D=software ZINC_RUN=native ZINC_DETERMINISTIC=1 ZINC_HEADLESS=1 ZINC_FRAMES=3 ZINC_SCALE=1 ZINC_SHOT="$tmp/sw.png" ZINC_SHOT_FRAMES=3 "$ZINC" run tests/data/three_specular >/dev/null 2>&1
+tools/pngdiff "$tmp/sw-3.png" tests/golden/examples/three-specular-3.png >"$tmp/q" || { echo "three_specular in software: $(head -1 "$tmp/q")"; fail=1; }
+ZINC_RUN=native ZINC_3D=gpu ZINC_DETERMINISTIC=1 ZINC_HEADLESS=1 ZINC_FRAMES=3 ZINC_SCALE=1 ZINC_SHOT="$tmp/spec.png" ZINC_SHOT_FRAMES=3 "$ZINC" run tests/data/three_specular >/dev/null 2>&1
+tools/pngdiff "$tmp/spec-3.png" tests/golden/examples/three-specular-3.png --ssim 0.9 >"$tmp/q" || { echo "three_specular on the GPU: $(tail -1 "$tmp/q") against the software frame"; fail=1; }
 # asynchronous read: frame 31 shows frame 30
 shot three/cubes 31 async ZINC_GL_PRESENT=async && { tools/pngdiff "$tmp/async-31.png" tests/golden/examples/three-cubes-30.png --ssim 0.95 >"$tmp/q" || { echo "three/cubes, asynchronous read: $(tail -1 "$tmp/q")"; fail=1; }; }
 # which renderer: the GPU counts the triangles it is given (12 for a cube), the software renderer those it draws (the faces turned to the camera)

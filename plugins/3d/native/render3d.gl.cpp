@@ -32,11 +32,21 @@ const char* kVsPre = "#version 100\n#define SCREEN\n";
 const char* kFsPre = "#version 100\n#extension GL_OES_standard_derivatives : enable\nprecision highp float;\n#define SCREEN\n";
 #endif
 const char* kShade = R"(
-uniform vec3 u_amb, u_ld[4], u_lc[4];
+uniform vec3 u_amb, u_ld[4], u_lc[4], u_eye, u_spec;
+uniform float u_shin;
 vec3 shade(vec3 n, vec3 base) {  // Engine::shade: ambient + directional lights, clamped to 1 per channel
   vec3 l = u_amb;
   for (int i = 0; i < 4; i++) l += max(-dot(n, u_ld[i]), 0.0) * u_lc[i];
   return base * min(l, vec3(1.0));
+}
+vec3 highlight(vec3 n, vec3 p) {  // Engine::shade's specular reflection: Blinn-Phong with three.js's factor, per pixel here
+  vec3 v = normalize(u_eye - p), s = vec3(0.0);
+  for (int i = 0; i < 4; i++) {
+    vec3 l = -u_ld[i];
+    float k = dot(n, l);
+    if (k > 0.0) s += k * 0.25 * (u_shin * 0.5 + 1.0) * pow(max(dot(n, normalize(l + v)), 0.0), u_shin) * u_lc[i];
+  }
+  return s * u_spec;
 }
 )";
 const char* kVs = R"(
@@ -48,9 +58,10 @@ uniform mat4 u_mvp, u_model;
 uniform vec3 u_color;
 SCREEN varying vec3 v_col;
 varying vec2 v_uv;
-varying vec3 v_pos;
+varying vec3 v_pos, v_nrm;
 void main() {
   gl_Position = u_mvp * vec4(a_pos, 1.0);
+  v_nrm = (u_model * vec4(a_nrm, 0.0)).xyz;
 #ifdef VCOL
   vec3 base = a_col.bgr;
 #else
@@ -71,12 +82,20 @@ const char* kFs = R"(
 uniform sampler2D u_tex;
 SCREEN varying vec3 v_col;
 varying vec2 v_uv;
-varying vec3 v_pos;
+varying vec3 v_pos, v_nrm;
 void main() {
   vec3 c = v_col;
 #if defined(LIT) && defined(FLAT)
   vec3 n = -normalize(cross(dFdx(v_pos), dFdy(v_pos)));
-  c = shade(gl_FrontFacing ? n : -n, c);
+  if (!gl_FrontFacing) n = -n;
+  c = shade(n, c);
+#endif
+#if defined(LIT) && defined(SPEC)   // before the texture, like the software renderer's per-vertex colour
+#ifdef FLAT
+  c = min(c + highlight(n, v_pos), vec3(1.0));
+#else
+  c = min(c + highlight(normalize(v_nrm), v_pos), vec3(1.0));
+#endif
 #endif
 #ifdef TEX
   c *= texture2D(u_tex, v_uv).rgb;
@@ -85,8 +104,8 @@ void main() {
 }
 )";
 
-enum { P_LIT = 1, P_FLAT = 2, P_TEX = 4, P_VCOL = 8 };
-struct Prog { GLuint id = 0; GLint mvp = -1, model = -1, color = -1, amb = -1, ld = -1, lc = -1; uint32_t frame = 0; bool failed = false; };
+enum { P_LIT = 1, P_FLAT = 2, P_TEX = 4, P_VCOL = 8, P_SPEC = 16 };
+struct Prog { GLuint id = 0; GLint mvp = -1, model = -1, color = -1, amb = -1, ld = -1, lc = -1, eye = -1, spec = -1, shin = -1; uint32_t frame = 0; bool failed = false; };
 struct GMesh { GLuint vao, vbo, ibo; int32_t ni; bool uv, col; };
 struct GTarget { int32_t img, w, h; uint32_t* px; GLuint fbo, color, depth, pbo[2]; int k; bool pending[2]; };
 struct GTex { GLuint id = 0; uint32_t version = 0; };
@@ -108,7 +127,7 @@ struct Gpu : Engine {
   Pool<GMesh> gmeshes;
   Pool<GTarget> gtargets;
   GTarget* gcur = nullptr;
-  Prog progs[16];
+  Prog progs[32];
   GTex* texs = nullptr;  // by image: the baked ones, then the runtime ones (no STL here: zrt.h defines placement new)
   int32_t ntex = 0;
   uint32_t frame = 0;
@@ -147,7 +166,7 @@ struct Gpu : Engine {
     Prog& p = progs[k];
     if (p.id || p.failed) return p;
     char defs[96];
-    snprintf(defs, sizeof defs, "%s%s%s%s", k & P_LIT ? "#define LIT\n" : "", k & P_FLAT ? "#define FLAT\n" : "", k & P_TEX ? "#define TEX\n" : "", k & P_VCOL ? "#define VCOL\n" : "");
+    snprintf(defs, sizeof defs, "%s%s%s%s%s", k & P_LIT ? "#define LIT\n" : "", k & P_FLAT ? "#define FLAT\n" : "", k & P_TEX ? "#define TEX\n" : "", k & P_VCOL ? "#define VCOL\n" : "", k & P_SPEC ? "#define SPEC\n" : "");
     GLuint vs = shader(GL_VERTEX_SHADER, kVsPre, defs, kVs), fs = shader(GL_FRAGMENT_SHADER, kFsPre, defs, kFs);
     p.id = glCreateProgram();
     glAttachShader(p.id, vs); glAttachShader(p.id, fs);
@@ -159,6 +178,7 @@ struct Gpu : Engine {
     if (!ok) { char log[512] = ""; glGetProgramInfoLog(p.id, sizeof log, nullptr, log); fprintf(stderr, "zinc:3d: program: %s\n", log); glDeleteProgram(p.id); p.id = 0; p.failed = true; return p; }
     p.mvp = glGetUniformLocation(p.id, "u_mvp"); p.model = glGetUniformLocation(p.id, "u_model"); p.color = glGetUniformLocation(p.id, "u_color");
     p.amb = glGetUniformLocation(p.id, "u_amb"); p.ld = glGetUniformLocation(p.id, "u_ld"); p.lc = glGetUniformLocation(p.id, "u_lc");
+    p.eye = glGetUniformLocation(p.id, "u_eye"); p.spec = glGetUniformLocation(p.id, "u_spec"); p.shin = glGetUniformLocation(p.id, "u_shin");
     glUseProgram(p.id);
     glUniform1i(glGetUniformLocation(p.id, "u_tex"), 0);
     used = p.id;
@@ -254,6 +274,8 @@ struct Gpu : Engine {
     glClearColor((clear & 255) / 255.0f, (clear >> 8 & 255) / 255.0f, (clear >> 16 & 255) / 255.0f, 0);  // blue first, as the shaders write
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     viewProjection(vp, (float)gcur->w / gcur->h, view, proj, nearN, farN, ortho);
+    eyeOf(view);
+    spec[0] = spec[1] = spec[2] = 0;
     for (int c = 0; c < 4; c++) vp[c * 4 + 1] = -vp[c * 4 + 1];  // y down: row 0 of the framebuffer is the top of the image
   }
 
@@ -309,7 +331,7 @@ struct Gpu : Engine {
     for (int i = 0; i < 16; i++) M[i] = i < model.length() ? F(model.a->data[i]) : (i % 5 == 0 ? 1.0f : 0.0f);
     mul(MVP, vp, M);
     const bool textured = tex >= 0 && g->uv && texture(tex);
-    const int k = (flags & UNLIT ? 0 : P_LIT) | (flags & FLAT ? P_FLAT : 0) | (textured ? P_TEX : 0) | ((flags & VCOL) && g->col ? P_VCOL : 0);
+    const int k = (flags & UNLIT ? 0 : P_LIT | (specOn() ? P_SPEC : 0)) | (flags & FLAT ? P_FLAT : 0) | (textured ? P_TEX : 0) | ((flags & VCOL) && g->col ? P_VCOL : 0);
     Prog& p = program(k);
     if (!p.id) return;
     if (used != p.id) { glUseProgram(p.id); used = p.id; }
@@ -317,8 +339,10 @@ struct Gpu : Engine {
       float d[12] = {0}, c[12] = {0};
       for (int i = 0; i < nl; i++) for (int j = 0; j < 3; j++) { d[i * 3 + j] = ld[i][j]; c[i * 3 + j] = lc[i][j]; }
       glUniform3fv(p.amb, 1, amb); glUniform3fv(p.ld, 4, d); glUniform3fv(p.lc, 4, c);
+      if (k & P_SPEC) glUniform3fv(p.eye, 1, eye);
       p.frame = frame;
     }
+    if (k & P_SPEC) { glUniform3fv(p.spec, 1, spec); glUniform1f(p.shin, shin); }
     glUniformMatrix4fv(p.mvp, 1, GL_FALSE, MVP);
     glUniformMatrix4fv(p.model, 1, GL_FALSE, M);
     glUniform3f(p.color, (color >> 16 & 255) / 255.0f, (color >> 8 & 255) / 255.0f, (color & 255) / 255.0f);

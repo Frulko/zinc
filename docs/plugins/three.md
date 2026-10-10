@@ -116,7 +116,10 @@ camera orbits and dollies by script (`controls.rotateLeft`, `dollyIn`) and a pic
   origin is the top-left corner), `OrbitControls` poll `zinc:gfx` input inside `renderer.domElement`'s box and must be
   updated every frame. `loader.load` completes synchronously (onLoad runs before `load` returns).
 - **Shading** is `zinc:3d`'s: per-vertex (Gouraud) or flat Lambert lighting, nearest texel sampling, one texture per
-  material, z-buffer; no specular, PBR, shadows, transparency, fog, environment maps, wireframe or post-processing.
+  material, z-buffer. Highlights are Blinn-Phong: `MeshPhongMaterial` uses `specular` (0x111111) and `shininess`;
+  `MeshStandardMaterial`/`MeshPhysicalMaterial` approximate GGX with the exponent 2/roughness⁴ − 2, a reflectance of 0.04
+  mixed towards the colour by `metalness` (metals lose their diffuse colour), and no highlight below 4/255 (roughness near 1,
+  the default). No shadows, transparency, fog, environment maps, wireframe or post-processing.
   Light intensities follow three.js r155+ (physically based units): each light contributes
   sRGB(colour × intensity / π), ambient likewise, so `DirectionalLight(0xffffff, 3)` is near full brightness. There is
   no colour management: colours are used as given (sRGB), so mid-tones of lit surfaces come out darker than in a

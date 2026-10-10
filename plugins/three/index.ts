@@ -1202,6 +1202,7 @@ export interface MaterialParameters {
   emissive?: number;
   emissiveIntensity?: number;
   shininess?: number;
+  specular?: number;
 }
 
 /** Shared by every material: lighting is Lambert-like (Gouraud, or flat), MeshBasicMaterial is unlit. */
@@ -1222,12 +1223,14 @@ export class Material {
   depthTest = true;
   depthWrite = true;
   needsUpdate = false;
-  // physically based parameters: kept, not rendered
+  // MeshStandardMaterial: roughness gives the highlights' size, metalness their colour (Blinn-Phong); emissive is kept, not rendered
   roughness = 1;
   metalness = 0;
   readonly emissive = new Color(0);
   emissiveIntensity = 1;
+  // MeshPhongMaterial's highlights
   shininess = 30;
+  readonly specular = new Color(0x111111);
   /** Ignores lights (MeshBasicMaterial). */
   unlit = false;
   constructor(p: MaterialParameters | null = null) { this.id = nextId++; if (p !== null) this.setValues(p); }
@@ -1247,12 +1250,13 @@ export class Material {
     if (p.emissive !== undefined) this.emissive.setHex(p.emissive);
     if (p.emissiveIntensity !== undefined) this.emissiveIntensity = p.emissiveIntensity;
     if (p.shininess !== undefined) this.shininess = p.shininess;
+    if (p.specular !== undefined) this.specular.setHex(p.specular);
   }
   copy(m: Material): Material {
     this.name = m.name; this.type = m.type; this.color.copy(m.color); this.map = m.map; this.side = m.side;
     this.flatShading = m.flatShading; this.vertexColors = m.vertexColors; this.visible = m.visible; this.transparent = m.transparent;
     this.opacity = m.opacity; this.wireframe = m.wireframe; this.roughness = m.roughness; this.metalness = m.metalness;
-    this.emissive.copy(m.emissive); this.emissiveIntensity = m.emissiveIntensity; this.shininess = m.shininess; this.unlit = m.unlit;
+    this.emissive.copy(m.emissive); this.emissiveIntensity = m.emissiveIntensity; this.shininess = m.shininess; this.specular.copy(m.specular); this.unlit = m.unlit;
     return this;
   }
   /** A Material with the same values (its class is Material: `instanceof MeshStandardMaterial` is false). */
@@ -1370,6 +1374,7 @@ export class ShadowMap { enabled = false; type: i32 = PCFSoftShadowMap; }
 export interface RendererParameters { antialias?: boolean; alpha?: boolean; powerPreference?: string }
 
 /** three.js light intensities (r155+, physically based) to zinc:3d colours: sRGB(intensity x colour / pi). */
+const scratchColor = new Color();
 function lightHex(r: number, g: number, b: number): u32 {
   const ch = (v: number): number => {
     const x = clamp(v / Math.PI, 0, 1);
@@ -1446,7 +1451,7 @@ export class WebGLRenderer {
       }
     });
     R.ambient(lightHex(ar, ag, ab));
-    let calls: i32 = 0;
+    let calls: i32 = 0, specHex = 0, specShin = 30;   // begin() reset the renderer's specular to none
     scene.traverseVisible((o: Object3D) => {
       if (!(o instanceof Mesh)) return;
       const m = o.material;
@@ -1456,7 +1461,19 @@ export class WebGLRenderer {
       const vc = m.vertexColors && o.geometry.attributes.color.count > 0;
       const flags: i32 = (vc ? 1 : 0) | (m.flatShading ? 2 : 0) | (m.unlit ? 4 : 0) | (m.side !== FrontSide ? 8 : 0);
       const tex = m.map;
-      R.draw(g.handle, o.matrixWorld.elements, m.color.getHex(), tex !== null ? tex.image : -1, flags);
+      let base = m.color.getHex(), spec = 0, shin = 30;
+      if (!m.unlit && m.type === 'MeshPhongMaterial') { spec = m.specular.getHex(); shin = m.shininess; }
+      else if (!m.unlit && (m.type === 'MeshStandardMaterial' || m.type === 'MeshPhysicalMaterial')) {
+        // GGX approximated by Blinn-Phong: exponent 2/roughness^4 - 2, reflectance 0.04 for dielectrics and the base colour for metals (which lose their diffuse)
+        const r = Math.max(m.roughness, 0.05), mt = clamp(m.metalness, 0, 1), c = m.color;
+        shin = clamp(2 / (r * r * r * r) - 2, 1, 1000);
+        const fr = 0.04 + (c.r - 0.04) * mt, fg = 0.04 + (c.g - 0.04) * mt, fb = 0.04 + (c.b - 0.04) * mt;
+        // ponytail: a highlight that cannot reach 4/255 (rough dielectrics) is not drawn; that keeps rough materials' frames as they were
+        if (Math.max(fr, fg, fb) * 0.25 * (shin / 2 + 1) >= 1 / 64) spec = scratchColor.setRGB(fr, fg, fb).getHex();
+        if (mt > 0) base = scratchColor.setRGB(c.r * (1 - mt), c.g * (1 - mt), c.b * (1 - mt)).getHex();
+      }
+      if (spec !== specHex || (spec !== 0 && shin !== specShin)) { specHex = spec; specShin = shin; R.specular(spec, shin); }
+      R.draw(g.handle, o.matrixWorld.elements, base, tex !== null ? tex.image : -1, flags);
       calls++;
     });
     this.info.render.triangles = R.end();
