@@ -79,7 +79,13 @@ bool capture(const std::string& cmd, std::string& out) {
   return st == 0;
 }
 
-bool haveCommand(const std::string& c) { std::string o; return capture("command -v " + q(c), o) && !o.empty(); }
+bool haveCommand(const std::string& c) {   // asked again at every compile: one shell per command and process (ZN-614)
+  static std::map<std::string, bool> known;
+  auto it = known.find(c);
+  if (it != known.end()) return it->second;
+  std::string o;
+  return known[c] = capture("command -v " + q(c), o) && !o.empty();
+}
 
 bool endsWith(const std::string& s, const char* e) { std::size_t n = std::strlen(e); return s.size() >= n && s.compare(s.size() - n, n, e) == 0; }
 
@@ -257,18 +263,22 @@ bool buildPlugin(const frontend::FoundPlugin& p, const std::string& engineRoot, 
   // system libraries: pkg-config must know them; if not, say what to install
   std::vector<std::string> cflags, libs;
   if (gCross.on && !ts.pkg.empty()) { err = "plugin '" + m.name + "' needs the system library '" + ts.pkg[0] + "', which a cross build for " + gCross.name + " has no sysroot for yet"; return false; }
-  for (const std::string& pkg : ts.pkg) {
-    std::string o;
-    if (!haveCommand("pkg-config") || !capture("pkg-config --exists " + q(pkg) + " && echo ok", o)) {
+  if (!ts.pkg.empty()) {   // one query for all of them: this runs at every compile and start, and each pkg-config costs a process (16 of them for zinc:video, 140 ms; ZN-614)
+    std::string all, o;
+    for (const std::string& pkg : ts.pkg) all += " " + q(pkg);
+    const bool have = haveCommand("pkg-config");
+    if (!have || !capture("(pkg-config --exists" + all + " && pkg-config --cflags" + all + " && echo @@ && pkg-config --libs" + all + ")", o) || o.find("@@") == std::string::npos) {
+      std::string missing = ts.pkg[0], x;
+      if (have) for (const std::string& pkg : ts.pkg) if (!capture("pkg-config --exists " + q(pkg) + " && echo ok", x) || x.empty()) { missing = pkg; break; }
       std::string hint;
       for (const std::string& pk : ts.packages) hint += (hint.empty() ? "" : ", ") + pk;
-      err = "plugin '" + m.name + "' needs the system library '" + pkg + "'" + (haveCommand("pkg-config") ? "" : " (and pkg-config)") + ": install " + (hint.empty() ? "its development package" : "the package " + hint) +
+      err = "plugin '" + m.name + "' needs the system library '" + missing + "'" + (have ? "" : " (and pkg-config)") + ": install " + (hint.empty() ? "its development package" : "the package " + hint) +
             (pluginTarget() == "macos" ? " (for example with brew)" : " (for example with apt or apk)") + ", then run the command again";
       return false;
     }
-    std::string c, l;
-    capture("pkg-config --cflags " + q(pkg), c);
-    capture("pkg-config --libs " + q(pkg), l);
+    auto trim = [](std::string t) { while (!t.empty() && std::isspace(static_cast<unsigned char>(t.back()))) t.pop_back(); while (!t.empty() && std::isspace(static_cast<unsigned char>(t.front()))) t.erase(0, 1); return t; };
+    const std::size_t at = o.find("@@");
+    std::string c = trim(o.substr(0, at)), l = trim(o.substr(at + 2));
     if (!c.empty()) cflags.push_back(c);
     if (!l.empty()) libs.push_back(l);
   }
