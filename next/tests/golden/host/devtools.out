@@ -1,6 +1,6 @@
-zinc devtools: chrome://inspect (Discover network targets: localhost:9229) or ws://127.0.0.1:9229/zinc
+zinc devtools: chrome://inspect (Discover network targets: localhost:PORT) or ws://127.0.0.1:PORT/zinc
 version 200 {"Browser":"Zinc/0.1","Protocol-Version":"1.3"}
-list 200 ws://127.0.0.1:9229/zinc
+list 200 ws://127.0.0.1:PORT/zinc
 evil 403
 document #document true true
 style true

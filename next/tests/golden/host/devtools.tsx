@@ -1,5 +1,5 @@
 // zinc:devtools on zinc:socket (ZN-088): a scripted DevTools client in the same program asks the inspector for the tree, a node's box and style, and checks the
-// HTTP discovery and the Origin check. Run with ZINC_REALTIME=1 (the sockets need real time).
+// HTTP discovery and the Origin check. Run with ZINC_REALTIME=1 (the sockets need real time); the inspector's port is ZINC_DEVTOOLS_PORT (9229 without it).
 import 'zinc:devtools';
 import { render } from 'zinc:ui/solid';
 import { connect, WebSocket, MessageEvent } from 'zinc:socket';
@@ -33,15 +33,16 @@ function field(msg: string, key: string): string {
 }
 async function main(): Promise<void> {
   await new Promise<void>((resolve) => { setTimeout(() => { resolve(); }, 200); });   // the inspector is listening
-  const v = await fetch('http://127.0.0.1:9229/json/version');
+  const at = '127.0.0.1:' + (sys.env('ZINC_DEVTOOLS_PORT').length > 0 ? sys.env('ZINC_DEVTOOLS_PORT') : '9229');
+  const v = await fetch(`http://${at}/json/version`);
   console.log('version', v.status, await v.text());
-  const list = await fetch('http://127.0.0.1:9229/json/list');
+  const list = await fetch(`http://${at}/json/list`);
   console.log('list', list.status, field(await list.text(), 'webSocketDebuggerUrl'));
   const web = new Headers();
   web.set('Origin', 'https://example.com');
-  const evil = await fetch('http://127.0.0.1:9229/json/list', { headers: web });
+  const evil = await fetch(`http://${at}/json/list`, { headers: web });
   console.log('evil', evil.status);
-  const ws = new WebSocket('ws://127.0.0.1:9229/zinc');
+  const ws = new WebSocket(`ws://${at}/zinc`);
   ws.onmessage = (e: MessageEvent) => {
     const id = parseInt(field(e.data, 'id'));
     const f = pending.get(id);

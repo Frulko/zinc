@@ -43,16 +43,17 @@ rb=$(pixel "$t/frame-3.png" 40 4 2>/dev/null)
 cp src/main.ts.bak src/main.ts && sed -i.bak 's/clear(0x101820)/clear(0x204010)/' src/main.ts
 waitfor "$t/dev.log" "v3 started" 2 || { echo "the fix did not restart the program: $(cat "$t/dev.log")"; fail=1; }
 kill $dev; wait $dev 2>/dev/null
-# 4. the inspector: a UI program under dev answers a scripted CDP client
+# 4. the inspector: a UI program under dev answers a scripted CDP client, on the port its zinc.json gives (a free one, ZN-633)
 cd "$t" && "$Z" init ui --template remarkable >/dev/null 2>&1; cd "$t" || exit 2
-mkdir -p uiapp/src && cp "$root/tests/golden/ui-style/radius.tsx" uiapp/src/main.tsx && printf '{"name":"uiapp","entry":"src/main.tsx"}\n' > uiapp/zinc.json
+port=$(python3 "$root/tests/free_ports.py")
+mkdir -p uiapp/src && cp "$root/tests/golden/ui-style/radius.tsx" uiapp/src/main.tsx && printf '{"name":"uiapp","entry":"src/main.tsx","plugins":{"devtools":{"port":%s}}}\n' "$port" > uiapp/zinc.json
 cd uiapp || exit 2
-unset ZINC_SHOT ZINC_SHOT_FRAMES
+unset ZINC_SHOT ZINC_SHOT_FRAMES ZINC_DEVTOOLS_PORT
 "$Z" dev > "$t/dev2.log" 2>&1 &
 dev=$!
-waitfor "$t/dev2.log" "with the inspector" 5 || { echo "no inspector: $(cat "$t/dev2.log")"; fail=1; }
+waitfor "$t/dev2.log" "with the inspector on port $port" 5 || { echo "no inspector on port $port: $(cat "$t/dev2.log")"; fail=1; }
 sleep 1.5
-python3 "$root/tools/cdp-probe" 9229 > "$t/cdp.out" 2>&1 || { echo "cdp client: $(cat "$t/cdp.out")"; fail=1; }
+python3 "$root/tools/cdp-probe" "$port" > "$t/cdp.out" 2>&1 || { echo "cdp client: $(cat "$t/cdp.out")"; fail=1; }
 kill $dev; wait $dev 2>/dev/null
 # 5. monitor: telemetry lines read from a file
 cat > "$t/tele.jsonl" <<'T'

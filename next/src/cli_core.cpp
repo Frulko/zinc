@@ -77,7 +77,7 @@ const Command kCommands[] = {
   {"deploy", "zinc deploy [entry|dir] --target T --device user@host [--dir path] [--print]", "export and start on a device", "Exports, copies with scp and starts with ssh. --print (or ZINC_DEPLOY_DRY=1) prints the three commands and runs nothing."},
   {"tsconfig", "zinc tsconfig [dir]", "editor configuration", "Writes tsconfig.json with the engine's lib so an editor understands zinc:* modules."},
   {"infer", "zinc infer <entry|dir>", "where gradual typing could not infer", "Lists the Z0109 sites (a parameter or variable whose type is unknown) with file and line."},
-  {"dev", "zinc dev [entry|dir] [--no-devtools] [-- args]", "run, watch, restart on save", "Runs the program and watches the project: on every save it type checks and restarts the program (~0.2 s). A compile error puts a red box with the diagnostics on the screen until the next good save. UI programs get the Chrome DevTools inspector (chrome://inspect, localhost:9229). The program restarts from its entry: state is not kept."},
+  {"dev", "zinc dev [entry|dir] [--no-devtools] [-- args]", "run, watch, restart on save", "Runs the program and watches the project: on every save it type checks and restarts the program (~0.2 s). A compile error puts a red box with the diagnostics on the screen until the next good save. UI programs get the Chrome DevTools inspector (chrome://inspect, localhost:9229; another port: zinc.json plugins.devtools.port or ZINC_DEVTOOLS_PORT). The program restarts from its entry: state is not kept."},
   {"monitor", "zinc monitor [file | --port /dev/tty... [--baud n] | --udp port]", "read telemetry", "Prints zinc:telemetry JSON lines (hello, metric, event, state_snapshot) from stdin, a file, a serial port or UDP, one readable line each; other lines pass through."},
   {"lsp", "zinc lsp", "language server", "Speaks LSP over stdio for an editor: diagnostics (the Z codes of zinc check --json), hover with types, completion (members, names in scope, module specifiers), go to definition, document symbols."},
   {"help", "zinc help [command]", "this text", "zinc help lists the commands; zinc help <command> describes one."},
@@ -210,6 +210,25 @@ bool writeFile(const fs::path& p, const std::string& text) {
   return static_cast<bool>(f);
 }
 
+// The port the project of `entry` gives its inspector (ZN-633): ZINC_DEVTOOLS_PORT, else zinc.json plugins.devtools.port (targets.<host>.plugins.devtools over it), else "":
+// the default of plugins/devtools. The inspector reads the variable (native/cdp.next.ts), so `zinc run` exports what the project says.
+std::string devtoolsPort(const std::string& entry) {
+  if (const char* e = std::getenv("ZINC_DEVTOOLS_PORT"); e && *e) return e;
+  const std::string pf = zn::frontend::findProjectFile(entry);
+  if (pf.empty()) return "";
+  zn::frontend::FoundPlugin devtools;   // the name is enough: the layers of the project are merged over no default
+  devtools.manifest.name = "devtools";
+#if defined(__APPLE__)
+  const char* host = "macos";
+#else
+  const char* host = "linux";
+#endif
+  // ponytail: no engine root here, so a board file's plugins.devtools is not read; pass the root when a board sets the port
+  for (const zn::frontend::PluginOption& o : zn::frontend::pluginOptions(devtools, fs::path(pf).parent_path().string(), "", host))
+    if (o.key == "port" && !o.cpp.empty() && o.cpp.find_first_not_of("0123456789") == std::string::npos) return o.cpp;
+  return "";
+}
+
 }  // namespace
 
 bool discoverEntry(std::vector<std::string>& args, std::string& err) {
@@ -226,6 +245,7 @@ bool discoverEntry(std::vector<std::string>& args, std::string& err) {
   }
   const bool hasEntry = at < args.size() && args[at] != "--";
   std::string entry = hasEntry ? args[at] : ".";
+  if (cmd == "run") if (const std::string port = devtoolsPort(entry); !port.empty()) setenv("ZINC_DEVTOOLS_PORT", port.c_str(), 1);
   std::error_code ec;
   std::string dirArg = entry;
   if (hasEntry && !fs::is_directory(entry, ec)) {
@@ -1619,7 +1639,10 @@ int dev(const std::vector<std::string>& args) {
     child = spawnSelf(cmd, env, p.dir);
     if (!redbox) ++version;
     if (redbox) std::fprintf(stderr, "zinc dev: red box on screen (%ld ms after the save)\n", sinceSave);
-    else std::fprintf(stderr, "zinc dev: v%d started%s (%ld ms after the save)%s\n", version, tools ? " with the inspector on port 9229" : "", sinceSave, "");
+    else {
+      const std::string port = devtoolsPort(p.dir);
+      std::fprintf(stderr, "zinc dev: v%d started%s (%ld ms after the save)%s\n", version, tools ? (" with the inspector on port " + (port.empty() ? "9229" : port)).c_str() : "", sinceSave, "");
+    }
     std::fflush(stderr);
   };
   Stamps seen = snapshot(p.dir);

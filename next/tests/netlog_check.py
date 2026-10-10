@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The scripted DevTools client of tests/t0/netlog.sh (ZN-370): usage netlog_check.py <quit port> <har file> <tls: 0|1>.
+"""The scripted DevTools client of tests/t0/netlog.sh (ZN-370): usage netlog_check.py <quit port> <har file> <tls: 0|1> <inspector port>.
 Enables the Network domain on the inspector of tests/golden/host/netlog.tsx, checks the events, the bodies and the masking, asks the program to quit, then
 checks the HAR file it wrote: the same requests, the fields Chrome's HAR importer reads, no credential."""
 import importlib.machinery, importlib.util, json, os, sys, time, urllib.request
@@ -7,7 +7,7 @@ import importlib.machinery, importlib.util, json, os, sys, time, urllib.request
 here = os.path.dirname(os.path.abspath(__file__))
 loader = importlib.machinery.SourceFileLoader("cdp_probe", os.path.join(here, "..", "tools", "cdp-probe"))
 probe = importlib.util.module_from_spec(importlib.util.spec_from_loader("cdp_probe", loader)); loader.exec_module(probe)
-quit_port, har_path, tls = int(sys.argv[1]), sys.argv[2], sys.argv[3] == "1"
+quit_port, har_path, tls, inspector = int(sys.argv[1]), sys.argv[2], sys.argv[3] == "1", int(sys.argv[4])
 SECRETS = ["s3cret-token", "cookie-secret", "server-secret"]
 
 def fail(msg):
@@ -18,7 +18,7 @@ def need(cond, msg):
 # ---- 1. the Network events
 events = []
 closed = lambda ev: sum(1 for e in ev if e.get("method") == "Network.webSocketClosed") >= 2   # the WebSocket, then the MQTT client: the program's last step
-probe.ws(9229, "/zinc", [{"id": 1, "method": "Network.enable", "params": {}}], events, closed)
+probe.ws(inspector, "/zinc", [{"id": 1, "method": "Network.enable", "params": {}}], events, closed)
 net = [e for e in events if e.get("method", "").startswith("Network.")]
 def of(method, rid=None): return [e["params"] for e in net if e["method"] == "Network." + method and (rid is None or e["params"]["requestId"] == rid)]
 def request(part):
@@ -60,7 +60,7 @@ if tls:
     sr = response(sec["requestId"]); st = sr["timing"]
     need(sr["securityState"] == "secure" and 0 <= st["dnsEnd"] <= st["sslStart"] < st["sslEnd"] <= st["sendEnd"] <= st["receiveHeadersEnd"], "TLS timing: %s" % st)
     ids.append(sec["requestId"])
-bodies = probe.ws(9229, "/zinc", [{"id": 10 + k, "method": "Network.getResponseBody", "params": {"requestId": i}} for k, i in enumerate(ids)] +
+bodies = probe.ws(inspector, "/zinc", [{"id": 10 + k, "method": "Network.getResponseBody", "params": {"requestId": i}} for k, i in enumerate(ids)] +
                   [{"id": 20, "method": "Network.getRequestPostData", "params": {"requestId": ids[0]}}])
 need(bodies[0]["result"] == {"body": '{"echo":{"ask":"zinc"}}', "base64Encoded": False}, "getResponseBody: %s" % bodies[0])
 need(bodies[-1]["result"]["postData"] == '{"ask":"zinc"}', "getRequestPostData: %s" % bodies[-1])

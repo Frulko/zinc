@@ -263,11 +263,11 @@ setInterval(() => {
     `"deviceWidth":${width()},"deviceHeight":${height()},"scrollOffsetX":0,"scrollOffsetY":0,"timestamp":${Date.now() / 1000}}}}`);
 }, 100);
 
-Cdp.listen(9229, handle);
+Cdp.listen(9229, handle);   // the default: zinc.json plugins.devtools.port and ZINC_DEVTOOLS_PORT change it (docs/dev-mode.md)
 // The Network panel: the host records every request from now on (headers that carry credentials masked); the events wait in the host until a client
 // enables the domain, then follow live.
 let netOn = false;
-Cdp.net(0, '9229');
+Cdp.net(0, '');
 setInterval(() => {
   if (!netOn) return;
   if (Cdp.clients() === 0) { netOn = false; return; }

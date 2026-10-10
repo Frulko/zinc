@@ -3,7 +3,7 @@
 // text. Not ported: the screenshot of the frame (none), the profiler spans (none) and the mirroring of console output.
 import { listen as listenTcp, Socket, WebSocket, MessageEvent } from 'zinc:socket';
 import { sha1, base64Encode } from 'zinc:web';
-import { utf8Encode, utf8Decode } from 'zinc:sys';
+import { utf8Encode, utf8Decode, env } from 'zinc:sys';
 import { call as netLog } from 'zinc:__netlog';
 
 const GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
@@ -92,17 +92,23 @@ function strField(msg: string, key: string): string {
   return out;
 }
 
-async function start(port: i32): Promise<void> {
+let port: i32 = 0;      // where the inspector listens
+let logging = false;    // the network log was started: it leaves out the program's own connections to that port
+async function start(): Promise<void> {
   try {
     const srv = await listenTcp(port, accept, '127.0.0.1');
-    console.error(`zinc devtools: chrome://inspect (Discover network targets: localhost:${srv.port}) or ws://127.0.0.1:${srv.port}/zinc`);
+    if (srv.port !== port) { port = srv.port; if (logging) netLog(0, `${port}`); }   // asked for port 0: the system chose one
+    console.error(`zinc devtools: chrome://inspect (Discover network targets: localhost:${port}) or ws://127.0.0.1:${port}/zinc`);
   } catch (e) { console.error(`zinc devtools: port ${port} unavailable`); }
 }
 
 export default {
-  listen(port: i32, cb: (client: i32, msg: string) => void): boolean {
+  listen(asked: i32, cb: (client: i32, msg: string) => void): boolean {
     onMessage = cb;
-    start(port);
+    // ZINC_DEVTOOLS_PORT wins over the port the plugin asks for (two programs at once; `zinc run` sets it from zinc.json plugins.devtools.port); 0 takes any free port
+    const e = env('ZINC_DEVTOOLS_PORT');
+    port = e.length > 0 ? parseInt(e) : asked;
+    start();
     return true;
   },
   send(client: i32, msg: string): void {
@@ -116,5 +122,9 @@ export default {
   clients(): i32 { let n: i32 = 0; for (const c of clients) if (c !== null) n++; return n; },
   screenshot(maxW: i32, maxH: i32): string { return ''; },
   trace(on: boolean): string { return on ? '' : '[]'; },
-  net(op: i32, arg: string): string { return netLog(op, arg); },
+  net(op: i32, arg: string): string {
+    if (op !== 0) return netLog(op, arg);
+    logging = true;
+    return netLog(0, `${port}`);
+  },
 };
