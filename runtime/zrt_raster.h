@@ -34,7 +34,8 @@ const Glyph* runtime_glyph(int32_t id, uint32_t cp);
 /** Font `name` at exactly `px` for drawing (runtime rasterization when not baked). */
 int32_t render_font(const char* name, uint32_t name_len, int32_t px);
 
-// Runtime images (video frames, camera preview, cached map tiles, render-to-image): opaque 0x00RRGGBB pixels.
+// Runtime images (video frames, camera preview, cached map tiles, render-to-image): opaque 0x00RRGGBB pixels, or
+// 0xAARRGGBB with straight alpha once dyn_set_alpha says so (decoded sprites; a render target is opaque again).
 // Ids start at DYN_BASE so they never collide with baked images. Buffers are read on the main thread during
 // hal_present: a producer thread must hand over a finished buffer with dyn_update, never write the shown one.
 static const int32_t DYN_BASE = 1 << 20;
@@ -44,6 +45,8 @@ void dyn_update(int32_t id, const uint32_t* px, int32_t stride);                
 uint32_t* dyn_pixels(int32_t id);
 void dyn_resize(int32_t id, int32_t w, int32_t h);                             // runtime-owned buffers only
 void dyn_destroy(int32_t id);
+void dyn_set_alpha(int32_t id, bool on);                                       // the top byte of each pixel is its alpha
+bool dyn_alpha(int32_t id);
 bool image_size(int32_t id, int32_t* w, int32_t* h);
 uint32_t image_version(int32_t id);
 /** Current pixels of a runtime image (GPU compositors upload them when the version changes). */
@@ -58,7 +61,7 @@ constexpr uint32_t kXformLen = 15;
 
 struct Cmd {
   uint8_t kind, alpha, grad;   // grad: 0 none, 1 vertical (c1 top -> c2 bottom), 2 horizontal, 3 radial, 4 POLY paint record after the contours (raster.cpp paint_at); IMAGE: 1 = nearest filter
-  uint8_t pad;                 // POLY: bit 0 = even-odd fill rule (default nonzero)
+  uint8_t pad;                 // POLY: bit 0 = even-odd fill rule (default nonzero); IMAGE: kImageBox
   int32_t res;                 // font or image index
   float x, y, w, h;            // LINE: x,y -> w,h ; POLY: bbox
   float r, s;                  // radius; border width / shadow blur / line width / tracking
@@ -67,6 +70,20 @@ struct Cmd {
 };
 
 struct Rect { int32_t x0, y0, x1, y1; };
+
+/** An IMAGE with pad bit kImageBox draws part of its image (gfx::drawImageRect): x, y, w, h is the rectangle painted, and the box the
+ *  whole image would cover is kept as four floats in s, c1, off and n, which an IMAGE has no other use for. The source rectangle is
+ *  what of that box lies over the painted rectangle (nothing is painted outside the box); a negative size mirrors the image. */
+constexpr uint8_t kImageBox = 4;
+struct Box { float x, y, w, h; };
+inline Box image_box(const Cmd& c) {
+  Box b = {c.x, c.y, c.w, c.h};
+  if (c.pad & kImageBox) { b.x = c.s; __builtin_memcpy(&b.y, &c.c1, 4); __builtin_memcpy(&b.w, &c.off, 4); __builtin_memcpy(&b.h, &c.n, 4); }
+  return b;
+}
+inline void set_image_box(Cmd& c, Box b) {
+  c.pad |= kImageBox; c.s = b.x; __builtin_memcpy(&c.c1, &b.y, 4); __builtin_memcpy(&c.off, &b.w, 4); __builtin_memcpy(&c.n, &b.h, 4);
+}
 
 /** Returns the index of the font `name` whose pixel size is closest to `px`. */
 int32_t find_font(const char* name, uint32_t name_len, int32_t px);

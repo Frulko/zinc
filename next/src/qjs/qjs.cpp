@@ -135,7 +135,7 @@ JSValue hostFn(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv, int m
 void installHost(JSContext* ctx) {
   JSValue g = JS_GetGlobalObject(ctx);
   for (unsigned i = static_cast<unsigned>(zn::Rt::HostGfxFrames); i < static_cast<unsigned>(zn::Rt::Count); ++i) {
-    if (i >= static_cast<unsigned>(zn::Rt::HostHostLast) && !zn::isLayoutRow(static_cast<zn::Rt>(i))) continue;   // the rows past the host block that are host calls too: the layout engine (ZN-284.01)
+    if (i >= static_cast<unsigned>(zn::Rt::HostHostLast) && !zn::isLayoutRow(static_cast<zn::Rt>(i)) && !zn::isGfxTailRow(static_cast<zn::Rt>(i))) continue;   // the rows past the host block that are host calls too: the layout engine (ZN-284.01), the zinc:gfx rows appended since (commands, resize, transform, sprites)
     const zn::RtInfo& ri = zn::kRtInfo[i];
     std::string name = std::string("__host_") + zn::rtMember(ri);
     JS_SetPropertyStr(ctx, g, name.c_str(), JS_NewCFunctionMagic(ctx, hostFn, name.c_str(), static_cast<int>(zn::rtParamCount(ri)), JS_CFUNC_generic_magic, static_cast<int>(i)));

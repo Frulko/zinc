@@ -35,6 +35,15 @@ declare module 'zinc:gfx' {
   export function imageWidth(image: i32): i32;
   export function imageHeight(image: i32): i32;
   export function drawImage(image: i32, x: number, y: number, w: number, h: number, alpha: i32, radius: number): void;
+  export const enum ImageFlag { FlipX = 1, FlipY = 2, Nearest = 4 }
+  /** Draws the source rectangle (sx, sy, sw, sh) of an image, in the pixels of imageWidth / imageHeight, on (dx, dy, dw, dh): a frame of a
+   *  sprite sheet, a tile. alpha 0..255; flags: ImageFlag bits (mirrored, nearest texel instead of the linear blend). The part of the source
+   *  rectangle outside the image is not drawn. Linear sampling blends with the texels around the rectangle, as a GPU does: leave a
+   *  transparent pixel between the frames of a sheet, or draw pixel art with ImageFlag.Nearest. */
+  export function drawImageRect(image: i32, sx: number, sy: number, sw: number, sh: number, dx: number, dy: number, dw: number, dh: number, alpha?: i32, flags?: i32): void;
+  /** Runtime image decoded from the bytes of a PNG or JPEG file (zinc:assets readBytes, a download), with its transparency. -1 when the
+   *  bytes are not such an image. Free it with destroyImage. */
+  export function imageFromBytes(bytes: u8[]): i32;
   /** Clips the following draws to the box until unclip(); radius > 0 also clips to its rounded corners (anti-aliased). */
   export function clip(x: number, y: number, w: number, h: number, radius?: number): void;
   export function unclip(): void;

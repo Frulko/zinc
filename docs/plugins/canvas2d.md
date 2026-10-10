@@ -61,7 +61,7 @@ zinc run examples/canvas/sketch --target sim    # Node (headless: the geometry r
 | styles | `fillStyle` / `strokeStyle` as CSS colours: `#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`, `rgb()`/`rgba()` (commas or spaces, `/ alpha`, percentages), `hsl()`/`hsla()`, the 148 CSS names, `transparent`; `globalAlpha` |
 | gradients | `createLinearGradient`, `createRadialGradient` (two circles, the web's cone rule), `addColorStop` with any number of stops and per-stop alpha; assigned with `fillGradient` / `strokeGradient` (below) |
 | text | `fillText`, `strokeText`, `measureText` (`width`, bounding box ascent/descent), `font` (`[italic] [bold\|100–900] <n>px\|pt <family>`: `sans-serif`, `monospace`, or a TTF family from the assets), `textAlign` (start, left, center, right, end), `textBaseline` (alphabetic, top, hanging, middle, bottom, ideographic) |
-| images | `drawImage(image, dx, dy)`, `(image, dx, dy, dw, dh)`, `(image, sx, sy, sw, sh, dx, dy, dw, dh)` with a `zinc:gfx` image id (baked asset `gfx.image('x.png')`, runtime image, `canvas.image`) |
+| images | `drawImage(image, dx, dy)`, `(image, dx, dy, dw, dh)`, `(image, sx, sy, sw, sh, dx, dy, dw, dh)` with a `zinc:gfx` image id (baked asset `gfx.image('x.png')`, runtime image, `canvas.image`); the source rectangle goes through `gfx.drawImageRect`, and `imageSmoothingEnabled = false` draws it with the nearest texel |
 | clipping | `clip()`: intersects with the **bounding box** of the current path (exact for rectangles) |
 | hit testing | `isPointInPath(x, y, rule)`, `isPointInStroke(x, y)` (canvas pixels, like the web); `strokeContours()` returns the stroke outline |
 | helpers | `parseColor(css)` → `CssColor` (`rgb` 0xRRGGBB, `alpha` 0..255) or null, also used by `three`'s `Color.setStyle` |

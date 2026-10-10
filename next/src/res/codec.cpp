@@ -2,6 +2,13 @@
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
+// the decoder a program links (zn_res, the baker's, is the CLI's): static, so it meets no other copy of stb_image; the two formats a program gets at run time
+#define STB_IMAGE_STATIC
+#define STB_IMAGE_IMPLEMENTATION
+#define STBI_ONLY_PNG
+#define STBI_ONLY_JPEG
+#define STBI_NO_STDIO
+#include "stb_image.h"
 
 namespace zn::res {
 namespace {
@@ -19,6 +26,12 @@ uint8_t* encodePngAlloc(const uint8_t* px, int w, int h, int comp, size_t* n, vo
   uint8_t* out = png.empty() ? nullptr : static_cast<uint8_t*>(alloc(png.size()));
   if (out) { __builtin_memcpy(out, png.data(), png.size()); *n = png.size(); }
   return out;
+}
+uint8_t* decodeRgbaAlloc(const uint8_t* data, size_t size, int* w, int* h) {
+  int comp = 0;
+  // a few hundred bytes can declare a 16384 x 16384 image: the header is read first, and at most 2^24 pixels (4096 x 4096) are decoded
+  if (size > 0x7fffffff || !stbi_info_from_memory(data, static_cast<int>(size), w, h, &comp) || static_cast<uint64_t>(*w) * static_cast<uint64_t>(*h) > (1u << 24)) return nullptr;
+  return stbi_load_from_memory(data, static_cast<int>(size), w, h, &comp, 4);   // stb's allocator is malloc
 }
 std::vector<uint8_t> encodeJpeg(const uint8_t* px, int w, int h, int comp, int quality) {
   std::vector<uint8_t> out;

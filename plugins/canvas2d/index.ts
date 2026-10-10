@@ -4,7 +4,7 @@
 // (native/canvas2d.host.cpp). Text and images use zinc:gfx. Guide and deviations: docs/plugins/canvas2d.md.
 import {
   font as gfxFont, fontAscent, lineHeight, textWidth, drawText, imageWidth, imageHeight,
-  clip as gfxClip, unclip, beginImage, endImage, createImage, destroyImage, rrect,
+  clip as gfxClip, unclip, beginImage, endImage, createImage, destroyImage, rrect, drawImageRect,
 } from 'zinc:gfx';
 import N from './native/canvas2d.spec';
 
@@ -487,11 +487,7 @@ export class CanvasRenderingContext2D {
     const al: i32 = Math.round(255 * Math.min(1, Math.max(0, this.globalAlpha)));
     const smooth = this.imageSmoothingEnabled;
     if (sx === 0 && sy === 0 && sw === iw && sh === ih) { N.image(image, x0, y0, w, hh, al, smooth); return; }
-    // source rectangle: clip to the destination, draw the whole image scaled so the source maps onto it
-    const fx = w / sw, fy = hh / sh;
-    gfxClip(x0, y0, w, hh);
-    N.image(image, x0 - sx * fx, y0 - sy * fy, iw * fx, ih * fy, al, smooth);
-    unclip();
+    drawImageRect(image, sx, sy, sw, sh, x0, y0, w, hh, al, smooth ? 0 : 4);   // 4: ImageFlag.Nearest
   }
 
   // ------------------------------------------------ internals

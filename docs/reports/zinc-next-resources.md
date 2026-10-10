@@ -23,7 +23,20 @@ This is why `stb_truetype` or `nanosvg` were not used for the rasterizers: they 
 (`src/host/resources.cpp`). `zinc build` bakes at build time and embeds the blob in the C++ of the program, which installs it when it starts.
 The TrueType files are in the blob too, so the runtime can rasterize any other size (HiDPI windows). `zinc bake prog.ts -o blob.bin` writes the blob for inspection.
 
+## Images at run time and sprites (ZN-432)
+
+`imageFromBytes(bytes)` decodes a PNG or a JPEG file while the program runs. The decoder is a second, static copy of `stb_image` in `src/res/codec.cpp`
+(`zn_codec`), the library a program built with `zinc build` links; the baker's copy stays in the CLI. A file that declares more than 2^24 pixels is refused before
+anything is allocated. The pixels become a runtime image (`raster::dyn_create`) that carries straight alpha in the top byte of each pixel when one of them is
+not opaque (`raster::dyn_set_alpha`); an image used as a render target is opaque again.
+
+`drawImageRect` records one IMAGE command, as `drawImage` does. The command keeps the rectangle painted and, in the four fields an IMAGE did not use (`s`, `c1`,
+`off`, `n`: `raster::image_box`), the box the whole image would cover: the source rectangle is what of that box lies over the painted rectangle, and a negative
+size mirrors the image. So a command stays 48 bytes and a frame takes as many sprites as commands. The rasterizer (`draw_boxed` in `runtime/raster.cpp`) samples
+as a GPU would: linear sampling reads the texels around the source rectangle, nearest takes the texel under the pixel centre, nothing is painted outside the
+image. `zinc:canvas`'s 9-argument `drawImage` is on the row; its frame is the one the earlier clip around the whole image gave (`tests/t1/image_rect.sh`).
+
 ## Not covered
 
-Fonts and images are fixed per program: an image or a size chosen at run time from data is not found by the scan. Plugin and board profiles with their own
+Fonts and images are fixed per program: an image or a size chosen at run time from data is not found by the scan (`imageFromBytes` decodes one). Plugin and board profiles with their own
 asset rules, image formats other than PNG and SVG, font hinting, and ligatures or complex scripts (the rasterizer draws one glyph per code point).

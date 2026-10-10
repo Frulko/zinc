@@ -110,6 +110,25 @@ Images: `<image src="logo.png" />` reads from the embedded `assets/` directory; 
 runtime; `zinc:gfx` can build runtime images (video frames, generated textures) and render-to-image. HiDPI is
 automatic — resources are baked at the display scale (Retina ×2 on macOS, ×window `zoom`).
 
+Sprites: `drawImage(image, x, y, w, h, alpha, radius)` draws a whole image, `drawImageRect` a rectangle of it (a frame of a
+sprite sheet, a tile), mirrored or not, with the nearest texel for pixel art or the linear blend. `imageFromBytes` decodes a PNG or
+a JPEG file at run time (a download, a file the user picked) into an image that keeps its transparency:
+
+```ts
+import { image, drawImageRect, imageFromBytes, destroyImage, ImageFlag } from 'zinc:gfx';
+import { readBytes } from 'zinc:assets';
+
+const sheet = image('hero.png');                          // baked from assets/: 16x16 frames in a row
+const skin = imageFromBytes(readBytes('skins/red.png'));  // decoded now; -1 when the bytes are not an image; destroyImage(skin) frees it
+// frame 3 at four times its size, looking left: source x, y, w, h, then destination x, y, w, h, alpha 0..255, flags
+drawImageRect(sheet, 3 * 16, 0, 16, 16, x, y, 64, 64, 255, ImageFlag.Nearest | ImageFlag.FlipX);
+drawImageRect(skin, 0, 0, 16, 16, x, y, 16, 16);          // alpha 255 and the linear blend when left out
+```
+
+The source rectangle is in the pixels `imageWidth` and `imageHeight` report; what of it lies outside the image is not drawn. The
+linear blend reads the texels just outside the rectangle, as a GPU does: keep a transparent pixel between the frames of a sheet
+drawn at another size, or use `ImageFlag.Nearest`.
+
 ## WebGL from Zinc code (`zinc:gl`)
 
 `zinc:gl` gives compiled Zinc code WebGL without a JS engine. Its calls go straight to the engine's WebGL implementation, the same

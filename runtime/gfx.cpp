@@ -1006,7 +1006,11 @@ static void to_physical(Buf& b) {
     if (c.kind == raster::CLEAR || c.kind == raster::UNCLIP) continue;
     c.x *= k; c.y *= k; c.w *= k; c.h *= k;
     switch (c.kind) {
-      case raster::RECT: case raster::IMAGE: case raster::CLIP: c.r *= k; break;
+      case raster::RECT: case raster::CLIP: c.r *= k; break;
+      case raster::IMAGE:
+        c.r *= k;
+        if (c.pad & raster::kImageBox) { const raster::Box m = raster::image_box(c); raster::set_image_box(c, raster::Box{m.x * k, m.y * k, m.w * k, m.h * k}); }
+        break;
       case raster::BORDER: case raster::SHADOW: c.r *= k; c.s *= k; break;
       case raster::TEXT:
         c.s *= k; c.res = phys_font(c.res);
@@ -1293,6 +1297,24 @@ int32_t imageHeight(int32_t i) { int32_t w, h; raster::image_size(i, &w, &h); re
 void drawImage(int32_t i, double x, double y, double w, double h, int32_t alpha, double radius) {
   if (Cmd* c = push(raster::IMAGE, 0, alpha)) { box(c, x, y, w, h); c->res = i; c->r = (float)radius * rec_k(); c->c2 = raster::image_version(i); xform(c); }
 }
+/** The source rectangle (sx, sy, sw, sh) of an image, in the pixels of imageWidth / imageHeight, on (dx, dy, dw, dh): a frame of a sprite sheet.
+ *  flags: 1 mirrors it left to right, 2 top to bottom, 4 samples the nearest texel instead of blending four. The part of the source
+ *  rectangle outside the image is not drawn. Linear sampling reads the neighbouring texels at the edges of the rectangle, as a GPU does. */
+void drawImageRect(int32_t i, double sx, double sy, double sw, double sh, double dx, double dy, double dw, double dh, int32_t alpha, int32_t flags) {
+  int32_t iw, ih;
+  if (!raster::image_size(i, &iw, &ih) || !(sw > 0 && sh > 0 && dw > 0 && dh > 0)) return;   // also NaN
+  Cmd* c = push(raster::IMAGE, 0, alpha);
+  if (!c) return;
+  box(c, dx, dy, dw, dh);
+  c->res = i; c->c2 = raster::image_version(i); c->grad = flags & 4 ? 1 : 0;
+  // where the whole image would lie for the source rectangle to land on the destination (zrt_raster.h image_box); mirrored: from the far side, a negative size
+  const double fx = dw / sw, fy = dh / sh;
+  double bx = dx - sx * fx, by = dy - sy * fy, bw = iw * fx, bh = ih * fy;
+  if (flags & 1) { bx = dx + (sx + sw) * fx; bw = -bw; }
+  if (flags & 2) { by = dy + (sy + sh) * fy; bh = -bh; }
+  const float k = rec_k();
+  raster::set_image_box(*c, raster::Box{(float)(bx + tx) * k, (float)(by + ty) * k, (float)bw * k, (float)bh * k});
+}
 /** Stroked polyline from flat [x0, y0, ...] coordinates (round joins and caps). */
 void stroke(const double* pts, uint32_t len, double width, uint32_t color, int32_t alpha, bool closed) {
   Buf& b = bufs[cur];
@@ -1347,6 +1369,7 @@ void endImage() {
   if (px && raster::image_size(target_img, &w, &h)) {
     raster::Frame fr{b.cmds + mark_cmd, b.ncmd - mark_cmd, b.text, b.pts};
     raster::render(fr, px, w, 0, h, raster::Rect{0, 0, w, h});
+    raster::dyn_set_alpha(target_img, false);   // the raster writes 0x00RRGGBB: a decoded image drawn into is opaque from now on
     raster::dyn_update(target_img, nullptr, 0);
   }
   b.ncmd = mark_cmd; b.ntext = mark_text; b.npts = mark_pts; target_img = -1;

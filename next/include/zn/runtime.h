@@ -309,7 +309,9 @@
   /* the network log (ZN-370, src/host/netlog.h) for zinc:devtools: op 0 start (arg = the inspector's port), 1 the queued Network events, 2 a response body, 3 a request body (arg = the id); appended */ \
   X(HostNetLog, "host.netLog", "is>s", 2) \
   /* zinc:gfx setTransform / resetTransform (ZN-263.01): a 2D matrix for the commands that follow; graphics rows, appended */ \
-  X(HostGfxSetTransform, "host.gfxSetTransform", "dddddd>n", 2) X(HostGfxResetTransform, "host.gfxResetTransform", ">n", 2)
+  X(HostGfxSetTransform, "host.gfxSetTransform", "dddddd>n", 2) X(HostGfxResetTransform, "host.gfxResetTransform", ">n", 2) \
+  /* zinc:gfx sprites (ZN-432): a source rectangle of an image on a destination rectangle (alpha; flags 1 mirror x, 2 mirror y, 4 nearest), and a runtime image decoded from the bytes of a PNG or JPEG file (-1: not an image); graphics rows, appended */ \
+  X(HostGfxDrawImageRect, "host.gfxDrawImageRect", "iddddddddii>n", 2) X(HostGfxImageFromBytes, "host.gfxImageFromBytes", "B>i", 2)
 
 namespace zn {
 
@@ -336,7 +338,11 @@ inline constexpr RtInfo kRtInfo[] = {
 // The host rows are served by two host tables: the graphics host (the rows before HostSysFirst and the image rows) and the system host (zinc:sys, fs, storage, assets, os, process).
 inline constexpr bool isLayoutRow(Rt r) { return r >= Rt::HostLayoutNew && r <= Rt::HostLayoutCounter; }
 inline constexpr bool isGlRow(Rt r) { return r >= Rt::HostGlCreate && r <= Rt::HostGlActiveInfo; }   // zinc:gl (ZN-562): served by `hostGl`
-inline constexpr bool isSysRow(Rt r) { return (r >= Rt::HostSysFirst && r <= Rt::HostHostLast && !(r >= Rt::HostGfxCreateImage && r <= Rt::HostGfxEndImage)) || (r >= Rt::HostLoopWait && r != Rt::HostGfxCommands && r != Rt::HostGfxCommandsFree && r != Rt::HostGfxSetResize && r != Rt::HostGfxSetTransform && r != Rt::HostGfxResetTransform && !isLayoutRow(r) && !isGlRow(r)); }
+// The zinc:gfx rows appended after the host block (the block's ids are the device cores'): served by `hostGfx` like the block's own. One list for isSysRow and for the engines that install the host rows.
+inline constexpr bool isGfxTailRow(Rt r) {
+  return r == Rt::HostGfxCommands || r == Rt::HostGfxCommandsFree || r == Rt::HostGfxSetResize || r == Rt::HostGfxSetTransform || r == Rt::HostGfxResetTransform || r == Rt::HostGfxDrawImageRect || r == Rt::HostGfxImageFromBytes;
+}
+inline constexpr bool isSysRow(Rt r) { return (r >= Rt::HostSysFirst && r <= Rt::HostHostLast && !(r >= Rt::HostGfxCreateImage && r <= Rt::HostGfxEndImage)) || (r >= Rt::HostLoopWait && !isGfxTailRow(r) && !isLayoutRow(r) && !isGlRow(r)); }
 inline const RtInfo& rtInfo(Rt r) { return kRtInfo[static_cast<unsigned>(r)]; }
 inline unsigned rtParamCount(const RtInfo& r) { return static_cast<unsigned>(std::strchr(r.sig, '>') - r.sig); }
 inline char rtParam(const RtInfo& r, unsigned k) { return r.sig[k]; }
@@ -369,7 +375,7 @@ inline bool rtResultBorrowed(Rt id) { return id == Rt::MapGet; }
 // retained across them (ZN-413). The others only read their arguments: the string rows, the read-only Array, Map and Set members, the
 // graphics host (numbers, borrowed strings and arrays, no callbacks).
 inline bool rtMayRelease(Rt id) {
-  if ((id >= Rt::HostGfxFrames && id < Rt::HostSysFirst) || isGlRow(id)) return false;
+  if ((id >= Rt::HostGfxFrames && id < Rt::HostSysFirst) || isGlRow(id) || id == Rt::HostGfxDrawImageRect || id == Rt::HostGfxImageFromBytes) return false;
   if (id >= Rt::StrConcat && id <= Rt::FromCharCode) return id == Rt::JsonParse || id == Rt::DynGetFast || id == Rt::DynAddFast;
   switch (id) {
     case Rt::ArrSlice: case Rt::ArrIndexOf: case Rt::ArrIncludes: case Rt::MapGet: case Rt::MapHas: case Rt::MapKeys: case Rt::MapValues: case Rt::MapSize:

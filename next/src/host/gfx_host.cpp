@@ -26,7 +26,10 @@ namespace gfx { void begin_frame(); void end_frame(); void sync_surface(); exter
 extern "C" int zn_hal_is_live(void);  // hal_dispatch.cpp: a window (the SDL HAL) or the headless one
 extern "C" void hal_set_resize(int32_t on) __attribute__((weak));   // targets/macos/hal_sdl.cpp (ZN-608)
 
-namespace zn::res { uint8_t* encodePngAlloc(const uint8_t* px, int w, int h, int comp, size_t* n, void* (*alloc)(size_t)); }   // src/res/codec.cpp (no <vector> here: zrt.h clashes with it)
+namespace zn::res {   // src/res/codec.cpp (no <vector> here: zrt.h clashes with it)
+uint8_t* encodePngAlloc(const uint8_t* px, int w, int h, int comp, size_t* n, void* (*alloc)(size_t));
+uint8_t* decodeRgbaAlloc(const uint8_t* data, size_t size, int* w, int* h);
+}
 namespace zrt { extern bool display_driver; }  // runtime/zrt.cpp: a plugins/display-* driver took over the screen
 
 namespace {
@@ -62,6 +65,7 @@ void installFast() {
   at(Rt::HostGfxLine) = [](uint64_t* a) { g::line(D(a[0]), D(a[1]), D(a[2]), D(a[3]), static_cast<uint32_t>(a[4])); };
   at(Rt::HostGfxBorder) = [](uint64_t* a) { g::border(D(a[0]), D(a[1]), D(a[2]), D(a[3]), D(a[4]), D(a[5]), static_cast<uint32_t>(a[6]), static_cast<int32_t>(a[7])); };
   at(Rt::HostGfxDrawImage) = [](uint64_t* a) { g::drawImage(static_cast<int32_t>(a[0]), D(a[1]), D(a[2]), D(a[3]), D(a[4]), static_cast<int32_t>(a[5]), D(a[6])); };
+  at(Rt::HostGfxDrawImageRect) = [](uint64_t* a) { g::drawImageRect(static_cast<int32_t>(a[0]), D(a[1]), D(a[2]), D(a[3]), D(a[4]), D(a[5]), D(a[6]), D(a[7]), D(a[8]), static_cast<int32_t>(a[9]), static_cast<int32_t>(a[10])); };
   at(Rt::HostGfxClip) = [](uint64_t* a) { g::clip(D(a[0]), D(a[1]), D(a[2]), D(a[3]), D(a[4])); };
   at(Rt::HostGfxUnclip) = [](uint64_t*) { g::unclip(); };
   at(Rt::HostGfxTranslate) = [](uint64_t* a) { g::translate(D(a[0]), D(a[1])); };
@@ -75,6 +79,30 @@ void installFast() {
   at(Rt::HostGfxPointerX) = [](uint64_t* a) { a[0] = fromD(g::pointerX()); };
   at(Rt::HostGfxPointerY) = [](uint64_t* a) { a[0] = fromD(g::pointerY()); };
   at(Rt::HostGfxPointerDown) = [](uint64_t* a) { a[0] = g::pointerDown() ? 1 : 0; };
+}
+
+// zinc:gfx imageFromBytes (ZN-432): the bytes of an image file (one slot per byte) become a runtime image, with alpha when a pixel is not opaque; -1: not an image, or no room
+int32_t imageFromBytes(const uint64_t* slots, uint32_t n) {
+  uint8_t* file = static_cast<uint8_t*>(malloc(n ? n : 1));
+  if (!file) return -1;
+  for (uint32_t i = 0; i < n; i++) file[i] = static_cast<uint8_t>(slots[i]);
+  int w = 0, h = 0;
+  uint8_t* rgba = zn::res::decodeRgbaAlloc(file, n, &w, &h);
+  free(file);
+  if (!rgba) return -1;
+  const int32_t id = zrt::raster::dyn_create(w, h);
+  if (uint32_t* px = zrt::raster::dyn_pixels(id)) {
+    bool alpha = false;
+    for (size_t i = 0, k = static_cast<size_t>(w) * h; i < k; i++) {
+      const uint8_t* p = rgba + i * 4;
+      px[i] = static_cast<uint32_t>(p[3]) << 24 | static_cast<uint32_t>(p[0]) << 16 | static_cast<uint32_t>(p[1]) << 8 | p[2];
+      alpha |= p[3] != 255;
+    }
+    zrt::raster::dyn_set_alpha(id, alpha);
+    zrt::raster::dyn_update(id, nullptr, 0);
+  }
+  free(rgba);
+  return id;
 }
 
 static void (*frameEnd[4])();   // zn::host::onFrameEnd
@@ -133,6 +161,8 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostGfxImageWidth: r->i = g::imageWidth(n(0)); break;
     case Rt::HostGfxImageHeight: r->i = g::imageHeight(n(0)); break;
     case Rt::HostGfxDrawImage: g::drawImage(n(0), a[1].d, a[2].d, a[3].d, a[4].d, n(5), a[6].d); break;
+    case Rt::HostGfxDrawImageRect: g::drawImageRect(n(0), a[1].d, a[2].d, a[3].d, a[4].d, a[5].d, a[6].d, a[7].d, a[8].d, n(9), n(10)); break;
+    case Rt::HostGfxImageFromBytes: r->i = imageFromBytes(static_cast<const uint64_t*>(a[0].p), a[0].n); break;
     case Rt::HostGfxClip: g::clip(a[0].d, a[1].d, a[2].d, a[3].d, a[4].d); break;
     case Rt::HostGfxUnclip: g::unclip(); break;
     case Rt::HostGfxTranslate: g::translate(a[0].d, a[1].d); break;

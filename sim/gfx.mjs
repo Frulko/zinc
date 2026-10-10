@@ -12,7 +12,7 @@ export const text = () => {};
 // metrics come from the baked resources (resources.json next to run.mjs), so layouts match native builds
 const R = () => globalThis.$zRes ?? { fonts: [], images: [] };
 export const rrect = () => {}, gradient = () => {}, border = () => {}, shadow = () => {}, polygon = () => {}, path = () => {};
-export const drawText = () => {}, drawImage = () => {}, clip = () => {}, unclip = () => {}, translate = () => {}, keep = () => {};
+export const drawText = () => {}, drawImage = () => {}, drawImageRect = () => {}, clip = () => {}, unclip = () => {}, translate = () => {}, keep = () => {};
 export const setTransform = () => {}, resetTransform = () => {};
 export const commandCount = () => 0, commandsFree = () => 1 << 30;   // nothing is recorded, so a frame never runs out of commands
 export function font(name, px) {

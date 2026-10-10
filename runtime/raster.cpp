@@ -522,7 +522,7 @@ static void draw_text(const Target& t, const Cmd& c, const char* s) {
 #ifndef ZRT_DYN_IMAGES
 #define ZRT_DYN_IMAGES 64
 #endif
-struct Dyn { const uint32_t* px; uint32_t* owned; int32_t w, h, stride; uint32_t version; bool used; };
+struct Dyn { const uint32_t* px; uint32_t* owned; int32_t w, h, stride; uint32_t version; bool used, alpha; };
 static Dyn dyn[ZRT_DYN_IMAGES];
 // A version is never given twice, not even to another image that takes a freed slot: whatever keeps an image by (id, version) (the GPU
 // textures of zinc:3d and of the GL replay, the damage test of IMAGE commands) would otherwise go on showing the destroyed image.
@@ -569,6 +569,8 @@ bool dyn_view(int32_t id, const uint32_t** px, int32_t* w, int32_t* h, int32_t* 
   *px = d->px; *w = d->w; *h = d->h; *stride = d->stride; return true;
 }
 uint32_t image_version(int32_t id) { Dyn* d = dyn_at(id); return d ? d->version : 0; }
+void dyn_set_alpha(int32_t id, bool on) { if (Dyn* d = dyn_at(id)) d->alpha = on; }
+bool dyn_alpha(int32_t id) { Dyn* d = dyn_at(id); return d && d->alpha; }
 
 static void draw_dyn(const Target& t, const Cmd& c, const Dyn& im) {
   Rect b = bounds(c.x, c.y, c.w, c.h, t.clip);
@@ -612,12 +614,76 @@ static void draw_dyn(const Target& t, const Cmd& c, const Dyn& im) {
   }
 }
 
+// An image through its box (zrt_raster.h image_box: a source rectangle, mirrored when the box has a negative size) and runtime images
+// with alpha. Texels are 0xAARRGGBB with straight alpha whatever the image. The linear path keeps draw_dyn's expressions, so a source
+// rectangle paints the pixels that a CLIP around the whole image scaled used to (zinc:canvas's 9-argument drawImage, ZN-432); nearest
+// samples the texel under the pixel centre, like GL_NEAREST.
+struct Tex { const uint8_t* rgba; const uint32_t* px; int32_t w, h, stride; bool alpha; };   // baked: RGBA bytes; runtime: words
+static inline uint32_t texel(const Tex& t, int32_t x, int32_t y) {
+  if (t.px) { const uint32_t p = t.px[(size_t)y * t.stride + x]; return t.alpha ? p : p | 0xFF000000u; }
+  const uint8_t* p = t.rgba + ((size_t)y * t.w + x) * 4;
+  return (uint32_t)p[3] << 24 | (uint32_t)p[0] << 16 | (uint32_t)p[1] << 8 | p[2];
+}
+static void draw_boxed(const Target& t, const Cmd& c, const Tex& im) {
+  const Box m = image_box(c);
+  // finite, and at most 1e6 texels per pixel: the sample positions stay in int range (nothing is painted outside the box)
+  if (!(m.w != 0 && m.h != 0 && m.w - m.w == 0 && m.h - m.h == 0 && m.x - m.x == 0 && m.y - m.y == 0)) return;
+  if (!(fabsf_((float)im.w / m.w) < 1e6f && fabsf_((float)im.h / m.h) < 1e6f)) return;
+  const Rect b = intersect(bounds(c.x, c.y, c.w, c.h, t.clip), bounds(m.w < 0 ? m.x + m.w : m.x, m.h < 0 ? m.y + m.h : m.y, fabsf_(m.w), fabsf_(m.h), t.clip));
+  if (b.x0 >= b.x1 || b.y0 >= b.y1) return;
+  const float hw = c.w * 0.5f, hh = c.h * 0.5f, cx = c.x + hw, cy = c.y + hh;   // rounded corners are those of the painted rectangle
+  // one texel per pixel on whole pixels is a copy: the nearest path, which the linear weights (0 and 1) would give
+  const bool nearest = c.grad == 1 || (fabsf_(m.w) == (float)im.w && fabsf_(m.h) == (float)im.h && m.x == (float)ifloor(m.x) && m.y == (float)ifloor(m.y));
+  const bool plain = c.alpha == 255 && c.r <= 0 && !im.alpha;
+  const float kx = (float)im.w / m.w, ky = (float)im.h / m.h;
+  for (int32_t y = b.y0; y < b.y1; y++) {
+    uint32_t* dst = &at(t, 0, y);
+    if (nearest) {
+      const float v = (y + 0.5f - m.y) * ky;
+      const int32_t iy = v <= 0 ? 0 : v >= (float)im.h ? im.h - 1 : (int32_t)v;
+      for (int32_t x = b.x0; x < b.x1; x++) {
+        const float u = (x + 0.5f - m.x) * kx;
+        const uint32_t p = texel(im, u <= 0 ? 0 : u >= (float)im.w ? im.w - 1 : (int32_t)u, iy);
+        if (plain) { dst[x] = p & 0xFFFFFF; continue; }
+        float a = p >> 24 == 255 ? (float)c.alpha : (float)(p >> 24) / 255 * c.alpha;
+        if (c.r > 0) a *= clampf(0.5f - rr_sdf(x + 0.5f, y + 0.5f, cx, cy, hw, hh, c.r), 0, 1);
+        if (a >= 1) blend(dst[x], p & 0xFFFFFF, (uint32_t)a);
+      }
+      continue;
+    }
+    const float fy = (y + 0.5f - m.y) * im.h / m.h - 0.5f;
+    const int32_t y0i = ifloor_fast(fy); const float ty = fy - y0i;
+    const int32_t ya = y0i < 0 ? 0 : y0i >= im.h ? im.h - 1 : y0i, yb = y0i + 1 >= im.h ? im.h - 1 : y0i + 1 < 0 ? 0 : y0i + 1;
+    for (int32_t x = b.x0; x < b.x1; x++) {
+      const float fx = (x + 0.5f - m.x) * im.w / m.w - 0.5f;
+      const int32_t x0i = ifloor_fast(fx); const float tx = fx - x0i;
+      const int32_t xa = x0i < 0 ? 0 : x0i >= im.w ? im.w - 1 : x0i, xb = x0i + 1 >= im.w ? im.w - 1 : x0i + 1 < 0 ? 0 : x0i + 1;
+      const uint32_t p00 = texel(im, xa, ya), p01 = texel(im, xb, ya), p10 = texel(im, xa, yb), p11 = texel(im, xb, yb);
+      uint32_t out = 0;
+      float a = c.alpha;
+      for (int k = 0; k < 32; k += 8) {
+        if (k == 24 && !im.alpha) break;
+        const float ch = (((p00 >> k) & 255) * (1 - tx) + ((p01 >> k) & 255) * tx) * (1 - ty) + (((p10 >> k) & 255) * (1 - tx) + ((p11 >> k) & 255) * tx) * ty;
+        if (k == 24) a = ch / 255 * c.alpha; else out |= (uint32_t)ch << k;
+      }
+      if (c.r > 0) a *= clampf(0.5f - rr_sdf(x + 0.5f, y + 0.5f, cx, cy, hw, hh, c.r), 0, 1);
+      if (a >= 1) blend(dst[x], out, (uint32_t)a);
+    }
+  }
+}
+
 static void draw_image(const Target& t, const Cmd& c) {
   // sample positions (x - c.x) * scale stay in int range: finite origin and size, at most 1e6 texels per pixel
   if (!(c.w > 0 && c.h > 0 && c.w < 1e30f && c.h < 1e30f && c.x - c.x == 0 && c.y - c.y == 0)) return;
-  if (const Dyn* d = dyn_at(c.res)) { if (d->px && (float)d->w / c.w < 1e6f && (float)d->h / c.h < 1e6f) draw_dyn(t, c, *d); return; }
+  if (const Dyn* d = dyn_at(c.res)) {
+    if (!d->px) return;
+    if (d->alpha || (c.pad & kImageBox)) draw_boxed(t, c, Tex{nullptr, d->px, d->w, d->h, d->stride, d->alpha});
+    else if ((float)d->w / c.w < 1e6f && (float)d->h / c.h < 1e6f) draw_dyn(t, c, *d);
+    return;
+  }
   if (c.res < 0 || c.res >= image_count) return;
   const Image& im = images[c.res];
+  if (c.pad & kImageBox) { draw_boxed(t, c, Tex{im.rgba, nullptr, im.w, im.h, im.w, true}); return; }
   if (!((float)im.w / c.w < 1e6f && (float)im.h / c.h < 1e6f)) return;
   Rect b = bounds(c.x, c.y, c.w, c.h, t.clip);
   float hw = c.w * 0.5f, hh = c.h * 0.5f, cx = c.x + hw, cy = c.y + hh;
@@ -903,6 +969,7 @@ static bool same(const Frame& a, const Cmd& x, const Frame& b, const Cmd& y) {
     __builtin_memcpy(&ao, p + 13, 4); __builtin_memcpy(&an, p + 14, 4); __builtin_memcpy(&bo, q + 13, 4); __builtin_memcpy(&bn, q + 14, 4);
     return p[0] != (float)TEXT || (an == bn && !__builtin_memcmp(a.text + ao, b.text + bo, an));
   }
+  if (x.kind == IMAGE) return x.off == y.off;   // not a pool offset: part of its box (image_box)
   return true;
 }
 Rect diff(const Frame& a, const Frame& b, int32_t w, int32_t h) {
@@ -1259,6 +1326,7 @@ static uint32_t cmd_hash(const Frame& f, const Cmd& c) {
     __builtin_memcpy(&o, p + 13, 4); __builtin_memcpy(&n, p + 14, 4);
     if (p[0] == (float)TEXT) h = fnv(h, f.text + o, n);
   }
+  else if (c.kind == IMAGE) h = fnv(h, &c.off, sizeof c.off);
   return h;
 }
 static int16_t i16(int32_t v) { return v < -32768 ? (int16_t)-32768 : v > 32767 ? (int16_t)32767 : (int16_t)v; }
