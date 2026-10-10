@@ -120,6 +120,8 @@ struct ArrObj : Obj {
 };
 
 // Insertion-ordered hash table; deleted entries stay as tombstones until the next rehash.
+inline std::uint64_t mix(std::uint64_t x) { x ^= x >> 33; x *= 0xff51afd7ed558ccdULL; x ^= x >> 33; x *= 0xc4ceb9fe1a85ec53ULL; x ^= x >> 33; return x; }
+
 struct Table {
   KeyKind kk = KeyKind::Int;
   bool hasVals = false;
@@ -130,8 +132,22 @@ struct Table {
 
   std::uint64_t hash(Slot k) const;
   bool same(Slot a, Slot b) const;
-  std::int32_t find(Slot k) const;
+  /** The live entry of `k`, or -1. Keys equal by their bits (integers, references) probe inline, the key compared before the dead flag
+   *  (ZN-602); floats and strings go through hash() and same(). */
+  std::int32_t find(Slot k) const {
+    if (kk != KeyKind::Int && kk != KeyKind::Ref) return findSlow(k);
+    if (index.empty()) return -1;
+    const std::size_t mask = index.size() - 1;
+    const bool anyDead = live != keys.size();   // without erased entries the dead flags are not read: one cache miss less per hit
+    for (std::size_t h = mix(k) & mask;; h = (h + 1) & mask) {
+      const std::int32_t e = index[h];
+      if (e < 0) return -1;
+      if (keys[static_cast<std::size_t>(e)] == k && (!anyDead || !dead[static_cast<std::size_t>(e)])) return e;
+    }
+  }
+  std::int32_t findSlow(Slot k) const;
   void put(Slot k, Slot v);
+  void putNew(Slot k, Slot v);   // a key find() did not find: inserted without a second search
   bool erase(Slot k);
   void clear();
   void rehash();
@@ -392,6 +408,41 @@ inline const char* logStr(Machine& m, Slot v) {
   m.out->append(s->data(), s->len);
   return nullptr;
 }
+// The hot Map and Set rows (ZN-602): rtCall's cases, and compiled code's direct calls (no dispatch, no frame window).
+inline const char* mapGet(Slot& map, Slot key) {
+  const MapObj* o = reinterpret_cast<const MapObj*>(map);
+  if (!o || (o->cls->keyKind == KeyKind::Str && !key)) return kNullRef;
+  const std::int32_t e = o->t.find(key);
+  map = e < 0 ? 0 : o->t.vals[static_cast<std::size_t>(e)];
+  return nullptr;
+}
+inline const char* mapHas(Slot& map, Slot key) {   // Map.has and Set.has
+  const MapObj* o = reinterpret_cast<const MapObj*>(map);
+  if (!o || (o->cls->keyKind == KeyKind::Str && !key)) return kNullRef;
+  map = o->t.find(key) >= 0 ? 1 : 0;
+  return nullptr;
+}
+inline const char* mapSet(Machine& m, Slot map, Slot key, Slot val) {   // the key and the value are consumed: stored, or released when the key was there
+  MapObj* o = reinterpret_cast<MapObj*>(map);
+  if (!o || (o->cls->keyKind == KeyKind::Str && !key)) return kNullRef;
+  const std::int32_t e = o->t.find(key);
+  if (e >= 0) {
+    const Slot old = o->t.vals[static_cast<std::size_t>(e)];
+    o->t.vals[static_cast<std::size_t>(e)] = val;
+    if (o->cls->elemRef) m.releaseSlot(old);
+    if (o->cls->keyRef) m.releaseSlot(key);
+  } else o->t.putNew(key, val);
+  m.retain(o);   // the result is a new reference to the same Map
+  return nullptr;
+}
+inline const char* setAdd(Machine& m, Slot set, Slot key) {
+  MapObj* o = reinterpret_cast<MapObj*>(set);
+  if (!o || (o->cls->keyKind == KeyKind::Str && !key)) return kNullRef;
+  if (o->t.find(key) >= 0) { if (o->cls->keyRef) m.releaseSlot(key); } else o->t.putNew(key, 0);
+  m.retain(o);
+  return nullptr;
+}
+
 inline void logF64(Machine& m, Slot v) {
   double d = std::bit_cast<double>(v);
   *m.out += (d == 0 && std::signbit(d)) ? std::string("-0") : numberToString(d);  // console.log prints -0

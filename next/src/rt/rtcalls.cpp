@@ -183,7 +183,6 @@ bool elemEq(KeyKind k, Slot a, Slot b, bool nanEqual) {
   }
 }
 
-std::uint64_t mix(std::uint64_t x) { x ^= x >> 33; x *= 0xff51afd7ed558ccdULL; x ^= x >> 33; x *= 0xc4ceb9fe1a85ec53ULL; x ^= x >> 33; return x; }
 std::uint64_t hashDouble(double d) { if (d != d) return 0x7ff8; if (d == 0) d = 0; return mix(std::bit_cast<std::uint64_t>(d)); }
 
 // parseInt: leading whitespace, a sign, an optional 0x prefix when the radix is 0 or 16, then digits of the radix; NaN when none.
@@ -387,7 +386,7 @@ std::uint64_t Table::hash(Slot k) const {
 }
 bool Table::same(Slot a, Slot b) const { return elemEq(kk, a, b, true); }
 
-std::int32_t Table::find(Slot k) const {
+std::int32_t Table::findSlow(Slot k) const {
   if (index.empty()) return -1;
   std::size_t mask = index.size() - 1, h = hash(k) & mask;
   for (;; h = (h + 1) & mask) {
@@ -421,6 +420,9 @@ void Table::rehash() {
 void Table::put(Slot k, Slot v) {
   std::int32_t e = find(k);
   if (e >= 0) { if (hasVals) vals[static_cast<std::size_t>(e)] = v; return; }
+  putNew(k, v);
+}
+void Table::putNew(Slot k, Slot v) {
   if ((keys.size() + 1) * 2 > index.size()) rehash();
   std::size_t h = hash(k) & (index.size() - 1);
   while (index[h] >= 0) h = (h + 1) & (index.size() - 1);
@@ -1382,30 +1384,10 @@ const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
     }
 
     // ---- Map and Set
-    case Rt::MapGet: { MapObj* o = M(a[0]); NN(o); if (o->cls->keyKind == KeyKind::Str) NN(a[1]); std::int32_t e = o->t.find(a[1]); a[0] = e < 0 ? 0 : o->t.vals[static_cast<std::size_t>(e)]; return nullptr; }
-    case Rt::MapSet: {  // the key and the value are consumed: stored, or released when the key was already there
-      MapObj* o = M(a[0]);
-      NN(o);
-      if (o->cls->keyKind == KeyKind::Str) NN(a[1]);
-      std::int32_t e = o->t.find(a[1]);
-      if (e >= 0) {
-        Slot old = o->t.vals[static_cast<std::size_t>(e)];
-        o->t.vals[static_cast<std::size_t>(e)] = a[2];
-        if (o->cls->elemRef) m.releaseSlot(old);
-        if (o->cls->keyRef) m.releaseSlot(a[1]);
-      } else o->t.put(a[1], a[2]);
-      m.retain(o);  // the result is a new reference to the same Map
-      return nullptr;
-    }
-    case Rt::SetAdd: {
-      MapObj* o = M(a[0]);
-      NN(o);
-      if (o->cls->keyKind == KeyKind::Str) NN(a[1]);
-      if (o->t.find(a[1]) >= 0) { if (o->cls->keyRef) m.releaseSlot(a[1]); } else o->t.put(a[1], 0);
-      m.retain(o);
-      return nullptr;
-    }
-    case Rt::MapHas: case Rt::SetHas: { MapObj* o = M(a[0]); NN(o); if (o->cls->keyKind == KeyKind::Str) NN(a[1]); a[0] = boolSlot(o->t.find(a[1]) >= 0); return nullptr; }
+    case Rt::MapGet: return op::mapGet(a[0], a[1]);
+    case Rt::MapSet: return op::mapSet(m, a[0], a[1], a[2]);
+    case Rt::SetAdd: return op::setAdd(m, a[0], a[1]);
+    case Rt::MapHas: case Rt::SetHas: return op::mapHas(a[0], a[1]);
     case Rt::MapDelete: case Rt::SetDelete: {
       MapObj* o = M(a[0]);
       NN(o);

@@ -208,7 +208,8 @@ struct FnEmitter {
       else if (nm == "LoadNull") line(r(A) + " = 0;");
       else if (nm == "InstanceOf") line(r(A) + " = op::instanceOf(" + r(A) + ", " + std::to_string(D) + ");");
       else if (nm == "GetGlobal") line(r(A) + " = m.globals[" + std::to_string(D) + "];");
-      else if (nm == "SetGlobal" && typed) line("m.globals[" + std::to_string(D) + "] = " + r(A) + ";");
+      else if (nm == "SetGlobal" && (typed || (D < m.globals.size() && (m.globals[D].cls == zbc::Cls::I || m.globals[D].cls == zbc::Cls::S || m.globals[D].cls == zbc::Cls::D))))   // a number: no reference to drop (ZN-602)
+        line("m.globals[" + std::to_string(D) + "] = " + r(A) + ";");
       else if (nm == "SetGlobal") line("ZSETG(" + std::to_string(D) + ", " + r(A) + ")");
       else if (nm == "Retain") line("ZRETAIN(" + r(A) + ");");
       else if (nm == "Release") line(typed ? checked("op::releaseC(m, " + r(A) + ")") : (usedTrap = true, "ZRELEASE(" + r(A) + ")"));
@@ -221,6 +222,10 @@ struct FnEmitter {
         line("if (!zn::host::gfxStarted) zn::host::startGfx(); " + r(A) + " = static_cast<Slot>(static_cast<std::int64_t>(zrt::" + (D == static_cast<unsigned>(zn::Rt::HostGfxWidth) ? "surf_w" : "surf_h") + "));");
       else if (nm == "Rt" && ((D >= static_cast<unsigned>(zn::Rt::HostGfxFrames) && D < static_cast<unsigned>(zn::Rt::HostSysFirst)) || isGlRow(static_cast<zn::Rt>(D))))   // a graphics or zinc:gl row: its direct entry when the host has one (ZN-397, ZN-562.03)
         line("{ " + toWin(A, rtArity(D)) + "if (zn::host::HostFast hf = zn::host::hostFast[" + std::to_string(D) + "]) hf(" + frame(A) + "); else { const char* e = rtCall(m, (zn::Rt)" + std::to_string(D) + ", " + frame(A) + ", " + frame(f.nregs) + "); " + rtFail() + " } " + fromWin(A, std::max(1u, rtArity(D))) + "}");
+      else if (nm == "Rt" && (D == static_cast<unsigned>(zn::Rt::MapGet) || D == static_cast<unsigned>(zn::Rt::MapHas) || D == static_cast<unsigned>(zn::Rt::SetHas)))   // the hot Map / Set rows, direct (ZN-602)
+        line("{ const char* e = op::" + std::string(D == static_cast<unsigned>(zn::Rt::MapGet) ? "mapGet(" : "mapHas(") + r(A) + ", " + r(A + 1) + "); " + rtFail() + " }");
+      else if (nm == "Rt" && D == static_cast<unsigned>(zn::Rt::MapSet)) line("{ const char* e = op::mapSet(m, " + r(A) + ", " + r(A + 1) + ", " + r(A + 2) + "); " + rtFail() + " }");
+      else if (nm == "Rt" && D == static_cast<unsigned>(zn::Rt::SetAdd)) line("{ const char* e = op::setAdd(m, " + r(A) + ", " + r(A + 1) + "); " + rtFail() + " }");
       else if (nm == "Rt") line("{ " + toWin(A, rtArity(D)) + "const char* e = rtCall(m, (zn::Rt)" + std::to_string(D) + ", " + frame(A) + ", " + frame(f.nregs) + "); " + fromWin(A, std::max(1u, rtArity(D))) + rtFail() + " }");
       else if (nm == "CallNative") line("{ " + toWin(A, f.nregs > A ? f.nregs - A : 1) + "const char* e = nativeCall(m, " + std::to_string(D) + ", " + frame(A) + ", " + frame(f.nregs) + "); " + fromWin(A, f.nregs > A ? f.nregs - A : 1) + rtFail() + " }");
       else if (nm == "LogStr") line(checked("op::logStr(m, " + r(A) + ")"));

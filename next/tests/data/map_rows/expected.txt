@@ -1,0 +1,4 @@
+671 666 332667 0 -2 434
+nan zero true false 3
+true false 2 ac
+4999 4999
