@@ -34,6 +34,7 @@ static const char* VS =
 static const char* FS =
   "varying vec4 v_pos; varying vec4 v_box; varying vec4 v_par; varying vec4 v_c1; varying vec4 v_c2;\n"
   "uniform sampler2D u_tex; uniform vec3 u_edge;\n"   // u_edge: the EDGE pass (side test, left side, inside)
+  "uniform vec4 u_g0, u_g1, u_gc[8]; uniform float u_go[8];\n"   // a POLY's canvas gradient paint (ZN-590.04): (x0, y0, r0, kind), (x1, y1, r1, n), stops (rgb, alpha 0..255; offset)
   "float sdf(vec2 p, vec2 c, vec2 h, float r) {\n"
   "  vec2 q = abs(p - c) - (h - r);\n"
   "  return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r; }\n"
@@ -78,6 +79,32 @@ static const char* FS =
   "    if (u_edge.x > 0.5 && ((c.x - v_pos.z) * (p.y - v_pos.w) - (c.y - v_pos.w) * (p.x - v_pos.z) > 0.0) != (u_edge.y > 0.5)) discard;\n"
   "    cov = clamp(0.5 + (u_edge.z > 0.5 ? d : -d), 0.0, 1.0);\n"
   "  }\n"
+  // the paint of a POLY's cover and fringes: raster.cpp paint_at (t from the paint geometry, the stop interval, lerp_color's weight out of 256)
+  "  if (u_g0.w > 0.5 && (mode > 8.5 || (mode > 4.5 && mode < 5.5))) {\n"
+  "    vec2 d = u_g1.xy - u_g0.xy, q = p - u_g0.xy; float t = 0.0, A0 = floor(a * 255.0 + 0.5);\n"
+  "    if (u_g0.w < 1.5) { float l = dot(d, d); t = l > 0.0 ? dot(q, d) / l : 0.0; }\n"
+  "    else {\n"
+  "      float dr = u_g1.z - u_g0.z, qa = dot(d, d) - dr * dr, qb = dot(q, d) + u_g0.z * dr, qc = dot(q, q) - u_g0.z * u_g0.z;\n"
+  "      if (abs(qa) < 1e-4) t = qb != 0.0 ? qc / (2.0 * qb) : 0.0;\n"
+  "      else {\n"
+  "        float D = qb * qb - qa * qc, s = sqrt(max(D, 0.0)), t1 = (qb + s) / qa, t2 = (qb - s) / qa;\n"
+  "        t = max(t1, t2);\n"
+  "        if (u_g0.z + t * dr < 0.0) t = min(t1, t2);\n"
+  "        if (D < 0.0 || u_g0.z + t * dr < 0.0) A0 = 0.0;\n"
+  "      }\n"
+  "    }\n"
+  "    int n = int(u_g1.w), i = 0;\n"
+  "    for (int k = 0; k < 8; k++) if (k < n && t > u_go[k]) i++;\n"   // the offsets are sorted (canvas2d addColorStop)
+  "    vec4 L = u_gc[0], R = u_gc[0]; float lo = 0.0, ro = 0.0;\n"
+  "    for (int k = 0; k < 8; k++) { if (k == i - 1) { L = u_gc[k]; lo = u_go[k]; } if (k == i) { R = u_gc[k]; ro = u_go[k]; } }\n"
+  "    if (i == 0 || i == n) { vec4 e = i == 0 ? R : L; col = e.rgb / 255.0; A0 = floor(A0 * e.a / 255.0); }\n"
+  "    else {\n"
+  "      float u = ro > lo ? (t - lo) / (ro - lo) : 1.0, k = floor(clamp(u * 256.0, 0.0, 256.0));\n"
+  "      A0 = floor(A0 * floor(L.a + (R.a - L.a) * u) / 255.0);\n"
+  "      col = floor((L.rgb * (256.0 - k) + R.rgb * k) / 256.0) / 255.0;\n"
+  "    }\n"
+  "    a = A0 / 255.0;\n"
+  "  }\n"
   // the raster's blend (raster.cpp blend): an integer alpha A = (uint32_t)(coverage * alpha), A >= 255 copies, 0 leaves the pixel, else
   // (c * A + d * (255 - A)) >> 8: a premultiplied colour c * A / 256 over d * (255 - A) / 256 (GL_ONE, GL_ONE_MINUS_SRC_ALPHA with an
   // alpha of (A + 1) / 256), less half a step so the framebuffer's rounding becomes the shift's truncation. Stacked translucent layers
@@ -117,7 +144,7 @@ static int gcount, gx, gy, growh;
 
 static int32_t W, H;
 static GLuint prog, vbo, ibo, fbo, fbo_tex, fbo_depth, white, atlas, corner_tex, cur_tex;
-static GLint u_res, u_tex, u_flip, u_edge, a_box, a_par, a_c1, a_c2, a_z;
+static GLint u_res, u_tex, u_flip, u_edge, u_g0, u_g1, u_gc, u_go, a_box, a_par, a_c1, a_c2, a_z;
 static float cur_z;          // NDC depth of the command being drawn: later commands are nearer (GL_LESS)
 static GLuint sprog, svbo;    // the occlusion pass's program and buffer
 static GLuint fprog, fvbo, evbo;   // POLY on the GPU (ZN-590.02): the stencil pass's program (positions only) and buffer, the fringe quads' buffer
@@ -208,6 +235,7 @@ static bool init(int32_t w, int32_t h) {
   s_rect = glGetAttribLocation(sprog, "a_rect"); s_col = glGetAttribLocation(sprog, "a_col"); s_z = glGetAttribLocation(sprog, "a_z"); s_pos = glGetAttribLocation(sprog, "a_pos");
   glGenBuffers(1, &svbo);
   u_flip = glGetUniformLocation(prog, "u_flip"); u_res = glGetUniformLocation(prog, "u_res"); u_tex = glGetUniformLocation(prog, "u_tex"); u_edge = glGetUniformLocation(prog, "u_edge");
+  u_g0 = glGetUniformLocation(prog, "u_g0"); u_g1 = glGetUniformLocation(prog, "u_g1"); u_gc = glGetUniformLocation(prog, "u_gc"); u_go = glGetUniformLocation(prog, "u_go");
   a_box = glGetAttribLocation(prog, "a_box"); a_par = glGetAttribLocation(prog, "a_par");
   a_c1 = glGetAttribLocation(prog, "a_c1"); a_c2 = glGetAttribLocation(prog, "a_c2"); a_z = glGetAttribLocation(prog, "a_z");
   fbo_tex = make_tex(W, H, GL_RGBA, GL_RGBA, nullptr, false);
@@ -470,12 +498,18 @@ template<class T> static bool grow(T*& buf, size_t& cap, size_t need) {
 // triangle fans count the winding at the pixel centres in the stencil's low 7 bits (nonzero: +1 / -1 by facing; even-odd: bit 0 flips).
 // The pixels near an edge take their coverage from the distance to it (EDGE mode, each owned by the nearest edge): inside the fill
 // 0.5 + d, written once (the stencil becomes 0x80), outside 0.5 - d, once; the cover quad fills the rest of the inside; a last quad
-// zeroes the stencil. The canvas gradient paint (grad 4) and a framebuffer without stencil keep the CPU tiles (draw_poly).
-static float* fanv; static size_t fanv_cap;
-static V* edgev; static size_t edgev_cap; static uint32_t nedge;   // the fringe quads of one POLY, drawn by each pass (edge_draw)
+// zeroes the stencil. The canvas gradient paint (grad 4) is computed by the shader from its geometry and stops (ZN-590.04); more than 8
+// stops and a framebuffer without stencil keep the CPU tiles (draw_poly). Consecutive POLYs whose boxes are apart share one set of
+// passes (a batch): their pixels never meet, so one stencil serves them all and 7 draw calls cover up to 64 shapes.
+static float* fanv; static size_t fanv_cap, nfan;   // the batch's fan triangles (x, y), in floats
+static V* edgev; static size_t edgev_cap; static uint32_t nedge;   // the batch's fringe quads, drawn by each pass (edge_draw)
+struct PolyBox { Rect b; uint32_t c1, alpha; float z; };
+static PolyBox pboxes[64]; static int npoly;
+static bool pevenodd;
+static const float* ppaint;   // the gradient paint record of a batch of one
+static float* boxv; static size_t boxv_cap;
 static void edge_quads(const float* pts, uint32_t contours, uint32_t c1, uint32_t alpha) {
   uint32_t at = 0;
-  nedge = 0;
   for (uint32_t k = 0; k < contours; k++) {
     const uint32_t cnt = (uint32_t)pts[at];
     const float* p = pts + at + 1;
@@ -540,8 +574,10 @@ static void stencil_draw(const float* v, size_t n) {   // triangles (x, y) into 
   if (occl) glEnable(GL_DEPTH_TEST);
   glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 }
-static bool fill_gpu(const Cmd& c, const float* pts) {
-  if (!stencil_ok || c.grad == 4) return false;
+/** Adds a POLY to the batch, or says it cannot go there: false when it needs the CPU tiles, or when the batch already holds shapes that
+ *  its box meets, another fill rule or a gradient (the caller draws the batch and starts another). Nothing to draw is accepted. */
+static bool poly_add(const Cmd& c, const float* pts) {
+  if (!stencil_ok) return false;
   if (!(c.w == c.w && c.h == c.h && c.x == c.x && c.y == c.y) || !c.alpha) return true;
   const Rect b = isect(bounds(c.x - 1, c.y - 1, c.w + 2, c.h + 2, HUGE_R), clip);
   if (b.x0 >= b.x1 || b.y0 >= b.y1) return true;
@@ -552,37 +588,73 @@ static bool fill_gpu(const Cmd& c, const float* pts) {
     if (cnt >= 3) ntri += (size_t)cnt - 2;
     nf += 1 + (size_t)cnt * 2;
   }
-  if (!ntri || !grow(fanv, fanv_cap, ntri * 6)) return true;
-  size_t o = 0, at = 0;
+  if (!ntri) return true;
+  const float* paint = nullptr;
+  if (c.grad == 4) { const float n = pts[nf + 7]; if (!(n >= 1 && n <= 8)) return false; paint = pts + nf; }
+  const bool evenodd = (c.pad & 1) != 0;
+  if (npoly) {
+    if (paint || ppaint || npoly == 64 || evenodd != pevenodd) return false;
+    for (int i = 0; i < npoly; i++) {   // ponytail: every pair, at most 64 boxes
+      const Rect& o = pboxes[i].b;
+      if (b.x0 < o.x1 && o.x0 < b.x1 && b.y0 < o.y1 && o.y0 < b.y1) return false;
+    }
+  }
+  if (!grow(fanv, fanv_cap, nfan + ntri * 6)) return true;
+  size_t at = 0;
   for (uint32_t k = 0; k < c.n; k++) {
     const uint32_t cnt = (uint32_t)pts[at];
     const float* p = pts + at + 1;
     at += 1 + cnt * 2;
     for (uint32_t i = 1; i + 1 < cnt; i++) {
-      fanv[o++] = p[0]; fanv[o++] = p[1]; fanv[o++] = p[i * 2]; fanv[o++] = p[i * 2 + 1]; fanv[o++] = p[i * 2 + 2]; fanv[o++] = p[i * 2 + 3];
+      float* o = fanv + nfan;
+      o[0] = p[0]; o[1] = p[1]; o[2] = p[i * 2]; o[3] = p[i * 2 + 1]; o[4] = p[i * 2 + 2]; o[5] = p[i * 2 + 3];
+      nfan += 6;
     }
   }
+  edge_quads(pts, c.n, c.c1, c.alpha);
+  pboxes[npoly++] = PolyBox{b, c.c1, c.alpha, cur_z};
+  pevenodd = evenodd; ppaint = paint;
+  return true;
+}
+/** Draws the batch: the fans count the winding, the fringes inside, the cover, the fringes outside, the stencil back to 0. */
+static void poly_flush() {
+  if (!npoly) return;
   flush();
+  if (!grow(boxv, boxv_cap, (size_t)npoly * 12)) { npoly = 0; nfan = 0; nedge = 0; ppaint = nullptr; return; }
+  for (int i = 0; i < npoly; i++) {
+    const Rect& b = pboxes[i].b;
+    const float q[12] = {(float)b.x0, (float)b.y0, (float)b.x1, (float)b.y0, (float)b.x1, (float)b.y1, (float)b.x0, (float)b.y0, (float)b.x1, (float)b.y1, (float)b.x0, (float)b.y1};
+    memcpy(boxv + i * 12, q, sizeof q);
+  }
+  if (ppaint) {   // raster.cpp's record: [kind, x0, y0, r0, x1, y1, r1, n, (offset, 0xRRGGBB, alpha) * n]
+    const float* g = ppaint;
+    const int n = (int)g[7];
+    float gc[32] = {}, go[8] = {};
+    for (int i = 0; i < n; i++) {
+      const uint32_t col = (uint32_t)g[9 + i * 3];
+      go[i] = g[8 + i * 3];
+      gc[i * 4] = (float)(col >> 16 & 255); gc[i * 4 + 1] = (float)(col >> 8 & 255); gc[i * 4 + 2] = (float)(col & 255); gc[i * 4 + 3] = (float)(uint32_t)g[10 + i * 3];
+    }
+    glUniform4f(u_g0, g[1], g[2], g[3], g[0]); glUniform4f(u_g1, g[4], g[5], g[6], (float)n);
+    glUniform4fv(u_gc, 8, gc); glUniform1fv(u_go, 8, go);
+  }
   glEnable(GL_STENCIL_TEST);
   glStencilFunc(GL_ALWAYS, 0, 0xFF);
-  if (c.pad & 1) { glStencilMask(0x01); glStencilOp(GL_KEEP, GL_KEEP, GL_INVERT); }   // even-odd
+  if (pevenodd) { glStencilMask(0x01); glStencilOp(GL_KEEP, GL_KEEP, GL_INVERT); }
   else {   // nonzero: the winding in 7 bits
     glStencilMask(0x7F);
     glStencilOpSeparate(GL_FRONT, GL_KEEP, GL_KEEP, GL_INCR_WRAP);
     glStencilOpSeparate(GL_BACK, GL_KEEP, GL_KEEP, GL_DECR_WRAP);
   }
-  stencil_draw(fanv, o / 2);
-  const float box[12] = {(float)b.x0, (float)b.y0, (float)b.x1, (float)b.y0, (float)b.x1, (float)b.y1, (float)b.x0, (float)b.y0, (float)b.x1, (float)b.y1, (float)b.x0, (float)b.y1};
+  stencil_draw(fanv, nfan / 2);
   // the inside pixels near an edge that bounds the fill there: drawn, then marked by bit 7. Even-odd: every edge bounds it. Nonzero:
   // crossing A-B takes the winding of a pixel left of it (cross > 0 in our coordinates, front faces counting +1) down by 1 and of a
   // pixel right of it up by 1, so the edge bounds the fill for a winding of 1 on its left and -1 on its right (flipped window rows swap
   // the sides). Overlapping or touching contours therefore leave no seam where one covers the other's edge.
   glStencilMask(0x80);
   glStencilOp(GL_KEEP, GL_KEEP, GL_INVERT);
-  const bool evenodd = (c.pad & 1) != 0;
-  edge_quads(pts, c.n, c.c1, c.alpha);
   edge_upload();
-  if (evenodd) {
+  if (pevenodd) {
     glStencilFunc(GL_EQUAL, 0x01, 0x81);
     edge_draw(0, true);
   } else {
@@ -593,27 +665,34 @@ static bool fill_gpu(const Cmd& c, const float* pts) {
     glStencilMask(0x7F);   // the marked pixels lose their winding, so the cover skips them
     glStencilFunc(GL_EQUAL, 0x80, 0x80);
     glStencilOp(GL_KEEP, GL_ZERO, GL_ZERO);
-    stencil_draw(box, 6);
+    stencil_draw(boxv, (size_t)npoly * 6);
   }
   glStencilMask(0xFF);
   // the rest of the inside: drawn, then 0 (a hidden pixel too)
-  if (evenodd) glStencilFunc(GL_EQUAL, 0x01, 0x81); else glStencilFunc(GL_NOTEQUAL, 0, 0x7F);
+  if (pevenodd) glStencilFunc(GL_EQUAL, 0x01, 0x81); else glStencilFunc(GL_NOTEQUAL, 0, 0x7F);
   glStencilOp(GL_KEEP, GL_ZERO, GL_ZERO);
-  Q q = {};
-  q.x0 = (float)b.x0; q.y0 = (float)b.y0; q.x1 = (float)b.x1; q.y1 = (float)b.y1;
-  q.mode = SOLID; q.c1 = c.c1; q.alpha = c.alpha;
-  quad(q);
+  const float z = cur_z;
+  for (int i = 0; i < npoly; i++) {
+    const PolyBox& pb = pboxes[i];
+    Q q = {};
+    q.x0 = (float)pb.b.x0; q.y0 = (float)pb.b.y0; q.x1 = (float)pb.b.x1; q.y1 = (float)pb.b.y1;
+    q.mode = SOLID; q.c1 = pb.c1; q.alpha = pb.alpha;
+    cur_z = pb.z;
+    quad(q);
+  }
+  cur_z = z;
   flush();
   // the outside pixels near an edge: stencil 0 -> drawn, then counted (once)
   glStencilFunc(GL_EQUAL, 0, 0xFF);
   glStencilOp(GL_KEEP, GL_INCR, GL_INCR);
   edge_draw(0, false);
-  // back to 0 over the box
+  // back to 0 over the boxes
   glStencilFunc(GL_NOTEQUAL, 0, 0xFF);
   glStencilOp(GL_ZERO, GL_ZERO, GL_ZERO);
-  stencil_draw(box, 6);
+  stencil_draw(boxv, (size_t)npoly * 6);
   glDisable(GL_STENCIL_TEST);
-  return true;
+  if (ppaint) glUniform4f(u_g0, 0, 0, 0, 0);
+  npoly = 0; nfan = 0; nedge = 0; ppaint = nullptr;
 }
 
 static void draw_poly(const Cmd& c, const float* pts) {
@@ -858,7 +937,19 @@ static void run(const Frame& f, bool first) {
       }
       case TEXT: draw_text(c, f.text + c.off); break;
       case IMAGE: draw_image(c); break;
-      case LINE: case POLY: if (!fill_gpu(c, f.pts + c.off)) draw_poly(c, f.pts + c.off); break;
+      case LINE: case POLY: {
+        if (!poly_add(c, f.pts + c.off)) { draw_poly(c, f.pts + c.off); break; }
+        while (k + 1 < nw) {   // the next POLYs join the batch while their boxes stay apart from it
+          const uint32_t e2 = walk_entry(k + 1, first), i2 = e2 & ~kCullOpaque;
+          const Cmd& c2 = f.cmds[i2];
+          if (c2.kind != LINE && c2.kind != POLY) break;
+          if (occl && first) cur_z = depth_of(i2, f.count);
+          if (!poly_add(c2, f.pts + c2.off)) break;
+          k++;
+        }
+        poly_flush();
+        break;
+      }
       case STROKE: draw_stroke(c, f.pts + c.off); break;
       case CLIP: {
         if (sp >= 16) break;
