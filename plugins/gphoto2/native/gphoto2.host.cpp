@@ -10,6 +10,7 @@
 #include "zrt_raster.h"
 #include <gphoto2/gphoto2.h>
 #include <turbojpeg.h>
+#include <dlfcn.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -539,13 +540,16 @@ char* cstr(const zrt::String& s) { char* p = (char*)malloc(s.bytes() + 1); memcp
 zrt::String zstr(const char* s) { return zrt::String::from(s, (uint32_t)strlen(s)); }
 }  // namespace
 
-// Headless programs (no zinc:gfx) do not link the rasterizer: these weak fallbacks make images a no-op (-1 ids).
+// Headless programs (no zinc:gfx) do not link the rasterizer: these weak fallbacks make images a no-op (-1 ids). When this plugin is a module
+// loaded by zinc, its own weak definitions win over zinc's (zinc exports no weak symbol since ZN-592.01, so dyld coalesces none): each fallback
+// first asks the process for the real function by name.
+template <class F> static F host_fn(const char* name, F self) { F f = reinterpret_cast<F>(dlsym(RTLD_DEFAULT, name)); return f != self ? f : nullptr; }
 namespace zrt { namespace raster {
-__attribute__((weak)) int32_t dyn_create(int32_t, int32_t) { return -1; }
-__attribute__((weak)) int32_t dyn_wrap(int32_t, int32_t, const uint32_t*, int32_t) { return -1; }
-__attribute__((weak)) void dyn_update(int32_t, const uint32_t*, int32_t) {}
-__attribute__((weak)) uint32_t* dyn_pixels(int32_t) { return nullptr; }
-__attribute__((weak)) void dyn_destroy(int32_t) {}
+__attribute__((weak)) int32_t dyn_create(int32_t w, int32_t h) { static auto f = host_fn("_ZN3zrt6raster10dyn_createEii", &dyn_create); return f ? f(w, h) : -1; }
+__attribute__((weak)) int32_t dyn_wrap(int32_t w, int32_t h, const uint32_t* px, int32_t s) { static auto f = host_fn("_ZN3zrt6raster8dyn_wrapEiiPKji", &dyn_wrap); return f ? f(w, h, px, s) : -1; }
+__attribute__((weak)) void dyn_update(int32_t id, const uint32_t* px, int32_t s) { static auto f = host_fn("_ZN3zrt6raster10dyn_updateEiPKji", &dyn_update); if (f) f(id, px, s); }
+__attribute__((weak)) uint32_t* dyn_pixels(int32_t id) { static auto f = host_fn("_ZN3zrt6raster10dyn_pixelsEi", &dyn_pixels); return f ? f(id) : nullptr; }
+__attribute__((weak)) void dyn_destroy(int32_t id) { static auto f = host_fn("_ZN3zrt6raster11dyn_destroyEi", &dyn_destroy); if (f) f(id); }
 }}
 
 // ---------------------------------------------------------------- main thread
