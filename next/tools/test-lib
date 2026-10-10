@@ -1,0 +1,30 @@
+#!/bin/sh
+# tools/test-lib NAME: prints the path of a third-party file a test needs and the repository does not carry, taking it once from its official
+# release into a cache outside the repository (${ZINC_HOME:-~/.zinc}/cache/test-libs/NAME/) and checking it against the sha256 pinned below.
+# A cached file whose hash is the pinned one is used as it is, with no network. Exit 1 with the reason on stderr when the file is neither
+# cached nor downloadable (the test then exits 77), or when what came does not have the pinned hash (it is not kept).
+#
+# Why not third_party: next/RULES.md §3 keeps LGPL code out of the tree. p5.js is LGPL-2.1; the test loads it at run time and nothing of it
+# is compiled, linked or packaged into zinc.
+#   p5-1.11.13   p5.min.js of p5 1.11.13: lib/p5.min.js of the npm tarball p5-1.11.13.tgz (the release the p5 project publishes)
+set -u
+case "${1:-}" in
+  p5-1.11.13)
+    file=p5.min.js
+    url=https://registry.npmjs.org/p5/-/p5-1.11.13.tgz   # the archive's own sha256: 8f2c1e0e07b006c967d085154a6b92fd80906a9743373243944e4ea6cc737ec3
+    member=package/lib/p5.min.js
+    sha=e9df7d05fd7c3ff028fc09a312a43101241f23c43143b387bf89d96b2e4e0849 ;;
+  *) echo "test-lib: unknown library '${1:-}' (p5-1.11.13)" >&2; exit 2 ;;
+esac
+sum() { if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1"; else shasum -a 256 "$1"; fi | cut -d' ' -f1; }
+dir="${ZINC_HOME:-$HOME/.zinc}/cache/test-libs/$1"
+if [ -f "$dir/$file" ] && [ "$(sum "$dir/$file")" = "$sha" ]; then echo "$dir/$file"; exit 0; fi
+command -v curl >/dev/null 2>&1 || { echo "test-lib: $1 is not cached and curl is missing" >&2; exit 1; }
+mkdir -p "$dir" || { echo "test-lib: cannot create $dir" >&2; exit 1; }
+tmp=$(mktemp -d "$dir/.fetch.XXXXXX") || exit 1
+trap 'rm -rf "$tmp"' EXIT
+curl -fsSL --max-time 120 -o "$tmp/archive" "$url" 2>"$tmp/err" || { echo "test-lib: $1 is not cached and cannot be downloaded from $url ($(head -c 120 "$tmp/err"))" >&2; exit 1; }
+tar -xzOf "$tmp/archive" "$member" > "$tmp/$file" 2>/dev/null || { echo "test-lib: $member is not in the archive of $url" >&2; exit 1; }   # one member, to a file of our own: nothing of the archive chooses a path
+got=$(sum "$tmp/$file")
+[ "$got" = "$sha" ] || { echo "test-lib: $1 from $url has sha256 $got, not the pinned $sha: not kept" >&2; exit 1; }
+mv "$tmp/$file" "$dir/$file" && echo "$dir/$file"

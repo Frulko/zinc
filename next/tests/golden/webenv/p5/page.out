@@ -1,0 +1,5 @@
+loaded p5.min.js p5 1.11.13 native Promise kept true
+loaded sketch.js p5 1.11.13 native Promise kept true
+setup 320 240 true true true
+frame 1 centre 255,120,0,255 corner 20,40,60,255 error 0
+frame 5 centre 255,120,0,255 corner 20,40,60,255 error 0

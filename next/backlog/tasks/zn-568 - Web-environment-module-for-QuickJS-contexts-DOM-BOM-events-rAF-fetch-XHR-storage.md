@@ -7,7 +7,7 @@ status: In Progress
 assignee:
   - '@parallel'
 created_date: '2026-10-09 08:11'
-updated_date: '2026-10-10 22:26'
+updated_date: '2026-10-10 22:30'
 labels:
   - games
   - js
@@ -59,4 +59,9 @@ Tests: tests/t0/webenv.sh with net.js (files, data:, blob:, 404, abort, XHR even
 
 SLICE 4, the canvas element bound to WebGL (2026-10-11): document.createElement('canvas') is the WebGL module's own canvas object (next/src/gl/webgl_js.cpp, untouched) given the HTMLCanvasElement class and an element's fields, so gl.canvas is the element, its width and height (also set as attributes) resize the drawing buffer, and webglcontextlost / webglcontextrestored arrive as its events; without the module getContext answers null. getContext('2d') answers null until ZN-570 (the trace names it). ImageData exists; __srcPixels, which texImage2D asks for a DOM source's pixels, answers for an ImageData, for a WebGL canvas (read back) and for anything with a _pixels() method: the door for ZN-569's images and ZN-570's 2D canvases. Each frame the window shows, over black, every canvas of the document that has a WebGL context, at its box, through gl.zincPresent into a zinc:gfx image (a read, pipelined in a real run: the zero-copy path is the lane's presentation task). toDataURL and toBlob answer empty (no image encoder; the trace names them).
 Test: tests/t1/webenv_canvas.sh with tests/golden/webenv/canvas.js (a WebGL 2 context on the element, a triangle textured from an ImageData read back as 255,128,0, a resize, a lost and restored context, and frame 2 of the window equal to canvas-2.png).
+
+LIBRARY 1, p5.js 1.11.13 (2026-10-11): BOOTS and draws in WEBGL mode, unmodified, with no shim of the test's own: p5.min.js and a global-mode sketch are the two script elements of a page (tests/golden/webenv/p5). What it needed from the environment beyond slices 1 to 4: a 2D context before any sketch code runs (p5 makes a default 2D canvas at start and died on 'cannot read property scale of null'): getContext('2d') now gives a context that draws nothing until ZN-570 (every property kept, every method answered as an empty canvas would, text measured roughly, pixels transparent) and says so once on stderr; the criterion of this task names that recording context. So p5's 2D mode runs and shows nothing: ZN-570 / ZN-572. Members p5 reads and does not find (ZINC_WEB=trace), none of them fatal: navigator.mediaDevices, window.safari, navigator.msSaveOrOpenBlob, window.mocha, DeviceOrientationEvent, DeviceMotionEvent (and its own optional hooks: preload, mouseMoved...). p5 keeps the native Promise (PromiseRejectionEvent exists). In a headless run on the real clock p5's own 60 fps throttle skips the draws of frames that come faster than 11.7 ms: tests run deterministic (16.67 ms a frame).
+Measured (Intel Mac, load average 4.4, release build, headless, 320x240): p5.min.js (1.06 MB) evaluated in 152 to 160 ms; first frame 352 to 378 ms after the context was made; the box scene's draw() with gl.finish 0.59 to 0.60 ms median, p95 3.4 to 4.8 ms (200 frames, 3 runs).
+Not in the repository: p5.js is LGPL-2.1 and RULES 3 keeps LGPL out of the tree. next/tools/test-lib takes lib/p5.min.js of the npm tarball p5-1.11.13.tgz into ${ZINC_HOME:-~/.zinc}/cache/test-libs/p5-1.11.13/, once, and checks its sha256 (e9df7d05fd7c3ff028fc09a312a43101241f23c43143b387bf89d96b2e4e0849, pinned in the tool); a cached file with that hash needs no network. The test exits 77 with the reason when the file is neither cached nor downloadable.
+Test: tests/t1/webenv_p5.sh (setup on a WebGL 2 canvas, frames 1 and 5 read 255,120,0 inside the box and 20,40,60 in the corner, no exception).
 <!-- SECTION:NOTES:END -->

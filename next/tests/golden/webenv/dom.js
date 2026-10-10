@@ -21,7 +21,10 @@ log('attributes', canvas.getAttribute('data-kind'), canvas.hasAttribute('tabinde
 canvas.style.width = '50%'; canvas.style.setProperty('touch-action', 'none'); div.style.cssText = 'width: 400px; height: 300px';
 log('style', canvas.style.touchAction, JSON.stringify(canvas.style.cursor), canvas.style.getPropertyValue('width'), div.style.cssText, getComputedStyle(div).width);
 const r = canvas.getBoundingClientRect();
-log('box', r.left, r.top, r.width, r.height, r.right, canvas.clientWidth, canvas.offsetHeight, div.offsetWidth, canvas.width, canvas.height, canvas.getContext('2d'));
+log('box', r.left, r.top, r.width, r.height, r.right, canvas.clientWidth, canvas.offsetHeight, div.offsetWidth, canvas.width, canvas.height);
+// the 2D context draws nothing until ZN-570: it takes every call, keeps what it is given, and the canvas then has no WebGL context
+const ctx = canvas.getContext('2d'); ctx.fillStyle = 'red'; ctx.fillRect(0, 0, 10, 10); ctx.save();
+log('2d', ctx === canvas.getContext('2d'), ctx.canvas === canvas, ctx.fillStyle, ctx.measureText('abc').width > 0, ctx.getImageData(0, 0, 2, 2).data.length, canvas.getContext('webgl'));
 div.removeChild(span); canvas.remove();
 log('removed', div.childNodes.length, canvas.parentNode, canvas.isConnected);
 try { div.removeChild(span); } catch (e) { log('removeChild', e.name); }
