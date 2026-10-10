@@ -91,27 +91,53 @@ static Overlay rbox, banner;       // box: full-screen red box; banner: LogBox-s
 static bool ovl_changed = false;  // next present repaints the whole screen
 static double banner_until = 0;
 static int32_t banner_count = 0;
-static raster::Frame ovl_frame(const Overlay& o) { return raster::Frame{o.cmds, o.ncmd, o.text, nullptr}; }
+// ZINC_PERF_HUD (ZN-375): the performance panel's overlay, allocated when it is first shown (hud:: below)
+// A software frame does not paint its commands each time: they are painted once into `px` after each rebuild, and the damage bands copy
+// their rows of it (the panel is opaque). GPU displays replay the commands.
+struct HudOverlay { Cmd cmds[1280]; Cmd local[1280]; char text[512]; uint32_t ncmd, ntext; uint32_t* px; int32_t pxw, pxh, pxcap; raster::Rect at; };
+static HudOverlay* hud_ovl = nullptr;
+static int32_t hud_px_state = 0;   // 0: px is stale, 1: being painted, 2: ready
+static uint64_t hud_cost_us = 0;   // the panel's own time (building it, painting and copying its pixels): the summary reports it per frame
+template <class O> static raster::Frame ovl_frame(const O& o) { return raster::Frame{o.cmds, o.ncmd, o.text, nullptr}; }
+static void hud_render(uint32_t* rows, int32_t y0, int32_t y1, raster::Rect r) {   // bands may paint on several threads
+  const uint64_t t = hal_time_us();
+  HudOverlay& o = *hud_ovl;
+  if (__atomic_load_n(&hud_px_state, __ATOMIC_ACQUIRE) != 2) {
+    int32_t stale = 0;
+    if (__atomic_compare_exchange_n(&hud_px_state, &stale, 1, false, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
+      for (uint32_t i = 0; i < o.ncmd; i++) { o.local[i] = o.cmds[i]; o.local[i].x -= (float)o.at.x0; o.local[i].y -= (float)o.at.y0; }
+      raster::render(raster::Frame{o.local, o.ncmd, o.text, nullptr}, o.px, o.pxw, 0, o.pxh, raster::Rect{0, 0, o.pxw, o.pxh});
+      __atomic_store_n(&hud_px_state, 2, __ATOMIC_RELEASE);
+    } else while (__atomic_load_n(&hud_px_state, __ATOMIC_ACQUIRE) != 2) {}
+  }
+  const int32_t x0 = r.x0 > o.at.x0 ? r.x0 : o.at.x0, x1 = r.x1 < o.at.x1 ? r.x1 : o.at.x1;
+  int32_t ya = y0 > r.y0 ? y0 : r.y0, yb = y1 < r.y1 ? y1 : r.y1;
+  if (ya < o.at.y0) ya = o.at.y0;
+  if (yb > o.at.y1) yb = o.at.y1;
+  for (int32_t y = ya; x0 < x1 && y < yb; y++) __builtin_memcpy(rows + (size_t)(y - y0) * pw + x0, o.px + (size_t)(y - o.at.y0) * o.pxw + (x0 - o.at.x0), (size_t)(x1 - x0) * 4);
+  __atomic_fetch_add(&hud_cost_us, hal_time_us() - t, __ATOMIC_RELAXED);
+}
 static int32_t ovl_k() { init_scale(); return (surf_w >= 960 ? 2 : 1) * pxk; }  // text scale: 8 px cells, 16 px on large screens
-static Cmd* ovl_push(Overlay& o, uint8_t kind, uint32_t color) {
+template <class O> static Cmd* ovl_push(O& o, uint8_t kind, uint32_t color) {
   if (o.ncmd == sizeof o.cmds / sizeof o.cmds[0]) return nullptr;
   Cmd* c = &o.cmds[o.ncmd++];
   __builtin_memset(c, 0, sizeof(Cmd));
   c->kind = kind; c->c1 = color; c->alpha = 255;
   return c;
 }
-static void ovl_rect(Overlay& o, float x, float y, float w, float h, uint32_t color) {
+template <class O> static void ovl_rect(O& o, float x, float y, float w, float h, uint32_t color) {
   if (Cmd* c = ovl_push(o, raster::RECT, color)) { c->x = x; c->y = y; c->w = w; c->h = h; }
 }
-static void ovl_text(Overlay& o, float x, float y, const char* s, uint32_t n, uint32_t color) {
+template <class O> static void ovl_text(O& o, float x, float y, const char* s, uint32_t n, uint32_t color, int32_t k = 0) {
   static const char grid[] = "grid";
   if (o.ntext + n > sizeof o.text) return;
   Cmd* c = ovl_push(o, raster::TEXT, color);
   if (!c) return;
-  int32_t f = raster::find_font(grid, 4, 8 * ovl_k());
+  if (!k) k = ovl_k();
+  int32_t f = raster::find_font(grid, 4, 8 * k);
   __builtin_memcpy(o.text + o.ntext, s, n);
   c->res = f; c->off = o.ntext; c->n = n; c->x = x; c->y = y;
-  c->w = (float)(raster::text_advance(f, s, n, 0) / 64.0); c->h = (float)(10 * ovl_k());
+  c->w = (float)(raster::text_advance(f, s, n, 0) / 64.0); c->h = (float)(10 * k);
   o.ntext += n;
 }
 /** Word-wrapped paragraph; returns the y below it. */
@@ -208,16 +234,18 @@ static void render_rows(uint32_t* rows, int32_t y0, int32_t y1) {
   if (rbox.ncmd) raster::render(ovl_frame(rbox), rows, pw, y0, y1, all);
   if (banner.ncmd) raster::render(ovl_frame(banner), rows, pw, y0, y1, all);
   if (vis.ncmd) raster::render(raster::Frame{vis.cmds, vis.ncmd, nullptr, nullptr}, rows, pw, y0, y1, all);
+  if (hud_ovl && hud_ovl->ncmd) hud_render(rows, y0, y1, all);
 }
 // the frame as command lists in paint order, for GPU displays (HalFrame.frames); same lists as render_rows
-static HalCmdList lists[4];
+static HalCmdList lists[5];
 static int32_t frame_lists(const HalCmdList* out[], int32_t max) {
   int32_t n = 0;
-  auto add = [&](const raster::Frame& f) { if (n < max && n < 4) { lists[n] = HalCmdList{f.cmds, f.count, f.text, f.pts}; out[n] = &lists[n]; n++; } };
+  auto add = [&](const raster::Frame& f) { if (n < max && n < 5) { lists[n] = HalCmdList{f.cmds, f.count, f.text, f.pts}; out[n] = &lists[n]; n++; } };
   if (shown) add(frame_of(*shown));
   if (rbox.ncmd) add(ovl_frame(rbox));
   if (banner.ncmd) add(ovl_frame(banner));
   if (vis.ncmd) add(raster::Frame{vis.cmds, vis.ncmd, nullptr, nullptr});
+  if (hud_ovl && hud_ovl->ncmd) add(ovl_frame(*hud_ovl));
   return n;
 }
 // damage of the frame being presented, as disjoint rectangles (render_damage)
@@ -234,6 +262,7 @@ static void render_damage(uint32_t* rows, int32_t y0, int32_t y1) {
     if (rbox.ncmd) raster::render(ovl_frame(rbox), rows, pw, y0, y1, r);
     if (banner.ncmd) raster::render(ovl_frame(banner), rows, pw, y0, y1, r);
     if (vis.ncmd) raster::render(raster::Frame{vis.cmds, vis.ncmd, nullptr, nullptr}, rows, pw, y0, y1, r);
+    if (hud_ovl && hud_ovl->ncmd) hud_render(rows, y0, y1, r);
   }
 }
 static void set_full_damage() { dmg[0] = raster::Rect{0, 0, pw, ph}; ndmg = 1; }
@@ -313,11 +342,11 @@ struct State {
   Span spans[ZRT_PROF_SPANS];
   uint64_t band[ZRT_PROF_BANDS][2];  // raster band spans of this frame (SDL HAL worker threads)
   uint64_t frame_t0, last;
-  bool summary, tracing;
+  bool summary, tracing, hud;
 };
 static State* st = nullptr;
 static const char* trace_file = nullptr;
-static bool active() { return st && (st->summary || st->tracing); }
+static bool active() { return st && (st->summary || st->tracing || st->hud); }
 static void enable() {
   if (st) return;
   st = (State*)hal_alloc(sizeof(State));
@@ -442,6 +471,213 @@ int32_t commandsFree() {
 #endif
 }
 void profMark(int32_t phase) { if (prof::active() && phase >= 0 && phase < prof::N) prof::mark(phase); }
+
+// ---------- ZINC_PERF_HUD (ZN-375, docs/dev-mode.md): a performance panel over the program, like React Native's perf monitor ----------
+// Shown with ZINC_PERF_HUD=1 (zinc.json "dev": {"perfHud": true}) or toggled with Cmd/Ctrl+Shift+P. It is an overlay drawn after the
+// program's frame (the program's tree and layout never see it) and only its rectangle is repainted. Its numbers are the profiler's: the
+// per-phase times ZINC_PROFILE summarizes. Drag it anywhere; a click on its "-" (or on the badge) collapses (expands) it.
+const char* (*hud_info)() = nullptr;   // a line from the host: the engine and its counters (Zinc Next: objects, allocations per frame)
+namespace hud {
+enum { W = 248, H = 140, GRAPH_Y = 88, GRAPH_H = 48, FRAMES = 120, BADGE_W = 72, BADGE_H = 14 };   // in logical pixels
+static int32_t state = -1;   // -1: the environment not read yet, 0 hidden, 1 shown
+static bool collapsed = false, dragging = false, moved = false, on_button = false, was_down = false;   // was_down: the real button (the program's is hidden)
+static float x = -1, y = 0, gx = 0, gy = 0;   // top-left corner (physical pixels; -1: not placed yet), grab offset
+static raster::Rect box = {0, 0, 0, 0}, was = {0, 0, 0, 0};   // drawn now, drawn in the previous frame
+static uint64_t starts[64];   // the start times of the last frames (µs): fps and dropped frames
+static uint32_t nstarts = 0, dropped = 0, stat_at = 0, p50 = 0, p99 = 0, frames_shown = 0;
+static uint64_t built_at = 0;     // when the panel was last rebuilt: 10 times a second, and every frame while it is dragged
+static bool relayout = true;      // shown, hidden, collapsed or expanded since the last rebuild
+static uint32_t* sorted = nullptr;   // ZRT_PROF_FRAMES values for the percentiles
+static const uint32_t COLORS[prof::N] = {0x60a5fa, 0xa78bfa, 0xf472b6, 0xfbbf24, 0x34d399, 0x94a3b8, 0x64748b, 0xf87171, 0x475569};
+static const char* const SHORT[prof::N] = {"app", "inp", "anim", "lay", "pnt", "fx", "diff", "ras", "pre"};
+
+static bool show() {
+  if (!hud_ovl) {
+    hud_ovl = (HudOverlay*)hal_alloc(sizeof(HudOverlay));
+    sorted = (uint32_t*)hal_alloc(ZRT_PROF_FRAMES * sizeof(uint32_t));
+    if (!hud_ovl || !sorted) { state = 0; return false; }
+    hud_ovl->ncmd = hud_ovl->ntext = 0;
+    hud_ovl->px = nullptr; hud_ovl->pxcap = 0;
+  }
+  relayout = true;
+  prof::enable();
+  if (!prof::st) { state = 0; return false; }
+  prof::st->hud = true;
+  state = 1;
+  return true;
+}
+static void hide() {
+  state = 0;
+  relayout = true;
+  if (prof::st) prof::st->hud = false;
+  if (hud_ovl) hud_ovl->ncmd = hud_ovl->ntext = 0;
+  box = raster::Rect{0, 0, 0, 0};
+}
+/** p50 / p99 of the work (every phase but present) over the frames the profiler holds: the numbers of ZINC_PROFILE's summary. */
+static void percentiles() {
+  uint32_t n = prof::st->nframes < ZRT_PROF_FRAMES ? prof::st->nframes : ZRT_PROF_FRAMES;
+  for (uint32_t i = 0; i < n; i++) { uint32_t s = 0; for (int32_t p = 0; p < prof::PRESENT; p++) s += prof::st->us[i][p]; sorted[i] = s; }
+  for (uint32_t gap = n / 2; gap > 0; gap /= 2)
+    for (uint32_t i = gap; i < n; i++) for (uint32_t j = i; j >= gap && sorted[j - gap] > sorted[j]; j -= gap) { uint32_t t = sorted[j]; sorted[j] = sorted[j - gap]; sorted[j - gap] = t; }
+  p50 = n ? sorted[(n - 1) * 50 / 100] : 0;
+  p99 = n ? sorted[(n - 1) * 99 / 100] : 0;
+  stat_at = prof::st->nframes;
+}
+static void summary() {
+  if (!prof::st || !prof::st->summary || !sorted) return;   // never shown: nothing to report
+  percentiles();
+  StrBuilder sb;
+  sb.cstr("zinc perf hud: x="); to_s(sb, box.x0); sb.cstr(" y="); to_s(sb, box.y0); sb.cstr(" w="); to_s(sb, box.x1 - box.x0); sb.cstr(" h="); to_s(sb, box.y1 - box.y0);
+  sb.cstr(" work p50="); prof::ms(sb, p50); sb.cstr(" p99="); prof::ms(sb, p99);
+  sb.cstr(" ms, own "); prof::ms(sb, frames_shown ? (uint32_t)(hud_cost_us / frames_shown) : 0); sb.cstr(" ms per frame\n");
+  hal_log_err(sb.buf, sb.len);
+}
+/** Frame start, before the program reads its input: the switch, the hotkey, dragging and collapsing (the program does not see a pointer
+ *  that went down on the panel), and the time the frame starts. */
+static void frame_start() {
+  if (state < 0) {
+    const char* e = hal_env("ZINC_PERF_HUD");
+    state = 0;
+    if (e && *e && *e != '0') show();
+    at_finish(summary);
+  }
+  for (int32_t i = 0; i < input.nkeys; i++) {
+    const HalKey& k = input.keys[i];
+    if (k.kind == HAL_KEY_DOWN && k.key == 'p' && (k.mods & HAL_MOD_SHIFT) && (k.mods & (HAL_MOD_CTRL | HAL_MOD_META))) { if (state == 1) hide(); else show(); }
+  }
+  if (state != 1) return;
+  init_scale();
+  uint64_t t = hal_time_us();
+  if (nstarts && t - starts[(nstarts - 1) % 64] > 25000) dropped++;   // more than 1.5 frames of 60 Hz since the previous one
+  starts[nstarts++ % 64] = t;
+  const float px = input.px * (float)pxk, py = input.py * (float)pxk;
+  const bool inside = px >= box.x0 && px < box.x1 && py >= box.y0 && py < box.y1;
+  const bool down = input.pdown != 0, pressed = down && !was_down;
+  was_down = down;
+  if (pressed && inside && !dragging) {
+    dragging = true; moved = false;
+    gx = px - x; gy = py - y;
+    on_button = collapsed || (px >= box.x1 - 14.0f * pxk && py < box.y0 + 12.0f * pxk);
+  }
+  if (!dragging) return;
+  if (input.pdown) {
+    float nx = px - gx, ny = py - gy;
+    if (nx - x > 2 || x - nx > 2 || ny - y > 2 || y - ny > 2) moved = true;
+    if (moved) { x = nx; y = ny; }
+  } else {
+    dragging = false;
+    if (!moved && on_button) { collapsed = !collapsed; relayout = true; }
+  }
+  input.pdown = 0; input.pbuttons = 0; input.nbtn = 0;   // the program does not see this pointer
+}
+static void put_ms(char* b, int32_t& n, uint32_t us, bool two) {   // "12.34" or "12.3"
+  uint32_t whole = us / 1000, f = two ? us % 1000 / 10 : us % 1000 / 100;
+  char d[10]; int32_t k = 0;
+  do { d[k++] = (char)('0' + whole % 10); whole /= 10; } while (whole);
+  while (k) b[n++] = d[--k];
+  b[n++] = '.';
+  if (two) b[n++] = (char)('0' + f / 10);
+  b[n++] = (char)('0' + f % 10);
+}
+static void put_int(char* b, int32_t& n, uint32_t v) { char d[10]; int32_t k = 0; do { d[k++] = (char)('0' + v % 10); v /= 10; } while (v); while (k) b[n++] = d[--k]; }
+static void put_str(char* b, int32_t& n, const char* s) { while (*s) b[n++] = *s++; }
+/** Rebuilds the panel from the frames measured so far (this frame's own times are not known yet). */
+static void build(const raster::Rect& dmg_box) {
+  HudOverlay& o = *hud_ovl;
+  o.ncmd = o.ntext = 0;
+  const int32_t k = pxk;
+  const float w = (float)((collapsed ? BADGE_W : W) * k), h = (float)((collapsed ? BADGE_H : H) * k);
+  if (x < 0) { x = (float)pw - (float)(W * k) - 8.0f * k; y = 8.0f * k; }   // top right
+  if (x > pw - w) x = pw - w;
+  if (y > ph - h) y = ph - h;
+  if (x < 0) x = 0;
+  if (y < 0) y = 0;
+  box = raster::Rect{(int32_t)x, (int32_t)y, (int32_t)(x + w), (int32_t)(y + h)};
+  const int32_t need = (box.x1 - box.x0) * (box.y1 - box.y0);
+  if (o.pxcap < need) { if (o.px) hal_free(o.px); o.px = (uint32_t*)hal_alloc((size_t)need * 4); o.pxcap = o.px ? need : 0; }
+  if (!o.px) { box = raster::Rect{0, 0, 0, 0}; return; }
+  o.at = box; o.pxw = box.x1 - box.x0; o.pxh = box.y1 - box.y0;
+  hud_px_state = 0;
+  uint32_t n = nstarts < 64 ? nstarts : 64, fps10 = 0, frame_us = 0;
+  if (n >= 2) {
+    uint64_t span = starts[(nstarts - 1) % 64] - starts[(nstarts - n) % 64];
+    frame_us = (uint32_t)(span / (n - 1));
+    fps10 = span ? (uint32_t)((uint64_t)(n - 1) * 10000000u / span) : 0;
+  }
+  char b[64]; int32_t m;
+  ovl_rect(o, x, y, w, h, 0x111827);
+  if (collapsed) {
+    m = 0; put_int(b, m, fps10 / 10); put_str(b, m, " fps");
+    ovl_text(o, x + 4.0f * k, y + 2.0f * k, b, (uint32_t)m, fps10 >= 550 ? 0x34d399 : fps10 >= 300 ? 0xfbbf24 : 0xf87171, k);
+    return;
+  }
+  const prof::State& s = *prof::st;
+  if (s.nframes >= stat_at + 30 || !stat_at) percentiles();
+  ovl_rect(o, x, y, w, 12.0f * k, 0x1f2937);
+  const char* info = hud_info ? hud_info() : nullptr;
+  ovl_text(o, x + 4.0f * k, y + 2.0f * k, "zinc perf", 9, 0xe5e7eb, k);
+  ovl_text(o, x + w - 12.0f * k, y + 1.0f * k, "-", 1, 0xe5e7eb, k);
+  float ty = y + 14.0f * k;
+  m = 0; put_int(b, m, fps10 / 10); b[m++] = '.'; b[m++] = (char)('0' + fps10 % 10); put_str(b, m, " fps   frame "); put_ms(b, m, frame_us, true); put_str(b, m, " ms");
+  ovl_text(o, x + 4.0f * k, ty, b, (uint32_t)m, 0xffffff, k); ty += 10.0f * k;
+  m = 0; put_str(b, m, "work p50 "); put_ms(b, m, p50, true); put_str(b, m, "  p99 "); put_ms(b, m, p99, true);
+  ovl_text(o, x + 4.0f * k, ty, b, (uint32_t)m, 0xd1d5db, k); ty += 10.0f * k;
+  const int64_t area = (int64_t)pw * ph, d = (int64_t)(dmg_box.x1 - dmg_box.x0) * (dmg_box.y1 - dmg_box.y0);
+  m = 0; put_str(b, m, "dropped "); put_int(b, m, dropped); put_str(b, m, "  cmds "); put_int(b, m, stats.draw_cmds);
+  put_str(b, m, "  dmg "); put_int(b, m, area > 0 && d > 0 ? (uint32_t)(d * 100 / area) : 0); b[m++] = '%';
+  ovl_text(o, x + 4.0f * k, ty, b, (uint32_t)m, 0xd1d5db, k); ty += 10.0f * k;
+  uint32_t avg[prof::N] = {0}, frames = s.nframes < 30 ? s.nframes : 30;   // the phases, averaged over the last 30 frames
+  for (uint32_t i = 0; i < frames; i++) for (int32_t p = 0; p < prof::N; p++) avg[p] += s.us[(s.nframes - 1 - i) % ZRT_PROF_FRAMES][p];
+  float tx = x + 4.0f * k;
+  for (int32_t p = 0; p < prof::N; p++) {   // the legend: each phase in the colour of its band in the graph, three per line
+    if (p && p % 3 == 0) { tx = x + 4.0f * k; ty += 10.0f * k; }
+    m = 0; put_str(b, m, SHORT[p]); b[m++] = ' '; put_ms(b, m, frames ? avg[p] / frames : 0, false);
+    ovl_text(o, tx, ty, b, (uint32_t)m, COLORS[p], k);
+    tx += (float)(m + 1) * 8.0f * k;
+  }
+  ty += 10.0f * k;
+  if (info && *info) { m = 0; while (info[m] && m < 30) m++; ovl_text(o, x + 4.0f * k, ty, info, (uint32_t)m, 0x9ca3af, k); }
+  const float gy0 = y + (float)(GRAPH_Y + GRAPH_H) * k, scale = (float)(GRAPH_H * k) / 33333.0f;   // the graph: 33 ms high
+  const uint32_t shown_frames = s.nframes < FRAMES ? s.nframes : FRAMES;
+  for (uint32_t i = 0; i < shown_frames; i++) {   // oldest on the left, one column of stacked phases per frame
+    const uint32_t* f = s.us[(s.nframes - shown_frames + i) % ZRT_PROF_FRAMES];
+    float cx = x + 4.0f * k + (float)(i * 2 * k), cy = gy0;
+    for (int32_t p = 0; p < prof::N; p++) {
+      float hh = (float)f[p] * scale;
+      if (cy - hh < gy0 - GRAPH_H * k) hh = cy - (gy0 - GRAPH_H * k);
+      if (hh < 1.0f) continue;
+      cy -= hh;
+      ovl_rect(o, cx, cy, (float)(2 * k), hh, COLORS[p]);
+    }
+  }
+  ovl_rect(o, x + 4.0f * k, gy0 - 16667.0f * scale, (float)(FRAMES * 2 * k), (float)k, 0xe5e7eb);   // 16.7 ms: 60 fps
+}
+static void add_rect(const raster::Rect& r) {
+  if (r.x0 >= r.x1 || r.y0 >= r.y1) return;
+  for (int32_t i = 0; i < ndmg; i++) if (dmg[i].x0 <= r.x0 && dmg[i].y0 <= r.y0 && dmg[i].x1 >= r.x1 && dmg[i].y1 >= r.y1) return;   // painted anyway
+  if (ndmg < ZRT_DAMAGE_RECTS) { dmg[ndmg++] = r; return; }
+  set_full_damage();
+}
+/** Before present: 10 times a second (every frame while dragged) the panel is rebuilt, and its rectangle, and where it was, join the
+ *  frame's damage; in between it is repainted only where the program's damage covers it. */
+static void before_present(const raster::Rect& dmg_box) {
+  if (state == 1) frames_shown++;
+  const uint64_t now = hal_time_us();
+  if (!relayout && !dragging && (state != 1 || now - built_at < 100000)) return;
+  if (state == 1) { build(dmg_box); hud_cost_us += hal_time_us() - now; }
+  built_at = now;
+  relayout = false;
+  add_rect(box);
+  add_rect(was);
+  was = box;
+}
+}  // namespace hud
+static raster::Rect damage_box() {
+  raster::Rect d = {pw, ph, 0, 0};
+  for (int32_t i = 0; i < ndmg; i++) { d.x0 = dmg[i].x0 < d.x0 ? dmg[i].x0 : d.x0; d.y0 = dmg[i].y0 < d.y0 ? dmg[i].y0 : d.y0; d.x1 = dmg[i].x1 > d.x1 ? dmg[i].x1 : d.x1; d.y1 = dmg[i].y1 > d.y1 ? dmg[i].y1 : d.y1; }
+  if (!ndmg) d = raster::Rect{0, 0, 0, 0};
+  return d;
+}
 /** plugins/devtools Tracing.start (true: returns '') / Tracing.end (false: returns the trace events). */
 String trace(bool on) {
   if (on) { prof::enable(); if (prof::st) { prof::st->tracing = true; prof::st->nspans = 0; } return String(); }
@@ -785,7 +1021,7 @@ static bool bulk_mode = false;
 static uint32_t bulk_n = 0;
 static raster::Rect all_box[2];
 static bool all_ok[2];
-void begin_frame() { Buf& b = bufs[cur]; b.ncmd = 0; b.ntext = 0; b.npts = 0; tx = ty = 0; kept = false; all_ok[cur] = false; prof::begin(); }
+void begin_frame() { Buf& b = bufs[cur]; b.ncmd = 0; b.ntext = 0; b.npts = 0; tx = ty = 0; kept = false; all_ok[cur] = false; hud::frame_start(); prof::begin(); }
 void keep() { kept = true; }
 void end_frame() {
   init_scale();
@@ -797,7 +1033,9 @@ void end_frame() {
   if (kept && !first) {  // retained frame: no rasterization, no swap
     if (vis.mode && vis_update(shown, false)) ovl_changed = true;   // damage flashes fade while idle
     if (ovl_changed) set_full_damage(); else ndmg = 0;
-    HalFrame f = {pw, ph, 0, 0, ovl_changed ? pw : 0, ovl_changed ? ph : 0, render_rows, render_damage, frame_lists};
+    hud::before_present(raster::Rect{0, 0, 0, 0});   // the panel keeps counting while the program is idle
+    const raster::Rect d = damage_box();
+    HalFrame f = {pw, ph, d.x0, d.y0, d.x1, d.y1, render_rows, render_damage, frame_lists};
     ovl_changed = false;
     present(&f);
     if (prof_on) prof::end();
@@ -824,9 +1062,8 @@ void end_frame() {
   }
   if (vis.mode && vis_update(&now, true)) set_full_damage();
   if (prof_on) prof::mark(prof::DIFF);
-  raster::Rect d = {pw, ph, 0, 0};
-  for (int32_t i = 0; i < ndmg; i++) { d.x0 = dmg[i].x0 < d.x0 ? dmg[i].x0 : d.x0; d.y0 = dmg[i].y0 < d.y0 ? dmg[i].y0 : d.y0; d.x1 = dmg[i].x1 > d.x1 ? dmg[i].x1 : d.x1; d.y1 = dmg[i].y1 > d.y1 ? dmg[i].y1 : d.y1; }
-  if (!ndmg) d = raster::Rect{0, 0, 0, 0};
+  hud::before_present(damage_box());
+  const raster::Rect d = damage_box();
   ovl_changed = false;
   first = false;
   shown = &now;

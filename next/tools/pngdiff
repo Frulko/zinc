@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""pngdiff A.png B.png [--tol N] [--report diff.png] [--max-diff K]
+"""pngdiff A.png B.png [--tol N] [--report diff.png] [--max-diff K] [--bbox]
 
 Compares two 8-bit RGB/RGBA PNGs (any filter). Prints the number of pixels whose largest per-channel difference exceeds N (default 0 = exact), the largest
 difference, the mean absolute error and the PSNR. --report writes a diff image (differing pixels red over a dimmed copy of A). Exit 1 when more than K pixels
-(default 0) exceed the tolerance or the sizes differ. Standard library only.
+(default 0) exceed the tolerance or the sizes differ. --bbox also prints the box of the differing pixels: `bbox x0 y0 x1 y1` (x1, y1 exclusive).
+Standard library only.
 """
 import sys, zlib, struct, math
 
@@ -50,17 +51,21 @@ def compare(a, b, tol=0):
     return over, mx, mae, psnr, mask
 
 def main(argv):
-    pos = []; tol = 0; report = None; maxdiff = 0; i = 0
+    pos = []; tol = 0; report = None; maxdiff = 0; bbox = False; i = 0
     while i < len(argv):
         if argv[i] == '--tol': tol = int(argv[i+1]); i += 2
         elif argv[i] == '--report': report = argv[i+1]; i += 2
         elif argv[i] == '--max-diff': maxdiff = int(argv[i+1]); i += 2
+        elif argv[i] == '--bbox': bbox = True; i += 1
         else: pos.append(argv[i]); i += 1
     if len(pos) != 2: print(__doc__); return 2
     a = dec(pos[0]); b = dec(pos[1])
     if a[:2] != b[:2]: print('size differs', a[:2], b[:2]); return 1
     over, mx, mae, psnr, mask = compare(a, b, tol)
     print('differing pixels: %d (tolerance %d, max diff %d, mae %.3f, psnr %s)' % (over, tol, mx, mae, 'inf' if psnr == float('inf') else '%.1f dB' % psnr))
+    if bbox and over:
+        w = a[0]; ks = [k for k in range(len(mask)) if mask[k]]
+        print('bbox %d %d %d %d' % (min(k % w for k in ks), ks[0] // w, max(k % w for k in ks) + 1, ks[-1] // w + 1))
     if report and over:
         w, h, ba, da = a; out = bytearray(w*h*3)
         for k in range(w*h):

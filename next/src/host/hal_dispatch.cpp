@@ -93,7 +93,13 @@ void applyScript(HalInput* in) {
     else if (e.kind == "wheel") { in->wheel_x += static_cast<float>(atof(e.a.c_str())); in->wheel += static_cast<float>(atof(e.b.c_str())); }
     else if (e.kind == "key" && in->nkeys < HAL_MAX_KEYS) {
       uint32_t mods = 0;
-      for (const std::string& m : {e.b}) mods |= m == "shift" ? HAL_MOD_SHIFT : m == "ctrl" ? HAL_MOD_CTRL : m == "alt" ? HAL_MOD_ALT : m == "meta" ? HAL_MOD_META : 0;
+      for (size_t at = 0; at <= e.b.size();) {   // "shift", or several joined with '+': "shift+meta"
+        size_t end = e.b.find('+', at);
+        if (end == std::string::npos) end = e.b.size();
+        const std::string m = e.b.substr(at, end - at);
+        mods |= m == "shift" ? HAL_MOD_SHIFT : m == "ctrl" ? HAL_MOD_CTRL : m == "alt" ? HAL_MOD_ALT : m == "meta" ? HAL_MOD_META : 0;
+        at = end + 1;
+      }
       in->keys[in->nkeys++] = HalKey{keyCode(e.a), mods, HAL_KEY_DOWN, 0, 0};
     } else if (e.kind == "text" && in->nkeys < HAL_MAX_KEYS) {
       size_t n = e.a.size();

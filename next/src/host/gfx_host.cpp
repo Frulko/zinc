@@ -10,6 +10,7 @@
 #include "zn/runtime.h"
 #include "zrt.h"
 #include "zrt_raster.h"
+#include "zn/alloc_stats.h"
 
 extern "C" int zn_ui_log_on(void);             // src/host/ui_log.cpp (ZN-368): this file includes zrt.h, which keeps the C++ library out
 extern "C" void zn_ui_log_mark(int phase);
@@ -229,6 +230,17 @@ uint8_t* encodePngHook(const uint32_t* px, int32_t w, int32_t h, size_t* n, void
   return out;
 }
 
-void installGfx() { zrt::gfx::png_encoder = encodePngHook; hostGfx = call; installSys(); }
+static const char* gEngine = "AOT";   // an AOT program's; zinc run names the interpreter or QuickJS (setEngineName)
+static const char* hudInfo() {   // the perf panel's engine line (ZN-375): the runtime allocator's blocks and allocations since the previous frame (ZN-192)
+  static char line[64];
+  static std::uint64_t last = 0;
+  const std::uint64_t a = zn::rt::gAllocs;
+  if (!strcmp(gEngine, "QuickJS")) snprintf(line, sizeof line, "%s", gEngine);   // its objects are not the runtime allocator's
+  else snprintf(line, sizeof line, "%s %llu blk +%llu/f", gEngine, (unsigned long long)(a - zn::rt::gFrees), (unsigned long long)(last ? a - last : 0));
+  last = a;
+  return line;
+}
+void setEngineName(const char* name) { gEngine = name; }
+void installGfx() { zrt::gfx::png_encoder = encodePngHook; zrt::gfx::hud_info = hudInfo; hostGfx = call; installSys(); }
 
 }  // namespace zn::host

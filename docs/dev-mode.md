@@ -143,6 +143,29 @@ Every frame is split into phases, timed on the logic thread (`runtime/gfx.cpp`, 
 - `zinc bench` (or `zinc test --bench`): see [testing](guide/06-testing.md#benchmarks).
 - Off (the default), a mark costs one test; buffers (~700 KiB) are allocated only when profiling.
 
+### Performance panel (`ZINC_PERF_HUD`)
+
+`ZINC_PERF_HUD=1` (or `"dev": {"perfHud": true}` in `zinc.json`, or Cmd/Ctrl+Shift+P while the program runs) shows
+a floating panel over any zinc:gfx or zinc:ui program, like React Native's perf monitor. It lists:
+
+- FPS and the time between frames;
+- `work` p50 / p99, the numbers `ZINC_PROFILE` prints at exit;
+- frames that took more than 25 ms (`dropped`);
+- the draw commands of the frame and how much of the screen it damaged;
+- the phases of the table above, averaged over 30 frames;
+- the engine with the runtime allocator's live blocks and allocations per frame (interpreter and AOT).
+
+A graph of the last 120 frames stacks the phases in the colours of the legend, with a line at 16.7 ms.
+
+- Drag it anywhere; a click on its `-` collapses it to an FPS badge, a click on the badge expands it. The program
+  does not see a pointer that went down on the panel.
+- It is an overlay of the runtime, like the red box, so the program's tree, layout and goldens never see it. A frame
+  with the panel differs from one without only inside its rectangle (`tests/t1/perf_hud.sh`).
+- It is rebuilt 10 times a second; a software frame paints it once into its own pixels and copies them where the
+  frame is damaged.
+- Its own cost is printed with `ZINC_PROFILE=1` (`zinc perf hud: ... own 0.14 ms per frame`): 0.14-0.19 ms on the
+  CPU renderer at Retina density with hero repainting each frame, 0.01 ms on the GPU renderer.
+
 `ZINC_VISUALIZE=damage` flashes the damaged rectangles of each frame (magenta, fading over 30 frames);
 `ZINC_VISUALIZE=cmds` draws a translucent red box per draw command, so areas drawn by many commands glow. Both are
 an overlay of the runtime: without the variable, frames and goldens are unchanged.

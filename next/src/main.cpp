@@ -1191,6 +1191,9 @@ int main(int argc, char** argv) {
     }
 #endif
     zn::log::write("run", zn::log::Info, "engine QuickJS-ng");   // ZN-368
+#ifdef ZN_HOST_GFX
+    zn::host::setEngineName("QuickJS");   // the perf panel (ZN-375)
+#endif
     return zn::qjs::run(qo);
   }
   if (argc >= 2 && !std::strcmp(argv[1], "pack")) {   // zinc pack [dir] [-o app.zapp]: the program, its baked resources, assets and zinc.json in one file (ZN-318)
@@ -1355,6 +1358,7 @@ int main(int argc, char** argv) {
         shapedText = project.text == "shaped";
         if (!project.keyboard.empty()) setenv("ZINC_KEYBOARD", project.keyboard.c_str(), 0);   // zinc.json "keyboard" (ZN-227)
         if (project.webgl) setenv("ZINC_WEBGL", "1", 0);   // zinc.json "webgl" (ZN-205)
+        if (project.perfHud) setenv("ZINC_PERF_HUD", "1", 0);   // zinc.json "dev": {"perfHud": true} (ZN-375)
         if (!project.scheme.empty()) setenv("ZINC_SCHEME", project.scheme.c_str(), 0);   // zinc.json "scheme" (ZN-271)
         // the profile of the target this machine runs: macos, linux, else the simulator's
 #if defined(__APPLE__)
@@ -1454,6 +1458,9 @@ int main(int argc, char** argv) {
     if (!gTrialDir.empty()) std::thread([] { std::this_thread::sleep_for(std::chrono::seconds(5)); promoteTrial(); }).detach();   // an update on trial that runs 5 s is healthy
     gRunOut = &out;
     zn::log::write("run", zn::log::Info, "engine interpreter (ZBC), " + std::to_string(zm.functions.size()) + " functions");   // ZN-368
+#ifdef ZN_HOST_GFX
+    zn::host::setEngineName("interpreter");   // the perf panel (ZN-375)
+#endif
     zn::log::step("run", "interpreter");
     auto res = [&] { zn::log::Phase ph("run", "program"); return zn::vm::run(zm, out, trace); }();
     if (!gTrialDir.empty() && !res.ok) std::_Exit(zn::rt::report(res, out, trace));   // failed on trial: leave `trial` for the next launch to roll back
