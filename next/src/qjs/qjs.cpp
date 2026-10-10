@@ -417,6 +417,7 @@ int run(const Options& o) {
   std::string entry = o.entry;
   if (!entry.empty() && entry[0] != '/') { char b[4096]; if (getcwd(b, sizeof b)) entry = normalize(std::string(b) + "/" + entry); }
   e.entry = entry;
+  if (!webEnv(e.ctx, e.stdRoot, entry)) return 101;
   {   // importmap.json next to the entry: {"imports": {"three": "../../third_party/three/build/three.module.js"}} (paths relative to the file)
     std::string text, dir = dirOf(entry);
     if (readFile(dir + "/importmap.json", text)) {

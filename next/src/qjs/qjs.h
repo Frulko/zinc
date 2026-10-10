@@ -23,6 +23,10 @@ int run(const Options& o);
 void installNative(JSContext* ctx);
 extern const char* kNativeModule;
 
+// src/qjs/webenv.cpp: the web environment (window, document, events, storage, network: lib/std/webenv.js), installed when the program asks for it
+// (ZINC_WEB=1, or "web" in its zinc.json); nothing otherwise. False with the error printed.
+bool webEnv(JSContext* ctx, const std::string& stdRoot, const std::string& entry);
+
 extern const char* kPrelude;
 extern const char* kWebShims;   // TextEncoder, TextDecoder, AbortController: evaluated in every context (the main program and zinc:script)
 

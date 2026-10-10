@@ -3,11 +3,11 @@ id: ZN-566
 title: >-
   QuickJS engine robustness for libraries (stack limit, rejection tracker, late
   onFrame)
-status: Review
+status: Done
 assignee:
   - '@parallel'
 created_date: '2026-10-09 08:11'
-updated_date: '2026-10-10 21:44'
+updated_date: '2026-10-10 22:06'
 labels:
   - games
   - js
@@ -26,7 +26,7 @@ Three engine defects found by real libraries (src/qjs/qjs.cpp). (1) JS_SetMaxSta
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [x] #1 function f(){return f()+1} inside try/catch yields a caught RangeError and exit 0
-- [ ] #2 an unhandled rejection prints 'Uncaught (in promise)' with its stack and fires unhandledrejection when the web environment is on
+- [x] #2 an unhandled rejection prints 'Uncaught (in promise)' with its stack and fires unhandledrejection when the web environment is on
 - [x] #3 onFrame registered after await new Promise(r => setTimeout(r, 10)) receives frames
 - [x] #4 p5.js 1.11.13 loads with the default stack
 <!-- AC:END -->
@@ -48,4 +48,6 @@ Tests: tests/t0/qjs_robust.sh (5 cases; all fail on the main binary, pass here);
 affected.json to add: {"paths": ["src/qjs/qjs.cpp"], "tests": ["qjs_robust", "qjs"]}.
 Follow-up (not created): 'QuickJS: a larger main-thread stack for deep recursion' (size S): link zinc and built apps with a 64 MiB main-thread stack on macOS (-Wl,-stack_size,0x4000000), raise the 8 MiB cap of stackBudget with it, Linux through setrlimit before the engine starts; criteria: f(){return f()+1} reaches 50,000 frames before the RangeError, RSS of hello unchanged. Only if a library needs more than ~6,800 frames.
 Not done: zinc:script contexts (src/qjs/script_native.cpp) keep QuickJS's 1 MiB default and take the user's 'stack' option as given; no rejection tracker there (a script's errors go to its host).
+
+Criterion 2, second half (2026-10-11): ZN-568's window dispatches unhandledrejection through the hook; tests/t0/webenv.sh proves it (a PromiseRejectionEvent with the promise and the reason reaches a window listener, a prevented one prints nothing, the other prints 'Uncaught (in promise) Error: loud', exit 0).
 <!-- SECTION:NOTES:END -->
