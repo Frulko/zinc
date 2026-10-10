@@ -1,7 +1,54 @@
 # Working on Zinc
 
-The engine work lives in `next/`. The binding rules are `next/RULES.md`, `next/ARCHITECTURE.md` and `next/TESTING.md`; the state of the work is `next/RESUME.md`.
-`/loop /zn-start` runs the backlog one task at a time, `/zn-end` closes a task.
+Zinc is a strict, typed subset of TypeScript for apps, games, services and boards: one program runs on a desktop, a Raspberry Pi, an ESP32, a console or the web.
+The repository holds two generations:
+
+- **The prototype** (Node + TypeScript): `compiler/` compiles the subset to C++17 against the `runtime/` (zrt) with one HAL per target; `sim/` is the Node oracle that every target must match byte for byte. It is the **specification**: when behaviour is unclear, read its code and run it (`node compiler/bin/zinc.mjs ...`). Touch `compiler/` only for fixes.
+- **Zinc Next** (`next/`, C++20): the new engine (frontend, typed SSA IR, ZBC bytecode, interpreter, AOT to C++, QuickJS engine, graphics host, toolchain manager). The goal: **every demo of the prototype runs unchanged** on it (interpreter, AOT, `--engine quickjs`), with the plugins working, while the engine stays agnostic, pluggable, readable and fast. All current work happens here.
+
+Binding rules: `next/RULES.md` (never stop, simulators for hardware, proven libraries, decisions), `next/ARCHITECTURE.md` (layout, dependency direction), `next/TESTING.md` (tiers, what to run). State of the work: `next/RESUME.md` (short, overwritten at the end of each session).
+
+## Repository map
+
+| Path | What it holds |
+|---|---|
+| `next/` | Zinc Next: `src/` (frontend, ir, zbc, vm, aot, rt, host, qjs, gl, text, res, tc, dev, sim, lsp, prof, native), `include/zn/` (the only place a constant or an operation is defined), `third_party/` (vendored libraries), `tools/`, `tests/`, `backlog/`, `corpus/` (frozen corpus), `firmware/esp32`, `app/atelier` |
+| `lib/` | The standard library written in Zinc/TS (`lib/std`, the UI kits `lib/std/kit`, `lib/std/nuxt`, `zinc.d.ts`); shared by both engines |
+| `plugins/` | 33 plugins (`plugin.json` + Zinc code + native code): system, video, sqlite, three, 3d, canvas2d, lottie, svg, socket, process, displays, webview... |
+| `examples/` | The demos that must run unchanged (hero, breakout, nuxt-ui, rn-showcase, rn-port, three, maps, video, zed-editor...) |
+| `templates/` | Project templates used by `zinc new` |
+| `targets/` | Per-target HALs of the prototype and `capabilities.json` (what each profile offers) |
+| `boards/` | Board presets (ESP32 panels, Scroll pHAT) |
+| `tests/` | The prototype's corpus: `conformance/` (programs + golden outputs, `.f32.out`, `.fx12.out`), `bench/kernels/` |
+| `compiler/`, `runtime/`, `sim/`, `docker/`, `scripts/` | The prototype toolchain |
+| `docs/` | Guides, plugin and target docs, reports, decisions (see below) |
+| `apps/studio`, `integrations/`, `site/`, `research/` | ZincStudio, Figma and reMarkable integrations, the web site, the VM prototype |
+
+## Build, run, test
+
+```sh
+cd next
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release     # once
+cmake --build build --target zinc -j8               # after a change: only the target you need
+build/zinc run ../examples/hero                     # run a program or project (--interp, --engine quickjs, --profile esp32)
+build/zinc doctor                                   # engine, renderer, pinned tools, host tools, plugins
+tests/run --only <name>                             # one test; tests/run --changed: the tests mapped to your changes
+```
+
+Main `zinc` commands (table in `next/src/cli_core.cpp`): `run`, `build` (`--target` cross builds with the pinned zig), `check`, `test`, `new`/`init`, `dev` (watch + DevTools inspector), `export`, `deploy`, `pack`/`fuse` (.zapp), `publish`/`update-app`, `add`/`remove`/`install`/`plugins`/`trust` (signed plugin index), `capture`, `bench`, `toolchain`, `explain`, `lsp`, `flash`.
+Useful environment: `ZINC_HEADLESS=1`, `ZINC_DETERMINISTIC=1`, `ZINC_FRAMES=n`, `ZINC_SHOT=file.png`, `ZINC_SCALE=1..4`, `ZINC_HOME` (toolchains and caches, default `~/.zinc`), `ZN_TRAP_TRACE=1`, `ZN_DUMP_JSX=<name>`.
+
+## Development workflow: the backlog
+
+The work is a backlog of precise tasks managed with **Backlog.md** (`backlog` CLI, config `backlog.config.yml`, files in `next/backlog/`).
+
+- Tasks: `next/backlog/tasks/zn-NNN - Title.md` (description, acceptance criteria, notes). Statuses: Backlog, Ready, In Progress, Review, Done. One task In Progress at a time.
+- Milestones `next/backlog/milestones/` (m-0 to m-25, e.g. M17 UI style system, M19 packaging, M21 performance, M22 games, M23 handhelds).
+- Order of work: `next/backlog/priority.json` (groups chosen by the owner); `next/tools/next-task` prints the task to do (`--list N`, `--why`). Labels: `size-S/M/L`, topics (`perf`, `ui`...), `parked` (needs a board, Windows or a paid account; ordinal 90000+, skipped), `needs-board`.
+- `next/tools/status`: next tasks, progress per milestone, uncommitted work. `next/tools/tasks-import file.json`: bulk task creation with dependencies by key (`next/backlog/keys.json`).
+- Commands: `backlog task <id> --plain`, `backlog task edit <id> -s "In Progress"`, `--check-ac <n>`, `--notes`/`--append-notes`, `backlog task create "title" -p <parent> --ac ... -m <milestone> -l <labels>`.
+- A session: `/loop /zn-start` takes the next task, works it start to end, then `/zn-end` (tick the criteria on real test output, Done or follow-up tasks, notes, commit, `RESUME.md`, next task). `next/.paused` stops the loop.
+- Commits: English, conventional (`type(scope): imperative description`, 72 chars max), no co-author, explicit paths (never `git add .`), the task file in the same commit as its code. Never commit someone else's uncommitted changes. Pushing is the owner's step.
 
 ## Decide alone: the owner is not at the keyboard (owner, 2026-10-10)
 
@@ -30,3 +77,30 @@ The goal of a session is progress on the backlog: finish tasks, improve and comp
 - Known failures recorded in `next/RESUME.md` and the backlog (machine, GPU or architecture specific) are not investigated again during an unrelated task.
 - Build only the target you need (`cmake --build build --target zinc`), never the whole tree for a change in one library.
 - Be critical and pragmatic: one targeted check that can fail beats a sweep of 300 tests that cannot.
+
+## Tests
+
+- `next/tests/<tier>/<name>.sh`, given `$ZINC`: T0 (seconds, the stage touched), T1 (end of a task, the feature's demo), T2 (milestone: whole corpus, interpreter vs AOT vs frozen output, benchmarks). Runner: `next/tests/run [--tier t0|t1|t2] [--only name] [--changed | --changed-from ref]`, one line per test, details in `next/.logs/`.
+- `next/tests/affected.json`: which tests cover which paths (add a mapping with a new module or test). Goldens: `next/tests/golden/` (outputs, checker cases, pixel frames of the prototype in `examples/proto` with `manifest.json`).
+- A new module ships a T0 test; a behaviour change a golden or an expectation test; a bug fix a regression test.
+
+## Tools (`next/tools/`)
+
+- Backlog and session: `next-task`, `status`, `tasks-import`, `usage`.
+- Comparison and correctness: `diff-matrix` (interpreter vs AOT vs frozen), `oracle` (reference tsc), `test262`, `dts-walk`, `abi-check`, `example-output`, `examples-status`, `layout-fuzz`, `layout-fixtures`, `webgl-conformance`, `three-compare`, `fuzz` (libFuzzer).
+- Pixels: `proto-capture` (prototype pixel goldens: `compare`, `--canary`, `--all`), `pngdiff`, `pixel-compare`, `glcompare`, `style-neutrality`, `contrast-check`, `oklab-tints`; `cdp.py` drives headless Chrome.
+- Performance: `bench`, `bench-gate` (fails above 15%), `bench-m1`, `bench-m4`, `bench-layout`, `bench-render`, `resmon` (CPU, RSS, energy); log every number in `docs/reports/zinc-next-perf.md`.
+- Packaging and distribution: `package`, `sign-macos`, `appimage`, `build-wasm`, `build-esp32-core`, `index-repo` (signed TUF index), `tlog`, `plugin-split`, `gh-org-setup`.
+
+## Documentation and references
+
+- Decisions: `docs/reports/zinc-next-decisions.md` (D1 to D50 and on: read before deciding again), `docs/decisions/` (the prototype's ADRs). Design: `docs/reports/zinc-next-design.md`.
+- Parity audit, from which the backlog comes: `docs/reports/parity/01-language-cli-std.md`, `02-examples.md`, `03-plugins-targets.md`, `04-library-choices.md` (scored library choices).
+- Performance log: `docs/reports/zinc-next-perf.md`. Module reports: `docs/reports/zinc-next-*.md`. Research: `docs/reports/research-2026-09-30/`, `docs/reports/hardware/` (handhelds, CHIP, Pi, PocketJS), `docs/reports/games/`.
+- User docs: `docs/guide/01..09`, `docs/ui.md`, `docs/ui-kit.md`, `docs/nuxt-ui.md`, `docs/react-native.md`, `docs/plugins/*.md`, `docs/targets/*.md`.
+- Reference products the owner models Zinc on: React Native and Yoga (`docs/react-native.md`, `rn-port-spike.md`, `layout-engines.md`), Expo, Nuxt UI 4 (`docs/nuxt-ui.md`), shadcn/ui (`docs/ui-kit.md`), Tauri and Electron (desktop integration, updates: `system-integration.md`), three.js (`three-on-zinc.md`), Flutter, GPUI/Zed and Raylib (renderer: `ui-rendering-architecture.md`, `gpu-renderer-design.md`), Qt (`qt-comparison.md`), PocketJS (performance reference), Bun and Deno (`compat.md`), LÖVE (fused apps: `docs/zapp.md`), Arduino (boards).
+- Vendored libraries: `next/third_party/README.md` (mimalloc, QuickJS-ng, yyjson, libuv, llhttp, mbedTLS, SDL3, glslang, HarfBuzz, SheenBidi, libunibreak, stb, libwebp, Yoga, meshoptimizer, cgltf, Monocypher, three.js...). Never write a regex engine, TLS, font rasterizer, SQL engine, codec or JSON parser: vendor a proven library with its licence and pinned version.
+
+## The development machine
+
+An Intel Mac (x86_64, 32 GB): `-j8` builds; Homebrew builds every formula from source (no Intel bottles); Node 24, pnpm and `backlog` live in `~/.local`; `timeout` is a link to gtimeout; `ZINC_QEMU` is set in `~/.zshrc`. Known machine-specific test failures are listed in `next/RESUME.md`.

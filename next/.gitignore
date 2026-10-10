@@ -4,3 +4,4 @@ build*/
 .logs/
 .paused
 build-wasm/
+__pycache__/
