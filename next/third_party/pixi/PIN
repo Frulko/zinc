@@ -1,0 +1,6 @@
+pixi.js 7.4.3 (MIT), npm tarball pixi.js-7.4.3.tgz sha256 1d7a044392f71b77c05d09109c43b6b6a0e4a70828467646edcbae64274f6ced
+  pixi-7.4.3.min.mjs = dist/pixi.min.mjs (sha256 a88e4607d95131552fee4cc2857487a354ffe2b4287400503c4b72113f9fcfe5), unmodified
+pixi.js 8.22.0 (MIT), npm tarball pixi.js-8.22.0.tgz sha256 33a0481e8ae3eb33216c4c8db6a43722c04fa8872ca2cfc7878567fced658ca3
+  pixi-8.22.0.min.mjs = dist/pixi.min.mjs (sha256 66257bc46776898bf8c54daaed402ed8f9ac109379c47b2dfa8aa048544d2953), unmodified
+LICENSE: the same file in both tarballs.
+Test data only: tests/t1/webenv_pixi.sh loads them at run time on the QuickJS engine. Nothing of them is compiled, linked or packaged into zinc.

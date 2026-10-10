@@ -1,0 +1,8 @@
+pixi 8.22.0 webgl webgl 2 canvas 320 240 true
+frame 2 centre 255,0,0,255 corner 16,32,48,255 error 0
+frame 3 pointermove on the square at 160,120 buttons 0
+frame 4 pointerdown on the square at 160,120 buttons 1
+frame 5 pointermove on the square at 170,125 buttons 1
+frame 6 pointerup on the square at 170,125 buttons 0
+frame 6 pointertap on the square at 170,125 buttons 0
+frame 8 centre 255,0,0,255 corner 16,32,48,255 error 0
