@@ -3,6 +3,7 @@
 # wins over the project); then the window is the global object, the document has a tree with the simple selectors, events run their capture, target
 # and bubble phases up to the document and the window, an unhandled rejection is the window's `unhandledrejection` event (ZN-566: a prevented one
 # is silent, the program goes on), the size and the pixel scale are the surface's, and ZINC_WEB=trace names a member a library misses.
+# requestAnimationFrame runs on the engine's frame loop and the host's input reaches the listeners where libraries put them.
 cd "$(dirname "$0")/../.." || exit 2
 fail=0
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
@@ -13,6 +14,11 @@ web 1 > "$tmp/dom.out" 2> "$tmp/dom.err" || { echo "webenv: dom.js failed: $(hea
 diff "$tmp/dom.out" tests/golden/webenv/dom.out > "$tmp/dom.diff" || { echo "webenv: dom.js differs from tests/golden/webenv/dom.out:"; head -20 "$tmp/dom.diff"; fail=1; }
 grep -q "^Uncaught (in promise) Error: loud" "$tmp/dom.err" || { echo "webenv: an unhandled rejection no listener prevented is not printed"; fail=1; }
 grep -q "quiet" "$tmp/dom.err" && { echo "webenv: a rejection whose event was prevented is printed"; fail=1; }
+
+# requestAnimationFrame on the frame loop (a deterministic run steps the clock by 1/60 s) and a scripted pointer drag, wheel, keys and touch as DOM events
+file=tests/golden/webenv/frames.js
+web 1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=10 ZINC_INPUT=tests/golden/webenv/frames.input > "$tmp/frames.out" 2>&1 || { echo "webenv: frames.js failed"; fail=1; }
+diff "$tmp/frames.out" tests/golden/webenv/frames.out > "$tmp/frames.diff" || { echo "webenv: frames.js differs from tests/golden/webenv/frames.out:"; head -20 "$tmp/frames.diff"; fail=1; }
 
 printf "console.log(typeof window, typeof document === 'undefined' || typeof document.body, typeof navigator, typeof addEventListener);\n" > "$tmp/off.js"
 file="$tmp/off.js"

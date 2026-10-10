@@ -1,0 +1,13 @@
+1 move 100 50
+2 down
+3 move 140 80
+4 up
+4 wheel 0 -1
+5 key ArrowLeft
+5 key a shift
+5 text é
+6 right-down
+6 right-up
+7 touch 1 20 30
+8 touch 1 25 30
+9 touchup 1

@@ -1,0 +1,26 @@
+before function interactive
+load before the first callback true
+frame 1: pointermove on document, target canvas, at 0,0, button -1, buttons 0, mouse 1 true, moved 0,0
+first callback, queued before the loop
+first frame complete number true
+frame 2: pointermove on document, target canvas, at 100,50, button -1, buttons 0, mouse 1 true, moved 100,50
+timer of 40 ms in frame 3 at 50
+frame 3: pointerdown on canvas, target canvas, at 100,50, button 0, buttons 1, mouse 1 true
+frame 3: mousedown on canvas, target canvas, at 100,50, button 0, buttons 1
+frame 4: pointermove on document, target canvas, at 140,80, button -1, buttons 1, mouse 1 true, moved 40,30
+frame 5: pointerup on window, target canvas, at 140,80, button 0, buttons 0, mouse 1 true
+frame 5: click on canvas, target canvas, at 140,80, button 0, buttons 0
+frame 5: wheel on canvas, delta 0,100, mode 0, at 140,80
+frame 6: keydown on window, target body, key "ArrowLeft", code ArrowLeft, keyCode 37, shift false, repeat false
+frame 6: keydown on window, target body, key "A", code KeyA, keyCode 65, shift true, repeat false
+frame 6: keypress on window, target body, key "é", code , keyCode 233, shift false, repeat false
+frame 7: pointerdown on canvas, target canvas, at 140,80, button 2, buttons 2, mouse 1 true
+frame 7: mousedown on canvas, target canvas, at 140,80, button 2, buttons 2
+frame 7: contextmenu on canvas, target canvas, at 140,80, button 2, buttons 2
+frame 7: pointerup on window, target canvas, at 140,80, button 2, buttons 0, mouse 1 true
+frame 8: pointermove on document, target canvas, at 20,30, button -1, buttons 0, mouse 1 true, moved -120,-50
+frame 8: touchstart on canvas, touches 1, changed 1@20,30
+frame 9: pointermove on document, target canvas, at 25,30, button -1, buttons 0, mouse 1 true, moved 5,0
+frame 9: touchmove on canvas, touches 1, changed 1@25,30
+frames 9 steps 0 16.67 16.67 16.67 16.67 16.67 16.67 16.67 16.67
+frame 10: touchend on canvas, touches 0, changed 1@25,30

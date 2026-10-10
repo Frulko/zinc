@@ -24,7 +24,7 @@ after a throw next listener still runs
 clone true true 2 5 1.5 true
 clone of a function TypeError
 media false function true true
-classes function function function function function function undefined undefined
+classes function function function function function function function undefined
 unhandledrejection quiet true
 unhandledrejection loud true
 DOMContentLoaded interactive
