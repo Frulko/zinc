@@ -24,6 +24,10 @@
 #                  languages, links and points of interest), the loader accepts it, two frames equal their goldens, and each point is
 #                  drawn by the table's own view where it was clicked (--log)
 #   turn.input     the photograph, a real picture, is turned 45 degrees by the handle above it and drawn turned, with its hotspot (one frame)
+#   settings.input the settings of the project (ZN-650.07.01), on that project: the colour of what answers to a touch is typed over and the
+#                  live sample beside the form follows (one frame); German is added; a guided visit is made, named in two languages, given
+#                  a second step, its steps put in another order by dragging; back on the table of a sequence the panel has an empty column
+#                  for the new language (one frame): the file equals settings.json, and the loader accepts it
 #   a real picture in the project folder is drawn in the library and on the table (one frame); the interface in French (one frame)
 #   Save as goes through the system's dialog (scripted answer); closing the window with unsaved work asks, and Save saves before the app ends
 # ZN_UPDATE_GOLDEN=1 rewrites the goldens from this run.
@@ -89,9 +93,10 @@ cp "$tmp/table/table.json" "$tmp/table/project.json"
 got=$(ZINC_ASSETS="$tmp/table" ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_SIZE=1920x1080 ZINC_FRAMES=3 "$ZINC" run "$ex" -- --story 2>&1)
 [ "$got" = '0 sequence estampes' ] || { echo "the table's app on the saved project: $got"; fail=1; }
 
-# the preview in a second window, which follows the edits: the project of the table session, its photograph a real picture (a frame of this test)
+# the preview in a second window, which follows the edits: the project of the table session, its photograph a real picture (the Great Wave
+# of the sample: a picture that no change of the editor's own look redraws)
 mkdir -p "$tmp/window/photos"
-cp "$g/table.json" "$tmp/window/w.json"; cp "$g/frame-3.png" "$tmp/window/photos/vague.jpg"
+cp "$g/table.json" "$tmp/window/w.json"; cp "$ex/assets/photos/great-wave.jpg" "$tmp/window/photos/vague.jpg"
 edit "$tmp/window/w.json" "$g/window.input" 165 90
 frame "the preview window: the editor" 90 "$g/window-90.png"
 frame "the preview window" 90-w1 "$g/window-90-w1.png"
@@ -117,15 +122,28 @@ grep -q '^point vase/' "$tmp/points.log" && grep -q '^point ninomaru/' "$tmp/poi
 
 # an item is turned on the table by its handle and drawn turned
 mkdir -p "$tmp/turn/photos"
-cp "$g/table.json" "$tmp/turn/t.json"; cp "$g/frame-3.png" "$tmp/turn/photos/vague.jpg"
+cp "$g/table.json" "$tmp/turn/t.json"; cp "$ex/assets/photos/great-wave.jpg" "$tmp/turn/photos/vague.jpg"
 edit "$tmp/turn/t.json" "$g/turn.input" 40 40
 frame "an item turned on the table" 40 "$g/turn-40.png"
 grep -q '{ "media": "vague", .*"rotation": 45 }' "$tmp/turn/t.json" || { echo "the handle did not turn the photograph by 45 degrees: $(grep '"media": "vague"' "$tmp/turn/t.json")"; fail=1; }
 
-# a picture of the project folder is shown: the first steps of the table session in a folder whose photograph is a real image (a frame of
-# this test, 1440 x 900): the library row and the item on the table draw it, and the item takes its shape
+# the settings of the project: a colour and the live sample, a language more, a guided visit
+mkdir -p "$tmp/settings/photos"
+cp "$g/table.json" "$tmp/settings/s.json"; cp "$ex/assets/photos/great-wave.jpg" "$tmp/settings/photos/vague.jpg"
+edit "$tmp/settings/s.json" "$g/settings.input" 122 48,122
+same "the settings session" "$tmp/settings/s.json" "$g/settings.json"
+frame "the live sample follows the colour" 48 "$g/settings-48.png"
+frame "a column for the added language" 122 "$g/settings-122.png"
+got=$("$ZINC" run "$ex/src/check.ts" -- "$tmp/settings/s.json" 2>&1)
+case $got in 's.json: ok, "project" version 1, languages fr en de, '*', 1 presentations, '*', canonical') ;; *) echo "the player's loader on the project with new settings: $got"; fail=1 ;; esac
+for line in '"languages": \["fr", "en", "de"\]' '"accent": "#2f6fd0"' '"path": \["porcelaine", "estampes"\]'; do
+  grep -q -- "$line" "$g/settings.json" || { echo "settings.json has no $line"; fail=1; }
+done
+
+# a picture of the project folder is shown: the first steps of the table session in a folder whose photograph is a real image (the Great
+# Wave of the sample, 1280 x 860): the library row and the item on the table draw it, and the item takes its shape
 mkdir -p "$tmp/pictures/photos" "$tmp/pictures/films"
-cp "$g/built.json" "$tmp/pictures/p.json"; cp "$g/frame-3.png" "$tmp/pictures/photos/vague.png"; printf x > "$tmp/pictures/films/atelier.mp4"
+cp "$g/built.json" "$tmp/pictures/p.json"; cp "$ex/assets/photos/great-wave.jpg" "$tmp/pictures/photos/vague.png"; printf x > "$tmp/pictures/films/atelier.mp4"
 awk '$1 ~ /^[0-9]+$/ && $1 <= 64' "$g/table.input" > "$tmp/pictures.input"
 edit "$tmp/pictures/p.json" "$tmp/pictures.input" 68 68
 if [ -n "$ZN_UPDATE_GOLDEN" ]; then cp "$tmp/shot-68.png" "$g/pictures-68.png"; else

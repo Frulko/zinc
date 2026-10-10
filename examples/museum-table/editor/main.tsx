@@ -19,12 +19,14 @@ import { Problem } from './doc';
 import { doc, project, path, status, lang, setLang, selected, select, zoomBy, fit, viewW, viewH, addSequenceInView, duplicateSelected, deleteSelection, undo, redo, save, saveAs,
   newProjectCommand, openCommand, openFile, newFile, waiting, answer, goTo, problemText, nameIt, setNameIt, deleting, setDeleting, deleteSequence, linksTo, advanced, setAdvanced, nextLanguage,
   startHere, guard, opened, openSequence, closeSequence, selectedItem, selectedLink, shownMedia, pick, picking, answerPick, adding, setAdding, addFile, addWrittenText, newFiles, kindOfFile,
-  folder, removing, setRemoving, removeMedia, usesOf, pointing, selectedPoint, pickPoint, closePoints, setLogging } from './state';
+  folder, removing, setRemoving, removeMedia, usesOf, pointing, selectedPoint, pickPoint, closePoints, setLogging, pickFrom, pickAsks, settings, openSettings, closeSettings, forgetting, setForgetting,
+  removeLanguage, textsIn } from './state';
 import { Ico, Tool, Segmented, Heading, ACCENT, DANGER, WARN, MUTED, decodePictures } from './widgets';
 import { Storyboard } from './storyboard';
 import { SequenceEditor } from './sequence';
 import { Inspector } from './inspector';
 import { PointsEditor, pointsTick } from './points';
+import { Settings } from './settings';
 import { previewing, previewAt, playFromHere, stopPreview, PreviewPane, togglePreviewWindow, closePreviewWindow, previewTick, setTelling } from './preview';
 import * as L from './strings';
 import { t, f, uiLang, setUiLang } from './strings';
@@ -37,7 +39,7 @@ function TopBar(): i32 {
   const file = (): string => path().length > 0 ? path().slice(path().lastIndexOf('/') + 1) : t(L.NOT_SAVED_YET);
   return <view class="flex-row items-center gap-1 h-12 px-3 shrink-0 bg-zinc-900 border-b border-zinc-800">
     <Ico name="landmark" size={18} color={ACCENT} />
-    <view class="flex-col ml-2 mr-3" style={{ maxWidth: 230 }}>
+    <view class="flex-col ml-2 mr-3 cursor-pointer" style={{ maxWidth: 230 }} onPointerDown={(e: ui.PointerEvent) => { if (e.button === 0) openSettings('project'); }}>
       <text class="truncate text-sm font-bold text-zinc-100">{project().say(project().title, lang())}</text>
       <view class="flex-row items-center gap-2">
         <text class="truncate text-[11px] text-zinc-500">{file()}</text>
@@ -58,7 +60,7 @@ function TopBar(): i32 {
     <Tool icon="undo-2" label={t(L.UNDO)} look="quiet" off={() => !doc().canUndo} onClick={undo} />
     <Tool icon="redo-2" label={t(L.REDO)} look="quiet" off={() => !doc().canRedo} onClick={redo} />
     <Divider />
-    <Show when={opened() === null}><Tool icon="plus" label={t(L.NEW_SEQUENCE)} look="primary" off={never} onClick={addSequenceInView} /></Show>
+    <Show when={opened() === null && settings().length === 0}><Tool icon="plus" label={t(L.NEW_SEQUENCE)} look="primary" off={never} onClick={addSequenceInView} /></Show>
     <Show when={opened() !== null}>
       <view class="flex-row items-center gap-2">
         <Tool icon="chevron-left" label={t(L.STORYBOARD)} look="plain" off={never} onClick={closeSequence} />
@@ -68,7 +70,7 @@ function TopBar(): i32 {
     <view class="grow" />
     <text class="text-[11px] text-zinc-500 mr-1">{t(L.CONTENT)}</text>
     <For each={[project().languages.join(' ')]}>{(codes: string, i: i32) =>
-      <view class="w-[92]"><Segmented options={codes.split(' ')} labels={codes.split(' ').map((code: string) => code.toUpperCase())} value={lang} onPick={setLang} /></view>}</For>
+      <view style={{ width: 46 * codes.split(' ').length }}><Segmented options={codes.split(' ')} labels={codes.split(' ').map((code: string) => code.toUpperCase())} value={lang} onPick={setLang} /></view>}</For>
   </view>;
 }
 
@@ -189,10 +191,22 @@ function Removing(): i32 {
     </view>
   </Modal>;
 }
+/** Removing a language in which texts are written. */
+function Forgetting(): i32 {
+  const n = (): i32 => textsIn(forgetting());
+  return <Modal>
+    <text class="text-lg font-bold text-zinc-100">{f(L.ASK_REMOVE_LANGUAGE, L.languageName(forgetting()))}</text>
+    <text class="text-sm text-zinc-400">{n() === 1 ? t(L.ONE_TEXT_LOST) : f(L.N_TEXTS_LOST, `${n()}`)}</text>
+    <view class="flex-row justify-end gap-2 mt-4">
+      <Choice label={t(L.CANCEL)} look="plain" onClick={() => setForgetting('')} />
+      <Choice label={t(L.REMOVE)} look="danger" onClick={() => removeLanguage(forgetting())} />
+    </view>
+  </Modal>;
+}
 /** "Where does it lead?": a sequence chosen in a list, or pointed at on a small map of the storyboard. */
 function Picking(): i32 {
   const MAP_W = 412, MAP_H = 150, NODE_W = 64, NODE_H = 30;
-  const others = (): Sequence[] => project().sequences.filter((o: Sequence) => o !== selected());
+  const others = (): Sequence[] => project().sequences.filter((o: Sequence) => o !== pickFrom());
   const box = (): number[] => {
     const all = project().sequences;
     let x0 = 0, x1 = 1, y0 = 0, y1 = 1;
@@ -201,11 +215,11 @@ function Picking(): i32 {
     return [x0, y0, Math.max(1, x1 - x0), Math.max(1, y1 - y0)];
   };
   return <Modal>
-    <text class="text-lg font-bold text-zinc-100">{t(L.WHERE_TO)}</text>
+    <text class="text-lg font-bold text-zinc-100">{t(pickAsks())}</text>
     <text class="text-sm text-zinc-400">{t(L.WHERE_TO_HOW)}</text>
     <view class="relative mt-2 rounded-md bg-zinc-950 border border-zinc-800" style={{ width: MAP_W, height: MAP_H }}>
       <For each={project().sequences}>{(s: Sequence, i: i32) => {
-        const here = s === selected();
+        const here = s === pickFrom();
         return <button class={`absolute flex-row items-center justify-center px-1 rounded border ${here ? 'bg-zinc-800 border-zinc-700' : 'bg-zinc-700 border-zinc-500 hover:border-amber-400 hover:bg-zinc-600 cursor-pointer'}`}
           style={{ left: 8 + (s.storyX - box()[0]) / box()[2] * (MAP_W - 16 - NODE_W), top: 8 + (s.storyY - box()[1]) / box()[3] * (MAP_H - 16 - NODE_H), width: NODE_W, height: NODE_H }}
           onClick={() => { if (!here) answerPick(s); }}>
@@ -307,12 +321,13 @@ function Shell(): i32 {
       <Show when={!previewing()}>
         <view class="grow basis-0 min-w-0 flex-row">
           <view class="grow basis-0 min-w-0 flex-col">
-            <Show when={opened() === null}><Storyboard /></Show>
-            <Show when={opened() !== null && pointing() === null}><SequenceEditor /></Show>
-            <Show when={pointing() !== null}><PointsEditor /></Show>
+            <Show when={settings().length > 0}><Settings /></Show>
+            <Show when={settings().length === 0 && opened() === null}><Storyboard /></Show>
+            <Show when={settings().length === 0 && opened() !== null && pointing() === null}><SequenceEditor /></Show>
+            <Show when={settings().length === 0 && pointing() !== null}><PointsEditor /></Show>
             <Problems />
           </view>
-          <Inspector />
+          <Show when={settings().length === 0}><Inspector /></Show>
         </view>
       </Show>
       <Show when={previewing()}><PreviewPane /></Show>
@@ -322,6 +337,7 @@ function Shell(): i32 {
     <Show when={adding() === 'file'}><AddingFile /></Show>
     <Show when={adding() === 'text'}><AddingText /></Show>
     <Show when={removing() !== null}><Removing /></Show>
+    <Show when={forgetting().length > 0}><Forgetting /></Show>
     <Show when={deleting() !== null}><Deleting /></Show>
     <Show when={waiting() !== null}><Unsaved /></Show>
   </view>;
@@ -335,6 +351,7 @@ function dismiss(): boolean {
   if (waiting() !== null) answer('stay');
   else if (deleting() !== null) setDeleting(null);
   else if (removing() !== null) setRemoving(null);
+  else if (forgetting().length > 0) setForgetting('');
   else if (picking() !== null) answerPick(null);
   else if (adding().length > 0) setAdding('');
   else return false;
@@ -344,7 +361,7 @@ function dismiss(): boolean {
 ui.onKey((e: ui.KeyEvent) => {
   const k = e.key;
   if (previewing()) { if (k === 'Escape') stopPreview(); e.preventDefault(); return; }   // the keys are the visitor's, who has none
-  if (waiting() !== null || deleting() !== null || removing() !== null || picking() !== null || adding().length > 0) { if (k === 'Escape') { dismiss(); e.preventDefault(); } return; }
+  if (waiting() !== null || deleting() !== null || removing() !== null || forgetting().length > 0 || picking() !== null || adding().length > 0) { if (k === 'Escape') { dismiss(); e.preventDefault(); } return; }
   if (e.primary) {
     if (k === 's') { if (e.shift) saveAs(); else save(); }
     else if (k === 'z') { if (e.shift) redo(); else undo(); }
@@ -356,10 +373,12 @@ ui.onKey((e: ui.KeyEvent) => {
     else if (k === '=') zoomBy(1, viewW / 2, viewH / 2);
     else if (k === '-') zoomBy(-1, viewW / 2, viewH / 2);
     else if (k === 'e') setAdvanced(!advanced());
+    else if (k === ',') { if (settings().length > 0) closeSettings(); else openSettings('project'); }
     else return;
     e.preventDefault();
     return;
   }
+  if (settings().length > 0) { if (k === 'Escape') { closeSettings(); e.preventDefault(); } return; }   // the keys of the storyboard are not the settings'
   const board = opened() === null;
   if (k === 'Delete' || k === 'Backspace') deleteSelection();
   else if (k === 'Escape' && pointing() !== null) { if (selectedPoint() !== null) pickPoint(null); else closePoints(); }

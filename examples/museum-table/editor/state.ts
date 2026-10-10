@@ -4,7 +4,7 @@
 import { createSignal, batch } from 'zinc:ui/solid';
 import * as fs from 'zinc:fs';
 import * as dialog from 'zinc:system/dialog';
-import { Project, Sequence, Media, Item, Link, Point, parseProject } from '../src/project';
+import { Project, Sequence, Media, Item, Link, Point, Presentation, parseProject } from '../src/project';
 import { Doc, Problem, newProject } from './doc';
 import * as L from './strings';
 import { t, f } from './strings';
@@ -91,9 +91,12 @@ function keepingSelection(step: () => string): string {
   const id = s !== null ? s.id : '', li: i32 = s !== null && l !== null ? s.links.indexOf(l) : -1, ii: i32 = s !== null && it !== null ? s.items.indexOf(it) : -1;
   const mid = m !== null ? m.id : '', wasOpen = o !== null;
   const pm = pointing(), pq = selectedPoint(), pid = pm !== null ? pm.id : '', pi: i32 = pm !== null && pq !== null ? pm.points.indexOf(pq) : -1;
+  const tr = tour(), ti: i32 = tr !== null ? current.project.presentations.indexOf(tr) : -1;
   let label = '';
   batch(() => {
     label = step();
+    setTour(ti >= 0 && ti < current.project.presentations.length ? current.project.presentations[ti] : null);
+    if (current.project.languages.indexOf(lang()) < 0) setLang(current.project.languages[0]);
     const pointed = current.project.medium(pid);
     setPointing(pointed);
     setSelectedPoint(pointed !== null && pi >= 0 && pi < pointed.points.length ? pointed.points[pi] : null);
@@ -309,9 +312,13 @@ export function timeLink(l: Link, at: number, until: number): void { current.set
 
 /** The question "where does it lead?": the answer, a sequence, goes to this function (main.tsx shows the list and the map while it is set). */
 export const [picking, setPicking] = createSignal<((target: Sequence) => void) | null>(null);
+/** The sequence the question is asked for, which is not an answer (a link does not lead to its own sequence); null when any will do. */
+export const [pickFrom, setPickFrom] = createSignal<Sequence | null>(null);
+/** The question itself, as a text of strings.ts: where a link leads, or which sequence a guided visit shows next. */
+export const [pickAsks, setPickAsks] = createSignal<i32>(L.WHERE_TO);
 export function answerPick(target: Sequence | null): void {
   const then = picking();
-  setPicking(null);
+  batch(() => { setPicking(null); setPickAsks(L.WHERE_TO); });
   if (then !== null && target !== null) then(target);
 }
 /** A button on the open table, or with `on` a hotspot on that item, leading to a sequence the author then chooses. */
@@ -319,6 +326,7 @@ export function addLinkFrom(on: Item | null): void {
   const one = opened();
   if (one === null) return;
   const s: Sequence = one;
+  setPickFrom(s);
   setPicking((target: Sequence) => {
     batch(() => {
       const at = on !== null ? current.addHotspot(s.id, on.media, target.id) : current.addLink(s.id, target.id);
@@ -333,6 +341,7 @@ export function retargetSelected(): void {
   const s = selected(), l = selectedLink();
   if (s === null || l === null) return;
   const id = s.id, at = s.links.indexOf(l);
+  setPickFrom(s);
   setPicking((target: Sequence) => { current.setLinkTarget(id, at, target.id); });
 }
 
@@ -461,7 +470,9 @@ export function setLight(light: string): void { current.setMediaLight(pointedId(
 /** Leads the selected point to a sequence the author then chooses; `clearPointTarget` leads it nowhere. */
 export function retargetPoint(): void {
   const media = pointedId(), id = pointId();
-  if (id.length > 0) setPicking((target: Sequence) => { current.setPointTarget(media, id, target.id); });
+  if (id.length === 0) return;
+  setPickFrom(null);
+  setPicking((target: Sequence) => { current.setPointTarget(media, id, target.id); });
 }
 export function clearPointTarget(): void { current.setPointTarget(pointedId(), pointId(), ''); }
 export function deletePoint(): void {
@@ -471,6 +482,68 @@ export function deletePoint(): void {
 }
 /** The medium being pointed as the file has it. */
 export function pointedJson(): string { rev(); return current.mediaJsonOf(pointedId()); }
+
+// ---------------------------------------------------------------- the settings of the project
+
+/** The settings are open on this section ('' when they are not): project, theme, table, access, tours. */
+export const [settings, setSettings] = createSignal<string>('');
+export function openSettings(section: string): void { current.seal(); setSettings(section); }
+export function closeSettings(): void { current.seal(); setSettings(''); }
+/** The presentation being edited in the settings. */
+export const [tour, setTour] = createSignal<Presentation | null>(null);
+
+export function setProjectTitle(language: string, title: string): void { current.setProjectTitle(language, title); }
+/** Adds a language by its code; false when the code is not one or is there already. */
+export function addLanguage(code: string): boolean {
+  const ok = current.addLanguage(code.trim());
+  setStatus(ok ? f(L.DONE_LANGUAGE, L.languageName(code.trim())) : f(L.NOT_A_LANGUAGE, code));
+  return ok;
+}
+/** The language whose removal waits for an answer ('' for none): texts are written in it. */
+export const [forgetting, setForgetting] = createSignal<string>('');
+export function textsIn(code: string): i32 { rev(); return current.textsIn(code); }
+export function removeLanguageCommand(code: string): void {
+  if (current.textsIn(code) > 0) setForgetting(code); else removeLanguage(code);
+}
+export function removeLanguage(code: string): void {
+  batch(() => {
+    setForgetting('');
+    current.removeLanguage(code);
+    if (current.project.languages.indexOf(lang()) < 0) setLang(current.project.languages[0]);
+    setStatus(f(L.DONE_LANGUAGE_REMOVED, L.languageName(code)));
+  });
+}
+export function setColour(contrast: boolean, name: string, colour: i32): void { current.setColour(contrast, name, colour); }
+export function setThemeFile(field: string, value: string): void { current.setThemeFile(field, value); }
+export function setNumber(field: string, value: number): void { current.setNumber(field, value); }
+export function setFlag(field: string, on: boolean): void { current.setFlag(field, on); }
+export function setUpdateUrl(url: string): void { current.setUpdateUrl(url); }
+export function setTextSizes(sizes: number[]): void { current.setTextSizes(sizes); }
+
+export function addPresentation(): void {
+  const id = current.addPresentation();
+  if (id.length === 0) { setStatus(t(L.NOTHING_TO_PLAY)); return; }
+  batch(() => { setTour(current.presentation(id)); setNameTour(nameTour() + 1); setStatus(t(L.DONE_PRESENTATION)); });
+}
+/** Bumped to ask the settings to put the caret in the title of the presentation just made. */
+export const [nameTour, setNameTour] = createSignal<i32>(0);
+function tourId(): string { const r = tour(); return r === null ? '' : r.id; }
+export function renamePresentation(language: string, title: string): void { current.renamePresentation(tourId(), language, title); }
+export function deletePresentation(): void {
+  const id = tourId();
+  if (id.length > 0) batch(() => { current.deletePresentation(id); setTour(null); setStatus(t(L.DONE_PRESENTATION_DELETED)); });
+}
+/** A step more for the presentation being edited: a sequence the author then chooses. */
+export function addStepCommand(): void {
+  const id = tourId();
+  if (id.length === 0) return;
+  batch(() => { setPickFrom(null); setPickAsks(L.WHICH_STEP); });
+  setPicking((target: Sequence) => { current.addStep(id, target.id); });
+}
+export function removeStep(index: i32): void { current.removeStep(tourId(), index); }
+export function moveStep(from: i32, to: i32): void { current.moveStep(tourId(), from, to); }
+/** The presentation being edited plays when nobody is at the table, or no longer does. */
+export function setAttract(on: boolean): void { current.setAttract(on ? tourId() : ''); }
 
 // ---------------------------------------------------------------- files
 
@@ -482,7 +555,7 @@ function show(d: Doc, file: string, message: string): void {
   current = d;
   watch(d);
   batch(() => {
-    setPointing(null); setSelectedPoint(null);
+    setPointing(null); setSelectedPoint(null); setSettings(''); setTour(null); setForgetting('');
     setOpened(null); select(null, null); setHovered(null); setDeleting(null); setRemoving(null); setPicking(null); setAdding('');
     setPath(file);
     setLang(d.project.languages[0]);

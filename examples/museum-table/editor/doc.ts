@@ -4,7 +4,7 @@
 // opened again: ids stay unique, a required text is never emptied, deleting a sequence takes the links that led to it, or leads them elsewhere,
 // in the same step.
 // The one exception is a project with no sequence at all, which is the empty state and is not saved.
-import { Project, Sequence, Media, Item, Link, Point, Presentation, Text, KINDS, LIGHTS, serializeProject, parseProject, unreachable, copyProject, sequenceJson, mediaJson } from '../src/project';
+import { Project, Sequence, Media, Item, Link, Point, Presentation, Colours, Text, KINDS, LIGHTS, serializeProject, parseProject, unreachable, copyProject, sequenceJson, mediaJson } from '../src/project';
 
 /** What "New project" opens: French and English (the owner's languages), no sequence yet. */
 export function newProject(): Project {
@@ -57,6 +57,28 @@ function placed(at: number[]): number[] {
   if (!(m > 0)) return [0, 0, 0];
   const p = Math.pow(10, 3 - Math.floor(Math.log(m) / Math.log(10)));
   return [Math.round(at[0] * p) / p, Math.round(at[1] * p) / p, Math.round(at[2] * p) / p];
+}
+/** The names of the six colours of a theme, in the order of the file. */
+export const COLOURS: string[] = ['background', 'paper', 'ink', 'text', 'muted', 'accent'];
+/** Every text of a project, whatever it belongs to: what a change of the languages has to visit. */
+function texts(p: Project): Text[] {
+  const out: Text[] = [p.title];
+  for (const m of p.media) {
+    for (const t of [m.title, m.date, m.medium, m.description, m.audioDescription, m.text, m.transcript]) out.push(t);
+    for (const q of m.points) { out.push(q.title); out.push(q.text); }
+  }
+  for (const s of p.sequences) { out.push(s.title); out.push(s.text); for (const l of s.links) out.push(l.label); }
+  for (const r of p.presentations) out.push(r.title);
+  return out;
+}
+/** Where a button may be: on the table and within `reach` of one of its edges. Returns [x, y], moved toward the nearest edge when it was not. */
+function reachable(x: number, y: number, width: number, height: number, reach: number): number[] {
+  let nx = Math.max(0, Math.min(width, Math.round(x))), ny = Math.max(0, Math.min(height, Math.round(y)));
+  const left = nx, right = width - nx, top = ny, bottom = height - ny, nearest = Math.min(Math.min(left, right), Math.min(top, bottom));
+  if (nearest > reach) {
+    if (nearest === bottom) ny = height - reach; else if (nearest === top) ny = reach; else if (nearest === left) nx = reach; else nx = width - reach;
+  }
+  return [nx, ny];
 }
 function sequenceWord(lang: string): string { return lang === 'fr' ? 'Séquence' : 'Sequence'; }
 function copyWord(lang: string): string { return lang === 'fr' ? ' (copie)' : ' (copy)'; }
@@ -362,14 +384,7 @@ export class Doc {
     const l: Link = found, t = this.project.table;
     let nx = x, ny = y;
     if (l.on.length > 0) { nx = Math.max(0, Math.min(1, Math.round(x * 100) / 100)); ny = Math.max(0, Math.min(1, Math.round(y * 100) / 100)); }
-    else {
-      nx = Math.max(0, Math.min(t.width, Math.round(x))); ny = Math.max(0, Math.min(t.height, Math.round(y)));
-      const left = nx, right = t.width - nx, top = ny, bottom = t.height - ny, nearest = Math.min(Math.min(left, right), Math.min(top, bottom));
-      if (nearest > t.reach) {
-        // too far from every edge: it goes back toward the nearest one
-        if (nearest === bottom) ny = t.height - t.reach; else if (nearest === top) ny = t.reach; else if (nearest === left) nx = t.reach; else nx = t.width - t.reach;
-      }
-    }
+    else { const at = reachable(x, y, t.width, t.height, t.reach); nx = at[0]; ny = at[1]; }   // too far from every edge: back toward the nearest one
     this.apply('Move button', '', (p: Project) => { l.x = nx; l.y = ny; });
   }
   /** A hotspot: a link to `to` in the middle of the item of `from` that shows the medium `on`. Returns its index, -1 when not made. */
@@ -652,6 +667,169 @@ export class Doc {
     if (found === null) return;
     const s: Sequence = found;
     this.apply('Change sequence duration', '', (p: Project) => { s.duration = tenths(seconds); });
+  }
+
+  // ---- the settings of the project: its name, its languages, its theme, the table, the kiosk, accessibility
+
+  /** The title of the installation in one language (required in the default one), or with `lang` '' its id, under which statistics and
+   *  updates are filed. */
+  setProjectTitle(lang: string, title: string): void {
+    if (title.length === 0 && (lang.length === 0 || lang === this.project.languages[0])) return;
+    this.apply('Rename the project', `project:${lang}`, (p: Project) => {
+      if (lang.length === 0) p.id = title; else if (title.length > 0) p.title.set(lang, title); else p.title.delete(lang);
+    });
+  }
+  /** A language more: its code ("de", "pt-BR"), last in the list. Every text is empty in it and falls back on the default language until
+   *  it is translated. False when the code is not one, or is there already. */
+  addLanguage(code: string): boolean {
+    let ok = code.length >= 2 && code.length <= 10 && this.project.languages.indexOf(code) < 0;
+    for (let i = 0; i < code.length; i++) {
+      const c = code.charCodeAt(i) | 32;
+      if (!((c >= 97 && c <= 122) || (code.charCodeAt(i) === 45 && i > 1 && i < code.length - 1))) ok = false;
+    }
+    if (!ok) return false;
+    this.apply('Add a language', '', (p: Project) => { p.languages.push(code); });
+    return true;
+  }
+  /** How many texts the project has in a language: what removing it loses. */
+  textsIn(code: string): i32 {
+    let n: i32 = 0;
+    for (const t of texts(this.project)) if ((t.get(code) ?? '').length > 0) n++;
+    return n;
+  }
+  /** Takes a language out, with every text written in it. The default language (the first) stays: every required text is written in it. */
+  removeLanguage(code: string): void {
+    if (this.project.languages.indexOf(code) < 1) return;
+    this.apply('Remove a language', '', (p: Project) => {
+      p.languages = p.languages.filter((l: string) => l !== code);
+      for (const t of texts(p)) t.delete(code);
+    });
+  }
+  /** One of the six colours (COLOURS) of the theme, or with `contrast` of the high-contrast mode, as 0xRRGGBB. */
+  setColour(contrast: boolean, name: string, colour: i32): void {
+    if (COLOURS.indexOf(name) < 0 || colour < 0 || colour > 0xffffff) return;
+    this.apply('Change a colour', '', (p: Project) => {
+      const c: Colours = contrast ? p.accessibility.highContrast : p.theme;
+      if (name === 'background') c.background = colour; else if (name === 'paper') c.paper = colour; else if (name === 'ink') c.ink = colour;
+      else if (name === 'text') c.text = colour; else if (name === 'muted') c.muted = colour; else c.accent = colour;
+    });
+  }
+  /** The fonts and the logo of the theme. `field`: font, titleFont (a family, never empty) or logo (a picture of the folder, '' for none;
+   *  a path outside the folder is not taken). */
+  setThemeFile(field: string, value: string): void {
+    const inside = !value.startsWith('/') && value.indexOf('\\') < 0 && value.indexOf(':') < 0 && value.split('/').indexOf('..') < 0;
+    if ((field !== 'logo' && value.length === 0) || (field === 'logo' && !inside)) return;
+    this.apply('Change the theme', `theme:${field}`, (p: Project) => {
+      if (field === 'font') p.theme.font = value; else if (field === 'titleFont') p.theme.titleFont = value; else if (field === 'logo') p.theme.logo = value;
+    });
+  }
+  /** A number of the table or of the kiosk. `field`: visitors (1 or more), reach (table units, more than 0: the buttons farther than it
+   *  from every edge come back within it, in the same step), attractAfter, resetAfter (seconds, 0: never). */
+  setNumber(field: string, value: number): void {
+    if (value - value !== 0 || value < 0 || ((field === 'visitors' || field === 'reach') && value <= 0)) return;
+    this.apply('Change a setting', `number:${field}`, (p: Project) => {
+      if (field === 'visitors') p.table.visitors = Math.max(1, Math.round(value));
+      else if (field === 'attractAfter') p.kiosk.attractAfter = tenths(value);
+      else if (field === 'resetAfter') p.kiosk.resetAfter = tenths(value);
+      else if (field === 'reach') {
+        p.table.reach = Math.round(value);
+        for (const s of p.sequences) for (const l of s.links) if (l.on.length === 0) { const at = reachable(l.x, l.y, p.table.width, p.table.height, p.table.reach); l.x = at[0]; l.y = at[1]; }
+      }
+    });
+  }
+  /** A switch of the kiosk. `field`: fullscreen, statistics. */
+  setFlag(field: string, on: boolean): void {
+    this.apply('Change a setting', '', (p: Project) => { if (field === 'fullscreen') p.kiosk.fullscreen = on; else if (field === 'statistics') p.kiosk.statistics = on; });
+  }
+  /** Where the museum publishes a newer project ('' for nowhere). */
+  setUpdateUrl(url: string): void {
+    this.apply('Change a setting', 'updateUrl', (p: Project) => { p.kiosk.updateUrl = url; });
+  }
+  /** The presentation played as the attract loop ('' for none). */
+  setAttract(presentation: string): void {
+    if (presentation.length > 0 && this.presentation(presentation) === null) return;
+    this.apply('Change the attract loop', '', (p: Project) => { p.kiosk.attract = presentation; });
+  }
+  /** The text sizes a visitor steps through, as factors of the designed size: at least one, each more than 0, at most 3 (two decimals). */
+  setTextSizes(sizes: number[]): void {
+    if (sizes.length === 0 || sizes.filter((v: number) => !(v > 0) || v > 3).length > 0) return;
+    this.apply('Change the text sizes', 'textSizes', (p: Project) => { p.accessibility.textSizes = sizes.map((v: number) => Math.round(v * 100) / 100); });
+  }
+
+  // ---- presentations: guided visits
+
+  presentation(id: string): Presentation | null {
+    for (const r of this.project.presentations) if (r.id === id) return r;
+    return null;
+  }
+  private freePresentationId(base: string, except: string): string {
+    const b = base.length > 0 ? base : 'presentation';
+    for (let n = 1; ; n++) {
+      const id = n === 1 ? b : `${b}-${n}`;
+      if (id === except || this.presentation(id) === null) return id;
+    }
+  }
+  /** A guided visit, "Visite N" until it is named, that begins where the visit starts. Returns its id, '' while the project has no sequence. */
+  addPresentation(): string {
+    if (this.project.sequence(this.project.start) === null) return '';
+    const word = (lang: string): string => lang === 'fr' ? 'Visite' : 'Tour', main = this.project.languages[0];
+    let n = 1;
+    while (this.presentation(slug(`${word(main)} ${n}`)) !== null) n++;
+    const id = slug(`${word(main)} ${n}`);   // the id of its first title: it follows the title until the author names it otherwise
+    this.apply('New presentation', '', (p: Project) => {
+      const r = new Presentation();
+      r.id = id; r.path = [p.start];
+      for (const lang of p.languages) r.title.set(lang, `${word(lang)} ${n}`);
+      p.presentations.push(r);
+    });
+    return id;
+  }
+  /** Its title in one language (required in the default one); an id derived from the title follows it. Returns the id it has afterwards. */
+  renamePresentation(id: string, lang: string, title: string): string {
+    const found = this.presentation(id);
+    if (found === null) return id;
+    const r: Presentation = found, main = lang === this.project.languages[0];
+    if (main && title.length === 0) return id;
+    let now = id;
+    if (main && derived(id, slug(r.title.get(lang) ?? ''))) now = this.freePresentationId(slug(title), id);
+    this.apply('Rename presentation', `presentation:${this.project.presentations.indexOf(r)}:${lang}`, (p: Project) => {
+      if (title.length > 0) r.title.set(lang, title); else r.title.delete(lang);
+      if (p.kiosk.attract === id) p.kiosk.attract = now;
+      r.id = now;
+    });
+    return now;
+  }
+  deletePresentation(id: string): void {
+    if (this.presentation(id) === null) return;
+    this.apply('Delete presentation', '', (p: Project) => {
+      p.presentations = p.presentations.filter((r: Presentation) => r.id !== id);
+      if (p.kiosk.attract === id) p.kiosk.attract = '';
+    });
+  }
+  /** A step more at the end of the path: a sequence, which may come more than once in a visit, but not twice in a row. */
+  addStep(id: string, sequence: string): void {
+    const found = this.presentation(id);
+    if (found === null || this.project.sequence(sequence) === null || found.path[found.path.length - 1] === sequence) return;
+    const r: Presentation = found;
+    this.apply('Add a step', '', (p: Project) => { r.path.push(sequence); });
+  }
+  /** Takes a step out; the last one stays (a visit shows at least one sequence: delete the presentation instead). */
+  removeStep(id: string, index: i32): void {
+    const found = this.presentation(id);
+    if (found === null || index < 0 || index >= found.path.length || found.path.length < 2) return;
+    const r: Presentation = found;
+    this.apply('Remove a step', '', (p: Project) => { r.path.splice(index, 1); });
+  }
+  /** Moves a step to another place of the path (what a drag does). */
+  moveStep(id: string, from: i32, to: i32): void {
+    const found = this.presentation(id);
+    if (found === null || from < 0 || from >= found.path.length || to < 0 || to >= found.path.length || from === to) return;
+    const r: Presentation = found;
+    this.apply('Move a step', '', (p: Project) => {
+      const step = r.path[from];
+      r.path.splice(from, 1);
+      r.path = r.path.slice(0, to).concat([step]).concat(r.path.slice(to));
+    });
   }
 
   // ---- the file, object by object

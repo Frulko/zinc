@@ -147,6 +147,48 @@ check('the sample project is in canonical form', serializeProject(parseProject(s
     && d.mediaJsonOf('nothing') === '');
 }
 
+// ---- the settings of the project: languages, colours, the table, the kiosk, accessibility, presentations
+{
+  const d = new Doc(newProject(), '');
+  const a = d.addSequence(0, 0), b = d.addSequence(300, 0), c = d.addSequence(600, 0);
+  d.addLink(a, b); d.moveLink(a, 0, 960, 560);
+  check('a language is added by its code, once', d.addLanguage('de') && !d.addLanguage('de') && !d.addLanguage('x') && !d.addLanguage('d e') && d.addLanguage('pt-BR')
+    && d.project.languages.join(' ') === 'fr en de pt-BR' && plays(d.text()));
+  d.renameSequence(a, 'de', 'Empfang');
+  const had = d.textsIn('de');
+  d.removeLanguage('de'); d.removeLanguage('fr');
+  check('removing a language takes its texts, and undo brings them back; the default language stays', had === 1 && d.project.languages.join(' ') === 'fr en pt-BR'
+    && d.project.sequences[0].title.get('de') === undefined && plays(d.text()) && d.undo() === 'Remove a language' && d.textsIn('de') === 1 && d.project.languages.length === 4);
+  d.setColour(false, 'accent', 0x2f6fd0); d.setColour(true, 'accent', 0x00ffff); d.setColour(false, 'nothing', 0); d.setColour(false, 'ink', 0x1000000);
+  d.setThemeFile('font', 'serif.ttf'); d.setThemeFile('titleFont', ''); d.setThemeFile('logo', 'logo.png'); d.setThemeFile('logo', '../secret.png');
+  const th = d.project.theme;
+  check('the colours, the fonts and the logo of the theme', th.accent === 0x2f6fd0 && d.project.accessibility.highContrast.accent === 0x00ffff && th.ink === 0x23211d && th.font === 'serif.ttf'
+    && th.titleFont === 'sans-bold' && th.logo === 'logo.png' && d.text().indexOf('"accent": "#2f6fd0"') > 0 && plays(d.text()));
+  d.setNumber('reach', 300); d.setNumber('reach', 0); d.setNumber('visitors', 1); d.setNumber('attractAfter', 30); d.setNumber('resetAfter', 0); d.setNumber('resetAfter', -5);
+  d.setFlag('statistics', true); d.setFlag('fullscreen', false); d.setUpdateUrl('https://museum.example/table/');
+  d.setTextSizes([1, 1.25, 1.5049]); d.setTextSizes([]); d.setTextSizes([1, 0]);
+  const k = d.project.kiosk;
+  check('the table, the kiosk and the text sizes; a shorter reach brings the buttons back within it', d.project.table.reach === 300 && d.project.sequences[0].links[0].y === 780
+    && d.project.table.visitors === 1 && k.attractAfter === 30 && k.resetAfter === 0 && k.statistics && !k.fullscreen && k.updateUrl === 'https://museum.example/table/'
+    && d.project.accessibility.textSizes.join(' ') === '1 1.25 1.5' && plays(d.text()));
+  const tour = d.addPresentation();
+  const named = d.renamePresentation(tour, 'fr', 'La visite');
+  d.renamePresentation(named, 'en', 'The tour'); d.renamePresentation(named, 'fr', '');
+  d.addStep(named, b); d.addStep(named, b); d.addStep(named, c); d.moveStep(named, 2, 0); d.removeStep(named, 1);
+  d.setAttract(named); d.setAttract('nothing');
+  const r = d.project.presentations[0];
+  check('a presentation is a named path of sequences in the order one gives it, and can be the attract loop', tour === 'visite-1' && named === 'la-visite' && r.title.get('en') === 'The tour'
+    && r.path.join(' ') === `${c} ${b}` && k.attract === 'la-visite' && plays(d.text()));
+  const again = d.renamePresentation(named, 'fr', 'Le tour');
+  const followed = d.project.kiosk.attract === 'le-tour' && again === 'le-tour';
+  d.removeStep(again, 0); d.removeStep(again, 0);
+  d.deletePresentation(again);
+  check('the attract loop follows its presentation, and goes with it; a path keeps its last step', followed && r.path.length === 1 && d.project.presentations.length === 0
+    && d.project.kiosk.attract === '' && plays(d.text()));
+  d.setProjectTitle('fr', 'Le monde flottant'); d.setProjectTitle('fr', ''); d.setProjectTitle('', 'floating-world'); d.setProjectTitle('', '');
+  check('the project has a title and an id', d.project.title.get('fr') === 'Le monde flottant' && d.project.id === 'floating-world' && plays(d.text()));
+}
+
 // ---- 50 mixed operations from an empty project: undo and redo give back every file, byte for byte
 {
   const d = new Doc(newProject(), '');
@@ -159,7 +201,8 @@ check('the sample project is in canonical form', serializeProject(parseProject(s
     const from = n > 0 ? seqs[pick(n)] : null, li: i32 = from !== null && from.links.length > 0 ? pick(from.links.length) : -1;
     const media = d.project.media, mid = media.length > 0 ? media[pick(media.length)].id : '';
     const ii: i32 = from !== null && from.items.length > 0 ? pick(from.items.length) : -1;
-    const op = n < 3 ? 0 : (tries * 7) % 29;   // every kind of operation in turn, on sequences, links, media, items and points picked at random
+    const op = n < 3 ? 0 : (tries * 7) % 34;   // every kind of operation in turn, on sequences, links, media, items, points and settings picked at random
+    const tours = d.project.presentations, tour = tours.length > 0 ? tours[pick(tours.length)] : null;
     const objects = media.filter(m => m.kind === 'model' || m.kind === 'panorama'), object = objects.length > 0 ? objects[pick(objects.length)] : null;
     const point = object !== null && object.points.length > 0 ? object.points[pick(object.points.length)].id : '';
     if (op === 0) d.addSequence(pick(40) * 20, pick(20) * 20);
@@ -192,6 +235,15 @@ check('the sample project is in canonical form', serializeProject(parseProject(s
     else if (op === 26 && object !== null) { if (pick(2) === 0) d.setPointView(object.id, point, pick(360), pick(60) - 30, 2 + pick(3)); else d.setPointTarget(object.id, point, pick(3) === 0 ? '' : other); }
     else if (op === 27 && object !== null) d.movePoint(object.id, point, [pick(200) / 100 - 1, pick(200) / 100 - 1, pick(200) / 100 - 0.995]);
     else if (op === 28 && object !== null) { if (pick(3) === 0) d.deletePoint(object.id, point); else d.setMediaView(object.id, pick(360), pick(40) - 20, 3 + pick(60)); }
+    else if (op === 29) d.setColour(pick(2) === 0, ['background', 'paper', 'ink', 'text', 'muted', 'accent'][pick(6)], pick(0x1000000));
+    else if (op === 30) { if (d.project.languages.indexOf('de') < 0) d.addLanguage('de'); else d.removeLanguage('de'); }
+    else if (op === 31) { if (tour === null || pick(3) === 0) d.addPresentation(); else d.addStep(tour.id, other); }
+    else if (op === 32) d.setNumber(['reach', 'visitors', 'attractAfter', 'resetAfter'][pick(4)], 1 + pick(600));
+    else if (op === 33 && tour !== null) {
+      const what = pick(4);
+      if (what === 0) d.renamePresentation(tour.id, 'fr', `Visite ${step}`); else if (what === 1) d.moveStep(tour.id, 0, tour.path.length - 1);
+      else if (what === 2) d.setAttract(tour.id); else d.deletePresentation(tour.id);
+    }
     d.seal();
     if (d.text() === texts[texts.length - 1]) continue;
     texts.push(d.text());

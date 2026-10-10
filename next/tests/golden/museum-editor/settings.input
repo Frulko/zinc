@@ -1,0 +1,56 @@
+# The settings of the project (tests/t1/museum_editor.sh), on the project of the table session in a folder whose photograph is a real
+# picture. The first sequence is selected: the live sample of the settings shows it. Ctrl + comma opens the settings.
+4 move 350 230
+5 down
+6 up
+8 key , meta
+# The theme: the colour of what answers to a touch is typed over, and the live sample beside the form follows.
+12 move 63 162
+13 down
+14 up
+18 move 636 395
+19 down
+20 up
+22 key a meta
+24 text #2f6fd0
+26 key Enter
+# The project and its languages: German is added.
+50 move 108 122
+51 down
+52 up
+56 move 262 407
+57 down
+58 up
+# Guided visits: a new one.
+62 move 81 282
+63 down
+64 up
+68 move 450 219
+69 down
+70 up
+72 text "La visite"
+74 key Tab
+76 text "The tour"
+# A step is added to its path: the sequence is chosen in the list.
+80 move 450 483
+81 down
+82 up
+86 move 720 575
+87 down
+88 up
+# The second step is dragged by its grip above the first.
+92 move 232 475
+93 down
+94 move 232 460
+95 move 232 436
+96 up
+# Back to the storyboard; the table of the first sequence: its panel has a column for the new language. Save.
+100 move 47 70
+101 down
+102 up
+106 move 350 230
+107 down
+108 up
+109 down
+110 up
+116 key s meta

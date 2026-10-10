@@ -1,0 +1,170 @@
+{
+  "format": "zinc-museum-table",
+  "version": 1,
+  "id": "project",
+  "title": {
+    "fr": "Nouveau projet",
+    "en": "New project"
+  },
+  "languages": ["fr", "en", "de"],
+  "start": "estampes",
+  "theme": {
+    "background": "#14151a",
+    "paper": "#f4f1ea",
+    "ink": "#23211d",
+    "text": "#ece8df",
+    "muted": "#9b978d",
+    "accent": "#2f6fd0",
+    "font": "sans",
+    "titleFont": "sans-bold"
+  },
+  "accessibility": {
+    "textSizes": [1, 1.3, 1.6],
+    "highContrast": {
+      "background": "#000000",
+      "paper": "#ffffff",
+      "ink": "#000000",
+      "text": "#ffffff",
+      "muted": "#e0e0e0",
+      "accent": "#ffd400"
+    }
+  },
+  "table": {
+    "width": 1920,
+    "height": 1080,
+    "visitors": 2,
+    "reach": 520
+  },
+  "kiosk": {
+    "fullscreen": true,
+    "attractAfter": 60,
+    "resetAfter": 120,
+    "statistics": false
+  },
+  "media": [
+    {
+      "id": "vague",
+      "kind": "photo",
+      "file": "photos/vague.jpg",
+      "title": {
+        "fr": "Vague",
+        "en": "Wave"
+      },
+      "description": {
+        "fr": "Estampe.",
+        "en": "Print."
+      },
+      "credit": {
+        "source": "https://www.metmuseum.org/art/collection/search/45434",
+        "licence": "CC0"
+      }
+    },
+    {
+      "id": "cartel",
+      "kind": "text",
+      "title": {
+        "fr": "Cartel"
+      },
+      "text": {
+        "fr": "Hokusai,1831"
+      }
+    }
+  ],
+  "sequences": [
+    {
+      "id": "accueil",
+      "title": {
+        "fr": "Accueil",
+        "en": "Welcome"
+      },
+      "storyboard": { "x": 200, "y": 150 },
+      "items": [
+        { "media": "vague", "x": 481, "y": 388, "width": 602 },
+        { "media": "cartel", "x": 1020, "y": 600, "width": 420, "at": 4 }
+      ],
+      "links": [
+        {
+          "to": "estampes",
+          "label": {
+            "fr": "Estampes",
+            "en": "Prints"
+          },
+          "x": 960,
+          "y": 1030
+        },
+        {
+          "to": "porcelaine",
+          "label": {
+            "fr": "Porcelaine",
+            "en": "Porcelain"
+          },
+          "x": 0.64,
+          "y": 0.32,
+          "on": "vague"
+        },
+        {
+          "to": "porcelaine",
+          "label": {
+            "fr": "Porcelaine",
+            "en": "Porcelain"
+          },
+          "x": 958,
+          "y": 560
+        }
+      ]
+    },
+    {
+      "id": "estampes",
+      "title": {
+        "fr": "Estampes",
+        "en": "Prints"
+      },
+      "storyboard": { "x": 620, "y": 150 },
+      "items": [],
+      "links": [
+        {
+          "to": "porcelaine",
+          "label": {
+            "fr": "Porcelaine",
+            "en": "Porcelain"
+          },
+          "x": 960,
+          "y": 1030
+        }
+      ]
+    },
+    {
+      "id": "porcelaine",
+      "title": {
+        "fr": "Porcelaine",
+        "en": "Porcelain"
+      },
+      "storyboard": { "x": 500, "y": 570 },
+      "items": [],
+      "links": [
+        {
+          "to": "accueil",
+          "label": {
+            "fr": "Retour",
+            "en": "Back"
+          },
+          "x": 960,
+          "y": 1030,
+          "transition": "slide",
+          "overlay": true
+        }
+      ]
+    }
+  ],
+  "presentations": [
+    {
+      "id": "la-visite",
+      "title": {
+        "fr": "La visite",
+        "en": "The tour",
+        "de": "Tour 1"
+      },
+      "path": ["porcelaine", "estampes"]
+    }
+  ]
+}

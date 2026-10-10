@@ -146,13 +146,13 @@ export function LangField(p: { language: string; value: () => string; placeholde
   </view>;
 }
 /** A text in every language of the project, side by side: one column per language, so that a translation is written next to its original.
- *  `rows` 1: a line; more: a paragraph of that height. `width`: the width of one column. `first`: a reference to the field of the first
+ *  `rows` 1: a line; more: a paragraph of that height. `width`: the width of one column, which follows the number of languages. `first`: a reference to the field of the first
  *  language, for a panel that puts the caret there (null when it does not). */
-export function LangColumns(p: { rows: i32; width: number; first: NodeRef | null; value: (language: string) => string; placeholder: (first: boolean) => string; onInput: (language: string, v: string) => void; onDone: () => void }): i32 {
+export function LangColumns(p: { rows: i32; width: () => number; first: NodeRef | null; value: (language: string) => string; placeholder: (first: boolean) => string; onInput: (language: string, v: string) => void; onDone: () => void }): i32 {
   return <view class="flex-row gap-2">
     <For each={project().languages}>{(language: string, i: i32) => {
       const given = p.first, field: NodeRef = i === 0 && given !== null ? given : createNodeRef();
-      return <view class="flex-col gap-1" style={{ width: p.width }}>
+      return <view class="flex-col gap-1" style={{ width: p.width() }}>
         <text class="text-[10px] font-bold text-zinc-500">{language.toUpperCase()}</text>
         {p.rows === 1
           ? <input ref={field} class={`w-full h-8 px-2 ${FIELD}`} placeholder={p.placeholder(i === 0)} value={p.value(language)} onInput={(v: string) => p.onInput(language, v)} onChange={(v: string) => p.onDone()} />
@@ -174,6 +174,33 @@ export function NumberField(p: { label: string; value: () => number; onCommit: (
     <text class="text-[11px] font-bold text-zinc-400">{p.label}</text>
     <input class={`h-8 px-2 ${FIELD}`} style={{ width: 76 }} value={`${p.value()}`}
       onChange={(v: string) => { const n = parseFloat(v.replaceAll(',', '.')); if (n - n === 0) p.onCommit(n); p.onDone(); }} />
+  </view>;
+}
+/** "#rrggbb" for a colour, and the colour a text names (-1 when it names none): "#2f6fd0", "2F6FD0" or the short "#26d". */
+export function hexOf(c: i32): string {
+  let s = '#';
+  for (let shift = 20; shift >= 0; shift -= 4) s += '0123456789abcdef'.charAt((c >> shift) & 15);
+  return s;
+}
+export function colourOf(text: string): i32 {
+  let h = text.trim().toLowerCase();
+  if (h.startsWith('#')) h = h.slice(1);
+  if (h.length === 3) h = h.charAt(0) + h.charAt(0) + h.charAt(1) + h.charAt(1) + h.charAt(2) + h.charAt(2);
+  if (h.length !== 6) return -1;
+  for (let i = 0; i < 6; i++) if ('0123456789abcdef'.indexOf(h.charAt(i)) < 0) return -1;
+  return parseInt(h, 16);
+}
+/** A colour: its swatch, what it is for, and its #rrggbb text, taken when the field is left or Enter is pressed; what is not a colour is
+ *  put back. */
+export function ColourField(p: { label: string; hint: string; value: () => i32; onCommit: (c: i32) => void; onDone: () => void }): i32 {
+  return <view class="flex-row items-center gap-3 h-10">
+    <view class="w-[28] h-[28] shrink-0 rounded-md border border-zinc-600" style={{ bg: p.value() }} />
+    <view class="grow basis-0 min-w-0 flex-col">
+      <text class="truncate text-xs font-bold text-zinc-100">{p.label}</text>
+      <text class="truncate text-[11px] text-zinc-500">{p.hint}</text>
+    </view>
+    <input class={`h-8 px-2 font-mono ${FIELD}`} style={{ width: 96 }} value={hexOf(p.value())}
+      onChange={(v: string) => { const c = colourOf(v); if (c >= 0) p.onCommit(c); p.onDone(); }} />
   </view>;
 }
 /** The small capital heading of a group of a panel. */

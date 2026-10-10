@@ -2,6 +2,8 @@
 // or not. "Play from here" puts the player in the editor's window in place of the views, from the sequence being edited, until Escape or
 // "Back to editing". "In a window" opens a second window beside the editor that follows the work: it shows the sequence being edited (the
 // open table, else the selected sequence) and starts it again a moment after each change of the document.
+// Beside the settings of the project a third player is the live sample: a sequence (the selected one, else where the visit starts) with
+// the settings as they are.
 // The player reads the files of a project through ../src/files.ts: here they are the files of the project's folder.
 import { createSignal, batch, Show } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
@@ -10,7 +12,7 @@ import * as fs from 'zinc:fs';
 import { copyProject } from '../src/project';
 import { Player } from '../src/player';
 import { files } from '../src/files';
-import { doc, project, lang, opened, selected, folder, setStatus } from './state';
+import { doc, project, lang, opened, selected, folder, setStatus, settings } from './state';
 import { Tool } from './widgets';
 import * as L from './strings';
 import { t, f } from './strings';
@@ -137,6 +139,55 @@ function enterSide(): void {
   sideText = doc().text(); sideTarget = target; sideLang = lang();
 }
 
+// ---- beside the settings of the project: a live sample
+
+let sample: Player | null = null, sampleText = '', sampleKey = '', sampleWait: number = 0;
+let sampleX: number = 0, sampleY: number = 0, sampleW: number = 0, sampleH: number = 0;
+const [sampleHigh, setSampleHigh] = createSignal<number>(360);
+
+/** The pane of the sample: as wide as its column, with the shape of the table. */
+export function SamplePane(): i32 {
+  return <view class="relative rounded-md overflow-hidden border border-zinc-800" style={{ height: sampleHigh() }}>
+    <canvas class="absolute inset-0" onDraw={(x: i32, y: i32, w: i32, h: i32) => {
+      sampleX = x; sampleY = y; sampleW = w; sampleH = h;
+      const table = project().table, high = Math.round(w * table.height / table.width), p = sample;
+      if (high !== sampleHigh()) setSampleHigh(high);
+      clip(x, y, w, h);
+      rect(x, y, w, h, p !== null ? p.project.theme.background : 0x14151a);
+      if (p !== null) p.draw(x, y, w, h);
+      unclip();
+    }} />
+  </view>;
+}
+/** Makes the sample again on the document as it is now; beside the accessibility settings it wears the high-contrast colours. */
+function makeSample(key: string): void {
+  const was = sample;
+  if (was !== null) was.close();
+  sample = null;
+  if (project().sequences.length > 0) {
+    const copy = copyProject(project()), th = copy.theme, c = copy.accessibility.highContrast;
+    if (settings() === 'access') { th.background = c.background; th.paper = c.paper; th.ink = c.ink; th.text = c.text; th.muted = c.muted; th.accent = c.accent; }
+    sample = new Player(copy, edited(), lang());
+  }
+  sampleText = doc().text(); sampleKey = key; sampleWait = 0;
+}
+function sampleTick(dt: number): void {
+  const section = settings();
+  if (section.length === 0) {   // the settings are closed: no sample
+    const was = sample;
+    if (was !== null) was.close();
+    sample = null; sampleText = '';
+    return;
+  }
+  const key = `${section === 'access'} ${lang()} ${edited()}`;
+  if (sampleText.length === 0) makeSample(key);
+  else if (doc().text() !== sampleText || key !== sampleKey) { sampleText = doc().text(); sampleKey = key; sampleWait = FOLLOW; }
+  else if (sampleWait > 0) { sampleWait -= dt; if (sampleWait <= 0) makeSample(key); }
+  const p = sample;
+  if (p !== null && sampleW > 0) p.update(dt, sampleX, sampleY, sampleW, sampleH);
+  ui.repaint();
+}
+
 /** The two ways to see the project as visitors will, at the corner of the view being edited: in this window from the sequence at hand, or
  *  in a window beside it. */
 export function PreviewTools(): i32 {
@@ -151,6 +202,7 @@ export function PreviewTools(): i32 {
 /** Once per frame, before the window is drawn (main.tsx): the time of the player in the pane, and whether the preview window is behind
  *  the work. */
 export function previewTick(dt: number): void {
+  sampleTick(dt);
   const p = player;
   if (p !== null) {
     if (boxW > 0) p.update(dt, boxX, boxY, boxW, boxH);

@@ -61,7 +61,7 @@
 94 move 1220 627
 95 down
 96 up
-98 move 720 557
+98 move 720 575
 99 down
 100 up
 # Escape leaves the point, Escape again comes back to the table. The panorama of the folder is added the same way, as a panorama.

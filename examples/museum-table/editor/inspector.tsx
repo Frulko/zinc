@@ -8,7 +8,7 @@ import * as ui from 'zinc:ui';
 import { Sequence, Media, Item, Link, Point, View, LIGHTS } from '../src/project';
 import { project, lang, selected, selectedLink, selectedItem, shownMedia, opened, select, pick, nameIt, done, renameSelected, duplicateSelected, deleteSelection, startHere, setLinkLabel,
   setLinkTransition, setLinkOverlay, advanced, selectionJson, placeSelected, openSequence, retargetSelected, moveItem, resizeItem, rotateItem, timeItem, raiseItem, moveLink, timeLink,
-  addLinkFrom, placeMedia, removeMediaCommand, setMediaText, setMediaCredit, setSequenceText, setSequenceDuration, pointing, selectedPoint, pickPoint, openPoints, namePoint,
+  addLinkFrom, placeMedia, removeMediaCommand, setMediaText, setMediaCredit, setSequenceText, setSequenceDuration, openSettings, pointing, selectedPoint, pickPoint, openPoints, namePoint,
   setPointText, useView, setLight, retargetPoint, clearPointTarget, deletePoint, movePoint, pointedJson } from './state';
 import { currentView, showView } from './points';
 import { Ico, Action, Segmented, LangField, LangColumns, PlainField, NumberField, Heading, ACCENT, MUTED, WARN, kindIndex } from './widgets';
@@ -18,8 +18,8 @@ import { t, f } from './strings';
 function say(s: Sequence | null): string { return s === null ? '' : project().say(s.title, lang()); }
 function count(n: i32, one: i32, many: i32): string { return n === 1 ? t(one) : f(many, `${n}`); }
 function hint(first: boolean): string { return t(first ? L.REQUIRED : L.NOT_TRANSLATED); }
-/** The width of one language column in the wide panel of the table view. */
-const COLUMN = 200;
+/** The width of one language column in the wide panel of the table view: the columns of every language share it. */
+function column(): number { const n = project().languages.length; return Math.floor((408 - (n - 1) * 8) / n); }
 
 /** The selection as the file has it, read only (advanced mode): what an agency checks, and what a support request quotes. */
 function Written(): i32 {
@@ -190,9 +190,9 @@ function Tip(p: { icon: string; text: string }): i32 {
   </view>;
 }
 /** Every command has a key; the advanced mode lists them. */
-const KEYS: string[] = ['N', 'Enter', 'O', 'S', 'Ctrl D', 'Delete', 'Ctrl Z', 'Shift Ctrl Z', 'Ctrl S', 'Shift Ctrl S', 'Ctrl O', 'Ctrl N', 'Ctrl 0', 'Ctrl + / -', 'L', 'Ctrl E', 'Escape', 'P', 'W'];
+const KEYS: string[] = ['N', 'Enter', 'O', 'S', 'Ctrl D', 'Delete', 'Ctrl Z', 'Shift Ctrl Z', 'Ctrl S', 'Shift Ctrl S', 'Ctrl O', 'Ctrl N', 'Ctrl 0', 'Ctrl + / -', 'L', 'Ctrl E', 'Escape', 'P', 'W', 'Ctrl ,'];
 const KEY_DOES: i32[] = [L.KEY_NEW_SEQUENCE, L.KEY_NAME, L.KEY_OPEN_SEQUENCE, L.KEY_START, L.DUPLICATE, L.KEY_DELETE, L.UNDO, L.REDO, L.SAVE, L.SAVE_AS, L.KEY_OPEN, L.KEY_NEW, L.KEY_FIT, L.KEY_ZOOM,
-  L.KEY_LANGUAGE, L.KEY_ADVANCED, L.KEY_ESCAPE, L.KEY_PLAY, L.KEY_WINDOW];
+  L.KEY_LANGUAGE, L.KEY_ADVANCED, L.KEY_ESCAPE, L.KEY_PLAY, L.KEY_WINDOW, L.KEY_SETTINGS];
 function ProjectPanel(): i32 {
   const links = (): i32 => { let n: i32 = 0; for (const s of project().sequences) n += s.links.length; return n; };
   return <view class="flex-col gap-5 p-4">
@@ -201,6 +201,7 @@ function ProjectPanel(): i32 {
       <text class="text-lg font-bold text-zinc-100">{project().say(project().title, lang())}</text>
       <text class="text-xs text-zinc-400">{`${count(project().sequences.length, L.ONE_SEQUENCE, L.N_SEQUENCES)}, ${count(links(), L.ONE_LINK, L.N_LINKS)}, ${count(project().media.length, L.ONE_MEDIUM, L.N_MEDIA)}`}</text>
     </view>
+    <view class="flex-row"><Action icon="settings" label={t(L.SETTINGS)} look="plain" onClick={() => openSettings('project')} /></view>
     <view class="flex-col gap-3">
       <Heading label={t(L.HOW)} />
       <Tip icon="mouse-pointer-click" text={t(L.TIP_CREATE)} />
@@ -234,7 +235,7 @@ function textOf(m: Media | null, field: string, language: string): string {
 function MediaText(p: { label: string; field: string; rows: i32 }): i32 {
   return <view class="flex-col gap-1">
     <Heading label={p.label} />
-    <LangColumns rows={p.rows} width={COLUMN} first={null} value={(language: string) => textOf(shownMedia(), p.field, language)} placeholder={(first: boolean) => p.field === 'title' || p.field === 'text' ? hint(first) : first ? '' : t(L.NOT_TRANSLATED)}
+    <LangColumns rows={p.rows} width={column} first={null} value={(language: string) => textOf(shownMedia(), p.field, language)} placeholder={(first: boolean) => p.field === 'title' || p.field === 'text' ? hint(first) : first ? '' : t(L.NOT_TRANSLATED)}
       onInput={(language: string, v: string) => setMediaText(p.field, language, v)} onDone={done} />
   </view>;
 }
@@ -328,12 +329,12 @@ function TablePanel(): i32 {
     </view>
     <view class="flex-col gap-1">
       <Heading label={t(L.TITLE)} />
-      <LangColumns rows={1} width={COLUMN} first={null} value={(language: string) => { const x = s(); return x === null ? '' : x.title.get(language) ?? ''; }} placeholder={hint}
+      <LangColumns rows={1} width={column} first={null} value={(language: string) => { const x = s(); return x === null ? '' : x.title.get(language) ?? ''; }} placeholder={hint}
         onInput={(language: string, v: string) => renameSelected(language, v)} onDone={done} />
     </view>
     <view class="flex-col gap-1">
       <Heading label={t(L.INTRODUCTION)} />
-      <LangColumns rows={3} width={COLUMN} first={null} value={(language: string) => { const x = s(); return x === null ? '' : x.text.get(language) ?? ''; }} placeholder={(first: boolean) => first ? '' : t(L.NOT_TRANSLATED)}
+      <LangColumns rows={3} width={column} first={null} value={(language: string) => { const x = s(); return x === null ? '' : x.text.get(language) ?? ''; }} placeholder={(first: boolean) => first ? '' : t(L.NOT_TRANSLATED)}
         onInput={(language: string, v: string) => setSequenceText(language, v)} onDone={done} />
     </view>
     <view class="flex-col gap-2">
@@ -441,11 +442,11 @@ function PointPanel(): i32 {
     <view class="flex-row"><Action icon="list" label={t(L.ALL_POINTS)} look="plain" onClick={() => pickPoint(null)} /></view>
     <view class="flex-col gap-1">
       <Heading label={t(L.POINT_TITLE)} />
-      <LangColumns rows={1} width={COLUMN} first={ref} value={(language: string) => words('title', language)} placeholder={hint} onInput={(language: string, v: string) => setPointText('title', language, v)} onDone={done} />
+      <LangColumns rows={1} width={column} first={ref} value={(language: string) => words('title', language)} placeholder={hint} onInput={(language: string, v: string) => setPointText('title', language, v)} onDone={done} />
     </view>
     <view class="flex-col gap-1">
       <Heading label={t(L.POINT_TEXT)} />
-      <LangColumns rows={4} width={COLUMN} first={null} value={(language: string) => words('text', language)} placeholder={(first: boolean) => first ? '' : t(L.NOT_TRANSLATED)}
+      <LangColumns rows={4} width={column} first={null} value={(language: string) => words('text', language)} placeholder={(first: boolean) => first ? '' : t(L.NOT_TRANSLATED)}
         onInput={(language: string, v: string) => setPointText('text', language, v)} onDone={done} />
     </view>
     <view class="flex-col gap-2">

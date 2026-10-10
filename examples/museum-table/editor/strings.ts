@@ -165,6 +165,7 @@ export const N_USES = S('It is on the table of sequences {0} times, and leaves t
   'Il est {0} fois sur la table de séquences, et les quitte. Le fichier reste dans le dossier du projet.');
 export const REMOVE = S('Remove', 'Retirer');
 export const WHERE_TO = S('Where does it lead?', 'Où mène-t-il ?');
+export const WHICH_STEP = S('Which sequence comes next?', 'Quelle séquence vient ensuite ?');
 export const WHERE_TO_HOW = S('Click a sequence in the list or on the map.', 'Cliquez sur une séquence dans la liste ou sur le plan.');
 
 // ---- what the commands say in the status bar
@@ -318,8 +319,91 @@ export const DONE_OPENING_VIEW = S('It is now first seen like this.', 'Il est ma
 export const DONE_POINT_DELETED = S('Deleted the point. Undo brings it back.', 'Point supprimé. Annuler le rétablit.');
 export const MISSED = S('Click the object itself to place a point.', 'Cliquez sur l’objet lui-même pour placer un point.');
 export const TURN_HANDLE = S('Turned {0}°', 'Tourné de {0}°');
+
+// ---- the settings of the project
+export const SETTINGS = S('Project settings', 'Réglages du projet');
+export const BACK_FROM_SETTINGS = S('Back', 'Retour');
+export const SECTION_NAMES: i32[] = [S('Project and languages', 'Projet et langues'), S('Theme', 'Thème'), S('Table and kiosk', 'Table et borne'), S('Accessibility', 'Accessibilité'),
+  S('Guided visits', 'Visites guidées')];
+export const SAMPLE = S('Live sample', 'Aperçu en direct');
+export const SAMPLE_WHAT = S('The selected sequence, else the one the visit starts with, as the table shows it with these settings. It answers to the mouse.',
+  'La séquence sélectionnée, sinon celle où commence la visite, telle que la table la montre avec ces réglages. Elle répond à la souris.');
+export const SAMPLE_CONTRAST = S('Shown in high contrast, as a visitor who asks for it sees it.', 'Montrée en contraste élevé, telle que la voit un visiteur qui le demande.');
+export const SAMPLE_EMPTY = S('The sample shows a sequence once the project has one.', 'L’aperçu montre une séquence dès que le projet en a une.');
+export const PROJECT_NAME = S('Name of the installation', 'Nom de l’installation');
+export const PROJECT_ID = S('Identifier (statistics and updates are filed under it)', 'Identifiant (les statistiques et les mises à jour y sont rattachées)');
+export const LANGUAGES = S('Languages of the content', 'Langues du contenu');
+export const LANGUAGES_WHAT = S('Every text is written once per language; a visitor chooses on the table. A text not translated yet is shown in the first language.',
+  'Chaque texte s’écrit une fois par langue ; le visiteur choisit sur la table. Un texte pas encore traduit est montré dans la première langue.');
+export const DEFAULT_LANGUAGE = S('first language', 'première langue');
+export const ADD_LANGUAGE = S('Add a language', 'Ajouter une langue');
+export const LANGUAGE_CODE = S('Another one, by its code (pt, nl, ja)', 'Une autre, par son code (pt, nl, ja)');
+export const NOT_A_LANGUAGE = S('"{0}" is not a language code, or the project has it already.', '« {0} » n’est pas un code de langue, ou le projet l’a déjà.');
+export const DONE_LANGUAGE = S('Added {0}: every panel has a column for it.', '{0} ajouté : chaque panneau a une colonne pour lui.');
+export const DONE_LANGUAGE_REMOVED = S('Removed {0}. Undo brings it back with its texts.', '{0} retiré. Annuler le rétablit avec ses textes.');
+export const ASK_REMOVE_LANGUAGE = S('Remove {0} from the project?', 'Retirer {0} du projet ?');
+export const ONE_TEXT_LOST = S('One text is written in it, and goes with it.', 'Un texte est écrit dans cette langue, et part avec elle.');
+export const N_TEXTS_LOST = S('{0} texts are written in it, and go with it.', '{0} textes sont écrits dans cette langue, et partent avec elle.');
+export const COLOURS = S('Colours', 'Couleurs');
+export const COLOURS_WHAT = S('Six colours dress the whole table. Type a colour as #rrggbb; the sample follows.', 'Six couleurs habillent toute la table. Tapez une couleur sous la forme #rrggbb ; l’aperçu suit.');
+export const COLOUR_NAMES: i32[] = [S('Table', 'Table'), S('Card', 'Carte'), S('Writing on a card', 'Écriture sur une carte'), S('Texts on the table', 'Textes sur la table'),
+  S('Secondary texts', 'Textes secondaires'), S('What answers to a touch', 'Ce qui répond au toucher')];
+export const COLOUR_HINTS: i32[] = [S('the background', 'le fond'), S('the border of a photograph, a text panel', 'le bord d’une photographie, un panneau de texte'), S('captions, notices', 'légendes, cartels'),
+  S('titles, introductions, subtitles', 'titres, introductions, sous-titres'), S('credits, hints', 'crédits, indications'), S('buttons, points of interest, hotspots', 'boutons, points d’intérêt, zones sensibles')];
+export const FONTS = S('Fonts and logo', 'Polices et logo');
+export const FONTS_WHAT = S('A font family (sans, sans-bold, mono) or a font file of the project folder; a picture of the folder for the logo. Kept in the file: the table does not apply them yet.',
+  'Une famille de police (sans, sans-bold, mono) ou un fichier de police du dossier du projet ; une image du dossier pour le logo. Conservés dans le fichier : la table ne les applique pas encore.');
+export const FONT_TEXT = S('Font of the texts', 'Police des textes');
+export const FONT_TITLE = S('Font of the titles', 'Police des titres');
+export const LOGO = S('Logo (a picture of the folder)', 'Logo (une image du dossier)');
+export const TABLE = S('Around the table', 'Autour de la table');
+export const VISITORS = S('Visitors at the same time', 'Visiteurs en même temps');
+export const VISITORS_WHAT = S('They share one story; texts and buttons turn to the side of the last touch near an edge.', 'Ils partagent une même histoire ; textes et boutons se tournent vers le côté du dernier toucher près d’un bord.');
+export const REACH = S('Reach', 'Portée');
+export const REACH_WHAT = S('Every button lies within this distance of an edge, in units of a table {0} wide, so that a seated visitor or a child touches it. 520 is 26 cm on a 43-inch table.',
+  'Chaque bouton est à cette distance au plus d’un bord, en unités d’une table large de {0}, pour qu’un visiteur assis ou un enfant le touche. 520 vaut 26 cm sur une table de 43 pouces.');
+export const IDLE = S('When nobody touches the table', 'Quand personne ne touche la table');
+export const ATTRACT_AFTER = S('The attract loop starts after (seconds, 0: never)', 'La boucle d’appel commence après (secondes, 0 : jamais)');
+export const RESET_AFTER = S('The visit is forgotten after (seconds, 0: never)', 'La visite est oubliée après (secondes, 0 : jamais)');
+export const ATTRACT_WHAT = S('The attract loop is a guided visit played silently, again and again; choose it in "Guided visits".',
+  'La boucle d’appel est une visite guidée jouée en silence, encore et encore ; choisissez-la dans « Visites guidées ».');
+export const ATTRACT_IS = S('The attract loop plays "{0}".', 'La boucle d’appel joue « {0} ».');
+export const ATTRACT_NONE = S('No guided visit is the attract loop: the table stays as it is until the visit is forgotten.',
+  'Aucune visite guidée n’est la boucle d’appel : la table reste telle quelle jusqu’à l’oubli de la visite.');
+export const KIOSK = S('As a kiosk', 'En borne');
+export const FULLSCREEN = S('No way out of the app', 'Aucune sortie de l’application');
+export const FULLSCREEN_WHAT = S('Escape does nothing, no gesture leads out, and no fault is ever shown to a visitor.', 'Échap ne fait rien, aucun geste ne mène dehors, et aucune erreur n’est jamais montrée à un visiteur.');
+export const STATISTICS = S('Count the visits', 'Compter les visites');
+export const STATISTICS_WHAT = S('Sequences seen, durations and languages, in a local file, with nothing that identifies a visitor.',
+  'Séquences vues, durées et langues, dans un fichier local, sans rien qui identifie un visiteur.');
+export const UPDATE_URL = S('Where a newer project is published (empty: the table needs no network)', 'Où une version plus récente du projet est publiée (vide : la table n’a pas besoin de réseau)');
+export const YES = S('Yes', 'Oui');
+export const NO = S('No', 'Non');
+export const TEXT_SIZES = S('Text sizes', 'Tailles de texte');
+export const TEXT_SIZES_WHAT = S('The sizes a visitor steps through, as factors of the designed size; the first is the one at rest.',
+  'Les tailles que parcourt un visiteur, en facteurs de la taille conçue ; la première est celle au repos.');
+export const ADD_SIZE = S('Add a size', 'Ajouter une taille');
+export const REMOVE_SIZE = S('Remove the last', 'Retirer la dernière');
+export const HIGH_CONTRAST = S('High contrast', 'Contraste élevé');
+export const HIGH_CONTRAST_WHAT = S('The six colours of the table for a visitor who asks for more contrast.', 'Les six couleurs de la table pour un visiteur qui demande plus de contraste.');
+export const TOURS = S('Guided visits', 'Visites guidées');
+export const TOURS_WHAT = S('A guided visit plays sequences in order, each with its narration; visitors start it with a button at their edge.',
+  'Une visite guidée joue des séquences dans l’ordre, chacune avec sa narration ; les visiteurs la lancent d’un bouton à leur bord.');
+export const NO_TOUR_YET = S('None yet.', 'Aucune pour l’instant.');
+export const NEW_TOUR = S('New guided visit', 'Nouvelle visite guidée');
+export const ONE_STEP = S('1 step', '1 étape');
+export const N_STEPS = S('{0} steps', '{0} étapes');
+export const PATH = S('Its path', 'Son parcours');
+export const PATH_WHAT = S('Drag a step by its grip to change the order.', 'Glissez une étape par sa poignée pour changer l’ordre.');
+export const ADD_STEP = S('Add a step', 'Ajouter une étape');
+export const IS_ATTRACT = S('Play it when nobody is at the table', 'La jouer quand personne n’est à la table');
+export const IS_ATTRACT_WHAT = S('As the attract loop it plays silently, again and again, with an invitation to touch the table.', 'En boucle d’appel elle joue en silence, encore et encore, avec une invitation à toucher la table.');
+export const DELETE_TOUR = S('Delete the guided visit', 'Supprimer la visite guidée');
+export const DONE_PRESENTATION = S('A guided visit is made. Type its title, then add its steps.', 'Une visite guidée est créée. Tapez son titre, puis ajoutez ses étapes.');
+export const DONE_PRESENTATION_DELETED = S('Deleted the guided visit. Undo brings it back.', 'Visite guidée supprimée. Annuler la rétablit.');
+export const KEY_SETTINGS = S('Project settings', 'Réglages du projet');
 export const KIND_NAMES: i32[] = [S('Photograph', 'Photographie'), S('3D model', 'Modèle 3D'), S('Panorama', 'Panorama'), S('Text', 'Texte'), S('Sound', 'Son'), S('Film', 'Film')];
-export const LANGUAGE_NAMES: string[] = ['fr', 'français', 'en', 'English', 'de', 'Deutsch', 'es', 'español', 'it', 'italiano'];
+export const LANGUAGE_NAMES: string[] = ['fr', 'français', 'en', 'English', 'de', 'Deutsch', 'es', 'español', 'it', 'italiano', 'nl', 'Nederlands', 'pt', 'português'];
 
 // ---- the steps Undo names: the document's labels (doc.ts), which are the English text
 const STEPS: string[] = ['New sequence', 'Nouvelle séquence', 'Rename sequence', 'Renommer la séquence', 'Move sequence', 'Déplacer la séquence', 'Duplicate sequence', 'Dupliquer la séquence',
@@ -331,7 +415,11 @@ const STEPS: string[] = ['New sequence', 'Nouvelle séquence', 'Rename sequence'
   'Bring media forward', 'Avancer le média', 'Send media backward', 'Reculer le média', 'Take media off the table', 'Retirer le média de la table', 'Edit sequence text', 'Modifier l’introduction',
   'Change sequence duration', 'Changer la durée de la séquence', 'New point of interest', 'Nouveau point d’intérêt', 'Move point of interest', 'Déplacer le point d’intérêt',
   'Edit point of interest', 'Modifier le point d’intérêt', 'Set the view of a point', 'Changer la vue du point', 'Change point link', 'Changer le lien du point',
-  'Delete point of interest', 'Supprimer le point d’intérêt', 'Set the opening view', 'Changer la vue de départ', 'Change the lighting', 'Changer la lumière'];
+  'Delete point of interest', 'Supprimer le point d’intérêt', 'Set the opening view', 'Changer la vue de départ', 'Change the lighting', 'Changer la lumière',
+  'Rename the project', 'Renommer le projet', 'Add a language', 'Ajouter une langue', 'Remove a language', 'Retirer une langue', 'Change a colour', 'Changer une couleur',
+  'Change the theme', 'Changer le thème', 'Change a setting', 'Changer un réglage', 'Change the attract loop', 'Changer la boucle d’appel', 'Change the text sizes', 'Changer les tailles de texte',
+  'New presentation', 'Nouvelle visite guidée', 'Rename presentation', 'Renommer la visite guidée', 'Delete presentation', 'Supprimer la visite guidée', 'Add a step', 'Ajouter une étape',
+  'Remove a step', 'Retirer une étape', 'Move a step', 'Déplacer une étape'];
 /** The name of an undo step in the interface language. */
 export function step(label: string): string {
   const at = STEPS.indexOf(label);
