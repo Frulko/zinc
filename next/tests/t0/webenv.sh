@@ -20,6 +20,29 @@ file=tests/golden/webenv/frames.js
 web 1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=10 ZINC_INPUT=tests/golden/webenv/frames.input > "$tmp/frames.out" 2>&1 || { echo "webenv: frames.js failed"; fail=1; }
 diff "$tmp/frames.out" tests/golden/webenv/frames.out > "$tmp/frames.diff" || { echo "webenv: frames.js differs from tests/golden/webenv/frames.out:"; head -20 "$tmp/frames.diff"; fail=1; }
 
+# URL, Blob, fetch, XMLHttpRequest and script elements over files, data: and blob: URLs; localStorage is kept between two runs
+file=tests/golden/webenv/net.js
+web 1 ZINC_STORAGE="$tmp/storage.json" > "$tmp/net.out" 2>&1 || { echo "webenv: net.js failed"; fail=1; }
+diff "$tmp/net.out" tests/golden/webenv/net.out > "$tmp/net.diff" || { echo "webenv: net.js differs from tests/golden/webenv/net.out:"; head -20 "$tmp/net.diff"; fail=1; }
+printf "const n = +(localStorage.getItem('runs') || 0) + 1; localStorage.setItem('runs', n); console.log('run', n, localStorage.length, sessionStorage.length);\n" > "$tmp/kept.js"
+file="$tmp/kept.js"
+[ "$(web 1 ZINC_STORAGE="$tmp/kept.json" 2>&1; web 1 ZINC_STORAGE="$tmp/kept.json" 2>&1)" = "run 1 1 0
+run 2 1 0" ] || { echo "webenv: localStorage is not kept from one run to the next"; fail=1; }
+# the same over the host's network: a server of the assets on a loopback port the system picks
+if command -v python3 >/dev/null 2>&1; then
+  python3 -c 'import http.server, socketserver, sys, os
+os.chdir(sys.argv[1])
+class Quiet(http.server.SimpleHTTPRequestHandler):
+    def log_message(self, *a): pass
+with socketserver.TCPServer(("127.0.0.1", 0), Quiet) as s:
+    open(sys.argv[2], "w").write(str(s.server_address[1])); s.serve_forever()' tests/golden/webenv/assets "$tmp/port" &
+  server=$!
+  i=0; while [ ! -s "$tmp/port" ] && [ $i -lt 50 ]; do sleep 0.1; i=$((i + 1)); done
+  file=tests/golden/webenv/http.js
+  [ "$(web 1 WEBENV_HTTP="http://127.0.0.1:$(cat "$tmp/port")" 2>&1)" = "$(cat tests/golden/webenv/http.out)" ] || { echo "webenv: http.js differs from tests/golden/webenv/http.out: $(web 1 WEBENV_HTTP="http://127.0.0.1:$(cat "$tmp/port")" 2>&1 | head -8)"; fail=1; }
+  kill $server 2>/dev/null; wait $server 2>/dev/null
+fi
+
 printf "console.log(typeof window, typeof document === 'undefined' || typeof document.body, typeof navigator, typeof addEventListener);\n" > "$tmp/off.js"
 file="$tmp/off.js"
 [ "$(web '' 2>&1)" = "undefined undefined undefined undefined" ] || { echo "webenv: a program that does not ask gets a window: $(web '' 2>&1)"; fail=1; }

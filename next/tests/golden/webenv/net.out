@@ -1,0 +1,21 @@
+url file: true ?v=1 #top 1 true false true http://xn--e1aybc/a%20b
+query a=1&a=0&b=2 1,0 true
+fetch true 200 OK application/json 60 true {"name":"zinc","list":[1,2,3],"text":"héllo"} false 60 true
+read twice TypeError
+bytes 256 0 127 128 255 true
+missing false 404 Not Found
+root path 200 zinc hello world image/png
+blob 7 application/json {"a":1} 34,97,34 true {"a":1} application/json
+revoked 404 a.txt
+abort AbortError true
+headers content-type,x-b 1, 2 false hi false 1
+xhr text 200 OK héllo true application/json true | 1 loadstart 2 3 progress:60/60:true 4 load loadend
+xhr json 1,2,3
+xhr arraybuffer true 256 255
+xhr blob true 256 application/octet-stream
+xhr missing 404 | 1 loadstart 2 3 progress:0/0:true 4 load loadend
+sync 4 200 60
+storage 12 string null 1 score x true
+removed null 0
+script load function hello 42 true 42 error 2
+inline script 7

@@ -18,3 +18,7 @@ const x: number = (sq.area() as number) + 1;
 const m = new Map<string, number>();
 m.set('a', x);
 console.log(sq.describe(), first<string>(['p', 'q']), Color.Green, Color.Blue, Color[0], m.get('a'));
+// modifiers after `static`, and Zinc's decorators (@weak, @pooled(n)): blanked, the declaration kept (ZN-568: lib/std/web.ts under this engine)
+class Limits { static readonly MAX: number = 9; private static readonly min: number = 1; static lowest(): number { return Limits.min; } }
+@pooled(4) class Leaf { @weak parent: Leaf | null = null; @weak private readonly tag: string = 't'; label(): string { return this.tag; } }
+console.log(Limits.MAX, Limits.lowest(), new Leaf().parent, new Leaf().label());

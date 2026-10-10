@@ -62,19 +62,35 @@ struct Stripper {
     if (first < s.size() && s[first] == '<') angles(first);
   }
 
-  // modifiers before a member's name: public private protected readonly abstract override declare
+  // modifiers before a member's name: public private protected readonly abstract override declare, also after `static` (which stays)
   void modifiers(std::uint32_t at) {
     for (;;) {
       while (space(at)) at++;
       std::uint32_t e = at;
       while (e < s.size() && (std::isalnum(static_cast<unsigned char>(s[e])) || s[e] == '_' || s[e] == '$')) e++;
       std::string_view w = s.substr(at, e - at);
-      if (w != "public" && w != "private" && w != "protected" && w != "readonly" && w != "abstract" && w != "override" && w != "declare" && w != "accessor") return;  // accessor: a plain field
+      const bool keep = w == "static";
+      if (!keep && w != "public" && w != "private" && w != "protected" && w != "readonly" && w != "abstract" && w != "override" && w != "declare" && w != "accessor") return;  // accessor: a plain field
       std::uint32_t nx = e;
       while (space(nx)) nx++;
       if (nx >= s.size() || std::string_view("(:=;?<}!,)").find(s[nx]) != std::string_view::npos) return;  // a member that is called like a modifier
-      blank(at, e);
+      if (!keep) blank(at, e);
       at = e;
+    }
+  }
+
+  // `@name`, `@name.sub` and `@name(args)` just before a declaration (Zinc's @weak, @pooled(n)): the parser skips them and leaves no node, and
+  // they mean nothing to JavaScript
+  void decorators(std::uint32_t start) {
+    for (;;) {
+      std::uint32_t e = start;
+      while (e > 0 && space(e - 1)) e--;
+      std::uint32_t b = e;
+      if (b > 0 && s[b - 1] == ')') { int depth = 0; while (b > 0) { --b; if (s[b] == ')') depth++; else if (s[b] == '(' && --depth == 0) break; } }
+      while (b > 0 && (std::isalnum(static_cast<unsigned char>(s[b - 1])) || s[b - 1] == '_' || s[b - 1] == '$' || s[b - 1] == '.')) b--;
+      if (b == 0 || b == e || s[b - 1] != '@') return;
+      blank(b - 1, e);
+      start = b - 1;
     }
   }
 
@@ -129,11 +145,13 @@ struct Stripper {
           if ((x.flags & kFlagAbstract) && x.kids[1] == kNone) { blank(x.start, x.end); break; }
           annotation(x.kids[0]);
           modifiers(x.start);
+          decorators(x.start);
           if (x.text == "constructor") paramProperties(x);
           break;
-        case N::Field: annotation(x.kids[0]); modifiers(x.start); break;
+        case N::Field: annotation(x.kids[0]); modifiers(x.start); decorators(x.start); break;
         case N::Class: {
           modifiers(x.start);
+          decorators(x.start);
           if (x.kids[0] != kNone) { const Node& e = n(x.kids[0]); if (!e.kids.empty()) angles(e.start + e.text.size()); }
           if (x.kids[1] != kNone) {  // `implements A, B`: from the keyword to the end of the list
             const Node& h = n(x.kids[1]);
@@ -144,7 +162,9 @@ struct Stripper {
           break;
         }
         case N::Interface: case N::TypeAlias: blank(x.start, x.end); break;
-        case N::Export: if (!x.kids.empty() && x.kids[0] != kNone && (n(x.kids[0]).kind == N::Interface || n(x.kids[0]).kind == N::TypeAlias)) blank(x.start, x.end); break;
+        case N::Export:
+          decorators(x.start);
+          if (!x.kids.empty() && x.kids[0] != kNone && (n(x.kids[0]).kind == N::Interface || n(x.kids[0]).kind == N::TypeAlias)) blank(x.start, x.end); break;
         case N::As: {
           std::uint32_t k = n(x.kids[0]).end;
           const std::string_view word = x.text.empty() ? std::string_view("as") : x.text;  // "as" or "satisfies"
