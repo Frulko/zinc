@@ -74,7 +74,12 @@ std::uint8_t effects(const Module& m, const Inst& i) {
 // `fn (i32) => i32` and `{ a: f64 }` hold spaces and punctuation).
 static std::string quoteStr(const std::string& s) {
   std::string o = "\"";
-  for (char c : s) o += c == '\n' ? "\\n" : c == '\t' ? "\\t" : c == '"' ? "\\\"" : c == '\\' ? "\\\\" : std::string(1, c);
+  for (char c : s) {
+    const unsigned char u = static_cast<unsigned char>(c);
+    if (c == '\n') o += "\\n"; else if (c == '\t') o += "\\t"; else if (c == '"') o += "\\\""; else if (c == '\\') o += "\\\\";
+    else if (u < 0x20 || u == 0x7f) { char x[8]; std::snprintf(x, sizeof x, "\\x%02x", u); o += x; }   // a NUL ended the dump (fputs) and hid what followed
+    else o += c;
+  }
   return o + "\"";
 }
 std::string nameText(const std::string& s) {
@@ -117,7 +122,12 @@ std::string edgeText(const Edge& e) {
 
 std::string escape(const std::string& s) {
   std::string o = "\"";
-  for (char c : s) o += c == '\n' ? "\\n" : c == '\t' ? "\\t" : c == '"' ? "\\\"" : c == '\\' ? "\\\\" : std::string(1, c);
+  for (char c : s) {
+    const unsigned char u = static_cast<unsigned char>(c);
+    if (c == '\n') o += "\\n"; else if (c == '\t') o += "\\t"; else if (c == '"') o += "\\\""; else if (c == '\\') o += "\\\\";
+    else if (u < 0x20 || u == 0x7f) { char x[8]; std::snprintf(x, sizeof x, "\\x%02x", u); o += x; }   // a NUL ended the dump (fputs) and hid what followed
+    else o += c;
+  }
   return o + "\"";
 }
 

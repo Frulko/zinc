@@ -848,7 +848,12 @@ std::string disassemble(const Module& m) {
           case Op::JmpIf: case Op::JmpIfNot: ops = r(aOf(w)) + ", -> " + std::to_string(dOf(w)); break;
           case Op::Call: ops = r(aOf(w)) + ", @" + (dOf(w) < m.functions.size() ? m.functions[dOf(w)].name : "?"); break;
           case Op::New: case Op::Downcast: case Op::LoadNull: case Op::InstanceOf: ops = r(aOf(w)) + ", " + clsN(dOf(w)); break;
-          case Op::LoadStr: ops = r(aOf(w)) + ", " + (dOf(w) < m.strings.size() ? "\"" + m.strings[dOf(w)] + "\"" : std::string("?")); break;
+          case Op::LoadStr: {
+            std::string t;   // control characters but newline and tab as \xHH: a NUL ended the listing
+            if (dOf(w) < m.strings.size()) for (char c : m.strings[dOf(w)]) { const unsigned char u = static_cast<unsigned char>(c); if ((u < 0x20 && c != '\n' && c != '\t') || u == 0x7f) { char x[8]; std::snprintf(x, sizeof x, "\\x%02x", u); t += x; } else t += c; }
+            ops = r(aOf(w)) + ", " + (dOf(w) < m.strings.size() ? "\"" + t + "\"" : std::string("?"));
+            break;
+          }
           case Op::CallNative: ops = r(aOf(w)) + ", " + (dOf(w) < m.natives.size() ? m.natives[dOf(w)].module + "." + m.natives[dOf(w)].name : std::string("?")); break;
           case Op::Rt: ops = r(aOf(w)) + ", " + (dOf(w) < static_cast<unsigned>(Rt::Count) ? rtInfo(static_cast<Rt>(dOf(w))).name : "?"); break;
           case Op::CallVirt: ops = r(aOf(w)) + ", ." + (dOf(w) < m.selectors.size() ? m.selectors[dOf(w)].name : "?"); break;
