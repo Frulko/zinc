@@ -35,6 +35,7 @@ struct NativeThree : zrt::Object {
   virtual int32_t materialFlags(int32_t h, int32_t m) = 0;
   virtual int32_t animationCount(int32_t h) = 0;
   virtual int32_t skinCount(int32_t h) = 0;
+  virtual zrt::String extensions(int32_t h) = 0;
   virtual int32_t decode(zrt::Array<uint8_t> data) = 0;
   virtual bool readFile(zrt::String path, zrt::Array<uint8_t> out) = 0;
   virtual int32_t pixelRatio() = 0;
