@@ -1,0 +1,87 @@
+{
+ "format": "zinc-museum-table",
+ "version": 1,
+ "id": "small",
+ "title": {
+  "fr": "Petit projet",
+  "en": "Small project"
+ },
+ "languages": [
+  "fr",
+  "en"
+ ],
+ "start": "one",
+ "media": [
+  {
+   "id": "wave",
+   "kind": "painting",
+   "file": "photos/wave.jpg",
+   "title": {
+    "fr": "La vague"
+   },
+   "credit": {
+    "source": "https://example.org/wave",
+    "licence": "CC0 1.0"
+   }
+  },
+  {
+   "id": "note",
+   "kind": "text",
+   "title": {
+    "fr": "Une note"
+   },
+   "text": {
+    "fr": "Bonjour.",
+    "en": "Hello."
+   }
+  }
+ ],
+ "sequences": [
+  {
+   "id": "one",
+   "title": {
+    "fr": "Un"
+   },
+   "storyboard": {
+    "x": 0,
+    "y": 0
+   },
+   "items": [
+    {
+     "media": "wave",
+     "x": 400,
+     "y": 300,
+     "width": 320
+    }
+   ],
+   "links": [
+    {
+     "to": "two",
+     "label": {
+      "fr": "Suite"
+     },
+     "x": 960,
+     "y": 1030
+    }
+   ]
+  },
+  {
+   "id": "two",
+   "title": {
+    "fr": "Deux"
+   },
+   "storyboard": {
+    "x": 200,
+    "y": 0
+   },
+   "items": [
+    {
+     "media": "note",
+     "x": 400,
+     "y": 300,
+     "width": 320
+    }
+   ]
+  }
+ ]
+}

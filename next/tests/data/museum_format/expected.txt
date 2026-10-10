@@ -1,0 +1,15 @@
+not-json.json: not a JSON document
+format.json: format: must be "zinc-museum-table"
+newer.json: version: 2 is newer than this player (1)
+no-title.json: title.fr: missing (the default language)
+kind.json: media[0].kind: "painting" is not one of photo, model, panorama, text, audio, video
+no-licence.json: media[0].credit.licence: missing
+outside.json: media[0].file: "../secret.jpg" must be a path inside the assets
+duplicate.json: media[1].id: duplicate id "wave"
+unknown-media.json: sequences[0].items[0].media: unknown media "wav"
+link-nowhere.json: sequences[0].links[0].to: unknown sequence "nowhere"
+width.json: sequences[0].items[0].width: must be a number
+colour.json: theme.accent: "gold" is not a colour (#rrggbb)
+reach.json: sequences[0].links[0]: the button at (960, 540) is farther than table.reach (520) from every edge
+model-format.json: media[2].file: "models/pot.stl" is not a model (obj, glb, gltf)
+start.json: start: unknown sequence "zero"

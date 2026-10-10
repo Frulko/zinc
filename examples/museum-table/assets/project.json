@@ -1,0 +1,885 @@
+{
+  "format": "zinc-museum-table",
+  "version": 1,
+  "id": "floating-world",
+  "title": {
+    "fr": "Le monde flottant, d’Edo à Paris",
+    "en": "The Floating World, from Edo to Paris"
+  },
+  "languages": ["fr", "en"],
+  "start": "ukiyo-e",
+  "theme": {
+    "background": "#14151a",
+    "paper": "#f4f1ea",
+    "ink": "#23211d",
+    "text": "#ece8df",
+    "muted": "#9b978d",
+    "accent": "#d0a441",
+    "font": "sans",
+    "titleFont": "sans-bold"
+  },
+  "accessibility": {
+    "textSizes": [1, 1.3, 1.6],
+    "highContrast": {
+      "background": "#000000",
+      "paper": "#ffffff",
+      "ink": "#000000",
+      "text": "#ffffff",
+      "muted": "#e0e0e0",
+      "accent": "#ffd400"
+    }
+  },
+  "table": {
+    "width": 1920,
+    "height": 1080,
+    "visitors": 2,
+    "reach": 520
+  },
+  "kiosk": {
+    "fullscreen": true,
+    "attractAfter": 60,
+    "resetAfter": 120,
+    "attract": "tour",
+    "statistics": true
+  },
+  "media": [
+    {
+      "id": "great-wave",
+      "kind": "photo",
+      "file": "photos/great-wave.jpg",
+      "title": {
+        "fr": "Sous la vague au large de Kanagawa (La Grande Vague)",
+        "en": "Under the Wave off Kanagawa (The Great Wave)"
+      },
+      "creator": "Katsushika Hokusai (1760–1849)",
+      "date": {
+        "fr": "vers 1830-1832",
+        "en": "ca. 1830–32"
+      },
+      "medium": {
+        "fr": "Estampe ; gravure sur bois, encre et couleurs sur papier",
+        "en": "Woodblock print; ink and color on paper"
+      },
+      "description": {
+        "fr": "Une vague immense se dresse au-dessus de trois barques de pêcheurs ; au loin, le mont Fuji paraît minuscule dans son creux. Planche la plus célèbre des Trente-six vues du mont Fuji, elle doit ses bleus profonds au bleu de Prusse, pigment alors nouvellement importé d’Europe.",
+        "en": "A towering wave rears above three fishing boats; in the distance Mount Fuji looks tiny in its hollow. The most famous print of the Thirty-six Views of Mount Fuji owes its deep blues to Prussian blue, a pigment then newly imported from Europe."
+      },
+      "audioDescription": {
+        "fr": "Estampe en largeur. À gauche, une grande vague bleue, à l’écume blanche en forme de griffes, s’enroule au-dessus de trois longues barques. Au centre, au loin, un petit mont Fuji enneigé sous un ciel gris-beige.",
+        "en": "A print wider than high. On the left a great blue wave, its white foam shaped like claws, curls over three long boats. In the centre, far away, a small snow-capped Mount Fuji under a grey-beige sky."
+      },
+      "credit": {
+        "institution": "The Metropolitan Museum of Art, New York",
+        "accession": "JP1847",
+        "line": "H. O. Havemeyer Collection, Bequest of Mrs. H. O. Havemeyer, 1929",
+        "source": "https://www.metmuseum.org/art/collection/search/45434",
+        "licence": "CC0 1.0",
+        "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/"
+      }
+    },
+    {
+      "id": "red-fuji",
+      "kind": "photo",
+      "file": "photos/red-fuji.jpg",
+      "title": {
+        "fr": "Vent du sud, ciel clair (Le Fuji rouge)",
+        "en": "South Wind, Clear Sky (Red Fuji)"
+      },
+      "creator": "Katsushika Hokusai (1760–1849)",
+      "date": {
+        "fr": "vers 1830-1832",
+        "en": "ca. 1830–32"
+      },
+      "medium": {
+        "fr": "Estampe ; gravure sur bois, encre et couleurs sur papier",
+        "en": "Woodblock print; ink and color on paper"
+      },
+      "description": {
+        "fr": "À la fin de l’été, le soleil levant teinte de rouge les pentes du mont Fuji. Hokusai réduit le paysage à trois éléments : la montagne, la forêt à son pied et un ciel pommelé de nuages.",
+        "en": "In late summer the rising sun turns the slopes of Mount Fuji red. Hokusai reduces the landscape to three elements: the mountain, the forest at its foot and a sky dappled with clouds."
+      },
+      "audioDescription": {
+        "fr": "Estampe en largeur. Un grand triangle rouge brique, le mont Fuji, occupe la droite ; son sommet porte des traînées de neige. Le ciel bleu est rayé de petits nuages blancs.",
+        "en": "A print wider than high. A large brick-red triangle, Mount Fuji, fills the right side; streaks of snow mark its summit. The blue sky is striped with small white clouds."
+      },
+      "credit": {
+        "institution": "The Metropolitan Museum of Art, New York",
+        "accession": "JP9",
+        "line": "Rogers Fund, 1914",
+        "source": "https://www.metmuseum.org/art/collection/search/36490",
+        "licence": "CC0 1.0",
+        "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/"
+      }
+    },
+    {
+      "id": "ejiri",
+      "kind": "photo",
+      "file": "photos/ejiri.jpg",
+      "title": {
+        "fr": "Ejiri, province de Suruga",
+        "en": "Ejiri in Suruga Province"
+      },
+      "creator": "Katsushika Hokusai (1760–1849)",
+      "date": {
+        "fr": "vers 1830-1832",
+        "en": "ca. 1830–32"
+      },
+      "medium": {
+        "fr": "Estampe ; gravure sur bois, encre et couleurs sur papier",
+        "en": "Woodblock print; ink and color on paper"
+      },
+      "description": {
+        "fr": "Un coup de vent emporte les chapeaux et les feuilles de papier de voyageurs, sur une route qui serpente entre les champs. Le mont Fuji, tracé d’un seul trait, reste immobile au milieu de l’agitation.",
+        "en": "A gust of wind carries off the hats and sheets of paper of travellers on a road winding through the fields. Mount Fuji, drawn with a single line, stands still amid the commotion."
+      },
+      "audioDescription": {
+        "fr": "Estampe en largeur. Des voyageurs courbés retiennent leurs chapeaux ; des feuilles blanches s’envolent vers la droite. Deux arbres grêles penchent sous le vent. Au fond, le contour d’une montagne.",
+        "en": "A print wider than high. Bent travellers hold on to their hats; white sheets fly off to the right. Two thin trees lean in the wind. Behind, the outline of a mountain."
+      },
+      "credit": {
+        "institution": "The Metropolitan Museum of Art, New York",
+        "accession": "JP12",
+        "line": "Rogers Fund, 1914",
+        "source": "https://www.metmuseum.org/art/collection/search/36493",
+        "licence": "CC0 1.0",
+        "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/"
+      }
+    },
+    {
+      "id": "sudden-shower",
+      "kind": "photo",
+      "file": "photos/sudden-shower.jpg",
+      "title": {
+        "fr": "Averse soudaine sur le pont Shin-Ōhashi à Atake",
+        "en": "Sudden Shower over Shin-Ōhashi Bridge and Atake"
+      },
+      "creator": "Utagawa Hiroshige (1797–1858)",
+      "date": {
+        "fr": "1857",
+        "en": "1857"
+      },
+      "medium": {
+        "fr": "Estampe ; gravure sur bois, encre et couleurs sur papier",
+        "en": "Woodblock print; ink and color on paper"
+      },
+      "description": {
+        "fr": "Surpris par l’orage, des passants courent sur le pont de bois, abrités sous des chapeaux et des parapluies. La pluie est rendue par de fines lignes noires qui se croisent. De la série des Cent vues célèbres d’Edo ; Vincent van Gogh a copié cette planche à l’huile en 1887.",
+        "en": "Caught by the storm, passers-by hurry across the wooden bridge under hats and umbrellas. The rain is rendered with fine crossing black lines. From the series One Hundred Famous Views of Edo; Vincent van Gogh copied this print in oils in 1887."
+      },
+      "audioDescription": {
+        "fr": "Estampe en hauteur. Un pont de bois clair traverse l’image en diagonale au-dessus d’un fleuve bleu-vert ; six petites silhouettes s’y hâtent. Le haut du ciel est noir, et toute l’image est hachurée de pluie.",
+        "en": "A print higher than wide. A pale wooden bridge crosses the picture diagonally above a blue-green river; six small figures hurry over it. The top of the sky is black and the whole picture is hatched with rain."
+      },
+      "credit": {
+        "institution": "The Metropolitan Museum of Art, New York",
+        "accession": "JP643",
+        "line": "Purchase, Joseph Pulitzer Bequest, 1918",
+        "source": "https://www.metmuseum.org/art/collection/search/36461",
+        "licence": "CC0 1.0",
+        "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/"
+      }
+    },
+    {
+      "id": "plum-garden",
+      "kind": "photo",
+      "file": "photos/plum-garden.jpg",
+      "title": {
+        "fr": "Le Jardin des pruniers à Kameido",
+        "en": "Plum Garden at Kameido"
+      },
+      "creator": "Utagawa Hiroshige (1797–1858)",
+      "date": {
+        "fr": "1857",
+        "en": "1857"
+      },
+      "medium": {
+        "fr": "Estampe ; gravure sur bois en couleurs, format ōban",
+        "en": "Color woodblock print; ōban"
+      },
+      "description": {
+        "fr": "Hiroshige place au premier plan, tout près de l’œil, les branches d’un vieux prunier célèbre ; on aperçoit les promeneurs au travers. Ce cadrage audacieux a fasciné Van Gogh, qui a copié la planche en 1887.",
+        "en": "Hiroshige sets the branches of a famous old plum tree in the foreground, very close to the eye; strollers are glimpsed through them. This bold framing fascinated Van Gogh, who copied the print in 1887."
+      },
+      "audioDescription": {
+        "fr": "Estampe en hauteur. Des branches sombres, semées de fleurs blanches, barrent tout le premier plan. Derrière, un verger vert et de petits personnages sous un ciel rouge qui pâlit vers le bas.",
+        "en": "A print higher than wide. Dark branches dotted with white blossom bar the whole foreground. Behind, a green orchard and small figures under a red sky that pales towards the bottom."
+      },
+      "credit": {
+        "institution": "The Art Institute of Chicago",
+        "accession": "1925.3752",
+        "line": "Clarence Buckingham Collection",
+        "source": "https://www.artic.edu/artworks/26577",
+        "licence": "CC0 1.0",
+        "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/"
+      }
+    },
+    {
+      "id": "kanbara-snow",
+      "kind": "photo",
+      "file": "photos/kanbara-snow.jpg",
+      "title": {
+        "fr": "Neige du soir à Kanbara",
+        "en": "Evening Snow at Kanbara"
+      },
+      "creator": "Utagawa Hiroshige (1797–1858)",
+      "date": {
+        "fr": "vers 1833-1834",
+        "en": "ca. 1833–34"
+      },
+      "medium": {
+        "fr": "Estampe ; gravure sur bois, encre et couleurs sur papier",
+        "en": "Woodblock print; ink and color on paper"
+      },
+      "description": {
+        "fr": "Trois voyageurs courbés avancent dans un village endormi sous la neige. De la série des Cinquante-trois relais du Tōkaidō, la route qui reliait Edo à Kyoto, cette planche est célèbre pour son silence et ses gris.",
+        "en": "Three hunched travellers make their way through a village asleep under the snow. From the series Fifty-three Stations of the Tōkaidō, the road that linked Edo and Kyoto, this print is famous for its silence and its greys."
+      },
+      "audioDescription": {
+        "fr": "Estampe en largeur, presque sans couleur. Des toits et une colline blancs de neige sous un ciel gris ; trois personnages, dont un sous un parapluie, marchent tête baissée.",
+        "en": "A print wider than high, almost without colour. Roofs and a hill white with snow under a grey sky; three figures, one under an umbrella, walk with their heads down."
+      },
+      "credit": {
+        "institution": "The Metropolitan Museum of Art, New York",
+        "accession": "JP2492",
+        "line": "The Howard Mansfield Collection, Purchase, Rogers Fund, 1936",
+        "source": "https://www.metmuseum.org/art/collection/search/56915",
+        "licence": "CC0 1.0",
+        "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/"
+      }
+    },
+    {
+      "id": "three-beauties",
+      "kind": "photo",
+      "file": "photos/three-beauties.jpg",
+      "title": {
+        "fr": "Trois beautés de l’ère Kansei",
+        "en": "Three Beauties of the Kwansei Period"
+      },
+      "creator": "Kitagawa Utamaro (ca. 1754–1806)",
+      "date": {
+        "fr": "vers 1791",
+        "en": "ca. 1791"
+      },
+      "medium": {
+        "fr": "Estampe ; gravure sur bois, encre et couleurs sur papier",
+        "en": "Woodblock print; ink and color on paper"
+      },
+      "description": {
+        "fr": "Trois beautés célèbres d’Edo, une geisha et deux serveuses de maisons de thé, sont réunies en un portrait serré. Utamaro les distingue par de subtiles différences de traits et par l’emblème que chacune porte sur son vêtement.",
+        "en": "Three celebrated beauties of Edo, a geisha and two teahouse waitresses, are gathered in a close-up portrait. Utamaro tells them apart by subtle differences of features and by the crest each wears on her clothes."
+      },
+      "audioDescription": {
+        "fr": "Estampe en hauteur. Trois visages de femmes au teint clair, coiffées de hauts chignons noirs piqués d’épingles, disposés en triangle sur un fond uni.",
+        "en": "A print higher than wide. Three pale faces of women with high black chignons set with pins, arranged in a triangle on a plain ground."
+      },
+      "credit": {
+        "institution": "The Metropolitan Museum of Art, New York",
+        "accession": "JP1528",
+        "line": "Fletcher Fund, 1929",
+        "source": "https://www.metmuseum.org/art/collection/search/55639",
+        "licence": "CC0 1.0",
+        "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/"
+      }
+    },
+    {
+      "id": "irises",
+      "kind": "photo",
+      "file": "photos/irises.jpg",
+      "title": {
+        "fr": "Iris",
+        "en": "Irises"
+      },
+      "creator": "Vincent van Gogh (1853–1890)",
+      "date": {
+        "fr": "1890",
+        "en": "1890"
+      },
+      "medium": {
+        "fr": "Huile sur toile",
+        "en": "Oil on canvas"
+      },
+      "description": {
+        "fr": "Peint à Saint-Rémy en mai 1890, peu avant que l’artiste ne quitte l’asile. Le fond, rose à l’origine, a pâli avec le temps. Les contours sombres et les aplats rappellent les estampes japonaises que Van Gogh collectionnait.",
+        "en": "Painted at Saint-Rémy in May 1890, shortly before the artist left the asylum. The background, originally pink, has faded with time. The dark outlines and flat areas of colour recall the Japanese prints Van Gogh collected."
+      },
+      "audioDescription": {
+        "fr": "Tableau en largeur. Un bouquet d’iris bleus aux longues feuilles vertes déborde d’un vase blanc posé sur une table verte, devant un mur presque blanc.",
+        "en": "A painting wider than high. A bunch of blue irises with long green leaves spills from a white vase standing on a green table, in front of an almost white wall."
+      },
+      "credit": {
+        "institution": "The Metropolitan Museum of Art, New York",
+        "accession": "58.187",
+        "line": "Gift of Adele R. Levy, 1958",
+        "source": "https://www.metmuseum.org/art/collection/search/436528",
+        "licence": "CC0 1.0",
+        "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/"
+      }
+    },
+    {
+      "id": "water-lily-pond",
+      "kind": "photo",
+      "file": "photos/water-lily-pond.jpg",
+      "title": {
+        "fr": "Le Bassin aux nymphéas",
+        "en": "Water Lily Pond"
+      },
+      "creator": "Claude Monet (1840–1926)",
+      "date": {
+        "fr": "1900",
+        "en": "1900"
+      },
+      "medium": {
+        "fr": "Huile sur toile",
+        "en": "Oil on canvas"
+      },
+      "description": {
+        "fr": "Dans son jardin de Giverny, Monet fait construire un pont de bois inspiré de ceux des estampes japonaises, dont il possédait plus de deux cents. À partir de 1899, il le peint en série, à différentes heures.",
+        "en": "In his garden at Giverny Monet had a wooden bridge built after those of Japanese prints, of which he owned more than two hundred. From 1899 he painted it in series, at different hours."
+      },
+      "audioDescription": {
+        "fr": "Tableau presque carré. Un pont en arc, bleu-vert, enjambe un bassin couvert de nénuphars roses et blancs, entouré d’une végétation épaisse aux touches rouges et vertes.",
+        "en": "An almost square painting. An arched blue-green bridge spans a pond covered with pink and white water lilies, surrounded by thick vegetation in touches of red and green."
+      },
+      "credit": {
+        "institution": "The Art Institute of Chicago",
+        "accession": "1933.441",
+        "line": "Mr. and Mrs. Lewis Larned Coburn Memorial Collection",
+        "source": "https://www.artic.edu/artworks/87088",
+        "licence": "CC0 1.0",
+        "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/"
+      }
+    },
+    {
+      "id": "the-letter",
+      "kind": "photo",
+      "file": "photos/the-letter.jpg",
+      "title": {
+        "fr": "La Lettre",
+        "en": "The Letter"
+      },
+      "creator": "Mary Cassatt (1844–1926)",
+      "date": {
+        "fr": "1890-1891",
+        "en": "1890–91"
+      },
+      "medium": {
+        "fr": "Pointe sèche et aquatinte en couleurs",
+        "en": "Color aquatint and drypoint"
+      },
+      "description": {
+        "fr": "Au printemps 1890, Mary Cassatt visite à Paris une grande exposition d’estampes japonaises. Elle grave aussitôt une suite de dix planches en couleurs : aplats, motifs décoratifs et contours nets y transposent la leçon d’Utamaro.",
+        "en": "In spring 1890 Mary Cassatt visited a large exhibition of Japanese prints in Paris. She at once made a set of ten colour prints: flat tints, decorative patterns and crisp outlines carry over the lesson of Utamaro."
+      },
+      "audioDescription": {
+        "fr": "Gravure en hauteur. Une femme en robe bleue à fleurs, assise à un petit bureau, porte une enveloppe à ses lèvres pour la cacheter. Le mur est couvert d’un papier peint à feuillages.",
+        "en": "A print higher than wide. A woman in a blue flowered dress, seated at a small desk, lifts an envelope to her lips to seal it. The wall is covered with a leafy wallpaper."
+      },
+      "credit": {
+        "institution": "The Art Institute of Chicago",
+        "accession": "1932.1282",
+        "line": "Mr. and Mrs. Martin A. Ryerson Collection",
+        "source": "https://www.artic.edu/artworks/13508",
+        "licence": "CC0 1.0",
+        "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/"
+      }
+    },
+    {
+      "id": "divan-japonais",
+      "kind": "photo",
+      "file": "photos/divan-japonais.jpg",
+      "title": {
+        "fr": "Divan Japonais",
+        "en": "Divan Japonais"
+      },
+      "creator": "Henri de Toulouse-Lautrec (1864–1901)",
+      "date": {
+        "fr": "1892-1893",
+        "en": "1892–93"
+      },
+      "medium": {
+        "fr": "Lithographie en quatre couleurs",
+        "en": "Lithograph printed in four colors"
+      },
+      "description": {
+        "fr": "Affiche pour un café-concert de Montmartre. La danseuse Jane Avril, en noir, assiste au spectacle ; sur scène, la chanteuse Yvette Guilbert, coupée par le cadre, se reconnaît à ses longs gants noirs. Aplats, cernes et cadrage viennent de l’estampe japonaise.",
+        "en": "A poster for a Montmartre café-concert. The dancer Jane Avril, in black, watches the show; on stage the singer Yvette Guilbert, cut off by the frame, is recognised by her long black gloves. Flat colour, outlines and cropping come from the Japanese print."
+      },
+      "audioDescription": {
+        "fr": "Affiche en hauteur. Au premier plan, une femme rousse en robe et chapeau noirs, de profil ; derrière elle, un homme barbu en haut-de-forme. En haut à gauche, une chanteuse en jaune dont on ne voit pas la tête.",
+        "en": "A poster higher than wide. In the foreground a red-haired woman in a black dress and hat, in profile; behind her a bearded man in a top hat. At the upper left a singer in yellow whose head is out of the picture."
+      },
+      "credit": {
+        "institution": "The Metropolitan Museum of Art, New York",
+        "accession": "58.621.17",
+        "line": "Bequest of Clifford A. Furst, 1958",
+        "source": "https://www.metmuseum.org/art/collection/search/334197",
+        "licence": "CC0 1.0",
+        "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/"
+      }
+    },
+    {
+      "id": "nocturne",
+      "kind": "photo",
+      "file": "photos/nocturne.jpg",
+      "title": {
+        "fr": "Nocturne : la Tamise à Battersea",
+        "en": "Nocturne: The Thames at Battersea"
+      },
+      "creator": "James McNeill Whistler (1834–1903)",
+      "date": {
+        "fr": "1878",
+        "en": "1878"
+      },
+      "medium": {
+        "fr": "Lithotinte",
+        "en": "Lithotint"
+      },
+      "description": {
+        "fr": "Whistler, collectionneur d’estampes japonaises et de porcelaines bleu et blanc, emprunte à Hiroshige ses vues de fleuve au crépuscule. En bas à droite, son monogramme en forme de papillon imite le cachet d’un artiste japonais.",
+        "en": "Whistler, a collector of Japanese prints and blue-and-white porcelain, borrows from Hiroshige his river views at dusk. At the lower right his butterfly monogram imitates a Japanese artist’s seal."
+      },
+      "audioDescription": {
+        "fr": "Gravure en largeur, toute en gris. Un fleuve calme dans la brume ; sur l’autre rive, des silhouettes de cheminées et d’un clocher. Au premier plan, un homme debout sur une barque.",
+        "en": "A print wider than high, all in greys. A calm river in the mist; on the far bank the outlines of chimneys and a steeple. In the foreground a man standing on a barge."
+      },
+      "credit": {
+        "institution": "The Metropolitan Museum of Art, New York",
+        "accession": "17.3.159",
+        "line": "Harris Brisbane Dick Fund, 1917",
+        "source": "https://www.metmuseum.org/art/collection/search/337702",
+        "licence": "CC0 1.0",
+        "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/"
+      }
+    },
+    {
+      "id": "vase",
+      "kind": "model",
+      "file": "models/vase.obj",
+      "texture": "models/vase.jpg",
+      "title": {
+        "fr": "Vase balustre d’une garniture de cinq pièces",
+        "en": "Baluster vase, from a five-piece garniture"
+      },
+      "creator": "Jingdezhen",
+      "date": {
+        "fr": "Dynastie Qing, règne de Kangxi (1662-1722)",
+        "en": "Qing dynasty, Kangxi reign (1662–1722)"
+      },
+      "medium": {
+        "fr": "Porcelaine, décor au bleu de cobalt sous couverte",
+        "en": "Porcelain with cobalt pigment under clear colorless glaze"
+      },
+      "description": {
+        "fr": "Ce vase de porcelaine bleu et blanc est exposé dans la Salle des paons, la salle à manger que Whistler décora à Londres en 1876-1877 pour présenter une collection de porcelaines de Chine. Son décor montre une dame de cour divertie par une danseuse et des musiciens.",
+        "en": "This blue-and-white porcelain vase is displayed in the Peacock Room, the dining room Whistler decorated in London in 1876–77 to show a collection of Chinese porcelain. Its decoration shows a court lady entertained by a dancer and musicians."
+      },
+      "audioDescription": {
+        "fr": "Un vase de porcelaine blanche d’une quarantaine de centimètres, renflé à l’épaule et resserré au col, entièrement peint de personnages et de fleurs en bleu.",
+        "en": "A white porcelain vase some forty centimetres high, swelling at the shoulder and narrowing at the neck, painted all over with figures and flowers in blue."
+      },
+      "credit": {
+        "institution": "National Museum of Asian Art, Smithsonian Institution, Washington",
+        "accession": "F1980.191a-c",
+        "line": "Gift of Myron S. Falk, Jr. and his sisters, Mrs. Mildred F. Loew and Mrs. Eleanor F. Lenzner",
+        "source": "https://asia.si.edu/object/F1980.191a-c/",
+        "licence": "CC0 1.0",
+        "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/"
+      },
+      "view": { "yaw": 20, "pitch": 8, "distance": 3 },
+      "points": [
+        {
+          "id": "scene",
+          "title": {
+            "fr": "La scène de cour",
+            "en": "The court scene"
+          },
+          "text": {
+            "fr": "Une dame de cour assiste à un divertissement : une danseuse évolue au son des instruments.",
+            "en": "A court lady watches an entertainment: a dancer moves to the sound of instruments."
+          },
+          "at": [0, 0.02, 0.086],
+          "view": { "yaw": 0, "pitch": 4, "distance": 1.7 }
+        },
+        {
+          "id": "neck",
+          "title": {
+            "fr": "Le col",
+            "en": "The neck"
+          },
+          "text": {
+            "fr": "Des rameaux fleuris ornent le col.",
+            "en": "Sprays of flowers decorate the neck."
+          },
+          "at": [0, 0.165, 0.049],
+          "view": { "yaw": 0, "pitch": 18, "distance": 1.5 }
+        },
+        {
+          "id": "cobalt",
+          "title": {
+            "fr": "Le bleu de cobalt",
+            "en": "Cobalt blue"
+          },
+          "text": {
+            "fr": "Le décor est peint à l’oxyde de cobalt sur la pièce crue, puis recouvert d’une couverte transparente et cuit à haute température, vers 1300 °C.",
+            "en": "The decoration is painted in cobalt oxide on the unfired piece, then covered with a clear glaze and fired at high temperature, around 1300 °C."
+          },
+          "at": [0.086, 0.05, 0],
+          "view": { "yaw": 90, "pitch": 0, "distance": 1.6 }
+        }
+      ]
+    },
+    {
+      "id": "garden",
+      "kind": "panorama",
+      "file": "panoramas/ninomaru.jpg",
+      "title": {
+        "fr": "Le jardin Ninomaru du château de Nagoya",
+        "en": "The Ninomaru garden of Nagoya Castle"
+      },
+      "creator": "Greg Zaal",
+      "date": {
+        "fr": "2018",
+        "en": "2018"
+      },
+      "medium": {
+        "fr": "Panorama à 360 degrés, photographie",
+        "en": "360-degree panorama, photograph"
+      },
+      "description": {
+        "fr": "Un jardin japonais sous un ciel voilé : arbres, allées de gravier et marches de pierre. Faites glisser le doigt pour regarder autour de vous.",
+        "en": "A Japanese garden under a hazy sky: trees, gravel paths and stone steps. Drag a finger to look around."
+      },
+      "audioDescription": {
+        "fr": "Une vue à 360 degrés prise au milieu d’un jardin : des arbres tout autour, une allée de gravier clair, un escalier de pierre.",
+        "en": "A 360-degree view taken in the middle of a garden: trees all around, a path of pale gravel, a flight of stone steps."
+      },
+      "credit": {
+        "institution": "Poly Haven",
+        "source": "https://polyhaven.com/a/ninomaru_teien",
+        "licence": "CC0 1.0",
+        "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/"
+      }
+    },
+    {
+      "id": "wave-film",
+      "kind": "video",
+      "file": "video/great-wave.mp4",
+      "poster": "photos/great-wave.jpg",
+      "subtitles": "video/great-wave.{lang}.vtt",
+      "loop": true,
+      "title": {
+        "fr": "La Grande Vague, de près",
+        "en": "The Great Wave, up close"
+      },
+      "description": {
+        "fr": "Un lent parcours de l’estampe, de l’écume jusqu’au mont Fuji.",
+        "en": "A slow journey across the print, from the foam to Mount Fuji."
+      },
+      "transcript": {
+        "fr": "L’écume se termine en griffes. Dans les barques, les rameurs se couchent sur leurs avirons. Au fond, le Fuji attend.",
+        "en": "The foam ends in claws. In the boats the oarsmen bend over their oars. In the distance, Fuji waits."
+      },
+      "credit": {
+        "institution": "Zinc, from the photograph of The Metropolitan Museum of Art",
+        "accession": "JP1847",
+        "source": "https://www.metmuseum.org/art/collection/search/45434",
+        "licence": "CC0 1.0",
+        "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/"
+      }
+    },
+    {
+      "id": "welcome",
+      "kind": "audio",
+      "file": "audio/welcome.{lang}.mp3",
+      "subtitles": "audio/welcome.{lang}.vtt",
+      "title": {
+        "fr": "Narration : le monde flottant",
+        "en": "Narration: the floating world"
+      },
+      "transcript": {
+        "fr": "Bienvenue. Au Japon, à l’époque d’Edo, des images imprimées par milliers montrent les plaisirs de la ville, les acteurs, les belles et les paysages. On les appelle ukiyo-e : images du monde flottant. Déplacez les estampes, agrandissez-les avec deux doigts, retournez-les pour lire leur histoire.",
+        "en": "Welcome. In Japan, in the Edo period, pictures printed by the thousand show the pleasures of the city, actors, beauties and landscapes. They are called ukiyo-e: pictures of the floating world. Move the prints, enlarge them with two fingers, turn them over to read their story."
+      },
+      "credit": {
+        "institution": "Zinc",
+        "source": "examples/museum-table/tools/narration.sh",
+        "licence": "CC0 1.0",
+        "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/"
+      }
+    },
+    {
+      "id": "hokusai-words",
+      "kind": "text",
+      "title": {
+        "fr": "Hokusai, à soixante-quinze ans",
+        "en": "Hokusai, aged seventy-five"
+      },
+      "text": {
+        "fr": "« Depuis l’âge de six ans, j’avais la manie de dessiner la forme des objets. […] C’est à l’âge de soixante-treize ans que j’ai compris à peu près la structure de la nature vraie, des animaux, des herbes, des arbres, des oiseaux, des poissons et des insectes. »\nPostface des Cent vues du mont Fuji, 1834",
+        "en": "“From the age of six I had a mania for drawing the forms of things. […] At seventy-three I learned a little about the real structure of nature, of animals, plants, trees, birds, fishes and insects.”\nPostscript to One Hundred Views of Mount Fuji, 1834"
+      }
+    },
+    {
+      "id": "van-gogh-words",
+      "kind": "text",
+      "title": {
+        "fr": "Van Gogh à son frère Théo",
+        "en": "Van Gogh to his brother Theo"
+      },
+      "text": {
+        "fr": "« Tout mon travail est un peu basé sur la japonaiserie. »\nArles, 15 juillet 1888",
+        "en": "“All my work is based to some extent on Japanese art.”\nArles, 15 July 1888"
+      }
+    },
+    {
+      "id": "peacock-room",
+      "kind": "text",
+      "title": {
+        "fr": "La Salle des paons",
+        "en": "The Peacock Room"
+      },
+      "text": {
+        "fr": "En 1876-1877, à Londres, Whistler transforme la salle à manger de l’armateur Frederick Leyland en un écrin bleu et or pour sa collection de porcelaines de Chine. Charles Lang Freer achète la pièce entière en 1904 ; elle est aujourd’hui à Washington.",
+        "en": "In 1876–77, in London, Whistler turned the dining room of the shipowner Frederick Leyland into a blue and gold setting for his collection of Chinese porcelain. Charles Lang Freer bought the whole room in 1904; it is now in Washington."
+      }
+    }
+  ],
+  "sequences": [
+    {
+      "id": "ukiyo-e",
+      "title": {
+        "fr": "Images du monde flottant",
+        "en": "Pictures of the Floating World"
+      },
+      "text": {
+        "fr": "Edo, 1790-1860. Gravées sur bois et imprimées en couleurs, les estampes ukiyo-e se vendent pour le prix d’un bol de nouilles. Hokusai et Hiroshige en font un art du paysage.",
+        "en": "Edo, 1790–1860. Cut in wood and printed in colour, ukiyo-e prints sold for the price of a bowl of noodles. Hokusai and Hiroshige made them an art of landscape."
+      },
+      "storyboard": { "x": 160, "y": 300 },
+      "items": [
+        { "media": "great-wave", "x": 480, "y": 340, "width": 480, "rotation": -4 },
+        { "media": "red-fuji", "x": 1030, "y": 310, "width": 400, "rotation": 3 },
+        { "media": "ejiri", "x": 1510, "y": 340, "width": 380, "rotation": -3 },
+        { "media": "sudden-shower", "x": 300, "y": 760, "width": 250, "rotation": 5 },
+        { "media": "plum-garden", "x": 620, "y": 770, "width": 250, "rotation": -5 },
+        { "media": "kanbara-snow", "x": 1010, "y": 760, "width": 400, "rotation": 2 },
+        { "media": "three-beauties", "x": 1400, "y": 750, "width": 250, "rotation": -6 },
+        { "media": "hokusai-words", "x": 1700, "y": 720, "width": 320, "rotation": 4, "at": 2 }
+      ],
+      "links": [
+        {
+          "to": "wave",
+          "label": {
+            "fr": "La Grande Vague, de près",
+            "en": "The Great Wave, up close"
+          },
+          "x": 0.5,
+          "y": 0.5,
+          "on": "great-wave",
+          "overlay": true
+        },
+        {
+          "to": "japonisme",
+          "label": {
+            "fr": "Le japonisme",
+            "en": "Japonisme"
+          },
+          "x": 660,
+          "y": 1030
+        },
+        {
+          "to": "porcelain",
+          "label": {
+            "fr": "Bleu et blanc",
+            "en": "Blue and white"
+          },
+          "x": 960,
+          "y": 1030
+        },
+        {
+          "to": "garden",
+          "label": {
+            "fr": "Un jardin au Japon",
+            "en": "A garden in Japan"
+          },
+          "x": 1260,
+          "y": 1030
+        }
+      ],
+      "narration": "welcome",
+      "duration": 45
+    },
+    {
+      "id": "wave",
+      "title": {
+        "fr": "La Grande Vague, de près",
+        "en": "The Great Wave, up close"
+      },
+      "storyboard": { "x": 160, "y": 80 },
+      "items": [
+        { "media": "wave-film", "x": 960, "y": 500, "width": 1200 }
+      ],
+      "links": [
+        {
+          "to": "ukiyo-e",
+          "label": {
+            "fr": "Revenir aux estampes",
+            "en": "Back to the prints"
+          },
+          "x": 960,
+          "y": 1030,
+          "transition": "none"
+        }
+      ],
+      "duration": 30,
+      "next": "ukiyo-e"
+    },
+    {
+      "id": "japonisme",
+      "title": {
+        "fr": "Le japonisme",
+        "en": "Japonisme"
+      },
+      "text": {
+        "fr": "Après 1854, le Japon s’ouvre au commerce. À Paris et à Londres, peintres et affichistes découvrent les estampes : cadrages coupés, aplats de couleur, contours nets. Leur peinture en est transformée.",
+        "en": "After 1854 Japan opened to trade. In Paris and London painters and poster artists discovered the prints: cropped framing, flat colour, crisp outlines. Their painting was transformed."
+      },
+      "storyboard": { "x": 520, "y": 300 },
+      "items": [
+        { "media": "irises", "x": 430, "y": 350, "width": 440, "rotation": 3 },
+        { "media": "water-lily-pond", "x": 970, "y": 330, "width": 380, "rotation": -3 },
+        { "media": "the-letter", "x": 1450, "y": 370, "width": 260, "rotation": 4 },
+        { "media": "divan-japonais", "x": 330, "y": 780, "width": 270, "rotation": -5 },
+        { "media": "nocturne", "x": 800, "y": 790, "width": 420, "rotation": 2 },
+        { "media": "van-gogh-words", "x": 1330, "y": 800, "width": 380, "rotation": -3, "at": 2 }
+      ],
+      "links": [
+        {
+          "to": "ukiyo-e",
+          "label": {
+            "fr": "Le monde flottant",
+            "en": "The floating world"
+          },
+          "x": 660,
+          "y": 1030
+        },
+        {
+          "to": "porcelain",
+          "label": {
+            "fr": "Bleu et blanc",
+            "en": "Blue and white"
+          },
+          "x": 960,
+          "y": 1030
+        },
+        {
+          "to": "garden",
+          "label": {
+            "fr": "Un jardin au Japon",
+            "en": "A garden in Japan"
+          },
+          "x": 1260,
+          "y": 1030
+        }
+      ],
+      "duration": 45
+    },
+    {
+      "id": "porcelain",
+      "title": {
+        "fr": "Bleu et blanc",
+        "en": "Blue and White"
+      },
+      "text": {
+        "fr": "Avec les estampes arrivent les porcelaines. Tournez le vase, approchez-vous, touchez les points pour en lire le décor.",
+        "en": "With the prints came porcelain. Turn the vase, come closer, touch the points to read its decoration."
+      },
+      "storyboard": { "x": 880, "y": 300 },
+      "items": [
+        { "media": "vase", "x": 700, "y": 510, "width": 1000, "height": 880 },
+        { "media": "peacock-room", "x": 1530, "y": 400, "width": 460, "rotation": 2 }
+      ],
+      "links": [
+        {
+          "to": "ukiyo-e",
+          "label": {
+            "fr": "Le monde flottant",
+            "en": "The floating world"
+          },
+          "x": 660,
+          "y": 1030
+        },
+        {
+          "to": "japonisme",
+          "label": {
+            "fr": "Le japonisme",
+            "en": "Japonisme"
+          },
+          "x": 960,
+          "y": 1030
+        },
+        {
+          "to": "garden",
+          "label": {
+            "fr": "Un jardin au Japon",
+            "en": "A garden in Japan"
+          },
+          "x": 1260,
+          "y": 1030
+        }
+      ],
+      "duration": 60
+    },
+    {
+      "id": "garden",
+      "title": {
+        "fr": "Un jardin au Japon",
+        "en": "A Garden in Japan"
+      },
+      "storyboard": { "x": 520, "y": 80 },
+      "items": [
+        { "media": "garden", "x": 960, "y": 490, "width": 1500, "height": 780 }
+      ],
+      "links": [
+        {
+          "to": "ukiyo-e",
+          "label": {
+            "fr": "Le monde flottant",
+            "en": "The floating world"
+          },
+          "x": 660,
+          "y": 1030
+        },
+        {
+          "to": "japonisme",
+          "label": {
+            "fr": "Le japonisme",
+            "en": "Japonisme"
+          },
+          "x": 960,
+          "y": 1030
+        },
+        {
+          "to": "porcelain",
+          "label": {
+            "fr": "Bleu et blanc",
+            "en": "Blue and white"
+          },
+          "x": 1260,
+          "y": 1030
+        }
+      ],
+      "duration": 40
+    }
+  ],
+  "presentations": [
+    {
+      "id": "tour",
+      "title": {
+        "fr": "La visite en cinq étapes",
+        "en": "The visit in five stages"
+      },
+      "path": ["ukiyo-e", "wave", "japonisme", "porcelain", "garden"]
+    }
+  ]
+}
