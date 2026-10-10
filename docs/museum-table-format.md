@@ -27,7 +27,7 @@ the file system.
 | `parseProject(json): Project` | Reads and validates. Throws a `ProjectError` whose message names the field: `media[3].credit.licence: missing` |
 | `serializeProject(project): string` | The canonical text (below): what Save writes |
 | `copyProject(project): Project` | A copy that shares nothing with its source, also of a project that would not load yet (an editor's undo steps) |
-| `unreachable(project): string[]` | The sequences no link, no `next` and no presentation leads to from `start` |
+| `unreachable(project): string[]` | The sequences nothing leads to from `start`: no link, no `next`, no presentation, no point of interest (`to`) of a medium shown on the way |
 | `assetFiles(project): string[]` | Every file the project names, `{lang}` replaced by each language |
 | `project.medium(id)`, `project.sequence(id)`, `project.say(text, lang)` | Lookups; `say` falls back on the default language |
 
@@ -266,7 +266,7 @@ A sequence is one moment of the visit: what lies on the table, and where one can
 | --- | --- | --- |
 | `id`, `title` | required | |
 | `text` | none | The introduction shown with the title |
-| `storyboard` | `{ "x": 0, "y": 0 }` | Where the node of the sequence is drawn in the storyboard (the editor's map and the visitor's) |
+| `storyboard` | `{ "x": 0, "y": 0 }` | Where the node of the sequence is drawn in the storyboard (the editor's map and the visitor's): the centre of the node, as for an item, in storyboard units of its own. A node is 240 by 150 units; the sample spaces its nodes 360 by 220 apart |
 | `items` | required | What lies on the table, in drawing order: the last one is on top |
 | `links` | none | Where one can go |
 | `narration` | none | The id of an audio medium played with the sequence |

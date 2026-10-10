@@ -545,7 +545,7 @@ export function parseProject(json: string): Project {
   return p;
 }
 
-/** The sequences no link, no `next` and no presentation leads to from the start. */
+/** The sequences nothing leads to from the start: no link, no `next`, no presentation, no point of interest of a medium shown on the way. */
 export function unreachable(p: Project): string[] {
   const seen = new Set<string>(), todo: string[] = [p.start];
   for (const r of p.presentations) for (const id of r.path) todo.push(id);
@@ -555,6 +555,7 @@ export function unreachable(p: Project): string[] {
     if (s === null || seen.has(s.id)) continue;
     seen.add(s.id);
     for (const l of s.links) todo.push(l.to);
+    for (const it of s.items) { const m = p.medium(it.media); if (m !== null) for (const q of m.points) todo.push(q.to); }
     todo.push(s.next);
   }
   return p.sequences.filter((s: Sequence) => !seen.has(s.id)).map((s: Sequence) => s.id);
