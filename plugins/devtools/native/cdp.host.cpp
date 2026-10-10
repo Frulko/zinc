@@ -168,6 +168,7 @@ struct HostCdp : NativeCdp, zrt::Poller {
   }
 
   zrt::String trace(bool on) override { return zrt::gfx::trace(on); }
+  zrt::String net(int32_t, zrt::String) override { return lit(""); }   // the network log is the Zinc Next host's (ZN-370)
 
   void drop(Client& c) { if (c.fd >= 0) close(c.fd); c.fd = -1; c.ws = false; c.n = 0; }
 

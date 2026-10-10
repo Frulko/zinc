@@ -41,12 +41,13 @@ namespace {
 
 struct Command { const char* name; const char* usage; const char* summary; const char* detail; };
 const Command kCommands[] = {
-  {"run", "zinc run [entry|dir] [--interp|--native] [--profile P] [--target esp32 ...] [-- args]", "run a program or project",
+  {"run", "zinc run [entry|dir] [--interp|--native] [--profile P] [--har file] [--target esp32 ...] [-- args]", "run a program or project",
    "Compiles the entry (a .ts/.tsx/.js file, or a project directory: zinc.json \"entry\", else src/main.ts[x]) and runs it. With no entry it runs the project of the working directory.\n"
    "A program that draws is compiled to native code, as zinc build does, and the executable is cached (~/.zinc/cache/run): the first run of a version compiles, the next ones start at once.\n"
    "  --interp                interpret instead (starts at once; zinc dev and the test runs, ZINC_HEADLESS / ZINC_DETERMINISTIC, interpret too)\n"
    "  --native                compile even a headless or deterministic run\n"
    "  --profile <name>        a target profile (macos, linux, sim, wasm, rpi1, rmpp, esp32, ps1, ps2, psp, vita, n3ds, chip, pocketchip): numbers, heap and typing of that target\n"
+   "  --har <file>            write every network request of the run (fetch, WebSocket, MQTT, TCP) as a HAR 1.2 file when the program ends\n"
    "  --engine quickjs        plain JavaScript on QuickJS-ng\n  --target esp32 [--port P | --device CMD | --qemu] [--boot-ms N] [--log]   run on the board or the emulator\n  --force                 run although zinc.json \"requires\" is not met\n"
    "Environment: ZINC_HEADLESS=1 (no window), ZINC_FRAMES=n, ZINC_SHOT=file.png, ZINC_DETERMINISTIC=1."},
   {"build", "zinc build [entry|dir] [-o out] [--target T] [--bundle]", "compile to a native program",
@@ -214,6 +215,9 @@ bool writeFile(const fs::path& p, const std::string& text) {
 bool discoverEntry(std::vector<std::string>& args, std::string& err) {
   if (args.size() < 2 || (args[1] != "run" && args[1] != "build" && args[1] != "check")) return true;
   const std::string cmd = args[1];
+  // zinc run --har file (ZN-370): the host writes its network log there when the program ends (src/host/netlog.h reads ZINC_HAR; compiled runs inherit it)
+  for (std::size_t k = 2; cmd == "run" && k + 1 < args.size() && args[k] != "--"; ++k)
+    if (args[k] == "--har") { setenv("ZINC_HAR", fs::absolute(args[k + 1]).string().c_str(), 1); args.erase(args.begin() + static_cast<std::ptrdiff_t>(k), args.begin() + static_cast<std::ptrdiff_t>(k) + 2); break; }
   // the position of the entry: the first argument after the command that is not an option (`--profile esp32` takes its value)
   std::size_t at = 2;
   while (at < args.size() && args[at].rfind("-", 0) == 0 && args[at] != "--") {

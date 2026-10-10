@@ -13,6 +13,7 @@
 #include <memory>
 #include <vector>
 
+#include "netlog.h"
 #include "tls.h"
 #include "zn/loop.h"
 
@@ -65,6 +66,7 @@ struct Fetch {
   bool secure = false, reqSent = false;
   tls::Conn* tls = nullptr;
   int closing = 0;
+  int log = 0;   // the entry of this hop in the network log (netlog.h), 0 when nobody records
 };
 std::vector<std::unique_ptr<Fetch>> gFetches;   // index = handle - 1
 Fetch* fetchAt(int h) { return h > 0 && static_cast<size_t>(h) <= gFetches.size() ? gFetches[static_cast<size_t>(h) - 1].get() : nullptr; }
@@ -88,6 +90,14 @@ bool splitUrl(const std::string& u, Fetch* f, std::string* why) {
 }
 
 void startConnection(Fetch* f);
+std::string buildRequest(Fetch* k);
+// One entry of the network log per hop: what is really sent (our Host, User-Agent... included).
+void logOpen(Fetch* f) {
+  if (!netlog::on()) return;
+  const std::string req = buildRequest(f);
+  const size_t a = req.find("\r\n") + 2, b = req.find("\r\n\r\n");
+  f->log = netlog::open(f->secure ? "https" : "http", f->url, f->method, req.substr(a, b - a), f->reqBody);
+}
 
 void maybeFree(Fetch* f) {
   if (f->closing == 0 && f->released && f->finished) gFetches[static_cast<size_t>(f->handle) - 1].reset();
@@ -112,6 +122,7 @@ void finish(Fetch* f, bool ok, const std::string& why) {
   if (f->timerOpen) { uv_timer_stop(&f->timer); f->closing++; uv_close(reinterpret_cast<uv_handle_t*>(&f->timer), onFetchClosed); f->timerOpen = false; }
   closeTcp(f);
   loop::addActive(-1);
+  if (ok) netlog::response(f->log, f->status, f->reason, f->msg.head, f->msg.body); else netlog::close(f->log, why);
   loop::pushEvent(f->handle, ok ? 40 : 41, why);
 }
 
@@ -149,7 +160,9 @@ void onComplete(Fetch* f) {
     if (!splitUrl(next, &probe, &why)) { finish(f, false, "fetch failed: " + why); return; }
     if (std::string deny = zn::host::perm::check("net", probe.host); !deny.empty()) { finish(f, false, "fetch failed: redirected, " + deny); return; }
     if (s == 303 || ((s == 301 || s == 302) && f->method == "POST")) { if (f->method != "HEAD") f->method = "GET"; f->reqBody.clear(); }
+    netlog::response(f->log, s, f->reason, f->msg.head, f->msg.body);   // the redirect is an entry of its own, as in a HAR
     splitUrl(next, f, &why);
+    logOpen(f);
     f->msg = Msg();
     f->restart = true;
     closeTcp(f);
@@ -168,6 +181,7 @@ void rawWrite(Fetch* f, const std::string& bytes) {
 // Plain bytes of the response into llhttp.
 void parseBytes(Fetch* f, const char* data, size_t n) {
   if (f->finished || f->restart) return;
+  netlog::mark(f->log, netlog::FirstByte);
   llhttp_errno_t e = llhttp_execute(&f->parser, data, n);
   if (e != HPE_OK && e != HPE_PAUSED && !f->finished && !f->restart) finish(f, false, f->tooBig ? "fetch failed: response too large" : std::string("fetch failed: ") + llhttp_get_error_reason(&f->parser));
 }
@@ -195,7 +209,7 @@ void pumpTls(Fetch* f) {
   rawWrite(f, tls::takeOutput(f->tls));
   if (st == tls::State::Failed) { finish(f, false, "fetch failed: " + tls::error(f->tls)); return; }
   if (st != tls::State::Ready) return;
-  if (!f->reqSent) { f->reqSent = true; tls::write(f->tls, buildRequest(f)); rawWrite(f, tls::takeOutput(f->tls)); }
+  if (!f->reqSent) { f->reqSent = true; netlog::mark(f->log, netlog::Tls); tls::write(f->tls, buildRequest(f)); rawWrite(f, tls::takeOutput(f->tls)); netlog::mark(f->log, netlog::Sent); }
   std::string plain;
   tls::State rs = tls::read(f->tls, plain);
   rawWrite(f, tls::takeOutput(f->tls));
@@ -220,6 +234,7 @@ void onFetchRead(uv_stream_t* s, ssize_t n, const uv_buf_t* buf) {
 void startConnection(Fetch* f) {
   sockaddr_in a;
   if (!loop::resolveHost(f->host, f->port, &a)) { finish(f, false, "fetch failed: ENOTFOUND"); return; }
+  netlog::mark(f->log, netlog::Dns);
   uv_tcp_init(L(), &f->tcp);
   f->tcp.data = f->creq.data = f;
   f->tcpOpen = true;
@@ -245,6 +260,7 @@ void startConnection(Fetch* f) {
     auto* k = static_cast<Fetch*>(r->data);
     if (status != 0) { if (!k->finished) finish(k, false, status == UV_ECONNREFUSED ? "fetch failed: ECONNREFUSED" : status == UV_ETIMEDOUT ? "fetch failed: timeout" : "fetch failed: " + std::string(uv_err_name(status))); return; }
     if (k->finished) return;
+    netlog::mark(k->log, netlog::Connect);
     uint64_t used = uv_now(L()) - k->startMs;
     uv_timer_stop(&k->timer);
     uv_timer_start(&k->timer, [](uv_timer_t* t) { finish(static_cast<Fetch*>(t->data), false, "fetch failed: timeout"); }, k->timeoutMs > used ? k->timeoutMs - used : 1, 0);
@@ -254,7 +270,7 @@ void startConnection(Fetch* f) {
       k->tls = tls::openClient(k->host, err);
       if (!k->tls) { finish(k, false, "fetch failed: " + err); return; }
       pumpTls(k);
-    } else rawWrite(k, buildRequest(k));
+    } else { rawWrite(k, buildRequest(k)); netlog::mark(k->log, netlog::Sent); }
 
   });
   if (rc != 0) finish(f, false, "fetch failed: ECONNREFUSED");
@@ -403,7 +419,7 @@ int fetchOpen(const std::string& url, const std::string& method, const std::stri
   std::string why;
   if (!splitUrl(url, p, &why)) finish(p, false, "fetch failed: " + why);
   else if (std::string deny = zn::host::perm::check("net", p->host); !deny.empty()) finish(p, false, "fetch failed: " + deny);   // zinc.json permissions (ZN-322)
-  else startConnection(p);
+  else { logOpen(p); startConnection(p); }
   return p->handle;
 }
 int fetchStatus(int h) { Fetch* f = fetchAt(h); return f ? f->status : 0; }

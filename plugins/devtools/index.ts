@@ -1,7 +1,8 @@
 // zinc:devtools — the zinc:ui tree in Chrome DevTools (docs/dev-mode.md). `zinc dev` adds this module to UI
 // programs; elsewhere `import 'zinc:devtools'` opts in. A subset of the DevTools protocol: DOM (tree, attributes,
 // class edits), CSS computed style (layout values), Overlay highlight, Runtime console, Page frame tree and
-// screenshots (the native frame, captured by the runtime), Tracing (frame phases for the Performance panel). Unknown
+// screenshots (the native frame, captured by the runtime), Tracing (frame phases for the Performance panel), Network
+// (every fetch, WebSocket, MQTT client and outgoing TCP socket of the program, from the host's network log). Unknown
 // methods get an empty result so the frontend never waits.
 import Cdp from './native/cdp.spec';
 import { inspectRoot, inspectNode, inspectHighlight, inspectPick, inspectState, componentName, parentOf, setClass, TAG_NAMES, TEXT, UiNode, Handlers } from 'zinc:ui';
@@ -119,6 +120,9 @@ function onPick(hit: i32, pressed: boolean): void {
   picked = h;
 }
 
+/** A result of the host's network log; `{}` on targets that have none. */
+function orEmpty(json: string): string { return json.length > 0 ? json : '{}'; }
+
 function handle(client: i32, msg: string): void {
   const id = Cdp.num(msg, 'id'), method = Cdp.str(msg, 'method');
   const nid = Cdp.num(msg, 'nodeId');
@@ -159,6 +163,10 @@ function handle(client: i32, msg: string): void {
     Cdp.send(client, '{"method":"Tracing.tracingComplete","params":{"dataLossOccurred":false}}');
     return;
   }
+  else if (method === 'Network.enable') netOn = true;   // what the program requested before DevTools attached is sent too
+  else if (method === 'Network.disable') netOn = false;
+  else if (method === 'Network.getResponseBody') result = orEmpty(Cdp.net(2, Cdp.str(msg, 'requestId')));
+  else if (method === 'Network.getRequestPostData') result = orEmpty(Cdp.net(3, Cdp.str(msg, 'requestId')));
   else if (method === 'Runtime.evaluate') result = '{"result":{"type":"string","value":"zinc: no JavaScript engine on the device (the console shows the program output)"}}';
   Cdp.send(client, `{"id":${id},"result":${result}}`);
 }
@@ -256,6 +264,17 @@ setInterval(() => {
 }, 100);
 
 Cdp.listen(9229, handle);
+// The Network panel: the host records every request from now on (headers that carry credentials masked); the events wait in the host until a client
+// enables the domain, then follow live.
+let netOn = false;
+Cdp.net(0, '9229');
+setInterval(() => {
+  if (!netOn) return;
+  if (Cdp.clients() === 0) { netOn = false; return; }
+  const events = Cdp.net(1, '');
+  if (events.length === 0) return;
+  for (const e of events.split('\n')) if (e.length > 0) Cdp.send(-1, e);
+}, 100);
 let shownRoot: i32 = -1;
 setInterval(() => {
   if (Cdp.clients() === 0) { snaps.clear(); return; }

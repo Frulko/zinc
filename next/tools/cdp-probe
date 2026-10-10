@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """A scripted Chrome DevTools Protocol client for the zinc:devtools inspector (ZN-141): WebSocket handshake and framing by hand, no dependencies."""
 import socket, base64, os, json, struct, sys
-def ws(port, path, msgs):
+def ws(port, path, msgs, events=None, until=None):
+    """Sends msgs and returns their replies; the events received meanwhile go to `events`, and reading goes on until until(events) (5 s without a message fails)."""
     s = socket.create_connection(("127.0.0.1", port), 5)
     key = base64.b64encode(os.urandom(16)).decode()
     s.sendall(("GET %s HTTP/1.1\r\nHost: 127.0.0.1:%d\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: %s\r\nSec-WebSocket-Version: 13\r\n\r\n" % (path, port, key)).encode())
@@ -30,6 +31,8 @@ def ws(port, path, msgs):
         while True:
             r = json.loads(recv())
             if r.get("id") == m["id"]: out.append(r); break
+            if events is not None: events.append(r)
+    while until and not until(events): events.append(json.loads(recv()))
     return out
 if __name__ == "__main__":
     # usage: cdp-probe [port]: connects to the zinc:devtools inspector, asks for the document and for a screenshot, checks the answers; exit 1 otherwise

@@ -1,0 +1,24 @@
+#!/usr/bin/env python3
+"""usage: tools/har-chrome file.har: feeds a HAR file (zinc run --har, ZN-370) to the importer of the installed Chrome's DevTools frontend, the code behind
+"Import HAR file" of the Network panel, in headless Chrome, and prints one line per request it lists: method, URL, status, type, WebSocket messages, ms.
+Exit 1 when the importer refuses the file, 77 without Chrome."""
+import json, os, sys, time
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from cdp import Chrome, find_chrome
+
+if not find_chrome(): sys.exit(77)
+har = json.load(open(sys.argv[1]))
+with Chrome() as c:
+    c.open("devtools://devtools/bundled/devtools_app.html")
+    time.sleep(3)   # the frontend's modules are importable once it has started
+    out = c.eval("""(async () => {
+      const HAR = await import('./models/har/har.js');
+      const requests = HAR.Importer.Importer.requestsFromHARLog(new HAR.HARFormat.HARRoot(%s).log);
+      return JSON.stringify(requests.map(r => [r.requestMethod, r.url(), r.statusCode, r.resourceType().name(), (r.frames() || []).length, Math.round(r.duration * 1000)]));
+    })().catch(e => 'ERROR ' + e)""" % json.dumps(har))
+if not isinstance(out, str) or out.startswith("ERROR"):
+    print("har-chrome: Chrome's importer refused the file:", out); sys.exit(1)
+rows = json.loads(out)
+for r in rows: print(*r)
+if len(rows) != len(har["log"]["entries"]):
+    print("har-chrome: Chrome lists %d of %d entries" % (len(rows), len(har["log"]["entries"]))); sys.exit(1)

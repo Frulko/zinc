@@ -4,6 +4,7 @@
 import { listen as listenTcp, Socket, WebSocket, MessageEvent } from 'zinc:socket';
 import { sha1, base64Encode } from 'zinc:web';
 import { utf8Encode, utf8Decode } from 'zinc:sys';
+import { call as netLog } from 'zinc:__netlog';
 
 const GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
 const clients: (WebSocket | null)[] = [];
@@ -115,4 +116,5 @@ export default {
   clients(): i32 { let n: i32 = 0; for (const c of clients) if (c !== null) n++; return n; },
   screenshot(maxW: i32, maxH: i32): string { return ''; },
   trace(on: boolean): string { return on ? '' : '[]'; },
+  net(op: i32, arg: string): string { return netLog(op, arg); },
 };

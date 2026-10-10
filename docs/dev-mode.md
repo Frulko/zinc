@@ -114,6 +114,17 @@ message, hidden after 8 s), like React Native's LogBox.
   listens to: `click pointerdown drag`…);
 - **Performance** (`Tracing.start` / `Tracing.end` → `Tracing.dataCollected`, `tracingComplete`): the frames recorded
   in between, as Chrome trace events (see [Profiling](#profiling));
+- **Network** (Zinc Next; `Network.enable`): every request the program starts, from the host's network log
+  (`next/src/host/netlog.h`). `fetch` and `zinc:net` show as requests (`requestWillBeSent`, `responseReceived` with
+  status, headers and the timing of DNS, connect, TLS and first byte, `loadingFinished` / `loadingFailed`; a redirect is
+  an entry per hop; `getResponseBody`, `getRequestPostData`); a WebSocket of `zinc:socket` and a `zinc:mqtt` client show
+  as WebSockets with their messages (`webSocketCreated`, `webSocketFrameSent` / `Received`; MQTT packets read
+  `PUBLISH topic payload`, `SUBSCRIBE filter`); any other outgoing TCP socket shows as a `tcp://host:port` request with
+  the bytes it received. Requests made before DevTools attached are listed too. Headers that carry credentials are
+  masked as `***` when they are recorded (`Authorization`, `Proxy-Authorization`, `Cookie`, `Set-Cookie`, any name
+  containing token, secret, password, api-key, session or credential, and the names in `ZINC_NET_SENSITIVE=a,b`), and
+  `user:password@` in a URL becomes `***@`; bodies and query strings are shown as they are. Bounds: the last 1000
+  requests, 4 MiB per body;
 - every other method gets an empty result so the frontend never waits.
 
 Across a hot reload the sockets are handed to the new version (`ZINC_DEVTOOLS_FDS`), which sends
@@ -122,6 +133,14 @@ Across a hot reload the sockets are handed to the new version (`ZINC_DEVTOOLS_FD
 
 On a remote device, `zinc dev --device` runs ssh with `-L 9229:127.0.0.1:9229`, so Chrome on the dev machine uses
 `localhost:9229` as well.
+
+### HAR export
+
+`zinc run --har out.har <entry>` (or `ZINC_HAR=out.har`, which compiled and exported programs read too) records the
+same log without the inspector and writes it as a HAR 1.2 file when the program ends: one entry per request with
+headers (masked as above), bodies (`encoding: base64` when they are not text), `timings` (`dns`, `connect`, `ssl`,
+`send`, `wait`, `receive`) and, for WebSockets and MQTT clients, Chrome's `_webSocketMessages`. Open it with *Import HAR
+file* in the Network panel of Chrome DevTools. A program that is killed writes no file.
 
 ## Profiling
 

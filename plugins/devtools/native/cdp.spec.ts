@@ -18,5 +18,8 @@ export interface Spec extends NativeModule {
   /** Profiler spans (runtime/gfx.cpp): true starts collecting (returns ''), false returns them as a JSON array of
    *  Chrome trace events. */
   trace(on: boolean): string;
+  /** The host's network log (Zinc Next, src/host/netlog.h): op 0 starts recording (arg: the inspector's port), 1 returns the queued Network events (one JSON
+   *  object per line), 2 the result of Network.getResponseBody and 3 of Network.getRequestPostData (arg: the request id). '' where there is no log. */
+  net(op: i32, arg: string): string;
 }
 export default requireNative<Spec>('Cdp');

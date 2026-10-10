@@ -7,6 +7,7 @@
 #include <map>
 #include <memory>
 
+#include "netlog.h"
 #include "zn/loop.h"
 
 namespace zn::sock {
@@ -24,6 +25,7 @@ struct Sock {
   uv_stream_t* stream() { return reinterpret_cast<uv_stream_t*>(&h); }
   uv_connect_t creq;
   std::string target;   // "host:port" or the path, for error messages
+  int log = 0;          // the entry of the network log (netlog.h): outgoing TCP only
 };
 std::map<int, Sock*> gSocks;
 int gNext = 1;
@@ -48,6 +50,7 @@ Sock* make(Kind k, bool unixPath, const std::string& target) {
 void release(Sock* s) {   // closes the handle; the object goes with its close callback
   if (s->closing) return;
   s->closing = true;
+  netlog::close(s->log);
   gSocks.erase(s->id);
   loop::addActive(-1);
   if (s->kind != Kind::Udp && s->kind != Kind::Server) uv_read_stop(s->stream());
@@ -57,13 +60,14 @@ std::string errName(int rc) { return uv_err_name(rc); }
 void failOpen(Sock* s, const char* what, int rc) {
   int id = s->id;
   std::string t = std::string(what) + " " + errName(rc) + " " + s->target;
+  netlog::close(s->log, t);
   release(s);
   loop::pushEvent(id, kError, t);
 }
 
 void onRead(uv_stream_t* st, ssize_t n, const uv_buf_t* b) {
   auto* s = static_cast<Sock*>(st->data);
-  if (n > 0 && !s->closing) loop::pushEvent(s->id, kData, "", std::string(b->base, static_cast<size_t>(n)));
+  if (n > 0 && !s->closing) { if (s->log) netlog::bytes(s->log, false, std::string(b->base, static_cast<size_t>(n))); loop::pushEvent(s->id, kData, "", std::string(b->base, static_cast<size_t>(n))); }
   if (b->base) std::free(b->base);
   if (n < 0 && !s->closing) {
     int id = s->id;
@@ -98,12 +102,15 @@ int connectTcp(const std::string& host, int port) {
   std::string target = host + ":" + std::to_string(port);
   if (!loop::resolveHost(host == "localhost" ? "127.0.0.1" : host, port, &a)) return fail("connect ENOTFOUND " + target);
   Sock* s = make(Kind::Client, false, target);
+  s->log = netlog::open("tcp", "tcp://" + target, "TCP", "", "");
+  netlog::mark(s->log, netlog::Dns);
   initClient(s, false);
   s->creq.data = s;
   int rc = uv_tcp_connect(&s->creq, &s->h.tcp, reinterpret_cast<sockaddr*>(&a), [](uv_connect_t* r, int status) {
     auto* k = static_cast<Sock*>(r->data);
     if (k->closing) return;
     if (status != 0) { failOpen(k, "connect", status); return; }
+    netlog::mark(k->log, netlog::Connect);
     startReading(k);
     loop::pushEvent(k->id, kOpen, "");
   });
@@ -174,6 +181,7 @@ struct WriteReq { uv_write_t req; std::string data; };
 bool write(int h, const std::string& bytes) {
   Sock* s = at(h);
   if (!s || s->kind != Kind::Client || s->ended) return false;
+  netlog::bytes(s->log, true, bytes);
   auto* w = new WriteReq{{}, bytes};
   uv_buf_t b = uv_buf_init(w->data.data(), static_cast<unsigned>(w->data.size()));
   if (uv_write(&w->req, s->stream(), &b, 1, [](uv_write_t* r, int) { delete reinterpret_cast<WriteReq*>(r); }) != 0) { delete w; return false; }

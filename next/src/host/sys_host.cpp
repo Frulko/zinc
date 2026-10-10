@@ -43,6 +43,7 @@
 #include "zn/hostsys.h"
 #include "zn/loop.h"
 #include "mqtt.h"
+#include "netlog.h"
 #include "http.h"
 #include "sock.h"
 #include "crypto.h"
@@ -483,6 +484,12 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostMqttPublish: zn::mqtt::publish(n(0), s(1), s(2), n(3) != 0, n(4)); break;
     case Rt::HostMqttSubscribe: zn::mqtt::subscribe(n(0), s(1)); break;
     case Rt::HostMqttClose: zn::mqtt::close(n(0)); break;
+    case Rt::HostNetLog: {   // the network log for the inspector (ZN-370)
+      const int arg = std::atoi(s(1).c_str());
+      if (n(0) == 0) zn::netlog::start(arg);
+      ret(r, n(0) == 1 ? zn::netlog::drain() : n(0) == 2 ? zn::netlog::responseBody(arg) : n(0) == 3 ? zn::netlog::postData(arg) : std::string());
+      break;
+    }
     case Rt::HostHttpFetch: r->i = zn::http::fetchOpen(s(0), s(1), s(2), s(3), n(4), n(5)); break;
     case Rt::HostHttpStatus: r->i = zn::http::fetchStatus(n(0)); break;
     case Rt::HostHttpHead: ret(r, zn::http::fetchHead(n(0))); break;
@@ -567,7 +574,7 @@ void call(int id, const HostArg* a, HostArg* r) {
 
 }  // namespace
 
-void setProgramArgs(const std::vector<std::string>& args) { gArgs = args; }
+void setProgramArgs(const std::vector<std::string>& args) { gArgs = args; zn::netlog::on(); }   // on(): a run with --har writes its HAR even without a request
 void installSys() { hostSys = call; }
 
 // Called by the system plugin (zinc.json scopes and the dialogs): the fs scope switch and a path the user picked.

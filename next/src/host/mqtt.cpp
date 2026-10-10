@@ -8,6 +8,7 @@
 #include <memory>
 #include <vector>
 
+#include "netlog.h"
 #include "tls.h"
 #include "zn/loop.h"
 
@@ -23,6 +24,7 @@ struct Client {
   std::string in;
   int handle = 0;
   uint16_t nextId = 1;
+  int log = 0;   // the entry of the network log (netlog.h), 0 when nobody records
   bool connected = false, dead = false;
   tls::Conn* tls = nullptr;   // a TLS connection: bytes go through it once the handshake is done (`pending` waits)
   std::string pending, hello;
@@ -70,6 +72,7 @@ void shut(Client* c) {   // closes both handles once
 void fail(Client* c, const char* why) {
   bool wasConnected = c->connected;
   shut(c);
+  netlog::close(c->log, why);
   loop::pushEvent(c->handle, wasConnected ? 32 : 30, why);
 }
 
@@ -87,12 +90,14 @@ bool parse(Client* c) {
   if ((type & 0xF0) == 0x20 && len >= 2) {   // CONNACK
     if (p[1] != 0) { fail(c, "mqtt: connection refused"); return false; }
     c->connected = true;
+    netlog::accepted(c->log, "CONNACK");
     loop::pushEvent(c->handle, 30, "");
   } else if ((type & 0xF0) == 0x30 && len >= 2) {   // PUBLISH
     unsigned qos = (type >> 1) & 3;
     size_t tl = size_t(p[0]) << 8 | p[1];
     size_t off = 2 + tl + (qos ? 2 : 0);
     if (off <= len) {
+      netlog::message(c->log, false, "PUBLISH " + std::string(reinterpret_cast<const char*>(p) + 2, tl) + " " + std::string(reinterpret_cast<const char*>(p) + off, len - off));
       loop::pushEvent(c->handle, 31, std::string(reinterpret_cast<const char*>(p) + 2, tl) + '\x1e' + std::string(reinterpret_cast<const char*>(p) + off, len - off));
       if (qos == 1) send(c, packet(0x40, std::string(reinterpret_cast<const char*>(p) + 2 + tl, 2)));   // PUBACK
     }
@@ -107,6 +112,8 @@ int open(const std::string& host, int port, const std::string& clientId, bool se
   sockaddr_in a;
   if (!loop::resolveHost(host, port, &a)) return -1;
   auto* c = new Client();
+  c->log = netlog::open(secure ? "mqtts" : "mqtt", std::string(secure ? "mqtts://" : "mqtt://") + host + ":" + std::to_string(port), "CONNECT", "Client-Id: " + clientId, "");
+  netlog::mark(c->log, netlog::Dns);
   auto* l = static_cast<uv_loop_t*>(loop::uvLoop());
   gClients.push_back(c);
   c->handle = static_cast<int>(gClients.size());
@@ -122,6 +129,7 @@ int open(const std::string& host, int port, const std::string& clientId, bool se
   int rc = uv_tcp_connect(&c->connectReq, &c->tcp, reinterpret_cast<sockaddr*>(&a), [](uv_connect_t* r, int status) {
     auto* k = static_cast<Client*>(r->data);
     if (status != 0) { fail(k, "mqtt: cannot connect"); return; }
+    netlog::mark(k->log, netlog::Connect);
     uv_read_start(reinterpret_cast<uv_stream_t*>(&k->tcp),
                   [](uv_handle_t*, size_t n, uv_buf_t* b) { b->base = static_cast<char*>(std::malloc(n)); b->len = static_cast<unsigned>(b->base ? n : 0); },
                   [](uv_stream_t* s, ssize_t n, const uv_buf_t* b) {
@@ -132,6 +140,7 @@ int open(const std::string& host, int port, const std::string& clientId, bool se
                       rawSend(k, tls::takeOutput(k->tls));
                       if (st == tls::State::Failed) { fail(k, "mqtt: TLS handshake failed"); }
                       else if (st == tls::State::Ready) {
+                        netlog::mark(k->log, netlog::Tls);
                         if (!k->pending.empty()) { std::string p; p.swap(k->pending); send(k, p); }
                         std::string plain;
                         tls::State rs = tls::read(k->tls, plain);
@@ -164,6 +173,7 @@ void publish(int h, const std::string& topic, const std::string& payload, bool r
   std::string b;
   str16(b, topic);
   if (qos == 1) { b += static_cast<char>(c->nextId >> 8); b += static_cast<char>(c->nextId & 255); c->nextId++; }
+  netlog::message(c->log, true, "PUBLISH " + topic + " " + payload);
   send(c, packet(static_cast<uint8_t>(0x30 | (qos == 1 ? 2 : 0) | (retain ? 1 : 0)), b + payload));
 }
 void subscribe(int h, const std::string& filter) {
@@ -175,12 +185,14 @@ void subscribe(int h, const std::string& filter) {
   c->nextId++;
   str16(b, filter);
   b += '\0';
+  netlog::message(c->log, true, "SUBSCRIBE " + filter);
   send(c, packet(0x82, b));
 }
 void close(int h) {
   Client* c = at(h);
   if (!c || c->dead) return;
   send(c, std::string("\xE0\0", 2));
+  netlog::close(c->log);
   uv_shutdown_t* sd = new uv_shutdown_t;   // let the DISCONNECT out before the socket closes
   sd->data = c;
   if (uv_shutdown(sd, reinterpret_cast<uv_stream_t*>(&c->tcp), [](uv_shutdown_t* r, int) { shut(static_cast<Client*>(r->data)); delete r; }) != 0) { delete sd; shut(c); }

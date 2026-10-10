@@ -305,7 +305,9 @@
   X(HostGlDestroy, "host.glDestroy", "i>n", 2) X(HostGlParamKind, "host.glParamKind", "i>i", 2) X(HostGlParamCount, "host.glParamCount", "i>i", 2) \
   X(HostGlParamNumber, "host.glParamNumber", "ii>d", 2) X(HostGlParamText, "host.glParamText", "i>s", 2) X(HostGlParamObject, "host.glParamObject", "i>i", 2) \
   X(HostGlParamObjectKind, "host.glParamObjectKind", "i>i", 2) X(HostGlActiveInfo, "host.glActiveInfo", "i>s", 2) \
-  /* end of the zinc:gl rows */
+  /* end of the zinc:gl rows */ \
+  /* the network log (ZN-370, src/host/netlog.h) for zinc:devtools: op 0 start (arg = the inspector's port), 1 the queued Network events, 2 a response body, 3 a request body (arg = the id); appended */ \
+  X(HostNetLog, "host.netLog", "is>s", 2)
 
 namespace zn {
 
