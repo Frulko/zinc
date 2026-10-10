@@ -21,6 +21,10 @@ static int zoom = 1;
 // Window behaviour (zinc.json targets.<id>: resize "fill" | "letterbox", fullscreen, kiosk; ZINC_RESIZE / ZINC_FULLSCREEN /
 // ZINC_KIOSK override). fill: the logical surface follows the window (responsive layouts); letterbox: fixed surface, scaled.
 static bool fill = false, kiosk = false;
+// zinc.json targets.<id>.pixelScale "logical" (ZINC_PIXEL_SCALE): the surface is rendered at 1x and the window magnifies it with nearest filtering,
+// for pixel art (a 320x240 program at zoom 2 on a Retina screen draws 76,800 pixels instead of 1.2 M); "density", the default, renders at the zoom
+// times the screen density so text and shapes stay sharp (ZN-425).
+static bool logical_px = false;
 static bool resize_fixed = false;     // zinc.json resize / ZINC_RESIZE chose the mode: what the program asks (hal_set_resize) does not change it
 static bool resize_pending = false;   // the mode changed: the surface follows at the next poll, between frames
 // ZN-233: window properties from zinc.json app.window, the close veto and file drops (runtime/include/hal_window.h)
@@ -205,7 +209,7 @@ static void alloc_surface() {
   SDL_SetRenderLogicalPresentation(ren, PW, PH, SDL_LOGICAL_PRESENTATION_LETTERBOX);
   tex = SDL_CreateTexture(ren, wcfg_set && wcfg.transparent ? SDL_PIXELFORMAT_ARGB8888 : SDL_PIXELFORMAT_XRGB8888, SDL_TEXTUREACCESS_STREAMING, PW, PH);
   if (wcfg_set && wcfg.transparent) SDL_SetTextureBlendMode(tex, SDL_BLENDMODE_BLEND);
-  SDL_SetTextureScaleMode(tex, SDL_SCALEMODE_LINEAR);
+  SDL_SetTextureScaleMode(tex, logical_px ? SDL_SCALEMODE_NEAREST : SDL_SCALEMODE_LINEAR);
   fb = (uint32_t*)calloc((size_t)PW * PH, 4);
 }
 /** Recomputes the surface from the window: fill mode follows the window size; both follow the screen density. */
@@ -215,7 +219,7 @@ static void apply_size() {
   int nw = W, nh = H;
   if (fill) { nw = ww / zoom > 0 ? ww / zoom : 1; nh = wh / zoom > 0 ? wh / zoom : 1; }
   float density = SDL_GetWindowPixelDensity(win);
-  int k = (int)(zoom * (density > 0 ? density : 1) + 0.5f);
+  int k = logical_px ? 1 : (int)(zoom * (density > 0 ? density : 1) + 0.5f);
   if (const char* ks = getenv("ZINC_SCALE")) k = atoi(ks);
   if (k < 1) k = 1;
   while (k > 1 && (long)nw * k * nh * k > 3840L * 2400L) k--;
@@ -269,6 +273,7 @@ void hal_init(const HalConfig* cfg) {
   int scale = W <= 400 ? 2 : 1;
 #endif
   if (const char* z = getenv("ZINC_ZOOM")) scale = atoi(z);
+  if (const char* ps = getenv("ZINC_PIXEL_SCALE")) logical_px = !strcmp(ps, "logical");
   if (scale < 1) scale = 1;
   zoom = scale;
 #ifdef ZINC_RESIZE_FILL
@@ -665,6 +670,8 @@ static void gl_present(const HalFrame* f) {
   glUseProgram(gl_prog);
   glActiveTexture(GL_TEXTURE0);
   glBindTexture(GL_TEXTURE_2D, src);
+  const GLint flt = logical_px ? GL_NEAREST : GL_LINEAR;   // pixel art keeps square pixels when the window magnifies it
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, flt); glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, flt);
   glUniform1i(gl_u_tex, 0);
   glUniform1f(gl_u_bgr, bgr);
   glBindBuffer(GL_ARRAY_BUFFER, gl_quad);

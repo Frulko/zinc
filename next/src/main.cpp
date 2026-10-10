@@ -1273,6 +1273,7 @@ int main(int argc, char** argv) {
     if (window.width > 0 && window.height > 0) setenv("ZINC_SIZE", (std::to_string(window.width) + "x" + std::to_string(window.height)).c_str(), 0);
     if (window.zoom > 0) setenv("ZINC_ZOOM", std::to_string(window.zoom).c_str(), 0);
     if (!window.resize.empty()) setenv("ZINC_RESIZE", window.resize.c_str(), 0);
+    if (!window.pixelScale.empty()) setenv("ZINC_PIXEL_SCALE", window.pixelScale.c_str(), 0);   // ZN-425
     if (window.fullscreen) setenv("ZINC_FULLSCREEN", "1", 0);
     if (window.kiosk) setenv("ZINC_KIOSK", "1", 0);
 #ifdef ZN_HOST_GFX

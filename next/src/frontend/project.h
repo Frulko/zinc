@@ -11,6 +11,7 @@ struct TargetOptions {
   int width = 0, height = 0;        // 0: not set
   double zoom = 0;                  // 0: not set
   std::string resize;               // "fill" | "letterbox" | ""
+  std::string pixelScale;           // "density" (the default: the zoom times the screen density) | "logical" (1x, magnified with nearest filtering) | ""; ZN-425
   bool fullscreen = false, kiosk = false, growDrawCommands = false;
   long heap = 0;
   std::string display;              // the driver name ("" when absent), whether written as a string or as { driver }

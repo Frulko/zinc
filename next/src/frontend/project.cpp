@@ -150,6 +150,7 @@ bool parseProject(const std::string& text, Project& out, std::string& err) {
       if (yyjson_val* x = num("heap")) o.heap = static_cast<long>(yyjson_get_num(x));
       flag("fullscreen", o.fullscreen); flag("kiosk", o.kiosk); flag("growDrawCommands", o.growDrawCommands);
       if (yyjson_val* x = yyjson_obj_get(v, "resize"); x && yyjson_is_str(x)) o.resize = yyjson_get_str(x);
+      if (yyjson_val* x = yyjson_obj_get(v, "pixelScale"); x && yyjson_is_str(x)) o.pixelScale = yyjson_get_str(x);
       if (yyjson_val* x = yyjson_obj_get(v, "display")) {
         if (yyjson_is_str(x)) o.display = yyjson_get_str(x);
         else if (yyjson_is_obj(x)) if (yyjson_val* d = yyjson_obj_get(x, "driver"); d && yyjson_is_str(d)) o.display = yyjson_get_str(d);

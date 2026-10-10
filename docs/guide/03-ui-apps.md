@@ -122,6 +122,7 @@ new size (zinc:ui does it for every app). `resize` in `zinc.json` wins over that
 | --- | --- | --- |
 | `zoom` | `ZINC_ZOOM` | window points = logical size × zoom (auto ×2 below 400 px) |
 | `resize` | `ZINC_RESIZE` | `fill` (surface follows the window: the default of zinc:ui apps and of `onResize`) or `letterbox` (fixed surface, scaled: the default otherwise) |
+| `pixelScale` | `ZINC_PIXEL_SCALE` | `density` (the default: frames are drawn at the zoom times the screen density, so text stays sharp) or `logical` (drawn at 1x and magnified with square pixels: pixel art, and 4 to 16 times fewer pixels to draw) |
 | `fullscreen` | `ZINC_FULLSCREEN` | start fullscreen; F11 / Ctrl+Cmd+F toggles, Esc leaves |
 | `kiosk` | `ZINC_KIOSK` | fullscreen, no cursor, always on top, quit shortcuts ignored |
 

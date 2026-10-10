@@ -312,6 +312,8 @@ Gain: 5 = removes a multiple of the frame or a 2x+ on a whole class of programs;
 - **Fix**: zinc.json `targets.<id>.pixelScale: "density" | "logical"` (default unchanged): render at the density only and let the GPU magnify the zoom (nearest), or at 1x for pixel art.
 - **Gain**: 4x fewer pixels at zoom 2. **Effort** S. **Risk** low (opt-in). **Hardware**: desktop only (the target devices are 1x).
 
+- **Result (ZN-425, 2026-10-10)**: `zinc.json` `targets.<id>.pixelScale: "logical"` (or `ZINC_PIXEL_SCALE`) draws at 1x and the window magnifies with nearest filtering (GL present pass and SDL_Renderer); a 320x240 program at zoom 2 on Retina draws 76,800 pixels per frame instead of 1.2 M. The default stays "density".
+
 ### PERF-27: Metal-native texture format
 
 - **Where**: `targets/macos/hal_sdl.cpp:42` (`SDL_PIXELFORMAT_XRGB8888`). SDL3's Metal renderer supports ARGB8888 and ABGR8888 only (`third_party/SDL3/src/render/metal/SDL_render_metal.m:2410`), so it creates a native ARGB texture and
