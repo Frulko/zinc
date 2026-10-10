@@ -760,6 +760,7 @@ void loc_throw();                     // remembers the stack of a `throw` for th
 namespace gfx {
 void onFrame(Fn<void(double)> cb);
 void onResize(Fn<void(int32_t, int32_t)> cb);   // ponytail: accepted, never called (this runtime keeps the surface zinc.json chose); a port of ZN-608 would call it from sync_surface
+inline int32_t openWindow(const String&, int32_t, int32_t, Fn<void(double)>) { return -1; }   // the prototype's loop has the main window only (ZN-663 is Zinc Next's)
 int32_t width();
 int32_t height();
 void clear(uint32_t color);
@@ -797,6 +798,12 @@ int32_t createImage(int32_t w, int32_t h);
 void destroyImage(int32_t i);
 void beginImage(int32_t i);
 void endImage();
+/** More windows (ZN-663): a window beside the main one (id > 0, -1 when it cannot open); its frames are drawn between beginWindow and endWindow. */
+int32_t openWindow(const String& title, int32_t w, int32_t h);
+void closeWindow(int32_t id);
+bool windowOpen(int32_t id);
+void beginWindow(int32_t id);
+void endWindow();
 double wheel();
 double pinch();
 int32_t touchCount();

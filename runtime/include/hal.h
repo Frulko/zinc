@@ -72,6 +72,15 @@ void hal_set_cursor(int32_t shape);
 // action (leave fullscreen, else quit; nothing in kiosk mode), called by the app for an unhandled Escape.
 void hal_escape_by_app(int32_t on);
 void hal_escape(void);
+// More windows (ZN-663; optional, the runtime has weak defaults: a HAL without them has the main window only). Window 0 is the main one, the
+// others get ids from the runtime. The HAL keeps the rule of the last window: closing one keeps the others, a closed main window is hidden
+// while others are open, closing the last one ends the program (the next poll reports quit).
+int32_t hal_win_open(int32_t id, const char* title, int32_t w, int32_t h);   // 1: opened, w x h logical pixels
+void hal_win_close(int32_t id);                                             // the program closes a window
+int32_t hal_win_state(int32_t id);                                          // 1 open, 0 closed (by the user or hal_win_close)
+void hal_win_input(int32_t id, HalInput* in, int32_t* w, int32_t* h);       // its events since the last call, pointer and keys; its size
+void hal_win_present(int32_t id, const uint32_t* px, int32_t pw, int32_t ph);   // a frame in physical pixels, 0x00RRGGBB
+void hal_win_current(int32_t id);                                           // the window being drawn: text input follows it
 
 /** One frame to show. Pixels come from the shared software rasterizer: the HAL calls render() for the bands it
  *  needs (whole damage at once on hosts, a few lines at a time on SPI panels). Pixels are 0x00RRGGBB. */

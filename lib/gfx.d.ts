@@ -6,6 +6,13 @@ declare module 'zinc:gfx' {
   /** Calls `cb(width, height)` before the next frame each time the surface changes size; asking for it makes the surface follow the window,
    *  unless zinc.json's `resize` is "letterbox". */
   export function onResize(cb: (w: number, h: number) => void): void;
+  /** Opens a window beside the main one and draws it with `cb` every frame: while it runs, the drawing calls, width(), height() and the input are
+   *  the window's. Returns its id (> 0), -1 when it cannot open (the prototype opens none). Closing the last window ends the program. */
+  export function openWindow(title: string, w: i32, h: i32, cb: (dt: number) => void): i32;
+  /** Closes window `id` (0: the main one, hidden while others are open). */
+  export function closeWindow(id: i32): void;
+  /** Whether window `id` is open (0: the main one). */
+  export function windowOpen(id: i32): boolean;
   export function width(): i32;
   export function height(): i32;
   export function clear(color: u32): void;

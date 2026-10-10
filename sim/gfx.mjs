@@ -3,6 +3,7 @@ import { $z } from './zinc.mjs';
 
 export const onFrame = cb => { $z.state.frameCb = cb; };
 export const onResize = () => {};   // the sim's surface never changes size
+export const openWindow = () => -1, closeWindow = () => {}, windowOpen = id => id === 0;   // one surface: no other window (ZN-663 is Zinc Next's)
 export const width = () => globalThis.$zScreen?.[0] ?? 320;
 export const height = () => globalThis.$zScreen?.[1] ?? 240;
 export const clear = () => {};

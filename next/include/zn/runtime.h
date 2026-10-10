@@ -311,7 +311,11 @@
   /* zinc:gfx setTransform / resetTransform (ZN-263.01): a 2D matrix for the commands that follow; graphics rows, appended */ \
   X(HostGfxSetTransform, "host.gfxSetTransform", "dddddd>n", 2) X(HostGfxResetTransform, "host.gfxResetTransform", ">n", 2) \
   /* zinc:gfx sprites (ZN-432): a source rectangle of an image on a destination rectangle (alpha; flags 1 mirror x, 2 mirror y, 4 nearest), and a runtime image decoded from the bytes of a PNG or JPEG file (-1: not an image); graphics rows, appended */ \
-  X(HostGfxDrawImageRect, "host.gfxDrawImageRect", "iddddddddii>n", 2) X(HostGfxImageFromBytes, "host.gfxImageFromBytes", "B>i", 2)
+  X(HostGfxDrawImageRect, "host.gfxDrawImageRect", "iddddddddii>n", 2) X(HostGfxImageFromBytes, "host.gfxImageFromBytes", "B>i", 2) \
+  /* zinc:gfx windows beside the main one (ZN-663): open (title, logical size; the id, -1 when it cannot), close, whether one is open (0: the main window), */ \
+  /* and the frame of a window between begin and end; graphics rows, appended */ \
+  X(HostGfxOpenWindow, "host.gfxOpenWindow", "sii>i", 2) X(HostGfxCloseWindow, "host.gfxCloseWindow", "i>n", 2) X(HostGfxWindowOpen, "host.gfxWindowOpen", "i>i", 2) \
+  X(HostGfxBeginWindow, "host.gfxBeginWindow", "i>n", 2) X(HostGfxEndWindow, "host.gfxEndWindow", ">n", 2)
 
 namespace zn {
 
@@ -340,7 +344,8 @@ inline constexpr bool isLayoutRow(Rt r) { return r >= Rt::HostLayoutNew && r <= 
 inline constexpr bool isGlRow(Rt r) { return r >= Rt::HostGlCreate && r <= Rt::HostGlActiveInfo; }   // zinc:gl (ZN-562): served by `hostGl`
 // The zinc:gfx rows appended after the host block (the block's ids are the device cores'): served by `hostGfx` like the block's own. One list for isSysRow and for the engines that install the host rows.
 inline constexpr bool isGfxTailRow(Rt r) {
-  return r == Rt::HostGfxCommands || r == Rt::HostGfxCommandsFree || r == Rt::HostGfxSetResize || r == Rt::HostGfxSetTransform || r == Rt::HostGfxResetTransform || r == Rt::HostGfxDrawImageRect || r == Rt::HostGfxImageFromBytes;
+  return r == Rt::HostGfxCommands || r == Rt::HostGfxCommandsFree || r == Rt::HostGfxSetResize || r == Rt::HostGfxSetTransform || r == Rt::HostGfxResetTransform || r == Rt::HostGfxDrawImageRect || r == Rt::HostGfxImageFromBytes ||
+         (r >= Rt::HostGfxOpenWindow && r <= Rt::HostGfxEndWindow);
 }
 inline constexpr bool isSysRow(Rt r) { return (r >= Rt::HostSysFirst && r <= Rt::HostHostLast && !(r >= Rt::HostGfxCreateImage && r <= Rt::HostGfxEndImage)) || (r >= Rt::HostLoopWait && !isGfxTailRow(r) && !isLayoutRow(r) && !isGlRow(r)); }
 inline const RtInfo& rtInfo(Rt r) { return kRtInfo[static_cast<unsigned>(r)]; }
@@ -375,7 +380,7 @@ inline bool rtResultBorrowed(Rt id) { return id == Rt::MapGet; }
 // retained across them (ZN-413). The others only read their arguments: the string rows, the read-only Array, Map and Set members, the
 // graphics host (numbers, borrowed strings and arrays, no callbacks).
 inline bool rtMayRelease(Rt id) {
-  if ((id >= Rt::HostGfxFrames && id < Rt::HostSysFirst) || isGlRow(id) || id == Rt::HostGfxDrawImageRect || id == Rt::HostGfxImageFromBytes) return false;
+  if ((id >= Rt::HostGfxFrames && id < Rt::HostSysFirst) || isGlRow(id) || id == Rt::HostGfxDrawImageRect || id == Rt::HostGfxImageFromBytes || (id >= Rt::HostGfxOpenWindow && id <= Rt::HostGfxEndWindow)) return false;
   if (id >= Rt::StrConcat && id <= Rt::FromCharCode) return id == Rt::JsonParse || id == Rt::DynGetFast || id == Rt::DynAddFast;
   switch (id) {
     case Rt::ArrSlice: case Rt::ArrIndexOf: case Rt::ArrIncludes: case Rt::MapGet: case Rt::MapHas: case Rt::MapKeys: case Rt::MapValues: case Rt::MapSize:

@@ -1,0 +1,1 @@
+{ "name": "ui_windows", "entry": "main.tsx", "targets": { "macos": { "width": 320, "height": 240 } } }

@@ -61,6 +61,8 @@ let __frameCb: ((dt: number) => void) | null = null;
 let __frameNo: i32 = 0;
 const __resizeFns: ((w: i32, h: i32) => void)[] = [];
 let __lastW: i32 = 0, __lastH: i32 = 0;
+const __winIds: i32[] = [];                       // the windows beside the main one (ZN-663) and their frame callbacks
+const __winFns: ((dt: number) => void)[] = [];
 function __gfxLoop(): void {
   const n = __host_gfxFrames();
   for (let f: i32 = 0; f < n; f++) {
@@ -74,7 +76,14 @@ function __gfxLoop(): void {
       for (let i: i32 = 0; i < __resizeFns.length; i++) __resizeFns[i](__lastW, __lastH);
     }
     const cb = __frameCb;
-    if (cb !== null) cb(dt);
+    if (cb !== null && (__winIds.length === 0 || __host_gfxWindowOpen(0) !== 0)) cb(dt);   // a closed main window is hidden while others are open
+    for (let i: i32 = 0; i < __winIds.length; i++) {
+      const id = __winIds[i];
+      if (__host_gfxWindowOpen(id) === 0) { __winIds.splice(i, 1); __winFns.splice(i, 1); i--; continue; }
+      __host_gfxBeginWindow(id);
+      __winFns[i](dt);
+      __host_gfxEndWindow();
+    }
     __drainJobs();
     __host_gfxEnd();
     __frameNo++;
@@ -90,6 +99,19 @@ export function onResize(cb: (w: i32, h: i32) => void): void {
   __resizeFns.push(cb);
 }
 export function frame(): i32 { return __frameNo; }
+/** Opens a window beside the main one (ZN-663) and draws it with `cb` every frame, after the main window's: while it runs, the drawing calls,
+ *  width(), height() and the input are the window's (w x h logical pixels, it follows the window when resized). The program's state is shared.
+ *  Returns its id (> 0), -1 when it cannot open. Closing a window keeps the others; the main window hides while others are open; closing the
+ *  last one ends the program. */
+export function openWindow(title: string, w: i32, h: i32, cb: (dt: number) => void): i32 {
+  const id = __host_gfxOpenWindow(title, w, h);
+  if (id > 0) { __winIds.push(id); __winFns.push(cb); __frameHook = __gfxLoop; }
+  return id;
+}
+/** Closes window `id` (0: the main one). */
+export function closeWindow(id: i32): void { __host_gfxCloseWindow(id); }
+/** Whether window `id` is open (0: the main one). */
+export function windowOpen(id: i32): boolean { return __host_gfxWindowOpen(id) !== 0; }
 // ---- api: everything below is shared with the QuickJS engine (src/qjs), which brings its own frame loop
 export function width(): i32 { return __host_gfxWidth(); }
 export function height(): i32 { return __host_gfxHeight(); }

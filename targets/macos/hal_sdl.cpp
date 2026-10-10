@@ -470,6 +470,46 @@ static void scroll_resample(HalInput* in) {
   if (lifted) { gesture = false; nss = 0; cum_x = cum_y = out_x = out_y = 0; }
 }
 
+// ---- more windows (ZN-663): windows beside the main one, each with an SDL_Renderer and a streaming texture of the pixels the runtime
+// rasterized for it (the software path: the GL replay stays the main window's). Their events are routed by window; the main window's go
+// on as before. Closing one keeps the others, a closed main window hides while others are open, closing the last one ends the program.
+struct Sec { int32_t id; SDL_Window* w; SDL_Renderer* r; SDL_Texture* t; int tw, th; HalInput in; bool open; };
+static Sec secs[8];
+static bool main_hidden = false;
+static SDL_Window* text_win = nullptr;   // the window being drawn (hal_win_current): text input follows it
+static uint64_t hidden_at = 0;           // pacing while the main window is hidden (its present no longer waits for the display)
+static Sec* sec_by_id(int32_t id) { for (Sec& s : secs) if (s.open && s.id == id) return &s; return nullptr; }
+static Sec* sec_of(SDL_Window* w) { if (!w || w == win) return nullptr; for (Sec& s : secs) if (s.open && s.w == w) return &s; return nullptr; }
+static int secs_open() { int n = 0; for (Sec& s : secs) n += s.open; return n; }
+static void close_window(int32_t id) {
+  if (id == 0) { if (secs_open()) { main_hidden = true; SDL_HideWindow(win); } else quit = true; return; }
+  if (Sec* s = sec_by_id(id)) {
+    if (text_win == s->w) text_win = nullptr;
+    if (s->t) SDL_DestroyTexture(s->t);
+    if (s->r) SDL_DestroyRenderer(s->r);
+    if (s->w) SDL_DestroyWindow(s->w);
+    *s = Sec{};
+  }
+  if (main_hidden && !secs_open()) quit = true;
+}
+static void sec_event(Sec& s, const SDL_Event& e) {
+  HalInput* in = &s.in;
+  switch (e.type) {
+    case SDL_EVENT_KEY_DOWN: case SDL_EVENT_KEY_UP:
+      if (int32_t k = key_code(e.key.key)) key_push(in, k, e.type == SDL_EVENT_KEY_UP ? HAL_KEY_UP : e.key.repeat ? HAL_KEY_REPEAT : HAL_KEY_DOWN, e.key.mod, nullptr);
+      break;
+    case SDL_EVENT_TEXT_INPUT: key_push(in, 0, HAL_KEY_TEXT, SDL_GetModState(), e.text.text); break;
+    case SDL_EVENT_MOUSE_BUTTON_DOWN: case SDL_EVENT_MOUSE_BUTTON_UP:   // the surface is the window, in points: no letterbox
+      if (in->nbtn < HAL_MAX_BUTTON_EVENTS)
+        in->btn[in->nbtn++] = HalButtonEvent{e.button.x, e.button.y, e.button.button == SDL_BUTTON_RIGHT ? 2 : e.button.button == SDL_BUTTON_MIDDLE ? 1 : 0, e.button.down};
+      break;
+    case SDL_EVENT_MOUSE_WHEEL: in->wheel_x += e.wheel.x; in->wheel += e.wheel.y; break;   // ponytail: trackpad deltas as wheel steps, no precise-scroll resampling here
+    case SDL_EVENT_PINCH_UPDATE: in->pinch *= e.pinch.scale; break;
+    case SDL_EVENT_WINDOW_CLOSE_REQUESTED: close_window(s.id); break;
+    default: break;
+  }
+}
+
 void hal_poll_input(HalInput* in) {
   in->nkeys = 0; in->ntext = 0; in->nbtn = 0; in->wheel_x = 0;
   if (resize_pending) { resize_pending = false; apply_size(); }
@@ -481,7 +521,13 @@ void hal_poll_input(HalInput* in) {
     return;
   }
   SDL_Event e;
+  const bool several = secs_open() > 0 || main_hidden;
   while (SDL_PollEvent(&e)) {
+    if (several) {   // the events of the other windows are theirs; closing the main window hides it while they are open
+      SDL_Window* ew = SDL_GetWindowFromEvent(&e);
+      if (Sec* s = sec_of(ew)) { sec_event(*s, e); continue; }
+      if (ew == win && e.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED && secs_open()) { if (!close_handler || close_handler()) close_window(0); continue; }
+    }
     if (e.type == SDL_EVENT_KEY_DOWN || e.type == SDL_EVENT_KEY_UP) {
       if (int32_t k = key_code(e.key.key)) key_push(in, k, e.type == SDL_EVENT_KEY_UP ? HAL_KEY_UP : e.key.repeat ? HAL_KEY_REPEAT : HAL_KEY_DOWN, e.key.mod, nullptr);
     }
@@ -569,10 +615,12 @@ void hal_poll_input(HalInput* in) {
   if (k[SDL_SCANCODE_E]) b |= HAL_R;
   if (k[SDL_SCANCODE_RETURN]) b |= HAL_START;
   if (k[SDL_SCANCODE_TAB]) b |= HAL_SELECT;
+  if (several && SDL_GetKeyboardFocus() != win) b = 0;   // the keys held belong to the window that has the keyboard
   in->buttons = b;
   float mx, my;
   SDL_MouseButtonFlags mb = SDL_GetMouseState(&mx, &my);
-  if (win) { from_window(mx, my, &mx, &my); mx /= K; my /= K; }
+  if (several && SDL_GetMouseFocus() != win) { mx = in->px; my = in->py; mb = 0; }   // the pointer is over another window: this one keeps its last position
+  else if (win) { from_window(mx, my, &mx, &my); mx /= K; my /= K; }
   in->px = mx; in->py = my; in->pdown = (mb & SDL_BUTTON_LMASK) != 0;
   in->pbuttons = ((mb & SDL_BUTTON_LMASK) ? 1u : 0u) | ((mb & SDL_BUTTON_RMASK) ? 2u : 0u) | ((mb & SDL_BUTTON_MMASK) ? 4u : 0u);
   in->mods = mods_of(SDL_GetModState());
@@ -705,6 +753,12 @@ static void gl_present(const HalFrame* f) {
 // The shared rasterizer renders only the damaged rows; the texture is updated for those rows.
 void hal_present(const HalFrame* f) {
   if (!gfx_on) return;
+  if (main_hidden) {   // nothing to show: the frame rate of the other windows (about 60 per second) comes from here
+    const uint64_t now = SDL_GetTicksNS();
+    if (hidden_at && now - hidden_at < 16666666) SDL_DelayPrecise(16666666 - (now - hidden_at));
+    hidden_at = SDL_GetTicksNS();
+    return;
+  }
   if (f->w != PW || f->h != PH) {   // a frame rendered for the previous size (live resize): expected once in a while
     static int dropped = 0;
     if (++dropped == 30) {   // many in a row means a size mismatch, not a resize: say so instead of a black window
@@ -737,6 +791,13 @@ void hal_surface_size(int* w, int* h) { *w = W; *h = H; }
 // Text input (IME candidate window next to the field), clipboard, cursor shapes.
 void hal_text_input(int32_t on, float x, float y, float w, float h) {
   if (!gfx_on) return;
+  if (text_win && text_win != win) {   // a field of another window (ZN-663): its surface is the window, in points
+    if (!on) { SDL_StopTextInput(text_win); return; }
+    SDL_Rect r = {(int)x, (int)y, (int)w, (int)h};
+    SDL_SetTextInputArea(text_win, &r, 0);
+    SDL_StartTextInput(text_win);
+    return;
+  }
   if (!on) { SDL_StopTextInput(win); return; }
   float x0 = x * K, y0 = y * K, x1 = (x + w) * K, y1 = (y + h) * K;
   to_window(x0, y0, &x0, &y0);
@@ -745,6 +806,50 @@ void hal_text_input(int32_t on, float x, float y, float w, float h) {
   SDL_SetTextInputArea(win, &r, 0);
   SDL_StartTextInput(win);
 }
+int32_t hal_win_open(int32_t id, const char* title, int32_t w, int32_t h) {
+  if (!gfx_on) return 0;
+  for (Sec& s : secs) {
+    if (s.open) continue;
+    if (!SDL_CreateWindowAndRenderer(title, w, h, SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY, &s.w, &s.r)) { s = Sec{}; return 0; }
+    SDL_SetRenderVSync(s.r, 0);   // the main window paces the frames
+    s.id = id; s.open = true; s.in = HalInput{}; s.in.pinch = 1;
+    return 1;
+  }
+  return 0;
+}
+void hal_win_close(int32_t id) { close_window(id); }
+int32_t hal_win_state(int32_t id) { return id == 0 ? !main_hidden && !quit : sec_by_id(id) != nullptr; }
+void hal_win_input(int32_t id, HalInput* in, int32_t* w, int32_t* h) {
+  Sec* s = sec_by_id(id);
+  if (!s) return;
+  const float px = in->px, py = in->py;
+  *in = s->in;
+  s->in.nkeys = 0; s->in.ntext = 0; s->in.nbtn = 0; s->in.wheel = s->in.wheel_x = 0; s->in.pinch = 1;
+  float mx, my;
+  SDL_MouseButtonFlags mb = SDL_GetMouseState(&mx, &my);
+  if (SDL_GetMouseFocus() != s->w) { mx = px; my = py; mb = 0; }   // over another window: the last position here
+  in->px = mx; in->py = my; in->pdown = (mb & SDL_BUTTON_LMASK) != 0;
+  in->pbuttons = ((mb & SDL_BUTTON_LMASK) ? 1u : 0u) | ((mb & SDL_BUTTON_RMASK) ? 2u : 0u) | ((mb & SDL_BUTTON_MMASK) ? 4u : 0u);
+  in->mods = mods_of(SDL_GetModState());
+  in->buttons = 0;   // ponytail: the arrow-key pad of hal_poll_input is the main window's
+  int ww = *w, wh = *h;
+  if (SDL_GetWindowSize(s->w, &ww, &wh) && ww > 0 && wh > 0) { *w = ww; *h = wh; }
+}
+void hal_win_present(int32_t id, const uint32_t* px, int32_t pw, int32_t ph) {
+  Sec* s = sec_by_id(id);
+  if (!s) return;
+  if (!s->t || s->tw != pw || s->th != ph) {
+    if (s->t) SDL_DestroyTexture(s->t);
+    s->t = SDL_CreateTexture(s->r, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, pw, ph);
+    SDL_SetTextureBlendMode(s->t, SDL_BLENDMODE_NONE);
+    s->tw = pw; s->th = ph;
+  }
+  SDL_UpdateTexture(s->t, nullptr, px, pw * 4);
+  SDL_RenderClear(s->r);
+  SDL_RenderTexture(s->r, s->t, nullptr, nullptr);
+  SDL_RenderPresent(s->r);
+}
+void hal_win_current(int32_t id) { Sec* s = id ? sec_by_id(id) : nullptr; text_win = s ? s->w : nullptr; }
 // ZINC_CLIPBOARD=local (set by `zinc test`) or a deterministic run: a process-local clipboard, so test runs never
 // touch the user's one
 static char* clip_local;

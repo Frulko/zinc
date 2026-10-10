@@ -11,6 +11,7 @@ import {
   scrollDX, scrollDY, scrollPhase, touchCount, touchX, touchY, touchId,
 } from 'zinc:gfx';
 import { profiling, profMark, pixelScale } from 'zinc:gfx';   // frame phases (docs/dev-mode.md, profiling)
+import { openWindow, frame as gfxFrame } from 'zinc:gfx';   // trees in windows of their own (ZN-663)
 import { platform, env } from 'zinc:sys';
 import { PALETTE, SHADES } from './palette';
 import { UI_LAYOUT, UI_PRESET } from 'zinc:platform';
@@ -2518,8 +2519,10 @@ export function layout(): void {
   if (laNow) laStart();
   if (layers.length > 0) layoutLayers();
   if (anchors.length > 0) applyAnchors();
-  layoutDirty = false;
-  paintDirty = true;
+  const own = layoutDirty;   // a change, not only another window's (extLayout): the other windows lay out again too (ZN-663)
+  if (own && surfaces.length > 0) othersDirty(true);
+  layoutDirty = false; extLayout = false;
+  if (own) paintDirty = true; else extPaint = true;
   hoverDirty = true;
   if (cqAny && !inSettle) settleContainers();
   if (virtList.length > 0 && !inVirt) { inVirt = true; settleVirtuals(); if (layoutDirty) layout(); inVirt = false; }
@@ -4096,23 +4099,25 @@ export function frame(dt: number, background: i32): void {
   if (root < 0) return;
   const prof = profiling();
   if (prof) profMark(PROF_APP);
-  clock += dt * 1000;
+  const first = gfxFrame() !== steppedAt;   // the clock, animations and scrolls step once per frame of the engine, whatever the windows (ZN-663)
+  steppedAt = gfxFrame();
+  if (first) clock += dt * 1000;
   frameDt = dt;
-  stepAnims();
-  if (steppers.length > 0) runSteppers();
+  if (first) stepAnims();
+  if (first && steppers.length > 0) runSteppers();
   if (prof) profMark(PROF_ANIM);
   if (width() !== surfW || height() !== surfH) {  // window resized: responsive classes, then a new layout
     const crossed = surfW < 0 || BREAKPOINT_PX.some((b: i32) => (surfW >= b) !== (width() >= b));
     surfW = width(); surfH = height(); layoutDirty = true; paintDirty = true;
     if (crossed) for (let i = 0; i < nodes.length; i++) if (nodes[i].alive && nodes[i].responsive) { const c = nodes[i].cls; nodes[i].cls = '\u0000'; setClass(i, c); }
   }
-  if (layoutDirty) layout();
+  if (layoutDirty || extLayout) layout();
   if (prof) profMark(PROF_LAYOUT);
   const typing = focus >= 0 && nodes[focus].ed !== null;  // gamepad-style navigation is off while typing
   if (!synthetic) inputFrame();
-  stepScroll(dt);
+  if (first) stepScroll(dt);
   if (scrollWatch.length > 0) fireScrolls();
-  stepEdits(dt);
+  if (first) stepEdits(dt);
   if (!typing && (navPressed(Btn.Down) || navPressed(Btn.Right) || navPressed(Btn.Up) || navPressed(Btn.Left) || navPressed(Btn.Select))) focusStep(navPressed(Btn.Up) || navPressed(Btn.Left) || navBack);
   if (focus >= 0 && focus !== focusShown) { focusShown = focus; revealFocus(focus); }
   if (!typing && (navPressed(Btn.A) || navPressed(Btn.Start)) && focus >= 0) { pressed = focus; activate(focus); }
@@ -4135,9 +4140,10 @@ export function frame(dt: number, background: i32): void {
   if (prof) profMark(PROF_LAYOUT);
   if (hoverDirty || paintDirty) updateHover();
   if (prof) profMark(PROF_INPUT);
-  if (!paintDirty && !animating && anims.length === 0 && steppers.length === 0 && canvases === 0 && scrollers.length === 0 && editScrollers.length === 0) { keep(); return; }
+  if (!paintDirty && !extPaint && !animating && anims.length === 0 && steppers.length === 0 && canvases === 0 && scrollers.length === 0 && editScrollers.length === 0) { keep(); return; }
   animating = false;
-  paintDirty = false;
+  if (paintDirty && surfaces.length > 0) othersDirty(false);
+  paintDirty = false; extPaint = false;
   if (background >= 0) clear(background);
   paint(root, 0, 0, 1, 1);
   if (layers.length > 0) paintLayers();
@@ -4199,6 +4205,121 @@ export function mount(h: i32, background: i32, extra: ((dt: number) => void) | n
     if (extra !== null) extra(dt);
     frame(dt, background);
   });
+}
+// ---- trees in windows of their own (ZN-663)
+// The interaction state of a surface: its tree, layout and paint flags, focus, hover, overlays, layers and the gestures in progress. The main
+// window's lives in this module's variables; a window's is exchanged with them around its frame (swapSurface), so the rest of this file reads
+// one surface. The nodes, styles, animations and the clock are shared. A change made in one window's frame (a handler that edits the other
+// tree, an animation) marks the other surfaces dirty from outside (extLayout, extPaint), which never marks back: no repaint ping-pong.
+let extLayout = false, extPaint = false;
+let steppedAt: i32 = -1;
+class Surface {
+  root: i32 = -1; layoutDirty = true; paintDirty = true; extLayout = false; extPaint = false; surfW: i32 = -1; surfH: i32 = -1;
+  focus: i32 = -1; pressed: i32 = -1; animating = false; focusShown: i32 = -1; keyboardFocus = false; restoreTo: i32 = -1; lastCommands: i32 = 0;
+  dragScroller: i32 = -1; dragging = false; dragX: number = 0; dragY: number = 0; lastX: number = 0; lastY: number = 0;
+  capture: i32 = -1; captureBtn: i32 = 0; selecting: i32 = -1; ptrX: number = -1; ptrY: number = -1; held: i32 = 0; curMods: i32 = 0;
+  clicks: i32 = 0; lastBtn: i32 = -1; lastDownAt: number = -100000; lastDownX: number = 0; lastDownY: number = 0;
+  hoverOnA = true; hoverA: i32[] = []; hoverB: i32[] = []; hoverDirty = true; cursorShown: i32 = -1; textOn: i32 = -1; blinkShown: number = -1;
+  tsNode: i32 = -1; tsA: i32 = 0; tsB: i32 = 0; tsDrag = false; padScroller: i32 = -1; padEdit: i32 = -1; padAxis: i32 = 0;
+  navKeys: i32 = 0; navBack = false; dropText = false; grabber: i32 = -1; grabKind: i32 = 0; dragCands: i32[] = [];
+  pressX: number = 0; pressY: number = 0; pressMs: number = 0; gHit: i32 = -1; tapNode: i32 = -1; longNode: i32 = -1; longFired = false;
+  primaryId: i32 = -1; fIds: i32[] = []; fXs: number[] = []; fYs: number[] = []; pinching = false; pinchD0: number = 1; pinchA0: number = 0;
+  pinchScale: number = 1; pinchRot: number = 0; halPrimary: i32 = -1; halFingers: i32[] = [];
+  overlays: Overlay[] = []; layers: Layer[] = []; anchors: Anchor[] = [];
+}
+/** The surfaces of the windows that are not drawn now (while a window draws, the main window's state is in its Surface). */
+const surfaces: Surface[] = [];
+function swapItems<T>(a: T[], b: T[]): void { const t = a.slice(); a.length = 0; for (const x of b) a.push(x); b.length = 0; for (const x of t) b.push(x); }
+function swapSurface(s: Surface): void {
+  let b = false, i: i32 = 0, d: number = 0, a: i32[] = [];
+  i = root; root = s.root; s.root = i;
+  b = layoutDirty; layoutDirty = s.layoutDirty; s.layoutDirty = b;
+  b = paintDirty; paintDirty = s.paintDirty; s.paintDirty = b;
+  b = extLayout; extLayout = s.extLayout; s.extLayout = b;
+  b = extPaint; extPaint = s.extPaint; s.extPaint = b;
+  i = surfW; surfW = s.surfW; s.surfW = i;
+  i = surfH; surfH = s.surfH; s.surfH = i;
+  i = focus; focus = s.focus; s.focus = i;
+  i = pressed; pressed = s.pressed; s.pressed = i;
+  b = animating; animating = s.animating; s.animating = b;
+  i = focusShown; focusShown = s.focusShown; s.focusShown = i;
+  b = keyboardFocus; keyboardFocus = s.keyboardFocus; s.keyboardFocus = b;
+  i = restoreTo; restoreTo = s.restoreTo; s.restoreTo = i;
+  i = lastCommands; lastCommands = s.lastCommands; s.lastCommands = i;
+  i = dragScroller; dragScroller = s.dragScroller; s.dragScroller = i;
+  b = dragging; dragging = s.dragging; s.dragging = b;
+  d = dragX; dragX = s.dragX; s.dragX = d;
+  d = dragY; dragY = s.dragY; s.dragY = d;
+  d = lastX; lastX = s.lastX; s.lastX = d;
+  d = lastY; lastY = s.lastY; s.lastY = d;
+  i = capture; capture = s.capture; s.capture = i;
+  i = captureBtn; captureBtn = s.captureBtn; s.captureBtn = i;
+  i = selecting; selecting = s.selecting; s.selecting = i;
+  d = ptrX; ptrX = s.ptrX; s.ptrX = d;
+  d = ptrY; ptrY = s.ptrY; s.ptrY = d;
+  i = held; held = s.held; s.held = i;
+  i = curMods; curMods = s.curMods; s.curMods = i;
+  i = clicks; clicks = s.clicks; s.clicks = i;
+  i = lastBtn; lastBtn = s.lastBtn; s.lastBtn = i;
+  d = lastDownAt; lastDownAt = s.lastDownAt; s.lastDownAt = d;
+  d = lastDownX; lastDownX = s.lastDownX; s.lastDownX = d;
+  d = lastDownY; lastDownY = s.lastDownY; s.lastDownY = d;
+  b = hoverPath === hoverA; hoverPath = s.hoverOnA ? hoverA : hoverB; s.hoverOnA = b;
+  swapItems(hoverA, s.hoverA); swapItems(hoverB, s.hoverB);
+  b = hoverDirty; hoverDirty = s.hoverDirty; s.hoverDirty = b;
+  i = cursorShown; cursorShown = s.cursorShown; s.cursorShown = i;
+  i = textOn; textOn = s.textOn; s.textOn = i;
+  d = blinkShown; blinkShown = s.blinkShown; s.blinkShown = d;
+  i = tsNode; tsNode = s.tsNode; s.tsNode = i;
+  i = tsA; tsA = s.tsA; s.tsA = i;
+  i = tsB; tsB = s.tsB; s.tsB = i;
+  b = tsDrag; tsDrag = s.tsDrag; s.tsDrag = b;
+  i = padScroller; padScroller = s.padScroller; s.padScroller = i;
+  i = padEdit; padEdit = s.padEdit; s.padEdit = i;
+  i = padAxis; padAxis = s.padAxis; s.padAxis = i;
+  i = navKeys; navKeys = s.navKeys; s.navKeys = i;
+  b = navBack; navBack = s.navBack; s.navBack = b;
+  b = dropText; dropText = s.dropText; s.dropText = b;
+  i = grabber; grabber = s.grabber; s.grabber = i;
+  i = grabKind; grabKind = s.grabKind; s.grabKind = i;
+  a = dragCands; dragCands = s.dragCands; s.dragCands = a;
+  d = pressX; pressX = s.pressX; s.pressX = d;
+  d = pressY; pressY = s.pressY; s.pressY = d;
+  d = pressMs; pressMs = s.pressMs; s.pressMs = d;
+  i = gHit; gHit = s.gHit; s.gHit = i;
+  i = tapNode; tapNode = s.tapNode; s.tapNode = i;
+  i = longNode; longNode = s.longNode; s.longNode = i;
+  b = longFired; longFired = s.longFired; s.longFired = b;
+  i = primaryId; primaryId = s.primaryId; s.primaryId = i;
+  a = fIds; fIds = s.fIds; s.fIds = a;
+  const fx = fXs; fXs = s.fXs; s.fXs = fx;
+  const fy = fYs; fYs = s.fYs; s.fYs = fy;
+  b = pinching; pinching = s.pinching; s.pinching = b;
+  d = pinchD0; pinchD0 = s.pinchD0; s.pinchD0 = d;
+  d = pinchA0; pinchA0 = s.pinchA0; s.pinchA0 = d;
+  d = pinchScale; pinchScale = s.pinchScale; s.pinchScale = d;
+  d = pinchRot; pinchRot = s.pinchRot; s.pinchRot = d;
+  i = halPrimary; halPrimary = s.halPrimary; s.halPrimary = i;
+  a = halFingers; halFingers = s.halFingers; s.halFingers = a;
+  swapItems(overlays, s.overlays); swapItems(layers, s.layers); swapItems(anchors, s.anchors);
+}
+/** A change of the surface being drawn: every other surface lays out (`layout`) or paints again. */
+function othersDirty(relayout: boolean): void {
+  for (const s of surfaces) { if (relayout) s.extLayout = true; s.extPaint = true; }
+}
+/** Mounts root node `h` in a window of its own (ZN-663), `w` x `h` logical pixels, drawn after the main window every frame: its own layout,
+ *  focus, hover, overlays and gestures over the node pool the main tree shares. Returns the window's id (zinc:gfx), -1 when it cannot open. */
+export function mountWindow(title: string, w: i32, hgt: i32, h: i32, background: i32): i32 {
+  const s = new Surface();
+  s.root = h;
+  surfaces.push(s);
+  const id = openWindow(title, w, hgt, (dt: number) => {
+    swapSurface(s);
+    frame(dt, background);
+    swapSurface(s);
+  });
+  if (id < 0) surfaces.pop();
+  return id;
 }
 /** Deterministic dump of the laid-out tree (golden tests, TST-07). */
 export function dump(): string {

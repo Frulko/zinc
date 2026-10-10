@@ -279,6 +279,12 @@ Optional HAL hooks with weak defaults in the runtime: `hal_text_input` (SDL_Star
 `modifiers`, `pointerButtons`, `buttonEventCount/X/Y/Button/Down`, `wheelX`, `startTextInput`, `stopTextInput`,
 `clipboardText`, `setClipboardText`, `setCursor` (no-ops / empty on the sim).
 
+More windows (ZN-663): `hal_win_open`, `hal_win_close`, `hal_win_state`, `hal_win_input`, `hal_win_present` and `hal_win_current`
+(weak defaults: the main window only). The SDL3 HAL routes each event to its window by id; the runtime draws a window's frame
+between `beginWindow` and `endWindow` into pixels of its own. zinc:ui's `mountWindow(title, w, h, root, background)` gives a tree
+its window: the surface state (root, focus, hover, overlays, layers, gestures) is exchanged around that window's frame, and a change
+one window makes redraws the others ([guide](guide/03-ui-apps.md#more-than-one-window)).
+
 Not done yet: IME composition preview (committed text works), comments spanning lines in `tsHighlight` (use
 `setHighlightAt` with a per-line state, as `examples/zed-editor` does), multiple carets, word-wise drag
 selection after a double click, exact-size fonts for continuous zoom.

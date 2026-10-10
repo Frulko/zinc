@@ -102,6 +102,8 @@ struct Frame {
 };
 /** Rasterizes `f` into rows [y0, y1) of a `w`-wide buffer (0x00RRGGBB), limited to `damage`. */
 void render(const Frame& f, uint32_t* band, int32_t w, int32_t y0, int32_t y1, Rect damage);
+/** A hash of what the frame draws (the commands and their payloads, not their pool offsets): equal frames draw the same pixels. */
+uint32_t frame_hash(const Frame& f);
 /** A frame binned into 16 x 16 tiles (ZN-410): per tile, the commands that touch it in paint order, from the last opaque one that covers it whole
  *  outside any clip. The buffers are kept and grown from frame to frame (free_tiles releases them). */
 struct Tiles {

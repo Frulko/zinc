@@ -21,6 +21,8 @@ struct Win {
   const char* (*clipboardGet)(void); void (*clipboardSet)(const char*, size_t); void (*setCursor)(int32_t); void (*escapeByApp)(int32_t);
   void (*escape)(void); int32_t (*pixelScale)(void); void* (*windowHandle)(void);
   void (*setWindowConfig)(const HalWindowConfig*); void (*setResize)(int32_t); void (*setClose)(int (*)(void)); void (*setDrop)(void (*)(const char*, int));
+  int32_t (*winOpen)(int32_t, const char*, int32_t, int32_t); void (*winClose)(int32_t); int32_t (*winState)(int32_t);
+  void (*winInput)(int32_t, HalInput*, int32_t*, int32_t*); void (*winPresent)(int32_t, const uint32_t*, int32_t, int32_t); void (*winCurrent)(int32_t);
 };
 Win w;
 int state;   // 0 not tried, 1 loaded, -1 missing
@@ -50,7 +52,9 @@ extern "C" int zn_window_load(void) {
     sym(h, "sdl_hal_clipboard_get", w.clipboardGet) && sym(h, "sdl_hal_clipboard_set", w.clipboardSet) && sym(h, "sdl_hal_set_cursor", w.setCursor) &&
     sym(h, "sdl_hal_escape_by_app", w.escapeByApp) && sym(h, "sdl_hal_escape", w.escape) && sym(h, "sdl_hal_pixel_scale", w.pixelScale) &&
     sym(h, "sdl_hal_window_handle", w.windowHandle) && sym(h, "hal_set_window_config", w.setWindowConfig) && sym(h, "hal_set_resize", w.setResize) &&
-    sym(h, "hal_set_close_handler", w.setClose) && sym(h, "hal_set_drop_handler", w.setDrop);
+    sym(h, "hal_set_close_handler", w.setClose) && sym(h, "hal_set_drop_handler", w.setDrop) && sym(h, "sdl_hal_win_open", w.winOpen) &&
+    sym(h, "sdl_hal_win_close", w.winClose) && sym(h, "sdl_hal_win_state", w.winState) && sym(h, "sdl_hal_win_input", w.winInput) &&
+    sym(h, "sdl_hal_win_present", w.winPresent) && sym(h, "sdl_hal_win_current", w.winCurrent);
   if (!ok) { fprintf(stderr, "zinc: no window (the program runs headless): %s is not zinc's window module\n", path.c_str()); return 0; }
   state = 1;
   if (configSet) w.setWindowConfig(&config);
@@ -77,6 +81,12 @@ void sdl_hal_escape_by_app(int32_t on) { w.escapeByApp(on); }
 void sdl_hal_escape(void) { w.escape(); }
 int32_t sdl_hal_pixel_scale(void) { return w.pixelScale(); }
 void* sdl_hal_window_handle(void) { return w.windowHandle(); }
+int32_t sdl_hal_win_open(int32_t id, const char* t, int32_t ww, int32_t hh) { return w.winOpen(id, t, ww, hh); }
+void sdl_hal_win_close(int32_t id) { w.winClose(id); }
+int32_t sdl_hal_win_state(int32_t id) { return w.winState(id); }
+void sdl_hal_win_input(int32_t id, HalInput* in, int32_t* ww, int32_t* hh) { w.winInput(id, in, ww, hh); }
+void sdl_hal_win_present(int32_t id, const uint32_t* px, int32_t pw, int32_t ph) { w.winPresent(id, px, pw, ph); }
+void sdl_hal_win_current(int32_t id) { w.winCurrent(id); }
 void hal_set_window_config(const HalWindowConfig* c) { config = *c; configSet = true; if (state > 0) w.setWindowConfig(c); }
 void hal_set_resize(int32_t on) { resizeOn = on; if (state > 0) w.setResize(on); }
 void hal_set_close_handler(int (*h)(void)) { closeHandler = h; if (state > 0) w.setClose(h); }

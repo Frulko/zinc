@@ -22,6 +22,8 @@ void sdl_hal_init(const HalConfig*); void sdl_hal_shutdown(void); void sdl_hal_f
 void sdl_hal_poll_input(HalInput*); void sdl_hal_present(const HalFrame*); void sdl_hal_surface_size(int*, int*); double sdl_hal_fixed_dt(void);
 void sdl_hal_text_input(int32_t, float, float, float, float); const char* sdl_hal_clipboard_get(void); void sdl_hal_clipboard_set(const char*, size_t);
 void sdl_hal_set_cursor(int32_t); void sdl_hal_escape_by_app(int32_t); void sdl_hal_escape(void); int32_t sdl_hal_pixel_scale(void); void* sdl_hal_window_handle(void);
+int32_t sdl_hal_win_open(int32_t, const char*, int32_t, int32_t); void sdl_hal_win_close(int32_t); int32_t sdl_hal_win_state(int32_t);
+void sdl_hal_win_input(int32_t, HalInput*, int32_t*, int32_t*); void sdl_hal_win_present(int32_t, const uint32_t*, int32_t, int32_t); void sdl_hal_win_current(int32_t);
 #endif
 
 static bool live = false;
@@ -34,6 +36,7 @@ int zn_hal_is_live(void) { return live ? 1 : 0; }
 // Scripted input for headless runs (ZINC_INPUT=file): one event per line, `<frame> <event>`, frames counted from 0 at each poll.
 //   move X Y | down | up | right-down | right-up | key NAME [shift|ctrl|alt|meta]... | text STRING | wheel DX DY | pad NAME | padup NAME (the gamepad buttons Up Down Left Right A B X Y L R Start Select, held until padup)
 //   touch ID X Y (a finger lands or moves; up to HAL_MAX_TOUCH at once, held until its touchup) | touchup ID
+//   window ID: the events after it in the same frame go to that window (ZN-663; 0 the main one) | close: the user closes the window the events go to
 // The events reach zinc:gfx exactly as a window's would (pointer position and buttons, button events, keys, typed text, wheel, touch points:
 // the first finger is also the pointer, as on a touch screen).
 namespace {
@@ -72,60 +75,92 @@ int keyCode(const std::string& n) {
   for (auto& k : named) if (n == k.n) return k.code;
   return 0;
 }
+// The windows beside the main one in headless runs (ZN-663): their surfaces are the runtime's; the script drives their input.
+struct NullWin { int32_t id, w, h; bool open; HalInput in; float x, y; uint32_t held; };
+std::vector<NullWin> nullWins;
+bool nullMainHidden = false, nullQuit = false;
+NullWin* nullWin(int32_t id) { for (NullWin& w : nullWins) if (w.open && w.id == id) return &w; return nullptr; }
+bool nullAnyOpen() { for (NullWin& w : nullWins) if (w.open) return true; return false; }
+void nullClose(int32_t id) {   // the rule of the last window, as the window HAL keeps it
+  if (id == 0) { if (nullAnyOpen()) nullMainHidden = true; else nullQuit = true; return; }
+  if (NullWin* w = nullWin(id)) w->open = false;
+  if (nullMainHidden && !nullAnyOpen()) nullQuit = true;
+}
+/** A pointer, wheel or key event of the script into `in`, the pointer of its window at (x, y) with `held` buttons. False: not one of these. */
+bool applyEvent(const Event& e, HalInput* in, float& x, float& y, uint32_t& held) {
+  auto button = [&](int which, int down) {
+    uint32_t bit = which == 0 ? 1u : 2u;
+    held = down ? (held | bit) : (held & ~bit);
+    if (in->nbtn < HAL_MAX_BUTTON_EVENTS) in->btn[in->nbtn++] = HalButtonEvent{x, y, which, down};
+    in->pdown = held & 1; in->pbuttons = held;
+  };
+  if (e.kind == "move") { x = static_cast<float>(atof(e.a.c_str())); y = static_cast<float>(atof(e.b.c_str())); in->px = x; in->py = y; }
+  else if (e.kind == "down") button(0, 1);
+  else if (e.kind == "up") button(0, 0);
+  else if (e.kind == "right-down") button(2, 1);
+  else if (e.kind == "right-up") button(2, 0);
+  else if (e.kind == "wheel") { in->wheel_x += static_cast<float>(atof(e.a.c_str())); in->wheel += static_cast<float>(atof(e.b.c_str())); }
+  else if (e.kind == "key" && in->nkeys < HAL_MAX_KEYS) {
+    uint32_t mods = 0;
+    for (size_t at = 0; at <= e.b.size();) {   // "shift", or several joined with '+': "shift+meta"
+      size_t end = e.b.find('+', at);
+      if (end == std::string::npos) end = e.b.size();
+      const std::string m = e.b.substr(at, end - at);
+      mods |= m == "shift" ? HAL_MOD_SHIFT : m == "ctrl" ? HAL_MOD_CTRL : m == "alt" ? HAL_MOD_ALT : m == "meta" ? HAL_MOD_META : 0;
+      at = end + 1;
+    }
+    in->keys[in->nkeys++] = HalKey{keyCode(e.a), mods, HAL_KEY_DOWN, 0, 0};
+  } else if (e.kind == "text" && in->nkeys < HAL_MAX_KEYS) {
+    size_t n = e.a.size();
+    if (static_cast<size_t>(in->ntext) + n < HAL_TEXT_BYTES) {
+      in->keys[in->nkeys++] = HalKey{0, 0, HAL_KEY_TEXT, static_cast<uint16_t>(in->ntext), static_cast<uint16_t>(n)};
+      memcpy(in->text + in->ntext, e.a.data(), n);
+      in->ntext += static_cast<int32_t>(n);
+    }
+  } else return false;
+  return true;
+}
 void applyScript(HalInput* in) {
   if (!scriptRead) readScript();
   in->nkeys = 0; in->ntext = 0; in->nbtn = 0; in->wheel_x = 0;  // the events of a frame are the script's, like the window HAL's (hal_sdl.cpp)
   in->px = curX; in->py = curY; in->pdown = heldButtons & 1; in->pbuttons = heldButtons;
+  int32_t target = 0;
   for (const Event& e : script) {
     if (e.frame != pollNo) continue;
+    if (e.kind == "window") { target = atoi(e.a.c_str()); continue; }
+    if (e.kind == "close") { nullClose(target); continue; }
+    if (target != 0) { if (NullWin* w = nullWin(target)) applyEvent(e, &w->in, w->x, w->y, w->held); continue; }
     if (e.kind == "pad" || e.kind == "padup") {
       static const char* names[] = {"Up", "Down", "Left", "Right", "A", "B", "X", "Y", "L", "R", "Start", "Select"};
       for (int i = 0; i < 12; ++i) if (e.a == names[i]) heldPad = e.kind == "pad" ? (heldPad | (1u << i)) : (heldPad & ~(1u << i));
       continue;
     }
-    auto button = [&](int which, int down) {
-      uint32_t bit = which == 0 ? 1u : 2u;
-      heldButtons = down ? (heldButtons | bit) : (heldButtons & ~bit);
-      if (in->nbtn < HAL_MAX_BUTTON_EVENTS) in->btn[in->nbtn++] = HalButtonEvent{curX, curY, which, down};
-      in->pdown = heldButtons & 1; in->pbuttons = heldButtons;
-    };
-    if (e.kind == "move") { curX = static_cast<float>(atof(e.a.c_str())); curY = static_cast<float>(atof(e.b.c_str())); in->px = curX; in->py = curY; }
-    else if (e.kind == "down") button(0, 1);
-    else if (e.kind == "up") button(0, 0);
-    else if (e.kind == "right-down") button(2, 1);
-    else if (e.kind == "right-up") button(2, 0);
-    else if (e.kind == "touch" || e.kind == "touchup") {
+    if (e.kind == "touch" || e.kind == "touchup") {
       const int32_t id = atoi(e.a.c_str());
       int k = 0;
       while (k < nHeldTouch && heldTouch[k].id != id) k++;
       if (e.kind == "touchup") { if (k < nHeldTouch) { for (int j = k + 1; j < nHeldTouch; j++) heldTouch[j - 1] = heldTouch[j]; nHeldTouch--; } }
       else if (k < HAL_MAX_TOUCH) { heldTouch[k] = HalTouch{id, static_cast<float>(atof(e.b.c_str())), static_cast<float>(atof(e.c.c_str()))}; if (k == nHeldTouch) nHeldTouch++; }
+      continue;
     }
-    else if (e.kind == "wheel") { in->wheel_x += static_cast<float>(atof(e.a.c_str())); in->wheel += static_cast<float>(atof(e.b.c_str())); }
-    else if (e.kind == "key" && in->nkeys < HAL_MAX_KEYS) {
-      uint32_t mods = 0;
-      for (size_t at = 0; at <= e.b.size();) {   // "shift", or several joined with '+': "shift+meta"
-        size_t end = e.b.find('+', at);
-        if (end == std::string::npos) end = e.b.size();
-        const std::string m = e.b.substr(at, end - at);
-        mods |= m == "shift" ? HAL_MOD_SHIFT : m == "ctrl" ? HAL_MOD_CTRL : m == "alt" ? HAL_MOD_ALT : m == "meta" ? HAL_MOD_META : 0;
-        at = end + 1;
-      }
-      in->keys[in->nkeys++] = HalKey{keyCode(e.a), mods, HAL_KEY_DOWN, 0, 0};
-    } else if (e.kind == "text" && in->nkeys < HAL_MAX_KEYS) {
-      size_t n = e.a.size();
-      if (static_cast<size_t>(in->ntext) + n < HAL_TEXT_BYTES) {
-        in->keys[in->nkeys++] = HalKey{0, 0, HAL_KEY_TEXT, static_cast<uint16_t>(in->ntext), static_cast<uint16_t>(n)};
-        memcpy(in->text + in->ntext, e.a.data(), n);
-        in->ntext += static_cast<int32_t>(n);
-      }
-    }
+    applyEvent(e, in, curX, curY, heldButtons);
   }
   in->buttons |= heldPad;
   in->ntouch = nHeldTouch;
   for (int k = 0; k < nHeldTouch; k++) in->touch[k] = heldTouch[k];
   if (nHeldTouch > 0) { curX = heldTouch[0].x; curY = heldTouch[0].y; in->px = curX; in->py = curY; in->pdown = 1; in->pbuttons |= 1; }
+  if (nullQuit) in->quit = 1;
   ++pollNo;
+}
+int32_t nullWinOpen(int32_t id, int32_t w, int32_t h) { NullWin n{}; n.id = id; n.w = w; n.h = h; n.open = true; n.in.pinch = 1; nullWins.push_back(n); return 1; }
+int32_t nullWinState(int32_t id) { return id == 0 ? !nullMainHidden && !nullQuit : nullWin(id) != nullptr; }
+void nullWinInput(int32_t id, HalInput* in, int32_t* w, int32_t* h) {
+  NullWin* n = nullWin(id);
+  if (!n) return;
+  *in = n->in;
+  n->in.nkeys = 0; n->in.ntext = 0; n->in.nbtn = 0; n->in.wheel = n->in.wheel_x = 0; n->in.pinch = 1;
+  in->px = n->x; in->py = n->y; in->pdown = n->held & 1; in->pbuttons = n->held;
+  *w = n->w; *h = n->h;
 }
 }  // namespace
 
@@ -151,6 +186,12 @@ __attribute__((weak)) void sdl_hal_escape_by_app(int32_t) {}
 __attribute__((weak)) void sdl_hal_escape(void) {}
 __attribute__((weak)) int32_t sdl_hal_pixel_scale(void) { return 1; }
 __attribute__((weak)) void* sdl_hal_window_handle(void) { return nullptr; }
+__attribute__((weak)) int32_t sdl_hal_win_open(int32_t, const char*, int32_t, int32_t) { return 0; }
+__attribute__((weak)) void sdl_hal_win_close(int32_t) {}
+__attribute__((weak)) int32_t sdl_hal_win_state(int32_t) { return 0; }
+__attribute__((weak)) void sdl_hal_win_input(int32_t, HalInput*, int32_t*, int32_t*) {}
+__attribute__((weak)) void sdl_hal_win_present(int32_t, const uint32_t*, int32_t, int32_t) {}
+__attribute__((weak)) void sdl_hal_win_current(int32_t) {}
 __attribute__((weak)) void hal_set_resize(int32_t) {}
 #else
 __attribute__((weak)) int zn_window_load(void) { return 1; }   // the window host is in this library
@@ -172,6 +213,12 @@ void hal_escape_by_app(int32_t on) { if (live) sdl_hal_escape_by_app(on); }
 void hal_escape(void) { if (live) sdl_hal_escape(); }
 int32_t hal_pixel_scale(void) { return live ? sdl_hal_pixel_scale() : headlessScale(); }
 void* hal_window_handle(void) { return live ? sdl_hal_window_handle() : nullptr; }
+int32_t hal_win_open(int32_t id, const char* title, int32_t w, int32_t h) { return live ? sdl_hal_win_open(id, title, w, h) : nullWinOpen(id, w, h); }
+void hal_win_close(int32_t id) { if (live) sdl_hal_win_close(id); else nullClose(id); }
+int32_t hal_win_state(int32_t id) { return live ? sdl_hal_win_state(id) : nullWinState(id); }
+void hal_win_input(int32_t id, HalInput* in, int32_t* w, int32_t* h) { if (live) sdl_hal_win_input(id, in, w, h); else nullWinInput(id, in, w, h); }
+void hal_win_present(int32_t id, const uint32_t* px, int32_t pw, int32_t ph) { if (live) sdl_hal_win_present(id, px, pw, ph); }
+void hal_win_current(int32_t id) { if (live) sdl_hal_win_current(id); }
 #else
 void hal_init(const HalConfig* c) { null_hal_init(c); }
 void hal_shutdown(void) { null_hal_shutdown(); }
@@ -190,5 +237,11 @@ void hal_escape_by_app(int32_t) {}
 void hal_escape(void) {}
 int32_t hal_pixel_scale(void) { return headlessScale(); }
 void* hal_window_handle(void) { return nullptr; }
+int32_t hal_win_open(int32_t id, const char*, int32_t w, int32_t h) { return nullWinOpen(id, w, h); }
+void hal_win_close(int32_t id) { nullClose(id); }
+int32_t hal_win_state(int32_t id) { return nullWinState(id); }
+void hal_win_input(int32_t id, HalInput* in, int32_t* w, int32_t* h) { nullWinInput(id, in, w, h); }
+void hal_win_present(int32_t, const uint32_t*, int32_t, int32_t) {}
+void hal_win_current(int32_t) {}
 #endif
 }

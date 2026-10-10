@@ -9,6 +9,9 @@
 #ifndef ZRT_TEXT_POOL
 #define ZRT_TEXT_POOL 32768
 #endif
+#ifndef ZRT_MAX_WINDOWS
+#define ZRT_MAX_WINDOWS 8   // windows beside the main one (ZN-663)
+#endif
 #ifndef ZRT_POINT_POOL
 #define ZRT_POINT_POOL 32768
 #endif
@@ -24,6 +27,13 @@ static void present(const HalFrame* f) { if (display_driver) hal_display->presen
 }  // namespace zrt
 // HiDPI: physical pixels per logical pixel (the SDL HAL reports Retina density x window magnification)
 extern "C" __attribute__((weak)) int32_t hal_pixel_scale(void) { return 1; }
+// More windows (ZN-663): a HAL without them has the main window only, and closing it ends the program
+extern "C" __attribute__((weak)) int32_t hal_win_open(int32_t, const char*, int32_t, int32_t) { return 0; }
+extern "C" __attribute__((weak)) void hal_win_close(int32_t id) { if (id == 0) zrt::quit_requested = true; }
+extern "C" __attribute__((weak)) int32_t hal_win_state(int32_t id) { return id == 0 && !zrt::quit_requested; }
+extern "C" __attribute__((weak)) void hal_win_input(int32_t, HalInput*, int32_t*, int32_t*) {}
+extern "C" __attribute__((weak)) void hal_win_present(int32_t, const uint32_t*, int32_t, int32_t) {}
+extern "C" __attribute__((weak)) void hal_win_current(int32_t) {}
 namespace zrt {
 namespace gfx {
 // The program draws in logical pixels; frames are rasterized at pw x ph physical pixels (pxk per logical pixel).
@@ -809,10 +819,12 @@ static bool write_image(const char* path, uint32_t* px, int32_t w, int32_t h) {
   return ok;
 }
 
+static void save_windows(const char* path);
 static bool save(const char* path) {
   uint32_t* px = grab();
   bool ok = write_image(path, px, pw, ph);
   if (px) hal_free(px);
+  save_windows(path);
   return ok;
 }
 // ---------- scene dump (ZN-170): ZINC_SCENE_DUMP=path writes (frames chosen like ZINC_SHOT_FRAMES / ZINC_SHOT_EVERY, numbered; else the last one) the program's command list and pools; `zinc capture --scene` replays it ----------
@@ -998,10 +1010,10 @@ static int32_t phys_font(int32_t f) {
 static void scale_contours(float* p, uint32_t contours, float k) {  // [count, x, y, ...]*: the coordinates, not the counts
   for (uint32_t n = 0; n < contours; n++) { uint32_t cnt = (uint32_t)p[0]; for (uint32_t j = 1; j <= cnt * 2; j++) p[j] *= k; p += 1 + cnt * 2; }
 }
-static void to_physical(Buf& b) {
+static void to_physical(Buf& b, uint32_t from = 0) {   // from: the first plugin command of a window's slice (endWindow)
   if (pxk == 1) return;
   const float k = (float)pxk;
-  for (uint32_t i = 0; i < n_plugin; i++) {
+  for (uint32_t i = from; i < n_plugin; i++) {
     Cmd& c = b.cmds[plugin_cmds[i]];
     if (c.kind == raster::CLEAR || c.kind == raster::UNCLIP) continue;
     c.x *= k; c.y *= k; c.w *= k; c.h *= k;
@@ -1374,6 +1386,100 @@ void endImage() {
     raster::dyn_update(target_img, nullptr, 0);
   }
   b.ncmd = mark_cmd; b.ntext = mark_text; b.npts = mark_pts; target_img = -1;
+}
+// ---------- more windows (ZN-663) ----------
+// A window beside the main one draws a slice of the frame's command list into pixels of its own: between beginWindow and endWindow the
+// commands are recorded as usual (physical pixels at the main window's scale), then rasterized into the window's buffer when they changed,
+// handed to the HAL and dropped from the list, like beginImage. While its callback runs, the window's input stands in for the main
+// window's and width()/height() are its size. The HAL (hal_window.h) owns the rule of the last window: closing one keeps the others,
+// closing the last one ends the program; a closed main window is hidden while others are open.
+struct Win { int32_t id; int32_t w, h, pw, ph; uint32_t* px; uint32_t hash; bool open; HalInput in, prev; };
+static Win wins[ZRT_MAX_WINDOWS];
+static Win* in_win = nullptr;   // the window being drawn
+static int32_t win_ids = 0;
+static struct { int32_t w, h; float tx, ty; bool xf, kept; double m[6]; uint32_t cmd, text, pts, plugin; HalInput in, prev; } outer;
+static Win* win_of(int32_t id) { for (Win& x : wins) if (x.open && x.id == id) return &x; return nullptr; }
+int32_t openWindow(const String& title, int32_t w, int32_t h) {
+  Win* x = nullptr;
+  for (Win& s : wins) if (!s.open) { x = &s; break; }
+  if (!x || w < 1 || h < 1) return -1;
+  char t[256];
+  uint32_t n = title.bytes() < sizeof t - 1 ? title.bytes() : (uint32_t)sizeof t - 1;
+  __builtin_memcpy(t, title.ptr(), n); t[n] = 0;
+  const int32_t id = ++win_ids;
+  if (!hal_win_open(id, t, w, h)) return -1;
+  if (x->px) hal_free(x->px);
+  __builtin_memset(x, 0, sizeof *x);
+  x->id = id; x->w = w; x->h = h; x->open = true; x->in.pinch = 1;
+  return id;
+}
+void closeWindow(int32_t id) {
+  if (Win* x = id ? win_of(id) : nullptr) { x->open = false; if (x->px) hal_free(x->px); x->px = nullptr; }
+  hal_win_close(id);
+}
+bool windowOpen(int32_t id) {
+  Win* x = id ? win_of(id) : nullptr;
+  if (id && !x) return false;
+  if (hal_win_state(id)) return true;
+  if (x) closeWindow(id);   // closed by the user: its pixels go
+  return false;
+}
+void beginWindow(int32_t id) {
+  Win* x = win_of(id);
+  if (!x || in_win || target_img >= 0) return;
+  x->prev = x->in;
+  x->in.wheel = 0; x->in.pinch = 1;
+  hal_win_input(id, &x->in, &x->w, &x->h);
+  Buf& b = bufs[cur];
+  outer.w = surf_w; outer.h = surf_h; outer.tx = tx; outer.ty = ty; outer.xf = xf_on; outer.kept = kept; __builtin_memcpy(outer.m, xf_m, sizeof xf_m);
+  outer.cmd = b.ncmd; outer.text = b.ntext; outer.pts = b.npts; outer.plugin = n_plugin; outer.in = input; outer.prev = prev_input;
+  surf_w = x->w; surf_h = x->h; tx = ty = 0; xf_on = false; kept = false; input = x->in; prev_input = x->prev;
+  hal_win_current(id);
+  in_win = x;
+}
+void endWindow() {
+  Win* x = in_win;
+  if (!x) return;
+  Buf& b = bufs[cur];
+  to_physical(b, outer.plugin);
+  init_scale();
+  const int32_t wpw = x->w * pxk, wph = x->h * pxk;
+  if (!x->px || wpw != x->pw || wph != x->ph) {
+    if (x->px) hal_free(x->px);
+    x->px = (uint32_t*)hal_alloc((size_t)wpw * wph * 4);
+    x->pw = wpw; x->ph = wph; x->hash = 0;
+  }
+  raster::Frame fr{b.cmds + outer.cmd, b.ncmd - outer.cmd, b.text, b.pts};
+  const uint32_t hsh = raster::frame_hash(fr) | 1;   // never 0: a new buffer is always drawn
+  if (x->px && hsh != x->hash && !kept) {   // an unchanged frame (or keep()) keeps the pixels the window shows
+    raster::render(fr, x->px, wpw, 0, wph, raster::Rect{0, 0, wpw, wph});
+    hal_win_present(x->id, x->px, wpw, wph);
+    x->hash = hsh;
+  }
+  b.ncmd = outer.cmd; b.ntext = outer.text; b.npts = outer.pts; n_plugin = outer.plugin;
+  x->in = input;
+  surf_w = outer.w; surf_h = outer.h; tx = outer.tx; ty = outer.ty; xf_on = outer.xf; kept = outer.kept; __builtin_memcpy(xf_m, outer.m, sizeof xf_m);
+  input = outer.in; prev_input = outer.prev;
+  hal_win_current(0);
+  in_win = nullptr;
+}
+/** ZINC_SHOT: each open window beside the main one as <name>-w<id>.<ext>. */
+static void save_windows(const char* path) {
+  for (Win& x : wins) {
+    if (!x.open || !x.px) continue;
+    char out[1024];
+    uint32_t n = 0, dot = 0;
+    while (path[n] && n < 1000) { if (path[n] == '.') dot = n; else if (path[n] == '/') dot = 0; n++; }
+    if (!dot) dot = n;
+    __builtin_memcpy(out, path, dot);
+    uint32_t k = dot;
+    out[k++] = '-'; out[k++] = 'w';
+    char d[10]; int32_t nd = 0, v = x.id;
+    do { d[nd++] = (char)('0' + v % 10); v /= 10; } while (v);
+    while (nd) out[k++] = d[--nd];
+    __builtin_memcpy(out + k, path + dot, n - dot); k += n - dot; out[k] = 0;
+    write_image(out, x.px, x.pw, x.ph);
+  }
 }
 void clip(double x, double y, double w, double h, double r) {
   if (xf_on) {   // ponytail: under a matrix the clip is the bounding box of the transformed rectangle, square

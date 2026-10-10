@@ -1346,6 +1346,11 @@ static uint32_t cmd_hash(const Frame& f, const Cmd& c) {
   else if (c.kind == IMAGE) h = fnv(h, &c.off, sizeof c.off);
   return h;
 }
+uint32_t frame_hash(const Frame& f) {
+  uint32_t h = 2166136261u;
+  for (uint32_t i = 0; i < f.count; i++) { const uint32_t c = cmd_hash(f, f.cmds[i]); h = fnv(h, &c, sizeof c); }
+  return h;
+}
 static int16_t i16(int32_t v) { return v < -32768 ? (int16_t)-32768 : v > 32767 ? (int16_t)32767 : (int16_t)v; }
 void sign_frame(const Frame& f, int32_t w, int32_t h, CmdSig* out) {
   for (uint32_t i = 0; i < f.count; i++) {

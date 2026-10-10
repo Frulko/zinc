@@ -236,7 +236,12 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostGfxCommands: r->i = g::commandCount(); break;
     case Rt::HostGfxSetResize: if (hal_set_resize) hal_set_resize(static_cast<int32_t>(n(0))); break;
     case Rt::HostGfxSetTransform: g::setTransform(a[0].d, a[1].d, a[2].d, a[3].d, a[4].d, a[5].d); break;
-    case Rt::HostGfxResetTransform: g::resetTransform(); break;   // the SDL HAL has it; headless runs and other HALs keep their surface
+    case Rt::HostGfxResetTransform: g::resetTransform(); break;
+    case Rt::HostGfxOpenWindow: r->i = g::openWindow(str(a[0]), n(1), n(2)); break;
+    case Rt::HostGfxCloseWindow: g::closeWindow(n(0)); break;
+    case Rt::HostGfxWindowOpen: r->i = g::windowOpen(n(0)) ? 1 : 0; break;
+    case Rt::HostGfxBeginWindow: g::beginWindow(n(0)); break;
+    case Rt::HostGfxEndWindow: g::endWindow(); break;   // the SDL HAL has it; headless runs and other HALs keep their surface
     case Rt::HostGfxCommandsFree: r->i = g::commandsFree(); break;
     case Rt::HostGfxProfMark: if (g::profiling()) g::profMark(n(0)); zn_ui_log_mark(n(0)); break;
     case Rt::HostGfxFinish:

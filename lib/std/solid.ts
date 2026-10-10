@@ -260,6 +260,13 @@ export function render(app: () => i32, background: i32, onTick: ((dt: number) =>
   ui.insert(root, app(), -1);
   ui.mount(root, background, onTick);
 }
+/** Renders `app` in a window of its own beside the main one (ZN-663), with the same signals and state: returns the window's id, -1 when it
+ *  cannot open. */
+export function renderWindow(title: string, w: i32, h: i32, app: () => i32, background: i32): i32 {
+  const root = ui.createNode(ui.VIEW);
+  ui.insert(root, app(), -1);
+  return ui.mountWindow(title, w, h, root, background);
+}
 /** Markers for `import { Show, For } from 'zinc:ui/solid'`: the JSX lowering compiles these tags itself. */
 export const Show: i32 = 0, For: i32 = 1;
 /** Marker for `<VirtualList count itemHeight>{(i) => ...}</VirtualList>` (lowered by the JSX compiler). */

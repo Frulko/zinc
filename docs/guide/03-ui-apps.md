@@ -184,6 +184,37 @@ opens one, so `zinc check`, `zinc build` and console programs start without it (
 Without the module a program that draws runs headless and says why. A built program links the window in; `zinc fuse`
 puts the module inside the fused executable.
 
+### More than one window
+
+An app can open windows beside the main one: an editor next to the played level, a storyboard next to its preview. Each
+window has its own surface, input and frame callback; they all share the program's state.
+
+```ts
+import { onFrame, openWindow, closeWindow, windowOpen, clear, rect, width } from 'zinc:gfx';
+
+onFrame((dt) => { clear(0x203040); /* the main window */ });
+const preview = openWindow('Preview', 640, 360, (dt) => {
+  clear(0x000000);                 // drawn after the main window, every frame
+  rect(10, 10, width() - 20, 40, 0xffcc00);
+});
+```
+
+- **Drawing.** While a window's callback runs, every `zinc:gfx` call, `width()`, `height()` and the input (`pointerX()`, the
+  button and key events, the wheel) are that window's. `openWindow(title, w, h, cb)` takes the size in logical pixels and returns
+  the window's id, or -1 when no window can open. The surface follows the window when the user resizes it.
+- **Closing.** The user's close button, or `closeWindow(id)`, closes one window; the others go on. Closing the main window
+  (id 0) hides it while other windows are open, and its `onFrame` stops. Closing the last window ends the program.
+  `windowOpen(id)` tells whether a window is still open.
+- **zinc:ui.** `mountWindow(title, w, h, root, background)` (or `renderWindow(title, w, h, App, background)` from
+  `zinc:ui/solid`) shows a tree in a window of its own. Each window has its own layout, focus, hover, overlays and gestures,
+  over the same nodes, signals and styles. A change one window makes to the other's tree redraws the other one.
+- **Limits.** Up to 8 windows besides the main one. They are drawn on the CPU at the main window's pixel density and shown with
+  their own renderer. The arrow-key pad and smooth trackpad scrolling stay the main window's (other windows scroll by wheel
+  steps). `zinc:gl` and the QuickJS engine (`--engine quickjs`) draw in the main window only.
+- **Tests.** In headless runs the windows draw too. `ZINC_SHOT=frame.png` also writes `frame-w1.png` for window 1, and so on.
+  A `ZINC_INPUT` script (one `<frame> <event>` per line: `move X Y`, `down`, `up`, `key NAME`, `text STRING`...) sends the
+  events after `window N` in a frame to window N, and `close` closes that window, as the user would.
+
 ## Per-target constraints
 
 | target | constraint |
