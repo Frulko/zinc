@@ -9,7 +9,7 @@
 #                  licence, is dragged onto the table of a sequence, moved, sized, captioned and described in two languages; a hotspot on it
 #                  and a button, their targets chosen in a list and on a map; a text; a time set on the timeline: the file equals table.json,
 #                  the player's loader accepts it, four frames equal their goldens
-#   the interface in French: one frame
+#   a real picture in the project folder is drawn in the library and on the table (one frame); the interface in French (one frame)
 #   Save as goes through the system's dialog (scripted answer); closing the window with unsaved work asks, and Save saves before the app ends
 # ZN_UPDATE_GOLDEN=1 rewrites the goldens from this run.
 cd "$(dirname "$0")/../.." || exit 2
@@ -61,6 +61,16 @@ for f in 24 68 123 167; do
 done
 got=$("$ZINC" run "$ex/src/check.ts" -- "$tmp/table/table.json" 2>&1)
 case $got in 'table.json: ok, "project" version 1, languages fr en, media: 1 photo, 1 text; 3 sequences, 2 items, 5 links, '*', canonical') ;; *) echo "the player's loader on the project of the table session: $got"; fail=1 ;; esac
+
+# a picture of the project folder is shown: the first steps of the table session in a folder whose photograph is a real image (a frame of
+# this test, 1440 x 900): the library row and the item on the table draw it, and the item takes its shape
+mkdir -p "$tmp/pictures/photos" "$tmp/pictures/films"
+cp "$g/built.json" "$tmp/pictures/p.json"; cp "$g/frame-3.png" "$tmp/pictures/photos/vague.png"; printf x > "$tmp/pictures/films/atelier.mp4"
+awk '$1 ~ /^[0-9]+$/ && $1 <= 64' "$g/table.input" > "$tmp/pictures.input"
+edit "$tmp/pictures/p.json" "$tmp/pictures.input" 68 68
+if [ -n "$ZN_UPDATE_GOLDEN" ]; then cp "$tmp/shot-68.png" "$g/pictures-68.png"; else
+  tools/pngdiff "$tmp/shot-68.png" "$g/pictures-68.png" >/dev/null || { echo "a picture of the project folder: frame 68 differs from $g/pictures-68.png"; fail=1; }
+fi
 
 # the interface in French: a sequence selected on the storyboard
 printf '4 move 400 300\n5 down\n6 up\n' > "$tmp/fr.input"

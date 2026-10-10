@@ -17,7 +17,7 @@ import { doc, project, path, status, lang, setLang, selected, select, zoomBy, fi
   newProjectCommand, openCommand, openFile, newFile, waiting, answer, goTo, problemText, nameIt, setNameIt, deleting, setDeleting, deleteSequence, linksTo, advanced, setAdvanced, nextLanguage,
   startHere, guard, opened, openSequence, closeSequence, selectedItem, selectedLink, shownMedia, pick, picking, answerPick, adding, setAdding, addFile, addWrittenText, newFiles, kindOfFile,
   folder, removing, setRemoving, removeMedia, usesOf } from './state';
-import { Ico, Tool, Segmented, Heading, ACCENT, DANGER, WARN, MUTED } from './widgets';
+import { Ico, Tool, Segmented, Heading, ACCENT, DANGER, WARN, MUTED, decodePictures } from './widgets';
 import { Storyboard } from './storyboard';
 import { SequenceEditor } from './sequence';
 import { Inspector } from './inspector';
@@ -359,4 +359,4 @@ if (a.length > 0) {
 onCloseRequested(() => { if (doc().dirty) { keepOpen(); guard(() => quit()); } });
 let frames = 0;
 // the view knows its size once it was drawn: the first fit waits for that
-render(App, 0x09090b, (dt: number) => { if (++frames === 2) fit(); });
+render(App, 0x09090b, (dt: number) => { if (++frames === 2) fit(); decodePictures(); });

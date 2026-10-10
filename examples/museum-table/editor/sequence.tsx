@@ -8,7 +8,7 @@ import * as ui from 'zinc:ui';
 import { rrect, border } from 'zinc:gfx';
 import { Sequence, Media, Item, Link } from '../src/project';
 import { project, lang, opened, selectedItem, selectedLink, shownMedia, pick, placeMedia, moveItem, resizeItem, timeItem, moveLink, timeLink, usesOf, addFileCommand, setAdding } from './state';
-import { Ico, Action, Heading, drawMedia, kindIndex, KIND_ICON, KIND_COLOUR, KIND_SHAPE, ACCENT, MUTED } from './widgets';
+import { Ico, Action, Heading, drawMedia, shapeOf, kindIndex, KIND_ICON, KIND_COLOUR, ACCENT, MUTED } from './widgets';
 import * as L from './strings';
 import { t, f } from './strings';
 
@@ -42,8 +42,8 @@ const [newW, setNewW] = createSignal<number>(0);
 
 function wOf(it: Item): number { project(); return held() === it && sizing() ? newW() : it.width; }
 function hOf(it: Item): number {
-  const w = wOf(it), kind = kindIndex(mediaOf(it));
-  return it.height > 0 ? it.height * w / it.width : w * (kind >= 0 ? KIND_SHAPE[kind] : 0.75);
+  const w = wOf(it);
+  return it.height > 0 ? it.height * w / it.width : w * shapeOf(mediaOf(it));
 }
 function xOf(it: Item): number { project(); return it.x + (held() === it && !sizing() ? dx() : 0); }
 function yOf(it: Item): number { project(); return it.y + (held() === it && !sizing() ? dy() : 0); }

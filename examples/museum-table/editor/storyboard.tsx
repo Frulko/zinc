@@ -8,7 +8,7 @@ import { stroke, polygon, rect } from 'zinc:gfx';
 import { Sequence, Link, Item, unreachable } from '../src/project';
 import { project, lang, selected, selectedLink, select, zoom, zoomStep, panX, panY, setPanX, setPanY, zoomBy, CARD_W, CARD_H, setViewSize, addSequence, addSequenceInView,
   moveSequence, link, sourceOf, setStatus, hovered, setHovered, openSequence, fit, viewW, viewH, ZOOMS } from './state';
-import { Ico, IcoAt, Tool, ACCENT, INK, MUTED, WARN, DARK, KIND_ICON, KIND_COLOUR, KIND_SHAPE, kindIndex } from './widgets';
+import { Ico, IcoAt, Tool, ACCENT, INK, MUTED, WARN, DARK, KIND_ICON, KIND_COLOUR, kindIndex, drawMedia, shapeOf } from './widgets';
 import * as L from './strings';
 import { t } from './strings';
 
@@ -189,10 +189,9 @@ function Miniature(p: { of: Sequence }): i32 {
   const k = (): number => STAGE_H * zoom() / H();   // table units to pixels
   return <view class="relative self-center overflow-hidden rounded-sm" style={{ width: STAGE_H * zoom() * W() / H(), height: STAGE_H * zoom(), bg: project().theme.background }}>
     <For each={(project(), s.items)}>{(it: Item, i: i32) => {
-      const kind = (): i32 => kindOf(it);
-      const h = (): number => { project(); return it.height > 0 ? it.height : it.width * (kind() >= 0 ? KIND_SHAPE[kind()] : 0.75); };
-      return <view class="absolute rounded-sm" style={{ left: (it.x - it.width / 2) * k(), top: (it.y - h() / 2) * k(), width: Math.max(2, it.width * k()), height: Math.max(2, h() * k()),
-        bg: kind() >= 0 ? KIND_COLOUR[kind()] : 0x71717a, opacity: 0.85 }} />;
+      const h = (): number => { project(); return it.height > 0 ? it.height : it.width * shapeOf(project().medium(it.media)); };
+      return <canvas class="absolute" style={{ left: (it.x - it.width / 2) * k(), top: (it.y - h() / 2) * k(), width: Math.max(2, it.width * k()), height: Math.max(2, h() * k()), lazy: 1 }}
+        onDraw={(x: i32, y: i32, w: i32, h: i32) => drawMedia(project().medium(it.media), x, y, w, h)} />;
     }}</For>
     <Show when={(project(), s.items.length === 0) && zoomStep() > 0}>
       <view class="absolute inset-0 items-center justify-center"><text class={`text-zinc-500 ${SMALL[zoomStep()]}`}>{t(L.NO_MEDIA_YET)}</text></view>

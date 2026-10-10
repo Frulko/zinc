@@ -1,10 +1,11 @@
 // The small parts the panels of the editor share: icons, buttons, a segmented choice, text fields per language, and how a medium is drawn.
-import { NodeRef, For } from 'zinc:ui/solid';
-import { rrect } from 'zinc:gfx';
+import { NodeRef, For, createSignal } from 'zinc:ui/solid';
+import { rrect, imageFromBytes, destroyImage, createImage, beginImage, endImage, drawImage, drawImageRect, imageWidth, imageHeight } from 'zinc:gfx';
+import { readBytes } from 'zinc:fs';
 import { icon } from 'zinc:icons';
 import { Svg } from 'zinc:svg';
 import { Media, KINDS } from '../src/project';
-import { project } from './state';
+import { project, folder } from './state';
 
 /** The colours of the editor's chrome (Tailwind's zinc greys, amber for what is selected or primary). */
 export const ACCENT: i32 = 0xfbbf24, INK: i32 = 0xf4f4f5, MUTED: i32 = 0xa1a1aa, DANGER: i32 = 0xf87171, WARN: i32 = 0xfb923c, DARK: i32 = 0x18181b;
@@ -22,11 +23,73 @@ export const KIND_COLOUR: i32[] = [0x38bdf8, 0xf59e0b, 0x2dd4bf, 0xd4d4d8, 0xa78
 /** Height over width of a medium whose item does not say its height. */
 export const KIND_SHAPE: number[] = [0.75, 1, 0.5, 0.6, 0.25, 0.5625];
 export function kindIndex(m: Media | null): i32 { return m === null ? -1 : KINDS.indexOf(m.kind); }
-/** Draws a medium in a box of the window: the one place that decides what a medium looks like in the editor.
- *  ponytail: a tinted box with the icon of its kind. zinc:gfx cannot yet make an image of a file outside the program's own assets;
- *  when images from bytes land (ZN-432), a photograph of the project folder is decoded and drawn here, and nothing else changes. */
+// The photographs of the project folder, as thumbnails. A picture is decoded the first time it is to be drawn, one per frame so that a
+// folder of photographs never stalls the window, reduced to THUMB pixels wide and kept; the engine holds 64 runtime images at once
+// (ZN-670), so at most KEPT thumbnails live, and the one drawn longest ago makes room.
+// ponytail: more than KEPT pictures visible at the same time (a very large storyboard) decode in turns; a bigger limit ends that.
+const THUMB = 320, KEPT = 40;
+class Picture { file = ''; image: i32 = -1; w: i32 = 1; h: i32 = 1; seen: i32 = 0; }
+const pictures: Picture[] = [], wanted: string[] = [];
+let frame: i32 = 0;
+const [arrived, setArrived] = createSignal<i32>(0);
+/** The file of the project folder that shows a medium: a photograph, a panorama, the poster of a film ('' when it has none). */
+function pictureFile(m: Media | null): string {
+  if (m === null || folder().length === 0) return '';
+  const file = m.kind === 'photo' || m.kind === 'panorama' ? m.file : m.kind === 'video' ? m.poster : m.kind === 'model' ? m.texture : '';
+  return file.length > 0 ? `${folder()}/${file}` : '';
+}
+/** The thumbnail of a file, null while it is not decoded yet or when the file is not a picture. */
+function pictureOf(file: string): Picture | null {
+  if (file.length === 0) return null;
+  for (const p of pictures) if (p.file === file) { p.seen = frame; return p.image >= 0 ? p : null; }
+  if (wanted.indexOf(file) < 0) wanted.push(file);
+  return null;
+}
+/** Once per frame (main.tsx): decodes one of the pictures the last frame wanted. */
+export function decodePictures(): void {
+  frame++;
+  if (wanted.length === 0) return;
+  const p = new Picture();
+  p.file = wanted[0]; p.seen = frame;
+  wanted.splice(0, 1);
+  try {
+    const full = imageFromBytes(readBytes(p.file));
+    if (full >= 0) {
+      const w = imageWidth(full), h = imageHeight(full);
+      p.w = Math.min(w, THUMB); p.h = Math.max(1, Math.round(h * p.w / w));
+      p.image = createImage(p.w, p.h);
+      beginImage(p.image); drawImage(full, 0, 0, p.w, p.h, 255, 0); endImage();
+      destroyImage(full);
+    }
+  } catch (e) { p.image = -1; }   // a file that is gone or cannot be read is drawn as its kind, like a file that is not a picture
+  pictures.push(p);
+  const held = pictures.filter((x: Picture) => x.image >= 0);
+  if (held.length > KEPT) {
+    let oldest = held[0];
+    for (const x of held) if (x.seen < oldest.seen) oldest = x;
+    destroyImage(oldest.image);
+    pictures.splice(pictures.indexOf(oldest), 1);
+  }
+  setArrived(arrived() + 1);
+}
+/** Height over width of a medium on the table when its item does not say its height: the picture's own once it is known. */
+export function shapeOf(m: Media | null): number {
+  arrived();
+  const p = pictureOf(pictureFile(m)), k = kindIndex(m);
+  return p !== null ? p.h / p.w : k >= 0 ? KIND_SHAPE[k] : 0.75;
+}
+/** Draws a medium in a box of the window: the one place that decides what a medium looks like in the editor. A picture of the project
+ *  folder fills the box (cut to its shape); anything else, and a picture not decoded yet, is a tinted box with the icon of its kind. */
 export function drawMedia(m: Media | null, x: number, y: number, w: number, h: number): void {
+  const p = pictureOf(pictureFile(m));
+  if (p !== null) {
+    let sw: number = p.w, sh: number = p.h;
+    if (p.w * h > w * p.h) sw = p.h * w / h; else sh = p.w * h / w;
+    drawImageRect(p.image, (p.w - sw) / 2, (p.h - sh) / 2, sw, sh, x, y, w, h, 255, 0);
+    return;
+  }
   const k = kindIndex(m), colour = k >= 0 ? KIND_COLOUR[k] : 0x71717a;
+  if (Math.min(w, h) < 24) { rrect(x, y, w, h, 2, colour, 215); return; }   // too small for an icon: the colour of its kind
   rrect(x, y, w, h, 4, colour, 46);
   const size = Math.max(10, Math.min(40, Math.min(w, h) * 0.4)), s = icon(k >= 0 ? KIND_ICON[k] : 'image', colour, 2);
   if (s !== null) (s as Svg).draw(Math.round(x + (w - size) / 2), Math.round(y + (h - size) / 2), Math.round(size), Math.round(size), 255);
