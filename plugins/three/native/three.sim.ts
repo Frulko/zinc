@@ -185,6 +185,7 @@ export default {
   },
   animationCount: (h: number): number => { const d = doc(h); return d ? list(d, 'animations').length : 0; },
   skinCount: (h: number): number => { const d = doc(h); return d ? list(d, 'skins').length : 0; },
+  extensions: (h: number): string => { const d = doc(h); return d ? list(d, 'extensionsUsed').filter((e: any) => typeof e === 'string').join(',') : ''; },
   decode: (data: number[]): number => decodeBytes(u8(data)),
   readFile(path: string, out: number[]): boolean {
     try { for (const v of fs.readFileSync(path)) out.push(v); return true; } catch { return false; }

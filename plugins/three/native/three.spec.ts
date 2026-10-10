@@ -46,6 +46,8 @@ export interface Spec extends NativeModule {
   /** Counts of what the loader ignores (reported in the GLTF object). */
   animationCount(h: i32): i32;
   skinCount(h: i32): i32;
+  /** The names in extensionsUsed, comma separated (parse() refuses a document that requires one it does not read). */
+  extensions(h: i32): string;
   /** PNG or JPEG bytes -> runtime image (0x00RRGGBB, alpha dropped), -1 when the data cannot be decoded. */
   decode(data: u8[]): i32;
   /** Reads a file from disk into `out`; false when it cannot be read. */

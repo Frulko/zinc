@@ -456,6 +456,24 @@ struct Impl : NativeThree {
   }
   int32_t animationCount(int32_t h) override { Doc* d = doc(h); return d ? d->J.count(arr(*d, "animations")) : 0; }
   int32_t skinCount(int32_t h) override { Doc* d = doc(h); return d ? d->J.count(arr(*d, "skins")) : 0; }
+  zrt::String extensions(int32_t h) override {
+    Doc* d = doc(h);
+    if (!d) return zrt::String::from("", 0);
+    const Json& J = d->J;
+    int32_t a = arr(*d, "extensionsUsed");
+    uint32_t n = 0;
+    for (int32_t i = 0; i < J.count(a); i++) { int32_t e = J.at(a, i); if (J.v[e].t == JSTR) n += J.v[e].sl + 1; }
+    char* o = (char*)malloc(n + 1); uint32_t k = 0;
+    for (int32_t i = 0; i < J.count(a); i++) {  // extension names are plain ASCII: no escapes to resolve
+      int32_t e = J.at(a, i);
+      if (J.v[e].t != JSTR) continue;
+      if (k) o[k++] = ',';
+      memcpy(o + k, J.v[e].s, J.v[e].sl); k += J.v[e].sl;
+    }
+    zrt::String r = zrt::String::from(o, k);
+    ::free(o);
+    return r;
+  }
   int32_t decode(Bytes data) override {
     uint32_t n; uint8_t* p = copy_bytes(data, &n);
     int32_t id = decode_bytes(p, n);
