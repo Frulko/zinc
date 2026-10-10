@@ -117,8 +117,9 @@ def package_macos(build, out):
     os.makedirs(macos); os.makedirs(res)
     binary = os.path.join(macos, "zinc")
     shutil.copy2(os.path.join(build, "zinc"), binary)
-    if os.path.exists(os.path.join(build, "libzn_webgl.dylib")):  # WebGL, loaded by zinc from its own directory (ZN-330.01)
-        shutil.copy2(os.path.join(build, "libzn_webgl.dylib"), os.path.join(macos, "libzn_webgl.dylib"))
+    for mod in ("libzn_webgl.dylib", "libzn_window.dylib"):  # WebGL (ZN-330.01) and the window host (ZN-592.01), loaded by zinc from its own directory
+        if os.path.exists(os.path.join(build, mod)):
+            shutil.copy2(os.path.join(build, mod), os.path.join(macos, mod))
     bundle_libs_macos(binary, os.path.join(app, "Contents", "Frameworks"))
     payload(os.path.join(res, "zinc"))
     with open(os.path.join(macos, "zinc-atelier"), "w") as f: f.write(LAUNCHER)

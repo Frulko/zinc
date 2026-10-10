@@ -117,7 +117,9 @@ void applyScript(HalInput* in) {
 
 #ifdef ZN_HOST_SDL
 #define PICK(live_expr, null_expr) (live ? (live_expr) : (null_expr))
-void hal_init(const HalConfig* c) { live = c->gfx && !headlessRequested(); if (live) sdl_hal_init(c); else null_hal_init(c); }
+// compiled programs link the window host: nothing to load. zinc's own (src/host/window_module.cpp) loads the module libzn_window (ZN-592.01).
+__attribute__((weak)) int zn_window_load(void) { return 1; }
+void hal_init(const HalConfig* c) { live = c->gfx && !headlessRequested() && zn_window_load(); if (live) sdl_hal_init(c); else null_hal_init(c); }
 void hal_shutdown(void) { if (live) sdl_hal_shutdown(); else null_hal_shutdown(); }
 void hal_frame_begin(void) { if (live) sdl_hal_frame_begin(); else null_hal_frame_begin(); }
 void hal_frame_end(void) { if (live) sdl_hal_frame_end(); else null_hal_frame_end(); }

@@ -48,6 +48,7 @@ int runTestCommand(const std::string& self, const zn::frontend::Profile& p, cons
 #include "sim/replay.h"
 #include "dev/client.h"
 #include "dev/core.h"
+#include <sys/stat.h>
 #include <unistd.h>
 #include "vm/vm.h"
 #include "zbc/zbc.h"
@@ -558,13 +559,13 @@ static int buildNative(const char* argv0, const char* entry, const char* out, zn
                     (libs / "libzn_zbc.a").string() + "' '" + (libs / "libzn_ir.a").string() + "' '" + (libs / "libzn_frontend.a").string() + "'" + (fs::exists(libs / "libzn_regexp.a") ? " '" + (libs / "libzn_regexp.a").string() + "'" : std::string()) + " '" + (libs / "libzn_native.a").string() + "'" + (!zm.natives.empty() && fs::exists(libs / "libzn_native_fixture.a") ? " '" + (libs / "libzn_native_fixture.a").string() + "'" : std::string()) +   // the native registry; libunicode: the string runtime needs it
                     (!nativeLibs.empty() ? nativeLibs : std::string()) +
                     (zn::aot::usesGl(zm) && fs::exists(libs / "libzn_gl.a") ? " '" + (libs / "libzn_gl.a").string() + "' '" + (libs / "libzn_glad.a").string() + "' '" + (libs / "libzn_glslang.a").string() + "'" : std::string()) +   // zinc:gl (ZN-562): WebGL linked in, no libzn_webgl
-                    (zn::aot::usesLayout(zm) && (zn::frontend::uiLayout() == "rn" || zn::frontend::directLayoutUse()) && fs::exists(libs / "libzn_layout.a") ? " '" + (libs / "libzn_layout.a").string() + "' '" + (libs / "libzn_yoga.a").string() + "'" : std::string()) + ((zn::aot::usesHost(zm) || !nativeLibs.empty()) && fs::exists(libs / "libzn_host_gfx.a") ? " '" + (libs / "libzn_host_gfx.a").string() + "'" + (fs::exists(libs / "libzn_codec.a") ? " '" + (libs / "libzn_codec.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_uv.a") ? " '" + (libs / "libzn_uv.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_llhttp.a") ? " '" + (libs / "libzn_llhttp.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_mbedtls.a") ? " '" + (libs / "libzn_mbedtls.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_regexp.a") ? " '" + (libs / "libzn_regexp.a").string() + "'" : std::string()) + " -lpthread" HOSTLIBS : std::string()) + " -o '" + out + "'";  // the graphics host, used by programs that call it
+                    (zn::aot::usesLayout(zm) && (zn::frontend::uiLayout() == "rn" || zn::frontend::directLayoutUse()) && fs::exists(libs / "libzn_layout.a") ? " '" + (libs / "libzn_layout.a").string() + "' '" + (libs / "libzn_yoga.a").string() + "'" : std::string()) + ((zn::aot::usesHost(zm) || !nativeLibs.empty()) && fs::exists(libs / "libzn_host_gfx.a") ? " '" + (libs / "libzn_host_gfx.a").string() + "'" + (fs::exists(libs / "libzn_host_window.a") ? " '" + (libs / "libzn_host_window.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_codec.a") ? " '" + (libs / "libzn_codec.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_uv.a") ? " '" + (libs / "libzn_uv.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_llhttp.a") ? " '" + (libs / "libzn_llhttp.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_mbedtls.a") ? " '" + (libs / "libzn_mbedtls.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_regexp.a") ? " '" + (libs / "libzn_regexp.a").string() + "'" : std::string()) + " -lpthread" HOSTLIBS : std::string()) + " -o '" + out + "'";  // the graphics host, used by programs that call it
   if (run) {   // a compiled run: the program's C++ and what it links, hashed; the same as the cached executable's: nothing to compile
     std::string k;
     for (const fs::path& u : units) { std::ifstream in(u); std::stringstream ss; ss << in.rdbuf(); k += ss.str(); }
     k += "\n" + cmd;
     auto stamp = [&](const fs::path& f) { std::error_code ec; auto t = fs::last_write_time(f, ec); k += "\n" + f.string() + " " + std::to_string(ec ? 0LL : static_cast<long long>(t.time_since_epoch().count())) + " " + std::to_string(ec ? 0ULL : static_cast<unsigned long long>(fs::file_size(f, ec))); };
-    stamp(zn::tc::executablePath()); stamp(libs / "libzn_rt.a"); stamp(libs / "libzn_host_gfx.a");
+    stamp(zn::tc::executablePath()); stamp(libs / "libzn_rt.a"); stamp(libs / "libzn_host_gfx.a"); stamp(libs / "libzn_host_window.a");
     for (const zn::tc::PluginLib& pl : gPlugins) stamp(pl.archive);
     run->key = zn::tc::sha256Hex(k);
     if (run->key == run->have) {
@@ -612,12 +613,15 @@ static int buildNative(const char* argv0, const char* entry, const char* out, zn
 // and size: the sources, zinc.json, the engine's own modules (lib/std, lib/compat), assets, fonts and plugin directories.
 namespace inputs {
 namespace fs = std::filesystem;
-static std::string stampOf(const fs::path& f) {
-  std::error_code ec;
-  const auto t = fs::last_write_time(f, ec);
-  if (ec) return "-";
-  const auto n = fs::is_regular_file(f, ec) ? fs::file_size(f, ec) : 0;
-  return std::to_string(static_cast<long long>(t.time_since_epoch().count())) + " " + std::to_string(static_cast<unsigned long long>(n));
+static std::string stampOf(const fs::path& f) {   // one stat (a cached run checks ~80 inputs): the modification time in ns, as fs::last_write_time counts it, and the size
+  struct stat st;
+  if (::stat(f.c_str(), &st) != 0) return "-";
+#ifdef __APPLE__
+  const long long ns = static_cast<long long>(st.st_mtimespec.tv_sec) * 1000000000LL + st.st_mtimespec.tv_nsec;
+#else
+  const long long ns = static_cast<long long>(st.st_mtim.tv_sec) * 1000000000LL + st.st_mtim.tv_nsec;
+#endif
+  return std::to_string(ns) + " " + std::to_string(S_ISREG(st.st_mode) ? static_cast<unsigned long long>(st.st_size) : 0ULL);
 }
 /** The entry, the stamps of the engine and of `extra` files, and the environment variables that change what the compiler writes. */
 static std::string signature(const std::string& entry, const std::vector<fs::path>& extra) {
@@ -738,7 +742,7 @@ namespace fs = std::filesystem;
 static fs::path dirOf(const std::string& entry) { return fs::path(zn::tc::home()) / "cache" / "run" / zn::tc::sha256Hex(entry).substr(0, 16); }
 static std::string signature(const std::string& entry) {
   const fs::path libs = fs::path(zn::tc::executablePath()).parent_path();
-  return inputs::signature(entry, {libs / "libzn_rt.a", libs / "libzn_host_gfx.a"});
+  return inputs::signature(entry, {libs / "libzn_rt.a", libs / "libzn_host_gfx.a", libs / "libzn_host_window.a"});
 }
 static bool wanted() {
   const char* mode = std::getenv("ZINC_RUN");
@@ -818,22 +822,46 @@ static bool unpackZapp(const std::string& archive, std::string& zbc, std::string
   zbc = (dir / "program.zbc").string();
   return true;
 }
-// A fused executable (ZN-319): this binary followed by a .zapp and a 16-byte trailer, the archive's size (8 bytes, little endian) and "ZNFUSED1".
-static const char kFuseMagic[9] = "ZNFUSED1";
+// A fused executable (ZN-319): this binary followed by the window host module (ZN-592.01, absent when the engine has none), a .zapp and a
+// 24-byte trailer: the archive's size and the module's (8 bytes each, little endian) and "ZNFUSED2".
+static const char kFuseMagic[9] = "ZNFUSED2";
+static std::uint64_t gFusedModuleAt, gFusedModuleSize;   // where the window module is in this fused executable
 static bool fusedArchive(std::string& archive) {
   std::ifstream f(zn::tc::executablePath(), std::ios::binary | std::ios::ate);
   if (!f) return false;
   const std::streamoff end = f.tellg();
-  if (end < 16) return false;
-  char t[16];
-  f.seekg(end - 16); f.read(t, 16);
-  if (!f || std::memcmp(t + 8, kFuseMagic, 8) != 0) return false;
-  std::uint64_t n = 0;
-  for (int i = 7; i >= 0; --i) n = (n << 8) | static_cast<unsigned char>(t[i]);
-  if (n == 0 || static_cast<std::streamoff>(n) > end - 16) return false;
+  if (end < 24) return false;
+  char t[24];
+  f.seekg(end - 24); f.read(t, 24);
+  if (!f || std::memcmp(t + 16, kFuseMagic, 8) != 0) return false;
+  std::uint64_t n = 0, m = 0;
+  for (int i = 7; i >= 0; --i) { n = (n << 8) | static_cast<unsigned char>(t[i]); m = (m << 8) | static_cast<unsigned char>(t[8 + i]); }
+  if (n == 0 || static_cast<std::streamoff>(n + m) > end - 24) return false;
   archive.resize(n);
-  f.seekg(end - 16 - static_cast<std::streamoff>(n)); f.read(archive.data(), static_cast<std::streamsize>(n));
+  f.seekg(end - 24 - static_cast<std::streamoff>(n)); f.read(archive.data(), static_cast<std::streamsize>(n));
+  gFusedModuleAt = static_cast<std::uint64_t>(end) - 24 - n - m; gFusedModuleSize = m;
   return static_cast<bool>(f);
+}
+/** The window module of this fused executable, written once into the cache (keyed by its content): its path, or "" when it has none. */
+std::string fusedWindowModule() {
+  namespace fs = std::filesystem;
+  if (!gFusedModuleSize) return "";
+  std::ifstream f(zn::tc::executablePath(), std::ios::binary);
+  std::string bytes(gFusedModuleSize, '\0');
+  f.seekg(static_cast<std::streamoff>(gFusedModuleAt)); f.read(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+  if (!f) return "";
+  std::uint64_t h = 1469598103934665603ull;
+  for (unsigned char c : bytes) { h ^= c; h *= 1099511628211ull; }
+  char name[64];
+  std::snprintf(name, sizeof name, "libzn_window-%016llx.dylib", static_cast<unsigned long long>(h));
+  const fs::path dir = fs::path(zn::tc::home()) / "cache" / "modules", path = dir / name;
+  std::error_code ec;
+  if (fs::exists(path, ec) && fs::file_size(path, ec) == bytes.size()) return path.string();
+  fs::create_directories(dir, ec);
+  const fs::path tmp = path.string() + ".part";
+  { std::ofstream o(tmp, std::ios::binary); o.write(bytes.data(), static_cast<std::streamsize>(bytes.size())); if (!o) return ""; }
+  fs::rename(tmp, path, ec);
+  return ec ? "" : path.string();
 }
 // App updates at launch (ZN-324.02). ~/.zinc/apps/<id>/ holds `staged` (the path of a verified update to try), `current` (the update in use) and
 // `trial` (written when a staged update starts; removed when it proves healthy). A launch finding `trial` left behind means the update on trial
@@ -927,6 +955,9 @@ static std::vector<std::string> gOriginalArgs;   // argv as the user typed it: t
 
 // WebGL lives in a module beside zinc (ZN-330.01): libzn_webgl.dylib / .so (or $ZINC_WEBGL_LIB), loaded the first time a QuickJS context is made or a zinc:gl row is
 // called; zinc carries no WebGL, glad or glslang. Without the module, QuickJS programs run without `document` (and zinc.json "webgl" says why).
+#ifdef ZN_WINDOW_MODULE
+extern "C" int zn_window_load(void);   // src/host/window_module.cpp (ZN-592.01)
+#endif
 static void* webglLib(bool quiet) {
   static void* h = []() -> void* {
     namespace fs = std::filesystem;
@@ -937,6 +968,9 @@ static void* webglLib(bool quiet) {
     const char* file = "libzn_webgl.so";
 #endif
     const std::string path = env && *env ? std::string(env) : (fs::path(zn::tc::executablePath()).parent_path() / file).string();
+#ifdef ZN_WINDOW_MODULE
+    if (!zn_window_load()) return nullptr;   // the module resolves SDL3 from the window host module
+#endif
     return dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
   }();
   if (!h && !quiet) std::fprintf(stderr, "zinc: WebGL is not available: %s\n", dlerror());
@@ -1281,11 +1315,17 @@ int main(int argc, char** argv) {
     std::ifstream self(zn::tc::executablePath(), std::ios::binary);
     std::stringstream ss; ss << self.rdbuf();
     const std::string engine = ss.str();   // (a fused binary runs its app whatever its arguments, so the engine here is never a fused one)
-    std::string trailer(8, '\0');
-    for (int i = 0; i < 8; ++i) trailer[i] = static_cast<char>((static_cast<std::uint64_t>(archive.size()) >> (8 * i)) & 0xff);
+    std::ifstream wm(fs::path(zn::tc::executablePath()).parent_path() / "libzn_window.dylib", std::ios::binary);   // the window host, loaded from the cache by the fused app
+    std::stringstream ws; if (wm) ws << wm.rdbuf();
+    const std::string module = ws.str();
+    std::string trailer(16, '\0');
+    for (int i = 0; i < 8; ++i) {
+      trailer[i] = static_cast<char>((static_cast<std::uint64_t>(archive.size()) >> (8 * i)) & 0xff);
+      trailer[8 + i] = static_cast<char>((static_cast<std::uint64_t>(module.size()) >> (8 * i)) & 0xff);
+    }
     trailer += std::string(kFuseMagic, 8);
     std::ofstream out(outPath, std::ios::binary);
-    out << engine << archive << trailer;
+    out << engine << module << archive << trailer;
     if (!out) { std::fprintf(stderr, "zinc fuse: cannot write %s\n", outPath.c_str()); return 1; }
     out.close();
     fs::permissions(outPath, fs::perms::owner_all | fs::perms::group_read | fs::perms::group_exec | fs::perms::others_read | fs::perms::others_exec, fs::perm_options::replace);

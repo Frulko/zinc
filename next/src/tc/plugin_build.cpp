@@ -585,9 +585,19 @@ bool buildPlugin(const frontend::FoundPlugin& p, const std::string& engineRoot, 
   return true;
 }
 
+// zinc keeps SDL3 in its window module (src/host/window_module.cpp, ZN-592.01): the display drivers, and the plugins whose load stops on an
+// SDL function (zinc:3d's GL context, webview), get it loaded first; compiled programs link SDL3 and have no such function.
+extern "C" int zn_window_load(void) __attribute__((weak));
+
 bool loadPlugin(const PluginLib& lib, std::string& err) {
-  void* h = dlopen(lib.shared.c_str(), RTLD_NOW | (lib.display ? RTLD_GLOBAL : RTLD_LOCAL));   // a driver's zgl_* functions are what GPU plugins (zinc:mapping) bind to
-  if (!h) { err = std::string("cannot load ") + lib.shared + ": " + dlerror(); return false; }
+  const int mode = RTLD_NOW | (lib.display ? RTLD_GLOBAL : RTLD_LOCAL);   // a driver's zgl_* functions are what GPU plugins (zinc:mapping) bind to
+  if (lib.display && zn_window_load) zn_window_load();
+  void* h = dlopen(lib.shared.c_str(), mode);
+  if (!h) {
+    std::string why = dlerror();
+    if (zn_window_load && why.find("'_SDL_") != std::string::npos && zn_window_load()) { h = dlopen(lib.shared.c_str(), mode); if (!h) why = dlerror(); }
+    if (!h) { err = std::string("cannot load ") + lib.shared + ": " + why; return false; }
+  }
   if (lib.display) return true;   // its static constructor has registered it with the HAL
   using Open = const ZnModule* (*)();
   auto open = reinterpret_cast<Open>(dlsym(h, ("zn_module_" + lib.module).c_str()));

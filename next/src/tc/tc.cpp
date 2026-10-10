@@ -377,18 +377,21 @@ bool ensureCrossLibs(const std::string& zig, const std::string& root, const std:
 }
 
 std::string executablePath() {
+  static const std::string path = []() -> std::string {   // resolved once: a run asks several times
 #ifdef __APPLE__
-  char buf[4096];
-  std::uint32_t n = sizeof buf;
-  if (_NSGetExecutablePath(buf, &n) != 0) return "";
-  std::error_code ec;
-  fs::path p = fs::canonical(buf, ec);
-  return ec ? std::string(buf) : p.string();
+    char buf[4096];
+    std::uint32_t n = sizeof buf;
+    if (_NSGetExecutablePath(buf, &n) != 0) return "";
+    std::error_code ec;
+    fs::path p = fs::canonical(buf, ec);
+    return ec ? std::string(buf) : p.string();
 #else
-  std::error_code ec;
-  fs::path p = fs::read_symlink("/proc/self/exe", ec);
-  return ec ? "" : p.string();
+    std::error_code ec;
+    fs::path p = fs::read_symlink("/proc/self/exe", ec);
+    return ec ? "" : p.string();
 #endif
+  }();
+  return path;
 }
 
 std::string sourceRoot(const std::string& compiledIn) {

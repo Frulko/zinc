@@ -159,6 +159,11 @@ new size (zinc:ui does it for every app). `resize` in `zinc.json` wins over that
 { "targets": { "macos": { "width": 1024, "height": 600, "resize": "fill", "kiosk": true } } }
 ```
 
+On macOS, `zinc` loads the window (`libzn_window`, beside it: SDL3 and the system's GUI frameworks) when a program first
+opens one, so `zinc check`, `zinc build` and console programs start without it (`ZINC_WINDOW_LIB` names another copy).
+Without the module a program that draws runs headless and says why. A built program links the window in; `zinc fuse`
+puts the module inside the fused executable.
+
 ## Per-target constraints
 
 | target | constraint |

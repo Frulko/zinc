@@ -11,6 +11,7 @@
 
 #ifdef __APPLE__
 #include <CoreFoundation/CoreFoundation.h>
+#include <dlfcn.h>
 #endif
 
 namespace fs = std::filesystem;
@@ -123,12 +124,18 @@ bool writeBundle(const BundleSpec& spec, const std::string& exe, const std::stri
   return run("codesign --force --sign - --identifier " + q(spec.id) + " " + q(appPath), err, "codesign");
 }
 
+// CoreFoundation is opened here, not linked: linking it runs ~400 initializers of the frameworks behind it (Network, SkyLight) at every
+// launch of zinc, about 2 ms on the Intel Mac (ZN-592.01)
 std::string runningBundleId() {
 #ifdef __APPLE__
-  CFBundleRef b = CFBundleGetMainBundle();
-  CFStringRef id = b ? CFBundleGetIdentifier(b) : nullptr;
+  void* cf = dlopen("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation", RTLD_LAZY | RTLD_LOCAL);
+  auto mainBundle = cf ? reinterpret_cast<CFBundleRef (*)()>(dlsym(cf, "CFBundleGetMainBundle")) : nullptr;
+  auto identifier = cf ? reinterpret_cast<CFStringRef (*)(CFBundleRef)>(dlsym(cf, "CFBundleGetIdentifier")) : nullptr;
+  auto cString = cf ? reinterpret_cast<Boolean (*)(CFStringRef, char*, CFIndex, CFStringEncoding)>(dlsym(cf, "CFStringGetCString")) : nullptr;
+  CFBundleRef b = mainBundle && identifier && cString ? mainBundle() : nullptr;
+  CFStringRef id = b ? identifier(b) : nullptr;
   char buf[256];
-  if (id && CFStringGetCString(id, buf, sizeof buf, kCFStringEncodingUTF8)) return buf;
+  if (id && cString(id, buf, sizeof buf, kCFStringEncodingUTF8)) return buf;
 #endif
   return "";
 }
