@@ -73,6 +73,7 @@ static int cur = 0;
 static bool first = true;
 static const Buf* shown = nullptr;
 static float tx = 0, ty = 0;  // translation applied to every command (UI transforms)
+static int32_t target_img = -1;  // beginImage: the commands draw into this image, in its (logical) pixels
 static bool kept = false;     // keep(): nothing changed, show the previous frame again
 #ifndef ZRT_PEN_SAMPLES
 #define ZRT_PEN_SAMPLES 256
@@ -978,7 +979,10 @@ void present_overlay() {
   present(&f);
 }
 
-// Logical -> physical: one pass over the finished frame, so commands emitted by C++ plugins are converted too.
+// Logical -> physical. zinc:gfx records its commands in physical pixels (ZN-588: a pass over 200k commands cost about 0.3 ms at scale 4);
+// C++ plugins fill theirs after emit(), in logical pixels: those are converted when the frame ends.
+static uint32_t* plugin_cmds = nullptr;  // indices of this frame's emit() commands
+static uint32_t n_plugin = 0, cap_plugin = 0;
 static int32_t font_map[2][64];  // logical font id -> physical font id (cache)
 static int32_t phys_font(int32_t f) {
   if (f >= 0 && f < 64 && font_map[0][f] == pxk + 1) return font_map[1][f];
@@ -988,11 +992,14 @@ static int32_t phys_font(int32_t f) {
   if (f >= 0 && f < 64) { font_map[0][f] = pxk + 1; font_map[1][f] = r; }
   return r;
 }
+static void scale_contours(float* p, uint32_t contours, float k) {  // [count, x, y, ...]*: the coordinates, not the counts
+  for (uint32_t n = 0; n < contours; n++) { uint32_t cnt = (uint32_t)p[0]; for (uint32_t j = 1; j <= cnt * 2; j++) p[j] *= k; p += 1 + cnt * 2; }
+}
 static void to_physical(Buf& b) {
   if (pxk == 1) return;
   const float k = (float)pxk;
-  for (uint32_t i = 0; i < b.ncmd; i++) {
-    Cmd& c = b.cmds[i];
+  for (uint32_t i = 0; i < n_plugin; i++) {
+    Cmd& c = b.cmds[plugin_cmds[i]];
     if (c.kind == raster::CLEAR || c.kind == raster::UNCLIP) continue;
     c.x *= k; c.y *= k; c.w *= k; c.h *= k;
     switch (c.kind) {
@@ -1005,7 +1012,8 @@ static void to_physical(Buf& b) {
         break;
       case raster::POLY: case raster::LINE: {
         float* p = b.pts + c.off;
-        for (uint32_t n = 0; n < c.n; n++) { uint32_t cnt = (uint32_t)p[0]; for (uint32_t j = 1; j <= cnt * 2; j++) p[j] *= k; p += 1 + cnt * 2; }
+        scale_contours(p, c.n, k);
+        for (uint32_t n = 0; n < c.n; n++) p += 1 + 2 * (uint32_t)p[0];
         if (c.grad == 4) for (uint32_t j = 1; j <= 6; j++) p[j] *= k;  // gradient paint geometry (raster.cpp paint_at)
         break;
       }
@@ -1021,7 +1029,7 @@ static bool bulk_mode = false;
 static uint32_t bulk_n = 0;
 static raster::Rect all_box[2];
 static bool all_ok[2];
-void begin_frame() { Buf& b = bufs[cur]; b.ncmd = 0; b.ntext = 0; b.npts = 0; tx = ty = 0; kept = false; all_ok[cur] = false; hud::frame_start(); prof::begin(); }
+void begin_frame() { Buf& b = bufs[cur]; b.ncmd = 0; b.ntext = 0; b.npts = 0; n_plugin = 0; tx = ty = 0; kept = false; all_ok[cur] = false; hud::frame_start(); prof::begin(); }
 void keep() { kept = true; }
 void end_frame() {
   init_scale();
@@ -1111,7 +1119,13 @@ static Cmd* push(uint8_t kind, uint32_t color, int32_t alpha) {
   c->alpha = (uint8_t)(alpha < 0 ? 0 : alpha > 255 ? 255 : alpha);
   return c;
 }
-static void box(Cmd* c, double x, double y, double w, double h) { c->x = (float)(x + tx); c->y = (float)(y + ty); c->w = (float)w; c->h = (float)h; }
+/** The scale of the commands being recorded: physical pixels, except into an image (beginImage), which is in logical pixels. */
+
+static float rec_k() { if (!pxk) init_scale(); return target_img >= 0 ? 1.0f : (float)pxk; }
+static void box(Cmd* c, double x, double y, double w, double h) {
+  const float k = rec_k();
+  c->x = (float)(x + tx) * k; c->y = (float)(y + ty) * k; c->w = (float)w * k; c->h = (float)h * k;
+}
 
 void onFrame(Fn<void(double)> cb) { frame_cb = cb; }
 int32_t width() { return surf_w; }
@@ -1119,22 +1133,23 @@ int32_t height() { return surf_h; }
 void clear(uint32_t color) { push(raster::CLEAR, color, 255); }
 void rect(double x, double y, double w, double h, uint32_t color) { if (Cmd* c = push(raster::RECT, color, 255)) box(c, x, y, w, h); }
 void rrect(double x, double y, double w, double h, double r, uint32_t color, int32_t alpha) {
-  if (Cmd* c = push(raster::RECT, color, alpha)) { box(c, x, y, w, h); c->r = (float)r; }
+  if (Cmd* c = push(raster::RECT, color, alpha)) { box(c, x, y, w, h); c->r = (float)r * rec_k(); }
 }
 void gradient(double x, double y, double w, double h, double r, uint32_t c1, uint32_t c2, bool vertical, int32_t alpha) {
-  if (Cmd* c = push(raster::RECT, c1, alpha)) { box(c, x, y, w, h); c->r = (float)r; c->c2 = c2 & 0xFFFFFF; c->grad = vertical ? 1 : 2; }
+  if (Cmd* c = push(raster::RECT, c1, alpha)) { box(c, x, y, w, h); c->r = (float)r * rec_k(); c->c2 = c2 & 0xFFFFFF; c->grad = vertical ? 1 : 2; }
 }
 void border(double x, double y, double w, double h, double r, double width, uint32_t color, int32_t alpha) {
-  if (Cmd* c = push(raster::BORDER, color, alpha)) { box(c, x, y, w, h); c->r = (float)r; c->s = (float)width; }
+  if (Cmd* c = push(raster::BORDER, color, alpha)) { box(c, x, y, w, h); c->r = (float)r * rec_k(); c->s = (float)width * rec_k(); }
 }
 void shadow(double x, double y, double w, double h, double r, double blur, uint32_t color, int32_t alpha) {
-  if (Cmd* c = push(raster::SHADOW, color, alpha)) { box(c, x, y, w, h); c->r = (float)r; c->s = (float)blur; }
+  if (Cmd* c = push(raster::SHADOW, color, alpha)) { box(c, x, y, w, h); c->r = (float)r * rec_k(); c->s = (float)blur * rec_k(); }
 }
 // The point rows read the program's f64 storage in place (ZN-405): no array is built per call.
 static bool add_points(Cmd* c, const double* pts, uint32_t n, bool closed_list) {
   Buf& b = bufs[cur];
   if (b.npts + n + 1 > ZRT_POINT_POOL) { pool_full(2); return false; }  // + 1: an open polygon writes its count first
   c->off = b.npts;
+  const float ks = rec_k();
   float minx = 1e9f, miny = 1e9f, maxx = -1e9f, maxy = -1e9f;
   uint32_t i = 0, contours = 0;
   while (i < n) {
@@ -1145,7 +1160,7 @@ static bool add_points(Cmd* c, const double* pts, uint32_t n, bool closed_list) 
     b.pts[b.npts++] = (float)cnt;
     for (uint32_t k = 0; k < cnt; k++) {
       float x = (float)(pts[start + k * 2] + tx), y = (float)(pts[start + k * 2 + 1] + ty);
-      b.pts[b.npts++] = x; b.pts[b.npts++] = y;
+      b.pts[b.npts++] = x * ks; b.pts[b.npts++] = y * ks;
       minx = x < minx ? x : minx; maxx = x > maxx ? x : maxx; miny = y < miny ? y : miny; maxy = y > maxy ? y : maxy;
     }
     contours++;
@@ -1153,13 +1168,23 @@ static bool add_points(Cmd* c, const double* pts, uint32_t n, bool closed_list) 
     i = start + cnt * 2;
   }
   c->n = contours;
-  c->x = minx; c->y = miny; c->w = maxx - minx; c->h = maxy - miny;
+  c->x = minx * ks; c->y = miny * ks; c->w = (maxx - minx) * ks; c->h = (maxy - miny) * ks;
   return true;
 }
 Cmd* emit(uint8_t kind, const float* pts, uint32_t len) {
   Buf& b = bufs[cur];
   if (len > ZRT_POINT_POOL - b.npts) { pool_full(2); return nullptr; }
   Cmd* c = push(kind, 0, 255);
+  if (c && target_img < 0 && pxk != 1) {   // the plugin fills it in logical pixels: converted at the end of the frame
+    if (n_plugin == cap_plugin) {
+      const uint32_t cap = cap_plugin ? cap_plugin * 2 : 256;
+      uint32_t* a = (uint32_t*)hal_alloc(cap * sizeof(uint32_t));
+      if (!a) panic("out of memory recording plugin commands");
+      if (plugin_cmds) { __builtin_memcpy(a, plugin_cmds, n_plugin * sizeof(uint32_t)); hal_free(plugin_cmds); }
+      plugin_cmds = a; cap_plugin = cap;
+    }
+    plugin_cmds[n_plugin++] = b.ncmd - 1;
+  }
   if (!c || !len) return c;
   __builtin_memcpy(b.pts + b.npts, pts, len * sizeof(float));
   c->off = b.npts;
@@ -1202,9 +1227,14 @@ void drawText(int32_t f, double x, double y, const String& s, uint32_t color, in
   Cmd* c = push(raster::TEXT, color, alpha);
   if (!c) return;
   __builtin_memcpy(b.text + b.ntext, s.ptr(), n);
-  c->res = f; c->off = b.ntext; c->n = n; c->s = (float)tracking;
+  const float k = rec_k();
+  c->res = f; c->off = b.ntext; c->n = n; c->s = (float)tracking * k;
   box(c, x, y, textWidth(f, s, tracking), lineHeight(f));
   b.ntext += n;
+  if (k != 1.0f) {
+    c->res = phys_font(f);
+    raster::text_advance(c->res, b.text + c->off, n, 0);   // rasterize missing runtime glyphs now, on this thread: bands are rendered in parallel (hal_sdl.cpp)
+  }
 }
 /** Legacy API: crisp 8px monospace grid scaled by `scale`. */
 void text(double x, double y, const String& s, uint32_t color, int32_t scale) {
@@ -1215,7 +1245,7 @@ int32_t image(const String& name) { return raster::find_image(name.ptr(), name.b
 int32_t imageWidth(int32_t i) { int32_t w, h; raster::image_size(i, &w, &h); return w; }
 int32_t imageHeight(int32_t i) { int32_t w, h; raster::image_size(i, &w, &h); return h; }
 void drawImage(int32_t i, double x, double y, double w, double h, int32_t alpha, double radius) {
-  if (Cmd* c = push(raster::IMAGE, 0, alpha)) { box(c, x, y, w, h); c->res = i; c->r = (float)radius; c->c2 = raster::image_version(i); }
+  if (Cmd* c = push(raster::IMAGE, 0, alpha)) { box(c, x, y, w, h); c->res = i; c->r = (float)radius * rec_k(); c->c2 = raster::image_version(i); }
 }
 /** Stroked polyline from flat [x0, y0, ...] coordinates (round joins and caps). */
 void stroke(const double* pts, uint32_t len, double width, uint32_t color, int32_t alpha, bool closed) {
@@ -1235,7 +1265,9 @@ void stroke(const double* pts, uint32_t len, double width, uint32_t color, int32
   for (uint32_t i = 0; i < n; i++) { float x = tmp[i * 2], y = tmp[i * 2 + 1]; minx = x < minx ? x : minx; maxx = x > maxx ? x : maxx; miny = y < miny ? y : miny; maxy = y > maxy ? y : maxy; }
   c->off = b.npts; c->n = r & 0xFFFF; b.npts += r >> 16;
   if (!c->n) { if (ZRT_POINT_POOL - b.npts < 64) pool_full(2); b.ncmd--; return; }
-  c->x = minx - hw; c->y = miny - hw; c->w = maxx - minx + 2 * hw; c->h = maxy - miny + 2 * hw;
+  const float k = rec_k();   // the outline is built in logical pixels, then scaled like the rest
+  if (k != 1.0f) scale_contours(b.pts + c->off, c->n, k);
+  c->x = (minx - hw) * k; c->y = (miny - hw) * k; c->w = (maxx - minx + 2 * hw) * k; c->h = (maxy - miny + 2 * hw) * k;
 }
 void stroke(const Array<double>& pts, double width, uint32_t color, int32_t alpha, bool closed) { stroke(pts.obj()->data, (uint32_t)pts.length(), width, color, alpha, closed); }
 /** Runtime image (black), drawable with drawImage and a render target for beginImage. */
@@ -1243,7 +1275,6 @@ int32_t createImage(int32_t w, int32_t h) { return raster::dyn_create(w, h); }
 void destroyImage(int32_t i) { raster::dyn_destroy(i); }
 // Render-to-image: commands between beginImage and endImage are rasterized into the image instead of the screen
 // (cached map tiles, static layers). They never reach the frame diff.
-static int32_t target_img = -1;
 static uint32_t mark_cmd, mark_text, mark_pts;
 void beginImage(int32_t i) { Buf& b = bufs[cur]; target_img = i; mark_cmd = b.ncmd; mark_text = b.ntext; mark_pts = b.npts; }
 void endImage() {
@@ -1257,7 +1288,7 @@ void endImage() {
   }
   b.ncmd = mark_cmd; b.ntext = mark_text; b.npts = mark_pts; target_img = -1;
 }
-void clip(double x, double y, double w, double h, double r) { if (Cmd* c = push(raster::CLIP, 0, 255)) { box(c, x, y, w, h); c->r = (float)r; } }
+void clip(double x, double y, double w, double h, double r) { if (Cmd* c = push(raster::CLIP, 0, 255)) { box(c, x, y, w, h); c->r = (float)r * rec_k(); } }
 void unclip() { push(raster::UNCLIP, 0, 255); }
 void translate(double x, double y) { tx = (float)x; ty = (float)y; }
 

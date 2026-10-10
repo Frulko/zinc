@@ -48,6 +48,7 @@
     {"paths": ["src/aot/", "src/rt/"], "tests": ["aot", "rc", "profile"]},
     {"paths": ["runtime/raster.cpp", "runtime/gfx.cpp", "runtime/ttf.cpp", "src/host/backend_sw.cpp"], "tests": ["scene_dump", "backend_sw", "damage_sig", "ui_style"], "canary": true},
     {"paths": ["../runtime/gfx.cpp", "src/host/gfx_host.cpp", "src/host/hal_dispatch.cpp", "tools/pngdiff"], "tests": ["perf_hud"]},
+    {"paths": ["../runtime/gfx.cpp", "tests/data/scale_push/"], "tests": ["scale_push"]},
     {"paths": ["src/aot/aot.cpp", "include/zn/host.h"], "tests": ["aot_size_inline", "host_direct"]},
     {"paths": ["../lib/std/gl.ts", "src/gl/webgl_host.cpp", "src/gl/webgl_host_rows.inc", "src/gl/webgl_install.cpp", "tools/gen-zinc-gl", "tests/golden/webgl/api_tour", "../examples/gl-cube/"], "tests": ["gl_cube", "zinc_gl_api", "zinc_gl_api_tour"]},
     {"paths": ["src/text/"], "tests": ["text_layout", "segment", "text_shaped"]},
