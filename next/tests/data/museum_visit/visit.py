@@ -13,6 +13,10 @@ visit.input, one visitor:
   790  the language button: every text of the sequence is in English
   900  the button "Map": the storyboard, with the five sequences seen ticked and the links followed in the accent colour
   950  a touch on the node "Blue and White": the storyboard closes and the table fades to that sequence
+ 1040  the button of the guided visit: the presentation starts at its first sequence, with its narration in English and its subtitles
+ 1200  a touch on a card pauses it (and does nothing to the card); 1230: the language button, back to French
+ 1260  "Resume": the step is played again from its beginning, narration and subtitles in French; then nobody touches the table and
+       the presentation plays its five sequences to the end (frame 14592)
 wait.input: the hotspot again, and nothing more: after its 30 seconds the overlay gives way to its `next`, the prints underneath.
 """
 import os, sys
@@ -43,6 +47,10 @@ def visit(tap, drag):
     tap(790, 9, *LANGUAGE)
     tap(900, 10, 90, 1030)
     tap(950, 11, 1572, 700)
+    tap(1040, 12, 320, 1030)
+    tap(1200, 13, 1030, 310)
+    tap(1230, 14, *LANGUAGE)
+    tap(1260, 15, 190, 1030)
 
 def wait(tap, drag):
     tap(150, 1, *HOTSPOT)

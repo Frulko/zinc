@@ -2,21 +2,24 @@
 // way Klynt's player plays a story: one sequence on the table at a time (stage.ts), with its timed media; links (buttons, hotspots on a
 // medium, the button of a point of interest) lead to other sequences through a transition, or open one over the current sequence, which
 // waits underneath; a sequence with a `next` gives way by itself at its end. The storyboard (storyboard.ts) is the map of the story: it
-// shows where the visitor has been and a touch on a node goes there.
+// shows where the visitor has been and a touch on a node goes there. A guided presentation plays a path of sequences by itself, each for
+// its duration, with its narration (narration.ts) and subtitles; a touch pauses it.
 //   zinc run examples/museum-table [-- --sequence <id>] [--lang <code>] [--story] [--log] [--stress <cards>] [--pins] [--time]
-// --story prints what happens to the story, one line per event: sequences, links, overlays, the storyboard, the language (the tests read it);
+// --story prints what happens to the story, one line per event: sequences, links, overlays, the storyboard, presentations, the narration
+// clips asked for and the subtitles shown, the language (the tests read it);
 // --log prints the pose of every card that moved, and the view and points of the 3D object and of the panorama, one line per change;
 // --stress lays out that many cards, keeps them moving and prints the frame time; --time prints the time the 3D object takes to draw;
 // --pins puts a red ball on every point of interest of the object (the test of their projection).
-import { onFrame, width, height, clear, rect, rrect, border, drawImage, drawText, textWidth, imageWidth, imageHeight, wheel, pinch, pointerX, pointerY, modifiers, Mod } from 'zinc:gfx';
+import { onFrame, width, height, clear, rect, rrect, border, polygon, drawImage, drawText, textWidth, imageWidth, imageHeight, wheel, pinch, pointerX, pointerY, modifiers, Mod } from 'zinc:gfx';
 import { readText } from 'zinc:assets';
 import { args, clock } from 'zinc:sys';
-import { parseProject, Sequence, Item, Link, Colours } from './project';
+import { parseProject, Sequence, Item, Link, Presentation, Colours } from './project';
 import { Fingers } from './touch';
 import { Card } from './table';
 import { Stage, Button, drawButton } from './stage';
 import { Frame } from './frame';
 import { Storyboard } from './storyboard';
+import { Narration } from './narration';
 import { sans, bold, wrap, leading } from './type';
 import { word } from './words';
 
@@ -64,8 +67,17 @@ let change: Change | null = null;
 /** The storyboard, made with the first sequence. */
 let board: Storyboard | null = null;
 
+/** The guided presentation being played, the step it is at, the seconds this step has played, and whether a touch has paused it. */
+let tour: Presentation | null = null, step: i32 = 0, played = 0, paused = false;
+/** The narration being said, the seconds since it began, and the subtitle on the table. */
+let voice: Narration | null = null, spoken = 0, cue = '';
+/** The sequences whose narration this visit has heard: outside a presentation a narration is not said twice to the same visitor. */
+const heard = new Set<string>();
+/** Whether a visitor has touched the table: the narration of the first sequence waits for them. */
+let visiting = false;
+
 /** The player's own controls, in the visitor's frame. */
-const languages = new Button(), map = new Button();
+const languages = new Button(), map = new Button(), resume = new Button(), leave = new Button();
 let dock: Button[] = [];
 
 let now = 0, frame: i32 = 0;
@@ -100,6 +112,53 @@ function crowd(): Sequence {
 function arrived(s: Sequence): void {
   if (trail.length === 0 || trail[trail.length - 1] !== s.id) trail.push(s.id);
   tell(`sequence ${s.id}`);
+  hush();
+  const t = tour;
+  if (t !== null) { played = 0; tell(`step ${step + 1}/${t.path.length} ${s.id}`); narrate(s); }
+  else if (visiting && !heard.has(s.id)) narrate(s);
+}
+
+/** Says the narration of `s`, when it has one, in the visitor's language, from its beginning. */
+function narrate(s: Sequence): void {
+  hush();
+  const m = project.medium(s.narration);
+  if (m === null) return;
+  heard.add(s.id);
+  const v = new Narration(project, m, lang);
+  v.play();
+  voice = v; spoken = 0;
+  tell(`narration ${v.file}`);
+}
+/** Stops the narration. */
+function hush(): void {
+  const v = voice;
+  if (v === null) return;
+  v.stop();
+  voice = null; cue = '';
+  tell('narration stop');
+}
+
+/** Starts a guided presentation at its first sequence. */
+function present(p: Presentation): void {
+  showBoard(false);
+  tour = p; step = 0; played = 0; paused = false;
+  tell(`presentation ${p.id} start`);
+  layOutDock();
+  go(p.path[0], 'fade', false);
+}
+/** Ends the presentation (`why`: end, stop): the visitor stays where it stopped. */
+function endTour(why: string): void {
+  const t = tour;
+  if (t === null) return;
+  tour = null; paused = false;
+  tell(`presentation ${t.id} ${why}`);
+  layOutDock();
+}
+/** How long a step of a presentation lasts: the sequence's duration, else its narration and a breath, else ten seconds. */
+function stepLength(s: Sequence): number {
+  if (s.duration > 0) return s.duration;
+  const v = voice;
+  return v !== null && v.length > 0 ? v.length + 1 : 10;
 }
 
 /** Goes to the sequence `id` through a transition (`fade`, `slide` or `none`). `overlay`: it opens over the current sequence, which waits
@@ -118,6 +177,7 @@ function go(id: string, transition: string, overlay: boolean): void {
   change = c;
 }
 function follow(l: Link): void {
+  endTour('stop');
   const from = top().sequence.id, back = stack.length > 1 && stack[0].sequence.id === l.to;
   tell(back ? `close ${from} -> ${l.to} ${l.transition}` : `${l.overlay ? 'overlay' : 'link'} ${from} -> ${l.to} ${l.transition}`);
   go(l.to, l.transition, l.overlay);
@@ -125,6 +185,7 @@ function follow(l: Link): void {
 
 /** The button of a point of interest: a link without a place of its own, with a fade. */
 function followPoint(to: string, point: string, medium: string): void {
+  endTour('stop');
   tell(`link ${top().sequence.id} -> ${to} fade (point ${point} of ${medium})`);
   go(to, 'fade', false);
 }
@@ -132,11 +193,27 @@ function followPoint(to: string, point: string, medium: string): void {
 /** Puts the player's controls in the visitor's frame: at the edge the visitor stands at. */
 function layOutDock(): void {
   dock = [];
-  if (project.sequences.length > 1) {
-    map.act = 'storyboard';
-    map.label = word(board !== null && board.open ? 'map-close' : 'map-button', lang);
-    map.w = textWidth(sans(20), map.label, 0) + 64; map.x = 48 + map.w / 2; map.y = F.h - 50;
-    dock.push(map);
+  const f = sans(20), y = F.h - 50;
+  let x = 48;
+  if (tour !== null) {   // a presentation: nothing to press while it plays (a touch pauses it), two buttons once it is paused
+    if (paused) {
+      resume.act = 'resume'; resume.play = true; resume.label = word('resume', lang);
+      leave.act = 'leave'; leave.label = word('leave', lang);
+      for (const b of [resume, leave]) { b.w = textWidth(f, b.label, 0) + 64 + (b.play ? 26 : 0); b.x = x + b.w / 2; b.y = y; x += b.w + 16; dock.push(b); }
+    }
+  } else {
+    if (project.sequences.length > 1) {
+      map.act = 'storyboard';
+      map.label = word(board !== null && board.open ? 'map-close' : 'map-button', lang);
+      map.w = textWidth(f, map.label, 0) + 64; map.x = x + map.w / 2; map.y = y; x += map.w + 16;
+      dock.push(map);
+    }
+    for (const p of project.presentations) {   // ponytail: every presentation has its button in the row; many of them need a list
+      const b = new Button();
+      b.act = `present ${p.id}`; b.play = true; b.label = project.say(p.title, lang);
+      b.w = textWidth(f, b.label, 0) + 90; b.x = x + b.w / 2; b.y = y; x += b.w + 16;
+      dock.push(b);
+    }
   }
   if (project.languages.length > 1) {
     languages.act = 'language';
@@ -153,7 +230,18 @@ function press(b: Button): void {
     for (const s of stack) s.setLanguage(lang);
     layOutDock();
     tell(`language ${lang}`);
+    if (voice !== null) narrate(top().sequence);   // the narration starts again in the new language, and its subtitles with it
   } else if (b.act === 'storyboard') showBoard(board !== null && !board.open);
+  else if (b.act === 'resume') {
+    // ponytail: zinc:audio cannot pause a clip or start it in the middle, so the step is played again from its beginning
+    paused = false; played = 0;
+    tell('presentation resume');
+    layOutDock();
+    narrate(top().sequence);
+  } else if (b.act === 'leave') endTour('stop');
+  else if (b.act.startsWith('present ')) {
+    for (const p of project.presentations) if (b.act === `present ${p.id}`) { present(p); break; }
+  }
 }
 
 function showBoard(open: boolean): void {
@@ -168,6 +256,7 @@ function showBoard(open: boolean): void {
 function jump(s: Sequence): void {
   showBoard(false);
   if (stack.length === 1 && top().sequence === s) return;
+  endTour('stop');
   tell(`jump ${top().sequence.id} -> ${s.id}`);
   go(s.id, 'fade', false);
 }
@@ -196,6 +285,17 @@ onFrame((dt: number) => {
   const W = width(), H = height(), k = Math.min(W / T.width, H / T.height), ox = (W - T.width * k) / 2, oy = (H - T.height * k) / 2;
   now += dt;
   fingers.update(dt, ox, oy, k);
+  if (!visiting && fingers.down.length > 0) {   // the first touch of a visit: the narration of the sequence on the table begins
+    visiting = true;
+    if (tour === null && !heard.has(top().sequence.id)) narrate(top().sequence);
+  }
+  const speaking = voice;
+  if (speaking !== null) {
+    spoken += dt;
+    const text = speaking.at(spoken);
+    if (text !== cue) { cue = text; if (text.length > 0) tell(`subtitle ${text}`); }
+    if (spoken > speaking.length + 0.5) { voice = null; cue = ''; tell('narration end'); }
+  }
 
   const c = change, plan = board;
   plan?.update(dt);
@@ -204,6 +304,22 @@ onFrame((dt: number) => {
     c.p += dt / (c.kind === 'slide' ? SLIDE : FADE);
     if (c.p >= 0.5 && stack !== c.after) { stack = c.after; arrived(top().sequence); }
     if (c.p >= 1) change = null;
+  } else if (tour !== null && !paused) {   // a presentation plays by itself: a touch pauses it, and does nothing else
+    let touched = false;
+    for (const f of fingers.down) if (f.fresh) { f.owner = NOTHING; touched = true; }
+    const t = tour, on = top();
+    on.update(dt, fingers, now);
+    played += dt;
+    if (touched) {
+      paused = true;
+      tell('presentation pause');
+      hush();
+      layOutDock();
+    } else if (played >= stepLength(on.sequence)) {
+      step++;
+      if (step >= t.path.length) endTour('end');
+      else go(t.path[step], 'fade', false);
+    }
   } else if (plan !== null && plan.open) {   // the storyboard is over the table: a touch on a node goes there, a touch beside it closes it
     for (const f of fingers.down) {
       if (!f.fresh) continue;
@@ -239,7 +355,7 @@ onFrame((dt: number) => {
     else if (thing !== null && thing.followed.length > 0) { followPoint(thing.followed, thing.opened?.id ?? '-', thing.media.id); thing.followed = ''; }
     // the end of a sequence that has a `next`: it gives way, once no hand is on the table
     const s = on.sequence, length = lasts(s);
-    if (change === null && stack[stack.length - 1] === on && s.next.length > 0 && length > 0 && on.t >= length && fingers.down.length === 0) {
+    if (tour === null && change === null && stack[stack.length - 1] === on && s.next.length > 0 && length > 0 && on.t >= length && fingers.down.length === 0) {
       tell(`next ${s.id} -> ${s.next}`);
       go(s.next, 'fade', false);
     }
@@ -256,6 +372,7 @@ onFrame((dt: number) => {
   }
 
   clear(colours.background);
+  for (const s of stack) s.quiet = tour !== null && !paused;
   const moving = change;
   if (moving === null) drawStack(stack, ox, oy, k, 1, 0);
   else drawChange(moving, ox, oy, k);
@@ -263,6 +380,8 @@ onFrame((dt: number) => {
   if (full !== null) drawFullView(full, ox, oy, k);
   F.on(ox, oy, k);
   plan?.draw(k, lang, top().sequence.id, trail);
+  drawSubtitle(k);
+  drawTour(k);
   drawDock(k);
   F.off();
   for (const f of fingers.down) border(ox + (f.x - 30) * k, oy + (f.y - 30) * k, 60 * k, 60 * k, 30 * k, Math.max(1, 2 * k), colours.accent, 150);   // where the table feels a finger
@@ -344,6 +463,37 @@ function drawChange(c: Change, ox: number, oy: number, k: number): void {
     drawStack(c.before, ox - e * wide, oy, k, 1, 0);
     drawStack(c.after, ox + (1 - e) * wide, oy, k, 1, 0);
   }
+}
+
+/** What the narration is saying, at the visitor's edge above the buttons: one line, or two of about the same length. */
+function drawSubtitle(k: number): void {
+  if (cue.length === 0) return;
+  const f = sans(24 * k), room = Math.min(1200, F.w - 160) * k, full = textWidth(f, cue, 0);
+  const lines = full <= room ? [cue] : wrap(f, cue, Math.min(room, full * 0.56), 3);
+  let w = 0;
+  for (const line of lines) w = Math.max(w, textWidth(f, line, 0));
+  const h = lines.length * leading(f) + 20 * k, x = F.ox + (F.w * k - w) / 2, y = F.oy + (F.h - 86) * k - h;
+  rrect(x - 26 * k, y, w + 52 * k, h, 14 * k, colours.background, 225);
+  for (let i = 0; i < lines.length; i++) drawText(f, F.ox + (F.w * k - textWidth(f, lines[i], 0)) / 2, y + 10 * k + i * leading(f), lines[i], colours.text, 255, 0);
+}
+
+/** A presentation: its timeline at the visitor's edge, a segment for each step, and while it plays where it is and how to stop it. */
+function drawTour(k: number): void {
+  const t = tour;
+  if (t === null) return;
+  const n = t.path.length, gap = 6 * k, left = F.ox + 48 * k, wide = (F.w - 96) * k, each = (wide - gap * (n - 1)) / n, y = F.oy + (F.h - 12) * k, h = Math.max(2, 4 * k);
+  const length = change === null ? stepLength(top().sequence) : 0;
+  for (let i = 0; i < n; i++) {
+    const x = left + i * (each + gap), part = i < step ? 1 : i > step || length <= 0 ? 0 : Math.min(1, played / length);
+    rrect(x, y, each, h, h / 2, colours.muted, 90);
+    if (part > 0) rrect(x, y, Math.max(h, each * part), h, h / 2, colours.accent, 255);
+  }
+  if (paused) return;
+  const f = sans(20 * k), label = `${project.say(t.title, lang)} · ${step + 1}/${n} · ${word('pause-hint', lang)}`, w = textWidth(f, label, 0) + 90 * k, bh = 56 * k;
+  const x = F.ox + 48 * k, y0 = F.oy + (F.h - 50) * k - bh / 2;
+  rrect(x, y0, w, bh, bh / 2, colours.background, 235);
+  polygon([x + 30 * k, y0 + bh / 2 - 9 * k, x + 45 * k, y0 + bh / 2, x + 30 * k, y0 + bh / 2 + 9 * k], colours.accent, 255);
+  drawText(f, x + 58 * k, y0 + (bh - leading(f)) / 2 + k, label, colours.muted, 255, 0);
 }
 
 /** The player's controls, over everything, in the visitor's frame (which is on). */

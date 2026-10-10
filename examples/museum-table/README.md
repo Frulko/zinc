@@ -1,16 +1,20 @@
 # museum-table
 
 An app a museum puts on a multi-touch table: a collection told as linked sequences, in the manner of Klynt. Visitors handle photographs like
-prints on a light table, turn an object in 3D and touch its points of interest, read the notices in French or English. The app is a player:
-everything it shows comes from one project file, [`assets/project.json`](assets/project.json)
+prints on a light table, turn an object in 3D and touch its points of interest, look around a panorama, follow links from one sequence to the
+next, find their way on the storyboard, or let a guided visit play with its narration and subtitles, in French or English. The app is a
+player: everything it shows comes from one project file, [`assets/project.json`](assets/project.json)
 ([reference](../../docs/museum-table-format.md)), which the storyboard editor in [`editor/`](editor) writes.
 
 The sample is *The Floating World, from Edo to Paris*: twelve works from The Met and the Art Institute of Chicago, a Kangxi vase scanned by the
-Smithsonian, a panorama of a Japanese garden, all CC0 ([LICENSES.md](LICENSES.md)).
+Smithsonian, a panorama of a Japanese garden, all CC0, and a narration by two open synthetic voices ([LICENSES.md](LICENSES.md)).
 
 ![The light table: two cards moved, one turned over](../../docs/img/museum-table-table.jpg)
-![The full view of a print](../../docs/img/museum-table-full.jpg)
+![The storyboard: five sequences seen, the links followed](../../docs/img/museum-table-storyboard.jpg)
+![A guided visit playing, with its subtitle and its timeline](../../docs/img/museum-table-tour.jpg)
+![The panorama, the panel of a point of interest and its link](../../docs/img/museum-table-panorama.jpg)
 ![The vase, a point of interest open](../../docs/img/museum-table-object.jpg)
+![The full view of a print](../../docs/img/museum-table-full.jpg)
 
 ## Run it
 
@@ -18,7 +22,8 @@ Smithsonian, a panorama of a Japanese garden, all CC0 ([LICENSES.md](LICENSES.md
 zinc run examples/museum-table                          # a window; on a touch screen every finger counts
 zinc run examples/museum-table -- --sequence porcelain  # start on another sequence (ukiyo-e, wave, japonisme, porcelain, garden)
 zinc run examples/museum-table -- --lang en
-zinc run examples/museum-table/src/pano.ts              # the panorama viewer, on its own for now
+zinc run examples/museum-table -- --story               # print what happens to the story: sequences, links, narration clips, subtitles
+zinc run examples/museum-table/src/pano.ts              # the panorama alone, full screen
 zinc run examples/museum-table/src/check.ts -- examples/museum-table/assets/project.json   # validate a project file
 ```
 
@@ -26,32 +31,42 @@ zinc run examples/museum-table/src/check.ts -- examples/museum-table/assets/proj
 | --- | --- | --- |
 | a card | one finger drags; two turn and zoom; let go and it glides | drag; wheel or trackpad pinch zooms; Shift + wheel turns |
 | | a touch brings it to the front; the folded corner turns it over to its notice; a double tap opens the full view | click, double click |
+| a ring on a card, with its label | a hotspot: it opens another sequence, here over the current one, which waits underneath | click |
 | the 3D object | one finger turns it; two bring it closer and move it | drag; wheel zooms |
-| | a touch on a ring opens the point's description and shows it; `Lumière` changes the lighting, `Vue de départ` goes back | click |
-| buttons at the edge | the other sequences; `FR EN` changes the language | click |
+| | a touch on a ring opens the point's panel and shows it; `Lumière` changes the lighting, `Vue de départ` goes back | click |
+| the panorama | one finger looks around; two change the field of view; a ring opens its panel, whose button leads to a sequence | drag; wheel zooms |
+| buttons at the visitor's edge | the links of the sequence; `Plan`: the storyboard, where a touch on a node goes there; the guided visit; `FR EN` | click |
+| a guided visit | a touch pauses it; then `Reprendre la visite` or `Quitter la visite` | click |
 
-Several hands work at the same time: a finger belongs to what it landed on until it lifts.
+Several hands work at the same time: a finger belongs to what it landed on until it lifts. A sequence with a `next` gives way by itself at
+its end; a card or a link comes and goes at the time the project gives it.
 
 ## What to look at
 
 | file | role |
 | --- | --- |
 | `src/project.ts` | the project format: types, `parseProject` (validates, names the field at fault), `serializeProject` (canonical form), `copyProject` |
-| `src/main.ts` | the player: loads the project, routes the fingers, draws the sequence |
+| `src/main.ts` | the player: the story (links, overlays, transitions, `next`, presentations, the narration), the fingers, the controls at the edge |
+| `src/stage.ts` | one sequence on the table: its clock, its cards, its object or panorama, its links |
+| `src/storyboard.ts` | the map of the story for the visitor, with the visited trail |
+| `src/narration.ts` | a narration: the clip through `zinc:audio`, the subtitles from WebVTT or from the transcript |
 | `src/touch.ts` | fingers (touch points or the mouse) and `manipulate`: what one or two fingers do to what they hold |
-| `src/table.ts` | the light table: cards drawn with `zinc:gfx` under a matrix, glide, soft edges, turning over, the full view |
-| `src/viewer.ts`, `src/orbit.ts` | the 3D object viewer on `zinc:3d` (OBJ, glTF, GLB) and the turning it shares with the panorama |
-| `src/panorama.ts`, `src/pano.ts` | 360-degree panoramas |
+| `src/table.ts` | the light table: cards drawn with `zinc:gfx` under a matrix, glide, soft edges, turning over, hotspots, timed cards |
+| `src/viewer.ts`, `src/orbit.ts`, `src/panel.ts` | the 3D object viewer on `zinc:3d` (OBJ, glTF, GLB), the turning it shares with the panorama, the panel of a point |
+| `src/lookout.ts`, `src/panorama.ts`, `src/pano.ts` | 360-degree panoramas: on the table, the view itself, and alone |
+| `src/frame.ts` | the table as the visitor at one of its sides sees it: where texts and buttons are laid out |
 | `src/type.ts`, `src/words.ts` | fonts and word wrapping; the player's own few words |
 | `src/check.ts`, `src/assets.ts` | command-line checks of a project file and of its media |
 | `tools/` | rebuild the media from their sources (`fetch-collection.sh`, `decimate.cpp`); synthesise the narration and its subtitles from the transcripts of the project with Piper and two open voices (`narration.sh`) |
 
-Tests: `next/tests/run --tier t1 --only museum_format` (also `museum_assets`, `museum_table`, `museum_viewer`, `museum_panorama`). The sessions
-are scripted touches (`ZINC_INPUT`, `touch ID X Y` and `touchup ID`): `next/tests/data/museum_table/hands.py` is two hands on two cards.
+Tests: `next/tests/run --tier t1 --only museum_visit` (also `museum_format`, `museum_assets`, `museum_table`, `museum_viewer`,
+`museum_panorama`). The sessions are scripted touches (`ZINC_INPUT`, `touch ID X Y` and `touchup ID`): `next/tests/data/museum_visit/visit.py`
+is a whole visit, `next/tests/data/museum_table/hands.py` two hands on two cards. A headless run plays no sound: the story log says which clip
+is asked for and when.
 
 ## Not there yet
 
-Sequences are reached by their buttons only: hotspots, overlays, transitions, timed items, guided presentations and the storyboard for
-visitors are the next task (ZN-650.05), with the narration. A film shows its poster and the panorama its flat image on the table until they are
-embedded. Texts do not yet turn toward the side of the table a touch came from, and the text-size and high-contrast settings of the project
-are read but not offered (ZN-650.06, ZN-650.10).
+A film shows its poster on a card (ZN-650.08). A presentation that is paused starts its step again when it resumes, because `zinc:audio`
+cannot pause a clip. Texts do not yet turn toward the side of the table a touch came from, nothing happens when nobody touches the table,
+and the text-size and high-contrast settings of the project are read but not offered (ZN-650.06, ZN-650.10). The narration was checked by its
+durations and its decoding, not by ear.

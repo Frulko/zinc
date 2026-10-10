@@ -1,7 +1,7 @@
 // A sequence on the table, as Klynt plays one: its media laid out where the project puts them, each there from its `at` to its `until`
 // on the sequence's own clock; its title and introduction; its links, as buttons at the edge or as hotspots on a medium. The player
 // (main.ts) owns the clock's meaning: what follows, what opens over what.
-import { rrect, border, drawText, textWidth } from 'zinc:gfx';
+import { rrect, border, polygon, drawText, textWidth } from 'zinc:gfx';
 import { Project, Sequence, Item, Link, Colours } from './project';
 import { Fingers } from './touch';
 import { LightTable } from './table';
@@ -21,6 +21,8 @@ export class Button {
   act = '';
   /** A hotspot on a model or a panorama: a ring instead of a pill, the label beside it. */
   ring = false;
+  /** A triangle before the label: the button plays something. */
+  play = false;
   /** The finger pressing it (0: none). */
   finger: i32 = 0;
   /** A box at least 150 by 76 units takes the touch (75 mm on a 43-inch table), whatever is drawn. */
@@ -41,6 +43,8 @@ export class Stage {
   buttons: Button[] = [];
   /** Seconds since the sequence opened: its timeline. */
   t = 0;
+  /** The sequence plays by itself (a presentation): its links are not offered. */
+  quiet = false;
   private project: Project;
   private colours: Colours;
   private lang: string;
@@ -114,7 +118,7 @@ export class Stage {
   /** Whether an item or a link with these times is there now. */
   there(at: number, until: number): boolean { return LightTable.there(at, until, this.t); }
   /** The buttons offered now. */
-  offered(): Button[] { return this.buttons.filter((b: Button) => b.link !== null && this.there(b.link.at, b.link.until)); }
+  offered(): Button[] { return this.quiet ? [] : this.buttons.filter((b: Button) => b.link !== null && this.there(b.link.at, b.link.until)); }
 
   /** One frame of a sequence that plays: its clock runs, its cards and views answer to their fingers. `now`: the player's clock. */
   update(dt: number, fingers: Fingers, now: number): void {
@@ -171,5 +175,7 @@ export function drawButton(b: Button, F: Frame, k: number, c: Colours): void {
   const f = sans(20 * k), x = F.ox + (b.x - b.w / 2) * k, top = F.oy + (b.y - b.h / 2) * k, w = b.w * k, h = b.h * k;
   rrect(x, top, w, h, h / 2, held ? c.accent : c.background, held ? 255 : 235);
   border(x, top, w, h, h / 2, Math.max(1, 1.5 * k), c.accent, 255);
-  drawText(f, x + (w - textWidth(f, b.label, 0)) / 2, top + (h - leading(f)) / 2 + k, b.label, held ? c.background : c.text, 255, 0);
+  const lead = b.play ? 26 * k : 0, tx = x + (w - textWidth(f, b.label, 0) - lead) / 2;
+  if (b.play) polygon([tx, top + h / 2 - 9 * k, tx + 15 * k, top + h / 2, tx, top + h / 2 + 9 * k], held ? c.background : c.accent, 255);
+  drawText(f, tx + lead, top + (h - leading(f)) / 2 + k, b.label, held ? c.background : c.text, 255, 0);
 }

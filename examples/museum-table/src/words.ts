@@ -14,6 +14,9 @@ const WORDS: string[] = [
   'map', 'Plan de la visite', 'Map of the visit',
   'map-hint', 'Touchez une étape pour y aller. Celles que vous avez vues sont cochées.', 'Touch a stage to go there. The ones you have seen are ticked.',
   'here', 'Vous êtes ici', 'You are here',
+  'pause-hint', 'touchez la table pour mettre en pause', 'touch the table to pause',
+  'resume', 'Reprendre la visite', 'Resume the tour',
+  'leave', 'Quitter la visite', 'Leave the tour',
 ];
 
 export function word(key: string, lang: string): string {

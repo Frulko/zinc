@@ -96,16 +96,22 @@ export class LightTable {
         c.turns = m.kind === 'photo';
         // ponytail: a film shows its poster until it has its player (ZN-650.08)
         if (m.kind !== 'photo') c.note = 'film';
-      } else {
-        const body = sans(16), pad = BORDER * 2;
-        c.lines = wrap(body, this.project.say(m.kind === 'text' ? m.text : m.title, this.lang), c.w - 2 * pad, 0).length;
-        c.h = pad + leading(bold(11)) + 8 + (c.lines + 0.5) * leading(body) + pad;
-      }
+      } else this.measure(c);
       this.cards.push(c);
     }
   }
 
-  setLanguage(lang: string): void { this.lang = lang; }
+  /** The size of a text panel: it grows with its text, which is not as long in every language. */
+  private measure(c: Card): void {
+    const m = c.media, body = sans(16), pad = BORDER * 2;
+    c.lines = wrap(body, this.project.say(m.kind === 'text' ? m.text : m.title, this.lang), c.w - 2 * pad, 0).length;
+    c.h = pad + leading(bold(11)) + 8 + (c.lines + 0.5) * leading(body) + pad;
+  }
+
+  setLanguage(lang: string): void {
+    this.lang = lang;
+    for (const c of this.cards) if (c.picture < 0) this.measure(c);
+  }
   setColours(colours: Colours): void { this.colours = colours; }
 
   /** The topmost card under (x, y), or null. */

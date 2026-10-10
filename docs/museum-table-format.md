@@ -213,8 +213,8 @@ Fields by kind:
 | | `points` | none | Points of interest; `at` is the direction from the centre: y up, −z the middle of the image, +x a quarter turn to the right (yaw 90) |
 | `text` | `text` | required text | The body of a text panel |
 | `audio` | `file` | | A narration or a sound; `{lang}` for one file per language |
-| | `transcript` | optional text | What is said: the synthesised narration is generated from it, and it is shown when there are no timed subtitles |
-| | `subtitles` | none | Timed subtitles, WebVTT; `{lang}` for one file per language |
+| | `transcript` | optional text | What is said: `tools/narration.sh` synthesises the narration from it, and without timed subtitles its sentences are shown one after the other, at 15 characters a second |
+| | `subtitles` | none | Timed subtitles, WebVTT (`mm:ss.mmm --> mm:ss.mmm` and the text; settings and styles are ignored); `{lang}` for one file per language. The last cue's end is the length of the narration: a table without sound shows the same subtitles at the same times |
 | `video` | `file`, `transcript`, `subtitles` | | As for an audio |
 | | `poster` | none | The image shown before the film plays |
 | | `loop` | false | Start again at the end |
@@ -269,7 +269,7 @@ A sequence is one moment of the visit: what lies on the table, and where one can
 | `storyboard` | `{ "x": 0, "y": 0 }` | Where the node of the sequence is drawn in the storyboard (the editor's map and the visitor's): the centre of the node, as for an item, in storyboard units of its own. A node is 240 by 150 units; the sample spaces its nodes 360 by 220 apart |
 | `items` | required | What lies on the table, in drawing order: the last one is on top |
 | `links` | none | Where one can go |
-| `narration` | none | The id of an audio medium played with the sequence |
+| `narration` | none | The id of an audio medium said when the sequence comes on the table, with its subtitles above the visitor's buttons: once per visit (the one of the first sequence waits for the first touch), and every time in a presentation. It stops when the sequence is left; a change of language starts it again in the new language |
 | `duration` | 0 | Seconds the sequence lasts in a guided presentation, and before `next`. 0: as long as its narration, else until the visitor moves on |
 | `next` | none | The sequence that follows by itself at the end, with a fade, once no hand is on the table; without it the sequence stays. In a sequence open as an overlay, a `next` that names the sequence underneath closes the overlay |
 
@@ -298,8 +298,12 @@ A link leads to another sequence:
 
 ## Presentations
 
-A guided visit plays sequences in order, each for its `duration`, with its narration and subtitles; a touch pauses it. The attract loop is a
-presentation (`kiosk.attract`).
+A guided visit plays sequences in order, each for its `duration` (without one: as long as its narration and a second, else ten seconds),
+with its narration and subtitles, a fade between two sequences, and a timeline at the visitor's edge with a segment for each step. Each
+presentation has its button beside the storyboard's. While it plays the links of the sequences are not offered and a touch pauses it; paused,
+the visitor does what they like with the sequence, then resumes (the step starts again from its beginning) or leaves; following a link or
+jumping from the storyboard leaves it too. At the end of the path the visitor stays on the last sequence. The attract loop is a presentation
+(`kiosk.attract`).
 
 ```json
 "presentations": [
@@ -323,5 +327,5 @@ sizes greater than 0, times 0 or more; `start`, `links[].to`, `next`, `presentat
 | timed items and links, buttons, hotspots, overlays, the three transitions, `next` | yes |
 | a film | its poster on a card, until ZN-650.08 |
 | the storyboard: the map of the sequences at their `storyboard` positions, with a miniature of each table, an arrow for every link, `next` and point of interest that leads somewhere (dashed for an overlay), the sequences seen ticked and the links followed in the accent colour; a touch on a node goes there | yes |
-| narration and subtitles, presentations | ZN-650.05, in progress |
+| narration (zinc:audio: WAV, FLAC, MP3, Ogg Vorbis) and its subtitles, presentations | yes |
 | orientation toward the last touch, attract loop, reset, text size and high contrast, kiosk mode, statistics, updates | ZN-650.06 and later |
