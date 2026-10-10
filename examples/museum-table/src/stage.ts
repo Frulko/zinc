@@ -1,6 +1,6 @@
 // A sequence on the table, as Klynt plays one: its media laid out where the project puts them, each there from its `at` to its `until`
 // on the sequence's own clock; its title and introduction; its links, as buttons at the edge or as hotspots on a medium. The player
-// (main.ts) owns the clock's meaning: what follows, what opens over what.
+// (player.ts) owns the clock's meaning: what follows, what opens over what.
 import { rrect, border, polygon, drawText, textWidth } from 'zinc:gfx';
 import { Project, Sequence, Item, Link, Colours } from './project';
 import { Fingers } from './touch';
@@ -29,9 +29,17 @@ export class Button {
   takes(px: number, py: number): boolean { return Math.abs(px - this.x) <= Math.max(this.w, 150) / 2 && Math.abs(py - this.y) <= Math.max(this.h, 76) / 2; }
 }
 
-/** The 3D views made so far, by medium: a model or a panorama is loaded once, however often its sequence comes back. */
-const viewers = new Map<string, ObjectView>();
-const lookouts = new Map<string, Lookout>();
+/** The 3D views a player has made so far, by medium: a model or a panorama is loaded once, however often its sequence comes back. */
+export class Views {
+  viewers = new Map<string, ObjectView>();
+  lookouts = new Map<string, Lookout>();
+  /** Frees them all: the player that made them is done. */
+  dispose(): void {
+    for (const v of this.viewers.values()) v.dispose();
+    for (const v of this.lookouts.values()) v.dispose();
+    this.viewers.clear(); this.lookouts.clear();
+  }
+}
 
 export class Stage {
   readonly sequence: Sequence;
@@ -52,8 +60,8 @@ export class Stage {
   private viewerItem: Item | null = null;
   private lookoutItem: Item | null = null;
 
-  /** `pins`: the test balls of the object viewer. */
-  constructor(project: Project, sequence: Sequence, colours: Colours, lang: string, frame: Frame, pins: boolean) {
+  /** `pins`: the test balls of the object viewer. `views`: the 3D views of the player, which this sequence adds to. */
+  constructor(project: Project, sequence: Sequence, colours: Colours, lang: string, frame: Frame, pins: boolean, views: Views) {
     this.project = project; this.sequence = sequence; this.colours = colours; this.lang = lang; this.frame = frame;
     this.table = new LightTable(project, colours, lang);
     this.table.open(sequence);
@@ -62,14 +70,14 @@ export class Stage {
       if (m === null) continue;
       // ponytail: one model and one panorama per sequence (the first of each), and the same one cannot be on two open sequences at once
       if (m.kind === 'model' && this.viewer === null) {
-        let v = viewers.get(m.id) ?? null;
-        if (v === null) { v = new ObjectView(project, m, colours, lang, frame, pins); viewers.set(m.id, v); }
+        let v = views.viewers.get(m.id) ?? null;
+        if (v === null) { v = new ObjectView(project, m, colours, lang, frame, pins); views.viewers.set(m.id, v); }
         v.setLanguage(lang); v.reset(false);
         v.x = item.x; v.y = item.y; v.w = item.width; v.h = item.height > 0 ? item.height : item.width;
         this.viewer = v; this.viewerItem = item;
       } else if (m.kind === 'panorama' && this.lookout === null) {
-        let v = lookouts.get(m.id) ?? null;
-        if (v === null) { v = new Lookout(project, m, colours, lang, frame); lookouts.set(m.id, v); }
+        let v = views.lookouts.get(m.id) ?? null;
+        if (v === null) { v = new Lookout(project, m, colours, lang, frame); views.lookouts.set(m.id, v); }
         v.setLanguage(lang); v.reset();
         v.x = item.x; v.y = item.y; v.w = item.width; v.h = item.height > 0 ? item.height : item.width / 2;
         this.lookout = v; this.lookoutItem = item;

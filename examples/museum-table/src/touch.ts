@@ -34,10 +34,13 @@ export class Fingers {
   lifted: Finger[] = [];
   /** Seconds since a touch screen was last touched: its taps also arrive as mouse presses, which are not a second finger. */
   private sinceTouch = 10;
+  /** The fingers that landed beside the box: they are nobody's until they lift, also when they slide into it. */
+  private beside: i32[] = [];
 
   /** Reads this frame's touch points, or the mouse when there is none. The table's origin is at (ox, oy) on the screen and one table unit
-   *  is `k` pixels. */
-  update(dt: number, ox: number, oy: number, k: number): void {
+   *  is `k` pixels. A finger counts when it lands in the box (left, top, wide, high) of the table's plane: the part of the window the
+   *  player has, which is all of it in the table's own app and a pane in the editor. */
+  update(dt: number, ox: number, oy: number, k: number, left: number, top: number, wide: number, high: number): void {
     const ids: i32[] = [], xs: number[] = [], ys: number[] = [];
     const n = touchCount();
     for (let i: i32 = 0; i < n; i++) { ids.push(touchId(i)); xs.push((touchX(i) - ox) / k); ys.push((touchY(i) - oy) / k); }
@@ -45,6 +48,7 @@ export class Fingers {
     if (n === 0 && this.sinceTouch > 0.5 && pointerDown()) { ids.push(MOUSE); xs.push((pointerX() - ox) / k); ys.push((pointerY() - oy) / k); }
 
     this.lifted = [];
+    this.beside = this.beside.filter((id: i32) => ids.indexOf(id) >= 0);
     const still: Finger[] = [];
     for (const f of this.down) {
       const i = ids.indexOf(f.id);
@@ -56,7 +60,11 @@ export class Fingers {
       ids[i] = -1000;   // seen
       still.push(f);
     }
-    for (let i = 0; i < ids.length; i++) if (ids[i] !== -1000) still.push(new Finger(ids[i], xs[i], ys[i]));
+    for (let i = 0; i < ids.length; i++) {
+      if (ids[i] === -1000 || this.beside.indexOf(ids[i]) >= 0) continue;
+      if (xs[i] < left || ys[i] < top || xs[i] > left + wide || ys[i] > top + high) this.beside.push(ids[i]);
+      else still.push(new Finger(ids[i], xs[i], ys[i]));
+    }
     this.down = still;
   }
   /** The fingers on the table that belong to `owner`, in landing order. */

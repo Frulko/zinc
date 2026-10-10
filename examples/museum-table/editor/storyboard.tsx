@@ -9,6 +9,7 @@ import { Sequence, Link, Item, unreachable } from '../src/project';
 import { project, lang, selected, selectedLink, select, zoom, zoomStep, panX, panY, setPanX, setPanY, zoomBy, CARD_W, CARD_H, setViewSize, addSequence, addSequenceInView,
   moveSequence, link, sourceOf, setStatus, hovered, setHovered, openSequence, fit, viewW, viewH, ZOOMS } from './state';
 import { Ico, IcoAt, Tool, ACCENT, INK, MUTED, WARN, DARK, KIND_ICON, KIND_COLOUR, kindIndex, drawMedia, shapeOf } from './widgets';
+import { PreviewTools } from './preview';
 import * as L from './strings';
 import { t } from './strings';
 
@@ -307,6 +308,7 @@ export function Storyboard(): i32 {
     <Show when={project().sequences.length > 0}>
       <view class="absolute left-[8] bottom-[8] px-2 py-1 rounded bg-zinc-950"><text class="text-[11px] text-zinc-500">{t(L.BOARD_HINT)}</text></view>
     </Show>
+    <PreviewTools />
     <view class="absolute right-[10] top-[10] flex-row items-center gap-1 p-1 rounded-lg bg-zinc-900 border border-zinc-800">
       <Tool icon="minus" label="" look="quiet" off={() => zoomStep() === 0} onClick={() => zoomBy(-1, viewW / 2, viewH / 2)} />
       <text class="w-[40] text-center text-xs text-zinc-300">{`${Math.round(zoom() * 100)}%`}</text>

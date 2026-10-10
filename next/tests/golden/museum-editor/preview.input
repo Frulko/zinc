@@ -1,0 +1,27 @@
+# The preview (tests/t1/museum_editor.sh), after the table session, in the same run. The sequence is renamed and not saved; P ("Play from here")
+# plays it in the editor's window as it is now. Its button leads to the second sequence, whose button leads to the third, whose link opens the
+# first one over it with a slide; the hotspot of the card there closes it. Escape comes back to the editor.
+170 move 900 180
+171 down
+172 up
+175 move 1200 220
+176 down
+177 up
+179 text " du soir"
+181 move 900 180
+182 down
+183 up
+185 key p
+200 move 720 825
+201 down
+202 up
+240 move 720 825
+241 down
+242 up
+280 move 720 825
+281 down
+282 up
+330 move 424 332
+331 down
+332 up
+380 key Escape

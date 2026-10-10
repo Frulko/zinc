@@ -3,11 +3,12 @@
 // corner turns it over to read the notice, a double tap asks for the full view. Every card answers to its own fingers, so several hands
 // work at once. Positions are in table units. A card is there from its item's `at` to its `until` on the sequence's clock, and carries the
 // hotspots of the sequence that are on its medium: a ring that moves with it and leads to another sequence.
-import { image, imageWidth, imageHeight, rrect, border, shadow, polygon, drawImage, drawText, textWidth, setTransform, resetTransform } from 'zinc:gfx';
+import { imageWidth, imageHeight, rrect, border, shadow, polygon, drawImage, drawText, textWidth, setTransform, resetTransform } from 'zinc:gfx';
 import { Project, Sequence, Media, Link, Colours } from './project';
 import { Fingers, Finger, Pose, manipulate } from './touch';
 import { sans, bold, wrap, leading } from './type';
 import { word } from './words';
+import { files } from './files';
 
 /** The owner number of the fingers on the first card; the next cards follow. */
 export const CARD: i32 = 100;
@@ -89,7 +90,7 @@ export class LightTable {
       for (const other of this.cards) if (other.media === m) first = false;
       if (first) for (const l of sequence.links) if (l.on === m.id) c.spots.push(l);
       const file = m.kind === 'video' ? m.poster : m.kind === 'text' ? '' : m.file;
-      if (file.length > 0) c.picture = image(file);
+      if (file.length > 0) c.picture = files.picture(file);
       if (c.picture >= 0) {
         c.pictureHeight = (c.w - 2 * BORDER) * imageHeight(c.picture) / imageWidth(c.picture);
         c.h = BORDER + c.pictureHeight + FOOT;

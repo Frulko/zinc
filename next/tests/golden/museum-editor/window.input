@@ -1,0 +1,23 @@
+# The preview window (tests/t1/museum_editor.sh), on the project of the table session in a folder whose photograph is a real picture.
+# A double click opens the table of the first sequence; W opens the preview window, which shows that sequence.
+4 move 350 230
+5 down
+6 up
+7 down
+8 up
+12 key w
+# An edit in the editor's window: the photograph is dragged on the table. A moment later the preview window shows the sequence again, changed.
+44 move 450 280
+45 down
+46 move 500 300
+47 move 700 380
+48 up
+# A click in the preview window follows a link there.
+94 window 1
+94 move 480 515
+95 window 1
+95 down
+96 window 1
+96 up
+# Undo in the editor: the document changes again, and the preview window comes back to the sequence being edited.
+130 key z meta

@@ -1,9 +1,9 @@
 // The narration of a sequence: one clip per language, played through zinc:audio, and its subtitles. The subtitles are the timed cues of
 // the medium's WebVTT file, or without one the sentences of its transcript at a reading pace. The cues also say how long the narration
 // lasts, so a run without sound (a test, a table without speakers) shows the same subtitles at the same times.
-import { load, Sound } from 'zinc:audio';
-import { readText, exists } from 'zinc:assets';
+import { load, decode, Sound } from 'zinc:audio';
 import { Project, Media } from './project';
+import { files } from './files';
 
 /** Characters read per second when nothing times the transcript (what tools/narration.sh --no-voice assumes). */
 const PACE = 15;
@@ -67,14 +67,15 @@ export class Narration {
   constructor(project: Project, medium: Media, lang: string) {
     this.file = medium.file.replaceAll('{lang}', lang);
     const vtt = medium.subtitles.replaceAll('{lang}', lang);
-    this.cues = vtt.length > 0 && exists(vtt) ? parseVtt(readText(vtt)) : paceCues(project.say(medium.transcript, lang));
+    this.cues = vtt.length > 0 && files.exists(vtt) ? parseVtt(files.text(vtt)) : paceCues(project.say(medium.transcript, lang));
     this.length = this.cues.length > 0 ? this.cues[this.cues.length - 1].to : 0;
   }
 
   /** Starts the clip from its beginning. A missing or unreadable clip is silent: zinc:audio warns once, the subtitles go on. */
   play(): void {
-    let s = sounds.get(this.file) ?? null;
-    if (s === null) { s = load(this.file); sounds.set(this.file, s); }
+    const name = files.path(this.file);
+    let s = sounds.get(name) ?? null;
+    if (s === null) { s = files.exists(this.file) ? decode(files.bytes(this.file), this.file) : load(this.file); sounds.set(name, s); }   // load: the warning of a missing clip
     s.stop();
     s.play();
     this.sound = s;

@@ -40,6 +40,22 @@ export const CONTENT = S('Content', 'Contenu');
 export const INTERFACE = S('Interface', 'Interface');
 export const STORYBOARD = S('Storyboard', 'Storyboard');
 export const BACK = S('Back to the storyboard', 'Retour au storyboard');
+export const PLAY_FROM_HERE = S('Play from here', 'Lire d’ici');
+export const IN_WINDOW = S('In a window', 'Dans une fenêtre');
+
+// ---- the preview
+export const BACK_TO_EDITING = S('Back to editing', 'Retour à l’édition');
+export const PREVIEW = S('Preview', 'Aperçu');
+export const PREVIEW_HINT = S('The table as visitors will see it, with the changes not saved yet. The mouse is one finger; Escape comes back.',
+  'La table telle que les visiteurs la verront, avec les modifications non enregistrées. La souris est un doigt ; Échap revient.');
+export const PREVIEW_TITLE = S('Museum table: preview', 'Table de musée : aperçu');
+export const NOTHING_TO_PLAY = S('Nothing to play yet: create a sequence first.', 'Rien à lire pour l’instant : créez d’abord une séquence.');
+export const PLAYING_FROM = S('Playing from "{0}".', 'Lecture à partir de « {0} ».');
+export const BACK_IN_EDITOR = S('Back to editing: nothing done in the preview changed the project.', 'Retour à l’édition : rien de ce qui a été fait dans l’aperçu n’a changé le projet.');
+export const WINDOW_OPENED = S('The preview window follows your work: it shows the sequence being edited.', 'La fenêtre d’aperçu suit votre travail : elle montre la séquence en cours d’édition.');
+export const WINDOW_CLOSED = S('Preview window closed.', 'Fenêtre d’aperçu fermée.');
+export const NO_WINDOW = S('This computer cannot open a second window: use "Play from here".', 'Cet ordinateur ne peut pas ouvrir de seconde fenêtre : utilisez « Lire d’ici ».');
+export const PREVIEW_FAULT = S('The table could not show this: {0}', 'La table n’a pas pu montrer ceci : {0}');
 
 // ---- storyboard
 export const EMPTY_TITLE = S('Start the storyboard', 'Commencer le storyboard');
@@ -115,6 +131,8 @@ export const KEY_ZOOM = S('Zoom in, zoom out', 'Zoom avant, arrière');
 export const KEY_LANGUAGE = S('The other language of the content', 'L’autre langue du contenu');
 export const KEY_ADVANCED = S('Advanced mode', 'Mode avancé');
 export const KEY_ESCAPE = S('Deselect, or back to the storyboard', 'Désélectionner, ou revenir au storyboard');
+export const KEY_PLAY = S('Play from the selection', 'Lire à partir de la sélection');
+export const KEY_WINDOW = S('Preview in a window', 'Aperçu dans une fenêtre');
 
 // ---- problems
 export const PROBLEMS = S('Problems', 'Problèmes');

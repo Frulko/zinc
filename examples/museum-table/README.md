@@ -62,7 +62,9 @@ Escape does nothing, no gesture leads out, and a fault is written on the error o
 | file | role |
 | --- | --- |
 | `src/project.ts` | the project format: types, `parseProject` (validates, names the field at fault), `serializeProject` (canonical form), `copyProject` |
-| `src/main.ts` | the player: the story (links, overlays, transitions, `next`, presentations, the narration), the fingers, the controls at the edge |
+| `src/player.ts` | the player, a class given a project and each frame the rectangle of the window it has: the story (links, overlays, transitions, `next`, presentations, the narration), the fingers, the controls at the edge |
+| `src/main.ts` | the table's app: the window and the command line around one player |
+| `src/files.ts` | where the files of a project are read: the assets of the app, or the project's folder in the editor's preview |
 | `src/stage.ts` | one sequence on the table: its clock, its cards, its object or panorama, its links |
 | `src/storyboard.ts` | the map of the story for the visitor, with the visited trail |
 | `src/narration.ts` | a narration: the clip through `zinc:audio`, the subtitles from WebVTT or from the transcript |

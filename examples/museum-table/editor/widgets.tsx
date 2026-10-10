@@ -111,9 +111,11 @@ export function IcoAt(p: { name: string; size: () => number; color: i32 }): i32 
     if (s !== null) (s as Svg).draw(x, y, w, h, 255);
   }} />;
 }
-/** A button of the top bar: an icon and a word ('' for the icon alone). `off`: shown dimmed (nothing to undo); `look`: 'plain', 'primary' or 'quiet'. */
+/** A button of the top bar: an icon and a word ('' for the icon alone). `off`: shown dimmed (nothing to undo); `look`: 'plain', 'primary',
+ *  'quiet', or 'on' (what it switches is on). */
 export function Tool(p: { icon: string; label: string; look: string; off: () => boolean; onClick: () => void }): i32 {
-  const fill = p.look === 'primary' ? 'bg-amber-400 hover:bg-amber-300 active:bg-amber-500' : p.look === 'quiet' ? 'bg-zinc-900 hover:bg-zinc-800 active:bg-zinc-700' : 'bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-600';
+  const fill = p.look === 'primary' ? 'bg-amber-400 hover:bg-amber-300 active:bg-amber-500' : p.look === 'quiet' ? 'bg-zinc-900 hover:bg-zinc-800 active:bg-zinc-700'
+    : p.look === 'on' ? 'bg-zinc-700 border border-amber-400 hover:bg-zinc-600' : 'bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-600';
   return <button class={`flex-row items-center gap-[6] h-8 px-[10] rounded-md cursor-pointer ${fill} ${p.off() ? 'opacity-40' : ''}`} onClick={p.onClick}>
     <Ico name={p.icon} size={15} color={p.look === 'primary' ? DARK : INK} />
     {p.label.length > 0 ? <text class={`text-xs font-bold ${p.look === 'primary' ? 'text-zinc-900' : 'text-zinc-100'}`}>{p.label}</text> : <view />}

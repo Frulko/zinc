@@ -2,11 +2,12 @@
 // (x, y is the centre of a node 240 by 150 units) with a miniature of its table and its title; every link is an arrow, dashed when it opens
 // its sequence over the other. The sequences already seen carry a mark, the links followed are in the accent colour, the current sequence
 // is framed: a visitor sees where they have been, and a touch on a node goes there.
-import { image, imageWidth, imageHeight, rrect, border, shadow, polygon, stroke, drawImage, drawText, textWidth } from 'zinc:gfx';
+import { imageWidth, imageHeight, rrect, border, shadow, polygon, stroke, drawImage, drawText, textWidth } from 'zinc:gfx';
 import { Project, Sequence, Colours } from './project';
 import { Frame } from './frame';
 import { sans, bold, wrap, leading } from './type';
 import { word } from './words';
+import { files } from './files';
 
 const NODE_W = 240, NODE_H = 150;   // a node, in storyboard units
 const STAGE_H = 96;                 // the miniature of the table inside it
@@ -44,7 +45,7 @@ export class Storyboard {
         const t = new Thumb();
         t.x = it.x; t.y = it.y; t.w = it.width;
         const file = m.kind === 'photo' || m.kind === 'panorama' ? m.file : m.kind === 'video' ? m.poster : '';
-        if (file.length > 0) t.picture = image(file);
+        if (file.length > 0) t.picture = files.picture(file);
         if (m.kind === 'model') t.picture = -2;
         t.h = it.height > 0 ? it.height : t.picture >= 0 ? t.w * imageHeight(t.picture) / imageWidth(t.picture) : t.w * 0.6;
         list.push(t);

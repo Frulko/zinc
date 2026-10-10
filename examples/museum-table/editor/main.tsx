@@ -3,8 +3,10 @@
 // exactly what the player reads (serializeProject of ../src/project.ts).
 //   zinc run examples/museum-table/editor                       a new project (Save asks where)
 //   zinc run examples/museum-table/editor -- path/project.json   that project, or a new one saved there when the file does not exist
-// Two views: the storyboard (storyboard.tsx) and the table of one sequence (sequence.tsx); the panel at the right is inspector.tsx. Every text
-// of the interface is in strings.ts, in English and French.
+//   zinc run examples/museum-table/editor -- path/project.json --story   the previews print what happens to the story, as the table's app does
+// Two views: the storyboard (storyboard.tsx) and the table of one sequence (sequence.tsx); the panel at the right is inspector.tsx; the
+// preview (preview.tsx) plays the project in their place, or in a window beside them. Every text of the interface is in strings.ts, in
+// English and French.
 import { createSignal, createMemo, render, For, Show } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import { args, env } from 'zinc:sys';
@@ -21,6 +23,7 @@ import { Ico, Tool, Segmented, Heading, ACCENT, DANGER, WARN, MUTED, decodePictu
 import { Storyboard } from './storyboard';
 import { SequenceEditor } from './sequence';
 import { Inspector } from './inspector';
+import { previewing, previewAt, playFromHere, stopPreview, PreviewPane, togglePreviewWindow, closePreviewWindow, previewTick, setTelling } from './preview';
 import * as L from './strings';
 import { t, f, uiLang, setUiLang } from './strings';
 
@@ -64,6 +67,19 @@ function TopBar(): i32 {
     <text class="text-[11px] text-zinc-500 mr-1">{t(L.CONTENT)}</text>
     <For each={[project().languages.join(' ')]}>{(codes: string, i: i32) =>
       <view class="w-[92]"><Segmented options={codes.split(' ')} labels={codes.split(' ').map((code: string) => code.toUpperCase())} value={lang} onPick={setLang} /></view>}</For>
+  </view>;
+}
+
+/** The bar of the preview: the way back, and where the visit is. */
+function PreviewBar(): i32 {
+  return <view class="flex-row items-center gap-2 h-12 px-3 shrink-0 bg-zinc-900 border-b border-zinc-800">
+    <Tool icon="chevron-left" label={t(L.BACK_TO_EDITING)} look="primary" off={never} onClick={stopPreview} />
+    <Divider />
+    <Ico name="play" size={15} color={ACCENT} />
+    <text class="text-sm font-bold text-zinc-100">{t(L.PREVIEW)}</text>
+    <text class="truncate text-sm text-zinc-400" style={{ maxWidth: 360 }}>{previewAt()}</text>
+    <view class="grow" />
+    <text class="truncate text-[11px] text-zinc-500" style={{ maxWidth: 640 }}>{t(L.PREVIEW_HINT)}</text>
   </view>;
 }
 
@@ -283,14 +299,20 @@ function AddingText(): i32 {
 /** The whole window. It is built again when the interface language changes: every view reads its texts once. */
 function Shell(): i32 {
   return <view class="relative flex-col w-full h-full bg-zinc-950">
-    <TopBar />
+    <Show when={!previewing()}><TopBar /></Show>
+    <Show when={previewing()}><PreviewBar /></Show>
     <view class="grow basis-0 min-h-0 flex-row">
-      <view class="grow basis-0 min-w-0 flex-col">
-        <Show when={opened() === null}><Storyboard /></Show>
-        <Show when={opened() !== null}><SequenceEditor /></Show>
-        <Problems />
-      </view>
-      <Inspector />
+      <Show when={!previewing()}>
+        <view class="grow basis-0 min-w-0 flex-row">
+          <view class="grow basis-0 min-w-0 flex-col">
+            <Show when={opened() === null}><Storyboard /></Show>
+            <Show when={opened() !== null}><SequenceEditor /></Show>
+            <Problems />
+          </view>
+          <Inspector />
+        </view>
+      </Show>
+      <Show when={previewing()}><PreviewPane /></Show>
     </view>
     <StatusBar />
     <Show when={picking() !== null}><Picking /></Show>
@@ -318,6 +340,7 @@ function dismiss(): boolean {
 // keys reach here when no text field used them: Cmd+Z in a field undoes its typing, elsewhere the last step of the document
 ui.onKey((e: ui.KeyEvent) => {
   const k = e.key;
+  if (previewing()) { if (k === 'Escape') stopPreview(); e.preventDefault(); return; }   // the keys are the visitor's, who has none
   if (waiting() !== null || deleting() !== null || removing() !== null || picking() !== null || adding().length > 0) { if (k === 'Escape') { dismiss(); e.preventDefault(); } return; }
   if (e.primary) {
     if (k === 's') { if (e.shift) saveAs(); else save(); }
@@ -339,6 +362,8 @@ ui.onKey((e: ui.KeyEvent) => {
   else if (k === 'Escape' && !board) { if (selectedItem() !== null || selectedLink() !== null || shownMedia() !== null) pick(null, null, null); else closeSequence(); }
   else if (k === 'Escape' && selected() !== null) select(null, null);
   else if (k === 'l') nextLanguage();
+  else if (k === 'p') playFromHere();
+  else if (k === 'w') togglePreviewWindow();
   else if (board && k === 'Enter' && selected() !== null) setNameIt(nameIt() + 1);
   else if (board && k === 'n') addSequenceInView();
   else if (board && k === 's' && selected() !== null) startHere();
@@ -347,7 +372,8 @@ ui.onKey((e: ui.KeyEvent) => {
   e.preventDefault();
 });
 
-const a = args();
+const a = args().filter((arg: string) => arg !== '--story');
+setTelling(a.length < args().length);
 if (a.length > 0) {
   // ponytail: `zinc run <dir>` starts the program in the project's directory; the shell's PWD still says where the command was typed, so a
   // relative path means what the user meant. A launch directory in zinc:sys would replace this.
@@ -355,7 +381,7 @@ if (a.length > 0) {
   if (exists(file)) openFile(file); else newFile(file);
 }
 // closing the window with unsaved work asks first
-onCloseRequested(() => { if (doc().dirty) { keepOpen(); guard(() => quit()); } });
+onCloseRequested(() => { if (doc().dirty) { keepOpen(); guard(() => quit()); } else closePreviewWindow(); });
 let frames = 0;
 // the view knows its size once it was drawn: the first fit waits for that
-render(App, 0x09090b, (dt: number) => { if (++frames === 2) fit(); decodePictures(); });
+render(App, 0x09090b, (dt: number) => { if (++frames === 2) fit(); decodePictures(); previewTick(dt); });

@@ -41,6 +41,7 @@ function insideSphere(segments: i32, rings: i32): Mesh {
 export class PanoramaView extends Orbit {
   private readonly scene = new Scene();
   private readonly camera = new Camera();
+  private readonly sphere: Mesh = insideSphere(64, 32);
 
   constructor(image: i32, view: View) {
     super();
@@ -49,12 +50,15 @@ export class PanoramaView extends Orbit {
     m.texture = image;
     m.shading = Shading.Unlit;
     m.doubleSided = true;
-    this.scene.add(new Node(insideSphere(64, 32), m));
+    this.scene.add(new Node(this.sphere, m));
     this.camera.setPosition(0, 0, 0);
     this.camera.near = 0.1;
     this.camera.far = RADIUS * 2;
     this.set(view);
   }
+
+  /** Frees the sphere and the picture the view is drawn into (the panorama's image is its owner's). */
+  dispose(): void { this.camera.dispose(); this.sphere.dispose(); }
 
   /** The field of view in degrees: what a pinch changes here. */
   get fov(): number { return this.reach; }

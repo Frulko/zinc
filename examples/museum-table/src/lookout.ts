@@ -1,7 +1,7 @@
 // A panorama on the table: a window on a 360-degree image (panorama.ts). One finger looks around and the view keeps turning a little, two
 // fingers change the field of view; the points of interest stay on their direction, a touch on one opens its panel and turns the view to
 // it, and the panel's button leads to the sequence the point names.
-import { image, rrect, border, drawText, textWidth } from 'zinc:gfx';
+import { rrect, border, drawText, textWidth } from 'zinc:gfx';
 import { Project, Media, Point, Colours } from './project';
 import { Fingers, Finger } from './touch';
 import { PanoramaView } from './panorama';
@@ -9,6 +9,7 @@ import { Frame } from './frame';
 import { drawPanel } from './panel';
 import { sans, bold, leading } from './type';
 import { word } from './words';
+import { files } from './files';
 
 /** The owner number of the fingers on a panorama. */
 export const LOOKOUT: i32 = 4;
@@ -35,13 +36,15 @@ export class Lookout {
 
   constructor(project: Project, media: Media, colours: Colours, lang: string, frame: Frame) {
     this.project = project; this.media = media; this.colours = colours; this.lang = lang; this.frame = frame;
-    this.view = new PanoramaView(image(media.file), media.view);
+    this.view = new PanoramaView(files.picture(media.file), media.view);
   }
 
   setLanguage(lang: string): void { this.lang = lang; }
   setColours(colours: Colours): void { this.colours = colours; }
   /** Back to the view the project opens with, every panel closed. */
   reset(): void { this.view.set(this.media.view); this.opened = null; this.followed = ''; this.button = []; }
+  /** Frees what the view holds in the 3D renderer. */
+  dispose(): void { this.view.dispose(); }
   inside(x: number, y: number): boolean { return Math.abs(x - this.x) <= this.w / 2 && Math.abs(y - this.y) <= this.h / 2; }
 
   /** Where a point of interest is on the table now: [x, y], or [] when it is behind the visitor or out of the window. */

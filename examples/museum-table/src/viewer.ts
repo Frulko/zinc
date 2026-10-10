@@ -4,10 +4,9 @@
 // The object turns, the camera and the lights stay: a view's yaw and pitch are where the camera would be around the object (yaw 0 in
 // front of +z, 90 on the +x side), its distance is in radii of the object. The object stands upright for the visitor whichever side of
 // the table they are at: the camera rolls with the visitor's frame, and the label, the panel and the buttons are laid out in that frame.
-import { image, rrect, border, drawText, textWidth } from 'zinc:gfx';
-import { readText, readBytes } from 'zinc:assets';
+import { rrect, border, drawText, textWidth } from 'zinc:gfx';
 import { clock, utf8Decode } from 'zinc:sys';
-import { Scene, Camera, Node, Material, Light, parseObj, sphere, quatFromAxisAngle, quatMultiply, Shading } from 'zinc:3d';
+import { Scene, Camera, Node, Mesh, Material, Light, parseObj, sphere, quatFromAxisAngle, quatMultiply, Shading } from 'zinc:3d';
 import { loadGltf } from 'zinc:3d/gltf';
 import { Project, Media, Point, Colours, LIGHTS } from './project';
 import { Fingers, Finger } from './touch';
@@ -16,6 +15,7 @@ import { Frame } from './frame';
 import { drawPanel } from './panel';
 import { sans, bold, wrap, leading } from './type';
 import { word } from './words';
+import { files } from './files';
 
 /** The owner number of the fingers on the viewer. */
 export const VIEWER: i32 = 3;
@@ -46,9 +46,9 @@ function bounds(obj: string): number[] {
 function gltfBounds(file: string): number[] {
   let json = '';
   if (file.toLowerCase().endsWith('.glb')) {
-    const d = readBytes(file), n = d[12] | (d[13] << 8) | (d[14] << 16) | (d[15] << 24);   // header 12 bytes, then the JSON chunk: length, type, text
+    const d = files.bytes(file), n = d[12] | (d[13] << 8) | (d[14] << 16) | (d[15] << 24);   // header 12 bytes, then the JSON chunk: length, type, text
     json = utf8Decode(d.slice(20, 20 + n));
-  } else json = readText(file);
+  } else json = files.text(file);
   const b: number[] = [1e30, 1e30, 1e30, -1e30, -1e30, -1e30];
   const doc = JSON.parse(json);
   for (const mesh of doc.meshes) for (const prim of mesh.primitives) {
@@ -56,6 +56,13 @@ function gltfBounds(file: string): number[] {
     for (let i = 0; i < 3; i++) { const lo: number = a.min[i], hi: number = a.max[i]; b[i] = Math.min(b[i], lo); b[i + 3] = Math.max(b[i + 3], hi); }
   }
   return b;
+}
+
+/** The meshes of a node and of what hangs under it, each once (several nodes may show one mesh). */
+function meshes(n: Node, into: Mesh[]): void {
+  const m = n.mesh;
+  if (m !== null && into.indexOf(m) < 0) into.push(m);
+  for (const c of n.children) meshes(c, into);
 }
 
 export class ObjectView extends Orbit {
@@ -109,15 +116,15 @@ export class ObjectView extends Orbit {
     let body: Node;
     let b: number[];
     if (media.file.toLowerCase().endsWith('.obj')) {
-      const obj = readText(media.file), skin = new Material(0xffffff);
+      const obj = files.text(media.file), skin = new Material(0xffffff);
       b = bounds(obj);
-      if (media.texture.length > 0) skin.texture = image(media.texture);
+      if (media.texture.length > 0) skin.texture = files.picture(media.texture);
       skin.specular = 0x262626;   // a glaze: a discreet highlight
       skin.shininess = 48;
       body = new Node(parseObj(obj), skin);
     } else {
       b = gltfBounds(media.file);
-      body = loadGltf(media.file);
+      body = loadGltf(files.path(media.file));
     }
     this.centre = [(b[0] + b[3]) / 2, (b[1] + b[4]) / 2, (b[2] + b[5]) / 2];
     this.radius = Math.sqrt((b[3] - b[0]) * (b[3] - b[0]) + (b[4] - b[1]) * (b[4] - b[1]) + (b[5] - b[2]) * (b[5] - b[2])) / 2;
@@ -139,6 +146,15 @@ export class ObjectView extends Orbit {
   }
 
   setLanguage(lang: string): void { this.lang = lang; }
+  /** Frees the object's meshes and the picture it is drawn into: an editor's preview makes the viewer again for each state of the project.
+   *  ponytail: the textures a glTF model brought are not freed (zinc:3d/gltf does not say which images it made); an OBJ's texture is its
+   *  reader's. */
+  dispose(): void {
+    this.camera.dispose();
+    const all: Mesh[] = [];
+    meshes(this.pivot, all);
+    for (const m of all) m.dispose();
+  }
   /** The visitor's frame has turned: the object glides to where it belongs for that side, beside the open description. */
   turned(): void { this.recentring = true; }
 

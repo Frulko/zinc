@@ -9,6 +9,7 @@ import { rrect, border } from 'zinc:gfx';
 import { Sequence, Media, Item, Link } from '../src/project';
 import { project, lang, opened, selectedItem, selectedLink, shownMedia, pick, placeMedia, moveItem, resizeItem, timeItem, moveLink, timeLink, usesOf, addFileCommand, setAdding } from './state';
 import { Ico, Action, Heading, drawMedia, shapeOf, kindIndex, KIND_ICON, KIND_COLOUR, ACCENT, MUTED } from './widgets';
+import { PreviewTools } from './preview';
 import * as L from './strings';
 import { t, f } from './strings';
 
@@ -183,6 +184,7 @@ function Stage(): i32 {
         <view class="absolute inset-0 items-center justify-center"><text class="text-sm text-center text-zinc-500" style={{ width: 340 }}>{t(L.STAGE_EMPTY)}</text></view>
       </Show>
     </view>
+    <PreviewTools />
   </view>;
 }
 
