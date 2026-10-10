@@ -774,7 +774,7 @@ static void xf_text(const Target& t, const Cmd& c, const char* s, const Xf& m) {
     pen += (g->adv + f2i(c.s * 64)) / 64.0f;
   }
 }
-/** The colour and alpha (0..1) of image `res` at (u, v) in [0, 1]: bilinear, or nearest when asked; dyn images are opaque. */
+/** The colour and alpha (0..1) of image `res` at (u, v) in [0, 1]: bilinear, or nearest when asked; dyn images are opaque unless they carry alpha. */
 static bool xf_sample(int32_t res, float u, float v, bool nearest, uint32_t& rgb, float& a) {
   const Dyn* d = dyn_at(res);
   int32_t w, h;
@@ -791,7 +791,7 @@ static bool xf_sample(int32_t res, float u, float v, bool nearest, uint32_t& rgb
     sx = sx < 0 ? 0 : sx >= w ? w - 1 : sx; sy = sy < 0 ? 0 : sy >= h ? h - 1 : sy;
     const float wgt = ((k & 1) ? tx : 1 - tx) * ((k >> 1) ? ty : 1 - ty);
     if (wgt <= 0) continue;
-    if (d) { const uint32_t p = d->px[(size_t)sy * d->stride + sx]; ch[0] += ((p >> 16) & 255) * wgt; ch[1] += ((p >> 8) & 255) * wgt; ch[2] += (p & 255) * wgt; ch[3] += 255 * wgt; }
+    if (d) { const uint32_t p = d->px[(size_t)sy * d->stride + sx]; ch[0] += ((p >> 16) & 255) * wgt; ch[1] += ((p >> 8) & 255) * wgt; ch[2] += (p & 255) * wgt; ch[3] += (d->alpha ? p >> 24 : 255) * wgt; }
     else { const uint8_t* p = images[res].rgba + ((size_t)sy * w + sx) * 4; for (int q = 0; q < 4; q++) ch[q] += p[q] * wgt; }
   }
   rgb = ((uint32_t)ch[0] << 16) | ((uint32_t)ch[1] << 8) | (uint32_t)ch[2];
@@ -809,6 +809,11 @@ static void draw_xform(const Target& t, const Cmd& c, const float* p, const char
   const Rect b = bounds(c.x, c.y, c.w, c.h, t.clip);
   const float hw = in.w * 0.5f, hh = in.h * 0.5f, cx = in.x + hw, cy = in.y + hh;
   const float r = clampf(in.r, 0, hw < hh ? hw : hh), bw = in.s, ri = r - bw > 0 ? r - bw : 0, blur = in.s > 0.5f ? in.s : 0.5f;
+  // an IMAGE is sampled through its box (image_box): its own rectangle, or the box of a drawImageRect, outside of which nothing is painted
+  const bool boxed = in.kind == IMAGE && (in.pad & kImageBox);
+  const Box ib = image_box(in);
+  if (boxed && !(ib.w != 0 && ib.h != 0 && ib.w - ib.w == 0 && ib.h - ib.h == 0 && ib.x - ib.x == 0 && ib.y - ib.y == 0)) return;
+  const float ibw = fabsf_(ib.w) * 0.5f, ibh = fabsf_(ib.h) * 0.5f, ibx = ib.x + ib.w * 0.5f, iby = ib.y + ib.h * 0.5f;
   for (int32_t y = b.y0; y < b.y1; y++)
     for (int32_t x = b.x0; x < b.x1; x++) {
       float lx, ly;
@@ -834,10 +839,21 @@ static void draw_xform(const Target& t, const Cmd& c, const float* p, const char
           break;
         }
         case IMAGE: {
-          const float cov = clampf(0.5f - d * m.sc, 0, 1);   // the image's edge (and radius), smooth at any angle
+          float cov = clampf(0.5f - d * m.sc, 0, 1);   // the image's edge (and radius), smooth at any angle
           if (cov <= 0) break;
+          float u = (lx - ib.x) / (ib.w != 0 ? ib.w : 1), v = (ly - ib.y) / (ib.h != 0 ? ib.h : 1);
+          if (boxed) {
+            const float in_box = clampf(0.5f - rr_sdf(lx, ly, ibx, iby, ibw, ibh, 0) * m.sc, 0, 1);   // the edge of the image too
+            if (in_box <= 0) break;
+            cov = cov < in_box ? cov : in_box;
+            // the half pixel of an edge's coverage lies outside the rectangle: it takes the rectangle's own edge, not the frame beside it
+            // (a hair inside, so that nearest does not land on the next texel); a position far out of the image would not fit an int
+            const float ex = in.w * 1e-4f, ey = in.h * 1e-4f;
+            u = clampf((clampf(lx, in.x + ex, in.x + in.w - ex) - ib.x) / ib.w, -1, 2);
+            v = clampf((clampf(ly, in.y + ey, in.y + in.h - ey) - ib.y) / ib.h, -1, 2);
+          }
           uint32_t rgb; float a;
-          if (xf_sample(in.res, (lx - in.x) / (in.w > 0 ? in.w : 1), (ly - in.y) / (in.h > 0 ? in.h : 1), in.grad == 1, rgb, a)) {
+          if (xf_sample(in.res, u, v, in.grad == 1, rgb, a)) {
             const float al = a * cov * in.alpha;
             if (al >= 1) blend(at(t, x, y), rgb, (uint32_t)al);
           }
@@ -963,12 +979,12 @@ static bool same(const Frame& a, const Cmd& x, const Frame& b, const Cmd& y) {
     return !__builtin_memcmp(p, q, len * sizeof(float));
   }
   if (x.kind == STROKE) return !__builtin_memcmp(a.pts + x.off, b.pts + y.off, x.n * 2 * sizeof(float));
-  if (x.kind == XFORM) {   // the command and matrix (not the text offset), then the text of a TEXT
+  if (x.kind == XFORM) {   // the command and matrix, then the text of a TEXT (not its offset); for the others off and n are data (an IMAGE's box)
     const float *p = a.pts + x.off, *q = b.pts + y.off;
     if (__builtin_memcmp(p, q, 13 * sizeof(float))) return false;
     uint32_t ao, an, bo, bn;
     __builtin_memcpy(&ao, p + 13, 4); __builtin_memcpy(&an, p + 14, 4); __builtin_memcpy(&bo, q + 13, 4); __builtin_memcpy(&bn, q + 14, 4);
-    return p[0] != (float)TEXT || (an == bn && !__builtin_memcmp(a.text + ao, b.text + bo, an));
+    return p[0] == (float)TEXT ? an == bn && !__builtin_memcmp(a.text + ao, b.text + bo, an) : ao == bo && an == bn;
   }
   if (x.kind == IMAGE) return x.off == y.off;   // not a pool offset: part of its box (image_box)
   return true;
@@ -1325,7 +1341,7 @@ static uint32_t cmd_hash(const Frame& f, const Cmd& c) {
     h = fnv(h, p, 13 * (uint32_t)sizeof(float));
     uint32_t o, n;
     __builtin_memcpy(&o, p + 13, 4); __builtin_memcpy(&n, p + 14, 4);
-    if (p[0] == (float)TEXT) h = fnv(h, f.text + o, n);
+    if (p[0] == (float)TEXT) h = fnv(h, f.text + o, n); else h = fnv(h, p + 13, 2 * (uint32_t)sizeof(float));
   }
   else if (c.kind == IMAGE) h = fnv(h, &c.off, sizeof c.off);
   return h;

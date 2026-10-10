@@ -1314,6 +1314,7 @@ void drawImageRect(int32_t i, double sx, double sy, double sw, double sh, double
   if (flags & 2) { by = dy + (sy + sh) * fy; bh = -bh; }
   const float k = rec_k();
   raster::set_image_box(*c, raster::Box{(float)(bx + tx) * k, (float)(by + ty) * k, (float)bw * k, (float)bh * k});
+  xform(c);   // the box travels with the command: s, off and n in the XFORM's payload, c1 in the Cmd
 }
 /** Stroked polyline from flat [x0, y0, ...] coordinates (round joins and caps). */
 void stroke(const double* pts, uint32_t len, double width, uint32_t color, int32_t alpha, bool closed) {

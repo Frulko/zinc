@@ -38,6 +38,12 @@ image. `zinc:canvas`'s 9-argument `drawImage` is on the row; its frame is the on
 The GL replay (`draw_image` in `runtime/gl_replay.cpp`) takes its texture coordinates from the same box and its filter from the same rule, and reads the alpha
 of a decoded image: on the test's frame it is within 2 levels a channel of the software frame at the same density (`tests/t1/image_rect_gl.sh`).
 
+Under `setTransform` (ZN-263.01) the command becomes an XFORM like any box, and the image's box travels with it: `s`, `off` and `n` in the XFORM's payload,
+`c1` and the pad bit in the command, so `draw_xform` reads it from the command it rebuilds (`image_box`). The raster takes each pixel back through the matrix,
+samples through the box, smooths the edges of the rectangle and of the image, and keeps the half pixel of an edge on the rectangle's own texels; the GL replay
+draws the exact rectangle as a quad through the matrix, linear unless the sprite asks for nearest. `tests/data/image_rect/xform.ts` is the case: sprites
+turned, stretched and mirrored, every pixel inside a texel computed back from the sheet, in software and on the GPU.
+
 ## Not covered
 
 Fonts and images are fixed per program: an image or a size chosen at run time from data is not found by the scan (`imageFromBytes` decodes one). Plugin and board profiles with their own

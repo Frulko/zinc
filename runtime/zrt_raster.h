@@ -55,7 +55,7 @@ bool dyn_view(int32_t id, const uint32_t** px, int32_t* w, int32_t* h, int32_t* 
 enum Kind : uint8_t { CLEAR, RECT, BORDER, SHADOW, LINE, TEXT, IMAGE, POLY, CLIP, UNCLIP,
   STROKE,   // STROKE (ZN-590.01): a polyline of n points at off, width s, pad bit 1 = closed; recorded only for displays that draw it on the GPU (gfx::gpu_strokes)
   XFORM };  // XFORM (ZN-263.01): a RECT, BORDER, SHADOW, IMAGE or TEXT drawn through a 2D matrix (gfx.setTransform). x, y, w, h: its screen bounding
-            // box; the n = kXformLen floats at off: [kind, a, b, c, d, e, f, x, y, w, h, r, s, text offset, text length (bits)], the command in its
+            // box; the n = kXformLen floats at off: [kind, a, b, c, d, e, f, x, y, w, h, r, s, off, n (bits: a TEXT's text, an IMAGE's box)], the command in its
             // own coordinates and the matrix to the screen (x' = a x + c y + e, y' = b x + d y + f); colours, alpha, grad and res stay in the Cmd.
 constexpr uint32_t kXformLen = 15;
 
@@ -73,7 +73,8 @@ struct Rect { int32_t x0, y0, x1, y1; };
 
 /** An IMAGE with pad bit kImageBox draws part of its image (gfx::drawImageRect): x, y, w, h is the rectangle painted, and the box the
  *  whole image would cover is kept as four floats in s, c1, off and n, which an IMAGE has no other use for. The source rectangle is
- *  what of that box lies over the painted rectangle (nothing is painted outside the box); a negative size mirrors the image. */
+ *  what of that box lies over the painted rectangle (nothing is painted outside the box); a negative size mirrors the image. Under a
+ *  matrix the four travel with the command: s, off and n in the XFORM's payload, c1 in the Cmd. */
 constexpr uint8_t kImageBox = 4;
 struct Box { float x, y, w, h; };
 inline Box image_box(const Cmd& c) {

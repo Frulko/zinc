@@ -465,18 +465,26 @@ static void draw_image(const Cmd& c) {
   }
   if (!t || !t->id) return;
   Rect b = bounds(c.x, c.y, c.w, c.h, HUGE_R);
-  if ((c.pad & kImageBox) || alpha) {
-    nearest = c.grad == 1 || (mw == (float)t->w && mh == (float)t->h && m.x == (float)ifloor(m.x) && m.y == (float)ifloor(m.y));
-    b = isect(b, bounds(m.w < 0 ? m.x + m.w : m.x, m.h < 0 ? m.y + m.h : m.y, mw, mh, HUGE_R));   // nothing is painted outside the image
+  const bool boxed = (c.pad & kImageBox) || alpha;
+  const float mx0 = m.w < 0 ? m.x + m.w : m.x, my0 = m.h < 0 ? m.y + m.h : m.y;
+  if (boxed) {
+    // one texel a pixel on whole pixels is a copy; through a matrix (XFORM) the pixels are not the image's own any more
+    nearest = c.grad == 1 || (!xf_on && mw == (float)t->w && mh == (float)t->h && m.x == (float)ifloor(m.x) && m.y == (float)ifloor(m.y));
+    b = isect(b, bounds(mx0, my0, mw, mh, HUGE_R));   // nothing is painted outside the image
   }
   if (b.x0 >= b.x1 || b.y0 >= b.y1) return;
   set_filter(*t, nearest);
   use_tex(t->id);
   Q q = box_q(c, b, mode);
+  if (boxed && xf_on) {   // through a matrix the quad is the rectangle itself, not the pixels it touches: no texel of the frame beside it at its edges
+    q.x0 = c.x > mx0 ? c.x : mx0; q.y0 = c.y > my0 ? c.y : my0;
+    q.x1 = c.x + c.w < mx0 + mw ? c.x + c.w : mx0 + mw; q.y1 = c.y + c.h < my0 + mh ? c.y + c.h : my0 + mh;
+    if (q.x0 >= q.x1 || q.y0 >= q.y1) return;
+  }
   q.r = c.r > 0 ? c.r : 0;   // the CPU does not clamp an image's radius
   q.c1 = 0xffffff;
   q.grad = alpha;            // the coverage is the texture's alpha
-  q.u0 = ((float)b.x0 - m.x) / m.w; q.u1 = ((float)b.x1 - m.x) / m.w; q.v0 = ((float)b.y0 - m.y) / m.h; q.v1 = ((float)b.y1 - m.y) / m.h;
+  q.u0 = (q.x0 - m.x) / m.w; q.u1 = (q.x1 - m.x) / m.w; q.v0 = (q.y0 - m.y) / m.h; q.v1 = (q.y1 - m.y) / m.h;
   quad(q);
 }
 
