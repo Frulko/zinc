@@ -1,4 +1,5 @@
 0 sequence ukiyo-e
+150 visit start
 150 narration audio/welcome.fr.mp3
 150 subtitle Bienvenue.
 153 overlay ukiyo-e -> wave fade

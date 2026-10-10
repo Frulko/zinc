@@ -17,6 +17,9 @@ const WORDS: string[] = [
   'pause-hint', 'touchez la table pour mettre en pause', 'touch the table to pause',
   'resume', 'Reprendre la visite', 'Resume the tour',
   'leave', 'Quitter la visite', 'Leave the tour',
+  'shut', 'Refermer', 'Close',
+  'turn', 'Toucher ici pour tourner la table vers vous', 'Touch here to turn the table to you',
+  'begin', 'Touchez la table pour commencer', 'Touch the table to begin',
 ];
 
 export function word(key: string, lang: string): string {

@@ -1,0 +1,22 @@
+10 touch 1 960.0 20.0
+13 touchup 1
+30 touch 2 712.0 526.0
+33 touchup 2
+110 touch 3 1000.0 540.0
+113 touchup 3
+130 touch 4 1900.0 540.0
+133 touchup 4
+170 touch 5 700.0 545.0
+173 touchup 5
+250 touch 6 1000.0 540.0
+253 touchup 6
+270 touch 7 20.0 540.0
+273 touchup 7
+310 touch 8 700.0 545.0
+313 touchup 8
+390 touch 9 1000.0 540.0
+393 touchup 9
+410 touch 10 960.0 1062.0
+413 touchup 10
+450 touch 11 700.0 545.0
+453 touchup 11

@@ -63,7 +63,7 @@ export class Stage {
       // ponytail: one model and one panorama per sequence (the first of each), and the same one cannot be on two open sequences at once
       if (m.kind === 'model' && this.viewer === null) {
         let v = viewers.get(m.id) ?? null;
-        if (v === null) { v = new ObjectView(project, m, colours, lang, pins); viewers.set(m.id, v); }
+        if (v === null) { v = new ObjectView(project, m, colours, lang, frame, pins); viewers.set(m.id, v); }
         v.setLanguage(lang); v.reset(false);
         v.x = item.x; v.y = item.y; v.w = item.width; v.h = item.height > 0 ? item.height : item.width;
         this.viewer = v; this.viewerItem = item;
@@ -98,6 +98,7 @@ export class Stage {
    *  near and its place along it, as a share of the frame's width: at a short side of the table the frame is narrower. */
   place(): void {
     const F = this.frame, W = this.project.table.width, H = this.project.table.height;
+    this.viewer?.turned();
     for (const b of this.buttons) {
       const l = b.link;
       if (l === null) continue;
@@ -110,8 +111,20 @@ export class Stage {
         b.x = F.x(tx, ty); b.y = F.y(tx, ty);
       } else {
         b.w = textWidth(sans(20), b.label, 0) + 64;
-        b.x = l.x * F.w / W; b.y = l.y < H / 2 ? l.y : F.h - (H - l.y);
+        b.x = l.x; b.y = l.y < H / 2 ? l.y : F.h - (H - l.y);
       }
+    }
+    if (F.w >= W) return;
+    // at a short side of the table the frame is narrower than the design: the buttons are set in centred rows above the player's own,
+    // in the order they have along the edge
+    const row = this.buttons.filter((b: Button) => !b.ring).sort((a: Button, b: Button) => (a.link?.x ?? 0) - (b.link?.x ?? 0));
+    let y = F.h - 126, from = 0;
+    while (from < row.length) {
+      let to = from, wide = 0;
+      while (to < row.length && (to === from || wide + 16 + row[to].w <= F.w - 96)) { wide += (to > from ? 16 : 0) + row[to].w; to++; }
+      let x = (F.w - wide) / 2;
+      for (let i = from; i < to; i++) { row[i].x = x + row[i].w / 2; row[i].y = y; x += row[i].w + 16; }
+      from = to; y -= 72;
     }
   }
 
@@ -135,10 +148,11 @@ export class Stage {
   draw(ox: number, oy: number, k: number, waiting: boolean): void {
     const F = this.frame, v = this.viewer, vi = this.viewerItem, p = this.lookout, pi = this.lookoutItem;
     const object = v !== null && vi !== null && this.there(vi.at, vi.until), window = p !== null && pi !== null && this.there(pi.at, pi.until);
-    if (v !== null && object) v.draw(ox, oy, k);
+    if (v !== null && object) v.render(ox, oy, k);
     if (p !== null && window) p.render(ox, oy, k);
     if (!waiting) {
       F.on(ox, oy, k);
+      if (v !== null && object) v.drawOver(ox, oy, k);
       if (p !== null && window) p.drawOver(k);
       this.drawHeading(k);
       F.off();

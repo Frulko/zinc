@@ -41,6 +41,22 @@ zinc run examples/museum-table/src/check.ts -- examples/museum-table/assets/proj
 Several hands work at the same time: a finger belongs to what it landed on until it lifts. A sequence with a `next` gives way by itself at
 its end; a card or a link comes and goes at the time the project gives it.
 
+## On a table
+
+![The table turned to its right side: the vase stands for the visitor there](../../docs/img/museum-table-side.jpg)
+
+One or two visitors stand around the table and share one story. The texts, the buttons, the panels, the full view and the 3D object turn to
+one side at a time: a tap or a press near an edge turns them to that edge (each other edge has a mark that says so), a drag never does, and
+the cards stay free. At a short side the texts are laid out again for a table deeper than wide. After 60 seconds without a touch the attract
+loop plays, silently, with an invitation at the four edges; a touch finds the visit as it was, until after 120 seconds it is forgotten and a
+touch starts a new one (both times are in the project file). As a kiosk:
+
+```sh
+ZINC_KIOSK=1 zinc run examples/museum-table      # fullscreen, on top, no cursor, quit shortcuts ignored
+```
+
+Escape does nothing, no gesture leads out, and a fault is written on the error output, never on the table.
+
 ## What to look at
 
 | file | role |
@@ -54,19 +70,19 @@ its end; a card or a link comes and goes at the time the project gives it.
 | `src/table.ts` | the light table: cards drawn with `zinc:gfx` under a matrix, glide, soft edges, turning over, hotspots, timed cards |
 | `src/viewer.ts`, `src/orbit.ts`, `src/panel.ts` | the 3D object viewer on `zinc:3d` (OBJ, glTF, GLB), the turning it shares with the panorama, the panel of a point |
 | `src/lookout.ts`, `src/panorama.ts`, `src/pano.ts` | 360-degree panoramas: on the table, the view itself, and alone |
-| `src/frame.ts` | the table as the visitor at one of its sides sees it: where texts and buttons are laid out |
+| `src/frame.ts` | the table as the visitor at one of its sides sees it: where texts and buttons are laid out, and the matrix that turns them |
 | `src/type.ts`, `src/words.ts` | fonts and word wrapping; the player's own few words |
 | `src/check.ts`, `src/assets.ts` | command-line checks of a project file and of its media |
 | `tools/` | rebuild the media from their sources (`fetch-collection.sh`, `decimate.cpp`); synthesise the narration and its subtitles from the transcripts of the project with Piper and two open voices (`narration.sh`) |
 
-Tests: `next/tests/run --tier t1 --only museum_visit` (also `museum_format`, `museum_assets`, `museum_table`, `museum_viewer`,
-`museum_panorama`). The sessions are scripted touches (`ZINC_INPUT`, `touch ID X Y` and `touchup ID`): `next/tests/data/museum_visit/visit.py`
+Tests: `next/tests/run --tier t1 --only museum_visit` (also `museum_mode`, `museum_format`, `museum_assets`, `museum_table`,
+`museum_viewer`, `museum_panorama`). The sessions are scripted touches (`ZINC_INPUT`, `touch ID X Y` and `touchup ID`): `next/tests/data/museum_visit/visit.py`
 is a whole visit, `next/tests/data/museum_table/hands.py` two hands on two cards. A headless run plays no sound: the story log says which clip
 is asked for and when.
 
 ## Not there yet
 
 A film shows its poster on a card (ZN-650.08). A presentation that is paused starts its step again when it resumes, because `zinc:audio`
-cannot pause a clip. Texts do not yet turn toward the side of the table a touch came from, nothing happens when nobody touches the table,
-and the text-size and high-contrast settings of the project are read but not offered (ZN-650.06, ZN-650.10). The narration was checked by its
-durations and its decoding, not by ear.
+cannot pause a clip. The panorama does not turn with the visitor (its texts do), and the text-size and high-contrast settings of the project
+are read but not offered (ZN-650.10). The narration was checked by its durations and its decoding, not by ear, and the table mode by scripted
+touches, not on a touch table.

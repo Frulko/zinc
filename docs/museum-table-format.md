@@ -140,7 +140,7 @@ Two more accessibility fields are on the media: `audioDescription` (a text the s
 | field | default | meaning |
 | --- | --- | --- |
 | `width`, `height` | 1920, 1080 | The size the positions are written for |
-| `visitors` | 2 | Visitors served at the same time: one story is shared, texts and panels turn toward the side of the last touch |
+| `visitors` | 2 | Visitors served at the same time: one story is shared, and the texts, the panels, the buttons, the full view and the 3D object turn toward one side of the table at a time. A tap, or a press on a button, closer to an edge than `reach` or than 15 % of the table's depth (the smaller of the two: 162 units of the default table) turns them to that edge; a mark in the middle of each other edge says so. A drag never turns anything, nor does a tap in the middle of the table: nobody turns the texts away by moving a card or reaching across. The cards stay free |
 | `reach` | 520 | Every button lies within this distance of an edge (a seated visitor, a child). 520 units of a 1920-unit table are 26 cm on a 43-inch screen and 33 cm on a 55-inch one, the roll-under reach of Ideum's accessibility guidelines for touch tables. A button farther from every edge is refused |
 
 ### kiosk
@@ -151,10 +151,10 @@ Two more accessibility fields are on the media: `audioDescription` (a text the s
 
 | field | default | meaning |
 | --- | --- | --- |
-| `fullscreen` | true | Fullscreen with no way out by gesture or key; errors are logged, never shown to visitors |
-| `attractAfter` | 60 | Seconds without a touch before the attract loop starts (0: never) |
-| `resetAfter` | 120 | Seconds without a touch before everything returns to `start`, the default language and the designed layout (0: never) |
-| `attract` | none | The presentation played as the attract loop; without it the start sequence is shown at rest |
+| `fullscreen` | true | A kiosk: Escape does nothing, no gesture leads out of the app, a sequence opened over another always has a way to close, and a fault (a project or a medium that cannot be read) is written on the error output and never shown: the table goes back to its first sequence, or shows nothing. The window itself is made fullscreen, on top and without a cursor by the engine: `ZINC_KIOSK=1`, or `"kiosk": true` for the target in `zinc.json` |
+| `attractAfter` | 60 | Seconds without a touch before the attract loop starts (0: never). A presentation a visitor watches is not counted. The loop plays over the visit, which a touch finds again as it was until `resetAfter` |
+| `resetAfter` | 120 | Seconds without a touch before the visit is forgotten: everything returns to `start`, the default language, the main side of the table and the designed layout, and nothing is ticked on the storyboard any more (0: never) |
+| `attract` | none | The presentation played as the attract loop, again and again, with its subtitles and without sound, and an invitation to touch the table at each of its four edges; without it the table stays as it is until the reset |
 | `statistics` | false | Count sequences seen, durations and languages in a local file, with nothing that identifies a visitor |
 | `updateUrl` | none | Where the museum publishes a newer project. Without it the table needs no network |
 
@@ -328,4 +328,5 @@ sizes greater than 0, times 0 or more; `start`, `links[].to`, `next`, `presentat
 | a film | its poster on a card, until ZN-650.08 |
 | the storyboard: the map of the sequences at their `storyboard` positions, with a miniature of each table, an arrow for every link, `next` and point of interest that leads somewhere (dashed for an overlay), the sequences seen ticked and the links followed in the accent colour; a touch on a node goes there | yes |
 | narration (zinc:audio: WAV, FLAC, MP3, Ogg Vorbis) and its subtitles, presentations | yes |
-| orientation toward the last touch, attract loop, reset, text size and high contrast, kiosk mode, statistics, updates | ZN-650.06 and later |
+| the table mode: texts turned to the side of the last tap near an edge, the attract loop, the reset, the kiosk rules | yes |
+| text size and high contrast, statistics, updates | ZN-650.10 and later |

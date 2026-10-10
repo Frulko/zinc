@@ -4,16 +4,19 @@
 // waits underneath; a sequence with a `next` gives way by itself at its end. The storyboard (storyboard.ts) is the map of the story: it
 // shows where the visitor has been and a touch on a node goes there. A guided presentation plays a path of sequences by itself, each for
 // its duration, with its narration (narration.ts) and subtitles; a touch pauses it.
+// It is made for a table, with one or two visitors around it sharing one story: the texts, the panels and the buttons are laid out in the
+// frame of the visitor (frame.ts) and turn to the side of the table of the last tap near an edge, while the cards stay free. When nobody
+// touches the table the attract loop plays, then the visit is forgotten; nothing leads out of the app and no error is shown.
 //   zinc run examples/museum-table [-- --sequence <id>] [--lang <code>] [--story] [--log] [--stress <cards>] [--pins] [--time]
 // --story prints what happens to the story, one line per event: sequences, links, overlays, the storyboard, presentations, the narration
-// clips asked for and the subtitles shown, the language (the tests read it);
+// clips asked for and the subtitles shown, the language, the side the texts turn to, the attract loop and the reset (the tests read it);
 // --log prints the pose of every card that moved, and the view and points of the 3D object and of the panorama, one line per change;
 // --stress lays out that many cards, keeps them moving and prints the frame time; --time prints the time the 3D object takes to draw;
 // --pins puts a red ball on every point of interest of the object (the test of their projection).
-import { onFrame, width, height, clear, rect, rrect, border, polygon, drawImage, drawText, textWidth, imageWidth, imageHeight, wheel, pinch, pointerX, pointerY, modifiers, Mod } from 'zinc:gfx';
+import { onFrame, width, height, clear, rect, rrect, border, polygon, drawImage, drawText, textWidth, imageWidth, imageHeight, wheel, pinch, pointerX, pointerY, modifiers, Mod, escapeByApp } from 'zinc:gfx';
 import { readText } from 'zinc:assets';
 import { args, clock } from 'zinc:sys';
-import { parseProject, Sequence, Item, Link, Presentation, Colours } from './project';
+import { parseProject, Project, Sequence, Item, Link, Presentation, Colours } from './project';
 import { Fingers } from './touch';
 import { Card } from './table';
 import { Stage, Button, drawButton } from './stage';
@@ -28,7 +31,17 @@ const FULL: i32 = 1, BUTTON: i32 = 2, BOARD: i32 = 5, NOTHING: i32 = -1;
 /** Seconds a transition takes, and how dark the sequence underneath an overlay gets (0 to 255). */
 const FADE = 0.5, SLIDE = 0.45, DIM = 205;
 
-const project = parseProject(readText('project.json'));
+/** The project, or when it cannot be read a table with nothing on it: the fault is logged for the staff and never shown to a visitor. */
+function load(): Project {
+  try { return parseProject(readText('project.json')); } catch (e) {
+    console.error(`museum-table: project.json: ${e.message}`);
+    const empty = new Project(), nothing = new Sequence();
+    empty.languages = ['en']; nothing.id = 'empty'; empty.start = 'empty'; empty.sequences = [nothing];
+    empty.kiosk.attractAfter = 0; empty.kiosk.resetAfter = 0;
+    return empty;
+  }
+}
+const project = load();
 let lang = project.languages[0];
 let logging = false, telling = false, stress: i32 = 0, pins = false, timing = false;
 let first = project.sequence(project.start) ?? project.sequences[0];
@@ -45,9 +58,15 @@ let first = project.sequence(project.start) ?? project.sequences[0];
   }
 }
 const colours: Colours = project.theme;
-const T = project.table;
-const F = new Frame(T.width, T.height);
+const T = project.table, K = project.kiosk;
+const F = new Frame(T.width, T.height), edge = new Frame(T.width, T.height);
 const fingers = new Fingers();
+/** A tap or a press closer to an edge than this turns the texts to that edge (table units): the strip a visitor stands at, 9 cm on a
+ *  43-inch table. A wider strip turns the table under a visitor who touches a card lying a little further than its middle. */
+const TURN = Math.min(T.reach, 0.15 * Math.min(T.width, T.height));
+/** The sequence a visit starts with, and comes back to. */
+const home = project.sequence(project.start) ?? project.sequences[0];
+if (K.fullscreen) escapeByApp(true);   // a kiosk: Escape leads nowhere (the window itself is made a kiosk by ZINC_KIOSK=1 or zinc.json)
 
 /** The sequences on the table: the one being visited and, when a link opened one over it, that one on top. */
 let stack: Stage[] = [];
@@ -75,9 +94,12 @@ let voice: Narration | null = null, spoken = 0, cue = '';
 const heard = new Set<string>();
 /** Whether a visitor has touched the table: the narration of the first sequence waits for them. */
 let visiting = false;
+/** Seconds since a hand was on the table; whether the attract loop plays; the visit set aside under it until the reset. */
+let idle = 0, attracting = false;
+let session: Stage[] | null = null;
 
 /** The player's own controls, in the visitor's frame. */
-const languages = new Button(), map = new Button(), resume = new Button(), leave = new Button();
+const languages = new Button(), map = new Button(), resume = new Button(), leave = new Button(), shut = new Button();
 let dock: Button[] = [];
 
 let now = 0, frame: i32 = 0;
@@ -110,7 +132,7 @@ function crowd(): Sequence {
 
 /** The table is now showing `s` as its top sequence. */
 function arrived(s: Sequence): void {
-  if (trail.length === 0 || trail[trail.length - 1] !== s.id) trail.push(s.id);
+  if (!attracting && (trail.length === 0 || trail[trail.length - 1] !== s.id)) trail.push(s.id);
   tell(`sequence ${s.id}`);
   hush();
   const t = tour;
@@ -125,9 +147,9 @@ function narrate(s: Sequence): void {
   if (m === null) return;
   heard.add(s.id);
   const v = new Narration(project, m, lang);
-  v.play();
+  if (!attracting) v.play();   // the attract loop is read, not heard: an empty room is left in peace
   voice = v; spoken = 0;
-  tell(`narration ${v.file}`);
+  tell(`narration ${v.file}${attracting ? ' (subtitles only)' : ''}`);
 }
 /** Stops the narration. */
 function hush(): void {
@@ -173,8 +195,55 @@ function go(id: string, transition: string, overlay: boolean): void {
   else c.after = overlay ? [stack[0], stage(s)] : [stage(s)];   // ponytail: one overlay at a time; a second one takes the place of the first
   top().table.opened = null;
   for (const b of top().buttons) b.finger = 0;
-  if (transition === 'none') { stack = c.after; arrived(s); return; }
+  if (transition === 'none') { stack = c.after; arrived(s); layOutDock(); return; }
   change = c;
+}
+
+/** Turns the texts, the panels and the buttons to a side of the table. */
+function turnTo(side: i32): void {
+  if (side === F.side) return;
+  F.side = side;
+  for (const s of stack) s.place();
+  const kept = session;
+  if (kept !== null) for (const s of kept) s.place();
+  layOutDock();
+  tell(`side ${F.name}`);
+}
+
+/** The attract loop: the presentation the project names plays by itself, without sound, again and again, over the visit set aside. */
+function attract(p: Presentation): void {
+  endTour('stop');
+  showBoard(false);
+  hush();
+  tell('attract start');
+  session = stack; change = null;
+  attracting = true; tour = p; step = 0; played = 0; paused = false;
+  stack = [stage(project.sequence(p.path[0]) ?? home)];
+  layOutDock();
+  arrived(top().sequence);
+}
+/** A touch ends the attract loop: the visitor finds the table as it was left, or as new after the reset. */
+function wake(): void {
+  hush();
+  attracting = false; tour = null; change = null;
+  const kept = session;
+  session = null;
+  tell(kept !== null ? `attract stop: back to ${kept[kept.length - 1].sequence.id}` : 'attract stop');
+  if (kept !== null) { stack = kept; layOutDock(); }
+  else { stack = [stage(home)]; layOutDock(); arrived(home); }
+}
+/** Nobody has touched the table for the time the project gives: the visit is over and everything goes back to the start. */
+function reset(): void {
+  if (visiting) tell('visit end');
+  lang = project.languages[0];
+  trail = []; heard.clear(); visiting = false; session = null;
+  F.side = 0;
+  const m = board;
+  if (m !== null) m.open = false;
+  if (attracting) { for (const s of stack) { s.setLanguage(lang); s.place(); } }
+  else { endTour('stop'); hush(); change = null; stack = [stage(home)]; }
+  layOutDock();
+  tell(`reset: sequence ${attracting ? home.id : top().sequence.id}, language ${lang}, side ${F.name}, ${trail.length} seen`);
 }
 function follow(l: Link): void {
   endTour('stop');
@@ -193,8 +262,19 @@ function followPoint(to: string, point: string, medium: string): void {
 /** Puts the player's controls in the visitor's frame: at the edge the visitor stands at. */
 function layOutDock(): void {
   dock = [];
+  if (attracting) return;   // the attract loop offers one thing: touch the table
   const f = sans(20), y = F.h - 50;
   let x = 48;
+  const over = stack.length > 1 ? stack[1] : null;
+  if (over !== null && tour === null) {   // an overlay that has no link back to its sequence gets a way to close: no dead end on a kiosk
+    let back = false;
+    for (const l of over.sequence.links) if (l.to === stack[0].sequence.id) back = true;
+    if (!back) {
+      shut.act = 'close'; shut.label = word('shut', lang);
+      shut.w = textWidth(f, shut.label, 0) + 64; shut.x = x + shut.w / 2; shut.y = y; x += shut.w + 16;
+      dock.push(shut);
+    }
+  }
   if (tour !== null) {   // a presentation: nothing to press while it plays (a touch pauses it), two buttons once it is paused
     if (paused) {
       resume.act = 'resume'; resume.play = true; resume.label = word('resume', lang);
@@ -239,6 +319,7 @@ function press(b: Button): void {
     layOutDock();
     narrate(top().sequence);
   } else if (b.act === 'leave') endTour('stop');
+  else if (b.act === 'close') { tell(`close ${top().sequence.id} -> ${stack[0].sequence.id} fade`); go(stack[0].sequence.id, 'fade', false); }
   else if (b.act.startsWith('present ')) {
     for (const p of project.presentations) if (b.act === `present ${p.id}`) { present(p); break; }
   }
@@ -274,7 +355,20 @@ function released(id: i32, fx: number, fy: number): void {
 /** How long the top sequence lasts before its `next` (0: it stays until the visitor moves on). */
 function lasts(s: Sequence): number { return s.duration; }
 
+/** Faults in a row, and the frame loop: a fault (a medium that cannot be read, a bug) is logged for the staff and never shown to a
+ *  visitor. The table goes back to its first sequence, and to a table with nothing on it when that sequence is the one at fault. */
+let faults: i32 = 0;
 onFrame((dt: number) => {
+  try { play(dt); faults = 0; } catch (e) {
+    faults++;
+    console.error(`museum-table: ${e.message}`);
+    change = null; tour = null; paused = false; attracting = false; session = null; voice = null; cue = '';
+    stack = [];
+    first = faults < 3 ? home : new Sequence();
+  }
+});
+
+function play(dt: number): void {
   const started = clock();
   if (stack.length === 0) {   // a sequence is laid out on the first frame: images exist once the frame loop runs
     stack = [stage(stress > 0 ? crowd() : first)];
@@ -285,9 +379,26 @@ onFrame((dt: number) => {
   const W = width(), H = height(), k = Math.min(W / T.width, H / T.height), ox = (W - T.width * k) / 2, oy = (H - T.height * k) / 2;
   now += dt;
   fingers.update(dt, ox, oy, k);
+  // nobody at the table: the attract loop after a while, then the visit is forgotten. A presentation a visitor watches is not idleness.
+  if (fingers.down.length > 0) idle = 0; else if (attracting || tour === null || paused) idle += dt;
+  if (attracting && fingers.down.length > 0) {
+    for (const f of fingers.down) f.owner = NOTHING;
+    wake();
+  }
   if (!visiting && fingers.down.length > 0) {   // the first touch of a visit: the narration of the sequence on the table begins
     visiting = true;
+    tell('visit start');
     if (tour === null && !heard.has(top().sequence.id)) narrate(top().sequence);
+  }
+  if (K.resetAfter > 0 && idle >= K.resetAfter && (visiting || session !== null || F.side !== 0)) reset();
+  if (!attracting && K.attractAfter > 0 && idle >= K.attractAfter) {
+    for (const p of project.presentations) if (p.id === K.attract) { attract(p); break; }
+  }
+  // a tap, or a press on a button, near an edge: the texts turn to that edge once this frame's touches are dealt with
+  let turn: i32 = -1;
+  for (const f of fingers.lifted) {
+    if (!(f.tapped || f.owner === BUTTON)) continue;
+    if (Math.min(Math.min(f.x, T.width - f.x), Math.min(f.y, T.height - f.y)) <= TURN) turn = F.nearest(f.x, f.y);
   }
   const speaking = voice;
   if (speaking !== null) {
@@ -302,7 +413,7 @@ onFrame((dt: number) => {
   if (c !== null) {   // nothing answers to a touch while the table changes
     for (const f of fingers.down) if (f.fresh) f.owner = NOTHING;
     c.p += dt / (c.kind === 'slide' ? SLIDE : FADE);
-    if (c.p >= 0.5 && stack !== c.after) { stack = c.after; arrived(top().sequence); }
+    if (c.p >= 0.5 && stack !== c.after) { stack = c.after; arrived(top().sequence); layOutDock(); }
     if (c.p >= 1) change = null;
   } else if (tour !== null && !paused) {   // a presentation plays by itself: a touch pauses it, and does nothing else
     let touched = false;
@@ -317,12 +428,13 @@ onFrame((dt: number) => {
       layOutDock();
     } else if (played >= stepLength(on.sequence)) {
       step++;
+      if (step >= t.path.length && attracting) step = 0;   // the attract loop starts again
       if (step >= t.path.length) endTour('end');
       else go(t.path[step], 'fade', false);
     }
   } else if (plan !== null && plan.open) {   // the storyboard is over the table: a touch on a node goes there, a touch beside it closes it
     for (const f of fingers.down) {
-      if (!f.fresh) continue;
+      if (!f.fresh || f.owner !== 0) continue;
       f.owner = BOARD;
       for (const b of dock) if (b.finger === 0 && b.takes(F.x(f.x, f.y), F.y(f.x, f.y))) { f.owner = BUTTON; b.finger = f.id; break; }
     }
@@ -336,7 +448,7 @@ onFrame((dt: number) => {
     const on = top();
     // who takes the fingers that landed: the full view when it is open, else a button, else the card or the view under them
     for (const f of fingers.down) {
-      if (!f.fresh) continue;
+      if (!f.fresh || f.owner !== 0) continue;
       if (on.table.opened !== null) { f.owner = FULL; continue; }
       const fx = F.x(f.x, f.y), fy = F.y(f.x, f.y);
       for (const b of dock.concat(on.offered())) if (b.finger === 0 && b.takes(fx, fy)) { f.owner = BUTTON; b.finger = f.id; break; }
@@ -371,19 +483,22 @@ onFrame((dt: number) => {
     if (stress > 0) stir(now);
   }
 
+  if (turn >= 0) turnTo(turn);
+
   clear(colours.background);
   for (const s of stack) s.quiet = tour !== null && !paused;
   const moving = change;
   if (moving === null) drawStack(stack, ox, oy, k, 1, 0);
   else drawChange(moving, ox, oy, k);
   const full = top().table.opened;
-  if (full !== null) drawFullView(full, ox, oy, k);
   F.on(ox, oy, k);
+  if (full !== null) drawFullView(full, k);
   plan?.draw(k, lang, top().sequence.id, trail);
   drawSubtitle(k);
   drawTour(k);
   drawDock(k);
   F.off();
+  drawEdges(ox, oy, k);
   for (const f of fingers.down) border(ox + (f.x - 30) * k, oy + (f.y - 30) * k, 60 * k, 60 * k, 30 * k, Math.max(1, 2 * k), colours.accent, 150);   // where the table feels a finger
 
   if (logging) report();
@@ -400,7 +515,7 @@ onFrame((dt: number) => {
       spent = 0; elapsed = 0; counted = 0;
     }
   }
-});
+}
 
 /** The cards, the object and the panorama of the top sequence, a line for each that changed. */
 function report(): void {
@@ -472,7 +587,7 @@ function drawSubtitle(k: number): void {
   const lines = full <= room ? [cue] : wrap(f, cue, Math.min(room, full * 0.56), 3);
   let w = 0;
   for (const line of lines) w = Math.max(w, textWidth(f, line, 0));
-  const h = lines.length * leading(f) + 20 * k, x = F.ox + (F.w * k - w) / 2, y = F.oy + (F.h - 86) * k - h;
+  const h = lines.length * leading(f) + 20 * k, x = F.ox + (F.w * k - w) / 2, y = F.oy + (F.h - (F.w < T.width ? 162 : 86)) * k - h;
   rrect(x - 26 * k, y, w + 52 * k, h, 14 * k, colours.background, 225);
   for (let i = 0; i < lines.length; i++) drawText(f, F.ox + (F.w * k - textWidth(f, lines[i], 0)) / 2, y + 10 * k + i * leading(f), lines[i], colours.text, 255, 0);
 }
@@ -488,7 +603,7 @@ function drawTour(k: number): void {
     rrect(x, y, each, h, h / 2, colours.muted, 90);
     if (part > 0) rrect(x, y, Math.max(h, each * part), h, h / 2, colours.accent, 255);
   }
-  if (paused) return;
+  if (paused || attracting) return;
   const f = sans(20 * k), label = `${project.say(t.title, lang)} · ${step + 1}/${n} · ${word('pause-hint', lang)}`, w = textWidth(f, label, 0) + 90 * k, bh = 56 * k;
   const x = F.ox + 48 * k, y0 = F.oy + (F.h - 50) * k - bh / 2;
   rrect(x, y0, w, bh, bh / 2, colours.background, 235);
@@ -512,17 +627,35 @@ function drawDock(k: number): void {
   }
 }
 
-/** The full view a double tap opens: the picture as large as the table allows, and its notice beside it. Any touch closes it. */
-function drawFullView(c: Card, ox: number, oy: number, k: number): void {
-  const m = c.media;
-  rrect(0, 0, width(), height(), 0, colours.background, 236);   // the table dims behind
-  const boxW = 1040 * k, boxH = 900 * k, iw = imageWidth(c.picture), ih = imageHeight(c.picture), fit = Math.min(boxW / iw, boxH / ih);
-  const w = iw * fit, h = ih * fit, x = ox + 70 * k + (boxW - w) / 2, y = oy + 90 * k + (boxH - h) / 2;
+/** What is written at the edges the visitor is not at, each turned to its own side: during the attract loop the invitation, at every
+ *  edge; else a mark that says a touch there turns the table to that side. */
+function drawEdges(ox: number, oy: number, k: number): void {
+  const label = word(attracting ? 'begin' : 'turn', lang);
+  for (let side: i32 = 0; side < 4; side++) {
+    if (side === F.side && !attracting) continue;
+    edge.side = side;
+    edge.on(ox, oy, k);
+    const f = attracting ? sans(24 * k) : sans(15 * k), w = textWidth(f, label, 0) + (attracting ? 72 : 44) * k, h = (attracting ? 60 : 34) * k;
+    const x = edge.ox + (edge.w * k - w) / 2, y = edge.oy + (edge.h - (attracting ? 56 : 26)) * k - h / 2;
+    rrect(x, y, w, h, h / 2, colours.background, attracting ? 235 : 200);
+    border(x, y, w, h, h / 2, Math.max(1, (attracting ? 2 : 1) * k), attracting ? colours.accent : colours.muted, attracting ? 255 : 150);
+    drawText(f, x + (w - textWidth(f, label, 0)) / 2, y + (h - leading(f)) / 2 + k, label, attracting ? colours.text : colours.muted, 255, 0);
+  }
+  edge.off();
+}
+
+/** The full view a double tap opens, in the visitor's frame (which is on): the picture as large as the table allows and its notice, beside
+ *  it at a long side of the table, under it at a short side. Any touch closes it. */
+function drawFullView(c: Card, k: number): void {
+  const m = c.media, wide = F.w >= F.h, X = (x: number): number => F.ox + x * k, Y = (y: number): number => F.oy + y * k;
+  rrect(X(0), Y(0), F.w * k, F.h * k, 0, colours.background, 236);   // the table dims behind
+  const boxW = (wide ? 1040 : F.w - 140) * k, boxH = (wide ? 900 : 1000) * k, iw = imageWidth(c.picture), ih = imageHeight(c.picture), fit = Math.min(boxW / iw, boxH / ih);
+  const w = iw * fit, h = ih * fit, x = X(70) + (boxW - w) / 2, y = Y(90) + (boxH - h) / 2;
   rrect(x - 10 * k, y - 10 * k, w + 20 * k, h + 20 * k, 3 * k, colours.paper, 255);
   drawImage(c.picture, x, y, w, h, 255, 0);
 
-  const tx = ox + 1180 * k, tw = 670 * k, head = bold(36 * k), who = sans(22 * k), small = sans(16 * k), body = sans(20 * k);
-  let ty = oy + 110 * k;
+  const tx = X(wide ? 1180 : 70), tw = (wide ? 670 : F.w - 140) * k, head = bold(36 * k), who = sans(22 * k), small = sans(16 * k), body = sans(20 * k);
+  let ty = Y(wide ? 110 : 1140);
   for (const line of wrap(head, project.say(m.title, lang), tw, 4)) { drawText(head, tx, ty, line, colours.text, 255, 0); ty += leading(head); }
   ty += 10 * k;
   if (m.creator.length > 0) { drawText(who, tx, ty, m.creator, colours.text, 255, 0); ty += leading(who); }
@@ -532,9 +665,9 @@ function drawFullView(c: Card, ox: number, oy: number, k: number): void {
   rect(tx, ty, 56 * k, Math.max(1, 2 * k), colours.accent);
   ty += 22 * k;
   for (const line of wrap(body, project.say(m.description, lang), tw, 14)) { drawText(body, tx, ty, line, colours.text, 255, 0); ty += leading(body) + 2 * k; }
-  ty = oy + 990 * k - 3 * leading(small);
+  ty = Y(F.h - 90) - 3 * leading(small);
   const credit = [m.credit.institution, m.credit.accession, m.credit.line, m.credit.licence].filter((s: string) => s.length > 0).join(' · ');
   for (const line of wrap(small, credit, tw, 3)) { drawText(small, tx, ty, line, colours.muted, 255, 0); ty += leading(small); }
   const hint = word('close', lang);
-  drawText(small, ox + (T.width - 48) * k - textWidth(small, hint, 0), oy + 1030 * k, hint, colours.muted, 255, 0);
+  drawText(small, X(F.w - 48) - textWidth(small, hint, 0), Y(F.h - 50), hint, colours.muted, 255, 0);
 }

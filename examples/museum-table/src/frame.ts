@@ -21,6 +21,14 @@ export class Frame {
   x(tx: number, ty: number): number { return this.side === 0 ? tx : this.side === 1 ? this.H - ty : this.side === 2 ? this.W - tx : ty; }
   y(tx: number, ty: number): number { return this.side === 0 ? ty : this.side === 1 ? tx : this.side === 2 ? this.H - ty : this.W - tx; }
 
+  /** A move on the table, in the frame; and a move in the frame, on the table. */
+  dx(tx: number, ty: number): number { return this.side === 0 ? tx : this.side === 1 ? -ty : this.side === 2 ? -tx : ty; }
+  dy(tx: number, ty: number): number { return this.side === 0 ? ty : this.side === 1 ? tx : this.side === 2 ? -ty : -tx; }
+  tableDx(fx: number, fy: number): number { return this.side === 0 ? fx : this.side === 1 ? fy : this.side === 2 ? -fx : -fy; }
+  tableDy(fx: number, fy: number): number { return this.side === 0 ? fy : this.side === 1 ? -fx : this.side === 2 ? -fy : fx; }
+  /** The side as the story log names it. */
+  get name(): string { return this.side === 0 ? 'bottom' : this.side === 1 ? 'right' : this.side === 2 ? 'top' : 'left'; }
+
   /** The side whose edge is the nearest to a point of the table: where a hand that touches there comes from. */
   nearest(tx: number, ty: number): i32 {
     const d: number[] = [this.H - ty, this.W - tx, ty, tx];
