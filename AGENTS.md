@@ -118,4 +118,4 @@ The goal of a session is progress on the backlog: finish tasks, improve and comp
 
 ## The development machine
 
-An Intel Mac (x86_64, 6 cores, 12 threads, 32 GB): builds through `next/tools/build`; ccache is installed (`brew install ccache`); Homebrew builds every formula from source (no Intel bottles); Node 24, pnpm and `backlog` live in `~/.local`; `timeout` is a link to gtimeout; `ZINC_QEMU` is set in `~/.zshrc`. Known machine-specific test failures are listed in `next/RESUME.md`.
+An Intel Mac (x86_64, 6 cores, 12 threads, 32 GB): builds through `next/tools/build`; ccache is `~/.local/bin/ccache` (the official release binary: the Homebrew formula builds its dependencies from source for over 30 minutes); Homebrew builds every formula from source (no Intel bottles); Node 24, pnpm and `backlog` live in `~/.local`; `timeout` is a link to gtimeout; `ZINC_QEMU` is set in `~/.zshrc`. Known machine-specific test failures are listed in `next/RESUME.md`.

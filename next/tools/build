@@ -15,7 +15,8 @@ jobs=${ZN_BUILD_JOBS:-$cores}
 load=${ZN_BUILD_LOAD:-$((cores * 3 / 2))}
 if command -v ccache >/dev/null 2>&1; then
   export CCACHE_BASEDIR="$(dirname "$next")" CCACHE_NOHASHDIR=1
-  launcher="-DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache"
+  # no precompiled header with the cache: ccache cannot store a file compiled through one (SDL3's 190 files), and a hit beats a faster miss
+  launcher="-DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON"
 fi
 # an existing directory keeps its configuration: adding the launcher there would recompile everything once
 [ -f "$dir/CMakeCache.txt" ] || cmake -S "$next" -B "$dir" -DCMAKE_BUILD_TYPE=Release $launcher >/dev/null || exit 2
