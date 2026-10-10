@@ -524,9 +524,12 @@ static void draw_text(const Target& t, const Cmd& c, const char* s) {
 #endif
 struct Dyn { const uint32_t* px; uint32_t* owned; int32_t w, h, stride; uint32_t version; bool used; };
 static Dyn dyn[ZRT_DYN_IMAGES];
+// A version is never given twice, not even to another image that takes a freed slot: whatever keeps an image by (id, version) (the GPU
+// textures of zinc:3d and of the GL replay, the damage test of IMAGE commands) would otherwise go on showing the destroyed image.
+static uint32_t dyn_versions;
 static Dyn* dyn_at(int32_t id) { id -= DYN_BASE; return id >= 0 && id < ZRT_DYN_IMAGES && dyn[id].used ? &dyn[id] : nullptr; }
 int32_t dyn_wrap(int32_t w, int32_t h, const uint32_t* px, int32_t stride) {
-  for (int32_t i = 0; i < ZRT_DYN_IMAGES; i++) if (!dyn[i].used) { dyn[i] = Dyn{px, nullptr, w, h, stride ? stride : w, 1, true}; return DYN_BASE + i; }
+  for (int32_t i = 0; i < ZRT_DYN_IMAGES; i++) if (!dyn[i].used) { dyn[i] = Dyn{px, nullptr, w, h, stride ? stride : w, ++dyn_versions, true}; return DYN_BASE + i; }
   return -1;
 }
 // w x h x 4 must not overflow size_t on 32-bit targets (a wrapped size is a heap overflow): 16384 per side at most
@@ -541,7 +544,7 @@ int32_t dyn_create(int32_t w, int32_t h) {
   return id;
 }
 void dyn_update(int32_t id, const uint32_t* px, int32_t stride) {
-  if (Dyn* d = dyn_at(id)) { if (px) { d->px = px; if (stride) d->stride = stride; } d->version++; }
+  if (Dyn* d = dyn_at(id)) { if (px) { d->px = px; if (stride) d->stride = stride; } d->version = ++dyn_versions; }
 }
 uint32_t* dyn_pixels(int32_t id) { Dyn* d = dyn_at(id); return d ? d->owned : nullptr; }
 void dyn_resize(int32_t id, int32_t w, int32_t h) {
@@ -552,7 +555,7 @@ void dyn_resize(int32_t id, int32_t w, int32_t h) {
   hal_free(d->owned);
   d->owned = px;
   __builtin_memset(d->owned, 0, (size_t)w * h * 4);
-  d->px = d->owned; d->w = w; d->h = h; d->stride = w; d->version++;
+  d->px = d->owned; d->w = w; d->h = h; d->stride = w; d->version = ++dyn_versions;
 }
 void dyn_destroy(int32_t id) { if (Dyn* d = dyn_at(id)) { if (d->owned) hal_free(d->owned); *d = Dyn{}; } }
 bool image_size(int32_t id, int32_t* w, int32_t* h) {
