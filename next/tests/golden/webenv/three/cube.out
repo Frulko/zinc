@@ -1,0 +1,5 @@
+three 186 canvas 320 240 320px 240px true true
+frame 1 at 17 ms, centre 255,0,0,255 corner 16,32,48,255 calls 1 error 0
+frame 4 the drag starts on the canvas
+frame 7 the drag ends, azimuth -1.571 polar 2.094
+frame 8 at 133 ms, centre 255,0,0,255 corner 16,32,48,255 calls 1 error 0

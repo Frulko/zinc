@@ -7,7 +7,7 @@ status: In Progress
 assignee:
   - '@parallel'
 created_date: '2026-10-09 08:11'
-updated_date: '2026-10-10 22:30'
+updated_date: '2026-10-10 22:32'
 labels:
   - games
   - js
@@ -64,4 +64,8 @@ LIBRARY 1, p5.js 1.11.13 (2026-10-11): BOOTS and draws in WEBGL mode, unmodified
 Measured (Intel Mac, load average 4.4, release build, headless, 320x240): p5.min.js (1.06 MB) evaluated in 152 to 160 ms; first frame 352 to 378 ms after the context was made; the box scene's draw() with gl.finish 0.59 to 0.60 ms median, p95 3.4 to 4.8 ms (200 frames, 3 runs).
 Not in the repository: p5.js is LGPL-2.1 and RULES 3 keeps LGPL out of the tree. next/tools/test-lib takes lib/p5.min.js of the npm tarball p5-1.11.13.tgz into ${ZINC_HOME:-~/.zinc}/cache/test-libs/p5-1.11.13/, once, and checks its sha256 (e9df7d05fd7c3ff028fc09a312a43101241f23c43143b387bf89d96b2e4e0849, pinned in the tool); a cached file with that hash needs no network. The test exits 77 with the reason when the file is neither cached nor downloadable.
 Test: tests/t1/webenv_p5.sh (setup on a WebGL 2 canvas, frames 1 and 5 read 255,120,0 inside the box and 20,40,60 in the corner, no exception).
+
+LIBRARY 2, three.js r186 (0.186.1, the vendored copy) (2026-10-11): BOOTS and animates unmodified, written as three's own examples are (tests/golden/webenv/three/cube.js): new WebGLRenderer() makes its canvas through document.createElementNS, the canvas goes in the document, setAnimationLoop runs on requestAnimationFrame, and OrbitControls (added to third_party/three from the same pinned tarball, identical to the copy in examples/webgl-cube) hears a scripted drag on the canvas: 60 px across a 240 px window give azimuth -1.571, 20 px down polar 2.094. Nothing was missing: the only member three reads and does not find is window.__THREE__ (its own duplicate check). No hand-written DOM as in tests/three/harness.mjs.
+Measured (Intel Mac, release build, headless, 320x240; load average 10.8, others building: ratios rather than absolutes): import of three.module.js 114 to 130 ms; the first WebGL 2 context 226 ms (the WebGL module's hidden window and driver context, not the environment); new WebGLRenderer() 18 ms; the first render 182 ms (shader validation, translation and compile); first frame 569 to 598 ms after the context was made; render + gl.finish of the cube 0.73 to 0.75 ms median, p95 1.8 to 1.9 ms (300 frames, 3 runs).
+Test: tests/t1/webenv_three.sh (frames 1 and 8 read 255,0,0 inside the cube and 16,32,48 in the corner; the drag; an empty stderr).
 <!-- SECTION:NOTES:END -->
