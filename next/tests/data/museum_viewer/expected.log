@@ -1,0 +1,814 @@
+0 view yaw=20.00 pitch=8.00 distance=3.200 pan=0.0000,0.0000 light=studio open=-
+0 point lady at 690.0 489.6 behind
+0 point dancer at 700.0 643.4 behind
+0 point musicians at 819.9 586.6 behind
+0 point neck at 700.0 290.2 facing
+0 point cobalt at 687.8 564.4 facing
+6 view yaw=24.52 pitch=8.00 distance=3.200 pan=0.0000,0.0000 light=studio open=-
+6 point lady at 699.0 489.5 behind
+6 point dancer at 707.5 643.5 behind
+6 point musicians at 821.4 588.3 behind
+6 point neck at 693.8 290.3 facing
+6 point cobalt at 676.9 564.2 facing
+7 view yaw=29.00 pitch=8.00 distance=3.200 pan=0.0000,0.0000 light=studio open=-
+7 point lady at 708.0 489.6 behind
+7 point dancer at 715.0 643.7 behind
+7 point musicians at 822.1 590.0 behind
+7 point neck at 687.6 290.3 facing
+7 point cobalt at 666.3 563.8 facing
+8 view yaw=33.51 pitch=8.00 distance=3.200 pan=0.0000,0.0000 light=studio open=-
+8 point lady at 716.9 489.7 behind
+8 point dancer at 722.4 644.0 behind
+8 point musicians at 822.1 591.8 behind
+8 point neck at 681.5 290.4 facing
+8 point cobalt at 655.9 563.3 facing
+9 view yaw=37.99 pitch=8.00 distance=3.200 pan=0.0000,0.0000 light=studio open=-
+9 point lady at 725.8 489.8 behind
+9 point dancer at 729.7 644.4 behind
+9 point musicians at 821.4 593.5 facing
+9 point neck at 675.5 290.6 facing
+9 point cobalt at 645.9 562.7 facing
+10 view yaw=42.50 pitch=8.00 distance=3.200 pan=0.0000,0.0000 light=studio open=-
+10 point lady at 734.6 490.0 behind
+10 point dancer at 736.8 645.0 behind
+10 point musicians at 819.8 595.2 facing
+10 point neck at 669.7 290.8 facing
+10 point cobalt at 636.3 562.0 facing
+11 view yaw=46.98 pitch=8.00 distance=3.200 pan=0.0000,0.0000 light=studio open=-
+11 point lady at 743.1 490.3 behind
+11 point dancer at 743.8 645.8 behind
+11 point musicians at 817.5 596.9 facing
+11 point neck at 664.2 291.0 facing
+11 point cobalt at 627.3 561.2 facing
+12 view yaw=51.50 pitch=8.00 distance=3.200 pan=0.0000,0.0000 light=studio open=-
+12 point lady at 751.6 490.6 behind
+12 point dancer at 750.6 646.6 behind
+12 point musicians at 814.3 598.6 facing
+12 point neck at 658.9 291.3 facing
+12 point cobalt at 618.8 560.3 facing
+13 view yaw=55.98 pitch=8.00 distance=3.200 pan=0.0000,0.0000 light=studio open=-
+13 point lady at 759.7 491.0 behind
+13 point dancer at 757.1 647.6 behind
+13 point musicians at 810.4 600.3 facing
+13 point neck at 653.9 291.5 facing
+13 point cobalt at 611.0 559.3 facing
+14 view yaw=60.50 pitch=8.00 distance=3.200 pan=0.0000,0.0000 light=studio open=-
+14 point lady at 767.7 491.5 behind
+14 point dancer at 763.4 648.7 behind
+14 point musicians at 805.6 601.9 facing
+14 point neck at 649.2 291.9 facing
+14 point cobalt at 603.8 558.2 facing
+15 view yaw=64.97 pitch=8.00 distance=3.200 pan=0.0000,0.0000 light=studio open=-
+15 point lady at 775.3 492.0 behind
+15 point dancer at 769.3 649.9 behind
+15 point musicians at 800.2 603.4 facing
+15 point neck at 644.9 292.2 facing
+15 point cobalt at 597.4 557.0 facing
+16 view yaw=69.49 pitch=8.00 distance=3.200 pan=0.0000,0.0000 light=studio open=-
+16 point lady at 782.6 492.6 behind
+16 point dancer at 775.0 651.2 behind
+16 point musicians at 793.9 604.9 facing
+16 point neck at 641.0 292.6 facing
+16 point cobalt at 591.8 555.7 facing
+17 view yaw=73.97 pitch=8.00 distance=3.200 pan=0.0000,0.0000 light=studio open=-
+17 point lady at 789.4 493.2 behind
+17 point dancer at 780.2 652.6 behind
+17 point musicians at 787.0 606.3 facing
+17 point neck at 637.5 293.0 facing
+17 point cobalt at 586.9 554.5 facing
+18 view yaw=78.48 pitch=8.00 distance=3.200 pan=0.0000,0.0000 light=studio open=-
+18 point lady at 795.9 493.9 behind
+18 point dancer at 785.0 654.2 behind
+18 point musicians at 779.3 607.5 facing
+18 point neck at 634.4 293.5 facing
+18 point cobalt at 582.9 553.1 facing
+19 view yaw=82.97 pitch=8.00 distance=3.200 pan=0.0000,0.0000 light=studio open=-
+19 point lady at 801.9 494.6 behind
+19 point dancer at 789.3 655.8 behind
+19 point musicians at 771.1 608.7 facing
+19 point neck at 631.8 293.9 facing
+19 point cobalt at 579.7 551.8 facing
+20 view yaw=87.48 pitch=8.00 distance=3.200 pan=0.0000,0.0000 light=studio open=-
+20 point lady at 807.3 495.4 behind
+20 point dancer at 793.3 657.5 behind
+20 point musicians at 762.2 609.7 facing
+20 point neck at 629.6 294.4 facing
+20 point cobalt at 577.3 550.4 facing
+21 view yaw=91.96 pitch=8.00 distance=3.200 pan=0.0000,0.0000 light=studio open=-
+21 point lady at 812.2 496.2 behind
+21 point dancer at 796.6 659.3 behind
+21 point musicians at 752.9 610.6 facing
+21 point neck at 627.9 294.8 facing
+21 point cobalt at 575.7 549.0 facing
+22 view yaw=96.47 pitch=8.00 distance=3.200 pan=0.0000,0.0000 light=studio open=-
+22 point lady at 816.6 497.1 behind
+22 point dancer at 799.5 661.2 behind
+22 point musicians at 743.2 611.4 facing
+22 point neck at 626.6 295.3 facing
+22 point cobalt at 574.9 547.6 facing
+23 view yaw=100.95 pitch=8.00 distance=3.200 pan=0.0000,0.0000 light=studio open=-
+23 point lady at 820.3 498.0 behind
+23 point dancer at 801.8 663.1 behind
+23 point musicians at 733.1 612.0 facing
+23 point neck at 625.8 295.8 facing
+23 point cobalt at 574.9 546.2 behind
+24 view yaw=105.47 pitch=8.00 distance=3.200 pan=0.0000,0.0000 light=studio open=-
+24 point lady at 823.3 498.9 behind
+24 point dancer at 803.5 665.1 behind
+24 point musicians at 722.7 612.4 facing
+24 point neck at 625.5 296.3 facing
+24 point cobalt at 575.7 544.9 behind
+25 view yaw=109.95 pitch=8.00 distance=3.200 pan=0.0000,0.0000 light=studio open=-
+25 point lady at 825.6 499.9 behind
+25 point dancer at 804.5 667.1 behind
+25 point musicians at 712.1 612.7 facing
+25 point neck at 625.7 296.7 facing
+25 point cobalt at 577.2 543.5 behind
+41 view yaw=109.95 pitch=8.00 distance=3.107 pan=0.0000,0.0000 light=studio open=-
+41 point lady at 829.4 498.5 behind
+41 point dancer at 807.6 670.7 behind
+41 point musicians at 712.5 614.9 facing
+41 point neck at 623.4 289.0 facing
+41 point cobalt at 573.6 543.5 behind
+42 view yaw=109.95 pitch=8.00 distance=3.019 pan=0.0000,0.0000 light=studio open=-
+42 point lady at 833.1 497.2 behind
+42 point dancer at 810.7 674.3 behind
+42 point musicians at 712.9 617.2 facing
+42 point neck at 621.1 281.3 facing
+42 point cobalt at 570.0 543.4 behind
+43 view yaw=109.95 pitch=8.00 distance=2.936 pan=0.0000,0.0000 light=studio open=-
+43 point lady at 836.9 495.8 behind
+43 point dancer at 813.8 677.9 behind
+43 point musicians at 713.4 619.5 facing
+43 point neck at 618.8 273.6 facing
+43 point cobalt at 566.3 543.4 behind
+44 view yaw=109.95 pitch=8.00 distance=2.857 pan=0.0000,0.0000 light=studio open=-
+44 point lady at 840.6 494.5 behind
+44 point dancer at 816.9 681.5 behind
+44 point musicians at 713.8 621.8 facing
+44 point neck at 616.4 265.9 facing
+44 point cobalt at 562.7 543.3 behind
+45 view yaw=109.95 pitch=8.00 distance=2.783 pan=0.0000,0.0000 light=studio open=-
+45 point lady at 844.4 493.1 behind
+45 point dancer at 819.9 685.0 behind
+45 point musicians at 714.2 624.2 facing
+45 point neck at 614.1 258.1 facing
+45 point cobalt at 559.0 543.3 behind
+46 view yaw=109.95 pitch=8.00 distance=2.712 pan=0.0000,0.0000 light=studio open=-
+46 point lady at 848.1 491.8 behind
+46 point dancer at 823.0 688.6 behind
+46 point musicians at 714.6 626.5 facing
+46 point neck at 611.8 250.4 facing
+46 point cobalt at 555.4 543.3 behind
+47 view yaw=109.95 pitch=8.00 distance=2.645 pan=0.0000,0.0000 light=studio open=-
+47 point lady at 851.9 490.5 behind
+47 point dancer at 826.1 692.2 behind
+47 point musicians at 715.0 628.9 facing
+47 point neck at 609.5 242.6 facing
+47 point cobalt at 551.8 543.2 behind
+48 view yaw=109.95 pitch=8.00 distance=2.581 pan=0.0000,0.0000 light=studio open=-
+48 point lady at 855.6 489.1 behind
+48 point dancer at 829.2 695.8 behind
+48 point musicians at 715.5 631.3 facing
+48 point neck at 607.1 234.8 facing
+48 point cobalt at 548.1 543.2 behind
+49 view yaw=109.95 pitch=8.00 distance=2.520 pan=0.0000,0.0000 light=studio open=-
+49 point lady at 859.4 487.8 behind
+49 point dancer at 832.2 699.4 behind
+49 point musicians at 715.9 633.7 facing
+49 point neck at 604.8 227.0 facing
+49 point cobalt at 544.5 543.1 behind
+50 view yaw=109.95 pitch=8.00 distance=2.462 pan=0.0000,0.0000 light=studio open=-
+50 point lady at 863.1 486.4 behind
+50 point dancer at 835.3 702.9 behind
+50 point musicians at 716.3 636.1 facing
+50 point neck at 602.5 219.2 facing
+50 point cobalt at 540.9 543.1 behind
+51 view yaw=109.95 pitch=8.00 distance=2.406 pan=0.0000,0.0000 light=studio open=-
+51 point lady at 866.9 485.1 behind
+51 point dancer at 838.3 706.5 behind
+51 point musicians at 716.8 638.5 facing
+51 point neck at 600.1 211.4 facing
+51 point cobalt at 537.2 543.0 behind
+52 view yaw=109.95 pitch=8.00 distance=2.353 pan=0.0000,0.0000 light=studio open=-
+52 point lady at 870.6 483.7 behind
+52 point dancer at 841.4 710.1 behind
+52 point musicians at 717.2 641.0 facing
+52 point neck at 597.8 203.5 facing
+52 point cobalt at 533.6 543.0 behind
+53 view yaw=109.95 pitch=8.00 distance=2.302 pan=0.0000,0.0000 light=studio open=-
+53 point lady at 874.3 482.4 behind
+53 point dancer at 844.4 713.6 behind
+53 point musicians at 717.7 643.4 facing
+53 point neck at 595.4 195.6 facing
+53 point cobalt at 530.0 542.9 behind
+54 view yaw=109.95 pitch=8.00 distance=2.254 pan=0.0000,0.0000 light=studio open=-
+54 point lady at 878.1 481.0 behind
+54 point dancer at 847.5 717.2 behind
+54 point musicians at 718.1 645.9 facing
+54 point neck at 593.0 187.8 facing
+54 point cobalt at 526.4 542.9 behind
+55 view yaw=109.95 pitch=8.00 distance=2.207 pan=0.0000,0.0000 light=studio open=-
+55 point lady at 881.8 479.7 behind
+55 point dancer at 850.5 720.8 behind
+55 point musicians at 718.5 648.4 facing
+55 point neck at 590.7 179.9 facing
+55 point cobalt at 522.8 542.9 behind
+56 view yaw=109.95 pitch=8.00 distance=2.162 pan=0.0000,0.0000 light=studio open=-
+56 point lady at 885.6 478.4 behind
+56 point dancer at 853.6 724.3 behind
+56 point musicians at 719.0 651.0 facing
+56 point neck at 588.3 171.9 facing
+56 point cobalt at 519.2 542.8 behind
+57 view yaw=109.95 pitch=8.00 distance=2.119 pan=0.0000,0.0000 light=studio open=-
+57 point lady at 889.3 477.0 behind
+57 point dancer at 856.6 727.9 behind
+57 point musicians at 719.5 653.5 facing
+57 point neck at 585.9 164.0 facing
+57 point cobalt at 515.5 542.8 behind
+58 view yaw=109.95 pitch=8.00 distance=2.078 pan=0.0000,0.0000 light=studio open=-
+58 point lady at 893.0 475.7 behind
+58 point dancer at 859.7 731.4 behind
+58 point musicians at 719.9 656.1 facing
+58 point neck at 583.6 156.1 facing
+58 point cobalt at 511.9 542.7 behind
+59 view yaw=109.95 pitch=8.00 distance=2.038 pan=0.0000,0.0000 light=studio open=-
+59 point lady at 896.8 474.3 behind
+59 point dancer at 862.7 735.0 behind
+59 point musicians at 720.4 658.6 facing
+59 point neck at 581.2 148.1 facing
+59 point cobalt at 508.3 542.7 behind
+60 view yaw=109.95 pitch=8.00 distance=2.000 pan=0.0000,0.0000 light=studio open=-
+60 point lady at 900.5 473.0 behind
+60 point dancer at 865.7 738.5 behind
+60 point musicians at 720.8 661.2 facing
+60 point neck at 578.8 140.1 facing
+60 point cobalt at 504.7 542.6 behind
+61 view yaw=109.95 pitch=8.00 distance=2.000 pan=-0.0025,0.0013 light=studio open=-
+61 point lady at 906.5 476.0 behind
+61 point dancer at 871.6 741.4 behind
+61 point musicians at 728.0 664.8 facing
+61 point neck at 585.1 143.3 facing
+61 point cobalt at 510.6 545.6 behind
+62 view yaw=109.95 pitch=8.00 distance=2.000 pan=-0.0051,0.0025 light=studio open=-
+62 point lady at 912.4 479.0 behind
+62 point dancer at 877.4 744.4 behind
+62 point musicians at 735.2 668.4 facing
+62 point neck at 591.4 146.5 facing
+62 point cobalt at 516.5 548.6 behind
+63 view yaw=109.95 pitch=8.00 distance=2.000 pan=-0.0076,0.0038 light=studio open=-
+63 point lady at 918.4 481.9 behind
+63 point dancer at 883.3 747.3 behind
+63 point musicians at 742.4 672.0 facing
+63 point neck at 597.7 149.6 facing
+63 point cobalt at 522.4 551.5 behind
+64 view yaw=109.95 pitch=8.00 distance=2.000 pan=-0.0102,0.0051 light=studio open=-
+64 point lady at 924.3 484.9 behind
+64 point dancer at 889.1 750.2 behind
+64 point musicians at 749.6 675.6 facing
+64 point neck at 604.0 152.8 facing
+64 point cobalt at 528.3 554.5 behind
+65 view yaw=109.95 pitch=8.00 distance=2.000 pan=-0.0127,0.0064 light=studio open=-
+65 point lady at 930.3 487.9 behind
+65 point dancer at 895.0 753.1 behind
+65 point musicians at 756.7 679.2 facing
+65 point neck at 610.3 155.9 facing
+65 point cobalt at 534.3 557.4 behind
+66 view yaw=109.95 pitch=8.00 distance=2.000 pan=-0.0153,0.0076 light=studio open=-
+66 point lady at 936.2 490.9 behind
+66 point dancer at 900.8 756.1 behind
+66 point musicians at 763.9 682.8 facing
+66 point neck at 616.6 159.1 facing
+66 point cobalt at 540.2 560.4 behind
+67 view yaw=109.95 pitch=8.00 distance=2.000 pan=-0.0178,0.0089 light=studio open=-
+67 point lady at 942.2 493.8 behind
+67 point dancer at 906.7 759.0 behind
+67 point musicians at 771.1 686.4 facing
+67 point neck at 622.9 162.2 facing
+67 point cobalt at 546.1 563.3 behind
+68 view yaw=109.95 pitch=8.00 distance=2.000 pan=-0.0204,0.0102 light=studio open=-
+68 point lady at 948.2 496.8 behind
+68 point dancer at 912.6 761.9 behind
+68 point musicians at 778.3 690.0 facing
+68 point neck at 629.2 165.4 facing
+68 point cobalt at 552.0 566.3 behind
+69 view yaw=109.95 pitch=8.00 distance=2.000 pan=-0.0229,0.0115 light=studio open=-
+69 point lady at 954.1 499.8 behind
+69 point dancer at 918.4 764.8 behind
+69 point musicians at 785.5 693.6 facing
+69 point neck at 635.6 168.5 facing
+69 point cobalt at 557.9 569.2 behind
+70 view yaw=109.95 pitch=8.00 distance=2.000 pan=-0.0255,0.0127 light=studio open=-
+70 point lady at 960.1 502.8 behind
+70 point dancer at 924.3 767.8 behind
+70 point musicians at 792.7 697.1 facing
+70 point neck at 641.9 171.7 facing
+70 point cobalt at 563.8 572.2 behind
+88 view yaw=109.95 pitch=8.00 distance=2.000 pan=-0.0255,0.0127 light=studio open=musicians
+89 view yaw=109.95 pitch=7.98 distance=2.000 pan=-0.0143,0.0111 light=studio open=musicians
+89 point lady at 934.1 499.1 behind
+89 point dancer at 898.7 764.2 behind
+89 point musicians at 761.3 692.6 facing
+89 point neck at 614.3 167.7 facing
+89 point cobalt at 538.0 568.5 behind
+90 view yaw=109.97 pitch=7.91 distance=1.999 pan=-0.0046,0.0097 light=studio open=musicians
+90 point lady at 911.4 495.8 behind
+90 point dancer at 876.5 761.1 behind
+90 point musicians at 733.8 688.5 facing
+90 point neck at 590.2 164.3 facing
+90 point cobalt at 515.3 565.3 behind
+91 view yaw=109.99 pitch=7.80 distance=1.998 pan=0.0039,0.0085 light=studio open=musicians
+91 point lady at 891.5 493.0 behind
+91 point dancer at 857.0 758.6 behind
+91 point musicians at 709.7 684.8 facing
+91 point neck at 569.1 161.2 facing
+91 point cobalt at 495.5 562.5 behind
+92 view yaw=110.02 pitch=7.66 distance=1.997 pan=0.0113,0.0075 light=studio open=musicians
+92 point lady at 874.2 490.5 behind
+92 point dancer at 840.0 756.5 behind
+92 point musicians at 688.5 681.4 facing
+92 point neck at 550.7 158.5 facing
+92 point cobalt at 478.1 560.1 behind
+93 view yaw=110.06 pitch=7.47 distance=1.995 pan=0.0179,0.0065 light=studio open=musicians
+93 point lady at 859.1 488.3 behind
+93 point dancer at 825.2 754.7 behind
+93 point musicians at 669.9 678.2 facing
+93 point neck at 534.7 156.1 facing
+93 point cobalt at 462.8 557.9 behind
+94 view yaw=110.10 pitch=7.26 distance=1.993 pan=0.0235,0.0057 light=studio open=musicians
+94 point lady at 845.9 486.4 behind
+94 point dancer at 812.3 753.3 behind
+94 point musicians at 653.5 675.3 facing
+94 point neck at 520.7 154.0 facing
+94 point cobalt at 449.3 556.1 behind
+95 view yaw=110.15 pitch=7.01 distance=1.990 pan=0.0285,0.0050 light=studio open=musicians
+95 point lady at 834.4 484.7 behind
+95 point dancer at 801.0 752.3 behind
+95 point musicians at 639.1 672.6 facing
+95 point neck at 508.4 152.1 behind
+95 point cobalt at 437.5 554.5 behind
+96 view yaw=110.21 pitch=6.74 distance=1.987 pan=0.0328,0.0044 light=studio open=musicians
+96 point lady at 824.4 483.2 behind
+96 point dancer at 791.2 751.4 behind
+96 point musicians at 626.4 670.0 facing
+96 point neck at 497.8 150.5 behind
+96 point cobalt at 427.1 553.1 behind
+97 view yaw=110.27 pitch=6.44 distance=1.984 pan=0.0366,0.0038 light=studio open=musicians
+97 point lady at 815.7 481.9 behind
+97 point dancer at 782.6 750.8 behind
+97 point musicians at 615.2 667.6 facing
+97 point neck at 488.5 149.1 behind
+97 point cobalt at 417.9 551.9 behind
+98 view yaw=110.34 pitch=6.11 distance=1.981 pan=0.0399,0.0034 light=studio open=musicians
+98 point lady at 808.1 480.7 behind
+98 point dancer at 775.1 750.4 behind
+98 point musicians at 605.3 665.2 facing
+98 point neck at 480.5 147.8 behind
+98 point cobalt at 409.8 550.9 behind
+99 view yaw=110.41 pitch=5.77 distance=1.978 pan=0.0428,0.0029 light=studio open=musicians
+99 point lady at 801.5 479.7 behind
+99 point dancer at 768.6 750.2 behind
+99 point musicians at 596.5 663.0 facing
+99 point neck at 473.5 146.7 behind
+99 point cobalt at 402.7 550.0 behind
+100 view yaw=110.48 pitch=5.41 distance=1.974 pan=0.0453,0.0026 light=studio open=musicians
+100 point lady at 795.8 478.8 behind
+100 point dancer at 763.0 750.1 behind
+100 point musicians at 588.7 660.8 facing
+100 point neck at 467.5 145.8 behind
+100 point cobalt at 396.4 549.2 behind
+101 view yaw=110.56 pitch=5.03 distance=1.970 pan=0.0475,0.0022 light=studio open=musicians
+101 point lady at 790.8 478.1 behind
+101 point dancer at 758.1 750.1 behind
+101 point musicians at 581.7 658.7 facing
+101 point neck at 462.2 145.0 behind
+101 point cobalt at 390.8 548.6 behind
+102 view yaw=110.64 pitch=4.64 distance=1.966 pan=0.0493,0.0020 light=studio open=musicians
+102 point lady at 786.5 477.4 behind
+102 point dancer at 753.8 750.3 behind
+102 point musicians at 575.6 656.7 facing
+102 point neck at 457.7 144.3 behind
+102 point cobalt at 385.9 548.1 behind
+103 view yaw=110.72 pitch=4.24 distance=1.962 pan=0.0510,0.0017 light=studio open=musicians
+103 point lady at 782.8 476.7 behind
+103 point dancer at 750.1 750.5 behind
+103 point musicians at 570.1 654.7 facing
+103 point neck at 453.9 143.7 behind
+103 point cobalt at 381.5 547.6 behind
+104 view yaw=110.80 pitch=3.83 distance=1.958 pan=0.0524,0.0015 light=studio open=musicians
+104 point lady at 779.6 476.2 behind
+104 point dancer at 746.9 750.9 behind
+104 point musicians at 565.2 652.8 facing
+104 point neck at 450.5 143.2 behind
+104 point cobalt at 377.6 547.2 behind
+105 view yaw=110.89 pitch=3.42 distance=1.954 pan=0.0536,0.0013 light=studio open=musicians
+105 point lady at 776.8 475.7 behind
+105 point dancer at 744.1 751.3 behind
+105 point musicians at 560.8 650.9 facing
+105 point neck at 447.7 142.8 behind
+105 point cobalt at 374.2 546.9 behind
+106 view yaw=110.97 pitch=3.00 distance=1.950 pan=0.0547,0.0012 light=studio open=musicians
+106 point lady at 774.5 475.3 behind
+106 point dancer at 741.8 751.7 behind
+106 point musicians at 556.9 649.0 facing
+106 point neck at 445.3 142.5 behind
+106 point cobalt at 371.1 546.6 behind
+107 view yaw=111.06 pitch=2.58 distance=1.946 pan=0.0556,0.0010 light=studio open=musicians
+107 point lady at 772.5 474.9 behind
+107 point dancer at 739.8 752.2 behind
+107 point musicians at 553.4 647.2 facing
+107 point neck at 443.2 142.3 behind
+107 point cobalt at 368.4 546.4 behind
+108 view yaw=111.15 pitch=2.17 distance=1.942 pan=0.0563,0.0009 light=studio open=musicians
+108 point lady at 770.8 474.5 behind
+108 point dancer at 738.0 752.7 behind
+108 point musicians at 550.3 645.4 facing
+108 point neck at 441.5 142.1 behind
+108 point cobalt at 366.0 546.3 behind
+109 view yaw=111.23 pitch=1.76 distance=1.938 pan=0.0570,0.0008 light=studio open=musicians
+109 point lady at 769.4 474.2 behind
+109 point dancer at 736.5 753.2 behind
+109 point musicians at 547.5 643.7 facing
+109 point neck at 440.0 142.0 behind
+109 point cobalt at 363.8 546.2 behind
+110 view yaw=111.31 pitch=1.36 distance=1.934 pan=0.0576,0.0007 light=studio open=musicians
+110 point lady at 768.1 474.0 behind
+110 point dancer at 735.3 753.7 behind
+110 point musicians at 545.0 642.0 facing
+110 point neck at 438.8 141.9 behind
+110 point cobalt at 361.9 546.1 behind
+111 view yaw=111.39 pitch=0.97 distance=1.930 pan=0.0581,0.0006 light=studio open=musicians
+111 point lady at 767.1 473.7 behind
+111 point dancer at 734.2 754.3 behind
+111 point musicians at 542.8 640.4 facing
+111 point neck at 437.8 141.9 behind
+111 point cobalt at 360.2 546.0 behind
+112 view yaw=111.47 pitch=0.59 distance=1.926 pan=0.0585,0.0005 light=studio open=musicians
+112 point lady at 766.3 473.5 behind
+112 point dancer at 733.4 754.8 behind
+112 point musicians at 540.7 638.8 facing
+112 point neck at 436.9 142.0 behind
+112 point cobalt at 358.7 546.0 behind
+113 view yaw=111.54 pitch=0.23 distance=1.922 pan=0.0588,0.0005 light=studio open=musicians
+113 point lady at 765.6 473.3 behind
+113 point dancer at 732.6 755.3 behind
+113 point musicians at 539.0 637.3 facing
+113 point neck at 436.3 142.0 behind
+113 point cobalt at 357.4 546.0 behind
+114 view yaw=111.61 pitch=-0.11 distance=1.919 pan=0.0591,0.0004 light=studio open=musicians
+114 point lady at 765.0 473.1 behind
+114 point dancer at 732.0 755.8 behind
+114 point musicians at 537.4 635.9 facing
+114 point neck at 435.7 142.1 behind
+114 point cobalt at 356.2 546.0 behind
+115 view yaw=111.68 pitch=-0.44 distance=1.916 pan=0.0593,0.0003 light=studio open=musicians
+115 point lady at 764.6 473.0 behind
+115 point dancer at 731.6 756.3 behind
+115 point musicians at 536.0 634.6 facing
+115 point neck at 435.3 142.2 behind
+115 point cobalt at 355.2 546.0 behind
+116 view yaw=111.74 pitch=-0.74 distance=1.913 pan=0.0595,0.0003 light=studio open=musicians
+116 point lady at 764.2 472.8 behind
+116 point dancer at 731.2 756.7 behind
+116 point musicians at 534.7 633.3 facing
+116 point neck at 434.9 142.4 behind
+116 point cobalt at 354.3 546.0 behind
+117 view yaw=111.80 pitch=-1.01 distance=1.910 pan=0.0597,0.0003 light=studio open=musicians
+117 point lady at 763.9 472.7 behind
+117 point dancer at 730.8 757.1 behind
+117 point musicians at 533.6 632.2 facing
+117 point neck at 434.7 142.5 behind
+117 point cobalt at 353.5 546.1 behind
+118 view yaw=111.85 pitch=-1.26 distance=1.907 pan=0.0598,0.0002 light=studio open=musicians
+118 point lady at 763.7 472.6 behind
+118 point dancer at 730.6 757.5 behind
+118 point musicians at 532.7 631.2 facing
+118 point neck at 434.5 142.6 behind
+118 point cobalt at 352.8 546.1 behind
+119 view yaw=111.89 pitch=-1.47 distance=1.905 pan=0.0599,0.0002 light=studio open=musicians
+119 point lady at 763.5 472.5 behind
+119 point dancer at 730.4 757.8 behind
+119 point musicians at 531.9 630.3 facing
+119 point neck at 434.3 142.7 behind
+119 point cobalt at 352.2 546.1 behind
+120 view yaw=111.93 pitch=-1.66 distance=1.903 pan=0.0600,0.0002 light=studio open=musicians
+120 point lady at 763.4 472.4 behind
+120 point dancer at 730.2 758.0 behind
+120 point musicians at 531.3 629.5 facing
+120 point neck at 434.2 142.8 behind
+120 point cobalt at 351.8 546.1 behind
+121 view yaw=111.96 pitch=-1.80 distance=1.902 pan=0.0600,0.0002 light=studio open=musicians
+121 point lady at 763.2 472.3 behind
+121 point dancer at 730.1 758.2 behind
+121 point musicians at 530.7 628.9 facing
+121 point neck at 434.1 142.9 behind
+121 point cobalt at 351.4 546.2 behind
+122 view yaw=111.98 pitch=-1.91 distance=1.901 pan=0.0601,0.0001 light=studio open=musicians
+122 point dancer at 730.0 758.3 behind
+122 point musicians at 530.3 628.4 facing
+122 point neck at 434.0 142.9 behind
+122 point cobalt at 351.1 546.2 behind
+123 view yaw=112.00 pitch=-1.98 distance=1.900 pan=0.0601,0.0001 light=studio open=musicians
+123 point lady at 763.1 472.2 behind
+123 point dancer at 729.9 758.4 behind
+123 point musicians at 530.0 628.1 facing
+123 point neck at 433.9 143.0 behind
+123 point cobalt at 350.9 546.2 behind
+124 view yaw=112.00 pitch=-2.00 distance=1.900 pan=0.0602,0.0001 light=studio open=musicians
+124 point lady at 763.0 472.2 behind
+124 point dancer at 729.8 758.4 behind
+124 point musicians at 529.9 628.0 facing
+124 point neck at 433.8 143.0 behind
+124 point cobalt at 350.8 546.1 behind
+125 point lady at 762.9 472.1 behind
+125 point dancer at 729.7 758.4 behind
+125 point musicians at 529.8 627.9 facing
+125 point neck at 433.7 142.9 behind
+125 point cobalt at 350.7 546.1 behind
+126 point lady at 762.8 472.1 behind
+126 point dancer at 729.6 758.4 behind
+126 point musicians at 529.7 627.9 facing
+126 point neck at 433.6 142.9 behind
+126 point cobalt at 350.6 546.1 behind
+127 view yaw=112.00 pitch=-2.00 distance=1.900 pan=0.0603,0.0001 light=studio open=musicians
+127 point dancer at 729.6 758.3 behind
+127 point musicians at 529.6 627.9 facing
+127 point cobalt at 350.5 546.0 behind
+128 point lady at 762.7 472.1 behind
+128 point dancer at 729.5 758.3 behind
+128 point musicians at 529.5 627.9 facing
+128 point neck at 433.5 142.8 behind
+129 point lady at 762.7 472.0 behind
+129 point dancer at 729.4 758.3 behind
+129 point musicians at 529.5 627.8 facing
+129 point cobalt at 350.4 546.0 behind
+130 view yaw=112.00 pitch=-2.00 distance=1.900 pan=0.0603,0.0000 light=studio open=musicians
+130 point lady at 762.6 472.0 behind
+130 point musicians at 529.4 627.8 facing
+130 point neck at 433.4 142.8 behind
+132 view yaw=112.00 pitch=-2.00 distance=1.900 pan=0.0604,0.0000 light=studio open=musicians
+132 point lady at 762.5 472.0 behind
+132 point dancer at 729.3 758.2 behind
+132 point musicians at 529.3 627.8 facing
+132 point cobalt at 350.3 546.0 behind
+133 view yaw=112.00 pitch=-2.00 distance=1.900 pan=0.0605,0.0000 light=studio open=musicians
+133 point lady at 762.3 471.9 behind
+133 point dancer at 729.1 758.2 behind
+133 point musicians at 529.0 627.7 facing
+133 point neck at 433.1 142.7 behind
+133 point cobalt at 350.1 545.9 behind
+143 view yaw=112.00 pitch=-2.00 distance=1.900 pan=0.0605,0.0000 light=studio open=-
+144 view yaw=111.79 pitch=-1.98 distance=1.903 pan=0.0529,0.0000 light=studio open=-
+144 point lady at 780.6 472.1 behind
+144 point dancer at 748.0 757.7 behind
+144 point musicians at 553.3 627.6 facing
+144 point neck at 451.8 143.1 behind
+144 point cobalt at 368.6 545.8 behind
+145 view yaw=111.18 pitch=-1.91 distance=1.912 pan=0.0463,0.0000 light=studio open=-
+145 point lady at 796.0 472.6 behind
+145 point dancer at 764.1 756.4 behind
+145 point musicians at 576.8 627.4 facing
+145 point neck at 468.5 144.2 behind
+145 point cobalt at 385.1 545.7 behind
+146 view yaw=110.19 pitch=-1.80 distance=1.926 pan=0.0405,0.0000 light=studio open=-
+146 point lady at 808.6 473.4 behind
+146 point dancer at 777.8 754.3 behind
+146 point musicians at 599.6 627.1 facing
+146 point neck at 483.6 146.0 behind
+146 point cobalt at 400.0 545.6 behind
+147 view yaw=108.84 pitch=-1.66 distance=1.945 pan=0.0355,0.0000 light=studio open=-
+147 point lady at 818.7 474.5 behind
+147 point dancer at 788.9 751.5 behind
+147 point musicians at 621.6 626.8 facing
+147 point neck at 497.1 148.4 behind
+147 point cobalt at 413.3 545.4 behind
+148 view yaw=107.17 pitch=-1.47 distance=1.968 pan=0.0310,0.0000 light=studio open=-
+148 point lady at 826.3 475.8 behind
+148 point dancer at 797.8 748.1 behind
+148 point musicians at 642.7 626.3 facing
+148 point neck at 509.4 151.3 behind
+148 point cobalt at 425.5 545.2 behind
+149 view yaw=105.19 pitch=-1.26 distance=1.996 pan=0.0272,0.0000 light=studio open=-
+149 point lady at 831.7 477.1 behind
+149 point dancer at 804.5 744.2 behind
+149 point musicians at 663.0 625.7 facing
+149 point neck at 520.6 154.8 behind
+149 point cobalt at 436.6 545.0 behind
+150 view yaw=102.92 pitch=-1.01 distance=2.028 pan=0.0238,0.0000 light=studio open=-
+150 point lady at 835.0 478.6 behind
+150 point dancer at 809.3 739.9 behind
+150 point musicians at 682.3 625.0 facing
+150 point neck at 530.8 158.8 behind
+150 point cobalt at 447.0 544.9 behind
+151 view yaw=100.39 pitch=-0.74 distance=2.064 pan=0.0208,0.0000 light=studio open=-
+151 point lady at 836.4 480.1 behind
+151 point dancer at 812.3 735.2 behind
+151 point musicians at 700.6 624.3 facing
+151 point neck at 540.3 163.2 behind
+151 point cobalt at 456.9 544.8 behind
+152 view yaw=97.63 pitch=-0.44 distance=2.103 pan=0.0182,0.0000 light=studio open=-
+152 point lady at 836.0 481.5 behind
+152 point dancer at 813.6 730.3 behind
+152 point musicians at 717.7 623.4 facing
+152 point neck at 549.3 168.0 behind
+152 point cobalt at 466.4 544.8 facing
+153 view yaw=94.65 pitch=-0.11 distance=2.145 pan=0.0159,0.0000 light=studio open=-
+153 point lady at 834.2 482.9 behind
+153 point dancer at 813.5 725.1 behind
+153 point musicians at 733.7 622.5 facing
+153 point neck at 557.8 173.1 behind
+153 point cobalt at 475.7 544.9 facing
+154 view yaw=91.48 pitch=0.23 distance=2.190 pan=0.0139,0.0000 light=studio open=-
+154 point lady at 831.0 484.2 behind
+154 point dancer at 812.1 719.9 behind
+154 point musicians at 748.5 621.5 facing
+154 point neck at 565.9 178.5 behind
+154 point cobalt at 485.0 545.2 facing
+155 view yaw=88.15 pitch=0.59 distance=2.237 pan=0.0122,0.0000 light=studio open=-
+155 point lady at 826.7 485.3 behind
+155 point dancer at 809.5 714.6 behind
+155 point musicians at 762.1 620.3 facing
+155 point neck at 573.8 184.1 behind
+155 point cobalt at 494.4 545.6 facing
+156 view yaw=84.67 pitch=0.97 distance=2.286 pan=0.0107,0.0000 light=studio open=-
+156 point lady at 821.4 486.3 behind
+156 point dancer at 806.0 709.3 behind
+156 point musicians at 774.3 619.1 facing
+156 point neck at 581.6 189.9 facing
+156 point cobalt at 504.0 546.1 facing
+157 view yaw=81.08 pitch=1.36 distance=2.337 pan=0.0093,0.0000 light=studio open=-
+157 point lady at 815.2 487.2 behind
+157 point dancer at 801.6 704.1 behind
+157 point musicians at 785.2 617.8 facing
+157 point neck at 589.2 195.9 facing
+157 point cobalt at 513.9 546.7 facing
+158 view yaw=77.39 pitch=1.76 distance=2.389 pan=0.0082,0.0000 light=studio open=-
+158 point lady at 808.4 487.9 behind
+158 point dancer at 796.6 699.0 behind
+158 point musicians at 794.7 616.3 facing
+158 point neck at 596.8 202.0 facing
+158 point cobalt at 524.0 547.5 facing
+159 view yaw=73.64 pitch=2.17 distance=2.442 pan=0.0072,0.0000 light=studio open=-
+159 point lady at 801.0 488.4 behind
+159 point dancer at 791.0 694.0 behind
+159 point musicians at 803.0 614.8 facing
+159 point neck at 604.3 208.3 facing
+159 point cobalt at 534.4 548.5 facing
+160 view yaw=69.83 pitch=2.58 distance=2.496 pan=0.0063,0.0000 light=studio open=-
+160 point lady at 793.2 488.9 behind
+160 point dancer at 784.9 689.1 behind
+160 point musicians at 810.0 613.2 facing
+160 point neck at 611.7 214.5 facing
+160 point cobalt at 545.0 549.5 facing
+161 view yaw=66.00 pitch=3.00 distance=2.550 pan=0.0055,0.0000 light=studio open=-
+161 point lady at 785.2 489.2 behind
+161 point dancer at 778.6 684.5 behind
+161 point musicians at 815.8 611.5 facing
+161 point neck at 619.1 220.7 facing
+161 point cobalt at 555.8 550.6 facing
+162 view yaw=62.17 pitch=3.42 distance=2.604 pan=0.0048,0.0000 light=studio open=-
+162 point lady at 777.0 489.4 behind
+162 point dancer at 772.1 680.0 behind
+162 point musicians at 820.5 609.7 facing
+162 point neck at 626.4 226.9 facing
+162 point cobalt at 566.8 551.8 facing
+163 view yaw=58.36 pitch=3.83 distance=2.658 pan=0.0042,0.0000 light=studio open=-
+163 point lady at 768.8 489.6 behind
+163 point dancer at 765.4 675.8 behind
+163 point musicians at 824.1 607.8 facing
+163 point neck at 633.5 233.0 facing
+163 point cobalt at 577.8 553.1 facing
+164 view yaw=54.61 pitch=4.24 distance=2.711 pan=0.0037,0.0000 light=studio open=-
+164 point lady at 760.6 489.6 behind
+164 point dancer at 758.8 671.8 behind
+164 point musicians at 826.7 606.0 facing
+164 point neck at 640.4 239.0 facing
+164 point cobalt at 588.7 554.3 facing
+165 view yaw=50.92 pitch=4.64 distance=2.763 pan=0.0032,0.0000 light=studio open=-
+165 point lady at 752.6 489.6 behind
+165 point dancer at 752.2 668.1 behind
+165 point musicians at 828.5 604.1 facing
+165 point neck at 647.2 244.8 facing
+165 point cobalt at 599.5 555.5 facing
+166 view yaw=47.33 pitch=5.03 distance=2.814 pan=0.0028,0.0000 light=studio open=-
+166 point lady at 744.8 489.6 behind
+166 point dancer at 745.8 664.6 behind
+166 point musicians at 829.5 602.2 facing
+166 point neck at 653.6 250.4 facing
+166 point cobalt at 610.0 556.7 facing
+167 view yaw=43.85 pitch=5.41 distance=2.863 pan=0.0025,0.0000 light=studio open=-
+167 point lady at 737.4 489.6 behind
+167 point dancer at 739.6 661.4 behind
+167 point musicians at 829.8 600.3 facing
+167 point neck at 659.8 255.7 facing
+167 point cobalt at 620.1 557.9 facing
+168 view yaw=40.52 pitch=5.77 distance=2.910 pan=0.0022,0.0000 light=studio open=-
+168 point lady at 730.3 489.6 behind
+168 point dancer at 733.7 658.5 behind
+168 point musicians at 829.6 598.4 facing
+168 point neck at 665.6 260.8 facing
+168 point cobalt at 629.8 558.9 facing
+169 view yaw=37.35 pitch=6.11 distance=2.955 pan=0.0019,0.0000 light=studio open=-
+169 point lady at 723.6 489.5 behind
+169 point dancer at 728.2 655.8 behind
+169 point musicians at 828.9 596.7 facing
+169 point neck at 671.1 265.5 facing
+169 point cobalt at 638.9 559.9 facing
+170 view yaw=34.37 pitch=6.44 distance=2.997 pan=0.0017,0.0000 light=studio open=-
+170 point lady at 717.4 489.5 behind
+170 point dancer at 723.0 653.4 behind
+170 point musicians at 828.0 595.0 behind
+170 point neck at 676.1 269.9 facing
+170 point cobalt at 647.4 560.8 facing
+171 view yaw=31.61 pitch=6.74 distance=3.036 pan=0.0014,0.0000 light=studio open=-
+171 point lady at 711.8 489.5 behind
+171 point dancer at 718.2 651.3 behind
+171 point musicians at 826.8 593.4 behind
+171 point neck at 680.7 274.0 facing
+171 point cobalt at 655.2 561.6 facing
+172 view yaw=29.08 pitch=7.01 distance=3.072 pan=0.0013,0.0000 light=studio open=-
+172 point lady at 706.7 489.5 behind
+172 point dancer at 714.0 649.5 behind
+172 point musicians at 825.4 591.9 behind
+172 point neck at 684.8 277.6 facing
+172 point cobalt at 662.3 562.3 facing
+173 view yaw=26.81 pitch=7.26 distance=3.104 pan=0.0011,0.0000 light=studio open=-
+173 point lady at 702.2 489.5 behind
+173 point dancer at 710.2 647.9 behind
+173 point musicians at 824.0 590.6 behind
+173 point neck at 688.4 280.8 facing
+173 point cobalt at 668.5 562.9 facing
+174 view yaw=24.83 pitch=7.47 distance=3.132 pan=0.0010,0.0000 light=studio open=-
+174 point lady at 698.3 489.5 behind
+174 point dancer at 706.9 646.5 behind
+174 point musicians at 822.7 589.5 behind
+174 point neck at 691.6 283.6 facing
+174 point cobalt at 673.9 563.3 facing
+175 view yaw=23.16 pitch=7.66 distance=3.155 pan=0.0008,0.0000 light=studio open=-
+175 point lady at 695.1 489.5 behind
+175 point dancer at 704.2 645.4 behind
+175 point musicians at 821.5 588.5 behind
+175 point neck at 694.2 285.9 facing
+175 point cobalt at 678.4 563.7 facing
+176 view yaw=21.81 pitch=7.80 distance=3.174 pan=0.0007,0.0000 light=studio open=-
+176 point lady at 692.6 489.5 behind
+176 point dancer at 702.0 644.5 behind
+176 point musicians at 820.5 587.7 behind
+176 point neck at 696.3 287.8 facing
+176 point cobalt at 682.0 564.0 facing
+177 view yaw=20.82 pitch=7.91 distance=3.188 pan=0.0006,0.0000 light=studio open=-
+177 point lady at 690.7 489.6 behind
+177 point dancer at 700.5 643.9 behind
+177 point musicians at 819.7 587.1 behind
+177 point neck at 697.8 289.1 facing
+177 point cobalt at 684.7 564.2 facing
+178 view yaw=20.21 pitch=7.98 distance=3.197 pan=0.0006,0.0000 light=studio open=-
+178 point lady at 689.7 489.6 behind
+178 point dancer at 699.6 643.5 behind
+178 point musicians at 819.3 586.8 behind
+178 point neck at 698.8 290.0 facing
+178 point cobalt at 686.3 564.3 facing
+179 view yaw=20.00 pitch=8.00 distance=3.200 pan=0.0005,0.0000 light=studio open=-
+179 point lady at 689.3 489.6 behind
+179 point dancer at 699.3 643.4 behind
+179 point musicians at 819.2 586.6 behind
+179 point neck at 699.2 290.2 facing
+179 point cobalt at 687.0 564.4 facing
+180 view yaw=20.00 pitch=8.00 distance=3.200 pan=0.0004,0.0000 light=studio open=-
+180 point lady at 689.4 489.6 behind
+180 point dancer at 699.4 643.4 behind
+180 point musicians at 819.3 586.6 behind
+180 point neck at 699.3 290.2 facing
+180 point cobalt at 687.1 564.4 facing
+181 point lady at 689.5 489.6 behind
+181 point dancer at 699.5 643.4 behind
+181 point musicians at 819.4 586.6 behind
+181 point neck at 699.4 290.2 facing
+181 point cobalt at 687.2 564.4 facing
+182 view yaw=20.00 pitch=8.00 distance=3.200 pan=0.0003,0.0000 light=studio open=-
+182 point lady at 689.6 489.6 behind
+182 point neck at 699.5 290.2 facing
+183 point dancer at 699.6 643.4 behind
+183 point musicians at 819.5 586.6 behind
+183 point cobalt at 687.3 564.4 facing
+184 point lady at 689.7 489.6 behind
+184 point dancer at 699.7 643.4 behind
+184 point neck at 699.6 290.2 facing
+184 point cobalt at 687.4 564.4 facing
+185 view yaw=20.00 pitch=8.00 distance=3.200 pan=0.0002,0.0000 light=studio open=-
+185 point musicians at 819.6 586.6 behind
+185 point neck at 699.7 290.2 facing
+186 point cobalt at 687.5 564.4 facing
+187 point lady at 689.8 489.6 behind
+187 point dancer at 699.8 643.4 behind
+187 point musicians at 819.7 586.6 behind
+188 view yaw=20.00 pitch=8.00 distance=3.200 pan=0.0001,0.0000 light=studio open=-
+188 point neck at 699.8 290.2 facing
+189 point cobalt at 687.6 564.4 facing
+190 view yaw=20.00 pitch=8.00 distance=3.200 pan=0.0000,0.0000 light=studio open=-
+190 point lady at 690.0 489.6 behind
+190 point dancer at 700.0 643.4 behind
+190 point musicians at 819.9 586.6 behind
+190 point neck at 700.0 290.2 facing
+190 point cobalt at 687.8 564.4 facing
+198 view yaw=20.00 pitch=8.00 distance=3.200 pan=0.0000,0.0000 light=raking open=-

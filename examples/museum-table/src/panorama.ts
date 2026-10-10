@@ -1,8 +1,10 @@
 // 360-degree panoramas (ZN-650.09): an equirectangular image seen from the inside of a sphere with zinc:3d. A finger looks around and the
-// view keeps turning a little when it lets go; a pinch or the wheel changes the field of view; points of interest are projected with the
+// view keeps turning a little when it lets go; a pinch or the wheel changes the field of view (orbit.ts, shared with the object viewer);
+// points of interest are projected with the
 // same camera every frame, so they stay on their direction. Directions: y up, -z the middle of the image, +x a quarter turn to the right.
 import { Scene, Camera, Node, Material, Mesh, Shading } from 'zinc:3d';
 import { View } from './project';
+import { Orbit } from './orbit';
 
 export const FOV_MIN = 30;
 export const FOV_MAX = 100;
@@ -36,21 +38,13 @@ function insideSphere(segments: i32, rings: i32): Mesh {
   return new Mesh(pos, idx, nrm, uv, []);
 }
 
-export class PanoramaView {
-  yaw = 0;
-  pitch = 0;
-  fov = 75;
-  /** Inertia after a drag, in degrees per second. */
-  private vyaw = 0;
-  private vpitch = 0;
-  /** A view the camera glides to (opening a point), and how far along. */
-  private goal: View | null = null;
-  private from: View = new View();
-  private glide = 0;
+export class PanoramaView extends Orbit {
   private readonly scene = new Scene();
   private readonly camera = new Camera();
 
   constructor(image: i32, view: View) {
+    super();
+    this.nearest = FOV_MIN; this.farthest = FOV_MAX; this.steepest = PITCH_MAX;
     const m = new Material(0xffffff);
     m.texture = image;
     m.shading = Shading.Unlit;
@@ -62,65 +56,23 @@ export class PanoramaView {
     this.set(view);
   }
 
-  set(v: View): void { this.yaw = v.yaw; this.pitch = v.pitch; this.fov = v.fov; this.vyaw = 0; this.vpitch = 0; this.goal = null; this.clamp(); }
+  /** The field of view in degrees: what a pinch changes here. */
+  get fov(): number { return this.reach; }
+  set fov(degrees: number) { this.reach = degrees; }
+
+  set(v: View): void { this.place(v.yaw, v.pitch, v.fov); }
 
   /** The finger moved by (dx, dy) screen pixels over `dt` seconds on a view `h` pixels high: the image follows it. */
   drag(dx: number, dy: number, h: number, dt: number): void {
     const k = this.fov / Math.max(1, h);
-    this.yaw -= dx * k; this.pitch += dy * k;
-    this.goal = null;
-    if (dt > 0) { this.vyaw = this.vyaw * 0.5 + (-dx * k / dt) * 0.5; this.vpitch = this.vpitch * 0.5 + (dy * k / dt) * 0.5; }
-    this.clamp();
+    this.turn(-dx * k, dy * k, dt);
   }
-  /** The finger stayed still: no inertia when it lets go. */
-  hold(): void { this.vyaw = 0; this.vpitch = 0; }
 
   /** A pinch or wheel step: `k` above 1 zooms in. */
-  zoom(k: number): void {
-    if (k > 0) this.fov = Math.min(FOV_MAX, Math.max(FOV_MIN, this.fov / k));
-  }
+  zoom(k: number): void { this.closer(k); }
 
   /** Glide to `v` in `seconds`. */
-  glideTo(v: View, seconds: number): void {
-    this.from = new View();
-    this.from.yaw = this.yaw; this.from.pitch = this.pitch; this.from.fov = this.fov;
-    let target = v.yaw;   // the short way round
-    while (target - this.yaw > 180) target -= 360;
-    while (target - this.yaw < -180) target += 360;
-    const g = new View();
-    g.yaw = target; g.pitch = v.pitch; g.fov = v.fov;
-    this.goal = g;
-    this.glide = seconds > 0 ? 0 : 1;
-    this.vyaw = 0; this.vpitch = 0;
-  }
-
-  /** Whether the view still moves by itself (inertia or a glide). */
-  moving(): boolean { return this.goal !== null || this.vyaw !== 0 || this.vpitch !== 0; }
-
-  step(dt: number, dragging: boolean): void {
-    const g = this.goal;
-    if (g !== null) {
-      this.glide = Math.min(1, this.glide + dt / 0.6);
-      const t = this.glide * this.glide * (3 - 2 * this.glide);
-      this.yaw = this.from.yaw + (g.yaw - this.from.yaw) * t;
-      this.pitch = this.from.pitch + (g.pitch - this.from.pitch) * t;
-      this.fov = this.from.fov + (g.fov - this.from.fov) * t;
-      if (this.glide >= 1) this.goal = null;
-    } else if (!dragging) {
-      this.yaw += this.vyaw * dt; this.pitch += this.vpitch * dt;
-      const decay = Math.exp(-4 * dt);
-      this.vyaw *= decay; this.vpitch *= decay;
-      if (Math.abs(this.vyaw) < 0.5 && Math.abs(this.vpitch) < 0.5) { this.vyaw = 0; this.vpitch = 0; }
-    }
-    this.clamp();
-  }
-
-  private clamp(): void {
-    while (this.yaw > 180) this.yaw -= 360;
-    while (this.yaw <= -180) this.yaw += 360;
-    this.pitch = Math.min(PITCH_MAX, Math.max(-PITCH_MAX, this.pitch));
-    this.fov = Math.min(FOV_MAX, Math.max(FOV_MIN, this.fov));
-  }
+  glideTo(v: View, seconds: number): void { this.glide(v.yaw, v.pitch, v.fov, seconds); }
 
   draw(x: number, y: number, w: number, h: number): void {
     const d = direction(this.yaw, this.pitch);

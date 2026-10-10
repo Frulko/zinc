@@ -470,8 +470,8 @@
         "en": "Porcelain with cobalt pigment under clear colorless glaze"
       },
       "description": {
-        "fr": "Ce vase de porcelaine bleu et blanc est exposé dans la Salle des paons, la salle à manger que Whistler décora à Londres en 1876-1877 pour présenter une collection de porcelaines de Chine. Son décor montre une dame de cour divertie par une danseuse et des musiciens.",
-        "en": "This blue-and-white porcelain vase is displayed in the Peacock Room, the dining room Whistler decorated in London in 1876–77 to show a collection of Chinese porcelain. Its decoration shows a court lady entertained by a dancer and musicians."
+        "fr": "Ce vase de porcelaine bleu et blanc est exposé dans la Salle des paons, la salle à manger que Whistler décora à Londres en 1876-1877 pour présenter une collection de porcelaines de Chine. Son décor, peint tout autour, montre une dame de cour divertie par une danseuse et des musiciennes dans un jardin.",
+        "en": "This blue-and-white porcelain vase is displayed in the Peacock Room, the dining room Whistler decorated in London in 1876–77 to show a collection of Chinese porcelain. Its decoration, painted all the way round, shows a court lady entertained by a dancer and musicians in a garden."
       },
       "audioDescription": {
         "fr": "Un vase de porcelaine blanche d’une quarantaine de centimètres, renflé à l’épaule et resserré au col, entièrement peint de personnages et de fleurs en bleu.",
@@ -485,20 +485,46 @@
         "licence": "CC0 1.0",
         "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/"
       },
-      "view": { "yaw": 20, "pitch": 8, "distance": 3 },
+      "view": { "yaw": 20, "pitch": 8, "distance": 3.2 },
       "points": [
         {
-          "id": "scene",
+          "id": "lady",
           "title": {
-            "fr": "La scène de cour",
-            "en": "The court scene"
+            "fr": "La dame de cour",
+            "en": "The court lady"
           },
           "text": {
-            "fr": "Une dame de cour assiste à un divertissement : une danseuse évolue au son des instruments.",
-            "en": "A court lady watches an entertainment: a dancer moves to the sound of instruments."
+            "fr": "Dans un pavillon ouvert sur le jardin, une dame de cour assiste au divertissement donné pour elle.",
+            "en": "In a pavilion open on the garden, a court lady watches the entertainment given for her."
           },
-          "at": [0, 0.02, 0.086],
-          "view": { "yaw": 0, "pitch": 4, "distance": 1.7 }
+          "at": [-0.0363, 0.03, -0.0779],
+          "view": { "yaw": 205, "pitch": 4, "distance": 1.9 }
+        },
+        {
+          "id": "dancer",
+          "title": {
+            "fr": "La danseuse",
+            "en": "The dancer"
+          },
+          "text": {
+            "fr": "Devant le pavillon, sur un tapis déroulé à même le sol, une danseuse.",
+            "en": "Before the pavilion, on a carpet spread on the ground, a dancer."
+          },
+          "at": [-0.0246, -0.085, -0.0677],
+          "view": { "yaw": 200, "pitch": -6, "distance": 1.9 }
+        },
+        {
+          "id": "musicians",
+          "title": {
+            "fr": "Les musiciennes",
+            "en": "The musicians"
+          },
+          "text": {
+            "fr": "Un groupe de femmes accompagne la danse, près d’un tambour posé sur un pied.",
+            "en": "A group of women accompanies the dance, beside a drum set on a stand."
+          },
+          "at": [0.0752, -0.03, -0.0351],
+          "view": { "yaw": 112, "pitch": -2, "distance": 1.9 }
         },
         {
           "id": "neck",
@@ -507,11 +533,11 @@
             "en": "The neck"
           },
           "text": {
-            "fr": "Des rameaux fleuris ornent le col.",
-            "en": "Sprays of flowers decorate the neck."
+            "fr": "Des rameaux fleuris ornent le col, entre deux frises géométriques.",
+            "en": "Sprays of flowers decorate the neck, between two geometric bands."
           },
-          "at": [0, 0.165, 0.049],
-          "view": { "yaw": 0, "pitch": 18, "distance": 1.5 }
+          "at": [0.0168, 0.165, 0.046],
+          "view": { "yaw": 20, "pitch": 14, "distance": 1.7 }
         },
         {
           "id": "cobalt",
@@ -520,11 +546,11 @@
             "en": "Cobalt blue"
           },
           "text": {
-            "fr": "Le décor est peint à l’oxyde de cobalt sur la pièce crue, puis recouvert d’une couverte transparente et cuit à haute température, vers 1300 °C.",
-            "en": "The decoration is painted in cobalt oxide on the unfired piece, then covered with a clear glaze and fired at high temperature, around 1300 °C."
+            "fr": "Le décor est peint à l’oxyde de cobalt sur la pièce crue, puis recouvert d’une couverte transparente et cuit à haute température, vers 1300 °C. Les lavis de ce bananier montrent les nuances que le peintre en tire.",
+            "en": "The decoration is painted in cobalt oxide on the unfired piece, then covered with a clear glaze and fired at high temperature, around 1300 °C. The washes of this plantain show the shades the painter draws from it."
           },
-          "at": [0.086, 0.05, 0],
-          "view": { "yaw": 90, "pitch": 0, "distance": 1.6 }
+          "at": [0.0219, 0, 0.0816],
+          "view": { "yaw": 15, "pitch": 0, "distance": 1.9 }
         }
       ]
     },
@@ -838,7 +864,7 @@
       },
       "storyboard": { "x": 880, "y": 300 },
       "items": [
-        { "media": "vase", "x": 700, "y": 510, "width": 1000, "height": 880 },
+        { "media": "vase", "x": 700, "y": 545, "width": 1000, "height": 810 },
         { "media": "peacock-room", "x": 1530, "y": 400, "width": 460, "rotation": 2 }
       ],
       "links": [

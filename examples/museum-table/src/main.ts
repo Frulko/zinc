@@ -1,14 +1,16 @@
 // Museum table: the player. Everything it shows comes from assets/project.json (docs/museum-table-format.md): the cards of the current
 // sequence on the light table, the buttons to the other sequences, the texts in the visitor's language.
-//   zinc run examples/museum-table [-- --sequence <id>] [--lang <code>] [--log] [--stress <cards>]
-// --log prints the pose of every card that moved, one line per frame (the tests read it); --stress lays out that many cards, keeps them
-// moving and prints the frame time (the measure of the task).
+//   zinc run examples/museum-table [-- --sequence <id>] [--lang <code>] [--log] [--stress <cards>] [--pins] [--time]
+// --log prints the pose of every card that moved and the view and points of the 3D object, one line per change (the tests read it);
+// --stress lays out that many cards, keeps them moving and prints the frame time; --time prints the time the 3D object takes to draw;
+// --pins puts a red ball on every point of interest of the object (the test of their projection).
 import { onFrame, width, height, clear, rect, rrect, border, drawImage, drawText, textWidth, imageWidth, imageHeight, wheel, pinch, pointerX, pointerY, modifiers, Mod } from 'zinc:gfx';
 import { readText } from 'zinc:assets';
 import { args, clock } from 'zinc:sys';
 import { parseProject, Sequence, Item, Link, Colours } from './project';
 import { Fingers, Finger } from './touch';
 import { LightTable, Card } from './table';
+import { ObjectView } from './viewer';
 import { sans, bold, wrap, leading } from './type';
 import { word } from './words';
 
@@ -17,12 +19,14 @@ const OVERLAY: i32 = 1, BUTTON: i32 = 2, NOTHING: i32 = -1;
 
 const project = parseProject(readText('project.json'));
 let lang = project.languages[0];
-let logging = false, stress: i32 = 0;
+let logging = false, stress: i32 = 0, pins = false, timing = false;
 let sequence = project.sequence(project.start) ?? project.sequences[0];
 {
   const a = args();
   for (let i = 0; i < a.length; i++) {
     if (a[i] === '--log') logging = true;
+    else if (a[i] === '--pins') pins = true;
+    else if (a[i] === '--time') timing = true;
     else if (a[i] === '--lang' && i + 1 < a.length) { const l = a[++i]; if (project.languages.indexOf(l) >= 0) lang = l; }
     else if (a[i] === '--sequence' && i + 1 < a.length) sequence = project.sequence(a[++i]) ?? sequence;
     else if (a[i] === '--stress' && i + 1 < a.length) stress = parseInt(a[++i], 10);
@@ -32,6 +36,8 @@ const colours: Colours = project.theme;
 const T = project.table;
 const fingers = new Fingers();
 const table = new LightTable(project, colours, lang);
+/** The 3D object of the sequence, when it shows one. */
+let viewer: ObjectView | null = null;
 
 /** A button of the player, in table units: its box and what a touch does (`to`: a sequence, or '' for the language). */
 class Button {
@@ -59,6 +65,15 @@ function layOut(): void {
     sequence = many;
   }
   table.open(sequence);
+  viewer = null;
+  for (const item of sequence.items) {
+    const m = project.medium(item.media);
+    // ponytail: OBJ models only, and one per sequence; a .glb or .gltf waits for zinc:3d to load it (ZN-658)
+    if (m === null || m.kind !== 'model' || !m.file.toLowerCase().endsWith('.obj') || viewer !== null) continue;
+    const v = new ObjectView(project, m, colours, lang, pins);
+    v.x = item.x; v.y = item.y; v.w = item.width; v.h = item.height > 0 ? item.height : item.width;
+    viewer = v;
+  }
   buttons = [];
   for (const l of sequence.links) {
     if (l.on.length > 0) continue;   // ponytail: hotspots on an item, overlays and transitions come with the sequences task (ZN-650.05)
@@ -85,7 +100,7 @@ function label(): void {
 }
 
 let now = 0, frame: i32 = 0;
-const said = new Map<i32, string>();   // the last line logged for each card
+const said = new Map<i32, string>();   // the last line logged under each key
 let spent = 0, elapsed = 0, counted: i32 = 0;
 
 onFrame((dt: number) => {
@@ -103,6 +118,8 @@ onFrame((dt: number) => {
   }
   const viewing: Card | null = table.opened;
   table.update(dt, fingers, now);
+  const object: ObjectView | null = viewer;
+  if (object !== null) object.update(dt, fingers);   // after the cards: one lying over the object takes its fingers
   for (const f of fingers.down) if (f.fresh && f.owner === 0) f.owner = NOTHING;
   for (const f of fingers.lifted) {
     if (f.owner === OVERLAY && viewing !== null) table.opened = null;
@@ -117,12 +134,14 @@ onFrame((dt: number) => {
   // a desk without a touch screen: the wheel and the trackpad zoom the card under the pointer, with Shift the wheel turns it
   const notches = wheel(), spread = pinch();
   if (notches !== 0 || spread !== 1) {
-    const turning = (modifiers() & Mod.Shift) !== 0;
-    table.nudge((pointerX() - ox) / k, (pointerY() - oy) / k, turning ? 1 : Math.pow(1.1, notches) * spread, turning ? notches * 0.09 : 0);
+    const turning = (modifiers() & Mod.Shift) !== 0, px = (pointerX() - ox) / k, py = (pointerY() - oy) / k;
+    if (object !== null && object.inside(px, py) && table.cardAt(px, py) === null) object.closer(Math.pow(1.1, notches) * spread);
+    else table.nudge(px, py, turning ? 1 : Math.pow(1.1, notches) * spread, turning ? notches * 0.09 : 0);
   }
   if (stress > 0) stir(now);
 
   clear(colours.background);
+  if (object !== null) object.draw(ox, oy, k);
   drawHeading(ox, oy, k);
   table.draw(ox, oy, k);
   drawButtons(ox, oy, k);
@@ -130,8 +149,21 @@ onFrame((dt: number) => {
   for (const f of fingers.down) border(ox + (f.x - 30) * k, oy + (f.y - 30) * k, 60 * k, 60 * k, 30 * k, Math.max(1, 2 * k), colours.accent, 150);   // where the table feels a finger
 
   if (logging) for (const c of table.cards) {
-    const p = c.pose, line = `${c.media.id} x=${p.x.toFixed(2)} y=${p.y.toFixed(2)} scale=${p.scale.toFixed(4)} angle=${(p.angle * 180 / Math.PI).toFixed(2)} fingers=${c.held} face=${c.turn.toFixed(2)}`;
-    if (said.get(c.uid) !== line) { said.set(c.uid, line); console.log(`${frame} ${line}`); }
+    const p = c.pose;
+    say(c.uid, `${c.media.id} x=${p.x.toFixed(2)} y=${p.y.toFixed(2)} scale=${p.scale.toFixed(4)} angle=${(p.angle * 180 / Math.PI).toFixed(2)} fingers=${c.held} face=${c.turn.toFixed(2)}`);
+  }
+  if (object !== null) {
+    if (logging) {
+      say(-1, `view yaw=${object.yaw.toFixed(2)} pitch=${object.pitch.toFixed(2)} distance=${object.reach.toFixed(3)} pan=${object.panX.toFixed(4)},${object.panY.toFixed(4)} light=${object.light} open=${object.opened?.id ?? '-'}`);
+      for (let i: i32 = 0; i < object.media.points.length; i++) {
+        object.locate(object.media.points[i].at);
+        say(-2 - i, `point ${object.media.points[i].id} at ${object.px.toFixed(1)} ${object.py.toFixed(1)} ${object.pfacing ? 'facing' : 'behind'}`);
+      }
+    }
+    if (timing && object.drawn === 120) {
+      console.log(`the object is drawn in ${(object.spent / object.drawn).toFixed(2)} ms (${Math.round(object.w * k)} x ${Math.round(object.h * k)} pixels)`);
+      object.spent = 0; object.drawn = 0;
+    }
   }
   frame++;
   if (stress > 0) {
@@ -143,10 +175,18 @@ onFrame((dt: number) => {
   }
 });
 
+/** Logs a line when it differs from the last one said under `key`. */
+function say(key: i32, line: string): void {
+  if (said.get(key) === line) return;
+  said.set(key, line);
+  console.log(`${frame} ${line}`);
+}
+
 function press(b: Button): void {
   if (b.to.length === 0) {
     lang = project.languages[(project.languages.indexOf(lang) + 1) % project.languages.length];
     table.setLanguage(lang);
+    viewer?.setLanguage(lang);
     label();
     return;
   }
