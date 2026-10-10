@@ -51,6 +51,7 @@ def sign(path, md, seeds):
         Ed25519PrivateKey = None
     if seeds and Ed25519PrivateKey and not os.environ.get("INDEX_SIGN_WITH_ZINC"):
         body = canonical(md["signed"]).encode()
+        md = dict(md, signatures=list(md["signatures"]))   # the caller's metadata keeps its own signatures, as with zinc index-sign
         for seed in seeds:
             sk = Ed25519PrivateKey.from_private_bytes(bytes.fromhex(seed))
             md["signatures"].append({"keyid": keyid(sk.public_key().public_bytes_raw().hex()), "sig": sk.sign(body).hex()})
