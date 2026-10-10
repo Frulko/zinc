@@ -34,7 +34,7 @@ function compile(gl: WebGLRenderingContext, type: u32, source: string): WebGLSha
   const s = gl.createShader(type);
   gl.shaderSource(s, source);
   gl.compileShader(s);
-  if (gl.getShaderParameter(s, gl.COMPILE_STATUS) === 0) console.log('shader: ' + gl.getShaderInfoLog(s));
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS).bool) console.log('shader: ' + gl.getShaderInfoLog(s));
   return s;
 }
 
@@ -54,8 +54,8 @@ function cube(): number[] {
   return v;
 }
 
-function checker(size: i32): u8[] {
-  const px: u8[] = [];
+function checker(size: i32): number[] {
+  const px: number[] = [];
   for (let y = 0; y < size; y++)
     for (let x = 0; x < size; x++) {
       const on = ((x >> 3) + (y >> 3)) % 2 === 0;
@@ -70,7 +70,7 @@ function run(gl: WebGLRenderingContext): void {
   gl.attachShader(program, compile(gl, gl.VERTEX_SHADER, VERTEX));
   gl.attachShader(program, compile(gl, gl.FRAGMENT_SHADER, FRAGMENT));
   gl.linkProgram(program);
-  if (gl.getProgramParameter(program, gl.LINK_STATUS) === 0) console.log('link: ' + gl.getProgramInfoLog(program));
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS).bool) console.log('link: ' + gl.getProgramInfoLog(program));
   gl.useProgram(program);
 
   const vertices = gl.createBuffer();

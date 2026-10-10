@@ -127,9 +127,15 @@ const image = createImage(480, 360);
 onFrame(() => { if (gl === null) return; gl.clear(gl.COLOR_BUFFER_BIT); /* draw */ gl.present(image); drawImage(image, 0, 0, 480, 360, 255, 0); });
 ```
 
-- **Types.** WebGL objects are typed handles (`WebGLBuffer`, `WebGLProgram`...). `Float32Array`, `Uint16Array` and `Uint8Array` wrap a
-  Zinc array.
-- **What is covered.** For now the calls a textured, lit mesh needs: `examples/gl-cube`. The rest of WebGL 1 and 2 is ZN-562.02.
+- **Coverage.** Every method of WebGL 1 and 2, and of the extensions the engine offers, keeps its WebGL name and argument order
+  (`createContext(w, h, 2)` gives WebGL 2).
+- **Types.** WebGL objects are typed handles (`WebGLBuffer`, `WebGLProgram`...). `Float32Array`, `Uint8Array`, `Uint16Array`,
+  `Uint32Array` and the other typed arrays wrap a Zinc array; `readPixels` and `getBufferSubData` fill the one they are given.
+- **Typed results.** What WebGL returns as `any` is a `GLParam`:
+  `gl.getParameter(gl.VIEWPORT).numbers`, `gl.getShaderParameter(s, gl.COMPILE_STATUS).bool`, `.object` for a bound object's id.
+- **Extensions.** `getExtension(name)` returns whether it is on, and its methods are the context's (`createVertexArrayOES`...).
+- **Differences from WebGL.** A buffer allocated by size is `bufferDataSize`. A lost context has no DOM events, and `restoreContext`
+  gives a new context. The decisions are D57.
 - **Loading.** `zinc` loads WebGL (`libzn_webgl`, beside it) at the first `zinc:gl` call. A built program links it in. A program that
   does not import `zinc:gl` carries none of it.
 
