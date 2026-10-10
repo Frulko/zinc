@@ -11,6 +11,14 @@ Never ask the owner to choose, confirm or approve a design or technical decision
 - Pick the best option (score it as `next/RULES.md` §4 says when it matters), write the choice and why in the task notes or a decision record, and go on. A reversible choice is made at once.
 - Only an irreversible or outward-facing step (publishing, pushing, deleting data, spending money, sending a message) waits for the owner: do everything up to it and leave the exact command in the task notes.
 
+## Focus on the development platform; cross-platform comes last (owner, 2026-10-10)
+
+For now the engine is built and tested on the development Mac only. Do as many backlog tasks as possible there.
+
+- No builds or tests for ARM, Raspberry Pi, ESP32, Linux, the handhelds or the CHIP during a task (no `--target` cross builds, no QEMU, no `cross*` tests). Keep the code portable, but do not prove it on those targets now.
+- A task that touches a cross target: implement it, write its test, and move the cross-target verification into a follow-up task whose title names the target (it then lands in the deferred group of `next/backlog/priority.json`).
+- The cross-platform pass (the deferred group, the handheld and board milestones, their tests) is done at the end, as one phase.
+
 ## Move fast: finish tasks, prove only what changed (owner, 2026-10-10)
 
 The goal of a session is progress on the backlog: finish tasks, improve and complete the engine. Tests exist to prove a change, not to fill the session.

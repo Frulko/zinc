@@ -1,5 +1,5 @@
 {
-  "comment": "Order of work chosen by the owner (2026-10-07): UI first, then desktop integration, then rendering and media, then 3D and WebGL, then everything else, then (a group marked last) the cross builds and simulators the owner asked to leave for the end. tools/next-task takes the first group with a startable task; inside a group the ordinal decides. A task goes to the first group that matches (milestone, label, or a regex on the title). 2026-10-09: performance moved first (owner), games and the handheld/board milestones placed before the deferred group.",
+  "comment": "Order of work chosen by the owner (2026-10-07): UI first, then desktop integration, then rendering and media, then 3D and WebGL, then everything else, then (a group marked last) the cross builds and simulators the owner asked to leave for the end. tools/next-task takes the first group with a startable task; inside a group the ordinal decides. A task goes to the first group that matches (milestone, label, or a regex on the title). 2026-10-09: performance moved first (owner), games and the handheld/board milestones placed before the deferred group. 2026-10-10 (owner): the development Mac first; ARM, Pi, ESP32, Linux, handhelds and CHIP go to the cross-platform pass at the end.",
   "groups": [
     {
       "name": "performance (owner, 2026-10-09: the fastest engine, every ms tracked in docs/reports/zinc-next-perf.md)",
@@ -53,21 +53,22 @@
       ]
     },
     {
-      "name": "handhelds and boards: PSP, Vita, 3DS, iPhone 4S, NTC CHIP, Raspberry Pi SDK (owner, 2026-10-09)",
+      "name": "handhelds and boards: PSP, Vita, 3DS, iPhone 4S, NTC CHIP, Raspberry Pi SDK (owner, 2026-10-10: with the cross-platform pass at the end)",
       "milestones": [
         "m-23",
         "m-24",
         "m-25"
-      ]
+      ],
+      "last": true
     },
     {
-      "name": "deferred: cross builds and simulators (owner, 2026-10-07: at the end)",
+      "name": "deferred: cross builds, simulators and the non-Mac targets (owner, 2026-10-07 and 2026-10-10: the development Mac first, the cross-platform pass at the end)",
       "last": true,
       "milestones": [
         "m-11",
         "m-18"
       ],
-      "title": "[Cc]ross|[Ss]imulat|[Ee]mulat|qemu|QEMU|device-sim|ESP32|\\bPi\\b|fbdev|armhf|aarch64|ps2|PS1|PS2|reMarkable|wasm target|32-bit targets|Side records and move state|SoA node storage"
+      "title": "[Cc]ross|[Ss]imulat|[Ee]mulat|qemu|QEMU|device-sim|ESP32|\\bPi\\b|fbdev|armhf|aarch64|ps2|PS1|PS2|reMarkable|wasm target|32-bit targets|Side records and move state|SoA node storage|ARM|armv7|arm64|[Rr]aspberry|\\bRPi\\b|\\brpi|CHIP|PSP|Vita|3DS|n3ds|iPhone 4S|[Ll]inux|[Hh]andheld"
     }
   ]
 }
