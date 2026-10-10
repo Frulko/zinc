@@ -28,7 +28,7 @@ PY
 ZINC_DETERMINISTIC=1 ZINC_FRAMES=10 ZINC_PROFILE=1 ZINC_TRACE="$tmp/trace.json" "$ZINC" run ../tests/visual/ui.tsx 2>"$tmp/frames" >/dev/null
 grep -q "zinc profile: frames=10 work p50=" "$tmp/frames" && grep -q "layout p50=" "$tmp/frames" || { echo "no frame-phase summary"; fail=1; }
 python3 -c "import json,sys; d=json.load(open(sys.argv[1])); assert any(e.get('ph')=='X' for e in d)" "$tmp/trace.json" || { echo "the frame trace is not valid"; fail=1; }
-# resmon
-tools/resmon --no-samples -- "$ZINC" run ../tests/bench/kernels/fib.ts >"$tmp/res.json" 2>/dev/null || { echo "resmon failed"; fail=1; }
+# resmon, under a locale whose `ps` prints 0,0 for the CPU share (where it is installed)
+LC_ALL=fr_FR.UTF-8 tools/resmon --no-samples -- "$ZINC" run ../tests/bench/kernels/fib.ts >"$tmp/res.json" 2>/dev/null || { echo "resmon failed"; fail=1; }
 python3 -c "import json,sys; d=json.load(open(sys.argv[1])); assert d['peak_rss_mb']>1 and d['wall_s']>0 and d['user_s']>=0" "$tmp/res.json" || { echo "resmon output is not valid"; fail=1; }
 exit $fail

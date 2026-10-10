@@ -10,7 +10,7 @@ import os, platform, re, subprocess, time
 
 
 def _ps(pid):
-    r = subprocess.run(["ps", "-o", "rss=,%cpu=", "-p", str(pid)], capture_output=True, text=True)
+    r = subprocess.run(["ps", "-o", "rss=,%cpu=", "-p", str(pid)], capture_output=True, text=True, env={**os.environ, "LC_ALL": "C"})   # a French locale prints 0,0
     f = r.stdout.split()
     return (int(f[0]) / 1024.0, float(f[1])) if len(f) == 2 else None
 
