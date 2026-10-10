@@ -322,6 +322,8 @@ Gain: 5 = removes a multiple of the frame or a 2x+ on a whole class of programs;
 - **Fix**: ARGB8888 with `SDL_BLENDMODE_NONE` (the alpha byte is ignored), as the transparent-window path already does.
 - **Gain**: ~0.5 ms per full frame on macOS. **Effort** S. **Risk** low. **Hardware**: macOS (iOS if it uses Metal; the i4S uses GLES2, where XRGB is native).
 
+- **Result (ZN-426, 2026-10-10)**: ARGB8888 with blending off for opaque windows; no pixel conversion left in `SDL_UpdateTexture` (was 49 of 67 samples of it at 200k with `ZINC_RENDERER=cpu` on the Intel Mac), window captures identical. Only the SDL_Renderer path benefits: the default macOS window renders with the GL replay.
+
 ### PERF-28: parallel AOT compile
 
 - **Where**: `next/src/main.cpp:1349` (one C++ file per program at -O2).

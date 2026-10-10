@@ -207,8 +207,10 @@ static void alloc_surface() {
   if (tex) SDL_DestroyTexture(tex);
   free(fb);
   SDL_SetRenderLogicalPresentation(ren, PW, PH, SDL_LOGICAL_PRESENTATION_LETTERBOX);
-  tex = SDL_CreateTexture(ren, wcfg_set && wcfg.transparent ? SDL_PIXELFORMAT_ARGB8888 : SDL_PIXELFORMAT_XRGB8888, SDL_TEXTUREACCESS_STREAMING, PW, PH);
-  if (wcfg_set && wcfg.transparent) SDL_SetTextureBlendMode(tex, SDL_BLENDMODE_BLEND);
+  // ARGB8888 even for an opaque window: SDL's Metal renderer has no XRGB texture, so an XRGB one was converted at every SDL_UpdateTexture (3.6% of
+  // the main thread at 200k balls with ZINC_RENDERER=cpu, ZN-426); blending off makes the alpha byte, which the raster leaves at 0, irrelevant
+  tex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, PW, PH);
+  SDL_SetTextureBlendMode(tex, wcfg_set && wcfg.transparent ? SDL_BLENDMODE_BLEND : SDL_BLENDMODE_NONE);
   SDL_SetTextureScaleMode(tex, logical_px ? SDL_SCALEMODE_NEAREST : SDL_SCALEMODE_LINEAR);
   fb = (uint32_t*)calloc((size_t)PW * PH, 4);
 }
