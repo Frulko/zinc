@@ -4,7 +4,7 @@
 //   zinc run examples/pinball3d-editor                        a new table (Save asks for its folder)
 //   zinc run examples/pinball3d-editor -- path/to/table       that table folder (or its table.json); a new table saved there when it has none
 //   --log after the folder prints every event of the game played in the editor, as the game's own --log does, and what the editor refuses
-// The list at the left is outline.tsx, the top view topview.tsx, the properties form.tsx; every text of the interface is in
+// The list at the left is outline.tsx, the top view topview.tsx (screen.tsx takes its place for the screen layouts), the properties form.tsx; every text of the interface is in
 // strings.ts, in English and French.
 import { render, For, Show } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
@@ -19,9 +19,10 @@ import { Ico, Tool, Segmented, ACCENT, chord } from './widgets';
 import { Outline, focusGoTo } from './outline';
 import { Palette } from './palette';
 import { TopView } from './topview';
+import { ScreenView, screenShown } from './screen';
 import { Properties, findField, editAsFile } from './form';
 import { view3d, setView3d, playing, paused, dropping, setDropping, play, pause, stop, stepFrame, advance, setLogging } from './play';
-import { toggleWindow, boxX, boxY, boxW, boxH } from './view3d';
+import { toggleWindow, useView, boxX, boxY, boxW, boxH } from './view3d';
 import { refreshFiles, importFrom, importFile } from './files';
 import { on } from 'zinc:system';
 import * as L from './strings';
@@ -104,7 +105,8 @@ function Shell(): i32 {
     <view class="grow basis-0 min-h-0 flex-row">
       <Outline />
       <Palette />
-      <TopView />
+      <Show when={!screenShown()}><TopView /></Show>
+      <Show when={screenShown()}><ScreenView /></Show>
       <Properties />
     </view>
     <StatusBar />
@@ -140,7 +142,7 @@ ui.onKey((e: ui.KeyEvent) => {
     return;
   }
   // the game: V shows the table in 3D, B drops a ball where the top view is clicked next, P plays or pauses, O steps a paused
-  // game by a frame, W opens the game's own window, Escape ends the game; L goes from one level of the table to the next. While
+  // game by a frame, W opens the game's own window, C keeps the view set by hand in the 3D pane, Escape ends the game; L goes from one level of the table to the next. While
   // the game runs every other key is the game's: its flippers, its plunger, its bumps
   let taken = true;
   if (k === 'v') setView3d(!view3d());
@@ -148,6 +150,7 @@ ui.onKey((e: ui.KeyEvent) => {
   else if (k === 'p') { setView3d(true); if (playing()) pause(); else play(); }
   else if (k === 'o' && playing() && paused()) stepFrame();
   else if (k === 'w') toggleWindow();
+  else if (k === 'c' && !(playing() && !paused())) useView();
   else if (k === 'l' && !(playing() && !paused())) nextLevel();
   else if (k === 'Escape' && (playing() || dropping())) { if (playing()) stop(); setDropping(false); }
   else taken = playing() && !paused();

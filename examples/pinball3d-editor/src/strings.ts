@@ -79,12 +79,21 @@ export const END = S('end', 'fin');
 export const DROP = S('Drop a ball', 'Lâcher une bille');
 export const DROP_HOW = S('Click the top view where the ball is to be dropped: it rolls from there, with the table\'s physics and rules.',
   'Cliquez la vue de dessus là où lâcher la bille : elle roule de là, avec la physique et les règles de la table.');
-export const PLAY_HOW = S('The table as the game shows it. Drop a ball on the top view, or press Play to start a game as a player does; the flippers and the plunger answer the game\'s keys.',
-  'La table telle que le jeu la montre. Lâchez une bille sur la vue de dessus, ou appuyez sur Jouer pour commencer une partie comme un joueur ; les batteurs et le lance-bille répondent aux touches du jeu.');
+export const PLAY_HOW = S('The table as the game shows it. Drop a ball on the top view, or press Play to start a game as a player does; the flippers and the plunger answer the game\'s keys. Drag here to look from elsewhere.',
+  'La table telle que le jeu la montre. Lâchez une bille sur la vue de dessus, ou appuyez sur Jouer pour commencer une partie comme un joueur ; les batteurs et le lance-bille répondent aux touches du jeu. Glissez ici pour regarder d’ailleurs.');
 export const BALL_N = S('ball {0}', 'bille {0}');
 export const KEYS_OF_GAME = S('Z and /: flippers   SPACE: plunger   X . UP: bump   ENTER: start', 'Z et / : batteurs   ESPACE : lance-bille   X . HAUT : secousse   ENTRÉE : jouer');
 export const DONE_DROPPED = S('A ball dropped at {0}, {1} cm.', 'Une bille lâchée à {0}, {1} cm.');
 export const DONE_STOPPED = S('The game is over: the table is at rest.', 'La partie est finie : la table est au repos.');
+export const SCREEN_VIEW = S('Screen', 'Écran');
+export const SCREEN_HOW = S('The game\'s window in this layout. Click a thing of the panel, drag it to move it, drag the square at its corner to size it.',
+  'La fenêtre du jeu dans cette mise en page. Cliquez un élément du panneau, glissez-le pour le déplacer, glissez le carré de son coin pour le dimensionner.');
+export const USE_VIEW = S('Use this view', 'Garder cette vue');
+export const EYE_HOW = S('Drag turns the view, Shift and drag slides it over the table, the wheel comes closer. "Use this view" makes it the view of the game\'s screen layout; the arrow goes back to the layout\'s.',
+  'Glisser tourne la vue, Maj et glisser la déplace au-dessus de la table, la molette rapproche. « Garder cette vue » en fait la vue de la mise en page du jeu ; la flèche revient à celle de la mise en page.');
+export const DONE_VIEW_USED = S('The {0} layout now looks at the table from here.', 'La mise en page {0} regarde maintenant la table d’ici.');
+export const LANDSCAPE_LAYOUT = S('landscape', 'paysage');
+export const PORTRAIT_LAYOUT = S('portrait', 'portrait');
 export const NO_3D = S('The table cannot be shown in 3D: {0}', 'La table ne peut pas être montrée en 3D : {0}');
 
 // ---- the panel at the right
@@ -120,6 +129,8 @@ export const IN_FILE_HINT = S('The selection as the file has it. Edit it and lea
   'La sélection telle que le fichier l’écrit. Modifiez-la puis quittez le champ : elle est vérifiée comme un fichier.');
 export const YES = S('Yes', 'Oui');
 export const NO = S('No', 'Non');
+
+export const COLOURS_IN_USE = S('In this table', 'Dans cette table');
 
 // ---- the files of the table's folder
 export const FILES = S('Files', 'Fichiers');

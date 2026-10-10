@@ -25,6 +25,7 @@ export const ROLES: string[][] = [
   ['profile', 'a height along a path: rows [fraction of the length, height]'],
   ['rotation', 'a turn in space, [around x, around y, around z]; the third number turns the thing in the top view, as a direction does'],
   ['offset', 'a step counted from the element\'s own place, [dx, dy] or [dx, dy, dz]: it turns and mirrors with its element, and does not move when the element moves'],
+  ['radius', 'a distance around the thing\'s point, a circle in the top view (how far a light\'s glow reaches): an editor shows the circle and lets it be pulled'],
   ['level', 'the height of the level a thing stands on: 0 on the playfield, the `z` of an upper playfield on that one. An editor that works on one level shows and places things by it'],
 ];
 
@@ -283,7 +284,7 @@ export function tableSchema(): Schema {
   light.num('size', 1.1, 'Its radius, or half its length.').range(0.2, 20).withUnit('cm');
   light.num('angle', -90, 'Where an arrow points, or how a bar lies.').range(-360, 360).withRole('direction').withUnit('degrees');
   light.color('color', '#ffcc33', 'Its colour when on; off, it shows a dark shade of it.');
-  light.num('glow', 0, 'How far around it its light falls when it is on: the radius of its pool of light on the level it is in (the playfield, or the upper playfield at its `z`), where its colour is added to what is under it, strongest at the light and nothing at this distance. Pools add up where they overlap. 0: only the insert lights up.').range(0, 30).withUnit('cm');
+  light.num('glow', 0, 'How far around it its light falls when it is on: the radius of its pool of light on the level it is in (the playfield, or the upper playfield at its `z`), where its colour is added to what is under it, strongest at the light and nothing at this distance. Pools add up where they overlap. 0: only the insert lights up.').range(0, 30).withRole('radius').withUnit('cm');
 
   const model = new Schema('model', 'A modelled or decorative piece: a mesh file, or a simple solid.');
   element(model, 'model');

@@ -41,6 +41,8 @@ export class Outline {
   x0: number = 0; y0: number = 0; x1: number = 0; y1: number = 0;
   /** Its colour where it is shown as one mark (the side profile). */
   tone: i32 = 0xb0b8c0;
+  /** The image laid over it ('' for none): a file of the table's folder, over the box around it as the game lays it. */
+  image: string = '';
   constructor(path: string) { this.path = path; }
 
   line(pts: number[], width: number, color: i32, alpha: i32 = 255): void { this.shapes.push(new Shape(Draw.Line, pts, width, color, alpha)); }
@@ -117,7 +119,10 @@ const PLAIN: i32 = 0xb0b8c0, DARK: i32 = 0x05060a, SWITCH: i32 = 0x9aa3b8;
 class Looks {
   ids: string[] = [];
   colors: i32[] = [];
-  constructor(t: TableDef) { for (const l of t.looks) { this.ids.push(l.id); this.colors.push(rgb(l.color)); } }
+  images: string[] = [];
+  constructor(t: TableDef) { for (const l of t.looks) { this.ids.push(l.id); this.colors.push(rgb(l.color)); this.images.push(l.texture); } }
+  /** The image of a look, '' for none. */
+  image(id: string): string { const at = this.ids.indexOf(id); return at < 0 ? '' : this.images[at]; }
   /** The colour of a look as the top view shows it. */
   of(id: string): i32 { const at = this.ids.indexOf(id); return seen(at < 0 ? PLAIN : this.colors[at]); }
 }
@@ -251,7 +256,9 @@ function rampOutline(o: Outline, r: RampDef, looks: Looks, glass: number): void 
 }
 function floorOutline(o: Outline, f: FloorDef, looks: Looks): void {
   const line = tessellate(f.points, true), pts = flat(line.xs, line.ys), c = looks.of(f.look);
-  o.fill(pts, c, 110);
+  // an upper playfield with a painting shows it (the top view draws it under these shapes): its colour only tints it
+  o.image = looks.image(f.look);
+  o.fill(pts, c, o.image === '' ? 110 : 30);
   const edge = pts.slice();
   edge.push(pts[0]); edge.push(pts[1]);
   o.line(edge, 0.2, c);

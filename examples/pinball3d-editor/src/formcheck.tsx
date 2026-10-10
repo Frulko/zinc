@@ -44,6 +44,7 @@ class Fixture extends Source {
   set(path: string, value: any): void { data[path] = value; setRev(rev() + 1); }   // the fields of the gadget itself: enough to see a control answer
   field(path: string): Field | null { return fieldIn(gadget, path); }
   summary(path: string): string { return `${valueAt(data, path).text}`; }
+  colors(): string[] { return ['#ff7a33', '#167a86', '#fafafa']; }
   files(kind: string): string[] { return kind === 'sound' ? ['clack.wav', 'thud.wav'] : []; }
   fileNote(name: string): string { return name === 'clack.wav' ? '0.3 s' : ''; }
 }

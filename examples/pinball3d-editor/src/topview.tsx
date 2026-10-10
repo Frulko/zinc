@@ -3,7 +3,7 @@
 // Click selects, a drag moves, the round handle on a stalk turns. A selected path shows its points: a square moves a point, the round
 // dot of a stretch bends it into an arc, a double click on a stretch adds a point. With an entry of the palette chosen, clicks place
 // it instead. Points snap to the points of other things, to the table's axis and to the grid. Dragging the background pans, the wheel
-// zooms.
+// zooms. A distance around a thing (the glow of a light) is a circle with a round handle on it: pulling the handle sets the distance.
 // Moving and turning a whole element change the document once, when the gesture ends (the element is drawn where it would go while
 // it lasts); a point or an arc being dragged changes it as it goes, the whole drag being one step for undo.
 import { createSignal, createEffect, Show, batch } from 'zinc:ui/solid';
@@ -11,10 +11,10 @@ import * as ui from 'zinc:ui';
 import { stroke, path as fillPath, rect, rrect, border, font, drawText, textWidth, clip, unclip, drawImage } from 'zinc:gfx';
 import { doc, table, placed, outlineOf, selected, select, hovered, setHovered, selectionTurns, selectionPlaced, advanced, zoom, panX, panY, setPanX, setPanY, zoomBy, fit, fitSoon, viewW, viewH,
   setViewSize, moveSelected, turnSelected, level, levels, nextLevel, onLevel, grid, setGrid, GRIDS, axis, setAxis, snapped, tool, clicks, placeAt, finishPlacing, activeRow, setActiveRow, dragRow, changeRows } from './state';
-import { centreOf, schemaAt, isPoint, isPath, isClosed } from './doc';
+import { centreOf, schemaAt, fieldAt, isPoint, isPath, isClosed, isRadius } from './doc';
 import { Outline, Shape, Draw, boardColor, mix } from './shapes';
 import { pointsNeeded, rowsNeeded } from './presets';
-import { view3d, dropping, dropBall, flashes, gameIfAny, moved, boardPainting } from './play';
+import { view3d, dropping, dropBall, flashes, gameIfAny, moved, boardPainting, paintingOf } from './play';
 import { Pane3D, PaneSwitch } from './view3d';
 import { Tool, Heading, ACCENT, chord } from './widgets';
 import * as L from './strings';
@@ -22,7 +22,7 @@ import { t, f, listName, uiLang } from './strings';
 
 // ---------------------------------------------------------------- the gesture in progress
 
-const enum Gesture { None, Press, Move, Turn, Pan, Point, Bend, Axis }
+const enum Gesture { None, Press, Move, Turn, Pan, Point, Bend, Axis, Reach }
 const [gesture, setGesture] = createSignal<i32>(Gesture.None);
 /** How far the selection is being moved (centimetres) or turned (degrees). */
 const [dragX, setDragX] = createSignal<number>(0);
@@ -56,6 +56,9 @@ class Handle {
   /** The round dot of the stretch that starts at `row`: it sets the row's bulge. (ax, ay) to (bx, by) is the stretch. */
   bend: boolean = false;
   ax: number = 0; ay: number = 0; bx: number = 0; by: number = 0;
+  /** The handle of a distance around (ax, ay): `row` is the field that holds the distance, `reach` the distance now. */
+  around: boolean = false;
+  reach: number = 0;
   constructor(row: string, x: number, y: number) { this.row = row; this.x = x; this.y = y; }
 }
 /** The handles of the selection: one per point, one per stretch of its path. A thing that is at one point has none: it is moved
@@ -66,6 +69,13 @@ function handles(): Handle[] {
   const s = schemaAt(path), item: any = doc().get(path);
   let points = 0, paths = 0;
   for (const fd of s.fields) { if (isPoint(fd)) points++; else if (isPath(fd)) paths++; }
+  // a distance around its point: the handle is on the circle, at the right of the point (just off the thing while the distance is 0)
+  if (points === 1) for (const fd of s.fields) {
+    if (!isRadius(fd)) continue;
+    const c = centre(), r: number = item[fd.name], h = new Handle(`${path}.${fd.name}`, c[0] + Math.max(r, 12 / zoom()), c[1]);
+    h.around = true; h.ax = c[0]; h.ay = c[1]; h.reach = r;
+    out.push(h);
+  }
   if (points < 2 && paths === 0) return out;
   for (const fd of s.fields) {
     const v: any = item[fd.name];
@@ -129,6 +139,11 @@ function drawOutline(o: Outline, ox: number, oy: number, z: number, halo: i32): 
   if (!onLevel(o)) { for (const s of o.shapes) drawShape(s, m, ox, oy, z, 0, s.color, Math.round(s.alpha * 0.16), 0); return; }
   // what stands higher throws a longer shadow: the height read at a glance (from the level it stands on, when one is chosen)
   const top = o.z1 - (level() > 0 && o.level >= 0 ? level() : 0);
+  // the painting of an upper playfield, over the box around it as the game lays it, under a veil as the board's is
+  if (o.plate && o.image !== '' && m === STILL) {
+    const im = paintingOf(o.image);
+    if (im >= 0) { drawImage(im, ox + o.x0 * z, oy + o.y0 * z, (o.x1 - o.x0) * z, (o.y1 - o.y0) * z, 255, 0); rrect(ox + o.x0 * z, oy + o.y0 * z, (o.x1 - o.x0) * z, (o.y1 - o.y0) * z, 0, 0x05060c, 110); }
+  }
   if (!o.plate && o.layer > 0 && top > 0.3) {
     const push = Math.min(top, 14) * 0.11 * z;
     for (const s of o.shapes) if (s.alpha > 100) drawShape(s, m, ox, oy, z, push, 0x000000, 70, 0);
@@ -196,6 +211,15 @@ function drawHandles(o: Outline, ox: number, oy: number, z: number): void {
   const active = activeRow();
   for (const hd of handles()) {
     const hx = Math.round(ox + hd.x * z), hy = Math.round(oy + hd.y * z);
+    if (hd.around) {
+      // the circle the distance draws, and the handle on it
+      const ring: number[] = [], rr = hd.reach * z;
+      for (let i = 0; i <= 48 && rr > 0; i++) { ring.push(ox + hd.ax * z + Math.cos(i * Math.PI / 24) * rr); ring.push(oy + hd.ay * z + Math.sin(i * Math.PI / 24) * rr); }
+      if (rr > 0) stroke(ring, 1.5, ACCENT, 200, false);
+      rrect(hx - 6, hy - 6, 12, 12, 6, ACCENT, 255);
+      rrect(hx - 3, hy - 3, 6, 6, 3, hd.reach > 0 ? ACCENT : 0x18181b, 255);
+      continue;
+    }
     if (hd.bend) { rrect(hx - 4, hy - 4, 8, 8, 4, 0x18181b, 255); border(hx - 4, hy - 4, 8, 8, 4, 1.5, ACCENT, 255); continue; }
     rect(hx - 5, hy - 5, 10, 10, 0x18181b);
     rect(hx - 4, hy - 4, 8, 8, hd.row === active ? ACCENT : 0xfafafa);
@@ -204,6 +228,7 @@ function drawHandles(o: Outline, ox: number, oy: number, z: number): void {
   let tag = doc().nameOf(o.path);
   if (gesture() === Gesture.Move) tag += `   ${sign(dragX())}, ${sign(dragY())} cm`;
   else if (gesture() === Gesture.Turn) tag += `   ${sign(dragTurn())}°`;
+  else if (gesture() === Gesture.Reach && held !== null) tag += `   ${doc().get(held.row)} cm`;
   else if ((gesture() === Gesture.Point || gesture() === Gesture.Bend) && held !== null) {
     const row: any = doc().get(held.row);
     if (row !== undefined) tag += gesture() === Gesture.Bend ? `   ${row.length > 2 ? row[2] : 0}` : `   ${row[0]}, ${row[1]} cm`;
@@ -336,7 +361,7 @@ function down(e: ui.PointerEvent): void {
   held = handleUnder(e.x, e.y);
   if (held !== null) {
     doc().seal();
-    batch(() => { setActiveRow(held !== null && !held.bend ? held.row : ''); setGesture(held !== null && held.bend ? Gesture.Bend : Gesture.Point); });
+    batch(() => { setActiveRow(held !== null && !held.bend && !held.around ? held.row : ''); setGesture(held !== null && held.around ? Gesture.Reach : held !== null && held.bend ? Gesture.Bend : Gesture.Point); });
     return;
   }
   const hit = pick(x, y);
@@ -367,6 +392,13 @@ function move(e: ui.PointerEvent): void {
     setDragTurn(e.shift ? Math.round(d / 15) * 15 : d);
     return;
   }
+  if (g === Gesture.Reach && held !== null) {
+    if (Math.abs(e.x - pressX) + Math.abs(e.y - pressY) < 4) return;
+    // how far the pointer is from the thing's point, by millimetres (half centimetres on the grid), within the field's limits
+    const fd = fieldAt(held.row), grain = e.alt || grid() === 0 ? 0.1 : 0.5, d = Math.sqrt((x - held.ax) * (x - held.ax) + (y - held.ay) * (y - held.ay));
+    if (fd !== null) dragRow(held.row, Math.max(fd.min, Math.min(fd.max, Math.round(Math.round(d / grain) * grain * 10) / 10)));
+    return;
+  }
   if ((g === Gesture.Point || g === Gesture.Bend) && held !== null) {
     if (Math.abs(e.x - pressX) + Math.abs(e.y - pressY) < 4) return;
     const row: any = doc().get(held.row), next: number[] = [];
@@ -394,7 +426,7 @@ function up(e: ui.PointerEvent): void {
     setGesture(Gesture.None); setDragX(0); setDragY(0); setDragTurn(0);
     if (g === Gesture.Move) { doc().seal(); moveSelected(dx, dy); doc().seal(); }
     else if (g === Gesture.Turn && turn !== 0) turnSelected(turn);
-    else if (g === Gesture.Point || g === Gesture.Bend) doc().seal();
+    else if (g === Gesture.Point || g === Gesture.Bend || g === Gesture.Reach) doc().seal();
     else if (g === Gesture.Pan && Math.abs(e.x - pressX) + Math.abs(e.y - pressY) < 4) select('');
   });
   held = null;

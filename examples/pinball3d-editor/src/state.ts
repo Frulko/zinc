@@ -306,6 +306,10 @@ function report(done: boolean): boolean {
   else if (current.refused !== '') { say(f(L.REFUSED, current.refused), true); refresh(); }   // the field shows the table's value again
   return done;
 }
+/** Gives a screen layout ('landscape', 'portrait') the eye that looks at the table from `position` towards `target`: one step. */
+export function setCamera(layout: string, position: number[], target: number[]): boolean {
+  return report(current.edit(`Change layouts.${layout}.camera`, (d: any) => { d.layouts[layout].camera.position = position; d.layouts[layout].camera.target = target; }));
+}
 /** Sets a field of the table (the generated forms, the advanced numbers). */
 export function setField(path: string, value: any): boolean { return report(current.set(path, value)); }
 /** Replaces the selection by its text as the file has it, edited. */

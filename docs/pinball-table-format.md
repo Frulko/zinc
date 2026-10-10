@@ -45,6 +45,7 @@ taken from the table "Tidal Lock"; a test keeps it current. Format `"zinc-pinbal
   *profile*: a height along a path: rows [fraction of the length, height].
   *rotation*: a turn in space, [around x, around y, around z]; the third number turns the thing in the top view, as a direction does.
   *offset*: a step counted from the element's own place, [dx, dy] or [dx, dy, dz]: it turns and mirrors with its element, and does not move when the element moves.
+  *radius*: a distance around the thing's point, a circle in the top view (how far a light's glow reaches): an editor shows the circle and lets it be pulled.
   *level*: the height of the level a thing stands on: 0 on the playfield, the `z` of an upper playfield on that one. An editor that works on one level shows and places things by it.
 
 ## table
@@ -696,7 +697,7 @@ A lamp under the playfield or on an element, that the rules turn on, off or blin
 | `size` | number, cm | `1.1` (0.2 to 20) | Its radius, or half its length. |
 | `angle` | number, degrees (*direction*) | `-90` (-360 to 360) | Where an arrow points, or how a bar lies. |
 | `color` | colour | `"#ffcc33"` | Its colour when on; off, it shows a dark shade of it. |
-| `glow` | number, cm | `0` (0 to 30) | How far around it its light falls when it is on: the radius of its pool of light on the level it is in (the playfield, or the upper playfield at its `z`), where its colour is added to what is under it, strongest at the light and nothing at this distance. Pools add up where they overlap. 0: only the insert lights up. |
+| `glow` | number, cm (*radius*) | `0` (0 to 30) | How far around it its light falls when it is on: the radius of its pool of light on the level it is in (the playfield, or the upper playfield at its `z`), where its colour is added to what is under it, strongest at the light and nothing at this distance. Pools add up where they overlap. 0: only the insert lights up. |
 
 ```json
 { "id": "laneLight1", "group": "lanes", "at": [19.25, 22.2], "color": "#66f0ff", "glow": 3 }

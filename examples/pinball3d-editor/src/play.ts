@@ -64,7 +64,7 @@ function drop(): void {
   clear();
 }
 /** The table of the document as the game takes one: its files are those of its folder. */
-function tableNow(): Table {
+export function tableNow(): Table {
   const d = doc();
   if (built === null || builtFrom !== d.data) {
     forget();
@@ -81,10 +81,9 @@ function tableNow(): Table {
 }
 /** The image painted on the board, for the top view: read from the table's folder by the game's own keeper of images (which keeps
  *  one image per file however often the scene is built again). -1 when the board has none, or the table no folder yet. */
-export function boardPainting(): i32 {
-  const t = tableNow();
-  return tableImage(t.source, boardImage(t.def));
-}
+export function boardPainting(): i32 { return paintingOf(boardImage(tableNow().def)); }
+/** An image of the table's folder, for the top view; -1 for none. */
+export function paintingOf(file: string): i32 { return tableImage(tableNow().source, file); }
 /** The 3D scene of the table as the document has it now, in the state of the game when one is played. */
 export function sceneNow(): TableScene {
   const t = tableNow();

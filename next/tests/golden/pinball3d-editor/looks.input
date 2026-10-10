@@ -1,0 +1,95 @@
+# The table editor, looks, lights, the camera and the screen layouts set by hand (tests/t1/pinball3d_editor_looks.sh), window
+# 1440x900. The folder holds one image, art/deck.png. Things are taken by their names (Cmd+G), fields by their keys (Cmd+F).
+# An upper playfield: its outline, four points, Enter.
+4 key g meta
+5 text +floor
+6 key Enter
+8 move 739 149
+9 down
+10 up
+11 move 831 149
+12 down
+13 up
+14 move 831 281
+15 down
+16 up
+17 move 739 281
+18 down
+19 up
+20 key Enter
+# A look with a painting: "+look" adds one, its image is chosen among those of the folder; the upper playfield takes that look
+# (chosen in the list of the table's looks by typing its name). Frame 52: the top view shows the painting on the upper playfield.
+22 key g meta
+23 text +look
+24 key Enter
+26 key f meta
+27 text texture
+29 move 1300 112
+30 down
+31 up
+33 text deck
+34 key Enter
+36 key g meta
+37 text floor1
+38 key Enter
+40 key f meta
+41 text look
+43 move 1300 112
+44 down
+45 up
+47 text look1
+48 key Enter
+# The glow of a light: the light is taken by its name, and the round handle beside it on the top view is pulled away from it.
+54 key g meta
+55 text slingLight
+56 key Enter
+58 move 671 637
+59 down
+60 move 680 637
+61 move 700 637
+62 up
+# A colour, picked: the swatch of the field opens the picker; a click in the square of shades sets it.
+64 key g meta
+65 text popCap
+66 key Enter
+68 key f meta
+69 text color
+71 move 1248 112
+72 down
+73 up
+75 move 1380 160
+76 down
+77 up
+# Another one, taken among the colours the table already uses (the fifth of them).
+79 key f meta
+80 text glow
+82 move 1248 112
+83 down
+84 up
+86 move 1299 316
+87 down
+88 up
+# A click beside the board leaves the form; V shows the table in 3D. A drag in that pane turns the view round the table, and C keeps
+# it: the layout the pane looks through (the portrait one: the pane is taller than wide) now looks at the table from there.
+90 move 420 500
+91 down
+92 up
+94 key v
+98 move 900 450
+99 down
+100 move 880 460
+101 move 860 480
+102 up
+104 key c
+# The screen layouts take the place of the top view; the bonus of the landscape layout's panel is dragged to the left and down.
+# Frame 120: the layout being edited.
+106 key g meta
+107 text layouts
+108 key Enter
+110 move 897 612
+111 down
+112 move 887 617
+113 move 877 622
+114 up
+# Save.
+122 key s meta

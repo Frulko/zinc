@@ -6,16 +6,17 @@
 // their key (Cmd+F), and shows only those.
 // The advanced mode shows the same fields by their keys in the file, and the selection as the file has it, which can be edited
 // there (Cmd+J).
+// A colour is picked, not typed: its swatch opens a square of shades, a strip of hues and the colours the table already uses.
 // The forms read and write through a Source: the open table here, a schema kept with the test in formcheck.tsx.
 import { createSignal, createNodeRef, createEffect, For, Show } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
-import { rect, stroke } from 'zinc:gfx';
+import { rect, border, stroke, gradient } from 'zinc:gfx';
 import { Schema, Field, Kind } from '../../pinball3d/src/format/schema';
 import { doc, table, selected, select, setField, replaceSelected, deleteSelected, duplicateSelected, mirrorSelected, turnSelected, selectionTurns, selectionPlaced, advanced, setAdvanced, refresh,
   activeRow, setActiveRow, dragRow, changeRows, addTo, reorderSelected } from './state';
 import { previewSound } from './play';
 import { filesOfKind, noteOf, pictureOf, hearFile as hearFileOf, importFrom } from './files';
-import { fieldAt, schemaAt, listOf, steps, pathOf, found, isPath, isProfile } from './doc';
+import { fieldAt, schemaAt, listOf, steps, pathOf, found, isPath, isProfile, colorsIn } from './doc';
 import { rgb } from './shapes';
 import { Ico, Action, Segmented, Chooser, Picker, Switch, Heading, drawFitted, MUTED, ACCENT, chord } from './widgets';
 import * as L from './strings';
@@ -38,6 +39,11 @@ export class Source {
   add(list: string): void {}
   /** Lets a sound be heard, by its name. */
   hear(name: string): void {}
+  /** Sets a field as a handle being dragged does: the sets that follow one another are one step for undo, until seal(). */
+  drag(path: string, value: any): void { this.set(path, value); }
+  seal(): void {}
+  /** The colours already in use, each once: the palette a colour is first looked for in. */
+  colors(): string[] { return []; }
   /** The files of a kind ('image', 'sound', 'model') that can be named, by their names. */
   files(kind: string): string[] { return []; }
   /** A few words about a file (the size of an image, the length of a sound), and its picture when it is an image (-1: none). */
@@ -59,6 +65,9 @@ class TableSource extends Source {
   open(path: string): void { select(path); }
   add(list: string): void { addTo(list); }
   hear(name: string): void { previewSound(name); }
+  drag(path: string, value: any): void { dragRow(path, value); }
+  seal(): void { doc().seal(); }
+  colors(): string[] { return colorsIn(doc().data); }
   files(kind: string): string[] { return filesOfKind(kind); }
   fileNote(name: string): string { return noteOf(name); }
   filePicture(name: string): i32 { return pictureOf(name); }
@@ -117,6 +126,86 @@ function Names(p: { src: Source; field: Field; path: string }): i32 {
   const text = (): string => { const v: any = src.get(path); return typeof v === 'string' ? `${v}` : ''; };
   return <Chooser value={text} options={() => fd.required ? src.names(fd.to) : [''].concat(src.names(fd.to))} label={(v: string) => v === '' ? t(L.NONE) : v} onPick={(v: string) => { src.set(path, v); }} />;
 }
+/** A colour as its hue (0 to 360), how vivid it is and how light (both 0 to 1). */
+function hsvOf(hex: string): number[] {
+  const c = hex.length === 7 ? rgb(hex) : 0, r = ((c >> 16) & 255) / 255, g = ((c >> 8) & 255) / 255, b = (c & 255) / 255;
+  const max = Math.max(r, Math.max(g, b)), d = max - Math.min(r, Math.min(g, b));
+  const h = d === 0 ? 0 : max === r ? ((g - b) / d + 6) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return [h * 60, max === 0 ? 0 : d / max, max];
+}
+function shade(h: number, s: number, v: number): i32 {
+  const part = (n: number): i32 => { const k = (n + h / 60) % 6; return Math.round((v - v * s * Math.max(0, Math.min(k, Math.min(4 - k, 1)))) * 255); };
+  return (part(5) << 16) | (part(3) << 8) | part(1);
+}
+const HEX = '0123456789abcdef';
+function hexOf(c: i32): string {
+  let out = '#';
+  for (let k = 20; k >= 0; k -= 4) out += HEX.charAt((c >> k) & 15);
+  return out;
+}
+/** A colour: its swatch opens a square of the shades of a hue (more vivid to the right, darker downwards), the strip of the hues,
+ *  and the colours the table already uses; the text beside it still takes a colour typed or pasted. A drag across the square is
+ *  one step for undo. */
+function ColorField(p: { src: Source; path: string }): i32 {
+  const src = p.src, path = p.path, W = 220, H = 120, STRIP = 14;
+  const text = (): string => { const v: any = src.get(path); return typeof v === 'string' ? `${v}` : ''; };
+  const swatch = createNodeRef(), pop = createNodeRef();
+  const [open, setOpen] = createSignal<boolean>(false);
+  // the hue is kept apart from the colour: a grey has none of its own, and the square must not change under the pointer
+  const [hue, setHue] = createSignal<number>(0);
+  let grab = 0;
+  const close = (): void => { if (open()) { setOpen(false); ui.setNumber(pop.node, 'hidden', 1); } };
+  const toggle = (): void => {
+    if (open()) { close(); return; }
+    setHue(hsvOf(text())[0]);
+    setOpen(true);
+    ui.setNumber(pop.node, 'hidden', 0);
+  };
+  const within = (v: number): number => Math.max(0, Math.min(1, v));
+  const shadeAt = (e: ui.PointerEvent): void => { src.drag(path, hexOf(shade(hue(), within(e.x / W), within(1 - e.y / H)))); };
+  const hueAt = (e: ui.PointerEvent): void => {
+    const now = hsvOf(text()), h = within(e.x / W) * 359;
+    setHue(h);
+    // a grey or a black would stay what it is under any hue: it is given some colour to show the hue picked
+    src.drag(path, hexOf(shade(h, now[1] < 0.05 ? 0.8 : now[1], now[2] < 0.05 ? 0.8 : now[2])));
+  };
+  createEffect(() => { text(); hue(); open(); ui.repaint(); });
+  const node = <view class="flex-row items-center gap-2">
+    <button ref={swatch} class="w-[24] h-[24] rounded border border-zinc-600 cursor-pointer" style={{ bg: text().length === 7 ? rgb(text()) : 0 }} onClick={toggle} />
+    <input class={`font-mono ${FIELD}`} style={{ width: 84 }} value={text()} onChange={(v: string) => { src.set(path, v.trim().toLowerCase()); }} />
+    <view ref={pop} hidden={1} class="flex-col gap-2 p-2 rounded-md bg-zinc-900 border border-zinc-600 shadow-lg" style={{ width: W + 18 }}>
+      <view class="relative rounded overflow-hidden cursor-crosshair" style={{ width: W, height: H }}
+        onPointerDown={(e: ui.PointerEvent) => { grab = 1; src.seal(); shadeAt(e); }} onPointerMove={(e: ui.PointerEvent) => { if (grab === 1) shadeAt(e); }} onPointerUp={(e: ui.PointerEvent) => { grab = 0; src.seal(); }}>
+        <canvas class="absolute inset-0" style={{ lazy: 1 }} onDraw={(x: i32, y: i32, w: i32, h: i32) => {
+          for (let c = 0; c < W; c += 4) gradient(x + c, y, 4, H, 0, shade(hue(), (c + 2) / W, 1), 0x000000, true, 255);
+          const now = hsvOf(text()), mx = Math.round(x + now[1] * W), my = Math.round(y + (1 - now[2]) * H);
+          border(mx - 5, my - 5, 10, 10, 5, 2, 0xffffff, 255);
+          border(mx - 6, my - 6, 12, 12, 6, 1, 0x000000, 255);
+        }} />
+      </view>
+      <view class="relative rounded overflow-hidden cursor-crosshair" style={{ width: W, height: STRIP }}
+        onPointerDown={(e: ui.PointerEvent) => { grab = 2; src.seal(); hueAt(e); }} onPointerMove={(e: ui.PointerEvent) => { if (grab === 2) hueAt(e); }} onPointerUp={(e: ui.PointerEvent) => { grab = 0; src.seal(); }}>
+        <canvas class="absolute inset-0" style={{ lazy: 1 }} onDraw={(x: i32, y: i32, w: i32, h: i32) => {
+          const part = W / 6;
+          for (let k = 0; k < 6; k++) gradient(Math.round(x + k * part), y, Math.ceil(part), STRIP, 0, shade(k * 60, 1, 1), shade(k * 60 + 60, 1, 1), false, 255);
+          const mx = Math.round(x + hue() / 359 * W);
+          rect(mx - 2, y, 4, STRIP, 0x000000);
+          rect(mx - 1, y, 2, STRIP, 0xffffff);
+        }} />
+      </view>
+      <Heading label={t(L.COLOURS_IN_USE)} />
+      <view class="flex-row flex-wrap gap-1" style={{ width: W }}>
+        <For each={src.colors().slice(0, 40)}>{(c: string, i: i32) => <button class="w-[18] h-[18] rounded border border-zinc-700 cursor-pointer" style={{ bg: rgb(c) }} tabIndex={-1}
+          onClick={() => { src.seal(); src.set(path, c); setHue(hsvOf(c)[0]); }} />}</For>
+      </view>
+    </view>
+  </view>;
+  ui.openLayer(pop.node, { priority: 100 });
+  ui.anchor(pop.node, swatch.node, 'bottom-start', 2);
+  ui.onDismiss(pop.node, close);
+  ui.onOutsidePointer(pop.node, (e: ui.PointerEvent) => close(), swatch.node);
+  return node;
+}
 /** What stands in the list of a file field for bringing a file from elsewhere. */
 const IMPORT = '+import';
 /** A file of the table's folder: one of those of the field's kind, each with what tells it from the others, or a file brought
@@ -163,10 +252,7 @@ function Control(p: { src: Source; field: Field; path: string }): i32 {
     <Unit of={fd} />
   </view>;
   if (fd.kind === Kind.Bool) return <Switch value={() => src.get(path) === true} yes={t(L.YES)} no={t(L.NO)} onPick={(v: boolean) => { src.set(path, v); }} />;
-  if (fd.kind === Kind.Color) return <view class="flex-row items-center gap-2">
-    <view class="w-[24] h-[24] rounded border border-zinc-600" style={{ bg: text().length === 7 ? rgb(text()) : 0 }} />
-    <input class={`font-mono ${FIELD}`} style={{ width: 84 }} value={text()} onChange={(v: string) => { src.set(path, v.trim().toLowerCase()); }} />
-  </view>;
+  if (fd.kind === Kind.Color) return <ColorField src={src} path={path} />;
   if (fd.kind === Kind.Choice) {
     const said = (c: string): string => c === '' ? t(L.NONE) : c;
     if (fd.choices.length <= 3 && fd.choices.join('').length < 22) return <view style={{ width: WIDE }}><Segmented options={fd.choices} labels={fd.choices.map((c: string) => said(c))} value={text} onPick={(v: string) => { src.set(path, v); }} /></view>;

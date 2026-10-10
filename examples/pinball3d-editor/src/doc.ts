@@ -109,6 +109,8 @@ export function isPoint(f: Field): boolean { return f.role === 'point'; }
 export function isPath(f: Field): boolean { return f.role === 'path' || f.role === 'area'; }
 /** A step counted from the thing's own place, [dx, dy] or [dx, dy, dz]: it turns and mirrors with the thing, and does not move with it. */
 export function isOffset(f: Field): boolean { return f.role === 'offset'; }
+/** A distance around the thing's point: a circle of the top view. */
+export function isRadius(f: Field): boolean { return f.role === 'radius'; }
 /** An angle of the top view. */
 export function isDirection(f: Field): boolean { return f.role === 'direction'; }
 /** A turn in space, [around x, y, z]: the third number turns the thing in the top view. */
@@ -209,6 +211,22 @@ export function mirrorName(id: string): string {
     if (at >= 0) return id.slice(0, at) + pairs[k % 2 === 0 ? k + 1 : k - 1] + id.slice(at + pairs[k].length);
   }
   return id;
+}
+
+/** The colours a table tree uses, each once, in the order of the file: its palette. */
+export function colorsIn(data: any): string[] {
+  const out: string[] = [];
+  const within = (s: Schema, v: any): void => {
+    for (const f of s.fields) {
+      const x: any = v[f.name];
+      if (x === undefined || x === null) continue;
+      if (f.kind === Kind.Color) { if (typeof x === 'string' && out.indexOf(`${x}`) < 0) out.push(`${x}`); }
+      else if (f.kind === Kind.Obj) within(f.of as Schema, x);
+      else if (f.kind === Kind.List) for (let i = 0; i < x.length; i++) within(f.of as Schema, x[i]);
+    }
+  };
+  within(formatSchema(), data);
+  return out;
 }
 
 function summary(s: Schema, v: any): string {
