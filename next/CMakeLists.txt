@@ -292,7 +292,7 @@ set_source_files_properties(third_party/sha256/sha256.c third_party/monocypher/m
 
 add_library(zn_prof STATIC src/prof/prof.cpp)
 target_link_libraries(zn_prof PUBLIC zn_vm)
-add_library(zn_dbg STATIC src/dbg/dbg.cpp)   # zinc debug (ZN-371.01)
+add_library(zn_dbg STATIC src/dbg/dbg.cpp src/dbg/dap.cpp)   # zinc debug (ZN-371.01), --dap (ZN-371.02)
 target_link_libraries(zn_dbg PUBLIC zn_vm)
 
 # QuickJS-ng (third_party/): the second engine of ZN-051, plain JavaScript and stripped TypeScript behind the same host calls.

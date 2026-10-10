@@ -27,9 +27,10 @@ bool Debugger::hook(rt::Machine& m, const rt::Func* fn, const std::uint32_t* pc,
 
 std::size_t Debugger::depth() const { return static_cast<std::size_t>(m_->fp - m_->frames.get()); }
 
+// ponytail: the interpreter reads these bytes without the lock (a stale one costs one call of the hook or one statement late), byte stores on every target
 void Debugger::arm() {
   std::vector<std::uint8_t>& hot = m_->lineHot;
-  const bool stepping = mode_ == Resume::StepInto || mode_ == Resume::StepOver || mode_ == Resume::StepOut;
+  const bool stepping = pauseReq_ || mode_ == Resume::StepInto || mode_ == Resume::StepOver || mode_ == Resume::StepOut;
   for (std::size_t i = 0; i < hot.size(); ++i) {
     bool on = stepping;
     for (const Bp& b : bps_) on = on || b.key == key(static_cast<std::uint32_t>(i));
@@ -40,27 +41,47 @@ void Debugger::arm() {
 bool Debugger::onLine(const rt::Func* fn, const std::uint32_t* pc, Slot* base, std::uint32_t line) {
   const std::uint64_t k = key(line);
   const std::size_t d = depth();
-  hit_ = 0;
-  // a breakpoint, except the other statements of the line the program was paused on (the same statement again, a loop's next turn, stops)
-  if (!(mode_ == Resume::Continue && k == startKey_ && d == startDepth_ && line != line_))
-    for (const Bp& b : bps_) if (b.key == k) { hit_ = b.id; break; }
-  bool stop = hit_ != 0;
-  if (mode_ == Resume::StepInto) stop = stop || k != startKey_ || d != startDepth_;
-  else if (mode_ == Resume::StepOver) stop = stop || d < startDepth_ || (d == startDepth_ && k != startKey_);
-  else if (mode_ == Resume::StepOut) stop = stop || d < startDepth_;
-  if (!stop) return true;
+  {
+    std::lock_guard<std::mutex> lock(mu_);
+    hit_ = 0;
+    // a breakpoint, except the other statements of the line the program was paused on (the same statement again, a loop's next turn, stops)
+    if (!(mode_ == Resume::Continue && k == startKey_ && d == startDepth_ && line != line_))
+      for (const Bp& b : bps_) if (b.key == k) { hit_ = b.id; break; }
+    bool stop = hit_ != 0 || pauseReq_;
+    if (mode_ == Resume::StepInto) stop = stop || k != startKey_ || d != startDepth_;
+    else if (mode_ == Resume::StepOver) stop = stop || d < startDepth_ || (d == startDepth_ && k != startKey_);
+    else if (mode_ == Resume::StepOut) stop = stop || d < startDepth_;
+    if (!stop) return true;
+    reason_ = hit_ ? "breakpoint" : pauseReq_ ? "pause" : first_ ? "entry" : "step";
+    first_ = false; pauseReq_ = false;
+  }
   fn_ = fn; pc_ = pc; base_ = base; line_ = line;
   if (m_->out) m_->flushOut();   // what the program printed so far comes before the debugger's answers
   const Resume r = paused ? paused(*this) : Resume::Continue;
   if (r == Resume::Stop) return false;
+  std::lock_guard<std::mutex> lock(mu_);
   mode_ = r; startKey_ = k; startDepth_ = d;
   arm();
   return true;
 }
 
+void Debugger::runFirst() {
+  std::lock_guard<std::mutex> lock(mu_);
+  mode_ = Resume::Continue;
+  if (m_) arm();
+}
+
+void Debugger::requestPause() {
+  std::lock_guard<std::mutex> lock(mu_);
+  pauseReq_ = true;
+  if (m_) arm();
+}
+
 int Debugger::addBreakpoint(const std::string& file, std::uint32_t line, std::string& where) {
+  std::lock_guard<std::mutex> lock(mu_);
   auto matches = [&](const std::string& path) {
     if (path == file) return true;
+    if (!file.empty() && file[0] == '/') return false;   // an absolute path (DAP) names one file
     return path.size() > file.size() && path.compare(path.size() - file.size(), file.size(), file) == 0 && path[path.size() - file.size() - 1] == '/';
   };
   std::uint32_t best = ~0u, at = 0;   // the first line with code at or after `line` in a matching file
@@ -76,6 +97,7 @@ int Debugger::addBreakpoint(const std::string& file, std::uint32_t line, std::st
 }
 
 bool Debugger::removeBreakpoint(int id) {
+  std::lock_guard<std::mutex> lock(mu_);
   auto it = std::find_if(bps_.begin(), bps_.end(), [&](const Bp& b) { return b.id == id; });
   if (it == bps_.end()) return false;
   bps_.erase(it);
@@ -194,11 +216,39 @@ std::string Debugger::format(Slot s, const zbc::VType& vt, const std::string& ty
   return r + " }";
 }
 
+Local Debugger::value(const std::string& name, Slot s, const zbc::VType& vt, const std::string& type) const {
+  Local l;
+  l.name = name; l.raw = s; l.vt = vt;
+  const rt::Obj* o = vt.cls == zbc::Cls::R ? reinterpret_cast<const rt::Obj*>(s) : nullptr;
+  if (o && o->cls->name.rfind("cell ", 0) == 0 && o->cls->id < mod_.classes.size() && mod_.classes[o->cls->id].fields.size() == 1) {   // a cell: its value
+    l.raw = const_cast<rt::Obj*>(o)->fields()[0]; l.vt = mod_.classes[o->cls->id].fields[0];
+  }
+  l.type = type.empty() ? (l.vt.cls == zbc::Cls::R && l.raw ? srcType(reinterpret_cast<const rt::Obj*>(l.raw)->cls->name) : "") : srcType(type);
+  l.value = format(s, vt, type, 0);
+  return l;
+}
+
 std::vector<Local> Debugger::locals(std::size_t frame) const {
   std::vector<Local> out;
   std::vector<StackFrame> s = stack();
   if (frame >= s.size()) return out;
-  for (const zbc::VarInfo& v : mod_.functions[s[frame].fn].vars) out.push_back({v.name, srcType(v.type), format(s[frame].base[v.reg], v.vt, v.type, 0)});
+  for (const zbc::VarInfo& v : mod_.functions[s[frame].fn].vars) out.push_back(value(v.name, s[frame].base[v.reg], v.vt, v.type));
+  return out;
+}
+
+std::vector<Local> Debugger::children(const Local& v) const {
+  std::vector<Local> out;
+  if (!v.expandable()) return out;
+  const rt::Obj* o = reinterpret_cast<const rt::Obj*>(v.raw);
+  const zbc::ClassInfo* ci = o->cls->id < mod_.classes.size() ? &mod_.classes[o->cls->id] : nullptr;
+  if (!ci) return out;
+  if (o->cls->kind == zbc::CKind::Array) {
+    const rt::ArrObj* a = static_cast<const rt::ArrObj*>(o);
+    for (std::size_t i = 0; i < a->v.size() && i < 100; ++i) out.push_back(value(std::to_string(i), a->v[i], ci->elem, ""));
+  } else if (o->cls->kind == zbc::CKind::Object && ci->fieldNames.size() == ci->fields.size()) {
+    const Slot* f = const_cast<rt::Obj*>(o)->fields();
+    for (std::size_t i = 0; i < ci->fields.size(); ++i) out.push_back(value(ci->fieldNames[i], f[i], ci->fields[i], ""));
+  }
   return out;
 }
 

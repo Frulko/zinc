@@ -141,3 +141,32 @@ zinc tsconfig            # or: zinc tsconfig path/to/project
 ```
 
 Then use the workspace's TypeScript as usual; `zinc check` remains the reference (Z codes, targets).
+
+## Debugging
+
+`zinc debug src/main.ts` runs a program under the debugger on the command line: it stops at the first statement, then `b main.ts:12`
+sets a breakpoint, `c` continues, `n` / `s` / `o` step over, into and out, `bt` prints the stack and `locals` the variables (the whole list:
+[dev mode, Debugger](../dev-mode.md#debugger-zinc-debug)).
+
+In VS Code, the Zinc Debug extension (`lib/editor/vscode-zinc-debug`) runs `zinc debug --dap`, a Debug Adapter Protocol server. Link it into
+VS Code's extensions once and restart VS Code:
+
+```sh
+ln -s "$ZINC_ROOT/lib/editor/vscode-zinc-debug" ~/.vscode/extensions/zinc.zinc-debug-0.1.0   # ZINC_ROOT: this repository
+```
+
+Then `.vscode/launch.json`:
+
+```json
+{
+  "version": "0.2.0",
+  "configurations": [
+    { "type": "zinc", "request": "launch", "name": "Zinc: debug", "program": "${workspaceFolder}/src/main.ts", "cwd": "${workspaceFolder}", "stopOnEntry": false }
+  ]
+}
+```
+
+F5 starts it: breakpoints in `.ts` files stop the program (`.tsx` lines come with ZN-371.03), the Variables view shows the locals of each
+frame of the Call Stack with objects and arrays to unfold, the debug toolbar continues, steps and pauses a running program, and a watch or a
+hover on a local's name shows its value. The program's output goes to the Debug Console. The adapter uses the `zinc` of this repository when
+the extension is linked from it, else `$ZINC`, else the `zinc` on the `PATH`.

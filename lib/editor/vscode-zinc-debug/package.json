@@ -1,0 +1,36 @@
+{
+  "name": "zinc-debug",
+  "displayName": "Zinc Debug",
+  "description": "Debug Zinc programs in VS Code: zinc debug --dap (breakpoints, stepping, stack, locals).",
+  "version": "0.1.0",
+  "publisher": "zinc",
+  "license": "MIT",
+  "engines": { "vscode": "^1.60.0" },
+  "categories": ["Debuggers"],
+  "activationEvents": ["onDebug"],
+  "contributes": {
+    "breakpoints": [{ "language": "typescript" }, { "language": "typescriptreact" }],
+    "debuggers": [
+      {
+        "type": "zinc",
+        "label": "Zinc",
+        "program": "./bin/zinc-dap",
+        "languages": ["typescript", "typescriptreact"],
+        "configurationAttributes": {
+          "launch": {
+            "required": ["program"],
+            "properties": {
+              "program": { "type": "string", "description": "The entry file (or project directory) to debug.", "default": "${file}" },
+              "args": { "type": "array", "items": { "type": "string" }, "description": "The program's arguments (zinc:sys args).", "default": [] },
+              "cwd": { "type": "string", "description": "The working directory of the program.", "default": "${workspaceFolder}" },
+              "stopOnEntry": { "type": "boolean", "description": "Stop at the first statement.", "default": false }
+            }
+          }
+        },
+        "initialConfigurations": [
+          { "type": "zinc", "request": "launch", "name": "Zinc: debug the current file", "program": "${file}", "cwd": "${workspaceFolder}" }
+        ]
+      }
+    ]
+  }
+}

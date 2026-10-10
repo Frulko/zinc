@@ -1,0 +1,7 @@
+#!/bin/sh
+# The debug adapter of the Zinc Debug extension: zinc debug --dap on standard input and output (docs/guide/01-getting-started.md, Debugging).
+# The zinc of this source tree when the extension is linked from it, else $ZINC, else the zinc on the PATH.
+here=$(cd "$(dirname "$0")" && pwd -P)
+tree=$here/../../../../next/build/zinc
+[ -z "$ZINC" ] && [ -x "$tree" ] && ZINC=$tree
+exec "${ZINC:-zinc}" debug --dap

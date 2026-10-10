@@ -4,6 +4,7 @@
 // (Machine::lineHot); while the program is paused a front end inspects it and says how to go on. Includes rt and zbc; only main includes it.
 #include <cstdint>
 #include <functional>
+#include <mutex>
 #include <set>
 #include <string>
 #include <vector>
@@ -20,12 +21,18 @@ struct StackFrame {
   std::uint32_t line = ~0u;     // index in Module::lines of the statement it is in, ~0u when unknown
   const rt::Slot* base = nullptr;
 };
-struct Local { std::string name, type, value; };
+struct Local {
+  std::string name, type, value;
+  rt::Slot raw = 0;   // the value itself, for its children
+  zbc::VType vt;
+  bool expandable() const { return vt.cls == zbc::Cls::R && raw && !value.empty() && value[0] != '"' && value != "null"; }   // an object or an array
+};
 
 class Debugger {
  public:
   Debugger(const zbc::Module& mod, std::vector<std::string> sources);   // sources: the text of each file of mod.files
-  void attach(rt::Machine& m);   // installs the hook; the program stops at its first statement
+  void attach(rt::Machine& m);   // installs the hook; the program stops at its first statement unless runFirst() was called
+  void runFirst();   // DAP without stopOnEntry: run to the first breakpoint
   // While paused, the front end runs and returns how the program goes on (also called when the program stops at a breakpoint).
   std::function<Resume(Debugger&)> paused;
 
@@ -33,10 +40,16 @@ class Debugger {
   // or after `line`. 0 when there is no code there, else its number (1, 2...); `where` is where it landed.
   int addBreakpoint(const std::string& file, std::uint32_t line, std::string& where);
   bool removeBreakpoint(int id);
+  void requestPause();   // from another thread: the program stops at its next statement (a front end's pause button)
+  // Breakpoints, the pause request and the stepping state may change from a front end's reading thread while the program runs: they hold mu_.
 
   // The paused program: frame 0 is where it stopped, then its callers.
   std::vector<StackFrame> stack() const;
   std::vector<Local> locals(std::size_t frame) const;
+  std::vector<Local> children(const Local& v) const;   // an object's fields, an array's elements (the first 100)
+  const zbc::LineInfo* lineInfo(std::uint32_t line) const { return line < mod_.lines.size() ? &mod_.lines[line] : nullptr; }
+  std::string filePath(std::uint32_t line) const { return line < mod_.lines.size() && mod_.lines[line].file < mod_.files.size() ? mod_.files[mod_.lines[line].file] : ""; }
+  const char* reason() const { return reason_; }   // why it stopped: "entry", "breakpoint", "step", "pause"
   std::string where(std::uint32_t line) const;        // "main.ts:12"
   std::string sourceLine(std::uint32_t line) const;   // the text of that line
   std::string fnName(std::uint32_t fn) const;
@@ -50,6 +63,7 @@ class Debugger {
   std::size_t depth() const;
   void arm();   // the bytes of lineHot for the current mode
   std::string format(rt::Slot s, const zbc::VType& vt, const std::string& type, int depth) const;
+  Local value(const std::string& name, rt::Slot s, const zbc::VType& vt, const std::string& type) const;
 
   const zbc::Module& mod_;
   std::vector<std::string> sources_;
@@ -60,6 +74,9 @@ class Debugger {
   Resume mode_ = Resume::StepInto;   // the first statement stops
   std::uint64_t startKey_ = ~0ull;
   std::size_t startDepth_ = 0;
+  bool pauseReq_ = false, first_ = true;
+  const char* reason_ = "entry";
+  std::mutex mu_;
   // where the program is paused
   const rt::Func* fn_ = nullptr;
   const std::uint32_t* pc_ = nullptr;
@@ -69,5 +86,11 @@ class Debugger {
 
 // The command-line front end of zinc debug: commands on standard input (echoed when it is not a terminal), answers on standard output.
 Resume commandLine(Debugger& d);
+
+// zinc debug --dap (dap.cpp, ZN-371.02): the Debug Adapter Protocol on standard input and output, for VS Code.
+struct Launch { std::string program, cwd; std::vector<std::string> args; bool stopOnEntry = false; };
+bool dapStart(Launch& out);      // takes standard input and output over, answers initialize; the arguments of the launch request (false: the client left)
+void dapReady(Debugger& d);      // the program is compiled and loaded: answers launch, sends initialized, waits for configurationDone
+Resume dapPaused(Debugger& d);   // the front end of the paused program
 
 }  // namespace zn::dbg

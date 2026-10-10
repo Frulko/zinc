@@ -300,6 +300,7 @@ static void scanHostImports(const zn::frontend::Program& prog) {
   }
 }
 static bool gDebug = false;                    // zinc debug (ZN-371.01): debug builds, run under the debugger
+static bool gDap = false;                      // zinc debug --dap (ZN-371.02): the Debug Adapter Protocol on standard input and output
 static std::vector<std::string> gDebugSources;  // the text of each file of the debug build (Module::files)
 static int compileToZbc(const char* path, zn::zbc::Module& out) {
   const auto t0 = std::chrono::steady_clock::now();
@@ -334,7 +335,11 @@ static int compileToZbc(const char* path, zn::zbc::Module& out) {
       out = std::move(em.module);
       if (gDebug) {   // the line table's offsets become lines and columns of the program's files
         gDebugSources.clear();
-        for (const auto& f : prog.files) { out.files.push_back(f.path); gDebugSources.push_back(f.text); }
+        for (const auto& f : prog.files) {   // absolute paths: a front end names a file by its full path (DAP)
+          const bool real = !f.path.empty() && f.path[0] != '<' && f.path.rfind("zinc:", 0) != 0;
+          out.files.push_back(real ? std::filesystem::absolute(f.path).lexically_normal().string() : f.path);
+          gDebugSources.push_back(f.text);
+        }
         for (zn::zbc::LineInfo& li : out.lines) if (li.file < prog.files.size()) { auto lc = zn::frontend::lineCol(prog.files[li.file].text, li.offset); li.line = lc.line; li.col = lc.col; }
       }
       if (gProfile) { out.profile = gProfile->name; out.heapBytes = static_cast<std::uint32_t>(std::min<std::uint64_t>(gProfile->heapBytes, 0xFFFFFFFFu)); }
@@ -1078,6 +1083,20 @@ int main(int argc, char** argv) {
     if (!std::strcmp(argv[k], "--force")) { zn::frontend::setForce(true); for (int j = k; j + 1 < argc; ++j) argv[j] = argv[j + 1]; --argc; --k; }
     else if (!std::strcmp(argv[k], "--strict")) { gStrict = true; for (int j = k; j + 1 < argc; ++j) argv[j] = argv[j + 1]; --argc; --k; }
   }
+  static std::vector<std::string> dapArgv;
+  static std::vector<char*> dapArgp;
+  if (argc == 3 && !std::strcmp(argv[1], "debug") && !std::strcmp(argv[2], "--dap")) {   // the program comes in the launch request: then as zinc debug <program> -- args
+    zn::dbg::Launch launch;
+    if (!zn::dbg::dapStart(launch)) return 1;
+    gDap = true;
+    if (!launch.cwd.empty()) { std::error_code ec; std::filesystem::current_path(launch.cwd, ec); }
+    dapArgv = {argv[0], "debug", launch.program};
+    if (!launch.args.empty()) { dapArgv.push_back("--"); for (const std::string& a : launch.args) dapArgv.push_back(a); }
+    for (std::string& a : dapArgv) dapArgp.push_back(a.data());
+    dapArgp.push_back(nullptr);
+    argv = dapArgp.data();
+    argc = static_cast<int>(dapArgv.size());
+  }
   if (argc >= 3 && !std::strcmp(argv[1], "debug")) {   // zinc debug <file> [-- args]: a debug build run by the interpreter under the debugger (ZN-371.01)
     gDebug = true;
     argv[1] = const_cast<char*>("run");
@@ -1553,8 +1572,12 @@ int main(int argc, char** argv) {
       zn::log::Phase ph("run", "program");
       if (!gDebug) return zn::vm::run(zm, out, trace);
       zn::dbg::Debugger d(zm, gDebugSources);
-      d.paused = zn::dbg::commandLine;
-      return zn::vm::runHooked(zm, out, [](zn::rt::Machine& m, const void* p) { static_cast<zn::dbg::Debugger*>(const_cast<void*>(p))->attach(m); }, &d, nullptr, nullptr);
+      d.paused = gDap ? zn::dbg::dapPaused : zn::dbg::commandLine;
+      return zn::vm::runHooked(zm, out, [](zn::rt::Machine& m, const void* p) {
+        auto* dd = static_cast<zn::dbg::Debugger*>(const_cast<void*>(p));
+        dd->attach(m);
+        if (gDap) zn::dbg::dapReady(*dd);   // breakpoints come now, before the first statement runs
+      }, &d, nullptr, nullptr);
     }();
     if (gDebug && !res.ok && res.error.rfind("stopped by the debugger", 0) == 0) { std::fwrite(out.data(), 1, out.size(), stdout); return 0; }   // q in zinc debug
     if (!gTrialDir.empty() && !res.ok) std::_Exit(zn::rt::report(res, out, trace));   // failed on trial: leave `trial` for the next launch to roll back
