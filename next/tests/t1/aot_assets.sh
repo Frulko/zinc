@@ -39,5 +39,16 @@ cp "$tmp/ship/p" "$tmp/lone/p"
 asset "$tmp/ship" mine; printf 'secret' > "$tmp/ship/secret.txt"
 is "enforced: its own assets, no way out with .." "mine|EACCES|" / "$tmp/ship/p"
 is "enforced: not the assets of the directory it is started in" "none|ENOENT|" "$tmp/cwd" "$tmp/lone/p"
+# the .app of zinc export carries its assets in Contents/Resources (ZN-645): moved away from dist/, started from inside, it still reads them
+if [ "$(uname)" = Darwin ]; then
+  mkdir -p "$tmp/x/assets" "$tmp/moved"
+  printf '{ "name": "x", "entry": "main.ts", "app": { "id": "dev.zinc.test.assets" } }\n' > "$tmp/x/zinc.json"
+  printf "import { exists, readText } from 'zinc:assets';\nconsole.log(exists('msg.txt') ? readText('msg.txt') : 'none');\n" > "$tmp/x/main.ts"
+  printf 'bundled' > "$tmp/x/assets/msg.txt"
+  "$Z" export "$tmp/x" --target macos -o "$tmp/x/dist" >"$tmp/err" 2>&1 || { echo "aot_assets: export failed: $(tail -3 "$tmp/err")"; fail=1; }
+  mv "$tmp/x/dist/x.app" "$tmp/moved/x.app" 2>/dev/null
+  is "the moved .app's own assets" "bundled|" "$tmp/cwd" "$(ls -d "$tmp/moved/x.app/Contents/MacOS/"* | head -1)"
+  codesign --verify --strict "$tmp/moved/x.app" 2>"$tmp/cs" || { echo "aot_assets: codesign --verify of the .app: $(cat "$tmp/cs")"; fail=1; }
+fi
 [ $fail -eq 0 ] && echo "aot assets: ok"
 exit $fail

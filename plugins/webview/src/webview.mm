@@ -6,6 +6,7 @@
 #include <SDL3/SDL.h>
 #include <string.h>
 #include "hal.h"
+#include "zrt_assets_dir.h"
 #include "zinc_native_webview.h"
 
 #ifndef ZP_WEBVIEW_INSPECTABLE
@@ -34,7 +35,10 @@ static zrt::String zs(NSString* s) { const char* u = s.UTF8String; return zrt::S
 // ---------------------------------------------------------------- zinc:// assets
 static NSData* asset(NSString* name) {
   if (!name.length || [name hasPrefix:@"/"] || [[name pathComponents] containsObject:@".."]) return nil;
-  if (const char* dir = getenv("ZINC_ASSETS")) {  // dev: straight from the project, edits show on reload
+  static const std::string built = zrt_program_assets_dir(false);   // a built app's assets/: beside it, in its .app's Resources, above it (ZN-645)
+  const char* dir = getenv("ZINC_ASSETS");   // dev: straight from the project, edits show on reload
+  if (!dir && !built.empty()) dir = built.c_str();
+  if (dir) {
     NSData* d = [NSData dataWithContentsOfFile:[[NSString stringWithUTF8String:dir] stringByAppendingPathComponent:name]];
     if (d) return d;
   }

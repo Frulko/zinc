@@ -120,6 +120,11 @@ bool writeBundle(const BundleSpec& spec, const std::string& exe, const std::stri
     if (!ok) return false;
     hasIcon = true;
   }
+  fs::remove_all(res / "assets", ec);   // the assets the app reads (zinc:assets, zinc:// pages): inside the bundle, sealed by its signature (ZN-645)
+  if (!spec.assets.empty() && fs::is_directory(spec.assets)) {
+    fs::copy(spec.assets, res / "assets", fs::copy_options::recursive, ec);
+    if (ec) { err = "cannot copy " + spec.assets + " into the bundle: " + ec.message(); return false; }
+  }
   { std::ofstream(fs::path(appPath) / "Contents/Info.plist") << infoPlist(spec, hasIcon); }
   return run("codesign --force --sign - --identifier " + q(spec.id) + " " + q(appPath), err, "codesign");
 }

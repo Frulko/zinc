@@ -349,6 +349,7 @@ static zn::tc::BundleSpec bundleSpecOf(const zn::frontend::Project& p, const std
   b.id = p.app.id; b.name = p.app.name.empty() ? p.name : p.app.name; b.version = p.app.version; b.category = p.app.category; b.copyright = p.app.copyright;
   b.dock = p.app.dock; b.urlSchemes = p.app.urlSchemes; b.fileTypes = p.app.fileTypes;
   if (!p.app.icon.empty()) b.icon = (std::filesystem::path(projectDir) / p.app.icon).lexically_normal().string();
+  b.assets = (std::filesystem::path(projectDir) / "assets").lexically_normal().string();   // copied into the .app when it exists (ZN-645)
   const std::string who = b.name.empty() ? "This app" : b.name;   // macOS asks the user with these strings; without them the request fails (ZN-322.03)
   for (const std::string& e : p.permissions) {
     if (e == "camera") b.usage.push_back({"NSCameraUsageDescription", who + " uses the camera."});
