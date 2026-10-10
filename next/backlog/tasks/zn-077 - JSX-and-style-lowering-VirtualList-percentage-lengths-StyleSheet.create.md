@@ -1,7 +1,7 @@
 ---
 id: ZN-077
 title: 'JSX and style lowering: VirtualList, percentage lengths, StyleSheet.create'
-status: Review
+status: Done
 assignee: []
 created_date: '2026-10-06 22:51'
 updated_date: '2026-10-07 02:24'
@@ -29,4 +29,6 @@ Port the missing parts of compiler/src/jsx.ts (:283), styles.ts and ui-style.ts:
 
 <!-- SECTION:NOTES:BEGIN -->
 usage: n/a. Ported: <VirtualList>, percentage/auto/em lengths and every styleEntry rule of ui-style.ts (colours as @key:hex, rgb(), shorthands, border, fontFamily), StyleSheet.create in .ts and .tsx, static style hoisting, the font-size resource comment. figma-storyboard now runs 3 headless frames (added to tests/t1/examples.sh); tests/t0/jsx_style.sh checks the lowered text. Not done: inferno-todo (needs class components in React mode and record literal assignability: follow-up task), frame comparison with the prototype's frames.
+
+Closed by the backlog review of 2026-10-10 (docs/reports/backlog-review-2026-10-10.md), with the owner's approval: JSX and style lowering: inferno-todo and figma-storyboard are both OK in tests/examples.lst now.
 <!-- SECTION:NOTES:END -->

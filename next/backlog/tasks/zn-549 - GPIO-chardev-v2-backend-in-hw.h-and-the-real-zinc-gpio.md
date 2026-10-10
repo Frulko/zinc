@@ -20,6 +20,8 @@ ordinal: 146000
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
 hw.h gains GPIO over the Linux GPIO uAPI v2: chip by label, line requests, bias, drive, edge events with kernel timestamps, kernel debounce, an explicit release policy. Linux, esp32 and sim backends. zinc:gpio (ZN-081) uses it on Linux targets. libgpiod is a test oracle only; the task notes record why (Bookworm v1 vs Trixie v2 ABI, LGPL). (From docs/reports/hardware/raspberry-pi-threejs-and-sdk.md.)
+
+Also carries, since the backlog review of 2026-10-10: ZN-517 (zinc:gpio on Linux: GPIO v2 chardev, named lines, CHIP board table).
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria

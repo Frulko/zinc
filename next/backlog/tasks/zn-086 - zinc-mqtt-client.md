@@ -1,7 +1,7 @@
 ---
 id: ZN-086
 title: 'zinc:mqtt client'
-status: Review
+status: Done
 assignee: []
 created_date: '2026-10-06 22:52'
 updated_date: '2026-10-07 03:56'
@@ -30,4 +30,6 @@ connect/publish/subscribe/disconnect with QoS 0 and 1, retain, will, keepalive o
 
 <!-- SECTION:NOTES:BEGIN -->
 usage: n/a. zinc:mqtt built in: src/host/mqtt.{h,cpp} MQTT 3.1.1 client on uv_tcp (CONNECT/CONNACK, PUBLISH qos 0/1 with retain, SUBSCRIBE, PINGREQ every 30 s, DISCONNECT, PUBACK of incoming qos 1), events kinds 30-32, filters (+, #) matched in Zinc; rows HostMqtt* appended. Own port of the 115-line prototype client instead of MQTT-C (same reason as osc). Test tests/t0/mqtt.sh with mosquitto or tests/mqtt_broker.py (skip 77 without python). AC2 open: sensor-hub and modules-showcase now stop at zinc:net serve (ZN-087), mqtt imports resolve. Not done: will, auth, TLS, qos 2.
+
+Closed by the backlog review of 2026-10-10 (docs/reports/backlog-review-2026-10-10.md), with the owner's approval: zinc:mqtt: sensor-hub is OK in tests/examples.lst now. Will, auth and QoS 2 were never done and have no task.
 <!-- SECTION:NOTES:END -->

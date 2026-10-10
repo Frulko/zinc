@@ -22,6 +22,8 @@ ordinal: 257000
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
 zinc build --aot --target <t>: AOT C++ compiled with the pinned toolchain (-O2 -ffp-contract=off -fno-exceptions -fno-rtti; -march=allegrex -G0 on PSP, -mcpu=cortex-a9 -mfpu=neon on Vita and iOS, -march=armv6k -mtune=mpcore on 3DS) and linked with src/rt and the hosts into the platform package. ZN-145 (4-byte references) stays a later memory optimisation.
+
+Also carries, since the backlog review of 2026-10-10: ZN-485 (Spike: Zinc Next AOT and runtime on the PSP (32-bit MIPS, f32 numbers)).
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria

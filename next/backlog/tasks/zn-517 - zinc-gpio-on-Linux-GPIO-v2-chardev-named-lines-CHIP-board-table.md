@@ -1,7 +1,7 @@
 ---
 id: ZN-517
 title: 'zinc:gpio on Linux: GPIO v2 chardev, named lines, CHIP board table'
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-09 07:40'
 labels:
@@ -25,3 +25,9 @@ runtime/mod/gpio_linux.cpp only opens /dev/gpiochip0 through libgpiod and masks 
 - [ ] #3 the existing simulator and ZINC_GPIO_SCRIPT keep working on macOS
 - [ ] #4 on hardware: XIO-P0 drives an LED and an edge on CSID0 reaches the callback
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Merged into ZN-549 by the backlog review of 2026-10-10 (docs/reports/backlog-review-2026-10-10.md), with the owner's approval: zinc:gpio on the GPIO v2 chardev: the same backend as ZN-549 (Pi SDK), filed twice. Keep here only the CHIP line table and the sysfs fallback for 4.4 kernels.
+<!-- SECTION:NOTES:END -->

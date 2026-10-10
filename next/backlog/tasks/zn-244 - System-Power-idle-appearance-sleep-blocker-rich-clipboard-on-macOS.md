@@ -1,7 +1,7 @@
 ---
 id: ZN-244
 title: 'System: Power, idle, appearance, sleep blocker, rich clipboard on macOS'
-status: Review
+status: Done
 assignee: []
 created_date: '2026-10-07 12:21'
 updated_date: '2026-10-07 16:47'
@@ -33,4 +33,6 @@ From docs/reports/system-integration.md (section 11, SYS-15). Read the report fi
 
 <!-- SECTION:NOTES:BEGIN -->
 usage: n/a. power.ts (battery, idleSeconds, isDark, onPower, onAppearance, preventSleep/SleepLock) and clipboard.ts (html, image as base64 PNG, files) over power.*/clipboard.* ops; sim keeps the pasteboard and sleep tokens. macOS: battery from IOKit (IOPSCopyPowerSourcesInfo), idle from CGEventSourceSecondsSinceLastEventType, NSWorkspace will-sleep/did-wake and distributed lock/appearance notifications as events, preventSleep = IOPMAssertionCreateWithName (visible in pmset -g assertions while held, gone after release), NSPasteboard html/PNG/file URLs. tests/golden/macos/power + tests/t1/macos_power.sh (restores the clipboard text). AC1 deviates on purpose: SDL_POWER stays off, IOKit gives the same values without rebuilding SDL; lock/unlock events are injected in the selftest (the distributed notifications are not delivered back to the posting process), suspend/resume go through the real NSWorkspace notifications. Appearance changes follow AppleInterfaceThemeChangedNotification rather than SDL_EVENT_SYSTEM_THEME_CHANGED. Text clipboard through the HAL untouched.
+
+Closed by the backlog review of 2026-10-10 (docs/reports/backlog-review-2026-10-10.md), with the owner's approval: Power, idle, appearance, clipboard: SDL_POWER stays off on purpose (IOKit gives the values). Close.
 <!-- SECTION:NOTES:END -->

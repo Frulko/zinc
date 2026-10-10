@@ -21,6 +21,8 @@ ordinal: 165000
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
 runtime/gfx.cpp:767 end_frame and hal_sdl.cpp:432 hal_present run synchronously: at 200k the main thread waits on the bands 63% of the frame. A third command buffer lets end_frame hand frame N to the workers and return; the upload of N happens when its bands finish. One frame of latency, opt-out; ZINC_SHOT and deterministic runs stay synchronous.
+
+Also carries, since the backlog review of 2026-10-10: ZN-185 (R3.6 Render thread and 3-slot handoff).
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria

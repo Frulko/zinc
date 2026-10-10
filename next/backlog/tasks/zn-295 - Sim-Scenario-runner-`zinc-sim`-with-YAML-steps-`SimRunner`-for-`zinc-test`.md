@@ -1,7 +1,7 @@
 ---
 id: ZN-295
 title: 'Sim: Scenario runner `zinc sim` with YAML steps, `SimRunner` for `zinc test`'
-status: Review
+status: Done
 assignee: []
 created_date: '2026-10-07 13:13'
 updated_date: '2026-10-08 09:55'
@@ -32,4 +32,6 @@ From docs/reports/hardware-simulator-and-arduino-interop.md (SIM-04). Wokwi-styl
 
 <!-- SECTION:NOTES:BEGIN -->
 usage: n/a. Scenario runner core (src/sim/scenario.{h,cpp}): YAML via vendored libyaml 0.2.5, steps wait-serial, write-serial, delay, advance, set-control, expect-pin (value or expected), expect-bus; Dut interface; a failing step prints 'FAIL step N (kind) at t=...'. Tested against a scripted fake device incl. the Wokwi docs example unchanged (tests/t0/sim_scenario.sh). AC1 open: program-as-device, frames, screenshots and the failing-step PNG moved to ZN-295.01.
+
+Closed by the backlog review of 2026-10-10 (docs/reports/backlog-review-2026-10-10.md), with the owner's approval: zinc sim scenario runner: its open half moved to ZN-295.01, which is done.
 <!-- SECTION:NOTES:END -->

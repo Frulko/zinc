@@ -1,7 +1,7 @@
 ---
 id: ZN-150
 title: 'Spike: baseline JIT for ZBC (sljit) — measure, then decide'
-status: Review
+status: Done
 assignee: []
 created_date: '2026-10-06 23:03'
 updated_date: '2026-10-08 08:18'
@@ -31,4 +31,6 @@ Decision D13 says no JIT now; this spike produces the numbers to confirm or reve
 
 <!-- SECTION:NOTES:BEGIN -->
 usage: n/a. D36 in docs/reports/zinc-next-decisions.md: no-go, from the AOT upper bound (interpreter vs AOT on the kernels from bench/m4.json, and a UI frame 0.09 ms vs 0.033 ms), no sljit prototype was built. AC1 (a JIT column in the bench table) is not met: the column is replaced by the AOT bound.
+
+Closed by the backlog review of 2026-10-10 (docs/reports/backlog-review-2026-10-10.md), with the owner's approval: JIT spike: no-go recorded as D36 from the AOT upper bound; the missing bench column was replaced by that bound.
 <!-- SECTION:NOTES:END -->

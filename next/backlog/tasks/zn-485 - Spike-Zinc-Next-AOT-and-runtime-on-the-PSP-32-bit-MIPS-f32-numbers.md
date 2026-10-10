@@ -1,7 +1,7 @@
 ---
 id: ZN-485
 title: 'Spike: Zinc Next AOT and runtime on the PSP (32-bit MIPS, f32 numbers)'
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-09 07:38'
 labels:
@@ -26,3 +26,9 @@ Build the AOT C++ of a few programs plus src/rt and the runtime/ raster with psp
 - [ ] #3 Every source change needed in src/rt or runtime/ is either made with a T0 test or filed as a follow-up task (ZN-145 for 32-bit references)
 - [ ] #4 The notes say whether the device core interpreter (src/dev) also builds for PSP, as a fallback
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Merged into ZN-480 by the backlog review of 2026-10-10 (docs/reports/backlog-review-2026-10-10.md), with the owner's approval: AOT and runtime spike on the PSP, from the PocketJS report. The PSP part of ZN-480 (AOT builds for the four handhelds), filed twice.
+<!-- SECTION:NOTES:END -->

@@ -3,7 +3,7 @@ id: ZN-063
 title: >-
   Name resolution: closures that refer to later or own bindings, named function
   expressions
-status: Review
+status: Done
 assignee: []
 created_date: '2026-10-06 22:48'
 updated_date: '2026-10-07 00:13'
@@ -31,4 +31,6 @@ Bind the name of a named function expression inside its own body; allow a closur
 
 <!-- SECTION:NOTES:BEGIN -->
 usage: n/a. Done: own-binding recursive arrows (annotated), named function expressions (cell holding own closure), closures using later top-level consts of known type, self-referencing initializers (setInterval/watch ids). Not done: AC1's read-before-init trap, moved to the follow-up task; self-referencing closures leak (rc cycle).
+
+Closed by the backlog review of 2026-10-10 (docs/reports/backlog-review-2026-10-10.md), with the owner's approval: Name resolution: the open trap moved to ZN-162, whose first criterion is ticked.
 <!-- SECTION:NOTES:END -->

@@ -3,7 +3,7 @@ id: ZN-154
 title: >-
   Examples: video, camera, maps, svg, lottie, mapper, remarkable, webview,
   remote
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-06 23:04'
 labels:
@@ -31,3 +31,9 @@ The native-plugin examples with their real plugins (or the fakes where the proto
 <!-- AC:BEGIN -->
 - [ ] #1 tests/examples.lst OK for every entry (no xfail left); pixel or hash comparisons pass
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Closed by the backlog review of 2026-10-10 (docs/reports/backlog-review-2026-10-10.md), with the owner's approval: Its criterion holds: tests/examples.lst has 69 entries, all OK, no xfail; the pixel rows are in the proto manifest (33 equal, 9 known with reasons, 22 without a prototype frame). It is blocked for ever by the parked ZN-134 (reMarkable under QEMU), which keeps that part.
+<!-- SECTION:NOTES:END -->

@@ -18,6 +18,8 @@ ordinal: 150000
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
 One evdev reader shared by display-gl and display-fbdev: keys, mice, MT protocol B multi-touch, gamepads, hot-plug by inotify. On glibc targets, enable the vendored SDL3 3.4.16 joystick and gamepad subsystems for the mapping database and rumble; static builds use raw evdev. (From docs/reports/hardware/raspberry-pi-threejs-and-sdk.md.)
+
+Also carries, since the backlog review of 2026-10-10: ZN-527 (Gamepads and USB HID on the CHIP).
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
