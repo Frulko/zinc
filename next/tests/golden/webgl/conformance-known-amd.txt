@@ -1,0 +1,8 @@
+# Pages of conformance-pass.txt that fail when the WebGL context runs on the AMD GL driver of macOS (Radeon Pro 555X, "AMD Radeon Pro 555X
+# OpenGL Engine", the GPU an Intel Mac gives a headless context); they pass on Apple Silicon (ZN-612). tools/webgl-conformance reports them
+# KNOWN instead of REGRESSION when the context's vendor is AMD/ATI. Page, tab, why.
+misc/uninitialized-test.html	ours: copyTexImage2D/copyTexSubImage2D leave the part outside the framebuffer to the driver (WebGL says zeros); Apple's driver zeroes it, AMD's does not (follow-up ZN-701)
+conformance2/renderbuffers/multisampled-renderbuffer-initialization.html	ours: a new multisampled renderbuffer is not cleared before its first use; Apple's driver hands over zeroed memory (follow-up ZN-701)
+conformance2/glsl3/matrix-row-major-dynamic-indexing.html	driver: dynamic indexing of a row_major matrix in a uniform block reads wrong values (ANGLE rewrites row-major matrices; follow-up ZN-702)
+conformance2/glsl3/vector-dynamic-indexing-swizzled-lvalue.html	driver: a dynamically indexed swizzle as an lvalue (ANGLE's remove_dynamic_indexing_of_swizzled_vector; follow-up ZN-702)
+conformance2/textures/misc/tex-srgb-mipmap.html	driver: generateMipmap of an sRGB texture averages without decoding (ANGLE's decode_encode_srgb_for_generatemipmap; follow-up ZN-702)

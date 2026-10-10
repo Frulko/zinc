@@ -10,6 +10,7 @@ done
 for e in 3d/cubes:3d-cubes 3d/model:3d-model three/cubes:three-cubes three/gltf-viewer:three-gltf-viewer; do
   ex=${e%%:*}; name=${e#*:}
   ZINC_DETERMINISTIC=1 ZINC_HEADLESS=1 ZINC_FRAMES=30 ZINC_SCALE=1 ZINC_SHOT="$tmp/$name.png" ZINC_SHOT_FRAMES=30 "$ZINC" run "../examples/$ex" >/dev/null 2>&1
-  tools/pngdiff "$tmp/$name-30.png" "tests/golden/examples/$name-30.png" >/dev/null || { echo "$ex: frame 30 differs from tests/golden/examples/$name-30.png"; fail=1; }
+  # within 1 per channel and 8 pixels: the libm of another CPU moves an edge pixel or a rounding (ZN-612); a moved shape or a colour does not pass
+  tools/pngdiff "$tmp/$name-30.png" "tests/golden/examples/$name-30.png" --tol 1 --max-diff 8 >/dev/null || { echo "$ex: frame 30 differs from tests/golden/examples/$name-30.png"; fail=1; }
 done
 exit $fail

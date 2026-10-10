@@ -64,6 +64,7 @@
     {"paths": ["../lib/std/gl.ts", "src/gl/webgl_host.cpp", "src/gl/webgl_host_rows.inc", "src/gl/webgl_install.cpp", "tools/gen-zinc-gl", "tests/golden/webgl/api_tour", "../examples/gl-cube/"], "tests": ["gl_cube", "zinc_gl_api", "zinc_gl_api_tour"]},
     {"paths": ["src/text/"], "tests": ["text_layout", "segment", "text_shaped"]},
     {"paths": ["src/gl/"], "tests": ["webgl_conformance"]},
+    {"paths": ["tools/webgl-conformance", "tests/golden/webgl/"], "tests": ["webgl_conformance"]},
     {"paths": ["src/res/"], "tests": ["webp", "res_aot"]},
     {"paths": ["src/cli_core", "src/main.cpp"], "tests": ["cli_core", "cli_tools", "verbose_log", "security_guide", "plugin_add", "plugin_sign", "templates_remote", "install_offline", "plugin_tiers", "plugin_community", "plugin_lock", "revocation", "trust_policy", "policy", "plugin_cli", "templates_index"]},
     {"paths": ["tools/plugin-split"], "tests": ["plugin_split"]},
