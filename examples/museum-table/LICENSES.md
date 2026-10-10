@@ -55,9 +55,27 @@ Resized to 2048 by 1024 pixels with `sips`.
 | --- | --- | --- |
 | `video/great-wave.mp4` | Ten seconds across The Met's photograph of the Great Wave (JP1847, above), made with ffmpeg | CC0 1.0 |
 | `video/great-wave.fr.vtt`, `video/great-wave.en.vtt` | Its subtitles | CC0 1.0 |
-| `audio/welcome.fr.mp3`, `audio/welcome.en.mp3` | A placeholder for the narration: one soft note generated with ffmpeg | CC0 1.0 |
-| `audio/welcome.fr.vtt`, `audio/welcome.en.vtt` | The subtitles of the narration, written by `tools/narration.sh --no-voice` | CC0 1.0 |
 | `project.json` | The project file | CC0 1.0 |
 
-`tools/narration.sh` replaces the placeholder with a voice synthesised by the Mac's `say` command. Those voice files are not in the repository:
-as we read Apple's software licence, the system voices are for personal, non-commercial use, so check it before publishing a recording of them.
+## Narration
+
+The narration is a synthesised voice: `tools/narration.sh` reads the transcripts of `project.json` (written for this example, CC0 1.0) with
+[Piper](https://github.com/rhasspy/piper) 2023.11.14-2 (MIT; the program and the voice models are downloaded outside the repository and are not
+redistributed) and writes one MP3 per language (mono, 22.05 kHz, about 4 kB per second) and its subtitles. The voices come from
+<https://huggingface.co/rhasspy/piper-voices> (the repository is under the MIT licence); each voice's own model card was read on 2026-10-10.
+
+| file | what it is | voice | data the voice was trained on, licence |
+| --- | --- | --- | --- |
+| `audio/welcome.fr.mp3`, `audio/japonisme-voice.fr.mp3`, `audio/porcelain-voice.fr.mp3`, `audio/garden-voice.fr.mp3` | The narration in French | `fr_FR-mls-medium`, speaker 1840 ([model card](https://huggingface.co/rhasspy/piper-voices/blob/main/fr/fr_FR/mls/medium/MODEL_CARD): "Trained from scratch"; SHA-256 of the model `0ed223f78466917f2bae05ee90096ce69ab1fdeb251f55590d0e7422d234e162`) | The French part of Multilingual LibriSpeech, <http://openslr.org/94/> (V. Pratap, Q. Xu, A. Sriram, G. Synnaeve, R. Collobert, *MLS: A Large-Scale Multilingual Dataset for Speech Research*, Interspeech 2020), CC BY 4.0, made from LibriVox recordings in the public domain |
+| `audio/welcome.en.mp3`, `audio/japonisme-voice.en.mp3`, `audio/porcelain-voice.en.mp3`, `audio/garden-voice.en.mp3` | The narration in English | `en_GB-cori-medium` ([model card](https://huggingface.co/rhasspy/piper-voices/blob/main/en/en_GB/cori/medium/MODEL_CARD): "Trained from scratch", by Bryce Beattie; SHA-256 of the model `1899f98e5fb8310154f3c2973f4b8a929ba7245e722b3d3a85680b833d95f10d`) | About 24 hours of LibriVox recordings, public domain |
+| `audio/welcome.fr.vtt`, `audio/welcome.en.vtt`, `audio/japonisme-voice.fr.vtt`, `audio/japonisme-voice.en.vtt`, `audio/porcelain-voice.fr.vtt`, `audio/porcelain-voice.en.vtt`, `audio/garden-voice.fr.vtt`, `audio/garden-voice.en.vtt` | Their subtitles, one cue per sentence, timed on the voice | | CC0 1.0 |
+
+The clips are distributed under CC BY 4.0 (<https://creativecommons.org/licenses/by/4.0/>), the strictest of the two sources, with the attribution
+above; the same credit is in `project.json` and on the table.
+
+Voices that were left aside, because the licence of what they were made from does not clearly allow distributing what they say: every voice
+"finetuned from" `en_US-lessac` (`fr_FR-siwis-medium`, `fr_FR-upmc-medium`, `en_GB-alba-medium` and most English voices), since the Lessac data
+of the Blizzard Challenge 2013 is licensed to a named licensee on request; the voices tuned from `en_US-ryan` (`fr_FR-siwis-low`,
+`fr_FR-gilles-low`, `fr_FR-mls_1840-low`), whose data is CC BY-NC-SA 4.0; `fr_FR-tom-medium` (AGPL-3.0). Nothing made with the Mac's `say`
+command is in the repository: as we read Apple's software licence, the system voices are for personal, non-commercial use. A museum replaces
+the clips with a recorded voice under the same file names, or sets another voice in `tools/narration.sh`.

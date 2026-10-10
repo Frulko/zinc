@@ -670,9 +670,73 @@
       },
       "credit": {
         "institution": "Zinc",
+        "line": "Voices synthesised with Piper: fr_FR-mls-medium (Multilingual LibriSpeech, CC BY 4.0) and en_GB-cori-medium (LibriVox recordings, public domain)",
         "source": "examples/museum-table/tools/narration.sh",
-        "licence": "CC0 1.0",
-        "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/"
+        "licence": "CC BY 4.0",
+        "licenceUrl": "https://creativecommons.org/licenses/by/4.0/"
+      }
+    },
+    {
+      "id": "japonisme-voice",
+      "kind": "audio",
+      "file": "audio/japonisme-voice.{lang}.mp3",
+      "subtitles": "audio/japonisme-voice.{lang}.vtt",
+      "title": {
+        "fr": "Narration : le japonisme",
+        "en": "Narration: Japonisme"
+      },
+      "transcript": {
+        "fr": "Après 1854, le Japon s’ouvre au commerce, et ses estampes arrivent en Europe. Les peintres y découvrent des cadrages coupés, des aplats de couleur et des contours nets. Van Gogh et Monet les collectionnent, et leur peinture en est transformée.",
+        "en": "After 1854 Japan opened to trade, and its prints reached Europe. Painters found in them cropped framing, flat colour and crisp outlines. Van Gogh and Monet collected them, and their painting was transformed."
+      },
+      "credit": {
+        "institution": "Zinc",
+        "line": "Voices synthesised with Piper: fr_FR-mls-medium (Multilingual LibriSpeech, CC BY 4.0) and en_GB-cori-medium (LibriVox recordings, public domain)",
+        "source": "examples/museum-table/tools/narration.sh",
+        "licence": "CC BY 4.0",
+        "licenceUrl": "https://creativecommons.org/licenses/by/4.0/"
+      }
+    },
+    {
+      "id": "porcelain-voice",
+      "kind": "audio",
+      "file": "audio/porcelain-voice.{lang}.mp3",
+      "subtitles": "audio/porcelain-voice.{lang}.vtt",
+      "title": {
+        "fr": "Narration : bleu et blanc",
+        "en": "Narration: blue and white"
+      },
+      "transcript": {
+        "fr": "Avec les estampes arrivent les porcelaines de Chine, bleu et blanc. Ce vase a été peint au bleu de cobalt il y a trois siècles. Tournez-le du bout du doigt, et touchez les points pour lire son décor : une dame de cour, une danseuse, des musiciennes.",
+        "en": "With the prints came Chinese porcelain, blue and white. This vase was painted in cobalt blue three centuries ago. Turn it with a fingertip, and touch the points to read its decoration: a court lady, a dancer, musicians."
+      },
+      "credit": {
+        "institution": "Zinc",
+        "line": "Voices synthesised with Piper: fr_FR-mls-medium (Multilingual LibriSpeech, CC BY 4.0) and en_GB-cori-medium (LibriVox recordings, public domain)",
+        "source": "examples/museum-table/tools/narration.sh",
+        "licence": "CC BY 4.0",
+        "licenceUrl": "https://creativecommons.org/licenses/by/4.0/"
+      }
+    },
+    {
+      "id": "garden-voice",
+      "kind": "audio",
+      "file": "audio/garden-voice.{lang}.mp3",
+      "subtitles": "audio/garden-voice.{lang}.vtt",
+      "title": {
+        "fr": "Narration : un jardin au Japon",
+        "en": "Narration: a garden in Japan"
+      },
+      "transcript": {
+        "fr": "Voici le jardin Ninomaru, au château de Nagoya. Faites glisser le doigt pour regarder autour de vous. Un jardin japonais se découvre en marchant : chaque tournant ouvre une nouvelle vue.",
+        "en": "This is the Ninomaru garden, at Nagoya Castle. Drag a finger to look around. A Japanese garden unfolds as you walk: every turn opens a new view."
+      },
+      "credit": {
+        "institution": "Zinc",
+        "line": "Voices synthesised with Piper: fr_FR-mls-medium (Multilingual LibriSpeech, CC BY 4.0) and en_GB-cori-medium (LibriVox recordings, public domain)",
+        "source": "examples/museum-table/tools/narration.sh",
+        "licence": "CC BY 4.0",
+        "licenceUrl": "https://creativecommons.org/licenses/by/4.0/"
       }
     },
     {
@@ -838,7 +902,8 @@
             "en": "Blue and white"
           },
           "x": 960,
-          "y": 1030
+          "y": 1030,
+          "transition": "slide"
         },
         {
           "to": "garden",
@@ -850,6 +915,7 @@
           "y": 1030
         }
       ],
+      "narration": "japonisme-voice",
       "duration": 45
     },
     {
@@ -893,9 +959,11 @@
             "en": "A garden in Japan"
           },
           "x": 1260,
-          "y": 1030
+          "y": 1030,
+          "transition": "slide"
         }
       ],
+      "narration": "porcelain-voice",
       "duration": 60
     },
     {
@@ -937,6 +1005,7 @@
           "y": 1030
         }
       ],
+      "narration": "garden-voice",
       "duration": 40
     }
   ],

@@ -16,8 +16,20 @@ panoramas/ninomaru.jpg: image 2048x1024
 video/great-wave.mp4: 347438 bytes
 video/great-wave.fr.vtt: 202 bytes
 video/great-wave.en.vtt: 182 bytes
-audio/welcome.fr.mp3: 6889 bytes
-audio/welcome.en.mp3: 6889 bytes
+audio/welcome.fr.mp3: 75190 bytes
+audio/welcome.en.mp3: 81679 bytes
 audio/welcome.fr.vtt: 411 bytes
 audio/welcome.en.vtt: 384 bytes
-22 files, all read
+audio/japonisme-voice.fr.mp3: 75967 bytes
+audio/japonisme-voice.en.mp3: 69037 bytes
+audio/japonisme-voice.fr.vtt: 332 bytes
+audio/japonisme-voice.en.vtt: 290 bytes
+audio/porcelain-voice.fr.mp3: 62865 bytes
+audio/porcelain-voice.en.mp3: 70460 bytes
+audio/porcelain-voice.fr.vtt: 336 bytes
+audio/porcelain-voice.en.vtt: 302 bytes
+audio/garden-voice.fr.mp3: 50176 bytes
+audio/garden-voice.en.mp3: 47333 bytes
+audio/garden-voice.fr.vtt: 271 bytes
+audio/garden-voice.en.vtt: 227 bytes
+34 files, all read

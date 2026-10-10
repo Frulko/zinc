@@ -44,7 +44,7 @@ Several hands work at the same time: a finger belongs to what it landed on until
 | `src/panorama.ts`, `src/pano.ts` | 360-degree panoramas |
 | `src/type.ts`, `src/words.ts` | fonts and word wrapping; the player's own few words |
 | `src/check.ts`, `src/assets.ts` | command-line checks of a project file and of its media |
-| `tools/` | rebuild the media from their sources (`fetch-collection.sh`, `decimate.cpp`), make a narration locally (`narration.sh`) |
+| `tools/` | rebuild the media from their sources (`fetch-collection.sh`, `decimate.cpp`); synthesise the narration and its subtitles from the transcripts of the project with Piper and two open voices (`narration.sh`) |
 
 Tests: `next/tests/run --tier t1 --only museum_format` (also `museum_assets`, `museum_table`, `museum_viewer`, `museum_panorama`). The sessions
 are scripted touches (`ZINC_INPUT`, `touch ID X Y` and `touchup ID`): `next/tests/data/museum_table/hands.py` is two hands on two cards.

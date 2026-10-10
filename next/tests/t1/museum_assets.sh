@@ -1,7 +1,8 @@
 #!/bin/sh
 # Museum table, the sample collection (ZN-650.02): every file the project names is there and loads the way the player loads it (the photographs
 # and textures in zinc:gfx, the model in zinc:3d: tests/data/museum_assets/expected.txt); every file of the assets is named by the project and
-# listed in LICENSES.md, with a source and a licence for each medium (the loader refuses a medium without them); the example is under 8 MB.
+# listed in LICENSES.md, with a source and a licence for each medium (the loader refuses a medium without them); the example is under 12 MB
+# (8 MB of media, and the narration of every sequence and medium in two languages).
 cd "$(dirname "$0")/../.." || exit 2
 want=$PWD/tests/data/museum_assets/expected.txt
 cd ../examples/museum-table || exit 2
@@ -14,6 +15,6 @@ for f in $(cd assets && find . -type f ! -name project.json ! -name '.*' | sed '
 done
 bytes=$(find . -type f -exec stat -f %z {} + 2>/dev/null | awk '{ n += $1 } END { print n }')
 [ -n "$bytes" ] || bytes=$(find . -type f -exec stat -c %s {} + | awk '{ n += $1 } END { print n }')   # GNU stat
-[ "$bytes" -lt 8388608 ] || { echo "the example is $bytes bytes, over 8 MB"; fail=1; }
+[ "$bytes" -lt 12582912 ] || { echo "the example is $bytes bytes, over 12 MB"; fail=1; }
 [ $fail = 0 ] && echo "museum_assets: ok, $bytes bytes"
 exit $fail
