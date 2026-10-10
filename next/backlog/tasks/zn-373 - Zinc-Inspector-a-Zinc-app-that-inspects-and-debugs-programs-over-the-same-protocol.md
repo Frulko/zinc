@@ -15,7 +15,7 @@ dependencies:
   - ZN-369
   - ZN-370
   - ZN-371
-ordinal: 56000
+ordinal: 26000
 ---
 
 ## Description

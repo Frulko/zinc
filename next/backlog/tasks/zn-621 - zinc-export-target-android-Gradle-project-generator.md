@@ -11,7 +11,7 @@ milestone: m-26
 dependencies:
   - ZN-618
   - ZN-620
-ordinal: 385300
+ordinal: 195000
 ---
 
 ## Description

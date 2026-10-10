@@ -11,7 +11,7 @@ labels:
 milestone: m-25
 dependencies:
   - ZN-535
-ordinal: 340200
+ordinal: 160000
 ---
 
 ## Description

@@ -13,9 +13,8 @@ labels:
 milestone: m-17
 dependencies:
   - ZN-174
-  - ZN-191
   - ZN-251
-ordinal: 50630
+ordinal: 2000
 ---
 
 ## Description

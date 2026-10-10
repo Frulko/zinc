@@ -13,7 +13,7 @@ labels:
 milestone: m-18
 dependencies:
   - ZN-304
-ordinal: 53130
+ordinal: 180000
 ---
 
 ## Description

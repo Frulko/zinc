@@ -8,9 +8,8 @@ labels:
   - distribution
   - size-S
 milestone: m-19
-dependencies:
-  - ZN-320
-ordinal: 55100
+dependencies: []
+ordinal: 49000
 ---
 
 ## Description

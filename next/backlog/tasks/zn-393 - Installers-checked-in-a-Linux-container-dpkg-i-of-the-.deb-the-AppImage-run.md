@@ -10,7 +10,7 @@ labels:
   - size-S
 dependencies:
   - ZN-320.01
-ordinal: 163000
+ordinal: 313000
 ---
 
 ## Description

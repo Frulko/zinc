@@ -12,7 +12,7 @@ dependencies:
   - ZN-494
   - ZN-496
   - ZN-498
-ordinal: 300530
+ordinal: 260000
 ---
 
 ## Description

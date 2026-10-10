@@ -17,9 +17,8 @@ dependencies:
   - ZN-106
   - ZN-117
   - ZN-111
-  - ZN-134
   - ZN-113
-ordinal: 40960
+ordinal: 32000
 ---
 
 ## Description

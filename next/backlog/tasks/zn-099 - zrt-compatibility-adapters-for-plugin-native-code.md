@@ -12,7 +12,7 @@ labels:
 milestone: m-9
 dependencies:
   - ZN-098
-ordinal: 40410
+ordinal: 365000
 ---
 
 ## Description

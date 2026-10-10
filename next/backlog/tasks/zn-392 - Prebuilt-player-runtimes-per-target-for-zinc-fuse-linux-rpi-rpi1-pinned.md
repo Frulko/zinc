@@ -9,7 +9,7 @@ labels:
   - size-M
 dependencies:
   - ZN-319
-ordinal: 159000
+ordinal: 128000
 ---
 
 ## Description

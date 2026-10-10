@@ -10,7 +10,7 @@ labels:
 milestone: m-7
 dependencies:
   - ZN-155
-ordinal: 41010
+ordinal: 101000
 ---
 
 ## Description

@@ -11,7 +11,7 @@ milestone: m-23
 dependencies:
   - ZN-486
   - ZN-491
-ordinal: 300390
+ordinal: 228000
 ---
 
 ## Description

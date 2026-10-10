@@ -10,7 +10,7 @@ labels:
   - size-M
 milestone: m-20
 dependencies: []
-ordinal: 50110
+ordinal: 24000
 ---
 
 ## Description

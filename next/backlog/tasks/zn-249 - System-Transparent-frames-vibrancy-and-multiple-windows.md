@@ -13,7 +13,7 @@ labels:
 milestone: m-16
 dependencies:
   - ZN-240
-ordinal: 52190
+ordinal: 350000
 ---
 
 ## Description

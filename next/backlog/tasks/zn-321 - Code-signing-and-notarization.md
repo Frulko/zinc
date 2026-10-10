@@ -9,9 +9,8 @@ labels:
   - security
   - size-M
 milestone: m-19
-dependencies:
-  - ZN-320
-ordinal: 55060
+dependencies: []
+ordinal: 28000
 ---
 
 ## Description

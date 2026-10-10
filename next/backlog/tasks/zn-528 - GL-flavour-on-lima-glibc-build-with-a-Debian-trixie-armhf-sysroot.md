@@ -10,7 +10,7 @@ milestone: m-24
 dependencies:
   - ZN-522
   - ZN-132
-ordinal: 320160
+ordinal: 284000
 ---
 
 ## Description

@@ -13,7 +13,7 @@ labels:
 milestone: m-23
 dependencies:
   - ZN-470
-ordinal: 300180
+ordinal: 239000
 ---
 
 ## Description

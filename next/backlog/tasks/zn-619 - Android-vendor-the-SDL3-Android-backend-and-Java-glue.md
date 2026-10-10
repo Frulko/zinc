@@ -9,7 +9,7 @@ labels:
   - size-S
 milestone: m-26
 dependencies: []
-ordinal: 385280
+ordinal: 192000
 ---
 
 ## Description

@@ -9,9 +9,8 @@ labels:
   - templates
   - size-S
 milestone: m-19
-dependencies:
-  - ZN-338
-ordinal: 55420
+dependencies: []
+ordinal: 50000
 ---
 
 ## Description

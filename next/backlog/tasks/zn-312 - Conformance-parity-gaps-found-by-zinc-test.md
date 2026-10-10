@@ -10,7 +10,7 @@ labels:
   - parity
 dependencies:
   - ZN-122
-ordinal: 110000
+ordinal: 377000
 ---
 
 ## Description

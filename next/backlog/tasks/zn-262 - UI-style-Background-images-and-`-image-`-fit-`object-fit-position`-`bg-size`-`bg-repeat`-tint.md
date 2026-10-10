@@ -12,9 +12,8 @@ labels:
   - size-M
 milestone: m-17
 dependencies:
-  - ZN-182
   - ZN-251
-ordinal: 50620
+ordinal: 47000
 ---
 
 ## Description

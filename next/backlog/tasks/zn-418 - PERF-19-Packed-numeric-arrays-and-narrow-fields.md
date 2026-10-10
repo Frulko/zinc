@@ -10,9 +10,8 @@ labels:
 milestone: m-21
 dependencies:
   - ZN-409
-  - ZN-145
 priority: medium
-ordinal: 5180
+ordinal: 113000
 ---
 
 ## Description

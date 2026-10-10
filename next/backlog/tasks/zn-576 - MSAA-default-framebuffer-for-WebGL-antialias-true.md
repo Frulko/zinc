@@ -11,7 +11,7 @@ labels:
 milestone: m-22
 dependencies:
   - ZN-411
-ordinal: 355270
+ordinal: 27000
 ---
 
 ## Description

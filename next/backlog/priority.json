@@ -1,62 +1,25 @@
 {
-  "comment": "Order of work chosen by the owner (2026-10-07): UI first, then desktop integration, then rendering and media, then 3D and WebGL, then everything else, then (a group marked last) the cross builds and simulators the owner asked to leave for the end. tools/next-task takes the first group with a startable task; inside a group the ordinal decides. A task goes to the first group that matches (milestone, label, or a regex on the title). 2026-10-09: performance moved first (owner), games and the handheld/board milestones placed before the deferred group. 2026-10-10 (owner): the development Mac first; ARM, Pi, ESP32, Linux, handhelds and CHIP go to the cross-platform pass at the end. 2026-10-10 evening (owner): two showcase demos first (M27).",
+  "comment": "Order of work chosen by the owner (2026-10-07): UI first, then desktop integration, then rendering and media, then 3D and WebGL, then everything else, then (a group marked last) the cross builds and simulators the owner asked to leave for the end. tools/next-task takes the first group with a startable task; inside a group the ordinal decides. A task goes to the first group that matches (milestone, label, or a regex on the title). 2026-10-09: performance moved first (owner), games and the handheld/board milestones placed before the deferred group. 2026-10-10 (owner): the development Mac first; ARM, Pi, ESP32, Linux, handhelds and CHIP go to the cross-platform pass at the end. 2026-10-10 evening (owner): two showcase demos first (M27). 2026-10-10 evening: the whole order was reviewed (docs/reports/backlog-review-2026-10-10.md): after the showcase demos, every task that can be worked on the Mac is in one list, in ordinal order (rank x 1000); the cross-platform pass is one group at the end. A new task is created without an ordinal and so queues at the end of the Mac list until the next review, unless it is a defect that stops a demo.",
   "groups": [
     {
       "name": "showcase demos (owner, 2026-10-10: a pinball in real 3D with a table editor, a museum touch table in the manner of Klynt); worked by parallel agents",
       "milestones": [
         "m-27"
-      ]
-    },
-    {
-      "name": "performance (owner, 2026-10-09: the fastest engine, every ms tracked in docs/reports/zinc-next-perf.md)",
-      "milestones": [
-        "m-21"
       ],
-      "labels": [
-        "perf"
-      ]
+      "title": "^zinc:gfx source rectangles|^UI style: 2D transforms"
     },
     {
-      "name": "ui",
+      "name": "cross-platform pass: cross builds, simulators, the non-Mac targets, the handheld, board and mobile milestones (owner, 2026-10-07 and 2026-10-10: the development Mac first; one group so the pass runs in ordinal order)",
+      "last": true,
       "milestones": [
-        "m-17"
+        "m-11",
+        "m-18",
+        "m-23",
+        "m-24",
+        "m-25",
+        "m-26"
       ],
-      "exclude_title": "WebGL|\\b3D\\b|three\\.js|glTF"
-    },
-    {
-      "name": "app templates, packaging and distribution (owner, 2026-10-08: right after the UI)",
-      "milestones": [
-        "m-19"
-      ]
-    },
-    {
-      "name": "developer tools: verbose output, inspector, network, debugger, mobile spike (owner, 2026-10-08)",
-      "milestones": [
-        "m-20"
-      ]
-    },
-    {
-      "name": "desktop integration",
-      "milestones": [
-        "m-16"
-      ]
-    },
-    {
-      "name": "rendering and media",
-      "milestones": [
-        "m-8"
-      ],
-      "exclude_title": "WebGL|\\b3D\\b|three\\.js|glTF|zinc-script"
-    },
-    {
-      "name": "3D and WebGL",
-      "title": "WebGL|\\b3D\\b|three\\.js|glTF|Surface.*viewport"
-    },
-    {
-      "name": "games: assets, loading, JS game libraries (owner, 2026-10-09)",
-      "milestones": [
-        "m-22"
-      ]
+      "title": "\\b[Cc]ross|[Ss]imulat|[Ee]mulat|qemu|QEMU|device-sim|ESP32|\\bPi\\b|fbdev|armhf|aarch64|ps2|PS1|PS2|reMarkable|wasm target|32-bit targets|Side records and move state|SoA node storage|ARM|armv7|arm64|[Rr]aspberry|\\bRPi\\b|\\brpi|CHIP|PSP|Vita|3DS|n3ds|iPhone 4S|[Ll]inux|[Hh]andheld|[Rr]eusable (CI |plugin )?workflow|[Rr]ebuilders|Provenance for every|minimal zinc per|RGB565"
     },
     {
       "name": "handhelds and boards: PSP, Vita, 3DS, iPhone 4S, NTC CHIP, Raspberry Pi SDK, iOS and Android (M26, D59) (owner, 2026-10-10: with the cross-platform pass at the end)",
@@ -67,15 +30,6 @@
         "m-26"
       ],
       "last": true
-    },
-    {
-      "name": "deferred: cross builds, simulators and the non-Mac targets (owner, 2026-10-07 and 2026-10-10: the development Mac first, the cross-platform pass at the end)",
-      "last": true,
-      "milestones": [
-        "m-11",
-        "m-18"
-      ],
-      "title": "[Cc]ross|[Ss]imulat|[Ee]mulat|qemu|QEMU|device-sim|ESP32|\\bPi\\b|fbdev|armhf|aarch64|ps2|PS1|PS2|reMarkable|wasm target|32-bit targets|Side records and move state|SoA node storage|ARM|armv7|arm64|[Rr]aspberry|\\bRPi\\b|\\brpi|CHIP|PSP|Vita|3DS|n3ds|iPhone 4S|[Ll]inux|[Hh]andheld"
     }
   ]
 }
