@@ -47,6 +47,7 @@
     {"paths": ["../plugins/3d/", "../plugins/three/", "tests/t1/three_gpu.sh"], "tests": ["three_gpu", "three_3d", "templates_kickstart", "zinc3d_aa", "zinc3d_gltf"]},
     {"paths": ["src/aot/", "src/rt/"], "tests": ["aot", "rc", "profile", "console_live"]},
     {"paths": ["src/qjs/qjs.cpp", "src/vm/vm.cpp"], "tests": ["console_live"]},
+    {"paths": ["src/qjs/qjs.cpp"], "tests": ["qjs_robust", "qjs"]},
     {"paths": [".spec.ts", "tests/golden/native_gen/"], "tests": ["native_gen"]},
     {"paths": ["runtime/raster.cpp", "runtime/gfx.cpp", "runtime/ttf.cpp", "src/host/backend_sw.cpp"], "tests": ["scene_dump", "backend_sw", "damage_sig", "ui_style"], "canary": true},
     {"paths": ["../runtime/gfx.cpp", "src/host/gfx_host.cpp", "src/host/hal_dispatch.cpp", "tools/pngdiff"], "tests": ["perf_hud"]},
