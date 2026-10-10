@@ -4,12 +4,13 @@
 //   zinc run examples/museum-table/editor                       a new project (Save asks where)
 //   zinc run examples/museum-table/editor -- path/project.json   that project, or a new one saved there when the file does not exist
 //   zinc run examples/museum-table/editor -- path/project.json --story   the previews print what happens to the story, as the table's app does
+//   zinc run examples/museum-table/editor -- path/project.json --log     prints where each point of interest is put and where it is drawn
 // Two views: the storyboard (storyboard.tsx) and the table of one sequence (sequence.tsx); the panel at the right is inspector.tsx; the
 // preview (preview.tsx) plays the project in their place, or in a window beside them. Every text of the interface is in strings.ts, in
 // English and French.
 import { createSignal, createMemo, render, For, Show } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
-import { args, env } from 'zinc:sys';
+import { args, launchDir } from 'zinc:sys';
 import { exists } from 'zinc:fs';
 import { quit } from 'zinc:gfx';
 import { onCloseRequested, keepOpen } from 'zinc:system/window';
@@ -18,11 +19,12 @@ import { Problem } from './doc';
 import { doc, project, path, status, lang, setLang, selected, select, zoomBy, fit, viewW, viewH, addSequenceInView, duplicateSelected, deleteSelection, undo, redo, save, saveAs,
   newProjectCommand, openCommand, openFile, newFile, waiting, answer, goTo, problemText, nameIt, setNameIt, deleting, setDeleting, deleteSequence, linksTo, advanced, setAdvanced, nextLanguage,
   startHere, guard, opened, openSequence, closeSequence, selectedItem, selectedLink, shownMedia, pick, picking, answerPick, adding, setAdding, addFile, addWrittenText, newFiles, kindOfFile,
-  folder, removing, setRemoving, removeMedia, usesOf } from './state';
+  folder, removing, setRemoving, removeMedia, usesOf, pointing, selectedPoint, pickPoint, closePoints, setLogging } from './state';
 import { Ico, Tool, Segmented, Heading, ACCENT, DANGER, WARN, MUTED, decodePictures } from './widgets';
 import { Storyboard } from './storyboard';
 import { SequenceEditor } from './sequence';
 import { Inspector } from './inspector';
+import { PointsEditor, pointsTick } from './points';
 import { previewing, previewAt, playFromHere, stopPreview, PreviewPane, togglePreviewWindow, closePreviewWindow, previewTick, setTelling } from './preview';
 import * as L from './strings';
 import { t, f, uiLang, setUiLang } from './strings';
@@ -306,7 +308,8 @@ function Shell(): i32 {
         <view class="grow basis-0 min-w-0 flex-row">
           <view class="grow basis-0 min-w-0 flex-col">
             <Show when={opened() === null}><Storyboard /></Show>
-            <Show when={opened() !== null}><SequenceEditor /></Show>
+            <Show when={opened() !== null && pointing() === null}><SequenceEditor /></Show>
+            <Show when={pointing() !== null}><PointsEditor /></Show>
             <Problems />
           </view>
           <Inspector />
@@ -359,6 +362,7 @@ ui.onKey((e: ui.KeyEvent) => {
   }
   const board = opened() === null;
   if (k === 'Delete' || k === 'Backspace') deleteSelection();
+  else if (k === 'Escape' && pointing() !== null) { if (selectedPoint() !== null) pickPoint(null); else closePoints(); }
   else if (k === 'Escape' && !board) { if (selectedItem() !== null || selectedLink() !== null || shownMedia() !== null) pick(null, null, null); else closeSequence(); }
   else if (k === 'Escape' && selected() !== null) select(null, null);
   else if (k === 'l') nextLanguage();
@@ -372,16 +376,16 @@ ui.onKey((e: ui.KeyEvent) => {
   e.preventDefault();
 });
 
-const a = args().filter((arg: string) => arg !== '--story');
-setTelling(a.length < args().length);
+const a = args().filter((arg: string) => arg !== '--story' && arg !== '--log');
+setTelling(args().indexOf('--story') >= 0);
+setLogging(args().indexOf('--log') >= 0);
 if (a.length > 0) {
-  // ponytail: `zinc run <dir>` starts the program in the project's directory; the shell's PWD still says where the command was typed, so a
-  // relative path means what the user meant. A launch directory in zinc:sys would replace this.
-  const file = a[0].startsWith('/') || env('PWD').length === 0 ? a[0] : `${env('PWD')}/${a[0]}`;
+  // `zinc run <dir>` starts the program in the project's directory: a relative path is taken from where the command was typed
+  const file = a[0].startsWith('/') ? a[0] : `${launchDir()}/${a[0]}`;
   if (exists(file)) openFile(file); else newFile(file);
 }
 // closing the window with unsaved work asks first
 onCloseRequested(() => { if (doc().dirty) { keepOpen(); guard(() => quit()); } else closePreviewWindow(); });
 let frames = 0;
 // the view knows its size once it was drawn: the first fit waits for that
-render(App, 0x09090b, (dt: number) => { if (++frames === 2) fit(); decodePictures(); previewTick(dt); });
+render(App, 0x09090b, (dt: number) => { if (++frames === 2) fit(); decodePictures(); previewTick(dt); pointsTick(dt); });

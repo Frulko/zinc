@@ -57,6 +57,26 @@ ZINC_KIOSK=1 zinc run examples/museum-table      # fullscreen, on top, no cursor
 
 Escape does nothing, no gesture leads out, and a fault is written on the error output, never on the table.
 
+## The storyboard editor
+
+[`editor/`](editor) is the authoring tool, an app of its own for a desk, a mouse and a keyboard: a museum makes its installation there
+without opening the project file. Its interface is in English or French, as the system is.
+
+```sh
+zinc run examples/museum-table/editor -- examples/museum-table/assets/project.json   # the sample; without a file, a new project
+```
+
+| view | what is done there |
+| --- | --- |
+| the storyboard | sequences as nodes, links drawn from the handle under a node; name, move, duplicate, delete, choose where the visit starts |
+| the table of a sequence (double click a node) | the media library of the project folder; media dragged on the table, moved, sized, turned by the round handle above the selected one, timed on the timeline; buttons and hotspots; texts in every language side by side |
+| a 3D model or a panorama (double click it on the table) | points of interest: turn the object, click it to place a point, drag a point to move it; its name and text in every language, the view it opens with ("Use this view"), the sequence its card leads to |
+| the preview | "Play from here" (P) plays the project as it is, saved or not, with the table's own player, until Escape; "In a window" (W) keeps a preview beside the editor that follows the sequence being edited |
+
+Undo and redo cover every step; the advanced mode (Ctrl or Cmd + E) adds exact numbers, the keys and the selection as the file has it.
+The document is `editor/doc.ts` (one operation per command, checked without a window by `editor/selftest.ts`). Test:
+`next/tests/run --tier t1 --only museum_editor` (scripted mouse and keyboard sessions, file and frame goldens).
+
 ## What to look at
 
 | file | role |

@@ -671,7 +671,8 @@ function viewJson(v: View, panorama: boolean): string {
   return panorama ? `{ "yaw": ${v.yaw}, "pitch": ${v.pitch}, "fov": ${v.fov} }` : `{ "yaw": ${v.yaw}, "pitch": ${v.pitch}, "distance": ${v.distance} }`;
 }
 
-function mediaJson(m: Media, languages: string[], indent: string): string {
+/** A medium as the file has it: its text in the canonical form, each line after the first indented by `indent` (an editor shows it). */
+export function mediaJson(m: Media, languages: string[], indent: string): string {
   const inner = indent + '  ', f: string[] = [field('id', quote(m.id)), field('kind', quote(m.kind))];
   if (m.file.length > 0) f.push(field('file', quote(m.file)));
   if (m.texture.length > 0) f.push(field('texture', quote(m.texture)));
@@ -715,7 +716,8 @@ function mediaJson(m: Media, languages: string[], indent: string): string {
   return block('{', '}', f, indent);
 }
 
-function sequenceJson(s: Sequence, languages: string[], indent: string): string {
+/** A sequence as the file has it, in the same way. */
+export function sequenceJson(s: Sequence, languages: string[], indent: string): string {
   const inner = indent + '  ', deep = inner + '  ';
   const f: string[] = [field('id', quote(s.id)), field('title', textJson(s.title, languages, inner))];
   optText(f, 'text', s.text, languages, inner);

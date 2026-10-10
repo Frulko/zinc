@@ -1,5 +1,5 @@
 // The small parts the panels of the editor share: icons, buttons, a segmented choice, text fields per language, and how a medium is drawn.
-import { NodeRef, For, createSignal } from 'zinc:ui/solid';
+import { NodeRef, For, createSignal, createNodeRef } from 'zinc:ui/solid';
 import { rrect, imageFromBytes, destroyImage, createImage, beginImage, endImage, drawImage, drawImageRect, imageWidth, imageHeight } from 'zinc:gfx';
 import { readBytes } from 'zinc:fs';
 import { icon } from 'zinc:icons';
@@ -146,15 +146,19 @@ export function LangField(p: { language: string; value: () => string; placeholde
   </view>;
 }
 /** A text in every language of the project, side by side: one column per language, so that a translation is written next to its original.
- *  `rows` 1: a line; more: a paragraph of that height. `width`: the width of one column. */
-export function LangColumns(p: { rows: i32; width: number; value: (language: string) => string; placeholder: (first: boolean) => string; onInput: (language: string, v: string) => void; onDone: () => void }): i32 {
+ *  `rows` 1: a line; more: a paragraph of that height. `width`: the width of one column. `first`: a reference to the field of the first
+ *  language, for a panel that puts the caret there (null when it does not). */
+export function LangColumns(p: { rows: i32; width: number; first: NodeRef | null; value: (language: string) => string; placeholder: (first: boolean) => string; onInput: (language: string, v: string) => void; onDone: () => void }): i32 {
   return <view class="flex-row gap-2">
-    <For each={project().languages}>{(language: string, i: i32) => <view class="flex-col gap-1" style={{ width: p.width }}>
-      <text class="text-[10px] font-bold text-zinc-500">{language.toUpperCase()}</text>
-      {p.rows === 1
-        ? <input class={`w-full h-8 px-2 ${FIELD}`} placeholder={p.placeholder(i === 0)} value={p.value(language)} onInput={(v: string) => p.onInput(language, v)} onChange={(v: string) => p.onDone()} />
-        : <textarea class={`w-full p-2 ${FIELD}`} rows={p.rows} placeholder={p.placeholder(i === 0)} value={p.value(language)} onInput={(v: string) => p.onInput(language, v)} onChange={(v: string) => p.onDone()} />}
-    </view>}</For>
+    <For each={project().languages}>{(language: string, i: i32) => {
+      const given = p.first, field: NodeRef = i === 0 && given !== null ? given : createNodeRef();
+      return <view class="flex-col gap-1" style={{ width: p.width }}>
+        <text class="text-[10px] font-bold text-zinc-500">{language.toUpperCase()}</text>
+        {p.rows === 1
+          ? <input ref={field} class={`w-full h-8 px-2 ${FIELD}`} placeholder={p.placeholder(i === 0)} value={p.value(language)} onInput={(v: string) => p.onInput(language, v)} onChange={(v: string) => p.onDone()} />
+          : <textarea ref={field} class={`w-full p-2 ${FIELD}`} rows={p.rows} placeholder={p.placeholder(i === 0)} value={p.value(language)} onInput={(v: string) => p.onInput(language, v)} onChange={(v: string) => p.onDone()} />}
+      </view>;
+    }}</For>
   </view>;
 }
 /** One line of text that is not per language (an author, a licence). */

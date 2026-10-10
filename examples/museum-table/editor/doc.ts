@@ -4,7 +4,7 @@
 // opened again: ids stay unique, a required text is never emptied, deleting a sequence takes the links that led to it, or leads them elsewhere,
 // in the same step.
 // The one exception is a project with no sequence at all, which is the empty state and is not saved.
-import { Project, Sequence, Media, Item, Link, Presentation, Text, KINDS, serializeProject, parseProject, unreachable, copyProject } from '../src/project';
+import { Project, Sequence, Media, Item, Link, Point, Presentation, Text, KINDS, LIGHTS, serializeProject, parseProject, unreachable, copyProject, sequenceJson, mediaJson } from '../src/project';
 
 /** What "New project" opens: French and English (the owner's languages), no sequence yet. */
 export function newProject(): Project {
@@ -50,6 +50,14 @@ function derived(id: string, base: string): boolean {
 const WIDTHS: number[] = [480, 600, 800, 420, 320, 640];
 /** A time in seconds as the file keeps it: tenths, never negative. */
 function tenths(t: number): number { return Math.max(0, Math.round(t * 10) / 10); }
+/** A place of a model, or a direction in a panorama, as the file keeps it: four digits of its largest coordinate (a tenth of a millimetre
+ *  on an object of some decimetres, whatever the unit of the model). */
+function placed(at: number[]): number[] {
+  const m = Math.max(Math.abs(at[0]), Math.max(Math.abs(at[1]), Math.abs(at[2])));
+  if (!(m > 0)) return [0, 0, 0];
+  const p = Math.pow(10, 3 - Math.floor(Math.log(m) / Math.log(10)));
+  return [Math.round(at[0] * p) / p, Math.round(at[1] * p) / p, Math.round(at[2] * p) / p];
+}
 function sequenceWord(lang: string): string { return lang === 'fr' ? 'Séquence' : 'Sequence'; }
 function copyWord(lang: string): string { return lang === 'fr' ? ' (copie)' : ' (copy)'; }
 
@@ -388,13 +396,15 @@ export class Doc {
     }
   }
   /** Adds a file of the project folder to the library. A file shown to visitors says where it comes from and under which licence: `title`
-   *  (default language), `source` and `licence` are required. Returns the id, '' when something is missing. */
-  addMedia(kind: string, file: string, title: string, source: string, licence: string): string {
+   *  (default language), `source` and `licence` are required. `texture`: the picture wrapped on an OBJ model ('' for none). Returns the id,
+   *  '' when something is missing. */
+  addMedia(kind: string, file: string, title: string, source: string, licence: string, texture: string = ''): string {
     if (KINDS.indexOf(kind) < 0 || kind === 'text' || file.length === 0 || title.length === 0 || source.length === 0 || licence.length === 0) return '';
     const id = this.freeMediaId(slug(title), '');
     this.apply('Add media', '', (p: Project) => {
       const m = new Media();
       m.id = id; m.kind = kind; m.file = file; m.title.set(p.languages[0], title); m.credit.source = source; m.credit.licence = licence;
+      if (kind === 'model') m.texture = texture;
       p.media.push(m);
     });
     return id;
@@ -463,6 +473,102 @@ export class Doc {
         if (s.narration === id) s.narration = '';
       }
     });
+  }
+
+  // ---- points of interest of a model or a panorama, and how it is first seen
+
+  point(media: string, id: string): Point | null {
+    const m = this.project.medium(media);
+    if (m !== null) for (const q of m.points) if (q.id === id) return q;
+    return null;
+  }
+  private freePointId(m: Media, base: string, except: string): string {
+    const b = base.length > 0 ? base : 'point';
+    for (let n = 1; ; n++) {
+      const id = n === 1 ? b : `${b}-${n}`;
+      if (id === except || m.points.filter((q: Point) => q.id === id).length === 0) return id;
+    }
+  }
+  /** A view as the file keeps it: whole degrees, and the distance of a model (in radii, two decimals) or the field of view of a panorama. */
+  private see(m: Media, into: Point | null, yaw: number, pitch: number, reach: number): void {
+    const v = into !== null ? into.view : m.view;
+    v.yaw = Math.round(yaw); v.pitch = Math.round(pitch);
+    if (m.kind === 'panorama') v.fov = Math.round(reach); else v.distance = Math.round(reach * 100) / 100;
+  }
+  /** A point of interest where the author clicked: on a model `at` is a place in the model's own coordinates, in a panorama the direction
+   *  it is seen in. It is "Point N" until it is named, and opens with the view it was placed from (`yaw`, `pitch`, and the distance of a
+   *  model or the field of view of a panorama). Returns its id, '' when the medium takes no point. */
+  addPoint(media: string, at: number[], yaw: number, pitch: number, reach: number): string {
+    const found = this.project.medium(media);
+    if (found === null || (found.kind !== 'model' && found.kind !== 'panorama') || at.length !== 3) return '';
+    const m: Media = found;
+    let n = 1;
+    while (m.points.filter((q: Point) => q.id === `point-${n}`).length > 0) n++;
+    const id = `point-${n}`;
+    this.apply('New point of interest', '', (p: Project) => {
+      const q = new Point();
+      q.id = id; q.at = placed(at);
+      for (const lang of p.languages) q.title.set(lang, `Point ${n}`);
+      this.see(m, q, yaw, pitch, reach);
+      m.points.push(q);
+    });
+    return id;
+  }
+  movePoint(media: string, id: string, at: number[]): void {
+    const found = this.point(media, id);
+    if (found === null || at.length !== 3) return;
+    const q: Point = found;
+    this.apply('Move point of interest', '', (p: Project) => { q.at = placed(at); });
+  }
+  /** The title or the description (`field`: title, text) of a point in one language. Its title cannot be emptied in the default language,
+   *  and an id derived from it follows it, as for sequences. Returns the id the point has afterwards. */
+  setPointText(media: string, id: string, field: string, lang: string, value: string): string {
+    const m = this.project.medium(media), found = this.point(media, id);
+    if (m === null || found === null) return id;
+    const q: Point = found, owner: Media = m, main = lang === this.project.languages[0];
+    if (field === 'title' && main && value.length === 0) return id;
+    let now = id;
+    if (field === 'title' && main && derived(id, slug(q.title.get(lang) ?? ''))) now = this.freePointId(owner, slug(value), id);
+    this.apply('Edit point of interest', `point:${this.project.media.indexOf(owner)}:${owner.points.indexOf(q)}:${field}:${lang}`, (p: Project) => {
+      const t: Text = field === 'title' ? q.title : q.text;
+      if (value.length > 0) t.set(lang, value); else t.delete(lang);
+      q.id = now;
+    });
+    return now;
+  }
+  /** Where the camera goes when the point opens: what the author sees now ("use this view"). */
+  setPointView(media: string, id: string, yaw: number, pitch: number, reach: number): void {
+    const m = this.project.medium(media), found = this.point(media, id);
+    if (m === null || found === null) return;
+    const q: Point = found, owner: Media = m;
+    this.apply('Set the view of a point', '', (p: Project) => { this.see(owner, q, yaw, pitch, reach); });
+  }
+  /** The sequence the card of a point offers a button to ('' for none). */
+  setPointTarget(media: string, id: string, to: string): void {
+    const found = this.point(media, id);
+    if (found === null || (to.length > 0 && this.project.sequence(to) === null)) return;
+    const q: Point = found;
+    this.apply('Change point link', '', (p: Project) => { q.to = to; });
+  }
+  deletePoint(media: string, id: string): void {
+    const m = this.project.medium(media);
+    if (m === null || this.point(media, id) === null) return;
+    const owner: Media = m;
+    this.apply('Delete point of interest', '', (p: Project) => { owner.points = owner.points.filter((q: Point) => q.id !== id); });
+  }
+  /** How a model or a panorama is first seen. A point keeps the view it was given. */
+  setMediaView(media: string, yaw: number, pitch: number, reach: number): void {
+    const found = this.project.medium(media);
+    if (found === null || (found.kind !== 'model' && found.kind !== 'panorama')) return;
+    const m: Media = found;
+    this.apply('Set the opening view', '', (p: Project) => { this.see(m, null, yaw, pitch, reach); });
+  }
+  /** The lighting of a model at rest: one of LIGHTS. */
+  setMediaLight(media: string, light: string): void {
+    const found = this.project.medium(media);
+    if (found === null || found.kind !== 'model' || LIGHTS.indexOf(light) < 0) return;
+    const m: Media = found;
+    this.apply('Change the lighting', '', (p: Project) => { m.light = light; });
   }
 
   // ---- what lies on the table of a sequence
@@ -551,17 +657,20 @@ export class Doc {
   // ---- the file, object by object
 
   /** A sequence (or with `link` >= 0 one of its links) as it is written in the file: the advanced view shows it, read only.
-   *  ponytail: cut out of the canonical text by its indentation, because the format module writes whole projects only; a sequenceJson
-   *  exported by ../src/project.ts would replace this. */
+   *  ponytail: a link is cut out of its sequence's text by its indentation, because the format module writes a sequence in one piece. */
   jsonOf(id: string, link: i32): string {
-    const t = this.text(), from = t.indexOf(`\n    {\n      "id": ${JSON.stringify(id)},`, t.indexOf('\n  "sequences": ['));
-    if (from < 0) return '';
-    const block = t.slice(from + 1, t.indexOf('\n    }', from + 1) + 6);
-    const lines = (text: string, indent: i32): string => text.split('\n').map((line: string) => line.slice(indent)).join('\n');
-    if (link < 0) return lines(block, 4);
-    let at = block.indexOf('\n      "links": [');
-    for (let i = 0; i <= link && at >= 0; i++) at = block.indexOf('\n        {', at + 1);
-    return at < 0 ? '' : lines(block.slice(at + 1, block.indexOf('\n        }', at) + 10), 8);
+    const s = this.project.sequence(id);
+    if (s === null) return '';
+    const block = sequenceJson(s, this.project.languages, '');
+    if (link < 0) return block;
+    let at = block.indexOf('\n  "links": [');
+    for (let i = 0; i <= link && at >= 0; i++) at = block.indexOf('\n    {', at + 1);
+    return at < 0 ? '' : block.slice(at + 1, block.indexOf('\n    }', at) + 6).split('\n').map((line: string) => line.slice(4)).join('\n');
+  }
+  /** A medium, with its points of interest, as it is written in the file. */
+  mediaJsonOf(id: string): string {
+    const m = this.project.medium(id);
+    return m === null ? '' : mediaJson(m, this.project.languages, '');
   }
 
   // ---- problems

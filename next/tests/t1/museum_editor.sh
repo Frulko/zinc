@@ -17,6 +17,13 @@
 #   window.input   the preview in a second window, on that project with a real picture: it shows the sequence being edited, shows it again
 #                  after the photograph is dragged on the table, takes its own clicks (a link followed there), and comes back to the
 #                  sequence being edited after an undo: window.story, and the frames of both windows equal their goldens
+#   points.input   points of interest (ZN-650.07.02), on that project in a folder that also holds the sample's vase and panorama: the model
+#                  enters the library with its texture and goes on a table; turned, a click on it places a point, named and described in
+#                  two languages, given the view it opens with ("use this view") and a sequence to lead to; the panorama the same way, a
+#                  point on what a click shows: the file equals points.json (three sequences built from nothing, with media, texts in two
+#                  languages, links and points of interest), the loader accepts it, two frames equal their goldens, and each point is
+#                  drawn by the table's own view where it was clicked (--log)
+#   turn.input     the photograph, a real picture, is turned 45 degrees by the handle above it and drawn turned, with its hotspot (one frame)
 #   a real picture in the project folder is drawn in the library and on the table (one frame); the interface in French (one frame)
 #   Save as goes through the system's dialog (scripted answer); closing the window with unsaved work asks, and Save saves before the app ends
 # ZN_UPDATE_GOLDEN=1 rewrites the goldens from this run.
@@ -32,9 +39,9 @@ for line in 'ok: 50 undos give back every earlier file, byte for byte' 'ok: 50 r
 done
 [ $fail = 0 ] || { echo "the document's self-test:"; printf '%s\n' "$out" | grep -v '^ok: ' | head -20; }
 
-edit() {  # project file, input file, frames, [frames to capture], [system script]
+edit() {  # project file, input file, frames, [frames to capture], [system script], [another argument of the editor]
   MUSEUM_EDITOR_LANG=${LANGUAGE_OF_EDITOR:-en} ZINC_SYSTEM_SCRIPT=${5:-} ZINC_SYSTEM_LOG="$tmp/system.log" ZINC_INPUT=$2 ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_SIZE=1440x900 ZINC_FRAMES=$3 \
-    ZINC_SHOT="$tmp/shot.png" ZINC_SHOT_FRAMES=${4:-0} "$ZINC" run "$ex/editor" -- "$1" --story >"$tmp/out" 2>&1 || { echo "the editor failed on $(basename "$2"): $(head -c 300 "$tmp/out")"; fail=1; }
+    ZINC_SHOT="$tmp/shot.png" ZINC_SHOT_FRAMES=${4:-0} "$ZINC" run "$ex/editor" -- "$1" --story ${6:-} >"$tmp/out" 2>&1 || { echo "the editor failed on $(basename "$2"): $(head -c 300 "$tmp/out")"; fail=1; }
 }
 frame() {  # what, frame of this run (shot-N.png or shot-N-w1.png), golden
   if [ -n "$ZN_UPDATE_GOLDEN" ]; then cp "$tmp/shot-$2.png" "$3"; return; fi
@@ -91,6 +98,29 @@ frame "the preview window" 90-w1 "$g/window-90-w1.png"
 grep -E '^[0-9]+ ' "$tmp/out" > "$tmp/window.story"
 same "the story of the preview window" "$tmp/window.story" "$g/window.story"
 [ "$(grep -c '^0 sequence accueil$' "$g/window.story")" = 3 ] || { echo "the preview window did not show the sequence being edited three times (opened, after the edit, after the undo)"; fail=1; }
+
+# points of interest on the sample's vase and in its panorama, added to the project of the table session
+mkdir -p "$tmp/points/photos" "$tmp/points/films"
+cp "$g/table.json" "$tmp/points/points.json"; printf x > "$tmp/points/photos/vague.jpg"; printf x > "$tmp/points/films/atelier.mp4"
+cp -R "$ex/assets/models" "$ex/assets/panoramas" "$tmp/points/"
+edit "$tmp/points/points.json" "$g/points.input" 194 103,176 "" --log
+same "the points session" "$tmp/points/points.json" "$g/points.json"
+frame "a point on the vase" 103 "$g/points-103.png"
+frame "a point in the panorama" 176 "$g/points-176.png"
+got=$("$ZINC" run "$ex/src/check.ts" -- "$tmp/points/points.json" 2>&1)
+case $got in 'points.json: ok, "project" version 1, languages fr en, media: 1 photo, 1 text, 1 model, 1 panorama; 3 sequences, 4 items, 5 links, 2 points, '*', canonical') ;; *) echo "the player's loader on the project with points of interest: $got"; fail=1 ;; esac
+# "point <medium>/<id> at x y z clicked sx sy drawn px py": the place the file keeps is drawn by the view within a pixel and a half of the click
+grep '^point ' "$tmp/out" > "$tmp/points.log"
+awk '{ n++; dx = $8 - $11; dy = $9 - $12; if (dx < 0) dx = -dx; if (dy < 0) dy = -dy; if (dx > 1.5 || dy > 1.5 || NF != 12) bad = 1 } END { exit !(n == 2 && !bad) }' "$tmp/points.log" ||
+  { echo "the points are not drawn where they were clicked: $(tr '\n' '|' < "$tmp/points.log")"; fail=1; }
+grep -q '^point vase/' "$tmp/points.log" && grep -q '^point ninomaru/' "$tmp/points.log" || { echo "no point on the vase or in the panorama: $(tr '\n' '|' < "$tmp/points.log")"; fail=1; }
+
+# an item is turned on the table by its handle and drawn turned
+mkdir -p "$tmp/turn/photos"
+cp "$g/table.json" "$tmp/turn/t.json"; cp "$g/frame-3.png" "$tmp/turn/photos/vague.jpg"
+edit "$tmp/turn/t.json" "$g/turn.input" 40 40
+frame "an item turned on the table" 40 "$g/turn-40.png"
+grep -q '{ "media": "vague", .*"rotation": 45 }' "$tmp/turn/t.json" || { echo "the handle did not turn the photograph by 45 degrees: $(grep '"media": "vague"' "$tmp/turn/t.json")"; fail=1; }
 
 # a picture of the project folder is shown: the first steps of the table session in a folder whose photograph is a real image (a frame of
 # this test, 1440 x 900): the library row and the item on the table draw it, and the item takes its shape

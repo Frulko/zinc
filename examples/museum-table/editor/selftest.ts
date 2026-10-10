@@ -1,6 +1,6 @@
 // The editor's document without a window: one line per property, `FAILED:` and exit code 1 when one does not hold.
 //   zinc run examples/museum-table/editor/selftest.ts -- examples/museum-table/assets/project.json
-import { args, env, exit } from 'zinc:sys';
+import { args, launchDir, exit } from 'zinc:sys';
 import { readText } from 'zinc:fs';
 import { parseProject, serializeProject } from '../src/project';
 import { Doc, newProject, slug } from './doc';
@@ -25,7 +25,7 @@ check('titles become ids', slug('Le vase à décor') === 'le-vase-a-decor' && sl
 
 // zinc starts a project's program in the project's directory: a relative path is taken from where the command was typed
 const given = args()[0];
-const sample = readText(given.startsWith('/') || env('PWD').length === 0 ? given : `${env('PWD')}/${given}`);
+const sample = readText(given.startsWith('/') ? given : `${launchDir()}/${given}`);
 check('the sample project is in canonical form', serializeProject(parseProject(sample)) === sample);
 
 // ---- typing a title: one step, and the id the editor gave follows the title
@@ -110,6 +110,43 @@ check('the sample project is in canonical form', serializeProject(parseProject(s
   check('a sequence has an introduction and a duration', d.project.sequences[0].text.get('fr') === 'Edo, 1831.' && d.project.sequences[0].duration === 12.3 && plays(d.text()));
 }
 
+// ---- points of interest on a model and in a panorama, and how each is first seen
+{
+  const d = new Doc(newProject(), '');
+  const a = d.addSequence(0, 0), b = d.addSequence(300, 0);
+  const vase = d.addMedia('model', 'models/vase.obj', 'Vase', 'https://example.org/vase', 'CC0 1.0', 'models/vase.jpg');
+  const garden = d.addMedia('panorama', 'panoramas/garden.jpg', 'Jardin', 'https://example.org/garden', 'CC0 1.0', 'ignored.jpg');
+  d.addItem(a, vase, 600, 500); d.addItem(a, garden, 1300, 500);
+  const first = d.addPoint(vase, [0.086049, 0.05, -0.000004], 89.6, 4.4, 1.604);
+  const q = d.project.media[0].points[0];
+  check('a point is put on a model, with the view it was placed from', first === 'point-1' && q.at[0] === 0.08605 && q.at[1] === 0.05 && q.at[2] === 0 && q.title.get('en') === 'Point 1'
+    && q.view.yaw === 90 && q.view.pitch === 4 && q.view.distance === 1.6 && d.project.media[0].texture === 'models/vase.jpg' && d.project.media[1].texture === ''
+    && d.addPoint('nothing', [0, 0, 1], 0, 0, 3) === '' && plays(d.text()));
+  const named = d.setPointText(vase, first, 'title', 'fr', 'Le bleu de cobalt');
+  d.setPointText(vase, named, 'title', 'en', 'Cobalt blue'); d.setPointText(vase, named, 'text', 'fr', 'Peint à l’oxyde de cobalt.'); d.setPointText(vase, named, 'title', 'fr', '');
+  d.setPointView(vase, named, 200.2, -6.4, 1.899); d.setPointTarget(vase, named, b); d.setPointTarget(vase, named, 'nowhere');
+  d.movePoint(vase, named, [-0.0246, -0.085, -0.0677]);
+  check('it is named and described in every language, moved, given a view and a sequence to lead to', named === 'le-bleu-de-cobalt' && q.id === named && q.title.get('fr') === 'Le bleu de cobalt'
+    && q.title.get('en') === 'Cobalt blue' && q.text.get('fr') === 'Peint à l’oxyde de cobalt.' && q.view.yaw === 200 && q.view.pitch === -6 && q.view.distance === 1.9 && q.to === b
+    && q.at[0] === -0.0246 && q.at[2] === -0.0677 && d.problems().filter(p => p.kind === 'unreachable').length === 0 && plays(d.text()));
+  const second = d.addPoint(garden, [0.70714, 0.1, -0.7], 44.6, 6.2, 60.4);
+  d.setMediaView(garden, 10.4, 2, 79.6); d.setMediaView(vase, 20.4, 8, 3.204); d.setMediaLight(vase, 'raking'); d.setMediaLight(vase, 'neon'); d.setMediaLight(garden, 'flat');
+  const g = d.project.media[1];
+  check('a point in a panorama is a direction; a view and a lighting are kept as the file writes them', second === 'point-1' && g.points[0].at[0] === 0.7071 && g.points[0].view.fov === 60
+    && g.points[0].view.yaw === 45 && g.view.yaw === 10 && g.view.fov === 80 && d.project.media[0].view.distance === 3.2 && d.project.media[0].light === 'raking' && g.light === 'studio'
+    && plays(d.text()));
+  // the sequence the point leads to is renamed, then deleted: the point follows, then keeps its text and loses its button
+  const jardin = d.renameSequence(b, 'fr', 'Jardin');
+  const followed = q.to === 'jardin' && jardin === 'jardin';
+  d.deleteSequence(jardin, '');
+  check('a point follows the sequence it leads to, and leads nowhere once it is deleted', followed && d.project.media[0].points[0].to === '' && plays(d.text()));
+  const before = d.text();
+  d.deletePoint(vase, named);
+  check('a point is deleted, and undo brings it back; a medium is shown as the file has it', d.project.media[0].points.length === 0 && plays(d.text()) && d.undo() === 'Delete point of interest'
+    && d.text() === before && d.mediaJsonOf(vase).startsWith('{\n  "id": "vase",\n  "kind": "model",') && d.mediaJsonOf(vase).indexOf('\n  "points": [\n    {\n      "id": "le-bleu-de-cobalt",') > 0
+    && d.mediaJsonOf('nothing') === '');
+}
+
 // ---- 50 mixed operations from an empty project: undo and redo give back every file, byte for byte
 {
   const d = new Doc(newProject(), '');
@@ -122,7 +159,9 @@ check('the sample project is in canonical form', serializeProject(parseProject(s
     const from = n > 0 ? seqs[pick(n)] : null, li: i32 = from !== null && from.links.length > 0 ? pick(from.links.length) : -1;
     const media = d.project.media, mid = media.length > 0 ? media[pick(media.length)].id : '';
     const ii: i32 = from !== null && from.items.length > 0 ? pick(from.items.length) : -1;
-    const op = n < 3 ? 0 : (tries * 7) % 24;   // every kind of operation in turn, on sequences, links, media and items picked at random
+    const op = n < 3 ? 0 : (tries * 7) % 29;   // every kind of operation in turn, on sequences, links, media, items and points picked at random
+    const objects = media.filter(m => m.kind === 'model' || m.kind === 'panorama'), object = objects.length > 0 ? objects[pick(objects.length)] : null;
+    const point = object !== null && object.points.length > 0 ? object.points[pick(object.points.length)].id : '';
     if (op === 0) d.addSequence(pick(40) * 20, pick(20) * 20);
     else if (op === 1) d.renameSequence(any, 'fr', `Salle ${step}`);
     else if (op === 2) d.renameSequence(any, 'en', pick(4) === 0 ? '' : `Room ${step}`);
@@ -134,7 +173,10 @@ check('the sample project is in canonical form', serializeProject(parseProject(s
     else if (op === 9 && from !== null) d.setLinkOverlay(from.id, li, pick(2) === 0);
     else if (op === 10 && from !== null) d.deleteLink(from.id, li);
     else if (op === 11) { if (n > 4 && pick(2) === 0) d.deleteSequence(any, pick(2) === 0 ? other : ''); else d.setStart(any); }
-    else if (op === 12) d.addMedia(['photo', 'video', 'audio'][pick(3)], `files/m${step}.bin`, `Image ${step}`, 'https://example.org/source', 'CC0 1.0');
+    else if (op === 12) {
+      const kind = ['photo', 'video', 'audio', 'model', 'panorama'][pick(5)];
+      d.addMedia(kind, `files/m${step}.${kind === 'model' ? 'obj' : 'bin'}`, `Image ${step}`, 'https://example.org/source', 'CC0 1.0');
+    }
     else if (op === 13) d.addText(`Texte ${step}`, `Mots ${step}`);
     else if (op === 14 || op === 15) d.addItem(any, mid, 100 + pick(1700), 100 + pick(800));
     else if (op === 16 && from !== null) d.moveItem(from.id, ii, pick(1920), pick(1080));
@@ -145,6 +187,11 @@ check('the sample project is in canonical form', serializeProject(parseProject(s
     else if (op === 21) d.setMediaText(mid, pick(2) === 0 ? 'title' : 'description', pick(2) === 0 ? 'fr' : 'en', `Mots ${step}`);
     else if (op === 22 && from !== null) { if (pick(2) === 0) d.removeItem(from.id, ii); else d.raiseItem(from.id, ii, 1); }
     else if (op === 23 && media.length > 3) d.removeMedia(mid);
+    else if (op === 24 && object !== null) d.addPoint(object.id, [pick(200) / 100 - 1, pick(200) / 100 - 1, pick(200) / 100 - 0.995], pick(360), pick(60) - 30, 2 + pick(3));
+    else if (op === 25 && object !== null) d.setPointText(object.id, point, pick(2) === 0 ? 'title' : 'text', pick(2) === 0 ? 'fr' : 'en', `Point ${step}`);
+    else if (op === 26 && object !== null) { if (pick(2) === 0) d.setPointView(object.id, point, pick(360), pick(60) - 30, 2 + pick(3)); else d.setPointTarget(object.id, point, pick(3) === 0 ? '' : other); }
+    else if (op === 27 && object !== null) d.movePoint(object.id, point, [pick(200) / 100 - 1, pick(200) / 100 - 1, pick(200) / 100 - 0.995]);
+    else if (op === 28 && object !== null) { if (pick(3) === 0) d.deletePoint(object.id, point); else d.setMediaView(object.id, pick(360), pick(40) - 20, 3 + pick(60)); }
     d.seal();
     if (d.text() === texts[texts.length - 1]) continue;
     texts.push(d.text());

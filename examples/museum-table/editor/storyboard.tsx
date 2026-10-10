@@ -184,6 +184,7 @@ function handleUp(e: ui.PointerEvent): void {
 
 const lost = createMemo<string[]>(() => project().sequences.length > 0 ? unreachable(project()) : [], []);
 
+// ponytail: the miniature shows every item upright; draw them turned as the table of a sequence does (sequence.tsx drawItem) when it matters
 function Miniature(p: { of: Sequence }): i32 {
   const s = p.of;
   const W = (): number => project().table.width, H = (): number => project().table.height;

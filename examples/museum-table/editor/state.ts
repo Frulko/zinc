@@ -4,7 +4,7 @@
 import { createSignal, batch } from 'zinc:ui/solid';
 import * as fs from 'zinc:fs';
 import * as dialog from 'zinc:system/dialog';
-import { Project, Sequence, Media, Item, Link, parseProject } from '../src/project';
+import { Project, Sequence, Media, Item, Link, Point, parseProject } from '../src/project';
 import { Doc, Problem, newProject } from './doc';
 import * as L from './strings';
 import { t, f } from './strings';
@@ -47,10 +47,16 @@ export const [selected, setSelected] = createSignal<Sequence | null>(null);
 export const [selectedLink, setSelectedLink] = createSignal<Link | null>(null);
 export const [selectedItem, setSelectedItem] = createSignal<Item | null>(null);
 export const [selectedMedia, setSelectedMedia] = createSignal<Media | null>(null);
+/** The model or the panorama whose points of interest are being placed (points.tsx has the window then); null otherwise. And the point
+ *  selected there. */
+export const [pointing, setPointing] = createSignal<Media | null>(null);
+export const [selectedPoint, setSelectedPoint] = createSignal<Point | null>(null);
 /** The link under the pointer on the storyboard: its label shows. */
 export const [hovered, setHovered] = createSignal<Link | null>(null);
 /** Bumped to ask the inspector to put the caret in its first field (a new sequence is named at once). */
 export const [nameIt, setNameIt] = createSignal<i32>(0);
+/** The same for a new point of interest. */
+export const [namePoint, setNamePoint] = createSignal<i32>(0);
 
 /** Selects a sequence and at most one thing of it. */
 export function select(s: Sequence | null, l: Link | null): void {
@@ -84,9 +90,13 @@ function keepingSelection(step: () => string): string {
   const s = selected(), l = selectedLink(), it = selectedItem(), m = selectedMedia(), o = opened();
   const id = s !== null ? s.id : '', li: i32 = s !== null && l !== null ? s.links.indexOf(l) : -1, ii: i32 = s !== null && it !== null ? s.items.indexOf(it) : -1;
   const mid = m !== null ? m.id : '', wasOpen = o !== null;
+  const pm = pointing(), pq = selectedPoint(), pid = pm !== null ? pm.id : '', pi: i32 = pm !== null && pq !== null ? pm.points.indexOf(pq) : -1;
   let label = '';
   batch(() => {
     label = step();
+    const pointed = current.project.medium(pid);
+    setPointing(pointed);
+    setSelectedPoint(pointed !== null && pi >= 0 && pi < pointed.points.length ? pointed.points[pi] : null);
     const again = current.project.sequence(id);
     setSelected(again);
     setSelectedLink(again !== null && li >= 0 && li < again.links.length ? again.links[li] : null);
@@ -185,6 +195,7 @@ export function linksTo(s: Sequence): i32 { rev(); return current.linksTo(s.id);
  *  once the author has said what becomes of them. */
 export function deleteSelection(): void {
   const one = selected(), l = selectedLink(), it = selectedItem();
+  if (pointing() !== null) { deletePoint(); return; }
   if (one === null) return;
   const s: Sequence = one;
   if (l !== null) {
@@ -264,7 +275,7 @@ export function openSequence(s: Sequence): void {
 }
 export function closeSequence(): void {
   const s = opened();
-  batch(() => { setOpened(null); select(s, null); });
+  batch(() => { setPointing(null); setSelectedPoint(null); setOpened(null); select(s, null); });
 }
 function titleOf(m: Media): string { return current.project.say(m.title, lang()); }
 
@@ -360,9 +371,16 @@ export const [adding, setAdding] = createSignal<string>('');
 export function addFileCommand(): void {
   if (folder().length === 0) setStatus(t(L.SAVE_FIRST)); else setAdding('file');
 }
+/** The picture of the folder that has the name of a model file ('' when there is none): what is wrapped on an OBJ model.
+ *  ponytail: by name only; a model whose texture is named otherwise needs a field for it (ZN-650.07.04 adds the files of a medium). */
+function textureOf(file: string): string {
+  const stem = file.slice(0, file.lastIndexOf('.'));
+  for (const ext of ['jpg', 'jpeg', 'png', 'webp']) if (fs.exists(`${folder()}/${stem}.${ext}`)) return `${stem}.${ext}`;
+  return '';
+}
 /** Adds a file to the library and selects it; false when something required is missing. */
 export function addFile(kind: string, file: string, title: string, source: string, licence: string): boolean {
-  const id = current.addMedia(kind, file, title, source, licence);
+  const id = current.addMedia(kind, file, title, source, licence, kind === 'model' && file.toLowerCase().endsWith('.obj') ? textureOf(file) : '');
   if (id.length === 0) return false;
   batch(() => { setAdding(''); pick(null, null, current.project.medium(id)); setStatus(f(L.DONE_MEDIA_ADDED, title)); });
   return true;
@@ -402,6 +420,58 @@ export function setSequenceDuration(seconds: number): void {
   if (s !== null) current.setSequenceDuration(s.id, seconds);
 }
 
+// ---------------------------------------------------------------- points of interest
+
+/** With --log on the command line: where each point is put, and where it is drawn (the tests read it). */
+export let logging = false;
+export function setLogging(on: boolean): void { logging = on; }
+
+/** Opens a model or a panorama to place its points of interest. */
+export function openPoints(m: Media): void {
+  if (m.kind !== 'model' && m.kind !== 'panorama') return;
+  current.seal();
+  batch(() => { setSelectedPoint(null); setPointing(m); setStatus(t(m.kind === 'model' ? L.POINTS_HOW_MODEL : L.POINTS_HOW_PANORAMA)); });
+}
+export function closePoints(): void {
+  current.seal();
+  batch(() => { setPointing(null); setSelectedPoint(null); });
+}
+export function pickPoint(q: Point | null): void {
+  current.seal();
+  setSelectedPoint(q);
+}
+function pointId(): string { const q = selectedPoint(); return q === null ? '' : q.id; }
+function pointedId(): string { const m = pointing(); return m === null ? '' : m.id; }
+/** A new point where the author clicked (see Doc.addPoint), selected, its title ready to be typed over. */
+export function addPoint(at: number[], yaw: number, pitch: number, reach: number): Point | null {
+  const m = pointing();
+  if (m === null) return null;
+  const id = current.addPoint(m.id, at, yaw, pitch, reach), q = current.point(m.id, id);
+  batch(() => { setSelectedPoint(q); setNamePoint(namePoint() + 1); setStatus(t(L.DONE_POINT)); });
+  return q;
+}
+export function movePoint(q: Point, at: number[]): void { current.movePoint(pointedId(), q.id, at); }
+export function setPointText(field: string, language: string, value: string): void { current.setPointText(pointedId(), pointId(), field, language, value); }
+/** The view the selected point opens with, or without a selected point the view the medium opens with: what the author sees now. */
+export function useView(yaw: number, pitch: number, reach: number): void {
+  if (selectedPoint() !== null) { current.setPointView(pointedId(), pointId(), yaw, pitch, reach); setStatus(t(L.DONE_POINT_VIEW)); }
+  else { current.setMediaView(pointedId(), yaw, pitch, reach); setStatus(t(L.DONE_OPENING_VIEW)); }
+}
+export function setLight(light: string): void { current.setMediaLight(pointedId(), light); }
+/** Leads the selected point to a sequence the author then chooses; `clearPointTarget` leads it nowhere. */
+export function retargetPoint(): void {
+  const media = pointedId(), id = pointId();
+  if (id.length > 0) setPicking((target: Sequence) => { current.setPointTarget(media, id, target.id); });
+}
+export function clearPointTarget(): void { current.setPointTarget(pointedId(), pointId(), ''); }
+export function deletePoint(): void {
+  const id = pointId();
+  if (id.length === 0) return;
+  batch(() => { current.deletePoint(pointedId(), id); setSelectedPoint(null); setStatus(t(L.DONE_POINT_DELETED)); });
+}
+/** The medium being pointed as the file has it. */
+export function pointedJson(): string { rev(); return current.mediaJsonOf(pointedId()); }
+
 // ---------------------------------------------------------------- files
 
 /** What to do once unsaved work is saved or given up (see `guard`); null when nothing waits. */
@@ -412,6 +482,7 @@ function show(d: Doc, file: string, message: string): void {
   current = d;
   watch(d);
   batch(() => {
+    setPointing(null); setSelectedPoint(null);
     setOpened(null); select(null, null); setHovered(null); setDeleting(null); setRemoving(null); setPicking(null); setAdding('');
     setPath(file);
     setLang(d.project.languages[0]);

@@ -254,6 +254,24 @@ export class ObjectView extends Orbit {
     this.pfacing = depth > 0 && z2 > 0.12 * Math.sqrt(x * x + y * y + z * z);
   }
 
+  /** The inverse of `locate`: the line of sight under the screen point (px, py), in the object's own coordinates, as
+   *  [ox, oy, oz, dx, dy, dz]: from the camera (o) through that pixel, o + d lying on the plane through the middle of the object that faces
+   *  the camera. The storyboard editor finds with it the place of the object under a click. */
+  ray(px: number, py: number): number[] {
+    const yaw = -this.yaw * Math.PI / 180, pitch = this.pitch * Math.PI / 180, ux = this.upX(), uy = this.upY();
+    const focal = this.sh / 2 / Math.tan(FOV * Math.PI / 360), far = this.reach * this.radius;
+    const r = (px - this.sx - this.sw / 2) / focal, u = -(py - this.sy - this.sh / 2) / focal;
+    const out: number[] = [];
+    for (let i = 0; i < 2; i++) {   // the camera, then the point of the line on that plane
+      const d = i * far, right = this.panX + r * d, up = this.panY + u * d, z2 = far - d;
+      const x1 = right * uy + up * ux, y2 = up * uy - right * ux;   // out of the rolled camera
+      const y = y2 * Math.cos(pitch) + z2 * Math.sin(pitch), z1 = z2 * Math.cos(pitch) - y2 * Math.sin(pitch);   // the tilt undone, then the turn
+      out.push(x1 * Math.cos(yaw) - z1 * Math.sin(yaw) + this.centre[0]); out.push(y + this.centre[1]); out.push(x1 * Math.sin(yaw) + z1 * Math.cos(yaw) + this.centre[2]);
+    }
+    out[3] -= out[0]; out[4] -= out[1]; out[5] -= out[2];
+    return out;
+  }
+
   /** The viewer's box in the visitor's frame: [left, top, width, height], in frame units. */
   private box(): number[] {
     const F = this.frame, w = F.side % 2 === 1 ? this.h : this.w, h = F.side % 2 === 1 ? this.w : this.h;

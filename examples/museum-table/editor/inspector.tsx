@@ -5,10 +5,12 @@
 // The advanced mode adds exact numbers and the selection as the file has it; it calls the same commands as the gestures.
 import { createNodeRef, createEffect, NodeRef, For, Show } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
-import { Sequence, Media, Item, Link } from '../src/project';
+import { Sequence, Media, Item, Link, Point, View, LIGHTS } from '../src/project';
 import { project, lang, selected, selectedLink, selectedItem, shownMedia, opened, select, pick, nameIt, done, renameSelected, duplicateSelected, deleteSelection, startHere, setLinkLabel,
   setLinkTransition, setLinkOverlay, advanced, selectionJson, placeSelected, openSequence, retargetSelected, moveItem, resizeItem, rotateItem, timeItem, raiseItem, moveLink, timeLink,
-  addLinkFrom, placeMedia, removeMediaCommand, setMediaText, setMediaCredit, setSequenceText, setSequenceDuration } from './state';
+  addLinkFrom, placeMedia, removeMediaCommand, setMediaText, setMediaCredit, setSequenceText, setSequenceDuration, pointing, selectedPoint, pickPoint, openPoints, namePoint,
+  setPointText, useView, setLight, retargetPoint, clearPointTarget, deletePoint, movePoint, pointedJson } from './state';
+import { currentView, showView } from './points';
 import { Ico, Action, Segmented, LangField, LangColumns, PlainField, NumberField, Heading, ACCENT, MUTED, WARN, kindIndex } from './widgets';
 import * as L from './strings';
 import { t, f } from './strings';
@@ -232,7 +234,7 @@ function textOf(m: Media | null, field: string, language: string): string {
 function MediaText(p: { label: string; field: string; rows: i32 }): i32 {
   return <view class="flex-col gap-1">
     <Heading label={p.label} />
-    <LangColumns rows={p.rows} width={COLUMN} value={(language: string) => textOf(shownMedia(), p.field, language)} placeholder={(first: boolean) => p.field === 'title' || p.field === 'text' ? hint(first) : first ? '' : t(L.NOT_TRANSLATED)}
+    <LangColumns rows={p.rows} width={COLUMN} first={null} value={(language: string) => textOf(shownMedia(), p.field, language)} placeholder={(first: boolean) => p.field === 'title' || p.field === 'text' ? hint(first) : first ? '' : t(L.NOT_TRANSLATED)}
       onInput={(language: string, v: string) => setMediaText(p.field, language, v)} onDone={done} />
   </view>;
 }
@@ -246,12 +248,20 @@ function MediaPanel(): i32 {
     return field === 'creator' ? x.creator : field === 'source' ? x.credit.source : field === 'licence' ? x.credit.licence : field === 'institution' ? x.credit.institution : x.credit.line;
   };
   const num = (get: (i: Item) => number): number => { const i = it(); return i === null ? 0 : get(i); };
+  const pointable = (): boolean => { const x = m(); return x !== null && (x.kind === 'model' || x.kind === 'panorama'); };
+  const pointCount = (): i32 => { const x = m(); project(); return x === null ? 0 : x.points.length; };
   return <view class="flex-col gap-5 p-4">
     <view class="flex-col gap-1">
       <Heading label={t(L.KIND_NAMES[Math.max(0, kindIndex(m()))])} />
       <text class="text-lg font-bold text-zinc-100 truncate">{textOf(m(), 'title', lang()).length > 0 ? textOf(m(), 'title', lang()) : textOf(m(), 'title', project().languages[0])}</text>
       <Show when={!isText()}><text class="truncate text-xs text-zinc-500">{fileOf(m())}</text></Show>
     </view>
+    <Show when={pointable()}>
+      <view class="flex-col gap-2">
+        <view class="flex-row"><Action icon="map-pin" label={t(L.POINTS_OPEN)} look="primary" onClick={() => { const x = m(); if (x !== null) openPoints(x); }} /></view>
+        <text class="text-xs text-zinc-500" style={{ width: 400 }}>{pointCount() === 0 ? t(L.NO_POINT_YET) : count(pointCount(), L.ONE_POINT, L.N_POINTS)}</text>
+      </view>
+    </Show>
     <Show when={it() !== null}>
       <view class="flex-col gap-2">
         <Heading label={t(L.ON_TABLE)} />
@@ -318,12 +328,12 @@ function TablePanel(): i32 {
     </view>
     <view class="flex-col gap-1">
       <Heading label={t(L.TITLE)} />
-      <LangColumns rows={1} width={COLUMN} value={(language: string) => { const x = s(); return x === null ? '' : x.title.get(language) ?? ''; }} placeholder={hint}
+      <LangColumns rows={1} width={COLUMN} first={null} value={(language: string) => { const x = s(); return x === null ? '' : x.title.get(language) ?? ''; }} placeholder={hint}
         onInput={(language: string, v: string) => renameSelected(language, v)} onDone={done} />
     </view>
     <view class="flex-col gap-1">
       <Heading label={t(L.INTRODUCTION)} />
-      <LangColumns rows={3} width={COLUMN} value={(language: string) => { const x = s(); return x === null ? '' : x.text.get(language) ?? ''; }} placeholder={(first: boolean) => first ? '' : t(L.NOT_TRANSLATED)}
+      <LangColumns rows={3} width={COLUMN} first={null} value={(language: string) => { const x = s(); return x === null ? '' : x.text.get(language) ?? ''; }} placeholder={(first: boolean) => first ? '' : t(L.NOT_TRANSLATED)}
         onInput={(language: string, v: string) => setSequenceText(language, v)} onDone={done} />
     </view>
     <view class="flex-col gap-2">
@@ -340,12 +350,146 @@ function TablePanel(): i32 {
   </view>;
 }
 
+// ---------------------------------------------------------------- points of interest (points.tsx has the middle of the window)
+
+/** A view in words: how far the object is turned and tilted, and its distance or the field of view of a panorama. */
+function viewText(v: View, panorama: boolean): string {
+  return `${f(L.VIEW_MODEL, `${v.yaw}`, `${v.pitch}`)}, ${panorama ? f(L.VIEW_FOV, `${v.fov}`) : f(L.VIEW_DISTANCE, `${v.distance}`)}`;
+}
+function reachOf(v: View, panorama: boolean): number { return panorama ? v.fov : v.distance; }
+/** "Use this view" (what the author sees now becomes the view of the selection) and "Show it". */
+function ViewButtons(p: { of: () => View | null; panorama: () => boolean }): i32 {
+  return <view class="flex-row gap-2">
+    <Action icon="crosshair" label={t(L.USE_VIEW)} look="plain" onClick={() => { const v = currentView(); useView(v[0], v[1], v[2]); }} />
+    <Action icon="eye" label={t(L.SHOW_VIEW)} look="plain" onClick={() => { const v = p.of(); if (v !== null) showView(v.yaw, v.pitch, reachOf(v, p.panorama())); }} />
+  </view>;
+}
+/** The model or the panorama being pointed: its points, how it is first seen, its lighting. */
+function PointsPanel(): i32 {
+  const m = (): Media | null => { project(); return pointing(); };
+  const points = (): Point[] => { const x = m(); return x === null ? [] : x.points; };
+  const panorama = (): boolean => { const x = m(); return x !== null && x.kind === 'panorama'; };
+  const leads = (q: Point): string => { project(); return say(q.to.length > 0 ? project().sequence(q.to) : null); };
+  return <view class="flex-col gap-5 p-4">
+    <view class="flex-col gap-1">
+      <Heading label={t(L.KIND_NAMES[Math.max(0, kindIndex(m()))])} />
+      <text class="text-lg font-bold text-zinc-100 truncate">{textOf(m(), 'title', lang()).length > 0 ? textOf(m(), 'title', lang()) : textOf(m(), 'title', project().languages[0])}</text>
+      <text class="truncate text-xs text-zinc-500">{fileOf(m())}</text>
+    </view>
+    <view class="flex-col gap-2">
+      <Heading label={t(L.POINTS)} />
+      <Show when={points().length === 0}><text class="text-xs text-zinc-500" style={{ width: 400 }}>{t(L.NO_POINT_YET)}</text></Show>
+      <view class="flex-col gap-1">
+        <For each={points()}>{(q: Point, i: i32) => <button class="flex-row items-center justify-start gap-2 h-8 px-2 rounded-md cursor-pointer bg-zinc-950 border border-zinc-800 hover:border-zinc-600"
+          onClick={() => pickPoint(q)}>
+          <view class="w-[18] h-[18] items-center justify-center rounded-full bg-zinc-800 border border-zinc-500"><text class="text-[10px] font-bold text-zinc-100">{`${points().indexOf(q) + 1}`}</text></view>
+          <text class="truncate text-xs text-zinc-100" style={{ width: 210 }}>{(project(), project().say(q.title, lang()))}</text>
+          <Show when={(project(), q.to.length > 0)}><Ico name="arrow-right" size={13} color={MUTED} /></Show>
+          <text class="truncate text-xs text-zinc-500" style={{ width: 120 }}>{leads(q)}</text>
+        </button>}</For>
+      </view>
+    </view>
+    <view class="flex-col gap-2">
+      <Heading label={t(L.OPENING_VIEW)} />
+      <text class="text-xs text-zinc-500" style={{ width: 400 }}>{t(L.OPENING_WHAT)}</text>
+      <text class="text-xs text-zinc-300">{(() => { const x = m(); return x === null ? '' : viewText(x.view, panorama()); })()}</text>
+      <ViewButtons of={() => { const x = m(); return x === null ? null : x.view; }} panorama={panorama} />
+    </view>
+    <Show when={!panorama()}>
+      <view class="flex-col gap-2">
+        <Heading label={t(L.LIGHT)} />
+        <Segmented options={LIGHTS} labels={L.LIGHT_NAMES.map((k: i32) => t(k))} value={() => { const x = m(); return x === null ? 'studio' : x.light; }} onPick={setLight} />
+      </view>
+    </Show>
+    <Show when={advanced()}>
+      <view class="flex-col gap-2">
+        <Heading label={t(L.IN_FILE)} />
+        <textarea readOnly wrap={false} class="font-mono text-[11px] text-zinc-300 bg-zinc-950 border border-zinc-800 rounded-md p-2" style={{ height: 260 }} value={pointedJson()} />
+      </view>
+    </Show>
+  </view>;
+}
+
+let pointName: NodeRef | null = null, named: i32 = 0;
+/** One point of interest: its name and what visitors read, in every language, the view it opens with and the sequence its card leads to. */
+function PointPanel(): i32 {
+  const q = (): Point | null => { project(); return selectedPoint(); };
+  const panorama = (): boolean => { const x = pointing(); return x !== null && x.kind === 'panorama'; };
+  const words = (field: string, language: string): string => { const x = q(); return x === null ? '' : (field === 'title' ? x.title : x.text).get(language) ?? ''; };
+  const target = (): Sequence | null => { const x = q(); return x === null || x.to.length === 0 ? null : project().sequence(x.to); };
+  const at = (k: i32): number => { const x = q(); return x === null ? 0 : x.at[k]; };
+  const place = (k: i32, v: number): void => { const x = q(); if (x === null) return; const to = x.at.slice(); to[k] = v; movePoint(x, to); };
+  const ref = createNodeRef();
+  pointName = ref;
+  // a new point is named at once: the caret goes to its name, all of it selected
+  createEffect(() => {
+    const asked = namePoint();
+    if (asked === named) return;
+    named = asked;
+    queueMicrotask(() => {
+      const field = pointName;
+      if (field === null || field.node < 0) return;
+      ui.focusNode(field.node);
+      ui.select(field.node, 0, ui.getValue(field.node).length);
+    });
+  });
+  return <view class="flex-col gap-5 p-4">
+    <view class="flex-col gap-1">
+      <Heading label={t(L.POINT)} />
+      <text class="text-lg font-bold text-zinc-100 truncate">{(() => { const x = q(); return x === null ? '' : project().say(x.title, lang()); })()}</text>
+    </view>
+    <view class="flex-row"><Action icon="list" label={t(L.ALL_POINTS)} look="plain" onClick={() => pickPoint(null)} /></view>
+    <view class="flex-col gap-1">
+      <Heading label={t(L.POINT_TITLE)} />
+      <LangColumns rows={1} width={COLUMN} first={ref} value={(language: string) => words('title', language)} placeholder={hint} onInput={(language: string, v: string) => setPointText('title', language, v)} onDone={done} />
+    </view>
+    <view class="flex-col gap-1">
+      <Heading label={t(L.POINT_TEXT)} />
+      <LangColumns rows={4} width={COLUMN} first={null} value={(language: string) => words('text', language)} placeholder={(first: boolean) => first ? '' : t(L.NOT_TRANSLATED)}
+        onInput={(language: string, v: string) => setPointText('text', language, v)} onDone={done} />
+    </view>
+    <view class="flex-col gap-2">
+      <Heading label={t(L.POINT_VIEW)} />
+      <text class="text-xs text-zinc-500" style={{ width: 400 }}>{t(L.POINT_VIEW_WHAT)}</text>
+      <text class="text-xs text-zinc-300">{(() => { const x = q(); return x === null ? '' : viewText(x.view, panorama()); })()}</text>
+      <ViewButtons of={() => { const x = q(); return x === null ? null : x.view; }} panorama={panorama} />
+    </view>
+    <view class="flex-col gap-2">
+      <Heading label={t(L.POINT_LEADS)} />
+      <Show when={target() === null}><text class="text-xs text-zinc-500">{t(L.POINT_NOWHERE)}</text></Show>
+      <Show when={target() !== null}>
+        <view class="flex-row items-center gap-2 h-8 px-3 rounded-md bg-zinc-800">
+          <Ico name="arrow-right" size={14} color={ACCENT} />
+          <text class="truncate text-sm text-zinc-100" style={{ maxWidth: 340 }}>{say(target())}</text>
+        </view>
+      </Show>
+      <view class="flex-row gap-2">
+        <Action icon="arrow-right" label={t(L.CHOOSE_SEQUENCE)} look="plain" onClick={retargetPoint} />
+        <Show when={target() !== null}><Action icon="unlink" label={t(L.NO_LINK)} look="plain" onClick={clearPointTarget} /></Show>
+      </view>
+    </view>
+    <Show when={advanced()}>
+      <view class="flex-col gap-2">
+        <Heading label={t(panorama() ? L.DIRECTION : L.PLACE_ON_OBJECT)} />
+        <view class="flex-row gap-3">
+          <NumberField label="X" value={() => at(0)} onCommit={(v: number) => place(0, v)} onDone={done} />
+          <NumberField label="Y" value={() => at(1)} onCommit={(v: number) => place(1, v)} onDone={done} />
+          <NumberField label="Z" value={() => at(2)} onCommit={(v: number) => place(2, v)} onDone={done} />
+        </view>
+      </view>
+    </Show>
+    <view class="flex-row"><Action icon="trash" label={t(L.DELETE_POINT)} look="danger" onClick={deletePoint} /></view>
+  </view>;
+}
+
 export function Inspector(): i32 {
   return <scroll class={`shrink-0 flex-col bg-zinc-900 border-l border-zinc-800 ${opened() !== null ? 'w-[440]' : 'w-[320]'}`}>
-    <Show when={opened() === null && selected() !== null && selectedLink() === null}><SequencePanel /></Show>
-    <Show when={selected() !== null && selectedLink() !== null}><LinkPanel /></Show>
-    <Show when={opened() === null && selected() === null}><ProjectPanel /></Show>
-    <Show when={opened() !== null && selectedLink() === null && shownMedia() !== null}><MediaPanel /></Show>
-    <Show when={opened() !== null && selectedLink() === null && shownMedia() === null}><TablePanel /></Show>
+    <Show when={pointing() !== null && selectedPoint() === null}><PointsPanel /></Show>
+    <Show when={pointing() !== null && selectedPoint() !== null}><PointPanel /></Show>
+    <Show when={pointing() === null && opened() === null && selected() !== null && selectedLink() === null}><SequencePanel /></Show>
+    <Show when={pointing() === null && selected() !== null && selectedLink() !== null}><LinkPanel /></Show>
+    <Show when={pointing() === null && opened() === null && selected() === null}><ProjectPanel /></Show>
+    <Show when={pointing() === null && opened() !== null && selectedLink() === null && shownMedia() !== null}><MediaPanel /></Show>
+    <Show when={pointing() === null && opened() !== null && selectedLink() === null && shownMedia() === null}><TablePanel /></Show>
   </scroll>;
 }

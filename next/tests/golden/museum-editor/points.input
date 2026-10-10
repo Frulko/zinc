@@ -1,0 +1,116 @@
+# Points of interest (tests/t1/museum_editor.sh), on the project of the table session in a folder that also holds the sample's vase
+# (models/vase.obj and its picture) and its panorama (panoramas/ninomaru.jpg). A double click opens the table of the first sequence.
+4 move 350 230
+5 down
+6 up
+7 down
+8 up
+# Add a file: the model of the folder, with its source and its licence. It takes the picture of the same name as its texture.
+12 move 125 99
+13 down
+14 up
+18 move 720 456
+19 down
+20 up
+24 move 720 477
+25 down
+26 up
+27 text https://asia.si.edu/object/F1980.190
+30 move 720 540
+31 down
+32 up
+33 text "CC0 1.0"
+36 move 895 594
+37 down
+38 up
+# A double click on its row puts it on the table; "Place points of interest" opens it.
+42 move 125 319
+43 down
+44 up
+45 down
+46 up
+50 move 1220 167
+51 down
+52 up
+# The object is turned, then a click on it places a point: its name in French, Tab, in English, Tab, what visitors read, in both.
+56 move 850 400
+57 down
+58 move 830 402
+59 move 780 410
+60 move 750 414
+61 up
+64 move 500 330
+65 down
+66 up
+68 text "Le bananier"
+70 key Tab
+72 text "The banana tree"
+74 key Tab
+76 text "Un bananier, peint au bleu de cobalt."
+78 key Tab
+80 text "A banana tree, painted in cobalt blue."
+# Turned again: "Use this view" gives the point the view it opens with; its card leads to a sequence chosen in the list.
+84 move 850 400
+85 down
+86 move 870 400
+87 move 900 395
+88 up
+90 move 1124 528
+91 down
+92 up
+94 move 1220 627
+95 down
+96 up
+98 move 720 557
+99 down
+100 up
+# Escape leaves the point, Escape again comes back to the table. The panorama of the folder is added the same way, as a panorama.
+104 key Escape
+106 key Escape
+110 move 125 99
+111 down
+112 up
+116 move 720 456
+117 down
+118 up
+122 move 816 373
+123 down
+124 up
+126 move 720 499
+127 down
+128 up
+129 text https://polyhaven.com/a/ninomaru_teien
+132 move 720 562
+133 down
+134 up
+135 text "CC0 1.0"
+138 move 895 616
+139 down
+140 up
+# A double click on its row puts it on the table, and its points are opened.
+144 move 125 367
+145 down
+146 up
+147 down
+148 up
+152 move 1220 167
+153 down
+154 up
+# Looking around, then a click places a point on what is seen there; its name in both languages.
+158 move 600 400
+159 down
+160 move 580 400
+161 move 500 410
+162 up
+166 move 380 440
+167 down
+168 up
+170 text "Le rocher"
+172 key Tab
+174 text "The rock"
+# "All the points", Escape: back to the table. Save.
+178 move 1220 147
+179 down
+180 up
+184 key Escape
+188 key s meta

@@ -2,15 +2,14 @@
 // sentence. The interface language is the system's, with a switch in the status bar; it is not the language of the content (the project's
 // languages, switched in the top bar). `{0}`, `{1}` stand for what `f` is given.
 import { createSignal } from 'zinc:ui/solid';
-import { env } from 'zinc:sys';
+import { env, locale } from 'zinc:sys';
 
 const EN: string[] = [], FR: string[] = [];
 function S(en: string, fr: string): i32 { EN.push(en); FR.push(fr); return EN.length - 1; }
 
-// ponytail: the system language is read from the environment (LC_ALL, LANG), which an app started from the Finder may not have: it then
-// starts in English. A locale function in zinc:sys would replace this. MUSEUM_EDITOR_LANG=en|fr forces it (tests).
+/** French when the system's preferred language is, English otherwise. MUSEUM_EDITOR_LANG=en|fr forces it (tests). */
 function systemLanguage(): string {
-  const said = env('MUSEUM_EDITOR_LANG').length > 0 ? env('MUSEUM_EDITOR_LANG') : env('LC_ALL').length > 0 ? env('LC_ALL') : env('LANG');
+  const said = env('MUSEUM_EDITOR_LANG').length > 0 ? env('MUSEUM_EDITOR_LANG') : locale();
   return said.toLowerCase().startsWith('fr') ? 'fr' : 'en';
 }
 export const [uiLang, setUiLang] = createSignal<string>(systemLanguage());
@@ -273,6 +272,52 @@ export const ADD = S('Add', 'Ajouter');
 export const NEW_TEXT = S('A text written here', 'Un texte écrit ici');
 export const NEW_TEXT_WHY = S('A label, a quotation, a paragraph: it is placed on the table like a photograph.', 'Un cartel, une citation, un paragraphe : il se pose sur la table comme une photographie.');
 export const MISSING = S('Fill in what is required.', 'Remplissez ce qui est obligatoire.');
+
+// ---- points of interest on a model and in a panorama
+export const POINTS = S('Points of interest', 'Points d’intérêt');
+export const POINTS_OPEN = S('Place points of interest', 'Placer des points d’intérêt');
+export const ONE_POINT = S('1 point of interest', '1 point d’intérêt');
+export const N_POINTS = S('{0} points of interest', '{0} points d’intérêt');
+export const NO_POINT_YET = S('None yet. A point of interest is a place that visitors touch to read about it.',
+  'Aucun pour l’instant. Un point d’intérêt est un endroit que les visiteurs touchent pour en savoir plus.');
+export const BACK_TO_TABLE = S('Back to the table', 'Retour à la table');
+export const POINTS_HINT_MODEL = S('Drag to turn the object, the wheel comes closer. Click the object to place a point; drag a point to move it.',
+  'Glissez pour tourner l’objet, la molette le rapproche. Cliquez sur l’objet pour placer un point ; glissez un point pour le déplacer.');
+export const POINTS_HINT_PANORAMA = S('Drag to look around, the wheel zooms. Click the picture to place a point; drag a point to move it.',
+  'Glissez pour regarder autour, la molette zoome. Cliquez sur l’image pour placer un point ; glissez un point pour le déplacer.');
+export const POINTS_HOW_MODEL = S('Turn the object, then click the place a visitor should look at.', 'Tournez l’objet, puis cliquez sur l’endroit qu’un visiteur doit regarder.');
+export const POINTS_HOW_PANORAMA = S('Look around, then click what a visitor should look at.', 'Regardez autour, puis cliquez sur ce qu’un visiteur doit regarder.');
+export const RESET_VIEW = S('Opening view', 'Vue de départ');
+export const CANNOT_SHOW = S('This file cannot be shown: {0}', 'Ce fichier ne peut pas être montré : {0}');
+export const POINT = S('Point of interest', 'Point d’intérêt');
+export const POINT_TITLE = S('Name', 'Nom');
+export const POINT_TEXT = S('What visitors read', 'Ce que lisent les visiteurs');
+export const POINT_VIEW = S('View when it opens', 'Vue à son ouverture');
+export const POINT_VIEW_WHAT = S('Touching the point brings the visitor to this view. Turn until the place shows best, then use that view.',
+  'Toucher le point amène le visiteur à cette vue. Tournez jusqu’à ce que l’endroit se voie au mieux, puis utilisez cette vue.');
+export const USE_VIEW = S('Use this view', 'Utiliser cette vue');
+export const SHOW_VIEW = S('Show it', 'La montrer');
+export const VIEW_MODEL = S('Turned {0}°, tilted {1}°', 'Tourné de {0}°, incliné de {1}°');
+export const VIEW_DISTANCE = S('distance {0}', 'distance {0}');
+export const VIEW_FOV = S('field of view {0}°', 'champ {0}°');
+export const POINT_LEADS = S('Its card leads to', 'Sa carte mène à');
+export const POINT_NOWHERE = S('Nowhere: the point shows its description only.', 'Nulle part : le point ne montre que sa description.');
+export const CHOOSE_SEQUENCE = S('Choose a sequence', 'Choisir une séquence');
+export const NO_LINK = S('No link', 'Aucun lien');
+export const DELETE_POINT = S('Delete the point', 'Supprimer le point');
+export const ALL_POINTS = S('All the points', 'Tous les points');
+export const OPENING_VIEW = S('How it is first seen', 'Comment il est vu d’abord');
+export const OPENING_WHAT = S('The view a sequence shows it with, before a visitor turns it.', 'La vue avec laquelle une séquence le montre, avant qu’un visiteur le tourne.');
+export const LIGHT = S('Lighting', 'Lumière');
+export const LIGHT_NAMES: i32[] = [S('Studio', 'Atelier'), S('Raking', 'Rasante'), S('Flat', 'Diffuse')];
+export const PLACE_ON_OBJECT = S('Place on the object (its own coordinates)', 'Position sur l’objet (ses propres coordonnées)');
+export const DIRECTION = S('Direction from the centre', 'Direction depuis le centre');
+export const DONE_POINT = S('A point is placed. Type its name.', 'Un point est placé. Tapez son nom.');
+export const DONE_POINT_VIEW = S('The point now opens with this view.', 'Le point s’ouvre maintenant avec cette vue.');
+export const DONE_OPENING_VIEW = S('It is now first seen like this.', 'Il est maintenant vu d’abord ainsi.');
+export const DONE_POINT_DELETED = S('Deleted the point. Undo brings it back.', 'Point supprimé. Annuler le rétablit.');
+export const MISSED = S('Click the object itself to place a point.', 'Cliquez sur l’objet lui-même pour placer un point.');
+export const TURN_HANDLE = S('Turned {0}°', 'Tourné de {0}°');
 export const KIND_NAMES: i32[] = [S('Photograph', 'Photographie'), S('3D model', 'Modèle 3D'), S('Panorama', 'Panorama'), S('Text', 'Texte'), S('Sound', 'Son'), S('Film', 'Film')];
 export const LANGUAGE_NAMES: string[] = ['fr', 'français', 'en', 'English', 'de', 'Deutsch', 'es', 'español', 'it', 'italiano'];
 
@@ -284,7 +329,9 @@ const STEPS: string[] = ['New sequence', 'Nouvelle séquence', 'Rename sequence'
   'Edit media text', 'Modifier le texte du média', 'Edit media credit', 'Modifier le crédit du média', 'Remove media', 'Retirer le média', 'Place media', 'Poser le média',
   'Move media', 'Déplacer le média', 'Resize media', 'Dimensionner le média', 'Rotate media', 'Tourner le média', 'Change media times', 'Changer les temps du média',
   'Bring media forward', 'Avancer le média', 'Send media backward', 'Reculer le média', 'Take media off the table', 'Retirer le média de la table', 'Edit sequence text', 'Modifier l’introduction',
-  'Change sequence duration', 'Changer la durée de la séquence'];
+  'Change sequence duration', 'Changer la durée de la séquence', 'New point of interest', 'Nouveau point d’intérêt', 'Move point of interest', 'Déplacer le point d’intérêt',
+  'Edit point of interest', 'Modifier le point d’intérêt', 'Set the view of a point', 'Changer la vue du point', 'Change point link', 'Changer le lien du point',
+  'Delete point of interest', 'Supprimer le point d’intérêt', 'Set the opening view', 'Changer la vue de départ', 'Change the lighting', 'Changer la lumière'];
 /** The name of an undo step in the interface language. */
 export function step(label: string): string {
   const at = STEPS.indexOf(label);

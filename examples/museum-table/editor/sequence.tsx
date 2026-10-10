@@ -1,13 +1,15 @@
 // The table of one sequence: the media library of the project at the left, the table in the middle with what lies on it (media, buttons,
 // hotspots), and under it when each appears and leaves. Drag a medium from the library onto the table; drag it there to move it, its corner
 // to size it; drag a button or a hotspot where visitors will touch it; drag the ends of a bar to time it.
-// The table is drawn at the scale that fits; positions are the project's table units. Rotation is a number of the advanced mode: zinc:ui
-// does not paint a turned box yet (ZN-263), so an item is shown upright.
+// The table is drawn at the scale that fits; positions are the project's table units. An item is drawn turned as the table will show it
+// (zinc:gfx setTransform; its box answers to the pointer in its turned shape), and the round handle above the selected one turns it.
 import { createSignal, createNodeRef, createEffect, For, Show, batch } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
-import { rrect, border } from 'zinc:gfx';
+import { rrect, border, drawText, lineHeight, setTransform, resetTransform } from 'zinc:gfx';
 import { Sequence, Media, Item, Link } from '../src/project';
-import { project, lang, opened, selectedItem, selectedLink, shownMedia, pick, placeMedia, moveItem, resizeItem, timeItem, moveLink, timeLink, usesOf, addFileCommand, setAdding } from './state';
+import { sans, wrap, leading } from '../src/type';
+import { project, lang, opened, selectedItem, selectedLink, shownMedia, pick, placeMedia, moveItem, resizeItem, rotateItem, timeItem, moveLink, timeLink, usesOf, addFileCommand, setAdding,
+  openPoints, setStatus } from './state';
 import { Ico, Action, Heading, drawMedia, shapeOf, kindIndex, KIND_ICON, KIND_COLOUR, ACCENT, MUTED } from './widgets';
 import { PreviewTools } from './preview';
 import * as L from './strings';
@@ -40,6 +42,14 @@ const [sizing, setSizing] = createSignal<boolean>(false);
 const [dx, setDX] = createSignal<number>(0);
 const [dy, setDY] = createSignal<number>(0);
 const [newW, setNewW] = createSignal<number>(0);
+/** The item being turned by its handle and the angle it has under the pointer, in degrees; the item under the pointer. */
+const [turning, setTurning] = createSignal<Item | null>(null);
+const [newTurn, setNewTurn] = createSignal<number>(0);
+const [hoveredItem, setHoveredItem] = createSignal<Item | null>(null);
+/** The turn of an item, in degrees clockwise, and as the cosine and sine that turn its own axes onto the table's. */
+function turnOf(it: Item): number { project(); return turning() === it ? newTurn() : it.rotation; }
+function cosOf(it: Item): number { return Math.cos(turnOf(it) * Math.PI / 180); }
+function sinOf(it: Item): number { return Math.sin(turnOf(it) * Math.PI / 180); }
 
 function wOf(it: Item): number { project(); return held() === it && sizing() ? newW() : it.width; }
 function hOf(it: Item): number {
@@ -56,16 +66,16 @@ function hostOf(l: Link): Item | null {
   for (const it of s.items) if (it.media === l.on) return it;
   return null;
 }
-/** Where a button or a hotspot is on the table, in table units. */
+/** Where a button or a hotspot is on the table, in table units. A hotspot is at its fractions of its item, and turns with it. */
 function linkX(l: Link): number {
   const host = hostOf(l);
   project();
-  return (host !== null ? xOf(host) - wOf(host) / 2 + l.x * wOf(host) : l.x) + (heldLink() === l ? dx() : 0);
+  return (host !== null ? xOf(host) + (l.x - 0.5) * wOf(host) * cosOf(host) - (l.y - 0.5) * hOf(host) * sinOf(host) : l.x) + (heldLink() === l ? dx() : 0);
 }
 function linkY(l: Link): number {
   const host = hostOf(l);
   project();
-  return (host !== null ? yOf(host) - hOf(host) / 2 + l.y * hOf(host) : l.y) + (heldLink() === l ? dy() : 0);
+  return (host !== null ? yOf(host) + (l.x - 0.5) * wOf(host) * sinOf(host) + (l.y - 0.5) * hOf(host) * cosOf(host) : l.y) + (heldLink() === l ? dy() : 0);
 }
 
 // the thing under the button, where it was pressed, and whether the pointer has moved far enough to be a drag
@@ -96,8 +106,9 @@ function itemUp(it: Item, e: ui.PointerEvent): void {
 function gripMove(it: Item, e: ui.PointerEvent): void {
   if (grabbed !== it) return;
   dragging = true;
-  // the corner follows the pointer and the centre stays: the width is twice the distance from the centre
-  batch(() => { setNewW(Math.max(40, Math.round(2 * (tableAt(e)[0] - it.x)))); setSizing(true); setHeld(it); });
+  // the corner follows the pointer and the centre stays: the width is twice the distance from the centre, along the item's own width
+  const p = tableAt(e), along = (p[0] - it.x) * cosOf(it) + (p[1] - it.y) * sinOf(it);
+  batch(() => { setNewW(Math.max(40, Math.round(2 * along))); setSizing(true); setHeld(it); });
 }
 function gripUp(it: Item, e: ui.PointerEvent): void {
   grabbed = null;
@@ -122,33 +133,79 @@ function linkUp(l: Link, e: ui.PointerEvent): void {
   const host = hostOf(l), x = linkX(l), y = linkY(l);
   batch(() => {
     setHeldLink(null); setDX(0); setDY(0);
-    if (host !== null) moveLink(l, (x - (host.x - host.width / 2)) / host.width, (y - (host.y - hOf(host) / 2)) / hOf(host));
-    else moveLink(l, x, y);
+    if (host !== null) {   // back into the item's own axes
+      const px = x - host.x, py = y - host.y, c = cosOf(host), s = sinOf(host);
+      moveLink(l, (px * c + py * s) / host.width + 0.5, (py * c - px * s) / hOf(host) + 0.5);
+    } else moveLink(l, x, y);
   });
 }
+// the handle that turns the selected item: the angle is the one of the pointer seen from the item's centre, 0 straight above it
+function turnMove(it: Item, e: ui.PointerEvent): void {
+  if (grabbed !== it) return;
+  dragging = true;
+  const p = tableAt(e);
+  let a = Math.round(Math.atan2(p[0] - it.x, it.y - p[1]) * 180 / Math.PI);
+  if (e.shift) a = Math.round(a / 15) * 15;   // Shift: steps of 15 degrees
+  if (Math.abs(a) <= 2) a = 0;                // upright is easy to find again
+  batch(() => { setNewTurn(a); setTurning(it); setStatus(f(L.TURN_HANDLE, `${a}`)); });
+}
+function turnUp(it: Item, e: ui.PointerEvent): void {
+  grabbed = null;
+  if (!dragging) return;
+  dragging = false;
+  const a = newTurn();
+  batch(() => { setTurning(null); rotateItem(it, a); });
+}
 
+/** Draws an item in its box (x, y, w, h) of the window, turned about its centre: the picture or the words, the caption strip, the frame. */
+function drawItem(it: Item, x: i32, y: i32, w: i32, h: i32): void {
+  const m = mediaOf(it), kind = kindIndex(m), turned = turnOf(it) !== 0;
+  let left: number = x, top: number = y;
+  if (turned) { setTransform(cosOf(it), sinOf(it), -sinOf(it), cosOf(it), x + w / 2, y + h / 2); left = -w / 2; top = -h / 2; }
+  if (kind === 3) {
+    const body = sans(11), room: i32 = Math.max(1, Math.floor((h - 26) / leading(body)));
+    rrect(left, top, w, h, 4, KIND_COLOUR[3], 46);
+    const lines = wrap(body, wordsOf(it), w - 16, room);
+    for (let i = 0; i < lines.length; i++) drawText(body, left + 8, top + 7 + i * leading(body), lines[i], 0xf4f4f5, 255, 0);
+  } else drawMedia(m, left, top, w, h);
+  const small = sans(9);
+  rrect(left, top + h - 14, w, 14, 0, 0x000000, 153);
+  drawText(small, left + 4, top + h - 14 + (14 - lineHeight(small)) / 2, wrap(small, titleOf(m), w - 8, 1)[0], 0xe4e4e7, 255, 0);
+  border(left, top, w, h, 4, 2, selectedItem() === it ? 0xfbbf24 : hoveredItem() === it ? 0xa1a1aa : 0x3f3f46, 255);
+  if (turned) resetTransform();
+}
+
+/** An item on the table. Its box has the item's turn, so the pointer meets it where it is drawn; the canvas inside paints it turned. A
+ *  double click on a 3D model or a panorama opens it to place its points of interest. */
 function OnTable(it: Item): i32 {
-  const kind = (): i32 => kindIndex(mediaOf(it));
-  return <view class={`absolute rounded border-2 overflow-hidden cursor-move ${selectedItem() === it ? 'border-amber-400' : 'border-zinc-700 hover:border-zinc-400'}`}
-    style={{ left: (xOf(it) - wOf(it) / 2) * k(), top: (yOf(it) - hOf(it) / 2) * k(), width: wOf(it) * k(), height: hOf(it) * k() }}
+  return <view class="absolute cursor-move"
+    style={{ left: (xOf(it) - wOf(it) / 2) * k(), top: (yOf(it) - hOf(it) / 2) * k(), width: wOf(it) * k(), height: hOf(it) * k(), transform: [{ rotate: turnOf(it) }] }}
     onPointerDown={(e: ui.PointerEvent) => itemDown(it, e)} onPointerMove={(e: ui.PointerEvent) => itemMove(it, e)} onPointerUp={(e: ui.PointerEvent) => itemUp(it, e)}
-    onDoubleClick={(e: ui.PointerEvent) => {}}>
-    <canvas class="absolute inset-0" style={{ lazy: 1 }} onDraw={(x: i32, y: i32, w: i32, h: i32) => { if (kind() === 3) rrect(x, y, w, h, 4, KIND_COLOUR[3], 46); else drawMedia(mediaOf(it), x, y, w, h); }} />
-    <Show when={kind() === 3}>
-      <view class="absolute inset-0 p-2"><text class="text-[11px] text-zinc-100">{wordsOf(it)}</text></view>
-    </Show>
-    <view class="absolute left-0 right-0 bottom-0 h-[14] px-1 justify-center bg-black/60"><text class="truncate text-[9px] text-zinc-200">{titleOf(mediaOf(it))}</text></view>
+    onPointerEnter={(e: ui.PointerEvent) => setHoveredItem(it)} onPointerLeave={(e: ui.PointerEvent) => { if (hoveredItem() === it) setHoveredItem(null); }}
+    onDoubleClick={(e: ui.PointerEvent) => { const m = mediaOf(it); grabbed = null; if (m !== null) openPoints(m); }}>
+    <canvas class="absolute inset-0" style={{ lazy: 1 }} onDraw={(x: i32, y: i32, w: i32, h: i32) => drawItem(it, x, y, w, h)} />
   </view>;
 }
 /** The corner of the selected item: drag it to size the item. */
 function Grip(): i32 {
   const it = (): Item | null => selectedItem();
-  const left = (): number => { const i = it(); return i === null ? 0 : (xOf(i) + wOf(i) / 2) * k() - 7; };
-  const top = (): number => { const i = it(); return i === null ? 0 : (yOf(i) + hOf(i) / 2) * k() - 7; };
+  const left = (): number => { const i = it(); return i === null ? 0 : (xOf(i) + wOf(i) / 2 * cosOf(i) - hOf(i) / 2 * sinOf(i)) * k() - 7; };
+  const top = (): number => { const i = it(); return i === null ? 0 : (yOf(i) + wOf(i) / 2 * sinOf(i) + hOf(i) / 2 * cosOf(i)) * k() - 7; };
   return <view class="absolute w-[14] h-[14] rounded-sm bg-amber-400 border border-zinc-900 cursor-ew-resize" style={{ left: left(), top: top() }}
     onPointerDown={(e: ui.PointerEvent) => { const i = it(); if (i !== null && e.button === 0) { grabbed = i; dragging = false; } }}
     onPointerMove={(e: ui.PointerEvent) => { const i = it(); if (i !== null) gripMove(i, e); }}
     onPointerUp={(e: ui.PointerEvent) => { const i = it(); if (i !== null) gripUp(i, e); }} />;
+}
+/** The round handle above the selected item: drag it around the item to turn it. */
+function Turner(): i32 {
+  const it = (): Item | null => selectedItem();
+  const away = (i: Item): number => hOf(i) / 2 * k() + 20;   // pixels from the item's centre, along its own upward axis
+  const left = (): number => { const i = it(); return i === null ? 0 : xOf(i) * k() + sinOf(i) * away(i) - 8; };
+  const top = (): number => { const i = it(); return i === null ? 0 : yOf(i) * k() - cosOf(i) * away(i) - 8; };
+  return <view class="absolute w-[16] h-[16] rounded-full bg-zinc-900 border-2 border-amber-400 cursor-grab" style={{ left: left(), top: top() }}
+    onPointerDown={(e: ui.PointerEvent) => { const i = it(); if (i !== null && e.button === 0) { grabbed = i; dragging = false; } }}
+    onPointerMove={(e: ui.PointerEvent) => { const i = it(); if (i !== null) turnMove(i, e); }}
+    onPointerUp={(e: ui.PointerEvent) => { const i = it(); if (i !== null) turnUp(i, e); }} />;
 }
 /** A button (a pill with its label) or a hotspot (a ring on its medium), where visitors will touch it. */
 function LinkOnTable(l: Link): i32 {
@@ -180,6 +237,7 @@ function Stage(): i32 {
       <For each={items()}>{(it: Item, i: i32) => OnTable(it)}</For>
       <For each={links()}>{(l: Link, i: i32) => LinkOnTable(l)}</For>
       <Show when={selectedItem() !== null}><Grip /></Show>
+      <Show when={selectedItem() !== null}><Turner /></Show>
       <Show when={items().length === 0}>
         <view class="absolute inset-0 items-center justify-center"><text class="text-sm text-center text-zinc-500" style={{ width: 340 }}>{t(L.STAGE_EMPTY)}</text></view>
       </Show>
@@ -333,8 +391,8 @@ function Timeline(): i32 {
 
 /** The editor of one sequence: library, table, times. */
 export function SequenceEditor(): i32 {
-  // the reach zone is drawn by hand: repaint when the drag it depends on changes
-  createEffect(() => { heldLink(); dx(); dy(); ui.repaint(); });
+  // the reach zone and the items are drawn by hand: repaint when what they show changes
+  createEffect(() => { project(); lang(); selectedItem(); hoveredItem(); turning(); newTurn(); held(); heldLink(); dx(); dy(); newW(); ui.repaint(); });
   return <view ref={rootRef} class="grow relative flex-row">
     <Library />
     <view class="grow basis-0 min-w-0 flex-col">

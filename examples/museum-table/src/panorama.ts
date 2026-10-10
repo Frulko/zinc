@@ -103,4 +103,18 @@ export class PanoramaView extends Orbit {
     const s = (h / 2) / Math.tan(this.fov * Math.PI / 360);
     return [x + w / 2 + cx / cz * s, y + h / 2 - cy / cz * s];
   }
+
+  /** The inverse of `project`: the direction seen at the point (sx, sy) of the view (x, y, w, h), as a unit vector. The storyboard editor
+   *  finds with it the direction under a click. */
+  unproject(sx: number, sy: number, x: number, y: number, w: number, h: number): number[] {
+    const f = direction(this.yaw, this.pitch);
+    let rx = -f[2], rz = f[0];
+    const rl = Math.sqrt(rx * rx + rz * rz);
+    if (rl <= 1e-9) return f;
+    rx /= rl; rz /= rl;
+    const ux = -rz * f[1], uy = rz * f[0] - rx * f[2], uz = rx * f[1];
+    const s = (h / 2) / Math.tan(this.fov * Math.PI / 360), a = (sx - x - w / 2) / s, b = -(sy - y - h / 2) / s;
+    const dx = f[0] + a * rx + b * ux, dy = f[1] + b * uy, dz = f[2] + a * rz + b * uz, len = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    return [dx / len, dy / len, dz / len];
+  }
 }
