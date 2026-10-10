@@ -331,6 +331,8 @@ Gain: 5 = removes a multiple of the frame or a 2x+ on a whole class of programs;
 - **Fix**: split the generated functions into N translation units compiled with the machine's job limit (`WGC_JOBS`, 16 GB machines: 3), cache objects by the hash of their functions.
 - **Gain**: <= 30 s for navigation; incremental rebuilds in seconds. **Effort** M. **Risk** low. **Hardware**: the dev loop.
 
+- **Result (ZN-427, 2026-10-10)**: units of 48 functions after a first unit of tables, resources and main; objects cached by unit hash, a precompiled header for clang, `ZINC_JOBS` compiles at once (half the cores). Navigation on the Intel Mac: cold 12.2 s, unchanged 1.3 s, one function changed 4.3 s; frame time unchanged.
+
 ## 4. Correction of ZN-042's diagnosis (nbody)
 
 ZN-042 concluded that the typed backend would not help nbody and that the 2.9x to native came from NEON and fused multiply-adds, which `-ffp-contract=off` forbids. The experiments of PERF-10 contradict both parts:

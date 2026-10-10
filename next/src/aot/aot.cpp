@@ -361,19 +361,21 @@ std::vector<std::string> emitCppParts(const zbc::Module& mod, const std::vector<
     bodies[i] = std::move(fe.out);
     total += bodies[i].size();
   }
-  // A large program is compiled as several translation units at once (ZN-604): about 2 MB of functions each, contiguous so that callers and
-  // callees of one source file stay together (a call across units is not inlined); the first unit has the tables and main. Small programs (the
-  // benchmarks) stay one unit with static functions.
+  // A large program is compiled as several translation units (ZN-604, ZN-427): the first has the tables, the baked resources and main, the others
+  // ZN_AOT_UNIT_FNS (48) functions each in index order. A change to one function's body then changes one unit, whose object zinc build finds
+  // cached for the others; the units are compiled in parallel. Small programs (the benchmarks) stay one unit with static functions.
   const char* pb = std::getenv("ZN_AOT_PART_BYTES");   // tests: split small programs too
-  const std::size_t kPartBytes = pb ? std::max<std::size_t>(1, std::strtoull(pb, nullptr, 10)) : std::size_t{2} << 20;
-  const unsigned parts = static_cast<unsigned>(std::clamp<std::size_t>((total + kPartBytes - 1) / kPartBytes, 1, std::max(1u, maxParts)));
-  if (parts > 1) s.replace(s.find("#define ZFN static\n"), 19, "#define ZFN   // the functions are called across the units of this program\n");
-  std::vector<std::string> out(parts, s);
-  for (std::size_t i = 0, part = 0, acc = 0; i < bodies.size(); ++i) {
-    if (part + 1 < parts && acc >= total * (part + 1) / parts) ++part;
-    out[part] += bodies[i];
-    acc += bodies[i].size();
+  const std::size_t kPartBytes = pb ? std::max<std::size_t>(1, std::strtoull(pb, nullptr, 10)) : std::size_t{512} << 10;
+  const char* gs = std::getenv("ZN_AOT_UNIT_FNS");
+  const std::size_t group = gs ? std::max<std::size_t>(1, std::strtoull(gs, nullptr, 10)) : 48;
+  const bool split = maxParts > 1 && total >= kPartBytes && !bodies.empty();
+  if (split) s.replace(s.find("#define ZFN static\n"), 19, "#define ZFN   // the functions are called across the units of this program\n");
+  std::vector<std::string> out(1, s);
+  if (split) for (std::size_t i = 0; i < bodies.size(); i += group) {
+    out.push_back(s);
+    for (std::size_t k = i; k < std::min(bodies.size(), i + group); ++k) out.back() += bodies[k];
   }
+  else for (std::string& b : bodies) out[0] += b;
   s = std::move(out[0]);
   s += "static const char kModule[] = \n  ";
   appendBytes(s, bytes.data(), bytes.size());

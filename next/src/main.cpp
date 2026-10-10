@@ -52,6 +52,8 @@ int runTestCommand(const std::string& self, const zn::frontend::Profile& p, cons
 #include "zbc/zbc.h"
 #include "zapp.h"
 #include <thread>
+#include <spawn.h>
+#include <sys/wait.h>
 #include <set>
 #include "host/permissions.h"
 namespace zn::text { void installSegmenter(); void installShapedGfx(); }
@@ -382,6 +384,71 @@ static void writeComponents(const std::string& file, const std::string& link, co
 }
 // zinc build <file> -o <out> once the program is compiled: fonts and images baked, the AOT C++ written and compiled with the runtime, the host and the plugins.
 // A compiled run (ZN-605) calls it in-process with `run`: when the C++ and the link inputs hash to run->have, nothing is compiled (run->reused).
+// The units of a large compiled program (ZN-427): their objects are cached by the hash of their C++ and of how they are compiled, so a change to one
+// function compiles the one unit that holds it; the units that miss are compiled at most ZINC_JOBS at once (half the cores, 1 to 8); with clang
+// the headers every unit includes are precompiled once per compiler, flags and engine headers (they are 1.4 s of each unit's compile).
+extern char** environ;
+namespace aotcache {
+namespace fs = std::filesystem;
+static fs::path dir() { return fs::path(zn::tc::home()) / "cache" / "aot-obj"; }
+static unsigned jobs() {
+  if (const char* j = std::getenv("ZINC_JOBS")) return static_cast<unsigned>(std::max(1, std::atoi(j)));
+  return std::clamp(std::thread::hardware_concurrency() / 2, 1u, 8u);
+}
+static std::string capture(const std::string& cmd) {
+  std::string outText;
+  if (FILE* f = popen((cmd + " 2>/dev/null").c_str(), "r")) { char buf[256]; std::size_t n; while ((n = std::fread(buf, 1, sizeof buf, f)) > 0) outText.append(buf, n); pclose(f); }
+  return outText;
+}
+/** Runs the shell commands, at most `limit` at once; false when one fails. */
+static bool runAll(const std::vector<std::string>& cmds, unsigned limit) {
+  std::vector<pid_t> live;
+  bool ok = true;
+  for (std::size_t next = 0; next < cmds.size() || !live.empty();) {
+    while (ok && live.size() < limit && next < cmds.size()) {
+      const char* argv[] = {"/bin/sh", "-c", cmds[next++].c_str(), nullptr};
+      pid_t pid;
+      if (posix_spawn(&pid, "/bin/sh", nullptr, nullptr, const_cast<char* const*>(argv), environ) != 0) { ok = false; break; }
+      live.push_back(pid);
+    }
+    if (live.empty()) break;
+    int st = 0;
+    const pid_t done = waitpid(live.front(), &st, 0);   // the oldest first: the others keep running meanwhile
+    if (done > 0) { live.erase(live.begin()); if (!WIFEXITED(st) || WEXITSTATUS(st) != 0) ok = false; }
+  }
+  return ok;
+}
+/** `-include-pch <file>` for the units' headers, built when missing; "" when the compiler is not clang or the header cannot be built. */
+static std::string pch(const std::string& cxx, const std::string& cflags) {
+  const std::string version = capture(cxx + " --version");
+  if (version.find("clang") == std::string::npos) return "";
+  std::string key = version + cflags;
+  for (const char* d : {"/include/zn", "/src/rt", "/src/zbc", "/third_party/mimalloc/include"}) {
+    std::error_code ec;
+    for (auto it = fs::recursive_directory_iterator(gRoot + d, ec); !ec && it != fs::recursive_directory_iterator(); it.increment(ec))
+      if (it->is_regular_file(ec)) { std::ifstream in(it->path(), std::ios::binary); std::stringstream ss; ss << in.rdbuf(); key += it->path().string() + "\n" + ss.str(); }
+  }
+  const fs::path file = dir() / ("prelude-" + zn::tc::sha256Hex(key).substr(0, 16) + ".pch");
+  std::error_code ec;
+  if (fs::exists(file, ec)) return " -include-pch '" + file.string() + "'";
+  fs::create_directories(dir(), ec);
+  const fs::path header = file.string() + ".h", tmp = file.string() + ".part" + std::to_string(::getpid());
+  std::ofstream(header) << "#include \"rt/rt.h\"\n#include \"zn/host.h\"\n#include \"zn/ops.h\"\n";
+  const bool made = std::system((cxx + cflags + " -x c++-header '" + header.string() + "' -o '" + tmp.string() + "'").c_str()) == 0;
+  if (made) fs::rename(tmp, file, ec); else fs::remove(tmp, ec);
+  return made && !ec ? " -include-pch '" + file.string() + "'" : "";
+}
+/** Keeps the `keep` objects used last. */
+static void prune(std::size_t keep) {
+  std::vector<std::pair<fs::file_time_type, fs::path>> all;
+  std::error_code ec;
+  for (const auto& e : fs::directory_iterator(dir(), ec)) if (e.path().extension() == ".o") all.push_back({fs::last_write_time(e.path(), ec), e.path()});
+  if (all.size() <= keep) return;
+  std::sort(all.begin(), all.end());
+  for (std::size_t k = 0; k + keep < all.size(); ++k) fs::remove(all[k].second, ec);
+}
+}  // namespace aotcache
+
 struct RunBuild { std::string have, key; bool reused = false; };
 static int buildNative(const char* argv0, const char* entry, const char* out, zn::zbc::Module& zm, std::chrono::steady_clock::time_point tBuild, RunBuild* run = nullptr) {
   namespace fs = std::filesystem;
@@ -462,8 +529,18 @@ static int buildNative(const char* argv0, const char* entry, const char* out, zn
   const std::string cflags = " -std=c++20 -O2" + std::string(noOutline) + lean + " -w -ffp-contract=off -I '" + gRoot + "/include' -I '" + gRoot + "/src' -I '" + gRoot + "/third_party/mimalloc/include'";
   std::vector<fs::path> units{cpp};
   units.insert(units.end(), moreUnits.begin(), moreUnits.end());
-  std::string inputs;   // one unit: compiled and linked by one command; several: their objects, compiled at once below
-  for (const fs::path& u : units) inputs += " '" + (moreUnits.empty() ? u.string() : u.string() + ".o") + "'";
+  std::vector<std::string> objs;   // several units: their cached objects (aotcache), compiled below when missing
+  std::string pchFlag;
+  if (!moreUnits.empty()) {
+    const std::string cc = cxx ? cxx : "c++";
+    pchFlag = aotcache::pch(cc, cflags);
+    for (const fs::path& u : units) {
+      std::ifstream in(u); std::stringstream ss; ss << in.rdbuf();
+      objs.push_back((aotcache::dir() / (zn::tc::sha256Hex(ss.str() + "\n" + cc + cflags + pchFlag).substr(0, 24) + ".o")).string());
+    }
+  }
+  std::string inputs;   // one unit: compiled and linked by one command; several: their objects
+  for (std::size_t k = 0; k < units.size(); ++k) inputs += " '" + (moreUnits.empty() ? units[k].string() : objs[k]) + "'";
   std::string cmd = std::string(cxx ? cxx : "c++") + cflags + inputs + " '" + (libs / "libzn_rt.a").string() + "' '" + (zm.heapBytes && fs::exists(libs / "libzn_rt_new.a") ? (libs / "libzn_rt_new.a").string() + "' '" : std::string()) + (libs / "libzn_mimalloc.a").string() + "' '" +
                     (libs / "libzn_zbc.a").string() + "' '" + (libs / "libzn_ir.a").string() + "' '" + (libs / "libzn_frontend.a").string() + "'" + (fs::exists(libs / "libzn_regexp.a") ? " '" + (libs / "libzn_regexp.a").string() + "'" : std::string()) + " '" + (libs / "libzn_native.a").string() + "'" + (!zm.natives.empty() && fs::exists(libs / "libzn_native_fixture.a") ? " '" + (libs / "libzn_native_fixture.a").string() + "'" : std::string()) +   // the native registry; libunicode: the string runtime needs it
                     (!nativeLibs.empty() ? nativeLibs : std::string()) + (zn::aot::usesLayout(zm) && (zn::frontend::uiLayout() == "rn" || zn::frontend::directLayoutUse()) && fs::exists(libs / "libzn_layout.a") ? " '" + (libs / "libzn_layout.a").string() + "' '" + (libs / "libzn_yoga.a").string() + "'" : std::string()) + ((zn::aot::usesHost(zm) || !nativeLibs.empty()) && fs::exists(libs / "libzn_host_gfx.a") ? " '" + (libs / "libzn_host_gfx.a").string() + "'" + (fs::exists(libs / "libzn_codec.a") ? " '" + (libs / "libzn_codec.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_uv.a") ? " '" + (libs / "libzn_uv.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_llhttp.a") ? " '" + (libs / "libzn_llhttp.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_mbedtls.a") ? " '" + (libs / "libzn_mbedtls.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_regexp.a") ? " '" + (libs / "libzn_regexp.a").string() + "'" : std::string()) + " -lpthread" HOSTLIBS : std::string()) + " -o '" + out + "'";  // the graphics host, used by programs that call it
@@ -487,18 +564,22 @@ static int buildNative(const char* argv0, const char* entry, const char* out, zn
   zn::log::write("build", zn::log::Debug, "compile and link: " + cmd);
   int rc = 0;
   if (!moreUnits.empty()) {
-    zn::log::Phase ph("build", "compile (C++)", "native", std::to_string(units.size()) + " units at once");
-    std::string all, waits;   // one shell runs the compilers in the background (std::system from several threads runs them one after the other on macOS)
+    std::vector<std::string> cmds;
+    std::error_code ec;
+    fs::create_directories(aotcache::dir(), ec);
     for (std::size_t k = 0; k < units.size(); ++k) {
-      all += "( " + std::string(cxx ? cxx : "c++") + cflags + " -c '" + units[k].string() + "' -o '" + units[k].string() + ".o' ) & p" + std::to_string(k) + "=$!; ";
-      waits += "wait $p" + std::to_string(k) + " || r=1; ";
+      if (fs::exists(objs[k], ec)) { fs::last_write_time(objs[k], fs::file_time_type::clock::now(), ec); continue; }   // compiled before: kept, marked as used
+      const std::string tmp = objs[k] + ".part" + std::to_string(::getpid());
+      cmds.push_back(std::string(cxx ? cxx : "c++") + cflags + pchFlag + " -c '" + units[k].string() + "' -o '" + tmp + "' && mv '" + tmp + "' '" + objs[k] + "'");
     }
-    rc = std::system((all + "r=0; " + waits + "exit $r").c_str());
+    const unsigned limit = aotcache::jobs();
+    zn::log::Phase ph("build", "compile (C++)", "native", std::to_string(cmds.size()) + " of " + std::to_string(units.size()) + " units, " + std::to_string(limit) + " at once");
+    rc = aotcache::runAll(cmds, limit) ? 0 : 1;
+    aotcache::prune(1500);
   }
   if (rc == 0) { zn::log::Phase ph("build", "compile and link (C++)", "native", std::string(cxx ? cxx : "c++") + (moreUnits.empty() ? " -O2, compile and link" : ", link")); rc = std::system(cmd.c_str()); }
   for (const fs::path& u : units) {
     std::error_code ec;
-    if (!moreUnits.empty()) fs::remove(u.string() + ".o", ec);
     if (!std::getenv("ZN_KEEP_CPP")) fs::remove(u, ec);
   }
   if (rc != 0) { std::fprintf(stderr, "the C++ compiler failed: %s\n", cmd.c_str()); return 1; }

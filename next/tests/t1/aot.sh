@@ -20,9 +20,9 @@ printf 'function f(n: i32): i32 { return f(n + 1) + 1; }\nconsole.log("start");\
 "$ZINC" build "$tmp/so.ts" -o "$tmp/so" 2>/dev/null; "$tmp/so" > "$tmp/so.a" 2>&1; ca=$?
 "$ZINC" run "$tmp/so.ts" > "$tmp/so.i" 2>&1; ci=$?
 [ $ca -eq $ci ] && cmp -s "$tmp/so.a" "$tmp/so.i" && grep -q "stack overflow" "$tmp/so.a" || { echo "typed recursion without end: AOT (exit $ca) and interpreter (exit $ci) disagree"; fail=1; }
-# ZN-604: a large program is compiled as several units at once (ZN_AOT_PART_BYTES splits small ones): calls, virtual calls and handlers across units
+# ZN-604, ZN-427: a large program is compiled as several units (ZN_AOT_PART_BYTES and ZN_AOT_UNIT_FNS split small ones): calls, virtual calls and handlers across units
 for k in exceptions library; do
-  ZN_AOT_PART_BYTES=3000 ZN_KEEP_CPP=1 "$ZINC" build tests/golden/run/$k.ts -o "$tmp/u$k" 2>"$tmp/err" || { echo "split aot build failed: $k: $(head -c 200 "$tmp/err")"; fail=1; continue; }
+  ZN_AOT_PART_BYTES=3000 ZN_AOT_UNIT_FNS=4 ZN_KEEP_CPP=1 "$ZINC" build tests/golden/run/$k.ts -o "$tmp/u$k" 2>"$tmp/err" || { echo "split aot build failed: $k: $(head -c 200 "$tmp/err")"; fail=1; continue; }
   [ -f "$tmp/u$k.part2.cpp" ] || { echo "$k was not split into units"; fail=1; }
   "$tmp/u$k" 2>&1 | diff -q - "tests/golden/run/$k.out" >/dev/null || { echo "split aot output differs: $k"; fail=1; }
 done

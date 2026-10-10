@@ -16,8 +16,9 @@ namespace zn::aot {
 // `resources` (the blob of src/res) is embedded and installed when the program starts, for programs that draw (usesHost).
 // rnLayout: the program was compiled for the rn layout engine (Yoga); in classic its layout rows are never called, so the engine is neither installed nor linked (ZN-355).
 std::string emitCpp(const zbc::Module& m, const std::vector<std::uint8_t>* resources = nullptr, bool rnLayout = true);
-// The same program as up to `maxParts` translation units to compile at once (a large program only, about 2 MB of C++ each); the first has the
-// tables and main, the others only functions; with more than one, the functions have external linkage (ZN-604).
+// The same program as several translation units when `maxParts` > 1 and the program is large (512 KB of C++ or more): the first has the tables,
+// the baked resources and main, each other one ZN_AOT_UNIT_FNS (48) functions in index order, so a change to one function changes one unit;
+// with more than one unit the functions have external linkage (ZN-604, ZN-427).
 std::vector<std::string> emitCppParts(const zbc::Module& m, const std::vector<std::uint8_t>* resources, bool rnLayout, unsigned maxParts);
 
 // Whether the module calls the graphics host (the Rt::Host* entries).
