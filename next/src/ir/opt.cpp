@@ -426,26 +426,31 @@ void unrollRecursion(Module& m) {
   }
 }
 
-// `arr.sort((a, b) => a - b)` on an f64[] (and `b - a`): the comparator is a closure that was just made and does only the subtraction, so the runtime sorts with the
-// comparison in place of a call per comparison (the same stable merge, the same results, NaN included).
+// `arr.sort((a, b) => a - b)` on an f64[] or an i32[] (and `b - a`): the comparator is a closure that was just made and does only the subtraction (in i32,
+// then converted to the f64 a comparator returns), so the runtime sorts with the comparison in place of a call per comparison: the same stable merge and the
+// same results, NaN and 32-bit wrap included (ZN-042, ZN-420).
 void specializeSort(Module& m) {
-  std::uint32_t callSel = UINT32_MAX;
-  for (std::uint32_t k = 0; k < m.selectors.size(); ++k) {
-    const Selector& s = m.selectors[k];
-    if (s.name == "call" && s.params.size() == 2 && m.types[s.ret].k == Type::K::Num && m.types[s.ret].num == frontend::Num::f64 && s.params[0] == s.params[1] && m.types[s.params[0]].k == Type::K::Num && m.types[s.params[0]].num == frontend::Num::f64) { callSel = k; break; }
-  }
-  if (callSel == UINT32_MAX) return;
-  // 1: ascending (a - b), -1: descending (b - a), 0: another body
-  auto direction = [&](std::uint32_t cls) {
+  auto numKind = [&](TypeId t, frontend::Num k) { return m.types[t].k == Type::K::Num && m.types[t].num == k; };
+  // 1: ascending (a - b), -1: descending (b - a), 0: another body or another element type
+  auto direction = [&](std::uint32_t cls, frontend::Num elem) {
     const Class& c = m.classes[cls];
-    if (callSel >= c.vtable.size() || c.vtable[callSel] == kNoClass) return 0;
-    const Function& f = m.functions[c.vtable[callSel]];
-    if (f.blocks.size() != 1 || f.blocks[0].insts.size() != 2 || f.params.size() != 3) return 0;
-    const Inst& sub = f.blocks[0].insts[0];
-    const Inst& ret = f.blocks[0].insts[1];
-    if (sub.op != IrOp::Sub || ret.op != IrOp::Ret || ret.args.size() != 1 || ret.args[0] != sub.res) return 0;
-    if (sub.args[0] == f.params[1] && sub.args[1] == f.params[2]) return 1;
-    if (sub.args[0] == f.params[2] && sub.args[1] == f.params[1]) return -1;
+    for (std::uint32_t sel = 0; sel < c.vtable.size() && sel < m.selectors.size(); ++sel) {
+      const Selector& s = m.selectors[sel];
+      if (c.vtable[sel] == kNoClass || s.name != "call" || s.params.size() != 2 || !numKind(s.ret, frontend::Num::f64) || !numKind(s.params[0], elem) || !numKind(s.params[1], elem)) continue;
+      const Function& f = m.functions[c.vtable[sel]];
+      const std::size_t n = elem == frontend::Num::f64 ? 2 : 3;   // an i32 difference is converted before it is returned
+      if (f.blocks.size() != 1 || f.blocks[0].insts.size() != n || f.params.size() != 3) return 0;
+      const Inst& sub = f.blocks[0].insts[0];
+      const Inst& ret = f.blocks[0].insts[n - 1];
+      if (sub.op != IrOp::Sub || !numKind(sub.ty, elem) || ret.op != IrOp::Ret || ret.args.size() != 1) return 0;
+      if (n == 3) {
+        const Inst& conv = f.blocks[0].insts[1];
+        if (conv.op != IrOp::Conv || conv.args.size() != 1 || conv.args[0] != sub.res || !numKind(conv.ty, frontend::Num::f64) || ret.args[0] != conv.res) return 0;
+      } else if (ret.args[0] != sub.res) return 0;
+      if (sub.args[0] == f.params[1] && sub.args[1] == f.params[2]) return 1;
+      if (sub.args[0] == f.params[2] && sub.args[1] == f.params[1]) return -1;
+      return 0;
+    }
     return 0;
   };
   for (Function& f : m.functions) {
@@ -460,11 +465,13 @@ void specializeSort(Module& m) {
       for (Inst& i : b.insts) {
         if (i.op != IrOp::Rt || i.sym != static_cast<std::uint32_t>(zn::Rt::ArrSort) || i.args.size() != 2) continue;
         const Type& at = m.types[f.valueTypes[i.args[0]]];
-        if (at.k != Type::K::Array || m.types[at.aux].k != Type::K::Num || m.types[at.aux].num != frontend::Num::f64) continue;
+        if (at.k != Type::K::Array) continue;
+        if (!numKind(at.aux, frontend::Num::f64) && !numKind(at.aux, frontend::Num::i32)) continue;   // f64[] and i32[] only: the runtime tells them apart by their element class
+        const frontend::Num elem = m.types[at.aux].num;
         ValueId c = i.args[1];
         if (castOf[c] != kNoValue) c = castOf[c];
         if (closure[c] < 0) continue;
-        int d = direction(static_cast<std::uint32_t>(closure[c]));
+        int d = direction(static_cast<std::uint32_t>(closure[c]), elem);
         if (d == 0) continue;
         i.sym = static_cast<std::uint32_t>(d > 0 ? zn::Rt::ArrSortAsc : zn::Rt::ArrSortDesc);
         i.args.resize(1);

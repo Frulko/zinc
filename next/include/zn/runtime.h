@@ -170,7 +170,7 @@
   X(HostProcStatus, "host.procStatus", "i>i", 2) \
   X(HostProcKill, "host.procKill", "i>n", 2) \
   X(HostHostLast, "host.hostLast", ">n", 2) \
-  /* internal rows after the host ones, so no id that a ZBC file or a firmware knows moves: what the optimizer rewrites a call into (not members of any type): a stable sort of an f64[] whose comparator was (a, b) => a - b or (a, b) => b - a, without callbacks */ \
+  /* internal rows after the host ones, so no id that a ZBC file or a firmware knows moves: what the optimizer rewrites a call into (not members of any type): a stable sort of an f64[] or an i32[] (the element class tells them apart, ZN-420) whose comparator was (a, b) => a - b or (a, b) => b - a, without callbacks */ \
   X(ArrSortAsc, "internal.arrSortAsc", "a>a", 0) X(ArrSortDesc, "internal.arrSortDesc", "a>a", 0) \
   /* appended rows (after the host ones, so no known id moves) */ \
   X(StrCodePointAt, "string.codePointAt", "si>i", 0) X(StrNormalize, "string.normalize", "sw>s", 0) X(StrLocaleCompare, "string.localeCompare", "ssw>i", 0) \

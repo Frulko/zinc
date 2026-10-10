@@ -315,6 +315,34 @@ void mergeSortNumbers(ObjVec<Slot>& v, double sign) {
   }
 }
 
+// The same merge for an i32[] sorted by (a: i32, b: i32) => a - b (or b - a) (ZN-420). The comparator subtracts in 32 bits, which wraps: its sign is
+// that of the wrapped difference, so when the values span 2^31 or more it is not an order and only this merge gives the comparator's permutation;
+// otherwise it is the plain order and the library's stable sort gives the same one. `sign` is 1 or -1.
+void mergeSortInts(ObjVec<Slot>& v, int sign) {
+  std::size_t n = v.size();
+  if (n < 2) return;
+  auto val = [](Slot x) { return static_cast<std::int32_t>(x); };
+  std::int64_t lo = val(v[0]), hi = lo;
+  for (Slot x : v) { lo = std::min<std::int64_t>(lo, val(x)); hi = std::max<std::int64_t>(hi, val(x)); }
+  if (hi - lo <= INT32_MAX) {
+    if (sign > 0) std::stable_sort(v.begin(), v.end(), [&](Slot x, Slot y) { return val(x) < val(y); });
+    else std::stable_sort(v.begin(), v.end(), [&](Slot x, Slot y) { return val(x) > val(y); });
+    return;
+  }
+  auto wrapped = [](std::int32_t a, std::int32_t b) { return static_cast<std::int32_t>(static_cast<std::uint32_t>(a) - static_cast<std::uint32_t>(b)); };
+  auto gt = [&](Slot x, Slot y) { return (sign > 0 ? wrapped(val(x), val(y)) : wrapped(val(y), val(x))) > 0; };  // what `cmp(x, y) > 0` was
+  ObjVec<Slot> tmp(n);
+  for (std::size_t width = 1; width < n; width *= 2) {
+    for (std::size_t lo2 = 0; lo2 < n; lo2 += 2 * width) {
+      std::size_t mid = std::min(lo2 + width, n), hi2 = std::min(lo2 + 2 * width, n), i = lo2, j = mid, k = lo2;
+      while (i < mid && j < hi2) tmp[k++] = gt(v[i], v[j]) ? v[j++] : v[i++];
+      while (i < mid) tmp[k++] = v[i++];
+      while (j < hi2) tmp[k++] = v[j++];
+    }
+    v.swap(tmp);
+  }
+}
+
 // Number.prototype.toFixed for finite |v| < 1e21. printf rounds an exact tie to even where JavaScript takes the larger
 // magnitude ((2.5).toFixed(0) is "3"); ties are found on the exact decimal expansion, so 1.005 keeps printf's result.
 std::string toFixed(double v, int digits) {
@@ -1319,7 +1347,8 @@ const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
     case Rt::ArrSortAsc: case Rt::ArrSortDesc: {
       ArrObj* o = A(a[0]);
       NN(o);
-      mergeSortNumbers(o->v, id == Rt::ArrSortAsc ? 1.0 : -1.0);
+      if (m.mod->classes[o->cls->id].elem.cls == zbc::Cls::D) mergeSortNumbers(o->v, id == Rt::ArrSortAsc ? 1.0 : -1.0);
+      else mergeSortInts(o->v, id == Rt::ArrSortAsc ? 1 : -1);   // the optimizer writes these rows for f64[] and i32[] only
       m.retain(o);
       return nullptr;
     }

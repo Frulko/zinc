@@ -44,7 +44,7 @@ Ranked by gain / effort (S = 1, M = 2, L = 3; gain 1 to 5, see section 2). Statu
 | 18 | PERF-18 | Borrowed (+0) parameters, `this` included | done (ZN-417, D51; sentinels ZN-616) | parameters are owned: a call retains, the callee releases; a comparison does 3 retains + 3 releases | -10% or better on method-heavy code (zinc:ui) | 3 | L | all |
 | 19 | PERF-19 | Packed numeric arrays and narrow fields | open (with ZN-145, ZN-158) | every array element and field is an 8-byte Slot (u8[] uses 8x its size) | element size = type size | 3 | L | memory-poor: PSP, 3DS, ESP32 |
 | 20 | PERF-20 | Native RGB565 raster for 16-bit panels | open (ZN-194, ZN-195) | 32-bit raster plus a 32 -> 16 conversion pass (fbdev) | no conversion pass, half the frame bandwidth | 3 | L | Pi 1/Zero panels, CHIP, PSP, 3DS |
-| 21 | PERF-21 | Sort with a comparator: direct native call, no retains, key comparators specialised | open | navigation AOT: `mergeSort` + `callComparator` + `exec` ~12% of samples | <= 4% | 2 | M | all |
+| 21 | PERF-21 | Sort with a comparator: direct native call, no retains, key comparators specialised | done (ZN-420: i32[] specialised, navigation paint -40%) | navigation AOT: `mergeSort` + `callComparator` + `exec` ~12% of samples | <= 4% | 2 | M | all |
 | 22 | PERF-22 | Interpreter: typed field opcodes, cached globals, fewer checks | open | bouncing-ball script: interpreter 13.2 ms vs AOT 4.2 ms per frame | -25% on the ball loop | 2 | M | ESP32 bytecode core, device-sim, dev |
 | 23 | PERF-23 | Allocation registry replaced by counters and a mimalloc heap | open | each alloc pushes on `Machine::allocated`, each free swap-removes and writes another object's header | -5 to -15% on binarytrees and allocation-heavy UI build | 2 | M | all, small caches first |
 | 24 | PERF-24 | LTO between the runtime, the host and the program | open | host rows are calls through function pointers (`hostFast`); runtime built -O3, program -O2, no LTO | measured, kept if >= 3% | 2 | M | all |
@@ -268,6 +268,8 @@ Gain: 5 = removes a multiple of the frame or a 2x+ on a whole class of programs;
 - **Cost now**: navigation AOT: `mergeSort` 79, `callComparator` 59, `exec` 125 of 2285 samples (~12%).
 - **Fix**: AOT calls the comparator's native function directly with borrowed arguments; the optimizer extends ZN-042's `specializeSort` to `(a, b) => a.k - b.k` on objects (extract the keys once, sort indices, stable).
 - **Gain**: most of the 12%. **Effort** M. **Risk** low (the stability and NaN cases have goldens). **Hardware**: all.
+
+- **Result (ZN-420, 2026-10-10)**: navigation's sort was an `i32[]` with `(a, b) => a - b`, which the f64-only specialisation missed; it now covers `i32[]` too (the runtime keeps the comparator's 32-bit wrap: the same merge when the values span 2^31, else a stable sort). AOT navigation paint 3.05 -> 1.82 ms per frame p50 (-40%) on the Intel Mac; no comparator call left in the profile.
 
 ### PERF-22: interpreter hot paths
 

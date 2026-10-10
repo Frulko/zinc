@@ -38,3 +38,27 @@ console.log(ok);
 const small: number[] = [3, 1, 2];
 small.sort((x: number, y: number) => x - y);
 console.log(small[0], small[1], small[2]);
+// i32[] (ZN-420): the comparator subtracts in 32 bits, which wraps when the values span 2^31; the specialised sort keeps the comparator's permutation in both cases
+function makeInts(wide: boolean): i32[] {
+  const r: i32[] = [];
+  for (let i: i32 = 0; i < 300; i++) r.push(wide ? (next() | 0) : ((next() % 40) as i32) - 20);
+  return r;
+}
+let okInts = 0;
+for (let round: i32 = 0; round < 4; round++) {
+  const a = makeInts(round >= 2);
+  const b = a.slice();
+  const c = a.slice();
+  const d = a.slice();
+  a.sort((x: i32, y: i32): number => x - y);
+  b.sort((x: i32, y: i32): number => (x - y) + 0);
+  c.sort((x: i32, y: i32): number => y - x);
+  d.sort((x: i32, y: i32): number => (y - x) + 0);
+  let same = true;
+  for (let i: i32 = 0; i < a.length; i++) if (a[i] !== b[i] || c[i] !== d[i]) same = false;
+  if (same) okInts++;
+}
+console.log(okInts);
+const ints: i32[] = [3, -1, 2];
+ints.sort((x: i32, y: i32): number => x - y);
+console.log(ints[0], ints[1], ints[2]);
