@@ -529,6 +529,50 @@ struct Lowering {
     if (last == "children") return true;
     return last.size() > 6 && last.compare(0, 6, "render") == 0 && std::isupper(static_cast<unsigned char>(last[6]));
   }
+  // The functions of this file that return JSX (components and helpers, `function f() { return <View .../>; }` or `const f = () => <View/>`):
+  // a call of one as a child is a node to mount, not a number to print (ZN-689).
+  std::set<std::string> jsxFns;
+  bool jsxFnsRead = false;
+  bool bodyReturnsJsx(std::size_t open, std::size_t close) {
+    for (std::size_t k = open + 1; k < close; ++k) {
+      if (!isK(k, "return")) continue;
+      std::size_t r0 = k + 1;
+      while (isP(r0, "(")) ++r0;
+      if (jsxStart(r0)) return true;
+    }
+    return false;
+  }
+  const std::set<std::string>& jsxFunctions() {
+    if (jsxFnsRead) return jsxFns;
+    jsxFnsRead = true;
+    for (std::size_t i = 0; i + 3 < t.size(); ++i) {
+      if (isK(i, "function") && t[i + 1].kind == Tok::Ident) {
+        std::size_t p = i + 2;
+        while (p < t.size() && !isP(p, "(") && !isP(p, "{") && !isP(p, ";")) ++p;   // past type parameters
+        if (!isP(p, "(")) continue;
+        std::size_t q = match(p) + 1;
+        while (q < t.size() && !isP(q, "{") && !isP(q, ";") && !isP(q, "=>")) ++q;   // past the return type
+        if (isP(q, "{") && bodyReturnsJsx(q, match(q))) jsxFns.insert(tx(i + 1));
+      } else if ((isK(i, "const") || isK(i, "let")) && t[i + 1].kind == Tok::Ident) {
+        std::size_t q = i + 2;
+        if (isP(q, ":")) { while (q < t.size() && !isP(q, "=") && !isP(q, ";")) { if (isP(q, "(") || isP(q, "[") || isP(q, "{")) q = match(q); ++q; } }
+        if (!isP(q, "=")) continue;
+        std::size_t end = q + 1;   // the end of the initializer: a `;` or a `,` outside brackets
+        while (end < t.size() && !isP(end, ";") && !isP(end, ",")) { if (isP(end, "(") || isP(end, "[") || isP(end, "{")) end = match(end); else if (jsxStart(end)) end = parseElem(end)->end - 1; ++end; }
+        if (returnsJsx(q + 1, end)) jsxFns.insert(tx(i + 1));
+      }
+    }
+    return jsxFns;
+  }
+  // A call that gives a node: render functions, the file's functions that return JSX, and components (a capitalised bare name, as React
+  // names them; the global constructors that make strings and numbers, String(x) and the like, are not).
+  bool nodeCall(const std::string& callee) {
+    if (childrenCall(callee)) return true;
+    if (callee.empty() || callee.find('.') != std::string::npos || callee.find('<') != std::string::npos) return false;
+    if (jsxFunctions().count(callee)) return true;
+    static const std::set<std::string> builtins{"String", "Number", "Boolean", "BigInt", "Symbol", "Date", "Array", "Object", "Error", "RegExp", "Map", "Set", "Promise", "JSON", "Math", "Intl"};
+    return std::isupper(static_cast<unsigned char>(callee[0])) && !builtins.count(callee);
+  }
   // an arrow function over [a, b) that returns JSX
   bool returnsJsx(std::size_t a, std::size_t b) {
     std::size_t arrow = 0;
@@ -865,7 +909,7 @@ struct Lowering {
         if (jsxStart(a) && parseElem(a)->end == b) { auto el = parseElem(a); std::string cv = element(*el, out); out.push_back("_append(" + parent + ", " + cv + ");"); continue; }
         std::size_t open = callParen(a, b);
         std::string callee = open ? calleeText(a, open) : "";
-        if (open && childrenCall(callee)) { out.push_back("_append(" + parent + ", " + rw(a, b) + ");"); continue; }
+        if (open && nodeCall(callee)) { out.push_back("_append(" + parent + ", " + rw(a, b) + ");"); continue; }
         if (open && callee.size() > 4 && callee.compare(callee.size() - 4, 4, ".map") == 0 && returnsJsx(open + 1, b - 1)) {
           bool oneArg = true;
           scan(open + 1, b - 1, [&](std::size_t, const std::string& x) { if (x == ",") oneArg = false; });
@@ -951,7 +995,7 @@ struct Lowering {
         if (k->kind != 1 || k->ee <= k->eb) return true;
         if (jsxStart(k->eb) && parseElem(k->eb)->end == k->ee) return true;
         std::size_t open = callParen(k->eb, k->ee);
-        return open && childrenCall(calleeText(k->eb, open));
+        return open && nodeCall(calleeText(k->eb, open));
       };
       if (kids.size() > 1 || (kids.size() == 1 && (kids[0]->kind == 0 || !nodeValued(kids[0])))) {
         std::vector<std::string> lines;

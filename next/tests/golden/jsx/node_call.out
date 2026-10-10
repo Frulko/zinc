@@ -1,0 +1,19 @@
+node 0
+  class flex-col
+  node 0
+    class p-2
+    node 1
+      textOf part
+  node 0
+    class flex-row
+    node 1
+      dynTextOf a
+  node 6
+    node 0
+      class p-2
+      node 1
+        textOf part
+  node 100
+    text 3
+  node 100
+    text 7
