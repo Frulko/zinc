@@ -1,0 +1,43 @@
+#!/bin/sh
+# The QuickJS-ng patch queue (ZN-595): third_party/quickjs-ng holds the release named in its PRISTINE file with the numbered patches of
+# third_party/quickjs-ng/patches/ applied, in order (README.md there says how to write one).
+#   tools/quickjs-patches check          the vendored tree is the release plus the patches: every patch reverses, in reverse order, onto a copy,
+#                                        and each file then has the SHA-256 of the release (offline; tests/t0/quickjs_patches.sh)
+#   tools/quickjs-patches rebase <ref>   a dry rebase: fetch the quickjs-ng archive of a tag or commit, apply the patches to its copy of the
+#                                        vendored files, report each patch and the archive's SHA-256; --apply also replaces the vendored files
+#                                        and PRISTINE (then build, run the QuickJS tests, update third_party/README.md and components.json)
+cd "$(dirname "$0")/../third_party/quickjs-ng" || exit 2
+tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+files=$(sed -n 's/^[0-9a-f]\{64\}  //p' PRISTINE)
+patches=$(ls patches/*.patch 2>/dev/null | sort)
+case "$1" in
+check)
+  for f in $files; do mkdir -p "$tmp/t/$(dirname "$f")"; cp "$f" "$tmp/t/$f"; done
+  for p in $(printf '%s\n' $patches | sort -r); do
+    patch -s -R -p1 -d "$tmp/t" < "$p" >/dev/null 2>&1 || { echo "quickjs-patches: $p does not reverse: the tree is not the release plus the patches"; exit 1; }
+  done
+  bad=$(cd "$tmp/t" && sed -n '/^[0-9a-f]\{64\}  /p' "$OLDPWD/PRISTINE" | shasum -a 256 -c 2>/dev/null | grep -v ': OK$')
+  [ -z "$bad" ] || { echo "quickjs-patches: files differ from the release once the patches are reversed (a change outside the queue?):"; echo "$bad"; exit 1; }
+  echo "quickjs-patches: $(sed -n 's/^release //p' PRISTINE) plus $(printf '%s\n' $patches | grep -c . ) patch(es): ok"
+  ;;
+rebase)
+  ref=${2:?usage: tools/quickjs-patches rebase <tag or commit> [--apply]}
+  curl -fsSL -o "$tmp/src.tar.gz" "https://github.com/quickjs-ng/quickjs/archive/$ref.tar.gz" || { echo "quickjs-patches: cannot fetch $ref"; exit 1; }
+  echo "archive $ref sha256 $(shasum -a 256 "$tmp/src.tar.gz" | cut -d' ' -f1)"
+  mkdir "$tmp/x" && tar -xzf "$tmp/src.tar.gz" -C "$tmp/x" && src=$(ls -d "$tmp"/x/*)
+  mkdir "$tmp/t"
+  for f in $files; do [ -f "$src/$f" ] || { echo "quickjs-patches: $ref has no $f (the vendored file set changed: update PRISTINE by hand)"; exit 1; }; mkdir -p "$tmp/t/$(dirname "$f")"; cp "$src/$f" "$tmp/t/$f"; done
+  changed=0; for f in $files; do cmp -s "$f" "$src/$f" || changed=$((changed + 1)); done
+  echo "$changed of $(printf '%s\n' $files | grep -c .) vendored files differ from $ref"
+  fail=0
+  for p in $patches; do
+    if patch -s -p1 -d "$tmp/t" < "$p" >"$tmp/out" 2>&1; then echo "applies: $p"; else echo "CONFLICT: $p"; sed 's/^/  /' "$tmp/out"; fail=1; fi
+  done
+  [ $fail -eq 0 ] || exit 1
+  [ "$3" = --apply ] || { echo "dry run: nothing written (--apply replaces the vendored files and PRISTINE)"; exit 0; }
+  for f in $files; do cp "$tmp/t/$f" "$f"; done
+  { echo "release $ref"; echo "archive https://github.com/quickjs-ng/quickjs/archive/$ref.tar.gz $(shasum -a 256 "$tmp/src.tar.gz" | cut -d' ' -f1)"; (cd "$src" && shasum -a 256 $files); } > PRISTINE
+  echo "applied: build, run tests/t1/quickjs.sh and the test262 subset, then update third_party/README.md and components.json"
+  ;;
+*) sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
+esac
