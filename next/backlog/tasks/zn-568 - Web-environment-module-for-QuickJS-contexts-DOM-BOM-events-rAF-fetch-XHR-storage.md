@@ -7,7 +7,7 @@ status: In Progress
 assignee:
   - '@parallel'
 created_date: '2026-10-09 08:11'
-updated_date: '2026-10-10 22:23'
+updated_date: '2026-10-10 22:26'
 labels:
   - games
   - js
@@ -56,4 +56,7 @@ SLICE 3, network and storage (2026-10-11): URL and URLSearchParams are the typed
 No new host row: next/src/qjs/webenv.cpp calls HostFsReadText, HostHttpFetch, HostLoopWait, HostEvReady, HostEvNext, HostHttpStatus/Head/Url/Body/Free.
 Not done: a request body over http is text only; FormData; ReadableStream; DOMParser and responseType 'document' (the vendored XML parser of the decision); cookies; the localStorage property form.
 Tests: tests/t0/webenv.sh with net.js (files, data:, blob:, 404, abort, XHR events in order, storage, scripts), a second run reading what the first stored, and http.js against a Python server on a loopback port the system picks (a 256-byte binary intact, a 404, two requests at once, a refused connection rejects); qjs (the stripper cases), quickjs, layout_bridge, three pass.
+
+SLICE 4, the canvas element bound to WebGL (2026-10-11): document.createElement('canvas') is the WebGL module's own canvas object (next/src/gl/webgl_js.cpp, untouched) given the HTMLCanvasElement class and an element's fields, so gl.canvas is the element, its width and height (also set as attributes) resize the drawing buffer, and webglcontextlost / webglcontextrestored arrive as its events; without the module getContext answers null. getContext('2d') answers null until ZN-570 (the trace names it). ImageData exists; __srcPixels, which texImage2D asks for a DOM source's pixels, answers for an ImageData, for a WebGL canvas (read back) and for anything with a _pixels() method: the door for ZN-569's images and ZN-570's 2D canvases. Each frame the window shows, over black, every canvas of the document that has a WebGL context, at its box, through gl.zincPresent into a zinc:gfx image (a read, pipelined in a real run: the zero-copy path is the lane's presentation task). toDataURL and toBlob answer empty (no image encoder; the trace names them).
+Test: tests/t1/webenv_canvas.sh with tests/golden/webenv/canvas.js (a WebGL 2 context on the element, a triangle textured from an ImageData read back as 255,128,0, a resize, a lost and restored context, and frame 2 of the window equal to canvas-2.png).
 <!-- SECTION:NOTES:END -->

@@ -1,0 +1,7 @@
+context true true true null null true CANVAS 320 240 320 240 320 240
+webgl 1 true 300 150 false
+drawn error 0 inside 255,128,0,255 outside 0,0,255,255
+resized 64 48 64
+lost webglcontextlost true true
+restored webglcontextrestored false
+frame 2 middle 255,0,0,255 corner 0,128,0,255
