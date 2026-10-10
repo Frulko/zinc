@@ -48,7 +48,7 @@ Ranked by gain / effort (S = 1, M = 2, L = 3; gain 1 to 5, see section 2). Statu
 | 22 | PERF-22 | Interpreter: typed field opcodes, cached globals, fewer checks | open | bouncing-ball script: interpreter 13.2 ms vs AOT 4.2 ms per frame | -25% on the ball loop | 2 | M | ESP32 bytecode core, device-sim, dev |
 | 23 | PERF-23 | Allocation registry replaced by counters and a mimalloc heap | open | each alloc pushes on `Machine::allocated`, each free swap-removes and writes another object's header | -5 to -15% on binarytrees and allocation-heavy UI build | 2 | M | all, small caches first |
 | 24 | PERF-24 | LTO between the runtime, the host and the program | open | host rows are calls through function pointers (`hostFast`); runtime built -O3, program -O2, no LTO | measured, kept if >= 3% | 2 | M | all |
-| 25 | PERF-25 | PGO for the runtime, raster and host libraries | open | not measured | measured, kept if >= 5% | 2 | M | all |
+| 25 | PERF-25 | PGO for the runtime, raster and host libraries | not adopted (ZN-424, D54: about -1%) | measured: -6% to +7% per kernel | measured, kept if >= 5% | 2 | M | all |
 | 26 | PERF-26 | Render scale option for pixel-art gfx programs on HiDPI windows | open | 320x240 program rendered at 1280x960 (16x the logical pixels) | opt-in `pixelScale`, 4x fewer pixels at zoom 2 on Retina | 1 | S | desktop only |
 | 27 | PERF-27 | Metal-native texture format in the SDL HAL | open | XRGB8888 is not native on SDL's Metal renderer: every upload is converted (`Blit8888to8888PixelSwizzleNEON`), 1.6% of the main thread | no conversion | 1 | S | macOS (and iOS if Metal) |
 | 28 | PERF-28 | AOT build in parallel translation units | open | `zinc build` of navigation: 81 s (one TU at -O2) | <= 30 s at `-j3` | 1 | M | dev loop |
