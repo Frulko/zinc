@@ -1,0 +1,79 @@
+# The table editor, drawing (tests/t1/pinball3d_editor.sh), window 1440x900: paths, arcs, snapping, mirror, a ramp and its height
+# profile, the palette, duplicate. An entry of the palette is taken by its key (Cmd+G, "+wall"), a field by its key (Cmd+F): the
+# lines of the palette and of the forms may move when the format grows, the top view does not.
+# A wall: three points on the table (they snap to the 5 mm grid), Enter.
+4 key g meta
+5 text +wall
+6 key Enter
+8 move 567 519
+9 down
+10 up
+11 move 600 486
+12 down
+13 up
+14 move 633 519
+15 down
+16 up
+17 key Enter
+# Its middle point is dragged 5 cm up the table.
+20 move 600 486
+21 down
+22 move 600 470
+23 move 600 453
+24 up
+# Its first stretch is bent into an arc with the round dot in its middle.
+27 move 584 486
+28 down
+29 move 575 482
+30 move 568 478
+31 up
+# A double click on its second stretch adds a point there; the last point is pressed, and Delete takes that point away.
+34 move 617 486
+35 down
+36 up
+37 down
+38 up
+41 move 633 519
+42 down
+43 up
+44 key Delete
+# M adds its mirror image about the table's axis.
+47 key m
+# A ramp: two points, and a double click for the last.
+50 key g meta
+51 text +ramp
+52 key Enter
+54 move 666 618
+55 down
+56 up
+57 move 666 552
+58 down
+59 up
+60 move 699 519
+61 down
+62 up
+63 down
+64 up
+# Its height profile, found by its key: the point in the middle is dragged later and lower, and a double click adds a point.
+67 key f meta
+68 text profile
+70 move 1242 189
+71 down
+72 move 1250 200
+73 move 1270 212
+74 up
+76 move 1340 189
+77 down
+78 up
+79 down
+80 up
+# A bumper: one click; then its copy (Cmd+D).
+83 key g meta
+84 text +bumper
+85 key Enter
+87 move 620 453
+88 down
+89 up
+91 key d meta
+# Save.
+94 key s meta

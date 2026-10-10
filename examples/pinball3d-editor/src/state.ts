@@ -6,8 +6,9 @@ import * as fs from 'zinc:fs';
 import * as dialog from 'zinc:system/dialog';
 import { Schema, Kind } from '../../pinball3d/src/format/schema';
 import { TableDef, TableError, TABLE_FILE, formatSchema } from '../../pinball3d/src/format/table';
-import { Doc, newTableText, isPlaced, canTurn, schemaAt, fieldAt, listOf } from './doc';
+import { Doc, newTableText, isPlaced, canTurn, schemaAt, fieldAt, listOf, indexOf, pointsOf } from './doc';
 import { Outline, outlines } from './shapes';
+import { Preset, LANE, palette, itemOf, pointsNeeded, rowsNeeded, laneOf } from './presets';
 import * as L from './strings';
 import { t, f } from './strings';
 
@@ -65,10 +66,14 @@ export const [hovered, setHovered] = createSignal<string>('');
 // the id of the selected item, to find it again when undo or a deletion moved it in its list
 let selectedId = '';
 
+/** The point of the selection that was last pressed, as the row that holds it ("walls[2].points[1]", "ramps[0].profile[2]"):
+ *  Delete takes that point away rather than the whole element. '' for none. */
+export const [activeRow, setActiveRow] = createSignal<string>('');
+
 export function select(path: string): void {
   current.seal();
   selectedId = path === '' ? '' : idAt(path);
-  batch(() => { setSelected(path); if (failed()) say(''); });   // a refusal is about what was selected then
+  batch(() => { setSelected(path); setActiveRow(''); if (failed()) say(''); });   // a refusal is about what was selected then
 }
 function idAt(path: string): string {
   const v: any = current.get(path);
@@ -86,10 +91,16 @@ function reselect(): void {
   setSelected(again);
 }
 /** Selects what a text names: a path as the file has it ("flippers[1]", "physics"), else the first thing of the table called so,
- *  in the order of the file. False, and the status bar says so, when nothing is. */
+ *  in the order of the file. "+" and the key of an entry of the palette ("+wall", "+left-flipper") takes that entry instead: the
+ *  next clicks place it. False, and the status bar says so, when the text names nothing. */
 export function goTo(text: string): boolean {
   const want = text.trim();
   if (want === '') return false;
+  if (want.startsWith('+')) {
+    for (const e of ENTRIES) if (e.key === want.slice(1)) { if (e === LANE) addLane(); else pickTool(e); return true; }
+    say(f(L.NOT_FOUND, want), true);
+    return false;
+  }
   const v: any = fieldAt(want) === null ? undefined : current.get(want);
   let path = v !== undefined && v !== null && typeof v === 'object' && !Array.isArray(v) ? want : '';
   if (path === '') for (const fd of formatSchema().fields) if (path === '' && fd.kind === Kind.List) path = current.find(fd.name, want);
@@ -126,6 +137,93 @@ export function fit(): void {
   batch(() => { setZoom(z); setPanX(Math.round((viewW - p.width * z) / 2)); setPanY(Math.round((viewH - p.length * z) / 2)); });
 }
 
+// ---------------------------------------------------------------- drawing: the grid, the axis, what is being placed
+
+/** The step points snap to, in centimetres; 0: they go where the pointer is (to a hundredth). */
+export const GRIDS: number[] = [0.5, 1, 0.1, 0];
+export const [grid, setGrid] = createSignal<number>(0.5);
+/** The x of the table's axis of symmetry: what Mirror mirrors about, and a line points snap to. It is the middle between a left
+ *  and a right flipper when the table has them (a plunger lane puts it off the middle of the board), else the middle of the board.
+ *  ponytail: found again when a table is opened, not kept in its folder; the marker above the board moves it for the session. */
+export const [axis, setAxis] = createSignal<number>(25.5);
+function findAxis(): number {
+  const tb = current.def;
+  let left = -1, right = -1;
+  for (const fl of tb.flippers) { if (fl.button === 'left' && left < 0) left = fl.pivot[0]; if (fl.button === 'right' && right < 0) right = fl.pivot[0]; }
+  return left >= 0 && right >= 0 ? Math.round((left + right) * 50) / 100 : tb.playfield.width / 2;
+}
+/** A place of the top view brought to what is near it: a point of another thing, the axis, else the grid. `skip`: the path of
+ *  the thing being drawn or changed, whose own points do not attract it; `free`: no snapping at all (Alt). */
+export function snapped(x: number, y: number, skip: string, free: boolean): number[] {
+  const round = (v: number): number => Math.round(v * 100) / 100;
+  if (free) return [round(x), round(y)];
+  const reach = 6 / zoom(), root = formatSchema();
+  for (const o of placed()) {
+    if (o.path === skip || x < o.x0 - reach || x > o.x1 + reach || y < o.y0 - reach || y > o.y1 + reach) continue;
+    const fd = root.field(listOf(o.path) === '' ? o.path : listOf(o.path));
+    if (fd === null || fd.of === null) continue;
+    for (const p of pointsOf(fd.of as Schema, current.get(o.path))) { const px: number = p[0], py: number = p[1]; if (Math.abs(px - x) < reach && Math.abs(py - y) < reach) return [px, py]; }
+  }
+  const g = grid();
+  let sx = g > 0 ? Math.round(x / g) * g : x;
+  if (Math.abs(x - axis()) < reach) sx = axis();
+  return [round(sx), round(g > 0 ? Math.round(y / g) * g : y)];
+}
+
+/** The palette: what can be added, for the lists of the format whose items have a place. */
+export const ENTRIES: Preset[] = palette(PLACED_LISTS);
+/** What the next clicks on the top view place (an entry of the palette); null: clicks select. */
+export const [tool, setTool] = createSignal<Preset | null>(null);
+/** The places clicked so far for it. */
+export const [clicks, setClicks] = createSignal<number[][]>([]);
+export function pickTool(p: Preset | null): void {
+  current.seal();
+  batch(() => { setTool(p); setClicks([]); if (p !== null) { setSelected(''); setActiveRow(''); selectedId = ''; } });
+}
+/** One more place for what is being placed. An element without a path is added at its last point. */
+export function placeAt(x: number, y: number): void {
+  const p = tool();
+  if (p === null) return;
+  const got = clicks(), n: i32 = got.length;
+  if (n > 0 && got[n - 1][0] === x && got[n - 1][1] === y) return;   // the second press of a double click
+  const next = got.slice();
+  next.push([x, y]);
+  setClicks(next);
+  if (rowsNeeded(p.list) === 0 && next.length >= pointsNeeded(p.list)) finishPlacing();
+}
+/** Takes back the last place clicked. */
+export function unplace(): void { const got = clicks(); if (got.length > 0) setClicks(got.slice(0, got.length - 1)); }
+/** Ends a path: the element is added when it has the points its kind needs; with fewer, it waits for more. */
+export function finishPlacing(): void {
+  const p = tool(), got = clicks();
+  if (p === null || got.length < pointsNeeded(p.list) + rowsNeeded(p.list)) return;
+  const entry: Preset = p;
+  batch(() => {
+    const path = current.add(entry.list, itemOf(entry, got));
+    setTool(null); setClicks([]);
+    if (report(path !== '')) select(path);
+  });
+}
+/** The plunger lane along the right side of the board, in one step: its wall, the gate at its top, the plunger at its bottom. */
+export function addLane(): void {
+  const tb = current.def, parts = laneOf(tb.playfield.width, tb.playfield.length, tb.physics.ball.radius);
+  const wall: any = parts[0], gate: any = parts[1];
+  wall.id = current.freeId('walls', 'shooterLane'); gate.id = current.freeId('gates', 'laneGate');
+  if (current.find('walls', 'shooterLane') === '') wall.id = 'shooterLane';
+  if (current.find('gates', 'laneGate') === '') gate.id = 'laneGate';
+  batch(() => {
+    const done = current.edit(`Add ${wall.id}`, (d: any) => {
+      const walls: any[] = [], gates: any[] = [];
+      for (let i = 0; i < d.walls.length; i++) walls.push(d.walls[i]);
+      for (let i = 0; i < d.gates.length; i++) gates.push(d.gates[i]);
+      walls.push(wall); gates.push(gate);
+      d.walls = walls; d.gates = gates; d.plunger.at = parts[2];
+    });
+    setTool(null); setClicks([]);
+    if (report(done)) select(current.find('walls', `${wall.id}`));
+  });
+}
+
 // ---------------------------------------------------------------- commands
 
 /** Tells what the last operation of the document did, or why it was refused. */
@@ -146,6 +244,36 @@ export function replaceSelected(json: string): boolean {
 }
 export function moveSelected(dx: number, dy: number): void { if (selectionPlaced()) report(current.move(selected(), dx, dy)); }
 export function turnSelected(degrees: number): void { if (selectionTurns()) report(current.turn(selected(), degrees)); }
+/** A handle being dragged: the row follows the pointer, and the whole drag is one step for undo. Nothing is said of a place the
+ *  format refuses on the way (two points at the same place): the handle just does not go there. */
+export function dragRow(path: string, value: any): void { if (current.set(path, value, true)) say(f(L.DONE, L.step(current.undoLabel))); }
+/** The rows of a path or of a profile with one more at place `at`, or with row `at` taken away (`row` null). */
+export function changeRows(path: string, at: i32, row: number[] | null): boolean {
+  const old: any = current.get(path), rows: number[][] = [];
+  for (let i = 0; i <= old.length; i++) {
+    if (i === at && row !== null) rows.push(row);
+    if (i < old.length && !(i === at && row === null)) { const copy: number[] = []; for (let k = 0; k < old[i].length; k++) copy.push(old[i][k]); rows.push(copy); }
+  }
+  return report(current.set(path, rows));
+}
+/** Takes the active point away from its path or its profile. */
+export function removeActiveRow(): void {
+  const row = activeRow();
+  if (row === '') return;
+  batch(() => { changeRows(listOf(row), indexOf(row), null); setActiveRow(''); });
+}
+/** A copy of the selection beside it, selected. */
+export function duplicateSelected(): void {
+  const path = selected();
+  if (path === '' || listOf(path) === '') return;
+  batch(() => { const copy = current.duplicate(path, 2, 2); if (report(copy !== '')) select(copy); });
+}
+/** The mirror image of the selection about the table's axis, added and selected. */
+export function mirrorSelected(): void {
+  const path = selected();
+  if (path === '' || listOf(path) === '' || !selectionPlaced()) return;
+  batch(() => { const copy = current.mirror(path, axis()); if (report(copy !== '')) select(copy); });
+}
 /** Deletes the selected item of a list, with what cannot do without it (the status bar says how much went). */
 export function deleteSelected(): void {
   const path = selected();
@@ -176,7 +304,7 @@ function show(d: Doc, dir: string, message: string): void {
   current = d;
   shapes = null;
   watch(d);
-  batch(() => { selectedId = ''; setSelected(''); setHovered(''); setFolder(dir); say(message); refresh(); });
+  batch(() => { selectedId = ''; setSelected(''); setActiveRow(''); setHovered(''); setTool(null); setClicks([]); setAxis(findAxis()); setFolder(dir); say(message); refresh(); });
   fit();
 }
 function nameOfFolder(dir: string): string { return dir.slice(dir.lastIndexOf('/') + 1); }
@@ -198,7 +326,7 @@ export function newTable(dir: string): void { show(new Doc(newTableText('New tab
 
 function write(dir: string): boolean {
   try {
-    if (!fs.exists(dir)) fs.mkdir(dir);
+    if (!fs.exists(dir)) fs.mkdir(dir, true);
     fs.writeText(`${dir}/${TABLE_FILE}`, current.text());
   } catch (e) {
     say(f(L.CANNOT_SAVE, nameOfFolder(dir), `${(e as Error).message}`), true);

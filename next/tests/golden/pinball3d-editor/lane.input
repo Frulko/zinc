@@ -1,0 +1,22 @@
+# The table editor on a new table (tests/t1/pinball3d_editor.sh), window 1440x900: the plunger lane, the table's axis, a flipper and
+# its mirror image.
+# The plunger lane: the wall, the gate and the plunger at once.
+4 key g meta
+5 text +plunger-lane
+6 key Enter
+# The axis of the table is in the middle of the board; its marker on the ruler is dragged to the middle of what the lane leaves.
+9 move 669 118
+10 down
+11 move 663 118
+12 move 658 118
+13 up
+# A left flipper, then its mirror image: a right flipper, which rests and swings the other way under the other button.
+16 key g meta
+17 text +left-flipper
+18 key Enter
+20 move 597 743
+21 down
+22 up
+24 key m
+# Save.
+27 key s meta

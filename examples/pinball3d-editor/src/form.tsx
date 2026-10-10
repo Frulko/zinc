@@ -1,7 +1,7 @@
 // The panel at the right: the properties of what is selected, as a form GENERATED from the format's schema. No field is named here:
 // the kind of a field decides its control (a number with its limits and its unit, a switch, a choice among the words of an enum, a
-// choice among the names of the table for a reference, a colour, a row of numbers), its label comes from the string table and its
-// help is the format's own line. A field added to the format shows here without a change.
+// choice among the names of the table for a reference, a colour, a row of numbers, a curve for a height profile), its label comes
+// from the string table and its help is the format's own line. A field added to the format shows here without a change.
 // A schema of a hundred fields needs a way to one of them: the box at the top finds the fields of the selection by their name or
 // their key (Cmd+F), and shows only those.
 // The advanced mode shows the same fields by their keys in the file, and the selection as the file has it, which can be edited
@@ -9,9 +9,11 @@
 // The forms read and write through a Source: the open table here, a schema kept with the test in formcheck.tsx.
 import { createSignal, createNodeRef, createEffect, For, Show } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
+import { rect, stroke } from 'zinc:gfx';
 import { Schema, Field, Kind } from '../../pinball3d/src/format/schema';
-import { doc, selected, setField, replaceSelected, deleteSelected, turnSelected, selectionTurns, advanced, setAdvanced, refresh } from './state';
-import { fieldAt, schemaAt, listOf, steps, found } from './doc';
+import { doc, table, selected, setField, replaceSelected, deleteSelected, duplicateSelected, mirrorSelected, turnSelected, selectionTurns, selectionPlaced, advanced, setAdvanced, refresh,
+  activeRow, setActiveRow, dragRow, changeRows } from './state';
+import { fieldAt, schemaAt, listOf, steps, found, isPath, isProfile } from './doc';
 import { rgb } from './shapes';
 import { Ico, Action, Segmented, Chooser, Switch, Heading, MUTED, ACCENT, chord } from './widgets';
 import * as L from './strings';
@@ -112,9 +114,72 @@ function Control(p: { src: Source; field: Field; path: string }): i32 {
   }
   return <input class={FIELD} style={{ width: WIDE }} value={text()} onChange={(v: string) => { src.set(path, v); }} />;
 }
-/** One field of a form: an object of the format is a heading and its own fields under it, anything else a line. */
+/** A height profile of the table as a curve to shape: the height (up) along the path (from its start at the left to its end at the right). A
+ *  point is dragged; a double click adds one; the first and the last stay at the two ends of the path. */
+function ProfileChart(p: { path: string }): i32 {
+  const W = 308, H = 112, PAD = 12;
+  let grabbed: i32 = -1;
+  const glass = (): number => table().playfield.glass;
+  const count = (): i32 => { const v: any = doc().get(p.path); return v === undefined ? 0 : v.length; };
+  const at = (i: i32, k: i32): number => { const v: number = doc().get(p.path)[i][k]; return v; };
+  const px = (fraction: number): number => PAD + fraction * (W - 2 * PAD), py = (height: number): number => H - PAD - height / glass() * (H - 2 * PAD);
+  // where the pointer says a point is: hundredths of the path, millimetres of height
+  const fractionAt = (x: number): number => Math.round(Math.max(0, Math.min(1, (x - PAD) / (W - 2 * PAD))) * 100) / 100;
+  const heightAt = (y: number): number => Math.round(Math.max(0, Math.min(glass(), (H - PAD - y) / (H - 2 * PAD) * glass())) * 10) / 10;
+  createEffect(() => { doc(); activeRow(); ui.repaint(); });
+  return <view class="flex-col gap-1 px-4 py-2" onPointerEnter={(e: ui.PointerEvent) => setHelped(p.path)}>
+    <view class="relative rounded-md bg-zinc-950 border border-zinc-700 overflow-hidden cursor-crosshair" style={{ width: W, height: H }}
+      onPointerDown={(e: ui.PointerEvent) => {
+        grabbed = -1;
+        for (let i = 0; i < count(); i++) if (Math.abs(px(at(i, 0)) - e.x) < 8 && Math.abs(py(at(i, 1)) - e.y) < 8) grabbed = i;
+        doc().seal();
+        setActiveRow(grabbed < 0 ? '' : `${p.path}[${grabbed}]`);
+      }}
+      onPointerMove={(e: ui.PointerEvent) => {
+        if (grabbed < 0 || grabbed >= count()) return;
+        // the ends of the path are the first and the last point; the others stay between their neighbours
+        const n = count(), fraction = grabbed === 0 ? 0 : grabbed === n - 1 ? 1 : Math.max(at(grabbed - 1, 0) + 0.01, Math.min(at(grabbed + 1, 0) - 0.01, fractionAt(e.x)));
+        dragRow(`${p.path}[${grabbed}]`, [Math.round(fraction * 100) / 100, heightAt(e.y)]);
+      }}
+      onPointerUp={(e: ui.PointerEvent) => { grabbed = -1; doc().seal(); }}
+      onDoubleClick={(e: ui.PointerEvent) => {
+        const fraction = fractionAt(e.x);
+        let place: i32 = -1;
+        for (let i = 1; i < count(); i++) if (place < 0 && fraction > at(i - 1, 0) && fraction < at(i, 0)) place = i;
+        grabbed = -1;
+        if (place > 0 && changeRows(p.path, place, [fraction, heightAt(e.y)])) setActiveRow(`${p.path}[${place}]`);
+      }}>
+      <canvas class="absolute inset-0" style={{ lazy: 1 }} onDraw={(x: i32, y: i32, w: i32, h: i32) => {
+        const n = count(), pts: number[] = [], top = glass();
+        for (let g = 0; g <= top; g += 5) rect(x + PAD, Math.round(y + py(g)), W - 2 * PAD, 1, g === 0 ? 0x52525b : 0x27272a);
+        for (let i = 0; i < n; i++) { pts.push(x + px(at(i, 0))); pts.push(y + py(at(i, 1))); }
+        if (n > 1) stroke(pts, 2.5, ACCENT, 255, false);
+        for (let i = 0; i < n; i++) {
+          const cx = Math.round(pts[i * 2]), cy = Math.round(pts[i * 2 + 1]);
+          rect(cx - 5, cy - 5, 10, 10, 0x18181b);
+          rect(cx - 4, cy - 4, 8, 8, activeRow() === `${p.path}[${i}]` ? ACCENT : 0xfafafa);
+        }
+      }} />
+    </view>
+    <view class="flex-row" style={{ width: W }}>
+      <text class="text-[10px] text-zinc-500">{t(L.START)}</text>
+      <view class="grow" />
+      <text class="text-[10px] text-zinc-500">{`0 – ${glass()} ${t(L.CM)}`}</text>
+      <view class="grow" />
+      <text class="text-[10px] text-zinc-500">{t(L.END)}</text>
+    </view>
+    <text class="text-[11px] text-zinc-500" style={{ width: W }}>{t(L.PROFILE_HOW)}</text>
+  </view>;
+}
+/** One field of a form: an object of the format is a heading and its own fields under it, a height profile a curve, anything else a
+ *  line. */
 function Entry(p: { src: Source; field: Field; path: string }): i32 {
   const fd = p.field;
+  if (isProfile(fd)) return <view class="flex-col"><Row src={p.src} field={fd} path={p.path}><Control src={p.src} field={fd} path={p.path} /></Row><ProfileChart path={p.path} /></view>;
+  if (isPath(fd)) return <view class="flex-col">
+    <Row src={p.src} field={fd} path={p.path}><Control src={p.src} field={fd} path={p.path} /></Row>
+    <text class="px-4 pb-2 text-[11px] text-zinc-500" style={{ width: 340 }}>{t(L.PATH_HINT)}</text>
+  </view>;
   if (fd.kind !== Kind.Obj) return <Row src={p.src} field={fd} path={p.path}><Control src={p.src} field={fd} path={p.path} /></Row>;
   return <view class="flex-col mt-2">
     <view class="flex-row items-center px-4 h-7" onPointerEnter={(e: ui.PointerEvent) => setHelped(p.path)}><Heading label={label(fd)} /></view>
@@ -215,14 +280,18 @@ function Panel(p: { path: string }): i32 {
         </view>
         <Show when={path === ''}><text class="px-4 pb-3 text-xs text-zinc-400" style={{ width: 340 }}>{t(L.NOTHING_SELECTED)}</text></Show>
         <Show when={list !== ''}>
-          <view class="flex-row gap-2 px-4 pb-3">
+          <view class="flex-col gap-2 px-4 pb-3">
+            <view class="flex-row gap-2">
+              <Action icon="copy" label={t(L.DUPLICATE)} look="plain" onClick={duplicateSelected} />
+              <Show when={selectionPlaced()}><Action icon="square-split-horizontal" label={t(L.MIRROR)} look="plain" onClick={mirrorSelected} /></Show>
+              <Action icon="trash" label={t(L.DELETE)} look="danger" onClick={deleteSelected} />
+            </view>
             <Show when={selectionTurns()}>
-              <view class="grow flex-row gap-2">
+              <view class="flex-row gap-2">
                 <Action icon="rotate-ccw" label="15°" look="plain" onClick={() => turnSelected(-15)} />
                 <Action icon="rotate-cw" label="15°" look="plain" onClick={() => turnSelected(15)} />
               </view>
             </Show>
-            <Action icon="trash" label={t(L.DELETE)} look="danger" onClick={deleteSelected} />
           </view>
         </Show>
         <Fields src={TABLE} schema={schemaAt(path)} path={path} whole={path !== ''} />

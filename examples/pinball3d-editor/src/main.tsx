@@ -13,9 +13,10 @@ import { quit } from 'zinc:gfx';
 import { onCloseRequested, keepOpen } from 'zinc:system/window';
 import { TABLE_FILE } from '../../pinball3d/src/format/table';
 import { doc, folder, status, failed, selected, select, zoomBy, fit, viewW, viewH, undo, redo, save, newCommand, openCommand, openFolder, newTable, waiting, answer, guard,
-  advanced, setAdvanced, moveSelected, turnSelected, deleteSelected } from './state';
+  advanced, setAdvanced, moveSelected, turnSelected, deleteSelected, duplicateSelected, mirrorSelected, tool, pickTool, finishPlacing, unplace, activeRow, removeActiveRow } from './state';
 import { Ico, Tool, Segmented, ACCENT, chord } from './widgets';
 import { Outline, focusGoTo } from './outline';
+import { Palette } from './palette';
 import { TopView } from './topview';
 import { Properties, findField, editAsFile } from './form';
 import * as L from './strings';
@@ -96,6 +97,7 @@ function Shell(): i32 {
     <TopBar />
     <view class="grow basis-0 min-h-0 flex-row">
       <Outline />
+      <Palette />
       <TopView />
       <Properties />
     </view>
@@ -124,13 +126,25 @@ ui.onKey((e: ui.KeyEvent) => {
     else if (k === 'f') findField();
     else if (k === 'g') focusGoTo();
     else if (k === 'j') editAsFile();
+    else if (k === 'd') duplicateSelected();
     else return;
     e.preventDefault();
     return;
   }
-  // the arrows nudge the selection by a millimetre, a centimetre with Shift; R turns it by 15 degrees, the other way with Shift
+  // while an entry of the palette is being placed: Enter ends its path, Backspace takes its last point back, Escape gives it up
+  if (tool() !== null) {
+    if (k === 'Enter') finishPlacing();
+    else if (k === 'Backspace' || k === 'Delete') unplace();
+    else if (k === 'Escape') pickTool(null);
+    else return;
+    e.preventDefault();
+    return;
+  }
+  // the arrows nudge the selection by a millimetre, a centimetre with Shift; R turns it by 15 degrees, the other way with Shift;
+  // M adds its mirror image; Delete takes away the point last pressed, else the selection
   const far = e.shift ? 1 : 0.1;
-  if (k === 'Delete' || k === 'Backspace') deleteSelected();
+  if (k === 'Delete' || k === 'Backspace') { if (activeRow() !== '') removeActiveRow(); else deleteSelected(); }
+  else if (k === 'm') mirrorSelected();
   else if (k === 'Escape' && selected() !== '') select('');
   else if (k === 'ArrowLeft') moveSelected(-far, 0);
   else if (k === 'ArrowRight') moveSelected(far, 0);

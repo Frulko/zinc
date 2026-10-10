@@ -1,21 +1,26 @@
 // The top view: the whole table seen from above, drawn from its file (shapes.ts), and beside it the same table seen from its right
-// side, which shows what stands how high. Click selects, a drag moves, the round handle of the selection turns it; dragging the
-// background pans, the wheel zooms. A gesture changes the document once, when it ends: while it lasts the element is drawn where it
-// would go.
-import { createSignal, createEffect, batch } from 'zinc:ui/solid';
+// side, which shows what stands how high.
+// Click selects, a drag moves, the round handle on a stalk turns. A selected path shows its points: a square moves a point, the round
+// dot of a stretch bends it into an arc, a double click on a stretch adds a point. With an entry of the palette chosen, clicks place
+// it instead. Points snap to the points of other things, to the table's axis and to the grid. Dragging the background pans, the wheel
+// zooms.
+// Moving and turning a whole element change the document once, when the gesture ends (the element is drawn where it would go while
+// it lasts); a point or an arc being dragged changes it as it goes, the whole drag being one step for undo.
+import { createSignal, createEffect, Show, batch } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import { stroke, path as fillPath, rect, rrect, border, font, drawText, textWidth, clip, unclip } from 'zinc:gfx';
-import { doc, table, placed, outlineOf, selected, select, hovered, setHovered, selectionTurns, advanced, zoom, panX, panY, setPanX, setPanY, zoomBy, fit, viewW, viewH, setViewSize,
-  moveSelected, turnSelected } from './state';
-import { centreOf, schemaAt } from './doc';
+import { doc, table, placed, outlineOf, selected, select, hovered, setHovered, selectionTurns, selectionPlaced, advanced, zoom, panX, panY, setPanX, setPanY, zoomBy, fit, viewW, viewH,
+  setViewSize, moveSelected, turnSelected, grid, setGrid, GRIDS, axis, setAxis, snapped, tool, clicks, placeAt, finishPlacing, activeRow, setActiveRow, dragRow, changeRows } from './state';
+import { centreOf, schemaAt, isPoint, isPath, isClosed } from './doc';
 import { Outline, Shape, Draw, boardColor, mix } from './shapes';
+import { pointsNeeded, rowsNeeded } from './presets';
 import { Tool, Heading, ACCENT, chord } from './widgets';
 import * as L from './strings';
-import { t } from './strings';
+import { t, f, listName, uiLang } from './strings';
 
 // ---------------------------------------------------------------- the gesture in progress
 
-const enum Gesture { None, Press, Move, Turn, Pan }
+const enum Gesture { None, Press, Move, Turn, Pan, Point, Bend, Axis }
 const [gesture, setGesture] = createSignal<i32>(Gesture.None);
 /** How far the selection is being moved (centimetres) or turned (degrees). */
 const [dragX, setDragX] = createSignal<number>(0);
@@ -39,11 +44,60 @@ function placingOf(o: Outline): Placing {
 /** The middle of the selection, as the document turns it. */
 function centre(): number[] { const p = selected(); return centreOf(schemaAt(p), doc().get(p)); }
 
+// ---------------------------------------------------------------- the points of the selection
+
+/** A handle of the selection: the square of a point, or the round dot of a stretch of a path. */
+class Handle {
+  /** The row it sets: "walls[2].points[1]", "gates[0].a". */
+  row: string;
+  x: number; y: number;
+  /** The round dot of the stretch that starts at `row`: it sets the row's bulge. (ax, ay) to (bx, by) is the stretch. */
+  bend: boolean = false;
+  ax: number = 0; ay: number = 0; bx: number = 0; by: number = 0;
+  constructor(row: string, x: number, y: number) { this.row = row; this.x = x; this.y = y; }
+}
+/** The handles of the selection: one per point, one per stretch of its path. A thing that is at one point has none: it is moved
+ *  as a whole. */
+function handles(): Handle[] {
+  const out: Handle[] = [], path = selected(), g = gesture();
+  if (!selectionPlaced() || g === Gesture.Move || g === Gesture.Turn) return out;
+  const s = schemaAt(path), item: any = doc().get(path);
+  let points = 0, paths = 0;
+  for (const fd of s.fields) { if (isPoint(fd)) points++; else if (isPath(fd)) paths++; }
+  if (points < 2 && paths === 0) return out;
+  for (const fd of s.fields) {
+    const v: any = item[fd.name];
+    if (isPoint(fd)) { const x: number = v[0], y: number = v[1]; out.push(new Handle(`${path}.${fd.name}`, x, y)); continue; }
+    if (!isPath(fd)) continue;
+    const n: i32 = v.length, last = isClosed(fd, item) ? n : n - 1;
+    for (let i = 0; i < last; i++) {
+      const j = (i + 1) % n, ax: number = v[i][0], ay: number = v[i][1], bx: number = v[j][0], by: number = v[j][1], bulge: number = v[i].length > 2 ? v[i][2] : 0;
+      const dx = bx - ax, dy = by - ay, chord = Math.max(0.001, Math.sqrt(dx * dx + dy * dy)), sag = bulge * chord / 2;
+      // the top of the arc: to the left of the way, as the game's geometry bends it
+      const h = new Handle(`${path}.${fd.name}[${i}]`, (ax + bx) / 2 + dy / chord * sag, (ay + by) / 2 - dx / chord * sag);
+      h.bend = true; h.ax = ax; h.ay = ay; h.bx = bx; h.by = by;
+      out.push(h);
+    }
+    for (let i = 0; i < n; i++) { const x: number = v[i][0], y: number = v[i][1]; out.push(new Handle(`${path}.${fd.name}[${i}]`, x, y)); }
+  }
+  return out;
+}
+/** The handle at a place of the view (pixels), the squares before the dots; null for none. */
+function handleUnder(x: number, y: number): Handle | null {
+  const all = handles(), z = zoom();
+  for (let pass = 0; pass < 2; pass++) {
+    for (const h of all) if (h.bend === (pass === 1) && Math.abs(panX() + h.x * z - x) < 7 && Math.abs(panY() + h.y * z - y) < 7) return h;
+  }
+  return null;
+}
+let held: Handle | null = null;
+
 // ---------------------------------------------------------------- drawing
 
 // the sizes asked here are the ones baked into the program
 let SMALL: i32 = -1, BOLD: i32 = -1;
 function fonts(): void { if (SMALL < 0) { SMALL = font('sans', 10); BOLD = font('sans-bold', 11); } }
+const GUIDE: i32 = 0x22d3ee;
 
 /** The points of a shape in window pixels. (ox, oy): the table's corner in the window; `push`: pixels added to x and y (a shadow). */
 function onScreen(s: Shape, m: Placing, ox: number, oy: number, z: number, push: number): number[] {
@@ -55,8 +109,8 @@ function onScreen(s: Shape, m: Placing, ox: number, oy: number, z: number, push:
   }
   return out;
 }
-/** One shape. `halo` >= 0: its outline alone, in that colour and `grow` pixels wider (what is selected, what the pointer is over). */
-function drawShape(s: Shape, m: Placing, ox: number, oy: number, z: number, push: number, color: i32, alpha: i32, grow: number): void {
+/** One shape. `grow` > 0: its outline alone, that many pixels wider (what is selected, what the pointer is over). */
+export function drawShape(s: Shape, m: Placing, ox: number, oy: number, z: number, push: number, color: i32, alpha: i32, grow: number): void {
   const pts = onScreen(s, m, ox, oy, z, push);
   if (s.draw === Draw.Disc) {
     const r = Math.max(1.5, s.r * z) + grow;
@@ -65,6 +119,8 @@ function drawShape(s: Shape, m: Placing, ox: number, oy: number, z: number, push
   else if (grow > 0) stroke(pts, grow * 2, color, alpha, true);
   else { const contour: number[] = [pts.length / 2]; for (const v of pts) contour.push(v); fillPath(contour, color, alpha); }
 }
+/** The shapes of an outline as they are, for a drawing outside the view (the palette). */
+export function drawPlain(o: Outline, ox: number, oy: number, z: number): void { for (const s of o.shapes) drawShape(s, STILL, ox, oy, z, 0, s.color, s.alpha, 0); }
 function drawOutline(o: Outline, ox: number, oy: number, z: number, halo: i32): void {
   const m = placingOf(o);
   // what stands higher throws a longer shadow: the height read at a glance
@@ -83,12 +139,15 @@ function drawTop(x: i32, y: i32, w: i32, h: i32): void {
   setViewSize(w, h);
   const tb = table(), z = zoom(), ox = x + panX(), oy = y + panY(), W = tb.playfield.width, Len = tb.playfield.length, board = boardColor(tb);
   clip(x, y, w, h);
-  // the board, its grid and its rulers
+  // the board and its grid
   rrect(ox - 3, oy - 3, W * z + 6, Len * z + 6, 5, 0x27272a, 255);
   rect(ox, oy, W * z, Len * z, mix(board, 0x000000, 0.42));
   const step = gridStep(z);
   for (let g = step; g < W; g += step) rect(Math.round(ox + g * z), oy, 1, Len * z, mix(board, 0xffffff, g % 10 === 0 ? 0.1 : 0.03));
   for (let g = step; g < Len; g += step) rect(ox, Math.round(oy + g * z), W * z, 1, mix(board, 0xffffff, g % 10 === 0 ? 0.1 : 0.03));
+  // the axis the table is mirrored about
+  const gx = Math.round(ox + axis() * z);
+  for (let d = 0; d < Len * z; d += 10) rect(gx, oy + d, 1, 5, mix(board, GUIDE, 0.5));
   // everything on it, the lowest first; what is selected and what the pointer is over wear a halo
   const all = placed(), chosen = selected(), over = hovered();
   for (let layer = 0; layer < 3; layer++) {
@@ -96,12 +155,15 @@ function drawTop(x: i32, y: i32, w: i32, h: i32): void {
   }
   const sel = outlineOf(chosen);
   if (sel !== null) drawHandles(sel, ox, oy, z);
+  drawPlacing(ox, oy, z);
   // the rulers, in centimetres: beside the board, or along the edge of the view when the board goes past it
   const top = Math.max(oy - 19, y + 4), pinnedTop = top > oy - 19, left = Math.max(ox - 30, x + 2), pinnedLeft = left > ox - 30;
   if (pinnedTop) rect(x, y, w, 20, 0x09090b);
   if (pinnedLeft) rect(x, y, 30, h, 0x09090b);
   for (let g = 0; g <= W; g += 10) { const s = `${g}`; drawText(SMALL, Math.round(ox + g * z - textWidth(SMALL, s, 0) / 2), top, s, 0x71717a, 255, 0); }
   for (let g = 0; g <= Len; g += 10) { const s = `${g}`; drawText(SMALL, Math.round(left + 21 - textWidth(SMALL, s, 0)), Math.round(oy + g * z - 6), s, 0x71717a, 255, 0); }
+  // the marker of the axis, on the ruler: it is dragged to move the axis
+  fillPath([3, gx - 6, top + 12, gx + 6, top + 12, gx, top + 19], GUIDE, 255);
   unclip();
 }
 /** How far the turn handle is from the middle of the selection, in pixels. */
@@ -123,14 +185,38 @@ function drawHandles(o: Outline, ox: number, oy: number, z: number): void {
     rrect(hx - 4, hy - 4, 8, 8, 4, 0x18181b, 255);
   }
   rrect(cx - 2, cy - 2, 4, 4, 2, ACCENT, 255);
+  // its points: a dot to bend each stretch, a square to move each point (the one last pressed is filled)
+  const active = activeRow();
+  for (const hd of handles()) {
+    const hx = Math.round(ox + hd.x * z), hy = Math.round(oy + hd.y * z);
+    if (hd.bend) { rrect(hx - 4, hy - 4, 8, 8, 4, 0x18181b, 255); border(hx - 4, hy - 4, 8, 8, 4, 1.5, ACCENT, 255); continue; }
+    rect(hx - 5, hy - 5, 10, 10, 0x18181b);
+    rect(hx - 4, hy - 4, 8, 8, hd.row === active ? ACCENT : 0xfafafa);
+  }
   // its name, and what the gesture is doing to it
   let tag = doc().nameOf(o.path);
   if (gesture() === Gesture.Move) tag += `   ${sign(dragX())}, ${sign(dragY())} cm`;
   else if (gesture() === Gesture.Turn) tag += `   ${sign(dragTurn())}°`;
-  const tw = textWidth(BOLD, tag, 0), tx = Math.round(ox + (o.x0 + o.x1) / 2 * z + dragX() * z - tw / 2), ty = Math.round(oy + o.y1 * z + dragY() * z + 9);
+  else if ((gesture() === Gesture.Point || gesture() === Gesture.Bend) && held !== null) {
+    const row: any = doc().get(held.row);
+    if (row !== undefined) tag += gesture() === Gesture.Bend ? `   ${row.length > 2 ? row[2] : 0}` : `   ${row[0]}, ${row[1]} cm`;
+  }
+  const tw = textWidth(BOLD, tag, 0), tx = Math.round(ox + (o.x0 + o.x1) / 2 * z + dragX() * z - tw / 2), ty = Math.round(oy + o.y1 * z + dragY() * z + 11);
   rrect(tx - 6, ty - 2, tw + 12, 18, 4, 0x18181b, 235);
   border(tx - 6, ty - 2, tw + 12, 18, 4, 1, ACCENT, 200);
   drawText(BOLD, tx, ty + 1, tag, ACCENT, 255, 0);
+}
+/** What is being placed: the points clicked so far, and the stretch to where the next click would go. */
+function drawPlacing(ox: number, oy: number, z: number): void {
+  const p = tool();
+  if (p === null || p.list === '') return;
+  const got = clicks(), pts: number[] = [];
+  for (const c of got) { pts.push(ox + c[0] * z); pts.push(oy + c[1] * z); }
+  let nx = 0, ny = 0;
+  if (inside()) { const n = snapped(pointX(), pointY(), '', false); nx = ox + n[0] * z; ny = oy + n[1] * z; pts.push(nx); pts.push(ny); }
+  if (pts.length >= 4) stroke(pts, 2, ACCENT, 255, false);
+  for (const c of got) rect(Math.round(ox + c[0] * z) - 4, Math.round(oy + c[1] * z) - 4, 8, 8, ACCENT);
+  if (inside()) { rect(Math.round(nx) - 7, Math.round(ny), 15, 1, ACCENT); rect(Math.round(nx), Math.round(ny) - 7, 1, 15, ACCENT); }
 }
 function round1(v: number): string { return `${Math.round(v * 10) / 10}`; }
 function sign(v: number): string { const r = Math.round(v * 100) / 100; return r > 0 ? `+${r}` : `${r}`; }
@@ -194,25 +280,49 @@ function pick(x: number, y: number): string {
   }
   return best;
 }
+/** Whether a place of the view is on the marker of the axis. */
+function onAxisMarker(x: number, y: number): boolean {
+  const top = Math.max(panY() - 19, 4);
+  return Math.abs(x - (panX() + axis() * zoom())) < 8 && y > top + 6 && y < top + 24;
+}
 function down(e: ui.PointerEvent): void {
   if (e.button !== 0) return;
+  const z = zoom(), x = (e.x - panX()) / z, y = (e.y - panY()) / z;
+  pressX = e.x; pressY = e.y;
+  if (tool() !== null) { const p = snapped(x, y, '', e.alt); placeAt(p[0], p[1]); return; }
+  if (onAxisMarker(e.x, e.y)) { setGesture(Gesture.Axis); return; }
   const hp = handleAt();
   if (hp.length > 0 && Math.abs(e.x - hp[0]) < 10 && Math.abs(e.y - hp[1]) < 10) {
     const c = centre();
-    turnFrom = Math.atan2(e.y - (panY() + c[1] * zoom()), e.x - (panX() + c[0] * zoom())) * 180 / Math.PI;
+    turnFrom = Math.atan2(e.y - (panY() + c[1] * z), e.x - (panX() + c[0] * z)) * 180 / Math.PI;
     batch(() => { setDragTurn(0); setGesture(Gesture.Turn); });
     return;
   }
-  const x = (e.x - panX()) / zoom(), y = (e.y - panY()) / zoom(), hit = pick(x, y);
-  pressX = e.x; pressY = e.y;
+  held = handleUnder(e.x, e.y);
+  if (held !== null) {
+    doc().seal();
+    batch(() => { setActiveRow(held !== null && !held.bend ? held.row : ''); setGesture(held !== null && held.bend ? Gesture.Bend : Gesture.Point); });
+    return;
+  }
+  const hit = pick(x, y);
   if (hit === '') { panFromX = e.x - panX(); panFromY = e.y - panY(); setGesture(Gesture.Pan); return; }
-  batch(() => { if (hit !== selected()) select(hit); setDragX(0); setDragY(0); setGesture(Gesture.Press); });
+  batch(() => { if (hit !== selected()) select(hit); else setActiveRow(''); setDragX(0); setDragY(0); setGesture(Gesture.Press); });
+}
+/** The bulge an arc takes when the dot of its stretch is dragged to (x, y): how far the place is to the left of the stretch, over
+ *  half its length. Near a straight line, a quarter circle or a half circle it is that exactly (not with `free`). */
+function bulgeAt(h: Handle, x: number, y: number, free: boolean): number {
+  const dx = h.bx - h.ax, dy = h.by - h.ay, chord = Math.max(0.001, Math.sqrt(dx * dx + dy * dy));
+  const sag = ((x - (h.ax + h.bx) / 2) * dy - (y - (h.ay + h.by) / 2) * dx) / chord;
+  let b = Math.max(-3, Math.min(3, sag / (chord / 2)));
+  if (!free) for (const nice of [0, 0.4142, -0.4142, 1, -1]) if (Math.abs(b - nice) < 0.06) b = nice;
+  return Math.round(b * 10000) / 10000;
 }
 function move(e: ui.PointerEvent): void {
-  const z = zoom(), g = gesture();
-  batch(() => { setPointX((e.x - panX()) / z); setPointY((e.y - panY()) / z); setInside(true); });
-  if (g === Gesture.None) { setHovered(pick((e.x - panX()) / z, (e.y - panY()) / z)); return; }
+  const z = zoom(), g = gesture(), x = (e.x - panX()) / z, y = (e.y - panY()) / z;
+  batch(() => { setPointX(x); setPointY(y); setInside(true); });
+  if (g === Gesture.None) { setHovered(tool() !== null ? '' : pick(x, y)); return; }
   if (g === Gesture.Pan) { batch(() => { setPanX(Math.round(e.x - panFromX)); setPanY(Math.round(e.y - panFromY)); }); return; }
+  if (g === Gesture.Axis) { setAxis(Math.max(0, Math.min(table().playfield.width, Math.round(x * 20) / 20))); return; }
   if (g === Gesture.Turn) {
     const c = centre(), a = Math.atan2(e.y - (panY() + c[1] * z), e.x - (panX() + c[0] * z)) * 180 / Math.PI;
     // whole degrees; with Shift, steps of 15
@@ -222,10 +332,26 @@ function move(e: ui.PointerEvent): void {
     setDragTurn(e.shift ? Math.round(d / 15) * 15 : d);
     return;
   }
+  if ((g === Gesture.Point || g === Gesture.Bend) && held !== null) {
+    if (Math.abs(e.x - pressX) + Math.abs(e.y - pressY) < 4) return;
+    const row: any = doc().get(held.row), next: number[] = [];
+    if (row === undefined) return;
+    if (g === Gesture.Point) {
+      const p = snapped(x, y, selected(), e.alt);
+      next.push(p[0]); next.push(p[1]);
+      for (let k = 2; k < row.length; k++) next.push(row[k]);
+    } else {
+      const b = bulgeAt(held, x, y, e.alt);
+      next.push(row[0]); next.push(row[1]);
+      if (b !== 0) next.push(b);
+    }
+    dragRow(held.row, next);
+    return;
+  }
   if (g === Gesture.Press && Math.abs(e.x - pressX) + Math.abs(e.y - pressY) < 4) return;
-  // millimetres; with Alt, tenths of a millimetre
-  const grain = e.alt ? 100 : 10;
-  batch(() => { setGesture(Gesture.Move); setDragX(Math.round((e.x - pressX) / z * grain) / grain); setDragY(Math.round((e.y - pressY) / z * grain) / grain); });
+  // by steps of the grid; with Alt, tenths of a millimetre
+  const grain = e.alt || grid() === 0 ? 0.01 : grid();
+  batch(() => { setGesture(Gesture.Move); setDragX(Math.round((e.x - pressX) / z / grain) * grain); setDragY(Math.round((e.y - pressY) / z / grain) * grain); });
 }
 function up(e: ui.PointerEvent): void {
   const g = gesture(), dx = dragX(), dy = dragY(), turn = dragTurn();
@@ -233,8 +359,30 @@ function up(e: ui.PointerEvent): void {
     setGesture(Gesture.None); setDragX(0); setDragY(0); setDragTurn(0);
     if (g === Gesture.Move) { doc().seal(); moveSelected(dx, dy); doc().seal(); }
     else if (g === Gesture.Turn && turn !== 0) turnSelected(turn);
+    else if (g === Gesture.Point || g === Gesture.Bend) doc().seal();
     else if (g === Gesture.Pan && Math.abs(e.x - pressX) + Math.abs(e.y - pressY) < 4) select('');
   });
+  held = null;
+}
+/** A double click ends the path being placed; on a stretch of the selected path it adds a point there. */
+function twice(e: ui.PointerEvent): void {
+  if (tool() !== null) { finishPlacing(); return; }
+  const z = zoom(), x = (e.x - panX()) / z, y = (e.y - panY()) / z;
+  let best: Handle | null = null, near = 6 / z;
+  for (const h of handles()) {
+    if (!h.bend) continue;
+    // the stretch as two straight pieces through the top of its arc
+    const d = Math.min(toPiece(x, y, h.ax, h.ay, h.x, h.y), toPiece(x, y, h.x, h.y, h.bx, h.by));
+    if (d < near) { near = d; best = h; }
+  }
+  if (best === null) return;
+  const row = best.row, cut = row.lastIndexOf('['), at: i32 = parseInt(row.slice(cut + 1, row.length - 1), 10) + 1, p = snapped(x, y, selected(), e.alt);
+  batch(() => { setGesture(Gesture.None); if (changeRows(row.slice(0, cut), at, [p[0], p[1]])) setActiveRow(`${row.slice(0, cut)}[${at}]`); });
+  held = null;
+}
+function toPiece(x: number, y: number, ax: number, ay: number, bx: number, by: number): number {
+  const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy, u = l2 === 0 ? 0 : Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / l2));
+  return Math.sqrt((ax + dx * u - x) * (ax + dx * u - x) + (ay + dy * u - y) * (ay + dy * u - y));
 }
 function wheel(e: ui.PointerEvent): void {
   // a notch of a mouse wheel is one step; a trackpad sends fractions, and a pinch a factor per event
@@ -245,10 +393,19 @@ function wheel(e: ui.PointerEvent): void {
   wheelSum = 0;
   zoomBy(steps > 0 ? 1.2 : 1 / 1.2, e.x, e.y);
 }
+/** "5 mm", "1 cm", or that points do not snap. */
+function gridName(g: number): string { return g === 0 ? t(L.SNAP_OFF) : g >= 1 ? `${g} cm` : `${Math.round(g * 10)} mm`; }
+/** What to do with the entry of the palette that is chosen. */
+function placingHint(): string {
+  const p = tool();
+  if (p === null || p.list === '') return '';
+  const name = p.en === '' ? listName(p.list, true) : uiLang() === 'fr' ? p.fr : p.en;
+  return f(rowsNeeded(p.list) > 0 ? L.PLACE_PATH : pointsNeeded(p.list) > 1 ? L.PLACE_TWO : L.PLACE_ONE, name);
+}
 
 export function TopView(): i32 {
   // both views are drawn by hand: ask for a repaint when what they show changes
-  createEffect(() => { doc(); selected(); hovered(); zoom(); panX(); panY(); gesture(); dragX(); dragY(); dragTurn(); ui.repaint(); });
+  createEffect(() => { doc(); selected(); hovered(); zoom(); panX(); panY(); gesture(); dragX(); dragY(); dragTurn(); axis(); activeRow(); tool(); clicks(); if (tool() !== null) { pointX(); pointY(); } ui.repaint(); });
   const where = (): string => inside() ? `x ${pointX().toFixed(1)}   y ${pointY().toFixed(1)} ${t(L.CM)}` : '';
   return <view class="grow basis-0 min-w-0 flex-row">
     <view class="grow basis-0 min-w-0 flex-col">
@@ -256,14 +413,24 @@ export function TopView(): i32 {
         <Heading label={t(L.TOP_VIEW)} />
         <text class="ml-3 font-mono text-[11px] text-zinc-500">{where()}</text>
         <view class="grow" />
+        <button class="flex-row items-center gap-1 h-7 px-2 rounded-md cursor-pointer bg-zinc-900 hover:bg-zinc-800" onClick={() => setGrid(GRIDS[(GRIDS.indexOf(grid()) + 1) % GRIDS.length])}>
+          <text class="text-[11px] text-zinc-500">{t(L.SNAP)}</text>
+          <text class="text-xs font-bold text-zinc-200">{gridName(grid())}</text>
+        </button>
         <Tool icon="minus" label="" look="quiet" keys={() => ''} off={() => false} onClick={() => zoomBy(1 / 1.2, viewW / 2, viewH / 2)} />
         <text class="w-[64] text-center text-xs text-zinc-300">{`${zoom().toFixed(1)} px/cm`}</text>
         <Tool icon="plus" label="" look="quiet" keys={() => ''} off={() => false} onClick={() => zoomBy(1.2, viewW / 2, viewH / 2)} />
         <Tool icon="maximize" label={t(L.FIT)} look="quiet" keys={() => advanced() ? chord('0') : ''} off={() => false} onClick={fit} />
       </view>
-      <view class="grow basis-0 min-h-0 relative overflow-hidden bg-zinc-950 cursor-default"
-        onPointerDown={down} onPointerMove={move} onPointerUp={up} onWheel={wheel} onPointerLeave={(e: ui.PointerEvent) => { batch(() => { setInside(false); setHovered(''); }); }}>
+      <view class={`grow basis-0 min-h-0 relative overflow-hidden bg-zinc-950 ${tool() !== null ? 'cursor-crosshair' : 'cursor-default'}`}
+        onPointerDown={down} onPointerMove={move} onPointerUp={up} onWheel={wheel} onDoubleClick={twice}
+        onPointerLeave={(e: ui.PointerEvent) => { batch(() => { setInside(false); setHovered(''); }); }}>
         <canvas class="absolute inset-0" style={{ lazy: 1 }} onDraw={drawTop} />
+        <Show when={placingHint() !== ''}>
+          <view class="absolute left-[12] right-[12] bottom-[12] flex-row px-3 py-2 rounded-md bg-zinc-900 border border-amber-400">
+            <text class="grow basis-0 text-xs text-amber-200">{placingHint()}</text>
+          </view>
+        </Show>
       </view>
     </view>
     <view class="w-[148] shrink-0 flex-col bg-zinc-900 border-l border-zinc-800">

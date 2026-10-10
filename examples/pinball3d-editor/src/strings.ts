@@ -53,13 +53,29 @@ export const PROFILE_HINT = S('The table seen from its right side: what stands h
 export const VIEW_HINT = S('Click an element to select it, drag it to move it, drag its round handle to turn it. Drag the background to pan, the wheel zooms.',
   'Cliquez un élément pour le sélectionner, glissez-le pour le déplacer, glissez sa poignée ronde pour le tourner. Glissez le fond pour déplacer la vue, la molette zoome.');
 export const CM = S('cm', 'cm');
-export const GLASS = S('glass', 'vitre');
+export const SNAP = S('Snap', 'Aimant');
+export const SNAP_OFF = S('off', 'aucun');
+export const AXIS = S('axis', 'axe');
+// ---- the palette and what is being placed
+export const ADD = S('Add', 'Ajouter');
+export const PLACE_ONE = S('{0}: click on the table where it goes. Esc gives up.', '{0} : cliquez sur la table là où le poser. Échap abandonne.');
+export const PLACE_TWO = S('{0}: click one end, then the other. Esc gives up.', '{0} : cliquez un bout, puis l’autre. Échap abandonne.');
+export const PLACE_PATH = S('{0}: click each point; double-click or Enter ends, Backspace takes the last point back, Esc gives up.',
+  '{0} : cliquez chaque point ; double-clic ou Entrée termine, Retour arrière reprend le dernier point, Échap abandonne.');
+export const PATH_HINT = S('On the table: drag a square to move a point, a round dot to bend a stretch into an arc. Double-click a stretch to add a point; click a point, then Delete, to take it away.',
+  'Sur la table : glissez un carré pour déplacer un point, un rond pour courber un tronçon en arc. Double-cliquez un tronçon pour ajouter un point ; cliquez un point, puis Suppr, pour l’enlever.');
+export const PROFILE_HOW = S('The height along the path, from its start to its end. Drag a point; double-click adds one; click a point, then Delete, to take it away.',
+  'La hauteur le long du tracé, du début à la fin. Glissez un point ; double-clic en ajoute un ; cliquez un point, puis Suppr, pour l’enlever.');
+export const START = S('start', 'début');
+export const END = S('end', 'fin');
 
 // ---- the panel at the right
 export const PROPERTIES = S('Properties', 'Propriétés');
 export const NOTHING_SELECTED = S('Nothing is selected: this is the table itself. Click an element on the table, or a line of the list at the left.',
   'Rien n’est sélectionné : voici la table elle-même. Cliquez un élément sur la table, ou une ligne de la liste à gauche.');
 export const DELETE = S('Delete', 'Supprimer');
+export const DUPLICATE = S('Duplicate', 'Dupliquer');
+export const MIRROR = S('Mirror', 'Miroir');
 export const TURN_LEFT = S('Turn left', 'Tourner à gauche');
 export const TURN_RIGHT = S('Turn right', 'Tourner à droite');
 export const NONE = S('none', 'aucun');
@@ -116,7 +132,8 @@ export const CANCEL = S('Cancel', 'Annuler');
 export const DO_NOT_SAVE = S('Do not save', 'Ne pas enregistrer');
 
 // ---- the steps Undo names: the document's labels (doc.ts) are "<verb> <what>", the verb in English
-const VERBS: string[] = ['Move', 'Déplacer', 'Turn', 'Tourner', 'Delete', 'Supprimer', 'Change', 'Modifier', 'Edit', 'Modifier', 'Add', 'Ajouter', 'Duplicate', 'Dupliquer'];
+const VERBS: string[] = ['Move', 'Déplacer', 'Turn', 'Tourner', 'Delete', 'Supprimer', 'Change', 'Modifier', 'Edit', 'Modifier', 'Add', 'Ajouter', 'Duplicate', 'Dupliquer',
+  'Mirror', 'Miroir de'];
 /** The name of an undo step in the interface language. */
 export function step(label: string): string {
   const cut = label.indexOf(' '), verb = cut < 0 ? label : label.slice(0, cut), at = VERBS.indexOf(verb);

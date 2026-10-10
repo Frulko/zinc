@@ -134,8 +134,14 @@ function wrap(degrees: number): number {
   if (a <= -180) a += 360;
   return round2(a);
 }
+/** Whether a path goes back to its first point: the object says so (`closed`), or the path is an outline.
+ *  ponytail: the format has no word for an outline (an upper playfield's path "closes by itself"); it is known here as a path that
+ *  needs three points. A role of its own, asked of the format's owner, replaces the test. */
+export function isClosed(f: Field, item: any): boolean { return f.minRows >= 3 || item.closed === true; }
+/** A height along a path: rows [fraction of the length, height]. */
+export function isProfile(f: Field): boolean { return f.role === 'profile'; }
 /** The points of an object of schema `s`, as the rows that hold them (a point's own row, each row of a path). */
-function pointsOf(s: Schema, item: any): any[] {
+export function pointsOf(s: Schema, item: any): any[] {
   const out: any[] = [];
   for (const f of s.fields) {
     const x: any = item[f.name];
@@ -168,6 +174,41 @@ export function turnItem(s: Schema, item: any, degrees: number, about: number[])
     if (isDirection(f)) { const d: number = item[f.name]; item[f.name] = wrap(d + degrees); }
     else if (isRotation(f)) { const r: any = item[f.name]; const d: number = r[2]; r[2] = wrap(d + degrees); }
   }
+}
+/** The mirror image of an object of schema `s` about the line x = `axis` of the top view. Changes `item`. */
+export function mirrorItem(s: Schema, item: any, axis: number): void {
+  const ends: string[] = [];
+  for (const f of s.fields) {
+    const v: any = item[f.name];
+    if (isPoint(f)) { const x: number = v[0]; v[0] = round2(2 * axis - x); ends.push(f.name); }
+    else if (isPath(f)) {
+      // an arc that curved to the left of the way now curves to its right
+      for (let i = 0; i < v.length; i++) {
+        const x: number = v[i][0];
+        v[i][0] = round2(2 * axis - x);
+        if (v[i].length > 2) { const b: number = v[i][2]; v[i][2] = b === 0 ? 0 : -b; }
+      }
+    } else if (isDirection(f)) { const d: number = v; item[f.name] = wrap(180 - d); }
+    else if (isRotation(f)) { const d: number = v[2]; v[2] = d === 0 ? 0 : -d; }
+    // ponytail: three things a mirror changes have no role in the format yet (asked of its owner) and are known by what they look
+    // like: a swing counted both ways in degrees (a flipper's stroke), a choice between left and right (its button), and by its
+    // name the offset at which a kicker throws its ball
+    else if (f.kind === Kind.Num && f.unit === 'degrees' && f.min === -f.max) { const d: number = v; item[f.name] = d === 0 ? 0 : -d; }
+    else if (f.kind === Kind.Choice && f.choices.length === 2 && f.choices[0] === 'left' && f.choices[1] === 'right') item[f.name] = v === 'left' ? 'right' : 'left';
+    else if (f.kind === Kind.Tuple && f.name === 'exit') { const x: number = v[0]; v[0] = x === 0 ? 0 : -x; }
+  }
+  // what lies between two points has a side (a gate lets through from its left, a slingshot kicks to its left): the ends change
+  // places, so that the side is mirrored with the rest
+  if (ends.length === 2) { const a: any = item[ends[0]]; item[ends[0]] = item[ends[1]]; item[ends[1]] = a; }
+}
+/** "guideLeft" gives "guideRight", "right" gives "left"; a name that says neither is returned as it is. */
+export function mirrorName(id: string): string {
+  const pairs = ['Left', 'Right', 'left', 'right'];
+  for (let k = 0; k < pairs.length; k++) {
+    const at = id.indexOf(pairs[k]);
+    if (at >= 0) return id.slice(0, at) + pairs[k % 2 === 0 ? k + 1 : k - 1] + id.slice(at + pairs[k].length);
+  }
+  return id;
 }
 
 /** The path a fault of the loader is about: the text before its first ": ". */
@@ -328,14 +369,19 @@ export class Doc {
 
   // ---------------------------------------------------------------- operations
 
-  /** Sets one field. A new name (an id, a group) is given to everything that named the old one. */
-  set(path: string, value: any): boolean {
+  /** Sets one field, or one row of a path ("walls[2].points[1]"). A new name (an id, a group) is given to everything that named the
+   *  old one. `merge`: consecutive sets of the same path are one step for undo (a handle being dragged). */
+  set(path: string, value: any, merge: boolean = false): boolean {
     const f = fieldAt(path);
     if (f === null) { this.refused = `${path}: unknown field`; return false; }
     const old: any = this.get(path);
-    const s = steps(path), owner = pathOf(s.slice(0, s.length - 1));
+    // the object the field belongs to: the path up to the field's own name
+    const s = steps(path);
+    let last = s.length - 1;
+    while (last > 0 && isIndex(s[last])) last--;
+    const owner = pathOf(s.slice(0, last));
     const rename = typeof old === 'string' && typeof value === 'string' && old !== '' && value !== '' && (f.name === 'id' || f.name === 'group');
-    return this.apply(`Change ${this.nameOf(owner)}.${f.name}`, '', (d: any) => { put(d, path, value); }, !rename ? null : (d: any, found: string[]): boolean => {
+    return this.apply(`Change ${this.nameOf(owner)}.${f.name}`, merge ? `set ${path}` : '', (d: any) => { put(d, path, value); }, !rename ? null : (d: any, found: string[]): boolean => {
       // what named the old name and now names nothing: it takes the new one
       for (const fault of found) {
         const p = faultPath(fault);
@@ -383,6 +429,61 @@ export class Doc {
     this.went = done ? took : [];
     return done;
   }
+  /** A name no item of the name space of `list` has: "pop3" gives "pop4", "wall" gives "wall1". */
+  freeId(list: string, base: string): string {
+    const f = fieldAt(list), id = f === null || f.of === null ? null : (f.of as Schema).field('id');
+    const taken: string[] = id === null ? ([] as string[]) : this.namesOf(id.to);
+    let stem = base;
+    while (stem.length > 1 && stem.charCodeAt(stem.length - 1) >= 48 && stem.charCodeAt(stem.length - 1) <= 57) stem = stem.slice(0, stem.length - 1);
+    for (let n = 1; ; n++) if (taken.indexOf(`${stem}${n}`) < 0) return `${stem}${n}`;
+  }
+  /** Adds an item at the end of a list and returns its path ('' when it is refused). `item`: its fields as a file would hold them;
+   *  it is given a name when it has none or one that is taken, and an optional reference to something the table does not have (the
+   *  look or the surface of the table it was made for) is cleared. */
+  add(list: string, item: any, verb: string = 'Add'): string {
+    const f = fieldAt(list);
+    if (f === null || f.kind !== Kind.List || f.of === null) { this.refused = `${list}: not a list of the table`; return ''; }
+    const of = f.of as Schema, copy: any = JSON.parse(JSON.stringify(item)), at: i32 = this.get(list).length;
+    if (of.key !== '') {
+      const id: string = typeof copy.id === 'string' ? copy.id : '', space = (of.field('id') as Field).to;
+      if (id === '' || this.namesOf(space).indexOf(id) >= 0) copy.id = this.freeId(list, id === '' ? of.name : id);
+    }
+    const name: string = typeof copy.id === 'string' ? copy.id : of.name;
+    const done = this.apply(`${verb} ${name}`, '', (d: any) => {
+      const items: any = valueAt(d, list), all: any[] = [];
+      for (let i = 0; i < items.length; i++) all.push(items[i]);
+      all.push(copy);
+      put(d, list, all);
+    }, (d: any, found: string[]): boolean => {
+      for (const fault of found) {
+        const p = faultPath(fault), fd = p === '' ? null : fieldAt(p);
+        if (fd === null || fd.kind !== Kind.Ref || fd.required || !p.startsWith(`${list}[${at}]`)) return false;
+        put(d, p, '');
+      }
+      return true;
+    });
+    return done ? `${list}[${at}]` : '';
+  }
+  /** A copy of an item of a list, moved by (dx, dy) when it has a place. Returns the path of the copy. */
+  duplicate(path: string, dx: number, dy: number): string {
+    const list = listOf(path), s = schemaAt(path);
+    if (list === '') { this.refused = `${path}: only an item of a list is duplicated`; return ''; }
+    const copy: any = JSON.parse(JSON.stringify(this.get(path)));
+    moveItem(s, copy, dx, dy);
+    return this.add(list, copy, 'Duplicate');
+  }
+  /** The mirror image of an item about the line x = `axis`, added to its list: a guide drawn on the left gives the one on the right.
+   *  Its name is the original's with left and right exchanged when it says one. Returns the path of the copy. */
+  mirror(path: string, axis: number): string {
+    const list = listOf(path), s = schemaAt(path);
+    if (list === '') { this.refused = `${path}: only an item of a list is mirrored`; return ''; }
+    const copy: any = JSON.parse(JSON.stringify(this.get(path)));
+    mirrorItem(s, copy, axis);
+    if (typeof copy.id === 'string') { const id: string = copy.id; copy.id = mirrorName(id); }
+    return this.add(list, copy, 'Mirror');
+  }
+  /** Several changes of the tree as one step (the plunger lane is a wall, a gate and the plunger at once). */
+  edit(label: string, change: (d: any) => void): boolean { return this.apply(label, '', change, null); }
   /** Replaces the object at a path by the one a JSON text holds: the selection edited as the file has it. */
   replace(path: string, json: string): boolean {
     let v: any = null;

@@ -1,10 +1,12 @@
 #!/bin/sh
-# The table editor of the 3D pinball (ZN-649.04, examples/pinball3d-editor), slice 1: a table folder opened, the top view, the
-# properties generated from the format's schema, undo and redo, save.
+# The table editor of the 3D pinball (ZN-649.04, examples/pinball3d-editor). Slice 1: a table folder opened, the top view, the
+# properties generated from the format's schema, undo and redo, save. Slice 2: drawing (paths, arcs, snapping, mirror), ramps with
+# their height profile, the palette, the plunger lane, duplicate.
 # The format grows while the editor is written, and its forms and its list are generated from it, so nothing here depends on how many
 # fields or lists the format has:
 # - the sessions run on a table kept with the test (table.json, Tidal Lock of 2026-10-10); they reach a field by its key (Cmd+F, the
-#   box that finds a field), a thing by its path (Cmd+G) and the text of the selection by Cmd+J, never by the place of a line;
+#   box that finds a field), a thing by its path and an entry of the palette by its key (Cmd+G) and the text of the selection by
+#   Cmd+J, never by the place of a line;
 # - a frame is the golden's bytes, or else the same picture in the part of the window that does not come from the schema (the top
 #   view and the heights beside it: CROP); the generated form has its pixels on a schema kept in the editor (src/formcheck.tsx);
 # - what the forms of the real format do is checked by the files they write.
@@ -18,6 +20,10 @@
 #                    nudges with the arrows, Save: viewed.json, four frames
 #   advanced.input   a value outside the format's limits is refused with the loader's message; a surface reached by its path and edited
 #                    as the file has it: advanced.json, two frames
+#   draw.input       a wall drawn point by point, a point moved, a stretch bent into an arc, a point added and one taken away, the
+#                    wall mirrored about the table's axis, a ramp drawn and its height profile shaped, a bumper placed and
+#                    duplicated, Save: drawn.json, five frames
+#   lane.input       on a new table: the plunger lane in one step, the axis moved, a left flipper and its mirror image: lane.json
 #   the form on the schema of formcheck.tsx, in English and in French (two frames); a new table is saved in the folder the system's
 #   dialog gives
 # ZN_UPDATE_GOLDEN=1 rewrites the goldens from this run.
@@ -27,12 +33,13 @@ game=$PWD/../examples/pinball3d
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fail=0
 # the top view and the heights, in a window of 1440 x 900: x, y, width, height
-CROP=236,48,864,820
+CROP=386,48,714,820
 
 out=$("$ZINC" run "$ex/src/selftest.ts" -- "$g/table.json" 2>&1) || fail=1
 case $out in *FAILED*|*panic*|*error*) fail=1 ;; esac
 for line in 'ok: the sample table opened and saved untouched is byte-identical' 'ok: 50 undos give back every earlier file, byte for byte' 'ok: 50 redos give back every later file, byte for byte' \
-  'ok: every state on the way is a file the game accepts, in canonical form' 'ok: every text of the interface exists in English and in French' 'ok: a field is found by its key, alone'; do
+  'ok: every state on the way is a file the game accepts, in canonical form' 'ok: every text of the interface exists in English and in French' 'ok: a field is found by its key, alone' \
+  'ok: the palette has an entry for every kind the format places, and each makes a thing the game accepts' 'ok: the mirror image of a left flipper is a right flipper'; do
   case $out in *"$line"*) ;; *) fail=1 ;; esac
 done
 [ $fail = 0 ] || { echo "the document's self-test:"; printf '%s\n' "$out" | grep -v '^ok: ' | head -20; }
@@ -94,6 +101,18 @@ same "the advanced session" "$tmp/advanced/table.json" "$g/advanced.json"
 frames "the advanced session" advanced $CROP 14 26
 accepted "the advanced session" "$tmp/advanced"
 cmp -s "$tmp/advanced/table.json" "$g/table.json" && { echo "the advanced session changed nothing"; fail=1; }
+
+fresh draw
+edit "$tmp/draw" "$g/draw.input" 96 13,30,46,66,95
+same "the drawing session" "$tmp/draw/table.json" "$g/drawn.json"
+frames "the drawing session" draw $CROP 13 30 46 66 95
+accepted "the drawing session" "$tmp/draw"
+
+# a folder that has no table yet: a new one, saved there
+edit "$tmp/lane" "$g/lane.input" 30 23,29
+same "the plunger lane on a new table" "$tmp/lane/table.json" "$g/lane.json"
+frames "the plunger lane on a new table" lane $CROP 23 29
+accepted "the plunger lane on a new table" "$tmp/lane"
 
 # the generated form, on the schema the editor keeps for this: a field of every kind, with the help of the one the pointer is over;
 # then the same in French, the pointer on another line

@@ -1,0 +1,16 @@
+{
+  "format": "zinc-pinball-table",
+  "version": 1,
+  "name": "New table",
+  "walls": [
+    { "id": "shooterLane", "points": [[46.7, 106], [46.7, 30]] }
+  ],
+  "gates": [
+    { "id": "laneGate", "a": [50, 28.5], "b": [46.7, 28.5] }
+  ],
+  "flippers": [
+    { "id": "flipper1", "pivot": [14.5, 94] },
+    { "id": "flipper2", "pivot": [33.1, 94], "rest": 155, "stroke": 50, "button": "right" }
+  ],
+  "plunger": { "at": [48.35, 100] }
+}

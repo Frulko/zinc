@@ -1,6 +1,6 @@
 # The table editor, a refusal and the advanced mode (tests/t1/pinball3d_editor.sh), window 1440x900.
 # A speed outside the limits of the format is refused with the loader's message, and the field shows the table's value again.
-4 move 521 743
+4 move 596 743
 5 down
 6 up
 8 key f meta
@@ -10,14 +10,14 @@
 12 key Enter
 15 key Escape
 # The surface "rubber" is reached by its path in the file (Cmd+G); Cmd+J shows it as the file has it and puts the caret there; the
-# text is replaced, and a click on the table leaves the field.
+# text is replaced, and a click beside the board leaves the field.
 17 key g meta
 18 text surfaces[2]
 19 key Enter
 22 key j meta
 24 key a meta
 25 text {"id":"rubber","friction":0.7,"restitution":0.8}
-28 move 300 500
+28 move 420 500
 29 down
 30 up
 32 key s meta

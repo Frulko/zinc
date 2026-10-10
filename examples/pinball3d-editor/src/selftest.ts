@@ -4,7 +4,8 @@ import { args, env, exit } from 'zinc:sys';
 import { readText } from 'zinc:fs';
 import { Schema, Field, Kind } from '../../pinball3d/src/format/schema';
 import { parseTable, formatSchema } from '../../pinball3d/src/format/table';
-import { Doc, steps, pathOf, listOf, indexOf, fieldAt, schemaAt, canTurn, isPlaced, found, newTableText } from './doc';
+import { Doc, steps, pathOf, listOf, indexOf, fieldAt, schemaAt, canTurn, isPlaced, isProfile, found, mirrorName, newTableText } from './doc';
+import { Preset, palette, itemOf, pointsNeeded, rowsNeeded, laneOf } from './presets';
 import { complete, f, setUiLang, step, fieldName, listName, fieldKnown, DONE_UNDONE } from './strings';
 
 let failed = false;
@@ -132,6 +133,52 @@ check('paths read as the loader writes them', steps('walls[2].points[1]').join('
   check('or by a part of its key or of its label, with the fields of the objects inside', part.indexOf('flippers[0].speed') >= 0 && part.indexOf('flippers[0].returnSpeed') > part.indexOf('flippers[0].speed')
     && found(flipper, 'flippers[0]', 'angle at', fieldName, all).indexOf('flippers[0].rest') >= 0 && found(flipper, 'flippers[0]', 'sounds', fieldName, all).indexOf('flippers[0].sounds.down') >= 0
     && found(flipper, 'flippers[0]', 'zzz', fieldName, all).length === 0);
+}
+
+// ---- drawing: the palette, new names, a copy, a mirror image, a point dragged
+{
+  const d = new Doc(sample, sample);
+  const lists: string[] = [];
+  for (const fd of formatSchema().fields) if (fd.kind === Kind.List && fd.of !== null && isPlaced(fd.of as Schema)) lists.push(fd.name);
+  const entries = palette(lists);
+  let kinds = 0, made = 0;
+  for (const list of lists) if (entries.filter((e: Preset) => e.list === list).length > 0) kinds++;
+  for (const e of entries) {
+    if (e.list === '') continue;
+    // as many clicks as the entry needs, at places of their own
+    const clicks: number[][] = [], n = Math.max(1, pointsNeeded(e.list) + rowsNeeded(e.list));
+    for (let i = 0; i < n; i++) clicks.push([10 + i * 6, 40 + (i % 2) * 7 + i]);
+    if (d.add(e.list, itemOf(e, clicks)) !== '') made++; else console.log(`  +${e.key}: ${d.refused}`);
+  }
+  console.log(`the palette: ${entries.length} entries for ${lists.length} kinds of thing`);
+  check('the palette has an entry for every kind the format places, and each makes a thing the game accepts', kinds === lists.length && made === entries.length - 1 && plays(d.text())
+    && entries.filter((e: Preset) => e.key === 'bumper' || e.key === 'plunger-lane' || e.key === 'left-flipper').length === 3);
+  const lane = laneOf(51, 107, 1.35);
+  check('the plunger lane follows from the board and the ball', JSON.stringify(lane[0].points) === '[[46.7,106],[46.7,30]]' && JSON.stringify(lane[1].b) === '[46.7,28.5]' && JSON.stringify(lane[2]) === '[48.35,100]');
+}
+{
+  const d = new Doc(sample, sample);
+  check('a new thing gets a name that is free', d.freeId('bumpers', 'pop3') === 'pop4' && d.freeId('walls', 'wall') === 'wall1' && mirrorName('guideLeft') === 'guideRight' && mirrorName('right') === 'left' && mirrorName('pop1') === 'pop1');
+  const copy = d.duplicate(d.find('bumpers', 'pop1'), 2, 2);
+  check('a copy is the same thing beside the original, under a name of its own', copy === 'bumpers[3]' && d.get(`${copy}.id`) === 'pop4' && d.get(`${copy}.at`)[0] === 19.5 && d.get(`${copy}.group`) === 'pops'
+    && d.undoLabel === 'Duplicate pop4' && plays(d.text()));
+  // Tidal Lock is the same on both sides of x = 23.85: the mirror image of what is on the left is what the table has on the right
+  const guide = JSON.stringify(d.get(`${d.find('walls', 'guideRight')}.points`)), sling = d.jsonOf(d.find('slingshots', 'slingRight')).replace('slingRight', 'x');
+  d.remove(d.find('walls', 'guideRight')); d.remove(d.find('slingshots', 'slingRight')); d.remove(d.find('flippers', 'right'));
+  const g = d.mirror(d.find('walls', 'guideLeft'), 23.85), s = d.mirror(d.find('slingshots', 'slingLeft'), 23.85), fl = d.mirror(d.find('flippers', 'left'), 23.85);
+  check('the mirror image of a guide is the guide of the other side, under the other side\'s name', d.get(`${g}.id`) === 'guideRight' && JSON.stringify(d.get(`${g}.points`)) === guide);
+  check('a slingshot mirrored still kicks towards the middle: its ends change places', d.jsonOf(s).replace('slingRight', 'x') === sling);
+  check('the mirror image of a left flipper is a right flipper', d.get(`${fl}.id`) === 'right' && d.get(`${fl}.pivot`)[0] === 33.3 && d.get(`${fl}.rest`) === 155 && d.get(`${fl}.stroke`) === 50 && d.get(`${fl}.button`) === 'right' && plays(d.text()));
+  const arc = d.mirror(d.find('walls', 'outer'), 25.5);
+  check('an arc mirrored bends the other way', JSON.stringify(d.get(`${arc}.points`)) === '[[50,92],[50,27,-1],[1,27],[1,106]]');
+  d.seal();
+  d.set('walls[0].points[0]', [2, 92], true); d.set('walls[0].points[0]', [3, 91.5], true);
+  const dragged = d.undoLabel === 'Change outer.points' && d.get('walls[0].points[0]')[1] === 91.5;
+  d.undo();
+  check('a point dragged is one step, and its path keeps its other points', dragged && d.get('walls[0].points[0]')[0] === 1 && d.get('walls[0].points').length === 4
+    && !d.set('walls[0].points[1]', [1, 92]) && d.refused === 'walls[0].points[0]: the point is the same as the next one');
+  const ramp = fieldAt('ramps[0].profile');
+  check('a height profile is what the format says it is', ramp !== null && isProfile(ramp) && !isProfile(fieldAt('ramps[0].points') as Field));
 }
 
 // ---- 50 mixed operations: undo and redo give back every file, byte for byte
