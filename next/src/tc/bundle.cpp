@@ -80,14 +80,28 @@ bool ensureDevBundle(const BundleSpec& spec, const std::string& engine, const st
       st.st_mtim.tv_nsec   // the same nanoseconds under POSIX's name (the bundle itself is macOS-only; this compiles on Linux)
 #endif
       ));
-  std::string plistText = infoPlist(spec, false);
+  // the modules zinc loads from beside it (libzn_window, libzn_webgl: ZN-592.01, ZN-330) go into the bundle with it
+  std::vector<fs::path> modules;
   std::error_code ec;
-  if (fs::exists(exe, ec) && readAll(stamp) == want && readAll(plist) == plistText) return true;   // nothing changed: two small reads and two stats
+  for (const auto& e : fs::directory_iterator(fs::path(engine).parent_path(), ec)) {
+    const std::string n = e.path().filename().string();
+    if (n.rfind("libzn_", 0) == 0 && e.path().extension() == ".dylib" && stat(e.path().c_str(), &st) == 0) {
+      modules.push_back(e.path());
+      want += " " + n + " " + std::to_string(static_cast<long long>(st.st_size)) + " " + std::to_string(static_cast<long long>(st.st_mtime));
+    }
+  }
+  std::string plistText = infoPlist(spec, false);
+  if (fs::exists(exe, ec) && readAll(stamp) == want && readAll(plist) == plistText) return true;   // nothing changed: two small reads and a few stats
   fs::create_directories(exe.parent_path(), ec);
   fs::remove(exe, ec);
   fs::copy_file(engine, exe, fs::copy_options::overwrite_existing, ec);
   if (ec) { err = "cannot copy the engine into " + appPath + ": " + ec.message(); return false; }
   fs::permissions(exe, fs::perms::owner_all | fs::perms::group_read | fs::perms::group_exec | fs::perms::others_read | fs::perms::others_exec, ec);
+  for (const fs::path& m : modules) {
+    fs::copy_file(m, exe.parent_path() / m.filename(), fs::copy_options::overwrite_existing, ec);
+    if (ec) { err = "cannot copy " + m.string() + " into " + appPath + ": " + ec.message(); return false; }
+    if (!run("codesign --force --sign - " + q((exe.parent_path() / m.filename()).string()), err, "codesign")) return false;   // the bundle's signature covers signed code only
+  }
   { std::ofstream(plist) << plistText; }
   if (!run("codesign --force --sign - --identifier " + q(spec.id) + " " + q(appPath), err, "codesign")) return false;
   run("/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f " + q(appPath), err, "lsregister");   // URL schemes and the display name; failure is not fatal
