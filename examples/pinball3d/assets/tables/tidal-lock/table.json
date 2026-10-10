@@ -4,7 +4,7 @@
   "name": "Tidal Lock",
   "author": "Zinc",
   "description": "A tug crew works the docks of a mining station held in tidal lock above a gas giant.",
-  "playfield": { "surface": "wood", "look": "board" },
+  "playfield": { "glass": 9.5, "surface": "wood", "look": "board" },
   "physics": { "ball": { "look": "chrome" } },
   "surfaces": [
     { "id": "wood", "friction": 0.2, "restitution": 0.3 },
@@ -15,18 +15,18 @@
     { "id": "bat", "friction": 0.7, "restitution": 0.55 }
   ],
   "looks": [
-    { "id": "board", "color": "#101a3a", "specular": "#1c2a55", "shininess": 40 },
-    { "id": "steel", "color": "#9aa4b4", "specular": "#ffffff", "shininess": 60 },
+    { "id": "board", "color": "#16224a" },
+    { "id": "steel", "color": "#9aa4b4", "specular": "#8090a8", "shininess": 60 },
     { "id": "chrome", "color": "#d8dce4", "specular": "#ffffff", "shininess": 140 },
     { "id": "post", "color": "#c8283c", "shading": "flat" },
-    { "id": "bat", "color": "#f0f0f6", "specular": "#ffffff" },
+    { "id": "bat", "color": "#f0f0f6", "specular": "#606070" },
     { "id": "band", "color": "#a01f3f", "glow": "#ff5f8a" },
     { "id": "pop", "color": "#20386e", "glow": "#7fd8ff" },
-    { "id": "popCap", "color": "#ff7a33", "specular": "#ffffff", "shininess": 50 },
+    { "id": "popCap", "color": "#ff7a33", "specular": "#553a22", "shininess": 40 },
     { "id": "amber", "color": "#b37a14", "glow": "#ffd866" },
     { "id": "cyan", "color": "#167a86", "glow": "#66f0ff" },
-    { "id": "ramp", "color": "#2f6fd0", "specular": "#bcd6ff", "shininess": 80 },
-    { "id": "wire", "color": "#c9d2e0", "specular": "#ffffff", "shininess": 120 },
+    { "id": "ramp", "color": "#2a62b8" },
+    { "id": "wire", "color": "#c9d2e0", "specular": "#8090a8", "shininess": 120 },
     { "id": "dock", "color": "#3c4660", "specular": "#8fa0c8", "shininess": 40 },
     { "id": "giant", "color": "#c98848" },
     { "id": "hull", "color": "#70788c", "specular": "#d0d8f0", "shininess": 50 }
@@ -139,16 +139,16 @@
     {
       "id": "ramp",
       "points": [[36, 64], [36, 34, -1], [7.4, 34], [7.4, 40]],
-      "profile": [[0, 0], [0.37, 5.5], [1, 5.5]],
+      "profile": [[0, 0], [0.28, 4.3], [0.36, 5.2], [0.44, 5.5], [1, 5.5]],
+      "wall": 2.6,
       "surface": "plastic",
       "look": "ramp"
     },
     {
       "id": "rail",
       "points": [[7.4, 40], [7.4, 55], [6.45, 66], [6.45, 70.5]],
-      "profile": [[0, 5.5], [1, 1.7]],
+      "profile": [[0, 5.5], [1, 3.4]],
       "width": 3,
-      "wall": 1.2,
       "style": "wire",
       "surface": "wire",
       "look": "wire"
@@ -182,6 +182,8 @@
   ],
   "rules": {
     "ranks": ["Deckhand", "Rigger", "Tug Pilot", "Dock Master", "Station Chief", "Orbit Marshal", "Tide Warden"],
+    "rankLights": "ranks",
+    "ballSaveLight": "shootAgain",
     "counters": ["laps"],
     "missions": [
       { "id": "cargo", "name": "Cargo Run", "steps": [{ "text": "Shoot the ramp", "on": "rail", "event": "exit", "count": 2, "light": "rampArrow" }] },
@@ -222,7 +224,7 @@
         ]
       }
     ],
-    "multiball": { "jackpotOn": "rail", "jackpotEvent": "exit" },
+    "multiball": { "lockLights": "locks", "jackpotOn": "rail", "jackpotEvent": "exit" },
     "when": [
       { "on": "pops", "event": "hit", "do": [{ "do": "score", "value": 500 }, { "do": "bonus", "value": 100 }] },
       { "on": "slings", "event": "hit", "do": [{ "do": "score", "value": 110 }] },
@@ -312,13 +314,13 @@
   },
   "lighting": {
     "background": "#04050b",
-    "ambient": "#4a5064",
-    "lamps": [{ "direction": [0.25, 0.45, -1] }, { "direction": [-0.5, -0.2, -0.6], "color": "#35507a" }]
+    "ambient": "#565c72",
+    "lamps": [{ "direction": [0.2, 0.35, -1], "color": "#d8dcf0" }, { "direction": [-0.6, -0.3, -0.5], "color": "#2a3c66" }]
   },
   "layouts": {
     "landscape": {
       "view": [0, 0, 600, 800],
-      "camera": { "position": [25.5, 208, 135], "target": [25.5, 56, 0], "fov": 30 },
+      "camera": { "position": [25.5, 186, 172], "target": [25.5, 57.5, 0], "fov": 26.5 },
       "panel": {
         "box": [600, 0, 680, 800],
         "items": [
@@ -330,6 +332,7 @@
           { "show": "step", "box": [640, 470, 600, 36], "size": 24 },
           { "show": "message", "box": [640, 560, 600, 50], "size": 28, "color": "#ff7a33" },
           { "show": "bonus", "box": [640, 650, 600, 30], "size": 22, "label": "BONUS" },
+          { "show": "highScores", "box": [640, 350, 600, 180], "size": 24, "color": "#c8d4f0", "label": "BEST CREWS" },
           { "show": "hint", "box": [640, 740, 600, 24], "size": 16, "color": "#7080a0" }
         ]
       }
@@ -337,7 +340,7 @@
     "portrait": {
       "window": [800, 1280],
       "view": [0, 200, 800, 1080],
-      "camera": { "position": [25.5, 196, 150], "target": [25.5, 56, 0], "fov": 30 },
+      "camera": { "position": [25.5, 176, 190], "target": [25.5, 57, 0], "fov": 25.5 },
       "panel": {
         "box": [0, 0, 800, 200],
         "items": [
@@ -347,7 +350,8 @@
           { "show": "rank", "box": [210, 70, 190, 34], "size": 22, "color": "#9f8cff", "label": "RANK" },
           { "show": "message", "box": [400, 84, 380, 30], "size": 22, "color": "#ff7a33", "align": "right" },
           { "show": "mission", "box": [20, 124, 760, 30], "size": 24, "color": "#ffd866" },
-          { "show": "step", "box": [20, 158, 760, 26] }
+          { "show": "step", "box": [20, 158, 760, 26] },
+          { "show": "highScores", "box": [20, 66, 380, 130], "color": "#c8d4f0" }
         ]
       }
     }

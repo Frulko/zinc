@@ -224,6 +224,7 @@ export function tableSchema(): Schema {
   ramp.num('wall', 1.6, 'The height of the side walls above the track; 0 for none (a jump ramp).').range(0, 20);
   ramp.num('thickness', 0.2, 'How thick the track is.').range(0.05, 5);
   ramp.choice('style', ['solid', 'wire'], 'solid: a plastic or metal ramp; wire: a habitrail, drawn as wires.');
+  ramp.bool('skirt', true, 'A solid ramp is closed underneath wherever it is too low for a ball to pass: its sides go down to the playfield and a lip closes the gap, so that no ball wedges under it. false leaves it open (a ramp that starts from an upper level).');
   body(ramp, 'Plastic by default.', '');
   ramp.obj('sounds', soundsOf('ramp', ['enter', 'exit'], ['When a ball enters at its first point.', 'When a ball leaves at its last point.']), 'Its sounds.');
 
@@ -279,7 +280,7 @@ export function tableSchema(): Schema {
   rule.list('do', action, 'What happens.');
 
   const step = new Schema('step', 'One step of a mission: an event to get a number of times.');
-  step.text('text', '', 'What the panel asks for ("Shoot the ramp").').must();
+  step.text('text', '', 'What the panel asks for ("Light the three lanes").').must();
   step.ref('on', ANY, 'Where the event comes from.').must();
   step.choice('event', EVENTS, 'The event.').must();
   step.int('count', 1, 'How many times.').range(1, 1000);
@@ -294,6 +295,7 @@ export function tableSchema(): Schema {
   const multiball = new Schema('multiball', 'Multiball: balls locked in a kicker start it; while it lasts a shot scores the jackpot, which grows.');
   multiball.int('balls', 3, 'Balls in play when it starts.').range(2, 8);
   multiball.int('locks', 3, 'Locks (award "lock") needed to start it; 0: only a rule starts it.').range(0, 20);
+  multiball.ref('lockLights', 'light groups', 'A group of lights that shows the locks: one more is lit at each lock.');
   multiball.num('ballSave', 12, 'Seconds a drained ball comes back after it starts.').range(0, 120);
   multiball.num('scoreMultiplier', 2, 'Scores are multiplied by this while it lasts.').range(1, 100);
   multiball.ref('jackpotOn', ANY, 'Where the jackpot shot is.');
@@ -318,6 +320,8 @@ export function tableSchema(): Schema {
   rules.int('multiplierMax', 5, 'The highest bonus multiplier.').range(1, 100);
   rules.obj('tilt', tilt, 'Bumps and tilt.');
   rules.texts('ranks', 'The ranks, from the first: finishing a mission promotes to the next.');
+  rules.ref('rankLights', 'light groups', 'A group of lights that shows the rank: one more is lit at each promotion.');
+  rules.ref('ballSaveLight', 'lights', 'A light that blinks while a drained ball would come back, and stays on while an extra ball is held ("shoot again").');
   rules.texts('counters', 'The names of the counters the rules use (a rule can only count what is declared here).');
   rules.list('missions', mission, 'The missions.');
   rules.obj('multiball', multiball, 'Multiball.');

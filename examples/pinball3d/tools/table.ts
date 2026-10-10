@@ -118,7 +118,7 @@ function doc(t: Table): string {
     out.push('|---|---|---|---|');
     for (const f of s.fields) out.push(`| \`${f.name}\` | ${typeOf(f)} | ${defaultOf(f)} | ${f.doc} |`);
     out.push('');
-    if (s === root) { out.push(`A whole file: \`examples/pinball3d/assets/tables/tidal-lock/${TABLE_FILE}\`.`); out.push(''); }
+    if (s === root) { out.push(`A whole file: the \`${TABLE_FILE}\` of "${t.def.name}", in \`examples/pinball3d/assets/tables/\`.`); out.push(''); }
     let ex = s === root ? '' : example(root, t.data, s);
     if (ex === '') ex = s.sample;
     if (ex !== '') { out.push('```json'); out.push(ex); out.push('```'); out.push(''); }

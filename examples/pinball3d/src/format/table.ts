@@ -39,7 +39,7 @@ export interface RolloverDef { id: string; group: string; a: number[]; b: number
 export interface SpinSounds { spin: string }
 export interface SpinnerDef { id: string; group: string; a: number[]; b: number[]; z: number; height: number; turns: number; damping: number; look: string; sounds: SpinSounds }
 export interface RampSounds { enter: string; exit: string }
-export interface RampDef { id: string; group: string; points: number[][]; profile: number[][]; width: number; wall: number; thickness: number; style: string; surface: string; look: string; sounds: RampSounds }
+export interface RampDef { id: string; group: string; points: number[][]; profile: number[][]; width: number; wall: number; thickness: number; style: string; skirt: boolean; surface: string; look: string; sounds: RampSounds }
 export interface FloorDef { id: string; group: string; points: number[][]; z: number; thickness: number; surface: string; look: string }
 export interface LightDef { id: string; group: string; at: number[]; z: number; shape: string; size: number; angle: number; color: string }
 export interface ModelDef { id: string; group: string; mesh: string; shape: string; at: number[]; rotation: number[]; scale: number[]; collide: string; surface: string; look: string }
@@ -48,11 +48,11 @@ export interface ActionDef { do: string; target: string; value: number; mode: st
 export interface RuleDef { on: string; event: string; if: ConditionDef[]; do: ActionDef[] }
 export interface StepDef { text: string; on: string; event: string; count: i32; light: string }
 export interface MissionDef { id: string; name: string; award: number; steps: StepDef[] }
-export interface MultiballDef { balls: i32; locks: i32; ballSave: number; scoreMultiplier: number; jackpotOn: string; jackpotEvent: string; jackpot: number; jackpotStep: number }
+export interface MultiballDef { balls: i32; locks: i32; lockLights: string; ballSave: number; scoreMultiplier: number; jackpotOn: string; jackpotEvent: string; jackpot: number; jackpotStep: number }
 export interface TiltDef { warnings: i32; recovery: number; penalty: string }
 export interface HighScoreDef { name: string; score: number }
 export interface RulesDef {
-  balls: i32; ballSave: number; extraBalls: i32; multiplierMax: i32; tilt: TiltDef; ranks: string[]; counters: string[];
+  balls: i32; ballSave: number; extraBalls: i32; multiplierMax: i32; tilt: TiltDef; ranks: string[]; rankLights: string; ballSaveLight: string; counters: string[];
   missions: MissionDef[]; multiball: MultiballDef; when: RuleDef[]; highScores: HighScoreDef[]
 }
 export interface CameraDef { position: number[]; target: number[]; fov: number }

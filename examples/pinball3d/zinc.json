@@ -1,0 +1,8 @@
+{
+  "name": "pinball3d",
+  "entry": "src/main.ts",
+  "targets": {
+    "macos": { "width": 1280, "height": 800, "resize": "fill" },
+    "linux": { "width": 1280, "height": 800, "resize": "fill" }
+  }
+}

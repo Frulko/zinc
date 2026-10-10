@@ -11,8 +11,10 @@ cd "$(dirname "$0")/../.." || exit 2
 command -v python3 >/dev/null 2>&1 || { echo "skipped: python3 is not installed"; exit 77; }
 fail=0
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+# absolute paths: a program of a project (a folder with a zinc.json) runs from the project's folder
 tool=../examples/pinball3d/tools/table.ts
-table=../examples/pinball3d/assets/tables/tidal-lock
+table=$(cd ../examples/pinball3d/assets/tables/tidal-lock && pwd)
+doc=$(cd ../docs && pwd)/pinball-table-format.md
 "$ZINC" run $tool -- check $table >"$tmp/check.out" 2>&1 || { echo "pinball3d_format: the table does not load: $(head -c 600 "$tmp/check.out")"; exit 1; }
 grep -q '"Tidal Lock" is a valid table (version 1)' "$tmp/check.out" || { echo "pinball3d_format: check does not say the table is valid: $(cat "$tmp/check.out")"; fail=1; }
 "$ZINC" run $tool -- print $table >"$tmp/saved.json" 2>&1
@@ -29,7 +31,7 @@ json.dump(t, open(sys.argv[2], 'w'), indent=1)
 PY
 "$ZINC" run $tool -- print "$tmp/other" 2>&1 | cmp -s - $table/table.json || { echo "pinball3d_format: a table written another way does not save to the canonical bytes"; fail=1; }
 # broken files
-python3 tests/data/pinball3d/break.py $table/table.json "$tmp/broken" >"$tmp/cases.txt" || { echo "pinball3d_format: break.py failed"; exit 1; }
+python3 tests/data/pinball3d/break.py "$table/table.json" "$tmp/broken" >"$tmp/cases.txt" || { echo "pinball3d_format: break.py failed"; exit 1; }
 n=0
 while IFS="$(printf '\t')" read -r name expect; do
   n=$((n + 1))
@@ -42,8 +44,8 @@ done <"$tmp/cases.txt"
 "$ZINC" run $tool -- pack $table "$tmp/tidal.zpinball" >/dev/null 2>&1 || { echo "pinball3d_format: pack failed"; fail=1; }
 "$ZINC" run $tool -- print "$tmp/tidal.zpinball" 2>&1 | cmp -s - $table/table.json || { echo "pinball3d_format: the package does not load as the folder"; fail=1; }
 # the reference
-"$ZINC" run $tool -- doc $table 2>&1 | cmp -s - ../docs/pinball-table-format.md || { echo "pinball3d_format: docs/pinball-table-format.md is not what the format prints (tools/table.ts -- doc)"; fail=1; }
-[ "$(grep -c '^```json' ../docs/pinball-table-format.md)" -ge 48 ] || { echo "pinball3d_format: a section of the reference has no example"; fail=1; }
+"$ZINC" run $tool -- doc $table 2>&1 | cmp -s - "$doc" || { echo "pinball3d_format: docs/pinball-table-format.md is not what the format prints (tools/table.ts -- doc)"; fail=1; }
+[ "$(grep -c '^```json' "$doc")" -ge 48 ] || { echo "pinball3d_format: a section of the reference has no example"; fail=1; }
 # compiled
 "$ZINC" build $tool -o "$tmp/table" >"$tmp/build.log" 2>&1 || { echo "pinball3d_format: the tool does not compile: $(tail -c 300 "$tmp/build.log")"; exit 1; }
 "$tmp/table" print $table 2>&1 | cmp -s - $table/table.json || { echo "pinball3d_format: the compiled loader saves other bytes"; fail=1; }

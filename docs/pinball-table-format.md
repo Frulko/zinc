@@ -68,7 +68,7 @@ A table file.
 | `lighting` | [lighting](#lighting) |  | The light of the scene. |
 | `layouts` | [layouts](#layouts) |  | The screen layouts. |
 
-A whole file: `examples/pinball3d/assets/tables/tidal-lock/table.json`.
+A whole file: the `table.json` of "Tidal Lock", in `examples/pinball3d/assets/tables/`.
 
 ## playfield
 
@@ -84,7 +84,7 @@ The board the ball rolls on: a rectangle from (0, 0) at the top left to (width, 
 | `look` | name of looks | none | What it looks like. The colour or the image of the board. |
 
 ```json
-"playfield": { "surface": "wood", "look": "board" }
+"playfield": { "glass": 9.5, "surface": "wood", "look": "board" }
 ```
 
 ## physics
@@ -150,7 +150,7 @@ A material as the eye sees it. Elements name one in their `look`.
 | `texture` | file | none | An image of the table folder mapped on the element (PNG or JPEG). |
 
 ```json
-{ "id": "board", "color": "#101a3a", "specular": "#1c2a55", "shininess": 40 }
+{ "id": "board", "color": "#16224a" }
 ```
 
 ## sound
@@ -561,6 +561,7 @@ A ramp, a rail or a habitrail: a track that follows a path seen from above while
 | `wall` | number | `1.6` (0 to 20) | The height of the side walls above the track; 0 for none (a jump ramp). |
 | `thickness` | number | `0.2` (0.05 to 5) | How thick the track is. |
 | `style` | `"solid"` `"wire"` | `"solid"` | solid: a plastic or metal ramp; wire: a habitrail, drawn as wires. |
+| `skirt` | true / false | `true` | A solid ramp is closed underneath wherever it is too low for a ball to pass: its sides go down to the playfield and a lip closes the gap, so that no ball wedges under it. false leaves it open (a ramp that starts from an upper level). |
 | `surface` | name of surfaces | none | What the ball feels: friction and bounce. Plastic by default. |
 | `look` | name of looks | none | What it looks like.  |
 | `sounds` | [ramp sounds](#ramp-sounds) |  | Its sounds. |
@@ -569,7 +570,8 @@ A ramp, a rail or a habitrail: a track that follows a path seen from above while
 {
   "id": "ramp",
   "points": [[36, 64], [36, 34, -1], [7.4, 34], [7.4, 40]],
-  "profile": [[0, 0], [0.37, 5.5], [1, 5.5]],
+  "profile": [[0, 0], [0.28, 4.3], [0.36, 5.2], [0.44, 5.5], [1, 5.5]],
+  "wall": 2.6,
   "surface": "plastic",
   "look": "ramp"
 }
@@ -658,6 +660,8 @@ How the table is played and scored. Everything here is data: the game has no rul
 | `multiplierMax` | whole number | `5` (1 to 100) | The highest bonus multiplier. |
 | `tilt` | [tilt](#tilt) |  | Bumps and tilt. |
 | `ranks` | list of texts |  | The ranks, from the first: finishing a mission promotes to the next. |
+| `rankLights` | name of light groups | none | A group of lights that shows the rank: one more is lit at each promotion. |
+| `ballSaveLight` | name of lights | none | A light that blinks while a drained ball would come back, and stays on while an extra ball is held ("shoot again"). |
 | `counters` | list of texts |  | The names of the counters the rules use (a rule can only count what is declared here). |
 | `missions` | list of [mission](#mission) |  | The missions. |
 | `multiball` | [multiball](#multiball) |  | Multiball. |
@@ -667,6 +671,8 @@ How the table is played and scored. Everything here is data: the game has no rul
 ```json
 "rules": {
   "ranks": ["Deckhand", "Rigger", "Tug Pilot", "Dock Master", "Station Chief", "Orbit Marshal", "Tide Warden"],
+  "rankLights": "ranks",
+  "ballSaveLight": "shootAgain",
   "counters": ["laps"],
   "missions": [
     { "id": "cargo", "name": "Cargo Run", "steps": [{ "text": "Shoot the ramp", "on": "rail", "event": "exit", "count": 2, "light": "rampArrow" }] },
@@ -707,7 +713,7 @@ How the table is played and scored. Everything here is data: the game has no rul
       ]
     }
   ],
-  "multiball": { "jackpotOn": "rail", "jackpotEvent": "exit" },
+  "multiball": { "lockLights": "locks", "jackpotOn": "rail", "jackpotEvent": "exit" },
   "when": [
     { "on": "pops", "event": "hit", "do": [{ "do": "score", "value": 500 }, { "do": "bonus", "value": 100 }] },
     { "on": "slings", "event": "hit", "do": [{ "do": "score", "value": 110 }] },
@@ -832,7 +838,7 @@ One step of a mission: an event to get a number of times.
 
 | field | type | default | |
 |---|---|---|---|
-| `text` | text | required | What the panel asks for ("Shoot the ramp"). |
+| `text` | text | required | What the panel asks for ("Light the three lanes"). |
 | `on` | name of elements / groups / game | required | Where the event comes from. |
 | `event` | `"hit"` `"down"` `"roll"` `"spin"` `"capture"` `"eject"` `"enter"` `"exit"` `"pass"` `"flip"` `"launch"` `"start"` `"ballStart"` `"drain"` `"ballSaved"` `"tilt"` `"missionDone"` `"rankUp"` `"multiballStart"` `"multiballEnd"` `"jackpot"` `"extraBall"` `"gameOver"` | required | The event. |
 | `count` | whole number | `1` (1 to 1000) | How many times. |
@@ -850,6 +856,7 @@ Multiball: balls locked in a kicker start it; while it lasts a shot scores the j
 |---|---|---|---|
 | `balls` | whole number | `3` (2 to 8) | Balls in play when it starts. |
 | `locks` | whole number | `3` (0 to 20) | Locks (award "lock") needed to start it; 0: only a rule starts it. |
+| `lockLights` | name of light groups | none | A group of lights that shows the locks: one more is lit at each lock. |
 | `ballSave` | number | `12` (0 to 120) | Seconds a drained ball comes back after it starts. |
 | `scoreMultiplier` | number | `2` (1 to 100) | Scores are multiplied by this while it lasts. |
 | `jackpotOn` | name of elements / groups / game | none | Where the jackpot shot is. |
@@ -858,7 +865,7 @@ Multiball: balls locked in a kicker start it; while it lasts a shot scores the j
 | `jackpotStep` | number | `5000` (0 to 1000000000) | What each jackpot adds to the next. |
 
 ```json
-"multiball": { "jackpotOn": "rail", "jackpotEvent": "exit" }
+"multiball": { "lockLights": "locks", "jackpotOn": "rail", "jackpotEvent": "exit" }
 ```
 
 ## rule
@@ -933,8 +940,8 @@ The light of the scene.
 ```json
 "lighting": {
   "background": "#04050b",
-  "ambient": "#4a5064",
-  "lamps": [{ "direction": [0.25, 0.45, -1] }, { "direction": [-0.5, -0.2, -0.6], "color": "#35507a" }]
+  "ambient": "#565c72",
+  "lamps": [{ "direction": [0.2, 0.35, -1], "color": "#d8dcf0" }, { "direction": [-0.6, -0.3, -0.5], "color": "#2a3c66" }]
 }
 ```
 
@@ -948,7 +955,7 @@ A light that shines on the whole table from far away.
 | `color` | colour | `"#ffffff"` | Its colour. |
 
 ```json
-{ "direction": [0.25, 0.45, -1] }
+{ "direction": [0.2, 0.35, -1], "color": "#d8dcf0" }
 ```
 
 ## layouts
@@ -964,7 +971,7 @@ The two layouts. The game takes portrait when its window is taller than wide, la
 "layouts": {
   "landscape": {
     "view": [0, 0, 600, 800],
-    "camera": { "position": [25.5, 208, 135], "target": [25.5, 56, 0], "fov": 30 },
+    "camera": { "position": [25.5, 186, 172], "target": [25.5, 57.5, 0], "fov": 26.5 },
     "panel": {
       "box": [600, 0, 680, 800],
       "items": [
@@ -976,6 +983,7 @@ The two layouts. The game takes portrait when its window is taller than wide, la
         { "show": "step", "box": [640, 470, 600, 36], "size": 24 },
         { "show": "message", "box": [640, 560, 600, 50], "size": 28, "color": "#ff7a33" },
         { "show": "bonus", "box": [640, 650, 600, 30], "size": 22, "label": "BONUS" },
+        { "show": "highScores", "box": [640, 350, 600, 180], "size": 24, "color": "#c8d4f0", "label": "BEST CREWS" },
         { "show": "hint", "box": [640, 740, 600, 24], "size": 16, "color": "#7080a0" }
       ]
     }
@@ -983,7 +991,7 @@ The two layouts. The game takes portrait when its window is taller than wide, la
   "portrait": {
     "window": [800, 1280],
     "view": [0, 200, 800, 1080],
-    "camera": { "position": [25.5, 196, 150], "target": [25.5, 56, 0], "fov": 30 },
+    "camera": { "position": [25.5, 176, 190], "target": [25.5, 57, 0], "fov": 25.5 },
     "panel": {
       "box": [0, 0, 800, 200],
       "items": [
@@ -993,7 +1001,8 @@ The two layouts. The game takes portrait when its window is taller than wide, la
         { "show": "rank", "box": [210, 70, 190, 34], "size": 22, "color": "#9f8cff", "label": "RANK" },
         { "show": "message", "box": [400, 84, 380, 30], "size": 22, "color": "#ff7a33", "align": "right" },
         { "show": "mission", "box": [20, 124, 760, 30], "size": 24, "color": "#ffd866" },
-        { "show": "step", "box": [20, 158, 760, 26] }
+        { "show": "step", "box": [20, 158, 760, 26] },
+        { "show": "highScores", "box": [20, 66, 380, 130], "color": "#c8d4f0" }
       ]
     }
   }
@@ -1014,7 +1023,7 @@ One way to put the table and the panel in a window.
 ```json
 "landscape": {
   "view": [0, 0, 600, 800],
-  "camera": { "position": [25.5, 208, 135], "target": [25.5, 56, 0], "fov": 30 },
+  "camera": { "position": [25.5, 186, 172], "target": [25.5, 57.5, 0], "fov": 26.5 },
   "panel": {
     "box": [600, 0, 680, 800],
     "items": [
@@ -1026,6 +1035,7 @@ One way to put the table and the panel in a window.
       { "show": "step", "box": [640, 470, 600, 36], "size": 24 },
       { "show": "message", "box": [640, 560, 600, 50], "size": 28, "color": "#ff7a33" },
       { "show": "bonus", "box": [640, 650, 600, 30], "size": 22, "label": "BONUS" },
+      { "show": "highScores", "box": [640, 350, 600, 180], "size": 24, "color": "#c8d4f0", "label": "BEST CREWS" },
       { "show": "hint", "box": [640, 740, 600, 24], "size": 16, "color": "#7080a0" }
     ]
   }
@@ -1043,7 +1053,7 @@ The fixed eye that looks at the table, in table coordinates.
 | `fov` | number | `28` (5 to 120) | The vertical field of view, in degrees. |
 
 ```json
-"camera": { "position": [25.5, 208, 135], "target": [25.5, 56, 0], "fov": 30 }
+"camera": { "position": [25.5, 186, 172], "target": [25.5, 57.5, 0], "fov": 26.5 }
 ```
 
 ## panel
@@ -1068,6 +1078,7 @@ The score panel.
     { "show": "step", "box": [640, 470, 600, 36], "size": 24 },
     { "show": "message", "box": [640, 560, 600, 50], "size": 28, "color": "#ff7a33" },
     { "show": "bonus", "box": [640, 650, 600, 30], "size": 22, "label": "BONUS" },
+    { "show": "highScores", "box": [640, 350, 600, 180], "size": 24, "color": "#c8d4f0", "label": "BEST CREWS" },
     { "show": "hint", "box": [640, 740, 600, 24], "size": 16, "color": "#7080a0" }
   ]
 }
