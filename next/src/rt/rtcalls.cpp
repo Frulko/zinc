@@ -649,10 +649,12 @@ static const char* hostRt(Machine& m, Rt id, Slot* a) {
   // what needs the machine: the program's standard output is buffered in the machine, so writes and exit go through it
   if (id == Rt::HostSysWrite) { StrObj* s = S(a[0]); if (!s) return kNull; m.out->append(s->data(), s->len); return nullptr; }
   if (id == Rt::HostSysExit) {
-    std::fwrite(m.out->data(), 1, m.out->size(), stdout);
-    std::fflush(stdout);
+    m.flushOut();
     std::exit(static_cast<int>(static_cast<std::int32_t>(a[0])));
   }
+  // a turn of the event loop begins (the timer loop and the frame loop of the prelude both ask for the host's events first) or the program waits:
+  // what it printed goes out now, so the lines of a running program reach the terminal, the file or the pipe before it exits (ZN-638)
+  if ((id == Rt::HostEvReady || id == Rt::HostLoopWait) && m.outLive && !m.out->empty()) m.flushOut();
   if (!call) return isLayoutRow(id) ? "the rn layout engine is not available in this build" : isGlRow(id) ? "zinc:gl is not available (no libzn_webgl beside zinc)" : sys ? "the system modules are not available in this build" : "zinc:gfx is not available in this build";
   zn::host::HostArg args[12], res;
   for (unsigned k = 0; k < rtParamCount(ri); ++k) {

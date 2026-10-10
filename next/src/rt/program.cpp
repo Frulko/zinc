@@ -8,15 +8,16 @@
 namespace zn::rt {
 
 Result runModule(const zbc::Module& mod, std::string& out, bool traceFree, void (*setup)(Machine&, const void*), const void* setupData) {
-  return runModuleHooked(mod, out, traceFree, setup, setupData, nullptr, nullptr);
+  return runModuleHooked(mod, out, traceFree, setup, setupData, nullptr, nullptr, 0, 0, true);
 }
 
 Result runModuleHooked(const zbc::Module& mod, std::string& out, bool traceFree, void (*setup)(Machine&, const void*), const void* setupData,
-                       void (*finish)(Machine&, const void*), const void* finishData, std::size_t stackSlots, std::size_t maxDepth) {
+                       void (*finish)(Machine&, const void*), const void* finishData, std::size_t stackSlots, std::size_t maxDepth, bool outLive) {
   Machine m;
   m.stackSlots = stackSlots;
   m.maxDepth = maxDepth;
   m.out = &out;
+  m.outLive = outLive;
   m.traceFree = traceFree;
   Result res;
   std::string err;

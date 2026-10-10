@@ -202,6 +202,9 @@ struct Machine {
   std::string* out = nullptr;
   std::size_t errMark = 0;   // where the line of a console.error began in `out`
   void flushErrLine();       // ends it: what `out` held before goes to the standard output, the line to the standard error
+  bool outLive = false;      // `out` is the standard output of the process (runModule), not text its host keeps (profilers, device core): each event-loop turn writes it (ZN-638)
+  std::size_t lineMark = 0;  // where the console.log line being written begins in `out` (stamped runs, zn/stamp.h)
+  void flushOut();           // writes what `out` holds to the standard output now and empties it
   std::string error;
   std::string trace;
   // The classes of the Dyn prelude, found by name on first use (JSON.parse and the Dyn fast paths build and read them natively).
@@ -287,11 +290,13 @@ struct Result {
 };
 
 // Loads `m`, lets `setup` bind engine-specific code to the functions, runs functions[0] (main) and releases the globals.
-// Program output (console.log) is appended to `out`, also when execution fails midway.
+// Program output (console.log) is appended to `out`, also when execution fails midway. `out` is what report() prints: a program with an event loop
+// writes it to the standard output at each turn (Machine::outLive), and `out` holds what is left.
 Result runModule(const zbc::Module& m, std::string& out, bool traceFree, void (*setup)(Machine&, const void*), const void* setupData);
-// The same with a `finish` that sees the machine after the run (globals released, leaks counted), for the profilers (src/prof).
+// The same with a `finish` that sees the machine after the run (globals released, leaks counted), for the profilers (src/prof). Here the host keeps
+// the whole output in `out` unless it asks for `outLive`.
 Result runModuleHooked(const zbc::Module& m, std::string& out, bool traceFree, void (*setup)(Machine&, const void*), const void* setupData,
-                       void (*finish)(Machine&, const void*), const void* finishData, std::size_t stackSlots = 0, std::size_t maxDepth = 0);
+                       void (*finish)(Machine&, const void*), const void* finishData, std::size_t stackSlots = 0, std::size_t maxDepth = 0, bool outLive = false);
 
 // Prints the program's output and, if it failed, the error; returns the exit code: 0, 101 for an uncaught exception, 1 for
 // another runtime error, 4 for leaked objects when ZN_LEAK_CHECK is set.

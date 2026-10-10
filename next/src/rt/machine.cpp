@@ -22,11 +22,17 @@
 
 namespace zn::rt {
 
-void Machine::flushErrLine() {
-  std::string line = out->substr(errMark) + '\n';
-  std::fwrite(out->data(), 1, errMark, stdout);
+void Machine::flushOut() {
+  std::fwrite(out->data(), 1, out->size(), stdout);
   std::fflush(stdout);
   out->clear();
+  lineMark = 0;
+}
+
+void Machine::flushErrLine() {
+  std::string line = out->substr(errMark) + '\n';
+  out->resize(errMark);
+  flushOut();
   std::fwrite(line.data(), 1, line.size(), stderr);
 }
 

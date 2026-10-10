@@ -257,6 +257,7 @@ bool frameLoop(Engine& e) {
   double clock = 0;
   bool ok = true;
   for (long f = 0; f < frames && ok; ++f) {
+    std::fflush(stdout);   // what the program printed reaches a file or a pipe at each turn, as on the typed engine (ZN-638)
     hostCall(zn::Rt::HostGfxPoll, &r);
     double dt = r.d;
     clock += dt * 1000;
@@ -292,6 +293,7 @@ bool timerLoop(Engine& e) {
   JSValue next = global(e, "__nextTimer");
   bool ok = true;
   while (ok) {
+    std::fflush(stdout);   // as in the frame loop
     JSValue fn = JS_Call(e.ctx, next, JS_UNDEFINED, 0, nullptr);
     if (JS_IsNull(fn) || JS_IsException(fn)) { JS_FreeValue(e.ctx, fn); break; }
     ok = callFn(e, fn, JS_UNDEFINED, false);
