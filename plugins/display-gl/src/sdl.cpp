@@ -24,6 +24,7 @@ bool zgl_backend_init(const HalConfig* cfg) {
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG);
   SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
   SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);   // the GL renderer's occlusion of what opaque rectangles hide (ZN-412.01)
+  SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);  // POLY fills on the GPU when the replay draws straight into the window (ZN-590.02)
   // window size in points as in hal_sdl: tiny surfaces doubled (ZINC_ZOOM overrides), a surface larger than the screen scaled down to fit
   int scale = cfg->width <= 400 ? 2 : 1;
   if (const char* z = getenv("ZINC_ZOOM")) scale = atoi(z) > 0 ? atoi(z) : scale;

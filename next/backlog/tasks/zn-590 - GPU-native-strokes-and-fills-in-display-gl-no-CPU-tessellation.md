@@ -1,10 +1,10 @@
 ---
 id: ZN-590
 title: GPU-native strokes and fills in display-gl (no CPU tessellation)
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-10-09 09:14'
-updated_date: '2026-10-10 14:45'
+updated_date: '2026-10-10 15:27'
 labels:
   - perf
   - gpu
@@ -23,7 +23,13 @@ Owner question 2026-10-09 (ZN-406): delegate strokes to the GPU. Today display-g
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 navigation on display-gl: no stroke_contours and no CPU POLY tile rasterization per frame (counters), paint CPU time measured before/after
-- [ ] #2 frames within the display-gl tolerance against the software goldens (hero, navigation, svg_lottie)
+- [x] #1 navigation on display-gl: no stroke_contours and no CPU POLY tile rasterization per frame (counters), paint CPU time measured before/after
+- [x] #2 frames within the display-gl tolerance against the software goldens (hero, navigation, svg_lottie)
 - [ ] #3 GLES2 (Pi 3, D29 prelude) and desktop GL paths; the software path and its goldens unchanged
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Done 2026-10-10 through ZN-590.01 (STROKE commands on the GPU, D61) and ZN-590.02 (POLY fills by stencil, D62). AC3: the desktop GL path and the unchanged software path are checked; the GLES2 path (Pi 3, D29 prelude) is written (OES_packed_depth_stencil, the same shaders) but checked in ZN-590.03 with the cross-platform pass; ZN-590.04 takes the canvas gradient paints and the batching.
+<!-- SECTION:NOTES:END -->

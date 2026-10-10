@@ -642,7 +642,16 @@ struct Engine : NativeSvgEngine {
           tmp.p[tmp.n++] = px; tmp.p[tmp.n++] = py;
           if (px < x0) x0 = px; if (py < y0) y0 = py; if (px > x1) x1 = px; if (py > y1) y1 = py;
         }
-        if (it.stroke) stroke_into(tmp.p, n, it.width * k, closed);
+        if (it.stroke && !it.grad && gfx::gpu_strokes && n >= 2) {   // the display draws polylines on the GPU (ZN-590.01): one STROKE per subpath
+          float sx0 = 1e30f, sy0 = 1e30f, sx1 = -1e30f, sy1 = -1e30f;
+          for (uint32_t j = 0; j < n; j++) { float px = tmp.p[j * 2], py = tmp.p[j * 2 + 1]; if (px < sx0) sx0 = px; if (py < sy0) sy0 = py; if (px > sx1) sx1 = px; if (py > sy1) sy1 = py; }
+          if (raster::Cmd* c = gfx::emit(raster::STROKE, tmp.p, n * 2)) {
+            const float pad = it.width * k / 2 + 1;
+            c->n = n; c->s = it.width * k; c->pad = closed ? 2 : 0;
+            c->x = sx0 - pad; c->y = sy0 - pad; c->w = sx1 - sx0 + 2 * pad; c->h = sy1 - sy0 + 2 * pad;
+            c->c1 = it.c1; c->alpha = (uint8_t)(it.alpha * (alpha < 0 ? 0 : alpha > 255 ? 255 : alpha) / 255);
+          }
+        } else if (it.stroke) stroke_into(tmp.p, n, it.width * k, closed);
         else if (n >= 3) { out.push((float)n); for (uint32_t j = 0; j < n * 2; j++) out.push(tmp.p[j]); }
         i += 1 + n * 2;
       }

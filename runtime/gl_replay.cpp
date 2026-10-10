@@ -22,7 +22,7 @@ using namespace zrt::raster;
 
 // vertex: position + uv, box (centre, half size), params (radius, border / blur, mode, gradient), two colours
 struct V { float x, y, u, v, bx, by, bw, bh, r, p1, mode, grad; uint8_t c1[4], c2[4]; float z; };   // z: the command's depth (occlusion, ZN-412.01)
-enum Mode { FILL, BORDER_M, TEXT_M, IMAGE_RGBA, IMAGE_BGR, SOLID, RESTORE, SHADOW_M, STROKE_M };
+enum Mode { FILL, BORDER_M, TEXT_M, IMAGE_RGBA, IMAGE_BGR, SOLID, RESTORE, SHADOW_M, STROKE_M, EDGE_M };
 static const int MAXQ = 8192, ATLAS = 1024, CORNER = 32, LEVELS = 16, TEXS = 256;
 
 static const char* VS =
@@ -33,7 +33,7 @@ static const char* VS =
   "  gl_Position = vec4(a_pos.x / u_res.x * 2.0 - 1.0, (a_pos.y / u_res.y * 2.0 - 1.0) * u_flip, a_z, 1.0); }\n";  // row 0 = top, like the CPU (u_flip -1: drawn into the window)
 static const char* FS =
   "varying vec4 v_pos; varying vec4 v_box; varying vec4 v_par; varying vec4 v_c1; varying vec4 v_c2;\n"
-  "uniform sampler2D u_tex;\n"
+  "uniform sampler2D u_tex; uniform vec3 u_edge;\n"   // u_edge: the EDGE pass (side test, left side, inside)
   "float sdf(vec2 p, vec2 c, vec2 h, float r) {\n"
   "  vec2 q = abs(p - c) - (h - r);\n"
   "  return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r; }\n"
@@ -68,10 +68,15 @@ static const char* FS =
   "  } else if (mode < 7.5) {\n"                                                 // SHADOW: blurred rounded box
   "    float blur = v_par.y, k = clamp(1.0 - (sdf(p, c, h, r) + blur * 0.5) / (blur * 1.5), 0.0, 1.0);\n"
   "    cov = k * k * (3.0 - 2.0 * k);\n"
-  "  } else {\n"                                                                 // STROKE: the capsule of segment A-B (round joins and caps); the
+  "  } else if (mode < 8.5) {\n"                                                 // STROKE: the capsule of segment A-B (round joins and caps); the
   "    float d = seg(p, v_pos.zw, c);\n"                                         // pixel is this segment's when no neighbour is nearer (ties to the
   "    if ((v_c2.x > 0.5 && seg(p, v_box.zw, v_pos.zw) <= d) || (v_c2.y > 0.5 && seg(p, c, v_par.yw) < d)) discard;\n"   // previous one): blended once
   "    cov = clamp(0.5 - (d - r), 0.0, 1.0);\n"
+  "  } else {\n"                                                                 // EDGE: the fringe of a POLY edge A-B (ZN-590.02), owned like a stroke
+  "    float d = seg(p, v_pos.zw, c);\n"                                         // segment; inside the fill (c2.z) the pixel covers 0.5 + d, outside
+  "    if (seg(p, v_box.zw, v_pos.zw) <= d || seg(p, c, v_par.yw) < d) discard;\n"   // 0.5 - d; c2.x: only the pixels on one side (c2.y) of A-B
+  "    if (u_edge.x > 0.5 && ((c.x - v_pos.z) * (p.y - v_pos.w) - (c.y - v_pos.w) * (p.x - v_pos.z) > 0.0) != (u_edge.y > 0.5)) discard;\n"
+  "    cov = clamp(0.5 + (u_edge.z > 0.5 ? d : -d), 0.0, 1.0);\n"
   "  }\n"
   // the raster's blend (raster.cpp blend): an integer alpha A = (uint32_t)(coverage * alpha), A >= 255 copies, 0 leaves the pixel, else
   // (c * A + d * (255 - A)) >> 8: a premultiplied colour c * A / 256 over d * (255 - A) / 256 (GL_ONE, GL_ONE_MINUS_SRC_ALPHA with an
@@ -97,6 +102,10 @@ static const char* SVS =
   "#endif\n"
   "  v_col = a_col; gl_Position = vec4(p.x / u_res.x * 2.0 - 1.0, (p.y / u_res.y * 2.0 - 1.0) * u_flip, a_z, 1.0); }\n";
 static const char* SFS = "varying vec4 v_col; void main() { gl_FragColor = v_col; }\n";
+// POLY's stencil pass: triangles that count the winding, no colour
+static const char* FVS = "attribute vec2 a_pos; uniform vec2 u_res; uniform float u_flip;\n"
+  "void main() { gl_Position = vec4(a_pos.x / u_res.x * 2.0 - 1.0, (a_pos.y / u_res.y * 2.0 - 1.0) * u_flip, 0.0, 1.0); }\n";
+static const char* FFS = "void main() { gl_FragColor = vec4(0.0); }\n";
 struct SV { float x0, y0, x1, y1; uint8_t c[4]; float z; };   // a rectangle (instanced) or, on GLES 2, x, y, c, z of one corner in its first 16 bytes
 
 struct Tex2 { GLuint id; int32_t key; uint32_t ver; int32_t w, h; const void* px; int nearest; };
@@ -108,9 +117,12 @@ static int gcount, gx, gy, growh;
 
 static int32_t W, H;
 static GLuint prog, vbo, ibo, fbo, fbo_tex, fbo_depth, white, atlas, corner_tex, cur_tex;
-static GLint u_res, u_tex, u_flip, a_box, a_par, a_c1, a_c2, a_z;
+static GLint u_res, u_tex, u_flip, u_edge, a_box, a_par, a_c1, a_c2, a_z;
 static float cur_z;          // NDC depth of the command being drawn: later commands are nearer (GL_LESS)
 static GLuint sprog, svbo;    // the occlusion pass's program and buffer
+static GLuint fprog, fvbo, evbo;   // POLY on the GPU (ZN-590.02): the stencil pass's program (positions only) and buffer, the fringe quads' buffer
+static GLint f_res, f_flip;
+static bool stencil_ok;       // this frame: the framebuffer has 8 stencil bits
 static GLint s_res, s_flip, s_rect, s_col, s_z, s_pos;
 static bool instanced;
 static SV* sverts; static size_t sverts_cap; static int ns;
@@ -164,6 +176,20 @@ static const GLenum A_IFMT = GL_R8, A_FMT = GL_RED;   // core profile: no LUMINA
 static const GLenum A_IFMT = GL_LUMINANCE, A_FMT = GL_LUMINANCE;
 #endif
 
+/** The FBO's depth (and stencil) storage at W x H: depth 24 / stencil 8 where the API has it (desktop GL, GLES 2 with
+ *  OES_packed_depth_stencil), else depth only (24 or 16 bits) and POLY stays on the CPU tiles. */
+static bool packed_ds;
+static void depth_storage() {
+  glBindRenderbuffer(GL_RENDERBUFFER, fbo_depth);
+#if GLR_CORE
+  packed_ds = true;
+  glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, W, H);   // 24 bits: 4M commands told apart
+#else
+  const char* ext = (const char*)glGetString(GL_EXTENSIONS);
+  packed_ds = ext && strstr(ext, "GL_OES_packed_depth_stencil");
+  glRenderbufferStorage(GL_RENDERBUFFER, packed_ds ? 0x88F0 /* DEPTH24_STENCIL8_OES */ : ext && strstr(ext, "GL_OES_depth24") ? 0x81A6 /* DEPTH_COMPONENT24_OES */ : GL_DEPTH_COMPONENT16, W, H);
+#endif
+}
 static bool init(int32_t w, int32_t h) {
   W = w; H = h;
   prog = zgl_program("", VS, FS);
@@ -173,10 +199,15 @@ static bool init(int32_t w, int32_t h) {
 #endif
   sprog = zgl_program(instanced ? "#define INSTANCED 1\n" : "", SVS, SFS);
   if (!sprog) return false;
+  fprog = zgl_program("", FVS, FFS);
+  if (!fprog) return false;
+  glGenBuffers(1, &evbo);
+  f_res = glGetUniformLocation(fprog, "u_res"); f_flip = glGetUniformLocation(fprog, "u_flip");
+  glGenBuffers(1, &fvbo);
   s_res = glGetUniformLocation(sprog, "u_res"); s_flip = glGetUniformLocation(sprog, "u_flip");
   s_rect = glGetAttribLocation(sprog, "a_rect"); s_col = glGetAttribLocation(sprog, "a_col"); s_z = glGetAttribLocation(sprog, "a_z"); s_pos = glGetAttribLocation(sprog, "a_pos");
   glGenBuffers(1, &svbo);
-  u_flip = glGetUniformLocation(prog, "u_flip"); u_res = glGetUniformLocation(prog, "u_res"); u_tex = glGetUniformLocation(prog, "u_tex");
+  u_flip = glGetUniformLocation(prog, "u_flip"); u_res = glGetUniformLocation(prog, "u_res"); u_tex = glGetUniformLocation(prog, "u_tex"); u_edge = glGetUniformLocation(prog, "u_edge");
   a_box = glGetAttribLocation(prog, "a_box"); a_par = glGetAttribLocation(prog, "a_par");
   a_c1 = glGetAttribLocation(prog, "a_c1"); a_c2 = glGetAttribLocation(prog, "a_c2"); a_z = glGetAttribLocation(prog, "a_z");
   fbo_tex = make_tex(W, H, GL_RGBA, GL_RGBA, nullptr, false);
@@ -184,14 +215,13 @@ static bool init(int32_t w, int32_t h) {
   glBindFramebuffer(GL_FRAMEBUFFER, fbo);
   glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fbo_tex, 0);
   glGenRenderbuffers(1, &fbo_depth);
-  glBindRenderbuffer(GL_RENDERBUFFER, fbo_depth);
+  depth_storage();
 #if GLR_CORE
-  glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, W, H);   // 24 bits: 4M commands told apart
+  glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, fbo_depth);   // 8 stencil bits: POLY on the GPU (ZN-590.02)
 #else
-  const char* ext = (const char*)glGetString(GL_EXTENSIONS);
-  glRenderbufferStorage(GL_RENDERBUFFER, ext && strstr(ext, "GL_OES_depth24") ? 0x81A6 /* DEPTH_COMPONENT24_OES */ : GL_DEPTH_COMPONENT16, W, H);
-#endif
   glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, fbo_depth);
+  if (packed_ds) glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, fbo_depth);
+#endif
   bool ok = glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
   if (!ok) { fprintf(stderr, "display-gl: renderer gl: framebuffer %dx%d is not complete\n", W, H); return false; }
@@ -216,13 +246,7 @@ static bool resize(int32_t w, int32_t h) {
   W = w; H = h;
   glBindTexture(GL_TEXTURE_2D, fbo_tex);
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, W, H, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-  glBindRenderbuffer(GL_RENDERBUFFER, fbo_depth);
-#if GLR_CORE
-  glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, W, H);
-#else
-  const char* ext = (const char*)glGetString(GL_EXTENSIONS);
-  glRenderbufferStorage(GL_RENDERBUFFER, ext && strstr(ext, "GL_OES_depth24") ? 0x81A6 : GL_DEPTH_COMPONENT16, W, H);
-#endif
+  depth_storage();
   glBindFramebuffer(GL_FRAMEBUFFER, fbo);
   const bool ok = glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -442,6 +466,156 @@ template<class T> static bool grow(T*& buf, size_t& cap, size_t need) {
   if (!nb) return false;
   buf = nb; cap = n; return true;
 }
+// ---- LINE / POLY on the GPU (ZN-590.02): stencil then cover, NanoVG's technique (docs/reports/gpu-renderer-design.md). The contours'
+// triangle fans count the winding at the pixel centres in the stencil's low 7 bits (nonzero: +1 / -1 by facing; even-odd: bit 0 flips).
+// The pixels near an edge take their coverage from the distance to it (EDGE mode, each owned by the nearest edge): inside the fill
+// 0.5 + d, written once (the stencil becomes 0x80), outside 0.5 - d, once; the cover quad fills the rest of the inside; a last quad
+// zeroes the stencil. The canvas gradient paint (grad 4) and a framebuffer without stencil keep the CPU tiles (draw_poly).
+static float* fanv; static size_t fanv_cap;
+static V* edgev; static size_t edgev_cap; static uint32_t nedge;   // the fringe quads of one POLY, drawn by each pass (edge_draw)
+static void edge_quads(const float* pts, uint32_t contours, uint32_t c1, uint32_t alpha) {
+  uint32_t at = 0;
+  nedge = 0;
+  for (uint32_t k = 0; k < contours; k++) {
+    const uint32_t cnt = (uint32_t)pts[at];
+    const float* p = pts + at + 1;
+    at += 1 + cnt * 2;
+    if (cnt < 3) continue;
+    for (uint32_t i = 0; i < cnt; i++) {
+      const uint32_t ib = (i + 1) % cnt, ip = (i + cnt - 1) % cnt, in = (i + 2) % cnt;
+      const float ax = p[i * 2], ay = p[i * 2 + 1], bx = p[ib * 2], by = p[ib * 2 + 1];
+      const float x0 = (ax < bx ? ax : bx) - 1, y0 = (ay < by ? ay : by) - 1, x1 = (ax > bx ? ax : bx) + 1, y1 = (ay > by ? ay : by) + 1;
+      if (x1 <= (float)clip.x0 || x0 >= (float)clip.x1 || y1 <= (float)clip.y0 || y0 >= (float)clip.y1) continue;
+      if (!grow(edgev, edgev_cap, ((size_t)nedge + 1) * 4)) return;
+      V* v = &edgev[nedge * 4];
+      nedge++;
+      const float xs[4] = {x0, x1, x1, x0}, ys[4] = {y0, y0, y1, y1};
+      for (int q = 0; q < 4; q++) {
+        v[q] = V{xs[q], ys[q], ax, ay, bx, by, p[ip * 2], p[ip * 2 + 1], 0, p[in * 2], (float)EDGE_M, p[in * 2 + 1], {0, 0, 0, 0}, {0, 0, 0, 0}, cur_z};
+        setc(v[q].c1, c1, alpha);
+      }
+    }
+  }
+}
+/** One pass over the fringe quads uploaded by edge_upload: side 0 every pixel, 1 only those left of A-B (cross > 0), 2 right of it. */
+static void edge_draw(int side, bool inside) {
+  if (!nedge) return;
+  glUniform3f(u_edge, side ? 1.f : 0.f, side == 1 ? 1.f : 0.f, inside ? 1.f : 0.f);
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
+  apply_clip();
+  glBindTexture(GL_TEXTURE_2D, cur_tex);
+  const GLsizei S = sizeof(V);
+  glBindBuffer(GL_ARRAY_BUFFER, evbo);
+  for (uint32_t q0 = 0; q0 < nedge; q0 += MAXQ) {   // the index buffer holds MAXQ quads
+    const uint32_t nq2 = nedge - q0 < (uint32_t)MAXQ ? nedge - q0 : (uint32_t)MAXQ;
+    const size_t base = (size_t)q0 * 4 * S;
+    glEnableVertexAttribArray(0); glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, S, (void*)(base + 0));
+    glEnableVertexAttribArray(a_box); glVertexAttribPointer(a_box, 4, GL_FLOAT, GL_FALSE, S, (void*)(base + 16));
+    glEnableVertexAttribArray(a_par); glVertexAttribPointer(a_par, 4, GL_FLOAT, GL_FALSE, S, (void*)(base + 32));
+    glEnableVertexAttribArray(a_c1); glVertexAttribPointer(a_c1, 4, GL_UNSIGNED_BYTE, GL_TRUE, S, (void*)(base + 48));
+    glEnableVertexAttribArray(a_c2); glVertexAttribPointer(a_c2, 4, GL_UNSIGNED_BYTE, GL_TRUE, S, (void*)(base + 52));
+    glEnableVertexAttribArray(a_z); glVertexAttribPointer(a_z, 1, GL_FLOAT, GL_FALSE, S, (void*)(base + 56));
+    glDrawElements(GL_TRIANGLES, (GLsizei)nq2 * 6, GL_UNSIGNED_SHORT, nullptr);
+    st.draws++; st.quads += nq2;
+  }
+}
+static void edge_upload() {
+  if (!nedge) return;
+  glBindBuffer(GL_ARRAY_BUFFER, evbo);
+  glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)nedge * 4 * sizeof(V), edgev, GL_STREAM_DRAW);
+}
+static void stencil_draw(const float* v, size_t n) {   // triangles (x, y) into the stencil only, depth ignored
+  glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+  if (occl) glDisable(GL_DEPTH_TEST);
+  glUseProgram(fprog);
+  glUniform2f(f_res, (float)W, (float)H);
+  glUniform1f(f_flip, flipy ? -1.f : 1.f);
+  glBindBuffer(GL_ARRAY_BUFFER, fvbo);
+  glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)(n * 2 * sizeof(float)), v, GL_STREAM_DRAW);
+  glEnableVertexAttribArray(0); glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 8, (void*)0);
+  apply_clip();
+  glDrawArrays(GL_TRIANGLES, 0, (GLsizei)n);
+  st.draws++;
+  glUseProgram(prog);
+  if (occl) glEnable(GL_DEPTH_TEST);
+  glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+}
+static bool fill_gpu(const Cmd& c, const float* pts) {
+  if (!stencil_ok || c.grad == 4) return false;
+  if (!(c.w == c.w && c.h == c.h && c.x == c.x && c.y == c.y) || !c.alpha) return true;
+  const Rect b = isect(bounds(c.x - 1, c.y - 1, c.w + 2, c.h + 2, HUGE_R), clip);
+  if (b.x0 >= b.x1 || b.y0 >= b.y1) return true;
+  size_t ntri = 0, nf = 0;
+  for (uint32_t k = 0; k < c.n; k++) {   // counts as in draw_poly: a broken list ends here
+    const float cnt = pts[nf];
+    if (!(cnt >= 0 && cnt < 1e7f)) return true;
+    if (cnt >= 3) ntri += (size_t)cnt - 2;
+    nf += 1 + (size_t)cnt * 2;
+  }
+  if (!ntri || !grow(fanv, fanv_cap, ntri * 6)) return true;
+  size_t o = 0, at = 0;
+  for (uint32_t k = 0; k < c.n; k++) {
+    const uint32_t cnt = (uint32_t)pts[at];
+    const float* p = pts + at + 1;
+    at += 1 + cnt * 2;
+    for (uint32_t i = 1; i + 1 < cnt; i++) {
+      fanv[o++] = p[0]; fanv[o++] = p[1]; fanv[o++] = p[i * 2]; fanv[o++] = p[i * 2 + 1]; fanv[o++] = p[i * 2 + 2]; fanv[o++] = p[i * 2 + 3];
+    }
+  }
+  flush();
+  glEnable(GL_STENCIL_TEST);
+  glStencilFunc(GL_ALWAYS, 0, 0xFF);
+  if (c.pad & 1) { glStencilMask(0x01); glStencilOp(GL_KEEP, GL_KEEP, GL_INVERT); }   // even-odd
+  else {   // nonzero: the winding in 7 bits
+    glStencilMask(0x7F);
+    glStencilOpSeparate(GL_FRONT, GL_KEEP, GL_KEEP, GL_INCR_WRAP);
+    glStencilOpSeparate(GL_BACK, GL_KEEP, GL_KEEP, GL_DECR_WRAP);
+  }
+  stencil_draw(fanv, o / 2);
+  const float box[12] = {(float)b.x0, (float)b.y0, (float)b.x1, (float)b.y0, (float)b.x1, (float)b.y1, (float)b.x0, (float)b.y0, (float)b.x1, (float)b.y1, (float)b.x0, (float)b.y1};
+  // the inside pixels near an edge that bounds the fill there: drawn, then marked by bit 7. Even-odd: every edge bounds it. Nonzero:
+  // crossing A-B takes the winding of a pixel left of it (cross > 0 in our coordinates, front faces counting +1) down by 1 and of a
+  // pixel right of it up by 1, so the edge bounds the fill for a winding of 1 on its left and -1 on its right (flipped window rows swap
+  // the sides). Overlapping or touching contours therefore leave no seam where one covers the other's edge.
+  glStencilMask(0x80);
+  glStencilOp(GL_KEEP, GL_KEEP, GL_INVERT);
+  const bool evenodd = (c.pad & 1) != 0;
+  edge_quads(pts, c.n, c.c1, c.alpha);
+  edge_upload();
+  if (evenodd) {
+    glStencilFunc(GL_EQUAL, 0x01, 0x81);
+    edge_draw(0, true);
+  } else {
+    glStencilFunc(GL_EQUAL, 0x01, 0xFF);
+    edge_draw(flipy ? 2 : 1, true);
+    glStencilFunc(GL_EQUAL, 0x7F, 0xFF);
+    edge_draw(flipy ? 1 : 2, true);
+    glStencilMask(0x7F);   // the marked pixels lose their winding, so the cover skips them
+    glStencilFunc(GL_EQUAL, 0x80, 0x80);
+    glStencilOp(GL_KEEP, GL_ZERO, GL_ZERO);
+    stencil_draw(box, 6);
+  }
+  glStencilMask(0xFF);
+  // the rest of the inside: drawn, then 0 (a hidden pixel too)
+  if (evenodd) glStencilFunc(GL_EQUAL, 0x01, 0x81); else glStencilFunc(GL_NOTEQUAL, 0, 0x7F);
+  glStencilOp(GL_KEEP, GL_ZERO, GL_ZERO);
+  Q q = {};
+  q.x0 = (float)b.x0; q.y0 = (float)b.y0; q.x1 = (float)b.x1; q.y1 = (float)b.y1;
+  q.mode = SOLID; q.c1 = c.c1; q.alpha = c.alpha;
+  quad(q);
+  flush();
+  // the outside pixels near an edge: stencil 0 -> drawn, then counted (once)
+  glStencilFunc(GL_EQUAL, 0, 0xFF);
+  glStencilOp(GL_KEEP, GL_INCR, GL_INCR);
+  edge_draw(0, false);
+  // back to 0 over the box
+  glStencilFunc(GL_NOTEQUAL, 0, 0xFF);
+  glStencilOp(GL_ZERO, GL_ZERO, GL_ZERO);
+  stencil_draw(box, 6);
+  glDisable(GL_STENCIL_TEST);
+  return true;
+}
+
 static void draw_poly(const Cmd& c, const float* pts) {
   if (!(c.w == c.w && c.h == c.h && c.x == c.x && c.y == c.y)) return;
   Rect b = bounds(c.x, c.y, c.w, c.h, Rect{0, 0, W, H});
@@ -684,7 +858,7 @@ static void run(const Frame& f, bool first) {
       }
       case TEXT: draw_text(c, f.text + c.off); break;
       case IMAGE: draw_image(c); break;
-      case LINE: case POLY: draw_poly(c, f.pts + c.off); break;
+      case LINE: case POLY: if (!fill_gpu(c, f.pts + c.off)) draw_poly(c, f.pts + c.off); break;
       case STROKE: draw_stroke(c, f.pts + c.off); break;
       case CLIP: {
         if (sp >= 16) break;
@@ -759,6 +933,14 @@ static void frame(const HalFrame* f, bool direct, Rect dmg) {
 #else
   glGetIntegerv(GL_DEPTH_BITS, &bits);
 #endif
+  GLint sbits = 0;
+#if GLR_CORE
+  glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, direct ? GL_STENCIL : GL_STENCIL_ATTACHMENT, GL_FRAMEBUFFER_ATTACHMENT_STENCIL_SIZE, &sbits);
+#else
+  glGetIntegerv(GL_STENCIL_BITS, &sbits);
+#endif
+  static const bool gpu_poly = !getenv("ZINC_GL_POLY") || atoi(getenv("ZINC_GL_POLY")) != 0;   // 0: LINE/POLY on the CPU tiles, to compare
+  stencil_ok = gpu_poly && sbits >= 8;
   const uint32_t first_n = n > 0 ? lists[0]->count : 0;
   occl = occl_on && bits >= 16 && first_n >= 64 && (uint64_t)first_n * 4 < (1ull << (bits > 24 ? 24 : bits));
   glClearColor(0, 0, 0, 1);
@@ -768,7 +950,8 @@ static void frame(const HalFrame* f, bool direct, Rect dmg) {
   glClearDepthf(1.0f);
 #endif
   glDepthMask(GL_TRUE);   // the occlusion pass leaves it off: a depth clear needs it on
-  glClear(GL_COLOR_BUFFER_BIT | (occl ? GL_DEPTH_BUFFER_BIT : 0));
+  if (stencil_ok) { glStencilMask(0xFF); glClearStencil(0); }
+  glClear(GL_COLOR_BUFFER_BIT | (occl ? GL_DEPTH_BUFFER_BIT : 0) | (stencil_ok ? GL_STENCIL_BUFFER_BIT : 0));
   cur_z = 0;
   glUseProgram(prog);
   glUniform1f(u_flip, direct ? -1.f : 1.f);
