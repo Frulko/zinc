@@ -374,6 +374,19 @@ Before -> after, output to a file, alternating runs, median of 11 (21 for the fi
 
 The cost is one `write` per turn that printed: 5 to 8 us, about 0.05% of a 16.6 ms frame; a turn that prints nothing pays a test. Side effects: a long-running program no longer keeps all it printed in memory until exit, and `zinc run app | head -1` ends at its next turn (SIGPIPE) instead of running to the end. Not re-measured after the rebase, nor on an idle machine.
 
+### ZN-432: drawImageRect and imageFromBytes, cost on the existing drawImage path
+
+A feature, measured so that the plain `drawImage` path is not slower. Baseline: main at c1375124 (with setTransform); 8 alternating rounds, Intel Mac, load average 5.5 to 6.3 with other trees building: read it as "not slower", the 7% in favour of the new binary is within what the load moves.
+
+| Measure | Before | After | Ratio |
+|---|---|---|---|
+| 600 whole-image `drawImage` of baked images, 1000x640, `zinc capture --scene --bench 60 1`, median of medians | 75783 us | 70212 us | 0.926 |
+| same, minima | 70424 us | 63372 us | 0.900 |
+| same, user CPU | 4.638 s | 4.296 s | 0.926 |
+| 600 `drawImage` of a runtime image per frame, 61 frames rendered, user CPU | 3.536 s | 3.536 s | 1.000 |
+
+Pixel hashes identical before and after. Keeping the boxed draw out of `draw_image` (a function of its own) matters: inlined, the ratios were 1.018 and 1.032. Size: `codec.cpp.o` text 36.5 -> 87.2 KB (+50.7 KB in a built program that draws: the second static stb_image for PNG and JPEG at run time). GL replay of the test frame: 28 quads in 10 draw calls (a filter change flushes the batch). To remeasure alone on an idle machine.
+
 ## 4. Correction of ZN-042's diagnosis (nbody)
 
 ZN-042 concluded that the typed backend would not help nbody and that the 2.9x to native came from NEON and fused multiply-adds, which `-ffp-contract=off` forbids. The experiments of PERF-10 contradict both parts:

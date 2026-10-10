@@ -301,7 +301,9 @@
  "dev-verbose": "ZN-368",
  "dyn-images-limit": "ZN-670",
  "dyn-object-keys": "ZN-664",
+ "framehash-uncovered": "ZN-675",
  "fuse-native-plugins": "ZN-652",
+ "gl-xform-edges": "ZN-678",
  "guide-assets-built": "ZN-647",
  "hh-aot": "ZN-480",
  "hh-audio": "ZN-482",
@@ -313,6 +315,8 @@
  "hh-emu-runners": "ZN-457",
  "hh-ff-replay": "ZN-467",
  "hh-tc-pins": "ZN-456",
+ "host-direct-golden": "ZN-676",
+ "image-webp-gif": "ZN-674",
  "input-touches": "ZN-659",
  "ios-3d": "ZN-479",
  "ios-ball": "ZN-466",
@@ -451,6 +455,7 @@
  "sim-19": "ZN-310",
  "sim-20": "ZN-311",
  "socket-udp-ports": "ZN-639",
+ "sprite-speed": "ZN-677",
  "st-01": "ZN-250",
  "st-02": "ZN-251",
  "st-03": "ZN-252",
@@ -507,5 +512,7 @@
  "vita-gpu-replay": "ZN-471",
  "vita-gpu-spike": "ZN-470",
  "vita-hello": "ZN-459",
- "vita-ui": "ZN-473"
+ "vita-ui": "ZN-473",
+ "wasm-fonts": "ZN-673",
+ "wasm-images": "ZN-672"
 }
