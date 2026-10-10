@@ -416,6 +416,26 @@ The engine side of the bridge costs little (compiled 4.13 against Jolt's 4.3 wit
 - **Programs with a text field** keep every character of their fonts: examples/ui/forms resources 256,099 -> 643,323 bytes,
   hero 1,467,402 -> 1,833,702.
 
+### ZN-679: GL replay fill rate, 30 photo cards at 3104 x 1746 (2026-10-10, Radeon Pro 555X, 4K screen at 60 Hz, load 3 to 4)
+
+`ZINC_SIZE=1552x873 zinc run examples/museum-table -- --stress 30` (3104 x 1746 physical pixels), `ZINC_GL_STATS=1` now reports the GPU time
+of the replay (a timer query read four frames later). Attributing it by skipping one command kind at a time (a throwaway switch): of 13.9 ms
+of GPU per frame, the polygons were 9.1 ms (the paper of each card is a five-point polygon with a folded corner, plus the fold's triangle),
+images 2.2 ms, shadows 1.8 ms, text 0.2 ms. A polygon went through the stencil path, which draws its box four to six times; a convex one
+of up to eight points is now one pass over its box, each pixel covering 0.5 plus its smallest signed distance to the edges.
+
+| | before | after |
+| --- | --- | --- |
+| frames per second, vsync on (120-frame windows after the first) | 57.3 to 59.1 | 60.0 |
+| frames per second, `ZINC_VSYNC=0` | 56.6 to 58.0 | 90.2 to 94.0 |
+| GPU per frame | 13.9 ms | 7.2 ms (polygons 2.7 ms) |
+| draw calls per frame | 548 | 190 |
+
+The CPU time ZINC_GL_STATS calls "to submit" includes waits for the GPU (5.6 to 8.6 ms here): the replay's own work is about 0.8 ms
+(polygons 0.34 ms, transformed text 0.39 ms, transformed images 0.08 ms, measured per kind). The 40 frames per second of ZN-650.03 were
+measured at load 6 from other builds, before ZN-432 changed the image path of the replay. GL replay against the software frame for convex
+and concave polygons: 0.06% of the pixels more than 24 apart, mean error 0.07 (tests/t1/gl_convex.sh).
+
 ## 4. Correction of ZN-042's diagnosis (nbody)
 
 ZN-042 concluded that the typed backend would not help nbody and that the 2.9x to native came from NEON and fused multiply-adds, which `-ffp-contract=off` forbids. The experiments of PERF-10 contradict both parts:

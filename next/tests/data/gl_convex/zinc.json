@@ -1,0 +1,1 @@
+{ "name": "gl_convex", "entry": "main.ts", "targets": { "macos": { "width": 380, "height": 240 } } }

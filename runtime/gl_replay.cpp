@@ -22,7 +22,7 @@ using namespace zrt::raster;
 
 // vertex: position + uv, box (centre, half size), params (radius, border / blur, mode, gradient), two colours
 struct V { float x, y, u, v, bx, by, bw, bh, r, p1, mode, grad; uint8_t c1[4], c2[4]; float z; };   // z: the command's depth (occlusion, ZN-412.01)
-enum Mode { FILL, BORDER_M, TEXT_M, IMAGE_RGBA, IMAGE_BGR, SOLID, RESTORE, SHADOW_M, STROKE_M, EDGE_M };
+enum Mode { FILL, BORDER_M, TEXT_M, IMAGE_RGBA, IMAGE_BGR, SOLID, RESTORE, SHADOW_M, STROKE_M, EDGE_M, CONVEX_M };
 static const int MAXQ = 8192, ATLAS = 1024, CORNER = 32, LEVELS = 16;
 
 static const char* VS =
@@ -35,6 +35,7 @@ static const char* FS =
   "varying vec4 v_pos; varying vec4 v_box; varying vec4 v_par; varying vec4 v_c1; varying vec4 v_c2;\n"
   "uniform sampler2D u_tex; uniform vec3 u_edge;\n"   // u_edge: the EDGE pass (side test, left side, inside)
   "uniform vec4 u_g0, u_g1, u_gc[8]; uniform float u_go[8];\n"   // a POLY's canvas gradient paint (ZN-590.04): (x0, y0, r0, kind), (x1, y1, r1, n), stops (rgb, alpha 0..255; offset)
+  "uniform vec3 u_cv[8]; uniform float u_cvn;\n"   // a convex POLY (ZN-679): its edges as (nx, ny, c), the signed distance n.p + c positive inside
   "float sdf(vec2 p, vec2 c, vec2 h, float r) {\n"
   "  vec2 q = abs(p - c) - (h - r);\n"
   "  return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r; }\n"
@@ -74,6 +75,11 @@ static const char* FS =
   "    float d = seg(p, v_pos.zw, c);\n"                                         // pixel is this segment's when no neighbour is nearer (ties to the
   "    if ((v_c2.x > 0.5 && seg(p, v_box.zw, v_pos.zw) <= d) || (v_c2.y > 0.5 && seg(p, c, v_par.yw) < d)) discard;\n"   // previous one): blended once
   "    cov = clamp(0.5 - (d - r), 0.0, 1.0);\n"
+  "  } else if (mode > 9.5) {\n"                                                // CONVEX: 0.5 plus the smallest signed distance to the edges
+  "    float m = 1e6;\n"
+  "    for (int k = 0; k < 8; k++) if (float(k) < u_cvn) m = min(m, dot(u_cv[k].xy, p) + u_cv[k].z);\n"
+  "    cov = clamp(0.5 + m, 0.0, 1.0);\n"
+  "    if (cov <= 0.0) discard;\n"
   "  } else {\n"                                                                 // EDGE: the fringe of a POLY edge A-B (ZN-590.02), owned like a stroke
   "    float d = seg(p, v_pos.zw, c);\n"                                         // segment; inside the fill (c2.z) the pixel covers 0.5 + d, outside
   "    if (seg(p, v_box.zw, v_pos.zw) <= d || seg(p, c, v_par.yw) < d) discard;\n"   // 0.5 - d; c2.x: only the pixels on one side (c2.y) of A-B
@@ -146,7 +152,7 @@ static int gcount, gx, gy, growh;
 
 static int32_t W, H;
 static GLuint prog, vbo, ibo, fbo, fbo_tex, fbo_depth, white, atlas, corner_tex, cur_tex;
-static GLint u_res, u_tex, u_flip, u_edge, u_g0, u_g1, u_gc, u_go, a_box, a_par, a_c1, a_c2, a_z;
+static GLint u_res, u_tex, u_flip, u_edge, u_g0, u_g1, u_gc, u_go, u_cv, u_cvn, a_box, a_par, a_c1, a_c2, a_z;
 static float cur_z;          // NDC depth of the command being drawn: later commands are nearer (GL_LESS)
 static GLuint sprog, svbo;    // the occlusion pass's program and buffer
 static GLuint fprog, fvbo, evbo;   // POLY on the GPU (ZN-590.02): the stencil pass's program (positions only) and buffer, the fringe quads' buffer
@@ -174,6 +180,26 @@ static RC rstack[16];
 static int sp;
 static uint32_t warned, unsupported;
 static struct { uint32_t frames, idle, draws, quads, glyphs, ptiles; double us, cull_us; uint64_t hidden; } st;
+#if defined(__APPLE__) && GLR_CORE
+// GPU time of the replays (ZINC_GL_STATS, ZN-679): a timer query per frame, read four frames later so the CPU never waits for the GPU
+static GLuint gq[4];
+static uint32_t gq_n = 0, gpu_n = 0;
+static double gpu_us = 0;
+static bool gpu_stats() { static const bool on = getenv("ZINC_GL_STATS") != nullptr; return on; }
+static void gpu_begin() {
+  if (!gpu_stats()) return;
+  if (!gq[0]) glGenQueries(4, gq);
+  const uint32_t k = gq_n % 4;
+  if (gq_n >= 4) { GLuint64 ns = 0; glGetQueryObjectui64v(gq[k], GL_QUERY_RESULT, &ns); gpu_us += ns / 1000.0; gpu_n++; }
+  glBeginQuery(GL_TIME_ELAPSED, gq[k]);
+}
+static void gpu_end() { if (gpu_stats()) { glEndQuery(GL_TIME_ELAPSED); gq_n++; } }
+#else
+static void gpu_begin() {}
+static void gpu_end() {}
+static const uint32_t gpu_n = 0;
+static const double gpu_us = 0;
+#endif
 static double now_us() { timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return t.tv_sec * 1e6 + t.tv_nsec / 1e3; }
 
 // ---- helpers shared in spirit with runtime/raster.cpp (kept identical: the pixels must agree)
@@ -238,6 +264,7 @@ static bool init(int32_t w, int32_t h) {
   glGenBuffers(1, &svbo);
   u_flip = glGetUniformLocation(prog, "u_flip"); u_res = glGetUniformLocation(prog, "u_res"); u_tex = glGetUniformLocation(prog, "u_tex"); u_edge = glGetUniformLocation(prog, "u_edge");
   u_g0 = glGetUniformLocation(prog, "u_g0"); u_g1 = glGetUniformLocation(prog, "u_g1"); u_gc = glGetUniformLocation(prog, "u_gc"); u_go = glGetUniformLocation(prog, "u_go");
+  u_cv = glGetUniformLocation(prog, "u_cv"); u_cvn = glGetUniformLocation(prog, "u_cvn");
   a_box = glGetAttribLocation(prog, "a_box"); a_par = glGetAttribLocation(prog, "a_par");
   a_c1 = glGetAttribLocation(prog, "a_c1"); a_c2 = glGetAttribLocation(prog, "a_c2"); a_z = glGetAttribLocation(prog, "a_z");
   fbo_tex = make_tex(W, H, GL_RGBA, GL_RGBA, nullptr, false);
@@ -742,6 +769,42 @@ static void poly_flush() {
   npoly = 0; nfan = 0; nedge = 0; ppaint = nullptr;
 }
 
+// A POLY of one convex contour of 3 to 8 points (a card with a folded corner, a triangle, an arrow head): one pass over its box, each pixel
+// covering 0.5 plus its smallest signed distance to the edges, which is the coverage along an edge. The stencil path draws a polygon's box
+// four to six times: 30 card-sized polygons took 9 ms of a 14 ms frame at 3104 x 1746 (ZN-679). Not one: false (no gradient paint either).
+static bool convex_ok(const Cmd& c, const float* pts) { return c.kind == POLY && c.n == 1 && c.grad != 4 && pts[0] >= 3 && pts[0] <= 8; }
+static bool draw_convex(const Cmd& c, const float* pts) {
+  if (!convex_ok(c, pts)) return false;
+  if (!(c.w == c.w && c.h == c.h && c.x == c.x && c.y == c.y) || !c.alpha) return true;
+  const int n = (int)pts[0];
+  const float* p = pts + 1;
+  double area = 0;
+  for (int i = 0; i < n; i++) { const int j = (i + 1) % n; area += (double)p[i * 2] * p[j * 2 + 1] - (double)p[j * 2] * p[i * 2 + 1]; }
+  if (!(area > 1e-6 || area < -1e-6)) return true;   // no inside: nothing to draw
+  const double s = area > 0 ? 1 : -1;
+  float eq[24];
+  int ne = 0;
+  for (int i = 0; i < n; i++) {
+    const int j = (i + 1) % n, k = (i + 2) % n;
+    const double ax = p[i * 2], ay = p[i * 2 + 1], ex = p[j * 2] - ax, ey = p[j * 2 + 1] - ay, fx = p[k * 2] - p[j * 2], fy = p[k * 2 + 1] - p[j * 2 + 1];
+    if ((ex * fy - ey * fx) * s < -1e-3) return false;   // a reflex corner: the stencil path
+    const double len = __builtin_sqrt(ex * ex + ey * ey);
+    if (len < 1e-6) continue;
+    eq[ne * 3] = (float)(-s * ey / len); eq[ne * 3 + 1] = (float)(s * ex / len); eq[ne * 3 + 2] = (float)(s * (ey * ax - ex * ay) / len);
+    ne++;
+  }
+  const Rect b = isect(bounds(c.x - 1, c.y - 1, c.w + 2, c.h + 2, HUGE_R), clip);
+  if (b.x0 >= b.x1 || b.y0 >= b.y1) return true;
+  flush();
+  glUniform3fv(u_cv, 8, eq);
+  glUniform1f(u_cvn, (float)ne);
+  Q q = {};
+  q.x0 = (float)b.x0; q.y0 = (float)b.y0; q.x1 = (float)b.x1; q.y1 = (float)b.y1;
+  q.mode = CONVEX_M; q.c1 = c.c1; q.alpha = c.alpha;
+  quad(q);
+  flush();
+  return true;
+}
 static void draw_poly(const Cmd& c, const float* pts) {
   if (!(c.w == c.w && c.h == c.h && c.x == c.x && c.y == c.y)) return;
   Rect b = bounds(c.x, c.y, c.w, c.h, Rect{0, 0, W, H});
@@ -1020,11 +1083,13 @@ static void run(const Frame& f, bool first) {
       case TEXT: draw_text(c, f.text + c.off); break;
       case IMAGE: draw_image(c); break;
       case LINE: case POLY: {
+        if (stencil_ok && draw_convex(c, f.pts + c.off)) break;
         if (!poly_add(c, f.pts + c.off)) { draw_poly(c, f.pts + c.off); break; }
         while (k + 1 < nw) {   // the next POLYs join the batch while their boxes stay apart from it
           const uint32_t e2 = walk_entry(k + 1, first), i2 = e2 & ~kCullOpaque;
           const Cmd& c2 = f.cmds[i2];
           if (c2.kind != LINE && c2.kind != POLY) break;
+          if (convex_ok(c2, f.pts + c2.off)) break;   // drawn in one pass of its own
           if (occl && first) cur_z = depth_of(i2, f.count);
           if (!poly_add(c2, f.pts + c2.off)) break;
           k++;
@@ -1089,6 +1154,7 @@ static void run(const Frame& f, bool first) {
 static void frame(const HalFrame* f, bool direct, Rect dmg) {
   static const bool dmg_on = getenv("ZINC_GL_DMG") && atoi(getenv("ZINC_GL_DMG")) != 0;
   double t0 = now_us();
+  gpu_begin();
   const HalCmdList* lists[8];
   int32_t n = f->frames ? f->frames(lists, 8) : 0;
   flipy = direct;
@@ -1168,6 +1234,7 @@ static void frame(const HalFrame* f, bool direct, Rect dmg) {
   glDisableVertexAttribArray(a_box); glDisableVertexAttribArray(a_par); glDisableVertexAttribArray(a_c1); glDisableVertexAttribArray(a_c2); glDisableVertexAttribArray(a_z);
   glDisable(GL_SCISSOR_TEST);
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  gpu_end();
   st.frames++;
   st.us += now_us() - t0;
 }
@@ -1175,7 +1242,7 @@ static void idle() { st.idle++; }
 static void report() {
   if (!getenv("ZINC_GL_STATS")) return;
   double n = st.frames ? st.frames : 1;
-  fprintf(stderr, "display-gl renderer gl: %u frames replayed, %u idle (no damage), %.1f draw calls and %.0f quads per frame, %u glyphs in the atlas, %u LINE/POLY skipped; %.0f us of CPU per replayed frame to submit it, %.0f us of it culling %.0f hidden commands; per frame %.1f LINE/POLY tiles rasterized on the CPU, %.1f strokes tessellated\n",
-          st.frames, st.idle, st.draws / n, st.quads / n, st.glyphs, unsupported, st.us / n, st.cull_us / n, (double)st.hidden / n, st.ptiles / n, zrt::raster::strokes_built / n);
+  fprintf(stderr, "display-gl renderer gl: %u frames replayed, %u idle (no damage), %.1f draw calls and %.0f quads per frame, %u glyphs in the atlas, %u LINE/POLY skipped; %.0f us of CPU per replayed frame to submit it, %.0f us of it culling %.0f hidden commands; per frame %.1f LINE/POLY tiles rasterized on the CPU, %.1f strokes tessellated; %.0f us of GPU per frame\n",
+          st.frames, st.idle, st.draws / n, st.quads / n, st.glyphs, unsupported, st.us / n, st.cull_us / n, (double)st.hidden / n, st.ptiles / n, zrt::raster::strokes_built / n, gpu_n ? gpu_us / gpu_n : 0.0);
 }
 }  // namespace glr

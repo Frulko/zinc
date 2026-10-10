@@ -137,7 +137,7 @@ What is still not deterministic:
   `ZINC_SCALE=1` so goldens do not depend on the screen.
 - **Window renderer**: on macOS and Linux the window draws the frame's commands with OpenGL when the machine has a GPU (`ZINC_RENDERER=auto`,
   the default; `gl` forces it, `cpu` keeps the software raster; Mesa's llvmpipe counts as no GPU) and waits for the display between frames
-  (`ZINC_VSYNC=0` to measure without it). `ZINC_GL_STATS=1` names the renderer and prints the replay's counters at exit. Transparent windows and display plugins use the software raster. Captures, goldens and headless
+  (`ZINC_VSYNC=0` to measure without it). `ZINC_GL_STATS=1` names the renderer and prints the replay's counters at exit, with the GPU time per frame on macOS (a timer query). Transparent windows and display plugins use the software raster. Captures, goldens and headless
   runs always use the software raster: it is the reference the GL output is compared with (`tests/t1/gl_renderer.sh`).
 
 ## Captures
