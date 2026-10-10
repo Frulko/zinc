@@ -322,5 +322,6 @@ sizes greater than 0, times 0 or more; `start`, `links[].to`, `next`, `presentat
 | photographs and text panels as cards, 3D models (`.obj`, `.glb`, `.gltf`) and panoramas with points of interest and the links of their points | yes |
 | timed items and links, buttons, hotspots, overlays, the three transitions, `next` | yes |
 | a film | its poster on a card, until ZN-650.08 |
-| narration and subtitles, presentations, the storyboard | ZN-650.05, in progress |
+| the storyboard: the map of the sequences at their `storyboard` positions, with a miniature of each table, an arrow for every link, `next` and point of interest that leads somewhere (dashed for an overlay), the sequences seen ticked and the links followed in the accent colour; a touch on a node goes there | yes |
+| narration and subtitles, presentations | ZN-650.05, in progress |
 | orientation toward the last touch, attract loop, reset, text size and high contrast, kiosk mode, statistics, updates | ZN-650.06 and later |

@@ -1,9 +1,10 @@
 // Museum table: the player. Everything it shows comes from assets/project.json (docs/museum-table-format.md). It plays the project the
 // way Klynt's player plays a story: one sequence on the table at a time (stage.ts), with its timed media; links (buttons, hotspots on a
 // medium, the button of a point of interest) lead to other sequences through a transition, or open one over the current sequence, which
-// waits underneath; a sequence with a `next` gives way by itself at its end.
+// waits underneath; a sequence with a `next` gives way by itself at its end. The storyboard (storyboard.ts) is the map of the story: it
+// shows where the visitor has been and a touch on a node goes there.
 //   zinc run examples/museum-table [-- --sequence <id>] [--lang <code>] [--story] [--log] [--stress <cards>] [--pins] [--time]
-// --story prints what happens to the story, one line per event: sequences, links, overlays, the language (the tests read it);
+// --story prints what happens to the story, one line per event: sequences, links, overlays, the storyboard, the language (the tests read it);
 // --log prints the pose of every card that moved, and the view and points of the 3D object and of the panorama, one line per change;
 // --stress lays out that many cards, keeps them moving and prints the frame time; --time prints the time the 3D object takes to draw;
 // --pins puts a red ball on every point of interest of the object (the test of their projection).
@@ -15,11 +16,12 @@ import { Fingers } from './touch';
 import { Card } from './table';
 import { Stage, Button, drawButton } from './stage';
 import { Frame } from './frame';
+import { Storyboard } from './storyboard';
 import { sans, bold, wrap, leading } from './type';
 import { word } from './words';
 
-/** Owner numbers of the fingers that are not on a card or a view: the full view, a button. */
-const FULL: i32 = 1, BUTTON: i32 = 2, NOTHING: i32 = -1;
+/** Owner numbers of the fingers that are not on a card or a view: the full view, a button, the storyboard. */
+const FULL: i32 = 1, BUTTON: i32 = 2, BOARD: i32 = 5, NOTHING: i32 = -1;
 /** Seconds a transition takes, and how dark the sequence underneath an overlay gets (0 to 255). */
 const FADE = 0.5, SLIDE = 0.45, DIM = 205;
 
@@ -59,8 +61,11 @@ class Change {
 }
 let change: Change | null = null;
 
+/** The storyboard, made with the first sequence. */
+let board: Storyboard | null = null;
+
 /** The player's own controls, in the visitor's frame. */
-const languages = new Button();
+const languages = new Button(), map = new Button();
 let dock: Button[] = [];
 
 let now = 0, frame: i32 = 0;
@@ -127,6 +132,12 @@ function followPoint(to: string, point: string, medium: string): void {
 /** Puts the player's controls in the visitor's frame: at the edge the visitor stands at. */
 function layOutDock(): void {
   dock = [];
+  if (project.sequences.length > 1) {
+    map.act = 'storyboard';
+    map.label = word(board !== null && board.open ? 'map-close' : 'map-button', lang);
+    map.w = textWidth(sans(20), map.label, 0) + 64; map.x = 48 + map.w / 2; map.y = F.h - 50;
+    dock.push(map);
+  }
   if (project.languages.length > 1) {
     languages.act = 'language';
     languages.w = 44 + 46 * project.languages.length; languages.x = F.w - 48 - languages.w / 2; languages.y = F.h - 50;
@@ -140,7 +151,34 @@ function press(b: Button): void {
   if (b.act === 'language') {
     lang = project.languages[(project.languages.indexOf(lang) + 1) % project.languages.length];
     for (const s of stack) s.setLanguage(lang);
+    layOutDock();
     tell(`language ${lang}`);
+  } else if (b.act === 'storyboard') showBoard(board !== null && !board.open);
+}
+
+function showBoard(open: boolean): void {
+  const m = board;
+  if (m === null || m.open === open) return;
+  m.open = open;
+  top().table.opened = null;
+  layOutDock();
+  tell(open ? 'storyboard open' : 'storyboard close');
+}
+/** A touch on a node of the storyboard: the visitor goes there, from wherever they are. */
+function jump(s: Sequence): void {
+  showBoard(false);
+  if (stack.length === 1 && top().sequence === s) return;
+  tell(`jump ${top().sequence.id} -> ${s.id}`);
+  go(s.id, 'fade', false);
+}
+
+/** The finger `id` lifted at (fx, fy) of the frame: the button it was pressing is pressed if the finger is still on it. */
+function released(id: i32, fx: number, fy: number): void {
+  for (const b of dock.concat(top().buttons)) {
+    if (b.finger !== id) continue;
+    b.finger = 0;
+    if (b.takes(fx, fy)) press(b);
+    return;
   }
 }
 
@@ -151,6 +189,7 @@ onFrame((dt: number) => {
   const started = clock();
   if (stack.length === 0) {   // a sequence is laid out on the first frame: images exist once the frame loop runs
     stack = [stage(stress > 0 ? crowd() : first)];
+    board = new Storyboard(project, colours, F);
     layOutDock();
     arrived(top().sequence);
   }
@@ -158,12 +197,25 @@ onFrame((dt: number) => {
   now += dt;
   fingers.update(dt, ox, oy, k);
 
-  const c = change;
+  const c = change, plan = board;
+  plan?.update(dt);
   if (c !== null) {   // nothing answers to a touch while the table changes
     for (const f of fingers.down) if (f.fresh) f.owner = NOTHING;
     c.p += dt / (c.kind === 'slide' ? SLIDE : FADE);
     if (c.p >= 0.5 && stack !== c.after) { stack = c.after; arrived(top().sequence); }
     if (c.p >= 1) change = null;
+  } else if (plan !== null && plan.open) {   // the storyboard is over the table: a touch on a node goes there, a touch beside it closes it
+    for (const f of fingers.down) {
+      if (!f.fresh) continue;
+      f.owner = BOARD;
+      for (const b of dock) if (b.finger === 0 && b.takes(F.x(f.x, f.y), F.y(f.x, f.y))) { f.owner = BUTTON; b.finger = f.id; break; }
+    }
+    for (const f of fingers.lifted) {
+      if (f.owner === BOARD) {
+        const node = plan.nodeAt(F.x(f.x, f.y), F.y(f.x, f.y));
+        if (node !== null) jump(node); else showBoard(false);
+      } else if (f.owner === BUTTON) released(f.id, F.x(f.x, f.y), F.y(f.x, f.y));
+    }
   } else {
     const on = top();
     // who takes the fingers that landed: the full view when it is open, else a button, else the card or the view under them
@@ -178,13 +230,7 @@ onFrame((dt: number) => {
     for (const f of fingers.down) if (f.fresh && f.owner === 0) f.owner = NOTHING;
     for (const f of fingers.lifted) {
       if (f.owner === FULL && viewing !== null) on.table.opened = null;
-      if (f.owner !== BUTTON) continue;
-      for (const b of dock.concat(on.buttons)) {
-        if (b.finger !== f.id) continue;
-        b.finger = 0;
-        if (b.takes(F.x(f.x, f.y), F.y(f.x, f.y))) press(b);
-        break;
-      }
+      if (f.owner === BUTTON) released(f.id, F.x(f.x, f.y), F.y(f.x, f.y));
     }
     // a hotspot on a card, the button of a panorama's point
     const spot = on.table.followed, window = on.lookout, thing = on.viewer;
@@ -213,11 +259,12 @@ onFrame((dt: number) => {
   const moving = change;
   if (moving === null) drawStack(stack, ox, oy, k, 1, 0);
   else drawChange(moving, ox, oy, k);
-  F.on(ox, oy, k);
-  drawDock(k);
-  F.off();
   const full = top().table.opened;
   if (full !== null) drawFullView(full, ox, oy, k);
+  F.on(ox, oy, k);
+  plan?.draw(k, lang, top().sequence.id, trail);
+  drawDock(k);
+  F.off();
   for (const f of fingers.down) border(ox + (f.x - 30) * k, oy + (f.y - 30) * k, 60 * k, 60 * k, 30 * k, Math.max(1, 2 * k), colours.accent, 150);   // where the table feels a finger
 
   if (logging) report();

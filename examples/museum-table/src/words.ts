@@ -9,6 +9,11 @@ const WORDS: string[] = [
   'raking', 'Rasante', 'Raking',
   'flat', 'Diffuse', 'Flat',
   'points', 'Touchez un point pour en savoir plus', 'Touch a point to learn more',
+  'map-button', 'Plan', 'Map',
+  'map-close', 'Refermer le plan', 'Close the map',
+  'map', 'Plan de la visite', 'Map of the visit',
+  'map-hint', 'Touchez une étape pour y aller. Celles que vous avez vues sont cochées.', 'Touch a stage to go there. The ones you have seen are ticked.',
+  'here', 'Vous êtes ici', 'You are here',
 ];
 
 export function word(key: string, lang: string): string {

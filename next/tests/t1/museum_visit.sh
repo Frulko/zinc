@@ -3,9 +3,10 @@
 # sessions (tests/data/museum_visit/visit.py), on the interpreter and compiled:
 #   visit.input  a hotspot on a card opens a sequence over the prints (overlay, fade), its button closes it (none); a button leads on with a
 #                fade, two more with a slide (to the 3D object, to the panorama); a look around the panorama, a point of interest, the button
-#                of its panel (a link again); the language button. The story log is expected.story and six frames have the hashes of
-#                tests/golden/museum-visit/frames.txt: a card coming in at its time with the hotspot on another, the overlay, the middle of
-#                the fade and of the slide, the panorama with its panel, the sequence in English.
+#                of its panel (a link again); the language button; the storyboard, and a touch on a node. The story log is expected.story
+#                and eight frames have the hashes of tests/golden/museum-visit/frames.txt: a card coming in at its time with the hotspot on
+#                another, the overlay, the middle of the fade and of the slide, the panorama with its panel, the sequence in English, the
+#                storyboard with the five sequences seen ticked and the six links followed in the accent colour, the sequence jumped to.
 #   wait.input   the overlay again, left alone: after its 30 seconds it gives way to its `next` (wait.story).
 # ZN_UPDATE_GOLDEN=1 rewrites the goldens from this run (interpreter).
 cd "$(dirname "$0")/../.." || exit 2
@@ -20,7 +21,7 @@ play() {  # input, frames, mode: the story on stdout, the hash of the last frame
 for mode in "--interp" ""; do
   name=${mode:-compiled}
   : > "$tmp/frames"
-  for n in 134 200 242 412 700 880; do play visit.input $n "$mode" > "$tmp/story"; cat "$tmp/hash" >> "$tmp/frames"; done
+  for n in 134 200 242 412 700 880 940 1010; do play visit.input $n "$mode" > "$tmp/story"; cat "$tmp/hash" >> "$tmp/frames"; done
   play wait.input 2100 "$mode" > "$tmp/wait"
   if [ -n "$ZN_UPDATE_GOLDEN" ] && [ -n "$mode" ]; then cp "$tmp/frames" "$golden"; cp "$tmp/story" "$d/expected.story"; cp "$tmp/wait" "$d/wait.story"; fi
   cmp -s "$tmp/frames" "$golden" || { echo "museum_visit ($name): frames differ from the golden"; diff "$tmp/frames" "$golden" | head -8; fail=1; }

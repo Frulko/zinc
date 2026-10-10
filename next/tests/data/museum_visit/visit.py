@@ -11,6 +11,8 @@ visit.input, one visitor:
   500  a finger looks to the right in the panorama (500-530), which goes on turning; 640: a tap on the point "The path up the hill"
   700  the button of its panel leads back to "Japonisme" (fade)
   790  the language button: every text of the sequence is in English
+  900  the button "Map": the storyboard, with the five sequences seen ticked and the links followed in the accent colour
+  950  a touch on the node "Blue and White": the storyboard closes and the table fades to that sequence
 wait.input: the hotspot again, and nothing more: after its 30 seconds the overlay gives way to its `next`, the prints underneath.
 """
 import os, sys
@@ -39,6 +41,8 @@ def visit(tap, drag):
     tap(640, 7, 1250, 423)
     tap(700, 8, 1480, 376)
     tap(790, 9, *LANGUAGE)
+    tap(900, 10, 90, 1030)
+    tap(950, 11, 1572, 700)
 
 def wait(tap, drag):
     tap(150, 1, *HOTSPOT)
