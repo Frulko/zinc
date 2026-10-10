@@ -84,10 +84,11 @@
     {"paths": ["../templates/game-2d/"], "tests": ["templates_kickstart", "zapp", "fuse"]},
     {"paths": ["tests/data/plugins-table.txt"], "tests": ["plugin_manifest"]},
     {"paths": ["src/host/hal_dispatch.cpp", "tests/data/input_touch/"], "tests": ["input_touch", "input", "pointer_kind"]},
-    {"paths": ["../examples/museum-table/", "tests/data/museum_format/"], "tests": ["museum_format", "museum_assets", "museum_table", "museum_viewer", "museum_panorama", "museum_editor"]},
+    {"paths": ["../examples/museum-table/", "tests/data/museum_format/", "tests/golden/museum-table/", "tests/golden/museum-viewer/", "tests/golden/museum-editor/"], "tests": ["museum_format", "museum_assets", "museum_table", "museum_viewer", "museum_panorama", "museum_editor"]},
     {"paths": ["../runtime/raster.cpp", "../runtime/zrt_raster.h"], "tests": ["image_reuse"]},
     {"paths": ["../runtime/raster.cpp", "../runtime/gfx.cpp", "../runtime/zrt_raster.h", "src/host/gfx_host.cpp", "src/res/codec.cpp", "../plugins/canvas2d/", "tests/data/image_rect/", "tests/t1/image_rect.sh"], "tests": ["image_rect", "canvas", "gfx_transform"], "canary": true},
     {"paths": ["../runtime/gl_replay.cpp", "tests/t1/image_rect_gl.sh"], "tests": ["image_rect_gl", "gfx_transform"]},
+    {"paths": ["../runtime/gfx.cpp", "../runtime/include/hal.h", "../targets/macos/hal_sdl.cpp", "src/host/hal_dispatch.cpp", "src/host/window_module.cpp", "src/frontend/modules.cpp", "../lib/std/ui.ts", "../lib/std/solid.ts", "tests/t1/windows.sh", "tests/data/windows/", "tests/data/ui_windows/"], "tests": ["windows"]},
     {"paths": ["targets/wasm/", "tools/wasm-export-test", "tests/t1/image_rect_wasm.sh"], "tests": ["image_rect_wasm"]}
   ]
 }
