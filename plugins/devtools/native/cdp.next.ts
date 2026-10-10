@@ -1,9 +1,11 @@
 // zinc:devtools transport for the Zinc Next engine: the Spec of cdp.spec.ts over zinc:socket (TCP and the WebSocket class of the socket plugin) instead of a
 // poller of BSD sockets. HTTP discovery (/json/list, /json/version), the same Host and Origin checks as cdp.host.cpp, then a WebSocket upgrade; messages are
-// text. Not ported: the screenshot of the frame (none), the profiler spans (none) and the mirroring of console output.
+// text. The screenshot is the frame saved by zinc:gfx capture, whole (ZN-369). Not ported: the profiler spans (none) and the mirroring of console output.
 import { listen as listenTcp, Socket, WebSocket, MessageEvent } from 'zinc:socket';
 import { sha1, base64Encode } from 'zinc:web';
 import { utf8Encode, utf8Decode, env } from 'zinc:sys';
+import { capture } from 'zinc:gfx';
+import { readBytes, remove, tmpdir } from 'zinc:fs';
 import { call as netLog } from 'zinc:__netlog';
 
 const GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
@@ -120,7 +122,13 @@ export default {
   num(msg: string, key: string): f64 { return numField(msg, key); },
   str(msg: string, key: string): string { return strField(msg, key); },
   clients(): i32 { let n: i32 = 0; for (const c of clients) if (c !== null) n++; return n; },
-  screenshot(maxW: i32, maxH: i32): string { return ''; },
+  screenshot(maxW: i32, maxH: i32): string {   // ponytail: through a file and not shrunk to maxW x maxH (the screencast gets the frame whole)
+    const f = `${tmpdir()}/zinc-devtools-${port}.png`;
+    if (!capture(f)) return '';
+    const png = readBytes(f);
+    remove(f);
+    return base64Encode(png);
+  },
   trace(on: boolean): string { return on ? '' : '[]'; },
   net(op: i32, arg: string): string {
     if (op !== 0) return netLog(op, arg);

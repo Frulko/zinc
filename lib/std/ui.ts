@@ -498,6 +498,7 @@ function release(h: i32): void {
   if (n.surface && n.img >= 0) { destroyImage(n.img); n.img = -1; }
   if (overlays.length > 0 || layers.length > 0 || anchors.length > 0) forget(h);
   if (componentNames.size > 0) componentNames.delete(h);
+  if (devStyles.size > 0) devStyles.delete(h);
   n.alive = false;
   n.onClick = null;
   n.onDraw = null;
@@ -1838,6 +1839,7 @@ function rebuildStyle(n: UiNode): void {
   if (varUsed) n.media = n.media | 16;
   for (let i = 0; i < n.sheetKeys.length; i++) sheetNumber(n, n.sheetKeys[i], n.sheetIds[i], n.sheetVals[i]);
   for (let i = 0; i < n.styleKeys.length; i++) applyProp(n, n.styleIds[i], n.styleKeys[i], n.styleVals[i]);
+  if (devStyles.size > 0) { const d = devStyles.get(n.id); if (d !== undefined) for (let i = 0; i < d.keys.length; i++) applyProp(n, d.ids[i], d.keys[i], d.values[i]); }
   if (n.ed !== null) (n.ed as Edit).rowsW = -1;
   layoutDirty = true;
 }
@@ -4179,6 +4181,31 @@ const componentNames = new Map<i32, string>();
 export function setComponentName(h: i32, name: string): void { componentNames.set(h, name); }
 /** '' when the node is not a component's wrapper. */
 export function componentName(h: i32): string { return componentNames.get(h) ?? ''; }
+// The Styles panel's element.style (ZN-369): properties edited in DevTools, applied over the node's classes, style sheets and style numbers
+const devStyles = new Map<i32, Style>();
+/** Sets the inspector's styles of node h (style keys as in StyleSheet objects, colours as 0xRRGGBB); no keys removes them. */
+export function inspectStyle(h: i32, keys: string[], values: number[]): void {
+  const n = inspectNode(h);
+  if (n === null) return;
+  if (keys.length === 0) devStyles.delete(h); else devStyles.set(h, new Style(keys, values));
+  rebuildStyle(n);
+  paintDirty = true;
+}
+/** A node of `tag` that is in no tree, with the defaults and the classes `cls` applied: what the classes declare. */
+export function classStyle(tag: i32, cls: string): UiNode {
+  const s = new UiNode(tag);
+  defaults(s);
+  for (const c of cls.split(' ')) if (c.length > 0 && c !== '\u0000') applyToken(s, c, '');
+  return s;
+}
+/** Such a node with what node h's style sheets declare (numbers false), or its style numbers (true). */
+export function sheetStyle(h: i32, numbers: boolean): UiNode {
+  const n = node(h), s = new UiNode(n.tag);
+  defaults(s);
+  if (numbers) for (let i = 0; i < n.styleKeys.length; i++) applyProp(s, n.styleIds[i], n.styleKeys[i], n.styleVals[i]);
+  else for (let i = 0; i < n.sheetKeys.length; i++) sheetNumber(s, n.sheetKeys[i], n.sheetIds[i], n.sheetVals[i]);
+  return s;
+}
 let pick: ((h: i32, pressed: boolean) => void) | null = null, pickDown = false;
 /** Pick mode (the DevTools inspect arrow): the pointer highlights the node under it and f gets it, pressed on a
  *  click; the app gets no pointer or key input meanwhile. null ends it. */

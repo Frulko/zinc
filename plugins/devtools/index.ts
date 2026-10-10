@@ -2,10 +2,11 @@
 // programs; elsewhere `import 'zinc:devtools'` opts in. A subset of the DevTools protocol: DOM (tree, attributes,
 // class edits), CSS computed style (layout values), Overlay highlight, Runtime console, Page frame tree and
 // screenshots (the native frame, captured by the runtime), Tracing (frame phases for the Performance panel), Network
-// (every fetch, WebSocket, MQTT client and outgoing TCP socket of the program, from the host's network log). Unknown
-// methods get an empty result so the frontend never waits.
+// (every fetch, WebSocket, MQTT client and outgoing TCP socket of the program, from the host's network log), and the Styles
+// panel: classes and style sheets as rules, element.style and the box model edited live with the patch printed to the console
+// (ZN-369). Unknown methods get an empty result so the frontend never waits.
 import Cdp from './native/cdp.spec';
-import { inspectRoot, inspectNode, inspectHighlight, inspectPick, inspectState, componentName, parentOf, setClass, TAG_NAMES, TEXT, UiNode, Handlers } from 'zinc:ui';
+import { inspectRoot, inspectNode, inspectHighlight, inspectPick, inspectState, inspectStyle, classStyle, sheetStyle, componentName, parentOf, setClass, TAG_NAMES, TEXT, UiNode, Handlers } from 'zinc:ui';
 import { width, height } from 'zinc:gfx';
 
 const DOC: i32 = 900000000, TEXT_BASE: i32 = 500000000, FRAGMENT: i32 = 6;
@@ -50,7 +51,8 @@ function listeners(n: UiNode): string {
 function attrs(h: i32, n: UiNode): string[] {
   const a = ['class', cls(n), 'layout', `${Math.round(n.x)},${Math.round(n.y)} ${Math.round(n.lw)}x${Math.round(n.lh)}`];
   if (n.hidden) { a.push('hidden'); a.push(''); }
-  const st = inspectState(h), on = listeners(n);
+  const st = inspectState(h), on = listeners(n), ed = edited(h);
+  if (ed !== null) { a.push('style'); a.push(cssText(ed.decls)); }
   if (st.length > 0) { a.push('state'); a.push(st); }
   if (on.length > 0) { a.push('on'); a.push(on); }
   return a;
@@ -83,10 +85,14 @@ function documentNode(): string {
 }
 function style(n: UiNode): string {
   const px = (v: number): string => `${Math.round(v)}px`;
+  const bw = n.borderW < 0 ? 1 : n.borderW;
   const props: string[][] = [
     ['display', n.hidden ? 'none' : 'flex'], ['flex-direction', n.row ? 'row' : 'column'], ['position', n.abs ? 'absolute' : 'relative'],
     ['left', px(n.x)], ['top', px(n.y)], ['width', px(n.lw)], ['height', px(n.lh)],
     ['padding', `${n.pt}px ${n.pr}px ${n.pb}px ${n.pl}px`], ['margin', `${n.mt}px ${n.mr}px ${n.mb}px ${n.ml}px`], ['gap', px(n.gap)],
+    ['padding-top', px(n.pt)], ['padding-right', px(n.pr)], ['padding-bottom', px(n.pb)], ['padding-left', px(n.pl)],   // the box model reads the longhands
+    ['margin-top', px(n.mt)], ['margin-right', px(n.mr)], ['margin-bottom', px(n.mb)], ['margin-left', px(n.ml)], ['box-sizing', 'border-box'],
+    ['border-top-width', px(bw)], ['border-right-width', px(bw)], ['border-bottom-width', px(bw)], ['border-left-width', px(bw)],
     ['flex-grow', `${n.grow}`], ['background-color', hex(n.bg)], ['color', hex(n.fg)], ['font-size', px(n.size)],
     ['font-weight', n.bold ? 'bold' : 'normal'], ['border-radius', px(n.radius)], ['border-width', px(n.borderW < 0 ? 1 : n.borderW)], ['opacity', `${n.opacity}`],
   ];
@@ -144,7 +150,9 @@ function handle(client: i32, msg: string): void {
     result = `{"nodeIds":[${Math.round(Cdp.num(msg, 'backendNodeIds'))}]}`;
   } else if (method === 'DOM.getBoxModel' && n !== null) result = boxModel(n);
   else if (method === 'CSS.getComputedStyleForNode' && n !== null) result = `{"computedStyle":[${style(n)}]}`;
-  else if (method === 'CSS.getMatchedStylesForNode') result = '{"matchedCSSRules":[],"pseudoElements":[],"inherited":[],"cssKeyframesRules":[]}';
+  else if (method === 'CSS.getMatchedStylesForNode') result = n !== null ? matched(h, n) : '{"matchedCSSRules":[],"pseudoElements":[],"inherited":[],"cssKeyframesRules":[]}';
+  else if (method === 'CSS.getInlineStylesForNode' && n !== null) result = `{"inlineStyle":${inline(h)}}`;
+  else if (method === 'CSS.setStyleTexts') result = setStyleText(Cdp.str(msg, 'styleSheetId'), Cdp.str(msg, 'text'));
   else if (method === 'Overlay.highlightNode') inspectHighlight(n !== null ? h : -1);
   else if (method === 'Overlay.setInspectMode') { picked = -1; inspectPick(Cdp.str(msg, 'mode') === 'searchForNode' ? onPick : null); }
   else if (method === 'Overlay.hideHighlight' || method === 'DOM.hideHighlight') inspectHighlight(-1);
@@ -169,6 +177,189 @@ function handle(client: i32, msg: string): void {
   else if (method === 'Network.getRequestPostData') result = orEmpty(Cdp.net(3, Cdp.str(msg, 'requestId')));
   else if (method === 'Runtime.evaluate') result = '{"result":{"type":"string","value":"zinc: no JavaScript engine on the device (the console shows the program output)"}}';
   Cdp.send(client, `{"id":${id},"result":${result}}`);
+}
+
+// ---------------------------------------------------------------- the Styles panel (ZN-369)
+// The node's classes, style sheets and style numbers show as read-only rules (what each declares); element.style is the inspector's own
+// layer (ui.inspectStyle, applied over them) that the Styles panel and the box model edit; each edit prints to the console the patch to
+// paste back: the class string, or the properties to add to the style object, of every node edited in the session.
+/** CSS longhand, style key, class prefix, kind: 0 a length in px, 1 a colour, 2 a number. */
+const CSS_PROPS: string[][] = [
+  ['padding-top', 'paddingTop', 'pt', '0'], ['padding-right', 'paddingRight', 'pr', '0'], ['padding-bottom', 'paddingBottom', 'pb', '0'], ['padding-left', 'paddingLeft', 'pl', '0'],
+  ['margin-top', 'marginTop', 'mt', '0'], ['margin-right', 'marginRight', 'mr', '0'], ['margin-bottom', 'marginBottom', 'mb', '0'], ['margin-left', 'marginLeft', 'ml', '0'],
+  ['gap', 'gap', 'gap', '0'], ['row-gap', 'rowGap', 'gap-y', '0'], ['column-gap', 'columnGap', 'gap-x', '0'],
+  ['width', 'width', 'w', '0'], ['height', 'height', 'h', '0'], ['min-width', 'minWidth', 'min-w', '0'], ['max-width', 'maxWidth', 'max-w', '0'],
+  ['min-height', 'minHeight', 'min-h', '0'], ['max-height', 'maxHeight', 'max-h', '0'], ['border-radius', 'borderRadius', 'rounded', '0'],
+  ['border-width', 'borderWidth', 'border', '0'], ['font-size', 'fontSize', 'text', '0'],
+  ['background-color', 'backgroundColor', 'bg', '1'], ['color', 'color', 'text', '1'], ['border-color', 'borderColor', 'border', '1'], ['opacity', 'opacity', 'opacity', '2'],
+];
+function cssProp(name: string): string[] | null { for (const p of CSS_PROPS) if (p[0] === name) return p; return null; }
+/** A length in px ("12px" or "12"), NaN otherwise. */
+function length(v: string): number { const t = v.endsWith('px') ? v.slice(0, v.length - 2) : v; return t.length > 0 && !isNaN(Number(t)) ? Number(t) : NaN; }
+/** 0xRRGGBB of #rgb, #rrggbb, #rrggbbaa, rgb() or rgba(); -1 otherwise. */
+function colour(v: string): i32 {
+  const t = v.toLowerCase();
+  if (t.startsWith('#')) {
+    let x = t.slice(1);
+    if (x.length === 3 || x.length === 4) x = x.charAt(0) + x.charAt(0) + x.charAt(1) + x.charAt(1) + x.charAt(2) + x.charAt(2);
+    if (x.length === 8) x = x.slice(0, 6);
+    const c = parseInt(x, 16);
+    return x.length === 6 && !isNaN(c) ? Math.round(c) : -1;
+  }
+  const a = t.indexOf('('), b = t.indexOf(')');
+  if (!t.startsWith('rgb') || a < 0 || b < a) return -1;
+  const p = t.slice(a + 1, b).split('/').join(' ').split(',').join(' ').split(' ').filter((s: string) => s.length > 0);
+  if (p.length < 3) return -1;
+  let c: i32 = 0;
+  for (let i = 0; i < 3; i++) { const k = Number(p[i]); if (isNaN(k)) return -1; c = (c << 8) | Math.max(0, Math.min(255, Math.round(k))); }
+  return c;
+}
+/** The number a longhand's value sets (a colour as 0xRRGGBB), NaN when it is not one. */
+function cssNumber(p: string[], v: string): number {
+  if (p[3] === '1') { const c = colour(v); return c < 0 ? NaN : c; }
+  return p[3] === '0' ? length(v) : (v.length > 0 && !isNaN(Number(v)) ? Number(v) : NaN);
+}
+/** Declarations [name, value, ...] of a style text: comments (disabled properties) and !important left out. */
+function parseDecls(text: string): string[] {
+  let t = text;
+  for (let i = t.indexOf('/*'); i >= 0; i = t.indexOf('/*')) { const j = t.indexOf('*/', i + 2); t = t.slice(0, i) + (j < 0 ? '' : t.slice(j + 2)); }
+  const out: string[] = [];
+  for (const d of t.split(';')) {
+    const c = d.indexOf(':');
+    if (c <= 0) continue;
+    const name = d.slice(0, c).trim().toLowerCase();
+    let value = d.slice(c + 1).trim();
+    if (value.endsWith('!important')) value = value.slice(0, value.length - 10).trim();
+    if (name.length > 0 && value.length > 0) { out.push(name); out.push(value); }
+  }
+  return out;
+}
+/** A declaration as longhands [name, value, ...]: padding and margin with one to four values become their four sides. */
+function longhands(name: string, value: string): string[] {
+  if (name !== 'padding' && name !== 'margin') return [name, value];
+  const v = value.split(' ').filter((s: string) => s.length > 0);
+  if (v.length < 1 || v.length > 4) return [name, value];
+  const top = v[0], right = v.length > 1 ? v[1] : top, bottom = v.length > 2 ? v[2] : top, left = v.length > 3 ? v[3] : right;
+  return [name + '-top', top, name + '-right', right, name + '-bottom', bottom, name + '-left', left];
+}
+/** Whether a declaration is one the inspector applies. */
+function applies(name: string, value: string): boolean {
+  const l = longhands(name, value);
+  for (let i = 0; i < l.length; i += 2) { const p = cssProp(l[i]); if (p === null || isNaN(cssNumber(p, l[i + 1]))) return false; }
+  return true;
+}
+function cssText(d: string[]): string { const s: string[] = []; for (let i = 0; i < d.length; i += 2) s.push(`${d[i]}: ${d[i + 1]};`); return s.join(' '); }
+function range(a: i32, b: i32): string { return `{"startLine":0,"startColumn":${a},"endLine":0,"endColumn":${b}}`; }
+/** CSSProperty objects of declarations; with ranges in the text cssText(d) when `ranged`. */
+function props(d: string[], ranged: boolean): string {
+  const out: string[] = [];
+  let at: i32 = 0;
+  for (let i = 0; i < d.length; i += 2) {
+    const t = `${d[i]}: ${d[i + 1]};`;
+    out.push(`{"name":${q(d[i])},"value":${q(d[i + 1])},"implicit":false,"disabled":false,"parsedOk":${applies(d[i], d[i + 1])}` +
+      (ranged ? `,"text":${q(t)},"range":${range(at, at + t.length)}` : '') + '}');
+    at += t.length + 1;
+  }
+  return out.join(',');
+}
+/** What node s declares beyond base, as declarations of the properties CSS_PROPS knows (plus direction and grow). */
+function declared(s: UiNode, b: UiNode): string[] {
+  const out: string[] = [];
+  const len = (name: string, v: number, w: number): void => { if (v !== w) { out.push(name); out.push(`${v}px`); } };
+  len('padding-top', s.pt, b.pt); len('padding-right', s.pr, b.pr); len('padding-bottom', s.pb, b.pb); len('padding-left', s.pl, b.pl);
+  len('margin-top', s.mt, b.mt); len('margin-right', s.mr, b.mr); len('margin-bottom', s.mb, b.mb); len('margin-left', s.ml, b.ml);
+  len('gap', s.gap, b.gap); len('row-gap', s.gapY, b.gapY); len('column-gap', s.gapX, b.gapX);
+  if (s.w !== b.w || s.wFrac !== b.wFrac || s.fullW !== b.fullW) { out.push('width'); out.push(s.fullW ? '100%' : s.wFrac > 0 ? `${s.wFrac * 100}%` : `${s.w}px`); }
+  if (s.h !== b.h || s.hFrac !== b.hFrac || s.fullH !== b.fullH) { out.push('height'); out.push(s.fullH ? '100%' : s.hFrac > 0 ? `${s.hFrac * 100}%` : `${s.h}px`); }
+  len('min-width', s.minW, b.minW); len('max-width', s.maxW, b.maxW); len('min-height', s.minH, b.minH); len('max-height', s.maxH, b.maxH);
+  len('border-radius', s.radius, b.radius); len('border-width', s.borderW, b.borderW); len('font-size', s.size, b.size);
+  if (s.bg !== b.bg) { out.push('background-color'); out.push(hex(s.bg)); }
+  if (s.fg !== b.fg) { out.push('color'); out.push(hex(s.fg)); }
+  if (s.borderColor !== b.borderColor) { out.push('border-color'); out.push(hex(s.borderColor)); }
+  if (s.opacity !== b.opacity) { out.push('opacity'); out.push(`${s.opacity}`); }
+  if (s.row !== b.row) { out.push('flex-direction'); out.push(s.row ? 'row' : 'column'); }
+  if (s.grow !== b.grow) { out.push('flex-grow'); out.push(`${s.grow}`); }
+  return out;
+}
+/** The inspector's declarations of a node, kept with the node they were made on (handles are reused). */
+class Edited { node: UiNode; decls: string[]; constructor(node: UiNode, decls: string[]) { this.node = node; this.decls = decls; } }
+const edits = new Map<i32, Edited>();
+const editOrder: i32[] = [];
+function edited(h: i32): Edited | null {
+  const e = edits.get(h);
+  return e !== undefined && inspectNode(h) === e.node ? e : null;
+}
+/** element.style of node h: editable (a style sheet id and ranges), its text what the inspector set. */
+function inline(h: i32): string {
+  const e = edited(h), none: string[] = [], d = e !== null ? e.decls : none;
+  const text = cssText(d);
+  return `{"styleSheetId":"inline:${h + 1}","cssProperties":[${props(d, true)}],"shorthandEntries":[],"cssText":${q(text)},"range":${range(0, text.length)}}`;
+}
+function rule(selector: string, d: string[]): string {
+  return `{"rule":{"selectorList":{"selectors":[{"text":${q(selector)}}],"text":${q(selector)}},"origin":"regular","style":{"cssProperties":[${props(d, false)}],"shorthandEntries":[]}},"matchingSelectors":[0]}`;
+}
+function matched(h: i32, n: UiNode): string {
+  const rules: string[] = [], base = classStyle(n.tag, ''), c = cls(n);
+  if (c.length > 0) rules.push(rule('.' + c.split(' ').filter((t: string) => t.length > 0).join('.'), declared(classStyle(n.tag, c), base)));
+  if (n.sheetKeys.length > 0) rules.push(rule('style={StyleSheet}', declared(sheetStyle(h, false), base)));
+  if (n.styleKeys.length > 0) rules.push(rule('style={numbers}', declared(sheetStyle(h, true), base)));
+  return `{"inlineStyle":${inline(h)},"matchedCSSRules":[${rules.join(',')}],"pseudoElements":[],"inherited":[],"cssKeyframesRules":[]}`;
+}
+/** CSS.setStyleTexts on element.style: the text replaces the inspector's declarations of the node, applied at once. */
+function setStyleText(sheet: string, text: string): string {
+  const h: i32 = sheet.startsWith('inline:') ? Math.round(Number(sheet.slice(7))) - 1 : -1, n = inspectNode(h);
+  if (n === null) return '{"styles":[]}';
+  const d = parseDecls(text), keys: string[] = [], vals: number[] = [];
+  for (let i = 0; i < d.length; i += 2) {
+    if (!applies(d[i], d[i + 1])) continue;
+    const l = longhands(d[i], d[i + 1]);
+    for (let j = 0; j < l.length; j += 2) { const p = cssProp(l[j]) as string[]; keys.push(p[1]); vals.push(cssNumber(p, l[j + 1])); }
+  }
+  inspectStyle(h, keys, vals);
+  if (d.length === 0) edits.delete(h);
+  else { if (edited(h) === null) { const at = editOrder.indexOf(h); if (at >= 0) editOrder.splice(at, 1); editOrder.push(h); } edits.set(h, new Edited(n, d)); }
+  printPatch();
+  return `{"styles":[${inline(h)}]}`;
+}
+/** Where node h is: its component (or the nearest one above it), its tag and its DevTools id. */
+function label(h: i32, n: UiNode): string {
+  let p = h;
+  while (p >= 0 && componentName(p).length === 0) p = parentOf(p);
+  return (p >= 0 ? `<${componentName(p)}> ` : '') + `${p === h ? '' : TAG_NAMES[n.tag] + ' '}#${h + 1}`;
+}
+/** The patch of node h in its source's form: style object keys when it has style sheets or numbers, else its class string. */
+function patchLine(h: i32, e: Edited): string {
+  const n = e.node, keys: string[] = [], toks: string[] = [], set: string[] = [];
+  for (let i = 0; i < e.decls.length; i += 2) {
+    if (!applies(e.decls[i], e.decls[i + 1])) continue;
+    const l = longhands(e.decls[i], e.decls[i + 1]);
+    for (let j = 0; j < l.length; j += 2) {
+      const p = cssProp(l[j]) as string[], v = cssNumber(p, l[j + 1]);
+      const shown = p[3] === '1' ? hex(Math.round(v)) : `${v}`;
+      keys.push(`${p[1]}: ${p[3] === '1' ? q(shown) : shown}`);
+      toks.push(`${p[2]}-[${shown}${p[3] === '0' ? 'px' : ''}]`);
+      set.push(l[j]);
+    }
+  }
+  if (n.sheetKeys.length > 0 || n.styleKeys.length > 0) return `${label(h, n)}: style, add { ${keys.join(', ')} }`;
+  // a class that sets only properties the edit sets is replaced; one that sets more (p-4 for padding-left) stays, the new class after it wins
+  const base = classStyle(n.tag, ''), kept: string[] = [];
+  for (const t of cls(n).split(' ')) {
+    if (t.length === 0) continue;
+    const d = declared(classStyle(n.tag, t), base);
+    let covered = d.length > 0;
+    for (let i = 0; covered && i < d.length; i += 2) covered = set.includes(d[i]);
+    if (!covered) kept.push(t);
+  }
+  for (const t of toks) kept.push(t);
+  return `${label(h, n)}: class="${kept.join(' ')}"`;
+}
+function printPatch(): void {
+  const lines: string[] = [];
+  for (const h of editOrder) { const e = edited(h); if (e !== null) lines.push('  ' + patchLine(h, e)); }
+  // sent as a console message of its own: the console output of the program reaches DevTools on the prototype's host only
+  const text = lines.length > 0 ? 'zinc:devtools: style patch, paste it into the source:\n' + lines.join('\n') : 'zinc:devtools: no style edits left';
+  Cdp.send(-1, `{"method":"Runtime.consoleAPICalled","params":{"type":"info","args":[{"type":"string","value":${q(text)}}],"executionContextId":1,"timestamp":${Date.now()}}}`);
 }
 
 // Live tree, like a web page's: 10 times a second the shown tree is compared with what the frontend has, and the
@@ -215,7 +406,7 @@ function sync(h: i32, out: string[]): void {
   const s = snaps.get(id);
   if (n === null || s === undefined) return;
   const a = attrs(h, n);
-  for (const name of ['class', 'hidden', 'state', 'on']) {  // layout changes every animated frame: read on selection
+  for (const name of ['class', 'style', 'hidden', 'state', 'on']) {  // layout changes every animated frame: read on selection
     const was = attrValue(s.attrs, name), now = attrValue(a, name);
     if (now !== null && now !== was) out.push(`{"method":"DOM.attributeModified","params":{"nodeId":${id},"name":${q(name)},"value":${q(now as string)}}}`);
     else if (now === null && was !== null) out.push(`{"method":"DOM.attributeRemoved","params":{"nodeId":${id},"name":${q(name)}}}`);

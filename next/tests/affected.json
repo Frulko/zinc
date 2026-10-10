@@ -81,6 +81,7 @@
     {"paths": ["firmware/esp32/", "tools/esp32-export-test"], "tests": ["export_esp32"]},
     {"paths": ["src/host/netlog.cpp", "src/host/netlog.h", "src/host/http.cpp", "src/host/mqtt.cpp", "src/host/sock.cpp", "../plugins/devtools/", "tools/cdp-probe", "tools/har-chrome", "tests/netlog_check.py", "tests/netlog_servers.py", "tests/golden/host/netlog.tsx"], "tests": ["netlog", "netlog_kill", "devtools_port", "socket", "net", "mqtt"]},
     {"paths": ["tests/free_ports.py"], "tests": ["devtools_port", "netlog", "socket", "dev_mode"]},
+    {"paths": ["../plugins/devtools/", "../scripts/cdp-check.mjs", "tests/data/devtools_styles/", "tests/t1/devtools_styles.sh"], "tests": ["devtools_styles", "dev_mode"]},
     {"paths": ["../plugins/devtools/", "../compiler/", "../sim/", "../lib/std/ui.ts", "../lib/gfx.d.ts", "../lib/compat/proto-layout.ts", "../scripts/cdp-check.mjs", "tests/golden/proto-devtools/"], "tests": ["proto_devtools"]},
     {"paths": ["tests/affected.py", "tests/affected.json"], "tests": ["affected_paths", "ci_plan"]},
     {"paths": ["../plugins/audio/", "tests/golden/audio/"], "tests": ["audio"]},

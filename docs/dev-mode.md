@@ -95,7 +95,17 @@ port; the line `zinc devtools: ...` on stderr names the port in use) and speaks 
   fragments (grouped children, dynamic slots) are not shown, their children are. Text as text nodes, attributes `class` and `layout` (`x,y wxh`); editing `class` (`DOM.setAttributeValue`,
   `setAttributesAsText`) restyles the node live; `DOM.getBoxModel`;
 - **Computed styles**: `CSS.getComputedStyleForNode` with the layout values (position, size, padding, margin, gap,
-  flex, colors, font size, radius, opacity);
+  flex, colors, font size, radius, opacity; padding, margin and border widths also per side, for the box model);
+- **Styles** (ZN-369): `CSS.getMatchedStylesForNode` shows what each source of the node's style declares, as read-only rules: its classes
+  (`.p-2.bg-rose-600.rounded`), its style sheets (`style={StyleSheet}`) and its style numbers (`style={numbers}`). `element.style` is the
+  inspector's own layer, applied over them: type properties there or edit a value in the box model (`CSS.getInlineStylesForNode`,
+  `CSS.setStyleTexts`) and the app changes at once. It knows padding and margin (also the shorthands), gap, row-gap, column-gap, width,
+  height, min/max sizes, border-radius, border-width, font-size (lengths in px), background-color, color, border-color (`#rgb`,
+  `#rrggbb`, `rgb()`) and opacity; other properties stay in the text, marked as not applied. Every edit sends the session's patch to the
+  console, one line per edited node in the form its source uses: a node with style sheets or numbers gets the keys to add to its style
+  object (`style, add { paddingLeft: 20, backgroundColor: "#10b981" }`), another node its new class string (`class="p-2 rounded
+  pl-[20px] bg-[#000000]"`: a class that sets only edited properties is replaced, one that sets more stays and the new class after it
+  wins). The edits last until the node goes away; nothing is written to the source;
 - **Overlay.highlightNode** draws a blue box over the node in the app (through scroll offsets and transforms);
 - **inspect mode** (the arrow at the top left, `Overlay.setInspectMode`): hovering the app highlights the node under
   the pointer, in the app and in Elements (`Overlay.nodeHighlightRequested`); a click selects it in Elements
@@ -104,8 +114,9 @@ port; the line `zinc devtools: ...` on stderr names the port in use) and speaks 
   factor to the size DevTools asks for, as PNG, sent when it changed and the previous frame was acknowledged
   (at most 10 per second);
 - **Page.captureScreenshot** returns the frame on screen as a base64 PNG, rasterized by the runtime at the window's
-  physical size (`format`, `clip` and `quality` are ignored);
-- **Console**: `Runtime.consoleAPICalled` for every `console.*` (the last 32 are replayed when DevTools connects);
+  physical size (`format`, `clip` and `quality` are ignored; on Zinc Next the screencast also gets the frame whole);
+- **Console**: `Runtime.consoleAPICalled` for every `console.*` (the last 32 are replayed when DevTools connects; the prototype's
+  host only, Zinc Next sends the style patch alone);
   `Runtime.evaluate` answers that there is no JavaScript engine;
 - **live tree**, like a web page's: 10 times a second the shown tree is compared with what DevTools has, and the
   differences go out as mutations (`DOM.childNodeInserted` / `childNodeRemoved` as screens mount and unmount,
@@ -134,7 +145,8 @@ port; the line `zinc devtools: ...` on stderr names the port in use) and speaks 
 
 Across a hot reload the sockets are handed to the new version (`ZINC_DEVTOOLS_FDS`), which sends
 `executionContextsCleared`/`Created` and `documentUpdated`: DevTools stays connected.
-`node scripts/cdp-check.mjs [port]` is a scripted client that checks all of the above against a running program.
+`node scripts/cdp-check.mjs [port]` is a scripted client that checks all of the above against a running program; with `--styles` it
+checks the Styles panel on `next/tests/data/devtools_styles` (`next/tests/t1/devtools_styles.sh`).
 
 On a remote device, `zinc dev --device` runs ssh with `-L 9229:127.0.0.1:9229`, so Chrome on the dev machine uses
 `localhost:9229` as well.
