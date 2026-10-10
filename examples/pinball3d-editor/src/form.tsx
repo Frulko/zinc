@@ -171,7 +171,7 @@ function ColorField(p: { src: Source; path: string }): i32 {
   };
   createEffect(() => { text(); hue(); open(); ui.repaint(); });
   const node = <view class="flex-row items-center gap-2">
-    <button ref={swatch} class="w-[24] h-[24] rounded border border-zinc-600 cursor-pointer" style={{ bg: text().length === 7 ? rgb(text()) : 0 }} onClick={toggle} />
+    <button ref={swatch} class="w-[24] h-[24] rounded border border-zinc-600 cursor-pointer" style={{ bg: text().length === 7 ? rgb(text()) : 0 }} tabIndex={-1} onClick={toggle} />
     <input class={`font-mono ${FIELD}`} style={{ width: 84 }} value={text()} onChange={(v: string) => { src.set(path, v.trim().toLowerCase()); }} />
     <view ref={pop} hidden={1} class="flex-col gap-2 p-2 rounded-md bg-zinc-900 border border-zinc-600 shadow-lg" style={{ width: W + 18 }}>
       <view class="relative rounded overflow-hidden cursor-crosshair" style={{ width: W, height: H }}

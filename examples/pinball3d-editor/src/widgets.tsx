@@ -103,7 +103,13 @@ export function Picker(p: { value: () => string; options: () => string[]; label:
     <view ref={list} hidden={1} class="flex-col gap-1 p-1 rounded-md bg-zinc-900 border border-zinc-600 shadow-lg" style={{ width: p.width }}>
       <Show when={long()}>
         <input ref={search} class="h-7 px-2 rounded bg-zinc-950 border border-zinc-700 text-xs text-zinc-100 focus:border-amber-400" style={{ width: p.width - 10 }}
-          onInput={(v: string) => setTyped(v)} onChange={(v: string) => { const all = shown(); if (open() && all.length > 0) { close(); p.onPick(all[0]); } }} />
+          onInput={(v: string) => setTyped(v)} onKeyDown={(e: ui.KeyEvent) => {
+            // Enter takes the first line left; leaving the box (a click on a line) takes nothing by itself
+            if (e.key !== 'Enter') return;
+            const all = shown();
+            if (open() && all.length > 0) { close(); p.onPick(all[0]); }
+            e.preventDefault();
+          }} />
       </Show>
       <scroll class="flex-col" style={{ maxHeight: 264 }}>
         <For each={shown()}>{(o: string, i: i32) => <button
