@@ -624,6 +624,7 @@ static inline uint32_t texel(const Tex& t, int32_t x, int32_t y) {
   const uint8_t* p = t.rgba + ((size_t)y * t.w + x) * 4;
   return (uint32_t)p[3] << 24 | (uint32_t)p[0] << 16 | (uint32_t)p[1] << 8 | p[2];
 }
+__attribute__((noinline))   // kept out of draw_image: inlined, it changed the code of the whole-image loops beside it (measured, ZN-432)
 static void draw_boxed(const Target& t, const Cmd& c, const Tex& im) {
   const Box m = image_box(c);
   // finite, and at most 1e6 texels per pixel: the sample positions stay in int range (nothing is painted outside the box)
