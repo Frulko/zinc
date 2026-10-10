@@ -219,6 +219,37 @@ For `--target rpi1` (or `linux`): the docker cross build, then `rsync` of the bi
 (the program gets SIGHUP) and starts again. Requires ssh keys (or a password prompt per save) and rsync on the device.
 Not hot reload: the dev library is not used on devices yet.
 
+## Debugger (`zinc debug`)
+
+`zinc debug app.ts` (or a project directory) compiles a debug build and runs it in the interpreter under the debugger, paused at the first
+statement of the program (ZN-371.01, decision D84):
+
+```
+paused at main.ts:24 in <top level>
+run();
+(zdb) b main.ts:19
+breakpoint 1 at main.ts:19
+(zdb) c
+paused at main.ts:19 in run (breakpoint 1)
+    total = add(total, v);
+(zdb) locals
+total: number = 0
+p: Point = Point { x: 1, y: 2 }
+list: number[] = [1, 2, 3]
+```
+
+Commands: `b [file:]line` (a breakpoint on the first line with code at or after it; the file is matched by its trailing path, the current one
+when omitted), `d n`, `c`, `n` (next statement, over calls), `s` (into calls), `o` (out of the function), `bt` (the stack with lines), `locals
+[frame]` (numbers, booleans, strings, arrays, objects one level deep, `this`; a captured variable shows its value), `p name`, `q` (ends the
+program, exit 0). Without a terminal the commands are echoed: `zinc debug app.ts < commands.txt` gives a transcript (`next/tests/t1/debug_cli.sh`).
+The end of the input lets the program run to its end. The standard library, `zinc:*` modules and plugins run without stops and are left out of
+the stack.
+
+A debug build keeps every call a frame of its own (no inlining), marks each statement with a `Line` instruction and keeps each local in a
+register of its own; it runs 1.4 to 2.1 times slower than a normal build (nbody, fib), stopped or not. Normal builds are unchanged byte for
+byte, and the interpreter runs them in a copy of its loop that never looks at the debugger. VS Code (DAP), `.tsx` lines, Chrome DevTools'
+Sources panel, conditional breakpoints and watches, and AOT programs in lldb are ZN-371.02 to .06.
+
 ## Not available
 
 - esp32 / ps1 / ps2: no process to replace. `zinc build` + flash; a flash-and-monitor loop for esp32 is a possible

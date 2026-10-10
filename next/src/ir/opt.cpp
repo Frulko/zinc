@@ -568,8 +568,8 @@ void optimize(Module& m, bool deviceCore) {
   foldConstGlobals(m);   // first: inlining, CSE and hoisting then see the constants
   if (!deviceCore) specializeSort(m);
   devirtualize(m);
-  for (int round = 0; round < 3 && inlineRound(m); ++round) devirtualize(m);
-  if (!std::getenv("ZN_NO_UNROLL")) unrollRecursion(m);
+  for (int round = 0; round < 3 && !m.debug && inlineRound(m); ++round) devirtualize(m);   // a debug build keeps every call a frame of its own
+  if (!std::getenv("ZN_NO_UNROLL") && !m.debug) unrollRecursion(m);
   divByPowerOfTwo(m);
   threadBranches(m);  // after inlining: an inlined `a && b` joins like a written one
   cse(m);

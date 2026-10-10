@@ -212,6 +212,7 @@ bool Machine::load(const zbc::Module& m, std::string& err) {
     if (nt.sig != e->sig) { err = "native " + nt.module + "." + nt.name + ": the program expects the signature '" + nt.sig + "', the module has '" + e->sig + "'"; return false; }
   }
   funcs.resize(m.functions.size());
+  lineHot.assign(m.lines.size(), 0);   // a debug module's Line instructions: none set until a debugger asks
   codeLen.resize(funcs.size());
   for (std::size_t i = 0; i < funcs.size(); ++i) codeLen[i] = m.functions[i].code.size();
   for (std::size_t i = 0; i < funcs.size(); ++i) funcs[i] = {m.functions[i].code.data(), m.functions[i].consts.data(), m.functions[i].nregs, m.functions[i].handlers.data(), static_cast<std::uint32_t>(m.functions[i].handlers.size())};

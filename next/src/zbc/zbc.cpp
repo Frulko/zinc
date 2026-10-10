@@ -69,7 +69,7 @@ Cls rcToCls(RC r) { return r == RC::I ? Cls::I : r == RC::S ? Cls::S : r == RC::
 bool isFused(Op op) { Fmt f = opInfo(op).fmt; return f == Fmt::AB2 || f == Fmt::AK2; }
 bool aIsReg(Op op) {
   const OpInfo& i = opInfo(op);
-  if (i.fmt == Fmt::OP || i.fmt == Fmt::AX) return false;
+  if (i.fmt == Fmt::OP || i.fmt == Fmt::AX || i.fmt == Fmt::LX) return false;
   if (i.fmt == Fmt::ABK || i.fmt == Fmt::AB2 || i.fmt == Fmt::AK2) return true;
   if (i.fmt == Fmt::AD) return op == Op::LoadI || op == Op::LoadK || op == Op::JmpIf || op == Op::JmpIfNot || op == Op::Call || op == Op::GetGlobal || op == Op::SetGlobal || op == Op::New || op == Op::CallVirt || op == Op::Downcast || op == Op::LoadNull || op == Op::InstanceOf || op == Op::LoadStr || op == Op::Rt || op == Op::CallNative;
   return i.out != RC::None || op == Op::Ret || op == Op::Throw || op == Op::LogI || op == Op::LogU || op == Op::LogF64 || op == Op::LogF32 || op == Op::LogFx12 || op == Op::LogFx16 || op == Op::LogBool || op == Op::LogStr || op == Op::Retain || op == Op::Release || op == Op::SetField || op == Op::ArrSet;
@@ -188,6 +188,7 @@ struct Verifier {
       if (instrLen(op) == 2 && pc + 1 >= f.code.size()) return fail(pc, "instruction is cut off by the end of the code");
       if (info.fmt == Fmt::OP) { if ((w >> 8) != 0) return fail(pc, "operands on an operand-less instruction"); }
       else if (info.fmt == Fmt::AX) { if (axOf(w) >= f.code.size()) return fail(pc, "jump target out of range"); }
+      else if (info.fmt == Fmt::LX) { if (axOf(w) >= m.lines.size()) return fail(pc, "line index out of range"); }
       else {
         if (aIsReg(op) && !reg(aOf(w), "A")) return false;
         if (info.fmt == Fmt::AD) {
@@ -841,6 +842,7 @@ std::string disassemble(const Module& m) {
       auto r = [](unsigned x) { return "r" + std::to_string(x); };
       auto clsN = [&](unsigned id) { return id < m.classes.size() ? m.classes[id].name : std::string("?"); };
       if (info.fmt == Fmt::AX) ops = "-> " + std::to_string(axOf(w));
+      else if (info.fmt == Fmt::LX) ops = axOf(w) < m.lines.size() && m.lines[axOf(w)].file < m.files.size() ? m.files[m.lines[axOf(w)].file] + ":" + std::to_string(m.lines[axOf(w)].line) : "?";
       else if (info.fmt == Fmt::AD) {
         switch (op) {
           case Op::LoadI: ops = r(aOf(w)) + ", " + std::to_string(sdOf(w)); break;

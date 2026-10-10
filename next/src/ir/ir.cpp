@@ -30,7 +30,7 @@ const char* opName(IrOp o) {
   static const char* names[] = {"const", "add", "sub", "mul", "div", "rem", "pow", "and", "or", "xor", "shl", "shr", "ushr",
       "neg", "not", "bitnot", "eq", "ne", "lt", "le", "gt", "ge", "conv", "refcast", "instof", "call", "callvirt", "builtin", "new", "getfield", "setfield",
       "getglobal", "setglobal", "arrnew", "arrget", "arrset", "arrlen", "arrpush", "arrpop", "strconcat", "tostr", "strlen", "retain", "release", "callnative", "rt",
-      "br", "condbr", "ret", "throw", "unreachable"};
+      "dbgline", "dbgvar", "br", "condbr", "ret", "throw", "unreachable"};
   return names[static_cast<int>(o)];
 }
 bool isTerminator(IrOp o) { return o == IrOp::Br || o == IrOp::CondBr || o == IrOp::Ret || o == IrOp::Throw || o == IrOp::Unreachable; }
@@ -57,6 +57,7 @@ std::uint8_t effects(const Module& m, const Inst& i) {
     case IrOp::CallNative: return kReads | kWrites | kThrows | kAllocs;
     case IrOp::Rt: return kReads | kWrites | kThrows | kAllocs;
     case IrOp::Retain: case IrOp::Release: return kWrites;
+    case IrOp::DbgLine: case IrOp::DbgVar: return kWrites;   // kept where they are: the debugger reads the frame there
     case IrOp::Div: case IrOp::Rem: return isInt(i.ty) ? kThrows : kPure;  // integer division by zero traps
     case IrOp::New: case IrOp::ArrNew: case IrOp::StrConcat: case IrOp::ToStr: return kAllocs;
     case IrOp::GetField: case IrOp::GetGlobal: case IrOp::ArrLen: case IrOp::StrLen: case IrOp::InstOf: return kReads;
@@ -167,6 +168,8 @@ std::string instText(const Module& m, const Function& f, const Inst& i) {
     case IrOp::ArrNew: s += " " + typeName(m, i.ty); break;
     case IrOp::Rt: s += std::string(" ") + rtInfo(static_cast<zn::Rt>(i.sym)).name; break;
     case IrOp::CallNative: s += " #" + std::to_string(i.sym); break;
+    case IrOp::DbgLine: s += " " + std::to_string(i.imm >> 32) + ":" + std::to_string(i.imm & 0xFFFFFFFF); break;
+    case IrOp::DbgVar: s += " " + nameText(m.dbgNames[i.sym]); break;
     default: break;
   }
   if (i.op == IrOp::Br) return s + " " + edgeText(i.edges[0]);
@@ -475,6 +478,8 @@ struct Verifier {
       case IrOp::StrLen:
         if (!arity(1) || m.types[tyOf(i.args[0])].k != Type::K::Str) return err.empty() ? fail(b, ii, "strlen needs a string") : false;
         break;
+      case IrOp::DbgLine: if (!arity(0)) return false; break;
+      case IrOp::DbgVar: if (!arity(1) || i.sym >= m.dbgNames.size()) return err.empty() ? fail(b, ii, "dbgvar of an unknown local") : false; break;
       case IrOp::Retain: case IrOp::Release: {
         if (!arity(1)) return false;
         Type::K k = m.types[tyOf(i.args[0])].k;

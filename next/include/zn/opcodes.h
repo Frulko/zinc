@@ -68,7 +68,9 @@
   X(I32ToFx12, ABC, I, _, I) X(I32ToFx16, ABC, I, _, I) X(Fx12ToI32, ABC, I, _, I) X(Fx16ToI32, ABC, I, _, I) \
   X(Fx12ToFx16, ABC, I, _, I) X(Fx16ToFx12, ABC, I, _, I) \
   X(SqrtFx12, ABC, I, _, I) X(SqrtFx16, ABC, I, _, I) X(SinFx12, ABC, I, _, I) X(SinFx16, ABC, I, _, I) X(CosFx12, ABC, I, _, I) X(CosFx16, ABC, I, _, I) \
-  X(LogFx12, ABC, _, _, _) X(LogFx16, ABC, _, _, _)
+  X(LogFx12, ABC, _, _, _) X(LogFx16, ABC, _, _, _) \
+  /* debug builds only (zinc debug, ZN-371.01): the first instruction of a statement, AX = its index in Module::lines; the interpreter stops there when the debugger asks */ \
+  X(Line, LX, _, _, _)
 
 namespace zn {
 
@@ -81,8 +83,8 @@ enum class Op : std::uint8_t {
 
 // OP: no operands. ABC: three registers. AD: register + 16-bit. AX: 24-bit. ABK: registers A,B + signed 8-bit immediate C.
 // AB2 and AK2 are two-word fused compare-and-jump: word 0 holds the compared registers A,B (AB2) or A and an 8-bit
-// immediate C (AK2), word 1 the absolute jump target.
-enum class Fmt : std::uint8_t { OP, ABC, AD, AX, ABK, AB2, AK2 };
+// immediate C (AK2), word 1 the absolute jump target. LX: a 24-bit index that is not a jump (Line).
+enum class Fmt : std::uint8_t { OP, ABC, AD, AX, ABK, AB2, AK2, LX };
 enum class RC : std::uint8_t { None, I, S, D, M };  // register class expected or produced
 
 struct OpInfo {

@@ -292,6 +292,8 @@ set_source_files_properties(third_party/sha256/sha256.c third_party/monocypher/m
 
 add_library(zn_prof STATIC src/prof/prof.cpp)
 target_link_libraries(zn_prof PUBLIC zn_vm)
+add_library(zn_dbg STATIC src/dbg/dbg.cpp)   # zinc debug (ZN-371.01)
+target_link_libraries(zn_dbg PUBLIC zn_vm)
 
 # QuickJS-ng (third_party/): the second engine of ZN-051, plain JavaScript and stripped TypeScript behind the same host calls.
 # libregexp and libunicode are their own library (the regular expressions of Zinc programs link only these); QuickJS-ng links the same copy.
@@ -363,7 +365,7 @@ if(APPLE)   # but not zinc's own C++ (zn::), harfbuzz's or the libc++ templates 
   target_link_options(zinc PRIVATE "LINKER:-unexported_symbols_list,${CMAKE_SOURCE_DIR}/tools/zinc-unexported.txt")
   set_property(TARGET zinc APPEND PROPERTY LINK_DEPENDS ${CMAKE_SOURCE_DIR}/tools/zinc-unexported.txt)
 endif()
-target_link_libraries(zinc PRIVATE zn_sim zn_script zn_qjs zn_res zn_dev zn_tc zn_prof zn_vm zn_aot zn_rt zn_zbc zn_ir zn_frontend)
+target_link_libraries(zinc PRIVATE zn_sim zn_script zn_qjs zn_res zn_dev zn_tc zn_prof zn_dbg zn_vm zn_aot zn_rt zn_zbc zn_ir zn_frontend)
 if(TARGET zn_rt_new)
   add_dependencies(zinc zn_rt_new)   # not linked into zinc (ZN-592): `zinc build` links it into the programs that have a heap budget
 endif()

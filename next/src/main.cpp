@@ -29,6 +29,7 @@
 #include "aot/aot.h"
 #include "zn/host.h"
 #include "prof/prof.h"
+#include "dbg/dbg.h"
 #include "res/res.h"
 #include "zn/hostsys.h"
 #include "qjs/qjs.h"
@@ -298,6 +299,8 @@ static void scanHostImports(const zn::frontend::Program& prog) {
     }
   }
 }
+static bool gDebug = false;                    // zinc debug (ZN-371.01): debug builds, run under the debugger
+static std::vector<std::string> gDebugSources;  // the text of each file of the debug build (Module::files)
 static int compileToZbc(const char* path, zn::zbc::Module& out) {
   const auto t0 = std::chrono::steady_clock::now();
   zn::frontend::Program prog;
@@ -315,7 +318,7 @@ static int compileToZbc(const char* path, zn::zbc::Module& out) {
   }
   std::vector<zn::frontend::Diag> diags;
   {
-    auto low = [&] { zn::log::Phase ph("build", "lower to IR"); return zn::ir::lower(prog.ast, checked, prog.files[0].text); }();
+    auto low = [&] { zn::log::Phase ph("build", "lower to IR"); return zn::ir::lower(prog.ast, checked, prog.files[0].text, gDebug); }();
     diags = low.diags;
     if (diags.empty()) {
       if (!std::getenv("ZN_NO_OPT")) { zn::log::Phase ph("build", "optimise"); zn::ir::optimize(low.module, gDeviceCore); }
@@ -329,6 +332,11 @@ static int compileToZbc(const char* path, zn::zbc::Module& out) {
       std::string bad = zn::zbc::verify(em.module);
       if (!bad.empty()) { std::fprintf(stderr, "internal error: invalid ZBC: %s\n", bad.c_str()); return 3; }
       out = std::move(em.module);
+      if (gDebug) {   // the line table's offsets become lines and columns of the program's files
+        gDebugSources.clear();
+        for (const auto& f : prog.files) { out.files.push_back(f.path); gDebugSources.push_back(f.text); }
+        for (zn::zbc::LineInfo& li : out.lines) if (li.file < prog.files.size()) { auto lc = zn::frontend::lineCol(prog.files[li.file].text, li.offset); li.line = lc.line; li.col = lc.col; }
+      }
       if (gProfile) { out.profile = gProfile->name; out.heapBytes = static_cast<std::uint32_t>(std::min<std::uint64_t>(gProfile->heapBytes, 0xFFFFFFFFu)); }
       zn::log::step("compile", std::to_string(prog.files.size()) + (prog.files.size() == 1 ? " file" : " files") + ", " + std::to_string(out.functions.size()) + " functions", zn::log::since(t0));
       return 0;
@@ -1070,6 +1078,11 @@ int main(int argc, char** argv) {
     if (!std::strcmp(argv[k], "--force")) { zn::frontend::setForce(true); for (int j = k; j + 1 < argc; ++j) argv[j] = argv[j + 1]; --argc; --k; }
     else if (!std::strcmp(argv[k], "--strict")) { gStrict = true; for (int j = k; j + 1 < argc; ++j) argv[j] = argv[j + 1]; --argc; --k; }
   }
+  if (argc >= 3 && !std::strcmp(argv[1], "debug")) {   // zinc debug <file> [-- args]: a debug build run by the interpreter under the debugger (ZN-371.01)
+    gDebug = true;
+    argv[1] = const_cast<char*>("run");
+    setenv("ZINC_RUN", "interp", 1);
+  }
   for (int k = 1; k < argc && std::strcmp(argv[k], "--"); ++k)   // `zinc run --interp` interprets, `--native` compiles even a test run (ZN-398)
     if (!std::strcmp(argv[k], "--interp") || !std::strcmp(argv[k], "--native")) { setenv("ZINC_RUN", argv[k] + 2, 1); for (int j = k; j + 1 < argc; ++j) argv[j] = argv[j + 1]; --argc; --k; }
   // `--profile esp32` (or --profile=esp32) anywhere: the target's `number`, typing and heap budget on the host (ZN-120)
@@ -1489,7 +1502,7 @@ int main(int argc, char** argv) {
 #ifdef ZN_HOST_GFX
       interpreted = !runcache::wanted();
 #endif
-      if (zbccache::load(entry, zm) && (interpreted || !drawsOf(zm))) fromCache = true;
+      if (!gDebug && zbccache::load(entry, zm) && (interpreted || !drawsOf(zm))) fromCache = true;
       else if (int rc = compileToZbc(path.c_str(), zm)) return rc;
       else compiled = true;
     }
@@ -1528,7 +1541,7 @@ int main(int argc, char** argv) {
       if (blob.empty() || !zn::host::installResources(blob.data(), blob.size())) { std::fprintf(stderr, "zinc: cannot prepare the fonts and images: %s\n", err.c_str()); return 1; }
     }
 #endif
-    if (compiled) zbccache::store(absPath, zm, blob);   // the next interpreted run of an unchanged program starts from here (ZN-415)
+    if (compiled && !gDebug) zbccache::store(absPath, zm, blob);   // the next interpreted run of an unchanged program starts from here (ZN-415)
     if (!gTrialDir.empty()) std::thread([] { std::this_thread::sleep_for(std::chrono::seconds(5)); promoteTrial(); }).detach();   // an update on trial that runs 5 s is healthy
     gRunOut = &out;
     zn::log::write("run", zn::log::Info, "engine interpreter (ZBC), " + std::to_string(zm.functions.size()) + " functions");   // ZN-368
@@ -1536,7 +1549,14 @@ int main(int argc, char** argv) {
     zn::host::setEngineName("interpreter");   // the perf panel (ZN-375)
 #endif
     zn::log::step("run", "interpreter");
-    auto res = [&] { zn::log::Phase ph("run", "program"); return zn::vm::run(zm, out, trace); }();
+    auto res = [&] {
+      zn::log::Phase ph("run", "program");
+      if (!gDebug) return zn::vm::run(zm, out, trace);
+      zn::dbg::Debugger d(zm, gDebugSources);
+      d.paused = zn::dbg::commandLine;
+      return zn::vm::runHooked(zm, out, [](zn::rt::Machine& m, const void* p) { static_cast<zn::dbg::Debugger*>(const_cast<void*>(p))->attach(m); }, &d, nullptr, nullptr);
+    }();
+    if (gDebug && !res.ok && res.error.rfind("stopped by the debugger", 0) == 0) { std::fwrite(out.data(), 1, out.size(), stdout); return 0; }   // q in zinc debug
     if (!gTrialDir.empty() && !res.ok) std::_Exit(zn::rt::report(res, out, trace));   // failed on trial: leave `trial` for the next launch to roll back
     return zn::rt::report(res, out, trace);
   }

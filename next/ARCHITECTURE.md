@@ -18,6 +18,7 @@ next/
   src/aot/        ZBC → C++ emitter; the C++ it writes calls include/zn/ops.h and links src/rt
   src/host/       the graphics host (ZN-027, ZN-047: one binary, a window or headless HAL picked at run time): the existing runtime (runtime/: zrt, raster, gfx) behind the `zn::host::Gfx` table of include/zn/host.h; optional (ZN_HOST_GFX), built with the runtime's own flags
   src/prof/       the profilers of the interpreter (zinc profile, zinc mem, ZN-046); includes rt and vm, only main includes it
+  src/dbg/        the interpreter's debugger (zinc debug, ZN-371.01): breakpoints, stepping, stack and locals of a debug build; includes rt, vm and zbc, only main includes it
   src/tc/         the toolchain manager (ZN-029): the pinned `zig c++`, its checksum-verified download, cross builds; depends on nothing of the engine
   src/res/        the baker of fonts and images (ZN-048): TrueType and SVG rasterizers ported exactly from compiler/src/resources.ts, PNG through stb_image; its blob is installed by src/host/resources.cpp
   src/dev/        the device core and the upload protocol (ZN-030): the same code runs in the firmware of a small device and in `zinc device-sim`; includes rt, vm, zbc

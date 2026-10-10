@@ -1,0 +1,69 @@
+paused at main.ts:24 in <top level>
+run();
+(zdb) s
+paused at main.ts:14 in run
+  let total = 0;
+(zdb) n
+paused at main.ts:15 in run
+  const p = new Point(1, 2);
+(zdb) s
+paused at main.ts:5 in Point.constructor
+  constructor(x: number, y: number) { this.x = x; this.y = y; }
+(zdb) locals
+this: Point = Point { x: 0, y: 0 }
+x: number = 1
+y: number = 2
+(zdb) bt
+#0 Point.constructor at main.ts:5
+#1 run at main.ts:15
+#2 <top level> at main.ts:24
+(zdb) o
+paused at main.ts:16 in run
+  const name = 'zinc';
+(zdb) b 19
+breakpoint 1 at main.ts:19
+(zdb) b 99
+no code at 99
+(zdb) c
+paused at main.ts:19 in run (breakpoint 1)
+    total = add(total, v);
+(zdb) locals
+total: number = 0
+p: Point = Point { x: 1, y: 2 }
+name: string = "zinc"
+list: number[] = [1, 2, 3]
+v: number = 1
+(zdb) s
+paused at main.ts:9 in add
+  const sum = a + b;
+(zdb) bt
+#0 add at main.ts:9
+#1 run at main.ts:19
+#2 <top level> at main.ts:24
+(zdb) locals
+a: number = 0
+b: number = 1
+sum: number = 0
+(zdb) n
+paused at main.ts:10 in add
+  return sum;
+(zdb) n
+paused at main.ts:19 in run (breakpoint 1)
+    total = add(total, v);
+(zdb) o
+paused at main.ts:19 in run (breakpoint 1)
+    total = add(total, v);
+(zdb) d 1
+deleted breakpoint 1
+(zdb) n
+paused at main.ts:21 in run
+  console.log(name, total, p.x);
+(zdb) p total
+total = 6
+(zdb) p nothing
+no local nothing
+(zdb) help
+b [file:]line  break | d n  delete | c  continue | n  next | s  step into | o  step out | bt  stack | locals [frame] | p name | q  quit
+(zdb) c
+zinc 6 1
+done

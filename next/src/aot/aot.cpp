@@ -14,7 +14,7 @@ namespace zn::aot {
 
 namespace {
 
-enum class Fmt { OP, ABC, AD, AX, ABK, AB2, AK2 };
+enum class Fmt { OP, ABC, AD, AX, ABK, AB2, AK2, LX };
 struct OpInfoRow { const char* name; Fmt fmt; bool binary; };  // binary: the C operand is a register the operation reads
 
 constexpr OpInfoRow kOps[] = {
@@ -166,7 +166,7 @@ struct FnEmitter {
       auto P = static_cast<std::uint32_t>(pc);
       if (arith.count(nm)) line(r(A) + " = zn::ops::" + nm + "(" + r(B) + ", " + (o.binary ? r(C) : std::string("0")) + ");");
       else if (divs.count(nm)) line("if (!zn::ops::" + nm + "Defined(" + r(B) + ", " + r(C) + ")) " + trap("zn::ops::" + nm + "Message()") + " " + r(A) + " = zn::ops::" + nm + "(" + r(B) + ", " + r(C) + ");");
-      else if (nm == "Nop") {}
+      else if (nm == "Nop" || nm == "Line") {}   // Line: a statement start of a debug build, nothing to do compiled
       else if (nm == "Trap") line(trap("\"trap: unreachable code executed\""));
       else if (nm == "Move") line(r(A) + " = " + r(B) + ";");
       else if (nm == "LoadI") line(r(A) + " = zn::ops::sx(" + num(sdOf(w)) + ");");
@@ -273,7 +273,7 @@ void appendBytes(std::string& s, const std::uint8_t* p, std::size_t n) {
 
 std::vector<char> typedFunctions(const zbc::Module& mod, const std::set<std::string>& arith, const std::set<std::string>& divs) {
   auto scalar = [](zbc::Cls c) { return c == zbc::Cls::I || c == zbc::Cls::S || c == zbc::Cls::D; };
-  static const std::set<std::string> plain = {"Nop", "Trap", "Move", "LoadI", "LoadK", "AddI32K", "Jmp", "JmpIf", "JmpIfNot", "Call", "Ret", "RetV", "GetGlobal", "SetGlobal",
+  static const std::set<std::string> plain = {"Nop", "Line", "Trap", "Move", "LoadI", "LoadK", "AddI32K", "Jmp", "JmpIf", "JmpIfNot", "Call", "Ret", "RetV", "GetGlobal", "SetGlobal",
                                               "LogI", "LogU", "LogF64", "LogF32", "LogBool", "LogSep", "LogEnd", "LogBegErr", "LogEndErr", "LogFx12", "LogFx16"};
   std::vector<char> ok(mod.functions.size(), 0);
   for (std::size_t i = 0; i < mod.functions.size(); ++i) {

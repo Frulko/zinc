@@ -438,6 +438,24 @@ The CPU time ZINC_GL_STATS calls "to submit" includes waits for the GPU (5.6 to 
 measured at load 6 from other builds, before ZN-432 changed the image path of the replay. GL replay against the software frame for convex
 and concave polygons: 0.06% of the pixels more than 24 apart, mean error 0.07 (tests/t1/gl_convex.sh).
 
+### ZN-371.01: the debugger's cost (2026-10-11, Intel Mac, load 4.5 to 9 from other sessions)
+
+Instructions retired over a whole run (`/usr/bin/time -l`, two runs each), `zinc run --interp` and `zinc debug` of tests/bench/kernels:
+
+| | fib | nbody |
+|---|---|---|
+| before ZN-371.01 | 479-484 M | 7.430-7.433 G |
+| one interpreter loop with the debugger's call in the `Line` handler (never taken) | 508-520 M (+6-7%) | 7.894-7.896 G (+6%) |
+| the same, the call at a label of its own or in a `noinline, cold` function | 508-520 M | (not run) |
+| `Line` handler empty: the measure of what the call costs | 474-485 M | |
+| kept: a copy of the loop for the debugger, the normal one with an empty `Line` | 473-485 M (=) | 7.414-7.432 G (=) |
+| debug build, debugger idle (no breakpoint) | 1006-1007 M (2.1x) | 10.47-10.50 G (1.41x) |
+| debug build, a breakpoint on a line reached only at the end | 1006 M | 10.47-10.49 G |
+
+A call anywhere in the computed-goto loop, even one never made, changes the register allocation of all of it; the debugger's copy of the loop
+costs 73 KB of binary (12.01 -> 12.08 MB). A debug build's cost is inlining and recursion unrolling switched off (fib), one `Line` dispatch per
+statement and a move per assignment; an armed but idle debugger adds nothing measurable (D84).
+
 ### ZN-696: zinc:3d blending and emissive, cost on the opaque path (2026-10-10, load 5 to 6, thermally throttled)
 
 Frame times of `bench/three_many.ts` (1000 opaque meshes) measured alternately with the old and new zinc:3d moved between 2.5 and 5.7 ms

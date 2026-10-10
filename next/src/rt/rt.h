@@ -225,6 +225,11 @@ struct Machine {
   std::size_t stackSlots = 0, maxDepth = 0;
   Slot* stackEnd = nullptr;
   const Func* volatile curFn = nullptr;  // the interpreter: the function being run, for the sampling profiler (zinc profile)
+  // zinc debug (ZN-371.01): one byte per line of a debug module (zbc::Module::lines); the interpreter calls debugHook at a Line instruction whose
+  // byte is set (a breakpoint, stepping, a pause request), with the frame it runs (the callers are in frames up to fp). False stops the program.
+  std::vector<std::uint8_t> lineHot;
+  bool (*debugHook)(Machine& m, const Func* fn, const std::uint32_t* pc, Slot* base, std::uint32_t line) = nullptr;
+  void* debugCtx = nullptr;
 
   ~Machine();
   bool load(const zbc::Module& m, std::string& err);
@@ -264,7 +269,7 @@ struct Machine {
   std::vector<std::size_t> codeLen;          // per function, the words of code (set where the functions are made)
   bool trapTrace = std::getenv("ZN_TRAP_TRACE") != nullptr;  // debugging: a trap says which function and instruction
   bool trackFn = false;                      // the interpreter keeps curFn current (set by the profiler before the run)
-  template <bool kTrack> bool execT(const Func* callee, Slot* base);  // the interpreter's loop (src/vm), one copy with the curFn stores and one without
+  template <bool kTrack, bool kDebug> bool execT(const Func* callee, Slot* base);  // the interpreter's loop (src/vm): copies with the curFn stores, with the debugger's stops, with neither
   bool exec(const Func* callee, Slot* base);  // defined by the engine: the interpreter, or the compiled program
   // The `call(elem, elem): f64` method of a function object (a comparator), or null. The verifier proved the static class has one.
   const Func* findComparator(const Obj* fn, zbc::VType elem) const;

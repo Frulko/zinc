@@ -116,6 +116,23 @@ struct FnEmitter {
   std::vector<std::uint32_t> start, end, reg;  // per value
   std::vector<std::uint32_t> callBase;         // per position
   std::uint32_t frame = 0;
+  // Debug builds (ZN-371.01): each local DbgVar names gets a home register right after the parameters, below every call window, so its value
+  // stays readable at any Line; a reference there is retained until the next write or the return.
+  std::vector<std::uint32_t> homeOf;           // per name of the module's dbgNames: its index in zf.vars, or kNoReg
+  std::uint32_t homeBase = 0, homeTop = 0;
+  void homes() {
+    if (!im.debug) return;
+    homeOf.assign(im.dbgNames.size(), kNoReg);
+    homeBase = homeTop = static_cast<std::uint32_t>(f.blocks.empty() ? 0 : f.blocks[0].params.size());
+    for (const ir::Block& b : f.blocks)
+      for (const ir::Inst& i : b.insts) {
+        if (i.op != IrOp::DbgVar || homeOf[i.sym] != kNoReg || homeTop >= kMaxRegisters / 2) continue;   // ponytail: half the frame at most, the rest is not shown
+        VarInfo v;
+        v.name = im.dbgNames[i.sym]; v.vt = vtOf(f.valueTypes[i.args[0]]); v.type = ir::typeName(im, f.valueTypes[i.args[0]]); v.reg = homeTop++;
+        homeOf[i.sym] = static_cast<std::uint32_t>(zf.vars.size());
+        zf.vars.push_back(std::move(v));
+      }
+  }
 
   FnEmitter(const ir::Module& mod, const ir::Function& fn, Function& out, TypeTable& types) : im(mod), f(fn), zf(out), tt(types), nb(fn.blocks.size()), nv(fn.valueTypes.size()) {}
 
@@ -323,8 +340,9 @@ struct FnEmitter {
           if (end[ci.args[a]] == ipos[b][k] && callPosOf[ci.args[a]] == kNoReg) { callPosOf[ci.args[a]] = ipos[b][k]; slotOf[ci.args[a]] = static_cast<std::uint32_t>(a); }
       }
     std::vector<ValueId> owner(kMaxRegisters, ir::kNoValue);
+    for (std::uint32_t r = homeBase; r < homeTop; ++r) owner[r] = static_cast<ValueId>(nv);   // the homes of a debug build: never given to a value
     std::vector<ValueId> active;
-    std::uint32_t top = 0;  // one past the highest register used
+    std::uint32_t top = homeTop;  // one past the highest register used
     auto expire = [&](std::uint32_t pos) {
       for (std::size_t k = 0; k < active.size();) {
         if (end[active[k]] <= pos) { owner[reg[active[k]]] = ir::kNoValue; active[k] = active.back(); active.pop_back(); }
@@ -341,7 +359,7 @@ struct FnEmitter {
       if (h == kNoReg) for (ValueId a : fedBy[v]) if (reg[a] != kNoReg && owner[reg[a]] == ir::kNoValue) { h = reg[a]; break; }
       if (h == kNoReg) for (ValueId p : feeds[v]) if (reg[p] != kNoReg && owner[reg[p]] == ir::kNoValue) { h = reg[p]; break; }
       if (h == kNoReg && callPosOf[v] != kNoReg) {  // estimate the window base from the values already live across the call
-        std::uint32_t base = 0;
+        std::uint32_t base = homeTop;
         for (ValueId a : active) if (end[a] > callPosOf[v]) base = std::max(base, reg[a] + 1);
         h = base + slotOf[v];
       }
@@ -367,7 +385,7 @@ struct FnEmitter {
         std::uint32_t pos = ipos[b][k];
         expire(pos);
         if (isWindow(i)) {
-          std::uint32_t base = 0;
+          std::uint32_t base = homeTop;
           for (ValueId a : active) base = std::max(base, reg[a] + 1);
           std::uint32_t nargs = static_cast<std::uint32_t>(i.args.size());
           if (base + std::max<std::uint32_t>(nargs, 1) > kMaxRegisters) return fail("function needs more than 256 registers");
@@ -814,7 +832,26 @@ struct FnEmitter {
         if (lay[i.edges[1].to] != lay[b] + 1) { fixups.push_back({zf.code.size(), i.edges[1].to, Patch::Ax}); put(encAX(Op::Jmp, 0)); }
         return true;
       }
-      case IrOp::Ret: if (i.args.empty()) put(encABC(Op::RetV, 0)); else put(encABC(Op::Ret, R(i.args[0]))); return true;
+      case IrOp::DbgLine: {
+        if (tt.zm.lines.size() >= (1u << 24)) return true;   // past the 24-bit operand: no more stops
+        put(encAX(Op::Line, static_cast<std::uint32_t>(tt.zm.lines.size())));
+        LineInfo li;
+        li.file = static_cast<std::uint32_t>(static_cast<std::uint64_t>(i.imm) >> 32); li.offset = static_cast<std::uint32_t>(i.imm & 0xFFFFFFFF);   // line and column: the caller, who has the sources
+        tt.zm.lines.push_back(li);
+        return true;
+      }
+      case IrOp::DbgVar: {
+        if (homeOf[i.sym] == kNoReg) return true;
+        const VarInfo& v = zf.vars[homeOf[i.sym]];
+        if (!(vtOf(f.valueTypes[i.args[0]]) == v.vt)) return true;   // another type than the first write's (a narrowing): the home keeps that one
+        if (v.vt.cls == Cls::R) { put(encABC(Op::Retain, R(i.args[0]))); put(encABC(Op::Release, v.reg)); }
+        put(encABC(Op::Move, v.reg, R(i.args[0])));
+        return true;
+      }
+      case IrOp::Ret:
+        for (const VarInfo& v : zf.vars) if (v.vt.cls == Cls::R) put(encABC(Op::Release, v.reg));   // a debug build's homes give their references back
+        if (i.args.empty()) put(encABC(Op::RetV, 0)); else put(encABC(Op::Ret, R(i.args[0])));
+        return true;
       case IrOp::Throw: put(encABC(Op::Throw, R(i.args[0]))); return true;
       case IrOp::Unreachable: put(encABC(Op::Trap, 0)); return true;
       default: return fail(std::string("no bytecode for ") + ir::opName(i.op));
@@ -823,6 +860,7 @@ struct FnEmitter {
 
   bool run() {
     if (!classify()) return false;
+    homes();
     plan();
     layout();
     intervals();
@@ -830,6 +868,7 @@ struct FnEmitter {
     blockStart.assign(nb, 0);
     for (BlockId b : order) {
       blockStart[b] = zf.code.size();
+      if (b == 0) for (const VarInfo& v : zf.vars) put(v.vt.cls == Cls::R ? encAD(Op::LoadNull, v.reg, v.vt.ref) : encAD(Op::LoadI, v.reg, 0));   // homes start empty
       for (std::size_t k = 0; k < f.blocks[b].insts.size(); ++k) if (!emitInst(b, k)) return false;
     }
     auto patch = [&](std::size_t at, Patch kind, std::uint32_t t) {
@@ -879,7 +918,7 @@ EmitResult emit(const ir::Module& m) {
     const ir::Class& c = m.classes[ci];
     ClassInfo info;
     info.name = c.name; info.parent = c.parent; info.isInterface = c.isInterface; info.isAbstract = c.isAbstract;
-    for (const ir::Field& fl : c.fields) info.fields.push_back(tt.vt(fl.type));
+    for (const ir::Field& fl : c.fields) { info.fields.push_back(tt.vt(fl.type)); if (m.debug) info.fieldNames.push_back(fl.name); }
     // supertypes: every ancestor and every interface satisfied by the class or an ancestor
     for (std::uint32_t o = c.parent, k = 0; o != ir::kNoClass && k < 1000; o = m.classes[o].parent, ++k) info.supers.push_back(o);
     for (std::uint32_t o = static_cast<std::uint32_t>(ci), k = 0; o != ir::kNoClass && k < 1000; o = m.classes[o].parent, ++k)

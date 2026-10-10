@@ -46,6 +46,7 @@ struct ClassInfo {
   std::vector<VType> fields;
   std::vector<std::uint32_t> selectors;
   std::vector<std::uint32_t> vtable;
+  std::vector<std::string> fieldNames;  // debug builds: the name of each field of `fields`
 };
 
 // A virtual method signature without the receiver.
@@ -64,6 +65,11 @@ struct Handler {
   std::uint8_t reg = 0;
 };
 
+// Debug builds (zinc debug, ZN-371.01; never encoded): where a Line instruction's statement starts, and the register that holds a local's
+// current value (its home: written after each assignment; a reference there is retained until the next one or the return).
+struct LineInfo { std::uint32_t file = 0, offset = 0, line = 0, col = 0; };  // file: index in Module::files; offset: byte offset, line and column 1-based
+struct VarInfo { std::string name, type; VType vt; std::uint32_t reg = 0; };    // type: the source type's name (boolean, i32, number, string, a class...)
+
 struct Function {
   std::string name;
   std::vector<VType> params;     // classes of r0..r(n-1) on entry
@@ -72,6 +78,7 @@ struct Function {
   std::vector<std::uint32_t> code;
   std::vector<Const> consts;
   std::vector<Handler> handlers;
+  std::vector<VarInfo> vars;     // debug builds
 };
 
 struct Native { std::string module, name, sig; };  // an export of a native module: the loader finds it in the registry and compares the signature
@@ -85,6 +92,8 @@ struct Module {
   std::vector<Native> natives;      // the targets of CallNative
   std::string profile;              // the target profile the program was built for (esp32, ps1...; "" = the host's) and its heap budget in bytes (0 = none): enforced by the runtime, in an AOT program too
   std::uint32_t heapBytes = 0;
+  std::vector<std::string> files;   // debug builds: the source files, then the operands of Line
+  std::vector<LineInfo> lines;
 };
 
 // Emits ZBC. Constructs without bytecode yet (exceptions, fixed-point numbers) are
@@ -93,7 +102,7 @@ struct EmitResult {
   Module module;
   std::vector<std::string> errors;
 };
-EmitResult emit(const ir::Module& m);
+EmitResult emit(const ir::Module& m);   // m.debug: Line instructions, homes of locals, field names (ZN-371.01)
 
 // Empty when the module is well formed: operands in range, jumps land on instructions, every path ends in a
 // terminator, and every register read has the class the operation expects (typed abstract interpretation).

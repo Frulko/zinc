@@ -76,6 +76,31 @@ struct Lowering {
   const frontend::Ast& a;
   const frontend::Checked& c;
   Module m;
+  std::unordered_map<std::string, std::uint32_t> dbgIndex;   // debug builds: index of each local's name in m.dbgNames
+  std::vector<std::int8_t> libFile, ownFile;                 // per file: -1 not known yet, 1 the engine's own code / not the program's (for the debugger)
+  // The engine's own code (the same notion as the checker's builtinModuleNode): the <prelude>, zinc:* modules, web.ts and fetch.ts.
+  bool libraryFile(std::uint32_t file) {
+    if (file == kNil) return false;
+    if (file >= libFile.size()) libFile.resize(file + 1, -1);
+    if (libFile[file] >= 0) return libFile[file] != 0;
+    bool lib = true;   // no module: the <prelude>
+    if (a.modules.empty()) lib = file != 0;   // a program of one file: only the <prelude> is another file
+    else for (const frontend::ModuleInfo& mi : a.modules)
+      if (mi.file == file) { lib = mi.path.rfind("zinc:", 0) == 0 || mi.path.find("/lib/std/web.ts") != std::string::npos || mi.path.find("/lib/std/fetch.ts") != std::string::npos; break; }
+    libFile[file] = lib ? 1 : 0;
+    return lib;
+  }
+  // Not the program's code, for the debugger (ZN-371.01): the engine's, the standard library and the plugins, whatever the path that imports them.
+  bool notProgram(std::uint32_t file) {
+    if (file >= ownFile.size()) ownFile.resize(file + 1, -1);
+    if (ownFile[file] < 0) {
+      bool other = libraryFile(file);
+      for (const frontend::ModuleInfo& mi : a.modules)
+        if (mi.file == file) other = other || mi.path.find("/lib/std/") != std::string::npos || mi.path.find("/lib/compat/") != std::string::npos || mi.path.find("/plugins/") != std::string::npos;
+      ownFile[file] = other ? 1 : 0;
+    }
+    return ownFile[file] != 0;
+  }
   std::vector<frontend::Diag> diags;
 
   std::vector<std::uint32_t> classOfObj;                          // checker object -> IR class
@@ -773,6 +798,7 @@ struct Lowering::FnLower {
   std::unordered_map<BlockId, BlockId> handlerEntry;  // handler block -> the block that was current when its try began
   std::uint32_t thisVar, nextVar;
   const Lowering::LambdaInfo* lam = nullptr;  // set when this function is a lambda body
+  bool dbg = false;                           // a debug build of the program's own function: DbgLine and DbgVar
 
   FnLower(Lowering& l, Job j) : L(l), m(l.m), a(l.a), c(l.c), f(l.m.functions[j.fn]), job(j) {
     thisVar = static_cast<std::uint32_t>(c.syms.size());
@@ -862,7 +888,16 @@ struct Lowering::FnLower {
     incomplete[b].clear();
     for (auto& [var, p] : pend) fillParam(b, p, var);
   }
-  void writeVar(std::uint32_t var, ValueId v) { defs[cur][var] = v; varType[var] = tv(v); }
+  void writeVar(std::uint32_t var, ValueId v) {
+    defs[cur][var] = v; varType[var] = tv(v);
+    if (!dbg || v == kNoValue || var > thisVar || !open()) return;   // the lowering's own temporaries (loop indices) have no name
+    if (var < thisVar && c.syms[var].decl != kNil && L.notProgram(n(c.syms[var].decl).file)) return;   // a variable of the engine's code (its top level runs in main)
+    std::string_view name = var == thisVar ? std::string_view("this") : c.syms[var].name;
+    if (name.empty()) return;
+    auto [it, fresh] = L.dbgIndex.try_emplace(std::string(name), static_cast<std::uint32_t>(m.dbgNames.size()));
+    if (fresh) m.dbgNames.emplace_back(name);
+    emit(IrOp::DbgVar, m.voidT(), {v}, 0, 0, it->second);
+  }
   ValueId readVar(std::uint32_t var, BlockId b) {
     auto it = defs[b].find(var);
     if (it != defs[b].end()) return it->second;
@@ -1966,6 +2001,8 @@ struct Lowering::FnLower {
 
   void stmt(std::uint32_t s) {
     const Node& x = n(s);
+    if (dbg && open() && !L.notProgram(x.file) && x.kind != N::Block && x.kind != N::Empty && x.kind != N::Function && x.kind != N::Interface && x.kind != N::TypeAlias && x.kind != N::Enum && x.kind != N::Class)
+      emit(IrOp::DbgLine, m.voidT(), {}, static_cast<std::int64_t>(static_cast<std::uint64_t>(x.file) << 32 | x.start));
     switch (x.kind) {
       case N::Function:
         if (L.closureFns.count(s)) writeSym(c.nodeSym[s], expr(s));  // the closure of a nested function that uses variables around it
@@ -2297,16 +2334,10 @@ struct Lowering::FnLower {
 
 void Lowering::lowerAll() {
   m.fixedPoint = (frontend::numberAlias() == NumK::fx12 || frontend::numberAlias() == NumK::fx16) && std::getenv("ZINC_VERIFY_FIXED") != nullptr;   // opt-in audit (tests/t1/fixed_verify.sh): some programs legitimately count in f64 (Date, Number.isNaN, native doubles)
-  auto libraryNode = [&](std::uint32_t node) {   // the same notion as the checker's builtinModuleNode
-    if (node == kNil) return false;
-    std::uint32_t file = a.nodes[node].file;
-    if (a.modules.empty()) return file != 0;   // a program of one file: only the <prelude> is another file
-    for (const frontend::ModuleInfo& mi : a.modules)
-      if (mi.file == file) return mi.path.rfind("zinc:", 0) == 0 || mi.path.find("/lib/std/web.ts") != std::string::npos || mi.path.find("/lib/std/fetch.ts") != std::string::npos;
-    return true;   // no module: the <prelude>
-  };
+  auto libraryNode = [&](std::uint32_t node) { return libraryFile(node == kNil ? kNil : a.nodes[node].file); };
   for (const Job& j : jobs) {
     FnLower fl(*this, j);
+    fl.dbg = m.debug && (j.node == kNil || !notProgram(a.nodes[j.node].file)) && m.functions[j.fn].name.rfind("__", 0) != 0;   // the engine's own code runs without stops
     fl.run();
     m.functions[j.fn].library = libraryNode(j.node) || m.functions[j.fn].name.rfind("__", 0) == 0;   // the checker's generated helpers (__group, __jsonNum...) are named __*
   }
@@ -2314,8 +2345,9 @@ void Lowering::lowerAll() {
 
 }  // namespace
 
-LowerResult lower(const frontend::Ast& ast, const frontend::Checked& checked, std::string_view) {
+LowerResult lower(const frontend::Ast& ast, const frontend::Checked& checked, std::string_view, bool debug) {
   Lowering l(ast, checked);
+  l.m.debug = debug;
   for (const frontend::NativeDecl& n : ast.natives) l.m.natives.push_back({n.module, n.name, n.sig});
   l.run();
   return {std::move(l.m), std::move(l.diags)};

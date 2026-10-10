@@ -1,0 +1,7 @@
+paused at main.ts:24 in <top level>
+run();
+(zdb) n
+zinc 6 1
+paused at main.ts:25 in <top level>
+console.log('done');
+(zdb) q

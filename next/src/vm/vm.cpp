@@ -53,10 +53,11 @@ static void fuseAll(Machine& m) {
 // The interpreter: the engine that provides Machine::exec.
 bool Machine::exec(const Func* entry, Slot* base) {
   if (!fusedReady) fuseAll(*this);
-  return trackFn ? execT<true>(entry, base) : execT<false>(entry, base); }
+  return trackFn ? execT<true, false>(entry, base) : debugHook ? execT<false, true>(entry, base) : execT<false, false>(entry, base); }
 
-// kTrack: keep `curFn` up to date for the sampling profiler (zinc profile); a normal run does not pay for the stores.
-template <bool kTrack>
+// kTrack: keep `curFn` up to date for the sampling profiler (zinc profile); a normal run does not pay for the stores. kDebug: stop at the Line
+// instructions the debugger asks for (zinc debug).
+template <bool kTrack, bool kDebug>
 bool Machine::execT(const Func* entry, Slot* base) {
   static const void* const labels[] = {
 #define X(name, fmt, b, c, o) &&L_##name,
@@ -82,6 +83,8 @@ bool Machine::execT(const Func* entry, Slot* base) {
   NEXT();
 
 L_Nop: NEXT();
+// a statement of a debug build: only the debugger's copy of the loop looks at it (a call in the loop, even one never made, costs the others 6%, fib)
+L_Line: if constexpr (kDebug) { if (__builtin_expect(lineHot[axOf(w)] != 0, 0) && !debugHook(*this, fn, pc - 1, r, axOf(w))) TRAP("stopped by the debugger"); } NEXT();
 L_Trap: TRAP("trap: unreachable code executed");
 L_Move: r[A] = r[B]; NEXT();
 L_LoadI: r[A] = sx(sdOf(w)); NEXT();
@@ -216,8 +219,9 @@ L_LogEndErr: flushErrLine(); NEXT();
 #undef TRAP
 }
 
-template bool Machine::execT<true>(const Func*, Slot*);
-template bool Machine::execT<false>(const Func*, Slot*);
+template bool Machine::execT<true, false>(const Func*, Slot*);
+template bool Machine::execT<false, true>(const Func*, Slot*);
+template bool Machine::execT<false, false>(const Func*, Slot*);
 
 }  // namespace zn::rt
 

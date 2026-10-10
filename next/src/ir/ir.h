@@ -58,6 +58,8 @@ enum class IrOp : std::uint8_t {
   Retain, Release,                                          // one more / one less reference to a string, array, Map, Set or object (immortal and null values ignore them); inserted by insertRc
   CallNative,                                               // sym = index in Module::natives; the arguments are borrowed, the result (string or array) is a new reference
   Rt,                                                       // sym = zn::Rt (zn/runtime.h): string, array, Map and Set operations; args[0] is the receiver
+  DbgLine,                                                  // debug builds (Module::debug): a statement starts; imm = file index << 32 | byte offset
+  DbgVar,                                                   // debug builds: local sym (Module::dbgNames) now holds args[0]
   Br, CondBr, Ret, Throw, Unreachable,                      // terminators
 };
 const char* opName(IrOp o);
@@ -131,6 +133,8 @@ struct Module {
   std::vector<Native> natives;
   std::vector<Function> functions;  // functions[0] is @main, the top-level code
   bool fixedPoint = false;          // compiled for a fixed-point profile: verify() refuses f64 arithmetic and comparisons in the program's own functions (ZN-121)
+  bool debug = false;               // zinc debug (ZN-371.01): DbgLine and DbgVar in the functions, no inlining
+  std::vector<std::string> dbgNames;  // the names of the locals DbgVar writes
 
   TypeId intern(const Type& t);
   TypeId voidT() { return intern({Type::K::Void, frontend::Num::f64, 0}); }
@@ -168,6 +172,7 @@ struct LowerResult {
   Module module;
   std::vector<frontend::Diag> diags;
 };
-LowerResult lower(const frontend::Ast& ast, const frontend::Checked& checked, std::string_view src);
+// debug: the program's own functions get DbgLine at each statement and DbgVar after each write of a local (zinc debug, ZN-371.01).
+LowerResult lower(const frontend::Ast& ast, const frontend::Checked& checked, std::string_view src, bool debug = false);
 
 }  // namespace zn::ir

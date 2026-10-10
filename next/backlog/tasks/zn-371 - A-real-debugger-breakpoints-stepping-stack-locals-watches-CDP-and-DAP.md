@@ -4,6 +4,7 @@ title: 'A real debugger: breakpoints, stepping, stack, locals, watches (CDP and 
 status: Backlog
 assignee: []
 created_date: '2026-10-08 15:16'
+updated_date: '2026-10-10 22:32'
 labels:
   - devtools
   - debugger
@@ -25,3 +26,9 @@ Owner, 2026-10-08: a real debugger as a module. The interpreter gains line table
 - [ ] #2 Chrome DevTools' Sources panel does the same over CDP
 - [ ] #3 an attached-but-idle debugger keeps the interpreter within 5% of its speed (bench), none attached 0%
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Split on 2026-10-11 into ZN-371.01 (interpreter debug core and zinc debug on the command line, D84), .02 DAP for VS Code, .03 .tsx positions, .04 CDP Debugger domain, .05 conditions, logpoints, watches, exceptions, closures and globals, .06 AOT in lldb. The subtasks take the parent's place in the order (ordinals 25001-25006).
+<!-- SECTION:NOTES:END -->
