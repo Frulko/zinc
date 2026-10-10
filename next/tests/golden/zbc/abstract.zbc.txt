@@ -7,42 +7,42 @@ class A : Base {}
 class B : Base { i }
   vtable .area -> @B.area
   vtable .double -> @Base.double
-func @main() -> void nregs=3
+func @main() -> void nregs=4
    0  New      r0, A
    1  Move     r1, r0
    2  Retain   r1
    3  Release  r0
-   4  Move     r0, r1
-   5  CallVirt r0, .area
-   6  LoadI    r1, 2
-   7  MulI32   r0, r0, r1
-   8  New      r1, B
-   9  LoadI    r2, 3
-  10  SetField r1, r2, .0
-  11  Move     r2, r1
-  12  Retain   r2
-  13  Release  r1
-  14  Move     r1, r2
-  15  CallVirt r1, .area
-  16  LoadI    r2, 2
-  17  MulI32   r1, r1, r2
-  18  LogI     r0
-  19  LogSep   
-  20  LogI     r1
-  21  LogEnd   
-  22  RetV     
+   4  Move     r2, r1
+   5  CallVirt r2, .area
+   6  Release  r1
+   7  LoadI    r0, 2
+   8  MulI32   r0, r2, r0
+   9  New      r1, B
+  10  LoadI    r2, 3
+  11  SetField r1, r2, .0
+  12  Move     r2, r1
+  13  Retain   r2
+  14  Release  r1
+  15  Move     r3, r2
+  16  CallVirt r3, .area
+  17  Release  r2
+  18  LoadI    r1, 2
+  19  MulI32   r1, r3, r1
+  20  LogI     r0
+  21  LogSep   
+  22  LogI     r1
+  23  LogEnd   
+  24  RetV     
 func @Base.double(ref Base) -> i nregs=2
    0  CallVirt r0, .area
    1  LoadI    r1, 2
    2  MulI32   r0, r0, r1
    3  Ret      r0
 func @A.area(ref A) -> i nregs=1
-   0  Release  r0
-   1  LoadI    r0, 5
-   2  Ret      r0
+   0  LoadI    r0, 5
+   1  Ret      r0
 func @B.area(ref B) -> i nregs=2
-   0  GetField r1, r0, .0
-   1  Release  r0
-   2  LoadI    r0, 4
-   3  MulI32   r0, r1, r0
-   4  Ret      r0
+   0  GetField r0, r0, .0
+   1  LoadI    r1, 4
+   2  MulI32   r0, r0, r1
+   3  Ret      r0

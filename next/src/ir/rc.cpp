@@ -4,6 +4,9 @@
 //     Loads (GetField, GetGlobal, ArrGet, Map.get) and RefCast lend a reference: the pass retains it into an owned one.
 //   - Storing a value (SetField, SetGlobal, ArrSet, ArrPush, Map.set, Set.add), passing it to a call, returning it and
 //     passing it along an edge consume the reference. Everything else borrows.
+//   - Except a borrowed parameter (ZN-417): one that its function, and every other method of its vtable slot, never consumes. The caller
+//     keeps the reference across the call and the callee neither retains nor releases it. What the runtime calls (closures' `call`,
+//     `__errorString`) keeps owned parameters: the runtime hands over a reference the callee releases.
 //   - A value that is used again after a consuming use is retained first; a value is released after its last use (or
 //     at the edge where it stops being live) unless that use consumed it. String constants and null are immortal: never
 //     retained or released.
@@ -34,10 +37,35 @@ bool consumes(const Inst& i, std::size_t k) {
   }
 }
 
+// Which parameters each function and each vtable slot borrow (ZN-417), and so which call arguments a call does not consume.
+struct Convention {
+  std::vector<std::vector<char>> fn;    // per function, per parameter
+  std::vector<std::vector<char>> sel;   // per selector, per parameter (the receiver first)
+  bool borrowedArg(const Inst& i, std::size_t k) const {
+    const std::vector<std::vector<char>>& t = i.op == IrOp::Call ? fn : sel;
+    return (i.op == IrOp::Call || i.op == IrOp::CallVirt) && i.sym < t.size() && k < t[i.sym].size() && t[i.sym][k];
+  }
+  bool consumesArg(const Inst& i, std::size_t k) const { return consumes(i, k) && !borrowedArg(i, k); }
+};
+
 bool resultBorrowed(const Inst& i) {
   switch (i.op) {
     case IrOp::GetField: case IrOp::GetGlobal: case IrOp::ArrGet: case IrOp::RefCast: return true;
     case IrOp::Rt: return rtResultBorrowed(static_cast<zn::Rt>(i.sym));
+    default: return false;
+  }
+}
+
+// An instruction that may drop a reference other than the function's own: the stores of references, the runtime rows that release or call
+// back, console output (an object's toString), native calls and throws. Calls are the caller's business (Rc::mayRelease).
+bool storesRef(const Module& m, const Function& f, const Inst& i) {
+  switch (i.op) {
+    case IrOp::CallNative: case IrOp::SetGlobal: case IrOp::Throw: case IrOp::ArrPop: return true;
+    case IrOp::Builtin: return i.sym == static_cast<std::uint32_t>(Builtin::ConsoleLog) || i.sym == static_cast<std::uint32_t>(Builtin::ConsoleError);
+    case IrOp::Rt: return rtMayRelease(static_cast<zn::Rt>(i.sym));
+    case IrOp::ToStr: return !i.args.empty() && refLike(m, f.valueTypes[i.args[0]]);
+    case IrOp::SetField: return refLike(m, f.valueTypes[i.args[1]]);
+    case IrOp::ArrSet: case IrOp::ArrPush: return refLike(m, f.valueTypes[i.args[i.op == IrOp::ArrSet ? 2 : 1]]);
     default: return false;
   }
 }
@@ -47,6 +75,10 @@ struct Rc {
   Function& f;
   const std::vector<char>& mayThrow;     // per function
   const std::vector<char>& slotThrows;   // per vtable slot: some class's method there may throw
+  const Convention& conv;
+  const std::vector<char>& borrowedParams;   // this function's
+  const std::vector<char>& fnWrites;    // per function: may store a reference, or run code that may (ZN-417)
+  const std::vector<char>& slotWrites;  // per vtable slot: one of its methods may
   std::size_t nb, nv;
   std::vector<char> tracked;
   std::vector<ValueId> anchor;   // per lent value: the tracked value it was read from (or the root of that chain), kept alive to its last use
@@ -60,8 +92,9 @@ struct Rc {
   std::size_t words = 0;
   std::vector<std::uint64_t> liveIn, liveOut;   // nb * words
 
-  Rc(Module& mod, Function& fn, const std::vector<char>& thr, const std::vector<char>& slots)
-      : m(mod), f(fn), mayThrow(thr), slotThrows(slots), nb(fn.blocks.size()), nv(fn.valueTypes.size()) {
+  Rc(Module& mod, Function& fn, const std::vector<char>& thr, const std::vector<char>& slots, const Convention& c, const std::vector<char>& borrowed,
+     const std::vector<char>& writes, const std::vector<char>& swrites)
+      : m(mod), f(fn), mayThrow(thr), slotThrows(slots), conv(c), borrowedParams(borrowed), fnWrites(writes), slotWrites(swrites), nb(fn.blocks.size()), nv(fn.valueTypes.size()) {
     succ.resize(nb);
     for (BlockId b = 0; b < nb; ++b) for (const Inst& i : f.blocks[b].insts) for (const Edge& e : i.edges) succ[b].push_back(e.to);
   }
@@ -88,18 +121,13 @@ struct Rc {
     return i;
   }
 
-  // Whether an instruction may drop a reference the function was lent, or run code that could: calls, stores of references, the runtime
-  // rows that release or call back (rtMayRelease), console output (an object's toString).
+  // Whether an instruction may drop a reference the function was lent, or run code that could: stores of references, the runtime rows that
+  // release or call back (rtMayRelease), console output (an object's toString), and the calls of functions that may (ZN-417: a lent value's
+  // owners are the fields and slots of its chain of loads, which only a store changes; a callee releasing its own references cannot reach them).
   bool mayRelease(const Inst& i) const {
-    switch (i.op) {
-      case IrOp::Call: case IrOp::CallVirt: case IrOp::CallNative: case IrOp::SetGlobal: case IrOp::Throw: case IrOp::ArrPop: return true;
-      case IrOp::Builtin: return i.sym == static_cast<std::uint32_t>(Builtin::ConsoleLog) || i.sym == static_cast<std::uint32_t>(Builtin::ConsoleError);
-      case IrOp::Rt: return rtMayRelease(static_cast<zn::Rt>(i.sym));
-      case IrOp::ToStr: return !i.args.empty() && refLike(m, f.valueTypes[i.args[0]]);
-      case IrOp::SetField: return refLike(m, f.valueTypes[i.args[1]]);
-      case IrOp::ArrSet: case IrOp::ArrPush: return refLike(m, f.valueTypes[i.args[i.op == IrOp::ArrSet ? 2 : 1]]);
-      default: return false;
-    }
+    if (i.op == IrOp::Call) return i.sym >= fnWrites.size() || fnWrites[i.sym];
+    if (i.op == IrOp::CallVirt) return i.sym >= slotWrites.size() || slotWrites[i.sym];
+    return storesRef(m, f, i);
   }
 
   // A load lends its value: no retain and no release when no use consumes it (a call argument, a store, a return, an edge) and nothing in
@@ -112,7 +140,10 @@ struct Rc {
     std::vector<BlockId> defBlock(nv, 0);
     std::vector<std::size_t> defIdx(nv, 0);
     for (BlockId b = 0; b < nb; ++b) {
-      for (ValueId p : f.blocks[b].params) tracked[p] = refLike(m, f.valueTypes[p]);
+      for (std::size_t k = 0; k < f.blocks[b].params.size(); ++k) {
+        ValueId p = f.blocks[b].params[k];
+        tracked[p] = refLike(m, f.valueTypes[p]) && !(b == 0 && k < borrowedParams.size() && borrowedParams[k]);   // a borrowed parameter is the caller's reference
+      }
       for (std::size_t k = 0; k < f.blocks[b].insts.size(); ++k) {
         const Inst& i = f.blocks[b].insts[k];
         if (i.res == kNoValue || i.op == IrOp::Const) continue;
@@ -124,7 +155,7 @@ struct Rc {
     std::vector<char> lent(nv, 0), consumed(nv, 0);
     for (BlockId b = 0; b < nb; ++b)
       for (const Inst& i : f.blocks[b].insts) {
-        for (std::size_t k = 0; k < i.args.size(); ++k) if (i.args[k] < nv && consumes(i, k)) consumed[i.args[k]] = 1;
+        for (std::size_t k = 0; k < i.args.size(); ++k) if (i.args[k] < nv && conv.consumesArg(i, k)) consumed[i.args[k]] = 1;
         for (const Edge& e : i.edges) for (ValueId a : e.args) if (a < nv) consumed[a] = 1;
       }
     static const bool off = std::getenv("ZN_NO_LEND") != nullptr;   // every load retained, to measure what lending saves
@@ -224,7 +255,7 @@ struct Rc {
       Inst inst = src[p];
       std::map<ValueId, std::pair<int, int>> counts;  // consuming, borrowing occurrences in this instruction
       for (std::size_t k = 0; k < inst.args.size(); ++k) {
-        if (isTracked(inst.args[k])) (consumes(inst, k) ? counts[inst.args[k]].first : counts[inst.args[k]].second)++;
+        if (isTracked(inst.args[k])) (conv.consumesArg(inst, k) ? counts[inst.args[k]].first : counts[inst.args[k]].second)++;
         else if (anchorOf(inst.args[k]) != kNoValue) counts[anchorOf(inst.args[k])].second++;   // a lent value's use keeps its anchor
       }
       std::vector<ValueId> releaseAfter;
@@ -349,11 +380,89 @@ std::vector<char> throwingFunctions(const Module& m) {
 }
 }  // namespace
 
+// The greatest fixed point of "no use consumes it": every reference parameter starts borrowed; one that a use consumes (a store, a return, an
+// edge, a call argument the callee owns) is owned, and so is every parameter of a vtable slot one of whose methods owns it. Calls among
+// borrowed parameters stay borrowed (a recursion passes the caller's reference down).
+static Convention borrowedParams(const Module& m) {
+  const std::size_t nf = m.functions.size();
+  Convention c;
+  c.fn.resize(nf);
+  static const bool off = std::getenv("ZN_NO_BORROW") != nullptr;   // every parameter owned, every call a possible release: the convention before ZN-417, to measure it
+  for (std::size_t f = 0; f < nf; ++f) {
+    const Function& fn = m.functions[f];
+    for (ValueId p : fn.params) c.fn[f].push_back(!off && refLike(m, fn.valueTypes[p]) ? 1 : 0);
+  }
+  std::vector<std::vector<std::uint32_t>> impls(m.selectors.size());   // selector -> the functions in its slot
+  for (const Class& cl : m.classes) {
+    if (cl.isInterface || cl.isAbstract) continue;
+    for (std::size_t s = 0; s < cl.vtable.size() && s < impls.size(); ++s)
+      if (cl.vtable[s] < nf && std::find(impls[s].begin(), impls[s].end(), cl.vtable[s]) == impls[s].end()) impls[s].push_back(cl.vtable[s]);
+  }
+  c.sel.resize(m.selectors.size());
+  for (std::size_t s = 0; s < m.selectors.size(); ++s) {
+    const bool runtimeCalls = m.selectors[s].name == "call" || m.selectors[s].name == "__errorString";   // Machine::callComparator, runClosure, exceptionText
+    c.sel[s].assign(m.selectors[s].params.size() + 1, runtimeCalls || off ? 0 : 1);
+  }
+  for (bool changed = true; changed;) {
+    changed = false;
+    for (std::size_t s = 0; s < impls.size(); ++s)   // a slot borrows what all its methods borrow, and its methods follow the slot
+      for (std::size_t k = 0; k < c.sel[s].size(); ++k) {
+        bool all = c.sel[s][k];
+        for (std::uint32_t f : impls[s]) all = all && k < c.fn[f].size() && c.fn[f][k];
+        if (!all && c.sel[s][k]) { c.sel[s][k] = 0; changed = true; }
+        if (!all) for (std::uint32_t f : impls[s]) if (k < c.fn[f].size() && c.fn[f][k]) { c.fn[f][k] = 0; changed = true; }
+      }
+    for (std::size_t f = 0; f < nf; ++f) {
+      const Function& fn = m.functions[f];
+      for (std::size_t k = 0; k < fn.params.size(); ++k) {
+        if (!c.fn[f][k]) continue;
+        const ValueId p = fn.params[k];
+        bool consumed = false;
+        for (const Block& b : fn.blocks) {
+          for (const Inst& i : b.insts) {
+            for (std::size_t a = 0; a < i.args.size() && !consumed; ++a) consumed = i.args[a] == p && c.consumesArg(i, a);
+            for (const Edge& e : i.edges) for (ValueId x : e.args) consumed = consumed || x == p;
+            if (consumed) break;
+          }
+          if (consumed) break;
+        }
+        if (consumed) { c.fn[f][k] = 0; changed = true; }
+      }
+    }
+  }
+  return c;
+}
+
 void insertRc(Module& m) {
   std::vector<char> thr = throwingFunctions(m);
   std::vector<char> slots = throwingSlots(m, thr);
-  for (Function& f : m.functions) {
-    Rc rc(m, f, thr, slots);
+  const Convention conv = borrowedParams(m);
+  // per function and per slot: may store a reference (directly, or through a call): a call of one that may not keeps lent loads lent
+  std::vector<char> writes(m.functions.size(), std::getenv("ZN_NO_BORROW") ? 1 : 0), swrites;
+  auto slotsOf = [&] {
+    std::vector<char> sw;
+    for (const Class& cl : m.classes) {
+      if (cl.isInterface || cl.isAbstract) continue;
+      if (sw.size() < cl.vtable.size()) sw.resize(cl.vtable.size(), 0);
+      for (std::size_t k = 0; k < cl.vtable.size(); ++k) if (cl.vtable[k] < writes.size() && writes[cl.vtable[k]]) sw[k] = 1;
+    }
+    return sw;
+  };
+  for (bool changed = true; changed;) {
+    changed = false;
+    swrites = slotsOf();
+    for (std::size_t fi = 0; fi < m.functions.size(); ++fi) {
+      if (writes[fi]) continue;
+      for (const Block& b : m.functions[fi].blocks) {
+        for (const Inst& i : b.insts)
+          if ((i.op == IrOp::Call && (i.sym >= writes.size() || writes[i.sym])) || (i.op == IrOp::CallVirt && (i.sym >= swrites.size() || swrites[i.sym])) || storesRef(m, m.functions[fi], i)) { writes[fi] = 1; break; }
+        if (writes[fi]) { changed = true; break; }
+      }
+    }
+  }
+  swrites = slotsOf();
+  for (std::size_t fi = 0; fi < m.functions.size(); ++fi) {
+    Rc rc(m, m.functions[fi], thr, slots, conv, conv.fn[fi], writes, swrites);
     rc.run();
   }
 }

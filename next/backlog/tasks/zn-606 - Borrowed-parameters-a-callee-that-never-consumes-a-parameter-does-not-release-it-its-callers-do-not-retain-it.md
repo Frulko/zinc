@@ -3,9 +3,10 @@ id: ZN-606
 title: >-
   Borrowed parameters: a callee that never consumes a parameter does not release
   it, its callers do not retain it
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-09 14:49'
+updated_date: '2026-10-10 08:38'
 labels:
   - perf
 milestone: m-21
@@ -22,7 +23,13 @@ Follow-up of ZN-413 (D50). A load lent to a call still costs a retain in the cal
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 a non-inlined method called on a loop element (an array of objects) costs no retain or release in the loop (IR test)
-- [ ] #2 run goldens, destruction order and the ASan corpus unchanged
-- [ ] #3 navigation AOT CPU per frame measured before and after
+- [x] #1 a non-inlined method called on a loop element (an array of objects) costs no retain or release in the loop (IR test)
+- [x] #2 run goldens, destruction order and the ASan corpus unchanged
+- [x] #3 navigation AOT CPU per frame measured before and after
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Done together with ZN-417 (D51): the convention per function and per vtable slot, owned for what the runtime calls, and a call of a function that cannot store a reference keeps a loop element lent (tests/t0/rc_borrow.sh: Shelf.total has no retain or release of the element around it.weight()). Run goldens, destruction order (rc) and the ASan corpus (132 programs, 0 reports) unchanged. maps/navigation AOT paint p50 7.18 -> 7.05 ms per frame (ZN_NO_BORROW=1 against the default, 300 frames, 3 alternations). Usage: n/a.
+<!-- SECTION:NOTES:END -->

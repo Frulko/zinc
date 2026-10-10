@@ -11,7 +11,6 @@ func @main() -> void nregs=2
    5  LogI     r1
    6  LogEnd   
    7  RetV     
-func @Base.get(ref Base) -> i nregs=2
-   0  GetField r1, r0, .0
-   1  Release  r0
-   2  Ret      r1
+func @Base.get(ref Base) -> i nregs=1
+   0  GetField r0, r0, .0
+   1  Ret      r0

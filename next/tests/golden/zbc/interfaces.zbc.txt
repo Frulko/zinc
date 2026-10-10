@@ -22,60 +22,60 @@ func @main() -> void nregs=7
   11  Release  r0
   12  Move     r3, r1
   13  CallVirt r3, .area
-  14  LoadK    r5, f64 2
-  15  Move     r4, r2
-  16  CallVirt r4, .scale
-  17  AddF64   r0, r3, r4
-  18  New      r1, Circ
-  19  LoadK    r2, f64 2
-  20  SetField r1, r2, .0
-  21  Move     r2, r1
-  22  Retain   r2
-  23  Release  r1
-  24  New      r1, Sq
-  25  LoadK    r3, f64 3
-  26  SetField r1, r3, .0
-  27  Move     r3, r1
-  28  Retain   r3
-  29  Release  r1
-  30  Move     r4, r2
-  31  CallVirt r4, .area
-  32  LoadK    r6, f64 2
-  33  Move     r5, r3
-  34  CallVirt r5, .scale
-  35  AddF64   r1, r4, r5
-  36  LogF64   r0
-  37  LogSep   
-  38  LogF64   r1
-  39  LogEnd   
-  40  RetV     
-func @Sq.area(ref Sq) -> f64 nregs=3
+  14  Release  r1
+  15  LoadK    r5, f64 2
+  16  Move     r4, r2
+  17  CallVirt r4, .scale
+  18  Release  r2
+  19  AddF64   r0, r3, r4
+  20  New      r1, Circ
+  21  LoadK    r2, f64 2
+  22  SetField r1, r2, .0
+  23  Move     r2, r1
+  24  Retain   r2
+  25  Release  r1
+  26  New      r1, Sq
+  27  LoadK    r3, f64 3
+  28  SetField r1, r3, .0
+  29  Move     r3, r1
+  30  Retain   r3
+  31  Release  r1
+  32  Move     r4, r2
+  33  CallVirt r4, .area
+  34  Release  r2
+  35  LoadK    r6, f64 2
+  36  Move     r5, r3
+  37  CallVirt r5, .scale
+  38  Release  r3
+  39  AddF64   r1, r4, r5
+  40  LogF64   r0
+  41  LogSep   
+  42  LogF64   r1
+  43  LogEnd   
+  44  RetV     
+func @Sq.area(ref Sq) -> f64 nregs=2
    0  GetField r1, r0, .0
-   1  GetField r2, r0, .0
-   2  Release  r0
-   3  MulF64   r0, r1, r2
-   4  Ret      r0
-func @Sq.scale(ref Sq, f64) -> f64 nregs=4
+   1  GetField r0, r0, .0
+   2  MulF64   r0, r1, r0
+   3  Ret      r0
+func @Sq.scale(ref Sq, f64) -> f64 nregs=3
    0  GetField r2, r0, .0
-   1  GetField r3, r0, .0
-   2  Release  r0
-   3  MulF64   r0, r2, r3
-   4  MulF64   r0, r0, r1
-   5  Ret      r0
+   1  GetField r0, r0, .0
+   2  MulF64   r0, r2, r0
+   3  MulF64   r0, r0, r1
+   4  Ret      r0
 func @Circ.area(ref Circ) -> f64 nregs=3
    0  LoadK    r1, f64 3
    1  GetField r2, r0, .0
    2  MulF64   r1, r1, r2
-   3  GetField r2, r0, .0
-   4  Release  r0
-   5  MulF64   r0, r1, r2
-   6  Ret      r0
+   3  GetField r0, r0, .0
+   4  MulF64   r0, r1, r0
+   5  Ret      r0
 func @Circ.scale(ref Circ, f64) -> f64 nregs=4
    0  LoadK    r2, f64 3
    1  GetField r3, r0, .0
    2  MulF64   r2, r2, r3
-   3  GetField r3, r0, .0
-   4  Release  r0
-   5  MulF64   r0, r2, r3
-   6  AddF64   r0, r0, r1
-   7  Ret      r0
+   3  GetField r0, r0, .0
+   4  MulF64   r0, r2, r0
+   5  AddF64   r0, r0, r1
+   6  Ret      r0

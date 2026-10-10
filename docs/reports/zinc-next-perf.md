@@ -41,7 +41,7 @@ Ranked by gain / effort (S = 1, M = 2, L = 3; gain 1 to 5, see section 2). Statu
 | 15 | PERF-15 | Per-target CPU flags and number profiles | open | every armhf build is `-mcpu=arm1176jzf_s` (ARMv6, no NEON) also for Pi 2/3 32-bit; no PSP profile (`number` would be soft double) | armv7+NEON variant measured under QEMU and on the Pi rig; `psp` profile with `number` = f32 | 3 | M | Pi 2/3 32-bit, CHIP, PSP |
 | 16 | PERF-16 | `zinc run` / `zinc dev` startup: faster passes and a ZBC cache | done (ZN-415, ZN-614; lazy plugin load ZN-615) | hero: 1.7 s before the first instruction (lower 436, RC 353, emit 269, check 227, parse 85 ms) | <= 100 ms with a warm cache, <= 0.8 s cold | 3 | M | dev loop; Pi when run from source |
 | 17 | PERF-17 | Pipeline: script of frame N+1 runs while bands rasterize frame N | open | main thread waits on bands 63% of the frame (window, 200k) | frame time = max(script + diff, raster) | 3 | M | multi core only |
-| 18 | PERF-18 | Borrowed (+0) parameters, `this` included | open | parameters are owned: a call retains, the callee releases; a comparison does 3 retains + 3 releases | -10% or better on method-heavy code (zinc:ui) | 3 | L | all |
+| 18 | PERF-18 | Borrowed (+0) parameters, `this` included | done (ZN-417, D51; sentinels ZN-616) | parameters are owned: a call retains, the callee releases; a comparison does 3 retains + 3 releases | -10% or better on method-heavy code (zinc:ui) | 3 | L | all |
 | 19 | PERF-19 | Packed numeric arrays and narrow fields | open (with ZN-145, ZN-158) | every array element and field is an 8-byte Slot (u8[] uses 8x its size) | element size = type size | 3 | L | memory-poor: PSP, 3DS, ESP32 |
 | 20 | PERF-20 | Native RGB565 raster for 16-bit panels | open (ZN-194, ZN-195) | 32-bit raster plus a 32 -> 16 conversion pass (fbdev) | no conversion pass, half the frame bandwidth | 3 | L | Pi 1/Zero panels, CHIP, PSP, 3DS |
 | 21 | PERF-21 | Sort with a comparator: direct native call, no retains, key comparators specialised | open | navigation AOT: `mergeSort` + `callComparator` + `exec` ~12% of samples | <= 4% | 2 | M | all |
@@ -245,6 +245,8 @@ Gain: 5 = removes a multiple of the frame or a 2x+ on a whole class of programs;
 - **Cost now**: every call that passes an object it keeps (a method's `this`, a node handle) retains it and the callee releases it; `callComparator` does 3 retains and 3 releases per comparison; `zinc mem` on hero's start: 153k retains for 2.4k allocations.
 - **Fix**: parameters are borrowed by default; the callee retains only what it stores or returns; the RC pass and the native ABI change together.
 - **Gain**: estimated 10-30% on method-heavy code (zinc:ui, kit). **Effort** L. **Risk** high (a convention used by every back end and native module). **Hardware**: all.
+
+- **Result (ZN-417 with ZN-606, 2026-10-10, D51)**: parameters inferred borrowed when no use consumes them (per function and per vtable slot; closures' `call` and `__errorString` stay owned), and calls of functions that cannot store a reference keep loads lent. hero start 70,130 -> 56,398 retains (-20%), 60 frames -26%; maps/navigation AOT paint 7.18 -> 7.05 ms (-2%); no ABI change. The rest is stores of shared sentinels into each UiNode's fields (ZN-616).
 
 ### PERF-19: packed numeric arrays and narrow fields
 

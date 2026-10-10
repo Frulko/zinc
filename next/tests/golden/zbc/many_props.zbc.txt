@@ -170,10 +170,9 @@ func @Many.sum(ref Many) -> i nregs=3
   18  AddI32   r1, r1, r2
   19  GetField r2, r0, .10
   20  AddI32   r1, r1, r2
-  21  GetField r2, r0, .11
-  22  Release  r0
-  23  AddI32   r0, r1, r2
-  24  Ret      r0
+  21  GetField r0, r0, .11
+  22  AddI32   r0, r1, r0
+  23  Ret      r0
 func @Sub.twice(ref Sub) -> i nregs=4
    0  Move     r1, r0
    1  Retain   r1
@@ -203,7 +202,6 @@ func @Sub.twice(ref Sub) -> i nregs=4
   25  AddI32   r1, r2, r3
   26  LoadI    r2, 2
   27  MulI32   r1, r1, r2
-  28  GetField r2, r0, .9
-  29  Release  r0
-  30  AddI32   r0, r1, r2
-  31  Ret      r0
+  28  GetField r0, r0, .9
+  29  AddI32   r0, r1, r0
+  30  Ret      r0

@@ -91,43 +91,35 @@ func @main() -> void nregs=7
   73  LogEnd   
   74  RetV     
 func @IntBox.twice(ref IntBox) -> i nregs=2
-   0  Move     r1, r0
-   1  Retain   r1
+   0  Retain   r0
+   1  GetField r1, r0, .0
    2  Release  r0
-   3  GetField r0, r1, .0
-   4  Release  r1
-   5  LoadI    r1, 2
-   6  MulI32   r0, r0, r1
-   7  Ret      r0
-func @Box<i32>.get(ref Box<i32>) -> i nregs=2
-   0  GetField r1, r0, .0
-   1  Release  r0
-   2  Ret      r1
+   3  LoadI    r0, 2
+   4  MulI32   r0, r1, r0
+   5  Ret      r0
+func @Box<i32>.get(ref Box<i32>) -> i nregs=1
+   0  GetField r0, r0, .0
+   1  Ret      r0
 func @Box<i32>.set(ref Box<i32>, i) -> void nregs=2
    0  SetField r0, r1, .0
-   1  Release  r0
-   2  RetV     
-func @Pair<f64, i32>.swap(ref Pair<f64, i32>) -> ref Pair<i32, f64> nregs=4
+   1  RetV     
+func @Pair<f64, i32>.swap(ref Pair<f64, i32>) -> ref Pair<i32, f64> nregs=3
    0  New      r1, Pair<i32, f64>
    1  GetField r2, r0, .1
-   2  GetField r3, r0, .0
-   3  Release  r0
-   4  SetField r1, r2, .0
-   5  SetField r1, r3, .1
-   6  Ret      r1
-func @Pair<i32, f64>.swap(ref Pair<i32, f64>) -> ref Pair<f64, i32> nregs=4
+   2  GetField r0, r0, .0
+   3  SetField r1, r2, .0
+   4  SetField r1, r0, .1
+   5  Ret      r1
+func @Pair<i32, f64>.swap(ref Pair<i32, f64>) -> ref Pair<f64, i32> nregs=3
    0  New      r1, Pair<f64, i32>
    1  GetField r2, r0, .1
-   2  GetField r3, r0, .0
-   3  Release  r0
-   4  SetField r1, r2, .0
-   5  SetField r1, r3, .1
-   6  Ret      r1
-func @Box<f64>.get(ref Box<f64>) -> f64 nregs=2
-   0  GetField r1, r0, .0
-   1  Release  r0
-   2  Ret      r1
+   2  GetField r0, r0, .0
+   3  SetField r1, r2, .0
+   4  SetField r1, r0, .1
+   5  Ret      r1
+func @Box<f64>.get(ref Box<f64>) -> f64 nregs=1
+   0  GetField r0, r0, .0
+   1  Ret      r0
 func @Box<f64>.set(ref Box<f64>, f64) -> void nregs=2
    0  SetField r0, r1, .0
-   1  Release  r0
-   2  RetV     
+   1  RetV     
