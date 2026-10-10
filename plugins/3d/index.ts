@@ -222,6 +222,8 @@ export function rgb(r: number, g: number, b: number): u32 {
 // ---------------------------------------------------------------- materials, lights, nodes
 export const enum Shading { Smooth = 0, Flat = 1, Unlit = 2 }
 export const enum Filter { Default = 0, Nearest = 1, Linear = 2, Mipmap = 3 }
+/** How a material meets what is behind it (ZN-696): opaque, over it with its `opacity`, or added to it (glows, light pools, sparks). */
+export const enum Blend { Opaque = 0, Alpha = 1, Add = 2 }
 
 export class Material {
   /** Base colour; multiplies the texture and the vertex colours' lighting. */
@@ -237,11 +239,19 @@ export class Material {
   /** Colour of the highlights (Blinn-Phong), 0 = none; `shininess` is the exponent (higher: smaller, sharper highlights). */
   specular: u32 = 0;
   shininess = 30;
+  /** Light the material gives by itself, 0xRRGGBB (0 = none): added to the light it receives, before its texture (ZN-696). */
+  emissive: u32 = 0;
+  /** Blend.Alpha or Blend.Add draw it after the opaque nodes, over or onto what is behind it, scaled by `opacity` (0..1); it does not hide
+   *  what comes after it. */
+  blend: Blend = Blend.Opaque;
+  opacity = 1;
   constructor(color: u32) { this.color = color; }
 }
 
-// The specular state last sent to the renderer: begin() resets it to none, so it is sent only when it changes.
-let specColor: u32 = 0, specShin = 30;
+// The specular and emissive state last sent to the renderer: begin() resets them to none, so they are sent only when they change.
+let specColor: u32 = 0, specShin = 30, emitColor: u32 = 0;
+// The blended nodes of the frame being drawn (ZN-696): drawn after the opaque ones, in scene order.
+const blended: Node[] = [];
 
 /** Directional light: the direction light travels, in world space. */
 export class Light {
@@ -275,16 +285,22 @@ export class Node {
     if (!this.visible) return;
     mat4Compose(this.local, this.position, this.rotation, this.scale);
     mat4Multiply(this.world, parent, this.local);
-    const m = this.mesh, mat = this.material;
-    if (m !== null && mat !== null) {
-      const flags: i32 = (mat.vertexColors ? 1 : 0) | (mat.shading === Shading.Flat ? 2 : 0) | (mat.shading === Shading.Unlit ? 4 : 0) | (mat.doubleSided ? 8 : 0) | ((mat.filter as i32) << 4);
-      if (mat.specular !== specColor || (specColor !== 0 && mat.shininess !== specShin)) {
-        specColor = mat.specular; specShin = mat.shininess;
-        R.specular(specColor, specShin);
-      }
-      R.draw(m.handle, this.world, mat.color, mat.texture, flags);
-    }
+    const mat = this.material;
+    if (this.mesh !== null && mat !== null) { if (mat.blend === Blend.Opaque) this.drawMesh(); else blended.push(this); }
     for (const c of this.children) c.draw(this.world);
+  }
+  /** Draws this node's mesh at its world matrix (draw() computed it). */
+  drawMesh(): void {
+    const m = this.mesh, mat = this.material;
+    if (m === null || mat === null) return;
+    let flags: i32 = (mat.vertexColors ? 1 : 0) | (mat.shading === Shading.Flat ? 2 : 0) | (mat.shading === Shading.Unlit ? 4 : 0) | (mat.doubleSided ? 8 : 0) | ((mat.filter as i32) << 4);
+    if (mat.blend !== Blend.Opaque) flags |= ((mat.blend as i32) << 6) | (Math.round(Math.min(1, Math.max(0, mat.opacity)) * 255) << 8);
+    if (mat.specular !== specColor || (specColor !== 0 && mat.shininess !== specShin)) {
+      specColor = mat.specular; specShin = mat.shininess;
+      R.specular(specColor, specShin);
+    }
+    if (mat.emissive !== emitColor) { emitColor = mat.emissive; R.emissive(emitColor); }
+    R.draw(m.handle, this.world, mat.color, mat.texture, flags);
   }
 }
 
@@ -325,9 +341,12 @@ export class Camera {
     mat4LookAt(this.view, this.position, this.target, this.up);
     R.begin(this.rt, scene.background, this.view, this.ortho ? this.height : this.fov * Math.PI / 180, this.near, this.far, this.ortho);
     R.ambient(scene.ambient);
-    specColor = 0;
+    specColor = 0; emitColor = 0;
     for (const l of scene.lights) R.light(l.direction[0], l.direction[1], l.direction[2], l.color);
+    blended.length = 0;
     scene.draw(IDENTITY);
+    for (const n of blended) n.drawMesh();   // after the opaque nodes, in scene order
+    blended.length = 0;
     const tris = R.end();
     R.present(this.rt, x, y, w, h);
     return tris;

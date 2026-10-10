@@ -438,6 +438,15 @@ The CPU time ZINC_GL_STATS calls "to submit" includes waits for the GPU (5.6 to 
 measured at load 6 from other builds, before ZN-432 changed the image path of the replay. GL replay against the software frame for convex
 and concave polygons: 0.06% of the pixels more than 24 apart, mean error 0.07 (tests/t1/gl_convex.sh).
 
+### ZN-696: zinc:3d blending and emissive, cost on the opaque path (2026-10-10, load 5 to 6, thermally throttled)
+
+Frame times of `bench/three_many.ts` (1000 opaque meshes) measured alternately with the old and new zinc:3d moved between 2.5 and 5.7 ms
+with the machine's heat (both versions), so the comparison is in instructions retired over the whole run (`/usr/bin/time -l`, 300
+frames, the program built once per version, three alternated runs): GPU renderer 5.648 to 5.651 G before, 5.672 G after (+0.4%,
+about 73 instructions per draw); software renderer 7.839 to 7.840 G before, 7.882 to 7.884 G after (+0.55%). A first version that sent the
+emissive and opacity uniforms on every draw cost +1.0% on the GPU: they live in shader variants of their own now, so an opaque draw uses
+the programs it had. The opaque frames are unchanged (zinc3d_aa, three_gpu, templates_kickstart, zinc3d_gltf).
+
 ## 4. Correction of ZN-042's diagnosis (nbody)
 
 ZN-042 concluded that the typed backend would not help nbody and that the 2.9x to native came from NEON and fused multiply-adds, which `-ffp-contract=off` forbids. The experiments of PERF-10 contradict both parts:

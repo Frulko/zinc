@@ -86,6 +86,12 @@ void main() {
 // like the software renderer's winding-order normal. ponytail: flat faces with vertex colours interpolate them instead of averaging them.
 const char* kFs = R"(
 uniform sampler2D u_tex;
+#ifdef EMIT
+uniform vec3 u_emit;   // the emissive colour (ZN-696), added to the light before the texture, as the software renderer does
+#endif
+#ifdef BLEND
+uniform float u_alpha;   // the opacity of a blended draw
+#endif
 SCREEN varying vec3 v_col;
 varying vec2 v_uv;
 varying vec3 v_pos, v_nrm;
@@ -103,15 +109,23 @@ void main() {
   c = min(c + highlight(normalize(v_nrm), v_pos), vec3(1.0));
 #endif
 #endif
+#ifdef EMIT
+  c = min(c + u_emit, vec3(1.0));
+#endif
 #ifdef TEX
   c *= texture2D(u_tex, v_uv).rgb;
 #endif
+#ifdef BLEND
+  gl_FragColor = vec4(c.bgr, u_alpha);  // blended with this alpha; the framebuffer's alpha is masked off and stays 0
+#else
   gl_FragColor = vec4(c.bgr, 0.0);  // stored B, G, R, 0: read back as RGBA bytes, these are the runtime's 0x00RRGGBB words
+#endif
 }
 )";
 
-enum { P_LIT = 1, P_FLAT = 2, P_TEX = 4, P_VCOL = 8, P_SPEC = 16 };
-struct Prog { GLuint id = 0; GLint mvp = -1, model = -1, color = -1, amb = -1, ld = -1, lc = -1, eye = -1, spec = -1, shin = -1; uint32_t frame = 0; bool failed = false; };
+enum { P_LIT = 1, P_FLAT = 2, P_TEX = 4, P_VCOL = 8, P_SPEC = 16, P_EMIT = 32, P_BLEND = 64 };   // EMIT, BLEND: ZN-696; an opaque draw without them keeps the programs it had
+struct Prog { GLuint id = 0; GLint mvp = -1, model = -1, color = -1, amb = -1, ld = -1, lc = -1, eye = -1, spec = -1, shin = -1, emit = -1, alpha = -1; uint32_t frame = 0; bool failed = false;
+  float emitSet[3] = {0, 0, 0}, alphaSet = 0; };   // the values its uniforms hold (a program keeps them): sent again only when they change
 struct GMesh { GLuint vao, vbo, ibo; int32_t ni; bool uv, col; };
 // msfbo (ZN-657): the multisampled framebuffer the frame is drawn into, resolved into fbo (whose colour texture is read back) at end()
 struct GTarget { int32_t img, w, h; uint32_t* px; GLuint fbo, color, depth, pbo[2], msfbo, mscolor, msdepth; int k, samples; bool pending[2]; };
@@ -134,12 +148,13 @@ struct Gpu : Engine {
   Pool<GMesh> gmeshes;
   Pool<GTarget> gtargets;
   GTarget* gcur = nullptr;
-  Prog progs[32];
+  Prog progs[128];
   GTex* texs = nullptr;  // by image: the baked ones, then the runtime ones (no STL here: zrt.h defines placement new)
   int32_t ntex = 0;
   uint32_t frame = 0;
   GLuint used = 0;
   int cull = -1;
+  int blendOn = -1;   // the blend mode applied (ZN-696): -1 none yet this frame
   bool async = true;
   int samples = 0;       // multisampling of the targets (the `msaa` option or ZINC_3D_MSAA, at most GL_MAX_SAMPLES; 0 or 1 off)
   int filter = 3;        // the texture filter of a material that asks for none (the `filter` option or ZINC_3D_FILTER)
@@ -183,8 +198,8 @@ struct Gpu : Engine {
   Prog& program(int k) {
     Prog& p = progs[k];
     if (p.id || p.failed) return p;
-    char defs[96];
-    snprintf(defs, sizeof defs, "%s%s%s%s%s", k & P_LIT ? "#define LIT\n" : "", k & P_FLAT ? "#define FLAT\n" : "", k & P_TEX ? "#define TEX\n" : "", k & P_VCOL ? "#define VCOL\n" : "", k & P_SPEC ? "#define SPEC\n" : "");
+    char defs[128];
+    snprintf(defs, sizeof defs, "%s%s%s%s%s%s%s", k & P_LIT ? "#define LIT\n" : "", k & P_FLAT ? "#define FLAT\n" : "", k & P_TEX ? "#define TEX\n" : "", k & P_VCOL ? "#define VCOL\n" : "", k & P_SPEC ? "#define SPEC\n" : "", k & P_EMIT ? "#define EMIT\n" : "", k & P_BLEND ? "#define BLEND\n" : "");
     GLuint vs = shader(GL_VERTEX_SHADER, kVsPre, defs, kVs), fs = shader(GL_FRAGMENT_SHADER, kFsPre, defs, kFs);
     p.id = glCreateProgram();
     glAttachShader(p.id, vs); glAttachShader(p.id, fs);
@@ -197,6 +212,7 @@ struct Gpu : Engine {
     p.mvp = glGetUniformLocation(p.id, "u_mvp"); p.model = glGetUniformLocation(p.id, "u_model"); p.color = glGetUniformLocation(p.id, "u_color");
     p.amb = glGetUniformLocation(p.id, "u_amb"); p.ld = glGetUniformLocation(p.id, "u_ld"); p.lc = glGetUniformLocation(p.id, "u_lc");
     p.eye = glGetUniformLocation(p.id, "u_eye"); p.spec = glGetUniformLocation(p.id, "u_spec"); p.shin = glGetUniformLocation(p.id, "u_shin");
+    p.emit = glGetUniformLocation(p.id, "u_emit"); p.alpha = glGetUniformLocation(p.id, "u_alpha");
     glUseProgram(p.id);
     glUniform1i(glGetUniformLocation(p.id, "u_tex"), 0);
     used = p.id;
@@ -303,11 +319,14 @@ struct Gpu : Engine {
     frame++;
     glBindFramebuffer(GL_FRAMEBUFFER, gcur->samples ? gcur->msfbo : gcur->fbo);
     glViewport(0, 0, gcur->w, gcur->h);
+    if (blendOn > 0) { glDisable(GL_BLEND); glDepthMask(GL_TRUE); glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE); }   // the last frame's blended draws: the clear needs the masks on
     glClearColor((clear & 255) / 255.0f, (clear >> 8 & 255) / 255.0f, (clear >> 16 & 255) / 255.0f, 0);  // blue first, as the shaders write
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     viewProjection(vp, (float)gcur->w / gcur->h, view, proj, nearN, farN, ortho);
     eyeOf(view);
     spec[0] = spec[1] = spec[2] = 0;
+    emit[0] = emit[1] = emit[2] = 0;
+    blendOn = -1;
     for (int c = 0; c < 4; c++) vp[c * 4 + 1] = -vp[c * 4 + 1];  // y down: row 0 of the framebuffer is the top of the image
   }
 
@@ -376,7 +395,9 @@ struct Gpu : Engine {
     mul(MVP, vp, M);
     const int f = (flags >> 4) & 3;
     const bool textured = tex >= 0 && g->uv && texture(tex, f ? f : filter);
-    const int k = (flags & UNLIT ? 0 : P_LIT | (specOn() ? P_SPEC : 0)) | (flags & FLAT ? P_FLAT : 0) | (textured ? P_TEX : 0) | ((flags & VCOL) && g->col ? P_VCOL : 0);
+    const int bl = (flags >> 6) & 3;
+    const int k = (flags & UNLIT ? 0 : P_LIT | (specOn() ? P_SPEC : 0)) | (flags & FLAT ? P_FLAT : 0) | (textured ? P_TEX : 0) | ((flags & VCOL) && g->col ? P_VCOL : 0) |
+                  (emitOn() ? P_EMIT : 0) | (bl == ALPHA || bl == ADD ? P_BLEND : 0);
     Prog& p = program(k);
     if (!p.id) return;
     if (used != p.id) { glUseProgram(p.id); used = p.id; }
@@ -391,6 +412,17 @@ struct Gpu : Engine {
     glUniformMatrix4fv(p.mvp, 1, GL_FALSE, MVP);
     glUniformMatrix4fv(p.model, 1, GL_FALSE, M);
     glUniform3f(p.color, (color >> 16 & 255) / 255.0f, (color >> 8 & 255) / 255.0f, (color & 255) / 255.0f);
+    if ((k & P_EMIT) && (emit[0] != p.emitSet[0] || emit[1] != p.emitSet[1] || emit[2] != p.emitSet[2])) {
+      glUniform3f(p.emit, emit[0] / 255.0f, emit[1] / 255.0f, emit[2] / 255.0f);
+      p.emitSet[0] = emit[0]; p.emitSet[1] = emit[1]; p.emitSet[2] = emit[2];
+    }
+    // blending (ZN-696): over or added to the frame with the draw's opacity; depth tested, not written, and the framebuffer's alpha left at 0
+    if (bl != blendOn) {
+      if (bl == ALPHA || bl == ADD) { glEnable(GL_BLEND); glBlendFunc(GL_SRC_ALPHA, bl == ADD ? GL_ONE : GL_ONE_MINUS_SRC_ALPHA); glDepthMask(GL_FALSE); glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_FALSE); }
+      else { glDisable(GL_BLEND); glDepthMask(GL_TRUE); glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE); }
+      blendOn = bl;
+    }
+    if (k & P_BLEND) { const float alpha = ((flags >> 8) & 255) / 255.0f; if (alpha != p.alphaSet) { glUniform1f(p.alpha, alpha); p.alphaSet = alpha; } }
     const int c = flags & DOUBLE ? 0 : 1;
     if (c != cull) { if (c) glEnable(GL_CULL_FACE); else glDisable(GL_CULL_FACE); cull = c; }
     glBindVertexArray(g->vao);

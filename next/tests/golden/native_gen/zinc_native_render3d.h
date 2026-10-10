@@ -12,6 +12,7 @@ struct NativeRender3D : zrt::Object {
   virtual void ambient(uint32_t color) = 0;
   virtual void light(double dx, double dy, double dz, uint32_t color) = 0;
   virtual void specular(uint32_t color, double shininess) = 0;
+  virtual void emissive(uint32_t color) = 0;
   virtual void draw(int32_t mesh, zrt::Array<double> model, uint32_t color, int32_t texture, int32_t flags) = 0;
   virtual bool gpu() = 0;
   virtual int32_t end() = 0;

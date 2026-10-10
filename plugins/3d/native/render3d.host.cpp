@@ -46,13 +46,14 @@ static const int ZSHIFT = 0;
 static const float ZS = 1073741823.0f;  // depth [0, 1] -> Q30
 static const float GUARD = 2;           // guard band: clip x, y at +-2w (pixels stay well inside 16.16)
 enum { VCOL = 1, FLAT = 2, UNLIT = 4, DOUBLE = 8 };
+enum { OPAQUE = 0, ALPHA = 1, ADD = 2 };   // draw flags bits 6-7 (ZN-696); bits 8-15 the opacity of a blended draw
 
 struct Mesh { int32_t nv, ni; float *pos, *nrm, *uv; uint32_t* col; uint16_t* idx; };
 struct Target { int32_t img, w, h; uint32_t* px; ZT* z; };
 struct Tex { const uint32_t* px; int32_t w, h, stride; };
 struct V { float x, y, z, w, r, g, b, u, v; };      // clip space + shade (0..255) + uv
 struct S { float x, y, z, iw, r, g, b, u, v; };     // screen space; u, v premultiplied by iw
-struct Ctx { uint32_t* px; ZT* zb; int32_t w, h; Tex tex; uint32_t flat; };
+struct Ctx { uint32_t* px; ZT* zb; int32_t w, h; Tex tex; uint32_t flat; uint32_t alpha; };
 
 template<class T> struct Pool {
   T** p = nullptr; int32_t n = 0;
@@ -91,8 +92,20 @@ static inline uint32_t out(uint32_t c, int32_t x, int32_t y) {
 #endif
 }
 
-// Scanline triangle: top-left fill rule at pixel centres, edges and attributes stepped in 16.16.
-template<bool TEX, bool SMOOTH>
+/** A blended pixel (ZN-696): over the one under it with `alpha` (0..255), or added to it, `alpha` of the colour, clamped. */
+template<int BLEND> static inline uint32_t blend(uint32_t dst, uint32_t src, uint32_t a) {
+  uint32_t o = 0;
+  for (int s = 0; s <= 16; s += 8) {
+    const uint32_t d = dst >> s & 255, c = src >> s & 255;
+    const uint32_t v = BLEND == ALPHA ? (c * a + d * (255 - a) + 127) / 255 : d + (c * a + 127) / 255;
+    o |= (v > 255 ? 255 : v) << s;
+  }
+  return o;
+}
+
+// Scanline triangle: top-left fill rule at pixel centres, edges and attributes stepped in 16.16. A blended triangle (BLEND) is depth
+// tested but leaves the depth buffer alone, so what is behind it still shows and the glows of a scene add up.
+template<bool TEX, bool SMOOTH, int BLEND>
 static void raster(const Ctx& c, const S* a, const S* b, const S* d) {
   if (b->y < a->y) { const S* t = a; a = b; b = t; }
   if (d->y < b->y) { const S* t = b; b = d; d = t; }
@@ -163,14 +176,14 @@ static void raster(const Ctx& c, const S* a, const S* b, const S* d) {
       for (int32_t e = i + len; i < e; i++) {
         uint32_t zz = (uint32_t)z >> ZSHIFT;
         if (zz < zb[i]) {
-          zb[i] = (ZT)zz;
+          if (BLEND == OPAQUE) zb[i] = (ZT)zz;
           uint32_t col;
           if (TEX) {
             uint32_t t = c.tex.px[(((uint32_t)v & 0xFFFF) * th >> 16) * ts + (((uint32_t)u & 0xFFFF) * tw >> 16)];
             col = SMOOTH ? modulate(t, (uint32_t)R_ >> 16, (uint32_t)G_ >> 16, (uint32_t)B_ >> 16) : modulate(t, fr, fg, fb);
           } else if (SMOOTH) col = ((uint32_t)R_ >> 16) << 16 | ((uint32_t)G_ >> 16) << 8 | (uint32_t)B_ >> 16;
           else col = c.flat;
-          px[i] = out(col, x0 + i, y);
+          px[i] = out(BLEND == OPAQUE ? col : blend<BLEND>(px[i], col, c.alpha), x0 + i, y);
         }
         z += dz;
         if (SMOOTH) { R_ += dr; G_ += dg; B_ += db; }
@@ -274,6 +287,7 @@ struct Engine : NativeRender3D {
   // specular reflection (ZN-563.04): reflectance at normal incidence, exponent, three.js's Blinn-Phong factor (G 1/4, D (s / 2 + 1) / pi with
   // the lights already divided by pi), and the eye in world space (from the view matrix)
   float spec[3] = {0, 0, 0}, shin = 30, specK = 0, eye[3] = {0, 0, 0};
+  float emit[3] = {0, 0, 0};   // the emissive colour of the next draws (ZN-696), 0..255, added to the light they receive
   int32_t tris = 0;
   V* vs = nullptr; uint8_t* oc = nullptr; int32_t cap = 0;
 
@@ -348,7 +362,12 @@ struct Engine : NativeRender3D {
     viewProjection(vp, (float)cur->w / cur->h, view, proj, nearN, farN, ortho);
     eyeOf(view);
     spec[0] = spec[1] = spec[2] = 0;
+    emit[0] = emit[1] = emit[2] = 0;
   }
+  void emissive(uint32_t c) override { emit[0] = (float)(c >> 16 & 255); emit[1] = (float)(c >> 8 & 255); emit[2] = (float)(c & 255); }
+  bool emitOn() const { return emit[0] > 0 || emit[1] > 0 || emit[2] > 0; }
+  /** A shade with the emissive colour added, clamped (before the texture modulates it, as on the GPU). */
+  void glow(float* o) const { for (int c = 0; c < 3; c++) { o[c] += emit[c]; if (o[c] > 255) o[c] = 255; } }
   /** The camera's position: the view matrix is [R t], the eye -R^T t. */
   void eyeOf(Array<N> view) {
     float V[16];
@@ -407,10 +426,13 @@ struct Engine : NativeRender3D {
     float M[16], MVP[16];
     for (int i = 0; i < 16; i++) M[i] = i < model.length() ? F(model.a->data[i]) : (i % 5 == 0 ? 1.0f : 0.0f);
     mul(MVP, vp, M);
-    Ctx c{cur->px, cur->z, cur->w, cur->h, Tex{nullptr, 0, 0, 0}, color & 0xFFFFFF};
+    const int bl = (flags >> 6) & 3;
+    Ctx c{cur->px, cur->z, cur->w, cur->h, Tex{nullptr, 0, 0, 0}, color & 0xFFFFFF, bl ? (uint32_t)((flags >> 8) & 255) : 255};
+    if (bl && !c.alpha) return;   // a blended draw with no opacity leaves the frame as it is
     bool textured = tex >= 0 && m->uv && texture(tex, c.tex);
     bool lit = !(flags & UNLIT), flat = flags & FLAT, vcol = (flags & VCOL) && m->col;
-    bool smooth = !flat && (lit || vcol);
+    const bool em = emitOn();
+    bool smooth = !flat && (lit || vcol || em);
     const bool sp = lit && specOn();
     for (int32_t i = 0; i < m->nv; i++) {
       const float* p = m->pos + i * 3;
@@ -428,6 +450,7 @@ struct Engine : NativeRender3D {
           shade(M, m->nrm[i * 3], m->nrm[i * 3 + 1], m->nrm[i * 3 + 2], base, &o.r, wp);
         } else if (lit) shade(M, m->nrm[i * 3], m->nrm[i * 3 + 1], m->nrm[i * 3 + 2], base, &o.r);
         else { o.r = (float)(base >> 16 & 255); o.g = (float)(base >> 8 & 255); o.b = (float)(base & 255); }
+        if (em) glow(&o.r);
       } else o.r = o.g = o.b = 0;
     }
     const float W = (float)cur->w, H = (float)cur->h;
@@ -450,8 +473,10 @@ struct Engine : NativeRender3D {
             const float wp[3] = {M[0] * cx + M[4] * cy + M[8] * cz + M[12], M[1] * cx + M[5] * cy + M[9] * cz + M[13], M[2] * cx + M[6] * cy + M[10] * cz + M[14]};
             shade(M, ay * bz - az * by, az * bx - ax * bz, ax * by - ay * bx, base, s, wp);
           } else shade(M, ay * bz - az * by, az * bx - ax * bz, ax * by - ay * bx, base, s);
+          if (em) glow(s);
           c.flat = pack(s[0], s[1], s[2]);
-        } else c.flat = base & 0xFFFFFF;
+        } else if (em) { float s[3] = {(float)(base >> 16 & 255), (float)(base >> 8 & 255), (float)(base & 255)}; glow(s); c.flat = pack(s[0], s[1], s[2]); }
+        else c.flat = base & 0xFFFFFF;
       }
       V poly[12] = {vs[i0], vs[i1], vs[i2]};
       int n = (o0 | o1 | o2) ? clip(poly, 3, o0 | o1 | o2) : 3;
@@ -465,10 +490,19 @@ struct Engine : NativeRender3D {
       float area = 0;  // shoelace; front faces are counter-clockwise, i.e. negative with y down
       for (int k = 0; k < n; k++) { const S& A = s[k]; const S& B = s[k + 1 == n ? 0 : k + 1]; area += A.x * B.y - B.x * A.y; }
       if (area >= 0 && !(flags & DOUBLE)) continue;
-      for (int k = 1; k + 1 < n; k++) {
-        if (textured) { if (smooth) raster<true, true>(c, &s[0], &s[k], &s[k + 1]); else raster<true, false>(c, &s[0], &s[k], &s[k + 1]); }
-        else if (smooth) raster<false, true>(c, &s[0], &s[k], &s[k + 1]);
-        else raster<false, false>(c, &s[0], &s[k], &s[k + 1]);
+      if (bl == OPAQUE || bl > ADD) {   // the opaque draws keep their direct calls
+        for (int k = 1; k + 1 < n; k++) {
+          if (textured) { if (smooth) raster<true, true, OPAQUE>(c, &s[0], &s[k], &s[k + 1]); else raster<true, false, OPAQUE>(c, &s[0], &s[k], &s[k + 1]); }
+          else if (smooth) raster<false, true, OPAQUE>(c, &s[0], &s[k], &s[k + 1]);
+          else raster<false, false, OPAQUE>(c, &s[0], &s[k], &s[k + 1]);
+        }
+      } else {
+        typedef void (*Fill)(const Ctx&, const S*, const S*, const S*);
+        static const Fill fills[2][4] = {
+          {raster<false, false, ALPHA>, raster<false, true, ALPHA>, raster<true, false, ALPHA>, raster<true, true, ALPHA>},
+          {raster<false, false, ADD>, raster<false, true, ADD>, raster<true, false, ADD>, raster<true, true, ADD>}};
+        const Fill fill = fills[bl - ALPHA][(textured ? 2 : 0) | (smooth ? 1 : 0)];
+        for (int k = 1; k + 1 < n; k++) fill(c, &s[0], &s[k], &s[k + 1]);
       }
       tris++;
     }

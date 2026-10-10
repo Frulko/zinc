@@ -30,6 +30,7 @@ export default {
   ambient(): void {},
   light(): void {},
   specular(): void {},
+  emissive(): void {},
   draw(m: number): void { tris += meshes[m] ?? 0; },
   gpu(): boolean { return false; },
   end(): number { return tris; },
