@@ -1,0 +1,8 @@
+0 touches=0 pointer=0,0,up
+1 touches=1 7:100,200 pointer=100,200,down
+2 touches=2 7:110,205 9:400,300 pointer=110,205,down
+3 touches=2 7:110,205 9:420.5,310 pointer=110,205,down
+4 touches=1 9:420.5,310 pointer=420.5,310,down
+5 touches=2 9:420.5,310 3:10,20 pointer=420.5,310,down
+6 touches=0 pointer=420.5,310,up
+7 touches=0 pointer=420.5,310,up

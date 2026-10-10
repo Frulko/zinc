@@ -33,14 +33,18 @@ int zn_hal_is_live(void) { return live ? 1 : 0; }
 
 // Scripted input for headless runs (ZINC_INPUT=file): one event per line, `<frame> <event>`, frames counted from 0 at each poll.
 //   move X Y | down | up | right-down | right-up | key NAME [shift|ctrl|alt|meta]... | text STRING | wheel DX DY | pad NAME | padup NAME (the gamepad buttons Up Down Left Right A B X Y L R Start Select, held until padup)
-// The events reach zinc:gfx exactly as a window's would (pointer position and buttons, button events, keys, typed text, wheel).
+//   touch ID X Y (a finger lands or moves; up to HAL_MAX_TOUCH at once, held until its touchup) | touchup ID
+// The events reach zinc:gfx exactly as a window's would (pointer position and buttons, button events, keys, typed text, wheel, touch points:
+// the first finger is also the pointer, as on a touch screen).
 namespace {
-struct Event { int frame; std::string kind, a, b; };
+struct Event { int frame; std::string kind, a, b, c; };
 std::vector<Event> script;
 bool scriptRead = false;
 int pollNo = 0;
 float curX = 0, curY = 0;
 uint32_t heldButtons = 0, heldPad = 0;
+HalTouch heldTouch[HAL_MAX_TOUCH];   // fingers down, in landing order
+int nHeldTouch = 0;
 void readScript() {
   scriptRead = true;
   const char* path = getenv("ZINC_INPUT");
@@ -52,10 +56,10 @@ void readScript() {
     int frame = 0, used = 0;
     char kind[32] = {0};
     if (sscanf(line, "%d %31s%n", &frame, kind, &used) < 2) continue;
-    Event e{frame, kind, "", ""};
-    char a[128] = {0}, b[128] = {0};
-    sscanf(line + used, " %127s %127s", a, b);
-    e.a = a; e.b = b;
+    Event e{frame, kind, "", "", ""};
+    char a[128] = {0}, b[128] = {0}, c[128] = {0};
+    sscanf(line + used, " %127s %127s %127s", a, b, c);
+    e.a = a; e.b = b; e.c = c;
     script.push_back(e);
   }
   fclose(f);
@@ -90,6 +94,13 @@ void applyScript(HalInput* in) {
     else if (e.kind == "up") button(0, 0);
     else if (e.kind == "right-down") button(2, 1);
     else if (e.kind == "right-up") button(2, 0);
+    else if (e.kind == "touch" || e.kind == "touchup") {
+      const int32_t id = atoi(e.a.c_str());
+      int k = 0;
+      while (k < nHeldTouch && heldTouch[k].id != id) k++;
+      if (e.kind == "touchup") { if (k < nHeldTouch) { for (int j = k + 1; j < nHeldTouch; j++) heldTouch[j - 1] = heldTouch[j]; nHeldTouch--; } }
+      else if (k < HAL_MAX_TOUCH) { heldTouch[k] = HalTouch{id, static_cast<float>(atof(e.b.c_str())), static_cast<float>(atof(e.c.c_str()))}; if (k == nHeldTouch) nHeldTouch++; }
+    }
     else if (e.kind == "wheel") { in->wheel_x += static_cast<float>(atof(e.a.c_str())); in->wheel += static_cast<float>(atof(e.b.c_str())); }
     else if (e.kind == "key" && in->nkeys < HAL_MAX_KEYS) {
       uint32_t mods = 0;
@@ -111,6 +122,9 @@ void applyScript(HalInput* in) {
     }
   }
   in->buttons |= heldPad;
+  in->ntouch = nHeldTouch;
+  for (int k = 0; k < nHeldTouch; k++) in->touch[k] = heldTouch[k];
+  if (nHeldTouch > 0) { curX = heldTouch[0].x; curY = heldTouch[0].y; in->px = curX; in->py = curY; in->pdown = 1; in->pbuttons |= 1; }
   ++pollNo;
 }
 }  // namespace

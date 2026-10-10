@@ -21,7 +21,12 @@ Headless runs can be scripted with `ZINC_INPUT=file`, one event per line, `<fram
 10 key Backspace     # a key (names as in KeyboardEvent.key; modifiers after: shift ctrl alt meta)
 12 text zinc         # typed text
 15 wheel 0 -3        # scroll steps (x, y)
+20 touch 7 300 200   # finger 7 lands at (300, 200), or moves there; up to 10 fingers at once, each held until its touchup
+24 touchup 7         # finger 7 lifts
 ```
+
+Touch points reach `touchCount`, `touchId`, `touchX` and `touchY` in landing order, and the first finger is also the pointer, as on a touch
+screen (`tests/t1/input_touch.sh`): a multi-touch session (two hands, pinch, rotate) is a file of such lines.
 
 The events reach `zinc:ui` as a window's would, so the whole chain is tested: `tests/golden/ui/click.tsx` (a button press fills a progress bar) and
 `type.tsx` (typing and Backspace in a text field), with goldens made here and checked by eye.
