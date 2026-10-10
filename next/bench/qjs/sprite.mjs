@@ -1,6 +1,6 @@
 // QuickJS workload "sprite" of docs/reports/quickjs-aot-jit-and-ffi.md: 10,000 sprites move, bounce and write their 4 rotated corners into a
 // vertex Array each frame. zinc profile bench/qjs/sprite.mjs --engine quickjs (a ZN_QJS_PROFILE build)
-const frames = 60, W = 800, H = 600, N = 10000;
+const frames = globalThis.ZN_FRAMES ?? 60, W = 800, H = 600, N = 10000;
 const sprites = [];
 let seed = 1;
 const rand = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
@@ -18,5 +18,7 @@ function corners(s, out, o) {
   out[o + 4] = s.x + hw * c - hh * n; out[o + 5] = s.y + hw * n + hh * c;
   out[o + 6] = s.x - hw * c - hh * n; out[o + 7] = s.y - hw * n + hh * c;
 }
-for (let f = 0; f < frames; f++) for (let k = 0; k < N; k++) { step(sprites[k]); corners(sprites[k], verts, k * 8); }
-console.log('sprite: ' + frames + ' frames, x0 ' + verts[0].toFixed(3));
+const t0 = performance.now();
+function frame() { for (let k = 0; k < N; k++) { step(sprites[k]); corners(sprites[k], verts, k * 8); } }
+for (let f = 0; f < frames; f++) frame();
+console.log('sprite: ' + frames + ' frames, ' + ((performance.now() - t0) / frames).toFixed(3) + ' ms/frame, x0 ' + verts[0].toFixed(3));

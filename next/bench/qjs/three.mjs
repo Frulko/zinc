@@ -2,7 +2,7 @@
 // CPU half of WebGLRenderer.render: rotations, updateMatrixWorld, frustum culling, a render list sorted by depth, the per-object matrices.
 // zinc profile bench/qjs/three.mjs --engine quickjs (a ZN_QJS_PROFILE build)
 import * as THREE from 'three';
-const frames = 200;
+const frames = globalThis.ZN_FRAMES ?? 200;
 const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(60, 1, 0.1, 200);
 camera.position.set(0, 0, 60);
 const geometry = new THREE.BoxGeometry(1, 1, 1), material = new THREE.MeshBasicMaterial();
@@ -16,7 +16,8 @@ for (let g = 0; g < 50; g++) {
 const frustum = new THREE.Frustum(), projScreen = new THREE.Matrix4(), sphere = new THREE.Sphere(), v = new THREE.Vector3();
 const list = [], uniform = new Float32Array(16);
 let drawn = 0;
-for (let f = 0; f < frames; f++) {
+const t0 = performance.now();
+function frame() {
   for (const group of scene.children) { group.rotation.y += 0.01; for (const mesh of group.children) mesh.rotation.x += 0.02; }
   scene.updateMatrixWorld();
   camera.updateMatrixWorld();
@@ -41,4 +42,5 @@ for (let f = 0; f < frames; f++) {
     drawn++;
   }
 }
-console.log('three: ' + frames + ' frames, ' + drawn + ' draws');
+for (let f = 0; f < frames; f++) frame();
+console.log('three: ' + frames + ' frames, ' + ((performance.now() - t0) / frames).toFixed(3) + ' ms/frame, ' + drawn + ' draws');

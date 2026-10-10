@@ -39,8 +39,11 @@ The workloads of [quickjs-aot-jit-and-ffi.md](quickjs-aot-jit-and-ffi.md) sectio
 - `three.mjs`: three.js r186 (`three.core.js`, no GL), 500 meshes in 50 groups, the CPU half of a render (matrices, culling, render list).
 - `sprite.mjs`: 10,000 sprites moved, bounced and written as 4 rotated corners into a vertex Array.
 - `objects.mjs`: 2,000 entities with polymorphic components, `Map` lookups, an event emitter with closures, `filter`/`map`.
-- physics: the report ran matter-js 0.20 (300 bodies piled in a box, `Engine.update` at 60 Hz); matter-js is not vendored, so the
-  command is the same on its UMD build: `build-prof/zinc profile physics.js --engine quickjs`.
+- `physics.mjs`: matter-js 0.20 (300 bodies piled in a box, `Engine.update` at 60 Hz); matter-js is not vendored:
+  `bench/qjs/fetch-matter` downloads and checks it into `bench/qjs/matter.mjs` (ignored by git).
+
+Each prints its time per frame. `ZN_QJS_DUMP=<file>` (or a directory ending in `/`, one file per process) also writes every called
+function with its counts and bytecode, for `tools/qjs2c` ([zinc-next-qjs2c.md](zinc-next-qjs2c.md)).
 
 Measured on the development Mac (Intel, 2026-10-10, 1000 Hz):
 

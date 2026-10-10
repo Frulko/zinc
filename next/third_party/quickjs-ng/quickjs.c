@@ -905,6 +905,11 @@ typedef struct JSFunctionBytecode {
     int pc2line_len;
     uint8_t *pc2line_buf;
     char *source;
+#ifdef ZN_QJS_AOT
+    void *zn_aot; /* zinc patch 0001: the C body made by tools/qjs2c, or NULL */
+    JSAtom *zn_atoms; /* the atom operands of the bytecode, in order, for zn_aot */
+    uint8_t zn_aot_bound; /* zn_aot looked up */
+#endif
 } JSFunctionBytecode;
 
 typedef struct JSBoundFunction {
@@ -18053,6 +18058,16 @@ static bool needs_backtrace(JSValue exc)
 }
 
 /* argv[] is modified if (flags & JS_CALL_FLAG_COPY_ARGV) = 0. */
+#ifdef ZN_QJS_AOT
+/* zinc patch 0001: a function compiled to C by tools/qjs2c runs in the frame JS_CallInternal set up, on its stack; it returns 0 with
+   *pret (done) or 1 with the exception pending (the interpreter unwinds, and resumes interpreting at a catch), *psp and *ppc set */
+typedef int ZnAotFn(JSContext *caller_ctx, JSContext *ctx, JSRuntime *rt, JSStackFrame *sf, JSFunctionBytecode *b, JSObject *p,
+                    JSValueConst func_obj, JSValueConst this_obj, JSValueConst new_target, int argc, JSValueConst *argv, int flags,
+                    JSValue *arg_buf, JSValue *var_buf, JSVarRef **var_refs, JSValue *stack_buf, JSValue **psp, uint8_t **ppc,
+                    JSValue *pret);
+static void zn_qjs_aot_bind(JSContext *ctx, JSFunctionBytecode *b);
+#endif
+
 static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
                                JSValueConst this_obj, JSValueConst new_target,
                                int argc, JSValueConst *argv, int flags)
@@ -18193,6 +18208,16 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
     rt->current_stack_frame = sf;
     ctx = b->realm; /* set the current realm */
     ZN_PROF_CALL(rt, b, p);
+#ifdef ZN_QJS_AOT
+    if (unlikely(!b->zn_aot_bound))
+        zn_qjs_aot_bind(ctx, b);
+    if (b->zn_aot) {
+        if (((ZnAotFn *)b->zn_aot)(caller_ctx, ctx, rt, sf, b, p, func_obj, this_obj, new_target, argc, argv, flags,
+                                   arg_buf, var_buf, var_refs, stack_buf, &sp, &pc, &ret_val))
+            goto exception;
+        goto done;
+    }
+#endif
 
 #ifdef ENABLE_DUMPS // JS_DUMP_BYTECODE_STEP
     if (check_dump_flag(ctx->rt, JS_DUMP_BYTECODE_STEP))
@@ -37204,6 +37229,9 @@ static void free_function_bytecode(JSRuntime *rt, JSFunctionBytecode *b)
     int i;
 
     ZN_PROF_FREE(b);
+#ifdef ZN_QJS_AOT
+    js_free_rt(rt, b->zn_atoms);
+#endif
 
     if (b->byte_code_buf)
         free_bytecode_atoms(rt, b->byte_code_buf, b->byte_code_len, true);
@@ -64985,6 +65013,16 @@ const void *JS_ZnProfCurrent(JSRuntime *rt)
     return NULL;
 }
 
+/* zinc patch 0001: the code of a bytecode function, for tools/qjs2c (ZN_QJS_DUMP) */
+void JS_ZnProfBytecode(const void *bv, const uint8_t **code, int *len, int *kind, int *stack_size)
+{
+    const JSFunctionBytecode *b = bv;
+    *code = b->byte_code_buf;
+    *len = b->byte_code_len;
+    *kind = b->func_kind;
+    *stack_size = b->stack_size;
+}
+
 /* zinc patch 0001: the name, file, line and column of a bytecode function. A method or an arrow has no name in its bytecode: with the
    function object `fobj` (not from a signal handler: it may allocate), its own "name" data property; else "" */
 void JS_ZnProfDescribe(JSRuntime *rt, const void *bv, const void *fobj, char *name, int name_size, char *file, int file_size, int *line, int *col)
@@ -65007,6 +65045,58 @@ void JS_ZnProfDescribe(JSRuntime *rt, const void *bv, const void *fobj, char *na
     JS_AtomGetStrRT(rt, file, file_size, b->filename);
     *line = b->line_num;
     *col = b->col_num;
+}
+#endif
+
+#ifdef ZN_QJS_AOT
+/* zinc patch 0001: the functions tools/qjs2c compiled (zn_aot_table, zn_aot_count), bound to a bytecode function at its first call when
+   its file, line, column and bytes match, atom operands aside: those are read from the bytecode into its own table (b->zn_atoms), so
+   functions of the same shape (the field initializers of two classes) share a body */
+typedef struct ZnAotEntry {
+    const char *file;
+    int line, col, len;
+    const uint8_t *code;
+    const uint32_t *atom_pos;
+    int atom_count;
+    ZnAotFn *fn;
+} ZnAotEntry;
+
+#include ZN_QJS_AOT_GEN
+
+static void zn_qjs_aot_bind(JSContext *ctx, JSFunctionBytecode *b)
+{
+    char file[1024];
+    int k, i, j;
+    b->zn_aot_bound = 1;
+    if (b->func_kind != JS_FUNC_NORMAL)
+        return;
+    JS_AtomGetStrRT(ctx->rt, file, sizeof(file), b->filename);
+    for (k = 0; k < zn_aot_count; k++) {
+        const ZnAotEntry *e = &zn_aot_table[k];
+        if (e->line != b->line_num || e->col != b->col_num || e->len != b->byte_code_len || (e->file[0] && strcmp(e->file, file)))
+            continue;
+        for (i = 0, j = 0; i < e->len; i++) {
+            if (j < e->atom_count && i == (int)e->atom_pos[j]) {
+                i += 3;
+                j++;
+            } else if (e->code[i] != b->byte_code_buf[i]) {
+                break;
+            }
+        }
+        if (i < e->len)
+            continue;
+        if (e->atom_count) {
+            b->zn_atoms = js_malloc(ctx, sizeof(JSAtom) * e->atom_count);
+            if (!b->zn_atoms)
+                return;
+            for (j = 0; j < e->atom_count; j++)
+                b->zn_atoms[j] = get_u32(b->byte_code_buf + e->atom_pos[j]);
+        }
+        b->zn_aot = e->fn;
+        if (getenv("ZN_QJS_AOT_LOG"))
+            fprintf(stderr, "qjs2c: %s:%d:%d runs compiled\n", file, b->line_num, b->col_num);
+        return;
+    }
 }
 #endif
 

@@ -1,0 +1,347 @@
+#!/usr/bin/env python3
+"""qjs2c: QuickJS-ng bytecode functions to C (ZN-599 spike, docs/reports/zinc-next-qjs2c.md).
+
+  tools/qjs2c --dump d.jsonl [--top N | --all] -o gen.c
+
+The dump comes from a profiling build: ZN_QJS_DUMP=d.jsonl build-prof/zinc profile prog.js --engine quickjs (one JSON object per called
+function: file, line, col, kind, samples, calls, code). Each selected function becomes a C function that runs in the frame JS_CallInternal
+set up: every instruction is the interpreter's own opcode body, copied from quickjs.c's interpreter loop, with its operands constant (the
+bytecode is a static array, atoms come from a table filled when the function binds) and its successor a direct jump, so there is no
+dispatch. An exception returns to the interpreter, which unwinds and resumes interpreting at a catch. Build zinc with
+-DZN_QJS_AOT_GEN=<gen.c> (patch 0001 binds the functions at their first call; ZN_QJS_AOT_LOG=1 names them).
+"""
+import argparse, json, os, re, sys
+
+ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "third_party", "quickjs-ng")
+LABEL_FMTS = {"label8": 1, "label16": 1, "label": 1, "label_u16": 1, "atom_label_u8": 5, "atom_label_u16": 5}
+ATOM_FMTS = {"atom", "atom_u8", "atom_u16", "atom_label_u8", "atom_label_u16"}
+UNSUPPORTED = {"gosub", "ret", "initial_yield", "yield", "yield_star", "async_yield_star", "await", "return_async", "invalid"}
+
+
+def opcodes():
+    text = open(os.path.join(ROOT, "quickjs-opcode.h")).read()
+    return [(m.group(1), int(m.group(2)), m.group(3))
+            for m in re.finditer(r"^\s*DEF\(\s*(\w+)\s*,\s*(\d+)\s*,\s*\d+\s*,\s*\d+\s*,\s*(\w+)\s*\)", text, re.M)]
+
+
+def mask(s):
+    """The text with comments, strings and character literals blanked (same length, newlines kept)."""
+    out, i, n = list(s), 0, len(s)
+    while i < n:
+        c = s[i]
+        if s.startswith("//", i):
+            j = s.find("\n", i)
+            j = n if j < 0 else j
+        elif s.startswith("/*", i):
+            j = s.index("*/", i) + 2
+        elif c in "\"'":
+            j = i + 1
+            while s[j] != c:
+                j += 2 if s[j] == "\\" else 1
+            j += 1
+        else:
+            i += 1
+            continue
+        for k in range(i, j):
+            if out[k] != "\n":
+                out[k] = " "
+        i = j
+    return "".join(out)
+
+
+def match_brace(m, i):
+    depth = 0
+    for j in range(i, len(m)):
+        if m[j] == "{":
+            depth += 1
+        elif m[j] == "}":
+            depth -= 1
+            if depth == 0:
+                return j
+    raise ValueError("unbalanced")
+
+
+class Loop:
+    """The interpreter loop of JS_CallInternal cut into segments at its top-level labels."""
+
+    def __init__(self, src):
+        ms = mask(src)
+        f = ms.index("static JSValue JS_CallInternal(")
+        start = ms.index("SWITCH(pc) {", f) + len("SWITCH(pc) ")
+        end = match_brace(ms, start)
+        self.text = self.expand(src[start + 1:end])
+        m = self.m = mask(self.text)
+        depth, self.depth = 0, []
+        for c in m:
+            self.depth.append(depth)
+            depth += c == "{"
+            depth -= c == "}"
+        labels = []
+        for x in re.finditer(r"(?m)^[ \t]*(CASE\(\s*(\w+)\s*\)|DEFAULT|([A-Za-z_]\w*))[ \t]*:(?!:)", m):
+            name = x.group(2) or x.group(3) or "DEFAULT"
+            if name == "default":
+                continue
+            labels.append((x.start(), x.end(), name, self.depth[x.start()]))
+        self.top = [(s, e, n) for s, e, n, d in labels if d == 0]
+        self.segs = []   # (start, end): text from a top-level label to the next
+        for k, (s, e, n) in enumerate(self.top):
+            self.segs.append((s, self.top[k + 1][0] if k + 1 < len(self.top) else len(m)))
+        self.case = {n: k for k, (s, e, n) in enumerate(self.top) if n.startswith("OP_")}
+        self.label_seg = {}
+        for s, e, n, d in labels:
+            if n.startswith("OP_") or n == "DEFAULT":
+                continue
+            self.label_seg[n] = max(k for k, (a, b) in enumerate(self.segs) if a <= s)
+        self.term = [self.terminates(self.code(k)) for k in range(len(self.segs))]
+
+    @staticmethod
+    def expand(text):
+        """Expands the loop's macros that hold case labels (OP_CMP): their bodies are the opcodes' bodies."""
+        for d in re.finditer(r"(?m)^[ \t]*#define[ \t]+(\w+)\(([^)]*)\)((?:.*\\\n)*.*)$", text):
+            name, params, body = d.group(1), [x.strip() for x in d.group(2).split(",")], d.group(3).replace("\\\n", "\n")
+            if "CASE(" not in body:
+                continue
+            def call(x):
+                args, depth, cur = [], 0, ""
+                for c in x.group(1):
+                    if c == "," and depth == 0:
+                        args.append(cur.strip())
+                        cur = ""
+                        continue
+                    depth += c == "("
+                    depth -= c == ")"
+                    cur += c
+                args.append(cur.strip())
+                sub = dict(zip(params, args))
+                return re.sub(r"\b(%s)\b" % "|".join(params), lambda y: sub[y.group(1)], body) + ";"
+            rest = text[d.end():]
+            rest = re.sub(r"\b%s\(((?:[^()]|\((?:[^()]|\([^()]*\))*\))*)\)\s*;" % name, call, rest)
+            text = text[:d.start()] + rest
+        return text
+
+    def code(self, k):
+        """The masked code of a segment, its labels removed."""
+        s, e = self.segs[k]
+        c = self.m[s:e]
+        return re.sub(r"^\s*(CASE\(\s*\w+\s*\)|DEFAULT|[A-Za-z_]\w*)[ \t]*:(?!:)", "", c, count=1)
+
+    @staticmethod
+    def terminates(c):
+        """Whether a statement list cannot fall through its end (False when unsure: the next segment is then copied too)."""
+        c = re.sub(r"(?m)^[ \t]*#.*(\\\n.*)*$", "", c).rstrip()
+        if not c:
+            return False
+        if c.endswith(";"):
+            k = max(c.rfind(";", 0, len(c) - 1), c.rfind("{", 0, len(c) - 1), c.rfind("}", 0, len(c) - 1), c.rfind(":", 0, len(c) - 1))
+            return re.match(r"\s*(BREAK|goto\s+\w+|return\b)", c[k + 1:]) is not None
+        if c.endswith("}"):
+            depth, j = 0, len(c) - 1
+            while True:
+                depth += c[j] == "}"
+                depth -= c[j] == "{"
+                if depth == 0:
+                    break
+                j -= 1
+            inner, before = c[j + 1:-1], c[:j].rstrip()
+            if before.endswith("else"):
+                return Loop.terminates(inner) and Loop.if_branch_terminates(before[:-4].rstrip())
+            if before.endswith(")"):
+                return False   # if without else, a loop or a switch
+            return Loop.terminates(inner)
+        return False
+
+    @staticmethod
+    def if_branch_terminates(c):
+        """c ends with the then-branch of an if (`if (...) {...}` or `if (...) stmt;`), possibly an else-if chain."""
+        if c.endswith("}"):
+            depth, j = 0, len(c) - 1
+            while True:
+                depth += c[j] == "}"
+                depth -= c[j] == "{"
+                if depth == 0:
+                    break
+                j -= 1
+            inner, before = c[j + 1:-1], c[:j].rstrip()
+            if not Loop.terminates(inner):
+                return False
+            # before ends with `if (cond)`; an `else if` continues the chain
+            k = Loop.cond_start(before)
+            head = before[:k].rstrip()
+            if head.endswith("if"):
+                head = head[:-2].rstrip()
+                return Loop.if_branch_terminates(head[:-4].rstrip()) if head.endswith("else") else True
+            return False
+        return Loop.terminates(c)
+
+    @staticmethod
+    def cond_start(c):
+        depth, j = 0, len(c) - 1
+        while j >= 0:
+            depth += c[j] == ")"
+            depth -= c[j] == "("
+            if depth == 0:
+                return j
+            j -= 1
+        return 0
+
+    def chain(self, k):
+        out = [k]
+        while not self.term[k] and k + 1 < len(self.segs):
+            k += 1
+            out.append(k)
+        return out
+
+    def body(self, op):
+        """The copied source of an opcode: its segment, what it falls into, and the segments of the labels it jumps to."""
+        k = self.case.get("OP_" + op)
+        if k is None:
+            return None, set()
+        segs, groups = set(), []
+        todo = [k]
+        while todo:
+            ch = [x for x in self.chain(todo.pop(0)) if x not in segs]
+            if not ch:
+                continue
+            segs.update(ch)
+            groups.append(ch)
+            text = "".join(self.m[self.segs[x][0]:self.segs[x][1]] for x in ch)
+            for g in re.findall(r"\bgoto\s+(\w+)", text):
+                if g in self.label_seg and self.label_seg[g] not in segs:
+                    todo.append(self.label_seg[g])
+        parts = []
+        for ch in groups:
+            for x in ch:
+                s, e = self.segs[x]
+                parts.append(self.text[s:e])
+            parts.append("\n    ZN_FALLOFF;\n")
+        text = "".join(parts)
+        text = re.sub(r"(?m)^[ \t]*#[ \t]*define.*(\\\n.*)*$", "", text)   # the loop's macros are still defined where the file is included
+        text = re.sub(r"(CASE\(\s*\w+\s*\)|DEFAULT)[ \t]*:(?!:)", "", text)
+        names = {n for n, s in self.label_seg.items() if s in segs}
+        return text, names
+
+
+def emit_function(loop, ops, fn, idx, local_stack):
+    code = bytes.fromhex(fn["code"])
+    name_of = {i: o for i, o in enumerate(ops)}
+    pcs, pos = [], 0
+    while pos < len(code):
+        op, size, fmt = name_of[code[pos]]
+        pcs.append((pos, op, size, fmt))
+        pos += size
+    if pos != len(code):
+        return None, "bytecode does not decode"
+    bad = sorted({op for _, op, _, _ in pcs if op in UNSUPPORTED})
+    if bad:
+        return None, "unsupported opcodes: " + ", ".join(bad)
+    zc = bytearray(code)
+    atom_pos = []
+    for pos, op, size, fmt in pcs:
+        if fmt in ATOM_FMTS:
+            zc[pos + 1:pos + 5] = len(atom_pos).to_bytes(4, "little")
+            atom_pos.append(pos + 1)
+    targets = set()
+    out = []
+    for pos, op, size, fmt in pcs:
+        text, labels = loop.body(op)
+        if text is None:
+            return None, "no interpreter body for " + op
+        if re.search(r"\bgoto\s+(done_generator|restart)\b", text):
+            return None, "generator path in " + op
+        fall = pos + size
+        succ = [fall]
+        if fmt in LABEL_FMTS:
+            o = pos + LABEL_FMTS[fmt]
+            rel = int.from_bytes(code[o:o + (1 if fmt == "label8" else 2 if fmt == "label16" else 4)], "little", signed=True)
+            succ.append(o + rel)
+        targets.update(succ)
+        for n in labels:
+            text = re.sub(r"\bgoto\s+%s\b" % n, "goto %s_%d" % (n, pos), text)
+            text = re.sub(r"(?m)^([ \t]*)%s([ \t]*:)(?!:)" % n, r"\1%s_%d\2" % (n, pos), text)
+        text = re.sub(r"\bBREAK\b", "ZN_NEXT", text)
+        text = re.sub(r"\bgoto\s+exception\b", "goto zn_exception", text)
+        text = re.sub(r"\bgoto\s+done\b", "goto zn_done", text)
+        if local_stack:
+            text = re.sub(r"\bstack_buf\b", "zn_stk", text)
+        text = text.replace("sf->cur_pc = pc", "sf->cur_pc = ZN_REALPC(pc)").replace("b->byte_code_buf", "((uint8_t *)zn_bc)")
+        if fmt in ATOM_FMTS:
+            if "get_u32(pc)" not in text:
+                return None, "no atom read in " + op
+            text = text.replace("get_u32(pc)", "ZN_ATOM(get_u32(pc))", 1)
+        if len(succ) == 1:
+            nxt = "goto L_%d" % fall
+        else:
+            nxt = "switch (pc - (uint8_t *)zn_bc) { %s default: __builtin_trap(); }" % " ".join(
+                "case %d: goto L_%d;" % (t, t) for t in sorted(set(succ)))
+        out.append("L_%d: {\n#undef ZN_NEXT\n#define ZN_NEXT %s\n    opcode = OP_%s; pc = (uint8_t *)zn_bc + %d;\n%s}\n" % (pos, nxt, op, pos + 1, text))
+    for t in sorted(targets):
+        if t >= len(code):
+            out.append("L_%d: __builtin_trap();\n" % t)
+    hexes = ", ".join("0x%02x" % c for c in zc)
+    head = "/* %s %s:%d:%d, %d bytes of bytecode */\n" % (fn.get("name") or "<anonymous>", fn["file"], fn["line"], fn["col"], len(code))
+    head += "static const uint8_t zn_code_%d[] = { %s };\n" % (idx, hexes)
+    if atom_pos:
+        head += "static const uint32_t zn_atom_pos_%d[] = { %s };\n" % (idx, ", ".join(map(str, atom_pos)))
+    if local_stack:   # the operand stack in a C array of constant size, copied to the frame's on the way out (the interpreter unwinds or frees it)
+        decl = "JSValue zn_stk[%d], *sp = zn_stk," % max(1, fn["stack"])
+        exit_ = "memcpy(stack_buf, zn_stk, (sp - zn_stk) * sizeof(JSValue)); *psp = stack_buf + (sp - zn_stk);"
+    else:
+        decl, exit_ = "JSValue *sp = stack_buf,", "*psp = sp;"
+    body = ("static int zn_aot_%d(JSContext *caller_ctx, JSContext *ctx, JSRuntime *rt, JSStackFrame *sf, JSFunctionBytecode *b, JSObject *p,\n"
+            "    JSValueConst func_obj, JSValueConst this_obj, JSValueConst new_target, int argc, JSValueConst *argv, int flags,\n"
+            "    JSValue *arg_buf, JSValue *var_buf, JSVarRef **var_refs, JSValue *stack_buf, JSValue **psp, uint8_t **ppc, JSValue *pret)\n{\n"
+            "#define zn_bc zn_code_%d\n#define ZN_ATOM(i) b->zn_atoms[i]\n"
+            "    %s ret_val, *call_argv, *pval;\n    uint8_t *pc = (uint8_t *)zn_bc;\n    int opcode, call_argc, i;\n"
+            "    goto L_0;\n%s"
+            " zn_exception:\n    %s *ppc = ZN_REALPC(pc); return 1;\n"
+            " zn_done:\n    %s *ppc = ZN_REALPC(pc); *pret = ret_val; return 0;\n"
+            "#undef zn_bc\n#undef ZN_ATOM\n}\n") % (idx, idx, decl, "".join(out), exit_, exit_)
+    entry = '    { "%s", %d, %d, %d, zn_code_%d, %s, %d, zn_aot_%d },\n' % (
+        fn["file"].replace("\\", "\\\\").replace('"', '\\"'), fn["line"], fn["col"], len(code), idx,
+        "zn_atom_pos_%d" % idx if atom_pos else "NULL", len(atom_pos), idx)
+    return (head + body, entry), None
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap.add_argument("--dump", required=True, action="append", help="a dump of ZN_QJS_DUMP (repeatable: --top applies to each)")
+    ap.add_argument("--top", type=int, default=30)
+    ap.add_argument("--all", action="store_true")
+    ap.add_argument("--any-file", action="store_true", help="bind by line, column and bytes in any file (test262 writes each test to a temporary file)")
+    ap.add_argument("--stack", choices=["local", "frame"], default="local", help="the operand stack: a C array (default) or the frame's")
+    ap.add_argument("-o", "--output", required=True)
+    a = ap.parse_args()
+    fns, seen = [], set()
+    for path in a.dump:
+        some = [json.loads(l) for l in open(path) if l.strip()]
+        some = [f for f in some if f["kind"] == 0 and not f["file"].startswith("<")]
+        if not a.all:
+            some = sorted((f for f in some if f["samples"] > 0), key=lambda f: -f["samples"])[:a.top]
+        for f in some:
+            if a.any_file:
+                f["file"] = ""
+            key = (f["file"], f["line"], f["col"], f["code"])
+            if key not in seen:
+                seen.add(key)
+                fns.append(f)
+    loop, ops = Loop(open(os.path.join(ROOT, "quickjs.c")).read()), opcodes()
+    parts, entries, done, skipped = [], [], 0, []
+    for f in fns:
+        r, why = emit_function(loop, ops, f, len(entries), a.stack == "local")
+        if r is None:
+            skipped.append("%s:%d:%d %s: %s" % (f["file"], f["line"], f["col"], f.get("name") or "<anonymous>", why))
+            continue
+        parts.append(r[0])
+        entries.append(r[1])
+    with open(a.output, "w") as o:
+        o.write("/* generated by tools/qjs2c from %s: %d functions (ZN-599) */\n" % (", ".join(map(os.path.basename, a.dump)), len(entries)))
+        o.write("#define ZN_REALPC(p) (b->byte_code_buf + ((p) - (uint8_t *)zn_bc))\n#define ZN_FALLOFF __builtin_trap()\n\n")
+        o.write("\n".join(parts))
+        o.write("\nstatic ZnAotEntry zn_aot_table[] = {\n%s};\nstatic const int zn_aot_count = %d;\n" % ("".join(entries) or "    { 0 }\n", len(entries)))
+    print("qjs2c: %d functions compiled, %d skipped" % (len(entries), len(skipped)))
+    for s in skipped:
+        print("  skipped " + s)
+
+
+if __name__ == "__main__":
+    main()

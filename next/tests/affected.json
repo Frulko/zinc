@@ -42,7 +42,7 @@
     {"paths": ["src/ir/"], "tests": ["ir", "zbc", "rc_refcast", "rc_lend", "rc_borrow", "rc"]},
     {"paths": ["src/zbc/"], "tests": ["zbc", "irformat", "aot"]},
     {"paths": ["src/main.cpp", "tests/t1/zbc_cache.sh"], "tests": ["zbc_cache", "run_cache"]},
-    {"paths": ["third_party/quickjs-ng/", "tools/quickjs-patches", "src/qjs/qjs_prof.cpp", "bench/qjs/"], "tests": ["quickjs_patches", "quickjs", "test262_regexp", "qjs_profile"]},
+    {"paths": ["third_party/quickjs-ng/", "tools/quickjs-patches", "src/qjs/qjs_prof.cpp", "bench/qjs/", "tools/qjs2c", "tests/data/qjs2c-sprite.jsonl"], "tests": ["quickjs_patches", "quickjs", "test262_regexp", "qjs_profile", "qjs2c"]},
     {"paths": ["../targets/macos/hal_sdl.cpp", "src/frontend/project", "tests/t1/pixel_scale.sh"], "tests": ["pixel_scale"]},
     {"paths": ["src/aot/", "src/rt/"], "tests": ["aot", "rc", "profile"]},
     {"paths": ["runtime/raster.cpp", "runtime/gfx.cpp", "runtime/ttf.cpp", "src/host/backend_sw.cpp"], "tests": ["scene_dump", "backend_sw", "damage_sig", "ui_style"], "canary": true},

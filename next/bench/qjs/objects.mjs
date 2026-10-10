@@ -1,7 +1,7 @@
 // QuickJS workload "objects" of docs/reports/quickjs-aot-jit-and-ffi.md: game/UI logic, 2,000 entities with polymorphic components in plain
 // objects, Map lookups by string, an event emitter with closures, short-lived objects, filter/map.
 // zinc profile bench/qjs/objects.mjs --engine quickjs (a ZN_QJS_PROFILE build)
-const ticks = 300;
+const ticks = globalThis.ZN_FRAMES ?? 300;
 const listeners = new Map();
 const on = (name, fn) => { if (!listeners.has(name)) listeners.set(name, []); listeners.get(name).push(fn); };
 const emit = (name, data) => { const l = listeners.get(name); if (l) for (const fn of l) fn(data); };
@@ -19,7 +19,8 @@ for (let k = 0; k < 2000; k++) {
 let events = 0;
 on('tick', (t) => { if (t % 10 === 0) events++; });
 on('fire', (e) => { const target = byName.get('e' + ((e.name.length * 7 + events) % 2000)); if (target) target.components[0].hp = 100; });
-for (let t = 0; t < ticks; t++) {
+const t0 = performance.now();
+function tick(t) {
   for (const e of entities) for (const c of e.components) {
     if (c.kind === 'move') { c.x += c.dx; c.y += c.dy; }
     else if (c.kind === 'health') c.hp = Math.min(100, c.hp + c.regen);
@@ -30,4 +31,5 @@ for (let t = 0; t < ticks; t++) {
   const moving = entities.filter((e) => e.components[0].kind === 'move').map((e) => ({ name: e.name, x: e.components[0].x }));
   if (moving.length !== 500) throw new Error('lost entities');
 }
-console.log('objects: ' + ticks + ' ticks, ' + events + ' events');
+for (let t = 0; t < ticks; t++) tick(t);
+console.log('objects: ' + ticks + ' ticks, ' + ((performance.now() - t0) / ticks).toFixed(3) + ' ms/tick, ' + events + ' events');

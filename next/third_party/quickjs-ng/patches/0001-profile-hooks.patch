@@ -2,9 +2,9 @@ Purpose: hooks for `zinc profile <file> --engine quickjs` (ZN-598): an opcode hi
   function entry, a backward-jump hook on goto (loop iterations), a hook when a function's bytecode is freed, and JS_ZnProfCurrent /
   JS_ZnProfDescribe so a SIGPROF sampler can name the running bytecode function (a method or an arrow by its "name" property;
   src/qjs/qjs_prof.cpp). Everything is under #ifdef ZN_QJS_PROFILE (CMake option, off by default).
-Measured: zero cost when off: quickjs.c compiled with zn_quickjs's flags gives the same instructions as the v0.17.0 release (otool -tv,
-  210,907 lines; only the __LINE__ constants of the shifted lines and the rip offsets differ; __text 886,260 bytes both). An unguarded
-  `({ opcode = *pc++; ...; goto *dispatch_table[opcode]; })` cost 896 bytes in JS_CallInternal, hence the two forms of SWITCH.
+Measured: zero cost when off: quickjs.c compiled with zn_quickjs's flags (-O2) gives the same instructions as the v0.17.0 release
+  (otool -tv, 207,986 lines; only the __LINE__ constants of the shifted lines and the rip offsets differ; __text 788,478 bytes both).
+  SWITCH keeps the release's form when off, so other compilers and -O0 builds compile the release's dispatch too.
 Upstream: not upstreamable: a Zinc-specific profiler interface into the interpreter's private frames.
 --- a/quickjs.c	2026-10-10 11:59:51
 +++ b/quickjs.c	2026-10-10 12:13:13

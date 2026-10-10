@@ -309,7 +309,7 @@ int run(const Options& o) {
   zn_lre_delegate(qjs_lre_realloc, qjs_lre_check_timeout, qjs_lre_check_stack_overflow);
   e.rt = JS_NewRuntime();
 #ifdef ZN_QJS_PROFILE
-  if (o.profileHz) profileStart(e.rt, o.profileHz);
+  if (o.profileHz || std::getenv("ZN_QJS_DUMP")) profileStart(e.rt, o.profileHz);   // a dump alone (tools/qjs2c) prints no report
 #endif
   e.ctx = JS_NewContext(e.rt);
   JS_SetMemoryLimit(e.rt, 0);

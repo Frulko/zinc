@@ -5,3 +5,4 @@ build*/
 .paused
 build-wasm/
 __pycache__/
+bench/qjs/matter.mjs

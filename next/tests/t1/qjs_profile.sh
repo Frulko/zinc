@@ -8,7 +8,7 @@ case "$rc $out" in "2 "*ZN_QJS_PROFILE=ON*) ;; *) echo "a default build should r
 prof=${ZINC_QJS_PROF:-build-prof/zinc}
 if [ -x "$prof" ]; then
   out=$("$prof" profile bench/qjs/objects.mjs --engine quickjs --hz 2000 2>&1)
-  echo "$out" | grep -q "^objects: 300 ticks" || { echo "the program did not run: $out"; fail=1; }
+  echo "$out" | grep -q "^objects: 300 ticks, " || { echo "the program did not run: $out"; fail=1; }
   echo "$out" | grep -q "^QuickJS profile: [0-9]* samples at 2000 Hz" || { echo "no report header: $out"; fail=1; }
   echo "$out" | grep -Eq "^ +[0-9]+ +[0-9.]+% +[0-9]+ +[0-9]+  emit +bench/qjs/objects.mjs:7:14$" || { echo "no row for emit with its file:line: $out"; fail=1; }
   echo "$out" | grep -Eq "^ +[0-9]+ +[0-9.]+%  get_field$" || { echo "no get_field in the opcode mix: $out"; fail=1; }

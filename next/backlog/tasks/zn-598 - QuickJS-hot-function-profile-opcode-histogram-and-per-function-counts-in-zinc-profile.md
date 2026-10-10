@@ -6,7 +6,7 @@ title: >-
 status: Done
 assignee: []
 created_date: '2026-10-09 09:28'
-updated_date: '2026-10-10 10:16'
+updated_date: '2026-10-10 10:50'
 labels:
   - perf
   - quickjs
@@ -41,4 +41,6 @@ AC2: zero cost proven at instruction level, stronger than the boundary benchmark
 AC3: docs/reports/zinc-next-profiling.md section 'QuickJS', workloads bench/qjs/three.mjs, sprite.mjs, objects.mjs with measured tables; physics (matter-js, not vendored) described with the command. three: multiplyMatrices 22.8% of samples, opcode mix matches the report (get_loc_check 20.8%, swap 12.5%, mul 7.2%).
 Also fixed: tests/golden/zbc/rt_arrays.zbc.txt regenerated (ZN-420 i32 sort changed it; commit a18e058e). Full T1 after ZN-427: 252 passed, 7 failed = the 6 known machine failures plus zbc (fixed).
 Tests: quickjs_patches, quickjs, test262_regexp, qjs_profile pass. usage: n/a
+
+Correction 2026-10-10 (ZN-599): the zero-cost numbers above were measured at -O0 (zsh passed the flags as one word). With zn_quickjs's real flags (-O2): the same instructions as the release, 207,986 lines, __text 788,478 bytes; the unguarded dispatch macro costs nothing at -O2 either. Patch header fixed.
 <!-- SECTION:NOTES:END -->

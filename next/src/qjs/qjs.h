@@ -22,7 +22,7 @@ extern const char* kPrelude;
 extern const char* kWebShims;   // TextEncoder, TextDecoder, AbortController: evaluated in every context (the main program and zinc:script)
 
 #ifdef ZN_QJS_PROFILE
-void profileStart(JSRuntime* rt, int hz);   // src/qjs/qjs_prof.cpp: the report goes to stderr at exit
+void profileStart(JSRuntime* rt, int hz);   // src/qjs/qjs_prof.cpp: the report goes to stderr at exit (hz 0: no report, only ZN_QJS_DUMP)
 #endif
 
 }  // namespace zn::qjs

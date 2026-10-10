@@ -1,0 +1,9 @@
+#!/bin/sh
+# matter-js 0.20.0 (MIT) for bench/qjs/physics.mjs, not vendored: fetched from npm, checked, wrapped as an ES module in bench/qjs/matter.mjs (ignored by git).
+cd "$(dirname "$0")" || exit 2
+[ -f matter.mjs ] && exit 0
+tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+curl -fsSL -o "$tmp/m.tgz" https://registry.npmjs.org/matter-js/-/matter-js-0.20.0.tgz || { echo "fetch-matter: cannot download"; exit 1; }
+[ "$(shasum -a 256 "$tmp/m.tgz" | cut -d' ' -f1)" = c2594c16b67adf76d32d9c4576a388a32cee80e5dfe2823cd3bf1b8fb93cc7f2 ] || { echo "fetch-matter: checksum differs"; exit 1; }
+tar -xzf "$tmp/m.tgz" -C "$tmp" package/build/matter.js
+{ echo 'const module = { exports: {} }, exports = module.exports;'; cat "$tmp/package/build/matter.js"; echo; echo 'export default module.exports;'; } > matter.mjs

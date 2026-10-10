@@ -333,6 +333,7 @@ Gain: 5 = removes a multiple of the frame or a 2x+ on a whole class of programs;
 
 - **Result (ZN-427, 2026-10-10)**: units of 48 functions after a first unit of tables, resources and main; objects cached by unit hash, a precompiled header for clang, `ZINC_JOBS` compiles at once (half the cores). Navigation on the Intel Mac: cold 12.2 s, unchanged 1.3 s, one function changed 4.3 s; frame time unchanged.
 - **Tool (ZN-598, 2026-10-10)**: `zinc profile <file> --engine quickjs` in a `-DZN_QJS_PROFILE=ON` build: the hottest JS functions with file:line and the opcode mix. three.js (500 meshes, 200 frames): `multiplyMatrices` 22.8% of samples, `get_loc_check` 20.8% / `swap` 12.5% / `mul` 7.2% of 362 M bytecodes. Default build: same instructions as the release. Details and the other workloads: `zinc-next-profiling.md`.
+- **Spike (ZN-599, 2026-10-10)**: QuickJS bytecode to C by copying the interpreter's opcode bodies (`tools/qjs2c`): three.js 7.31 -> 5.71 ms/frame (1.28x), sprite 10.19 -> 7.28 (1.40x), objects 1.22 -> 1.13 (1.08x), matter-js 9.42 -> 7.32 ms/step (1.29x); code 53-61x the bytecode. Below the gate (2x, 15x): no-go, D55, `zinc-next-qjs2c.md`.
 
 ## 4. Correction of ZN-042's diagnosis (nbody)
 
