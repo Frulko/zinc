@@ -1,0 +1,3 @@
+read an asset: the app's own note
+write in the assets: refused (fs:write)
+link in the assets: refused (fs:write)

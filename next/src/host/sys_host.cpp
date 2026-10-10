@@ -143,7 +143,9 @@ std::string assetsDir();
 bool denyByPermission(const char* feature, const std::string& path) {
   if (gScopeOn) return false;   // "scopes": {"fs": "user-picked"} is stricter than the manifest: it decides (denyByScope)
   const std::string a = assetsDir();
-  if (!a.empty() && path.size() > a.size() && path.compare(0, a.size(), a) == 0 && path[a.size()] == '/' && (path + "/").find("/../", a.size()) == std::string::npos) return false;   // the app's own assets need no permission (a ".." leaves them: checked as any path)
+  // reading the app's own assets needs no permission (a ".." leaves them: checked as any path); writing there does (ZN-646: a program allowed to
+  // write its assets directory could otherwise place a link to any file and read it through the exemption)
+  if (!strcmp(feature, "fs:read") && !a.empty() && path.size() > a.size() && path.compare(0, a.size(), a) == 0 && path[a.size()] == '/' && (path + "/").find("/../", a.size()) == std::string::npos) return false;
   if (!gGrants.empty()) { const std::string ap = absPath(path); for (const std::string& g : gGrants) if (ap == g || (ap.size() > g.size() && ap.compare(0, g.size(), g) == 0 && ap[g.size()] == '/')) return false; }   // picked by the user in a dialog: their consent
   const std::string deny = zn::host::perm::check(feature, path);
   if (deny.empty()) return false;

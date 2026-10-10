@@ -1,0 +1,1 @@
+{ "name": "permissions-assets", "entry": "main.ts", "permissions": ["fs:read:data"] }

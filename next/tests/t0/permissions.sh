@@ -3,6 +3,7 @@
 # (ZINC_PERMISSIONS=enforce), the allowed calls work and the others (reading outside data, writing, listening, fetching another host) fail with
 # errors naming the permission (enforce.out); while developing they work and each missing permission is warned about once on stderr; a project
 # without "permissions" is not checked at all. tests/golden/permissions-more: processes, sockets, osc and mqtt with net:127.0.0.1 only (ZN-322.02).
+# tests/golden/permissions-assets: reading the app's assets needs no permission, writing or linking there needs fs:write (ZN-646).
 cd "$(dirname "$0")/../.." || exit 2
 Z=$(cd "$(dirname "$ZINC")" && pwd)/$(basename "$ZINC")
 g=tests/golden/permissions
@@ -24,5 +25,10 @@ diff -q "$tmp/more" $m/enforce.out >/dev/null || { echo "enforced (other familie
 (cd $m && "$Z" run . > "$tmp/more.dev" 2>/dev/null)
 grep -q 'refused' "$tmp/more.dev" && { echo "developing (other families): refused calls: $(grep refused "$tmp/more.dev")"; fail=1; }
 [ "$(grep -c ': done\|allowed' "$tmp/more.dev")" = 7 ] || { echo "developing (other families): $(cat "$tmp/more.dev")"; fail=1; }
+a=tests/golden/permissions-assets   # the assets exemption is read-only (ZN-646): run on a copy, a refused write must leave nothing behind
+cp -R $a "$tmp/assets-app"
+(cd "$tmp/assets-app" && ZINC_PERMISSIONS=enforce "$Z" run . > "$tmp/assets" 2>&1)
+diff -q "$tmp/assets" $a/enforce.out >/dev/null || { echo "enforced (assets): $(diff "$tmp/assets" $a/enforce.out | head -6)"; fail=1; }
+[ "$(ls "$tmp/assets-app/assets")" = note.txt ] || { echo "enforced (assets): a refused write left $(ls "$tmp/assets-app/assets" | tr '\n' ' ')"; fail=1; }
 [ $fail -eq 0 ] && echo "permissions: ok"
 exit $fail
