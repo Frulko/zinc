@@ -61,16 +61,6 @@ log('src set twice:', seen.join(', '));
 twice.removeAttribute('src');
 log('src removed:', twice.complete, twice.naturalWidth, JSON.stringify(twice.src));
 
-// createImageBitmap: from a Blob, an image element and an ImageData, whole or a rectangle; what cannot be made is a rejection by name
-const blob = await (await fetch('assets/fixture.png')).blob();
-const whole = await createImageBitmap(blob);
-log('bitmap of a blob', whole instanceof ImageBitmap, whole.width + 'x' + whole.height, Object.keys(whole).join(','));
-const part = await createImageBitmap(first, 8, 8, 16, 8, { imageOrientation: 'flipY', premultiplyAlpha: 'none' });
-log('bitmap of a rectangle of an image', part.width + 'x' + part.height);
-log('bitmap of an ImageData', (await createImageBitmap(new ImageData(3, 2))).width, 'of a bitmap', (await createImageBitmap(whole, -4, -4, 8, 8)).height);
-whole.close();
-log('closed', whole.width, whole.height);
-const refused = p => p.then(() => 'made', e => e.constructor.name + ' ' + e.name);
-log('not made:', await refused(createImageBitmap(new Blob(['no picture']))), '|', await refused(createImageBitmap(new Image())), '|', await refused(createImageBitmap(whole)), '|',
-  await refused(createImageBitmap(blob, 0, 0, 0, 4)), '|', await refused(createImageBitmap(blob, { resizeWidth: 8 })));
-try { new ImageBitmap(); } catch (e) { log('new ImageBitmap():', e.constructor.name, e.message); }
+// createImageBitmap is absent as long as Worker is: the two come together in a browser, and PixiJS 7 and 8, finding the first, load every
+// picture through a Worker they do not look for. Whoever adds one adds the other (ZN-569's notes).
+log('createImageBitmap', typeof createImageBitmap, 'ImageBitmap', typeof ImageBitmap, 'Worker', typeof Worker);

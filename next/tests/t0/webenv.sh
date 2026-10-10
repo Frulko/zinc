@@ -28,8 +28,9 @@ printf "const n = +(localStorage.getItem('runs') || 0) + 1; localStorage.setItem
 file="$tmp/kept.js"
 [ "$(web 1 ZINC_STORAGE="$tmp/kept.json" 2>&1; web 1 ZINC_STORAGE="$tmp/kept.json" 2>&1)" = "run 1 1 0
 run 2 1 0" ] || { echo "webenv: localStorage is not kept from one run to the next"; fail=1; }
-# image elements and bitmaps (ZN-569): a src loaded and decoded by the engine's codec with a browser's order of events, each format's size,
-# data: and blob: URLs, what is not a picture, createImageBitmap; a picture larger than the environment decodes is refused from its header, by name
+# image elements (ZN-569): a src loaded and decoded by the engine's codec with a browser's order of events, each format's size, data: and
+# blob: URLs, what is not a picture; a picture larger than the environment decodes is refused from its header, by name; no
+# createImageBitmap while there is no Worker
 file=tests/golden/webenv/image.js
 web 1 > "$tmp/image.out" 2> "$tmp/image.err" || { echo "webenv: image.js failed: $(head -c 300 "$tmp/image.err")"; fail=1; }
 diff "$tmp/image.out" tests/golden/webenv/image.out > "$tmp/image.diff" || { echo "webenv: image.js differs from tests/golden/webenv/image.out:"; head -20 "$tmp/image.diff"; fail=1; }

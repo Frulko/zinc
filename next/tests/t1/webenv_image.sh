@@ -1,8 +1,8 @@
 #!/bin/sh
-# Images as WebGL texture sources in the web environment (ZN-569): tests/golden/webenv/image_gl.js hands image elements and ImageBitmaps to
-# texImage2D and texSubImage2D and reads the texture back. The picture is known (tests/data/images: twelve flat colours, the same in PNG,
+# Images as WebGL texture sources in the web environment (ZN-569): tests/golden/webenv/image_gl.js hands image elements to texImage2D and
+# texSubImage2D and reads the texture back. The picture is known (tests/data/images: twelve flat colours, the same in PNG,
 # GIF, BMP and JPEG), so the pixels are checked against its colours, not against a capture: exact for PNG, GIF and BMP, within 1 for the
-# JPEG; UNPACK_FLIP_Y_WEBGL and UNPACK_PREMULTIPLY_ALPHA_WEBGL for an element, a bitmap's own options in their place; a lossless WebP equal
+# JPEG; UNPACK_FLIP_Y_WEBGL and UNPACK_PREMULTIPLY_ALPHA_WEBGL; texSubImage2D; an image still loading is INVALID_VALUE; a lossless WebP equal
 # pixel for pixel to the PNG it was encoded from. The window's frame 2 (the canvas, 4 pixels a texel) is the picture the right way up.
 cd "$(dirname "$0")/../.." || exit 2
 fail=0

@@ -1,5 +1,5 @@
-// Images as WebGL texture sources (ZN-569): an image element or an ImageBitmap handed to texImage2D / texSubImage2D gives the picture's own
-// pixels, with UNPACK_FLIP_Y_WEBGL and UNPACK_PREMULTIPLY_ALPHA_WEBGL honoured for an element and a bitmap's own options in their place.
+// Images as WebGL texture sources (ZN-569): an image element handed to texImage2D / texSubImage2D gives the picture's own pixels, with
+// UNPACK_FLIP_Y_WEBGL and UNPACK_PREMULTIPLY_ALPHA_WEBGL honoured.
 // Run with ZINC_WEB=1 by tests/t1/webenv_image.sh; the output is image_gl.out and the window's frame 2 is image_gl-2.png.
 // The pictures: tests/data/images/fixture.* (32 x 24, twelve flat colours in 8 x 8 blocks, the same picture in each format) and a lossless
 // WebP with the PNG it was encoded from (tests/golden/webp, tests/golden/shaped).
@@ -55,21 +55,11 @@ const half = await image(tiny);
 unpack(false, false); upload(half); draw(); const straight = at(16, 48);
 unpack(false, true); upload(half); draw();
 log('alpha 128: as it is', straight.join(','), 'UNPACK_PREMULTIPLY_ALPHA_WEBGL', at(16, 48).join(','), 'the opaque pixel beside it', at(112, 48).join(','));
-// 5. a bitmap keeps what createImageBitmap was told and ignores the two unpack parameters
-const blob = await (await fetch(tiny)).blob(), file = await (await fetch('../../data/images/fixture.png')).blob();
-unpack(false, false); upload(await createImageBitmap(blob)); draw(); const byDefault = at(16, 48);
-unpack(false, true); upload(await createImageBitmap(blob, { premultiplyAlpha: 'none' })); draw();
-log('bitmap, alpha 128: by default (premultiplied) with the parameter off', byDefault.join(','), '| premultiplyAlpha none with the parameter on', at(16, 48).join(','));
-unpack(false, false); upload(await createImageBitmap(file, { imageOrientation: 'flipY' })); draw(); const turned = block(0, 0);
-unpack(true, false); upload(await createImageBitmap(file)); draw();
-log('bitmap, orientation: flipY with the parameter off, top-left', turned.join(','), '| as decoded with the parameter on, top-left', block(0, 0).join(','));
-unpack(false, false); upload(await createImageBitmap(file, 8, 8, 16, 8, { imageOrientation: 'flipY' })); draw();
-log('bitmap of the rectangle 8,8 16x8 (black, grey), turned over: left', at(32, 48).join(','), 'right', at(96, 48).join(','));
-// 6. an image that has no pixels yet is INVALID_VALUE and uploads nothing
+// 5. an image that has no pixels yet is INVALID_VALUE and uploads nothing
 const pending = new Image(); pending.src = '../../data/images/fixture.gif';
 upload(pending);
 log('an image still loading:', gl.getError() === gl.INVALID_VALUE ? 'INVALID_VALUE' : 'no error', 'complete', pending.complete);
-// 7. a lossless WebP against the PNG it was encoded from, pixel for pixel through a 400 x 260 framebuffer
+// 6. a lossless WebP against the PNG it was encoded from, pixel for pixel through a 400 x 260 framebuffer
 const [webp, reference] = [await image('../../golden/webp/assets/frame.webp'), await image('../../golden/shaped/gfx.png')];
 const target = texture();
 gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 400, 260, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);

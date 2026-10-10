@@ -15,9 +15,4 @@ a data: URL with no comma: error complete true natural 0 decode() EncodingError
 a picture larger than the environment takes: error 0
 src set twice: load 2
 src removed: true 0 ""
-bitmap of a blob true 32x24 width,height
-bitmap of a rectangle of an image 16x8
-bitmap of an ImageData 3 of a bitmap 8
-closed 0 0
-not made: DOMException InvalidStateError | DOMException InvalidStateError | DOMException InvalidStateError | RangeError RangeError | DOMException NotSupportedError
-new ImageBitmap(): TypeError Illegal constructor
+createImageBitmap undefined ImageBitmap undefined Worker undefined

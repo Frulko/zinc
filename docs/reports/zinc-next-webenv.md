@@ -50,9 +50,7 @@ What a program finds:
 - **Images** (ZN-569): `Image` / `HTMLImageElement` loads its `src` as `fetch` does (files, `data:` and `blob:` URLs, the network) and the
   engine's codec decodes it (PNG, JPEG, BMP, a GIF's first frame, WebP: `next/src/res/codec.h`). The events come in a browser's order:
   `complete` false at once, then in a task of its own the natural size with `load`, or `error`; `decode()`; a `src` set again abandons the
-  load before it. `createImageBitmap` makes an `ImageBitmap` from a Blob, an image, an `ImageData`, a canvas or a bitmap, whole or a
-  rectangle, with `imageOrientation: 'flipY'` and `premultiplyAlpha`. Both are WebGL texture sources: an element obeys
-  `UNPACK_FLIP_Y_WEBGL` and `UNPACK_PREMULTIPLY_ALPHA_WEBGL`, a bitmap its own options (WebGL ignores the two parameters for it). A picture
+  load before it. An image is a WebGL texture source and obeys `UNPACK_FLIP_Y_WEBGL` and `UNPACK_PREMULTIPLY_ALPHA_WEBGL`. A picture
   of more than 2^26 pixels (8192 x 8192) is refused from its header, by name. Decoding is on the main thread: 34 ms for a 1024 x 1024 PNG,
   415 ms for a 4096 x 4096 one on the development Mac (the numbers and the follow-up are in the notes of ZN-569).
 
@@ -61,8 +59,10 @@ What a program finds:
 - **Layout**: none. A box is what the style says (px, %, vw, vh), else the window for `html` and `body`, the bitmap for a canvas, the parent's
   width and no height for the rest, all at the origin.
 - **Canvas 2D** (ZN-570): `getContext('2d')` gives a context that takes every call and draws nothing; the first one prints a notice.
-- **Images**: `createImageBitmap` does not resize (`resizeWidth`, `resizeHeight`: the promise is rejected by name); nothing is decoded off the
-  main thread; SVG and animated pictures are not images here. **Audio** (ZN-573): media elements play nothing; no `AudioContext`.
+- **Images**: no `createImageBitmap` and no `ImageBitmap`, on purpose, as long as there is no `Worker`: PixiJS 7 and 8, finding
+  `createImageBitmap`, load every picture through a Worker they make without looking for one, and `Assets.load` fails; without it they,
+  three.js and Phaser load pictures through image elements, unmodified (measured: the notes of ZN-569). Nothing is decoded off the main
+  thread; SVG and animated pictures are not images here. **Audio** (ZN-573): media elements play nothing; no `AudioContext`.
   **Gamepads** (ZN-574): `navigator.getGamepads()` is empty.
 - `innerHTML` with markup (kept as text), `DOMParser`, `FormData`, streams, cookies, `Worker`, the window's `focus` / `blur` /
   `visibilitychange`, `canvas.toDataURL`.
@@ -72,16 +72,16 @@ What a program finds:
 | Library | State | Test |
 |---|---|---|
 | p5.js 1.11.13 | boots and draws in WEBGL mode; its 2D mode waits for ZN-570 | `tests/t1/webenv_p5.sh` |
-| three.js r186 | boots, animates, OrbitControls turns the camera by a scripted drag | `tests/t1/webenv_three.sh` |
-| PixiJS 7.4.3 | boots, animates, its sprites hear the pointer; a Graphics fill waits for ZN-570 | `tests/t1/webenv_pixi.sh` |
-| PixiJS 8.22.0 | boots, animates, a Graphics square hears the pointer (since ZN-565: a WebGL 2 context is no longer `instanceof WebGLRenderingContext`, and `#define in attribute` compiles) | `tests/t1/webenv_pixi.sh` |
+| three.js r186 | boots, animates, OrbitControls turns the camera by a scripted drag; `TextureLoader` shows a picture from a file | `tests/t1/webenv_three.sh` |
+| PixiJS 7.4.3 | boots, animates, its sprites hear the pointer; `Assets.load` shows a picture from a file; a Graphics fill waits for ZN-570 | `tests/t1/webenv_pixi.sh` |
+| PixiJS 8.22.0 | boots, animates, a Graphics square hears the pointer (since ZN-565: a WebGL 2 context is no longer `instanceof WebGLRenderingContext`, and `#define in attribute` compiles); `Assets.load` shows a picture from a file | `tests/t1/webenv_pixi.sh` |
 | Phaser 3.90.0 | boots and animates on WebGL 1: its shaders compile (ZN-565), its default textures and a picture from a file load (ZN-569), its keyboard and pointer hear scripted input; its Text objects wait for ZN-570 | `tests/t1/webenv_phaser.sh` |
 
 ## Tests
 
 `tests/t0/webenv.sh` (globals, tree, events, frames and input, files, `data:` and `blob:` URLs, http against a local server, storage, scripts,
-the trace, image elements and bitmaps), `tests/t1/webenv_canvas.sh` (the canvas on WebGL and in the window), `tests/t1/webenv_image.sh`
-(images and bitmaps as textures, read back against a picture of known colours), `tests/t1/webgl_libs.sh` (the binding defects libraries
+the trace, image elements), `tests/t1/webenv_canvas.sh` (the canvas on WebGL and in the window), `tests/t1/webenv_image.sh`
+(images as textures, read back against a picture of known colours), `tests/t1/webgl_libs.sh` (the binding defects libraries
 found, ZN-565) and one T1 test per library above. Their programs and goldens are in `tests/golden/webenv/`. PixiJS, three.js and Phaser (MIT)
 are test data in `third_party/pixi`, `third_party/three` and `third_party/phaser`. p5.js is LGPL-2.1, which
 `next/RULES.md` §3 keeps out of the tree: `next/tools/test-lib p5-1.11.13` takes `lib/p5.min.js` of p5's npm release once into

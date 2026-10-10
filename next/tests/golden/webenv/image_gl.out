@@ -5,8 +5,5 @@ jpg top-left 220,30,30,255 bottom-right 59,60,20,255 largest difference over the
 not flipped: the canvas top-left is the picture's bottom-left 90,20,140,255 and its bottom-left the picture's top-left 220,30,30,255
 texSubImage2D at 16,12: outside 0,0,0,0 the picture's top-left block 220,30,30,255 its bottom-right block 60,60,20,255 error 0
 alpha 128: as it is 255,0,0,128 UNPACK_PREMULTIPLY_ALPHA_WEBGL 128,0,0,128 the opaque pixel beside it 0,0,255,255
-bitmap, alpha 128: by default (premultiplied) with the parameter off 128,0,0,128 | premultiplyAlpha none with the parameter on 255,0,0,128
-bitmap, orientation: flipY with the parameter off, top-left 220,30,30,255 | as decoded with the parameter on, top-left 90,20,140,255
-bitmap of the rectangle 8,8 16x8 (black, grey), turned over: left 0,0,0,255 right 120,120,120,255
 an image still loading: INVALID_VALUE complete false
 webp 400x260 against its png 400x260: 0 pixels differ of 104000 in more than 50 colours, error 0

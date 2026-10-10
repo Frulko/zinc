@@ -4,15 +4,21 @@
 # frames 2 and 8, and a scripted pointer reaching the sprite through PixiJS's own listeners (pointermove on the document, pointerup on the
 # window, both in the capture phase). PixiJS 8.22.0 runs the same page of its API (await app.init, a Graphics square): it needs a WebGL 2
 # context that is not `instanceof WebGLRenderingContext` and shaders that say `#define in attribute` (ZN-565).
+# A picture from a file (ZN-569), picture.js in both versions: `await Assets.load(url)` with no preference set by the page, a Sprite of it,
+# and the pixels read back inside its blocks are the file's own colours (tests/data/images/fixture.png). PixiJS loads it through an image
+# element: the environment has no createImageBitmap while it has no Worker, which PixiJS would otherwise make without looking for one.
 cd "$(dirname "$0")/../.." || exit 2
 fail=0
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
-page() {  # version directory
-  env ZINC_HEADLESS=1 ZINC_WEB=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_FRAMES=10 ZINC_INPUT=tests/golden/webenv/pixi/pointer.input "$ZINC" run "tests/golden/webenv/pixi/$1/page.js" --engine quickjs > "$tmp/$1.out" 2> "$tmp/$1.err" \
-    || { echo "webenv_pixi: the $1 page failed: $(grep -v '^zinc: Canvas 2D' "$tmp/$1.err" | head -c 300)"; fail=1; }
-  diff "$tmp/$1.out" "tests/golden/webenv/pixi/$1/page.out" > "$tmp/$1.diff" || { echo "webenv_pixi: the $1 page differs from tests/golden/webenv/pixi/$1/page.out:"; head -20 "$tmp/$1.diff"; fail=1; }
-  grep -q "Uncaught" "$tmp/$1.err" && { echo "webenv_pixi: PixiJS $1 threw: $(grep -m1 Uncaught "$tmp/$1.err" | cut -c1-200)"; fail=1; }
+page() {  # version directory, page name, frames [VAR=value...]
+  v=$1; name=$2; frames=$3; shift 3
+  env ZINC_HEADLESS=1 ZINC_WEB=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_FRAMES="$frames" "$@" "$ZINC" run "tests/golden/webenv/pixi/$v/$name.js" --engine quickjs > "$tmp/$v-$name.out" 2> "$tmp/$v-$name.err" \
+    || { echo "webenv_pixi: $v/$name.js failed: $(grep -v '^zinc: Canvas 2D' "$tmp/$v-$name.err" | head -c 300)"; fail=1; }
+  diff "$tmp/$v-$name.out" "tests/golden/webenv/pixi/$v/$name.out" > "$tmp/$v-$name.diff" || { echo "webenv_pixi: $v/$name.js differs from tests/golden/webenv/pixi/$v/$name.out:"; head -20 "$tmp/$v-$name.diff"; fail=1; }
+  grep -q "Uncaught" "$tmp/$v-$name.err" && { echo "webenv_pixi: PixiJS $v threw in $name.js: $(grep -m1 Uncaught "$tmp/$v-$name.err" | cut -c1-200)"; fail=1; }
 }
-page v7
-page v8
+for v in v7 v8; do
+  page $v page 10 ZINC_INPUT=tests/golden/webenv/pixi/pointer.input
+  page $v picture 4
+done
 exit $fail
