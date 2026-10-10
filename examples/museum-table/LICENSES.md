@@ -1,0 +1,63 @@
+# Sources and licences of the sample collection
+
+Every file under `assets/` is listed here with where it comes from. All of them are in the public domain or under CC0 1.0
+(<https://creativecommons.org/publicdomain/zero/1.0/>), checked on each work's own record on 2026-10-10: the museums' open-access programmes
+release these images and this 3D model without restriction. The same credits are in `assets/project.json` (`media[].credit`), which is what the
+table shows to visitors. `tools/fetch-collection.sh` downloads the originals again and rebuilds every file.
+
+The texts of `project.json` (titles in French, descriptions, audio descriptions, narration) were written for this example from the museums'
+records and are released under CC0 1.0 as well. The code of the example follows the licence of the repository.
+
+## Photographs
+
+Resized to 1280 pixels on the long side and saved as JPEG (quality 70) with `sips`; nothing else was changed.
+
+| file | work | institution, accession number, credit line | source | licence |
+| --- | --- | --- | --- | --- |
+| `photos/great-wave.jpg` | Katsushika Hokusai, *Under the Wave off Kanagawa (The Great Wave)*, ca. 1830–32 | The Metropolitan Museum of Art, New York, JP1847. H. O. Havemeyer Collection, Bequest of Mrs. H. O. Havemeyer, 1929 | <https://www.metmuseum.org/art/collection/search/45434> | CC0 1.0 (The Met Open Access) |
+| `photos/red-fuji.jpg` | Katsushika Hokusai, *South Wind, Clear Sky (Red Fuji)*, ca. 1830–32 | The Metropolitan Museum of Art, JP9. Rogers Fund, 1914 | <https://www.metmuseum.org/art/collection/search/36490> | CC0 1.0 (The Met Open Access) |
+| `photos/ejiri.jpg` | Katsushika Hokusai, *Ejiri in Suruga Province*, ca. 1830–32 | The Metropolitan Museum of Art, JP12. Rogers Fund, 1914 | <https://www.metmuseum.org/art/collection/search/36493> | CC0 1.0 (The Met Open Access) |
+| `photos/sudden-shower.jpg` | Utagawa Hiroshige, *Sudden Shower over Shin-Ōhashi Bridge and Atake*, 1857 | The Metropolitan Museum of Art, JP643. Purchase, Joseph Pulitzer Bequest, 1918 | <https://www.metmuseum.org/art/collection/search/36461> | CC0 1.0 (The Met Open Access) |
+| `photos/kanbara-snow.jpg` | Utagawa Hiroshige, *Evening Snow at Kanbara*, ca. 1833–34 | The Metropolitan Museum of Art, JP2492. The Howard Mansfield Collection, Purchase, Rogers Fund, 1936 | <https://www.metmuseum.org/art/collection/search/56915> | CC0 1.0 (The Met Open Access) |
+| `photos/three-beauties.jpg` | Kitagawa Utamaro, *Three Beauties of the Kwansei Period*, ca. 1791 | The Metropolitan Museum of Art, JP1528. Fletcher Fund, 1929 | <https://www.metmuseum.org/art/collection/search/55639> | CC0 1.0 (The Met Open Access) |
+| `photos/irises.jpg` | Vincent van Gogh, *Irises*, 1890 | The Metropolitan Museum of Art, 58.187. Gift of Adele R. Levy, 1958 | <https://www.metmuseum.org/art/collection/search/436528> | CC0 1.0 (The Met Open Access) |
+| `photos/divan-japonais.jpg` | Henri de Toulouse-Lautrec, *Divan Japonais*, 1892–93 | The Metropolitan Museum of Art, 58.621.17. Bequest of Clifford A. Furst, 1958 | <https://www.metmuseum.org/art/collection/search/334197> | CC0 1.0 (The Met Open Access) |
+| `photos/nocturne.jpg` | James McNeill Whistler, *Nocturne (Nocturne: The Thames at Battersea)*, 1878 | The Metropolitan Museum of Art, 17.3.159. Harris Brisbane Dick Fund, 1917 | <https://www.metmuseum.org/art/collection/search/337702> | CC0 1.0 (The Met Open Access) |
+| `photos/plum-garden.jpg` | Utagawa Hiroshige, *Plum Garden at Kameido*, 1857 | The Art Institute of Chicago, 1925.3752. Clarence Buckingham Collection | <https://www.artic.edu/artworks/26577> | CC0 1.0 (Art Institute of Chicago, public domain) |
+| `photos/water-lily-pond.jpg` | Claude Monet, *Water Lily Pond*, 1900 | The Art Institute of Chicago, 1933.441. Mr. and Mrs. Lewis Larned Coburn Memorial Collection | <https://www.artic.edu/artworks/87088> | CC0 1.0 (Art Institute of Chicago, public domain) |
+| `photos/the-letter.jpg` | Mary Cassatt, *The Letter*, 1890–91 | The Art Institute of Chicago, 1932.1282. Mr. and Mrs. Martin A. Ryerson Collection | <https://www.artic.edu/artworks/13508> | CC0 1.0 (Art Institute of Chicago, public domain) |
+
+How each licence was read: The Met's collection API gives `isPublicDomain: true` for these nine objects (objects where it is false, among them the
+Monet and Cassatt works first chosen, were left out); the Art Institute of Chicago's API gives `is_public_domain: true` for these three and states
+that its data, descriptions aside, is under CC0 (the descriptions were not copied).
+
+## 3D model
+
+| file | work | institution, accession number, credit line | source | licence |
+| --- | --- | --- | --- | --- |
+| `models/vase.obj`, `models/vase.jpg` | *Baluster vase, from a five-piece garniture*, Jingdezhen, Qing dynasty, Kangxi reign (1662–1722) | National Museum of Asian Art, Smithsonian Institution, F1980.191a-c. Gift of Myron S. Falk, Jr. and his sisters, Mrs. Mildred F. Loew and Mrs. Eleanor F. Lenzner | <https://asia.si.edu/object/F1980.191a-c/>; model package `3d_package:d8c6393a-4ebc-11ea-b77f-2e728ce88125`, file `f1980_191-150k-obj.zip` on <https://3d-api.si.edu> | CC0 1.0 (Smithsonian Open Access) |
+
+The Smithsonian's record gives "Restrictions & Rights: CC0" for the object and for its 3D model. The 149 999-triangle OBJ was decimated to 12 000
+triangles (7 058 vertices) with `tools/decimate.cpp`, which uses meshoptimizer 1.3 (vendored in `next/third_party`), keeping texture
+coordinates and normals; its 4096-pixel texture was resized to 1536 pixels with `sips`.
+
+## Panorama
+
+| file | work | source | licence |
+| --- | --- | --- | --- |
+| `panoramas/ninomaru.jpg` | Greg Zaal, *Ninomaru Teien*, a 360-degree photograph taken in 2018 in the Ninomaru garden of Nagoya Castle | Poly Haven, <https://polyhaven.com/a/ninomaru_teien> (the tone-mapped JPEG) | CC0 1.0 |
+
+Resized to 2048 by 1024 pixels with `sips`.
+
+## Made for this example
+
+| file | what it is | licence |
+| --- | --- | --- |
+| `video/great-wave.mp4` | Ten seconds across The Met's photograph of the Great Wave (JP1847, above), made with ffmpeg | CC0 1.0 |
+| `video/great-wave.fr.vtt`, `video/great-wave.en.vtt` | Its subtitles | CC0 1.0 |
+| `audio/welcome.fr.mp3`, `audio/welcome.en.mp3` | A placeholder for the narration: one soft note generated with ffmpeg | CC0 1.0 |
+| `audio/welcome.fr.vtt`, `audio/welcome.en.vtt` | The subtitles of the narration, written by `tools/narration.sh --no-voice` | CC0 1.0 |
+| `project.json` | The project file | CC0 1.0 |
+
+`tools/narration.sh` replaces the placeholder with a voice synthesised by the Mac's `say` command. Those voice files are not in the repository:
+as we read Apple's software licence, the system voices are for personal, non-commercial use, so check it before publishing a recording of them.

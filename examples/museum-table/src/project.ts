@@ -430,6 +430,8 @@ function readSequence(o: any, path: string, languages: string[]): Sequence {
 
 /** The project in `json`. Throws a ProjectError whose message names the field at fault, as `media[3].credit.licence: missing`.
  *  Fields the reference does not name are ignored (and not written back). */
+// ponytail: a misspelt optional field is dropped in silence, because a parsed JSON object cannot list its keys (no Object.keys on a Dyn);
+// refuse unknown fields here once the engine has it.
 export function parseProject(json: string): Project {
   let root: any = null;
   try { root = JSON.parse(json); } catch (e) { throw new ProjectError('not a JSON document'); }

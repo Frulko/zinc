@@ -1,0 +1,23 @@
+photos/great-wave.jpg: image 1280x860
+photos/red-fuji.jpg: image 1280x882
+photos/ejiri.jpg: image 1280x893
+photos/sudden-shower.jpg: image 895x1280
+photos/plum-garden.jpg: image 869x1280
+photos/kanbara-snow.jpg: image 1280x851
+photos/three-beauties.jpg: image 856x1280
+photos/irises.jpg: image 1280x1015
+photos/water-lily-pond.jpg: image 1280x1138
+photos/the-letter.jpg: image 882x1280
+photos/divan-japonais.jpg: image 968x1280
+photos/nocturne.jpg: image 1280x854
+models/vase.obj: model 7058 vertices, 12000 triangles
+models/vase.jpg: image 1536x1536
+panoramas/ninomaru.jpg: image 2048x1024
+video/great-wave.mp4: 347438 bytes
+video/great-wave.fr.vtt: 202 bytes
+video/great-wave.en.vtt: 182 bytes
+audio/welcome.fr.mp3: 6889 bytes
+audio/welcome.en.mp3: 6889 bytes
+audio/welcome.fr.vtt: 411 bytes
+audio/welcome.en.vtt: 384 bytes
+22 files, all read
