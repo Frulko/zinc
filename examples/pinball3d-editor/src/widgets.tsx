@@ -6,6 +6,7 @@ import * as ui from 'zinc:ui';
 import { platform } from 'zinc:sys';
 import { icon } from 'zinc:icons';
 import { Svg } from 'zinc:svg';
+import { drawImage, imageWidth, imageHeight } from 'zinc:gfx';
 
 /** The colours of the editor's chrome (Tailwind's zinc greys, amber for what is selected or primary). */
 export const ACCENT: i32 = 0xfbbf24, INK: i32 = 0xf4f4f5, MUTED: i32 = 0xa1a1aa, DANGER: i32 = 0xf87171, WARN: i32 = 0xfb923c, DARK: i32 = 0x18181b;
@@ -61,6 +62,21 @@ export function Heading(p: { label: string }): i32 {
  *  `labels` gives what is shown for each. A long list (the elements of a table) opens with a box to type in: the list keeps what
  *  holds the text, and Enter takes the first. */
 export function Chooser(p: { value: () => string; options: () => string[]; label: (v: string) => string; onPick: (v: string) => void }): i32 {
+  return <Picker value={p.value} options={p.options} label={p.label} onPick={p.onPick} picture={noPicture} note={noNote} search={false} width={190} />;
+}
+const noPicture = (v: string): i32 => -1, noNote = (v: string): string => '';
+/** An image shown whole in a box, as large as it fits. */
+export function drawFitted(image: i32, x: number, y: number, w: number, h: number): void {
+  const iw = imageWidth(image), ih = imageHeight(image);
+  if (image < 0 || iw <= 0 || ih <= 0) return;
+  const k = Math.min(w / iw, h / ih), dw = Math.max(1, Math.round(iw * k)), dh = Math.max(1, Math.round(ih * k));
+  drawImage(image, Math.round(x + (w - dw) / 2), Math.round(y + (h - dh) / 2), dw, dh, 255, 0);
+}
+/** The same choice with more on each line: `picture` gives an image shown before the label (-1 for none), `note` a few words after
+ *  it (the length of a sound, the size of an image). `search`: the box to type in is there however short the list is; `width`: of
+ *  the list. */
+export function Picker(p: { value: () => string; options: () => string[]; label: (v: string) => string; onPick: (v: string) => void; picture: (v: string) => i32; note: (v: string) => string;
+  search: boolean; width: number }): i32 {
   const field = createNodeRef(), list = createNodeRef(), search = createNodeRef();
   const [open, setOpen] = createSignal<boolean>(false);
   const [typed, setTyped] = createSignal<string>('');
@@ -69,7 +85,7 @@ export function Chooser(p: { value: () => string; options: () => string[]; label
   const toggle = (): void => {
     if (open()) { close(); return; }
     setTyped('');
-    setLong(p.options().length > 10);
+    setLong(p.search || p.options().length > 10);
     setOpen(true);
     ui.setNumber(list.node, 'hidden', 0);
     if (long()) queueMicrotask(() => { if (search.node >= 0) { ui.setValue(search.node, ''); ui.focusNode(search.node); } });
@@ -84,15 +100,19 @@ export function Chooser(p: { value: () => string; options: () => string[]; label
       <text class="grow truncate text-xs text-zinc-100" style={{ maxWidth: 122 }}>{p.label(p.value())}</text>
       <Ico name="chevron-down" size={12} color={MUTED} />
     </button>
-    <view ref={list} hidden={1} class="flex-col gap-1 p-1 rounded-md bg-zinc-900 border border-zinc-600 shadow-lg" style={{ width: 190 }}>
+    <view ref={list} hidden={1} class="flex-col gap-1 p-1 rounded-md bg-zinc-900 border border-zinc-600 shadow-lg" style={{ width: p.width }}>
       <Show when={long()}>
-        <input ref={search} class="h-7 px-2 rounded bg-zinc-950 border border-zinc-700 text-xs text-zinc-100 focus:border-amber-400" style={{ width: 180 }}
+        <input ref={search} class="h-7 px-2 rounded bg-zinc-950 border border-zinc-700 text-xs text-zinc-100 focus:border-amber-400" style={{ width: p.width - 10 }}
           onInput={(v: string) => setTyped(v)} onChange={(v: string) => { const all = shown(); if (open() && all.length > 0) { close(); p.onPick(all[0]); } }} />
       </Show>
       <scroll class="flex-col" style={{ maxHeight: 264 }}>
         <For each={shown()}>{(o: string, i: i32) => <button
-          class={`flex-row items-center justify-start h-6 px-2 rounded cursor-pointer ${p.value() === o ? 'bg-zinc-700' : 'bg-zinc-900 hover:bg-zinc-800'}`} onClick={() => { close(); p.onPick(o); }}>
-          <text class={`truncate text-xs ${p.value() === o ? 'font-bold text-white' : 'text-zinc-200'}`} style={{ maxWidth: 166 }}>{p.label(o)}</text>
+          class={`flex-row items-center justify-start gap-2 h-6 px-2 rounded cursor-pointer ${p.value() === o ? 'bg-zinc-700' : 'bg-zinc-900 hover:bg-zinc-800'}`} onClick={() => { close(); p.onPick(o); }}>
+          <Show when={p.picture(o) >= 0}>
+            <canvas class="shrink-0" style={{ width: 20, height: 20, lazy: 1 }} onDraw={(x: i32, y: i32, w: i32, h: i32) => drawFitted(p.picture(o), x, y, w, h)} />
+          </Show>
+          <text class={`grow truncate text-xs ${p.value() === o ? 'font-bold text-white' : 'text-zinc-200'}`} style={{ maxWidth: p.width - (p.note(o) === '' ? 24 : 104) - (p.picture(o) >= 0 ? 28 : 0) }}>{p.label(o)}</text>
+          <text class="shrink-0 text-[10px] text-zinc-500">{p.note(o)}</text>
         </button>}</For>
       </scroll>
     </view>

@@ -14,9 +14,10 @@ import { Schema, Field, Kind } from '../../pinball3d/src/format/schema';
 import { doc, table, selected, select, setField, replaceSelected, deleteSelected, duplicateSelected, mirrorSelected, turnSelected, selectionTurns, selectionPlaced, advanced, setAdvanced, refresh,
   activeRow, setActiveRow, dragRow, changeRows, addTo, reorderSelected } from './state';
 import { previewSound } from './play';
+import { filesOfKind, noteOf, pictureOf, hearFile as hearFileOf, importFrom } from './files';
 import { fieldAt, schemaAt, listOf, steps, pathOf, found, isPath, isProfile } from './doc';
 import { rgb } from './shapes';
-import { Ico, Action, Segmented, Chooser, Switch, Heading, MUTED, ACCENT, chord } from './widgets';
+import { Ico, Action, Segmented, Chooser, Picker, Switch, Heading, drawFitted, MUTED, ACCENT, chord } from './widgets';
 import * as L from './strings';
 import { t, f, fieldName, listName, kindName } from './strings';
 
@@ -37,6 +38,15 @@ export class Source {
   add(list: string): void {}
   /** Lets a sound be heard, by its name. */
   hear(name: string): void {}
+  /** The files of a kind ('image', 'sound', 'model') that can be named, by their names. */
+  files(kind: string): string[] { return []; }
+  /** A few words about a file (the size of an image, the length of a sound), and its picture when it is an image (-1: none). */
+  fileNote(name: string): string { return ''; }
+  filePicture(name: string): i32 { return -1; }
+  /** Lets a sound file be heard. */
+  hearFile(name: string): void {}
+  /** Brings a file of a kind from elsewhere; the field at `path` then names it. */
+  importFor(path: string, kind: string): void {}
 }
 /** The open table. */
 class TableSource extends Source {
@@ -49,6 +59,11 @@ class TableSource extends Source {
   open(path: string): void { select(path); }
   add(list: string): void { addTo(list); }
   hear(name: string): void { previewSound(name); }
+  files(kind: string): string[] { return filesOfKind(kind); }
+  fileNote(name: string): string { return noteOf(name); }
+  filePicture(name: string): i32 { return pictureOf(name); }
+  hearFile(name: string): void { hearFileOf(name); }
+  importFor(path: string, kind: string): void { importFrom(kind, path); }
 }
 const TABLE = new TableSource();
 
@@ -102,6 +117,43 @@ function Names(p: { src: Source; field: Field; path: string }): i32 {
   const text = (): string => { const v: any = src.get(path); return typeof v === 'string' ? `${v}` : ''; };
   return <Chooser value={text} options={() => fd.required ? src.names(fd.to) : [''].concat(src.names(fd.to))} label={(v: string) => v === '' ? t(L.NONE) : v} onPick={(v: string) => { src.set(path, v); }} />;
 }
+/** What stands in the list of a file field for bringing a file from elsewhere. */
+const IMPORT = '+import';
+/** A file of the table's folder: one of those of the field's kind, each with what tells it from the others, or a file brought
+ *  from elsewhere. Under the choice, the picture of the image it names, and what is known of the file. */
+function FileField(p: { src: Source; field: Field; path: string }): i32 {
+  const src = p.src, path = p.path, kind = p.field.to;
+  const text = (): string => { const v: any = src.get(path); return typeof v === 'string' ? `${v}` : ''; };
+  const real = (v: string): boolean => v !== '' && v !== IMPORT;
+  const options = (): string[] => {
+    const all = src.files(kind), out: string[] = [''];
+    for (const name of all) out.push(name);
+    if (text() !== '' && all.indexOf(text()) < 0) out.push(text());   // a file the table names and the folder lacks is still shown
+    out.push(IMPORT);
+    return out;
+  };
+  return <view class="flex-col gap-1 py-1" style={{ width: WIDE }}>
+    <view class="flex-row items-center gap-1">
+      <view style={{ width: kind === 'sound' ? WIDE - 30 : WIDE }}>
+        <Picker value={text} options={options} label={(v: string) => v === '' ? t(L.NONE) : v === IMPORT ? t(L.IMPORT) : v} picture={(v: string) => real(v) ? src.filePicture(v) : -1}
+          note={(v: string) => real(v) ? src.fileNote(v) : ''} search={true} width={300} onPick={(v: string) => { if (v === IMPORT) src.importFor(path, kind); else src.set(path, v); }} />
+      </view>
+      <Show when={kind === 'sound'}>
+        <button class={`w-[26] h-[26] items-center justify-center rounded-md cursor-pointer bg-zinc-800 hover:bg-zinc-700 ${text() === '' ? 'opacity-40' : ''}`} tabIndex={-1} onClick={() => { if (text() !== '') src.hearFile(text()); }}>
+          <Ico name="play" size={12} color={ACCENT} />
+        </button>
+      </Show>
+    </view>
+    <Show when={text() !== ''}>
+      <view class="flex-row items-center gap-2">
+        <Show when={src.filePicture(text()) >= 0}>
+          <canvas class="shrink-0 rounded border border-zinc-700" style={{ width: 44, height: 44, lazy: 1 }} onDraw={(x: i32, y: i32, w: i32, h: i32) => drawFitted(src.filePicture(text()), x, y, w, h)} />
+        </Show>
+        <text class="text-[10px] text-zinc-500">{src.fileNote(text())}</text>
+      </view>
+    </Show>
+  </view>;
+}
 function Control(p: { src: Source; field: Field; path: string }): i32 {
   const fd = p.field, path = p.path, src = p.src;
   const text = (): string => { const v: any = src.get(path); return typeof v === 'string' ? `${v}` : ''; };
@@ -130,6 +182,7 @@ function Control(p: { src: Source; field: Field; path: string }): i32 {
       </button>
     </view>;
   }
+  if (fd.kind === Kind.Asset) return <FileField src={src} field={fd} path={path} />;
   if (fd.kind === Kind.Tuple) return <view class="flex-row items-center gap-[6]"><TupleBoxes src={src} field={fd} path={path} /><Unit of={fd} /></view>;
   if (fd.kind === Kind.Rows) return <text class="text-xs text-zinc-500">{f(isPath(fd) ? L.POINTS : L.ROWS, count())}</text>;
   if (fd.kind === Kind.List) return <text class="text-xs text-zinc-500">{f(L.ITEMS, count())}</text>;

@@ -53,6 +53,8 @@ function listOf(part: Part): string {
 
 /** Forgets what was built: the table changed, or another one was opened. */
 function forget(): void { drop(); built = null; builtFrom = null; }
+/** The same asked from outside: the files of the table changed, its scene and its sounds are made again from them. */
+export function rebuild(): void { forget(); }
 /** Takes the game and its scene away. It writes no signal: it runs while views are being drawn (a table that changed is found
  *  out when its scene is asked for); advance(), once a frame, then says that no game is being played any more. */
 function drop(): void {

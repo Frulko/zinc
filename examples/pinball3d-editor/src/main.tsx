@@ -22,6 +22,8 @@ import { TopView } from './topview';
 import { Properties, findField, editAsFile } from './form';
 import { view3d, setView3d, playing, paused, dropping, setDropping, play, pause, stop, stepFrame, advance, setLogging } from './play';
 import { toggleWindow, boxX, boxY, boxW, boxH } from './view3d';
+import { refreshFiles, importFrom, importFile } from './files';
+import { on } from 'zinc:system';
 import * as L from './strings';
 import { t, f, uiLang, setUiLang } from './strings';
 
@@ -131,6 +133,8 @@ ui.onKey((e: ui.KeyEvent) => {
     else if (k === 'g') focusGoTo();
     else if (k === 'j') editAsFile();
     else if (k === 'd') duplicateSelected();
+    else if (k === 'r') refreshFiles();
+    else if (k === 'i') importFrom('', '');
     else return;
     e.preventDefault();
     return;
@@ -183,6 +187,8 @@ if (a.length > 0) {
   const dir = given.endsWith(`/${TABLE_FILE}`) ? given.slice(0, given.length - TABLE_FILE.length - 1) : given;
   if (exists(`${dir}/${TABLE_FILE}`)) openFolder(dir); else newTable(dir);
 }
+// a file dropped on the window is copied into the table's folder, as Import does
+on('drop', (dropped: string[]) => { if (dropped.length === 1) importFile(dropped[0]); });
 // closing the window with unsaved work asks first
 onCloseRequested(() => { if (doc().dirty) { keepOpen(); guard(() => quit()); } });
 // once a frame: the whole table when the view has just been laid out, and the game played in the editor

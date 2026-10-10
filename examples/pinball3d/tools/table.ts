@@ -25,7 +25,7 @@ function kindOf(f: Field): string {
   if (f.kind === Kind.Color) return 'colour';
   if (f.kind === Kind.Choice) return f.choices.map((c: string) => `\`"${c}"\``).join(' ');
   if (f.kind === Kind.Ref) return `name of ${f.to.split('|').join(' / ')}`;
-  if (f.kind === Kind.Asset) return 'file';
+  if (f.kind === Kind.Asset) return `${f.to} file`;
   if (f.kind === Kind.Tuple) return `${f.cols} numbers`;
   if (f.kind === Kind.Rows) return f.cols === f.maxCols ? `rows of ${f.cols} numbers` : `rows of ${f.cols} or ${f.maxCols} numbers`;
   if (f.kind === Kind.Texts) return 'list of texts';

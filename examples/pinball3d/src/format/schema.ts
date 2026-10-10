@@ -10,7 +10,7 @@ export const enum Kind {
   Choice,
   /** The id of an item of another list (`to`), '' for none. */
   Ref,
-  /** A file of the table's folder. */
+  /** A file of the table's folder; `to` says of what kind ('image', 'sound', 'model'). */
   Asset,
   /** A row of `cols` to `maxCols` numbers: a point, a box, a direction. */
   Tuple,
@@ -34,7 +34,8 @@ export class Field {
   min: number = -1e300;
   max: number = 1e300;
   choices: string[] = [];
-  /** Ref: the name space the id belongs to (see Names). */
+  /** Ref: the name space the id belongs to (see Names). Asset: the kind of file it names ('image', 'sound', 'model': the format
+   *  that uses the schema says which files are of each kind). */
   to: string = '';
   cols: i32 = 0;
   maxCols: i32 = 0;
@@ -71,7 +72,8 @@ export class Schema {
   bool(name: string, def: boolean, doc: string): Field { return this.put(name, Kind.Bool, def, doc); }
   text(name: string, def: string, doc: string): Field { return this.put(name, Kind.Text, def, doc); }
   color(name: string, def: string, doc: string): Field { return this.put(name, Kind.Color, def, doc); }
-  asset(name: string, doc: string): Field { return this.put(name, Kind.Asset, '', doc); }
+  /** A file of the kind `what`; '' (the default) is none. */
+  asset(name: string, what: string, doc: string): Field { const f = this.put(name, Kind.Asset, '', doc); f.to = what; return f; }
   choice(name: string, choices: string[], doc: string): Field { const f = this.put(name, Kind.Choice, choices[0], doc); f.choices = choices; return f; }
   /** A reference to an item of the name space `to`; '' (the default) is none. */
   ref(name: string, to: string, doc: string): Field { const f = this.put(name, Kind.Ref, '', doc); f.to = to; return f; }

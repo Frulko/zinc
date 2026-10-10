@@ -25,7 +25,7 @@ gadget.choice('wave', ['sine', 'square', 'triangle', 'sawtooth', 'noise'], 'One 
 gadget.ref('look', 'looks', 'The name of one of the looks, or none.');
 gadget.tuple('at', [0, 0], 'A point.').must().withRole('point').withUnit('cm');
 gadget.tuple('scale', [1, 1, 1], 'Three numbers.');
-gadget.asset('file', 'A file of the folder.');
+gadget.asset('file', 'sound', 'A file of the folder.');
 gadget.rows('points', 2, 3, 2, 'A path.').withRole('path').withUnit('cm');
 gadget.texts('ranks', 'Texts, one per line.');
 gadget.obj('sounds', sounds, 'An object: a heading and its own fields.');
@@ -44,6 +44,8 @@ class Fixture extends Source {
   set(path: string, value: any): void { data[path] = value; setRev(rev() + 1); }   // the fields of the gadget itself: enough to see a control answer
   field(path: string): Field | null { return fieldIn(gadget, path); }
   summary(path: string): string { return `${valueAt(data, path).text}`; }
+  files(kind: string): string[] { return kind === 'sound' ? ['clack.wav', 'thud.wav'] : []; }
+  fileNote(name: string): string { return name === 'clack.wav' ? '0.3 s' : ''; }
 }
 const fixture = new Fixture();
 

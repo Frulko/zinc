@@ -39,7 +39,8 @@ export const [failed, setFailed] = createSignal<boolean>(false);
 /** With --log on the command line: what is refused is also printed, as the events of the game played are. */
 let echo = false;
 export function setEcho(on: boolean): void { echo = on; }
-function say(message: string, wrong: boolean = false): void {
+/** Tells something in the status bar; `wrong`: as a refusal. */
+export function say(message: string, wrong: boolean = false): void {
   if (echo && wrong) console.log(message);
   batch(() => { setStatus(message); setFailed(wrong); });
 }

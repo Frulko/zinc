@@ -198,8 +198,8 @@ A material as the eye sees it. Elements name one in their `look`.
 | `specular` | colour | `"#000000"` | The colour of the highlights (metal, glass); black for none. |
 | `shininess` | number | `30` (1 to 1000) | How tight the highlights are: 5 is satin, 200 is chrome. |
 | `glow` | colour | `"#000000"` | The colour the element takes when it is lit (a bumper that fires, a target that is the next step of a mission); black: it does not light. |
-| `texture` | file | none | An image of the table folder (PNG or JPEG) laid flat over the element as the top view shows it: its corners at the corners of the box around the element (the painting of a playfield, of a floor, of a bumper's cap). A model keeps the mapping of its mesh. |
-| `textureLit` | file | none | The same image painted with the lights of the table lit. For the look of the playfield, when the painting itself must change under a light: the pool of light of each light of the playfield that is on (a light's `glow`) then shows this image instead of adding the light's colour, and two such pools should not overlap. Usually left out. |
+| `texture` | image file | none | An image of the table folder (PNG or JPEG) laid flat over the element as the top view shows it: its corners at the corners of the box around the element (the painting of a playfield, of a floor, of a bumper's cap). A model keeps the mapping of its mesh. |
+| `textureLit` | image file | none | The same image painted with the lights of the table lit. For the look of the playfield, when the painting itself must change under a light: the pool of light of each light of the playfield that is on (a light's `glow`) then shows this image instead of adding the light's colour, and two such pools should not overlap. Usually left out. |
 
 ```json
 { "id": "board", "color": "#c4c8d6", "texture": "art/playfield.jpg" }
@@ -212,7 +212,7 @@ A sound: a recorded file of the table folder, or a tone generated when the table
 | field | type | default | |
 |---|---|---|---|
 | `id` | text | required | Its name. |
-| `file` | file | none | A WAV, FLAC, MP3 or Ogg Vorbis file of the table folder. Empty: the sound is the generated tone below. |
+| `file` | sound file | none | A WAV, FLAC, MP3 or Ogg Vorbis file of the table folder. Empty: the sound is the generated tone below. |
 | `wave` | `"sine"` `"square"` `"triangle"` `"sawtooth"` `"noise"` | `"sine"` | The shape of the generated tone. |
 | `hz` | number, Hz | `440` (20 to 20000) | The pitch of the generated tone. |
 | `seconds` | number, seconds | `0.1` (0.01 to 60) | The length of the generated tone. |
@@ -710,7 +710,7 @@ A modelled or decorative piece: a mesh file, or a simple solid.
 |---|---|---|---|
 | `id` | text | required | The name of the model: rules, the editor and the event log use it. Unique among all the elements of the table. |
 | `group` | text | `""` | A name shared by several elements, so that one rule speaks of all of them ("pops", "lanes"). |
-| `mesh` | file | none | An OBJ file of the table folder. Empty: the solid named by `shape`. |
+| `mesh` | model file | none | An OBJ file of the table folder. Empty: the solid named by `shape`. |
 | `shape` | `"box"` `"cylinder"` `"sphere"` `"cone"` | `"box"` | The solid, 1 cm in size before `scale`. |
 | `at` | 3 numbers, cm (*point*) | required | Where its origin is: [x, y, z]. |
 | `rotation` | 3 numbers, degrees (*rotation*) | `[0, 0, 0]` | Its turn in degrees around x, y (down the table) and z (up). |
@@ -1202,7 +1202,7 @@ The score panel.
 |---|---|---|---|
 | `box` | 4 numbers, px | `[0, 0, 0, 0]` | Its background: [x, y, width, height] in the window; all zeros for none (items drawn over the table). |
 | `color` | colour | `"#0a0e1c"` | The colour of its background. |
-| `image` | file | none | An image of the table folder drawn over the background, filling the box (the backglass); the part that does not fit the box is cut. |
+| `image` | image file | none | An image of the table folder drawn over the background, filling the box (the backglass); the part that does not fit the box is cut. |
 | `items` | list of [panel item](#panel-item) |  | What it shows. |
 
 ```json

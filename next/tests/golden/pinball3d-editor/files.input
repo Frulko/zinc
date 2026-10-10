@@ -1,0 +1,63 @@
+# The table editor, the files of a table's folder (tests/t1/pinball3d_editor_files.sh), window 1440x900. The folder holds an image
+# (art/paint.png), a spare one, a model (art/pyramid.obj) and a sound (sounds/tick.wav); another sound and another paint.png are
+# outside it. Things are taken by their names (Cmd+G), fields by their keys (Cmd+F); a file is chosen by typing a part of its name
+# in the list of its field (the list keeps the names that hold the text, Enter takes the first).
+# The painting of the board: the look "board", its image, chosen among the images of the folder.
+4 key g meta
+5 text board
+6 key Enter
+8 key f meta
+9 text texture
+11 move 1300 112
+12 down
+13 up
+15 text paint
+16 key Enter
+# A click beside the board leaves the field; V shows the table in 3D. (Frame 26: the board wears the painting. Nothing is done until
+# frame 80: the test drops another paint.png on the window in that pause, and frame 76 shows that one.)
+18 move 420 500
+19 down
+20 up
+22 key v
+# A sound: "+sound" adds one; its file is chosen among the sounds of the folder, and the button beside it lets the file be heard.
+80 key g meta
+81 text +sound
+82 key Enter
+84 key f meta
+85 text file
+87 move 1300 112
+88 down
+89 up
+91 text tick
+92 key Enter
+94 move 1383 112
+95 down
+96 up
+# Another sound, whose file comes from elsewhere: "Import…" in the list asks the system for it and copies it into the folder.
+98 key g meta
+99 text +sound
+100 key Enter
+102 key f meta
+103 text file
+105 move 1300 112
+106 down
+107 up
+109 text import
+110 key Enter
+# A model: the station takes the mesh file of the folder.
+114 key g meta
+115 text station
+116 key Enter
+118 key f meta
+119 text mesh
+121 move 1300 112
+122 down
+123 up
+125 text pyramid
+126 key Enter
+# Refresh reads the folder again and says what nothing names; a file reached by its name says what names it. Save.
+128 key r meta
+130 key g meta
+131 text art/pyramid.obj
+132 key Enter
+134 key s meta

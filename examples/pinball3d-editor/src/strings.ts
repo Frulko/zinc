@@ -121,6 +121,27 @@ export const IN_FILE_HINT = S('The selection as the file has it. Edit it and lea
 export const YES = S('Yes', 'Oui');
 export const NO = S('No', 'Non');
 
+// ---- the files of the table's folder
+export const FILES = S('Files', 'Fichiers');
+export const FILES_NEED_FOLDER = S('Save the table once: its folder then holds its images, sounds and models.', 'Enregistrez la table une fois : son dossier contient alors ses images, ses sons et ses modèles.');
+export const UNUSED = S('unused', 'inutilisé');
+export const IMPORT = S('Import…', 'Importer…');
+export const REFRESH = S('Refresh', 'Actualiser');
+export const IMPORT_TITLE = S('A file to copy into the folder of the table', 'Un fichier à copier dans le dossier de la table');
+export const FILE_MISSING = S('not in the folder', 'absent du dossier');
+export const SECONDS_LONG = S('{0} s', '{0} s');
+export const TRIANGLES = S('{0} triangles', '{0} triangles');
+export const ASK_REPLACE = S('The folder of the table already has {0}. Replace it?', 'Le dossier de la table contient déjà {0}. Le remplacer ?');
+export const NOT_REPLACED = S('{0} was kept as it is.', '{0} est resté tel quel.');
+export const CANNOT_IMPORT = S('Cannot import {0}: {1}', 'Impossible d’importer {0} : {1}');
+export const DONE_IMPORTED = S('Imported {0} into the folder of the table.', '{0} est importé dans le dossier de la table.');
+export const NOTHING_IMPORTED = S('Nothing was imported.', 'Rien n’a été importé.');
+export const FILES_READ = S('files: {0} in the folder.', 'fichiers : {0} dans le dossier.');
+export const FILES_UNUSED = S('{0} unused: {1}.', '{0} inutilisé(s) : {1}.');
+export const FILES_MISSING = S('{0} missing: {1}.', '{0} absent(s) : {1}.');
+export const FILE_UNUSED = S('{0}: nothing in the table names this file.', '{0} : rien dans la table ne nomme ce fichier.');
+export const FILE_USED = S('{0}: named by {1}.', '{0} : nommé par {1}.');
+
 // ---- status
 export const READY = S('Ready.', 'Prêt.');
 export const DONE_OPENED = S('Opened {0}.', '{0} est ouvert.');

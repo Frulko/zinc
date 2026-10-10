@@ -28,6 +28,15 @@ export const ROLES: string[][] = [
   ['level', 'the height of the level a thing stands on: 0 on the playfield, the `z` of an upper playfield on that one. An editor that works on one level shows and places things by it'],
 ];
 
+/** The kinds of file a table names (the `to` of a file field), each with the extensions the game reads for it. */
+export const FILE_KINDS: string[][] = [['image', 'png', 'jpg', 'jpeg'], ['sound', 'wav', 'flac', 'mp3', 'ogg'], ['model', 'obj']];
+/** The kind of a file by its name: 'image', 'sound', 'model', or '' for a file the game reads as none of them. */
+export function fileKind(name: string): string {
+  const ext = name.slice(name.lastIndexOf('.') + 1).toLowerCase();
+  for (const k of FILE_KINDS) if (k.indexOf(ext) > 0) return k[0];
+  return '';
+}
+
 const ELEMENTS = 'elements', GROUPS = 'groups', ANY = 'elements|groups|game';
 
 function soundsOf(owner: string, names: string[], docs: string[]): Schema {
@@ -61,12 +70,12 @@ export function tableSchema(): Schema {
   look.color('specular', '#000000', 'The colour of the highlights (metal, glass); black for none.');
   look.num('shininess', 30, 'How tight the highlights are: 5 is satin, 200 is chrome.').range(1, 1000);
   look.color('glow', '#000000', 'The colour the element takes when it is lit (a bumper that fires, a target that is the next step of a mission); black: it does not light.');
-  look.asset('texture', 'An image of the table folder (PNG or JPEG) laid flat over the element as the top view shows it: its corners at the corners of the box around the element (the painting of a playfield, of a floor, of a bumper\'s cap). A model keeps the mapping of its mesh.');
-  look.asset('textureLit', 'The same image painted with the lights of the table lit. For the look of the playfield, when the painting itself must change under a light: the pool of light of each light of the playfield that is on (a light\'s `glow`) then shows this image instead of adding the light\'s colour, and two such pools should not overlap. Usually left out.');
+  look.asset('texture', 'image', 'An image of the table folder (PNG or JPEG) laid flat over the element as the top view shows it: its corners at the corners of the box around the element (the painting of a playfield, of a floor, of a bumper\'s cap). A model keeps the mapping of its mesh.');
+  look.asset('textureLit', 'image', 'The same image painted with the lights of the table lit. For the look of the playfield, when the painting itself must change under a light: the pool of light of each light of the playfield that is on (a light\'s `glow`) then shows this image instead of adding the light\'s colour, and two such pools should not overlap. Usually left out.');
 
   const sound = new Schema('sound', 'A sound: a recorded file of the table folder, or a tone generated when the table loads. Elements name one per event in their `sounds`.');
   sound.id('sounds', 'Its name.');
-  sound.asset('file', 'A WAV, FLAC, MP3 or Ogg Vorbis file of the table folder. Empty: the sound is the generated tone below.');
+  sound.asset('file', 'sound', 'A WAV, FLAC, MP3 or Ogg Vorbis file of the table folder. Empty: the sound is the generated tone below.');
   sound.choice('wave', ['sine', 'square', 'triangle', 'sawtooth', 'noise'], 'The shape of the generated tone.');
   sound.num('hz', 440, 'The pitch of the generated tone.').range(20, 20000).withUnit('Hz');
   sound.num('seconds', 0.1, 'The length of the generated tone.').range(0.01, 60).withUnit('seconds');
@@ -278,7 +287,7 @@ export function tableSchema(): Schema {
 
   const model = new Schema('model', 'A modelled or decorative piece: a mesh file, or a simple solid.');
   element(model, 'model');
-  model.asset('mesh', 'An OBJ file of the table folder. Empty: the solid named by `shape`.');
+  model.asset('mesh', 'model', 'An OBJ file of the table folder. Empty: the solid named by `shape`.');
   model.choice('shape', ['box', 'cylinder', 'sphere', 'cone'], 'The solid, 1 cm in size before `scale`.');
   model.tuple('at', [0, 0, 0], 'Where its origin is: [x, y, z].').must().withRole('point').withUnit('cm');
   model.tuple('rotation', [0, 0, 0], 'Its turn in degrees around x, y (down the table) and z (up).').withRole('rotation').withUnit('degrees');
@@ -375,7 +384,7 @@ export function tableSchema(): Schema {
   const panel = new Schema('panel', 'The score panel.');
   panel.tuple('box', [0, 0, 0, 0], 'Its background: [x, y, width, height] in the window; all zeros for none (items drawn over the table).').withUnit('px');
   panel.color('color', '#0a0e1c', 'The colour of its background.');
-  panel.asset('image', 'An image of the table folder drawn over the background, filling the box (the backglass); the part that does not fit the box is cut.');
+  panel.asset('image', 'image', 'An image of the table folder drawn over the background, filling the box (the backglass); the part that does not fit the box is cut.');
   panel.list('items', item, 'What it shows.');
 
   const layout = new Schema('layout', 'One way to put the table and the panel in a window.');

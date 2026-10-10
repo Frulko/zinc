@@ -3,9 +3,11 @@
 // rules) is reached from here. The lists are read from the schema: a list added to the format gets its line. A list of things without
 // a place has a "+" that adds one (the things with a place are added from the palette).
 // The box at the top goes to a thing by its name, or by its path in the file (Cmd+G).
+// The last group is the table's folder (files.ts): its files, the ones nothing names marked, with Import and Refresh.
 import { createSignal, createNodeRef, createEffect, For, Show } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
-import { doc, selected, select, goTo, addTo, PLACED_LISTS, PLACED_OBJECTS, OTHER_LISTS, OTHER_OBJECTS } from './state';
+import { doc, folder, selected, select, goTo, addTo, PLACED_LISTS, PLACED_OBJECTS, OTHER_LISTS, OTHER_OBJECTS } from './state';
+import { folderFiles, unusedFiles, showFile, refreshFiles, importFrom } from './files';
 import { listOf } from './doc';
 import { rgb } from './shapes';
 import { Ico, Heading, MUTED, chord } from './widgets';
@@ -68,6 +70,39 @@ function Section(p: { label: string; children: () => i32 }): i32 {
     {p.children()}
   </view>;
 }
+/** The files of the table's folder: a click says what names a file and goes there; the ones nothing names are marked. */
+function Files(): i32 {
+  const key = 'files';
+  const small = 'w-[18] h-[18] items-center justify-center rounded cursor-pointer bg-transparent hover:bg-zinc-700';
+  return <view class="flex-col gap-[1] px-2 pb-3">
+    <view class="flex-row items-center gap-1 px-2 h-6">
+      <Heading label={t(L.FILES)} />
+      <view class="grow" />
+      <button class={small} tabIndex={-1} onClick={() => { importFrom('', ''); }}><Ico name="plus" size={11} color={MUTED} /></button>
+      <button class={small} tabIndex={-1} onClick={refreshFiles}><Ico name="refresh-cw" size={11} color={MUTED} /></button>
+    </view>
+    <Show when={folder() === ''}><text class="px-2 text-[11px] text-zinc-500" style={{ width: 212 }}>{t(L.FILES_NEED_FOLDER)}</text></Show>
+    <Show when={folder() !== ''}>
+      <view class="flex-col">
+        <button class="flex-row items-center justify-start gap-1 h-6 px-1 rounded cursor-pointer bg-zinc-900 hover:bg-zinc-800" onClick={() => toggle(key)}>
+          <Show when={isOpen(key)}><Ico name="chevron-down" size={12} color={MUTED} /></Show>
+          <Show when={!isOpen(key)}><Ico name="chevron-right" size={12} color={MUTED} /></Show>
+          <text class="grow truncate text-xs text-zinc-200" style={{ maxWidth: 120 }}>{folder().slice(folder().lastIndexOf('/') + 1)}</text>
+          <Show when={unusedFiles().length > 0}><text class="text-[11px] text-amber-300">{`${unusedFiles().length} ${t(L.UNUSED)}`}</text></Show>
+          <text class="text-[11px] text-zinc-500">{`${folderFiles().length}`}</text>
+        </button>
+        <Show when={isOpen(key)}>
+          <view class="flex-col">
+            <For each={folderFiles()}>{(name: string, i: i32) => <button class="flex-row items-center justify-start gap-2 h-6 pl-7 pr-2 rounded cursor-pointer bg-zinc-900 hover:bg-zinc-800" onClick={() => { showFile(name); }}>
+              <text class="grow truncate text-xs text-zinc-200" style={{ maxWidth: unusedFiles().indexOf(name) >= 0 ? 118 : 170 }}>{name}</text>
+              <Show when={unusedFiles().indexOf(name) >= 0}><text class="text-[10px] text-amber-300">{t(L.UNUSED)}</text></Show>
+            </button>}</For>
+          </view>
+        </Show>
+      </view>
+    </Show>
+  </view>;
+}
 const noDot = (): string => '';
 export function Outline(): i32 {
   // what is selected on the top view is shown in its list
@@ -76,7 +111,7 @@ export function Outline(): i32 {
     <view class="flex-row items-center gap-2 h-10 px-3 shrink-0 border-b border-zinc-800">
       <Ico name="search" size={13} color={MUTED} />
       <input ref={goer} style={{ width: 184 }} class="h-7 px-2 rounded-md bg-zinc-950 border border-zinc-800 text-xs text-zinc-100 focus:border-amber-400" placeholder={f(L.GO_TO, chord('G'))}
-        onChange={(v: string) => { if (goTo(v)) ui.setValue(goer.node, ''); }} />
+        onChange={(v: string) => { if (showFile(v.trim()) || goTo(v)) ui.setValue(goer.node, ''); }} />
     </view>
     <scroll class="grow basis-0 min-h-0 flex-col pt-3">
       <Section label={t(L.CONTENTS)}>
@@ -90,6 +125,7 @@ export function Outline(): i32 {
       <Section label={t(L.MATERIALS)}>
         {OTHER_LISTS.map((list: string, i: i32) => <Group list={list} add={true} />)}
       </Section>
+      <Files />
     </scroll>
   </view>;
 }
