@@ -618,42 +618,39 @@ func @main() -> void nregs=10
  625  Jmp      -> 616
  626  New      r1, lambda5
  627  Move     r2, r1
- 628  Retain   r2
- 629  Release  r1
- 630  Move     r3, r0
- 631  Move     r4, r2
- 632  Rt       r3, Array.sort
- 633  Release  r3
- 634  Release  r2
- 635  LoadI    r1, 1
- 636  LoadI    r2, 1
- 637  ArrLen   r3, r0
- 638  JLeI     r3, r2, -> 649
- 640  AddI32K  r3, r2, -1
- 641  ArrGet   r3, r0, r3
- 642  ArrGet   r4, r0, r2
- 643  JLeI     r3, r4, -> 664
- 645  LoadI    r3, 0
- 646  AddI32K  r2, r2, 1
- 647  Move     r1, r3
- 648  Jmp      -> 637
- 649  LoadI    r2, 0
- 650  ArrGet   r2, r0, r2
- 651  LoadI    r3, 999
- 652  ArrGet   r3, r0, r3
- 653  ArrLen   r4, r0
- 654  Release  r0
- 655  LogBool  r1
- 656  LogSep   
- 657  LogI     r2
- 658  LogSep   
- 659  LogI     r3
- 660  LogSep   
- 661  LogI     r4
- 662  LogEnd   
- 663  RetV     
- 664  Move     r3, r1
- 665  Jmp      -> 646
+ 628  Release  r1
+ 629  Move     r1, r0
+ 630  Rt       r1, internal.arrSortAsc
+ 631  Release  r1
+ 632  LoadI    r1, 1
+ 633  LoadI    r2, 1
+ 634  ArrLen   r3, r0
+ 635  JLeI     r3, r2, -> 646
+ 637  AddI32K  r3, r2, -1
+ 638  ArrGet   r3, r0, r3
+ 639  ArrGet   r4, r0, r2
+ 640  JLeI     r3, r4, -> 661
+ 642  LoadI    r3, 0
+ 643  AddI32K  r2, r2, 1
+ 644  Move     r1, r3
+ 645  Jmp      -> 634
+ 646  LoadI    r2, 0
+ 647  ArrGet   r2, r0, r2
+ 648  LoadI    r3, 999
+ 649  ArrGet   r3, r0, r3
+ 650  ArrLen   r4, r0
+ 651  Release  r0
+ 652  LogBool  r1
+ 653  LogSep   
+ 654  LogI     r2
+ 655  LogSep   
+ 656  LogI     r3
+ 657  LogSep   
+ 658  LogI     r4
+ 659  LogEnd   
+ 660  RetV     
+ 661  Move     r3, r1
+ 662  Jmp      -> 643
 func @lambda0(ref lambda0, ref str, ref str) -> f64 nregs=5
    0  Release  r0
    1  Move     r3, r1
