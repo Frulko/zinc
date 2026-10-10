@@ -80,3 +80,5 @@ setVolume(0.8);                       // the whole mix
 - **The end of the program** stops the device: a command-line program that wants its beep heard waits for it
   (`setTimeout(() => {}, 200)`).
 - **Formats.** WAV (PCM 8 to 32 bit, float, ADPCM), FLAC, MP3, Ogg Vorbis. Opus and AAC are not decoded.
+
+Note: `mix(frames)` returns at most 480,000 frames per call (10 s at 48 kHz); ask again for more.

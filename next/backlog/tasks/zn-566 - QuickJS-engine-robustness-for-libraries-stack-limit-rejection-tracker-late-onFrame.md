@@ -4,7 +4,8 @@ title: >-
   QuickJS engine robustness for libraries (stack limit, rejection tracker, late
   onFrame)
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-09 08:11'
 labels:
   - games

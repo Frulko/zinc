@@ -2,7 +2,8 @@
 id: ZN-570
 title: 'Canvas 2D, text-first tier'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-09 08:11'
 labels:
   - games

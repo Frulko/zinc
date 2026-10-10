@@ -2,7 +2,8 @@
 id: ZN-569
 title: 'Image, ImageBitmap and FontFace in the web environment'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-09 08:11'
 labels:
   - games

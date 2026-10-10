@@ -161,3 +161,5 @@ nothing measurable.
 - No soft bodies, characters, vehicles or ragdolls: those parts of the library are not vendored.
 - Callbacks: contacts are read after the step, not delivered during it, so a program cannot veto a contact or change its
   friction as it happens.
+
+Note on determinism: Jolt's results depend on the order bodies are made in. Two runs that create the same bodies in the same order give the same positions; adding a body among others can move a later contact by a step. A program that keeps a replay or a golden log should create the bodies it may add later after the others (the pinball makes its upper-level bodies last).

@@ -4,7 +4,8 @@ title: >-
   Web environment module for QuickJS contexts (DOM/BOM, events, rAF, fetch/XHR,
   storage)
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-09 08:11'
 labels:
   - games

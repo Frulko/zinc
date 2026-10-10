@@ -2,7 +2,8 @@
 id: ZN-574
 title: 'Gamepad for JS libraries: W3C standard mapping and typed rows'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-09 08:11'
 labels:
   - games

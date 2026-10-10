@@ -403,6 +403,8 @@ Measured on the Intel Mac with other trees building (load average 5.1 to 6.3, CP
 | size of a program importing zinc:physics3d | +1.92 MB (2,143,904 against 227,152 bytes) | |
 | cold build of the plugin (pinned zig) / after a wrapper edit / cache hit | 48.2 s / 6.7 s / 0.03 s | |
 
+After the look of ZN-649.08 (textures, models, the deck; window 1280x800, 2560x1600 physical, GPU, 60 Hz, load 4.4 to 5.2): physics and rules 0.35 to 0.42 ms, scene and panel 1.3 to 1.8 ms compiled; 0.53 to 0.65 and 1.9 to 2.3 ms on the interpreter; 295 to 300 frames per 5 s in both.
+
 The engine side of the bridge costs little (compiled 4.13 against Jolt's 4.3 within noise; QuickJS +0.9 ms for 1,000 bodies read in bulk). Reaching 3 ms needs Jolt's job system on several threads (ZN-690). Reproduce: `cd next && build/zinc build bench/physics3d_pile.ts -o /tmp/pile && /tmp/pile`; `ZINC_FRAMES=900 build/zinc run ../examples/pinball3d -- --stats --demo`.
 
 ### ZN-669: fonts at run time (2026-10-10, Intel Mac, load 4 to 8 from other trees)
