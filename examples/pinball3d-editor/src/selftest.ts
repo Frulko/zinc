@@ -2,9 +2,9 @@
 //   zinc run examples/pinball3d-editor/src/selftest.ts -- examples/pinball3d/assets/tables/tidal-lock/table.json
 import { args, env, exit } from 'zinc:sys';
 import { readText } from 'zinc:fs';
-import { Schema, Kind } from '../../pinball3d/src/format/schema';
+import { Schema, Field, Kind } from '../../pinball3d/src/format/schema';
 import { parseTable, formatSchema } from '../../pinball3d/src/format/table';
-import { Doc, steps, pathOf, listOf, indexOf, fieldAt, schemaAt, canTurn, isPlaced, newTableText } from './doc';
+import { Doc, steps, pathOf, listOf, indexOf, fieldAt, schemaAt, canTurn, isPlaced, found, newTableText } from './doc';
 import { complete, f, setUiLang, step, fieldName, listName, fieldKnown, DONE_UNDONE } from './strings';
 
 let failed = false;
@@ -108,6 +108,30 @@ check('paths read as the loader writes them', steps('walls[2].points[1]').join('
     && d.set('bumpers[0].sounds.hit', 'clack') && !d.set('bumpers[0].sounds.hit', 'clock') && d.refused.startsWith('bumpers[0].sounds.hit: "clock" is not one of the sounds')
     && d.set('music.play', 'hum') && plays(d.text()) && d.remove(d.find('sounds', 'clack')) && d.went.join(' ') === 'bumpers[0].sounds.hit' && plays(d.text()));
   check('what has a place on the table is read from the format', isPlaced(schemaAt('bumpers[0]')) && isPlaced(schemaAt('plunger')) && isPlaced(schemaAt('lights[0]')) && !isPlaced(schemaAt('looks[0]')) && !isPlaced(schemaAt('rules')));
+}
+
+// ---- the roles of the format: what a field stands for in space is not guessed from its name or its shape
+{
+  const d = new Doc(sample, sample);
+  const role = (path: string): string => { const fd = fieldAt(path); return fd === null ? '?' : fd.role; };
+  check('a point, a path, a direction and a rotation are what the format says they are', role('bumpers[0].at') === 'point' && role('walls[0].points') === 'path' && role('flippers[0].rest') === 'direction'
+    && role('models[0].rotation') === 'rotation' && role('ramps[0].profile') === 'profile' && role('flippers[0].speed') === '');
+  const giant = d.find('models', 'giant');
+  check('a model turns by the third number of its rotation, and moves by its point', canTurn(schemaAt(giant)) && d.turn(giant, 30) && d.get(`${giant}.rotation`)[2] === 30 && d.get(`${giant}.rotation`)[0] === 0
+    && d.move(giant, 1, 0) && d.get(`${giant}.at`)[0] === 6.2 && d.get(`${giant}.at`)[2] === 0 && plays(d.text()));
+}
+
+// ---- finding a field of a form by what someone types: its key alone when the text is a key, else what holds the text
+{
+  const all = (fd: Field, at: string): boolean => false;
+  const flipper = schemaAt('flippers[0]'), wall = schemaAt('walls[12]');
+  check('a field is found by its key, alone', found(flipper, 'flippers[0]', 'speed', fieldName, all).join(' ') === 'flippers[0].speed' && found(wall, 'walls[12]', 'Surface', fieldName, all).join(' ') === 'walls[12].surface'
+    && found(flipper, 'flippers[0]', 'sounds.up', fieldName, all).join(' ') === 'flippers[0].sounds.up');
+  // (the format may grow: these say what is among the answers, not how many there are)
+  const part = found(flipper, 'flippers[0]', 'spee', fieldName, all);
+  check('or by a part of its key or of its label, with the fields of the objects inside', part.indexOf('flippers[0].speed') >= 0 && part.indexOf('flippers[0].returnSpeed') > part.indexOf('flippers[0].speed')
+    && found(flipper, 'flippers[0]', 'angle at', fieldName, all).indexOf('flippers[0].rest') >= 0 && found(flipper, 'flippers[0]', 'sounds', fieldName, all).indexOf('flippers[0].sounds.down') >= 0
+    && found(flipper, 'flippers[0]', 'zzz', fieldName, all).length === 0);
 }
 
 // ---- 50 mixed operations: undo and redo give back every file, byte for byte

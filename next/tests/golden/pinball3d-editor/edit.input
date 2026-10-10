@@ -1,29 +1,32 @@
 # The table editor, one session on the test's table (tests/t1/pinball3d_editor.sh), window 1440x900. A line is `<frame> <event>`.
+# Things are reached on the top view, whose place does not depend on the format; a field is reached by its key.
 # The bumper pop3 is dragged 3 cm to the right and 3 cm down the table.
 4 move 583 394
 5 down
 6 move 590 400
 7 move 603 414
 8 up
-# The left flipper is selected on the table; its speed, which is its strength, is typed in the generated form.
+# The left flipper is selected on the table; its speed, which is its strength, is found by its key (Cmd+F, the key, Tab) and typed.
 11 move 521 743
 12 down
 13 up
-15 move 1270 537
-16 down
-17 up
-18 key a meta
-19 text 2600
-20 key Enter
-# The wall beside the spinner is selected; its surface is chosen in the list of the table's surfaces.
+15 key f meta
+16 text speed
+17 key Tab
+18 text 2600
+19 key Enter
+# The wall beside the spinner is selected; its surface is found the same way and chosen in the list of the table's surfaces, which
+# opens under the only line shown.
 23 move 697 361
 24 down
 25 up
-27 move 1315 456
-28 down
-29 up
-31 move 1300 560
-32 down
-33 up
+27 key f meta
+28 text surface
+30 move 1315 112
+31 down
+32 up
+34 move 1300 216
+35 down
+36 up
 # Save.
-36 key s meta
+38 key s meta

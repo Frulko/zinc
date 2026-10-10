@@ -70,6 +70,10 @@ export const AT_LEAST = S('{0} or more', '{0} ou plus');
 export const AT_MOST = S('{0} or less', '{0} ou moins');
 export const REQUIRED = S('Required', 'Obligatoire');
 export const KEY_IN_FILE = S('In the file: {0}', 'Dans le fichier : {0}');
+export const FIND_FIELD = S('Find a field ({0})', 'Trouver un champ ({0})');
+export const NO_FIELD = S('No field here is called "{0}".', 'Aucun champ ici ne s’appelle « {0} ».');
+export const GO_TO = S('Go to… ({0})', 'Aller à… ({0})');
+export const NOT_FOUND = S('Nothing in this table is called "{0}".', 'Rien dans cette table ne s’appelle « {0} ».');
 export const HELP = S('Help', 'Aide');
 export const HELP_HINT = S('Point at a field to read what it does.', 'Pointez un champ pour lire à quoi il sert.');
 export const ROWS = S('{0} rows', '{0} lignes');
@@ -150,6 +154,7 @@ const LISTS: string[] = [
   'floors', 'Upper playfields', 'Plateaux supérieurs', 'Upper playfield', 'Plateau supérieur',
   'lights', 'Lights', 'Lampes', 'Light', 'Lampe',
   'models', 'Models', 'Décors', 'Model', 'Décor',
+  'credits', 'Credits', 'Crédits', 'Credit', 'Crédit',
   'playfield', 'Playfield', 'Plateau', 'Playfield', 'Plateau',
   'physics', 'Physics', 'Physique', 'Physics', 'Physique',
   'music', 'Music', 'Musique', 'Music', 'Musique',
@@ -196,7 +201,8 @@ const FIELDS: string[] = [
   'position', 'Position', 'Position', 'fov', 'Field of view', 'Champ de vision', 'show', 'Shows', 'Affiche', 'box', 'Box', 'Cadre', 'align', 'Alignment', 'Alignement',
   'label', 'Caption', 'Légende', 'items', 'Items', 'Éléments', 'window', 'Window', 'Fenêtre', 'view', 'Table view', 'Vue de la table', 'camera', 'Camera', 'Caméra', 'panel', 'Panel', 'Panneau',
   'landscape', 'Landscape', 'Paysage', 'portrait', 'Portrait', 'Portrait', 'direction', 'Direction', 'Direction', 'lamps', 'Lamps', 'Projecteurs', 'background', 'Background', 'Fond',
-  'ambient', 'Ambient light', 'Lumière ambiante'];
+  'ambient', 'Ambient light', 'Lumière ambiante', 'files', 'Files', 'Fichiers', 'source', 'Source', 'Source', 'licence', 'Licence', 'Licence',
+  'land', 'Landing', 'Chute', 'knock', 'Knock', 'Coup sourd'];
 /** The label of a field of the format. */
 export function fieldName(key: string): string {
   for (let i = 0; i < FIELDS.length; i += 3) if (FIELDS[i] === key) return FIELDS[i + (uiLang() === 'fr' ? 2 : 1)];

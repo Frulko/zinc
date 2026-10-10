@@ -1,29 +1,38 @@
 #!/bin/sh
 # The table editor of the 3D pinball (ZN-649.04, examples/pinball3d-editor), slice 1: a table folder opened, the top view, the
-# properties generated from the format's schema, undo and redo, save. The sessions run on a table kept with the test (table.json, Tidal
-# Lock as it was when the editor was written), so that the game's table can change without moving these goldens.
+# properties generated from the format's schema, undo and redo, save.
+# The format grows while the editor is written, and its forms and its list are generated from it, so nothing here depends on how many
+# fields or lists the format has:
+# - the sessions run on a table kept with the test (table.json, Tidal Lock of 2026-10-10); they reach a field by its key (Cmd+F, the
+#   box that finds a field), a thing by its path (Cmd+G) and the text of the selection by Cmd+J, never by the place of a line;
+# - a frame is the golden's bytes, or else the same picture in the part of the window that does not come from the schema (the top
+#   view and the heights beside it: CROP); the generated form has its pixels on a schema kept in the editor (src/formcheck.tsx);
+# - what the forms of the real format do is checked by the files they write.
 #   the document without a window (src/selftest.ts): 50 mixed operations, undo then redo give back every file byte for byte; a renamed
-#                    thing is renamed where it is named; a deleted one takes what cannot do without it
+#                    thing is renamed where it is named; a deleted one takes what cannot do without it; the roles of the format
 #   untouched        the test's table, and the table the game ships today, opened and saved: the same bytes; the same table written
 #                    another way (on one line) saves to the canonical bytes
 #   edit.input       a bumper dragged, a flipper's strength typed in the form, a wall's surface chosen in the list of the table's
-#                    surfaces, Save: the file equals edited.json, the game's loader accepts it, four frames equal their goldens
+#                    surfaces, Save: the file equals edited.json, the game's loader accepts it, four frames
 #   view.input       wheel zoom, pan, a flipper turned with its handle, a light deleted with the rule's name of it, undo, undo, redo,
 #                    nudges with the arrows, Save: viewed.json, four frames
-#   advanced.input   a value outside the format's limits is refused with the loader's message; in the advanced mode the selection
-#                    is edited as the file has it: advanced.json, two frames
-#   the interface in French (one frame); a new table is saved in the folder the system's dialog gives
+#   advanced.input   a value outside the format's limits is refused with the loader's message; a surface reached by its path and edited
+#                    as the file has it: advanced.json, two frames
+#   the form on the schema of formcheck.tsx, in English and in French (two frames); a new table is saved in the folder the system's
+#   dialog gives
 # ZN_UPDATE_GOLDEN=1 rewrites the goldens from this run.
 cd "$(dirname "$0")/../.." || exit 2
 ex=$PWD/../examples/pinball3d-editor; g=$PWD/tests/golden/pinball3d-editor
 game=$PWD/../examples/pinball3d
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fail=0
+# the top view and the heights, in a window of 1440 x 900: x, y, width, height
+CROP=236,48,864,820
 
 out=$("$ZINC" run "$ex/src/selftest.ts" -- "$g/table.json" 2>&1) || fail=1
 case $out in *FAILED*|*panic*|*error*) fail=1 ;; esac
 for line in 'ok: the sample table opened and saved untouched is byte-identical' 'ok: 50 undos give back every earlier file, byte for byte' 'ok: 50 redos give back every later file, byte for byte' \
-  'ok: every state on the way is a file the game accepts, in canonical form' 'ok: every text of the interface exists in English and in French'; do
+  'ok: every state on the way is a file the game accepts, in canonical form' 'ok: every text of the interface exists in English and in French' 'ok: a field is found by its key, alone'; do
   case $out in *"$line"*) ;; *) fail=1 ;; esac
 done
 [ $fail = 0 ] || { echo "the document's self-test:"; printf '%s\n' "$out" | grep -v '^ok: ' | head -20; }
@@ -39,12 +48,12 @@ same() {  # what, file, golden
   if [ -n "$ZN_UPDATE_GOLDEN" ]; then cp "$2" "$3"; return; fi
   cmp -s "$2" "$3" || { echo "$1: $(basename "$2") differs from $3"; diff "$2" "$3" 2>/dev/null | head -10; fail=1; }
 }
-frames() {  # what, prefix of the goldens, frames...
-  what=$1; prefix=$2; shift 2
+frames() {  # what, prefix of the goldens, part of the window to compare ('' for all of it), frames...
+  what=$1; prefix=$2; part=$3; shift 3
   for f in "$@"; do
     if [ -n "$ZN_UPDATE_GOLDEN" ]; then cp "$tmp/shot-$f.png" "$g/$prefix-$f.png"; continue; fi
-    # the same bytes are the same picture; only a file that differs is decoded and compared pixel by pixel (3 s a frame)
-    cmp -s "$tmp/shot-$f.png" "$g/$prefix-$f.png" || tools/pngdiff "$tmp/shot-$f.png" "$g/$prefix-$f.png" >/dev/null || { echo "$what: frame $f differs from $g/$prefix-$f.png"; fail=1; }
+    # the same bytes are the same picture; a file that differs is decoded and compared pixel by pixel (3 s a frame), in `part` only
+    cmp -s "$tmp/shot-$f.png" "$g/$prefix-$f.png" || tools/pngdiff "$tmp/shot-$f.png" "$g/$prefix-$f.png" ${part:+--crop $part} >/dev/null || { echo "$what: frame $f differs from $g/$prefix-$f.png"; fail=1; }
   done
 }
 accepted() {  # what, table folder: the game's loader takes it, and it is in the form the game writes
@@ -67,29 +76,41 @@ edit "$tmp/oneline" "$tmp/save.input" 8
 cmp -s "$tmp/oneline/table.json" "$g/table.json" || { echo "a table written another way is not saved in the canonical form"; fail=1; }
 
 fresh edit
-edit "$tmp/edit" "$g/edit.input" 40 7,21,30,38
+edit "$tmp/edit" "$g/edit.input" 40 7,21,32,38
 same "the editing session" "$tmp/edit/table.json" "$g/edited.json"
-frames "the editing session" edit 7 21 30 38
+frames "the editing session" edit $CROP 7 21 32 38
 accepted "the editing session" "$tmp/edit"
 cmp -s "$tmp/edit/table.json" "$g/table.json" && { echo "the editing session changed nothing"; fail=1; }
 
 fresh view
 edit "$tmp/view" "$g/view.input" 48 16,24,32,47
 same "the view session" "$tmp/view/table.json" "$g/viewed.json"
-frames "the view session" view 16 24 32 47
+frames "the view session" view $CROP 16 24 32 47
 accepted "the view session" "$tmp/view"
 
 fresh advanced
-edit "$tmp/advanced" "$g/advanced.input" 40 14,32
+edit "$tmp/advanced" "$g/advanced.input" 36 14,26
 same "the advanced session" "$tmp/advanced/table.json" "$g/advanced.json"
-frames "the advanced session" advanced 14 32
+frames "the advanced session" advanced $CROP 14 26
 accepted "the advanced session" "$tmp/advanced"
+cmp -s "$tmp/advanced/table.json" "$g/table.json" && { echo "the advanced session changed nothing"; fail=1; }
 
-# the interface in French: a target selected on the table
-fresh french
-printf '4 move 446 440\n5 down\n6 up\n8 move 1200 446\n' > "$tmp/fr.input"
-LANGUAGE_OF_EDITOR=fr edit "$tmp/french" "$tmp/fr.input" 12 12
-frames "the interface in French" french 12
+# the generated form, on the schema the editor keeps for this: a field of every kind, with the help of the one the pointer is over;
+# then the same in French, the pointer on another line
+form() {  # language, input file
+  PINBALL_EDITOR_LANG=$1 ZINC_INPUT=$2 ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_SIZE=340x780 ZINC_FRAMES=8 ZINC_SHOT="$tmp/shot.png" ZINC_SHOT_FRAMES=8 \
+    "$ZINC" run "$ex/src/formcheck.tsx" >"$tmp/out" 2>&1 || { echo "the form on its own schema failed: $(head -c 300 "$tmp/out")"; fail=1; }
+}
+printf '4 move 150 100\n' > "$tmp/form.input"
+form en "$tmp/form.input"
+frames "the generated form" form '' 8
+cp "$tmp/shot-8.png" "$tmp/form-en.png"
+printf '4 move 150 290\n' > "$tmp/form-fr.input"
+form fr "$tmp/form-fr.input"
+frames "the generated form in French" form-fr '' 8
+# the two differ by their words and by the line the pointer is on: the comparison of a part of a picture sees it there, and nowhere else
+tools/pngdiff "$tmp/form-en.png" "$tmp/shot-8.png" --crop 0,30,340,120 >/dev/null && { echo "the English and the French form are the same picture"; fail=1; }
+tools/pngdiff "$tmp/form-en.png" "$tmp/shot-8.png" --crop 136,10,160,60 >/dev/null || { echo "pngdiff --crop: two fields that hold the same values differ"; fail=1; }
 
 # a new table: Save asks the system for its folder, and the file written there is one the game plays
 mkdir -p "$tmp/new"

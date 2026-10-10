@@ -15,9 +15,9 @@ import { TABLE_FILE } from '../../pinball3d/src/format/table';
 import { doc, folder, status, failed, selected, select, zoomBy, fit, viewW, viewH, undo, redo, save, newCommand, openCommand, openFolder, newTable, waiting, answer, guard,
   advanced, setAdvanced, moveSelected, turnSelected, deleteSelected } from './state';
 import { Ico, Tool, Segmented, ACCENT, chord } from './widgets';
-import { Outline } from './outline';
+import { Outline, focusGoTo } from './outline';
 import { TopView } from './topview';
-import { Properties } from './form';
+import { Properties, findField, editAsFile } from './form';
 import * as L from './strings';
 import { t, f, uiLang, setUiLang } from './strings';
 
@@ -121,6 +121,9 @@ ui.onKey((e: ui.KeyEvent) => {
     else if (k === '=') zoomBy(1.2, viewW / 2, viewH / 2);
     else if (k === '-') zoomBy(1 / 1.2, viewW / 2, viewH / 2);
     else if (k === 'e') setAdvanced(!advanced());
+    else if (k === 'f') findField();
+    else if (k === 'g') focusGoTo();
+    else if (k === 'j') editAsFile();
     else return;
     e.preventDefault();
     return;

@@ -3,27 +3,21 @@
 4 move 521 743
 5 down
 6 up
-8 move 1270 537
-9 down
-10 up
-11 key a meta
-12 text 20000
-13 key Enter
+8 key f meta
+9 text speed
+10 key Tab
+11 text 20000
+12 key Enter
 15 key Escape
-# The surface "rubber" is chosen in the list at the left; the advanced mode shows it as the file has it, and that text is edited.
-17 move 60 742
-18 down
-19 up
-21 move 60 814
-22 down
-23 up
-25 key e meta
-27 move 1270 440
-28 down
-29 up
-30 key a meta
-31 text {"id":"rubber","friction":0.7,"restitution":0.8}
-33 move 300 500
-34 down
-35 up
-37 key s meta
+# The surface "rubber" is reached by its path in the file (Cmd+G); Cmd+J shows it as the file has it and puts the caret there; the
+# text is replaced, and a click on the table leaves the field.
+17 key g meta
+18 text surfaces[2]
+19 key Enter
+22 key j meta
+24 key a meta
+25 text {"id":"rubber","friction":0.7,"restitution":0.8}
+28 move 300 500
+29 down
+30 up
+32 key s meta

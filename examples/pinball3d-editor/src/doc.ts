@@ -11,7 +11,7 @@
 // mend what they break before giving up: renaming something renames it wherever it is named, and deleting something clears the
 // optional names that pointed to it and deletes the rules and missions that cannot do without it (`went` says which).
 import { Schema, Field, Kind, write } from '../../pinball3d/src/format/schema';
-import { TableDef, TableError, formatSchema, parseTable } from '../../pinball3d/src/format/table';
+import { TableDef, TableError, formatSchema, parseTable, checkTable } from '../../pinball3d/src/format/table';
 import { FORMAT, VERSION } from '../../pinball3d/src/format/table-schema';
 
 // ---------------------------------------------------------------- paths
@@ -62,8 +62,10 @@ function removeAt(data: any, list: string, at: i32): void {
   put(data, list, kept);
 }
 /** The field of the format a path ends on; null when the format has no such field. */
-export function fieldAt(path: string): Field | null {
-  let s: Schema = formatSchema();
+export function fieldAt(path: string): Field | null { return fieldIn(formatSchema(), path); }
+/** The same in any schema. */
+export function fieldIn(root: Schema, path: string): Field | null {
+  let s: Schema = root;
   let f: Field | null = null;
   for (const step of steps(path)) {
     if (isIndex(step)) continue;   // an item of the list just named: its schema is already the current one
@@ -81,12 +83,34 @@ export function schemaAt(path: string): Schema {
 
 // ---------------------------------------------------------------- what the schema says of a field
 
-// ponytail: the format does not say which fields place an element in the top view; three shapes of its fields do, and hold for every
-// element of version 1: a required row of 2 or 3 numbers is a point (at, pivot, a, b), rows of up to 3 numbers are a path (x, y, bulge),
-// a number from -360 to 360 is a direction. An explicit role on Field (asked of the format's owner) replaces these three tests.
-export function isPoint(f: Field): boolean { return f.kind === Kind.Tuple && f.required && f.cols >= 2 && f.cols <= 3; }
-export function isPath(f: Field): boolean { return f.kind === Kind.Rows && f.maxCols === 3; }
-export function isDirection(f: Field): boolean { return f.kind === Kind.Num && f.min === -360 && f.max === 360; }
+/** The paths of the fields of an object (schema `s`, at `path`) that answer to a text someone types to find one, the fields of the
+ *  objects inside it included ("sounds.hit"): the field whose key, or whose path from the object, is exactly the text when there is
+ *  one, else every field whose path or whose label holds it. `labelOf`: the label of a key; `left`: the fields that are not offered. */
+export function found(s: Schema, path: string, text: string, labelOf: (key: string) => string, left: (f: Field, at: string) => boolean): string[] {
+  const want = text.trim().toLowerCase(), exact: string[] = [], near: string[] = [];
+  const walk = (sc: Schema, at: string, from: string): void => {
+    for (const f of sc.fields) {
+      if (left(f, at)) continue;
+      const here = at === '' ? f.name : `${at}.${f.name}`, rel = from === '' ? f.name : `${from}.${f.name}`;
+      if (f.kind === Kind.Obj) { walk(f.of as Schema, here, rel); continue; }
+      if (rel.toLowerCase() === want) exact.push(here);
+      else if (rel.toLowerCase().indexOf(want) >= 0 || labelOf(f.name).toLowerCase().indexOf(want) >= 0) near.push(here);
+    }
+  };
+  walk(s, path, '');
+  return exact.length > 0 ? exact : near;
+}
+
+// The format gives a role to every field that stands for something in space (table-schema.ts ROLES): the editor places, moves and
+// turns a thing by the roles of its fields, and knows no field by its name.
+/** A place of the top view: [x, y], or [x, y, z]. */
+export function isPoint(f: Field): boolean { return f.role === 'point'; }
+/** A line of the top view: rows [x, y] or [x, y, bulge]. */
+export function isPath(f: Field): boolean { return f.role === 'path'; }
+/** An angle of the top view. */
+export function isDirection(f: Field): boolean { return f.role === 'direction'; }
+/** A turn in space, [around x, y, z]: the third number turns the thing in the top view. */
+export function isRotation(f: Field): boolean { return f.role === 'rotation'; }
 /** Whether objects of this schema have a place in the top view. */
 export function isPlaced(s: Schema): boolean {
   for (const f of s.fields) if (isPoint(f) || isPath(f)) return true;
@@ -96,7 +120,7 @@ export function isPlaced(s: Schema): boolean {
 export function canTurn(s: Schema): boolean {
   let points = 0;
   for (const f of s.fields) {
-    if (isDirection(f) || isPath(f) || f.name === 'rotation') return true;
+    if (isDirection(f) || isPath(f) || isRotation(f)) return true;
     if (isPoint(f)) points++;
   }
   return points > 1;
@@ -142,8 +166,7 @@ export function turnItem(s: Schema, item: any, degrees: number, about: number[])
   }
   for (const f of s.fields) {
     if (isDirection(f)) { const d: number = item[f.name]; item[f.name] = wrap(d + degrees); }
-    // ponytail: a model's turn in the top view is the third number of its `rotation`, known here by its name
-    else if (f.name === 'rotation' && f.kind === Kind.Tuple && f.cols === 3) { const r: any = item[f.name]; const d: number = r[2]; r[2] = wrap(d + degrees); }
+    else if (isRotation(f)) { const r: any = item[f.name]; const d: number = r[2]; r[2] = wrap(d + degrees); }
   }
 }
 
@@ -218,8 +241,8 @@ export class Doc {
     try {
       change(next);
       for (let round = 0; round < 12 && checked === null; round++) {
-        // through its text, as a file would come: the loader takes any tree, with or without its defaults
-        try { checked = parseTable(JSON.stringify(next), 'the table'); } catch (e) {
+        // the format's own check: it takes any tree, with or without its defaults, and gives it back with them
+        try { checked = checkTable(next, 'the table'); } catch (e) {
           const found: string[] = e instanceof TableError ? (e as TableError).errors : [`${(e as Error).message}`];
           if (mend === null || !mend(next, found)) { this.refused = found[0]; return false; }
         }

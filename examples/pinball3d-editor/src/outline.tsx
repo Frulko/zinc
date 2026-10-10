@@ -1,13 +1,19 @@
 // The list at the left: everything a table file holds, by the lists and the objects of the format. A click selects; the panel at the
 // right then shows its properties. What has a place is also on the top view; what has none (surfaces, looks, sounds, the physics, the
 // rules) is reached from here. The lists are read from the schema: a list added to the format gets its line.
-import { createSignal, createEffect, For, Show } from 'zinc:ui/solid';
-import { doc, selected, select, PLACED_LISTS, PLACED_OBJECTS, OTHER_LISTS, OTHER_OBJECTS } from './state';
+// The box at the top goes to a thing by its name, or by its path in the file (Cmd+G).
+import { createSignal, createNodeRef, createEffect, For, Show } from 'zinc:ui/solid';
+import * as ui from 'zinc:ui';
+import { doc, selected, select, goTo, PLACED_LISTS, PLACED_OBJECTS, OTHER_LISTS, OTHER_OBJECTS } from './state';
 import { listOf } from './doc';
 import { rgb } from './shapes';
-import { Ico, Heading, MUTED } from './widgets';
+import { Ico, Heading, MUTED, chord } from './widgets';
 import * as L from './strings';
-import { t, listName } from './strings';
+import { t, f, listName } from './strings';
+
+const goer = createNodeRef();
+/** Puts the caret in the box that goes to a thing (Cmd+G). */
+export function focusGoTo(): void { if (goer.node >= 0) { ui.focusNode(goer.node); ui.select(goer.node, 0, ui.getValue(goer.node).length); } }
 
 /** The lists that are unfolded: their names between bars. */
 const [unfolded, setUnfolded] = createSignal<string>('|');
@@ -60,6 +66,11 @@ export function Outline(): i32 {
   // what is selected on the top view is shown in its list
   createEffect(() => { const list = listOf(selected()); if (list !== '' && !isOpen(list)) setUnfolded(`${unfolded()}${list}|`); });
   return <view class="w-[236] shrink-0 flex-col bg-zinc-900 border-r border-zinc-800">
+    <view class="flex-row items-center gap-2 h-10 px-3 shrink-0 border-b border-zinc-800">
+      <Ico name="search" size={13} color={MUTED} />
+      <input ref={goer} style={{ width: 184 }} class="h-7 px-2 rounded-md bg-zinc-950 border border-zinc-800 text-xs text-zinc-100 focus:border-amber-400" placeholder={f(L.GO_TO, chord('G'))}
+        onChange={(v: string) => { if (goTo(v)) ui.setValue(goer.node, ''); }} />
+    </view>
     <scroll class="grow basis-0 min-h-0 flex-col pt-3">
       <Section label={t(L.CONTENTS)}>
         <Line path="" label={() => t(L.THE_TABLE)} inset={false} dot={noDot} />

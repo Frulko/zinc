@@ -6,7 +6,7 @@ import * as fs from 'zinc:fs';
 import * as dialog from 'zinc:system/dialog';
 import { Schema, Kind } from '../../pinball3d/src/format/schema';
 import { TableDef, TableError, TABLE_FILE, formatSchema } from '../../pinball3d/src/format/table';
-import { Doc, newTableText, isPlaced, canTurn, schemaAt, listOf } from './doc';
+import { Doc, newTableText, isPlaced, canTurn, schemaAt, fieldAt, listOf } from './doc';
 import { Outline, outlines } from './shapes';
 import * as L from './strings';
 import { t, f } from './strings';
@@ -84,6 +84,18 @@ function reselect(): void {
   const again = selectedId === '' ? '' : current.find(list, selectedId);
   selectedId = again === '' ? '' : selectedId;
   setSelected(again);
+}
+/** Selects what a text names: a path as the file has it ("flippers[1]", "physics"), else the first thing of the table called so,
+ *  in the order of the file. False, and the status bar says so, when nothing is. */
+export function goTo(text: string): boolean {
+  const want = text.trim();
+  if (want === '') return false;
+  const v: any = fieldAt(want) === null ? undefined : current.get(want);
+  let path = v !== undefined && v !== null && typeof v === 'object' && !Array.isArray(v) ? want : '';
+  if (path === '') for (const fd of formatSchema().fields) if (path === '' && fd.kind === Kind.List) path = current.find(fd.name, want);
+  if (path === '') { say(f(L.NOT_FOUND, want), true); return false; }
+  batch(() => { select(path); say(f(L.SELECTED, current.nameOf(path))); });
+  return true;
 }
 /** Whether the selection has a place in the top view, and whether turning it changes it. */
 export function selectionPlaced(): boolean { const p = selected(); return p !== '' && current.get(p) !== undefined && isPlaced(schemaAt(p)); }
