@@ -79,19 +79,21 @@ void installFast() {
 
 static void (*frameEnd[4])();   // zn::host::onFrameEnd
 static int nFrameEnd = 0;
+// The surface exists from the first graphics call: `const W = width()` at the top of a module sees the board's size, not the default
+void startSurface() {
+  if (zn::host::gfxStarted) return;
+  zn::host::gfxStarted = true;
+  static HalConfig cfg = {320, 240, "zinc", 1};
+  int w = 0, h = 0;
+  if (const char* sz = getenv("ZINC_SIZE")) if (sscanf(sz, "%dx%d", &w, &h) == 2 && w > 0 && h > 0) { cfg.width = w; cfg.height = h; }  // ZINC_SIZE=1100x700: the window (or surface) size
+  zrt::start(cfg, 0, nullptr);
+  installFast();
+}
 void call(int id, const HostArg* a, HostArg* r) {
   namespace g = zrt::gfx;
   auto u = [&](int k) { return static_cast<uint32_t>(a[k].i); };
   auto n = [&](int k) { return static_cast<int32_t>(a[k].i); };
-  static bool started = false;
-  if (!started) {   // the surface exists from the first graphics call: `const W = width()` at the top of a module sees the board's size, not the default
-    started = true;
-    static HalConfig cfg = {320, 240, "zinc", 1};
-    int w = 0, h = 0;
-    if (const char* sz = getenv("ZINC_SIZE")) if (sscanf(sz, "%dx%d", &w, &h) == 2 && w > 0 && h > 0) { cfg.width = w; cfg.height = h; }  // ZINC_SIZE=1100x700: the window (or surface) size
-    zrt::start(cfg, 0, nullptr);
-    installFast();
-  }
+  if (!zn::host::gfxStarted) startSurface();
   switch (static_cast<Rt>(id)) {
     case Rt::HostGfxFrames: {
       const char* f = getenv("ZINC_FRAMES");
@@ -216,6 +218,7 @@ void call(int id, const HostArg* a, HostArg* r) {
 }  // namespace
 
 namespace zn::host {
+void startGfx() { startSurface(); }
 bool replayScene(const char* scene, const char* out) { return zrt::gfx::scene_replay(scene, out); }
 void setGrowDrawCommands(bool on) { zrt::gfx::grow_enabled = on; }
 void onFrameEnd(void (*fn)()) { if (nFrameEnd < 4) frameEnd[nFrameEnd++] = fn; }
