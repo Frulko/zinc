@@ -1,0 +1,11 @@
+Jolt Physics 5.6.0 (tag v5.6.0 of jrouwe/JoltPhysics, released 2026-07-11), https://github.com/jrouwe/JoltPhysics/archive/refs/tags/v5.6.0.tar.gz
+archive sha256 6e069ee0172478cc78182047aac87e5310ba14a67a53348ae14cc37801fd3f8e
+kept, unmodified: the directory Jolt/ of the archive (408 files) without Compute/, Shaders/, Skeleton/, Physics/Hair/, Physics/Vehicle/,
+  Physics/Character/, Physics/Ragdoll/ (nothing of the rest includes them), Jolt.cmake and Jolt.natvis; and LICENSE (MIT)
+  LICENSE  sha256 800abe35d64ad9defd636ff1ee8c961e06f0ebca3ef8d10083e8aa0e8ef86ac3
+  Jolt/    sha256 9652820af92c78be51e52af3db35783b80103ed729136193c6a7ed1ebd34e599
+           (cd plugins/physics3d/vendor/jolt && find Jolt -type f | LC_ALL=C sort | xargs shasum -a 256 | shasum -a 256)
+ours: ../jolt_1.cpp to ../jolt_4.cpp, the four translation units that compile it (plugin.json builds them with
+  JPH_CROSS_PLATFORM_DETERMINISTIC and NDEBUG; no profiler, no debug renderer, no object streams, asserts off). Not compiled, kept for
+  reference: RegisterTypes.cpp (the plugin registers the shapes itself), PhysicsScene.cpp, Renderer/*.cpp, ObjectStream/ beyond
+  SerializableObject.cpp, the thread pool job system.
