@@ -7,8 +7,10 @@ kernel with its types stripped by Node; native is the old toolchain's release bi
 present. Every engine's output is compared with corpus/bench/<k>.out first. Losses are printed and kept in the artifact.
 Thresholds (TESTING.md, M4): AOT within 3x of native on fib, nbody, binarytrees, sort; interpreter at least 5x faster than
 QuickJS on the numeric kernels (fib, nbody, mandelbrot, spectralnorm, fannkuchredux) and not slower on strings, jsonout and dynsum.
+jsonout, whose work is ~1 ms in every engine, is judged on its work (ZN-648): each engine's CPU time (user + system) for the kernel
+minus its CPU time for an empty program, measured in alternation; the launches and the work are reported beside the totals.
 """
-import json, math, os, platform, shlex, statistics, subprocess, sys, tempfile, time
+import json, math, os, platform, resource, shlex, statistics, subprocess, sys, tempfile, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import zn_resmon
 
@@ -43,6 +45,7 @@ if not kernels or runs < 1:
 numeric = {"fib", "nbody", "mandelbrot", "spectralnorm", "fannkuchredux"}
 aot_native = {"fib", "nbody", "binarytrees", "sort"}
 no_slower = {"strings", "jsonout", "dynsum"}
+short = {"jsonout"}   # ~1 ms of work in every engine: judged on its work, not its total (ZN-648)
 tmp = tempfile.mkdtemp()
 
 def run(cmd):
@@ -130,6 +133,41 @@ for k in kernels:
         if baseline_zinc and e not in ("interp", "aot"): continue
         if v is None and not (e == "native" and not os.path.exists(nat)): failures.append(f"{k}: {e} did not run or printed a different output")
 
+# launches and work (ZN-648): jsonout does ~1 ms of work, so its total compares how fast each engine starts (zinc's 12 MB engine against
+# qjs), not how fast it runs. It is judged on its work: the engine's CPU time (user + system, of the process and what it waited for) for the
+# kernel minus its CPU time for an empty program, measured in alternation, medians; on macOS in cycles (/usr/bin/time -l). Not wall time:
+# a loaded machine stretches the wall time of both runs by more than the ~1 ms between them, and the CPU time by about as much.
+launch, work = {}, {}
+empty_ts = os.path.join(tmp, "empty.ts"); open(empty_ts, "w").write("")
+empty_js = os.path.join(tmp, "empty.js"); open(empty_js, "w").write("")
+empties = {}
+if not baseline_zinc and run(f"{zinc} --emit=zbc-bin {empty_ts} {tmp}/empty.zbc").returncode == 0:
+    empties = {"interp": f"{zinc} run {tmp}/empty.zbc", "quickjs": f"qjs {empty_js}"}
+    if run(f"{zinc} build {empty_ts} -o {tmp}/empty.aot").returncode == 0: empties["aot"] = f"{tmp}/empty.aot"
+cycles = platform.system() == "Darwin" and os.path.exists("/usr/bin/time")
+def cpu_of(cmd):   # macOS: the cycles the process ran (/usr/bin/time -l), steady under load; elsewhere its CPU time
+    if cycles:
+        r = run(f"/usr/bin/time -l {cmd}")
+        for line in r.stderr.splitlines():
+            if line.strip().endswith("cycles elapsed"): return float(line.split()[0])
+    r0 = resource.getrusage(resource.RUSAGE_CHILDREN); run(cmd); r1 = resource.getrusage(resource.RUSAGE_CHILDREN)
+    return (r1.ru_utime - r0.ru_utime) + (r1.ru_stime - r0.ru_stime)
+def paired(cmd, empty, n):
+    a, b = [], []
+    for i in range(n):
+        for c, out in ((cmd, a), (empty, b)) if i % 2 == 0 else ((empty, b), (cmd, a)):
+            out.append(cpu_of(c))
+    return statistics.median(a), statistics.median(b)
+for k in kernels:
+    if not empties or k not in short or not results[k].get("quickjs"): continue
+    cmds = {"interp": f"{zinc} run {tmp}/{k}.zbc", "aot": f"{tmp}/{k}.aot", "quickjs": f"qjs {tmp}/{k}.js"}
+    work[k] = {}
+    for e, empty in empties.items():
+        if not results[k].get(e): continue
+        total, start = paired(cmds[e], empty, max(runs, 11) * 2)
+        launch.setdefault(e, []).append(start)
+        work[k][e] = max(total - start, 1e-6)
+
 def ms(c): return "n/a" if c is None else f"{c['median_s']*1000:.1f}"
 rows, verdicts = [], []
 for k in kernels:
@@ -140,7 +178,10 @@ for k in kernels:
     ok = []
     if k in aot_native: ok.append(("AOT within 3x of native", r_aot is not None and r_aot <= 3.0, r_aot))
     if k in numeric: ok.append(("interpreter at least 5x QuickJS", r_q is not None and r_q >= 5.0, r_q))
-    if k in no_slower: ok.append(("interpreter not slower than QuickJS", r_q is not None and r_q >= 1.0, r_q))
+    if k in no_slower and k in work and work[k].get("quickjs") and work[k].get("interp"):   # a short kernel: its work (ZN-648)
+        r_w = work[k]["quickjs"] / work[k]["interp"]
+        ok.append(("interpreter's work not slower than QuickJS's (short kernel)", r_w >= 1.0, r_w))
+    elif k in no_slower: ok.append(("interpreter not slower than QuickJS", r_q is not None and r_q >= 1.0, r_q))
     for what, passed, val in ok: verdicts.append({"kernel": k, "threshold": what, "value": val, "pass": bool(passed)})
     rows.append((k, ms(c["interp"]), ms(c["aot"]), ms(c["quickjs"]), ms(c["native"]), r_aot, r_q))
 
@@ -197,7 +238,7 @@ if startup_on and run(f"cc -O2 {empty_c} -o {tmp}/empty_c").returncode == 0 and 
     print("startup: empty C %.2f ms, console.log(1) AOT %.2f ms, zinc run %.2f ms" % (startup["empty_c_ms"], startup["aot_ms"], startup["run_ms"]))
 
 failures.extend(diagnostics)
-doc = {"startup": startup, "runs": runs, "machine": platform.platform(), "processor": platform.processor(), "results": results, "thresholds": verdicts, "failures": failures, "regressions": regressions}
+doc = {"startup": startup, "launch_s": {e: statistics.median(v) for e, v in launch.items()}, "work_s": work, "runs": runs, "machine": platform.platform(), "processor": platform.processor(), "results": results, "thresholds": verdicts, "failures": failures, "regressions": regressions}
 if baseline_zinc: doc.update(reference_zinc=baseline_zinc, reference_results=reference_results)
 os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
 json.dump(doc, open(out, "w"), indent=1)
@@ -208,6 +249,13 @@ for k, i, a, q, n, ra, rq in rows:
 lines += ["", "## Thresholds", "", "| kernel | threshold | measured | result |", "|---|---|---:|---|"]
 for v in verdicts:
     lines.append(f"| {v['kernel']} | {v['threshold']} | {'n/a' if v['value'] is None else format(v['value'], '.2f') + 'x'} | {'pass' if v['pass'] else '**LOSS**'} |")
+if work:
+    lines += ["", "## Short kernels: launch and work (ZN-648)", "", ("Each engine's cycles (macOS, /usr/bin/time -l)" if cycles else "Each engine's CPU time (user + system, ms)") + " for the kernel and for an empty program, in alternation; the work is the difference (median minus median).", "",
+              "| kernel | interp work | AOT work | QuickJS work | interp launch | AOT launch | QuickJS launch |", "|---|---:|---:|---:|---:|---:|---:|"]
+    f = lambda d, e: "n/a" if d.get(e) is None else (f"{d[e]/1e6:.2f}M" if cycles else f"{d[e]*1000:.2f}")
+    lw = {e: statistics.median(v) for e, v in launch.items()}
+    for k, w in work.items():
+        lines.append(f"| {k} | {f(w, 'interp')} | {f(w, 'aot')} | {f(w, 'quickjs')} | {f(lw, 'interp')} | {f(lw, 'aot')} | {f(lw, 'quickjs')} |")
 lines += ["", "## Resources (one extra run per cell)", "", "| kernel | interp RSS MB | AOT RSS MB | interp user s | AOT user s |", "|---|---:|---:|---:|---:|"]
 for k in kernels:
     c = results[k]

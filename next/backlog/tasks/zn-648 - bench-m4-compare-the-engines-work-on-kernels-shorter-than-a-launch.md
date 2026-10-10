@@ -1,9 +1,10 @@
 ---
 id: ZN-648
 title: 'bench-m4: compare the engines'' work on kernels shorter than a launch'
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-10 17:49'
+updated_date: '2026-10-10 17:58'
 labels:
   - perf
   - tools
@@ -21,6 +22,13 @@ jsonout runs ~1 ms of work: interpreter 1.2-1.4 ms, AOT 1.0-1.3, QuickJS 0.9-1.4
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 tools/bench-m4 prints launch and work per engine and judges jsonout on its work
-- [ ] #2 TESTING.md's M4 row says how short kernels are judged
+- [x] #1 tools/bench-m4 prints launch and work per engine and judges jsonout on its work
+- [x] #2 TESTING.md's M4 row says how short kernels are judged
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Done 2026-10-10 (D69). tools/bench-m4: jsonout (named short: ~1 ms of work everywhere) is judged on its work: cycles of the kernel run minus cycles of an empty run of the same engine (/usr/bin/time -l on macOS, CPU time elsewhere), alternated, medians, max(runs, 11) x 2 pairs; a section 'Short kernels: launch and work' and launch_s / work_s in bench/m4.json. Tried first: wall time and CPU time, classifying short kernels by a measured launch: at load 7-15 the launches read 14-30 ms, dynsum and strings were taken for short, and the work swung (QuickJS 0.00 ms, interpreter ratios 0.73-1.00x): not usable while other trees build. Cycles agreed over two runs at load 8: interpreter 5.49-5.58M, AOT 3.87-4.61M, QuickJS 4.23-4.30M (a third run at load 10 inflated all). The threshold now reads 0.77x: a real loss of the interpreter's work, filed as ZN-654. TESTING.md's M4 row says how jsonout is judged.
+usage: n/a
+<!-- SECTION:NOTES:END -->

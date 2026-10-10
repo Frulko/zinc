@@ -65,7 +65,7 @@ reported with the measurement, not rounded.
 |---|---|
 | M1 / ZN-011 | `fib` output equals golden with no Node; every program the checker accepts on a 30-file set is accepted by the oracle (0 violations); interpreter `fib` at least 5× faster than QuickJS; M1 used at most 1.5× its budget |
 | M3 | 18/18 conformance in the interpreter (the 18 programs are listed in `next/corpus/M3-set.txt`: the pure-language ones, no `zinc:` imports or UI, which belong to M5); live objects 0 at exit; destruction order equals current native on the order fixtures |
-| M4 | Interpreter and AOT byte-identical on the corpus; fib, nbody, binarytrees, sort within 3× of current native on AOT; interpreter at least 5× faster than QuickJS on numeric kernels and not slower on strings, jsonout and the Dyn kernel |
+| M4 | Interpreter and AOT byte-identical on the corpus; fib, nbody, binarytrees, sort within 3× of current native on AOT; interpreter at least 5× faster than QuickJS on numeric kernels and not slower on strings, jsonout and the Dyn kernel (jsonout, ~1 ms of work, is judged on its work: each engine's cycles for the kernel minus its cycles for an empty program, measured in alternation by `tools/bench-m4`, ZN-648) |
 | M5 | Pixel golden identical |
 | M6 | Hello runs on a device with no manual toolchain step |
 
