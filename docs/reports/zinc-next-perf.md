@@ -337,6 +337,7 @@ Gain: 5 = removes a multiple of the frame or a 2x+ on a whole class of programs;
 - **Measured, not adopted (ZN-600, 2026-10-10)**: inline caches in the QuickJS interpreter, 89-99.9% hits: three.js 0.98-1.00x, sprite 0.97-0.98x, objects 1.01-1.06x, matter-js 0.98-1.02x (gate 15%). D56, `zinc-next-qjs-ic.md`; arm64 remeasure ZN-600.01.
 - **Result (ZN-615, 2026-10-10)**: a native plugin's library loads at its first call (exports cached beside the build): hero's cached interpreted start 326 -> 300 ms (10 starts x 3, FFmpeg no longer loaded); the cache check left (zinc:video 34 ms) is ZN-617.
 - **Tool (ZN-375, 2026-10-10)**: ZINC_PERF_HUD, a live performance panel (FPS, work p50/p99, phases, 120-frame graph) over any program; its own cost 0.14-0.19 ms per frame on the CPU renderer at Retina density, 0.01 ms on the GPU renderer (`docs/dev-mode.md`).
+- **Result (ZN-399, 2026-10-10)**: AOT code reads width() / height() inline (no host call): bouncing-ball 200k update loop 2.50-2.71 -> 1.33-1.41 ms per frame on the Intel Mac, prototype native 2.21-2.30 ms; draw loop at parity (3.0 vs 2.9 ms).
 
 ## 4. Correction of ZN-042's diagnosis (nbody)
 
