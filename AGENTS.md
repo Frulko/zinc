@@ -3,6 +3,14 @@
 The engine work lives in `next/`. The binding rules are `next/RULES.md`, `next/ARCHITECTURE.md` and `next/TESTING.md`; the state of the work is `next/RESUME.md`.
 `/loop /zn-start` runs the backlog one task at a time, `/zn-end` closes a task.
 
+## Decide alone: the owner is not at the keyboard (owner, 2026-10-10)
+
+Never ask the owner to choose, confirm or approve a design or technical decision: nobody is there to answer, and a question stops the loop.
+
+- Think it through, then look for the answer: the docs (`next/RULES.md`, `docs/reports/`, the decision records in `docs/reports/zinc-next-decisions.md`, the task and its linked reports), the prototype's code and behaviour, and how the reference tools the owner chose solve it (React Native and Expo, Nuxt UI, Tauri and Electron, three.js, the libraries named in `docs/reports/parity/04-library-choices.md`...).
+- Pick the best option (score it as `next/RULES.md` §4 says when it matters), write the choice and why in the task notes or a decision record, and go on. A reversible choice is made at once.
+- Only an irreversible or outward-facing step (publishing, pushing, deleting data, spending money, sending a message) waits for the owner: do everything up to it and leave the exact command in the task notes.
+
 ## Move fast: finish tasks, prove only what changed (owner, 2026-10-10)
 
 The goal of a session is progress on the backlog: finish tasks, improve and complete the engine. Tests exist to prove a change, not to fill the session.
