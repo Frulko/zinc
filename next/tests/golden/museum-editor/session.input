@@ -1,0 +1,98 @@
+# The storyboard editor, one session from an empty project (tests/t1/museum_editor.sh), window 1440x900. A line is `<frame> <event>`.
+# Three sequences: a double click on the storyboard, the title typed in French, Tab, in English.
+5 move 200 200
+6 down
+7 up
+8 down
+9 up
+12 text Accueil
+14 key Tab
+16 text Welcome
+18 key Escape
+20 move 620 200
+21 down
+22 up
+23 down
+24 up
+27 text Estampes
+29 key Tab
+31 text Prints
+33 key Escape
+35 move 400 520
+36 down
+37 up
+38 down
+39 up
+42 text Porcelaine
+44 key Tab
+46 text Porcelain
+48 key Escape
+# Three links: the handle under a sequence dragged onto another one.
+52 move 200 273
+53 down
+54 move 300 250
+55 move 500 210
+56 move 620 198
+57 up
+60 move 620 273
+61 down
+62 move 550 400
+63 move 400 500
+64 up
+67 move 400 593
+68 down
+69 move 300 400
+70 move 200 210
+71 up
+# The link just drawn is selected: its label in both languages, it opens over the sequence, with a slide.
+74 move 1298 206
+75 down
+76 up
+77 key a meta
+78 text Retour
+80 key Tab
+82 text Back
+84 key Escape
+86 move 1357 321
+87 down
+88 up
+90 move 1279 436
+91 down
+92 up
+# The visit starts with the second sequence.
+94 move 620 140
+95 down
+96 up
+98 move 1280 285
+99 down
+100 up
+# The third sequence is moved, duplicated, and the copy deleted.
+102 move 400 460
+103 down
+104 move 430 490
+105 move 500 560
+106 up
+108 key d meta
+110 key Delete
+# A fourth sequence with a link to it is deleted: the editor asks what becomes of the link.
+112 move 900 300
+113 down
+114 up
+115 down
+116 up
+119 text Essai
+121 key Escape
+123 move 620 273
+124 down
+125 move 700 280
+126 move 900 300
+127 up
+129 move 900 250
+130 down
+131 up
+133 key Delete
+137 move 841 573
+138 down
+139 up
+# Save.
+142 key s meta

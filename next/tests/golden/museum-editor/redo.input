@@ -1,0 +1,5 @@
+# And forth again, by both keys (played after undo.input).
+160 key z meta+shift
+162 key z meta+shift
+164 key y meta
+168 key s meta

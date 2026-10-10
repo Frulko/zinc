@@ -1,0 +1,12 @@
+{
+  "name": "museum-table-editor",
+  "description": "The storyboard editor of the museum table: sequences, links and media of a project, without opening its file",
+  "entry": "main.tsx",
+  "permissions": ["dialog", "fs", "window"],
+  "icons": ["landmark", "file-plus", "folder-open", "save", "save-all", "undo-2", "redo-2", "plus", "minus", "maximize", "flag", "triangle-alert", "circle-alert", "circle-check", "trash", "copy", "arrow-right", "link", "image", "box", "globe", "type", "volume-2", "film", "chevron-down", "chevron-up", "mouse-pointer-click", "layers", "pencil"],
+  "targets": {
+    "macos": { "width": 1440, "height": 900, "resize": "fill" },
+    "linux": { "width": 1440, "height": 900, "resize": "fill" },
+    "sim": { "width": 1440, "height": 900 }
+  }
+}
