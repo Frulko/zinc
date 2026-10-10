@@ -39,7 +39,7 @@ Ranked by gain / effort (S = 1, M = 2, L = 3; gain 1 to 5, see section 2). Statu
 | 13 | PERF-13 | GPU 2D backend by default where there is a GPU (display-gl, `gpu-renderer-design.md`) | open (design exists, phase 1 done) | all raster on CPU in the desktop window | 200k quads in <= 2 ms GPU, CPU free for script | 5 | L | Pi 3, Vita, i4S, desktop |
 | 14 | PERF-14 | RC elision per value range; host rows marked as never releasing; inline release | open | 400k retain/release pairs per frame at 200k balls; `op::release` out of line 6% of navigation AOT | no RC in the ball loops; release inlined | 3 | M | all |
 | 15 | PERF-15 | Per-target CPU flags and number profiles | open | every armhf build is `-mcpu=arm1176jzf_s` (ARMv6, no NEON) also for Pi 2/3 32-bit; no PSP profile (`number` would be soft double) | armv7+NEON variant measured under QEMU and on the Pi rig; `psp` profile with `number` = f32 | 3 | M | Pi 2/3 32-bit, CHIP, PSP |
-| 16 | PERF-16 | `zinc run` / `zinc dev` startup: faster passes and a ZBC cache | done (ZN-415; the plugin load is ZN-614) | hero: 1.7 s before the first instruction (lower 436, RC 353, emit 269, check 227, parse 85 ms) | <= 100 ms with a warm cache, <= 0.8 s cold | 3 | M | dev loop; Pi when run from source |
+| 16 | PERF-16 | `zinc run` / `zinc dev` startup: faster passes and a ZBC cache | done (ZN-415, ZN-614; lazy plugin load ZN-615) | hero: 1.7 s before the first instruction (lower 436, RC 353, emit 269, check 227, parse 85 ms) | <= 100 ms with a warm cache, <= 0.8 s cold | 3 | M | dev loop; Pi when run from source |
 | 17 | PERF-17 | Pipeline: script of frame N+1 runs while bands rasterize frame N | open | main thread waits on bands 63% of the frame (window, 200k) | frame time = max(script + diff, raster) | 3 | M | multi core only |
 | 18 | PERF-18 | Borrowed (+0) parameters, `this` included | open | parameters are owned: a call retains, the callee releases; a comparison does 3 retains + 3 releases | -10% or better on method-heavy code (zinc:ui) | 3 | L | all |
 | 19 | PERF-19 | Packed numeric arrays and narrow fields | open (with ZN-145, ZN-158) | every array element and field is an 8-byte Slot (u8[] uses 8x its size) | element size = type size | 3 | L | memory-poor: PSP, 3DS, ESP32 |
@@ -228,8 +228,8 @@ Gain: 5 = removes a multiple of the frame or a 2x+ on a whole class of programs;
   292 -> 2 ms), and the checker's forward-declaration scan (each top-level declaration walked every statement above it: now one running set). The ZBC is byte-identical before and after on 46 programs (5 examples and
   the conformance corpus). An interpreted run (`zinc dev`, `--interp`, a headless or `--profile` run) now starts from a cached ZBC when nothing it was compiled from changed (`~/.zinc/cache/zbc`, keyed by entry and profile,
   invalidated by any source, `zinc.json`, `lib/std`, plugin, engine binary or compiler variable; `tests/t1/zbc_cache.sh`). hero, interpreted, to its first frame and exit: cold 2.06 -> 1.05 s, warm 2.06 -> 0.31 s;
-  breakout warm 0.02 s. What is left of hero's warm 0.31 s is mostly the video plugin, whose library pulls in Homebrew's FFmpeg (142 ms of dynamic loading) although hero's first screen plays no video: ZN-614
-  loads a native module at its first call. The native cache of a compiled run (ZN-605) also lists `lib/std` now: an edit there no longer starts a stale executable.
+  breakout warm 0.02 s. ZN-614 then found that 139 ms of hero's warm 0.31 s was the video plugin's cache check spawning 16 processes (command -v and pkg-config --exists/--cflags/--libs for each of its 4
+  libraries), not the dlopen of FFmpeg (22 ms): one pkg-config query per plugin brings hero to warm 0.20 s, cold 0.95 s. Loading a plugin at its first call would save the remaining ~25 ms (ZN-615). The native cache of a compiled run (ZN-605) also lists `lib/std` now: an edit there no longer starts a stale executable.
 
 ### PERF-17: pipeline the script with the raster
 
