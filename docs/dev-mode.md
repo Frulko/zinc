@@ -248,7 +248,14 @@ the stack.
 A debug build keeps every call a frame of its own (no inlining), marks each statement with a `Line` instruction and keeps each local in a
 register of its own; it runs 1.4 to 2.1 times slower than a normal build (nbody, fib), stopped or not. Normal builds are unchanged byte for
 byte, and the interpreter runs them in a copy of its loop that never looks at the debugger. Chrome DevTools' Sources panel, conditional
-breakpoints and watches, and AOT programs in lldb are ZN-371.04 to .06.
+breakpoints and watches, and AOT programs in lldb are ZN-371.05 and .06.
+
+`zinc debug --cdp app.ts` (ZN-371.04) opens the debugger to Chrome DevTools: a target of the engine's own on `127.0.0.1:9222` (`--cdp=port`
+for another; 9222 is in `chrome://inspect`'s default list, the inspector of `zinc:devtools` keeps 9229). *inspect* under Remote Target opens
+DevTools with the Sources panel: the program's files (`Debugger.scriptParsed`, their text), breakpoints by line, the paused program's call
+stack and Scope (locals, objects and arrays unfold through `Runtime.getProperties`), watches and hovers on a local's name, resume, step over,
+into, out and pause. The program starts paused at its first statement when DevTools attaches (`Runtime.runIfWaitingForDebugger`), as
+`node --inspect-brk` does; its output stays on the terminal. `next/tests/cdp_debug_check.mjs` is a scripted client (`next/tests/t1/debug_cdp.sh`).
 
 In a `.tsx` file the lines are the file's own, inside JSX elements as well (ZN-371.03): the JSX lowering starts each copied expression and
 each element's code on its source line and keeps where every piece of the lowered text comes from, which compile errors use for their

@@ -301,6 +301,7 @@ static void scanHostImports(const zn::frontend::Program& prog) {
 }
 static bool gDebug = false;                    // zinc debug (ZN-371.01): debug builds, run under the debugger
 static bool gDap = false;                      // zinc debug --dap (ZN-371.02): the Debug Adapter Protocol on standard input and output
+static bool gCdp = false;                      // zinc debug --cdp[=port] (ZN-371.04): Chrome DevTools' Sources panel
 static std::vector<std::string> gDebugSources;  // the text of each file of the debug build (Module::files)
 static int compileToZbc(const char* path, zn::zbc::Module& out) {
   const auto t0 = std::chrono::steady_clock::now();
@@ -1103,6 +1104,13 @@ int main(int argc, char** argv) {
     argv = dapArgp.data();
     argc = static_cast<int>(dapArgv.size());
   }
+  if (argc >= 4 && !std::strcmp(argv[1], "debug") && !std::strncmp(argv[2], "--cdp", 5)) {   // zinc debug --cdp[=port] <file> [-- args]
+    const int port = argv[2][5] == '=' ? std::atoi(argv[2] + 6) : 9222;
+    if (!zn::dbg::cdpStart(port, std::filesystem::absolute(argv[3]).lexically_normal().string())) return 1;
+    gCdp = true;
+    for (int j = 2; j + 1 < argc; ++j) argv[j] = argv[j + 1];
+    --argc;
+  }
   if (argc >= 3 && !std::strcmp(argv[1], "debug")) {   // zinc debug <file> [-- args]: a debug build run by the interpreter under the debugger (ZN-371.01)
     gDebug = true;
     argv[1] = const_cast<char*>("run");
@@ -1578,11 +1586,12 @@ int main(int argc, char** argv) {
       zn::log::Phase ph("run", "program");
       if (!gDebug) return zn::vm::run(zm, out, trace);
       zn::dbg::Debugger d(zm, gDebugSources);
-      d.paused = gDap ? zn::dbg::dapPaused : zn::dbg::commandLine;
+      d.paused = gDap ? zn::dbg::dapPaused : gCdp ? zn::dbg::cdpPaused : zn::dbg::commandLine;
       return zn::vm::runHooked(zm, out, [](zn::rt::Machine& m, const void* p) {
         auto* dd = static_cast<zn::dbg::Debugger*>(const_cast<void*>(p));
         dd->attach(m);
         if (gDap) zn::dbg::dapReady(*dd);   // breakpoints come now, before the first statement runs
+        if (gCdp) zn::dbg::cdpReady(*dd);
       }, &d, nullptr, nullptr);
     }();
     if (gDebug && !res.ok && res.error.rfind("stopped by the debugger", 0) == 0) { std::fwrite(out.data(), 1, out.size(), stdout); return 0; }   // q in zinc debug

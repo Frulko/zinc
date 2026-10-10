@@ -292,8 +292,12 @@ set_source_files_properties(third_party/sha256/sha256.c third_party/monocypher/m
 
 add_library(zn_prof STATIC src/prof/prof.cpp)
 target_link_libraries(zn_prof PUBLIC zn_vm)
-add_library(zn_dbg STATIC src/dbg/dbg.cpp src/dbg/dap.cpp)   # zinc debug (ZN-371.01), --dap (ZN-371.02)
+add_library(zn_dbg STATIC src/dbg/dbg.cpp src/dbg/dap.cpp src/dbg/cdp.cpp)   # zinc debug (ZN-371.01), --dap (ZN-371.02), --cdp (ZN-371.04)
 target_link_libraries(zn_dbg PUBLIC zn_vm)
+if(ZN_TLS)   # the CDP server's WebSocket handshake takes SHA-1 and base64 from mbedTLS
+  target_compile_definitions(zn_dbg PRIVATE ZN_DBG_CDP=1)
+  target_link_libraries(zn_dbg PRIVATE zn_mbedtls)
+endif()
 
 # QuickJS-ng (third_party/): the second engine of ZN-051, plain JavaScript and stripped TypeScript behind the same host calls.
 # libregexp and libunicode are their own library (the regular expressions of Zinc programs link only these); QuickJS-ng links the same copy.

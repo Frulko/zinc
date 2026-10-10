@@ -49,7 +49,9 @@ class Debugger {
   std::vector<Local> children(const Local& v) const;   // an object's fields, an array's elements (the first 100)
   const zbc::LineInfo* lineInfo(std::uint32_t line) const { return line < mod_.lines.size() ? &mod_.lines[line] : nullptr; }
   std::string filePath(std::uint32_t line) const { return line < mod_.lines.size() && mod_.lines[line].file < mod_.files.size() ? mod_.files[mod_.lines[line].file] : ""; }
-  const char* reason() const { return reason_; }   // why it stopped: "entry", "breakpoint", "step", "pause"
+  const char* reason() const { return reason_; }
+  const zbc::Module& module() const { return mod_; }
+  const std::vector<std::string>& sources() const { return sources_; }   // why it stopped: "entry", "breakpoint", "step", "pause"
   std::string where(std::uint32_t line) const;        // "main.ts:12"
   std::string sourceLine(std::uint32_t line) const;   // the text of that line
   std::string fnName(std::uint32_t fn) const;
@@ -92,5 +94,10 @@ struct Launch { std::string program, cwd; std::vector<std::string> args; bool st
 bool dapStart(Launch& out);      // takes standard input and output over, answers initialize; the arguments of the launch request (false: the client left)
 void dapReady(Debugger& d);      // the program is compiled and loaded: answers launch, sends initialized, waits for configurationDone
 Resume dapPaused(Debugger& d);   // the front end of the paused program
+
+// zinc debug --cdp[=port] (cdp.cpp, ZN-371.04): Chrome DevTools' Sources panel, a target of the engine's own on 127.0.0.1.
+bool cdpStart(int port, const std::string& program);   // listens (port 0: any free one) and says where on stderr; false when it cannot
+void cdpReady(Debugger& d);      // the program is loaded: scripts for Debugger.enable; waits for a client's Runtime.runIfWaitingForDebugger
+Resume cdpPaused(Debugger& d);   // Debugger.paused, then the client's requests until it resumes or steps
 
 }  // namespace zn::dbg
