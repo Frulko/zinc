@@ -53,11 +53,12 @@
       ]
     },
     {
-      "name": "handhelds and boards: PSP, Vita, 3DS, iPhone 4S, NTC CHIP, Raspberry Pi SDK (owner, 2026-10-10: with the cross-platform pass at the end)",
+      "name": "handhelds and boards: PSP, Vita, 3DS, iPhone 4S, NTC CHIP, Raspberry Pi SDK, iOS and Android (M26, D59) (owner, 2026-10-10: with the cross-platform pass at the end)",
       "milestones": [
         "m-23",
         "m-24",
-        "m-25"
+        "m-25",
+        "m-26"
       ],
       "last": true
     },

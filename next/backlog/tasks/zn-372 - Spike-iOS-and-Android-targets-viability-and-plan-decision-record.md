@@ -1,10 +1,10 @@
 ---
 id: ZN-372
 title: 'Spike: iOS and Android targets, viability and plan (decision record)'
-status: Review
+status: Done
 assignee: []
 created_date: '2026-10-08 15:16'
-updated_date: '2026-10-10 14:01'
+updated_date: '2026-10-10 14:10'
 labels:
   - targets
   - ios
@@ -25,8 +25,8 @@ Owner, 2026-10-08: would Zinc be viable for native iOS and Android? Assess and p
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [ ] #1 hello and rn-showcase run on the iOS simulator and an Android emulator (screenshots in the report)
-- [ ] #2 a decision record in docs/reports/zinc-next-decisions.md with the scores and what blocks (if anything)
-- [ ] #3 the follow-up tasks are created in a milestone for mobile targets
+- [x] #2 a decision record in docs/reports/zinc-next-decisions.md with the scores and what blocks (if anything)
+- [x] #3 the follow-up tasks are created in a milestone for mobile targets
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -61,4 +61,6 @@ Acceptance criteria:
 Status Review, not Done: the three criteria wait for the coordinator (#2, #3) and for the deferred cross-platform phase (#1).
 Not verified: see section 10 of the report (Intel Mac and the iOS 26 simulator, x86_64 emulator image for API 36, the licence clause number, Android IME through SDL3, sizes and frame times).
 Usage: next/tools/usage printed 'usage: n/a' in this worktree.
+
+Coordinator, 2026-10-10: decision filed as D59 (docs/reports/zinc-next-decisions.md); follow-up tasks ZN-618..632 created in M26 Mobile targets (m-26, in the cross-platform group of priority.json). Criterion 1 (hello and rn-showcase on a simulator and an emulator) is not met here: no Xcode and no Android SDK on the development Mac, and cross-target runs are deferred; it is carried by ZN-622 (Android) and ZN-624 (iOS).
 <!-- SECTION:NOTES:END -->
