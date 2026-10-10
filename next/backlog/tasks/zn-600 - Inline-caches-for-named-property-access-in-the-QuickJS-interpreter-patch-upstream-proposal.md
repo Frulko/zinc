@@ -3,9 +3,10 @@ id: ZN-600
 title: >-
   Inline caches for named property access in the QuickJS interpreter (patch,
   upstream proposal)
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-09 09:28'
+updated_date: '2026-10-10 11:04'
 labels:
   - perf
   - quickjs
@@ -27,5 +28,16 @@ quickjs-ng merged polymorphic inline caches in 2023 and removed them in February
 <!-- AC:BEGIN -->
 - [ ] #1 >= 15% on two of the four workloads of the report on the M1 Pro, no workload slower
 - [ ] #2 web-tooling benchmark (quickjs-ng's fork) not slower than 0.97x on any test thanks to the warm-up
-- [ ] #3 test262 subset unchanged; memory per function reported; patch header records the upstream discussion
+- [x] #3 test262 subset unchanged; memory per function reported; patch header records the upstream discussion
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Done 2026-10-10: measured, NOT adopted (D56, docs/reports/zinc-next-qjs-ic.md). Patch kept as docs/reports/zinc-next-qjs-ic.patch (applies with patch -p1 on third_party/quickjs-ng, build with -DZN_QJS_IC); the tree and the default build are unchanged (build/zinc byte-identical to before).
+Design: per-function table after 32 calls/back jumps (about 4 entries of 48 B per site), keyed by site offset; own properties checked by the atom at the cached index (no reference); prototype properties up to 3 deep through referenced hashed shapes (cloned instead of changed in place while referenced); get_var lexicals and global-object properties (global_var_obj shape + size guard); megamorphic cap 16 refills; GC marks the referenced shapes.
+AC1 NOT met (Intel Mac, 3 alternated runs, 89-99.9% hits): three.js 0.98-1.00x, sprite 0.97-0.98x, objects 1.01-1.06x, matter-js 0.98-1.02x; the classic one-compare variant is slower (sprite 0.94-0.95x). The criterion named the M1 Pro: follow-up ZN-600.01 remeasures on arm64 in the cross-platform pass.
+AC2 not run: the web-tooling gate only guards an adopted cache against run-once code; nothing is adopted.
+AC3: test262 regexp 2533/2557 (same failures) and tests/t1/quickjs.sh pass with the caches on; memory 1.6-5 KB per warmed function (three.js 114 KB / 61 functions, matter-js 370 KB / 74); the patch header records upstream's history (removed 2025 at 1.037x, monomorphic read cache closed 2026 flat) and why it is not proposed.
+usage: n/a
+<!-- SECTION:NOTES:END -->

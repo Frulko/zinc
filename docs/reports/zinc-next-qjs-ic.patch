@@ -1,0 +1,446 @@
+Purpose: monomorphic inline caches for get_field, get_field2, put_field and get_var in the QuickJS-ng interpreter (ZN-600), measured
+  and NOT applied (D56, docs/reports/zinc-next-qjs-ic.md). Applies on the tree of ZN-599 (patches 0001 and 0002); build with
+  -DZN_QJS_IC (CMake: target_compile_definitions(zn_quickjs PRIVATE ZN_QJS_IC)).
+Measured: Intel Mac, interpreter with and without, 3 runs: three.js 0.98-1.00x, sprite 0.97-0.98x, objects 1.01-1.06x, matter-js
+  0.98-1.02x, with 89-99.9% hits; test262 regexp and the QuickJS T1 programs unchanged; 1.6-5 KB of caches per warmed function.
+Upstream: not proposed: upstream removed its inline caches in February 2025 (1.037x average on web-tooling) and closed a monomorphic
+  read cache in May 2026 for flat results; these numbers agree.
+--- a/quickjs.c	2026-10-10 13:02:45
++++ b/quickjs.c	2026-10-10 13:02:45
+@@ -905,12 +905,34 @@
+     int pc2line_len;
+     uint8_t *pc2line_buf;
+     char *source;
++#ifdef ZN_QJS_IC
++    struct ZnIC *zn_ic; /* zinc patch 0003: the inline caches of the property and global sites, after the warm-up */
++    uint32_t zn_ic_heat; /* calls and backward jumps until the warm-up */
++    uint8_t zn_ic_bits; /* log2 of the number of cache entries */
++#endif
+ #ifdef ZN_QJS_AOT
+     void *zn_aot; /* zinc patch 0001: the C body made by tools/qjs2c, or NULL */
+     JSAtom *zn_atoms; /* the atom operands of the bytecode, in order, for zn_aot */
+     uint8_t zn_aot_bound; /* zn_aot looked up */
+ #endif
+ } JSFunctionBytecode;
++
++#ifdef ZN_QJS_IC
++#define ZN_IC_WARM 32
++#define ZN_IC_DEPTH 3   /* prototypes searched before the holder */
++#define ZN_IC_GVAR 0x100   /* get_var: a lexical of global_var_obj */
++#define ZN_IC_GOBJ 0x101   /* get_var: a property of the global object, global_var_obj unchanged (aux: its prop_count) */
++#define ZN_IC_MAX_FILLS 16   /* a site refilled more often is left to the lookup (megamorphic) */
++
++typedef struct ZnIC {
++    uint32_t pc;
++    uint32_t idx;
++    uint32_t depth;   /* 0: own property; n: held by the n-th prototype; ZN_IC_GVAR, ZN_IC_GOBJ */
++    uint32_t aux;
++    uint32_t fills;
++    JSShape *sh[ZN_IC_DEPTH];
++} ZnIC;
++#endif
+ 
+ typedef struct JSBoundFunction {
+     JSValue func_obj;
+@@ -7336,6 +7358,17 @@
+             }
+             if (b->realm)
+                 mark_func(rt, &b->realm->header);
++#ifdef ZN_QJS_IC
++            if (b->zn_ic) {   /* the shapes the inline caches reference */
++                uint32_t k, d;
++                for (k = 0; k < (1u << b->zn_ic_bits); k++) {
++                    if (b->zn_ic[k].depth <= ZN_IC_DEPTH) {
++                        for (d = 0; d < b->zn_ic[k].depth; d++)
++                            mark_func(rt, &b->zn_ic[k].sh[d]->header);
++                    }
++                }
++            }
++#endif
+         }
+         break;
+     case JS_GC_OBJ_TYPE_VAR_REF:
+@@ -18058,6 +18091,169 @@
+ }
+ 
+ /* argv[] is modified if (flags & JS_CALL_FLAG_COPY_ARGV) = 0. */
++#ifdef ZN_QJS_IC
++/* zinc patch 0003: monomorphic inline caches for get_field, get_field2, put_field and get_var. A function gets a table of entries
++   keyed by the site (the bytecode offset after the operand) once it has been called or has looped ZN_IC_WARM times, so code that runs
++   once pays nothing. An entry holds the index of the property in the shape of the object that holds it. An own property is checked
++   by its atom at that index (a shape only grows in place; a deleted property loses its atom), so no reference is kept. A property of
++   a prototype also needs the path from the receiver to be the same: the entry references the hashed shapes of the receiver and of the
++   prototypes before the holder, and a hashed shape that is referenced is never changed in place (add_property and
++   js_shape_prepare_update clone it), so equal pointers mean the same properties and the same next prototype. */
++
++static void zn_ic_alloc(JSContext *ctx, JSFunctionBytecode *b);
++
++static inline ZnIC *zn_ic_slot(JSFunctionBytecode *b, uint32_t pc)
++{
++    return &b->zn_ic[(pc * 0x9E3779B1u) >> (32 - b->zn_ic_bits)];
++}
++
++static void zn_ic_clear(JSRuntime *rt, ZnIC *e)
++{
++    uint32_t d;
++    if (e->depth <= ZN_IC_DEPTH) {
++        for (d = 0; d < e->depth; d++)
++            js_free_shape(rt, e->sh[d]);
++    }
++    e->depth = 0;
++}
++
++static void zn_ic_free(JSRuntime *rt, JSFunctionBytecode *b)
++{
++    uint32_t k;
++    if (!b->zn_ic)
++        return;
++    for (k = 0; k < (1u << b->zn_ic_bits); k++)
++        zn_ic_clear(rt, &b->zn_ic[k]);
++    js_free_rt(rt, b->zn_ic);
++    b->zn_ic = NULL;
++}
++
++static inline void zn_ic_heat(JSContext *ctx, JSFunctionBytecode *b)
++{
++    if (unlikely(!b->zn_ic) && unlikely(++b->zn_ic_heat == ZN_IC_WARM))
++        zn_ic_alloc(ctx, b);
++}
++
++/* the property of `p` (or of its prototype) that the site cached, or NULL */
++static inline JSProperty *zn_ic_get(JSFunctionBytecode *b, uint32_t pc, JSObject *p, JSAtom atom)
++{
++    ZnIC *e = zn_ic_slot(b, pc);
++    JSObject *h = p;
++    JSShape *hs;
++    JSShapeProperty *prs;
++    uint32_t d;
++    if (e->pc != pc)
++        return NULL;
++    if (e->depth) {
++        if (p->shape != e->sh[0] || p->is_exotic)
++            return NULL;
++        h = e->sh[0]->proto;
++        for (d = 1; d < e->depth; d++) {
++            if (h->shape != e->sh[d])
++                return NULL;
++            h = e->sh[d]->proto;
++        }
++    }
++    hs = h->shape;
++    if (e->idx >= hs->prop_count)
++        return NULL;
++    prs = &get_shape_prop(hs)[e->idx];
++    if (prs->atom != atom || (prs->flags & JS_PROP_TMASK))
++        return NULL;
++    return &h->prop[e->idx];
++}
++
++/* the own writable property of `p` that the site cached, or NULL */
++static inline JSProperty *zn_ic_put(JSFunctionBytecode *b, uint32_t pc, JSObject *p, JSAtom atom)
++{
++    ZnIC *e = zn_ic_slot(b, pc);
++    JSShape *sh = p->shape;
++    JSShapeProperty *prs;
++    if (e->pc != pc || e->depth || e->idx >= sh->prop_count)
++        return NULL;
++    prs = &get_shape_prop(sh)[e->idx];
++    if (prs->atom != atom || (prs->flags & (JS_PROP_TMASK | JS_PROP_WRITABLE | JS_PROP_LENGTH)) != JS_PROP_WRITABLE)
++        return NULL;
++    return &p->prop[e->idx];
++}
++
++/* after a lookup from `p` found `prs` in `h`, `depth` prototypes up */
++static no_inline void zn_ic_fill(JSContext *ctx, JSFunctionBytecode *b, uint32_t pc, JSObject *p, JSObject *h, uint32_t depth,
++                                 JSShapeProperty *prs)
++{
++    ZnIC *e = zn_ic_slot(b, pc);
++    JSShape *path[ZN_IC_DEPTH];
++    JSObject *o = p;
++    uint32_t d;
++    if (depth > ZN_IC_DEPTH || (e->pc == pc && e->fills >= ZN_IC_MAX_FILLS))
++        return;
++    for (d = 0; d < depth; d++) {
++        if (!o->shape->is_hashed || o->is_exotic)
++            return;
++        path[d] = o->shape;
++        o = o->shape->proto;
++    }
++    zn_ic_clear(ctx->rt, e);
++    e->fills = e->pc == pc ? e->fills + 1 : 1;
++    e->pc = pc;
++    e->idx = prs - get_shape_prop(h->shape);
++    e->depth = depth;
++    for (d = 0; d < depth; d++)
++        e->sh[d] = js_dup_shape(path[d]);
++}
++
++/* get_var: the lexical or global object property the site cached, or NULL */
++static inline JSProperty *zn_ic_global(JSContext *ctx, JSFunctionBytecode *b, uint32_t pc, JSAtom atom)
++{
++    ZnIC *e = zn_ic_slot(b, pc);
++    JSObject *gv = JS_VALUE_GET_OBJ(ctx->global_var_obj), *h;
++    JSShape *hs;
++    JSShapeProperty *prs;
++    if (e->pc != pc)
++        return NULL;
++    if (e->depth == ZN_IC_GVAR) {
++        h = gv;
++    } else if (e->depth == ZN_IC_GOBJ && gv->shape == e->sh[0] && gv->shape->prop_count == e->aux) {
++        h = JS_VALUE_GET_OBJ(ctx->global_obj);
++    } else {
++        return NULL;
++    }
++    hs = h->shape;
++    if (e->idx >= hs->prop_count)
++        return NULL;
++    prs = &get_shape_prop(hs)[e->idx];
++    if (prs->atom != atom || (prs->flags & JS_PROP_TMASK) || JS_IsUninitialized(h->prop[e->idx].u.value))
++        return NULL;
++    return &h->prop[e->idx];
++}
++
++static no_inline void zn_ic_fill_global(JSContext *ctx, JSFunctionBytecode *b, uint32_t pc, JSAtom atom)
++{
++    ZnIC *e = zn_ic_slot(b, pc);
++    JSObject *gv = JS_VALUE_GET_OBJ(ctx->global_var_obj), *go = JS_VALUE_GET_OBJ(ctx->global_obj);
++    JSShapeProperty *prs;
++    JSProperty *pr;
++    if (e->pc == pc && e->fills >= ZN_IC_MAX_FILLS)
++        return;
++    zn_ic_clear(ctx->rt, e);
++    e->fills = e->pc == pc ? e->fills + 1 : 1;
++    e->pc = 0;
++    if ((prs = find_own_property(&pr, gv, atom))) {
++        e->depth = ZN_IC_GVAR;
++        e->idx = prs - get_shape_prop(gv->shape);
++    } else if ((prs = find_own_property(&pr, go, atom))) {
++        e->depth = ZN_IC_GOBJ;
++        e->idx = prs - get_shape_prop(go->shape);
++        e->sh[0] = gv->shape;   /* compared, not referenced: global_var_obj lives as long as the context */
++        e->aux = gv->shape->prop_count;
++    } else {
++        e->depth = 0;
++        return;
++    }
++    e->pc = pc;
++}
++#endif
++
+ #ifdef ZN_QJS_AOT
+ /* zinc patch 0001: a function compiled to C by tools/qjs2c runs in the frame JS_CallInternal set up, on its stack; it returns 0 with
+    *pret (done) or 1 with the exception pending (the interpreter unwinds, and resumes interpreting at a catch), *psp and *ppc set */
+@@ -18208,6 +18404,9 @@
+     rt->current_stack_frame = sf;
+     ctx = b->realm; /* set the current realm */
+     ZN_PROF_CALL(rt, b, p);
++#ifdef ZN_QJS_IC
++    zn_ic_heat(ctx, b);
++#endif
+ #ifdef ZN_QJS_AOT
+     if (unlikely(!b->zn_aot_bound))
+         zn_qjs_aot_bind(ctx, b);
+@@ -18871,9 +19070,20 @@
+                 pc += 4;
+                 sf->cur_pc = pc;
+ 
++#ifdef ZN_QJS_IC
++                JSProperty *gpr;
++                if (b->zn_ic && (gpr = zn_ic_global(ctx, b, pc - b->byte_code_buf, atom))) {
++                    *sp++ = js_dup(gpr->u.value);
++                    BREAK;
++                }
++#endif
+                 val = JS_GetGlobalVar(ctx, atom, opcode - OP_get_var_undef);
+                 if (unlikely(JS_IsException(val)))
+                     goto exception;
++#ifdef ZN_QJS_IC
++                if (b->zn_ic)
++                    zn_ic_fill_global(ctx, b, pc - b->byte_code_buf, atom);
++#endif
+                 *sp++ = val;
+             }
+             BREAK;
+@@ -19206,18 +19416,30 @@
+ 
+         CASE(OP_goto):
+             ZN_PROF_JUMP((int32_t)get_u32(pc));
++#ifdef ZN_QJS_IC
++            if ((int32_t)get_u32(pc) < 0)
++                zn_ic_heat(ctx, b);
++#endif
+             pc += (int32_t)get_u32(pc);
+             if (unlikely(js_poll_interrupts(ctx)))
+                 goto exception;
+             BREAK;
+         CASE(OP_goto16):
+             ZN_PROF_JUMP((int16_t)get_u16(pc));
++#ifdef ZN_QJS_IC
++            if ((int16_t)get_u16(pc) < 0)
++                zn_ic_heat(ctx, b);
++#endif
+             pc += (int16_t)get_u16(pc);
+             if (unlikely(js_poll_interrupts(ctx)))
+                 goto exception;
+             BREAK;
+         CASE(OP_goto8):
+             ZN_PROF_JUMP((int8_t)pc[0]);
++#ifdef ZN_QJS_IC
++            if ((int8_t)pc[0] < 0)
++                zn_ic_heat(ctx, b);
++#endif
+             pc += (int8_t)pc[0];
+             if (unlikely(js_poll_interrupts(ctx)))
+                 goto exception;
+@@ -19612,6 +19834,13 @@
+                 obj = sp[-1];
+                 if (likely(JS_VALUE_GET_TAG(obj) == JS_TAG_OBJECT)) {
+                     p = JS_VALUE_GET_OBJ(obj);
++#ifdef ZN_QJS_IC
++                    if (b->zn_ic && (pr = zn_ic_get(b, pc - b->byte_code_buf, p, atom))) {
++                        val = js_dup(pr->u.value);
++                    } else {
++                    JSObject *p0 = p;
++                    uint32_t depth = 0;
++#endif
+                     for(;;) {
+                         prs = find_own_property(&pr, p, atom);
+                         if (prs) {
+@@ -19619,6 +19848,10 @@
+                             if (unlikely(prs->flags & JS_PROP_TMASK))
+                                 goto get_field_slow_path;
+                             val = js_dup(pr->u.value);
++#ifdef ZN_QJS_IC
++                            if (b->zn_ic)
++                                zn_ic_fill(ctx, b, pc - b->byte_code_buf, p0, p, depth, prs);
++#endif
+                             break;
+                         }
+                         if (unlikely(p->is_exotic)) {
+@@ -19629,11 +19862,17 @@
+                             goto get_field_slow_path;
+                         }
+                         p = p->shape->proto;
++#ifdef ZN_QJS_IC
++                        depth++;
++#endif
+                         if (!p) {
+                             val = JS_UNDEFINED;
+                             break;
+                         }
++                    }
++#ifdef ZN_QJS_IC
+                     }
++#endif
+                 } else {
+                 get_field_slow_path:
+                     sf->cur_pc = pc;
+@@ -19660,6 +19899,13 @@
+                 obj = sp[-1];
+                 if (likely(JS_VALUE_GET_TAG(obj) == JS_TAG_OBJECT)) {
+                     p = JS_VALUE_GET_OBJ(obj);
++#ifdef ZN_QJS_IC
++                    if (b->zn_ic && (pr = zn_ic_get(b, pc - b->byte_code_buf, p, atom))) {
++                        val = js_dup(pr->u.value);
++                    } else {
++                    JSObject *p0 = p;
++                    uint32_t depth = 0;
++#endif
+                     for(;;) {
+                         prs = find_own_property(&pr, p, atom);
+                         if (prs) {
+@@ -19667,6 +19913,10 @@
+                             if (unlikely(prs->flags & JS_PROP_TMASK))
+                                 goto get_field2_slow_path;
+                             val = js_dup(pr->u.value);
++#ifdef ZN_QJS_IC
++                            if (b->zn_ic)
++                                zn_ic_fill(ctx, b, pc - b->byte_code_buf, p0, p, depth, prs);
++#endif
+                             break;
+                         }
+                         if (unlikely(p->is_exotic)) {
+@@ -19677,11 +19927,17 @@
+                             goto get_field2_slow_path;
+                         }
+                         p = p->shape->proto;
++#ifdef ZN_QJS_IC
++                        depth++;
++#endif
+                         if (!p) {
+                             val = JS_UNDEFINED;
+                             break;
+                         }
++                    }
++#ifdef ZN_QJS_IC
+                     }
++#endif
+                 } else {
+                 get_field2_slow_path:
+                     sf->cur_pc = pc;
+@@ -19708,6 +19964,11 @@
+                 obj = sp[-2];
+                 if (likely(JS_VALUE_GET_TAG(obj) == JS_TAG_OBJECT)) {
+                     p = JS_VALUE_GET_OBJ(obj);
++#ifdef ZN_QJS_IC
++                    if (b->zn_ic && (pr = zn_ic_put(b, pc - b->byte_code_buf, p, atom))) {
++                        set_value(ctx, &pr->u.value, sp[-1]);
++                    } else {
++#endif
+                     prs = find_own_property(&pr, p, atom);
+                     if (!prs)
+                         goto put_field_slow_path;
+@@ -19715,9 +19976,16 @@
+                                               JS_PROP_LENGTH)) == JS_PROP_WRITABLE)) {
+                         /* fast path */
+                         set_value(ctx, &pr->u.value, sp[-1]);
++#ifdef ZN_QJS_IC
++                        if (b->zn_ic)
++                            zn_ic_fill(ctx, b, pc - b->byte_code_buf, p, p, 0, prs);
++#endif
+                     } else {
+                         goto put_field_slow_path;
++                    }
++#ifdef ZN_QJS_IC
+                     }
++#endif
+                     JS_FreeValue(ctx, obj);
+                     sp -= 2;
+                 } else {
+@@ -22517,6 +22785,26 @@
+ #define short_opcode_info(op)           \
+     opcode_info[(op) >= OP_TEMP_START ? \
+                 (op) + (OP_TEMP_END - OP_TEMP_START) : (op)]
++
++#ifdef ZN_QJS_IC
++/* zinc patch 0003: a table of about four entries per site, so that two sites rarely share one */
++static void zn_ic_alloc(JSContext *ctx, JSFunctionBytecode *b)
++{
++    uint32_t pos = 0, sites = 0, bits = 2;
++    while (pos < (uint32_t)b->byte_code_len) {
++        int op = b->byte_code_buf[pos];
++        if (op == OP_get_field || op == OP_get_field2 || op == OP_put_field || op == OP_get_var || op == OP_get_var_undef)
++            sites++;
++        pos += short_opcode_info(op).size;
++    }
++    if (!sites)
++        return;
++    while ((1u << bits) < 4 * sites && bits < 16)
++        bits++;
++    b->zn_ic = js_mallocz(ctx, sizeof(ZnIC) << bits);
++    b->zn_ic_bits = bits;
++}
++#endif
+ 
+ static void json_free_token(JSParseState *s, JSToken *token) {
+     // Only free actual allocated values
+@@ -37229,6 +37517,9 @@
+     int i;
+ 
+     ZN_PROF_FREE(b);
++#ifdef ZN_QJS_IC
++    zn_ic_free(rt, b);
++#endif
+ #ifdef ZN_QJS_AOT
+     js_free_rt(rt, b->zn_atoms);
+ #endif
