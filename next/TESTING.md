@@ -12,6 +12,7 @@ A task ends with the tests that cover **what it touched**, not with the corpus. 
 - Add the one test of the new feature or the regression test of the bug (`--only <name>`). That is the whole end-of-task check.
 - **Never at the end of a task:** `tools/proto-capture compare --all` (42 entries), `examples_all`, `tests/run --tier t2`, the benchmarks (`tools/bench-m4`), a fuzz run, a full `zinc test --profile`. These are T2: once per milestone, or when the shared core changed (raster, layout, text engine, IR, runtime) and then **in the background** (`run_in_background`) while the next task starts.
 - A run that lasts more than a minute is a T2 job: do not wait for it; read its result later.
+- A test script may call `timeout SECS cmd`: on a macOS without GNU coreutils, `tests/run` puts `tools/compat/timeout` (same contract, exit 124) on the PATH.
 - Do not rebuild everything (`cmake --build build`) for a change of one library: build the target you need (`tools/build zinc`, which also keeps the load of parallel builds under the core count).
 
 ## CI scope

@@ -1,5 +1,5 @@
 #!/bin/sh
-# zinc test runners (ZN-124): the project mode (test-*.ts, *.test.ts; exit 0 passes, a failed zinc:assert fails), --runner skips with the reason, quickjs on plain programs.
+# zinc test runners (ZN-124): the project mode (test-*.ts, *.test.ts; exit 0 passes, a failed zinc:assert fails, a hang times out), --runner skips with the reason, quickjs on plain programs.
 cd "$(dirname "$0")/../.." || exit 2
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fail=0
@@ -8,6 +8,9 @@ grep -q "2 test file(s), 0 failure(s)" "$tmp/o" || { echo "no summary: $(cat "$t
 printf "import * as assert from 'zinc:assert';\nassert.equal(1 + 1, 3);\n" > "$tmp/test-bad.ts"
 out=$("$ZINC" test "$tmp" 2>&1) && { echo "a failed assert passes"; fail=1; }
 case "$out" in *"expected 3, got 2"*) ;; *) echo "no assert message: $out"; fail=1 ;; esac
+mkdir "$tmp/h"; printf "let n = 0;\nwhile (n >= 0) n = (n + 1) %% 7;\n" > "$tmp/h/test-hang.ts"   # ZN-609: the deadline needs no GNU timeout
+out=$(PATH=/usr/bin:/bin ZINC_TEST_TIMEOUT=1000 "$ZINC" test "$tmp/h" 2>&1) && { echo "a test that never ends passes"; fail=1; }
+case "$out" in *"FAIL "*"test-hang.ts timed out"*) ;; *) echo "no timeout reported: $out"; fail=1 ;; esac
 out=$("$ZINC" test --runner devicesim 2>&1)
 case "$out" in *"skip all [devicesim] (the device simulator is not built yet"*) ;; *) echo "devicesim: $out"; fail=1 ;; esac
 out=$("$ZINC" test --runner esp32-qemu 2>&1)

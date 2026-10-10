@@ -2,6 +2,8 @@
 // <name>.out (f64, 320x240), <name>.f32.out, <name>.fx12.out, <name>.1280x720.out... Directives in the program's comments (`// zinc-test: requires heap>=4M net`, `skip ps1`,
 // `gradual`, `deterministic`, `max-frames N`) decide what is skipped, and the listing says why.
 #include <algorithm>
+#include <chrono>
+#include <csignal>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
@@ -67,6 +69,27 @@ struct Runner {
   }
 };
 
+/** Runs `cmd` through sh with a deadline, as GNU timeout did without needing it on the PATH (ZN-609): the exit code, 124 when it ran
+ *  out of time (its process group gets SIGTERM, then SIGKILL a second later). */
+int runWithDeadline(const std::string& cmd, int ms) {
+  pid_t pid = fork();
+  if (pid < 0) return 127;
+  if (pid == 0) { setpgid(0, 0); execl("/bin/sh", "sh", "-c", cmd.c_str(), (char*)nullptr); _exit(127); }
+  setpgid(pid, pid);   // from both sides, so the group exists before any kill
+  auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(ms);
+  int st = 0, sig = 0;
+  while (waitpid(pid, &st, WNOHANG) == 0) {   // ponytail: a 10 ms poll, the latency nobody sees beside a program's run
+    if (std::chrono::steady_clock::now() >= deadline && sig != SIGKILL) {
+      sig = sig ? SIGKILL : SIGTERM;
+      kill(-pid, sig);
+      deadline += std::chrono::seconds(1);
+    }
+    usleep(10000);
+  }
+  if (sig) return 124;
+  return WIFEXITED(st) ? WEXITSTATUS(st) : 128 + WTERMSIG(st);
+}
+
 }  // namespace
 
 int runTestCommand(const std::string& self, const Profile& p, const std::string& engineRoot, std::string dir, const std::string& runnerName) {
@@ -87,7 +110,7 @@ int runTestCommand(const std::string& self, const Profile& p, const std::string&
     if (!tests.empty() && !fs::exists(fs::path(dir) / "tour.out")) {
       std::sort(tests.begin(), tests.end());
       const char* tmo = std::getenv("ZINC_TEST_TIMEOUT");
-      int secs = tmo ? std::max(1, std::atoi(tmo) / 1000) : 60;
+      int ms = tmo ? std::max(1, std::atoi(tmo)) : 60000;
       setenv("ZINC_HEADLESS", "1", 1);
       setenv("ZINC_DETERMINISTIC", "1", 1);
       std::string errFile = (fs::temp_directory_path() / ("zinc-test-" + std::to_string(::getpid()) + ".txt")).string();
@@ -95,9 +118,7 @@ int runTestCommand(const std::string& self, const Profile& p, const std::string&
       for (const fs::path& t : tests) {
         std::string label = fs::relative(t).string();
         if (std::string why = runner.unavailable(p); !why.empty()) { std::printf("skip %s (%s)\n", label.c_str(), why.c_str()); continue; }
-        std::string cmd = "timeout " + std::to_string(secs) + " " + runner.command(self, p, t.string(), errFile + ".bin", errFile) + " >" + quote(errFile + ".out");
-        int st = std::system(cmd.c_str());
-        int code = WIFEXITED(st) ? WEXITSTATUS(st) : 128 + WTERMSIG(st);
+        int code = runWithDeadline(runner.command(self, p, t.string(), errFile + ".bin", errFile) + " >" + quote(errFile + ".out"), ms);
         if (code == 0) { std::printf("ok   %s\n", label.c_str()); continue; }
         ++failed;
         std::printf("FAIL %s%s\n", label.c_str(), code == 124 ? " timed out" : "");

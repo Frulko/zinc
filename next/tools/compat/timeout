@@ -1,0 +1,20 @@
+#!/usr/bin/env python3
+"""timeout SECS CMD [ARG...]: GNU timeout's contract for a stock macOS (ZN-609), put on the PATH by tests/run when there is no timeout.
+CMD runs in its own process group; past SECS (a number, with an optional s/m/h suffix) the group gets SIGTERM, then SIGKILL a second
+later, and the exit code is 124. Otherwise CMD's own code (128 + the signal when it was killed)."""
+import os, signal, subprocess, sys
+
+if len(sys.argv) < 3: sys.exit("usage: timeout SECS CMD [ARG...]")
+arg = sys.argv[1]
+secs = float(arg[:-1]) * {"s": 1, "m": 60, "h": 3600}[arg[-1]] if arg[-1] in "smh" else float(arg)
+try: p = subprocess.Popen(sys.argv[2:], start_new_session=True)
+except OSError as e: print("timeout: %s: %s" % (sys.argv[2], e.strerror), file=sys.stderr); sys.exit(127)
+try: code = p.wait(secs)
+except subprocess.TimeoutExpired:
+    for sig, grace in ((signal.SIGTERM, 1), (signal.SIGKILL, None)):
+        try: os.killpg(p.pid, sig)
+        except ProcessLookupError: break
+        try: p.wait(grace); break
+        except subprocess.TimeoutExpired: pass
+    sys.exit(124)
+sys.exit(code if code >= 0 else 128 - code)
