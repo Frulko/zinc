@@ -32,6 +32,7 @@
 #include <vector>
 
 #ifdef __APPLE__
+#include <mach-o/dyld.h>
 #include <mach/mach.h>
 #include <sys/sysctl.h>
 #include <net/if_dl.h>
@@ -100,7 +101,7 @@ std::string assetsDir();
 bool denyByPermission(const char* feature, const std::string& path) {
   if (gScopeOn) return false;   // "scopes": {"fs": "user-picked"} is stricter than the manifest: it decides (denyByScope)
   const std::string a = assetsDir();
-  if (!a.empty() && path.size() > a.size() && path.compare(0, a.size(), a) == 0 && path[a.size()] == '/') return false;   // the app's own assets need no permission
+  if (!a.empty() && path.size() > a.size() && path.compare(0, a.size(), a) == 0 && path[a.size()] == '/' && (path + "/").find("/../", a.size()) == std::string::npos) return false;   // the app's own assets need no permission (a ".." leaves them: checked as any path)
   if (!gGrants.empty()) { const std::string ap = absPath(path); for (const std::string& g : gGrants) if (ap == g || (ap.size() > g.size() && ap.compare(0, g.size(), g) == 0 && ap[g.size()] == '/')) return false; }   // picked by the user in a dialog: their consent
   const std::string deny = zn::host::perm::check(feature, path);
   if (deny.empty()) return false;
@@ -183,7 +184,34 @@ void storageSave(const std::map<std::string, std::string>& m) {
   for (auto& [k, v] : m) out << esc(k) << '\t' << esc(v) << '\n';
 }
 
-std::string assetsDir() { const char* d = getenv("ZINC_ASSETS"); return d ? d : ""; }
+// The directory zinc:assets reads. ZINC_ASSETS decides (zinc run sets it to the project's assets; an override while developing). A program built ahead
+// of time has no zinc run to set it (ZN-314): its assets/ is beside the executable (zinc export) or one level above it (zinc build writes
+// <project>/build/<name>), the rule zinc run applies to the entry file; else the assets/ of the directory it was started in (a build run from its
+// project), which a program that enforces its permissions does not take: that directory is the user's, not the app's.
+std::string assetsDir() {
+  if (const char* d = getenv("ZINC_ASSETS")) return d;
+  static const std::string found = [] {
+    std::vector<std::string> bases;
+    char exe[4096], real[4096];
+#ifdef __APPLE__
+    std::uint32_t n = sizeof exe;
+    const bool have = _NSGetExecutablePath(exe, &n) == 0;
+#else
+    const ssize_t n = readlink("/proc/self/exe", exe, sizeof exe - 1);
+    const bool have = n > 0;
+    if (have) exe[n] = 0;
+#endif
+    if (have && realpath(exe, real)) {
+      const std::string path = real, dir = path.substr(0, path.find_last_of('/'));
+      bases.push_back(dir);
+      bases.push_back(dir.substr(0, dir.find_last_of('/')));
+    }
+    if (!zn::host::perm::enforced() && getcwd(real, sizeof real)) bases.push_back(real);
+    for (const std::string& b : bases) { struct stat st; if (stat((b + "/assets").c_str(), &st) == 0 && S_ISDIR(st.st_mode)) return b + "/assets"; }
+    return std::string();
+  }();
+  return found;
+}
 void listAssets(const std::string& dir, const std::string& pre, std::vector<std::string>& out) {
   DIR* d = opendir(dir.c_str());
   if (!d) return;
@@ -375,7 +403,7 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostStorageRemove: { auto m = storageLoad(); m.erase(s(0)); storageSave(m); break; }
     case Rt::HostStorageKeysCount: { gNames.clear(); for (auto& kv : storageLoad()) gNames.push_back(kv.first); r->i = static_cast<std::int64_t>(gNames.size()); break; }
     case Rt::HostStorageKey: ret(r, n(0) >= 0 && static_cast<size_t>(n(0)) < gNames.size() ? gNames[static_cast<size_t>(n(0))] : ""); break;
-    // ---- zinc:assets (a directory on disk: ZINC_ASSETS)
+    // ---- zinc:assets (a directory on disk: assetsDir)
     case Rt::HostAssetsExists: { struct stat st; std::string d = assetsDir(); r->i = !d.empty() && stat((d + "/" + s(0)).c_str(), &st) == 0 && S_ISREG(st.st_mode); break; }
     case Rt::HostAssetsReadText: { std::vector<unsigned char> b; std::string d = assetsDir(); if (!d.empty() && readAll(d + "/" + s(0), b, "open")) ret(r, std::string(b.begin(), b.end())); else { if (d.empty()) fail("open", s(0), ENOENT); ret(r, ""); } break; }
     case Rt::HostAssetsLoad: { std::string d = assetsDir(); if (!d.empty() && readAll(d + "/" + s(0), gBytes, "open")) r->i = static_cast<std::int64_t>(gBytes.size()); else { if (d.empty()) fail("open", s(0), ENOENT); r->i = 0; } break; }

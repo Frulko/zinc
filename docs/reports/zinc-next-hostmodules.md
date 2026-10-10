@@ -9,7 +9,7 @@ the host library is linked: the interpreter, the AOT programs that use it, and `
 | `zinc:sys` | desktop | args, env, cwd, pid, clock, stdout; `onSignal`, `onStdin`, `kill` are stubs |
 | `zinc:fs` | desktop | text and bytes, stat, readdir, mkdir, rename, copy, tmp; `watch`, `symlink`, `chmod` throw ENOSYS |
 | `zinc:storage` | desktop | one key-value file (`ZINC_STORAGE`) |
-| `zinc:assets` | desktop | the `assets` directory beside the program (`ZINC_ASSETS`) |
+| `zinc:assets` | desktop | one directory: `ZINC_ASSETS` when set (`zinc run` sets it to the `assets` beside the entry file or above it); else, for a built program, `assets` beside the executable (`zinc export`) or one level above it (`<project>/build/<name>`), else the `assets` of the directory it is started in (not when it enforces permissions). The app's assets need no `fs` permission; a `..` out of them is checked as any path |
 | `zinc:os` | desktop | hostname, home, arch, memory, cpus; no network interfaces |
 | `zinc:process` | desktop | `spawn` a shell command line, non-blocking `read`, `status`, `kill` |
 | `zinc:net` | desktop, needs `curl` | `fetch(url, init?)` with method, body, headers; resolves with the status (0 when the transfer fails); `Headers`, `Response.text()` only |
