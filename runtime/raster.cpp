@@ -520,17 +520,45 @@ static void draw_text(const Target& t, const Cmd& c, const char* s) {
   }
 }
 // ---------------------------------------------------------------- runtime images
+// At most ZRT_DYN_IMAGES runtime images at once (ZN-670): 4096 on desktops and the web, 64 on devices (ps1: 4, targets/ps1/ps1.cmake). The
+// table grows by chunks of 64 entries (40 bytes each on a 64-bit host, 28 on a 32-bit device) allocated on first use and never moved, so a producer thread reading an
+// entry (dyn_update) never races a growth; a program without runtime images allocates none.
 #ifndef ZRT_DYN_IMAGES
+#if ((defined(__APPLE__) || defined(__linux__)) && !defined(ESP_PLATFORM)) || defined(__EMSCRIPTEN__)
+#define ZRT_DYN_IMAGES 4096
+#else
 #define ZRT_DYN_IMAGES 64
 #endif
+#endif
 struct Dyn { const uint32_t* px; uint32_t* owned; int32_t w, h, stride; uint32_t version; bool used, alpha; };
-static Dyn dyn[ZRT_DYN_IMAGES];
+static const int32_t DYN_CHUNK = ZRT_DYN_IMAGES < 64 ? ZRT_DYN_IMAGES : 64;
+static Dyn* dyn_chunks[(ZRT_DYN_IMAGES + DYN_CHUNK - 1) / DYN_CHUNK];
 // A version is never given twice, not even to another image that takes a freed slot: whatever keeps an image by (id, version) (the GPU
 // textures of zinc:3d and of the GL replay, the damage test of IMAGE commands) would otherwise go on showing the destroyed image.
 static uint32_t dyn_versions;
-static Dyn* dyn_at(int32_t id) { id -= DYN_BASE; return id >= 0 && id < ZRT_DYN_IMAGES && dyn[id].used ? &dyn[id] : nullptr; }
+static Dyn* dyn_slot(int32_t i) {   // entry i, null when its chunk was never allocated
+  Dyn* c = __atomic_load_n(&dyn_chunks[i / DYN_CHUNK], __ATOMIC_ACQUIRE);
+  return c ? &c[i % DYN_CHUNK] : nullptr;
+}
+static Dyn* dyn_at(int32_t id) { id -= DYN_BASE; if (id < 0 || id >= ZRT_DYN_IMAGES) return nullptr; Dyn* d = dyn_slot(id); return d && d->used ? d : nullptr; }
 int32_t dyn_wrap(int32_t w, int32_t h, const uint32_t* px, int32_t stride) {
-  for (int32_t i = 0; i < ZRT_DYN_IMAGES; i++) if (!dyn[i].used) { dyn[i] = Dyn{px, nullptr, w, h, stride ? stride : w, ++dyn_versions, true}; return DYN_BASE + i; }
+  for (int32_t i = 0; i < ZRT_DYN_IMAGES; i++) {
+    Dyn* d = dyn_slot(i);
+    if (!d) {   // the first entry of a chunk not allocated yet
+      Dyn* c = (Dyn*)hal_alloc(sizeof(Dyn) * DYN_CHUNK);
+      if (!c) return -1;
+      for (int32_t k = 0; k < DYN_CHUNK; k++) c[k] = Dyn{};
+      __atomic_store_n(&dyn_chunks[i / DYN_CHUNK], c, __ATOMIC_RELEASE);
+      d = &c[i % DYN_CHUNK];
+    }
+    if (!d->used) { *d = Dyn{px, nullptr, w, h, stride ? stride : w, ++dyn_versions, true}; return DYN_BASE + i; }
+  }
+  static bool warned = false;   // one warning, then -1 each time
+  if (!warned) {
+    warned = true;
+    static const char msg[] = "zinc:gfx: too many runtime images at once (ZRT_DYN_IMAGES): createImage and imageFromBytes return -1 until one is destroyed\n";
+    hal_log_err(msg, sizeof msg - 1);
+  }
   return -1;
 }
 // w x h x 4 must not overflow size_t on 32-bit targets (a wrapped size is a heap overflow): 16384 per side at most

@@ -146,6 +146,18 @@ drawImageRect(sheet, 3 * 16, 0, 16, 16, x, y, 64, 64, 255, ImageFlag.Nearest | I
 drawImageRect(skin, 0, 0, 16, 16, x, y, 16, 16);          // alpha 255 and the linear blend when left out
 ```
 
+Runtime images (`createImage`, `imageFromBytes`, video frames, a camera's live view) are limited per profile. Past the limit they
+return -1, with one warning, until an image is destroyed. The table of images grows by blocks of 64 entries, allocated when first
+needed, so a program without runtime images allocates none of it. Each image's pixels (w x h x 4 bytes) come on top.
+
+| profile | runtime images at once | table memory |
+| --- | --- | --- |
+| desktop (macOS, Linux), web | 4,096 | 2.5 KB per 64 images in use |
+| devices (ESP32, PS2) | 64 | 1.8 KB once the first image exists |
+| PS1 | 4 | 112 bytes |
+
+A target sets another limit with `ZRT_DYN_IMAGES` (`targets/ps1/ps1.cmake`).
+
 The source rectangle is in the pixels `imageWidth` and `imageHeight` report; what of it lies outside the image is not drawn. The
 linear blend reads the texels just outside the rectangle, as a GPU does: keep a transparent pixel between the frames of a sheet
 drawn at another size, or use `ImageFlag.Nearest`. The GPU renderer of a window draws the sprites the software renderer draws.

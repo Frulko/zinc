@@ -23,7 +23,7 @@ using namespace zrt::raster;
 // vertex: position + uv, box (centre, half size), params (radius, border / blur, mode, gradient), two colours
 struct V { float x, y, u, v, bx, by, bw, bh, r, p1, mode, grad; uint8_t c1[4], c2[4]; float z; };   // z: the command's depth (occlusion, ZN-412.01)
 enum Mode { FILL, BORDER_M, TEXT_M, IMAGE_RGBA, IMAGE_BGR, SOLID, RESTORE, SHADOW_M, STROKE_M, EDGE_M };
-static const int MAXQ = 8192, ATLAS = 1024, CORNER = 32, LEVELS = 16, TEXS = 256;
+static const int MAXQ = 8192, ATLAS = 1024, CORNER = 32, LEVELS = 16;
 
 static const char* VS =
   "attribute vec4 a_pos; attribute vec4 a_box; attribute vec4 a_par; attribute vec4 a_c1; attribute vec4 a_c2; attribute float a_z;\n"
@@ -137,7 +137,8 @@ static const char* FFS = "void main() { gl_FragColor = vec4(0.0); }\n";
 struct SV { float x0, y0, x1, y1; uint8_t c[4]; float z; };   // a rectangle (instanced) or, on GLES 2, x, y, c, z of one corner in its first 16 bytes
 
 struct Tex2 { GLuint id; int32_t key; uint32_t ver; int32_t w, h; const void* px; int nearest; };
-static Tex2 texs[TEXS];
+static Tex2* texs;                  // by runtime image index (id - DYN_BASE), grown on demand (ZN-670: thousands of runtime images)
+static int32_t ntexs = 0;
 static Tex2* baked;                 // by baked image index
 struct GSlot { uint64_t key; int16_t ax, ay; };
 static GSlot gtab[8192];
@@ -418,8 +419,17 @@ static void draw_text(const Cmd& c, const char* s) {
 // ---- images: baked ones are uploaded once, runtime ones again when their version changes
 static Tex2* dyn_tex(int32_t id) {
   Tex2* t = nullptr;
-  for (int i = 0; i < TEXS; i++) { if (texs[i].id && texs[i].key == id) { t = &texs[i]; break; } }
-  if (!t) for (int i = 0; i < TEXS; i++) if (!texs[i].id) { t = &texs[i]; t->key = id; t->nearest = -1; break; }
+  const int32_t i = id - DYN_BASE;
+  if (i < 0) return nullptr;
+  if (i >= ntexs) {
+    const int32_t n = i + 64;
+    Tex2* a = (Tex2*)realloc(texs, sizeof(Tex2) * (size_t)n);
+    if (!a) return nullptr;
+    __builtin_memset((void*)(a + ntexs), 0, sizeof(Tex2) * (size_t)(n - ntexs));
+    texs = a; ntexs = n;
+  }
+  t = &texs[i];
+  if (!t->id) { t->key = id; t->nearest = -1; }
   if (!t) return nullptr;
   const uint32_t* px; int32_t w, h, stride;
   if (!dyn_view(id, &px, &w, &h, &stride)) return nullptr;
