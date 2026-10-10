@@ -1,5 +1,5 @@
 plugin (import / display)  targets                             description
-  zinc:3d                  macos,linux,rpi1,esp32,wasm        Software 3D: meshes (primitives, OBJ), materials, textures, lights, camera, scene graph, z-buffered rasterizer
+  zinc:3d                  macos,linux,rpi1,esp32,wasm        3D: meshes (primitives, OBJ), materials, textures, lights, camera, scene graph; a z-buffered software rasterizer, and the GPU where the target has it
   zinc:canvas              macos,linux,rpi1,rmpp,wasm,esp32   HTML Canvas 2D-style context (paths, strokes, gradients, text, images, transforms) on the shared rasterizer
   zinc:device              esp32,macos,linux                  Device services for board demos: backlight level (display-st7789 PWM), chip and heap figures, frame statistics
   zinc:devtools            macos,linux,rpi1                   UI inspector for Chrome DevTools (subset of the DevTools protocol on port 9229); zinc dev adds it
