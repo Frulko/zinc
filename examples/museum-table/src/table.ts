@@ -255,6 +255,7 @@ export class LightTable {
         drawText(body, left + pad, y, line, ink, this.a(255), 0);
         y += leading(body);
       }
+      this.paintSpots(c, d);
       return;
     }
     const x = left + BORDER * d, inner = (c.w - 2 * BORDER) * d, head = bold(15 * d), small = sans(12 * d);

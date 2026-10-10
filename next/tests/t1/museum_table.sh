@@ -35,6 +35,27 @@ LC_ALL=C awk '
     at[id] = $1; x[id] = a[2]; y[id] = b[2]; s[id] = c[2]; r[id] = e[2]; n[id] = f[2] }
   END { if (changes < 6) { print "the session has only " changes + 0 " finger changes on a moving card"; bad = 1 } exit bad }' "$d/expected.log" || fail=1
 
+# a hotspot on a text card: a project of two sequences whose only card is a text with a hotspot in its middle. The ring is drawn (the frame
+# is not the frame of the same project without the hotspot) and a tap on it follows the link.
+card() {  # the links of the first sequence, input file, frames: the story on stdout, the hash of the last frame in $tmp/hash
+  mkdir -p "$tmp/card"
+  cat > "$tmp/card/project.json" <<EOF
+{ "format": "zinc-museum-table", "version": 1, "id": "card", "title": { "en": "Card" }, "languages": ["en"], "start": "a",
+  "media": [ { "id": "note", "kind": "text", "title": { "en": "Note" }, "text": { "en": "A text card with a hotspot on it." } } ],
+  "sequences": [
+    { "id": "a", "title": { "en": "A" }, "items": [ { "media": "note", "x": 960, "y": 540, "width": 420 } ], "links": [$1] },
+    { "id": "b", "title": { "en": "B" }, "items": [] } ] }
+EOF
+  ZINC_ASSETS="$tmp/card" ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_SIZE=1920x1080 ZINC_INPUT=$2 ZINC_FRAMES=$3 ZINC_FRAMEHASH=last "$ZINC" run --interp . -- --story 2>"$tmp/err"
+  sed -n 's/^zinc: framehash //p' "$tmp/err" | cut -d' ' -f3 > "$tmp/hash"
+}
+spot='{ "to": "b", "label": { "en": "Onward" }, "x": 0.5, "y": 0.5, "on": "note" }'
+printf '5 touch 1 960 540\n7 touchup 1\n' > "$tmp/tap.input"
+card "" /dev/null 3 > /dev/null; bare=$(cat "$tmp/hash")
+card "$spot" /dev/null 3 > /dev/null; marked=$(cat "$tmp/hash")
+[ -n "$bare" ] && [ "$bare" != "$marked" ] || { echo "museum_table: a hotspot on a text card is not drawn (frame $marked with it, $bare without)"; fail=1; }
+card "$spot" "$tmp/tap.input" 40 | grep -q ' link a -> b fade$' || { echo "museum_table: a tap on the hotspot of a text card does not follow its link"; fail=1; }
+
 if command -v python3 >/dev/null; then   # the software frame is drawn at the pixel density the GL window turned out to have
   ZINC_RENDERER=gl ZINC_DISPLAY=gl ZINC_DETERMINISTIC=1 ZINC_SIZE=960x540 ZINC_FRAMES=3 ZINC_SHOT="$tmp/gl.bmp" timeout 90 "$ZINC" run . >/dev/null 2>&1
   if [ -s "$tmp/gl.bmp" ]; then
