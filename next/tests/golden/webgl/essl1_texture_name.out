@@ -1,0 +1,10 @@
+webgl a local variable: 0,255,0,255 uniforms s attribute active 0 error 0
+webgl a uniform: 0,255,0,255 uniforms texture attribute active 0 error 0
+webgl a function of the same signature: 0,255,0,255 uniforms s attribute active 0 error 0
+webgl a cube map beside a variable named textureLod: 0,255,0,255 uniforms s attribute active 0 error 0
+webgl uniforms named filter and sample: 0,255,255,255 uniforms filter s sample[0] attribute active 0 error 0
+webgl2 a local variable: 0,255,0,255 uniforms s attribute active 0 error 0
+webgl2 a uniform: 0,255,0,255 uniforms texture attribute active 0 error 0
+webgl2 a function of the same signature: 0,255,0,255 uniforms s attribute active 0 error 0
+webgl2 a cube map beside a variable named textureLod: 0,255,0,255 uniforms s attribute active 0 error 0
+webgl2 uniforms named filter and sample: 0,255,255,255 uniforms filter s sample[0] attribute active 0 error 0

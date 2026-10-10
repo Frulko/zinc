@@ -388,8 +388,10 @@ void WebGL1::transformFeedbackVaryings(Id pid, const std::vector<std::string>& n
   if (p == programs_.end()) return error(GL_INVALID_OPERATION);
   if (mode != GL_INTERLEAVED_ATTRIBS && mode != GL_SEPARATE_ATTRIBS) return error(GL_INVALID_ENUM);
   if (mode == GL_SEPARATE_ATTRIBS && names.size() > 4) return error(GL_INVALID_VALUE);
+  std::vector<std::string> mapped;
+  for (const std::string& n : names) mapped.push_back(toDriver(n));
   std::vector<const char*> v;
-  for (const std::string& n : names) v.push_back(n.c_str());
+  for (const std::string& n : mapped) v.push_back(n.c_str());
   glTransformFeedbackVaryings(p->second.name, static_cast<GLsizei>(v.size()), v.data(), mode);
 }
 WebGL1::Active WebGL1::getTransformFeedbackVarying(Id pid, std::uint32_t index) {
@@ -401,7 +403,7 @@ WebGL1::Active WebGL1::getTransformFeedbackVarying(Id pid, std::uint32_t index) 
   if (index >= static_cast<std::uint32_t>(n)) { error(GL_INVALID_VALUE); return a; }
   char buf[256]; GLsizei len = 0; GLsizei size = 0; GLenum type = 0;
   glGetTransformFeedbackVarying(p->second.name, index, sizeof buf, &len, &size, &type, buf);
-  a.name.assign(buf, static_cast<std::size_t>(len)); a.size = size; a.type = type; a.ok = true;
+  a.name = fromDriver(std::string(buf, static_cast<std::size_t>(len))); a.size = size; a.type = type; a.ok = true;
   return a;
 }
 

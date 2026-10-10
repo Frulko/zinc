@@ -118,9 +118,7 @@ std::string essl1Violation(const std::string& src, int webgl) {
     if (id.find("__") != std::string::npos && id != "__VERSION__" && id != "__LINE__" && id != "__FILE__") return "ERROR: 0:1: '" + id + "' : identifiers containing \"__\" are reserved";   // (the suite is of two minds: shader-with-double-underscore wants one accepted)
     i = j;
   }
-  static const std::regex globalInOut(R"((^|[;}])\s*(?:in|out)\s+(?:(?:lowp|mediump|highp)\s+)?\w+\s+\w+\s*[;\[=])");   // `in` and `out` declare variables in GLSL ES 3.00 only; here they are for parameters
-  if (std::regex_search(t, globalInOut)) return "ERROR: 0:1: 'in' : storage qualifier supported in GLSL ES 3.00 and above only";
-  return "";
+  return "";   // (a global `in` or `out` is refused by the GLSL ES validator, which sees the text after the preprocessor: `#define in attribute` is legal)
 }
 // words that desktop GLSL 330 keeps for itself but ESSL 1.00 lets a shader use as names: renamed by macro when the shader uses them
 bool desktopOnlyWord(const std::string& id) {
@@ -130,6 +128,50 @@ bool desktopOnlyWord(const std::string& id) {
   static const std::regex vec(R"(^(uvec[234]|d?mat[234]x[234]|dmat[234])$)");
   if (id == "sampler2D" || id == "samplerCube") return false;
   return std::regex_match(id, sampler) || std::regex_match(id, vec);
+}
+// A name of the page's shader as the driver has it (toDriver) and back: translate() renames the words desktopOnlyWord lists (`uniform float filter`
+// is zn_filter to the driver), so each part of a name ("filter.sample[2]") is mapped where names cross the API.
+// ponytail: a page's own name that is zn_ + such a word (zn_filter) comes back without its prefix; a table per program if a page ever does that
+std::string mapWords(const std::string& name, bool toDriver) {
+  std::string out;
+  for (std::size_t i = 0; i < name.size();) {
+    std::size_t j = i;
+    while (j < name.size() && (std::isalnum(static_cast<unsigned char>(name[j])) || name[j] == '_')) ++j;
+    if (j == i) { out += name[i++]; continue; }
+    const std::string id = name.substr(i, j - i);
+    if (toDriver) out += desktopOnlyWord(id) ? "zn_" + id : id;
+    else out += id.compare(0, 3, "zn_") == 0 && desktopOnlyWord(id.substr(3)) ? id.substr(3) : id;
+    i = j;
+  }
+  return out;
+}
+// The texture functions of GLSL ES 1.00 as helpers over those of GLSL 3.30, for the functions this shader names. Helpers, not macros onto the
+// built-ins: `texture` is not a word of ES 1.00, so a shader may give the name to its own variable, uniform or function, and that hides the
+// built-in from whatever a macro expands to in the shader's scope. The helpers are compiled before the shader's first line.
+std::string textureHelpers(const std::string& body, bool fragment, bool lodExt) {
+  struct Base { const char* name; const char* sampler; const char* coords[2]; const char* to; const char* grad; };
+  static const Base bases[] = {{"texture2D", "sampler2D", {"vec2", nullptr}, "texture", "vec2"}, {"texture2DProj", "sampler2D", {"vec3", "vec4"}, "textureProj", "vec2"}, {"textureCube", "samplerCube", {"vec3", nullptr}, "texture", "vec3"}};
+  std::string out;
+  const auto add = [&](const std::string& name, const Base& b, const std::string& to, const std::string& params, const char* args, bool bias) {
+    if (body.find(name) == std::string::npos) return;
+    out += "#define " + name + " zn_" + name + "\n";
+    for (const char* coord : b.coords) {
+      if (!coord) continue;
+      const std::string head = "vec4 zn_" + name + "(" + b.sampler + " s, " + coord + " c";
+      out += head + params + ") { return " + to + "(s, c" + args + "); }\n";
+      if (bias) out += head + ", float b) { return " + to + "(s, c, b); }\n";
+    }
+  };
+  for (const Base& b : bases) {
+    const std::string name = b.name, to = b.to, d = b.grad;
+    add(name, b, to, "", "", fragment);   // (the bias argument exists in fragment shaders only)
+    if (!fragment) add(name + "Lod", b, to + "Lod", ", float l", ", l", false);
+    else if (lodExt) {   // EXT_shader_texture_lod
+      add(name + "LodEXT", b, to + "Lod", ", float l", ", l", false);
+      add(name + "GradEXT", b, to + "Grad", ", " + d + " dx, " + d + " dy", ", dx, dy", false);
+    }
+  }
+  return out;
 }
 // The GLSL ES 1.00 source of WebGL on a desktop core context: the prelude renames the old keywords. ES contexts take the source as it is.
 // valSrc / valPre: what the GLSL ES validator (essl_check.cpp) is shown: the source with comments gone and the macros of this context in a preamble
@@ -207,7 +249,7 @@ std::string translate(const std::string& src, std::uint32_t type, bool es, std::
   }
   const bool drawBuf = webgl == 1 && ((extOn >> static_cast<int>(Ext::DrawBuffers)) & 1);   // (WEBGL_draw_buffers: gl_FragData[1..3] and gl_MaxDrawBuffers come with getExtension, no pragma needed)
   auto has = [&](Ext e) { return (active >> static_cast<int>(e)) & 1; };
-  pre += "#define texture2D texture\n#define textureCube texture\n#define texture2DProj textureProj\n";
+  pre += textureHelpers(body, type == GL_FRAGMENT_SHADER, has(Ext::ShaderTexLod));
   replaceIdent(body, "__VERSION__", "100");
   {
     const std::string t = withoutComments(body);
@@ -230,9 +272,8 @@ std::string translate(const std::string& src, std::uint32_t type, bool es, std::
   }
   pre += type == GL_VERTEX_SHADER ? "#define ZN_GL_ES 1\n" : "#define ZN_GL_ES 1\n#define ZN_GL_FRAGMENT_PRECISION_HIGH 1\n";
   if (type != GL_FRAGMENT_SHADER || !has(Ext::StdDerivatives)) pre += "#define dFdx zn_no_OES_standard_derivatives\n#define dFdy zn_no_OES_standard_derivatives\n#define fwidth zn_no_OES_standard_derivatives\n";   // desktop GLSL has them: hide what ESSL 1.00 needs the extension (and a fragment shader) for
-  if (type == GL_VERTEX_SHADER) pre += "#define attribute in\n#define varying out\n#define texture2DLod textureLod\n#define textureCubeLod textureLod\n#define texture2DProjLod textureProjLod\n";
+  if (type == GL_VERTEX_SHADER) pre += "#define attribute in\n#define varying out\n";
   else {
-    if (has(Ext::ShaderTexLod)) pre += "#define texture2DLodEXT textureLod\n#define texture2DProjLodEXT textureProjLod\n#define textureCubeLodEXT textureLod\n#define texture2DGradEXT textureGrad\n#define texture2DProjGradEXT textureProjGrad\n#define textureCubeGradEXT textureGrad\n";
     pre += "#define varying in\n";
     replaceIdent(body, "gl_FragDepth", "zn_no_gl_FragDepth");   // not in ESSL 1.00; gl_FragDepthEXT is, with the extension
     if (has(Ext::FragDepth)) replaceIdent(body, "gl_FragDepthEXT", "gl_FragDepth");
@@ -708,6 +749,8 @@ void WebGL1::attachShader(Id pid, Id sid) {
   ++s->second.attached;
   glAttachShader(p->second.name, s->second.name);
 }
+std::string WebGL1::toDriver(const std::string& name) const { return gl_.info().es ? name : mapWords(name, true); }   // (an ES driver has the page's own names)
+std::string WebGL1::fromDriver(const std::string& name) const { return gl_.info().es ? name : mapWords(name, false); }
 // WebGL: names of attributes and uniforms use the GLSL ES source character set
 static bool validName(const std::string& n) {
   for (unsigned char ch : n) if (ch < 0x20 || ch > 0x7E || std::strchr("\"$`@\\'", ch)) return false;
@@ -720,7 +763,7 @@ void WebGL1::bindAttribLocation(Id pid, std::uint32_t index, const std::string& 
   if (name.compare(0, 3, "gl_") == 0) return error(GL_INVALID_OPERATION);
   if (name.compare(0, 6, "webgl_") == 0 || name.compare(0, 6, "_webgl") == 0) return error(GL_INVALID_OPERATION);
   p->second.attribBindings[name] = static_cast<int>(index);
-  glBindAttribLocation(p->second.name, index, name.c_str());
+  glBindAttribLocation(p->second.name, index, toDriver(name).c_str());
 }
 void WebGL1::linkProgram(Id pid) {
   auto it = programs_.find(pid);
@@ -774,7 +817,7 @@ int WebGL1::getAttribLocation(Id pid, const std::string& name) {
   if (it == programs_.end() || !it->second.linked) { error(GL_INVALID_OPERATION); return -1; }
   if (!validName(name) || name.size() > (version_ == 2 ? 1024u : 256u)) { error(GL_INVALID_VALUE); return -1; }
   if (name.compare(0, 3, "gl_") == 0) return -1;
-  return glGetAttribLocation(it->second.name, name.c_str());
+  return glGetAttribLocation(it->second.name, toDriver(name).c_str());
 }
 UniformLoc WebGL1::getUniformLocation(Id pid, const std::string& name) {
   UniformLoc l;
@@ -789,9 +832,10 @@ UniformLoc WebGL1::getUniformLocation(Id pid, const std::string& name) {
     std::uint64_t idx = 0;
     for (std::size_t i = br + 1; i < close; ++i) { if (name[i] < '0' || name[i] > '9') return l; idx = idx * 10 + static_cast<std::uint64_t>(name[i] - '0'); if (idx > 0x7fffffffu) return l; }
   }
-  int loc = glGetUniformLocation(it->second.name, name.c_str());
+  const std::string dn = toDriver(name);
+  int loc = glGetUniformLocation(it->second.name, dn.c_str());
   if (loc < 0) return l;
-  std::string base = name.substr(0, name.find('['));
+  std::string base = dn.substr(0, dn.find('['));
   GLint n = 0;
   glGetProgramiv(it->second.name, GL_ACTIVE_UNIFORMS, &n);
   for (GLint i = 0; i < n; ++i) {
@@ -802,7 +846,7 @@ UniformLoc WebGL1::getUniformLocation(Id pid, const std::string& name) {
     glGetActiveUniform(it->second.name, static_cast<GLuint>(i), sizeof buf, &len, &size, &type, buf);
     std::string an(buf, static_cast<std::size_t>(len));
     // a member of a struct (array) is found by its whole name; a plain array by its base (u[3] is the active uniform u[0])
-    if (name.find('.') != std::string::npos ? an == name : an.substr(0, an.find('[')) == base) { l.type = type; l.size = size; break; }
+    if (dn.find('.') != std::string::npos ? an == dn : an.substr(0, an.find('[')) == base) { l.type = type; l.size = size; break; }
   }
   l.program = pid;
   l.gen = it->second.gen;

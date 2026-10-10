@@ -15,7 +15,6 @@ conformance2/glsl3/uninitialized-local-global-variables.html	should be 0,0,0,0 a
 conformance2/glsl3/valid-invariant.html	[unexpected link status] (expected: true) vertex shader with invariant varying and fragment shader with variant varying must succeed
 conformance2/glsl3/vector-dynamic-indexing.html	should be green at (0, 0) expected: 0,255,0,255 was 255,0,0,255
 conformance2/misc/uninitialized-test-2.html	timeout
-conformance2/textures/misc/angle-stuck-depth-textures.html	gl.getProgramParameter(blitProgram, gl.LINK_STATUS) should be true. Threw exception TypeError: argument must not be null
 conformance2/textures/misc/copy-texture-image-same-texture.html	checkFramebufferStatus expects [FRAMEBUFFER_INCOMPLETE_ATTACHMENT], was FRAMEBUFFER_COMPLETE
 conformance2/textures/misc/copy-texture-image-webgl-specific.html	getError expected: INVALID_OPERATION. Was NO_ERROR : gl.INVALID_OPERATION is generated
 conformance2/textures/misc/copy-texture-image.html	getError expected: INVALID_OPERATION. Was NO_ERROR : copyTexImage2D should fail for good internalformat with unmatched component sizes 

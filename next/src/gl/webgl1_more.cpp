@@ -258,7 +258,7 @@ WebGL1::Active WebGL1::getActiveUniform(Id pid, std::uint32_t index) {
   if (index >= static_cast<std::uint32_t>(n)) { error(GL_INVALID_VALUE); return a; }
   char buf[256]; GLsizei len = 0; GLint size = 0; GLenum type = 0;
   glGetActiveUniform(p->second.name, index, sizeof buf, &len, &size, &type, buf);
-  a.name.assign(buf, static_cast<std::size_t>(len)); a.size = size; a.type = type; a.ok = true;
+  a.name = fromDriver(std::string(buf, static_cast<std::size_t>(len))); a.size = size; a.type = type; a.ok = true;
   return a;
 }
 WebGL1::Active WebGL1::getActiveAttrib(Id pid, std::uint32_t index) {
@@ -270,7 +270,7 @@ WebGL1::Active WebGL1::getActiveAttrib(Id pid, std::uint32_t index) {
   if (index >= static_cast<std::uint32_t>(n)) { error(GL_INVALID_VALUE); return a; }
   char buf[256]; GLsizei len = 0; GLint size = 0; GLenum type = 0;
   glGetActiveAttrib(p->second.name, index, sizeof buf, &len, &size, &type, buf);
-  a.name.assign(buf, static_cast<std::size_t>(len)); a.size = size; a.type = type; a.ok = true;
+  a.name = fromDriver(std::string(buf, static_cast<std::size_t>(len))); a.size = size; a.type = type; a.ok = true;
   return a;
 }
 int WebGL1::programParameter(Id pid, std::uint32_t pname, bool& ok) {
@@ -818,8 +818,10 @@ std::vector<std::uint32_t> WebGL1::getUniformIndices(Id pid, const std::vector<s
   std::vector<std::uint32_t> out;
   auto p = programs_.find(pid);
   if (p == programs_.end() || !p->second.linked) { error(GL_INVALID_OPERATION); return out; }
+  std::vector<std::string> mapped;
+  for (const std::string& n : names) mapped.push_back(toDriver(n));
   std::vector<const char*> v;
-  for (const std::string& n : names) v.push_back(n.c_str());
+  for (const std::string& n : mapped) v.push_back(n.c_str());
   out.resize(names.size());
   if (!names.empty()) glGetUniformIndices(p->second.name, static_cast<GLsizei>(names.size()), v.data(), out.data());
   return out;

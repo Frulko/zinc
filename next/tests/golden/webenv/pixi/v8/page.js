@@ -1,7 +1,5 @@
 // PixiJS 8 as its guide writes it: an Application initialised with await, its canvas in the document, a Graphics square turning on the ticker
-// and hearing the pointer (ZN-568). Run with ZINC_WEB=1 and ../pointer.input by tests/t1/webenv_pixi.sh once the WebGL binding has ZN-565's
-// fixes (PixiJS 8 takes a WebGL 2 context that is also `instanceof WebGLRenderingContext` for WebGL 1, and its shaders say `#define in attribute`);
-// the output is page.out.
+// and hearing the pointer (ZN-568). Run with ZINC_WEB=1 and ../pointer.input by tests/t1/webenv_pixi.sh; the output is page.out.
 import { Application, Graphics, VERSION } from 'pixi.js';
 const app = new Application();
 await app.init({ width: 320, height: 240, background: 0x102030, antialias: false, preference: 'webgl' });

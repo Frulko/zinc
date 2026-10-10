@@ -1,0 +1,8 @@
+webgl compiled true true ""
+webgl linked true aPosition uTexture
+webgl drawn 0,255,0,255 0
+webgl a global `in` with no macro compiles false
+webgl2 compiled true true ""
+webgl2 linked true aPosition uTexture
+webgl2 drawn 0,255,0,255 0
+webgl2 a global `in` with no macro compiles false

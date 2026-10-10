@@ -27,7 +27,7 @@ struct Gl { Gl() { for (JSValue& e : exts) e = JS_UNDEFINED; } WebGL1 gl; JSValu
 
 JSClassID gCtxClass = 0, gObjClass = 0, gExtClass = 0;   // gExtClass: the extension objects (getExtension), whose opaque is their context
 Gl* gCurrent = nullptr;   // the context whose driver context is current
-JSValue gProto2, gPrecisionProto, gActiveProto;   // WebGL2RenderingContext.prototype, inheriting from the WebGL 1 one
+JSValue gProto2, gPrecisionProto, gActiveProto;   // WebGL2RenderingContext.prototype (a sibling of the WebGL 1 one)
 JSValue gKindProto[13];   // prototypes of WebGLBuffer ... WebGLUniformLocation, so `instanceof` works
 const char* kKindNames[] = {"", "WebGLBuffer", "WebGLShader", "WebGLProgram", "WebGLTexture", "WebGLFramebuffer", "WebGLUniformLocation", "WebGLRenderbuffer", "WebGLVertexArrayObject", "WebGLSampler", "WebGLQuery", "WebGLSync", "WebGLTransformFeedback"};
 
@@ -1452,8 +1452,10 @@ void install(JSContext* c) {
   ctor("WebGLShaderPrecisionFormat", gPrecisionProto);
   gActiveProto = JS_NewObject(c);
   ctor("WebGLActiveInfo", gActiveProto);
-  gProto2 = JS_NewObjectProto(c, proto);   // WebGL2RenderingContext.prototype
-  { std::size_t i = sizeof kMethods / sizeof kMethods[0]; for (const Fn& f : kMethods2) JS_SetPropertyStr(c, gProto2, f.name, method(i++)); }
+  // WebGL2RenderingContext.prototype is a sibling of the WebGL 1 one, not its child: both interfaces include WebGLRenderingContextBase, so the
+  // shared methods are its own and a WebGL 2 context is not `instanceof WebGLRenderingContext` (libraries tell the versions apart that way)
+  gProto2 = JS_NewObject(c);
+  { std::size_t i = 0; for (const Fn& f : kMethods) JS_SetPropertyStr(c, gProto2, f.name, method(i++)); for (const Fn& f : kMethods2) JS_SetPropertyStr(c, gProto2, f.name, method(i++)); }
   for (const Const& k : kConsts2) JS_SetPropertyStr(c, gProto2, k.name, JS_NewUint32(c, k.value));
   JSValue ctor2 = ctor("WebGL2RenderingContext", gProto2);
   for (const Const& k : kConsts2) JS_SetPropertyStr(c, ctor2, k.name, JS_NewUint32(c, k.value));

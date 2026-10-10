@@ -1,0 +1,9 @@
+gl2 instanceof WebGLRenderingContext false
+gl2 instanceof WebGL2RenderingContext true
+gl1 instanceof WebGLRenderingContext true
+gl1 instanceof WebGL2RenderingContext false
+the prototypes are siblings true true
+shared members are each interface's own true true true
+WebGL 2 members are not on WebGL 1 undefined undefined function 32879
+constructors true true 34962 34962
+clear and read through WebGL 2 0,255,0,255 0

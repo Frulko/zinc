@@ -65,8 +65,8 @@ What a program finds:
 | p5.js 1.11.13 | boots and draws in WEBGL mode; its 2D mode waits for ZN-570 | `tests/t1/webenv_p5.sh` |
 | three.js r186 | boots, animates, OrbitControls turns the camera by a scripted drag | `tests/t1/webenv_three.sh` |
 | PixiJS 7.4.3 | boots, animates, its sprites hear the pointer; a Graphics fill waits for ZN-570 | `tests/t1/webenv_pixi.sh` |
-| PixiJS 8.22.0 | stops in the WebGL binding (ZN-565: a WebGL 2 context is `instanceof WebGLRenderingContext`); its page and golden are ready and the test runs them once that is fixed | `tests/t1/webenv_pixi.sh` |
-| Phaser 3.90.0 | stops in its batch shader (ZN-565) and waits for its default textures (ZN-569); the environment asks nothing more | none yet |
+| PixiJS 8.22.0 | boots, animates, a Graphics square hears the pointer (since ZN-565: a WebGL 2 context is no longer `instanceof WebGLRenderingContext`, and `#define in attribute` compiles) | `tests/t1/webenv_pixi.sh` |
+| Phaser 3.90.0 | its shaders compile and link (since ZN-565: `vec4 texture;` beside `texture2D`); it then stops in its renderer's boot, waiting for its default textures (`data:` PNGs: ZN-569) | none yet |
 
 ## Tests
 

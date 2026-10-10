@@ -1,4 +1,4 @@
-instanceof true true true
+instanceof true false true
 version WebGL 2.0 (Zinc) | WebGL GLSL ES 3.00 (Zinc)
 constants 35345 32879 36067 32856
 isVertexArray true

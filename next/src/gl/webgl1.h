@@ -309,6 +309,8 @@ class WebGL1 {
   void releaseBuffers();
   bool stale(const UniformLoc& l) const { auto p = programs_.find(l.program); return p == programs_.end() || p->second.gen != l.gen; }   // the program was linked again since
   void eraseProgram(Id id);
+  std::string toDriver(const std::string& name) const;     // a uniform, attribute or varying name of the page as the driver has it (webgl1.cpp mapWords), and back
+  std::string fromDriver(const std::string& name) const;
   bool framebufferReady();
   Id& bufferSlot(std::uint32_t t);   // program, attributes in range, framebuffer complete
 
