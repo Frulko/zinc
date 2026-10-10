@@ -112,7 +112,8 @@ else()
   target_include_directories(zn_rt_new PUBLIC include src PRIVATE third_party/mimalloc/include)
   set_target_properties(zn_rt_new PROPERTIES CXX_STANDARD 20 POSITION_INDEPENDENT_CODE ON)
   target_link_libraries(zn_rt_new PUBLIC zn_rt zn_mimalloc)
-  target_link_libraries(zn_rt PUBLIC zn_rt_new)
+  # not in zinc either (ZN-592): replacing the global operators made dyld patch libc++'s uses in the shared cache at every launch, 8 ms of the
+  # 29 before main on the Intel Mac; the objects' containers count through ObjAlloc, so the heap budget does not need them
 endif()
 
 add_library(zn_vm STATIC src/vm/vm.cpp)
@@ -316,6 +317,9 @@ else()
 endif()
 set_target_properties(zinc PROPERTIES ENABLE_EXPORTS ON)   # a plugin loaded with dlopen finds zrt and the native registry in this binary
 target_link_libraries(zinc PRIVATE zn_sim zn_script zn_qjs zn_res zn_dev zn_tc zn_prof zn_vm zn_aot zn_rt zn_zbc zn_ir zn_frontend)
+if(TARGET zn_rt_new)
+  add_dependencies(zinc zn_rt_new)   # not linked into zinc (ZN-592): `zinc build` links it into the programs that have a heap budget
+endif()
 if(TARGET zn_host_gfx)
   target_compile_definitions(zinc PRIVATE ZN_HOST_GFX)
   target_include_directories(zinc PRIVATE ${ZN_RUNTIME_DIR}/include)   # hal_window.h (ZN-233)

@@ -1,5 +1,6 @@
-// The allocator of the runtime: mimalloc serves every global `new`/`delete` (the heap objects, their vectors, the compiler's own
-// data) so interpreter and compiled programs allocate the same way. Objects themselves use zn::rt::alloc below.
+// The allocator of the runtime: mimalloc serves the objects (zn::rt::alloc below) and their containers (ObjAlloc in rt.h). The global
+// `new`/`delete` stay the system's in zinc (ZN-592: replacing them cost 8 ms of dyld patching at every launch) and in compiled programs,
+// except those with a heap budget, which link alloc_new.cpp (ZN-146).
 #include <cstddef>
 #if !defined(__wasi__) && !defined(ESP_PLATFORM)
 #include <mimalloc.h>
