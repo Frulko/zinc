@@ -4,8 +4,10 @@ title: >-
   zinc:gfx source rectangles and images from bytes; the browser host draws
   images
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-09 07:35'
+updated_date: '2026-10-10 17:18'
 labels:
   - games
   - assets

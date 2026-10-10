@@ -2,8 +2,7 @@
 id: ZN-609
 title: 'zinc test runs on a stock macOS: no GNU timeout needed'
 status: Backlog
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-10 07:27'
 updated_date: '2026-10-10 17:02'
 labels:
