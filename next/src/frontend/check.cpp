@@ -7,6 +7,7 @@
 #include <memory>
 #include <set>
 #include <unordered_map>
+#include <unordered_set>
 
 #include "frontend/dyn.h"
 #include "frontend/inspect.h"
@@ -58,12 +59,13 @@ struct Checker {
   std::string_view selfName;                    // the variable whose initializer is being checked, when a lambda in it mentions it
   std::size_t selfDepth = 0;                    // fnStack depth of that initializer
   std::vector<std::pair<std::uint32_t, TypeId>> selfDeferred;  // lambdas whose body waits for the variable (node, expected type)
-  bool mentionsInFunction(std::uint32_t i, std::string_view nm, bool inFn = false) const {
+  // The names a statement mentions inside a function, method or lambda: a top-level variable such a body uses before its declaration runs (ZN-162).
+  // Collected once per statement into the set of the statements above (ZN-415): asking each declaration again walked every statement above it.
+  void fnMentions(std::uint32_t i, std::unordered_set<std::string_view>& out, bool inFn = false) const {
     const Node& x = n(i);
-    if (x.kind == N::Ident && inFn && x.text == nm) return true;
+    if (x.kind == N::Ident && inFn) out.insert(x.text);
     bool f = inFn || x.kind == N::Function || x.kind == N::FuncExpr || x.kind == N::Method;
-    for (std::uint32_t k : x.kids) if (k != kNone && mentionsInFunction(k, nm, f)) return true;
-    return false;
+    for (std::uint32_t k : x.kids) if (k != kNone) fnMentions(k, out, f);
   }
   bool mentionsIdent(std::uint32_t i, std::string_view nm) const {
     const Node& x = n(i);
@@ -4151,16 +4153,15 @@ struct Checker {
       if (g.isFunc) instantiateFunc(gs, g.selfParams, g.node); else instantiateClass(gs, g.selfParams, g.node);
     }
     bool rootList = &stmts == topList;
-    if (rootList)  // top-level variables of known type are visible to functions declared above them (they are globals)
-      for (std::size_t si = 0; si < stmts.size(); ++si) {
+    if (rootList) {  // top-level variables of known type are visible to functions declared above them (they are globals)
+      std::unordered_set<std::string_view> above;   // the names the statements above mention inside a function
+      for (std::size_t si = 0; si < stmts.size(); fnMentions(stmts[si], above), ++si) {
         std::uint32_t s = stmts[si];
         if (n(s).kind != N::VarDecl || n(s).text == "using") continue;
         for (std::uint32_t d : n(s).kids) {
           const Node& dn = n(d);
           if ((dn.kids.size() > 2 && dn.kids[2] != kNone) || dn.kids[0] == kNone || dn.kids[1] == kNone || scopes.back()->count(dn.text)) continue;
-          bool earlyUse = false;  // only a name that a statement above the declaration mentions inside a function needs to be declared ahead
-          for (std::size_t pj = 0; pj < si && !earlyUse; ++pj) earlyUse = mentionsInFunction(stmts[pj], dn.text);
-          if (!earlyUse) continue;
+          if (!above.count(dn.text)) continue;  // only a name that a statement above the declaration mentions inside a function needs to be declared ahead
           TypeId vt = annotation(dn.kids[0]);
           if (bad(vt)) continue;
           declAsGlobal = true;
@@ -4171,6 +4172,7 @@ struct Checker {
           forwardVars[d] = {sy, vt};
         }
       }
+    }
     for (std::size_t si = 0; si < stmts.size(); ++si) {
       std::uint32_t s = stmts[si];
       if (n(s).kind == N::VarDecl && n(s).text == "using") for (std::size_t r = si + 1; r < stmts.size(); ++r) markCells(stmts[r]);
@@ -4195,15 +4197,15 @@ struct Checker {
   std::uint32_t tdzTarget = kNone;
   void tdzPrepass(std::vector<std::uint32_t>& stmts, std::uint32_t where) {
     std::vector<std::uint32_t> head, next;
-    for (std::size_t si = 0; si < stmts.size(); ++si) {
+    std::unordered_set<std::string_view> above;   // the names the statements above mention inside a function
+    for (std::size_t si = 0; si < stmts.size(); fnMentions(stmts[si], above), ++si) {
       const std::uint32_t s = stmts[si];
       next.push_back(s);
       if (n(s).kind != N::VarDecl || n(s).text == "using") continue;
       for (std::uint32_t d : std::vector<std::uint32_t>(n(s).kids)) {
         const Node& dn = n(d);
         if (dn.kind != N::Declarator || (dn.kids.size() > 2 && dn.kids[2] != kNone) || dn.kids[0] == kNone || dn.kids[1] == kNone || dn.text.empty()) continue;
-        bool early = false;
-        for (std::size_t pj = 0; pj < si && !early; ++pj) early = mentionsInFunction(stmts[pj], dn.text);
+        const bool early = above.count(dn.text) != 0;
         const std::string nm(dn.text);
         if (!early || tdzNames.count(nm)) continue;
         auto decl = snippet(a, "let __tdz_" + nm + ": boolean = false;", {}, where);

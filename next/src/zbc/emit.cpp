@@ -264,32 +264,37 @@ struct FnEmitter {
       for (ValueId p : f.blocks[b].params) def(p, hdr[b]);
       for (std::size_t k = 0; k < f.blocks[b].insts.size(); ++k) if (f.blocks[b].insts[k].res != ir::kNoValue) def(f.blocks[b].insts[k].res, ipos[b][k]);
     }
-    std::vector<std::vector<char>> use(nb, std::vector<char>(nv, 0)), kill(nb, std::vector<char>(nv, 0));
-    std::vector<std::vector<char>> in(nb, std::vector<char>(nv, 0)), out(nb, std::vector<char>(nv, 0));
+    // liveness as bit sets, one word per 64 values (ZN-415): dense per-block byte vectors cost hundreds of ms on a function of 1,000 blocks
+    const std::size_t words = (nv + 63) / 64;
+    std::vector<std::uint64_t> use(nb * words, 0), kill(nb * words, 0), in(nb * words, 0), out(nb * words, 0);
+    auto has = [&](const std::vector<std::uint64_t>& s, BlockId b, ValueId v) { return (s[b * words + (v >> 6)] >> (v & 63)) & 1; };
+    auto set = [&](std::vector<std::uint64_t>& s, BlockId b, ValueId v) { s[b * words + (v >> 6)] |= std::uint64_t{1} << (v & 63); };
     for (BlockId b : order) {
-      for (ValueId p : f.blocks[b].params) kill[b][p] = 1;
+      for (ValueId p : f.blocks[b].params) set(kill, b, p);
       for (std::size_t k = 0; k < f.blocks[b].insts.size(); ++k) {
         const ir::Inst& i = f.blocks[b].insts[k];
-        auto usev = [&](ValueId v) { if (!kill[b][v]) use[b][v] = 1; end[v] = std::max(end[v], ipos[b][k]); };
+        auto usev = [&](ValueId v) { if (!has(kill, b, v)) set(use, b, v); end[v] = std::max(end[v], ipos[b][k]); };
         for (ValueId a : i.args) usev(a);
         for (const ir::Edge& e : i.edges) for (ValueId a : e.args) usev(a);
-        if (i.res != ir::kNoValue) kill[b][i.res] = 1;
+        if (i.res != ir::kNoValue) set(kill, b, i.res);
       }
     }
     for (bool changed = true; changed;) {
       changed = false;
       for (std::size_t k = order.size(); k-- > 0;) {
         BlockId b = order[k];
+        std::uint64_t* o = out.data() + b * words;
+        std::uint64_t* n = in.data() + b * words;
         for (const ir::Inst& si : f.blocks[b].insts)
           for (const ir::Edge& e : si.edges)
-            for (std::size_t v = 0; v < nv; ++v) if (in[e.to][v] && !out[b][v]) { out[b][v] = 1; changed = true; }
-        for (std::size_t v = 0; v < nv; ++v) if (!in[b][v] && (use[b][v] || (out[b][v] && !kill[b][v]))) { in[b][v] = 1; changed = true; }
+            for (std::size_t w = 0; w < words; ++w) { std::uint64_t x = o[w] | in[e.to * words + w]; changed |= x != o[w]; o[w] = x; }
+        for (std::size_t w = 0; w < words; ++w) { std::uint64_t x = n[w] | use[b * words + w] | (o[w] & ~kill[b * words + w]); changed |= x != n[w]; n[w] = x; }
       }
     }
     for (BlockId b : order)
-      for (std::size_t v = 0; v < nv; ++v) {
-        if (in[b][v]) { start[v] = std::min(start[v], hdr[b]); end[v] = std::max(end[v], hdr[b]); }
-        if (out[b][v]) end[v] = std::max(end[v], endPos[b]);
+      for (std::size_t w = 0; w < words; ++w) {
+        for (std::uint64_t x = in[b * words + w]; x; x &= x - 1) { ValueId v = static_cast<ValueId>(w * 64 + static_cast<std::size_t>(__builtin_ctzll(x))); start[v] = std::min(start[v], hdr[b]); end[v] = std::max(end[v], hdr[b]); }
+        for (std::uint64_t x = out[b * words + w]; x; x &= x - 1) { ValueId v = static_cast<ValueId>(w * 64 + static_cast<std::size_t>(__builtin_ctzll(x))); end[v] = std::max(end[v], endPos[b]); }
       }
   }
 

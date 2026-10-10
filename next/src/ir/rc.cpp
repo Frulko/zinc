@@ -9,6 +9,7 @@
 //     retained or released.
 // So the last use of a value costs nothing, and the destruction points are a property of the IR, not of an engine.
 #include <algorithm>
+#include <cstdint>
 #include <cstdlib>
 #include <map>
 
@@ -44,26 +45,40 @@ bool resultBorrowed(const Inst& i) {
 struct Rc {
   Module& m;
   Function& f;
-  const std::vector<char>& mayThrow;  // per function
+  const std::vector<char>& mayThrow;     // per function
+  const std::vector<char>& slotThrows;   // per vtable slot: some class's method there may throw
   std::size_t nb, nv;
   std::vector<char> tracked;
   std::vector<ValueId> anchor;   // per lent value: the tracked value it was read from (or the root of that chain), kept alive to its last use
-  std::vector<std::vector<char>> liveIn, liveOut, reach;
+  std::vector<char> reach;
+  std::vector<std::vector<BlockId>> succ;   // every block a block can continue in: its terminator's targets and the handlers of its calls
+  // Liveness is kept for the tracked values only, as bit sets (ZN-415): a tracked value's bit is its rank among them, so walking a set walks the values in
+  // ascending order. A function of hero's has 1,109 blocks and 6,522 values; dense per-block byte vectors made this pass the slowest of the compiler.
+  static constexpr std::uint32_t kNoBit = 0xFFFFFFFFu;
+  std::vector<std::uint32_t> bit;   // per value: its bit, kNoBit when not tracked
+  std::vector<ValueId> valueOf;     // per bit: the value
+  std::size_t words = 0;
+  std::vector<std::uint64_t> liveIn, liveOut;   // nb * words
 
-  Rc(Module& mod, Function& fn, const std::vector<char>& thr) : m(mod), f(fn), mayThrow(thr), nb(fn.blocks.size()), nv(fn.valueTypes.size()) {}
-
-  // Every block a block can continue in: its terminator's targets and the handlers of its calls.
-  template <class F> void successors(BlockId b, F&& fn) const {
-    for (const Inst& i : f.blocks[b].insts) for (const Edge& e : i.edges) fn(e.to);
+  Rc(Module& mod, Function& fn, const std::vector<char>& thr, const std::vector<char>& slots)
+      : m(mod), f(fn), mayThrow(thr), slotThrows(slots), nb(fn.blocks.size()), nv(fn.valueTypes.size()) {
+    succ.resize(nb);
+    for (BlockId b = 0; b < nb; ++b) for (const Inst& i : f.blocks[b].insts) for (const Edge& e : i.edges) succ[b].push_back(e.to);
   }
+
   bool throws(const Inst& i) const {
     if (i.op == IrOp::Call) return mayThrow[i.sym];
-    if (i.op != IrOp::CallVirt) return false;
-    for (const Class& c : m.classes) if (!c.isInterface && !c.isAbstract && i.sym < c.vtable.size() && c.vtable[i.sym] < m.functions.size() && mayThrow[c.vtable[i.sym]]) return true;
-    return false;
+    return i.op == IrOp::CallVirt && i.sym < slotThrows.size() && slotThrows[i.sym];
   }
 
   bool isTracked(ValueId v) const { return v < nv && tracked[v]; }
+  static bool test(const std::uint64_t* set, std::uint32_t k) { return (set[k >> 6] >> (k & 63)) & 1; }
+  bool liveInAt(BlockId b, ValueId v) const { return v < nv && bit[v] != kNoBit && test(liveIn.data() + b * words, bit[v]); }
+  bool liveOutAt(BlockId b, ValueId v) const { return v < nv && bit[v] != kNoBit && test(liveOut.data() + b * words, bit[v]); }
+  template <class F> void eachBit(const std::uint64_t* set, F&& fn) const {   // in ascending value order
+    for (std::size_t w = 0; w < words; ++w)
+      for (std::uint64_t x = set[w]; x; x &= x - 1) fn(valueOf[w * 64 + static_cast<std::size_t>(__builtin_ctzll(x))]);
+  }
 
   Inst op(IrOp o, ValueId v) {
     Inst i;
@@ -118,10 +133,10 @@ struct Rc {
       if (!d || !tracked[v] || consumed[v] || !resultBorrowed(*d) || d->op == IrOp::RefCast) continue;   // a cast may lend an owned local that is released at its last use
       bool ok = true;
       for (BlockId b = 0; b < nb && ok; ++b) {
-        if (!reach[0][b] || (defBlock[v] != b && !liveIn[b][v])) continue;
+        if (!reach[b] || (defBlock[v] != b && !liveInAt(b, static_cast<ValueId>(v)))) continue;
         const std::vector<Inst>& ins = f.blocks[b].insts;
         long start = defBlock[v] == b ? static_cast<long>(defIdx[v]) + 1 : 0, end = -1;
-        if (liveOut[b][v]) end = static_cast<long>(ins.size()) - 1;
+        if (liveOutAt(b, static_cast<ValueId>(v))) end = static_cast<long>(ins.size()) - 1;
         else for (std::size_t p = 0; p < ins.size(); ++p) {
           bool uses = std::find(ins[p].args.begin(), ins[p].args.end(), static_cast<ValueId>(v)) != ins[p].args.end();
           if (uses) end = static_cast<long>(p);
@@ -141,36 +156,41 @@ struct Rc {
   ValueId anchorOf(ValueId v) const { return v < nv ? anchor[v] : kNoValue; }
 
   void liveness() {
-    reach.assign(1, std::vector<char>(nb, 0));
+    reach.assign(nb, 0);
     std::vector<BlockId> work{0};
-    reach[0][0] = 1;
+    reach[0] = 1;
     while (!work.empty()) {
       BlockId b = work.back();
       work.pop_back();
-      successors(b, [&](BlockId s) { if (!reach[0][s]) { reach[0][s] = 1; work.push_back(s); } });
+      for (BlockId t : succ[b]) if (!reach[t]) { reach[t] = 1; work.push_back(t); }
     }
-    std::vector<std::vector<char>> use(nb, std::vector<char>(nv, 0)), def(nb, std::vector<char>(nv, 0));
+    bit.assign(nv, kNoBit);
+    valueOf.clear();
+    for (std::size_t v = 0; v < nv; ++v) if (tracked[v]) { bit[v] = static_cast<std::uint32_t>(valueOf.size()); valueOf.push_back(static_cast<ValueId>(v)); }
+    words = (valueOf.size() + 63) / 64;
+    std::vector<std::uint64_t> use(nb * words, 0), def(nb * words, 0);
+    auto set = [&](std::vector<std::uint64_t>& s, BlockId b, ValueId v) { std::uint32_t k = bit[v]; s[b * words + (k >> 6)] |= std::uint64_t{1} << (k & 63); };
     for (BlockId b = 0; b < nb; ++b) {
-      if (!reach[0][b]) continue;
-      for (ValueId p : f.blocks[b].params) def[b][p] = 1;
-      auto usev = [&](ValueId v) { if (isTracked(v) && !def[b][v]) use[b][v] = 1; };
+      if (!reach[b]) continue;
+      for (ValueId p : f.blocks[b].params) if (isTracked(p)) set(def, b, p);
+      auto usev = [&](ValueId v) { if (isTracked(v) && !test(def.data() + b * words, bit[v])) set(use, b, v); };
       for (const Inst& i : f.blocks[b].insts) {
         for (ValueId a : i.args) { usev(a); if (anchorOf(a) != kNoValue) usev(anchorOf(a)); }
         for (const Edge& e : i.edges) for (ValueId a : e.args) usev(a);
-        if (i.res != kNoValue) def[b][i.res] = 1;
+        if (i.res != kNoValue && isTracked(i.res)) set(def, b, i.res);
       }
     }
-    liveIn.assign(nb, std::vector<char>(nv, 0));
-    liveOut.assign(nb, std::vector<char>(nv, 0));
+    liveIn.assign(nb * words, 0);
+    liveOut.assign(nb * words, 0);
     for (bool changed = true; changed;) {
       changed = false;
       for (BlockId b = nb; b-- > 0;) {
-        if (!reach[0][b]) continue;
-        successors(b, [&](BlockId s) {
-          for (std::size_t v = 0; v < nv; ++v) if (liveIn[s][v] && !liveOut[b][v]) { liveOut[b][v] = 1; changed = true; }
-        });
-        for (std::size_t v = 0; v < nv; ++v)
-          if (!liveIn[b][v] && (use[b][v] || (liveOut[b][v] && !def[b][v]))) { liveIn[b][v] = 1; changed = true; }
+        if (!reach[b]) continue;
+        std::uint64_t* out = liveOut.data() + b * words;
+        std::uint64_t* in = liveIn.data() + b * words;
+        for (BlockId t : succ[b])
+          for (std::size_t w = 0; w < words; ++w) { std::uint64_t x = out[w] | liveIn[t * words + w]; changed |= x != out[w]; out[w] = x; }
+        for (std::size_t w = 0; w < words; ++w) { std::uint64_t x = in[w] | use[b * words + w] | (out[w] & ~def[b * words + w]); changed |= x != in[w]; in[w] = x; }
       }
     }
   }
@@ -186,17 +206,20 @@ struct Rc {
     const std::vector<Inst> src = f.blocks[b].insts;
     const std::vector<ValueId> params = f.blocks[b].params;
     const std::size_t n = src.size();
-    std::vector<long> lastIdx(nv, -1);  // the last instruction (the terminator counts its edge arguments) using each value
+    // per tracked value, by its bit: the last instruction using it (the terminator counts its edge arguments), and whether this block has it by now
+    // (live in, parameters, results so far)
+    std::vector<long> lastIdx(valueOf.size(), -1);
+    std::vector<char> avail(valueOf.size(), 0);
+    auto last = [&](ValueId v) -> long& { return lastIdx[bit[v]]; };
     for (std::size_t p = 0; p < n; ++p) {
-      for (ValueId a : src[p].args) { if (isTracked(a)) lastIdx[a] = static_cast<long>(p); if (anchorOf(a) != kNoValue) lastIdx[anchorOf(a)] = static_cast<long>(p); }
-      for (const Edge& e : src[p].edges) for (ValueId a : e.args) if (isTracked(a)) lastIdx[a] = static_cast<long>(p);
+      for (ValueId a : src[p].args) { if (isTracked(a)) last(a) = static_cast<long>(p); if (anchorOf(a) != kNoValue) last(anchorOf(a)) = static_cast<long>(p); }
+      for (const Edge& e : src[p].edges) for (ValueId a : e.args) if (isTracked(a)) last(a) = static_cast<long>(p);
     }
-    auto usedAfter = [&](ValueId v, std::size_t p) { return liveOut[b][v] || lastIdx[v] > static_cast<long>(p); };
+    auto usedAfter = [&](ValueId v, std::size_t p) { return liveOutAt(b, v) || last(v) > static_cast<long>(p); };
     std::vector<Inst> out;
-    std::vector<char> avail(nv, 0);  // tracked values this block has by now: live in, parameters, results so far
-    for (std::size_t v = 0; v < nv; ++v) avail[v] = liveIn[b][v];
-    for (ValueId p : params) if (isTracked(p)) avail[p] = 1;
-    for (ValueId p : params) if (isTracked(p) && !liveOut[b][p] && lastIdx[p] < 0) out.push_back(op(IrOp::Release, p));
+    eachBit(liveIn.data() + b * words, [&](ValueId v) { avail[bit[v]] = 1; });
+    for (ValueId p : params) if (isTracked(p)) avail[bit[p]] = 1;
+    for (ValueId p : params) if (isTracked(p) && !liveOutAt(b, p) && last(p) < 0) out.push_back(op(IrOp::Release, p));
     for (std::size_t p = 0; p + 1 < n; ++p) {
       Inst inst = src[p];
       std::map<ValueId, std::pair<int, int>> counts;  // consuming, borrowing occurrences in this instruction
@@ -206,7 +229,7 @@ struct Rc {
       }
       std::vector<ValueId> releaseAfter;
       for (auto& [v, cb] : counts) {
-        bool dies = !liveOut[b][v] && lastIdx[v] == static_cast<long>(p);
+        bool dies = !liveOutAt(b, v) && last(v) == static_cast<long>(p);
         int retains = dies ? (cb.first > 0 ? cb.first - 1 : 0) : cb.first;
         for (int r = 0; r < retains; ++r) out.push_back(op(IrOp::Retain, v));
         if (dies && cb.first == 0) releaseAfter.push_back(v);
@@ -216,14 +239,14 @@ struct Rc {
         // What this frame still owns when the call unwinds and the handler has no use for is released first, on a path of its own.
         BlockId handler = inst.edges.empty() ? kNoBlockRc : inst.edges[0].to;
         std::vector<ValueId> rel;
-        for (std::size_t v = 0; v < nv; ++v) {
-          if (!isTracked(static_cast<ValueId>(v)) || !avail[v] || static_cast<ValueId>(v) == res) continue;
-          if (handler != kNoBlockRc && liveIn[handler][v]) continue;
-          auto cb = counts.find(static_cast<ValueId>(v));
-          bool diesHere = cb != counts.end() && !liveOut[b][v] && lastIdx[v] == static_cast<long>(p);
+        for (ValueId v : valueOf) {
+          if (!avail[bit[v]] || v == res) continue;
+          if (handler != kNoBlockRc && liveInAt(handler, v)) continue;
+          auto cb = counts.find(v);
+          bool diesHere = cb != counts.end() && !liveOutAt(b, v) && last(v) == static_cast<long>(p);
           bool consumedHere = diesHere && cb->second.first > 0;
-          bool owned = usedAfter(static_cast<ValueId>(v), p) || (diesHere && cb->second.first == 0);
-          if (owned && !consumedHere) rel.push_back(static_cast<ValueId>(v));
+          bool owned = usedAfter(v, p) || (diesHere && cb->second.first == 0);
+          if (owned && !consumedHere) rel.push_back(v);
         }
         if (!rel.empty()) {
           Block pad;
@@ -243,7 +266,7 @@ struct Rc {
       }
       out.push_back(std::move(inst));
       if (res != kNoValue && isTracked(res)) {
-        avail[res] = 1;
+        avail[bit[res]] = 1;
         bool used = usedAfter(res, p);
         if (resultBorrowed(src[p])) { if (used) out.push_back(op(IrOp::Retain, res)); }  // before the lender can be released
         else if (!used) out.push_back(op(IrOp::Release, res));
@@ -252,20 +275,23 @@ struct Rc {
     }
     Inst term = src[n - 1];
     if (term.op == IrOp::Br || term.op == IrOp::CondBr) {
-      std::vector<char> here = liveOut[b];  // owned at the terminator: live out, or passed along some edge (and so unused on the others)
-      for (const Edge& e : term.edges) for (ValueId a : e.args) if (isTracked(a)) here[a] = 1;
+      std::vector<std::uint64_t> here(liveOut.begin() + static_cast<long>(b * words), liveOut.begin() + static_cast<long>((b + 1) * words));   // owned at the terminator: live out, or passed along some edge (and so unused on the others)
+      for (const Edge& e : term.edges) for (ValueId a : e.args) if (isTracked(a)) here[bit[a] >> 6] |= std::uint64_t{1} << (bit[a] & 63);
       for (std::size_t ei = 0; ei < term.edges.size(); ++ei) {
         Edge& e = term.edges[ei];
-        const std::vector<char>& needed = liveIn[e.to];
+        const std::uint64_t* needed = liveIn.data() + e.to * words;
         std::vector<Inst> fix;
-        std::vector<char> passed(nv, 0), transferred(nv, 0);
+        std::vector<ValueId> passed, transferred;   // a few edge arguments
+        auto has = [](const std::vector<ValueId>& xs, ValueId v) { return std::find(xs.begin(), xs.end(), v) != xs.end(); };
         for (ValueId a : e.args) {
           if (!isTracked(a)) continue;
-          passed[a] = 1;
-          if (needed[a] || transferred[a]) fix.push_back(op(IrOp::Retain, a));
-          else transferred[a] = 1;
+          passed.push_back(a);
+          if (test(needed, bit[a]) || has(transferred, a)) fix.push_back(op(IrOp::Retain, a));
+          else transferred.push_back(a);
         }
-        for (std::size_t v = 0; v < nv && v < here.size(); ++v) if (here[v] && !needed[v] && !passed[v]) fix.push_back(op(IrOp::Release, static_cast<ValueId>(v)));
+        std::vector<std::uint64_t> gone(words);
+        for (std::size_t w = 0; w < words; ++w) gone[w] = here[w] & ~needed[w];
+        eachBit(gone.data(), [&](ValueId v) { if (!has(passed, v)) fix.push_back(op(IrOp::Release, v)); });
         if (fix.empty()) continue;
         if (term.op == IrOp::Br) { for (Inst& x : fix) out.push_back(std::move(x)); continue; }
         Block nbk;  // a split edge holds the fix-ups of one outgoing path
@@ -286,25 +312,35 @@ struct Rc {
   void run() {
     classify();
     liveness();
-    for (BlockId b = 0; b < nb; ++b) if (reach[0][b]) block(b);
+    for (BlockId b = 0; b < nb; ++b) if (reach[b]) block(b);
   }
 };
 
 }  // namespace
 
 namespace {
+// Per vtable slot: whether a concrete class's method in it can raise an exception.
+std::vector<char> throwingSlots(const Module& m, const std::vector<char>& thr) {
+  std::vector<char> slots;
+  for (const Class& c : m.classes) {
+    if (c.isInterface || c.isAbstract) continue;
+    if (slots.size() < c.vtable.size()) slots.resize(c.vtable.size(), 0);
+    for (std::size_t k = 0; k < c.vtable.size(); ++k) if (c.vtable[k] < m.functions.size() && thr[c.vtable[k]]) slots[k] = 1;
+  }
+  return slots;
+}
+
 // Functions that can raise an exception: they throw, or call (or may dispatch to) one that can.
 std::vector<char> throwingFunctions(const Module& m) {
   std::vector<char> thr(m.functions.size(), 0);
   for (bool changed = true; changed;) {
     changed = false;
+    std::vector<char> slots = throwingSlots(m, thr);
     for (std::size_t fi = 0; fi < m.functions.size(); ++fi) {
       if (thr[fi]) continue;
       for (const Block& b : m.functions[fi].blocks)
         for (const Inst& i : b.insts) {
-          bool t = i.op == IrOp::Throw || (i.op == IrOp::Call && thr[i.sym]);
-          if (i.op == IrOp::CallVirt)
-            for (const Class& c : m.classes) if (!c.isInterface && !c.isAbstract && i.sym < c.vtable.size() && c.vtable[i.sym] < m.functions.size() && thr[c.vtable[i.sym]]) t = true;
+          bool t = i.op == IrOp::Throw || (i.op == IrOp::Call && thr[i.sym]) || (i.op == IrOp::CallVirt && i.sym < slots.size() && slots[i.sym]);
           if (t) { thr[fi] = 1; changed = true; break; }
         }
     }
@@ -315,8 +351,9 @@ std::vector<char> throwingFunctions(const Module& m) {
 
 void insertRc(Module& m) {
   std::vector<char> thr = throwingFunctions(m);
+  std::vector<char> slots = throwingSlots(m, thr);
   for (Function& f : m.functions) {
-    Rc rc(m, f, thr);
+    Rc rc(m, f, thr, slots);
     rc.run();
   }
 }

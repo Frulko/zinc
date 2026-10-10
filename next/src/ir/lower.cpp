@@ -2149,7 +2149,17 @@ struct Lowering::FnLower {
     }
   }
 
+  // Block parameters that every edge feeds the same value (or the parameter itself) are that value. Each round decides every such parameter, in block
+  // order, against the decisions taken so far (rep), then rewrites the function once: a parameter removed by one round can make another trivial, hence
+  // the rounds. One rewrite per removed parameter (ZN-415) made this the slowest part of the lowering: 292 ms of examples/hero's 340.
   void simplifyParams() {
+    std::vector<ValueId> rep(f.valueTypes.size(), kNoValue);   // a removed parameter -> the value it is
+    auto find = [&](ValueId v) {
+      ValueId r = v;
+      while (r < rep.size() && rep[r] != kNoValue) r = rep[r];
+      while (v < rep.size() && rep[v] != kNoValue) { ValueId next = rep[v]; rep[v] = r; v = next; }
+      return r;
+    };
     for (bool changed = true; changed;) {
       changed = false;
       std::vector<std::vector<Edge*>> incoming(f.blocks.size());
@@ -2158,22 +2168,42 @@ struct Lowering::FnLower {
         for (Edge& e : i.edges) incoming[e.to].push_back(&e);
         if (i.op == IrOp::Call || i.op == IrOp::CallVirt) for (Edge& e : i.edges) handlerBlock[e.to] = 1;
       }
-      for (BlockId b = 1; b < f.blocks.size() && !changed; ++b) {
+      std::vector<std::vector<char>> drop(f.blocks.size());
+      for (BlockId b = 1; b < f.blocks.size(); ++b) {
         if (handlerBlock[b]) continue;  // its parameter is the exception, delivered by the unwinder
-        for (std::size_t p = f.blocks[b].params.size(); p-- > 0 && !changed;) {
+        for (std::size_t p = f.blocks[b].params.size(); p-- > 0;) {
           ValueId pv = f.blocks[b].params[p], same = kNoValue;
           bool trivial = true;
           for (Edge* e : incoming[b]) {
-            ValueId v = e->args[p];
+            ValueId v = find(e->args[p]);
             if (v == pv) continue;
             if (same == kNoValue) same = v; else if (same != v) { trivial = false; break; }
           }
           if (!trivial || same == kNoValue) continue;
-          replaceUses(pv, same);
-          f.blocks[b].params.erase(f.blocks[b].params.begin() + static_cast<std::ptrdiff_t>(p));
-          for (Edge* e : incoming[b]) e->args.erase(e->args.begin() + static_cast<std::ptrdiff_t>(p));
+          rep[pv] = same;
+          if (drop[b].empty()) drop[b].assign(f.blocks[b].params.size(), 0);
+          drop[b][p] = 1;
           changed = true;
         }
+      }
+      if (!changed) break;
+      for (Block& b : f.blocks) for (Inst& i : b.insts) {
+        for (ValueId& v : i.args) v = find(v);
+        for (Edge& e : i.edges) {
+          for (ValueId& v : e.args) v = find(v);
+          if (e.to < drop.size() && !drop[e.to].empty()) {
+            std::size_t k = 0;
+            for (std::size_t p = 0; p < e.args.size(); ++p) if (!drop[e.to][p]) e.args[k++] = e.args[p];
+            e.args.resize(k);
+          }
+        }
+      }
+      for (BlockId b = 1; b < f.blocks.size(); ++b) {
+        if (drop[b].empty()) continue;
+        std::vector<ValueId>& ps = f.blocks[b].params;
+        std::size_t k = 0;
+        for (std::size_t p = 0; p < ps.size(); ++p) if (!drop[b][p]) ps[k++] = ps[p];
+        ps.resize(k);
       }
     }
   }
