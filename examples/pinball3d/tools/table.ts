@@ -10,7 +10,7 @@ import { args, exit } from 'zinc:sys';
 import { Schema, Field, Kind, write } from '../src/format/schema';
 import { FORMAT, VERSION, ROLES } from '../src/format/table-schema';
 import { Table, TableError, TABLE_FILE, loadTable, saveTable, formatSchema, filesOf } from '../src/format/table';
-import { openTable, packTable, PACKAGE_EXT } from '../src/format/source';
+import { openTable, packTable, PACKAGE_EXT, PACKAGE_FORMAT } from '../src/format/source';
 
 /** The type of a field as the reference shows it, with its unit and its role. */
 function typeOf(f: Field): string {
@@ -89,7 +89,11 @@ function doc(t: Table): string {
   out.push('## The file');
   out.push('');
   out.push('- **A folder or a package.** While one works on a table it is a folder: `table.json` and its files. To share it,');
-  out.push(`  \`tools/table.ts -- pack\` writes one package file (\`${PACKAGE_EXT}\`: JSON holding table.json and each file, as text or base64). The game opens both.`);
+  out.push(`  \`tools/table.ts -- pack\`, or Export in the editor, writes one package file (\`${PACKAGE_EXT}\`). The game opens both.`);
+  out.push(`- **The package.** A \`${PACKAGE_EXT}\` file is JSON: \`{ "format": "${PACKAGE_FORMAT}", "version": 1, "files": [...] }\`. \`files\` holds`);
+  out.push(`  \`${TABLE_FILE}\` first, then every file the table names (the sounds, the images, the models), each as \`{ "name": "sounds/example.wav", "base64": "..." }\`,`);
+  out.push('  or `{ "name": "models/example.obj", "text": "..." }` for a file that is text (.json, .obj, .txt, .svg). A name is the path the table gives the file, from the');
+  out.push('  table folder. Making a package fails, naming the file, when the table names a file its folder does not have.');
   out.push('- **Checked.** A file is checked when it is loaded, and every fault is reported at once with the path of the value:');
   out.push('  `flippers[1].length: must be a number from 2 to 30, not "long"`, `bumpers[0].surfce: unknown field (did you mean "surface"?)`,');
   out.push('  `rules.when[3].do[0].target: "lanez" is not one of the lights or light groups (lane1, lane2, lane3, lanes)`. `tools/table.ts -- check` prints them.');

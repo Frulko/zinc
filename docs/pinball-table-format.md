@@ -8,7 +8,11 @@ taken from the table "Tidal Lock"; a test keeps it current. Format `"zinc-pinbal
 ## The file
 
 - **A folder or a package.** While one works on a table it is a folder: `table.json` and its files. To share it,
-  `tools/table.ts -- pack` writes one package file (`.zpinball`: JSON holding table.json and each file, as text or base64). The game opens both.
+  `tools/table.ts -- pack`, or Export in the editor, writes one package file (`.zpinball`). The game opens both.
+- **The package.** A `.zpinball` file is JSON: `{ "format": "zinc-pinball-package", "version": 1, "files": [...] }`. `files` holds
+  `table.json` first, then every file the table names (the sounds, the images, the models), each as `{ "name": "sounds/example.wav", "base64": "..." }`,
+  or `{ "name": "models/example.obj", "text": "..." }` for a file that is text (.json, .obj, .txt, .svg). A name is the path the table gives the file, from the
+  table folder. Making a package fails, naming the file, when the table names a file its folder does not have.
 - **Checked.** A file is checked when it is loaded, and every fault is reported at once with the path of the value:
   `flippers[1].length: must be a number from 2 to 30, not "long"`, `bumpers[0].surfce: unknown field (did you mean "surface"?)`,
   `rules.when[3].do[0].target: "lanez" is not one of the lights or light groups (lane1, lane2, lane3, lanes)`. `tools/table.ts -- check` prints them.
@@ -41,6 +45,7 @@ taken from the table "Tidal Lock"; a test keeps it current. Format `"zinc-pinbal
   *profile*: a height along a path: rows [fraction of the length, height].
   *rotation*: a turn in space, [around x, around y, around z]; the third number turns the thing in the top view, as a direction does.
   *offset*: a step counted from the element's own place, [dx, dy] or [dx, dy, dz]: it turns and mirrors with its element, and does not move when the element moves.
+  *level*: the height of the level a thing stands on: 0 on the playfield, the `z` of an upper playfield on that one. An editor that works on one level shows and places things by it.
 
 ## table
 
@@ -246,7 +251,7 @@ A wall, a guide or a lane divider: a path seen from above, raised to a height. P
 | `group` | text | `""` | A name shared by several elements, so that one rule speaks of all of them ("pops", "lanes"). |
 | `points` | rows of 2 or 3 numbers, cm (*path*) | required | The path: [x, y] for each point, or [x, y, bulge] when the stretch to the next point is an arc (bulge = sagitta / half chord: 0.4142 is a quarter circle, 1 a half circle; positive curves to the left of the direction of travel as seen in the top view). |
 | `closed` | true / false | `false` | The last point joins the first. |
-| `z` | number, cm | `0` (0 to 100) | The height of its foot above the playfield (an upper level stands on its own floor). |
+| `z` | number, cm (*level*) | `0` (0 to 100) | The height of its foot above the playfield (an upper level stands on its own floor). |
 | `height` | number, cm | `2.6` (0.2 to 100) | How tall it is. A ball that jumps higher passes over. |
 | `thickness` | number, cm | `0.3` (0.1 to 10) | How thick it is. |
 | `surface` | name of surfaces | none | What the ball feels: friction and bounce. Metal by default. |
@@ -279,7 +284,7 @@ A one-way gate across a lane: the ball passes when it comes from the left of the
 | `group` | text | `""` | A name shared by several elements, so that one rule speaks of all of them ("pops", "lanes"). |
 | `a` | 2 numbers, cm (*point*) | required | One end. |
 | `b` | 2 numbers, cm (*point*) | required | The other end. |
-| `z` | number, cm | `0` (0 to 100) | The height of its foot. |
+| `z` | number, cm (*level*) | `0` (0 to 100) | The height of its foot. |
 | `height` | number, cm | `2.6` (0.2 to 100) | How tall it is. |
 | `surface` | name of surfaces | none | What the ball feels: friction and bounce.  |
 | `look` | name of looks | none | What it looks like. A wire by default. |
@@ -310,7 +315,7 @@ A flipper: a tapered bat that turns around its pivot while its button is held.
 | `id` | text | required | The name of the flipper: rules, the editor and the event log use it. Unique among all the elements of the table. |
 | `group` | text | `""` | A name shared by several elements, so that one rule speaks of all of them ("pops", "lanes"). |
 | `pivot` | 2 numbers, cm (*point*) | required | Where it turns. |
-| `z` | number, cm | `0` (0 to 100) | The height of its foot (a flipper of an upper level stands on that level). |
+| `z` | number, cm (*level*) | `0` (0 to 100) | The height of its foot (a flipper of an upper level stands on that level). |
 | `length` | number, cm | `7.6` (2 to 30) | From the pivot to the tip. |
 | `baseRadius` | number, cm | `0.9` (0.2 to 5) | Its radius at the pivot. |
 | `tipRadius` | number, cm | `0.45` (0.1 to 5) | Its radius at the tip. |
@@ -348,7 +353,7 @@ The plunger: it is pulled back while its button is held, and released it strikes
 | field | type | default | |
 |---|---|---|---|
 | `at` | 2 numbers, cm (*point*) | required | The centre of its tip at rest. A new ball is put just in front of it. |
-| `z` | number, cm | `0` (0 to 100) | The height of its foot. |
+| `z` | number, cm (*level*) | `0` (0 to 100) | The height of its foot. |
 | `angle` | number, degrees (*direction*) | `-90` (-360 to 360) | The direction it shoots: -90 is up the table. |
 | `travel` | number, cm | `5` (0.5 to 30) | How far it can be pulled back. |
 | `pullTime` | number, seconds | `0.9` (0.05 to 10) | Seconds to pull it all the way. |
@@ -385,7 +390,7 @@ A pop bumper: a round post that kicks the ball away when it is touched.
 | `id` | text | required | The name of the bumper: rules, the editor and the event log use it. Unique among all the elements of the table. |
 | `group` | text | `""` | A name shared by several elements, so that one rule speaks of all of them ("pops", "lanes"). |
 | `at` | 2 numbers, cm (*point*) | required | Its centre. |
-| `z` | number, cm | `0` (0 to 100) | The height of its foot. |
+| `z` | number, cm (*level*) | `0` (0 to 100) | The height of its foot. |
 | `radius` | number, cm | `2.6` (0.5 to 20) | The radius of its body. |
 | `height` | number, cm | `3.2` (0.5 to 50) | How tall it is. |
 | `kick` | number, cm/s | `140` (0 to 2000) | The speed it adds to the ball, away from its centre. |
@@ -431,7 +436,7 @@ A slingshot: a rubber band stretched from a to b that kicks the ball away, to th
 | `group` | text | `""` | A name shared by several elements, so that one rule speaks of all of them ("pops", "lanes"). |
 | `a` | 2 numbers, cm (*point*) | required | One end of the band. |
 | `b` | 2 numbers, cm (*point*) | required | The other end. |
-| `z` | number, cm | `0` (0 to 100) | The height of its foot. |
+| `z` | number, cm (*level*) | `0` (0 to 100) | The height of its foot. |
 | `height` | number, cm | `2.2` (0.2 to 50) | How tall the band is. |
 | `thickness` | number, cm | `0.5` (0.1 to 10) | How thick the band is. |
 | `kick` | number, cm/s | `120` (0 to 2000) | The speed it adds to the ball. |
@@ -466,7 +471,7 @@ A hole that catches the ball, holds it, then throws it out: a saucer (same place
 | `id` | text | required | The name of the kicker: rules, the editor and the event log use it. Unique among all the elements of the table. |
 | `group` | text | `""` | A name shared by several elements, so that one rule speaks of all of them ("pops", "lanes"). |
 | `at` | 2 numbers, cm (*point*) | required | Its centre. |
-| `z` | number, cm | `0` (0 to 100) | The height of the level it is in. |
+| `z` | number, cm (*level*) | `0` (0 to 100) | The height of the level it is in. |
 | `radius` | number, cm | `1.7` (0.5 to 20) | The radius of the hole. |
 | `captureSpeed` | number, cm/s | `220` (10 to 4000) | A ball faster than this rolls over the hole. |
 | `hold` | number, seconds | `1.2` (0 to 60) | Seconds it keeps the ball (rules may keep it longer: a lock). |
@@ -515,7 +520,7 @@ A target: a small plate the ball hits. A standup stays; a drop target goes down 
 | `group` | text | `""` | A name shared by several elements, so that one rule speaks of all of them ("pops", "lanes"). |
 | `kind` | `"standup"` `"drop"` | `"standup"` | standup or drop. |
 | `at` | 2 numbers, cm (*point*) | required | The centre of its face. |
-| `z` | number, cm | `0` (0 to 100) | The height of its foot. |
+| `z` | number, cm (*level*) | `0` (0 to 100) | The height of its foot. |
 | `angle` | number, degrees (*direction*) | `90` (-360 to 360) | The direction its face looks at: 90 faces down the table. |
 | `width` | number, cm | `2.4` (0.5 to 20) | How wide it is. |
 | `height` | number, cm | `2.4` (0.5 to 20) | How tall it is. |
@@ -562,7 +567,7 @@ A switch in the playfield that a ball rolling over it closes: the line from a to
 | `group` | text | `""` | A name shared by several elements, so that one rule speaks of all of them ("pops", "lanes"). |
 | `a` | 2 numbers, cm (*point*) | required | One end of the line. |
 | `b` | 2 numbers, cm (*point*) | required | The other end. |
-| `z` | number, cm | `0` (0 to 100) | The height of the level it is in. |
+| `z` | number, cm (*level*) | `0` (0 to 100) | The height of the level it is in. |
 | `light` | name of lights | none | A light that goes with it. |
 | `sounds` | [rollover sounds](#rollover-sounds) |  | Its sounds. |
 
@@ -592,7 +597,7 @@ A spinner: a plate hung across a lane that a ball passing under sets spinning; e
 | `group` | text | `""` | A name shared by several elements, so that one rule speaks of all of them ("pops", "lanes"). |
 | `a` | 2 numbers, cm (*point*) | required | One end of its axle. |
 | `b` | 2 numbers, cm (*point*) | required | The other end. |
-| `z` | number, cm | `0` (0 to 100) | The height of the level it is in. |
+| `z` | number, cm (*level*) | `0` (0 to 100) | The height of the level it is in. |
 | `height` | number, cm | `3` (1 to 20) | The height of the plate. |
 | `turns` | number | `0.02` (0 to 1) | Half turns per second it gains for each cm/s of the ball that passes. |
 | `damping` | number, per second | `1.1` (0.05 to 20) | How fast it slows, per second. |
@@ -686,7 +691,7 @@ A lamp under the playfield or on an element, that the rules turn on, off or blin
 | `id` | text | required | Its name. |
 | `group` | text | `""` | A name shared by several lights ("lanes", "mission"). |
 | `at` | 2 numbers, cm (*point*) | required | Its centre. |
-| `z` | number, cm | `0` (0 to 100) | The height of the level it is in. |
+| `z` | number, cm (*level*) | `0` (0 to 100) | The height of the level it is in. |
 | `shape` | `"round"` `"arrow"` `"bar"` | `"round"` | The shape of the insert. |
 | `size` | number, cm | `1.1` (0.2 to 20) | Its radius, or half its length. |
 | `angle` | number, degrees (*direction*) | `-90` (-360 to 360) | Where an arrow points, or how a bar lies. |

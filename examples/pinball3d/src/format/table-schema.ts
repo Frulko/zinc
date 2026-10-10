@@ -25,6 +25,7 @@ export const ROLES: string[][] = [
   ['profile', 'a height along a path: rows [fraction of the length, height]'],
   ['rotation', 'a turn in space, [around x, around y, around z]; the third number turns the thing in the top view, as a direction does'],
   ['offset', 'a step counted from the element\'s own place, [dx, dy] or [dx, dy, dz]: it turns and mirrors with its element, and does not move when the element moves'],
+  ['level', 'the height of the level a thing stands on: 0 on the playfield, the `z` of an upper playfield on that one. An editor that works on one level shows and places things by it'],
 ];
 
 const ELEMENTS = 'elements', GROUPS = 'groups', ANY = 'elements|groups|game';
@@ -124,7 +125,7 @@ export function tableSchema(): Schema {
   element(wall, 'wall');
   wall.rows('points', 2, 3, 2, 'The path: [x, y] for each point, or [x, y, bulge] when the stretch to the next point is an arc (bulge = sagitta / half chord: 0.4142 is a quarter circle, 1 a half circle; positive curves to the left of the direction of travel as seen in the top view).').withRole('path').withUnit('cm');
   wall.bool('closed', false, 'The last point joins the first.');
-  wall.num('z', 0, 'The height of its foot above the playfield (an upper level stands on its own floor).').range(0, 100).withUnit('cm');
+  wall.num('z', 0, 'The height of its foot above the playfield (an upper level stands on its own floor).').range(0, 100).withRole('level').withUnit('cm');
   wall.num('height', 2.6, 'How tall it is. A ball that jumps higher passes over.').range(0.2, 100).withUnit('cm');
   wall.num('thickness', 0.3, 'How thick it is.').range(0.1, 10).withUnit('cm');
   body(wall, 'Metal by default.', 'Metal by default.');
@@ -134,7 +135,7 @@ export function tableSchema(): Schema {
   element(gate, 'gate');
   gate.tuple('a', [0, 0], 'One end.').must().withRole('point').withUnit('cm');
   gate.tuple('b', [0, 0], 'The other end.').must().withRole('point').withUnit('cm');
-  gate.num('z', 0, 'The height of its foot.').range(0, 100).withUnit('cm');
+  gate.num('z', 0, 'The height of its foot.').range(0, 100).withRole('level').withUnit('cm');
   gate.num('height', 2.6, 'How tall it is.').range(0.2, 100).withUnit('cm');
   body(gate, '', 'A wire by default.');
   gate.obj('sounds', soundsOf('gate', ['pass'], ['When a ball goes through.']), 'Its sounds.');
@@ -143,7 +144,7 @@ export function tableSchema(): Schema {
   const flipper = new Schema('flipper', 'A flipper: a tapered bat that turns around its pivot while its button is held.');
   element(flipper, 'flipper');
   flipper.tuple('pivot', [0, 0], 'Where it turns.').must().withRole('point').withUnit('cm');
-  flipper.num('z', 0, 'The height of its foot (a flipper of an upper level stands on that level).').range(0, 100).withUnit('cm');
+  flipper.num('z', 0, 'The height of its foot (a flipper of an upper level stands on that level).').range(0, 100).withRole('level').withUnit('cm');
   flipper.num('length', 7.6, 'From the pivot to the tip.').range(2, 30).withUnit('cm');
   flipper.num('baseRadius', 0.9, 'Its radius at the pivot.').range(0.2, 5).withUnit('cm');
   flipper.num('tipRadius', 0.45, 'Its radius at the tip.').range(0.1, 5).withUnit('cm');
@@ -158,7 +159,7 @@ export function tableSchema(): Schema {
 
   const plunger = new Schema('plunger', 'The plunger: it is pulled back while its button is held, and released it strikes the ball that waits in front of it.');
   plunger.tuple('at', [0, 0], 'The centre of its tip at rest. A new ball is put just in front of it.').must().withRole('point').withUnit('cm');
-  plunger.num('z', 0, 'The height of its foot.').range(0, 100).withUnit('cm');
+  plunger.num('z', 0, 'The height of its foot.').range(0, 100).withRole('level').withUnit('cm');
   plunger.num('angle', -90, 'The direction it shoots: -90 is up the table.').range(-360, 360).withRole('direction').withUnit('degrees');
   plunger.num('travel', 5, 'How far it can be pulled back.').range(0.5, 30).withUnit('cm');
   plunger.num('pullTime', 0.9, 'Seconds to pull it all the way.').range(0.05, 10).withUnit('seconds');
@@ -172,7 +173,7 @@ export function tableSchema(): Schema {
   const bumper = new Schema('bumper', 'A pop bumper: a round post that kicks the ball away when it is touched.');
   element(bumper, 'bumper');
   bumper.tuple('at', [0, 0], 'Its centre.').must().withRole('point').withUnit('cm');
-  bumper.num('z', 0, 'The height of its foot.').range(0, 100).withUnit('cm');
+  bumper.num('z', 0, 'The height of its foot.').range(0, 100).withRole('level').withUnit('cm');
   bumper.num('radius', 2.6, 'The radius of its body.').range(0.5, 20).withUnit('cm');
   bumper.num('height', 3.2, 'How tall it is.').range(0.5, 50).withUnit('cm');
   bumper.num('kick', 140, 'The speed it adds to the ball, away from its centre.').range(0, 2000).withUnit('cm/s');
@@ -186,7 +187,7 @@ export function tableSchema(): Schema {
   element(slingshot, 'slingshot');
   slingshot.tuple('a', [0, 0], 'One end of the band.').must().withRole('point').withUnit('cm');
   slingshot.tuple('b', [0, 0], 'The other end.').must().withRole('point').withUnit('cm');
-  slingshot.num('z', 0, 'The height of its foot.').range(0, 100).withUnit('cm');
+  slingshot.num('z', 0, 'The height of its foot.').range(0, 100).withRole('level').withUnit('cm');
   slingshot.num('height', 2.2, 'How tall the band is.').range(0.2, 50).withUnit('cm');
   slingshot.num('thickness', 0.5, 'How thick the band is.').range(0.1, 10).withUnit('cm');
   slingshot.num('kick', 120, 'The speed it adds to the ball.').range(0, 2000).withUnit('cm/s');
@@ -198,7 +199,7 @@ export function tableSchema(): Schema {
   const kicker = new Schema('kicker', 'A hole that catches the ball, holds it, then throws it out: a saucer (same place), a subway (it comes out elsewhere), or a launcher that throws it in the air.');
   element(kicker, 'kicker');
   kicker.tuple('at', [0, 0], 'Its centre.').must().withRole('point').withUnit('cm');
-  kicker.num('z', 0, 'The height of the level it is in.').range(0, 100).withUnit('cm');
+  kicker.num('z', 0, 'The height of the level it is in.').range(0, 100).withRole('level').withUnit('cm');
   kicker.num('radius', 1.7, 'The radius of the hole.').range(0.5, 20).withUnit('cm');
   kicker.num('captureSpeed', 220, 'A ball faster than this rolls over the hole.').range(10, 4000).withUnit('cm/s');
   kicker.num('hold', 1.2, 'Seconds it keeps the ball (rules may keep it longer: a lock).').range(0, 60).withUnit('seconds');
@@ -214,7 +215,7 @@ export function tableSchema(): Schema {
   element(target, 'target');
   target.choice('kind', ['standup', 'drop'], 'standup or drop.');
   target.tuple('at', [0, 0], 'The centre of its face.').must().withRole('point').withUnit('cm');
-  target.num('z', 0, 'The height of its foot.').range(0, 100).withUnit('cm');
+  target.num('z', 0, 'The height of its foot.').range(0, 100).withRole('level').withUnit('cm');
   target.num('angle', 90, 'The direction its face looks at: 90 faces down the table.').range(-360, 360).withRole('direction').withUnit('degrees');
   target.num('width', 2.4, 'How wide it is.').range(0.5, 20).withUnit('cm');
   target.num('height', 2.4, 'How tall it is.').range(0.5, 20).withUnit('cm');
@@ -227,7 +228,7 @@ export function tableSchema(): Schema {
   element(rollover, 'rollover');
   rollover.tuple('a', [0, 0], 'One end of the line.').must().withRole('point').withUnit('cm');
   rollover.tuple('b', [0, 0], 'The other end.').must().withRole('point').withUnit('cm');
-  rollover.num('z', 0, 'The height of the level it is in.').range(0, 100).withUnit('cm');
+  rollover.num('z', 0, 'The height of the level it is in.').range(0, 100).withRole('level').withUnit('cm');
   rollover.ref('light', 'lights', 'A light that goes with it.');
   rollover.obj('sounds', soundsOf('rollover', ['roll'], ['When a ball rolls over it.']), 'Its sounds.');
 
@@ -235,7 +236,7 @@ export function tableSchema(): Schema {
   element(spinner, 'spinner');
   spinner.tuple('a', [0, 0], 'One end of its axle.').must().withRole('point').withUnit('cm');
   spinner.tuple('b', [0, 0], 'The other end.').must().withRole('point').withUnit('cm');
-  spinner.num('z', 0, 'The height of the level it is in.').range(0, 100).withUnit('cm');
+  spinner.num('z', 0, 'The height of the level it is in.').range(0, 100).withRole('level').withUnit('cm');
   spinner.num('height', 3, 'The height of the plate.').range(1, 20).withUnit('cm');
   spinner.num('turns', 0.02, 'Half turns per second it gains for each cm/s of the ball that passes.').range(0, 1);
   spinner.num('damping', 1.1, 'How fast it slows, per second.').range(0.05, 20).withUnit('per second');
@@ -268,7 +269,7 @@ export function tableSchema(): Schema {
   light.id('lights', 'Its name.');
   light.text('group', '', 'A name shared by several lights ("lanes", "mission").');
   light.tuple('at', [0, 0], 'Its centre.').must().withRole('point').withUnit('cm');
-  light.num('z', 0, 'The height of the level it is in.').range(0, 100).withUnit('cm');
+  light.num('z', 0, 'The height of the level it is in.').range(0, 100).withRole('level').withUnit('cm');
   light.choice('shape', ['round', 'arrow', 'bar'], 'The shape of the insert.');
   light.num('size', 1.1, 'Its radius, or half its length.').range(0.2, 20).withUnit('cm');
   light.num('angle', -90, 'Where an arrow points, or how a bar lies.').range(-360, 360).withRole('direction').withUnit('degrees');
