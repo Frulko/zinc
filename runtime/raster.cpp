@@ -174,6 +174,10 @@ template<class T> static T* grow_scratch(T*& buf, uint32_t& cap, uint32_t need) 
   buf = nb; cap = n;
   return buf;
 }
+// Mirrors (ZN-589): when 2cx is a whole number, column M - x (M = 2cx - 1) has the same qx bits as column x, so the right part of a row
+// copies the left one; when 2cy is, row 2cy - 1 - y has the same qy bits and spans as row y, so the bottom half reuses the top half's rows
+// without row_span or a key search (above the centre every qy is new, so only middle rows search: they share one row).
+static ZRT_TLS int32_t* shadow_slot; static ZRT_TLS uint32_t shadow_slot_cap;
 static void shadow_rrect(const Target& t, const Cmd& c) {
   float blur = c.s > 0.5f ? c.s : 0.5f;
   Rect b = bounds(c.x - blur, c.y - blur, c.w + 2 * blur, c.h + 2 * blur, t.clip);
@@ -190,10 +194,28 @@ static void shadow_rrect(const Target& t, const Cmd& c) {
   const uint32_t full = alpha_of(-1e30f);   // what a fully covered pixel gets: (uint32_t)(1 * alpha)
   const uint32_t ncol = (uint32_t)(b.x1 - b.x0), nrow = (uint32_t)(b.y1 - b.y0);
   // one alpha row per distinct key; without memory for the cache every row is computed into row 0
-  const bool cache = (uint64_t)ncol * nrow <= (8u << 20) && grow_scratch(shadow_rows, shadow_rows_cap, ncol * nrow) && grow_scratch(shadow_keys, shadow_keys_cap, nrow);
+  const bool cache = (uint64_t)ncol * nrow <= (8u << 20) && grow_scratch(shadow_rows, shadow_rows_cap, ncol * nrow) && grow_scratch(shadow_keys, shadow_keys_cap, nrow) &&
+                     grow_scratch(shadow_slot, shadow_slot_cap, nrow);
   if (!cache && !grow_scratch(shadow_rows, shadow_rows_cap, ncol)) return;
+  const float cx2 = cx * 2, cy2 = cy * 2;
+  const bool mirror_x = cx2 == (float)(int32_t)cx2 && fabsf_(cx2) < 1e7f, mirror_y = cache && cy2 == (float)(int32_t)cy2 && fabsf_(cy2) < 1e7f;
+  const int32_t mx = mirror_x ? (int32_t)cx2 - 1 : 0, my = mirror_y ? (int32_t)cy2 - 1 : 0;
   uint32_t nkeys = 0, nslots = 0;
+  int32_t column_row = -1;   // the slot middle rows share (mirror_y)
   for (int32_t y = b.y0; y < b.y1; y++) {
+    const int32_t ym = my - y;
+    if (mirror_y && ym >= b.y0 && ym < y) {   // the top half's row, spans and alphas
+      const int32_t s = shadow_slot[ym - b.y0];
+      shadow_slot[y - b.y0] = s;
+      if (s < 0) continue;
+      const ShadowKey& h = shadow_keys[s];
+      const uint8_t* a = shadow_rows + (size_t)h.row * ncol;
+      blend_alphas(&at(t, h.x0, y), a + (h.x0 - b.x0), h.i0 - h.x0, col);
+      if (h.i1 > h.i0) blend_row(&at(t, h.i0, y), h.i1 - h.i0, col, alpha);
+      blend_alphas(&at(t, h.i1, y), a + (h.i1 - b.x0), h.x1 - h.i1, col);
+      continue;
+    }
+    if (cache) shadow_slot[y - b.y0] = -1;
     float py = y + 0.5f;
     // k = 1 where d <= -blur/2 (inside the box shrunk by blur/2), 0 where d >= blur (outside it grown by blur)
     Span o = row_span(py, cx, cy, hw, hh, r, blur), in = row_span(py, cx, cy, hw, hh, r, -blur * 0.5f);
@@ -206,11 +228,15 @@ static void shadow_rrect(const Target& t, const Cmd& c) {
     uint32_t qbits; __builtin_memcpy(&qbits, &qy, 4);
     const ShadowKey key = {by_column ? 0x7FC0DEADu : qbits, x0, x1, i0, i1, 0};
     uint8_t* a = nullptr;
-    if (cache) {
-      for (uint32_t k = nkeys; k-- > 0;) {   // newest first: neighbouring rows repeat most
+    int32_t slot = -1;
+    if (cache && (!mirror_y || by_column)) {   // mirrored: a row above the centre is never seen twice, middle rows share one
+      if (mirror_y) {   // the middle rows' row, when the spans match (they differ when the inner box's radius was clamped to 0)
+        if (column_row >= 0) { const ShadowKey& h = shadow_keys[column_row]; if (h.x0 == x0 && h.x1 == x1 && h.i0 == i0 && h.i1 == i1) slot = column_row; }
+      } else for (uint32_t k = nkeys; k-- > 0;) {   // newest first: neighbouring rows repeat most
         const ShadowKey& h = shadow_keys[k];
-        if (h.q == key.q && h.x0 == x0 && h.x1 == x1 && h.i0 == i0 && h.i1 == i1) { a = shadow_rows + (size_t)h.row * ncol; break; }
+        if (h.q == key.q && h.x0 == x0 && h.x1 == x1 && h.i0 == i0 && h.i1 == i1) { slot = (int32_t)k; break; }
       }
+      if (slot >= 0) a = shadow_rows + (size_t)shadow_keys[slot].row * ncol;
     }
     if (!a) {
       a = shadow_rows + (cache ? (size_t)nslots * ncol : 0);
@@ -220,9 +246,20 @@ static void shadow_rrect(const Target& t, const Cmd& c) {
           a[x - b.x0] = (uint8_t)alpha_of(sdf_q(qx, qy, r));
         }
       };
-      fill(x0, i0); fill(i1, x1);
-      if (cache) { shadow_keys[nkeys] = key; shadow_keys[nkeys].row = (int32_t)nslots; nkeys++; nslots++; }
+      fill(x0, i0);
+      const int32_t ca = mirror_x && mx - i0 + 1 > i1 ? mx - i0 + 1 : i1, cb = mirror_x && mx - x0 + 1 < x1 ? mx - x0 + 1 : x1;   // columns whose mirror is in [x0, i0)
+      if (mirror_x && ca < cb) {
+        fill(i1, ca);
+        for (int32_t x = ca; x < cb; x++) a[x - b.x0] = a[mx - x - b.x0];
+        fill(cb, x1);
+      } else fill(i1, x1);
+      if (cache) {
+        slot = (int32_t)nkeys;
+        shadow_keys[nkeys] = key; shadow_keys[nkeys].row = (int32_t)nslots; nkeys++; nslots++;
+        if (mirror_y && by_column) column_row = slot;
+      }
     }
+    if (cache) shadow_slot[y - b.y0] = slot;
     blend_alphas(&at(t, x0, y), a + (x0 - b.x0), i0 - x0, col);
     if (i1 > i0) blend_row(&at(t, i0, y), i1 - i0, col, alpha);
     blend_alphas(&at(t, i1, y), a + (i1 - b.x0), x1 - i1, col);
