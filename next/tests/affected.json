@@ -71,6 +71,7 @@
     {"paths": ["src/host/sys_host.cpp"], "tests": ["sys_host", "camera"]},
     {"paths": ["targets/wasm/", "tools/wasm-export-test"], "tests": ["export_wasm"]},
     {"paths": ["firmware/esp32/", "tools/esp32-export-test"], "tests": ["export_esp32"]},
-    {"paths": ["src/host/netlog.cpp", "src/host/netlog.h", "src/host/http.cpp", "src/host/mqtt.cpp", "src/host/sock.cpp", "../plugins/devtools/", "tools/cdp-probe", "tools/har-chrome", "tests/netlog_check.py", "tests/netlog_servers.py", "tests/golden/host/netlog.tsx"], "tests": ["netlog", "socket", "net", "mqtt"]}
+    {"paths": ["src/host/netlog.cpp", "src/host/netlog.h", "src/host/http.cpp", "src/host/mqtt.cpp", "src/host/sock.cpp", "../plugins/devtools/", "tools/cdp-probe", "tools/har-chrome", "tests/netlog_check.py", "tests/netlog_servers.py", "tests/golden/host/netlog.tsx"], "tests": ["netlog", "netlog_kill", "devtools_port", "socket", "net", "mqtt"]},
+    {"paths": ["tests/free_ports.py"], "tests": ["devtools_port", "netlog", "socket", "dev_mode"]}
   ]
 }
