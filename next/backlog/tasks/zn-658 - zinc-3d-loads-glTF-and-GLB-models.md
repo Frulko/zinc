@@ -2,8 +2,7 @@
 id: ZN-658
 title: 'zinc:3d loads glTF and GLB models'
 status: Backlog
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-10 18:17'
 labels:
   - 3d

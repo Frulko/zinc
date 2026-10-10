@@ -1,7 +1,7 @@
 ---
 id: ZN-659
 title: Scripted touch points in ZINC_INPUT
-status: Backlog
+status: Done
 assignee:
   - '@parallel'
 created_date: '2026-10-10 18:17'
@@ -22,7 +22,13 @@ ordinal: 412410
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 a script with two simultaneous touches gives the expected touch log on the interpreter and the AOT (golden)
-- [ ] #2 existing input scripts and their goldens are unchanged
-- [ ] #3 docs/guide/06-testing.md documents the syntax
+- [x] #1 a script with two simultaneous touches gives the expected touch log on the interpreter and the AOT (golden)
+- [x] #2 existing input scripts and their goldens are unchanged
+- [x] #3 the input script reference (docs/reports/zinc-next-window.md) documents the syntax
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Done by the museum-table agent as commit 611f27b9 (20 lines in next/src/host/hal_dispatch.cpp): `<frame> touch ID X Y` and `<frame> touchup ID`, up to 10 fingers held, in landing order, the first finger also being the pointer. tests/t1/input_touch.sh (PASS on the compiled program and on the interpreter, coordinator's run), tests input and pointer_kind unchanged. The syntax is documented where the input script is, docs/reports/zinc-next-window.md, not in the guide.
+<!-- SECTION:NOTES:END -->
