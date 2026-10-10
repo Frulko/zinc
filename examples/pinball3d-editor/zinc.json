@@ -1,0 +1,12 @@
+{
+  "name": "pinball3d-editor",
+  "description": "The table editor of the 3D pinball: a top view, properties generated from the table format, undo, save",
+  "entry": "src/main.tsx",
+  "permissions": ["dialog", "fs", "window"],
+  "icons": ["circle-dot", "file-plus", "folder-open", "save", "undo-2", "redo-2", "plus", "minus", "maximize", "trash", "chevron-down", "chevron-right", "rotate-ccw", "rotate-cw", "circle-alert", "info"],
+  "targets": {
+    "macos": { "width": 1440, "height": 900, "resize": "fill" },
+    "linux": { "width": 1440, "height": 900, "resize": "fill" },
+    "sim": { "width": 1440, "height": 900 }
+  }
+}

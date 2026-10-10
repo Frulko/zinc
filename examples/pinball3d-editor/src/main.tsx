@@ -1,0 +1,153 @@
+// The table editor of the 3D pinball (ZN-649.04): a desktop tool, mouse and keyboard, with which someone who does not code makes a
+// table of examples/pinball3d. It edits a table folder (table.json and the files it names, docs/pinball-table-format.md) and writes
+// exactly what the game reads: the canonical text of the format.
+//   zinc run examples/pinball3d-editor                        a new table (Save asks for its folder)
+//   zinc run examples/pinball3d-editor -- path/to/table       that table folder (or its table.json); a new table saved there when it has none
+// The list at the left is outline.tsx, the top view topview.tsx, the properties form.tsx; every text of the interface is in
+// strings.ts, in English and French.
+import { render, For, Show } from 'zinc:ui/solid';
+import * as ui from 'zinc:ui';
+import { args, env } from 'zinc:sys';
+import { exists } from 'zinc:fs';
+import { quit } from 'zinc:gfx';
+import { onCloseRequested, keepOpen } from 'zinc:system/window';
+import { TABLE_FILE } from '../../pinball3d/src/format/table';
+import { doc, folder, status, failed, selected, select, zoomBy, fit, viewW, viewH, undo, redo, save, newCommand, openCommand, openFolder, newTable, waiting, answer, guard,
+  advanced, setAdvanced, moveSelected, turnSelected, deleteSelected } from './state';
+import { Ico, Tool, Segmented, ACCENT, chord } from './widgets';
+import { Outline } from './outline';
+import { TopView } from './topview';
+import { Properties } from './form';
+import * as L from './strings';
+import { t, f, uiLang, setUiLang } from './strings';
+
+const never = (): boolean => false;
+function Divider(): i32 { return <view class="w-px h-5 mx-1 bg-zinc-800" />; }
+/** The shortcut of a command, shown beside it in the advanced mode. */
+function keys(k: string, shift: boolean = false): () => string { return (): string => advanced() ? chord(k, shift) : ''; }
+
+function TopBar(): i32 {
+  const where = (): string => folder().length > 0 ? `${folder().slice(folder().lastIndexOf('/') + 1)}/${TABLE_FILE}` : t(L.NO_FOLDER_YET);
+  return <view class="flex-row items-center gap-1 h-12 px-3 shrink-0 bg-zinc-900 border-b border-zinc-800">
+    <Ico name="circle-dot" size={18} color={ACCENT} />
+    <view class="flex-col ml-2 mr-3" style={{ width: 196 }}>
+      <text class="truncate text-sm font-bold text-zinc-100" style={{ maxWidth: 196 }}>{`${doc().get('name')}`}</text>
+      <view class="flex-row items-center gap-2">
+        <text class="truncate text-[11px] text-zinc-500" style={{ maxWidth: 196 }}>{where()}</text>
+      </view>
+    </view>
+    <Divider />
+    <Tool icon="file-plus" label={t(L.NEW)} look="quiet" keys={keys('N')} off={never} onClick={newCommand} />
+    <Tool icon="folder-open" label={t(L.OPEN)} look="quiet" keys={keys('O')} off={never} onClick={openCommand} />
+    <Tool icon="save" label={t(L.SAVE)} look="plain" keys={keys('S')} off={() => !doc().dirty} onClick={() => { save(); }} />
+    <Divider />
+    <Tool icon="undo-2" label={t(L.UNDO)} look="quiet" keys={keys('Z')} off={() => !doc().canUndo} onClick={undo} />
+    <Tool icon="redo-2" label={t(L.REDO)} look="quiet" keys={keys('Z', true)} off={() => !doc().canRedo} onClick={redo} />
+    <Show when={doc().dirty}>
+      <view class="flex-row items-center gap-[6] ml-3">
+        <view class="w-[6] h-[6] rounded-full bg-amber-400" />
+        <text class="text-[11px] text-amber-300">{t(L.UNSAVED)}</text>
+      </view>
+    </Show>
+    <view class="grow" />
+    <text class="text-[11px] text-zinc-500">{t(L.APP)}</text>
+  </view>;
+}
+/** The last thing done or refused, what Undo would take back, the advanced mode and the language of the interface. */
+function StatusBar(): i32 {
+  return <view class="flex-row items-center gap-3 h-8 px-3 shrink-0 bg-zinc-950 border-t border-zinc-800">
+    <Show when={failed()}><Ico name="circle-alert" size={13} color={0xf87171} /></Show>
+    <text class={`grow basis-0 truncate text-[11px] ${failed() ? 'text-red-300' : 'text-zinc-400'}`}>{status()}</text>
+    <text class="text-[11px] text-zinc-600">{doc().canUndo ? f(L.UNDO_NEXT, L.step(doc().undoLabel)) : ''}</text>
+    <button class={`flex-row items-center gap-1 h-6 px-2 rounded cursor-pointer ${advanced() ? 'bg-zinc-700' : 'bg-zinc-950 border border-zinc-800 hover:bg-zinc-800'}`} onClick={() => setAdvanced(!advanced())}>
+      <text class={`text-[11px] font-bold ${advanced() ? 'text-white' : 'text-zinc-400'}`}>{t(L.ADVANCED)}</text>
+      <text class="text-[10px] text-zinc-400">{advanced() ? chord('E') : ''}</text>
+    </button>
+    <text class="text-[11px] text-zinc-500">{t(L.INTERFACE)}</text>
+    <view class="w-[150]"><Segmented options={['en', 'fr']} labels={['English', 'Français']} value={uiLang} onPick={setUiLang} /></view>
+  </view>;
+}
+
+/** A button of a question. `look`: 'plain' or 'primary'. */
+function Choice(p: { label: string; look: string; onClick: () => void }): i32 {
+  const fill = p.look === 'primary' ? 'bg-amber-400 hover:bg-amber-300' : 'bg-zinc-900 border border-zinc-700 hover:bg-zinc-800';
+  return <button class={`flex-row items-center justify-center h-9 px-4 rounded-md cursor-pointer ${fill}`} onClick={p.onClick}>
+    <text class={`text-sm font-bold ${p.look === 'plain' ? 'text-zinc-100' : 'text-zinc-900'}`}>{p.label}</text>
+  </button>;
+}
+/** Unsaved work is never dropped without this question. Nothing under it answers until it is closed. */
+function Unsaved(): i32 {
+  return <view class="absolute inset-0 items-center justify-center bg-black/60" onPointerDown={(e: ui.PointerEvent) => {}} onWheel={(e: ui.PointerEvent) => {}}>
+    <view class="w-[460] flex-col gap-2 p-6 rounded-xl bg-zinc-900 border border-zinc-700 shadow-lg">
+      <text class="text-lg font-bold text-zinc-100">{t(L.ASK_SAVE)}</text>
+      <text class="text-sm text-zinc-400">{t(L.ASK_SAVE_WHY)}</text>
+      <view class="flex-row justify-end gap-2 mt-4">
+        <Choice label={t(L.CANCEL)} look="plain" onClick={() => { answer('stay'); }} />
+        <Choice label={t(L.DO_NOT_SAVE)} look="plain" onClick={() => { answer('drop'); }} />
+        <Choice label={t(L.SAVE)} look="primary" onClick={() => { answer('save'); }} />
+      </view>
+    </view>
+  </view>;
+}
+
+/** The whole window. It is built again when the interface language changes: every view reads its texts once. */
+function Shell(): i32 {
+  return <view class="relative flex-col w-full h-full bg-zinc-950">
+    <TopBar />
+    <view class="grow basis-0 min-h-0 flex-row">
+      <Outline />
+      <TopView />
+      <Properties />
+    </view>
+    <StatusBar />
+    <Show when={waiting() !== null}><Unsaved /></Show>
+  </view>;
+}
+function App(): i32 {
+  return <view class="w-full h-full"><For each={[uiLang()]}>{(language: string, i: i32) => <Shell />}</For></view>;
+}
+
+// keys reach here when no text field used them: Cmd+Z in a field undoes its typing, elsewhere the last step of the table
+ui.onKey((e: ui.KeyEvent) => {
+  const k = e.key;
+  if (waiting() !== null) { if (k === 'Escape') { answer('stay'); e.preventDefault(); } return; }
+  if (e.primary) {
+    if (k === 's') save();
+    else if (k === 'z') { if (e.shift) redo(); else undo(); }
+    else if (k === 'y') redo();
+    else if (k === 'o') openCommand();
+    else if (k === 'n') newCommand();
+    else if (k === '0') fit();
+    else if (k === '=') zoomBy(1.2, viewW / 2, viewH / 2);
+    else if (k === '-') zoomBy(1 / 1.2, viewW / 2, viewH / 2);
+    else if (k === 'e') setAdvanced(!advanced());
+    else return;
+    e.preventDefault();
+    return;
+  }
+  // the arrows nudge the selection by a millimetre, a centimetre with Shift; R turns it by 15 degrees, the other way with Shift
+  const far = e.shift ? 1 : 0.1;
+  if (k === 'Delete' || k === 'Backspace') deleteSelected();
+  else if (k === 'Escape' && selected() !== '') select('');
+  else if (k === 'ArrowLeft') moveSelected(-far, 0);
+  else if (k === 'ArrowRight') moveSelected(far, 0);
+  else if (k === 'ArrowUp') moveSelected(0, -far);
+  else if (k === 'ArrowDown') moveSelected(0, far);
+  else if (k === 'r') turnSelected(e.shift ? -15 : 15);
+  else return;
+  e.preventDefault();
+});
+
+const a = args();
+if (a.length > 0) {
+  // ponytail: `zinc run <dir>` starts the program in the project's directory; the shell's PWD still says where the command was typed,
+  // so a relative path means what the user meant. A launch directory in zinc:sys (ZN-687) replaces this.
+  const given = a[0].startsWith('/') || env('PWD').length === 0 ? a[0] : `${env('PWD')}/${a[0]}`;
+  const dir = given.endsWith(`/${TABLE_FILE}`) ? given.slice(0, given.length - TABLE_FILE.length - 1) : given;
+  if (exists(`${dir}/${TABLE_FILE}`)) openFolder(dir); else newTable(dir);
+}
+// closing the window with unsaved work asks first
+onCloseRequested(() => { if (doc().dirty) { keepOpen(); guard(() => quit()); } });
+let frames = 0;
+// the view knows its size once it was drawn: the first fit waits for that
+render(App, 0x09090b, (dt: number) => { if (++frames === 2) fit(); });

@@ -1,0 +1,38 @@
+# The table editor, the view and the gestures (tests/t1/pinball3d_editor.sh), window 1440x900.
+# Three notches of the wheel over the flippers zoom in; the background is dragged to pan.
+4 move 583 743
+5 wheel 0 1
+6 wheel 0 1
+7 wheel 0 1
+10 move 300 300
+11 down
+12 move 320 280
+13 move 340 180
+14 up
+# The right flipper is selected and turned by 20 degrees with its round handle.
+17 move 700 640
+18 down
+19 up
+21 move 731 545
+22 down
+23 move 745 547
+24 move 758 550
+25 up
+# The light under the flippers is deleted (the rules named it: the name goes with it), then the deletion and the turn are undone
+# and the turn is redone.
+28 move 623 699
+29 down
+30 up
+31 key Delete
+33 key z meta
+34 key z meta
+35 key z meta+shift
+# The whole table again; the first bumper is nudged with the arrows: two millimetres right, a centimetre down.
+37 key 0 meta
+39 move 541 328
+40 down
+41 up
+42 key ArrowRight
+43 key ArrowRight
+44 key ArrowDown shift
+46 key s meta
