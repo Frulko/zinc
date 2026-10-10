@@ -550,7 +550,9 @@ static int buildNative(const char* argv0, const char* entry, const char* out, zn
   for (std::size_t k = 0; k < units.size(); ++k) inputs += " '" + (moreUnits.empty() ? units[k].string() : objs[k]) + "'";
   std::string cmd = std::string(cxx ? cxx : "c++") + cflags + inputs + " '" + (libs / "libzn_rt.a").string() + "' '" + (zm.heapBytes && fs::exists(libs / "libzn_rt_new.a") ? (libs / "libzn_rt_new.a").string() + "' '" : std::string()) + (libs / "libzn_mimalloc.a").string() + "' '" +
                     (libs / "libzn_zbc.a").string() + "' '" + (libs / "libzn_ir.a").string() + "' '" + (libs / "libzn_frontend.a").string() + "'" + (fs::exists(libs / "libzn_regexp.a") ? " '" + (libs / "libzn_regexp.a").string() + "'" : std::string()) + " '" + (libs / "libzn_native.a").string() + "'" + (!zm.natives.empty() && fs::exists(libs / "libzn_native_fixture.a") ? " '" + (libs / "libzn_native_fixture.a").string() + "'" : std::string()) +   // the native registry; libunicode: the string runtime needs it
-                    (!nativeLibs.empty() ? nativeLibs : std::string()) + (zn::aot::usesLayout(zm) && (zn::frontend::uiLayout() == "rn" || zn::frontend::directLayoutUse()) && fs::exists(libs / "libzn_layout.a") ? " '" + (libs / "libzn_layout.a").string() + "' '" + (libs / "libzn_yoga.a").string() + "'" : std::string()) + ((zn::aot::usesHost(zm) || !nativeLibs.empty()) && fs::exists(libs / "libzn_host_gfx.a") ? " '" + (libs / "libzn_host_gfx.a").string() + "'" + (fs::exists(libs / "libzn_codec.a") ? " '" + (libs / "libzn_codec.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_uv.a") ? " '" + (libs / "libzn_uv.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_llhttp.a") ? " '" + (libs / "libzn_llhttp.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_mbedtls.a") ? " '" + (libs / "libzn_mbedtls.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_regexp.a") ? " '" + (libs / "libzn_regexp.a").string() + "'" : std::string()) + " -lpthread" HOSTLIBS : std::string()) + " -o '" + out + "'";  // the graphics host, used by programs that call it
+                    (!nativeLibs.empty() ? nativeLibs : std::string()) +
+                    (zn::aot::usesGl(zm) && fs::exists(libs / "libzn_gl.a") ? " '" + (libs / "libzn_gl.a").string() + "' '" + (libs / "libzn_glad.a").string() + "' '" + (libs / "libzn_glslang.a").string() + "'" : std::string()) +   // zinc:gl (ZN-562): WebGL linked in, no libzn_webgl
+                    (zn::aot::usesLayout(zm) && (zn::frontend::uiLayout() == "rn" || zn::frontend::directLayoutUse()) && fs::exists(libs / "libzn_layout.a") ? " '" + (libs / "libzn_layout.a").string() + "' '" + (libs / "libzn_yoga.a").string() + "'" : std::string()) + ((zn::aot::usesHost(zm) || !nativeLibs.empty()) && fs::exists(libs / "libzn_host_gfx.a") ? " '" + (libs / "libzn_host_gfx.a").string() + "'" + (fs::exists(libs / "libzn_codec.a") ? " '" + (libs / "libzn_codec.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_uv.a") ? " '" + (libs / "libzn_uv.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_llhttp.a") ? " '" + (libs / "libzn_llhttp.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_mbedtls.a") ? " '" + (libs / "libzn_mbedtls.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_regexp.a") ? " '" + (libs / "libzn_regexp.a").string() + "'" : std::string()) + " -lpthread" HOSTLIBS : std::string()) + " -o '" + out + "'";  // the graphics host, used by programs that call it
   if (run) {   // a compiled run: the program's C++ and what it links, hashed; the same as the cached executable's: nothing to compile
     std::string k;
     for (const fs::path& u : units) { std::ifstream in(u); std::stringstream ss; ss << in.rdbuf(); k += ss.str(); }
@@ -917,23 +919,10 @@ static std::vector<std::string> gFusedArgs;
 static std::vector<char*> gFusedArgv;
 static std::vector<std::string> gOriginalArgs;   // argv as the user typed it: the dev bundle starts the engine again with it
 
-#ifdef ZN_HOST_GFX
-// gl.zincPresent (WebGL module, ZN-411): the module writes the canvas into the runtime image's own pixels
-static const zn::gl::PresentHooks kGlPresent = {
-    [](int image, int* w, int* h) { int32_t iw = 0, ih = 0; if (!zrt::raster::image_size(image, &iw, &ih)) return false; *w = iw; *h = ih; return true; },
-    [](int image, int w, int h) -> unsigned* {
-      int32_t iw = 0, ih = 0;
-      if (!zrt::raster::image_size(image, &iw, &ih)) return nullptr;
-      if (iw != w || ih != h) zrt::raster::dyn_resize(image, w, h);
-      return zrt::raster::dyn_pixels(image);
-    },
-    [](int image) { zrt::raster::dyn_update(image, nullptr, 0); },
-    zn::host::onFrameEnd};
-#endif
-// WebGL lives in a module beside zinc (ZN-330.01): libzn_webgl.dylib / .so (or $ZINC_WEBGL_LIB), loaded the first time a QuickJS context is made; zinc carries no WebGL,
-// glad or glslang. Without the module, QuickJS programs run without `document` (and zinc.json "webgl" says why).
-static void webglHook(JSContext* ctx) {
-  static const zn::gl::ContextInstall install = []() -> zn::gl::ContextInstall {
+// WebGL lives in a module beside zinc (ZN-330.01): libzn_webgl.dylib / .so (or $ZINC_WEBGL_LIB), loaded the first time a QuickJS context is made or a zinc:gl row is
+// called; zinc carries no WebGL, glad or glslang. Without the module, QuickJS programs run without `document` (and zinc.json "webgl" says why).
+static void* webglLib(bool quiet) {
+  static void* h = []() -> void* {
     namespace fs = std::filesystem;
     const char* env = std::getenv("ZINC_WEBGL_LIB");
 #if defined(__APPLE__)
@@ -942,17 +931,37 @@ static void webglHook(JSContext* ctx) {
     const char* file = "libzn_webgl.so";
 #endif
     const std::string path = env && *env ? std::string(env) : (fs::path(zn::tc::executablePath()).parent_path() / file).string();
-    void* h = dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
-    const char* wanted = std::getenv("ZINC_WEBGL");
-    if (!h) { if (wanted && *wanted && *wanted != '0') std::fprintf(stderr, "zinc: WebGL is not available: %s\n", dlerror()); return nullptr; }
-    auto open = reinterpret_cast<zn::gl::ContextInstall (*)(const zn::gl::PresentHooks*)>(dlsym(h, "zn_webgl_open"));
+    return dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
+  }();
+  if (!h && !quiet) std::fprintf(stderr, "zinc: WebGL is not available: %s\n", dlerror());
+  return h;
+}
+static const zn::gl::PresentHooks* glHooks() {
 #ifdef ZN_HOST_GFX
-    return open ? open(&kGlPresent) : nullptr;
+  return static_cast<const zn::gl::PresentHooks*>(zn::host::glPresentHooks());   // gl.zincPresent / zinc:gl present (ZN-411): the canvas into a runtime image's own pixels
 #else
-    return open ? open(nullptr) : nullptr;
+  return nullptr;
 #endif
+}
+static void webglHook(JSContext* ctx) {
+  static const zn::gl::ContextInstall install = []() -> zn::gl::ContextInstall {
+    const char* wanted = std::getenv("ZINC_WEBGL");
+    void* h = webglLib(!(wanted && *wanted && *wanted != '0'));
+    auto open = h ? reinterpret_cast<zn::gl::ContextInstall (*)(const zn::gl::PresentHooks*)>(dlsym(h, "zn_webgl_open")) : nullptr;
+    return open ? open(glHooks()) : nullptr;
   }();
   if (install) install(ctx);
+}
+// zinc:gl (ZN-562): the Rt::HostGl* rows go to libzn_webgl's zn_webgl_host, loaded at the first one, so a program that does not call them loads nothing
+static void glRows(int id, const zn::host::HostArg* a, zn::host::HostArg* r) {
+  static const zn::host::HostCall call = []() -> zn::host::HostCall {
+    void* h = webglLib(false);
+    if (!h) return nullptr;
+    if (auto hooks = reinterpret_cast<void (*)(const zn::gl::PresentHooks*)>(dlsym(h, "zn_webgl_host_hooks"))) hooks(glHooks());
+    return reinterpret_cast<zn::host::HostCall>(dlsym(h, "zn_webgl_host"));
+  }();
+  if (call) call(id, a, r);
+  else r->i = 0;
 }
 
 int main(int argc, char** argv) {
@@ -1152,7 +1161,8 @@ int main(int argc, char** argv) {
   zrt::gfx::encode_webp_hook = webpShot;
 #endif
   zn::text::installSegmenter();   // Intl.Segmenter in the QuickJS engine (ZN-165)
-  zn::qjs::addContextHook(webglHook);   // document.createElement('canvas').getContext('webgl') in the QuickJS engine (ZN-203.03), from the module
+  zn::qjs::addContextHook(webglHook);
+  zn::host::hostGl = glRows;   // document.createElement('canvas').getContext('webgl') in the QuickJS engine (ZN-203.03), from the module
   if (argc >= 5 && !std::strcmp(argv[1], "run") && !std::strcmp(argv[3], "--engine")) {  // zinc run <file> --engine quickjs [-- args...]: plain JavaScript or stripped TypeScript on QuickJS-ng
     if (std::strcmp(argv[4], "quickjs")) { std::fprintf(stderr, "zinc: unknown engine '%s' (quickjs)\n", argv[4]); return 2; }
     zn::qjs::Options qo;

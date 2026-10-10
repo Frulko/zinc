@@ -4,7 +4,7 @@ title: 'zinc:gl: WebGL and GLES for compiled Zinc code, without QuickJS'
 status: Backlog
 assignee: []
 created_date: '2026-10-09 07:59'
-updated_date: '2026-10-09 07:59'
+updated_date: '2026-10-10 12:24'
 labels:
   - perf
   - 3d
@@ -28,3 +28,9 @@ Today WebGL (libzn_webgl, src/gl) is reachable only from QuickJS contexts (zinc:
 - [ ] #3 Per-call overhead measured against the QuickJS binding (microbenchmark of drawElements + uniform updates) and recorded
 - [ ] #4 Interpreter and AOT builds of the example produce the same frame hash
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-10-10: split into ZN-562.01 (core: the textured lit cube, interpreter and AOT), .02 (the whole WebGL1/2 API, conformance through the entry points), .03 (per-call overhead vs QuickJS), .04 (GLES2 on the Pi vc4 tier, cross-platform pass).
+<!-- SECTION:NOTES:END -->

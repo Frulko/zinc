@@ -11,6 +11,7 @@
 #include "zrt.h"
 #include "zrt_raster.h"
 #include "zn/alloc_stats.h"
+#include "gl/webgl_js.h"
 
 extern "C" int zn_ui_log_on(void);             // src/host/ui_log.cpp (ZN-368): this file includes zrt.h, which keeps the C++ library out
 extern "C" void zn_ui_log_mark(int phase);
@@ -241,6 +242,18 @@ static const char* hudInfo() {   // the perf panel's engine line (ZN-375): the r
   return line;
 }
 void setEngineName(const char* name) { gEngine = name; }
+// gl.zincPresent and zinc:gl's present (ZN-411, ZN-562): libzn_webgl writes the canvas into the runtime image's own pixels
+static const zn::gl::PresentHooks kGlPresent = {
+    [](int image, int* w, int* h) { int32_t iw = 0, ih = 0; if (!zrt::raster::image_size(image, &iw, &ih)) return false; *w = iw; *h = ih; return true; },
+    [](int image, int w, int h) -> unsigned* {
+      int32_t iw = 0, ih = 0;
+      if (!zrt::raster::image_size(image, &iw, &ih)) return nullptr;
+      if (iw != w || ih != h) zrt::raster::dyn_resize(image, w, h);
+      return zrt::raster::dyn_pixels(image);
+    },
+    [](int image) { zrt::raster::dyn_update(image, nullptr, 0); },
+    onFrameEnd};
+const void* glPresentHooks() { return &kGlPresent; }
 void installGfx() { zrt::gfx::png_encoder = encodePngHook; zrt::gfx::hud_info = hudInfo; hostGfx = call; installSys(); }
 
 }  // namespace zn::host

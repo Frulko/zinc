@@ -1337,7 +1337,7 @@ struct Loader {
       if (spec == "zinc:telemetry") return load(spec, telemetryModuleSource());
       if (spec == "zinc:platform") return load(spec, platformModuleSource((std::filesystem::path(stdRoot.empty() ? "." : stdRoot).parent_path().parent_path() / "targets" / "capabilities.json").string()));
       if (const char* src = hostModuleSource(spec)) return load(spec, src);
-      static const std::map<std::string, std::string> kStd = {{"zinc:ui", "ui.ts"}, {"zinc:web", "web.ts"}, {"zinc:web/fetch", "fetch.ts"}, {"zinc:subtle", "subtle.ts"}, {"zinc:ui/solid", "solid.ts"}, {"zinc:ui/react", "react.ts"}, {"zinc:ui/kit", "kit/index.ts"}, {"zinc:icons", "icons.tsx"}, {"zinc:ui/animated", "animated.ts"}, {"zinc:react-native", "react-native.tsx"}, {"zinc:react-native/linking", "react-native-linking.ts"}, {"zinc:ui/nuxt", "nuxt/index.ts"},
+      static const std::map<std::string, std::string> kStd = {{"zinc:ui", "ui.ts"}, {"zinc:gl", "gl.ts"}, {"zinc:web", "web.ts"}, {"zinc:web/fetch", "fetch.ts"}, {"zinc:subtle", "subtle.ts"}, {"zinc:ui/solid", "solid.ts"}, {"zinc:ui/react", "react.ts"}, {"zinc:ui/kit", "kit/index.ts"}, {"zinc:icons", "icons.tsx"}, {"zinc:ui/animated", "animated.ts"}, {"zinc:react-native", "react-native.tsx"}, {"zinc:react-native/linking", "react-native-linking.ts"}, {"zinc:ui/nuxt", "nuxt/index.ts"},
                                                               {"zinc:signals", "signals.ts"}, {"zinc:path", "path.ts"}, {"zinc:assert", "assert.ts"}, {"zinc:system", "system/index.ts"},
                                                               {"zinc:system/notification", "system/notification.ts"}, {"zinc:system/menu", "system/menu.ts"}, {"zinc:system/tray", "system/tray.ts"}, {"zinc:system/dialog", "system/dialog.ts"}, {"zinc:system/window", "system/window.ts"},
                                                               {"zinc:system/shortcut", "system/shortcut.ts"}, {"zinc:system/instance", "system/instance.ts"}, {"zinc:system/deeplink", "system/deeplink.ts"}, {"zinc:system/autostart", "system/autostart.ts"},
@@ -3083,6 +3083,7 @@ const char* builtinModuleSource(std::string_view spec) { return hostModuleSource
 
 std::string_view stdModuleFile(std::string_view spec) {
   if (spec == "zinc:ui") return "ui.ts";
+  if (spec == "zinc:gl") return "gl.ts";
   if (spec == "zinc:web") return "web.ts";
   if (spec == "zinc:web/fetch") return "fetch.ts";
   if (spec == "zinc:subtle") return "subtle.ts";

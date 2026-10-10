@@ -220,7 +220,23 @@
   X(HostLayoutBox, "host.layoutBox", "ii>d", 2) X(HostLayoutLines, "host.layoutLines", "i>i", 2) X(HostLayoutLine, "host.layoutLine", "ii>s", 2) \
   X(HostLayoutLineWidth, "host.layoutLineWidth", "ii>d", 2) X(HostLayoutCounter, "host.layoutCounter", "i>d", 2) \
   /* the surface follows the window (1) or stays fixed and scaled (0), unless zinc.json chose (ZN-608): zinc:gfx onResize asks for it; appended */ \
-  X(HostGfxSetResize, "host.gfxSetResize", "i>n", 2)
+  X(HostGfxSetResize, "host.gfxSetResize", "i>n", 2) \
+  /* zinc:gl (ZN-562): WebGL for compiled Zinc code, served by `hostGl` (libzn_webgl's WebGL1 class); the first argument is the context; appended */ \
+  X(HostGlCreate, "host.glCreate", "iii>i", 2) X(HostGlDestroy, "host.glDestroy", "i>n", 2) X(HostGlGetError, "host.glGetError", "i>i", 2) \
+  X(HostGlEnable, "host.glEnable", "iu>n", 2) X(HostGlDisable, "host.glDisable", "iu>n", 2) X(HostGlViewport, "host.glViewport", "iiiii>n", 2) \
+  X(HostGlClearColor, "host.glClearColor", "idddd>n", 2) X(HostGlClear, "host.glClear", "iu>n", 2) X(HostGlDepthFunc, "host.glDepthFunc", "iu>n", 2) \
+  X(HostGlCullFace, "host.glCullFace", "iu>n", 2) X(HostGlCreateBuffer, "host.glCreateBuffer", "i>i", 2) X(HostGlBindBuffer, "host.glBindBuffer", "iui>n", 2) \
+  X(HostGlBufferDataF32, "host.glBufferDataF32", "iuDu>n", 2) X(HostGlBufferDataU16, "host.glBufferDataU16", "iuDu>n", 2) X(HostGlCreateShader, "host.glCreateShader", "iu>i", 2) \
+  X(HostGlShaderSource, "host.glShaderSource", "iis>n", 2) X(HostGlCompileShader, "host.glCompileShader", "ii>n", 2) X(HostGlGetShaderParameter, "host.glGetShaderParameter", "iiu>i", 2) \
+  X(HostGlGetShaderInfoLog, "host.glGetShaderInfoLog", "ii>s", 2) X(HostGlCreateProgram, "host.glCreateProgram", "i>i", 2) X(HostGlAttachShader, "host.glAttachShader", "iii>n", 2) \
+  X(HostGlLinkProgram, "host.glLinkProgram", "ii>n", 2) X(HostGlGetProgramParameter, "host.glGetProgramParameter", "iiu>i", 2) X(HostGlGetProgramInfoLog, "host.glGetProgramInfoLog", "ii>s", 2) \
+  X(HostGlUseProgram, "host.glUseProgram", "ii>n", 2) X(HostGlGetAttribLocation, "host.glGetAttribLocation", "iis>i", 2) X(HostGlEnableVertexAttribArray, "host.glEnableVertexAttribArray", "iu>n", 2) \
+  X(HostGlVertexAttribPointer, "host.glVertexAttribPointer", "iuiubii>n", 2) X(HostGlGetUniformLocation, "host.glGetUniformLocation", "iis>i", 2) X(HostGlUniform1i, "host.glUniform1i", "iii>n", 2) \
+  X(HostGlUniform1f, "host.glUniform1f", "iid>n", 2) X(HostGlUniform3f, "host.glUniform3f", "iiddd>n", 2) X(HostGlUniform4f, "host.glUniform4f", "iidddd>n", 2) \
+  X(HostGlUniformMatrix3fv, "host.glUniformMatrix3fv", "iibD>n", 2) X(HostGlUniformMatrix4fv, "host.glUniformMatrix4fv", "iibD>n", 2) X(HostGlCreateTexture, "host.glCreateTexture", "i>i", 2) \
+  X(HostGlBindTexture, "host.glBindTexture", "iui>n", 2) X(HostGlActiveTexture, "host.glActiveTexture", "iu>n", 2) X(HostGlTexParameteri, "host.glTexParameteri", "iuui>n", 2) \
+  X(HostGlTexImage2D, "host.glTexImage2D", "iuiuiiiuuB>n", 2) X(HostGlGenerateMipmap, "host.glGenerateMipmap", "iu>n", 2) X(HostGlDrawArrays, "host.glDrawArrays", "iuii>n", 2) \
+  X(HostGlDrawElements, "host.glDrawElements", "iuiui>n", 2) X(HostGlPresent, "host.glPresent", "ii>n", 2)
 
 namespace zn {
 
@@ -246,7 +262,8 @@ inline constexpr RtInfo kRtInfo[] = {
 
 // The host rows are served by two host tables: the graphics host (the rows before HostSysFirst and the image rows) and the system host (zinc:sys, fs, storage, assets, os, process).
 inline constexpr bool isLayoutRow(Rt r) { return r >= Rt::HostLayoutNew && r <= Rt::HostLayoutCounter; }
-inline constexpr bool isSysRow(Rt r) { return (r >= Rt::HostSysFirst && r <= Rt::HostHostLast && !(r >= Rt::HostGfxCreateImage && r <= Rt::HostGfxEndImage)) || (r >= Rt::HostLoopWait && r != Rt::HostGfxCommands && r != Rt::HostGfxCommandsFree && r != Rt::HostGfxSetResize && !isLayoutRow(r)); }
+inline constexpr bool isGlRow(Rt r) { return r >= Rt::HostGlCreate && r <= Rt::HostGlPresent; }   // zinc:gl (ZN-562): served by `hostGl`
+inline constexpr bool isSysRow(Rt r) { return (r >= Rt::HostSysFirst && r <= Rt::HostHostLast && !(r >= Rt::HostGfxCreateImage && r <= Rt::HostGfxEndImage)) || (r >= Rt::HostLoopWait && r != Rt::HostGfxCommands && r != Rt::HostGfxCommandsFree && r != Rt::HostGfxSetResize && !isLayoutRow(r) && !isGlRow(r)); }
 inline const RtInfo& rtInfo(Rt r) { return kRtInfo[static_cast<unsigned>(r)]; }
 inline unsigned rtParamCount(const RtInfo& r) { return static_cast<unsigned>(std::strchr(r.sig, '>') - r.sig); }
 inline char rtParam(const RtInfo& r, unsigned k) { return r.sig[k]; }
@@ -279,7 +296,7 @@ inline bool rtResultBorrowed(Rt id) { return id == Rt::MapGet; }
 // retained across them (ZN-413). The others only read their arguments: the string rows, the read-only Array, Map and Set members, the
 // graphics host (numbers, borrowed strings and arrays, no callbacks).
 inline bool rtMayRelease(Rt id) {
-  if (id >= Rt::HostGfxFrames && id < Rt::HostSysFirst) return false;
+  if ((id >= Rt::HostGfxFrames && id < Rt::HostSysFirst) || isGlRow(id)) return false;
   if (id >= Rt::StrConcat && id <= Rt::FromCharCode) return id == Rt::JsonParse || id == Rt::DynGetFast || id == Rt::DynAddFast;
   switch (id) {
     case Rt::ArrSlice: case Rt::ArrIndexOf: case Rt::ArrIncludes: case Rt::MapGet: case Rt::MapHas: case Rt::MapKeys: case Rt::MapValues: case Rt::MapSize:

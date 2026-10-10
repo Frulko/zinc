@@ -24,5 +24,6 @@ std::vector<std::string> emitCppParts(const zbc::Module& m, const std::vector<st
 // Whether the module calls the graphics host (the Rt::Host* entries).
 bool usesHost(const zbc::Module& m);
 bool usesLayout(const zbc::Module& m);   // the program calls the host layout engine: link zn_layout and zn_yoga
+bool usesGl(const zbc::Module& m);       // the program calls zinc:gl (ZN-562): link zn_gl, glad and glslang
 
 }  // namespace zn::aot

@@ -48,6 +48,7 @@
     {"paths": ["runtime/raster.cpp", "runtime/gfx.cpp", "runtime/ttf.cpp", "src/host/backend_sw.cpp"], "tests": ["scene_dump", "backend_sw", "damage_sig", "ui_style"], "canary": true},
     {"paths": ["../runtime/gfx.cpp", "src/host/gfx_host.cpp", "src/host/hal_dispatch.cpp", "tools/pngdiff"], "tests": ["perf_hud"]},
     {"paths": ["src/aot/aot.cpp", "include/zn/host.h"], "tests": ["aot_size_inline", "host_direct"]},
+    {"paths": ["../lib/std/gl.ts", "src/gl/webgl_host.cpp", "src/gl/webgl_install.cpp", "../examples/gl-cube/"], "tests": ["gl_cube"]},
     {"paths": ["src/text/"], "tests": ["text_layout", "segment", "text_shaped"]},
     {"paths": ["src/gl/"], "tests": ["webgl_conformance"]},
     {"paths": ["src/res/"], "tests": ["webp", "res_aot"]},

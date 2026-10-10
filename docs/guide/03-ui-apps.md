@@ -110,6 +110,29 @@ Images: `<image src="logo.png" />` reads from the embedded `assets/` directory; 
 runtime; `zinc:gfx` can build runtime images (video frames, generated textures) and render-to-image. HiDPI is
 automatic — resources are baked at the display scale (Retina ×2 on macOS, ×window `zoom`).
 
+## WebGL from Zinc code (`zinc:gl`)
+
+`zinc:gl` gives compiled Zinc code WebGL without a JS engine. Its calls go straight to the engine's WebGL implementation, the same
+one, with the same validation, that QuickJS programs use, and they run in the interpreter and in a program built with `zinc build`.
+
+A context draws offscreen. `present(image)` copies its drawing buffer into a `zinc:gfx` image, which the program draws like any other:
+
+```ts
+import { createContext, Float32Array } from 'zinc:gl';
+import { createImage, drawImage, onFrame } from 'zinc:gfx';
+
+const gl = createContext(480, 360);            // null: no WebGL on this machine
+const image = createImage(480, 360);
+// ... shaders, buffers, textures as in WebGL: gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW)
+onFrame(() => { if (gl === null) return; gl.clear(gl.COLOR_BUFFER_BIT); /* draw */ gl.present(image); drawImage(image, 0, 0, 480, 360, 255, 0); });
+```
+
+- **Types.** WebGL objects are typed handles (`WebGLBuffer`, `WebGLProgram`...). `Float32Array`, `Uint16Array` and `Uint8Array` wrap a
+  Zinc array.
+- **What is covered.** For now the calls a textured, lit mesh needs: `examples/gl-cube`. The rest of WebGL 1 and 2 is ZN-562.02.
+- **Loading.** `zinc` loads WebGL (`libzn_webgl`, beside it) at the first `zinc:gl` call. A built program links it in. A program that
+  does not import `zinc:gl` carries none of it.
+
 ## Windows
 
 UI apps follow the window by default (responsive, live resize redraw); games keep a fixed surface and scale it. A program

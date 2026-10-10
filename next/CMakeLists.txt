@@ -436,13 +436,14 @@ if(TARGET SDL3::SDL3 AND ZN_WEBGL)
   add_library(zn_glad STATIC third_party/glad/src/gl.c)
   target_include_directories(zn_glad PUBLIC third_party/glad/include)
   target_compile_options(zn_glad PRIVATE -w)
-  add_library(zn_gl STATIC src/gl/offscreen.cpp src/gl/webgl1.cpp src/gl/webgl1_more.cpp src/gl/webgl2.cpp src/gl/webgl2_tex.cpp src/gl/essl_check.cpp)
+  add_library(zn_gl STATIC src/gl/offscreen.cpp src/gl/webgl1.cpp src/gl/webgl1_more.cpp src/gl/webgl2.cpp src/gl/webgl2_tex.cpp src/gl/essl_check.cpp
+              src/gl/webgl_host.cpp src/gl/webgl_install.cpp)   # webgl_host, webgl_install: zinc:gl for AOT programs (ZN-562)
   set_target_properties(zn_gl PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
-  target_include_directories(zn_gl PUBLIC src)
+  target_include_directories(zn_gl PUBLIC src include)
   target_link_libraries(zn_gl PUBLIC zn_glad SDL3::SDL3 zn_glslang)
   # WebGL for the QuickJS engine as a module beside zinc (ZN-330.01): libzn_webgl.dylib / .so, loaded with dlopen on the first QuickJS context (src/main.cpp webglHook).
   # It carries the WebGL code, glad and glslang; SDL3 and QuickJS are resolved from zinc (ENABLE_EXPORTS, SDL3 force-loaded), so there is one copy of each.
-  add_library(zn_webgl MODULE src/gl/webgl_js.cpp src/gl/offscreen.cpp src/gl/webgl1.cpp src/gl/webgl1_more.cpp src/gl/webgl2.cpp src/gl/webgl2_tex.cpp src/gl/essl_check.cpp)
+  add_library(zn_webgl MODULE src/gl/webgl_js.cpp src/gl/webgl_host.cpp src/gl/offscreen.cpp src/gl/webgl1.cpp src/gl/webgl1_more.cpp src/gl/webgl2.cpp src/gl/webgl2_tex.cpp src/gl/essl_check.cpp)
   set_target_properties(zn_webgl PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON PREFIX "lib" LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR} CXX_VISIBILITY_PRESET hidden)
   if(APPLE)
     set_target_properties(zn_webgl PROPERTIES SUFFIX ".dylib")
