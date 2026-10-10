@@ -191,10 +191,22 @@ static void to_window(float sx, float sy, float* wx, float* wy) {
 #endif
 }
 
+#ifdef ZN_HAL_GL
+// Other GL contexts live in the process (zinc:gl's WebGL, zinc:3d's GPU renderer) and leave theirs current: the window's is made current around its
+// own GL work and theirs put back, so their record of what is current stays true (ZN-563: the window swapped zinc:3d's hidden context, without vsync).
+struct GlCurrent {
+  SDL_Window* w = SDL_GL_GetCurrentWindow();
+  SDL_GLContext c = SDL_GL_GetCurrentContext();
+  GlCurrent() { if (c != glctx) SDL_GL_MakeCurrent(win, glctx); }
+  ~GlCurrent() { if (c && c != glctx) SDL_GL_MakeCurrent(w, c); }
+};
+#endif
+
 static void alloc_surface() {
   surface_ok = true;
 #ifdef ZN_HAL_GL
   if (gl_on) {   // the software rows (frames without command lists) and the replay follow the surface
+    GlCurrent cur;
     free(fb);
     fb = (uint32_t*)calloc((size_t)PW * PH, 4);
     glBindTexture(GL_TEXTURE_2D, gl_upload);
@@ -632,6 +644,7 @@ static void render_rows_parallel(void (*fn)(uint32_t*, int32_t, int32_t), int32_
 // GL: the command lists replayed on the GPU into the replay's texture (or straight into the window when it has the surface's size and
 // most of the frame changed), else the software rows uploaded; then the texture over the window, letterboxed.
 static void gl_present(const HalFrame* f) {
+  GlCurrent cur;
   if (glr_stale) {
     if (!glr_made && getenv("ZINC_GL_STATS")) atexit([] { if (glr_ok) glr::report(); });   // at exit: the Next host never calls hal_shutdown
     glr_ok = glr_made ? glr::resize(PW, PH) : glr::init(PW, PH);
