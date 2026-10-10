@@ -1,0 +1,25 @@
+backend null rate 48000
+a ok true 0.01 s, b ok true 0.02 s
+nothing plays: 0 0 0 0 playing false
+a: 0.25 0.25 0.25 0.25 playing true
+a + b: 0.75 -0.25 0.75 -0.25
+a at 0.5 + b: 0.625 -0.375 0.625 -0.375
+master 0.5: 0.3125 -0.1875 0.3125 -0.1875 volume 0.5
+a ended, b goes on: 0.5 -0.5 a false b true
+b stopped: 0 0 b false
+a looping over two lengths: lowest 0.25 last 0.25 0.25 playing true
+loop off: 0 0 playing false
+a twice at once: 0.5 0.5
+stopAll: 0 0 playing false
+32 voices: 8.25 7.25 b true
+24 kHz: 0.01 s, middle 0.25 0.25, then 0 0 playing false
+square 1 kHz: 0.1 s peak 0.5 crossings 200 first 0 0 middle 0.5 0.5 playing false
+sine 440 Hz: peak 0.5 crossings 44
+noise: peak 0.5 crossings true
+bad tones: false false false
+blip.ogg: ok true 0.1 s heard true 440 Hz true playing false
+blip.flac: ok true 0.1 s heard true 440 Hz true playing false
+blip.mp3: ok true 0.16 s heard true 440 Hz true playing false
+missing: ok false playing false (missing.wav: no such asset)
+broken: ok false 0 s (broken.wav: not a WAV, FLAC, MP3 or Ogg Vorbis file)
+unloaded: ok false playing false 0 0

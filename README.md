@@ -130,6 +130,7 @@ driver in `zinc.json`); `zinc plugins` lists them with their targets. See [docs/
 | Plugin | What | Guide |
 | --- | --- | --- |
 | `zinc:video` | FFmpeg playback with hardware decode, gapless playlists | [video](docs/plugins/video.md) |
+| `zinc:audio` | sound effects and music: WAV, FLAC, MP3 and OGG mixed by miniaudio, tones, loops; silent when headless | [audio](docs/plugins/audio.md) |
 | `zinc:mapping` + display `gl` | GPU video mapping: corner pin, mesh warp, masks, edge blend, OSC + web companion | [mapping](docs/plugins/mapping.md), [display-gl](docs/plugins/display-gl.md) |
 | `zinc:map`, `zinc:svg`, `zinc:gestures` | vector-tile maps (OpenStreetMap), runtime SVG, gestures | [map](docs/plugins/map.md), [svg](docs/plugins/svg.md) |
 | `zinc:gphoto2` | camera remote control and live view | [gphoto2](docs/plugins/gphoto2.md) |

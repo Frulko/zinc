@@ -1,0 +1,9 @@
+backend null rate 48000
+tone: ok true 0.1 s playing false
+played: true
+stopped: false
+stopAll: false loop true volume 0.5
+master 0.25, silence 0 0 0 0
+missing: ok false playing false (missing.wav: no such asset)
+empty: ok false
+unloaded: ok false playing false

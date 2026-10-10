@@ -1,0 +1,11 @@
+{
+  "name": "audio",
+  "kind": "module",
+  "module": "zinc:audio",
+  "entry": "index.ts",
+  "description": "Sound effects and music: WAV, FLAC, MP3 and Ogg Vorbis sounds mixed by miniaudio 0.11.25 (public domain), generated tones, volume, loops; silent when headless",
+  "targets": {
+    "macos": { "sources": ["vendor/miniaudio_impl.c"], "defines": ["MA_NO_ENCODING", "MA_NO_RESOURCE_MANAGER"] },
+    "linux": { "sources": ["vendor/miniaudio_impl.c"], "defines": ["MA_NO_ENCODING", "MA_NO_RESOURCE_MANAGER"], "libs": ["m", "dl"], "linkFlags": ["-pthread"] }
+  }
+}
