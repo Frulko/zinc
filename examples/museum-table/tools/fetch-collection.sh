@@ -43,7 +43,7 @@ c++ -O2 -std=c++17 -I "$repo/next/third_party/meshoptimizer" "$here/decimate.cpp
 "$work/decimate" "$work/model/f1980_191-150k.obj" "$assets/models/vase.obj" 12000
 sips -Z 1536 -s format jpeg -s formatOptions 80 "$work/model/f1980_191-150k-4096-diffuse.jpg" --out "$assets/models/vase.jpg" >/dev/null
 
-sips -z 1024 2048 -s format jpeg -s formatOptions 58 "$work/pano/ninomaru_teien.jpg" --out "$assets/panoramas/ninomaru.jpg" >/dev/null
+sips -z 1024 2048 -s format jpeg -s formatOptions 80 "$work/pano/ninomaru_teien.jpg" --out "$assets/panoramas/ninomaru.jpg" >/dev/null
 
 # the film: ten seconds across the Great Wave, from the foam to Mount Fuji
 ffmpeg -v error -y -loop 1 -i "$work/photos/great-wave.jpg" -t 10 \

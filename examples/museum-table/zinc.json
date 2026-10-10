@@ -1,0 +1,8 @@
+{
+  "name": "museum-table",
+  "entry": "src/main.ts",
+  "assets": "assets",
+  "targets": {
+    "macos": { "width": 1920, "height": 1080 }
+  }
+}

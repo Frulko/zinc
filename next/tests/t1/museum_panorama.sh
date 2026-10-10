@@ -9,7 +9,7 @@ command -v python3 >/dev/null || { echo "skipped: no python3"; exit 77; }
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fail=0
 export ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_RUN=interp
-ZINC_INPUT=tests/data/museum_panorama/session.input ZINC_SIZE=1280x720 ZINC_FRAMES=370 ZINC_FRAMEHASH=all "$ZINC" run ../examples/museum-table/src/pano.ts >"$tmp/log" 2>"$tmp/err"
+ZINC_INPUT=$PWD/tests/data/museum_panorama/session.input ZINC_SIZE=1280x720 ZINC_FRAMES=370 ZINC_FRAMEHASH=all "$ZINC" run ../examples/museum-table/src/pano.ts >"$tmp/log" 2>"$tmp/err"
 diff tests/data/museum_panorama/expected.log "$tmp/log" >"$tmp/d" || { echo "the view log differs: $(head -6 "$tmp/d")"; fail=1; }
 grep -E "framehash (1|60|230|320|370) " "$tmp/err" | awk '{print $3, $5}' >"$tmp/frames"
 diff tests/golden/museum-panorama/frames.txt "$tmp/frames" >"$tmp/d" || { echo "frames differ from their hashes: $(head -6 "$tmp/d") $(grep -v framehash "$tmp/err" | head -3)"; fail=1; }
