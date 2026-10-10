@@ -42,13 +42,23 @@ Useful environment: `ZINC_HEADLESS=1`, `ZINC_DETERMINISTIC=1`, `ZINC_FRAMES=n`, 
 
 The work is a backlog of precise tasks managed with **Backlog.md** (`backlog` CLI, config `backlog.config.yml`, files in `next/backlog/`).
 
-- Tasks: `next/backlog/tasks/zn-NNN - Title.md` (description, acceptance criteria, notes). Statuses: Backlog, Ready, In Progress, Review, Done. One task In Progress at a time.
+- Tasks: `next/backlog/tasks/zn-NNN - Title.md` (description, acceptance criteria, notes). Statuses: Backlog, Ready, In Progress, Review, Done. One task In Progress at a time per working tree (several only as described in "Several tasks at once").
 - Milestones `next/backlog/milestones/` (m-0 to m-25, e.g. M17 UI style system, M19 packaging, M21 performance, M22 games, M23 handhelds).
 - Order of work: `next/backlog/priority.json` (groups chosen by the owner); `next/tools/next-task` prints the task to do (`--list N`, `--why`). Labels: `size-S/M/L`, topics (`perf`, `ui`...), `parked` (needs a board, Windows or a paid account; ordinal 90000+, skipped), `needs-board`.
 - `next/tools/status`: next tasks, progress per milestone, uncommitted work. `next/tools/tasks-import file.json`: bulk task creation with dependencies by key (`next/backlog/keys.json`).
 - Commands: `backlog task <id> --plain`, `backlog task edit <id> -s "In Progress"`, `--check-ac <n>`, `--notes`/`--append-notes`, `backlog task create "title" -p <parent> --ac ... -m <milestone> -l <labels>`.
 - A session: `/loop /zn-start` takes the next task, works it start to end, then `/zn-end` (tick the criteria on real test output, Done or follow-up tasks, notes, commit, `RESUME.md`, next task). `next/.paused` stops the loop.
-- Commits: English, conventional (`type(scope): imperative description`, 72 chars max), no co-author, explicit paths (never `git add .`), the task file in the same commit as its code. Never commit someone else's uncommitted changes. Pushing is the owner's step.
+- Commits: English, conventional (`type(scope): imperative description`, 72 chars max), no co-author, explicit paths (never `git add .`), the task file in the same commit as its code. Never commit someone else's uncommitted changes. Pushing is the owner's step. The `commit-msg` hook in `.githooks/` refuses a message that breaks these rules (type, 72 chars, English, final period, co-author): fix the message, never pass `--no-verify`. Enable it once per clone: `git config core.hooksPath .githooks` (worktrees share the setting).
+
+## Several tasks at once: one worktree per agent
+
+Independent tasks can be worked in parallel: a coordinator session hands them out, and each agent works one task in its own git worktree and branch, so no two agents share a working tree, a build directory or an index.
+
+- **Choose** with `next/tools/next-task --list 10`: tasks with no dependency between them that touch different modules (their labels, `next/tests/affected.json`). Two tasks in the shared core (IR, runtime, raster, layout, text, `lib/std/ui.ts`) never run together. Three agents at most on the development Mac: each worktree builds its own `next/build` from cold, with `-j4`.
+- **The agent** works its task as `/zn-start <id>` says, in its worktree, and commits code, test and task file on its branch. It leaves alone the files every task writes: `next/RESUME.md`, `next/backlog/priority.json`, `next/backlog/keys.json`, `docs/reports/zinc-next-decisions.md`, `docs/reports/zinc-next-perf.md`. It creates no task and no decision number (ids are allocated per tree and would collide): follow-up tasks, decisions and measured numbers go in the task notes and in its final report.
+- **The coordinator** integrates one branch at a time on main (`git cherry-pick main..<branch>`, linear history), builds once, runs the tests of the integrated tasks, then writes what the agents left: decision records, the performance log, the follow-up tasks, `next/RESUME.md`. Then `git worktree remove <path>` and `git branch -D <branch>`.
+- **A conflict** at integration is resolved by the coordinator when it is a few lines; otherwise the task goes back to an agent in a fresh worktree of the updated main.
+- **Tests**: an agent runs its task's own test. Tests that open a window, bind a fixed port or measure time (benchmarks, `system_instance`, the macOS window tests) run only after integration, alone: a number measured while other agents build is not valid.
 
 ## Decide alone: the owner is not at the keyboard (owner, 2026-10-10)
 

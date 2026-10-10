@@ -1,0 +1,22 @@
+#!/bin/sh
+# Commit message rules of AGENTS.md: English, conventional, 72 chars max, no co-author.
+# Enable once per clone: git config core.hooksPath .githooks
+subject=$(head -n 1 "$1")
+case "$subject" in "Merge "*|"Revert "*|"fixup! "*|"squash! "*) exit 0 ;; esac
+
+fail() {
+  echo "commit-msg: $1" >&2
+  echo "  got:      $subject" >&2
+  echo "  expected: type(scope): imperative description   (English, 72 chars max, no final period)" >&2
+  echo "  types:    feat fix perf docs test refactor build chore ci style revert" >&2
+  exit 1
+}
+
+printf '%s\n' "$subject" | grep -Eq '^(feat|fix|perf|docs|test|refactor|build|chore|ci|style|revert)(\([a-z0-9_.,/-]+\))?!?: [^ ].*[^. ]$' \
+  || fail "not a conventional commit subject"
+[ "${#subject}" -le 72 ] || fail "subject is ${#subject} chars, 72 max"
+# ponytail: English is checked as ASCII plus a few French words; a real language check if this lets French through
+printf '%s\n' "$subject" | LC_ALL=C grep -q '[^ -~]' && fail "subject is not plain ASCII: write it in English"
+printf '%s\n' "$subject" | grep -Eiqw 'les|une|pour|avec|dans|ajoute|ajout|corrige|mise' && fail "subject looks French: write it in English"
+grep -qi '^co-authored-by:' "$1" && fail "no co-author trailer"
+exit 0
