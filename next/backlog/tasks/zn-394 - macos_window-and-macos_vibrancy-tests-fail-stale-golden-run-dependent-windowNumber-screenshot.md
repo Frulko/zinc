@@ -6,7 +6,7 @@ title: >-
 status: Backlog
 assignee: []
 created_date: '2026-10-09 00:33'
-updated_date: '2026-10-09 02:59'
+updated_date: '2026-10-10 07:28'
 labels:
   - test
   - macos
@@ -30,4 +30,6 @@ Found during ZN-322.01: since 4aeb32b7 (transparent window and vibrancy) the win
 
 <!-- SECTION:NOTES:BEGIN -->
 2026-10-09: macos_deeplink fails the same way in full T1 (the app's out.log is never written).
+
+2026-10-10, Intel Mac (no notch): after iTerm got the screen recording permission, macos_vibrancy passes (its window.png failure was the permission). macos_window passed once, then failed on the fullscreen readback only: 'in fullscreen: close 7,6' where the golden has 20,22, so the fullscreen button position depends on the display; the windowNumber line no longer differs.
 <!-- SECTION:NOTES:END -->
