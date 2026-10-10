@@ -61,10 +61,6 @@ function TopBar(): i32 {
       </view>
     </Show>
     <view class="grow" />
-    <button class={`flex-row items-center h-8 px-[10] rounded-md cursor-pointer ${advanced() ? 'bg-zinc-700' : 'bg-zinc-900 hover:bg-zinc-800'}`} onClick={() => setAdvanced(!advanced())}>
-      <text class={`text-xs font-bold ${advanced() ? 'text-white' : 'text-zinc-400'}`}>{t(L.ADVANCED)}</text>
-    </button>
-    <Divider />
     <text class="text-[11px] text-zinc-500 mr-1">{t(L.CONTENT)}</text>
     <For each={[project().languages.join(' ')]}>{(codes: string, i: i32) =>
       <view class="w-[92]"><Segmented options={codes.split(' ')} labels={codes.split(' ').map((code: string) => code.toUpperCase())} value={lang} onPick={setLang} /></view>}</For>
@@ -96,11 +92,14 @@ function Problems(): i32 {
     </Show>
   </view>;
 }
-/** The last thing done, what Undo would take back, and the language of the interface. */
+/** The last thing done, what Undo would take back, the advanced mode and the language of the interface. */
 function StatusBar(): i32 {
   return <view class="flex-row items-center gap-3 h-8 px-3 shrink-0 bg-zinc-950 border-t border-zinc-800">
     <text class="grow truncate text-[11px] text-zinc-400">{status()}</text>
     <text class="text-[11px] text-zinc-600">{doc().canUndo ? f(L.UNDO_NEXT, L.step(doc().undoLabel)) : ''}</text>
+    <button class={`flex-row items-center h-6 px-2 rounded cursor-pointer ${advanced() ? 'bg-zinc-700' : 'bg-zinc-950 border border-zinc-800 hover:bg-zinc-800'}`} onClick={() => setAdvanced(!advanced())}>
+      <text class={`text-[11px] font-bold ${advanced() ? 'text-white' : 'text-zinc-400'}`}>{t(L.ADVANCED)}</text>
+    </button>
     <text class="text-[11px] text-zinc-500">{t(L.INTERFACE)}</text>
     <view class="w-[150]"><Segmented options={['en', 'fr']} labels={['English', 'Français']} value={uiLang} onPick={setUiLang} /></view>
   </view>;

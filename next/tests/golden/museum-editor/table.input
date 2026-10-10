@@ -6,7 +6,7 @@
 7 down
 8 up
 # Add a file: the photograph of the folder, with its source and its licence.
-12 move 70 108
+12 move 125 99
 13 down
 14 up
 18 move 700 465
@@ -24,7 +24,7 @@
 37 down
 38 up
 # The medium is dragged from the library onto the table, moved, and sized by its corner.
-46 move 125 183
+46 move 125 223
 47 down
 48 move 200 200
 49 move 500 300
@@ -81,7 +81,7 @@
 123 move 625 336
 124 up
 # A text written in the editor, put on the table by a double click, appearing after 4 seconds (the left end of its bar).
-127 move 182 99
+127 move 125 139
 128 down
 129 up
 134 move 700 412
@@ -95,7 +95,7 @@
 144 move 895 589
 145 down
 146 up
-149 move 125 230
+149 move 125 270
 150 down
 151 up
 152 down

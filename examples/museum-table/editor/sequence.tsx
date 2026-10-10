@@ -226,10 +226,8 @@ function LibraryRow(m: Media): i32 {
 function Library(): i32 {
   return <view class="w-[250] shrink-0 flex-col gap-2 p-3 bg-zinc-900 border-r border-zinc-800">
     <Heading label={t(L.LIBRARY)} />
-    <view class="flex-row gap-2">
-      <Action icon="plus" label={t(L.ADD_FILE)} look="plain" onClick={addFileCommand} />
-      <Action icon="type" label={t(L.ADD_TEXT)} look="plain" onClick={() => setAdding('text')} />
-    </view>
+    <view class="flex-row"><Action icon="plus" label={t(L.ADD_FILE)} look="plain" onClick={addFileCommand} /></view>
+    <view class="flex-row"><Action icon="type" label={t(L.ADD_TEXT)} look="plain" onClick={() => setAdding('text')} /></view>
     <Show when={project().media.length === 0}><text class="text-xs text-zinc-500" style={{ width: 222 }}>{t(L.LIBRARY_EMPTY)}</text></Show>
     <Show when={project().media.length > 0}><text class="text-[11px] text-zinc-500" style={{ width: 222 }}>{t(L.LIBRARY_HINT)}</text></Show>
     <scroll class="grow flex-col gap-1">
