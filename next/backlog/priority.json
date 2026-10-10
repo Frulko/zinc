@@ -1,6 +1,12 @@
 {
-  "comment": "Order of work chosen by the owner (2026-10-07): UI first, then desktop integration, then rendering and media, then 3D and WebGL, then everything else, then (a group marked last) the cross builds and simulators the owner asked to leave for the end. tools/next-task takes the first group with a startable task; inside a group the ordinal decides. A task goes to the first group that matches (milestone, label, or a regex on the title). 2026-10-09: performance moved first (owner), games and the handheld/board milestones placed before the deferred group. 2026-10-10 (owner): the development Mac first; ARM, Pi, ESP32, Linux, handhelds and CHIP go to the cross-platform pass at the end.",
+  "comment": "Order of work chosen by the owner (2026-10-07): UI first, then desktop integration, then rendering and media, then 3D and WebGL, then everything else, then (a group marked last) the cross builds and simulators the owner asked to leave for the end. tools/next-task takes the first group with a startable task; inside a group the ordinal decides. A task goes to the first group that matches (milestone, label, or a regex on the title). 2026-10-09: performance moved first (owner), games and the handheld/board milestones placed before the deferred group. 2026-10-10 (owner): the development Mac first; ARM, Pi, ESP32, Linux, handhelds and CHIP go to the cross-platform pass at the end. 2026-10-10 evening (owner): two showcase demos first (M27).",
   "groups": [
+    {
+      "name": "showcase demos (owner, 2026-10-10: a pinball in real 3D with a table editor, a museum touch table in the manner of Klynt); worked by parallel agents",
+      "milestones": [
+        "m-27"
+      ]
+    },
     {
       "name": "performance (owner, 2026-10-09: the fastest engine, every ms tracked in docs/reports/zinc-next-perf.md)",
       "milestones": [

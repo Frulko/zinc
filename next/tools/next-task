@@ -111,7 +111,7 @@ if args and args[0] in ("--claim", "--release"):
             t = tasks[i]
             why = None if status(t) in ("Ready", "Backlog") else "is " + status(t)
             why = why or skipped(t)
-            if why:
+            if why and not why.startswith("waits for"):   # a chain is claimed whole: its later tasks wait on the earlier ones
                 sys.exit("%s not claimed: %s (nothing was changed)" % (i, why))
     for i in ids:
         set_assignee(tasks[i], who if args[0] == "--claim" else "")

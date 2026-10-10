@@ -58,7 +58,7 @@ def main():
             made[t["key"]] = "ZN-?"
             continue
         out = run(cmd)
-        m = re.search(r"Task (ZN-\d+)", out)
+        m = re.search(r"Task (ZN-\d+(?:\.\d+)*)", out)   # a subtask is ZN-123.04
         if not m:
             sys.exit("could not read the id from: " + out[:200])
         made[t["key"]] = m.group(1)
