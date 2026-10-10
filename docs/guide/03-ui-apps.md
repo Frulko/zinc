@@ -243,7 +243,7 @@ const preview = openWindow('Preview', 640, 360, (dt) => {
   over the same nodes, signals and styles. A change one window makes to the other's tree redraws the other one.
 - **Limits.** Up to 8 windows besides the main one. They are drawn on the CPU at the main window's pixel density and shown with
   their own renderer. The arrow-key pad and smooth trackpad scrolling stay the main window's (other windows scroll by wheel
-  steps). `zinc:gl` and the QuickJS engine (`--engine quickjs`) draw in the main window only.
+  steps). `zinc:gl` draws in the main window only. The QuickJS engine (`--engine quickjs`) opens windows like the others.
 - **Tests.** In headless runs the windows draw too. `ZINC_SHOT=frame.png` also writes `frame-w1.png` for window 1, and so on.
   A `ZINC_INPUT` script (one `<frame> <event>` per line: `move X Y`, `down`, `up`, `key NAME`, `text STRING`...) sends the
   events after `window N` in a frame to window N, and `close` closes that window, as the user would.
