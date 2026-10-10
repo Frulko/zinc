@@ -27,6 +27,9 @@ extern HostCall hostLayout;  // the Rt::HostLayout* rows (isLayoutRow): a host l
 using HostFast = void (*)(std::uint64_t* a);
 inline constexpr int kHostFastRows = 1024;
 extern HostFast hostFast[kHostFastRows];
+}  // namespace zn::host
+namespace zrt { extern std::int32_t surf_w, surf_h; }   // the surface in logical pixels (runtime/zrt.cpp): AOT code reads width() / height() there, inline (ZN-399)
+namespace zn::host {
 inline HostCall hostSys = nullptr;  // zinc:sys, zinc:fs, zinc:storage, zinc:assets, zinc:os (the entries of the table from HostSysFirst)
 // Provided by src/host (built with ZN_HOST_GFX): installs `hostGfx`; the runtime itself starts on the first HostGfxFrames call.
 void installGfx();    // the graphics host and the system modules (installSys) together

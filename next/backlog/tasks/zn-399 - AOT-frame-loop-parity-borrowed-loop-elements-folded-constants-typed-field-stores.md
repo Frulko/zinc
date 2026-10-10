@@ -3,10 +3,10 @@ id: ZN-399
 title: >-
   AOT frame loop parity: borrowed loop elements, folded constants, typed field
   stores
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-09 07:22'
-updated_date: '2026-10-09 07:42'
+updated_date: '2026-10-10 12:20'
 labels:
   - perf
   - aot
@@ -26,13 +26,17 @@ ZN-397 follow-up. Script time per frame at 200k balls (headless, min of 5): Next
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 The update loop of the bouncing-ball bench is at or under the prototype's time (measured, same machine)
-- [ ] #2 Interpreter and AOT frames stay identical on bouncing-ball, nuxt-ui, rn-showcase, navigation
-- [ ] #3 A test per optimisation (refcount elision, constant folding) in tests/
+- [x] #1 The update loop of the bouncing-ball bench is at or under the prototype's time (measured, same machine)
+- [x] #2 Interpreter and AOT frames stay identical on bouncing-ball, nuxt-ui, rn-showcase, navigation
+- [x] #3 A test per optimisation (refcount elision, constant folding) in tests/
 <!-- AC:END -->
 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-Umbrella for the bouncing-ball update-loop parity: PERF-05 (ZN-404, folded consts), PERF-10 (ZN-409, typed AOT emission), PERF-14 (ZN-413, RC elision). The perf audit measured hand-typed loops at 2.12 ms vs 4.22 ms per frame (prototype level).
+Done 2026-10-10. With ZN-404 (folded consts), ZN-409 (struct per class) and ZN-413 (lent loads) done, the remaining gap of the update loop was the two host calls per ball (width() and height(): hostFast table entry, then zrt::gfx in another unit), which also kept every field in memory. AOT code now reads zrt::surf_w / surf_h inline (src/aot/aot.cpp, declared in include/zn/host.h).
+AC1, Intel Mac, 200k balls, headless, frames 11-70, alternated: update loop Next AOT 2.50-2.71 -> 1.33-1.41 ms (min 2.18-2.43 -> 1.17-1.24), prototype native 2.21-2.30 ms (min 1.58-1.78): under the prototype. Draw loop unchanged, 3.0 ms vs prototype 2.9 (both within noise of each other).
+AC2: interpreter and AOT last-frame hashes equal on bouncing-ball, nuxt-ui, rn-showcase, navigation (30 frames, deterministic).
+AC3: tests/t0/aot_size_inline.sh (new: width()/height() add no host call; fails on the old engine), host_direct (values = decoded path), and the earlier const_globals (ZN-404) and rc_lend (ZN-413) tests.
+Seen, not done: const GRAVITY of ball.ts is still read from m.globals in the inlined loop (one L1 load); the draw loop's rect() still takes two calls (table entry, then zrt::gfx::rect). usage: n/a
 <!-- SECTION:NOTES:END -->

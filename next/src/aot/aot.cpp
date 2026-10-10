@@ -217,6 +217,8 @@ struct FnEmitter {
       else if (nm == "ArrSet") line("{ Slot t[3] = {" + r(A) + ", " + r(B) + ", " + r(C) + "}; " + checked("op::arrSet(m, t, 0, 1, 2)") + " }");
       else if (nm == "ArrLen") line("{ Slot t[2] = {0, " + r(B) + "}; " + checked("op::arrLen(t, 0, 1)") + " " + r(A) + " = t[0]; }");
       else if (nm == "ArrPush") line("{ Slot t[3] = {0, " + r(B) + ", " + r(C) + "}; " + checked("op::arrPush(t, 0, 1, 2)") + " " + r(A) + " = t[0]; }");
+      else if (nm == "Rt" && (D == static_cast<unsigned>(zn::Rt::HostGfxWidth) || D == static_cast<unsigned>(zn::Rt::HostGfxHeight)))   // what width() / height() return, without a call (ZN-399)
+        line(r(A) + " = static_cast<Slot>(static_cast<std::int64_t>(zrt::" + (D == static_cast<unsigned>(zn::Rt::HostGfxWidth) ? "surf_w" : "surf_h") + "));");
       else if (nm == "Rt" && D >= static_cast<unsigned>(zn::Rt::HostGfxFrames) && D < static_cast<unsigned>(zn::Rt::HostSysFirst))   // a graphics row: its direct entry when the host has one (ZN-397)
         line("{ " + toWin(A, rtArity(D)) + "if (zn::host::HostFast hf = zn::host::hostFast[" + std::to_string(D) + "]) hf(" + frame(A) + "); else { const char* e = rtCall(m, (zn::Rt)" + std::to_string(D) + ", " + frame(A) + ", " + frame(f.nregs) + "); " + rtFail() + " } " + fromWin(A, std::max(1u, rtArity(D))) + "}");
       else if (nm == "Rt") line("{ " + toWin(A, rtArity(D)) + "const char* e = rtCall(m, (zn::Rt)" + std::to_string(D) + ", " + frame(A) + ", " + frame(f.nregs) + "); " + fromWin(A, std::max(1u, rtArity(D))) + rtFail() + " }");
