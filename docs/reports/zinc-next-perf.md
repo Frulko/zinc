@@ -465,6 +465,23 @@ about 73 instructions per draw); software renderer 7.839 to 7.840 G before, 7.88
 emissive and opacity uniforms on every draw cost +1.0% on the GPU: they live in shader variants of their own now, so an opaque draw uses
 the programs it had. The opaque frames are unchanged (zinc3d_aa, three_gpu, templates_kickstart, zinc3d_gltf).
 
+### ZN-566, ZN-568, ZN-565: JavaScript libraries on the QuickJS engine with the web environment
+
+Intel Mac, release, headless 320x240, real clock; load average given per row. The machine is shared and held back by heat: the same baseline gave 331 to 351 ms at one moment and 413 to 451 ms twenty minutes later, so only paired runs are comparisons.
+
+| Measure | Result | Load |
+|---|---|---|
+| Context creation to the first program line, environment off / on (median of 31, twice) | 10.2, 10.5 ms / 16.7, 17.1 ms (+6.5 ms, nearly all parsing the 67 KB of `webenv.js`) | 5.2 |
+| Size added to zinc by the environment | 14.5 KB (the JavaScript is read at run time) | |
+| First URL made (the WHATWG parser loads) | 12.8 ms once | |
+| p5.js 1.11.13: import, first frame after the context, frame | 136 to 158 ms, 320 to 362 ms, 0.28 to 0.60 ms | 4.4 |
+| three.js r186: the same | 66 to 77 ms, 350 to 369 ms, 0.28 to 0.60 ms (first WebGL 2 context 136 ms, first render 110 ms) | 4.4 |
+| PixiJS 7.4.3: the same | 60 to 81 ms, 379 to 419 ms, 0.78 ms | 5.5 |
+| PixiJS 8.22.0, after ZN-565: the same | 120 to 121 ms, 351 to 361 ms, 0.72 ms | 5.1 to 5.5 |
+| Stack: RangeError instead of a crash at depth | 6,837 frames in 4.7 ms on the default stack | |
+
+Cost of the WebGL binding fixes of ZN-565 (the whole change is in libzn_webgl: the parent commit's module alternated with the new one under the same zinc, 5 pairs per library, load 5.4 to 5.6): three.js first frame 425 against 426 ms, frame 0.67 against 0.67 ms; PixiJS 7 first frame 351 against 359 ms (+2%, four pairs of five in that direction), frame 0.70 against 0.70 ms; p5.js first frame 491 against 497 ms, frame 0.63 against 0.63 ms. A guard in front of the two regular expressions run per shader identifier was tried and dropped: at most 2%.
+
 ## 4. Correction of ZN-042's diagnosis (nbody)
 
 ZN-042 concluded that the typed backend would not help nbody and that the 2.9x to native came from NEON and fused multiply-adds, which `-ffp-contract=off` forbids. The experiments of PERF-10 contradict both parts:
