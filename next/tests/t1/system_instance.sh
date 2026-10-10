@@ -12,17 +12,22 @@ import * as system from 'zinc:system';
 import * as instance from 'zinc:system/instance';
 async function main(): Promise<void> {
   const first = await instance.lock((cwd: string, argv: string[]) => { console.log('second instance args', JSON.stringify(argv)); system.quit(0); });
-  console.log(first ? 'first instance' : 'another instance has the app');
+  if (first) console.error('first instance');   // stderr: stdout into a file is flushed at exit only, and the test waits on this line (ZN-613)
+  else console.log('another instance has the app');
   if (!first) system.quit(0);
-  else setTimeout(() => { console.log('no second instance came'); system.quit(1); }, 10000);
+  else setTimeout(() => { console.log('no second instance came'); system.quit(1); }, 120000);   // only ends a failed run
 }
 main();
 T
 printf '{"name":"i","entry":"main.ts","permissions":["instance"],"app":{"id":"dev.zinc.test.inst"}}\n' > "$tmp/app/zinc.json"
 cd "$tmp/app" || exit 2
+# ready LOG PID: until the instance has said that it holds the lock, or its process is gone. The old wait was a fixed 10 s (the line never reached the log
+# before exit), shorter than the first `zinc run` under an empty HOME, which builds the system plugin with a cold zig cache: 20 to 50 s, 100 s when every
+# core is busy. The second instance then took the lock (ZN-613). The count only stops a hung run.
+ready() { n=0; while ! grep -q "first instance" "$1" 2>/dev/null && kill -0 "$2" 2>/dev/null && [ $n -lt 6000 ]; do sleep 0.1; n=$((n+1)); done; }
 "$ZINC" run main.ts -- --first > "$tmp/first.log" 2>&1 &
 first=$!
-n=0; while ! grep -q "first instance" "$tmp/first.log" 2>/dev/null && [ $n -lt 100 ]; do sleep 0.1; n=$((n+1)); done
+ready "$tmp/first.log" $first
 out=$("$ZINC" run main.ts -- --second 7 2>&1); code=$?
 [ "$out" = "another instance has the app" ] && [ $code -eq 0 ] || { echo "second instance: '$out' (exit $code)"; fail=1; }
 wait $first
@@ -30,12 +35,12 @@ grep -q 'second instance args \["--second","7"\]' "$tmp/first.log" || { echo "th
 # a stale socket: a first instance killed hard leaves its socket file; the next one takes over
 "$ZINC" run main.ts -- --again > "$tmp/third.log" 2>&1 &
 third=$!
-n=0; while ! grep -q "first instance" "$tmp/third.log" 2>/dev/null && [ $n -lt 100 ]; do sleep 0.1; n=$((n+1)); done
+ready "$tmp/third.log" $third
 kill -9 $(pgrep -f "run main.ts -- --again") 2>/dev/null; wait $third 2>/dev/null
 [ -e "$tmp/zinc-dev.zinc.test.inst.sock" ] || echo "(no stale socket left to recover)"
 "$ZINC" run main.ts -- --fourth > "$tmp/fourth.log" 2>&1 &
 fourth=$!
-n=0; while ! grep -q "first instance" "$tmp/fourth.log" 2>/dev/null && [ $n -lt 100 ]; do sleep 0.1; n=$((n+1)); done
+ready "$tmp/fourth.log" $fourth
 grep -q "first instance" "$tmp/fourth.log" || { echo "the instance after a hard kill is not the first: $(cat "$tmp/fourth.log")"; fail=1; }
 kill $(pgrep -f "run main.ts -- --fourth") 2>/dev/null; wait $fourth 2>/dev/null
 # autostart under the temporary HOME
