@@ -161,10 +161,13 @@ void Machine::destroy(Obj* root) {
       }
       case zbc::CKind::String: break;
     }
-    std::uint32_t at = o->pad;  // leave the registry in O(1)
-    allocated[at] = allocated.back();
-    allocated[at]->pad = at;
-    allocated.pop_back();
+    --live;
+    if (registry) {   // leave the registry in O(1)
+      std::uint32_t at = o->pad;
+      allocated[at] = allocated.back();
+      allocated[at]->pad = at;
+      allocated.pop_back();
+    }
     switch (o->cls->kind) {
       case zbc::CKind::Array: delete static_cast<ArrObj*>(o); break;
       case zbc::CKind::Map: case zbc::CKind::Set: delete static_cast<MapObj*>(o); break;
@@ -256,7 +259,7 @@ bool Machine::load(const zbc::Module& m, std::string& err) {
   }
   if (strClass) strArray = arrayOf.count({static_cast<std::uint8_t>(zbc::Cls::R), strClass->id}) ? arrayOf[{static_cast<std::uint8_t>(zbc::Cls::R), strClass->id}] : nullptr;
   if (!m.strings.empty() && !strClass) { err = "string constants without a string class"; return false; }
-  for (const std::string& s : m.strings) { StrObj* so = newStr(s.data(), s.size()); so->rc = kImmortal; strConsts.push_back(so); }
+  for (const std::string& s : m.strings) { StrObj* so = newStr(s.data(), s.size()); so->rc = kImmortal; ++immortals; strConsts.push_back(so); }
   cLimit = cStackLimit();
   std::size_t depthMax = maxDepth ? maxDepth : kMaxCallDepth;
   frames.resize(depthMax);

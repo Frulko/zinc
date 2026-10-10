@@ -29,7 +29,7 @@ Result runModuleHooked(const zbc::Module& mod, std::string& out, bool traceFree,
   else {
     nativeEnd(m);
     for (std::size_t g = m.globals.size(); g-- > 0;) if (m.globalRef[g]) { Slot v = m.globals[g]; m.globals[g] = 0; m.releaseSlot(v); }  // statics die in reverse order of definition
-    for (const Obj* o : m.allocated) if (o->rc != kImmortal) ++res.leaked;
+    res.leaked = m.live - m.immortals;   // the same count as walking the registry, which an AOT program does not keep (ZN-422)
   }
   if (finish) finish(m, finishData);
   res.trace = std::move(m.trace);
@@ -52,6 +52,7 @@ int report(const Result& res, const std::string& out, bool traceFree) {
 namespace {
 struct Natives { int (*const* fns)(Machine&, Slot*); std::size_t count; };
 void bind(Machine& m, const void* data) {
+  m.registry = false;   // an AOT program: its process ends with this machine, the leftovers need no freeing (ZN-422)
   const auto* n = static_cast<const Natives*>(data);
   for (std::size_t i = 0; i < n->count && i < m.funcs.size(); ++i) m.funcs[i].native = n->fns[i];
 }

@@ -101,7 +101,7 @@ inline constexpr std::uint32_t kImmortal = 0xFFFFFFFFu;  // a reference count th
 struct alignas(Slot) Obj {
   const ClassRT* cls;
   std::uint32_t rc;   // references held; new objects start at 1
-  std::uint32_t pad;  // index in Machine::allocated
+  std::uint32_t pad;  // index in Machine::allocated (when the machine keeps the registry)
   Slot* fields() { return reinterpret_cast<Slot*>(this + 1); }
 };
 static_assert(sizeof(Obj) % alignof(Slot) == 0, "object payload must align its Slot fields");
@@ -175,7 +175,13 @@ struct Machine {
   std::vector<StrObj*> strConsts;
   const ClassRT* strClass = nullptr;
   const ClassRT* strArray = nullptr;  // string[]
-  std::vector<Obj*> allocated;      // every live object, so the leftovers can be counted and freed at exit
+  std::vector<Obj*> allocated;      // every live object, so the leftovers can be freed at exit and listed (zinc mem); empty when `registry` is off
+  // ZN-422: an AOT program (one machine, its process ends with it) only counts its live objects: no registry, which cost a push per allocation and a
+  // write into another object's header per free (5-7% of allocation-heavy programs). Every other host keeps it: the device core runs program after
+  // program and frees the leftovers, zinc mem lists them. The leak count comes from the counters either way.
+  bool registry = true;
+  std::uint64_t live = 0;           // objects allocated and not freed yet
+  std::uint64_t immortals = 0;      // of those, the ones made immortal (string constants, class names): never freed, never a leak
   bool traceFree = false;           // print the class of each object as it is destroyed (debugging, destruction order tests)
   std::string* out = nullptr;
   std::size_t errMark = 0;   // where the line of a console.error began in `out`
@@ -207,8 +213,8 @@ struct Machine {
   std::unordered_map<const Obj*, std::uint32_t> serials;  // with traceFree: the allocation number of each live object
   std::uint32_t nextSerial = 0;
   void track(Obj* o) {
-    o->pad = static_cast<std::uint32_t>(allocated.size());
-    allocated.push_back(o);
+    ++live;
+    if (registry) { o->pad = static_cast<std::uint32_t>(allocated.size()); allocated.push_back(o); }
     if (mem) memTrack(o);
     if (traceFree) serials[o] = nextSerial++;
   }

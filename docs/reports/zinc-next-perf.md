@@ -287,6 +287,8 @@ Gain: 5 = removes a multiple of the frame or a 2x+ on a whole class of programs;
 - **Fix**: live counters for the leak count; objects in a dedicated `mi_heap_t`, `mi_heap_destroy` at exit; `mi_heap_visit_blocks` when a leak listing is asked for; `traceFree` keeps its serials.
 - **Gain**: estimated 5-15% on allocation-heavy code (binarytrees, strings, building a UI tree). **Effort** M. **Risk** low-medium (leak reports and destruction-order tests must stay identical). **Hardware**: all; small caches most.
 
+- **Result (ZN-422, 2026-10-10)**: AOT programs count their live objects instead of registering each one (the leak count is live - immortals everywhere); the interpreter keeps the registry (the device core frees leftovers between programs, zinc mem lists them) and measured no gain without it. AOT binarytrees -2 to -6%, strings -4 to -6% (Intel Mac).
+
 ### PERF-24: LTO across runtime, host and program
 
 - **Where**: `next/src/main.cpp:1349` (the program at -O2 links `libzn_rt.a`, `libzn_host_gfx.a` built separately); host rows are function pointers (`zn::host::hostFast`), so `gfx::rect` and `push` are never inlined into the loop.

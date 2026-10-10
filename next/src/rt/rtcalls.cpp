@@ -995,7 +995,7 @@ const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
       auto* o = reinterpret_cast<Obj*>(a[0]);
       NN(o);
       auto* cls = const_cast<ClassRT*>(o->cls);
-      if (!cls->nameStr) { cls->nameStr = m.newStr(cls->name.data(), cls->name.size()); cls->nameStr->rc = kImmortal; }
+      if (!cls->nameStr) { cls->nameStr = m.newStr(cls->name.data(), cls->name.size()); cls->nameStr->rc = kImmortal; ++m.immortals; }
       a[0] = P(cls->nameStr);
       return nullptr;
     }
