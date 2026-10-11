@@ -438,6 +438,21 @@ The CPU time ZINC_GL_STATS calls "to submit" includes waits for the GPU (5.6 to 
 measured at load 6 from other builds, before ZN-432 changed the image path of the replay. GL replay against the software frame for convex
 and concave polygons: 0.06% of the pixels more than 24 apart, mean error 0.07 (tests/t1/gl_convex.sh).
 
+### ZN-583: zinc:physics3d on Jolt's thread pool (2026-10-11, Intel Mac, CPU held at 37 to 60% of its speed by heat: indicative)
+
+`bench/physics3d_pile.ts`, 1,000 piled bodies, compiled, runs alternated (medians):
+
+| Load | CPU speed | One thread | One per core (6) |
+|---|---|---|---|
+| 7.3 to 8.4 | 44 to 46% | 8.19 ms (of 5) | 3.64 ms (3.37 to 3.94) |
+| 5.5 to 6.7 | 46 to 60% | 5.97 to 7.86 ms | 3.14 ms (2.73 to 3.95) |
+
+The cores divide a step by 2.1 to 2.3; 12 threads 4.76 ms against 3.84 ms for 6. At one per core, load 8.2 to 10, CPU 37 to 42%:
+compiled 3.82 ms, interpreter 4.73 ms, QuickJS 5.09 ms (medians of 3). One thread, profile: velocity solver 43%, contact cache 14%,
+broad phase 9%, walk of ended contacts 4%. The 2D bench went from 1.786 ms at full speed to 4.07 ms at 44%; by that ratio the 3D pile
+would be near 1.6 ms at full speed, an estimate to replace by a measure alone:
+`build/zinc build bench/physics3d_pile.ts -o /tmp/pile && /tmp/pile 1000 1; /tmp/pile 1000 0` (three times, ZN-583 #2 and ZN-690).
+
 ### ZN-443: tile maps (2026-10-11, Intel Mac, load 7 to 8 from other trees: indicative)
 
 Import: the test Tiled map 2.0 ms, the LDtk project (4 levels) 2.3 ms, a generated 256x256 map of 3 layers (196,608 cells) 33 ms (351 ms

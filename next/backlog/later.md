@@ -86,6 +86,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-443: no hot reload of a map's table under `zinc dev` (the atlas pages reload); reuse Level objects by name on onReload.
 - ZN-443: `.tmx`/`.tsx` through a vendored XML parser (tmxlite or pugixml) if users ask.
 - ZN-443: QuickJS's `Date.now` stayed frozen in a headless run; check whether the virtual clock should advance with the frames.
+- ZN-583: zinc:physics3d `threads: 0` counts hardware threads on Linux (SMT doubles them on x86): compare one per core and one per hardware thread there.
+- ZN-583: one pool of workers shared by the worlds of a program, if a program steps several large worlds.
 
 ## Demos
 
@@ -213,4 +215,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-714: Windows host library: vendor libuv's `src/win` and SDL3's Windows sources, port `sys_host.cpp` (CreateProcess, ws2_32), `libzn_window` as a DLL; any program that uses the host (window, plugin, timers) is refused today. Table by module in `docs/reports/zinc-next-hosts.md`.
 - ZN-714: Windows plugins (a `windows` target in plugin.json, .dll in plugin_build.cpp, WebView2, Media Foundation, COM serial), file dialog and the system plugin's Win32 backend.
 - ZN-714: zinc.exe itself (curl/tar/sh in src/tc, fork/termios/poll) and the installer (install.ps1, signing, winget or scoop, update-app).
-
+- ZN-583 #4: zinc:physics2d and zinc:physics3d with the pinned zig for x86_64-linux, aarch64-linux and armhf-linux (`zinc build --target armhf-linux tests/data/physics3d/drop.ts`, same for physics2d) in the container or QEMU: drop.out byte for byte, plus physics3d's drop.ts `-- 4` (thread pool, `-pthread` in the manifest); check Jolt's support for 32-bit ARM.
