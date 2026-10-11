@@ -18,6 +18,7 @@ extern "C" {
 }
 
 #include "frontend/project.h"
+#include "zn/limits.h"
 #include "res/codec.h"
 #include "zn/host.h"
 #include "zn/runtime.h"
@@ -110,10 +111,7 @@ JSValue js_decode(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
   if (at < 0 || n < 0 || static_cast<std::uint64_t>(at) + static_cast<std::uint64_t>(n) > size) return JS_ThrowRangeError(c, "decode: outside the buffer");
   return JS_NewStringLen(c, reinterpret_cast<const char*>(p) + at, static_cast<size_t>(n));
 }
-// An image larger than this is refused before its pixels are allocated: the file may come from a network, and its header alone can ask for
-// gigabytes. 2^26 pixels is 8192 x 8192, 256 MiB of RGBA: above any texture a game loads, below what would starve the process.
-// ponytail: one constant for every program; a zinc.json key if a program ever needs more
-constexpr std::int64_t kMaxImagePixels = std::int64_t{1} << 26;
+// ponytail: one image size limit for every program (zn::kMaxImagePixels, include/zn/limits.h); a zinc.json key if a program ever needs more
 // The memory of an ArrayBuffer that is a std::vector of ours (QuickJS's contract: size 0 frees it; another size resizes it and answers its
 // new address, or null with the block left as it was)
 void* pixelStore(JSRuntime*, void* opaque, void*, size_t size) {

@@ -14,5 +14,8 @@ inline constexpr std::uint32_t kMaxConsts = 65535;        // LoadK's pool index 
 inline constexpr std::uint32_t kMaxClasses = 60000;       // class ids are 16 bits (register states use 16)
 inline constexpr std::uint32_t kMaxStrings = 65535;      // LoadStr's string index is 16 bits
 inline constexpr std::uint32_t kMaxFields = 255;           // GetField/SetField index is 8 bits
+// The web environment refuses a larger image before its pixels are allocated (src/qjs/webenv.cpp): the file may come from a network, and
+// its header alone can ask for gigabytes. 2^26 pixels is 8192 x 8192, 256 MiB of RGBA: above any texture a game loads.
+inline constexpr std::int64_t kMaxImagePixels = std::int64_t{1} << 26;
 
 }  // namespace zn
