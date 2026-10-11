@@ -1178,6 +1178,8 @@ private:
     bool clipped;                 // ZINC patch 4: clip() was called in this state (the mask is no longer the whole canvas)
     std::vector< float > cover;   // ZINC patch 4: the coverage changes of a small shape, a cell for each pixel of its box
     int image_mode;               // ZINC patch 5: how draw_image samples the picture: 0 the bicubic filter, 1 the nearest pixel, 2 bilinear
+    std::vector< rgba > image_row;   // ZINC patch 7: a row of the picture draw_image blends, as colours
+    std::vector< int > image_columns;   // ZINC patch 7: where in that row each column of the canvas reads
     line_path lines;
     line_path scratch;
     pixel_runs runs;
@@ -3477,6 +3479,13 @@ float canvas::measure_text(
     return static_cast< float >( width ) * face.scale;
 }
 
+// ZINC patch 7: a pixel of a picture's bytes as set_pattern keeps it
+static rgba texel( unsigned char const *bytes )
+{
+    static float const part = 1.0f / 255.0f;
+    return premultiplied( linearized( rgba( bytes[ 0 ] * part, bytes[ 1 ] * part, bytes[ 2 ] * part, bytes[ 3 ] * part ) ) );
+}
+
 void canvas::draw_image(
     unsigned char const *image,
     int width,
@@ -3490,6 +3499,96 @@ void canvas::draw_image(
     if ( !image || width <= 0 || height <= 0 ||
          to_width == 0.0f || to_height == 0.0f )
         return;
+    // ZINC patch 7 (ZN-572): a picture that is not turned, mirrored or made smaller (a sprite), drawn source-over with no clip and no
+    // shadow, is blended by this loop from the bytes given: no copy of the picture as a brush, no runs, no call for each pixel. The same
+    // sums as render_main and paint_pixel: the nearest pixel or four of them, the edge pixels of the rectangle by the part covered.
+    float step_x = static_cast< float >( width ) / ( forward.a * to_width );     // pixels of the picture for one of the canvas
+    float step_y = static_cast< float >( height ) / ( forward.d * to_height );
+    if ( forward.b == 0.0f && forward.c == 0.0f && forward.a > 0.0f && forward.d > 0.0f &&
+         to_width > 0.0f && to_height > 0.0f && !clipped && global_composite_operation == source_over &&
+         ( shadow_color.a == 0.0f || ( shadow_blur == 0.0f && shadow_offset_x == 0.0f && shadow_offset_y == 0.0f ) ) )
+    {
+        float left = forward.a * x + forward.e;
+        float top = forward.d * y + forward.f;
+        float right = left + forward.a * to_width;
+        float bottom = top + forward.d * to_height;
+        bool nearest = !image_smoothing ||
+            ( step_x == 1.0f && step_y == 1.0f && left == floorf( left ) && top == floorf( top ) );
+        if ( nearest ? step_x < 4096.0f && step_y < 4096.0f : step_x <= 1.0001f && step_y <= 1.0001f )
+        {
+            int x_from = static_cast< int >( std::min( std::max( 0.0f, floorf( left ) ), static_cast< float >( size_x ) ) );
+            int y_from = static_cast< int >( std::min( std::max( 0.0f, floorf( top ) ), static_cast< float >( size_y ) ) );
+            int x_to = static_cast< int >( std::max( 0.0f, std::min( static_cast< float >( size_x ), ceilf( right ) ) ) );
+            int y_to = static_cast< int >( std::max( 0.0f, std::min( static_cast< float >( size_y ), ceilf( bottom ) ) ) );
+            if ( x_from >= x_to || y_from >= y_to )
+                return;
+            // where in the picture the middle of a pixel of the canvas falls: the pixel it is in, or the four it is between
+            float shift = nearest ? 0.0f : 0.5f;
+            float u_from = ( static_cast< float >( x_from ) + 0.5f - left ) * step_x - shift;
+            float u_to = ( static_cast< float >( x_to - 1 ) + 0.5f - left ) * step_x - shift;
+            // the pixels of a row of the picture that a row of the canvas reads, kept as colours for the time of that row
+            int s_from = std::min( std::max( static_cast< int >( floorf( u_from ) ), 0 ), width - 1 );
+            int s_to = std::min( std::max( static_cast< int >( floorf( u_to ) ) + 2, s_from + 1 ), width );
+            image_row.resize( static_cast< size_t >( s_to - s_from ) );
+            // for each column of the canvas: the two pixels of that row it is between, how far from the first, the part of it covered
+            image_columns.resize( static_cast< size_t >( x_to - x_from ) * 2 );
+            cover.resize( static_cast< size_t >( x_to - x_from ) * 2 );
+            for ( int at_x = x_from; at_x < x_to; ++at_x )
+            {
+                float u = ( static_cast< float >( at_x ) + 0.5f - left ) * step_x - shift;
+                int whole = static_cast< int >( floorf( u ) );
+                size_t column = static_cast< size_t >( at_x - x_from ) * 2;
+                image_columns[ column ] = std::min( std::max( whole, s_from ), s_to - 1 ) - s_from;
+                image_columns[ column + 1 ] = std::min( std::max( whole + 1, s_from ), s_to - 1 ) - s_from;
+                cover[ column ] = nearest ? 0.0f : u - static_cast< float >( whole );
+                cover[ column + 1 ] = std::min( static_cast< float >( at_x + 1 ), right ) - std::max( static_cast< float >( at_x ), left );
+            }
+            for ( int at_y = y_from; at_y < y_to; ++at_y )
+            {
+                float cover_y = ( std::min( static_cast< float >( at_y + 1 ), bottom ) -
+                                  std::max( static_cast< float >( at_y ), top ) ) * global_alpha;
+                float v = ( static_cast< float >( at_y ) + 0.5f - top ) * step_y - shift;
+                float mix_y = nearest ? 0.0f : v - floorf( v );
+                int y_1 = std::min( std::max( static_cast< int >( floorf( v ) ), 0 ), height - 1 );
+                int y_2 = std::min( std::max( static_cast< int >( floorf( v ) ) + 1, 0 ), height - 1 );
+                unsigned char const *row_1 = image + y_1 * stride + s_from * 4;
+                unsigned char const *row_2 = image + y_2 * stride + s_from * 4;
+                for ( int index = 0; index < s_to - s_from; ++index )
+                {
+                    rgba color = texel( row_1 + index * 4 );
+                    if ( mix_y != 0.0f )
+                        color += mix_y * ( texel( row_2 + index * 4 ) - color );
+                    image_row[ static_cast< size_t >( index ) ] = color;
+                }
+                rgba const *row = &image_row[ 0 ];
+                int const *columns = &image_columns[ 0 ];
+                float const *parts = &cover[ 0 ];
+                rgba *back = bitmap + at_y * size_x + x_from;
+                for ( int at_x = x_from; at_x < x_to; ++at_x, ++back, columns += 2, parts += 2 )
+                {
+                    rgba fore = row[ columns[ 0 ] ];
+                    if ( parts[ 0 ] != 0.0f )
+                        fore += parts[ 0 ] * ( row[ columns[ 1 ] ] - fore );
+                    if ( fore.a <= 0.0f )
+                        continue;
+                    float amount = cover_y * parts[ 1 ];
+                    if ( amount >= 1.0f && fore.a >= 0.9999f )   // opaque: the pixel is replaced
+                    {
+                        *back = fore;
+                        back->a = 1.0f;
+                        continue;
+                    }
+                    fore = amount * fore;
+                    float keep = 1.0f - fore.a;
+                    back->r = fore.r + keep * back->r;
+                    back->g = fore.g + keep * back->g;
+                    back->b = fore.b + keep * back->b;
+                    back->a = std::min( fore.a + keep * back->a, 1.0f );
+                }
+            }
+            return;
+        }
+    }
     std::swap( fill_brush, image_brush );
     set_pattern( fill_style, image, width, height, stride, repeat );
     std::swap( fill_brush, image_brush );

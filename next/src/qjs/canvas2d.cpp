@@ -89,8 +89,7 @@ double num(JSContext* c, JSValueConst v) { double d = 0; JS_ToFloat64(c, &d, v);
 int i32(JSContext* c, JSValueConst v) { int32_t i = 0; JS_ToInt32(c, &i, v); return i; }
 // the bytes of an ArrayBuffer or of a typed array's view
 const uint8_t* bytesOf(JSContext* c, JSValueConst v, size_t& n) {
-  if (const uint8_t* p = JS_GetArrayBuffer(c, &n, v)) return p;
-  JS_FreeValue(c, JS_GetException(c));
+  if (JS_IsArrayBuffer(v)) return JS_GetArrayBuffer(c, &n, v);   // asked first: JS_GetArrayBuffer of a typed array throws, and an exception builds a stack (500 sprites a frame)
   size_t at = 0, len = 0, per = 0;
   JSValue buf = JS_GetTypedArrayBuffer(c, v, &at, &len, &per);
   if (JS_IsException(buf)) { JS_FreeValue(c, JS_GetException(c)); n = 0; return nullptr; }

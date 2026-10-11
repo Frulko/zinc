@@ -56,4 +56,22 @@ const near = (x, y, r, g, b) => { const d = ox.getImageData(x, y, 1, 1).data; re
 log('toDataURL', url.slice(0, 30), png.width, png.height, at(1, 1, ox), at(4, 1, ox), at(7, 1, ox), jpeg.slice(0, 23), near(9, 1, 255, 0, 0), near(15, 1, 0, 0, 0), small.toDataURL('image/webp').slice(0, 14));
 const blob = await new Promise(done => small.toBlob(done)), off = new OffscreenCanvas(3, 2);
 log('toBlob', blob.type, blob.size > 60, new Uint8Array(await blob.arrayBuffer())[1], 'OffscreenCanvas', off.width, off.height, off instanceof OffscreenCanvas, canvas instanceof OffscreenCanvas, (await off.convertToBlob()).type, off.getContext('2d') instanceof CanvasRenderingContext2D);
+
+// a picture that is not turned is blended by a loop of its own (source-over, no clip, no shadow): the same pixels as the general way, which
+// a clip that is not the whole canvas takes. Whole and half pixels, scaled, a part of it, over the edges, under globalAlpha.
+const ball = document.createElement('canvas'); ball.width = 12; ball.height = 12;
+const bc = ball.getContext('2d'); bc.fillStyle = 'rgba(255, 128, 0, 0.8)'; bc.beginPath(); bc.arc(6, 6, 5.5, 0, 7); bc.fill(); bc.fillStyle = '#00f'; bc.fillRect(0, 0, 3, 3);
+const sprites = (smooth, clipped) => {
+  const k = document.createElement('canvas'); k.width = 96; k.height = 48;
+  const x = k.getContext('2d'); x.fillStyle = '#204060'; x.fillRect(0, 0, 96, 24);   // opaque above, transparent below
+  if (clipped) { x.beginPath(); x.rect(0, 1, 96, 47); x.clip(); }   // nothing is drawn on the first row
+  x.imageSmoothingEnabled = smooth;
+  x.drawImage(ball, 2, 2); x.drawImage(ball, 20.5, 18.25); x.globalAlpha = 0.5; x.drawImage(ball, 40, 4, 30, 36); x.globalAlpha = 1;
+  x.drawImage(ball, 3, 3, 6, 6, 74.3, 10.6, 15, 15); x.drawImage(ball, 90, 40); x.drawImage(ball, -5, 30);
+  x.scale(0.5, 2); x.drawImage(ball, 30, 14);   // made smaller: the general way for both
+  return x;
+};
+const same = smooth => { const a = sprites(smooth, false).getImageData(0, 0, 96, 48).data, b = sprites(smooth, true).getImageData(0, 0, 96, 48).data; let worst = 0; for (let i = 0; i < a.length; i++) worst = Math.max(worst, Math.abs(a[i] - b[i])); return worst <= 1; };
+const sp = sprites(true, false);
+log('sprites', same(true), same(false), at(3, 3, sp), at(8, 8, sp), at(8, 1, sp), at(26, 30, sp), at(55, 10, sp), at(95, 47, sp), at(0, 36, sp));
 log('not there', __canvas2dUnsupported());

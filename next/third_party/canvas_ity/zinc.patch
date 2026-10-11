@@ -1,9 +1,10 @@
 --- canvas_ity.hpp (upstream 8be29cb)
 +++ canvas_ity.hpp
-@@ -1147,6 +1147,17 @@
+@@ -1146,7 +1146,18 @@
+     /// path.  If the stack of canvas states is empty, this does nothing.
      ///
      void restore();
- 
++
 +    // ZINC patch 2 (ZN-570): sets the current path aside, or takes it back. Between the two calls the caller builds and paints a path of
 +    // its own (the outlines of shaped glyphs): fillText and strokeText must leave the current path as it was.
 +    void exchange_path();
@@ -11,14 +12,14 @@
 +    // ZINC patch 5 (ZN-572): false makes draw_image take the nearest pixel of the picture instead of resampling it (a canvas whose
 +    // imageSmoothingEnabled is false: pixel art).
 +    bool image_smoothing;
-+
+ 
 +    // ZINC patch 6 (ZN-572): true makes fill() and clip() use the even-odd rule instead of the non-zero winding rule.
 +    bool even_odd;
 +
  private:
      int size_x;
      int size_y;
-@@ -1163,6 +1174,10 @@
+@@ -1163,6 +1174,12 @@
      paint_brush stroke_brush;
      paint_brush image_brush;
      bezier_path path;
@@ -26,10 +27,12 @@
 +    bool clipped;                 // ZINC patch 4: clip() was called in this state (the mask is no longer the whole canvas)
 +    std::vector< float > cover;   // ZINC patch 4: the coverage changes of a small shape, a cell for each pixel of its box
 +    int image_mode;               // ZINC patch 5: how draw_image samples the picture: 0 the bicubic filter, 1 the nearest pixel, 2 bilinear
++    std::vector< rgba > image_row;   // ZINC patch 7: a row of the picture draw_image blends, as colours
++    std::vector< int > image_columns;   // ZINC patch 7: where in that row each column of the canvas reads
      line_path lines;
      line_path scratch;
      pixel_runs runs;
-@@ -1270,18 +1285,28 @@
+@@ -1270,18 +1287,28 @@
      return left -= right; }
  static rgba const operator*( float left, rgba right ) {
      return right *= left; }
@@ -58,12 +61,10 @@
  static rgba const delinearized( rgba that ) {
      return rgba( delinearized( that.r ), delinearized( that.g ),
                   delinearized( that.b ), that.a ); }
-@@ -2167,6 +2192,17 @@
-              ( from.y > to.y && to.y > next_y.y ) )
-             next_y = to;
+@@ -2169,6 +2196,17 @@
      } while ( now.y != to.y );
-+}
-+
+ }
+ 
 +// ZINC patch 6: how much of a pixel is inside, from the sum of the signed coverage of the edges to its left. The even-odd rule folds the
 +// sum: inside between 0 and 1, outside again at 2.
 +static float inside( float sum, bool even_odd )
@@ -73,10 +74,12 @@
 +        return std::min( sum, 1.0f );
 +    sum = fmodf( sum, 2.0f );
 +    return sum > 1.0f ? 2.0f - sum : sum;
- }
- 
++}
++
  static bool operator<(
-@@ -2240,6 +2276,37 @@
+     pixel_run left,
+     pixel_run right )
+@@ -2240,6 +2278,37 @@
      }
      if ( runs.empty() )
          return;
@@ -114,7 +117,7 @@
      std::sort( runs.begin(), runs.end() );
      size_t to = 0;
      for ( size_t from = 1; from < runs.size(); ++from )
-@@ -2280,6 +2347,27 @@
+@@ -2280,6 +2349,27 @@
               ( ( brush.repetition & 1 ) &&
                 ( point.y < 0.0f || height <= point.y ) ) )
              return rgba( 0.0f, 0.0f, 0.0f, 0.0f );
@@ -142,7 +145,7 @@
          float scale_x = fabsf( inverse.a ) + fabsf( inverse.c );
          float scale_y = fabsf( inverse.b ) + fabsf( inverse.d );
          scale_x = std::max( 1.0f, std::min( scale_x, width * 0.25f ) );
-@@ -2556,18 +2644,82 @@
+@@ -2556,18 +2646,82 @@
      render_shadow( brush );
      lines_to_runs( xy( 0.0f, 0.0f ), 0 );
      int operation = global_composite_operation;
@@ -227,7 +230,7 @@
          float visibility = std::min( fabsf( clip_sum ), 1.0f );
          int to = next.y == y ? next.x : x + 1;
          static float const threshold = 1.0f / 8160.0f;
-@@ -2625,6 +2777,10 @@
+@@ -2625,6 +2779,10 @@
        stroke_brush(),
        image_brush(),
        face(),
@@ -238,7 +241,7 @@
        bitmap( new rgba[ width * height ] ),
        saves( 0 )
  {
-@@ -3056,6 +3212,7 @@
+@@ -3056,6 +3214,7 @@
  
  void canvas::clip()
  {
@@ -246,7 +249,7 @@
      path_to_lines( false );
      lines_to_runs( xy( 0.0f, 0.0f ), 0 );
      size_t part = runs.size();
-@@ -3082,7 +3239,7 @@
+@@ -3082,7 +3241,7 @@
              sum_1 += runs[ index_1++ ].delta;
          else
              sum_2 += runs[ index_2++ ].delta;
@@ -255,7 +258,7 @@
                               std::min( fabsf( sum_2 ), 1.0f ) );
          if ( visibility == last )
              continue;
-@@ -3096,6 +3253,11 @@
+@@ -3096,6 +3255,11 @@
          }
          last = visibility;
      }
@@ -267,7 +270,7 @@
  }
  
  bool canvas::is_point_in_path(
-@@ -3273,6 +3435,11 @@
+@@ -3273,6 +3437,11 @@
      return true;
  }
  
@@ -279,7 +282,118 @@
  void canvas::fill_text(
      char const *text,
      float x,
-@@ -3340,6 +3507,13 @@
+@@ -3310,6 +3479,13 @@
+     return static_cast< float >( width ) * face.scale;
+ }
+ 
++// ZINC patch 7: a pixel of a picture's bytes as set_pattern keeps it
++static rgba texel( unsigned char const *bytes )
++{
++    static float const part = 1.0f / 255.0f;
++    return premultiplied( linearized( rgba( bytes[ 0 ] * part, bytes[ 1 ] * part, bytes[ 2 ] * part, bytes[ 3 ] * part ) ) );
++}
++
+ void canvas::draw_image(
+     unsigned char const *image,
+     int width,
+@@ -3323,6 +3499,96 @@
+     if ( !image || width <= 0 || height <= 0 ||
+          to_width == 0.0f || to_height == 0.0f )
+         return;
++    // ZINC patch 7 (ZN-572): a picture that is not turned, mirrored or made smaller (a sprite), drawn source-over with no clip and no
++    // shadow, is blended by this loop from the bytes given: no copy of the picture as a brush, no runs, no call for each pixel. The same
++    // sums as render_main and paint_pixel: the nearest pixel or four of them, the edge pixels of the rectangle by the part covered.
++    float step_x = static_cast< float >( width ) / ( forward.a * to_width );     // pixels of the picture for one of the canvas
++    float step_y = static_cast< float >( height ) / ( forward.d * to_height );
++    if ( forward.b == 0.0f && forward.c == 0.0f && forward.a > 0.0f && forward.d > 0.0f &&
++         to_width > 0.0f && to_height > 0.0f && !clipped && global_composite_operation == source_over &&
++         ( shadow_color.a == 0.0f || ( shadow_blur == 0.0f && shadow_offset_x == 0.0f && shadow_offset_y == 0.0f ) ) )
++    {
++        float left = forward.a * x + forward.e;
++        float top = forward.d * y + forward.f;
++        float right = left + forward.a * to_width;
++        float bottom = top + forward.d * to_height;
++        bool nearest = !image_smoothing ||
++            ( step_x == 1.0f && step_y == 1.0f && left == floorf( left ) && top == floorf( top ) );
++        if ( nearest ? step_x < 4096.0f && step_y < 4096.0f : step_x <= 1.0001f && step_y <= 1.0001f )
++        {
++            int x_from = static_cast< int >( std::min( std::max( 0.0f, floorf( left ) ), static_cast< float >( size_x ) ) );
++            int y_from = static_cast< int >( std::min( std::max( 0.0f, floorf( top ) ), static_cast< float >( size_y ) ) );
++            int x_to = static_cast< int >( std::max( 0.0f, std::min( static_cast< float >( size_x ), ceilf( right ) ) ) );
++            int y_to = static_cast< int >( std::max( 0.0f, std::min( static_cast< float >( size_y ), ceilf( bottom ) ) ) );
++            if ( x_from >= x_to || y_from >= y_to )
++                return;
++            // where in the picture the middle of a pixel of the canvas falls: the pixel it is in, or the four it is between
++            float shift = nearest ? 0.0f : 0.5f;
++            float u_from = ( static_cast< float >( x_from ) + 0.5f - left ) * step_x - shift;
++            float u_to = ( static_cast< float >( x_to - 1 ) + 0.5f - left ) * step_x - shift;
++            // the pixels of a row of the picture that a row of the canvas reads, kept as colours for the time of that row
++            int s_from = std::min( std::max( static_cast< int >( floorf( u_from ) ), 0 ), width - 1 );
++            int s_to = std::min( std::max( static_cast< int >( floorf( u_to ) ) + 2, s_from + 1 ), width );
++            image_row.resize( static_cast< size_t >( s_to - s_from ) );
++            // for each column of the canvas: the two pixels of that row it is between, how far from the first, the part of it covered
++            image_columns.resize( static_cast< size_t >( x_to - x_from ) * 2 );
++            cover.resize( static_cast< size_t >( x_to - x_from ) * 2 );
++            for ( int at_x = x_from; at_x < x_to; ++at_x )
++            {
++                float u = ( static_cast< float >( at_x ) + 0.5f - left ) * step_x - shift;
++                int whole = static_cast< int >( floorf( u ) );
++                size_t column = static_cast< size_t >( at_x - x_from ) * 2;
++                image_columns[ column ] = std::min( std::max( whole, s_from ), s_to - 1 ) - s_from;
++                image_columns[ column + 1 ] = std::min( std::max( whole + 1, s_from ), s_to - 1 ) - s_from;
++                cover[ column ] = nearest ? 0.0f : u - static_cast< float >( whole );
++                cover[ column + 1 ] = std::min( static_cast< float >( at_x + 1 ), right ) - std::max( static_cast< float >( at_x ), left );
++            }
++            for ( int at_y = y_from; at_y < y_to; ++at_y )
++            {
++                float cover_y = ( std::min( static_cast< float >( at_y + 1 ), bottom ) -
++                                  std::max( static_cast< float >( at_y ), top ) ) * global_alpha;
++                float v = ( static_cast< float >( at_y ) + 0.5f - top ) * step_y - shift;
++                float mix_y = nearest ? 0.0f : v - floorf( v );
++                int y_1 = std::min( std::max( static_cast< int >( floorf( v ) ), 0 ), height - 1 );
++                int y_2 = std::min( std::max( static_cast< int >( floorf( v ) ) + 1, 0 ), height - 1 );
++                unsigned char const *row_1 = image + y_1 * stride + s_from * 4;
++                unsigned char const *row_2 = image + y_2 * stride + s_from * 4;
++                for ( int index = 0; index < s_to - s_from; ++index )
++                {
++                    rgba color = texel( row_1 + index * 4 );
++                    if ( mix_y != 0.0f )
++                        color += mix_y * ( texel( row_2 + index * 4 ) - color );
++                    image_row[ static_cast< size_t >( index ) ] = color;
++                }
++                rgba const *row = &image_row[ 0 ];
++                int const *columns = &image_columns[ 0 ];
++                float const *parts = &cover[ 0 ];
++                rgba *back = bitmap + at_y * size_x + x_from;
++                for ( int at_x = x_from; at_x < x_to; ++at_x, ++back, columns += 2, parts += 2 )
++                {
++                    rgba fore = row[ columns[ 0 ] ];
++                    if ( parts[ 0 ] != 0.0f )
++                        fore += parts[ 0 ] * ( row[ columns[ 1 ] ] - fore );
++                    if ( fore.a <= 0.0f )
++                        continue;
++                    float amount = cover_y * parts[ 1 ];
++                    if ( amount >= 1.0f && fore.a >= 0.9999f )   // opaque: the pixel is replaced
++                    {
++                        *back = fore;
++                        back->a = 1.0f;
++                        continue;
++                    }
++                    fore = amount * fore;
++                    float keep = 1.0f - fore.a;
++                    back->r = fore.r + keep * back->r;
++                    back->g = fore.g + keep * back->g;
++                    back->b = fore.b + keep * back->b;
++                    back->a = std::min( fore.a + keep * back->a, 1.0f );
++                }
++            }
++            return;
++        }
++    }
+     std::swap( fill_brush, image_brush );
+     set_pattern( fill_style, image, width, height, stride, repeat );
+     std::swap( fill_brush, image_brush );
+@@ -3340,6 +3606,13 @@
                 y + std::min( 0.0f, to_height ) );
      scale( fabsf( to_width ) / static_cast< float >( width ),
             fabsf( to_height ) / static_cast< float >( height ) );
@@ -293,7 +407,7 @@
      render_main( image_brush );
      forward = saved_forward;
      inverse = saved_inverse;
-@@ -3371,6 +3545,11 @@
+@@ -3371,6 +3644,11 @@
                   0 <= canvas_y && canvas_y < size_y )
                  color = bitmap[ canvas_y * size_x + canvas_x ];
              float threshold = bayer[ canvas_y & 3 ][ canvas_x & 3 ];
@@ -305,7 +419,7 @@
              color = rgba( threshold, threshold, threshold, threshold ) +
                  255.0f * delinearized( clamped( unpremultiplied( color ) ) );
              image[ index + 0 ] = static_cast< unsigned char >( color.r );
-@@ -3429,6 +3608,7 @@
+@@ -3429,6 +3707,7 @@
      state->fill_brush = fill_brush;
      state->stroke_brush = stroke_brush;
      state->mask = mask;
@@ -313,7 +427,7 @@
      state->face = face;
      state->saves = saves;
      saves = state;
-@@ -3458,6 +3638,7 @@
+@@ -3458,6 +3737,7 @@
      fill_brush = state->fill_brush;
      stroke_brush = state->stroke_brush;
      mask = state->mask;
