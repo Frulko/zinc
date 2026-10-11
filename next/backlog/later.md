@@ -88,6 +88,12 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-443: QuickJS's `Date.now` stayed frozen in a headless run; check whether the virtual clock should advance with the frames.
 - ZN-583: zinc:physics3d `threads: 0` counts hardware threads on Linux (SMT doubles them on x86): compare one per core and one per hardware thread there.
 - ZN-583: one pool of workers shared by the worlds of a program, if a program steps several large worlds.
+- ZN-439: share a texture's UASTC encode across profiles in the cache; each profile encodes again today (12 to 19 s per 2048 texture).
+- ZN-439: CPU decoders for ASTC and PVRTC1, so phone packs draw in the software raster.
+- ZN-439: free a texture's CPU texels after its GPU upload on GL-only targets (the Pi); both copies are kept today.
+- ZN-439: atlas pages in the profile's GPU formats (rgba4444 or ETC1 on the Pi) once a game measures CMA pressure.
+- ZN-439: basisu fetched prebuilt through the signed index (ZN-337); its first use downloads 190 MB of sources and builds for about 6 minutes.
+- ZN-439: the texture importer as an importer-kind plugin (plugins/tex-basis) once importer plugins exist; built in for now.
 
 ## Demos
 
@@ -224,3 +230,5 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-714: Windows plugins (a `windows` target in plugin.json, .dll in plugin_build.cpp, WebView2, Media Foundation, COM serial), file dialog and the system plugin's Win32 backend.
 - ZN-714: zinc.exe itself (curl/tar/sh in src/tc, fork/termios/poll) and the installer (install.ps1, signing, winget or scoop, update-app).
 - ZN-583 #4: zinc:physics2d and zinc:physics3d with the pinned zig for x86_64-linux, aarch64-linux and armhf-linux (`zinc build --target armhf-linux tests/data/physics3d/drop.ts`, same for physics2d) in the container or QEMU: drop.out byte for byte, plus physics3d's drop.ts `-- 4` (thread pool, `-pthread` in the manifest); check Jolt's support for 32-bit ARM.
+- ZN-439: tests/t1/texture.sh on a Pi 3 (vc4, display-gl on KMS): ETC1 of the rpi1 packs uploaded as blocks within 2% / mae 3 of the RGBA path, and webgl_ext.js offering WEBGL_compressed_texture_etc1 (task in Review).
+- ZN-439: basisu built on aarch64 gives the same pack bytes as on x86_64 (SSE is off); Linux Mesa offers WEBGL_compressed_texture_etc and uploads ETC1 as ETC2.

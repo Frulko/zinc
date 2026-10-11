@@ -438,6 +438,26 @@ The CPU time ZINC_GL_STATS calls "to submit" includes waits for the GPU (5.6 to 
 measured at load 6 from other builds, before ZN-432 changed the image path of the replay. GL replay against the software frame for convex
 and concave polygons: 0.06% of the pixels more than 24 apart, mean error 0.07 (tests/t1/gl_convex.sh).
 
+### ZN-439: textures (2026-10-11, Intel Mac, load 6 to 8 from other trees: indicative)
+
+A 2048 px texture (`TEXTURE_SIZE=2048 tests/t1/texture.sh`), pack and GPU bytes per profile (mipmapped; rgba8 would be 22,369,620 GPU bytes):
+
+| Target (profile) | Texture | Format | Pack bytes | GPU bytes |
+|---|---|---|---:|---:|
+| macos | alpha | bc7 | 1,258,382 | 5,592,432 |
+| macos | opaque | bc1 | 586,403 | 2,796,216 |
+| rpi1 | alpha | rgba4444 | 1,445,085 | 11,184,810 |
+| rpi1 | opaque | etc1 | 1,211,201 | 2,796,216 |
+| wasm | alpha | ktx2:uastc | 1,861,396 | 5,592,432 |
+| wasm | opaque | ktx2:uastc | 1,592,918 | 5,592,432 |
+| pi4 test profile | alpha | etc2 | 983,643 | 5,592,432 |
+| apple test profile | alpha | astc | 1,245,185 | 5,592,432 |
+| iphone4s test profile | alpha | pvrtca | 1,173,394 | 2,796,288 |
+
+Import of one 2048 texture: 12 to 19 s per block format (every profile encodes again); basisu UASTC on one 2048 level 37 s on 1 thread,
+11 s on 4, same bytes; building basisu 353 s. display-gl against the RGBA path: macos packs 0.000% of the pixels over 24, mae 0.583
+(BC1 uploaded as blocks, BC7 decoded: GL 4.1 here lists only S3TC); rpi1 packs 0.043%, mae 1.813 (ETC1 decoded, no ETC in this driver).
+
 ### ZN-583: zinc:physics3d on Jolt's thread pool (2026-10-11, Intel Mac, CPU held at 37 to 60% of its speed by heat: indicative)
 
 `bench/physics3d_pile.ts`, 1,000 piled bodies, compiled, runs alternated (medians):
