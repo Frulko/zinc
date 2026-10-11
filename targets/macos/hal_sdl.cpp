@@ -511,6 +511,74 @@ static void sec_event(Sec& s, const SDL_Event& e) {
   }
 }
 
+// Gamepads (ZN-574): SDL's gamepad layer (its mapping database gives every known pad the same layout; more mappings: the file named by
+// SDL_GAMECONTROLLERCONFIG_FILE) into the slots of HalInput, in the W3C "standard" order. Polled, not event driven: whichever loop pumps the
+// events, the state is read here. Started at the second poll, so the first frame does not wait for the HID manager.
+// ZINC_VIRTUAL_GAMEPAD=xbox|ps5 plugs an SDL virtual gamepad that holds one button after the other (SDL's order, two polls each), then pushes
+// each axis: what the tests read, with no hardware.
+static SDL_Gamepad* pads[HAL_MAX_GAMEPADS];
+static int pads_on = 0;   // 0 not started, 1 running, -1 SDL has no gamepad support here
+static long pads_poll = 0;
+static SDL_Joystick* virtual_pad;
+static void gamepads_poll(HalInput* in) {
+  if (pads_on < 0 || pads_poll++ == 0) return;
+  if (pads_on == 0) {
+    pads_on = SDL_InitSubSystem(SDL_INIT_GAMEPAD) ? 1 : -1;
+    if (pads_on < 0) return;
+    if (const char* v = getenv("ZINC_VIRTUAL_GAMEPAD"); v && *v) {
+      SDL_VirtualJoystickDesc d;
+      SDL_INIT_INTERFACE(&d);
+      const bool ps = !strcmp(v, "ps5");
+      d.type = SDL_JOYSTICK_TYPE_GAMEPAD; d.naxes = SDL_GAMEPAD_AXIS_COUNT; d.nbuttons = SDL_GAMEPAD_BUTTON_DPAD_RIGHT + 1;
+      d.vendor_id = ps ? 0x054c : 0x045e; d.product_id = ps ? 0x0ce6 : 0x0b12;   // a DualSense, an Xbox Series controller
+      d.name = ps ? "Zinc virtual DualSense" : "Zinc virtual Xbox pad";
+      virtual_pad = SDL_OpenJoystick(SDL_AttachVirtualJoystick(&d));
+    }
+  }
+  if (virtual_pad) {
+    const long step = (pads_poll - 2) / 2, nb = SDL_GAMEPAD_BUTTON_DPAD_RIGHT + 1;
+    for (long b = 0; b < nb; b++) SDL_SetJoystickVirtualButton(virtual_pad, static_cast<int>(b), b == step);
+    for (long a = 0; a < SDL_GAMEPAD_AXIS_COUNT; a++) {
+      const bool trigger = a == SDL_GAMEPAD_AXIS_LEFT_TRIGGER || a == SDL_GAMEPAD_AXIS_RIGHT_TRIGGER;
+      SDL_SetJoystickVirtualAxis(virtual_pad, static_cast<int>(a), a == step - nb ? 16384 : trigger ? SDL_JOYSTICK_AXIS_MIN : 0);   // a trigger at rest is the axis's minimum
+    }
+  }
+  for (int k = 0; k < HAL_MAX_GAMEPADS; k++)
+    if (pads[k] && !SDL_GamepadConnected(pads[k])) { SDL_CloseGamepad(pads[k]); pads[k] = nullptr; in->pad[k] = HalGamepad{}; }
+  int n = 0;
+  if (SDL_JoystickID* ids = SDL_GetGamepads(&n)) {   // ponytail: the list is read at every poll; SDL_EVENT_GAMEPAD_ADDED if it ever shows in a profile
+    for (int i = 0; i < n; i++) {
+      if (SDL_GetGamepadFromID(ids[i])) continue;   // already in a slot
+      int k = 0;
+      while (k < HAL_MAX_GAMEPADS && pads[k]) k++;
+      if (k < HAL_MAX_GAMEPADS) pads[k] = SDL_OpenGamepad(ids[i]);
+    }
+    SDL_free(ids);
+  }
+  static const SDL_GamepadButton w3c[17] = {SDL_GAMEPAD_BUTTON_SOUTH, SDL_GAMEPAD_BUTTON_EAST, SDL_GAMEPAD_BUTTON_WEST, SDL_GAMEPAD_BUTTON_NORTH,
+    SDL_GAMEPAD_BUTTON_LEFT_SHOULDER, SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER, SDL_GAMEPAD_BUTTON_INVALID, SDL_GAMEPAD_BUTTON_INVALID,   // 6 and 7: the triggers, axes for SDL
+    SDL_GAMEPAD_BUTTON_BACK, SDL_GAMEPAD_BUTTON_START, SDL_GAMEPAD_BUTTON_LEFT_STICK, SDL_GAMEPAD_BUTTON_RIGHT_STICK,
+    SDL_GAMEPAD_BUTTON_DPAD_UP, SDL_GAMEPAD_BUTTON_DPAD_DOWN, SDL_GAMEPAD_BUTTON_DPAD_LEFT, SDL_GAMEPAD_BUTTON_DPAD_RIGHT, SDL_GAMEPAD_BUTTON_GUIDE};
+  for (int k = 0; k < HAL_MAX_GAMEPADS; k++) {
+    SDL_Gamepad* g = pads[k];
+    if (!g) continue;
+    HalGamepad& p = in->pad[k];
+    if (p.connected && p.rumble_ms > 0)
+      SDL_RumbleGamepad(g, static_cast<Uint16>(SDL_clamp(p.rumble_low, 0.f, 1.f) * 65535), static_cast<Uint16>(SDL_clamp(p.rumble_high, 0.f, 1.f) * 65535), static_cast<Uint32>(p.rumble_ms));
+    p = HalGamepad{};
+    p.connected = 1;
+    const char* name = SDL_GetGamepadName(g);
+    SDL_snprintf(p.name, sizeof p.name, "%s", name ? name : "Gamepad");
+    for (int b = 0; b < 17; b++) if (w3c[b] != SDL_GAMEPAD_BUTTON_INVALID && SDL_GetGamepadButton(g, w3c[b])) p.buttons |= 1u << b;
+    for (int t = 0; t < 2; t++) {
+      p.trigger[t] = SDL_GetGamepadAxis(g, t ? SDL_GAMEPAD_AXIS_RIGHT_TRIGGER : SDL_GAMEPAD_AXIS_LEFT_TRIGGER) / 32767.f;
+      if (p.trigger[t] > 0.12f) p.buttons |= 1u << (6 + t);   // held from 30/255 on, as Chrome's pads
+    }
+    static const SDL_GamepadAxis sticks[4] = {SDL_GAMEPAD_AXIS_LEFTX, SDL_GAMEPAD_AXIS_LEFTY, SDL_GAMEPAD_AXIS_RIGHTX, SDL_GAMEPAD_AXIS_RIGHTY};
+    for (int a = 0; a < 4; a++) p.axes[a] = SDL_max(SDL_GetGamepadAxis(g, sticks[a]) / 32767.f, -1.f);
+  }
+}
+
 void hal_poll_input(HalInput* in) {
   in->nkeys = 0; in->ntext = 0; in->nbtn = 0; in->wheel_x = 0;
   if (resize_pending) { resize_pending = false; apply_size(); }
@@ -602,6 +670,7 @@ void hal_poll_input(HalInput* in) {
     }
   }
   scroll_resample(in);
+  gamepads_poll(in);
   const bool* k = SDL_GetKeyboardState(nullptr);
   uint32_t b = 0;
   if (k[SDL_SCANCODE_UP] || k[SDL_SCANCODE_W]) b |= HAL_UP;

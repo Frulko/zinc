@@ -116,6 +116,18 @@ declare module 'zinc:gfx' {
   export function penFlags(i: i32): i32;
   /** Nothing changed this frame: present the previous one again (retained UIs call this when idle). */
   export function keep(): void;
+  /** Gamepads (Zinc Next): slots 0 to gamepadCount() - 1; buttons and axes in the W3C "standard" order. A gamepad also holds the Btn buttons of isDown. */
+  export const enum GamepadButton { South = 0, East = 1, West = 2, North = 3, LeftShoulder = 4, RightShoulder = 5, LeftTrigger = 6, RightTrigger = 7,
+    Back = 8, Start = 9, LeftStick = 10, RightStick = 11, Up = 12, Down = 13, Left = 14, Right = 15, Guide = 16 }
+  export const enum GamepadAxis { LeftX = 0, LeftY = 1, RightX = 2, RightY = 3 }
+  export function gamepadCount(): i32;
+  export function gamepadConnected(pad: i32): boolean;
+  export function gamepadName(pad: i32): string;
+  export function gamepadButtons(pad: i32): i32;
+  export function gamepadButton(pad: i32, b: GamepadButton): boolean;
+  export function gamepadButtonValue(pad: i32, b: GamepadButton): number;
+  export function gamepadAxis(pad: i32, axis: GamepadAxis): number;
+  export function gamepadRumble(pad: i32, low: number, high: number, ms: i32): boolean;
   export function isDown(b: Btn): boolean;
   export function wasPressed(b: Btn): boolean;
   export function pointerX(): number;

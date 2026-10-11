@@ -43,6 +43,8 @@ static void hold() {
 
 // Scripted input for headless runs (ZINC_INPUT=file): one event per line, `<frame> <event>`, frames counted from 0 at each poll.
 //   move X Y | down | up | right-down | right-up | key NAME [shift|ctrl|alt|meta]... | text WORD | text "several words" (\" and \\ inside) | wheel DX DY | pad NAME | padup NAME (the gamepad buttons Up Down Left Right A B X Y L R Start Select, held until padup)
+//   gamepad I [NAME...] (a gamepad is plugged in slot I, 0 to 3) | gamepadoff I | gbutton I B [VALUE] (button B of the W3C standard order,
+//   0 to 16, held until gbuttonup; VALUE 0..1 for the triggers 6 and 7) | gbuttonup I B | gaxis I A VALUE (axis 0 to 3, -1..1, kept)
 //   touch ID X Y (a finger lands or moves; up to HAL_MAX_TOUCH at once, held until its touchup) | touchup ID
 //   window ID: the events after it in the same frame go to that window (ZN-663; 0 the main one) | close: the user closes the window the events go to
 // The events reach zinc:gfx exactly as a window's would (pointer position and buttons, button events, keys, typed text, wheel, touch points:
@@ -54,6 +56,7 @@ bool scriptRead = false;
 int pollNo = 0;
 float curX = 0, curY = 0;
 uint32_t heldButtons = 0, heldPad = 0;
+HalGamepad heldGamepad[HAL_MAX_GAMEPADS];   // the scripted gamepads (ZN-574)
 HalTouch heldTouch[HAL_MAX_TOUCH];   // fingers down, in landing order
 int nHeldTouch = 0;
 void readScript() {
@@ -79,8 +82,10 @@ void readScript() {
       continue;
     }
     char a[128] = {0}, b[128] = {0}, c[128] = {0};
-    sscanf(rest, "%127s %127s %127s", a, b, c);
+    int named = 0;
+    sscanf(rest, "%127s %n%127s %127s", a, &named, b, c);
     e.a = a; e.b = b; e.c = c;
+    if (e.kind == "gamepad") { e.b = rest + named; while (!e.b.empty() && (e.b.back() == '\n' || e.b.back() == '\r' || e.b.back() == ' ')) e.b.pop_back(); }   // the name: the rest of the line
     script.push_back(e);
   }
   fclose(f);
@@ -153,6 +158,20 @@ void applyScript(HalInput* in) {
       for (int i = 0; i < 12; ++i) if (e.a == names[i]) heldPad = e.kind == "pad" ? (heldPad | (1u << i)) : (heldPad & ~(1u << i));
       continue;
     }
+    if (e.kind == "gamepad" || e.kind == "gamepadoff" || e.kind == "gbutton" || e.kind == "gbuttonup" || e.kind == "gaxis") {
+      const int slot = atoi(e.a.c_str()), k = atoi(e.b.c_str());
+      if (slot < 0 || slot >= HAL_MAX_GAMEPADS) continue;
+      HalGamepad& p = heldGamepad[slot];
+      if (e.kind == "gamepad") { p = HalGamepad{}; p.connected = 1; snprintf(p.name, sizeof p.name, "%s", e.b.empty() ? "Zinc scripted gamepad" : e.b.c_str()); }
+      else if (e.kind == "gamepadoff") p = HalGamepad{};
+      else if (e.kind == "gaxis") { if (k >= 0 && k < 4) p.axes[k] = static_cast<float>(atof(e.c.c_str())); }
+      else if (k >= 0 && k <= 16) {
+        const float v = e.kind == "gbuttonup" ? 0 : e.c.empty() ? 1 : static_cast<float>(atof(e.c.c_str()));
+        p.buttons = v > 0 ? (p.buttons | (1u << k)) : (p.buttons & ~(1u << k));
+        if (k == 6 || k == 7) p.trigger[k - 6] = v;
+      }
+      continue;
+    }
     if (e.kind == "touch" || e.kind == "touchup") {
       const int32_t id = atoi(e.a.c_str());
       int k = 0;
@@ -164,6 +183,7 @@ void applyScript(HalInput* in) {
     applyEvent(e, in, curX, curY, heldButtons);
   }
   in->buttons |= heldPad;
+  for (int k = 0; k < HAL_MAX_GAMEPADS; k++) in->pad[k] = heldGamepad[k];   // a rumble asked by the program ends here: nothing shakes
   in->ntouch = nHeldTouch;
   for (int k = 0; k < nHeldTouch; k++) in->touch[k] = heldTouch[k];
   if (nHeldTouch > 0) { curX = heldTouch[0].x; curY = heldTouch[0].y; in->px = curX; in->py = curY; in->pdown = 1; in->pbuttons |= 1; }

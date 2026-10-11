@@ -1,0 +1,7 @@
+create: gamepads 0
+frame 5 connected 0 "Scripted Pad" 17 4
+frame 6 A false left false L2 0 left stick 0 0
+frame 7 down 0 1
+frame 8 up 0
+frame 9 down 14 1
+frame 9 A false left true L2 0.5 left stick -1 0

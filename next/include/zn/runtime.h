@@ -76,6 +76,13 @@
   X(HostGfxPenTiltX, "host.gfxPenTiltX", "i>d", 2) \
   X(HostGfxPenTiltY, "host.gfxPenTiltY", "i>d", 2) \
   X(HostGfxPenFlags, "host.gfxPenFlags", "i>i", 2) \
+  X(HostGfxGamepadCount, "host.gfxGamepadCount", ">i", 2) \
+  X(HostGfxGamepadConnected, "host.gfxGamepadConnected", "i>b", 2) \
+  X(HostGfxGamepadName, "host.gfxGamepadName", "i>s", 2) \
+  X(HostGfxGamepadButtons, "host.gfxGamepadButtons", "i>i", 2) \
+  X(HostGfxGamepadButtonValue, "host.gfxGamepadButtonValue", "ii>d", 2) \
+  X(HostGfxGamepadAxis, "host.gfxGamepadAxis", "ii>d", 2) \
+  X(HostGfxGamepadRumble, "host.gfxGamepadRumble", "iddi>b", 2) \
   X(HostGfxIsDown, "host.gfxIsDown", "i>b", 2) \
   X(HostGfxWasPressed, "host.gfxWasPressed", "i>b", 2) \
   X(HostGfxPointerX, "host.gfxPointerX", ">d", 2) \

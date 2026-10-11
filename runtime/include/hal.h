@@ -35,6 +35,27 @@ enum HalKeyCode : int32_t {
 // kind HAL_KEY_TEXT: typed text (UTF-8), text[off .. off+len) of HalInput.text; key is 0
 struct HalKey { int32_t key; uint32_t mods; int32_t kind; uint16_t off, len; };
 struct HalButtonEvent { float x, y; int32_t button; int32_t down; };  // button: 0 left, 1 middle, 2 right
+// Gamepads (ZN-574; additive, zero on HALs without them). A slot keeps its index while its pad is connected, as the W3C Gamepad index does.
+// buttons: one bit per button in the W3C "standard" order (0 south, 1 east, 2 west, 3 north, 4 5 shoulders, 6 7 triggers, 8 back, 9 start,
+// 10 11 stick clicks, 12 up, 13 down, 14 left, 15 right, 16 guide); trigger: the analog values of 6 and 7 (0..1); axes: left x y, right x y
+// (-1..1, down and right positive).
+// rumble_ms is written by the program and taken (zeroed) by the HAL at its next poll.   ponytail: a field instead of a HAL call; a call when
+// an effect must start before the next frame
+#define HAL_MAX_GAMEPADS 4
+struct HalGamepad { int32_t connected; uint32_t buttons; float trigger[2]; float axes[4]; float rumble_low, rumble_high; int32_t rumble_ms; char name[64]; };
+/** The zinc:gfx buttons (HalButton bits) a gamepad holds: d-pad or left stick, A B X Y by position (south east west north), shoulders, start, back. */
+static inline uint32_t hal_gamepad_buttons(const HalGamepad* p) {
+  if (!p->connected) return 0;
+  const uint32_t w = p->buttons;
+  auto bit = [w](int i, uint32_t to) -> uint32_t { return (w >> i & 1u) ? to : 0u; };
+  uint32_t b = bit(12, HAL_UP) | bit(13, HAL_DOWN) | bit(14, HAL_LEFT) | bit(15, HAL_RIGHT) | bit(0, HAL_A) | bit(1, HAL_B) | bit(2, HAL_X) | bit(3, HAL_Y) |
+               bit(4, HAL_L) | bit(5, HAL_R) | bit(9, HAL_START) | bit(8, HAL_SELECT);
+  if (p->axes[0] < -0.5f) b |= HAL_LEFT;
+  if (p->axes[0] > 0.5f) b |= HAL_RIGHT;
+  if (p->axes[1] < -0.5f) b |= HAL_UP;
+  if (p->axes[1] > 0.5f) b |= HAL_DOWN;
+  return b;
+}
 struct HalInput {
   uint32_t buttons;      // HalButton bits
   float px, py;          // pointer, logical coordinates
@@ -59,6 +80,7 @@ struct HalInput {
   float scroll_dx, scroll_dy;
   int32_t scroll_phase;   // 0 none, 1 fingers down / precise stream active, 2 the gesture ended during this poll,
                           // 3 fingers landed on the trackpad (stops a running inertia)
+  HalGamepad pad[HAL_MAX_GAMEPADS];   // their zinc:gfx buttons are also in `buttons` (the runtime adds them after the poll)
 };
 // Optional (the runtime has weak defaults: no text input, a process-local clipboard, no cursor shapes).
 // Text input (IME, on-screen keyboard) while a text field is focused; the rectangle is the field (logical pixels).

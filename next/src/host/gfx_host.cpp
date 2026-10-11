@@ -82,6 +82,9 @@ void installFast() {
   at(Rt::HostGfxPointerDown) = [](uint64_t* a) { a[0] = g::pointerDown() ? 1 : 0; };
 }
 
+/** The gamepad of slot `i` (ZN-574), or null: no such slot, or nothing plugged in it. */
+static const HalGamepad* pad(int32_t i) { return i >= 0 && i < HAL_MAX_GAMEPADS && zrt::input.pad[i].connected ? &zrt::input.pad[i] : nullptr; }
+
 extern "C" int zn_asset_font(const char* name, uint32_t n);   // src/host/sys_host.cpp
 extern "C" int zn_asset_image(const char* name, uint32_t n);
 // zinc:gfx loadFont (ZN-669): a family or file the program embeds, else the file read whole from its assets
@@ -190,6 +193,7 @@ void call(int id, const HostArg* a, HostArg* r) {
       zrt::prev_input = zrt::input;
       zrt::input.wheel = 0; zrt::input.pinch = 1;
       hal_poll_input(&zrt::input);
+      for (const HalGamepad& p : zrt::input.pad) zrt::input.buttons |= hal_gamepad_buttons(&p);   // a gamepad is also the zinc:gfx buttons (ZN-574)
       if (zrt::display_driver && hal_display->poll) hal_display->poll(&zrt::input);   // the driver's own input and its ZINC_FRAMES / ZINC_SHOT counting
       if (zrt::input.quit) quitFlag = true;
       uint64_t t = hal_time_us();
@@ -229,6 +233,24 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostGfxPenTiltX: r->d = g::penTiltX(n(0)); break;
     case Rt::HostGfxPenTiltY: r->d = g::penTiltY(n(0)); break;
     case Rt::HostGfxPenFlags: r->i = g::penFlags(n(0)); break;
+    // gamepads (ZN-574): the slots of the HAL; a slot out of range or empty answers as no gamepad
+    case Rt::HostGfxGamepadCount: r->i = HAL_MAX_GAMEPADS; break;
+    case Rt::HostGfxGamepadConnected: r->i = pad(n(0)) ? 1 : 0; break;
+    case Rt::HostGfxGamepadName: { const HalGamepad* p = pad(n(0)); answer(r, p ? p->name : "", p ? static_cast<uint32_t>(strlen(p->name)) : 0); break; }
+    case Rt::HostGfxGamepadButtons: { const HalGamepad* p = pad(n(0)); r->i = p ? static_cast<int32_t>(p->buttons) : 0; break; }
+    case Rt::HostGfxGamepadButtonValue: {
+      const HalGamepad* p = pad(n(0)); const int32_t b = n(1);
+      r->d = !p || b < 0 || b > 16 ? 0 : (b == 6 || b == 7) ? p->trigger[b - 6] : (p->buttons >> b & 1u);
+      break;
+    }
+    case Rt::HostGfxGamepadAxis: { const HalGamepad* p = pad(n(0)); const int32_t k = n(1); r->d = p && k >= 0 && k < 4 ? p->axes[k] : 0; break; }
+    case Rt::HostGfxGamepadRumble: {
+      const int32_t i = n(0);
+      const bool ok = pad(i) != nullptr;
+      if (ok) { HalGamepad& p = zrt::input.pad[i]; p.rumble_low = static_cast<float>(a[1].d); p.rumble_high = static_cast<float>(a[2].d); p.rumble_ms = n(3); }
+      r->i = ok ? 1 : 0;
+      break;
+    }
     case Rt::HostGfxIsDown: r->i = g::isDown(n(0)) ? 1 : 0; break;
     case Rt::HostGfxWasPressed: r->i = g::wasPressed(n(0)) ? 1 : 0; break;
     case Rt::HostGfxPointerX: r->d = g::pointerX(); break;

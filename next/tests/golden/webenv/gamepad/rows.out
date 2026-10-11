@@ -1,0 +1,10 @@
+frame 1: A false Right false
+frame 2: A false Right false
+frame 3: [1 "Scripted Pad One" buttons 0 south false trigger 0 right x 0] A false Right false
+rumble: slot 1 true, slot 0 false, slot 9 false
+frame 4: [1 "Scripted Pad One" buttons 1 south true trigger 0 right x 0] A true Right false
+frame 5: [1 "Scripted Pad One" buttons 128 south false trigger 0.5 right x 0] A false Right false
+frame 6: [1 "Scripted Pad One" buttons 32896 south false trigger 0.5 right x -0.75] A false Right true
+frame 7: [0 "Zinc scripted gamepad" buttons 0 south false trigger 0 right x 0] [1 "Scripted Pad One" buttons 32896 south false trigger 0.5 right x -0.75] A false Right true
+frame 8: [0 "Zinc scripted gamepad" buttons 0 south false trigger 0 right x 0] A false Right false
+frame 9: [0 "Zinc scripted gamepad" buttons 65536 south false trigger 0 right x 0] A false Right false

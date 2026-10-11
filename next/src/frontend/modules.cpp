@@ -179,6 +179,19 @@ export function penPressure(i: i32): number { return __host_gfxPenPressure(i); }
 export function penTiltX(i: i32): number { return __host_gfxPenTiltX(i); }
 export function penTiltY(i: i32): number { return __host_gfxPenTiltY(i); }
 export function penFlags(i: i32): i32 { return __host_gfxPenFlags(i); }
+// Gamepads: slots 0 to gamepadCount() - 1, a pad keeps its slot while it is plugged in. Buttons and axes are in the W3C "standard" order
+// (GamepadButton); a gamepad's d-pad, left stick, face buttons, shoulders, start and back are also the Btn buttons of isDown.
+export enum GamepadButton { South = 0, East = 1, West = 2, North = 3, LeftShoulder = 4, RightShoulder = 5, LeftTrigger = 6, RightTrigger = 7,
+  Back = 8, Start = 9, LeftStick = 10, RightStick = 11, Up = 12, Down = 13, Left = 14, Right = 15, Guide = 16 }
+export enum GamepadAxis { LeftX = 0, LeftY = 1, RightX = 2, RightY = 3 }
+export function gamepadCount(): i32 { return __host_gfxGamepadCount(); }
+export function gamepadConnected(pad: i32): boolean { return __host_gfxGamepadConnected(pad); }
+export function gamepadName(pad: i32): string { return __host_gfxGamepadName(pad); }
+export function gamepadButtons(pad: i32): i32 { return __host_gfxGamepadButtons(pad); }
+export function gamepadButton(pad: i32, b: GamepadButton): boolean { return (__host_gfxGamepadButtons(pad) >> b & 1) !== 0; }
+export function gamepadButtonValue(pad: i32, b: GamepadButton): number { return __host_gfxGamepadButtonValue(pad, b); }
+export function gamepadAxis(pad: i32, axis: GamepadAxis): number { return __host_gfxGamepadAxis(pad, axis); }
+export function gamepadRumble(pad: i32, low: number, high: number, ms: i32): boolean { return __host_gfxGamepadRumble(pad, low, high, ms); }
 export function isDown(b: Btn): boolean { return __host_gfxIsDown(b); }
 export function wasPressed(b: Btn): boolean { return __host_gfxWasPressed(b); }
 export function pointerX(): number { return __host_gfxPointerX(); }

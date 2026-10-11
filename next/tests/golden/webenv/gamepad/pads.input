@@ -1,0 +1,9 @@
+2 gamepad 1 Scripted Pad One
+3 gbutton 1 0
+4 gbuttonup 1 0
+4 gbutton 1 7 0.5
+5 gaxis 1 2 -0.75
+5 gbutton 1 15
+6 gamepad 0
+7 gamepadoff 1
+8 gbutton 0 16

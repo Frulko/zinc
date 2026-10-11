@@ -1,0 +1,12 @@
+frame 2 connected 1 "Scripted Pad One" standard 17 4 true true
+frame 3 2 in the list: null | pad 1 buttons [] axes [0.00 0.00 0.00 0.00]
+frame 4 2 in the list: null | pad 1 buttons [0] axes [0.00 0.00 0.00 0.00]
+frame 4 rumble complete
+frame 5 2 in the list: null | pad 1 buttons [7=0.50] axes [0.00 0.00 0.00 0.00]
+frame 6 2 in the list: null | pad 1 buttons [7=0.50 15] axes [0.00 0.00 -0.75 0.00]
+frame 6 connected 0 "Zinc scripted gamepad" standard 17 4 true true
+frame 7 2 in the list: pad 0 buttons [] axes [0.00 0.00 0.00 0.00] | pad 1 buttons [7=0.50 15] axes [0.00 0.00 -0.75 0.00]
+frame 7 disconnected 1 false
+frame 8 1 in the list: pad 0 buttons [] axes [0.00 0.00 0.00 0.00]
+frame 9 1 in the list: pad 0 buttons [16] axes [0.00 0.00 0.00 0.00]
+frame 9 done, 1 gamepads
