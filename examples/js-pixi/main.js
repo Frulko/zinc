@@ -1,6 +1,6 @@
 // A small solar system with PixiJS: sprites in a tree of containers, a blur filter for the glow of the sun, and planets that hear the pointer.
 // Run it:  zinc run examples/js-pixi --engine quickjs      (point at a planet: it grows; click it: it stops, click again: it goes on)
-import { Application, BlurFilter, Container, Graphics, Sprite } from 'pixi.js';
+import { Application, BlurFilter, Container, Graphics, Sprite, Text } from 'pixi.js';
 
 const app = new Application();
 await app.init({ resizeTo: window, background: 0x0b1026, antialias: true, preference: 'webgl' });
@@ -31,10 +31,12 @@ glow.filters = [new BlurFilter({ strength: 8 })];
 system.addChild(glow, ball(16, 0xffd84a));
 
 // A planet sits in an `orbit`, a container that turns around the sun; its moon sits in a second container that turns around the planet.
-//               distance, radius, colour, seconds for one turn, where it starts (in turns), has a moon
-const PLANETS = [[32, 4, 0xc9b29b, 4, 0.1], [52, 7, 0x4fa3e3, 9, 0.55, true], [76, 6, 0xd9603b, 15, 0.8], [104, 11, 0xe8c27a, 30, 0.3, true]];
-const orbits = [];
-for (const [distance, radius, colour, seconds, start, hasMoon] of PLANETS) {
+//               distance, radius, colour, seconds for one turn, where it starts (in turns), has a moon, name
+const PLANETS = [[32, 4, 0xc9b29b, 4, 0.1, false, 'Mercury'], [52, 7, 0x4fa3e3, 9, 0.55, true, 'Earth'], [76, 6, 0xd9603b, 15, 0.8, false, 'Mars'], [104, 11, 0xe8c27a, 30, 0.3, true, 'Saturn']];
+const orbits = [], labels = [];
+const names = new Container();   // the names, outside the scaled system
+app.stage.addChild(names);
+for (const [distance, radius, colour, seconds, start, hasMoon, name] of PLANETS) {
   const path = new Graphics().circle(0, 0, distance).stroke({ color: 0xffffff, alpha: 0.12, width: 1 });
   const orbit = new Container(), planet = ball(radius, colour);
   orbit.rotation = start * 2 * Math.PI;
@@ -50,11 +52,16 @@ for (const [distance, radius, colour, seconds, start, hasMoon] of PLANETS) {
   system.addChild(path, orbit);
   orbits.push({ container: orbit, seconds, planet });
 
+  const label = new Text({ text: name, style: { fontSize: 12, fill: 0xffffff } });   // a label that follows its planet
+  label.anchor.set(0.5, 0);
+  names.addChild(label);
+  labels.push({ label, planet });
+
   planet.eventMode = 'static';   // it hears the pointer
   planet.cursor = 'pointer';
   planet.on('pointerover', () => planet.scale.set(1.4 * radius / 32));
   planet.on('pointerout', () => planet.scale.set(radius / 32));
-  planet.on('pointertap', () => { planet.stopped = !planet.stopped; planet.alpha = planet.stopped ? 0.5 : 1; });
+  planet.on('pointertap', () => { planet.stopped = !planet.stopped; planet.alpha = planet.stopped ? 0.5 : 1; label.style.fontSize = planet.stopped ? 22 : 12; });
 }
 
 app.ticker.add(ticker => {
@@ -62,5 +69,9 @@ app.ticker.add(ticker => {
   system.position.set(width / 2, height / 2);
   system.scale.set(Math.min(width, height) / 240);   // the whole system fits the window
   sky.position.set(width / 2, height / 2);
+  for (const { label, planet } of labels) {   // under the planet, wherever its orbit has taken it
+    const at = planet.getGlobalPosition();
+    label.position.set(at.x, Math.min(at.y + planet.height / 2 + 2, app.screen.height - label.height));   // kept inside the window
+  }
   for (const { container, seconds, planet } of orbits) if (!planet.stopped) container.rotation += 2 * Math.PI * ticker.deltaMS / 1000 / seconds;
 });
