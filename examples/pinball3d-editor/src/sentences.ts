@@ -23,9 +23,12 @@ export function pieces(template: string): Piece[] {
   }
   return out;
 }
-/** The sentence of one kind of object (`object`: the name the format gives it, "condition" or "action"), with its way. */
-export function sentenceOf(object: string, v: Variant, way: string): string {
-  const own = phrase(`say.${object}.${v.word}.${way}`), usual = own !== '' ? own : phrase(`say.${object}.${v.word}`);
+/** The sentence of one kind of object (`object`: the name the format gives it, "condition", "action" or "step"), with its way, as
+ *  a form lays it out: every part has its place. */
+export function sentenceOf(object: string, v: Variant, way: string): string { return written(object, v, way).replaceAll('[', '').replaceAll(']', ''); }
+/** The same as strings.ts writes it: a part in square brackets is said only when its number is not 1 ("Hit pops[ {count} times]"). */
+function written(object: string, v: Variant, way: string): string {
+  const own = way === '' ? '' : phrase(`say.${object}.${v.word}.${way}`), usual = own !== '' ? own : phrase(`say.${object}.${v.word}`);
   if (usual !== '') return usual;
   // a kind the editor has no sentence for yet (the format grew): its word, then what it reads
   let out = readable(v.word);
@@ -39,8 +42,33 @@ export function wordSaid(object: string, kind: string, word: string): string {
   const own = phrase(`word.${object}.${kind}.${word}`), usual = own !== '' ? own : phrase(`word.${word}`);
   return usual !== '' ? usual : word === '' ? '-' : word;
 }
-/** A kind as the menu that adds one offers it. */
-export function kindSaid(object: string, kind: string): string { const s = phrase(`kind.${object}.${kind}`); return s === '' ? readable(kind) : s; }
+/** A kind as the menu that adds one offers it: its own words, else the start of its sentence ("Hit …"), else its word. */
+export function kindSaid(object: string, kind: string): string {
+  const s = phrase(`kind.${object}.${kind}`), whole = phrase(`say.${object}.${kind}`);
+  if (s !== '' || whole === '') return s === '' ? readable(kind) : s;
+  const part = whole.indexOf('{'), cut = whole.indexOf('[');
+  return part >= 0 && (cut < 0 || part < cut) ? `${whole.slice(0, part).trim()} …` : cut >= 0 ? whole.slice(0, cut).trim() : whole;
+}
+/** The fields of an object with kinds that no kind names: they are read whatever the kind (the text and the light of a step). */
+export function extrasOf(s: Schema): string[] {
+  const vs = s.variants, out: string[] = [];
+  if (vs === null) return out;
+  for (const fd of s.fields) {
+    let named = fd.name === vs.kind || fd.name === vs.target || fd.name === vs.way;
+    for (const v of vs.all) for (const n of v.numbers) if (n === fd.name || n.startsWith(`${fd.name}:`)) named = true;
+    if (!named) out.push(fd.name);
+  }
+  return out;
+}
+/** The field of an object with kinds that holds what the game shows a player for it: the editor writes it from the object's
+ *  sentence until someone types another; '' for none.
+ *  ponytail: known by the name of the kind of object, the format has no word for such a field. It is written in the language the
+ *  interface has then, and is the editor's only while it reads as the sentence does in the language the interface has now. */
+export function shownField(s: Schema): string { return s.variants !== null && s.name === 'step' ? 'text' : ''; }
+/** Writes that text from the sentence of the object. */
+export function word(s: Schema, item: any): void { const name = shownField(s); if (name !== '') item[name] = said(s, item); }
+/** Whether that text is the editor's: what the sentence of the object says. */
+export function worded(s: Schema, item: any): boolean { const name = shownField(s); return name !== '' && item[name] === said(s, item); }
 
 /** A condition or an action (an object of a schema with kinds) as a sentence. */
 export function said(s: Schema, item: any): string {
@@ -48,9 +76,15 @@ export function said(s: Schema, item: any): string {
   if (vs === null) return '';
   const kind: string = item[vs.kind], v = vs.of(kind);
   if (v === null) return kind;
-  const way: string = item[vs.way], target: string = item[vs.target];
-  let out = '';
-  for (const p of pieces(sentenceOf(s.name, v, way))) {
+  const way: string = vs.way === '' ? '' : item[vs.way], target: string = item[vs.target];
+  // a part in square brackets is left out when its number is 1
+  let text = written(s.name, v, way), out = '';
+  const open = text.indexOf('['), close = text.indexOf(']');
+  if (open >= 0 && close > open) {
+    const inner = pieces(text.slice(open + 1, close)).filter((p: Piece) => p.slot !== '');
+    text = text.slice(0, open) + (inner.length > 0 && (item[inner[0].slot] === 1 || item[inner[0].slot] === undefined) ? '' : text.slice(open + 1, close)) + text.slice(close + 1);
+  }
+  for (const p of pieces(text)) {
     if (p.slot === '') out += p.text;
     else if (p.slot === 'way') out += wordSaid(s.name, kind, way);
     else if (p.slot === 'target') out += v.text ? `"${target}"` : v.words.indexOf(target) >= 0 ? wordSaid(s.name, kind, target) : target;
@@ -64,9 +98,10 @@ export function whenSaid(on: string, event: string): string {
   return own === '' ? `${on} ${event}` : own.replaceAll('{on}', on);
 }
 /** A whole rule (an object with where the event comes from, the event, and lists of objects with kinds) as one sentence:
- *  "When the ball rolls over lanes, if the lights of lanes are all on: raise the bonus multiplier by 1; turn off the lights of lanes". */
+ *  "When the ball rolls over lanes, if the lights of lanes are all on: raise the bonus multiplier by 1; turn off the lights of lanes".
+ *  An object that listens to nothing itself (a mission) is said by its name and its list: "Cargo Run: Ride rail to its end 2 times". */
 export function ruleSaid(s: Schema, rule: any): string {
-  let when = whenSaid(`${rule.on}`, `${rule.event}`);
+  let when = typeof rule.event === 'string' ? whenSaid(`${rule.on}`, `${rule.event}`) : `${rule.name}`;
   const ifs: string[] = [], does: string[] = [];
   for (const fd of s.fields) {
     if (fd.kind !== Kind.List || fd.of === null || (fd.of as Schema).variants === null) continue;

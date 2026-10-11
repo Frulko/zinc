@@ -329,6 +329,9 @@ CONDITIONAL = [
     ('lanes', 'roll', [('lights', {'target': 'lanes'})], [('multiplier', {'value': 1}), ('bonus', {'value': 1000}), lights('lanes', 'off'), say('LANES LIT: BONUS X')]),
     ('coconuts', 'down', [('targets', {'target': 'coconuts'})], [score(10000), ('bonus', {'value': 2000}), ('reset', {'target': 'coconuts'}), say('COCONUT SHY CLEARED')]),
 ]
+# A step is its event, chosen among the events, and a thing among those that send it. The editor gives a thing by itself: the
+# first group that sends the event (the bumpers for a hit), the bank of drop targets for targets knocked down, the only kicker.
+GIVEN = {'hit': 'bumpers', 'capture': 'striker', 'down': 'coconuts'}
 MISSIONS = [   # name, award, what the panel asks for, where the event comes from, the event, how many times, the light that blinks
     ('Carousel Ride', 20000, 'Ride the carousel: hit the bumpers', 'bumpers', 'hit', 10, 'carouselLight'),
     ('Ring the Bell', 30000, 'Shoot the high striker', 'striker', 'capture', 2, 'strikerLight'),
@@ -352,8 +355,9 @@ def rules():
         s.set('award', award)
         s.goto(f'rules.missions[{i}].steps[0]')
         s.set('text', text)
-        s.choose('on', on)
         s.choose('event', event)
+        if on != GIVEN[event]:
+            s.choose('on', on)
         s.set('count', count)
         s.choose('light', lamp)
     s.goto('rules')

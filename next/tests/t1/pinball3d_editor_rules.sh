@@ -22,6 +22,16 @@
 #                     the rule without a condition among three, a rule made for a gate that had none, a scoring action added
 #                     to a rule that did something else, a cell emptied (the rule keeps what else it does, or goes). Save:
 #                     scores.json, on which the game's probe gives the bumper its new points
+# Slice 3, missions as sentences (a step is an event chosen among the events, and a thing among those that send it):
+#   the document without a window: every event a step can wait for has its sentence in both languages; a new step waits for the
+#                     first thing that sends its event; the text the panel shows is written from the sentence, and follows the
+#                     step until someone types another; a mission is said by its name and its steps
+#   mission.input     a mission of three steps made by choices: the event of each chosen in the list of events (the editor gives
+#                     the bumpers for a hit, the lanes for a switch rolled over), another thing chosen among what can be hit, the
+#                     light that blinks chosen among the lights, a number of times; no text of a step is typed. The mission is
+#                     moved first with its arrow. Save: mission.json, on which the game's probe does the three steps with one
+#                     ball and is paid the mission
+#   the second table  its missions are made the same way (the event, then the thing when the editor's own is not the one)
 # ZN_UPDATE_GOLDEN=1 rewrites the goldens from this run.
 cd "$(dirname "$0")/../.." || exit 2
 ex=$PWD/../examples/pinball3d-editor; g=$PWD/tests/golden/pinball3d-editor
@@ -101,6 +111,27 @@ done
 grep -qF '"on": "slings", "event": "hit", "do"' "$g/scores.json" && { echo "the rule of an emptied cell that only scored is still in scores.json"; fail=1; }
 grep -q 'key j' "$g/scores.input" && { echo "the scores session writes something as the file has it (Cmd+J)"; fail=1; }
 "$ZINC" run "$game/tools/probe.ts" -- "$tmp/scores" 17.5 20 1.37 0 0 0 1 2>/dev/null | grep -q 'pop1 hit +750 = 750' || { echo "the points typed in the grid are not what the game gives (750 for a hit of pop1)"; fail=1; }
+
+# ---- slice 3: missions as sentences
+for line in 'ok: every event a step can wait for has its sentence in both languages, with the thing and how many times' \
+  'ok: a new step waits for the first thing that sends its event: a group before a single thing, the game for its own events' \
+  "ok: the text of a step is written from its sentence, and is the editor's until someone types another" 'ok: a mission is said by its name and its steps'; do
+  case $out in *"$line"*) ;; *) echo "the document's self-test does not say: $line"; fail=1 ;; esac
+done
+fresh mission
+edit "$tmp/mission" "$g/mission.input"
+same "a mission made of sentences" "$tmp/mission/table.json" "$g/mission.json"
+accepted "a mission made of sentences" "$tmp/mission"
+for part in '{ "text": "Hit pops", "on": "pops", "event": "hit" }' '{ "text": "Roll over lanes", "on": "lanes", "event": "roll" }' \
+  '{ "text": "Hit stand 2 times", "on": "stand", "event": "hit", "count": 2, "light": "bankArrow" }'; do
+  grep -qF "$part" "$g/mission.json" || { echo "mission.json does not hold the step $part"; fail=1; }
+done
+# nothing of a step is typed but a number: no text of the session is one of the panel's, and nothing is written as the file has it
+grep -Eq 'key j|^[0-9]+ text "?(Hit|Roll)' "$g/mission.input" && { echo "the mission session types the text of a step, or writes something as the file has it"; fail=1; }
+# it is the first mission of the table, and one ball does it: a bumper, a lane, the standup targets twice; the game pays 25,000
+[ "$(grep -m1 -A2 '"missions": \[' "$g/mission.json" | grep -c '"id": "mission1"')" = 1 ] || { echo "the new mission is not the first of mission.json"; fail=1; }
+"$ZINC" run "$game/tools/probe.ts" -- "$tmp/mission" 17.5 20 1.37 0 0 0 4 >"$tmp/probe" 2>/dev/null
+grep -q 'stand1 hit +26500 = 29800' "$tmp/probe" && grep -q ' game missionDone' "$tmp/probe" || { echo "the mission made in the editor is not done and paid by the game: $(grep -v '^after ' "$tmp/probe" | tail -4 | tr '\n' ';')"; fail=1; }
 
 [ $fail = 0 ] && echo "pinball3d_editor_rules: ok"
 exit $fail

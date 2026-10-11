@@ -229,7 +229,7 @@
           { "text": "Ride the ramp home", "on": "rail", "event": "exit", "light": "rampArrow" }
         ]
       },
-      { "id": "mission1", "name": "Bumpers", "steps": [{ "text": "Do this", "on": "pops", "event": "hit", "count": 3 }] }
+      { "id": "mission1", "name": "Bumpers", "steps": [{ "text": "Hit pops 3 times", "on": "pops", "event": "hit", "count": 3 }] }
     ],
     "multiball": { "balls": 2, "lockLights": "locks", "jackpotOn": "rail", "jackpotEvent": "exit" },
     "when": [

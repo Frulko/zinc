@@ -60,8 +60,8 @@
 77 key Tab
 78 text 300
 79 key Enter
-# A mission: "+mission" adds one with a step; its name is typed; its step listens to the group of the bumpers being
-# hit, three times.
+# A mission: "+mission" adds one with a step; its name is typed; its step waits for a hit (the event, chosen among
+# the events) of the group of the bumpers (chosen among what can be hit), three times.
 81 key g meta
 82 text +mission
 83 key Enter
@@ -71,18 +71,18 @@
 89 text Bumpers
 90 key Enter
 92 key f meta
-93 text steps[0].on
+93 text steps[0].event
 95 move 1300 112
 96 down
 97 up
-99 text pops
+99 text hit
 100 key Enter
 102 key f meta
-103 text steps[0].event
+103 text steps[0].on
 105 move 1300 112
 106 down
 107 up
-109 text hit
+109 text pops
 110 key Enter
 112 key f meta
 113 text steps[0].count

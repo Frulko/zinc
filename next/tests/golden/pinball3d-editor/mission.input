@@ -1,0 +1,82 @@
+# The table editor, a mission made of sentences (tests/t1/pinball3d_editor_rules.sh). Written by guided.py.
+# "+mission" adds one, with a step; its name is typed. The step becomes "Hit ...": its event is chosen in the list
+# of events, and the editor gives it the first group that can be hit, the bumpers.
+4 key g meta
+5 text +mission
+6 key Enter
+8 key f meta
+9 text name
+11 key Tab
+12 text "Deep Scan"
+13 key Enter
+15 key f meta
+16 text steps[0].event
+18 move 1300 112
+19 down
+20 up
+22 text hit
+23 key Enter
+# Two more steps, each added by its event in the list the button Add opens. A ball that rolls over a switch: the editor
+# gives the lanes. A hit again, of the standup targets this time, found in the list of what can be hit; twice; and the
+# light that blinks while it is the step to do, chosen among the lights. No text is typed: the panel will ask for
+# "Hit pops", "Roll over lanes", "Hit stand 2 times".
+25 key f meta
+26 text steps
+28 move 1394 118
+29 down
+30 up
+32 text roll
+33 key Enter
+35 key f meta
+36 text steps
+38 move 1394 118
+39 down
+40 up
+42 text hit
+43 key Enter
+45 key f meta
+46 text steps[2].on
+48 move 1300 112
+49 down
+50 up
+52 text stand
+53 key Enter
+55 key f meta
+56 text steps[2].count
+58 key Tab
+59 text 2
+60 key Enter
+62 key f meta
+63 text steps[2].light
+65 move 1300 112
+66 down
+67 up
+69 text bankArrow
+70 key Enter
+# The mission goes first, so that a game starts with it: the whole form again (Escape in the box that finds a field),
+# then the arrow under its title, once per mission before it.
+73 key f meta
+74 key Escape
+76 move 1190 295
+77 down
+78 up
+80 move 1190 295
+81 down
+82 up
+84 move 1190 295
+85 down
+86 up
+88 move 1190 295
+89 down
+90 up
+92 move 1190 295
+93 down
+94 up
+96 move 1190 295
+97 down
+98 up
+100 move 420 500
+101 down
+102 up
+104 key s meta
+# frames 114

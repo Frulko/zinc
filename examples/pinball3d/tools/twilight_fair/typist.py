@@ -130,12 +130,19 @@ class Session:
             self.rest()
         self.click(FIELD_X, (FIRST_LINE if typed is None else FIRST_AFTER_BOX) + LINE * line)
 
-    def add_kind(self, field, line):
-        """In a list whose items are sentences (the conditions and the actions of a rule): its button Add, then one line
-        of the list of kinds it opens, counted from 0. The new item is whole at once: its parts are then choices."""
+    def add_kind(self, field, line, typed=None):
+        """In a list whose items are sentences (the conditions and the actions of a rule, the steps of a mission): its
+        button Add, then one line of the list of kinds it opens, counted from 0. The new item is whole at once: its parts
+        are then choices. `typed`: in a list of more than ten kinds (the events of a step), which has a box to type in,
+        what is typed there; Enter takes the first line left."""
         self.find(field)
         self.click(ADD_X, ADD_Y)
-        self.click(FIELD_X, ADD_FIRST_LINE + LINE * line)
+        if typed is None:
+            self.click(FIELD_X, ADD_FIRST_LINE + LINE * line)
+        else:
+            self.text(typed)
+            self.key('Enter')
+            self.rest()
 
     def segment(self, field, index, count):
         """One of the two or three words shown side by side for a field."""

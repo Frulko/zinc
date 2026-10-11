@@ -1003,208 +1003,187 @@
 1401 text "Ride the carousel: hit the bumpers"
 1402 key Enter
 1404 key f meta
-1405 text on
+1405 text event
 1407 move 1300 112
 1408 down
 1409 up
-1411 text bumpers
+1411 text hit
 1412 key Enter
 1414 key f meta
-1415 text event
-1417 move 1300 112
-1418 down
-1419 up
-1421 text hit
-1422 key Enter
-1424 key f meta
-1425 text count
-1427 key Tab
-1428 text 10
+1415 text count
+1417 key Tab
+1418 text 10
+1419 key Enter
+1421 key f meta
+1422 text light
+1424 move 1300 112
+1425 down
+1426 up
+1428 text carouselLight
 1429 key Enter
-1431 key f meta
-1432 text light
-1434 move 1300 112
-1435 down
-1436 up
-1438 text carouselLight
-1439 key Enter
-1441 key g meta
-1442 text +mission
-1443 key Enter
-1445 key f meta
-1446 text name
-1448 key Tab
-1449 text "Ring the Bell"
-1450 key Enter
-1452 key f meta
-1453 text award
-1455 key Tab
-1456 text 30000
-1457 key Enter
-1459 key g meta
-1460 text rules.missions[1].steps[0]
-1461 key Enter
-1463 key f meta
-1464 text text
-1466 key Tab
-1467 text "Shoot the high striker"
+1431 key g meta
+1432 text +mission
+1433 key Enter
+1435 key f meta
+1436 text name
+1438 key Tab
+1439 text "Ring the Bell"
+1440 key Enter
+1442 key f meta
+1443 text award
+1445 key Tab
+1446 text 30000
+1447 key Enter
+1449 key g meta
+1450 text rules.missions[1].steps[0]
+1451 key Enter
+1453 key f meta
+1454 text text
+1456 key Tab
+1457 text "Shoot the high striker"
+1458 key Enter
+1460 key f meta
+1461 text event
+1463 move 1300 112
+1464 down
+1465 up
+1467 text capture
 1468 key Enter
 1470 key f meta
-1471 text on
-1473 move 1300 112
-1474 down
-1475 up
-1477 text striker
-1478 key Enter
-1480 key f meta
-1481 text event
-1483 move 1300 112
-1484 down
-1485 up
-1487 text capture
-1488 key Enter
-1490 key f meta
-1491 text count
-1493 key Tab
-1494 text 2
-1495 key Enter
-1497 key f meta
-1498 text light
-1500 move 1300 112
-1501 down
-1502 up
-1504 text strikerLight
-1505 key Enter
-1507 key g meta
-1508 text +mission
-1509 key Enter
-1511 key f meta
-1512 text name
-1514 key Tab
-1515 text "Coconut Shy"
-1516 key Enter
-1518 key f meta
-1519 text award
-1521 key Tab
-1522 text 30000
-1523 key Enter
-1525 key g meta
-1526 text rules.missions[2].steps[0]
-1527 key Enter
-1529 key f meta
-1530 text text
-1532 key Tab
-1533 text "Knock down the coconuts"
-1534 key Enter
-1536 key f meta
-1537 text on
-1539 move 1300 112
-1540 down
-1541 up
-1543 text coconuts
-1544 key Enter
-1546 key f meta
-1547 text event
-1549 move 1300 112
-1550 down
-1551 up
-1553 text down
-1554 key Enter
-1556 key f meta
-1557 text count
-1559 key Tab
-1560 text 3
-1561 key Enter
-1563 key f meta
-1564 text light
-1566 move 1300 112
-1567 down
-1568 up
-1570 text coconutLight
-1571 key Enter
-1573 key g meta
-1574 text +mission
-1575 key Enter
-1577 key f meta
-1578 text name
-1580 key Tab
-1581 text "Duck Pond"
-1582 key Enter
-1584 key f meta
-1585 text award
-1587 key Tab
-1588 text 25000
-1589 key Enter
-1591 key g meta
-1592 text rules.missions[3].steps[0]
-1593 key Enter
-1595 key f meta
-1596 text text
-1598 key Tab
-1599 text "Hook the ducks"
-1600 key Enter
-1602 key f meta
-1603 text on
-1605 move 1300 112
-1606 down
-1607 up
-1609 text ducks
-1610 key Enter
-1612 key f meta
-1613 text event
-1615 move 1300 112
-1616 down
-1617 up
-1619 text hit
-1620 key Enter
-1622 key f meta
-1623 text count
-1625 key Tab
-1626 text 4
-1627 key Enter
-1629 key f meta
-1630 text light
-1632 move 1300 112
-1633 down
-1634 up
-1636 text duckLight
-1637 key Enter
-1639 key g meta
-1640 text rules
-1641 key Enter
-1643 key f meta
-1644 text ranks
-1646 key Tab
-1647 key a meta
-1648 text Visitor
-1649 key Enter
-1650 text Regular
-1651 key Enter
-1652 text Barker
-1653 key Enter
-1654 text Showman
-1655 key Enter
-1656 text Ringmaster
-1657 move 420 500
-1658 down
-1659 up
-1661 key g meta
-1662 text rules
-1663 key Enter
-1665 key f meta
-1666 text ballSaveLight
-1668 move 1300 112
-1669 down
-1670 up
-1672 text shootAgain
-1673 key Enter
-1675 key f meta
-1676 text ballSave
-1678 key Tab
-1679 text 10
-1680 key Enter
-1682 move 420 500
-1683 down
-1684 up
-1686 key s meta
-# frames 1696
+1471 text count
+1473 key Tab
+1474 text 2
+1475 key Enter
+1477 key f meta
+1478 text light
+1480 move 1300 112
+1481 down
+1482 up
+1484 text strikerLight
+1485 key Enter
+1487 key g meta
+1488 text +mission
+1489 key Enter
+1491 key f meta
+1492 text name
+1494 key Tab
+1495 text "Coconut Shy"
+1496 key Enter
+1498 key f meta
+1499 text award
+1501 key Tab
+1502 text 30000
+1503 key Enter
+1505 key g meta
+1506 text rules.missions[2].steps[0]
+1507 key Enter
+1509 key f meta
+1510 text text
+1512 key Tab
+1513 text "Knock down the coconuts"
+1514 key Enter
+1516 key f meta
+1517 text event
+1519 move 1300 112
+1520 down
+1521 up
+1523 text down
+1524 key Enter
+1526 key f meta
+1527 text count
+1529 key Tab
+1530 text 3
+1531 key Enter
+1533 key f meta
+1534 text light
+1536 move 1300 112
+1537 down
+1538 up
+1540 text coconutLight
+1541 key Enter
+1543 key g meta
+1544 text +mission
+1545 key Enter
+1547 key f meta
+1548 text name
+1550 key Tab
+1551 text "Duck Pond"
+1552 key Enter
+1554 key f meta
+1555 text award
+1557 key Tab
+1558 text 25000
+1559 key Enter
+1561 key g meta
+1562 text rules.missions[3].steps[0]
+1563 key Enter
+1565 key f meta
+1566 text text
+1568 key Tab
+1569 text "Hook the ducks"
+1570 key Enter
+1572 key f meta
+1573 text event
+1575 move 1300 112
+1576 down
+1577 up
+1579 text hit
+1580 key Enter
+1582 key f meta
+1583 text on
+1585 move 1300 112
+1586 down
+1587 up
+1589 text ducks
+1590 key Enter
+1592 key f meta
+1593 text count
+1595 key Tab
+1596 text 4
+1597 key Enter
+1599 key f meta
+1600 text light
+1602 move 1300 112
+1603 down
+1604 up
+1606 text duckLight
+1607 key Enter
+1609 key g meta
+1610 text rules
+1611 key Enter
+1613 key f meta
+1614 text ranks
+1616 key Tab
+1617 key a meta
+1618 text Visitor
+1619 key Enter
+1620 text Regular
+1621 key Enter
+1622 text Barker
+1623 key Enter
+1624 text Showman
+1625 key Enter
+1626 text Ringmaster
+1627 move 420 500
+1628 down
+1629 up
+1631 key g meta
+1632 text rules
+1633 key Enter
+1635 key f meta
+1636 text ballSaveLight
+1638 move 1300 112
+1639 down
+1640 up
+1642 text shootAgain
+1643 key Enter
+1645 key f meta
+1646 text ballSave
+1648 key Tab
+1649 text 10
+1650 key Enter
+1652 move 420 500
+1653 down
+1654 up
+1656 key s meta
+# frames 1666

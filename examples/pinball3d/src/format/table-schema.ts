@@ -354,6 +354,16 @@ export function tableSchema(): Schema {
   step.choice('event', EVENTS, 'The event.').must();
   step.int('count', 1, 'How many times.').range(1, 1000);
   step.ref('light', 'lights|light groups', 'A light, or a group, that blinks while this step is the one to do.');
+  // where each event comes from (SENDS), for an editor: a step is then a choice of an event, and of a thing among those that send
+  // it. The loader takes any name for any event, as it does for a rule. (No element a step could name sends `launch`.)
+  const waits = new Variants('event', 'on', '');
+  waits.loose = true;
+  for (const e of EVENTS) {
+    const from = SENDS.filter((row: string[]) => row.indexOf(e) > 0).map((row: string[]) => row[0]).join('|');
+    if (from !== '') waits.add(e).named('elements|groups', from).reads(['count']);
+    else if (e !== 'launch') waits.add(e).or(['game']).reads(['count']);
+  }
+  step.variants = waits;
 
   const mission = new Schema('mission', 'A mission: steps to do in order. One mission runs at a time, in the order of the list; finishing it pays its award times the rank and promotes the player.');
   mission.id('missions', 'Its name for rules.');

@@ -19,7 +19,7 @@ import { filesOfKind, noteOf, pictureOf, hearFile as hearFileOf, importFrom } fr
 import { fieldAt, schemaAt, listOf, steps, pathOf, found, isPath, isProfile, colorsIn } from './doc';
 import { rgb } from './shapes';
 import { Ico, Action, Segmented, Chooser, Word, Menu, Picker, Switch, Heading, drawFitted, MUTED, ACCENT, chord } from './widgets';
-import { Piece, pieces, sentenceOf, wordSaid, kindSaid, said, whenSaid, ruleSaid } from './sentences';
+import { Piece, pieces, sentenceOf, wordSaid, kindSaid, said, whenSaid, ruleSaid, extrasOf } from './sentences';
 import * as L from './strings';
 import { t, f, fieldName, listName, kindName, phrase } from './strings';
 
@@ -322,8 +322,10 @@ function Sentence(p: { src: Source; schema: Schema; item: string; width: number 
   // the sentence is laid out again when the kind or the way gives another one; its parts follow the table by themselves
   const shape = (): string => {
     const word = `${src.get(`${item}.${vs.kind}`)}`, v = vs.of(word);
-    return v === null ? '' : `${word}|${sentenceOf(s.name, v, `${src.get(`${item}.${vs.way}`)}`)}`;
+    return v === null ? '' : `${word}|${sentenceOf(s.name, v, vs.way === '' ? '' : `${src.get(`${item}.${vs.way}`)}`)}`;
   };
+  // what every kind reads (the text and the light of a step) is a line each under the sentence
+  const extras = extrasOf(s).map((name: string) => s.field(name) as Field);
   return <view class="flex-col" style={{ width: p.width }}>
     <For each={[shape()]}>{(key: string, i: i32) => {
       // one node per word, so that a long sentence goes on to the next line between two words
@@ -336,6 +338,10 @@ function Sentence(p: { src: Source; schema: Schema; item: string; width: number 
         {parts.map((piece: Piece, k: i32) => <Part src={src} schema={s} item={item} slot={piece.slot} said={piece.text} inline={true} />)}
       </view>;
     }}</For>
+    {extras.map((fd: Field, k: i32) => <view class="flex-row items-center gap-2" style={{ minHeight: 30 }} onPointerEnter={(e: ui.PointerEvent) => setHelped(`${item}.${fd.name}`)}>
+      <text class="shrink-0 truncate text-[11px] text-zinc-500" style={{ width: p.width - WIDE - 8 }}>{label(fd)}</text>
+      <Control src={src} field={fd} path={`${item}.${fd.name}`} />
+    </view>)}
   </view>;
 }
 /** A list of objects that are of a kind (the conditions and the actions of a rule): each as its sentence, with the ways to make it
@@ -622,7 +628,8 @@ function Panel(p: { path: string }): i32 {
   const title = (): string => {
     if (path === '') return `${doc().get('name')}`;
     const s = sentenceAt(path), v: any = doc().get(path);
-    if (s !== '' && v !== undefined && !sentence) return whenSaid(`${v.on}`, `${v.event}`);
+    // a rule is titled by what happens and where; a mission by its name
+    if (s !== '' && v !== undefined && !sentence) return typeof v.event === 'string' ? whenSaid(`${v.on}`, `${v.event}`) : doc().summaryOf(path);
     return s !== '' ? s : parts.length > 2 ? doc().summaryOf(path) : doc().nameOf(path);
   };
   return <view class="flex-col pb-4">

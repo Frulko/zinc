@@ -411,13 +411,17 @@ export class Doc {
     }
     return out;
   }
-  /** The names of the items of one list of the table, their groups first: what a rule that speaks of that kind of thing may name. */
-  namesAmong(list: string): string[] {
-    const items: any = this.data[list], out: string[] = [];
-    if (!Array.isArray(items)) return out;
-    for (let pass = 0; pass < 2; pass++) for (let i = 0; i < items.length; i++) {
-      const n: any = pass === 0 ? items[i].group : items[i].id;
-      if (typeof n === 'string' && n !== '' && out.indexOf(`${n}`) < 0) out.push(`${n}`);
+  /** The names of the items of one list of the table, or of several ("bumpers|targets"), their groups first: what a rule that
+   *  speaks of that kind of thing may name. */
+  namesAmong(lists: string): string[] {
+    const out: string[] = [];
+    for (let pass = 0; pass < 2; pass++) for (const list of lists.split('|')) {
+      const items: any = this.data[list];
+      if (!Array.isArray(items)) continue;
+      for (let i = 0; i < items.length; i++) {
+        const n: any = pass === 0 ? items[i].group : items[i].id;
+        if (typeof n === 'string' && n !== '' && out.indexOf(`${n}`) < 0) out.push(`${n}`);
+      }
     }
     return out;
   }

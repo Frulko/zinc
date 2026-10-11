@@ -62,7 +62,7 @@ export class Variant {
   /** What its target is: the name of an item of this name space ('' when it is no name)... */
   names: string = '';
   /** ...which, when the name space is wider than what the kind acts on, an editor takes among the items of this list of the file
-   *  and their groups ('' for any of the name space)... */
+   *  and their groups, or of these lists ("bumpers|targets"); '' for any of the name space... */
   among: string = '';
   /** ...or one of these words... */
   words: string[] = [];
@@ -87,9 +87,13 @@ export class Variant {
   /** Whether it reads the number field `name` when its way is `way`. */
   uses(name: string, way: string): boolean { return this.numbers.indexOf(name) >= 0 || this.numbers.indexOf(`${name}:${way}`) >= 0; }
 }
-/** The kinds of the objects of a schema: the field that says the kind, the field that holds the target and the field that holds the way. */
+/** The kinds of the objects of a schema: the field that says the kind, the field that holds the target and the field that holds the
+ *  way ('' when its kinds have none). A field no kind names is read whatever the kind (the text of a mission's step). */
 export class Variants {
   kind: string; target: string; way: string;
+  /** The kinds only say what an editor offers (the things that can send an event): the format accepts an object they would not
+   *  make, and the reference does not list them. */
+  loose: boolean = false;
   all: Variant[] = [];
   constructor(kind: string, target: string, way: string) { this.kind = kind; this.target = target; this.way = way; }
   add(word: string): Variant { const v = new Variant(word); this.all.push(v); return v; }

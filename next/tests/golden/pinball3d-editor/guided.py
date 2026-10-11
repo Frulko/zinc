@@ -46,12 +46,12 @@ def rules():
     s.choose('on', 'pop1')
     s.choose('event', 'hit')
     s.set('do[0].value', 300)
-    s.note('A mission: "+mission" adds one with a step; its name is typed; its step listens to the group of the bumpers being\n'
-           'hit, three times.')
+    s.note('A mission: "+mission" adds one with a step; its name is typed; its step waits for a hit (the event, chosen among\n'
+           'the events) of the group of the bumpers (chosen among what can be hit), three times.')
     s.goto('+mission')
     s.set('name', 'Bumpers')
-    s.choose('steps[0].on', 'pops')
     s.choose('steps[0].event', 'hit')
+    s.choose('steps[0].on', 'pops')
     s.set('steps[0].count', 3)
     s.note('The rules of the game itself: the ball save, the warnings before a tilt, the balls of multiball.')
     s.goto('rules')
@@ -168,9 +168,44 @@ def scores():
     return s, shots
 
 
+# the buttons of the selection, under its title: the arrow that moves it one place up in its list
+UP_X, UP_Y = 1190, 295
+
+
+def mission():
+    s = Session('The table editor, a mission made of sentences (tests/t1/pinball3d_editor_rules.sh). Written by guided.py.\n'
+                '"+mission" adds one, with a step; its name is typed. The step becomes "Hit ...": its event is chosen in the list\n'
+                'of events, and the editor gives it the first group that can be hit, the bumpers.')
+    s.goto('+mission')
+    s.set('name', 'Deep Scan')
+    s.choose('steps[0].event', 'hit')
+    s.note('Two more steps, each added by its event in the list the button Add opens. A ball that rolls over a switch: the editor\n'
+           'gives the lanes. A hit again, of the standup targets this time, found in the list of what can be hit; twice; and the\n'
+           'light that blinks while it is the step to do, chosen among the lights. No text is typed: the panel will ask for\n'
+           '"Hit pops", "Roll over lanes", "Hit stand 2 times".')
+    s.add_kind('steps', 0, typed='roll')
+    s.add_kind('steps', 0, typed='hit')
+    s.choose('steps[2].on', 'stand')
+    s.set('steps[2].count', 2)
+    s.choose('steps[2].light', 'bankArrow')
+    shots = [s.frame]
+    s.rest()
+    s.note('The mission goes first, so that a game starts with it: the whole form again (Escape in the box that finds a field),\n'
+           'then the arrow under its title, once per mission before it.')
+    s.key('f', 'meta')
+    s.key('Escape')
+    s.rest()
+    shots.append(s.frame)
+    for _ in range(6):
+        s.click(UP_X, UP_Y)
+    shots.append(s.frame)
+    s.save()
+    return s, shots
+
+
 def main():
     out = sys.argv[1] if len(sys.argv) > 1 else HERE
-    for name, make in (('rules', rules), ('conditions', conditions), ('scores', scores)):
+    for name, make in (('rules', rules), ('conditions', conditions), ('scores', scores), ('mission', mission)):
         s, shots = make()
         s.lines.append(f'# frames {s.frame + 6}')
         s.write(os.path.join(out, f'{name}.input'))

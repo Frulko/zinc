@@ -11,7 +11,7 @@ import { FolderSource, packTable, PACKAGE_EXT } from '../../pinball3d/src/format
 import { Doc, newTableText, isPlaced, canTurn, schemaAt, fieldAt, listOf, indexOf, pointsOf } from './doc';
 import { Outline, outlines, levelsOf } from './shapes';
 import { Preset, Start, LANE, palette, itemOf, pointsNeeded, rowsNeeded, laneOf, blankOf, alongWith, startOf } from './presets';
-import { kindSaid } from './sentences';
+import { kindSaid, extrasOf, shownField, word, worded } from './sentences';
 import { scoreChange } from './scores';
 import * as L from './strings';
 import { t, f } from './strings';
@@ -129,31 +129,46 @@ function listFor(kind: string): string {
 export function addTo(list: string): boolean {
   const fd = fieldAt(list);
   if (fd === null || fd.of === null) return false;
-  const kind = (fd.of as Schema).name;
+  const kind = (fd.of as Schema).name, item: any = blankOf(kind);
+  wordAll(fd.of as Schema, item);
   let done = false;
-  batch(() => { const path = current.add(list, blankOf(kind), 'Add', alongWith(kind)); done = report(path !== ''); if (done) select(path); });
+  batch(() => { const path = current.add(list, item, 'Add', alongWith(kind)); done = report(path !== ''); if (done) select(path); });
   return done;
+}
+/** Writes the texts a new object shows a player from the sentences of what it holds (the step a new mission starts with). */
+function wordAll(s: Schema, item: any): void {
+  word(s, item);
+  for (const fd of s.fields) {
+    const inner: any = item[fd.name];
+    if (fd.kind === Kind.List && fd.of !== null && Array.isArray(inner)) for (let i = 0; i < inner.length; i++) wordAll(fd.of as Schema, inner[i]);
+  }
 }
 /** A new object of one kind for a list whose items have kinds (a condition, an action), or for the place of one: whole and valid
  *  in this table. When the table lacks what the kind speaks of, the status bar says what to add first. */
-function startFor(of: Schema, word: string): Start {
-  const start = startOf(of, word, (space: string): string[] => current.namesOf(space), (list: string): string[] => current.namesAmong(list), current.data);
-  if (start.item === null) say(f(L.KIND_NEEDS, kindSaid(of.name, word), start.lacks.split('|').map((sp: string) => L.fieldName(sp).toLowerCase()).join(', ')), true);
+function startFor(of: Schema, kind: string): Start {
+  const start = startOf(of, kind, (space: string): string[] => current.namesOf(space), (list: string): string[] => current.namesAmong(list), current.data);
+  if (start.item === null) say(f(L.KIND_NEEDS, kindSaid(of.name, kind), start.lacks.split('|').map((sp: string) => L.fieldName(sp).toLowerCase()).join(', ')), true);
   return start;
 }
 /** Adds an object of one kind to a list whose items have kinds. The selection stays: the new object is edited where it is listed. */
-export function addKind(list: string, word: string): boolean {
+export function addKind(list: string, kind: string): boolean {
   const fd = fieldAt(list);
   if (fd === null || fd.of === null) return false;
-  const start = startFor(fd.of as Schema, word);
-  return start.item !== null && report(current.add(list, start.item, 'Add', start.also) !== '');
+  const start = startFor(fd.of as Schema, kind);
+  if (start.item === null) return false;
+  word(fd.of as Schema, start.item);
+  return report(current.add(list, start.item, 'Add', start.also) !== '');
 }
-/** Makes the object at a path one of another kind, whole and valid at once (its other parts are those of the new kind). */
-export function setKind(path: string, word: string): boolean {
+/** Makes the object at a path one of another kind, whole and valid at once (its other parts are those of the new kind; what every
+ *  kind reads stays: the light of a step, and its text when someone typed it). */
+export function setKind(path: string, kind: string): boolean {
   const s = schemaAt(path), vs = s.variants;
-  if (vs === null || current.get(`${path}.${vs.kind}`) === word) return false;
-  const start = startFor(s, word);
-  return start.item !== null && report(current.put(path, start.item, start.also));
+  if (vs === null || current.get(`${path}.${vs.kind}`) === kind) return false;
+  const start = startFor(s, kind), old: any = current.get(path);
+  if (start.item === null) return false;
+  for (const name of extrasOf(s)) start.item[name] = old[name];
+  if (worded(s, old)) word(s, start.item);
+  return report(current.put(path, start.item, start.also));
 }
 /** Takes one item out of a list, alone: refused when the table cannot do without it (the last action of a rule). */
 export function removeItem(path: string): boolean {
@@ -343,8 +358,21 @@ export function setCamera(layout: string, position: number[], target: number[]):
 }
 /** Gives a cell of the scores grid its points (scores.ts): what `on` scores at `event` whatever else holds; 0 for nothing. */
 export function setScore(on: string, event: string, points: number): boolean { return report(current.edit(`Change ${on}.${event}`, scoreChange(on, event, points))); }
-/** Sets a field of the table (the generated forms, the advanced numbers). */
-export function setField(path: string, value: any): boolean { return report(current.set(path, value)); }
+/** Sets a field of the table (the generated forms, the advanced numbers). The text an object shows a player, while it is the
+ *  editor's (sentences.ts worded), follows the part that changes, in the same step: "Hit pops" becomes "Hit pops 3 times". */
+export function setField(path: string, value: any): boolean {
+  const cut = path.lastIndexOf('.'), owner = cut < 0 ? '' : path.slice(0, cut), name = path.slice(cut + 1), old: any = owner === '' ? undefined : current.get(owner);
+  if (old !== undefined && old !== null && typeof old === 'object' && !Array.isArray(old) && name.indexOf('[') < 0) {
+    const s = schemaAt(owner);
+    if (shownField(s) !== '' && name !== shownField(s) && worded(s, old)) {
+      const next: any = JSON.parse(JSON.stringify(old));
+      next[name] = value;
+      word(s, next);
+      return report(current.put(owner, next, null));
+    }
+  }
+  return report(current.set(path, value));
+}
 /** Replaces the selection by its text as the file has it, edited. */
 export function replaceSelected(json: string): boolean {
   const path = selected();

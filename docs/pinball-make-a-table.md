@@ -97,8 +97,13 @@ thing always gives there. A number typed in a cell is the points of the rule tha
 (the rule is made when there was none, and goes when the cell is emptied and it did nothing else); the box above the
 names finds a row (Cmd+K). What depends on a condition stays a rule, in the form at the right.
 
-A mission is a name, an award and steps (an event to get a number of times, and the light that blinks meanwhile);
-finishing one promotes the player to the next of the ranks, typed one per line.
+A mission is a name, an award and steps, each a sentence: "Hit `bumpers` 10 times", "Shoot into `striker` 2 times",
+"Knock down `coconuts` 3 times". **Add** opens the list of events ("Hit …", "Roll over …", "Lose a ball"); the step is
+added whole, waiting for the first thing that sends that event (a group before a single thing, the bank of drop
+targets for targets knocked down), and the thing is then a choice among those that send it, not among everything on
+the table. Under the sentence are what the panel asks the player for and the light that blinks meanwhile: the text is
+the sentence itself, and follows the step, until another is typed ("Hook the ducks"). Finishing a mission promotes the
+player to the next of the ranks, typed one per line.
 
 ![a rule in its form](img/pinball-make-4-rule.jpg)
 

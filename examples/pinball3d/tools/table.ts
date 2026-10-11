@@ -131,7 +131,7 @@ function doc(t: Table): string {
     for (const f of s.fields) out.push(`| \`${f.name}\` | ${typeOf(f)} | ${defaultOf(f)} | ${f.doc} |`);
     out.push('');
     const vs = s.variants;
-    if (vs !== null) {
+    if (vs !== null && !vs.loose) {
       // what each kind reads: the loader checks by these lines, and the editor builds a ${s.name} from them
       out.push(`What each \`${vs.kind}\` reads; the other fields are ignored for it:`);
       out.push('');

@@ -8,7 +8,7 @@ import { EVENTS } from '../../pinball3d/src/format/table-schema';
 import { Doc, steps, pathOf, listOf, indexOf, fieldAt, schemaAt, canTurn, isPlaced, isProfile, isOffset, isPath, isClosed, found, mirrorName, newTableText } from './doc';
 import { Preset, palette, itemOf, pointsNeeded, rowsNeeded, laneOf, blankOf, alongWith, startOf } from './presets';
 import { complete, f, setUiLang, step, fieldName, listName, fieldKnown, DONE_UNDONE, phrase, phrasesComplete } from './strings';
-import { pieces, sentenceOf, wordSaid, ruleSaid } from './sentences';
+import { Piece, pieces, sentenceOf, wordSaid, ruleSaid, said, kindSaid, extrasOf, word, worded } from './sentences';
 import { ScoreRow, scoreRows, scoreEvents, scoreOf, scoreChange } from './scores';
 
 let failed = false;
@@ -273,6 +273,44 @@ check('paths read as the loader writes them', steps('walls[2].points[1]').join('
     for (let i = 0; i < n; i++) console.log(`${lang} rule ${i + 1}: ${ruleSaid(ruleSchema, f.get(`rules.when[${i}]`))}`);
   }
   setUiLang('en');
+}
+
+// ---- missions as sentences: a step is an event chosen among the events, and a thing among those that send it
+{
+  const d = new Doc(sample, sample), mission = d.add('rules.missions', blankOf('mission'));
+  const step = (fieldAt(`${mission}.steps`) as Field).of as Schema, vs = step.variants as Variants;
+  const names = (space: string): string[] => d.namesOf(space), among = (list: string): string[] => d.namesAmong(list);
+  let fits = vs.all.length > 20 && vs.loose && vs.of('launch') === null;
+  for (const lang of ['en', 'fr']) {
+    setUiLang(lang);
+    for (const v of vs.all) {
+      const slots = pieces(sentenceOf('step', v, '')).filter((x: Piece) => x.slot !== '').map((x: Piece) => x.slot).join(' ');
+      if (slots !== (v.names === '' ? 'count' : 'target count') || kindSaid('step', v.word).length < 4) { fits = false; console.log(`  the sentence of the step ${v.word} (${lang}): ${slots}`); }
+    }
+  }
+  setUiLang('en');
+  check('every event a step can wait for has its sentence in both languages, with the thing and how many times', fits && phrasesComplete() && extrasOf(step).join(' ') === 'text light'
+    && kindSaid('step', 'hit') === 'Hit …' && kindSaid('step', 'drain') === 'Lose a ball' && kindSaid('action', 'score') === 'Add points');
+  const hit = startOf(step, 'hit', names, among, d.data), down = startOf(step, 'down', names, among, d.data), caught = startOf(step, 'capture', names, among, d.data), lost = startOf(step, 'drain', names, among, d.data);
+  check('a new step waits for the first thing that sends its event: a group before a single thing, the game for its own events', hit.item.on === 'pops' && hit.item.count === 1 && down.item.on === 'bank' && caught.item.on === 'dock' && lost.item.on === 'game'
+    && d.namesAmong('bumpers|targets').join(' ') === 'pops bank stand pop1 pop2 pop3 drop1 drop2 drop3 stand1 stand2' && d.namesAmong('kickers').join(' ') === 'dock');
+  // the text the panel shows is the editor's until someone types another: it follows the parts
+  const one: any = hit.item;
+  word(step, one);
+  const first = `${one.text}`;
+  one.count = 3; const stale = worded(step, one); word(step, one);
+  const many = `${one.text}`;
+  one.text = 'Clear the rocks';
+  setUiLang('fr');
+  const french = said(step, one);
+  setUiLang('en');
+  check('the text of a step is written from its sentence, and is the editor\'s until someone types another', first === 'Hit pops' && !stale && many === 'Hit pops 3 times' && worded(step, JSON.parse('{ "text": "Start a game", "on": "game", "event": "start" }'))
+    && !worded(step, one) && french === 'Toucher pops 3 fois' && said(step, lost.item) === 'Lose a ball' && d.add(`${mission}.steps`, one) !== '' && plays(d.text()));
+  setUiLang('fr');
+  const cargo = ruleSaid(schemaAt('rules.missions[0]'), d.get('rules.missions[0]'));
+  setUiLang('en');
+  check('a mission is said by its name and its steps', ruleSaid(schemaAt('rules.missions[2]'), d.get('rules.missions[2]')) === 'Night Berth: Roll over lanes 3 times; Shoot into dock'
+    && cargo === 'Cargo Run : Parcourir rail jusqu’au bout 2 fois' && ruleSaid(schemaAt('rules.when[1]'), d.get('rules.when[1]')) === 'When the ball hits slings: add 110 points');
 }
 
 // ---- the scores grid: a cell reads and writes the first rule that scores there without a condition
