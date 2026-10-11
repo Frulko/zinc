@@ -22,8 +22,9 @@ gl-cube/src/main.ts | OK |  |
 hello/src/main.ts | OK |  | 
 hero/src/main.tsx | OK |  | 
 inferno-todo/src/main.tsx | OK |  | 
-iot-panel/src/main.tsx | OK |  |
-js-three/main.js | OK |  |
+iot-panel/src/main.tsx | OK |  | 
+js-phaser/main.js | OK |  | 
+js-three/main.js | OK |  | 
 lang/src/main.ts | OK |  | 
 led/falling-cubes/src/main.ts | OK |  | 
 led/oled-clock/src/main.tsx | OK |  | 
