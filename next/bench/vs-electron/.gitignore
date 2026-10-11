@@ -1,0 +1,13 @@
+node_modules/
+target/
+dist/
+build/
+out/
+gen/
+icons/
+package-lock.json
+Cargo.lock
+# measure.sh copies image.png into each app
+zinc/assets/
+electron/image.png
+tauri/src/image.png

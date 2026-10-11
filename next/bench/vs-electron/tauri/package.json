@@ -1,0 +1,12 @@
+{
+  "name": "bench-list",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "icons": "tauri icon ../image.png",
+    "build": "tauri build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.12.2"
+  }
+}

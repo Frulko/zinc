@@ -1,0 +1,25 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Bench List</title>
+<style>
+  html, body { height: 100%; margin: 0; }
+  body { display: flex; flex-direction: column; gap: 12px; padding: 16px; box-sizing: border-box; font: 15px system-ui; color: #334155; }
+  header { display: flex; align-items: center; gap: 12px; font-size: 20px; font-weight: 600; color: #0f172a; }
+  header img { width: 48px; height: 48px; }
+  input { font: inherit; padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 6px; }
+  ul { flex: 1; overflow-y: auto; margin: 0; padding: 0; list-style: none; }
+  li { padding: 8px 0; }
+</style>
+<header><img src="image.png" alt="">Bench List</header>
+<input id="q" placeholder="Filter">
+<ul id="list"></ul>
+<script>
+  const rows = Array.from({ length: 200 }, (_, i) => `Row ${i + 1}`);
+  const q = document.getElementById('q'), list = document.getElementById('list');
+  const show = () => list.replaceChildren(...rows.filter(r => r.toLowerCase().includes(q.value.toLowerCase()))
+    .map(r => Object.assign(document.createElement('li'), { textContent: r })));
+  q.oninput = show;
+  show();
+  // Two animation frames: the first frame was presented (the Zinc version prints at its second tick).
+  requestAnimationFrame(() => requestAnimationFrame(() => window.__TAURI__.core.invoke("first_frame")));
+</script>

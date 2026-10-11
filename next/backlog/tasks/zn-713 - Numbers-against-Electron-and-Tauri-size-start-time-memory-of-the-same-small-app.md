@@ -3,10 +3,11 @@ id: ZN-713
 title: >-
   Numbers against Electron and Tauri: size, start time, memory of the same small
   app
-status: Backlog
+status: In Progress
 assignee:
   - '@parallel'
 created_date: '2026-10-11 16:08'
+updated_date: '2026-10-11 18:32'
 labels:
   - perf
   - size-M

@@ -1,0 +1,12 @@
+{
+  "productName": "Bench List",
+  "version": "0.1.0",
+  "identifier": "dev.zinc.bench-list-tauri",
+  "build": { "frontendDist": "../src" },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [{ "title": "Bench List", "width": 900, "height": 600 }],
+    "security": { "csp": null }
+  },
+  "bundle": { "active": true, "targets": ["app"], "icon": ["icons/icon.icns"] }
+}

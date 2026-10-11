@@ -1,0 +1,8 @@
+{
+  "name": "bench-list",
+  "app": { "id": "dev.zinc.bench-list", "name": "Bench List", "version": "0.1.0" },
+  "entry": "src/main.tsx",
+  "assets": "assets",
+  "permissions": [],
+  "targets": { "macos": { "width": 900, "height": 600 } }
+}
