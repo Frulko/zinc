@@ -2,7 +2,8 @@
 id: ZN-441
 title: 'Model importer on gltfpack; meshopt decode in three, .zmesh for zinc:3d'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-09 07:36'
 labels:
   - games
