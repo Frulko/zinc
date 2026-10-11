@@ -81,6 +81,11 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-160: still refused: `console.log(...a)`, push with several arguments, a tuple spread of an expression that is not a variable or property, a rest element of a tuple value.
 - ZN-160: QuickJS-ng rejects `a: b: for (...) { continue a; }` (label not found): an upstream bug to report; the fixture continues to the inner label.
 - ZN-160: at the milestone, regenerate `docs/reports/parity/gate.md` (section C rows for labels, rest parameters and spread become PARTIAL: zinc accepts what the prototype refuses) and refresh the compat baseline.
+- ZN-443: tileset images are also packed as their own image entries (286 KB for the test tileset); needs a rule to leave a file out of the packs.
+- ZN-443: not supported yet: Tiled infinite, isometric and hexagonal maps, image layers, image-collection tilesets, tile animations, per-tile properties; LDtk `.ldtkl` level files, level backgrounds, per-tile alpha, layer parallax.
+- ZN-443: no hot reload of a map's table under `zinc dev` (the atlas pages reload); reuse Level objects by name on onReload.
+- ZN-443: `.tmx`/`.tsx` through a vendored XML parser (tmxlite or pugixml) if users ask.
+- ZN-443: QuickJS's `Date.now` stayed frozen in a headless run; check whether the virtual clock should advance with the frames.
 
 ## Demos
 
@@ -157,6 +162,12 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-572: a direct loop for an unrotated `drawImage`; a sprite still goes through `paint_pixel` and the general blend for each pixel (Phaser CANVAS is 4.5 times its floor).
 - ZN-572: Phaser's canvas renderer builds an Error (stack) every frame, seen in the sample, source not found.
 - ZN-571: take the p5 and Phaser CANVAS frame times again on a quiet machine, and p5 2.3 once `tools/test-lib` has it.
+- ZN-716: one `zinc:osc`: the plugin (`zinc:osc/full`) takes over the built-in of ZN-085 (compat `send`/`listen`/`close`, `src/host/osc.cpp` and its three host rows removed); two modules for one protocol confuse a first user.
+- ZN-716: `zinc:socket` does not load on QuickJS (type stripper error at `plugins/socket/index.ts:112`), so `zinc:osc/full` does not either; OSC over TCP/SLIP.
+- ZN-717: try `zinc:serial` with a real Arduino and an adapter pulled out (baud, framing, DTR reset, unplug); port names from USB product and vendor ("Arduino Uno", not a device path).
+- ZN-717: ports on the libuv loop instead of the 5 ms timer if the wake-ups show in resmon.
+- ZN-715: try `zinc:midi` with a real keyboard and with GarageBand on "Zinc keys"; wake the loop from RtMidi's callback and timestamp messages, after measuring the 2 ms timer.
+- ZN-715: a `zinc:audio` tone in `examples/midi` so a first run is heard.
 
 ## Cross-platform pass
 
@@ -184,3 +195,5 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-574: gamepads on Linux and Windows (frameworks and link line of the SDL joystick build, a real pad), with ZN-552's evdev hub.
 - ZN-650.14: `loadFont` takes only POSIX absolute paths (leading `/`); add drive-letter paths on Windows.
 - ZN-572: `webenv_canvas2d_full` and the canvas_ity patches on Linux, Windows and ARM (float sums in the coverage grid).
+- ZN-443: `tests/t1/tilemap.sh` on Linux and in the browser export (zinc:tilemap needs packs and throws without them); its GL renderer pixels.
+- ZN-715, ZN-716, ZN-717: `osc_full.sh`, `serial.sh` and `midi.sh` on Linux (ALSA sequencer loaded), then Windows (`serial.windows.cpp`; WinMM has no virtual ports); non-standard baud rates on Linux (termios2).
