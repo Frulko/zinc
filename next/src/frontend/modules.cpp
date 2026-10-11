@@ -428,6 +428,11 @@ export function groups(): string[] { const r: string[] = []; const n = __host_as
 /** Mounts a .zpk or a directory of them in front of the others (mods and patches over the base packs); the number of packs. */
 export function mount(path: string): i32 { const n = __host_assetsMount(path); check(); return n; }
 export function unmount(path: string): boolean { return __host_assetsUnmount(path); }
+export function writePack(path: string, names: string[], data: u8[][]): void {
+  for (let i: i32 = 0; i < names.length; i++) __host_assetsPackAdd(names[i], data[i]);
+  __host_assetsPackWrite(path);
+  check();
+}
 /** A handle on a loaded entry; throws when its group is not loaded. */
 export function get(name: string): Asset { const h = __host_assetsAcquire(name); check(); return new Asset(name, h); }
 export function stats(): Stats {

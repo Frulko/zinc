@@ -125,7 +125,7 @@ int addPack(Manager& g, const std::string& file, std::vector<std::unique_ptr<Pac
   p->path = file;
   const std::size_t slash = file.find_last_of('/');
   p->group = file.substr(slash == std::string::npos ? 0 : slash + 1);
-  p->group.resize(p->group.size() - 4);
+  p->group.resize(std::min(p->group.find_last_of('.'), p->group.size()));   // without its extension
   const int fd = open(file.c_str(), O_RDONLY);
   struct stat st;
   if (fd < 0 || fstat(fd, &st) != 0) { if (fd >= 0) close(fd); err = "assets: cannot open " + file; return 0; }
@@ -152,8 +152,7 @@ int addPath(Manager& g, const std::string& path, bool front, std::string& err) {
     }
     std::sort(files.begin(), files.end());
     for (const std::string& f : files) if (!addPack(g, f, added, err)) return 0;
-  } else if (!zpk(path)) { err = "assets: " + path + " is not a .zpk pack nor a directory"; return 0; }
-  else if (!addPack(g, path, added, err)) return 0;
+  } else if (!addPack(g, path, added, err)) return 0;   // a file named itself is a pack whatever its extension (an app's own package format): the reader checks it
   const int n = static_cast<int>(added.size());
   g.mounts.insert(front ? g.mounts.begin() : g.mounts.end(), std::make_move_iterator(added.begin()), std::make_move_iterator(added.end()));
   return n;

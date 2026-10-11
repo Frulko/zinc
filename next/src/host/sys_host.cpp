@@ -3,6 +3,7 @@
 // the API of lib/modules.d.ts: an error is reported with fsFailed()/fsError() and thrown there. Plain C++17, no dependency on the old runtime.
 #include "host/assets_host.h"
 #include "host/permissions.h"
+#include "zpk/zpk.h"
 #include "zrt_assets_dir.h"
 #include <signal.h>
 #include "zn/alloc_stats.h"
@@ -76,6 +77,7 @@ std::vector<std::string> gNames;   // directory listing / environment keys / sto
 std::vector<std::array<std::string, 6>> gNets;   // os.networkInterfaces(): name, address, netmask, family, mac, internal
 std::vector<int> gKinds;           // listing entries: 1 file, 2 directory, 4 symlink
 std::vector<unsigned char> gBytes; // the file or asset loaded last
+std::vector<zn::zpk::Input> gPack;  // the entries of the pack zinc:assets writePack is making
 struct StatInfo { double size = 0, mtime = 0, atime = 0, ctime = 0; int mode = 0, file = 0, dir = 0, link = 0; } gStat;
 
 std::string gCryptoError;
@@ -459,6 +461,25 @@ void call(int id, const HostArg* a, HostArg* r) {
     }
     case Rt::HostAssetsName: ret(r, n(0) >= 0 && static_cast<size_t>(n(0)) < gNames.size() ? gNames[static_cast<size_t>(n(0))] : ""); break;
     case Rt::HostAssetsMount: { std::string err; r->i = zn::host::assets::mount(s(0), err); if (!r->i) { gFailed = true; gError = err; } break; }
+    case Rt::HostAssetsPackAdd: {
+      zn::zpk::Input in;
+      in.name = s(0);
+      in.codec = zn::zpk::Codec::Zstd;
+      const std::uint64_t* p = static_cast<const std::uint64_t*>(a[1].p);
+      for (std::uint32_t i = 0; i < a[1].n; ++i) in.data += static_cast<char>(p[i] & 0xFF);
+      gPack.push_back(std::move(in));
+      break;
+    }
+    case Rt::HostAssetsPackWrite: {
+      std::string out, err;
+      zn::zpk::WriteOptions o;
+      o.zstdLevel = 9;   // a pack written by a running program (an editor's Export): seconds matter more than the last percent
+      const bool ok = zn::zpk::write(std::move(gPack), o, out, err);
+      gPack.clear();
+      if (!ok) { gFailed = true; gError = "assets: " + s(0) + ": " + err; break; }
+      writeAll(s(0), out.data(), out.size(), false, "open");
+      break;
+    }
     case Rt::HostAssetsUnmount: r->i = zn::host::assets::unmount(s(0)); break;
     case Rt::HostAssetsGroupsCount: zn::host::assets::groups(gNames); r->i = static_cast<std::int64_t>(gNames.size()); break;
     case Rt::HostAssetsLoadGroup: { std::string err; r->i = zn::host::assets::load(s(0), n(1), err); if (!r->i) { gFailed = true; gError = err; } break; }

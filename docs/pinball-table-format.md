@@ -9,10 +9,14 @@ taken from the table "Tidal Lock"; a test keeps it current. Format `"zinc-pinbal
 
 - **A folder or a package.** While one works on a table it is a folder: `table.json` and its files. To share it,
   `tools/table.ts -- pack`, or Export in the editor, writes one package file (`.zpinball`). The game opens both.
-- **The package.** A `.zpinball` file is JSON: `{ "format": "zinc-pinball-package", "version": 1, "files": [...] }`. `files` holds
-  `table.json` first, then every file the table names (the sounds, the images, the models), each as `{ "name": "sounds/example.wav", "base64": "..." }`,
-  or `{ "name": "models/example.obj", "text": "..." }` for a file that is text (.json, .obj, .txt, .svg). A name is the path the table gives the file, from the
-  table folder. Making a package fails, naming the file, when the table names a file its folder does not have.
+- **The package.** A `.zpinball` file is a pack of the engine (ZPK, `docs/zpk.md`: the format of an app's data, each entry compressed and
+  stored with its checksum). Its entries are `table.json` and every file the table names (the sounds, the images, the models), each under the path
+  the table gives it from the table folder (`sounds/example.wav`), and `package.json`, which says what the pack is:
+  `{ "format": "zinc-pinball-package", "version": 2, "files": ["table.json", "sounds/example.wav", ...] }`.
+  Making a package fails, naming the file, when the table names a file its folder does not have.
+- **A package is whole or refused.** Opening one reads every file against its checksum. A package that lacks a file its table names, or
+  whose bytes changed after it was made (a bad copy, an edit), is not played: `the file "sounds/example.wav" was altered after the package was made`,
+  `the file "sounds/example.wav" is missing from the package`. To change a table one works in its folder and exports it again.
 - **Checked.** A file is checked when it is loaded, and every fault is reported at once with the path of the value:
   `flippers[1].length: must be a number from 2 to 30, not "long"`, `bumpers[0].surfce: unknown field (did you mean "surface"?)`,
   `rules.when[3].do[0].target: "lanez" is not one of the lights or light groups (lane1, lane2, lane3, lanes)`. `tools/table.ts -- check` prints them.

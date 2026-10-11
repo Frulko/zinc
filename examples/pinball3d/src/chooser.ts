@@ -6,7 +6,7 @@
 import { rect, rrect, border, font, drawText, textWidth, imageWidth, imageHeight, drawImageRect, keyCount, keyKind, keyName, KeyKind, isDown, Btn, pointerDown, pointerX, pointerY } from 'zinc:gfx';
 import * as assets from 'zinc:assets';
 import { TABLE_FILE } from './format/table';
-import { TableSource, BuiltinSource, PackageSource, PACKAGE_EXT, openTable } from './format/source';
+import { TableSource, BuiltinSource, packageOfBytes, PACKAGE_EXT, openTable } from './format/source';
 import { tableImage } from './images';
 import { View } from './view';
 
@@ -53,7 +53,7 @@ export function tablesOf(named: string): Choice[] {
     if (!name.startsWith('tables/')) continue;
     let c: Choice | null = null;
     if (name.endsWith(`/${TABLE_FILE}`) && name.indexOf('/', 7) === name.length - TABLE_FILE.length - 1) c = choiceOf(new BuiltinSource(name.slice(7, name.length - TABLE_FILE.length - 1)));
-    else if (name.endsWith(PACKAGE_EXT) && name.indexOf('/', 7) < 0) { try { c = choiceOf(new PackageSource(assets.readText(name), name)); } catch (e) { c = null; } }
+    else if (name.endsWith(PACKAGE_EXT) && name.indexOf('/', 7) < 0) { try { c = choiceOf(packageOfBytes(assets.readBytes(name), name)); } catch (e) { c = null; } }
     if (c !== null) out.push(c);
   }
   if (named !== '') {

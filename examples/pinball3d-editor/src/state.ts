@@ -518,7 +518,7 @@ export async function exportPackage(): Promise<boolean> {
   try {
     const files: string[] = [TABLE_FILE];
     for (const name of filesOf(current.def)) files.push(name);
-    fs.writeText(file, packTable(new FolderSource(folder()), files));
+    packTable(new FolderSource(folder()), files, file);
   } catch (e) {
     say(f(L.CANNOT_SAVE, nameOfFolder(file), `${(e as Error).message}`), true);
     return false;

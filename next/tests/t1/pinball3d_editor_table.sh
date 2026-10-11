@@ -49,7 +49,7 @@ cp -R "$game/assets/tables/tidal-lock" "$tmp/tidal"
 printf '0 dialog-answer %s\n' "$tmp/tidal.zpinball" > "$tmp/tidal.script"
 printf '4 key e meta+shift\n' > "$tmp/export.input"
 edit "$tmp/tidal" "$tmp/export.input" 10 0 "$tmp/tidal.script"
-[ -f "$tmp/tidal.zpinball" ] && grep -q '"base64"' "$tmp/tidal.zpinball" || { echo "the game's table was not exported with its files"; fail=1; }
+[ -f "$tmp/tidal.zpinball" ] && [ "$(head -c 4 "$tmp/tidal.zpinball")" = ZPK1 ] || { echo "the game's table was not exported with its files"; fail=1; }
 game_on "$tmp/tidal.zpinball" 1200 > "$tmp/tidal.log"
 n=$(wc -l < "$tmp/tidal.log" | tr -d ' ')
 [ "$n" -ge 40 ] && head -n "$n" "$PWD/tests/data/pinball3d/play.log" | cmp -s - "$tmp/tidal.log" || { echo "the game's table played from the package the editor made does not print tests/data/pinball3d/play.log ($n lines)"; fail=1; }

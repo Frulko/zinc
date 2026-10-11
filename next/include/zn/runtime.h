@@ -331,7 +331,9 @@
   X(HostAssetsAcquire, "host.assetsAcquire", "s>i", 2) X(HostAssetsRelease, "host.assetsRelease", "i>n", 2) X(HostAssetsHandleText, "host.assetsHandleText", "i>s", 2) \
   X(HostAssetsHandleLoad, "host.assetsHandleLoad", "i>i", 2) X(HostAssetsStat, "host.assetsStat", "i>d", 2) \
   /* zinc:gfx gradientPaint (ZN-261): a rounded box filled with a gradient paint record (linear, radial, conic, repeating, N stops); graphics row, appended */ \
-  X(HostGfxGradientPaint, "host.gfxGradientPaint", "dddddDi>n", 2)
+  X(HostGfxGradientPaint, "host.gfxGradientPaint", "dddddDi>n", 2) \
+  /* zinc:assets writePack (ZN-649.06): an entry (name, bytes) added to the pack being made, then the ZPK pack written to a path; system rows, appended */ \
+  X(HostAssetsPackAdd, "host.assetsPackAdd", "sB>n", 2) X(HostAssetsPackWrite, "host.assetsPackWrite", "s>n", 2)
 
 namespace zn {
 

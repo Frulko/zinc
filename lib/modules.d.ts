@@ -241,6 +241,9 @@ declare module 'zinc:assets' {
   /** Mounts a .zpk or a directory of them in front of the others (mods and patches over the base packs); the number of packs. */
   export function mount(path: string): i32;
   export function unmount(path: string): boolean;
+  /** Writes a .zpk of the entries `names` with the bytes `data` (same order; each entry compressed, with its checksum: docs/zpk.md), for
+   *  mount(). Throws on an empty or repeated name, or when the file cannot be written. */
+  export function writePack(path: string, names: string[], data: u8[][]): void;
   /** A handle on a loaded entry; throws when its group is not loaded. */
   export function get(name: string): Asset;
   /** Resident bytes, their peak, the ram budget (0: none), groups loaded, packs mounted, jobs pending. */

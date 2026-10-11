@@ -8,6 +8,10 @@ when it is first read. The design and the measurements behind it are in `docs/re
 The module is `next/src/zpk` (`zpk.h`): `zn::zpk::write` makes a pack, `zn::zpk::Reader` reads one. The asset build (`zinc assets
 build`, ZN-434) writes packs and the asset manager (`zinc:assets` v2, ZN-436) mounts them; this page is the format they share.
 
+A program writes a pack of its own with `assets.writePack(path, names, data)` and reads it back with `assets.mount(path)`: an app's
+package format is a pack under the extension it likes (a file named to `mount` is a pack whatever its extension; in a directory only
+the `.zpk` files are). The pinball tables of `examples/pinball3d` are shared that way (`.zpinball`, `docs/pinball-table-format.md`).
+
 ## Layout
 
 All integers are little-endian. A pack is the index (header, TOC, names, dictionary) followed by the data.

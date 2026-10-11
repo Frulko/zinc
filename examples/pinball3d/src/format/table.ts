@@ -122,7 +122,14 @@ export function filesOf(t: TableDef): string[] {
 /** Reads and checks the table of a source. Throws TableError with every fault. */
 export function loadTable(source: TableSource): Table {
   if (!source.has(TABLE_FILE)) throw new TableError(source.describe(), [`${TABLE_FILE}: there is no such file`]);
-  return new Table(parseTable(source.text(TABLE_FILE), source.describe()), source);
+  const t = new Table(parseTable(source.text(TABLE_FILE), source.describe()), source);
+  if (source.whole) {
+    // a package is the whole table: one that lacks a file its table names is refused, where a folder being worked on plays without it
+    const gone: string[] = [];
+    for (const f of filesOf(t.def)) if (!source.has(f)) gone.push(`the file "${f}" is missing from the package`);
+    if (gone.length > 0) throw new TableError(source.describe(), gone);
+  }
+  return t;
 }
 
 /** Checks the text of a table file and returns its data with the defaults filled in. */
