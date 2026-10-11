@@ -24,6 +24,9 @@ int capture(const std::vector<std::string>& args);
 int bench(const std::vector<std::string>& args);
 /** `zinc export [entry|dir] [--target linux|rpi|rpi1|rmpp|macos|<zig target>] [-o dir]`: dist/<name>-<target>/ with the executable, run.sh and README.txt (macOS: the .app too). */
 int exportApp(const std::vector<std::string>& args, const std::string& engineRoot = "");
+// zinc compat, zinc ui (ZN-155): the checkout's Node tools.
+int compat(const std::vector<std::string>& args, const std::string& engineRoot);
+int ui(const std::vector<std::string>& args, const std::string& engineRoot);
 // zinc publish --itch / --site (ZN-325): dist/ to itch.io through butler (--dry-run prints the commands), a static download page.
 int publishStore(const std::vector<std::string>& args);
 /** `zinc deploy [entry|dir] --target T --device user@host [--dir path] [--print]`: export, copy with scp and start over ssh; --print (or ZINC_DEPLOY_DRY=1) only prints the commands. */

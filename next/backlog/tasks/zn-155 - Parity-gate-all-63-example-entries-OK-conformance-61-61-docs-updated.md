@@ -4,7 +4,7 @@ title: 'Parity gate: all 63 example entries OK, conformance 61/61, docs updated'
 status: In Progress
 assignee: []
 created_date: '2026-10-06 23:04'
-updated_date: '2026-10-11 09:17'
+updated_date: '2026-10-11 09:19'
 labels:
   - examples
   - tests
@@ -42,4 +42,6 @@ Session 2 (2026-10-11): static accessors (`static get v()`: A.v is a call of it;
 Session 2, continued: typeof in a type position (`const q: typeof p`, a TypeRef flagged kFlagTypeQuery: the declared type of the variable), readonly array and tuple types (the same type here; not enforced), and switches that cover every string of a literal union alias (`type K = 'a' | 'b'`: read from the declarations, string literal types being plain strings) count as returning; tests/golden/run/type_queries, switch_literals. Gate: C 44 PASS / 1 MISSING (@ts-ignore).
 
 console.table done (a generated function per row type: '(index)\tvalues' then each row as console.log writes it, the prototype's output; tests/golden/run/console_table, not run on QuickJS). @ts-ignore: decision D88, not honoured (compiled types: an ignored type error has nothing correct to run); the audit lists it BY-DECISION.
+
+zinc compat and zinc ui added: the checkout's Node tools run from this zinc (tests/compat/run.mjs with --engines next,next-qjs and --zinc-next this binary; compiler/bin/zinc.mjs ui), tests/t0/ui_tools.sh (check and code against the prototype's on examples/ui/figma-storyboard). CLI section: 0 MISSING.
 <!-- SECTION:NOTES:END -->

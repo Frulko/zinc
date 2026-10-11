@@ -80,6 +80,8 @@ const Command kCommands[] = {
   {"export", "zinc export [entry|dir] [--target linux|rpi|rpi1|rpi2|chip|pocketchip|rmpp|macos|wasm|esp32] [-o dir] [--deb] [--dmg] [--key <seed-hex>]", "package a program", "dist/<name>-<target>/: the executable (cross built with the pinned zig for another target), run.sh, README.txt, assets/, a .desktop file (Linux) or the .app (macOS); wasm: a static site (index.html, app.js, app.wasm, app.zbc, serve.py); esp32: core.bin, app.bin and flash.sh. --deb also writes dist/<name>_<version>_<arch>.deb (Linux targets; reproducible, written without dpkg); --dmg dist/<name>-<version>.dmg with the .app and an Applications link (macos; the .app needs zinc.json app.id). The .app is signed ad hoc, or by zinc.json \"signing\": { \"identity\", \"keychain\", \"notaryProfile\" } with the hardened runtime and the entitlements of \"permissions\"; the notarization commands are printed. --key (or ZINC_UPDATE_SEED) writes <file>.sig, an Ed25519 signature, beside the executable and the .deb or .dmg: zinc verify checks them."},
   {"add", "zinc add <name | git-url[@ref] | gh:user/repo[@ref] | archive URL> [dir]", "add a plugin from the index, git or an archive", "A name (name@range: ^1.2, ~1.2, >=1.2, 1.2) is looked up in the signed index, the highest version the range allows: its tier (official, or verified for a publisher the index delegates to) and publisher are printed first. Fetches the plugin (git: at its default branch or @ref; an archive: file:// or https://, .tar.gz, .tgz or .tar) into plugins/<name>, records it in zinc.json \"dependencies\" and pins it in zinc.lock: the commit or the archive's sha256, the version and the capabilities plugin.json \"permissions\" asks for (an update asking for a new one is refused until --accept). --key <public key>: the archive's <url>.sig must verify with it, and the key is locked too. Nothing of the plugin is run; links and special files are refused. What each tier guarantees, and what a mirror can and cannot do: docs/guide/08-security.md, \"Plugin distribution: threat model and guarantees\"."},
   {"sign", "zinc sign <file> <seed-hex>", "sign a plugin archive", "Writes <file>.sig: the detached Ed25519 signature (128 hex digits) that zinc add --key <public key> checks. zinc update-keygen makes a key pair."},
+  {"compat", "zinc compat [--suite wpt,test262,node,quickjs] [--engines next,next-qjs,...] [--filter text] [--check]", "standards conformance", "Runs the pinned external suites (WPT, test262, quickjs-ng's tests, a Node API set) through this zinc (engines next and next-qjs by default) and the reference engines found, and writes docs/reports/zinc-next-compat.md: the harness of the checkout, tests/compat/run.mjs (needs Node)."},
+  {"ui", "zinc ui check|code|import|pack|serve <design.zui.json|zip|project> [--out path] [--port 7331]", "Figma designs to Zinc UI", "zinc-ui/1 documents from the Figma plugin (integrations/figma): check validates one, code prints the generated UI, import writes a project, pack makes a .zui.zip, serve pairs a project with the plugin. The tools of the checkout (compiler/src/ui-tools.ts, needs Node)."},
   {"verify", "zinc verify <file> [--key <public-hex>]", "check a signed artifact", "Checks <file>.sig (zinc sign, zinc export --key) against the key, by default zinc.json update.publicKey of the project above the file; exit 1 when the file or the signature changed."},
   {"remove", "zinc remove <plugin> [dir]", "remove a plugin", "Deletes plugins/<plugin> and drops it from zinc.json \"dependencies\" and zinc.lock."},
   {"trust", "zinc trust <plugin> [dir]", "accept a community plugin's new key", "A community plugin's publisher key (plugin.json publisher.publicKey, checked against the archive's .sig) is pinned in zinc.json \"lock\" on first use; an archive signed with another key is refused. zinc trust forgets the pinned key, so the next zinc add pins the new one."},
@@ -850,6 +852,28 @@ int exportApp(const std::vector<std::string>& args, const std::string& engineRoo
   if (target == "macos") notarizeHint(p, out, artifacts);
   std::printf("%s\n", out.string().c_str());
   return 0;
+}
+
+// zinc compat and zinc ui (ZN-155): the checkout's Node tools, run as they are (tests/compat/run.mjs already measures this engine; the zinc-ui
+// tools generate code for the shared UI library, whichever engine runs it). ponytail: through Node; a C++ port of zinc ui if a release ships without it.
+static int nodeTool(const std::string& engineRoot, const std::string& script, const std::vector<std::string>& args, const char* what) {
+  const fs::path js = fs::path(engineRoot) / ".." / script;
+  if (!fs::exists(js)) { std::fprintf(stderr, "zinc %s: %s is not in this installation (it comes with a Zinc checkout)\n", what, script.c_str()); return 2; }
+  if (std::system("command -v node >/dev/null 2>&1") != 0) { std::fprintf(stderr, "zinc %s needs Node.js: it runs %s\n", what, script.c_str()); return 2; }
+  std::string cmd = "node " + q(fs::absolute(js).lexically_normal().string());
+  for (const std::string& a : args) cmd += " " + q(a);
+  return status(std::system(cmd.c_str()));
+}
+int compat(const std::vector<std::string>& args, const std::string& engineRoot) {
+  std::vector<std::string> rest(args.begin() + 2, args.end());
+  if (std::find(rest.begin(), rest.end(), "--engines") == rest.end()) { rest.push_back("--engines"); rest.push_back("next,next-qjs"); }
+  rest.push_back("--zinc-next"); rest.push_back(self());
+  return nodeTool(engineRoot, "tests/compat/run.mjs", rest, "compat");
+}
+int ui(const std::vector<std::string>& args, const std::string& engineRoot) {
+  std::vector<std::string> rest{"ui"};
+  rest.insert(rest.end(), args.begin() + 2, args.end());
+  return nodeTool(engineRoot, "compiler/bin/zinc.mjs", rest, "ui");
 }
 
 // zinc publish --itch / --site (ZN-325): the exports of dist/ to itch.io through butler, and a static download page. Uploading is the owner's

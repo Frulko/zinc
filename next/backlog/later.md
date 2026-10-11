@@ -12,6 +12,7 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-373.04: a zinc:socket WebSocket client that calls ws.close() against `zinc debug --cdp` stays alive (a probe hit its 30 s timeout); the inspector quits explicitly, other clients would hang.
 - ZN-373.05: Tracing against `zinc debug --cdp`: no frames there, the inspector's Performance view stays at "recording" for a debugger target.
 - ZN-430: a .zapp's members are still unpacked once into the cache (its size again on disk); reading assets in place from the archive needs zinc:assets and the readers by path (video, sqlite, zinc:fs) on an archive source, the ZPK design of docs/reports/games/toolchain-assets-loading.md 6.1.
+- ZN-155: `zinc ui` runs the prototype's Node tools (compiler/src/ui-tools.ts, ui-document.ts, ui-package.ts, about 400 lines); a C++ port would make it work in an installation without the checkout and Node.
 
 ## Demos
 
