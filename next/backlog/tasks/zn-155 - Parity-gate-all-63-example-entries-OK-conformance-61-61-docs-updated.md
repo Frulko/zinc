@@ -1,10 +1,10 @@
 ---
 id: ZN-155
 title: 'Parity gate: all 63 example entries OK, conformance 61/61, docs updated'
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-10-06 23:04'
-updated_date: '2026-10-11 09:19'
+updated_date: '2026-10-11 09:30'
 labels:
   - examples
   - tests
@@ -28,8 +28,8 @@ The closing gate of the parity plan: tests/examples.lst has no xfail, tests/conf
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 the three audits re-run as scripts (tools/parity-audit) and report zero blocked examples and zero MISSING prototype features
-- [ ] #2 RESUME.md and docs/reports/STATUS-next.md state the result with the commands to reproduce it
+- [x] #1 the three audits re-run as scripts (tools/parity-audit) and report zero blocked examples and zero MISSING prototype features
+- [x] #2 RESUME.md and docs/reports/STATUS-next.md state the result with the commands to reproduce it
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -44,4 +44,6 @@ Session 2, continued: typeof in a type position (`const q: typeof p`, a TypeRef 
 console.table done (a generated function per row type: '(index)\tvalues' then each row as console.log writes it, the prototype's output; tests/golden/run/console_table, not run on QuickJS). @ts-ignore: decision D88, not honoured (compiled types: an ignored type error has nothing correct to run); the audit lists it BY-DECISION.
 
 zinc compat and zinc ui added: the checkout's Node tools run from this zinc (tests/compat/run.mjs with --engines next,next-qjs and --zinc-next this binary; compiler/bin/zinc.mjs ui), tests/t0/ui_tools.sh (check and code against the prototype's on examples/ui/figma-storyboard). CLI section: 0 MISSING.
+
+Done (2026-10-11, session 2): `let s;` without a type is typed by its first assignment (the declaration then starts from that type's default; a read before it is Z0109; one never assigned nor read is a boolean), tests/golden/run/let_untyped. Gate: `next/tools/parity-audit`: A 315 PASS / 0 MISSING (3 PARTIAL, 8 rows the prototype refuses), C 44 / 0 (3 PARTIAL, @ts-ignore by decision D88), D 29 / 0 (2 by decision, 2 deferred), E 29, F 60 / 1 PARTIAL, examples 74 (tests/examples.lst gained gl-cube, museum-table, museum-table/editor and pinball3d-editor, all OK in tests/t2/examples_all.sh), plugins 35. AC1: that run (docs/reports/parity/gate.md). AC2: docs/reports/STATUS-next.md and RESUME.md state it with the commands. type_queries' loop is indexed: the tsc oracle's lib/zinc.d.ts has no ReadonlyArray iterator (oracle_diff). The PARTIAL rows went to backlog/later.md (then() flattening first). Tests: T0 (tls known), quickjs, rc, aot, conformance, oracle_diff, examples_all pass. Not done (description, not a criterion): next/README rewritten for users. usage: n/a
 <!-- SECTION:NOTES:END -->

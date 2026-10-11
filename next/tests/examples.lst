@@ -18,6 +18,7 @@ camera/remote/src/main.tsx | OK |  |
 canvas/sketch/main.tsx | OK |  | 
 chataigne/src/main.tsx | OK |  | 
 flipctl/src/main.ts | OK |  | 
+gl-cube/src/main.ts | OK |  | 
 hello/src/main.ts | OK |  | 
 hero/src/main.tsx | OK |  | 
 inferno-todo/src/main.tsx | OK |  | 
@@ -30,9 +31,12 @@ maps/explorer/src/main.tsx | OK |  |
 maps/navigation/src/main.tsx | OK |  | 
 maps/svg-gallery/src/main.tsx | OK |  | 
 modules-showcase/src/main.tsx | OK |  | 
+museum-table/editor/main.tsx | OK |  | 
+museum-table/src/main.ts | OK |  | 
 native-module/src/main.ts | OK |  | 
 nuxt-ui/src/main.tsx | OK |  | 
 pinball/src/main.ts | OK |  | 
+pinball3d-editor/src/main.tsx | OK |  | 
 pinball3d/src/main.ts | OK |  | 
 pocket-hero/main.tsx | OK |  | 
 process/cli/main.ts | OK |  | 

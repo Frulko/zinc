@@ -13,6 +13,9 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-373.05: Tracing against `zinc debug --cdp`: no frames there, the inspector's Performance view stays at "recording" for a debugger target.
 - ZN-430: a .zapp's members are still unpacked once into the cache (its size again on disk); reading assets in place from the archive needs zinc:assets and the readers by path (video, sqlite, zinc:fs) on an archive source, the ZPK design of docs/reports/games/toolchain-assets-loading.md 6.1.
 - ZN-155: `zinc ui` runs the prototype's Node tools (compiler/src/ui-tools.ts, ui-document.ts, ui-package.ts, about 400 lines); a C++ port would make it work in an installation without the checkout and Node.
+- ZN-155: `p.then(x => promise)` does not flatten the promise it returns, so `fetch(u).then(r => r.text())` yields a Promise (async/await is right): the checker's __then helpers need a Promise-returning variant. The parity gate's most visible PARTIAL.
+- ZN-155: console.log(-0) prints -0 (the prototype printed 0); an i64 near 2^53 rounds otherwise than the prototype; tests/conformance/scroll_physics.tsx prints nothing (its frozen output starts "dragged 150").
+- ZN-155: default values in array patterns (`const [a = 1] = xs`) are still refused (object patterns take them).
 
 ## Demos
 

@@ -1823,6 +1823,7 @@ struct Checker {
         std::uint32_t s = lookup(x.text);
         if (s == kNone && x.text == "undefined" && lookup("__undef") != kNone) { a.nodes[i].text = "__undef"; return expr0(i, expected); }  // the Dyn undefined
         if (s == kNone || (out.syms[s].forward && out.syms[s].ownerFn == (fnStack.empty() ? kNone : fnStack.back()))) { unknownName(i, x.text); return tError; }  // a forward variable is only visible to other functions
+        if (!autoVars.empty() && autoVars.count(s)) { diag(kZCannotInfer, i, "'" + std::string(x.text) + "' is read before its first assignment, which gives its type"); return tError; }
         out.nodeSym[i] = s;
         if (out.syms[s].tdz && !tdzBusy && i != tdzTarget && lookup("__tdz_" + std::string(x.text)) != kNone && !fnStack.empty() && out.syms[s].ownerFn != fnStack.back()) {   // a function reads a top-level variable declared below it: ReferenceError until the declaration has run
           const std::string nm(x.text);
@@ -2060,6 +2061,28 @@ struct Checker {
           bindPattern(target, vt, false, false);
           return vt;
         }
+        if (x.text == "=" && n(target).kind == N::Ident && !autoVars.empty()) {
+          const std::uint32_t as = lookup(n(target).text);
+          auto av = as == kNone ? autoVars.end() : autoVars.find(as);
+          if (av != autoVars.end()) {   // the first assignment of `let s;`: its type, and the declaration starts from that type's default (ZN-155)
+            const std::uint32_t d = av->second;
+            autoVars.erase(av);
+            TypeId vt = expr(value);
+            if (bad(vt)) return tError;
+            if (vt == tNull || vt == tVoid) { diag(kZCannotInfer, value, "'" + std::string(n(target).text) + "' from this value"); return tError; }
+            out.syms[as].type = vt;
+            out.syms[as].reassigned = true;
+            out.nodeType[d] = vt;
+            bool nullRef = false;
+            const std::uint32_t init = defaultInit(d, vt, nullRef);
+            if (init == kNone) { diag(kZUnsupported, d, "a declaration without an initializer of type '" + name(vt) + "'"); return tError; }
+            expr(init, vt);
+            out.nodeSym[target] = as;
+            out.nodeType[target] = vt;
+            lvalue(target);
+            return vt;
+          }
+        }
         pendingExempt = x.text == "=";  // the target of a plain assignment is written, not read
         TypeId tt = expr(target);
         pendingExempt = false;
@@ -2259,6 +2282,32 @@ struct Checker {
   bool endless(std::uint32_t test) const { return test == kNone || (n(test).kind == N::Literal && n(test).text == "true"); }
   std::pair<std::uint32_t, TypeId> spreadHint{kNone, kNoType};  // the leading literal of a spread array and the element type it should have
   std::set<std::uint32_t> exhaustiveSwitch;  // switches whose cases cover every member of a union of records
+  std::map<std::uint32_t, std::uint32_t> autoVars;  // `let s;` without a type (symbol -> declaration): typed by its first assignment (ZN-155)
+  void settleAutoVars() {   // `let s;` never assigned (nor read): any type does, a boolean starting false
+    for (const auto& [s, d] : autoVars) {
+      out.syms[s].type = tBool;
+      out.nodeType[d] = tBool;
+      bool nullRef = false;
+      if (std::uint32_t init = defaultInit(d, tBool, nullRef); init != kNone) out.nodeType[init] = tBool;
+    }
+    autoVars.clear();
+  }
+  // The start value of `let x: T;`, assigned before it is read: the default of T written into the declaration (kNone when T has none);
+  // `nullRef`: a null reference of a non-null object or function type, never read.
+  std::uint32_t defaultInit(std::uint32_t d, TypeId t, bool& nullRef) {
+    const TK k = ty(t).k;
+    const char* text = t == tBool ? "false" : t == tStr ? "''" : k == TK::Num ? "0" : k == TK::Array ? "[]" : hasNull(t) ? "null" : (k == TK::Object || k == TK::Func) ? "null" : nullptr;
+    nullRef = !hasNull(t) && (k == TK::Object || k == TK::Func);
+    if (!text) return kNone;
+    auto st = snippet(a, std::string(text) + ";", {}, d);
+    out.nodeType.resize(a.nodes.size(), kNoType);
+    out.nodeSym.resize(a.nodes.size(), kNone);
+    if (st.empty() || n(st[0]).kind != N::ExprStmt) return kNone;
+    a.nodes[d].kids[1] = n(st[0]).kids[0];
+    const std::uint32_t init = a.nodes[d].kids[1];
+    if (ty(t).k == TK::Union && ty(t).undef && n(init).kind == N::Literal) a.nodes[init].flags |= kFlagUndefined;  // `let v: T | undefined;` starts undefined
+    return init;
+  }
   // The string literals a variable or parameter can hold when it was declared with an alias of a union of them (`type K = 'a' | 'b'`);
   // empty otherwise. String literal types are plain strings here, so this reads the declarations themselves.
   std::vector<std::string> literalSetOf(std::uint32_t valueNode) {
@@ -2460,23 +2509,17 @@ struct Checker {
       return out.nodeSym[d];
     };
     bool synthNull = false;
+    if (init == kNone && ann == kNone && !isConst && fw == forwardVars.end()) {   // `let s;`: typed by its first assignment, as the prototype does (ZN-155)
+      out.nodeType[d] = tError;
+      autoVars[bindVar(tError)] = d;
+      return;
+    }
     if (init == kNone && (ann == kNone || isConst)) diag(kZUnsupported, d, "declarations without an initializer");
     if (ann != kNone) {
       t = fw != forwardVars.end() ? fw->second.type : annotation(ann);
       if (init == kNone && !bad(t) && !isConst) {  // `let x: T;`: assigned before it is read (flow analysis is not done): start from the default of T
-        TK k = ty(t).k;
-        const char* text = t == tBool ? "false" : t == tStr ? "''" : k == TK::Num ? "0" : k == TK::Array ? "[]" : hasNull(t) ? "null" : (k == TK::Object || k == TK::Func) ? "null" : nullptr;
-        synthNull = !hasNull(t) && (k == TK::Object || k == TK::Func);  // `let p: Process;` assigned before it is read: starts as a null reference that is never read
-        if (!text) diag(kZUnsupported, d, "a declaration without an initializer of type '" + name(t) + "'");
-        else {
-          auto st = snippet(a, std::string(text) + ";", {}, d);
-          out.nodeType.resize(a.nodes.size(), kNoType);
-          out.nodeSym.resize(a.nodes.size(), kNone);
-          if (!st.empty() && n(st[0]).kind == N::ExprStmt) {
-            a.nodes[d].kids[1] = n(st[0]).kids[0]; init = a.nodes[d].kids[1];
-            if (ty(t).k == TK::Union && ty(t).undef && n(init).kind == N::Literal) a.nodes[init].flags |= kFlagUndefined;  // `let v: T | undefined;` starts undefined
-          }
-        }
+        init = defaultInit(d, t, synthNull);   // `let p: Process;` assigned before it is read: starts as a null reference that is never read
+        if (init == kNone) diag(kZUnsupported, d, "a declaration without an initializer of type '" + name(t) + "'");
       }
       if (init != kNone && !bad(t) && ty(t).k == TK::Func && n(init).kind == N::FuncExpr) {  // `const f: T = () => { f() }`: the function sees its own name
         out.nodeType[d] = t;
@@ -4407,6 +4450,7 @@ Num numberAlias() { return gNumber; }
 Checked check(Ast& ast) {
   Checker c(ast);
   if (ast.root != kNone) c.run();
+  c.settleAutoVars();
   auto isFn = [&](std::uint32_t k) { return k != kNone && ast.nodes[k].kind == N::FuncExpr; };
   for (std::uint32_t i = 0; i < ast.nodes.size(); ++i) {  // name inference for function expressions, as JavaScript does
     const Node& x = ast.nodes[i];
