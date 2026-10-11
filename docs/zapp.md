@@ -18,12 +18,16 @@ byte-identical, and `tar tf game.zapp` lists it.
 | `resources.bin` | the fonts and images baked for the program |
 | `zinc.json` | the project's manifest: window size, targets, permissions |
 | `assets/...` | the project's assets, read at run time (`zinc:assets`); hidden files stay out |
+| `native/<target>-<arch>/<plugin>/` | the library of each native plugin the program calls, built for the machine that packed it, and its `exports` |
 
-A program that calls a native plugin (`zinc:sqlite`, `zinc:system`...) gets it loaded at start, built from the engine's `plugins/` like
-a compile would (cached in `~/.zinc`); a machine running a `.zapp` therefore needs the engine's plugin sources and a compiler for those.
+A program that calls a native plugin (`zinc:sqlite`, `zinc:audio`...) carries the plugin's library built for the packing machine (ZN-652).
+A fused executable loads it as its own code: it starts with no toolchain and no build. `zinc run app.zapp` builds the plugin from the
+engine's `plugins/` instead, like a compile would (cached in `~/.zinc`): a `.zapp` is not native code, and running one does not trust native
+code it carries.
 
 `zinc run` refuses an archive whose header checksums or file SHA-256 do not match (corrupted or edited), one made by a newer zinc or in a
-newer format ("update zinc"), and one naming a file outside it. Nothing of the archive runs before those checks.
+newer format ("update zinc"), and one naming a file outside it. Nothing of the archive runs before those checks. A launch reads only the
+archive's headers and manifest while the file keeps its size and time; a changed file is checked again member by member (ZN-430).
 
 ## Fused executables
 

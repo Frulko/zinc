@@ -105,7 +105,53 @@ static std::string gProjectDir = ".";
 static std::string gBakedSize;   // "WxH" of the board, for the main of a program zinc build writes
 static std::vector<std::string> gPluginDirs;   // the directories of those plugins: inputs of a compiled run (ZN-605)
 static std::string gBundleOut;                   // `zinc build --bundle ... -o <out>.app`: the bundle to assemble once the program is linked
+static bool gFusedApp = false;                   // this is a fused executable (ZN-319): its archive's native libraries are its own code (ZN-652)
+// Where a .zapp keeps the native plugin libraries of its program (ZN-652): native/<target>-<arch>/<plugin>/ with the library and its exports.
+static std::string packedTarget() {
+#if defined(__aarch64__)
+  return zn::tc::pluginTarget() + "-arm64";
+#elif defined(__x86_64__)
+  return zn::tc::pluginTarget() + "-x86_64";
+#else
+  return zn::tc::pluginTarget();
+#endif
+}
 static zn::tc::BundleSpec gBundleSpec;
+
+// A plugin library ready to load: its exports registered for a load at the first call (ZN-615), else loaded now.
+static bool registerPlugin(const zn::tc::PluginLib& lib, std::string& err) {
+  std::vector<std::pair<std::string, std::string>> exports;
+  if (zn::tc::pluginExports(lib, exports)) {   // loaded before: the checker and the start see its exports, its library loads at its first call (ZN-615)
+    if (!zn::rt::registerDeferredModule(lib.module, exports, [lib](std::string& e) {
+          zn::log::write("plugin", zn::log::Info, lib.plugin + ": loaded at its first call");
+          return zn::tc::loadPlugin(lib, e);
+        }, err)) return false;
+  } else if (!zn::tc::loadPlugin(lib, err)) return false;
+  gPlugins.push_back(lib);
+  return true;
+}
+// A fused app's own library of a native module (ZN-652): packed with it for this machine, so it starts with no toolchain and no build.
+// Only a fused executable takes them: it is native code already; a .zapp run by zinc builds its plugins from the engine's sources.
+static bool packedPlugin(const std::string& module) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  const fs::path dir = fs::path(gProjectDir) / "native" / packedTarget();
+  if (!gFusedApp || !fs::is_directory(dir, ec)) return false;
+  for (const auto& e : fs::directory_iterator(dir, ec)) {
+    std::ifstream ex(e.path() / "exports");
+    std::string first;
+    if (!std::getline(ex, first) || first != "module " + module) continue;
+    zn::tc::PluginLib lib;
+    lib.plugin = e.path().filename().string();
+    lib.module = module;
+    for (const auto& f : fs::directory_iterator(e.path(), ec)) if (f.path().extension() == ".dylib" || f.path().extension() == ".so") lib.shared = f.path().string();
+    std::string err;
+    if (!lib.shared.empty() && registerPlugin(lib, err)) { zn::log::write("plugin", zn::log::Info, lib.plugin + ": the app's packed library"); return true; }
+    zn::log::write("plugin", zn::log::Info, lib.plugin + ": the packed library is not usable (" + err + "): building it");
+    return false;
+  }
+  return false;
+}
 
 // A native module that is not registered: find its plugin (the engine's, the project's, pluginDirs), build it into the cache and load it (ZN-101).
 static void installNativeProvider(const char* entry) {
@@ -115,6 +161,7 @@ static void installNativeProvider(const char* entry) {
   zn::cli::warnRevoked(gProjectDir);   // plugins of zinc.lock the index revoked (ZN-345)
   zn::tc::loadPolicy(gProjectDir);     // the trust policy of the plugins built for it (ZN-346)
   zn::frontend::gNativeProvider = [](const std::string& module, std::string& err) {
+    if (packedPlugin(module)) return true;
     std::vector<std::string> problems;
     std::string root = gRoot + "/..";
     static std::vector<zn::frontend::FoundPlugin> found;
@@ -123,14 +170,7 @@ static void installNativeProvider(const char* entry) {
     if (!p) { err = "no plugin provides it (zinc plugins lists them)"; return false; }
     zn::tc::PluginLib lib;
     if (!zn::tc::buildPlugin(*p, gRoot, gProjectDir, zn::tc::pluginTarget(), lib, err)) return false;
-    std::vector<std::pair<std::string, std::string>> exports;
-    if (zn::tc::pluginExports(lib, exports)) {   // loaded before: the checker and the start see its exports, its library loads at its first call (ZN-615)
-      if (!zn::rt::registerDeferredModule(lib.module, exports, [lib](std::string& e) {
-            zn::log::write("plugin", zn::log::Info, lib.plugin + ": loaded at its first call");
-            return zn::tc::loadPlugin(lib, e);
-          }, err)) return false;
-    } else if (!zn::tc::loadPlugin(lib, err)) return false;
-    gPlugins.push_back(lib);
+    if (!registerPlugin(lib, err)) return false;
     gPluginDirs.push_back(p->dir);
     return true;
   };
@@ -1080,6 +1120,7 @@ int main(int argc, char** argv) {
     std::string zbc, err;
     std::uint64_t at = 0, size = 0;
     if (fusedArchive(at, size)) {
+      gFusedApp = true;
       if (!unpackZapp(zn::tc::executablePath(), at, size, zbc, err)) { std::fprintf(stderr, "%s: %s\n", argv[0], err.c_str()); return 1; }
       zbc = chooseAppVersion(zbc);   // a newer version staged or in use (ZN-324.02)
       gFusedArgs = {argv[0], "run", zbc, "--"};
@@ -1380,6 +1421,16 @@ int main(int argc, char** argv) {
     }
     if (have) files["zinc.json"] = ps.str();
     std::error_code ec;
+    for (const zn::tc::PluginLib& lib : gPlugins) {   // the native plugins the program calls, built for this machine: a fused app loads them (ZN-652)
+      if (lib.display || lib.module.empty()) continue;
+      const fs::path so(lib.shared), ex = so.parent_path() / "exports";
+      std::ifstream lf(so, std::ios::binary), ef(ex);
+      std::stringstream ls, es; ls << lf.rdbuf(); es << ef.rdbuf();
+      if (!lf || !ef) { std::fprintf(stderr, "zinc pack: cannot read the library of plugin %s (%s)\n", lib.plugin.c_str(), so.c_str()); return 1; }
+      const std::string base = "native/" + packedTarget() + "/" + lib.plugin + "/";
+      files[base + so.filename().string()] = ls.str();
+      files[base + "exports"] = es.str();
+    }
     const fs::path assets = fs::path(projDir) / "assets";
     if (fs::is_directory(assets, ec))
       for (auto it = fs::recursive_directory_iterator(assets, ec); it != fs::recursive_directory_iterator(); it.increment(ec)) {
