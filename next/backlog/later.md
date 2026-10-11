@@ -68,6 +68,18 @@ The next backlog review turns lines into tasks or deletes them.
 ## Demos
 
 - ZN-649.14: a rule of a pinball table can listen to the plunger, so a skill shot needs no hidden sensor.
+- ZN-650.10: the museum editor offers `accessibility.descriptions` and plays a description.
+- ZN-650.10: at the two larger text sizes the button rows lie over the lowest cards; lay the table out above them.
+- ZN-650.10: zinc:audio decodes nothing in a deterministic run, so a test cannot read a sound log there.
+- ZN-650.08: zinc:video has no sound; a film with a sound track needs audio played in step.
+- ZN-650.08: film decoders are never closed (16 at most).
+- ZN-650.08: zinc:assets gives no path, so a film is copied to the temp directory at first play.
+- ZN-650.08: the museum editor does not play a film or offer poster, loop and subtitles.
+- ZN-650.08: museum_visit (62 s) and museum_editor (123 s) still last over a minute.
+- ZN-650.12: the staff summary shows today only (week, month); a packaged table needs a default statistics directory; a visit under way at switch-off is not counted.
+- ZN-650.13: storyboard miniatures ignore item rotation, and `table.visitors` is read and unused.
+- ZN-650.13: the attract loop loads the model and the panorama a second time; share mesh and texture.
+- ZN-650.13: a scripted drag on the panorama from a short side.
 
 ## Cross-platform pass
 
