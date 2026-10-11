@@ -13,7 +13,7 @@ namespace {
 const int MAXSOUND = 256, MAXVOICE = 32;
 const ma_uint32 RATE = 48000;
 struct Clip { void* pcm; ma_uint64 frames; ma_uint32 channels, rate; };   // float samples
-struct Voice { ma_audio_buffer_ref src; ma_sound sound; int32_t clip; uint64_t started; bool used, pitched; };
+struct Voice { ma_audio_buffer_ref src; ma_sound sound; int32_t clip; uint64_t started; ma_uint64 from; bool used, pitched; };   // from: the mix frame a delayed voice starts at
 Clip clips[MAXSOUND];
 Voice voices[MAXVOICE];
 ma_engine eng;
@@ -36,13 +36,26 @@ void release(Voice& v) {
   ma_audio_buffer_ref_uninit(&v.src);
   v.used = false;
 }
-bool live(Voice& v) { return v.used && ma_sound_is_playing(&v.sound) && !ma_sound_at_end(&v.sound); }
+// A voice's number for the program: the count of plays when it started (never 0), so a voice that took the place of another is not it.
+int32_t voice_id(Voice& v) { return (int32_t)(v.started & 0x7fffffff); }
+Voice* voice_at(int32_t id) {
+  for (Voice& v : voices) if (v.used && id > 0 && voice_id(v) == id) return &v;
+  return nullptr;
+}
+bool live(Voice& v) { return v.used && !ma_sound_at_end(&v.sound) && (ma_sound_is_playing(&v.sound) || ma_engine_get_time_in_pcm_frames(&eng) < v.from); }   // playing, or waiting for its time
 bool env_on(const char* n) { const char* v = getenv(n); return v && *v && *v != '0'; }
 // A playback rate (pitch and speed together) between 1/64 and 64, 1 for NaN; a pan between -1 and 1, 0 for NaN.
 float rate_of(double r) { return r > 0 ? (float)(r < 1.0 / 64 ? 1.0 / 64 : r > 64 ? 64 : r) : 1.0f; }
 float pan_of(double p) { return p == p ? (float)(p < -1 ? -1 : p > 1 ? 1 : p) : 0.0f; }
 
-void pull(ma_device*, void* out, const void*, ma_uint32 frames) { ma_engine_read_pcm_frames(&eng, out, frames, nullptr); }
+// The next frames of the mix. The engine's clock, which time() and the delays count on, stands still while no sound is in
+// the graph: it is moved by hand over that silence.
+void render(void* out, ma_uint32 frames) {
+  const ma_uint64 t = ma_engine_get_time_in_pcm_frames(&eng);
+  ma_engine_read_pcm_frames(&eng, out, frames, nullptr);
+  if (ma_engine_get_time_in_pcm_frames(&eng) < t + frames) ma_engine_set_time_in_pcm_frames(&eng, t + frames);
+}
+void pull(ma_device*, void* out, const void*, ma_uint32 frames) { render(out, frames); }
 // The default playback device, asked for the mixer's format (miniaudio converts when the hardware has another).
 // On its own thread: starting Core Audio took 90 to 520 ms on the development Mac, a frozen frame if a game paid it
 // at its first sound. Sounds started meanwhile begin when the device does.
@@ -145,10 +158,11 @@ struct HostAudio : NativeAudio {
     ma_free(c->pcm, nullptr);
     *c = Clip{};
   }
-  bool play(int32_t h, double volume, bool loop, double rate, double pan) override {
+  bool play(int32_t h, double volume, bool loop, double rate, double pan) override { return start(h, volume, loop, rate, pan, 0, 0) != 0; }
+  int32_t start(int32_t h, double volume, bool loop, double rate, double pan, double offset, double delay) override {
     Clip* c = clip_at(h);
     ma_engine* e = engine();
-    if (!c || !e) return false;
+    if (!c || !e) return 0;
     Voice* v = nullptr;
     for (Voice& x : voices) if (!live(x)) { v = &x; break; }
     if (!v) {   // all busy: the oldest one-shot gives way, a loop (the music) only when there is nothing else
@@ -163,16 +177,19 @@ struct HostAudio : NativeAudio {
     // rate played at 1 is added sample for sample (miniaudio's resampler runs even at a ratio of 1)
     const float r = rate_of(rate);
     const ma_uint32 flags = MA_SOUND_FLAG_NO_SPATIALIZATION | (r == 1.0f ? MA_SOUND_FLAG_NO_PITCH : 0);
-    if (ma_sound_init_from_data_source(e, &v->src, flags, nullptr, &v->sound) != MA_SUCCESS) return false;
+    if (ma_sound_init_from_data_source(e, &v->src, flags, nullptr, &v->sound) != MA_SUCCESS) return 0;
     v->used = true;
     v->pitched = r != 1.0f;
     if (v->pitched) ma_sound_set_pitch(&v->sound, r);
     ma_sound_set_pan(&v->sound, pan_of(pan));   // balance: at -1 the right channel is silent, a mono clip included
     v->clip = h;
     v->started = ++plays;
+    if (offset > 0) ma_sound_seek_to_pcm_frame(&v->sound, (ma_uint64)(offset * c->rate));
+    v->from = delay > 0 ? ma_engine_get_time_in_pcm_frames(e) + (ma_uint64)(delay * RATE) : 0;
+    if (v->from) ma_sound_set_start_time_in_pcm_frames(&v->sound, v->from);
     ma_sound_set_volume(&v->sound, (float)volume);
     ma_sound_set_looping(&v->sound, loop);
-    return ma_sound_start(&v->sound) == MA_SUCCESS;
+    return ma_sound_start(&v->sound) == MA_SUCCESS ? voice_id(*v) : 0;
   }
   void stop(int32_t h) override { for (Voice& v : voices) if (v.used && v.clip == h) release(v); }
   bool playing(int32_t h) override {
@@ -184,6 +201,45 @@ struct HostAudio : NativeAudio {
   void setRate(int32_t h, double rate) override { for (Voice& v : voices) if (v.used && v.pitched && v.clip == h) ma_sound_set_pitch(&v.sound, rate_of(rate)); }
   void setPan(int32_t h, double pan) override { for (Voice& v : voices) if (v.used && v.clip == h) ma_sound_set_pan(&v.sound, pan_of(pan)); }
   void stopAll() override { for (Voice& v : voices) release(v); }
+  void voiceStop(int32_t id, double delay) override {
+    Voice* v = voice_at(id);
+    if (!v) return;
+    if (delay > 0) ma_sound_set_stop_time_in_pcm_frames(&v->sound, ma_engine_get_time_in_pcm_frames(&eng) + (ma_uint64)(delay * RATE));
+    else release(*v);
+  }
+  void voiceSet(int32_t id, double volume, double rate, double pan) override {
+    Voice* v = voice_at(id);
+    if (!v) return;
+    ma_sound_set_volume(&v->sound, (float)volume);
+    if (v->pitched) ma_sound_set_pitch(&v->sound, rate_of(rate));
+    ma_sound_set_pan(&v->sound, pan_of(pan));
+  }
+  bool voicePlaying(int32_t id) override { Voice* v = voice_at(id); return v && live(*v); }
+  int32_t pcm(zrt::Array<double> samples, int32_t channels, int32_t rate) override {
+    const int64_t frames = samples.a && channels > 0 ? samples.a->len / channels : 0;
+    if (channels < 1 || channels > 2 || rate < 8000 || rate > 192000 || frames < 1) return fail("samples of 1 or 2 channels, at 8000 to 192000 frames per second");
+    int32_t h = free_slot();
+    if (h < 0) return -1;
+    engine();
+    float* pcm = (float*)ma_malloc((size_t)(frames * channels) * sizeof(float), nullptr);
+    if (!pcm) return fail("out of memory");
+    for (int64_t i = 0; i < frames * channels; i++) pcm[i] = (float)samples.a->data[i];
+    clips[h] = Clip{pcm, (ma_uint64)frames, (ma_uint32)channels, (ma_uint32)rate};
+    return h;
+  }
+  int32_t channels(int32_t h) override { Clip* c = clip_at(h); return c ? (int32_t)c->channels : 0; }
+  int32_t rate(int32_t h) override { Clip* c = clip_at(h); return c ? (int32_t)c->rate : 0; }
+  zrt::Array<double> samples(int32_t h, int32_t channel) override {
+    Clip* c = clip_at(h);
+    if (!c || channel < 0 || (ma_uint32)channel >= c->channels || c->frames > 0x7fffffff) return zrt::Array<double>::with_cap(0);
+    const int32_t n = (int32_t)c->frames;
+    zrt::Array<double> r = zrt::Array<double>::with_cap(n);
+    const float* p = (const float*)c->pcm + channel;
+    for (int32_t i = 0; i < n; i++) r.a->data[i] = p[(size_t)i * c->channels];
+    r.a->len = n;
+    return r;
+  }
+  double time() override { return opened ? (double)ma_engine_get_time_in_pcm_frames(&eng) / RATE : 0; }
   void setMasterVolume(double volume) override { if (ma_engine* e = engine()) ma_engine_set_volume(e, (float)volume); }
   zrt::Array<double> mix(int32_t frames) override {
     ma_engine* e = engine();
@@ -191,7 +247,7 @@ struct HostAudio : NativeAudio {
     if (frames > 480000) frames = 480000;   // 10 s a call
     float* buf = (float*)ma_malloc((size_t)frames * 2 * sizeof(float), nullptr);
     if (!buf) return zrt::Array<double>::with_cap(0);
-    ma_engine_read_pcm_frames(e, buf, (ma_uint64)frames, nullptr);   // it fills what no voice reaches with silence
+    render(buf, (ma_uint32)frames);   // it fills what no voice reaches with silence
     zrt::Array<double> r = zrt::Array<double>::with_cap(frames * 2);
     for (int32_t i = 0; i < frames * 2; i++) r.a->data[i] = buf[i];
     r.a->len = frames * 2;

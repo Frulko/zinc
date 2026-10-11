@@ -49,12 +49,28 @@ setVolume(0.8);                       // the whole mix
 | `sound.rate` | Playback rate: 1 as recorded (the default), 2 an octave higher and twice as fast, 0.5 an octave lower and twice as slow; 1/64 to 64. Set it before `play()`: a voice started at 1 keeps 1 (it is mixed sample for sample, without a resampler), a voice started at another rate follows later changes. |
 | `sound.pan` | Stereo position: -1 left, 0 centre (the default), 1 right, as a balance (at -1 the right channel is silent, a mono sound included). Also moves the voices that play now. |
 | `sound.duration`, `sound.ok`, `sound.error` | Length in seconds; whether it loaded; why not. |
+| `sound.voice(volume, rate, pan, loop, offset = 0, delay = 0): Voice` | `play()` with its own volume, rate, pan and loop instead of the sound's, from `offset` seconds into the sound, heard after `delay` seconds of mix (to the sample: `delay` is how one sound follows another without a gap). It gives the instance back. |
+| `voice.stop(delay = 0)`, `voice.set(volume, rate, pan)`, `voice.playing` | Stops that instance alone, now or after `delay` seconds of mix; changes it alone (the rate only if it started at another rate than 1); true until it ends, is stopped, or gives way as the oldest of 32. |
+| `fromSamples(samples, channels = 1, rate = 48000): Sound` | A sound from samples the program computed: 1 is full scale, two channels are interleaved (left, right, left...), 8000 to 192000 frames per second. |
+| `sound.channels`, `sound.sampleRate`, `sound.samples(channel)` | The sound as it is kept: its channels, its frames per second, the samples of one channel. |
 | `sound.unload()` | Stops the sound and frees its samples. |
 | `setVolume(v)`, `volume()` | Volume of the whole mix, 1 by default. |
 | `stopAll()` | Stops every sound. |
 | `backend()` | `'Core Audio'`, `'ALSA'`, `'PulseAudio'`... or `'null'`. Waits until the output is open (see below). |
+| `time()` | Seconds of mix rendered so far, the clock `delay` counts on: a device moves it; on the `null` backend, `mix()` does. Never waits. |
 | `SAMPLE_RATE` | Frames per second of the mix: 48000. |
 | `mix(frames): number[]` | `null` backend only: the next `frames` frames of the mix, stereo and interleaved, 1 being full scale. `[]` when a device plays the mix. |
+
+## In the web environment
+
+A JavaScript program run on the web environment (`"web": true` in `zinc.json`) has `AudioContext` and the audio element
+(`new Audio(url)`) on this module, loaded at its first sound: Phaser's sound manager, and code written for Web Audio,
+play through it. `decodeAudioData` is `decode()`, a started `AudioBufferSourceNode` is a `Voice` (its `start(when)` and
+`stop(when)` are exact, on `time()`, which is the context's `currentTime`), `createBuffer` is `fromSamples()`.
+The graph is not rendered: once a frame each voice takes the product of the gains and the sum of the stereo pans on its
+way to the destination, so a ramp moves in steps of a frame; filters, delays, 3D panners and analysers let the sound
+through unchanged, an oscillator is silent, `loopStart` and `loopEnd` are not read, and `suspend()` mutes. In a headless
+run `ZINC_AUDIO_LOG=1` prints each sound started and ended and when the mix held sound.
 
 ## Notes
 

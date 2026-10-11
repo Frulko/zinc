@@ -18,8 +18,6 @@ How it fits together:
 - `game.js` is the game, one scene of about fifty lines. It is Phaser as its guide writes it; nothing in it is special to Zinc.
 - `assets/` holds two pictures and two sounds, all written by `assets/make-assets.mjs` from drawings made of letters (`node assets/make-assets.mjs` makes them again; change a drawing there). Pictures, sounds and script were written for this example and are public domain (CC0).
 
-Not there yet:
+The two sounds are played by Phaser's own sound manager on the web environment's Web Audio, which is `zinc:audio` (`docs/plugins/audio.md`).
 
-- No sound: the web environment has no audio (ZN-573). The game loads and plays its two sounds as any Phaser game does, and Phaser stays silent; they will be heard without a change here.
-
-Test: `next/tests/run --only example_js_phaser` (a scripted game that ends on `game over: 3 stars`, and frame 440 against `screenshot.png`).
+Tests: `next/tests/run --only example_js_phaser` (a scripted game that ends on `game over: 3 stars`, and frame 440 against `screenshot.png`) and `--only webenv_audio` (the same game: three catches and a crash in the mix).

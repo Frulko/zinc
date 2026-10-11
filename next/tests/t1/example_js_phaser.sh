@@ -3,7 +3,7 @@
 # (`zinc run <dir>`). Sprites of a sheet, arcade physics (gravity, overlap, world bounds), the cursor keys and text (title,
 # score, game over line). The drops are seeded, so the session of tests/golden/js-examples/phaser.input is always the same game: the boat waits and
 # catches a star, goes right at frame 258 and catches two more against the wall, comes back at frame 540 into a rock: `game over: 3 stars`.
-# Frame 440 (two stars caught, two falling) is the example's screenshot.png. Phaser's sound calls run and play nothing (no audio: ZN-573).
+# Frame 440 (two stars caught, two falling) is the example's screenshot.png. Its sounds are tests/t1/webenv_audio.sh's.
 cd "$(dirname "$0")/../.." || exit 2
 fail=0
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT

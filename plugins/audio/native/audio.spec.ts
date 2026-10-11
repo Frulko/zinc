@@ -34,6 +34,25 @@ export interface Spec extends NativeModule {
   setRate(sound: i32, rate: f64): void;
   setPan(sound: i32, pan: f64): void;
   stopAll(): void;
+  /** play() that answers the voice it started, to stop or change that one and leave the others: a number above 0, or 0
+   *  for an unknown handle. `offset`: seconds into the sound where it starts; `delay`: seconds of mix from now before it is
+   *  heard, to the sample (0: now). A voice ends with its sound, when it is stopped, or when a 33rd voice takes its place. */
+  start(sound: i32, volume: f64, loop: boolean, rate: f64, pan: f64, offset: f64, delay: f64): i32;
+  /** Stops one voice after `delay` seconds of mix (0: now). */
+  voiceStop(voice: i32, delay: f64): void;
+  /** Volume, rate (only for a voice started at another rate than 1) and stereo position of one voice. */
+  voiceSet(voice: i32, volume: f64, rate: f64, pan: f64): void;
+  voicePlaying(voice: i32): boolean;
+  /** A sound from samples (1 = full scale; two channels interleaved: left, right, left...) at `rate` frames per second,
+   *  8000 to 192000. A sound handle, or -1 (see error()). */
+  pcm(samples: f64[], channels: i32, rate: i32): i32;
+  /** Channels (1 or more) and frames per second of a sound as it is kept, 0 for an unknown handle. */
+  channels(sound: i32): i32;
+  rate(sound: i32): i32;
+  /** The samples of one channel of a sound ([] for a channel it does not have). */
+  samples(sound: i32, channel: i32): f64[];
+  /** Seconds of mix rendered so far: by the device, or by mix() on the null backend. Never waits. */
+  time(): f64;
   /** Volume of the whole mix. */
   setMasterVolume(volume: f64): void;
   /** Null backend only: renders the next `frames` frames of the mix (stereo, interleaved, 1 = full scale) and moves

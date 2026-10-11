@@ -4,6 +4,8 @@
 const lengths: f64[] = [];      // per handle: seconds (0 for a file, which is not decoded); -1 once unloaded
 const active: boolean[] = [];
 let err: string = '';
+const ends: f64[] = [];        // per voice started by start(), at index voice - 1: the time it ends at (mix() moves the time)
+let clock: f64 = 0;
 const known = (s: i32): boolean => s >= 0 && s < lengths.length && lengths[s] >= 0;
 function add(seconds: f64): i32 { lengths.push(seconds); active.push(false); return lengths.length - 1; }
 
@@ -27,16 +29,41 @@ export default {
     active[sound] = true;
     return true;
   },
-  stop(sound: i32): void { if (known(sound)) active[sound] = false; },
+  stop(sound: i32): void {
+    if (!known(sound)) return;
+    active[sound] = false;
+  },
   playing(sound: i32): boolean { return known(sound) && active[sound]; },
   setVolume(sound: i32, volume: f64): void {},
   setLoop(sound: i32, on: boolean): void {},
   setRate(sound: i32, rate: f64): void {},
   setPan(sound: i32, pan: f64): void {},
-  stopAll(): void { for (let i = 0; i < active.length; i++) active[i] = false; },
+  stopAll(): void {
+    for (let i = 0; i < active.length; i++) active[i] = false;
+    for (let i = 0; i < ends.length; i++) ends[i] = 0;
+  },
+  start(sound: i32, volume: f64, loop: boolean, rate: f64, pan: f64, offset: f64, delay: f64): i32 {
+    if (!known(sound)) return 0;
+    const left: f64 = Math.max(0, lengths[sound] - offset) / (rate > 0 ? rate : 1);
+    ends.push(loop && left > 0 ? Infinity : clock + Math.max(0, delay) + left);
+    return ends.length;
+  },
+  voiceStop(voice: i32, delay: f64): void { if (voice > 0 && voice <= ends.length) ends[voice - 1] = Math.min(ends[voice - 1], clock + Math.max(0, delay)); },
+  voiceSet(voice: i32, volume: f64, rate: f64, pan: f64): void {},
+  voicePlaying(voice: i32): boolean { return voice > 0 && voice <= ends.length && clock < ends[voice - 1]; },
+  time(): f64 { return clock; },
+  pcm(samples: f64[], channels: i32, rate: i32): i32 {
+    if ((channels == 1 || channels == 2) && rate >= 8000 && rate <= 192000 && samples.length >= channels) return add(Math.floor(samples.length / channels) / rate);
+    err = 'samples of 1 or 2 channels, at 8000 to 192000 frames per second';
+    return -1;
+  },
+  channels(sound: i32): i32 { return known(sound) ? 1 : 0; },
+  rate(sound: i32): i32 { return known(sound) ? 48000 : 0; },
+  samples(sound: i32, channel: i32): f64[] { return []; },
   setMasterVolume(volume: f64): void {},
   mix(frames: i32): f64[] {
     const r: f64[] = [];
+    if (frames > 0) clock += frames / 48000;
     for (let i = 0; i < frames * 2; i++) r.push(0);
     return r;
   },

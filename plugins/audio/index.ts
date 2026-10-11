@@ -9,6 +9,18 @@ export type Wave = 'sine' | 'square' | 'triangle' | 'sawtooth' | 'noise';
 const WAVES: string[] = ['sine', 'square', 'triangle', 'sawtooth', 'noise'];
 const level = (v: number): number => (v > 0 ? v : 0);   // a negative or NaN volume is silence
 
+/** One playing instance of a sound, from Sound.voice(): stopped or changed alone, the other instances go on. */
+export class Voice {
+  private v: i32;
+  constructor(v: i32) { this.v = v; }
+  /** True until the instance ends, is stopped, or gives way as the oldest of 32. */
+  get playing(): boolean { return this.v > 0 && A.voicePlaying(this.v); }
+  /** Stops the instance, now or after `delay` seconds of mix. */
+  stop(delay: number = 0): void { if (this.v > 0) A.voiceStop(this.v, delay); }
+  /** Volume, rate (only for an instance started at another rate than 1) and stereo position of this instance. */
+  set(volume: number, rate: number, pan: number): void { if (this.v > 0) A.voiceSet(this.v, level(volume), rate, pan); }
+}
+
 export class Sound {
   private h: i32;
   private vol: number = 1;
@@ -24,6 +36,16 @@ export class Sound {
   get duration(): number { return this.h < 0 ? 0 : A.duration(this.h); }
   /** Starts the sound from its beginning. A sound that is already playing goes on: the two overlap. */
   play(): void { if (this.h >= 0) A.play(this.h, this.vol, this.looping, this.rt, this.pn); }
+  /** play() with its own volume, rate, pan and loop instead of the sound's, from `offset` seconds in, heard after `delay`
+   *  seconds of mix (to the sample); the instance comes back, to stop or change it alone (the Web Audio of the web
+   *  environment plays through this). */
+  voice(volume: number, rate: number, pan: number, loop: boolean, offset: number = 0, delay: number = 0): Voice {
+    return new Voice(this.h >= 0 ? A.start(this.h, level(volume), loop, rate, pan, offset > 0 ? offset : 0, delay > 0 ? delay : 0) : 0);
+  }
+  /** Channels, frames per second and the samples of one channel (1 = full scale), as the sound is kept. */
+  get channels(): i32 { return this.h < 0 ? 0 : A.channels(this.h); }
+  get sampleRate(): i32 { return this.h < 0 ? 0 : A.rate(this.h); }
+  samples(channel: i32): number[] { return this.h < 0 ? [] : A.samples(this.h, channel); }
   /** Stops every playing instance of the sound. */
   stop(): void { if (this.h >= 0) A.stop(this.h); }
   get playing(): boolean { return this.h >= 0 && A.playing(this.h); }
@@ -54,6 +76,9 @@ function made(h: i32, what: string): Sound {
 /** A sound from the bytes of a WAV, FLAC, MP3 or Ogg Vorbis file, decoded now and kept in memory. */
 export function decode(bytes: u8[], name: string = 'sound'): Sound { return made(A.load(bytes), name); }
 
+/** A sound from samples (1 = full scale; two channels interleaved: left, right, left...) at `rate` frames per second. */
+export function fromSamples(samples: number[], channels: i32 = 1, rate: i32 = 48000): Sound { return made(A.pcm(samples, channels, rate), 'fromSamples'); }
+
 /** A sound of the project's assets: load('coin.wav') reads assets/coin.wav. */
 export function load(name: string): Sound {
   if (exists(name)) return decode(readBytes(name), name);
@@ -77,6 +102,8 @@ export function stopAll(): void { A.stopAll(); }
  *  deterministic run, ZINC_AUDIO=null, a machine without a playback device). The output opens in the background while
  *  the program starts; this call waits for it (up to half a second), play() never does. */
 export function backend(): string { return A.backend(); }
+/** Seconds of mix rendered so far: the clock `delay` counts on. A device moves it; on the 'null' backend, mix() does. */
+export function time(): number { return A.time(); }
 /** Frames per second of the mix, whatever the device runs at. */
 export const SAMPLE_RATE: i32 = 48000;
 /** On the 'null' backend: the next `frames` frames of the mix, stereo and interleaved (left, right, left...), 1 being
