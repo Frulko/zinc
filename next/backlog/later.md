@@ -149,6 +149,11 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-650.07.05: ZINC_SYSTEM_SCRIPT counts loop passes, not frames (2 per frame, late once: `museum_editor_tools` failed once in eight runs); give it frame numbers like ZINC_INPUT.
 - ZN-650.07.05: ZINC_INPUT "down" takes no modifier: Shift-click selection of the museum editor is not scripted.
 - ZN-650.07.05: museum editor: drag a multi-selection together, a rubber band on the table, enabled/disabled menu items, copying a medium's file when pasting into a project in another folder.
+- ZN-719: js-phaser opens at 320x240, its game size, small on a desktop; try a `zoom` in its zinc.json without moving the golden.
+- ZN-719: a zinc.json with only `app.window` (no other `app` key) was answered "no project here" by `zinc run`; seen once, not investigated.
+- ZN-650.14: a museum project opened by a relative path shows only the font families in the editor's sample; make the folder path absolute.
+- ZN-650.14: the font refusal is proven interpreted only (same host code compiled); the fs-scope (`user-picked`) path for fonts is not tested.
+- ZN-712: a webenv.js that calls a host function missing from an older binary dies on the first frame; test for the function before using it.
 
 ## Cross-platform pass
 
@@ -174,3 +179,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-570: run webenv_canvas2d and webenv_canvas2d_libs on ARM and Linux (flat-colour values come from float maths; SSIM is against the Mac's Chrome).
 - ZN-447: run the loader stage in the browser export (the worker's blocking frame loop should run it like the gfx loop) and on the ESP32 device core (it needs the asset host rows).
 - ZN-574: gamepads on Linux and Windows (frameworks and link line of the SDL joystick build, a real pad), with ZN-552's evdev hub.
+- ZN-650.14: `loadFont` takes only POSIX absolute paths (leading `/`); add drive-letter paths on Windows.
