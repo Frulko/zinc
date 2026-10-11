@@ -357,16 +357,6 @@ Fix: Import what you need, or keep it in a module.
 console.log(globalThis);
 ```
 
-## Z9011: Labeled statements are not supported yet
-
-`break label` and `continue label` are not implemented yet.
-
-Fix: Use a flag, or move the inner loop into a function.
-
-```ts
-outer: for (let i = 0; i < 2; i++) { }
-```
-
 ## Z9026: The `in` operator is not supported on a typed value
 
 The properties of a typed object are fixed, so `"a" in o` is known when compiling.

@@ -791,6 +791,11 @@ struct Lowering::FnLower {
   BlockId cur = 0;
   std::vector<std::pair<BlockId, BlockId>> loopTargets;  // (break, continue)
   std::vector<std::size_t> loopCleanups;                  // per loop target: how many cleanups were active outside it
+  // `break label` and `continue label`: the labeled statements around the code being lowered (cont is the loop's continue block, kNoBlock for a block)
+  struct LabelTarget { std::string_view name; BlockId brk, cont; std::size_t cleanups; };
+  static constexpr BlockId kNoBlock = ~BlockId{0};
+  std::vector<LabelTarget> labels;
+  std::unordered_map<std::uint32_t, std::vector<std::string_view>> loopLabels;  // the body of a labeled loop -> its labels, taken by loopBody
   // Exceptions: a call inside a `try` unwinds to the innermost handler, a block with one parameter, the exception. A
   // cleanup (a `finally` body or a `using` disposal) is also run before every `return`, `break` and `continue` that leaves it.
   struct Cleanup { std::uint32_t node = kNil; std::uint32_t sym = kNil; std::size_t handlerDepth = 0; };
@@ -2015,9 +2020,39 @@ struct Lowering::FnLower {
   void loopBody(std::uint32_t body, BlockId brk, BlockId cont) {
     loopTargets.push_back({brk, cont});
     loopCleanups.push_back(cleanups.size());
+    std::size_t nl = 0;
+    if (auto it = loopLabels.find(body); it != loopLabels.end()) {
+      for (std::string_view nm : it->second) labels.push_back({nm, brk, cont, cleanups.size()});
+      nl = it->second.size();
+      loopLabels.erase(it);
+    }
     stmt(body);
+    labels.resize(labels.size() - nl);
     loopTargets.pop_back();
     loopCleanups.pop_back();
+  }
+  static std::uint32_t loopBodyOf(const Node& x) {
+    switch (x.kind) {
+      case N::For: return x.kids[3];
+      case N::ForOf: case N::ForIn: return x.kids[2];
+      case N::While: return x.kids[1];
+      case N::DoWhile: return x.kids[0];
+      default: return kNil;
+    }
+  }
+  void jump(std::uint32_t s, bool isBreak) {
+    const Node& x = n(s);
+    BlockId to = isBreak ? loopTargets.back().first : loopTargets.back().second;
+    std::size_t depth = loopCleanups.back();
+    if (!x.text.empty()) {
+      auto l = std::find_if(labels.rbegin(), labels.rend(), [&](const LabelTarget& t) { return t.name == x.text; });
+      if (l == labels.rend() || (!isBreak && l->cont == kNoBlock)) { unsupported(s, "a jump to label '" + std::string(x.text) + "'"); return; }
+      to = isBreak ? l->brk : l->cont;
+      depth = l->cleanups;
+    }
+    runCleanups(depth);
+    terminate(IrOp::Br, {}, {Edge{to, {}}});
+    startDead();
   }
 
   void stmt(std::uint32_t s) {
@@ -2177,8 +2212,26 @@ struct Lowering::FnLower {
         startDead();
         break;
       }
-      case N::Break: runCleanups(loopCleanups.back()); terminate(IrOp::Br, {}, {Edge{loopTargets.back().first, {}}}); startDead(); break;
-      case N::Continue: runCleanups(loopCleanups.back()); terminate(IrOp::Br, {}, {Edge{loopTargets.back().second, {}}}); startDead(); break;
+      case N::Break: jump(s, true); break;
+      case N::Continue: jump(s, false); break;
+      case N::Labeled: {
+        std::vector<std::string_view> names{x.text};
+        std::uint32_t b = x.kids[0];
+        while (n(b).kind == N::Labeled) { names.push_back(n(b).text); b = n(b).kids[0]; }
+        if (std::uint32_t body = loopBodyOf(n(b)); body != kNil) {  // a labeled loop: its break and continue blocks are the label's
+          loopLabels[body] = names;
+          stmt(b);
+          break;
+        }
+        BlockId end = newBlock();  // a labeled statement: `break label` goes to the end of it
+        for (std::string_view nm : names) labels.push_back({nm, end, kNoBlock, cleanups.size()});
+        stmt(b);
+        labels.resize(labels.size() - names.size());
+        br(end);
+        seal(end);
+        cur = end;
+        break;
+      }
       default: unsupported(s, "this statement"); break;
     }
   }

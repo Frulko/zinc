@@ -38,7 +38,7 @@ The categories:
 | `Z4001` | numbers | using `f32`/`f64` where the target has no FPU, or under `--no-float` |
 | `Z5xxx` | modules | bad native spec (Z5001), no implementation for a target (Z5002), module/plugin not available on this target (Z5003) |
 | `Z6xxx` | UI/JSX | JSX lowering errors |
-| `Z9xxx` | not supported (yet) | rest params (Z9009), labeled statements (Z9011), `finally` in async (Z9034), `await` in a loop condition (ADR 0007), calling through a `Dyn` (Z9042) |
+| `Z9xxx` | not supported (yet) | rest params (Z9009), `finally` in async (Z9034), `await` in a loop condition (ADR 0007), calling through a `Dyn` (Z9042) |
 
 The rules exist so the backend stays a thin, predictable AST→C++ translation with no runtime metaprogramming: no
 `eval`, no prototype surgery, no reflection, no regex engine, no holes to represent. `Z9xxx` codes are honest "not

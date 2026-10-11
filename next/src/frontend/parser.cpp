@@ -156,7 +156,6 @@ struct Parser {
     }
     if (cur().kind != Tok::Ident && !(inType && cur().kind == Tok::Keyword && isKw("this"))) unexpected();
     std::string_view name = txt();
-    if (rest) name = s.substr(st, cur().end - st);
     ++i;
     bool optional = eatP("?");
     std::uint32_t ty = kNone, def = kNone;
@@ -176,7 +175,7 @@ struct Parser {
       if (!inType && def == kNone) def = mk(N::Literal, st, prevEnd(), "null");
     }
     std::uint32_t id = mk(N::Param, st, prevEnd(), name, {ty, def});
-    r.ast.nodes[id].flags = pflags | (optional ? kFlagOptional : 0);  // `x?: T`: left out is null (a function type counts its required parameters from it)
+    r.ast.nodes[id].flags = pflags | (optional ? kFlagOptional : 0) | (rest ? kFlagRest : 0);  // `x?: T`: left out is null (a function type counts its required parameters from it)
     return id;
   }
 
@@ -1231,7 +1230,12 @@ struct Parser {
     if (isKw("import") && !(isP("(", 1) || isP(".", 1))) { if (!top) unsupported("imports below the top level"); return importDecl(); }
     if (isKw("export")) { if (!top) unsupported("exports below the top level"); return exportDecl(); }
     if (isKw("with")) fail(kZWithForbidden, cur().start, "");
-    if (cur().kind == Tok::Ident && isP(":", 1)) fail(kZLabeledStatement, cur().start, "");   // `label:`
+    if (cur().kind == Tok::Ident && isP(":", 1)) {  // `label: statement`, the target of `break label` and `continue label`
+      std::string_view label = txt();
+      i += 2;
+      std::uint32_t body = statement();
+      return mk(N::Labeled, st, prevEnd(), label, {body});
+    }
     if (isP("{")) return block();
     if (isP(";")) { ++i; return mk(N::Empty, st, prevEnd()); }
     if (isId("declare") && !newlineAt(1) && (at(1).kind == Tok::Keyword || at(1).kind == Tok::Ident) && !isP("=", 1)) {  // `declare const x: T`: ambient, ignored
@@ -1281,9 +1285,10 @@ struct Parser {
     if (isKw("break") || isKw("continue")) {
       bool brk = isKw("break");
       ++i;
-      if (cur().kind == Tok::Ident && !newlineBefore()) unsupported("labels");
+      std::string_view label;
+      if (cur().kind == Tok::Ident && !newlineBefore()) { label = txt(); ++i; }
       semi();
-      return mk(brk ? N::Break : N::Continue, st, prevEnd());
+      return mk(brk ? N::Break : N::Continue, st, prevEnd(), label);
     }
     if (isKw("switch")) return switchStmt();
     if (isKw("throw")) {
@@ -1343,7 +1348,7 @@ const char* kindName(N k) {
       "Ident", "Number", "BigInt", "String", "Template", "Literal", "This", "Super", "Array", "Spread", "Binary", "Unary",
       "UpdatePre", "UpdatePost", "Assign", "Cond", "Call", "New", "Member", "Index", "TypeRef", "TypeArray",
       "TypeUnion", "TypeFunc", "TypeTuple", "TypeLit", "TypeParam", "ArrayPattern", "ObjectPattern", "PatProp", "TypeAlias", "FuncExpr",
-      "Import", "ImportSpec", "Export", "ExportList", "ExportSpec", "ExportAll", "Switch", "Case", "Enum", "EnumMember", "ObjectLit", "Prop", "As", "Try", "Throw", "Await", "Yield", "TypeObject", "NonNull", "Regex"};
+      "Import", "ImportSpec", "Export", "ExportList", "ExportSpec", "ExportAll", "Switch", "Case", "Enum", "EnumMember", "ObjectLit", "Prop", "As", "Try", "Throw", "Await", "Yield", "TypeObject", "NonNull", "Regex", "Labeled"};
   return names[static_cast<int>(k)];
 }
 

@@ -1,0 +1,10 @@
+for 0 0
+for 1 0
+block start
+after block
+while 3
+checked bb
+found ccc
+finally on the way out
+0+3
+endless -6

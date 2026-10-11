@@ -109,9 +109,6 @@
   X(GlobalThisForbidden, "Z1015", "`globalThis` is not supported",                                                    \
     "There is no global object whose properties can be added or read by name.", "Import what you need, or keep it in a module.", \
     "console.log(globalThis);")                                                                                       \
-  X(LabeledStatement, "Z9011", "Labeled statements are not supported yet",                                            \
-    "`break label` and `continue label` are not implemented yet.", "Use a flag, or move the inner loop into a function.", \
-    "outer: for (let i = 0; i < 2; i++) { }")                                                                         \
   X(InOperator, "Z9026", "The `in` operator is not supported on a typed value",                                       \
     "The properties of a typed object are fixed, so `\"a\" in o` is known when compiling.", "Use `Map.has(key)`, or compare to the field.", \
     "const o = { a: 1 };\nconsole.log('a' in o);")                                                                    \

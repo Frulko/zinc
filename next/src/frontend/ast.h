@@ -22,7 +22,7 @@ enum class N : std::uint8_t {
   VarDecl,    // text=let|const|var  [Declarator...]
   Declarator, // text=name  [type|none, init|none, pattern?]; a destructuring declarator has empty text and a pattern as third kid
   Function,   // text=name  [returnType|none, body|none, Param...]
-  Param,      // text=name  [type|none, default|none, pattern?]; text starts with "..." for a rest parameter; empty text and a pattern for a destructured parameter
+  Param,      // text=name  [type|none, default|none, pattern?]; flags: kFlagRest for `...name`; empty text and a pattern for a destructured parameter
   Class,      // text=name  [extends TypeRef|none, Heritage|none (implements), Field|Method...]; flags: abstract
   Interface,  // text=name  [Heritage|none (extends), Field|Method...] (members are signatures)
   Heritage,   // [TypeRef...]
@@ -35,8 +35,8 @@ enum class N : std::uint8_t {
   While,      // [test, body]
   DoWhile,    // [body, test]
   Return,     // [expr|none]
-  Break,      //
-  Continue,   //
+  Break,      // text=label|empty
+  Continue,   // text=label|empty
   ExprStmt,   // [expr]
   // expressions
   Ident,      // text=name
@@ -94,6 +94,7 @@ enum class N : std::uint8_t {
   TypeObject,     // `{ a: T; b?: U }`  [Field...] (a Field is [type, none]; flags: kFlagOptional)
   NonNull,        // [expression]   (`e!`: the non-null type of e, a null reference traps)
   Regex,          // /source/flags (text includes the slashes and the flags): the checker turns it into a call of the prelude's __reLit
+  Labeled,        // text=label  [statement]   (`outer: for (...)`; a Break or Continue carries the label it jumps to as its text)
 };
 
 // Modifier flags on Class, Field, Method and Param nodes.
@@ -106,7 +107,8 @@ inline constexpr std::uint32_t kFlagAbstract = 1, kFlagStatic = 2, kFlagReadonly
                                kFlagDefinite = 8192,  // `name!: T`: assigned elsewhere, not checked in the constructor
                                kFlagDefault = 16384,  // an Export node: `export default`
                                kFlagUndefined = 32768,  // a Literal null or TypeRef null written as `undefined` (a file without Dyn values: same representation, printed as undefined)
-                               kFlagTypeQuery = 65536;  // a TypeRef written `typeof x`: the type of the value x
+                               kFlagTypeQuery = 65536,  // a TypeRef written `typeof x`: the type of the value x
+                               kFlagRest = 131072;  // a Param written `...name`: the remaining arguments as an array
 
 // Class members start at this index of a Class node's kids; Interface members start at 1.
 inline constexpr std::size_t kClassMembersFrom = 2;
@@ -180,7 +182,6 @@ using zn::kZDynamicImport;
 using zn::kZPrototypeMutation;
 using zn::kZHoleyArray;
 using zn::kZGlobalThisForbidden;
-using zn::kZLabeledStatement;
 using zn::kZInOperator;
 
 }  // namespace zn::frontend

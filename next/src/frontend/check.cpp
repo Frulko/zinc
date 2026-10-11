@@ -94,6 +94,7 @@ struct Checker {
   std::vector<std::string> ctorPending;                   // own fields without initializer, not yet assigned in the constructor
   bool pendingExempt = false;                              // evaluating the target of `this.f = ...`
   int loops = 0, switches = 0;
+  std::vector<std::pair<std::string_view, bool>> labels;  // the labeled statements around this one in the function: (label, labels a loop)
 
   explicit Checker(Ast& ast) : a(ast) {
     out.nodeType.assign(a.nodes.size(), kNoType);
@@ -2272,13 +2273,28 @@ struct Checker {
     for (std::uint32_t k : x.kids) if (k != kNone && hasValueReturn(ast, k)) return true;
     return false;
   }
-  static bool hasBreak(const Ast& ast, std::uint32_t s) {  // a `break` that targets the loop whose body is s
+  static bool isLoop(N k) { return k == N::For || k == N::ForOf || k == N::ForIn || k == N::While || k == N::DoWhile; }
+  // A jump out of s: an unlabeled `break` not inside a nested loop or switch, or a `break label` / `continue label` to a label declared
+  // outside s (`self`: the labels of the loop whose body s is, which a `continue` to does not leave).
+  static bool jumpsOut(const Ast& ast, std::uint32_t s, bool nested, const std::vector<std::string_view>& self, std::vector<std::string_view>& inner) {
     if (s == kNone) return false;
     const Node& x = ast.nodes[s];
-    if (x.kind == N::Break) return true;
-    if (x.kind == N::For || x.kind == N::ForOf || x.kind == N::ForIn || x.kind == N::While || x.kind == N::DoWhile || x.kind == N::Switch || x.kind == N::Function || x.kind == N::Class) return false;
-    for (std::uint32_t k : x.kids) if (hasBreak(ast, k)) return true;
-    return false;
+    if (x.kind == N::Break || x.kind == N::Continue) {
+      if (x.text.empty()) return x.kind == N::Break && !nested;
+      if (std::find(inner.begin(), inner.end(), x.text) != inner.end()) return false;
+      return !(x.kind == N::Continue && std::find(self.begin(), self.end(), x.text) != self.end());
+    }
+    if (x.kind == N::Function || x.kind == N::Class || x.kind == N::FuncExpr) return false;
+    const bool deeper = nested || isLoop(x.kind) || x.kind == N::Switch;
+    if (x.kind == N::Labeled) inner.push_back(x.text);
+    bool r = false;
+    for (std::uint32_t k : x.kids) if (jumpsOut(ast, k, deeper, self, inner)) { r = true; break; }
+    if (x.kind == N::Labeled) inner.pop_back();
+    return r;
+  }
+  static bool hasBreak(const Ast& ast, std::uint32_t s, const std::vector<std::string_view>& self = {}) {  // a jump out of the loop whose body is s
+    std::vector<std::string_view> inner;
+    return jumpsOut(ast, s, false, self, inner);
   }
   bool endless(std::uint32_t test) const { return test == kNone || (n(test).kind == N::Literal && n(test).text == "true"); }
   std::pair<std::uint32_t, TypeId> spreadHint{kNone, kNoType};  // the leading literal of a spread array and the element type it should have
@@ -2329,17 +2345,24 @@ struct Checker {
     }
     return lits;
   }
-  bool terminates(std::uint32_t s) const {
+  bool terminates(std::uint32_t s, const std::vector<std::string_view>& self = {}) const {  // self: the labels of s when it is a loop
     if (s == kNone) return false;
     const Node& x = n(s);
     switch (x.kind) {
+      case N::Labeled: {
+        std::vector<std::string_view> labels = self;
+        labels.push_back(x.text);
+        if (isLoop(n(x.kids[0]).kind) || n(x.kids[0]).kind == N::Labeled) return terminates(x.kids[0], labels);
+        std::vector<std::string_view> inner;
+        return terminates(x.kids[0]) && !jumpsOut(a, x.kids[0], true, {}, inner);  // `l: { ... break l; ... }` goes on after the block
+      }
       case N::Return: case N::Throw: return true;
       case N::Try: return (terminates(x.kids[0]) && (x.kids[2] == kNone || terminates(x.kids[2]))) || (x.kids[3] != kNone && terminates(x.kids[3]));
       case N::Block: for (std::uint32_t k : x.kids) if (terminates(k)) return true; return false;
       case N::If: return x.kids[2] != kNone && terminates(x.kids[1]) && terminates(x.kids[2]);
-      case N::While: return endless(x.kids[0]) && !hasBreak(a, x.kids[1]);
-      case N::DoWhile: return endless(x.kids[1]) && !hasBreak(a, x.kids[0]);
-      case N::For: return endless(x.kids[1]) && !hasBreak(a, x.kids[3]);
+      case N::While: return endless(x.kids[0]) && !hasBreak(a, x.kids[1], self);
+      case N::DoWhile: return endless(x.kids[1]) && !hasBreak(a, x.kids[0], self);
+      case N::For: return endless(x.kids[1]) && !hasBreak(a, x.kids[3], self);
       case N::Switch: {  // a default, no break out of the switch, and the last clause (which every other one falls into) ends the function
         bool hasDefault = false;
         for (std::size_t k = 1; k < x.kids.size(); ++k) {
@@ -2748,7 +2771,22 @@ struct Checker {
         require(t, curRet, x.kids[0]);
         break;
       }
+      case N::Labeled: {
+        for (const auto& l : labels) if (l.first == x.text) diag(kZDuplicateDeclaration, s, "label '" + std::string(x.text) + "'");
+        std::uint32_t b = x.kids[0];
+        while (n(b).kind == N::Labeled) b = n(b).kids[0];
+        labels.push_back({x.text, isLoop(n(b).kind)});
+        statement(x.kids[0]);
+        labels.pop_back();
+        break;
+      }
       case N::Break: case N::Continue:
+        if (!x.text.empty()) {  // `break label` leaves the labeled statement, `continue label` goes on with the labeled loop
+          auto l = std::find_if(labels.rbegin(), labels.rend(), [&](const auto& e) { return e.first == x.text; });
+          if (l == labels.rend()) diag(kZCannotFindName, s, "label '" + std::string(x.text) + "'");
+          else if (x.kind == N::Continue && !l->second) diag(kZNotAllowedHere, s, "'continue' to label '" + std::string(x.text) + "', which is not a loop");
+          break;
+        }
         if (loops == 0 && (x.kind == N::Continue || switches == 0)) diag(kZNotAllowedHere, s, x.kind == N::Break ? "'break' outside a loop or switch" : "'continue' outside a loop");
         break;
       case N::Function: case N::Class: case N::Interface: case N::TypeAlias: case N::Enum: break;  // hoisted by stmtList
@@ -2821,7 +2859,7 @@ struct Checker {
       const Node& pn = n(p);
       params.push_back(p);
       TypeId t = tError;
-      if (pn.text.size() > 3 && pn.text.substr(0, 3) == "...") diag(kZUnsupported, p, "rest parameters");
+      if (pn.flags & kFlagRest) diag(kZUnsupported, p, "rest parameters");
       else if (pn.kids[0] == kNone) diag(kZCannotInfer, p, "parameter '" + std::string(pn.text) + "'");
       else t = annotation(pn.kids[0]);
       out.nodeType[p] = t;
@@ -2874,6 +2912,8 @@ struct Checker {
     auto savedNarrowing = std::move(narrowing);
     narrowing.clear();
     TypeId savedRet = curRet; int savedLoops = loops; bool savedImmediate = immediate;
+    auto savedLabels = std::move(labels);
+    labels.clear();
     curRet = isCtor ? tVoid : infer ? kInferRet : ft.elem; loops = 0; immediate = false;
     push();
     for (std::size_t k = 0; k < params.size(); ++k) {
@@ -2886,6 +2926,7 @@ struct Checker {
     pop();
     if (!isCtor && !infer && curRet != tVoid && !bad(curRet) && ty(curRet).k != TK::Any && !terminates(f.kids[1])) diag(kZMissingReturn, fn, "'" + std::string(f.text) + "'");
     curRet = savedRet; loops = savedLoops; immediate = savedImmediate;
+    labels = std::move(savedLabels);
     narrowing = std::move(savedNarrowing);
     fnStack.pop_back();
   }
@@ -3225,10 +3266,13 @@ struct Checker {
     curRet = ret == kNoType ? kInferRet : ret;
     inferredRet = kNoType;
     loops = 0;
+    auto savedLabels = std::move(labels);
+    labels.clear();
     immediate = false;
     if (!selfName.empty() && fnStack.size() == selfDepth && ret != kNoType && mentionsInLambda(i, selfName, true)) {  // the body uses the variable being declared: check it once the variable exists
       selfDeferred.push_back({i, expected});
       curRet = savedRet; inferredRet = savedInferred; loops = savedLoops; immediate = savedImmediate;
+      labels = std::move(savedLabels);
       narrowing = std::move(savedNarrowing);
       TypeId ft = func(ps, ret, static_cast<std::uint32_t>(np));
       out.nodeType[i] = ft;
@@ -3257,6 +3301,7 @@ struct Checker {
     if (ret == kNoType) ret = inferredRet != kNoType ? inferredRet : tVoid;
     if (ret != tVoid && !bad(ret) && ty(ret).k != TK::Any && !terminates(x.kids[1])) diag(kZMissingReturn, i, "function expression");
     curRet = savedRet; inferredRet = savedInferred; loops = savedLoops; immediate = savedImmediate;
+    labels = std::move(savedLabels);
     narrowing = std::move(savedNarrowing);
     TypeId ft = func(ps, ret, static_cast<std::uint32_t>(std::min(np, lambdaMin)));
     out.nodeType[i] = ft;

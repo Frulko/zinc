@@ -85,8 +85,10 @@ struct Desugar {
         Ids r = sn(t, h);
         return r.empty() ? s : r[0];
       }
-      case N::Break: { if (c.brk.empty() || loops > 0 || sw > 0) return s; Ids r = sn("{ " + c.brk + " }"); return r.empty() ? s : r[0]; }
-      case N::Continue: { if (c.cont.empty() || loops > 0) return s; Ids r = sn("{ " + c.cont + " }"); return r.empty() ? s : r[0]; }
+      // a labeled jump stays: its label is inside this code (a label around an await is not rewritten, T reports it)
+      case N::Break: { if (!x.text.empty() || c.brk.empty() || loops > 0 || sw > 0) return s; Ids r = sn("{ " + c.brk + " }"); return r.empty() ? s : r[0]; }
+      case N::Continue: { if (!x.text.empty() || c.cont.empty() || loops > 0) return s; Ids r = sn("{ " + c.cont + " }"); return r.empty() ? s : r[0]; }
+      case N::Labeled: x.kids[0] = fix(x.kids[0], c, loops, sw); return s;
       case N::Block: for (Id& k : x.kids) k = fix(k, c, loops, sw); return s;
       case N::If: x.kids[1] = fix(x.kids[1], c, loops, sw); x.kids[2] = fix(x.kids[2], c, loops, sw); return s;
       case N::For: x.kids[3] = fix(x.kids[3], c, loops + 1, sw); return s;

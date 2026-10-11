@@ -3,10 +3,11 @@ id: ZN-160
 title: >-
   Beyond the prototype: labeled statements, tagged templates, rest/spread forms,
   for-in, getters in object literals, optional catch binding
-status: Backlog
+status: In Progress
 assignee:
   - '@parallel'
 created_date: '2026-10-06 23:05'
+updated_date: '2026-10-11 15:40'
 labels:
   - language
   - size-M
