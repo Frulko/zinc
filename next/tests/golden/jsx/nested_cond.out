@@ -1,0 +1,19 @@
+node 0
+  class flex-col
+  node 1
+    textOf a
+  node 6
+    node 1
+      textOf a1
+node 0
+  class flex-col
+  node 6
+    node 6
+      node 1
+        textOf c
+node 0
+  class flex-col
+  node 6
+    node 6
+      node 0
+        class p-2

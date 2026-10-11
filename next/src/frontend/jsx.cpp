@@ -502,7 +502,15 @@ struct Lowering {
       else if (x == "||" || x == "??") other = true;
     });
     if (hasQ && colon) {
-      auto branch = [&](std::size_t x0, std::size_t x1, std::string& dst) { if (!jsxOnly(x0, x1)) return false; std::size_t y0 = x0, y1 = x1; strip(y0, y1); dst = lower(*parseElem(y0)); return true; };
+      auto branch = [&](std::size_t x0, std::size_t x1, std::string& dst) {
+        std::size_t y0 = x0, y1 = x1;
+        strip(y0, y1);
+        if (jsxOnly(x0, x1)) { dst = lower(*parseElem(y0)); return true; }
+        Cond in;   // a nested conditional, c1 ? <A/> : c2 ? <B/> : <C/>: a fragment showing one of its branches
+        if (y0 >= y1 || !conditional(y0, y1, in)) return false;
+        dst = showNode(in);
+        return true;
+      };
       std::string yes, no;
       bool yj = branch(q + 1, colon, yes), nj = branch(colon + 1, b, no);
       if (yj && (nj || isNull(colon + 1, b))) { out = {a, q, yes, no, nj, false}; return true; }
@@ -516,6 +524,15 @@ struct Lowering {
       return true;
     }
     return false;
+  }
+
+  // a conditional as an expression: a fragment that shows its branch (react: the branch itself)
+  std::string showNode(const Cond& c) {
+    std::string cond = rw(c.cb, c.ce);
+    if (c.negate) cond = "!(" + cond + ")";
+    if (react) return "((" + cond + ") ? " + c.yes + " : " + (c.hasNo ? c.no : "_el(6)") + ")";
+    std::string v = "__n" + std::to_string(counter++);
+    return "((): i32 => { const " + v + ": i32 = _el(6); _show(" + v + ", () => (" + cond + "), () => " + c.yes + ", " + (c.hasNo ? "() => " + c.no : "null") + "); return " + v + "; })()";
   }
 
   // `callee(args)` over [a, b): the open paren, or 0
