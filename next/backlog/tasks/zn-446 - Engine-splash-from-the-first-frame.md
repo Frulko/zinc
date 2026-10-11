@@ -2,7 +2,8 @@
 id: ZN-446
 title: Engine splash from the first frame
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-09 07:36'
 labels:
   - games
