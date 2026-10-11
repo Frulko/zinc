@@ -1,0 +1,9 @@
+Box2D 3.1.1 (tag v3.1.1 of erincatto/box2d, released 2025-06-04), https://github.com/erincatto/box2d/archive/refs/tags/v3.1.1.tar.gz
+archive sha256 fb6ef914b50f4312d7d921a600eabc12318bb3c55a0b8c0b90608fa4488ef2e4
+kept, unmodified: the directories include/ (6 files) and src/ (57 files) of the archive without src/CMakeLists.txt and src/box2d.natvis,
+  and LICENSE (MIT)
+  LICENSE      sha256 68a3e676d7e94093b102d5cba0d4e04af812040d6f230c3db67a6664574e43d2
+  include src  sha256 024a04f98d929fb779f3fc657dcc57c1708a0253be9354ea64356309976d4f5f
+               (cd plugins/physics2d/vendor/box2d && find include src -type f | LC_ALL=C sort | xargs shasum -a 256 | shasum -a 256)
+ours: ../box2d.c, the one translation unit that compiles src/*.c (plugin.json builds it with -ffp-contract=off, as the library's own
+  CMakeLists.txt does for its cross-platform determinism; SSE2 on x86_64 and NEON on arm64, no AVX2, asserts off).
