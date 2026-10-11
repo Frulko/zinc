@@ -438,6 +438,13 @@ The CPU time ZINC_GL_STATS calls "to submit" includes waits for the GPU (5.6 to 
 measured at load 6 from other builds, before ZN-432 changed the image path of the replay. GL replay against the software frame for convex
 and concave polygons: 0.06% of the pixels more than 24 apart, mean error 0.07 (tests/t1/gl_convex.sh).
 
+### ZN-433: ZPK packs (2026-10-11, Intel Mac, load 3.2 to 4.2 with other agents building: indicative)
+
+10,000 JSON-like entries of 200 to 3,200 B (17.3 MB raw), `zpk_test`: packed sizes none 18.2 MB, lz4 3.7 MB, zstd 2.8 MB, zstd with a
+dictionary 2.2 MB; first read (SHA-256 then decode) 102 / 20.7 / 38.6 / 19.5 ms, later reads (decode only) 2.0 / 2.8 / 24.8 / 9.8 ms.
+Opening a pack 0.32 ms, 10,000 lookups by name 1.9 ms; writing 6.5 s at zstd 19, 0.5 s with lz4hc 12. The first read of the
+uncompressed pack is bound by `third_party/sha256` (169 MB/s). Sizes: D40.
+
 ### ZN-583.01: zinc:physics2d, 2,000 piled bodies (2026-10-11, Intel Mac, load 3.79 to 3.96 from another session, not throttled)
 
 `next/bench/physics2d_pile.ts` (Box2D 3.1.1, 60 Hz with 4 sub-steps, every body awake), ms per step: compiled 1.786 (target 2),
