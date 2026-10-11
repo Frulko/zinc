@@ -7,8 +7,8 @@
 // --story prints what happens to the story, one line per event: sequences, links, overlays, the storyboard, presentations, the narration
 // clips asked for and the subtitles shown, the language, the side the texts turn to, the attract loop and the reset (the tests read it);
 // --log prints the pose of every card that moved, and the view and points of the 3D object and of the panorama, one line per change;
-// --controls prints where every control is, each time one moves: its place on the table, and how many texts did not fit where they are
-// written (the tests check the reach of a visitor and that nothing is clipped);
+// --controls prints where every control is, each time one moves: its place on the table, how many texts did not fit where they are
+// written and how many controls the subtitle lies on (the tests check the reach of a visitor, that nothing is clipped or covered);
 // --stress lays out that many cards, keeps them moving and prints the frame time; --time prints the time the 3D object takes to draw;
 // --pins puts a red ball on every point of interest of the object (the test of their projection).
 import { onFrame, width, height, clear, escapeByApp } from 'zinc:gfx';

@@ -80,8 +80,10 @@ export class Player {
   /** The sequence a visit starts with, and comes back to; the one this player opens with. */
   private home: Sequence;
   private first: Sequence;
-  /** The 3D views made so far. */
+  /** The 3D views made so far: the visit's, and the attract loop's own, so that the loop leaves an object and a panorama as the visitor
+   *  turned them (the model and the image are then loaded twice: once for each). */
   private views = new Views();
+  private shows = new Views();
 
   /** The sequences on the table: the one being visited and, when a link opened one over it, that one on top. */
   private stack: Stage[] = [];
@@ -105,6 +107,9 @@ export class Player {
   /** The card seen in full at the last frame, and where its picture is on the screen: [x, y, w, h]. */
   private viewed: Card | null = null;
   private picture: number[] = [];
+  /** The boxes of the subtitle and of the full view's credit as drawn at the last frame, in frame units ([] for none). */
+  private caption: number[] = [];
+  private credit: number[] = [];
   /** The sequences whose narration this visit has heard: outside a presentation a narration is not said twice to the same visitor. */
   private heard = new Set<string>();
   /** Whether a visitor has touched the table: the narration of the first sequence waits for them. */
@@ -128,6 +133,9 @@ export class Player {
   private letters = new Button();
   private tones = new Button();
   private teller = new Button();
+  /** A project with more than two guided visits has one button for them all, which opens their list. */
+  private tours = new Button();
+  private listing = false;
   private dock: Button[] = [];
   /** The top of those controls, in the frame. */
   private floor = 0;
@@ -192,7 +200,7 @@ export class Player {
     if (v !== null) v.stop();
     this.voice = null;
     this.show([]);
-    this.views.dispose();
+    this.views.dispose(); this.shows.dispose();
   }
   /** The host changes the language, as the visitor's button does. */
   setLanguage(lang: string): void {
@@ -254,7 +262,7 @@ export class Player {
   }
 
   private stage(s: Sequence): Stage {
-    const made = new Stage(this.project, s, this.colours, this.lang, this.F, this.pins, this.views);
+    const made = new Stage(this.project, s, this.colours, this.lang, this.F, this.pins, this.attracting ? this.shows : this.views);
     made.settle(this.floor, this.dock);
     return made;
   }
@@ -403,7 +411,7 @@ export class Player {
   private reset(): void {
     if (this.visiting) this.tell('visit end');
     this.counting?.end(this.lang);
-    this.summary = null;
+    this.summary = null; this.listing = false;
     this.size = 0; this.contrast = false;
     this.wear(); this.read();
     this.lang = this.project.languages[0];
@@ -465,11 +473,11 @@ export class Player {
           map.label = word(board !== null && board.open ? 'map-close' : 'map-button', lang);
           left.push(map);
         }
-        for (const p of project.presentations) {   // ponytail: every presentation has its button in the row; many of them need a list
-          const b = new Button();
-          b.act = `present ${p.id}`; b.play = true; b.label = project.say(p.title, lang);
-          left.push(b);
-        }
+        if (project.presentations.length > 2) {   // one button for them all: a touch opens their list
+          const tours = this.tours;
+          tours.act = 'tours'; tours.play = true; tours.label = word('tours', lang);
+          left.push(tours);
+        } else for (const p of project.presentations) left.push(this.offer(p));
       }
       for (const b of left) b.fit();
       // the visitor's settings: the text size (a letter for each size the project offers), the high contrast, the language
@@ -485,10 +493,28 @@ export class Player {
       setInRows(right, F.w - 48 - wide, y, room, 16, false);
       if (left.length > 0) this.floor = setInRows(left, 48, apart ? y - h - 16 : y, room, 16, false);
       this.dock = left.concat(right);
+      const tours = this.tours;
+      if (this.listing && left.indexOf(tours) >= 0) {   // the guided visits one above the other over their button, the first on top
+        let top = tours.y - tours.h / 2;
+        for (let i = project.presentations.length - 1; i >= 0; i--) {
+          const b = this.offer(project.presentations[i]);
+          b.fit();
+          b.x = tours.x - tours.w / 2 + b.w / 2; b.y = top - 12 - b.h / 2;
+          top = b.y - b.h / 2;
+          this.dock.push(b);
+        }
+      } else this.listing = false;
     }
     // under the storyboard the sequence keeps its layout: the map's own button is not in the way of its links
     if (board !== null && board.open) return;
     for (const on of stack) { on.described = this.described; on.settle(this.floor, this.dock); }
+  }
+
+  /** The button of a guided visit. */
+  private offer(p: Presentation): Button {
+    const b = new Button();
+    b.act = `present ${p.id}`; b.play = true; b.label = this.project.say(p.title, this.lang);
+    return b;
   }
 
   /** The visitor's settings have changed: the colours are put on, and everything written is laid out again at the text size. */
@@ -502,6 +528,8 @@ export class Player {
 
   private press(b: Button): void {
     const l = b.link, project = this.project, board = this.board;
+    if (b.act === 'tours') { this.listing = !this.listing; this.layOutDock(); this.tell(`presentations ${this.listing ? 'open' : 'close'}`); return; }
+    if (this.listing) { this.listing = false; this.layOutDock(); }
     if (l !== null) { this.follow(l); return; }
     if (b.act === 'language') this.speak(project.languages[(project.languages.indexOf(this.lang) + 1) % project.languages.length]);
     else if (b.act === 'storyboard') this.showBoard(board !== null && !board.open);
@@ -753,6 +781,7 @@ export class Player {
     else this.drawChange(moving, ox, oy, k);
     const full = this.top().table.opened;
     F.on(ox, oy, k);
+    this.credit = [];
     if (full !== null) this.drawFullView(full, k);
     plan?.draw(k, this.lang, this.top().sequence.id, this.trail);
     this.drawSubtitle(k);
@@ -781,20 +810,28 @@ export class Player {
     }
   }
 
-  /** Where every control is, when one has moved: what a touch can press now, with its place on the table. */
+  /** Where every control is, when one has moved: what a touch can press now, with its place on the table; and how many of them, the
+   *  credit of a full view among them, the subtitle lies on. */
   private check(): void {
-    const F = this.F, on = this.top(), plan = this.board, parts: string[] = [];
+    const F = this.F, on = this.top(), plan = this.board, parts: string[] = [], s = this.caption, credit = this.credit;
+    const under = (x: number, y: number, w: number, h: number): i32 => s.length === 4 && x < s[0] + s[2] && x + w > s[0] && y < s[1] + s[3] && y + h > s[1] ? 1 : 0;
+    let over: i32 = credit.length === 4 ? under(credit[0], credit[1], credit[2], credit[3]) : 0;
+    for (const b of this.dock) over += under(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h);
     const at = (name: string, fx: number, fy: number): void => { parts.push(`${name.replaceAll(' ', ':')}@${Math.round(F.tableX(fx, fy))},${Math.round(F.tableY(fx, fy))}`); };
     for (const b of this.dock) at(b.act, b.x, b.y);
     if (plan !== null && plan.open) {
       for (const s of this.project.sequences) { const n = plan.nodeOf(s); at(`node ${s.id}`, n[0], n[1]); }
     } else if (on.table.opened === null) {
-      for (const b of on.offered()) { const l = b.link; at(l !== null ? `${b.ring ? 'spot' : 'link'} ${l.to}` : b.act, b.x, b.y); }
+      for (const b of on.offered()) {
+        const l = b.link;
+        at(l !== null ? `${b.ring ? 'spot' : 'link'} ${l.to}` : b.act, b.x, b.y);
+        if (!b.ring) over += under(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h);
+      }
       const v = on.viewer, p = on.lookout;
       if (v !== null && v.linkBox.length === 4) at('panel', v.linkBox[0] + v.linkBox[2] / 2, v.linkBox[1] + v.linkBox[3] / 2);
       if (p !== null && p.linkBox.length === 4) at('panel', p.linkBox[0] + p.linkBox[2] / 2, p.linkBox[1] + p.linkBox[3] / 2);
     }
-    this.say(-900, `controls ${F.name} size ${reading()} cut ${clipped()} ${parts.join(' ')}`);
+    this.say(-900, `controls ${F.name} size ${reading()} cut ${clipped()} ${parts.join(' ')} over=${over}`);
   }
 
   /** The cards, the object and the panorama of the top sequence, a line for each that changed. */
@@ -867,6 +904,7 @@ export class Player {
    *  of the buttons of the sequence: above the highest one it would lie on. */
   private drawSubtitle(k: number): void {
     const cue = this.cue, F = this.F, colours = this.colours, on = this.top(), plan = this.board, box = this.picture, onPicture = box.length === 4;
+    this.caption = [];
     if (cue.length === 0) return;
     // with a picture seen in full the subtitle lies over the foot of the picture, as on a film: its notice stays whole
     const f = sans(24 * k), room = onPicture ? box[2] - 80 * k : Math.min(1200 * reading(), F.w - 160) * k, full = textWidth(f, cue, 0);
@@ -884,6 +922,7 @@ export class Player {
     const y = onPicture ? box[1] + box[3] - 16 * k - h : F.oy + bottom * k - h;
     rrect(x - 26 * k, y, w + 52 * k, h, 14 * k, colours.background, faint(225));
     for (let i = 0; i < lines.length; i++) drawText(f, left(textWidth(f, lines[i], 0)), y + 10 * k + i * leading(f), lines[i], colours.text, 255, 0);
+    this.caption = [(x - F.ox) / k - 26, (y - F.oy) / k, w / k + 52, h / k];
   }
 
   /** A presentation: its timeline at the visitor's edge, a segment for each step, and while it plays where it is and how to stop it. */
@@ -1021,6 +1060,7 @@ export class Player {
     const room = Math.max(1, Math.floor((foot - 16 * k - ty) / (leading(body) + 2 * k)));
     for (const line of wrap(body, project.say(m.description, lang), tw, room)) { drawText(body, tx, ty, line, colours.text, 255, 0); ty += leading(body) + 2 * k; }
     ty = foot;
+    this.credit = [(tx - F.ox) / k, (foot - F.oy) / k, tw / k, credit.length * leading(small) / k];
     for (const line of credit) { drawText(small, tx, ty, line, colours.muted, 255, 0); ty += leading(small); }
   }
 }

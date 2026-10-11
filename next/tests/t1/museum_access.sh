@@ -18,7 +18,7 @@
 # Compiled, the largest text in high contrast is the same picture (one frame, one hash).
 # In every line of --controls, at the four sides and three text sizes: no control lies farther than table.reach from the nearest edge, the
 # buttons (all but the nodes of the storyboard and the button inside a panel, which has its twin among them) lie within it of the visitor's
-# own edge, and no text is cut short. tools/contrast-check passes the colours of the project and refuses a weaker high contrast. Every
+# own edge, no text is cut short, and the subtitle lies on no control. tools/contrast-check passes the colours of the project and refuses a weaker high contrast. Every
 # picture, object and panorama has an audio description in both languages whose clip decodes, lasts what its subtitles say and gives
 # sound (heard.ts, in a run that is not deterministic: a deterministic one decodes no sound).
 # ZN_UPDATE_GOLDEN=1 rewrites the goldens from this run.
@@ -61,7 +61,8 @@ reach=$(sed -n 's/.*"reach": \([0-9]*\).*/\1/p' assets/project.json)
 LC_ALL=C awk -v reach="$reach" -v W=1920 -v H=1080 '
   { side = $3; size = $5; sides[side] = 1; sizes[size] = 1
     if ($7 != 0) { printf "museum_access: frame %s, %s side, size %s: %s texts are cut short\n", $1, side, size, $7; bad = 1 }
-    for (i = 8; i <= NF; i++) {
+    if ($NF != "over=0") { printf "museum_access: frame %s, %s side, size %s: the subtitle lies on a control (%s)\n", $1, side, size, $NF; bad = 1 }
+    for (i = 8; i < NF; i++) {
       split($i, c, "@"); split(c[2], p, ","); x = p[1]; y = p[2]; seen[c[1]] = 1
       near = x; if (W - x < near) near = W - x; if (y < near) near = y; if (H - y < near) near = H - y
       own = side == "bottom" ? H - y : side == "top" ? y : side == "right" ? W - x : x

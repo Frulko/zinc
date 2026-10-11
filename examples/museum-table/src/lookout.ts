@@ -1,4 +1,5 @@
-// A panorama on the table: a window on a 360-degree image (panorama.ts). One finger looks around and the view keeps turning a little, two
+// A panorama on the table: a window on a 360-degree image (panorama.ts), upright for the visitor at whichever side of the table they
+// stand. One finger looks around and the view keeps turning a little, two
 // fingers change the field of view; the points of interest stay on their direction, a touch on one opens its panel and turns the view to
 // it, and the panel's button leads to the sequence the point names.
 import { rrect, border, drawText, textWidth } from 'zinc:gfx';
@@ -49,6 +50,7 @@ export class Lookout {
 
   /** Where a point of interest is on the table now: [x, y], or [] when it is behind the visitor or out of the window. */
   locate(p: Point): number[] {
+    this.view.side = this.frame.side;
     const s = this.view.project(p.at, this.x - this.w / 2, this.y - this.h / 2, this.w, this.h);
     return s.length === 2 && this.inside(s[0], s[1]) ? s : [];
   }
@@ -56,10 +58,11 @@ export class Lookout {
   /** One frame: the fingers that landed on the window and belong to nothing yet are its own. */
   update(dt: number, fingers: Fingers): void {
     for (const f of fingers.down) if (f.fresh && f.owner === 0 && this.inside(f.x, f.y)) f.owner = LOOKOUT;
-    const held = fingers.of(LOOKOUT);
-    if (held.length === 1) {
+    const held = fingers.of(LOOKOUT), F = this.frame;
+    this.view.side = F.side;
+    if (held.length === 1) {   // the image follows the finger, as the visitor sees both
       const f = held[0], dx = f.x - f.px, dy = f.y - f.py;
-      if (dx === 0 && dy === 0) this.view.hold(); else this.view.drag(dx, dy, this.h, dt);
+      if (dx === 0 && dy === 0) this.view.hold(); else this.view.drag(F.dx(dx, dy), F.dy(dx, dy), F.side % 2 === 1 ? this.w : this.h, dt);
     } else if (held.length >= 2) {
       const a = held[0], b = held[1];
       const was = Math.sqrt((b.px - a.px) * (b.px - a.px) + (b.py - a.py) * (b.py - a.py)), is = Math.sqrt((b.x - a.x) * (b.x - a.x) + (b.y - a.y) * (b.y - a.y));
@@ -102,6 +105,7 @@ export class Lookout {
 
   /** Draws the window; the table's origin is at (ox, oy) on the screen and one table unit is `k` pixels. */
   render(ox: number, oy: number, k: number): void {
+    this.view.side = this.frame.side;
     this.view.draw(Math.round(ox + (this.x - this.w / 2) * k), Math.round(oy + (this.y - this.h / 2) * k), Math.round(this.w * k), Math.round(this.h * k));
   }
 
