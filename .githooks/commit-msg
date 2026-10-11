@@ -19,4 +19,12 @@ printf '%s\n' "$subject" | grep -Eq '^(feat|fix|perf|docs|test|refactor|build|ch
 printf '%s\n' "$subject" | LC_ALL=C grep -q '[^ -~]' && fail "subject is not plain ASCII: write it in English"
 printf '%s\n' "$subject" | grep -Eiqw 'les|une|pour|avec|dans|ajoute|ajout|corrige|mise' && fail "subject looks French: write it in English"
 grep -qi '^co-authored-by:' "$1" && fail "no co-author trailer"
+# the backlog is frozen (AGENTS.md, "Keep the backlog shrinking"): a commit that adds a task file says which exception it is
+added=$(git diff --cached --name-only --diff-filter=A -- next/backlog/tasks | grep -c .)
+if [ "$added" -gt 0 ] && ! grep -Eqi '^new-task: *(owner|blocks|split) +[^ ]' "$1"; then
+  echo "commit-msg: adds $added task file(s) while the backlog is frozen" >&2
+  echo "  write the idea as one line in next/backlog/later.md, or add a trailer:" >&2
+  echo "  New-task: owner <the request> | New-task: blocks <demo or test> | New-task: split ZN-n" >&2
+  exit 1
+fi
 exit 0
