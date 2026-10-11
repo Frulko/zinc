@@ -1,5 +1,5 @@
 // A lighthouse at night with three.js: a model loaded from a file, three lights, and a camera you turn with the pointer.
-// Run it:  zinc run examples/js-three --engine quickjs      (drag to turn around the lighthouse, wheel to come closer)
+// Run it:  zinc run examples/js-three      (drag to turn around the lighthouse, wheel to come closer)
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';

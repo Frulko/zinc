@@ -64,6 +64,7 @@ struct Project {
   std::string keyboard;             // "keyboard": "auto" | "touch" | "always" | "never": the default mode of the kit's on-screen keyboard (ZN-227), passed as ZINC_KEYBOARD
   bool webgl = false;               // "webgl": true lets zinc:script contexts create WebGL canvases (ZN-205), passed as ZINC_WEBGL
   bool web = false;                 // "web": true (or an object, its keys kept for later): QuickJS programs start with the web environment (ZN-568), as ZINC_WEB=1
+  std::string engine;               // "engine": "quickjs" runs the project on QuickJS-ng, "zinc" on the typed engines; "" = QuickJS for a .js or .mjs entry (ZN-719)
   bool perfHud = false;             // "dev": {"perfHud": true}: zinc run shows the performance panel (ZN-375), passed as ZINC_PERF_HUD
   std::string scheme;               // "scheme": "light" | "dark" | "auto": the initial colour scheme of zinc:ui (ZN-271), passed as ZINC_SCHEME
   std::string text;                 // "text": "shaped" lays out zinc:gfx / zinc:ui text with HarfBuzz and SheenBidi (ZN-224); "" or "simple": the codepoint tables

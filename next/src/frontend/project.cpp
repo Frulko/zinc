@@ -376,6 +376,7 @@ bool parseProject(const std::string& text, Project& out, std::string& err) {
   if (yyjson_val* x = yyjson_obj_get(root, "keyboard"); x && yyjson_is_str(x)) out.keyboard = yyjson_get_str(x);
   if (yyjson_val* x = yyjson_obj_get(root, "webgl"); x && yyjson_is_bool(x)) out.webgl = yyjson_get_bool(x);
   if (yyjson_val* x = yyjson_obj_get(root, "web")) out.web = yyjson_is_obj(x) || yyjson_is_true(x);
+  if (yyjson_val* x = yyjson_obj_get(root, "engine"); x && yyjson_is_str(x)) out.engine = yyjson_get_str(x);
   if (yyjson_val* d = yyjson_obj_get(root, "dev"); d && yyjson_is_obj(d))
     if (yyjson_val* x = yyjson_obj_get(d, "perfHud"); x && yyjson_is_bool(x)) out.perfHud = yyjson_get_bool(x);
   if (yyjson_val* x = yyjson_obj_get(root, "scheme"); x && yyjson_is_str(x)) out.scheme = yyjson_get_str(x);
@@ -481,7 +482,7 @@ bool parseProject(const std::string& text, Project& out, std::string& err) {
     size_t i, n; yyjson_val *k, *v;
     yyjson_obj_foreach(t, i, n, k, v) if (yyjson_val* pm = yyjson_obj_get(v, "permissions")) if (!permissionList(pm, out.targetPermissions[yyjson_get_str(k)], "targets.<name>.permissions")) return false;
   }
-  static const char* known[] = {"app", "permissions", "scopes", "name", "entry", "main", "assets", "version", "id", "icon", "crash", "display", "plugins", "pluginDirs", "targets", "board", "requires", "text", "scheme", "webgl", "web", "keyboard", "bench", "description", "profile", "ui", "icons", "template", "update", "signing", "lock", "pluginCompiler", "dependencies", "policy", "dev", "splash", "loading", "launcher"};
+  static const char* known[] = {"app", "permissions", "scopes", "name", "entry", "main", "assets", "version", "id", "icon", "crash", "display", "plugins", "pluginDirs", "targets", "board", "requires", "text", "scheme", "webgl", "web", "engine", "keyboard", "bench", "description", "profile", "ui", "icons", "template", "update", "signing", "lock", "pluginCompiler", "dependencies", "policy", "dev", "splash", "loading", "launcher"};
   size_t i, n;
   yyjson_val *k, *v;
   yyjson_obj_foreach(root, i, n, k, v) {

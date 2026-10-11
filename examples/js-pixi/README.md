@@ -6,14 +6,14 @@ A small solar system made with [PixiJS](https://pixijs.com) (8.22.0, unmodified)
 
 ```sh
 cd next
-build/zinc run ../examples/js-pixi --engine quickjs
+build/zinc run ../examples/js-pixi
 ```
 
-Point at a planet: it grows. Click it: it stops, fades and its name grows (Saturn in the picture); click again and it goes on. The system follows the size of the window (`ZINC_SIZE=800x500` before the command opens a larger one).
+Point at a planet: it grows. Click it: it stops, fades and its name grows (Saturn in the picture); click again and it goes on. The system follows the size of the window, which opens at the size `zinc.json` gives (800 by 500).
 
 How it fits together:
 
-- `zinc.json` has `"web": true`: the program gets a `window`, a `document` and WebGL, as a page in a browser does.
+- `main.js` is JavaScript, so `zinc run` takes the QuickJS engine by itself. `zinc.json` has `"web": true`: the program gets a `window`, a `document` and WebGL, as a page in a browser does.
 - `importmap.json` says where `import 'pixi.js'` comes from (the copy in `next/third_party/pixi`), as an import map does in a page.
 - `main.js` is the whole program. It is PixiJS as its guide writes it; nothing in it is special to Zinc. It has no asset: one white disc is drawn into a texture, and every star, planet and moon is a sprite of it.
 

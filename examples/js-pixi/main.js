@@ -1,5 +1,5 @@
 // A small solar system with PixiJS: sprites in a tree of containers, a blur filter for the glow of the sun, and planets that hear the pointer.
-// Run it:  zinc run examples/js-pixi --engine quickjs      (point at a planet: it grows; click it: it stops, click again: it goes on)
+// Run it:  zinc run examples/js-pixi      (point at a planet: it grows; click it: it stops, click again: it goes on)
 import { Application, BlurFilter, Container, Graphics, Sprite, Text } from 'pixi.js';
 
 const app = new Application();

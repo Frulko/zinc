@@ -1,1 +1,1 @@
-{ "name": "js-p5", "entry": "main.js", "web": true }
+{ "name": "js-p5", "entry": "main.js", "web": true, "targets": { "sim": { "width": 800, "height": 500 } } }

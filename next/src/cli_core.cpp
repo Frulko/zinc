@@ -52,7 +52,7 @@ const Command kCommands[] = {
    "  --native                compile even a headless or deterministic run\n"
    "  --profile <name>        a target profile (macos, linux, sim, wasm, rpi1, rmpp, esp32, ps1, ps2, psp, vita, n3ds, chip, pocketchip): numbers, heap and typing of that target\n"
    "  --har <file>            write every network request of the run (fetch, WebSocket, MQTT, TCP) as a HAR 1.2 file when the program ends\n"
-   "  --engine quickjs        plain JavaScript on QuickJS-ng\n  --target esp32 [--port P | --device CMD | --qemu] [--boot-ms N] [--log]   run on the board or the emulator\n  --force                 run although zinc.json \"requires\" is not met\n"
+   "  --engine quickjs        plain JavaScript on QuickJS-ng (chosen by itself for a .js or .mjs entry, or by zinc.json \"engine\")\n  --target esp32 [--port P | --device CMD | --qemu] [--boot-ms N] [--log]   run on the board or the emulator\n  --force                 run although zinc.json \"requires\" is not met\n"
    "Environment: ZINC_HEADLESS=1 (no window), ZINC_FRAMES=n, ZINC_SHOT=file.png, ZINC_DETERMINISTIC=1."},
   {"debug", "zinc debug [entry|dir] [-- args] | zinc debug --dap | zinc debug --cdp[=port] entry", "run a program under the debugger",
    "Compiles a debug build (every call keeps its frame, each statement and each local is known) and runs it in the interpreter, paused at its first statement.\n"
@@ -264,6 +264,15 @@ bool discoverEntry(std::vector<std::string>& args, std::string& err) {
   }
   const bool hasEntry = at < args.size() && args[at] != "--";
   std::string entry = hasEntry ? args[at] : ".";
+  // zinc run on plain JavaScript (ZN-719): a .js or .mjs entry, or zinc.json "engine": "quickjs", runs on QuickJS-ng as `--engine quickjs` does;
+  // an engine or a target named on the command line wins, and "engine": "zinc" keeps the typed engines
+  bool named = false;
+  for (std::size_t k = 2; k < args.size() && args[k] != "--"; ++k) named = named || args[k] == "--engine" || args[k] == "--target";
+  auto pickEngine = [&](const std::string& file, const std::string& engine) {
+    const std::string ext = fs::path(file).extension().string();
+    if (cmd != "run" || named || engine == "zinc" || (engine != "quickjs" && ext != ".js" && ext != ".mjs")) return;
+    args.insert(args.begin() + static_cast<std::ptrdiff_t>(at) + 1, {"--engine", "quickjs"});
+  };
   if (cmd == "run") if (const std::string port = devtoolsPort(entry); !port.empty()) setenv("ZINC_DEVTOOLS_PORT", port.c_str(), 1);
   std::error_code ec;
   std::string dirArg = entry;
@@ -273,6 +282,7 @@ bool discoverEntry(std::vector<std::string>& args, std::string& err) {
       for (const std::string& a : args) hasOut = hasOut || a == "-o";
       if (!hasOut) { fs::create_directories("build", ec); args.insert(args.begin() + at + 1, {"-o", "build/" + fs::path(entry).stem().string()}); }
     } else if (cmd == "check" && (at == 2 || args[2].rfind("--", 0) != 0)) args.insert(args.begin() + 2, "--check");
+    pickEngine(entry, "");
     return true;
   }
   // a directory (or nothing): the project's entry
@@ -285,7 +295,8 @@ bool discoverEntry(std::vector<std::string>& args, std::string& err) {
   std::string e = zn::frontend::entryOf(projDir, have ? &project : nullptr);
   if (e.empty()) { err = "no project here: " + projDir + " has no zinc.json \"entry\" and no src/main.ts, src/main.tsx, main.ts or main.tsx (zinc init <dir> creates one)"; return false; }
   const std::string name = have && !project.name.empty() ? project.name : fs::path(projDir).filename().string();
-  if (cmd == "run") { if (hasEntry) args[at] = projDir; else args.insert(args.begin() + at, projDir); }
+  if (have && !project.engine.empty() && project.engine != "quickjs" && project.engine != "zinc") { err = projDir + "/zinc.json: \"engine\" must be \"quickjs\" or \"zinc\", not \"" + project.engine + "\""; return false; }
+  if (cmd == "run") { if (hasEntry) args[at] = projDir; else args.insert(args.begin() + at, projDir); pickEngine(e, have ? project.engine : ""); }
   else if (cmd == "build") {
     if (hasEntry) args[at] = e; else args.insert(args.begin() + at, e);
     bool hasOut = false;

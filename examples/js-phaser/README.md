@@ -6,14 +6,14 @@ Star catcher, a small game made with [Phaser 3](https://phaser.io) (3.90.0, unmo
 
 ```sh
 cd next
-build/zinc run ../examples/js-phaser --engine quickjs
+build/zinc run ../examples/js-phaser
 ```
 
 Left and right arrows steer the boat. A star caught is a point; a rock ends the game (`GAME OVER`), and the space bar starts it again.
 
 How it fits together:
 
-- `zinc.json` has `"web": true`: the program gets a `window`, a `document` and WebGL, as a page in a browser does.
+- `main.js` is JavaScript, so `zinc run` takes the QuickJS engine by itself. `zinc.json` has `"web": true`: the program gets a `window`, a `document` and WebGL, as a page in a browser does.
 - `main.js` is the page: it loads Phaser (the copy in `next/third_party/phaser`), then `game.js`, as two `<script>` tags would.
 - `game.js` is the game, one scene of about fifty lines. It is Phaser as its guide writes it; nothing in it is special to Zinc.
 - `assets/` holds two pictures and two sounds, all written by `assets/make-assets.mjs` from drawings made of letters (`node assets/make-assets.mjs` makes them again; change a drawing there). Pictures, sounds and script were written for this example and are public domain (CC0).
