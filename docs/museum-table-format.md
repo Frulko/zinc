@@ -160,7 +160,7 @@ hear (a button on the medium once it is open says it: in the full view of a phot
 | `attractAfter` | 60 | Seconds without a touch before the attract loop starts (0: never). A presentation a visitor watches is not counted. The loop plays over the visit, which a touch finds again as it was until `resetAfter` |
 | `resetAfter` | 120 | Seconds without a touch before the visit is forgotten: everything returns to `start`, the default language, the main side of the table and the designed layout, and nothing is ticked on the storyboard any more (0: never) |
 | `attract` | none | The presentation played as the attract loop, again and again, with its subtitles and without sound, and an invitation to touch the table at each of its four edges; without it the table stays as it is until the reset |
-| `statistics` | false | Count sequences seen, durations and languages in a local file, with nothing that identifies a visitor |
+| `statistics` | false | Count what each visit saw in a local file per day, with nothing that identifies a visitor: see "The statistics of a table" |
 | `updateUrl` | none | Where the museum publishes a newer project. Without it the table needs no network |
 
 ## Media
@@ -316,6 +316,43 @@ jumping from the storyboard leaves it too. At the end of the path the visitor st
 ]
 ```
 
+## The statistics of a table
+
+With `kiosk.statistics` and a directory to write in (`zinc run <table> -- --statistics <directory>`; without the directory nothing is
+counted), the player keeps one file per day, `<directory>/2026-10-11.csv`, which a spreadsheet opens:
+
+```csv
+what,count,seconds,id
+session,2,81,
+hour,2,,14
+language,1,,en
+language,1,,fr
+sequence,4,50,ukiyo-e
+sequence,1,30,wave
+medium,1,,kanbara-snow
+description,1,,kanbara-snow
+point,1,,vase/lady
+presentation,1,,tour
+presentation-ended,1,,tour
+```
+
+| `what` | `count` | `seconds` | `id` |
+| --- | --- | --- | --- |
+| `session` | Visits: from a first touch to the reset that forgets the visit (`kiosk.resetAfter`) | Their total length, up to the last touch of each | |
+| `hour` | Visits that began in that hour | | The hour of the day, `00` to `23`, in the time of the table |
+| `language` | Visits that ended in that language | | The language code |
+| `sequence` | Times the sequence was opened during a visit (the one a visit begins on counts once) | The time it was looked at | The sequence |
+| `medium` | Times a picture was seen in full | | The medium |
+| `description` | Times an audio description was asked for | | The medium |
+| `point` | Times a point of interest was opened | | `<medium>/<point>` |
+| `presentation`, `presentation-ended` | Times a guided visit was started, and played to its end | | The presentation |
+
+A file holds sums, and a visit is added to the day it began on when it is forgotten. Nothing in it identifies a visitor or lets a
+visit be followed: no time finer than the hour a visit began in, no touch, no position, no order of events. The seconds are whole, and
+stop at the last touch (or at the end of a presentation being watched): a table left alone is not being looked at. The attract loop is
+not a visit. The id comes last so that it may hold a comma. The staff see the counts of the day on the table: two fingers held three
+seconds in two opposite corners; the next touch closes them, and none of those touches is counted.
+
 ## What is checked
 
 `parseProject` stops at the first fault. Besides types and required fields: `format` and `version`; unique ids; every `kind`, `light`,
@@ -336,4 +373,5 @@ inside the assets. Whether the files exist is checked by the player when it star
 | narration (zinc:audio: WAV, FLAC, MP3, Ogg Vorbis) and its subtitles, presentations | yes |
 | the table mode: texts turned to the side of the last tap near an edge, the attract loop, the reset, the kiosk rules | yes |
 | the text sizes and the high contrast, as two buttons at the visitor's edge; every button within `table.reach` of that edge (the links come there in rows when they do not fit where they were designed, and the buttons of an object or a panorama with them); the audio descriptions, said by a button on the medium, with subtitles | yes |
-| statistics, updates | ZN-650.12 and ZN-650.11 |
+| statistics | yes, when the table is started with `--statistics <directory>` |
+| updates | ZN-650.11 |

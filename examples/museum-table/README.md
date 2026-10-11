@@ -76,6 +76,19 @@ the synthesised voice with its own subtitles (`tools/narration.sh` makes the cli
 next/tools/contrast-check --museum examples/museum-table/assets/project.json   # the contrast of the theme and of the high-contrast colours
 ```
 
+## Statistics
+
+```sh
+zinc run examples/museum-table -- --statistics /var/museum/statistics   # one file a day: 2026-10-11.csv
+```
+
+The project asks for statistics (`kiosk.statistics`) and the directory says where: the table then counts the visits (from a first touch
+to the reset), their length, the hour they began in, their language, each sequence opened and for how long, each picture seen in full,
+each audio description, each point of interest, each guided visit started and played to its end. A day is a CSV file of sums that a
+spreadsheet opens (`docs/museum-table-format.md`, "The statistics of a table"): nothing identifies a visitor, no time is finer than the
+hour, and no touch is kept. Two fingers held three seconds in two opposite corners show the staff the counts of the day; the next touch
+closes them. Without `--statistics` nothing is counted and nothing is written.
+
 ## The storyboard editor
 
 [`editor/`](editor) is the authoring tool, an app of its own for a desk, a mouse and a keyboard: a museum makes its installation there
@@ -118,7 +131,7 @@ The document is `editor/doc.ts` (one operation per command, checked without a wi
 | `src/check.ts`, `src/assets.ts` | command-line checks of a project file and of its media |
 | `tools/` | rebuild the media from their sources (`fetch-collection.sh`, `decimate.cpp`); synthesise the narration and its subtitles from the transcripts of the project with Piper and two open voices (`narration.sh`) |
 
-Tests: `next/tests/run --tier t1 --only museum_visit` (also `museum_mode`, `museum_access`, `museum_video`, `museum_format`, `museum_assets`, `museum_table`,
+Tests: `next/tests/run --tier t1 --only museum_visit` (also `museum_mode`, `museum_access`, `museum_video`, `museum_stats`, `museum_format`, `museum_assets`, `museum_table`,
 `museum_viewer`, `museum_panorama`). The sessions are scripted touches (`ZINC_INPUT`, `touch ID X Y` and `touchup ID`): `next/tests/data/museum_visit/visit.py`
 is a whole visit, `next/tests/data/museum_table/hands.py` two hands on two cards. A headless run plays no sound: the story log says which clip
 is asked for and when.

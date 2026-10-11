@@ -6,14 +6,16 @@
 // its duration, with its narration (narration.ts) and subtitles; a touch pauses it.
 // It is made for a table, with one or two visitors around it sharing one story: the texts, the panels and the buttons are laid out in the
 // frame of the visitor (frame.ts) and turn to the side of the table of the last tap near an edge, while the cards stay free. When nobody
-// touches the table the attract loop plays, then the visit is forgotten; nothing leads out of the player and no error is shown.
+// touches the table the attract loop plays, then the visit is forgotten; nothing leads out of the player and no error is shown. A table
+// that keeps statistics (stats.ts) counts what each visit saw, and shows the day's counts to the staff: two fingers held in two opposite
+// corners.
 // The player is a class given a project and, each frame, the rectangle of the window it has: the table's app (main.ts) gives it its whole
 // window, the storyboard editor (../editor/preview.tsx) a pane of its own window, or a second window. It reads the touches and the mouse
 // of the window being drawn and the files of the project through files.ts; whoever owns the window clears it.
 import { rect, rrect, border, polygon, drawImage, drawText, textWidth, imageWidth, imageHeight, wheel, pinch, pointerX, pointerY, modifiers, Mod } from 'zinc:gfx';
 import { clock } from 'zinc:sys';
 import { Project, Sequence, Item, Link, Media, Presentation, Colours, Table, Kiosk, spokenDescription } from './project';
-import { Fingers } from './touch';
+import { Fingers, Finger } from './touch';
 import { Card } from './table';
 import { Stage, Views } from './stage';
 import { Button, drawButton, setInRows, rowWidth } from './button';
@@ -22,9 +24,12 @@ import { Storyboard } from './storyboard';
 import { Narration } from './narration';
 import { sans, bold, wrap, leading, setReading, reading, faint, clipped } from './type';
 import { word } from './words';
+import { Statistics, Counts } from './stats';
 
 /** Owner numbers of the fingers that are not on a card or a view: the full view, a button, the storyboard. */
-const FULL: i32 = 1, BUTTON: i32 = 2, BOARD: i32 = 5, NOTHING: i32 = -1;
+const FULL: i32 = 1, BUTTON: i32 = 2, BOARD: i32 = 5, STAFF: i32 = 6, NOTHING: i32 = -1;
+/** The staff's gesture: two fingers this close to two opposite corners (table units), held this many seconds. */
+const CORNER = 40, HOLD = 3;
 /** Seconds a transition takes, and how dark the sequence underneath an overlay gets (0 to 255). */
 const FADE = 0.5, SLIDE = 0.45, DIM = 205;
 
@@ -56,6 +61,8 @@ export class Player {
   stress: i32 = 0;
   /** The last fault ('' for none): what `frame` caught, for whoever shows the player to an author instead of a visitor. */
   fault = '';
+  /** What counts the visits, on a table that keeps statistics (null: nothing is counted). Set before the first frame. */
+  counting: Statistics | null = null;
 
   /** The colours the whole player draws with: those of the theme, or of the high contrast. */
   private colours = new Colours();
@@ -106,6 +113,11 @@ export class Player {
   private idle = 0;
   private attracting = false;
   private session: Stage[] | null = null;
+  /** The staff's summary: the seconds their gesture has been held, the counts of the day while they are shown, and the points of
+   *  interest open at the last frame (the object's, the panorama's), which are counted as they open. */
+  private gesture = 0;
+  private summary: Counts | null = null;
+  private pointed: string[] = ['', ''];
 
   /** The player's own controls, in the visitor's frame. */
   private languages = new Button();
@@ -264,6 +276,7 @@ export class Player {
   private arrived(s: Sequence): void {
     if (!this.attracting && (this.trail.length === 0 || this.trail[this.trail.length - 1] !== s.id)) this.trail.push(s.id);
     this.tell(`sequence ${s.id}`);
+    if (this.visiting && !this.attracting) this.counting?.note('sequence', s.id);
     this.hush();
     const t = this.tour;
     if (t !== null) { this.played = 0; this.tell(`step ${this.step + 1}/${t.path.length} ${s.id}`); this.narrate(s); }
@@ -306,6 +319,7 @@ export class Player {
     const v = new Narration(this.project, said, this.lang);
     v.play();
     this.voice = v; this.spoken = 0; this.described = m.id;
+    this.counting?.note('description', m.id);
     this.tell(`description ${m.id} ${v.file.length > 0 ? v.file : '(subtitles only)'}`);
     this.layOutDock();
   }
@@ -315,6 +329,7 @@ export class Player {
     this.showBoard(false);
     this.tour = p; this.step = 0; this.played = 0; this.paused = false;
     this.tell(`presentation ${p.id} start`);
+    this.counting?.note('presentation', p.id);
     this.layOutDock();
     this.go(p.path[0], 'fade', false);
   }
@@ -324,6 +339,7 @@ export class Player {
     if (t === null) return;
     this.tour = null; this.paused = false;
     this.tell(`presentation ${t.id} ${why}`);
+    if (why === 'end') this.counting?.note('presentation-ended', t.id);
     this.layOutDock();
   }
   /** How long a step of a presentation lasts: the sequence's duration, else its narration and a breath, else ten seconds. */
@@ -386,6 +402,8 @@ export class Player {
   /** Nobody has touched the table for the time the project gives: the visit is over and everything goes back to the start. */
   private reset(): void {
     if (this.visiting) this.tell('visit end');
+    this.counting?.end(this.lang);
+    this.summary = null;
     this.size = 0; this.contrast = false;
     this.wear(); this.read();
     this.lang = this.project.languages[0];
@@ -579,7 +597,14 @@ export class Player {
     if (!this.visiting && fingers.down.length > 0) {   // the first touch of a visit: the narration of the sequence on the table begins
       this.visiting = true;
       this.tell('visit start');
+      this.counting?.begin(this.top().sequence.id);
       if (this.tour === null && !this.heard.has(this.top().sequence.id)) this.narrate(this.top().sequence);
+    }
+    this.staff(dt);
+    const stats = this.counting;
+    if (stats !== null && this.visiting && !this.attracting) {   // the time counts up to the last touch, or while a presentation is watched
+      stats.pass(dt, this.top().sequence.id);
+      if (fingers.down.length > 0 || (this.tour !== null && !this.paused)) stats.touched();
     }
     if (K.resetAfter > 0 && this.idle >= K.resetAfter && (this.visiting || this.session !== null || F.side !== 0)) this.reset();
     if (!this.attracting && K.attractAfter > 0 && this.idle >= K.attractAfter) {
@@ -588,7 +613,7 @@ export class Player {
     // a tap, or a press on a button, near an edge: the texts turn to that edge once this frame's touches are dealt with
     let turn: i32 = -1;
     for (const f of fingers.lifted) {
-      if (!(f.tapped || f.owner === BUTTON)) continue;
+      if (f.owner === STAFF || !(f.tapped || f.owner === BUTTON)) continue;
       if (Math.min(Math.min(f.x, T.width - f.x), Math.min(f.y, T.height - f.y)) <= this.TURN) turn = F.nearest(f.x, f.y);
     }
     const speaking = this.voice;
@@ -679,10 +704,41 @@ export class Player {
     const full = this.top().table.opened, was = this.viewed;
     if (full !== was) {
       this.viewed = full; this.picture = [];
+      if (full !== null) this.counting?.note('medium', full.media.id);
       if (was !== null && was.media.id === this.described) this.hush(); else this.layOutDock();
     }
     if (turn >= 0) this.turnTo(turn);
     this.hear(this.top());
+    const thing = this.top().viewer, window = this.top().lookout;
+    this.point(0, thing !== null && thing.opened !== null ? `${thing.media.id}/${thing.opened.id}` : '');
+    this.point(1, window !== null && window.opened !== null ? `${window.media.id}/${window.opened.id}` : '');
+  }
+
+  /** Counts a point of interest when it opens: `at` is the one open now in the object (slot 0) or the panorama (1), '' for none. */
+  private point(slot: i32, at: string): void {
+    if (at === this.pointed[slot]) return;
+    this.pointed[slot] = at;
+    if (at.length > 0) this.counting?.note('point', at);
+  }
+
+  /** The staff's summary of the day. Two fingers held in two opposite corners open it: nothing of those touches is counted as a visit.
+   *  The next touch closes it and leaves the table as new. */
+  private staff(dt: number): void {
+    const stats = this.counting, T = this.T, down = this.fingers.down;
+    if (stats === null) return;
+    if (this.summary !== null) {
+      for (const f of down) if (f.fresh) f.owner = STAFF;
+      for (const f of this.fingers.lifted) if (f.owner === STAFF) { this.tell('summary close'); this.reset(); return; }
+      return;
+    }
+    const corner = (f: Finger): boolean => Math.min(f.x, T.width - f.x) <= CORNER && Math.min(f.y, T.height - f.y) <= CORNER;
+    const both = down.length === 2 && corner(down[0]) && corner(down[1]) && Math.abs(down[0].x - down[1].x) > T.width / 2 && Math.abs(down[0].y - down[1].y) > T.height / 2;
+    this.gesture = both ? this.gesture + dt : 0;
+    if (this.gesture < HOLD) return;
+    this.gesture = 0;
+    stats.drop();
+    this.summary = stats.today();
+    this.tell('summary open');
   }
 
   /** Draws the frame, over the table's colour which the owner of the window has put there. */
@@ -702,6 +758,8 @@ export class Player {
     this.drawSubtitle(k);
     this.drawTour(k);
     this.drawDock(k);
+    const counts = this.summary, stats = this.counting;
+    if (counts !== null && stats !== null) this.drawSummary(counts, stats.day, k);
     F.off();
     this.drawEdges(ox, oy, k);
     for (const f of fingers.down) border(ox + (f.x - 30) * k, oy + (f.y - 30) * k, 60 * k, 60 * k, 30 * k, Math.max(1, 2 * k), this.colours.accent, 150);   // where the table feels a finger
@@ -877,6 +935,40 @@ export class Player {
         border(cx - r, cy - r, 2 * r, 2 * r, r, Math.max(1.5, 2 * k), ink, 255);
       }
     }
+  }
+
+  /** The counts of a day, for the staff, over everything, in the visitor's frame (which is on) and at the designed text size: the visits
+   *  and how long they lasted, when and in which language, each sequence opened, what was looked at closely, the presentations. */
+  private drawSummary(c: Counts, day: string, k: number): void {
+    const F = this.F, colours = this.colours, project = this.project, L = this.lang, rows: string[] = [];
+    const row = (label: string, value: string): void => { rows.push(label); rows.push(value); };
+    const time = (seconds: number): string => `${Math.floor(seconds / 60)} min ${Math.round(seconds) % 60} s`;
+    const each = (what: string, unit: string): string => c.ids(what).map((id: string) => `${id}${unit} ${c.count(what, id)}`).join(' · ');
+    const visits = c.count('session', '');
+    row(word('stats-visits', L), `${visits}`);
+    row(word('stats-length', L), visits > 0 ? time(c.seconds('session', '') / visits) : '');
+    row(word('stats-hours', L), each('hour', ' h :'));
+    row(word('stats-languages', L), each('language', ''));
+    for (const s of project.sequences) if (c.count('sequence', s.id) > 0) row(project.say(s.title, L), `${c.count('sequence', s.id)} × · ${time(c.seconds('sequence', s.id))}`);
+    row(word('stats-media', L), each('medium', ''));
+    row(word('stats-descriptions', L), each('description', ''));
+    row(word('stats-points', L), each('point', ''));
+    for (const p of project.presentations) row(project.say(p.title, L), `${c.count('presentation', p.id)} × · ${word('stats-ended', L)} ${c.count('presentation-ended', p.id)} ×`);
+    setReading(1, this.contrast);
+    const head = bold(30 * k), f = sans(20 * k), small = sans(16 * k), step = leading(f) + 8 * k, w = Math.min(1240, F.w - 96) * k, h = 150 * k + rows.length / 2 * step;
+    const x = F.ox + (F.w * k - w) / 2, y = F.oy + (F.h * k - h) / 2;
+    rrect(F.ox, F.oy, F.w * k, F.h * k, 0, colours.background, 236);
+    rrect(x, y, w, h, 18 * k, colours.background, 255);
+    border(x, y, w, h, 18 * k, Math.max(1, 1.5 * k), colours.accent, 255);
+    drawText(head, x + 40 * k, y + 32 * k, `${word('stats', L)} · ${day}`, colours.text, 255, 0);
+    let ty = y + 32 * k + leading(head) + 18 * k;
+    for (let i = 0; i < rows.length; i += 2) {
+      drawText(f, x + 40 * k, ty, wrap(f, rows[i], w * 0.45 - 60 * k, 1)[0], colours.muted, 255, 0);
+      drawText(f, x + w * 0.45, ty, wrap(f, rows[i + 1].length > 0 ? rows[i + 1] : '–', w * 0.55 - 40 * k, 1)[0], colours.text, 255, 0);
+      ty += step;
+    }
+    drawText(small, x + 40 * k, y + h - 24 * k - leading(small), word('stats-close', L), colours.muted, 255, 0);
+    this.read();
   }
 
   /** What is written at the edges the visitor is not at, each turned to its own side: during the attract loop the invitation, at every

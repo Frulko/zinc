@@ -1,6 +1,9 @@
 // Museum table: the app of the table. Everything it shows comes from assets/project.json (docs/museum-table-format.md), played by the
 // player (player.ts) in the whole window. This file is the window and the command line; a kiosk has no way out of it.
-//   zinc run examples/museum-table [-- --sequence <id>] [--lang <code>] [--story] [--log] [--controls] [--stress <cards>] [--pins] [--time]
+//   zinc run examples/museum-table [-- --sequence <id>] [--lang <code>] [--statistics <directory>] [--story] [--log] [--controls]
+//     [--stress <cards>] [--pins] [--time]
+// --statistics names the directory where a table whose project has `kiosk.statistics` writes the counts of each day (stats.ts): without
+// it nothing is counted;
 // --story prints what happens to the story, one line per event: sequences, links, overlays, the storyboard, presentations, the narration
 // clips asked for and the subtitles shown, the language, the side the texts turn to, the attract loop and the reset (the tests read it);
 // --log prints the pose of every card that moved, and the view and points of the 3D object and of the panorama, one line per change;
@@ -11,8 +14,10 @@
 import { onFrame, width, height, clear, escapeByApp } from 'zinc:gfx';
 import { readText } from 'zinc:assets';
 import { args } from 'zinc:sys';
+import * as fs from 'zinc:fs';
 import { parseProject, Project, Sequence } from './project';
 import { Player } from './player';
+import { Statistics } from './stats';
 
 /** The project, or when it cannot be read a table with nothing on it: the fault is logged for the staff and never shown to a visitor. */
 function load(): Project {
@@ -39,6 +44,15 @@ for (let i = 0; i < a.length; i++) {
   else if (a[i] === '--pins') player.pins = true;
   else if (a[i] === '--time') player.timing = true;
   else if (a[i] === '--stress' && i + 1 < a.length) player.stress = parseInt(a[++i], 10);
+  else if (a[i] === '--statistics' && i + 1 < a.length && project.kiosk.statistics) {
+    const dir = a[++i];
+    fs.mkdir(dir, true);
+    player.counting = new Statistics(
+      (day: string): string => fs.exists(`${dir}/${day}.csv`) ? fs.readText(`${dir}/${day}.csv`) : '',
+      (day: string, csv: string): void => {   // a disk that is full or gone is the staff's to know, and nothing a visitor sees
+        try { fs.writeText(`${dir}/${day}.csv`, csv); } catch (e) { console.error(`museum-table: statistics: ${e.message}`); }
+      });
+  }
 }
 if (project.kiosk.fullscreen) escapeByApp(true);   // a kiosk: Escape leads nowhere (the window itself is made a kiosk by ZINC_KIOSK=1 or zinc.json)
 

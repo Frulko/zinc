@@ -21,6 +21,16 @@ const WORDS: string[] = [
   'shut', 'Refermer', 'Close',
   'turn', 'Toucher ici pour tourner la table vers vous', 'Touch here to turn the table to you',
   'begin', 'Touchez la table pour commencer', 'Touch the table to begin',
+  'stats', 'Statistiques du jour', 'Statistics of the day',
+  'stats-visits', 'Visites', 'Visits',
+  'stats-length', 'Durée moyenne', 'Mean length',
+  'stats-hours', 'Par heure de début', 'By hour of beginning',
+  'stats-languages', 'Par langue', 'By language',
+  'stats-media', 'Images vues en entier', 'Pictures seen in full',
+  'stats-descriptions', 'Audiodescriptions', 'Audio descriptions',
+  'stats-points', 'Points d’intérêt ouverts', 'Points of interest opened',
+  'stats-ended', 'jusqu’au bout', 'to the end',
+  'stats-close', 'Toucher pour refermer. Ce geste n’est pas compté.', 'Touch to close. This gesture is not counted.',
 ];
 
 export function word(key: string, lang: string): string {
