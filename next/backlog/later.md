@@ -132,6 +132,11 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-570: `drawImage` is always bicubic; pixel-art games need nearest-neighbour when `imageSmoothingEnabled` is false.
 - ZN-570: no `Path2D`, no italic or bold synthesis, no bold monospaced face, no `toDataURL` (ZN-572).
 - ZN-570: the js-pixi, js-phaser and js-p5 examples can now use Text and a p5 2D sketch.
+- ZN-574: embed SDL_GameControllerDB (Zlib) in the window host; today an unknown pad is not seen.
+- ZN-574: read gamepads in display-gl's own event loop (`plugins/display-gl/src/sdl.cpp`); a program on that driver sees none.
+- ZN-574: try a real Xbox and a real PlayStation pad on the Mac (hot-plug, rumble, mapping); measure launch time and the first poll of the HID manager on a quiet machine (libzn_window grew by 391 KB).
+- ZN-574: Kaplay's `onGamepadButtonPress` (criterion 1) needs Kaplay in `tools/test-lib`.
+- ZN-649.07: play the pinball with a real gamepad and a cabinet encoder (I-PAC or Zero Delay), and check the default cabinet layout.
 
 ## Cross-platform pass
 
@@ -156,3 +161,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-450: send the asset reload messages over `zinc dev --device` (TCP instead of the socket pair).
 - ZN-570: run webenv_canvas2d and webenv_canvas2d_libs on ARM and Linux (flat-colour values come from float maths; SSIM is against the Mac's Chrome).
 - ZN-447: run the loader stage in the browser export (the worker's blocking frame loop should run it like the gfx loop) and on the ESP32 device core (it needs the asset host rows).
+- ZN-574: gamepads on Linux and Windows (frameworks and link line of the SDL joystick build, a real pad), with ZN-552's evdev hub.
