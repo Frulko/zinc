@@ -1,7 +1,7 @@
 ---
 id: ZN-712
 title: 'Examples that show the JavaScript libraries: three.js, Phaser, PixiJS, p5.js'
-status: Backlog
+status: Done
 assignee:
   - '@parallel'
 created_date: '2026-10-11 11:38'
