@@ -35,6 +35,7 @@
     {"paths": ["src/gl/", "src/qjs/script_native.cpp", "src/qjs/prelude.cpp", "src/qjs/ext.cpp", "plugins/script/", "../examples/webgl-studio/"], "tests": ["webgl_js", "webgl_surface", "three", "webgl_gizmo", "webgl_studio"]},
     {"paths": ["src/zpk/", "third_party/lz4/", "third_party/zstd/", "tests/unit/zpk_test.cpp", "tests/t0/zpk.sh", "tests/fuzz/fuzz_zpk.cpp"], "tests": ["zpk"]},
     {"paths": ["src/assets/", "third_party/xxhash/", "src/res/res.cpp", "src/res/res.h", "tests/unit/assets_test.cpp", "tests/t0/assets.sh"], "tests": ["assets"]},
+    {"paths": ["src/frontend/project.cpp", "src/frontend/project.h", "src/assets/", "../targets/capabilities.json", "tests/unit/project_test.cpp", "tests/t0/project_assets.sh"], "tests": ["project_assets"]},
     {"paths": ["src/tc/tc.cpp", "src/tc/tc.h", "third_party/monocypher/"], "tests": ["update_sign", "mirrors", "app_update", "tc"]},
     {"paths": ["tools/package", "tools/sign-macos"], "tests": ["package", "release_workflow"]},
     {"paths": ["src/gl/", "src/main.cpp", "CMakeLists.txt"], "tests": ["webgl_module", "webgl_js", "three"]},

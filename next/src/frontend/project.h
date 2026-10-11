@@ -1,11 +1,34 @@
 #pragma once
 // zinc.json: the manifest of a project (docs/guide/01-getting-started.md), read with yyjson. `zinc run` applies what concerns the host (window size,
 // zoom, resize mode, fullscreen, kiosk, growDrawCommands, the project directory) and reports the keys it does not know.
+#include <cstdint>
 #include <map>
 #include <string>
 #include <vector>
 
 namespace zn::frontend {
+
+// The game keys (ZN-435, docs/reports/games/toolchain-assets-loading.md §10). Everything is optional: a project without them builds as before.
+/** An asset build profile: `texture` (formats in preference order, `|` = the fallback), `maxSize`, `pot`, `audio` (music), `sfx`, `pack`
+ *  (none, lz4, zstd, zstd-dict), `split` (none, group); values as text ("2048", "true"). */
+using AssetProfile = std::map<std::string, std::string>;
+/** Limits of `zinc assets check` in bytes: `download`, `boot`, `gpu`, `ram`, `flash`. */
+using AssetBudgets = std::map<std::string, std::uint64_t>;
+struct AssetRule { std::string match, as; std::map<std::string, std::string> options; };   // options: the importer's, as text (arrays and objects as JSON)
+struct AssetGroup { std::string name; std::vector<std::string> include, exclude; int priority = 0; };
+struct Assets {
+  std::string dir = "assets";                       // `"assets": "dir"` or `assets.dir`
+  std::vector<AssetRule> rules;
+  std::vector<AssetGroup> groups;                   // in the manifest's order: the first group that includes an asset takes it
+  std::map<std::string, AssetProfile> profiles;
+  std::map<std::string, AssetBudgets> budgets;      // by target
+};
+/** `splash`: an image and/or a background colour shown from the first frame (ZN-446). */
+struct Splash { bool present = false; std::string image, background, fit = "contain"; int minMs = 0, fadeMs = 0; };
+/** `loading`: the screen (`default`, `bar` or a module) run while `groups` are preloaded before main (ZN-447). */
+struct Loading { bool present = false; std::string screen = "default"; std::vector<std::string> groups; int minMs = 0, fadeMs = 0; };
+/** `launcher`: a module exporting a stage, run before the game on `targets` (none: nowhere) (ZN-448). */
+struct Launcher { bool present = false; std::string entry; bool skippable = false; std::vector<std::string> targets; };
 
 struct TargetOptions {
   int width = 0, height = 0;        // 0: not set
@@ -15,6 +38,9 @@ struct TargetOptions {
   bool fullscreen = false, kiosk = false, growDrawCommands = false;
   long heap = 0;
   std::string display;              // the driver name ("" when absent), whether written as a string or as { driver }
+  std::string assetProfile;         // targets.<id>.assets.profile: a name of assets.profiles ("" = the target's default)
+  AssetProfile assets;              // the other keys of targets.<id>.assets: override the named profile
+  Splash splash;                    // targets.<id>.splash: replaces the project's splash on this target
 };
 
 /** `"app"` of zinc.json (ZN-231, docs/reports/system-integration.md 5.1): the identity of the app for bundles, the dock, URL schemes and the system modules. */
@@ -49,6 +75,10 @@ struct Project {
   std::string scopes;                              // "scopes" as JSON text ({"opener": {"allow": [...]}})
   std::map<std::string, std::vector<std::string>> targetPermissions;   // targets.<name>.permissions: additions, and `-id` removals for that target
   bool fatal = false;                              // parseProject failed on a manifest rule (not on JSON): the command must stop
+  Assets assets;
+  Splash splash;
+  Loading loading;
+  Launcher launcher;
   std::map<std::string, TargetOptions> targets;
   std::vector<std::string> warnings;  // unknown keys, one message each
 };
@@ -83,6 +113,16 @@ bool directLayoutUse();
 
 // Parses the manifest text. False with `err` set when it is not a JSON object or a typed key has the wrong type.
 bool parseProject(const std::string& text, Project& out, std::string& err);
+
+/** The asset profile in force on one target: its default (the `assets` entry of targets/capabilities.json), then the profile
+ *  targets.<id>.assets names, then that object's own keys; budgets: the default's, then assets.budgets.<id>. */
+struct TargetAssets { std::string target, profile = "default"; AssetProfile keys; AssetBudgets budgets; };
+/** One row per target of targets/capabilities.json (`capabilities`: its text), in its order. False with `err` when an entry is not valid. */
+bool assetProfiles(const Project& p, const std::string& capabilities, std::vector<TargetAssets>& out, std::string& err);
+/** 48MB, 96KB, 1GB, 512B or a number of bytes (KB = 1024 B). */
+bool parseByteSize(const std::string& s, std::uint64_t& bytes);
+/** The shortest exact form of `bytes` in those units: "48MB". */
+std::string byteSize(std::uint64_t bytes);
 
 // The zinc.json that governs `path` (a file or a directory): its own directory first, then each parent. "" when there is none.
 std::string findProjectFile(const std::string& path);

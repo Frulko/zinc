@@ -58,8 +58,9 @@ int dev(const std::vector<std::string>& args);
 /** `zinc monitor [file | --port /dev/tty... [--baud n] | --udp port]`: telemetry JSON lines (zinc:telemetry) from stdin, a file, a serial port or UDP, one readable line each; other lines pass through. */
 int monitor(const std::vector<std::string>& args);
 
-/** `zinc assets build [dir] [--target T] [--release] [-o dir]` (ZN-434): the packs and report.json of a project's assets. */
-int assets(const std::vector<std::string>& args);
+/** `zinc assets build [dir] [--target T] [--release]` (ZN-434): the packs and report.json of a project's assets; `zinc assets info [dir]
+ *  [--target T]` (ZN-435): the asset profile and budgets in force on each target (targets/capabilities.json under zinc.json). */
+int assets(const std::vector<std::string>& args, const std::string& engineRoot);
 /** The asset build of the project in `dir` (zinc pack, build and export call it): <dir>/build/assets/<target>, the release profile compressing
  *  the packs. True with nothing done when the project has no assets directory; `summary` gets the line zinc assets build prints. */
 bool buildAssets(const std::string& dir, const std::string& target, bool release, std::string& err, std::string* summary = nullptr);

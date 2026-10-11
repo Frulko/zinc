@@ -46,7 +46,269 @@ bool reverseDns(const std::string& id) {   // com.example.notes: two or more dot
 const std::vector<std::string>* gGranted = nullptr;
 std::string gAppJson;
 
+// ---------------------------------------------------------------- the game keys (ZN-435)
+// Formats and codecs a profile may name (docs/reports/games/toolchain-assets-loading.md §3); what follows a ':' is the encoder's setting
+// (ktx2:uastc, opus:96). A name joins the list with its encoder.
+const std::vector<std::string> kTextureFormats = {"rgba8", "rgb565", "rgba4444", "rgba5551", "bc1", "bc3", "bc7", "etc1", "etc1a4", "etc2", "astc", "pvrtc", "clut4", "clut8", "ktx2"};
+const std::vector<std::string> kAudioCodecs = {"pcm", "opus", "vorbis", "mp3", "aac", "qoa", "adpcm", "vag", "dsp-adpcm", "atrac3"};
+const std::vector<std::string> kBudgetKeys = {"download", "boot", "gpu", "ram", "flash"};
+
+bool oneOf(const std::string& v, const std::vector<std::string>& names) { return std::find(names.begin(), names.end(), v) != names.end(); }
+std::string joined(const std::vector<std::string>& names) { std::string s; for (const std::string& n : names) s += (s.empty() ? "" : ", ") + n; return s; }
+std::string str(yyjson_val* v) { return yyjson_is_str(v) ? yyjson_get_str(v) : ""; }
+std::string jsonText(yyjson_val* v) { char* js = yyjson_val_write(v, 0, nullptr); std::string s = js ? js : ""; std::free(js); return s; }
+bool strList(yyjson_val* v, std::vector<std::string>& dst) {
+  if (!yyjson_is_arr(v)) return false;
+  size_t i, n; yyjson_val* e;
+  yyjson_arr_foreach(v, i, n, e) { if (!yyjson_is_str(e)) return false; dst.push_back(yyjson_get_str(e)); }
+  return true;
+}
+bool millis(yyjson_val* v, int& dst) { if (!yyjson_is_uint(v) || yyjson_get_uint(v) > 600000) return false; dst = static_cast<int>(yyjson_get_uint(v)); return true; }
+bool colour(const std::string& c) {   // #rgb, #rrggbb, #rrggbbaa
+  if (c.size() != 4 && c.size() != 7 && c.size() != 9) return false;
+  return c[0] == '#' && std::all_of(c.begin() + 1, c.end(), [](char x) { return std::isxdigit(static_cast<unsigned char>(x)) != 0; });
+}
+
+/** A failed key: `key` locates its line in the manifest, `msg` says what is wrong. */
+struct Bad { std::string key, msg; };
+
+/** The keys of an asset profile at `where` (assets.profiles.<name>, targets.<id>.assets, a target's default); `skip` is a key the caller
+ *  reads. Unknown keys are warnings when `warnings` is given. */
+bool profileKeys(yyjson_val* o, const std::string& where, AssetProfile& dst, std::vector<std::string>* warnings, Bad& bad, const char* skip) {
+  size_t i, n; yyjson_val *k, *v;
+  yyjson_obj_foreach(o, i, n, k, v) {
+    const std::string key = yyjson_get_str(k), at = where + "." + key, s = str(v);
+    auto fail = [&](const std::string& msg) { bad = {key, at + " " + msg}; return false; };
+    if (skip && key == skip) continue;
+    if (key == "texture") {
+      if (s.empty()) return fail("must be texture formats in preference order, like \"bc7|bc1\"");
+      for (std::size_t from = 0; from <= s.size();) {
+        const std::size_t bar = std::min(s.find('|', from), s.size());
+        const std::string f = s.substr(from, bar - from), name = f.substr(0, f.find(':'));
+        if (!oneOf(name, kTextureFormats)) return fail("names \"" + f + "\", not a texture format (" + joined(kTextureFormats) + ")");
+        from = bar + 1;
+      }
+      dst[key] = s;
+    } else if (key == "audio" || key == "sfx") {
+      if (!oneOf(s.substr(0, s.find(':')), kAudioCodecs)) return fail("must be an audio codec with an optional setting, like \"opus:96\" (" + joined(kAudioCodecs) + ")");
+      dst[key] = s;
+    } else if (key == "maxSize") {
+      if (!yyjson_is_uint(v) || yyjson_get_uint(v) < 1 || yyjson_get_uint(v) > 16384) return fail("must be a number of pixels from 1 to 16384");
+      dst[key] = std::to_string(yyjson_get_uint(v));
+    } else if (key == "pot") {
+      if (!yyjson_is_bool(v)) return fail("must be true or false");
+      dst[key] = yyjson_get_bool(v) ? "true" : "false";
+    } else if (key == "pack") {
+      if (!oneOf(s, {"none", "lz4", "zstd", "zstd-dict"})) return fail("must be \"none\", \"lz4\", \"zstd\" or \"zstd-dict\"");
+      dst[key] = s;
+    } else if (key == "split") {
+      if (!oneOf(s, {"none", "group"})) return fail("must be \"none\" or \"group\"");
+      dst[key] = s;
+    } else if (warnings) warnings->push_back("unknown key \"" + at + "\"");
+  }
+  return true;
+}
+
+bool budgetKeys(yyjson_val* o, const std::string& where, AssetBudgets& dst, Bad& bad) {
+  if (!yyjson_is_obj(o)) { bad = {"budgets", where + " must be an object of limits: { \"download\": \"48MB\", ... }"}; return false; }
+  size_t i, n; yyjson_val *k, *v;
+  yyjson_obj_foreach(o, i, n, k, v) {
+    const std::string key = yyjson_get_str(k);
+    std::uint64_t bytes = 0;
+    if (!oneOf(key, kBudgetKeys)) { bad = {key, where + "." + key + " is not a budget (" + joined(kBudgetKeys) + ")"}; return false; }
+    if (yyjson_is_uint(v)) bytes = yyjson_get_uint(v);
+    else if (!yyjson_is_str(v) || !parseByteSize(yyjson_get_str(v), bytes)) { bad = {key, where + "." + key + " must be a size: a number of bytes or a string like \"48MB\" (B, KB, MB, GB)"}; return false; }
+    dst[key] = bytes;
+  }
+  return true;
+}
+
+bool splashOf(yyjson_val* v, const std::string& where, Splash& dst, std::vector<std::string>& warnings, Bad& bad) {
+  dst.present = true;
+  if (yyjson_is_str(v)) { dst.image = yyjson_get_str(v); return true; }
+  if (!yyjson_is_obj(v)) { bad = {"splash", where + " must be an image path or an object: { \"image\", \"background\", \"fit\", \"minMs\", \"fadeMs\" }"}; return false; }
+  size_t i, n; yyjson_val *k, *x;
+  yyjson_obj_foreach(v, i, n, k, x) {
+    const std::string key = yyjson_get_str(k), at = where + "." + key;
+    auto fail = [&](const std::string& msg) { bad = {key, at + " " + msg}; return false; };
+    if (key == "image") { if (!yyjson_is_str(x)) return fail("must be a path"); dst.image = yyjson_get_str(x); }
+    else if (key == "background") { if (!colour(str(x))) return fail("must be a colour: \"#rgb\", \"#rrggbb\" or \"#rrggbbaa\""); dst.background = str(x); }
+    else if (key == "fit") { if (!oneOf(str(x), {"contain", "cover", "center"})) return fail("must be \"contain\", \"cover\" or \"center\""); dst.fit = str(x); }
+    else if (key == "minMs" || key == "fadeMs") { if (!millis(x, key == "minMs" ? dst.minMs : dst.fadeMs)) return fail("must be a number of milliseconds from 0 to 600000"); }
+    else warnings.push_back("unknown key \"" + at + "\"");
+  }
+  if (dst.image.empty() && dst.background.empty()) { bad = {"splash", where + " needs an \"image\" or a \"background\""}; return false; }
+  return true;
+}
+
+/** assets, splash, loading, launcher, targets.<id>.assets and targets.<id>.splash; every error names its key and is fatal. */
+bool parseGameKeys(yyjson_val* root, const std::string& text, Project& out, std::string& err) {
+  Bad bad;
+  auto fail = [&](const std::string& key, const std::string& msg) { out.fatal = true; err = "line " + std::to_string(lineOf(text, key)) + ": " + msg; return false; };
+  auto failBad = [&]() { return fail(bad.key, bad.msg); };
+  auto unknown = [&](const std::string& at) { out.warnings.push_back("unknown key \"" + at + "\""); };
+  Assets& a = out.assets;
+  if (yyjson_val* as = yyjson_obj_get(root, "assets")) {
+    if (yyjson_is_str(as)) a.dir = yyjson_get_str(as);
+    else if (!yyjson_is_obj(as)) return fail("assets", "\"assets\" must be the assets directory or an object: { \"dir\", \"rules\", \"groups\", \"profiles\", \"budgets\" }");
+    size_t i, n; yyjson_val *k, *v;
+    if (yyjson_is_obj(as)) yyjson_obj_foreach(as, i, n, k, v) {
+      const std::string key = yyjson_get_str(k);
+      if (key == "dir") { if (str(v).empty()) return fail(key, "assets.dir must be the assets directory, relative to the project"); a.dir = str(v); }
+      else if (key == "rules") {
+        if (!yyjson_is_arr(v)) return fail(key, "assets.rules must be an array of { \"match\", \"as\", options... }");
+        size_t ri, rn; yyjson_val* r;
+        yyjson_arr_foreach(v, ri, rn, r) {
+          const std::string at = "assets.rules[" + std::to_string(ri) + "]";
+          if (!yyjson_is_obj(r)) return fail(key, at + " must be an object: { \"match\", \"as\", options... }");
+          AssetRule rule;
+          size_t oi, on; yyjson_val *ok, *ov;
+          yyjson_obj_foreach(r, oi, on, ok, ov) {
+            const std::string opt = yyjson_get_str(ok);
+            if ((opt == "match" || opt == "as") && !yyjson_is_str(ov)) return fail(opt, at + "." + opt + " must be a string");
+            if (opt == "match") rule.match = yyjson_get_str(ov);
+            else if (opt == "as") rule.as = yyjson_get_str(ov);
+            else rule.options[opt] = yyjson_is_str(ov) ? yyjson_get_str(ov) : jsonText(ov);
+          }
+          if (rule.match.empty()) return fail(key, at + " needs \"match\": a glob of the files it applies to");
+          a.rules.push_back(std::move(rule));
+        }
+      } else if (key == "groups") {
+        if (!yyjson_is_obj(v)) return fail(key, "assets.groups must be an object: { \"<name>\": { \"include\": [globs] } }");
+        size_t gi, gn; yyjson_val *gk, *gv;
+        yyjson_obj_foreach(v, gi, gn, gk, gv) {
+          AssetGroup g;
+          g.name = yyjson_get_str(gk);
+          const std::string at = "assets.groups." + g.name;
+          if (!yyjson_is_obj(gv) || !strList(yyjson_obj_get(gv, "include"), g.include)) return fail(g.name, at + " needs \"include\": an array of globs");
+          size_t fi, fn; yyjson_val *fk, *fv;
+          yyjson_obj_foreach(gv, fi, fn, fk, fv) {
+            const std::string f = yyjson_get_str(fk);
+            if (f == "exclude") { if (!strList(fv, g.exclude)) return fail(f, at + ".exclude must be an array of globs"); }
+            else if (f == "priority") { if (!yyjson_is_int(fv)) return fail(f, at + ".priority must be an integer"); g.priority = static_cast<int>(yyjson_get_int(fv)); }
+            else if (f != "include") unknown(at + "." + f);
+          }
+          a.groups.push_back(std::move(g));
+        }
+      } else if (key == "profiles") {
+        if (!yyjson_is_obj(v)) return fail(key, "assets.profiles must be an object: { \"<name>\": { \"texture\", \"maxSize\", \"pot\", \"audio\", \"sfx\", \"pack\", \"split\" } }");
+        size_t pi, pn; yyjson_val *pk, *pv;
+        yyjson_obj_foreach(v, pi, pn, pk, pv) {
+          const std::string name = yyjson_get_str(pk);
+          if (!yyjson_is_obj(pv)) return fail(name, "assets.profiles." + name + " must be an object");
+          if (!profileKeys(pv, "assets.profiles." + name, a.profiles[name], &out.warnings, bad, nullptr)) return failBad();
+        }
+      } else if (key == "budgets") {
+        if (!yyjson_is_obj(v)) return fail(key, "assets.budgets must be an object: { \"<target>\": { \"download\", \"boot\", \"gpu\", \"ram\", \"flash\" } }");
+        size_t bi, bn; yyjson_val *bk, *bv;
+        yyjson_obj_foreach(v, bi, bn, bk, bv) if (!budgetKeys(bv, std::string("assets.budgets.") + yyjson_get_str(bk), a.budgets[yyjson_get_str(bk)], bad)) return failBad();
+      } else unknown("assets." + key);
+    }
+    if (a.dir.empty()) return fail("assets", "\"assets\" must name the assets directory");
+  }
+  if (yyjson_val* s = yyjson_obj_get(root, "splash"); s && !splashOf(s, "splash", out.splash, out.warnings, bad)) return failBad();
+  if (yyjson_val* l = yyjson_obj_get(root, "loading")) {
+    Loading& ld = out.loading;
+    ld.present = true;
+    if (!yyjson_is_obj(l)) return fail("loading", "\"loading\" must be an object: { \"screen\", \"groups\", \"minMs\", \"fadeMs\" }");
+    size_t i, n; yyjson_val *k, *v;
+    yyjson_obj_foreach(l, i, n, k, v) {
+      const std::string key = yyjson_get_str(k);
+      if (key == "screen") { if (str(v).empty()) return fail(key, "loading.screen must be \"default\", \"bar\" or a module"); ld.screen = str(v); }
+      else if (key == "groups") {
+        if (!strList(v, ld.groups)) return fail(key, "loading.groups must be an array of group names");
+        for (const std::string& g : ld.groups)
+          if (g != "default" && std::none_of(a.groups.begin(), a.groups.end(), [&](const AssetGroup& x) { return x.name == g; }))
+            return fail(g, "loading.groups names \"" + g + "\", which assets.groups does not define");
+      } else if (key == "minMs" || key == "fadeMs") { if (!millis(v, key == "minMs" ? ld.minMs : ld.fadeMs)) return fail(key, "loading." + key + " must be a number of milliseconds from 0 to 600000"); }
+      else unknown("loading." + key);
+    }
+  }
+  if (yyjson_val* l = yyjson_obj_get(root, "launcher")) {
+    Launcher& la = out.launcher;
+    la.present = true;
+    if (!yyjson_is_obj(l)) return fail("launcher", "\"launcher\" must be an object: { \"entry\", \"skippable\", \"targets\" }");
+    size_t i, n; yyjson_val *k, *v;
+    yyjson_obj_foreach(l, i, n, k, v) {
+      const std::string key = yyjson_get_str(k);
+      if (key == "entry") la.entry = str(v);
+      else if (key == "skippable") { if (!yyjson_is_bool(v)) return fail(key, "launcher.skippable must be true or false"); la.skippable = yyjson_get_bool(v); }
+      else if (key == "targets") { if (!strList(v, la.targets)) return fail(key, "launcher.targets must be an array of target names"); }
+      else unknown("launcher." + key);
+    }
+    if (la.entry.empty()) return fail("launcher", "launcher.entry must name the launcher's module, like \"src/launcher.tsx\"");
+  }
+  if (yyjson_val* t = yyjson_obj_get(root, "targets"); yyjson_is_obj(t)) {
+    size_t i, n; yyjson_val *k, *v;
+    yyjson_obj_foreach(t, i, n, k, v) {
+      const std::string id = yyjson_get_str(k), at = "targets." + id;
+      TargetOptions& o = out.targets[id];
+      if (yyjson_val* x = yyjson_obj_get(v, "splash"); x && !splashOf(x, at + ".splash", o.splash, out.warnings, bad)) return failBad();
+      yyjson_val* x = yyjson_obj_get(v, "assets");
+      if (!x) continue;
+      if (!yyjson_is_obj(x)) return fail(id, at + ".assets must be an object: { \"profile\", profile keys... }");
+      if (yyjson_val* pr = yyjson_obj_get(x, "profile")) {
+        o.assetProfile = str(pr);
+        if (!a.profiles.count(o.assetProfile)) return fail("profile", at + ".assets.profile names \"" + o.assetProfile + "\", which assets.profiles does not define");
+      }
+      if (!profileKeys(x, at + ".assets", o.assets, &out.warnings, bad, "profile")) return failBad();
+    }
+  }
+  return true;
+}
+
 }  // namespace
+
+bool parseByteSize(const std::string& s, std::uint64_t& bytes) {
+  std::size_t i = 0;
+  while (i < s.size() && (std::isdigit(static_cast<unsigned char>(s[i])) || s[i] == '.')) ++i;
+  if (i == 0 || std::count(s.begin(), s.begin() + static_cast<long>(i), '.') > 1 || s[0] == '.') return false;
+  std::string unit = s.substr(i);
+  for (char& c : unit) c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+  const double scale = unit.empty() || unit == "B" ? 1 : unit == "KB" ? 1024.0 : unit == "MB" ? 1048576.0 : unit == "GB" ? 1073741824.0 : 0;
+  const double v = std::strtod(s.substr(0, i).c_str(), nullptr) * scale;
+  if (scale == 0 || v >= 1.8e19) return false;
+  bytes = static_cast<std::uint64_t>(v);
+  return true;
+}
+
+std::string byteSize(std::uint64_t b) {
+  static const std::pair<const char*, std::uint64_t> units[] = {{"GB", 1ull << 30}, {"MB", 1ull << 20}, {"KB", 1ull << 10}};
+  for (const auto& [unit, size] : units)
+    if (b && b % size == 0) return std::to_string(b / size) + unit;
+  return std::to_string(b) + "B";
+}
+
+bool assetProfiles(const Project& p, const std::string& capabilities, std::vector<TargetAssets>& out, std::string& err) {
+  yyjson_doc* doc = yyjson_read(capabilities.data(), capabilities.size(), 0);
+  if (!doc) { err = "targets/capabilities.json is not valid JSON"; return false; }
+  struct Free { yyjson_doc* d; ~Free() { yyjson_doc_free(d); } } guard{doc};
+  size_t i, n; yyjson_val *k, *v;
+  yyjson_obj_foreach(yyjson_doc_get_root(doc), i, n, k, v) {
+    if (!yyjson_is_obj(v)) continue;   // $comment
+    TargetAssets t;
+    t.target = yyjson_get_str(k);
+    Bad bad;
+    if (yyjson_val* d = yyjson_obj_get(v, "assets")) {
+      yyjson_val* b = yyjson_obj_get(d, "budgets");
+      if (!yyjson_is_obj(d) || !profileKeys(d, t.target + ".assets", t.keys, nullptr, bad, "budgets") || (b && !budgetKeys(b, t.target + ".assets.budgets", t.budgets, bad))) {
+        err = "targets/capabilities.json: " + (bad.msg.empty() ? t.target + ".assets must be an object" : bad.msg);
+        return false;
+      }
+    }
+    if (auto o = p.targets.find(t.target); o != p.targets.end()) {
+      if (!o->second.assetProfile.empty()) {
+        t.profile = o->second.assetProfile;
+        for (const auto& [key, val] : p.assets.profiles.at(t.profile)) t.keys[key] = val;   // parseProject checked the name
+      }
+      for (const auto& [key, val] : o->second.assets) t.keys[key] = val;
+    }
+    if (auto b = p.assets.budgets.find(t.target); b != p.assets.budgets.end())
+      for (const auto& [key, val] : b->second) t.budgets[key] = val;
+    out.push_back(std::move(t));
+  }
+  return true;
+}
 
 const std::vector<std::string>& systemFeatures() {
   static const std::vector<std::string> f = {"notification", "menu", "tray", "dialog", "window", "shortcut", "instance", "deep-link", "autostart", "dock", "power", "clipboard", "opener", "update"};
@@ -219,7 +481,7 @@ bool parseProject(const std::string& text, Project& out, std::string& err) {
     size_t i, n; yyjson_val *k, *v;
     yyjson_obj_foreach(t, i, n, k, v) if (yyjson_val* pm = yyjson_obj_get(v, "permissions")) if (!permissionList(pm, out.targetPermissions[yyjson_get_str(k)], "targets.<name>.permissions")) return false;
   }
-  static const char* known[] = {"app", "permissions", "scopes", "name", "entry", "main", "assets", "version", "id", "icon", "crash", "display", "plugins", "pluginDirs", "targets", "board", "requires", "text", "scheme", "webgl", "web", "keyboard", "bench", "description", "profile", "ui", "icons", "template", "update", "signing", "lock", "pluginCompiler", "dependencies", "policy", "dev"};
+  static const char* known[] = {"app", "permissions", "scopes", "name", "entry", "main", "assets", "version", "id", "icon", "crash", "display", "plugins", "pluginDirs", "targets", "board", "requires", "text", "scheme", "webgl", "web", "keyboard", "bench", "description", "profile", "ui", "icons", "template", "update", "signing", "lock", "pluginCompiler", "dependencies", "policy", "dev", "splash", "loading", "launcher"};
   size_t i, n;
   yyjson_val *k, *v;
   yyjson_obj_foreach(root, i, n, k, v) {
@@ -227,7 +489,7 @@ bool parseProject(const std::string& text, Project& out, std::string& err) {
     for (const char* key : known) if (!std::strcmp(yyjson_get_str(k), key)) ok = true;
     if (!ok) out.warnings.push_back(std::string("unknown key \"") + yyjson_get_str(k) + "\"");
   }
-  return true;
+  return parseGameKeys(root, text, out, err);
 }
 
 std::string findProjectFile(const std::string& path) {

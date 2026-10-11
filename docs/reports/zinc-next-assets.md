@@ -6,15 +6,52 @@ kept in a cache shared by every project. The design is section 4 of `docs/report
 
 ```sh
 zinc assets build [dir] [--target T] [--release]   # build/assets/<target>/<group>.zpk and report.json (T: this machine by default)
+zinc assets info [dir] [--target T]                # the asset profile and budgets in force on each target
 ```
 
 `zinc pack` and `zinc build` run it for their machine or `--target`, `zinc export` with the release profile for its target. A project without
-an `assets` directory has nothing to build.
+an assets directory (`assets/`, or `zinc.json` `assets.dir`) has nothing to build.
+
+## zinc.json
+
+The keys (ZN-435, `src/frontend/project.cpp`, design: section 10 of `docs/reports/games/toolchain-assets-loading.md`) are all optional; a
+project without them builds the same packs as before. A malformed key stops `zinc run`, `build`, `pack`, `export` and `zinc assets` with its
+line; an unknown key inside them is a warning.
+
+```json
+"assets": {
+  "dir": "assets",
+  "rules": [{ "match": "sprites/**/*.png", "as": "image", "format": "rgba4444" }],
+  "groups": { "boot": { "include": ["fonts/**", "ui/**"], "exclude": ["ui/big/**"], "priority": 1 } },
+  "profiles": { "pi": { "texture": "etc1|rgba4444", "maxSize": 1024, "pot": false, "audio": "vorbis:q2", "sfx": "adpcm", "pack": "lz4", "split": "none" } },
+  "budgets": { "rpi1": { "download": "48MB", "boot": "4MB", "gpu": "40MB", "ram": "150MB", "flash": "2MB" } }
+},
+"splash": { "image": "assets/splash.png", "background": "#101418", "fit": "contain", "minMs": 0, "fadeMs": 150 },
+"loading": { "screen": "default", "groups": ["boot"], "minMs": 300, "fadeMs": 150 },
+"launcher": { "entry": "src/launcher.tsx", "skippable": true, "targets": ["macos", "linux"] },
+"targets": { "rpi1": { "assets": { "profile": "pi", "maxSize": 512 }, "splash": "assets/splash-pi.png" } }
+```
+
+- `assets` may be a string, the directory (the prototype's form). A rule's keys other than `match` and `as` are the importer's options (arrays
+  and objects kept as JSON text). Groups keep the manifest's order: the first that includes an asset and does not exclude it takes it.
+- A profile names texture formats in preference order (`|`: the fallback; rgba8, rgb565, rgba4444, rgba5551, bc1, bc3, bc7, etc1, etc1a4,
+  etc2, astc, pvrtc, clut4, clut8, ktx2), the music (`audio`) and effect (`sfx`) codecs (pcm, opus, vorbis, mp3, aac, qoa, adpcm, vag,
+  dsp-adpcm, atrac3), a setting after `:` (`opus:96`, `ktx2:uastc`); `maxSize` 1 to 16384; `pack` none, lz4, zstd or zstd-dict; `split` none
+  or group. Budgets are bytes or sizes with B, KB, MB, GB (1024-based).
+- `loading.groups` must name groups of `assets.groups` (or `default`); `targets.<id>.assets.profile` a profile of `assets.profiles`.
+- The profile in force on a target (`zinc assets info`): the target's default, the `assets` entry of `targets/capabilities.json` (formats its
+  GPU takes, max texture size, POT, the audio codecs it decodes cheaply, the pack codec, budgets; section 3 and 6.6 of the design, starting
+  values until measured on each device), then the profile `targets.<id>.assets` names, then that object's own keys; budgets: the default's,
+  then `assets.budgets.<id>`, key by key.
+
+The build uses `dir`, `rules` and `groups` now; the profiles drive the encoders when they come (ZN-439 textures, the audio importers, the pack
+codec per target), the budgets `zinc assets check` (ZN-437), `splash` the engine splash (ZN-446), `loading` the loader stage (ZN-447),
+`launcher` the pre-launcher (ZN-448).
 
 ## Importers, rules, groups
 
 Every file under `assets/` (hidden files and directories excepted) goes to one importer. The built-in rules send PNG, JPEG, WebP and SVG to
-`image` and everything else to `copy`; the project's rules (`zinc.json` `assets.rules`, parsed from ZN-435) come after them, and every rule that
+`image` and everything else to `copy`; the project's rules (`zinc.json` `assets.rules`) come after them, and every rule that
 matches a path applies in order, a later one overriding an earlier one's options. Globs: `*` and `?` within a name, `**` across directories,
 `{a,b}` alternatives.
 
@@ -29,7 +66,7 @@ u32 height; then the rows top to bottom (16-bit pixels: red in the high bits, `R
 The font baker (`src/res`, `zinc-next-resources.md`) is the third built-in importer: its inputs are the program's sources, so the program
 build calls it (`bakeResources`: `zinc run`, `pack`, `build`, `export`, `bake`) through the same cache; its blob is not a pack entry yet.
 
-Each group (`zinc.json` `assets.groups`, ZN-435) becomes `<group>.zpk`; an asset no group includes goes to `default.zpk`. The entries keep their
+Each group (`zinc.json` `assets.groups`) becomes `<group>.zpk`; an asset no group takes goes to `default.zpk`. The entries keep their
 path as name and their importer's kind (0 data, 1 image, 2 fonts). Packs of groups that are gone are removed.
 
 ## The cache
@@ -48,8 +85,8 @@ and with any `ZINC_HOME` (`tests/t0/assets.sh`).
 
 ## Profiles
 
-`dev` (the default) stores entries as they are; `release` compresses them with zstd (level 19). Texture encoders, audio codecs and the profiles
-of `zinc.json` (`assets.profiles`, per-target defaults in `targets/capabilities.json`) come with ZN-435 and ZN-439.
+`dev` (the default) stores entries as they are; `release` compresses them with zstd (level 19). The encoder profiles of `zinc.json` and
+`targets/capabilities.json` (above) are parsed and shown by `zinc assets info`; texture encoders and audio codecs come with ZN-439.
 
 ## The report
 

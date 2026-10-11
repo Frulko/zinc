@@ -66,7 +66,7 @@ const Command kCommands[] = {
   {"test", "zinc test [--profile P] [--runner interp|aot|quickjs|esp32-qemu|devicesim] [dir]", "run the test files of a project", "Runs the *.test.ts / test-*.ts files and the conformance programs against their goldens: those of dir, else of the project in the current directory, else the engine's tests/conformance."},
   {"new", "zinc new [template|path|git-url|gh:user/repo[@ref]] <dir> | zinc new --list", "create a project from a template", "Copies templates/<template>/ ({{name}}, {{id}} and {{ident}} filled in the files and their names; or a template directory, or a git repository cloned at its default branch or @ref, its commit recorded in zinc.json \"template\"; nothing of the template is run) (zinc.json, sources, assets, tests, README) into a new or empty directory, filling {{name}} and {{id}}, and writes tsconfig.json for this machine. Default template: game; --list prints the templates with their targets. zinc new plugin <dir>: a plugin repository to publish (docs/plugins.md, \"Plugin starter\")."},
   {"pack", "zinc pack [dir] [-o app.zapp]", "one runnable file per app", "Writes build/<name>.zapp: a deterministic ustar with the compiled program, its baked fonts and images, its assets and zinc.json, every file listed with its SHA-256 in manifest.json (and a signature slot). zinc run app.zapp checks and runs it (docs/zapp.md)."},
-  {"assets", "zinc assets build [dir] [--target T] [--release]", "build the asset packs", "Imports every file of the project's assets directory (images to premultiplied RGBA, the rest copied as is) and writes one ZPK pack per group with report.json (each asset's importer, group, source and output bytes, time) into build/assets/<target> (default: this machine). Artifacts are kept by content in ~/.zinc/cache/assets, so a second build of an unchanged project runs no importer and a changed file is imported alone. --release compresses the packs with zstd. zinc pack and zinc build do it for this machine, zinc export (release) for its target (docs/reports/zinc-next-assets.md)."},
+  {"assets", "zinc assets build|info [dir] [--target T] [--release]", "build the asset packs", "zinc assets info prints the asset profile (texture formats, max size, audio codecs, pack codec) and the budgets in force on each target: targets/capabilities.json, then zinc.json assets.profiles, targets.<id>.assets and assets.budgets. zinc assets build imports every file of the project's assets directory (zinc.json assets.dir; its assets.rules and assets.groups choose importers and packs) (images to premultiplied RGBA, the rest copied as is) and writes one ZPK pack per group with report.json (each asset's importer, group, source and output bytes, time) into build/assets/<target> (default: this machine). Artifacts are kept by content in ~/.zinc/cache/assets, so a second build of an unchanged project runs no importer and a changed file is imported alone. --release compresses the packs with zstd. zinc pack and zinc build do it for this machine, zinc export (release) for its target (docs/reports/zinc-next-assets.md)."},
   {"fuse", "zinc fuse app.zapp [-o app]", "one executable per app", "Appends the .zapp to this engine: the result runs the app on a machine without zinc, its arguments going to the app (LOVE's fused mode). This machine's target only for now (ZN-392); zinc export builds with the AOT."},
   {"publish", "zinc publish [dir] --key <seed-hex> [--channel stable|beta] [--notes text] [-o dir] | [--itch user/game[:suffix]] [--site dir] [--dry-run]", "publish an app update, to itch.io or a download page", "Packs the app (zinc pack) and writes <channel>.manifest beside it, signed with the app's Ed25519 key (zinc update-keygen; its public key is zinc.json update.publicKey). Serve the directory at zinc.json update.url. --itch pushes every export directory of dist/ with itch.io's butler (pinned, fetched and checked once; channels mac, linux-arm64, linux-rpi..., html5, plus -suffix); --dry-run prints the butler commands and uploads nothing. --site writes a static download page: one button per artifact of dist/ (export directories as .tar.gz, .dmg, .deb, .zapp) with its size and SHA-256, and SHA256SUMS."},
   {"update-app", "zinc update-app [dir] [--check] [--channel C]", "update an app from its channel", "Fetches the channel manifest of zinc.json update, verifies its signature with the app's key, refuses an older version, downloads the .zapp and checks its SHA-256 (into ~/.zinc/apps/<id>/updates). --check exits 10 when an update exists."},
@@ -1934,8 +1934,19 @@ std::string engineBuild() {   // two builds of the engine share a version, not a
   return ec ? "unknown" : std::to_string(std::chrono::duration_cast<std::chrono::nanoseconds>(t.time_since_epoch()).count()) + " " + std::to_string(fs::file_size(e, ec));
 }
 
+/** The project's zinc.json (none: the defaults). False with `err` when it breaks a manifest rule (a malformed "assets" key...). */
+bool readProject(const fs::path& project, zn::frontend::Project& p, std::string& err) {
+  const std::string text = readAll(project / "zinc.json");
+  if (text.empty() || zn::frontend::parseProject(text, p, err) || !p.fatal) { err.clear(); return true; }
+  err = (project / "zinc.json").string() + ": " + err;
+  return false;
+}
+
 bool buildAssets(const std::string& dir, const std::string& target, bool release, std::string& err, std::string* summary) {
-  const fs::path project = fs::absolute(dir).lexically_normal(), src = project / "assets";
+  const fs::path project = fs::absolute(dir).lexically_normal();
+  zn::frontend::Project proj;
+  if (!readProject(project, proj, err)) return false;
+  const fs::path src = project / proj.assets.dir;
   std::error_code ec;
   if (!fs::is_directory(src, ec)) return true;
   zn::assets::Options o;
@@ -1945,6 +1956,8 @@ bool buildAssets(const std::string& dir, const std::string& target, bool release
   o.tool = engineBuild();
   o.target = target;
   o.profile = release ? "release" : "dev";
+  for (const auto& r : proj.assets.rules) o.rules.push_back({r.match, r.as, r.options});
+  for (const auto& g : proj.assets.groups) o.groups.push_back({g.name, g.include, g.exclude});
   zn::assets::Report r;
   if (!zn::assets::build(o, r, err)) return false;
   std::uint64_t bytes = 0;
@@ -1956,22 +1969,51 @@ bool buildAssets(const std::string& dir, const std::string& target, bool release
   return true;
 }
 
-int assets(const std::vector<std::string>& args) {
-  const char* usage = "usage: zinc assets build [dir] [--target T] [--release]\n";
-  if (args.size() < 3 || args[2] != "build") { std::fprintf(stderr, "%s", usage); return 2; }
-  std::vector<std::string> rest(args.begin() + 1, args.end());   // parseOpts reads from the third word: the one after "build"
+/** zinc assets info: the profile and budgets in force on each target (or on --target T), one line each. */
+int assetsInfo(const fs::path& project, const std::string& only, const std::string& engineRoot) {
+  zn::frontend::Project proj;
+  std::string err;
+  if (!readProject(project, proj, err)) { std::fprintf(stderr, "zinc assets: %s\n", err.c_str()); return 2; }
+  for (const std::string& w : proj.warnings) std::fprintf(stderr, "zinc assets: %s: %s\n", (project / "zinc.json").c_str(), w.c_str());
+  std::vector<zn::frontend::TargetAssets> rows;
+  if (!zn::frontend::assetProfiles(proj, readAll(fs::path(engineRoot) / ".." / "targets" / "capabilities.json"), rows, err)) { std::fprintf(stderr, "zinc assets: %s\n", err.c_str()); return 1; }
+  std::string groups;
+  for (const auto& g : proj.assets.groups) groups += (groups.empty() ? " (" : ", ") + g.name;
+  std::printf("assets: %s, %zu rule%s, %zu group%s%s\n", proj.assets.dir.c_str(), proj.assets.rules.size(), proj.assets.rules.size() == 1 ? "" : "s",
+              proj.assets.groups.size(), proj.assets.groups.size() == 1 ? "" : "s", groups.empty() ? "" : (groups + ")").c_str());
+  bool found = only.empty();
+  for (const auto& t : rows) {
+    if (!only.empty() && t.target != only) continue;
+    found = true;
+    std::string line = t.target + ": profile " + t.profile;
+    for (const auto& [k, v] : t.keys) line += ", " + k + " " + v;
+    std::string budgets;
+    for (const auto& [k, v] : t.budgets) budgets += (budgets.empty() ? "; budgets " : ", ") + k + " " + zn::frontend::byteSize(v);
+    std::printf("%s%s\n", line.c_str(), budgets.c_str());
+  }
+  if (!found) { std::fprintf(stderr, "zinc assets: no target %s in targets/capabilities.json\n", only.c_str()); return 2; }
+  return 0;
+}
+
+int assets(const std::vector<std::string>& args, const std::string& engineRoot) {
+  const char* usage = "usage: zinc assets build [dir] [--target T] [--release]\n       zinc assets info [dir] [--target T]\n";
+  if (args.size() < 3 || (args[2] != "build" && args[2] != "info")) { std::fprintf(stderr, "%s", usage); return 2; }
+  std::vector<std::string> rest(args.begin() + 1, args.end());   // parseOpts reads from the third word: the one after the subcommand
   Opts o = parseOpts(rest, {"--target"}, {"--release"});
   if (o.bad) { std::fprintf(stderr, "zinc assets: unknown option %s\n%s", o.badArg.c_str(), usage); return 2; }
-  const std::string dir = o.entry.empty() ? "." : o.entry;
+  const fs::path project = fs::absolute(o.entry.empty() ? "." : o.entry).lexically_normal();
+  if (args[2] == "info") return assetsInfo(project, o.v.count("--target") ? o.v["--target"] : "", engineRoot);
 #if defined(__APPLE__)
   const std::string target = o.v.count("--target") ? o.v["--target"] : "macos";
 #else
   const std::string target = o.v.count("--target") ? o.v["--target"] : "linux";
 #endif
-  std::error_code ec;
-  if (!fs::is_directory(fs::path(dir) / "assets", ec)) { std::fprintf(stderr, "zinc assets: %s has no assets directory\n", fs::absolute(dir).lexically_normal().c_str()); return 2; }
+  zn::frontend::Project proj;
   std::string err, line;
-  if (!buildAssets(dir, target, has(o, "--release"), err, &line)) { std::fprintf(stderr, "zinc assets: %s\n", err.c_str()); return 1; }
+  if (!readProject(project, proj, err)) { std::fprintf(stderr, "zinc assets: %s\n", err.c_str()); return 2; }
+  std::error_code ec;
+  if (!fs::is_directory(project / proj.assets.dir, ec)) { std::fprintf(stderr, "zinc assets: %s has no %s directory\n", project.c_str(), proj.assets.dir.c_str()); return 2; }
+  if (!buildAssets(project.string(), target, has(o, "--release"), err, &line)) { std::fprintf(stderr, "zinc assets: %s\n", err.c_str()); return 1; }
   std::printf("%s\n", line.c_str());
   return 0;
 }

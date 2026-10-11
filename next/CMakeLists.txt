@@ -299,6 +299,8 @@ target_include_directories(zn_assets PUBLIC src PRIVATE third_party/xxhash)
 target_link_libraries(zn_assets PUBLIC zn_zpk zn_res)
 add_executable(assets_test tests/unit/assets_test.cpp)
 target_link_libraries(assets_test PRIVATE zn_assets)
+add_executable(project_test tests/unit/project_test.cpp)   # zinc.json's game keys (ZN-435)
+target_link_libraries(project_test PRIVATE zn_frontend)
 
 add_library(zn_tc STATIC src/tc/tc.cpp src/tc/plugin_build.cpp src/tc/bundle.cpp src/tc/tuf.cpp src/tc/tlog.cpp src/tc/policy.cpp src/zapp.cpp third_party/monocypher/monocypher.c third_party/monocypher/monocypher-ed25519.c)   # monocypher: Ed25519 for signed update manifests (ZN-149)
 target_include_directories(zn_tc PUBLIC src PRIVATE third_party/monocypher)

@@ -75,7 +75,10 @@ its `zinc.json` / `main.ts`, so `zinc run examples/breakout` works.
 | --- | --- |
 | `name` | app name; the executable and `dist/<name>-<target>` are named after it |
 | `entry` | source entry (`.ts` / `.tsx` / `.js`) |
-| `assets` | the assets directory (default `assets`): its images and fonts are baked into the executable, its files are read at run time with `zinc:assets` (see [distribution](07-distribution.md#assets-of-a-built-program)) |
+| `assets` | the assets directory (default `assets`): its images and fonts are baked into the executable, its files are read at run time with `zinc:assets` (see [distribution](07-distribution.md#assets-of-a-built-program)); or an object `{ dir, rules, groups, profiles, budgets }` for the asset build (`zinc assets build`, `zinc assets info`: [the asset build](../reports/zinc-next-assets.md)) |
+| `splash` | an image path, or `{ image, background, fit, minMs, fadeMs }`: shown from the first frame (also per target, `targets.<id>.splash`) |
+| `loading` | `{ screen, groups, minMs, fadeMs }`: the screen (`default`, `bar` or a module) shown while the asset groups load before `main` |
+| `launcher` | `{ entry, skippable, targets }`: a module run before the game on the listed targets (settings, mods) |
 | `version` | semantic version; goes into the macOS `Info.plist`, the Linux `.desktop`, and `README.txt` on export |
 | `id` | bundle/app id (macOS `CFBundleIdentifier`); defaults to `dev.zinc.<name>` |
 | `icon` | PNG used to build the macOS `.icns`, the Linux icon, the rmpp AppLoad icon and the wasm favicon (see [distribution](07-distribution.md)) |
@@ -83,7 +86,7 @@ its `zinc.json` / `main.ts`, so `zinc run examples/breakout` works.
 | `display` | display driver for screens that aren't the default window (`fbdev`, `ws2812`, `ssd1306`, `st7789`, `rmpp`, `gl`); string or `{ driver, ...options }` |
 | `plugins` | per-plugin options, overriding `plugin.json` defaults |
 | `pluginDirs` | extra plugin search roots (relative to the project) |
-| `targets.<id>` | per-target overrides of the profile: `width`, `height`, `heap`, `zoom`, `resize`, `fullscreen`, `kiosk`, `display`, `plugins`, and target-specific keys (`esp32.wifi`) |
+| `targets.<id>` | per-target overrides of the profile: `width`, `height`, `heap`, `zoom`, `resize`, `fullscreen`, `kiosk`, `display`, `plugins`, `assets` (`{ profile, ...profile keys }`), `splash`, and target-specific keys (`esp32.wifi`) |
 
 ## Targets and profiles
 

@@ -60,7 +60,7 @@ void project(const fs::path& tmp) {
   Options o;
   o.sourceDir = src.string(); o.outDir = out.string(); o.cacheDir = cache.string(); o.tool = "test"; o.target = "test";
   o.rules = {{"ui/**", "", {{"format", "rgb565"}}}, {"*.svg", "", {{"format", "rgba8"}}}, {"c.svg", "", {{"format", "rgba4444"}}}};
-  o.groups = {{"ui", {"ui/**"}}, {"boot", {"*.png", "a.svg"}}};
+  o.groups = {{"ui", {"ui/**"}, {}}, {"boot", {"*.{png,svg}"}, {"c.svg"}}};   // c.svg: excluded from boot, so in default
   Report r;
   std::string err;
   CHECK(build(o, r, err), "build: %s", err.c_str());
@@ -109,7 +109,7 @@ void project(const fs::path& tmp) {
   CHECK(build(o, r, err) && r.imported == 5 && slurp(out / "boot.zpk") == release, "after the cache was emptied: %s, %zu imported", err.c_str(), r.imported);
 
   // a group that is gone takes its pack with it; without a cache everything is imported
-  o.groups = {{"boot", {"*.png", "a.svg"}}};
+  o.groups = {{"boot", {"*.png", "a.svg"}, {}}};
   o.cacheDir.clear();
   CHECK(build(o, r, err) && r.imported == 5, "no cache: %zu imported", r.imported);
   CHECK(!fs::exists(out / "ui.zpk"), "ui.zpk is stale");

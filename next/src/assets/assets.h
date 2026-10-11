@@ -25,8 +25,9 @@ constexpr std::size_t kImageHeader = 16;
 /** Files whose path matches `match` (a glob relative to the assets directory: `*` within a name, `**` across directories, `{a,b}` alternatives)
  *  go to importer `as` with `options`. Every matching rule applies in order, a later one overriding the keys of an earlier one. */
 struct Rule { std::string match, as; std::map<std::string, std::string> options; };
-/** The assets a group's `include` globs match go into one pack, <name>.zpk; an asset no group takes goes to "default". */
-struct Group { std::string name; std::vector<std::string> include; };
+/** The assets a group's `include` globs match and its `exclude` globs do not go into one pack, <name>.zpk; the first group that takes an asset
+ *  wins, and an asset no group takes goes to "default". */
+struct Group { std::string name; std::vector<std::string> include, exclude; };
 
 struct Options {
   std::string sourceDir;   // the assets directory

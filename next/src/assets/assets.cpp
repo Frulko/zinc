@@ -249,14 +249,20 @@ bool build(const Options& opt, Report& report, std::string& err) {
       try { rules.push_back({globRegex(r.match), &r}); }
       catch (const std::regex_error&) { err = "the rule \"" + r.match + "\" is not a valid glob"; return false; }
     }
-  std::vector<std::pair<std::string, std::vector<std::regex>>> groups;
-  for (const Group& g : opt.groups) {
-    groups.push_back({g.name, {}});
-    for (const std::string& inc : g.include) {
-      try { groups.back().second.push_back(globRegex(inc)); }
-      catch (const std::regex_error&) { err = "the group " + g.name + " includes \"" + inc + "\", which is not a valid glob"; return false; }
+  struct G { std::string name; std::vector<std::regex> include, exclude; };
+  std::vector<G> groups;
+  auto compile = [&](const std::string& group, const std::vector<std::string>& globs, std::vector<std::regex>& out) {
+    for (const std::string& glob : globs) {
+      try { out.push_back(globRegex(glob)); }
+      catch (const std::regex_error&) { err = "the group " + group + " names \"" + glob + "\", which is not a valid glob"; return false; }
     }
+    return true;
+  };
+  for (const Group& g : opt.groups) {
+    groups.push_back({g.name, {}, {}});
+    if (!compile(g.name, g.include, groups.back().include) || !compile(g.name, g.exclude, groups.back().exclude)) return false;
   }
+  auto any = [](const std::vector<std::regex>& globs, const std::string& name) { return std::any_of(globs.begin(), globs.end(), [&](const std::regex& re) { return std::regex_match(name, re); }); };
 
   // an artifact found in the cache is only read when its pack must be written: an unchanged project reads each source once and nothing else
   struct Entry { std::string name, key; const Importer* imp; Opts opts; std::string data; bool loaded = false; };
@@ -297,8 +303,8 @@ bool build(const Options& opt, Report& report, std::string& err) {
     else if (!import(e, bytes)) return false;
     else outBytes = e.data.size();
     std::string group = "default";
-    for (const auto& [g, globs] : groups)
-      if (std::any_of(globs.begin(), globs.end(), [&](const std::regex& re) { return std::regex_match(name, re); })) { group = g; break; }
+    for (const G& g : groups)
+      if (any(g.include, name) && !any(g.exclude, name)) { group = g.name; break; }
     report.items.push_back({name, imp->id, group, bytes.size(), outBytes, msSince(t), hit});
     if (!hit) ++report.imported;
     packs[group].push_back(std::move(e));

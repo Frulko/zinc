@@ -28,6 +28,8 @@ modules and tests declare what they need.
 
 The `ui` group of each profile holds build settings of `zinc:ui` rather than hardware flags: `layout` (the engine `"ui": {"layout": "auto"}` picks), `rn` (whether the Yoga engine may be built for the profile) and `why` (the reason when it may not: esp32, ps1). They are read as `ui.layout`, `ui.rn`, `ui.why` and are not `zinc:platform` constants; `UI_LAYOUT` gives the result (ZN-285).
 
+The `assets` group is the target's default asset build profile (ZN-435): `texture` (the formats its GPU takes, in preference order), `maxSize`, `pot`, the `audio` (music) and `sfx` codecs it decodes cheaply, the `pack` codec, `split`, and `budgets` (`download`, `boot`, `gpu`, `ram`, `flash`) for `zinc assets check`. A project's `zinc.json` `assets.profiles`, `assets.budgets` and `targets.<id>.assets` override it; `zinc assets info` prints the result per target ([the asset build](../reports/zinc-next-assets.md)). The numbers are starting values from `docs/reports/games/toolchain-assets-loading.md` (sections 3 and 6.6) until measured on each device.
+
 ## Requirements
 
 A requirement is a string, and all of them must hold:
