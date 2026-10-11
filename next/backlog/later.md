@@ -23,6 +23,9 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-433: the first read of a ZPK entry hashes at 169 MB/s (third_party/sha256); use mbedTLS's or a SHA-extension SHA-256 when large packs are verified at launch.
 - ZN-433: link zinc with -dead_strip / --gc-sections: lz4.c drops from 70 KB to 2.7 KB and the zstd decoder from 137 KB to 117 KB (D40).
 - ZN-433: measure zstd's decoder size macros (HUF_FORCE_DECOMPRESS_X1, ZSTD_FORCE_DECOMPRESS_SEQUENCES_SHORT, ZSTD_NO_INLINE) on the consoles and the Pi 1.
+- ZN-354: plugin.yml rebuilds zinc in every leg and in the release job (5 to 10 min each): use a release package when zinc-ref is a tag, or cache the build by commit.
+- ZN-354: the path filters of zinc-next.yml miss templates/** and .github/workflows/plugin.yml, so a change there runs no CI test.
+- ZN-354: `zinc test` in a project also runs the tests its plugins/ carry (a plugin added from the starter brings tests/): skip plugins/ as build/ is skipped?
 
 ## Demos
 
@@ -34,3 +37,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-321: `zinc export --target linux --deb --key <seed>` then `zinc verify` on the .deb and on a changed copy (the .deb is signed by the export's artifact list; never run, a .deb needs the Linux cross build).
 - ZN-583.01: zinc:physics2d on Linux (tests/t1/physics2d.sh in the container, drop.out byte for byte) and on arm64 macOS, rpi, wasm and the handhelds (NEON instead of SSE2), drop.out identical.
 - ZN-433: zpk_test and fuzz_zpk on Linux x86_64 and arm64, and a zig cross build of zn_zstd and zn_lz4.
+- ZN-354: tests/t2/cross_plugin_pack.sh and the linux-armhf leg of plugin.yml (which runs no tests: run them under qemu-arm or on a Pi).
