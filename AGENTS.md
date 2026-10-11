@@ -6,6 +6,8 @@ The repository holds two generations:
 - **The prototype** (Node + TypeScript): `compiler/` compiles the subset to C++17 against the `runtime/` (zrt) with one HAL per target; `sim/` is the Node oracle that every target must match byte for byte. It is the **specification**: when behaviour is unclear, read its code and run it (`node compiler/bin/zinc.mjs ...`). Touch `compiler/` only for fixes.
 - **Zinc Next** (`next/`, C++20): the new engine (frontend, typed SSA IR, ZBC bytecode, interpreter, AOT to C++, QuickJS engine, graphics host, toolchain manager). The goal: **every demo of the prototype runs unchanged** on it (interpreter, AOT, `--engine quickjs`), with the plugins working, while the engine stays agnostic, pluggable, readable and fast. All current work happens here.
 
+What it is for (owner, 2026-10-11): a tool to make desktop and mobile apps the way Electron does, without shipping a browser. The accent is on the UI, on performance and on running on the widest range of hardware; 3D, sound, video and games complete it and open it to more people. The users it is made for: education, makers, artists, DIY. Decide with them in mind: the first run, clear errors, modest machines.
+
 Binding rules: `next/RULES.md` (never stop, simulators for hardware, proven libraries, decisions), `next/ARCHITECTURE.md` (layout, dependency direction), `next/TESTING.md` (tiers, what to run). State of the work: `next/RESUME.md` (short, overwritten at the end of each session).
 
 ## Repository map
