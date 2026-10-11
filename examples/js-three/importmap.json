@@ -1,0 +1,5 @@
+{ "imports": {
+  "three": "../../next/third_party/three/three.module.js",
+  "three/addons/controls/OrbitControls.js": "../../next/third_party/three/examples/jsm/controls/OrbitControls.js",
+  "three/addons/loaders/GLTFLoader.js": "../../next/third_party/three/examples/jsm/loaders/GLTFLoader.js"
+} }

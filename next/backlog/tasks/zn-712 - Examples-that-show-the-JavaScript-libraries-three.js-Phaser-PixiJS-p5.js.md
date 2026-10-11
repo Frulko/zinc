@@ -1,10 +1,11 @@
 ---
 id: ZN-712
 title: 'Examples that show the JavaScript libraries: three.js, Phaser, PixiJS, p5.js'
-status: Backlog
+status: In Progress
 assignee:
   - '@parallel'
 created_date: '2026-10-11 11:38'
+updated_date: '2026-10-11 14:33'
 labels:
   - js
   - demo
@@ -23,7 +24,7 @@ Third lane of the parallel agents (owner's order, `next/backlog/priority.json`).
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 examples/js-three: a lit scene with a loaded model and a camera moved by the pointer, run by zinc run --engine quickjs; one frame golden from a scripted session
+- [x] #1 examples/js-three: a lit scene with a loaded model and a camera moved by the pointer, run by zinc run --engine quickjs; one frame golden from a scripted session
 - [ ] #2 examples/js-phaser: a small game that is played (sprites, arcade physics, keyboard, a score, sound); a scripted input session ends on a known score
 - [ ] #3 examples/js-pixi: sprites in a container tree, a filter or a mask, pointer events; one frame golden
 - [ ] #4 examples/js-p5: a WEBGL sketch that reacts to the pointer; p5.js comes from its pinned download (tools/test-lib), never vendored (LGPL); the 2D sketch waits for Canvas 2D (ZN-570)

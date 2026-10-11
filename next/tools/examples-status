@@ -51,7 +51,8 @@ def run_one(zinc, entry, frames, timeout):
     if daemon: timeout = min(timeout, 6)
     path = os.path.join(EXAMPLES, entry)
     try:
-        r = subprocess.run([zinc, "run", path], cwd=NEXT, env=env, capture_output=True, text=True, timeout=timeout)
+        engine = ["--engine", "quickjs"] if entry.endswith(".js") else []   # a plain JavaScript example (examples/js-*, ZN-712) runs on QuickJS
+        r = subprocess.run([zinc, "run", path] + engine, cwd=NEXT, env=env, capture_output=True, text=True, timeout=timeout)
     except subprocess.TimeoutExpired:
         if daemon: return entry, "OK", ""
         return entry, "CRASH", "timed out after %ds" % timeout
