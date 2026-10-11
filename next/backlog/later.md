@@ -176,6 +176,7 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-718: `zinc:webview` does not compile on macOS, in the tree either (`operator new` redefined via `zrt.h`); display-st7789 does not link with zig; imu-qmi8658 and script have no thunk.
 - ZN-718: `zinc doctor` prints 35 plugin lines in a source build: shorten; `zinc update` downloads but does not install: reuse `install.sh`'s swap.
 - ZN-718: the plugin libraries travel inside the archive (27 MB), not through the signed index, which does not exist yet and needs the owner's keys; decide at the review whether criterion 2 is accepted as it stands.
+- ZN-718: five plugins have no prebuilt in the archive: video (FFmpeg), webview (SDL3) and gphoto2 need system libraries; imu-qmi8658 and script have no thunk. The museum table's films therefore need FFmpeg installed on the visitor's machine.
 
 ## Cross-platform pass
 
