@@ -6,6 +6,7 @@ title: >-
 status: Backlog
 assignee: []
 created_date: '2026-10-08 15:16'
+updated_date: '2026-10-11 07:03'
 labels:
   - devtools
   - app
@@ -30,3 +31,9 @@ Owner, 2026-10-08: instead of (or besides) Chrome DevTools, a standalone Zinc ap
 - [ ] #2 editing padding in the app changes the target's frame; the network and debugger views work against the targets of ZN-370 and ZN-371
 - [ ] #3 it runs on macOS and Linux and inspects a program on the Pi through ssh forwarding
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Split on 2026-10-11 into ZN-373.01 (the app: discovery, attach, Elements, computed styles, Console), .02 styles editing and the screencast, .03 Network, .04 Sources (a debugger client of zinc debug --cdp), .05 Performance, .06 Linux and the Pi over ssh (parked: the cross-platform pass and a board). The subtasks take the parent's place in the order (ordinals 26001-26005).
+<!-- SECTION:NOTES:END -->
