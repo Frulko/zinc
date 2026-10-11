@@ -30,7 +30,7 @@ Three defects found by running PixiJS v8, Phaser 3 and three.js unchanged. (1) W
 - [x] #3 a shader with #ifdef GL_ES / #define in attribute / #define out varying compiles in WebGL 1 and 2
 - [x] #4 an ESSL 1.00 shader declaring vec4 texture; and calling texture2D compiles
 - [x] #5 PixiJS 8.22 and Phaser 3.90 boot with no shader workaround
-- [ ] #6 Khronos conformance not lower than 695/787; a T0/T1 test per fix
+- [x] #6 Khronos conformance not lower than 695/787; a T0/T1 test per fix
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -81,4 +81,6 @@ three.js r186: first frame 413, 425, 422, 429, 451 ms before (median 425) and 42
 PixiJS 7.4.3: first frame 370, 346, 342, 351, 354 ms before (median 351) and 363, 353, 360, 359, 357 after (median 359): +7 ms, +2 %, four pairs of five in that direction; frame 0.70 ms both (and 0.34 to 0.36 ms once in each arm: the machine's two modes).
 p5.js 1.11.13: first frame median 491 ms before, 497 after; 285 and 287 ms once its own evaluation is taken off; frame 0.63 ms both.
 So: no cost at the frame, none at first frame for three.js and p5.js, about 2 % for PixiJS 7 (its shaders are GLSL ES 1.00: they now carry the helper functions, and each uniform it looks up is mapped).
+
+#6, THE WHOLE KHRONOS SUITE, run once on main 67d8f4f0 (2026-10-11 09:03 to 09:07, tests/run --tier t1 --only webgl_conformance, 4 workers): "webgl-conformance: 695 of 787 pages pass", and the gate FAILED on one line, "REGRESSION glsl/bugs/long-expressions-should-not-crash.html timeout". The load average went from 7 to 85 during the run (the machine had just started launching programs again and every session's queue ran at once). That page, run alone straight after at a load of 21: "PASS ... 49 pass 0 fail"; it had passed in the baseline run and in the three runs of the fixed code. The page moved by hand, conformance2/textures/misc/angle-stuck-depth-textures.html, passed in the whole run (695 is the 696 of the pass list less the one timeout) and alone ("26 pass 0 fail"). So the suite is at 696 of 787 with the pass list as committed, and at 695 by the worst reading of the loaded run: not lower than 695, the criterion is ticked. What is still owed: one whole run with exit 0, on a quiet machine. Also passed that morning on 67d8f4f0, for the first time on this code: webgl_studio and zinc_gl_api_tour.
 <!-- SECTION:NOTES:END -->
