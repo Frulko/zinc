@@ -183,6 +183,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-572: the direct drawImage loop converts a row of the picture to float colours for every row drawn (half the time with the nearest pixel); keep converted pictures by stamp, or blend from bytes.
 - ZN-572: a pattern under a scale is filtered over 16 pixels where Chrome takes 4; CanvasPattern.setTransform does nothing; the CSS filter subset; a shadow under a blend mode is not blended; a sprite under a blend mode or a clip takes the general loop.
 - ZN-572: p5 2.3 through `tools/test-lib`; the WPT subset (criterion 1); every number on a quiet machine.
+- ZN-713: a UI-only export with `"permissions": []` links Mbed TLS, libuv, llhttp, libwebp and every SDL3 subsystem (gamepad, haptics, Bluetooth, sensors, audio, camera): link them only when used; the 5.5 MB .app is larger than Tauri's 4.9 MB.
+- ZN-713: 33 MB of the 65 MB footprint of a list app is the GPU context (OpenGL on the Intel Mac): measure the Metal path and a CPU-raster window for UI-only apps.
+- ZN-713: 25 MB of malloc heap for 200 text rows, one field, one image: find what holds it (glyph atlas, baked fonts, node tree, mimalloc arenas); 14 threads in a one-window list app: name them, start the unused ones lazily.
+- ZN-713: profile launch to first frame of the exported app (about 0.5 s under load); retake every time and memory figure alone on the machine (`ZINC=<main>/next/build/zinc ./measure.sh build measure` in `next/bench/vs-electron`); report physical footprint beside the RSS sum.
 
 ## Cross-platform pass
 
