@@ -40,6 +40,9 @@ void installGl();      // zinc:gl in an AOT program (ZN-562): its rows go to zn_
 const void* glPresentHooks();   // the zn::gl::PresentHooks (src/gl/webgl_js.h) that write a WebGL canvas into a zinc:gfx image (src/host/gfx_host.cpp)
 inline bool gfxStarted = false;  // the surface exists (the first graphics call starts it): AOT code calls startGfx before it reads surf_w / surf_h inline
 void startGfx();
+// The engine splash (ZN-446, src/host/splash.cpp): opens the window and presents the splash entry of ZINC_SPLASH (a file) or of the base packs'
+// boot.zpk, before the program is compiled, baked or started. Nothing in a headless run, with a display plugin, or without a splash; true when shown.
+bool showSplash();
 // Installs the baked fonts and images (the blob of src/res) in the tables of the runtime's rasterizer; the data is copied. Before the program runs.
 bool installResources(const std::uint8_t* blob, std::size_t size);
 void onFrameEnd(void (*fn)());   // runs `fn` on the main thread at the end of every frame, before it is painted (the WebGL module finishes its canvas reads there, ZN-411)

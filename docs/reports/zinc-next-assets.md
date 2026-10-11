@@ -45,7 +45,7 @@ line; an unknown key inside them is a warning.
   then `assets.budgets.<id>`, key by key.
 
 The build uses `dir`, `rules` and `groups` now; the profiles drive the encoders when they come (ZN-439 textures, the audio importers, the pack
-codec per target), the budgets `zinc assets check` (ZN-437), `splash` the engine splash (ZN-446), `loading` the loader stage (ZN-447),
+codec per target), the budgets `zinc assets check` (ZN-437), `splash` the engine splash (ZN-446, below), `loading` the loader stage (ZN-447),
 `launcher` the pre-launcher (ZN-448).
 
 ## Importers, rules, groups
@@ -164,6 +164,42 @@ assets.stats();                             // resident bytes, peak, the ram bud
 
 Measured (same machine, load 5.3 to 5.6: another agent building): a group of 64 text entries of 512 KB (32 MB, a 12 MB release pack,
 zstd 19), `loadGroup` to its promise, median of 7 real runs: 62 ms on the libuv pool, 214 ms decoded on the main thread.
+
+## The engine splash (ZN-446)
+
+`zinc.json` `splash` (`targets.<id>.splash` replaces it on that target; design: 7.2 and 7.3 of the report) is the first frame of the window,
+shown before anything else of the engine runs: the compile, the bake of the fonts and images, the native plugins, the packs, the program.
+
+```json
+"splash": { "image": "assets/splash.png", "background": "#101418", "fit": "contain", "minMs": 0, "fadeMs": 150 }
+```
+
+- **The entry.** The asset build writes it as `.splash` of `boot.zpk` (a hidden name: no asset has it; a pack of its own when no group is
+  named boot, and even without an assets directory), stored uncompressed in dev and release packs so the host maps it in place. Its bytes,
+  ZSP1 (little-endian): `ZSP1`, u32 background `0xAARRGGBB` (opaque black when only an image is given), u8 fit (0 contain, 1 cover, 2
+  center: the image at its own size), three zero bytes, u32 `minMs`, u32 `fadeMs` (20 bytes); then the image as the image importer writes it
+  (ZIM1 rgba8, premultiplied; an SVG drawn at 8 pixels a unit, 1024 wide at most), absent for a background alone. Made through the asset cache.
+- **Who shows it** (`zn::host::showSplash`, `src/host/splash.cpp`): the `main` of a built program first thing, from the `.splash` of the
+  base packs' `boot.zpk`; `zinc run` of a .zapp or a fused app before it loads the program, from the packs it carries; `zinc run` of sources
+  (and `--engine quickjs`) before the compile when it runs the program itself (interpreted), from `ZINC_SPLASH`, a file of the entry it makes
+  from zinc.json. A compiled run (the default for a program that draws) leaves it to the executable it starts, which shows it as it starts:
+  shown by zinc too, the window would close at the exec and come back with the executable's. Nothing in a headless or deterministic run, with
+  a display plugin, or without a splash.
+- **The frame.** The window opens as the program's first graphics call would open it (size, zoom and window keys of zinc.json), and the
+  splash is composed for its surface, the image scaled bilinearly into the fitted rectangle over the background, then presented through the
+  window HAL's own present (rows, no command lists, so the GL replay is set up later, by the program's first frame). The window HAL creates
+  every main window hidden and shows it after its first present, then presents that frame again: a window never appears blank (a fullscreen
+  window is shown at once). `minMs` holds the splash: the next present waits until then. `fadeMs` is carried for the loader stage (ZN-447).
+- **The browser.** `zinc export --target wasm` puts the splash in `index.html` as the canvas's CSS background (the colour, the image inline as
+  a data URL, the fit as `contain`, `cover` or `auto`): painted with the page, before any script runs; the worker's first opaque frame covers it.
+- **Measuring.** `ZINC_LOG=run=info` prints `splash on screen at <wall clock>, after start N ms`; `tools/splash-time` starts a project's
+  `zinc run` and its built executable N times and prints the time from the exec to that line (median, min, max), with the load average.
+
+Measured (macOS x86_64, i7-9750H, a 640x400 window at 2x, 2026-10-11, load 4.4: other agents building; `tools/splash-time --runs 11`): exec to
+splash 407 ms for `zinc run` (390 to 440) and 425 ms for the built executable (405 to 456). Nearly all of it is the window: SDL's video init
+about 200 ms and the GL window and context about 110 ms (`ZINC_LOG=run=debug`: "splash: window open" 277 to 314 ms), then 55 ms to present
+(the first present into the hidden window 35 ms with the GL warm-up, the show 5 ms, the second present one vsync, 16 ms); zinc itself reaches
+the splash 13 to 20 ms after its start. The first launch of a newly built binary adds about 800 ms before `main` (the system checks it).
 
 ## Measured (macOS x86_64, i7-9750H, 2026-10-11, load 2.5 to 3.3: another agent building)
 

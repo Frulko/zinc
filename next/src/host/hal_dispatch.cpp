@@ -32,6 +32,14 @@ static bool headlessRequested() {
   return set("ZINC_HEADLESS") || set("ZINC_DETERMINISTIC") || getenv("ZINC_RECORD") || getenv("ZINC_REPLAY");
 }
 int zn_hal_is_live(void) { return live ? 1 : 0; }
+int zn_hal_headless_requested(void) { return headlessRequested() ? 1 : 0; }
+// zinc.json splash.minMs (ZN-446): the frame after the splash waits until then, so the splash stays at least that long (0: no wait)
+static uint64_t holdUntil = 0;
+void zn_hal_hold(uint64_t untilUs) { holdUntil = untilUs; }
+static void hold() {
+  for (uint64_t now; (now = hal_time_us()) < holdUntil;) hal_sleep_us(holdUntil - now);   // a sleep lasts a second at most
+  holdUntil = 0;
+}
 
 // Scripted input for headless runs (ZINC_INPUT=file): one event per line, `<frame> <event>`, frames counted from 0 at each poll.
 //   move X Y | down | up | right-down | right-up | key NAME [shift|ctrl|alt|meta]... | text WORD | text "several words" (\" and \\ inside) | wheel DX DY | pad NAME | padup NAME (the gamepad buttons Up Down Left Right A B X Y L R Start Select, held until padup)
@@ -206,12 +214,13 @@ __attribute__((weak)) void hal_set_resize(int32_t) {}
 #else
 __attribute__((weak)) int zn_window_load(void) { return 1; }   // the window host is in this library
 #endif
-void hal_init(const HalConfig* c) { live = c->gfx && !headlessRequested() && zn_window_load(); if (live) sdl_hal_init(c); else null_hal_init(c); }
+int zn_hal_wants_window(void) { return !headlessRequested() && zn_window_load(); }   // what hal_init decides, asked before it (the splash, ZN-446)
+void hal_init(const HalConfig* c) { live = c->gfx && zn_hal_wants_window(); if (live) sdl_hal_init(c); else null_hal_init(c); }
 void hal_shutdown(void) { if (live) sdl_hal_shutdown(); else null_hal_shutdown(); }
 void hal_frame_begin(void) { if (live) sdl_hal_frame_begin(); else null_hal_frame_begin(); }
 void hal_frame_end(void) { if (live) sdl_hal_frame_end(); else null_hal_frame_end(); }
 void hal_poll_input(HalInput* in) { if (live) sdl_hal_poll_input(in); else { null_hal_poll_input(in); applyScript(in); } }
-void hal_present(const HalFrame* f) { if (live) sdl_hal_present(f); else null_hal_present(f); }
+void hal_present(const HalFrame* f) { if (holdUntil) hold(); if (live) sdl_hal_present(f); else null_hal_present(f); }
 void hal_surface_size(int* w, int* h) { if (live) sdl_hal_surface_size(w, h); else null_hal_surface_size(w, h); }
 double hal_fixed_dt(void) { return live ? sdl_hal_fixed_dt() : null_hal_fixed_dt(); }
 void hal_text_input(int32_t on, float x, float y, float w, float h) { if (live) sdl_hal_text_input(on, x, y, w, h); }
@@ -230,6 +239,7 @@ void hal_win_input(int32_t id, HalInput* in, int32_t* w, int32_t* h) { if (live)
 void hal_win_present(int32_t id, const uint32_t* px, int32_t pw, int32_t ph) { if (live) sdl_hal_win_present(id, px, pw, ph); }
 void hal_win_current(int32_t id) { if (live) sdl_hal_win_current(id); }
 #else
+int zn_hal_wants_window(void) { return 0; }
 void hal_init(const HalConfig* c) { null_hal_init(c); }
 void hal_shutdown(void) { null_hal_shutdown(); }
 void hal_frame_begin(void) { null_hal_frame_begin(); }

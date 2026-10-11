@@ -1,7 +1,8 @@
 #!/bin/sh
 # zinc.json's game keys (ZN-435): the parser's unit checks (each key, each error, the merge of profiles), `zinc assets info` prints the profile
 # and budgets in force on each target, the assets directory, rules and groups of zinc.json drive `zinc assets build`, a malformed key stops
-# it, and a project without the keys (or with only the string form, or only splash, loading and launcher) builds the same packs.
+# it, and a project without the keys (or with only the string form, or only loading and launcher) builds the same packs (a splash adds its
+# entry to boot.zpk: tests/t1/splash.sh).
 BUILD=${BUILD:-build}
 [ -x "$BUILD/project_test" ] || { echo "skipped: project_test is not built"; exit 77; }
 out=$("$BUILD/project_test" 2>&1)
@@ -45,10 +46,10 @@ sed 's/"pack": "lz4"/"pack": "rar"/' "$tmp/p/zinc.json" > "$tmp/z" && cp "$tmp/z
 err=$("$ZINC" assets build "$tmp/p" 2>&1); code=$?
 [ $code -eq 2 ] && case "$err" in *"zinc.json: line 5: assets.profiles.desktop.pack must be"*) true ;; *) false ;; esac || { echo "a bad key: exit $code: $err"; exit 1; }
 
-# without the keys: the same packs as with only the string form, a dir object, or only splash, loading and launcher (dev and release)
+# without the keys: the same packs as with only the string form, a dir object, or only loading and launcher (dev and release)
 mkdir -p "$tmp/q"; cp -R "$tmp/p/art" "$tmp/q/assets"
 for manifest in '' '{ "assets": "assets" }' '{ "assets": { "dir": "assets" } }' \
-                '{ "splash": { "background": "#000" }, "loading": { "screen": "bar" }, "launcher": { "entry": "l.ts", "targets": [] } }'; do
+                '{ "loading": { "screen": "bar" }, "launcher": { "entry": "l.ts", "targets": [] } }'; do
   rm -rf "$tmp/q/build" "$tmp/q/zinc.json"
   [ -n "$manifest" ] && echo "$manifest" > "$tmp/q/zinc.json"
   for profile in "" --release; do

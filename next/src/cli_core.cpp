@@ -696,6 +696,36 @@ static int exportEsp32(const ProjectInfo& p, const fs::path& out, const std::str
   return 0;
 }
 
+// The engine splash in the page (ZN-446): the canvas's CSS background, the image inline, so the browser paints it before any script runs; the
+// worker's first frame, opaque, covers it. "" without a splash.
+static std::string splashStyle(const zn::assets::Splash& s) {
+  if (!s.on) return "";
+  char bg[16];
+  std::snprintf(bg, sizeof bg, "#%06x", static_cast<unsigned>(s.background & 0xffffff));
+  std::string css = std::string(" style=\"background: ") + bg;
+  if (!s.image.empty()) {
+    static const char* b64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    std::ifstream in(s.image, std::ios::binary);
+    std::stringstream ss;
+    ss << in.rdbuf();
+    const std::string bytes = ss.str(), ext = fs::path(s.image).extension().string();
+    std::string data;
+    for (std::size_t i = 0; i < bytes.size(); i += 3) {
+      const std::size_t left = bytes.size() - i;
+      std::uint32_t v = static_cast<std::uint32_t>(static_cast<std::uint8_t>(bytes[i])) << 16;
+      if (left > 1) v |= static_cast<std::uint32_t>(static_cast<std::uint8_t>(bytes[i + 1])) << 8;
+      if (left > 2) v |= static_cast<std::uint8_t>(bytes[i + 2]);
+      data += b64[v >> 18 & 63];
+      data += b64[v >> 12 & 63];
+      data += left > 1 ? b64[v >> 6 & 63] : '=';
+      data += left > 2 ? b64[v & 63] : '=';
+    }
+    const char* mime = ext == ".svg" ? "image/svg+xml" : ext == ".jpg" || ext == ".jpeg" ? "image/jpeg" : ext == ".webp" ? "image/webp" : "image/png";
+    css += std::string(" url(data:") + mime + ";base64," + data + ") center / " + (s.fit == 1 ? "cover" : s.fit == 2 ? "auto" : "contain") + " no-repeat";
+  }
+  return css + "\"";
+}
+
 // zinc export --target wasm (ZN-326.01): a static site, the program as ZBC (app.zbc) for the interpreter built for the browser (app.wasm, tools/build-wasm) and the
 // page's glue (targets/wasm/glue: app.js, its worker and WASI). The SharedArrayBuffer of the frame loop needs COOP/COEP headers: serve.py serves the folder with them.
 static int exportWasm(const ProjectInfo& p, const fs::path& out, const std::string& engineRoot) {
@@ -729,6 +759,8 @@ static int exportWasm(const ProjectInfo& p, const fs::path& out, const std::stri
   if (auto at = page.find("<title>zinc</title>"); at != std::string::npos) page.replace(at, 19, "<title>" + p.name + "</title>");
   if (haveProj && !proj.app.icon.empty() && fs::copy_file(fs::path(p.dir) / proj.app.icon, out / "favicon.png", fs::copy_options::overwrite_existing, ec))   // zinc.json app.icon (a PNG)
     page.replace(page.find("</title>") + 8, 0, "<link rel=\"icon\" href=\"favicon.png\">");
+  if (const std::string style = haveProj ? splashStyle(splashFor(proj, p.dir, "wasm")) : std::string(); !style.empty())
+    if (const auto at = page.find("<canvas id=\"c\""); at != std::string::npos) page.insert(at + 14, style);
   writeFile(out / "index.html", page);
   writeFile(out / "serve.py", "#!/usr/bin/env python3\n# Serves this folder on http://127.0.0.1:8000 with the COOP/COEP headers the page needs (SharedArrayBuffer). Any static host that sends them works too.\n"
             "import http.server, os, sys\nclass H(http.server.SimpleHTTPRequestHandler):\n    extensions_map = dict(http.server.SimpleHTTPRequestHandler.extensions_map, **{'.js': 'text/javascript', '.mjs': 'text/javascript', '.wasm': 'application/wasm'})\n"
@@ -1942,14 +1974,35 @@ bool readProject(const fs::path& project, zn::frontend::Project& p, std::string&
   return false;
 }
 
+zn::assets::Splash splashFor(const zn::frontend::Project& p, const std::string& projectDir, const std::string& target) {
+  auto t = p.targets.find(target);
+  const zn::frontend::Splash& s = t != p.targets.end() && t->second.splash.present ? t->second.splash : p.splash;
+  zn::assets::Splash out;
+  if (!s.present) return out;
+  out.on = true;
+  if (!s.image.empty()) out.image = (fs::path(projectDir) / s.image).lexically_normal().string();
+  if (!s.background.empty()) {   // "#rgb", "#rrggbb" or "#rrggbbaa" (the manifest checked it)
+    std::string h = s.background.substr(1);
+    if (h.size() == 3) h = {h[0], h[0], h[1], h[1], h[2], h[2]};
+    const std::uint32_t v = static_cast<std::uint32_t>(std::stoul(h, nullptr, 16));
+    out.background = h.size() == 8 ? (v >> 8 | v << 24) : (0xff000000u | v);
+  }
+  out.fit = s.fit == "cover" ? 1 : s.fit == "center" ? 2 : 0;
+  out.minMs = static_cast<std::uint32_t>(s.minMs);
+  out.fadeMs = static_cast<std::uint32_t>(s.fadeMs);
+  return out;
+}
+
 bool buildAssets(const std::string& dir, const std::string& target, bool release, std::string& err, std::string* summary) {
   const fs::path project = fs::absolute(dir).lexically_normal();
   zn::frontend::Project proj;
   if (!readProject(project, proj, err)) return false;
   const fs::path src = project / proj.assets.dir;
   std::error_code ec;
-  if (!fs::is_directory(src, ec)) return true;
+  const zn::assets::Splash splash = splashFor(proj, project.string(), target);
+  if (!fs::is_directory(src, ec) && !splash.on) return true;
   zn::assets::Options o;
+  o.splash = splash;
   o.sourceDir = src.string();
   o.outDir = (project / "build" / "assets" / target).string();
   o.cacheDir = assetCacheDir();
@@ -2028,7 +2081,7 @@ int assets(const std::vector<std::string>& args, const std::string& engineRoot) 
   std::string err, line;
   if (!readProject(project, proj, err)) { std::fprintf(stderr, "zinc assets: %s\n", err.c_str()); return 2; }
   std::error_code ec;
-  if (!fs::is_directory(project / proj.assets.dir, ec)) { std::fprintf(stderr, "zinc assets: %s has no %s directory\n", project.c_str(), proj.assets.dir.c_str()); return 2; }
+  if (!fs::is_directory(project / proj.assets.dir, ec) && !splashFor(proj, project.string(), target).on) { std::fprintf(stderr, "zinc assets: %s has no %s directory\n", project.c_str(), proj.assets.dir.c_str()); return 2; }
   if (!buildAssets(project.string(), target, has(o, "--release"), err, &line)) { std::fprintf(stderr, "zinc assets: %s\n", err.c_str()); return 1; }
   std::printf("%s\n", line.c_str());
   return 0;

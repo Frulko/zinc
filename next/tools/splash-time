@@ -1,0 +1,39 @@
+#!/usr/bin/env python3
+"""splash-time [--runs N] [--zinc PATH]: the time from exec to the engine splash on screen (ZN-446), for the two ways a program starts.
+
+  run    zinc run of a project with a splash, interpreted (ZINC_RUN=interp): zinc shows it before the compile
+  built  the executable zinc build wrote: its main shows it before its fonts, plugins and program
+
+Each run starts the process with ZINC_LOG=run=info and reads its line "splash on screen at <wall clock>" (src/host/splash.cpp); the time is
+that clock minus the one taken just before the exec. It opens windows: not a test, and not valid while other builds load the machine. The first
+run of each way is dropped (a new binary is checked by the system at its first launch). Prints the median, min and max of N runs and the load."""
+import os, re, shutil, statistics, subprocess, sys, tempfile, time
+
+args = sys.argv[1:]
+runs = int(args[args.index("--runs") + 1]) if "--runs" in args else 11
+zinc = os.path.abspath(args[args.index("--zinc") + 1]) if "--zinc" in args else os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "build", "zinc")
+tmp = tempfile.mkdtemp()
+try:
+    os.makedirs(os.path.join(tmp, "p", "assets")); os.makedirs(os.path.join(tmp, "p", "src"))
+    open(os.path.join(tmp, "p", "assets", "splash.svg"), "w").write('<svg xmlns="http://www.w3.org/2000/svg" width="40" height="20"><rect width="40" height="20" fill="#3060c0"/></svg>')
+    open(os.path.join(tmp, "p", "src", "main.ts"), "w").write("import { onFrame, clear } from 'zinc:gfx';\nonFrame((dt: number) => { clear(0x204020); });\n")
+    open(os.path.join(tmp, "p", "zinc.json"), "w").write('{ "name": "p", "entry": "src/main.ts", "splash": { "image": "assets/splash.svg", "background": "#102030" },'
+                                                        ' "targets": { "macos": { "width": 640, "height": 400 }, "linux": { "width": 640, "height": 400 } } }')
+    env = dict(os.environ, ZINC_HOME=os.path.join(tmp, "home"), ZINC_LOG="run=info", ZINC_FRAMES="1", ZINC_STEPS="0")
+    for k in ("ZINC_HEADLESS", "ZINC_DETERMINISTIC", "ZINC_SPLASH"): env.pop(k, None)
+    app = os.path.join(tmp, "p", "build", "app")
+    subprocess.run([zinc, "build", os.path.join(tmp, "p", "src", "main.ts"), "-o", app], env=env, check=True, capture_output=True)
+    ways = {"run": ([zinc, "run", os.path.join(tmp, "p")], dict(env, ZINC_RUN="interp")), "built": ([app], env)}
+    for name, (cmd, e) in ways.items():
+        took, inside = [], []
+        for i in range(runs + 1):
+            t0 = time.time()
+            err = subprocess.run(cmd, env=e, capture_output=True, text=True).stderr
+            m = re.search(r"splash on screen at (\d+\.\d+), after start ([\d.]+) ms", err)
+            if not m: print("%s: no splash line:\n%s" % (name, err[-600:])); sys.exit(1)
+            if i: took.append((float(m.group(1)) - t0) * 1000); inside.append(float(m.group(2)))
+        print("%-5s exec to splash: median %.1f ms (min %.1f, max %.1f; %.1f ms after the process's own start), %d runs" %
+              (name, statistics.median(took), min(took), max(took), statistics.median(inside), runs))
+    print("load average %.2f %.2f %.2f" % os.getloadavg())
+finally:
+    shutil.rmtree(tmp, ignore_errors=True)

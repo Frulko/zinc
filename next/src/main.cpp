@@ -565,6 +565,19 @@ static void prune(std::size_t keep) {
 }
 }  // namespace aotcache
 
+#ifdef ZN_HOST_GFX
+extern "C" int zn_hal_headless_requested(void);   // src/host/hal_dispatch.cpp
+// The engine splash of a run from sources (ZN-446): zinc.json's splash for this machine made into its entry (through the asset cache) and named by
+// ZINC_SPLASH, which this process shows before the compile and a compiled run's executable shows as it starts. A headless run makes none.
+static void splashEnv(const zn::frontend::Project& p, const std::string& projectDir, const char* target) {
+  const zn::assets::Splash s = zn::cli::splashFor(p, projectDir, target);
+  if (!s.on || std::getenv("ZINC_SPLASH") || zn_hal_headless_requested()) return;
+  std::string bytes, file, err;
+  if (!zn::assets::splash(s, zn::cli::assetCacheDir(), zn::cli::engineBuild(), bytes, file, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return; }
+  if (!file.empty()) setenv("ZINC_SPLASH", file.c_str(), 0);   // ponytail: no cache (ZINC_NO_CACHE), no splash in a run from sources
+}
+#endif
+
 // zinc:assets for a program run from `entry` (ZN-436): ZINC_ASSETS, the assets beside the entry or above it; ZINC_PACKS, the packs of an
 // unpacked .zapp (packs/ beside its program) or, for a project with asset rules or groups, its dev packs built now (none otherwise: a run of the CLI
 // never takes packs beside the zinc executable); ZINC_ASSET_RAM, the ram budget in force on this machine. A value already set wins.
@@ -1420,6 +1433,12 @@ int main(int argc, char** argv) {
     qo.profileHz = qjsProfileHz;
     if (!loadManifestPermissions(argv[2])) return 2;   // zinc.json "ui" (UI_LAYOUT of zinc:platform) and the permissions, as for the typed engines
 #ifdef ZN_HOST_GFX
+    if (const std::string pf = zn::frontend::findProjectFile(argv[2]); !pf.empty()) {   // the splash (ZN-446), before the parse, the bake and the plugins
+      std::ifstream in(pf); std::stringstream ss; ss << in.rdbuf();
+      zn::frontend::Project sp; std::string perr;
+      if (zn::frontend::parseProject(ss.str(), sp, perr)) splashEnv(sp, std::filesystem::path(pf).parent_path().string(), zn::tc::pluginTarget().c_str());
+    }
+    zn::host::showSplash();
     {
       std::vector<std::string> args;
       for (int k = 6; k < argc; ++k) args.push_back(argv[k]);
@@ -1636,6 +1655,7 @@ int main(int argc, char** argv) {
         for (const char* t : order) { auto it = project.targets.find(t); if (it != project.targets.end()) { window = it->second; break; } }
 #ifdef ZN_HOST_GFX
         if (!project.app.window.empty()) applyAppWindow(project.app.window, window);   // zinc.json app.window: size when the target gives none, window properties for the HAL
+        if (path.size() <= 4 || path.substr(path.size() - 4) != ".zbc") splashEnv(project, projectDir, order[0]);   // a .zapp brings its splash in its packs
 #endif
       }
     }
@@ -1657,6 +1677,11 @@ int main(int argc, char** argv) {
       for (int k = 4; k < argc; ++k) progArgs.push_back(argv[k]);
       if (int rc = runCached(std::filesystem::absolute(path).string(), projectDir, progArgs); rc >= 0) return rc;
     }
+    // the splash (ZN-446): the window and its first frame before the compile, the bake and the plugins of a program this process runs; a
+    // compiled run's executable shows it as it starts (shown here as well, its window would go at the exec and come back with the executable's)
+    const bool compiledAlready = path.size() > 4 && path.substr(path.size() - 4) == ".zbc";   // a .zapp's, a fused app's: interpreted
+    if (compiledAlready) assetsEnv(std::filesystem::absolute(path).string());   // its packs: its splash
+    if (compiledAlready || !runcache::wanted()) zn::host::showSplash();
 #endif
     zn::zbc::Module zm;
     bool fromCache = false, compiled = false;
@@ -1703,6 +1728,7 @@ int main(int argc, char** argv) {
       std::vector<std::string> progArgs;
       for (int k = 4; k < argc; ++k) progArgs.push_back(argv[k]);
       if (int rc = runCompiled(zm, absPath, projectDir, progArgs); rc >= 0) return rc;
+      zn::host::showSplash();   // interpreted after all (a program that does not draw, no C++ compiler)
     }
 #endif
     std::vector<std::uint8_t> blob;   // the baked fonts and images of a program that draws

@@ -4,6 +4,9 @@
 #include <string>
 #include <vector>
 
+namespace zn::frontend { struct Project; }
+namespace zn::assets { struct Splash; }
+
 namespace zn::cli {
 
 /** `zinc run|build|check` with no entry (or only options): the project of the working directory supplies it (zinc.json "entry", else src/main.ts[x]).
@@ -68,6 +71,8 @@ bool buildAssets(const std::string& dir, const std::string& target, bool release
 /** What zinc:assets needs to run the project in `dir` on `target` (ZN-436): `ram`, the ram budget zinc.json and targets/capabilities.json put
  *  in force there (0: none); `packs`, when zinc.json has asset groups and `build`, the directory of its dev packs, built now (empty otherwise). */
 bool assetRun(const std::string& dir, const std::string& target, const std::string& engineRoot, bool build, std::string& packs, std::uint64_t& ram, std::string& err);
+/** zinc.json `splash` in force on `target` (targets.<id>.splash replaces the project's), its image path made absolute (ZN-446). */
+zn::assets::Splash splashFor(const zn::frontend::Project& p, const std::string& projectDir, const std::string& target);
 /** Where the asset build keeps its artifacts (~/.zinc/cache/assets; empty under ZINC_NO_CACHE), and the engine's build its keys name. */
 std::string assetCacheDir();
 std::string engineBuild();

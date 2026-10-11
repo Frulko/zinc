@@ -42,6 +42,7 @@ extern "C" void hal_set_window_config(const HalWindowConfig* c) { wcfg = *c; wcf
 static uint32_t* tbuf;         // transparent windows: the rows being uploaded with their alpha
 static size_t tbuf_n;
 static bool surface_ok;        // the surface of the current size is allocated
+static bool shown;             // the main window is created hidden and shown by its first present, so it never appears blank (ZN-446)
 
 #ifdef ZN_HAL_GL
 // The window presents with OpenGL and replays the frame's command lists on the GPU (ZN-412.02, runtime/gl_replay.cpp): no software raster
@@ -128,7 +129,7 @@ static bool gl_window(const char* title, int ww, int wh) {
   SDL_SetBooleanProperty(props, SDL_PROP_WINDOW_CREATE_ALWAYS_ON_TOP_BOOLEAN, wcfg_set && wcfg.always_on_top != 0);
   if (wcfg_set && wcfg.has_position) { SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_X_NUMBER, wcfg.x); SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_Y_NUMBER, wcfg.y); }
   SDL_SetBooleanProperty(props, SDL_PROP_WINDOW_CREATE_OPENGL_BOOLEAN, true);
-  SDL_SetBooleanProperty(props, SDL_PROP_WINDOW_CREATE_HIDDEN_BOOLEAN, true);   // shown once the context proved good
+  SDL_SetBooleanProperty(props, SDL_PROP_WINDOW_CREATE_HIDDEN_BOOLEAN, true);   // shown once a frame is in it: no blank window (ZN-446)
   win = SDL_CreateWindowWithProperties(props);
   SDL_DestroyProperties(props);
   if (!win) return false;
@@ -157,8 +158,7 @@ static bool gl_window(const char* title, int ww, int wh) {
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR); glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE); glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
   if (wcfg_set && (wcfg.min_w > 0 || wcfg.min_h > 0)) SDL_SetWindowMinimumSize(win, wcfg.min_w, wcfg.min_h);
-  SDL_GL_SetSwapInterval(getenv("ZINC_VSYNC") && atoi(getenv("ZINC_VSYNC")) == 0 ? 0 : 1);
-  SDL_ShowWindow(win);
+  SDL_GL_SetSwapInterval(getenv("ZINC_VSYNC") && atoi(getenv("ZINC_VSYNC")) == 0 ? 0 : 1);   // shown by its first present (hal_present)
   if (getenv("ZINC_GL_STATS")) fprintf(stderr, "zinc: window renderer gl (%s, %s)\n", r, (const char*)glGetString(GL_VERSION));   // macOS: "4.1 Metal - ...", Apple's GL on Metal
   return true;
 }
@@ -328,7 +328,7 @@ void hal_init(const HalConfig* cfg) {
     if (getenv("ZINC_GL_STATS")) fprintf(stderr, "zinc: window renderer cpu\n");
 #endif
   if (!wcfg_set) {
-    if (!SDL_CreateWindowAndRenderer(cfg->title, ww, wh, SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY, &win, &ren))
+    if (!SDL_CreateWindowAndRenderer(cfg->title, ww, wh, SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_HIDDEN, &win, &ren))
       hal_panic(SDL_GetError(), "hal_sdl", __LINE__);
   } else {   // window properties of the app (frameless, always on top, position, minimum size, transparent)
     SDL_PropertiesID props = SDL_CreateProperties();
@@ -340,6 +340,7 @@ void hal_init(const HalConfig* cfg) {
     SDL_SetBooleanProperty(props, SDL_PROP_WINDOW_CREATE_BORDERLESS_BOOLEAN, wcfg.borderless != 0);
     SDL_SetBooleanProperty(props, SDL_PROP_WINDOW_CREATE_ALWAYS_ON_TOP_BOOLEAN, wcfg.always_on_top != 0);
     SDL_SetBooleanProperty(props, SDL_PROP_WINDOW_CREATE_TRANSPARENT_BOOLEAN, wcfg.transparent != 0);
+    SDL_SetBooleanProperty(props, SDL_PROP_WINDOW_CREATE_HIDDEN_BOOLEAN, true);
     if (wcfg.has_position) { SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_X_NUMBER, wcfg.x); SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_Y_NUMBER, wcfg.y); }
     win = SDL_CreateWindowWithProperties(props);
     SDL_DestroyProperties(props);
@@ -356,7 +357,7 @@ void hal_init(const HalConfig* cfg) {
   if (!fill) { const float a = (float)W / (float)H; SDL_SetWindowAspectRatio(win, a, a); }
   if (ren) SDL_SetRenderVSync(ren, 1);
   start_workers();
-  if (full) { set_fullscreen(true); SDL_SyncWindow(win); }
+  if (full) { SDL_ShowWindow(win); shown = true; set_fullscreen(true); SDL_SyncWindow(win); }   // fullscreen applies to a shown window: no wait on a hidden one
   if (kiosk) { SDL_HideCursor(); SDL_SetWindowAlwaysOnTop(win, true); }
   // HiDPI: frames are rasterized at the window's pixel size, so text and shapes stay sharp (ZINC_SCALE overrides)
   apply_size();
@@ -698,7 +699,7 @@ static void render_rows_parallel(void (*fn)(uint32_t*, int32_t, int32_t), int32_
 // most of the frame changed), else the software rows uploaded; then the texture over the window, letterboxed.
 static void gl_present(const HalFrame* f) {
   GlCurrent cur;
-  if (glr_stale) {
+  if (glr_stale && f->frames) {   // not for a frame of rows alone (the splash, ZN-446): the replay sizes its tables by the fonts and images installed
     if (!glr_made && getenv("ZINC_GL_STATS")) atexit([] { if (glr_ok) glr::report(); });   // at exit: the Next host never calls hal_shutdown
     glr_ok = glr_made ? glr::resize(PW, PH) : glr::init(PW, PH);
     glr_made = true; glr_stale = false;
@@ -750,6 +751,7 @@ static void gl_present(const HalFrame* f) {
   SDL_GL_SwapWindow(win);
 }
 #endif
+static void present_frame(const HalFrame* f);
 // The shared rasterizer renders only the damaged rows; the texture is updated for those rows.
 void hal_present(const HalFrame* f) {
   if (!gfx_on) return;
@@ -768,6 +770,13 @@ void hal_present(const HalFrame* f) {
     }
     return;
   }
+  present_frame(f);
+  if (shown) return;
+  shown = true;
+  SDL_ShowWindow(win);
+  present_frame(f);   // again into the shown window: what it composites first may be the buffer of before the show
+}
+static void present_frame(const HalFrame* f) {
 #ifdef ZN_HAL_GL
   if (gl_on) { gl_present(f); return; }
 #endif

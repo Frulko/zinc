@@ -16,7 +16,7 @@
 namespace zn::assets {
 
 /** The kind byte of a pack entry (zpk::Entry::kind). */
-enum Kind : std::uint8_t { Data = 0, Image = 1, Fonts = 2 };
+enum Kind : std::uint8_t { Data = 0, Image = 1, Fonts = 2, SplashFrame = 3 };
 
 /** Pixel layouts of the image importer: rows top to bottom after a 16-byte header (docs/reports/zinc-next-assets.md), premultiplied alpha. */
 enum class Format : std::uint8_t { Rgba8 = 1, Rgb565 = 2, Rgba4444 = 3 };
@@ -29,6 +29,14 @@ struct Rule { std::string match, as; std::map<std::string, std::string> options;
  *  wins, and an asset no group takes goes to "default". */
 struct Group { std::string name; std::vector<std::string> include, exclude; };
 
+/** The engine splash (ZN-446): zinc.json `splash` for the target. Its entry, `.splash` of boot.zpk (a hidden name, which no asset has), is
+ *  ZSP1 (little-endian): magic, u32 background 0xAARRGGBB, u8 fit (0 contain, 1 cover, 2 center), 3 bytes 0, u32 minMs, u32 fadeMs; then the
+ *  image as the image importer writes it (ZIM1 rgba8, premultiplied), absent for a background alone. Stored uncompressed: the host maps it. */
+struct Splash { bool on = false; std::string image; std::uint32_t background = 0xff000000; std::uint8_t fit = 0; std::uint32_t minMs = 0, fadeMs = 0; };
+constexpr char kSplashEntry[] = ".splash";
+/** The ZSP1 bytes of `s`, its image imported through the cache. `artifact`: the file the cache keeps them in ("" without a cache); `hit`: found there. */
+bool splash(const Splash& s, const std::string& cacheDir, const std::string& tool, std::string& out, std::string& artifact, std::string& err, bool* hit = nullptr);
+
 struct Options {
   std::string sourceDir;   // the assets directory
   std::string outDir;      // where the packs and report.json go (build/assets/<target>)
@@ -37,6 +45,7 @@ struct Options {
   std::string target, profile = "dev";   // named in the report; "release" compresses the packs with zstd, "dev" stores entries as they are
   std::vector<Rule> rules;    // after the built-in ones: PNG, JPEG, WebP and SVG to "image" (rgba8), anything else to "copy"
   std::vector<Group> groups;
+  Splash splash;              // on: its entry goes into boot.zpk (a pack of the splash alone when no group is named boot)
 };
 
 struct Item { std::string name, importer, group; std::uint64_t sourceBytes = 0, outputBytes = 0; double ms = 0; bool cached = false; };

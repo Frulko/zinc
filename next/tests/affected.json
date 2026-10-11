@@ -39,6 +39,7 @@
     {"paths": ["src/assets/", "third_party/xxhash/", "src/res/res.cpp", "src/res/res.h", "tests/unit/assets_test.cpp", "tests/t0/assets.sh"], "tests": ["assets"]},
     {"paths": ["src/assets/sprite.cpp", "src/assets/sprite.h", "third_party/stb/stb_rect_pack.h", "third_party/cute_aseprite/", "../plugins/sprite/", "src/host/gfx_host.cpp", "src/host/sys_host.cpp", "tests/data/sprite_atlas/", "tests/t1/sprite_atlas.sh"], "tests": ["sprite_atlas", "assets"]},
     {"paths": ["src/frontend/project.cpp", "src/frontend/project.h", "src/assets/", "../targets/capabilities.json", "tests/unit/project_test.cpp", "tests/t0/project_assets.sh"], "tests": ["project_assets"]},
+    {"paths": ["src/host/splash.cpp", "src/assets/", "src/host/hal_dispatch.cpp", "src/aot/aot.cpp", "src/cli_core.cpp", "targets/wasm/glue/index.html", "tests/t1/splash.sh"], "tests": ["splash"]},
     {"paths": ["src/tc/tc.cpp", "src/tc/tc.h", "third_party/monocypher/"], "tests": ["update_sign", "mirrors", "app_update", "tc"]},
     {"paths": ["tools/package", "tools/sign-macos"], "tests": ["package", "release_workflow"]},
     {"paths": ["src/gl/", "src/main.cpp", "CMakeLists.txt"], "tests": ["webgl_module", "webgl_js", "three"]},

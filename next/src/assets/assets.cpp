@@ -225,19 +225,48 @@ bool bake(const std::vector<std::string>& sources, const res::Options& opt, cons
   return true;
 }
 
+bool splash(const Splash& s, const std::string& cacheDir, const std::string& tool, std::string& out, std::string& artifact, std::string& err, bool* hitOut) {
+  std::string bytes;
+  if (!s.image.empty() && !readFile(s.image, bytes)) { err = "splash: cannot read " + s.image; return false; }
+  const std::string ext = fs::path(s.image).extension().string();
+  Key k;
+  k.add("zinc-splash 1").add(tool).add(std::to_string(s.background)).add(std::to_string(s.fit)).add(std::to_string(s.minMs)).add(std::to_string(s.fadeMs)).add(ext).add(bytes);
+  const std::string key = k.hex();
+  bool hit = false;
+  auto u32 = [](std::string& o, std::uint32_t v) { for (int i = 0; i < 4; ++i) o += static_cast<char>(v >> (8 * i) & 0xff); };
+  if (!cached(cacheDir, key, [&](std::string& o, std::string& e) {
+        o = "ZSP1";
+        u32(o, s.background);
+        o += static_cast<char>(s.fit);
+        o.append(3, '\0');
+        u32(o, s.minMs);
+        u32(o, s.fadeMs);
+        if (s.image.empty()) return true;
+        std::string zim;
+        // an SVG drawn as large as the importer goes (8 pixels a unit, 1024 wide at most): the splash usually fills a window
+        if (!importImage(s.image, bytes, "", Opts{{"scale", ext == ".svg" ? "8" : "1"}}, zim, e)) { e = "splash " + s.image + ": " + e; return false; }
+        o += zim;
+        return true;
+      }, out, hit, err)) return false;
+  artifact = cacheDir.empty() ? std::string() : artifactPath(cacheDir, key).string();
+  if (hitOut) *hitOut = hit;
+  return true;
+}
+
 // ---------------------------------------------------------------- the build
 bool build(const Options& opt, Report& report, std::string& err) {
   const auto t0 = Clock::now();
   report = Report{};
   std::error_code ec;
-  if (!fs::is_directory(opt.sourceDir, ec)) { err = opt.sourceDir + " is not a directory"; return false; }
+  const bool haveDir = fs::is_directory(opt.sourceDir, ec);
+  if (!haveDir && !opt.splash.on) { err = opt.sourceDir + " is not a directory"; return false; }
   std::vector<std::string> names;   // relative, '/' separated, sorted; hidden files and directories (.DS_Store, .git) stay out
   for (auto it = fs::recursive_directory_iterator(opt.sourceDir, ec); !ec && it != fs::recursive_directory_iterator(); it.increment(ec)) {
     const std::string rel = it->path().lexically_relative(opt.sourceDir).generic_string();   // lexical: a linked file keeps its own name (fs::relative would follow the link)
     if (rel.empty() || rel[0] == '.' || rel.find("/.") != std::string::npos) { if (it->is_directory(ec)) it.disable_recursion_pending(); continue; }
     if (it->is_regular_file(ec)) names.push_back(rel);
   }
-  if (ec) { err = opt.sourceDir + ": " + ec.message(); return false; }
+  if (ec && haveDir) { err = opt.sourceDir + ": " + ec.message(); return false; }
   std::sort(names.begin(), names.end());
 
   struct R { std::regex re; const Rule* rule; };
@@ -340,6 +369,18 @@ bool build(const Options& opt, Report& report, std::string& err) {
     packs[group].push_back(std::move(e));
   }
   if (report.imported && !opt.cacheDir.empty()) trim(opt.cacheDir);
+  // the engine splash (ZN-446): an entry of boot.zpk of its own, stored as it is so that the host maps it before anything else starts
+  std::string splashData;
+  if (opt.splash.on) {
+    const auto t = Clock::now();
+    std::string artifact;
+    bool hit = false;
+    if (!splash(opt.splash, opt.cacheDir, opt.tool, splashData, artifact, err, &hit)) return false;
+    const std::uint64_t src = opt.splash.image.empty() ? 0 : fs::file_size(opt.splash.image, ec);
+    report.items.push_back({kSplashEntry, "splash", "boot", src, splashData.size(), msSince(t), hit});
+    if (!hit) ++report.imported;
+    packs["boot"];   // a pack of the splash alone when no asset is in the group
+  }
 
   // one pack per group, rewritten only when one of its entries or the profile changed (.packs keeps each pack's key and size)
   fs::create_directories(opt.outDir, ec);
@@ -354,12 +395,15 @@ bool build(const Options& opt, Report& report, std::string& err) {
     Key k;
     k.add("zpk 1").add(opt.profile);
     for (const Entry& e : entries) k.add(e.name).add(e.key).add(std::string(1, static_cast<char>(e.imp->kind)));
-    const std::string key = k.hex() + ":" + std::to_string(entries.size());
+    const bool withSplash = opt.splash.on && group == "boot";
+    if (withSplash) k.add(kSplashEntry).add(splashData);
+    const std::string key = k.hex() + ":" + std::to_string(entries.size() + withSplash);
     const fs::path path = fs::path(opt.outDir) / file;
     std::uint64_t size = fs::file_size(path, ec);
     if (ec || before[file] != key) {
       const zpk::Codec codec = opt.profile == "release" ? zpk::Codec::Zstd : zpk::Codec::None;
       std::vector<zpk::Input> inputs;
+      if (withSplash) inputs.push_back({kSplashEntry, splashData, 0, Kind::SplashFrame, zpk::Codec::None});
       std::map<std::string, std::vector<std::pair<std::string, std::string>>> frames;   // the sprites of each atlas
       std::map<std::string, const Opts*> packing;
       for (Entry& e : entries) {
@@ -381,7 +425,7 @@ bool build(const Options& opt, Report& report, std::string& err) {
       size = bytes.size();
     }
     after[file] = key;
-    report.packs.push_back({file, group, entries.size(), size});
+    report.packs.push_back({file, group, entries.size() + withSplash, size});
   }
   for (const auto& e : fs::directory_iterator(opt.outDir, ec))   // packs of groups that are gone
     if (e.path().extension() == ".zpk" && !after.count(e.path().filename().string())) fs::remove(e.path(), ec);
