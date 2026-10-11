@@ -154,6 +154,9 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-650.14: a museum project opened by a relative path shows only the font families in the editor's sample; make the folder path absolute.
 - ZN-650.14: the font refusal is proven interpreted only (same host code compiled); the fs-scope (`user-picked`) path for fonts is not tested.
 - ZN-712: a webenv.js that calls a host function missing from an older binary dies on the first frame; test for the function before using it.
+- ZN-572: a direct loop for an unrotated `drawImage`; a sprite still goes through `paint_pixel` and the general blend for each pixel (Phaser CANVAS is 4.5 times its floor).
+- ZN-572: Phaser's canvas renderer builds an Error (stack) every frame, seen in the sample, source not found.
+- ZN-571: take the p5 and Phaser CANVAS frame times again on a quiet machine, and p5 2.3 once `tools/test-lib` has it.
 
 ## Cross-platform pass
 
@@ -180,3 +183,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-447: run the loader stage in the browser export (the worker's blocking frame loop should run it like the gfx loop) and on the ESP32 device core (it needs the asset host rows).
 - ZN-574: gamepads on Linux and Windows (frameworks and link line of the SDL joystick build, a real pad), with ZN-552's evdev hub.
 - ZN-650.14: `loadFont` takes only POSIX absolute paths (leading `/`); add drive-letter paths on Windows.
+- ZN-572: `webenv_canvas2d_full` and the canvas_ity patches on Linux, Windows and ARM (float sums in the coverage grid).
