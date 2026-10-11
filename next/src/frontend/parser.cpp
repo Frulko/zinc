@@ -208,6 +208,7 @@ struct Parser {
 
   std::uint32_t typePostfix() {
     std::uint32_t st = cur().start;
+    if (isId("readonly") && (at(1).kind == Tok::Ident || isP("[", 1) || isP("(", 1))) ++i;   // `readonly T[]`, `readonly [A, B]`: the same type here (ZN-155)
     std::uint32_t ty = typePrimary();
     while (isP("[") && isP("]", 1)) { i += 2; ty = mk(N::TypeArray, st, prevEnd(), {}, {ty}); }
     return ty;
@@ -216,6 +217,14 @@ struct Parser {
   std::uint32_t typePrimary() {
     std::uint32_t st = cur().start;
     Tok k = cur().kind;
+    if (isKw("typeof") && at(1).kind == Tok::Ident) {   // `typeof x`: the type of the value x (ZN-155)
+      ++i;
+      std::uint32_t ns = cur().start;
+      ++i;
+      std::uint32_t id = mk(N::TypeRef, st, prevEnd(), s.substr(ns, prevEnd() - ns), {});
+      r.ast.nodes[id].flags |= kFlagTypeQuery;
+      return id;
+    }
     if (isId("keyof") && (at(1).kind == Tok::Ident || isP("(", 1) || isP("{", 1))) {  // `keyof T`: string literal types are plain strings, so it is a string
       ++i;
       typePostfix();

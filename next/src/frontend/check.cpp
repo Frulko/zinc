@@ -451,6 +451,12 @@ struct Checker {
     TypeId r = tError;
     switch (x.kind) {
       case N::TypeRef: {
+        if (x.flags & kFlagTypeQuery) {   // `typeof x`: the type x was declared with
+          const std::uint32_t s = lookup(x.text);
+          if (s != kNone && (out.syms[s].kind == SymKind::Var || out.syms[s].kind == SymKind::Param)) { out.nodeType[t] = out.syms[s].type; return out.syms[s].type; }
+          diag(kZCannotFindName, t, "'" + std::string(x.text) + "' (typeof needs a variable)");
+          return tError;
+        }
         Num m;
         if (x.kids.empty() && numFromName(x.text, m)) r = num(false && m == gNumber && x.text == "number" && builtinModuleNode(t) ? Num::f64 : m);   // the library (Date, JSON, the Error classes) keeps `number` = f64 under any profile
         else if (x.kids.empty() && x.text == "boolean") r = tBool;
@@ -2236,6 +2242,26 @@ struct Checker {
   bool endless(std::uint32_t test) const { return test == kNone || (n(test).kind == N::Literal && n(test).text == "true"); }
   std::pair<std::uint32_t, TypeId> spreadHint{kNone, kNoType};  // the leading literal of a spread array and the element type it should have
   std::set<std::uint32_t> exhaustiveSwitch;  // switches whose cases cover every member of a union of records
+  // The string literals a variable or parameter can hold when it was declared with an alias of a union of them (`type K = 'a' | 'b'`);
+  // empty otherwise. String literal types are plain strings here, so this reads the declarations themselves.
+  std::vector<std::string> literalSetOf(std::uint32_t valueNode) {
+    std::vector<std::string> lits;
+    if (n(valueNode).kind != N::Ident || valueNode >= out.nodeSym.size()) return lits;
+    const std::uint32_t s = out.nodeSym[valueNode];
+    if (s == kNone || (out.syms[s].kind != SymKind::Var && out.syms[s].kind != SymKind::Param) || out.syms[s].decl == kNone || n(out.syms[s].decl).kids.empty()) return lits;
+    const std::uint32_t ann = n(out.syms[s].decl).kids[0];
+    if (ann == kNone || n(ann).kind != N::TypeRef || !n(ann).kids.empty()) return lits;
+    const std::uint32_t al = lookup(n(ann).text);
+    if (al == kNone || out.syms[al].kind != SymKind::TypeAlias || out.syms[al].decl == kNone || n(out.syms[al].decl).kind != N::TypeAlias) return lits;
+    const Node& u = n(n(out.syms[al].decl).kids[0]);
+    if (u.kind != N::TypeUnion) return lits;
+    for (std::uint32_t k : u.kids) {
+      const Node& lt = n(k);
+      if (lt.kind != N::TypeLit || lt.text.size() < 2 || (lt.text[0] != '\'' && lt.text[0] != '"')) return {};
+      lits.emplace_back(lt.text.substr(1, lt.text.size() - 2));
+    }
+    return lits;
+  }
   bool terminates(std::uint32_t s) const {
     if (s == kNone) return false;
     const Node& x = n(s);
@@ -2709,6 +2735,10 @@ struct Checker {
           if (!body.empty()) pendingLits.clear();
         }
         if (discUnion && !seenDefault && membersFor(allLits).size() == unionMembers(discCur).size()) exhaustiveSwitch.insert(s);
+        if (!seenDefault && !allLits.empty()) {   // switch (k) on `type K = 'a' | 'b'` with a case for each: nothing falls out of it (ZN-155)
+          const std::vector<std::string> lits = literalSetOf(x.kids[0]);
+          if (!lits.empty() && std::all_of(lits.begin(), lits.end(), [&](const std::string& l) { return std::find(allLits.begin(), allLits.end(), l) != allLits.end(); })) exhaustiveSwitch.insert(s);
+        }
         pop();
         --switches;
         loops = savedLoops;

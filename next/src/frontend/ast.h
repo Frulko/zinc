@@ -105,7 +105,8 @@ inline constexpr std::uint32_t kFlagAbstract = 1, kFlagStatic = 2, kFlagReadonly
                                kFlagOptional = 4096,  // `name?: T` (the type is `T | null`)
                                kFlagDefinite = 8192,  // `name!: T`: assigned elsewhere, not checked in the constructor
                                kFlagDefault = 16384,  // an Export node: `export default`
-                               kFlagUndefined = 32768;  // a Literal null or TypeRef null written as `undefined` (a file without Dyn values: same representation, printed as undefined)
+                               kFlagUndefined = 32768,  // a Literal null or TypeRef null written as `undefined` (a file without Dyn values: same representation, printed as undefined)
+                               kFlagTypeQuery = 65536;  // a TypeRef written `typeof x`: the type of the value x
 
 // Class members start at this index of a Class node's kids; Interface members start at 1.
 inline constexpr std::size_t kClassMembersFrom = 2;
