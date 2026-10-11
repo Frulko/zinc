@@ -1207,8 +1207,13 @@ struct Lowering::FnLower {
     auto isNullLit = [&](std::uint32_t k) { return n(k).kind == N::Literal && n(k).text == "null"; };
     if (isNullLit(le) || isNullLit(re)) {  // x === null: compare with a null reference of x's type
       std::uint32_t other = isNullLit(le) ? re : le;
-      ValueId o = expr(other);
       std::string_view ox = x.text;
+      if (ty(natural(other)).k == Type::K::Void) {   // a void call against undefined (or null): run for its effects, the answer is known (ZN-155)
+        expr(other);
+        const bool undef = n(isNullLit(le) ? le : re).flags & frontend::kFlagUndefined, eq = ox == "==" || ox == "===";
+        return constBool(eq == (undef || ox == "=="));
+      }
+      ValueId o = expr(other);
       if (ty(tv(o)).k == Type::K::Num || ty(tv(o)).k == Type::K::Bool) return constBool(ox == "!=" || ox == "!==");  // a number or boolean (narrowed from `T | null`) is not null
       ValueId nl = nullConst(tv(o));
       IrOp cmp = (ox == "==" || ox == "===") ? IrOp::Eq : IrOp::Ne;

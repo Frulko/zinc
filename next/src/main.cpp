@@ -1197,6 +1197,20 @@ int main(int argc, char** argv) {
   }
   for (int k = 1; k < argc && std::strcmp(argv[k], "--"); ++k)   // `zinc run --interp` interprets, `--native` compiles even a test run (ZN-398)
     if (!std::strcmp(argv[k], "--interp") || !std::strcmp(argv[k], "--native")) { setenv("ZINC_RUN", argv[k] + 2, 1); for (int j = k; j + 1 < argc; ++j) argv[j] = argv[j + 1]; --argc; --k; }
+  // `zinc run <file> --target sim` (or this machine's own target): the prototype's "here"; its simulator is the sim profile (ZN-155)
+  if (argc >= 4 && !std::strcmp(argv[1], "run"))
+    for (int k = 2; k + 1 < argc && std::strcmp(argv[k], "--"); ++k) {
+#if defined(__APPLE__)
+      const char* here = "macos";
+#else
+      const char* here = "linux";
+#endif
+      if (std::strcmp(argv[k], "--target") || (std::strcmp(argv[k + 1], "sim") && std::strcmp(argv[k + 1], here))) continue;
+      if (!std::strcmp(argv[k + 1], "sim")) gProfile = zn::frontend::findProfile("sim");
+      for (int j = k; j + 2 <= argc; ++j) argv[j] = argv[j + 2];
+      argc -= 2;
+      break;
+    }
   // `--profile esp32` (or --profile=esp32) anywhere: the target's `number`, typing and heap budget on the host (ZN-120)
   for (int k = 1; k < argc; ++k) {
     std::string name;

@@ -1934,6 +1934,10 @@ struct Checker {
       case N::Binary: return binaryExpr(i, x, expected);
       case N::Unary: {
         const std::string op(x.text);
+        if (op == "typeof" && n(x.kids[0]).kind == N::Ident) {   // typeof SomeClass: a class is a function in JavaScript, 'function' (ZN-155)
+          const std::uint32_t s = lookup(n(x.kids[0]).text);
+          if (s != kNone && (out.syms[s].kind == SymKind::Class || out.syms[s].kind == SymKind::GenericClass) && replaceWith(i, "'function'", {})) return expr0(i, expected);
+        }
         TypeId t = expr(x.kids[0]);
         if (!rawDyn() && isDyn(t) && (op == "!" || op == "-" || op == "+")) {
           const char* call = op == "!" ? "!__dynTruthy(__H0)" : op == "-" ? "__dynNeg(__H0)" : "__dynPos(__H0)";
@@ -2198,6 +2202,7 @@ struct Checker {
           if (k >= to.members.size()) { diag(kZNotAssignable, x.kids[1], "index " + std::to_string(k) + " of '" + to.name + "'"); return tError; }
           return to.members[k].type;
         }
+        if (ot == tStr && isNum(it) && replaceWith(i, "__H0.charAt(__H1)", {{x.kids[0]}, {x.kids[1]}})) return expr0(i, expected);   // 'abc'[1]: a one-character string ('' past the end) (ZN-155)
         if (ty(ot).k != TK::Array) { diag(kZNotIndexable, i, "'" + name(ot) + "'"); return tError; }
         if (!isNum(it)) { diag(kZNotAssignable, x.kids[1], "'" + name(it) + "' to 'number'"); return tError; }
         if (ty(ty(ot).elem).k == TK::Union && !pendingExempt) {

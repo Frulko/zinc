@@ -2,6 +2,9 @@
 # zinc:osc (ZN-085): loopback send/listen, then bundles, timetags and malformed datagrams from an outside sender.
 ZINC=${ZINC:-build/zinc}
 "$ZINC" run tests/golden/host/osc.ts 2>&1 | diff -q - tests/golden/host/osc.out >/dev/null || { echo "zinc:osc loopback output differs"; exit 1; }
+d=$(mktemp -d); printf "import * as osc from 'zinc:osc';\nconsole.log('ok');\n" > "$d/main.ts"   # ZN-155: the only import of a program (it needs the event loop)
+[ "$("$ZINC" run "$d/main.ts" 2>&1)" = ok ] || { echo "a program importing only zinc:osc does not compile: $("$ZINC" run "$d/main.ts" 2>&1 | head -2)"; exit 1; }
+rm -rf "$d"
 out=$(mktemp)
 "$ZINC" run tests/golden/host/osc_listen.ts >"$out" 2>&1 &
 pid=$!

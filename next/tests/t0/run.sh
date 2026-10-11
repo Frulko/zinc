@@ -15,6 +15,8 @@ for f in tests/golden/checker/ok/*.ts; do
   [ -e "$exp" ] || continue
   "$ZINC" run "$f" 2>&1 | diff -q - "$exp" >/dev/null || { echo "run golden differs: ok/$(basename "$f")"; fail=1; }
 done
+# the prototype's `zinc run <file> --target sim` (and this machine's own target) runs here (ZN-155)
+"$ZINC" run tests/golden/run/string_index.ts --target sim 2>&1 | diff -q - tests/golden/run/string_index.out >/dev/null || { echo "zinc run --target sim differs from zinc run"; fail=1; }
 "$ZINC" --emit=zbc-bin ../tests/bench/kernels/fib.ts "$tmp/fib.zbc" && "$ZINC" run "$tmp/fib.zbc" | diff -q - corpus/bench/fib.out >/dev/null || { echo "bytecode file output differs"; fail=1; }
 for f in tests/golden/run/errors/*.ts; do
   out=$("$ZINC" run "$f" 2>&1); rc=$?

@@ -943,6 +943,12 @@ EmitResult emit(const ir::Module& m) {
       zf.code.clear();
     }
   }
+  if (!r.module.strings.empty() && std::none_of(r.module.classes.begin(), r.module.classes.end(), [](const ClassInfo& c) { return c.kind == CKind::String; })) {
+    ClassInfo info;   // constants of code the optimizer removed (after a return) still need the string class to be loaded (ZN-155)
+    info.name = "string";
+    info.kind = CKind::String;
+    r.module.classes.push_back(std::move(info));
+  }
   return r;
 }
 
