@@ -20,6 +20,10 @@ steps = {s.get("name"): s for s in wf["jobs"]["test"]["steps"]}
 assert "Sign and notarize (macOS release)" in steps, "no signing step"
 open(sys.argv[2] + "/manifest.sh", "w").write(steps["Update manifest (release)"]["run"].replace("${{ matrix.name }}", "macos-arm64"))
 open(sys.argv[2] + "/release.sh", "w").write([s for s in rel["steps"] if s.get("name") == "Release"][0]["run"])
+open(sys.argv[2] + "/sums.sh", "w").write([s for s in rel["steps"] if s.get("name") == "Installer and checksums"][0]["run"])
+names = [m["name"] for m in wf["jobs"]["test"]["strategy"]["matrix"]["include"]]
+assert {"macos-arm64", "macos-x86_64", "linux-x86_64", "linux-aarch64", "windows-x86_64"} <= set(names), "a platform has no release job: %s" % names
+assert "Windows" not in steps["Package"]["if"], "the Windows job does not package"
 PY
 "$Z" update-keygen > "$tmp/k"; seed=$(sed -n 's/^seed=//p' "$tmp/k"); pub=$(sed -n 's/^public=//p' "$tmp/k")
 mkdir -p "$tmp/job/dist" "$tmp/job/build" "$tmp/bin"
@@ -31,7 +35,12 @@ echo "$out" | grep -q "zinc 9.1.0 is available" && echo "$out" | grep -q "downlo
 (cd "$tmp/job" && GITHUB_REF_NAME=v9.1.0 RUNNER_TEMP="$tmp" ZINC_UPDATE_SEED= bash -e "$tmp/manifest.sh" >/dev/null) || { echo "release_workflow: without a key the manifest step fails"; fail=1; }
 printf '#!/bin/sh\nprintf "%%s\\n" "$@" > "%s/gh.args"\n' "$tmp" > "$tmp/bin/gh"; chmod +x "$tmp/bin/gh"
 mkdir -p "$tmp/r1/release" && cp "$tmp/job/dist/Zinc-9.1.0-macos-arm64.zip" "$tmp/r1/release/"
+# ZN-718: the installer and the checksums it reads are release assets
+mkdir -p "$tmp/r1/next/tools" && cp tools/install.sh "$tmp/r1/next/tools/"
+(cd "$tmp/r1" && bash -e "$tmp/sums.sh") || { echo "release_workflow: the checksums step failed"; fail=1; }
+[ "$(cat "$tmp/r1/release/SHA256SUMS")" = "$(cd "$tmp/r1/release" && shasum -a 256 Zinc-9.1.0-macos-arm64.zip)" ] || { echo "release_workflow: SHA256SUMS: $(cat "$tmp/r1/release/SHA256SUMS")"; fail=1; }
 (cd "$tmp/r1" && PATH="$tmp/bin:$PATH" GITHUB_REF_NAME=v9.1.0 bash -e "$tmp/release.sh" >/dev/null) || { echo "release_workflow: the release step failed"; fail=1; }
+grep -q "^release/install.sh$" "$tmp/gh.args" && grep -q "^release/SHA256SUMS$" "$tmp/gh.args" || { echo "release_workflow: install.sh and SHA256SUMS are not attached"; fail=1; }
 grep -q "^release/Zinc-9.1.0-macos-arm64.zip$" "$tmp/gh.args" || { echo "release_workflow: the package is not attached"; fail=1; }
 grep -q "not signed" "$tmp/gh.args" && grep -q "No update manifests" "$tmp/gh.args" || { echo "release_workflow: the notes do not say unsigned / no manifests: $(cat "$tmp/gh.args")"; fail=1; }
 mkdir -p "$tmp/r2/release" && cp "$tmp/job/dist/"* "$tmp/r2/release/" && touch "$tmp/r2/release/.signed"

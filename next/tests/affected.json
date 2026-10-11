@@ -50,7 +50,7 @@
     {"paths": ["../plugins/loader/", "src/cli_core.cpp", "src/frontend/project.cpp", "src/frontend/project.h", "src/qjs/qjs.cpp", "src/host/gfx_host.cpp", "src/host/sys_host.cpp", "../templates/game-2d/", "tests/data/loader/", "tests/golden/loader/", "tests/t1/loader.sh"], "tests": ["loader"]},
     {"paths": ["src/tc/tc.cpp", "src/tc/tc.h", "third_party/monocypher/"], "tests": ["update_sign", "mirrors", "app_update", "tc"]},
     {"paths": ["tools/package", "tools/sign-macos"], "tests": ["package", "release_workflow"]},
-    {"paths": ["tools/install.sh", "tests/t1/install_nocompiler.sh"], "tests": ["install_nocompiler"]},
+    {"paths": ["tools/install.sh", "tests/t1/install_nocompiler.sh"], "tests": ["install_nocompiler", "release_workflow"]},
     {"paths": ["src/gl/", "src/main.cpp", "CMakeLists.txt"], "tests": ["webgl_module", "webgl_js", "three"]},
     {"paths": ["src/tc/plugin_build"], "tests": ["plugin_build", "plugin_prebuilt", "plugin_key", "plugin_repro", "plugin_fetch", "plugin_tiers", "native_plugins", "native_lazy", "plugin_stamp"]},
     {"paths": ["src/host/sys_host.cpp", "src/main.cpp", "tests/golden/clock/"], "tests": ["clock"]},

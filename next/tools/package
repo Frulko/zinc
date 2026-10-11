@@ -16,7 +16,7 @@ NEXT = os.path.dirname(HERE)
 REPO = os.path.dirname(NEXT)
 VERSION = os.environ.get("ZINC_VERSION", "0.0.1")   # the release job sets it from the tag (v1.2.0 -> 1.2.0)
 # size budgets in MB of the download (the archive); a package over its budget fails the script
-BUDGET_MB = {"macos": 40, "linux": 40}
+BUDGET_MB = {"macos": 40, "linux": 40, "windows": 40}
 
 def arg(name, default):
     return sys.argv[sys.argv.index(name) + 1] if name in sys.argv else default
@@ -183,16 +183,34 @@ def package_linux(build, out):
         t.add(root, arcname=name)
     return "linux", archive, without
 
+def package_windows(build, out):
+    """ZN-718: zinc-<version>-windows-<arch>.zip (bin\\zinc.exe and the DLLs built beside it, share\\zinc). Never run: the Windows host does not build yet
+    (ZN-054), and no plugin names the windows target, so it holds no plugin library. Written so the release job has its step the day the build passes."""
+    name = "zinc-%s-windows-%s" % (VERSION, platform.machine().lower().replace("amd64", "x86_64"))
+    root = os.path.join(out, "stage", name)
+    shutil.rmtree(os.path.join(out, "stage"), ignore_errors=True)
+    os.makedirs(os.path.join(root, "bin"))
+    for f in os.listdir(build):
+        if f == "zinc.exe" or f.lower().endswith(".dll"):
+            shutil.copy2(os.path.join(build, f), os.path.join(root, "bin", f))
+    payload(os.path.join(root, "share", "zinc"))
+    without = prebuild_plugins(os.path.join(build, "zinc.exe"), os.path.join(root, "share", "zinc"), "windows")
+    archive = os.path.join(out, name + ".zip")
+    zip_dir(root, archive, name)
+    return "windows", archive, without
+
 def main():
     build = os.path.abspath(arg("--build", os.path.join(NEXT, "build")))
     out = os.path.abspath(arg("--out", os.path.join(NEXT, "dist")))
     os.makedirs(out, exist_ok=True)
-    if not os.path.exists(os.path.join(build, "zinc")):
-        sys.exit("no %s/zinc: build first (cmake --build build)" % build)
     system = platform.system()
+    if system == "Windows" and not os.path.exists(os.path.join(build, "zinc.exe")): build = os.path.join(build, "Release")   # the Visual Studio generator
+    if not os.path.exists(os.path.join(build, "zinc.exe" if system == "Windows" else "zinc")):
+        sys.exit("no %s/zinc: build first (cmake --build build)" % build)
     if system == "Darwin": kind, archive, without = package_macos(build, out)
     elif system == "Linux": kind, archive, without = package_linux(build, out)
-    else: sys.exit("packaging for %s comes with the Windows host (ZN-054)" % system)
+    elif system == "Windows": kind, archive, without = package_windows(build, out)
+    else: sys.exit("no package for %s" % system)
     shutil.rmtree(os.path.join(out, "stage"), ignore_errors=True)
     mb = os.path.getsize(archive) / 1e6
     report = {"package": os.path.basename(archive), "megabytes": round(mb, 2), "budget_megabytes": BUDGET_MB[kind], "within_budget": mb <= BUDGET_MB[kind], "plugins_without_prebuilt": without}
