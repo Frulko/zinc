@@ -85,7 +85,7 @@ enum class N : std::uint8_t {
   Enum,           // text=name  [EnumMember...]
   EnumMember,     // text=name  [initialiser|none]
   ObjectLit,      // [Prop...]   (`{ a: 1, b }`)
-  Prop,           // text=name  [value]; a computed key `[k]: v` has no text and [value, key]
+  Prop,           // text=name  [value]; a computed key `[k]: v` has no text and [value, key]; an accessor's value is its FuncExpr (flags kFlagGetter, kFlagSetter)
   As,             // [expression, type]   (`e as T`)
   Try,            // [block, catch Ident|none, catch block|none, finally block|none]
   Throw,          // [expression]
@@ -108,7 +108,8 @@ inline constexpr std::uint32_t kFlagAbstract = 1, kFlagStatic = 2, kFlagReadonly
                                kFlagDefault = 16384,  // an Export node: `export default`
                                kFlagUndefined = 32768,  // a Literal null or TypeRef null written as `undefined` (a file without Dyn values: same representation, printed as undefined)
                                kFlagTypeQuery = 65536,  // a TypeRef written `typeof x`: the type of the value x
-                               kFlagRest = 131072;  // a Param written `...name`: the remaining arguments as an array
+                               kFlagRest = 131072,  // a Param written `...name`: the remaining arguments as an array
+                               kFlagSetter = 262144;  // a Prop of an object literal written `set name(v) { ... }` (kFlagGetter: `get name() { ... }`)
 
 // Class members start at this index of a Class node's kids; Interface members start at 1.
 inline constexpr std::size_t kClassMembersFrom = 2;

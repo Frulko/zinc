@@ -1056,6 +1056,23 @@ struct Parser {
         if (!eatP(",")) break;
         continue;
       }
+      if ((isId("get") || isId("set")) && (at(1).kind == Tok::Ident || at(1).kind == Tok::Keyword) && isP("(", 2)) {  // `get name() { ... }`, `set name(v) { ... }`
+        const bool getter = isId("get");
+        std::uint32_t ps0 = cur().start;
+        ++i;
+        std::string_view key = txt();
+        ++i;
+        auto mps = params(false);
+        std::uint32_t ret = kNone;
+        if (eatP(":")) ret = type();
+        std::uint32_t body = withFn(false, false, [&] { return block(); });
+        std::uint32_t value = funcExpr(ps0, mps, ret, body, false);
+        std::uint32_t prop = mk(N::Prop, ps0, prevEnd(), key, {value});
+        r.ast.nodes[prop].flags = getter ? kFlagGetter : kFlagSetter;
+        props.push_back(prop);
+        if (!eatP(",")) break;
+        continue;
+      }
       if (cur().kind != Tok::Ident && cur().kind != Tok::Keyword && cur().kind != Tok::String) unexpected();
       std::uint32_t ps = cur().start, pe = cur().end;
       std::string_view key = txt();
@@ -1071,7 +1088,7 @@ struct Parser {
         if (eatP(":")) ret = type();
         std::uint32_t body = withFn(false, false, [&] { return block(); });
         value = funcExpr(ps, mps, ret, body, false);
-      } else unsupported("getters, setters and string-named methods in object literals");
+      } else unsupported("string-named methods in object literals");
       props.push_back(mk(N::Prop, ps, prevEnd(), key, {value}));
       if (!eatP(",")) break;
     }

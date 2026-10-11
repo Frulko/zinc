@@ -2,6 +2,7 @@
 #include "zn/native_sig.h"
 
 #include <algorithm>
+#include <cctype>
 #include <functional>
 #include <map>
 #include <memory>
@@ -3554,7 +3555,112 @@ struct Checker {
     a.nodes[i].kids = props;
   }
 
+  // Does the function body use `this` (arrows inherit it; other functions and classes have their own)?
+  bool usesThis(std::uint32_t i) const {
+    if (i == kNone) return false;
+    const Node& x = n(i);
+    if (x.kind == N::This) return true;
+    if (x.kind == N::Function || x.kind == N::Class || (x.kind == N::FuncExpr && !(x.flags & kFlagArrow))) return false;
+    for (std::uint32_t k : x.kids) if (usesThis(k)) return true;
+    return false;
+  }
+  // An object literal with a getter or a setter, or a method that uses `this`: an instance of a class generated for it, whose
+  // constructor takes the data properties (evaluated where the literal is) and whose members are the literal's accessors and methods.
+  bool needsObjectClass(const Node& x) const {
+    for (std::uint32_t p : x.kids) {
+      const Node& pn = n(p);
+      if (pn.kind != N::Prop) continue;
+      if (pn.flags & (kFlagGetter | kFlagSetter)) return true;
+      if (pn.kids.size() == 1 && n(pn.kids[0]).kind == N::FuncExpr && !(n(pn.kids[0]).flags & kFlagArrow) && usesThis(n(pn.kids[0]).kids[1])) return true;
+    }
+    return false;
+  }
+  int objectClasses = 0;
+  TypeId objectLitClass(std::uint32_t i) {
+    std::vector<std::vector<std::uint32_t>> holes;
+    auto hole = [&](std::uint32_t nd) { holes.push_back({nd}); return "__H" + std::to_string(holes.size() - 1); };
+    std::string fields, ctorParams, ctorBody, members, args;
+    int data = 0;
+    for (std::uint32_t p : std::vector<std::uint32_t>(n(i).kids)) {
+      const Node& pn = n(p);
+      if (pn.kind != N::Prop || pn.kids.size() > 1) { diag(kZUnsupported, p, "a spread or a computed key next to a getter, a setter or a method using 'this'"); return tError; }
+      const std::string key(pn.text);
+      bool ident = !key.empty() && !std::isdigit(static_cast<unsigned char>(key[0]));
+      for (char ch : key) ident = ident && (std::isalnum(static_cast<unsigned char>(ch)) || ch == '_' || ch == '$');
+      if (!ident) { diag(kZUnsupported, p, "the property '" + key + "' next to a getter, a setter or a method using 'this' (only plain names)"); return tError; }
+      const std::uint32_t v = pn.kids[0];
+      const Node& fe = n(v);
+      if ((pn.flags & (kFlagGetter | kFlagSetter)) || (fe.kind == N::FuncExpr && !(fe.flags & kFlagArrow))) {  // a member with the literal's own parameters, types and body
+        if (fe.flags & (kFlagAsync | kFlagGenerator)) { diag(kZUnsupported, v, "async and generator methods next to a getter, a setter or a method using 'this'"); return tError; }
+        std::string sig = "(";
+        for (std::size_t k = 2; k < fe.kids.size(); ++k) {
+          const Node& pa = n(fe.kids[k]);
+          if (pa.kids.size() > 2 && pa.kids[2] != kNone) { diag(kZUnsupported, fe.kids[k], "a destructured parameter of a method of an object literal"); return tError; }
+          if (pa.kids[0] == kNone) { diag(kZCannotInfer, fe.kids[k], "parameter '" + std::string(pa.text) + "'"); return tError; }
+          sig += std::string(k > 2 ? ", " : "") + ((pa.flags & kFlagRest) ? "..." : "") + std::string(pa.text) + ": " + hole(pa.kids[0]);
+          if (pa.kids[1] != kNone) sig += " = " + hole(pa.kids[1]);
+        }
+        sig += ")";
+        if (fe.kids[0] != kNone) sig += ": " + hole(fe.kids[0]);
+        holes.push_back(n(fe.kids[1]).kids);  // the body's statements
+        members += std::string("  ") + ((pn.flags & kFlagGetter) ? "get " : (pn.flags & kFlagSetter) ? "set " : "") + key + sig + " { __H" + std::to_string(holes.size() - 1) + "; }\n";
+        continue;
+      }
+      const TypeId t = expr(v);
+      if (bad(t)) return tError;
+      if (t == tNull || t == tVoid) { diag(kZCannotInfer, p, "property '" + key + "'"); return tError; }
+      if (hasParam(t)) { diag(kZUnsupported, p, "a getter or a setter in an object literal of a generic function"); return tError; }
+      const std::string alias = inspectAliasName(t);
+      if (lookup(alias) == kNone) declare(SymKind::TypeAlias, keep(alias), t, kNone, true, i);
+      const std::string param = "__p" + std::to_string(data++);
+      fields += "  " + key + ": " + alias + ";\n";
+      ctorParams += (ctorParams.empty() ? "" : ", ") + param + ": " + alias;
+      ctorBody += " this." + key + " = " + param + ";";
+      args += (args.empty() ? "" : ", ") + hole(v);
+    }
+    const std::string cname = "__object" + std::to_string(objectClasses++);
+    const std::string text = "class " + cname + " {\n" + fields + "  constructor(" + ctorParams + ") {" + ctorBody + " }\n" + members + "}\n";
+    if (std::getenv("ZN_DUMP_GEN")) std::fputs(text.c_str(), stderr);
+    auto r = snippet(a, text, holes, i);
+    out.nodeType.resize(a.nodes.size(), kNoType);
+    out.nodeSym.resize(a.nodes.size(), kNone);
+    if (r.size() != 1 || n(r[0]).kind != N::Class) { diag(kZUnsupported, i, "internal error: the class of an object literal does not parse"); return tError; }
+    const std::uint32_t cls = r[0];
+    ObjInfo info;
+    info.name = cname;
+    info.isClass = true;
+    out.objs.push_back(info);
+    const auto oi = static_cast<std::uint32_t>(out.objs.size() - 1);
+    out.nodeType[cls] = objType(oi);
+    out.nodeSym[cls] = declare(SymKind::Class, n(cls).text, objType(oi), cls, true, i);
+    pendingBuild[oi] = [this, cls, oi]() { classMembers(cls, oi); };
+    ensureBuilt(oi);
+    out.instances.push_back(cls);  // lowered with the generated declarations
+    defer->push_back([this, cls]() {  // after the members' bodies: a member is a method, it cannot reach the variables of the function around the literal
+      for (std::size_t k = kClassMembersFrom; k < n(cls).kids.size(); ++k) {
+        const std::uint32_t m = n(cls).kids[k];
+        if (n(m).kind != N::Method || n(m).text == "constructor") continue;
+        std::set<std::uint32_t> own{m};
+        std::function<void(std::uint32_t)> walk = [&](std::uint32_t at) {
+          if (at == kNone) return;
+          const Node& x = n(at);
+          if (x.kind == N::FuncExpr || x.kind == N::Function) own.insert(at);
+          if (x.kind == N::Ident && at < out.nodeSym.size() && out.nodeSym[at] != kNone) {
+            const Symbol& sy = out.syms[out.nodeSym[at]];
+            if ((sy.kind == SymKind::Var || sy.kind == SymKind::Param) && !sy.isGlobal && sy.ownerFn != kNone && !own.count(sy.ownerFn))
+              diag(kZUnsupported, at, "'" + std::string(x.text) + "' of the function around an object literal, in its getter, setter or method (keep it in a property of the object)");
+          }
+          for (std::uint32_t kid : x.kids) walk(kid);
+        };
+        walk(m);
+      }
+    });
+    if (!replaceWith(i, "new " + cname + "(" + args + ")", holes)) { diag(kZUnsupported, i, "internal error: the object literal does not become a new"); return tError; }
+    return expr0(i, kNoType);
+  }
+
   TypeId objectLit(std::uint32_t i, const Node& x, TypeId expected) {
+    if (needsObjectClass(x)) return objectLitClass(i);
     bool computed = false;
     for (std::uint32_t p : x.kids) computed = computed || (n(p).kind == N::Prop && n(p).kids.size() > 1);
     if (!rawDyn() && isDyn(expected)) { bool simple = true; for (std::uint32_t p : x.kids) simple = simple && n(p).kind == N::Prop; computed = computed || simple; }  // an object literal where an any is expected is a dynamic object
