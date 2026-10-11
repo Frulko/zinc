@@ -56,6 +56,9 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-261: gradients in state variants (hover:from-*, hover:bg-linear-*) are refused; per-corner radii (rounded-tl-*) are not followed under a gradient (it takes the box radius).
 - ZN-261: canvas2d createConicGradient through paint kind 4 (the raster and the GL shader have it).
 - ZN-261: on GL, a box drawn through setTransform with a gradient of more than 8 stops keeps its first 8.
+- ZN-262: the GL replay keeps rounded CLIPs above CORNER = 32 device px square, so object-cover rounded-full images (and overflow-hidden rounded-full avatars) wider than 32 px at scale 2 lose their round corners on the GL renderer; an SDF clip in the shader would lift it.
+- ZN-262: zinc:react-native has no ImageBackground and Image takes no source={{ uri }}; a View with backgroundImage: 'url(..)' covers the first.
+- ZN-262: background images follow the box's one radius, not per-corner radii, and take the border box as their area (no background-origin / -clip).
 
 ## Demos
 
