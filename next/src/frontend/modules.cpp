@@ -1293,10 +1293,22 @@ struct Loader {
       if (pm.kind == "module") for (const auto& [alias, file] : pm.aliases) if (!plugins.count(alias)) plugins[alias] = (e.path() / file).lexically_normal().string();   // `modules`: the bare specifiers a plugin answers (three/addons/...)
     }
   }
+  // The "pluginDirs" of a zinc.json on the way up, read before that project's plugins/ so they shadow it, as in the prototype's discover (ZN-354).
+  void readPluginDirsOf(const std::filesystem::path& dir) {
+    const std::string file = (dir / "zinc.json").string();
+    std::string text;
+    if (!pluginDirsRead.insert(file).second || !read(file, text)) return;
+    yyjson_doc* d = yyjson_read(text.c_str(), text.size(), 0);
+    yyjson_val* dirs = d ? yyjson_obj_get(yyjson_doc_get_root(d), "pluginDirs") : nullptr;
+    size_t i, n;
+    yyjson_val* v;
+    if (yyjson_is_arr(dirs)) yyjson_arr_foreach(dirs, i, n, v) if (yyjson_is_str(v)) readPluginsIn((dir / yyjson_get_str(v)).string());
+    yyjson_doc_free(d);
+  }
   void readPlugins(const std::string& fromFile) {
     namespace fs = std::filesystem;
     std::error_code ec;
-    for (fs::path d = fs::absolute(fromFile, ec).parent_path(); !d.empty() && d != d.root_path(); d = d.parent_path()) readPluginsIn((d / "plugins").string());   // absolute: `zinc run main.ts` has no parent to walk
+    for (fs::path d = fs::absolute(fromFile, ec).parent_path(); !d.empty() && d != d.root_path(); d = d.parent_path()) { readPluginDirsOf(d); readPluginsIn((d / "plugins").string()); }   // absolute: `zinc run main.ts` has no parent to walk
     if (!stdRoot.empty()) readPluginsIn((fs::path(stdRoot).parent_path().parent_path() / "plugins").string());
   }
 
