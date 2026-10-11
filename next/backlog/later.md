@@ -80,6 +80,11 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-650.13: storyboard miniatures ignore item rotation, and `table.visitors` is read and unused.
 - ZN-650.13: the attract loop loads the model and the panorama a second time; share mesh and texture.
 - ZN-650.13: a scripted drag on the panorama from a short side.
+- ZN-649.14: narrow a rule's `event` by its `on` (and multiball's `jackpotOn`/`jackpotEvent`); it changes every session that chooses an event.
+- ZN-649.14: a deletion could hand the rules to another thing of the same kind; a list `do` on a mission; lights or elements chosen by a click on the top view; a renamed counter is not renamed in the rules that use it; the scores grid needs a horizontal scroll under 1440 wide.
+- ZN-649.17: the pinball does not start with `--engine quickjs` ("Could not find export 'TableDef'", an interface imported by name).
+- ZN-649.17: a table or package dropped on the window could join the list (zinc:system `drop`); free the scene and sounds of the table that leaves.
+- ZN-649.18: a clip to a path in zinc:gfx (raster and GL), after which `drawInside` in topview.tsx goes; a visible handle for the field of view.
 
 ## Cross-platform pass
 
