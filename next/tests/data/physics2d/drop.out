@@ -1,0 +1,31 @@
+box2d 3.1.1
+after 120 steps
+circle 0 12551 0 | 0 43082 0
+box 15710 5273 16318 | 17415 14464 -77399
+capsule -15000 10848 0 | 0 -98100 0
+triangle -4000 30848 0 | 0 -98100 0
+rounded 3000 45848 0 | 0 -98100 0
+left -70403 7733 15619 | -37130 -23484 121353
+right -10378 3796 -2882 | 34227 -26628 -115203
+flipper 58650 35017 5258 | -20 34 39
+plunger 80000 20000 0 | 0 -22 0
+hinge at 5258 slide at 0
+contacts added 9 removed 9 sensed 4 left 1 hardest 68014 awake 9
+after 600 steps
+circle 28605 5000 4110 | 0 0 0
+box 36609 4000 -15708 | 0 0 0
+capsule -16337 2500 0 | 0 0 0
+triangle -57320 2913 20779 | 0 0 0
+rounded -42337 4000 -15708 | 0 0 0
+left -80868 2999 7633 | -12816 -244 42727
+right 20859 3000 20955 | 0 0 0
+flipper 58650 35017 5258 | -20 34 39
+plunger 80000 20000 0 | 0 0 0
+hinge at 5258 slide at 0
+contacts added 84 removed 68 sensed 6 left 3 hardest 177495 awake 3
+ray 5500 at 0 normal 10000 tag 0; across 383 at -83105 normal -7457
+replay from the start: identical
+out of the world 5000; through the floor yes; lifted 11000 with its load
+back in, pushed up at 50000, mass 7854
+after half a second above the floor
+refused: a box needs half extents above 0

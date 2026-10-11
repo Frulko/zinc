@@ -1,0 +1,13 @@
+{
+  "name": "physics2d",
+  "kind": "module",
+  "deterministic": true,
+  "module": "zinc:physics2d",
+  "entry": "index.ts",
+  "description": "2D rigid bodies on Box2D 3.1.1 (MIT): worlds stepped at a fixed rate with sub-steps, shapes and chains, continuous collision, revolute and prismatic joints, contact and sensor events, ray casts",
+  "license": "MIT",
+  "targets": {
+    "macos": { "sources": ["vendor/box2d.c"], "flags": ["-I./vendor/box2d/include", "-ffp-contract=off"], "defines": ["NDEBUG"] },
+    "linux": { "sources": ["vendor/box2d.c"], "flags": ["-I./vendor/box2d/include", "-ffp-contract=off"], "defines": ["NDEBUG"] }
+  }
+}

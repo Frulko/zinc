@@ -37,7 +37,7 @@ uses them. The core stays small (`runtime/`, `lib/`); the toolbox grows in `plug
 |---|---|
 | `modules` | extra import specifiers mapped to files of the plugin (`"three/addons/controls/OrbitControls.js": "addons/OrbitControls.ts"`) |
 | `targets` | availability: using the plugin on an unlisted target is error Z5003 (sim is always allowed for modules) |
-| `sources` | extra C++ files compiled into the program; `.c` files (vendored C libraries) go into a separate static library built with C flags, warnings off, and so do C++ files under `vendor/` (a vendored C++ library such as Jolt), built with the plugin's C++ flags and defines: that library is compiled once and an edit of the plugin does not rebuild it |
+| `sources` | extra C++ files compiled into the program; `.c` files (vendored C libraries) go into a separate static library built with C flags and the manifest's `flags` but a `-std=` (Box2D's `-I` and `-ffp-contract=off`), warnings off, and so do C++ files under `vendor/` (a vendored C++ library such as Jolt), built with the plugin's C++ flags and defines: that library is compiled once and an edit of the plugin does not rebuild it |
 | `pkg` / `frameworks` / `libs` / `linkFlags` | pkg-config modules, Apple frameworks, `-l` libraries, raw link flags |
 | `defines` / `flags` | compile definitions and flags for the program sources |
 | `packages` | system packages added to the target's SDK image (apk for rpi1, apt for linux); a derived image is built once per package set |

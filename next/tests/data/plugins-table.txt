@@ -20,6 +20,7 @@ plugin (import / display)  targets                             description
   zinc:lottie              macos,linux,rpi1,rmpp,wasm,ps2,esp32 Lottie (Bodymovin JSON) animations rendered natively: shapes, trims, precomps, Player, <Lottie/> UI node
   zinc:map                 macos,linux,rpi1                   Interactive vector maps: Mapbox Vector Tiles, MapLibre style subset, tile cache, labels
   zinc:mapping             macos,rpi1                         GPU video-mapping compositor (corner pin, mesh warp, masks, edge blend, colour) driven by OSC; needs display gl
+  zinc:physics2d           macos,linux                        2D rigid bodies on Box2D 3.1.1 (MIT): worlds stepped at a fixed rate with sub-steps, shapes and chains, continuous collision, revolute and prismatic joints, contact and sensor events, ray casts
   zinc:physics3d           macos,linux                        3D rigid bodies on Jolt Physics 5.6.0 (MIT): worlds stepped at a fixed rate, shapes, continuous collision, hinge and slider constraints, contact events, ray and shape casts
   zinc:pixelfont           macos,linux,rpi1,esp32,wasm,ps2    5x7 and 3x5 bitmap fonts for LED matrices and tiny screens
   zinc:process             macos,linux,rpi1                   Child processes: spawn with args/cwd/env, streamed stdout/stderr, stdin, kill, exit code (posix_spawn)

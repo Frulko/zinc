@@ -52,6 +52,8 @@ The compiler is `$CXX`/`c++`, else the pinned zig. `zinc` is linked with `-rdyna
 Cross targets (`zinc build --target`) do not build plugin code yet; the cache layout already keys by target.
 A vendored C++ library (ZN-583.02, Jolt in `plugins/physics3d`) goes to `vendor.a` as the `.c` files do: the manifest's sources under `vendor/` that are not C are compiled with the plugin's C++ flags
 (its `-I` among them) and its defines, without the engine's include paths. Jolt is four unity files, 48 s once with the pinned zig; an edit of `physics3d.host.cpp` then rebuilds in 7 s.
+A vendored `.c` file takes the manifest's `flags` too, except a `-std=` (ZN-583.01: Box2D in `plugins/physics2d` needs its `include/` directory and `-ffp-contract=off`); a plugin without `flags`
+compiles its C exactly as before. Box2D is one unity C file, 4 s.
 
 ## Native modules on the QuickJS engine (ZN-583.02)
 
