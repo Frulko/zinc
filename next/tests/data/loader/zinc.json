@@ -1,0 +1,8 @@
+{
+  "name": "loader",
+  "entry": "src/main.ts",
+  "assets": { "groups": { "boot": { "include": ["boot/**"] }, "level": { "include": ["level/**"] } } },
+  "splash": { "image": "splash.svg", "background": "#18233a" },
+  "loading": { "screen": "default", "fadeMs": 100 },
+  "targets": { "macos": { "width": 320, "height": 200 }, "linux": { "width": 320, "height": 200 } }
+}

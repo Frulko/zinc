@@ -132,4 +132,11 @@ std::string findProjectFile(const std::string& path);
 // The entry source of a directory argument (`zinc run examples/breakout`): zinc.json "entry"/"main", then src/main.ts[x], main.ts[x]; "" when none exists.
 std::string entryOf(const std::string& dir, const Project* project);
 
+/** The loader stage (ZN-447, docs/reports/games/toolchain-assets-loading.md 7.5): a module that the program initialises before its own modules
+ *  (loadProgram, the QuickJS engine); the command line makes it from zinc.json `loading` (zn::cli::loaderStageFor). `path` names it in the
+ *  project's directory, so a module it imports resolves against the project. Empty source: no stage. */
+struct LoaderStage { std::string path, source; };
+void setLoaderStage(LoaderStage s);   // the program being compiled (set with the permissions of its zinc.json)
+const LoaderStage& loaderStage();
+
 }  // namespace zn::frontend

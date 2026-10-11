@@ -2073,6 +2073,120 @@ zn::assets::Splash splashFor(const zn::frontend::Project& p, const std::string& 
   return out;
 }
 
+namespace {
+// The loop of the loader stage: zinc:gfx and the host calls of the asset scheduler (src/host/assets_host.h) only, so the same text runs on
+// the typed engines and on QuickJS. Progress is the bytes done over the bytes of every group, monotone, 1 only once all are resident.
+const char* kLoaderStage = R"ZN(import { overlay, createImage, destroyImage, beginImage, endImage, drawImage, width, height } from 'zinc:gfx';
+function __loaderSettled(ids: i32[]): boolean {
+  let all = true;
+  for (const id of ids) {
+    const st = __host_assetsReqState(id);
+    if (st === 2) throw new Error(__host_assetsReqError(id));
+    if (st === 0) all = false;
+  }
+  return all;
+}
+function __loaderStage(groups: string[], minMs: number, fadeMs: number, screen: (progress: number, dt: number) => void): void {
+  if (groups.length === 0) { const n = __host_assetsGroupsCount(); for (let i: i32 = 0; i < n; i++) groups.push(__host_assetsName(i)); }
+  const ids: i32[] = [];
+  for (const g of groups) {
+    if (__host_assetsGroupState(g) === 2) continue;   // resident already
+    const id = __host_assetsLoadGroup(g, 0);
+    if (id === 0) { __host_fsFailed(); throw new Error(__host_fsError()); }
+    ids.push(id);
+  }
+  if (ids.length === 0) return;   // nothing to load: no loader
+  __host_assetsTurn();
+  if (__host_loopReal() !== 0) {   // a load shorter than a frame shows no loader; a deterministic turn waits for its jobs instead
+    const until = __host_loopNow() + 16;
+    while (!__loaderSettled(ids) && __host_loopNow() < until) { __host_loopWait(until - __host_loopNow()); __host_assetsTurn(); }
+  }
+  let frames = __host_gfxFrames();   // ZINC_FRAMES counts the loader's frames too
+  let shown: number = 0;
+  if (!(__loaderSettled(ids) && minMs <= 0)) {
+    while (frames > 0) {
+      const dt = __host_gfxPoll();
+      if (__host_gfxShouldQuit()) { __host_gfxFinish(); __host_sysExit(0); }
+      __host_assetsTurn();
+      const settled = __loaderSettled(ids);
+      let done: number = 0, total: number = 0;
+      for (const id of ids) { done += __host_assetsReqDone(id); total += __host_assetsReqTotal(id); }
+      shown += dt * 1000;
+      const last = settled && shown >= minMs;
+      __host_gfxBegin();
+      screen(total > 0 ? done / total : 1, dt);
+      if (last && fadeMs > 0) {   // fadeMs: this frame, drawn over the program's first frames with a falling opacity (a cross-fade)
+        const img = createImage(width(), height());
+        beginImage(img);
+        screen(1, 0);
+        endImage();
+        let gone: number = 0;
+        overlay((step: number): boolean => {
+          gone += step * 1000;
+          if (gone >= fadeMs) { destroyImage(img); return false; }
+          drawImage(img, 0, 0, width(), height(), Math.round(255 - 255 * gone / fadeMs), 0);
+          return true;
+        });
+      }
+      __host_gfxEnd();
+      frames--;
+      if (last) break;
+    }
+  }
+  for (const id of ids) __host_assetsReqForget(id);
+}
+)ZN";
+
+std::string hexOf(std::uint32_t v) { char b[16]; std::snprintf(b, sizeof b, "0x%06x", v & 0xffffffu); return b; }
+}  // namespace
+
+zn::frontend::LoaderStage loaderStageFor(const zn::frontend::Project& p, const std::string& projectDir, const std::string& entry, const std::string& target) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  const std::string main = zn::frontend::entryOf(projectDir, &p);
+  if (!p.loading.present || main.empty() || !fs::equivalent(main, entry, ec)) return {};
+  auto t = p.targets.find(target);
+  const zn::frontend::Splash& s = t != p.targets.end() && t->second.splash.present ? t->second.splash : p.splash;
+  // the app's colours: the splash background (black under a splash image alone, as the engine splash), else a dark grey; the bar light on a
+  // dark background, dark on a light one
+  std::uint32_t bg = s.present ? 0 : 0x101418;
+  if (s.present && !s.background.empty()) {
+    std::string h = s.background.substr(1);
+    if (h.size() == 3) h = {h[0], h[0], h[1], h[1], h[2], h[2]};
+    bg = static_cast<std::uint32_t>(std::stoul(h.substr(0, 6), nullptr, 16));
+  }
+  const std::uint32_t luma = ((bg >> 16) * 299 + ((bg >> 8) & 255) * 587 + (bg & 255) * 114) / 1000;
+  const std::string fg = hexOf(luma < 128 ? 0xf0f0f0 : 0x202428);
+  std::string imports, screen;
+  const std::string& sc = p.loading.screen;
+  if (sc == "bar" || (sc == "default" && s.image.empty())) {
+    imports = "import { bar } from 'zinc:loader';\n";
+    screen = "bar(" + hexOf(bg) + ", " + fg + ")";
+  } else if (sc == "default") {   // the splash image placed as the engine splash places it (an SVG is imported at 8 pixels a unit, src/assets)
+    const std::string ext = fs::path(s.image).extension().string();
+    imports = "import { splash } from 'zinc:loader';\n";
+    screen = "splash(" + hexOf(bg) + ", " + std::string(s.fit == "cover" ? "1" : s.fit == "center" ? "2" : "0") + ", " + (ext == ".svg" ? "8" : "1") + ", " + fg + ")";
+  } else {   // a module of the project whose default export is the screen
+    std::string rel = sc.rfind("./", 0) == 0 ? sc.substr(2) : sc, quoted;
+    for (char c : rel) { if (c == '\\' || c == '\'') quoted += '\\'; quoted += c; }
+    imports = "import __screen from './" + quoted + "';\n";
+    screen = "__screen";
+  }
+  std::vector<std::string> groups = p.loading.groups;   // none named: boot when assets.groups has it, else every group of the packs
+  if (groups.empty() && std::any_of(p.assets.groups.begin(), p.assets.groups.end(), [](const zn::frontend::AssetGroup& g) { return g.name == "boot"; })) groups.push_back("boot");
+  std::string list;
+  for (const std::string& g : groups) {
+    list += list.empty() ? "'" : ", '";
+    for (char c : g) { if (c == '\\' || c == '\'') list += '\\'; list += c; }
+    list += "'";
+  }
+  zn::frontend::LoaderStage out;
+  out.path = (fs::absolute(projectDir) / "zinc.json.loading.ts").lexically_normal().string();
+  out.source = "// zinc.json \"loading\" (ZN-447), generated: initialised before the program's own modules\n" + imports + kLoaderStage +
+               "__loaderStage([" + list + "], " + std::to_string(p.loading.minMs) + ", " + std::to_string(p.loading.fadeMs) + ", " + screen + ");\n";
+  return out;
+}
+
 bool buildAssets(const std::string& dir, const std::string& target, bool release, std::string& err, std::string* summary) {
   const fs::path project = fs::absolute(dir).lexically_normal();
   zn::frontend::Project proj;

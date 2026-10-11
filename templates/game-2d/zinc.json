@@ -3,5 +3,6 @@
   "app": { "id": "com.example.{{id}}", "name": "{{name}}", "version": "0.1.0" },
   "entry": "src/main.ts",
   "assets": { "dir": "assets", "rules": [{ "match": "*.svg", "as": "sprite", "atlas": "sprites" }] },
+  "loading": { "screen": "bar", "groups": ["default"], "fadeMs": 150 },
   "targets": { "macos": { "width": 640, "height": 400 }, "linux": { "width": 640, "height": 400 } }
 }

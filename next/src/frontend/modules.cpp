@@ -84,6 +84,8 @@ function __gfxLoop(): void {
       __winFns[i](dt);
       __host_gfxEndWindow();
     }
+    const over = __overFn;
+    if (over !== null && !over(dt)) __overFn = null;
     __drainJobs();
     __host_gfxEnd();
     __frameNo++;
@@ -91,6 +93,11 @@ function __gfxLoop(): void {
   }
   __host_gfxFinish();
 }
+let __overFn: ((dt: number) => boolean) | null = null;
+/** Draws over every frame of the main window, after the program, until `draw` returns false (the loader's fade, ZN-447). */
+export function overlay(draw: (dt: number) => boolean): void { __overFn = draw; }
+/** Whether an overlay draws: zinc:ui paints its frame again instead of keeping it. */
+export function overlaid(): boolean { return __overFn !== null; }
 export function onFrame(cb: (dt: number) => void): void { __frameCb = cb; __frameHook = __gfxLoop; }
 /** Calls `cb(width, height)` before the next frame each time the surface changes size. Asking for it makes the surface follow the window
  *  (responsive) instead of a fixed size scaled into it, unless zinc.json chose: targets.<target>.resize "letterbox" keeps the fixed surface. */
@@ -1772,6 +1779,7 @@ struct Loader {
       for (auto& [k, v] : pr.ast.tparams) { auto& d = A.tparams[k + off]; for (std::uint32_t x : v) d.push_back(x + off); }
       for (auto& [k, v] : pr.ast.targs) { auto& d = A.targs[k + off]; for (std::uint32_t x : v) d.push_back(x + off); }
       if (auto sp = specOf.find(path); sp != specOf.end()) padToSpec(A, pr.ast.root + off, sp->second);
+      if (fi == 0 && !loaderStage().source.empty()) load(loaderStage().path, loaderStage().source);   // zinc.json "loading" (ZN-447): before any module of the entry
       ModuleInfo mod;
       std::vector<std::pair<std::string, std::uint32_t>> namespaces;  // `import * as ns` of this module: alias, module
       mod.path = path;

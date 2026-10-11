@@ -1,0 +1,9 @@
+{
+  "name": "loader",
+  "kind": "module",
+  "module": "zinc:loader",
+  "entry": "index.ts",
+  "modules": { "zinc:loader/ui": "ui.tsx" },
+  "description": "The screens of the loader stage (zinc.json \"loading\"): a progress bar, the splash with a thin bar, and a zinc:ui <Loader> component",
+  "targets": { "macos": {}, "linux": {}, "rpi1": {}, "wasm": {}, "esp32": {}, "ps2": {} }
+}

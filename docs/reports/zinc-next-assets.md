@@ -221,6 +221,26 @@ about 200 ms and the GL window and context about 110 ms (`ZINC_LOG=run=debug`: "
 (the first present into the hidden window 35 ms with the GL warm-up, the show 5 ms, the second present one vsync, 16 ms); zinc itself reaches
 the splash 13 to 20 ms after its start. The first launch of a newly built binary adds about 800 ms before `main` (the system checks it).
 
+## The loader stage (ZN-447)
+
+`zinc.json` `loading` (design: 7.5 of the report; the keys and the screens: `docs/plugins/loader.md`) runs a screen every frame while asset
+groups load, before the program's own modules start.
+
+- **A generated module.** `zn::cli::loaderStageFor` (`src/cli_core.cpp`: the frontend names no plugin) writes the stage as Zinc source when
+  the file compiled is the project's entry, and `zn::frontend::setLoaderStage` hands it to the compile: the loop, the screen's import (`zinc:loader` `bar` or `splash`, or the project's module) and one call with the groups,
+  `minMs` and `fadeMs`. Its path is `zinc.json.loading.ts` in the project's directory (no such file: diagnostics name it, a screen module
+  resolves against the project). `loadProgram` initialises it before every module of the entry, as if the entry began with an import of it;
+  the QuickJS engine evaluates it as a module before the entry. Tests and other files of the project compile without it. A built program
+  carries it like any module, so the interpreter, a built executable and QuickJS run the same frames.
+- **The loop** uses the asset scheduler's host calls and zinc:gfx only: it requests the groups (none resident: no loader), turns once (a real
+  run waits up to 16 ms for the first jobs on the loop, so a load done within a frame shows nothing), then each frame polls, turns, gives the
+  screen the bytes done over the bytes of every group, and stops once all are resident and `minMs` has passed, or when the run's frames are
+  spent (`ZINC_FRAMES` counts the stage's: the host's frame count is now the frames left). Closing the window ends the program.
+- **The fade.** With `fadeMs`, the last frame is also drawn into an image (logical pixels) that zinc:gfx `overlay` draws over the program's
+  frames with a falling opacity; while an overlay draws, zinc:ui paints its frame instead of keeping the last one (`overlaid()`).
+- **The splash screen** draws `image('.splash')`: the image of the splash entry (ZN-446), placed as `src/host/splash.cpp` places it, so the
+  engine splash hands over with no visible change.
+
 ## Measured (macOS x86_64, i7-9750H, 2026-10-11, load 2.5 to 3.3: another agent building)
 
 | Case | Time |

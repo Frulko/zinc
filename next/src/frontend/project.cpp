@@ -518,4 +518,8 @@ std::string entryOf(const std::string& dir, const Project* project) {
   return "";
 }
 
+namespace { LoaderStage gStage; }
+void setLoaderStage(LoaderStage s) { gStage = std::move(s); }
+const LoaderStage& loaderStage() { return gStage; }
+
 }  // namespace zn::frontend

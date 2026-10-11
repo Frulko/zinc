@@ -16,3 +16,4 @@ zinc build    # a native executable in build/
 | `src/save.ts` | the best score, kept with `zinc:storage` |
 | `assets/*.svg` | the sprites: the `sprite` rule of `zinc.json` packs them into one texture, an atlas, drawn with `zinc:sprite`: `atlas('sprites').frame('player.svg').draw(x, y)` (PNG and Aseprite files too, see docs/plugins/sprite.md) |
 | `assets/coin.wav` | the sound of a collected coin, played with `zinc:audio`: `load('coin.wav').play()` (WAV, FLAC, MP3 or OGG; `loop` and `volume` for music) |
+| `zinc.json` `loading` | the loading screen: a bar drawn while the assets load, before `src/main.ts` starts, faded into the title; not shown when they load within a frame (`"screen"` takes `"bar"`, `"default"`: the splash with a bar, or a module of yours, see docs/plugins/loader.md) |

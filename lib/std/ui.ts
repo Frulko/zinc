@@ -12,6 +12,7 @@ import {
 } from 'zinc:gfx';
 import { profiling, profMark, pixelScale } from 'zinc:gfx';   // frame phases (docs/dev-mode.md, profiling)
 import { openWindow, frame as gfxFrame } from 'zinc:gfx';   // trees in windows of their own (ZN-663)
+import { overlaid } from 'zinc:gfx';   // the loader's fade draws over the first frames (ZN-447): a kept frame would hold it
 import { platform, env } from 'zinc:sys';
 import { PALETTE, SHADES } from './palette';
 import { UI_LAYOUT, UI_PRESET, HEAP_BYTES, TIER } from 'zinc:platform';
@@ -4899,7 +4900,7 @@ export function frame(dt: number, background: i32): void {
   if (prof) profMark(PROF_LAYOUT);
   if (hoverDirty || paintDirty) updateHover();
   if (prof) profMark(PROF_INPUT);
-  if (!paintDirty && !extPaint && !animating && anims.length === 0 && steppers.length === 0 && canvases === 0 && scrollers.length === 0 && editScrollers.length === 0) { keep(); return; }
+  if (!paintDirty && !extPaint && !animating && anims.length === 0 && steppers.length === 0 && canvases === 0 && scrollers.length === 0 && editScrollers.length === 0 && !overlaid()) { keep(); return; }
   animating = false;
   if (paintDirty && surfaces.length > 0) othersDirty(false);
   paintDirty = false; extPaint = false;

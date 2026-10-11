@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 
-namespace zn::frontend { struct Project; }
+namespace zn::frontend { struct Project; struct LoaderStage; }
 namespace zn::assets { struct Splash; }
 
 namespace zn::cli {
@@ -76,6 +76,9 @@ bool buildAssets(const std::string& dir, const std::string& target, bool release
 bool assetRun(const std::string& dir, const std::string& target, const std::string& engineRoot, bool build, std::string& packs, std::uint64_t& ram, std::string& err);
 /** zinc.json `splash` in force on `target` (targets.<id>.splash replaces the project's), its image path made absolute (ZN-446). */
 zn::assets::Splash splashFor(const zn::frontend::Project& p, const std::string& projectDir, const std::string& target);
+/** The loader stage (ZN-447) of `entry` compiled for `target`, as Zinc source: zinc.json `loading` with its screen (`bar` and `default` from the
+ *  zinc:loader plugin, or the project's module); none unless the project declares `loading` and `entry` is its entry. */
+zn::frontend::LoaderStage loaderStageFor(const zn::frontend::Project& p, const std::string& projectDir, const std::string& entry, const std::string& target);
 /** Where the asset build keeps its artifacts (~/.zinc/cache/assets; empty under ZINC_NO_CACHE), and the engine's build its keys name. */
 std::string assetCacheDir();
 std::string engineBuild();

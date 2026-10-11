@@ -13,6 +13,10 @@ declare module 'zinc:gfx' {
   export function closeWindow(id: i32): void;
   /** Whether window `id` is open (0: the main one). */
   export function windowOpen(id: i32): boolean;
+  /** Draws over every frame of the main window, after the program, until `draw` returns false (the loader's fade, zinc.json loading.fadeMs). */
+  export function overlay(draw: (dt: number) => boolean): void;
+  /** Whether an overlay draws (zinc:ui paints its frame again instead of keeping it). */
+  export function overlaid(): boolean;
   export function width(): i32;
   export function height(): i32;
   export function clear(color: u32): void;

@@ -144,7 +144,8 @@ JSValue hostFn(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv, int m
 void installHost(JSContext* ctx) {
   JSValue g = JS_GetGlobalObject(ctx);
   for (unsigned i = static_cast<unsigned>(zn::Rt::HostGfxFrames); i < static_cast<unsigned>(zn::Rt::Count); ++i) {
-    if (i >= static_cast<unsigned>(zn::Rt::HostHostLast) && !zn::isLayoutRow(static_cast<zn::Rt>(i)) && !zn::isGfxTailRow(static_cast<zn::Rt>(i)) && !zn::isSysTailRow(static_cast<zn::Rt>(i))) continue;   // the rows past the host block that are host calls too: the layout engine (ZN-284.01), the zinc:gfx rows appended since (commands, resize, transform, sprites)
+    const bool loop = i >= static_cast<unsigned>(zn::Rt::HostLoopWait) && i <= static_cast<unsigned>(zn::Rt::HostLoopNow);   // the loader stage waits for its first jobs (ZN-447)
+    if (i >= static_cast<unsigned>(zn::Rt::HostHostLast) && !loop && !zn::isLayoutRow(static_cast<zn::Rt>(i)) && !zn::isGfxTailRow(static_cast<zn::Rt>(i)) && !zn::isSysTailRow(static_cast<zn::Rt>(i))) continue;   // the rows past the host block that are host calls too: the layout engine (ZN-284.01), the zinc:gfx rows appended since (commands, resize, transform, sprites)
     const zn::RtInfo& ri = zn::kRtInfo[i];
     std::string name = std::string("__host_") + zn::rtMember(ri);
     JS_SetPropertyStr(ctx, g, name.c_str(), JS_NewCFunctionMagic(ctx, hostFn, name.c_str(), static_cast<int>(zn::rtParamCount(ri)), JS_CFUNC_generic_magic, static_cast<int>(i)));
@@ -169,7 +170,11 @@ std::string gfxSource() {
          "  for (let i = 0; i < __winIds.length; i++) {\n"
          "    const id = __winIds[i];\n"
          "    if (__host_gfxWindowOpen(id) === 0) { __winIds.splice(i, 1); __winFns.splice(i, 1); i--; continue; }\n"
-         "    __host_gfxBeginWindow(id); __winFns[i](dt); __host_gfxEndWindow(); } }\n"
+         "    __host_gfxBeginWindow(id); __winFns[i](dt); __host_gfxEndWindow(); }\n"
+         "  if (__overFn !== null && !__overFn(dt)) __overFn = null; }\n"   // overlay (ZN-447): over the program's drawing
+         "let __overFn = null;\n"
+         "export function overlay(draw) { __overFn = draw; }\n"
+         "export function overlaid() { return __overFn !== null; }\n"
          "export function onFrame(cb) { __frameCb = cb; globalThis.__zincFrameCb = __frameStep; }\n"
          "export function onResize(cb) {\n"
          "  if (__resizeFns.length === 0) { __host_gfxSetResize(1); __lastW = __host_gfxWidth(); __lastH = __host_gfxHeight(); }\n"
@@ -186,6 +191,7 @@ std::string gfxSource() {
 bool moduleText(Engine& e, const std::string& name, std::string& js, std::string& err) {
   std::string src, path = name;
   if (name == "zinc:native") { js = kNativeModule; return true; }   // plain JavaScript: nothing to strip
+  if (const zn::frontend::LoaderStage& st = zn::frontend::loaderStage(); !st.source.empty() && name == st.path) return stripTypes(st.source, name, js, err);   // ZN-447
   if (name.rfind("zinc:", 0) == 0) {
     if (name == "zinc:gfx") src = gfxSource();
     else if (name == "zinc:platform") src = zn::frontend::platformModule(e.stdRoot + "/../../targets/capabilities.json");
@@ -430,6 +436,15 @@ int run(const Options& o) {
   }
   int rc = 0;
   std::string js, err;
+  JSValue stage = JS_UNDEFINED;   // zinc.json "loading" (ZN-447): the loader stage runs before the entry's modules, as on the typed engines
+  if (const zn::frontend::LoaderStage& st = zn::frontend::loaderStage(); !st.source.empty()) {
+    if (!moduleText(e, st.path, js, err)) { std::fprintf(stderr, "%s\n", err.c_str()); return 101; }
+    JSValue m = JS_Eval(e.ctx, js.data(), js.size(), st.path.c_str(), JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
+    stage = JS_IsException(m) ? m : JS_EvalFunction(e.ctx, m);
+    if (JS_IsException(stage)) { JSValue ex = JS_GetException(e.ctx); report(e.ctx, ex); JS_FreeValue(e.ctx, ex); return 101; }
+    e.entryPromise = JS_VALUE_GET_PTR(stage);   // a throw in the stage rejects its module's promise: reported as the entry's would be
+    if (!drain(e)) { JS_FreeValue(e.ctx, stage); return 101; }
+  }
   if (!moduleText(e, entry, js, err)) { std::fprintf(stderr, "%s\n", err.c_str()); return 101; }
   JSValue mod = JS_Eval(e.ctx, js.data(), js.size(), entry.c_str(), JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
   if (JS_IsException(mod)) { JSValue ex = JS_GetException(e.ctx); report(e.ctx, ex); JS_FreeValue(e.ctx, ex); return 101; }
@@ -440,6 +455,7 @@ int run(const Options& o) {
     if (!(drain(e) && timerLoop(e) && (!wantsFrames(e) || frameLoop(e)))) rc = 101;
     JS_FreeValue(e.ctx, res);
   }
+  JS_FreeValue(e.ctx, stage);
   std::fflush(stdout);
   return rc;
 }

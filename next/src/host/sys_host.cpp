@@ -713,7 +713,10 @@ static std::map<std::string, int> gPackImages;   // ponytail: kept for the progr
 // The pixels of the image entry `key` into image `id` (-1: a new one; resized to the entry); the image, or -1.
 static int32_t packImage(const std::string& key, int32_t id) {
   std::string zim, err;
-  if (!assets::read(key, zim, err, 1) || !err.empty() || zim.size() < 16 || zim.compare(0, 4, "ZIM1") != 0) return -1;
+  const bool splash = key == ".splash";   // the engine splash's image (ZN-446) for the loader's splash screen (ZN-447): after its 20-byte ZSP1 header
+  if (!assets::read(key, zim, err, splash ? 3 : 1) || !err.empty()) return -1;
+  if (splash) zim.erase(0, std::min<std::size_t>(zim.size(), 20));
+  if (zim.size() < 16 || zim.compare(0, 4, "ZIM1") != 0) return -1;
   const auto* p = reinterpret_cast<const unsigned char*>(zim.data());
   auto u32 = [&](int at) { return static_cast<uint32_t>(p[at] | p[at + 1] << 8 | p[at + 2] << 16) | static_cast<uint32_t>(p[at + 3]) << 24; };
   const int fmt = p[4];
