@@ -1158,6 +1158,11 @@ public:
     // ZINC patch 6 (ZN-572): true makes fill() and clip() use the even-odd rule instead of the non-zero winding rule.
     bool even_odd;
 
+    // ZINC patch 8 (ZN-572): the blend mode of the W3C compositing specification the source is mixed with what is under it, drawn
+    // source-over: 0 normal, then multiply, screen, overlay, darken, lighten, color-dodge, color-burn, hard-light, soft-light, difference,
+    // exclusion, hue, saturation, color, luminosity (1 to 15). Not saved by save().
+    int blend_mode;
+
 private:
     int size_x;
     int size_y;
@@ -2628,6 +2633,76 @@ void canvas::render_shadow(
     }
 }
 
+// ZINC patch 8: the source colour to draw source-over so that the pixel becomes the blend of the two (W3C Compositing and Blending 1:
+// Cs' = (1 - ab) Cs + ab B(Cb, Cs)). Both colours are premultiplied, and so is the result.
+static float blended_lum( rgba c ) { return 0.3f * c.r + 0.59f * c.g + 0.11f * c.b; }
+static rgba blended_set_lum( rgba c, float lum )
+{
+    float shift = lum - blended_lum( c );
+    c.r += shift; c.g += shift; c.b += shift;
+    float least = std::min( c.r, std::min( c.g, c.b ) );
+    float most = std::max( c.r, std::max( c.g, c.b ) );
+    if ( least < 0.0f )
+    {
+        float scale = lum / ( lum - least );
+        c.r = lum + ( c.r - lum ) * scale; c.g = lum + ( c.g - lum ) * scale; c.b = lum + ( c.b - lum ) * scale;
+    }
+    if ( most > 1.0f )
+    {
+        float scale = ( 1.0f - lum ) / ( most - lum );
+        c.r = lum + ( c.r - lum ) * scale; c.g = lum + ( c.g - lum ) * scale; c.b = lum + ( c.b - lum ) * scale;
+    }
+    return c;
+}
+static rgba blended_set_sat( rgba c, rgba from )   // c with the saturation of from
+{
+    float least = std::min( c.r, std::min( c.g, c.b ) );
+    float most = std::max( c.r, std::max( c.g, c.b ) );
+    float sat = std::max( from.r, std::max( from.g, from.b ) ) - std::min( from.r, std::min( from.g, from.b ) );
+    float scale = most > least ? sat / ( most - least ) : 0.0f;
+    return rgba( ( c.r - least ) * scale, ( c.g - least ) * scale, ( c.b - least ) * scale, c.a );
+}
+static float blended_channel( float b, float s, int mode )
+{
+    switch ( mode )
+    {
+        case 1: return b * s;
+        case 2: return b + s - b * s;
+        case 3: return b <= 0.5f ? 2.0f * b * s : 1.0f - 2.0f * ( 1.0f - b ) * ( 1.0f - s );
+        case 4: return std::min( b, s );
+        case 5: return std::max( b, s );
+        case 6: return b <= 0.0f ? 0.0f : s >= 1.0f ? 1.0f : std::min( 1.0f, b / ( 1.0f - s ) );
+        case 7: return b >= 1.0f ? 1.0f : s <= 0.0f ? 0.0f : 1.0f - std::min( 1.0f, ( 1.0f - b ) / s );
+        case 8: return s <= 0.5f ? 2.0f * b * s : 1.0f - 2.0f * ( 1.0f - b ) * ( 1.0f - s );
+        case 9: return s <= 0.5f ? b - ( 1.0f - 2.0f * s ) * b * ( 1.0f - b ) :
+            b + ( 2.0f * s - 1.0f ) * ( ( b <= 0.25f ? ( ( 16.0f * b - 12.0f ) * b + 4.0f ) * b : sqrtf( b ) ) - b );
+        case 10: return fabsf( b - s );
+        default: return b + s - 2.0f * b * s;
+    }
+}
+static rgba blended( rgba fore, rgba back, int mode )
+{
+    if ( fore.a <= 0.0f || back.a <= 0.0f )
+        return fore;
+    rgba s = ( 1.0f / fore.a ) * fore;
+    rgba b = ( 1.0f / back.a ) * back;
+    rgba mix;
+    if ( mode < 12 )
+        mix = rgba( blended_channel( b.r, s.r, mode ), blended_channel( b.g, s.g, mode ), blended_channel( b.b, s.b, mode ), 1.0f );
+    else if ( mode == 12 )
+        mix = blended_set_lum( blended_set_sat( s, b ), blended_lum( b ) );
+    else if ( mode == 13 )
+        mix = blended_set_lum( blended_set_sat( b, s ), blended_lum( b ) );
+    else if ( mode == 14 )
+        mix = blended_set_lum( s, blended_lum( b ) );
+    else
+        mix = blended_set_lum( b, blended_lum( s ) );
+    float alpha = fore.a;
+    fore = ( 1.0f - back.a ) * fore + ( alpha * back.a ) * mix;
+    fore.a = alpha;
+    return fore;
+}
+
 // Render the polylines into the pixel buffer.  It scan-converts the lines
 // to runs which represent changes to the signed fractional coverage when
 // read from left-to-right, top-to-bottom.  It scans through these to
@@ -2652,7 +2727,7 @@ void canvas::render_main(
     if ( !clipped && ( operation & 8 ) )
     {
         static float const least = 1.0f / 8160.0f;
-        bool solid = brush.type == paint_brush::color && !brush.colors.empty() && operation == source_over;
+        bool solid = brush.type == paint_brush::color && !brush.colors.empty() && operation == source_over && !blend_mode;
         rgba ink = solid ? global_alpha * brush.colors.front() : rgba( 0.0f, 0.0f, 0.0f, 0.0f );
         float sum = 0.0f;
         for ( size_t index = 0; index < runs.size(); ++index )
@@ -2687,6 +2762,8 @@ void canvas::render_main(
                     paint_pixel( xy( static_cast< float >( at ) + 0.5f,
                                      static_cast< float >( run.y ) + 0.5f ),
                                  brush );
+                if ( blend_mode )   // ZINC patch 8
+                    fore = blended( fore, *back, blend_mode );
                 float mix_fore = operation & 1 ? back->a : 0.0f;
                 if ( operation & 2 )
                     mix_fore = 1.0f - mix_fore;
@@ -2734,6 +2811,8 @@ void canvas::render_main(
                     paint_pixel( xy( static_cast< float >( x ) + 0.5f,
                                      static_cast< float >( y ) + 0.5f ),
                                  brush );
+                if ( blend_mode )   // ZINC patch 8
+                    fore = blended( fore, back, blend_mode );
                 float mix_fore = operation & 1 ? back.a : 0.0f;
                 if ( operation & 2 )
                     mix_fore = 1.0f - mix_fore;
@@ -2783,6 +2862,7 @@ canvas::canvas(
       image_mode( 0 ),
       image_smoothing( true ),
       even_odd( false ),
+      blend_mode( 0 ),
       bitmap( new rgba[ width * height ] ),
       saves( 0 )
 {
@@ -3505,7 +3585,7 @@ void canvas::draw_image(
     float step_x = static_cast< float >( width ) / ( forward.a * to_width );     // pixels of the picture for one of the canvas
     float step_y = static_cast< float >( height ) / ( forward.d * to_height );
     if ( forward.b == 0.0f && forward.c == 0.0f && forward.a > 0.0f && forward.d > 0.0f &&
-         to_width > 0.0f && to_height > 0.0f && !clipped && global_composite_operation == source_over &&
+         to_width > 0.0f && to_height > 0.0f && !clipped && global_composite_operation == source_over && !blend_mode &&
          ( shadow_color.a == 0.0f || ( shadow_blur == 0.0f && shadow_offset_x == 0.0f && shadow_offset_y == 0.0f ) ) )
     {
         float left = forward.a * x + forward.e;

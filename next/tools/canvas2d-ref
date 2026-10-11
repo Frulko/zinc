@@ -5,6 +5,8 @@
                                         chrome.json (the metrics) beside it, for tests/t1/webenv_canvas2d.sh
   tools/canvas2d-ref libs [NAME...]     the library pages of canvas2d/libs (pixi, phaser, p5: the same scripts, the unmodified libraries):
                                         writes libs/NAME-chrome.png, 320 x 240, for tests/t1/webenv_canvas2d_libs.sh
+  tools/canvas2d-ref out NAME...        a script that prints lines from an array named out (modes): writes NAME-chrome.out, the lines
+                                        Chrome gives, for tests/t1/webenv_canvas2d_full.sh
 Needs Google Chrome. Run it again only when a script changes: the references are in the repository.
 """
 import base64, json, os, subprocess, sys, tempfile, time
@@ -63,5 +65,14 @@ window.READY = true;
             open(os.path.join(DIR, "libs", name + "-chrome.png"), "wb").write(base64.b64decode(shot["data"]))
             print("canvas2d-ref: libs/%s-chrome.png" % name)
 
-if len(sys.argv) > 1 and sys.argv[1] == "libs": libs(sys.argv[2:] or ["pixi", "phaser", "p5"])
+def out(names):
+    with Chrome() as c:
+        for name in names:
+            r = c.eval("(() => {\n%s\nreturn out.join('\\n'); })()" % open(os.path.join(DIR, name + ".js")).read())
+            if not r: sys.exit("canvas2d-ref: Chrome gave no answer for %s" % name)
+            open(os.path.join(DIR, name + "-chrome.out"), "w").write(r + "\n")
+            print("canvas2d-ref: %s-chrome.out %d lines" % (name, len(r.split("\n"))))
+
+if len(sys.argv) > 2 and sys.argv[1] == "out": out(sys.argv[2:])
+elif len(sys.argv) > 1 and sys.argv[1] == "libs": libs(sys.argv[2:] or ["pixi", "phaser", "p5"])
 else: scene(*((int(sys.argv[1]), int(sys.argv[2])) if len(sys.argv) > 2 else (640, 480)))

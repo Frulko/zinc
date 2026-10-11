@@ -1,6 +1,6 @@
 --- canvas_ity.hpp (upstream 8be29cb)
 +++ canvas_ity.hpp
-@@ -1146,7 +1146,18 @@
+@@ -1146,6 +1146,22 @@
      /// path.  If the stack of canvas states is empty, this does nothing.
      ///
      void restore();
@@ -12,14 +12,18 @@
 +    // ZINC patch 5 (ZN-572): false makes draw_image take the nearest pixel of the picture instead of resampling it (a canvas whose
 +    // imageSmoothingEnabled is false: pixel art).
 +    bool image_smoothing;
- 
++
 +    // ZINC patch 6 (ZN-572): true makes fill() and clip() use the even-odd rule instead of the non-zero winding rule.
 +    bool even_odd;
 +
++    // ZINC patch 8 (ZN-572): the blend mode of the W3C compositing specification the source is mixed with what is under it, drawn
++    // source-over: 0 normal, then multiply, screen, overlay, darken, lighten, color-dodge, color-burn, hard-light, soft-light, difference,
++    // exclusion, hue, saturation, color, luminosity (1 to 15). Not saved by save().
++    int blend_mode;
+ 
  private:
      int size_x;
-     int size_y;
-@@ -1163,6 +1174,12 @@
+@@ -1163,6 +1179,12 @@
      paint_brush stroke_brush;
      paint_brush image_brush;
      bezier_path path;
@@ -32,7 +36,7 @@
      line_path lines;
      line_path scratch;
      pixel_runs runs;
-@@ -1270,18 +1287,28 @@
+@@ -1270,18 +1292,28 @@
      return left -= right; }
  static rgba const operator*( float left, rgba right ) {
      return right *= left; }
@@ -61,10 +65,12 @@
  static rgba const delinearized( rgba that ) {
      return rgba( delinearized( that.r ), delinearized( that.g ),
                   delinearized( that.b ), that.a ); }
-@@ -2169,6 +2196,17 @@
+@@ -2167,6 +2199,17 @@
+              ( from.y > to.y && to.y > next_y.y ) )
+             next_y = to;
      } while ( now.y != to.y );
- }
- 
++}
++
 +// ZINC patch 6: how much of a pixel is inside, from the sum of the signed coverage of the edges to its left. The even-odd rule folds the
 +// sum: inside between 0 and 1, outside again at 2.
 +static float inside( float sum, bool even_odd )
@@ -74,12 +80,10 @@
 +        return std::min( sum, 1.0f );
 +    sum = fmodf( sum, 2.0f );
 +    return sum > 1.0f ? 2.0f - sum : sum;
-+}
-+
+ }
+ 
  static bool operator<(
-     pixel_run left,
-     pixel_run right )
-@@ -2240,6 +2278,37 @@
+@@ -2240,6 +2283,37 @@
      }
      if ( runs.empty() )
          return;
@@ -117,7 +121,7 @@
      std::sort( runs.begin(), runs.end() );
      size_t to = 0;
      for ( size_t from = 1; from < runs.size(); ++from )
-@@ -2280,6 +2349,27 @@
+@@ -2280,6 +2354,27 @@
               ( ( brush.repetition & 1 ) &&
                 ( point.y < 0.0f || height <= point.y ) ) )
              return rgba( 0.0f, 0.0f, 0.0f, 0.0f );
@@ -145,7 +149,84 @@
          float scale_x = fabsf( inverse.a ) + fabsf( inverse.c );
          float scale_y = fabsf( inverse.b ) + fabsf( inverse.d );
          scale_x = std::max( 1.0f, std::min( scale_x, width * 0.25f ) );
-@@ -2556,18 +2646,82 @@
+@@ -2538,6 +2633,76 @@
+     }
+ }
+ 
++// ZINC patch 8: the source colour to draw source-over so that the pixel becomes the blend of the two (W3C Compositing and Blending 1:
++// Cs' = (1 - ab) Cs + ab B(Cb, Cs)). Both colours are premultiplied, and so is the result.
++static float blended_lum( rgba c ) { return 0.3f * c.r + 0.59f * c.g + 0.11f * c.b; }
++static rgba blended_set_lum( rgba c, float lum )
++{
++    float shift = lum - blended_lum( c );
++    c.r += shift; c.g += shift; c.b += shift;
++    float least = std::min( c.r, std::min( c.g, c.b ) );
++    float most = std::max( c.r, std::max( c.g, c.b ) );
++    if ( least < 0.0f )
++    {
++        float scale = lum / ( lum - least );
++        c.r = lum + ( c.r - lum ) * scale; c.g = lum + ( c.g - lum ) * scale; c.b = lum + ( c.b - lum ) * scale;
++    }
++    if ( most > 1.0f )
++    {
++        float scale = ( 1.0f - lum ) / ( most - lum );
++        c.r = lum + ( c.r - lum ) * scale; c.g = lum + ( c.g - lum ) * scale; c.b = lum + ( c.b - lum ) * scale;
++    }
++    return c;
++}
++static rgba blended_set_sat( rgba c, rgba from )   // c with the saturation of from
++{
++    float least = std::min( c.r, std::min( c.g, c.b ) );
++    float most = std::max( c.r, std::max( c.g, c.b ) );
++    float sat = std::max( from.r, std::max( from.g, from.b ) ) - std::min( from.r, std::min( from.g, from.b ) );
++    float scale = most > least ? sat / ( most - least ) : 0.0f;
++    return rgba( ( c.r - least ) * scale, ( c.g - least ) * scale, ( c.b - least ) * scale, c.a );
++}
++static float blended_channel( float b, float s, int mode )
++{
++    switch ( mode )
++    {
++        case 1: return b * s;
++        case 2: return b + s - b * s;
++        case 3: return b <= 0.5f ? 2.0f * b * s : 1.0f - 2.0f * ( 1.0f - b ) * ( 1.0f - s );
++        case 4: return std::min( b, s );
++        case 5: return std::max( b, s );
++        case 6: return b <= 0.0f ? 0.0f : s >= 1.0f ? 1.0f : std::min( 1.0f, b / ( 1.0f - s ) );
++        case 7: return b >= 1.0f ? 1.0f : s <= 0.0f ? 0.0f : 1.0f - std::min( 1.0f, ( 1.0f - b ) / s );
++        case 8: return s <= 0.5f ? 2.0f * b * s : 1.0f - 2.0f * ( 1.0f - b ) * ( 1.0f - s );
++        case 9: return s <= 0.5f ? b - ( 1.0f - 2.0f * s ) * b * ( 1.0f - b ) :
++            b + ( 2.0f * s - 1.0f ) * ( ( b <= 0.25f ? ( ( 16.0f * b - 12.0f ) * b + 4.0f ) * b : sqrtf( b ) ) - b );
++        case 10: return fabsf( b - s );
++        default: return b + s - 2.0f * b * s;
++    }
++}
++static rgba blended( rgba fore, rgba back, int mode )
++{
++    if ( fore.a <= 0.0f || back.a <= 0.0f )
++        return fore;
++    rgba s = ( 1.0f / fore.a ) * fore;
++    rgba b = ( 1.0f / back.a ) * back;
++    rgba mix;
++    if ( mode < 12 )
++        mix = rgba( blended_channel( b.r, s.r, mode ), blended_channel( b.g, s.g, mode ), blended_channel( b.b, s.b, mode ), 1.0f );
++    else if ( mode == 12 )
++        mix = blended_set_lum( blended_set_sat( s, b ), blended_lum( b ) );
++    else if ( mode == 13 )
++        mix = blended_set_lum( blended_set_sat( b, s ), blended_lum( b ) );
++    else if ( mode == 14 )
++        mix = blended_set_lum( s, blended_lum( b ) );
++    else
++        mix = blended_set_lum( b, blended_lum( s ) );
++    float alpha = fore.a;
++    fore = ( 1.0f - back.a ) * fore + ( alpha * back.a ) * mix;
++    fore.a = alpha;
++    return fore;
++}
++
+ // Render the polylines into the pixel buffer.  It scan-converts the lines
+ // to runs which represent changes to the signed fractional coverage when
+ // read from left-to-right, top-to-bottom.  It scans through these to
+@@ -2556,18 +2721,84 @@
      render_shadow( brush );
      lines_to_runs( xy( 0.0f, 0.0f ), 0 );
      int operation = global_composite_operation;
@@ -155,7 +236,7 @@
 +    if ( !clipped && ( operation & 8 ) )
 +    {
 +        static float const least = 1.0f / 8160.0f;
-+        bool solid = brush.type == paint_brush::color && !brush.colors.empty() && operation == source_over;
++        bool solid = brush.type == paint_brush::color && !brush.colors.empty() && operation == source_over && !blend_mode;
 +        rgba ink = solid ? global_alpha * brush.colors.front() : rgba( 0.0f, 0.0f, 0.0f, 0.0f );
 +        float sum = 0.0f;
 +        for ( size_t index = 0; index < runs.size(); ++index )
@@ -190,6 +271,8 @@
 +                    paint_pixel( xy( static_cast< float >( at ) + 0.5f,
 +                                     static_cast< float >( run.y ) + 0.5f ),
 +                                 brush );
++                if ( blend_mode )   // ZINC patch 8
++                    fore = blended( fore, *back, blend_mode );
 +                float mix_fore = operation & 1 ? back->a : 0.0f;
 +                if ( operation & 2 )
 +                    mix_fore = 1.0f - mix_fore;
@@ -230,7 +313,16 @@
          float visibility = std::min( fabsf( clip_sum ), 1.0f );
          int to = next.y == y ? next.x : x + 1;
          static float const threshold = 1.0f / 8160.0f;
-@@ -2625,6 +2779,10 @@
+@@ -2580,6 +2811,8 @@
+                     paint_pixel( xy( static_cast< float >( x ) + 0.5f,
+                                      static_cast< float >( y ) + 0.5f ),
+                                  brush );
++                if ( blend_mode )   // ZINC patch 8
++                    fore = blended( fore, back, blend_mode );
+                 float mix_fore = operation & 1 ? back.a : 0.0f;
+                 if ( operation & 2 )
+                     mix_fore = 1.0f - mix_fore;
+@@ -2625,6 +2858,11 @@
        stroke_brush(),
        image_brush(),
        face(),
@@ -238,10 +330,11 @@
 +      image_mode( 0 ),
 +      image_smoothing( true ),
 +      even_odd( false ),
++      blend_mode( 0 ),
        bitmap( new rgba[ width * height ] ),
        saves( 0 )
  {
-@@ -3056,6 +3214,7 @@
+@@ -3056,6 +3294,7 @@
  
  void canvas::clip()
  {
@@ -249,7 +342,7 @@
      path_to_lines( false );
      lines_to_runs( xy( 0.0f, 0.0f ), 0 );
      size_t part = runs.size();
-@@ -3082,7 +3241,7 @@
+@@ -3082,7 +3321,7 @@
              sum_1 += runs[ index_1++ ].delta;
          else
              sum_2 += runs[ index_2++ ].delta;
@@ -258,7 +351,7 @@
                               std::min( fabsf( sum_2 ), 1.0f ) );
          if ( visibility == last )
              continue;
-@@ -3096,6 +3255,11 @@
+@@ -3096,6 +3335,11 @@
          }
          last = visibility;
      }
@@ -270,7 +363,7 @@
  }
  
  bool canvas::is_point_in_path(
-@@ -3273,6 +3437,11 @@
+@@ -3273,6 +3517,11 @@
      return true;
  }
  
@@ -282,7 +375,7 @@
  void canvas::fill_text(
      char const *text,
      float x,
-@@ -3310,6 +3479,13 @@
+@@ -3310,6 +3559,13 @@
      return static_cast< float >( width ) * face.scale;
  }
  
@@ -296,7 +389,7 @@
  void canvas::draw_image(
      unsigned char const *image,
      int width,
-@@ -3323,6 +3499,96 @@
+@@ -3323,6 +3579,96 @@
      if ( !image || width <= 0 || height <= 0 ||
           to_width == 0.0f || to_height == 0.0f )
          return;
@@ -306,7 +399,7 @@
 +    float step_x = static_cast< float >( width ) / ( forward.a * to_width );     // pixels of the picture for one of the canvas
 +    float step_y = static_cast< float >( height ) / ( forward.d * to_height );
 +    if ( forward.b == 0.0f && forward.c == 0.0f && forward.a > 0.0f && forward.d > 0.0f &&
-+         to_width > 0.0f && to_height > 0.0f && !clipped && global_composite_operation == source_over &&
++         to_width > 0.0f && to_height > 0.0f && !clipped && global_composite_operation == source_over && !blend_mode &&
 +         ( shadow_color.a == 0.0f || ( shadow_blur == 0.0f && shadow_offset_x == 0.0f && shadow_offset_y == 0.0f ) ) )
 +    {
 +        float left = forward.a * x + forward.e;
@@ -393,7 +486,7 @@
      std::swap( fill_brush, image_brush );
      set_pattern( fill_style, image, width, height, stride, repeat );
      std::swap( fill_brush, image_brush );
-@@ -3340,6 +3606,13 @@
+@@ -3340,6 +3686,13 @@
                 y + std::min( 0.0f, to_height ) );
      scale( fabsf( to_width ) / static_cast< float >( width ),
             fabsf( to_height ) / static_cast< float >( height ) );
@@ -407,7 +500,7 @@
      render_main( image_brush );
      forward = saved_forward;
      inverse = saved_inverse;
-@@ -3371,6 +3644,11 @@
+@@ -3371,6 +3724,11 @@
                   0 <= canvas_y && canvas_y < size_y )
                  color = bitmap[ canvas_y * size_x + canvas_x ];
              float threshold = bayer[ canvas_y & 3 ][ canvas_x & 3 ];
@@ -419,7 +512,7 @@
              color = rgba( threshold, threshold, threshold, threshold ) +
                  255.0f * delinearized( clamped( unpremultiplied( color ) ) );
              image[ index + 0 ] = static_cast< unsigned char >( color.r );
-@@ -3429,6 +3707,7 @@
+@@ -3429,6 +3787,7 @@
      state->fill_brush = fill_brush;
      state->stroke_brush = stroke_brush;
      state->mask = mask;
@@ -427,7 +520,7 @@
      state->face = face;
      state->saves = saves;
      saves = state;
-@@ -3458,6 +3737,7 @@
+@@ -3458,6 +3817,7 @@
      fill_brush = state->fill_brush;
      stroke_brush = state->stroke_brush;
      mask = state->mask;

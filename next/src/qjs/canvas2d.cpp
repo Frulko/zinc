@@ -152,7 +152,7 @@ void ellipse(ci::canvas& v, const float* a) {
 // that is not finite does nothing, which is the canvas specification's rule (and canvas_ity does not check).
 enum CanvasOp { Save, Restore, Scale, Rotate, Translate, Transform, SetTransform, GlobalAlpha, Composite, ShadowColor, ShadowBlur, ShadowOffset, LineWidth, LineCap, LineJoin,
           MiterLimit, DashOffset, BeginPath, MoveTo, ClosePath, LineTo, QuadTo, BezierTo, ArcTo, Arc, Rect, Fill, Stroke, Clip, InPath, ClearRect, FillRect, StrokeRect,
-          Color, Linear, Radial, Stop, Smoothing, Ellipse, Exchange, EvenOdd };
+          Color, Linear, Radial, Stop, Smoothing, Ellipse, Exchange, EvenOdd, Blend };
 JSValue js_op(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
   Canvas* k = argc > 1 ? self(argv[0]) : nullptr;
   if (!k) return JS_UNDEFINED;
@@ -204,6 +204,7 @@ JSValue js_op(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
     case Ellipse: ellipse(v, a); break;
     case Exchange: v.exchange_path(); break;   // a Path2D is built and painted between two of these: the current path is left as it was
     case EvenOdd: v.even_odd = a[0] != 0; break;
+    case Blend: v.blend_mode = std::clamp(static_cast<int>(a[0]), 0, 15); break;   // 0: none; the order of BLEND in lib/std/webenv.js
     default: break;
   }
   return JS_UNDEFINED;
@@ -392,6 +393,17 @@ JSValue js_image(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
   k->version++;
   return JS_UNDEFINED;
 }
+// pattern(canvas, stroke, pixels, width, height, repetition): the picture as the fill or the stroke style. repetition: 0 both ways, 1 along x,
+// 2 along y, 3 none
+JSValue js_pattern(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
+  Canvas* k = argc > 5 ? self(argv[0]) : nullptr;
+  size_t n = 0;
+  const uint8_t* p = k ? bytesOf(c, argv[2], n) : nullptr;
+  const int w = argc > 5 ? i32(c, argv[3]) : 0, h = argc > 5 ? i32(c, argv[4]) : 0;
+  if (!p || w < 1 || h < 1 || n < static_cast<size_t>(w) * static_cast<size_t>(h) * 4) return JS_UNDEFINED;
+  k->cv->set_pattern(JS_ToBool(c, argv[1]) ? ci::stroke_style : ci::fill_style, p, w, h, w * 4, static_cast<ci::repetition_style>(i32(c, argv[5]) & 3));
+  return JS_UNDEFINED;
+}
 // encode(canvas, jpeg, quality, text): the canvas as a PNG file, or as a JPEG one over black (JPEG has no alpha); an ArrayBuffer, or with
 // `text` the base64 of the file (toDataURL)
 JSValue js_encode(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
@@ -449,7 +461,7 @@ void installCanvas2d(JSContext* ctx, JSValueConst native, const std::string& std
   JSValue o = JS_NewObject(ctx);
   const struct { const char* name; JSCFunction* fn; int args; } table[] = {
       {"create", js_create, 2}, {"resize", js_resize, 3}, {"op", js_op, 10}, {"dash", js_dash, 2}, {"text", js_text, 12}, {"measure", js_measure, 7},
-      {"font", js_font, 1}, {"read", js_read, 5}, {"write", js_write, 10}, {"image", js_image, 12}, {"present", js_present, 2}, {"stamp", js_stamp, 1}, {"encode", js_encode, 4}};
+      {"font", js_font, 1}, {"read", js_read, 5}, {"write", js_write, 10}, {"image", js_image, 12}, {"present", js_present, 2}, {"stamp", js_stamp, 1}, {"encode", js_encode, 4}, {"pattern", js_pattern, 6}};
   for (const auto& e : table) JS_SetPropertyStr(ctx, o, e.name, JS_NewCFunction(ctx, e.fn, e.name, e.args));
   JS_SetPropertyStr(ctx, native, "c2d", o);
 }

@@ -17,6 +17,6 @@ text and path 255,255,255,255 0 true true
 maxWidth true true true
 FontFace loaded true true
 not a font SyntaxError error
-unsupported {"createPattern":1,"pattern as fillStyle":1,"globalCompositeOperation 'multiply'":1,"filter":1,"isPointInStroke":1}
+unsupported {"filter":1,"isPointInStroke":1}
 texture source 64 32 8192 0 true
 frames 3

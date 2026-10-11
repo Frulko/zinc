@@ -4,7 +4,7 @@ title: 'Canvas 2D, full tier on the chosen backend'
 status: In Progress
 assignee: []
 created_date: '2026-10-09 08:11'
-updated_date: '2026-10-11 18:13'
+updated_date: '2026-10-11 18:18'
 labels:
   - games
   - js
@@ -49,4 +49,6 @@ NOT DONE: the 15 blend modes (multiply, screen ... luminosity: a formula on the 
 WHERE THE TIME STILL IS (sample): a sprite costs about 50 ns a pixel at this throttle, through paint_pixel and the general blend for each pixel: a direct loop for a picture that is not rotated is the next gain for Phaser CANVAS; for p5, lines_to_runs and add_runs (the edges of each ellipse, twice: fill and stroke). Phaser's canvas renderer also builds an Error (a stack) every frame somewhere: not looked for.
 
 2026-10-11, second session (worktree agent). STEP 1, drawImage: a picture that is not turned, mirrored or made smaller, drawn source-over with no clip and no shadow, is blended by a loop of its own in draw_image (canvas_ity patch 7): no copy of the picture as a brush, no runs, no paint_pixel; nearest or bilinear as before, edge pixels by coverage. Also: c2d.image no longer throws and catches an exception for each call (JS_GetArrayBuffer of a typed array built an Error with its stack: the Error the first handover saw), and drawImage checks its eight numbers with one sum. Test: the 'sprites' line of full.js (the loop against the general way under a clip, smoothed and nearest, within 1). MEASURED, 4 pairs back to back, load 7.5 to 7.9, CPU speed limit 46 to 48 %, 800 x 600, ms a frame: 500 drawImage of a 32 x 32 canvas at fractional places 39.3-44.7 -> 13.3-19.5 (2.1 with drawImage empty); Phaser 3.90 type CANVAS, 500 images, 68.4-84.6 -> 37.6-45.6 (24.1-30.5 with drawImage empty): 2.8 -> 1.5 times its floor. What is left in the loop: a row of the picture is converted to float colours for each row drawn (half the time with the nearest pixel).
+
+STEP 2, blend modes and patterns: the 15 blend modes (canvas_ity patch 8: blend_mode, the source mixed with the pixel under it then drawn source-over, in the two pixel loops of render_main; a plain colour and a sprite under a blend mode take the general loops), so the 26 values of globalCompositeOperation; a value that is not one is ignored, as in a browser. createPattern (a picture, a canvas; the four repetitions; null for a picture not loaded; SyntaxError for a wrong repetition) as fillStyle and strokeStyle through canvas_ity's set_pattern (c2d.pattern). Test: tests/golden/webenv/canvas2d/modes.js, its lines against headless Chrome's for the same script (modes-chrome.out, made by the new 'tools/canvas2d-ref out modes'), each number within 2: all 15 modes are within 1 of Chrome, the patterns exact. Left as it is: CanvasPattern.setTransform (counted, does nothing), a pattern under a scale is filtered over 16 pixels (bicubic) where Chrome takes 4, a shadow under a blend mode is not blended.
 <!-- SECTION:NOTES:END -->

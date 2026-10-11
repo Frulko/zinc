@@ -71,9 +71,12 @@ What a program finds:
   so a faster rasteriser is not what is missing). There so far (`tests/t1/webenv_canvas2d_full.sh`): `Path2D` (its calls, SVG path data,
   `addPath` with a matrix) filled, stroked, clipped and hit-tested; the even-odd rule; `imageSmoothingEnabled` (false: the nearest pixel;
   true: bilinear, and a filter over more pixels when the picture is made smaller); `toDataURL` and `toBlob` (PNG, JPEG);
-  `OffscreenCanvas` (a canvas element outside the document); a canvas is read back only when something was painted on it. Not there yet,
-  counted and never thrown (`__canvas2dUnsupported()`, named by `ZINC_WEB=trace`): patterns, conic gradients, filters, the blend modes
-  beyond the eleven, `isPointInStroke`, the even-odd rule in `isPointInPath`; italic is drawn upright.
+  `OffscreenCanvas` (a canvas element outside the document); a canvas is read back only when something was painted on it; a picture
+  that is not turned or made smaller is blended by a loop of its own; the 26 values of `globalCompositeOperation` (the 15 blend modes
+  within 1 of Chrome's numbers, `modes.js` against `modes-chrome.out`) and patterns as `fillStyle` and `strokeStyle` (the four
+  repetitions; `CanvasPattern.setTransform` is counted and does nothing; a pattern under a scale is filtered over 16 pixels). Not there
+  yet, counted and never thrown (`__canvas2dUnsupported()`, named by `ZINC_WEB=trace`): conic gradients, filters, `isPointInStroke`,
+  the even-odd rule in `isPointInPath`; italic is drawn upright.
 - **Images**: no `createImageBitmap` and no `ImageBitmap`, on purpose, as long as there is no `Worker`: PixiJS 7 and 8, finding
   `createImageBitmap`, load every picture through a Worker they make without looking for one, and `Assets.load` fails; without it they,
   three.js and Phaser load pictures through image elements, unmodified (measured: the notes of ZN-569). Nothing is decoded off the main
