@@ -8,7 +8,7 @@ import { createSignal, render } from 'zinc:ui/solid';
 import * as sys from 'zinc:sys';
 import { quit, imageFromBytes, destroyImage, imageWidth, imageHeight, drawImage, rect } from 'zinc:gfx';
 import { base64Decode } from 'zinc:web';
-import { Target, Cdp, Row, Inline, discover, rows, styleLines, consoleLine, ruleLines, inlineOf } from './model';
+import { Target, Cdp, Row, Inline, Req, discover, rows, styleLines, consoleLine, ruleLines, inlineOf, applyNetwork } from './model';
 
 const args = sys.args();
 const ports: i32[] = [];
@@ -28,6 +28,9 @@ const [inline, setInline] = createSignal<Inline>(new Inline());
 const [draft, setDraft] = createSignal<string>('');   // what is typed in element.style
 const [view, setView] = createSignal<string>('elements');   // elements | screen
 const [frame, setFrame] = createSignal<i32>(-1);   // the program's screen (Page.screencastFrame) as a runtime image
+const [reqs, setReqs] = createSignal<Req[]>([]);   // the Network view (ZN-373.03)
+const [picked, setPicked] = createSignal<string>('');
+const [body, setBody] = createSignal<string>('');
 
 let cdp: Cdp | null = null;
 let reloading = false;
@@ -51,6 +54,9 @@ function onEvent(method: string, params: any): void {
     if (id >= 0) { if (frame() >= 0) destroyImage(frame()); setFrame(id); }
     const session: number = params.sessionId;
     if (cdp !== null) (cdp as Cdp).call('Page.screencastFrameAck', `{"sessionId":${session}}`);
+  } else if (method.startsWith('Network.')) {
+    const l = reqs().slice(0);
+    if (applyNetwork(l, method, params)) setReqs(l);
   } else if (method === 'Runtime.consoleAPICalled') {
     const l = logs().slice(logs().length > 199 ? logs().length - 199 : 0);
     l.push(consoleLine(params));
@@ -71,7 +77,9 @@ async function attach(t: Target): Promise<void> {
   await c.open;
   setAttached(t.title + ' (port ' + t.port + ')');
   setLogs([]);
+  setReqs([]);
   await c.call('Runtime.enable', '{}');
+  await c.call('Network.enable', '{}');   // the requests made before the attach come too
   await loadDocument();
   setStatus('attached');
 }
@@ -146,6 +154,31 @@ function Styles(): i32 {
   </View>;
 }
 
+async function pick(r: Req): Promise<void> {   // a request's response body
+  setPicked(r.id);
+  if (cdp === null) return;
+  const b = await (cdp as Cdp).call('Network.getResponseBody', `{"requestId":${JSON.stringify(r.id)}}`);
+  const t: string = b.body !== undefined ? b.body : '';
+  setBody(t);
+}
+
+function NetRow(p: { r: Req }): i32 {
+  return <Button class={'flex-row items-center justify-start h-6 px-2 rounded ' + (picked() === p.r.id ? 'bg-sky-100' : 'bg-white')} onClick={() => { pick(p.r); }}>
+    <Text class={'text-xs font-mono ' + (p.r.error.length > 0 || p.r.status >= 400 ? 'text-red-700' : 'text-slate-800')}>{p.r.line()}</Text>
+  </Button>;
+}
+
+function NetworkView(): i32 {
+  return <View class="flex-col flex-1">
+    <ScrollView class="flex-1">
+      <View class="flex-col">{reqs().map((r: Req) => <NetRow r={r} />)}</View>
+    </ScrollView>
+    <ScrollView class="h-32 border-t bg-slate-50">
+      <Text class="p-2 text-xs font-mono text-slate-800">{body()}</Text>
+    </ScrollView>
+  </View>;
+}
+
 function Tab(p: { id: string; label: string }): i32 {
   return <Button class={'flex-row items-center h-7 px-3 rounded-md ' + (view() === p.id ? 'bg-slate-300' : 'bg-slate-50')} onClick={() => { setView(p.id); screen(p.id === 'screen'); }}>
     <Text class="text-xs font-medium text-slate-900">{p.label}</Text>
@@ -167,9 +200,10 @@ function App(): i32 {
         <View class="flex-row items-center gap-1 px-2 py-1 border-b">
           <Tab id="elements" label="Elements" />
           <Tab id="screen" label="Screen" />
+          <Tab id="network" label="Network" />
           <Text class="flex-1 text-xs text-slate-600">{attached()}</Text>
         </View>
-        {view() === 'screen' ? <ScreenView /> :
+        {view() === 'network' ? <NetworkView /> : view() === 'screen' ? <ScreenView /> :
         <ScrollView class="flex-1">
           <View class="flex-col">{tree().map((r: Row) => <TreeRow r={r} />)}</View>
         </ScrollView>}
@@ -223,6 +257,9 @@ async function dump(): Promise<void> {   // ZINC_INSPECTOR_DUMP: the views as te
   }
   console.log('console:');
   for (const l of logs()) console.log('  ' + l);
+  console.log('network:');   // ZN-373.03: the requests and the first one's body
+  for (const r of reqs()) console.log('  ' + r.line().replace(/[0-9]+ ms/, 'N ms'));   // the time varies: its unit only
+  if (reqs().length > 0) { await pick(reqs()[0]); console.log('body: ' + body()); }
   quit();
 }
 

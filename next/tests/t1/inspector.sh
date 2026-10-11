@@ -2,11 +2,13 @@
 # The Zinc Inspector (ZN-373.01): app/inspector, a Zinc app, finds tests/data/inspector (zinc:devtools on a free port), attaches to it and shows
 # its Elements tree, the computed style and box of a node it selects (its padding class), and its console (log and error lines, those from
 # before the attach replayed): ZINC_INSPECTOR_DUMP prints what each view shows. ZN-373.02: its rules, element.style set to padding-left: 40px
-# (the target's frame changes and its console gets the class patch), a frame of its screen.
+# (the target's frame changes and its console gets the class patch), a frame of its screen. ZN-373.03: its POST in the Network view and the body.
 cd "$(dirname "$0")/../.." || exit 2
-tmp=$(mktemp -d); trap 'kill $target 2>/dev/null; rm -rf "$tmp"' EXIT
-port=$(python3 tests/free_ports.py)
-ZINC_REALTIME=1 ZINC_HEADLESS=1 ZINC_FRAMES=100000000 ZINC_DEVTOOLS_PORT=$port timeout 90 "$ZINC" run tests/data/inspector > "$tmp/target.log" 2>&1 & target=$!
+tmp=$(mktemp -d); trap 'kill $target $server 2>/dev/null; rm -rf "$tmp"' EXIT
+set -- $(python3 tests/free_ports.py 2); port=$1; http=$2
+python3 tests/netlog_servers.py $http > /dev/null 2>&1 & server=$!   # ZN-373.03: the target posts to its /echo
+sleep 0.5
+INSPECTOR_FETCH=http://127.0.0.1:$http/echo ZINC_REALTIME=1 ZINC_HEADLESS=1 ZINC_FRAMES=100000000 ZINC_DEVTOOLS_PORT=$port timeout 90 "$ZINC" run tests/data/inspector > "$tmp/target.log" 2>&1 & target=$!
 n=0; while [ $n -lt 400 ] && ! grep -q "zinc devtools:" "$tmp/target.log"; do sleep 0.05; n=$((n+1)); done
 grep -q "localhost:$port)" "$tmp/target.log" || { echo "the target does not listen on $port: $(cat "$tmp/target.log")"; exit 1; }
 sleep 0.6   # a few console lines before the inspector attaches
@@ -25,5 +27,7 @@ want "element.style: padding-left: 40px;"
 want "frame changed: true"
 want "screen: 320 x 240"
 want 'class="flex-col gap-2 p-4 pl-[40px]"'
+want "POST 200 /echo N ms 28 B"   # ZN-373.03: the request made before the attach, its status, time and size, and its body
+want 'body: {"echo":{"ask":"inspector"}}'
 [ $fail -eq 0 ] || cat "$tmp/dump"
 exit $fail

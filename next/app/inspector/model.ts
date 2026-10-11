@@ -122,3 +122,38 @@ export function inlineOf(style: any): Inline {
   i.range = `{"startLine":${sl},"startColumn":${sc},"endLine":${el},"endColumn":${ec}}`;
   return i;
 }
+
+/** A request of the Network view (ZN-373.03), built from the Network events of zinc:devtools. */
+export class Req {
+  id: string = ''; method: string = ''; url: string = ''; type: string = ''; status: i32 = 0; error: string = '';
+  start: number = 0; end: number = -1; size: i32 = 0; frames: i32 = 0;
+  /** One line: method, status (or the error), the path, the time and the size. */
+  line(): string {
+    const u = this.url.indexOf('://') >= 0 ? this.url.slice(this.url.indexOf('/', this.url.indexOf('://') + 3)) : this.url;
+    const ms = this.end >= 0 ? Math.round((this.end - this.start) * 1000) + ' ms' : 'pending';
+    return this.method + ' ' + (this.error.length > 0 ? this.error : this.status > 0 ? '' + this.status : '…') + ' ' + (u.length > 0 ? u : this.url) + ' ' + ms +
+      (this.frames > 0 ? ' ' + this.frames + ' frames' : ' ' + this.size + ' B');
+  }
+}
+
+/** Applies a Network event to the requests (in the order they started); false when it is not one. */
+export function applyNetwork(reqs: Req[], method: string, params: any): boolean {
+  if (!method.startsWith('Network.')) return false;
+  const id: string = params.requestId;
+  let r: Req | null = null;
+  for (const x of reqs) if (x.id === id) r = x;
+  if (method === 'Network.requestWillBeSent' || method === 'Network.webSocketCreated') {
+    if (r === null) { r = new Req(); r.id = id; reqs.push(r); }
+    const q = r as Req;
+    if (method === 'Network.webSocketCreated') { q.method = 'WS'; q.url = params.url; q.type = 'WebSocket'; q.start = 0; return true; }
+    q.method = params.request.method; q.url = params.request.url; q.type = params.type; q.start = params.timestamp;
+    return true;
+  }
+  if (r === null) return true;
+  const q = r as Req;
+  if (method === 'Network.responseReceived') { q.status = params.response.status; }
+  else if (method === 'Network.loadingFinished') { q.end = params.timestamp; q.size = params.encodedDataLength; }
+  else if (method === 'Network.loadingFailed') { q.end = params.timestamp; q.error = params.errorText; }
+  else if (method === 'Network.webSocketFrameSent' || method === 'Network.webSocketFrameReceived') q.frames++;
+  return true;
+}
