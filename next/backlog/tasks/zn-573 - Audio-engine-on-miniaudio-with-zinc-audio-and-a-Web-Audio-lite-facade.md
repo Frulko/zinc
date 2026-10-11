@@ -2,7 +2,8 @@
 id: ZN-573
 title: 'Audio engine on miniaudio with zinc:audio and a Web Audio lite facade'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-09 08:11'
 labels:
   - games
