@@ -94,6 +94,12 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-439: atlas pages in the profile's GPU formats (rgba4444 or ETC1 on the Pi) once a game measures CMA pressure.
 - ZN-439: basisu fetched prebuilt through the signed index (ZN-337); its first use downloads 190 MB of sources and builds for about 6 minutes.
 - ZN-439: the texture importer as an importer-kind plugin (plugins/tex-basis) once importer plugins exist; built in for now.
+- ZN-441: zinc:assets `readBytes` (and `fs.readBytes`, `utf8Encode`, `randomBytes`) fill a u8[] one host call per byte: 5.6 of the 8.6 ms of the truck's .zmesh load; a runtime call that copies the entry at once makes a .zmesh load a memcpy.
+- ZN-441: dev builds turn a model's 219 KB JPEG into a 22 MB rgba8 entry, so the first `loadModel` takes 244 ms against 102 ms decoding the JPEG; cause not measured (D89's SHA-256 check is a suspect): keep dev model textures as their source image or measure the entry read.
+- ZN-441: int16 positions with a scale and packed normals in .zmesh for the Pi 1, PSP and 3DS, once the software renderer reads them.
+- ZN-441: .zmesh flattens the scene; moving a named part (the truck's wheels) needs a node table.
+- ZN-441: the sim target's three stand-in (`three.sim.ts`) refuses gltfpack output (KHR_mesh_quantization and EXT_meshopt_compression required).
+- ZN-441: plugin keys and stamps do not cover the engine third_party files a plugin includes; a meshoptimizer upgrade needs the key bumped by hand.
 
 ## Demos
 
@@ -232,3 +238,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-583 #4: zinc:physics2d and zinc:physics3d with the pinned zig for x86_64-linux, aarch64-linux and armhf-linux (`zinc build --target armhf-linux tests/data/physics3d/drop.ts`, same for physics2d) in the container or QEMU: drop.out byte for byte, plus physics3d's drop.ts `-- 4` (thread pool, `-pthread` in the manifest); check Jolt's support for 32-bit ARM.
 - ZN-439: tests/t1/texture.sh on a Pi 3 (vc4, display-gl on KMS): ETC1 of the rpi1 packs uploaded as blocks within 2% / mae 3 of the RGBA path, and webgl_ext.js offering WEBGL_compressed_texture_etc1 (task in Review).
 - ZN-439: basisu built on aarch64 gives the same pack bytes as on x86_64 (SSE is off); Linux Mesa offers WEBGL_compressed_texture_etc and uploads ETC1 as ETC2.
+- ZN-441: gltfpack on aarch64 macOS and Linux gives the same packs as x86_64; the meshopt decoder on the Pi (NEON) and wasm (SIMD) decodes the truck as on the Mac (`tests/t1/model.sh`).

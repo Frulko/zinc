@@ -438,6 +438,15 @@ The CPU time ZINC_GL_STATS calls "to submit" includes waits for the GPU (5.6 to 
 measured at load 6 from other builds, before ZN-432 changed the image path of the replay. GL replay against the software frame for convex
 and concave polygons: 0.06% of the pixels more than 24 apart, mean error 0.07 (tests/t1/gl_convex.sh).
 
+### ZN-441: models (2026-10-11, Intel Mac, interpreter, load 4.4 to 5.5 with other sessions building)
+
+CesiumMilkTruck: source GLB 369,980 B (151,001 geometry and JSON, a 218,979 B JPEG of 2048²); packed GLB 30,560 B (20,396 in a zstd
+release pack); its texture 22,369,636 B in dev (rgba8, mipmaps), 2,796,232 B in release (bc1, 293,945 after zstd); the whole truck in a
+macos release pack 314,341 B, GPU memory 2,796,216 B instead of 22,369,620. `.zmesh` 131,676 B (49,007 zstd); LOD at 0.5 79,704 B, 1,946
+of 3,624 triangles. `loadModel` of the .zmesh: 244 to 263 ms the first time (the 22 MB dev texture), 8.6 to 8.8 ms once the texture is made,
+of which `readBytes` 5.6 to 5.9 ms (one host call per byte); `loadGltf` of the original GLB 102 to 110 ms first, 62 to 64 ms again (the
+JPEG decoded each time). Import 0.6 s in dev, 6.7 s in release (basisu BC1); gltfpack builds once in 46 s.
+
 ### ZN-439: textures (2026-10-11, Intel Mac, load 6 to 8 from other trees: indicative)
 
 A 2048 px texture (`TEXTURE_SIZE=2048 tests/t1/texture.sh`), pack and GPU bytes per profile (mipmapped; rgba8 would be 22,369,620 GPU bytes):
