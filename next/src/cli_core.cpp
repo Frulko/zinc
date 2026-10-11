@@ -66,7 +66,7 @@ const Command kCommands[] = {
   {"new", "zinc new [template|path|git-url|gh:user/repo[@ref]] <dir> | zinc new --list", "create a project from a template", "Copies templates/<template>/ ({{name}} and {{id}} filled in the files and their names; or a template directory, or a git repository cloned at its default branch or @ref, its commit recorded in zinc.json \"template\"; nothing of the template is run) (zinc.json, sources, assets, tests, README) into a new or empty directory, filling {{name}} and {{id}}, and writes tsconfig.json for this machine. Default template: game; --list prints the templates with their targets."},
   {"pack", "zinc pack [dir] [-o app.zapp]", "one runnable file per app", "Writes build/<name>.zapp: a deterministic ustar with the compiled program, its baked fonts and images, its assets and zinc.json, every file listed with its SHA-256 in manifest.json (and a signature slot). zinc run app.zapp checks and runs it (docs/zapp.md)."},
   {"fuse", "zinc fuse app.zapp [-o app]", "one executable per app", "Appends the .zapp to this engine: the result runs the app on a machine without zinc, its arguments going to the app (LOVE's fused mode). This machine's target only for now (ZN-392); zinc export builds with the AOT."},
-  {"publish", "zinc publish [dir] --key <seed-hex> [--channel stable|beta] [--notes text] [-o dir]", "publish an app update", "Packs the app (zinc pack) and writes <channel>.manifest beside it, signed with the app's Ed25519 key (zinc update-keygen; its public key is zinc.json update.publicKey). Serve the directory at zinc.json update.url."},
+  {"publish", "zinc publish [dir] --key <seed-hex> [--channel stable|beta] [--notes text] [-o dir] | [--itch user/game[:suffix]] [--site dir] [--dry-run]", "publish an app update, to itch.io or a download page", "Packs the app (zinc pack) and writes <channel>.manifest beside it, signed with the app's Ed25519 key (zinc update-keygen; its public key is zinc.json update.publicKey). Serve the directory at zinc.json update.url. --itch pushes every export directory of dist/ with itch.io's butler (pinned, fetched and checked once; channels mac, linux, linux-rpi..., html5, plus -suffix); --dry-run prints the butler commands and uploads nothing. --site writes a static download page: one button per artifact of dist/ (export directories as .tar.gz, .dmg, .deb, .zapp) with its size and SHA-256, and SHA256SUMS."},
   {"update-app", "zinc update-app [dir] [--check] [--channel C]", "update an app from its channel", "Fetches the channel manifest of zinc.json update, verifies its signature with the app's key, refuses an older version, downloads the .zapp and checks its SHA-256 (into ~/.zinc/apps/<id>/updates). --check exits 10 when an update exists."},
   {"init", "zinc init <dir> [--template name]", "create a project (zinc new)", "zinc new with the template given by --template (default game)."},
   {"doctor", "zinc doctor", "check the machine", "Prints the engine, this machine's renderer tier, the pinned tools zinc downloads on first use (with their SHA-256 and whether they are installed), the host tools and the plugins."},
@@ -849,6 +849,87 @@ int exportApp(const std::vector<std::string>& args, const std::string& engineRoo
   }
   if (target == "macos") notarizeHint(p, out, artifacts);
   std::printf("%s\n", out.string().c_str());
+  return 0;
+}
+
+// zinc publish --itch / --site (ZN-325): the exports of dist/ to itch.io through butler, and a static download page. Uploading is the owner's
+// step: --dry-run prints the butler commands and runs nothing.
+namespace {
+struct Artifact { fs::path path; std::string label, channel; bool dir = false; };
+// What zinc export left in dist/: one directory per target (dist/<name>-<target>) and the installers beside them (.dmg, .deb, .AppImage, .zapp)
+std::vector<Artifact> exportsOf(const ProjectInfo& p) {
+  static const std::vector<std::pair<std::string, std::pair<std::string, std::string>>> targets = {   // target, its label and its itch channel (itch reads the platform from the channel name)
+      {"macos", {"macOS", "mac"}}, {"linux", {"Linux (x86-64)", "linux"}}, {"rpi", {"Raspberry Pi (64-bit)", "linux-rpi"}}, {"rpi1", {"Raspberry Pi 1 and Zero", "linux-rpi1"}},
+      {"rpi2", {"Raspberry Pi (32-bit)", "linux-rpi2"}}, {"chip", {"NTC CHIP", "linux-chip"}}, {"pocketchip", {"PocketCHIP", "linux-pocketchip"}}, {"rmpp", {"reMarkable Paper Pro", "linux-rmpp"}},
+      {"wasm", {"Web", "html5"}}};
+  std::vector<Artifact> out;
+  const fs::path dist = fs::path(p.dir) / "dist";
+  for (const auto& [t, lc] : targets) if (fs::is_directory(dist / (p.name + "-" + t))) out.push_back({dist / (p.name + "-" + t), lc.first, lc.second, true});
+  std::error_code ec;
+  std::vector<fs::path> loose;
+  for (const auto& e : fs::directory_iterator(dist, ec)) {
+    const std::string x = e.path().extension().string();
+    if (e.is_regular_file() && (x == ".dmg" || x == ".deb" || x == ".AppImage" || x == ".zapp")) loose.push_back(e.path());
+  }
+  std::sort(loose.begin(), loose.end());
+  for (const fs::path& f : loose) {
+    const std::string x = f.extension().string();
+    out.push_back({f, x == ".dmg" ? "macOS disk image" : x == ".deb" ? "Debian package" : x == ".AppImage" ? "Linux AppImage" : "Zinc app (.zapp)", "", false});
+  }
+  return out;
+}
+std::string htmlEsc(const std::string& s) { std::string o; for (char c : s) o += c == '<' ? "&lt;" : c == '>' ? "&gt;" : c == '&' ? "&amp;" : c == '"' ? "&quot;" : std::string(1, c); return o; }
+}  // namespace
+
+int publishStore(const std::vector<std::string>& args) {
+  Opts o = parseOpts(args, {"--itch", "--site"}, {"--dry-run"});
+  if (o.bad) { std::fprintf(stderr, "zinc publish: unknown option %s\nusage: zinc publish [dir] [--itch user/game[:suffix]] [--site dir] [--dry-run]\n", o.badArg.c_str()); return 2; }
+  ProjectInfo p; std::string err;
+  if (!resolveProject(o.entry, p, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 2; }
+  const std::vector<Artifact> all = exportsOf(p);
+  if (all.empty()) { std::fprintf(stderr, "zinc publish: nothing in %s/dist: zinc export --target <t> first\n", p.dir.c_str()); return 2; }
+  const std::string version = p.version.empty() ? "0.0.0" : p.version;
+  if (o.v.count("--itch")) {
+    std::string game = o.v["--itch"], suffix;
+    if (const std::size_t c = game.find(':'); c != std::string::npos) { suffix = "-" + game.substr(c + 1); game = game.substr(0, c); }
+    if (game.find('/') == std::string::npos) { std::fprintf(stderr, "zinc publish: --itch wants user/game (the game's page is https://user.itch.io/game)\n"); return 2; }
+    std::string butler = zn::tc::butlerPath();
+    if (!has(o, "--dry-run") && !zn::tc::ensureButler(butler, err)) { std::fprintf(stderr, "zinc publish: %s\n", err.c_str()); return 1; }
+    int pushed = 0;
+    for (const Artifact& a : all) {
+      if (!a.dir) continue;   // the export directories; butler makes its own patches, installers are for the download page
+      const std::string cmd = q(butler) + " push " + q(a.path.string()) + " " + q(game + ":" + a.channel + suffix) + " --userversion " + q(version);
+      std::printf("%s\n", cmd.c_str());
+      if (!has(o, "--dry-run") && status(std::system(cmd.c_str())) != 0) { std::fprintf(stderr, "zinc publish: butler failed for %s\n", a.path.string().c_str()); return 1; }
+      ++pushed;
+    }
+    if (!pushed) { std::fprintf(stderr, "zinc publish: no export directory in dist/ to push\n"); return 2; }
+    if (has(o, "--dry-run")) std::printf("dry run: nothing was uploaded (butler %s, `%s login` once before the real push)\n", zn::tc::butlerVersion().c_str(), butler.c_str());
+  }
+  if (o.v.count("--site")) {   // a static page: one download per artifact (export directories as .tar.gz), its size and SHA-256, and SHA256SUMS
+    const fs::path site = o.v["--site"];
+    std::error_code ec;
+    fs::create_directories(site, ec);
+    std::string rows, sums;
+    for (const Artifact& a : all) {
+      const std::string file = a.dir ? a.path.filename().string() + ".tar.gz" : a.path.filename().string();
+      const fs::path dst = site / file;
+      if (a.dir) { if (status(std::system(("tar -czf " + q(dst.string()) + " -C " + q(a.path.parent_path().string()) + " " + q(a.path.filename().string())).c_str())) != 0) { std::fprintf(stderr, "zinc publish: cannot archive %s\n", a.path.string().c_str()); return 1; } }
+      else { fs::copy_file(a.path, dst, fs::copy_options::overwrite_existing, ec); if (ec) { std::fprintf(stderr, "zinc publish: cannot copy %s: %s\n", a.path.string().c_str(), ec.message().c_str()); return 1; } }
+      const std::string sha = zn::tc::sha256File(dst.string());
+      const auto size = fs::file_size(dst, ec);
+      char mb[32]; std::snprintf(mb, sizeof mb, "%.1f MB", static_cast<double>(size) / 1e6);
+      rows += "<li><a class=\"button\" href=\"" + htmlEsc(file) + "\" download>" + htmlEsc(a.label) + "</a> <span class=\"file\">" + htmlEsc(file) + "</span> <span class=\"size\">" + mb + " (" + std::to_string(size) + " bytes)</span><br><code>sha256 " + sha + "</code></li>\n";
+      sums += sha + "  " + file + "\n";
+    }
+    writeFile(site / "SHA256SUMS", sums);
+    writeFile(site / "index.html", "<!doctype html>\n<html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>" + htmlEsc(p.name) + " " + htmlEsc(version) + "</title>\n"
+              "<style>body{font-family:system-ui,sans-serif;max-width:46rem;margin:3rem auto;padding:0 1rem;color:#111}li{list-style:none;margin:0 0 1.2rem}"
+              ".button{display:inline-block;padding:.5rem 1rem;border-radius:.4rem;background:#111;color:#fff;text-decoration:none}.file,.size{color:#555;margin-left:.5rem}"
+              "code{font-size:.8rem;color:#555;word-break:break-all}</style></head>\n<body><h1>" + htmlEsc(p.name) + " " + htmlEsc(version) + "</h1>\n<ul>\n" + rows +
+              "</ul>\n<p>Check a download: <code>shasum -a 256 &lt;file&gt;</code> against <a href=\"SHA256SUMS\">SHA256SUMS</a>.</p>\n</body></html>\n");
+    std::printf("site: %s (%zu downloads)\n", (site / "index.html").string().c_str(), all.size());
+  }
   return 0;
 }
 

@@ -1212,6 +1212,7 @@ int main(int argc, char** argv) {
   }
   {   // help, init and the bare project commands (ZN-138)
     std::vector<std::string> cl(argv, argv + argc);
+    if (argc >= 2 && !std::strcmp(argv[1], "publish") && std::any_of(cl.begin(), cl.end(), [](const std::string& a) { return a == "--itch" || a == "--site"; })) return zn::cli::publishStore(cl);
     if (argc >= 2 && (!std::strcmp(argv[1], "help") || !std::strcmp(argv[1], "--help") || !std::strcmp(argv[1], "-h"))) { if (!std::strcmp(argv[1], "--help") || !std::strcmp(argv[1], "-h")) cl.insert(cl.begin() + 1, "help"); return zn::cli::help(cl); }
     if (argc >= 3 && (!std::strcmp(argv[argc - 1], "--help") || !std::strcmp(argv[argc - 1], "-h"))) return zn::cli::help({cl[0], "help", cl[1]});
     if (argc >= 2 && (!std::strcmp(argv[1], "init") || !std::strcmp(argv[1], "new"))) return zn::cli::init(cl, gRoot);

@@ -50,6 +50,15 @@ constexpr Pin kQemuPins[] = {
     {"x86_64-linux", "qemu-xtensa-softmmu-esp_develop_9.2.2_20260417-x86_64-linux-gnu.tar.xz", "0eecb2a34a5586c0e59110f77b9343b7b336e82fdb0e1a30e1dc1bab8a547e35"},
 };
 
+// itch.io's butler (ZN-325), from its own distribution (broth.itch.zone); `file` is broth's channel. 15.31.0: 2026-08-31.
+constexpr const char* kButlerVersion = "15.31.0";
+constexpr Pin kButlerPins[] = {
+    {"aarch64-macos", "darwin-arm64", "5a5fcd3dc83de480748223388d9b5d6eab8df786bedb5d6730ffe59df87b2c5b"},
+    {"x86_64-macos", "darwin-amd64", "70a4b8543fddee7031052ea76f1846ba071913148e20cf7a2f18421702fc1929"},
+    {"aarch64-linux", "linux-arm64", "2ffd4071dfa715024eedd2b4ac7406c1c7802452214d89a48496adb9c171b737"},
+    {"x86_64-linux", "linux-amd64", "4f2a3f22b12f870923504d4b6935535cad377b45859f5fe9419e3adc0611a48c"},
+};
+
 std::string quote(const std::string& s) {
   std::string r = "'";
   for (char c : s) { if (c == '\'') r += "'\\''"; else r += c; }
@@ -96,6 +105,7 @@ std::vector<PinnedTool> pinnedTools() {
   add("zig", kVersion, kZigPins, sizeof kZigPins / sizeof *kZigPins, "zig-", "zig");
   add("esptool", kEsptoolVersion, kEsptoolPins, sizeof kEsptoolPins / sizeof *kEsptoolPins, "esptool-", "esptool");
   add("qemu-system-xtensa", kQemuVersion, kQemuPins, sizeof kQemuPins / sizeof *kQemuPins, "qemu-xtensa-", "bin/qemu-system-xtensa");
+  add("butler", kButlerVersion, kButlerPins, sizeof kButlerPins / sizeof *kButlerPins, "butler-", "butler");
   return out;
 }
 
@@ -255,6 +265,44 @@ bool ensureZig(std::string& zigPath, std::string& err) {
   std::string base = std::getenv("ZINC_TC_MIRROR") ? std::getenv("ZINC_TC_MIRROR") : std::string("https://ziglang.org/download/") + kVersion;
   if (!fetchTool("the toolchain", *pin, base + "/" + pin->file, dir, "zig", err)) return false;
   zigPath = (dir / "zig").string();
+  return true;
+}
+
+std::string butlerVersion() { return kButlerVersion; }
+std::string butlerPath() {
+  if (const char* b = std::getenv("ZINC_BUTLER")) return b;
+  return (fs::path(home()) / "toolchains" / ("butler-" + hostName() + "-" + kButlerVersion) / "butler").string();
+}
+bool ensureButler(std::string& path, std::string& err) {
+  path = butlerPath();
+  if (std::getenv("ZINC_BUTLER") || fs::exists(path)) return true;
+  const Pin* pin = nullptr;
+  for (const Pin& p : kButlerPins) if (hostName() == p.host) pin = &p;
+  if (!pin) { err = "no pinned butler for this machine (" + hostName() + "); set ZINC_BUTLER to a butler you installed"; return false; }
+  const fs::path dir = fs::path(path).parent_path();
+  const std::string file = std::string("butler-") + pin->file + "-" + kButlerVersion + ".zip";
+  std::error_code ec;
+  fs::create_directories(dir.parent_path(), ec);
+  const fs::path archive = dir.parent_path() / (file + ".part"), tmp = dir.parent_path() / ("extract-" + dir.filename().string());
+  std::fprintf(stderr, "zinc: downloading butler %s (once)...\n", kButlerVersion);
+  std::string got;
+  if (!downloadTo(std::string("https://broth.itch.zone/butler/") + pin->file + "/" + kButlerVersion + "/archive/default", file, archive.string(), [&](const std::string& p, std::string& why) {
+        got = sha256File(p);
+        if (got == pin->sha256) return true;
+        why = "SHA-256 " + (got.empty() ? std::string("of nothing") : got) + ", the pin is " + pin->sha256;
+        return false;
+      }, err)) return false;
+  std::fprintf(stderr, "zinc: checksum verified (%s)\n", got.c_str());
+  fs::remove_all(tmp, ec);
+  fs::create_directories(tmp, ec);
+  if (!run("unzip -q -o " + quote(archive.string()) + " -d " + quote(tmp.string()) + " >/dev/null 2>&1 || tar -xf " + quote(archive.string()) + " -C " + quote(tmp.string()), err, "unpacking butler") ||
+      !fs::exists(tmp / "butler")) { if (err.empty()) err = "the butler archive has no butler"; fs::remove_all(tmp, ec); return false; }
+  fs::permissions(tmp / "butler", fs::perms::owner_exec | fs::perms::group_exec | fs::perms::others_exec, fs::perm_options::add, ec);
+  fs::remove_all(dir, ec);
+  fs::rename(tmp, dir, ec);
+  fs::remove(archive, ec);
+  if (ec) { err = "cannot move butler into place: " + ec.message(); return false; }
+  std::ofstream(dir / "SHA256") << pin->sha256 << "  " << file << "\n";
   return true;
 }
 

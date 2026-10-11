@@ -179,6 +179,18 @@ Ed25519 signature made with the app's update key (`zinc update-keygen`), beside 
 `zinc verify <file> [--key <public-hex>]` checks it, with zinc.json `update.publicKey` by default; a changed byte or another
 key fails.
 
+## itch.io and a download page
+
+`zinc publish --itch user/game` pushes every export directory of `dist/` to itch.io with butler, itch's uploader: one channel per
+target (`mac`, `linux`, `linux-rpi`..., `html5` for wasm; `user/game:beta` makes `mac-beta`...), versioned with zinc.json
+`app.version`. Zinc fetches the pinned butler (15.31.0) once into `~/.zinc/toolchains` and checks its SHA-256 (`zinc doctor` lists
+it; `ZINC_BUTLER` uses another). Run `butler login` once, and start with `--dry-run`, which prints the butler commands and uploads
+nothing.
+
+`zinc publish --site site/` writes a static download page instead (or as well): `site/index.html` with one button per artifact of
+`dist/` (each export directory as a `.tar.gz`, the `.dmg`, `.deb` and `.zapp` files), its size and SHA-256, and `site/SHA256SUMS`
+for `shasum -a 256 -c`. Serve the directory anywhere.
+
 ## The zinc-engine organization
 
 Zinc lives in the GitHub organization `zinc-engine` (decision D37):

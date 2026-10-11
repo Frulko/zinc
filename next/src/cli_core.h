@@ -24,6 +24,8 @@ int capture(const std::vector<std::string>& args);
 int bench(const std::vector<std::string>& args);
 /** `zinc export [entry|dir] [--target linux|rpi|rpi1|rmpp|macos|<zig target>] [-o dir]`: dist/<name>-<target>/ with the executable, run.sh and README.txt (macOS: the .app too). */
 int exportApp(const std::vector<std::string>& args, const std::string& engineRoot = "");
+// zinc publish --itch / --site (ZN-325): dist/ to itch.io through butler (--dry-run prints the commands), a static download page.
+int publishStore(const std::vector<std::string>& args);
 /** `zinc deploy [entry|dir] --target T --device user@host [--dir path] [--print]`: export, copy with scp and start over ssh; --print (or ZINC_DEPLOY_DRY=1) only prints the commands. */
 int deploy(const std::vector<std::string>& args);
 /** `zinc add <git-url[@ref] | archive URL> [dir]`: the plugin into <dir>/plugins/<name>, its commit or sha256 in zinc.json "lock" (ZN-328.01). */

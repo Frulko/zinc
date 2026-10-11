@@ -41,6 +41,11 @@ bool ensureZig(std::string& zigPath, std::string& err);
 
 // The path of esptool (Espressif's flashing tool, a standalone binary), downloaded and verified like the zig. $ZINC_ESPTOOL names your own.
 bool ensureEsptool(std::string& path, std::string& err);
+// itch.io's butler (ZN-325): ZINC_BUTLER, or the pinned release fetched once into ~/.zinc/toolchains, its SHA-256 checked. butlerPath() is
+// where it is (or will be) without fetching it.
+bool ensureButler(std::string& path, std::string& err);
+std::string butlerPath();
+std::string butlerVersion();
 
 // The command line that starts the ESP32 emulator on the core firmware image, with the serial port on its stdin and stdout. Downloads the
 // pinned QEMU (Espressif's build) on first use, the same way as the zig. $ZINC_QEMU names a qemu-system-xtensa of your own.
