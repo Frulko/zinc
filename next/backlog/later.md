@@ -108,6 +108,9 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-711: guide 01's reference sections and `docs/guide/README.md` still describe the prototype (Docker, Node sim, pnpm); `zinc help env` no longer exists.
 - ZN-711: `tests/t0/plugin_manifest` fails on main ("zinc plugins differs from the prototype's table").
 - ZN-711: open `zinc new game x && zinc run` and `zinc dev` in a window once by hand (only run headless).
+- ZN-650.07.04: subtitle cues or a waveform on the narration's bar and a film preview in the medium's panel, so an author times items against what is said.
+- ZN-650.07.04: `lengthOf` keeps a replaced file's first length until the editor restarts; look at the file's date.
+- ZN-650.07.04: a French frame of the narration and film panels in `museum_editor_views` when that test is next touched.
 
 ## Cross-platform pass
 
