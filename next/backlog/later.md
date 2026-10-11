@@ -19,6 +19,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-583.01: zinc:physics2d steps on one thread; Box2D's task callbacks would spread a step over workers (drop.out must stay identical with 1 and 4 workers).
 - ZN-583.01: zinc:physics2d has no shape casts, overlap queries, distance/weld/wheel joints or queries of contacts in progress yet; add them when a program needs them.
 - ZN-583.01: remeasure next/bench/physics2d_pile.ts on a quiet machine (the 1.79 / 2.61 ms of the perf log were taken at load 3.8).
+- ZN-433: ZN-436's asset workers each own a zstd decoder context and pass it to the ZPK reader (dictionary entries 9.8 -> 6.9 ms in ZN-433's measure; a per-thread context in the reader would be a global).
+- ZN-433: the first read of a ZPK entry hashes at 169 MB/s (third_party/sha256); use mbedTLS's or a SHA-extension SHA-256 when large packs are verified at launch.
+- ZN-433: link zinc with -dead_strip / --gc-sections: lz4.c drops from 70 KB to 2.7 KB and the zstd decoder from 137 KB to 117 KB (D40).
+- ZN-433: measure zstd's decoder size macros (HUF_FORCE_DECOMPRESS_X1, ZSTD_FORCE_DECOMPRESS_SEQUENCES_SHORT, ZSTD_NO_INLINE) on the consoles and the Pi 1.
 
 ## Demos
 
@@ -29,3 +33,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-576: tests/golden/webgl/antialias.js expects a multisampled canvas; on a GLES 2 context (Pi 3) antialias is reported false, so the golden needs a GLES 2 variant there.
 - ZN-321: `zinc export --target linux --deb --key <seed>` then `zinc verify` on the .deb and on a changed copy (the .deb is signed by the export's artifact list; never run, a .deb needs the Linux cross build).
 - ZN-583.01: zinc:physics2d on Linux (tests/t1/physics2d.sh in the container, drop.out byte for byte) and on arm64 macOS, rpi, wasm and the handhelds (NEON instead of SSE2), drop.out identical.
+- ZN-433: zpk_test and fuzz_zpk on Linux x86_64 and arm64, and a zig cross build of zn_zstd and zn_lz4.
