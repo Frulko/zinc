@@ -172,6 +172,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-573: OscillatorNode is silent, loopStart/loopEnd are not read, suspend() mutes without pausing, the audio element decodes whole files (no streaming): what ZzFX-style synths, Howler sprites and long music need.
 - ZN-573: ZINC_AUDIO_LOG prints one peak for both channels (pan cannot be proven); a sound-only script opens a window (the web audio clock needs frames).
 - ZN-573: listen to `zinc run examples/js-phaser` on Core Audio; Howler and Kaplay through `tools/test-lib`.
+- ZN-718: a project that sets a plugin's options misses the prebuilt key and the install has no C++ for it: ship every plugin's sources or use the index.
+- ZN-718: `zinc:webview` does not compile on macOS, in the tree either (`operator new` redefined via `zrt.h`); display-st7789 does not link with zig; imu-qmi8658 and script have no thunk.
+- ZN-718: `zinc doctor` prints 35 plugin lines in a source build: shorten; `zinc update` downloads but does not install: reuse `install.sh`'s swap.
+- ZN-718: the plugin libraries travel inside the archive (27 MB), not through the signed index, which does not exist yet and needs the owner's keys; decide at the review whether criterion 2 is accepted as it stands.
 
 ## Cross-platform pass
 
@@ -201,3 +205,6 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-572: `webenv_canvas2d_full` and the canvas_ity patches on Linux, Windows and ARM (float sums in the coverage grid).
 - ZN-443: `tests/t1/tilemap.sh` on Linux and in the browser export (zinc:tilemap needs packs and throws without them); its GL renderer pixels.
 - ZN-715, ZN-716, ZN-717: `osc_full.sh`, `serial.sh` and `midi.sh` on Linux (ALSA sequencer loaded), then Windows (`serial.windows.cpp`; WinMM has no virtual ports); non-standard baud rates on Linux (termios2).
+- ZN-718: first tag on CI: check the `macos-15-intel` label, the Package step on each OS, and `install.sh` from the real URL.
+- ZN-718: run `install.sh` and `install_nocompiler` on Linux x86_64 and aarch64; the notarized archive on a clean Mac and on arm64.
+- ZN-718: Windows: the zip of `tools/package` (never run), an install.ps1, a `windows` plugin target, after ZN-054.
