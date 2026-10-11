@@ -2,7 +2,8 @@
 id: ZN-435
 title: 'zinc.json keys assets, splash, loading, launcher and target defaults'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-09 07:36'
 labels:
   - games
