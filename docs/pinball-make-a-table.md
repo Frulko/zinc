@@ -111,7 +111,8 @@ player to the next of the ranks, typed one per line.
 ## 6. The screen (session 5)
 
 Selecting **Screen layouts** replaces the top view by the game's own window, in the landscape layout or the portrait
-one: the things of the score panel are dragged and sized there, and the picture behind them is chosen like any image.
+one: the things of the score panel are dragged and sized there, as are the panel itself and the box the table is
+drawn in; the wheel over the table sets the eye's field of view; the picture behind the panel is chosen like any image.
 In the 3D pane (V), a drag turns the view, and **Use this view** makes it the layout's.
 
 ![the landscape layout](img/pinball-make-5-screen.jpg)

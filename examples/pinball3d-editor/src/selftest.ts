@@ -119,7 +119,8 @@ check('paths read as the loader writes them', steps('walls[2].points[1]').join('
   const d = new Doc(sample, sample);
   const role = (path: string): string => { const fd = fieldAt(path); return fd === null ? '?' : fd.role; };
   check('a point, a path, a direction and a rotation are what the format says they are', role('bumpers[0].at') === 'point' && role('walls[0].points') === 'path' && role('flippers[0].rest') === 'direction'
-    && role('models[0].rotation') === 'rotation' && role('ramps[0].profile') === 'profile' && role('flippers[0].speed') === '');
+    && role('models[0].rotation') === 'rotation' && role('ramps[0].profile') === 'profile' && role('flippers[0].speed') === ''
+    && role('bumpers[0].radius') === 'radius' && role('kickers[0].radius') === 'radius' && role('lights[0].glow') === 'radius' && role('physics.ball.radius') === '');
   const giant = d.find('models', 'giant');
   check('a model turns by the third number of its rotation, and moves by its point', canTurn(schemaAt(giant)) && d.turn(giant, 30) && d.get(`${giant}.rotation`)[2] === 30 && d.get(`${giant}.rotation`)[0] === 0
     && d.move(giant, 1, 0) && d.get(`${giant}.at`)[0] === 6.2 && d.get(`${giant}.at`)[2] === 0 && plays(d.text()));

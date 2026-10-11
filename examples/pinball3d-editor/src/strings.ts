@@ -86,8 +86,8 @@ export const KEYS_OF_GAME = S('Z and /: flippers   SPACE: plunger   X . UP: bump
 export const DONE_DROPPED = S('A ball dropped at {0}, {1} cm.', 'Une bille lâchée à {0}, {1} cm.');
 export const DONE_STOPPED = S('The game is over: the table is at rest.', 'La partie est finie : la table est au repos.');
 export const SCREEN_VIEW = S('Screen', 'Écran');
-export const SCREEN_HOW = S('The game\'s window in this layout. Click a thing of the panel, drag it to move it, drag the square at its corner to size it.',
-  'La fenêtre du jeu dans cette mise en page. Cliquez un élément du panneau, glissez-le pour le déplacer, glissez le carré de son coin pour le dimensionner.');
+export const SCREEN_HOW = S('Drag moves a box, its corner sizes it; the wheel over the table sets the field of view.',
+  'Glisser déplace un cadre, son coin le dimensionne ; la molette sur la table règle le champ de vision.');
 export const USE_VIEW = S('Use this view', 'Garder cette vue');
 export const EYE_HOW = S('Drag turns the view, Shift and drag slides it over the table, the wheel comes closer. "Use this view" makes it the view of the game\'s screen layout; the arrow goes back to the layout\'s.',
   'Glisser tourne la vue, Maj et glisser la déplace au-dessus de la table, la molette rapproche. « Garder cette vue » en fait la vue de la mise en page du jeu ; la flèche revient à celle de la mise en page.');

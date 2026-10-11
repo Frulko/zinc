@@ -1,0 +1,42 @@
+# The table editor, sizes and boxes set by pointing (tests/t1/pinball3d_editor_looks.sh, ZN-649.18), window 1440x900.
+# The first bumper is clicked: the circle of its body has a round handle, at its right. The handle is pulled from 2.6 cm to
+# 4 cm from the centre: the radius of the bumper.
+4 move 617 327
+5 down
+6 up
+8 move 634 327
+9 down
+10 move 639 327
+11 move 643 327
+12 up
+# The screen layouts: "layouts" shows the landscape one, the game's window as the layout fills it. A click on the table takes
+# the box it is drawn in; the square at the corner of the box sizes it (40 px less each way), a drag moves it (20 px to the
+# right and down).
+14 key g meta
+15 text layouts
+16 key Enter
+18 move 568 476
+19 down
+20 up
+22 move 722 681
+23 down
+24 move 712 671
+25 move 701 660
+26 up
+28 move 568 476
+29 down
+30 move 573 481
+31 move 578 486
+32 up
+# The panel is pressed where none of its things is (its left margin) and dragged 20 px to the left, against the table's box.
+34 move 728 476
+35 down
+36 move 723 476
+37 move 718 476
+38 up
+# The wheel over the table: two notches towards it narrow the eye's field of view by two degrees.
+40 move 568 476
+41 wheel 0 1
+42 wheel 0 1
+44 key s meta
+# frames 52

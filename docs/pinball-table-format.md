@@ -45,7 +45,7 @@ taken from the table "Tidal Lock"; a test keeps it current. Format `"zinc-pinbal
   *profile*: a height along a path: rows [fraction of the length, height].
   *rotation*: a turn in space, [around x, around y, around z]; the third number turns the thing in the top view, as a direction does.
   *offset*: a step counted from the element's own place, [dx, dy] or [dx, dy, dz]: it turns and mirrors with its element, and does not move when the element moves.
-  *radius*: a distance around the thing's point, a circle in the top view (how far a light's glow reaches): an editor shows the circle and lets it be pulled.
+  *radius*: a distance around the thing's point, a circle in the top view (the body of a bumper, the hole of a kicker, how far a light's glow reaches): an editor shows the circle and lets it be pulled.
   *level*: the height of the level a thing stands on: 0 on the playfield, the `z` of an upper playfield on that one. An editor that works on one level shows and places things by it.
 
 ## table
@@ -392,7 +392,7 @@ A pop bumper: a round post that kicks the ball away when it is touched.
 | `group` | text | `""` | A name shared by several elements, so that one rule speaks of all of them ("pops", "lanes"). |
 | `at` | 2 numbers, cm (*point*) | required | Its centre. |
 | `z` | number, cm (*level*) | `0` (0 to 100) | The height of its foot. |
-| `radius` | number, cm | `2.6` (0.5 to 20) | The radius of its body. |
+| `radius` | number, cm (*radius*) | `2.6` (0.5 to 20) | The radius of its body. |
 | `height` | number, cm | `3.2` (0.5 to 50) | How tall it is. |
 | `kick` | number, cm/s | `140` (0 to 2000) | The speed it adds to the ball, away from its centre. |
 | `threshold` | number, cm/s | `15` (0 to 1000) | The ball must arrive at least this fast to set it off. |
@@ -473,7 +473,7 @@ A hole that catches the ball, holds it, then throws it out: a saucer (same place
 | `group` | text | `""` | A name shared by several elements, so that one rule speaks of all of them ("pops", "lanes"). |
 | `at` | 2 numbers, cm (*point*) | required | Its centre. |
 | `z` | number, cm (*level*) | `0` (0 to 100) | The height of the level it is in. |
-| `radius` | number, cm | `1.7` (0.5 to 20) | The radius of the hole. |
+| `radius` | number, cm (*radius*) | `1.7` (0.5 to 20) | The radius of the hole. |
 | `captureSpeed` | number, cm/s | `220` (10 to 4000) | A ball faster than this rolls over the hole. |
 | `hold` | number, seconds | `1.2` (0 to 60) | Seconds it keeps the ball (rules may keep it longer: a lock). |
 | `exit` | 3 numbers, cm (*offset*) | `[0, 0, 0]` | Where the ball comes out, counted from the hole: [0, 0, 0] is the hole itself, [0, 0, 6] the same place on a level 6 cm higher. |

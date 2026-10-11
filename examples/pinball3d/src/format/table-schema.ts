@@ -31,7 +31,7 @@ export const ROLES: string[][] = [
   ['profile', 'a height along a path: rows [fraction of the length, height]'],
   ['rotation', 'a turn in space, [around x, around y, around z]; the third number turns the thing in the top view, as a direction does'],
   ['offset', 'a step counted from the element\'s own place, [dx, dy] or [dx, dy, dz]: it turns and mirrors with its element, and does not move when the element moves'],
-  ['radius', 'a distance around the thing\'s point, a circle in the top view (how far a light\'s glow reaches): an editor shows the circle and lets it be pulled'],
+  ['radius', 'a distance around the thing\'s point, a circle in the top view (the body of a bumper, the hole of a kicker, how far a light\'s glow reaches): an editor shows the circle and lets it be pulled'],
   ['level', 'the height of the level a thing stands on: 0 on the playfield, the `z` of an upper playfield on that one. An editor that works on one level shows and places things by it'],
 ];
 
@@ -190,7 +190,7 @@ export function tableSchema(): Schema {
   element(bumper, 'bumper');
   bumper.tuple('at', [0, 0], 'Its centre.').must().withRole('point').withUnit('cm');
   bumper.num('z', 0, 'The height of its foot.').range(0, 100).withRole('level').withUnit('cm');
-  bumper.num('radius', 2.6, 'The radius of its body.').range(0.5, 20).withUnit('cm');
+  bumper.num('radius', 2.6, 'The radius of its body.').range(0.5, 20).withRole('radius').withUnit('cm');
   bumper.num('height', 3.2, 'How tall it is.').range(0.5, 50).withUnit('cm');
   bumper.num('kick', 140, 'The speed it adds to the ball, away from its centre.').range(0, 2000).withUnit('cm/s');
   bumper.num('threshold', 15, 'The ball must arrive at least this fast to set it off.').range(0, 1000).withUnit('cm/s');
@@ -216,7 +216,7 @@ export function tableSchema(): Schema {
   element(kicker, 'kicker');
   kicker.tuple('at', [0, 0], 'Its centre.').must().withRole('point').withUnit('cm');
   kicker.num('z', 0, 'The height of the level it is in.').range(0, 100).withRole('level').withUnit('cm');
-  kicker.num('radius', 1.7, 'The radius of the hole.').range(0.5, 20).withUnit('cm');
+  kicker.num('radius', 1.7, 'The radius of the hole.').range(0.5, 20).withRole('radius').withUnit('cm');
   kicker.num('captureSpeed', 220, 'A ball faster than this rolls over the hole.').range(10, 4000).withUnit('cm/s');
   kicker.num('hold', 1.2, 'Seconds it keeps the ball (rules may keep it longer: a lock).').range(0, 60).withUnit('seconds');
   kicker.tuple('exit', [0, 0, 0], 'Where the ball comes out, counted from the hole: [0, 0, 0] is the hole itself, [0, 0, 6] the same place on a level 6 cm higher.').withRole('offset').withUnit('cm');

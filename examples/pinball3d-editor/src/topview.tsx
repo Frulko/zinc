@@ -3,12 +3,13 @@
 // Click selects, a drag moves, the round handle on a stalk turns. A selected path shows its points: a square moves a point, the round
 // dot of a stretch bends it into an arc, a double click on a stretch adds a point. With an entry of the palette chosen, clicks place
 // it instead. Points snap to the points of other things, to the table's axis and to the grid. Dragging the background pans, the wheel
-// zooms. A distance around a thing (the glow of a light) is a circle with a round handle on it: pulling the handle sets the distance.
+// zooms. A distance around a thing (the body of a bumper, the hole of a kicker, the glow of a light) is a circle with a round
+// handle on it: pulling the handle sets the distance. The painting of an upper playfield is shown inside its outline.
 // Moving and turning a whole element change the document once, when the gesture ends (the element is drawn where it would go while
 // it lasts); a point or an arc being dragged changes it as it goes, the whole drag being one step for undo.
 import { createSignal, createEffect, Show, batch } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
-import { stroke, path as fillPath, rect, rrect, border, font, drawText, textWidth, clip, unclip, drawImage } from 'zinc:gfx';
+import { stroke, path as fillPath, rect, rrect, border, font, drawText, textWidth, clip, unclip, drawImage, drawImageRect, imageWidth, imageHeight } from 'zinc:gfx';
 import { doc, table, placed, outlineOf, selected, select, hovered, setHovered, selectionTurns, selectionPlaced, advanced, zoom, panX, panY, setPanX, setPanY, zoomBy, fit, fitSoon, viewW, viewH,
   setViewSize, moveSelected, turnSelected, level, levels, nextLevel, onLevel, grid, setGrid, GRIDS, axis, setAxis, snapped, tool, clicks, placeAt, finishPlacing, activeRow, setActiveRow, dragRow, changeRows } from './state';
 import { centreOf, schemaAt, fieldAt, isPoint, isPath, isClosed, isRadius } from './doc';
@@ -139,10 +140,18 @@ function drawOutline(o: Outline, ox: number, oy: number, z: number, halo: i32): 
   if (!onLevel(o)) { for (const s of o.shapes) drawShape(s, m, ox, oy, z, 0, s.color, Math.round(s.alpha * 0.16), 0); return; }
   // what stands higher throws a longer shadow: the height read at a glance (from the level it stands on, when one is chosen)
   const top = o.z1 - (level() > 0 && o.level >= 0 ? level() : 0);
-  // the painting of an upper playfield, over the box around it as the game lays it, under a veil as the board's is
+  // the painting of an upper playfield, over the box around it as the game lays it, under a veil as the board's is, and inside
+  // its outline as the game cuts it
   if (o.plate && o.image !== '' && m === STILL) {
-    const im = paintingOf(o.image);
-    if (im >= 0) { drawImage(im, ox + o.x0 * z, oy + o.y0 * z, (o.x1 - o.x0) * z, (o.y1 - o.y0) * z, 255, 0); rrect(ox + o.x0 * z, oy + o.y0 * z, (o.x1 - o.x0) * z, (o.y1 - o.y0) * z, 0, 0x05060c, 110); }
+    const im = paintingOf(o.image), bx = ox + o.x0 * z, by = oy + o.y0 * z, bw = (o.x1 - o.x0) * z, bh = (o.y1 - o.y0) * z;
+    const shape = o.shapes.length > 0 && o.shapes[0].draw === Draw.Fill ? onScreen(o.shapes[0], STILL, ox, oy, z, 0) : ([] as number[]);
+    if (im >= 0 && (shape.length < 6 || fillsBox(shape, bw * bh))) { drawImage(im, bx, by, bw, bh, 255, 0); rrect(bx, by, bw, bh, 0, 0x05060c, 110); }
+    else if (im >= 0) {
+      drawInside(im, bx, by, bw, bh, shape);
+      const veil: number[] = [shape.length / 2];
+      for (const p of shape) veil.push(p);
+      fillPath(veil, 0x05060c, 110);
+    }
   }
   if (!o.plate && o.layer > 0 && top > 0.3) {
     const push = Math.min(top, 14) * 0.11 * z;
@@ -150,6 +159,35 @@ function drawOutline(o: Outline, ox: number, oy: number, z: number, halo: i32): 
   }
   if (halo >= 0) for (const s of o.shapes) if (s.alpha > 100) drawShape(s, m, ox, oy, z, 0, halo, 255, 2);
   for (const s of o.shapes) drawShape(s, m, ox, oy, z, 0, s.color, s.alpha, 0);
+}
+/** Whether an outline (x, y pairs) covers the whole box around it, whose area is given: a rectangle with straight sides. */
+function fillsBox(poly: number[], area: number): boolean {
+  let twice = 0;
+  const n = poly.length / 2;
+  for (let i = 0; i < n; i++) { const j = (i + 1) % n; twice += poly[i * 2] * poly[j * 2 + 1] - poly[j * 2] * poly[i * 2 + 1]; }
+  return Math.abs(Math.abs(twice) / 2 - area) < 1;
+}
+/** An image laid over a box of the window (x, y, w, h), shown only inside an outline (x, y pairs, in window pixels).
+ *  ponytail: zinc:gfx clips to a box (clip), not to a path. The image is drawn in strips one pixel high, each cut where the
+ *  outline crosses the middle of that row: exact to the pixel, without smoothing of the edge, and as many draws as the outline is
+ *  tall. A path clip in zinc:gfx (the raster and the GL renderer) would draw it once, with a smooth edge. */
+function drawInside(im: i32, x: number, y: number, w: number, h: number, poly: number[]): void {
+  const iw = imageWidth(im), ih = imageHeight(im), n = poly.length / 2;
+  if (iw <= 0 || ih <= 0 || w <= 0 || h <= 0) return;
+  let top = poly[1], bottom = poly[1];
+  for (let i = 1; i < n; i++) { top = Math.min(top, poly[i * 2 + 1]); bottom = Math.max(bottom, poly[i * 2 + 1]); }
+  for (let row = Math.floor(top); row < Math.ceil(bottom); row++) {
+    const at = row + 0.5, cuts: number[] = [];
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n, ay = poly[i * 2 + 1], by = poly[j * 2 + 1];
+      if ((ay <= at) !== (by <= at)) cuts.push(poly[i * 2] + (at - ay) / (by - ay) * (poly[j * 2] - poly[i * 2]));
+    }
+    cuts.sort((a: number, b: number): number => a - b);
+    for (let k = 0; k + 1 < cuts.length; k += 2) {
+      const from = Math.round(cuts[k]), to = Math.round(cuts[k + 1]);
+      if (to > from) drawImageRect(im, (from - x) / w * iw, (row - y) / h * ih, (to - from) / w * iw, ih / h, from, row, to - from, 1);
+    }
+  }
 }
 /** The step of the grid and of the rulers at a zoom: 5 cm, 10 when the table is small on screen. */
 function gridStep(z: number): number { return z < 4.5 ? 10 : 5; }
