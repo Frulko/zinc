@@ -5,7 +5,7 @@ status: Backlog
 assignee:
   - '@parallel'
 created_date: '2026-10-11 11:38'
-updated_date: '2026-10-11 14:41'
+updated_date: '2026-10-11 16:08'
 labels:
   - js
   - demo
@@ -38,4 +38,6 @@ Third lane of the parallel agents (owner's order, `next/backlog/priority.json`).
 Open: criterion 2, the sound. The web environment has no audio (ZN-573): js-phaser loads and plays catch.wav and crash.wav the Phaser way and Phaser falls back to its silent manager (cache.audio is empty). Everything else of criterion 2 passes (sprites, arcade physics, keyboard, score; the scripted session ends on 'game over: 3 stars'). Next step once ZN-573 is done: run examples/js-phaser, hear the two sounds, tick criterion 2; nothing to change in the example is expected.
 Not proven: frame rates (js-p5 took about 80 ms a frame headless while other trees were building: to measure alone), a real window and a real keyboard (headless runs only), other GPUs (the goldens are compared with a tolerance).
 Lines for later.md: (1) zinc run --engine quickjs ignores the window size of zinc.json (targets.<os>.width/height, app.window): the JS examples open at 320x240. (2) importmap.json maps exact names only: a prefix such as "three/addons/" is not resolved, so each addon needs its line. (3) ZINC_INPUT has no key release: a scripted key stays down for the web environment (no keyup), so a test cannot hold then release a key. (4) js-p5: 144 lit boxes took about 80 ms a frame on QuickJS under load; measure on a quiet machine and profile p5's WEBGL path. (5) Canvas 2D (ZN-570) done: add Text to js-pixi and js-phaser, a 2D sketch to js-p5. (6) A JS project could say its engine in zinc.json so that zinc run <dir> needs no --engine quickjs.
+
+Canvas 2D text in the JS examples: js-pixi labels the planets (Text, clicked one larger), js-phaser has Text title/score/game over (no bitmap font), js-p5 has sketch2d.js (P5_SKETCH=sketch2d.js) with screenshot2d.png; READMEs, screenshots and the three t1 tests updated.
 <!-- SECTION:NOTES:END -->

@@ -12,4 +12,9 @@ env ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_SIZE=640x400 ZINC_FRA
   "$ZINC" run ../examples/js-p5 --engine quickjs > "$tmp/out" 2> "$tmp/err" || { echo "example_js_p5: the sketch failed: $(grep -v '^zinc: Canvas 2D' "$tmp/err" | head -c 300)"; fail=1; }
 grep -v '^zinc: Canvas 2D' "$tmp/err" | grep -q . && { echo "example_js_p5: p5 wrote on stderr: $(grep -v '^zinc: Canvas 2D' "$tmp/err" | head -c 300)"; fail=1; }
 tools/pngdiff "$tmp/shot-30.png" ../examples/js-p5/screenshot.png --ssim 0.97 > "$tmp/diff" || { echo "example_js_p5: frame 30 is not examples/js-p5/screenshot.png: $(tail -1 "$tmp/diff")"; fail=1; }
+# The 2D sketch (sketch2d.js: a ring of dots around the pointer, a line of text): the same script, frame 30 is screenshot2d.png.
+env P5_SKETCH=sketch2d.js ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_SIZE=640x400 ZINC_FRAMES=32 ZINC_INPUT=tests/golden/js-examples/p5.input ZINC_SHOT="$tmp/shot2d.png" ZINC_SHOT_FRAMES=30 \
+  "$ZINC" run ../examples/js-p5 --engine quickjs > "$tmp/out" 2> "$tmp/err" || { echo "example_js_p5: the 2D sketch failed: $(grep -v '^zinc: Canvas 2D' "$tmp/err" | head -c 300)"; fail=1; }
+grep -v '^zinc: Canvas 2D' "$tmp/err" | grep -q . && { echo "example_js_p5: the 2D sketch wrote on stderr: $(grep -v '^zinc: Canvas 2D' "$tmp/err" | head -c 300)"; fail=1; }
+tools/pngdiff "$tmp/shot2d-30.png" ../examples/js-p5/screenshot2d.png --ssim 0.97 > "$tmp/diff" || { echo "example_js_p5: the 2D frame 30 is not examples/js-p5/screenshot2d.png: $(tail -1 "$tmp/diff")"; fail=1; }
 exit $fail
