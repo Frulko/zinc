@@ -94,6 +94,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-649.06: measure what `assets.writePack` (zstd compressor) adds to an AOT binary; move the rows behind a plugin if it is large.
 - ZN-649.06: a package among the game's assets is copied to a temporary file to be mounted; mount from bytes would avoid it.
 - ZN-698: no longer needed by the pinball packages (the pack carries checksums); keep or drop at the review.
+- ZN-650.14: `gfx.loadFont` on a missing asset file leaves its fs error pending and the next zinc:assets call throws it; fix in `zn_asset_font`.
+- ZN-650.14: the editor's problems panel does not report a theme font or logo file that left the folder.
+- ZN-650.07.06: the refusal of a default language shows the loader's field path (`media[1].title.en`); say it in the author's words.
+- ZN-650.07.06: measure `museum_editor_views` (93 s under load) on a quiet machine and cut it again if over a minute.
 
 ## Cross-platform pass
 
