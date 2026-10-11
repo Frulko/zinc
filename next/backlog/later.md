@@ -47,6 +47,11 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-435: zinc.json assets.dir is honoured only by zinc assets build/info; the baker (bakeResources), zinc export's copy of assets/ and zinc:assets still use assets/ beside the entry.
 - ZN-435: wire the effective asset profile's pack codec into release packs (lz4 on rpi1/esp32/ps1/ps2, none on wasm) with ZN-436/ZN-439.
 - ZN-435: the prototype's zinc:platform now also exports ASSETS = false from capabilities.json's new assets group (as for UI); compiler/src/capabilities.ts could skip object groups.
+- ZN-436: make asset handles engine resources (native ABI R<k>) so a dropped handle releases itself.
+- ZN-436: zinc export should ship the packs beside the program; its zinc build child rebuilds dev packs over the release ones export just built, and a cross child names them by the zig target (build/assets/aarch64-linux).
+- ZN-436: zn_asset_font (gfx loadFont) and webview zinc:// URLs still read only the assets directory; read them through the packs.
+- ZN-436: the browser host, the device core and the ESP32 (esp_partition_mmap) serve no zinc:assets v2 rows yet.
+- ZN-436: a 2 ms time slice on one-core targets if the 4 MB byte slice of asset turns measures too coarse there.
 
 ## Demos
 
@@ -65,3 +70,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-581: the sprite path on a Pi 3 (GLES 2) and on Linux GL, frames against the software ones.
 - ZN-435: check the asset defaults of targets/capabilities.json on the devices (the rmpp, ps1 and ps2 values are estimates; the Pi and ESP32 budgets).
 - owner, 2026-10-11: Windows opens the pass; list its tasks at the review (host and window of ZN-054, dialogs, installers, a CI runner or a machine).
+- ZN-436: tests/t0/assets_groups.sh on Linux x86_64/arm64 and the Pi 1 (the in-turn decode path); a cross build that links the pack libraries and sets ZINC_PACK_TARGET.
