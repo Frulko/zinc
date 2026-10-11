@@ -7,9 +7,10 @@ every target and on the sim oracle. This chapter is what you can write, what is 
 
 - Classes: inheritance, `abstract`, statics, accessors (`get`/`set`), `#private` fields, `readonly`.
 - Interfaces, generics (compiled to C++ templates, explicit and inferred), discriminated unions, tuples.
-- Destructuring, spread (in array/object literals and calls), `?.`, `??`, `??=`, `using` / `Symbol.dispose`.
-- Enums (numeric only), closures, `for`/`for-of`/`while`, labeled `break`/`continue` on loops.
-- `try` / `catch` / `finally` and `throw` — implemented as status returns, not C++ exceptions (ADR 0006).
+- Destructuring (with defaults and `...rest`), rest parameters, spread (in array/object literals and calls), `?.`, `??`, `??=`, `using` / `Symbol.dispose`.
+- Object literals with getters, setters and methods that use `this`; tagged templates and `String.raw`.
+- Enums (numeric only), closures, `for`/`for-of`/`for-in`/`while`, labeled statements with `break label` / `continue label`.
+- `try` / `catch` (the binding is optional) / `finally` and `throw` — implemented as status returns, not C++ exceptions (ADR 0006).
 - `async` / `await`, `Promise`, microtasks, and generators — stackless frames (ADR 0007).
 - Machine number types (`i8`…`u64`, `f32`, `f64`, `fx12`, `fx16`), strings (UTF-8 storage, UTF-16 indices),
   arrays, `Map` / `Set` (insertion-ordered), `JSON.stringify`/`parse`, `console.*` with levels.
@@ -38,7 +39,7 @@ The categories:
 | `Z4001` | numbers | using `f32`/`f64` where the target has no FPU, or under `--no-float` |
 | `Z5xxx` | modules | bad native spec (Z5001), no implementation for a target (Z5002), module/plugin not available on this target (Z5003) |
 | `Z6xxx` | UI/JSX | JSX lowering errors |
-| `Z9xxx` | not supported (yet) | rest params (Z9009), `finally` in async (Z9034), `await` in a loop condition (ADR 0007), calling through a `Dyn` (Z9042) |
+| `Z9xxx` | not supported (yet) | `finally` in async (Z9034), `await` in a loop condition (ADR 0007), calling through a `Dyn` (Z9042) |
 
 The rules exist so the backend stays a thin, predictable AST→C++ translation with no runtime metaprogramming: no
 `eval`, no prototype surgery, no reflection, no regex engine, no holes to represent. `Z9xxx` codes are honest "not
