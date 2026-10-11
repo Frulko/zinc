@@ -1,6 +1,6 @@
 # js-phaser
 
-Star catcher, a small game made with [Phaser 3](https://phaser.io) (3.90.0, unmodified) in plain JavaScript: sprites cut from a sheet, arcade physics (gravity, overlap, the edges of the world), the keyboard, and a score written with a bitmap font.
+Star catcher, a small game made with [Phaser 3](https://phaser.io) (3.90.0, unmodified) in plain JavaScript: sprites cut from a sheet, arcade physics (gravity, overlap, the edges of the world), the keyboard, and text (`this.add.text`: the title, the score and the game over line).
 
 ![the game](screenshot.png)
 
@@ -9,7 +9,7 @@ cd next
 build/zinc run ../examples/js-phaser --engine quickjs
 ```
 
-Left and right arrows steer the boat. A star caught is a point; a rock ends the game, and the space bar starts it again.
+Left and right arrows steer the boat. A star caught is a point; a rock ends the game (`GAME OVER`), and the space bar starts it again.
 
 How it fits together:
 
@@ -21,6 +21,5 @@ How it fits together:
 Not there yet:
 
 - No sound: the web environment has no audio (ZN-573). The game loads and plays its two sounds as any Phaser game does, and Phaser stays silent; they will be heard without a change here.
-- No `this.add.text(...)` here: the example was written before the web environment had Canvas 2D, which Phaser draws its text with (ZN-570). The score uses a bitmap font instead.
 
 Test: `next/tests/run --only example_js_phaser` (a scripted game that ends on `game over: 3 stars`, and frame 440 against `screenshot.png`).

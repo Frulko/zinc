@@ -1,7 +1,7 @@
 #!/bin/sh
 # examples/js-phaser (ZN-712): a game played by a script, on the unmodified Phaser 3.90.0 and the web environment, run as a user runs it
-# (`zinc run <dir> --engine quickjs`). Sprites of a sheet, arcade physics (gravity, overlap, world bounds), the cursor keys and a score in a
-# bitmap font. The drops are seeded, so the session of tests/golden/js-examples/phaser.input is always the same game: the boat waits and
+# (`zinc run <dir> --engine quickjs`). Sprites of a sheet, arcade physics (gravity, overlap, world bounds), the cursor keys and text (title,
+# score, game over line). The drops are seeded, so the session of tests/golden/js-examples/phaser.input is always the same game: the boat waits and
 # catches a star, goes right at frame 258 and catches two more against the wall, comes back at frame 540 into a rock: `game over: 3 stars`.
 # Frame 440 (two stars caught, two falling) is the example's screenshot.png. Phaser's sound calls run and play nothing (no audio: ZN-573).
 cd "$(dirname "$0")/../.." || exit 2

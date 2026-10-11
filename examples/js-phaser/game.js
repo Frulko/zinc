@@ -5,7 +5,6 @@ const WIDTH = 320, HEIGHT = 240, BOAT = 0, STAR = 1, ROCK = 2;   // the last thr
 class Play extends Phaser.Scene {
   preload() {
     this.load.spritesheet('sprites', 'assets/sprites.png', { frameWidth: 16, frameHeight: 16 });
-    this.load.image('digits', 'assets/digits.png');
     this.load.audio('catch', 'assets/catch.wav');
     this.load.audio('crash', 'assets/crash.wav');
   }
@@ -18,10 +17,11 @@ class Play extends Phaser.Scene {
     this.physics.add.overlap(this.boat, this.falling, (boat, thing) => this.touch(thing));
     this.time.addEvent({ delay: 500, loop: true, callback: () => this.drop() });
 
-    // The score is written with the digits of assets/digits.png, as a bitmap font.
-    this.cache.bitmapFont.add('digits', Phaser.GameObjects.RetroFont.Parse(this, { image: 'digits', width: 8, height: 8, chars: '0123456789', charsPerRow: 10 }));
+    const style = { fontFamily: 'sans-serif', color: '#ffffff' };
+    this.add.text(WIDTH / 2, 8, 'STAR CATCHER', { ...style, fontSize: '16px' }).setOrigin(0.5, 0);
     this.score = 0;
-    this.scoreText = this.add.bitmapText(8, 8, 'digits', '0').setScale(2);
+    this.scoreText = this.add.text(8, 8, 'stars: 0', { ...style, fontSize: '14px' });
+    this.overText = this.add.text(WIDTH / 2, HEIGHT / 2, '', { ...style, fontSize: '22px', color: '#ff8080' }).setOrigin(0.5);
 
     this.keys = this.input.keyboard.createCursorKeys();
     this.over = false;
@@ -40,11 +40,12 @@ class Play extends Phaser.Scene {
       this.physics.pause();
       this.time.removeAllEvents();
       this.over = true;
+      this.overText.setText('GAME OVER\nspace to play again').setAlign('center');
       console.log('game over: ' + this.score + ' stars');
     } else {
       this.sound.play('catch');
       thing.destroy();
-      this.scoreText.setText(++this.score);
+      this.scoreText.setText('stars: ' + ++this.score);
     }
   }
 
