@@ -1,0 +1,4 @@
+{
+  "name": "serial",
+  "entry": "src/main.ts"
+}

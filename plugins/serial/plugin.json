@@ -1,0 +1,11 @@
+{
+  "name": "serial",
+  "kind": "module",
+  "module": "zinc:serial",
+  "entry": "index.ts",
+  "description": "Serial ports for Arduino and other boards: list, open with baud rate and framing, lines and bytes in, text and bytes out, DTR and RTS, unplug reported (POSIX termios; a loopback port when simulated)",
+  "targets": {
+    "macos": {},
+    "linux": {}
+  }
+}

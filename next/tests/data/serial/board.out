@@ -1,0 +1,19 @@
+list: true
+serial: /dev/zinc-no-such-port: cannot open: No such file or directory
+serial: PORT: bad baud rate or framing
+serial: PORT: framing '8X1' is not of the form '8N1'
+serial: /dev/null: not a serial port
+open: true 115200 false
+line: ping
+line: text héllo ✓
+line: bytes true
+received 1059 bytes, checksum 11400
+line: big true waiting to go out: true
+closed, unplugged: true open: false write: false
+ready: ok
+pong: ok
+text: ok
+every byte value out: ok
+counted: ok
+200000 bytes out: ok
+exit 0

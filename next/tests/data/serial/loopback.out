@@ -1,0 +1,7 @@
+list: ["loopback"]
+serial: /dev/cu.usbmodem1: cannot open: no such port in the simulator (only 'loopback')
+data: 19 bytes
+line: "one"
+line: "two"
+line: "three"
+closed, unplugged: false open: false write: false

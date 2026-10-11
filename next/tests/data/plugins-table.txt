@@ -28,6 +28,7 @@ plugin (import / display)  targets                             description
   zinc:remarkable          rmpp,macos,linux                   reMarkable status toolbar: local clock, battery and app-owned exit; desktop preview supported
   zinc:remote              macos,linux,rpi1                   Viewer for display-remote apps: live screen as a runtime image, input forwarding, LAN discovery
   zinc:script              macos,linux,rpi1,rmpp,sim          Runtime scripting: sandboxed JavaScript (QuickJS-ng) with typed host functions, time / memory limits, ES modules, promises
+  zinc:serial              macos,linux                        Serial ports for Arduino and other boards: list, open with baud rate and framing, lines and bytes in, text and bytes out, DTR and RTS, unplug reported (POSIX termios; a loopback port when simulated)
   zinc:socket              macos,linux,rpi1,rmpp              TCP, Unix domain and UDP sockets, DNS lookup, WebSocket client and server (non-blocking, on the event loop)
   zinc:sqlite              macos,linux,rpi1,rmpp              SQLite 3 databases (bundled amalgamation 3.53.4, public domain): prepare / run / get / all, parameters, transactions
   zinc:svg                 macos,linux,rpi1,wasm              Runtime SVG rendering (paths, shapes, transforms, gradients, CSS classes) on the vector rasterizer
