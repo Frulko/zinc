@@ -150,20 +150,34 @@ metadata (rmpp) and `README.txt`. `id` is your stable identity across versions.
 
 ## Code signing and notarization (macOS)
 
-Apple Silicon refuses to run unsigned code, so `zinc export --target macos` **ad-hoc signs** the bundle/executable by
-default (`codesign --sign -`). That is enough to run locally. For distribution outside your machine, set an identity
-and Zinc signs with the hardened runtime and a timestamp, ready to notarize:
+Apple Silicon refuses to run unsigned code, so `zinc export --target macos` **ad-hoc signs** the bundle by default
+(`codesign --sign -`). That is enough to run locally. For distribution outside your machine, give an identity in
+`zinc.json` (or `ZINC_SIGN_IDENTITY`, `ZINC_SIGN_KEYCHAIN` in CI); Zinc then signs with the hardened runtime and, for a
+Developer ID, a secure timestamp:
 
-```sh
-ZINC_SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" zinc export --target macos myapp
-# then notarize + staple (needs an Apple Developer account and an app-specific password):
-ditto -c -k --keepParent dist/myapp-macos/myapp.app myapp.zip
-xcrun notarytool submit myapp.zip --apple-id you@example.com --team-id TEAMID --password APP_PASSWORD --wait
-xcrun stapler staple dist/myapp-macos/myapp.app
+```json
+"signing": { "identity": "Developer ID Application: Your Name (TEAMID)", "notaryProfile": "my-notary" }
 ```
 
-Verify with `codesign -dv --verbose=4 myapp.app` and `spctl -a -vv myapp.app`. (Notarization is Apple's server-side
-step; Zinc prepares the bundle but cannot notarize for you.)
+`keychain` names a keychain file when the identity is not in the login keychain (it must be in the keychain search list).
+The entitlements follow `"permissions"`: `camera` gives `com.apple.security.device.camera`, `microphone`
+`device.audio-input`, `location` `personal-information.location`, any `net` entry `network.client`, and `net` or `net:*`
+(listening) `network.server`. The export then prints the notarization commands, for the `.dmg` when `--dmg` made one:
+
+```sh
+ditto -c -k --keepParent dist/myapp-macos/myapp.app dist/myapp-macos/myapp.zip
+xcrun notarytool submit dist/myapp-macos/myapp.zip --keychain-profile my-notary --wait   # xcrun notarytool store-credentials made the profile
+xcrun stapler staple dist/myapp-macos/myapp.app
+spctl --assess --type execute -vv dist/myapp-macos/myapp.app
+```
+
+Notarization is Apple's server-side step and needs your Apple account; Gatekeeper (`spctl`) accepts only a notarized
+Developer ID app. `codesign --verify --strict` checks any signature, ad hoc included.
+
+**Signed artifacts (every target).** `zinc export --key <seed-hex>` (or `ZINC_UPDATE_SEED`) writes `<file>.sig`, an
+Ed25519 signature made with the app's update key (`zinc update-keygen`), beside the executable and the `.deb` or `.dmg`.
+`zinc verify <file> [--key <public-hex>]` checks it, with zinc.json `update.publicKey` by default; a changed byte or another
+key fails.
 
 ## The zinc-engine organization
 

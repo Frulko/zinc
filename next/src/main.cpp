@@ -400,6 +400,16 @@ static zn::tc::BundleSpec bundleSpecOf(const zn::frontend::Project& p, const std
   b.dock = p.app.dock; b.urlSchemes = p.app.urlSchemes; b.fileTypes = p.app.fileTypes;
   if (!p.app.icon.empty()) b.icon = (std::filesystem::path(projectDir) / p.app.icon).lexically_normal().string();
   b.assets = (std::filesystem::path(projectDir) / "assets").lexically_normal().string();   // copied into the .app when it exists (ZN-645)
+  b.identity = !p.signIdentity.empty() ? p.signIdentity : std::getenv("ZINC_SIGN_IDENTITY") ? std::getenv("ZINC_SIGN_IDENTITY") : "-";   // ZN-321
+  b.keychain = !p.signKeychain.empty() ? (std::filesystem::path(projectDir) / p.signKeychain).lexically_normal().string() : std::getenv("ZINC_SIGN_KEYCHAIN") ? std::getenv("ZINC_SIGN_KEYCHAIN") : "";
+  for (const std::string& e : zn::frontend::permissionsFor(p, "macos")) {   // what the hardened runtime (and a sandbox) lets the app ask for
+    const std::string f = e.substr(0, e.find(':'));
+    auto add = [&](const char* k) { if (std::find(b.entitlements.begin(), b.entitlements.end(), k) == b.entitlements.end()) b.entitlements.push_back(k); };
+    if (f == "camera") add("com.apple.security.device.camera");
+    else if (f == "microphone") add("com.apple.security.device.audio-input");
+    else if (f == "location") add("com.apple.security.personal-information.location");
+    else if (f == "net") { add("com.apple.security.network.client"); if (e == "net" || e == "net:*") add("com.apple.security.network.server"); }   // listening needs "net" or "net:*"
+  }
   const std::string who = b.name.empty() ? "This app" : b.name;   // macOS asks the user with these strings; without them the request fails (ZN-322.03)
   for (const std::string& e : p.permissions) {
     if (e == "camera") b.usage.push_back({"NSCameraUsageDescription", who + " uses the camera."});
@@ -666,7 +676,8 @@ static int buildNative(const char* argv0, const char* entry, const char* out, zn
   if (!gBundleOut.empty()) {
     std::string berr;
     if (!zn::tc::writeBundle(gBundleSpec, out, gBundleOut, berr)) { std::fprintf(stderr, "zinc: bundle: %s\n", berr.c_str()); return 1; }
-    std::fprintf(stderr, "zinc: wrote %s (ad-hoc signed; to sign for distribution: codesign --force --options runtime --sign \"Developer ID Application: ...\" %s)\n", gBundleOut.c_str(), gBundleOut.c_str());
+    if (gBundleSpec.identity == "-") std::fprintf(stderr, "zinc: wrote %s (ad-hoc signed; for distribution set zinc.json \"signing\": { \"identity\": \"Developer ID Application: ...\" })\n", gBundleOut.c_str());
+    else std::fprintf(stderr, "zinc: wrote %s (signed by %s, hardened runtime)\n", gBundleOut.c_str(), gBundleSpec.identity.c_str());
   }
   return 0;
 }
@@ -2065,6 +2076,22 @@ int main(int argc, char** argv) {
     out << sig << "\n";
     if (!out) { std::fprintf(stderr, "zinc sign: cannot write %s.sig\n", argv[2]); return 1; }
     std::printf("%s.sig\n", argv[2]);
+    return 0;
+  }
+  if ((argc == 3 || argc == 5) && !std::strcmp(argv[1], "verify")) {   // zinc verify <file> [--key <public-hex>]: <file>.sig checked (ZN-321; the key of zinc.json update.publicKey by default)
+    std::string key = argc == 5 && !std::strcmp(argv[3], "--key") ? argv[4] : "";
+    if (key.empty()) {
+      zn::frontend::Project proj;
+      std::string pf = zn::frontend::findProjectFile(argv[2]), text, perr;
+      if (!pf.empty() && readFile(pf, text) && zn::frontend::parseProject(text, proj, perr)) key = proj.updateKey;
+    }
+    if (key.empty()) { std::fprintf(stderr, "zinc verify: no key (--key <public-hex>, or zinc.json update.publicKey above the file)\n"); return 2; }
+    std::string bytes, sig;
+    if (!readFile(argv[2], bytes)) { std::fprintf(stderr, "zinc verify: cannot read %s\n", argv[2]); return 2; }
+    if (!readFile(std::string(argv[2]) + ".sig", sig)) { std::fprintf(stderr, "zinc verify: no signature %s.sig\n", argv[2]); return 1; }
+    while (!sig.empty() && (sig.back() == '\n' || sig.back() == ' ')) sig.pop_back();
+    if (!zn::tc::verifyBytes(bytes, sig, key)) { std::fprintf(stderr, "zinc verify: %s: the signature does not match (changed file or another key)\n", argv[2]); return 1; }
+    std::printf("verified %s\n", argv[2]);
     return 0;
   }
   if (argc == 4 && !std::strcmp(argv[1], "update-sign")) {   // zinc update-sign <manifest> <seed-hex>: the manifest with its sig= line (stdout)

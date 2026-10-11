@@ -77,9 +77,10 @@ const Command kCommands[] = {
   {"plugins", "zinc plugins [project-dir] [--defines <plugin> [target]] | zinc plugins search [word] | zinc plugins update [plugin...]", "the plugin table, the index", "Lists the plugins visible to a project and where they run. search: the plugins and templates of the signed index whose name or description has the word, one line each (kind, name and version, targets, description). update: each dependency added by name moves to the highest version its range (name@^1.2, ~1.2, >=1.2, 1.2) allows, checked like zinc add; one line per plugin that moved."},
   {"capture", "zinc capture <entry|dir> [--frames 1,60] [--every n] [--out dir] [--size WxH]", "a program's frames as PNG", "Runs the program headless and deterministic and writes ZINC_SHOT frames (frame-<n>.png) into --out (default shots/). zinc capture --scene replays a scene dump instead."},
   {"bench", "zinc bench [entry|dir] [--frames n]", "frame timings of a program", "Runs headless for n frames (default 120) and prints p50 / p99 / max per phase (app, layout, paint, raster...)."},
-  {"export", "zinc export [entry|dir] [--target linux|rpi|rpi1|rpi2|chip|pocketchip|rmpp|macos|wasm|esp32] [-o dir] [--deb] [--dmg]", "package a program", "dist/<name>-<target>/: the executable (cross built with the pinned zig for another target), run.sh, README.txt, assets/, a .desktop file (Linux) or the .app (macOS); wasm: a static site (index.html, app.js, app.wasm, app.zbc, serve.py); esp32: core.bin, app.bin and flash.sh. --deb also writes dist/<name>_<version>_<arch>.deb (Linux targets; reproducible, written without dpkg); --dmg dist/<name>-<version>.dmg with the .app and an Applications link (macos; the .app needs zinc.json app.id)."},
+  {"export", "zinc export [entry|dir] [--target linux|rpi|rpi1|rpi2|chip|pocketchip|rmpp|macos|wasm|esp32] [-o dir] [--deb] [--dmg] [--key <seed-hex>]", "package a program", "dist/<name>-<target>/: the executable (cross built with the pinned zig for another target), run.sh, README.txt, assets/, a .desktop file (Linux) or the .app (macOS); wasm: a static site (index.html, app.js, app.wasm, app.zbc, serve.py); esp32: core.bin, app.bin and flash.sh. --deb also writes dist/<name>_<version>_<arch>.deb (Linux targets; reproducible, written without dpkg); --dmg dist/<name>-<version>.dmg with the .app and an Applications link (macos; the .app needs zinc.json app.id). The .app is signed ad hoc, or by zinc.json \"signing\": { \"identity\", \"keychain\", \"notaryProfile\" } with the hardened runtime and the entitlements of \"permissions\"; the notarization commands are printed. --key (or ZINC_UPDATE_SEED) writes <file>.sig, an Ed25519 signature, beside the executable and the .deb or .dmg: zinc verify checks them."},
   {"add", "zinc add <name | git-url[@ref] | gh:user/repo[@ref] | archive URL> [dir]", "add a plugin from the index, git or an archive", "A name (name@range: ^1.2, ~1.2, >=1.2, 1.2) is looked up in the signed index, the highest version the range allows: its tier (official, or verified for a publisher the index delegates to) and publisher are printed first. Fetches the plugin (git: at its default branch or @ref; an archive: file:// or https://, .tar.gz, .tgz or .tar) into plugins/<name>, records it in zinc.json \"dependencies\" and pins it in zinc.lock: the commit or the archive's sha256, the version and the capabilities plugin.json \"permissions\" asks for (an update asking for a new one is refused until --accept). --key <public key>: the archive's <url>.sig must verify with it, and the key is locked too. Nothing of the plugin is run; links and special files are refused. What each tier guarantees, and what a mirror can and cannot do: docs/guide/08-security.md, \"Plugin distribution: threat model and guarantees\"."},
   {"sign", "zinc sign <file> <seed-hex>", "sign a plugin archive", "Writes <file>.sig: the detached Ed25519 signature (128 hex digits) that zinc add --key <public key> checks. zinc update-keygen makes a key pair."},
+  {"verify", "zinc verify <file> [--key <public-hex>]", "check a signed artifact", "Checks <file>.sig (zinc sign, zinc export --key) against the key, by default zinc.json update.publicKey of the project above the file; exit 1 when the file or the signature changed."},
   {"remove", "zinc remove <plugin> [dir]", "remove a plugin", "Deletes plugins/<plugin> and drops it from zinc.json \"dependencies\" and zinc.lock."},
   {"trust", "zinc trust <plugin> [dir]", "accept a community plugin's new key", "A community plugin's publisher key (plugin.json publisher.publicKey, checked against the archive's .sig) is pinned in zinc.json \"lock\" on first use; an archive signed with another key is refused. zinc trust forgets the pinned key, so the next zinc add pins the new one."},
   {"install", "zinc install [--offline] [--frozen] [dir]", "fetch the locked plugins", "Fetches every plugin of zinc.lock into plugins/<name> again (a zinc.json dependency not locked yet is added; --frozen refuses when zinc.json and zinc.lock disagree): git at the pinned commit, archives checked against the pinned sha256 (a changed archive is refused). What was fetched once is kept in ~/.zinc/cache/sources by content; --offline (or ZINC_OFFLINE=1) uses only that and names what is missing."},
@@ -732,9 +733,39 @@ static int exportWasm(const ProjectInfo& p, const fs::path& out, const std::stri
   return 0;
 }
 
+// After a macOS export signed by a Developer ID (zinc.json "signing"): the commands that notarize it, the owner's step (an Apple account; ZN-321).
+static void notarizeHint(const ProjectInfo& p, const fs::path& out, const std::vector<fs::path>& artifacts) {
+  std::ifstream pf(fs::path(p.dir) / "zinc.json");
+  std::stringstream ps; ps << pf.rdbuf();
+  zn::frontend::Project proj; std::string perr;
+  const char* env = std::getenv("ZINC_SIGN_IDENTITY");
+  if (!pf || !zn::frontend::parseProject(ps.str(), proj, perr)) return;
+  const std::string id = !proj.signIdentity.empty() ? proj.signIdentity : env ? env : "-";
+  if (id == "-") return;
+  const fs::path app = out / (p.name + ".app");
+  fs::path dmg;
+  for (const fs::path& a : artifacts) if (a.extension() == ".dmg") dmg = a;
+  const std::string profile = proj.notaryProfile.empty() ? "<profile of xcrun notarytool store-credentials>" : proj.notaryProfile;
+  const std::string kc = proj.signKeychain.empty() ? "" : " --keychain " + q((fs::path(p.dir) / proj.signKeychain).lexically_normal().string());
+  std::printf("notarize (needs the Apple account of the identity):\n");
+  if (!dmg.empty()) {
+    std::printf("  codesign --force --timestamp --sign %s%s %s\n", q(id).c_str(), kc.c_str(), q(dmg.string()).c_str());
+    std::printf("  xcrun notarytool submit %s --keychain-profile %s --wait\n", q(dmg.string()).c_str(), q(profile).c_str());
+    std::printf("  xcrun stapler staple %s\n", q(dmg.string()).c_str());
+  } else {
+    const fs::path zip = out / (p.name + ".zip");
+    std::printf("  ditto -c -k --keepParent %s %s\n", q(app.string()).c_str(), q(zip.string()).c_str());
+    std::printf("  xcrun notarytool submit %s --keychain-profile %s --wait\n", q(zip.string()).c_str(), q(profile).c_str());
+    std::printf("  xcrun stapler staple %s\n", q(app.string()).c_str());
+  }
+  std::printf("  spctl --assess --type execute -vv %s\n", q(app.string()).c_str());
+}
+
 int exportApp(const std::vector<std::string>& args, const std::string& engineRoot) {
-  Opts o = parseOpts(args, {"--target", "-o"}, {"--deb", "--dmg"});
-  if (o.bad) { std::fprintf(stderr, "zinc export: unknown option %s\nusage: zinc export [entry|dir] [--target linux|rpi|rpi1|rpi2|chip|pocketchip|rmpp|macos|wasm|esp32] [-o dir] [--deb] [--dmg]\n", o.badArg.c_str()); return 2; }
+  Opts o = parseOpts(args, {"--target", "-o", "--key"}, {"--deb", "--dmg"});
+  if (o.bad) { std::fprintf(stderr, "zinc export: unknown option %s\nusage: zinc export [entry|dir] [--target linux|rpi|rpi1|rpi2|chip|pocketchip|rmpp|macos|wasm|esp32] [-o dir] [--deb] [--dmg] [--key <seed-hex>]\n", o.badArg.c_str()); return 2; }
+  const std::string seed = o.v.count("--key") ? o.v["--key"] : std::getenv("ZINC_UPDATE_SEED") ? std::getenv("ZINC_UPDATE_SEED") : "";   // the artifacts' signatures (ZN-321)
+  std::vector<fs::path> artifacts;
   ProjectInfo p; std::string err;
   if (!resolveProject(o.entry, p, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 2; }
   for (char c : p.name) if (!(std::isalnum(static_cast<unsigned char>(c)) || c == '.' || c == '_' || c == '-')) { std::fprintf(stderr, "zinc export: zinc.json name \"%s\" is not usable in a file name (letters, digits, '.', '_', '-')\n", p.name.c_str()); return 2; }
@@ -768,6 +799,7 @@ int exportApp(const std::vector<std::string>& args, const std::string& engineRoo
     std::string bcmd = q(self()) + " build --bundle " + q(p.entry) + " -o " + q((out / (p.name + ".app")).string());
     if (status(std::system(bcmd.c_str())) != 0) std::fprintf(stderr, "zinc export: the .app bundle could not be made (the plain executable is in %s)\n", out.string().c_str());
   }
+  artifacts.push_back(out / p.name);
   {   // what the exported app may do (ZN-322.03): zinc.json "permissions", enforced by the app
     std::ifstream pf(fs::path(p.dir) / "zinc.json");
     std::stringstream ps; ps << pf.rdbuf();
@@ -799,12 +831,23 @@ int exportApp(const std::vector<std::string>& args, const std::string& engineRoo
     fs::remove_all(stage, ec);
     if (rc != 0) { std::fprintf(stderr, "zinc export: hdiutil could not make %s\n", dmg.string().c_str()); return 1; }
     std::printf("%s\n", dmg.string().c_str());
+    artifacts.push_back(dmg);
   }
   if (has(o, "--deb")) {   // a Debian package of the export (ZN-320.01)
     const fs::path deb = out.parent_path() / (p.name + "_" + p.version + "_" + arch + ".deb");
     if (!writeDeb(out, p.name, p.version, arch, deb, err)) { std::fprintf(stderr, "zinc export: %s\n", err.c_str()); return 1; }
     std::printf("%s\n", deb.string().c_str());
+    artifacts.push_back(deb);
   }
+  if (!seed.empty()) for (const fs::path& a : artifacts) {   // Ed25519 signatures beside the artifacts, the update key's (zinc verify)
+    std::ifstream in(a, std::ios::binary);
+    const std::string bytes((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    std::string sig;
+    if (!in || !zn::tc::signBytes(bytes, seed, sig, err)) { std::fprintf(stderr, "zinc export: cannot sign %s: %s\n", a.string().c_str(), err.c_str()); return 1; }
+    writeFile(a.string() + ".sig", sig + "\n");
+    std::printf("signature: %s.sig\n", a.string().c_str());
+  }
+  if (target == "macos") notarizeHint(p, out, artifacts);
   std::printf("%s\n", out.string().c_str());
   return 0;
 }

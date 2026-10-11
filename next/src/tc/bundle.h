@@ -13,7 +13,12 @@ struct BundleSpec {
   std::string exeName = "zinc";                              // the executable inside Contents/MacOS
   std::vector<std::pair<std::string, std::string>> usage;    // NSCameraUsageDescription... and their text: what zinc.json "permissions" asks of the system (ZN-322.03)
   std::string assets;                                        // the project's assets/ directory, copied to Contents/Resources/assets (ZN-645); "" = none
+  std::string identity = "-", keychain;                      // codesign identity ("-": ad hoc) and the keychain that holds it (ZN-321)
+  std::vector<std::string> entitlements;                     // com.apple.security.* keys set to true, from zinc.json "permissions"
 };
+
+/** The entitlements plist of `spec` (an empty dict when it has none). */
+std::string entitlementsPlist(const BundleSpec& spec);
 
 /** The Info.plist text (XML) of `spec`. */
 std::string infoPlist(const BundleSpec& spec, bool hasIcon);

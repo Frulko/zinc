@@ -44,6 +44,7 @@ struct Project {
   AppInfo app;
   std::vector<std::string> permissions;            // "permissions": `feature` or `feature:operation`; none = no system module usable
   bool permissionsDeclared = false;
+  std::string signIdentity, signKeychain, notaryProfile;   // "signing" (ZN-321): the codesign identity ("-" or none: ad hoc), its keychain, the notarytool profile
   std::string updateUrl, updateChannel = "stable", updateKey;   // "update": where the channel manifests are, the channel, the app's Ed25519 public key (ZN-324)                // the "permissions" key is there: the host modules check it at run time (ZN-322)
   std::string scopes;                              // "scopes" as JSON text ({"opener": {"allow": [...]}})
   std::map<std::string, std::vector<std::string>> targetPermissions;   // targets.<name>.permissions: additions, and `-id` removals for that target

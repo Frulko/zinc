@@ -67,6 +67,12 @@ std::string infoPlist(const BundleSpec& s, bool hasIcon) {
   return o.str();
 }
 
+std::string entitlementsPlist(const BundleSpec& s) {
+  std::string o = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\"><dict>\n";
+  for (const std::string& e : s.entitlements) o += "<key>" + esc(e) + "</key><true/>\n";
+  return o + "</dict></plist>\n";
+}
+
 bool ensureDevBundle(const BundleSpec& spec, const std::string& engine, const std::string& cacheDir, std::string& appPath, bool& refreshed, std::string& err) {
   refreshed = false;
   appPath = cacheDir + "/" + spec.id + ".app";
@@ -140,7 +146,17 @@ bool writeBundle(const BundleSpec& spec, const std::string& exe, const std::stri
     if (ec) { err = "cannot copy " + spec.assets + " into the bundle: " + ec.message(); return false; }
   }
   { std::ofstream(fs::path(appPath) / "Contents/Info.plist") << infoPlist(spec, hasIcon); }
-  return run("codesign --force --sign - --identifier " + q(spec.id) + " " + q(appPath), err, "codesign");
+  // ad hoc as before, or the identity of zinc.json "signing" with the hardened runtime notarization asks for (ZN-321); the entitlements follow the permissions
+  const bool adhoc = spec.identity.empty() || spec.identity == "-";
+  std::string cmd = "codesign --force --sign " + q(adhoc ? "-" : spec.identity);
+  if (!spec.keychain.empty()) cmd += " --keychain " + q(spec.keychain);
+  if (!adhoc) cmd += " --options runtime";
+  if (spec.identity.rfind("Developer ID", 0) == 0) cmd += " --timestamp";   // Apple's secure timestamp, which notarization requires
+  const fs::path ent = fs::temp_directory_path() / ("zinc-entitlements-" + std::to_string(::getpid()) + ".plist");
+  if (!spec.entitlements.empty()) { std::ofstream(ent) << entitlementsPlist(spec); cmd += " --entitlements " + q(ent.string()); }
+  const bool ok = run(cmd + " --identifier " + q(spec.id) + " " + q(appPath), err, "codesign");
+  fs::remove(ent, ec);
+  return ok;
 }
 
 // CoreFoundation is opened here, not linked: linking it runs ~400 initializers of the frameworks behind it (Network, SkyLight) at every
