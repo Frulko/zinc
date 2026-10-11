@@ -61,6 +61,7 @@ namespace zrt::raster {
 int32_t add_font_file(const char* name, uint32_t name_len, const uint8_t* data, uint32_t len);   // runtime/ttf.cpp
 int32_t dyn_create(int32_t w, int32_t h);   // runtime/raster.cpp (zrt_raster.h): runtime images
 uint32_t* dyn_pixels(int32_t id);
+void dyn_resize(int32_t id, int32_t w, int32_t h);
 void dyn_set_alpha(int32_t id, bool on);
 void dyn_update(int32_t id, const uint32_t* px, int32_t stride);
 }
@@ -708,10 +709,9 @@ extern "C" int zn_asset_font(const char* name, uint32_t n) {
 // zinc:gfx image (ZN-438): an image entry of the mounted packs (ZIM1, docs/reports/zinc-next-assets.md: an imported image, a page of a sprite
 // atlas) that the program names and the baker did not embed becomes a runtime image with straight alpha, as the rasterizer samples them; one
 // per name. -1: no pack has such an image.
-extern "C" int zn_asset_image(const char* name, uint32_t n) {
-  static std::map<std::string, int> made;   // ponytail: kept for the program's life; freed with their group once image handles exist (zinc:assets v2)
-  const std::string key(name, n);
-  if (auto it = made.find(key); it != made.end()) return it->second;
+static std::map<std::string, int> gPackImages;   // ponytail: kept for the program's life; freed with their group once image handles exist (zinc:assets v2)
+// The pixels of the image entry `key` into image `id` (-1: a new one; resized to the entry); the image, or -1.
+static int32_t packImage(const std::string& key, int32_t id) {
   std::string zim, err;
   if (!assets::read(key, zim, err, 1) || !err.empty() || zim.size() < 16 || zim.compare(0, 4, "ZIM1") != 0) return -1;
   const auto* p = reinterpret_cast<const unsigned char*>(zim.data());
@@ -720,7 +720,8 @@ extern "C" int zn_asset_image(const char* name, uint32_t n) {
   const bool premultiplied = p[6] & 1;
   const uint32_t w = u32(8), h = u32(12), bpp = fmt == 1 ? 4 : 2;
   if ((fmt < 1 || fmt > 3) || w == 0 || h == 0 || w > 16384 || h > 16384 || zim.size() != 16 + static_cast<size_t>(w) * h * bpp) return -1;
-  const int32_t id = zrt::raster::dyn_create(static_cast<int32_t>(w), static_cast<int32_t>(h));
+  if (id < 0) id = zrt::raster::dyn_create(static_cast<int32_t>(w), static_cast<int32_t>(h));
+  else zrt::raster::dyn_resize(id, static_cast<int32_t>(w), static_cast<int32_t>(h));
   uint32_t* px = zrt::raster::dyn_pixels(id);
   if (!px) return -1;
   bool alpha = false;
@@ -739,8 +740,17 @@ extern "C" int zn_asset_image(const char* name, uint32_t n) {
   }
   zrt::raster::dyn_set_alpha(id, alpha);
   zrt::raster::dyn_update(id, nullptr, 0);
-  made[key] = id;
   return id;
+}
+extern "C" int zn_asset_image(const char* name, uint32_t n) {
+  const std::string key(name, n);
+  if (auto it = gPackImages.find(key); it != gPackImages.end()) return it->second;
+  const int32_t id = packImage(key, -1);
+  if (id >= 0) gPackImages[key] = id;
+  return id;
+}
+void assets::imageReloaded(const std::string& name) {
+  if (auto it = gPackImages.find(name); it != gPackImages.end()) packImage(name, it->second);
 }
 extern "C" void zn_host_fs_grant(const char* path) { gGrants.push_back(absPath(path)); }
 // App updates (ZN-324.03) are the engine's (src/main.cpp defines the real one, which wins); a compiled program has none: the system plugin says "unsupported".

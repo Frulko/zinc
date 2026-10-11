@@ -165,6 +165,26 @@ assets.stats();                             // resident bytes, peak, the ram bud
 Measured (same machine, load 5.3 to 5.6: another agent building): a group of 64 text entries of 512 KB (32 MB, a 12 MB release pack,
 zstd 19), `loadGroup` to its promise, median of 7 real runs: 62 ms on the libuv pool, 214 ms decoded on the main thread.
 
+### Hot reload in `zinc dev` (ZN-450)
+
+A save that changes files under the assets directory alone, in a project that packs them (`assets.rules` or `assets.groups`), does not
+restart the program. `zinc dev` builds the dev packs again (the cache imports only the changed files: an atlas is packed again, its other
+images come from the cache), compares each entry with the bytes it had, and writes those that differ on the running version's dev socket
+(a socket pair; the program's end is `ZINC_DEV_FD`): `asset <kind> <size> <name>\n` and the bytes, each, then `end\n`. At `end` the
+program (`src/host/assets_host.cpp`) puts them in front of the packs: a resident entry takes the new bytes in place (its handles read
+them), a zinc:gfx image made from an image entry (an atlas page) takes the new pixels under the same id, and each name becomes a host
+event that runs the callbacks of `assets.onReload(name, cb)`; `zinc:sprite` re-reads its table there and moves the frames it handed out.
+A code change, a change outside the assets directory, a project that does not pack its assets, or a program that does not read its
+socket (2 s) restarts the program as before; an asset that fails to import leaves the old one on screen with the error printed.
+
+```
+zinc dev: sprites.atlas.0, sprites.atlas rebuilt and sent (41 ms after the save)
+zinc dev: sprites.atlas.0, sprites.atlas swapped in
+```
+
+Measured on game-2d (`tests/t1/asset_reload.sh`, headless, load 3.3): the new sprite reaches the program 40 ms after the save (the poll,
+30 ms for the editor to finish writing, the import and the pack); the test sees it swapped in 110 to 170 ms after its write.
+
 ## The engine splash (ZN-446)
 
 `zinc.json` `splash` (`targets.<id>.splash` replaces it on that target; design: 7.2 and 7.3 of the report) is the first frame of the window,

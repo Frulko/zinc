@@ -248,6 +248,9 @@ declare module 'zinc:assets' {
   export function get(name: string): Asset;
   /** Resident bytes, their peak, the ram budget (0: none), groups loaded, packs mounted, jobs pending. */
   export function stats(): Stats;
+  /** zinc dev: `cb` runs once the entry `name` (a data entry, an image, `<atlas>.atlas`), changed on disk and rebuilt, has replaced the old
+   *  one in the running program (handles and images already show it); the program keeps its state. Never called outside zinc dev. */
+  export function onReload(name: string, cb: (name: string) => void): void;
 }
 
 declare module 'zinc:os' {

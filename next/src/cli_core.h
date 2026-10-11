@@ -59,7 +59,8 @@ int tsconfig(const std::vector<std::string>& args, const std::string& engineRoot
 int infer(const std::vector<std::string>& args);
 
 /** `zinc dev [entry|dir] [--no-devtools] [-- args]`: runs the program, watches the project, and on every save checks it and restarts it (the new version on screen in ~0.2 s with the interpreter).
- *  A compile error stops the program and puts a red-box program on the screen with the diagnostics; the next good save replaces it. UI programs get the Chrome DevTools inspector (port 9229). */
+ *  A compile error stops the program and puts a red-box program on the screen with the diagnostics; the next good save replaces it. UI programs get the Chrome DevTools inspector (port 9229).
+ *  A save under the assets directory of a project that packs them swaps the rebuilt entries into the running version over its dev socket instead (ZN-450). */
 int dev(const std::vector<std::string>& args);
 /** `zinc monitor [file | --port /dev/tty... [--baud n] | --udp port]`: telemetry JSON lines (zinc:telemetry) from stdin, a file, a serial port or UDP, one readable line each; other lines pass through. */
 int monitor(const std::vector<std::string>& args);

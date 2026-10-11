@@ -64,10 +64,15 @@ struct Entry {
   bool orphan = false;   // its group was unloaded while a handle held it: freed with the last handle
 };
 
+struct Reloaded { std::uint8_t kind = 0; std::string data; };
+
 struct Manager {
   std::vector<std::unique_ptr<Pack>> mounts;   // in search order
-  bool based = false;
+  bool based = false, dev = false;            // dev: zinc dev's socket is open
   std::map<std::string, Entry> resident;
+  std::map<std::string, Reloaded> reloaded;    // zinc dev: entries sent since the start, searched before the packs
+  std::string devIn;                           // what the dev CLI sent that is not a whole entry yet
+  std::vector<std::pair<std::string, Reloaded>> devGot;   // whole entries, swapped in at "end"
   std::map<std::string, int> groupState;
   std::map<int, Request> reqs;
   std::map<int, std::string> handles;
@@ -158,12 +163,70 @@ int addPath(Manager& g, const std::string& path, bool front, std::string& err) {
   return n;
 }
 
+void onDevAlloc(uv_handle_t*, size_t suggested, uv_buf_t* buf) {
+  buf->base = static_cast<char*>(std::malloc(suggested));
+  buf->len = buf->base ? suggested : 0;
+}
+
+void swapIn(Manager& g) {
+  std::string names;
+  for (auto& [name, e] : g.devGot) {
+    if (auto it = g.resident.find(name); it != g.resident.end()) {   // its handles read the new bytes
+      g.bytes = g.bytes - it->second.data.size() + e.data.size();
+      g.peak = std::max(g.peak, g.bytes);
+      it->second.data = e.data;
+    }
+    const bool image = e.kind == 1;
+    g.reloaded[name] = std::move(e);
+    if (image) imageReloaded(name);
+    zn::loop::pushEvent(0, 60, name);
+    names += (names.empty() ? "" : ", ") + name;
+  }
+  g.devGot.clear();
+  std::fprintf(stderr, "zinc dev: %s swapped in\n", names.c_str());
+}
+
+// The dev CLI's messages (assets_host.h); a malformed line is skipped.
+void onDevRead(uv_stream_t* s, ssize_t n, const uv_buf_t* buf) {
+  Manager& g = mgr();
+  if (n > 0) g.devIn.append(buf->base, static_cast<size_t>(n));
+  std::free(buf->base);
+  if (n < 0) { uv_close(reinterpret_cast<uv_handle_t*>(s), nullptr); return; }   // the dev CLI is gone; ponytail: the handle is not freed
+  for (std::size_t nl; (nl = g.devIn.find('\n')) != std::string::npos;) {
+    const std::string line = g.devIn.substr(0, nl);
+    unsigned kind = 0;
+    unsigned long long size = 0;
+    int at = 0;
+    if (line == "end") swapIn(g);
+    else if (std::sscanf(line.c_str(), "asset %u %llu %n", &kind, &size, &at) == 2 && at > 0) {
+      if (g.devIn.size() - nl - 1 < size) return;   // its bytes are still on their way
+      g.devGot.push_back({line.substr(static_cast<std::size_t>(at)), {static_cast<std::uint8_t>(kind), g.devIn.substr(nl + 1, size)}});
+      g.devIn.erase(0, nl + 1 + size);
+      continue;
+    }
+    g.devIn.erase(0, nl + 1);
+  }
+}
+
+// The socket is the program's alone: the processes it starts (a zinc it runs) neither inherit it nor look for it.
+void devListen(Manager& g, int fd) {
+  unsetenv("ZINC_DEV_FD");
+  fcntl(fd, F_SETFD, FD_CLOEXEC);
+  auto* p = new uv_pipe_t;   // the life of the process
+  uv_pipe_init(static_cast<uv_loop_t*>(zn::loop::uvLoop()), p, 0);
+  if (uv_pipe_open(p, fd) != 0) return;
+  uv_read_start(reinterpret_cast<uv_stream_t*>(p), onDevAlloc, onDevRead);
+  uv_unref(reinterpret_cast<uv_handle_t*>(p));   // it does not keep a program alive
+  g.dev = true;
+}
+
 // The base packs, behind any overlay: ZINC_PACKS (paths separated by ':', which zinc run sets, empty for none), else the packs zinc build wrote
 // beside a built program for its target (ZINC_PACK_TARGET, else this machine's).
 Manager& ready() {
   Manager& g = mgr();
   if (g.based) return g;
   g.based = true;
+  if (const char* fd = std::getenv("ZINC_DEV_FD")) devListen(g, std::atoi(fd));
   std::string list;
   if (const char* p = std::getenv("ZINC_PACKS")) list = p;
   else {
@@ -247,6 +310,7 @@ void commit(Manager& g, Job& j) {
 bool read(const std::string& name, std::string& out, std::string& err, int kind) {
   Manager& g = ready();
   if (auto it = g.resident.find(name); it != g.resident.end() && it->second.kind == kind) { out = it->second.data; return true; }
+  if (auto it = g.reloaded.find(name); it != g.reloaded.end() && it->second.kind == kind) { out = it->second.data; return true; }
   auto [p, i] = find(g, name);
   if (!p || p->reader.entry(static_cast<std::size_t>(i)).kind != kind) return false;
   if (!p->reader.read(static_cast<std::size_t>(i), out, err)) err = "assets: " + err;
@@ -254,6 +318,7 @@ bool read(const std::string& name, std::string& out, std::string& err, int kind)
 }
 bool has(const std::string& name) {
   Manager& g = ready();
+  if (auto it = g.reloaded.find(name); it != g.reloaded.end()) return it->second.kind == 0;
   auto [p, i] = find(g, name);
   return p && p->reader.entry(static_cast<std::size_t>(i)).kind == 0;
 }
@@ -319,6 +384,16 @@ int load(const std::string& group, int priority, std::string& err) {
     if (auto it = g.resident.find(n); it != g.resident.end()) {   // resident already (a handle kept it, or another group has it)
       it->second.orphan = false;
       it->second.group = group;
+      r.done += e.size;
+      continue;
+    }
+    if (auto o = g.reloaded.find(n); o != g.reloaded.end()) {   // zinc dev sent it: resident from those bytes, no job
+      Entry& x = g.resident[n];
+      x.data = o->second.data;
+      x.group = group;
+      x.kind = o->second.kind;
+      g.bytes += x.data.size();
+      g.peak = std::max(g.peak, g.bytes);
       r.done += e.size;
       continue;
     }
@@ -430,6 +505,7 @@ double stat(int k) {
     case 3: { double n = 0; for (const auto& [name, s] : g.groupState) n += s == 2; return n; }
     case 4: return static_cast<double>(g.mounts.size());
     case 5: return static_cast<double>(g.running.size() + g.queued[0].size() + g.queued[1].size());
+    case 6: return ready().dev ? 1 : 0;
     default: return 0;
   }
 }

@@ -34,6 +34,10 @@ onFrame((dt: number) => {
 | `Frame` fields | `image` (the page), `x y w h` (texels of the page), `ox oy` (where the trimmed rectangle starts in the source, points), `width height` (the source, points), `scale` (texels a point), `pivotX pivotY` (0..1), `duration` (ms) |
 | `Animation.frameAt(ms, loop = true)`, `duration()`, `mode`, `frames` | the frame shown `ms` after the start (`forward`, `reverse`, `pingpong`: there and back, the ends once); without `loop` the last frame stays |
 
+Under `zinc dev`, a save of one of an atlas's images rebuilds the atlas and swaps its pages and table into the running program
+(`assets.onReload`, `docs/reports/zinc-next-assets.md`): the frames and animations already handed out take their new places, so the
+next frame draws the new sprite and the game keeps its state (`tests/t1/asset_reload.sh`).
+
 Without its packs (the browser export, a board, `ZINC_PACKS=""`) an atlas has no page and `frame(name)` is the loose image of that name,
 drawn whole, so a program keeps drawing; animations need the table. Tests: `tests/t1/sprite_atlas.sh` (tables, pixels at scales 1 and 2,
 the interpreter, AOT and QuickJS, the run without packs), `tests/t0/assets.sh` (the importer, its errors, the cache).

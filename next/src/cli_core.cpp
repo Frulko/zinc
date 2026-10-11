@@ -32,6 +32,8 @@
 #include "zapp.h"
 #include "yyjson.h"
 #include "tc/tc.h"
+#include "tc/plugin_build.h"
+#include "zpk/zpk.h"
 #include "tc/policy.h"
 #include "tc/tlog.h"
 #include "tc/tuf.h"
@@ -94,7 +96,7 @@ const Command kCommands[] = {
   {"deploy", "zinc deploy [entry|dir] --target T --device user@host [--dir path] [--print]", "export and start on a device", "Exports, copies with scp and starts with ssh. --print (or ZINC_DEPLOY_DRY=1) prints the three commands and runs nothing."},
   {"tsconfig", "zinc tsconfig [dir]", "editor configuration", "Writes tsconfig.json with the engine's lib so an editor understands zinc:* modules."},
   {"infer", "zinc infer <entry|dir>", "where gradual typing could not infer", "Lists the Z0109 sites (a parameter or variable whose type is unknown) with file and line."},
-  {"dev", "zinc dev [entry|dir] [--no-devtools] [-- args]", "run, watch, restart on save", "Runs the program and watches the project: on every save it type checks and restarts the program (~0.2 s). A compile error puts a red box with the diagnostics on the screen until the next good save. UI programs get the Chrome DevTools inspector (chrome://inspect, localhost:9229; another port: zinc.json plugins.devtools.port or ZINC_DEVTOOLS_PORT). The program restarts from its entry: state is not kept."},
+  {"dev", "zinc dev [entry|dir] [--no-devtools] [-- args]", "run, watch, restart on save", "Runs the program and watches the project: on every save it type checks and restarts the program (~0.2 s). A compile error puts a red box with the diagnostics on the screen until the next good save. UI programs get the Chrome DevTools inspector (chrome://inspect, localhost:9229; another port: zinc.json plugins.devtools.port or ZINC_DEVTOOLS_PORT). The program restarts from its entry: state is not kept. A save under the assets directory of a project that packs them (zinc.json assets.rules or assets.groups) rebuilds those assets and swaps them into the running program instead (zinc:assets onReload): the program keeps its state."},
   {"monitor", "zinc monitor [file | --port /dev/tty... [--baud n] | --udp port]", "read telemetry", "Prints zinc:telemetry JSON lines (hello, metric, event, state_snapshot) from stdin, a file, a serial port or UDP, one readable line each; other lines pass through."},
   {"lsp", "zinc lsp", "language server", "Speaks LSP over stdio for an editor: diagnostics (the Z codes of zinc check --json), hover with types, completion (members, names in scope, module specifiers), go to definition, document symbols."},
   {"help", "zinc help [command]", "this text", "zinc help lists the commands; zinc help <command> describes one."},
@@ -1737,6 +1739,7 @@ int infer(const std::vector<std::string>& args) {
 }
 
 // ---- zinc dev (ZN-141)
+bool readProject(const fs::path& project, zn::frontend::Project& p, std::string& err);
 namespace {
 
 volatile std::sig_atomic_t gStop = 0;
@@ -1801,6 +1804,57 @@ bool projectUsesUi(const fs::path& dir) {
 }
 std::string readAll(const fs::path& p) { std::ifstream f(p); std::stringstream ss; ss << f.rdbuf(); return ss.str(); }
 
+// Each entry of the packs in `dir` (zinc dev's packs: stored as they are, read whole).
+void eachEntry(const fs::path& dir, const std::function<void(const std::string& name, std::uint8_t kind, const std::string& bytes)>& f) {
+  std::error_code ec;
+  for (const auto& e : fs::directory_iterator(dir, ec)) {
+    if (e.path().extension() != ".zpk") continue;
+    const std::string pack = readAll(e.path());
+    zn::zpk::Reader r;
+    std::string err, bytes;
+    if (!r.open(pack.data(), pack.size(), err)) continue;
+    for (std::size_t i = 0; i < r.count(); ++i)
+      if (r.read(i, bytes, err)) f(std::string(r.entry(i).name), r.entry(i).kind, bytes);
+  }
+}
+
+// Asset hot reload (ZN-450): a save that changed files under the assets directory alone, in a project that packs them, builds the packs again
+// (the cache imports only what changed) and sends the entries whose bytes changed to the running version on its dev socket, which swaps them
+// in (src/host/assets_host.h): no restart, the program keeps its state. False when that does not apply or the program cannot take them.
+bool reloadAssets(const std::string& dir, const Stamps& was, const Stamps& is, int fd, Clock::time_point t0) {
+  zn::frontend::Project proj;
+  std::string err;
+  if (!readProject(dir, proj, err) || !proj.assets.packed()) return false;
+  const std::string under = (fs::path(dir) / proj.assets.dir).lexically_normal().string() + "/";
+  auto asset = [&](const std::string& f) { return fs::path(f).lexically_normal().string().rfind(under, 0) == 0; };
+  for (const auto& [f, st] : is) if ((!was.count(f) || was.at(f) != st) && !asset(f)) return false;
+  for (const auto& [f, st] : was) if (!is.count(f) && !asset(f)) return false;
+  const std::string target = zn::tc::pluginTarget();
+  const fs::path packs = fs::path(dir) / "build" / "assets" / target;
+  std::map<std::string, std::string> had;   // name -> kind and hash of the bytes the program has
+  eachEntry(packs, [&](const std::string& name, std::uint8_t kind, const std::string& bytes) { had[name] = std::to_string(kind) + zn::assets::Key().add(bytes).hex(); });
+  if (!buildAssets(dir, target, false, err)) { std::fprintf(stderr, "zinc dev: %s (the program keeps the assets it has)\n", err.c_str()); return true; }
+  std::string msg, names;
+  const std::size_t were = had.size();
+  std::size_t kept = 0;
+  eachEntry(packs, [&](const std::string& name, std::uint8_t kind, const std::string& bytes) {
+    kept += had.count(name);
+    if (had[name] == std::to_string(kind) + zn::assets::Key().add(bytes).hex()) return;
+    msg += "asset " + std::to_string(kind) + " " + std::to_string(bytes.size()) + " " + name + "\n" + bytes;
+    names += (names.empty() ? "" : ", ") + name;
+  });
+  if (kept < were) return false;   // an entry is gone (a file removed): the program may name it, a restart says so
+  if (msg.empty()) return true;
+  msg += "end\n";
+  for (std::size_t at = 0; at < msg.size();) {
+    const ssize_t n = write(fd, msg.data() + at, msg.size() - at);
+    if (n < 0 && errno != EINTR) return false;
+    if (n > 0) at += static_cast<std::size_t>(n);
+  }
+  std::fprintf(stderr, "zinc dev: %s rebuilt and sent (%ld ms after the save)\n", names.c_str(), msSince(t0));
+  return true;
+}
+
 std::string redBoxSource(const std::vector<std::string>& lines) {
   std::string arr = "[";
   for (std::size_t i = 0; i < lines.size() && i < 16; ++i) arr += (i ? "," : "") + jsonString(lines[i].substr(0, 90));
@@ -1834,17 +1888,31 @@ int dev(const std::vector<std::string>& args) {
   }
   std::signal(SIGINT, onSignal);
   std::signal(SIGTERM, onSignal);
+  std::signal(SIGPIPE, SIG_IGN);   // a version that exited closed its dev socket: the write fails and the save restarts it
   const std::string exe = self();
   std::vector<std::pair<std::string, std::string>> env = {{"ZINC_SHOT_DIR", (fs::path(p.dir) / "build" / "shots").string()}, {"ZINC_DEV", "1"}};
   fs::create_directories(fs::path(p.dir) / "build" / "shots", ec);
   pid_t child = 0;
-  int version = 0;
+  int version = 0, devFd = -1;   // devFd: our end of the running version's dev socket (asset hot reload)
   auto startProgram = [&](long sinceSave, bool redbox, const std::vector<std::string>& msg) {
     killChild(child);
+    if (devFd >= 0) { close(devFd); devFd = -1; }
     std::vector<std::string> cmd = {exe, "run", redbox ? (devDir / "redbox.ts").string() : runEntry};
     if (!redbox) cmd.insert(cmd.end(), rest.begin(), rest.end());
     if (redbox) writeFile(devDir / "redbox.ts", redBoxSource(msg));
-    child = spawnSelf(cmd, env, p.dir);
+    auto childEnv = env;
+    int sv[2] = {-1, -1};
+    if (!redbox && socketpair(AF_UNIX, SOCK_STREAM, 0, sv) == 0) {
+      fcntl(sv[0], F_SETFD, FD_CLOEXEC);
+      const timeval wait{2, 0};   // a version that stopped reading costs a save 2 s, then a restart
+      const int room = 4 << 20;   // an atlas page in one write
+      setsockopt(sv[0], SOL_SOCKET, SO_SNDTIMEO, &wait, sizeof wait);
+      setsockopt(sv[0], SOL_SOCKET, SO_SNDBUF, &room, sizeof room);
+      setsockopt(sv[1], SOL_SOCKET, SO_RCVBUF, &room, sizeof room);
+      childEnv.push_back({"ZINC_DEV_FD", std::to_string(sv[1])});
+    }
+    child = spawnSelf(cmd, childEnv, p.dir);
+    if (sv[1] >= 0) { close(sv[1]); devFd = sv[0]; }
     if (!redbox) ++version;
     if (redbox) std::fprintf(stderr, "zinc dev: red box on screen (%ld ms after the save)\n", sinceSave);
     else {
@@ -1864,7 +1932,9 @@ int dev(const std::vector<std::string>& args) {
     const auto t0 = Clock::now();
     usleep(30000);   // an editor writes a file in several steps: take the settled state
     now = snapshot(p.dir);
+    const Stamps was = seen;
     seen = now;
+    if (child > 0 && devFd >= 0 && reloadAssets(p.dir, was, now, devFd, t0)) continue;
     const fs::path out = devDir / "check.txt";
     const std::string cmd = q(exe) + " check --check " + q(p.entry) + " > " + q(out.string()) + " 2>&1";
     const int rc = status(std::system(cmd.c_str()));

@@ -438,6 +438,19 @@ export function get(name: string): Asset { const h = __host_assetsAcquire(name);
 export function stats(): Stats {
   return { resident: __host_assetsStat(0), peak: __host_assetsStat(1), budget: __host_assetsStat(2), groups: __host_assetsStat(3) as i32, packs: __host_assetsStat(4) as i32, pending: __host_assetsStat(5) as i32 };
 }
+const __reloadNames: string[] = [];
+const __reloadFns: ((name: string) => void)[] = [];
+/** zinc dev (ZN-450): `cb` runs once the asset `name`, changed on disk and rebuilt, has replaced the old one in the running program (its
+ *  handles and images already show it); the program keeps its state. Never called outside zinc dev. */
+export function onReload(name: string, cb: (name: string) => void): void {
+  if (__host_assetsStat(6) === 0) return;   // not under zinc dev: nothing will change (and the QuickJS engine has no host events)
+  if (__reloadFns.length === 0) __addEvHandler((h: i32, kind: i32, data: string) => {
+    if (kind !== 60) return;
+    for (let i: i32 = 0; i < __reloadFns.length; i++) if (__reloadNames[i] === data) __reloadFns[i](data);
+  });
+  __reloadNames.push(name);
+  __reloadFns.push(cb);
+}
 )ZN";
 
 const char* kOsModule = R"ZN(

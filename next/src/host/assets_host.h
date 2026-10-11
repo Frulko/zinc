@@ -50,7 +50,13 @@ int acquire(const std::string& name, std::string& err);
 void release(int handle);
 const std::string* data(int handle);   // null for a released handle
 
-/** 0 resident bytes, 1 their peak, 2 the ram budget (0: none), 3 groups loaded, 4 packs mounted, 5 jobs queued or in flight. */
+/** 0 resident bytes, 1 their peak, 2 the ram budget (0: none), 3 groups loaded, 4 packs mounted, 5 jobs queued or in flight, 6 1 under zinc dev (assets.onReload). */
 double stat(int k);
+
+// ---- zinc dev (ZN-450): the dev CLI sends the entries it rebuilt on the descriptor ZINC_DEV_FD (read from the first call above), each
+// "asset <kind> <size> <name>\n" and its bytes, then "end\n". At the end they replace the packs' entries (a resident one in place, so its handles
+// read the new bytes), a zinc:gfx image made from one takes its pixels, and each becomes an event of kind 60 (data: the name): assets.onReload.
+/** Served by sys_host.cpp: the zinc:gfx image made from the image entry `name`, if any, reads it again (its id stays). */
+void imageReloaded(const std::string& name);
 
 }  // namespace zn::host::assets
