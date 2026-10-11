@@ -2,7 +2,8 @@
 id: ZN-433
 title: ZPK pack format with lz4 and zstd vendored
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-09 07:35'
 labels:
   - games
