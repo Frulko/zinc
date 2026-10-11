@@ -1,0 +1,4 @@
+{
+  "name": "midi",
+  "entry": "src/main.ts"
+}

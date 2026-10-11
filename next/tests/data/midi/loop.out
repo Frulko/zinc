@@ -1,0 +1,26 @@
+midi: no MIDI input port named 'NAME'
+midi: no MIDI output port named 'NAME'
+sent: true 12 empty message: false
+[144,60,100]
+[128,60,0]
+[153,72,1]
+[144,72,0]
+[191,7,127]
+[248]
+[250]
+[252]
+[193,5]
+[226,0,64]
+303 bytes, system exclusive equal: true
+[159,127,0]
+note 60 velocity 100 channel 1
+note 60 velocity 0 channel 1
+note 72 velocity 1 channel 10
+note 72 velocity 0 channel 1
+control 7 value 127 channel 16
+clock
+note 127 velocity 0 channel 16
+virtual input: [145,64,90] 17 [191,123,0]
+ports seen coming: true true true
+closed: false false false false
+ports gone: true true

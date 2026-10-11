@@ -1,0 +1,7 @@
+RtMidi 6.0.0 (tag 6.0.0 of thestk/rtmidi, released 2023-08-03), https://github.com/thestk/rtmidi/archive/refs/tags/6.0.0.tar.gz
+archive sha256 ef7bcda27fee6936b651c29ebe9544c74959d0b1583b716ce80a1c6fea7617f0
+kept, unmodified:
+  RtMidi.h    sha256 74f98ca172243b0b9c0c59f53c4e20285d879ffa86b3d61692109b013f4606f9
+  RtMidi.cpp  sha256 184d775e88e5d73b079897363fb42af155122e879f0bc9254a1c7edae4eadb3c
+  LICENSE     sha256 7fa091d9c1aa492ebfcafa9f919d27bbce61e4f048ece2dfc3b7f93181e9e364  (MIT with a request, not a condition, to send changes back)
+plugin.json picks the backend: __MACOSX_CORE__ (CoreMIDI) on macos, __LINUX_ALSA__ (ALSA sequencer) on linux

@@ -117,6 +117,7 @@
     {"paths": ["../plugins/devtools/", "../compiler/", "../sim/", "../lib/std/ui.ts", "../lib/gfx.d.ts", "../lib/compat/proto-layout.ts", "../scripts/cdp-check.mjs", "tests/golden/proto-devtools/"], "tests": ["proto_devtools"]},
     {"paths": ["tests/affected.py", "tests/affected.json"], "tests": ["affected_paths", "ci_plan"]},
     {"paths": ["../plugins/audio/", "tests/golden/audio/"], "tests": ["audio"]},
+    {"paths": ["../plugins/midi/", "../examples/midi/", "tests/data/midi/"], "tests": ["midi"]},
     {"paths": ["../plugins/serial/", "../examples/serial/", "tests/data/serial/"], "tests": ["serial"]},
     {"paths": ["../plugins/osc/", "../plugins/socket/", "../examples/osc/", "tests/data/osc/"], "tests": ["osc_full"]},
     {"paths": ["../templates/game-2d/"], "tests": ["templates_kickstart", "zapp", "fuse", "assets"]},
