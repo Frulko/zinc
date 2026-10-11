@@ -91,11 +91,11 @@ JSValue hostFn(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv, int m
   }
   zn::host::HostCall call = zn::isLayoutRow(static_cast<zn::Rt>(id)) ? zn::host::hostLayout : sys ? zn::host::hostSys : zn::host::hostGfx;
   if (!call) return JS_ThrowInternalError(ctx, "%s is not available in this build", ri.name);
-  HostArg args[12], res;
-  std::array<std::string, 12> strings;   // one per parameter, in place: a call without strings or arrays allocates nothing (ZN-567)
-  std::array<std::vector<std::uint64_t>, 12> arrays;
+  HostArg args[zn::kMaxHostParams], res;
+  std::array<std::string, zn::kMaxHostParams> strings;   // one per parameter, in place: a call without strings or arrays allocates nothing (ZN-567)
+  std::array<std::vector<std::uint64_t>, zn::kMaxHostParams> arrays;
   const unsigned np = zn::rtParamCount(ri);
-  for (unsigned k = 0; k < np && k < 12; ++k) {
+  for (unsigned k = 0; k < np; ++k) {
     JSValueConst v = static_cast<int>(k) < argc ? argv[k] : JS_UNDEFINED;
     HostArg& h = args[k];
     switch (zn::rtParam(ri, k)) {

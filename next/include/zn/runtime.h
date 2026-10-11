@@ -356,6 +356,13 @@ inline constexpr bool isGfxTailRow(Rt r) {
 inline constexpr bool isSysTailRow(Rt r) { return r == Rt::HostSysLaunchDir || r == Rt::HostSysLocale; }
 inline constexpr bool isSysRow(Rt r) { return (r >= Rt::HostSysFirst && r <= Rt::HostHostLast && !(r >= Rt::HostGfxCreateImage && r <= Rt::HostGfxEndImage)) || (r >= Rt::HostLoopWait && !isGfxTailRow(r) && !isLayoutRow(r) && !isGlRow(r)); }
 inline const RtInfo& rtInfo(Rt r) { return kRtInfo[static_cast<unsigned>(r)]; }
+// The host calls decode a row's arguments into arrays of this size (src/rt/rtcalls.cpp hostRt, src/qjs/qjs.cpp hostFn): no row has more parameters.
+inline constexpr unsigned kMaxHostParams = 16;
+constexpr bool rowsFitHostCalls() {
+  for (const RtInfo& r : kRtInfo) { unsigned n = 0; while (r.sig[n] && r.sig[n] != '>') ++n; if (n > kMaxHostParams) return false; }
+  return true;
+}
+static_assert(rowsFitHostCalls(), "a row has more parameters than the host calls decode (kMaxHostParams)");
 inline unsigned rtParamCount(const RtInfo& r) { return static_cast<unsigned>(std::strchr(r.sig, '>') - r.sig); }
 inline char rtParam(const RtInfo& r, unsigned k) { return r.sig[k]; }
 inline char rtRet(const RtInfo& r) { return std::strchr(r.sig, '>')[1]; }

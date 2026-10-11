@@ -657,7 +657,7 @@ static const char* hostRt(Machine& m, Rt id, Slot* a) {
   // what it printed goes out now, so the lines of a running program reach the terminal, the file or the pipe before it exits (ZN-638)
   if ((id == Rt::HostEvReady || id == Rt::HostLoopWait) && m.outLive && !m.out->empty()) m.flushOut();
   if (!call) return isLayoutRow(id) ? "the rn layout engine is not available in this build" : isGlRow(id) ? "zinc:gl is not available (no libzn_webgl beside zinc)" : sys ? "the system modules are not available in this build" : "zinc:gfx is not available in this build";
-  zn::host::HostArg args[12], res;
+  zn::host::HostArg args[kMaxHostParams], res;
   for (unsigned k = 0; k < rtParamCount(ri); ++k) {
     zn::host::HostArg& h = args[k];
     switch (rtParam(ri, k)) {
