@@ -25,6 +25,7 @@
     {"paths": ["../examples/rn-tester/", "tests/golden/rn-tester/"], "tests": ["rn_tester"]},
     {"paths": ["../examples/js-three/", "tests/golden/js-examples/three.input", "third_party/three/"], "tests": ["example_js_three"]},
     {"paths": ["../examples/js-phaser/", "tests/golden/js-examples/phaser.input", "third_party/phaser/"], "tests": ["example_js_phaser"]},
+    {"paths": ["../examples/js-pixi/", "tests/golden/js-examples/pixi.input", "third_party/pixi/"], "tests": ["example_js_pixi"]},
     {"paths": ["../lib/std/react-native.tsx", "../lib/std/react-native-linking.ts", "tests/golden/react-native-input/", "tests/golden/react-native-lists/", "tests/golden/react-native-modal/", "tests/golden/system/linking/", "tests/golden/react-native-imports/"], "tests": ["react_native", "react_native_input", "react_native_lists", "react_native_modal", "react_native_imports", "rn_port", "rn_tester", "system_sim"]},
     {"paths": ["../lib/std/nuxt/", "tests/golden/nuxt-theme/", "../examples/nuxt-ui/", "tests/golden/nuxt-ui/", "tests/golden/oklab-tints/", "tools/oklab-tints"], "tests": ["nuxt_theme", "nuxt_ui", "oklab_tints", "rtl"]},
     {"paths": ["../lib/std/animated.ts", "tests/golden/animated/"], "tests": ["animated", "rn_showcase", "pan_responder"]},
