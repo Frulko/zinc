@@ -179,6 +179,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-718: `zinc doctor` prints 35 plugin lines in a source build: shorten; `zinc update` downloads but does not install: reuse `install.sh`'s swap.
 - ZN-718: the plugin libraries travel inside the archive (27 MB), not through the signed index, which does not exist yet and needs the owner's keys; decide at the review whether criterion 2 is accepted as it stands.
 - ZN-718: five plugins have no prebuilt in the archive: video (FFmpeg), webview (SDL3) and gphoto2 need system libraries; imu-qmi8658 and script have no thunk. The museum table's films therefore need FFmpeg installed on the visitor's machine.
+- ZN-572: web environment: a script element added right after Phaser runs between the two data: pictures of Phaser's blend-mode probe, so a CANVAS game draws MULTIPLY and SCREEN source-over; settle picture loads before the next script element runs.
+- ZN-572: the direct drawImage loop converts a row of the picture to float colours for every row drawn (half the time with the nearest pixel); keep converted pictures by stamp, or blend from bytes.
+- ZN-572: a pattern under a scale is filtered over 16 pixels where Chrome takes 4; CanvasPattern.setTransform does nothing; the CSS filter subset; a shadow under a blend mode is not blended; a sprite under a blend mode or a clip takes the general loop.
+- ZN-572: p5 2.3 through `tools/test-lib`; the WPT subset (criterion 1); every number on a quiet machine.
 
 ## Cross-platform pass
 
