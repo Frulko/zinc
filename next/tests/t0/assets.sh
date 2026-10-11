@@ -38,6 +38,12 @@ for profile in "" --release; do
   done
 done
 
+# an asset that is a symbolic link (examples/hero/assets/city.bin) is packed under its own name: fs::relative followed the link out of the
+# directory and the name started with '..', taken for a hidden file (ZN-436)
+ln -s player.svg "$tmp/one/g2d/assets/linked.svg"
+one assets build g2d >/dev/null || exit 1
+grep -q '"name": "linked.svg"' "$tmp/one/g2d"/build/assets/*/report.json || { echo "the linked asset is not packed"; exit 1; }
+
 # the font baker behind the same cache: the second bake of an unchanged program is the blob of the first (a program with no plugin: a fresh
 # ZINC_HOME would build game-2d's audio plugin first)
 printf "console.log('baked: \\\\u00e9');\n" > "$tmp/one/p.ts"

@@ -235,7 +235,7 @@ bool build(const Options& opt, Report& report, std::string& err) {
   if (!fs::is_directory(opt.sourceDir, ec)) { err = opt.sourceDir + " is not a directory"; return false; }
   std::vector<std::string> names;   // relative, '/' separated, sorted; hidden files and directories (.DS_Store, .git) stay out
   for (auto it = fs::recursive_directory_iterator(opt.sourceDir, ec); !ec && it != fs::recursive_directory_iterator(); it.increment(ec)) {
-    const std::string rel = fs::relative(it->path(), opt.sourceDir, ec).generic_string();
+    const std::string rel = it->path().lexically_relative(opt.sourceDir).generic_string();   // lexical: a linked file keeps its own name (fs::relative would follow the link)
     if (rel.empty() || rel[0] == '.' || rel.find("/.") != std::string::npos) { if (it->is_directory(ec)) it.disable_recursion_pending(); continue; }
     if (it->is_regular_file(ec)) names.push_back(rel);
   }
