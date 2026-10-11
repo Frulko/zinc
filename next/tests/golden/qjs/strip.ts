@@ -22,3 +22,10 @@ console.log(sq.describe(), first<string>(['p', 'q']), Color.Green, Color.Blue, C
 class Limits { static readonly MAX: number = 9; private static readonly min: number = 1; static lowest(): number { return Limits.min; } }
 @pooled(4) class Leaf { @weak parent: Leaf | null = null; @weak private readonly tag: string = 't'; label(): string { return this.tag; } }
 console.log(Limits.MAX, Limits.lowest(), new Leaf().parent, new Leaf().label());
+// imports of names read only as types are elided, `import type` included (game-2d's `import { Scene, TitleScene }`)
+import { Shape2, Id, Box as B } from './shapes';
+import type { Shape2 as S2 } from './shapes';
+const shapes: Shape2[] = [new B(3)];
+const id: Id = 7;
+const s2: S2 = shapes[0];
+console.log(s2.area(), id);

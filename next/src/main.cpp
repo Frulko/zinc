@@ -276,6 +276,30 @@ static void applyAppWindow(const std::string& json, zn::frontend::TargetOptions&
 }
 #endif
 
+// The window of the target this machine runs (zinc.json targets.macos or linux, else sim; app.window gives a size the target does not),
+// then its settings as environment for the HAL: the typed engines and QuickJS
+static zn::frontend::TargetOptions hostWindow(const zn::frontend::Project& project) {
+#if defined(__APPLE__)
+  const char* order[] = {"macos", "sim"};
+#else
+  const char* order[] = {"linux", "sim"};
+#endif
+  zn::frontend::TargetOptions window;
+  for (const char* t : order) { auto it = project.targets.find(t); if (it != project.targets.end()) { window = it->second; break; } }
+#ifdef ZN_HOST_GFX
+  if (!project.app.window.empty()) applyAppWindow(project.app.window, window);   // window properties for the HAL
+#endif
+  return window;
+}
+static void windowEnv(const zn::frontend::TargetOptions& window) {
+  if (window.width > 0 && window.height > 0) setenv("ZINC_SIZE", (std::to_string(window.width) + "x" + std::to_string(window.height)).c_str(), 0);
+  if (window.zoom > 0) setenv("ZINC_ZOOM", std::to_string(window.zoom).c_str(), 0);
+  if (!window.resize.empty()) setenv("ZINC_RESIZE", window.resize.c_str(), 0);
+  if (!window.pixelScale.empty()) setenv("ZINC_PIXEL_SCALE", window.pixelScale.c_str(), 0);   // ZN-425
+  if (window.fullscreen) setenv("ZINC_FULLSCREEN", "1", 0);
+  if (window.kiosk) setenv("ZINC_KIOSK", "1", 0);
+}
+
 static const zn::frontend::Profile* gProfile = nullptr;   // --profile / zinc.json "profile"
 static std::string gBuildTarget;   // the machine a `run --target` / `build --target` compiles for (its ui.layout rules, ZN-285); "" = the profile or this host
 static bool gStrict = false;  // --strict (a file-local switch of the command line, set once in main)
@@ -1441,7 +1465,10 @@ int main(int argc, char** argv) {
     if (const std::string pf = zn::frontend::findProjectFile(argv[2]); !pf.empty()) {   // the splash (ZN-446), before the parse, the bake and the plugins
       std::ifstream in(pf); std::stringstream ss; ss << in.rdbuf();
       zn::frontend::Project sp; std::string perr;
-      if (zn::frontend::parseProject(ss.str(), sp, perr)) splashEnv(sp, std::filesystem::path(pf).parent_path().string(), zn::tc::pluginTarget().c_str());
+      if (zn::frontend::parseProject(ss.str(), sp, perr)) {
+        windowEnv(hostWindow(sp));   // the size and window settings of zinc.json, as `zinc run` gives the typed engines
+        splashEnv(sp, std::filesystem::path(pf).parent_path().string(), zn::tc::pluginTarget().c_str());
+      }
     }
     zn::host::showSplash();
     {
@@ -1651,27 +1678,20 @@ int main(int argc, char** argv) {
         if (project.webgl) setenv("ZINC_WEBGL", "1", 0);   // zinc.json "webgl" (ZN-205)
         if (project.perfHud) setenv("ZINC_PERF_HUD", "1", 0);   // zinc.json "dev": {"perfHud": true} (ZN-375)
         if (!project.scheme.empty()) setenv("ZINC_SCHEME", project.scheme.c_str(), 0);   // zinc.json "scheme" (ZN-271)
-        // the profile of the target this machine runs: macos, linux, else the simulator's
-#if defined(__APPLE__)
-        const char* order[] = {"macos", "sim"};
-#else
-        const char* order[] = {"linux", "sim"};
-#endif
-        for (const char* t : order) { auto it = project.targets.find(t); if (it != project.targets.end()) { window = it->second; break; } }
+        window = hostWindow(project);   // the profile of the target this machine runs: macos, linux, else the simulator's
 #ifdef ZN_HOST_GFX
-        if (!project.app.window.empty()) applyAppWindow(project.app.window, window);   // zinc.json app.window: size when the target gives none, window properties for the HAL
-        if (path.size() <= 4 || path.substr(path.size() - 4) != ".zbc") splashEnv(project, projectDir, order[0]);   // a .zapp brings its splash in its packs
+#if defined(__APPLE__)
+        const char* here = "macos";
+#else
+        const char* here = "linux";
+#endif
+        if (path.size() <= 4 || path.substr(path.size() - 4) != ".zbc") splashEnv(project, projectDir, here);   // a .zapp brings its splash in its packs
 #endif
       }
     }
     if (zn::log::steps()) std::fprintf(stderr, "zinc run %s\n", zn::log::shortPath(std::filesystem::absolute(path).string()).c_str());
     installDisplayDriver(projectDir, path.c_str());
-    if (window.width > 0 && window.height > 0) setenv("ZINC_SIZE", (std::to_string(window.width) + "x" + std::to_string(window.height)).c_str(), 0);
-    if (window.zoom > 0) setenv("ZINC_ZOOM", std::to_string(window.zoom).c_str(), 0);
-    if (!window.resize.empty()) setenv("ZINC_RESIZE", window.resize.c_str(), 0);
-    if (!window.pixelScale.empty()) setenv("ZINC_PIXEL_SCALE", window.pixelScale.c_str(), 0);   // ZN-425
-    if (window.fullscreen) setenv("ZINC_FULLSCREEN", "1", 0);
-    if (window.kiosk) setenv("ZINC_KIOSK", "1", 0);
+    windowEnv(window);
 #ifdef ZN_HOST_GFX
     if (shapedText || (std::getenv("ZINC_TEXT") && !std::strcmp(std::getenv("ZINC_TEXT"), "shaped"))) zn::text::installShapedGfx();   // ZN-224
     zn::host::setGrowDrawCommands(window.growDrawCommands);

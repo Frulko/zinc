@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cstdio>
+#include <unordered_set>
 #include <vector>
 
 #include "frontend/parser.h"
@@ -130,7 +131,41 @@ struct Stripper {
     edits.push_back({x.start, x.end, r});
   }
 
+  // The names the file reads as values: an imported name read only in types leaves its import, as TypeScript elides it (another
+  // file's interface or alias is no export at run time: `import { Scene, TitleScene }` of game-2d)
+  std::unordered_set<std::string_view> valueNames() const {
+    std::vector<bool> spec(a.nodes.size());
+    for (const Node& x : a.nodes) if (x.kind == N::ImportSpec) spec[x.kids[0]] = true;
+    std::unordered_set<std::string_view> v;
+    for (std::uint32_t i = 0; i < a.nodes.size(); ++i) {
+      const Node& x = n(i);
+      if (x.kind == N::Ident && !spec[i]) v.insert(x.text);
+      else if (x.kind == N::ExportSpec) v.insert(x.text);
+      else if (x.kind == N::Class && x.kids[0] != kNone) { std::string_view t = n(x.kids[0]).text; v.insert(t.substr(0, t.find('.'))); }  // `extends` reads a value
+    }
+    return v;
+  }
+
+  // `import X, { a, b as c } from './m'` (also `import type`): rewritten with the specifiers read as values; none left, `import './m'`
+  void importDecl(const Node& x, const std::unordered_set<std::string_view>& values) {
+    if (x.kids.empty()) return;
+    std::string def, ns, named;
+    for (std::uint32_t k : x.kids) {
+      const Node& sp = n(k);
+      std::string_view local = n(sp.kids[0]).text;
+      if (!values.count(local)) continue;
+      if (sp.text == "*") ns = local;
+      else if (sp.text == "default") def = local;
+      else named += (named.empty() ? "" : ", ") + std::string(sp.text) + (sp.text == local ? "" : " as " + std::string(local));
+    }
+    std::string r = def;
+    if (!ns.empty()) r += (r.empty() ? "" : ", ") + ("* as " + ns);
+    else if (!named.empty()) r += (r.empty() ? "" : ", ") + ("{ " + named + " }");
+    edits.push_back({x.start, x.end, "import " + (r.empty() ? "" : r + " from ") + std::string(x.text) + ";"});
+  }
+
   void run() {
+    const std::unordered_set<std::string_view> values = valueNames();
     for (std::uint32_t i = 0; i < a.nodes.size() && err.empty(); ++i) {
       const Node& x = n(i);
       if (x.flags & kFlagSynthetic) continue;
@@ -162,6 +197,7 @@ struct Stripper {
           break;
         }
         case N::Interface: case N::TypeAlias: blank(x.start, x.end); break;
+        case N::Import: importDecl(x, values); break;
         case N::Export:
           decorators(x.start);
           if (!x.kids.empty() && x.kids[0] != kNone && (n(x.kids[0]).kind == N::Interface || n(x.kids[0]).kind == N::TypeAlias)) blank(x.start, x.end); break;
