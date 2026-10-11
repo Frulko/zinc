@@ -1960,13 +1960,19 @@ struct Lowering::FnLower {
     const frontend::Type& ct = c.types[vt];
     if (p.kind == N::ArrayPattern) {
       bool tup = isTupleObj(vt);
+      const TypeId i32 = m.numT(NumK::i32);
       for (std::size_t k = 0; k < p.kids.size(); ++k) {
         std::uint32_t e = p.kids[k];
         if (n(e).kind == N::Empty) continue;
-        if (n(e).kind == N::Spread) { unsupported(e, "rest patterns"); continue; }
+        if (n(e).kind == N::Spread) {  // `...rest`: the elements from here on, a new array
+          if (tup) { unsupported(e, "rest patterns of a tuple"); continue; }
+          assignTarget(n(e).kids[0], emit(IrOp::Rt, tv(v), {v, constNum(i32, static_cast<double>(k)), constNum(i32, 2147483647)}, 0, 0, static_cast<std::uint32_t>(zn::Rt::ArrSlice)), isDecl);
+          continue;
+        }
+        if (n(e).kind == N::Assign) { assignTarget(n(e).kids[0], elementOrDefault(e, v, k, tup), isDecl); continue; }
         ValueId elem;
         if (tup) elem = emit(IrOp::GetField, L.irType(c.objs[ct.obj].members[k].type), {v}, 0, 0, static_cast<std::uint32_t>(k));
-        else elem = emit(IrOp::ArrGet, L.irType(ct.elem), {v, constNum(m.numT(NumK::i32), static_cast<double>(k))});
+        else elem = emit(IrOp::ArrGet, L.irType(ct.elem), {v, constNum(i32, static_cast<double>(k))});
         assignTarget(e, elem, isDecl);
       }
       return;
@@ -1991,6 +1997,36 @@ struct Lowering::FnLower {
       }
       assignTarget(n(pp).kids[0], prop, isDecl);
     }
+  }
+
+  // `[a = d]` at index k of `v`: the element when it is there (and not undefined), else d, evaluated only then
+  ValueId elementOrDefault(std::uint32_t e, ValueId v, std::size_t k, bool tup) {
+    const TypeId bt = L.irType(c.nodeType[n(e).kids[0]]), i32 = m.numT(NumK::i32);
+    const frontend::TypeId et = c.nodeType[e];   // the element's own type; none when a tuple has no element k
+    if (et == frontend::kNoType) return exprTo(n(e).kids[1], bt);
+    const bool undef = c.types[et].undef;
+    if (tup && !undef) return coerce(emit(IrOp::GetField, L.irType(et), {v}, 0, 0, static_cast<std::uint32_t>(k)), bt);  // a tuple element that is never undefined
+    BlockId hb = newBlock(), eb = newBlock(), join = newBlock();
+    ValueId jp = newValue(bt);
+    f.blocks[join].params.push_back(jp);
+    if (tup) br(hb);
+    else condbr(emit(IrOp::Lt, m.boolT(), {constNum(i32, static_cast<double>(k)), emit(IrOp::ArrLen, i32, {v})}), hb, eb);
+    sealed[hb] = 1;
+    cur = hb;
+    ValueId x = tup ? emit(IrOp::GetField, L.irType(et), {v}, 0, 0, static_cast<std::uint32_t>(k)) : emit(IrOp::ArrGet, L.irType(et), {v, constNum(i32, static_cast<double>(k))});
+    if (undef) {
+      BlockId hb2 = newBlock();
+      condbr(emit(IrOp::Ne, m.boolT(), {x, nullConst(tv(x))}), hb2, eb);
+      sealed[hb2] = 1;
+      cur = hb2;
+    }
+    br(join, {coerce(x, bt)});
+    seal(eb);
+    cur = eb;
+    br(join, {exprTo(n(e).kids[1], bt)});
+    seal(join);
+    cur = join;
+    return jp;
   }
 
   // Whether the subtree at `i` names symbol `s` (an initializer that closes over its own variable).

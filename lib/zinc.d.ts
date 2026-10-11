@@ -47,7 +47,8 @@ interface ArrayIterator<T> extends IteratorObject<T, BuiltinIteratorReturn, unkn
 interface MapIterator<T> extends IteratorObject<T, BuiltinIteratorReturn, unknown> { [Symbol.iterator](): MapIterator<T>; }
 interface SetIterator<T> extends IteratorObject<T, BuiltinIteratorReturn, unknown> { [Symbol.iterator](): SetIterator<T>; }
 interface StringIterator<T> extends IteratorObject<T, BuiltinIteratorReturn, unknown> { [Symbol.iterator](): StringIterator<T>; }
-interface TemplateStringsArray { readonly length: i32; }
+/** The strings of a tagged template, cooked: an array of strings (`raw` is not supported on the typed engines). */
+interface TemplateStringsArray extends Array<string> {}
 interface Disposable { [Symbol.dispose](): void; }
 type Partial<T> = { [P in keyof T]?: T[P] };
 type Readonly<T> = { readonly [P in keyof T]: T[P] };
@@ -128,6 +129,8 @@ interface StringConstructor {
   fromCharCode(c: i32): string;
   /** One code point (more than one argument is not supported yet); a value past U+10FFFF traps with a RangeError. */
   fromCodePoint(c: i32): string;
+  /** Only as a tag: String.raw`a\n${x}` is the template with its escapes left as written. */
+  raw(template: TemplateStringsArray, ...substitutions: unknown[]): string;
 }
 declare var String: StringConstructor;
 
@@ -135,7 +138,8 @@ declare var String: StringConstructor;
 interface Array<T> {
   length: i32;
   [n: number]: T;
-  push(v: T): i32;
+  /** One value, or one spread `push(...other)`. */
+  push(...items: T[]): i32;
   pop(): T;
   shift(): T;
   unshift(v: T): i32;

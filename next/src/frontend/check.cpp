@@ -113,7 +113,7 @@ struct Checker {
   TypeId intern(const Type& t) {
     for (TypeId i = 0; i < out.types.size(); ++i) {
       const Type& u = out.types[i];
-      if (u.k == t.k && u.num == t.num && u.elem == t.elem && u.params == t.params && u.minArgs == t.minArgs && u.variadic == t.variadic && u.undef == t.undef && u.obj == t.obj) return i;
+      if (u.k == t.k && u.num == t.num && u.elem == t.elem && u.params == t.params && u.minArgs == t.minArgs && u.variadic == t.variadic && u.rest == t.rest && u.undef == t.undef && u.obj == t.obj) return i;
     }
     out.types.push_back(t);
     return static_cast<TypeId>(out.types.size() - 1);
@@ -122,8 +122,8 @@ struct Checker {
   TypeId arrayOf(TypeId e) { Type t; t.k = TK::Array; t.elem = e; return intern(t); }
   TypeId mapOf(TypeId k, TypeId v) { Type t; t.k = TK::Map; t.params = {k}; t.elem = v; return intern(t); }
   TypeId setOf(TypeId e) { Type t; t.k = TK::Set; t.elem = e; return intern(t); }
-  TypeId func(std::vector<TypeId> ps, TypeId ret, std::uint32_t minArgs, bool variadic = false) {
-    Type t; t.k = TK::Func; t.elem = ret; t.params = std::move(ps); t.minArgs = minArgs; t.variadic = variadic; return intern(t);
+  TypeId func(std::vector<TypeId> ps, TypeId ret, std::uint32_t minArgs, bool variadic = false, bool rest = false) {
+    Type t; t.k = TK::Func; t.elem = ret; t.params = std::move(ps); t.minArgs = minArgs; t.variadic = variadic; t.rest = rest; return intern(t);
   }
   TypeId objType(std::uint32_t o) { Type t; t.k = TK::Object; t.obj = o; return intern(t); }
   const Type& ty(TypeId t) const { return out.types[t]; }
@@ -234,7 +234,7 @@ struct Checker {
   bool thunkable(TypeId from, TypeId to) const {
     if (bad(from) || bad(to) || ty(from).k != TK::Func || ty(to).k != TK::Func || hasParam(from) || hasParam(to)) return false;
     const Type &f = ty(from), &t = ty(to);
-    if (f.params.size() != t.params.size() || f.variadic != t.variadic) return false;
+    if (f.params.size() != t.params.size() || f.variadic != t.variadic || f.rest != t.rest) return false;
     bool differs = false;
     auto kinds = [&](TypeId x, TypeId y) { if (x == y) return true; if (ty(x).k == TK::Num && ty(y).k == TK::Num && ty(x).obj == 0 && ty(y).obj == 0) { differs = true; return true; } return false; };
     for (std::size_t k = 0; k < f.params.size(); ++k) if (!kinds(t.params[k], f.params[k])) return false;
@@ -527,8 +527,10 @@ struct Checker {
         }
         TypeId rt = annotation(x.kids[0]);
         std::size_t required = 0;  // the parameters up to the last one that is not optional
-        for (std::size_t k = 1; k < x.kids.size(); ++k) if (!(n(x.kids[k]).flags & frontend::kFlagOptional)) required = k;
-        r = func(ps, rt, static_cast<std::uint32_t>(required));
+        for (std::size_t k = 1; k < x.kids.size(); ++k) if (!(n(x.kids[k]).flags & (frontend::kFlagOptional | frontend::kFlagRest))) required = k;
+        const bool rest = x.kids.size() > 1 && (n(x.kids.back()).flags & frontend::kFlagRest);
+        if (rest && !bad(ps.back()) && ty(ps.back()).k != TK::Array) diag(kZNotAssignable, x.kids.back(), "a rest parameter must be an array, not '" + name(ps.back()) + "'");
+        r = func(ps, rt, static_cast<std::uint32_t>(required), false, rest);
         break;
       }
       case N::TypeUnion: {
@@ -1475,6 +1477,24 @@ struct Checker {
       diag(kZUnsupported, i, nm + "() of '" + name(at) + "'");
       return tError;
     }
+    if (cn.kind == N::Member && cn.text == "push" && args.size() == 1 && n(args[0]).kind == N::Spread && n(cn.kids[0]).kind != N::Super) {  // a.push(...b): every element of b, read before the first is pushed
+      const TypeId rt = expr(cn.kids[0]);
+      if (!bad(rt) && ty(rt).k == TK::Array) {
+        const std::uint32_t e = n(args[0]).kids[0];
+        const TypeId et = expr(e, rt);
+        if (bad(et)) return tError;
+        if (!require(et, rt, e)) return tError;
+        const std::string A = inspectAliasName(rt);
+        const std::uint32_t sym = helper("pushAll," + std::to_string(rt), "function $F(a: " + A + ", b: " + A + "): i32 {\n  const n: i32 = b.length;\n  for (let i: i32 = 0; i < n; i++) a.push(b[i]);\n  return a.length;\n}\n", {rt}, i);
+        const std::uint32_t id = newNode(N::Ident, out.syms[sym].name, {}, i);
+        out.nodeSym[id] = sym;
+        out.nodeType[id] = out.syms[sym].type;
+        a.nodes[i].kids = {id, cn.kids[0], e};
+        rewritten.insert(i);
+        out.nodeType[i] = num(Num::i32);
+        return out.nodeType[i];
+      }
+    }
     if (cn.kind == N::Ident && (cn.text == "isNaN" || cn.text == "isFinite") && args.size() == 1 && lookup(cn.text) == kNone) {  // the globals: for a number they are Number.isNaN and Number.isFinite
       TypeId at = expr(args[0]);
       if (!bad(at) && isNum(at)) return rewrite(cn.text == "isNaN" ? "Number.isNaN(__H0)" : "Number.isFinite(__H0)", {{args[0]}});
@@ -1524,8 +1544,21 @@ struct Checker {
       }
       if (on == "Math" && isBuiltin(cn.kids[0], "Math") && m == "random" && args.empty()) return rewrite("__mathRandom()", {});
       if (on == "Math" && isBuiltin(cn.kids[0], "Math") && m == "seed" && args.size() == 1) return rewrite("__mathSeed(__H0)", {{args[0]}});
-      if (on == "Math" && isBuiltin(cn.kids[0], "Math") && (m == "min" || m == "max") && args.size() != 2) {
+      const bool spread = std::any_of(args.begin(), args.end(), [&](std::uint32_t g) { return n(g).kind == N::Spread; });
+      if (on == "Math" && isBuiltin(cn.kids[0], "Math") && (m == "min" || m == "max") && (args.size() != 2 || spread)) {
         std::string nm(m);
+        for (std::uint32_t& g : args) {  // `...a`: the extreme of the array through a generated loop (Infinity or -Infinity when it is empty, as the spread gives)
+          if (n(g).kind != N::Spread) continue;
+          const std::uint32_t e = n(g).kids[0];
+          const TypeId at = expr(e);
+          if (bad(at)) return tError;
+          if (ty(at).k != TK::Array || !isNum(ty(at).elem)) { diag(kZUnsupported, g, "spread of '" + name(at) + "' in Math." + nm); return tError; }
+          if (isFx(gNumber)) { diag(kZFixedUnrepresentable, g, "Math." + nm + "(...a) starts from " + (nm == "max" ? "-" : "") + "Infinity, which fixed point cannot represent"); return tError; }
+          const std::uint32_t sym = helper(nm + "Of," + std::to_string(at), "function $F(a: " + inspectAliasName(at) + "): number {\n  let r: number = " + (nm == "max" ? "-" : "") + "Infinity;\n  for (let i: i32 = 0; i < a.length; i++) r = Math." + nm + "(r, a[i]);\n  return r;\n}\n", {at}, g);
+          g = callGenerated(sym, {e}, g);
+          rewritten.insert(g);
+        }
+        if (args.size() == 1 && spread) { a.nodes[i] = a.nodes[args[0]]; rewritten.insert(i); out.nodeType[i] = out.nodeType[args[0]]; return out.nodeType[i]; }  // Math.max(...a)
         if (args.empty()) {
           if (isFx(gNumber)) { diag(kZFixedUnrepresentable, i, "Math." + nm + "() is " + (nm == "max" ? "-" : "") + "Infinity, which fixed point cannot represent"); return tError; }
           return rewrite(nm == "min" ? "Infinity" : "-Infinity", {});
@@ -1616,11 +1649,13 @@ struct Checker {
         a.nodes[i].kids.insert(a.nodes[i].kids.begin() + 1, obj);
       }
     }
+    expandTupleSpreads(i);
     std::uint32_t callee = x.kids[0];
     TypeId ft = kNoType;
     TypeId result = tError;
     bool preEvaluated = false;  // generic calls evaluate their arguments first to infer type arguments
-    const std::vector<std::uint32_t> argNodes(x.kids.begin() + 1, x.kids.end());
+    bool packed = false;        // the arguments of a rest parameter are already one array
+    std::vector<std::uint32_t> argNodes(x.kids.begin() + 1, x.kids.end());
     if (isNew) {
       const Node& c = n(callee);
       std::uint32_t s = c.kind == N::Ident ? lookup(c.text) : kNone;
@@ -1689,6 +1724,11 @@ struct Checker {
       if (cn.kind == N::Ident && cn.text == "__rejectedP" && !a.targs.count(i) && (myExpected == kNoType || bad(myExpected) || promiseKind(myExpected) != 1)) a.nodes[callee].text = "__rejectedN";  // Promise.reject(e) with no type to give it: a promise that only rejects, which fits any Promise<T>
       std::uint32_t gs = cn.kind == N::Ident ? lookup(cn.text) : kNone;
       if (gs != kNone && out.syms[gs].kind == SymKind::GenericFunc) {
+        if (const Node& gd = n(generics[gs].node); (gd.kind == N::Function || gd.kind == N::Method) && gd.kids.size() > 2 && (n(gd.kids.back()).flags & kFlagRest)) {  // the type arguments are inferred from the array the rest parameter takes
+          packRest(i, gd.kids.size() - 3, 1);
+          argNodes.assign(n(i).kids.begin() + 1, n(i).kids.end());
+          packed = true;
+        }
         if (cn.text == "__resolved" && argNodes.size() == 1 && !a.targs.count(i)) {  // Promise.resolve(p) is p itself
           TypeId at0 = expr(argNodes[0]);
           if (!bad(at0) && promiseKind(at0) == 1 && replaceWith(i, "__H0", {{argNodes[0]}})) return expr0(i, kNoType);
@@ -1732,6 +1772,7 @@ struct Checker {
       if (n(callee).kind == N::Member && (n(callee).flags & kFlagOptional) && result != tVoid && !bad(result)) result = unionOf({result, tNull}, true);  // a?.f(): the result, or undefined
     }
     const Type f = ty(ft);  // copy: expr() below may grow `types`
+    if (f.rest && !packed) packRest(i, f.params.size() - 1, 1);
     std::size_t argc = x.kids.size() - 1;
     if (argc < f.minArgs || (!f.variadic && argc > f.params.size())) {
       diag(kZWrongArgCount, i, "expected " + std::to_string(f.minArgs) + (f.minArgs == f.params.size() ? "" : "-" + std::to_string(f.params.size())) + ", got " + std::to_string(argc));
@@ -2419,11 +2460,12 @@ struct Checker {
     const Node& p = n(pat);
     for (std::uint32_t k : std::vector<std::uint32_t>(p.kids)) {
       std::uint32_t e = k;
-      if (n(e).kind == N::PatProp || n(e).kind == N::Spread) e = n(e).kids[0];
+      if (n(e).kind == N::PatProp || n(e).kind == N::Spread || n(e).kind == N::Assign) e = n(e).kids[0];
       if (n(e).kind == N::ArrayPattern || n(e).kind == N::ObjectPattern) declareErrorTargets(e, isDecl, isConst);
       else if (n(e).kind == N::Ident && isDecl) out.nodeSym[e] = declare(SymKind::Var, n(e).text, tError, e, isConst, e);
     }
   }
+  bool hasRestElement(std::uint32_t pat) const { for (std::uint32_t e : n(pat).kids) if (n(e).kind == N::Spread) return true; return false; }
   // An array literal that is destructured right away is a tuple (its nested literals too, following the pattern).
   TypeId literalAsTuple(std::uint32_t lit, std::uint32_t pat) {
     std::vector<TypeId> es;
@@ -2464,6 +2506,15 @@ struct Checker {
         if (n(e).kind == N::Spread) {
           if (tup) { diag(kZUnsupported, e, "rest elements of a tuple"); declareErrorTargets(pat, isDecl, isConst); continue; }
           bindTarget(n(e).kids[0], va, isDecl, isConst);  // the rest of an array is an array
+          continue;
+        }
+        if (n(e).kind == N::Assign) {  // `[a = 1]`: the default when the element is missing (or undefined); the target has the element's type without undefined
+          const bool missing = tup && k >= out.objs[ty(va).obj].members.size();
+          const TypeId et = missing ? kNoType : tup ? out.objs[ty(va).obj].members[k].type : ty(va).elem;
+          out.nodeType[e] = et;
+          TypeId bt = et == kNoType ? expr(n(e).kids[1]) : ty(et).k == TK::Union && hasNull(et) && ty(et).undef ? withoutNull(et) : et;
+          if (et != kNoType && !bad(bt)) require(expr(n(e).kids[1], bt), bt, n(e).kids[1]);
+          bindTarget(n(e).kids[0], bt, isDecl, isConst);
           continue;
         }
         if (tup && k >= out.objs[ty(va).obj].members.size()) {
@@ -2509,7 +2560,8 @@ struct Checker {
     }
     TypeId ret = annotation(f.kids[0]);
     if (bad(ret)) return kNoType;
-    return func(ps, ret, static_cast<std::uint32_t>(ps.size()));
+    const bool rest = f.kids.size() > 2 && (n(f.kids.back()).flags & kFlagRest);
+    return func(ps, ret, static_cast<std::uint32_t>(ps.size() - (rest ? 1 : 0)), false, rest);
   }
   void varDecl(std::uint32_t d, bool isConst) {
     const Node& x = n(d);
@@ -2519,7 +2571,7 @@ struct Checker {
       TypeId t = tError;
       if (init == kNone) diag(kZUnsupported, d, "destructuring declarations without an initializer");
       else if (ann != kNone) { t = annotation(ann); require(expr(init, t), t, init); }
-      else if (n(init).kind == N::Array && n(pat).kind == N::ArrayPattern) t = literalAsTuple(init, pat);  // a literal destructured at once is a tuple
+      else if (n(init).kind == N::Array && n(pat).kind == N::ArrayPattern && !hasRestElement(pat)) t = literalAsTuple(init, pat);  // a literal destructured at once is a tuple (an array when the pattern takes a rest)
       else t = expr(init);
       out.nodeType[d] = t;
       bindPattern(pat, t, true, isConst);
@@ -2853,18 +2905,18 @@ struct Checker {
     const Node& f = n(fid);
     std::vector<TypeId> ps;
     std::uint32_t minArgs = 0;
-    bool optional = false;
+    bool optional = false, rest = false;
     for (std::size_t k = firstParam; k < f.kids.size(); ++k) {
       std::uint32_t p = f.kids[k];
       const Node& pn = n(p);
       params.push_back(p);
       TypeId t = tError;
-      if (pn.flags & kFlagRest) diag(kZUnsupported, p, "rest parameters");
-      else if (pn.kids[0] == kNone) diag(kZCannotInfer, p, "parameter '" + std::string(pn.text) + "'");
+      if (pn.kids[0] == kNone) diag(kZCannotInfer, p, "parameter '" + std::string(pn.text) + "'");
       else t = annotation(pn.kids[0]);
+      if (pn.flags & kFlagRest) t = restParam(p, t, k + 1 == f.kids.size(), rest);
       out.nodeType[p] = t;
       ps.push_back(t);
-      if (pn.kids[1] != kNone) optional = true;
+      if (n(p).kids[1] != kNone) optional = true;
       if (!optional) minArgs = static_cast<std::uint32_t>(ps.size());
     }
     TypeId ret = tVoid;
@@ -2873,7 +2925,49 @@ struct Checker {
       else if (f.kids[1] == kNone) { diag(kZCannotInfer, fid, "return type of '" + std::string(f.text) + "'"); ret = tError; }
       else if (hasValueReturn(a, f.kids[1])) { if (inferReturns) sigNeedsInfer = true; else { diag(kZCannotInfer, f.kids[1], "return type of '" + std::string(f.text) + "'"); ret = tError; } }
     }
-    return func(std::move(ps), ret, minArgs);
+    return func(std::move(ps), ret, minArgs, false, rest);
+  }
+  // `...xs: T[]`, the last parameter: an array; left out entirely (when an optional parameter before it is), it is empty
+  TypeId restParam(std::uint32_t p, TypeId t, bool last, bool& rest) {
+    if (!last) { diag(kZNotAllowedHere, p, "a rest parameter that is not the last one"); return tError; }
+    if (!bad(t) && ty(t).k != TK::Array) { diag(kZNotAssignable, p, "a rest parameter must be an array, not '" + name(t) + "'"); return tError; }
+    rest = true;
+    if (n(p).kids[1] == kNone) {
+      std::uint32_t empty = newNode(N::Array, {}, {}, p);
+      a.nodes[p].kids[1] = empty;
+    }
+    return t;
+  }
+  // `f(...t)` with t a tuple (a variable or a property path): its elements, one argument each, as TypeScript allows.
+  void expandTupleSpreads(std::uint32_t call) {
+    std::vector<std::uint32_t> ks{n(call).kids[0]};
+    bool any = false;
+    for (std::size_t k = 1; k < n(call).kids.size(); ++k) {
+      const std::uint32_t arg = n(call).kids[k];
+      if (n(arg).kind != N::Spread) { ks.push_back(arg); continue; }
+      const std::uint32_t e = n(arg).kids[0];
+      const TypeId t = expr(e);
+      if (bad(t) || !isTupleType(t)) { ks.push_back(arg); continue; }
+      if (!pureCallee(e)) { diag(kZUnsupported, arg, "spread of a tuple that is not a variable or a property (store it in a const first)"); ks.push_back(arg); continue; }
+      for (std::size_t j = 0; j < out.objs[ty(t).obj].members.size(); ++j) {
+        auto r = snippet(a, "__H0[" + std::to_string(j) + "];", {{cloneNode(e, false)}}, arg);
+        out.nodeType.resize(a.nodes.size(), kNoType);
+        out.nodeSym.resize(a.nodes.size(), kNone);
+        if (r.empty() || n(r[0]).kind != N::ExprStmt) { diag(kZUnsupported, arg, "internal error: a tuple spread did not parse"); return; }
+        ks.push_back(n(r[0]).kids[0]);
+      }
+      any = true;
+    }
+    if (any) a.nodes[call].kids = std::move(ks);
+  }
+  // A call of a function with a rest parameter: the arguments from it on become one array literal (spreads stay spreads in it).
+  void packRest(std::uint32_t call, std::size_t fixed, std::size_t first) {
+    std::vector<std::uint32_t>& ks = a.nodes[call].kids;
+    if (ks.size() - first < fixed) return;  // an optional parameter before the rest is left out: the rest takes its default, []
+    std::vector<std::uint32_t> more(ks.begin() + static_cast<std::ptrdiff_t>(first + fixed), ks.end());
+    std::uint32_t arr = newNode(N::Array, {}, std::move(more), call);
+    a.nodes[call].kids.resize(first + fixed);
+    a.nodes[call].kids.push_back(arr);
   }
   // Functions without a return annotation: the type comes from their returns, found by checking the body when the type is first needed
   // (a call, a reference) or at the end of the list; a function that needs its own type to find its type must be annotated.
@@ -2897,7 +2991,7 @@ struct Checker {
     restoreCtx(saved);
     inferring.erase(s);
     if (ret == tNull) ret = tError;
-    TypeId sig = func(pf.paramTypes, ret, pf.minArgs);
+    TypeId sig = func(pf.paramTypes, ret, pf.minArgs, false, ty(sigNow).rest);
     out.syms[s].type = sig;
     out.nodeType[pf.node] = sig;
     return sig;
@@ -3204,7 +3298,7 @@ struct Checker {
       for (std::size_t k = 2; k < n(i).kids.size(); ++k) {
         std::uint32_t p = n(i).kids[k];
         std::uint32_t d = n(p).kids[1];
-        if (d == kNone) { required = k - 1; continue; }
+        if (d == kNone) { if (!(n(p).flags & kFlagRest)) required = k - 1; continue; }
         bool nullDefault = n(d).kind == N::Literal && n(d).text == "null";  // `x?: T`: the parser already made it `T | null`
         if (!nullDefault) {
           std::uint32_t ann = n(p).kids[0];
@@ -3255,6 +3349,9 @@ struct Checker {
       out.nodeType[p] = t;
       ps.push_back(t);
     }
+    const bool restF = np > 0 && (n(x.kids[1 + np]).flags & kFlagRest);  // `(...xs: T[]) => ...`
+    if (restF && !bad(ps.back()) && ty(ps.back()).k != TK::Array) { diag(kZNotAssignable, x.kids[1 + np], "a rest parameter must be an array, not '" + name(ps.back()) + "'"); ps.back() = tError; }
+    for (std::size_t k = 0; k + 1 < np; ++k) if (n(x.kids[2 + k]).flags & kFlagRest) diag(kZNotAllowedHere, x.kids[2 + k], "a rest parameter that is not the last one");
     TypeId ret = x.kids[0] != kNone ? annotation(x.kids[0]) : haveExpected ? et.elem : kNoType;
     if (haveExpected && et.params.size() != np && x.kids[0] == kNone) { /* the arity is checked by the caller's assignability */ }
     // check the body in the scope where the lambda appears
@@ -3274,14 +3371,14 @@ struct Checker {
       curRet = savedRet; inferredRet = savedInferred; loops = savedLoops; immediate = savedImmediate;
       labels = std::move(savedLabels);
       narrowing = std::move(savedNarrowing);
-      TypeId ft = func(ps, ret, static_cast<std::uint32_t>(np));
+      TypeId ft = func(ps, ret, static_cast<std::uint32_t>(std::min(np, lambdaMin)), false, restF);
       out.nodeType[i] = ft;
       return ft;
     }
     bool named = !x.text.empty() && !(x.flags & kFlagArrow) && ret != kNoType && mentionsIdent(x.kids[1], x.text);
     if (named) {  // a named function expression: its name is a variable of the enclosing scope holding its own closure (a shared cell)
       push();
-      std::uint32_t sy = declare(SymKind::Var, x.text, func(ps, ret, static_cast<std::uint32_t>(np)), i, true, i);
+      std::uint32_t sy = declare(SymKind::Var, x.text, func(ps, ret, static_cast<std::uint32_t>(std::min(np, lambdaMin)), false, restF), i, true, i);
       out.syms[sy].reassigned = true;
       out.syms[sy].isGlobal = false;  // declared while a top-level declaration is checked: still a captured variable, not a global
       out.selfSym[i] = sy;
@@ -3303,7 +3400,7 @@ struct Checker {
     curRet = savedRet; inferredRet = savedInferred; loops = savedLoops; immediate = savedImmediate;
     labels = std::move(savedLabels);
     narrowing = std::move(savedNarrowing);
-    TypeId ft = func(ps, ret, static_cast<std::uint32_t>(std::min(np, lambdaMin)));
+    TypeId ft = func(ps, ret, static_cast<std::uint32_t>(std::min(np, lambdaMin)), false, restF);
     out.nodeType[i] = ft;
     return ft;
   }
@@ -3897,7 +3994,7 @@ struct Checker {
       case TK::Func: {
         std::vector<TypeId> ps;
         for (TypeId p : x.params) ps.push_back(substitute(g, p, bound));
-        return func(ps, substitute(g, x.elem, bound), x.minArgs, x.variadic);
+        return func(ps, substitute(g, x.elem, bound), x.minArgs, x.variadic, x.rest);
       }
       default: return t;
     }
@@ -3946,7 +4043,7 @@ struct Checker {
       if (ty(f.params[k]).k == TK::Func && mentionsUnbound(g, ty(f.params[k]).elem, bound)) {  // the result type is what the lambda is to tell
         std::vector<TypeId> ps;
         for (TypeId p : ty(f.params[k]).params) ps.push_back(substitute(g, p, bound));
-        want = func(ps, kNoType, ty(f.params[k]).minArgs, ty(f.params[k]).variadic);
+        want = func(ps, kNoType, ty(f.params[k]).minArgs, ty(f.params[k]).variadic, ty(f.params[k]).rest);
       }
       TypeId lt = expr(argNodes[k], want);
       if (bad(lt) || !unify(g, f.params[k], lt, bound, argNodes[k])) return {};
@@ -4064,7 +4161,7 @@ struct Checker {
         std::vector<std::uint32_t> ps;
         TypeId sig = signature(m, 2, isCtor, ps);
         out.nodeType[m] = sig;
-        if (isCtor) { out.objs[objIdx].ctor = func(ty(sig).params, self, ty(sig).minArgs); out.objs[objIdx].ctorAccess = accessOf(fl); ctorNode = m; }
+        if (isCtor) { out.objs[objIdx].ctor = func(ty(sig).params, self, ty(sig).minArgs, false, ty(sig).rest); out.objs[objIdx].ctorAccess = accessOf(fl); ctorNode = m; }
         mem.type = sig; mem.method = true; mem.readonly = true; mem.isAbstract = isIface || (fl & frontend::kFlagAbstract);
         mem.getter = (fl & frontend::kFlagGetter) != 0;
         if (mem.getter && isIface) diag(kZUnsupported, m, "accessors in interfaces");
@@ -4083,7 +4180,7 @@ struct Checker {
     }
     if (!isIface && par != kNoObj && out.objs[par].ctorAccess == 2) diag(kZNotAccessible, cls, "cannot extend '" + out.objs[par].name + "': its constructor is private");
     if (!isIface) {      // a derived class without a constructor takes its base class's parameters
-      if (ctorNode == kNone && par != kNoObj && out.objs[par].ctor != kNoType) out.objs[objIdx].ctor = func(ty(out.objs[par].ctor).params, self, ty(out.objs[par].ctor).minArgs);
+      if (ctorNode == kNone && par != kNoObj && out.objs[par].ctor != kNoType) out.objs[objIdx].ctor = func(ty(out.objs[par].ctor).params, self, ty(out.objs[par].ctor).minArgs, false, ty(out.objs[par].ctor).rest);
       // `implements I`: every member of I must be present with the same type
       if (c.kind == N::Class && c.kids[1] != kNone)
         for (std::uint32_t r : std::vector<std::uint32_t>(n(c.kids[1]).kids)) {
@@ -4532,7 +4629,7 @@ std::string typeName(const Checked& c, TypeId t) {
     case TK::Union: { std::string u; for (std::size_t i = 0; i < x.params.size(); ++i) u += (i ? " | " : "") + typeName(c, x.params[i]); return u; }
     case TK::Func: {
       std::string s = "(";
-      for (std::size_t i = 0; i < x.params.size(); ++i) s += (i ? ", " : "") + typeName(c, x.params[i]);
+      for (std::size_t i = 0; i < x.params.size(); ++i) s += (i ? ", " : "") + std::string(x.rest && i + 1 == x.params.size() ? "..." : "") + typeName(c, x.params[i]);
       return s + (x.variadic ? "...) => " : ") => ") + typeName(c, x.elem);
     }
   }

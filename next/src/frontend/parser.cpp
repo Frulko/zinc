@@ -81,7 +81,7 @@ struct Parser {
     return t.size() - 1;
   }
 
-  // ---- binding patterns: [a, [b, c], ...rest] and {a, b: x, c: [d, e]}
+  // ---- binding patterns: [a, [b, c], d = 1, ...rest] (a default is an Assign node [target, value]) and {a, b: x, c: [d, e]}
   std::uint32_t bindingTarget() {
     std::uint32_t st = cur().start;
     if (isP("[")) return arrayPattern();
@@ -98,8 +98,11 @@ struct Parser {
       std::uint32_t es = cur().start;
       if (isP(",")) { elems.push_back(mk(N::Empty, es, es)); ++i; continue; }  // a hole
       if (eatP("...")) { std::uint32_t t = bindingTarget(); elems.push_back(mk(N::Spread, es, prevEnd(), {}, {t})); }
-      else elems.push_back(bindingTarget());
-      if (isP("=")) unsupported("default values in patterns");
+      else {
+        std::uint32_t t = bindingTarget();
+        if (eatP("=")) { std::uint32_t def = assignment(); t = mk(N::Assign, es, prevEnd(), "=", {t, def}); }  // `[a = 1]`: used when the element is missing or undefined
+        elems.push_back(t);
+      }
       if (!eatP(",")) break;
     }
     expectP("]");
@@ -134,6 +137,7 @@ struct Parser {
         N kk = r.ast.nodes[k].kind;
         if (kk == N::Array) toAssignPattern(k);
         else if (kk == N::Spread) { toAssignPattern(r.ast.nodes[k].kids[0]); }
+        else if (kk == N::Assign && r.ast.nodes[k].text == "=") toAssignPattern(r.ast.nodes[k].kids[0]);  // `[a = 1] = xs`: a target with its default
         else if (kk != N::Ident && kk != N::Member && kk != N::Index) fail(kZBadAssignTarget, r.ast.nodes[k].start, "");
       }
     } else if (nd.kind != N::Ident && nd.kind != N::Member && nd.kind != N::Index) fail(kZBadAssignTarget, nd.start, "");
