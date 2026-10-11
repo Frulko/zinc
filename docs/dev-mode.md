@@ -152,8 +152,12 @@ checks the Styles panel on `next/tests/data/devtools_styles` (`next/tests/t1/dev
 **Zinc Inspector** (ZN-373.01): `zinc run app/inspector/main.tsx -- [port...]` is the same client written in Zinc (zinc:ui, the WebSocket
 of zinc:socket): it finds the programs listening on the ports (9229 and 9222 by default: `zinc:devtools` and `zinc debug --cdp`), attaches
 to one and shows its Elements tree (read again when it changes), the computed style and box of the selected node (highlighted in the
-program) and its console. Editing styles, Network, Sources, Performance and the screencast are ZN-373.02 to .05; `next/tests/t1/inspector.sh`
-runs it against a headless program (`ZINC_INSPECTOR_DUMP=1` prints its views).
+program), its matched rules and `element.style` to edit, its console, its screen (the screencast) and its requests with their bodies.
+Attached to `zinc debug --cdp` (a target of type node), it opens the Sources view: the program's scripts with line numbers, a click on a line
+sets or removes a breakpoint (with the condition typed in the toolbar), Run starts the waiting program, Resume, Over, Into, Out and Pause
+drive it; the right column shows the call stack, the scopes (objects and arrays unfold) and the watches, evaluated in the selected frame.
+Performance is ZN-373.05; `next/tests/t1/inspector.sh` runs it against a headless program and a `zinc debug --cdp` session
+(`ZINC_INSPECTOR_DUMP=1` prints its views).
 
 On a remote device, `zinc dev --device` runs ssh with `-L 9229:127.0.0.1:9229`, so Chrome on the dev machine uses
 `localhost:9229` as well.

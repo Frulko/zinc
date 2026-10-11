@@ -4,7 +4,11 @@
 import { WebSocket, MessageEvent } from 'zinc:socket';
 import { fetch } from 'zinc:net';
 
-export class Target { port: i32 = 0; title: string = ''; type: string = ''; ws: string = ''; }
+export class Target {
+  port: i32 = 0; title: string = ''; type: string = ''; ws: string = '';
+  /** The title without its directory (zinc debug --cdp titles a target with the program's whole path). */
+  name(): string { return this.title.slice(this.title.lastIndexOf('/') + 1); }
+}
 
 /** The programs that answer /json/list on these ports of this machine (an inspector of zinc:devtools: 9229; zinc debug --cdp: 9222). */
 export async function discover(ports: i32[]): Promise<Target[]> {
@@ -156,4 +160,43 @@ export function applyNetwork(reqs: Req[], method: string, params: any): boolean 
   else if (method === 'Network.loadingFailed') { q.end = params.timestamp; q.error = params.errorText; }
   else if (method === 'Network.webSocketFrameSent' || method === 'Network.webSocketFrameReceived') q.frames++;
   return true;
+}
+
+/** A script of the Sources view (ZN-373.04): its id and URL, from Debugger.scriptParsed. */
+export class Script { id: string = ''; url: string = ''; name(): string { return this.url.slice(this.url.lastIndexOf('/') + 1); } }
+/** A frame of the paused program: its function, script, line (1-based) and the object ids of its scopes. */
+export class Frame { id: string = ''; name: string = ''; script: string = ''; line: i32 = 0; scopes: string[] = []; scopeNames: string[] = []; }
+export function framesOf(params: any): Frame[] {
+  const out: Frame[] = [];
+  for (const f of params.callFrames) {
+    const x = new Frame();
+    x.id = f.callFrameId; x.name = f.functionName; x.script = f.location.scriptId;
+    const l: i32 = f.location.lineNumber; x.line = l + 1;
+    for (const s of f.scopeChain) { const id: string = s.object.objectId; const n: string = s.type; x.scopes.push(id); x.scopeNames.push(n); }
+    out.push(x);
+  }
+  return out;
+}
+/** A property of Runtime.getProperties as `name: value`, and the object id of an object or array to unfold ('' otherwise). */
+export class Prop { name: string = ''; value: string = ''; objectId: string = ''; }
+export function propsOf(result: any): Prop[] {
+  const out: Prop[] = [];
+  if (result.result === undefined) return out;
+  for (const p of result.result) {
+    const x = new Prop();
+    x.name = p.name;
+    x.value = remoteText(p.value);
+    if (p.value.objectId !== undefined) x.objectId = p.value.objectId;
+    out.push(x);
+  }
+  return out;
+}
+/** A RemoteObject as the console writes it. */
+export function remoteText(v: any): string {
+  const type: string = v.type;
+  if (type === 'string') { const s: string = v.value; return JSON.stringify(s); }
+  if (v.value !== undefined && type !== 'object') return '' + v.value;
+  if (v.unserializableValue !== undefined) { const u: string = v.unserializableValue; return u; }
+  if (v.subtype !== undefined && v.subtype === 'null') return 'null';
+  return v.description !== undefined ? v.description : type;
 }
