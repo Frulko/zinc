@@ -52,6 +52,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-436: zn_asset_font (gfx loadFont) and webview zinc:// URLs still read only the assets directory; read them through the packs.
 - ZN-436: the browser host, the device core and the ESP32 (esp_partition_mmap) serve no zinc:assets v2 rows yet.
 - ZN-436: a 2 ms time slice on one-core targets if the 4 MB byte slice of asset turns measures too coarse there.
+- ZN-261: Tailwind v4 interpolates bg-linear/radial/conic in oklab; zinc:ui interpolates in sRGB (subdivide the stops in oklab where a profile allows).
+- ZN-261: gradients in state variants (hover:from-*, hover:bg-linear-*) are refused; per-corner radii (rounded-tl-*) are not followed under a gradient (it takes the box radius).
+- ZN-261: canvas2d createConicGradient through paint kind 4 (the raster and the GL shader have it).
+- ZN-261: on GL, a box drawn through setTransform with a gradient of more than 8 stops keeps its first 8.
 
 ## Demos
 
@@ -71,3 +75,5 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-435: check the asset defaults of targets/capabilities.json on the devices (the rmpp, ps1 and ps2 values are estimates; the Pi and ESP32 budgets).
 - owner, 2026-10-11: Windows opens the pass; list its tasks at the review (host and window of ZN-054, dialogs, installers, a CI runner or a machine).
 - ZN-436: tests/t0/assets_groups.sh on Linux x86_64/arm64 and the Pi 1 (the in-turn decode path); a cross build that links the pack libraries and sets ZINC_PACK_TARGET.
+- ZN-261: tests/t1/style_gradient.sh's GL comparison on llvmpipe (Linux) and on VideoCore IV GLES2 (Pi 3).
+- ZN-261: rebuild the esp32 prebuilt core so its host table carries host.gfxGradientPaint (T0 programs never call it).
