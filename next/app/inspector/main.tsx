@@ -1,7 +1,8 @@
 // Zinc Inspector (ZN-373.01): inspects running Zinc programs over the Chrome DevTools protocol, as a Zinc app. The programs that listen on the
 // given ports (zinc:devtools: 9229, zinc debug --cdp: 9222), the Elements tree of the one attached, the selected node's computed style and box
 // (highlighted in the program), its rules and element.style to edit (ZN-373.02), the program's screen, its console, its requests (ZN-373.03),
-// and for zinc debug --cdp the Sources view: breakpoints, the stack, the scopes, watches and stepping (ZN-373.04).
+// its frames and their phases (Performance, ZN-373.05), and for zinc debug --cdp the Sources view: breakpoints, the stack, the scopes, watches
+// and stepping (ZN-373.04).
 // Usage: zinc run app/inspector/main.tsx -- [port...]
 // ZINC_INSPECTOR_DUMP=1: attach to the first program, select the first node with a padding class, wait a second and print what each view
 // shows, then quit; a debugger target gets a scripted session instead (tests/t1/inspector.sh).
@@ -9,7 +10,7 @@ import { createSignal, render } from 'zinc:ui/solid';
 import * as sys from 'zinc:sys';
 import { quit, imageFromBytes, destroyImage, imageWidth, imageHeight, drawImage, rect } from 'zinc:gfx';
 import { base64Decode } from 'zinc:web';
-import { Target, Cdp, Row, Inline, Req, Script, Frame, Prop, discover, rows, styleLines, consoleLine, ruleLines, inlineOf, applyNetwork, framesOf, propsOf, remoteText } from './model';
+import { Target, Cdp, Row, Inline, Req, Script, Frame, Prop, discover, rows, styleLines, consoleLine, ruleLines, inlineOf, applyNetwork, framesOf, propsOf, remoteText, TraceFrame, PhaseTotal, traceFrames, phaseTotals, msText } from './model';
 
 const args = sys.args();
 const ports: i32[] = [];
@@ -50,6 +51,13 @@ const [watchVals, setWatchVals] = createSignal<string[]>([]);
 const [watchDraft, setWatchDraft] = createSignal<string>('');
 const [ended, setEnded] = createSignal<boolean>(false);
 const [stops, setStops] = createSignal<i32>(0);   // the frames shown so far (the dump waits on it)
+// the Performance view (ZN-373.05): Tracing.start / end, the runtime's frames and their phases
+const [recording, setRecording] = createSignal<boolean>(false);
+const [traced, setTraced] = createSignal<TraceFrame[]>([]);
+const [totals, setTotals] = createSignal<PhaseTotal[]>([]);
+const [frameAt, setFrameAt] = createSignal<i32>(-1);   // the frame picked in the timeline
+const [traces, setTraces] = createSignal<i32>(0);   // traces received (the dump waits on it)
+let traceEvents: any[] = [];
 
 let cdp: Cdp | null = null;
 let reloading = false;
@@ -79,6 +87,13 @@ function onEvent(method: string, params: any): void {
     showFrame(0);
   } else if (method === 'Debugger.resumed') {
     setPaused(false);
+  } else if (method === 'Tracing.dataCollected') {
+    for (const e of params.value) traceEvents.push(e);
+  } else if (method === 'Tracing.tracingComplete') {
+    const fs = traceFrames(traceEvents);
+    let slow = -1;
+    for (let i = 0; i < fs.length; i++) if (slow < 0 || fs[i].dur > fs[slow].dur) slow = i;
+    setTraced(fs); setTotals(phaseTotals(fs)); setFrameAt(slow); setTraces(traces() + 1);
   } else if (method === 'Page.screencastFrame') {   // the program's screen: decoded, shown, acknowledged so the next one comes
     const id = imageFromBytes(base64Decode(params.data));
     if (id >= 0) { if (frame() >= 0) destroyImage(frame()); setFrame(id); }
@@ -314,6 +329,50 @@ function DebugPane(): i32 {   // the right column of a debugger target: the stac
   </View>;
 }
 
+// ---- the Performance view
+async function record(): Promise<void> {
+  if (cdp === null) return;
+  traceEvents = [];
+  setRecording(true);
+  await (cdp as Cdp).call('Tracing.start', '{"categories":"devtools.timeline"}');
+}
+async function stopRecording(): Promise<void> { if (cdp === null) return; setRecording(false); await (cdp as Cdp).call('Tracing.end', '{}'); }
+function phaseColor(name: string): string {
+  return name === 'app' ? 'bg-amber-400' : name === 'input' ? 'bg-slate-400' : name === 'anim' ? 'bg-violet-400' : name === 'layout' ? 'bg-purple-600' :
+    name === 'paint' ? 'bg-emerald-500' : name === 'effects' ? 'bg-teal-400' : name === 'diff' ? 'bg-cyan-500' : name === 'raster' ? 'bg-green-700' : 'bg-slate-300';
+}
+function slowest(): number { let m = 1; for (const f of traced()) if (f.dur > m) m = f.dur; return m; }
+function FrameRow(p: { f: TraceFrame; i: i32 }): i32 {   // a frame of the timeline: its length, then its phases to scale (the slowest frame is 400 px)
+  return <Button class={'flex-row items-center justify-start h-5 px-1 ' + (frameAt() === p.i ? 'bg-sky-100' : 'bg-white')} onClick={() => { setFrameAt(p.i); }}>
+    <Text class="w-20 text-xs font-mono text-slate-500">{msText(p.f.dur)}</Text>
+    <View class="flex-row h-3">{p.f.durs.map((d: number, k: i32) => <View class={'h-3 ' + phaseColor(p.f.phases[k])} style={{ width: Math.max(1, Math.round(d * 400 / slowest())) }} />)}</View>
+  </Button>;
+}
+function PerformanceView(): i32 {
+  return <View class="flex-col flex-1">
+    <View class="flex-row items-center gap-2 p-1 border-b">
+      {recording() ? <Btn label="Stop" onClick={() => { stopRecording(); }} /> : <Btn label="Record" onClick={() => { record(); }} />}
+      <Text class="text-xs text-slate-500">{recording() ? 'recording…' : traced().length > 0 ? traced().length + ' frames, the slowest ' + msText(slowest()) : 'Record, use the program, then Stop'}</Text>
+    </View>
+    <View class="flex-col gap-1 p-2 border-b">{totals().map((t: PhaseTotal) => <View class="flex-row items-center gap-2">
+      <View class={'w-3 h-3 rounded ' + phaseColor(t.name)} />
+      <Text class="w-16 text-xs text-slate-800">{t.name}</Text>
+      <Text class="text-xs font-mono text-slate-600">{msText(t.total) + ' in ' + t.count + ' frames'}</Text>
+    </View>)}</View>
+    <VirtualList count={traced().length} itemHeight={20} class="flex-1">
+      {(i: i32) => <FrameRow f={traced()[i]} i={i} />}
+    </VirtualList>
+  </View>;
+}
+function frameLines(): string[] {   // the picked frame, phase by phase
+  const i = frameAt();
+  if (i < 0 || i >= traced().length) return [];
+  const f = traced()[i];
+  const out: string[] = ['frame ' + (i + 1) + ': ' + msText(f.dur)];
+  for (let k = 0; k < f.phases.length; k++) out.push(f.phases[k] + ': ' + msText(f.durs[k]));
+  return out;
+}
+
 function NetRow(p: { r: Req }): i32 {
   return <Button class={'flex-row items-center justify-start h-6 px-2 rounded ' + (picked() === p.r.id ? 'bg-sky-100' : 'bg-white')} onClick={() => { pick(p.r); }}>
     <Text class={'text-xs font-mono ' + (p.r.error.length > 0 || p.r.status >= 400 ? 'text-red-700' : 'text-slate-800')}>{p.r.line()}</Text>
@@ -354,15 +413,17 @@ function App(): i32 {
           <Tab id="screen" label="Screen" />
           <Tab id="network" label="Network" />
           <Tab id="sources" label="Sources" />
+          <Tab id="performance" label="Performance" />
           <Text class="flex-1 text-xs text-slate-600">{attached()}</Text>
         </View>
-        {view() === 'sources' ? <SourcesView /> : view() === 'network' ? <NetworkView /> : view() === 'screen' ? <ScreenView /> :
+        {view() === 'sources' ? <SourcesView /> : view() === 'performance' ? <PerformanceView /> : view() === 'network' ? <NetworkView /> : view() === 'screen' ? <ScreenView /> :
         <ScrollView class="flex-1">
           <View class="flex-col">{tree().map((r: Row) => <TreeRow r={r} />)}</View>
         </ScrollView>}
       </View>
       <View class="flex-col w-72 border-l">
-        {view() === 'sources' ? <ScrollView class="flex-1"><DebugPane /></ScrollView> : <View class="flex-col flex-1">
+        {view() === 'sources' ? <ScrollView class="flex-1"><DebugPane /></ScrollView> :
+        view() === 'performance' ? <View class="flex-col gap-1 p-2">{frameLines().map((l: string) => <Text class="text-xs font-mono text-slate-800">{l}</Text>)}</View> : <View class="flex-col flex-1">
           <Styles />
           <Text class="px-2 py-1 text-xs font-medium text-slate-600 border-b">{box() === '' ? 'Computed' : 'Computed · ' + box()}</Text>
           <ScrollView class="flex-1">
@@ -404,7 +465,7 @@ async function dump(): Promise<void> {   // ZINC_INSPECTOR_DUMP: the views as te
     await new Promise<void>((resolve) => { setTimeout(() => { resolve(); }, 300); });
     const after: string = (await c.call('Page.captureScreenshot', '{}')).data;
     console.log('element.style: ' + inline().text + ' | box ' + was + ' -> ' + box() + ' | frame changed: ' + (before !== after));
-    setView('screen');   // the dump ends on the Screen view (a ZINC_SHOT shows it)
+    setView('screen');
     await screen(true);
     for (let k = 0; k < 40 && frame() < 0; k++) await new Promise<void>((resolve) => { setTimeout(() => { resolve(); }, 50); });
     console.log('screen: ' + (frame() >= 0 ? imageWidth(frame()) + ' x ' + imageHeight(frame()) : 'none'));
@@ -416,6 +477,19 @@ async function dump(): Promise<void> {   // ZINC_INSPECTOR_DUMP: the views as te
   console.log('network:');   // ZN-373.03: the requests and the first one's body
   for (const r of reqs()) console.log('  ' + r.line().replace(/[0-9]+ ms/, 'N ms'));   // the time varies: its unit only
   if (reqs().length > 0) { await pick(reqs()[0]); console.log('body: ' + body()); }
+  console.log('performance:');   // ZN-373.05: half a second of the program's frames
+  setView('performance');
+  const n = traces();
+  await record();
+  await new Promise<void>((resolve) => { setTimeout(() => { resolve(); }, 500); });
+  await stopRecording();
+  await until(() => traces() > n);
+  const fs = traced();
+  let whole = fs.length > 0;
+  for (const f of fs) if (f.phases.length === 0 || f.phases[f.phases.length - 1] !== 'present') whole = false;
+  console.log('  frames recorded: ' + (fs.length >= 5) + ', each with its phases up to present: ' + whole);
+  for (const t of totals()) console.log('  phase ' + t.name);
+  if (frameAt() >= 0) console.log('  slowest: ' + fs[frameAt()].phases.join(' '));
   quit();
 }
 

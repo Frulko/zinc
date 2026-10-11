@@ -726,7 +726,8 @@ export function counter(which: i32): number { return __host_layoutCounter(which)
 )ZN";
 // zinc:__netlog (ZN-370): the host's network log (src/host/netlog.h) for plugins/devtools/native/cdp.next.ts.
 const char* kHostNetLogModule = R"ZN(
-/** op 0: start recording (arg = the inspector's port), 1: the queued Network events (one JSON object per line), 2: a response body, 3: a request body (arg = the request id). */
+/** op 0: start recording (arg = the inspector's port), 1: the queued Network events (one JSON object per line), 2: a response body, 3: a request body (arg = the request id);
+ *  the console: 4 start, 5 the new lines, 6 the last 32; Tracing: 7 start, 8 end (the frame spans as trace events). */
 export function call(op: i32, arg: string): string { return __host_netLog(op, arg); }
 )ZN";
 const char* kHostSockModule = R"ZN(

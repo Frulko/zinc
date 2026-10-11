@@ -265,6 +265,12 @@ void call(int id, const HostArg* a, HostArg* r) {
 namespace zn::host {
 void startGfx() { startSurface(); }
 bool replayScene(const char* scene, const char* out) { return zrt::gfx::scene_replay(scene, out); }
+const char* traceEvents(bool on, std::size_t* n) {
+  static zrt::String s;
+  s = zrt::gfx::trace(on);
+  *n = s.bytes();
+  return s.ptr();
+}
 void setGrowDrawCommands(bool on) { zrt::gfx::grow_enabled = on; }
 void onFrameEnd(void (*fn)()) { if (nFrameEnd < 4) frameEnd[nFrameEnd++] = fn; }
 

@@ -200,3 +200,48 @@ export function remoteText(v: any): string {
   if (v.subtype !== undefined && v.subtype === 'null') return 'null';
   return v.description !== undefined ? v.description : type;
 }
+
+/** A frame of a recorded trace (ZN-373.05): its start and length in µs and its phases in order, from the runtime's spans on the main thread. */
+export class TraceFrame { ts: number = 0; dur: number = 0; phases: string[] = []; durs: number[] = []; }
+/** The frames of Tracing.dataCollected events: the "zinc frame" spans, each with the phase spans it holds. */
+export function traceFrames(events: any[]): TraceFrame[] {
+  const frames: TraceFrame[] = [];
+  const names: string[] = []; const starts: number[] = []; const lengths: number[] = [];
+  for (const e of events) {
+    const ph: string = e.ph; const tid: i32 = e.tid;
+    if (ph !== 'X' || tid !== 1) continue;
+    const name: string = e.name; const ts: number = e.ts; const dur: number = e.dur;
+    if (name === 'zinc frame') { const f = new TraceFrame(); f.ts = ts; f.dur = dur; frames.push(f); }
+    else { names.push(name); starts.push(ts); lengths.push(dur); }
+  }
+  frames.sort((a: TraceFrame, b: TraceFrame) => a.ts - b.ts);
+  const order: i32[] = [];
+  for (let i = 0; i < names.length; i++) order.push(i);
+  order.sort((a: i32, b: i32) => starts[a] - starts[b]);
+  let k = 0;   // both in time order: one pass
+  for (const i of order) {
+    while (k < frames.length && frames[k].ts + frames[k].dur < starts[i] + lengths[i]) k++;
+    if (k === frames.length) break;
+    const f = frames[k];
+    if (starts[i] >= f.ts) { f.phases.push(names[i]); f.durs.push(lengths[i]); }
+  }
+  return frames;
+}
+/** The time of each phase over the frames and the frames it ran in, the longest first. */
+export class PhaseTotal { name: string = ''; total: number = 0; count: i32 = 0; last: i32 = -1; }
+export function phaseTotals(frames: TraceFrame[]): PhaseTotal[] {
+  const out: PhaseTotal[] = [];
+  for (let fi = 0; fi < frames.length; fi++) for (let i = 0; i < frames[fi].phases.length; i++) {
+    const f = frames[fi];
+    let t: PhaseTotal | null = null;
+    for (const x of out) if (x.name === f.phases[i]) t = x;
+    if (t === null) { t = new PhaseTotal(); t.name = f.phases[i]; out.push(t); }
+    const p = t as PhaseTotal;
+    p.total += f.durs[i];
+    if (p.last !== fi) { p.count++; p.last = fi; }   // a phase can run twice in a frame (input, layout)
+  }
+  out.sort((a: PhaseTotal, b: PhaseTotal) => b.total - a.total);
+  return out;
+}
+/** µs as "850 µs" or "12.34 ms". */
+export function msText(us: number): string { return us < 1000 ? Math.round(us) + ' µs' : (Math.round(us / 10) / 100).toFixed(2) + ' ms'; }

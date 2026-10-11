@@ -3,6 +3,7 @@
 # its Elements tree, the computed style and box of a node it selects (its padding class), and its console (log and error lines, those from
 # before the attach replayed): ZINC_INSPECTOR_DUMP prints what each view shows. ZN-373.02: its rules, element.style set to padding-left: 40px
 # (the target's frame changes and its console gets the class patch), a frame of its screen. ZN-373.03: its POST in the Network view and the body.
+# ZN-373.05: half a second recorded in the Performance view (Tracing.start/end): frames, each with its phases (app, layout... present).
 # ZN-373.04: the Sources view against zinc debug --cdp: a breakpoint set on a line, the stop there with the stack, the locals (a Point unfolded)
 # and two watches, step into, over and out, the breakpoint removed and the program run to its end.
 cd "$(dirname "$0")/../.." || exit 2
@@ -31,6 +32,11 @@ want "screen: 320 x 240"
 want 'class="flex-col gap-2 p-4 pl-[40px]"'
 want "POST 200 /echo N ms 28 B"   # ZN-373.03: the request made before the attach, its status, time and size, and its body
 want 'body: {"echo":{"ask":"inspector"}}'
+want "frames recorded: true, each with its phases up to present: true"
+want "  phase app"
+want "  phase layout"
+want "  phase present"
+grep -q "^  slowest: .*layout.* present$" "$tmp/dump" || { echo "the slowest frame's phases are missing"; fail=1; }
 [ $fail -eq 0 ] || cat "$tmp/dump"
 
 timeout 60 "$ZINC" debug --cdp=0 tests/data/debug_cli/main.ts > "$tmp/debug.out" 2> "$tmp/debug.err" & debug=$!

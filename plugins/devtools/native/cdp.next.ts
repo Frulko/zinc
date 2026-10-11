@@ -1,6 +1,6 @@
 // zinc:devtools transport for the Zinc Next engine: the Spec of cdp.spec.ts over zinc:socket (TCP and the WebSocket class of the socket plugin) instead of a
 // poller of BSD sockets. HTTP discovery (/json/list, /json/version), the same Host and Origin checks as cdp.host.cpp, then a WebSocket upgrade; messages are
-// text. The screenshot is the frame saved by zinc:gfx capture, whole (ZN-369). Not ported: the profiler spans (none) and the mirroring of console output.
+// text. The screenshot is the frame saved by zinc:gfx capture, whole (ZN-369); the console (ZN-373.01) and the frame spans of Tracing (ZN-373.05) come from the host.
 import { listen as listenTcp, Socket, WebSocket, MessageEvent } from 'zinc:socket';
 import { sha1, base64Encode } from 'zinc:web';
 import { utf8Encode, utf8Decode, env } from 'zinc:sys';
@@ -129,7 +129,7 @@ export default {
     remove(f);
     return base64Encode(png);
   },
-  trace(on: boolean): string { return on ? '' : '[]'; },
+  trace(on: boolean): string { return netLog(on ? 7 : 8, ''); },   // the runtime's frame phases (ZN-373.05)
   net(op: i32, arg: string): string {
     if (op !== 0) return netLog(op, arg);
     logging = true;

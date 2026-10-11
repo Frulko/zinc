@@ -156,7 +156,9 @@ program), its matched rules and `element.style` to edit, its console, its screen
 Attached to `zinc debug --cdp` (a target of type node), it opens the Sources view: the program's scripts with line numbers, a click on a line
 sets or removes a breakpoint (with the condition typed in the toolbar), Run starts the waiting program, Resume, Over, Into, Out and Pause
 drive it; the right column shows the call stack, the scopes (objects and arrays unfold) and the watches, evaluated in the selected frame.
-Performance is ZN-373.05; `next/tests/t1/inspector.sh` runs it against a headless program and a `zinc debug --cdp` session
+The Performance view records the runtime's frames (Tracing.start / end, the same spans as `ZINC_TRACE`): the time of each phase over the
+recording, the frames as bars of their phases to scale, and the phases of the frame picked (the slowest at first). The runtime keeps the
+last 32768 spans (about 3600 frames). `next/tests/t1/inspector.sh` runs it against a headless program and a `zinc debug --cdp` session
 (`ZINC_INSPECTOR_DUMP=1` prints its views).
 
 On a remote device, `zinc dev --device` runs ssh with `-L 9229:127.0.0.1:9229`, so Chrome on the dev machine uses
