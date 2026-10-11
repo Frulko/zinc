@@ -9,6 +9,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#include "frontend/diagnostics.h"
 #include "frontend/dyn.h"
 #include "frontend/inspect.h"
 #include "frontend/snippet.h"
@@ -4352,7 +4353,13 @@ struct Checker {
       push();
       for (const ModuleImport& im : mod.imports) {
         auto it = exportsOf[im.from].find(im.name);
-        if (it == exportsOf[im.from].end()) { diag(kZCannotFindName, im.node, "'" + std::string(im.name) + "' is not exported by '" + a.modules[im.from].path + "'"); continue; }
+        if (it == exportsOf[im.from].end()) {
+          std::vector<std::string> names;
+          for (const auto& ex : exportsOf[im.from]) names.emplace_back(ex.first);
+          std::string near = nearest(im.name, names);
+          diag(kZCannotFindName, im.node, "'" + std::string(im.name) + "' is not exported by '" + a.modules[im.from].path + "'" + (near.empty() ? "" : " (did you mean '" + near + "'?)"));
+          continue;
+        }
         if (scopes.back()->count(im.local)) { diag(kZDuplicateDeclaration, im.node, "'" + std::string(im.local) + "'"); continue; }
         (*scopes.back())[im.local] = it->second;
         const std::string dotted = std::string(im.name) + ".";   // the class's static generic methods, generic functions named `Class.method`

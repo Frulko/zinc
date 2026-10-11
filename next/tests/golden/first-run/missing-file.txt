@@ -1,0 +1,2 @@
+src/mian.ts:1:1: error Z0119: Cannot find module: no file src/mian.ts (did you mean src/main.ts?)
+zinc: 1 error. Fix the path or create the file. `zinc explain Z0119` shows an example.

@@ -1329,6 +1329,20 @@ std::string webGlobalImports(const Ast& A) {
   return out.empty() ? out : out + "\n";
 }
 
+// The source file beside `path` whose name is closest to its last component (compared without .ts / .tsx unless `ext`), or "":
+// the "did you mean" of a misspelt import or entry.
+std::string nearestFile(const std::string& path, bool ext) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  fs::path p(path);
+  std::vector<std::string> names;
+  for (fs::directory_iterator it(p.parent_path().empty() ? fs::path(".") : p.parent_path(), ec), end; !ec && it != end; it.increment(ec)) {
+    std::string x = it->path().extension().string();
+    if (x == ".ts" || x == ".tsx") names.push_back(ext ? it->path().filename().string() : it->path().stem().string());
+  }
+  return nearest(p.filename().string(), names);
+}
+
 struct Loader {
   Program& prog;
   const ReadFile& read;
@@ -1516,7 +1530,15 @@ struct Loader {
         if (visiting.count(path)) { diag(kZUnsupported, fromFile, node, "circular imports ('" + spec + "')"); return kNone; }
         if (read(path, text)) return load(path, std::move(text));
       }
-      diag(kZModuleNotFound, fromFile, node, "'" + spec + "'");
+      {   // what to do next (ZN-711): the closest module, or how to look for a plugin and install it
+        std::vector<std::string> names = {"events", "gpio", "osc", "mqtt", "gfx", "sys", "fs", "storage", "assets", "os", "net", "native", "telemetry", "platform"};   // hostModuleSource and the two above
+        for (const auto& kv : kStd) if (kv.first.rfind("zinc:", 0) == 0) names.push_back(kv.first.substr(5));
+        for (const auto& kv : plugins) if (kv.first.rfind("zinc:", 0) == 0) names.push_back(kv.first.substr(5));
+        std::string near = nearest(spec.substr(5), names);
+        diag(kZModuleNotFound, fromFile, node, "'" + spec + "' " + (!near.empty() ? "(did you mean 'zinc:" + near + "'?)"
+          : "is not a module of the engine and no plugin of this project provides it (`zinc plugins` lists the ones it has, `zinc plugins search " + spec.substr(5) +
+            "` looks in the index, `zinc add <name>` installs one)"));
+      }
       return kNone;
     }
     if (spec.rfind("./", 0) != 0 && spec.rfind("../", 0) != 0) {  // a bare specifier: the `paths` of the nearest tsconfig.json
@@ -1586,7 +1608,8 @@ struct Loader {
       if (visiting.count(cand)) { diag(kZUnsupported, fromFile, node, "circular imports ('" + spec + "')"); return kNone; }
       if (read(cand, text)) return load(cand, std::move(text));
     }
-    diag(kZModuleNotFound, fromFile, node, "'" + spec + "'");
+    std::string near = nearestFile(base, false);
+    diag(kZModuleNotFound, fromFile, node, "'" + spec + "' (no file " + base + ".ts or .tsx" + (near.empty() ? "" : "; did you mean '" + spec.substr(0, spec.rfind('/') + 1) + near + "'?") + ")");
     return kNone;
   }
 
@@ -3113,7 +3136,13 @@ bool needsTdz(const Ast& A) {
 Program loadProgram(const std::string& entry, const ReadFile& read, bool strict, const std::string& stdRoot) {
   Program p;
   std::string text;
-  if (!read(entry, text)) { p.files.push_back({entry, "", {}, {}}); p.diags.push_back({kZUnexpectedToken, 0, "cannot read " + entry, 0}); return p; }
+  if (!read(entry, text)) {   // the file and the closest one beside it (ZN-711)
+    std::string near = nearestFile(entry, true);
+    std::size_t sl = entry.rfind('/');
+    p.files.push_back({entry, "", {}, {}});
+    p.diags.push_back({kZModuleNotFound, 0, "no file " + entry + (near.empty() ? "" : " (did you mean " + entry.substr(0, sl == std::string::npos ? 0 : sl + 1) + near + "?)"), 0});
+    return p;
+  }
   p.ast.strict = strict || text.substr(0, 400).find("zinc-profile: strict") != std::string::npos;
   {   // `// zinc-profile: ps1` in the first lines: the target profile of this program (the `number` it means), as `--profile` does
     std::size_t at = text.substr(0, 400).find("zinc-profile: ");

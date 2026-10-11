@@ -1,0 +1,2 @@
+<project>/src/main.tsx:10:7: error Z0002: Expected a specific token: JSX: <text> is not closed (line 15 closes </view> instead): add </text>, or end the tag with />
+zinc: 1 error. Insert the missing token, or end the previous statement with ';' or a newline. `zinc explain Z0002` shows an example.

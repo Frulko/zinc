@@ -279,6 +279,7 @@ static void applyAppWindow(const std::string& json, zn::frontend::TargetOptions&
 static const zn::frontend::Profile* gProfile = nullptr;   // --profile / zinc.json "profile"
 static std::string gBuildTarget;   // the machine a `run --target` / `build --target` compiles for (its ui.layout rules, ZN-285); "" = the profile or this host
 static bool gStrict = false;  // --strict (a file-local switch of the command line, set once in main)
+static bool gHint = false;    // after the diagnostics, the line that says what to do next (ZN-711): zinc run, build and check as a person types them
 
 // The system permissions of the zinc.json that governs `path`, for the compile (an import of zinc:system/<feature> needs its id); a manifest rule that fails stops the command.
 static bool loadManifestPermissions(const char* path) {
@@ -323,6 +324,7 @@ static bool loadChecked(const char* path, zn::frontend::Program& prog, zn::front
     diags = checked.diags;
   }
   for (const auto& d : diags) std::fprintf(stderr, "%s\n", zn::frontend::formatDiag(prog, d).c_str());
+  if (gHint && !diags.empty()) std::fprintf(stderr, "%s\n", zn::frontend::hint(diags).c_str());
   return diags.empty();
 }
 
@@ -428,6 +430,7 @@ static int compileToZbc(const char* path, zn::zbc::Module& out) {
     }
   }
   for (const auto& d : diags) std::fprintf(stderr, "%s\n", zn::frontend::formatDiag(prog, d).c_str());
+  if (gHint && !diags.empty()) std::fprintf(stderr, "%s\n", zn::frontend::hint(diags).c_str());
   return 1;
 }
 
@@ -1276,7 +1279,7 @@ int main(int argc, char** argv) {
   {   // help, init and the bare project commands (ZN-138)
     std::vector<std::string> cl(argv, argv + argc);
     if (argc >= 2 && !std::strcmp(argv[1], "publish") && std::any_of(cl.begin(), cl.end(), [](const std::string& a) { return a == "--itch" || a == "--site"; })) return zn::cli::publishStore(cl);
-    if (argc >= 2 && (!std::strcmp(argv[1], "help") || !std::strcmp(argv[1], "--help") || !std::strcmp(argv[1], "-h"))) { if (!std::strcmp(argv[1], "--help") || !std::strcmp(argv[1], "-h")) cl.insert(cl.begin() + 1, "help"); return zn::cli::help(cl); }
+    if (argc >= 2 && (!std::strcmp(argv[1], "help") || !std::strcmp(argv[1], "--help") || !std::strcmp(argv[1], "-h"))) { if (!std::strcmp(argv[1], "--help") || !std::strcmp(argv[1], "-h")) cl[1] = "help"; return zn::cli::help(cl); }
     if (argc >= 3 && (!std::strcmp(argv[argc - 1], "--help") || !std::strcmp(argv[argc - 1], "-h"))) return zn::cli::help({cl[0], "help", cl[1]});
     if (argc >= 2 && (!std::strcmp(argv[1], "init") || !std::strcmp(argv[1], "new"))) return zn::cli::init(cl, gRoot);
     if (argc >= 2 && !std::strcmp(argv[1], "capture") && !(argc >= 3 && (!std::strcmp(argv[2], "--scene") || !std::strcmp(argv[2], "--stroke-check")))) return zn::cli::capture(cl);
@@ -1298,6 +1301,8 @@ int main(int argc, char** argv) {
     if (argc >= 3 && !std::strcmp(argv[1], "plugins") && !std::strcmp(argv[2], "update")) return zn::cli::updatePlugins(cl, gRoot);
     if (argc >= 2 && !std::strcmp(argv[1], "tsconfig")) return zn::cli::tsconfig(cl, gRoot);
     if (argc >= 2 && !std::strcmp(argv[1], "infer")) return zn::cli::infer(cl);
+    // the commands a person types get the closing line; `check --check|--types|--json <file>` and the stage commands keep one line per diagnostic for the tools that read them
+    gHint = argc >= 2 && (!std::strcmp(argv[1], "run") || !std::strcmp(argv[1], "build") || (!std::strcmp(argv[1], "check") && (argc == 2 || argv[2][0] != '-')));
     std::string derr;
     if (!zn::cli::discoverEntry(cl, derr)) { std::fprintf(stderr, "zinc: %s\n", derr.c_str()); return 2; }
     if (cl.size() != static_cast<std::size_t>(argc) || !std::equal(cl.begin(), cl.end(), argv, [](const std::string& a, const char* b) { return a == b; })) {
@@ -2404,6 +2409,6 @@ int main(int argc, char** argv) {
     std::fputs(out.c_str(), stdout);
     return 0;
   }
-  std::fputs("usage: zinc --version | lex|parse --check|--dump <file> | explain <code>\n", stderr);
-  return 2;
+  if (argc < 2) { zn::cli::help({argv[0], "help"}); return 2; }   // a bare `zinc`: the commands
+  return zn::cli::unknownCommand(argv[1]);
 }

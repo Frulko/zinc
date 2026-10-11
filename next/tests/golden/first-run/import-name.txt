@@ -1,0 +1,6 @@
+<project>/src/main.ts:1:53: error Z0101: Cannot find name: 'isDwon' is not exported by 'zinc:gfx' (did you mean 'isDown'?)
+<project>/src/main.ts:5:7: error Z0101: Cannot find name: 'isDown'
+<project>/src/main.ts:6:7: error Z0101: Cannot find name: 'isDown'
+<project>/src/main.ts:7:7: error Z0101: Cannot find name: 'isDown'
+<project>/src/main.ts:8:7: error Z0101: Cannot find name: 'isDown'
+zinc: 5 errors, start with the first. Declare it before use, or fix the spelling. `zinc explain Z0101` shows an example.

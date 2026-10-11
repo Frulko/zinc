@@ -25,6 +25,7 @@
 #include <unistd.h>
 
 #include "assets/assets.h"
+#include "frontend/diagnostics.h"
 #include "frontend/plugin_manifest.h"
 #include "frontend/project.h"
 #include "zn/devproto.h"
@@ -293,6 +294,15 @@ bool discoverEntry(std::vector<std::string>& args, std::string& err) {
     args.insert(args.begin() + 2, "--check");
   }
   return true;
+}
+
+int unknownCommand(const std::string& name) {
+  if (const Command* c = findCommand(name)) { std::fprintf(stderr, "usage: %s\n(zinc help %s says more)\n", c->usage, c->name); return 2; }
+  std::vector<std::string> names;
+  for (const Command& c : kCommands) names.push_back(c.name);
+  std::string near = zn::frontend::nearest(name, names);
+  std::fprintf(stderr, "zinc: unknown command '%s'%s (zinc help lists the commands)\n", name.c_str(), near.empty() ? "" : (": did you mean 'zinc " + near + "'?").c_str());
+  return 2;
 }
 
 int help(const std::vector<std::string>& args) {

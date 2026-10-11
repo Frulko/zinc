@@ -15,6 +15,8 @@ bool discoverEntry(std::vector<std::string>& args, std::string& err);
 
 /** `zinc help [command]`, `zinc --help`, `zinc <command> --help`: the text on stdout, exit code 0; an unknown command: stderr, 2. */
 int help(const std::vector<std::string>& args);
+/** A command that does not exist, or arguments no command takes: the closest command and `zinc help` on stderr; returns 2. */
+int unknownCommand(const std::string& name);
 
 /** `zinc init <dir> [--template game|cli|server|iot|remarkable]`: a project that `zinc run` runs. */
 int init(const std::vector<std::string>& args, const std::string& engineRoot);

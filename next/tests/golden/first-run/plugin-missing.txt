@@ -1,0 +1,2 @@
+<project>/src/main.ts:1:1: error Z0119: Cannot find module: 'zinc:confetti' is not a module of the engine and no plugin of this project provides it (`zinc plugins` lists the ones it has, `zinc plugins search confetti` looks in the index, `zinc add <name>` installs one)
+zinc: 1 error. Fix the path or create the file. `zinc explain Z0119` shows an example.

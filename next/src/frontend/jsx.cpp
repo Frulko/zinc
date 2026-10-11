@@ -53,7 +53,7 @@ struct Elem {
   std::size_t begin = 0, end = 0;  // token range
 };
 
-struct Failure { std::uint32_t pos; std::string msg; };
+struct Failure { std::uint32_t pos; std::string msg; const char* code = "Z0005"; };
 
 // UI-07: the grammar of applyToken in lib/std/ui.ts; a class that is not in it is an error (compiler/src/jsx.ts validClass).
 bool validClass(const std::string& c);
@@ -456,18 +456,24 @@ struct Lowering {
       }
     }
     for (;;) {
-      if (i >= t.size()) fail(e->begin, "unclosed JSX element");
+      // a tag left open (ZN-711): the error is at the tag that opened it, with the closing tag to write
+      const std::string open = "<" + e->tag + ">", close = "</" + e->tag + ">";
+      auto unclosed = [&](const std::string& found) { throw Failure{t[e->begin].start, open + " is not closed" + found + ": add " + close + (e->frag ? "" : ", or end the tag with />"), "Z0002"}; };
+      if (i >= t.size()) unclosed("");
       if (t[i].kind == Tok::JsxText) { Child c; c.kind = 0; c.text = tx(i); c.tok = i; e->kids.push_back(std::move(c)); ++i; }
       else if (isP(i, "{")) { std::size_t m = match(i); Child c; c.kind = 1; c.eb = i + 1; c.ee = m; c.tok = i; e->kids.push_back(std::move(c)); i = m + 1; }
       else if (isP(i, "</")) {
         ++i;
-        if (!e->frag) ++i;  // the closing tag's name
+        if (!e->frag) {  // the closing tag's name
+          if (i < t.size() && tx(i) != e->tag) unclosed(" (line " + std::to_string(lineCol(s, t[i].start).line) + " closes " + (isP(i, ">") ? "a fragment, </>" : "</" + tx(i) + ">") + " instead)");
+          ++i;
+        }
         if (!isP(i, ">")) fail(i, "malformed closing JSX tag");
         ++i;
         e->end = i;
         return e;
       } else if (isP(i, "<")) { Child c; c.kind = 2; c.tok = i; c.el = parseElem(i); i = c.el->end; e->kids.push_back(std::move(c)); }
-      else fail(i, "unexpected token in JSX children");
+      else unclosed("");   // a token no child starts with: the element ran past its end
     }
   }
 
@@ -1328,7 +1334,7 @@ std::string lowerJsx(std::string_view src, std::vector<Diag>& diags, std::uint32
     std::string styleImport = out.find("new __ZStyle(") != std::string::npos && out.find("Style as __ZStyle") == std::string::npos ? "import { Style as __ZStyle } from 'zinc:ui'; " : "";
     return unmark(styleImport + "import { " + helpers + " } from '" + L.lib + "'; " + out, src, map);
   } catch (const Failure& f) {
-    diags.push_back({"Z0005", f.pos, "JSX: " + f.msg, file});
+    diags.push_back({f.code, f.pos, "JSX: " + f.msg, file});
     return std::string(src);
   }
 }
