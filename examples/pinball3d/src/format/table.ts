@@ -3,7 +3,7 @@
 // that must exist, shapes that must make sense), and gives every fault at once, each with the path of the value.
 // The game works on `def`, where every field holds a value (the file's or the default); `data` is the same tree as
 // the format describes it, which saveTable() writes back and an editor changes.
-import { Schema, Names, check, checkRefs, write } from './schema';
+import { Schema, Field, Variants, Names, check, checkRefs, write } from './schema';
 import { tableSchema, VERSION } from './table-schema';
 import { TableSource } from './source';
 
@@ -229,38 +229,36 @@ function checkLayout(l: LayoutDef, path: string, errors: string[]): void {
   if (c.position[0] === c.target[0] && c.position[1] === c.target[1] && c.position[2] === c.target[2]) errors.push(`${path}.camera.target: the camera looks at the point it is at`);
 }
 
-// What a rule's `target` must name depends on what the rule tests or does.
+// What a condition or an action must hold depends on its kind: the format says what each kind reads (table-schema.ts, the
+// variants of `condition` and of `action`), and each is checked by its line. `what`: how a fault names the kind.
+function checkKind(vs: Variants, o: any, path: string, what: string, names: Names, errors: string[]): void {
+  const word: string = o[vs.kind], target: string = o[vs.target], way: string = o[vs.way];
+  const v = vs.of(word);
+  if (v === null) return;
+  const spaces = v.names.split('|').join(' or '), worded = v.words.indexOf(target) >= 0;   // a word may stand for a name ("self")
+  if (v.names !== '') {
+    if (!worded && target === '') errors.push(`${path}.${vs.target}: ${what} needs the name of one of the ${spaces}`);
+    else if (!worded && !names.has(v.names, target)) errors.push(`${path}.${vs.target}: "${target}" is not one of the ${spaces} (${names.list(v.names)})`);
+  } else if (v.words.length > 0) {
+    if (!worded) errors.push(`${path}.${vs.target}: the ${word} is ${v.words.map((w: string) => `"${w}"`).join(' or ')}, not "${target}"`);
+  } else if (v.text && target === '') errors.push(`${path}.${vs.target}: "${word}" needs a text`);
+  if (v.ways.length > 0 && v.ways.indexOf(way) < 0) {
+    if (v.said !== '') errors.push(`${path}.${vs.way}: ${v.said} ${v.ways.slice(0, v.ways.length - 1).join(', ')} or ${v.ways[v.ways.length - 1]}, not "${way}"`);
+    else errors.push(`${path}.${vs.way}: "${word}" takes ${v.ways.map((m: string) => m === '' ? `no ${vs.way}` : m).join(', ')}, not "${way}"`);
+  }
+  if (v.nonZero && o[v.numbers[0]] === 0) errors.push(`${path}.${v.numbers[0]}: "${word}" of 0 does nothing`);
+}
+function variantsOf(list: string): Variants {
+  const rule = (formatSchema().field('rules') as Field).of as Schema, when = (rule.field('when') as Field).of as Schema;
+  return ((when.field(list) as Field).of as Schema).variants as Variants;
+}
 function checkRules(t: TableDef, names: Names, errors: string[]): void {
-  const r = t.rules;
-  const need = (path: string, what: string, space: string, name: string): void => {
-    if (name === '') errors.push(`${path}.target: ${what} needs the name of one of the ${space.split('|').join(' or ')}`);
-    else if (!names.has(space, name)) errors.push(`${path}.target: "${name}" is not one of the ${space.split('|').join(' or ')} (${names.list(space)})`);
-  };
-  const condition = (c: ConditionDef, path: string): void => {
-    const numeric = c.is === 'atLeast' || c.is === 'below' || c.is === 'equal';
-    if (c.test === 'counter') { need(path, 'the test "counter"', 'counters', c.target); if (!numeric) errors.push(`${path}.is: a counter is compared with atLeast, below or equal, not "${c.is}"`); }
-    else if (c.test === 'lights') { if (c.target !== 'self') need(path, 'the test "lights"', 'lights|light groups', c.target); if (c.is !== 'on' && c.is !== 'off') errors.push(`${path}.is: lights are on or off, not "${c.is}"`); }
-    else if (c.test === 'targets') { need(path, 'the test "targets"', 'elements|groups', c.target); if (c.is !== 'down' && c.is !== 'up') errors.push(`${path}.is: targets are down or up, not "${c.is}"`); }
-    else if (c.test === 'mode') { if (c.target !== 'normal' && c.target !== 'multiball') errors.push(`${path}.target: the mode is "normal" or "multiball", not "${c.target}"`); }
-    else if (c.test === 'mission') need(path, 'the test "mission"', 'missions', c.target);
-    else if (!numeric) errors.push(`${path}.is: ${c.test} is compared with atLeast, below or equal, not "${c.is}"`);
-  };
-  const action = (a: ActionDef, path: string): void => {
-    const modes = (allowed: string[]): void => { if (allowed.indexOf(a.mode) < 0) errors.push(`${path}.mode: "${a.do}" takes ${allowed.map((m: string) => m === '' ? 'no mode' : m).join(', ')}, not "${a.mode}"`); };
-    if (a.do === 'light') { if (a.target !== 'self') need(path, '"light"', 'lights|light groups', a.target); modes(['on', 'off', 'blink', 'flash', 'toggle']); }
-    else if (a.do === 'count') { need(path, '"count"', 'counters', a.target); modes(['', 'set']); }
-    else if (a.do === 'reset') need(path, '"reset"', 'elements|groups', a.target);
-    else if (a.do === 'sound') need(path, '"sound"', 'sounds', a.target);
-    else if (a.do === 'rotate') need(path, '"rotate"', 'light groups', a.target);
-    else if (a.do === 'say') { if (a.target === '') errors.push(`${path}.target: "say" needs a text`); }
-    else if (a.do === 'award') modes(['extraBall', 'ballSave', 'lock', 'multiball', 'mission']);
-    else if (a.value === 0) errors.push(`${path}.value: "${a.do}" of 0 does nothing`);
-  };
+  const r = t.rules, tests = variantsOf('if'), acts = variantsOf('do');
   for (let i = 0; i < r.when.length; i++) {
     const w = r.when[i];
     if (w.do.length === 0) errors.push(`rules.when[${i}].do: a rule that does nothing`);
-    for (let k = 0; k < w.if.length; k++) condition(w.if[k], `rules.when[${i}].if[${k}]`);
-    for (let k = 0; k < w.do.length; k++) action(w.do[k], `rules.when[${i}].do[${k}]`);
+    for (let k = 0; k < w.if.length; k++) checkKind(tests, w.if[k], `rules.when[${i}].if[${k}]`, `the test "${w.if[k].test}"`, names, errors);
+    for (let k = 0; k < w.do.length; k++) checkKind(acts, w.do[k], `rules.when[${i}].do[${k}]`, `"${w.do[k].do}"`, names, errors);
   }
   for (let i = 0; i < r.missions.length; i++) if (r.missions[i].steps.length === 0) errors.push(`rules.missions[${i}].steps: a mission needs at least one step`);
   if (r.missions.length > 0 && r.ranks.length === 0) errors.push('rules.ranks: missions promote the player, so the table needs at least one rank');

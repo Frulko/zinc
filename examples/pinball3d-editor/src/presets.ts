@@ -2,7 +2,7 @@
 // flipper rests and swings the other way, a drop target is a target of another kind); where it goes comes from clicks on the top
 // view, in the order of the format's fields: one click per point, then one per point of its path. Every list of the format whose items
 // have a place gets an entry even when this file names none for it, so a kind added to the format can be placed at once.
-import { Schema, Field, Kind } from '../../pinball3d/src/format/schema';
+import { Schema, Field, Kind, Variants } from '../../pinball3d/src/format/schema';
 import { TableDef, formatSchema, parseTable } from '../../pinball3d/src/format/table';
 import { FORMAT, VERSION } from '../../pinball3d/src/format/table-schema';
 import { isPoint, isPath, isProfile } from './doc';
@@ -110,6 +110,60 @@ export function blankOf(kind: string): any {
 export function alongWith(kind: string): ((d: any) => void) | null {
   if (kind !== 'mission') return null;
   return (d: any): void => { if (d.rules.ranks.length === 0) d.rules.ranks = ['Rookie']; };
+}
+
+// What a new object of a kind starts with beyond what its kind makes plain (a condition, an action: the kinds of their schema),
+// under "<object> <kind>": 100 points, a multiplier raised by 1. The rest comes from the kind and from the table (startOf).
+const STARTS: string[] = [
+  'action score', '{ "value": 100 }', 'action bonus', '{ "value": 100 }', 'action say', '{ "target": "WELL DONE" }',
+  'condition balls', '{ "value": 2 }',
+];
+/** A new object of one kind, or why the table cannot have one yet. */
+export class Start {
+  /** The object as a file would hold it: whole, and valid in this table; null when the table lacks what the kind speaks of. */
+  item: any = null;
+  /** What the table must gain with it (a counter to count with); null for nothing. */
+  also: ((d: any) => void) | null = null;
+  /** The name space the kind needs a name of, when the table has none. */
+  lacks: string = '';
+}
+/** What a new object of schema `s` (one whose objects have kinds) starts as for the kind `word`, in a table: every part the kind
+ *  reads holds something the table has, so that the object is accepted at once and each part is then only a choice. A group comes
+ *  before a single thing (a rule usually speaks of several), and the first bank of drop targets before any other target.
+ *  `names`: the names of a name space; `among`: the names of a list of the table; `data`: the table's tree. */
+export function startOf(s: Schema, word: string, names: (space: string) => string[], among: (list: string) => string[], data: any): Start {
+  const out = new Start(), vs = s.variants as Variants, v = vs.of(word);
+  if (v === null) return out;
+  let item: any = {};
+  for (let i = 0; i < STARTS.length; i += 2) if (STARTS[i] === `${s.name} ${word}`) item = JSON.parse(STARTS[i + 1]);
+  item[vs.kind] = word;
+  if (v.aimed && item[vs.target] === undefined) {
+    let name = '';
+    if (v.among !== '') {
+      // ponytail: the one thing of the table known here by its word: a target that drops is what a rule tests and raises
+      const items: any = data[v.among];
+      if (Array.isArray(items)) for (let i = 0; i < items.length; i++) if (name === '' && items[i].kind === 'drop') name = items[i].group !== '' ? `${items[i].group}` : `${items[i].id}`;
+      const all = among(v.among);
+      if (name === '' && all.length > 0) name = all[0];
+    } else if (v.names !== '') {
+      const spaces = v.names.split('|');
+      for (const sp of spaces) if (name === '' && sp.indexOf('groups') >= 0 && names(sp).length > 0) name = names(sp)[0];
+      for (const sp of spaces) if (name === '' && names(sp).length > 0) name = names(sp)[0];
+      // nothing to count with yet: the table gains a counter with the object
+      if (name === '' && v.names === 'counters') {
+        name = 'counter1';
+        out.also = (d: any): void => { d.rules.counters = ['counter1']; };
+      }
+    }
+    if (name === '' && v.words.length > 0) name = v.words[0];
+    if (name === '' && v.text) name = '?';
+    if (name === '') { out.lacks = v.among !== '' ? v.among : v.names; return out; }
+    item[vs.target] = name;
+  }
+  if (v.ways.length > 0 && v.ways[0] !== '' && item[vs.way] === undefined) item[vs.way] = v.ways[0];
+  for (const n of v.numbers) if (n.indexOf(':') < 0 && item[n] === undefined) item[n] = 1;
+  out.item = item;
+  return out;
 }
 
 /** What an entry of the palette looks like: the top view's own drawing of it, around (0, 0), a few centimetres across. */

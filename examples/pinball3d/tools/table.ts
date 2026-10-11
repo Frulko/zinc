@@ -130,6 +130,22 @@ function doc(t: Table): string {
     out.push('|---|---|---|---|');
     for (const f of s.fields) out.push(`| \`${f.name}\` | ${typeOf(f)} | ${defaultOf(f)} | ${f.doc} |`);
     out.push('');
+    const vs = s.variants;
+    if (vs !== null) {
+      // what each kind reads: the loader checks by these lines, and the editor builds a ${s.name} from them
+      out.push(`What each \`${vs.kind}\` reads; the other fields are ignored for it:`);
+      out.push('');
+      out.push(`| \`${vs.kind}\` | \`${vs.target}\` | \`${vs.way}\` | numbers |`);
+      out.push('|---|---|---|---|');
+      for (const v of vs.all) {
+        const aim: string[] = [];
+        if (v.names !== '') aim.push(`one of the ${v.names.split('|').join(' or ')}${v.among === '' ? '' : ` (of \`${v.among}\`)`}`);
+        for (const w of v.words) aim.push(`"${w}"`);
+        if (v.text) aim.push('a text');
+        out.push(`| \`${v.word}\` | ${aim.join(', ')} | ${v.ways.map((w: string) => w === '' ? '(none)' : w).join(', ')} | ${v.numbers.map((n: string) => n.indexOf(':') < 0 ? `\`${n}\`${v.nonZero ? ', not 0' : ''}` : `\`${n.slice(0, n.indexOf(':'))}\` with ${n.slice(n.indexOf(':') + 1)}`).join(', ')} |`);
+      }
+      out.push('');
+    }
     if (s === root) { out.push(`A whole file: the \`${TABLE_FILE}\` of "${t.def.name}", in \`examples/pinball3d/assets/tables/\`.`); out.push(''); }
     let ex = s === root ? '' : example(root, t.data, s);
     if (ex === '') ex = s.sample;

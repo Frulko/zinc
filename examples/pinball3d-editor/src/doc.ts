@@ -85,14 +85,20 @@ export function schemaAt(path: string): Schema {
 
 /** The paths of the fields of an object (schema `s`, at `path`) that answer to a text someone types to find one, the fields of the
  *  objects inside it included ("sounds.hit"): the field whose key, or whose path from the object, is exactly the text when there is
- *  one, else every field whose path or whose label holds it. `labelOf`: the label of a key; `left`: the fields that are not offered. */
-export function found(s: Schema, path: string, text: string, labelOf: (key: string) => string, left: (f: Field, at: string) => boolean): string[] {
+ *  one, else every field whose path or whose label holds it. `labelOf`: the label of a key; `left`: the fields that are not offered.
+ *  With `data` (the table's tree), a text that names an item of a list of the object ("do[1].target") finds the fields of that item. */
+export function found(s: Schema, path: string, text: string, labelOf: (key: string) => string, left: (f: Field, at: string) => boolean, data: any = null): string[] {
   const want = text.trim().toLowerCase(), exact: string[] = [], near: string[] = [];
   const walk = (sc: Schema, at: string, from: string): void => {
     for (const f of sc.fields) {
       if (left(f, at)) continue;
       const here = at === '' ? f.name : `${at}.${f.name}`, rel = from === '' ? f.name : `${from}.${f.name}`;
       if (f.kind === Kind.Obj) { walk(f.of as Schema, here, rel); continue; }
+      if (f.kind === Kind.List && f.of !== null && data !== null && want.startsWith(`${rel.toLowerCase()}[`)) {
+        const items: any = valueAt(data, here);
+        if (Array.isArray(items)) for (let i = 0; i < items.length; i++) walk(f.of as Schema, `${here}[${i}]`, `${rel}[${i}]`);
+        continue;
+      }
       if (rel.toLowerCase() === want) exact.push(here);
       else if (rel.toLowerCase().indexOf(want) >= 0 || labelOf(f.name).toLowerCase().indexOf(want) >= 0) near.push(here);
     }
@@ -405,6 +411,16 @@ export class Doc {
     }
     return out;
   }
+  /** The names of the items of one list of the table, their groups first: what a rule that speaks of that kind of thing may name. */
+  namesAmong(list: string): string[] {
+    const items: any = this.data[list], out: string[] = [];
+    if (!Array.isArray(items)) return out;
+    for (let pass = 0; pass < 2; pass++) for (let i = 0; i < items.length; i++) {
+      const n: any = pass === 0 ? items[i].group : items[i].id;
+      if (typeof n === 'string' && n !== '' && out.indexOf(`${n}`) < 0) out.push(`${n}`);
+    }
+    return out;
+  }
 
   // ---------------------------------------------------------------- operations
 
@@ -444,12 +460,13 @@ export class Doc {
     return this.apply(`Turn ${this.nameOf(path)}`, `turn ${path}`, (d: any) => { const item: any = valueAt(d, path); turnItem(s, item, degrees, centreOf(s, item)); }, null);
   }
   /** Deletes an item of a list. The optional names that pointed to it are cleared, and a rule or a mission that cannot do without it
-   *  is deleted with it: `went` lists both. */
-  remove(path: string): boolean {
+   *  is deleted with it: `went` lists both. `alone`: nothing else goes, and what the table cannot do without is not deleted (the
+   *  last action of a rule, the last step of a mission). */
+  remove(path: string, alone: boolean = false): boolean {
     const list = listOf(path), at = indexOf(path);
     if (at < 0) { this.refused = `${path}: only an item of a list is deleted`; return false; }
     const took: string[] = [];
-    const done = this.apply(`Delete ${this.nameOf(path)}`, '', (d: any) => { removeAt(d, list, at); }, (d: any, found: string[]): boolean => {
+    const done = this.apply(`Delete ${this.nameOf(path)}`, '', (d: any) => { removeAt(d, list, at); }, alone ? null : (d: any, found: string[]): boolean => {
       const drop: string[] = [];
       for (const fault of found) {
         const p = faultPath(fault), f = p === '' ? null : fieldAt(p);
@@ -547,6 +564,11 @@ export class Doc {
     let v: any = null;
     try { v = JSON.parse(json); } catch (e) { this.refused = `not JSON: ${(e as Error).message}`; return false; }
     if (path === '') { this.refused = 'the whole table is not replaced this way'; return false; }
-    return this.apply(`Edit ${this.nameOf(path)}`, '', (d: any) => { put(d, path, v); }, null);
+    return this.put(path, v, null);
+  }
+  /** Replaces the object at a path by another one, whole (an action that becomes one of another kind); `also`: what the table
+   *  must gain with it, in the same step. */
+  put(path: string, v: any, also: ((d: any) => void) | null): boolean {
+    return this.apply(`Edit ${this.nameOf(path)}`, '', (d: any) => { put(d, path, v); if (also !== null) also(d); }, null);
   }
 }

@@ -11,16 +11,17 @@
 import { createSignal, createNodeRef, createEffect, For, Show } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import { rect, border, stroke, gradient } from 'zinc:gfx';
-import { Schema, Field, Kind } from '../../pinball3d/src/format/schema';
+import { Schema, Field, Kind, Variants, Variant } from '../../pinball3d/src/format/schema';
 import { doc, table, selected, select, setField, replaceSelected, deleteSelected, duplicateSelected, mirrorSelected, turnSelected, selectionTurns, selectionPlaced, advanced, setAdvanced, refresh,
-  activeRow, setActiveRow, dragRow, changeRows, addTo, reorderSelected } from './state';
+  activeRow, setActiveRow, dragRow, changeRows, addTo, reorderSelected, addKind as addKindTo, setKind as setKindOf, removeItem, moveItem } from './state';
 import { previewSound } from './play';
 import { filesOfKind, noteOf, pictureOf, hearFile as hearFileOf, importFrom } from './files';
 import { fieldAt, schemaAt, listOf, steps, pathOf, found, isPath, isProfile, colorsIn } from './doc';
 import { rgb } from './shapes';
-import { Ico, Action, Segmented, Chooser, Picker, Switch, Heading, drawFitted, MUTED, ACCENT, chord } from './widgets';
+import { Ico, Action, Segmented, Chooser, Word, Menu, Picker, Switch, Heading, drawFitted, MUTED, ACCENT, chord } from './widgets';
+import { Piece, pieces, sentenceOf, wordSaid, kindSaid, said, whenSaid, ruleSaid } from './sentences';
 import * as L from './strings';
-import { t, f, fieldName, listName, kindName } from './strings';
+import { t, f, fieldName, listName, kindName, phrase } from './strings';
 
 /** What a form shows and changes. */
 export class Source {
@@ -53,6 +54,16 @@ export class Source {
   hearFile(name: string): void {}
   /** Brings a file of a kind from elsewhere; the field at `path` then names it. */
   importFor(path: string, kind: string): void {}
+  /** The schema of the object at a path; null when the source has none to give. */
+  schemaOf(path: string): Schema | null { return null; }
+  /** The names of the items of one list (and their groups): what a kind that speaks of that list may name. */
+  among(list: string): string[] { return []; }
+  /** Adds an object of one kind to a list whose items have kinds; makes the object at a path one of another kind. */
+  addKind(list: string, word: string): void {}
+  setKind(path: string, word: string): void {}
+  /** Takes an item out of its list; moves it one place up (-1) or down (1). */
+  remove(path: string): void {}
+  move(path: string, by: i32): void {}
 }
 /** The open table. */
 class TableSource extends Source {
@@ -61,7 +72,13 @@ class TableSource extends Source {
   names(space: string): string[] { return doc().namesOf(space); }
   set(path: string, value: any): void { setField(path, value); }
   field(path: string): Field | null { return fieldAt(path); }
-  summary(path: string): string { return doc().summaryOf(path); }
+  summary(path: string): string { const s = sentenceAt(path); return s !== '' ? s : doc().summaryOf(path); }
+  schemaOf(path: string): Schema | null { return schemaAt(path); }
+  among(list: string): string[] { return doc().namesAmong(list); }
+  addKind(list: string, word: string): void { addKindTo(list, word); }
+  setKind(path: string, word: string): void { setKindOf(path, word); }
+  remove(path: string): void { removeItem(path); }
+  move(path: string, by: i32): void { moveItem(path, by); }
   open(path: string): void { select(path); }
   add(list: string): void { addTo(list); }
   hear(name: string): void { previewSound(name); }
@@ -225,7 +242,7 @@ function FileField(p: { src: Source; field: Field; path: string }): i32 {
     <view class="flex-row items-center gap-1">
       <view style={{ width: kind === 'sound' ? WIDE - 30 : WIDE }}>
         <Picker value={text} options={options} label={(v: string) => v === '' ? t(L.NONE) : v === IMPORT ? t(L.IMPORT) : v} picture={(v: string) => real(v) ? src.filePicture(v) : -1}
-          note={(v: string) => real(v) ? src.fileNote(v) : ''} search={true} width={300} onPick={(v: string) => { if (v === IMPORT) src.importFor(path, kind); else src.set(path, v); }} />
+          note={(v: string) => real(v) ? src.fileNote(v) : ''} search={true} width={300} look="field" title="" onPick={(v: string) => { if (v === IMPORT) src.importFor(path, kind); else src.set(path, v); }} />
       </view>
       <Show when={kind === 'sound'}>
         <button class={`w-[26] h-[26] items-center justify-center rounded-md cursor-pointer bg-zinc-800 hover:bg-zinc-700 ${text() === '' ? 'opacity-40' : ''}`} tabIndex={-1} onClick={() => { if (text() !== '') src.hearFile(text()); }}>
@@ -243,8 +260,131 @@ function FileField(p: { src: Source; field: Field; path: string }): i32 {
     </Show>
   </view>;
 }
+// ---------------------------------------------------------------- objects that are of a kind: conditions, actions
+// The format says what each kind reads (the variants of the schema). A part of such an object is then never typed as the file has
+// it: its kind is chosen among the kinds, its target among what the table has for that kind (or its words, or a text when the kind
+// takes any), its way among the ways of the kind. Choosing a kind gives a whole object at once (state.ts setKind, presets.ts startOf).
+
+/** The object a field belongs to: "rules.when[3].do[0].target" gives "rules.when[3].do[0]". */
+function ownerOf(path: string): string { const cut = path.lastIndexOf('.'); return cut < 0 ? '' : path.slice(0, cut); }
+/** The variants of the object a field belongs to; null when it has none, or in the advanced mode (which shows the file's fields). */
+function variantsFor(src: Source, path: string): Variants | null {
+  if (advanced()) return null;
+  const s = src.schemaOf(ownerOf(path));
+  return s === null ? null : s.variants;
+}
+/** One part of an object that is of a kind. `slot`: the name of its field (the kind, the target, the way, a number), or "target"
+ *  and "way" as a sentence names them, or '' for a plain word of the sentence (`said`); `inline`: as a word of a sentence, else as
+ *  the control of a line of a form. */
+function Part(p: { src: Source; schema: Schema; item: string; slot: string; said: string; inline: boolean }): i32 {
+  const src = p.src, s = p.schema, item = p.item, vs = s.variants as Variants;
+  if (p.slot === '') return <text class="text-xs text-zinc-300">{p.said}</text>;
+  const kind = (): string => `${src.get(`${item}.${vs.kind}`)}`;
+  if (p.slot === vs.kind) {
+    const kinds = (): string[] => vs.all.map((v: Variant) => v.word), said = (w: string): string => kindSaid(s.name, w), pick = (w: string): void => { src.setKind(item, w); };
+    return p.inline ? <Word value={kind} options={kinds} label={said} onPick={pick} /> : <view style={{ width: WIDE }}><Chooser value={kind} options={kinds} label={said} onPick={pick} /></view>;
+  }
+  const aims = p.slot === 'target' || p.slot === vs.target, ways = p.slot === 'way' || p.slot === vs.way;
+  if (!aims && !ways) {
+    const at = `${item}.${p.slot}`;
+    return <input class={FIELD} style={{ width: p.inline ? 62 : 84 }} value={shown(src.get(at))} onChange={(x: string) => { const n = typed(x); if (isNumber(n)) src.set(at, n); else refresh(); }} />;
+  }
+  const path = `${item}.${aims ? vs.target : vs.way}`;
+  const text = (): string => { const x: any = src.get(path); return typeof x === 'string' ? `${x}` : ''; };
+  const pick = (x: string): void => { src.set(path, x); };
+  // what a target or a way offers depends on the kind: the control is made again when the kind changes
+  return <view class="flex-row items-center">
+    <For each={[kind()]}>{(word: string, i: i32) => {
+      const v = vs.of(word);
+      if (v === null || (aims ? !v.aimed : v.ways.length === 0)) return <text class="text-xs text-zinc-600">{t(L.NOT_READ)}</text>;
+      const kindOf: Variant = v;
+      if (ways) {
+        const options = (): string[] => kindOf.ways, label = (x: string): string => wordSaid(s.name, word, x);
+        return p.inline ? <Word value={text} options={options} label={label} onPick={pick} /> : <view style={{ width: WIDE }}><Chooser value={text} options={options} label={label} onPick={pick} /></view>;
+      }
+      if (kindOf.names === '' && kindOf.words.length === 0) return <input class={FIELD} style={{ width: p.inline ? 168 : WIDE }} value={text()} onChange={(x: string) => { src.set(path, x); }} />;
+      const options = (): string[] => kindOf.words.concat(kindOf.among !== '' ? src.among(kindOf.among) : kindOf.names === '' ? [] : src.names(kindOf.names));
+      const label = (x: string): string => kindOf.words.indexOf(x) >= 0 ? wordSaid(s.name, word, x) : x;
+      const heard = kindOf.names === 'sounds';
+      return <view class="flex-row items-center gap-1">
+        {p.inline ? <Word value={text} options={options} label={label} onPick={pick} /> : <view style={{ width: heard ? WIDE - 30 : WIDE }}><Chooser value={text} options={options} label={label} onPick={pick} /></view>}
+        {heard ? <button class="w-[24] h-[24] items-center justify-center rounded-md cursor-pointer bg-zinc-800 hover:bg-zinc-700" tabIndex={-1} onClick={() => { if (text() !== '') src.hear(text()); }}>
+          <Ico name="play" size={11} color={ACCENT} />
+        </button> : <view />}
+      </view>;
+    }}</For>
+  </view>;
+}
+/** An object that is of a kind, as the sentence a person would say: its words, and each part at the place the language puts it,
+ *  as a choice or a number. */
+function Sentence(p: { src: Source; schema: Schema; item: string; width: number }): i32 {
+  const src = p.src, s = p.schema, item = p.item, vs = s.variants as Variants;
+  // the sentence is laid out again when the kind or the way gives another one; its parts follow the table by themselves
+  const shape = (): string => {
+    const word = `${src.get(`${item}.${vs.kind}`)}`, v = vs.of(word);
+    return v === null ? '' : `${word}|${sentenceOf(s.name, v, `${src.get(`${item}.${vs.way}`)}`)}`;
+  };
+  return <view class="flex-col" style={{ width: p.width }}>
+    <For each={[shape()]}>{(key: string, i: i32) => {
+      // one node per word, so that a long sentence goes on to the next line between two words
+      const parts: Piece[] = [];
+      for (const piece of pieces(key.slice(key.indexOf('|') + 1))) {
+        if (piece.slot !== '') { parts.push(piece); continue; }
+        for (const w of piece.text.split(' ')) if (w.length > 0) parts.push(new Piece(w, ''));
+      }
+      return <view class="flex-row flex-wrap items-center gap-1" style={{ width: p.width, minHeight: 24 }}>
+        {parts.map((piece: Piece, k: i32) => <Part src={src} schema={s} item={item} slot={piece.slot} said={piece.text} inline={true} />)}
+      </view>;
+    }}</For>
+  </view>;
+}
+/** A list of objects that are of a kind (the conditions and the actions of a rule): each as its sentence, with the ways to make it
+ *  another kind, to move it and to take it away; the button at the top adds one, of the kind chosen in its list. */
+function Guided(p: { src: Source; field: Field; path: string }): i32 {
+  const src = p.src, of = p.field.of as Schema, vs = of.variants as Variants, small = 'w-[20] h-[20] items-center justify-center rounded cursor-pointer bg-transparent hover:bg-zinc-700';
+  const count = (): i32 => { const v: any = src.get(p.path); return v === undefined ? 0 : v.length; };
+  const places = (): string[] => { const out: string[] = []; for (let i = 0; i < count(); i++) out.push(`${i}`); return out; };
+  const kinds = (): string[] => vs.all.map((v: Variant) => v.word), kindSays = (w: string): string => kindSaid(of.name, w);
+  const none = (): string => { const own = phrase(`empty.${p.field.name}`); return own === '' ? t(L.NONE) : own; };
+  return <view class="flex-col mt-2" onPointerEnter={(e: ui.PointerEvent) => setHelped(p.path)}>
+    <view class="flex-row items-center gap-2 px-4 h-7">
+      <Heading label={label(p.field)} />
+      <text class="text-[11px] text-zinc-600">{`${count()}`}</text>
+      <view class="grow" />
+      <Menu icon="plus" title={t(L.ADD)} options={kinds} label={kindSays} onPick={(w: string) => { src.addKind(p.path, w); }} />
+    </view>
+    <Show when={count() === 0}><text class="px-4 py-1 text-[11px] text-zinc-500" style={{ width: 340 }}>{none()}</text></Show>
+    <view class="flex-col gap-1 px-4 pt-1">
+      <For each={places()}>{(at: string, i: i32) => {
+        const item = `${p.path}[${at}]`;
+        return <view class="flex-row items-start gap-1 pl-2 pr-1 py-1 rounded-md bg-zinc-950 border border-zinc-800">
+          <Sentence src={src} schema={of} item={item} width={226} />
+          <view class="flex-row items-center shrink-0" style={{ height: 24 }}>
+            <Menu icon="repeat" title="" options={kinds} label={kindSays} onPick={(w: string) => { src.setKind(item, w); }} />
+            <button class={small} tabIndex={-1} onClick={() => { src.move(item, -1); }}><Ico name="arrow-up" size={11} color={MUTED} /></button>
+            <button class={small} tabIndex={-1} onClick={() => { src.remove(item); }}><Ico name="x" size={11} color={MUTED} /></button>
+          </view>
+        </view>;
+      }}</For>
+    </view>
+  </view>;
+}
+/** The object at a path of the open table as a sentence: an object that is of a kind, or one that holds lists of such objects (a
+ *  rule); '' for anything else, and in the advanced mode. */
+function sentenceAt(path: string): string {
+  if (advanced()) return '';
+  const s = schemaAt(path), v: any = doc().get(path);
+  if (v === undefined || v === null || path === '') return '';
+  if (s.variants !== null) return said(s, v);
+  for (const fd of s.fields) if (fd.kind === Kind.List && fd.of !== null && (fd.of as Schema).variants !== null) return ruleSaid(s, v);
+  return '';
+}
+
 function Control(p: { src: Source; field: Field; path: string }): i32 {
   const fd = p.field, path = p.path, src = p.src;
+  // a part of an object that is of a kind: its choices are those of the kind
+  const vs = variantsFor(src, path);
+  if (vs !== null && (fd.name === vs.kind || fd.name === vs.target || fd.name === vs.way)) return <Part src={src} schema={src.schemaOf(ownerOf(path)) as Schema} item={ownerOf(path)} slot={fd.name} said="" inline={false} />;
   const text = (): string => { const v: any = src.get(path); return typeof v === 'string' ? `${v}` : ''; };
   const count = (): string => { const v: any = src.get(path); return v === undefined ? '0' : `${v.length}`; };
   if (fd.kind === Kind.Num || fd.kind === Kind.Int) return <view class="flex-row items-center gap-[6]">
@@ -296,9 +436,10 @@ function Items(p: { src: Source; field: Field; path: string }): i32 {
     <view class="flex-col gap-[2] px-4">
       <For each={rows()}>{(row: string, i: i32) => {
         const cut = row.indexOf(' '), at = row.slice(0, cut);
-        return <button class="flex-row items-center justify-start gap-2 h-7 px-2 rounded-md cursor-pointer bg-zinc-950 border border-zinc-800 hover:border-zinc-600" onClick={() => p.src.open(`${p.path}[${at}]`)}>
+        // a line that is a sentence (a rule) is shown whole, on as many lines as it takes
+        return <button class="flex-row items-center justify-start gap-2 px-2 py-[6] rounded-md cursor-pointer bg-zinc-950 border border-zinc-800 hover:border-zinc-600" onClick={() => p.src.open(`${p.path}[${at}]`)}>
           <text class="w-[18] shrink-0 text-right text-[11px] text-zinc-600">{`${parseInt(at, 10) + 1}`}</text>
-          <text class="grow truncate text-xs text-zinc-200" style={{ maxWidth: 236 }}>{row.slice(cut + 1)}</text>
+          <text class="grow basis-0 text-left text-xs text-zinc-200" style={{ width: 236 }}>{row.slice(cut + 1)}</text>
           <Ico name="chevron-right" size={12} color={MUTED} />
         </button>;
       }}</For>
@@ -375,6 +516,8 @@ function Entry(p: { src: Source; field: Field; path: string }): i32 {
     <Row src={p.src} field={fd} path={p.path}><Control src={p.src} field={fd} path={p.path} /></Row>
     <text class="px-4 pb-2 text-[11px] text-zinc-500" style={{ width: 340 }}>{t(L.PATH_HINT)}</text>
   </view>;
+  // a list of objects that are of a kind is its sentences (the advanced mode keeps the lines that open each object's fields)
+  if (fd.kind === Kind.List && !advanced() && fd.of !== null && (fd.of as Schema).variants !== null) return <Guided src={p.src} field={fd} path={p.path} />;
   if (fd.kind === Kind.List) return <Items src={p.src} field={fd} path={p.path} />;
   if (fd.kind !== Kind.Obj) return <Row src={p.src} field={fd} path={p.path}><Control src={p.src} field={fd} path={p.path} /></Row>;
   return <view class="flex-col mt-2">
@@ -473,7 +616,15 @@ function Panel(p: { path: string }): i32 {
     if (v !== undefined && v !== null && typeof v === 'object' && !Array.isArray(v)) above.push(up);
   }
   const sound = (): string => { const id = schemaAt(path).field('id'); return id !== null && id.to === 'sounds' ? `${doc().get(`${path}.id`)}` : ''; };
-  const hits = (): string[] => wanted().trim() === '' ? [] : found(schemaAt(path), path, wanted(), fieldName, (fd: Field, at: string): boolean => !offered(fd, at));
+  const hits = (): string[] => wanted().trim() === '' ? [] : found(schemaAt(path), path, wanted(), fieldName, (fd: Field, at: string): boolean => !offered(fd, at), doc().data);
+  // an object that is of a kind (an action reached by itself) is its sentence; a rule is titled by what happens and where
+  const sentence = !advanced() && path !== '' && schemaAt(path).variants !== null;
+  const title = (): string => {
+    if (path === '') return `${doc().get('name')}`;
+    const s = sentenceAt(path), v: any = doc().get(path);
+    if (s !== '' && v !== undefined && !sentence) return whenSaid(`${v.on}`, `${v.event}`);
+    return s !== '' ? s : parts.length > 2 ? doc().summaryOf(path) : doc().nameOf(path);
+  };
   return <view class="flex-col pb-4">
     <Show when={wanted().trim() === ''}>
       <view class="flex-col">
@@ -487,7 +638,8 @@ function Panel(p: { path: string }): i32 {
         </Show>
         <view class="flex-col gap-1 px-4 pt-4 pb-3">
           <Heading label={kind} />
-          <text class="text-lg font-bold text-zinc-100 truncate" style={{ maxWidth: 308 }}>{path === '' ? `${doc().get('name')}` : parts.length > 2 ? doc().summaryOf(path) : doc().nameOf(path)}</text>
+          {sentenceAt(path) === '' ? <text class="text-lg font-bold text-zinc-100 truncate" style={{ maxWidth: 308 }}>{title()}</text>
+            : <text class="text-sm font-bold text-zinc-100" style={{ width: 308 }}>{title()}</text>}
           <text class="text-[11px] text-zinc-500" style={{ width: 308 }}>{schemaAt(path).doc}</text>
         </view>
         <Show when={path === ''}><text class="px-4 pb-3 text-xs text-zinc-400" style={{ width: 340 }}>{t(L.NOTHING_SELECTED)}</text></Show>
@@ -511,7 +663,8 @@ function Panel(p: { path: string }): i32 {
             </Show>
           </view>
         </Show>
-        <Fields src={TABLE} schema={schemaAt(path)} path={path} whole={path !== ''} />
+        {sentence ? <view class="px-4"><view class="flex-row pl-2 pr-1 py-1 rounded-md bg-zinc-950 border border-zinc-800"><Sentence src={TABLE} schema={schemaAt(path)} item={path} width={290} /></view></view>
+          : <Fields src={TABLE} schema={schemaAt(path)} path={path} whole={path !== ''} />}
         <Show when={advanced() && path !== ''}><Written /></Show>
       </view>
     </Show>

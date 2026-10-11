@@ -14,6 +14,9 @@ ZOOM, LEFT, TOP = 6.6, 501.4, 122.6
 FIELD_X, FIELD_Y, LINE = 1300, 112, 24
 FIRST_LINE, FIRST_AFTER_BOX = 144, 176
 SWATCH_X = 1248
+# the button "Add" of a list of sentences (the conditions, the actions of a rule) that "Find a field" left alone at the top of the
+# form, and the first line of the list of kinds it opens
+ADD_X, ADD_Y, ADD_FIRST_LINE = 1394, 118, 150
 
 
 def number(v):
@@ -126,6 +129,13 @@ class Session:
             self.text(typed)
             self.rest()
         self.click(FIELD_X, (FIRST_LINE if typed is None else FIRST_AFTER_BOX) + LINE * line)
+
+    def add_kind(self, field, line):
+        """In a list whose items are sentences (the conditions and the actions of a rule): its button Add, then one line
+        of the list of kinds it opens, counted from 0. The new item is whole at once: its parts are then choices."""
+        self.find(field)
+        self.click(ADD_X, ADD_Y)
+        self.click(FIELD_X, ADD_FIRST_LINE + LINE * line)
 
     def segment(self, field, index, count):
         """One of the two or three words shown side by side for a field."""

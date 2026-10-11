@@ -32,9 +32,11 @@
 #                    held to the same picture roughly (SSIM 0.5) and to showing the game (a ball in play is not the table at rest)
 #   flip.input       the game's flipper button pressed while a ball is played in the editor: the game logs the flip
 #   rules.input      a sound added, named on a bumper's hit and heard (the preview is logged), the music of a ball in play, a rule
-#                    added and written as the file has it, its action changed in its form, a mission with its step (what it
-#                    listens to chosen in the long list by typing), the ball save, the tilt, multiball, Save: rules.json, two
-#                    frames; the game's probe on that file gives the bumper the points of the new rule
+#                    made in its form (where the event comes from and the event chosen in their lists, its points typed), a
+#                    mission with its step, the ball save, the tilt, multiball, Save: rules.json, two frames; the game's probe on
+#                    that file gives the bumper the points of the new rule. Nothing is written as the file has it and no path
+#                    is typed (ZN-649.14: the session is written by tests/golden/pinball3d-editor/guided.py; the guided rules
+#                    themselves are in pinball3d_editor_rules.sh)
 #   levels.input     an upper playfield drawn, its level chosen, a bumper placed on it: levels.json (the bumper stands at the
 #                    level's height), one frame
 #   (a whole table made from nothing, played by the game and exported as a package: pinball3d_editor_table.sh)
@@ -154,10 +156,10 @@ PINBALL_EDITOR_LANG=en ZINC_INPUT="$g/flip.input" ZINC_HEADLESS=1 ZINC_DETERMINI
 
 # sounds and rules: the file, the preview that was asked for, and what the game makes of the new rule
 fresh rules
-PINBALL_EDITOR_LANG=en ZINC_INPUT="$g/rules.input" ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_SIZE=1440x900 ZINC_FRAMES=140 ZINC_SHOT="$tmp/shot.png" ZINC_SHOT_FRAMES=33,138 \
+PINBALL_EDITOR_LANG=en ZINC_INPUT="$g/rules.input" ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_SIZE=1440x900 ZINC_FRAMES=158 ZINC_SHOT="$tmp/shot.png" ZINC_SHOT_FRAMES=34,152 \
   "$ZINC" run "$ex" -- "$tmp/rules" --log >"$tmp/rules.log" 2>"$tmp/rules.err" || { echo "the editor failed on rules.input: $(head -c 300 "$tmp/rules.err")"; fail=1; }
 same "the sounds and rules session" "$tmp/rules/table.json" "$g/rules.json"
-frames "the sounds and rules session" rules $CROP 33 138
+frames "the sounds and rules session" rules $CROP 34 152
 accepted "the sounds and rules session" "$tmp/rules"
 grep -q 'preview: sound1 vol 1.00 rate 1.00' "$tmp/rules.log" || { echo "the button beside a sound's name did not ask for the sound: $(head -c 200 "$tmp/rules.log")"; fail=1; }
 "$ZINC" run "$game/tools/probe.ts" -- "$tmp/rules" 17.5 20 1.37 0 0 0 1 2>/dev/null | grep -q 'pop1 hit +800 = 800' || { echo "the rule made in the editor does not score in the game (500 + 300 for a hit of pop1)"; fail=1; }

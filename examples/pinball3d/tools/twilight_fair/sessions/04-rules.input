@@ -1,5 +1,5 @@
-# Twilight Fair, 4: how it is played. The rules, each made in its form (what happens, where, and what it does);
-# the missions and the ranks; the light of the ball save.
+# Twilight Fair, 4: how it is played. The rules, each made in its form by choices (what happens, where, what must
+# hold and what it does); the missions and the ranks; the light of the ball save.
 4 key g meta
 5 text +rule
 6 key Enter
@@ -17,1242 +17,1194 @@
 23 up
 25 text hit
 26 key Enter
-28 key g meta
-29 text rules.when[2].do[0]
-30 key Enter
-32 key f meta
-33 text value
-35 key Tab
-36 text 110
+28 key f meta
+29 text do[0].value
+31 key Tab
+32 text 110
+33 key Enter
+35 key g meta
+36 text +rule
 37 key Enter
-39 key g meta
-40 text +rule
-41 key Enter
-43 key f meta
-44 text on
-46 move 1300 112
-47 down
-48 up
-50 text bumpers
-51 key Enter
-53 key f meta
-54 text event
-56 move 1300 112
-57 down
-58 up
-60 text hit
-61 key Enter
-63 key g meta
-64 text rules.when[3].do[0]
-65 key Enter
-67 key f meta
-68 text target
-70 key Tab
-71 text bulbs
-72 key Enter
-74 key f meta
-75 text mode
-77 move 1300 112
-78 down
-79 up
-81 text flash
-83 move 1300 176
+39 key f meta
+40 text on
+42 move 1300 112
+43 down
+44 up
+46 text bumpers
+47 key Enter
+49 key f meta
+50 text event
+52 move 1300 112
+53 down
+54 up
+56 text hit
+57 key Enter
+59 key f meta
+60 text do[0].do
+62 move 1300 112
+63 down
+64 up
+66 move 1300 216
+67 down
+68 up
+70 key f meta
+71 text do[0].target
+73 move 1300 112
+74 down
+75 up
+77 text bulbs
+78 key Enter
+80 key f meta
+81 text do[0].mode
+83 move 1300 112
 84 down
 85 up
-87 key f meta
-88 text seconds
-90 key Tab
-91 text 0.25
-92 key Enter
-94 key f meta
-95 text do
-97 move 1300 112
-98 down
-99 up
-101 move 1300 216
-102 down
-103 up
-105 key f meta
-106 text value
-108 key Tab
-109 text 0
+87 move 1300 216
+88 down
+89 up
+91 key f meta
+92 text do[0].seconds
+94 key Tab
+95 text 0.25
+96 key Enter
+98 key g meta
+99 text +rule
+100 key Enter
+102 key f meta
+103 text on
+105 move 1300 112
+106 down
+107 up
+109 text lanes
 110 key Enter
-112 key g meta
-113 text +rule
-114 key Enter
-116 key f meta
-117 text on
-119 move 1300 112
-120 down
-121 up
-123 text lanes
-124 key Enter
-126 key f meta
-127 text event
-129 move 1300 112
-130 down
-131 up
-133 text roll
-134 key Enter
-136 key g meta
-137 text rules.when[4].do[0]
-138 key Enter
+112 key f meta
+113 text event
+115 move 1300 112
+116 down
+117 up
+119 text roll
+120 key Enter
+122 key f meta
+123 text do[0].value
+125 key Tab
+126 text 300
+127 key Enter
+129 key f meta
+130 text do
+132 move 1394 118
+133 down
+134 up
+136 move 1300 222
+137 down
+138 up
 140 key f meta
-141 text value
-143 key Tab
-144 text 300
-145 key Enter
-147 key g meta
-148 text +action
-149 key Enter
-151 key g meta
-152 text rules.when[4].do[1]
-153 key Enter
-155 key f meta
-156 text target
-158 key Tab
-159 text self
-160 key Enter
-162 key f meta
-163 text mode
-165 move 1300 112
-166 down
-167 up
-169 text on
-171 move 1300 200
-172 down
-173 up
+141 text do[1].target
+143 move 1300 112
+144 down
+145 up
+147 text self
+148 key Enter
+150 key f meta
+151 text do[1].mode
+153 move 1300 112
+154 down
+155 up
+157 move 1300 144
+158 down
+159 up
+161 key g meta
+162 text +rule
+163 key Enter
+165 key f meta
+166 text on
+168 move 1300 112
+169 down
+170 up
+172 text flippers
+173 key Enter
 175 key f meta
-176 text do
+176 text event
 178 move 1300 112
 179 down
 180 up
-182 move 1300 216
-183 down
-184 up
-186 key f meta
-187 text value
-189 key Tab
-190 text 0
-191 key Enter
-193 key g meta
-194 text +rule
-195 key Enter
-197 key f meta
-198 text on
-200 move 1300 112
-201 down
-202 up
-204 text flippers
-205 key Enter
+182 text flip
+183 key Enter
+185 key f meta
+186 text do[0].do
+188 move 1300 112
+189 down
+190 up
+192 move 1300 360
+193 down
+194 up
+196 key f meta
+197 text do[0].target
+199 move 1300 112
+200 down
+201 up
+203 move 1300 168
+204 down
+205 up
 207 key f meta
-208 text event
-210 move 1300 112
-211 down
-212 up
-214 text flip
-215 key Enter
-217 key g meta
-218 text rules.when[5].do[0]
-219 key Enter
-221 key f meta
-222 text target
-224 key Tab
-225 text lanes
+208 text do[0].value
+210 key Tab
+211 text 1
+212 key Enter
+214 key g meta
+215 text +rule
+216 key Enter
+218 key f meta
+219 text on
+221 move 1300 112
+222 down
+223 up
+225 text coconuts
 226 key Enter
 228 key f meta
-229 text seconds
-231 key Tab
-232 text 0
-233 key Enter
-235 key f meta
-236 text do
-238 move 1300 112
-239 down
-240 up
-242 move 1300 360
-243 down
-244 up
-246 key f meta
-247 text value
-249 key Tab
-250 text 1
-251 key Enter
-253 key g meta
-254 text +rule
-255 key Enter
-257 key f meta
-258 text on
-260 move 1300 112
-261 down
-262 up
-264 text coconuts
-265 key Enter
-267 key f meta
-268 text event
-270 move 1300 112
-271 down
-272 up
-274 text down
-275 key Enter
-277 key g meta
-278 text rules.when[6].do[0]
-279 key Enter
-281 key f meta
-282 text value
-284 key Tab
-285 text 2000
-286 key Enter
-288 key g meta
-289 text +rule
-290 key Enter
-292 key f meta
-293 text on
-295 move 1300 112
-296 down
-297 up
-299 text striker
-300 key Enter
-302 key f meta
-303 text event
-305 move 1300 112
-306 down
-307 up
-309 text capture
-310 key Enter
-312 key g meta
-313 text rules.when[7].do[0]
-314 key Enter
-316 key f meta
-317 text value
-319 key Tab
-320 text 5000
-321 key Enter
-323 key g meta
-324 text +action
-325 key Enter
-327 key g meta
-328 text rules.when[7].do[1]
-329 key Enter
-331 key f meta
-332 text do
-334 move 1300 112
-335 down
-336 up
-338 move 1300 168
-339 down
-340 up
-342 key f meta
-343 text value
-345 key Tab
-346 text 500
-347 key Enter
-349 key g meta
-350 text +action
-351 key Enter
-353 key g meta
-354 text rules.when[7].do[2]
+229 text event
+231 move 1300 112
+232 down
+233 up
+235 text down
+236 key Enter
+238 key f meta
+239 text do[0].value
+241 key Tab
+242 text 2000
+243 key Enter
+245 key g meta
+246 text +rule
+247 key Enter
+249 key f meta
+250 text on
+252 move 1300 112
+253 down
+254 up
+256 text striker
+257 key Enter
+259 key f meta
+260 text event
+262 move 1300 112
+263 down
+264 up
+266 text capture
+267 key Enter
+269 key f meta
+270 text do[0].value
+272 key Tab
+273 text 5000
+274 key Enter
+276 key f meta
+277 text do
+279 move 1394 118
+280 down
+281 up
+283 move 1300 174
+284 down
+285 up
+287 key f meta
+288 text do[1].value
+290 key Tab
+291 text 500
+292 key Enter
+294 key f meta
+295 text do
+297 move 1394 118
+298 down
+299 up
+301 move 1300 222
+302 down
+303 up
+305 key f meta
+306 text do[2].target
+308 move 1300 112
+309 down
+310 up
+312 text bulbs
+313 key Enter
+315 key f meta
+316 text do[2].mode
+318 move 1300 112
+319 down
+320 up
+322 move 1300 216
+323 down
+324 up
+326 key f meta
+327 text do[2].seconds
+329 key Tab
+330 text 0.8
+331 key Enter
+333 key g meta
+334 text +rule
+335 key Enter
+337 key f meta
+338 text on
+340 move 1300 112
+341 down
+342 up
+344 text bells
+345 key Enter
+347 key f meta
+348 text event
+350 move 1300 112
+351 down
+352 up
+354 text hit
 355 key Enter
 357 key f meta
-358 text target
+358 text do[0].value
 360 key Tab
-361 text bulbs
+361 text 2500
 362 key Enter
 364 key f meta
-365 text mode
-367 move 1300 112
+365 text do
+367 move 1394 118
 368 down
 369 up
-371 text flash
-373 move 1300 176
-374 down
-375 up
-377 key f meta
-378 text seconds
-380 key Tab
-381 text 0.8
-382 key Enter
-384 key f meta
-385 text do
-387 move 1300 112
-388 down
-389 up
-391 move 1300 216
-392 down
-393 up
-395 key f meta
-396 text value
-398 key Tab
-399 text 0
-400 key Enter
-402 key g meta
-403 text +rule
+371 move 1300 294
+372 down
+373 up
+375 key f meta
+376 text do[1].target
+378 key Tab
+379 text DING!
+380 key Enter
+382 key g meta
+383 text +rule
+384 key Enter
+386 key f meta
+387 text on
+389 move 1300 112
+390 down
+391 up
+393 text spinner
+394 key Enter
+396 key f meta
+397 text event
+399 move 1300 112
+400 down
+401 up
+403 text spin
 404 key Enter
 406 key f meta
-407 text on
-409 move 1300 112
-410 down
-411 up
-413 text bells
-414 key Enter
-416 key f meta
-417 text event
-419 move 1300 112
-420 down
-421 up
-423 text hit
-424 key Enter
-426 key g meta
-427 text rules.when[8].do[0]
-428 key Enter
-430 key f meta
-431 text value
-433 key Tab
-434 text 2500
+407 text do[0].value
+409 key Tab
+410 text 100
+411 key Enter
+413 key g meta
+414 text +rule
+415 key Enter
+417 key f meta
+418 text on
+420 move 1300 112
+421 down
+422 up
+424 text game
+425 key Enter
+427 key f meta
+428 text event
+430 move 1300 112
+431 down
+432 up
+434 text start
 435 key Enter
-437 key g meta
-438 text +action
-439 key Enter
-441 key g meta
-442 text rules.when[8].do[1]
-443 key Enter
-445 key f meta
-446 text target
-448 key Tab
-449 text DING!
-450 key Enter
-452 key f meta
-453 text do
-455 move 1300 112
-456 down
-457 up
-459 move 1300 288
-460 down
-461 up
-463 key f meta
-464 text value
-466 key Tab
-467 text 0
-468 key Enter
-470 key g meta
-471 text +rule
-472 key Enter
-474 key f meta
-475 text on
-477 move 1300 112
-478 down
-479 up
-481 text spinner
-482 key Enter
-484 key f meta
-485 text event
-487 move 1300 112
-488 down
-489 up
-491 text spin
-492 key Enter
-494 key g meta
-495 text rules.when[9].do[0]
-496 key Enter
-498 key f meta
-499 text value
-501 key Tab
-502 text 100
-503 key Enter
-505 key g meta
-506 text +rule
-507 key Enter
-509 key f meta
-510 text on
-512 move 1300 112
-513 down
-514 up
-516 text game
-517 key Enter
-519 key f meta
-520 text event
-522 move 1300 112
-523 down
-524 up
-526 text start
-527 key Enter
-529 key g meta
-530 text rules.when[10].do[0]
-531 key Enter
-533 key f meta
-534 text target
-536 key Tab
-537 text jingleStart
-538 key Enter
-540 key f meta
-541 text do
-543 move 1300 112
-544 down
-545 up
-547 move 1300 312
-548 down
-549 up
-551 key f meta
-552 text value
-554 key Tab
-555 text 0
-556 key Enter
-558 key g meta
-559 text +action
-560 key Enter
-562 key g meta
-563 text rules.when[10].do[1]
-564 key Enter
-566 key f meta
-567 text target
-569 key Tab
-570 text general
-571 key Enter
-573 key f meta
-574 text mode
-576 move 1300 112
-577 down
-578 up
-580 text on
-582 move 1300 200
-583 down
-584 up
-586 key f meta
-587 text do
-589 move 1300 112
-590 down
-591 up
-593 move 1300 216
-594 down
-595 up
-597 key f meta
-598 text value
-600 key Tab
-601 text 0
-602 key Enter
-604 key g meta
-605 text +action
-606 key Enter
-608 key g meta
-609 text rules.when[10].do[2]
-610 key Enter
-612 key f meta
-613 text target
-615 key Tab
-616 text "ROLL UP, ROLL UP"
-617 key Enter
-619 key f meta
-620 text do
-622 move 1300 112
-623 down
-624 up
-626 move 1300 288
+437 key f meta
+438 text do[0].do
+440 move 1300 112
+441 down
+442 up
+444 move 1300 312
+445 down
+446 up
+448 key f meta
+449 text do[0].target
+451 move 1300 112
+452 down
+453 up
+455 text jingleStart
+456 key Enter
+458 key f meta
+459 text do
+461 move 1394 118
+462 down
+463 up
+465 move 1300 222
+466 down
+467 up
+469 key f meta
+470 text do[1].target
+472 move 1300 112
+473 down
+474 up
+476 text general
+477 key Enter
+479 key f meta
+480 text do[1].mode
+482 move 1300 112
+483 down
+484 up
+486 move 1300 144
+487 down
+488 up
+490 key f meta
+491 text do
+493 move 1394 118
+494 down
+495 up
+497 move 1300 294
+498 down
+499 up
+501 key f meta
+502 text do[2].target
+504 key Tab
+505 text "ROLL UP, ROLL UP"
+506 key Enter
+508 key g meta
+509 text +rule
+510 key Enter
+512 key f meta
+513 text on
+515 move 1300 112
+516 down
+517 up
+519 text game
+520 key Enter
+522 key f meta
+523 text event
+525 move 1300 112
+526 down
+527 up
+529 text ballStart
+530 key Enter
+532 key f meta
+533 text do[0].do
+535 move 1300 112
+536 down
+537 up
+539 move 1300 216
+540 down
+541 up
+543 key f meta
+544 text do[0].target
+546 move 1300 112
+547 down
+548 up
+550 text general
+551 key Enter
+553 key f meta
+554 text do[0].mode
+556 move 1300 112
+557 down
+558 up
+560 move 1300 144
+561 down
+562 up
+564 key g meta
+565 text +rule
+566 key Enter
+568 key f meta
+569 text on
+571 move 1300 112
+572 down
+573 up
+575 text game
+576 key Enter
+578 key f meta
+579 text event
+581 move 1300 112
+582 down
+583 up
+585 text drain
+586 key Enter
+588 key f meta
+589 text do[0].do
+591 move 1300 112
+592 down
+593 up
+595 move 1300 312
+596 down
+597 up
+599 key f meta
+600 text do[0].target
+602 move 1300 112
+603 down
+604 up
+606 text drainWhistle
+607 key Enter
+609 key g meta
+610 text +rule
+611 key Enter
+613 key f meta
+614 text on
+616 move 1300 112
+617 down
+618 up
+620 text game
+621 key Enter
+623 key f meta
+624 text event
+626 move 1300 112
 627 down
 628 up
-630 key f meta
-631 text value
-633 key Tab
-634 text 0
-635 key Enter
-637 key g meta
-638 text +rule
-639 key Enter
-641 key f meta
-642 text on
-644 move 1300 112
-645 down
-646 up
-648 text game
-649 key Enter
-651 key f meta
-652 text event
-654 move 1300 112
-655 down
-656 up
-658 text ballStart
-659 key Enter
-661 key g meta
-662 text rules.when[11].do[0]
-663 key Enter
-665 key f meta
-666 text target
-668 key Tab
-669 text general
-670 key Enter
-672 key f meta
-673 text mode
-675 move 1300 112
-676 down
-677 up
-679 text on
-681 move 1300 200
+630 text ballSaved
+631 key Enter
+633 key f meta
+634 text do[0].do
+636 move 1300 112
+637 down
+638 up
+640 move 1300 312
+641 down
+642 up
+644 key f meta
+645 text do[0].target
+647 move 1300 112
+648 down
+649 up
+651 text jingleSaved
+652 key Enter
+654 key g meta
+655 text +rule
+656 key Enter
+658 key f meta
+659 text on
+661 move 1300 112
+662 down
+663 up
+665 text game
+666 key Enter
+668 key f meta
+669 text event
+671 move 1300 112
+672 down
+673 up
+675 text bump
+676 key Enter
+678 key f meta
+679 text do[0].do
+681 move 1300 112
 682 down
 683 up
-685 key f meta
-686 text do
-688 move 1300 112
-689 down
-690 up
-692 move 1300 216
+685 move 1300 312
+686 down
+687 up
+689 key f meta
+690 text do[0].target
+692 move 1300 112
 693 down
 694 up
-696 key f meta
-697 text value
-699 key Tab
-700 text 0
+696 text cabinetKnock
+697 key Enter
+699 key g meta
+700 text +rule
 701 key Enter
-703 key g meta
-704 text +rule
-705 key Enter
-707 key f meta
-708 text on
-710 move 1300 112
-711 down
-712 up
-714 text game
-715 key Enter
-717 key f meta
-718 text event
-720 move 1300 112
-721 down
-722 up
-724 text drain
-725 key Enter
-727 key g meta
-728 text rules.when[12].do[0]
-729 key Enter
-731 key f meta
-732 text target
-734 key Tab
-735 text drainWhistle
-736 key Enter
-738 key f meta
-739 text do
-741 move 1300 112
-742 down
-743 up
-745 move 1300 312
-746 down
-747 up
-749 key f meta
-750 text value
-752 key Tab
-753 text 0
-754 key Enter
-756 key g meta
-757 text +rule
-758 key Enter
-760 key f meta
-761 text on
-763 move 1300 112
-764 down
-765 up
-767 text game
-768 key Enter
-770 key f meta
-771 text event
-773 move 1300 112
-774 down
-775 up
-777 text ballSaved
-778 key Enter
-780 key g meta
-781 text rules.when[13].do[0]
-782 key Enter
-784 key f meta
-785 text target
-787 key Tab
-788 text jingleSaved
-789 key Enter
-791 key f meta
-792 text do
-794 move 1300 112
-795 down
-796 up
-798 move 1300 312
-799 down
-800 up
-802 key f meta
-803 text value
-805 key Tab
-806 text 0
-807 key Enter
-809 key g meta
-810 text +rule
-811 key Enter
-813 key f meta
-814 text on
-816 move 1300 112
-817 down
-818 up
-820 text game
-821 key Enter
-823 key f meta
-824 text event
-826 move 1300 112
-827 down
-828 up
-830 text bump
-831 key Enter
-833 key g meta
-834 text rules.when[14].do[0]
-835 key Enter
-837 key f meta
-838 text target
-840 key Tab
-841 text cabinetKnock
-842 key Enter
-844 key f meta
-845 text do
-847 move 1300 112
-848 down
-849 up
-851 move 1300 312
-852 down
-853 up
-855 key f meta
-856 text value
-858 key Tab
-859 text 0
-860 key Enter
-862 key g meta
-863 text +rule
-864 key Enter
-866 key f meta
-867 text on
-869 move 1300 112
-870 down
-871 up
-873 text game
-874 key Enter
-876 key f meta
-877 text event
-879 move 1300 112
-880 down
-881 up
-883 text tilt
-884 key Enter
-886 key g meta
-887 text rules.when[15].do[0]
-888 key Enter
-890 key f meta
-891 text target
-893 key Tab
-894 text jingleTilt
-895 key Enter
-897 key f meta
-898 text do
-900 move 1300 112
-901 down
-902 up
-904 move 1300 312
-905 down
-906 up
-908 key f meta
-909 text value
-911 key Tab
-912 text 0
-913 key Enter
-915 key g meta
-916 text +action
-917 key Enter
-919 key g meta
-920 text rules.when[15].do[1]
+703 key f meta
+704 text on
+706 move 1300 112
+707 down
+708 up
+710 text game
+711 key Enter
+713 key f meta
+714 text event
+716 move 1300 112
+717 down
+718 up
+720 text tilt
+721 key Enter
+723 key f meta
+724 text do[0].do
+726 move 1300 112
+727 down
+728 up
+730 move 1300 312
+731 down
+732 up
+734 key f meta
+735 text do[0].target
+737 move 1300 112
+738 down
+739 up
+741 text jingleTilt
+742 key Enter
+744 key f meta
+745 text do
+747 move 1394 118
+748 down
+749 up
+751 move 1300 222
+752 down
+753 up
+755 key f meta
+756 text do[1].target
+758 move 1300 112
+759 down
+760 up
+762 text general
+763 key Enter
+765 key f meta
+766 text do[1].mode
+768 move 1300 112
+769 down
+770 up
+772 move 1300 168
+773 down
+774 up
+776 key f meta
+777 text do
+779 move 1394 118
+780 down
+781 up
+783 move 1300 294
+784 down
+785 up
+787 key f meta
+788 text do[2].target
+790 key Tab
+791 text TILT
+792 key Enter
+794 key g meta
+795 text +rule
+796 key Enter
+798 key f meta
+799 text on
+801 move 1300 112
+802 down
+803 up
+805 text game
+806 key Enter
+808 key f meta
+809 text event
+811 move 1300 112
+812 down
+813 up
+815 text missionDone
+816 key Enter
+818 key f meta
+819 text do[0].do
+821 move 1300 112
+822 down
+823 up
+825 move 1300 312
+826 down
+827 up
+829 key f meta
+830 text do[0].target
+832 move 1300 112
+833 down
+834 up
+836 text jingleMission
+837 key Enter
+839 key f meta
+840 text do
+842 move 1394 118
+843 down
+844 up
+846 move 1300 222
+847 down
+848 up
+850 key f meta
+851 text do[1].target
+853 move 1300 112
+854 down
+855 up
+857 text bulbs
+858 key Enter
+860 key f meta
+861 text do[1].mode
+863 move 1300 112
+864 down
+865 up
+867 move 1300 216
+868 down
+869 up
+871 key f meta
+872 text do[1].seconds
+874 key Tab
+875 text 1.5
+876 key Enter
+878 key g meta
+879 text +rule
+880 key Enter
+882 key f meta
+883 text on
+885 move 1300 112
+886 down
+887 up
+889 text game
+890 key Enter
+892 key f meta
+893 text event
+895 move 1300 112
+896 down
+897 up
+899 text rankUp
+900 key Enter
+902 key f meta
+903 text do[0].do
+905 move 1300 112
+906 down
+907 up
+909 move 1300 312
+910 down
+911 up
+913 key f meta
+914 text do[0].target
+916 move 1300 112
+917 down
+918 up
+920 text jingleRank
 921 key Enter
-923 key f meta
-924 text target
-926 key Tab
-927 text general
-928 key Enter
-930 key f meta
-931 text mode
-933 move 1300 112
-934 down
-935 up
-937 text off
-939 move 1300 176
-940 down
-941 up
-943 key f meta
-944 text do
-946 move 1300 112
-947 down
-948 up
-950 move 1300 216
+923 key g meta
+924 text +rule
+925 key Enter
+927 key f meta
+928 text on
+930 move 1300 112
+931 down
+932 up
+934 text game
+935 key Enter
+937 key f meta
+938 text event
+940 move 1300 112
+941 down
+942 up
+944 text extraBall
+945 key Enter
+947 key f meta
+948 text do[0].do
+950 move 1300 112
 951 down
 952 up
-954 key f meta
-955 text value
-957 key Tab
-958 text 0
-959 key Enter
-961 key g meta
-962 text +action
-963 key Enter
-965 key g meta
-966 text rules.when[15].do[2]
-967 key Enter
-969 key f meta
-970 text target
-972 key Tab
-973 text TILT
-974 key Enter
-976 key f meta
-977 text do
-979 move 1300 112
-980 down
-981 up
-983 move 1300 288
-984 down
-985 up
-987 key f meta
-988 text value
-990 key Tab
-991 text 0
-992 key Enter
-994 key g meta
-995 text +rule
-996 key Enter
-998 key f meta
-999 text on
-1001 move 1300 112
-1002 down
-1003 up
-1005 text game
-1006 key Enter
-1008 key f meta
-1009 text event
-1011 move 1300 112
-1012 down
-1013 up
-1015 text missionDone
-1016 key Enter
-1018 key g meta
-1019 text rules.when[16].do[0]
-1020 key Enter
-1022 key f meta
-1023 text target
-1025 key Tab
-1026 text jingleMission
-1027 key Enter
-1029 key f meta
-1030 text do
-1032 move 1300 112
-1033 down
-1034 up
-1036 move 1300 312
-1037 down
-1038 up
-1040 key f meta
-1041 text value
-1043 key Tab
-1044 text 0
-1045 key Enter
-1047 key g meta
-1048 text +action
-1049 key Enter
-1051 key g meta
-1052 text rules.when[16].do[1]
-1053 key Enter
-1055 key f meta
-1056 text target
-1058 key Tab
-1059 text bulbs
-1060 key Enter
-1062 key f meta
-1063 text mode
-1065 move 1300 112
+954 move 1300 312
+955 down
+956 up
+958 key f meta
+959 text do[0].target
+961 move 1300 112
+962 down
+963 up
+965 text jingleExtra
+966 key Enter
+968 key g meta
+969 text +rule
+970 key Enter
+972 key f meta
+973 text on
+975 move 1300 112
+976 down
+977 up
+979 text game
+980 key Enter
+982 key f meta
+983 text event
+985 move 1300 112
+986 down
+987 up
+989 text jackpot
+990 key Enter
+992 key f meta
+993 text do[0].do
+995 move 1300 112
+996 down
+997 up
+999 move 1300 312
+1000 down
+1001 up
+1003 key f meta
+1004 text do[0].target
+1006 move 1300 112
+1007 down
+1008 up
+1010 text jingleJackpot
+1011 key Enter
+1013 key g meta
+1014 text +rule
+1015 key Enter
+1017 key f meta
+1018 text on
+1020 move 1300 112
+1021 down
+1022 up
+1024 text game
+1025 key Enter
+1027 key f meta
+1028 text event
+1030 move 1300 112
+1031 down
+1032 up
+1034 text gameOver
+1035 key Enter
+1037 key f meta
+1038 text do[0].do
+1040 move 1300 112
+1041 down
+1042 up
+1044 move 1300 312
+1045 down
+1046 up
+1048 key f meta
+1049 text do[0].target
+1051 move 1300 112
+1052 down
+1053 up
+1055 text jingleOver
+1056 key Enter
+1058 key f meta
+1059 text do
+1061 move 1394 118
+1062 down
+1063 up
+1065 move 1300 222
 1066 down
 1067 up
-1069 text flash
-1071 move 1300 176
-1072 down
-1073 up
-1075 key f meta
-1076 text seconds
-1078 key Tab
-1079 text 1.5
-1080 key Enter
-1082 key f meta
-1083 text do
-1085 move 1300 112
-1086 down
-1087 up
-1089 move 1300 216
-1090 down
-1091 up
-1093 key f meta
-1094 text value
-1096 key Tab
-1097 text 0
-1098 key Enter
-1100 key g meta
-1101 text +rule
+1069 key f meta
+1070 text do[1].target
+1072 move 1300 112
+1073 down
+1074 up
+1076 text general
+1077 key Enter
+1079 key f meta
+1080 text do[1].mode
+1082 move 1300 112
+1083 down
+1084 up
+1086 move 1300 168
+1087 down
+1088 up
+1090 key g meta
+1091 text +rule
+1092 key Enter
+1094 key f meta
+1095 text on
+1097 move 1300 112
+1098 down
+1099 up
+1101 text game
 1102 key Enter
 1104 key f meta
-1105 text on
+1105 text event
 1107 move 1300 112
 1108 down
 1109 up
-1111 text game
+1111 text letter
 1112 key Enter
 1114 key f meta
-1115 text event
+1115 text do[0].do
 1117 move 1300 112
 1118 down
 1119 up
-1121 text rankUp
-1122 key Enter
-1124 key g meta
-1125 text rules.when[17].do[0]
-1126 key Enter
-1128 key f meta
-1129 text target
-1131 key Tab
-1132 text jingleRank
+1121 move 1300 312
+1122 down
+1123 up
+1125 key f meta
+1126 text do[0].target
+1128 move 1300 112
+1129 down
+1130 up
+1132 text letterKey
 1133 key Enter
-1135 key f meta
-1136 text do
-1138 move 1300 112
-1139 down
-1140 up
-1142 move 1300 312
+# The two rules with a condition: "the lights of lanes are all on", "the targets of coconuts are all down".
+1135 key g meta
+1136 text +rule
+1137 key Enter
+1139 key f meta
+1140 text on
+1142 move 1300 112
 1143 down
 1144 up
-1146 key f meta
-1147 text value
-1149 key Tab
-1150 text 0
-1151 key Enter
-1153 key g meta
-1154 text +rule
-1155 key Enter
-1157 key f meta
-1158 text on
-1160 move 1300 112
-1161 down
-1162 up
-1164 text game
-1165 key Enter
-1167 key f meta
-1168 text event
-1170 move 1300 112
-1171 down
-1172 up
-1174 text extraBall
-1175 key Enter
-1177 key g meta
-1178 text rules.when[18].do[0]
-1179 key Enter
-1181 key f meta
-1182 text target
-1184 key Tab
-1185 text jingleExtra
-1186 key Enter
-1188 key f meta
-1189 text do
-1191 move 1300 112
-1192 down
-1193 up
-1195 move 1300 312
-1196 down
-1197 up
-1199 key f meta
-1200 text value
-1202 key Tab
-1203 text 0
-1204 key Enter
-1206 key g meta
-1207 text +rule
-1208 key Enter
-1210 key f meta
-1211 text on
-1213 move 1300 112
-1214 down
-1215 up
-1217 text game
-1218 key Enter
-1220 key f meta
-1221 text event
-1223 move 1300 112
+1146 text lanes
+1147 key Enter
+1149 key f meta
+1150 text event
+1152 move 1300 112
+1153 down
+1154 up
+1156 text roll
+1157 key Enter
+1159 key f meta
+1160 text if
+1162 move 1394 118
+1163 down
+1164 up
+1166 move 1300 174
+1167 down
+1168 up
+1170 key f meta
+1171 text if[0].target
+1173 move 1300 112
+1174 down
+1175 up
+1177 text lanes
+1178 key Enter
+1180 key f meta
+1181 text do[0].do
+1183 move 1300 112
+1184 down
+1185 up
+1187 move 1300 192
+1188 down
+1189 up
+1191 key f meta
+1192 text do[0].value
+1194 key Tab
+1195 text 1
+1196 key Enter
+1198 key f meta
+1199 text do
+1201 move 1394 118
+1202 down
+1203 up
+1205 move 1300 174
+1206 down
+1207 up
+1209 key f meta
+1210 text do[1].value
+1212 key Tab
+1213 text 1000
+1214 key Enter
+1216 key f meta
+1217 text do
+1219 move 1394 118
+1220 down
+1221 up
+1223 move 1300 222
 1224 down
 1225 up
-1227 text jackpot
-1228 key Enter
-1230 key g meta
-1231 text rules.when[19].do[0]
-1232 key Enter
-1234 key f meta
-1235 text target
-1237 key Tab
-1238 text jingleJackpot
-1239 key Enter
-1241 key f meta
-1242 text do
-1244 move 1300 112
+1227 key f meta
+1228 text do[2].target
+1230 move 1300 112
+1231 down
+1232 up
+1234 text lanes
+1235 key Enter
+1237 key f meta
+1238 text do[2].mode
+1240 move 1300 112
+1241 down
+1242 up
+1244 move 1300 168
 1245 down
 1246 up
-1248 move 1300 312
-1249 down
-1250 up
-1252 key f meta
-1253 text value
-1255 key Tab
-1256 text 0
-1257 key Enter
-1259 key g meta
-1260 text +rule
-1261 key Enter
-1263 key f meta
-1264 text on
-1266 move 1300 112
-1267 down
-1268 up
-1270 text game
-1271 key Enter
-1273 key f meta
-1274 text event
-1276 move 1300 112
-1277 down
-1278 up
-1280 text gameOver
-1281 key Enter
-1283 key g meta
-1284 text rules.when[20].do[0]
-1285 key Enter
-1287 key f meta
-1288 text target
-1290 key Tab
-1291 text jingleOver
-1292 key Enter
-1294 key f meta
-1295 text do
-1297 move 1300 112
+1248 key f meta
+1249 text do
+1251 move 1394 118
+1252 down
+1253 up
+1255 move 1300 294
+1256 down
+1257 up
+1259 key f meta
+1260 text do[3].target
+1262 key Tab
+1263 text "LANES LIT: BONUS X"
+1264 key Enter
+1266 key g meta
+1267 text +rule
+1268 key Enter
+1270 key f meta
+1271 text on
+1273 move 1300 112
+1274 down
+1275 up
+1277 text coconuts
+1278 key Enter
+1280 key f meta
+1281 text event
+1283 move 1300 112
+1284 down
+1285 up
+1287 text down
+1288 key Enter
+1290 key f meta
+1291 text if
+1293 move 1394 118
+1294 down
+1295 up
+1297 move 1300 198
 1298 down
 1299 up
-1301 move 1300 312
-1302 down
-1303 up
-1305 key f meta
-1306 text value
-1308 key Tab
-1309 text 0
-1310 key Enter
-1312 key g meta
-1313 text +action
-1314 key Enter
-1316 key g meta
-1317 text rules.when[20].do[1]
-1318 key Enter
-1320 key f meta
-1321 text target
-1323 key Tab
-1324 text general
-1325 key Enter
-1327 key f meta
-1328 text mode
-1330 move 1300 112
-1331 down
-1332 up
-1334 text off
-1336 move 1300 176
-1337 down
-1338 up
-1340 key f meta
-1341 text do
-1343 move 1300 112
+1301 key f meta
+1302 text if[0].target
+1304 move 1300 112
+1305 down
+1306 up
+1308 text coconuts
+1309 key Enter
+1311 key f meta
+1312 text do[0].value
+1314 key Tab
+1315 text 10000
+1316 key Enter
+1318 key f meta
+1319 text do
+1321 move 1394 118
+1322 down
+1323 up
+1325 move 1300 174
+1326 down
+1327 up
+1329 key f meta
+1330 text do[1].value
+1332 key Tab
+1333 text 2000
+1334 key Enter
+1336 key f meta
+1337 text do
+1339 move 1394 118
+1340 down
+1341 up
+1343 move 1300 270
 1344 down
 1345 up
-1347 move 1300 216
-1348 down
-1349 up
-1351 key f meta
-1352 text value
-1354 key Tab
-1355 text 0
-1356 key Enter
-1358 key g meta
-1359 text +rule
-1360 key Enter
-1362 key f meta
-1363 text on
-1365 move 1300 112
-1366 down
-1367 up
-1369 text game
-1370 key Enter
-1372 key f meta
-1373 text event
-1375 move 1300 112
-1376 down
-1377 up
-1379 text letter
-1380 key Enter
-1382 key g meta
-1383 text rules.when[21].do[0]
+1347 key f meta
+1348 text do[2].target
+1350 move 1300 112
+1351 down
+1352 up
+1354 text coconuts
+1355 key Enter
+1357 key f meta
+1358 text do
+1360 move 1394 118
+1361 down
+1362 up
+1364 move 1300 294
+1365 down
+1366 up
+1368 key f meta
+1369 text do[3].target
+1371 key Tab
+1372 text "COCONUT SHY CLEARED"
+1373 key Enter
+# The missions: the starter table's becomes the first; the others are added, each with its step.
+1375 key g meta
+1376 text rules.missions[0]
+1377 key Enter
+1379 key f meta
+1380 text name
+1382 key Tab
+1383 text "Carousel Ride"
 1384 key Enter
 1386 key f meta
-1387 text target
+1387 text award
 1389 key Tab
-1390 text letterKey
+1390 text 20000
 1391 key Enter
-1393 key f meta
-1394 text do
-1396 move 1300 112
-1397 down
-1398 up
-1400 move 1300 312
-1401 down
-1402 up
+1393 key g meta
+1394 text rules.missions[0].steps[0]
+1395 key Enter
+1397 key f meta
+1398 text text
+1400 key Tab
+1401 text "Ride the carousel: hit the bumpers"
+1402 key Enter
 1404 key f meta
-1405 text value
-1407 key Tab
-1408 text 0
-1409 key Enter
-# The two rules with a condition, written as the file has them (Cmd+J), each then left by a click beside the board.
-1411 key g meta
-1412 text +rule
-1413 key Enter
-1415 key j meta
-1417 key a meta
-1418 text "{\"on\":\"lanes\",\"event\":\"roll\",\"if\":[{\"test\":\"lights\",\"target\":\"lanes\",\"is\":\"on\"}],\"do\":[{\"do\":\"multiplier\",\"value\":1},{\"do\":\"bonus\",\"value\":1000},{\"do\":\"light\",\"target\":\"lanes\",\"mode\":\"off\"},{\"do\":\"say\",\"target\":\"LANES LIT: BONUS X\"}]}"
-1419 move 420 500
-1420 down
-1421 up
-1423 key g meta
-1424 text +rule
-1425 key Enter
-1427 key j meta
-1429 key a meta
-1430 text "{\"on\":\"coconuts\",\"event\":\"down\",\"if\":[{\"test\":\"targets\",\"target\":\"coconuts\",\"is\":\"down\"}],\"do\":[{\"do\":\"score\",\"value\":10000},{\"do\":\"bonus\",\"value\":2000},{\"do\":\"reset\",\"target\":\"coconuts\"},{\"do\":\"say\",\"target\":\"COCONUT SHY CLEARED\"}]}"
-1431 move 420 500
-1432 down
-1433 up
-# The missions: the starter table's becomes the first; the others are added, each with its step.
-1435 key g meta
-1436 text rules.missions[0]
-1437 key Enter
-1439 key f meta
-1440 text name
-1442 key Tab
-1443 text "Carousel Ride"
-1444 key Enter
-1446 key f meta
-1447 text award
-1449 key Tab
-1450 text 20000
-1451 key Enter
-1453 key g meta
-1454 text rules.missions[0].steps[0]
-1455 key Enter
-1457 key f meta
-1458 text text
-1460 key Tab
-1461 text "Ride the carousel: hit the bumpers"
-1462 key Enter
-1464 key f meta
-1465 text on
-1467 move 1300 112
-1468 down
-1469 up
-1471 text bumpers
-1472 key Enter
-1474 key f meta
-1475 text event
-1477 move 1300 112
-1478 down
-1479 up
-1481 text hit
-1482 key Enter
-1484 key f meta
-1485 text count
-1487 key Tab
-1488 text 10
-1489 key Enter
-1491 key f meta
-1492 text light
-1494 move 1300 112
-1495 down
-1496 up
-1498 text carouselLight
-1499 key Enter
-1501 key g meta
-1502 text +mission
-1503 key Enter
-1505 key f meta
-1506 text name
-1508 key Tab
-1509 text "Ring the Bell"
-1510 key Enter
-1512 key f meta
-1513 text award
-1515 key Tab
-1516 text 30000
-1517 key Enter
-1519 key g meta
-1520 text rules.missions[1].steps[0]
-1521 key Enter
-1523 key f meta
-1524 text text
-1526 key Tab
-1527 text "Shoot the high striker"
-1528 key Enter
-1530 key f meta
-1531 text on
-1533 move 1300 112
-1534 down
-1535 up
-1537 text striker
-1538 key Enter
-1540 key f meta
-1541 text event
-1543 move 1300 112
-1544 down
-1545 up
-1547 text capture
-1548 key Enter
-1550 key f meta
-1551 text count
-1553 key Tab
-1554 text 2
-1555 key Enter
-1557 key f meta
-1558 text light
-1560 move 1300 112
-1561 down
-1562 up
-1564 text strikerLight
-1565 key Enter
-1567 key g meta
-1568 text +mission
-1569 key Enter
-1571 key f meta
-1572 text name
-1574 key Tab
-1575 text "Coconut Shy"
-1576 key Enter
-1578 key f meta
-1579 text award
-1581 key Tab
-1582 text 30000
-1583 key Enter
-1585 key g meta
-1586 text rules.missions[2].steps[0]
-1587 key Enter
-1589 key f meta
-1590 text text
-1592 key Tab
-1593 text "Knock down the coconuts"
-1594 key Enter
-1596 key f meta
-1597 text on
-1599 move 1300 112
-1600 down
-1601 up
-1603 text coconuts
-1604 key Enter
-1606 key f meta
-1607 text event
-1609 move 1300 112
-1610 down
-1611 up
-1613 text down
-1614 key Enter
-1616 key f meta
-1617 text count
-1619 key Tab
-1620 text 3
-1621 key Enter
-1623 key f meta
-1624 text light
-1626 move 1300 112
-1627 down
-1628 up
-1630 text coconutLight
-1631 key Enter
-1633 key g meta
-1634 text +mission
-1635 key Enter
-1637 key f meta
-1638 text name
-1640 key Tab
-1641 text "Duck Pond"
-1642 key Enter
-1644 key f meta
-1645 text award
-1647 key Tab
-1648 text 25000
+1405 text on
+1407 move 1300 112
+1408 down
+1409 up
+1411 text bumpers
+1412 key Enter
+1414 key f meta
+1415 text event
+1417 move 1300 112
+1418 down
+1419 up
+1421 text hit
+1422 key Enter
+1424 key f meta
+1425 text count
+1427 key Tab
+1428 text 10
+1429 key Enter
+1431 key f meta
+1432 text light
+1434 move 1300 112
+1435 down
+1436 up
+1438 text carouselLight
+1439 key Enter
+1441 key g meta
+1442 text +mission
+1443 key Enter
+1445 key f meta
+1446 text name
+1448 key Tab
+1449 text "Ring the Bell"
+1450 key Enter
+1452 key f meta
+1453 text award
+1455 key Tab
+1456 text 30000
+1457 key Enter
+1459 key g meta
+1460 text rules.missions[1].steps[0]
+1461 key Enter
+1463 key f meta
+1464 text text
+1466 key Tab
+1467 text "Shoot the high striker"
+1468 key Enter
+1470 key f meta
+1471 text on
+1473 move 1300 112
+1474 down
+1475 up
+1477 text striker
+1478 key Enter
+1480 key f meta
+1481 text event
+1483 move 1300 112
+1484 down
+1485 up
+1487 text capture
+1488 key Enter
+1490 key f meta
+1491 text count
+1493 key Tab
+1494 text 2
+1495 key Enter
+1497 key f meta
+1498 text light
+1500 move 1300 112
+1501 down
+1502 up
+1504 text strikerLight
+1505 key Enter
+1507 key g meta
+1508 text +mission
+1509 key Enter
+1511 key f meta
+1512 text name
+1514 key Tab
+1515 text "Coconut Shy"
+1516 key Enter
+1518 key f meta
+1519 text award
+1521 key Tab
+1522 text 30000
+1523 key Enter
+1525 key g meta
+1526 text rules.missions[2].steps[0]
+1527 key Enter
+1529 key f meta
+1530 text text
+1532 key Tab
+1533 text "Knock down the coconuts"
+1534 key Enter
+1536 key f meta
+1537 text on
+1539 move 1300 112
+1540 down
+1541 up
+1543 text coconuts
+1544 key Enter
+1546 key f meta
+1547 text event
+1549 move 1300 112
+1550 down
+1551 up
+1553 text down
+1554 key Enter
+1556 key f meta
+1557 text count
+1559 key Tab
+1560 text 3
+1561 key Enter
+1563 key f meta
+1564 text light
+1566 move 1300 112
+1567 down
+1568 up
+1570 text coconutLight
+1571 key Enter
+1573 key g meta
+1574 text +mission
+1575 key Enter
+1577 key f meta
+1578 text name
+1580 key Tab
+1581 text "Duck Pond"
+1582 key Enter
+1584 key f meta
+1585 text award
+1587 key Tab
+1588 text 25000
+1589 key Enter
+1591 key g meta
+1592 text rules.missions[3].steps[0]
+1593 key Enter
+1595 key f meta
+1596 text text
+1598 key Tab
+1599 text "Hook the ducks"
+1600 key Enter
+1602 key f meta
+1603 text on
+1605 move 1300 112
+1606 down
+1607 up
+1609 text ducks
+1610 key Enter
+1612 key f meta
+1613 text event
+1615 move 1300 112
+1616 down
+1617 up
+1619 text hit
+1620 key Enter
+1622 key f meta
+1623 text count
+1625 key Tab
+1626 text 4
+1627 key Enter
+1629 key f meta
+1630 text light
+1632 move 1300 112
+1633 down
+1634 up
+1636 text duckLight
+1637 key Enter
+1639 key g meta
+1640 text rules
+1641 key Enter
+1643 key f meta
+1644 text ranks
+1646 key Tab
+1647 key a meta
+1648 text Visitor
 1649 key Enter
-1651 key g meta
-1652 text rules.missions[3].steps[0]
+1650 text Regular
+1651 key Enter
+1652 text Barker
 1653 key Enter
-1655 key f meta
-1656 text text
-1658 key Tab
-1659 text "Hook the ducks"
-1660 key Enter
-1662 key f meta
-1663 text on
-1665 move 1300 112
-1666 down
-1667 up
-1669 text ducks
-1670 key Enter
-1672 key f meta
-1673 text event
-1675 move 1300 112
-1676 down
-1677 up
-1679 text hit
+1654 text Showman
+1655 key Enter
+1656 text Ringmaster
+1657 move 420 500
+1658 down
+1659 up
+1661 key g meta
+1662 text rules
+1663 key Enter
+1665 key f meta
+1666 text ballSaveLight
+1668 move 1300 112
+1669 down
+1670 up
+1672 text shootAgain
+1673 key Enter
+1675 key f meta
+1676 text ballSave
+1678 key Tab
+1679 text 10
 1680 key Enter
-1682 key f meta
-1683 text count
-1685 key Tab
-1686 text 4
-1687 key Enter
-1689 key f meta
-1690 text light
-1692 move 1300 112
-1693 down
-1694 up
-1696 text duckLight
-1697 key Enter
-1699 key g meta
-1700 text rules
-1701 key Enter
-1703 key f meta
-1704 text ranks
-1706 key Tab
-1707 key a meta
-1708 text Visitor
-1709 key Enter
-1710 text Regular
-1711 key Enter
-1712 text Barker
-1713 key Enter
-1714 text Showman
-1715 key Enter
-1716 text Ringmaster
-1717 move 420 500
-1718 down
-1719 up
-1721 key g meta
-1722 text rules
-1723 key Enter
-1725 key f meta
-1726 text ballSaveLight
-1728 move 1300 112
-1729 down
-1730 up
-1732 text shootAgain
-1733 key Enter
-1735 key f meta
-1736 text ballSave
-1738 key Tab
-1739 text 10
-1740 key Enter
-1742 move 420 500
-1743 down
-1744 up
-1746 key s meta
-# frames 1756
+1682 move 420 500
+1683 down
+1684 up
+1686 key s meta
+# frames 1696

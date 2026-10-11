@@ -1,0 +1,382 @@
+{
+  "format": "zinc-pinball-table",
+  "version": 1,
+  "name": "Tidal Lock",
+  "author": "Zinc",
+  "description": "A tug crew works the docks of a mining station held in tidal lock above a gas giant.",
+  "playfield": { "glass": 9.5, "surface": "wood", "look": "board" },
+  "physics": { "ball": { "look": "chrome" } },
+  "surfaces": [
+    { "id": "wood", "friction": 0.2, "restitution": 0.3 },
+    { "id": "metal", "friction": 0.25, "restitution": 0.45 },
+    { "id": "rubber", "friction": 0.6, "restitution": 0.75 },
+    { "id": "plastic", "restitution": 0.35 },
+    { "id": "wire", "friction": 0.15, "restitution": 0.25 },
+    { "id": "bat", "friction": 0.7, "restitution": 0.55 }
+  ],
+  "looks": [
+    { "id": "board", "color": "#16224a" },
+    { "id": "steel", "color": "#9aa4b4", "specular": "#8090a8", "shininess": 60 },
+    { "id": "chrome", "color": "#d8dce4", "specular": "#ffffff", "shininess": 140 },
+    { "id": "post", "color": "#c8283c", "shading": "flat" },
+    { "id": "bat", "color": "#f0f0f6", "specular": "#606070" },
+    { "id": "band", "color": "#a01f3f", "glow": "#ff5f8a" },
+    { "id": "pop", "color": "#20386e", "glow": "#7fd8ff" },
+    { "id": "popCap", "color": "#ff7a33", "specular": "#553a22", "shininess": 40 },
+    { "id": "amber", "color": "#b37a14", "glow": "#ffd866" },
+    { "id": "cyan", "color": "#167a86", "glow": "#66f0ff" },
+    { "id": "ramp", "color": "#2a62b8" },
+    { "id": "wire", "color": "#c9d2e0", "specular": "#8090a8", "shininess": 120 },
+    { "id": "dock", "color": "#3c4660", "specular": "#8fa0c8", "shininess": 40 },
+    { "id": "giant", "color": "#c98848" },
+    { "id": "hull", "color": "#70788c", "specular": "#d0d8f0", "shininess": 50 }
+  ],
+  "walls": [
+    { "id": "outer", "points": [[1, 92], [1, 27, 1], [50, 27], [50, 106]], "surface": "metal", "look": "steel" },
+    { "id": "outlaneLeft", "points": [[1, 92], [9.3, 106.5]], "surface": "metal", "look": "steel" },
+    { "id": "outlaneRight", "points": [[46.7, 92], [38.4, 106.5]], "surface": "metal", "look": "steel" },
+    { "id": "shooterLane", "points": [[46.7, 106], [46.7, 30]], "surface": "metal", "look": "steel" },
+    { "id": "guideLeft", "points": [[4.6, 72], [4.6, 83.5], [13.4, 92.6]], "height": 2.2, "surface": "metal", "look": "steel" },
+    { "id": "guideRight", "points": [[43.1, 72], [43.1, 83.5], [34.3, 92.6]], "height": 2.2, "surface": "metal", "look": "steel" },
+    { "id": "slingBodyLeft", "points": [[8.6, 71.8], [8.3, 80.9], [13, 84.4]], "height": 2.2, "thickness": 0.5, "surface": "rubber", "look": "post" },
+    {
+      "id": "slingBodyRight",
+      "points": [[39.1, 71.8], [39.4, 80.9], [34.7, 84.4]],
+      "height": 2.2,
+      "thickness": 0.5,
+      "surface": "rubber",
+      "look": "post"
+    },
+    {
+      "id": "laneGuide1",
+      "group": "laneGuides",
+      "points": [[16.95, 12], [16.95, 19.5]],
+      "height": 2.2,
+      "thickness": 0.5,
+      "surface": "rubber",
+      "look": "post"
+    },
+    {
+      "id": "laneGuide2",
+      "group": "laneGuides",
+      "points": [[21.55, 12], [21.55, 19.5]],
+      "height": 2.2,
+      "thickness": 0.5,
+      "surface": "rubber",
+      "look": "post"
+    },
+    {
+      "id": "laneGuide3",
+      "group": "laneGuides",
+      "points": [[26.15, 12], [26.15, 19.5]],
+      "height": 2.2,
+      "thickness": 0.5,
+      "surface": "rubber",
+      "look": "post"
+    },
+    {
+      "id": "laneGuide4",
+      "group": "laneGuides",
+      "points": [[30.75, 12], [30.75, 19.5]],
+      "height": 2.2,
+      "thickness": 0.5,
+      "surface": "rubber",
+      "look": "post"
+    },
+    { "id": "spinnerGuide", "points": [[41, 34], [41, 50]], "height": 2.2, "surface": "metal", "look": "steel" }
+  ],
+  "gates": [
+    { "id": "laneGate", "a": [50, 28.5], "b": [46.7, 28.5], "look": "wire" }
+  ],
+  "flippers": [
+    { "id": "left", "group": "flippers", "pivot": [14.4, 94], "surface": "bat", "look": "bat" },
+    { "id": "right", "group": "flippers", "pivot": [33.3, 94], "rest": 155, "stroke": 50, "button": "right", "surface": "bat", "look": "bat" }
+  ],
+  "plunger": { "at": [48.35, 100], "speed": 480, "surface": "metal", "look": "steel" },
+  "bumpers": [
+    { "id": "pop1", "group": "pops", "at": [17.5, 31], "surface": "rubber", "look": "pop", "cap": "popCap" },
+    { "id": "pop2", "group": "pops", "at": [30.2, 31], "surface": "rubber", "look": "pop", "cap": "popCap" },
+    { "id": "pop3", "group": "pops", "at": [23.85, 41], "surface": "rubber", "look": "pop", "cap": "popCap" }
+  ],
+  "slingshots": [
+    { "id": "slingLeft", "group": "slings", "a": [8.9, 71.6], "b": [13.3, 84], "surface": "rubber", "look": "band" },
+    { "id": "slingRight", "group": "slings", "a": [34.4, 84], "b": [38.8, 71.6], "surface": "rubber", "look": "band" }
+  ],
+  "kickers": [
+    {
+      "id": "dock",
+      "at": [40.5, 24.5],
+      "captureSpeed": 230,
+      "hold": 1,
+      "speed": 210,
+      "angle": 150,
+      "elevation": 32,
+      "look": "dock",
+      "light": "dockLight"
+    }
+  ],
+  "targets": [
+    { "id": "drop1", "group": "bank", "kind": "drop", "at": [3, 48], "angle": 0, "width": 2.8, "surface": "plastic", "look": "amber" },
+    { "id": "drop2", "group": "bank", "kind": "drop", "at": [3, 51.4], "angle": 0, "width": 2.8, "surface": "plastic", "look": "amber" },
+    { "id": "drop3", "group": "bank", "kind": "drop", "at": [3, 54.8], "angle": 0, "width": 2.8, "surface": "plastic", "look": "amber" },
+    { "id": "stand1", "group": "stand", "at": [44.2, 55], "angle": 180, "surface": "plastic", "look": "cyan" },
+    { "id": "stand2", "group": "stand", "at": [44.2, 59.5], "angle": 180, "surface": "plastic", "look": "cyan" }
+  ],
+  "rollovers": [
+    { "id": "lane1", "group": "lanes", "a": [17.4, 16], "b": [21.1, 16], "light": "laneLight1" },
+    { "id": "lane2", "group": "lanes", "a": [22, 16], "b": [25.7, 16], "light": "laneLight2" },
+    { "id": "lane3", "group": "lanes", "a": [26.6, 16], "b": [30.3, 16], "light": "laneLight3" },
+    { "id": "inlaneLeft", "group": "inlanes", "a": [4.9, 78], "b": [8.1, 78] },
+    { "id": "inlaneRight", "group": "inlanes", "a": [39.6, 78], "b": [42.8, 78] },
+    { "id": "outlaneLeftSwitch", "group": "outlanes", "a": [1.3, 80], "b": [4.3, 80] },
+    { "id": "outlaneRightSwitch", "group": "outlanes", "a": [43.4, 80], "b": [46.4, 80] },
+    { "id": "launched", "a": [46.9, 32], "b": [49.8, 32] }
+  ],
+  "spinners": [
+    { "id": "spinner", "a": [41.3, 42], "b": [46.4, 42], "look": "steel" }
+  ],
+  "ramps": [
+    {
+      "id": "ramp",
+      "points": [[36, 64], [36, 34, -1], [7.4, 34], [7.4, 40]],
+      "profile": [[0, 0], [0.28, 4.3], [0.36, 5.2], [0.44, 5.5], [1, 5.5]],
+      "wall": 2.6,
+      "surface": "plastic",
+      "look": "ramp"
+    },
+    {
+      "id": "rail",
+      "points": [[7.4, 40], [7.4, 55], [6.45, 66], [6.45, 70.5]],
+      "profile": [[0, 5.5], [1, 3.4]],
+      "width": 3,
+      "style": "wire",
+      "surface": "wire",
+      "look": "wire"
+    }
+  ],
+  "lights": [
+    { "id": "laneLight1", "group": "lanes", "at": [19.25, 22.2], "color": "#66f0ff" },
+    { "id": "laneLight2", "group": "lanes", "at": [23.85, 22.2], "color": "#66f0ff" },
+    { "id": "laneLight3", "group": "lanes", "at": [28.45, 22.2], "color": "#66f0ff" },
+    { "id": "rampArrow", "group": "arrows", "at": [36, 68.5], "shape": "arrow", "size": 1.6, "color": "#5fa8ff" },
+    { "id": "bankArrow", "group": "arrows", "at": [8.2, 51.4], "shape": "arrow", "size": 1.6, "angle": 180, "color": "#ffd866" },
+    { "id": "popsLight", "group": "arrows", "at": [23.85, 34.6], "size": 1.4, "color": "#7fd8ff" },
+    { "id": "spinArrow", "group": "arrows", "at": [43.85, 52], "shape": "arrow", "size": 1.4, "color": "#c0ff7a" },
+    { "id": "slingLight", "group": "arrows", "at": [23.85, 78], "size": 1.3, "color": "#ff5f8a" },
+    { "id": "dockLight", "at": [38.2, 29.2], "shape": "arrow", "size": 1.5, "angle": -62, "color": "#ffb347" },
+    { "id": "lock1", "group": "locks", "at": [34.2, 23.2], "size": 0.9, "color": "#ff7a33" },
+    { "id": "lock2", "group": "locks", "at": [35.6, 21], "size": 0.9, "color": "#ff7a33" },
+    { "id": "lock3", "group": "locks", "at": [37.4, 19.2], "size": 0.9, "color": "#ff7a33" },
+    { "id": "extra", "at": [42.2, 31.6], "size": 1.2, "color": "#ff4d4d" },
+    { "id": "shootAgain", "at": [23.85, 100.5], "size": 1.4, "color": "#ff4d4d" },
+    { "id": "rank1", "group": "ranks", "at": [23.85, 71], "shape": "bar", "size": 1.5, "angle": 0, "color": "#9f8cff" },
+    { "id": "rank2", "group": "ranks", "at": [23.85, 68.2], "shape": "bar", "size": 1.5, "angle": 0, "color": "#9f8cff" },
+    { "id": "rank3", "group": "ranks", "at": [23.85, 65.4], "shape": "bar", "size": 1.5, "angle": 0, "color": "#9f8cff" },
+    { "id": "rank4", "group": "ranks", "at": [23.85, 62.6], "shape": "bar", "size": 1.5, "angle": 0, "color": "#9f8cff" },
+    { "id": "rank5", "group": "ranks", "at": [23.85, 59.8], "shape": "bar", "size": 1.5, "angle": 0, "color": "#9f8cff" },
+    { "id": "rank6", "group": "ranks", "at": [23.85, 57], "shape": "bar", "size": 1.5, "angle": 0, "color": "#9f8cff" }
+  ],
+  "models": [
+    { "id": "giant", "shape": "sphere", "at": [5.2, 5.6, 0], "scale": [8.6, 8.6, 5], "look": "giant" },
+    { "id": "station", "shape": "cylinder", "at": [45.6, 5.8, 0], "scale": [5, 5, 3.4], "look": "hull" }
+  ],
+  "rules": {
+    "ranks": ["Deckhand", "Rigger", "Tug Pilot", "Dock Master", "Station Chief", "Orbit Marshal", "Tide Warden"],
+    "rankLights": "ranks",
+    "ballSaveLight": "shootAgain",
+    "counters": ["laps"],
+    "missions": [
+      { "id": "cargo", "name": "Cargo Run", "steps": [{ "text": "Shoot the ramp", "on": "rail", "event": "exit", "count": 2, "light": "rampArrow" }] },
+      {
+        "id": "sweep",
+        "name": "Asteroid Sweep",
+        "award": 30000,
+        "steps": [{ "text": "Clear the rocks: hit the bumpers", "on": "pops", "event": "hit", "count": 12, "light": "popsLight" }]
+      },
+      {
+        "id": "berth",
+        "name": "Night Berth",
+        "award": 40000,
+        "steps": [
+          { "text": "Open the lanes", "on": "lanes", "event": "roll", "count": 3, "light": "lanes" },
+          { "text": "Bring her into the dock", "on": "dock", "event": "capture", "light": "dockLight" }
+        ]
+      },
+      {
+        "id": "flare",
+        "name": "Solar Flare",
+        "award": 40000,
+        "steps": [{ "text": "Drop the three shields", "on": "bank", "event": "down", "count": 3, "light": "bankArrow" }]
+      },
+      {
+        "id": "burn",
+        "name": "Slingshot Burn",
+        "award": 30000,
+        "steps": [{ "text": "Bounce off the slingshots", "on": "slings", "event": "hit", "count": 6, "light": "slingLight" }]
+      },
+      {
+        "id": "spin",
+        "name": "Spin Up",
+        "award": 35000,
+        "steps": [
+          { "text": "Spin the turbine", "on": "spinner", "event": "spin", "count": 20, "light": "spinArrow" },
+          { "text": "Ride the ramp home", "on": "rail", "event": "exit", "light": "rampArrow" }
+        ]
+      }
+    ],
+    "multiball": { "lockLights": "locks", "jackpotOn": "rail", "jackpotEvent": "exit" },
+    "when": [
+      { "on": "pops", "event": "hit", "do": [{ "do": "score", "value": 500 }, { "do": "bonus", "value": 100 }] },
+      { "on": "slings", "event": "hit", "do": [{ "do": "score", "value": 110 }] },
+      {
+        "on": "lanes",
+        "event": "roll",
+        "if": [{ "test": "lights", "target": "self", "is": "off" }],
+        "do": [{ "do": "light", "target": "self", "mode": "on" }, { "do": "score", "value": 1000 }]
+      },
+      { "on": "lanes", "event": "roll", "do": [{ "do": "score", "value": 300 }, { "do": "bonus", "value": 250 }] },
+      {
+        "on": "lanes",
+        "event": "roll",
+        "if": [{ "test": "lights", "target": "lanes", "is": "on" }],
+        "do": [
+          { "do": "multiplier", "value": 1 },
+          { "do": "light", "target": "lanes", "mode": "off" },
+          { "do": "score", "value": 5000 },
+          { "do": "say", "target": "LANES OPEN: BONUS UP" }
+        ]
+      },
+      { "on": "left", "event": "flip", "do": [{ "do": "rotate", "target": "lanes", "value": -1 }] },
+      { "on": "right", "event": "flip", "do": [{ "do": "rotate", "target": "lanes", "value": 1 }] },
+      { "on": "bank", "event": "down", "do": [{ "do": "score", "value": 2000 }, { "do": "bonus", "value": 500 }] },
+      {
+        "on": "bank",
+        "event": "down",
+        "if": [{ "test": "targets", "target": "bank", "is": "down" }],
+        "do": [{ "do": "score", "value": 10000 }, { "do": "reset", "target": "bank" }, { "do": "say", "target": "SHIELDS DOWN" }]
+      },
+      { "on": "stand", "event": "hit", "do": [{ "do": "score", "value": 1500 }, { "do": "bonus", "value": 200 }] },
+      { "on": "spinner", "event": "spin", "do": [{ "do": "score", "value": 250 }] },
+      { "on": "ramp", "event": "enter", "do": [{ "do": "score", "value": 500 }] },
+      {
+        "on": "rail",
+        "event": "exit",
+        "do": [{ "do": "score", "value": 5000 }, { "do": "bonus", "value": 1000 }, { "do": "count", "target": "laps", "value": 1 }]
+      },
+      {
+        "on": "rail",
+        "event": "exit",
+        "if": [{ "test": "counter", "target": "laps", "value": 5 }],
+        "do": [
+          { "do": "count", "target": "laps", "mode": "set" },
+          { "do": "award", "mode": "ballSave", "seconds": 15 },
+          { "do": "say", "target": "FIVE LAPS: BALL SAVED" }
+        ]
+      },
+      { "on": "inlanes", "event": "roll", "do": [{ "do": "score", "value": 400 }] },
+      { "on": "outlanes", "event": "roll", "do": [{ "do": "score", "value": 2500 }] },
+      {
+        "on": "dock",
+        "event": "capture",
+        "if": [{ "test": "lights", "target": "extra", "is": "on" }],
+        "do": [{ "do": "award", "mode": "extraBall" }, { "do": "light", "target": "extra", "mode": "off" }]
+      },
+      {
+        "on": "dock",
+        "event": "capture",
+        "if": [{ "test": "mode", "target": "normal" }],
+        "do": [{ "do": "score", "value": 3000 }, { "do": "award", "mode": "lock" }]
+      },
+      { "on": "dock", "event": "capture", "if": [{ "test": "mode", "target": "multiball" }], "do": [{ "do": "score", "value": 7500 }] },
+      {
+        "on": "game",
+        "event": "rankUp",
+        "if": [{ "test": "rank", "is": "equal", "value": 3 }],
+        "do": [{ "do": "light", "target": "extra", "mode": "blink" }, { "do": "say", "target": "EXTRA BALL AT THE DOCK" }]
+      },
+      {
+        "on": "game",
+        "event": "rankUp",
+        "if": [{ "test": "rank", "is": "equal", "value": 6 }],
+        "do": [{ "do": "light", "target": "extra", "mode": "blink" }, { "do": "say", "target": "EXTRA BALL AT THE DOCK" }]
+      },
+      { "on": "game", "event": "multiballStart", "do": [{ "do": "say", "target": "TIDAL LOCK: MULTIBALL" }] },
+      { "on": "game", "event": "jackpot", "do": [{ "do": "say", "target": "JACKPOT" }] },
+      { "on": "game", "event": "tilt", "do": [{ "do": "say", "target": "TILT" }] },
+      {
+        "on": "lanes",
+        "event": "roll",
+        "if": [{ "test": "lights", "target": "lanes", "is": "on" }],
+        "do": [{ "do": "multiplier", "value": 1 }, { "do": "light", "target": "lanes", "mode": "off" }, { "do": "say", "target": "ALL LANES" }]
+      },
+      {
+        "on": "bank",
+        "event": "down",
+        "if": [{ "test": "targets", "target": "bank", "is": "down" }, { "test": "counter", "target": "laps", "value": 2 }],
+        "do": [
+          { "do": "score", "value": 10000 },
+          { "do": "reset", "target": "bank" },
+          { "do": "award", "mode": "ballSave", "seconds": 15 },
+          { "do": "count", "target": "laps", "mode": "set" }
+        ]
+      },
+      {
+        "on": "game",
+        "event": "rankUp",
+        "if": [{ "test": "mode", "target": "multiball" }, { "test": "mission", "target": "cargo" }, { "test": "balls", "is": "below", "value": 3 }],
+        "do": [{ "do": "say", "target": "WELL DONE" }, { "do": "light", "target": "extra", "mode": "blink" }, { "do": "bonus", "value": 750 }]
+      }
+    ],
+    "highScores": [
+      { "name": "TID", "score": 400000 },
+      { "name": "ALK", "score": 300000 },
+      { "name": "ZNC", "score": 200000 },
+      { "name": "TUG", "score": 120000 },
+      { "name": "ORE", "score": 60000 }
+    ]
+  },
+  "lighting": {
+    "background": "#04050b",
+    "ambient": "#565c72",
+    "lamps": [{ "direction": [0.2, 0.35, -1], "color": "#d8dcf0" }, { "direction": [-0.6, -0.3, -0.5], "color": "#2a3c66" }]
+  },
+  "layouts": {
+    "landscape": {
+      "view": [0, 0, 600, 800],
+      "camera": { "position": [25.5, 186, 172], "target": [25.5, 57.5, 0], "fov": 26.5 },
+      "panel": {
+        "box": [600, 0, 680, 800],
+        "items": [
+          { "show": "title", "box": [640, 40, 600, 60], "size": 44, "color": "#7fd8ff" },
+          { "show": "score", "box": [640, 150, 600, 90], "size": 72, "label": "SCORE" },
+          { "show": "ball", "box": [640, 290, 280, 50], "size": 30, "label": "BALL" },
+          { "show": "rank", "box": [940, 290, 300, 50], "size": 30, "color": "#9f8cff", "label": "RANK" },
+          { "show": "mission", "box": [640, 400, 600, 44], "size": 30, "color": "#ffd866", "label": "MISSION" },
+          { "show": "step", "box": [640, 470, 600, 36], "size": 24 },
+          { "show": "message", "box": [640, 560, 600, 50], "size": 28, "color": "#ff7a33" },
+          { "show": "bonus", "box": [640, 650, 600, 30], "size": 22, "label": "BONUS" },
+          { "show": "highScores", "box": [640, 350, 600, 180], "size": 24, "color": "#c8d4f0", "label": "BEST CREWS" },
+          { "show": "hint", "box": [640, 740, 600, 24], "size": 16, "color": "#7080a0" }
+        ]
+      }
+    },
+    "portrait": {
+      "window": [800, 1280],
+      "view": [0, 200, 800, 1080],
+      "camera": { "position": [25.5, 176, 190], "target": [25.5, 57, 0], "fov": 25.5 },
+      "panel": {
+        "box": [0, 0, 800, 200],
+        "items": [
+          { "show": "title", "box": [20, 12, 380, 40], "size": 30, "color": "#7fd8ff" },
+          { "show": "score", "box": [400, 8, 380, 70], "size": 56, "align": "right" },
+          { "show": "ball", "box": [20, 70, 180, 34], "size": 22, "label": "BALL" },
+          { "show": "rank", "box": [210, 70, 190, 34], "size": 22, "color": "#9f8cff", "label": "RANK" },
+          { "show": "message", "box": [400, 84, 380, 30], "size": 22, "color": "#ff7a33", "align": "right" },
+          { "show": "mission", "box": [20, 124, 760, 30], "size": 24, "color": "#ffd866" },
+          { "show": "step", "box": [20, 158, 760, 26] },
+          { "show": "highScores", "box": [20, 66, 380, 130], "color": "#c8d4f0" }
+        ]
+      }
+    }
+  }
+}

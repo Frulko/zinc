@@ -1026,6 +1026,18 @@ One thing that must hold for a rule to act.
 | `is` | `"atLeast"` `"below"` `"equal"` `"on"` `"off"` `"down"` `"up"` | `"atLeast"` | The comparison. |
 | `value` | number | `0` | The number compared with. |
 
+What each `test` reads; the other fields are ignored for it:
+
+| `test` | `target` | `is` | numbers |
+|---|---|---|---|
+| `counter` | one of the counters | atLeast, below, equal | `value` |
+| `lights` | one of the lights or light groups, "self" | on, off |  |
+| `targets` | one of the elements or groups (of `targets`) | down, up |  |
+| `mode` | "normal", "multiball" |  |  |
+| `rank` |  | atLeast, below, equal | `value` |
+| `mission` | one of the missions |  |  |
+| `balls` |  | atLeast, below, equal | `value` |
+
 ```json
 { "test": "lights", "target": "self", "is": "off" }
 ```
@@ -1041,6 +1053,21 @@ One thing a rule does.
 | `value` | number | `0` | How much. |
 | `mode` | `""` `"on"` `"off"` `"blink"` `"flash"` `"toggle"` `"set"` `"extraBall"` `"ballSave"` `"lock"` `"multiball"` `"mission"` | `""` | For light: on, off, blink, flash (on for `seconds`) or toggle. For count: set. For award: extraBall, ballSave (for `seconds`), lock (keep the ball in the kicker that caught it), multiball (start it), mission (count one step of the current mission, whatever it listens to). |
 | `seconds` | number, seconds | `0` (0 to 600) | How long, for a flash or a ball save. |
+
+What each `do` reads; the other fields are ignored for it:
+
+| `do` | `target` | `mode` | numbers |
+|---|---|---|---|
+| `score` |  |  | `value`, not 0 |
+| `bonus` |  |  | `value`, not 0 |
+| `multiplier` |  |  | `value`, not 0 |
+| `light` | one of the lights or light groups, "self" | on, off, blink, flash, toggle | `seconds` with flash |
+| `count` | one of the counters | (none), set | `value` |
+| `reset` | one of the elements or groups (of `targets`) |  |  |
+| `say` | a text |  |  |
+| `sound` | one of the sounds |  |  |
+| `award` |  | extraBall, ballSave, lock, multiball, mission | `seconds` with ballSave |
+| `rotate` | one of the light groups |  | `value` |
 
 ```json
 { "do": "score", "value": 500 }

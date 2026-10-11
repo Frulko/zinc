@@ -1,0 +1,329 @@
+# The table editor, conditions and actions made from choices (tests/t1/pinball3d_editor_rules.sh). Written by guided.py.
+# A rule that acts when every lane light is on. Its condition is added by its kind and is whole at once: the
+# editor gives it the first group of lights of the table, the lanes. The 100 points a new rule gives become
+# another kind of action, in the list of kinds of the field; two more are added.
+4 key g meta
+5 text +rule
+6 key Enter
+8 key f meta
+9 text on
+11 move 1300 112
+12 down
+13 up
+15 text lanes
+16 key Enter
+18 key f meta
+19 text event
+21 move 1300 112
+22 down
+23 up
+25 text roll
+26 key Enter
+28 key f meta
+29 text if
+31 move 1394 118
+32 down
+33 up
+35 move 1300 174
+36 down
+37 up
+39 key f meta
+40 text do[0].do
+42 move 1300 112
+43 down
+44 up
+46 move 1300 192
+47 down
+48 up
+50 key f meta
+51 text do
+53 move 1394 118
+54 down
+55 up
+57 move 1300 222
+58 down
+59 up
+61 key f meta
+62 text do[1].mode
+64 move 1300 112
+65 down
+66 up
+68 move 1300 168
+69 down
+70 up
+72 key f meta
+73 text do
+75 move 1394 118
+76 down
+77 up
+79 move 1300 294
+80 down
+81 up
+83 key f meta
+84 text do[2].target
+86 key Tab
+87 text "ALL LANES"
+88 key Enter
+# A rule on the bank of drop targets: when they are all down (the editor gives the bank by itself) and the counter
+# of laps is at least 2. It scores, raises the bank, gives a ball save of 15 seconds and sets the counter to 0.
+91 key g meta
+92 text +rule
+93 key Enter
+95 key f meta
+96 text on
+98 move 1300 112
+99 down
+100 up
+102 text bank
+103 key Enter
+105 key f meta
+106 text event
+108 move 1300 112
+109 down
+110 up
+112 text down
+113 key Enter
+115 key f meta
+116 text if
+118 move 1394 118
+119 down
+120 up
+122 move 1300 198
+123 down
+124 up
+126 key f meta
+127 text if
+129 move 1394 118
+130 down
+131 up
+133 move 1300 150
+134 down
+135 up
+137 key f meta
+138 text if[1].value
+140 key Tab
+141 text 2
+142 key Enter
+144 key f meta
+145 text do[0].value
+147 key Tab
+148 text 10000
+149 key Enter
+151 key f meta
+152 text do
+154 move 1394 118
+155 down
+156 up
+158 move 1300 270
+159 down
+160 up
+162 key f meta
+163 text do
+165 move 1394 118
+166 down
+167 up
+169 move 1300 342
+170 down
+171 up
+173 key f meta
+174 text do[2].mode
+176 move 1300 112
+177 down
+178 up
+180 move 1300 168
+181 down
+182 up
+184 key f meta
+185 text do[2].seconds
+187 key Tab
+188 text 15
+189 key Enter
+191 key f meta
+192 text do
+194 move 1394 118
+195 down
+196 up
+198 move 1300 246
+199 down
+200 up
+202 key f meta
+203 text do[3].mode
+205 move 1300 112
+206 down
+207 up
+209 move 1300 168
+210 down
+211 up
+213 key f meta
+214 text do[3].value
+216 key Tab
+217 text 0
+218 key Enter
+# A rule of the game itself, with the other kinds of condition: the rank, the mode, the mission, the balls in play.
+# A light is found in the long list of the table's lights by a few letters; the lane lights shift the other way.
+220 key g meta
+221 text +rule
+222 key Enter
+224 key f meta
+225 text on
+227 move 1300 112
+228 down
+229 up
+231 text game
+232 key Enter
+234 key f meta
+235 text event
+237 move 1300 112
+238 down
+239 up
+241 text rankUp
+242 key Enter
+244 key f meta
+245 text if
+247 move 1394 118
+248 down
+249 up
+251 move 1300 246
+252 down
+253 up
+255 key f meta
+256 text if[0].is
+258 move 1300 112
+259 down
+260 up
+262 move 1300 192
+263 down
+264 up
+266 key f meta
+267 text if[0].value
+269 key Tab
+270 text 2
+271 key Enter
+273 key f meta
+274 text if
+276 move 1394 118
+277 down
+278 up
+280 move 1300 222
+281 down
+282 up
+284 key f meta
+285 text if[1].target
+287 move 1300 112
+288 down
+289 up
+291 move 1300 168
+292 down
+293 up
+295 key f meta
+296 text if
+298 move 1394 118
+299 down
+300 up
+302 move 1300 270
+303 down
+304 up
+306 key f meta
+307 text if
+309 move 1394 118
+310 down
+311 up
+313 move 1300 294
+314 down
+315 up
+317 key f meta
+318 text if[3].is
+320 move 1300 112
+321 down
+322 up
+324 move 1300 168
+325 down
+326 up
+328 key f meta
+329 text if[3].value
+331 key Tab
+332 text 3
+333 key Enter
+335 key f meta
+336 text do[0].do
+338 move 1300 112
+339 down
+340 up
+342 move 1300 216
+343 down
+344 up
+346 key f meta
+347 text do[0].target
+349 move 1300 112
+350 down
+351 up
+353 text extra
+354 key Enter
+356 key f meta
+357 text do[0].mode
+359 move 1300 112
+360 down
+361 up
+363 move 1300 192
+364 down
+365 up
+367 key f meta
+368 text do
+370 move 1394 118
+371 down
+372 up
+374 move 1300 366
+375 down
+376 up
+378 key f meta
+379 text do[1].value
+381 key Tab
+382 text -1
+383 key Enter
+385 key f meta
+386 text do
+388 move 1394 118
+389 down
+390 up
+392 move 1300 174
+393 down
+394 up
+396 key f meta
+397 text do[2].value
+399 key Tab
+400 text 750
+401 key Enter
+# This table has no sound: a sound to play cannot be added, and the editor says what is missing.
+403 key f meta
+404 text do
+406 move 1394 118
+407 down
+408 up
+410 move 1300 318
+411 down
+412 up
+# The buttons at the right of a sentence. The second thing the rule does (shift the lights) goes up one place; what is
+# now first becomes a text to show; the first condition (the rank) is taken away.
+414 key f meta
+415 text do
+417 move 1384 190
+418 down
+419 up
+421 key f meta
+422 text do
+424 move 1368 152
+425 down
+426 up
+428 move 1300 324
+429 down
+430 up
+432 key f meta
+433 text if
+435 move 1403 152
+436 down
+437 up
+440 move 420 500
+441 down
+442 up
+444 key s meta
+# frames 454

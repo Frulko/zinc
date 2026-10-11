@@ -1,24 +1,23 @@
-# The table editor, sounds and rules (tests/t1/pinball3d_editor.sh), window 1440x900. Things are taken by their names and paths
-# (Cmd+G), fields by their keys (Cmd+F): no line of a form is aimed at by its place.
+# The table editor, sounds and rules (tests/t1/pinball3d_editor.sh), window 1440x900. Written by guided.py.
 # A sound: "+sound" adds one (a generated tone until it names a file); its pitch is typed.
 4 key g meta
 5 text +sound
 6 key Enter
 8 key f meta
 9 text hz
-10 key Tab
-11 text 880
-12 key Enter
-# The first bumper plays it when it is hit: the event is found by its path in the form, the sound is chosen in the list of the
-# table's sounds (its second line, after "none"), and the button beside it lets it be heard.
-14 key g meta
-15 text pop1
-16 key Enter
-18 key f meta
-19 text sounds.hit
-21 move 1300 112
-22 down
-23 up
+11 key Tab
+12 text 880
+13 key Enter
+# The first bumper plays it when it is hit: the sound is chosen in the list of the table's sounds (its second line,
+# after "none"), and the button beside it lets it be heard.
+15 key g meta
+16 text pop1
+17 key Enter
+19 key f meta
+20 text sounds.hit
+22 move 1300 112
+23 down
+24 up
 26 move 1300 168
 27 down
 28 up
@@ -26,86 +25,91 @@
 31 down
 32 up
 # The music of a ball in play is the same sound.
-34 key g meta
-35 text music
-36 key Enter
-38 key f meta
-39 text play
-41 move 1300 112
-42 down
-43 up
-45 move 1300 168
-46 down
-47 up
-# A rule: "+rule" adds one to the rules and opens it; it is written as the file has it (Cmd+J), and a click beside the board
-# leaves the field. Then its action is opened by its path and its value typed in its form.
+35 key g meta
+36 text music
+37 key Enter
+39 key f meta
+40 text play
+42 move 1300 112
+43 down
+44 up
+46 move 1300 168
+47 down
+48 up
+# A rule: "+rule" adds one and opens it. Where the event comes from and the event are chosen in their lists; what it
+# does is already there (100 points), and its points are typed.
 50 key g meta
 51 text +rule
 52 key Enter
-54 key j meta
-56 key a meta
-57 text {"on":"pop1","event":"hit","do":[{"do":"score","value":250}]}
-59 move 420 500
-60 down
-61 up
-63 key g meta
-64 text rules.when[24].do[0]
-65 key Enter
-67 key f meta
-68 text value
-69 key Tab
-70 text 300
-71 key Enter
-# A mission: "+mission" adds one with a step; its name is typed; its step listens to the group of the bumpers (chosen in the
-# long list of what the table has by typing its name) being hit (the event, chosen the same way), three times.
-73 key g meta
-74 text +mission
-75 key Enter
-77 key f meta
-78 text name
-79 key Tab
-80 text Bumpers
-81 key Enter
-83 key g meta
-84 text rules.missions[6].steps[0]
-85 key Enter
-87 key f meta
-88 text on
-90 move 1300 112
-91 down
-92 up
-94 text pops
-95 key Enter
-97 key f meta
-98 text event
-100 move 1300 112
-101 down
-102 up
-104 text hit
-105 key Enter
-107 key f meta
-108 text count
-109 key Tab
-110 text 3
-111 key Enter
+54 key f meta
+55 text on
+57 move 1300 112
+58 down
+59 up
+61 text pop1
+62 key Enter
+64 key f meta
+65 text event
+67 move 1300 112
+68 down
+69 up
+71 text hit
+72 key Enter
+74 key f meta
+75 text do[0].value
+77 key Tab
+78 text 300
+79 key Enter
+# A mission: "+mission" adds one with a step; its name is typed; its step listens to the group of the bumpers being
+# hit, three times.
+81 key g meta
+82 text +mission
+83 key Enter
+85 key f meta
+86 text name
+88 key Tab
+89 text Bumpers
+90 key Enter
+92 key f meta
+93 text steps[0].on
+95 move 1300 112
+96 down
+97 up
+99 text pops
+100 key Enter
+102 key f meta
+103 text steps[0].event
+105 move 1300 112
+106 down
+107 up
+109 text hit
+110 key Enter
+112 key f meta
+113 text steps[0].count
+115 key Tab
+116 text 3
+117 key Enter
 # The rules of the game itself: the ball save, the warnings before a tilt, the balls of multiball.
-113 key g meta
-114 text rules
-115 key Enter
-117 key f meta
-118 text ballSave
-119 key Tab
-120 text 12
+119 key g meta
+120 text rules
 121 key Enter
 123 key f meta
-124 text tilt.warnings
-125 key Tab
-126 text 3
-127 key Enter
-129 key f meta
-130 text multiball.balls
-131 key Tab
-132 text 2
-133 key Enter
-# Save.
-136 key s meta
+124 text ballSave
+126 key Tab
+127 text 12
+128 key Enter
+130 key f meta
+131 text tilt.warnings
+133 key Tab
+134 text 3
+135 key Enter
+137 key f meta
+138 text multiball.balls
+140 key Tab
+141 text 2
+142 key Enter
+144 move 420 500
+145 down
+146 up
+148 key s meta
+# frames 158

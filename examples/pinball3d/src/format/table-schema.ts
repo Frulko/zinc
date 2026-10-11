@@ -6,7 +6,7 @@
 // Conventions: lengths in centimetres; the top view has x to the right and y down the table, towards the player, with
 // the origin at the top left corner of the playfield; z is the height above the playfield. Angles are degrees in the top
 // view, 0 along +x and 90 along +y (down the table). Speeds are cm/s.
-import { Schema } from './schema';
+import { Schema, Variants } from './schema';
 
 export const FORMAT = 'zinc-pinball-table';
 export const VERSION = 1;
@@ -303,6 +303,17 @@ export function tableSchema(): Schema {
   condition.text('target', '', 'What is tested: a counter, a light or group ("self": the light of the element the event came from), a target or group, a mission, or a mode ("normal", "multiball").');
   condition.choice('is', ['atLeast', 'below', 'equal', 'on', 'off', 'down', 'up'], 'The comparison.');
   condition.num('value', 0, 'The number compared with.');
+  // what each test reads: the loader checks a condition by these lines, and an editor builds one from them
+  const numeric = ['atLeast', 'below', 'equal'];
+  const tests = new Variants('test', 'target', 'is');
+  tests.add('counter').named('counters').by(numeric, 'a counter is compared with').reads(['value']);
+  tests.add('lights').named('lights|light groups').or(['self']).by(['on', 'off'], 'lights are');
+  tests.add('targets').named('elements|groups', 'targets').by(['down', 'up'], 'targets are');
+  tests.add('mode').or(['normal', 'multiball']);
+  tests.add('rank').by(numeric, 'rank is compared with').reads(['value']);
+  tests.add('mission').named('missions');
+  tests.add('balls').by(numeric, 'balls is compared with').reads(['value']);
+  condition.variants = tests;
 
   const action = new Schema('action', 'One thing a rule does.');
   action.choice('do', ['score', 'bonus', 'multiplier', 'light', 'count', 'reset', 'say', 'sound', 'award', 'rotate'],
@@ -312,6 +323,18 @@ export function tableSchema(): Schema {
   action.choice('mode', ['', 'on', 'off', 'blink', 'flash', 'toggle', 'set', 'extraBall', 'ballSave', 'lock', 'multiball', 'mission'],
     'For light: on, off, blink, flash (on for `seconds`) or toggle. For count: set. For award: extraBall, ballSave (for `seconds`), lock (keep the ball in the kicker that caught it), multiball (start it), mission (count one step of the current mission, whatever it listens to).');
   action.num('seconds', 0, 'How long, for a flash or a ball save.').range(0, 600).withUnit('seconds');
+  const acts = new Variants('do', 'target', 'mode');
+  acts.add('score').reads(['value'], true);
+  acts.add('bonus').reads(['value'], true);
+  acts.add('multiplier').reads(['value'], true);
+  acts.add('light').named('lights|light groups').or(['self']).by(['on', 'off', 'blink', 'flash', 'toggle']).reads(['seconds:flash']);
+  acts.add('count').named('counters').by(['', 'set']).reads(['value']);
+  acts.add('reset').named('elements|groups', 'targets');
+  acts.add('say').anyText();
+  acts.add('sound').named('sounds');
+  acts.add('award').by(['extraBall', 'ballSave', 'lock', 'multiball', 'mission']).reads(['seconds:ballSave']);
+  acts.add('rotate').named('light groups').reads(['value']);
+  action.variants = acts;
 
   const rule = new Schema('rule', 'When something happens, and some things hold, do some things. Rules are read in order; all that match act.');
   rule.ref('on', ANY, 'The element, or the group of elements, that the event comes from; "game" for the events of the game itself.').must();

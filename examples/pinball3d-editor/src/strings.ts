@@ -182,6 +182,110 @@ export const ASK_SAVE_WHY = S('The table has changes that are not in its file ye
 export const CANCEL = S('Cancel', 'Annuler');
 export const DO_NOT_SAVE = S('Do not save', 'Ne pas enregistrer');
 
+// ---- the rules as a person says them
+export const KIND_NEEDS = S('"{0}" needs one of the {1}, and the table has none yet: add one first.', '« {0} » a besoin d’un nom parmi : {1}, et la table n’en a pas encore : ajoutez-en d’abord.');
+export const RULE_SAID = S('{0}: {1}', '{0} : {1}');
+export const RULE_IF = S('{0}, if {1}', '{0}, si {1}');
+export const AND = S(' and ', ' et ');
+export const THEN = S('; ', ' ; ');
+export const NOT_READ = S('not used here', 'sans effet ici');
+
+// A sentence per kind of condition and of action, in each language ("say.<object>.<kind>", and "say.<object>.<kind>.<way>" when
+// the sentence changes with the way): `{target}`, `{way}` and the numbers (`{value}`, `{seconds}`) are the parts that are chosen or
+// typed, at the place the language puts them. The words of a way and of a target are said by "word.<object>.<kind>.<word>", else by
+// "word.<word>"; the menus that offer the kinds by "kind.<object>.<kind>"; what happens, by "when.<event>" (a rule), with `{on}`
+// where the event comes from. A kind added to the format that has no sentence here yet is said by its word and what it reads
+// (sentences.ts).
+const PHRASES: string[] = [
+  'empty.if', 'No condition: the rule always acts.', 'Aucune condition : la règle agit toujours.', 'empty.do', 'Nothing yet.', 'Rien pour l’instant.',
+  'say.condition.counter', 'the counter {target} is {way} {value}', 'le compteur {target} vaut {way} {value}',
+  'say.condition.lights', 'the lights of {target} are all {way}', 'les lampes de {target} sont toutes {way}',
+  'say.condition.targets', 'the targets of {target} are all {way}', 'les cibles de {target} sont toutes {way}',
+  'say.condition.mode', 'the game is in {target}', 'la partie est en {target}',
+  'say.condition.rank', 'the rank is {way} {value}', 'le grade vaut {way} {value}',
+  'say.condition.mission', 'the current mission is {target}', 'la mission en cours est {target}',
+  'say.condition.balls', 'there are {way} {value} balls in play', 'il y a {way} {value} billes en jeu',
+  'say.action.score', 'add {value} points', 'ajouter {value} points',
+  'say.action.bonus', 'add {value} to the bonus', 'ajouter {value} au bonus',
+  'say.action.multiplier', 'raise the bonus multiplier by {value}', 'augmenter le multiplicateur de bonus de {value}',
+  'say.action.light', '{way} the lights of {target}', '{way} les lampes de {target}',
+  'say.action.light.flash', '{way} the lights of {target} for {seconds} s', '{way} les lampes de {target} pendant {seconds} s',
+  'say.action.count', 'counter {target}: {way} {value}', 'compteur {target} : {way} {value}',
+  'say.action.reset', 'raise the targets of {target}', 'relever les cibles de {target}',
+  'say.action.say', 'show {target} on the panel', 'afficher {target} sur le panneau',
+  'say.action.sound', 'play the sound {target}', 'jouer le son {target}',
+  'say.action.award', 'award {way}', 'accorder {way}',
+  'say.action.award.ballSave', 'award {way} for {seconds} s', 'accorder {way} pendant {seconds} s',
+  'say.action.rotate', 'shift the lit lights of {target} by {value}', 'décaler les lampes allumées de {target} de {value}',
+  'word.atLeast', 'at least', 'au moins', 'word.below', 'less than', 'moins de', 'word.equal', 'exactly', 'exactement',
+  'word.self', 'the element itself', 'l’élément lui-même',
+  'word.condition.lights.on', 'on', 'allumées', 'word.condition.lights.off', 'off', 'éteintes',
+  'word.condition.targets.down', 'down', 'tombées', 'word.condition.targets.up', 'up', 'relevées',
+  'word.condition.mode.normal', 'normal play', 'jeu normal', 'word.condition.mode.multiball', 'multiball', 'multibille',
+  'word.action.light.on', 'turn on', 'allumer', 'word.action.light.off', 'turn off', 'éteindre', 'word.action.light.blink', 'blink', 'faire clignoter',
+  'word.action.light.flash', 'flash', 'faire flasher', 'word.action.light.toggle', 'toggle', 'inverser',
+  'word.action.count.', 'add', 'ajouter', 'word.action.count.set', 'set to', 'mettre à',
+  'word.action.award.extraBall', 'an extra ball', 'une bille supplémentaire', 'word.action.award.ballSave', 'a ball save', 'une bille sauvée',
+  'word.action.award.lock', 'a ball lock', 'un verrouillage de bille', 'word.action.award.multiball', 'multiball', 'le multibille',
+  'word.action.award.mission', 'a step of the mission', 'une étape de la mission',
+  'kind.condition.counter', 'A counter', 'Un compteur', 'kind.condition.lights', 'Lights on or off', 'Des lampes allumées ou éteintes',
+  'kind.condition.targets', 'Targets down or up', 'Des cibles tombées ou relevées', 'kind.condition.mode', 'Normal play or multiball', 'Jeu normal ou multibille',
+  'kind.condition.rank', 'The rank of the player', 'Le grade du joueur', 'kind.condition.mission', 'The current mission', 'La mission en cours',
+  'kind.condition.balls', 'The balls in play', 'Les billes en jeu',
+  'kind.action.score', 'Add points', 'Ajouter des points', 'kind.action.bonus', 'Add to the bonus', 'Ajouter au bonus',
+  'kind.action.multiplier', 'Raise the bonus multiplier', 'Augmenter le multiplicateur de bonus', 'kind.action.light', 'Change lights', 'Changer des lampes',
+  'kind.action.count', 'Change a counter', 'Changer un compteur', 'kind.action.reset', 'Raise drop targets', 'Relever des cibles tombantes',
+  'kind.action.say', 'Show a text', 'Afficher un texte', 'kind.action.sound', 'Play a sound', 'Jouer un son',
+  'kind.action.award', 'Award something', 'Accorder quelque chose', 'kind.action.rotate', 'Shift the lit lights', 'Décaler les lampes allumées',
+  'when.hit', 'When the ball hits {on}', 'Quand la bille touche {on}',
+  'when.down', 'When the ball knocks {on} down', 'Quand la bille fait tomber {on}',
+  'when.roll', 'When the ball rolls over {on}', 'Quand la bille roule sur {on}',
+  'when.spin', 'When the ball spins {on}', 'Quand la bille fait tourner {on}',
+  'when.capture', 'When {on} catches the ball', 'Quand {on} capture la bille',
+  'when.eject', 'When {on} throws the ball out', 'Quand {on} éjecte la bille',
+  'when.enter', 'When the ball enters {on}', 'Quand la bille entre sur {on}',
+  'when.exit', 'When the ball leaves {on}', 'Quand la bille sort de {on}',
+  'when.pass', 'When the ball passes {on}', 'Quand la bille franchit {on}',
+  'when.flip', 'When the player flips {on}', 'Quand le joueur actionne {on}',
+  'when.launch', 'When {on} launches the ball', 'Quand {on} lance la bille',
+  'when.start', 'When a game starts', 'Quand une partie commence',
+  'when.ballStart', 'When a ball comes into play', 'Quand une bille entre en jeu',
+  'when.drain', 'When a ball is lost', 'Quand une bille est perdue',
+  'when.ballSaved', 'When a ball is saved', 'Quand une bille est sauvée',
+  'when.bump', 'When the player bumps the table', 'Quand le joueur secoue la table',
+  'when.tilt', 'When the table tilts', 'Quand la table tilte',
+  'when.missionDone', 'When a mission is done', 'Quand une mission est accomplie',
+  'when.rankUp', 'When the player is promoted', 'Quand le joueur monte en grade',
+  'when.multiballStart', 'When multiball starts', 'Quand le multibille commence',
+  'when.multiballEnd', 'When multiball ends', 'Quand le multibille se termine',
+  'when.jackpot', 'When a jackpot is scored', 'Quand un jackpot est marqué',
+  'when.extraBall', 'When an extra ball is won', 'Quand une bille supplémentaire est gagnée',
+  'when.gameOver', 'When the game is over', 'Quand la partie est finie',
+  'when.letter', 'When the player signs a letter of a high score', 'Quand le joueur valide une lettre de ses initiales',
+];
+/** The sentence or the word of a key, in the interface language; '' when the table above has none. */
+export function phrase(key: string): string {
+  for (let i = 0; i < PHRASES.length; i += 3) if (PHRASES[i] === key) return PHRASES[i + (uiLang() === 'fr' ? 2 : 1)];
+  return '';
+}
+/** The parts a sentence names, in alphabetical order: "target value way". */
+function slotsOf(text: string): string { return text.split('{').slice(1).map((part: string) => part.slice(0, part.indexOf('}'))).sort((a: string, b: string): number => a < b ? -1 : a > b ? 1 : 0).join(' '); }
+/** Checked by selftest.ts: every sentence exists in both languages, with the same parts in each, and no key is there twice. */
+export function phrasesComplete(): boolean {
+  for (let i = 0; i < PHRASES.length; i += 3) {
+    if (PHRASES[i + 1].length === 0 || PHRASES[i + 2].length === 0 || slotsOf(PHRASES[i + 1]) !== slotsOf(PHRASES[i + 2])) return false;
+    for (let k = 0; k < i; k += 3) if (PHRASES[k] === PHRASES[i]) return false;
+  }
+  return PHRASES.length % 3 === 0;
+}
+/** A number as a sentence writes it: 25,000 in English, 25 000 in French. */
+export function amount(n: number): string {
+  const whole = Math.floor(Math.abs(n)), rest = `${Math.abs(n)}`.slice(`${whole}`.length);
+  let digits = `${whole}`, out = '';
+  while (digits.length > 3) { out = `${uiLang() === 'fr' ? ' ' : ','}${digits.slice(digits.length - 3)}${out}`; digits = digits.slice(0, digits.length - 3); }
+  return `${n < 0 ? '-' : ''}${digits}${out}${uiLang() === 'fr' ? rest.replaceAll('.', ',') : rest}`;
+}
+
 // ---- the steps Undo names: the document's labels (doc.ts) are "<verb> <what>", the verb in English
 const VERBS: string[] = ['Move', 'Déplacer', 'Turn', 'Tourner', 'Delete', 'Supprimer', 'Change', 'Modifier', 'Edit', 'Modifier', 'Add', 'Ajouter', 'Duplicate', 'Dupliquer',
   'Mirror', 'Miroir de'];
@@ -280,7 +384,7 @@ const FIELDS: string[] = [
   'landscape', 'Landscape', 'Paysage', 'portrait', 'Portrait', 'Portrait', 'direction', 'Direction', 'Direction', 'lamps', 'Lamps', 'Projecteurs', 'background', 'Background', 'Fond',
   'ambient', 'Ambient light', 'Lumière ambiante', 'files', 'Files', 'Fichiers', 'source', 'Source', 'Source', 'licence', 'Licence', 'Licence',
   'land', 'Landing', 'Chute', 'knock', 'Knock', 'Coup sourd', 'textureLit', 'Image when lit', 'Image éclairée', 'general', 'General lighting', 'Éclairage général',
-  'dimmed', 'Light left when it is off', 'Lumière qui reste éteint', 'image', 'Image', 'Image'];
+  'dimmed', 'Light left when it is off', 'Lumière qui reste éteint', 'image', 'Image', 'Image', 'light groups', 'Light groups', 'Groupes de lampes'];
 /** The label of a field of the format. */
 export function fieldName(key: string): string {
   for (let i = 0; i < FIELDS.length; i += 3) if (FIELDS[i] === key) return FIELDS[i + (uiLang() === 'fr' ? 2 : 1)];

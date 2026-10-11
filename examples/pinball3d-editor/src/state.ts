@@ -10,7 +10,8 @@ import { TableDef, TableError, TABLE_FILE, formatSchema, filesOf } from '../../p
 import { FolderSource, packTable, PACKAGE_EXT } from '../../pinball3d/src/format/source';
 import { Doc, newTableText, isPlaced, canTurn, schemaAt, fieldAt, listOf, indexOf, pointsOf } from './doc';
 import { Outline, outlines, levelsOf } from './shapes';
-import { Preset, LANE, palette, itemOf, pointsNeeded, rowsNeeded, laneOf, blankOf, alongWith } from './presets';
+import { Preset, Start, LANE, palette, itemOf, pointsNeeded, rowsNeeded, laneOf, blankOf, alongWith, startOf } from './presets';
+import { kindSaid } from './sentences';
 import * as L from './strings';
 import { t, f } from './strings';
 
@@ -132,6 +133,35 @@ export function addTo(list: string): boolean {
   batch(() => { const path = current.add(list, blankOf(kind), 'Add', alongWith(kind)); done = report(path !== ''); if (done) select(path); });
   return done;
 }
+/** A new object of one kind for a list whose items have kinds (a condition, an action), or for the place of one: whole and valid
+ *  in this table. When the table lacks what the kind speaks of, the status bar says what to add first. */
+function startFor(of: Schema, word: string): Start {
+  const start = startOf(of, word, (space: string): string[] => current.namesOf(space), (list: string): string[] => current.namesAmong(list), current.data);
+  if (start.item === null) say(f(L.KIND_NEEDS, kindSaid(of.name, word), start.lacks.split('|').map((sp: string) => L.fieldName(sp).toLowerCase()).join(', ')), true);
+  return start;
+}
+/** Adds an object of one kind to a list whose items have kinds. The selection stays: the new object is edited where it is listed. */
+export function addKind(list: string, word: string): boolean {
+  const fd = fieldAt(list);
+  if (fd === null || fd.of === null) return false;
+  const start = startFor(fd.of as Schema, word);
+  return start.item !== null && report(current.add(list, start.item, 'Add', start.also) !== '');
+}
+/** Makes the object at a path one of another kind, whole and valid at once (its other parts are those of the new kind). */
+export function setKind(path: string, word: string): boolean {
+  const s = schemaAt(path), vs = s.variants;
+  if (vs === null || current.get(`${path}.${vs.kind}`) === word) return false;
+  const start = startFor(s, word);
+  return start.item !== null && report(current.put(path, start.item, start.also));
+}
+/** Takes one item out of a list, alone: refused when the table cannot do without it (the last action of a rule). */
+export function removeItem(path: string): boolean {
+  const done = report(current.remove(path, true));
+  if (done) reselect();
+  return done;
+}
+/** Moves an item of a list one place up or down. */
+export function moveItem(path: string, by: i32): boolean { return report(current.reorder(path, by) !== ''); }
 /** Moves the selected item one place up or down in its list. */
 export function reorderSelected(by: i32): void {
   const path = selected();

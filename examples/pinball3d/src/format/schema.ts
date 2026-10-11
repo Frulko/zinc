@@ -54,12 +54,56 @@ export class Field {
   withUnit(unit: string): Field { this.unit = unit; return this; }
 }
 
+/** One of the kinds an object can be, by the word its kind field holds, and what that kind reads of the object's other fields (the
+ *  rest is ignored for it). The format that uses the schema checks an object by its kind, and an editor offers what the kind reads,
+ *  so that a new object is whole and valid at once. */
+export class Variant {
+  word: string;
+  /** What its target is: the name of an item of this name space ('' when it is no name)... */
+  names: string = '';
+  /** ...which, when the name space is wider than what the kind acts on, an editor takes among the items of this list of the file
+   *  and their groups ('' for any of the name space)... */
+  among: string = '';
+  /** ...or one of these words... */
+  words: string[] = [];
+  /** ...or any text. */
+  text: boolean = false;
+  /** The words its way field may hold; none: the kind does not read that field. */
+  ways: string[] = [];
+  /** How a fault of its way begins ("lights are"); '' for "<kind> takes". */
+  said: string = '';
+  /** The numbers it reads, by the names of their fields: "value", or "seconds:flash" for one it reads only with the way "flash". */
+  numbers: string[] = [];
+  /** Its first number must not be 0. */
+  nonZero: boolean = false;
+  constructor(word: string) { this.word = word; }
+  named(names: string, among: string = ''): Variant { this.names = names; this.among = among; return this; }
+  or(words: string[]): Variant { this.words = words; return this; }
+  anyText(): Variant { this.text = true; return this; }
+  by(ways: string[], said: string = ''): Variant { this.ways = ways; this.said = said; return this; }
+  reads(numbers: string[], nonZero: boolean = false): Variant { this.numbers = numbers; this.nonZero = nonZero; return this; }
+  /** Whether it reads a target at all. */
+  get aimed(): boolean { return this.names !== '' || this.words.length > 0 || this.text; }
+  /** Whether it reads the number field `name` when its way is `way`. */
+  uses(name: string, way: string): boolean { return this.numbers.indexOf(name) >= 0 || this.numbers.indexOf(`${name}:${way}`) >= 0; }
+}
+/** The kinds of the objects of a schema: the field that says the kind, the field that holds the target and the field that holds the way. */
+export class Variants {
+  kind: string; target: string; way: string;
+  all: Variant[] = [];
+  constructor(kind: string, target: string, way: string) { this.kind = kind; this.target = target; this.way = way; }
+  add(word: string): Variant { const v = new Variant(word); this.all.push(v); return v; }
+  of(word: string): Variant | null { for (const v of this.all) if (v.word === word) return v; return null; }
+}
+
 export class Schema {
   name: string;
   doc: string;
   fields: Field[] = [];
   /** The field that names an item ('id'), '' when items have no name. */
   key: string = '';
+  /** When its objects are of several kinds: what each kind reads. null: every object reads every field. */
+  variants: Variants | null = null;
   /** An example as a file would hold it (JSON), for the reference when the table at hand has none. */
   sample: string = '';
   constructor(name: string, doc: string) { this.name = name; this.doc = doc; }

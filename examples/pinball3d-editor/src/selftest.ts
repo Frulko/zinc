@@ -2,11 +2,13 @@
 //   zinc run examples/pinball3d-editor/src/selftest.ts -- examples/pinball3d/assets/tables/tidal-lock/table.json
 import { args, env, exit } from 'zinc:sys';
 import { readText } from 'zinc:fs';
-import { Schema, Field, Kind } from '../../pinball3d/src/format/schema';
+import { Schema, Field, Kind, Variants } from '../../pinball3d/src/format/schema';
 import { parseTable, formatSchema } from '../../pinball3d/src/format/table';
+import { EVENTS } from '../../pinball3d/src/format/table-schema';
 import { Doc, steps, pathOf, listOf, indexOf, fieldAt, schemaAt, canTurn, isPlaced, isProfile, isOffset, isPath, isClosed, found, mirrorName, newTableText } from './doc';
-import { Preset, palette, itemOf, pointsNeeded, rowsNeeded, laneOf, blankOf, alongWith } from './presets';
-import { complete, f, setUiLang, step, fieldName, listName, fieldKnown, DONE_UNDONE } from './strings';
+import { Preset, palette, itemOf, pointsNeeded, rowsNeeded, laneOf, blankOf, alongWith, startOf } from './presets';
+import { complete, f, setUiLang, step, fieldName, listName, fieldKnown, DONE_UNDONE, phrase, phrasesComplete } from './strings';
+import { pieces, sentenceOf, wordSaid, ruleSaid } from './sentences';
 
 let failed = false;
 function check(what: string, ok: boolean): void {
@@ -204,6 +206,72 @@ check('paths read as the loader writes them', steps('walls[2].points[1]').join('
     && d.turn(twin, -90) && JSON.stringify(d.get(`${twin}.exit`)) === '[2,0,6]' && plays(d.text()));
   const area = fieldAt('floors[0].points');
   check('the outline of an upper playfield closes by itself', area !== null && area.role === 'area' && isPath(area) && isClosed(area, e.get('plunger')) && !isClosed(fieldAt('walls[0].points') as Field, d.get('walls[0]')));
+}
+
+// ---- conditions and actions: an object of a kind is whole at once, and is said as a sentence in both languages
+{
+  const d = new Doc(sample, sample);
+  const rule = d.add('rules.when', blankOf('rule'));
+  const names = (space: string): string[] => d.namesOf(space), among = (list: string): string[] => d.namesAmong(list);
+  let kinds = 0, made = 0, said = 0;
+  const lists = ['if', 'do'];
+  for (const list of lists) {
+    const of = (fieldAt(`${rule}.${list}`) as Field).of as Schema, vs = of.variants as Variants;
+    for (const v of vs.all) {
+      kinds++;
+      const start = startOf(of, v.word, names, among, d.data);
+      // (a kind that speaks of what this table does not have, a sound on a table without sounds, says what is missing instead)
+      if (start.item === null && start.lacks !== '' && d.namesOf(start.lacks).length === 0) { made++; console.log(`a new ${of.name} "${v.word}" needs one of the ${start.lacks}: this table has none`); }
+      else if (start.item !== null && d.add(`${rule}.${list}`, start.item, 'Add', start.also) !== '') made++; else console.log(`  ${of.name} ${v.word}: ${d.refused}`);
+      // its sentence, with each of its ways: every part the kind reads is in it, and nothing else, in both languages
+      const ways = v.ways.length === 0 ? [''] : v.ways;
+      let fits = true;
+      for (const lang of ['en', 'fr']) {
+        setUiLang(lang);
+        for (const way of ways) {
+          const slots: string[] = [];
+          for (const p of pieces(sentenceOf(of.name, v, way))) if (p.slot !== '') slots.push(p.slot);
+          const want: string[] = [];
+          if (v.aimed) want.push('target');
+          if (v.ways.length > 0) want.push('way');
+          for (const n of v.numbers) { const name = n.indexOf(':') < 0 ? n : n.slice(0, n.indexOf(':')); if (v.uses(name, way)) want.push(name); }
+          const order = (a: string, b: string): number => a < b ? -1 : a > b ? 1 : 0;
+          if (phrase(`say.${of.name}.${v.word}`) === '' || slots.sort(order).join(' ') !== want.sort(order).join(' ') || phrase(`kind.${of.name}.${v.word}`) === '') { fits = false; console.log(`  the sentence of ${of.name} ${v.word} ${way} (${lang}): ${slots.join(' ')} for ${want.join(' ')}`); }
+          if (way !== '' && wordSaid(of.name, v.word, way) === way && phrase(`word.${way}`) === '' && phrase(`word.${of.name}.${v.word}.${way}`) === '') { fits = false; console.log(`  no word for ${of.name} ${v.word} ${way} (${lang})`); }
+        }
+      }
+      setUiLang('en');
+      if (fits) said++;
+    }
+  }
+  check('every kind of condition and of action starts whole, as an object the game accepts', kinds > 10 && made === kinds && plays(d.text()));
+  check('every kind has its sentence in English and in French, with the parts the format says it reads', said === kinds && phrasesComplete());
+  let events = 0;
+  for (const lang of ['en', 'fr']) { setUiLang(lang); for (const e of EVENTS) if (phrase(`when.${e}`) !== '') events++; }
+  setUiLang('en');
+  check('every event of the format is said in both languages', events === EVENTS.length * 2);
+  const action = (fieldAt(`${rule}.do`) as Field).of as Schema, bank = startOf(action, 'reset', names, among, d.data), lit = startOf((fieldAt(`${rule}.if`) as Field).of as Schema, 'lights', names, among, d.data);
+  check('a new object speaks of what the table has: its first bank of drop targets, its first group of lights', bank.item.target === 'bank' && lit.item.target === 'lanes' && lit.item.is === 'on');
+  const before: i32 = d.get(`${rule}.do`).length;
+  check('an action becomes one of another kind in one step, and is taken away alone', d.put(`${rule}.do[0]`, startOf(action, 'say', names, among, d.data).item, null) && d.get(`${rule}.do[0].do`) === 'say' && d.get(`${rule}.do[0].target`) === 'WELL DONE'
+    && d.undoLabel === 'Edit action 1' && d.remove(`${rule}.do[0]`, true) && d.get(`${rule}.do`).length === before - 1 && plays(d.text()));
+  const e = new Doc(newTableText('New table'), ''), bare = e.add('rules.when', blankOf('rule'));
+  const none = startOf(action, 'sound', (space: string): string[] => e.namesOf(space), (list: string): string[] => e.namesAmong(list), e.data);
+  const count = startOf(action, 'count', (space: string): string[] => e.namesOf(space), (list: string): string[] => e.namesAmong(list), e.data);
+  check('on a table that lacks what a kind speaks of, the kind says so; a counter comes with the first thing that counts', none.item === null && none.lacks === 'sounds'
+    && e.add(`${bare}.do`, count.item, 'Add', count.also) !== '' && JSON.stringify(e.get('rules.counters')) === '["counter1"]' && e.remove(`${bare}.do[1]`, true) && !e.remove(`${bare}.do[0]`, true)
+    && e.refused === 'rules.when[0].do: a rule that does nothing' && plays(e.text()));
+  const all = (fd: Field, at: string): boolean => false;
+  check('a part of an item of a list is found from the thing that holds the list', found(schemaAt(rule), rule, 'do[1].target', fieldName, all, d.data).join(' ') === `${rule}.do[1].target`
+    && found(schemaAt(rule), rule, 'do', fieldName, all, d.data).join(' ') === `${rule}.do` && found(schemaAt(rule), rule, 'do[1].target', fieldName, all).length === 0);
+  // the rules of the table as the editor says them, in both languages (tests/t1/pinball3d_editor_rules.sh reads some of these lines)
+  const f = new Doc(sample, sample), ruleSchema = schemaAt('rules.when[0]');
+  for (const lang of ['en', 'fr']) {
+    setUiLang(lang);
+    const n: i32 = f.get('rules.when').length;
+    for (let i = 0; i < n; i++) console.log(`${lang} rule ${i + 1}: ${ruleSaid(ruleSchema, f.get(`rules.when[${i}]`))}`);
+  }
+  setUiLang('en');
 }
 
 // ---- 50 mixed operations: undo and redo give back every file, byte for byte

@@ -62,9 +62,17 @@ export function Heading(p: { label: string }): i32 {
  *  `labels` gives what is shown for each. A long list (the elements of a table) opens with a box to type in: the list keeps what
  *  holds the text, and Enter takes the first. */
 export function Chooser(p: { value: () => string; options: () => string[]; label: (v: string) => string; onPick: (v: string) => void }): i32 {
-  return <Picker value={p.value} options={p.options} label={p.label} onPick={p.onPick} picture={noPicture} note={noNote} search={false} width={190} />;
+  return <Picker value={p.value} options={p.options} label={p.label} onPick={p.onPick} picture={noPicture} note={noNote} search={false} width={190} look="field" title="" />;
 }
-const noPicture = (v: string): i32 => -1, noNote = (v: string): string => '';
+/** The same choice as a word of a sentence: as wide as what it says. */
+export function Word(p: { value: () => string; options: () => string[]; label: (v: string) => string; onPick: (v: string) => void }): i32 {
+  return <Picker value={p.value} options={p.options} label={p.label} onPick={p.onPick} picture={noPicture} note={noNote} search={false} width={220} look="word" title="" />;
+}
+/** A button that opens a list of what can be added or done: an icon and a word ('' for the icon alone). */
+export function Menu(p: { icon: string; title: string; options: () => string[]; label: (v: string) => string; onPick: (v: string) => void }): i32 {
+  return <Picker value={nothing} options={p.options} label={p.label} onPick={p.onPick} picture={noPicture} note={noNote} search={false} width={240} look={p.icon} title={p.title} />;
+}
+const noPicture = (v: string): i32 => -1, noNote = (v: string): string => '', nothing = (): string => ' ';
 /** An image shown whole in a box, as large as it fits. */
 export function drawFitted(image: i32, x: number, y: number, w: number, h: number): void {
   const iw = imageWidth(image), ih = imageHeight(image);
@@ -76,7 +84,7 @@ export function drawFitted(image: i32, x: number, y: number, w: number, h: numbe
  *  it (the length of a sound, the size of an image). `search`: the box to type in is there however short the list is; `width`: of
  *  the list. */
 export function Picker(p: { value: () => string; options: () => string[]; label: (v: string) => string; onPick: (v: string) => void; picture: (v: string) => i32; note: (v: string) => string;
-  search: boolean; width: number }): i32 {
+  search: boolean; width: number; look: string; title: string }): i32 {
   const field = createNodeRef(), list = createNodeRef(), search = createNodeRef();
   const [open, setOpen] = createSignal<boolean>(false);
   const [typed, setTyped] = createSignal<string>('');
@@ -95,11 +103,21 @@ export function Picker(p: { value: () => string; options: () => string[]; label:
     const want = typed().trim().toLowerCase();
     return want === '' ? p.options() : p.options().filter((o: string) => o.toLowerCase().indexOf(want) >= 0 || p.label(o).toLowerCase().indexOf(want) >= 0);
   };
-  const node = <view class="w-full flex-col">
-    <button ref={field} class="w-full flex-row items-center justify-start gap-2 h-7 px-2 rounded-md cursor-pointer bg-zinc-950 border border-zinc-700 hover:border-zinc-500" onClick={toggle}>
+  // what opens the list: the field of a form, a word of a sentence, or a button with an icon (`look` is then the icon's name)
+  const Face = (): i32 => p.look === 'field' ? <button ref={field} class="w-full flex-row items-center justify-start gap-2 h-7 px-2 rounded-md cursor-pointer bg-zinc-950 border border-zinc-700 hover:border-zinc-500" onClick={toggle}>
       <text class="grow truncate text-xs text-zinc-100" style={{ maxWidth: 122 }}>{p.label(p.value())}</text>
       <Ico name="chevron-down" size={12} color={MUTED} />
     </button>
+    : p.look === 'word' ? <button ref={field} class="flex-row items-center gap-1 h-6 px-[6] rounded cursor-pointer bg-zinc-800 border border-zinc-600 hover:border-amber-400" onClick={toggle}>
+      <text class="truncate text-xs font-bold text-amber-200" style={{ maxWidth: 168 }}>{p.label(p.value())}</text>
+      <Ico name="chevron-down" size={10} color={ACCENT} />
+    </button>
+    : <button ref={field} class={`flex-row items-center justify-center gap-[6] rounded-md cursor-pointer ${p.title === '' ? 'w-[20] h-[20] bg-transparent hover:bg-zinc-700' : 'h-7 px-2 bg-zinc-900 border border-zinc-700 hover:bg-zinc-800'}`} tabIndex={-1} onClick={toggle}>
+      <Ico name={p.look} size={p.title === '' ? 11 : 12} color={MUTED} />
+      {p.title === '' ? <view /> : <text class="text-xs font-bold text-zinc-300">{p.title}</text>}
+    </button>;
+  const node = <view class={p.look === 'field' ? 'w-full flex-col' : 'flex-col'}>
+    {Face()}
     <view ref={list} hidden={1} class="flex-col gap-1 p-1 rounded-md bg-zinc-900 border border-zinc-600 shadow-lg" style={{ width: p.width }}>
       <Show when={long()}>
         <input ref={search} class="h-7 px-2 rounded bg-zinc-950 border border-zinc-700 text-xs text-zinc-100 focus:border-amber-400" style={{ width: p.width - 10 }}
@@ -124,7 +142,8 @@ export function Picker(p: { value: () => string; options: () => string[]; label:
     </view>
   </view>;
   ui.openLayer(list.node, { priority: 100 });
-  ui.anchor(list.node, field.node, 'bottom-start', 2);
+  // the list of a button, which is at the right of its line, opens towards the left
+  ui.anchor(list.node, field.node, p.look === 'field' || p.look === 'word' ? 'bottom-start' : 'bottom-end', 2);
   ui.onDismiss(list.node, close);
   ui.onOutsidePointer(list.node, (e: ui.PointerEvent) => close(), field.node);
   return node;

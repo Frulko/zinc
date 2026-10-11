@@ -249,68 +249,85 @@ def lights_and_models():
     return s
 
 
-def rule(s, n, on, event, actions):
-    """A rule made in its form: where the event comes from, the event, then each thing it does."""
+TESTS = ['counter', 'lights', 'targets', 'mode', 'rank', 'mission', 'balls']
+DO = ['score', 'bonus', 'multiplier', 'light', 'count', 'reset', 'say', 'sound', 'award', 'rotate']
+WAYS = ['on', 'off', 'blink', 'flash', 'toggle']
+
+
+def rule(s, on, event, actions, conditions=()):
+    """A rule made in its form, by choices: where the event comes from and the event, what must hold, what it does. A new
+    rule does one thing (100 points), which becomes the first thing this one does; the others are added. A condition or
+    an action is added by its kind, in the list the button Add opens, and is whole at once: the editor gives it what the
+    table has (the first group of lights, the first bank of drop targets, the first sound), and each part is then chosen
+    in a list (a name, typed in the box of a long list to find it), or typed when it is a number or a text for the panel."""
     s.goto('+rule')
     s.choose('on', on)
     s.choose('event', event)
-    for k, a in enumerate(actions):
+    for k, (test, parts) in enumerate(conditions):
+        s.add_kind('if', TESTS.index(test))
+        if 'target' in parts:
+            s.choose(f'if[{k}].target', parts['target'])
+    for k, (do, parts) in enumerate(actions):
         if k > 0:
-            s.goto('+action')
-        s.goto(f'rules.when[{n}].do[{k}]')
-        act(s, a)
+            s.add_kind('do', DO.index(do))
+        elif do != 'score':
+            s.choose_line('do[0].do', DO.index(do))
+        if 'target' in parts:
+            s.choose(f'do[{k}].target', parts['target'])
+        if 'line' in parts:   # in a list short enough to show whole (ten names at most): one of its lines, counted from 0
+            s.choose_line(f'do[{k}].target', parts['line'])
+        if 'way' in parts:
+            s.choose_line(f'do[{k}].mode', WAYS.index(parts['way']))
+        if 'text' in parts:
+            s.set(f'do[{k}].target', parts['text'])
+        for number in ('value', 'seconds'):
+            if number in parts:
+                s.set(f'do[{k}].{number}', parts[number])
 
 
-DO = ['score', 'bonus', 'multiplier', 'light', 'count', 'reset', 'say', 'sound', 'award', 'rotate']
-MODES = {'on': ('on', 1), 'off': ('off', 0), 'flash': ('flash', 0), 'extraBall': ('extraBall', 0), 'ballSave': ('ballSave', 0)}
+def score(points):
+    return ('score', {'value': points})
 
 
-def act(s, a):
-    """One thing a rule does, from the new action the editor gives (score 100): what it acts on and how first, then what it is."""
-    do = a[0]
-    if do in ('score', 'bonus', 'multiplier'):
-        if do != 'score':
-            s.choose_line('do', DO.index(do))
-        s.set('value', a[1])
-        return
-    if len(a) > 1 and a[1] is not None:
-        s.set('target', a[1])
-    if len(a) > 2 and a[2] is not None:
-        typed, line = MODES[a[2]]
-        s.choose_line('mode', line, typed=typed)
-    if len(a) > 3:
-        s.set('seconds', a[3])
-    s.choose_line('do', DO.index(do))
-    s.set('value', a[4] if len(a) > 4 else 0)
+def lights(target, way, seconds=None):
+    return ('light', {'target': target, 'way': way} if seconds is None else {'target': target, 'way': way, 'seconds': seconds})
+
+
+def sound(name):
+    return ('sound', {'target': name})
+
+
+def say(text):
+    return ('say', {'text': text})
 
 
 RULES = [   # the first two are the starter table's: the bumpers (500) and the targets, now the ducks (1000)
-    ('slings', 'hit', [('score', 110)]),
-    ('bumpers', 'hit', [('light', 'bulbs', 'flash', 0.25)]),
-    ('lanes', 'roll', [('score', 300), ('light', 'self', 'on')]),
-    ('flippers', 'flip', [('rotate', 'lanes', None, 0, 1)]),
-    ('coconuts', 'down', [('score', 2000)]),
-    ('striker', 'capture', [('score', 5000), ('bonus', 500), ('light', 'bulbs', 'flash', 0.8)]),
-    ('bells', 'hit', [('score', 2500), ('say', 'DING!')]),
-    ('spinner', 'spin', [('score', 100)]),
-    ('game', 'start', [('sound', 'jingleStart'), ('light', 'general', 'on'), ('say', 'ROLL UP, ROLL UP')]),
-    ('game', 'ballStart', [('light', 'general', 'on')]),
-    ('game', 'drain', [('sound', 'drainWhistle')]),
-    ('game', 'ballSaved', [('sound', 'jingleSaved')]),
-    ('game', 'bump', [('sound', 'cabinetKnock')]),
-    ('game', 'tilt', [('sound', 'jingleTilt'), ('light', 'general', 'off'), ('say', 'TILT')]),
-    ('game', 'missionDone', [('sound', 'jingleMission'), ('light', 'bulbs', 'flash', 1.5)]),
-    ('game', 'rankUp', [('sound', 'jingleRank')]),
-    ('game', 'extraBall', [('sound', 'jingleExtra')]),
-    ('game', 'jackpot', [('sound', 'jingleJackpot')]),
-    ('game', 'gameOver', [('sound', 'jingleOver'), ('light', 'general', 'off')]),
-    ('game', 'letter', [('sound', 'letterKey')]),
+    ('slings', 'hit', [score(110)]),
+    ('bumpers', 'hit', [lights('bulbs', 'flash', 0.25)]),
+    ('lanes', 'roll', [score(300), lights('self', 'on')]),
+    ('flippers', 'flip', [('rotate', {'line': 1, 'value': 1})]),   # the table has four groups of lights: the lanes are the second
+    ('coconuts', 'down', [score(2000)]),
+    ('striker', 'capture', [score(5000), ('bonus', {'value': 500}), lights('bulbs', 'flash', 0.8)]),
+    ('bells', 'hit', [score(2500), say('DING!')]),
+    ('spinner', 'spin', [score(100)]),
+    ('game', 'start', [sound('jingleStart'), lights('general', 'on'), say('ROLL UP, ROLL UP')]),
+    ('game', 'ballStart', [lights('general', 'on')]),
+    ('game', 'drain', [sound('drainWhistle')]),
+    ('game', 'ballSaved', [sound('jingleSaved')]),
+    ('game', 'bump', [sound('cabinetKnock')]),
+    ('game', 'tilt', [sound('jingleTilt'), lights('general', 'off'), say('TILT')]),
+    ('game', 'missionDone', [sound('jingleMission'), lights('bulbs', 'flash', 1.5)]),
+    ('game', 'rankUp', [sound('jingleRank')]),
+    ('game', 'extraBall', [sound('jingleExtra')]),
+    ('game', 'jackpot', [sound('jingleJackpot')]),
+    ('game', 'gameOver', [sound('jingleOver'), lights('general', 'off')]),
+    ('game', 'letter', [sound('letterKey')]),
 ]
-# Two rules need a condition that the form cannot build one field at a time (each state on the way is refused by the format's own
-# check: a test of lights wants a light and "on" together): they are written as the file has them, in the editor (Cmd+J).
-WRITTEN = [
-    '{"on":"lanes","event":"roll","if":[{"test":"lights","target":"lanes","is":"on"}],"do":[{"do":"multiplier","value":1},{"do":"bonus","value":1000},{"do":"light","target":"lanes","mode":"off"},{"do":"say","target":"LANES LIT: BONUS X"}]}',
-    '{"on":"coconuts","event":"down","if":[{"test":"targets","target":"coconuts","is":"down"}],"do":[{"do":"score","value":10000},{"do":"bonus","value":2000},{"do":"reset","target":"coconuts"},{"do":"say","target":"COCONUT SHY CLEARED"}]}',
+# The two rules with a condition: when every lane light is on, when every coconut is down. The condition is added by its kind and
+# is whole at once (the editor gives "the targets of coconuts are all down" by itself: the coconuts are the table's bank of drop targets).
+CONDITIONAL = [
+    ('lanes', 'roll', [('lights', {'target': 'lanes'})], [('multiplier', {'value': 1}), ('bonus', {'value': 1000}), lights('lanes', 'off'), say('LANES LIT: BONUS X')]),
+    ('coconuts', 'down', [('targets', {'target': 'coconuts'})], [score(10000), ('bonus', {'value': 2000}), ('reset', {'target': 'coconuts'}), say('COCONUT SHY CLEARED')]),
 ]
 MISSIONS = [   # name, award, what the panel asks for, where the event comes from, the event, how many times, the light that blinks
     ('Carousel Ride', 20000, 'Ride the carousel: hit the bumpers', 'bumpers', 'hit', 10, 'carouselLight'),
@@ -321,18 +338,13 @@ MISSIONS = [   # name, award, what the panel asks for, where the event comes fro
 
 
 def rules():
-    s = Session('Twilight Fair, 4: how it is played. The rules, each made in its form (what happens, where, and what it does);\n'
-                'the missions and the ranks; the light of the ball save.')
-    for n, (on, event, actions) in enumerate(RULES):
-        rule(s, n + 2, on, event, actions)
-    s.note('The two rules with a condition, written as the file has them (Cmd+J), each then left by a click beside the board.')
-    for text in WRITTEN:
-        s.goto('+rule')
-        s.key('j', 'meta')
-        s.rest()
-        s.key('a', 'meta')
-        s.text(text)
-        s.away()
+    s = Session('Twilight Fair, 4: how it is played. The rules, each made in its form by choices (what happens, where, what must\n'
+                'hold and what it does); the missions and the ranks; the light of the ball save.')
+    for on, event, actions in RULES:
+        rule(s, on, event, actions)
+    s.note('The two rules with a condition: "the lights of lanes are all on", "the targets of coconuts are all down".')
+    for on, event, conditions, actions in CONDITIONAL:
+        rule(s, on, event, actions, conditions)
     s.note('The missions: the starter table\'s becomes the first; the others are added, each with its step.')
     for i, (name, award, text, on, event, count, lamp) in enumerate(MISSIONS):
         s.goto('rules.missions[0]' if i == 0 else '+mission')

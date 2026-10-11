@@ -81,11 +81,17 @@ place and their size typed; the big wheel and the ticket booth are OBJ files; th
 
 ## 5. Rules, missions, ranks (session 4)
 
-A rule says: when this happens there, do that. **+rule** adds one; its form has where the event comes from (a thing, or
-a group of things such as `bumpers`, or the game itself), the event, and a list of what it does: score, bonus, light,
-say, sound, reset... Twenty rules of Twilight Fair were made that way, from "the slingshots score 110" to "a bump of the
-table plays the cabinet's knock". A mission is a name, an award and steps (an event to get a number of times, and the
-light that blinks meanwhile); finishing one promotes the player to the next of the ranks, typed one per line.
+A rule says: when this happens there, and these things hold, do that. **+rule** adds one; its form has where the event
+comes from (a thing, or a group of things such as `bumpers`, or the game itself), the event, then two lists of
+sentences: what must hold, and what it does. **Add** opens the list of kinds ("Lights on or off", "Targets down or
+up", "Add points", "Change lights", "Show a text", "Play a sound"...); the kind chosen is added whole, with what the
+table has: "the lights of `bulbs` are all on" names the table's first group of lights, "the targets of `coconuts` are
+all down" its bank of drop targets. Each word that can change is then a choice (a name among the lights, a way among
+on, off, blink...), or a number or a text to type. The twenty-two rules of Twilight Fair were made that way, from "the
+slingshots score 110" to "when the ball rolls over `lanes`, if the lights of `lanes` are all on: raise the bonus
+multiplier by 1; add 1,000 to the bonus; turn off the lights of `lanes`; show LANES LIT: BONUS X on the panel". A
+mission is a name, an award and steps (an event to get a number of times, and the light that blinks meanwhile);
+finishing one promotes the player to the next of the ranks, typed one per line.
 
 ![a rule in its form](img/pinball-make-4-rule.jpg)
 
@@ -104,10 +110,11 @@ the table and its files as one `.zpinball` file to share.
 
 The measure of the editor is what it could not do by its forms, lists and pointer. For Twilight Fair:
 
-- **Two rules with a condition** ("when all the lane lights are on", "when all the coconuts are down") were written
-  as text in the editor's advanced field (Cmd+J on a new rule). The form cannot build such a condition one field at a
-  time: a test of lights needs a light and the word "on" together, and every state on the way is refused by the
-  format's own check. Guided rules (ZN-649.14) are meant to close this.
+- **Nothing was written as the file has it.** The first version of the table needed it for two rules with a condition
+  ("when all the lane lights are on", "when all the coconuts are down"): a form of plain fields cannot build such a
+  condition one field at a time, because a test of lights needs a light and the word "on" together and every state on
+  the way is refused by the format's own check. Conditions and actions are now added by their kind, whole (ZN-649.14),
+  and the session that makes the rules has no line of file text any more.
 - **Nothing was typed in `table.json` itself**, and no line of the game changed.
 - Typed in forms rather than pointed at: the places of the bulbs and of the scenery, the angle of the drop targets and
   the exit of the kicker (the pointer snaps to half centimetres), and the colours, as hex in the box beside the swatch
