@@ -114,6 +114,12 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-650.07.04: subtitle cues or a waveform on the narration's bar and a film preview in the medium's panel, so an author times items against what is said.
 - ZN-650.07.04: `lengthOf` keeps a replaced file's first length until the editor restarts; look at the file's date.
 - ZN-650.07.04: a French frame of the narration and film panels in `museum_editor_views` when that test is next touched.
+- ZN-712: `zinc run --engine quickjs` ignores the window size of zinc.json, so the JS examples open at 320x240.
+- ZN-712: a JS project cannot name its engine in zinc.json, so `zinc run <dir>` without `--engine quickjs` fails with a compile error.
+- ZN-712: importmap.json maps exact names only; a prefix such as `three/addons/` fails, so each addon needs its line.
+- ZN-712: ZINC_INPUT has no key release, so a scripted key stays down in the web environment.
+- ZN-712: js-p5 (144 lit boxes) took about 80 ms a frame on QuickJS while other trees built; measure alone and profile p5's WEBGL path.
+- ZN-712: when ZN-570 lands, add Text to js-pixi and js-phaser and a 2D sketch to js-p5; when ZN-573 lands, listen to js-phaser's sounds and tick criterion 2.
 
 ## Cross-platform pass
 
