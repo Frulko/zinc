@@ -1,0 +1,20 @@
+ports: true true true
+sent true
+/all i:0 i:-1 i:2147483647 i:-2147483648 f:0 f:0.5 f:-2.75 f:3.4028234663852886e+38 f:9.99994610111476e-41 f:0.10000000149011612 f:Infinity d:0.3333333333333333 d:-1.7976931348623157e+308 d:5e-324 d:123456789.125 s: s:abc s:abcd s:héllo ✓ b:[] b:[1] b:[1,2,3,4] b:257 bytes t:0.1 t:4294967295.4294967295 t:3968988800.2147483648 T:1 F:0 N:0
+every type equal: true 29 from 127.0.0.1 true
+the 257-byte blob: true
+time tag of 1760000000500 ms: 1760000000500
+/fader/[1-4] i:64 @0.1 now
+/cue s:go @0.1 now
+/light/7/level f:0.25 @3969000000.2147483648
+exact /all
+sender pattern /fader/[1-4] -> /fader/3
+handler pattern /light/7/level
+wire: [47,111,115,99,105,108,108,97,116,111,114,47,52,47,102,114,101,113,117,101,110,99,121,0,44,102,0,0,67,220,0,0]
+wire: [47,110,0,0,44,105,102,102,102,100,100,98,0,0,0,0,255,255,255,254,192,48,0,0,0,1,22,194,61,204,204,205,63,213,85,85,85,85,85,85,0,0,0,0,0,0,0,1,0,0,0,1,7,0,0,0]
+truncated: 1 whole: 1 junk: 0 empty: 0
+blob longer than the datagram: 0
+40 bundles deep: 0
+patterns: 18 of 18
+closed: true 0
+closed: false
