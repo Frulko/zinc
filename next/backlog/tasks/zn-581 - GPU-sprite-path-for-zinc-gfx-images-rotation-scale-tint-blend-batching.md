@@ -2,7 +2,8 @@
 id: ZN-581
 title: 'GPU sprite path for zinc:gfx images (rotation, scale, tint, blend, batching)'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-09 08:12'
 labels:
   - games
