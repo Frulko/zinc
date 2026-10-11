@@ -194,12 +194,13 @@ serve bytes, every byte is checked against a signature or a hash before it is us
 is fetched; they cannot make zinc use bytes the index, the lock or the pins do not name, roll it back past what it has seen,
 or keep a frozen index alive for more than a week.
 
-**Publishing a plugin.** 1. Write the plugin in its own repository (`zinc-engine/plugin-starter`, ZN-354): `plugin.json` with
+**Publishing a plugin.** 1. Write the plugin in its own repository (`zinc new plugin <dir>`, the starter): `plugin.json` with
 `version`, `permissions` and, for a community plugin, `publisher { name, publicKey }` from `zinc update-keygen`. 2. Release an
 archive and sign it: `zinc sign plugin-1.0.tar.gz <seed>` writes the `.sig` beside it; users `zinc add <url>` (community, the
 key pinned). 3. To be verified, ask for a delegation in the index (your public key for `<you>/*/*` and `<you>/*/*/*`); your CI
 publishes `<you>/plugins/<name>/<version>.json` and, per target, `zinc plugin-build <name> --pack` archives signed by your
-key; the reusable workflow that does this is ZN-338. 4. Rebuilders rebuild the archives (`-DZN_REPRODUCIBLE`, the pinned zig)
+key; the starter's CI runs the reusable workflow `.github/workflows/plugin.yml`, which builds, packs and signs them (their
+publication into the index under the delegation is ZN-338). 4. Rebuilders rebuild the archives (`-DZN_REPRODUCIBLE`, the pinned zig)
 and the index records `rebuilds/<sha256>.json`; your binaries are used once the policy's number of rebuilds match.
 
 **A private index and mirror for a company.** Run `next/tools/index-repo` with the company's keys over its plugins, publish it

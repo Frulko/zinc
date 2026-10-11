@@ -180,6 +180,8 @@ A plugin is just a directory. Share it by:
 
 - committing it under your project's `plugins/` (it shadows bundled plugins of the same name), or
 - pointing `zinc.json` `"pluginDirs"` at a shared checkout (`["../shared-plugins"]`), or
+- publishing it from its own repository: `zinc new plugin my-plugin` makes one (a Zinc API, a native part, tests, CI on four targets
+  and signed releases; its README walks through it), and projects `zinc add` it from its repository or from a signed release, or
 - contributing it to the bundled `plugins/` in this repo.
 
-There is no registry; distribution is by directory. Next: [testing](06-testing.md).
+The signed index, tiers and `zinc add <name>`: [docs/plugins.md](../plugins.md), "Plugin index". Next: [testing](06-testing.md).

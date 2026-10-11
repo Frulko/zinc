@@ -1,0 +1,5 @@
+{
+  "name": "{{name}}",
+  "entry": "example/main.ts",
+  "pluginDirs": [".."]
+}

@@ -2247,6 +2247,15 @@ int main(int argc, char** argv) {
   if (argc >= 3 && !std::strcmp(argv[1], "plugin-build")) {  // zinc plugin-build <plugin> [project-dir] [--prebuild]: compile the plugin's native code into the cache (or find it there) and say where it is
     // --prebuild: also copy the libraries into the plugin's prebuilt/<target>/ with their key, for a publisher to ship (ZN-328.03)
     // --pack <file.tar>: the same files as a deterministic ustar archive (<target>/plugin.*, key), byte-identical across machines of one target (ZN-333)
+    // --target <linux target>: cross-built with the pinned zig as zinc build --target builds a program's plugins, for a publisher's CI (ZN-354)
+    const zn::tc::Target* cross = nullptr;
+    for (int k = 3; k + 1 < argc; ++k) if (!std::strcmp(argv[k], "--target")) {
+      cross = zn::tc::findTarget(argv[k + 1]);
+      if (!cross || !std::strstr(cross->name, "-linux")) { std::fprintf(stderr, "zinc: plugin-build --target takes a Linux target (zinc toolchain targets), not '%s'\n", argv[k + 1]); return 2; }
+      for (int j = k; j + 2 < argc; ++j) argv[j] = argv[j + 2];
+      argc -= 2;
+      break;
+    }
     std::string packOut;
     if (argc >= 5 && !std::strcmp(argv[argc - 2], "--pack")) { packOut = argv[argc - 1]; argc -= 2; }
     const bool prebuild = !std::strcmp(argv[argc - 1], "--prebuild");
@@ -2260,12 +2269,19 @@ int main(int argc, char** argv) {
     zn::tc::PluginLib lib;
     std::string err;
     zn::tc::loadPolicy(project);   // ZN-346
-    if (!zn::tc::buildPlugin(*hit, gRoot, project, zn::tc::pluginTarget(), lib, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
+    if (cross) {
+      std::string zig;
+      if (!zn::tc::ensureZig(zig, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
+      zn::tc::setCrossTarget(cross->name, cross->zigTarget, zig);
+    }
+    const bool built = zn::tc::buildPlugin(*hit, gRoot, project, cross ? "linux" : zn::tc::pluginTarget(), lib, err);
+    zn::tc::clearCrossTarget();
+    if (!built) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
     std::printf("%s %s %.2fs %s\n", lib.plugin.c_str(), lib.prebuilt ? "prebuilt" : lib.fetched ? "fetched" : lib.rebuilt ? "built" : "cached", lib.seconds, lib.shared.c_str());
+    const std::string t = cross ? cross->name : zn::tc::pluginTarget();   // the directory of binaries/<target>/ in the index and of prebuilt/<target>/
     if (!packOut.empty()) {
       namespace fs = std::filesystem;
       std::vector<zn::zapp::TarEntry> files;
-      const std::string t = zn::tc::pluginTarget();
       auto add = [&](const std::string& from, const std::string& name) {
         std::ifstream in(from, std::ios::binary);
         if (in) files.push_back({t + "/" + name, std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>()), 0644, false});
@@ -2281,7 +2297,7 @@ int main(int argc, char** argv) {
     }
     if (prebuild && !lib.prebuilt) {
       namespace fs = std::filesystem;
-      const fs::path pre = fs::path(hit->dir) / "prebuilt" / zn::tc::pluginTarget();
+      const fs::path pre = fs::path(hit->dir) / "prebuilt" / t;
       std::error_code ec;
       fs::create_directories(pre, ec);
       for (const std::string& f : {lib.shared, lib.archive, lib.vendor}) if (!f.empty()) fs::copy_file(f, pre / (&f == &lib.vendor ? "vendor.a" : fs::path(f).filename().string()), fs::copy_options::overwrite_existing, ec);

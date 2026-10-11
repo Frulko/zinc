@@ -1,0 +1,16 @@
+# The plugin's CI: Zinc's reusable workflow tests the plugin and builds its native part for macos-arm64, linux-x86_64, linux-aarch64 and
+# linux-armhf (Raspberry Pi), uploads the artifacts the plugin index expects (index-<target>), and on a v<version> tag publishes a signed
+# GitHub release. README.md, "Publish a signed release", says what to set up.
+name: ci
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+jobs:
+  plugin:
+    uses: zinc-engine/zinc/.github/workflows/plugin.yml@main
+    secrets: inherit     # ZINC_PUBLISHER_SEED signs the release
+    permissions:
+      contents: write    # the release of a tag

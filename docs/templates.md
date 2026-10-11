@@ -27,7 +27,8 @@ project, except `template.json`, which describes it:
 }
 ```
 
-In text files and in file names (`deploy/{{id}}.service`) `{{name}}` becomes the project directory's name and `{{id}}` that name in lower case with every other character turned into `-`;
+In text files and in file names (`deploy/{{id}}.service`) `{{name}}` becomes the project directory's name, `{{id}}` that name in lower case with every other character turned into `-`,
+and `{{ident}}` the id as a C and TypeScript name (`-` becomes `_`, `_` before a leading digit: a native module's name);
 in `.json` files the values are escaped as JSON strings. A file containing a NUL byte (an image, a font) is copied as it is. `tsconfig.json` is
 written by `zinc new` itself, since it names the engine files of the machine.
 
@@ -49,6 +50,7 @@ compares the graphical ones with a recorded frame.
 | server | an HTTP server with a telemetry counter (zinc:net, zinc:telemetry) | macos, linux, rpi |
 | iot | a GPIO button, an LED and an OSC message, simulated off the board (zinc:gpio, zinc:osc) | rpi, linux, macos |
 | remarkable | a reMarkable Paper Pro ink canvas with undo (zinc:ui, zinc:ink) | rmpp |
+| plugin | a plugin repository to publish: `plugin.json`, a Zinc API, a native part in C++ with its sim, tests, an example, CI on four targets through the reusable workflow and a signed release ([plugins](plugins.md), "Plugin starter") | macos, linux, rpi |
 
 ## Templates from elsewhere
 

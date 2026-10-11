@@ -107,6 +107,25 @@ pkg-config used and those they require, the ABI headers, zinc itself). While non
 are untouched (inode, size, ctime), the start runs no pkg-config and hashes nothing; otherwise the plugin is checked and rebuilt as above.
 `ZINC_PLUGIN_NO_STAMP=1` ignores the stamps.
 
+## Plugin starter
+
+`zinc new plugin <dir>` (or `zinc new gh:zinc-engine/plugin-starter <dir>`) makes a plugin repository that builds, tests and
+publishes alone, outside this repository (`templates/plugin/`, its README walks from there to a signed release):
+
+- `plugin.json` (name and module `zinc:<id>`, `version`, `"deterministic": true`, `permissions`), `index.ts` (the API), `native/<id>.spec.ts`,
+  `native/<id>.host.cpp` and `native/<id>.sim.ts` (the native part, its native module named `{{ident}}`, the id with `_` for `-`), `tests/`,
+  `example/main.ts`, and a `zinc.json` whose `"pluginDirs": [".."]` makes the repository its own test project: `zinc run` and `zinc test`
+  there use the plugin as a project that adds it does.
+- `.github/workflows/ci.yml` calls this repository's reusable workflow `.github/workflows/plugin.yml` (`workflow_call`): for macos-arm64,
+  linux-x86_64, linux-aarch64 and linux-armhf (cross-built with the pinned zig), zinc built at the input `zinc-ref`, `zinc test`, then
+  `next/tools/plugin-pack`, which writes what the index expects: `binaries/<target>/<name>-<key>.tar` (`zinc plugin-build --pack` in a project
+  that sets none of the plugin's options, named by the cache key such a project computes) and the descriptor `plugins/<name>/<version>.json`
+  (source: the repository and commit). On a `v<version>` tag the release job signs every file and the source archive `<name>-<version>.tar.gz`
+  with the secret `ZINC_PUBLISHER_SEED` (`zinc update-keygen`) and makes a GitHub release; without the secret, or with a tag that is not
+  plugin.json's version, it stops before publishing and says why. Users add the archive by URL as a community plugin (below).
+- `zinc plugin-build <name> [project] --target <aarch64-linux | armhf-linux | armv7-linux | x86_64-linux>` cross-builds a plugin's native part
+  (with `--pack` or `--prebuild`), as `zinc build --target` does for a program's plugins.
+
 ## Plugin repositories
 
 Official plugins are developed here, in `plugins/`, and published as mirror repositories `zinc-engine/plugin-<name>` (D37):

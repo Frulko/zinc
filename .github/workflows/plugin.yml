@@ -1,0 +1,95 @@
+# The reusable workflow of a plugin repository (ZN-354; the first version of ZN-338's). The plugin starter (`zinc new plugin`) calls it from
+# .github/workflows/ci.yml:   jobs: { plugin: { uses: zinc-engine/zinc/.github/workflows/plugin.yml@main, secrets: inherit, permissions: { contents: write } } }
+# For each target: zinc built from this repository at `zinc-ref`, the plugin's tests (zinc test), and next/tools/plugin-pack: its native part built
+# with the pinned zig, in the layout of the plugin index (binaries/<target>/<name>-<key>.tar, named by the cache key a client computes, and
+# plugins/<name>/<version>.json), uploaded as the artifact index-<target>.
+# On a v<version> tag of plugin.json's "version": the source archive <name>-<version>.tar.gz and a .sig beside every file, signed with the secret
+# ZINC_PUBLISHER_SEED (zinc update-keygen), on a GitHub release. Without the secret the release stops before anything is published and says why.
+# Later (ZN-338): provenance attestations, publication into the index under a publisher's delegation, Linux sysroots for plugins that link
+# system libraries, tests of the armhf build on an emulator.
+name: plugin
+on:
+  workflow_call:
+    inputs:
+      zinc-ref:
+        description: The commit, tag or branch of zinc-engine/zinc that builds and tests the plugin (its binaries match only that engine).
+        type: string
+        default: main
+    secrets:
+      ZINC_PUBLISHER_SEED:
+        required: false
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: macos-arm64, os: macos-14 }
+          - { target: linux-x86_64, os: ubuntu-24.04 }
+          - { target: linux-aarch64, os: ubuntu-24.04-arm }
+          - { target: linux-armhf, os: ubuntu-24.04, cross: armhf-linux }   # every 32-bit Raspberry Pi (rpi1): cross-built with the pinned zig
+    name: ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { path: plugin }
+      - uses: actions/checkout@v4
+        with: { repository: zinc-engine/zinc, ref: '${{ inputs.zinc-ref }}', path: zinc }
+      - name: Dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y cmake libx11-dev libxext-dev libxcursor-dev libxi-dev libxfixes-dev libxrandr-dev libxss-dev libxtst-dev libgl1-mesa-dev
+      - name: Build zinc
+        run: cmake -S zinc/next -B zinc/next/build -DCMAKE_BUILD_TYPE=Release && cmake --build zinc/next/build --target zinc -j4
+      - name: Cache the pinned toolchains
+        uses: actions/cache@v4
+        with:
+          path: ~/.zinc/toolchains
+          key: zinc-toolchains-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('zinc/next/src/tc/tc.cpp') }}
+      - name: Tests
+        if: ${{ !matrix.cross }}
+        working-directory: plugin
+        run: ../zinc/next/build/zinc test
+      - name: Pack
+        run: zinc/next/tools/plugin-pack plugin dist ${{ matrix.cross && format('--target {0}', matrix.cross) || '' }}
+      - uses: actions/upload-artifact@v4
+        with: { name: 'index-${{ matrix.target }}', path: dist/ }
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      ZINC_PUBLISHER_SEED: ${{ secrets.ZINC_PUBLISHER_SEED }}
+    steps:
+      - name: The publisher's key
+        run: |
+          if [ -z "$ZINC_PUBLISHER_SEED" ]; then
+            echo "::error::no ZINC_PUBLISHER_SEED secret: the release would not be signed, so nothing is published (the plugin's README, \"Publish a signed release\")"
+            exit 1
+          fi
+      - uses: actions/checkout@v4
+        with: { path: plugin }
+      - name: The tag is plugin.json's version
+        run: |
+          v=$(jq -r '.version // ""' plugin/plugin.json)
+          [ "v$v" = "$GITHUB_REF_NAME" ] || { echo "::error::the tag is $GITHUB_REF_NAME but plugin.json says version \"$v\""; exit 1; }
+      - uses: actions/checkout@v4
+        with: { repository: zinc-engine/zinc, ref: '${{ inputs.zinc-ref }}', path: zinc }
+      - name: Build zinc
+        run: |
+          sudo apt-get update && sudo apt-get install -y cmake libx11-dev libxext-dev libxcursor-dev libxi-dev libxfixes-dev libxrandr-dev libxss-dev libxtst-dev libgl1-mesa-dev
+          cmake -S zinc/next -B zinc/next/build -DCMAKE_BUILD_TYPE=Release && cmake --build zinc/next/build --target zinc -j4
+      - uses: actions/download-artifact@v4
+        with: { pattern: index-*, path: dist, merge-multiple: true }
+      - name: Sign
+        run: zinc/next/tools/plugin-pack --release plugin dist
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          tar -C dist -cf "dist/index-$GITHUB_REF_NAME.tar" binaries plugins
+          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" \
+            --notes "zinc add https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/$(cd dist && ls *.tar.gz) (signed: the .sig beside it). index-$GITHUB_REF_NAME.tar: the binaries and the descriptor in the plugin index's layout, each with its .sig." \
+            dist/*.tar.gz dist/*.tar.gz.sig "dist/index-$GITHUB_REF_NAME.tar"

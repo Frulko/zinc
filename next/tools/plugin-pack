@@ -1,0 +1,67 @@
+#!/bin/sh
+# The files a plugin repository publishes, laid out like the plugin index (ZN-354; .github/workflows/plugin.yml runs it for every target):
+#
+#   tools/plugin-pack <plugin-dir> <out-dir> [--target <linux target>]
+#     <out>/binaries/<target>/<name>-<key>.tar   the native part (zinc plugin-build --pack), named by the cache key a client computes for the same
+#                                                sources, default options, engine and target; none for a plugin without native/*.spec.ts
+#     <out>/plugins/<name>/<version>.json       the descriptor an index lists: kind, name, version, module, description, targets, source
+#                                                (the git origin and commit of <plugin-dir>)
+#   tools/plugin-pack --release <plugin-dir> <out-dir>
+#     the descriptor, <out>/<name>-<version>.tar.gz (git archive of HEAD: what users `zinc add` by URL) and a .sig beside every file of <out>,
+#     signed with $ZINC_PUBLISHER_SEED (the seed of `zinc update-keygen`)
+#
+# ZINC is the zinc that builds and signs (default: the one built beside this tool). The plugin is built from a copy in a project that sets
+# none of its options, as a project that adds it does, and never fetched from an index (ZINC_PREBUILT=0).
+set -eu
+ZINC=${ZINC:-$(cd "$(dirname "$0")/.." && pwd)/build/zinc}
+release=
+[ "${1:-}" = --release ] && { release=1; shift; }
+if [ $# -ne 2 ] && { [ $# -ne 4 ] || [ "$3" != --target ] || [ -n "$release" ]; }; then sed -n '2,15p' "$0" | cut -c3-; exit 2; fi
+dir=$(cd "$1" && pwd)
+target=${4:-}
+field() { python3 -c 'import json, sys; print(json.load(open(sys.argv[1])).get(sys.argv[2], ""))' "$dir/plugin.json" "$1"; }
+name=$(field name)
+version=$(field version)
+[ -n "$name" ] || { echo "plugin-pack: $dir/plugin.json has no name" >&2; exit 1; }
+if [ -n "$release" ]; then
+  [ -n "${ZINC_PUBLISHER_SEED:-}" ] || { echo "plugin-pack: no ZINC_PUBLISHER_SEED: the release would not be signed (zinc update-keygen makes a key)" >&2; exit 1; }
+  [ -n "$version" ] || { echo "plugin-pack: $dir/plugin.json has no version to release" >&2; exit 1; }
+fi
+mkdir -p "$2"
+out=$(cd "$2" && pwd)
+
+repo=$(git -C "$dir" remote get-url origin 2>/dev/null || echo "file://$dir")
+commit=$(git -C "$dir" rev-parse HEAD 2>/dev/null || true)
+desc=$out/plugins/$name${version:+/$version}.json
+mkdir -p "$(dirname "$desc")"
+python3 - "$dir/plugin.json" "$repo" "$commit" > "$desc" <<'PY'
+import json, sys
+m = json.load(open(sys.argv[1]))
+t = m.get("targets", {})
+d = {"kind": "plugin", "name": m["name"], "version": m.get("version", ""), "module": m.get("module", ""), "description": m.get("description", ""),
+     "targets": sorted(t if isinstance(t, list) else t.keys()), "source": {"repository": sys.argv[2]}}
+if sys.argv[3]: d["source"]["commit"] = sys.argv[3]
+print(json.dumps(d, indent=2, sort_keys=True, ensure_ascii=False))
+PY
+echo "$desc"
+
+if [ -n "$release" ]; then
+  git -C "$dir" archive --prefix="$name/" -o "$out/$name-$version.tar.gz" HEAD
+  echo "$out/$name-$version.tar.gz"
+  find "$out" -type f ! -name '*.sig' | sort | while read -r f; do "$ZINC" sign "$f" "$ZINC_PUBLISHER_SEED"; done
+  exit 0
+fi
+
+ls "$dir"/native/*.spec.ts >/dev/null 2>&1 || { echo "plugin-pack: no native/*.spec.ts: a pure Zinc plugin, no binary"; exit 0; }
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+mkdir -p "$tmp/project/plugins"
+echo '{ "name": "pack" }' > "$tmp/project/zinc.json"
+cp -R "$dir" "$tmp/project/plugins/$name"
+log=$(ZINC_PREBUILT=0 "$ZINC" plugin-build "$name" "$tmp/project" ${target:+--target "$target"} --pack "$tmp/pack.tar") || { echo "$log" >&2; exit 1; }
+key=$(echo "$log" | sed -n "s#.*/plugins/$name-\([0-9a-f]*\)/.*#\1#p" | head -1)   # the cache entry ~/.zinc/cache/<target>/plugins/<name>-<key>/
+t=$(tar tf "$tmp/pack.tar" | head -1 | cut -d/ -f1)
+[ -n "$key" ] && [ -n "$t" ] || { echo "plugin-pack: no cache key in: $log" >&2; exit 1; }
+mkdir -p "$out/binaries/$t"
+mv "$tmp/pack.tar" "$out/binaries/$t/$name-$key.tar"
+echo "$out/binaries/$t/$name-$key.tar"

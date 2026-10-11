@@ -1,0 +1,14 @@
+{
+  "name": "{{id}}",
+  "kind": "module",
+  "module": "zinc:{{id}}",
+  "entry": "index.ts",
+  "version": "0.1.0",
+  "description": "{{name}}: a greeting in Zinc and a checksum in C++",
+  "deterministic": true,
+  "permissions": [],
+  "targets": {
+    "macos": {},
+    "linux": {}
+  }
+}
