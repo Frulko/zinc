@@ -5,4 +5,6 @@ out=$(ZINC_HEADLESS=1 "$ZINC" run tests/golden/webgl/triangle.js --engine quickj
 [ "$out" = "$(cat tests/golden/webgl/triangle.out)" ] || { echo "triangle.js output differs:"; echo "$out"; exit 1; }
 out=$(ZINC_HEADLESS=1 "$ZINC" run tests/golden/webgl/antialias.js --engine quickjs 2>&1)   # ZN-576: the multisampled canvas (antialias)
 [ "$out" = "$(cat tests/golden/webgl/antialias.out)" ] || { echo "antialias.js output differs:"; echo "$out"; exit 1; }
+out=$(ZINC_HEADLESS=1 "$ZINC" run tests/golden/webgl/draw_caches.js --engine quickjs 2>&1)   # ZN-567: the draw checks' caches follow the data
+[ "$out" = "$(cat tests/golden/webgl/draw_caches.out)" ] || { echo "draw_caches.js output differs:"; echo "$out"; exit 1; }
 echo "webgl_js: ok"

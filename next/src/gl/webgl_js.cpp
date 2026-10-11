@@ -104,12 +104,18 @@ std::int64_t i64(JSContext* c, JSValueConst v) { std::int64_t x = 0; JS_ToInt64(
 bool bytesOf(JSContext* c, JSValueConst v, std::uint8_t*& p, std::size_t& n, std::size_t* elem = nullptr) {
   std::size_t size = 0;
   if (elem) *elem = 1;
-  if (std::uint8_t* b = JS_GetArrayBuffer(c, &size, v)) { p = b; n = size; return true; }
-  JS_FreeValue(c, JS_GetException(c));
+  if (JS_IsArrayBuffer(v)) {   // asked first: a failed JS_GetArrayBuffer throws, and building the error costs a microsecond (ZN-567)
+    std::uint8_t* b = JS_GetArrayBuffer(c, &size, v);
+    if (!b) { JS_FreeValue(c, JS_GetException(c)); return false; }   // detached
+    p = b; n = size;
+    return true;
+  }
   size_t off = 0, len = 0, bpe = 0;
-  JSValue ab = JS_GetTypedArrayBuffer(c, v, &off, &len, &bpe);
-  if (JS_IsException(ab)) {
-    JS_FreeValue(c, JS_GetException(c));
+  JSValue ab;
+  if (JS_GetTypedArrayType(v) >= 0) {
+    ab = JS_GetTypedArrayBuffer(c, v, &off, &len, &bpe);
+    if (JS_IsException(ab)) { JS_FreeValue(c, JS_GetException(c)); return false; }
+  } else {
     if (!JS_IsDataView(v)) return false;
     ab = JS_GetPropertyStr(c, v, "buffer");   // a DataView: its buffer, byteOffset and byteLength
     JSValue o = JS_GetPropertyStr(c, v, "byteOffset"), l = JS_GetPropertyStr(c, v, "byteLength");
@@ -118,7 +124,7 @@ bool bytesOf(JSContext* c, JSValueConst v, std::uint8_t*& p, std::size_t& n, std
   }
   std::uint8_t* base = JS_GetArrayBuffer(c, &size, ab);
   JS_FreeValue(c, ab);
-  if (!base) return false;
+  if (!base) { JS_FreeValue(c, JS_GetException(c)); return false; }
   p = base + off;
   n = len;
   if (elem && bpe) *elem = bpe;

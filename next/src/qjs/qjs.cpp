@@ -4,6 +4,7 @@
 #include "zn/js_ext.h"
 
 #include <algorithm>
+#include <array>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -91,9 +92,8 @@ JSValue hostFn(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv, int m
   zn::host::HostCall call = zn::isLayoutRow(static_cast<zn::Rt>(id)) ? zn::host::hostLayout : sys ? zn::host::hostSys : zn::host::hostGfx;
   if (!call) return JS_ThrowInternalError(ctx, "%s is not available in this build", ri.name);
   HostArg args[12], res;
-  std::vector<std::string> strings;
-  std::vector<std::vector<std::uint64_t>> arrays;
-  strings.reserve(12); arrays.reserve(12);
+  std::array<std::string, 12> strings;   // one per parameter, in place: a call without strings or arrays allocates nothing (ZN-567)
+  std::array<std::vector<std::uint64_t>, 12> arrays;
   const unsigned np = zn::rtParamCount(ri);
   for (unsigned k = 0; k < np && k < 12; ++k) {
     JSValueConst v = static_cast<int>(k) < argc ? argv[k] : JS_UNDEFINED;
@@ -104,9 +104,9 @@ JSValue hostFn(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv, int m
         size_t n = 0;
         const char* p = JS_ToCStringLen(ctx, &n, v);
         if (!p) return JS_EXCEPTION;
-        strings.emplace_back(p, n);
+        strings[k].assign(p, n);
         JS_FreeCString(ctx, p);
-        h.p = strings.back().data(); h.n = static_cast<std::uint32_t>(n);
+        h.p = strings[k].data(); h.n = static_cast<std::uint32_t>(n);
         break;
       }
       case 'D': case 'B': {
@@ -114,16 +114,16 @@ JSValue hostFn(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv, int m
         int32_t n = 0;
         JS_ToInt32(ctx, &n, len);
         JS_FreeValue(ctx, len);
-        arrays.emplace_back(static_cast<size_t>(n < 0 ? 0 : n));
+        arrays[k].assign(static_cast<size_t>(n < 0 ? 0 : n), 0);
         for (int32_t i = 0; i < n; ++i) {
           JSValue e = JS_GetPropertyUint32(ctx, v, static_cast<uint32_t>(i));
           double d = 0;
           JS_ToFloat64(ctx, &d, e);
           JS_FreeValue(ctx, e);
-          if (zn::rtParam(ri, k) == 'D') std::memcpy(&arrays.back()[static_cast<size_t>(i)], &d, 8);
-          else arrays.back()[static_cast<size_t>(i)] = static_cast<std::uint64_t>(static_cast<std::int64_t>(d)) & 0xFF;
+          if (zn::rtParam(ri, k) == 'D') std::memcpy(&arrays[k][static_cast<size_t>(i)], &d, 8);
+          else arrays[k][static_cast<size_t>(i)] = static_cast<std::uint64_t>(static_cast<std::int64_t>(d)) & 0xFF;
         }
-        h.p = arrays.back().data(); h.n = static_cast<std::uint32_t>(n);
+        h.p = arrays[k].data(); h.n = static_cast<std::uint32_t>(n);
         break;
       }
       case 'u': { double d = 0; JS_ToFloat64(ctx, &d, v); h.i = static_cast<std::int64_t>(static_cast<std::uint32_t>(static_cast<std::int64_t>(d))); break; }

@@ -287,9 +287,12 @@ class WebGL1 {
   void generateMipmap(std::uint32_t target);
 
  private:
-  struct Buf { std::uint32_t name = 0; std::int64_t size = 0; std::uint32_t target = 0; bool bound = false, deleted = false; std::vector<std::uint8_t> shadow; };
+  struct Range { std::int64_t offset = 0; int count = 0, ts = 0; std::int64_t max = -1; };   // indices drawn and their largest value
+  struct Buf { std::uint32_t name = 0; std::int64_t size = 0; std::uint32_t target = 0; bool bound = false, deleted = false; std::vector<std::uint8_t> shadow; std::vector<Range> ranges; };   // ranges: since the data last changed (ZN-567)
   struct Shader { std::uint32_t name = 0, type = 0; std::string source, log, valSrc, valPre; bool compiled = false, deleted = false; int attached = 0; };   // valSrc / valPre: what the GLSL ES validator was shown, kept for the link-time checks
-  struct Program { std::uint32_t name = 0, gen = 0; Id vs = 0, fs = 0; bool linked = false, deleted = false; char fragOut[4] = {}; std::string log; std::map<std::string, int> attribBindings; };
+  struct AttribUse { int loc = 0; std::uint32_t type = 0; };   // an attribute the linked program reads: its location and GLSL type
+  struct Program { std::uint32_t name = 0, gen = 0; Id vs = 0, fs = 0; bool linked = false, deleted = false; char fragOut[4] = {}; std::string log; std::map<std::string, int> attribBindings;
+                   std::vector<AttribUse> attribs; int blocks = 0; };   // attribs, blocks: read at link, not at every draw (ZN-567)
   struct Tex { std::uint32_t name = 0; int w = 0, h = 0, d = 0; std::uint32_t format = 0, type = 0, target = 0; bool bound = false, immutable = false; int levels = 0; int swz = 0; std::uint32_t cfmt = 0; /* the compressed format of level 0, 0: not compressed */ std::uint32_t minF = 0x2702, magF = 0x2601, wrapS = 0x2901, wrapT = 0x2901; bool f32 = false, f16 = false, black = false; };   // swz: the legacy-format swizzle (glFormat); f32 / f16: level 0 holds 32-bit / (WebGL 1) half floats; black: sampled as an incomplete texture
   struct Sampler { std::uint32_t name = 0; bool bound = false; };
   struct Query { std::uint32_t name = 0; std::uint32_t target = 0; bool active = false, used = false; };
@@ -306,6 +309,7 @@ class WebGL1 {
   Id& boundTex(std::uint32_t target);   // the texture bound to `target` on the active unit
   bool uploadTexture(bool isStorage, std::uint32_t target, int level, std::uint32_t internalformat, int w, int h, int d, std::uint32_t format, std::uint32_t type, const void* data, std::size_t dataBytes, int xoff, int yoff, int zoff, bool sub);
   bool checkDrawState(std::int64_t firstIndex, std::int64_t lastIndex, std::int64_t instances = 1, bool instancedDraw = false);
+  std::int64_t maxIndexOf(Buf& b, std::int64_t offset, int count, int ts);
   bool bufferTargetOk(std::uint32_t t) const;
   void applyIndexed(std::uint32_t target, std::uint32_t index);
   void releaseBuffers();

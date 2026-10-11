@@ -63,13 +63,7 @@ void WebGL1::drawElementsInstanced(std::uint32_t mode, int count, std::uint32_t 
   if (e == buffers_.end()) return error(GL_INVALID_OPERATION);
   if (instances == 0 && version_ != 2) return;   // ANGLE_instanced_arrays: nothing is drawn, nothing is checked against the buffer
   if (count > 0 && offset + static_cast<std::int64_t>(count) * ts > e->second.size) return error(GL_INVALID_OPERATION);
-  std::int64_t maxIndex = -1;
-  for (int i = 0; i < count; ++i) {
-    const std::uint8_t* p = e->second.shadow.data() + offset + static_cast<std::int64_t>(i) * ts;
-    std::int64_t v = ts == 1 ? p[0] : ts == 2 ? (p[0] | (p[1] << 8)) : static_cast<std::int64_t>(p[0] | (p[1] << 8) | (p[2] << 16) | (static_cast<std::uint32_t>(p[3]) << 24));
-    maxIndex = std::max(maxIndex, v);
-  }
-  if (!checkDrawState(0, maxIndex, instances, true)) return;
+  if (!checkDrawState(0, maxIndexOf(e->second, offset, count, ts), instances, true)) return;
   if (count == 0 || instances == 0) return;
   glDrawElementsInstanced(mode, count, type, reinterpret_cast<const void*>(static_cast<std::intptr_t>(offset)), instances);
 }
@@ -203,6 +197,7 @@ void WebGL1::copyBufferSubData(std::uint32_t rt, std::uint32_t wt, std::int64_t 
   if (r == w && ro < wo + size && wo < ro + size) return error(GL_INVALID_VALUE);   // overlapping ranges of one buffer
   if ((rb.target == GL_ELEMENT_ARRAY_BUFFER) != (wb.target == GL_ELEMENT_ARRAY_BUFFER)) return error(GL_INVALID_OPERATION);
   std::memcpy(wb.shadow.data() + wo, rb.shadow.data() + ro, static_cast<std::size_t>(size));
+  wb.ranges.clear();
   glCopyBufferSubData(rt, wt, static_cast<GLintptr>(ro), static_cast<GLintptr>(wo), static_cast<GLsizeiptr>(size));
 }
 void WebGL1::getBufferSubData(std::uint32_t target, std::int64_t src, void* dst, std::size_t dstBytes) {

@@ -438,6 +438,26 @@ The CPU time ZINC_GL_STATS calls "to submit" includes waits for the GPU (5.6 to 
 measured at load 6 from other builds, before ZN-432 changed the image path of the replay. GL replay against the software frame for convex
 and concave polygons: 0.06% of the pixels more than 24 apart, mean error 0.07 (tests/t1/gl_convex.sh).
 
+### ZN-567: WebGL binding fast paths on QuickJS (2026-10-11, Intel Mac, load 3.6 to 3.9)
+
+`zinc run next/bench/webgl_binding.js --engine quickjs`, ns per call, best of 5 runs, before -> after:
+
+| call | before | after | the task's M1 Pro target |
+|---|---|---|---|
+| uniform4f (reference) | 148-151 | 150-151 | |
+| uniform4fv(Float32Array) | 2239-2281 | 227-242 | <= 200 |
+| bufferSubData(ArrayBuffer) (reference) | 164-169 | 165-169 | |
+| bufferSubData(Float32Array) | 2207-2210 | 178-184 | <= 250 |
+| drawArrays (3 vertices, 3 attributes) | 557-636 | 345-403 | <= 250 |
+| drawElements, the same 60k-index range | 57.4-66.2 us | 11.6-11.8 us | <= 3 us |
+
+The typed arrays cost a thrown and discarded TypeError (`JS_GetArrayBuffer` on a view); they are now told apart with `JS_IsArrayBuffer` and
+`JS_GetTypedArrayType`. The draw checks read the program's attributes and uniform blocks at link, not with glGetActiveAttrib and
+glGetAttribLocation at every draw, and an element buffer remembers the largest index of the last 8 ranges drawn since its data changed.
+What is left is the driver: drawArrays with 0 vertices costs 124 ns (getError, the cheapest call, 83 ns), so the 3-vertex draw spends
+about 150-280 ns in glDrawArrays; drawElements of 60k indices with the range cached is 143 ns without its 60k indices and 11.6 us with them,
+the Intel GL driver's own work. The M1 Pro numbers of the targets are to be measured there.
+
 ### ZN-371.01: the debugger's cost (2026-10-11, Intel Mac, load 4.5 to 9 from other sessions)
 
 Instructions retired over a whole run (`/usr/bin/time -l`, two runs each), `zinc run --interp` and `zinc debug` of tests/bench/kernels:

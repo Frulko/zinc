@@ -666,6 +666,7 @@ void WebGL1::bufferData(std::uint32_t target, std::int64_t size, const void* dat
   if (!id) return error(GL_INVALID_OPERATION);
   Buf& b = buffers_[id];
   b.size = size;
+  b.ranges.clear();
   b.shadow.assign(static_cast<std::size_t>(size), 0);
   if (data && size) std::memcpy(b.shadow.data(), data, static_cast<std::size_t>(size));
   glBufferData(target, static_cast<GLsizeiptr>(size), b.shadow.empty() ? nullptr : b.shadow.data(), usage);
@@ -677,7 +678,7 @@ void WebGL1::bufferSubData(std::uint32_t target, std::int64_t offset, std::int64
   if (!id) return error(GL_INVALID_OPERATION);
   Buf& b = buffers_[id];
   if (offset < 0 || size < 0 || offset + size > b.size) return error(GL_INVALID_VALUE);
-  if (size) std::memcpy(b.shadow.data() + offset, data, static_cast<std::size_t>(size));
+  if (size) { std::memcpy(b.shadow.data() + offset, data, static_cast<std::size_t>(size)); b.ranges.clear(); }
   glBufferSubData(target, static_cast<GLintptr>(offset), static_cast<GLsizeiptr>(size), data);
 }
 
@@ -791,7 +792,21 @@ void WebGL1::linkProgram(Id pid) {
   glGetProgramInfoLog(p.name, len, nullptr, p.log.data());
   p.log.resize(std::strlen(p.log.c_str()));
   p.linked = ok != 0;
-  if (p.linked) fragOutputs(shaders_[p.fs].source, p.fragOut);
+  p.attribs.clear();
+  p.blocks = 0;
+  if (!p.linked) return;
+  fragOutputs(shaders_[p.fs].source, p.fragOut);
+  GLint n = 0;
+  glGetProgramiv(p.name, GL_ACTIVE_ATTRIBUTES, &n);
+  for (GLint k = 0; k < n; ++k) {   // the attributes it reads, for the checks of every draw
+    char buf[256];
+    GLsizei len = 0; GLint size = 0; GLenum type = 0;
+    glGetActiveAttrib(p.name, static_cast<GLuint>(k), sizeof buf, &len, &size, &type, buf);
+    const int loc = glGetAttribLocation(p.name, buf);
+    if (loc < 0 || loc >= kMaxVertexAttribs || std::strncmp(buf, "gl_", 3) == 0) continue;   // gl_InstanceID and friends are built-ins, whatever location a driver gives them
+    p.attribs.push_back({loc, type});
+  }
+  if (version_ == 2) glGetProgramiv(p.name, GL_ACTIVE_UNIFORM_BLOCKS, &p.blocks);
 }
 bool WebGL1::programLinked(Id id) const { auto it = programs_.find(id); return it != programs_.end() && it->second.linked; }
 std::string WebGL1::programInfoLog(Id id) const { auto it = programs_.find(id); return it == programs_.end() ? "" : it->second.log; }
@@ -912,15 +927,10 @@ bool WebGL1::checkDrawState(std::int64_t firstIndex, std::int64_t lastIndex, std
   if (!framebufferReady()) { error(GL_INVALID_FRAMEBUFFER_OPERATION); return false; }
   const Program& pr = programs_[program_];
   if (!pr.linked) { error(GL_INVALID_OPERATION); return false; }   // a failed link invalidates the program even while it is in use
-  GLint n = 0;
   bool zeroDivisor = false, anyUsed = false;
-  glGetProgramiv(pr.name, GL_ACTIVE_ATTRIBUTES, &n);
-  for (GLint k = 0; k < n; ++k) {   // only the attributes the program reads, as WebGL does
-    char buf[256];
-    GLsizei len = 0; GLint size = 0; GLenum type = 0;
-    glGetActiveAttrib(pr.name, static_cast<GLuint>(k), sizeof buf, &len, &size, &type, buf);
-    int loc = glGetAttribLocation(pr.name, buf);
-    if (loc < 0 || loc >= kMaxVertexAttribs || std::strncmp(buf, "gl_", 3) == 0) continue;   // gl_InstanceID and friends are built-ins, whatever location a driver gives them
+  for (const AttribUse& u : pr.attribs) {   // only the attributes the program reads, as WebGL does
+    const int loc = u.loc;
+    const GLenum type = u.type;
     if (version_ == 2) {   // the class of the data (array or constant) must be the class the shader declares
       const char want = type == GL_INT || (type >= GL_INT_VEC2 && type <= GL_INT_VEC4) ? 'i' : type == GL_UNSIGNED_INT || (type >= GL_UNSIGNED_INT_VEC2 && type <= GL_UNSIGNED_INT_VEC4) ? 'u' : 'f';
       const Attrib& d = attribs_[loc];
@@ -965,9 +975,7 @@ bool WebGL1::checkDrawState(std::int64_t firstIndex, std::int64_t lastIndex, std
     }
   }
   if (version_ == 2) {   // every uniform block needs a buffer range big enough for it
-    GLint blocks = 0;
-    glGetProgramiv(pr.name, GL_ACTIVE_UNIFORM_BLOCKS, &blocks);
-    for (GLint i = 0; i < blocks; ++i) {
+    for (GLint i = 0; i < pr.blocks; ++i) {
       GLint binding = 0, size = 0;
       glGetActiveUniformBlockiv(pr.name, static_cast<GLuint>(i), GL_UNIFORM_BLOCK_BINDING, &binding);
       glGetActiveUniformBlockiv(pr.name, static_cast<GLuint>(i), GL_UNIFORM_BLOCK_DATA_SIZE, &size);
@@ -996,15 +1004,23 @@ void WebGL1::drawElements(std::uint32_t mode, int count, std::uint32_t type, std
   auto e = buffers_.find(elementBuffer_);
   if (e == buffers_.end()) return error(GL_INVALID_OPERATION);
   if (count > 0 && offset + static_cast<std::int64_t>(count) * ts > e->second.size) return error(GL_INVALID_OPERATION);
-  std::int64_t maxIndex = -1;
-  for (int i = 0; i < count; ++i) {
-    const std::uint8_t* p = e->second.shadow.data() + offset + static_cast<std::int64_t>(i) * ts;
-    std::int64_t v = ts == 1 ? *p : static_cast<std::int64_t>(p[0] | (p[1] << 8));
-    maxIndex = std::max(maxIndex, v);
-  }
-  if (!checkDrawState(0, maxIndex)) return;
+  if (!checkDrawState(0, maxIndexOf(e->second, offset, count, ts))) return;
   if (count == 0) return;
   glDrawElements(mode, count, type, reinterpret_cast<const void*>(static_cast<std::intptr_t>(offset)));
+}
+
+// The largest of `count` indices of `ts` bytes (little endian) at `offset` of an element buffer; a range drawn before, with the data unchanged
+// since, is not read again (ZN-567: a 60k-index mesh drawn every frame).
+std::int64_t WebGL1::maxIndexOf(Buf& b, std::int64_t offset, int count, int ts) {
+  for (const Range& r : b.ranges) if (r.offset == offset && r.count == count && r.ts == ts) return r.max;
+  std::int64_t m = -1;
+  const std::uint8_t* p = b.shadow.data() + offset;
+  if (ts == 1) for (int i = 0; i < count; ++i) m = std::max<std::int64_t>(m, p[i]);
+  else if (ts == 2) for (int i = 0; i < count; ++i, p += 2) m = std::max<std::int64_t>(m, p[0] | (p[1] << 8));
+  else for (int i = 0; i < count; ++i, p += 4) m = std::max<std::int64_t>(m, p[0] | (p[1] << 8) | (p[2] << 16) | (static_cast<std::int64_t>(p[3]) << 24));
+  if (b.ranges.size() == 8) b.ranges.erase(b.ranges.begin());   // ponytail: the last 8 ranges of a buffer; a map if meshes draw more sub-ranges
+  b.ranges.push_back({offset, count, ts, m});
+  return m;
 }
 
 // ---- textures
