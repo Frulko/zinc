@@ -27,7 +27,8 @@
       "text": "#ffffff",
       "muted": "#e0e0e0",
       "accent": "#ffd400"
-    }
+    },
+    "descriptions": "audio/descriptions/{id}.{lang}.mp3"
   },
   "table": {
     "width": 1920,

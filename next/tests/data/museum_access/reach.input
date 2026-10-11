@@ -1,0 +1,22 @@
+20 touch 1 559.0 836.0
+23 touchup 1
+70 touch 2 559.0 836.0
+73 touchup 2
+140 touch 3 960.0 20.0
+143 touchup 3
+170 touch 4 1900.0 540.0
+173 touchup 4
+200 touch 5 20.0 540.0
+203 touchup 5
+230 touch 6 960.0 1062.0
+233 touchup 6
+270 touch 7 100.0 1030.0
+273 touchup 7
+320 touch 8 1572.0 338.0
+323 touchup 8
+360 touch 9 660.0 1030.0
+363 touchup 9
+440 touch 10 1010.0 760.0
+443 touchup 10
+448 touch 10 1011.0 761.0
+451 touchup 10

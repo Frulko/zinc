@@ -6,7 +6,7 @@
 import { imageWidth, imageHeight, rrect, border, shadow, polygon, drawImage, drawText, textWidth, setTransform, resetTransform } from 'zinc:gfx';
 import { Project, Sequence, Media, Link, Colours } from './project';
 import { Fingers, Finger, Pose, manipulate } from './touch';
-import { sans, bold, wrap, leading } from './type';
+import { sans, bold, wrap, leading, reading, faint } from './type';
 import { word } from './words';
 import { files } from './files';
 
@@ -28,12 +28,15 @@ export class Card {
   /** Size at scale 1. */
   w = 0;
   h = 0;
-  /** The picture it shows (-1: a text panel), its height on the card, and a line that replaces the creator (a medium not played yet). */
+  /** The picture it shows (-1: a text panel), its height on the card as designed, how much of that it has when its caption needs more
+   *  room (1: all), and a line that replaces the creator (a medium not played yet). */
   picture: i32 = -1;
   pictureHeight = 0;
+  shrink = 1;
   note = '';
-  /** Lines of a text panel. */
+  /** Lines of a text panel; under a picture, the lines its title and what is written under it may take. */
   lines: i32 = 0;
+  under: i32 = 1;
   /** Has a back to read. */
   turns = false;
   /** Speed kept when the last finger lifts: table units and radians per second. */
@@ -93,25 +96,40 @@ export class LightTable {
       if (file.length > 0) c.picture = files.picture(file);
       if (c.picture >= 0) {
         c.pictureHeight = (c.w - 2 * BORDER) * imageHeight(c.picture) / imageWidth(c.picture);
-        c.h = BORDER + c.pictureHeight + FOOT;
         c.turns = m.kind === 'photo';
         // ponytail: a film shows its poster until it has its player (ZN-650.08)
         if (m.kind !== 'photo') c.note = 'film';
-      } else this.measure(c);
+      }
+      this.measure(c);
       this.cards.push(c);
     }
   }
 
-  /** The size of a text panel: it grows with its text, which is not as long in every language. */
+  /** The height of a card. A text panel grows with its text, which is not as long in every language. Under a picture the caption has
+   *  room for two lines of title and one line under it; a longer title, or a larger text size, takes the room it needs from the
+   *  picture (down to half of it), so that the card keeps its place among the others and nothing of its caption is cut. */
   private measure(c: Card): void {
     const m = c.media, body = sans(16), pad = BORDER * 2;
-    c.lines = wrap(body, this.project.say(m.kind === 'text' ? m.text : m.title, this.lang), c.w - 2 * pad, 0).length;
-    c.h = pad + leading(bold(11)) + 8 + (c.lines + 0.5) * leading(body) + pad;
+    if (c.picture < 0) {
+      c.lines = wrap(body, this.project.say(m.kind === 'text' ? m.text : m.title, this.lang), c.w - 2 * pad, 0).length;
+      c.h = pad + leading(bold(11)) + 8 + (c.lines + 0.5) * leading(body) + pad;
+      return;
+    }
+    const head = bold(15), small = sans(12), inner = c.w - 2 * BORDER;
+    c.lines = Math.max(2, wrap(head, this.project.say(m.title, this.lang), inner - (c.turns ? 22 : 0), 0).length);
+    c.under = wrap(small, this.under(c), inner - 30, 0).length;
+    // the designed strip at the text size, and one line more for each line more than designed: exactly FOOT when nothing is longer
+    const foot = FOOT * reading() + (c.lines - 2) * leading(head) + (c.under - 1) * leading(small);
+    c.shrink = foot > FOOT ? Math.max(0.5, (c.pictureHeight + FOOT - foot) / c.pictureHeight) : 1;
+    c.h = BORDER + c.pictureHeight * c.shrink + Math.max(FOOT, foot);
   }
+  /** What is written under the title of a picture: who made it, or a word about a medium not played yet. */
+  private under(c: Card): string { return c.note.length > 0 ? word(c.note, this.lang) : c.media.creator; }
 
+  /** The language or the text size has changed: every card takes the height of its text. */
   setLanguage(lang: string): void {
     this.lang = lang;
-    for (const c of this.cards) if (c.picture < 0) this.measure(c);
+    for (const c of this.cards) this.measure(c);
   }
   setColours(colours: Colours): void { this.colours = colours; }
 
@@ -201,8 +219,8 @@ export class LightTable {
   }
 
   /** Where a hotspot is in its card's own frame: its fractions are of the picture, or of the whole card when it shows none. */
-  private spotX(c: Card, l: Link): number { return c.picture >= 0 ? -c.w / 2 + BORDER + l.x * (c.w - 2 * BORDER) : (l.x - 0.5) * c.w; }
-  private spotY(c: Card, l: Link): number { return c.picture >= 0 ? -c.h / 2 + BORDER + l.y * c.pictureHeight : (l.y - 0.5) * c.h; }
+  private spotX(c: Card, l: Link): number { return c.picture >= 0 ? -c.w / 2 + BORDER + ((1 - c.shrink) / 2 + l.x * c.shrink) * (c.w - 2 * BORDER) : (l.x - 0.5) * c.w; }
+  private spotY(c: Card, l: Link): number { return c.picture >= 0 ? -c.h / 2 + BORDER + l.y * c.pictureHeight * c.shrink : (l.y - 0.5) * c.h; }
 
   /** Zooms (factor) and turns (radians) the card under (x, y) about that point: the wheel and the trackpad of a desk without a touch screen. */
   nudge(x: number, y: number, factor: number, turn: number): void {
@@ -249,7 +267,7 @@ export class LightTable {
     if (c.picture < 0) {   // a text panel
       const pad = BORDER * 2 * d, head = bold(11 * d), body = sans(16 * d);
       let y = top + pad;
-      drawText(head, left + pad, y, title.toUpperCase(), ink, this.a(150), 0.6 * d);
+      drawText(head, left + pad, y, title.toUpperCase(), ink, this.a(faint(150)), 0.6 * d);
       y += leading(head) + 8 * d;
       for (const line of wrap(body, this.project.say(m.kind === 'text' ? m.text : m.title, this.lang), c.w * d - 2 * pad, c.lines + 1)) {
         drawText(body, left + pad, y, line, ink, this.a(255), 0);
@@ -260,12 +278,13 @@ export class LightTable {
     }
     const x = left + BORDER * d, inner = (c.w - 2 * BORDER) * d, head = bold(15 * d), small = sans(12 * d);
     let y = top + BORDER * d;
-    drawImage(c.picture, x, y, inner, c.pictureHeight * d, this.a(255), 0);
-    y += c.pictureHeight * d + 8 * d;
-    const lines = wrap(head, title, inner - (c.turns ? 22 * d : 0), 2);
+    const wide = inner * c.shrink, high = c.pictureHeight * d * c.shrink;   // the picture, in the middle of the card's width
+    drawImage(c.picture, x + (inner - wide) / 2, y, wide, high, this.a(255), 0);
+    y += high + 8 * d;
+    const lines = wrap(head, title, inner - (c.turns ? 22 * d : 0), c.lines);
     for (const line of lines) { drawText(head, x, y, line, ink, this.a(255), 0); y += leading(head); }
-    const under = c.note.length > 0 ? word(c.note, this.lang) : m.creator;
-    if (lines.length < 2 || under.length > 0) drawText(small, x, y + d, wrap(small, under, inner - 30 * d, 1)[0], ink, this.a(160), 0);
+    const under = this.under(c);
+    if (lines.length < 2 || under.length > 0) for (const line of wrap(small, under, inner - 30 * d, c.under)) { drawText(small, x, y + d, line, ink, this.a(faint(160)), 0); y += leading(small); }
     this.paintSpots(c, d);
   }
 
@@ -274,9 +293,9 @@ export class LightTable {
     const accent = this.colours.accent, f = bold(13 * d), r = 15 * d;
     for (const l of c.spots) {
       if (!LightTable.there(l.at, l.until, this.clock)) continue;
-      const x = this.spotX(c, l) * d, y = this.spotY(c, l) * d, label = this.project.say(l.label, this.lang), lw = textWidth(f, label, 0) + 22 * d, lh = 28 * d;
+      const x = this.spotX(c, l) * d, y = this.spotY(c, l) * d, label = this.project.say(l.label, this.lang), lw = textWidth(f, label, 0) + 22 * d, lh = 28 * d * reading();
       const lx = l.x > 0.6 ? x - r - 8 * d - lw : x + r + 8 * d;
-      rrect(lx, y - lh / 2, lw, lh, lh / 2, this.colours.background, this.a(215));
+      rrect(lx, y - lh / 2, lw, lh, lh / 2, this.colours.background, this.a(faint(215)));
       drawText(f, lx + 11 * d, y - leading(f) / 2 + d, label, this.colours.text, this.a(255), 0);
       rrect(x - r, y - r, 2 * r, 2 * r, r, this.colours.background, this.a(150));
       border(x - r, y - r, 2 * r, 2 * r, r, Math.max(1.5, 2.5 * d), accent, this.a(255));
@@ -294,7 +313,7 @@ export class LightTable {
     y += 3 * d;
     if (m.creator.length > 0) { drawText(line2, x, y, wrap(line2, m.creator, inner, 1)[0], ink, this.a(255), 0); y += leading(line2); }
     const facts = [P.say(m.date, L), P.say(m.medium, L)].filter((s: string) => s.length > 0).join(', ');
-    for (const line of wrap(small, facts, inner, 2)) { drawText(small, x, y, line, ink, this.a(160), 0); y += leading(small); }
+    for (const line of wrap(small, facts, inner, 2)) { drawText(small, x, y, line, ink, this.a(faint(160)), 0); y += leading(small); }
     y += 7 * d;
     rrect(x, y, 34 * d, Math.max(1, Math.round(1.5 * d)), 0, this.colours.accent, this.a(255));
     y += 9 * d;
@@ -302,6 +321,6 @@ export class LightTable {
     const room = Math.floor((bottom - credit.length * leading(small) - 6 * d - y) / leading(body));
     if (room > 0) for (const line of wrap(body, P.say(m.description, L), inner, room)) { drawText(body, x, y, line, ink, this.a(255), 0); y += leading(body); }
     y = bottom - credit.length * leading(small);
-    for (const line of credit) { drawText(small, x, y, line, ink, this.a(160), 0); y += leading(small); }
+    for (const line of credit) { drawText(small, x, y, line, ink, this.a(faint(160)), 0); y += leading(small); }
   }
 }

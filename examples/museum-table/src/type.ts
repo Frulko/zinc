@@ -23,10 +23,23 @@ function nearest(px: number): i32 {
   for (let i: i32 = 1; i < SIZES.length; i++) if (Math.abs(SIZES[i] - px) < Math.abs(SIZES[best] - px)) best = i;
   return best;
 }
-/** The text font nearest to `px` pixels. */
-export function sans(px: number): i32 { return SANS[nearest(px)]; }
-/** The title font nearest to `px` pixels. */
-export function bold(px: number): i32 { return BOLD[nearest(px)]; }
+// How the visitor asked to read (the accessibility settings of the dock): the size of every text, as a factor of the designed one, and
+// whether faint things are drawn in full. A player sets both around each of its frames and puts them back (`setReading`), so two players
+// in one program, and whoever else draws with these fonts (the editor), each read at their own size.
+let size = 1, plain = false, cut: i32 = 0;
+/** Sets the text size (1: as designed) and the high-contrast mode for what is laid out and drawn from now on. */
+export function setReading(factor: number, highContrast: boolean): void { size = factor; plain = highContrast; }
+/** The text size being read: what a dimension that holds a text is multiplied by. */
+export function reading(): number { return size; }
+/** An opacity (0 to 255) for something drawn faintly: a secondary text, a veil under a label. In high contrast it is opaque. */
+export function faint(alpha: i32): i32 { return plain ? 255 : alpha; }
+/** How many texts `wrap` has cut short with an ellipsis since the last call: what a layout did not have room for. */
+export function clipped(): i32 { const n = cut; cut = 0; return n; }
+
+/** The text font nearest to `px` pixels at the designed size. */
+export function sans(px: number): i32 { return SANS[nearest(px * size)]; }
+/** The title font nearest to `px` pixels at the designed size. */
+export function bold(px: number): i32 { return BOLD[nearest(px * size)]; }
 
 /** `text` cut into lines no wider than `width` in font `f`: at spaces, and at every `\n`. With `limit` > 0, at most that many lines, the
  *  last one ending with an ellipsis when text is left over. */
@@ -42,6 +55,7 @@ export function wrap(f: i32, text: string, width: number, limit: i32): string[] 
     lines.push(line);
   }
   if (limit <= 0 || lines.length <= limit) return lines;
+  cut++;
   const kept = lines.slice(0, limit);
   let last = kept[limit - 1];
   while (last.length > 1 && textWidth(f, last + '…', 0) > width) last = last.slice(0, last.length - 1);

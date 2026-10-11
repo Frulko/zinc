@@ -21,6 +21,10 @@ export class Frame {
   x(tx: number, ty: number): number { return this.side === 0 ? tx : this.side === 1 ? this.H - ty : this.side === 2 ? this.W - tx : ty; }
   y(tx: number, ty: number): number { return this.side === 0 ? ty : this.side === 1 ? tx : this.side === 2 ? this.H - ty : this.W - tx; }
 
+  /** A point of the frame, on the table. */
+  tableX(fx: number, fy: number): number { return this.side === 0 ? fx : this.side === 1 ? fy : this.side === 2 ? this.W - fx : this.W - fy; }
+  tableY(fx: number, fy: number): number { return this.side === 0 ? fy : this.side === 1 ? this.H - fx : this.side === 2 ? this.H - fy : fx; }
+
   /** A move on the table, in the frame; and a move in the frame, on the table. */
   dx(tx: number, ty: number): number { return this.side === 0 ? tx : this.side === 1 ? -ty : this.side === 2 ? -tx : ty; }
   dy(tx: number, ty: number): number { return this.side === 0 ? ty : this.side === 1 ? tx : this.side === 2 ? -ty : -tx; }

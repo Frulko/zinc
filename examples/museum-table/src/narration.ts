@@ -73,6 +73,7 @@ export class Narration {
 
   /** Starts the clip from its beginning. A missing or unreadable clip is silent: zinc:audio warns once, the subtitles go on. */
   play(): void {
+    if (this.file.length === 0) return;   // nothing was recorded: the subtitles alone
     const name = files.path(this.file);
     let s = sounds.get(name) ?? null;
     if (s === null) { s = files.exists(this.file) ? decode(files.bytes(this.file), this.file) : load(this.file); sounds.set(name, s); }   // load: the warning of a missing clip

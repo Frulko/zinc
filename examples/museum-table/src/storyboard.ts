@@ -5,12 +5,15 @@
 import { imageWidth, imageHeight, rrect, border, shadow, polygon, stroke, drawImage, drawText, textWidth } from 'zinc:gfx';
 import { Project, Sequence, Colours } from './project';
 import { Frame } from './frame';
-import { sans, bold, wrap, leading } from './type';
+import { sans, bold, wrap, leading, reading } from './type';
 import { word } from './words';
 import { files } from './files';
 
-const NODE_W = 240, NODE_H = 150;   // a node, in storyboard units
+const NODE_W = 240;                 // a node, in storyboard units: its width
 const STAGE_H = 96;                 // the miniature of the table inside it
+/** The lines a node's title may take, and the height of a node: 150 units as designed, more when its title is read at a larger size. */
+function titleLines(): i32 { return Math.round(2 * reading()); }
+function nodeHeight(): number { return 110 + 20 * reading() * titleLines(); }
 const LARGEST = 1.7;                // a storyboard of few nodes is not blown up beyond this
 
 /** What a miniature shows of an item: its box on the table and its picture (-1: a text panel; -2: a 3D object). */
@@ -59,10 +62,11 @@ export class Storyboard {
     const F = this.frame, all = this.project.sequences;
     let left = 1e30, top = 1e30, right = -1e30, bottom = -1e30;
     for (const s of all) { left = Math.min(left, s.storyX); right = Math.max(right, s.storyX); top = Math.min(top, s.storyY); bottom = Math.max(bottom, s.storyY); }
-    const w = right - left + NODE_W, h = bottom - top + NODE_H, roomW = F.w - 240, roomH = F.h - 370;
+    const above = 110 + 60 * reading(), under = 144 + 56 * reading();   // the title of the map, and the buttons at the visitor's edge
+    const w = right - left + NODE_W, h = bottom - top + nodeHeight(), roomW = F.w - 240, roomH = F.h - above - under;
     this.z = Math.min(LARGEST, Math.min(roomW / w, roomH / h));
     this.x0 = F.w / 2 - (left + right) / 2 * this.z;
-    this.y0 = 170 + roomH / 2 - (top + bottom) / 2 * this.z;
+    this.y0 = above + roomH / 2 - (top + bottom) / 2 * this.z;
   }
 
   /** The sequence whose node is under a point of the frame, or null. */
@@ -71,9 +75,15 @@ export class Storyboard {
     const all = this.project.sequences;
     for (let i = all.length - 1; i >= 0; i--) {
       const s = all[i];
-      if (Math.abs(fx - (this.x0 + s.storyX * this.z)) <= NODE_W * this.z / 2 && Math.abs(fy - (this.y0 + s.storyY * this.z)) <= NODE_H * this.z / 2) return s;
+      if (Math.abs(fx - (this.x0 + s.storyX * this.z)) <= NODE_W * this.z / 2 && Math.abs(fy - (this.y0 + s.storyY * this.z)) <= nodeHeight() * this.z / 2) return s;
     }
     return null;
+  }
+
+  /** The middle of a sequence's node, in the frame: [x, y]. */
+  nodeOf(s: Sequence): number[] {
+    this.fit();
+    return [this.x0 + s.storyX * this.z, this.y0 + s.storyY * this.z];
   }
 
   update(dt: number): void {
@@ -94,7 +104,7 @@ export class Storyboard {
     }
     return out;
   }
-  private within(x: number, y: number, s: Sequence): boolean { return Math.abs(x - s.storyX) < NODE_W / 2 + 5 && Math.abs(y - s.storyY) < NODE_H / 2 + 5; }
+  private within(x: number, y: number, s: Sequence): boolean { return Math.abs(x - s.storyX) < NODE_W / 2 + 5 && Math.abs(y - s.storyY) < nodeHeight() / 2 + 5; }
 
   /** Draws the storyboard in the visitor's frame (which is on). `current`: the sequence on the table; `trail`: the sequences seen, in
    *  the order of the visit. */
@@ -137,7 +147,7 @@ export class Storyboard {
 
     const title = bold(15 * z), small = bold(13 * k), W = P.table.width, H = P.table.height, m = STAGE_H / H;   // m: table units to storyboard units
     for (const s of P.sequences) {
-      const x = X(s.storyX - NODE_W / 2), y = Y(s.storyY - NODE_H / 2), w = NODE_W * z, h = NODE_H * z, here = s.id === current, seen = trail.indexOf(s.id) >= 0;
+      const x = X(s.storyX - NODE_W / 2), y = Y(s.storyY - nodeHeight() / 2), w = NODE_W * z, h = nodeHeight() * z, here = s.id === current, seen = trail.indexOf(s.id) >= 0;
       shadow(x, y + 3 * z, w, h, 3 * z, 14 * z, 0x000000, a(150));
       rrect(x, y, w, h, 3 * z, c.paper, a(255));
       // the miniature: the table of the sequence, its media where they lie
@@ -150,10 +160,10 @@ export class Storyboard {
         else { rrect(tx + tw * 0.3, ty + th * 0.1, tw * 0.4, th * 0.8, tw * 0.12, c.text, a(60)); border(tx + tw * 0.3, ty + th * 0.1, tw * 0.4, th * 0.8, tw * 0.12, Math.max(1, z), c.accent, a(255)); }
       }
       let ty = y + (8 + STAGE_H + 6) * z;
-      for (const line of wrap(title, P.say(s.title, lang), w - 20 * z, 2)) { drawText(title, x + 10 * z, ty, line, c.ink, a(255), 0); ty += leading(title); }
+      for (const line of wrap(title, P.say(s.title, lang), w - 20 * z, titleLines())) { drawText(title, x + 10 * z, ty, line, c.ink, a(255), 0); ty += leading(title); }
       if (here) {
         border(x - 4 * z, y - 4 * z, w + 8 * z, h + 8 * z, 6 * z, 3 * z, c.accent, a(255));
-        const label = word('here', lang), lw = textWidth(small, label, 0) + 24 * k, lh = 28 * k;
+        const label = word('here', lang), lw = textWidth(small, label, 0) + 24 * k, lh = 28 * k * reading();
         rrect(x + (w - lw) / 2, y + h + 12 * z, lw, lh, lh / 2, c.accent, a(255));
         drawText(small, x + (w - lw) / 2 + 12 * k, y + h + 12 * z + (lh - leading(small)) / 2 + k, label, c.background, a(255), 0);
       }

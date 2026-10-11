@@ -73,6 +73,19 @@ redistributed) and writes one MP3 per language (mono, 22.05 kHz, about 4 kB per 
 The clips are distributed under CC BY 4.0 (<https://creativecommons.org/licenses/by/4.0/>), the strictest of the two sources, with the attribution
 above; the same credit is in `project.json` and on the table.
 
+## Audio descriptions
+
+What the table says of a picture, the object or the panorama on request (ZN-650.10): the `audioDescription` texts of `project.json` (written
+for this example, CC0 1.0), read by the same two voices with the same tool, `tools/narration.sh --only descriptions`, on 2026-10-11. The
+clips are under CC BY 4.0 with the attribution of the voices above, as the narration is; their place is `accessibility.descriptions` of the
+project file.
+
+| file | what it is | voice |
+| --- | --- | --- |
+| `audio/descriptions/great-wave.fr.mp3`, `audio/descriptions/red-fuji.fr.mp3`, `audio/descriptions/ejiri.fr.mp3`, `audio/descriptions/sudden-shower.fr.mp3`, `audio/descriptions/plum-garden.fr.mp3`, `audio/descriptions/kanbara-snow.fr.mp3`, `audio/descriptions/three-beauties.fr.mp3`, `audio/descriptions/irises.fr.mp3`, `audio/descriptions/water-lily-pond.fr.mp3`, `audio/descriptions/the-letter.fr.mp3`, `audio/descriptions/divan-japonais.fr.mp3`, `audio/descriptions/nocturne.fr.mp3`, `audio/descriptions/vase.fr.mp3`, `audio/descriptions/garden.fr.mp3` | The audio descriptions in French: twelve photographs, the vase, the panorama | `fr_FR-mls-medium`, speaker 1840 |
+| `audio/descriptions/great-wave.en.mp3`, `audio/descriptions/red-fuji.en.mp3`, `audio/descriptions/ejiri.en.mp3`, `audio/descriptions/sudden-shower.en.mp3`, `audio/descriptions/plum-garden.en.mp3`, `audio/descriptions/kanbara-snow.en.mp3`, `audio/descriptions/three-beauties.en.mp3`, `audio/descriptions/irises.en.mp3`, `audio/descriptions/water-lily-pond.en.mp3`, `audio/descriptions/the-letter.en.mp3`, `audio/descriptions/divan-japonais.en.mp3`, `audio/descriptions/nocturne.en.mp3`, `audio/descriptions/vase.en.mp3`, `audio/descriptions/garden.en.mp3` | The audio descriptions in English | `en_GB-cori-medium` |
+| `audio/descriptions/great-wave.fr.vtt`, `audio/descriptions/red-fuji.fr.vtt`, `audio/descriptions/ejiri.fr.vtt`, `audio/descriptions/sudden-shower.fr.vtt`, `audio/descriptions/plum-garden.fr.vtt`, `audio/descriptions/kanbara-snow.fr.vtt`, `audio/descriptions/three-beauties.fr.vtt`, `audio/descriptions/irises.fr.vtt`, `audio/descriptions/water-lily-pond.fr.vtt`, `audio/descriptions/the-letter.fr.vtt`, `audio/descriptions/divan-japonais.fr.vtt`, `audio/descriptions/nocturne.fr.vtt`, `audio/descriptions/vase.fr.vtt`, `audio/descriptions/garden.fr.vtt`, `audio/descriptions/great-wave.en.vtt`, `audio/descriptions/red-fuji.en.vtt`, `audio/descriptions/ejiri.en.vtt`, `audio/descriptions/sudden-shower.en.vtt`, `audio/descriptions/plum-garden.en.vtt`, `audio/descriptions/kanbara-snow.en.vtt`, `audio/descriptions/three-beauties.en.vtt`, `audio/descriptions/irises.en.vtt`, `audio/descriptions/water-lily-pond.en.vtt`, `audio/descriptions/the-letter.en.vtt`, `audio/descriptions/divan-japonais.en.vtt`, `audio/descriptions/nocturne.en.vtt`, `audio/descriptions/vase.en.vtt`, `audio/descriptions/garden.en.vtt` | Their subtitles, one cue per sentence, timed on the voice (CC0 1.0) | |
+
 Voices that were left aside, because the licence of what they were made from does not clearly allow distributing what they say: every voice
 "finetuned from" `en_US-lessac` (`fr_FR-siwis-medium`, `fr_FR-upmc-medium`, `en_GB-alba-medium` and most English voices), since the Lessac data
 of the Blizzard Challenge 2013 is licensed to a named licensee on request; the voices tuned from `en_US-ryan` (`fr_FR-siwis-low`,

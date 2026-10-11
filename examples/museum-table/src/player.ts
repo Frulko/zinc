@@ -12,14 +12,15 @@
 // of the window being drawn and the files of the project through files.ts; whoever owns the window clears it.
 import { rect, rrect, border, polygon, drawImage, drawText, textWidth, imageWidth, imageHeight, wheel, pinch, pointerX, pointerY, modifiers, Mod } from 'zinc:gfx';
 import { clock } from 'zinc:sys';
-import { Project, Sequence, Item, Link, Presentation, Colours, Table, Kiosk } from './project';
+import { Project, Sequence, Item, Link, Media, Presentation, Colours, Table, Kiosk, spokenDescription } from './project';
 import { Fingers } from './touch';
 import { Card } from './table';
-import { Stage, Views, Button, drawButton } from './stage';
+import { Stage, Views } from './stage';
+import { Button, drawButton, setInRows, rowWidth } from './button';
 import { Frame } from './frame';
 import { Storyboard } from './storyboard';
 import { Narration } from './narration';
-import { sans, bold, wrap, leading } from './type';
+import { sans, bold, wrap, leading, setReading, reading, faint, clipped } from './type';
 import { word } from './words';
 
 /** Owner numbers of the fingers that are not on a card or a view: the full view, a button, the storyboard. */
@@ -44,6 +45,9 @@ export class Player {
   telling = false;
   /** Prints the pose of every card that moved, and the view and points of the 3D object and of the panorama, one line per change. */
   logging = false;
+  /** Prints where every control is, each time one moves: the side the visitor is at, the text size, the place of each control on the
+   *  table, and how many texts did not fit where they are written (the tests check a visitor's reach, and that nothing is clipped). */
+  checking = false;
   /** Puts a red ball on every point of interest of the object (the test of their projection). Set before the first frame. */
   pins = false;
   /** Prints the time the 3D object takes to draw. */
@@ -53,7 +57,11 @@ export class Player {
   /** The last fault ('' for none): what `frame` caught, for whoever shows the player to an author instead of a visitor. */
   fault = '';
 
-  private colours: Colours;
+  /** The colours the whole player draws with: those of the theme, or of the high contrast. */
+  private colours = new Colours();
+  /** The visitor's settings, kept for the visit: the text size (which of the project's `textSizes`) and the high contrast. */
+  private size: i32 = 0;
+  private contrast = false;
   private T: Table;
   private K: Kiosk;
   private F: Frame;
@@ -85,6 +93,11 @@ export class Player {
   private voice: Narration | null = null;
   private spoken = 0;
   private cue = '';
+  /** The medium whose audio description is being said instead ('' for none). */
+  private described = '';
+  /** The card seen in full at the last frame, and where its picture is on the screen: [x, y, w, h]. */
+  private viewed: Card | null = null;
+  private picture: number[] = [];
   /** The sequences whose narration this visit has heard: outside a presentation a narration is not said twice to the same visitor. */
   private heard = new Set<string>();
   /** Whether a visitor has touched the table: the narration of the first sequence waits for them. */
@@ -100,7 +113,12 @@ export class Player {
   private resume = new Button();
   private leave = new Button();
   private shut = new Button();
+  private letters = new Button();
+  private tones = new Button();
+  private teller = new Button();
   private dock: Button[] = [];
+  /** The top of those controls, in the frame. */
+  private floor = 0;
 
   private now = 0;
   private count: i32 = 0;
@@ -125,7 +143,7 @@ export class Player {
   constructor(project: Project, first: string, lang: string) {
     this.project = project;
     this.lang = project.languages.indexOf(lang) >= 0 ? lang : project.languages[0];
-    this.colours = project.theme;
+    this.wear();
     this.T = project.table; this.K = project.kiosk;
     this.F = new Frame(this.T.width, this.T.height); this.edge = new Frame(this.T.width, this.T.height);
     this.TURN = Math.min(this.T.reach, 0.15 * Math.min(this.T.width, this.T.height));
@@ -140,15 +158,21 @@ export class Player {
    *  (a medium that cannot be read, a bug) is logged for the staff and never shown to a visitor: the table goes back to its first
    *  sequence, and to a table with nothing on it when that sequence is the one at fault. */
   frame(dt: number, x: number, y: number, w: number, h: number): void {
+    this.read();
     try { this.advance(dt, x, y, w, h); this.paint(x, y, w, h); this.faults = 0; } catch (e) { this.failed(e.message); }
+    setReading(1, false);
   }
   /** The two halves of `frame`, for a host that draws at another moment than it counts time (a canvas of zinc:ui). */
   update(dt: number, x: number, y: number, w: number, h: number): void {
+    this.read();
     try { this.advance(dt, x, y, w, h); } catch (e) { this.failed(e.message); }
+    setReading(1, false);
   }
   draw(x: number, y: number, w: number, h: number): void {
     if (this.stack.length === 0) return;   // nothing is laid out before the first update
+    this.read();
     try { this.paint(x, y, w, h); this.faults = 0; } catch (e) { this.failed(e.message); }
+    setReading(1, false);
   }
   /** The player is done: its narration stops and what it holds in the 3D renderer is freed. */
   close(): void {
@@ -157,14 +181,31 @@ export class Player {
     this.voice = null;
     this.views.dispose();
   }
-  /** The visitor's language button, or the host's: every text changes, and the narration starts again in the new language. */
+  /** The host changes the language, as the visitor's button does. */
   setLanguage(lang: string): void {
+    this.read();
+    this.speak(lang);
+    setReading(1, false);
+  }
+
+  /** What is laid out and drawn from now on is at the visitor's text size and contrast (type.ts), until the player hands back. */
+  private read(): void { setReading(this.project.accessibility.textSizes[this.size], this.contrast); }
+  /** Puts on the colours of the theme, or those of the high contrast: every part of the player draws with this one object. */
+  private wear(): void {
+    const c = this.colours, from: Colours = this.contrast ? this.project.accessibility.highContrast : this.project.theme;
+    c.background = from.background; c.paper = from.paper; c.ink = from.ink; c.text = from.text; c.muted = from.muted; c.accent = from.accent;
+  }
+
+  /** Every text changes, and the narration starts again in the new language. */
+  private speak(lang: string): void {
     if (lang === this.lang || this.project.languages.indexOf(lang) < 0) return;
     this.lang = lang;
     for (const s of this.stack) s.setLanguage(lang);
     this.layOutDock();
     this.tell(`language ${lang}`);
-    if (this.voice !== null && this.stack.length > 0) this.narrate(this.top().sequence);   // and its subtitles with it
+    const told = this.described;
+    if (told.length > 0) { this.hush(); this.describe(this.project.medium(told)); }
+    else if (this.voice !== null && this.stack.length > 0) this.narrate(this.top().sequence);   // and its subtitles with it
   }
 
   private failed(why: string): void {
@@ -187,7 +228,11 @@ export class Player {
     console.log(`${this.count} ${line}`);
   }
 
-  private stage(s: Sequence): Stage { return new Stage(this.project, s, this.colours, this.lang, this.F, this.pins, this.views); }
+  private stage(s: Sequence): Stage {
+    const made = new Stage(this.project, s, this.colours, this.lang, this.F, this.pins, this.views);
+    made.settle(this.floor, this.dock);
+    return made;
+  }
 
   /** The measure: the photographs again and again, until there are enough cards. */
   private crowd(): Sequence {
@@ -223,13 +268,33 @@ export class Player {
     this.voice = v; this.spoken = 0;
     this.tell(`narration ${v.file}${this.attracting ? ' (subtitles only)' : ''}`);
   }
-  /** Stops the narration. */
+  /** Stops the narration, or the audio description being said. */
   private hush(): void {
     const v = this.voice;
     if (v === null) return;
     v.stop();
     this.voice = null; this.cue = '';
-    this.tell('narration stop');
+    this.tell(this.described.length > 0 ? 'description stop' : 'narration stop');
+    this.silence();
+  }
+  /** No audio description is being said any more: its button offers it again. */
+  private silence(): void {
+    if (this.described.length === 0) return;
+    this.described = '';
+    this.layOutDock();
+  }
+  /** Says the audio description of a medium in the visitor's language, with its subtitles, in place of the narration; asked again
+   *  while it is said, stops it. */
+  private describe(m: Media | null): void {
+    const again = m !== null && m.id === this.described;
+    this.hush();
+    const said = m !== null && !again ? spokenDescription(this.project, m) : null;
+    if (m === null || said === null) return;
+    const v = new Narration(this.project, said, this.lang);
+    v.play();
+    this.voice = v; this.spoken = 0; this.described = m.id;
+    this.tell(`description ${m.id} ${v.file.length > 0 ? v.file : '(subtitles only)'}`);
+    this.layOutDock();
   }
 
   /** Starts a guided presentation at its first sequence. */
@@ -308,6 +373,8 @@ export class Player {
   /** Nobody has touched the table for the time the project gives: the visit is over and everything goes back to the start. */
   private reset(): void {
     if (this.visiting) this.tell('visit end');
+    this.size = 0; this.contrast = false;
+    this.wear(); this.read();
     this.lang = this.project.languages[0];
     this.trail = []; this.heard.clear(); this.visiting = false; this.session = null;
     this.F.side = 0;
@@ -332,56 +399,80 @@ export class Player {
     this.go(to, 'fade', false);
   }
 
-  /** Puts the player's controls in the visitor's frame: at the edge the visitor stands at. */
+  /** Puts the player's controls in the visitor's frame, at the edge the visitor stands at: what leads somewhere on the left, the
+   *  visitor's settings on the right, in one row when both fit and else the settings at the edge and the rest in rows above. The sequences
+   *  on the table then lay their own buttons out above and beside them. */
   private layOutDock(): void {
     const project = this.project, lang = this.lang, F = this.F, stack = this.stack, board = this.board;
     const map = this.map, shut = this.shut, resume = this.resume, leave = this.leave, languages = this.languages;
-    const dock: Button[] = [];
-    this.dock = dock;
-    if (this.attracting) return;   // the attract loop offers one thing: touch the table
-    const f = sans(20), y = F.h - 50;
-    let x = 48;
-    const over = stack.length > 1 ? stack[1] : null;
-    if (over !== null && this.tour === null) {   // an overlay that has no link back to its sequence gets a way to close: no dead end on a kiosk
-      let back = false;
-      for (const l of over.sequence.links) if (l.to === stack[0].sequence.id) back = true;
-      if (!back) {
-        shut.act = 'close'; shut.label = word('shut', lang);
-        shut.w = textWidth(f, shut.label, 0) + 64; shut.x = x + shut.w / 2; shut.y = y; x += shut.w + 16;
-        dock.push(shut);
+    const left: Button[] = [], right: Button[] = [], s = reading(), h = 56 * s, y = F.h - 22 - h / 2;
+    this.dock = [];
+    this.floor = y - h / 2;
+    if (!this.attracting) {   // the attract loop offers one thing: touch the table
+      const over = stack.length > 1 ? stack[1] : null, full = stack.length > 0 ? this.top().table.opened : null;
+      if (full === null && over !== null && this.tour === null) {   // an overlay that has no link back to its sequence gets a way to close: no dead end on a kiosk
+        let back = false;
+        for (const l of over.sequence.links) if (l.to === stack[0].sequence.id) back = true;
+        if (!back) { shut.act = 'close'; shut.label = word('shut', lang); left.push(shut); }
       }
+      if (full !== null) {   // a picture seen in full: a way to close it and, when it has one, its audio description
+        const teller = this.teller, said = this.described === full.media.id;
+        shut.act = 'full-close'; shut.label = word('shut', lang); left.push(shut);
+        if (full.media.audioDescription.size > 0) {
+          teller.act = `describe ${full.media.id}`; teller.play = !said; teller.label = word(said ? 'describe-stop' : 'describe', lang);
+          left.push(teller);
+        }
+      } else if (this.tour !== null) {   // a presentation: nothing to press while it plays (a touch pauses it), two buttons once it is paused
+        if (this.paused) {
+          resume.act = 'resume'; resume.play = true; resume.label = word('resume', lang);
+          leave.act = 'leave'; leave.label = word('leave', lang);
+          left.push(resume); left.push(leave);
+        }
+      } else {
+        if (project.sequences.length > 1) {
+          map.act = 'storyboard';
+          map.label = word(board !== null && board.open ? 'map-close' : 'map-button', lang);
+          left.push(map);
+        }
+        for (const p of project.presentations) {   // ponytail: every presentation has its button in the row; many of them need a list
+          const b = new Button();
+          b.act = `present ${p.id}`; b.play = true; b.label = project.say(p.title, lang);
+          left.push(b);
+        }
+      }
+      for (const b of left) b.fit();
+      // the visitor's settings: the text size (a letter for each size the project offers), the high contrast, the language
+      const sizes = project.accessibility.textSizes, letters = this.letters, tones = this.tones;
+      if (sizes.length > 1) { letters.act = 'text'; letters.w = (44 + 34 * Math.min(sizes.length, 4)) * s; letters.h = h; right.push(letters); }
+      tones.act = 'contrast'; tones.w = 118 * s; tones.h = h; right.push(tones);
+      if (project.languages.length > 1) {
+        languages.act = 'language';
+        languages.w = (44 + 46 * project.languages.length) * s; languages.h = h;
+        right.push(languages);
+      }
+      const room = F.w - 96, wide = rowWidth(right, 16), apart = right.length > 0 && rowWidth(left, 16) + 32 + wide > room;
+      setInRows(right, F.w - 48 - wide, y, room, 16, false);
+      if (left.length > 0) this.floor = setInRows(left, 48, apart ? y - h - 16 : y, room, 16, false);
+      this.dock = left.concat(right);
     }
-    if (this.tour !== null) {   // a presentation: nothing to press while it plays (a touch pauses it), two buttons once it is paused
-      if (this.paused) {
-        resume.act = 'resume'; resume.play = true; resume.label = word('resume', lang);
-        leave.act = 'leave'; leave.label = word('leave', lang);
-        for (const b of [resume, leave]) { b.w = textWidth(f, b.label, 0) + 64 + (b.play ? 26 : 0); b.x = x + b.w / 2; b.y = y; x += b.w + 16; dock.push(b); }
-      }
-    } else {
-      if (project.sequences.length > 1) {
-        map.act = 'storyboard';
-        map.label = word(board !== null && board.open ? 'map-close' : 'map-button', lang);
-        map.w = textWidth(f, map.label, 0) + 64; map.x = x + map.w / 2; map.y = y; x += map.w + 16;
-        dock.push(map);
-      }
-      for (const p of project.presentations) {   // ponytail: every presentation has its button in the row; many of them need a list
-        const b = new Button();
-        b.act = `present ${p.id}`; b.play = true; b.label = project.say(p.title, lang);
-        b.w = textWidth(f, b.label, 0) + 90; b.x = x + b.w / 2; b.y = y; x += b.w + 16;
-        dock.push(b);
-      }
-    }
-    if (project.languages.length > 1) {
-      languages.act = 'language';
-      languages.w = 44 + 46 * project.languages.length; languages.x = F.w - 48 - languages.w / 2; languages.y = F.h - 50;
-      dock.push(languages);
-    }
+    // under the storyboard the sequence keeps its layout: the map's own button is not in the way of its links
+    if (board !== null && board.open) return;
+    for (const on of stack) { on.described = this.described; on.settle(this.floor, this.dock); }
+  }
+
+  /** The visitor's settings have changed: the colours are put on, and everything written is laid out again at the text size. */
+  private restyle(): void {
+    this.wear(); this.read();
+    for (const on of this.stack) on.resize();
+    const kept = this.session;
+    if (kept !== null) for (const on of kept) on.resize();
+    this.layOutDock();
   }
 
   private press(b: Button): void {
     const l = b.link, project = this.project, board = this.board;
     if (l !== null) { this.follow(l); return; }
-    if (b.act === 'language') this.setLanguage(project.languages[(project.languages.indexOf(this.lang) + 1) % project.languages.length]);
+    if (b.act === 'language') this.speak(project.languages[(project.languages.indexOf(this.lang) + 1) % project.languages.length]);
     else if (b.act === 'storyboard') this.showBoard(board !== null && !board.open);
     else if (b.act === 'resume') {
       // ponytail: zinc:audio cannot pause a clip or start it in the middle, so the step is played again from its beginning
@@ -393,6 +484,24 @@ export class Player {
     else if (b.act === 'close') { this.tell(`close ${this.top().sequence.id} -> ${this.stack[0].sequence.id} fade`); this.go(this.stack[0].sequence.id, 'fade', false); }
     else if (b.act.startsWith('present ')) {
       for (const p of project.presentations) if (b.act === `present ${p.id}`) { this.present(p); break; }
+    } else if (b.act === 'text') {
+      const sizes = project.accessibility.textSizes;
+      this.size = (this.size + 1) % sizes.length;
+      this.restyle();
+      this.tell(`text size ${sizes[this.size]}`);
+    } else if (b.act === 'contrast') {
+      this.contrast = !this.contrast;
+      this.restyle();
+      this.tell(`contrast ${this.contrast ? 'on' : 'off'}`);
+    } else if (b.act === 'full-close') this.top().table.opened = null;
+    else if (b.act.startsWith('describe ')) this.describe(project.medium(b.act.slice(9)));
+    else {   // a button of the object or of the panorama
+      const on = this.top(), v = on.viewer;
+      on.press(b.act);
+      if (b.act.startsWith('next ')) {
+        const open = v !== null && b.act === `next ${v.media.id}` ? v.opened : on.lookout?.opened ?? null;
+        this.tell(`point ${open !== null ? open.id : '-'} of ${b.act.slice(5)}`);
+      }
     }
   }
 
@@ -474,7 +583,7 @@ export class Player {
       this.spoken += dt;
       const text = speaking.at(this.spoken);
       if (text !== this.cue) { this.cue = text; if (text.length > 0) this.tell(`subtitle ${text}`); }
-      if (this.spoken > speaking.length + 0.5) { this.voice = null; this.cue = ''; this.tell('narration end'); }
+      if (this.spoken > speaking.length + 0.5) { this.voice = null; this.cue = ''; this.tell(this.described.length > 0 ? 'description end' : 'narration end'); this.silence(); }
     }
 
     const c = this.change, plan = this.board;
@@ -515,12 +624,13 @@ export class Player {
       }
     } else {
       const on = this.top();
-      // who takes the fingers that landed: the full view when it is open, else a button, else the card or the view under them
+      // who takes the fingers that landed: a button (with a picture in full, one of the player's own), else the full view, which any
+      // touch closes, else the card or the view under them
       for (const f of fingers.down) {
         if (!f.fresh || f.owner !== 0) continue;
-        if (on.table.opened !== null) { f.owner = FULL; continue; }
-        const fx = F.x(f.x, f.y), fy = F.y(f.x, f.y);
-        for (const b of this.dock.concat(on.offered())) if (b.finger === 0 && b.takes(fx, fy)) { f.owner = BUTTON; b.finger = f.id; break; }
+        const fx = F.x(f.x, f.y), fy = F.y(f.x, f.y), full = on.table.opened !== null;
+        for (const b of full ? this.dock : this.dock.concat(on.offered())) if (b.finger === 0 && b.takes(fx, fy)) { f.owner = BUTTON; b.finger = f.id; break; }
+        if (full && f.owner === 0) f.owner = FULL;
       }
       const viewing: Card | null = on.table.opened;
       on.update(dt, fingers, this.now);
@@ -552,6 +662,12 @@ export class Player {
       if (this.stress > 0) this.stir(this.now);
     }
 
+    // a picture came in full, or went: its buttons with it, and its audio description stops
+    const full = this.top().table.opened, was = this.viewed;
+    if (full !== was) {
+      this.viewed = full; this.picture = [];
+      if (was !== null && was.media.id === this.described) this.hush(); else this.layOutDock();
+    }
     if (turn >= 0) this.turnTo(turn);
   }
 
@@ -559,6 +675,8 @@ export class Player {
   private paint(x: number, y: number, w: number, h: number): void {
     this.lay(x, y, w, h);
     const k = this.k, ox = this.ox, oy = this.oy, F = this.F, stack = this.stack, fingers = this.fingers, plan = this.board;
+    clipped();
+    if (this.contrast) this.veil(255);   // whoever owns the window cleared it with the colour of the theme
     for (const s of stack) s.quiet = this.tour !== null && !this.paused;
     const moving = this.change;
     if (moving === null) this.drawStack(stack, ox, oy, k, 1, 0);
@@ -575,6 +693,7 @@ export class Player {
     for (const f of fingers.down) border(ox + (f.x - 30) * k, oy + (f.y - 30) * k, 60 * k, 60 * k, 30 * k, Math.max(1, 2 * k), this.colours.accent, 150);   // where the table feels a finger
 
     if (this.logging) this.report();
+    if (this.checking) this.check();
     const object = this.top().viewer;
     if (this.timing && object !== null && object.drawn === 120) {
       console.log(`the object is drawn in ${(object.spent / object.drawn).toFixed(2)} ms (${Math.round(object.w * k)} x ${Math.round(object.h * k)} pixels)`);
@@ -588,6 +707,22 @@ export class Player {
         this.spent = 0; this.elapsed = 0; this.counted = 0;
       }
     }
+  }
+
+  /** Where every control is, when one has moved: what a touch can press now, with its place on the table. */
+  private check(): void {
+    const F = this.F, on = this.top(), plan = this.board, parts: string[] = [];
+    const at = (name: string, fx: number, fy: number): void => { parts.push(`${name.replaceAll(' ', ':')}@${Math.round(F.tableX(fx, fy))},${Math.round(F.tableY(fx, fy))}`); };
+    for (const b of this.dock) at(b.act, b.x, b.y);
+    if (plan !== null && plan.open) {
+      for (const s of this.project.sequences) { const n = plan.nodeOf(s); at(`node ${s.id}`, n[0], n[1]); }
+    } else if (on.table.opened === null) {
+      for (const b of on.offered()) { const l = b.link; at(l !== null ? `${b.ring ? 'spot' : 'link'} ${l.to}` : b.act, b.x, b.y); }
+      const v = on.viewer, p = on.lookout;
+      if (v !== null && v.linkBox.length === 4) at('panel', v.linkBox[0] + v.linkBox[2] / 2, v.linkBox[1] + v.linkBox[3] / 2);
+      if (p !== null && p.linkBox.length === 4) at('panel', p.linkBox[0] + p.linkBox[2] / 2, p.linkBox[1] + p.linkBox[3] / 2);
+    }
+    this.say(-900, `controls ${F.name} size ${reading()} cut ${clipped()} ${parts.join(' ')}`);
   }
 
   /** The cards, the object and the panorama of the top sequence, a line for each that changed. */
@@ -656,17 +791,27 @@ export class Player {
     }
   }
 
-  /** What the narration is saying, at the visitor's edge above the buttons: one line, or two of about the same length. */
+  /** What the narration is saying, at the visitor's edge above the buttons: one line, or two of about the same length. It keeps clear
+   *  of the buttons of the sequence: above the highest one it would lie on. */
   private drawSubtitle(k: number): void {
-    const cue = this.cue, F = this.F, colours = this.colours;
+    const cue = this.cue, F = this.F, colours = this.colours, on = this.top(), plan = this.board, box = this.picture, onPicture = box.length === 4;
     if (cue.length === 0) return;
-    const f = sans(24 * k), room = Math.min(1200, F.w - 160) * k, full = textWidth(f, cue, 0);
-    const lines = full <= room ? [cue] : wrap(f, cue, Math.min(room, full * 0.56), 3);
+    // with a picture seen in full the subtitle lies over the foot of the picture, as on a film: its notice stays whole
+    const f = sans(24 * k), room = onPicture ? box[2] - 80 * k : Math.min(1200 * reading(), F.w - 160) * k, full = textWidth(f, cue, 0);
+    const lines = full <= room ? [cue] : wrap(f, cue, Math.min(room, full * 0.56), 0);
+    const left = (wide: number): number => onPicture ? box[0] + (box[2] - wide) / 2 : F.ox + (F.w * k - wide) / 2;
     let w = 0;
     for (const line of lines) w = Math.max(w, textWidth(f, line, 0));
-    const h = lines.length * leading(f) + 20 * k, x = F.ox + (F.w * k - w) / 2, y = F.oy + (F.h - (F.w < this.T.width ? 162 : 86)) * k - h;
-    rrect(x - 26 * k, y, w + 52 * k, h, 14 * k, colours.background, 225);
-    for (let i = 0; i < lines.length; i++) drawText(f, F.ox + (F.w * k - textWidth(f, lines[i], 0)) / 2, y + 10 * k + i * leading(f), lines[i], colours.text, 255, 0);
+    const h = lines.length * leading(f) + 20 * k, x = left(w);
+    const mapped = plan !== null && plan.open;   // under the storyboard the buttons of the sequence are not there: only the player's own
+    let bottom = (mapped ? this.floor : on.edge) - 8;
+    if (!onPicture && !mapped) for (let pass = 0; pass < 4; pass++) for (const b of on.offered()) {
+      if (b.ring || Math.abs(b.x - F.w / 2) >= (w / k + 52 + b.w) / 2 + 8) continue;
+      if (b.y + b.h / 2 + 8 > bottom - h / k && b.y - b.h / 2 - 8 < bottom) bottom = b.y - b.h / 2 - 8;
+    }
+    const y = onPicture ? box[1] + box[3] - 16 * k - h : F.oy + bottom * k - h;
+    rrect(x - 26 * k, y, w + 52 * k, h, 14 * k, colours.background, faint(225));
+    for (let i = 0; i < lines.length; i++) drawText(f, left(textWidth(f, lines[i], 0)), y + 10 * k + i * leading(f), lines[i], colours.text, 255, 0);
   }
 
   /** A presentation: its timeline at the visitor's edge, a segment for each step, and while it plays where it is and how to stop it. */
@@ -681,8 +826,9 @@ export class Player {
       if (part > 0) rrect(x, y, Math.max(h, each * part), h, h / 2, colours.accent, 255);
     }
     if (this.paused || this.attracting) return;
-    const f = sans(20 * k), label = `${this.project.say(t.title, this.lang)} · ${step + 1}/${n} · ${word('pause-hint', this.lang)}`, w = textWidth(f, label, 0) + 90 * k, bh = 56 * k;
-    const x = F.ox + 48 * k, y0 = F.oy + (F.h - 50) * k - bh / 2;
+    const s = reading(), f = sans(20 * k), where = `${step + 1}/${n} · ${word('pause-hint', this.lang)}`, whole = `${this.project.say(t.title, this.lang)} · ${where}`;
+    const label = textWidth(f, whole, 0) <= (F.w - 186) * k ? whole : where, w = textWidth(f, label, 0) + 90 * k, bh = 56 * k * s;
+    const x = F.ox + 48 * k, y0 = F.oy + (F.h - 22 - 28 * s) * k - bh / 2;
     rrect(x, y0, w, bh, bh / 2, colours.background, 235);
     polygon([x + 30 * k, y0 + bh / 2 - 9 * k, x + 45 * k, y0 + bh / 2, x + 30 * k, y0 + bh / 2 + 9 * k], colours.accent, 255);
     drawText(f, x + 58 * k, y0 + (bh - leading(f)) / 2 + k, label, colours.muted, 255, 0);
@@ -692,24 +838,40 @@ export class Player {
   private drawDock(k: number): void {
     const F = this.F, colours = this.colours;
     for (const b of this.dock) {
-      if (b !== this.languages) { drawButton(b, F, k, colours); continue; }
-      // the language button: every language, the current one bright
-      const f = sans(20 * k), x = F.ox + (b.x - b.w / 2) * k, y = F.oy + (b.y - b.h / 2) * k, w = b.w * k, h = b.h * k, held = b.finger !== 0;
-      rrect(x, y, w, h, h / 2, held ? colours.accent : colours.background, held ? 255 : 235);
+      if (b !== this.languages && b !== this.letters && b !== this.tones) { drawButton(b, F, k, colours); continue; }
+      const s = reading(), x = F.ox + (b.x - b.w / 2) * k, y = F.oy + (b.y - b.h / 2) * k, w = b.w * k, h = b.h * k, held = b.finger !== 0;
+      const bright = held ? colours.background : colours.accent;
+      rrect(x, y, w, h, h / 2, held ? colours.accent : colours.background, held ? 255 : faint(235));
       border(x, y, w, h, h / 2, Math.max(1, 1.5 * k), colours.accent, 255);
-      let tx = x + 26 * k;
-      for (const code of this.project.languages) {
-        drawText(f, tx, y + (h - leading(f)) / 2 + k, code.toUpperCase(), code === this.lang ? (held ? colours.background : colours.accent) : colours.muted, 255, 0);
-        tx += 46 * k;
+      if (b === this.languages) {   // every language, the current one bright
+        const f = sans(20 * k);
+        let tx = x + 26 * k * s;
+        for (const code of this.project.languages) {
+          drawText(f, tx, y + (h - leading(f)) / 2 + k, code.toUpperCase(), code === this.lang ? bright : colours.muted, 255, 0);
+          tx += 46 * k * s;
+        }
+      } else if (b === this.letters) {   // a letter at each size the project offers, on one baseline, the visitor's size bright
+        const n: i32 = Math.min(this.project.accessibility.textSizes.length, 4), base = y + h / 2 + 0.36 * (15 + 6 * (n - 1)) * k * s;
+        for (let i: i32 = 0; i < n; i++) {
+          const px = (15 + 6 * i) * k, f = bold(px), mid = x + (22 + 34 * (i + 0.5)) * k * s;
+          drawText(f, mid - textWidth(f, 'A', 0) / 2, base - 0.97 * px * s, 'A', i === Math.min(this.size, n - 1) ? bright : colours.muted, 255, 0);
+        }
+      } else {   // the sign of contrast: a disc, half of it full
+        const cx = x + w / 2, cy = y + h / 2, r = 14 * k * s, ink = held ? colours.background : colours.text, half: number[] = [];
+        for (let i = 0; i <= 12; i++) { const a = Math.PI / 2 + Math.PI * i / 12; half.push(cx + r * Math.cos(a)); half.push(cy - r * Math.sin(a)); }
+        polygon(half, ink, 255);
+        border(cx - r, cy - r, 2 * r, 2 * r, r, Math.max(1.5, 2 * k), ink, 255);
       }
     }
   }
 
   /** What is written at the edges the visitor is not at, each turned to its own side: during the attract loop the invitation, at every
-   *  edge; else a mark that says a touch there turns the table to that side. */
+   *  edge; else a mark that says a touch there turns the table to that side. They are for whoever comes to those edges, who has asked for
+   *  no text size: they keep the designed one. */
   private drawEdges(ox: number, oy: number, k: number): void {
     const attracting = this.attracting, edge = this.edge, colours = this.colours;
     const label = word(attracting ? 'begin' : 'turn', this.lang);
+    setReading(1, this.contrast);
     for (let side: i32 = 0; side < 4; side++) {
       if (side === this.F.side && !attracting) continue;
       edge.side = side;
@@ -721,34 +883,38 @@ export class Player {
       drawText(f, x + (w - textWidth(f, label, 0)) / 2, y + (h - leading(f)) / 2 + k, label, attracting ? colours.text : colours.muted, 255, 0);
     }
     edge.off();
+    this.read();
   }
 
   /** The full view a double tap opens, in the visitor's frame (which is on): the picture as large as the table allows and its notice, beside
-   *  it at a long side of the table, under it at a short side. Any touch closes it. */
+   *  it at a long side of the table, under it at a short side. The notice takes more of the table as its text grows, the picture the
+   *  rest. Any touch beside the visitor's buttons closes it, and so does the first of them. */
   private drawFullView(c: Card, k: number): void {
-    const F = this.F, colours = this.colours, project = this.project, lang = this.lang;
+    const F = this.F, colours = this.colours, project = this.project, lang = this.lang, s = reading();
     const m = c.media, wide = F.w >= F.h, X = (x: number): number => F.ox + x * k, Y = (y: number): number => F.oy + y * k;
-    rrect(X(0), Y(0), F.w * k, F.h * k, 0, colours.background, 236);   // the table dims behind
-    const boxW = (wide ? 1040 : F.w - 140) * k, boxH = (wide ? 900 : 1000) * k, iw = imageWidth(c.picture), ih = imageHeight(c.picture), fit = Math.min(boxW / iw, boxH / ih);
+    rrect(X(0), Y(0), F.w * k, F.h * k, 0, colours.background, faint(236));   // the table dims behind
+    const column = wide ? Math.min(670 * s, F.w - 760) : F.w - 140, high = wide ? 900 : 1000 / s;
+    const boxW = (wide ? F.w - 210 - column : column) * k, boxH = high * k, iw = imageWidth(c.picture), ih = imageHeight(c.picture), fit = Math.min(boxW / iw, boxH / ih);
     const w = iw * fit, h = ih * fit, x = X(70) + (boxW - w) / 2, y = Y(90) + (boxH - h) / 2;
     rrect(x - 10 * k, y - 10 * k, w + 20 * k, h + 20 * k, 3 * k, colours.paper, 255);
     drawImage(c.picture, x, y, w, h, 255, 0);
+    this.picture = [x, y, w, h];
 
-    const tx = X(wide ? 1180 : 70), tw = (wide ? 670 : F.w - 140) * k, head = bold(36 * k), who = sans(22 * k), small = sans(16 * k), body = sans(20 * k);
-    let ty = Y(wide ? 110 : 1140);
+    const tx = X(wide ? F.w - 70 - column : 70), tw = column * k, head = bold(36 * k), who = sans(22 * k), small = sans(16 * k), body = sans(20 * k);
+    const credit = wrap(small, [m.credit.institution, m.credit.accession, m.credit.line, m.credit.licence].filter((part: string) => part.length > 0).join(' · '), tw, 3);
+    const foot = Y(this.floor - 12) - 3 * leading(small);   // the credit, above the visitor's buttons
+    let ty = Y(wide ? 110 : 140 + high);
     for (const line of wrap(head, project.say(m.title, lang), tw, 4)) { drawText(head, tx, ty, line, colours.text, 255, 0); ty += leading(head); }
     ty += 10 * k;
     if (m.creator.length > 0) { drawText(who, tx, ty, m.creator, colours.text, 255, 0); ty += leading(who); }
-    const facts = [project.say(m.date, lang), project.say(m.medium, lang)].filter((s: string) => s.length > 0).join(', ');
-    for (const line of wrap(small, facts, tw, 2)) { drawText(small, tx, ty, line, colours.muted, 255, 0); ty += leading(small); }
+    const facts = [project.say(m.date, lang), project.say(m.medium, lang)].filter((part: string) => part.length > 0).join(', ');
+    for (const line of wrap(small, facts, tw, Math.round(2 * s))) { drawText(small, tx, ty, line, colours.muted, 255, 0); ty += leading(small); }
     ty += 16 * k;
     rect(tx, ty, 56 * k, Math.max(1, 2 * k), colours.accent);
     ty += 22 * k;
-    for (const line of wrap(body, project.say(m.description, lang), tw, 14)) { drawText(body, tx, ty, line, colours.text, 255, 0); ty += leading(body) + 2 * k; }
-    ty = Y(F.h - 90) - 3 * leading(small);
-    const credit = [m.credit.institution, m.credit.accession, m.credit.line, m.credit.licence].filter((s: string) => s.length > 0).join(' · ');
-    for (const line of wrap(small, credit, tw, 3)) { drawText(small, tx, ty, line, colours.muted, 255, 0); ty += leading(small); }
-    const hint = word('close', lang);
-    drawText(small, X(F.w - 48) - textWidth(small, hint, 0), Y(F.h - 50), hint, colours.muted, 255, 0);
+    const room = Math.max(1, Math.floor((foot - 16 * k - ty) / (leading(body) + 2 * k)));
+    for (const line of wrap(body, project.say(m.description, lang), tw, room)) { drawText(body, tx, ty, line, colours.text, 255, 0); ty += leading(body) + 2 * k; }
+    ty = foot;
+    for (const line of credit) { drawText(small, tx, ty, line, colours.muted, 255, 0); ty += leading(small); }
   }
 }

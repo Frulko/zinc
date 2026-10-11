@@ -3,8 +3,11 @@
 
   tools/contrast-check            print every pair; exit 1 when a pair that is not in KNOWN falls below 4.5
 KNOWN lists pairs below 4.5 that are accepted until the theme changes (an unchanged light theme keeps every prototype golden).
+
+  tools/contrast-check --museum project.json   the colours of a museum-table project (docs/museum-table-format.md, ZN-650.10): its theme
+                                               at 4.5:1 and its high-contrast colours at 7:1 (WCAG AAA); exit 1 below
 """
-import os, re, sys
+import json, os, re, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 THEME = open(os.path.join(ROOT, "lib/std/kit/theme.ts")).read(); PAL = open(os.path.join(ROOT, "lib/std/palette.ts")).read()
@@ -21,6 +24,7 @@ def theme(name):
     return dict(re.findall(r"(\w+): '([a-z0-9-]+)'", body))
 def rgb(colour):
     if colour == "white": return (255, 255, 255)
+    if colour.startswith("#"): return tuple(int(colour[i:i + 2], 16) for i in (1, 3, 5))
     fam, shade = colour.rsplit("-", 1); h = PALETTE[fam][SHADES.index(int(shade))]
     return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
 def lum(c):
@@ -29,6 +33,21 @@ def lum(c):
 def ratio(a, b):
     la, lb = lum(rgb(a)), lum(rgb(b)); hi, lo = max(la, lb), min(la, lb)
     return (hi + 0.05) / (lo + 0.05)
+
+if len(sys.argv) == 3 and sys.argv[1] == "--museum":
+    # what the player writes on what (examples/museum-table/src): texts, secondary texts and the outline of a button on the table, a card's
+    # text on its paper, the label of a panel's button, the label of a pressed button. The defaults are those of src/project.ts.
+    USES = [("text", "background"), ("muted", "background"), ("accent", "background"), ("ink", "paper"), ("ink", "accent"), ("background", "accent")]
+    THEMES = {"theme": dict(background="#14151a", paper="#f4f1ea", ink="#23211d", text="#ece8df", muted="#9b978d", accent="#d0a441"),
+              "highContrast": dict(background="#000000", paper="#ffffff", ink="#000000", text="#ffffff", muted="#e0e0e0", accent="#ffd400")}
+    project = json.load(open(sys.argv[2])); bad = 0
+    for name, least in (("theme", 4.5), ("highContrast", 7)):
+        t = dict(THEMES[name], **(project.get("theme", {}) if name == "theme" else project.get("accessibility", {}).get("highContrast", {})))
+        for fg, bg in USES:
+            r = ratio(t[fg], t[bg]); bad += r < least
+            print("%-12s %-10s on %-10s %s on %s %5.2f %s" % (name, fg, bg, t[fg], t[bg], r, "ok" if r >= least else "FAIL (below %g)" % least))
+    print("contrast-check: %s" % ("%d pair(s) too weak" % bad if bad else "the theme is at least 4.5:1 and the high-contrast colours 7:1"))
+    sys.exit(1 if bad else 0)
 
 bad = 0
 for name in ("LIGHT", "DARK"):

@@ -158,6 +158,9 @@ export class Accessibility {
   textSizes: number[] = [1, 1.3, 1.6];
   /** The colours of the high-contrast mode. */
   highContrast: Colours = highContrast();
+  /** Where the spoken audio descriptions are: the clip of a medium, `{id}` standing for its id and `{lang}` for the language ('' for
+   *  none: a description is then shown and not said). The subtitles of a clip lie beside it, ending in `.vtt`. */
+  descriptions = '';
 }
 
 export class Table {
@@ -466,6 +469,8 @@ export function parseProject(json: string): Project {
       if (p.accessibility.textSizes.length === 0) throw bad('accessibility.textSizes', 'must list at least one size');
     }
     if (given(a.highContrast)) readColours(record(a.highContrast, 'accessibility.highContrast'), 'accessibility.highContrast', p.accessibility.highContrast, highContrast());
+    p.accessibility.descriptions = optAsset(a.descriptions, 'accessibility.descriptions');
+    if (p.accessibility.descriptions.length > 0 && p.accessibility.descriptions.indexOf('{id}') < 0) throw bad('accessibility.descriptions', 'must contain {id}, the id of the medium described');
   }
   if (given(o.table)) {
     const t = record(o.table, 'table'), d = new Table();
@@ -510,6 +515,10 @@ export function parseProject(json: string): Project {
     }
   }
 
+  // the clip of a description is named after its medium: an id must not lead out of the assets
+  if (p.accessibility.descriptions.length > 0) {
+    for (let i = 0; i < p.media.length; i++) if (p.media[i].audioDescription.size > 0) assetPath(p.accessibility.descriptions.replaceAll('{id}', p.media[i].id), `media[${i}].id`);
+  }
   // references: nothing may point at something that is not in the file
   for (let i = 0; i < p.media.length; i++)
     for (let k = 0; k < p.media[i].points.length; k++) {
@@ -561,6 +570,20 @@ export function unreachable(p: Project): string[] {
   return p.sequences.filter((s: Sequence) => !seen.has(s.id)).map((s: Sequence) => s.id);
 }
 
+/** The audio description of `m` as something to say: an audio medium whose transcript is the description, with its clip and its
+ *  subtitles at the place `accessibility.descriptions` gives (no file without it). Null for a medium that has no audio description. */
+export function spokenDescription(p: Project, m: Media): Media | null {
+  if (m.audioDescription.size === 0) return null;
+  const said = new Media(), at = p.accessibility.descriptions;
+  said.id = m.id; said.kind = 'audio'; said.title = m.title; said.transcript = m.audioDescription;
+  if (at.length > 0) {
+    said.file = at.replaceAll('{id}', m.id);
+    const dot = said.file.lastIndexOf('.');
+    said.subtitles = (dot > said.file.lastIndexOf('/') ? said.file.slice(0, dot) : said.file) + '.vtt';
+  }
+  return said;
+}
+
 /** The asset files the project names, each once, in the order of the media (`{lang}` replaced by each language). */
 export function assetFiles(p: Project): string[] {
   const out: string[] = [];
@@ -571,6 +594,7 @@ export function assetFiles(p: Project): string[] {
   };
   add(p.theme.logo);
   for (const m of p.media) { add(m.file); add(m.texture); add(m.poster); add(m.subtitles); }
+  for (const m of p.media) { const said = spokenDescription(p, m); if (said !== null) { add(said.file); add(said.subtitles); } }
   return out;
 }
 
@@ -599,6 +623,7 @@ export function copyProject(p: Project): Project {
   c.theme.font = p.theme.font; c.theme.titleFont = p.theme.titleFont; c.theme.logo = p.theme.logo;
   c.accessibility.textSizes = p.accessibility.textSizes.slice();
   copyColours(c.accessibility.highContrast, p.accessibility.highContrast);
+  c.accessibility.descriptions = p.accessibility.descriptions;
   c.table.width = p.table.width; c.table.height = p.table.height; c.table.visitors = p.table.visitors; c.table.reach = p.table.reach;
   c.kiosk.fullscreen = p.kiosk.fullscreen; c.kiosk.attractAfter = p.kiosk.attractAfter; c.kiosk.resetAfter = p.kiosk.resetAfter;
   c.kiosk.attract = p.kiosk.attract; c.kiosk.statistics = p.kiosk.statistics; c.kiosk.updateUrl = p.kiosk.updateUrl;
@@ -756,6 +781,9 @@ export function serializeProject(p: Project): string {
   theme.push(field('font', quote(t.font)));
   theme.push(field('titleFont', quote(t.titleFont)));
   if (t.logo.length > 0) theme.push(field('logo', quote(t.logo)));
+  const access: string[] = [field('textSizes', `[${p.accessibility.textSizes.map((n: number) => `${n}`).join(', ')}]`),
+    field('highContrast', block('{', '}', coloursJson(p.accessibility.highContrast), '    '))];
+  if (p.accessibility.descriptions.length > 0) access.push(field('descriptions', quote(p.accessibility.descriptions)));
   const kiosk: string[] = [field('fullscreen', k.fullscreen ? 'true' : 'false'), field('attractAfter', `${k.attractAfter}`), field('resetAfter', `${k.resetAfter}`)];
   if (k.attract.length > 0) kiosk.push(field('attract', quote(k.attract)));
   kiosk.push(field('statistics', k.statistics ? 'true' : 'false'));
@@ -764,8 +792,7 @@ export function serializeProject(p: Project): string {
     field('format', quote(FORMAT)), field('version', `${p.version}`), field('id', quote(p.id)), field('title', textJson(p.title, L, '  ')),
     field('languages', `[${L.map((s: string) => quote(s)).join(', ')}]`), field('start', quote(p.start)),
     field('theme', block('{', '}', theme, '  ')),
-    field('accessibility', block('{', '}', [field('textSizes', `[${p.accessibility.textSizes.map((n: number) => `${n}`).join(', ')}]`),
-      field('highContrast', block('{', '}', coloursJson(p.accessibility.highContrast), '    '))], '  ')),
+    field('accessibility', block('{', '}', access, '  ')),
     field('table', block('{', '}', [field('width', `${b.width}`), field('height', `${b.height}`), field('visitors', `${b.visitors}`), field('reach', `${b.reach}`)], '  ')),
     field('kiosk', block('{', '}', kiosk, '  ')),
     field('media', block('[', ']', p.media.map((m: Media) => mediaJson(m, L, '    ')), '  ')),

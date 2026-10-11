@@ -28,7 +28,16 @@ onFrame((dt: number) => {   // images exist once the frame loop runs
       console.log(`${f}: model ${mesh.vertices} vertices, ${mesh.triangles} triangles`);
     } else console.log(`${f}: ${readBytes(f).length} bytes`);
   }
+  // every picture, object and panorama is described for a visitor who cannot see it, in every language
+  let seen = 0, silent = 0;
+  for (const m of project.media) {
+    if (m.kind !== 'photo' && m.kind !== 'model' && m.kind !== 'panorama') continue;
+    seen++;
+    for (const lang of project.languages) if ((m.audioDescription.get(lang) ?? '').length === 0) { console.log(`${m.id}: no audio description in ${lang}`); silent++; }
+  }
+  console.log(silent === 0 ? `${seen} pictures, objects and panoramas, each with an audio description in ${project.languages.join(' and ')}` : `${silent} audio descriptions missing`);
   console.log(bad === 0 ? `${files.length} files, all read` : `${bad} of ${files.length} files not read`);
+  if (silent > 0) exit(1);
   if (bad > 0) exit(1);
   quit();
 });

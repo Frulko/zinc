@@ -28,7 +28,8 @@ the file system.
 | `serializeProject(project): string` | The canonical text (below): what Save writes |
 | `copyProject(project): Project` | A copy that shares nothing with its source, also of a project that would not load yet (an editor's undo steps) |
 | `unreachable(project): string[]` | The sequences nothing leads to from `start`: no link, no `next`, no presentation, no point of interest (`to`) of a medium shown on the way |
-| `assetFiles(project): string[]` | Every file the project names, `{lang}` replaced by each language |
+| `assetFiles(project): string[]` | Every file the project names, `{lang}` replaced by each language; the clips and subtitles of the audio descriptions among them |
+| `spokenDescription(project, medium): Media \| null` | The audio description of a medium as something to say: an audio medium with its clip, its subtitles and the text as transcript |
 | `project.medium(id)`, `project.sequence(id)`, `project.say(text, lang)` | Lookups; `say` falls back on the default language |
 
 ```sh
@@ -115,21 +116,25 @@ Dark and calm by default.
 
 ### accessibility
 
-Both are one touch away for the visitor, from the edge of the table.
+The text size and the high contrast are one touch away for the visitor, at their edge of the table: two buttons beside the languages. They
+are kept for the visit and forgotten with it (`kiosk.resetAfter`).
 
 ```json
 "accessibility": {
   "textSizes": [1, 1.3, 1.6],
-  "highContrast": { "background": "#000000", "paper": "#ffffff", "ink": "#000000", "text": "#ffffff", "muted": "#e0e0e0", "accent": "#ffd400" }
+  "highContrast": { "background": "#000000", "paper": "#ffffff", "ink": "#000000", "text": "#ffffff", "muted": "#e0e0e0", "accent": "#ffd400" },
+  "descriptions": "audio/descriptions/{id}.{lang}.mp3"
 }
 ```
 
 | field | default | meaning |
 | --- | --- | --- |
-| `textSizes` | `[1, 1.3, 1.6]` | The text sizes a visitor steps through, as factors of the designed size; the first is the one at rest |
-| `highContrast` | black, white, yellow | The six colours of the theme in high-contrast mode |
+| `textSizes` | `[1, 1.3, 1.6]` | The text sizes a visitor steps through, as factors of the designed size; the first is the one at rest. Every text grows, and what holds a text with it: the buttons, the caption of a card, the panels. With one size there is no button |
+| `highContrast` | black, white, yellow | The six colours of the theme in high-contrast mode, in which nothing is drawn faintly either. `next/tools/contrast-check --museum project.json` checks them: 7:1 at least between a text and what it is written on (4.5:1 for the theme) |
+| `descriptions` | none | Where the spoken audio descriptions are: the clip of a medium, `{id}` standing for the id of the medium and `{lang}` for the language code. Its subtitles lie beside it, the same name ending in `.vtt`. `tools/narration.sh` makes both from the `audioDescription` texts. Without it, or for a clip that is not there, a description is shown as subtitles and not said |
 
-Two more accessibility fields are on the media: `audioDescription` (a text the synthesised voice reads) and `subtitles`.
+Two more accessibility fields are on the media: `audioDescription`, what a visitor who cannot see a picture, an object or a panorama needs to
+hear (a button on the medium once it is open says it: in the full view of a photograph, under an object, in a panorama), and `subtitles`.
 
 ### table
 
@@ -141,7 +146,7 @@ Two more accessibility fields are on the media: `audioDescription` (a text the s
 | --- | --- | --- |
 | `width`, `height` | 1920, 1080 | The size the positions are written for |
 | `visitors` | 2 | Visitors served at the same time: one story is shared, and the texts, the panels, the buttons, the full view and the 3D object turn toward one side of the table at a time. A tap, or a press on a button, closer to an edge than `reach` or than 15 % of the table's depth (the smaller of the two: 162 units of the default table) turns them to that edge; a mark in the middle of each other edge says so. A drag never turns anything, nor does a tap in the middle of the table: nobody turns the texts away by moving a card or reaching across. The cards stay free |
-| `reach` | 520 | Every button lies within this distance of an edge (a seated visitor, a child). 520 units of a 1920-unit table are 26 cm on a 43-inch screen and 33 cm on a 55-inch one, the roll-under reach of Ideum's accessibility guidelines for touch tables. A button farther from every edge is refused |
+| `reach` | 520 | Every button lies within this distance of an edge (a seated visitor, a child). 520 units of a 1920-unit table are 26 cm on a 43-inch screen and 33 cm on a 55-inch one, the roll-under reach of Ideum's accessibility guidelines for touch tables. A button farther from every edge is refused. The player keeps its own buttons within it of the visitor's edge, and offers there what lies farther on a medium: "Next point" opens the points of interest of an object or a panorama in turn, and the button of an open point has its twin beside it |
 
 ### kiosk
 
@@ -195,7 +200,7 @@ Fields of every medium:
 | `title` | required text | |
 | `creator` | optional | Who made the work, as one string |
 | `date`, `medium`, `description` | optional texts | The lines of a museum label, and the notice |
-| `audioDescription` | optional text | What a visitor who cannot see it needs to hear; the synthesised voice reads it |
+| `audioDescription` | optional text | What a visitor who cannot see it needs to hear. A button on the medium says it and shows it as subtitles, in place of the narration: the clip that `accessibility.descriptions` names, made by `tools/narration.sh` with the synthesised voice or recorded by the museum |
 | `credit` | required, except for a text | `source` (the page of the work, or where the file was made) and `licence` are required; `institution`, `accession`, `line` (the credit line the institution asks for) and `licenceUrl` are optional |
 
 Fields by kind:
@@ -290,7 +295,7 @@ A link leads to another sequence:
 | --- | --- | --- |
 | `to` | required | The id of the sequence |
 | `label` | required text | What the button says; for a hotspot, what is announced |
-| `x`, `y` | required | A button: its centre on the table, within `table.reach` of an edge. A hotspot (`on`): its centre on the item, as fractions (0.5, 0.5 is the middle) of the picture for a photograph or a film, of the box for a model, a panorama or a text panel |
+| `x`, `y` | required | A button: its centre on the table, within `table.reach` of an edge. Buttons that do not fit where they were designed (a longer label in another language, a larger text size, a short side of the table) are set in rows at the visitor's edge, in the order of their `x`. A hotspot (`on`): its centre on the item, as fractions (0.5, 0.5 is the middle) of the picture for a photograph or a film, of the box for a model, a panorama or a text panel |
 | `on` | none | The id of a medium shown in this sequence: the link is a hotspot on that item, a ring with the label beside it. On a card it moves, turns and grows with the card, and is on its front only; when the medium lies twice in the sequence, on the first |
 | `at`, `until` | 0, 0 | When the link is offered |
 | `transition` | `fade` | `fade` (the table goes dark and comes back, half a second), `slide` (the new sequence pushes the old one out; an overlay comes in from the side) or `none` |
@@ -317,7 +322,8 @@ jumping from the storyboard leaves it too. At the end of the path the visitor st
 `transition` among the listed values; a model file ending in `.obj`, `.glb` or `.gltf`; every path inside the assets; every colour well formed;
 sizes greater than 0, times 0 or more; `start`, `links[].to`, `next`, `presentations[].path[]` naming a sequence; `items[].media` naming a medium;
 `links[].on` naming a medium shown in the same sequence; `narration` naming an audio; `kiosk.attract` naming a presentation; every button within
-`table.reach` of an edge. Whether the files exist is checked by the player when it starts (`assetFiles`).
+`table.reach` of an edge; `accessibility.descriptions` holding `{id}` and giving, for every medium that has an audio description, a path
+inside the assets. Whether the files exist is checked by the player when it starts (`assetFiles`).
 
 ## What the player does with it today
 
@@ -329,4 +335,5 @@ sizes greater than 0, times 0 or more; `start`, `links[].to`, `next`, `presentat
 | the storyboard: the map of the sequences at their `storyboard` positions, with a miniature of each table, an arrow for every link, `next` and point of interest that leads somewhere (dashed for an overlay), the sequences seen ticked and the links followed in the accent colour; a touch on a node goes there | yes |
 | narration (zinc:audio: WAV, FLAC, MP3, Ogg Vorbis) and its subtitles, presentations | yes |
 | the table mode: texts turned to the side of the last tap near an edge, the attract loop, the reset, the kiosk rules | yes |
-| text size and high contrast, statistics, updates | ZN-650.10 and later |
+| the text sizes and the high contrast, as two buttons at the visitor's edge; every button within `table.reach` of that edge (the links come there in rows when they do not fit where they were designed, and the buttons of an object or a panorama with them); the audio descriptions, said by a button on the medium, with subtitles | yes |
+| statistics, updates | ZN-650.12 and ZN-650.11 |

@@ -1,6 +1,7 @@
 // The 3D object viewer: an object of the collection turned in the light like a piece held in the hands. One finger turns it (and it keeps
 // turning a little), two fingers bring it closer and move it; the points of interest stay on their place of the object at every angle, and
-// a touch on one opens its description and brings the object round to show it. Two buttons: the lighting, the view of departure.
+// a touch on one opens its description and brings the object round to show it. Its buttons (the lighting, the view of departure) are
+// the sequence's (stage.ts), which lays them out under the object.
 // The object turns, the camera and the lights stay: a view's yaw and pitch are where the camera would be around the object (yaw 0 in
 // front of +z, 90 on the +x side), its distance is in radii of the object. The object stands upright for the visitor whichever side of
 // the table they are at: the camera rolls with the visitor's frame, and the label, the panel and the buttons are laid out in that frame.
@@ -8,12 +9,12 @@ import { rrect, border, drawText, textWidth } from 'zinc:gfx';
 import { clock, utf8Decode } from 'zinc:sys';
 import { Scene, Camera, Node, Mesh, Material, Light, parseObj, sphere, quatFromAxisAngle, quatMultiply, Shading } from 'zinc:3d';
 import { loadGltf } from 'zinc:3d/gltf';
-import { Project, Media, Point, Colours, LIGHTS } from './project';
+import { Project, Media, Point, Colours } from './project';
 import { Fingers, Finger } from './touch';
 import { Orbit } from './orbit';
 import { Frame } from './frame';
 import { drawPanel } from './panel';
-import { sans, bold, wrap, leading } from './type';
+import { sans, bold, wrap, leading, reading } from './type';
 import { word } from './words';
 import { files } from './files';
 
@@ -223,11 +224,6 @@ export class ObjectView extends Orbit {
   private tapped(f: Finger): void {
     const F = this.frame, o = this.opened, link = this.button, fx = F.x(f.x, f.y), fy = F.y(f.x, f.y);
     if (o !== null && link.length === 4 && fx >= link[0] && fx < link[0] + link[2] && fy >= link[1] && fy < link[1] + link[3]) { this.followed = o.to; return; }
-    const b = this.buttons();
-    if (Math.abs(fy - b[1]) <= 38) {
-      if (Math.abs(fx - b[0]) <= b[2] / 2 + 10) { this.setLight(LIGHTS[(LIGHTS.indexOf(this.light) + 1) % LIGHTS.length]); return; }
-      if (Math.abs(fx - b[3]) <= b[4] / 2 + 10) { this.reset(true); return; }
-    }
     const sx = this.sx + (f.x - (this.x - this.w / 2)) * this.k, sy = this.sy + (f.y - (this.y - this.h / 2)) * this.k;
     let best: Point | null = null, nearest = MARK;
     for (const p of this.media.points) {
@@ -235,9 +231,20 @@ export class ObjectView extends Orbit {
       const d = Math.sqrt((this.px - sx) * (this.px - sx) + (this.py - sy) * (this.py - sy)) / this.k;
       if (this.pfacing && d < nearest) { nearest = d; best = p; }
     }
-    this.opened = best;   // a touch elsewhere closes the description
-    if (best !== null) { this.glide(best.view.yaw, best.view.pitch, best.view.distance, 0.6); this.recentring = true; }
+    this.open(best);   // a touch elsewhere closes the description
   }
+  /** Opens the description of a point and brings the object round to show it (null: closes the open one). */
+  private open(p: Point | null): void {
+    this.opened = p;
+    if (p !== null) { this.glide(p.view.yaw, p.view.pitch, p.view.distance, 0.6); this.recentring = true; }
+  }
+  /** Opens the next point of interest, in the order of the project, and after the last one none: every point, without reaching for it. */
+  nextPoint(): void {
+    const points = this.media.points, o = this.opened, i = o === null ? -1 : points.indexOf(o);
+    this.open(i + 1 < points.length ? points[i + 1] : null);
+  }
+  /** The box of the open description's button, in frame units ([] without one). */
+  get linkBox(): number[] { return this.button; }
 
   /** Where the place `at` of the object is on the screen now: into px, py and pfacing. */
   locate(at: number[]): void {
@@ -273,15 +280,9 @@ export class ObjectView extends Orbit {
   }
 
   /** The viewer's box in the visitor's frame: [left, top, width, height], in frame units. */
-  private box(): number[] {
+  box(): number[] {
     const F = this.frame, w = F.side % 2 === 1 ? this.h : this.w, h = F.side % 2 === 1 ? this.w : this.h;
     return [F.x(this.x, this.y) - w / 2, F.y(this.x, this.y) - h / 2, w, h];
-  }
-  /** The two buttons, in frame units: [light x, y, light width, reset x, reset width]. */
-  private buttons(): number[] {
-    const f = sans(18), light = textWidth(f, `${word('light', this.lang)} : ${word(this.light, this.lang)}`, 0) + 52, reset = textWidth(f, word('reset', this.lang), 0) + 52;
-    const b = this.box(), left = b[0] + 28;
-    return [left + light / 2, b[1] + b[3] - 44, light, left + light + 18 + reset / 2, reset];
   }
 
   /** Draws the object in its box; the table's origin is at (ox, oy) on the screen and one table unit is `k` pixels. */
@@ -300,19 +301,19 @@ export class ObjectView extends Orbit {
     this.spent += clock() - started; this.drawn++;
   }
 
-  /** Draws what is written over the object, in the visitor's frame (which is on): its label, its points, the open description, the buttons. */
+  /** Draws what is written over the object, in the visitor's frame (which is on): its label, its points, the open description. */
   drawOver(ox: number, oy: number, k: number): void {
-    const F = this.frame, c = this.colours, L = this.lang, m = this.media, b = this.box();
+    const F = this.frame, c = this.colours, L = this.lang, m = this.media, b = this.box(), s = reading();
     const left = F.ox + b[0] * k, top = F.oy + b[1] * k, bw = b[2] * k;
 
     // the label of the object, as in a showcase; it gives way to the object while a description is open
     const head = bold(26 * k), small = sans(16 * k), x = left + 28 * k;
     if (this.opened === null) {
       let y = top + 22 * k;
-      for (const line of wrap(head, this.project.say(m.title, L), bw * 0.27, 4)) { drawText(head, x, y, line, c.text, 255, 0); y += leading(head); }
-      const facts = [m.creator, this.project.say(m.date, L), this.project.say(m.medium, L)].filter((s: string) => s.length > 0).join(', ');
+      for (const line of wrap(head, this.project.say(m.title, L), bw * 0.27, Math.round(4 * s))) { drawText(head, x, y, line, c.text, 255, 0); y += leading(head); }
+      const facts = [m.creator, this.project.say(m.date, L), this.project.say(m.medium, L)].filter((part: string) => part.length > 0).join(', ');
       y += 4 * k;
-      for (const line of wrap(small, facts, bw * 0.27, 6)) { drawText(small, x, y, line, c.muted, 255, 0); y += leading(small); }
+      for (const line of wrap(small, facts, bw * 0.27, Math.round(6 * s))) { drawText(small, x, y, line, c.muted, 255, 0); y += leading(small); }
     }
 
     for (const p of m.points) {
@@ -332,15 +333,9 @@ export class ObjectView extends Orbit {
       const link = drawPanel(left + bw - 428 * k, top + 130 * k, 400 * k, k, this.project.say(o.title, L), this.project.say(o.text, L), to !== null ? this.project.say(to.title, L) : '', c);
       if (link.length === 4) this.button = [(link[0] - F.ox) / k, (link[1] - F.oy) / k, link[2] / k, link[3] / k];
     } else if (m.points.length > 0) {
-      const hint = word('points', L);
-      drawText(small, left + bw - textWidth(small, hint, 0) - 28 * k, top + 30 * k, hint, c.muted, 255, 0);
-    }
-    const at = this.buttons(), f = sans(18 * k), labels: string[] = [`${word('light', L)} : ${word(this.light, L)}`, word('reset', L)];
-    for (let i = 0; i < 2; i++) {
-      const w = at[i === 0 ? 2 : 4] * k, h = 52 * k, bx = F.ox + at[i === 0 ? 0 : 3] * k - w / 2, by = F.oy + at[1] * k - h / 2;
-      rrect(bx, by, w, h, h / 2, c.background, 235);
-      border(bx, by, w, h, h / 2, Math.max(1, 1.5 * k), c.accent, 255);
-      drawText(f, bx + (w - textWidth(f, labels[i], 0)) / 2, by + (h - leading(f)) / 2 + k, labels[i], c.text, 255, 0);
+      // on one line as designed; on a few, at the right of the box, when the text is larger
+      const hint = s > 1 ? wrap(small, word('points', L), bw * 0.27, 4) : [word('points', L)];
+      for (let i = 0; i < hint.length; i++) drawText(small, left + bw - textWidth(small, hint[i], 0) - 28 * k, top + 30 * k + i * leading(small), hint[i], c.muted, 255, 0);
     }
   }
 }

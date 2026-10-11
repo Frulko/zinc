@@ -33,9 +33,11 @@ zinc run examples/museum-table/src/check.ts -- examples/museum-table/assets/proj
 | | a touch brings it to the front; the folded corner turns it over to its notice; a double tap opens the full view | click, double click |
 | a ring on a card, with its label | a hotspot: it opens another sequence, here over the current one, which waits underneath | click |
 | the 3D object | one finger turns it; two bring it closer and move it | drag; wheel zooms |
-| | a touch on a ring opens the point's panel and shows it; `Lumière` changes the lighting, `Vue de départ` goes back | click |
+| | a touch on a ring opens the point's panel and shows it; `Lumière` changes the lighting, `Vue de départ` goes back, `Point suivant` opens the points in turn | click |
 | the panorama | one finger looks around; two change the field of view; a ring opens its panel, whose button leads to a sequence | drag; wheel zooms |
-| buttons at the visitor's edge | the links of the sequence; `Plan`: the storyboard, where a touch on a node goes there; the guided visit; `FR EN` | click |
+| buttons at the visitor's edge | the links of the sequence; `Plan`: the storyboard, where a touch on a node goes there; the guided visit | click |
+| | `A A A`: the text size; the half disc: high contrast; `FR EN`: the language. Kept for the visit | click |
+| `Audiodescription` | under an object, in a panorama, beside `Refermer` when a print is seen in full: the voice describes it, with subtitles | click |
 | a guided visit | a touch pauses it; then `Reprendre la visite` or `Quitter la visite` | click |
 
 Several hands work at the same time: a finger belongs to what it landed on until it lifts. A sequence with a `next` gives way by itself at
@@ -56,6 +58,22 @@ ZINC_KIOSK=1 zinc run examples/museum-table      # fullscreen, on top, no cursor
 ```
 
 Escape does nothing, no gesture leads out, and a fault is written on the error output, never on the table.
+
+## For every visitor
+
+![The largest text size in high contrast: a point of the vase opened from the edge](../../docs/img/museum-table-access.jpg)
+
+Three buttons stay at the visitor's edge. `A A A` steps through the text sizes of the project (1, 1.3 and 1.6 times the designed size in the
+sample): every text grows, the buttons with their labels, the caption of a card inside the card, the panels; what no longer fits in one row
+comes to the edge in rows. The half disc puts on the high-contrast colours of the project, in which nothing is drawn faintly. Both are
+forgotten with the visit. Every button lies within `table.reach` of the edge the visitor stands at (26 cm on a 43-inch table), and what lies
+farther on an object or in a panorama has a twin there: `Point suivant` opens the points of interest in turn, and the button of an open
+point is repeated beside it. Every narration has subtitles; each picture, object and panorama has an audio description, said on request by
+the synthesised voice with its own subtitles (`tools/narration.sh` makes the clips; a museum replaces them with a recorded voice).
+
+```sh
+next/tools/contrast-check --museum examples/museum-table/assets/project.json   # the contrast of the theme and of the high-contrast colours
+```
 
 ## The storyboard editor
 
@@ -94,11 +112,12 @@ The document is `editor/doc.ts` (one operation per command, checked without a wi
 | `src/viewer.ts`, `src/orbit.ts`, `src/panel.ts` | the 3D object viewer on `zinc:3d` (OBJ, glTF, GLB), the turning it shares with the panorama, the panel of a point |
 | `src/lookout.ts`, `src/panorama.ts`, `src/pano.ts` | 360-degree panoramas: on the table, the view itself, and alone |
 | `src/frame.ts` | the table as the visitor at one of its sides sees it: where texts and buttons are laid out, and the matrix that turns them |
-| `src/type.ts`, `src/words.ts` | fonts and word wrapping; the player's own few words |
+| `src/button.ts` | a button, and buttons set in rows at the visitor's edge |
+| `src/type.ts`, `src/words.ts` | fonts at the text size the visitor reads at, and word wrapping; the player's own few words |
 | `src/check.ts`, `src/assets.ts` | command-line checks of a project file and of its media |
 | `tools/` | rebuild the media from their sources (`fetch-collection.sh`, `decimate.cpp`); synthesise the narration and its subtitles from the transcripts of the project with Piper and two open voices (`narration.sh`) |
 
-Tests: `next/tests/run --tier t1 --only museum_visit` (also `museum_mode`, `museum_format`, `museum_assets`, `museum_table`,
+Tests: `next/tests/run --tier t1 --only museum_visit` (also `museum_mode`, `museum_access`, `museum_format`, `museum_assets`, `museum_table`,
 `museum_viewer`, `museum_panorama`). The sessions are scripted touches (`ZINC_INPUT`, `touch ID X Y` and `touchup ID`): `next/tests/data/museum_visit/visit.py`
 is a whole visit, `next/tests/data/museum_table/hands.py` two hands on two cards. A headless run plays no sound: the story log says which clip
 is asked for and when.
@@ -106,6 +125,7 @@ is asked for and when.
 ## Not there yet
 
 A film shows its poster on a card (ZN-650.08). A presentation that is paused starts its step again when it resumes, because `zinc:audio`
-cannot pause a clip. The panorama does not turn with the visitor (its texts do), and the text-size and high-contrast settings of the project
-are read but not offered (ZN-650.10). The narration was checked by its durations and its decoding, not by ear, and the table mode by scripted
-touches, not on a touch table.
+cannot pause a clip. The panorama does not turn with the visitor (its texts do). At the two larger text sizes the buttons take two or
+three rows at the visitor's edge and lie over the foot of the lowest cards, which the visitor moves; the notice on the back of a card
+shows what fits, as at the designed size (the full view has all of it). The narration and the audio descriptions were checked by their
+durations and their decoding, not by ear, and the table mode by scripted touches, not on a touch table.

@@ -1,9 +1,11 @@
 // Museum table: the app of the table. Everything it shows comes from assets/project.json (docs/museum-table-format.md), played by the
 // player (player.ts) in the whole window. This file is the window and the command line; a kiosk has no way out of it.
-//   zinc run examples/museum-table [-- --sequence <id>] [--lang <code>] [--story] [--log] [--stress <cards>] [--pins] [--time]
+//   zinc run examples/museum-table [-- --sequence <id>] [--lang <code>] [--story] [--log] [--controls] [--stress <cards>] [--pins] [--time]
 // --story prints what happens to the story, one line per event: sequences, links, overlays, the storyboard, presentations, the narration
 // clips asked for and the subtitles shown, the language, the side the texts turn to, the attract loop and the reset (the tests read it);
 // --log prints the pose of every card that moved, and the view and points of the 3D object and of the panorama, one line per change;
+// --controls prints where every control is, each time one moves: its place on the table, and how many texts did not fit where they are
+// written (the tests check the reach of a visitor and that nothing is clipped);
 // --stress lays out that many cards, keeps them moving and prints the frame time; --time prints the time the 3D object takes to draw;
 // --pins puts a red ball on every point of interest of the object (the test of their projection).
 import { onFrame, width, height, clear, escapeByApp } from 'zinc:gfx';
@@ -33,6 +35,7 @@ const player = new Player(project, first, lang);
 for (let i = 0; i < a.length; i++) {
   if (a[i] === '--log') player.logging = true;
   else if (a[i] === '--story') player.telling = true;
+  else if (a[i] === '--controls') player.checking = true;
   else if (a[i] === '--pins') player.pins = true;
   else if (a[i] === '--time') player.timing = true;
   else if (a[i] === '--stress' && i + 1 < a.length) player.stress = parseInt(a[++i], 10);

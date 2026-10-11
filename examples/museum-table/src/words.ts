@@ -2,7 +2,9 @@
 const WORDS: string[] = [
   'film', 'Film, bientôt à l’écran', 'Film, on screen soon',
   'model', 'Objet en 3D', '3D object',
-  'close', 'Toucher pour refermer', 'Touch to close',
+  'describe', 'Audiodescription', 'Audio description',
+  'describe-stop', 'Arrêter la description', 'Stop the description',
+  'next-point', 'Point suivant', 'Next point',
   'reset', 'Vue de départ', 'Reset the view',
   'light', 'Lumière', 'Light',
   'studio', 'Atelier', 'Studio',

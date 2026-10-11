@@ -7,7 +7,7 @@ import { Fingers, Finger } from './touch';
 import { PanoramaView } from './panorama';
 import { Frame } from './frame';
 import { drawPanel } from './panel';
-import { sans, bold, leading } from './type';
+import { sans, bold, leading, reading, faint } from './type';
 import { word } from './words';
 import { files } from './files';
 
@@ -80,8 +80,24 @@ export class Lookout {
       const d = Math.sqrt((s[0] - f.x) * (s[0] - f.x) + (s[1] - f.y) * (s[1] - f.y));
       if (d < nearest) { nearest = d; best = p; }
     }
-    this.opened = best;   // a touch elsewhere closes the panel
-    if (best !== null) this.view.glideTo(best.view, 0.6);
+    this.open(best);   // a touch elsewhere closes the panel
+  }
+  /** Opens the panel of a point and turns the view to it (null: closes the open one). */
+  private open(p: Point | null): void {
+    this.opened = p;
+    if (p !== null) this.view.glideTo(p.view, 0.6);
+  }
+  /** Opens the next point of interest, in the order of the project, and after the last one none: every point, without reaching for it. */
+  nextPoint(): void {
+    const points = this.media.points, o = this.opened, i = o === null ? -1 : points.indexOf(o);
+    this.open(i + 1 < points.length ? points[i + 1] : null);
+  }
+  /** The box of the open panel's button, in frame units ([] without one). */
+  get linkBox(): number[] { return this.button; }
+  /** The window's box in the visitor's frame: [left, top, width, height], in frame units. */
+  box(): number[] {
+    const F = this.frame, w = F.side % 2 === 1 ? this.h : this.w, h = F.side % 2 === 1 ? this.w : this.h;
+    return [F.x(this.x, this.y) - w / 2, F.y(this.x, this.y) - h / 2, w, h];
   }
 
   /** Draws the window; the table's origin is at (ox, oy) on the screen and one table unit is `k` pixels. */
@@ -99,7 +115,7 @@ export class Lookout {
     // the label, on a dark band so that a bright sky does not hide it
     const title = this.project.say(m.title, L), credit = [m.creator, m.credit.institution, m.credit.licence].filter((s: string) => s.length > 0).join(' · ');
     const band = Math.max(textWidth(head, title, 0), textWidth(small, credit, 0)) + 40 * k;
-    rrect(left + 16 * k, top + 16 * k, band, leading(head) + leading(small) + 22 * k, 8 * k, c.background, 190);
+    rrect(left + 16 * k, top + 16 * k, band, leading(head) + leading(small) + 22 * k, 8 * k, c.background, faint(190));
     drawText(head, left + 36 * k, top + 26 * k, title, c.text, 255, 0);
     drawText(small, left + 36 * k, top + 28 * k + leading(head), credit, c.muted, 255, 0);
 
@@ -107,8 +123,8 @@ export class Lookout {
       const s = this.locate(p);
       if (s.length === 0) continue;
       const x = F.ox + F.x(s[0], s[1]) * k, y = F.oy + F.y(s[0], s[1]) * k, open = p === this.opened, r = (open ? 17 : 14) * k;
-      const name = this.project.say(p.title, L), lw = textWidth(label, name, 0) + 24 * k, lh = 30 * k;
-      rrect(x + r + 8 * k, y - lh / 2, lw, lh, lh / 2, c.background, 215);
+      const name = this.project.say(p.title, L), lw = textWidth(label, name, 0) + 24 * k, lh = 30 * k * reading();
+      rrect(x + r + 8 * k, y - lh / 2, lw, lh, lh / 2, c.background, faint(215));
       drawText(label, x + r + 20 * k, y - leading(label) / 2 + k, name, c.text, 255, 0);
       rrect(x - r, y - r, 2 * r, 2 * r, r, c.background, 150);
       border(x - r, y - r, 2 * r, 2 * r, r, Math.max(1.5, 2.5 * k), c.accent, 255);
@@ -123,7 +139,7 @@ export class Lookout {
       if (b.length === 4) this.button = [(b[0] - F.ox) / k, (b[1] - F.oy) / k, b[2] / k, b[3] / k];
     } else if (m.points.length > 0) {
       const hint = word('points', L), hw = textWidth(small, hint, 0) + 36 * k;
-      rrect(left + bw * k - hw - 16 * k, top + 16 * k, hw, leading(small) + 20 * k, 8 * k, c.background, 190);
+      rrect(left + bw * k - hw - 16 * k, top + 16 * k, hw, leading(small) + 20 * k, 8 * k, c.background, faint(190));
       drawText(small, left + bw * k - hw + 2 * k, top + 26 * k, hint, c.muted, 255, 0);
     }
   }
