@@ -1,0 +1,102 @@
+{
+  "format": "zinc-museum-table",
+  "version": 1,
+  "id": "project",
+  "title": {
+    "fr": "Nouveau projet",
+    "en": "New project"
+  },
+  "languages": ["fr", "en"],
+  "start": "sequence-1",
+  "theme": {
+    "background": "#14151a",
+    "paper": "#f4f1ea",
+    "ink": "#23211d",
+    "text": "#ece8df",
+    "muted": "#9b978d",
+    "accent": "#d0a441",
+    "font": "sans",
+    "titleFont": "sans-bold"
+  },
+  "accessibility": {
+    "textSizes": [1, 1.3, 1.6],
+    "highContrast": {
+      "background": "#000000",
+      "paper": "#ffffff",
+      "ink": "#000000",
+      "text": "#ffffff",
+      "muted": "#e0e0e0",
+      "accent": "#ffd400"
+    }
+  },
+  "table": {
+    "width": 1920,
+    "height": 1080,
+    "visitors": 2,
+    "reach": 520
+  },
+  "kiosk": {
+    "fullscreen": true,
+    "attractAfter": 60,
+    "resetAfter": 120,
+    "statistics": false
+  },
+  "media": [
+    {
+      "id": "cartel",
+      "kind": "text",
+      "title": {
+        "fr": "Cartel"
+      },
+      "text": {
+        "fr": "Un autre texte."
+      }
+    },
+    {
+      "id": "la-grande-vague",
+      "kind": "photo",
+      "file": "photos/great-wave.jpg",
+      "title": {
+        "fr": "La Grande Vague"
+      },
+      "credit": {
+        "source": "https://www.metmuseum.org/art/collection/search/45434",
+        "licence": "CC0 1.0"
+      }
+    },
+    {
+      "id": "cartel-2",
+      "kind": "text",
+      "title": {
+        "fr": "Cartel"
+      },
+      "text": {
+        "fr": "Un texte."
+      }
+    }
+  ],
+  "sequences": [
+    {
+      "id": "sequence-1",
+      "title": {
+        "fr": "Séquence 1",
+        "en": "Sequence 1"
+      },
+      "storyboard": { "x": 0, "y": 0 },
+      "items": []
+    },
+    {
+      "id": "sequence-1-2",
+      "title": {
+        "fr": "Séquence 1 (copie)",
+        "en": "Sequence 1 (copy)"
+      },
+      "storyboard": { "x": 40, "y": 40 },
+      "items": [
+        { "media": "la-grande-vague", "x": 300, "y": 200, "width": 400, "height": 300 },
+        { "media": "cartel-2", "x": 900, "y": 500, "width": 200, "height": 100 },
+        { "media": "la-grande-vague", "x": 1500, "y": 300, "width": 300, "height": 200 }
+      ]
+    }
+  ]
+}

@@ -115,6 +115,32 @@ export class Problem {
   }
 }
 
+/** How several things are lined up or spread out (the Arrange menu). */
+export const ARRANGE: string[] = ['left', 'centre', 'right', 'top', 'middle', 'bottom', 'across', 'down'];
+/** Where boxes given by their centres (x, y) and sizes (w, h) go when they are aligned on an edge or an axis of the group, or spread with
+ *  equal gaps between the two outermost ones ('across', 'down': these need three). Returns the new centres, [xs, ys], rounded. */
+export function arrange(how: string, x: number[], y: number[], w: number[], h: number[]): number[][] {
+  const n = x.length, flat = how === 'top' || how === 'middle' || how === 'bottom' || how === 'down';
+  const c = flat ? y.slice() : x.slice(), size = flat ? h : w;
+  if (n < 2) return [x.slice(), y.slice()];
+  let lo = c[0] - size[0] / 2, hi = c[0] + size[0] / 2, sum = 0;
+  for (let i = 0; i < n; i++) { lo = Math.min(lo, c[i] - size[i] / 2); hi = Math.max(hi, c[i] + size[i] / 2); sum += size[i]; }
+  if (how === 'across' || how === 'down') {
+    if (n < 3) return [x.slice(), y.slice()];
+    const order: i32[] = [];
+    for (let i = 0; i < n; i++) order.push(i);
+    order.sort((a: i32, b: i32) => c[a] !== c[b] ? c[a] - c[b] : a - b);
+    const gap = (hi - lo - sum) / (n - 1);
+    let at = lo;
+    for (const i of order) { c[i] = Math.round(at + size[i] / 2); at += size[i] + gap; }
+  } else for (let i = 0; i < n; i++) {
+    c[i] = Math.round(how === 'left' || how === 'top' ? lo + size[i] / 2 : how === 'right' || how === 'bottom' ? hi - size[i] / 2 : (lo + hi) / 2);
+  }
+  return flat ? [x.slice(), c] : [c, y.slice()];
+}
+/** The first line of what Copy puts on the clipboard; what was copied follows it on that line, and the project it comes from after it. */
+const CLIP = 'museum-table-clip';
+
 // ---------------------------------------------------------------- the document
 
 class Step {
@@ -190,6 +216,102 @@ export class Doc {
     this.lastKey = '';
     this.changed();
     return s.label;
+  }
+
+  /** Several operations as one step for Undo, under one name. */
+  together(label: string, steps: () => void): void {
+    const n = this.undone.length;
+    steps();
+    if (this.undone.length === n) return;
+    this.undone = this.undone.slice(0, n + 1);   // the first copy kept is the project before all of them
+    this.undone[n].label = label;
+    this.lastKey = '';
+  }
+
+  // ---- the clipboard: sequences, or items of one table, copied here and pasted in this project or in another one
+
+  /** What Copy puts on the clipboard for these sequences, or with `from` for these items of that sequence's table ('' for nothing).
+   *  ponytail: the whole project travels with the names of what was copied (45 KB for the sample), so Paste reads it with the player's own
+   *  loader and finds the media there; a format of its own for a part of a project if clipboards of several MB ever hurt. */
+  clip(sequences: string[], from: string, items: i32[]): string {
+    if (this.project.sequences.length === 0 || (from.length === 0 ? sequences.length : items.length) === 0) return '';
+    return `${CLIP}\t${from.length === 0 ? 'sequences' : 'items'}\t${from.length === 0 ? sequences.join('\t') : `${from}\t${items.join('\t')}`}\n${this.text()}`;
+  }
+  /** The medium `id` of `src` in this project: the one that is already here when it is the same, else it is added (under another id when
+   *  the id is taken by a different medium). A point of interest that led to a sequence this project has not loses its button. */
+  private adopt(p: Project, src: Project, id: string, ids: Map<string, string>): string {
+    const known = ids.get(id);
+    if (known !== undefined) return known;
+    const m = src.medium(id);
+    if (m === null) return '';
+    const mine = p.medium(id);
+    let now = id;
+    if (mine === null || mediaJson(mine, p.languages, '') !== mediaJson(m, p.languages, '')) {
+      if (mine !== null) for (let n = 2; p.medium(now) !== null; n++) now = `${id}-${n}`;
+      m.id = now;
+      for (const q of m.points) if (p.sequence(q.to) === null) q.to = '';
+      p.media.push(m);
+    }
+    ids.set(id, now);
+    return now;
+  }
+  /** Pastes what `clip` holds: sequences on the storyboard (a link between two of them leads to the copy, another link stays when its
+   *  target is in this project and goes otherwise), or items on the table of `into` with the hotspots of the media that table did not
+   *  show. The media come along when the project has them not. One step. Returns how many things were pasted (they are the last sequences
+   *  of the project, or the last items of `into`), 0 when the clipboard holds nothing of the editor or the player would refuse the result. */
+  paste(clip: string, into: string): i32 {
+    const cut = clip.indexOf('\n'), head: string[] = cut < 0 ? [] : clip.slice(0, cut).split('\t');
+    if (head.length < 3 || head[0] !== CLIP) return 0;
+    const body = clip.slice(cut + 1), asItems = head[1] === 'items';
+    if (asItems && this.project.sequence(into) === null) return 0;
+    let n: i32 = 0;
+    const why = this.checked(asItems ? 'Paste media' : 'Paste sequences', '', (p: Project) => {
+      const src = parseProject(body), ids = new Map<string, string>();
+      n = 0;
+      if (asItems) {
+        const from = src.sequence(head[2]), to = p.sequence(into);
+        if (from === null || to === null) return;
+        const shown = to.items.map((it: Item) => it.media);
+        for (let k = 3; k < head.length; k++) {
+          const at: i32 = parseInt(head[k]);
+          if (!(at >= 0 && at < from.items.length)) continue;
+          const it = from.items[at], was = it.media;
+          it.media = this.adopt(p, src, was, ids);
+          while (to.items.filter((o: Item) => o.x === it.x && o.y === it.y).length > 0) { it.x += 40; it.y += 40; }
+          to.items.push(it);
+          n++;
+          if (shown.indexOf(it.media) >= 0) continue;
+          shown.push(it.media);
+          for (const l of from.links) if (l.on === was && l.to !== to.id && p.sequence(l.to) !== null) { l.on = it.media; to.links.push(l); }
+        }
+        return;
+      }
+      const names = new Map<string, string>(), pasted: Sequence[] = [];
+      for (let k = 2; k < head.length; k++) {
+        const s = src.sequence(head[k]);
+        if (s === null || names.has(s.id)) continue;
+        let id = s.id;
+        for (let i = 2; p.sequence(id) !== null || pasted.filter((o: Sequence) => o.id === id).length > 0; i++) id = `${s.id}-${i}`;
+        if (id !== s.id) for (const lang of p.languages) { const title = s.title.get(lang); if (title !== undefined) s.title.set(lang, title + copyWord(lang)); }
+        names.set(s.id, id);
+        pasted.push(s);
+      }
+      const lead = (to: string): string => names.get(to) ?? (p.sequence(to) !== null ? to : '');
+      for (const s of pasted) {
+        s.id = names.get(s.id) ?? s.id;
+        for (const it of s.items) it.media = this.adopt(p, src, it.media, ids);
+        if (s.narration.length > 0) s.narration = this.adopt(p, src, s.narration, ids);
+        for (const l of s.links) { l.to = lead(l.to); if (l.on.length > 0) l.on = this.adopt(p, src, l.on, ids); }
+        s.links = s.links.filter((l: Link) => l.to.length > 0 && l.to !== s.id);
+        s.next = lead(s.next);
+        if (s.next === s.id) s.next = '';
+        while (p.sequences.filter((o: Sequence) => o.storyX === s.storyX && o.storyY === s.storyY).length > 0) { s.storyX += 40; s.storyY += 40; }
+        p.sequences.push(s);
+        if (p.sequences.length === 1) p.start = s.id;
+        n++;
+      }
+    });
+    return why.length > 0 ? 0 : n;
   }
 
   // ---- names

@@ -451,7 +451,8 @@ const STEPS: string[] = ['New sequence', 'Nouvelle séquence', 'Rename sequence'
   'Change the theme', 'Changer le thème', 'Change a setting', 'Changer un réglage', 'Change the attract loop', 'Changer la boucle d’appel', 'Change the text sizes', 'Changer les tailles de texte',
   'New presentation', 'Nouvelle visite guidée', 'Rename presentation', 'Renommer la visite guidée', 'Delete presentation', 'Supprimer la visite guidée', 'Add a step', 'Ajouter une étape',
   'Remove a step', 'Retirer une étape', 'Move a step', 'Déplacer une étape', 'Change the default language', 'Changer la langue par défaut',
-  'Change the narration', 'Changer la narration', 'Change what follows', 'Changer la suite', 'Change a file of a medium', 'Changer un fichier du média', 'Change a film', 'Modifier le film'];
+  'Change the narration', 'Changer la narration', 'Change what follows', 'Changer la suite', 'Change a file of a medium', 'Changer un fichier du média', 'Change a film', 'Modifier le film',
+  'Paste media', 'Coller les médias', 'Paste sequences', 'Coller les séquences', 'Cut', 'Couper', 'Delete', 'Supprimer', 'Align', 'Aligner', 'Distribute', 'Répartir', 'Nudge', 'Décaler'];
 /** The name of an undo step in the interface language. */
 export function step(label: string): string {
   const at = STEPS.indexOf(label);

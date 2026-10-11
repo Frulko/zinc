@@ -1,9 +1,11 @@
 // The editor's document without a window: one line per property, `FAILED:` and exit code 1 when one does not hold.
-//   zinc run examples/museum-table/editor/selftest.ts -- examples/museum-table/assets/project.json
+//   zinc run examples/museum-table/editor/selftest.ts -- examples/museum-table/assets/project.json [directory]
+// With a directory, the file each command of the tools for agencies leaves (align, distribute, nudge, cut, copy, paste) is written there:
+// tests/t1/museum_editor_tools.sh compares them with its goldens.
 import { args, launchDir, exit } from 'zinc:sys';
-import { readText } from 'zinc:fs';
-import { parseProject, serializeProject } from '../src/project';
-import { Doc, newProject, slug } from './doc';
+import { readText, writeText } from 'zinc:fs';
+import { parseProject, serializeProject, Link, Media } from '../src/project';
+import { Doc, newProject, slug, arrange, ARRANGE } from './doc';
 import { complete, f, t, setUiLang, step, P_NO_TITLE, languageName } from './strings';
 
 let failed = false;
@@ -308,5 +310,66 @@ check('the sample project is in canonical form', serializeProject(parseProject(s
   d.undo(); d.undo();
   d.addSequence(0, 0);
   check('an edit after an undo drops what was undone', !d.canRedo && d.canUndo);
+}
+// ---- the tools for agencies (ZN-650.07.05): each command on the same small project, one step each, and the file it leaves
+{
+  const d = new Doc(newProject(), '');
+  const a = d.addSequence(0, 0), b = d.addSequence(400, 0), c = d.addSequence(800, 200);
+  const wave = d.addMedia('photo', 'photos/great-wave.jpg', 'La Grande Vague', 'https://www.metmuseum.org/art/collection/search/45434', 'CC0 1.0');
+  const words = d.addText('Cartel', 'Un texte.');
+  d.addItem(a, wave, 300, 200); d.addItem(a, words, 900, 500); d.addItem(a, wave, 1500, 300);
+  d.resizeItem(a, 0, 400, 300); d.resizeItem(a, 1, 200, 100); d.resizeItem(a, 2, 300, 200);
+  d.addHotspot(a, wave, b); d.addLink(a, c); d.addLink(b, a);
+  const base = d.text();
+  const out = args().length > 1 ? (args()[1].startsWith('/') ? args()[1] : `${launchDir()}/${args()[1]}`) : '';
+  /** Runs one command on the base project: it changes the file, the player accepts the result, one Undo gives the base back. */
+  const command = (name: string, run: (e: Doc) => void): Doc => {
+    const e = new Doc(parseProject(base), base);
+    run(e);
+    const text = e.text();
+    if (out.length > 0) writeText(`${out}/${name}.json`, text);
+    const label = e.undo(), back = e.text() === base && !e.canUndo;
+    e.redo();
+    check(`${name}: one step (${label}), a file the player accepts, undone byte for byte`, text !== base && plays(text) && back && e.text() === text);
+    return e;
+  };
+  const xs = [300, 900, 1500], ys = [200, 500, 300], ws = [400, 200, 300], hs = [300, 100, 200];
+  for (const how of ARRANGE) {
+    const e = command(how === 'across' || how === 'down' ? `distribute-${how}` : `align-${how}`, (e: Doc) => {
+      const to = arrange(how, xs, ys, ws, hs);
+      e.together(how === 'across' || how === 'down' ? 'Distribute' : 'Align', () => { for (let i = 0; i < 3; i++) e.moveItem(a, i, to[0][i], to[1][i]); });
+    });
+    const it = e.project.sequences[0].items, got = `${it[0].x},${it[0].y} ${it[1].x},${it[1].y} ${it[2].x},${it[2].y}`;
+    const want = ['300,200 200,500 250,300', '875,200 875,500 875,300', '1450,200 1550,500 1500,300', '300,200 900,100 1500,150', '300,300 900,300 1500,300', '300,400 900,500 1500,450',
+      '300,200 925,500 1500,300', '300,200 900,500 1500,400'][ARRANGE.indexOf(how)];
+    check(`${how} puts the three media at ${want}`, got === want);
+  }
+  check('two things are not distributed, one is not aligned', arrange('across', [0, 50], [0, 0], [10, 10], [10, 10])[0][1] === 50 && arrange('left', [70], [0], [10], [10])[0][0] === 70);
+  command('nudge', (e: Doc) => { e.together('Nudge', () => { e.moveItem(a, 0, 310, 200); e.moveItem(a, 2, 1510, 300); }); });
+  command('nudge-sequences', (e: Doc) => { e.together('Nudge', () => { e.moveSequence(a, 0, -10); e.moveSequence(b, 400, -10); }); });
+  // copy and paste: on the same table the copies lie beside the originals; on another table the hotspot of the photograph comes along
+  const twice = command('paste-items', (e: Doc) => { e.paste(e.clip([], a, [0, 1]), a); }).project.sequences[0];
+  check('pasted media lie beside the ones they copy', twice.items.length === 5 && twice.items[3].x === 340 && twice.items[3].y === 240 && twice.items[4].media === words && twice.links.length === 2);
+  const other = command('paste-items-elsewhere', (e: Doc) => { e.paste(e.clip([], a, [0]), c); }).project.sequences[2];
+  check('on another table the hotspot of the medium comes with it', other.items.length === 1 && other.links.length === 1 && other.links[0].on === wave && other.links[0].to === b);
+  const seqs = command('paste-sequences', (e: Doc) => { e.paste(e.clip([a, b], '', []), ''); }).project.sequences;
+  check('pasted sequences are copies linked to each other, and to the sequences that stay', seqs.length === 5 && seqs[3].id === 'sequence-1-2' && seqs[3].storyX === 40
+    && seqs[3].links.map((l: Link) => l.to).join(' ') === 'sequence-2-2 sequence-3' && seqs[4].links[0].to === 'sequence-1-2' && seqs[3].title.get('fr') === 'Séquence 1 (copie)');
+  command('cut-items', (e: Doc) => { e.together('Cut', () => { e.removeItem(a, 2); e.removeItem(a, 0); }); });
+  command('cut-sequences', (e: Doc) => { e.together('Cut', () => { e.deleteSequence(b, ''); e.deleteSequence(c, ''); }); });
+  // into another project: the media come along, a link to a sequence that project has not is left behind
+  {
+    const e = new Doc(newProject(), '');
+    const first = e.addSequence(0, 0);
+    e.addText('Cartel', 'Un autre texte.');   // the same id as the text that arrives, another medium
+    const before = e.text();
+    const n = e.paste(d.clip([a], '', []), '');
+    if (out.length > 0) writeText(`${out}/paste-other-project.json`, e.text());
+    const got = e.project.sequences[1];
+    check('pasted into another project: the sequence under a free id, its media with it, the links that lead nowhere left behind', n === 1 && got.id === 'sequence-1-2'
+      && e.project.media.map((m: Media) => m.id).join(' ') === 'cartel la-grande-vague cartel-2' && got.items[1].media === 'cartel-2' && got.links.length === 0 && plays(e.text()));
+    check('and it is one step', e.undo() === 'Paste sequences' && e.text() === before && first === 'sequence-1');
+    check('what is not a copy of the editor is not pasted', e.paste('some text', '') === 0 && e.paste(d.clip([], a, [0]), '') === 0 && d.clip([], a, []) === '');
+  }
 }
 if (failed) exit(1);
