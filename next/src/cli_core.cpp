@@ -447,6 +447,38 @@ int doctor(const std::string& engineRoot, const std::string& rendererLines) {
   int plugins = 0;
   for (const auto& e : fs::directory_iterator(fs::path(engineRoot) / ".." / "plugins", ec)) if (e.is_directory() && fs::exists(e.path() / "plugin.json")) ++plugins;
   std::printf("plugins: %d in %s/../plugins (zinc plugins lists them with the targets they run on)\n", plugins, engineRoot.c_str());
+  {   // ZN-718: which plugins with native code have no prebuilt library. This machine: the key of prebuilt/<target>/ is checked. The other platform: by the
+      // manifest alone (a release prebuilds every plugin that names the platform and needs no system library)
+    std::vector<std::string> problems;
+    const std::vector<zn::frontend::FoundPlugin> found = zn::frontend::discoverPlugins(engineRoot + "/..", ".", problems);
+    const std::string here = zn::tc::pluginTarget();
+    for (const std::string& target : {here, std::string(here == "macos" ? "linux" : "macos")}) {
+      int have = 0;
+      std::string without;
+      for (const zn::frontend::FoundPlugin& p : found) {
+        bool native = p.manifest.kind == "display";
+        for (const auto& e : fs::directory_iterator(fs::path(p.dir) / "native", ec)) native = native || e.path().string().ends_with(".spec.ts");
+        if (!native) continue;
+        const auto ts = p.manifest.targetSettings.find(target);
+        std::string why;
+        if (ts == p.manifest.targetSettings.end()) why = "does not run there";
+        else if (!ts->second.pkg.empty()) {
+          why = "needs the system librar" + std::string(ts->second.pkg.size() > 1 ? "ies" : "y");
+          for (const std::string& k : ts->second.pkg) why += " " + k;
+        } else if (target == here) {
+          std::string key;
+          std::ifstream in(fs::path(p.dir) / "prebuilt" / target / "key");
+          std::getline(in, key);
+          if (key != zn::tc::prebuiltKey(p, engineRoot, ".", target)) why = key.empty() ? "built here on first use" : "its prebuilt is of another engine: built here on first use";
+        }
+        if (why.empty()) ++have; else without += "\n    " + p.manifest.name + ": " + why;
+      }
+      std::printf("\nplugin libraries for %s%s: %d prebuilt%s%s%s\n", target.c_str(), target == here ? " (this machine)" : " (by the manifests)", have, target == here ? "" : " in a release",
+                  without.empty() ? "" : ", none for:", without.c_str());
+    }
+    std::printf("\nplugin libraries for windows: none, no plugin names the windows target yet\n");
+    std::printf("a plugin without a prebuilt library is compiled on first use with the pinned zig (macOS: its frameworks need the Xcode command line tools)\n");
+  }
   {   // the trust policy in force here (ZN-346)
     std::error_code ec;
     const zn::tc::Policy& p = zn::tc::loadPolicy(fs::exists("zinc.json", ec) ? fs::current_path(ec).string() : "");

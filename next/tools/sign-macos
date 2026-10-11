@@ -22,7 +22,7 @@ step() { echo "+ $*"; [ $dry -eq 1 ] || "$@"; }
 app="$work/Zinc Atelier.app"
 step ditto -x -k "$zip" "$work"
 [ $dry -eq 1 ] && app="<unpacked>/Zinc Atelier.app"
-for f in "$app"/Contents/Frameworks/*.dylib "$app/Contents/MacOS/zinc"; do
+for f in "$app"/Contents/Frameworks/*.dylib "$app"/Contents/MacOS/*.dylib "$app"/Contents/Resources/zinc/plugins/*/prebuilt/macos/*.dylib "$app/Contents/MacOS/zinc"; do   # the plugins' libraries too (ZN-718): notarization refuses an unsigned Mach-O
   step codesign --force --timestamp --options runtime --sign "$ID" "$f"
 done
 step codesign --force --timestamp --options runtime --sign "$ID" "$app"

@@ -17,6 +17,14 @@ for f in key plugin.a; do [ -s "$tmp/proj/plugins/device/prebuilt/$t/$f" ] || { 
 out=$(ZINC_HOME="$tmp/h2" CXX=false CC=false "$Z" plugin-build device "$tmp/proj" 2>&1)
 echo "$out" | grep -q "^device prebuilt " || { echo "plugin_prebuilt: the prebuilt libraries were not used: $out"; fail=1; }
 (cd "$tmp/proj" && ZINC_HOME="$tmp/h2" CXX=false CC=false "$Z" run main.ts 2>&1) | grep -qx "touch true\|touch false" || { echo "plugin_prebuilt: the program does not run on the prebuilt library: $(cd "$tmp/proj" && ZINC_HOME="$tmp/h2" CXX=false CC=false "$Z" run main.ts 2>&1 | head -3)"; fail=1; }
+# ZN-718: an install holds the prebuilt libraries and none of the plugin's C++: still used; with a foreign key the message says both
+mkdir "$tmp/src" && mv "$tmp"/proj/plugins/device/native/*.cpp "$tmp/src/"
+out=$(ZINC_HOME="$tmp/h5" CXX=false CC=false "$Z" plugin-build device "$tmp/proj" 2>&1)
+echo "$out" | grep -q "^device prebuilt " || { echo "plugin_prebuilt: without the C++ sources the prebuilt libraries were not used: $out"; fail=1; }
+cp "$tmp/proj/plugins/device/prebuilt/$t/key" "$tmp/key"; echo 0000000000000000 > "$tmp/proj/plugins/device/prebuilt/$t/key"
+out=$(ZINC_HOME="$tmp/h5" "$Z" plugin-build device "$tmp/proj" 2>&1)
+echo "$out" | grep -q "no native source for target .* and no prebuilt library for this engine" || { echo "plugin_prebuilt: no source and a foreign key: $out"; fail=1; }
+mv "$tmp"/src/*.cpp "$tmp/proj/plugins/device/native/"; cp "$tmp/key" "$tmp/proj/plugins/device/prebuilt/$t/key"
 echo 0000000000000000 > "$tmp/proj/plugins/device/prebuilt/$t/key"
 out=$(ZINC_HOME="$tmp/h3" "$Z" plugin-build device "$tmp/proj" 2>&1)
 echo "$out" | grep -q "^device built " && echo "$out" | grep -q "other options or another engine" || { echo "plugin_prebuilt: a foreign key does not fall back to a local build: $out"; fail=1; }

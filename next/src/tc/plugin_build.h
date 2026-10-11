@@ -31,6 +31,10 @@ const frontend::FoundPlugin* pluginForModule(const std::vector<frontend::FoundPl
 // manifest, a compiler or a system library is missing (the message names the package to install), or the compiler fails.
 bool buildPlugin(const frontend::FoundPlugin& p, const std::string& engineRoot, const std::string& projectDir, const std::string& target, PluginLib& out, std::string& err);
 
+// What prebuilt/<target>/key of `p` must hold for this engine to use those libraries with the project's options: the ABI headers and the defines.
+// `target` must be in the manifest.
+std::string prebuiltKey(const frontend::FoundPlugin& p, const std::string& engineRoot, const std::string& projectDir, const std::string& target);
+
 // dlopen the shared library and register its module in the native registry (include/zn/native.h). The first load writes the module's exports
 // beside the library.
 bool loadPlugin(const PluginLib& lib, std::string& err);

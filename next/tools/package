@@ -4,12 +4,12 @@
   tools/package [--build build] [--out dist] [--budget-only]
 
 macOS: dist/Zinc-<version>-macos-<arch>.zip holding "Zinc Atelier.app" (the engine, lib/std, the runtime sources for cross builds, the core
-firmware, the app, SDL3 in Frameworks). Linux: dist/zinc-<version>-linux-<arch>.tar.gz (bin, lib, share/zinc) and, when appimagetool is
+firmware, the app, SDL3 in Frameworks, the plugins' native libraries built with the pinned zig: ZN-718). Linux: dist/zinc-<version>-linux-<arch>.tar.gz (bin, lib, share/zinc) and, when appimagetool is
 installed, the AppImage (tools/appimage). Windows follows the Windows host (ZN-054).
 Then the size of each package is checked against its budget (tools/package-budget in this file); over budget exits 3.
 Signing and notarization are separate (tools/sign-macos).
 """
-import json, os, platform, re, shutil, subprocess, sys, tarfile, zipfile
+import json, os, platform, re, shutil, subprocess, sys, tarfile, tempfile, zipfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 NEXT = os.path.dirname(HERE)
@@ -51,7 +51,35 @@ def payload(share):
     copy_tree(os.path.join(REPO, "lib", "fonts"), os.path.join(share, "lib", "fonts"))
     copy_tree(os.path.join(REPO, "templates"), os.path.join(share, "templates"))   # zinc new (ZN-315)
     copy_tree(os.path.join(REPO, "plugins"), os.path.join(share, "plugins"), lambda r: r.endswith(('.ts', '.tsx', 'plugin.json')))
+    for f in ("targets/capabilities.json", "runtime/zrt.h", "runtime/include/hal.h"):   # zinc:platform; the two ABI headers a plugin's prebuilt key covers
+        os.makedirs(os.path.dirname(os.path.join(share, f)), exist_ok=True)
+        shutil.copy2(os.path.join(REPO, f), os.path.join(share, f))
     open(os.path.join(share, "VERSION"), "w").write(VERSION + "\n")
+
+def prebuild_plugins(zinc, share, target):
+    """ZN-718: the native libraries of the plugins, built here with the pinned zig, in share/plugins/<name>/prebuilt/<target>/ (dylib or so, plugin.a, vendor.a, key),
+    so an install runs a program that imports a plugin with no compiler. A plugin that needs a system library (`pkg`) is left out: its library would not load
+    on a machine without it. Returns {name: why} for the plugins of this target left without one."""
+    without = {}
+    with tempfile.TemporaryDirectory() as tmp:   # built from a copy in a project that sets none of the plugins' options, as tools/plugin-pack does
+        shutil.copytree(os.path.join(REPO, "plugins"), os.path.join(tmp, "plugins"), ignore=shutil.ignore_patterns("prebuilt"))
+        open(os.path.join(tmp, "zinc.json"), "w").write('{ "name": "pack" }\n')
+        for name in sorted(os.listdir(os.path.join(tmp, "plugins"))):
+            d = os.path.join(tmp, "plugins", name)
+            if not os.path.exists(os.path.join(d, "plugin.json")): continue
+            m = json.load(open(os.path.join(d, "plugin.json")))
+            t = m.get("targets", {})
+            nd = os.path.join(d, "native")
+            native = m.get("kind") == "display" or (os.path.isdir(nd) and any(f.endswith(".spec.ts") for f in os.listdir(nd)))
+            if not native or target not in t: continue
+            if isinstance(t, dict) and (t[target] or {}).get("pkg"):
+                without[name] = "needs the system libraries " + " ".join(t[target]["pkg"]); continue
+            r = subprocess.run([zinc, "plugin-build", name, tmp, "--prebuild"], capture_output=True, text=True, env=dict(os.environ, ZINC_PREBUILT="0"))
+            pre = os.path.join(d, "prebuilt", target)
+            if r.returncode != 0 or not os.path.exists(os.path.join(pre, "key")):
+                without[name] = (r.stderr.strip().splitlines() or ["no library"])[0][:160]; continue
+            shutil.copytree(pre, os.path.join(share, "plugins", name, "prebuilt", target))
+    return without
 
 def run(*cmd, check=True):
     return subprocess.run(cmd, check=check, capture_output=True, text=True)
@@ -122,6 +150,7 @@ def package_macos(build, out):
             shutil.copy2(os.path.join(build, mod), os.path.join(macos, mod))
     bundle_libs_macos(binary, os.path.join(app, "Contents", "Frameworks"))
     payload(os.path.join(res, "zinc"))
+    without = prebuild_plugins(os.path.join(build, "zinc"), os.path.join(res, "zinc"), "macos")
     with open(os.path.join(macos, "zinc-atelier"), "w") as f: f.write(LAUNCHER)
     os.chmod(os.path.join(macos, "zinc-atelier"), 0o755)
     open(os.path.join(app, "Contents", "Info.plist"), "w").write(PLIST % (VERSION, VERSION))
@@ -129,7 +158,7 @@ def package_macos(build, out):
     archive = os.path.join(out, "Zinc-%s-macos-%s.zip" % (VERSION, arch))
     if os.path.exists(archive): os.remove(archive)
     run("ditto", "-c", "-k", "--keepParent", app, archive)  # ditto keeps the bundle's metadata and symlinks
-    return "macos", archive
+    return "macos", archive, without
 
 def package_linux(build, out):
     arch = platform.machine()
@@ -148,10 +177,11 @@ def package_linux(build, out):
     if shutil.which("patchelf"):
         run("patchelf", "--set-rpath", "$ORIGIN/../lib", os.path.join(root, "bin", "zinc"))
     payload(os.path.join(root, "share", "zinc"))
+    without = prebuild_plugins(os.path.join(build, "zinc"), os.path.join(root, "share", "zinc"), "linux")
     archive = os.path.join(out, name + ".tar.gz")
     with tarfile.open(archive, "w:gz", compresslevel=9) as t:
         t.add(root, arcname=name)
-    return "linux", archive
+    return "linux", archive, without
 
 def main():
     build = os.path.abspath(arg("--build", os.path.join(NEXT, "build")))
@@ -160,14 +190,15 @@ def main():
     if not os.path.exists(os.path.join(build, "zinc")):
         sys.exit("no %s/zinc: build first (cmake --build build)" % build)
     system = platform.system()
-    if system == "Darwin": kind, archive = package_macos(build, out)
-    elif system == "Linux": kind, archive = package_linux(build, out)
+    if system == "Darwin": kind, archive, without = package_macos(build, out)
+    elif system == "Linux": kind, archive, without = package_linux(build, out)
     else: sys.exit("packaging for %s comes with the Windows host (ZN-054)" % system)
     shutil.rmtree(os.path.join(out, "stage"), ignore_errors=True)
     mb = os.path.getsize(archive) / 1e6
-    report = {"package": os.path.basename(archive), "megabytes": round(mb, 2), "budget_megabytes": BUDGET_MB[kind], "within_budget": mb <= BUDGET_MB[kind]}
+    report = {"package": os.path.basename(archive), "megabytes": round(mb, 2), "budget_megabytes": BUDGET_MB[kind], "within_budget": mb <= BUDGET_MB[kind], "plugins_without_prebuilt": without}
     json.dump(report, open(os.path.join(out, "sizes-%s.json" % kind), "w"), indent=1)
     print("%s: %.1f MB (budget %d MB)" % (os.path.basename(archive), mb, BUDGET_MB[kind]))
+    for name, why in sorted(without.items()): print("no prebuilt library for plugin %s: %s" % (name, why))
     if mb > BUDGET_MB[kind]:
         sys.exit(3)
 

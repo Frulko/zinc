@@ -247,6 +247,15 @@ bool systemCompiler(const std::string& projectDir) {   // ZINC_PLUGIN_CC=system 
   return readAll(projectDir + "/zinc.json", zj) && (zj.find("\"pluginCompiler\": \"system\"") != std::string::npos || zj.find("\"pluginCompiler\":\"system\"") != std::string::npos);
 }
 
+std::string prebuiltKey(const frontend::FoundPlugin& p, const std::string& engineRoot, const std::string& projectDir, const std::string& target) {
+  const std::string runtime = engineRoot + "/../runtime";
+  Hash k;
+  for (const std::string& d : buildDefines(p, p.manifest.targetSettings.at(target), engineRoot, projectDir, target)) k.add(d);
+  for (const std::string& hp : {engineRoot + "/include/zn/native.h", engineRoot + "/src/native/zrt_compat.h", runtime + "/zrt.h", runtime + "/include/hal.h"}) k.add(sha256File(hp));
+  k.add(p.manifest.kind == "display" ? "display" : "module");
+  return k.hex();
+}
+
 bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRoot, const std::string& projectDir, const std::string& target, PluginLib& out, std::string& err) {
   auto t0 = std::chrono::steady_clock::now();
   const frontend::PluginManifest& m = p.manifest;
@@ -271,8 +280,9 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
   auto it = m.nativeImpl.find(target);
   if (it != m.nativeImpl.end()) impl = (fs::path(p.dir) / it->second).string();
   else for (std::string cand : {base + "." + target + ".cpp", base + ".host.cpp"}) if (impl.empty() && fs::exists(nativeDir / cand)) impl = (nativeDir / cand).string();
-  if (impl.empty()) { err = "plugin '" + m.name + "' has no native source for target '" + target + "' (expected native/" + base + ".host.cpp)"; return false; }
   }
+  // no source is not an error yet: an install holds the plugin's prebuilt libraries and not its C++ (ZN-718)
+  const std::string noSource = display || !impl.empty() ? "" : "plugin '" + m.name + "' has no native source for target '" + target + "' (expected native/" + base + ".host.cpp) and no prebuilt library for this engine";
   const frontend::PluginTarget& ts = m.targetSettings.at(target);
   // system libraries: pkg-config must know them; if not, say what to install
   std::vector<std::string> cflags, libs;
@@ -323,11 +333,7 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
   // digest of the ABI headers and the defines they were built with (zinc plugin-build --prebuild writes them). A matching key uses them, no compiler needed; otherwise
   // (other options in zinc.json, another engine) the plugin is built locally as before.
   {
-    Hash k;
-    for (const std::string& d : defines) k.add(d);
-    for (const std::string& hp : {root + "/include/zn/native.h", root + "/src/native/zrt_compat.h", runtime + "/zrt.h", runtime + "/include/hal.h"}) k.add(sha256File(hp));
-    k.add(display ? "display" : "module");
-    out.key = k.hex();
+    out.key = prebuiltKey(p, engineRoot, projectDir, target);
     const fs::path pre = fs::path(p.dir) / "prebuilt" / (gCross.on ? gCross.name : target);
     std::string key;
     if (readAll((pre / "key").string(), key)) {
@@ -345,6 +351,7 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
       std::fprintf(stderr, "zinc: plugin '%s': its prebuilt libraries for %s were built for other options or another engine; building it here\n", m.name.c_str(), (gCross.on ? gCross.name : target).c_str());
     }
   }
+  if (!noSource.empty()) { err = noSource; return false; }
   const bool system = systemCompiler(projectDir);
   std::string cxx, cc, ccId;
   if (!compilers(system, cxx, cc, ccId, err)) return false;
