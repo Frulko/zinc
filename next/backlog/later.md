@@ -88,6 +88,12 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-649.17: the pinball does not start with `--engine quickjs` ("Could not find export 'TableDef'", an interface imported by name).
 - ZN-649.17: a table or package dropped on the window could join the list (zinc:system `drop`); free the scene and sounds of the table that leaves.
 - ZN-649.18: a clip to a path in zinc:gfx (raster and GL), after which `drawInside` in topview.tsx goes; a visible handle for the field of view.
+- ZN-649.16: keep the editor's mirror axis and view with the table folder; today they are recomputed at each open.
+- ZN-649.16: remove the Latin characters constant (`widgets.tsx` DRAWN) by loading the font at run time (ZN-669).
+- ZN-649.16: Save as and Open a package have no button (a button changes every golden frame of the top bar); the file-dialog path and the refusal of entry names that leave the folder (`..`, absolute) have no test.
+- ZN-649.06: measure what `assets.writePack` (zstd compressor) adds to an AOT binary; move the rows behind a plugin if it is large.
+- ZN-649.06: a package among the game's assets is copied to a temporary file to be mounted; mount from bytes would avoid it.
+- ZN-698: no longer needed by the pinball packages (the pack carries checksums); keep or drop at the review.
 
 ## Cross-platform pass
 
