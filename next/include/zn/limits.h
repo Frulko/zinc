@@ -17,5 +17,7 @@ inline constexpr std::uint32_t kMaxFields = 255;           // GetField/SetField 
 // The web environment refuses a larger image before its pixels are allocated (src/qjs/webenv.cpp): the file may come from a network, and
 // its header alone can ask for gigabytes. 2^26 pixels is 8192 x 8192, 256 MiB of RGBA: above any texture a game loads.
 inline constexpr std::int64_t kMaxImagePixels = std::int64_t{1} << 26;
+// The largest data alignment of a ZPK pack (src/zpk, docs/zpk.md): a power of two up to 1 MiB (4 KiB and 2 KiB sectors fit well under it).
+inline constexpr std::uint32_t kMaxPackAlignment = 1u << 20;
 
 }  // namespace zn

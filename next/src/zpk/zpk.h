@@ -8,6 +8,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+
+#include "zn/limits.h"
 #include <string>
 #include <string_view>
 #include <vector>
@@ -20,7 +22,7 @@ namespace zn::zpk {
 constexpr char kMagic[4] = {'Z', 'P', 'K', '1'};
 constexpr std::uint16_t kVersion = 1;
 constexpr std::size_t kHeaderSize = 32, kRowSize = 64;   // the layout is in docs/zpk.md
-constexpr std::uint32_t kMaxAlignment = 1u << 20;
+using zn::kMaxPackAlignment;   // include/zn/limits.h
 
 enum class Codec : std::uint8_t { None = 0, Lz4 = 1, Zstd = 2, ZstdDict = 3 };
 

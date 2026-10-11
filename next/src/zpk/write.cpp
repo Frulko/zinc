@@ -39,7 +39,7 @@ std::string train(const std::vector<Input>& inputs) {
 
 bool write(std::vector<Input> inputs, const WriteOptions& options, std::string& out, std::string& err) {
   const std::uint64_t align = options.alignment;
-  if (align == 0 || align > kMaxAlignment || (align & (align - 1)) != 0) { err = "the alignment must be a power of two up to 1 MiB"; return false; }
+  if (align == 0 || align > kMaxPackAlignment || (align & (align - 1)) != 0) { err = "the alignment must be a power of two up to 1 MiB"; return false; }
   // the data in group order, so what loads together is read in one pass
   std::sort(inputs.begin(), inputs.end(), [](const Input& a, const Input& b) { return a.group != b.group ? a.group < b.group : a.name < b.name; });
   {

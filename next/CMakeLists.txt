@@ -289,7 +289,7 @@ target_compile_definitions(zn_zstd PRIVATE ZSTD_DISABLE_ASM)   # the C Huffman l
 set_target_properties(zn_zstd PROPERTIES C_STANDARD 99 POSITION_INDEPENDENT_CODE ON)
 target_compile_options(zn_zstd PRIVATE -w -O2)
 add_library(zn_zpk STATIC src/zpk/zpk.cpp src/zpk/write.cpp)
-target_include_directories(zn_zpk PUBLIC src)
+target_include_directories(zn_zpk PUBLIC src include)   # include: zn/limits.h
 target_link_libraries(zn_zpk PUBLIC zn_lz4 zn_zstd zn_sha256)
 add_executable(zpk_test tests/unit/zpk_test.cpp)
 target_link_libraries(zpk_test PRIVATE zn_zpk)

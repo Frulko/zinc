@@ -40,7 +40,7 @@ bool Reader::open(const void* data, std::size_t size, std::string& err) {
   if (size < kHeaderSize || std::memcmp(h, kMagic, 4) != 0) { err = "not a ZPK pack"; return false; }
   if (le(h + 4, 2) != kVersion) { err = "this pack is version " + std::to_string(le(h + 4, 2)) + ", this zinc reads version 1: update zinc (zinc update)"; return false; }
   const std::uint64_t n = le(h + 8, 4), align = le(h + 12, 4), toc = le(h + 16, 4), strings = le(h + 20, 4), stringsSize = le(h + 24, 4), dictSize = le(h + 28, 4);
-  if (le(h + 6, 2) != 0 || align == 0 || align > kMaxAlignment || (align & (align - 1)) != 0 || toc != kHeaderSize || strings != kHeaderSize + n * kRowSize ||
+  if (le(h + 6, 2) != 0 || align == 0 || align > kMaxPackAlignment || (align & (align - 1)) != 0 || toc != kHeaderSize || strings != kHeaderSize + n * kRowSize ||
       strings + stringsSize + dictSize > size) { err = "the pack's header is corrupted"; return false; }
   const std::uint64_t indexEnd = strings + stringsSize + dictSize;
   std::uint64_t prevHash = 0;
