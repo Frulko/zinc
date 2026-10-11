@@ -1,6 +1,6 @@
 # Zinc Next: fuzzing
 
-ZN-147. Four libFuzzer targets (`tests/fuzz`), built with AddressSanitizer and UndefinedBehaviorSanitizer in their own build tree (`build-fuzz`).
+ZN-147 (and ZN-433 for `fuzz_zpk`). Five libFuzzer targets (`tests/fuzz`), built with AddressSanitizer and UndefinedBehaviorSanitizer in their own build tree (`build-fuzz`).
 
 | Target | What it feeds | What must hold |
 |---|---|---|
@@ -8,6 +8,7 @@ ZN-147. Four libFuzzer targets (`tests/fuzz`), built with AddressSanitizer and U
 | `fuzz_check` | arbitrary text as `main.ts` through loading, checker, lowering, optimizer, reference counting, the IR verifier, ZBC emission and its verifier | no crash or hang; a program the checker accepts lowers to IR and ZBC that verify (a failed verify aborts the run) |
 | `fuzz_zbc` | arbitrary bytes to `zbc::decode` and `zbc::verify` | no crash; a file that decodes and verifies encodes back to the same bytes (one spelling per module) |
 | `fuzz_native` | an export signature (first line) and argument bytes | the signature parser refuses what it does not know, the registry refuses a malformed export, a registered export is called with arguments decoded from the bytes |
+| `fuzz_zpk` | arbitrary bytes as a ZPK pack (`src/zpk`); the entries' checksums are set to their mutated bytes before reading, since anyone can compute them, so the lz4 and zstd decoders and the zstd dictionary see the fuzzer's bytes | an index that opens finds each of its names at its own row; every entry reads to its stated size or is refused with a message (rows over 16 MB are skipped: the asset manager checks sizes against its budget first) |
 
 ## Running
 
@@ -15,7 +16,7 @@ ZN-147. Four libFuzzer targets (`tests/fuzz`), built with AddressSanitizer and U
 tools/fuzz <parse|check|zbc|native|all> [seconds=60]
 ```
 
-The tool configures `build-fuzz` with Homebrew's clang (`brew install llvm`; Apple's clang ships no libFuzzer; set `LLVM=<prefix>` to use another), builds the targets, seeds `build-fuzz/corpus/<target>` from `tests/golden`, the checker's programs, `tests/conformance` and the compatibility ZBC files, and runs the target. New corpus entries stay in `build-fuzz/corpus`. The T2 gate `tests/t2/fuzz.sh` runs 60 seconds per target and is skipped without a libFuzzer clang.
+The tool configures `build-fuzz` with Homebrew's clang (`brew install llvm`; set `LLVM=<prefix>` to use another) or, on a Mac without it, with Apple's clang, which instruments (`-fsanitize=fuzzer-no-link`) but ships no libFuzzer runtime: `tools/libfuzzer` builds one once from the pinned compiler-rt 19.1.7 source (checksum checked) into `~/.zinc/cache/libfuzzer-19.1.7`, and CMake links it through `-DZN_LIBFUZZER=<archive>`. It builds the targets, seeds `build-fuzz/corpus/<target>` from `tests/golden`, the checker's programs, `tests/conformance`, the compatibility ZBC files and the packs `zpk_test seeds` writes, and runs the target. New corpus entries stay in `build-fuzz/corpus`. The T2 gate `tests/t2/fuzz.sh` runs 60 seconds per target and is skipped without a libFuzzer clang (never on macOS since ZN-433).
 
 Long run: `tools/fuzz all 3600` (or one target for a night with `tools/fuzz check 28800`; `-- -jobs=4 -workers=4` after the seconds runs several processes). A crash leaves `tests/fuzz/crashes/<target>-<kind>-<hash>`.
 

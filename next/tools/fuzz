@@ -1,16 +1,19 @@
 #!/bin/sh
-# usage: tools/fuzz <parse|check|zbc|native|all> [seconds=60] [-- extra libFuzzer flags]
-# Builds (if needed) the sanitized libFuzzer targets of tests/fuzz in build-fuzz with Homebrew's clang, seeds a corpus from tests/golden and the checker's programs, and runs the
+# usage: tools/fuzz <parse|check|zbc|native|zpk|all> [seconds=60] [-- extra libFuzzer flags]
+# Builds (if needed) the sanitized libFuzzer targets of tests/fuzz in build-fuzz with Homebrew's clang (or Apple's and tools/libfuzzer), seeds a corpus from tests/golden and the checker's programs, and runs the
 # target for `seconds`. New corpus entries stay in build-fuzz/corpus/<target>; a crash leaves tests/fuzz/crashes/<target>-<hash> (promote it to a regression fixture, docs/reports/zinc-next-fuzzing.md).
 cd "$(dirname "$0")/.." || exit 2
 target=${1:-all}; secs=${2:-60}; [ $# -gt 2 ] && { shift 2; [ "$1" = "--" ] && shift; extra="$*"; }
 LLVM=${LLVM:-$(brew --prefix llvm 2>/dev/null)}
-[ -x "$LLVM/bin/clang++" ] || { echo "tools/fuzz: needs a clang with libFuzzer (brew install llvm, or set LLVM=<prefix>)"; exit 2; }
-if [ ! -f build-fuzz/CMakeCache.txt ]; then
-  cmake -S . -B build-fuzz -DCMAKE_C_COMPILER="$LLVM/bin/clang" -DCMAKE_CXX_COMPILER="$LLVM/bin/clang++" -DZN_SANITIZE=ON -DZN_FUZZ=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo >/dev/null || exit 2
+if [ -x "$LLVM/bin/clang++" ]; then cc="$LLVM/bin/clang"; cxx="$LLVM/bin/clang++"; libfuzzer=
+elif [ "$(uname)" = Darwin ]; then cc=clang; cxx=clang++; libfuzzer=$(tools/libfuzzer) || exit 2   # Apple's clang and a libFuzzer built from compiler-rt
+else echo "tools/fuzz: needs a clang with libFuzzer (brew install llvm, or set LLVM=<prefix>)"; exit 2
 fi
-list=$target; [ "$target" = all ] && list="parse check zbc native"
-cmake --build build-fuzz -j8 --target $(for t in $list; do printf 'fuzz_%s ' $t; done) >/dev/null || { echo "tools/fuzz: the fuzz targets do not build"; exit 2; }
+if [ ! -f build-fuzz/CMakeCache.txt ]; then
+  cmake -S . -B build-fuzz -DCMAKE_C_COMPILER="$cc" -DCMAKE_CXX_COMPILER="$cxx" -DZN_LIBFUZZER="$libfuzzer" -DZN_SANITIZE=ON -DZN_FUZZ=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo >/dev/null || exit 2
+fi
+list=$target; [ "$target" = all ] && list="parse check zbc native zpk"
+BUILD_DIR="$PWD/build-fuzz" tools/build $(for t in $list; do printf 'fuzz_%s ' $t; done) >/dev/null || { echo "tools/fuzz: the fuzz targets do not build"; exit 2; }
 seed() {   # $1 target: fills build-fuzz/corpus/$1
   d=build-fuzz/corpus/$1; mkdir -p "$d"
   case $1 in
@@ -19,6 +22,8 @@ seed() {   # $1 target: fills build-fuzz/corpus/$1
     zbc)
       for f in tests/compat/*.zbc; do cp "$f" "$d/"; done
       for f in tests/golden/run/*.ts; do ./build/zinc --emit=zbc-bin "$f" "$d/$(basename "$f" .ts).zbc" 2>/dev/null; done ;;
+    zpk)
+      ./build/zpk_test seeds "$d" ;;
     native)
       printf 'i>i\\n12345678' > "$d/scalar"; printf 'siB>s\\nabcdefgh12345678' > "$d/mixed"; printf 'c(is>n)s>P(s)\\nxx' > "$d/callback"; printf 'SIDU>D\\n' > "$d/arrays" ;;
   esac

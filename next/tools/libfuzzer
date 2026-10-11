@@ -1,0 +1,16 @@
+#!/bin/sh
+# usage: tools/libfuzzer   prints the path of a libFuzzer archive for Apple's clang, which instruments (-fsanitize=fuzzer-no-link) but ships
+# no libFuzzer runtime. Built once, from the pinned compiler-rt source and its lib/fuzzer/build.sh recipe, into $ZINC_HOME/cache (ZN-433).
+v=19.1.7   # the LLVM of Apple clang 17
+sum=c12b6e764202c615c1a3af9a13d477846878757ae0e29e5f8979215a6958fffc   # compiler-rt-19.1.7.src.tar.xz, as downloaded 2026-10-11
+dir=${ZINC_HOME:-$HOME/.zinc}/cache/libfuzzer-$v
+[ -f "$dir/libFuzzer.a" ] && { echo "$dir/libFuzzer.a"; exit 0; }
+tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+echo "tools/libfuzzer: building libFuzzer $v (once)" >&2
+curl -fsSL -o "$tmp/crt.tar.xz" "https://github.com/llvm/llvm-project/releases/download/llvmorg-$v/compiler-rt-$v.src.tar.xz" || exit 2
+[ "$(shasum -a 256 "$tmp/crt.tar.xz" | cut -d' ' -f1)" = "$sum" ] || { echo "tools/libfuzzer: the compiler-rt archive does not match its checksum" >&2; exit 2; }
+tar xJf "$tmp/crt.tar.xz" -C "$tmp" "compiler-rt-$v.src/lib/fuzzer" || exit 2
+for f in "$tmp/compiler-rt-$v.src/lib/fuzzer"/Fuzzer*.cpp; do
+  clang++ -g -O2 -fno-omit-frame-pointer -std=c++17 -c "$f" -o "$tmp/$(basename "$f" .cpp).o" || exit 2
+done
+mkdir -p "$dir" && ar rc "$dir/libFuzzer.a" "$tmp"/Fuzzer*.o 2>/dev/null && echo "$dir/libFuzzer.a"
