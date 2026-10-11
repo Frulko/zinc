@@ -1,6 +1,6 @@
 // Type for the museum table: fonts at any pixel size from a ladder of baked sizes, and word wrapping.
 import { font, loadFont, textWidth, lineHeight } from 'zinc:gfx';
-import { exists } from 'zinc:assets';
+import { files } from './files';
 
 // ponytail: the engine bakes only the sizes written as literals in `font('family', px)` calls, and only these families: a text is set in the
 // nearest size of this ladder (at most 6 % off above 14 px). These are the families a project has when it names none; the fonts a theme
@@ -44,15 +44,15 @@ export function clipped(): i32 { const n = cut; cut = 0; return n; }
 let textFace = 'sans', titleFace = 'sans-bold';
 const made = new Map<string, i32>();
 /** Sets the fonts of the texts and of the titles for what is laid out and drawn from now on: a family the engine has ('sans', 'sans-bold',
- *  'mono') or a TrueType file of the assets. */
+ *  'mono') or a TrueType file of the project. */
 export function setFonts(text: string, title: string): void { textFace = text; titleFace = title; }
-/** The font `face` at `px` pixels; `ladder` when it is the family of the ladder, or when there is no such family or file. */
+/** The font `face` at `px` pixels; `ladder` when it is the family of the ladder, or when there is no such family or file. A file is one of
+ *  the project: of the app's assets on the table, of the project's folder in the editor (`files`). */
 function face(name: string, px: number, own: string, ladder: i32[]): i32 {
   if (name === own) return ladder[nearest(px)];
-  const n: i32 = Math.max(6, Math.round(px)), key = `${name} ${n}`;
+  const isFile = name.indexOf('.') > 0, n: i32 = Math.max(6, Math.round(px)), key = `${isFile ? files.path(name) : name} ${n}`;
   let f: i32 = made.get(key) ?? -2;
-  // a file is looked for first: loadFont on a file that is not there leaves its error to the next read of the assets
-  if (f === -2) { f = name.indexOf('.') > 0 && !exists(name) ? -1 : loadFont(name, n); made.set(key, f); }
+  if (f === -2) { f = isFile ? (files.exists(name) ? loadFont(files.path(name), n) : -1) : loadFont(name, n); made.set(key, f); }
   return f >= 0 ? f : ladder[nearest(px)];
 }
 /** The text font nearest to `px` pixels at the designed size. */

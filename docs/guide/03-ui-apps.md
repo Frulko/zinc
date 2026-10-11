@@ -118,7 +118,8 @@ drawText(title, 20, 20, card.title, 0x111827, 255, 0);
 
 - **Same pixels.** The glyphs are rasterized on first use with the baker's algorithm, so text at a size chosen at run time looks
   exactly like text at a size written in the program. A file of the assets that the program names only at run time is read from
-  the assets then. `loadFont` returns -1 when there is no such file. On small targets that embed no font files, it returns the
+  the assets then. A name that is an absolute path (a font of a folder the user opened) is read as `zinc:fs` reads it: it needs
+  the `fs:read` permission for that path. `loadFont` returns -1 when there is no such file or the read is refused. On small targets that embed no font files, it returns the
   nearest baked size.
 - **Characters.** A character that the sources and the text assets never contain (typed by the user, read from the network) is
   drawn from the font's TrueType file at the same size. A program with a text field (`<input>`, `<textarea>`, `TextInput`) keeps

@@ -38,7 +38,7 @@ grep -q ' sequence a$' "$tmp/story" || { echo "museum_theme: a font file that is
 
 # the editor, on that project with no theme, in a folder that holds the two font files and the picture: the theme form offers them beside the
 # three families; "mono" for the texts, a font file for the titles and the picture for the logo are clicked, and Save: the file names them,
-# the form and the live sample (the texts in the family, the logo) are the golden, and the table plays the saved file with all three
+# the form and the live sample (the texts in the family, the titles in the font file, the logo) are the golden, and the table plays the saved file with all three
 mkdir -p "$tmp/e/fonts"; cp "$tmp/a/fonts/"*.ttf "$tmp/e/fonts/"; cp "$tmp/a/logo.png" "$tmp/e/"
 grep -v '"theme": {' "$d/project.json" > "$tmp/e/project.json"
 MUSEUM_EDITOR_LANG=en ZINC_INPUT="$d/editor.input" ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_SIZE=1440x900 ZINC_FRAMES=70 ZINC_SHOT="$tmp/editor.png" \
@@ -48,6 +48,12 @@ for line in '"font": "mono"' '"titleFont": "fonts/JetBrainsMono-Regular.ttf"' '"
 done
 [ -n "$ZN_UPDATE_GOLDEN" ] && cp "$tmp/editor.png" "$editor"
 "$tools/pngdiff" "$tmp/editor.png" "$editor" > "$tmp/diff" 2>&1 || { echo "museum_theme: the editor's frame differs from the golden: $(head -1 "$tmp/diff")"; fail=1; }
+# the live sample follows the font file itself: the same session in a folder where that file holds another face ends on another frame
+mkdir -p "$tmp/f/fonts"; cp "$tmp/a/logo.png" "$tmp/f/"; cp "$tmp/a/fonts/PublicSans-Medium.ttf" "$tmp/f/fonts/"; cp "$tmp/a/fonts/PublicSans-Medium.ttf" "$tmp/f/fonts/JetBrainsMono-Regular.ttf"
+grep -v '"theme": {' "$d/project.json" > "$tmp/f/project.json"
+MUSEUM_EDITOR_LANG=en ZINC_INPUT="$d/editor.input" ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_SIZE=1440x900 ZINC_FRAMES=70 ZINC_SHOT="$tmp/other.png" \
+  "$ZINC" run editor -- "$tmp/f/project.json" > "$tmp/out" 2>&1 || { echo "museum_theme: the editor failed on the other font: $(head -c 300 "$tmp/out")"; fail=1; }
+"$tools/pngdiff" "$tmp/other.png" "$tmp/editor.png" > /dev/null 2>&1 && { echo "museum_theme: the editor's live sample does not follow the font file of the folder"; fail=1; }
 table "$tmp/e/project.json" --interp > "$tmp/story"
 grep -q ' sequence a$' "$tmp/story" && ! grep -q fault "$tmp/story" "$tmp/err" || { echo "museum_theme: the table does not play the file the editor saved: $(head -2 "$tmp/story")"; fail=1; }
 [ -n "$(cat "$tmp/hash")" ] && [ "$(cat "$tmp/hash")" != "$themed" ] && [ "$(cat "$tmp/hash")" != "$plain" ] || { echo "museum_theme: the table does not show what the editor chose"; fail=1; }

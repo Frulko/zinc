@@ -44,8 +44,8 @@ declare module 'zinc:gfx' {
   /** Baked font: family "sans" | "sans-bold" | "mono" | "grid" at the nearest baked pixel size. */
   export function font(family: string, px: i32): i32;
   /** A font at exactly `px` pixels from a TrueType file chosen at run time: a baked family ("sans", "sans-bold", "mono", the stem of a .ttf of
-   *  the assets) or the path of a .ttf in the assets. Its text has the pixels of baked text of that size; characters are rasterized on first
-   *  use. -1 when there is no such file (the prototype: the nearest baked size of the family). */
+   *  the assets), the path of a .ttf in the assets, or an absolute path, read as zinc:fs reads it (the fs:read permission). Its text has the pixels of baked text of that size; characters are rasterized on first
+   *  use. -1 when there is no such file or the read is refused (the prototype: the nearest baked size of the family). */
   export function loadFont(file: string, px: number): i32;
   export function fontAscent(font: i32): i32;
   export function lineHeight(font: i32): i32;

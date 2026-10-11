@@ -698,13 +698,18 @@ void installSys() { hostSys = call; }
 // Called by the system plugin (zinc.json scopes and the dialogs): the fs scope switch and a path the user picked.
 extern "C" void zn_host_fs_scope(int userPickedOnly) { gScopeOn = userPickedOnly != 0; }
 // zinc:gfx loadFont (ZN-669): a font file of the assets that the program names at run time, read whole and added to the rasterizer's files
-// (the baker embeds only the files it saw); -1: not in the assets, or not a TrueType file
+// (the baker embeds only the files it saw). An absolute path (ZN-650.14) is a file outside the assets, an editor's project folder: it is read
+// as zinc:fs reads it and no wider, so the fs:read permission of zinc.json and the fs scope decide, and a refusal is said on stderr.
+// -1: not in the assets, refused, or not a TrueType file. loadFont does not throw: the error of the read is not left for the next fs call.
 extern "C" int zn_asset_font(const char* name, uint32_t n) {
   const std::string d = assetsDir(), rel(name, n);
-  if (d.empty() || rel.empty() || rel.find("..") != std::string::npos) return -1;
+  const bool outside = !rel.empty() && rel[0] == '/';   // ponytail: POSIX absolute paths; a drive letter when the Windows pass ports this file
+  if (rel.empty() || (!outside && (d.empty() || rel.find("..") != std::string::npos))) return -1;
   std::vector<unsigned char> b;
-  if (!readAll(d + "/" + rel, b, "open")) return -1;
-  return zrt::raster::add_font_file(name, n, b.data(), static_cast<uint32_t>(b.size()));
+  const bool ok = readAll(outside ? rel : d + "/" + rel, b, "open");
+  if (!ok && gError.rfind("EACCES", 0) == 0) std::fprintf(stderr, "zinc: loadFont: %s\n", gError.c_str());
+  gFailed = false;
+  return ok ? zrt::raster::add_font_file(name, n, b.data(), static_cast<uint32_t>(b.size())) : -1;
 }
 // zinc:gfx image (ZN-438): an image entry of the mounted packs (ZIM1, docs/reports/zinc-next-assets.md: an imported image, a page of a sprite
 // atlas) that the program names and the baker did not embed becomes a runtime image with straight alpha, as the rasterizer samples them; one
