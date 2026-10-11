@@ -4,7 +4,8 @@ title: >-
   Beyond the prototype: labeled statements, tagged templates, rest/spread forms,
   for-in, getters in object literals, optional catch binding
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-06 23:05'
 labels:
   - language
