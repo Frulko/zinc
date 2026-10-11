@@ -64,9 +64,9 @@ printf "console.log(innerWidth, innerHeight, devicePixelRatio, document.body.cli
 file="$tmp/size.js"
 [ "$(web 1 ZINC_SIZE=800x600 ZINC_SCALE=2 2>&1)" = "800 600 2 800 600" ] || { echo "webenv: the window's size and pixel scale are not the surface's: $(web 1 ZINC_SIZE=800x600 ZINC_SCALE=2 2>&1)"; fail=1; }
 
-printf "window.AudioContext; window.AudioContext; document.pictureInPictureEnabled; navigator.userAgent; window.innerWidth; console.log('done');\n" > "$tmp/trace.js"
+printf "window.speechSynthesis; window.speechSynthesis; document.pictureInPictureEnabled; navigator.userAgent; window.innerWidth; console.log('done');\n" > "$tmp/trace.js"
 file="$tmp/trace.js"
-[ "$(web trace 2>&1)" = "web: unknown window.AudioContext
+[ "$(web trace 2>&1)" = "web: unknown window.speechSynthesis
 web: unknown document.pictureInPictureEnabled
 done" ] || { echo "webenv: ZINC_WEB=trace does not name the missing members once each: $(web trace 2>&1)"; fail=1; }
 exit $fail

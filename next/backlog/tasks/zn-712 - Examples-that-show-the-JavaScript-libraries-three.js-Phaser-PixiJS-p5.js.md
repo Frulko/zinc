@@ -5,7 +5,7 @@ status: Backlog
 assignee:
   - '@parallel'
 created_date: '2026-10-11 11:38'
-updated_date: '2026-10-11 16:08'
+updated_date: '2026-10-11 17:14'
 labels:
   - js
   - demo
@@ -25,7 +25,7 @@ Third lane of the parallel agents (owner's order, `next/backlog/priority.json`).
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [x] #1 examples/js-three: a lit scene with a loaded model and a camera moved by the pointer, run by zinc run --engine quickjs; one frame golden from a scripted session
-- [ ] #2 examples/js-phaser: a small game that is played (sprites, arcade physics, keyboard, a score, sound); a scripted input session ends on a known score
+- [x] #2 examples/js-phaser: a small game that is played (sprites, arcade physics, keyboard, a score, sound); a scripted input session ends on a known score
 - [x] #3 examples/js-pixi: sprites in a container tree, a filter or a mask, pointer events; one frame golden
 - [x] #4 examples/js-p5: a WEBGL sketch that reacts to the pointer; p5.js comes from its pinned download (tools/test-lib), never vendored (LGPL); the 2D sketch waits for Canvas 2D (ZN-570)
 - [x] #5 each example has a short README and a screenshot and appears in tools/examples-status; what a library needs and the engine lacks is given as lines for next/backlog/later.md
@@ -40,4 +40,6 @@ Not proven: frame rates (js-p5 took about 80 ms a frame headless while other tre
 Lines for later.md: (1) zinc run --engine quickjs ignores the window size of zinc.json (targets.<os>.width/height, app.window): the JS examples open at 320x240. (2) importmap.json maps exact names only: a prefix such as "three/addons/" is not resolved, so each addon needs its line. (3) ZINC_INPUT has no key release: a scripted key stays down for the web environment (no keyup), so a test cannot hold then release a key. (4) js-p5: 144 lit boxes took about 80 ms a frame on QuickJS under load; measure on a quiet machine and profile p5's WEBGL path. (5) Canvas 2D (ZN-570) done: add Text to js-pixi and js-phaser, a 2D sketch to js-p5. (6) A JS project could say its engine in zinc.json so that zinc run <dir> needs no --engine quickjs.
 
 Canvas 2D text in the JS examples: js-pixi labels the planets (Text, clicked one larger), js-phaser has Text title/score/game over (no bitmap font), js-p5 has sketch2d.js (P5_SKETCH=sketch2d.js) with screenshot2d.png; READMEs, screenshots and the three t1 tests updated.
+
+2026-10-11 (ZN-573 agent): criterion 2 ticked. The web environment has Web Audio on zinc:audio; next/tests/t1/webenv_audio.sh PASS: in the scripted game Phaser decodes catch.wav and crash.wav, plays three catches then the crash, and the rendered mix holds sound after each start; the session still ends on 'game over: 3 stars' (example_js_phaser PASS). No change in the example. Nobody listened (headless, null backend): hear it once with cd next && build/zinc run ../examples/js-phaser. All five criteria are ticked; the status is left to the coordinator.
 <!-- SECTION:NOTES:END -->
