@@ -34,6 +34,13 @@ zinc run examples/pinball3d -- --scores=scores.txt            # keep the high sc
 | plunger (hold, let go) | Space, Down | Down | the bottom right corner of the table |
 | bump the table from the left, the right, the front | X, . (period), Up | X, Y, Up | |
 | start | Enter, 1 | Start | |
+| the next table, while one waits for a player | Tab, T | Select | a press on its card |
+
+While a table waits for a player, the list of the tables is over it: a card each, with its picture (its backglass, else
+the painting of its playfield) and its name. The table behind the list is the chosen one, and start plays it. The list
+holds the tables of the game's own folder, `assets/tables/` (a folder with its `table.json`, or a `.zpinball` package:
+a table put there is in the list at the next start), and the one `--table` names, which is then the one that is on.
+With a single table there is no list.
 
 The plunger also starts a game. A score that enters the table of the best is signed with three letters: the flippers go
 down and up the alphabet, the plunger (or start) takes the letter; after 30 seconds the letter in hand fills what is left.
@@ -83,7 +90,8 @@ editor by five sessions kept in [`tools/twilight_fair/sessions`](tools/twilight_
 gets the file byte for byte); its 11 images and 2 models are drawn by [`tools/twilight_fair_art.py`](tools/twilight_fair_art.py)
 and its 34 sounds synthesised by [`tools/twilight_fair_sounds.py`](tools/twilight_fair_sounds.py) (715 KB in all).
 [docs/pinball-make-a-table.md](../../docs/pinball-make-a-table.md) walks through the making, and lists what the editor
-could not do. The game starts on the first table of its assets (Tidal Lock); any other is named with `--table`.
+could not do. The game starts on the first table of its assets (Tidal Lock); the others are chosen in the list shown while a table
+waits for a player, or named with `--table`.
 
 ## The look
 
@@ -168,9 +176,13 @@ zinc run examples/pinball3d/tools/probe.ts -- assets/tables/tidal-lock 36 70 1.3
 Tests: `next/tests/t1/pinball3d_format.sh` (the format), `pinball3d.sh` (a scripted game's event log, six pixel goldens,
 single shots), `pinball3d_second_table.sh` (Twilight Fair: its sessions replayed in the editor give its file, the same
 scripted game played on it), `pinball3d_sound.sh` (the scripted game's sound log, every sound decoded, a sound renamed in the file),
-`pinball3d_aot.sh` (the compiled game prints the same logs).
+`pinball3d_aot.sh` (the compiled game prints the same logs), `pinball3d_chooser.sh` (the list of tables: the second one
+chosen and played, a table put in the folder, a package named).
 
 ## Limits
+
+- The list of tables is read when the game starts: a table put in the folder while it runs is not seen, and a file
+  dropped on the window is not opened. The scene and the sounds of a table that leaves the screen are not freed.
 
 - Sounds come from two speakers by a balance, not from a place in space; the music of a state starts at its beginning each time.
 - A pool of light lights the floor it lies on, not the pieces that stand in it: the renderer has no light of its own on a piece
