@@ -23,6 +23,7 @@ hello/src/main.ts | OK |  |
 hero/src/main.tsx | OK |  | 
 inferno-todo/src/main.tsx | OK |  | 
 iot-panel/src/main.tsx | OK |  | 
+js-p5/main.js | OK |  | 
 js-phaser/main.js | OK |  | 
 js-pixi/main.js | OK |  | 
 js-three/main.js | OK |  | 
