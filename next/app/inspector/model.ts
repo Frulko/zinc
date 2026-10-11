@@ -97,3 +97,28 @@ export function consoleLine(params: any): string {
   const type: string = params.type;
   return type + ': ' + text;
 }
+
+/** The matched rules of CSS.getMatchedStylesForNode as lines: each rule's selector, then its properties (ZN-373.02). */
+export function ruleLines(matched: any): string[] {
+  const out: string[] = [];
+  const rules = matched.matchedCSSRules;
+  if (rules !== undefined) for (const m of rules) {
+    const sel: string = m.rule.selectorList.text;
+    out.push(sel + ' {');
+    for (const p of m.rule.style.cssProperties) { const n: string = p.name; const v: string = p.value; out.push('  ' + n + ': ' + v + ';'); }
+    out.push('}');
+  }
+  return out;
+}
+
+/** element.style of a node: its text, and the style sheet id and range CSS.setStyleTexts takes back. */
+export class Inline { sheet: string = ''; range: string = ''; text: string = ''; }
+export function inlineOf(style: any): Inline {
+  const i = new Inline();
+  if (style === undefined) return i;
+  i.sheet = style.styleSheetId; i.text = style.cssText;
+  const r = style.range;
+  const sl: number = r.startLine; const sc: number = r.startColumn; const el: number = r.endLine; const ec: number = r.endColumn;
+  i.range = `{"startLine":${sl},"startColumn":${sc},"endLine":${el},"endColumn":${ec}}`;
+  return i;
+}

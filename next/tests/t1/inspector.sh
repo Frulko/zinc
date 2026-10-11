@@ -1,7 +1,8 @@
 #!/bin/sh
 # The Zinc Inspector (ZN-373.01): app/inspector, a Zinc app, finds tests/data/inspector (zinc:devtools on a free port), attaches to it and shows
 # its Elements tree, the computed style and box of a node it selects (its padding class), and its console (log and error lines, those from
-# before the attach replayed): ZINC_INSPECTOR_DUMP prints what each view shows.
+# before the attach replayed): ZINC_INSPECTOR_DUMP prints what each view shows. ZN-373.02: its rules, element.style set to padding-left: 40px
+# (the target's frame changes and its console gets the class patch), a frame of its screen.
 cd "$(dirname "$0")/../.." || exit 2
 tmp=$(mktemp -d); trap 'kill $target 2>/dev/null; rm -rf "$tmp"' EXIT
 port=$(python3 tests/free_ports.py)
@@ -19,5 +20,10 @@ want '<view class="w-4 h-4 bg-rose-600">'
 want "padding-top: 16px"
 want "log: tick 1"
 want "error: oops 2"
+want ".flex-col.gap-2.p-4 {"   # ZN-373.02: the classes as a rule, element.style edited, the target's frame changed, its screen
+want "element.style: padding-left: 40px;"
+want "frame changed: true"
+want "screen: 320 x 240"
+want 'class="flex-col gap-2 p-4 pl-[40px]"'
 [ $fail -eq 0 ] || cat "$tmp/dump"
 exit $fail

@@ -1,12 +1,14 @@
 // Zinc Inspector (ZN-373.01): inspects running Zinc programs over the Chrome DevTools protocol, as a Zinc app. The programs that listen on the
 // given ports (zinc:devtools: 9229, zinc debug --cdp: 9222), the Elements tree of the one attached, the selected node's computed style and box
-// (highlighted in the program), and its console. Usage: zinc run app/inspector/main.tsx -- [port...]
+// (highlighted in the program), its rules and element.style to edit (ZN-373.02), the program's screen, and its console.
+// Usage: zinc run app/inspector/main.tsx -- [port...]
 // ZINC_INSPECTOR_DUMP=1: attach to the first program, select the first node with a padding class, wait a second and print what each view
 // shows, then quit (tests/t1/inspector.sh).
 import { createSignal, render } from 'zinc:ui/solid';
 import * as sys from 'zinc:sys';
-import { quit } from 'zinc:gfx';
-import { Target, Cdp, Row, discover, rows, styleLines, consoleLine } from './model';
+import { quit, imageFromBytes, destroyImage, imageWidth, imageHeight, drawImage, rect } from 'zinc:gfx';
+import { base64Decode } from 'zinc:web';
+import { Target, Cdp, Row, Inline, discover, rows, styleLines, consoleLine, ruleLines, inlineOf } from './model';
 
 const args = sys.args();
 const ports: i32[] = [];
@@ -21,6 +23,11 @@ const [styles, setStyles] = createSignal<string[]>([]);
 const [box, setBox] = createSignal<string>('');
 const [logs, setLogs] = createSignal<string[]>([]);
 const [status, setStatus] = createSignal<string>('');
+const [rules, setRules] = createSignal<string[]>([]);
+const [inline, setInline] = createSignal<Inline>(new Inline());
+const [draft, setDraft] = createSignal<string>('');   // what is typed in element.style
+const [view, setView] = createSignal<string>('elements');   // elements | screen
+const [frame, setFrame] = createSignal<i32>(-1);   // the program's screen (Page.screencastFrame) as a runtime image
 
 let cdp: Cdp | null = null;
 let reloading = false;
@@ -39,7 +46,12 @@ async function loadDocument(): Promise<void> {
 }
 
 function onEvent(method: string, params: any): void {
-  if (method === 'Runtime.consoleAPICalled') {
+  if (method === 'Page.screencastFrame') {   // the program's screen: decoded, shown, acknowledged so the next one comes
+    const id = imageFromBytes(base64Decode(params.data));
+    if (id >= 0) { if (frame() >= 0) destroyImage(frame()); setFrame(id); }
+    const session: number = params.sessionId;
+    if (cdp !== null) (cdp as Cdp).call('Page.screencastFrameAck', `{"sessionId":${session}}`);
+  } else if (method === 'Runtime.consoleAPICalled') {
     const l = logs().slice(logs().length > 199 ? logs().length - 199 : 0);
     l.push(consoleLine(params));
     setLogs(l);
@@ -72,6 +84,25 @@ async function select(id: i32): Promise<void> {
   setStyles(styleLines(await c.call('CSS.getComputedStyleForNode', `{"nodeId":${id}}`)));
   const b = await c.call('DOM.getBoxModel', `{"nodeId":${id}}`);
   if (b.model !== undefined) { const w: number = b.model.width; const h: number = b.model.height; setBox(w + ' × ' + h); } else setBox('');
+  const m = await c.call('CSS.getMatchedStylesForNode', `{"nodeId":${id}}`);
+  setRules(ruleLines(m));
+  const i = inlineOf(m.inlineStyle);
+  setInline(i);
+  setDraft(i.text);
+}
+
+/** element.style of the selected node becomes `text` (CSS.setStyleTexts): the program changes at once and prints the patch to its console. */
+async function applyStyle(text: string): Promise<void> {
+  if (cdp === null || selected() < 0 || inline().sheet === '') return;
+  const i = inline();
+  const r = await (cdp as Cdp).call('CSS.setStyleTexts', `{"edits":[{"styleSheetId":${JSON.stringify(i.sheet)},"range":${i.range},"text":${JSON.stringify(text)}}]}`);
+  setStatus(r.styles !== undefined ? 'element.style applied' : 'not applied');
+  await select(selected());
+}
+
+async function screen(on: boolean): Promise<void> {   // the screencast: frames of the program's screen while the Screen view is open
+  if (cdp === null) return;
+  await (cdp as Cdp).call(on ? 'Page.startScreencast' : 'Page.stopScreencast', on ? '{"format":"png","maxWidth":640,"maxHeight":480}' : '{}');
 }
 
 // ---- the views
@@ -95,6 +126,32 @@ function TreeRow(p: { r: Row }): i32 {
   </Button>;
 }
 
+function ScreenView(): i32 {   // the last frame, fitted into the view with its proportions
+  return <Canvas class="flex-1" onDraw={(x: i32, y: i32, w: i32, h: i32) => {
+    rect(x, y, w, h, 0xe2e8f0);
+    const f = frame();
+    if (f < 0) return;
+    const iw = imageWidth(f), ih = imageHeight(f);
+    const k = Math.min(w / Math.max(1, iw), h / Math.max(1, ih));
+    drawImage(f, x + (w - iw * k) / 2, y + (h - ih * k) / 2, iw * k, ih * k, 255, 0);
+  }} />;
+}
+
+function Styles(): i32 {
+  return <View class="flex-col gap-1 p-2 border-b">
+    <Text class="text-xs font-medium text-slate-600">element.style</Text>
+    <Input class="h-7 px-2 text-xs font-mono border rounded" value={draft()} onInput={(v: string) => { setDraft(v); }} />
+    <Btn label="Apply" onClick={() => { applyStyle(draft()); }} />
+    <View class="flex-col">{rules().map((l: string) => <Text class="text-xs font-mono text-slate-700">{l}</Text>)}</View>
+  </View>;
+}
+
+function Tab(p: { id: string; label: string }): i32 {
+  return <Button class={'flex-row items-center h-7 px-3 rounded-md ' + (view() === p.id ? 'bg-slate-300' : 'bg-slate-50')} onClick={() => { setView(p.id); screen(p.id === 'screen'); }}>
+    <Text class="text-xs font-medium text-slate-900">{p.label}</Text>
+  </Button>;
+}
+
 function App(): i32 {
   return <View class="flex-col w-full h-full bg-white">
     <View class="flex-row flex-1">
@@ -107,12 +164,18 @@ function App(): i32 {
         <Text class="text-xs text-slate-500">{status()}</Text>
       </View>
       <View class="flex-col flex-1">
-        <Text class="px-2 py-1 text-xs font-medium text-slate-600 border-b">{attached() === '' ? 'Elements' : 'Elements of ' + attached()}</Text>
+        <View class="flex-row items-center gap-1 px-2 py-1 border-b">
+          <Tab id="elements" label="Elements" />
+          <Tab id="screen" label="Screen" />
+          <Text class="flex-1 text-xs text-slate-600">{attached()}</Text>
+        </View>
+        {view() === 'screen' ? <ScreenView /> :
         <ScrollView class="flex-1">
           <View class="flex-col">{tree().map((r: Row) => <TreeRow r={r} />)}</View>
-        </ScrollView>
+        </ScrollView>}
       </View>
       <View class="flex-col w-72 border-l">
+        <Styles />
         <Text class="px-2 py-1 text-xs font-medium text-slate-600 border-b">{box() === '' ? 'Computed' : 'Computed · ' + box()}</Text>
         <ScrollView class="flex-1">
           <View class="flex-col p-2">{styles().map((s: string) => <Text class="text-xs font-mono text-slate-800">{s}</Text>)}</View>
@@ -141,6 +204,23 @@ async function dump(): Promise<void> {   // ZINC_INSPECTOR_DUMP: the views as te
   for (const r of tree()) console.log('  '.repeat(r.depth + 1) + r.label);
   console.log('selected: ' + selected() + ' ' + box());
   for (const s of styles()) console.log('  ' + s);
+  console.log('rules:');
+  for (const l of rules()) console.log('  ' + l);
+  if (cdp !== null && selected() >= 0) {   // ZN-373.02: element.style edited, the program's frame before and after, and its screen
+    const c = cdp as Cdp;
+    const before: string = (await c.call('Page.captureScreenshot', '{}')).data;
+    const was = box();
+    await applyStyle('padding-left: 40px;');
+    await new Promise<void>((resolve) => { setTimeout(() => { resolve(); }, 300); });
+    const after: string = (await c.call('Page.captureScreenshot', '{}')).data;
+    console.log('element.style: ' + inline().text + ' | box ' + was + ' -> ' + box() + ' | frame changed: ' + (before !== after));
+    setView('screen');   // the dump ends on the Screen view (a ZINC_SHOT shows it)
+    await screen(true);
+    for (let k = 0; k < 40 && frame() < 0; k++) await new Promise<void>((resolve) => { setTimeout(() => { resolve(); }, 50); });
+    console.log('screen: ' + (frame() >= 0 ? imageWidth(frame()) + ' x ' + imageHeight(frame()) : 'none'));
+    await screen(false);
+    await new Promise<void>((resolve) => { setTimeout(() => { resolve(); }, 300); });   // the patch reaches the console
+  }
   console.log('console:');
   for (const l of logs()) console.log('  ' + l);
   quit();
