@@ -1,10 +1,10 @@
 ---
 id: ZN-371
 title: 'A real debugger: breakpoints, stepping, stack, locals, watches (CDP and DAP)'
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-08 15:16'
-updated_date: '2026-10-10 22:32'
+updated_date: '2026-10-11 07:01'
 labels:
   - devtools
   - debugger
@@ -22,13 +22,15 @@ Owner, 2026-10-08: a real debugger as a module. The interpreter gains line table
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 VS Code stops at a breakpoint in a .tsx file, shows locals and steps (scripted DAP test)
-- [ ] #2 Chrome DevTools' Sources panel does the same over CDP
-- [ ] #3 an attached-but-idle debugger keeps the interpreter within 5% of its speed (bench), none attached 0%
+- [x] #1 VS Code stops at a breakpoint in a .tsx file, shows locals and steps (scripted DAP test)
+- [x] #2 Chrome DevTools' Sources panel does the same over CDP
+- [x] #3 an attached-but-idle debugger keeps the interpreter within 5% of its speed (bench), none attached 0%
 <!-- AC:END -->
 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
 Split on 2026-10-11 into ZN-371.01 (interpreter debug core and zinc debug on the command line, D84), .02 DAP for VS Code, .03 .tsx positions, .04 CDP Debugger domain, .05 conditions, logpoints, watches, exceptions, closures and globals, .06 AOT in lldb. The subtasks take the parent's place in the order (ordinals 25001-25006).
+
+Done (2026-10-11) through its subtasks: .01 interpreter core and zinc debug (AC3 measured: idle debugger 0%, normal builds byte-identical and as fast), .02 DAP for VS Code (AC1, scripted DAP client), .03 .tsx lines, .04 CDP for Chrome DevTools' Sources panel (AC2, scripted CDP client), .05 conditions, logpoints, watches, exceptions, closures, globals, .06 zinc build --debug for lldb (Review: lldb's launch needs developer mode on this Mac). Not verified with the real VS Code (not installed) and the real DevTools frontend (ZN-709).
 <!-- SECTION:NOTES:END -->

@@ -37,6 +37,17 @@ std::set<std::string> namesOf(int which) {
   return s;
 }
 
+// The C++ name of compiled function i: f<i> (the window entry) or t<i> (typed); a debug build puts the Zinc name in front, so lldb's stack
+// says add__t2 rather than t2 (ZN-371.06).
+std::string fname(const zbc::Module& m, char kind, std::size_t i) {
+  std::string n;
+  if (!m.lines.empty() && i < m.functions.size()) {
+    for (char c : m.functions[i].name) n += std::isalnum(static_cast<unsigned char>(c)) ? c : '_';
+    n += "__";
+  }
+  return n + kind + std::to_string(i);
+}
+
 struct FnEmitter {
   const zbc::Module& m;
   const zbc::Function& f;
@@ -64,7 +75,41 @@ struct FnEmitter {
   }
   static bool hasStruct(const zbc::ClassInfo& c) { return c.kind == zbc::CKind::Object && !c.isInterface && !c.fields.empty(); }
   std::string num(std::int64_t v) { return std::to_string(v); }
-  void line(const std::string& s) { out += "  " + s + "\n"; }
+  // A debug build (zinc build --debug, ZN-371.06): every C++ line of a statement carries its .ts line, so lldb steps by the source; the code of
+  // the engine's own functions is "zinc-runtime".
+  std::string dbgLine;
+  void line(const std::string& s) { out += dbgLine + "  " + s + "\n"; }
+  // the typed copy of each local of a debug build, under its source name: what lldb's frame variable shows
+  std::map<unsigned, std::pair<std::string, std::string>> named;   // home register -> (C++ name, conversion of the register)
+  void declareLocals() {
+    if (m.lines.empty() || f.vars.empty()) return;
+    static const std::set<std::string> taken = {"m", "r", "win", "zt", "ze", "st", "e", "a", "Slot", "Obj", "op", "auto", "bool", "char", "double", "float", "int", "long", "short",
+      "signed", "unsigned", "register", "union", "struct", "template", "typename", "operator", "friend", "inline", "virtual", "explicit", "mutable", "goto", "sizeof",
+      "volatile", "namespace", "using", "asm", "and", "or", "not", "xor", "bitand", "bitor", "compl", "default", "delete", "new", "this", "true", "false", "nullptr"};
+    for (const zbc::VarInfo& v : f.vars) {
+      std::string name;
+      for (char c : v.name) name += std::isalnum(static_cast<unsigned char>(c)) || c == '_' ? c : '_';
+      if (name == "this") name = "self";
+      if (taken.count(name) || (name.size() > 1 && (name[0] == 'r' || name[0] == 'a' || name[0] == 'L' || name[0] == 't' || name[0] == 'f') && std::isdigit(static_cast<unsigned char>(name[1])))) name += "_";
+      std::string type, conv = r(v.reg);
+      switch (v.vt.cls) {
+        case zbc::Cls::I:
+          if (v.type == "bool") { type = "bool"; conv = conv + " != 0"; }
+          else if (!v.type.empty() && v.type[0] == 'u') { type = "std::uint64_t"; conv = "static_cast<std::uint64_t>(" + conv + ")"; }
+          else { type = "std::int64_t"; conv = "static_cast<std::int64_t>(" + conv + ")"; }
+          break;
+        case zbc::Cls::S: type = "float"; conv = "zn::ops::asF(" + conv + ")"; break;
+        case zbc::Cls::D: type = "double"; conv = "zn::ops::asD(" + conv + ")"; break;
+        default: {
+          const zbc::CKind k = v.vt.ref < m.classes.size() ? m.classes[v.vt.ref].kind : zbc::CKind::Object;
+          type = k == zbc::CKind::String ? "zn::rt::StrObj*" : k == zbc::CKind::Array ? "zn::rt::ArrObj*" : "zn::rt::Obj*";
+          conv = "reinterpret_cast<" + type + ">(" + conv + ")";
+        }
+      }
+      line(type + " " + name + "{};   // " + v.name + ": " + v.type);
+      named[v.reg] = {name, conv};
+    }
+  }
 
   static unsigned lengthOf(std::uint32_t w) {
     Fmt fm = kOps[opOf(w)].fmt;
@@ -141,11 +186,11 @@ struct FnEmitter {
     if (typed) {   // typed parameters and result, the registers are locals, a failure is a flag: no window, no status codes (ZN-144)
       std::string ps;
       for (std::size_t k = 0; k < f.params.size(); ++k) ps += ", Slot a" + std::to_string(k);
-      out += "// function " + std::to_string(index) + " (typed)\nZFN Slot t" + std::to_string(index) + "(Machine& m" + ps + ") {\n";
+      out += "// function " + std::to_string(index) + " (typed)\nZFN Slot " + fname(m, 't', index) + "(Machine& m" + ps + ") {\n";
       line("if (__builtin_expect(op::stackLow(m), 0)) { m.error = \"stack overflow\"; m.failed = true; return 0; }");
       for (std::uint32_t k = 0; k < (f.nregs ? f.nregs : 1); ++k) line("Slot r" + std::to_string(k) + (k < f.params.size() ? " = a" + std::to_string(k) : "") + ";");
     } else
-    out += "// function " + std::to_string(index) + (leaf ? " (a leaf: its registers are locals)" : "") + "\nZFN int f" + std::to_string(index) + "(Machine& m, Slot* " + (leaf || locals ? "win" : "r") + ") {\n";
+    out += "// function " + std::to_string(index) + (leaf ? " (a leaf: its registers are locals)" : "") + "\nZFN int " + fname(m, 'f', index) + "(Machine& m, Slot* " + (leaf || locals ? "win" : "r") + ") {\n";
     if (!typed) line("const char* zt; const char* ze;");
     if (typed) {}
     else if (leaf) {  // the registers are C++ locals so the compiler keeps them in machine registers; arguments come in, the result goes out through the window
@@ -157,11 +202,18 @@ struct FnEmitter {
       line("Slot r[" + std::to_string(f.nregs ? f.nregs : 1) + "];");
       for (std::size_t k = 0; k < f.params.size(); ++k) line("r[" + std::to_string(k) + "] = win[" + std::to_string(k) + "];");
     }
+    if (!m.lines.empty()) out = "#line 1 \"zinc-runtime\"\n" + out;   // the code before the first statement and between them is the engine's
+    declareLocals();
     for (std::size_t pc = 0; pc < f.code.size(); pc += lengthOf(f.code[pc])) {
       std::uint32_t w = f.code[pc];
       const OpInfoRow& o = kOps[opOf(w)];
       std::string nm = o.name;
       if (labels.count(static_cast<std::uint32_t>(pc))) out += "L" + std::to_string(pc) + ":\n";
+      if (nm == "Line" && axOf(w) < m.lines.size() && m.lines[axOf(w)].file < m.files.size()) {   // the .ts line of what follows
+        std::string file;
+        for (char c : m.files[m.lines[axOf(w)].file]) { if (c == '"' || c == '\\') file += '\\'; file += c; }
+        dbgLine = "#line " + std::to_string(m.lines[axOf(w)].line) + " \"" + file + "\"\n";
+      }
       unsigned A = aOf(w), B = bOf(w), C = cOf(w), D = dOf(w);
       auto P = static_cast<std::uint32_t>(pc);
       if (arith.count(nm)) line(r(A) + " = zn::ops::" + nm + "(" + r(B) + ", " + (o.binary ? r(C) : std::string("0")) + ");");
@@ -181,9 +233,9 @@ struct FnEmitter {
         const zbc::Function& g = m.functions[D];
         std::string args;
         for (std::size_t k = 0; k < g.params.size(); ++k) args += ", " + r(A + static_cast<unsigned>(k));
-        line("{ Slot v = t" + std::to_string(D) + "(m" + args + "); if (__builtin_expect(m.failed, 0)) return 0; " + (g.ret.cls == zbc::Cls::None ? "(void)v;" : r(A) + " = v;") + " }");
+        line("{ Slot v = " + fname(m, 't', D) + "(m" + args + "); if (__builtin_expect(m.failed, 0)) return 0; " + (g.ret.cls == zbc::Cls::None ? "(void)v;" : r(A) + " = v;") + " }");
       }
-      else if (nm == "Call") { unsigned n = static_cast<unsigned>(m.functions[D].params.size()); line("{ " + toWin(A, n) + "int st = f" + std::to_string(D) + "(m, " + frame(A) + "); " + fromWin(A, std::max(1u, n)) + afterCall(P) + " }"); }
+      else if (nm == "Call") { unsigned n = static_cast<unsigned>(m.functions[D].params.size()); line("{ " + toWin(A, n) + "int st = " + fname(m, 'f', D) + "(m, " + frame(A) + "); " + fromWin(A, std::max(1u, n)) + afterCall(P) + " }"); }
       else if (nm == "CallVirt") line("{ " + (typed ? "const char* ce = nullptr; Slot vt = " + r(A) + "; const Func* cf = op::virtualTarget(&vt, 0, " + std::to_string(D) + ", ce); if (__builtin_expect(ce != nullptr, 0)) " + trap("ce") + " " : (usedTrap = true, "ZVIRT(" + r(A) + ", " + std::to_string(D) + ") ")) + toWin(A, virtArity(D, A)) + "int st = cf->native(m, " + frame(A) + "); " + fromWin(A, virtArity(D, A)) + afterCall(P) + " }");
       else if (nm == "Ret" && typed) line("return " + r(A) + ";");
       else if (nm == "RetV" && typed) line("return 0;");
@@ -240,7 +292,13 @@ struct FnEmitter {
       else if (nm == "LogBegErr") line("m.errMark = m.out->size();");
       else if (nm == "LogEndErr") line("m.flushErrLine();");
       else line("#error \"AOT: no translation for " + nm + "\"");
+      if (!named.empty() && (nm == "Move" || nm == "LoadI" || nm == "LoadNull")) {   // a debug build's home register: its named copy follows
+        auto it = named.find(aOf(w));
+        if (it != named.end()) line(it->second.first + " = " + it->second.second + ";");
+      }
     }
+    dbgLine.clear();
+    if (!m.lines.empty()) out += "#line 1 \"zinc-runtime\"\n";
     line("return 0;");
     if (usedTrap) out += "Ltrap:\n  m.error = zt;\n  return 2;\n";
     if (usedRt) out += "Lrterr:\n  if (ze != m.error.c_str()) m.error = ze;\n  return 2;\n";
@@ -248,7 +306,7 @@ struct FnEmitter {
     if (typed) {   // the window entry the interpreter, the other compiled functions and the virtual calls use
       std::string args;
       for (std::size_t k = 0; k < f.params.size(); ++k) args += (k ? ", r[" : ", r[") + std::to_string(k) + "]";
-      out += "ZFN int f" + std::to_string(index) + "(Machine& m, Slot* r) {\n  m.failed = false;\n  Slot v = t" + std::to_string(index) + "(m" + args + ");\n  if (__builtin_expect(m.failed, 0)) return 2;\n" +
+      out += "ZFN int " + fname(m, 'f', index) + "(Machine& m, Slot* r) {\n  m.failed = false;\n  Slot v = " + fname(m, 't', index) + "(m" + args + ");\n  if (__builtin_expect(m.failed, 0)) return 2;\n" +
              (f.ret.cls == zbc::Cls::None ? "  (void)v;\n" : "  r[0] = v;\n") + "  return 0;\n}\n\n";
     }
   }
@@ -364,8 +422,8 @@ std::vector<std::string> emitCppParts(const zbc::Module& mod, const std::vector<
     s += " };\nstatic_assert(sizeof(" + n + ") == sizeof(Obj) + " + std::to_string(ci.fields.size()) + " * sizeof(Slot), \"" + n + " layout\");\n";
   }
   for (std::size_t i = 0; i < mod.functions.size(); ++i) {
-    s += "ZFN int f" + std::to_string(i) + "(Machine& m, Slot* r);\n";
-    if (typedFn[i]) { s += "ZFN Slot t" + std::to_string(i) + "(Machine& m"; for (std::size_t k = 0; k < mod.functions[i].params.size(); ++k) s += ", Slot"; s += ");\n"; }
+    s += "ZFN int " + fname(mod, 'f', i) + "(Machine& m, Slot* r);\n";
+    if (typedFn[i]) { s += "ZFN Slot " + fname(mod, 't', i) + "(Machine& m"; for (std::size_t k = 0; k < mod.functions[i].params.size(); ++k) s += ", Slot"; s += ");\n"; }
   }
   s += "\n";
   std::vector<std::string> bodies(mod.functions.size());
@@ -407,7 +465,7 @@ std::vector<std::string> emitCppParts(const zbc::Module& mod, const std::vector<
   bool hasFixture = false;
   for (const zn::zbc::Native& nt : mod.natives) hasFixture = hasFixture || nt.module == "Fixture";
   s += "static int (*const kNatives[])(Machine&, Slot*) = {";
-  for (std::size_t i = 0; i < mod.functions.size(); ++i) s += (i ? ", f" : "f") + std::to_string(i);
+  for (std::size_t i = 0; i < mod.functions.size(); ++i) s += (i ? ", " : "") + fname(mod, 'f', i);
   s += "};\n\n";
   s += "// The engine of a compiled program: run the native code of the function.\n"
        "bool zn::rt::Machine::exec(const Func* f, Slot* base) {\n"

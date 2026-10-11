@@ -302,6 +302,7 @@ static void scanHostImports(const zn::frontend::Program& prog) {
 static bool gDebug = false;                    // zinc debug (ZN-371.01): debug builds, run under the debugger
 static bool gDap = false;                      // zinc debug --dap (ZN-371.02): the Debug Adapter Protocol on standard input and output
 static bool gCdp = false;                      // zinc debug --cdp[=port] (ZN-371.04): Chrome DevTools' Sources panel
+static bool gDebugNative = false;              // zinc build --debug (ZN-371.06): -g -O0, local symbols kept
 static std::vector<std::string> gDebugSources;  // the text of each file of the debug build (Module::files)
 static int compileToZbc(const char* path, zn::zbc::Module& out) {
   const auto t0 = std::chrono::steady_clock::now();
@@ -567,8 +568,8 @@ static int buildNative(const char* argv0, const char* entry, const char* out, zn
 #endif
   // no stack protector: the generated code indexes its frames with constants only; no local symbols (480 KB of hero), ZN_KEEP_SYMBOLS=1 keeps them for profilers
   // linker flags stay out of cflags: with one, clang refuses to write the precompiled header ("cannot specify -o when generating multiple output files")
-  const std::string ldflags = deadStrip + (std::getenv("ZN_KEEP_SYMBOLS") ? "" : " -Wl,-x");
-  const std::string cflags = " -std=c++20 -O2" + std::string(noOutline) + " -fno-stack-protector -w -ffp-contract=off -I '" + gRoot + "/include' -I '" + gRoot + "/src' -I '" + gRoot + "/third_party/mimalloc/include'";
+  const std::string ldflags = deadStrip + (std::getenv("ZN_KEEP_SYMBOLS") || gDebugNative ? "" : " -Wl,-x");
+  const std::string cflags = std::string(gDebugNative ? " -std=c++20 -O0 -g" : " -std=c++20 -O2") + std::string(noOutline) + " -fno-stack-protector -w -ffp-contract=off -I '" + gRoot + "/include' -I '" + gRoot + "/src' -I '" + gRoot + "/third_party/mimalloc/include'";
   std::vector<fs::path> units{cpp};
   units.insert(units.end(), moreUnits.begin(), moreUnits.end());
   std::vector<std::string> objs;   // several units: their cached objects (aotcache), compiled below when missing
@@ -1203,6 +1204,12 @@ int main(int argc, char** argv) {
     return rc;
   }
   if (argc == 2 && !std::strcmp(argv[1], "devapp-id")) { std::puts(zn::tc::runningBundleId().c_str()); return 0; }   // the CFBundleIdentifier of this process ("" outside a bundle): the selftest of the dev bundle
+  for (int k = 1; k < argc && argc > 1 && !std::strcmp(argv[1], "build"); ++k) {   // zinc build --debug: a debug build compiled with -g -O0, the .ts lines for lldb (ZN-371.06)
+    if (std::strcmp(argv[k], "--debug")) continue;
+    for (int j = k; j + 1 < argc; ++j) argv[j] = argv[j + 1];
+    --argc; --k;
+    gDebug = gDebugNative = true;
+  }
   for (int k = 1; k + 1 < argc && argc > 1 && !std::strcmp(argv[1], "build"); ++k) {   // zinc build --bundle <file> -o <out>.app: the program inside a macOS bundle
     if (std::strcmp(argv[k], "--bundle")) continue;
     for (int j = k; j + 1 < argc; ++j) argv[j] = argv[j + 1];

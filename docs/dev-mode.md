@@ -257,6 +257,12 @@ is typed by the declarations, so `name * 2` is `Z0107` and `p.z` `Z0106` as in t
 (conditions, logpoints, the exception filters, watches, the Closure and Globals scopes) and Chrome DevTools (conditions,
 `setPauseOnExceptions`, the console and watches on a paused frame, the closure and global scopes) get the same.
 
+A compiled program debugs in lldb (ZN-371.06): `zinc build --debug app.ts -o app` makes the same debug build, compiled to C++ with `-g -O0`:
+each statement's C++ carries a `#line` to its `.ts` line, each local is a typed C++ variable under its source name (`double total`,
+`zn::rt::Obj* p`; `this` is `self`), and the functions are named after the Zinc ones (`add__t2`), so `lldb app` then `b main.ts:9`, `run`,
+`frame variable total` and `bt` read like the source. lldb needs developer mode to launch a process (`sudo DevToolsSecurity -enable` on
+macOS). Normal builds are unchanged byte for byte.
+
 `zinc debug --cdp app.ts` (ZN-371.04) opens the debugger to Chrome DevTools: a target of the engine's own on `127.0.0.1:9222` (`--cdp=port`
 for another; 9222 is in `chrome://inspect`'s default list, the inspector of `zinc:devtools` keeps 9229). *inspect* under Remote Target opens
 DevTools with the Sources panel: the program's files (`Debugger.scriptParsed`, their text), breakpoints by line, the paused program's call
