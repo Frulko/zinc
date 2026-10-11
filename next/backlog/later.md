@@ -35,6 +35,11 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-327: `zinc monitor --udp` binds every interface and prints control characters raw: bind 127.0.0.1 by default and escape them, as the prototype did.
 - ZN-327: release builds have none of the prototype's hardening (stack protector, FORTIFY, RELRO); decide, measured with tools/bench-m4.
 - ZN-327: docs/guide/06-testing.md still says --debug builds with ASan and a leak report (in Next an lldb build; leaks: zinc mem --check-leaks).
+- ZN-434: asset importers in parallel (ZINC_ASSET_JOBS) when a first build of many images measurably waits on one core.
+- ZN-434: a stat index of the asset sources (size, mtime) when reading and hashing every source shows in second builds (100 MB: 117 ms today).
+- ZN-434: importer versions instead of the engine's executable stamp in the asset keys once the importers settle, so CI shares ~/.zinc/cache/assets across engine builds and `zinc assets verify` can compare.
+- ZN-434: key the font baker on its scan's result (sizes, characters, faces) instead of the source texts, so an edit that adds no size or character reuses the blob in `zinc dev`.
+- ZN-434: zpk::write taking entries already compressed, so a release pack with one changed entry recompresses that entry only.
 
 ## Demos
 
@@ -49,3 +54,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-354: tests/t2/cross_plugin_pack.sh and the linux-armhf leg of plugin.yml (which runs no tests: run them under qemu-arm or on a Pi).
 - ZN-274: the 8-tween budget of transitions on a real ESP32.
 - ZN-327: the guide's flow for --target linux and rpi (export, --deb, the itch channels).
+- ZN-434: tests/t0/assets.sh on Linux x86_64 and arm64, and zn_assets (xxhash.h) under the zig cross builds.

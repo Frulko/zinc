@@ -438,6 +438,12 @@ The CPU time ZINC_GL_STATS calls "to submit" includes waits for the GPU (5.6 to 
 measured at load 6 from other builds, before ZN-432 changed the image path of the replay. GL replay against the software frame for convex
 and concave polygons: 0.06% of the pixels more than 24 apart, mean error 0.07 (tests/t1/gl_convex.sh).
 
+### ZN-434: asset builds (2026-10-11, Intel Mac, load 2.5 to 3.3 with another agent building)
+
+`zinc assets build` of the game-2d template: first build 13.5 ms, second (nothing changed) 9.5 ms for the whole command, median of 21
+(1 ms inside the build; the criterion asks under 50 ms), first release build (zstd 19) 20.5 ms. With 100 MB of data added: first build
+1.45 s, second 117 ms (every source is read and hashed). `zinc bake` of game-2d, compile included: 50.5 ms from the cache, 76.3 ms baked.
+
 ### ZN-433: ZPK packs (2026-10-11, Intel Mac, load 3.2 to 4.2 with other agents building: indicative)
 
 10,000 JSON-like entries of 200 to 3,200 B (17.3 MB raw), `zpk_test`: packed sizes none 18.2 MB, lz4 3.7 MB, zstd 2.8 MB, zstd with a
