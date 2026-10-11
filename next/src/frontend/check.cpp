@@ -469,6 +469,7 @@ struct Checker {
         else if (x.kids.empty() && x.text == "any" && lookup("any") == kNone) { r = tDyn; if (a.strict && !rawDyn() && !inPrelude && !generating && !libraryNode(t)) diag(kZDynInStrict, t, "`any`"); }
         else if (x.kids.empty() && x.text == "unknown" && lookup("unknown") == kNone && dynObjOf() != kNone) r = objType(dynObj);
         else if (x.text == "Array" && x.kids.size() == 1) r = arrayOf(annotation(x.kids[0]));
+        else if (x.kids.empty() && x.text == "TemplateStringsArray" && lookup(x.text) == kNone) r = arrayOf(tStr);  // the strings of a tagged template (the parser makes the call)
         else if (x.text == "Map" && x.kids.size() == 2 && lookup(x.text) == kNone) { TypeId k0 = annotation(x.kids[0]), v0 = annotation(x.kids[1]); r = mapOf(k0, v0); }
         else if (x.text == "Set" && x.kids.size() == 1 && lookup(x.text) == kNone) r = setOf(annotation(x.kids[0]));
         else {

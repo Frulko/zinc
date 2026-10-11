@@ -486,7 +486,7 @@ struct Parser {
         ++i;
         e = mk(N::NonNull, startOf(e), prevEnd(), {}, {e});
       } else if (cur().kind == Tok::TemplateNoSub || cur().kind == Tok::TemplateHead) {
-        unsupported("tagged templates");
+        e = taggedTemplate(e);
       } else return e;
     }
   }
@@ -512,6 +512,30 @@ struct Parser {
   // Raw text of a template piece without its delimiters (`, ${ and }), as a String node.
   std::uint32_t quasi(const Token& k, std::uint32_t lead, std::uint32_t trail) {
     return mk(N::String, k.start + lead, k.end - trail, s.substr(k.start + lead, k.end - k.start - lead - trail));
+  }
+
+  // tag`a${x}b` is the call tag(['a', 'b'], x): the array holds the cooked strings (a TemplateStringsArray is a string[] here).
+  // String.raw`a\n${x}` is the template itself with every backslash doubled, so cooking gives back the text as written.
+  std::uint32_t taggedTemplate(std::uint32_t tag) {
+    std::uint32_t tpl = primary();
+    const std::vector<std::uint32_t> parts = r.ast.nodes[tpl].kids;
+    const Node& tg = r.ast.nodes[tag];
+    if (tg.kind == N::Member && tg.text == "raw" && r.ast.nodes[tg.kids[0]].kind == N::Ident && r.ast.nodes[tg.kids[0]].text == "String") {
+      static std::deque<std::string> rawTexts;  // process-wide like setterNames: the nodes of merged modules view them
+      for (std::size_t k = 0; k < parts.size(); k += 2) {
+        std::string raw;
+        for (char c : r.ast.nodes[parts[k]].text) { raw += c; if (c == '\\') raw += c; }
+        rawTexts.push_back(std::move(raw));
+        r.ast.nodes[parts[k]].text = rawTexts.back();
+      }
+      r.ast.nodes[tpl].start = startOf(tag);  // the template takes the place of the whole tagged expression
+      return tpl;
+    }
+    std::vector<std::uint32_t> strs, args{tag};
+    for (std::size_t k = 0; k < parts.size(); k += 2) strs.push_back(mk(N::Template, startOf(parts[k]), endOf(parts[k]), {}, {parts[k]}));
+    args.push_back(mk(N::Array, r.ast.nodes[tpl].start, endOf(tpl), {}, std::move(strs)));
+    for (std::size_t k = 1; k < parts.size(); k += 2) args.push_back(parts[k]);
+    return mk(N::Call, startOf(tag), endOf(tpl), {}, std::move(args));
   }
 
   // ---- function expressions
