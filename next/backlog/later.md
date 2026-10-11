@@ -168,6 +168,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-717: ports on the libuv loop instead of the 5 ms timer if the wake-ups show in resmon.
 - ZN-715: try `zinc:midi` with a real keyboard and with GarageBand on "Zinc keys"; wake the loop from RtMidi's callback and timestamp messages, after measuring the 2 ms timer.
 - ZN-715: a `zinc:audio` tone in `examples/midi` so a first run is heard.
+- ZN-573: a web program that makes sound builds plugins/audio at its first run (the QuickJS engine has no stand-in for a native module); without a compiler it prints one line and stays silent: first-run experience.
+- ZN-573: OscillatorNode is silent, loopStart/loopEnd are not read, suspend() mutes without pausing, the audio element decodes whole files (no streaming): what ZzFX-style synths, Howler sprites and long music need.
+- ZN-573: ZINC_AUDIO_LOG prints one peak for both channels (pan cannot be proven); a sound-only script opens a window (the web audio clock needs frames).
+- ZN-573: listen to `zinc run examples/js-phaser` on Core Audio; Howler and Kaplay through `tools/test-lib`.
 
 ## Cross-platform pass
 
