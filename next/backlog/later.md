@@ -30,6 +30,11 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-274: CSS's reversing shortening: a transition sent back mid-way should take the shorter time.
 - ZN-274: transition keys in style objects (Reanimated 4's CSS transitions) and arbitrary values such as duration-[2s].
 - ZN-274: bench-render before and after the applyProp guard of transitions, on a quiet machine.
+- ZN-327: zinc:fs watch of a file reports its changes without fs:read under "permissions" (the other unchecked calls were fixed).
+- ZN-327: `zinc export --target linux` builds aarch64-linux; add an x86_64-linux target (zinc publish labels the aarch64 build Linux (ARM64), channel linux-arm64).
+- ZN-327: `zinc monitor --udp` binds every interface and prints control characters raw: bind 127.0.0.1 by default and escape them, as the prototype did.
+- ZN-327: release builds have none of the prototype's hardening (stack protector, FORTIFY, RELRO); decide, measured with tools/bench-m4.
+- ZN-327: docs/guide/06-testing.md still says --debug builds with ASan and a leak report (in Next an lldb build; leaks: zinc mem --check-leaks).
 
 ## Demos
 
@@ -43,3 +48,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-433: zpk_test and fuzz_zpk on Linux x86_64 and arm64, and a zig cross build of zn_zstd and zn_lz4.
 - ZN-354: tests/t2/cross_plugin_pack.sh and the linux-armhf leg of plugin.yml (which runs no tests: run them under qemu-arm or on a Pi).
 - ZN-274: the 8-tween budget of transitions on a real ESP32.
+- ZN-327: the guide's flow for --target linux and rpi (export, --deb, the itch channels).

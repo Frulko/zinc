@@ -14,7 +14,7 @@ mkdir -p "$tmp/app/dist/$name-macos" "$tmp/app/dist/$name-linux"
 echo mac > "$tmp/app/dist/$name-macos/$name"; echo linux > "$tmp/app/dist/$name-linux/$name"; head -c 3000 /dev/urandom > "$tmp/app/dist/$name-$version.dmg"
 out=$("$ZINC" publish "$tmp/app" --itch me/game:beta --dry-run 2>&1) || { echo "dry run failed: $out"; exit 1; }
 echo "$out" | grep -q "push '[^']*/dist/$name-macos' 'me/game:mac-beta' --userversion '$version'" || { echo "no push of the macOS export: $out"; fail=1; }
-echo "$out" | grep -q "push '[^']*/dist/$name-linux' 'me/game:linux-beta' --userversion '$version'" || { echo "no push of the Linux export: $out"; fail=1; }
+echo "$out" | grep -q "push '[^']*/dist/$name-linux' 'me/game:linux-arm64-beta' --userversion '$version'" || { echo "no push of the Linux export: $out"; fail=1; }
 [ "$(echo "$out" | grep -c ' push ')" = 2 ] || { echo "one push per export directory, not the installers: $out"; fail=1; }
 echo "$out" | grep -q "^dry run: nothing was uploaded" || { echo "the dry run does not say so: $out"; fail=1; }
 "$ZINC" publish "$tmp/app" --site "$tmp/site" >/dev/null || { echo "--site failed"; fail=1; }

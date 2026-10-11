@@ -105,9 +105,9 @@ the `macos` list, on Linux and for the Linux targets the `linux` list.
 
 | Module | Call | Needs |
 | --- | --- | --- |
-| `zinc:fs` | `readText`, `readBytes`, `readDir`, `list`, the source of `copyFile`; `watch` of a directory (it lists it) | `fs:read` covering the path |
-| `zinc:fs` | `writeText`, `appendText`, `writeBytes`, `mkdir`, `remove`, `rename` (both paths), `symlink` (the link), `chmod`, the destination of `copyFile` | `fs:write` covering the path |
-| `zinc:fs` | `exists`, `stat`, `lstat`, `readlink`, `realpath`, `mkdtemp`, `tmpdir`; `watch` of a file | not checked (see the gaps below) |
+| `zinc:fs` | `readText`, `readBytes`, `readDir`, `list`, `stat`, `lstat`, `readlink`, `realpath`, the source of `copyFile`; `watch` of a directory (it lists it); `exists` (false when refused) | `fs:read` covering the path |
+| `zinc:fs` | `writeText`, `appendText`, `writeBytes`, `mkdir`, `mkdtemp`, `remove`, `rename` (both paths), `symlink` (the link), `chmod`, the destination of `copyFile` | `fs:write` covering the path |
+| `zinc:fs` | `tmpdir`; `watch` of a file | not checked (see the gap below) |
 | `zinc:assets` | reading the app's own assets | nothing (a path that leaves `assets/` with `..` is checked as any file); writing there through `zinc:fs` needs `fs:write` |
 | `zinc:storage` | the app's own key-value file | nothing |
 | `zinc:net` | `fetch` (and `fetch` of `zinc:web/fetch`, built on it): each request, and each redirect again with its new host | `net:<host>` |
@@ -127,9 +127,8 @@ the `macos` list, on Linux and for the Linux targets the `linux` list.
 is stricter, decides for files instead of the list: only picked files, and what is under a picked directory, can be read, written or listed.
 `"scopes": {"opener": {"allow": [...]}}` limits what `zinc:system/opener` may open.
 
-**Gaps** (found while writing this page, ZN-327): `exists`, `stat`, `lstat`, `readlink` and `realpath` answer for any path (whether a file
-exists, its size and times, where a link points) without `fs:read`, `watch` of a file reports its changes the same way, and `mkdtemp(prefix)` creates a
-directory under any prefix without `fs:write`. Until they are checked, do not count on the list to hide which files exist.
+**Gap** (found while writing this page, ZN-327): `watch` of a file reports its changes without `fs:read`. The other calls this page found
+unchecked (`exists`, `stat`, `lstat`, `readlink`, `realpath` and `mkdtemp`) are checked since.
 
 **Exported apps enforce them.** `zinc build` and `zinc export` of a project with `"permissions"` compile a program that enforces the list from
 its first instruction; `zinc export` prints the list. Cross builds for the Linux targets do the same with the `linux` list (proven on macOS

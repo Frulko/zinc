@@ -261,7 +261,7 @@ Notarization is Apple's server-side step and needs your Apple account; Gatekeepe
 ## Stores and download pages
 
 `zinc publish --itch user/game` pushes every export directory of `dist/` to itch.io with butler, itch's uploader: one channel per target
-(`mac`, `linux`, `linux-rpi`, `linux-rpi1`, `linux-rpi2`, `linux-chip`, `linux-pocketchip`, `linux-rmpp`, `html5` for wasm; `user/game:beta`
+(`mac`, `linux-arm64` (`--target linux` builds aarch64), `linux-rpi`, `linux-rpi1`, `linux-rpi2`, `linux-chip`, `linux-pocketchip`, `linux-rmpp`, `html5` for wasm; `user/game:beta`
 makes `mac-beta`...), versioned with zinc.json `app.version`. Installers (`.dmg`, `.deb`, `.zapp`) are not pushed: butler makes its own
 patches. Zinc fetches the pinned butler (15.31.0) once into `~/.zinc/toolchains` and checks its SHA-256 (`zinc doctor` lists it;
 `ZINC_BUTLER` uses another). `--dry-run` prints the butler commands and uploads nothing.

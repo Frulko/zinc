@@ -351,7 +351,7 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostFsReadText: { std::vector<unsigned char> b; if (readAll(s(0), b, "cannot open")) ret(r, std::string(b.begin(), b.end())); else ret(r, ""); break; }
     case Rt::HostFsWriteText: writeAll(s(0), static_cast<const char*>(a[1].p), a[1].n, false, "open"); break;
     case Rt::HostFsAppendText: writeAll(s(0), static_cast<const char*>(a[1].p), a[1].n, true, "open"); break;
-    case Rt::HostFsExists: { struct stat st; r->i = stat(s(0).c_str(), &st) == 0; break; }
+    case Rt::HostFsExists: { struct stat st; r->i = !denyByPermission("fs:read", s(0)) && stat(s(0).c_str(), &st) == 0; break; }   // what exists is read too (ZN-327)
     case Rt::HostFsListCount: {
       gNames.clear(); gKinds.clear();
       std::string dir = s(0);
@@ -396,6 +396,7 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostFsStat: {
       struct stat st;
       std::string p = s(0);
+      if (denyByPermission("fs:read", p)) { r->i = 0; break; }
       int rc = a[1].i ? lstat(p.c_str(), &st) : stat(p.c_str(), &st);
       if (rc != 0) { fail("stat", p); r->i = 0; break; }
 #ifdef __APPLE__
@@ -412,12 +413,13 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostFsStatI: r->i = n(0) == 0 ? gStat.mode : n(0) == 1 ? gStat.file : n(0) == 2 ? gStat.dir : gStat.link; break;
     case Rt::HostFsRename: if (denyByPermission("fs:write", s(0)) || denyByPermission("fs:write", s(1))) break; if (rename(s(0).c_str(), s(1).c_str()) != 0) fail("rename", s(0)); break;
     case Rt::HostFsSymlink: if (denyByPermission("fs:write", s(1))) break; if (symlink(s(0).c_str(), s(1).c_str()) != 0) fail("symlink", s(0) + " -> " + s(1)); break;
-    case Rt::HostFsReadlink: { char b[4096]; ssize_t k = readlink(s(0).c_str(), b, sizeof b - 1); if (k >= 0) { b[k] = 0; ret(r, b); } else { fail("readlink", s(0)); ret(r, ""); } break; }
+    case Rt::HostFsReadlink: { if (denyByPermission("fs:read", s(0))) { ret(r, ""); break; } char b[4096]; ssize_t k = readlink(s(0).c_str(), b, sizeof b - 1); if (k >= 0) { b[k] = 0; ret(r, b); } else { fail("readlink", s(0)); ret(r, ""); } break; }
     case Rt::HostFsChmod: if (denyByPermission("fs:write", s(0))) break; if (chmod(s(0).c_str(), static_cast<mode_t>(n(1))) != 0) fail("chmod", s(0)); break;
     case Rt::HostFsCopyFile: { std::vector<unsigned char> b; if (readAll(s(0), b, "copyfile")) writeAll(s(1), reinterpret_cast<const char*>(b.data()), b.size(), false, "copyfile"); break; }
-    case Rt::HostFsRealpath: { char b[4096]; if (realpath(s(0).c_str(), b)) ret(r, b); else { fail("realpath", s(0)); ret(r, ""); } break; }
+    case Rt::HostFsRealpath: { if (denyByPermission("fs:read", s(0))) { ret(r, ""); break; } char b[4096]; if (realpath(s(0).c_str(), b)) ret(r, b); else { fail("realpath", s(0)); ret(r, ""); } break; }
     case Rt::HostFsTmpdir: ret(r, tmpdirPath()); break;
     case Rt::HostFsMkdtemp: {
+      if (denyByPermission("fs:write", s(0))) { ret(r, ""); break; }   // it creates a directory (ZN-327)
       std::string t = s(0) + "XXXXXX";
       std::vector<char> b(t.begin(), t.end());
       b.push_back(0);

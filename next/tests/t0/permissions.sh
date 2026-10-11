@@ -25,6 +25,18 @@ diff -q "$tmp/more" $m/enforce.out >/dev/null || { echo "enforced (other familie
 (cd $m && "$Z" run . > "$tmp/more.dev" 2>/dev/null)
 grep -q 'refused' "$tmp/more.dev" && { echo "developing (other families): refused calls: $(grep refused "$tmp/more.dev")"; fail=1; }
 [ "$(grep -c ': done\|allowed' "$tmp/more.dev")" = 7 ] || { echo "developing (other families): $(cat "$tmp/more.dev")"; fail=1; }
+d="$tmp/meta"; mkdir -p "$d/app" "$d/other"   # exists, realpath and mkdtemp are checked too (ZN-327): nothing is learned or made outside the list
+cat > "$d/app/main.ts" <<EOF
+import * as fs from 'zinc:fs';
+function tryIt(what: string, f: () => string): void { try { console.log(what + ': ' + f()); } catch (e) { console.log(what + ': ' + (e as Error).message); } }
+tryIt('exists', () => '' + fs.exists('$d/other'));
+tryIt('mkdtemp', () => fs.mkdtemp('$d/other/made-'));
+tryIt('realpath', () => fs.realpath('$d/other'));
+EOF
+echo '{ "name": "meta", "entry": "main.ts", "permissions": [] }' > "$d/app/zinc.json"
+out=$(cd "$d/app" && ZINC_PERMISSIONS=enforce "$Z" run . 2>&1)
+echo "$out" | grep -qx 'exists: false' && echo "$out" | grep -q '^mkdtemp: EACCES.*fs:write' && echo "$out" | grep -q '^realpath: EACCES.*fs:read' || { echo "unchecked fs calls: $out"; fail=1; }
+[ -z "$(ls "$d/other")" ] || { echo "mkdtemp made a directory outside the permissions"; fail=1; }
 a=tests/golden/permissions-assets   # the assets exemption is read-only (ZN-646): run on a copy, a refused write must leave nothing behind
 cp -R $a "$tmp/assets-app"
 (cd "$tmp/assets-app" && ZINC_PERMISSIONS=enforce "$Z" run . > "$tmp/assets" 2>&1)
