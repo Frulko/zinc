@@ -124,6 +124,11 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-650.11: a published project that does not parse is accepted (signature and hash only), then shows an empty table; check the project before staging.
 - ZN-650.11: `zinc:process` promises are not awaited in deterministic runs, so `museum_update` races frames against the download (fails under heavy load).
 - ZN-650.11: the update period (one hour) is a constant in `src/update.ts`; the storyboard editor has no "publish" step.
+- ZN-570: showing a 2D canvas reads the whole bitmap back every frame (1.7 ms at 640 x 480); a dirty flag in `canvas2d.cpp` would skip unchanged frames.
+- ZN-570: a 640 x 480 fill costs 4 to 5 ms in canvas_ity (float RGBA, one thread); measure a full-screen p5 sketch before ZN-571 decides.
+- ZN-570: `drawImage` is always bicubic; pixel-art games need nearest-neighbour when `imageSmoothingEnabled` is false.
+- ZN-570: no `Path2D`, no italic or bold synthesis, no bold monospaced face, no `toDataURL` (ZN-572).
+- ZN-570: the js-pixi, js-phaser and js-p5 examples can now use Text and a p5 2D sketch.
 
 ## Cross-platform pass
 
@@ -146,3 +151,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-446: the splash on display plugins (display-fbdev before EGL/GLES, the panels, ESP32 RGB565 from flash); `showSplash` skips runs with a display plugin today.
 - ZN-446: OS splashes from the exports (iOS launch storyboard, PSP PIC1, Vita LiveArea, 3DS banner) once those exports exist.
 - ZN-450: send the asset reload messages over `zinc dev --device` (TCP instead of the socket pair).
+- ZN-570: run webenv_canvas2d and webenv_canvas2d_libs on ARM and Linux (flat-colour values come from float maths; SSIM is against the Mac's Chrome).
