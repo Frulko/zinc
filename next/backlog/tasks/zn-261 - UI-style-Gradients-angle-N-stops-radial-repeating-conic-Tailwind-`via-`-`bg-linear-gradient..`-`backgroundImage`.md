@@ -4,7 +4,8 @@ title: >-
   UI style: Gradients: angle, N stops, radial, repeating, conic; Tailwind
   `via-`, `bg-[linear-gradient(..)]`, `backgroundImage`
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-07 12:57'
 labels:
   - ui
