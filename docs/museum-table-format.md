@@ -161,7 +161,7 @@ hear (a button on the medium once it is open says it: in the full view of a phot
 | `resetAfter` | 120 | Seconds without a touch before the visit is forgotten: everything returns to `start`, the default language, the main side of the table and the designed layout, and nothing is ticked on the storyboard any more (0: never) |
 | `attract` | none | The presentation played as the attract loop, again and again, with its subtitles and without sound, and an invitation to touch the table at each of its four edges; without it the table stays as it is until the reset |
 | `statistics` | false | Count what each visit saw in a local file per day, with nothing that identifies a visitor: see "The statistics of a table" |
-| `updateUrl` | none | Where the museum publishes a newer project. Without it the table needs no network |
+| `updateUrl` | none | Where the museum publishes a newer version of the table. Without it the table needs no network and makes no request: see "Replacing the content of a table" |
 
 ## Media
 
@@ -353,6 +353,23 @@ stop at the last touch (or at the end of a presentation being watched): a table 
 not a visit. The id comes last so that it may hold a comma. The staff see the counts of the day on the table: two fingers held three
 seconds in two opposite corners; the next touch closes them, and none of those touches is counted.
 
+## Replacing the content of a table
+
+A museum changes the texts, the media or the sequences of a table without going to it. What it publishes is the table itself, the player
+with its project, as the signed package of the engine's app updates (`docs/guide/07-distribution.md`, "App updates"); nothing of it is special
+to the table.
+
+| | |
+| --- | --- |
+| once | `zinc update-keygen` gives a seed (kept by the museum) and a public key. The table's `zinc.json` gets `"app": { "id": "org.museum.table", "version": "1.0.0" }` and `"update": { "publicKey": "<public key>" }`; its project gets `kiosk.updateUrl`. The table is installed as `zinc pack` writes it and started with `zinc run table.zapp` |
+| to publish | A higher `app.version` in `zinc.json`, then `zinc publish --key <seed> -o <directory>`: the package and `stable.manifest`, signed, to put at the address |
+| the table | Looks at the address when it starts and every hour, in a process of its own: a visitor never waits for the network. A newer version is downloaded, its signature and its SHA-256 checked, and it is set aside; nothing changes under a visit |
+| the switch | When nobody is at the table and no visit is kept (the reset of `kiosk.resetAfter`, or a table nobody touched), the table starts again with the new version. A version that does not start is dropped at the next launch and the previous one plays |
+| a fault | A channel that is not signed by the museum's key, a package cut short or changed, a server that does not answer: nothing is set aside and the table plays on. The reason is written on the error output (`museum-table: update: ...`) and in the story (`--story`) |
+
+The address is the project's, so a new version may name another one; the key is the table's, and a package signed by another key is
+never taken.
+
 ## What is checked
 
 `parseProject` stops at the first fault. Besides types and required fields: `format` and `version`; unique ids; every `kind`, `light`,
@@ -374,4 +391,4 @@ inside the assets. Whether the files exist is checked by the player when it star
 | the table mode: texts turned to the side of the last tap near an edge, the attract loop, the reset, the kiosk rules | yes |
 | the text sizes and the high contrast, as two buttons at the visitor's edge; every button within `table.reach` of that edge (the links come there in rows when they do not fit where they were designed, and the buttons of an object or a panorama with them); the audio descriptions, said by a button on the medium, with subtitles | yes |
 | statistics | yes, when the table is started with `--statistics <directory>` |
-| updates | ZN-650.11 |
+| updates | yes, for a table run from its package (`zinc run table.zapp`) whose `zinc.json` has the museum's key |

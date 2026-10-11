@@ -18,6 +18,7 @@ import * as fs from 'zinc:fs';
 import { parseProject, Project, Sequence } from './project';
 import { Player } from './player';
 import { Statistics } from './stats';
+import { Updates } from './update';
 
 /** The project, or when it cannot be read a table with nothing on it: the fault is logged for the staff and never shown to a visitor. */
 function load(): Project {
@@ -54,9 +55,12 @@ for (let i = 0; i < a.length; i++) {
       });
   }
 }
+// a project that names where the museum publishes looks there for a newer version; what happens is written for the staff and in the story
+const updates = new Updates(project.kiosk.updateUrl, (what: string): void => { console.error(`museum-table: update: ${what}`); player.note(`update: ${what}`); });
 if (project.kiosk.fullscreen) escapeByApp(true);   // a kiosk: Escape leads nowhere (the window itself is made a kiosk by ZINC_KIOSK=1 or zinc.json)
 
 onFrame((dt: number) => {
   clear(project.theme.background);
   player.frame(dt, 0, 0, width(), height());
+  updates.frame(dt, player.quiet);
 });

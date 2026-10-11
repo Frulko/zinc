@@ -89,6 +89,13 @@ spreadsheet opens (`docs/museum-table-format.md`, "The statistics of a table"): 
 hour, and no touch is kept. Two fingers held three seconds in two opposite corners show the staff the counts of the day; the next touch
 closes them. Without `--statistics` nothing is counted and nothing is written.
 
+## Updates
+
+A project that names an address (`kiosk.updateUrl`) makes the table look there for a newer version of itself, signed with the museum's key:
+it is downloaded and checked beside the visit, and the table starts again with it once nobody is there. A bad signature or a download cut
+short changes nothing. Without the address the table makes no request. The steps are in the
+[reference](../../docs/museum-table-format.md#replacing-the-content-of-a-table) ([`src/update.ts`](src/update.ts)).
+
 ## The storyboard editor
 
 [`editor/`](editor) is the authoring tool, an app of its own for a desk, a mouse and a keyboard: a museum makes its installation there
@@ -132,7 +139,7 @@ The document is `editor/doc.ts` (one operation per command, checked without a wi
 | `src/check.ts`, `src/assets.ts` | command-line checks of a project file and of its media |
 | `tools/` | rebuild the media from their sources (`fetch-collection.sh`, `decimate.cpp`); synthesise the narration and its subtitles from the transcripts of the project with Piper and two open voices (`narration.sh`) |
 
-Tests: `next/tests/run --tier t1 --only museum_visit` (also `museum_mode`, `museum_access`, `museum_video`, `museum_stats`, `museum_polish`, `museum_format`, `museum_assets`, `museum_table`,
+Tests: `next/tests/run --tier t1 --only museum_visit` (also `museum_mode`, `museum_access`, `museum_video`, `museum_stats`, `museum_update`, `museum_polish`, `museum_format`, `museum_assets`, `museum_table`,
 `museum_viewer`, `museum_panorama`). The sessions are scripted touches (`ZINC_INPUT`, `touch ID X Y` and `touchup ID`): `next/tests/data/museum_visit/visit.py`
 is a whole visit, `next/tests/data/museum_table/hands.py` two hands on two cards. A headless run plays no sound: the story log says which clip
 is asked for and when.

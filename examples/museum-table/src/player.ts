@@ -258,6 +258,10 @@ export class Player {
 
   /** One line of the story log. */
   private tell(what: string): void { if (this.telling) console.log(`${this.count} ${what}`); }
+  /** A line of the story that is not the player's own: an update of the table (update.ts). */
+  note(what: string): void { this.tell(what); }
+  /** Nobody is at the table and no visit is kept: from the start or a reset to the next touch. The moment the content may change. */
+  get quiet(): boolean { return !this.visiting && this.session === null && this.fingers.down.length === 0; }
   /** Logs a line when it differs from the last one said under `key`. */
   private say(key: i32, line: string): void {
     if (this.said.get(key) === line) return;
