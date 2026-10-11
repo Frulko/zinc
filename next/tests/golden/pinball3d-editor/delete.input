@@ -1,0 +1,16 @@
+# The table editor, a deletion that takes rules with it (tests/t1/pinball3d_editor_rules.sh). Written by guided.py.
+# The dock is clicked on the top view, and Delete is pressed. Three rules listen to the dock and a mission waits for
+# it: the editor says which would go with it, and waits. Escape leaves everything as it is.
+4 move 769 284
+5 down
+6 up
+8 key Delete
+10 key Escape
+# Delete again, and Enter this time: the dock goes, with the three rules and the mission.
+12 key Delete
+14 key Enter
+16 move 420 500
+17 down
+18 up
+20 key s meta
+# frames 30

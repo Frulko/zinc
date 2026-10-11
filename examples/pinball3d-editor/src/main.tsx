@@ -15,7 +15,7 @@ import { quit } from 'zinc:gfx';
 import { onCloseRequested, keepOpen } from 'zinc:system/window';
 import { TABLE_FILE } from '../../pinball3d/src/format/table';
 import { doc, folder, status, failed, selected, select, zoomBy, fit, frameOfView, viewW, viewH, undo, redo, save, newCommand, openCommand, openFolder, newTable, waiting, answer, guard,
-  advanced, setAdvanced, moveSelected, turnSelected, deleteSelected, duplicateSelected, mirrorSelected, tool, pickTool, finishPlacing, unplace, activeRow, removeActiveRow, nextLevel, exportPackage, setEcho } from './state';
+  advanced, setAdvanced, doomed, answerDelete, moveSelected, turnSelected, deleteSelected, duplicateSelected, mirrorSelected, tool, pickTool, finishPlacing, unplace, activeRow, removeActiveRow, nextLevel, exportPackage, setEcho } from './state';
 import { Ico, Tool, Segmented, ACCENT, chord } from './widgets';
 import { Outline, focusGoTo } from './outline';
 import { Palette } from './palette';
@@ -100,6 +100,25 @@ function Unsaved(): i32 {
   </view>;
 }
 
+/** A deletion that would take rules or missions with it says which, and waits for an answer. Nothing under it answers. */
+function Doomed(): i32 {
+  const lines = doomed(), shown = lines.slice(0, 8);
+  return <view class="absolute inset-0 items-center justify-center bg-black/60" onPointerDown={(e: ui.PointerEvent) => {}} onWheel={(e: ui.PointerEvent) => {}}>
+    <view class="w-[600] flex-col gap-2 p-6 rounded-xl bg-zinc-900 border border-zinc-700 shadow-lg">
+      <text class="text-lg font-bold text-zinc-100">{f(L.ASK_DELETE, doc().nameOf(selected()))}</text>
+      <text class="text-sm text-zinc-400" style={{ width: 552 }}>{t(L.ASK_DELETE_WHY)}</text>
+      <view class="flex-col gap-2 mt-2">
+        {shown.map((line: string, i: i32) => <text class="text-xs text-zinc-200" style={{ width: 552 }}>{line}</text>)}
+        {lines.length > shown.length ? <text class="text-xs text-zinc-500">{f(L.AND_MORE, `${lines.length - shown.length}`)}</text> : <view />}
+      </view>
+      <view class="flex-row justify-end gap-2 mt-4">
+        <Choice label={t(L.CANCEL)} look="plain" onClick={() => { answerDelete(false); }} />
+        <Choice label={t(L.DELETE)} look="primary" onClick={() => { answerDelete(true); }} />
+      </view>
+    </view>
+  </view>;
+}
+
 /** The whole window. It is built again when the interface language changes: every view reads its texts once. */
 function Shell(): i32 {
   return <view class="relative flex-col w-full h-full bg-zinc-950">
@@ -114,6 +133,7 @@ function Shell(): i32 {
     </view>
     <StatusBar />
     <Show when={waiting() !== null}><Unsaved /></Show>
+    <Show when={doomed().length > 0}><Doomed /></Show>
   </view>;
 }
 function App(): i32 {
@@ -124,6 +144,7 @@ function App(): i32 {
 ui.onKey((e: ui.KeyEvent) => {
   const k = e.key;
   if (waiting() !== null) { if (k === 'Escape') { answer('stay'); e.preventDefault(); } return; }
+  if (doomed().length > 0) { if (k === 'Escape') answerDelete(false); else if (k === 'Enter') answerDelete(true); e.preventDefault(); return; }
   if (e.primary) {
     if (k === 's') save();
     else if (k === 'z') { if (e.shift) redo(); else undo(); }

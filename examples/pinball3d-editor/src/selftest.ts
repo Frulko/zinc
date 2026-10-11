@@ -313,6 +313,18 @@ check('paths read as the loader writes them', steps('walls[2].points[1]').join('
     && cargo === 'Cargo Run : Parcourir rail jusqu’au bout 2 fois' && ruleSaid(schemaAt('rules.when[1]'), d.get('rules.when[1]')) === 'When the ball hits slings: add 110 points');
 }
 
+// ---- a deletion says what it would take with it before anything is deleted
+{
+  const d = new Doc(sample, sample), dock = d.find('kickers', 'dock'), before = d.text();
+  const tried = d.wouldRemove(dock), went = d.went.join(' '), told: string[] = [];
+  for (let i = 0; i < d.went.length; i++) told.push(ruleSaid(schemaAt(d.went[i]), d.lost[i]));
+  check('a deletion is tried first: what would go with it is known, and the table is as it was', tried && d.text() === before && !d.canUndo && !d.dirty
+    && went === 'rules.missions[2] rules.when[18] rules.when[17] rules.when[16]' && told[0] === 'Night Berth: Roll over lanes 3 times; Shoot into dock'
+    && told[2] === 'When dock catches the ball, if the game is in normal play: add 3,000 points; award a ball lock'
+    && d.wouldRemove(d.find('lights', 'laneLight1')) && d.went.join(' ') === 'rollovers[0].light' && d.lost[0] === 'laneLight1' && !d.wouldRemove('plunger')
+    && d.remove(dock) && d.went.join(' ') === went && d.lost.length === 4 && plays(d.text()));
+}
+
 // ---- the scores grid: a cell reads and writes the first rule that scores there without a condition
 {
   const d = new Doc(sample, sample), rows = scoreRows(d.data), names = rows.map((r: ScoreRow) => r.name);

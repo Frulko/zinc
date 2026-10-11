@@ -203,9 +203,28 @@ def mission():
     return s, shots
 
 
+def delete():
+    s = Session('The table editor, a deletion that takes rules with it (tests/t1/pinball3d_editor_rules.sh). Written by guided.py.\n'
+                'The dock is clicked on the top view, and Delete is pressed. Three rules listen to the dock and a mission waits for\n'
+                'it: the editor says which would go with it, and waits. Escape leaves everything as it is.')
+    s.at(40.5, 24.5)
+    s.key('Delete')
+    s.rest()
+    shots = [s.frame]
+    s.key('Escape')
+    s.rest()
+    s.note('Delete again, and Enter this time: the dock goes, with the three rules and the mission.')
+    s.key('Delete')
+    s.rest()
+    s.key('Enter')
+    s.rest()
+    s.save()
+    return s, shots
+
+
 def main():
     out = sys.argv[1] if len(sys.argv) > 1 else HERE
-    for name, make in (('rules', rules), ('conditions', conditions), ('scores', scores), ('mission', mission)):
+    for name, make in (('rules', rules), ('conditions', conditions), ('scores', scores), ('mission', mission), ('delete', delete)):
         s, shots = make()
         s.lines.append(f'# frames {s.frame + 6}')
         s.write(os.path.join(out, f'{name}.input'))

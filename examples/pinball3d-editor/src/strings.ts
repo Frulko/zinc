@@ -181,6 +181,9 @@ export const ASK_SAVE = S('Save the changes?', 'Enregistrer les modifications ?'
 export const ASK_SAVE_WHY = S('The table has changes that are not in its file yet.', 'La table a des modifications qui ne sont pas encore dans son fichier.');
 export const CANCEL = S('Cancel', 'Annuler');
 export const DO_NOT_SAVE = S('Do not save', 'Ne pas enregistrer');
+export const ASK_DELETE = S('Delete {0}?', 'Supprimer {0} ?');
+export const ASK_DELETE_WHY = S('These cannot do without it and are deleted with it. Undo brings everything back.', 'Ceux-ci ne peuvent pas s’en passer et sont supprimés avec. Annuler ramène tout.');
+export const AND_MORE = S('and {0} more', 'et {0} de plus');
 
 // ---- the rules as a person says them
 export const KIND_NEEDS = S('"{0}" needs one of the {1}, and the table has none yet: add one first.', '« {0} » a besoin d’un nom parmi : {1}, et la table n’en a pas encore : ajoutez-en d’abord.');

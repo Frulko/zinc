@@ -32,6 +32,11 @@
 #                     moved first with its arrow. Save: mission.json, on which the game's probe does the three steps with one
 #                     ball and is paid the mission
 #   the second table  its missions are made the same way (the event, then the thing when the editor's own is not the one)
+# Slice 4, a deletion says what it takes with it:
+#   the document without a window: a deletion is tried first, what would go with it is known and the table is as it was
+#   delete.input      the dock clicked and deleted: three rules listen to it and a mission waits for it, so the editor asks;
+#                     Escape leaves everything (the same session cut after Escape saves the table untouched); Delete again and
+#                     Enter: deleted.json, without the dock, the three rules and the mission
 # ZN_UPDATE_GOLDEN=1 rewrites the goldens from this run.
 cd "$(dirname "$0")/../.." || exit 2
 ex=$PWD/../examples/pinball3d-editor; g=$PWD/tests/golden/pinball3d-editor
@@ -132,6 +137,22 @@ grep -Eq 'key j|^[0-9]+ text "?(Hit|Roll)' "$g/mission.input" && { echo "the mis
 [ "$(grep -m1 -A2 '"missions": \[' "$g/mission.json" | grep -c '"id": "mission1"')" = 1 ] || { echo "the new mission is not the first of mission.json"; fail=1; }
 "$ZINC" run "$game/tools/probe.ts" -- "$tmp/mission" 17.5 20 1.37 0 0 0 4 >"$tmp/probe" 2>/dev/null
 grep -q 'stand1 hit +26500 = 29800' "$tmp/probe" && grep -q ' game missionDone' "$tmp/probe" || { echo "the mission made in the editor is not done and paid by the game: $(grep -v '^after ' "$tmp/probe" | tail -4 | tr '\n' ';')"; fail=1; }
+
+# ---- slice 4: a deletion says what it takes with it
+case $out in *'ok: a deletion is tried first: what would go with it is known, and the table is as it was'*) ;; *) echo "the document's self-test does not say that a deletion is tried first"; fail=1 ;; esac
+# the session up to its Escape, then Save: nothing went
+sed '/key Escape/q' "$g/delete.input" > "$tmp/asked.input"
+last=$(sed -n '$s/^\([0-9]*\) .*/\1/p' "$tmp/asked.input")
+printf '%s key s meta\n# frames %s\n' "$((last + 2))" "$((last + 8))" >> "$tmp/asked.input"
+fresh asked
+edit "$tmp/asked" "$tmp/asked.input"
+cmp -s "$tmp/asked/table.json" "$g/table.json" || { echo "a deletion that takes rules with it did not wait for an answer: Escape did not leave the table as it was"; fail=1; }
+fresh delete
+edit "$tmp/delete" "$g/delete.input"
+same "a deletion confirmed" "$tmp/delete/table.json" "$g/deleted.json"
+accepted "a deletion confirmed" "$tmp/delete"
+grep -q '"dock"' "$g/table.json" && [ "$(grep -c '"on": "dock"' "$g/table.json")" = 4 ] || { echo "the test's table no longer has a dock that three rules and a mission name"; fail=1; }
+grep -q '"on": "dock"\|"id": "berth"' "$g/deleted.json" && { echo "deleted.json still holds a rule or the mission of the deleted dock"; fail=1; }
 
 [ $fail = 0 ] && echo "pinball3d_editor_rules: ok"
 exit $fail

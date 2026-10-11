@@ -49,7 +49,8 @@ point and Enter for a path). Points snap to the grid, to the table's axis and to
   what is placed now stands on it. Its rail is one wall that leaves a gap at the lower right corner, and two targets,
   the bells, stand against it.
 
-Names are typed in the form (a thing renamed is renamed wherever a rule names it). **Drop a ball** (B, then a click on
+Names are typed in the form (a thing renamed is renamed wherever a rule names it; a thing deleted that rules or
+missions cannot do without lists them, each as its sentence, and asks before they go with it). **Drop a ball** (B, then a click on
 the top view) plays the real game from that spot: dropped above the striker, the ball is caught, thrown onto the
 bandstand, rings a bell, rolls to the gap and falls among the bumpers.
 

@@ -281,6 +281,10 @@ export class Doc {
   refused = '';
   /** What the last deletion took with it: the paths of the names it cleared and of the rules and missions it deleted. */
   went: string[] = [];
+  /** What each of them was: the name cleared, the rule or the mission as it was. */
+  lost: any[] = [];
+  // an operation is only tried: the table stays as it is (wouldRemove)
+  private dry = false;
   /** Called after every change of `data` (an edit, undo, redo). */
   onChange: (() => void) | null = null;
   // ponytail: an undo step keeps the whole table before it (17 KB of text for Tidal Lock); inverse operations if tables grow past a few MB
@@ -334,6 +338,7 @@ export class Doc {
     if (checked === null) { this.refused = 'the table could not be mended'; return false; }
     const text = `${write(formatSchema(), checked, '')}\n`;
     if (text === this.now) return false;
+    if (this.dry) return true;
     const merge = key.length > 0 && key === this.lastKey && this.undone.length > 0;
     if (!merge) this.undone.push(new Step(label, this.data, this.now));
     this.redone = [];
@@ -469,13 +474,13 @@ export class Doc {
   remove(path: string, alone: boolean = false): boolean {
     const list = listOf(path), at = indexOf(path);
     if (at < 0) { this.refused = `${path}: only an item of a list is deleted`; return false; }
-    const took: string[] = [];
+    const took: string[] = [], was: any[] = [];
     const done = this.apply(`Delete ${this.nameOf(path)}`, '', (d: any) => { removeAt(d, list, at); }, alone ? null : (d: any, found: string[]): boolean => {
       const drop: string[] = [];
       for (const fault of found) {
         const p = faultPath(fault), f = p === '' ? null : fieldAt(p);
         if (f === null) return false;
-        if (f.kind === Kind.Ref && !f.required) { put(d, p, ''); took.push(p); continue; }
+        if (f.kind === Kind.Ref && !f.required) { was.push(valueAt(d, p)); put(d, p, ''); took.push(p); continue; }
         // the outermost list item the fault is in: the rule, the mission
         const s = steps(p);
         let k = 0;
@@ -486,10 +491,19 @@ export class Doc {
       }
       // from the end of each list, so that the indices of the others still hold
       drop.sort((a: string, b: string): number => listOf(a) === listOf(b) ? indexOf(b) - indexOf(a) : a < b ? -1 : 1);
-      for (const item of drop) { removeAt(d, listOf(item), indexOf(item)); took.push(item); }
+      for (const item of drop) { was.push(valueAt(d, item)); removeAt(d, listOf(item), indexOf(item)); took.push(item); }
       return true;
     });
     this.went = done ? took : [];
+    this.lost = done ? was : [];
+    return done;
+  }
+  /** What deleting an item would take with it: `went` and `lost` are what remove() would leave, and nothing is deleted. False
+   *  when the item cannot be deleted. */
+  wouldRemove(path: string): boolean {
+    this.dry = true;
+    const done = this.remove(path);
+    this.dry = false;
     return done;
   }
   /** A name no item of the name space of `list` has: "pop3" gives "pop4", "wall" gives "wall1". */

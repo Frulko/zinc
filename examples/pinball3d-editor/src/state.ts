@@ -11,7 +11,7 @@ import { FolderSource, packTable, PACKAGE_EXT } from '../../pinball3d/src/format
 import { Doc, newTableText, isPlaced, canTurn, schemaAt, fieldAt, listOf, indexOf, pointsOf } from './doc';
 import { Outline, outlines, levelsOf } from './shapes';
 import { Preset, Start, LANE, palette, itemOf, pointsNeeded, rowsNeeded, laneOf, blankOf, alongWith, startOf } from './presets';
-import { kindSaid, extrasOf, shownField, word, worded } from './sentences';
+import { kindSaid, extrasOf, shownField, word, worded, ruleSaid } from './sentences';
 import { scoreChange } from './scores';
 import * as L from './strings';
 import { t, f } from './strings';
@@ -413,8 +413,27 @@ export function mirrorSelected(): void {
   if (path === '' || listOf(path) === '' || !selectionPlaced()) return;
   batch(() => { const copy = current.mirror(path, axis()); if (report(copy !== '')) select(copy); });
 }
-/** Deletes the selected item of a list, with what cannot do without it (the status bar says how much went). */
+/** What the deletion that waits for an answer would take with it, a line each (main.tsx asks while there is one). */
+export const [doomed, setDoomed] = createSignal<string[]>([]);
+/** Deletes the selected item of a list. When rules or missions cannot do without it and would go with it, they are said first and
+ *  the deletion waits for an answer (answerDelete); a name that only pointed to it is cleared without a question. */
 export function deleteSelected(): void {
+  const path = selected();
+  if (path === '' || listOf(path) === '') return;
+  const lines: string[] = [];
+  if (current.wouldRemove(path)) {
+    // in the order of the file
+    const order: i32[] = [];
+    for (let i = 0; i < current.went.length; i++) if (indexOf(current.went[i]) >= 0) order.push(i);
+    order.sort((a: i32, b: i32): number => { const p = current.went[a], q = current.went[b]; return listOf(p) === listOf(q) ? indexOf(p) - indexOf(q) : p < q ? -1 : 1; });
+    for (const i of order) { const s = schemaAt(current.went[i]), told = ruleSaid(s, current.lost[i]); lines.push(`${L.kindName(s.name)} ${indexOf(current.went[i]) + 1}: ${told}`); }
+  }
+  if (lines.length > 0) setDoomed(lines); else deleteNow();
+}
+/** The answer to that question: delete it with what goes with it, or leave everything. */
+export function answerDelete(yes: boolean): void { setDoomed([]); if (yes) deleteNow(); }
+/** Deletes the selected item of a list, with what cannot do without it (the status bar says how much went). */
+function deleteNow(): void {
   const path = selected();
   if (path === '' || listOf(path) === '') return;
   batch(() => {
