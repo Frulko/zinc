@@ -137,6 +137,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-574: try a real Xbox and a real PlayStation pad on the Mac (hot-plug, rumble, mapping); measure launch time and the first poll of the HID manager on a quiet machine (libzn_window grew by 391 KB).
 - ZN-574: Kaplay's `onGamepadButtonPress` (criterion 1) needs Kaplay in `tools/test-lib`.
 - ZN-649.07: play the pinball with a real gamepad and a cabinet encoder (I-PAC or Zero Delay), and check the default cabinet layout.
+- ZN-650.07.05: check the museum editor's menu bar, context menus, key equivalents and drag and drop on a real macOS window; give Undo/Copy/Paste their keys in the menu once zinc:system edit roles reach text fields.
+- ZN-650.07.05: ZINC_SYSTEM_SCRIPT counts loop passes, not frames (2 per frame, late once: `museum_editor_tools` failed once in eight runs); give it frame numbers like ZINC_INPUT.
+- ZN-650.07.05: ZINC_INPUT "down" takes no modifier: Shift-click selection of the museum editor is not scripted.
+- ZN-650.07.05: museum editor: drag a multi-selection together, a rubber band on the table, enabled/disabled menu items, copying a medium's file when pasting into a project in another folder.
 
 ## Cross-platform pass
 
