@@ -2,7 +2,8 @@
 id: ZN-274
 title: 'UI style: Transitions on any animatable property; `animate()` knows every key'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-07 12:57'
 labels:
   - ui
