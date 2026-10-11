@@ -20,6 +20,7 @@ extern "C" {
 }
 
 #include "gl/webgl_js.h"   // PresentHooks: how pixels reach a zinc:gfx image
+#include "res/codec.h"     // the PNG and JPEG encoders of toDataURL and toBlob
 #include "text/layout.h"
 #include "zn/host.h"
 #include "zn/limits.h"
@@ -47,7 +48,9 @@ namespace {
 
 namespace ci = canvas_ity;
 JSClassID gClass = 0;
-struct Canvas { std::unique_ptr<ci::canvas> cv; int w = 1, h = 1; };
+// version counts what was painted: a canvas shown or used as a picture again with the same version is not read back (shown, shownAt: the
+// zinc:gfx image that holds the pixels of that version)
+struct Canvas { std::unique_ptr<ci::canvas> cv; int w = 1, h = 1; std::uint32_t version = 1, shown = 0; int shownAt = -1; };
 
 // ---- fonts: the bundled ones by name (lib/fonts beside lib/std) and the files a program registers (FontFace). A face keeps its bytes.
 // ponytail: faces live as long as the process; a program that registers fonts without end would need a release
@@ -106,7 +109,7 @@ void reset(Canvas* k, int w, int h) {
     w = h = 1;
   }
   k->cv = std::make_unique<ci::canvas>(w, h);
-  k->w = w; k->h = h;
+  k->w = w; k->h = h; k->version++;
 }
 JSValue js_create(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
   JSValue o = JS_NewObjectClass(c, static_cast<int>(gClass));
@@ -122,19 +125,45 @@ JSValue js_resize(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
   return JS_UNDEFINED;
 }
 
+// ellipse(x, y, radiusX, radiusY, rotation, start, end, counterclockwise): the arc as cubic Béziers of a quarter turn at most, joined to the
+// path by a line as the specification says. One call for a shape p5 draws by the thousand.
+void ellipse(ci::canvas& v, const float* a) {
+  const float tau = 6.28318530718f, cr = std::cos(a[4]), sr = std::sin(a[4]);
+  const bool ccw = a[7] != 0;
+  float span = a[6] - a[5];
+  if (!ccw) { if (span >= tau) span = tau; else { span = std::fmod(span, tau); if (span < 0) span += tau; } }
+  else { if (span <= -tau) span = -tau; else { span = std::fmod(span, tau); if (span > 0) span -= tau; } }
+  const int parts = std::max(1, static_cast<int>(std::ceil(std::fabs(span) / (tau / 4) - 1e-4f)));
+  const float step = span / static_cast<float>(parts), k = 4.0f / 3.0f * std::tan(step / 4);
+  struct At { float x, y, dx, dy; };
+  const auto at = [&](float t) {
+    const float c = std::cos(t) * a[2], s = std::sin(t) * a[3];
+    return At{a[0] + c * cr - s * sr, a[1] + c * sr + s * cr, -std::sin(t) * a[2] * cr - std::cos(t) * a[3] * sr, -std::sin(t) * a[2] * sr + std::cos(t) * a[3] * cr};
+  };
+  At p = at(a[5]);
+  v.line_to(p.x, p.y);
+  for (int i = 1; i <= parts; i++) {
+    const At q = at(a[5] + step * static_cast<float>(i));
+    v.bezier_curve_to(p.x + k * p.dx, p.y + k * p.dy, q.x - k * q.dx, q.y - k * q.dy, q.x, q.y);
+    p = q;
+  }
+}
+
 // op(canvas, code, numbers...): the calls that take numbers only. The codes are the order of OPS in lib/std/webenv.js. A call with a number
 // that is not finite does nothing, which is the canvas specification's rule (and canvas_ity does not check).
 enum CanvasOp { Save, Restore, Scale, Rotate, Translate, Transform, SetTransform, GlobalAlpha, Composite, ShadowColor, ShadowBlur, ShadowOffset, LineWidth, LineCap, LineJoin,
           MiterLimit, DashOffset, BeginPath, MoveTo, ClosePath, LineTo, QuadTo, BezierTo, ArcTo, Arc, Rect, Fill, Stroke, Clip, InPath, ClearRect, FillRect, StrokeRect,
-          Color, Linear, Radial, Stop };
+          Color, Linear, Radial, Stop, Smoothing, Ellipse, Exchange, EvenOdd };
 JSValue js_op(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
   Canvas* k = argc > 1 ? self(argv[0]) : nullptr;
   if (!k) return JS_UNDEFINED;
-  float a[7] = {0, 0, 0, 0, 0, 0, 0};
-  for (int i = 2; i < argc && i < 9; i++) { const double d = num(c, argv[i]); if (!std::isfinite(d)) return JS_UNDEFINED; a[i - 2] = static_cast<float>(d); }
+  float a[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+  for (int i = 2; i < argc && i < 10; i++) { const double d = num(c, argv[i]); if (!std::isfinite(d)) return JS_UNDEFINED; a[i - 2] = static_cast<float>(d); }
   ci::canvas& v = *k->cv;
   const ci::brush_type brush = a[0] != 0 ? ci::stroke_style : ci::fill_style;
-  switch (i32(c, argv[1])) {
+  const int code = i32(c, argv[1]);
+  if (code == Fill || code == Stroke || code == ClearRect || code == FillRect || code == StrokeRect) k->version++;
+  switch (code) {
     case Save: v.save(); break;
     case Restore: v.restore(); break;
     case Scale: v.scale(a[0], a[1]); break;
@@ -172,6 +201,10 @@ JSValue js_op(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
     case Linear: v.set_linear_gradient(brush, a[1], a[2], a[3], a[4]); break;
     case Radial: v.set_radial_gradient(brush, a[1], a[2], a[3], a[4], a[5], a[6]); break;
     case Stop: v.add_color_stop(brush, a[1], a[2], a[3], a[4], a[5]); break;
+    case Smoothing: v.image_smoothing = a[0] != 0; break;
+    case Ellipse: ellipse(v, a); break;
+    case Exchange: v.exchange_path(); break;   // a Path2D is built and painted between two of these: the current path is left as it was
+    case EvenOdd: v.even_odd = a[0] != 0; break;
     default: break;
   }
   return JS_UNDEFINED;
@@ -272,6 +305,7 @@ JSValue js_text(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
   }
   if (JS_ToBool(c, argv[1])) v.stroke(); else v.fill();
   v.exchange_path();
+  k->version++;
   return JS_UNDEFINED;
 }
 // measure(text, faces, px, letterSpacing, rtl, align, baseline): [width, the ink's left, right, ascent and descent from the point the text
@@ -339,6 +373,7 @@ JSValue js_write(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
   const int x = i32(c, argv[4]), y = i32(c, argv[5]), dx = i32(c, argv[6]), dy = i32(c, argv[7]), dw = i32(c, argv[8]), dh = i32(c, argv[9]);
   if (dx < 0 || dy < 0 || dw < 1 || dh < 1 || dx > w - dw || dy > h - dh) return JS_UNDEFINED;
   k->cv->put_image_data(p + (static_cast<size_t>(dy) * static_cast<size_t>(w) + static_cast<size_t>(dx)) * 4, dw, dh, w * 4, x + dx, y + dy);
+  k->version++;
   return JS_UNDEFINED;
 }
 // image(canvas, pixels, width, height, sx, sy, sw, sh, dx, dy, dw, dh): drawImage of the source rectangle (whole pixels, inside the
@@ -355,14 +390,45 @@ JSValue js_image(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
   if (sx < 0 || sy < 0 || sw < 1 || sh < 1 || sx > w - sw || sy > h - sh) return JS_UNDEFINED;
   k->cv->draw_image(p + (static_cast<size_t>(sy) * static_cast<size_t>(w) + static_cast<size_t>(sx)) * 4, sw, sh, w * 4,
                     static_cast<float>(d[0]), static_cast<float>(d[1]), static_cast<float>(d[2]), static_cast<float>(d[3]));
+  k->version++;
   return JS_UNDEFINED;
 }
+// encode(canvas, jpeg, quality, text): the canvas as a PNG file, or as a JPEG one over black (JPEG has no alpha); an ArrayBuffer, or with
+// `text` the base64 of the file (toDataURL)
+JSValue js_encode(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
+  Canvas* k = argc > 3 ? self(argv[0]) : nullptr;
+  if (!k) return JS_UNDEFINED;
+  const bool jpeg = JS_ToBool(c, argv[1]) != 0;
+  std::vector<uint8_t> px(static_cast<size_t>(k->w) * static_cast<size_t>(k->h) * 4);
+  k->cv->get_image_data(px.data(), k->w, k->h, k->w * 4, 0, 0);
+  if (jpeg) for (size_t i = 0; i < px.size(); i += 4) for (size_t j = 0; j < 3; j++) px[i + j] = static_cast<uint8_t>((px[i + j] * px[i + 3] + 127) / 255);
+  const double q = num(c, argv[2]);
+  const std::vector<uint8_t> file = jpeg ? zn::res::encodeJpeg(px.data(), k->w, k->h, 4, std::isfinite(q) && q >= 0 && q <= 1 ? static_cast<int>(q * 100) : 92) : zn::res::encodePng(px.data(), k->w, k->h, 4);
+  if (!JS_ToBool(c, argv[3])) return JS_NewArrayBufferCopy(c, file.data(), file.size());
+  static const char digits[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  std::string out;
+  out.reserve((file.size() + 2) / 3 * 4);
+  for (size_t i = 0; i < file.size(); i += 3) {
+    const unsigned n = static_cast<unsigned>(file[i]) << 16 | (i + 1 < file.size() ? file[i + 1] : 0u) << 8 | (i + 2 < file.size() ? file[i + 2] : 0u);
+    out += digits[n >> 18]; out += digits[n >> 12 & 63];
+    out += i + 1 < file.size() ? digits[n >> 6 & 63] : '=';
+    out += i + 2 < file.size() ? digits[n & 63] : '=';
+  }
+  return JS_NewStringLen(c, out.data(), out.size());
+}
+// stamp(canvas): a number that changes when the canvas is painted on: what JavaScript keys its copy of the pixels with
+JSValue js_stamp(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
+  Canvas* k = argc > 0 ? self(argv[0]) : nullptr;
+  return JS_NewUint32(c, k ? k->version : 0);
+}
 // present(canvas, image): the canvas into a zinc:gfx image, with its alpha (a transparent canvas lets through what the window drew before
-// it: the page's black, a WebGL canvas under an overlay); false without a surface to show on
+// it: the page's black, a WebGL canvas under an overlay); false without a surface to show on. A canvas nothing was painted on since it was
+// last put in that image is not read back: the image has its pixels.
 JSValue js_present(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
   Canvas* k = argc > 1 ? self(argv[0]) : nullptr;
   const auto* hooks = static_cast<const zn::gl::PresentHooks*>(zn::host::glPresentHooks());
   if (!k || !hooks) return JS_FALSE;
+  if (k->shown == k->version && k->shownAt == i32(c, argv[1])) return JS_TRUE;
   unsigned* dst = hooks->pixels(i32(c, argv[1]), k->w, k->h);
   if (!dst) return JS_FALSE;
   std::vector<uint8_t> px(static_cast<size_t>(k->w) * static_cast<size_t>(k->h) * 4);
@@ -370,6 +436,7 @@ JSValue js_present(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
   for (size_t i = 0, count = px.size() / 4; i < count; i++) dst[i] = static_cast<unsigned>(px[i * 4 + 3]) << 24 | static_cast<unsigned>(px[i * 4]) << 16 | static_cast<unsigned>(px[i * 4 + 1]) << 8 | px[i * 4 + 2];
   zrt::raster::dyn_set_alpha(i32(c, argv[1]), true);
   hooks->done(i32(c, argv[1]));
+  k->shown = k->version; k->shownAt = i32(c, argv[1]);
   return JS_TRUE;
 }
 
@@ -382,8 +449,8 @@ void installCanvas2d(JSContext* ctx, JSValueConst native, const std::string& std
   fonts().dir = stdRoot + "/../fonts";
   JSValue o = JS_NewObject(ctx);
   const struct { const char* name; JSCFunction* fn; int args; } table[] = {
-      {"create", js_create, 2}, {"resize", js_resize, 3}, {"op", js_op, 9}, {"dash", js_dash, 2}, {"text", js_text, 12}, {"measure", js_measure, 7},
-      {"font", js_font, 1}, {"read", js_read, 5}, {"write", js_write, 10}, {"image", js_image, 12}, {"present", js_present, 2}};
+      {"create", js_create, 2}, {"resize", js_resize, 3}, {"op", js_op, 10}, {"dash", js_dash, 2}, {"text", js_text, 12}, {"measure", js_measure, 7},
+      {"font", js_font, 1}, {"read", js_read, 5}, {"write", js_write, 10}, {"image", js_image, 12}, {"present", js_present, 2}, {"stamp", js_stamp, 1}, {"encode", js_encode, 4}};
   for (const auto& e : table) JS_SetPropertyStr(ctx, o, e.name, JS_NewCFunction(ctx, e.fn, e.name, e.args));
   JS_SetPropertyStr(ctx, native, "c2d", o);
 }

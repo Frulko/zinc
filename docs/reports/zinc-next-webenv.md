@@ -66,17 +66,21 @@ What a program finds:
   (`document.fonts`; never from the network), else the bundled Inter (regular, bold) and JetBrains Mono. A 2D canvas of the document is shown
   in the window; any canvas is a texture source (`texImage2D`) and a `drawImage` source. Against headless Chrome with the same font:
   `measureText` widths equal, TextMetrics, baselines and glyph boxes within a pixel, a scene of game text at SSIM 0.99
-  (`tests/t1/webenv_canvas2d.sh`; `tools/canvas2d-ref` makes the references). Not in this tier, counted and never thrown
-  (`__canvas2dUnsupported()`, named by `ZINC_WEB=trace`): Path2D, patterns, conic gradients, filters, the
-  even-odd rule, the blend modes beyond the eleven, `isPointInStroke`; pictures are always resampled with a bicubic filter (no
-  nearest-neighbour), italic is drawn upright. These are ZN-572.
+  (`tests/t1/webenv_canvas2d.sh`; `tools/canvas2d-ref` makes the references). The full tier (ZN-572) stays on
+  canvas_ity, patched (decision of ZN-571: with a context that does nothing, p5 and QuickJS alone already take 30 ms for 1,000 ellipses,
+  so a faster rasteriser is not what is missing). There so far (`tests/t1/webenv_canvas2d_full.sh`): `Path2D` (its calls, SVG path data,
+  `addPath` with a matrix) filled, stroked, clipped and hit-tested; the even-odd rule; `imageSmoothingEnabled` (false: the nearest pixel;
+  true: bilinear, and a filter over more pixels when the picture is made smaller); `toDataURL` and `toBlob` (PNG, JPEG);
+  `OffscreenCanvas` (a canvas element outside the document); a canvas is read back only when something was painted on it. Not there yet,
+  counted and never thrown (`__canvas2dUnsupported()`, named by `ZINC_WEB=trace`): patterns, conic gradients, filters, the blend modes
+  beyond the eleven, `isPointInStroke`, the even-odd rule in `isPointInPath`; italic is drawn upright.
 - **Images**: no `createImageBitmap` and no `ImageBitmap`, on purpose, as long as there is no `Worker`: PixiJS 7 and 8, finding
   `createImageBitmap`, load every picture through a Worker they make without looking for one, and `Assets.load` fails; without it they,
   three.js and Phaser load pictures through image elements, unmodified (measured: the notes of ZN-569). Nothing is decoded off the main
   thread; SVG and animated pictures are not images here. **Audio** (ZN-573): media elements play nothing; no `AudioContext`.
   **Gamepads** (ZN-574): `navigator.getGamepads()` is empty.
 - `innerHTML` with markup (kept as text), `DOMParser`, `FormData`, streams, cookies, `Worker`, the window's `focus` / `blur` /
-  `visibilitychange`, `canvas.toDataURL`.
+  `visibilitychange`, `toDataURL` of a WebGL canvas.
 
 ## Libraries (2026-10-11, unmodified builds, no shim in the test)
 

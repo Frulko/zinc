@@ -1151,6 +1151,13 @@ public:
     // its own (the outlines of shaped glyphs): fillText and strokeText must leave the current path as it was.
     void exchange_path();
 
+    // ZINC patch 5 (ZN-572): false makes draw_image take the nearest pixel of the picture instead of resampling it (a canvas whose
+    // imageSmoothingEnabled is false: pixel art).
+    bool image_smoothing;
+
+    // ZINC patch 6 (ZN-572): true makes fill() and clip() use the even-odd rule instead of the non-zero winding rule.
+    bool even_odd;
+
 private:
     int size_x;
     int size_y;
@@ -1168,6 +1175,9 @@ private:
     paint_brush image_brush;
     bezier_path path;
     bezier_path held_path;   // ZINC patch 2
+    bool clipped;                 // ZINC patch 4: clip() was called in this state (the mask is no longer the whole canvas)
+    std::vector< float > cover;   // ZINC patch 4: the coverage changes of a small shape, a cell for each pixel of its box
+    int image_mode;               // ZINC patch 5: how draw_image samples the picture: 0 the bicubic filter, 1 the nearest pixel, 2 bilinear
     line_path lines;
     line_path scratch;
     pixel_runs runs;
@@ -2184,6 +2194,17 @@ void canvas::add_runs(
     } while ( now.y != to.y );
 }
 
+// ZINC patch 6: how much of a pixel is inside, from the sum of the signed coverage of the edges to its left. The even-odd rule folds the
+// sum: inside between 0 and 1, outside again at 2.
+static float inside( float sum, bool even_odd )
+{
+    sum = fabsf( sum );
+    if ( !even_odd )
+        return std::min( sum, 1.0f );
+    sum = fmodf( sum, 2.0f );
+    return sum > 1.0f ? 2.0f - sum : sum;
+}
+
 static bool operator<(
     pixel_run left,
     pixel_run right )
@@ -2255,6 +2276,37 @@ void canvas::lines_to_runs(
     }
     if ( runs.empty() )
         return;
+    // ZINC patch 4 (ZN-572): a shape whose box is small for its number of runs (a sprite-sized shape, a glyph) is not sorted: its changes
+    // of coverage are summed in a grid of the box's cells and read back in order. Sorting was a third of the time of a small shape.
+    {
+        int left = 65535, right = 0, top = 65535, bottom = 0;
+        for ( size_t index = 0; index < runs.size(); ++index )
+        {
+            left = std::min( left, static_cast< int >( runs[ index ].x ) );
+            right = std::max( right, static_cast< int >( runs[ index ].x ) );
+            top = std::min( top, static_cast< int >( runs[ index ].y ) );
+            bottom = std::max( bottom, static_cast< int >( runs[ index ].y ) );
+        }
+        size_t columns = static_cast< size_t >( right - left + 1 );
+        size_t rows = static_cast< size_t >( bottom - top + 1 );
+        if ( columns * rows <= 16 * runs.size() + 256 )
+        {
+            cover.assign( columns * rows, 0.0f );
+            for ( size_t index = 0; index < runs.size(); ++index )
+                cover[ static_cast< size_t >( runs[ index ].y - top ) * columns +
+                       static_cast< size_t >( runs[ index ].x - left ) ] += runs[ index ].delta;
+            runs.clear();
+            for ( size_t cell = 0; cell < cover.size(); ++cell )
+                if ( cover[ cell ] != 0.0f )
+                {
+                    pixel_run piece = {
+                        static_cast< unsigned short >( left + static_cast< int >( cell % columns ) ),
+                        static_cast< unsigned short >( top + static_cast< int >( cell / columns ) ), cover[ cell ] };
+                    runs.push_back( piece );
+                }
+            return;
+        }
+    }
     std::sort( runs.begin(), runs.end() );
     size_t to = 0;
     for ( size_t from = 1; from < runs.size(); ++from )
@@ -2295,6 +2347,27 @@ rgba canvas::paint_pixel(
              ( ( brush.repetition & 1 ) &&
                ( point.y < 0.0f || height <= point.y ) ) )
             return rgba( 0.0f, 0.0f, 0.0f, 0.0f );
+        // ZINC patch 5 (ZN-572): a picture drawn by draw_image is sampled as a browser samples it. The nearest pixel when the canvas does
+        // not smooth images, or when the picture lands pixel on pixel (the sixteen weights of the filter below are then one 1 and
+        // fifteen 0); four pixels (bilinear) when it is not made smaller. The filter below is left for a picture made smaller.
+        if ( &brush == &image_brush && image_mode == 1 )
+            return brush.colors[ static_cast< size_t >(
+                std::min( std::max( static_cast< int >( floorf( point.y ) ), 0 ), brush.height - 1 ) * brush.width +
+                std::min( std::max( static_cast< int >( floorf( point.x ) ), 0 ), brush.width - 1 ) ) ];
+        if ( &brush == &image_brush && image_mode == 2 )
+        {
+            float at_x = floorf( point.x - 0.5f );
+            float at_y = floorf( point.y - 0.5f );
+            float mix_x = point.x - 0.5f - at_x;
+            float mix_y = point.y - 0.5f - at_y;
+            int x_1 = std::min( std::max( static_cast< int >( at_x ), 0 ), brush.width - 1 );
+            int x_2 = std::min( std::max( static_cast< int >( at_x ) + 1, 0 ), brush.width - 1 );
+            int y_1 = std::min( std::max( static_cast< int >( at_y ), 0 ), brush.height - 1 ) * brush.width;
+            int y_2 = std::min( std::max( static_cast< int >( at_y ) + 1, 0 ), brush.height - 1 ) * brush.width;
+            rgba const *colors = &brush.colors[ 0 ];
+            return ( 1.0f - mix_y ) * ( ( 1.0f - mix_x ) * colors[ y_1 + x_1 ] + mix_x * colors[ y_1 + x_2 ] ) +
+                   mix_y * ( ( 1.0f - mix_x ) * colors[ y_2 + x_1 ] + mix_x * colors[ y_2 + x_2 ] );
+        }
         float scale_x = fabsf( inverse.a ) + fabsf( inverse.c );
         float scale_y = fabsf( inverse.b ) + fabsf( inverse.d );
         scale_x = std::max( 1.0f, std::min( scale_x, width * 0.25f ) );
@@ -2571,18 +2644,82 @@ void canvas::render_main(
     render_shadow( brush );
     lines_to_runs( xy( 0.0f, 0.0f ), 0 );
     int operation = global_composite_operation;
+    // ZINC patch 4 (ZN-572): without a clip, an operation that leaves the pixels outside the shape alone walks the shape's runs only, not
+    // the mask's two entries for every row of the canvas; and a plain colour drawn source-over is blended span by span, with no call for
+    // each pixel. The same sums as the loop below with a visibility of 1.
+    if ( !clipped && ( operation & 8 ) )
+    {
+        static float const least = 1.0f / 8160.0f;
+        bool solid = brush.type == paint_brush::color && !brush.colors.empty() && operation == source_over;
+        rgba ink = solid ? global_alpha * brush.colors.front() : rgba( 0.0f, 0.0f, 0.0f, 0.0f );
+        float sum = 0.0f;
+        for ( size_t index = 0; index < runs.size(); ++index )
+        {
+            pixel_run run = runs[ index ];
+            bool last = index + 1 == runs.size() || runs[ index + 1 ].y != run.y;
+            sum += run.delta;
+            float coverage = inside( sum, even_odd );
+            int at = run.x;
+            int to = std::min( last ? at + 1 : static_cast< int >( runs[ index + 1 ].x ), size_x );
+            if ( last )
+                sum = 0.0f;
+            if ( coverage < least || run.y >= size_y )
+                continue;
+            rgba *back = bitmap + run.y * size_x + at;
+            if ( solid )
+            {
+                rgba fore = coverage * ink;
+                float keep = 1.0f - fore.a;
+                for ( ; at < to; ++at, ++back )
+                {
+                    back->r = fore.r + keep * back->r;
+                    back->g = fore.g + keep * back->g;
+                    back->b = fore.b + keep * back->b;
+                    back->a = std::min( fore.a + keep * back->a, 1.0f );
+                }
+                continue;
+            }
+            for ( ; at < to; ++at, ++back )
+            {
+                rgba fore = coverage * global_alpha *
+                    paint_pixel( xy( static_cast< float >( at ) + 0.5f,
+                                     static_cast< float >( run.y ) + 0.5f ),
+                                 brush );
+                float mix_fore = operation & 1 ? back->a : 0.0f;
+                if ( operation & 2 )
+                    mix_fore = 1.0f - mix_fore;
+                float mix_back = 1.0f - ( operation & 4 ? fore.a : 0.0f );
+                rgba blend = mix_fore * fore + mix_back * *back;
+                blend.a = std::min( blend.a, 1.0f );
+                *back = blend;
+            }
+        }
+        return;
+    }
     int x = -1;
     int y = -1;
     float path_sum = 0.0f;
     float clip_sum = 0.0f;
     size_t path_index = 0;
     size_t clip_index = 0;
-    while ( clip_index < mask.size() )
+    size_t clip_end = mask.size();
+    // ZINC patch 4: under a clip, an operation that leaves the pixels outside the shape alone reads the mask from the shape's first row
+    // to its last, not from the top of the canvas to its bottom
+    if ( operation & 8 )
+    {
+        if ( runs.empty() )
+            return;
+        pixel_run first = { 0, runs.front().y, 0.0f };
+        pixel_run after = { 0, static_cast< unsigned short >( runs.back().y + 1 ), 0.0f };
+        clip_index = static_cast< size_t >( std::lower_bound( mask.begin(), mask.end(), first ) - mask.begin() );
+        clip_end = static_cast< size_t >( std::lower_bound( mask.begin(), mask.end(), after ) - mask.begin() );
+    }
+    while ( clip_index < clip_end )
     {
         bool which = ( path_index < runs.size() &&
                        runs[ path_index ] < mask[ clip_index ] );
         pixel_run next = which ? runs[ path_index ] : mask[ clip_index ];
-        float coverage = std::min( fabsf( path_sum ), 1.0f );
+        float coverage = inside( path_sum, even_odd );
         float visibility = std::min( fabsf( clip_sum ), 1.0f );
         int to = next.y == y ? next.x : x + 1;
         static float const threshold = 1.0f / 8160.0f;
@@ -2640,6 +2777,10 @@ canvas::canvas(
       stroke_brush(),
       image_brush(),
       face(),
+      clipped( false ),
+      image_mode( 0 ),
+      image_smoothing( true ),
+      even_odd( false ),
       bitmap( new rgba[ width * height ] ),
       saves( 0 )
 {
@@ -3071,6 +3212,7 @@ void canvas::stroke()
 
 void canvas::clip()
 {
+    clipped = true;   // ZINC patch 4
     path_to_lines( false );
     lines_to_runs( xy( 0.0f, 0.0f ), 0 );
     size_t part = runs.size();
@@ -3097,7 +3239,7 @@ void canvas::clip()
             sum_1 += runs[ index_1++ ].delta;
         else
             sum_2 += runs[ index_2++ ].delta;
-        float visibility = ( std::min( fabsf( sum_1 ), 1.0f ) *
+        float visibility = ( inside( sum_1, even_odd ) *
                              std::min( fabsf( sum_2 ), 1.0f ) );
         if ( visibility == last )
             continue;
@@ -3111,6 +3253,11 @@ void canvas::clip()
         }
         last = visibility;
     }
+    // ZINC patch 4: a clip that leaves every pixel visible (a game's camera, the size of its canvas) is no clip
+    clipped = mask.size() != static_cast< size_t >( size_y ) * 2;
+    for ( size_t index = 0; !clipped && index < mask.size(); index += 2 )
+        clipped = mask[ index ].x != 0 || mask[ index ].y != index / 2 || mask[ index ].delta != 1.0f ||
+            mask[ index + 1 ].x != size_x || mask[ index + 1 ].y != index / 2 || mask[ index + 1 ].delta != -1.0f;
 }
 
 bool canvas::is_point_in_path(
@@ -3360,6 +3507,13 @@ void canvas::draw_image(
                y + std::min( 0.0f, to_height ) );
     scale( fabsf( to_width ) / static_cast< float >( width ),
            fabsf( to_height ) / static_cast< float >( height ) );
+    // ZINC patch 5: see paint_pixel. inverse takes a pixel of the canvas to the picture: the length of its columns is how many pixels of
+    // the picture one pixel of the canvas steps over.
+    image_mode = !image_smoothing ||
+        ( inverse.a == 1.0f && inverse.d == 1.0f && inverse.b == 0.0f && inverse.c == 0.0f &&
+          inverse.e == floorf( inverse.e ) && inverse.f == floorf( inverse.f ) ) ? 1 :
+        inverse.a * inverse.a + inverse.b * inverse.b <= 1.0002f &&
+        inverse.c * inverse.c + inverse.d * inverse.d <= 1.0002f ? 2 : 0;
     render_main( image_brush );
     forward = saved_forward;
     inverse = saved_inverse;
@@ -3454,6 +3608,7 @@ void canvas::save()
     state->fill_brush = fill_brush;
     state->stroke_brush = stroke_brush;
     state->mask = mask;
+    state->clipped = clipped;   // ZINC patch 4
     state->face = face;
     state->saves = saves;
     saves = state;
@@ -3483,6 +3638,7 @@ void canvas::restore()
     fill_brush = state->fill_brush;
     stroke_brush = state->stroke_brush;
     mask = state->mask;
+    clipped = state->clipped;   // ZINC patch 4
     face = state->face;
     saves = state->saves;
     state->saves = 0;
