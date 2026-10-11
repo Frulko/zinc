@@ -73,6 +73,15 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-447: the splash's own `fadeMs` (stored since ZN-446) is still unused; `overlay()` could fade `image('.splash')` into the first frame of a program without `loading`.
 - ZN-447: the loader's fade image is in logical pixels, so it looks slightly soft for its duration at 2x; a physical-size snapshot would fix it.
 - ZN-447: the nodes of a zinc:ui loader screen stay allocated after main mounts its own root.
+- ZN-160 (bug): the lowering never collects a function or class declared inside a lambda body or a nested block: `const f = (): number => { function g(): number { return 1; } return g(); }` fails with "instruction ret of @lambda0:f uses a missing value", a class with a getter inside an IIFE with "class P has no implementation of .v"; ordinary TS code hits it.
+- ZN-160: `s.raw` inside a tag function is not supported on the typed engines; `String.raw` works only as a tag.
+- ZN-160: an object literal with accessors prints as its generated class (`__object0 { n: 2 }`, Node `{ n: 2, v: [Getter] }`); for...in, JSON.stringify and `{...o}` leave its accessors out.
+- ZN-160: getters and methods of object literals cannot read variables of the function around them (Z0005); needs methods that carry a closure.
+- ZN-160: for...in lists the static type's fields: a subclass seen through its base gets the base's fields, a typed object inside a Dyn none, parameter properties come before declared fields (Node puts them after).
+- ZN-160: labels around await or yield in async functions and generators are refused (Z0005); they could map onto the rewritten loop's lambdas.
+- ZN-160: still refused: `console.log(...a)`, push with several arguments, a tuple spread of an expression that is not a variable or property, a rest element of a tuple value.
+- ZN-160: QuickJS-ng rejects `a: b: for (...) { continue a; }` (label not found): an upstream bug to report; the fixture continues to the inner label.
+- ZN-160: at the milestone, regenerate `docs/reports/parity/gate.md` (section C rows for labels, rest parameters and spread become PARTIAL: zinc accepts what the prototype refuses) and refresh the compat baseline.
 
 ## Demos
 
