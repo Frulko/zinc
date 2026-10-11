@@ -2,6 +2,7 @@
 #include "assets/assets.h"
 
 #include "assets/sprite.h"
+#include "assets/tilemap.h"
 #include "res/codec.h"
 #include "zpk/zpk.h"
 
@@ -84,15 +85,16 @@ std::regex globRegex(const std::string& g) {
 
 // ---------------------------------------------------------------- importers
 using Opts = std::map<std::string, std::string>;
-// `side`: the bytes of the file a source names and its importer also reads (the image of a sprite sheet), empty for the others
-using ImportFn = bool (*)(const std::string& name, const std::string& in, const std::string& side, const Opts& o, std::string& out, std::string& err);
+// `side`: the bytes of the files a source names and its importer also reads, by name (the image of a sprite sheet, the tilesets of a map)
+using Side = std::map<std::string, std::string>;
+using ImportFn = bool (*)(const std::string& name, const std::string& in, const Side& side, const Opts& o, std::string& out, std::string& err);
 
-bool importCopy(const std::string&, const std::string& in, const std::string&, const Opts&, std::string& out, std::string&) { out = in; return true; }
+bool importCopy(const std::string&, const std::string& in, const Side&, const Opts&, std::string& out, std::string&) { out = in; return true; }
 
 void put16(std::string& o, unsigned v) { o += static_cast<char>(v & 0xff); o += static_cast<char>(v >> 8); }
 unsigned scaleTo(unsigned v, unsigned max) { return (v * max + 127) / 255; }
 
-bool importImage(const std::string& name, const std::string& in, const std::string&, const Opts& o, std::string& out, std::string& err) {
+bool importImage(const std::string& name, const std::string& in, const Side&, const Opts& o, std::string& out, std::string& err) {
   const std::string fmtName = o.count("format") ? o.at("format") : "rgba8";
   const Format fmt = fmtName == "rgba8" ? Format::Rgba8 : fmtName == "rgb565" ? Format::Rgb565 : fmtName == "rgba4444" ? Format::Rgba4444 : Format{};
   if (fmt == Format{}) { err = "format \"" + fmtName + "\" is not rgba8, rgb565 or rgba4444"; return false; }
@@ -119,14 +121,20 @@ bool importImage(const std::string& name, const std::string& in, const std::stri
   return true;
 }
 
+bool importSpriteFile(const std::string& name, const std::string& in, const Side& side, const Opts& o, std::string& out, std::string& err) {
+  return importSprite(name, in, side.empty() ? std::string() : side.begin()->second, o, out, err);
+}
+
 struct Importer { const char* id; int version; Kind kind; ImportFn run; };
 // Built-in importers (the importer decision of ZN-434: codecs come as pinned command-line tools run as subprocesses, data formats as Zinc
 // scripts, both from plugins; these need neither). A version changes when an importer's output for the same input changes. A sprite's
 // artifact is its trimmed frames, never an entry: the frames of one atlas become its table and pages when their pack is written (sprite.h).
+// A tile map's artifact is its table, the entry <map>.tilemap, and the frames of its tiles, which go to their atlas like a sprite's (tilemap.h).
 const Importer kImporters[] = {
   {"copy", 1, Kind::Data, importCopy},
   {"image", 1, Kind::Image, importImage},
-  {"sprite", 1, Kind::Image, importSprite},
+  {"sprite", 1, Kind::Image, importSpriteFile},
+  {"tilemap", 1, Kind::Data, importTilemap},
 };
 const Importer* findImporter(const std::string& id) {
   for (const Importer& i : kImporters) if (id == i.id) return &i;
@@ -244,7 +252,7 @@ bool splash(const Splash& s, const std::string& cacheDir, const std::string& too
         if (s.image.empty()) return true;
         std::string zim;
         // an SVG drawn as large as the importer goes (8 pixels a unit, 1024 wide at most): the splash usually fills a window
-        if (!importImage(s.image, bytes, "", Opts{{"scale", ext == ".svg" ? "8" : "1"}}, zim, e)) { e = "splash " + s.image + ": " + e; return false; }
+        if (!importImage(s.image, bytes, {}, Opts{{"scale", ext == ".svg" ? "8" : "1"}}, zim, e)) { e = "splash " + s.image + ": " + e; return false; }
         o += zim;
         return true;
       }, out, hit, err)) return false;
@@ -292,14 +300,15 @@ bool build(const Options& opt, Report& report, std::string& err) {
   auto any = [](const std::vector<std::regex>& globs, const std::string& name) { return std::any_of(globs.begin(), globs.end(), [&](const std::regex& re) { return std::regex_match(name, re); }); };
 
   // an artifact found in the cache is only read when its pack must be written: an unchanged project reads each source once and nothing else
-  // atlas: the atlas of a sprite; sheet: the image a sprite sheet (JSON) names, read with it
-  struct Entry { std::string name, key; const Importer* imp; Opts opts; std::string data; bool loaded = false; std::string atlas, sheet; };
-  auto readSource = [&](const Entry& e, std::string& bytes, std::string& side) {
+  // atlas: the atlas of a sprite or of a map's tiles; deps: the files it reads besides itself (the image of a sprite sheet, a map's tilesets)
+  struct Entry { std::string name, key; const Importer* imp; Opts opts; std::string data; bool loaded = false; std::string atlas; std::vector<std::string> deps; };
+  auto readSource = [&](const Entry& e, std::string& bytes, Side& side) {
     if (!readFile(fs::path(opt.sourceDir) / e.name, bytes)) { err = e.name + ": cannot read the file"; return false; }
-    if (!e.sheet.empty() && !readFile(fs::path(opt.sourceDir) / e.sheet, side)) { err = e.name + ": cannot read the image of the sheet, " + e.sheet; return false; }
+    for (const std::string& d : e.deps)
+      if (!readFile(fs::path(opt.sourceDir) / d, side[d])) { err = e.name + ": cannot read " + d + ", which it names"; return false; }
     return true;
   };
-  auto import = [&](Entry& e, const std::string& bytes, const std::string& side) {
+  auto import = [&](Entry& e, const std::string& bytes, const Side& side) {
     std::string ierr;
     if (!e.imp->run(e.name, bytes, side, e.opts, e.data, ierr)) { err = e.name + ": " + ierr; return false; }
     e.loaded = true;
@@ -317,22 +326,28 @@ bool build(const Options& opt, Report& report, std::string& err) {
         for (const auto& [k, v] : r.rule->options) o[k] = v;
       }
     const Importer* imp = findImporter(id);
-    if (!imp) { err = name + ": no importer \"" + id + "\" (built in: copy, image, sprite)"; return false; }
+    if (!imp) { err = name + ": no importer \"" + id + "\" (built in: copy, image, sprite, tilemap)"; return false; }
     if (imp->kind == Kind::Image && !o.count("scale")) {   // an SVG is drawn for 2x screens; a raster image is as many pixels per point as its @Nx says
       static const std::regex hi("@([1-8])x\\.[^.]+$");
       std::smatch m;
       o["scale"] = fs::path(name).extension() == ".svg" ? "2" : std::regex_search(name, m, hi) ? m[1].str() : "1";
     }
     Entry e{name, {}, imp, std::move(o), {}, false, {}, {}};
-    if (imp->run == importSprite) {
+    if (imp->run == importSpriteFile) {
       e.atlas = e.opts.count("atlas") ? e.opts.at("atlas") : "sprites";
       if (fs::path(name).extension() == ".json") {
         std::string json;
         if (!readFile(fs::path(opt.sourceDir) / name, json)) { err = name + ": cannot read the file"; return false; }
-        e.sheet = sheetImage(name, json);
-        if (e.sheet.empty()) { err = name + ": not a sprite sheet (TexturePacker or Aseprite JSON with meta.image in the assets directory)"; return false; }
-        sheets.insert(e.sheet);
+        e.deps = {sheetImage(name, json)};
+        if (e.deps[0].empty()) { err = name + ": not a sprite sheet (TexturePacker or Aseprite JSON with meta.image in the assets directory)"; return false; }
+        sheets.insert(e.deps[0]);
       }
+    } else if (imp->run == importTilemap) {
+      e.atlas = e.opts.count("atlas") ? e.opts.at("atlas") : kTileAtlas;
+      std::string json;
+      if (!readFile(fs::path(opt.sourceDir) / name, json)) { err = name + ": cannot read the file"; return false; }
+      auto read = [&](const std::string& f, std::string& bytes) { return readFile(fs::path(opt.sourceDir) / f, bytes); };
+      if (!tilemapDeps(name, json, read, e.deps, err)) { err = name + ": " + err; return false; }
     }
     sources.push_back(std::move(e));
   }
@@ -341,13 +356,15 @@ bool build(const Options& opt, Report& report, std::string& err) {
   for (Entry& e : sources) {
     if (!e.atlas.empty() && sheets.count(e.name)) continue;
     const auto t = Clock::now();
-    std::string bytes, side;
+    std::string bytes;
+    Side side;
     if (!readSource(e, bytes, side)) return false;
     Key k;
     k.add("zinc-asset 1").add(e.imp->id).add(std::to_string(e.imp->version)).add(opt.tool);
     for (const auto& [key, v] : e.opts) k.add(key).add(v);
     k.add(bytes);
-    if (!e.sheet.empty()) k.add(side);
+    if (!e.deps.empty()) k.add(e.name);   // the files it names are found from its place, and a map's tiles are named by their image's path
+    for (const auto& [d, b] : side) k.add(d).add(b);
     e.key = k.hex();
     std::uint64_t outBytes = 0;
     const bool hit = !opt.cacheDir.empty() && (outBytes = fs::file_size(artifactPath(opt.cacheDir, e.key), ec), !ec);
@@ -364,7 +381,9 @@ bool build(const Options& opt, Report& report, std::string& err) {
       if (!fresh && it->second.first != group) { err = e.name + ": the atlas " + e.atlas + " has frames in the groups " + it->second.first + " and " + group + ": an atlas is loaded with one group"; return false; }
       if (!fresh && it->second.second != packing) { err = e.name + ": the rules give the atlas " + e.atlas + " two settings of extrude, padding, maxSize or pot"; return false; }
     }
-    report.items.push_back({e.name, e.imp->id, group, bytes.size() + side.size(), outBytes, msSince(t), hit});
+    std::uint64_t sourceBytes = bytes.size();
+    for (const auto& [d, b] : side) sourceBytes += b.size();
+    report.items.push_back({e.name, e.imp->id, group, sourceBytes, outBytes, msSince(t), hit});
     if (!hit) ++report.imported;
     packs[group].push_back(std::move(e));
   }
@@ -408,8 +427,15 @@ bool build(const Options& opt, Report& report, std::string& err) {
       std::map<std::string, const Opts*> packing;
       for (Entry& e : entries) {
         if (!e.loaded && !readFile(artifactPath(opt.cacheDir, e.key), e.data)) {   // trimmed by another build since: imported again
-          std::string bytes, side;
+          std::string bytes;
+          Side side;
           if (!readSource(e, bytes, side) || !import(e, bytes, side)) return false;
+        }
+        if (e.imp->run == importTilemap) {   // its table is an entry, its tiles are frames of its atlas
+          std::string tiles, table;
+          if (!splitTilemap(e.data, tiles, table)) { err = e.name + ": a damaged tile map artifact"; return false; }
+          inputs.push_back({e.name + ".tilemap", std::move(table), 0, Kind::Data, codec});
+          e.data = std::move(tiles);
         }
         if (!e.atlas.empty()) { frames[e.atlas].push_back({e.name, std::move(e.data)}); packing.emplace(e.atlas, &e.opts); continue; }
         inputs.push_back({e.name, std::move(e.data), 0, e.imp->kind, codec});

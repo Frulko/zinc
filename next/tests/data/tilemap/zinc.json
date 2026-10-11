@@ -1,0 +1,10 @@
+{
+  "name": "tilemap",
+  "entry": "main.ts",
+  "assets": {
+    "dir": "assets",
+    "rules": [
+      { "match": "**/*.{tmj,ldtk}", "as": "tilemap" }
+    ]
+  }
+}

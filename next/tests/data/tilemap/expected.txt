@@ -1,0 +1,24 @@
+map tiled/temple.tmj: 1 level(s), 33 tiles, atlas tiles
+level temple 0,0 256x272 background -1
+  prop music file "music/temple.ogg"
+  layer ground 16x17 cell 16x16 at 0,0 opacity 1 visible parallax 1,1 tint 16777215 tiles 57 values 0/0 objects 0
+  layer decor 16x17 cell 16x16 at 4,3 opacity 1 visible parallax 1,1 tint 16777215 tiles 16 values 0/0 objects 0
+  layer water 16x17 cell 16x16 at 0,0 opacity 0.4 visible parallax 1,1 tint 16777215 tiles 8 values 0/0 objects 0
+  layer debug 16x17 cell 16x16 at 0,0 opacity 1 hidden parallax 1,1 tint 16777215 tiles 272 values 0/0 objects 0
+  layer spawns 0x0 cell 16x16 at 0,0 opacity 1 visible parallax 1,1 tint 16777215 tiles 0 values 0/0 objects 3
+    object 1 player Spawn point at 40,200 0x0 rotation 0 tile 0 points 
+      prop hp int "3"
+      prop speed float "1.5"
+      prop flying bool "false"
+      prop tint color "#ff336699"
+      prop title string "Tiled\thero"
+    object 2 door Door rect at 200,32 16x32 rotation 0 tile 0 points 
+      prop target string "Level_1"
+      prop link object "1"
+    object 3 zone  polygon at 8,8 0x0 rotation 0 tile 0 points 0,0,32,0,16,24
+map levelBgs.ldtk: 4 level(s): Level_0 Level_1 Level_2 Level_3, 16 tiles, atlas tiles
+level Level_1 -1,-1 256x272 background 11801903
+  layer Collisions 16x17 cell 16x16 at 0,0 opacity 1 visible parallax 1,1 tint 16777215 tiles 57 values 57/272 objects 0
+player hp 4 speed 3 flying false title "Tiled\thero" type of tint color
+Level_1 Collisions row at y 100: 0001011011111100; tile at (150, 100): 6; outside: 0 0
+drawn 81 tiles of the Tiled map, 57 of Level_1, 38 in the view

@@ -276,6 +276,27 @@ bool readArtifact(const std::string& source, const std::string& a, std::vector<F
   return r.ok && r.at == a.size();
 }
 
+/** The artifact of a source's frames (trimmed) and animations: what readArtifact reads. */
+std::string writeArtifact(std::vector<Frame>& frames, const std::vector<Anim>& anims, bool trim) {
+  std::string out = "ZSF1";
+  put32(out, static_cast<std::uint32_t>(frames.size()));
+  put32(out, static_cast<std::uint32_t>(anims.size()));
+  for (Frame& f : frames) {
+    trimFrame(f, trim);
+    putStr(out, f.name);
+    for (int v : {f.w, f.h, f.ox, f.oy, f.sw, f.sh, f.scale, f.ms, f.loose ? 1 : 0}) put32(out, static_cast<std::uint32_t>(v));
+    putF(out, f.px); putF(out, f.py);
+    out.append(reinterpret_cast<const char*>(f.rgba.data()), f.rgba.size());
+  }
+  for (const Anim& a : anims) {
+    putStr(out, a.name);
+    put32(out, static_cast<std::uint32_t>(a.mode));
+    put32(out, static_cast<std::uint32_t>(a.frames.size()));
+    for (int i : a.frames) put32(out, static_cast<std::uint32_t>(i));
+  }
+  return out;
+}
+
 int pot(int v) { int p = 1; while (p < v) p <<= 1; return p; }
 
 }  // namespace
@@ -313,24 +334,20 @@ bool importSprite(const std::string& name, const std::string& in, const std::str
     if (!readImage(name, in, o, f, err)) return false;
     frames.push_back(std::move(f));
   }
-  const bool trim = flag(o, "trim", true);
-  out = "ZSF1";
-  put32(out, static_cast<std::uint32_t>(frames.size()));
-  put32(out, static_cast<std::uint32_t>(anims.size()));
-  for (Frame& f : frames) {
-    trimFrame(f, trim);
-    putStr(out, f.name);
-    for (int v : {f.w, f.h, f.ox, f.oy, f.sw, f.sh, f.scale, f.ms, f.loose ? 1 : 0}) put32(out, static_cast<std::uint32_t>(v));
-    putF(out, f.px); putF(out, f.py);
-    out.append(reinterpret_cast<const char*>(f.rgba.data()), f.rgba.size());
-  }
-  for (const Anim& a : anims) {
-    putStr(out, a.name);
-    put32(out, static_cast<std::uint32_t>(a.mode));
-    put32(out, static_cast<std::uint32_t>(a.frames.size()));
-    for (int i : a.frames) put32(out, static_cast<std::uint32_t>(i));
-  }
+  out = writeArtifact(frames, anims, flag(o, "trim", true));
   return true;
+}
+
+std::string spriteArtifact(std::vector<Cut> cuts) {
+  std::vector<Frame> frames;
+  for (Cut& c : cuts) {
+    Frame f;
+    f.name = std::move(c.name);
+    f.w = f.sw = c.w; f.h = f.sh = c.h;
+    f.rgba = std::move(c.rgba);
+    frames.push_back(std::move(f));
+  }
+  return writeArtifact(frames, {}, true);
 }
 
 bool buildAtlas(const std::string& atlas, const std::vector<std::pair<std::string, std::string>>& sources, const Opts& o, std::vector<zpk::Input>& out,
@@ -345,6 +362,9 @@ bool buildAtlas(const std::string& atlas, const std::vector<std::pair<std::strin
   for (int i = 0; i < static_cast<int>(all.size()); ++i) {
     auto [it, fresh] = byName.emplace(all[i].name, i);
     if (fresh) continue;
+    const Frame& a = all[it->second];
+    const Frame& b = all[i];
+    if (a.w == b.w && a.h == b.h && a.ox == b.ox && a.oy == b.oy && a.sw == b.sw && a.sh == b.sh && a.scale == b.scale && a.rgba == b.rgba) continue;   // one tile of two maps
     if (all[it->second].scale == all[i].scale) { err = "the atlas " + atlas + " has two frames named " + all[i].name; return false; }
     if (all[i].scale > all[it->second].scale) it->second = i;
   }

@@ -1,0 +1,32 @@
+Sources and licences of the tile map test data (ZN-443)
+
+assets/atlas/Inca_extended_front_by_Kronbits.png
+  "Inca" tileset by Kronbits (https://kronbits.itch.io/inca-game-assets), CC0 1.0 (public domain), as extended in the LDtk repository:
+  https://github.com/deepnight/ldtk/blob/2b7b5512f2f88fa281cb6492debbb26ead7838d4/tests/atlas/Inca_extended_front_by_Kronbits.png
+
+assets/levelBgs.ldtk, ref/ldtk-Level_1.png
+  LDtk's test project tests/levelBgs.ldtk (LDtk 1.2.0 format) and its editor export tests/levelBgs/png/Level_1__Collisions.png (the
+  image LDtk saves for the layer Collisions of Level_1), from https://github.com/deepnight/ldtk at commit
+  2b7b5512f2f88fa281cb6492debbb26ead7838d4, MIT licence:
+
+  MIT License
+
+  Copyright (c) 2020, Sébastien Benard - Deepnight Games
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the
+  "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish,
+  distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to
+  the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+  CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+assets/tiled/temple.tmj, assets/tiled/inca.tsj, ref/tiled-temple.png
+  Written for this test (CC0): the tiles of LDtk's Level_1 as the ground layer, plus every flip of one tile, base64 zlib and gzip layers, a
+  layer offset, a group with opacity, a hidden layer and an object layer. ref/tiled-temple.png is Tiled's own render of it, Tiled 1.12.2
+  (Tiled-1.12.2_macOS-13+.zip, sha256 75712ec3a892701a9b2b7a12e44d636a1dbbe4caa6bb8bba729e697bd8a80433):
+    Tiled.app/Contents/MacOS/tmxrasterizer --hide-object-layers assets/tiled/temple.tmj ref/tiled-temple.png

@@ -60,6 +60,7 @@ matches a path applies in order, a later one overriding an earlier one's options
 | `copy` | the bytes as they are |
 | `image` | decoded (stb_image, libwebp, the baker's SVG rasterizer), alpha premultiplied, in `format` `rgba8` (default), `rgb565` or `rgba4444`, after the 16-byte header below; an SVG is drawn at `scale` pixels per unit (2 by default, at most 1024 pixels wide), a raster image keeps its pixels and takes its scale from an `@2x` name |
 | `sprite` | a frame of an atlas (below): no entry of its own; the atlas becomes `<atlas>.atlas` (its table) and `<atlas>.atlas.<n>` (its pages) |
+| `tilemap` | a Tiled or LDtk map (below): its table `<map>.tilemap`; the tiles it uses are frames of an atlas |
 
 Image header (little-endian): `ZIM1`, u8 format (1 rgba8, 2 rgb565, 3 rgba4444), u8 scale, u16 flags (bit 0: premultiplied), u32 width,
 u32 height; then the rows top to bottom (16-bit pixels: red in the high bits, `RRRRRGGGGGGBBBBB` and `RRRRGGGGBBBBAAAA`). zinc:gfx `image(name)`
@@ -96,6 +97,36 @@ A rule `"as": "sprite"` makes its files frames of an atlas, `"atlas": "<name>"` 
 - **Cache.** The frames of one file are its artifact (trimmed, named relative to the file: a key covers bytes, not paths); an atlas is
   assembled from them when its pack is written. The frames of one atlas must be in one group and share its packing options.
 
+### Tile maps (ZN-443)
+
+A rule `"as": "tilemap"` imports a Tiled map (`.tmj`, its tilesets embedded or external `.tsj`) or an LDtk project (`.ldtk`) into the
+entry `<map>.tilemap`, read by the pure-Zinc `zinc:tilemap` (`docs/plugins/tilemap.md`); the tiles it uses become frames of the atlas
+`"atlas"` (default `tiles`, packed like the sprites' with the rule's `extrude`, `padding`, `maxSize`, `pot`), so a level draws from atlas
+pages. The importer is built in (yyjson, as the sprite sheets), not a Zinc script: see the task notes of ZN-443.
+
+```json
+"assets": { "rules": [{ "match": "levels/**/*.{tmj,ldtk}", "as": "tilemap", "atlas": "tiles" }] }
+```
+
+- **Tiled**: orthogonal, finite maps; tile layers in any of Tiled's JSON encodings (array, base64 plain, zlib, gzip, zstd: stb_image's
+  inflate and the vendored zstd), group layers (offsets, opacity, visibility, parallax and tint applied to their layers), object layers
+  (rectangles, ellipses, points, polygons, polylines, text boxes, tile objects) with their properties; a tile stands on its cell's bottom
+  left corner plus its tileset's `tileoffset`. Not yet: the XML formats `.tmx`/`.tsx` (no XML parser is vendored; the importer says to save
+  as JSON or run `tiled --export-map json`), infinite maps, isometric and hexagonal maps, image layers (skipped), tilesets that are
+  collections of images, tile animations and per-tile properties.
+- **LDtk**: every level of the project and of its worlds; IntGrid (values and auto-layer tiles), AutoLayer and Tiles layers, Entities
+  (records placed by their pivot, fields as properties). A cell with several tiles (stacked auto-layer rules) adds layers of the same name
+  in display order. Not yet: levels in separate files (`.ldtkl`), level background images, per-tile alpha.
+- **Tiles**: each tile a map uses is cut from its tileset image as a frame named `<image>#x,y,w,h` (`,t` when Tiled's diagonal flip
+  transposes its texels, so a cell only mirrors at run time); maps that share a tileset share its frames. A tileset image stays an image
+  entry of its own unless a rule says otherwise.
+- **Table** (text, tab-separated, escapes `\\`, `\t`, `\n`): `zinc-tilemap 1`; `atlas <name>`; `tile <frame> <dx> <dy>` (tile 1, 2...:
+  drawn (dx, dy) from its cell's top left corner); per level `level <name> <x> <y> <w> <h> <background 0xRRGGBB or -1>`, then its layers
+  bottom first: `layer <name> <cols> <rows> <cell w> <cell h> <x> <y> <opacity> <visible 0|1> <parallax x> <parallax y> <tint>`, `cells`
+  (comma-separated, row by row: tile index times 4, plus 1 mirrored in x, 2 in y; 0 empty), `ints` (IntGrid values), `object <id> <name>
+  <type> <shape> <x> <y> <w> <h> <rotation> <tile> <points>`; `prop <name> <type> <value>` after the level, layer or object it belongs to.
+- **Cache**: the key of a map covers its bytes and the path and bytes of every file it names (its tiles are named by their image's path).
+
 The font baker (`src/res`, `zinc-next-resources.md`) is the third built-in importer: its inputs are the program's sources, so the program
 build calls it (`bakeResources`: `zinc run`, `pack`, `build`, `export`, `bake`) through the same cache; its blob is not a pack entry yet.
 
@@ -110,7 +141,8 @@ XXH3-128 of those parts, each hashed on its own (xxHash 0.8.4, `third_party/xxha
 trims the cache to its budget (2 GiB, `ZINC_ASSET_CACHE_MB`), least recently used first. `ZINC_NO_CACHE=1` imports everything.
 
 The engine's build is its executable's time and size, as for the program caches of `zinc run`: a new engine imports again, so a change to an
-importer never meets a stale artifact. Paths are not part of a key, so the same file under two names or in two checkouts is imported once.
+importer never meets a stale artifact. Paths are not part of a key, so the same file under two names or in two checkouts is imported once;
+a file that names others (a sprite sheet, a tile map) has its own path and theirs in its key, as they are found from its place.
 
 A pack is rewritten only when its key (the profile, each entry's name, key and kind) differs from the one `build/assets/<target>/.packs` recorded,
 so an unchanged project rewrites nothing. The writer is deterministic (`docs/zpk.md`): the same project gives the same packs in any directory

@@ -1,0 +1,15 @@
+{
+ "columns": 20,
+ "image": "../atlas/Inca_extended_front_by_Kronbits.png",
+ "imagewidth": 320,
+ "imageheight": 224,
+ "margin": 0,
+ "spacing": 0,
+ "name": "inca",
+ "tilecount": 280,
+ "tilewidth": 16,
+ "tileheight": 16,
+ "type": "tileset",
+ "version": "1.10",
+ "tiledversion": "1.12.2"
+}

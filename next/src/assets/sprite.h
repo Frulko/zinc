@@ -2,6 +2,7 @@
 // `"as": "sprite"` become trimmed frames, one cached artifact per file, and the frames of one atlas are packed into pages when their pack is
 // written (stb_rect_pack): the entries <atlas>.atlas (the frame table, text) and <atlas>.atlas.<n> (the pages, ZIM1 rgba8, straight alpha).
 #pragma once
+#include <cstdint>
 #include <map>
 #include <string>
 #include <utility>
@@ -19,6 +20,12 @@ std::string zimHeader(int format, int scale, bool premultiplied, int w, int h);
  *  names). Trimmed to what is not transparent unless `trim` is false. The output is the artifact buildAtlas reads. */
 bool importSprite(const std::string& name, const std::string& in, const std::string& sheet, const std::map<std::string, std::string>& opts,
                   std::string& out, std::string& err);
+/** A frame another importer cut out of an image (a tile of a tile map's tileset): its full name in the atlas, one texel a point, w x h
+ *  straight-alpha texels. */
+struct Cut { std::string name; int w = 0, h = 0; std::vector<std::uint8_t> rgba; };
+/** importSprite's artifact of `cuts`, trimmed as its frames are. Frames of one name in one atlas must have the same texels (two maps that use
+ *  one tile): the atlas keeps one. */
+std::string spriteArtifact(std::vector<Cut> cuts);
 /** The image a JSON sheet names (meta.image), as a path of the assets directory; empty when `json` is not a sheet. */
 std::string sheetImage(const std::string& name, const std::string& json);
 /** The frames of `sources` (name, importSprite's artifact) packed into pages of at most `maxSize` texels a side (`pot`: power-of-two sides),
