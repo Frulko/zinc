@@ -2,7 +2,8 @@
 id: ZN-583
 title: 'Physics plugins: Box2D v3 (2D) and Jolt (3D)'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-09 08:12'
 labels:
   - games
