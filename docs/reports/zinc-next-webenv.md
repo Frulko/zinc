@@ -58,7 +58,18 @@ What a program finds:
 
 - **Layout**: none. A box is what the style says (px, %, vw, vh), else the window for `html` and `body`, the bitmap for a canvas, the parent's
   width and no height for the rest, all at the origin.
-- **Canvas 2D** (ZN-570): `getContext('2d')` gives a context that takes every call and draws nothing; the first one prints a notice.
+- **Canvas 2D** (ZN-570, the text-first tier): `getContext('2d')` draws on a bitmap of its own. `src/qjs/canvas2d.cpp` binds canvas_ity
+  (`third_party/canvas_ity`: paths, strokes, dashes, clip, linear and radial gradients, shadows, eleven compositing operations, `drawImage`,
+  `getImageData`, `putImageData`) and the engine's text tier (`src/text`: HarfBuzz shaping and the font's metrics; the glyph outlines go to
+  canvas_ity as a path, so text is kerned, stroked, shadowed, filled with a gradient and transformed like a shape). `lib/std/webenv.js`
+  keeps the state a program reads back and parses CSS colours and the `font` shorthand. Families: a `FontFace` of the program's own files
+  (`document.fonts`; never from the network), else the bundled Inter (regular, bold) and JetBrains Mono. A 2D canvas of the document is shown
+  in the window; any canvas is a texture source (`texImage2D`) and a `drawImage` source. Against headless Chrome with the same font:
+  `measureText` widths equal, TextMetrics, baselines and glyph boxes within a pixel, a scene of game text at SSIM 0.99
+  (`tests/t1/webenv_canvas2d.sh`; `tools/canvas2d-ref` makes the references). Not in this tier, counted and never thrown
+  (`__canvas2dUnsupported()`, named by `ZINC_WEB=trace`): Path2D, patterns, conic gradients, rounded corners of `roundRect`, filters, the
+  even-odd rule, the blend modes beyond the eleven, `isPointInStroke`; pictures are always resampled with a bicubic filter (no
+  nearest-neighbour), italic is drawn upright. These are ZN-572.
 - **Images**: no `createImageBitmap` and no `ImageBitmap`, on purpose, as long as there is no `Worker`: PixiJS 7 and 8, finding
   `createImageBitmap`, load every picture through a Worker they make without looking for one, and `Assets.load` fails; without it they,
   three.js and Phaser load pictures through image elements, unmodified (measured: the notes of ZN-569). Nothing is decoded off the main

@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <initializer_list>
 
 extern "C" {
 #include "SheenBidi/SheenBidi.h"
@@ -70,6 +71,28 @@ bool rasterize(const Face& f, uint32_t gid, float px, Bitmap& out) {
   out.a.assign(b, b + static_cast<size_t>(w) * h);
   stbtt_FreeBitmap(b, nullptr);
   return true;
+}
+
+bool outline(const Face& f, uint32_t gid, float px, Outline& out) {
+  stbtt_fontinfo* info = &f.impl()->info;
+  const float s = stbtt_ScaleForMappingEmToPixels(info, px);
+  out.ops.clear(); out.pts.clear();
+  int x0, y0, x1, y1;
+  if (!stbtt_GetGlyphBox(info, static_cast<int>(gid), &x0, &y0, &x1, &y1)) return false;
+  stbtt_vertex* v = nullptr;
+  const int n = stbtt_GetGlyphShape(info, static_cast<int>(gid), &v);
+  for (int i = 0; i < n; i++) {
+    const auto put = [&](char op, std::initializer_list<int> c) { out.ops.push_back(op); bool x = true; for (int u : c) { out.pts.push_back(x ? u * s : -u * s); x = !x; } };
+    switch (v[i].type) {
+      case STBTT_vmove: put('M', {v[i].x, v[i].y}); break;
+      case STBTT_vline: put('L', {v[i].x, v[i].y}); break;
+      case STBTT_vcurve: put('Q', {v[i].cx, v[i].cy, v[i].x, v[i].y}); break;
+      case STBTT_vcubic: put('C', {v[i].cx, v[i].cy, v[i].cx1, v[i].cy1, v[i].x, v[i].y}); break;
+    }
+  }
+  if (v) stbtt_FreeShape(info, v);
+  out.x0 = x0 * s; out.x1 = x1 * s; out.y0 = -y1 * s; out.y1 = -y0 * s;
+  return !out.ops.empty();
 }
 
 std::vector<bool> breakOpportunities(std::string_view s, const char* lang) {

@@ -24,6 +24,7 @@ extern "C" {
 #include "zn/runtime.h"
 
 namespace zn::qjs {
+void installCanvas2d(JSContext* ctx, JSValueConst native, const std::string& stdRoot);   // canvas2d.cpp: native.c2d, what a 2D context draws with
 namespace {
 
 bool readText(const std::string& path, std::string& out) {
@@ -201,6 +202,7 @@ bool webEnv(JSContext* ctx, const std::string& stdRoot, const std::string& entry
   JS_SetPropertyStr(ctx, n, "run", JS_NewCFunction(ctx, js_run, "run", 2));
   JS_SetPropertyStr(ctx, n, "base", JS_NewStringLen(ctx, base.data(), base.size()));
   JS_SetPropertyStr(ctx, n, "trace", JS_NewBool(ctx, mode == "trace"));
+  installCanvas2d(ctx, n, stdRoot);
   JS_SetPropertyStr(ctx, g, "__zincWeb", n);   // the environment takes it and removes it
   JS_FreeValue(ctx, g);
   JSValue r = JS_Eval(ctx, js.data(), js.size(), "zinc:webenv", JS_EVAL_TYPE_GLOBAL);

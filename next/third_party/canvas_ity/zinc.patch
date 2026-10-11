@@ -1,0 +1,74 @@
+--- canvas_ity.hpp (upstream 8be29cb)
++++ canvas_ity.hpp
+@@ -1146,6 +1146,10 @@
+     /// path.  If the stack of canvas states is empty, this does nothing.
+     ///
+     void restore();
++
++    // ZINC patch 2 (ZN-570): sets the current path aside, or takes it back. Between the two calls the caller builds and paints a path of
++    // its own (the outlines of shaped glyphs): fillText and strokeText must leave the current path as it was.
++    void exchange_path();
+ 
+ private:
+     int size_x;
+@@ -1163,6 +1167,7 @@
+     paint_brush stroke_brush;
+     paint_brush image_brush;
+     bezier_path path;
++    bezier_path held_path;   // ZINC patch 2
+     line_path lines;
+     line_path scratch;
+     pixel_runs runs;
+@@ -1270,18 +1275,28 @@
+     return left -= right; }
+ static rgba const operator*( float left, rgba right ) {
+     return right *= left; }
++// ZINC patch 1 (ZN-570): colours are blended as the sRGB values they are, which is what every browser's canvas does (a half transparent
++// white over black is 128, not 188) and saves a powf per channel of every pixel read back. Upstream blends in linear light.
++#ifndef CANVAS_ITY_LINEAR_BLENDING
++static float linearized( float value ) { return value; }
++#else
+ static float linearized( float value ) {
+     return value < 0.04045f ? value / 12.92f :
+         powf( ( value + 0.055f ) / 1.055f, 2.4f ); }
++#endif
+ static rgba const linearized( rgba that ) {
+     return rgba( linearized( that.r ), linearized( that.g ),
+                  linearized( that.b ), that.a ); }
+ static rgba const premultiplied( rgba that ) {
+     return rgba( that.r * that.a, that.g * that.a,
+                  that.b * that.a, that.a ); }
++#ifndef CANVAS_ITY_LINEAR_BLENDING   // ZINC patch 1
++static float delinearized( float value ) { return value; }
++#else
+ static float delinearized( float value ) {
+     return value < 0.0031308f ? 12.92f * value :
+         1.055f * powf( value, 1.0f / 2.4f ) - 0.055f; }
++#endif
+ static rgba const delinearized( rgba that ) {
+     return rgba( delinearized( that.r ), delinearized( that.g ),
+                  delinearized( that.b ), that.a ); }
+@@ -3271,6 +3286,11 @@
+     int units_per_em = unsigned_16( face.data, face.head + 18 );
+     face.scale = size / static_cast< float >( units_per_em );
+     return true;
++}
++
++void canvas::exchange_path()   // ZINC patch 2
++{
++    std::swap( path, held_path );
+ }
+ 
+ void canvas::fill_text(
+@@ -3371,6 +3391,11 @@
+                  0 <= canvas_y && canvas_y < size_y )
+                 color = bitmap[ canvas_y * size_x + canvas_x ];
+             float threshold = bayer[ canvas_y & 3 ][ canvas_x & 3 ];
++#ifndef CANVAS_ITY_LINEAR_BLENDING
++            // ZINC patch 3 (ZN-570): rounded to the nearest value, not dithered. A browser's canvas does not dither, and a program that
++            // reads back a flat colour (half transparent, say) expects one value, not a 4 x 4 pattern of two.
++            threshold = 0.5f;
++#endif
+             color = rgba( threshold, threshold, threshold, threshold ) +
+                 255.0f * delinearized( clamped( unpremultiplied( color ) ) );
+             image[ index + 0 ] = static_cast< unsigned char >( color.r );

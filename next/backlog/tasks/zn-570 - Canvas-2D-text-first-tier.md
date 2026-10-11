@@ -1,10 +1,11 @@
 ---
 id: ZN-570
 title: 'Canvas 2D, text-first tier'
-status: Backlog
+status: In Progress
 assignee:
   - '@parallel'
 created_date: '2026-10-09 08:11'
+updated_date: '2026-10-11 15:00'
 labels:
   - games
   - js
@@ -51,4 +52,11 @@ OPTIONS AND A FIRST SCORING (RULES 4: fit x3, performance x3, size x2, maintaina
 (C) and (D) tie; on a tie RULES takes fewer moving parts, which is (D) (one vendored header against raster code of our own plus a later second backend). TWO MEASURES DECIDE IT and neither exists: (1) canvas_ity's time for a line of text into 512 x 128 and for a 640 x 480 fill (a scratch program was written and never ran: the machine was at a load of 80); if a line of text costs more than a few milliseconds, (C). (2) SSIM against Chrome for a text canvas, given the gamma-correct blending and the dithering; if under 0.90, (C).
 
 A PLAN FOR THE SLICES, if (D) holds (each with a test and a commit): 1 the bitmap, state, transforms, fillRect / clearRect / strokeRect, getImageData / putImageData / createImageData, a canvas as a texture source (replacing context2d() and HTMLCanvasElement._pixels() in lib/std/webenv.js), with pixel checks against flat colours; 2 drawImage in its 3, 5 and 9 argument forms from an image, a canvas and an ImageData; 3 font parsing, measureText with the whole TextMetrics, fillText with textAlign, textBaseline, direction and letterSpacing, against Chrome with Inter loaded in both; FontFace and document.fonts for files of the project go here; 4 strokeText, gradients, text shadows; 5 the libraries: PixiJS Text, Phaser Text, PixiJS 7's Graphics fill, p5's 2D mode. Unsupported calls counted, not thrown (criterion 3).
+
+2026-10-11 17:15, parallel agent (worktree), second session. DECISION TO RECORD (no number taken here: the coordinator writes it in zinc-next-decisions.md): the backend of this tier is (D), canvas_ity for everything drawn with the engine's text tier for shaping and metrics, glyph outlines given to it as paths.
+THE TWO MEASURES (scratch program, canvas_ity at commit 8be29cb, -O2, Inter, this Mac at a load of 8): (1) one line of 34 characters at 28 px into 512 x 128: 1.3 ms (0.95 ms once patched); with a blurred shadow 3.6 ms; a 640 x 480 fill 4 to 5 ms. Under the few milliseconds that would have sent us to (C). (2) SSIM against headless Chrome for a text canvas of 512 x 128 (32 px and 16 px Inter): 0.963 white on transparent, 0.963 black on white as upstream, 0.976 black on white once blended in sRGB. Over the 0.90 that would have sent us to (C).
+A THIRD MEASURE CHANGED THE LIBRARY, NOT THE CHOICE: get_image_data of 640 x 480 costs 27 ms upstream (two powf per channel: the bitmap is linear light) and 1.7 ms with colours kept as sRGB values, which is also what a browser's canvas does (half transparent white over black is 128, not 188). So the header carries three small patches, kept as third_party/canvas_ity/zinc.patch and marked in the header: 1 sRGB blending, 2 exchange_path() (fillText must not change the current path, and the path is private), 3 pixels read back rounded, not dithered (a flat half transparent colour read back as one value).
+SCORES REDONE WITH THE MEASURES (fit x3, performance x3, size x2, maintainability x2, licence x2, portability x1, effort x1): (A) own 2D 1,3,5,2,5,5,1 = 42; (B) canvas_ity with its own text 2,4,5,4,5,5,4 = 55; (C) own compositor with the text tier 3,5,5,3,5,5,3 = 58; (D) canvas_ity with the text tier 5,4,5,4,5,5,4 = 64; (E) Skia 5,5,1,2,5,3,1 = 50. (D) rises on fit (text equals Chrome's numbers, see below; strokes, shadows, gradients and transforms on text for free; paths for p5) and on performance (measured, no longer a guess). What would make us revisit: a p5 sketch that fills the screen many times a frame (4 to 5 ms per 640 x 480 fill is the ceiling of a float RGBA bitmap on one thread), or ZN-571 choosing a GPU backend for the full tier.
+SECOND DECISION TO RECORD: linked into zinc (zn_qjs), not a module libzn_canvas2d as the description says. The object is 99 KB of code and zinc grows by 94 KB (13,782,280 to 13,875,824 bytes, 0.7 %); the text tier it needs is already in zinc; a module would add a dlopen, an exported interface and a second copy of nothing. libzn_webgl is a module because of glslang and glad (megabytes). Reversible: one CMake target.
+DONE IN THIS COMMIT: src/qjs/canvas2d.cpp (native.c2d: bitmap, numeric calls, text and measure through src/text, fonts, read, write, image, present), text::outline in src/text, the CanvasRenderingContext2D, CanvasGradient, TextMetrics, FontFace and document.fonts of lib/std/webenv.js, a 2D canvas shown in the window and as a texture source, tools/canvas2d-ref, tests/t1/webenv_canvas2d.sh. Against Chrome with the same font: measureText('Hello') at 32 px 77.125 on both sides (criterion 2: equal, not within 1 %); 23 entries of metrics, baselines, alignments and glyph boxes within a pixel; the scene of game text SSIM 0.989.
 <!-- SECTION:NOTES:END -->

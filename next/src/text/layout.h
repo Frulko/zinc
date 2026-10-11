@@ -67,4 +67,10 @@ std::vector<bool> breakOpportunities(std::string_view utf8, const char* lang);
 struct Bitmap { int w = 0, h = 0, left = 0, top = 0; std::vector<uint8_t> a; };   // top: pixels from the baseline up to the first row
 bool rasterize(const Face& f, uint32_t gid, float px, Bitmap& out);
 
+// A glyph's outline at `px` for a vector renderer (Canvas 2D, ZN-570), the origin at the pen position on the baseline, y down. `ops` holds
+// 'M' (x y), 'L' (x y), 'Q' (cx cy x y) and 'C' (c1x c1y c2x c2y x y), their numbers in `pts` in that order; a contour ends where the next
+// 'M' starts and is closed. x0..y1 is its box. False for an empty glyph (a space).
+struct Outline { std::vector<char> ops; std::vector<float> pts; float x0 = 0, y0 = 0, x1 = 0, y1 = 0; };
+bool outline(const Face& f, uint32_t gid, float px, Outline& out);
+
 }  // namespace zn::text

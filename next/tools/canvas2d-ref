@@ -1,0 +1,28 @@
+#!/usr/bin/env python3
+"""canvas2d-ref: what headless Chrome draws and measures for tests/golden/webenv/canvas2d/scene.js (ZN-570), with the bundled Inter loaded.
+
+  tools/canvas2d-ref [WIDTH HEIGHT]     writes scene-chrome.png (the scene, default 640 x 480: the window of a web program) and chrome.json
+                                        (the metrics) beside the scene. Needs Google Chrome; run it again only when scene.js changes.
+The test webenv_canvas2d compares the web environment's own drawing and numbers with these two files.
+"""
+import base64, json, os, sys
+HERE = os.path.dirname(os.path.abspath(__file__)); NEXT = os.path.dirname(HERE); DIR = os.path.join(NEXT, "tests", "golden", "webenv", "canvas2d")
+sys.path.insert(0, HERE)
+from cdp import Chrome
+
+def font(name): return base64.b64encode(open(os.path.join(NEXT, "..", "lib", "fonts", name), "rb").read()).decode()
+W, H = (int(sys.argv[1]), int(sys.argv[2])) if len(sys.argv) > 2 else (640, 480)
+JS = """(async () => {
+  for (const [file, weight] of [[%s, '400'], [%s, '700']]) { const f = new FontFace('ZInter', 'url(data:font/ttf;base64,' + file + ')', { weight }); await f.load(); document.fonts.add(f); }
+  %s
+  const c = document.createElement('canvas'); c.width = %d; c.height = %d;
+  scene(c.getContext('2d'), c.width, c.height, 'ZInter');
+  const m = document.createElement('canvas'); m.width = 256; m.height = 80;
+  return [c.toDataURL('image/png').split(',')[1], JSON.stringify(metrics(m.getContext('2d', { willReadFrequently: true }), 'ZInter'))];
+})()""" % (json.dumps(font("Inter-Regular.ttf")), json.dumps(font("Inter-Bold.ttf")), open(os.path.join(DIR, "scene.js")).read(), W, H)
+with Chrome() as c:
+    r = c.eval(JS)
+    if not r: sys.exit("canvas2d-ref: Chrome gave no answer")
+    open(os.path.join(DIR, "scene-chrome.png"), "wb").write(base64.b64decode(r[0]))
+    open(os.path.join(DIR, "chrome.json"), "w").write(json.dumps(json.loads(r[1]), indent=1) + "\n")
+    print("canvas2d-ref: scene-chrome.png %d x %d, chrome.json %d entries" % (W, H, len(json.loads(r[1]))))

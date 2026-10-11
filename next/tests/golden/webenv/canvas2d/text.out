@@ -1,0 +1,21 @@
+context true true true null 10px sans-serif #000000 start alphabetic 1
+state #0000ff 2 40
+rects 255,0,0,255 0,0,0,0 0,0,255,255 0,0,255,255 0,0,0,0 restored #ff0000 1
+clear and stroke 0,0,0,0 255,0,0,255 0,255,0,255 0,0,0,0 #00ff00
+alpha 128,128,128,255 0,0,255,128
+clip and composite 0,255,0,255 0,0,0,0 0,0,0,0 0,0,0,0 source-over
+path 255,128,0,255 0,0,0,0 true false
+gradient true true true true
+image data 2 2 255,0,0,255,0,255,0,255,0,0,255,255,255,255,0,128 16
+drawImage 255,0,0,255 0,0,255,255 0,0,0,0 255,0,0,255 0,0,255,255 0,0,255,255 0,0,255,255 0,0,0,0
+resized 0,0,0,0 #000000
+metrics 23 compared, 0 differ; Hello at 32px 77.125 Chrome 77.125
+font italic bold 20px "Some Font", monospace true
+ignored italic bold 20px "Some Font", monospace #ffffff left
+text and path 255,255,255,255 0 true true
+maxWidth true true true
+FontFace loaded true true
+not a font SyntaxError error
+unsupported {"roundRect (square corners)":1,"fill 'evenodd' (non-zero rule)":1,"createPattern":1,"pattern as fillStyle":1,"globalCompositeOperation 'multiply'":1,"filter":1,"isPointInStroke":1}
+texture source 64 32 8192 0 true
+frames 3
