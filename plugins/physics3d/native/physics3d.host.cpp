@@ -1,12 +1,16 @@
 // zinc:physics3d for macos and linux: Jolt Physics (vendor/jolt, built by vendor/jolt_1..4.cpp) behind handle tables.
-// One thread: the job system runs every job where it is queued, so a step is the same sequence of operations on every
-// run, and the contact callbacks arrive in a fixed order. Nothing here reads a clock.
+// A world steps on the calling thread by default: the job system runs every job where it is queued, so the contact
+// callbacks arrive in a fixed order. With `threads` it steps on Jolt's thread pool: the library's results do not depend
+// on the threads, but its callbacks and its list of active bodies come in any order, so the events of a step are sorted
+// and the moved bodies listed by index (the library's rules, Docs/Architecture.md, "Deterministic Simulation"). Nothing
+// here reads a clock.
 #define ZRT_HOSTED_CPP   // zrt.h takes <new> from the standard library, which Jolt includes too
 #include "zinc_native_physics3d.h"
 
 #include <Jolt/Jolt.h>
 #include <Jolt/Core/Factory.h>
 #include <Jolt/Core/JobSystemSingleThreaded.h>
+#include <Jolt/Core/JobSystemThreadPool.h>
 #include <Jolt/Core/TempAllocator.h>
 #include <Jolt/Physics/Body/BodyActivationListener.h>
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
@@ -33,14 +37,22 @@
 #include <Jolt/Physics/Collision/Shape/TriangleShape.h>
 #include <Jolt/Physics/Constraints/HingeConstraint.h>
 #include <Jolt/Physics/Constraints/SliderConstraint.h>
+#include <Jolt/Physics/PhysicsStepListener.h>
 #include <Jolt/Physics/PhysicsSystem.h>
 #include <Jolt/Physics/StateRecorderImpl.h>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdarg>
 #include <cstdio>
+#include <memory>
+#include <mutex>
 #include <string>
+#include <thread>
 #include <vector>
+#ifdef __APPLE__
+#include <sys/sysctl.h>
+#endif
 
 using namespace JPH;
 
@@ -52,6 +64,19 @@ enum : int { kContinuous = 1, kSensor = 2, kNoSleep = 4, kEvents = 8, kPersisted
 
 std::string gError;
 void fail(const std::string& why) { gError = why; }
+
+// The threads of `threads: 0`: one per core. A second hardware thread on a core adds little to the solver's vector
+// work: with other programs running, 12 threads stepped the 1,000-body pile in 4.8 ms and 6 in 3.8 ms (medians of 5)
+// on the 6-core development Mac. Elsewhere the hardware threads (the boards have one per core).
+int machineThreads() {
+#ifdef __APPLE__
+  int cores = 0;
+  size_t size = sizeof cores;
+  if (sysctlbyname("hw.physicalcpu", &cores, &size, nullptr, 0) == 0 && cores > 0) return cores;
+#endif
+  const unsigned n = std::thread::hardware_concurrency();
+  return n > 0 ? int(n) : 1;
+}
 
 void trace(const char* fmt, ...) {
   va_list ap;
@@ -96,19 +121,49 @@ struct MaskFilter final : ObjectLayerFilter {
   bool ShouldCollide(ObjectLayer l) const override { return (mask >> (l & 31)) & 1; }
 };
 
-struct World final : BroadPhaseLayerInterface, ObjectVsBroadPhaseLayerFilter, ObjectLayerPairFilter, ContactListener, BodyActivationListener {
+struct Event {
+  int subStep;                       // the collision step of the step() it happened in: the order of a threaded step
+  double v[kEventSize];
+};
+
+struct World final : BroadPhaseLayerInterface, ObjectVsBroadPhaseLayerFilter, ObjectLayerPairFilter, ContactListener, BodyActivationListener, PhysicsStepListener {
   PhysicsSystem sys;
   TempAllocatorImplWithMallocFallback temp{4 * 1024 * 1024};
-  JobSystemSingleThreaded jobs{cMaxPhysicsJobs};
+  std::unique_ptr<JobSystem> jobs;
+  bool threaded;
+  int subStep = 0;
+  std::mutex mutex;                  // the listeners are called from the workers of a threaded step
   uint32_t collides[32];             // bit b of collides[a]: layers a and b collide
   std::vector<int32_t> handleOf;     // by body index: the handle the program holds
   std::vector<uint32_t> idOf;        // by body index: the whole body id, to tell a body from a later one in the same slot
   std::vector<uint8_t> flagsOf;      // by body index: kEvents, kPersisted
-  std::vector<double> events;
+  std::vector<Event> events;
   std::vector<BodyID> slept;         // bodies that fell asleep during the step: their last state is still to report
   float minRestitutionSpeed = 1.0f;
 
-  explicit World(uint32_t maxBodies) : handleOf(maxBodies, -1), idOf(maxBodies, 0), flagsOf(maxBodies, 0) { for (uint32_t& c : collides) c = 0xffffffffu; }
+  // threads: 1 steps on the calling thread; n > 1 on it and n - 1 workers
+  World(uint32_t maxBodies, int threads) : threaded(threads > 1), handleOf(maxBodies, -1), idOf(maxBodies, 0), flagsOf(maxBodies, 0) {
+    for (uint32_t& c : collides) c = 0xffffffffu;
+    if (threaded) jobs = std::make_unique<JobSystemThreadPool>(cMaxPhysicsJobs, cMaxPhysicsBarriers, threads - 1);
+    else jobs = std::make_unique<JobSystemSingleThreaded>(cMaxPhysicsJobs);
+  }
+  void record(const Event& e) {
+    std::lock_guard<std::mutex> g(mutex);
+    events.push_back(e);
+  }
+  // A threaded step reports in any order: by collision step, the contacts found before those that ended (Jolt
+  // reports the removed ones after the others of the same collision step), then by value.
+  void sortEvents() {
+    std::sort(events.begin(), events.end(), [](const Event& a, const Event& b) {
+      const bool ra = (int(a.v[0]) & 3) == 2, rb = (int(b.v[0]) & 3) == 2;
+      if (a.subStep != b.subStep) return a.subStep < b.subStep;
+      if (ra != rb) return rb;
+      return std::lexicographical_compare(a.v, a.v + kEventSize, b.v, b.v + kEventSize);
+    });
+  }
+  // Only threaded worlds listen: one call per collision step, before its contacts. (With a step listener the library
+  // also runs the steps where every body sleeps, which a world on one thread skips: nothing moves in either.)
+  void OnStep(const PhysicsStepListenerContext&) override { subStep++; }
 
   uint GetNumBroadPhaseLayers() const override { return 2; }
   BroadPhaseLayer GetBroadPhaseLayer(ObjectLayer l) const override { return BroadPhaseLayer(l & kMoving ? 1 : 0); }
@@ -132,9 +187,8 @@ struct World final : BroadPhaseLayerInterface, ObjectVsBroadPhaseLayerFilter, Ob
       for (float i : r.mContactImpulse) impulse += i;
     }
     const double speed = (a.GetPointVelocity(p) - b.GetPointVelocity(p)).Dot(n);
-    const double e[kEventSize] = {double(kind + (sensor ? 4 : 0)), double(handle(a.GetID())), double(handle(b.GetID())), p.GetX(), p.GetY(), p.GetZ(),
-                                  n.GetX(), n.GetY(), n.GetZ(), speed, impulse};
-    events.insert(events.end(), e, e + kEventSize);
+    record({subStep, {double(kind + (sensor ? 4 : 0)), double(handle(a.GetID())), double(handle(b.GetID())), p.GetX(), p.GetY(), p.GetZ(),
+                      n.GetX(), n.GetY(), n.GetZ(), speed, impulse}});
   }
   void OnContactAdded(const Body& a, const Body& b, const ContactManifold& m, ContactSettings& s) override { contact(0, a, b, m, s); }
   void OnContactPersisted(const Body& a, const Body& b, const ContactManifold& m, ContactSettings& s) override { contact(1, a, b, m, s); }
@@ -142,11 +196,13 @@ struct World final : BroadPhaseLayerInterface, ObjectVsBroadPhaseLayerFilter, Ob
     const uint32_t ia = p.GetBody1ID().GetIndex(), ib = p.GetBody2ID().GetIndex();
     if (!((flagsOf[ia] | flagsOf[ib]) & kEvents)) return;
     const bool sensor = (flagsOf[ia] | flagsOf[ib]) & kSensor;
-    const double e[kEventSize] = {double(2 + (sensor ? 4 : 0)), double(handle(p.GetBody1ID())), double(handle(p.GetBody2ID())), 0, 0, 0, 0, 0, 0, 0, 0};
-    events.insert(events.end(), e, e + kEventSize);
+    record({subStep, {double(2 + (sensor ? 4 : 0)), double(handle(p.GetBody1ID())), double(handle(p.GetBody2ID())), 0, 0, 0, 0, 0, 0, 0, 0}});
   }
   void OnBodyActivated(const BodyID&, uint64) override {}
-  void OnBodyDeactivated(const BodyID& id, uint64) override { slept.push_back(id); }
+  void OnBodyDeactivated(const BodyID& id, uint64) override {
+    std::lock_guard<std::mutex> g(mutex);
+    slept.push_back(id);
+  }
 };
 
 struct BodyRef { World* w = nullptr; BodyID id; };
@@ -214,7 +270,9 @@ struct HostPhysics3D : NativePhysics3D {
     initLibrary();
     const uint32_t maxBodies = uint32_t(opt(o, 3, 4096)), maxPairs = uint32_t(opt(o, 4, 16384)), maxContacts = uint32_t(opt(o, 5, 8192));
     if (maxBodies < 1 || maxBodies > 1000000) { fail("a world holds 1 to 1000000 bodies"); return -1; }
-    World* w = new World(maxBodies);
+    const int threads = int(opt(o, 15, 1));
+    if (threads < 0 || threads > 256) { fail("a world steps on 0 (one per core) to 256 threads"); return -1; }
+    World* w = new World(maxBodies, threads == 0 ? machineThreads() : threads);
     w->sys.Init(maxBodies, 0, maxPairs, maxContacts, *w, *w, *w);
     w->sys.SetGravity(Vec3(float(opt(o, 0, 0)), float(opt(o, 1, -9.81)), float(opt(o, 2, 0))));
     PhysicsSettings s = w->sys.GetPhysicsSettings();
@@ -229,8 +287,8 @@ struct HostPhysics3D : NativePhysics3D {
     s.mTimeBeforeSleep = float(opt(o, 14, s.mTimeBeforeSleep));
     w->sys.SetPhysicsSettings(s);
     w->minRestitutionSpeed = s.mMinVelocityForRestitution;
-    w->sys.SetContactListener(w);
     w->sys.SetBodyActivationListener(w);
+    if (w->threaded) w->sys.AddStepListener(w);
     return put(gWorlds, w, [](World* x) { return x == nullptr; });
   }
   void worldDestroy(int32_t h) override {
@@ -258,7 +316,10 @@ struct HostPhysics3D : NativePhysics3D {
     if (!w || !(dt > 0)) return 0;
     w->events.clear();
     w->slept.clear();
-    return int32_t(w->sys.Update(float(dt), steps < 1 ? 1 : steps, &w->temp, &w->jobs));
+    w->subStep = 0;
+    const int32_t err = int32_t(w->sys.Update(float(dt), steps < 1 ? 1 : steps, &w->temp, w->jobs.get()));
+    if (w->threaded) w->sortEvents();
+    return err;
   }
   zrt::Array<double> moved(int32_t h) override {
     World* w = world(h);
@@ -266,6 +327,7 @@ struct HostPhysics3D : NativePhysics3D {
     BodyIDVector ids;
     w->sys.GetActiveBodies(EBodyType::RigidBody, ids);
     ids.insert(ids.end(), w->slept.begin(), w->slept.end());
+    if (w->threaded) std::sort(ids.begin(), ids.end());   // activated from the workers: listed in any order
     zrt::Array<double> out = zrt::Array<double>::with_cap(int32_t(ids.size()) * kMovedSize);
     const BodyLockInterface& lock = w->sys.GetBodyLockInterfaceNoLock();
     for (const BodyID& id : ids) {
@@ -280,8 +342,8 @@ struct HostPhysics3D : NativePhysics3D {
   zrt::Array<double> events(int32_t h) override {
     World* w = world(h);
     const int32_t n = w ? int32_t(w->events.size()) : 0;
-    zrt::Array<double> out = zrt::Array<double>::with_cap(n);
-    for (int32_t i = 0; i < n; i++) out.push_raw(w->events[size_t(i)]);
+    zrt::Array<double> out = zrt::Array<double>::with_cap(n * kEventSize);
+    for (int32_t i = 0; i < n; i++) for (double x : w->events[size_t(i)].v) out.push_raw(x);
     return out;
   }
   int32_t activeCount(int32_t h) override { World* w = world(h); return w ? int32_t(w->sys.GetNumActiveBodies(EBodyType::RigidBody)) : 0; }
@@ -415,6 +477,10 @@ struct HostPhysics3D : NativePhysics3D {
     w->handleOf[i] = h;
     w->idOf[i] = b->GetID().GetIndexAndSequenceNumber();
     w->flagsOf[i] = uint8_t(flags & (kEvents | kPersisted | kSensor));
+    // only a world that reports contacts listens to them: for a listener the library rebuilds a manifold for every
+    // contact it keeps from the last step and walks its cache for the ended ones (2% of the instructions of a step of
+    // 1,000 piled bodies, and the walk is a job no other thread can share)
+    if (flags & (kEvents | kPersisted)) w->sys.SetContactListener(w);
     if (!(flags & kOutside)) bodies(w).AddBody(b->GetID(), motion == 0 ? EActivation::DontActivate : EActivation::Activate);
     return h;
   }

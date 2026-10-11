@@ -8,10 +8,10 @@ A game steps a `World` at a fixed rate and reads where its bodies are.
   module carry it: about 1.9 MiB (a program that steps one world is 2,143,904 bytes, `console.log('hello')` 227,152; x86_64
   macOS). The first build of the plugin compiles the library once, 48 s with the pinned zig on the development Mac; it then
   stays in the plugin cache, and an edit of the plugin's own code rebuilds in 7 s.
-- **Exact.** A step is a pure function of the world and of the calls made since the last one: one thread, no clock, the
-  library built with its cross-platform determinism. The same program prints the same positions on the interpreter,
-  compiled and on QuickJS, run after run, and from a saved state. The plugin is `deterministic`, so headless and golden
-  runs use the real code.
+- **Exact.** A step is a pure function of the world and of the calls made since the last one: no clock, the library
+  built with its cross-platform determinism. The same program prints the same positions on the interpreter, compiled
+  and on QuickJS, run after run, from a saved state, and on any number of threads. The plugin is `deterministic`, so
+  headless and golden runs use the real code.
 - **Test.** `next/tests/t1/physics3d.sh` (`next/tests/data/physics3d/`), benchmark `next/bench/physics3d_pile.ts`.
 
 | target | status |
@@ -50,7 +50,7 @@ throws `PhysicsError` with the reason.
 
 | `World` | |
 |---|---|
-| `new World(options?)` | `gravity` ([0, -9.81, 0]), `maxBodies` (4096), `maxBodyPairs` (16384), `maxContacts` (8192), `penetrationSlop` (0.02), `speculativeDistance` (0.02), `minRestitutionSpeed` (1), `velocitySteps` (10), `positionSteps` (2), `sleeping` (true), `sleepSpeed` (0.03), `sleepTime` (0.5 s) |
+| `new World(options?)` | `gravity` ([0, -9.81, 0]), `maxBodies` (4096), `maxBodyPairs` (16384), `maxContacts` (8192), `penetrationSlop` (0.02), `speculativeDistance` (0.02), `minRestitutionSpeed` (1), `velocitySteps` (10), `positionSteps` (2), `sleeping` (true), `sleepSpeed` (0.03), `sleepTime` (0.5 s), `threads` (1; 0 one per core) |
 | `step(dt, collisionSteps = 1)` | Advances by `dt` seconds in `collisionSteps` equal steps, then updates the fields of the bodies that moved and fills `contacts`. Throws when a step runs out of room for pairs or contacts |
 | `contacts: Contact[]` | The contacts of the last step, for bodies created with `events` |
 | `body(shape, options?): Body` | A new body, in the world unless `enabled: false` |
@@ -140,22 +140,28 @@ The same module runs on `zinc run --engine quickjs` through the native-module br
 ## Performance
 
 `next/bench/physics3d_pile.ts`: 1,000 boxes and spheres in one heap, none asleep, 60 Hz, the mean time of `world.step()`
-over 600 steps (the native step and the state of the 1,000 bodies read back). Intel Mac (i7-9750H), measured on
-2026-10-10 while four other sessions built and the CPU was throttled by heat (load average 5 to 6), so these are upper
-bounds to measure again on a quiet machine:
+over 600 steps (the native step and the state of the 1,000 bodies read back), on one thread and on one per core
+(`threads: 0`, 6 on the development Mac). Intel Mac (i7-9750H, 6 cores), 2026-10-11, while other sessions built: load
+average 7 to 10 and the CPU held at 37 to 46% of its speed by heat, so these are upper bounds to measure again on a quiet
+machine (medians, runs alternated):
 
-| engine | ms per step |
-|---|---|
-| compiled (`zinc build`) | 4.1 to 4.5 |
-| interpreter | 4.5 to 4.6 |
-| QuickJS | 5.2 |
+| engine | one thread | one per core |
+|---|---|---|
+| compiled (`zinc build`) | 8.2 ms | 3.6 to 3.8 ms |
+| interpreter | | 4.7 ms |
+| QuickJS | | 5.1 ms |
 
-Of that, the library's own step is 4.3 ms and reading the state back 0.1 ms. The step runs on one thread; `-O3` changes
+Later, at load 5.5 to 6.7 with the CPU at 46 to 60%: one thread 6.0 to 7.9 ms, one per core 2.7 to 3.9 ms (median
+3.1). The cores divide a step by 2.1 to 2.3. The heat costs about as much: the 2D pile of `zinc:physics2d`, 1.79 ms on
+a CPU at full speed, took 4.07 ms at 44%, which puts the 3D pile near 1.6 ms on one per core at full speed (an estimate
+until it is measured on a quiet machine). Every run ends with the same positions, whatever the engine and the number of
+threads. A small world is faster on one thread: 20 bodies step in 0.06 ms on one and 0.15 ms on six. `-O3` changes
 nothing measurable.
 
 ## Limits
 
-- One thread. The library can spread a step over several and stay exact; the plugin does not offer it yet.
+- Threads are per world (`threads`, 1 by default): each world with more than one starts its own pool of workers. A
+  small world (a pinball's dozen bodies) steps faster on one: waking the workers costs more than it saves.
 - Shapes are not composed (no compound, offset or scaled shape): one shape per body, placed by the body.
 - Constraints: hinge and slider. The library has more (fixed, distance, point, cone, six degrees of freedom, gears, paths).
 - No soft bodies, characters, vehicles or ragdolls: those parts of the library are not vendored.

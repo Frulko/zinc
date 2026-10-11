@@ -8,4 +8,4 @@ kept, unmodified: the directory Jolt/ of the archive (408 files) without Compute
 ours: ../jolt_1.cpp to ../jolt_4.cpp, the four translation units that compile it (plugin.json builds them with
   JPH_CROSS_PLATFORM_DETERMINISTIC and NDEBUG; no profiler, no debug renderer, no object streams, asserts off). Not compiled, kept for
   reference: RegisterTypes.cpp (the plugin registers the shapes itself), PhysicsScene.cpp, Renderer/*.cpp, ObjectStream/ beyond
-  SerializableObject.cpp, the thread pool job system.
+  SerializableObject.cpp.

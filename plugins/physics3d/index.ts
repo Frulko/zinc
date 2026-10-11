@@ -36,6 +36,10 @@ export interface WorldOptions {
   sleeping?: boolean;
   sleepSpeed?: number;
   sleepTime?: number;
+  /** Threads a step runs on (1): more spread a large world over the cores, 0 takes one per core of the machine. The bodies
+   *  move the same with any number; with more than one the contacts of a step are sorted (collision step, those that
+   *  began or went on before those that ended, then kind and bodies). A small world steps faster on one. */
+  threads?: i32;
 }
 
 export interface BodyOptions {
@@ -246,7 +250,7 @@ export class World {
     const g = o.gravity ?? [0, -9.81, 0];
     const h = P.worldCreate([g[0], g[1], g[2], o.maxBodies ?? 4096, o.maxBodyPairs ?? 16384, o.maxContacts ?? 8192,
       o.penetrationSlop ?? NaN, o.speculativeDistance ?? NaN, o.minRestitutionSpeed ?? NaN, o.velocitySteps ?? 10, o.positionSteps ?? 2,
-      (o.sleeping ?? true) ? 1 : 0, NaN, o.sleepSpeed ?? NaN, o.sleepTime ?? NaN]);
+      (o.sleeping ?? true) ? 1 : 0, NaN, o.sleepSpeed ?? NaN, o.sleepTime ?? NaN, o.threads ?? 1]);
     if (h < 0) throw fail();
     this.handle = h;
   }

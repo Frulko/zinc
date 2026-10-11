@@ -2,8 +2,9 @@
 # zinc:physics3d, 3D rigid bodies on Jolt (ZN-583.02): the plugin builds from its vendored sources (once: the library goes to the vendor archive of
 # the plugin cache), and
 # - tests/data/physics3d/drop.ts (every shape dropped on a floor, a mesh and a height field, a hinge and a slider with motors, a sensor, a ray, a
-#   swept shape, bodies in and out of the world) prints tests/data/physics3d/drop.out on the interpreter, compiled and on QuickJS, and says itself
-#   that a replay from the start and a replay from a saved state reach the same positions after 600 steps;
+#   swept shape, bodies in and out of the world) prints tests/data/physics3d/drop.out on the interpreter, compiled and on QuickJS, and compiled
+#   on 4 threads (ZN-583), and says itself that a replay from the start (positions and the order of the contacts) and a replay from a saved
+#   state reach the same positions after 600 steps;
 # - tests/data/physics3d/shots.ts fires 10,000 balls of 27 mm at 3 to 20 m/s at a 2 mm wall, a mesh ramp, a sweeping flipper and another ball:
 #   every shot hits and none goes through;
 # - a program that does not import the plugin carries none of it.
@@ -15,6 +16,7 @@ d=tests/data/physics3d
 "$ZINC" run $d/drop.ts 2>&1 | cmp -s - $d/drop.out || { echo "physics3d: drop.ts differs from drop.out on the interpreter"; fail=1; }
 "$ZINC" run $d/drop.ts --engine quickjs 2>&1 | cmp -s - $d/drop.out || { echo "physics3d: drop.ts differs from drop.out on QuickJS"; fail=1; }
 "$ZINC" build $d/drop.ts -o "$tmp/drop" >"$tmp/build.log" 2>&1 && "$tmp/drop" 2>&1 | cmp -s - $d/drop.out || { echo "physics3d: drop.ts differs from drop.out compiled: $(tail -c 300 "$tmp/build.log")"; fail=1; }
+"$tmp/drop" 4 2>&1 | cmp -s - $d/drop.out || { echo "physics3d: drop.ts on 4 threads differs from drop.out"; fail=1; }
 [ "$(grep -c 'replay from .*: identical' $d/drop.out)" = 2 ] || { echo "physics3d: drop.out does not hold the two identical replays"; fail=1; }
 "$ZINC" run $d/shots.ts >"$tmp/shots.out" 2>&1
 for want in "wall: 2500 shots, 2500 hits, 0 through" "ramp: 2500 shots, 2500 hits, 0 through" "balls: 2500 shots, 2500 hits, 0 through"; do

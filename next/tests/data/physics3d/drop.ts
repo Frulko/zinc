@@ -1,8 +1,12 @@
 // zinc:physics3d on every engine (tests/t1/physics3d.sh): bodies of each shape drop and bounce on a floor, a mesh and a
 // height field; a hinge and a slider run their motors; a sensor, a ray and a swept sphere report; then the same world is
 // played twice from the start and once from a saved state. The output is integers (1/10000 of a unit), so it reads the
-// same from the interpreter, a compiled program and QuickJS, and it must equal tests/data/physics3d/drop.out.
+// same from the interpreter, a compiled program and QuickJS, and it must equal tests/data/physics3d/drop.out, with any
+// number of threads (drop.ts -- threads; 1 by default).
 import { World, Shape, Body, Constraint, Motion, Motor, ContactKind, version } from 'zinc:physics3d';
+import { args } from 'zinc:sys';
+
+const THREADS: i32 = args().length > 0 ? parseInt(args()[0], 10) : 1;
 
 function r(v: number): number { return Math.round(v * 10000); }
 function line(name: string, b: Body): string { return `${name} ${r(b.x)} ${r(b.y)} ${r(b.z)} | ${r(b.qx)} ${r(b.qy)} ${r(b.qz)} ${r(b.qw)} | ${r(b.vx)} ${r(b.vy)} ${r(b.vz)}`; }
@@ -19,10 +23,11 @@ class Scene {
   removed: number = 0;
   sensed: number = 0;
   hardest: number = 0;
+  order: number = 0;   // the contacts in the order they came, for the replays only: several threads give them in another order
   log: string[] = [];
 
   constructor() {
-    const w = new World({ gravity: [0, -9.81, 0] });
+    const w = new World({ gravity: [0, -9.81, 0], threads: THREADS });
     this.world = w;
     w.body(Shape.box(20, 0.5, 20), { motion: Motion.Static, position: [0, -0.5, 0], friction: 0.6 });
     // a ramp of two triangles, and a bumpy field
@@ -66,6 +71,7 @@ class Scene {
     for (let i = 0; i < n; i++) {
       this.world.step(1 / 120);
       for (const c of this.world.contacts) {
+        this.order = (this.order * 31 + c.kind + r(c.x) + 7 * r(c.y) + 13 * r(c.z)) % 1000000007;
         if (c.sensor) { if (c.kind === ContactKind.Added) this.sensed++; continue; }
         if (c.kind === ContactKind.Added) { this.added++; if (c.impulse > this.hardest) this.hardest = c.impulse; }
         else if (c.kind === ContactKind.Removed) this.removed++;
@@ -84,6 +90,7 @@ class Scene {
   }
 }
 
+let order = 0;
 function play(): string {
   const s = new Scene();
   s.step(120);
@@ -94,13 +101,14 @@ function play(): string {
   const sweep = s.world.shapeCast(Shape.sphere(0.2), [-10, 0.4, 6], [0, 0, 0, 1], 20, 0, 0);
   const rays = `ray ${down === null ? 'nothing' : `${r(down.fraction)} at ${r(down.y)} normal ${r(down.ny)}`}; sweep ${sweep === null ? 'nothing' : `${r(sweep.fraction)} at ${r(sweep.x)} normal ${r(sweep.nx)}`}`;
   s.world.destroy();
+  order = s.order;
   return `${mid}\n${end}\n${rays}`;
 }
 
 console.log(`jolt ${version()}`);
-const first = play();
+const first = play(), firstOrder = order;
 console.log(first);
-console.log(`replay from the start: ${play() === first ? 'identical' : 'DIFFERENT'}`);
+console.log(`replay from the start: ${play() === first && order === firstOrder ? 'identical' : 'DIFFERENT'}`);
 
 // a saved state, played on, restored and played on again
 const s = new Scene();
@@ -119,7 +127,7 @@ console.log(`state of ${state.length > 1000 ? 'more than 1000' : 'too few'} byte
 console.log(`replay from the saved state: ${bodiesOf(once) === bodiesOf(twice) ? 'identical' : 'DIFFERENT'}`);
 
 // bodies leave and enter the world, layers stop colliding, a kinematic body carries a load
-const w = new World();
+const w = new World({ threads: THREADS });
 w.body(Shape.box(10, 0.5, 10), { motion: Motion.Static, position: [0, -0.5, 0] });
 const ball = w.body(Shape.sphere(0.5), { position: [0, 0.5, 0], layer: 1 });
 const ghost = w.body(Shape.sphere(0.5), { position: [3, 0.5, 0], layer: 2 });

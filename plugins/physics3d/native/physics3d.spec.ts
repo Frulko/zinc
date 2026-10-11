@@ -12,8 +12,8 @@ export interface Spec extends NativeModule {
 
   // ---- worlds
   /** o: gravity x y z, max bodies, max body pairs, max contact constraints, penetration slop, speculative contact distance,
-   *  minimum speed for restitution, velocity steps, position steps, sleeping (0 or 1), Baumgarte factor, sleep speed, time before sleep;
-   *  a NaN keeps the library's default. */
+   *  minimum speed for restitution, velocity steps, position steps, sleeping (0 or 1), Baumgarte factor, sleep speed, time before sleep,
+   *  threads (1 the calling thread, n on it and n - 1 workers, 0 one per core); a NaN keeps the library's default. */
   worldCreate(o: f64[]): i32;
   worldDestroy(w: i32): void;
   worldGravity(w: i32, x: f64, y: f64, z: f64): void;
