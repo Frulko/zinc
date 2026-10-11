@@ -4,7 +4,8 @@
 //   zinc run examples/pinball3d-editor                        a new table (Save asks for its folder)
 //   zinc run examples/pinball3d-editor -- path/to/table       that table folder (or its table.json); a new table saved there when it has none
 //   --log after the folder prints every event of the game played in the editor, as the game's own --log does, and what the editor refuses
-// The list at the left is outline.tsx, the top view topview.tsx (screen.tsx takes its place for the screen layouts), the properties form.tsx; every text of the interface is in
+// The list at the left is outline.tsx, the top view topview.tsx (screen.tsx takes its place for the screen layouts, scoregrid.tsx for
+// the rules: the scores as a grid), the properties form.tsx; every text of the interface is in
 // strings.ts, in English and French.
 import { render, For, Show } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
@@ -20,6 +21,7 @@ import { Outline, focusGoTo } from './outline';
 import { Palette } from './palette';
 import { TopView } from './topview';
 import { ScreenView, screenShown } from './screen';
+import { ScoreGrid, scoresShown, findScore } from './scoregrid';
 import { Properties, findField, editAsFile } from './form';
 import { view3d, setView3d, playing, paused, dropping, setDropping, play, pause, stop, stepFrame, advance, setLogging } from './play';
 import { toggleWindow, useView, boxX, boxY, boxW, boxH } from './view3d';
@@ -105,8 +107,9 @@ function Shell(): i32 {
     <view class="grow basis-0 min-h-0 flex-row">
       <Outline />
       <Palette />
-      <Show when={!screenShown()}><TopView /></Show>
+      <Show when={!screenShown() && !scoresShown()}><TopView /></Show>
       <Show when={screenShown()}><ScreenView /></Show>
+      <Show when={scoresShown()}><ScoreGrid /></Show>
       <Properties />
     </view>
     <StatusBar />
@@ -134,6 +137,7 @@ ui.onKey((e: ui.KeyEvent) => {
     else if (k === 'f') findField();
     else if (k === 'g') focusGoTo();
     else if (k === 'j') editAsFile();
+    else if (k === 'k') findScore();
     else if (k === 'd') duplicateSelected();
     else if (k === 'r') refreshFiles();
     else if (k === 'i') importFrom('', '');

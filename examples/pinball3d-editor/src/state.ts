@@ -12,6 +12,7 @@ import { Doc, newTableText, isPlaced, canTurn, schemaAt, fieldAt, listOf, indexO
 import { Outline, outlines, levelsOf } from './shapes';
 import { Preset, Start, LANE, palette, itemOf, pointsNeeded, rowsNeeded, laneOf, blankOf, alongWith, startOf } from './presets';
 import { kindSaid } from './sentences';
+import { scoreChange } from './scores';
 import * as L from './strings';
 import { t, f } from './strings';
 
@@ -340,6 +341,8 @@ function report(done: boolean): boolean {
 export function setCamera(layout: string, position: number[], target: number[]): boolean {
   return report(current.edit(`Change layouts.${layout}.camera`, (d: any) => { d.layouts[layout].camera.position = position; d.layouts[layout].camera.target = target; }));
 }
+/** Gives a cell of the scores grid its points (scores.ts): what `on` scores at `event` whatever else holds; 0 for nothing. */
+export function setScore(on: string, event: string, points: number): boolean { return report(current.edit(`Change ${on}.${event}`, scoreChange(on, event, points))); }
 /** Sets a field of the table (the generated forms, the advanced numbers). */
 export function setField(path: string, value: any): boolean { return report(current.set(path, value)); }
 /** Replaces the selection by its text as the file has it, edited. */

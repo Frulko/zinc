@@ -15,6 +15,12 @@ export const VERSION = 1;
 export const EVENTS = ['hit', 'down', 'roll', 'spin', 'capture', 'eject', 'enter', 'exit', 'pass', 'flip', 'launch',
   'start', 'ballStart', 'drain', 'ballSaved', 'bump', 'tilt', 'missionDone', 'rankUp', 'multiballStart', 'multiballEnd', 'jackpot', 'extraBall', 'gameOver', 'letter'];
 
+/** The events the elements of each list send to the rules, by the name of the list (the game's own come from "game"). The loader
+ *  does not check a rule by it; an editor offers by it what a thing can be scored or waited for (a scores grid, the step of a
+ *  mission). The plunger sends `launch` and has no name a rule could listen to. */
+export const SENDS: string[][] = [['bumpers', 'hit'], ['slingshots', 'hit'], ['targets', 'hit', 'down'], ['rollovers', 'roll'], ['spinners', 'spin'],
+  ['kickers', 'capture', 'eject'], ['ramps', 'enter', 'exit'], ['gates', 'pass'], ['flippers', 'flip'], ['walls', 'hit'], ['models', 'hit']];
+
 /** The roles a field of the format can have (Field.role), each with what it means: an editor draws, moves and turns
  *  any element by the roles of its fields, without knowing a field's name. A field without a role is a plain value. */
 export const ROLES: string[][] = [

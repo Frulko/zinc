@@ -133,9 +133,44 @@ def conditions():
     return s, shots
 
 
+def cell(s, name, nth, points):
+    """A cell of the scores grid: the row found by its name in the box of the grid (Cmd+K), which leaves it first; Tab then goes
+    from the box to its cells, one per event the thing sends; a number is typed."""
+    s.key('k', 'meta')
+    s.text(name)
+    s.rest()
+    for _ in range(nth + 1):
+        s.key('Tab')
+    s.text(points)
+    s.key('Enter')
+    s.rest()
+
+
+def scores():
+    s = Session('The table editor, the scores as a grid (tests/t1/pinball3d_editor_rules.sh). Written by guided.py.\n'
+                'The rules themselves selected, the grid takes the place of the top view. The bumpers give 750 points for a hit\n'
+                'instead of 500: the number of the rule that scores there. The lanes have three rules for a ball that rolls over\n'
+                'them; the cell is the one without a condition.')
+    s.goto('rules')
+    cell(s, 'pops', 0, 750)
+    cell(s, 'lanes', 0, 350)
+    shots = [s.frame]
+    s.rest()
+    s.note('A gate that scored nothing gets a rule; a flipper whose rule shifts the lane lights now scores too, in that rule.')
+    cell(s, 'laneGate', 0, 150)
+    cell(s, 'left', 0, 25)
+    s.note('The bank of drop targets has two cells, hit and down: the second is its 2000 points. 0 empties a cell: the standup\n'
+           'targets keep their bonus and score nothing, the rule of the slingshots, which only scored, goes.')
+    cell(s, 'bank', 1, 2500)
+    cell(s, 'stand', 0, 0)
+    cell(s, 'slings', 0, 0)
+    s.save()
+    return s, shots
+
+
 def main():
     out = sys.argv[1] if len(sys.argv) > 1 else HERE
-    for name, make in (('rules', rules), ('conditions', conditions)):
+    for name, make in (('rules', rules), ('conditions', conditions), ('scores', scores)):
         s, shots = make()
         s.lines.append(f'# frames {s.frame + 6}')
         s.write(os.path.join(out, f'{name}.input'))

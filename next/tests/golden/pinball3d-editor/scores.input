@@ -1,0 +1,51 @@
+# The table editor, the scores as a grid (tests/t1/pinball3d_editor_rules.sh). Written by guided.py.
+# The rules themselves selected, the grid takes the place of the top view. The bumpers give 750 points for a hit
+# instead of 500: the number of the rule that scores there. The lanes have three rules for a ball that rolls over
+# them; the cell is the one without a condition.
+4 key g meta
+5 text rules
+6 key Enter
+8 key k meta
+9 text pops
+11 key Tab
+12 text 750
+13 key Enter
+15 key k meta
+16 text lanes
+18 key Tab
+19 text 350
+20 key Enter
+# A gate that scored nothing gets a rule; a flipper whose rule shifts the lane lights now scores too, in that rule.
+23 key k meta
+24 text laneGate
+26 key Tab
+27 text 150
+28 key Enter
+30 key k meta
+31 text left
+33 key Tab
+34 text 25
+35 key Enter
+# The bank of drop targets has two cells, hit and down: the second is its 2000 points. 0 empties a cell: the standup
+# targets keep their bonus and score nothing, the rule of the slingshots, which only scored, goes.
+37 key k meta
+38 text bank
+40 key Tab
+41 key Tab
+42 text 2500
+43 key Enter
+45 key k meta
+46 text stand
+48 key Tab
+49 text 0
+50 key Enter
+52 key k meta
+53 text slings
+55 key Tab
+56 text 0
+57 key Enter
+59 move 420 500
+60 down
+61 up
+63 key s meta
+# frames 73

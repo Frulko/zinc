@@ -15,6 +15,13 @@
 #                     editor says what is missing; the buttons of a sentence (up, another kind, take away). Save: conditions.json
 #   the second table  its sessions (examples/pinball3d/tools/twilight_fair/sessions) no longer write a rule as the file has it:
 #                     no Cmd+J in them (pinball3d_second_table.sh replays them and gets the shipped table byte for byte)
+# Slice 2, the scores as a grid (the rules themselves selected, it takes the place of the top view):
+#   the document without a window: a row per group and per element that sends events, with the events it sends; a cell reads
+#                     and writes the first rule that scores there without a condition
+#   scores.input      a row found by its name (Cmd+K), a number typed in its cell: the points of a rule changed, the cell of
+#                     the rule without a condition among three, a rule made for a gate that had none, a scoring action added
+#                     to a rule that did something else, a cell emptied (the rule keeps what else it does, or goes). Save:
+#                     scores.json, on which the game's probe gives the bumper its new points
 # ZN_UPDATE_GOLDEN=1 rewrites the goldens from this run.
 cd "$(dirname "$0")/../.." || exit 2
 ex=$PWD/../examples/pinball3d-editor; g=$PWD/tests/golden/pinball3d-editor
@@ -75,6 +82,25 @@ done
 [ "$(grep -c '"test": "rank"' "$g/conditions.json")" = "$(grep -c '"test": "rank"' "$g/table.json")" ] || { echo "the condition taken away by its button is still in conditions.json"; fail=1; }
 grep -q 'key j' "$g/conditions.input" "$g/rules.input" && { echo "a session of the guided rules writes something as the file has it (Cmd+J)"; fail=1; }
 grep -lq 'key j' "$game"/tools/twilight_fair/sessions/*.input && { echo "a session of the second table still writes something as the file has it (Cmd+J)"; fail=1; }
+
+# ---- slice 2: the scores as a grid
+for line in 'ok: the scores grid has a row per group, then per element, that sends events, with the events it sends' 'ok: a cell reads the rule that scores whatever else holds' \
+  'ok: a number typed in a cell changes the points of that rule, and no other' 'ok: a cell without a rule gets one, or a scoring action more in the rule that listens there' \
+  'ok: an emptied cell loses its scoring action, and its rule when the rule did nothing else'; do
+  case $out in *"$line"*) ;; *) echo "the document's self-test does not say: $line"; fail=1 ;; esac
+done
+fresh scores
+edit "$tmp/scores" "$g/scores.input"
+same "the scores grid" "$tmp/scores/table.json" "$g/scores.json"
+accepted "the scores grid" "$tmp/scores"
+for part in '"on": "pops", "event": "hit", "do": [{ "do": "score", "value": 750 }, { "do": "bonus", "value": 100 }]' '"on": "lanes", "event": "roll", "do": [{ "do": "score", "value": 350 }' \
+  '"on": "laneGate", "event": "pass", "do": [{ "do": "score", "value": 150 }]' '"on": "left", "event": "flip", "do": [{ "do": "score", "value": 25 }, { "do": "rotate"' \
+  '"on": "bank", "event": "down", "do": [{ "do": "score", "value": 2500 }' '"on": "stand", "event": "hit", "do": [{ "do": "bonus", "value": 200 }]'; do
+  grep -qF "$part" "$g/scores.json" || { echo "scores.json does not hold { $part }"; fail=1; }
+done
+grep -qF '"on": "slings", "event": "hit", "do"' "$g/scores.json" && { echo "the rule of an emptied cell that only scored is still in scores.json"; fail=1; }
+grep -q 'key j' "$g/scores.input" && { echo "the scores session writes something as the file has it (Cmd+J)"; fail=1; }
+"$ZINC" run "$game/tools/probe.ts" -- "$tmp/scores" 17.5 20 1.37 0 0 0 1 2>/dev/null | grep -q 'pop1 hit +750 = 750' || { echo "the points typed in the grid are not what the game gives (750 for a hit of pop1)"; fail=1; }
 
 [ $fail = 0 ] && echo "pinball3d_editor_rules: ok"
 exit $fail

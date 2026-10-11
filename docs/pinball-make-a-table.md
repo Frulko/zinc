@@ -89,8 +89,15 @@ table has: "the lights of `bulbs` are all on" names the table's first group of l
 all down" its bank of drop targets. Each word that can change is then a choice (a name among the lights, a way among
 on, off, blink...), or a number or a text to type. The twenty-two rules of Twilight Fair were made that way, from "the
 slingshots score 110" to "when the ball rolls over `lanes`, if the lights of `lanes` are all on: raise the bonus
-multiplier by 1; add 1,000 to the bonus; turn off the lights of `lanes`; show LANES LIT: BONUS X on the panel". A
-mission is a name, an award and steps (an event to get a number of times, and the light that blinks meanwhile);
+multiplier by 1; add 1,000 to the bonus; turn off the lights of `lanes`; show LANES LIT: BONUS X on the panel".
+
+Plain scores need no rule made by hand. Selecting **Rules** replaces the top view by the **scores grid**: a row per
+group and per element that sends events, a column per event (hit, down, roll, spin...), and in a cell the points the
+thing always gives there. A number typed in a cell is the points of the rule that scores there without a condition
+(the rule is made when there was none, and goes when the cell is emptied and it did nothing else); the box above the
+names finds a row (Cmd+K). What depends on a condition stays a rule, in the form at the right.
+
+A mission is a name, an award and steps (an event to get a number of times, and the light that blinks meanwhile);
 finishing one promotes the player to the next of the ranks, typed one per line.
 
 ![a rule in its form](img/pinball-make-4-rule.jpg)

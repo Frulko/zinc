@@ -102,8 +102,8 @@ const [helped, setHelped] = createSignal<string>('');
 
 function shown(n: any): string { return typeof n === 'number' ? `${n}` : ''; }
 /** A number as someone types it ("2,5" too); NaN when it is not one. */
-function typed(v: string): number { return parseFloat(v.trim().replaceAll(',', '.')); }
-function isNumber(n: number): boolean { return n - n === 0; }
+export function typed(v: string): number { return parseFloat(v.trim().replaceAll(',', '.')); }
+export function isNumber(n: number): boolean { return n - n === 0; }
 function label(fd: Field): string { return advanced() ? fd.name : fieldName(fd.name); }
 /** A unit of the format as it is written beside a number: "degrees" gives "°". */
 export function unitName(unit: string): string {

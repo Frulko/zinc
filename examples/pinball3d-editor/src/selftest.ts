@@ -9,6 +9,7 @@ import { Doc, steps, pathOf, listOf, indexOf, fieldAt, schemaAt, canTurn, isPlac
 import { Preset, palette, itemOf, pointsNeeded, rowsNeeded, laneOf, blankOf, alongWith, startOf } from './presets';
 import { complete, f, setUiLang, step, fieldName, listName, fieldKnown, DONE_UNDONE, phrase, phrasesComplete } from './strings';
 import { pieces, sentenceOf, wordSaid, ruleSaid } from './sentences';
+import { ScoreRow, scoreRows, scoreEvents, scoreOf, scoreChange } from './scores';
 
 let failed = false;
 function check(what: string, ok: boolean): void {
@@ -272,6 +273,24 @@ check('paths read as the loader writes them', steps('walls[2].points[1]').join('
     for (let i = 0; i < n; i++) console.log(`${lang} rule ${i + 1}: ${ruleSaid(ruleSchema, f.get(`rules.when[${i}]`))}`);
   }
   setUiLang('en');
+}
+
+// ---- the scores grid: a cell reads and writes the first rule that scores there without a condition
+{
+  const d = new Doc(sample, sample), rows = scoreRows(d.data), names = rows.map((r: ScoreRow) => r.name);
+  const bank = rows[names.indexOf('bank')];
+  check('the scores grid has a row per group, then per element, that sends events, with the events it sends', names.indexOf('pops') >= 0 && names.indexOf('pops') < names.indexOf('pop1')
+    && names.indexOf('laneLight1') < 0 && bank.group && bank.list === 'targets' && bank.sends.join(' ') === 'hit down' && scoreEvents().join(' ') === 'hit down roll spin capture eject enter exit pass flip');
+  const n: i32 = d.get('rules.when').length;
+  check('a cell reads the rule that scores whatever else holds', scoreOf(d.data, 'pops', 'hit') === 500 && scoreOf(d.data, 'lanes', 'roll') === 300 && scoreOf(d.data, 'dock', 'capture') === 0 && scoreOf(d.data, 'left', 'flip') === 0);
+  check('a number typed in a cell changes the points of that rule, and no other', d.edit('Change pops.hit', scoreChange('pops', 'hit', 750)) && d.get('rules.when[0].do[0].value') === 750
+    && d.edit('Change lanes.roll', scoreChange('lanes', 'roll', 350)) && d.get('rules.when[3].do[0].value') === 350 && d.get('rules.when[2].do[1].value') === 1000 && d.get('rules.when').length === n);
+  check('a cell without a rule gets one, or a scoring action more in the rule that listens there', d.edit('Change laneGate.pass', scoreChange('laneGate', 'pass', 150)) && d.get('rules.when').length === n + 1
+    && d.summaryOf(`rules.when[${n}]`) === 'laneGate pass [score 150]' && d.edit('Change left.flip', scoreChange('left', 'flip', 25)) && d.summaryOf('rules.when[5]') === 'left flip [score 25, rotate lanes -1]'
+    && scoreOf(d.data, 'left', 'flip') === 25);
+  check('an emptied cell loses its scoring action, and its rule when the rule did nothing else', d.edit('Change stand.hit', scoreChange('stand', 'hit', 0)) && d.summaryOf('rules.when[9]') === 'stand hit [bonus 200]'
+    && d.edit('Change slings.hit', scoreChange('slings', 'hit', 0)) && d.get('rules.when').length === n && scoreOf(d.data, 'slings', 'hit') === 0 && d.get('rules.when[1].on') === 'lanes'
+    && !d.edit('Change slings.hit', scoreChange('slings', 'hit', 0)) && plays(d.text()));
 }
 
 // ---- 50 mixed operations: undo and redo give back every file, byte for byte

@@ -189,6 +189,11 @@ export const RULE_IF = S('{0}, if {1}', '{0}, si {1}');
 export const AND = S(' and ', ' et ');
 export const THEN = S('; ', ' ; ');
 export const NOT_READ = S('not used here', 'sans effet ici');
+export const SCORES = S('Scores', 'Scores');
+export const SCORES_HOW = S('The points a thing always gives at an event; 0 for none. What depends on a condition is a rule, at the right.',
+  'Les points qu’une chose donne toujours à un évènement ; 0 pour aucun. Ce qui dépend d’une condition est une règle, à droite.');
+export const FIND_SCORE = S('Find a thing ({0})', 'Trouver une chose ({0})');
+export const NO_SCORES = S('Nothing here sends an event to the rules.', 'Rien ici n’envoie d’évènement aux règles.');
 
 // A sentence per kind of condition and of action, in each language ("say.<object>.<kind>", and "say.<object>.<kind>.<way>" when
 // the sentence changes with the way): `{target}`, `{way}` and the numbers (`{value}`, `{seconds}`) are the parts that are chosen or
@@ -237,6 +242,9 @@ const PHRASES: string[] = [
   'kind.action.count', 'Change a counter', 'Changer un compteur', 'kind.action.reset', 'Raise drop targets', 'Relever des cibles tombantes',
   'kind.action.say', 'Show a text', 'Afficher un texte', 'kind.action.sound', 'Play a sound', 'Jouer un son',
   'kind.action.award', 'Award something', 'Accorder quelque chose', 'kind.action.rotate', 'Shift the lit lights', 'Décaler les lampes allumées',
+  // an event in a word, for the head of a column ("event.<event>")
+  'event.hit', 'Hit', 'Choc', 'event.down', 'Down', 'Chute', 'event.roll', 'Roll', 'Passage', 'event.spin', 'Spin', 'Tour', 'event.capture', 'Capture', 'Capture',
+  'event.eject', 'Eject', 'Éjecté', 'event.enter', 'Enter', 'Entrée', 'event.exit', 'Exit', 'Sortie', 'event.pass', 'Pass', 'Franchi', 'event.flip', 'Flip', 'Batteur',
   'when.hit', 'When the ball hits {on}', 'Quand la bille touche {on}',
   'when.down', 'When the ball knocks {on} down', 'Quand la bille fait tomber {on}',
   'when.roll', 'When the ball rolls over {on}', 'Quand la bille roule sur {on}',
