@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <deque>
 #include <ctime>
 #include <fstream>
 #include <map>
@@ -478,6 +479,26 @@ void close(int id, const std::string& error) {
 }
 
 std::string drain() { std::string out; out.swap(st().queue); return out; }
+
+// The console (ZN-373.01): Runtime.consoleAPICalled events, queued for the inspector and the last 32 kept for a late Runtime.enable.
+namespace {
+struct Console { bool on = false; std::string queue; std::deque<std::string> recent; };
+Console& con() { static Console c; return c; }
+}
+void consoleStart() { con().on = true; }
+void consoleLine(const char* p, std::size_t n, bool err) {
+  Console& c = con();
+  if (!c.on) return;
+  char ts[32];
+  std::snprintf(ts, sizeof ts, "%.3f", wallS() * 1000);
+  std::string e = std::string("{\"method\":\"Runtime.consoleAPICalled\",\"params\":{\"type\":\"") + (err ? "error" : "log") + "\",\"args\":[{\"type\":\"string\",\"value\":" +
+                  q(std::string(p, n)) + "}],\"executionContextId\":1,\"timestamp\":" + ts + "}}";
+  c.queue += e + "\n";
+  c.recent.push_back(std::move(e));
+  if (c.recent.size() > 32) c.recent.pop_front();
+}
+std::string consoleDrain() { std::string out; out.swap(con().queue); return out; }
+std::string consoleRecent() { std::string out; for (const std::string& e : con().recent) out += e + "\n"; return out; }
 std::string responseBody(int id) {
   auto it = st().entries.find(id);
   bool b64 = false;

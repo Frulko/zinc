@@ -32,6 +32,9 @@ void close(int id, const std::string& error = std::string());         // the req
 
 // For the inspector: the queued events (one JSON object per line), and the results of Network.getResponseBody and Network.getRequestPostData.
 std::string drain();
+void consoleStart();          // op 4: the program's console lines from now on (consoleLine, include/zn/hostsys.h)
+std::string consoleDrain();   // op 5: the lines since the last call, as Runtime.consoleAPICalled events (one per line)
+std::string consoleRecent();  // op 6: the last 32, for a client that enables Runtime late
 std::string responseBody(int id);
 std::string postData(int id);
 std::string har();   // the whole log as a HAR 1.2 document

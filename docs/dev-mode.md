@@ -115,8 +115,9 @@ port; the line `zinc devtools: ...` on stderr names the port in use) and speaks 
   (at most 10 per second);
 - **Page.captureScreenshot** returns the frame on screen as a base64 PNG, rasterized by the runtime at the window's
   physical size (`format`, `clip` and `quality` are ignored; on Zinc Next the screencast also gets the frame whole);
-- **Console**: `Runtime.consoleAPICalled` for every `console.*` (the last 32 are replayed when DevTools connects; the prototype's
-  host only, Zinc Next sends the style patch alone);
+- **Console**: `Runtime.consoleAPICalled` for every line the program prints (`console.log` as log, `console.error` as error; the last 32
+  are replayed when DevTools connects). On Zinc Next the runtime passes each line to the host as it writes it (`zn::rt::gConsoleTap`, out of
+  the interpreter's loop) and `zinc:devtools` sends them every 100 ms (ZN-373.01);
   `Runtime.evaluate` answers that there is no JavaScript engine;
 - **live tree**, like a web page's: 10 times a second the shown tree is compared with what DevTools has, and the
   differences go out as mutations (`DOM.childNodeInserted` / `childNodeRemoved` as screens mount and unmount,
@@ -147,6 +148,12 @@ Across a hot reload the sockets are handed to the new version (`ZINC_DEVTOOLS_FD
 `executionContextsCleared`/`Created` and `documentUpdated`: DevTools stays connected.
 `node scripts/cdp-check.mjs [port]` is a scripted client that checks all of the above against a running program; with `--styles` it
 checks the Styles panel on `next/tests/data/devtools_styles` (`next/tests/t1/devtools_styles.sh`).
+
+**Zinc Inspector** (ZN-373.01): `zinc run app/inspector/main.tsx -- [port...]` is the same client written in Zinc (zinc:ui, the WebSocket
+of zinc:socket): it finds the programs listening on the ports (9229 and 9222 by default: `zinc:devtools` and `zinc debug --cdp`), attaches
+to one and shows its Elements tree (read again when it changes), the computed style and box of the selected node (highlighted in the
+program) and its console. Editing styles, Network, Sources, Performance and the screencast are ZN-373.02 to .05; `next/tests/t1/inspector.sh`
+runs it against a headless program (`ZINC_INSPECTOR_DUMP=1` prints its views).
 
 On a remote device, `zinc dev --device` runs ssh with `-L 9229:127.0.0.1:9229`, so Chrome on the dev machine uses
 `localhost:9229` as well.

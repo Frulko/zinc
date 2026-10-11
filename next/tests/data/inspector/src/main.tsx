@@ -1,0 +1,19 @@
+// The program tests/t1/inspector.sh inspects with the Zinc Inspector (ZN-373.01): a small tree with a padding class and text, and a console
+// that prints a line every 200 ms and one error.
+import 'zinc:devtools';
+import { render } from 'zinc:ui/solid';
+
+let n = 0;
+setInterval(() => {
+  n++;
+  console.log('tick ' + n);
+  if (n === 2) console.error('oops ' + n);
+}, 200);
+
+function App(): i32 {
+  return <View class="flex-col gap-2 p-4">
+    <Text class="text-lg">Hello inspector</Text>
+    <View class="flex-row gap-1"><View class="w-4 h-4 bg-rose-600" /><View class="w-4 h-4 bg-sky-600" /></View>
+  </View>;
+}
+render(App, 0xffffff, (dt: number) => {});

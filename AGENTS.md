@@ -12,7 +12,7 @@ Binding rules: `next/RULES.md` (never stop, simulators for hardware, proven libr
 
 | Path | What it holds |
 |---|---|
-| `next/` | Zinc Next: `src/` (frontend, ir, zbc, vm, aot, rt, host, qjs, gl, text, res, tc, dev, sim, lsp, prof, native), `include/zn/` (the only place a constant or an operation is defined), `third_party/` (vendored libraries), `tools/`, `tests/`, `backlog/`, `corpus/` (frozen corpus), `firmware/esp32`, `app/atelier` |
+| `next/` | Zinc Next: `src/` (frontend, ir, zbc, vm, aot, rt, host, qjs, gl, text, res, tc, dev, sim, lsp, prof, native), `include/zn/` (the only place a constant or an operation is defined), `third_party/` (vendored libraries), `tools/`, `tests/`, `backlog/`, `corpus/` (frozen corpus), `firmware/esp32`, `app/atelier`, `app/inspector` |
 | `lib/` | The standard library written in Zinc/TS (`lib/std`, the UI kits `lib/std/kit`, `lib/std/nuxt`, `zinc.d.ts`); shared by both engines |
 | `plugins/` | 33 plugins (`plugin.json` + Zinc code + native code): system, video, sqlite, three, 3d, canvas2d, lottie, svg, socket, process, displays, webview... |
 | `examples/` | The demos that must run unchanged (hero, breakout, nuxt-ui, rn-showcase, rn-port, three, maps, video, zed-editor...) |

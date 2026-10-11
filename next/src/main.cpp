@@ -1086,6 +1086,7 @@ int main(int argc, char** argv) {
 #ifdef ZN_HOST_GFX
   zn::host::installGfx();
   zn::host::installLayout();
+  zn::rt::gConsoleTap = zn::netlog::consoleLine;   // the inspector's Console (ZN-373.01): the host keeps nothing until zinc:devtools starts it
 #endif
   for (int k = 1; k < argc; ++k) {  // `--strict` anywhere on the command line selects the strict profile; `--force` builds despite unmet `requires`
     if (!std::strcmp(argv[k], "--force")) { zn::frontend::setForce(true); for (int j = k; j + 1 < argc; ++j) argv[j] = argv[j + 1]; --argc; --k; }

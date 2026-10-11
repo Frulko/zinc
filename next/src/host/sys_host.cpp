@@ -542,7 +542,8 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostNetLog: {   // the network log for the inspector (ZN-370)
       const int arg = std::atoi(s(1).c_str());
       if (n(0) == 0) zn::netlog::start(arg);
-      ret(r, n(0) == 1 ? zn::netlog::drain() : n(0) == 2 ? zn::netlog::responseBody(arg) : n(0) == 3 ? zn::netlog::postData(arg) : std::string());
+      if (n(0) == 4) zn::netlog::consoleStart();   // the console (ZN-373.01): 4 start, 5 the new lines, 6 the last 32
+      ret(r, n(0) == 1 ? zn::netlog::drain() : n(0) == 2 ? zn::netlog::responseBody(arg) : n(0) == 3 ? zn::netlog::postData(arg) : n(0) == 5 ? zn::netlog::consoleDrain() : n(0) == 6 ? zn::netlog::consoleRecent() : std::string());
       break;
     }
     case Rt::HostHttpFetch: r->i = zn::http::fetchOpen(s(0), s(1), s(2), s(3), n(4), n(5)); break;

@@ -158,8 +158,10 @@ function handle(client: i32, msg: string): void {
   else if (method === 'Overlay.hideHighlight' || method === 'DOM.hideHighlight') inspectHighlight(-1);
   else if (method === 'Page.getResourceTree')
     result = '{"frameTree":{"frame":{"id":"main","loaderId":"zinc","url":"zinc://app","domainAndRegistry":"","securityOrigin":"zinc://app","mimeType":"text/html","secureContextType":"Secure","crossOriginIsolatedContextType":"NotIsolated","gatedAPIFeatures":[]},"resources":[]}}';
-  else if (method === 'Runtime.enable')
+  else if (method === 'Runtime.enable') {
     Cdp.send(client, '{"method":"Runtime.executionContextCreated","params":{"context":{"id":1,"origin":"zinc://app","name":"zinc","uniqueId":"zinc-1","auxData":{"isDefault":true,"type":"default","frameId":"main"}}}}');
+    for (const e of Cdp.net(6, '').split('\n')) if (e.length > 0) Cdp.send(client, e);   // Zinc Next: the last console lines (the prototype's host replays its own)
+  }
   else if (method === 'Page.captureScreenshot') result = `{"data":"${Cdp.screenshot(0, 0)}"}`;  // PNG of the frame on screen
   else if (method === 'Page.startScreencast') { cast = client; castW = Math.round(Cdp.num(msg, 'maxWidth')); castH = Math.round(Cdp.num(msg, 'maxHeight')); castReady = true; castLast = ''; }
   else if (method === 'Page.stopScreencast') cast = -1;
@@ -459,6 +461,14 @@ Cdp.listen(9229, handle);   // the default: zinc.json plugins.devtools.port and 
 // enables the domain, then follow live.
 let netOn = false;
 Cdp.net(0, '');
+// The Console on Zinc Next (ZN-373.01): the host keeps the program's console lines from now on; they go out every 100 ms (the prototype's host
+// mirrors the console itself and answers '' here).
+Cdp.net(4, '');
+setInterval(() => {
+  const lines = Cdp.net(5, '');
+  if (lines.length === 0 || Cdp.clients() === 0) return;
+  for (const e of lines.split('\n')) if (e.length > 0) Cdp.send(-1, e);
+}, 100);
 setInterval(() => {
   if (!netOn) return;
   if (Cdp.clients() === 0) { netOn = false; return; }

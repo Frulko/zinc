@@ -60,6 +60,9 @@ template <class T> using ObjVec = std::vector<T, ObjAlloc<T>>;
 
 // ECMAScript Number::toString for a double (shortest round-trip digits, JS exponent thresholds).
 std::string numberToString(double v);
+// The inspector's console (ZN-373.01): set by the host while plugins/devtools listens, it gets each line the program prints (console.log, and
+// console.error with err) as Machine::flushOut / flushErrLine write it, out of the interpreter's loop.
+extern void (*gConsoleTap)(const char* p, std::size_t n, bool err);
 
 struct Machine;
 
