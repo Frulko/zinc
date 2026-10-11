@@ -293,6 +293,12 @@ target_include_directories(zn_zpk PUBLIC src)
 target_link_libraries(zn_zpk PUBLIC zn_lz4 zn_zstd zn_sha256)
 add_executable(zpk_test tests/unit/zpk_test.cpp)
 target_link_libraries(zpk_test PRIVATE zn_zpk)
+# the asset build (ZN-434): importers, the content-addressed cache (xxHash 0.8.4, header only), groups to packs; CLI only
+add_library(zn_assets STATIC src/assets/assets.cpp)
+target_include_directories(zn_assets PUBLIC src PRIVATE third_party/xxhash)
+target_link_libraries(zn_assets PUBLIC zn_zpk zn_res)
+add_executable(assets_test tests/unit/assets_test.cpp)
+target_link_libraries(assets_test PRIVATE zn_assets)
 
 add_library(zn_tc STATIC src/tc/tc.cpp src/tc/plugin_build.cpp src/tc/bundle.cpp src/tc/tuf.cpp src/tc/tlog.cpp src/tc/policy.cpp src/zapp.cpp third_party/monocypher/monocypher.c third_party/monocypher/monocypher-ed25519.c)   # monocypher: Ed25519 for signed update manifests (ZN-149)
 target_include_directories(zn_tc PUBLIC src PRIVATE third_party/monocypher)
@@ -392,7 +398,7 @@ if(APPLE)   # but not zinc's own C++ (zn::), harfbuzz's or the libc++ templates 
   target_link_options(zinc PRIVATE "LINKER:-unexported_symbols_list,${CMAKE_SOURCE_DIR}/tools/zinc-unexported.txt")
   set_property(TARGET zinc APPEND PROPERTY LINK_DEPENDS ${CMAKE_SOURCE_DIR}/tools/zinc-unexported.txt)
 endif()
-target_link_libraries(zinc PRIVATE zn_sim zn_script zn_qjs zn_res zn_dev zn_tc zn_prof zn_dbg zn_vm zn_aot zn_rt zn_zbc zn_ir zn_frontend)
+target_link_libraries(zinc PRIVATE zn_sim zn_script zn_qjs zn_assets zn_res zn_dev zn_tc zn_prof zn_dbg zn_vm zn_aot zn_rt zn_zbc zn_ir zn_frontend)
 if(TARGET zn_rt_new)
   add_dependencies(zinc zn_rt_new)   # not linked into zinc (ZN-592): `zinc build` links it into the programs that have a heap budget
 endif()

@@ -24,6 +24,7 @@
 #include <tuple>
 #include <unistd.h>
 
+#include "assets/assets.h"
 #include "frontend/plugin_manifest.h"
 #include "frontend/project.h"
 #include "zn/devproto.h"
@@ -65,6 +66,7 @@ const Command kCommands[] = {
   {"test", "zinc test [--profile P] [--runner interp|aot|quickjs|esp32-qemu|devicesim] [dir]", "run the test files of a project", "Runs the *.test.ts / test-*.ts files and the conformance programs against their goldens: those of dir, else of the project in the current directory, else the engine's tests/conformance."},
   {"new", "zinc new [template|path|git-url|gh:user/repo[@ref]] <dir> | zinc new --list", "create a project from a template", "Copies templates/<template>/ ({{name}}, {{id}} and {{ident}} filled in the files and their names; or a template directory, or a git repository cloned at its default branch or @ref, its commit recorded in zinc.json \"template\"; nothing of the template is run) (zinc.json, sources, assets, tests, README) into a new or empty directory, filling {{name}} and {{id}}, and writes tsconfig.json for this machine. Default template: game; --list prints the templates with their targets. zinc new plugin <dir>: a plugin repository to publish (docs/plugins.md, \"Plugin starter\")."},
   {"pack", "zinc pack [dir] [-o app.zapp]", "one runnable file per app", "Writes build/<name>.zapp: a deterministic ustar with the compiled program, its baked fonts and images, its assets and zinc.json, every file listed with its SHA-256 in manifest.json (and a signature slot). zinc run app.zapp checks and runs it (docs/zapp.md)."},
+  {"assets", "zinc assets build [dir] [--target T] [--release]", "build the asset packs", "Imports every file of the project's assets directory (images to premultiplied RGBA, the rest copied as is) and writes one ZPK pack per group with report.json (each asset's importer, group, source and output bytes, time) into build/assets/<target> (default: this machine). Artifacts are kept by content in ~/.zinc/cache/assets, so a second build of an unchanged project runs no importer and a changed file is imported alone. --release compresses the packs with zstd. zinc pack and zinc build do it for this machine, zinc export (release) for its target (docs/reports/zinc-next-assets.md)."},
   {"fuse", "zinc fuse app.zapp [-o app]", "one executable per app", "Appends the .zapp to this engine: the result runs the app on a machine without zinc, its arguments going to the app (LOVE's fused mode). This machine's target only for now (ZN-392); zinc export builds with the AOT."},
   {"publish", "zinc publish [dir] --key <seed-hex> [--channel stable|beta] [--notes text] [-o dir] | [--itch user/game[:suffix]] [--site dir] [--dry-run]", "publish an app update, to itch.io or a download page", "Packs the app (zinc pack) and writes <channel>.manifest beside it, signed with the app's Ed25519 key (zinc update-keygen; its public key is zinc.json update.publicKey). Serve the directory at zinc.json update.url. --itch pushes every export directory of dist/ with itch.io's butler (pinned, fetched and checked once; channels mac, linux-arm64, linux-rpi..., html5, plus -suffix); --dry-run prints the butler commands and uploads nothing. --site writes a static download page: one button per artifact of dist/ (export directories as .tar.gz, .dmg, .deb, .zapp) with its size and SHA-256, and SHA256SUMS."},
   {"update-app", "zinc update-app [dir] [--check] [--channel C]", "update an app from its channel", "Fetches the channel manifest of zinc.json update, verifies its signature with the app's key, refuses an older version, downloads the .zapp and checks its SHA-256 (into ~/.zinc/apps/<id>/updates). --check exits 10 when an update exists."},
@@ -788,6 +790,7 @@ int exportApp(const std::vector<std::string>& args, const std::string& engineRoo
   std::error_code ec;
   fs::remove_all(out, ec);
   fs::create_directories(out, ec);
+  if (!buildAssets(p.dir, target, true, err)) { std::fprintf(stderr, "zinc export: %s\n", err.c_str()); return 1; }   // the release packs, build/assets/<target> (ZN-434)
   if (target == "wasm") return exportWasm(p, out, engineRoot);
   if (target == "esp32") return exportEsp32(p, out, engineRoot);
   // the argument orders of the two build commands: `build <file> -o <out>` for this machine, `build --target <t> <file> -o <out>` for another
@@ -1920,6 +1923,56 @@ int monitor(const std::vector<std::string>& args) {
     std::fflush(stdout);
   }
   if (!buf.empty()) printTelemetry(buf);
+  return 0;
+}
+
+std::string assetCacheDir() { return std::getenv("ZINC_NO_CACHE") ? "" : (fs::path(zn::tc::home()) / "cache" / "assets").string(); }
+std::string engineBuild() {   // two builds of the engine share a version, not an executable's time and size
+  std::error_code ec;
+  const std::string e = zn::tc::executablePath();
+  const auto t = fs::last_write_time(e, ec);
+  return ec ? "unknown" : std::to_string(std::chrono::duration_cast<std::chrono::nanoseconds>(t.time_since_epoch()).count()) + " " + std::to_string(fs::file_size(e, ec));
+}
+
+bool buildAssets(const std::string& dir, const std::string& target, bool release, std::string& err, std::string* summary) {
+  const fs::path project = fs::absolute(dir).lexically_normal(), src = project / "assets";
+  std::error_code ec;
+  if (!fs::is_directory(src, ec)) return true;
+  zn::assets::Options o;
+  o.sourceDir = src.string();
+  o.outDir = (project / "build" / "assets" / target).string();
+  o.cacheDir = assetCacheDir();
+  o.tool = engineBuild();
+  o.target = target;
+  o.profile = release ? "release" : "dev";
+  zn::assets::Report r;
+  if (!zn::assets::build(o, r, err)) return false;
+  std::uint64_t bytes = 0;
+  for (const zn::assets::Pack& p : r.packs) bytes += p.bytes;
+  char line[512];
+  std::snprintf(line, sizeof line, "assets: %zu (%zu imported, %zu from the cache), %zu pack%s of %llu bytes in %.0f ms: %s", r.items.size(), r.imported,
+                r.items.size() - r.imported, r.packs.size(), r.packs.size() == 1 ? "" : "s", static_cast<unsigned long long>(bytes), r.ms, o.outDir.c_str());
+  if (summary) *summary = line;
+  return true;
+}
+
+int assets(const std::vector<std::string>& args) {
+  const char* usage = "usage: zinc assets build [dir] [--target T] [--release]\n";
+  if (args.size() < 3 || args[2] != "build") { std::fprintf(stderr, "%s", usage); return 2; }
+  std::vector<std::string> rest(args.begin() + 1, args.end());   // parseOpts reads from the third word: the one after "build"
+  Opts o = parseOpts(rest, {"--target"}, {"--release"});
+  if (o.bad) { std::fprintf(stderr, "zinc assets: unknown option %s\n%s", o.badArg.c_str(), usage); return 2; }
+  const std::string dir = o.entry.empty() ? "." : o.entry;
+#if defined(__APPLE__)
+  const std::string target = o.v.count("--target") ? o.v["--target"] : "macos";
+#else
+  const std::string target = o.v.count("--target") ? o.v["--target"] : "linux";
+#endif
+  std::error_code ec;
+  if (!fs::is_directory(fs::path(dir) / "assets", ec)) { std::fprintf(stderr, "zinc assets: %s has no assets directory\n", fs::absolute(dir).lexically_normal().c_str()); return 2; }
+  std::string err, line;
+  if (!buildAssets(dir, target, has(o, "--release"), err, &line)) { std::fprintf(stderr, "zinc assets: %s\n", err.c_str()); return 1; }
+  std::printf("%s\n", line.c_str());
   return 0;
 }
 

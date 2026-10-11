@@ -21,6 +21,7 @@ next/
   src/dbg/        the interpreter's debugger (zinc debug, ZN-371.01): breakpoints, stepping, stack and locals of a debug build; includes rt, vm and zbc, only main includes it
   src/tc/         the toolchain manager (ZN-029): the pinned `zig c++`, its checksum-verified download, cross builds; depends on nothing of the engine
   src/zpk/        ZPK packs (ZN-433, docs/zpk.md): the writer (build side) and the reader in place over a mapping, lz4 and zstd per entry; depends on nothing of the engine
+  src/assets/     the asset build (ZN-434, docs/reports/zinc-next-assets.md): rules, importers, the content-addressed cache, groups to ZPK packs, report.json; the font baker behind the cache; CLI only, includes zpk and res
   src/res/        the baker of fonts and images (ZN-048): TrueType and SVG rasterizers ported exactly from compiler/src/resources.ts, PNG through stb_image; its blob is installed by src/host/resources.cpp
   src/dev/        the device core and the upload protocol (ZN-030): the same code runs in the firmware of a small device and in `zinc device-sim`; includes rt, vm, zbc
   firmware/esp32/ the ESP-IDF project of the ESP32 core; its image is kept in firmware/esp32/prebuilt (rebuilt by tools/build-esp32-core)

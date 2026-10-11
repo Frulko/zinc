@@ -746,6 +746,19 @@ bool bake(const std::vector<std::string>& sources, const Options& opt, std::vect
   return true;
 }
 
+bool bakerReads(const std::string& ext) {   // the texts of the scan, the TrueType files, the images (keep in step with bake above)
+  for (const char* e : {".json", ".txt", ".md", ".vtt", ".csv", ".ttf", ".otf", ".png", ".jpg", ".jpeg", ".webp", ".svg"}) if (ext == e) return true;
+  return false;
+}
+
+bool rasterizeSvg(const std::string& svg, int width, int& w, int& h, std::vector<std::uint8_t>& rgba, std::string& err) {
+  BakedImage im;
+  if (!rasterizeSvg(svg, width, im, err)) return false;
+  w = im.w; h = im.h;
+  rgba = std::move(im.rgba);
+  return true;
+}
+
 bool decodeRgba(const uint8_t* data, size_t size, int& w, int& h, std::vector<uint8_t>& rgba) {
   int n = 0;
   if (isWebp(data, size)) {

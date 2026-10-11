@@ -31,6 +31,7 @@
 #include "prof/prof.h"
 #include "dbg/dbg.h"
 #include "res/res.h"
+#include "assets/assets.h"
 #include "zn/hostsys.h"
 #include "qjs/qjs.h"
 #ifdef ZN_HOST_LIBS
@@ -347,10 +348,12 @@ static bool bakeResources(const char* entry, std::vector<std::uint8_t>& blob, st
   }
   fs::path dir = fs::absolute(entry).parent_path();
   for (fs::path d : {dir / "assets", dir.parent_path() / "assets"}) if (fs::is_directory(d)) { o.assetsDir = d.string(); break; }
-  if (zn::frontend::uiPreset() != "react-native") return zn::res::bake(gSources, o, blob, err);
   std::vector<std::string> src = gSources;
-  src.push_back("text-[14px]");   // React Native's default text size under the preset (ZN-385)
-  return zn::res::bake(src, o, blob, err);
+  if (zn::frontend::uiPreset() == "react-native") src.push_back("text-[14px]");   // React Native's default text size under the preset (ZN-385)
+  bool hit = false;   // through the asset cache (ZN-434): an unchanged program is not baked again
+  if (!zn::assets::bake(src, o, zn::cli::assetCacheDir(), zn::cli::engineBuild(), blob, hit, err)) return false;
+  zn::log::write("build", zn::log::Info, hit ? "fonts and images from the asset cache" : "fonts and images baked");
+  return true;
 }
 
 static std::vector<std::string> gHostImports;   // the host modules ('zinc:gfx', 'zinc:sys'...) the last program compiled imports, directly or through the standard modules
@@ -572,6 +575,10 @@ static int buildNative(const char* argv0, const char* entry, const char* out, zn
     std::string err;
     zn::log::Phase ph("build", "bake fonts and images", "resources", "fonts and images baked in");
     if (!bakeResources(entry, blob, err)) { std::fprintf(stderr, "zinc: cannot bake the fonts and images: %s\n", err.c_str()); return 1; }
+  }
+  if (std::string pf = zn::frontend::findProjectFile(entry); !run && !pf.empty()) {   // zinc build: the packs of the project's assets, build/assets/<target> (ZN-434)
+    std::string err;
+    if (!zn::cli::buildAssets(fs::path(pf).parent_path().string(), gBuildTarget.empty() ? zn::tc::pluginTarget() : gBuildTarget, false, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
   }
   const char* cxx = std::getenv("CXX");
   bool haveLibs = fs::exists(libs / "libzn_rt.a");
@@ -1235,6 +1242,7 @@ int main(int argc, char** argv) {
     if (argc >= 2 && !std::strcmp(argv[1], "dev")) return zn::cli::dev(cl);
     if (argc >= 2 && !std::strcmp(argv[1], "lsp")) return zn::lsp::serve(gRoot + "/../lib/std");
     if (argc >= 2 && !std::strcmp(argv[1], "monitor")) return zn::cli::monitor(cl);
+    if (argc >= 2 && !std::strcmp(argv[1], "assets")) return zn::cli::assets(cl);
     if (argc >= 2 && !std::strcmp(argv[1], "export")) return zn::cli::exportApp(cl, gRoot);
     if (argc >= 2 && !std::strcmp(argv[1], "compat")) return zn::cli::compat(cl, gRoot);
     if (argc >= 2 && !std::strcmp(argv[1], "ui")) return zn::cli::ui(cl, gRoot);
@@ -1456,6 +1464,7 @@ int main(int argc, char** argv) {
         std::ifstream af(it->path(), std::ios::binary); std::stringstream as; as << af.rdbuf();
         files[rel] = as.str();
       }
+    if (!zn::cli::buildAssets(projDir, zn::tc::pluginTarget(), false, err)) { std::fprintf(stderr, "zinc pack: %s\n", err.c_str()); return 1; }   // the packs, build/assets/<this machine> (ZN-434)
     if (outPath.empty()) { fs::create_directories(fs::path(projDir) / "build", ec); outPath = (fs::path(projDir) / "build" / (name + ".zapp")).string(); }
     const std::string archive = zn::zapp::pack(files, name, kVersionText);
     std::ofstream out(outPath, std::ios::binary);

@@ -23,4 +23,10 @@ struct Options {
 // `sources` are the texts of every file of the program (user code and standard modules): they decide the sizes and the characters.
 bool bake(const std::vector<std::string>& sources, const Options& opt, std::vector<std::uint8_t>& blob, std::string& err);
 
+// Whether bake reads the files of the assets directory that have this extension (".png"): what the cache key of src/assets covers.
+bool bakerReads(const std::string& ext);
+
+// An SVG document drawn `width` pixels wide (0: its own size) to straight RGBA rows, as bake draws it (the image importer of src/assets).
+bool rasterizeSvg(const std::string& svg, int width, int& w, int& h, std::vector<std::uint8_t>& rgba, std::string& err);
+
 }  // namespace zn::res
