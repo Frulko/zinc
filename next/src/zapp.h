@@ -7,6 +7,7 @@
 //   assets/...      the project's assets, read at run time through zinc:assets
 // Reading checks every header checksum and every file against the manifest's SHA-256, and refuses a newer format or engine.
 #pragma once
+#include <cstdint>
 #include <map>
 #include <string>
 #include <utility>
@@ -31,5 +32,11 @@ bool untar(const std::string& archive, std::map<std::string, std::string>& files
 
 /** The files of an archive, checked; false with `err` for a corrupted archive or one made for a newer format or engine than `engine`. */
 bool unpack(const std::string& archive, const std::string& engine, std::map<std::string, std::string>& files, std::string& err);
+
+/** The .zapp at [offset, offset + size) of the file `path` (a .zapp, or the end of a fused executable), as files in `dir` = <cacheRoot>/<the
+ *  manifest's hash> (ZN-430). The first time, every member is streamed through its SHA-256 into the directory; after that only the headers
+ *  and the manifest are read while the file keeps its size and time (a stamp in the directory), and a changed file is checked again member
+ *  by member before it runs. The same refusals as unpack(), with its messages. */
+bool unpackTo(const std::string& path, std::uint64_t offset, std::uint64_t size, const std::string& engine, const std::string& cacheRoot, std::string& dir, std::string& err);
 
 }  // namespace zn::zapp

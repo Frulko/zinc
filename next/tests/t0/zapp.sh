@@ -1,6 +1,7 @@
 #!/bin/sh
 # .zapp archives (ZN-318): `zinc pack` of a project twice gives byte-identical files (a ustar that `tar` lists), `zinc run app.zapp` prints and
-# draws what `zinc run dir` does, and a corrupted archive, one made for a newer engine, or one naming a file outside it is refused with a message.
+# draws what `zinc run dir` does, and a corrupted archive, one made for a newer engine, or one naming a file outside it is refused with a message;
+# an archive changed in place after a launch is checked again (ZN-430: launches read only the headers of an unchanged file).
 cd "$(dirname "$0")/../.." || exit 2
 Z=$(cd "$(dirname "$ZINC")" && pwd)/$(basename "$ZINC")
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
@@ -34,5 +35,10 @@ check() { out=$("$Z" run "$tmp/$1" 2>&1); rc=$?; [ $rc -ne 0 ] && echo "$out" | 
 check corrupt.zapp 'corrupted'
 check newer.zapp 'update zinc'
 check escape.zapp 'outside'
+# ZN-430: a launch reads only the headers and the manifest while the file is unchanged; a byte changed in place is checked again and refused
+cp "$tmp/cli.zapp" "$tmp/inplace.zapp"
+"$Z" run "$tmp/inplace.zapp" >/dev/null 2>&1 || { echo "inplace.zapp did not run"; fail=1; }
+python3 -c "import sys; f = open(sys.argv[1], 'r+b'); f.seek(2000); b = f.read(1); f.seek(2000); f.write(bytes([b[0] ^ 0x55]))" "$tmp/inplace.zapp"
+check inplace.zapp 'corrupted'
 [ $fail -eq 0 ] && echo "zapp: ok"
 exit $fail

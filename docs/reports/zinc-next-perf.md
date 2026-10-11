@@ -438,6 +438,13 @@ The CPU time ZINC_GL_STATS calls "to submit" includes waits for the GPU (5.6 to 
 measured at load 6 from other builds, before ZN-432 changed the image path of the replay. GL replay against the software frame for convex
 and concave polygons: 0.06% of the pixels more than 24 apart, mean error 0.07 (tests/t1/gl_convex.sh).
 
+### ZN-430: launching a .zapp with 100 MB of assets (2026-10-11, Intel Mac, load about 4)
+
+The game-2d template plus 100 MB of random bytes in assets/data, packed (105 MB), `ZINC_HEADLESS=1 ZINC_FRAMES=1 zinc run g2d.zapp` under
+`/usr/bin/time -l`: first launch (checked member by member as it streams, unpacked into the cache) 0.92 s, 5.2 MB peak resident; the next
+launches 0.01 s, 4.8 to 5.4 MB (before: 2.0 to 2.3 s and 450 to 520 MB at every launch, report games/toolchain-assets-loading.md 1.2). A launch
+now reads the ustar headers and the manifest only, while the file keeps its size, time and offset (a stamp in the cache directory).
+
 ### ZN-567: WebGL binding fast paths on QuickJS (2026-10-11, Intel Mac, load 3.6 to 3.9)
 
 `zinc run next/bench/webgl_binding.js --engine quickjs`, ns per call, best of 5 runs, before -> after:

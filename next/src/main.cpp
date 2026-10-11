@@ -880,32 +880,24 @@ static int runCompiled(zn::zbc::Module& zm, const std::string& entry, const std:
 }
 #endif
 
-// A .zapp archive (ZN-318), checked and unpacked once into ~/.zinc/cache/zapp/<sha>; `zbc` is its program. False with `err` when refused.
-static bool unpackZapp(const std::string& archive, std::string& zbc, std::string& err) {
+// A .zapp archive (ZN-318) at [offset, offset + size) of `path` (size 0: the whole file), checked and unpacked once into ~/.zinc/cache/zapp/<id>;
+// later launches read only its headers and manifest (ZN-430). `zbc` is its program. False with `err` when refused.
+static bool unpackZapp(const std::string& path, std::uint64_t offset, std::uint64_t size, std::string& zbc, std::string& err) {
   namespace fs = std::filesystem;
-  std::map<std::string, std::string> files;
-  if (!zn::zapp::unpack(archive, kVersionText, files, err)) return false;
-  if (!files.count("program.zbc")) { err = "the archive has no program.zbc"; return false; }
-  const fs::path dir = fs::path(zn::tc::home()) / "cache" / "zapp" / zn::tc::sha256Hex(archive).substr(0, 24);
   std::error_code ec;
-  if (!fs::exists(dir / "program.zbc", ec)) {
-    const fs::path tmp = dir.string() + ".part" + std::to_string(::getpid());
-    for (const auto& [n, bytes] : files) {
-      fs::create_directories((tmp / n).parent_path(), ec);
-      std::ofstream o(tmp / n, std::ios::binary); o.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
-    }
-    fs::create_directories(dir.parent_path(), ec);
-    fs::rename(tmp, dir, ec);
-    if (ec) fs::remove_all(tmp, ec);   // another run unpacked it first
-  }
-  zbc = (dir / "program.zbc").string();
+  if (!size) size = fs::file_size(path, ec);
+  if (ec) { err = "cannot read it"; return false; }
+  std::string dir;
+  if (!zn::zapp::unpackTo(path, offset, size, kVersionText, (fs::path(zn::tc::home()) / "cache" / "zapp").string(), dir, err)) return false;
+  if (!fs::exists(fs::path(dir) / "program.zbc", ec)) { err = "the archive has no program.zbc"; return false; }
+  zbc = (fs::path(dir) / "program.zbc").string();
   return true;
 }
 // A fused executable (ZN-319): this binary followed by the window host module (ZN-592.01, absent when the engine has none), a .zapp and a
 // 24-byte trailer: the archive's size and the module's (8 bytes each, little endian) and "ZNFUSED2".
 static const char kFuseMagic[9] = "ZNFUSED2";
 static std::uint64_t gFusedModuleAt, gFusedModuleSize;   // where the window module is in this fused executable
-static bool fusedArchive(std::string& archive) {
+static bool fusedArchive(std::uint64_t& at, std::uint64_t& size) {   // where the .zapp is in this executable
   std::ifstream f(zn::tc::executablePath(), std::ios::binary | std::ios::ate);
   if (!f) return false;
   const std::streamoff end = f.tellg();
@@ -916,8 +908,7 @@ static bool fusedArchive(std::string& archive) {
   std::uint64_t n = 0, m = 0;
   for (int i = 7; i >= 0; --i) { n = (n << 8) | static_cast<unsigned char>(t[i]); m = (m << 8) | static_cast<unsigned char>(t[8 + i]); }
   if (n == 0 || static_cast<std::streamoff>(n + m) > end - 24) return false;
-  archive.resize(n);
-  f.seekg(end - 24 - static_cast<std::streamoff>(n)); f.read(archive.data(), static_cast<std::streamsize>(n));
+  at = static_cast<std::uint64_t>(end) - 24 - n; size = n;
   gFusedModuleAt = static_cast<std::uint64_t>(end) - 24 - n - m; gFusedModuleSize = m;
   return static_cast<bool>(f);
 }
@@ -966,9 +957,7 @@ static std::string chooseAppVersion(const std::string& zbc) {
   std::error_code ec;
   auto line = [](const std::string& f) { std::ifstream in(f); std::string l; std::getline(in, l); return l; };
   auto versionOf = [&](const std::string& zappPath, std::string& out) {   // unpacked (and checked) with its own manifest's version
-    std::ifstream zf(zappPath, std::ios::binary);
-    std::stringstream zs; zs << zf.rdbuf();
-    if (!zf || !unpackZapp(zs.str(), out, err)) return std::string();
+    if (!unpackZapp(zappPath, 0, 0, out, err)) return std::string();
     std::ifstream jf(fs::path(out).parent_path() / "zinc.json"); std::stringstream js; js << jf.rdbuf();
     zn::frontend::Project p2; std::string e2;
     return zn::frontend::parseProject(js.str(), p2, e2) && p2.app.id == proj.app.id ? (p2.app.version.empty() ? "0.0.0" : p2.app.version) : std::string();
@@ -1088,9 +1077,10 @@ static void glRows(int id, const zn::host::HostArg* a, zn::host::HostArg* r) {
 int main(int argc, char** argv) {
   for (int k = 0; k < argc; ++k) gLaunchArgs.push_back(argv[k]);
   {   // a fused app: every argument is the app's; it runs as `zinc run <its program> -- args`
-    std::string archive, zbc, err;
-    if (fusedArchive(archive)) {
-      if (!unpackZapp(archive, zbc, err)) { std::fprintf(stderr, "%s: %s\n", argv[0], err.c_str()); return 1; }
+    std::string zbc, err;
+    std::uint64_t at = 0, size = 0;
+    if (fusedArchive(at, size)) {
+      if (!unpackZapp(zn::tc::executablePath(), at, size, zbc, err)) { std::fprintf(stderr, "%s: %s\n", argv[0], err.c_str()); return 1; }
       zbc = chooseAppVersion(zbc);   // a newer version staged or in use (ZN-324.02)
       gFusedArgs = {argv[0], "run", zbc, "--"};
       for (int k = 1; k < argc; ++k) gFusedArgs.push_back(argv[k]);
@@ -1449,11 +1439,9 @@ int main(int argc, char** argv) {
   if (argc >= 3 && !std::strcmp(argv[1], "run") && (argc == 3 || !std::strcmp(argv[3], "--"))) {  // zinc run <file> [-- args...]  // zinc run <file.ts|file.zbc>: compile if needed, verify, execute
     std::string path = argv[2];
     if (path.size() > 5 && path.compare(path.size() - 5, 5, ".zapp") == 0) {   // a packed app (ZN-318): checked, unpacked once into the cache, run from there
-      std::ifstream zf(path, std::ios::binary);
-      if (!zf) { std::fprintf(stderr, "zinc: cannot read %s\n", path.c_str()); return 2; }
-      std::stringstream zs; zs << zf.rdbuf();
+      if (!std::ifstream(path, std::ios::binary)) { std::fprintf(stderr, "zinc: cannot read %s\n", path.c_str()); return 2; }
       std::string zbc, err;
-      if (!unpackZapp(zs.str(), zbc, err)) { std::fprintf(stderr, "zinc: %s: %s\n", path.c_str(), err.c_str()); return 1; }
+      if (!unpackZapp(path, 0, 0, zbc, err)) { std::fprintf(stderr, "zinc: %s: %s\n", path.c_str(), err.c_str()); return 1; }
       zbc = chooseAppVersion(zbc);   // a newer version staged or in use (ZN-324.02)
       gOriginalArgs[2] = zbc;
       path = zbc;

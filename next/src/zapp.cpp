@@ -1,11 +1,19 @@
 #include "zapp.h"
 
+#include <sys/stat.h>
+#include <unistd.h>
+
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
+#include <fstream>
 #include <sstream>
 #include <vector>
 
+extern "C" {
+#include "sha256.h"  // third_party/sha256: the members are hashed as they stream
+}
 #include "tc/tc.h"
 #include "yyjson.h"
 
@@ -116,11 +124,10 @@ bool untar(const std::string& archive, std::map<std::string, std::string>& files
   return true;
 }
 
-bool unpack(const std::string& archive, const std::string& engine, std::map<std::string, std::string>& files, std::string& err) {
-  if (!untar(archive, files, err)) return false;
-  auto m = files.find("manifest.json");
-  if (m == files.end()) { err = "not a .zapp archive (no manifest.json)"; return false; }
-  yyjson_doc* doc = yyjson_read(m->second.data(), m->second.size(), 0);
+namespace {
+// manifest.json: its format and engine checked, the SHA-256 of each listed file in `sums`
+bool readManifest(const std::string& text, const std::string& engine, std::map<std::string, std::string>& sums, std::string& err) {
+  yyjson_doc* doc = yyjson_read(text.data(), text.size(), 0);
   yyjson_val* r = doc ? yyjson_doc_get_root(doc) : nullptr;
   if (!yyjson_is_obj(r)) { yyjson_doc_free(doc); err = "the archive's manifest.json is not valid"; return false; }
   const long long fmt = yyjson_get_sint(yyjson_obj_get(r, "format"));
@@ -128,18 +135,115 @@ bool unpack(const std::string& archive, const std::string& engine, std::map<std:
   bool ok = true;
   if (fmt > kFormat) { err = "this archive is format " + std::to_string(fmt) + ", this zinc reads format " + std::to_string(kFormat) + ": update zinc (zinc update)"; ok = false; }
   else if (eng && versionKey(eng) > versionKey(engine)) { err = std::string("this archive was made for zinc ") + eng + ", this is zinc " + engine + ": update zinc (zinc update)"; ok = false; }
-  std::size_t listed = 0;
   yyjson_val* fs = yyjson_obj_get(r, "files");
   std::size_t i, n; yyjson_val *k, *v;
-  if (ok && yyjson_is_obj(fs)) yyjson_obj_foreach(fs, i, n, k, v) {
-    ++listed;
-    auto f = files.find(yyjson_get_str(k));
-    if (f == files.end()) { err = std::string("the archive is incomplete: ") + yyjson_get_str(k) + " is missing"; ok = false; break; }
-    if (!yyjson_is_str(v) || zn::tc::sha256Hex(f->second) != yyjson_get_str(v)) { err = std::string("the archive is corrupted: ") + yyjson_get_str(k) + " does not match its checksum"; ok = false; break; }
-  }
-  if (ok && listed + 1 != files.size()) { err = "the archive holds files its manifest does not list"; ok = false; }
+  if (ok && yyjson_is_obj(fs)) yyjson_obj_foreach(fs, i, n, k, v) sums[yyjson_get_str(k)] = yyjson_is_str(v) ? yyjson_get_str(v) : "";
   yyjson_doc_free(doc);
   return ok;
+}
+std::string corrupted(const std::string& name) { return "the archive is corrupted: " + name + " does not match its checksum"; }
+std::string missing(const std::string& name) { return "the archive is incomplete: " + name + " is missing"; }
+const char* kUnlisted = "the archive holds files its manifest does not list";
+}  // namespace
+
+bool unpack(const std::string& archive, const std::string& engine, std::map<std::string, std::string>& files, std::string& err) {
+  if (!untar(archive, files, err)) return false;
+  auto m = files.find("manifest.json");
+  if (m == files.end()) { err = "not a .zapp archive (no manifest.json)"; return false; }
+  std::map<std::string, std::string> sums;
+  if (!readManifest(m->second, engine, sums, err)) return false;
+  for (const auto& [name, sum] : sums) {
+    auto f = files.find(name);
+    if (f == files.end()) { err = missing(name); return false; }
+    if (zn::tc::sha256Hex(f->second) != sum) { err = corrupted(name); return false; }
+  }
+  if (sums.size() + 1 != files.size()) { err = kUnlisted; return false; }
+  return true;
+}
+
+bool unpackTo(const std::string& path, std::uint64_t offset, std::uint64_t size, const std::string& engine, const std::string& cacheRoot, std::string& dir, std::string& err) {
+  namespace fs = std::filesystem;
+  std::ifstream in(path, std::ios::binary);
+  if (!in) { err = "cannot read it"; return false; }
+  struct Member { std::string name; std::uint64_t at, size; };
+  std::vector<Member> members;   // the headers only: the data is skipped
+  char h[512];
+  for (std::uint64_t at = 0; at + 512 <= size;) {
+    in.seekg(static_cast<std::streamoff>(offset + at));
+    if (!in.read(h, 512)) { err = "the archive is truncated"; return false; }
+    bool zero = true;
+    for (int i = 0; i < 512; ++i) if (h[i] != 0) { zero = false; break; }
+    if (zero) break;
+    if (std::memcmp(h + 257, "ustar", 5) != 0) { err = "not a ustar archive (no header at byte " + std::to_string(at) + ")"; return false; }
+    unsigned sum = 0;
+    for (int i = 0; i < 512; ++i) sum += (i >= 148 && i < 156) ? ' ' : static_cast<unsigned char>(h[i]);
+    if (std::strtoul(std::string(h + 148, 8).c_str(), nullptr, 8) != sum) { err = "the archive is corrupted (a header checksum is wrong)"; return false; }
+    std::string name(h, strnlen(h, 100)), prefix(h + 345, strnlen(h + 345, 155));
+    if (!prefix.empty()) name = prefix + "/" + name;
+    const std::uint64_t n = std::strtoull(std::string(h + 124, 12).c_str(), nullptr, 8);
+    if (name.empty() || name.find("..") != std::string::npos || name[0] == '/') { err = "the archive names a file outside it: " + name; return false; }
+    if (at + 512 + n > size) { err = "the archive is truncated"; return false; }
+    if (h[156] == '0' || h[156] == 0) members.push_back({name, at + 512, n});
+    at += 512 + (n + 511) / 512 * 512;
+  }
+  auto read = [&](const Member& m, std::string& out) { out.resize(m.size); in.clear(); in.seekg(static_cast<std::streamoff>(offset + m.at)); return static_cast<bool>(in.read(out.data(), static_cast<std::streamsize>(m.size))); };
+  const Member* man = nullptr;
+  for (const Member& m : members) if (m.name == "manifest.json") man = &m;
+  if (!man) { err = "not a .zapp archive (no manifest.json)"; return false; }
+  std::string manifest;
+  std::map<std::string, std::string> sums;
+  if (man->size > (16u << 20) || !read(*man, manifest)) { err = "the archive's manifest.json is not valid"; return false; }
+  if (!readManifest(manifest, engine, sums, err)) return false;
+  std::map<std::string, const Member*> byName;
+  for (const Member& m : members) byName[m.name] = &m;
+  for (const auto& [name, s] : sums) if (!byName.count(name)) { err = missing(name); return false; }
+  if (sums.size() + 1 != byName.size()) { err = kUnlisted; return false; }
+  dir = (fs::path(cacheRoot) / zn::tc::sha256Hex(manifest).substr(0, 24)).string();   // the manifest names every file's hash: the content
+  struct stat st;
+  if (stat(path.c_str(), &st) != 0) { err = "cannot read it"; return false; }
+  const std::string stamp = path + "\t" + std::to_string(static_cast<long long>(st.st_size)) + "\t" + std::to_string(static_cast<long long>(st.st_mtime)) + "." +
+#ifdef __APPLE__
+                            std::to_string(static_cast<long long>(st.st_mtimespec.tv_nsec))
+#else
+                            std::to_string(static_cast<long long>(st.st_mtim.tv_nsec))
+#endif
+                            + "\t" + std::to_string(offset);
+  std::error_code ec;
+  const fs::path stamps = fs::path(dir) / ".checked";   // the files (path, size, time, offset) found whole: they are not read again
+  const bool have = fs::exists(fs::path(dir) / "manifest.json", ec);
+  if (have) { std::ifstream sf(stamps); for (std::string l; std::getline(sf, l);) if (l == stamp) return true; }
+  // check every member as it streams (1 MB at a time); the first time, into a directory of its own that becomes `dir` once whole
+  const fs::path tmp = have ? fs::path() : fs::path(dir + ".part" + std::to_string(::getpid()));
+  std::vector<char> buf(1 << 20);
+  for (const auto& [name, want] : sums) {
+    const Member& m = *byName[name];
+    std::ofstream out;
+    if (!have) { fs::create_directories((tmp / name).parent_path(), ec); out.open(tmp / name, std::ios::binary); }
+    SHA256_CTX ctx;
+    sha256_init(&ctx);
+    in.clear(); in.seekg(static_cast<std::streamoff>(offset + m.at));
+    for (std::uint64_t left = m.size; left > 0;) {
+      const std::size_t n = static_cast<std::size_t>(std::min<std::uint64_t>(left, buf.size()));
+      if (!in.read(buf.data(), static_cast<std::streamsize>(n))) { err = "the archive is truncated"; fs::remove_all(tmp, ec); return false; }
+      sha256_update(&ctx, reinterpret_cast<const BYTE*>(buf.data()), n);
+      if (!have) out.write(buf.data(), static_cast<std::streamsize>(n));
+      left -= n;
+    }
+    BYTE d[32];
+    sha256_final(&ctx, d);
+    static const char* hex = "0123456789abcdef";
+    std::string got;
+    for (BYTE b : d) { got += hex[b >> 4]; got += hex[b & 15]; }
+    if (got != want) { err = corrupted(name); fs::remove_all(tmp, ec); return false; }
+  }
+  if (!have) {
+    { std::ofstream mo(tmp / "manifest.json", std::ios::binary); mo << manifest; }
+    fs::create_directories(fs::path(dir).parent_path(), ec);
+    fs::rename(tmp, dir, ec);
+    if (ec) fs::remove_all(tmp, ec);   // another run unpacked it first
+  }
+  std::ofstream(stamps, std::ios::app) << stamp << "\n";
+  return true;
 }
 
 }  // namespace zn::zapp
