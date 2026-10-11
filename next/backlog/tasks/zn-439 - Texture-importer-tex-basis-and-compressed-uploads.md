@@ -2,7 +2,8 @@
 id: ZN-439
 title: Texture importer tex-basis and compressed uploads
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-09 07:36'
 labels:
   - games
