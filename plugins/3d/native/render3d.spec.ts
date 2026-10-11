@@ -6,6 +6,9 @@ export interface Spec extends NativeModule {
   /** Uploads a mesh: xyz positions, xyz normals (empty: smooth normals are computed), uv pairs (may be empty),
    *  0xRRGGBB vertex colours (may be empty), triangle indices. Returns a handle, -1 when over 65535 vertices. */
   meshCreate(pos: number[], nrm: number[], uv: number[], col: u32[], idx: i32[]): i32;
+  /** A part of a .zmesh model (ZMS1, include/zn/zmesh.h, ZN-441) at byte `at` of `data`: its arrays taken as they are, no parsing. Returns
+   *  a handle, -1 when the part does not fit in `data` or an index passes its vertices. */
+  meshLoad(data: u8[], at: i32): i32;
   meshDestroy(mesh: i32): void;
   /** Render target for a w x h screen box (internal size divided by the `scale` option). Returns `t`, resized if
    *  needed, or a new handle when t < 0. */

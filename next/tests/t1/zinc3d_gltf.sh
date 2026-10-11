@@ -20,10 +20,10 @@ tools/pngdiff "$tmp/glb.png" "$tmp/obj.png" --tol 24 >"$tmp/d" || { echo "the GL
 for n in glb compiled; do
   tools/pngdiff "$tmp/$n.png" tests/golden/zinc3d-gltf/frame.png --tol 24 >"$tmp/d" || { echo "$n: the frame differs from the golden: $(head -1 "$tmp/d")"; fail=1; }
 done
-printf '%s' '{"asset":{"version":"2.0"},"extensionsUsed":["KHR_texture_transform","KHR_materials_unlit"],"skins":[{"joints":[1]}],"animations":[{"channels":[],"samplers":[]}],"scenes":[{"nodes":[0]}],"nodes":[{"children":[1]},{}]}' >"$tmp/warn.gltf"
+printf '%s' '{"asset":{"version":"2.0"},"extensionsUsed":["KHR_texture_transform","KHR_materials_unlit","KHR_lights_punctual"],"skins":[{"joints":[1]}],"animations":[{"channels":[],"samplers":[]}],"scenes":[{"nodes":[0]}],"nodes":[{"children":[1]},{}]}' >"$tmp/warn.gltf"
 printf '%s' '{"asset":{"version":"2.0"},"extensionsUsed":["KHR_draco_mesh_compression"],"extensionsRequired":["KHR_draco_mesh_compression"],"scenes":[{"nodes":[]}]}' >"$tmp/draco.gltf"
 ZINC_HEADLESS=1 "$ZINC" run tests/data/zinc3d_gltf -- load "$tmp/warn.gltf" >"$tmp/w.log" 2>&1
-grep -q "not supported, ignored: animations (1), skins (1), KHR_texture_transform$" "$tmp/w.log" && grep -q "3 nodes, 0 with a mesh, 0 triangles" "$tmp/w.log" ||
+grep -q "not supported, ignored: animations (1), skins (1), KHR_lights_punctual$" "$tmp/w.log" && grep -q "3 nodes, 0 with a mesh, 0 triangles" "$tmp/w.log" ||
   { echo "warning: $(head -c 300 "$tmp/w.log")"; fail=1; }
 ZINC_HEADLESS=1 "$ZINC" run tests/data/zinc3d_gltf -- load "$tmp/draco.gltf" >"$tmp/e.log" 2>&1 && { echo "draco.gltf loaded"; fail=1; }
 grep -q "required extension KHR_draco_mesh_compression is not supported" "$tmp/e.log" || { echo "error: $(head -c 300 "$tmp/e.log")"; fail=1; }

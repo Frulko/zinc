@@ -1,0 +1,9 @@
+{
+  "name": "model",
+  "entry": "main.ts",
+  "assets": {
+    "rules": [{ "match": "zm/*.glb", "as": "model", "format": "zmesh", "lods": "0.5" }],
+    "groups": { "models": { "include": ["**"] } }
+  },
+  "targets": { "macos": { "width": 480, "height": 320 } }
+}

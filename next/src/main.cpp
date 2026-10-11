@@ -2002,9 +2002,9 @@ int main(int argc, char** argv) {
       std::puts(zig.c_str());
       return 0;
     }
-    if (sub == "esptool" || sub == "basisu") {
+    if (sub == "esptool" || sub == "basisu" || sub == "gltfpack") {
       std::string tool, err;
-      if (!(sub == "basisu" ? zn::tc::ensureBasisu(tool, err) : zn::tc::ensureEsptool(tool, err))) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
+      if (!(sub == "basisu" ? zn::tc::ensureBasisu(tool, err) : sub == "gltfpack" ? zn::tc::ensureGltfpack(tool, err) : zn::tc::ensureEsptool(tool, err))) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
       std::puts(tool.c_str());
       return 0;
     }
@@ -2018,7 +2018,7 @@ int main(int argc, char** argv) {
       std::printf("%s  %s\n", h.c_str(), argv[3]);
       return 0;
     }
-    std::fprintf(stderr, "usage: zinc toolchain install | path | esptool | basisu | targets | sha256 <file>\n");
+    std::fprintf(stderr, "usage: zinc toolchain install | path | esptool | basisu | gltfpack | targets | sha256 <file>\n");
     return 2;
   }
   if (argc == 7 && !std::strcmp(argv[1], "build") && !std::strcmp(argv[2], "--target") && !std::strcmp(argv[5], "-o")) {  // zinc build --target <t> <file> -o <out>: a program for another machine

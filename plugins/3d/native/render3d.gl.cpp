@@ -248,6 +248,29 @@ struct Gpu : Engine {
     Engine::meshDestroy(sid);
     return gmeshes.add(g);
   }
+  // A .zmesh part (ZN-441): its vertex arrays go up as they are, one buffer with a range per attribute, then its indices.
+  int32_t meshLoad(Array<uint8_t> data, int32_t at) override {
+    uint32_t nv, ni, flags;
+    const uint8_t* p = zpart(data, at, &nv, &ni, &flags);
+    if (!p) return -1;
+    current();
+    const bool uv = flags & zn::zmesh::Uvs, col = flags & zn::zmesh::Colors;
+    const size_t vb = zn::zmesh::vertexBytes(nv, flags);
+    GMesh* g = (GMesh*)mem(sizeof(GMesh));
+    *g = GMesh{0, 0, 0, (int32_t)ni, uv, col};
+    glGenVertexArrays(1, &g->vao); glBindVertexArray(g->vao);
+    glGenBuffers(1, &g->vbo); glBindBuffer(GL_ARRAY_BUFFER, g->vbo);
+    glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)vb, p, GL_STATIC_DRAW);
+    glGenBuffers(1, &g->ibo); glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g->ibo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, (GLsizeiptr)(2 * (size_t)ni), p + vb, GL_STATIC_DRAW);
+    size_t o = 0;
+    glEnableVertexAttribArray(0); glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 12, (void*)o); o += 12 * (size_t)nv;
+    glEnableVertexAttribArray(1); glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 12, (void*)o); o += 12 * (size_t)nv;
+    if (uv) { glEnableVertexAttribArray(2); glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8, (void*)o); o += 8 * (size_t)nv; }
+    if (col) { glEnableVertexAttribArray(3); glVertexAttribPointer(3, 4, GL_UNSIGNED_BYTE, GL_TRUE, 4, (void*)o); }
+    glBindVertexArray(0);
+    return gmeshes.add(g);
+  }
   void meshDestroy(int32_t id) override {
     GMesh* g = gmeshes.at(id);
     if (!g) return;

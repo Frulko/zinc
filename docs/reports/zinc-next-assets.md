@@ -62,6 +62,7 @@ matches a path applies in order, a later one overriding an earlier one's options
 | `sprite` | a frame of an atlas (below): no entry of its own; the atlas becomes `<atlas>.atlas` (its table) and `<atlas>.atlas.<n>` (its pages) |
 | `tilemap` | a Tiled or LDtk map (below): its table `<map>.tilemap`; the tiles it uses are frames of an atlas |
 | `texture` | a GPU texture (below): resized for the target, mipmapped, premultiplied, in the format the target's profile prefers (a block format through basisu) |
+| `model` | a glTF or GLB model (below) through gltfpack: a quantised GLB compressed with `EXT_meshopt_compression` for three, or a `.zmesh` for zinc:3d; its embedded images become texture entries of their own; `lods` adds simplified copies |
 
 Image header (little-endian, `include/zn/zim.h`): `ZIM1`, u8 format (1 rgba8, 2 rgb565, 3 rgba4444, 4 rgba5551; the texture importer's block
 formats 8 bc1, 9 bc3, 10 bc7, 11 etc1, 12 etc2 (RGBA8 EAC), 13 astc (4x4), 14 pvrtc and 15 pvrtca (PVRTC1 4 bpp, RGB and RGBA)), u8 scale,
@@ -166,6 +167,41 @@ the files texture rules take to the packs, so the name finds the texture), and i
   how many textures went up as blocks. macOS's GL 4.1 (Intel) lists DXT1, DXT3 and DXT5 only: BC1 and BC3 go up as blocks, BC7 and ETC are decoded.
 - **WebGL** (`src/gl`): `WEBGL_compressed_texture_etc1`, `_etc`, `_astc` (with `getSupportedProfiles()`) and `_pvrtc` join S3TC and RGTC,
   offered where the driver has them (ETC1 and ETC through GLES 3 or GL 4.3 too); none of them on this Mac's GL 4.1.
+
+### Models (ZN-441)
+
+A rule `"as": "model"` runs glTF 2.0 files (`.glb`, or `.gltf` with its buffers) through gltfpack, for three (`GLTFLoader`) or for zinc:3d
+(`loadModel`). Design: section 4.6 of `docs/reports/games/toolchain-assets-loading.md`.
+
+```json
+"assets": { "rules": [{ "match": "models/*.glb", "as": "model" }, { "match": "props/*.glb", "as": "model", "format": "zmesh", "lods": "0.5,0.25" }] }
+```
+
+- **gltfpack** 1.3 is a pinned tool (`src/tc`, `zinc toolchain gltfpack`): built once with the pinned zig from the meshoptimizer 1.3 archive
+  whose library `third_party/meshoptimizer` vendors (the same SHA-256), without Basis or WebP, into `~/.zinc/toolchains/gltfpack-<host>-1.3`
+  (0.6 MB of sources, 46 s on the Intel Mac); `ZINC_GLTFPACK` names another. It is single-threaded and writes the same bytes for the same input.
+- **Textures.** Before gltfpack runs, every image embedded in the model (a GLB buffer view, a `data:` URI) goes through the texture importer
+  (`texture.*` options: `texture.format` follows the target's profile as a texture rule's `format` does, so `rgba8` in dev and BC1/BC7, ETC1
+  or KTX2 in release; normal, occlusion and metal-roughness maps are made `linear`) and becomes an image entry beside the model,
+  `<model file>.<n>.<png|jpg|webp>`, which the model names by URI (gltfpack keeps URIs, `-tr`): `zinc:gfx` `image(name)` and the loaders
+  find it in the packs. An image the model names as a file of its own stays a reference to that asset, imported by its own rule.
+- **`format: "glb"`** (the default), for three: `gltfpack -cc -kn`: positions, normals and uvs quantised (`KHR_mesh_quantization`, 14, 8 and 12
+  bits; the dequantisation in the nodes and in a `KHR_texture_transform`), vertex cache and fetch order optimised, buffer views compressed
+  with `EXT_meshopt_compression`; named nodes keep their place (`keepNodes`, true). The entry keeps the source's name, so a program loads it
+  unchanged. `compress: false` keeps the quantisation without the compression; `gltfpack` adds arguments of its own (`"-vp 16"`).
+- **`format: "zmesh"`**, for zinc:3d: `gltfpack -noq` (float attributes, optimised and merged), then the default scene read with cgltf and
+  flattened (world transforms applied; mirrored nodes turn their triangles over; `KHR_texture_transform` applied to the uvs), its triangles
+  grouped by material into parts of at most 65535 vertices. ZMS1 (`include/zn/zmesh.h`): a 16-byte header, the texture names, then each part:
+  a 24-byte header (vertices, indices, flags, colour 0xAARRGGBB, texture) and the arrays zinc:3d keeps (f32 positions, f32 normals, f32 uvs,
+  u32 colours, u16 indices), so `loadModel` hands them to the renderer as they are. The entry is the source's name with `.zmesh`.
+- **`simplify`** (a ratio of the triangles, `meshopt_simplify` through `-si`) and **`lods`** (ratios: an entry `<stem>.lod<n>.<glb|zmesh>`
+  each, from the same textures).
+- **At run time**: the three plugin decodes `EXT_meshopt_compression` and `KHR_meshopt_compression` views once per document with the meshopt
+  decoder of `third_party/meshoptimizer` (`vertexcodec.cpp`, `indexcodec.cpp`, `vertexfilter.cpp`, compiled into the plugin: plugins may include
+  the engine's vendored libraries by directory), after checking the sizes the decoder only asserts; zinc:3d's `loadGltf` reads them through
+  the same reader.
+- The artifact is a bundle (`ZAB1`, `src/assets/model.h`): a directory of entries (name, kind, size) then their bytes; the pack takes each
+  entry, and the report's row (`format` glb or zmesh) adds up their pack bytes and the GPU bytes of the textures, read from the directory.
 
 The font baker (`src/res`, `zinc-next-resources.md`) is the third built-in importer: its inputs are the program's sources, so the program
 build calls it (`bakeResources`: `zinc run`, `pack`, `build`, `export`, `bake`) through the same cache; its blob is not a pack entry yet.
@@ -353,3 +389,25 @@ the rpi1 packs at 0.065% / 1.70, the etc2 packs at 0.120% / 0.77; display-gl on 
 blocks, 2,097,152 bytes; BC7 decoded) at 0.000% / 0.58 and the rpi1 packs (ETC1 decoded: the driver has no ETC) at 0.043% / 1.81. basisu
 2.50 alone on one 2048 x 2048 level, UASTC: 37 s with one thread, 11 s with four, the same bytes; built once in 353 s (zig, 6 jobs, the
 machine at load 7).
+
+### Models: CesiumMilkTruck.glb (ZN-441, `tests/t1/model.sh` and a release build by hand, 2026-10-11, load 4.4 to 5.5: other sessions building)
+
+The gltf-viewer's truck: 369,980 bytes, of which 151,001 of geometry and JSON and a 2048 x 2048 JPEG of 218,979.
+
+| Entry | Dev pack (stored as is) | Release pack, macos (zstd) | GPU bytes (dev / release) |
+|---|---:|---:|---:|
+| `CesiumMilkTruck.glb` (gltfpack `-cc -kn`) | 30,560 | 20,396 | |
+| `CesiumMilkTruck.glb.0.jpg` (the texture importer) | 22,369,636 (rgba8, mipmaps) | 293,945 (bc1, mipmaps) | 22,369,620 / 2,796,216 |
+| `zm/truck.zmesh` (3 parts, 3,624 triangles) | 131,676 | 49,007 | |
+| `zm/truck.lod1.zmesh` (`lods` 0.5: 1,946 triangles) | 79,704 | 29,435 | |
+
+The geometry goes from 151,001 bytes to 30,560 (20,396 in a release pack); the whole truck for three, 369,980 bytes as a GLB, takes
+314,341 bytes of a release pack and 2.8 MB of GPU memory instead of 22.4 MB. The import: 0.6 s in dev, 6.7 s in release (basisu's BC1 of the
+2048 texture). three reads the packed truck as cgltf reads the original (5 meshes, 2,856 triangles, the same bounding box to 1/1000; 3,564
+vertices after gltfpack's welding against 4,823); the viewer's frame 30 from the packs is 0.033% of pixels more than 24 apart (mae 0.044) from
+the frame from the files. zinc:3d draws the .zmesh 0.021% / 0.082 from loadGltf's frame in software, 0.083% / 0.104 on the GPU.
+
+Loads in zinc:3d (interpreter, `performance.now()`, not deterministic): `loadModel` of the .zmesh 244 to 263 ms the first time (its 22 MB
+rgba8 dev texture read and made an image), 8.6 to 8.8 ms again with the texture made, of which `readBytes` of the 131,676 bytes takes 5.6 to
+5.9 ms (one host call a byte); `loadGltf` of the GLB 102 to 110 ms, 62 to 64 ms again (the JPEG decoded each time; `readBytes` of its 369,980
+bytes 16.6 to 17 ms). gltfpack 1.3 built once in 46 s.

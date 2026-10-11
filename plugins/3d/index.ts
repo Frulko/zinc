@@ -3,8 +3,9 @@
 // render() draws as an ordinary image command (nearest-neighbour when scaled), so 2D UI composes over it. Matrices are flat column-major number[16].
 // Guide: docs/plugins/3d.md.
 import R from './native/render3d.spec';
-import { readText } from 'zinc:assets';
-import { pixelScale } from 'zinc:gfx';
+import { readText, readBytes } from 'zinc:assets';
+import { pixelScale, image } from 'zinc:gfx';
+import { utf8Decode } from 'zinc:sys';
 
 // ---------------------------------------------------------------- math (flat arrays)
 export function mat4(): number[] { return [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]; }
@@ -70,12 +71,15 @@ export class Mesh {
   readonly handle: i32;
   readonly vertices: i32;
   readonly triangles: i32;
-  /** normals: empty = smooth normals computed from the faces; uvs and colors (0xRRGGBB) may be empty. */
-  constructor(positions: number[], indices: i32[], normals: number[], uvs: number[], colors: u32[]) {
-    this.handle = R.meshCreate(positions, normals, uvs, colors, indices);
-    if (this.handle < 0) throw new RangeError('zinc:3d: a mesh needs 1..65535 vertices');
-    this.vertices = positions.length / 3;
-    this.triangles = indices.length / 3;
+  /** normals: empty = smooth normals computed from the faces; uvs and colors (0xRRGGBB) may be empty. `zmesh`: instead of the arrays, the
+   *  part of a .zmesh file that starts at byte `at` (loadModel), taken as it is. */
+  constructor(positions: number[], indices: i32[], normals: number[], uvs: number[], colors: u32[], zmesh: u8[] = [], at: i32 = 0) {
+    const part = zmesh.length > 0;
+    const h = part ? R.meshLoad(zmesh, at) : R.meshCreate(positions, normals, uvs, colors, indices);
+    if (h < 0) throw new RangeError(part ? `zinc:3d: the .zmesh part at byte ${at} is damaged` : 'zinc:3d: a mesh needs 1..65535 vertices');
+    this.handle = h;
+    this.vertices = part ? le32(zmesh, at) : positions.length / 3;
+    this.triangles = part ? le32(zmesh, at + 4) / 3 : indices.length / 3;
   }
   dispose(): void { R.meshDestroy(this.handle); }
 }
@@ -358,4 +362,38 @@ const IDENTITY = mat4();
 /** Renders `scene` seen by `camera` into the screen box (x, y, w, h). Returns the triangles rasterized. */
 export function render(scene: Scene, camera: Camera, x: number, y: number, w: number, h: number): i32 {
   return camera.render(scene, x, y, w, h);
+}
+
+function le32(d: u8[], at: i32): i32 { return d[at] | (d[at + 1] << 8) | (d[at + 2] << 16) | (d[at + 3] << 24); }
+
+/** A .zmesh model from the assets (ZN-441: the model importer's `format: "zmesh"`, include/zn/zmesh.h): a node whose children are its parts,
+ *  their arrays handed to the renderer as they are (no parsing step), their materials (base colour and opacity, texture, double-sided, unlit,
+ *  blending, flat without normals) and textures (images of the packs, beside the model). The scene was flattened at build time. */
+export function loadModel(asset: string): Node {
+  const d = readBytes(asset);
+  if (d.length < 16 || d[0] !== 0x5a || d[1] !== 0x4d || d[2] !== 0x53 || d[3] !== 0x31) throw new Error(`zinc:3d: ${asset} is not a .zmesh file`);
+  let slash = asset.length - 1;
+  while (slash >= 0 && asset.at(slash) !== '/') slash--;
+  const textures: i32[] = [];
+  let at: i32 = 16;
+  for (let i = 0; i < le32(d, 8); i++) {
+    const n = le32(d, at);
+    const id = image(asset.slice(0, slash + 1) + utf8Decode(d.slice(at + 4, at + 4 + n)));
+    if (id < 0) console.warn(`zinc:3d: ${asset}: texture ${i} not found in the assets`);
+    textures.push(id);
+    at += 4 + ((n + 3) & ~3);
+  }
+  const root = new Node(null, null);
+  for (let p = 0; p < le32(d, 4); p++) {
+    const nv = le32(d, at), ni = le32(d, at + 4), flags = le32(d, at + 8), color = le32(d, at + 12), tex = le32(d, at + 16);
+    const mat = new Material((color & 0xffffff) as u32);
+    if (tex >= 0 && tex < textures.length) mat.texture = textures[tex];
+    mat.doubleSided = (flags & 4) !== 0;
+    mat.shading = (flags & 8) !== 0 ? Shading.Unlit : (flags & 16) !== 0 ? Shading.Flat : Shading.Smooth;
+    mat.vertexColors = (flags & 2) !== 0;
+    if ((flags & 32) !== 0) { mat.blend = Blend.Alpha; mat.opacity = ((color >> 24) & 255) / 255; }
+    root.add(new Node(new Mesh([], [], [], [], [], d, at), mat));
+    at += 24 + nv * (24 + ((flags & 1) !== 0 ? 8 : 0) + ((flags & 2) !== 0 ? 4 : 0)) + ((ni * 2 + 3) & ~3);   // zmesh.h partBytes
+  }
+  return root;
 }

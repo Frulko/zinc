@@ -4,6 +4,7 @@
 // Colour buffer = a runtime image (raster::dyn_wrap), drawn as an IMAGE command by present(). docs/plugins/3d.md.
 #include "zinc_native_render3d.h"
 #include "zrt_raster.h"
+#include "zn/zmesh.h"
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -67,6 +68,20 @@ template<class T> struct Pool {
 /** System memory first, then the Zinc heap (on ESP32 it holds the largest free block); panics when both are full.
  *  Freed with zrt::mfree, which knows both. */
 static void* mem(size_t n) { void* p = hal_alloc(n ? n : 1); return p ? p : zrt::alloc(n); }
+
+/** The arrays of the .zmesh part (ZN-441, include/zn/zmesh.h) at byte `at` of `d`, after its header: null when the part does not fit in `d` or an
+ *  index passes its vertices (the file may come from anywhere). */
+static const uint8_t* zpart(const Array<uint8_t>& d, int32_t at, uint32_t* nv, uint32_t* ni, uint32_t* flags) {
+  const uint32_t n = (uint32_t)d.length();
+  if (at < 0 || (at & 3) || (uint64_t)at + zn::zmesh::kPartHeader > n) return nullptr;
+  const uint8_t* p = d.a->data + at;
+  memcpy(nv, p, 4); memcpy(ni, p + 4, 4); memcpy(flags, p + 8, 4);
+  if (*nv == 0 || *nv > zn::zmesh::kMaxVertices || *ni % 3 || *ni > (1u << 28) || (uint64_t)at + zn::zmesh::partBytes(*nv, *ni, *flags) > n) return nullptr;
+  p += zn::zmesh::kPartHeader;
+  const uint8_t* ix = p + zn::zmesh::vertexBytes(*nv, *flags);
+  for (uint32_t i = 0; i < *ni; i++) { uint16_t v; memcpy(&v, ix + 2 * (size_t)i, 2); if (v >= *nv) return nullptr; }
+  return p;
+}
 
 /** float -> 16.16 (or any fixed) with saturation: slivers and extrapolated run ends must not overflow. */
 static inline int32_t fx(float v) { return v >= 2147483520.f ? 2147483520 : v <= -2147483520.f ? -2147483520 : (int32_t)v; }
@@ -315,13 +330,32 @@ struct Engine : NativeRender3D {
       float* o = m->nrm + i * 3; float l = sqrtf(o[0] * o[0] + o[1] * o[1] + o[2] * o[2]);
       if (l > 0) { o[0] /= l; o[1] /= l; o[2] /= l; }
     }
-    if (nv > cap) {
-      cap = nv;
-      mfree(vs); mfree(oc);
-      vs = (V*)mem(sizeof(V) * (size_t)cap);
-      oc = (uint8_t*)mem((size_t)cap);
-    }
+    room(nv);
     return meshes.add(m);
+  }
+  /** A part of a .zmesh model (ZN-441): its arrays are the Mesh's own layout, copied as they are. */
+  int32_t meshLoad(Array<uint8_t> data, int32_t at) override {
+    uint32_t nv, ni, flags;
+    const uint8_t* p = zpart(data, at, &nv, &ni, &flags);
+    if (!p) return -1;
+    auto take = [&](size_t bytes) { void* q = mem(bytes); memcpy(q, p, bytes); p += bytes; return q; };
+    Mesh* m = (Mesh*)mem(sizeof(Mesh));
+    *m = Mesh{(int32_t)nv, (int32_t)ni, nullptr, nullptr, nullptr, nullptr, nullptr};
+    m->pos = (float*)take(12 * (size_t)nv);
+    m->nrm = (float*)take(12 * (size_t)nv);
+    if (flags & zn::zmesh::Uvs) m->uv = (float*)take(8 * (size_t)nv);
+    if (flags & zn::zmesh::Colors) m->col = (uint32_t*)take(4 * (size_t)nv);
+    m->idx = (uint16_t*)take(2 * (size_t)ni);
+    room((int32_t)nv);
+    return meshes.add(m);
+  }
+  /** The per-vertex scratch of draw() for meshes of `nv` vertices. */
+  void room(int32_t nv) {
+    if (nv <= cap) return;
+    cap = nv;
+    mfree(vs); mfree(oc);
+    vs = (V*)mem(sizeof(V) * (size_t)cap);
+    oc = (uint8_t*)mem((size_t)cap);
   }
   void meshDestroy(int32_t id) override {
     Mesh* m = meshes.at(id);

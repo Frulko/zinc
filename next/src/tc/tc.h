@@ -51,6 +51,11 @@ std::string butlerVersion();
 bool ensureBasisu(std::string& path, std::string& err);
 std::string basisuPath();
 std::string basisuVersion();
+// gltfpack (ZN-441), the model processor of the asset build: ZINC_GLTFPACK, or the meshoptimizer 1.3 archive (the library third_party vendors)
+// built the same way into ~/.zinc/toolchains/gltfpack-<host>-1.3/gltfpack.
+bool ensureGltfpack(std::string& path, std::string& err);
+std::string gltfpackPath();
+std::string gltfpackVersion();
 
 // The command line that starts the ESP32 emulator on the core firmware image, with the serial port on its stdin and stdout. Downloads the
 // pinned QEMU (Espressif's build) on first use, the same way as the zig. $ZINC_QEMU names a qemu-system-xtensa of your own.

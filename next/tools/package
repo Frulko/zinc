@@ -44,6 +44,8 @@ def payload(share):
     qj = os.path.join(NEXT, "third_party", "quickjs-ng")
     copy_tree(qj, os.path.join(nx, "third_party", "quickjs-ng"), lambda r: r in ("libunicode.c", "libunicode.h", "libunicode-table.h", "cutils.h"))   # Unicode strings of the runtime (cross builds)
     copy_tree(os.path.join(NEXT, "third_party", "macos-shim"), os.path.join(nx, "third_party", "macos-shim"))
+    mo = os.path.join(NEXT, "third_party", "meshoptimizer")   # the meshopt decoder the three plugin compiles in (ZN-441)
+    copy_tree(mo, os.path.join(nx, "third_party", "meshoptimizer"), lambda r: r in ("vertexcodec.cpp", "indexcodec.cpp", "vertexfilter.cpp", "meshoptimizer.h", "LICENSE.md"))
     shutil.copy2(os.path.join(NEXT, "third_party", "README.md"), os.path.join(nx, "third_party", "README.md"))
     copy_tree(os.path.join(NEXT, "firmware", "esp32", "prebuilt"), os.path.join(nx, "firmware", "esp32", "prebuilt"))
     copy_tree(os.path.join(NEXT, "app"), os.path.join(nx, "app"), lambda r: r.endswith(('.ts', '.tsx')))

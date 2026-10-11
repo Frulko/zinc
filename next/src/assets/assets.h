@@ -48,6 +48,7 @@ struct Options {
    *  rgba8), `maxSize` and `pot` (texture rules), `pack` (none, lz4, zstd, zstd-dict). */
   std::map<std::string, std::string> targetProfile;
   ToolPath basisu;            // the texture encoder (zn::tc::ensureBasisu), asked for when a texture rule needs a block format
+  ToolPath gltfpack;          // the model processor (zn::tc::ensureGltfpack), asked for by a model rule
   std::vector<Rule> rules;    // after the built-in ones: PNG, JPEG, WebP and SVG to "image" (rgba8), anything else to "copy"
   std::vector<Group> groups;
   Splash splash;              // on: its entry goes into boot.zpk (a pack of the splash alone when no group is named boot)

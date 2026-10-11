@@ -14,6 +14,14 @@ export default {
     meshes.push(Math.floor(idx.length / 3));
     return meshes.length - 1;
   },
+  meshLoad(data: number[], at: number): number {
+    const u32 = (o: number): number => (data[o] | data[o + 1] << 8 | data[o + 2] << 16) + data[o + 3] * 16777216;
+    if (at < 0 || at + 24 > data.length) return -1;
+    const nv = u32(at);
+    if (nv <= 0 || nv > 65535) return -1;
+    meshes.push(Math.floor(u32(at + 4) / 3));
+    return meshes.length - 1;
+  },
   meshDestroy(m: number): void { if (m >= 0 && m < meshes.length) meshes[m] = 0; },
   target(t: number, w: number, h: number): number {
     w = Math.max(1, w); h = Math.max(1, h);

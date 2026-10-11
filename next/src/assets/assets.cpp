@@ -1,6 +1,7 @@
 // The asset build (ZN-434): rules, the importer registry, the content-addressed cache, groups to packs, report.json. See assets.h.
 #include "assets/assets.h"
 
+#include "assets/model.h"
 #include "assets/sprite.h"
 #include "assets/texture.h"
 #include "assets/tilemap.h"
@@ -126,6 +127,9 @@ bool importTilemapFile(const Options&, const std::string& name, const std::strin
 bool importTextureFile(const Options& opt, const std::string& name, const std::string& in, const Side&, const Opts& o, std::string& out, std::string& err) {
   return importTexture(opt.basisu, name, in, o, out, err);
 }
+bool importModelFile(const Options& opt, const std::string& name, const std::string& in, const Side& side, const Opts& o, std::string& out, std::string& err) {
+  return importModel(opt.gltfpack, opt.basisu, name, in, side, o, out, err);
+}
 
 struct Importer { const char* id; int version; Kind kind; ImportFn run; };
 // Built-in importers (the importer decision of ZN-434: codecs come as pinned command-line tools run as subprocesses, data formats as Zinc
@@ -138,6 +142,7 @@ const Importer kImporters[] = {
   {"sprite", 1, Kind::Image, importSpriteFile},
   {"tilemap", 1, Kind::Data, importTilemapFile},
   {"texture", 1, Kind::Image, importTextureFile},
+  {"model", 1, Kind::Data, importModelFile},   // a bundle of entries (model.h): the model, its LODs, its textures
 };
 const Importer* findImporter(const std::string& id) {
   for (const Importer& i : kImporters) if (id == i.id) return &i;
@@ -175,14 +180,19 @@ void trim(const std::string& cacheDir) {
   }
 }
 
-/** The report's packBytes of the items of `group`: what their entries take in the pack (the TOC's stored sizes). */
-void storedSizes(const void* pack, std::size_t size, const std::string& group, Report& report) {
+/** The report's packBytes of the items of `group`: what their entries take in the pack (the TOC's stored sizes); `outputs`: the entries of an
+ *  item that makes several (a model), by its name. */
+void storedSizes(const void* pack, std::size_t size, const std::string& group, const std::map<std::string, std::vector<std::string>>& outputs, Report& report) {
   zpk::Reader r;
   std::string err;
   if (!r.open(pack, size, err)) return;
-  for (Item& it : report.items)
-    if (it.group == group)
-      if (const long i = r.find(it.importer == std::string("tilemap") ? it.name + ".tilemap" : it.name); i >= 0) it.packBytes = r.entry(static_cast<std::size_t>(i)).storedSize;
+  for (Item& it : report.items) {
+    if (it.group != group) continue;
+    const auto o = outputs.find(it.name);
+    const std::vector<std::string> names = o != outputs.end() ? o->second : std::vector<std::string>{it.importer == std::string("tilemap") ? it.name + ".tilemap" : it.name};
+    it.packBytes = 0;
+    for (const std::string& n : names) if (const long i = r.find(n); i >= 0) it.packBytes += r.entry(static_cast<std::size_t>(i)).storedSize;
+  }
 }
 
 }  // namespace
@@ -351,11 +361,12 @@ bool build(const Options& opt, Report& report, std::string& err) {
         for (const auto& [k, v] : r.rule->options) o[k] = v;
       }
     const Importer* imp = findImporter(id);
-    if (!imp) { err = name + ": no importer \"" + id + "\" (built in: copy, image, sprite, tilemap, texture)"; return false; }
-    if (imp->run == importTextureFile) {   // the target's profile, unless the rule says: part of the key, so each profile has its own artifact
+    if (!imp) { err = name + ": no importer \"" + id + "\" (built in: copy, image, sprite, tilemap, texture, model)"; return false; }
+    if (imp->run == importTextureFile || imp->run == importModelFile) {   // the target's profile, unless the rule says: part of the key, so each profile has its own artifact
+      const std::string pre = imp->run == importModelFile ? "texture." : "";   // a model's textures, as a texture rule's
       auto prof = [&](const char* k) { auto it = opt.targetProfile.find(k); return it == opt.targetProfile.end() ? std::string() : it->second; };
-      if (!o.count("format")) o["format"] = opt.profile == "release" && !prof("texture").empty() ? prof("texture") : "rgba8";   // dev: no encoder to wait for
-      for (const char* k : {"maxSize", "pot"}) if (!o.count(k) && !prof(k).empty()) o[k] = prof(k);
+      if (!o.count(pre + "format")) o[pre + "format"] = opt.profile == "release" && !prof("texture").empty() ? prof("texture") : "rgba8";   // dev: no encoder to wait for
+      for (const char* k : {"maxSize", "pot"}) if (!o.count(pre + k) && !prof(k).empty()) o[pre + k] = prof(k);
     }
     if (imp->kind == Kind::Image && !o.count("scale")) {   // an SVG is drawn for 2x screens; a raster image is as many pixels per point as its @Nx says
       static const std::regex hi("@([1-8])x\\.[^.]+$");
@@ -378,9 +389,14 @@ bool build(const Options& opt, Report& report, std::string& err) {
       if (!readFile(fs::path(opt.sourceDir) / name, json)) { err = name + ": cannot read the file"; return false; }
       auto read = [&](const std::string& f, std::string& bytes) { return readFile(fs::path(opt.sourceDir) / f, bytes); };
       if (!tilemapDeps(name, json, read, e.deps, err)) { err = name + ": " + err; return false; }
+    } else if (imp->run == importModelFile) {
+      std::string model;
+      if (!readFile(fs::path(opt.sourceDir) / name, model)) { err = name + ": cannot read the file"; return false; }
+      if (!modelDeps(name, model, e.deps, err)) { err = name + ": " + err; return false; }
     }
     sources.push_back(std::move(e));
   }
+  std::map<std::string, std::vector<std::string>> outputs;   // the entries of the models, by name
   std::map<std::string, std::vector<Entry>> packs;   // by group name
   std::map<std::string, std::pair<std::string, std::string>> atlases;   // the group and the packing options of each atlas: one of each
   for (Entry& e : sources) {
@@ -423,6 +439,29 @@ bool build(const Options& opt, Report& report, std::string& err) {
         head.resize(static_cast<std::size_t>(std::max<std::streamsize>(0, in.gcount())));
       }
       describeImage(head, report.items.back().format, report.items.back().gpuBytes);
+    }
+    if (e.imp->run == importModelFile) {   // its entries, and the GPU bytes of its textures, from the bundle's directory (a cached one: read in place)
+      auto bytesAt = [&](std::uint64_t off, std::size_t n) {
+        if (e.loaded) return e.data.substr(std::min<std::size_t>(off, e.data.size()), n);
+        std::string s(n, '\0');
+        std::ifstream in(artifactPath(opt.cacheDir, e.key), std::ios::binary);
+        in.seekg(static_cast<std::streamoff>(off));
+        in.read(s.data(), static_cast<std::streamsize>(n));
+        s.resize(static_cast<std::size_t>(std::max<std::streamsize>(0, in.gcount())));
+        return s;
+      };
+      std::vector<BundleEntry> dir;
+      std::size_t want = 4096, need = 0;
+      std::string head = bytesAt(0, want);
+      while (!bundleDirectory(head, dir, need) && need > head.size() && head.size() == want) head = bytesAt(0, want = need * 2);
+      Item& it = report.items.back();
+      it.format = e.opts.count("format") ? e.opts.at("format") : "glb";
+      for (const BundleEntry& b : dir) {
+        outputs[e.name].push_back(b.name);
+        std::string f;
+        std::uint64_t gpu = 0;
+        if (b.kind == Kind::Image && describeImage(bytesAt(b.offset, 512), f, gpu)) it.gpuBytes += gpu;
+      }
     }
     if (!hit) ++report.imported;
     packs[group].push_back(std::move(e));
@@ -474,6 +513,12 @@ bool build(const Options& opt, Report& report, std::string& err) {
           Side side;
           if (!readSource(e, bytes, side) || !import(e, bytes, side)) return false;
         }
+        if (e.imp->run == importModelFile) {   // the model, its LODs and its textures: entries of their own
+          std::vector<BundleEntry> parts;
+          if (!splitBundle(e.data, parts)) { err = e.name + ": a damaged model artifact"; return false; }
+          for (BundleEntry& b : parts) inputs.push_back({b.name, std::move(b.data), 0, static_cast<Kind>(b.kind), codec});
+          continue;
+        }
         if (e.imp->run == importTilemapFile) {   // its table is an entry, its tiles are frames of its atlas
           std::string tiles, table;
           if (!splitTilemap(e.data, tiles, table)) { err = e.name + ": a damaged tile map artifact"; return false; }
@@ -492,11 +537,11 @@ bool build(const Options& opt, Report& report, std::string& err) {
       if (!zpk::write(std::move(inputs), zpk::WriteOptions{}, bytes, err)) { err = file + ": " + err; return false; }
       if (!writeAtomic(path, bytes)) { err = "cannot write " + path.string(); return false; }
       size = bytes.size();
-      storedSizes(bytes.data(), bytes.size(), group, report);
+      storedSizes(bytes.data(), bytes.size(), group, outputs, report);
     } else if (const int fd = ::open(path.c_str(), O_RDONLY); fd >= 0) {   // unchanged: its TOC read in place
       void* m = size ? ::mmap(nullptr, size, PROT_READ, MAP_PRIVATE, fd, 0) : MAP_FAILED;   // ponytail: POSIX mmap, as the CLI's other file code
       ::close(fd);
-      if (m != MAP_FAILED) { storedSizes(m, size, group, report); ::munmap(m, size); }
+      if (m != MAP_FAILED) { storedSizes(m, size, group, outputs, report); ::munmap(m, size); }
     }
     after[file] = key;
     report.packs.push_back({file, group, entries.size() + withSplash, size});

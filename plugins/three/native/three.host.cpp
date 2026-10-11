@@ -1,12 +1,19 @@
 // three (Zinc) native side: glTF 2.0 reader (.gltf JSON + external or data: buffers, .glb), accessor decoding into
 // flat arrays, PNG/JPEG decoding (stb_image, public domain) into runtime images. Portable C++.
 // The JSON DOM is the one of plugins/lottie (copied): the document text stays alive while the handle is open.
+// What gltfpack writes (ZN-441) reads too: quantised attributes (KHR_mesh_quantization), buffer views compressed with EXT_ or
+// KHR_meshopt_compression (decoded once by the decoder of the engine's vendored meshoptimizer 1.3), KHR_texture_transform on the
+// base colour texture (applied to the uvs).
 #include "zinc_native_three.h"
 #include "zrt_raster.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 #include <math.h>
+
+#include "meshoptimizer/vertexcodec.cpp"
+#include "meshoptimizer/indexcodec.cpp"
+#include "meshoptimizer/vertexfilter.cpp"
 
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_STATIC
@@ -197,6 +204,7 @@ struct Doc {
   uint8_t* data; uint32_t len;  // the file (JSON text and GLB binary chunk point into it)
   Json J; int32_t root;
   Vec<Buf> bufs;
+  Vec<Buf> views;  // compressed buffer views, decoded on first use (p null: not yet, n 0 and owned: it does not decode)
 };
 static const int MAX_DOCS = 16;
 static Doc* docs[MAX_DOCS];
@@ -207,7 +215,8 @@ static int32_t arr(const Doc& d, const char* key) { return d.J.get(d.root, key);
 static int32_t item(const Doc& d, const char* key, int32_t i) { return d.J.at(arr(d, key), i); }
 static void free_doc(Doc* d) {
   for (uint32_t i = 0; i < d->bufs.n; i++) if (d->bufs[i].owned) free(d->bufs[i].p);
-  d->bufs.release(); d->J.v.release(); free(d->data); free(d);
+  for (uint32_t i = 0; i < d->views.n; i++) free(d->views[i].p);
+  d->bufs.release(); d->views.release(); d->J.v.release(); free(d->data); free(d);
 }
 static uint32_t u32le(const uint8_t* p) { return (uint32_t)p[0] | (uint32_t)p[1] << 8 | (uint32_t)p[2] << 16 | (uint32_t)p[3] << 24; }
 
@@ -240,14 +249,15 @@ static int32_t parse_doc(uint8_t* data, uint32_t len) {
   if (ver < 0 || d->J.v[ver].t != JSTR || d->J.v[ver].sl < 1 || d->J.v[ver].s[0] != '2') { snprintf(err, sizeof err, "not a glTF 2.0 document"); free_doc(d); return -1; }
   int32_t req = d->J.get(d->root, "extensionsRequired");
   for (int32_t c = req >= 0 ? d->J.v[req].first : -1; c >= 0; c = d->J.v[c].next) {
-    if (d->J.streq(c, "KHR_materials_unlit") || d->J.streq(c, "KHR_texture_transform")) continue;
+    if (d->J.streq(c, "KHR_materials_unlit") || d->J.streq(c, "KHR_texture_transform") || d->J.streq(c, "KHR_mesh_quantization") ||
+        d->J.streq(c, "EXT_meshopt_compression") || d->J.streq(c, "KHR_meshopt_compression")) continue;
     snprintf(err, sizeof err, "required extension %.*s is not supported", (int)d->J.v[c].sl, d->J.v[c].s); free_doc(d); return -1;
   }
   int32_t bs = arr(*d, "buffers");
   for (int32_t i = 0; i < d->J.count(bs); i++) {
     int32_t b = d->J.at(bs, i), uri = d->J.get(b, "uri");
     Buf x = {nullptr, 0, false};
-    if (uri < 0) x = bin;  // the GLB binary chunk
+    if (uri < 0) { if (i == 0) x = bin; }  // the GLB binary chunk (another buffer without a URI has no data: a meshopt fallback)
     else if (data_uri(d->J.v[uri].s, d->J.v[uri].sl, &x.p, &x.n)) x.owned = true;
     d->bufs.push(x);
   }
@@ -264,7 +274,40 @@ static int32_t comps_of(const Json& J, int32_t t) {
   return 0;
 }
 static int32_t csize(int32_t ct) { return ct == 5120 || ct == 5121 ? 1 : ct == 5122 || ct == 5123 ? 2 : 4; }
-static bool accessor(const Doc& d, int32_t a, Acc* out) {
+/** A buffer view compressed with EXT_ or KHR_meshopt_compression (`ext`, its extension object), decoded once: the bytes, or null. The
+ *  decoders assert their sizes rather than check them, so a hostile file's are checked here first. */
+static const Buf* decoded(Doc& d, int32_t view, int32_t ext) {
+  const Json& J = d.J;
+  if (view < 0 || view > 1 << 20) return nullptr;
+  while (d.views.n <= (uint32_t)view) d.views.push(Buf{nullptr, 0, false});
+  Buf& out = d.views[(uint32_t)view];
+  if (out.p || out.owned) return out.p ? &out : nullptr;
+  out.owned = true;  // tried: a failure is not retried
+  int32_t b = (int32_t)i32(J.num(ext, "buffer", -1));
+  uint32_t off = (uint32_t)i32(J.num(ext, "byteOffset", 0)), len = (uint32_t)i32(J.num(ext, "byteLength", -1));
+  uint32_t stride = (uint32_t)i32(J.num(ext, "byteStride", 0)), count = (uint32_t)i32(J.num(ext, "count", 0));
+  int32_t mode = J.get(ext, "mode"), filter = J.get(ext, "filter");
+  if (b < 0 || b >= (int32_t)d.bufs.n || !d.bufs[(uint32_t)b].p || (uint64_t)off + len > d.bufs[(uint32_t)b].n) { snprintf(err, sizeof err, "meshopt view %d: no data", view); return nullptr; }
+  bool attrs = J.streq(mode, "ATTRIBUTES"), tris = J.streq(mode, "TRIANGLES"), seq = J.streq(mode, "INDICES");
+  bool ok = count > 0 && stride > 0 && (uint64_t)count * stride <= (256u << 20) &&
+            (attrs ? stride % 4 == 0 && stride <= 256 : (tris || seq) && (stride == 2 || stride == 4) && (!tris || count % 3 == 0));
+  if (attrs && J.streq(filter, "OCTAHEDRAL")) ok = ok && (stride == 4 || stride == 8);
+  else if (attrs && J.streq(filter, "QUATERNION")) ok = ok && stride == 8;
+  else if (attrs && J.streq(filter, "COLOR")) ok = ok && (stride == 4 || stride == 8);
+  else if (filter >= 0 && !J.streq(filter, "NONE") && !(attrs && J.streq(filter, "EXPONENTIAL"))) ok = false;
+  if (!ok) { snprintf(err, sizeof err, "meshopt view %d: mode, filter or sizes not supported", view); return nullptr; }
+  uint8_t* p = (uint8_t*)malloc((size_t)count * stride);
+  const uint8_t* src = d.bufs[(uint32_t)b].p + off;
+  int rc = attrs ? meshopt_decodeVertexBuffer(p, count, stride, src, len) : tris ? meshopt_decodeIndexBuffer(p, count, stride, src, len) : meshopt_decodeIndexSequence(p, count, stride, src, len);
+  if (rc != 0) { free(p); snprintf(err, sizeof err, "meshopt view %d: the data does not decode (%d)", view, rc); return nullptr; }
+  if (J.streq(filter, "OCTAHEDRAL")) meshopt_decodeFilterOct(p, count, stride);
+  else if (J.streq(filter, "QUATERNION")) meshopt_decodeFilterQuat(p, count, stride);
+  else if (J.streq(filter, "EXPONENTIAL")) meshopt_decodeFilterExp(p, count, stride);
+  else if (J.streq(filter, "COLOR")) meshopt_decodeFilterColor(p, count, stride);
+  out.p = p; out.n = count * stride;
+  return &out;
+}
+static bool accessor(Doc& d, int32_t a, Acc* out) {
   const Json& J = d.J;
   int32_t o = item(d, "accessors", a);
   if (o < 0) return false;
@@ -274,15 +317,22 @@ static bool accessor(const Doc& d, int32_t a, Acc* out) {
   out->norm = J.num(o, "normalized", 0) != 0;
   int32_t bv = (int32_t)i32(J.num(o, "bufferView", -1)), v = item(d, "bufferViews", bv);
   if (v < 0 || !out->comps) return false;  // ponytail: sparse accessors without a buffer view are not supported
-  int32_t b = (int32_t)i32(J.num(v, "buffer", -1));
-  if (b < 0 || b >= (int32_t)d.bufs.n || !d.bufs[(uint32_t)b].p) return false;
-  const Buf& buf = d.bufs[(uint32_t)b];
-  uint32_t off = (uint32_t)i32(J.num(v, "byteOffset", 0)) + (uint32_t)i32(J.num(o, "byteOffset", 0));
+  int32_t ext = J.get(J.get(v, "extensions"), "EXT_meshopt_compression");
+  if (ext < 0) ext = J.get(J.get(v, "extensions"), "KHR_meshopt_compression");
+  const Buf* buf;
+  uint32_t off = (uint32_t)i32(J.num(o, "byteOffset", 0));
+  if (ext >= 0) buf = decoded(d, bv, ext);  // the view's own buffer is a fallback without data
+  else {
+    int32_t b = (int32_t)i32(J.num(v, "buffer", -1));
+    buf = b >= 0 && b < (int32_t)d.bufs.n ? &d.bufs[(uint32_t)b] : nullptr;
+    off += (uint32_t)i32(J.num(v, "byteOffset", 0));
+  }
+  if (!buf || !buf->p) return false;
   int32_t elem = csize(out->ctype) * out->comps;
   out->stride = (int32_t)i32(J.num(v, "byteStride", 0));
   if (out->stride <= 0) out->stride = elem;
-  if (out->count > 0 && (uint64_t)off + (uint64_t)(out->count - 1) * (uint32_t)out->stride + (uint32_t)elem > buf.n) return false;
-  out->p = buf.p + off;
+  if (out->count > 0 && (uint64_t)off + (uint64_t)(out->count - 1) * (uint32_t)out->stride + (uint32_t)elem > buf->n) return false;
+  out->p = buf->p + off;
   return true;
 }
 static double read(const Acc& a, int32_t i, int32_t c) {
@@ -298,7 +348,7 @@ static double read(const Acc& a, int32_t i, int32_t c) {
   return 0;
 }
 /** Pushes `want` components per element of accessor `a` (missing components: 0), false when unreadable. */
-static bool push_attr(const Doc& d, int32_t a, int32_t want, int32_t count, Nums out) {
+static bool push_attr(Doc& d, int32_t a, int32_t want, int32_t count, Nums out) {
   Acc x;
   if (a < 0 || !accessor(d, a, &x) || x.count < count) return false;
   for (int32_t i = 0; i < count; i++) for (int32_t c = 0; c < want; c++) out.push(c < x.comps ? read(x, i, c) : 0);
@@ -417,7 +467,21 @@ struct Impl : NativeThree {
     const int32_t n = pa.count;
     push_attr(*d, (int32_t)i32(J.num(at, "POSITION", -1)), 3, n, pos);
     push_attr(*d, (int32_t)i32(J.num(at, "NORMAL", -1)), 3, n, nrm);
+    const int32_t u0 = uv.length();
     push_attr(*d, (int32_t)i32(J.num(at, "TEXCOORD_0", -1)), 2, n, uv);
+    // KHR_texture_transform of the base colour texture (gltfpack's dequantisation of the uvs): uv' = offset + rotation(scale * uv)
+    int32_t mt = item(*d, "materials", (int32_t)i32(J.num(pr, "material", -1)));
+    int32_t tt = J.get(J.get(J.get(J.get(mt, "pbrMetallicRoughness"), "baseColorTexture"), "extensions"), "KHR_texture_transform");
+    if (tt >= 0) {
+      auto at2 = [&](const char* k, int32_t i, double def) { int32_t c = J.at(J.get(tt, k), i); return c >= 0 && J.v[c].t == JNUM ? J.v[c].num : def; };
+      const double ox = at2("offset", 0, 0), oy = at2("offset", 1, 0), sx = at2("scale", 0, 1), sy = at2("scale", 1, 1), r = J.num(tt, "rotation", 0);
+      const double c = cos(r), s = sin(r);
+      for (int32_t i = u0; i + 1 < uv.length(); i += 2) {
+        const double u = (double)uv.a->data[i] * sx, v = (double)uv.a->data[i + 1] * sy;
+        uv.a->data[i] = ox + c * u + s * v;
+        uv.a->data[i + 1] = oy - s * u + c * v;
+      }
+    }
     push_attr(*d, (int32_t)i32(J.num(at, "COLOR_0", -1)), 3, n, col);
     Vec<int32_t> ix;
     Acc ia;

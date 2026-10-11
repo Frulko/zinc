@@ -432,12 +432,13 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
       { std::ofstream(gdir + "/zinc_native_" + lower + ".h") << gen.cppHeader; }
       { std::ofstream(thunk) << gen.thunk; }
     }
+    // third_party last: a plugin may compile a library the engine vendors by its directory (three: "meshoptimizer/vertexcodec.cpp", ZN-441)
     std::string inc = " -I" + q(gdir) + " -I" + q(root + "/src") + " -I" + q(root + "/include") + " -I" + q(runtime) + " -I" + q(runtime + "/include") + " -I" + q(p.dir)
 #ifdef ZN_SDL_INCLUDE
       + (!display && fs::exists(root + "/../plugins/display-gl/zgl.h") ? " -I" + q(root + "/../plugins/display-gl") : std::string())   // zinc:mapping draws through the GL context of display-gl (zgl.h)
       + (pluginTarget() == "macos" ? " -I" + q(std::string(ZN_SDL_INCLUDE).rfind("@root@", 0) == 0 ? root + std::string(ZN_SDL_INCLUDE).substr(6) : std::string(ZN_SDL_INCLUDE)) : std::string())   // SDL3 (the host's): the emulator windows of the display drivers, zinc:3d's GL context
 #endif
-      ;
+      + " -I" + q(root + "/third_party");
     std::vector<std::string> objs;
     int k = 0;
     for (const std::string& s : own) {

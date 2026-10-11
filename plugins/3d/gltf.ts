@@ -9,7 +9,7 @@ import { exists, readBytes } from 'zinc:assets';
 import T from '../three/native/three.spec';
 
 /** The extensions loadGltf reads. */
-const SUPPORTED = ['KHR_materials_unlit'];
+const SUPPORTED = ['KHR_materials_unlit', 'KHR_texture_transform', 'KHR_mesh_quantization', 'EXT_meshopt_compression', 'KHR_meshopt_compression'];
 const MAX_VERTICES: i32 = 65535;
 
 /** A .gltf or .glb file from the embedded assets (or the file system): a node whose children are the default scene's roots. */
