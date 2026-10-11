@@ -14,7 +14,7 @@ import { profiling, profMark, pixelScale } from 'zinc:gfx';   // frame phases (d
 import { openWindow, frame as gfxFrame } from 'zinc:gfx';   // trees in windows of their own (ZN-663)
 import { platform, env } from 'zinc:sys';
 import { PALETTE, SHADES } from './palette';
-import { UI_LAYOUT, UI_PRESET } from 'zinc:platform';
+import { UI_LAYOUT, UI_PRESET, HEAP_BYTES } from 'zinc:platform';
 import * as LY from 'zinc:__layout';
 const DEFAULT_TEXT: i32 = UI_PRESET === 'react-native' ? 14 : 16;   // the default text size: React Native's Text is 14 px (ZN-385)
 
@@ -201,6 +201,12 @@ export class InterX {
   curBg: i32 = -1;
   fromBg: i32 = -1;
   transStart: number = 0;
+  transMask: i32 = -1;   // transition-* groups (TR_COLOR...); -1: none named, so every property (CSS's initial `all`) once a duration is set
+  transDelay: number = 0;
+  transEase: i32 = 7;    // ease(): Tailwind's default curve
+  trMask: i32 = 0;       // the groups it transitions now (transSpec), its first look with them, its running transitions
+  trBorn: i32 = 0;
+  trActive: i32 = 0;
 }
 const DEF_INTERX = new InterX();
 /** React Native's transform array, composed in one fixed order around the node's centre: rotate, then scale, then skew (degrees). */
@@ -834,6 +840,10 @@ const PCT_KEYS: string[] = ['paddingTop', 'paddingRight', 'paddingBottom', 'padd
   'gap', 'columnGap', 'rowGap', 'minWidth', 'maxWidth', 'minHeight', 'maxHeight'];
 const PCT_OF: i32[] = [36, 37, 38, 39, 40, 41, 42, 43, 51, 52, 53, 54, 45, 1013, 1014, 1002, 1003, 1004, 1005];
 const PCT_ENC: number = -10000000;   // rnValue's encoding of a percent: PCT_ENC - fraction
+// What the classes set without a key of their own, named so that transitions and animate() reach them (ZN-274): shadow-* level 0..5, text and border alpha 0..255
+const P_SHADOW_LEVEL: i32 = 110;
+const P_COLOR_ALPHA: i32 = 111;
+const P_BORDER_ALPHA: i32 = 112;
 const PROP = new Map<string, i32>();
 function propInit(): void {
   PROP.set('opacity', P_OPACITY);
@@ -908,6 +918,7 @@ function propInit(): void {
   PROP.set('numberOfLines', P_NUMBER_OF_LINES);
   PROP.set('borderTopLeftRadius', P_RADIUS_TL); PROP.set('borderTopRightRadius', P_RADIUS_TR); PROP.set('borderBottomRightRadius', P_RADIUS_BR); PROP.set('borderBottomLeftRadius', P_RADIUS_BL);
   PROP.set('borderTopColor', P_BORDER_TOP_COLOR); PROP.set('borderRightColor', P_BORDER_RIGHT_COLOR); PROP.set('borderBottomColor', P_BORDER_BOTTOM_COLOR); PROP.set('borderLeftColor', P_BORDER_LEFT_COLOR);
+  PROP.set('shadowLevel', P_SHADOW_LEVEL); PROP.set('colorAlpha', P_COLOR_ALPHA); PROP.set('borderAlpha', P_BORDER_ALPHA);
 }
 /** The id of a style key; -1 for a class token ('@...'), 0 for a key without an id. */
 export function propId(key: string): i32 {
@@ -917,8 +928,17 @@ export function propId(key: string): i32 {
 }
 function applyNumber(n: UiNode, key: string, v: number): void { applyProp(n, propId(key), key, v); }
 function applyProp(n: UiNode, id: i32, key: string, v: number): void {
+  if (id <= 0 || !transitional(n) || trIds(n.it.trMask).indexOf(id) < 0) { writeProp(n, id, key, v); return; }
+  const col = isColorProp(id), old: number = col ? 0 : propValue(n, id), oldC: i32 = col ? colorProp(n, id) : 0;   // a property the node transitions: it eases toward the new value
+  writeProp(n, id, key, v);
+  trChange(n, id, old, oldC);
+}
+function writeProp(n: UiNode, id: i32, key: string, v: number): void {
   const iv: i32 = Math.round(v);
   if (id === 0 && applyInteraction(n, key, iv, v)) return;   // grab, dragAxis, tabIndex... keep their names
+  if (id === P_COLOR_ALPHA) { n.fgAlpha = iv; paintDirty = true; return; }
+  if (id === P_BORDER_ALPHA) { n.borderAlpha = iv; paintDirty = true; return; }
+  if (id === P_SHADOW_LEVEL) { n.shadowLevel = iv < 0 ? 0 : iv > 5 ? 5 : iv; paintDirty = true; return; }
   if (id === P_OPACITY) { n.opacity = v; paintDirty = true; return; }
   if (id === P_TRANSLATE_X || id === P_TRANSLATE_X) { n.tx = v; paintDirty = true; return; }
   if (id === P_TRANSLATE_Y || id === P_TRANSLATE_Y) { n.ty = v; paintDirty = true; return; }
@@ -1010,6 +1030,196 @@ function applyProp(n: UiNode, id: i32, key: string, v: number): void {
   else if (id === P_MIN_HEIGHT) n.minH = iv; else if (id === P_MAX_HEIGHT) n.maxH = iv;
   else if (id === P_ASPECT) n.aspect = v;
   layoutDirty = true;
+}
+function isColorProp(id: i32): boolean { return id === P_BACKGROUND_COLOR || id === P_BORDER_COLOR || id === P_COLOR || id === P_SHADOW_COLOR || (id >= P_BORDER_TOP_COLOR && id <= P_BORDER_LEFT_COLOR); }
+/** A colour property as an i32 (a `number` cannot hold 24 bits on fx12 profiles). */
+function colorProp(n: UiNode, id: i32): i32 {
+  if (id === P_BACKGROUND_COLOR) return n.bg;
+  if (id === P_BORDER_COLOR) return n.borderColor;
+  if (id === P_COLOR) return n.fg;
+  if (id === P_SHADOW_COLOR) return n.shColor;
+  return id === P_BORDER_TOP_COLOR ? n.bd.bcT : id === P_BORDER_RIGHT_COLOR ? n.bd.bcR : id === P_BORDER_BOTTOM_COLOR ? n.bd.bcB : n.bd.bcL;
+}
+function setColorProp(n: UiNode, id: i32, c: i32): void {
+  if (id === P_BACKGROUND_COLOR) n.bg = c; else if (id === P_BORDER_COLOR) n.borderColor = c; else if (id === P_COLOR) n.fg = c; else if (id === P_SHADOW_COLOR) n.shColor = c;
+  else { const b = n.ownBd(); if (id === P_BORDER_TOP_COLOR) b.bcT = c; else if (id === P_BORDER_RIGHT_COLOR) b.bcR = c; else if (id === P_BORDER_BOTTOM_COLOR) b.bcB = c; else b.bcL = c; }
+  paintDirty = true;
+}
+/** How a property moves: 0 a number, 1 a colour (channel by channel), 2 a keyword (switches half way, as CSS animates discrete values). */
+function kindOf(id: i32): i32 {
+  if (isColorProp(id)) return 1;
+  if (id === P_SHADOW_LEVEL || (id >= P_LAZY && id <= P_ROWS) || (id >= P_FLEX_DIRECTION && id <= P_TEXT_ALIGN) || id === P_HIDDEN || id === P_KEEP_FOCUS || id === P_INPUT_MODE || id === P_ALIGN_SELF
+    || id === P_ALIGN_CONTENT || id === P_BORDER_STYLE || id === P_NUMBER_OF_LINES || id === P_MARGIN_AUTO || id === P_BOX_SIZING) return 2;
+  return 0;
+}
+/** The value of property `id` on node n now, the inverse of applyProp (UNSET and -1 stay: they mean auto or none). */
+function propValue(n: UiNode, id: i32): number {
+  if (isColorProp(id)) return colorProp(n, id);
+  if (id === P_OPACITY) return n.opacity;
+  if (id === P_TRANSLATE_X) return n.tx;
+  if (id === P_TRANSLATE_Y) return n.ty;
+  if (id === P_BACKGROUND_ALPHA) return n.bgAlpha;
+  if (id === P_COLOR_ALPHA) return n.fgAlpha;
+  if (id === P_BORDER_ALPHA) return n.borderAlpha;
+  if (id === P_SHADOW_LEVEL) return n.shadowLevel;
+  if (id === P_RADIUS) return n.radius;
+  if (id === P_SCALE) return n.k;
+  if (id >= P_ROTATE && id <= P_SCALE_Y) {
+    const t = n.tf;
+    if (t === null) return id >= P_SCALE_X ? 1 : 0;
+    return id === P_ROTATE ? t.rot : id === P_SKEW_X ? t.skX : id === P_SKEW_Y ? t.skY : id === P_SCALE_X ? t.sx : t.sy;
+  }
+  if (id >= P_SHADOW_X && id <= P_ELEVATION) return id === P_SHADOW_X ? n.shX : id === P_SHADOW_Y ? n.shY : id === P_SHADOW_OPACITY ? n.shOpacity : id === P_SHADOW_RADIUS ? n.shBlur : n.shY * 2;
+  if (id === P_BORDER_STYLE) return n.bd.borderStyle;
+  if (id >= P_RADIUS_TL && id <= P_RADIUS_BL) return id === P_RADIUS_TL ? n.bd.crTL : id === P_RADIUS_TR ? n.bd.crTR : id === P_RADIUS_BR ? n.bd.crBR : n.bd.crBL;
+  if (id >= P_BORDER_TOP_WIDTH && id <= P_BORDER_LEFT_WIDTH) return id === P_BORDER_TOP_WIDTH ? n.bd.bT : id === P_BORDER_RIGHT_WIDTH ? n.bd.bR : id === P_BORDER_BOTTOM_WIDTH ? n.bd.bB : n.bd.bL;
+  if (id >= P_PCT0 && id < P_PCT0 + PCT_KEYS.length) return n.pct === null ? -1 : (n.pct as number[])[id - P_PCT0];
+  if (id === P_LAZY) return n.lazy ? 1 : 0;
+  if (id >= P_PASSWORD && id <= P_ROWS) {
+    const e = n.ed;
+    if (e === null) return 0;
+    return id === P_PASSWORD ? (e.password ? 1 : 0) : id === P_READ_ONLY ? (e.readOnly ? 1 : 0) : id === P_LINE_NUMBERS ? (e.lineNumbers ? 1 : 0) : id === P_WRAP ? (e.wrap ? 1 : 0) : e.rows;
+  }
+  if (id === P_WIDTH) return n.w;
+  if (id === P_HEIGHT) return n.h;
+  if (id === P_WIDTH_PERCENT) return n.wFrac;
+  if (id === P_HEIGHT_PERCENT) return n.hFrac;
+  if (id === P_FLEX_DIRECTION) return (n.row ? 1 : 0) + (n.reverse ? 2 : 0);
+  if (id === P_FLEX_WRAP) return n.wrap ? (n.wrapRev ? 2 : 1) : 0;
+  if (id === P_JUSTIFY_CONTENT) return n.justify;
+  if (id === P_ALIGN_ITEMS) return n.align;
+  if (id === P_POSITION) return n.abs ? 1 : n.stat ? 2 : 0;
+  if (id === P_OVERFLOW) return n.scroll === 3 ? 2 : n.overflow ? 1 : 0;
+  if (id === P_FONT_WEIGHT) return n.bold ? 1 : 0;
+  if (id === P_TEXT_ALIGN) return n.talign;
+  if (id === P_LINE_HEIGHT) return n.leading;
+  if (id === P_LETTER_SPACING) return n.letterSpace;
+  if (id === P_BORDER_WIDTH) return n.borderW;
+  if (id === P_PADDING_TOP || id === P_PADDING) return n.pt;
+  if (id === P_PADDING_RIGHT) return n.pr;
+  if (id === P_PADDING_BOTTOM) return n.pb;
+  if (id === P_PADDING_LEFT) return n.pl;
+  if (id === P_MARGIN_TOP) return n.mt;
+  if (id === P_MARGIN_RIGHT) return n.mr;
+  if (id === P_MARGIN_BOTTOM) return n.mb;
+  if (id === P_MARGIN_LEFT) return n.ml;
+  if (id === P_GROW) return n.grow;
+  if (id === P_GAP) return n.gap;
+  if (id === P_ROW_GAP) return n.gapY;
+  if (id === P_COLUMN_GAP) return n.gapX;
+  if (id === P_MARGIN_AUTO) return n.mAuto;
+  if (id === P_BOX_SIZING) return n.contentBox ? 1 : 0;
+  if (id === P_NUMBER_OF_LINES) return n.clamp;
+  if (id === P_FONT_SIZE) return n.size;
+  if (id === P_HIDDEN) return n.hidden ? 1 : n.contents ? 2 : 0;
+  if (id === P_KEEP_FOCUS) return n.keepFocus ? 1 : 0;
+  if (id === P_INPUT_MODE) return n.inputMode;
+  if (id === P_TOP) return n.top;
+  if (id === P_LEFT) return n.left;
+  if (id === P_RIGHT) return n.right;
+  if (id === P_BOTTOM) return n.bottom;
+  if (id === P_SHRINK) return n.shrink;
+  if (id === P_BASIS) return n.basis;
+  if (id === P_BASIS_PERCENT) return n.basisFrac;
+  if (id === P_ALIGN_SELF) return n.selfAlign;
+  if (id === P_ALIGN_CONTENT) return n.alignContent;
+  if (id === P_MIN_WIDTH) return n.minW;
+  if (id === P_MAX_WIDTH) return n.maxW;
+  if (id === P_MIN_HEIGHT) return n.minH;
+  if (id === P_MAX_HEIGHT) return n.maxH;
+  if (id === P_ASPECT) return n.aspect;
+  return 0;
+}
+/** The value animate() starts from: a size left to the layout is the laid-out size, a length without a value (auto) is 0. */
+function currentValue(n: UiNode, id: i32): number {
+  if (id === P_WIDTH) return n.w >= 0 ? n.w : n.lw;
+  if (id === P_HEIGHT) return n.h >= 0 ? n.h : n.lh;
+  if (id <= 0) return 0;
+  const v = propValue(n, id);
+  return v === UNSET ? 0 : v;
+}
+/** The value of a numeric style key on node h now, while it moves too (colours as 0xRRGGBB; a size left to the layout: the laid-out size). */
+export function getNumber(h: i32, key: string): number { const n = node(h), id = propId(key); return isColorProp(id) ? colorProp(n, id) : currentValue(n, id); }
+
+// ---------------------------------------------------------------- transitions (ZN-274): Tailwind's transition-* classes on any animatable property
+// A node with transition classes eases the properties of its groups whenever a writer changes them: the classes applied again (rebuildStyle), a state
+// variant (syncState) or a style number (applyProp). The writer notes what the properties showed before it wrote; one that changed starts a tween from
+// there to the new value, which the engine then writes on each frame like animate() but outside the style record. A property written while it moves
+// takes its new end from where it is. No record per node: the fields show the values, the running tweens are in `anims`. The background colour eases
+// where it is painted (effectiveBg), with the state colours that live there.
+const TR_COLOR: i32 = 1, TR_OPACITY: i32 = 2, TR_SHADOW: i32 = 4, TR_TRANSFORM: i32 = 8, TR_ALL: i32 = 31;
+const TR_IDS: i32[][] = [   // the properties of each group, Tailwind's: colors, opacity, shadow, transform, then what only transition-all adds
+  [P_COLOR, P_COLOR_ALPHA, P_BORDER_COLOR, P_BORDER_ALPHA, P_BACKGROUND_ALPHA, P_BORDER_TOP_COLOR, P_BORDER_RIGHT_COLOR, P_BORDER_BOTTOM_COLOR, P_BORDER_LEFT_COLOR],
+  [P_OPACITY],
+  [P_SHADOW_LEVEL, P_SHADOW_COLOR, P_SHADOW_X, P_SHADOW_Y, P_SHADOW_OPACITY, P_SHADOW_RADIUS],
+  [P_TRANSLATE_X, P_TRANSLATE_Y, P_SCALE, P_ROTATE, P_SKEW_X, P_SKEW_Y, P_SCALE_X, P_SCALE_Y],
+  [P_RADIUS, P_RADIUS_TL, P_RADIUS_TR, P_RADIUS_BR, P_RADIUS_BL, P_WIDTH, P_HEIGHT, P_MIN_WIDTH, P_MAX_WIDTH, P_MIN_HEIGHT, P_MAX_HEIGHT,
+    P_PADDING_TOP, P_PADDING_RIGHT, P_PADDING_BOTTOM, P_PADDING_LEFT, P_MARGIN_TOP, P_MARGIN_RIGHT, P_MARGIN_BOTTOM, P_MARGIN_LEFT, P_GAP, P_ROW_GAP, P_COLUMN_GAP,
+    P_BORDER_WIDTH, P_BORDER_TOP_WIDTH, P_BORDER_RIGHT_WIDTH, P_BORDER_BOTTOM_WIDTH, P_BORDER_LEFT_WIDTH, P_TOP, P_LEFT, P_RIGHT, P_BOTTOM, P_FONT_SIZE, P_LETTER_SPACING],
+];
+const TR_BY_MASK: (i32[] | null)[] = [];   // the ids of a mask, built when a node first uses it
+function trIds(mask: i32): i32[] {
+  while (TR_BY_MASK.length <= mask) TR_BY_MASK.push(null);
+  const c = TR_BY_MASK[mask];
+  if (c !== null) return c;
+  const l: i32[] = [];
+  for (let g: i32 = 0; g < TR_IDS.length; g++) if ((mask & (1 << g)) !== 0) for (const id of TR_IDS[g]) l.push(id);
+  TR_BY_MASK[mask] = l;
+  return l;
+}
+/** The tweens (transitions and animate()) a profile runs at once: 8 on the small heaps (ESP32, PS1: an Anim is about 100 B and every running tween
+ *  repaints the tree each frame); beyond, a change takes its end at once. */
+const TWEEN_CAP: i32 = HEAP_BYTES > 0 && HEAP_BYTES <= 262144 ? 8 : 100000;
+let looks: i32 = 0;      // frames and ticks so far: a node transitions from the look after it got its transition classes (no transition into a first style, as in CSS)
+let inTween = false;     // the engine writes a tween's value: not a change of style
+let inStyle = false;     // rebuildStyle writes the whole node and compares it afterwards
+const trOld: number[] = [], trOldC: i32[] = [];   // what the properties a writer is about to change show (colours apart: i32)
+const STATE_IDS: i32[] = [P_OPACITY, P_TRANSLATE_X, P_TRANSLATE_Y, P_SHADOW_LEVEL, P_BACKGROUND_ALPHA, P_COLOR, P_COLOR_ALPHA, P_BORDER_COLOR, P_BORDER_ALPHA, P_RADIUS];
+const STATE_BIT: i32[] = [1, 2, 4, 16, 32, 64, 64, 128, 128, 256];   // the StateStyle mask bit that writes each of STATE_IDS
+function transitional(n: UiNode): boolean { const o = n.it; return o.trMask !== 0 && o.trBorn !== looks && !inTween && !inStyle; }
+/** After the classes were applied: the groups the node transitions. A node that starts or stops transitioning, or changes groups, starts afresh. */
+function transSpec(n: UiNode): void {
+  const o = n.it;
+  if (o === DEF_INTERX || n.id < 0) return;
+  const mask: i32 = o.transMs <= 0 ? 0 : o.transMask < 0 ? TR_ALL : o.transMask;   // duration-* alone: every property (CSS's initial `all`)
+  if (mask === o.trMask) return;
+  if (o.trActive > 0) for (const a of anims) if (a.node === n.id && a.trans) a.node = -1;   // the fields hold the new ends already
+  o.trMask = mask; o.trBorn = looks;
+}
+function transAnim(h: i32, id: i32): Anim | null { for (const a of anims) if (a.node === h && a.id === id && a.trans) return a; return null; }
+/** The end of the transition property id shows now (state variants remember their base so); while the classes are applied again, the fields hold ends. */
+function settledN(n: UiNode, id: i32, v: number): number { const a = n.it.trActive > 0 && !inStyle ? transAnim(n.id, id) : null; return a === null ? v : a.to; }
+function settledC(n: UiNode, id: i32, c: i32): i32 { const a = n.it.trActive > 0 && !inStyle ? transAnim(n.id, id) : null; return a === null ? c : a.c1; }
+/** What the properties `ids` of n show, before a writer changes them. */
+function trSnap(n: UiNode, ids: i32[]): void {
+  trOld.length = 0; trOldC.length = 0;
+  for (const id of ids) { const col = isColorProp(id); trOld.push(col ? 0 : propValue(n, id)); trOldC.push(col ? colorProp(n, id) : 0); }
+}
+/** Lengths with a keyword value (auto, none, the border's own width) jump, as CSS does between `auto` and a length. */
+function tweenable(id: i32, a: number, b: number): boolean {
+  if (id === P_TOP || id === P_LEFT || id === P_RIGHT || id === P_BOTTOM || id === P_LETTER_SPACING) return a !== UNSET && b !== UNSET;
+  if (id === P_WIDTH || id === P_HEIGHT || id === P_BORDER_WIDTH || (id >= P_MIN_WIDTH && id <= P_MAX_HEIGHT) || (id >= P_RADIUS_TL && id <= P_RADIUS_BL) || (id >= P_BORDER_TOP_WIDTH && id <= P_BORDER_LEFT_WIDTH)) return a >= 0 && b >= 0;
+  return true;
+}
+/** Writes the value a transition shows now into its field. */
+function showTween(n: UiNode, a: Anim): void { if (a.kind === 1) setColorProp(n, a.id, a.cc); else writeProp(n, a.id, '', a.cur); }
+/** A writer changed property id of n, which showed `old` (`oldC`: a colour): its transition starts, takes the new end, or the value jumps. */
+function trChange(n: UiNode, id: i32, old: number, oldC: i32): void {
+  const o = n.it, col = isColorProp(id);
+  const c: i32 = col ? colorProp(n, id) : 0;
+  const v: number = col ? 0 : propValue(n, id);
+  const a = o.trActive > 0 ? transAnim(n.id, id) : null;
+  if (a !== null) {   // moving: a new end starts from where it is
+    if (col ? c !== a.c1 : v !== a.to) { a.from = a.cur; a.c0 = a.cc; a.to = v; a.c1 = c; a.start = clock + o.transDelay; a.dur = o.transMs; a.easing = o.transEase; }
+    showTween(n, a);
+    return;
+  }
+  if (col ? c === oldC : v === old) return;
+  if ((col ? oldC < 0 || c < 0 : !tweenable(id, old, v)) || anims.length >= TWEEN_CAP) return;   // a keyword value, or over the budget: the end at once
+  const b = new Anim(n.id, n, '', id, kindOf(id), clock + o.transDelay, o.transMs, o.transEase);
+  b.trans = true; b.from = old; b.cur = old; b.to = v; b.c0 = oldC; b.cc = oldC; b.c1 = c;
+  anims.push(b); o.trActive++;
+  showTween(n, b);
 }
 
 // ---------------------------------------------------------------- classes (Tailwind subset + CSS rules)
@@ -1365,9 +1575,13 @@ function syncState(h: i32): void {
   const n = nodes[h], o = n.ov as StateOverlay;
   const want = stateBits(h);
   if (want === o.act) return;
+  const tr = transitional(n);
+  if (tr) trSnap(n, STATE_IDS);
   const b = o.base;
-  if (o.act === 0) {   // leaving the base: remember it
-    b.opacity = n.opacity; b.tx = n.tx; b.ty = n.ty; b.shadow = n.shadowLevel; b.bg = n.bg; b.bgAlpha = n.bgAlpha; b.fg = n.fg; b.fgAlpha = n.fgAlpha; b.bc = n.borderColor; b.bcAlpha = n.borderAlpha; b.radius = n.radius;
+  if (o.act === 0) {   // leaving the base: remember it (the ends of the transitions under way, not the values they show)
+    b.opacity = settledN(n, P_OPACITY, n.opacity); b.tx = settledN(n, P_TRANSLATE_X, n.tx); b.ty = settledN(n, P_TRANSLATE_Y, n.ty); b.shadow = Math.round(settledN(n, P_SHADOW_LEVEL, n.shadowLevel));
+    b.bg = n.bg; b.bgAlpha = Math.round(settledN(n, P_BACKGROUND_ALPHA, n.bgAlpha)); b.fg = settledC(n, P_COLOR, n.fg); b.fgAlpha = Math.round(settledN(n, P_COLOR_ALPHA, n.fgAlpha));
+    b.bc = settledC(n, P_BORDER_COLOR, n.borderColor); b.bcAlpha = Math.round(settledN(n, P_BORDER_ALPHA, n.borderAlpha)); b.radius = settledN(n, P_RADIUS, n.radius);
   }
   const a = o.all;
   if ((a & 1) !== 0) n.opacity = b.opacity;
@@ -1393,6 +1607,9 @@ function syncState(h: i32): void {
   }
   o.act = want;
   paintDirty = true;
+  if (!tr) return;
+  const w = trIds(n.it.trMask);   // what the states wrote: the transitions of the node move toward it
+  for (let k = 0; k < STATE_IDS.length; k++) if ((a & STATE_BIT[k]) !== 0 && w.indexOf(STATE_IDS[k]) >= 0) trChange(n, STATE_IDS[k], trOld[k], trOldC[k]);
 }
 function syncStates(): void {
   for (let i = statefuls.length - 1; i >= 0; i--) {
@@ -1500,7 +1717,7 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
     n.z = Math.round(neg ? -zv : zv);
     return true;
   }
-  if (tok === 'flex' || tok === 'transition' || tok === 'ease-out' || tok === 'ease-in' || tok === 'ease-in-out') return true;
+  if (tok === 'flex') return true;
   if (tok === 'flex-row') { n.row = true; return true; }
   if (tok === 'flex-col') { n.row = false; return true; }
   if (tok === 'flex-wrap') { n.wrap = true; return true; }
@@ -1634,8 +1851,27 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
   if (tok === 'tracking-wide') { n.tracking = 0.025; return true; }
   if (tok === 'tracking-wider') { n.tracking = 0.05; return true; }
   if (tok === 'tracking-widest') { n.tracking = 0.1; return true; }
-  if (tok === 'transition-colors' || tok === 'transition-all') { if (n.it.transMs === 0) n.ownIt().transMs = 150; return true; }
-  if (tok.startsWith('duration-')) { n.ownIt().transMs = parseFloat(tok.slice(9)); return true; }
+  if (tok.startsWith('transition')) {   // Tailwind's groups, 150 ms on its default curve unless duration-* and ease-* say otherwise (ZN-274)
+    const g: i32 = tok === 'transition' ? TR_COLOR | TR_OPACITY | TR_SHADOW | TR_TRANSFORM : tok === 'transition-all' ? TR_ALL : tok === 'transition-colors' ? TR_COLOR : tok === 'transition-opacity' ? TR_OPACITY
+      : tok === 'transition-shadow' ? TR_SHADOW : tok === 'transition-transform' ? TR_TRANSFORM : tok === 'transition-none' ? 0 : -1;
+    if (g < 0) return false;
+    const o = n.ownIt();
+    o.transMask = g;
+    if (o.transMs === 0) o.transMs = 150;
+    return true;
+  }
+  if (tok.startsWith('duration-') || tok.startsWith('delay-')) {
+    const ms = parseFloat(tok.slice(tok.indexOf('-') + 1));   // milliseconds
+    if (ms !== ms || ms < 0) return false;
+    if (tok.startsWith('delay-')) n.ownIt().transDelay = ms; else n.ownIt().transMs = ms;
+    return true;
+  }
+  if (tok.startsWith('ease-')) {
+    const e: i32 = tok === 'ease-linear' ? 0 : tok === 'ease-in' ? 5 : tok === 'ease-out' ? 6 : tok === 'ease-in-out' ? 7 : -1;
+    if (e < 0) return false;
+    n.ownIt().transEase = e;
+    return true;
+  }
   if (tok === 'shadow-none') { n.shadowLevel = 0; return true; }
   if (tok === 'shadow-sm') { n.shadowLevel = 1; return true; }
   if (tok === 'shadow') { n.shadowLevel = 2; return true; }
@@ -1809,7 +2045,7 @@ function resetStyle(n: UiNode): void {
   n.opacity = 1; n.fg = fresh.fg; n.size = DEFAULT_TEXT; n.bold = false; n.weight = 0; n.italic = false; n.transform = 0; n.tsX = 0; n.tsY = 0; n.tsColor = -1; n.tsAlpha = 0; n.selBg = -1; n.selectable = false; n.group = false; n.peer = false; n.ws = 0; n.brk = 0; n.clamp = 0; n.ellipsis = false; n.balance = false; n.deco = 0; n.wordSp = 0; n.vshift = 0; n.family = 'sans'; n.tracking = 0; n.letterSpace = UNSET; n.talign = 0; n.leading = 0;
   n.cursor = -1;
   n.rg = DEF_RINGX; n.bd = DEF_BORDERX; n.sn = DEF_SNAPX;   // the cold records: back to the shared defaults
-  if (n.it !== DEF_INTERX) { const o = n.it; o.focusBg = -1; o.activeBg = -1; o.focusFg = -1; o.activeFg = -1; o.transMs = 0; o.hoverBg = -1; o.hoverFg = -1; o.hoverBorder = -1; o.focusBorder = -1; o.withinBg = -1; o.withinFg = -1; o.withinBorder = -1; }   // curBg, fromBg and transStart stay: a transition goes on across a class change
+  if (n.it !== DEF_INTERX) { const o = n.it; o.focusBg = -1; o.activeBg = -1; o.focusFg = -1; o.activeFg = -1; o.transMs = 0; o.hoverBg = -1; o.hoverFg = -1; o.hoverBorder = -1; o.focusBorder = -1; o.withinBg = -1; o.withinFg = -1; o.withinBorder = -1; o.transMask = -1; o.transDelay = 0; o.transEase = 7; }   // curBg, fromBg, transStart and the tr* fields stay: a transition goes on across a class change
   if (n.ed !== null) { n.borderW = fresh.borderW; n.borderColor = fresh.borderColor; n.radius = fresh.radius; n.size = fresh.size; n.overflow = true; }
 }
 export function setClass(h: i32, cls: string): void {
@@ -1832,6 +2068,9 @@ function sheetNumber(n: UiNode, key: string, id: i32, value: number): void {
   applyToken(n, key.slice(1), '');
 }
 function rebuildStyle(n: UiNode): void {
+  const mask: i32 = transitional(n) ? n.it.trMask : 0, was = inStyle;
+  if (mask !== 0) trSnap(n, trIds(mask));
+  inStyle = true;
   resetStyle(n);
   envUsed = false; varUsed = false;
   for (const c of n.cls.split(' ')) if (c.length > 0) applyToken(n, c, '');
@@ -1842,6 +2081,10 @@ function rebuildStyle(n: UiNode): void {
   if (devStyles.size > 0) { const d = devStyles.get(n.id); if (d !== undefined) for (let i = 0; i < d.keys.length; i++) applyProp(n, d.ids[i], d.keys[i], d.values[i]); }
   if (n.ed !== null) (n.ed as Edit).rowsW = -1;
   layoutDirty = true;
+  transSpec(n);
+  if (n.it.trMask !== 0 && n.ov !== null) syncState(n.id);   // the states on the new classes now: a transition never sees the bare base
+  inStyle = was;
+  if (mask !== 0 && n.it.trMask === mask) { const ids = trIds(mask); for (let i = 0; i < ids.length; i++) trChange(n, ids[i], trOld[i], trOldC[i]); }
 }
 function sheetProperty(key: string): string {
   if (key.startsWith('@font-')) return 'fontFamily';
@@ -2531,11 +2774,15 @@ export function layout(): void {
 }
 
 // ---------------------------------------------------------------- animations (UI-17): engine-driven, no reactive work per frame
+/** One tween: animate()'s (written through setNumber, so it stays in the style record) or a transition's (trans: written outside it). */
 class Anim {
-  node: i32; key: string; from: number; to: number; start: number; dur: number; easing: i32;
+  node: i32; ref: UiNode; key: string; id: i32; kind: i32;   // kind: kindOf(id)
+  from: number = 0; to: number = 0; cur: number = 0; c0: i32 = 0; c1: i32 = 0; cc: i32 = 0;   // numbers, or colours as i32 (c0 to c1, cc shown)
+  start: number; dur: number; easing: i32;
+  trans: boolean = false;
   done: (() => void) | null = null;
-  constructor(node: i32, key: string, from: number, to: number, start: number, dur: number, easing: i32) {
-    this.node = node; this.key = key; this.from = from; this.to = to; this.start = start; this.dur = dur; this.easing = easing;
+  constructor(node: i32, ref: UiNode, key: string, id: i32, kind: i32, start: number, dur: number, easing: i32) {
+    this.node = node; this.ref = ref; this.key = key; this.id = id; this.kind = kind; this.start = start; this.dur = dur; this.easing = easing;
   }
 }
 const anims: Anim[] = [];
@@ -2547,24 +2794,24 @@ function ease(e: i32, t: number): number {
   if (e === 1) return t * t * t;
   if (e === 2) { const u = 1 - t; return 1 - u * u * u; }
   if (e === 3) return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  if (e === 5) return cubicBezier(0.4, 0, 1, 1, t);     // Tailwind's ease-in
+  if (e === 6) return cubicBezier(0, 0, 0.2, 1, t);     // ease-out
+  if (e === 7) return cubicBezier(0.4, 0, 0.2, 1, t);   // ease-in-out, the default of transition-*
   return 1 - Math.exp(-6 * t) * Math.cos(10 * t);  // underdamped spring
 }
-function currentValue(n: UiNode, key: string): number {
-  if (key === 'width') return n.w >= 0 ? n.w : n.lw;
-  if (key === 'height') return n.h >= 0 ? n.h : n.lh;
-  if (key === 'opacity') return n.opacity;
-  if (key === 'translateX' || key === 'x') return n.tx;
-  if (key === 'translateY' || key === 'y') return n.ty;
-  if (key === 'scale') return n.k;
-  const t = n.tf;
-  if (t !== null) { if (key === 'rotate') return t.rot; if (key === 'scaleX') return t.sx; if (key === 'scaleY') return t.sy; if (key === 'skewX') return t.skX; if (key === 'skewY') return t.skY; }
-  if (key === 'scaleX' || key === 'scaleY') return 1;
-  return 0;
-}
-/** Tweens a numeric property of node `h` (width, height, opacity, translateX, translateY...). */
+/** Tweens any numeric style property of node `h` (the keys of setNumber: sizes, spacing, opacity, transforms, shadows; colours channel by channel;
+ *  keyword values switch half way). Over the profile's tween budget the property takes its end at once. */
 export function animate(h: i32, key: string, to: number, dur: number, easing: string, delay: number): Promise<void> {
-  for (const a of anims) if (a.node === h && a.key === key) a.node = -1;
-  const a = new Anim(h, key, currentValue(node(h), key), to, clock + delay, dur, easeOf(easing));
+  for (const a of anims) if (a.node === h && a.key === key && !a.trans) a.node = -1;
+  const n = node(h), id = propId(key);
+  const tw = id > 0 && n.it.trActive > 0 ? transAnim(h, id) : null;
+  if (tw !== null) tw.node = -1;   // an animation takes its property over from a transition (CSS)
+  if (anims.length >= TWEEN_CAP) {
+    inTween = true; setNumber(h, key, to); inTween = false;
+    return new Promise<void>(resolve => { resolve(); });
+  }
+  const a = new Anim(h, n, key, id, kindOf(id), clock + delay, dur, easeOf(easing));
+  if (a.kind === 1) { a.c0 = colorProp(n, id); a.c1 = Math.round(to); } else { a.from = currentValue(n, id); a.to = to; }
   anims.push(a);
   return new Promise<void>(resolve => { a.done = resolve; });
 }
@@ -2712,12 +2959,16 @@ function stepAnims(): void {
   let i: i32 = 0;
   while (i < anims.length) {
     const a = anims[i];
-    if (a.node < 0) { anims.splice(i, 1); continue; }
+    if (a.node < 0 || nodes[a.node] !== a.ref) { anims.splice(i, 1); if (a.trans) a.ref.it.trActive--; continue; }   // stopped, or its node is gone
     if (clock < a.start) { i++; continue; }
     const t = a.dur <= 0 ? 1 : Math.min(1, (clock - a.start) / a.dur);
-    setNumber(a.node, a.key, a.from + (a.to - a.from) * ease(a.easing, t));
+    const e = t >= 1 ? 1 : ease(a.easing, t);   // the end exactly (the spring curve is not 1 at t = 1)
+    const v = a.kind === 2 ? (e < 0.5 ? a.from : a.to) : a.from + (a.to - a.from) * e;
+    if (a.trans) { a.cur = v; a.cc = mix(a.c0, a.c1, e); showTween(a.ref, a); }
+    else { inTween = true; if (a.kind === 1) setNumber(a.node, a.key, mix(a.c0, a.c1, e)); else setNumber(a.node, a.key, v); inTween = false; }
     if (t >= 1) {
       anims.splice(i, 1);
+      if (a.trans) a.ref.it.trActive--;
       const d = a.done;
       if (d !== null) d();
       continue;
@@ -2745,16 +2996,19 @@ function targetBg(h: i32, n: UiNode): i32 {
   if (n.hovered && n.it.hoverBg >= 0) return n.it.hoverBg;
   return n.bg;
 }
-/** transition-colors: the background eases toward its state color. */
+/** At t (0..1, before the delay < 0) of the background transition: the colour shown. */
+function bgAt(o: InterX, t: number): i32 { return t <= 0 ? o.fromBg : t >= 1 ? o.curBg : mix(o.fromBg, o.curBg, ease(o.transEase, t)); }
+/** transition-colors: the background eases toward its colour (classes, state variants and the state colours resolved here at paint time). */
 function effectiveBg(h: i32, n: UiNode): i32 {
   const target = targetBg(h, n);
-  if (n.it === DEF_INTERX) return target;   // never had a transition or a state colour: nothing to remember
-  if (n.it.transMs <= 0 || n.it.curBg === -1) { n.it.curBg = target; n.it.fromBg = target; return target; }
-  if (target !== n.it.curBg) { n.it.fromBg = mix(n.it.fromBg, n.it.curBg, 1); n.it.curBg = target; n.it.transStart = clock; }
-  const t = (clock - n.it.transStart) / n.it.transMs;
-  if (t >= 1 || n.it.fromBg === target) { n.it.fromBg = target; return target; }
+  const o = n.it;
+  if (o === DEF_INTERX) return target;   // never had a transition or a state colour: nothing to remember
+  if (o.transMs <= 0 || (o.transMask >= 0 && (o.transMask & TR_COLOR) === 0) || o.curBg === -1) { o.curBg = target; o.fromBg = target; return target; }
+  if (target !== o.curBg) { o.fromBg = bgAt(o, (clock - o.transStart - o.transDelay) / o.transMs); o.curBg = target; o.transStart = clock; }   // from the colour shown now
+  const t = (clock - o.transStart - o.transDelay) / o.transMs;
+  if (t >= 1 || o.fromBg === target) { o.fromBg = target; return target; }
   animating = true;
-  return mix(n.it.fromBg, target, t);
+  return bgAt(o, t);
 }
 const SHADOW_Y: number[] = [0, 1, 1, 4, 10, 20], SHADOW_BLUR: number[] = [0, 2, 3, 6, 15, 25];
 const SHADOW_A: i32[] = [0, 20, 30, 40, 45, 50];
@@ -4105,6 +4359,7 @@ export function frame(dt: number, background: i32): void {
   steppedAt = gfxFrame();
   if (first) clock += dt * 1000;
   frameDt = dt;
+  looks++;   // from here on, style changes transition on the nodes that had their transition classes before (transitional)
   if (first) stepAnims();
   if (first && steppers.length > 0) runSteppers();
   if (prof) profMark(PROF_ANIM);
@@ -4411,7 +4666,7 @@ export function find(text: string): i32 {
   return -1;
 }
 /** Advances the engine clock without the frame loop (tests). */
-export function tick(ms: number): void { clock += ms; stepAnims(); if (steppers.length > 0) runSteppers(); if (grabber === -1 && longNode >= 0) stepGestures(); }
+export function tick(ms: number): void { clock += ms; looks++; stepAnims(); if (steppers.length > 0) runSteppers(); if (grabber === -1 && longNode >= 0) stepGestures(); }
 
 // ---------------------------------------------------------------- input test hooks: from the first call on, the
 // HAL's pointer and keyboard are ignored, so runs are identical on the sim and on native targets.

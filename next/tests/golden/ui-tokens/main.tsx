@@ -21,6 +21,7 @@ const toks = [
   'dark:bg-zinc-900', 'light:p-2', 'dark:text-white', 'dark:', 'darkx:p-2',
   'hover:opacity-80', 'hover:-translate-y-1', 'hover:shadow-lg', 'hover:bg-red-500', 'hover:bg-red-500/50', 'disabled:opacity-50', 'disabled:bg-slate-300', 'disabled:text-slate-500', 'active:translate-y-px', 'focus:shadow-md', 'hover:p-4', 'hover:w-4', 'disabled:text-lg', 'hover:border-2', 'hover:bogus', 'translate-x-2', '-translate-y-1', 'translate-x-[3px]', 'translate-z-1',
   'sr-only', 'not-sr-only',
+  'transition', 'transition-all', 'transition-colors', 'transition-opacity', 'transition-shadow', 'transition-transform', 'transition-none', 'duration-300', 'delay-75', 'ease-linear', 'ease-in', 'ease-out', 'ease-in-out', 'transition-foo', 'delay-x', 'ease-bogus',
   'select-text', 'select-none', 'select-all', 'select-auto', 'select-foo',
   'group', 'group-hover:bg-red-500', 'group-focus:opacity-50', 'group-active:translate-y-px', 'group-hover:p-4', 'group-x:bg-red-500',
   'peer', 'peer-hover:bg-red-500', 'peer-focus:opacity-50', 'peer-active:translate-y-px', 'peer-hover:p-4', 'peer-x:p-2', 'aria-checked:bg-emerald-500', 'aria-selected:opacity-50', 'aria-foo:p-2', 'aria-checked:p-2', 'data-[state=open]:bg-sky-500', 'data-[state=open]:p-4', 'data-[x]:p-2',

@@ -1,0 +1,12 @@
+0% opacity 1 translateY 0 rotate 0 color 0 borderColor 0 width 80
+50% opacity 0.75 translateY 4 rotate 45 color 8421504 borderColor 8421504 width 120
+100% opacity 0.5 translateY 8 rotate 90 color 16777215 borderColor 16777215 width 160
+first style: opacity 0.5
+half way to 1: opacity 0.75
+back to 0.5 from there, half way: opacity 0.625
+transition-opacity, half way: opacity 0.5 translateX 16
+animate: 69 numeric, 18 keyword, 9 colour keys ok
+nine at once, half way: opacity 0.75 translate 4 4 radius 4 size 120 60 padding 8 8 margin-top 16
+a tenth tween (animate), half way: opacity 0
+state variant moving: true true layouts while it moves 0
+state variant ended: opacity 0.4000000059604645 translateX 8 layouts 0
