@@ -124,7 +124,7 @@ JSValue js_resize(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
 
 // op(canvas, code, numbers...): the calls that take numbers only. The codes are the order of OPS in lib/std/webenv.js. A call with a number
 // that is not finite does nothing, which is the canvas specification's rule (and canvas_ity does not check).
-enum Op { Save, Restore, Scale, Rotate, Translate, Transform, SetTransform, GlobalAlpha, Composite, ShadowColor, ShadowBlur, ShadowOffset, LineWidth, LineCap, LineJoin,
+enum CanvasOp { Save, Restore, Scale, Rotate, Translate, Transform, SetTransform, GlobalAlpha, Composite, ShadowColor, ShadowBlur, ShadowOffset, LineWidth, LineCap, LineJoin,
           MiterLimit, DashOffset, BeginPath, MoveTo, ClosePath, LineTo, QuadTo, BezierTo, ArcTo, Arc, Rect, Fill, Stroke, Clip, InPath, ClearRect, FillRect, StrokeRect,
           Color, Linear, Radial, Stop };
 JSValue js_op(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
