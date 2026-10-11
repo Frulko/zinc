@@ -34,7 +34,23 @@ class Offscreen {
   void deleteBuffer(std::uint32_t pbo) const;
   /** Reallocates the colour and depth storage at a new size (contents undefined; the caller clears). Bindings are left as they were. */
   void resize(int width, int height);
-  std::uint32_t framebuffer() const { return fbo_; }   // the offscreen framebuffer: what WebGL calls the default framebuffer
+  /** antialias: true (ZN-576): WebGL draws into a framebuffer of `n` samples (at most GL_MAX_SAMPLES), bound on return; the single-sampled one
+   *  becomes the copy that reads and the present use, resolved before each. 0 where there are no multisampled renderbuffers (GLES 2). */
+  int setSamples(int n);
+  int samples() const { return samples_; }
+  /** The multisampled framebuffer copied into the single-sampled one (nothing without samples); bindings, scissor and discard are kept. */
+  void resolve() const;
+  std::uint32_t framebuffer() const { return samples_ ? ms_ : fbo_; }   // what WebGL calls the default framebuffer
+  /** While alive: a read of the multisampled canvas (glReadPixels, glCopyTex*) reads its resolved copy, as it must (a multisampled framebuffer
+   *  cannot be read). Nothing when the canvas is not the read framebuffer or has no samples. */
+  class ReadResolved {
+   public:
+    explicit ReadResolved(const Offscreen& o);
+    ~ReadResolved();
+   private:
+    const Offscreen& o_;
+    bool on_ = false;
+  };
   int width() const { return w_; }
   int height() const { return h_; }
 
@@ -44,7 +60,10 @@ class Offscreen {
   Api api_ = Api::Gl33;
   Info info_;
   std::uint32_t fbo_ = 0, color_ = 0, depth_ = 0;
+  std::uint32_t ms_ = 0, msColor_ = 0, msDepth_ = 0;   // the multisampled framebuffer of antialias: true
+  int samples_ = 0;
   int w_ = 0, h_ = 0;
+  void storeSamples();
   mutable std::uint32_t small_ = 0, smallColor_ = 0;   // readScaled's target, made on first use
   mutable int sw_ = 0, sh_ = 0;
 };

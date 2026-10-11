@@ -666,6 +666,7 @@ void WebGL1::copyThrough(bool sub, std::uint32_t target, int level, std::uint32_
   if (bt == GL_TEXTURE_2D) glBindTexture(GL_TEXTURE_2D, dest);   // (the destination was the bound texture of its target all along)
 }
 void WebGL1::copyTexImage2D(std::uint32_t target, int level, std::uint32_t fmt, int x, int y, int w, int h, int border) {
+  Offscreen::ReadResolved resolved(gl_);   // the multisampled canvas reads its resolved copy (ZN-576)
   ++fbGen_;
   const bool face = target >= GL_TEXTURE_CUBE_MAP_POSITIVE_X && target <= GL_TEXTURE_CUBE_MAP_NEGATIVE_Z;
   if (target != GL_TEXTURE_2D && !face) return error(GL_INVALID_ENUM);
@@ -698,6 +699,7 @@ void WebGL1::copyTexImage2D(std::uint32_t target, int level, std::uint32_t fmt, 
   }
 }
 void WebGL1::copyTexSubImage2D(std::uint32_t target, int level, int xoff, int yoff, int x, int y, int w, int h) {
+  Offscreen::ReadResolved resolved(gl_);   // the multisampled canvas reads its resolved copy (ZN-576)
   const bool face = target >= GL_TEXTURE_CUBE_MAP_POSITIVE_X && target <= GL_TEXTURE_CUBE_MAP_NEGATIVE_Z;
   if (target != GL_TEXTURE_2D && !face) return error(GL_INVALID_ENUM);
   if (level < 0 || xoff < 0 || yoff < 0 || w < 0 || h < 0) return error(GL_INVALID_VALUE);

@@ -1300,6 +1300,7 @@ bool WebGL1::readCheck(int w, int h, std::uint32_t format, std::uint32_t type, s
   return true;
 }
 void WebGL1::readPixels(int x, int y, int w, int h, std::uint32_t format, std::uint32_t type, void* out, std::size_t outBytes) {
+  Offscreen::ReadResolved resolved(gl_);   // the multisampled canvas reads its resolved copy (ZN-576)
   if (version_ == 2) {
     std::size_t need = 0;
     if (packBufferBound()) return error(GL_INVALID_OPERATION);   // a pack buffer wants an offset, not a view
@@ -1331,6 +1332,7 @@ void WebGL1::readPixels(int x, int y, int w, int h, std::uint32_t format, std::u
   glReadPixels(x, y, w, h, GL_RGBA, GL_UNSIGNED_BYTE, out);
 }
 void WebGL1::readPixelsToBuffer(int x, int y, int w, int h, std::uint32_t format, std::uint32_t type, std::int64_t offset) {
+  Offscreen::ReadResolved resolved(gl_);   // the multisampled canvas reads its resolved copy (ZN-576)
   if (version_ != 2 || !packBufferBound()) return error(GL_INVALID_OPERATION);
   if (offset < 0) return error(GL_INVALID_VALUE);
   std::size_t need = 0;

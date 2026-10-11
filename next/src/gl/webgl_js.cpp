@@ -501,7 +501,7 @@ JSValue js_getContextAttributes(JSContext* c, JSValueConst t, int, JSValueConst*
   JS_SetPropertyStr(c, o, "alpha", JS_NewBool(c, g->alpha));
   JS_SetPropertyStr(c, o, "depth", JS_NewBool(c, g->depth));
   JS_SetPropertyStr(c, o, "stencil", JS_NewBool(c, g->stencil));
-  JS_SetPropertyStr(c, o, "antialias", JS_FALSE);   // the offscreen target is not multisampled
+  JS_SetPropertyStr(c, o, "antialias", JS_NewBool(c, g->gl.antialias()));   // asked for and multisampled (ZN-576)
   JS_SetPropertyStr(c, o, "premultipliedAlpha", JS_NewBool(c, g->premultipliedAlpha));
   JS_SetPropertyStr(c, o, "preserveDrawingBuffer", JS_NewBool(c, g->preserveDrawingBuffer));
   JS_SetPropertyStr(c, o, "failIfMajorPerformanceCaveat", JS_FALSE);
@@ -1354,11 +1354,13 @@ JSValue createContext(JSContext* c, int w, int h, int version = 1, JSValueConst 
   if (version == 2) { if (!g->gl.create(Api::Gl33, w, h, err, 2) && !g->gl.create(Api::Gles3, w, h, err, 2)) return JS_NULL; }
   else if (!g->gl.create(Api::Gl33, w, h, err) && !g->gl.create(Api::Gles2, w, h, err)) return JS_NULL;
   g->w = w; g->h = h; g->version = version;
+  bool antialias = true;   // WebGL's default
   if (JS_IsObject(attrs)) {   // the attributes asked for, reported back by getContextAttributes
     auto flag = [&](const char* k, bool& dst) { JSValue v = JS_GetPropertyStr(c, attrs, k); if (!JS_IsUndefined(v)) dst = JS_ToBool(c, v) != 0; JS_FreeValue(c, v); };
     flag("alpha", g->alpha); flag("depth", g->depth); flag("stencil", g->stencil); flag("premultipliedAlpha", g->premultipliedAlpha); flag("preserveDrawingBuffer", g->preserveDrawingBuffer);
+    flag("antialias", antialias);
   }
-  g->gl.setAttributes(g->depth, g->stencil, g->alpha);
+  g->gl.setAttributes(g->depth, g->stencil, g->alpha, antialias);
   gCurrent = g.get();   // creating it made its driver context current
   JSValue proto = version == 2 ? JS_DupValue(c, gProto2) : JS_GetClassProto(c, static_cast<int>(gCtxClass));
   JSValue o = JS_NewObjectProtoClass(c, proto, static_cast<int>(gCtxClass));

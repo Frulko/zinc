@@ -194,6 +194,7 @@ void WebGL1::texStorage3D(std::uint32_t target, int levels, std::uint32_t ifmt, 
   uploadTexture(true, target, levels, ifmt, w, h, d, 0, 0, nullptr, 0, 0, 0, 0, false);
 }
 void WebGL1::copyTexSubImage3D(std::uint32_t target, int level, int xo, int yo, int zo, int x, int y, int w, int h) {
+  Offscreen::ReadResolved resolved(gl_);   // the multisampled canvas reads its resolved copy (ZN-576)
   if (version_ != 2) return error(GL_INVALID_OPERATION);
   if (target != GL_TEXTURE_3D && target != GL_TEXTURE_2D_ARRAY) return error(GL_INVALID_ENUM);
   if (level < 0 || xo < 0 || yo < 0 || zo < 0 || w < 0 || h < 0) return error(GL_INVALID_VALUE);
@@ -437,8 +438,9 @@ void WebGL1::blitFramebuffer(int sx0, int sy0, int sx1, int sy1, int dx0, int dy
   }
   // multisampled read: the draw side must be single sampled, the regions equal and the formats the same; a multisampled draw image is never allowed
   auto samplesOf = [&](Id fb) {
+    if (!fb) return gl_.samples();   // the canvas: multisampled with antialias (ZN-576)
     auto f = fbos_.find(fb);
-    if (!fb || f == fbos_.end() || !f->second.colorRb) return 0;
+    if (f == fbos_.end() || !f->second.colorRb) return 0;
     auto r = rbos_.find(f->second.colorRb);
     return r == rbos_.end() ? 0 : r->second.samples;
   };

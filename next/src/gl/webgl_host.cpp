@@ -23,14 +23,14 @@ using zn::Rt;
 using zn::host::HostArg;
 using namespace zn::gl;
 
-enum Attr { kAlpha = 1, kDepth = 2, kStencil = 4, kPremultiplied = 8, kPreserve = 16 };   // getContextAttributes, as zinc:gl's WebGLContextAttributes packs them
+enum Attr { kAlpha = 1, kDepth = 2, kStencil = 4, kPremultiplied = 8, kPreserve = 16, kAntialias = 32 };   // getContextAttributes, as zinc:gl's WebGLContextAttributes packs them
 
 struct Ctx {
   std::unique_ptr<WebGL1> gl;
   std::vector<UniformLoc> locs;
   WebGL1::Param param;       // the last query's value: zinc:gl reads it through the Param* rows
   WebGL1::Active active;     // the last getActiveUniform / getActiveAttrib / getTransformFeedbackVarying
-  int w = 0, h = 0, version = 1, attributes = kAlpha | kDepth | kPremultiplied;
+  int w = 0, h = 0, version = 1, attributes = kAlpha | kDepth | kPremultiplied | kAntialias;
   bool lost = false, lostReported = false;
 
   bool make() {
@@ -38,7 +38,8 @@ struct Ctx {
     std::string err;
     const bool ok = version == 2 ? (gl->create(Api::Gl33, w, h, err, 2) || gl->create(Api::Gles3, w, h, err, 2)) : (gl->create(Api::Gl33, w, h, err) || gl->create(Api::Gles2, w, h, err));
     if (!ok) { std::fprintf(stderr, "zinc:gl: %s\n", err.c_str()); return false; }
-    gl->setAttributes(attributes & kDepth, attributes & kStencil, attributes & kAlpha);
+    gl->setAttributes(attributes & kDepth, attributes & kStencil, attributes & kAlpha, attributes & kAntialias);
+    if (!gl->antialias()) attributes &= ~kAntialias;   // asked for, not available: reported as false
     return true;
   }
   std::int64_t location(const UniformLoc& l) {

@@ -43,14 +43,14 @@ export class WebGLContextAttributes {
   alpha: boolean = true;
   depth: boolean = true;
   stencil: boolean = false;
-  antialias: boolean = false;   // the offscreen target is not multisampled
+  antialias: boolean = true;   // a multisampled drawing buffer where the GPU has one (ZN-576)
   premultipliedAlpha: boolean = true;
   preserveDrawingBuffer: boolean = false;
   failIfMajorPerformanceCaveat: boolean = false;
-  bits(): i32 { return (this.alpha ? 1 : 0) | (this.depth ? 2 : 0) | (this.stencil ? 4 : 0) | (this.premultipliedAlpha ? 8 : 0) | (this.preserveDrawingBuffer ? 16 : 0); }
+  bits(): i32 { return (this.alpha ? 1 : 0) | (this.depth ? 2 : 0) | (this.stencil ? 4 : 0) | (this.premultipliedAlpha ? 8 : 0) | (this.preserveDrawingBuffer ? 16 : 0) | (this.antialias ? 32 : 0); }
   static of(bits: i32): WebGLContextAttributes {
     const a = new WebGLContextAttributes();
-    a.alpha = (bits & 1) !== 0; a.depth = (bits & 2) !== 0; a.stencil = (bits & 4) !== 0; a.premultipliedAlpha = (bits & 8) !== 0; a.preserveDrawingBuffer = (bits & 16) !== 0;
+    a.alpha = (bits & 1) !== 0; a.depth = (bits & 2) !== 0; a.stencil = (bits & 4) !== 0; a.premultipliedAlpha = (bits & 8) !== 0; a.preserveDrawingBuffer = (bits & 16) !== 0; a.antialias = (bits & 32) !== 0;
     return a;
   }
 }

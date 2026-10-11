@@ -1,7 +1,7 @@
 // ZN-203.07: WebGL 2.0 textures (sized formats, 3D, arrays, storage), samplers, queries, sync, transform feedback, blit and clearBuffer.
 const canvas = document.createElement('canvas');
 canvas.width = 32; canvas.height = 32;
-const gl = canvas.getContext('webgl2');
+const gl = canvas.getContext('webgl2', { antialias: false });   // blitFramebuffer into a multisampled canvas is INVALID_OPERATION (antialias.js)
 const px = (x, y) => { const p = new Uint8Array(4); gl.readPixels(x, y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, p); return Array.from(p).join(','); };
 const err = (name) => { const e = gl.getError(); console.log(name, e === 0 ? 'ok' : '0x' + e.toString(16)); };
 

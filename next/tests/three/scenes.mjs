@@ -1,5 +1,23 @@
-// The scenes of tests/three: a cube, an instanced mesh with a shadow map, and a glTF (GLB) model.
+// The scenes of tests/three: a cube, an instanced mesh with a shadow map, a glTF (GLB) model, and thin slanted bars drawn with antialias.
 import { base64ToBytes } from './harness.mjs';
+
+export const antialias = { edges: true };   // the scenes made with antialias: true (run.mjs creates the context before three does)
+
+export const edges = async (THREE, canvas) => {   // ZN-576: the multisampled canvas; thin bars at small angles show every edge step
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setSize(128, 128, false);
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x101418);
+  const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 10);
+  camera.position.set(0, 0, 3); camera.lookAt(0, 0, 0);
+  const material = new THREE.MeshBasicMaterial({ color: 0xf0e0a0 });
+  for (let i = 0; i < 7; i++) {
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.03 + i * 0.012, 0.05), material);
+    bar.position.y = -1 + i * 0.32; bar.rotation.z = 0.05 + i * 0.09;
+    scene.add(bar);
+  }
+  return { render: () => renderer.render(scene, camera) };
+};
 
 export const cube = async (THREE, canvas) => {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });

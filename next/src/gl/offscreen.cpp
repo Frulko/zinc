@@ -36,6 +36,7 @@ Offscreen::~Offscreen() {
     SDL_GL_MakeCurrent(static_cast<SDL_Window*>(window_), static_cast<SDL_GLContext>(context_));
     glDeleteFramebuffers(1, &fbo_); glDeleteTextures(1, &color_); glDeleteRenderbuffers(1, &depth_);
     if (small_) { glDeleteFramebuffers(1, &small_); glDeleteRenderbuffers(1, &smallColor_); }
+    if (ms_) { glDeleteFramebuffers(1, &ms_); glDeleteRenderbuffers(1, &msColor_); glDeleteRenderbuffers(1, &msDepth_); }
     SDL_GL_DestroyContext(static_cast<SDL_GLContext>(context_));
   }
   if (window_) SDL_DestroyWindow(static_cast<SDL_Window*>(window_));
@@ -141,17 +142,84 @@ void Offscreen::resize(int width, int height) {
   glActiveTexture(static_cast<GLenum>(unit));
   glBindRenderbuffer(GL_RENDERBUFFER, depth_);
   glRenderbufferStorage(GL_RENDERBUFFER, es ? GL_DEPTH_COMPONENT16 : GL_DEPTH24_STENCIL8, w_, h_);
+  if (samples_) storeSamples();
   glBindRenderbuffer(GL_RENDERBUFFER, static_cast<GLuint>(rb));
 }
 
+void Offscreen::storeSamples() {   // the multisampled storage at the current size (the renderbuffer binding is the caller's)
+  glBindRenderbuffer(GL_RENDERBUFFER, msColor_);
+  glRenderbufferStorageMultisample(GL_RENDERBUFFER, samples_, GL_RGBA8, w_, h_);
+  glBindRenderbuffer(GL_RENDERBUFFER, msDepth_);
+  glRenderbufferStorageMultisample(GL_RENDERBUFFER, samples_, GL_DEPTH24_STENCIL8, w_, h_);
+}
+
+int Offscreen::setSamples(int n) {
+  if (api_ == Api::Gles2 || n <= 0 || ms_) return samples_;
+  GLint max = 0;
+  glGetIntegerv(GL_MAX_SAMPLES, &max);
+  samples_ = n < max ? n : max;
+  if (samples_ <= 0) { samples_ = 0; return 0; }
+  glGenFramebuffers(1, &ms_);
+  glGenRenderbuffers(1, &msColor_);
+  glGenRenderbuffers(1, &msDepth_);
+  storeSamples();
+  glBindFramebuffer(GL_FRAMEBUFFER, ms_);
+  glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, msColor_);
+  glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, msDepth_);
+  if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {   // not this driver: the single-sampled framebuffer stays
+    glDeleteFramebuffers(1, &ms_); glDeleteRenderbuffers(1, &msColor_); glDeleteRenderbuffers(1, &msDepth_);
+    ms_ = msColor_ = msDepth_ = 0;
+    samples_ = 0;
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo_);
+  }
+  while (glGetError() != GL_NO_ERROR) {}
+  return samples_;
+}
+
+void Offscreen::resolve() const {
+  if (!samples_) return;
+  GLint read = 0, draw = 0, buf = 0;
+  glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &read);
+  glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &draw);
+  const GLboolean scissor = glIsEnabled(GL_SCISSOR_TEST), discard = glIsEnabled(GL_RASTERIZER_DISCARD);
+  glDisable(GL_SCISSOR_TEST); glDisable(GL_RASTERIZER_DISCARD);   // a blit ignores the write masks, not the scissor
+  glBindFramebuffer(GL_READ_FRAMEBUFFER, ms_);
+  glGetIntegerv(GL_READ_BUFFER, &buf);   // the script may have set the canvas's read buffer to NONE (WebGL 2)
+  glReadBuffer(GL_COLOR_ATTACHMENT0);
+  glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo_);
+  glBlitFramebuffer(0, 0, w_, h_, 0, 0, w_, h_, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+  glReadBuffer(static_cast<GLenum>(buf));
+  if (scissor) glEnable(GL_SCISSOR_TEST);
+  if (discard) glEnable(GL_RASTERIZER_DISCARD);
+  glBindFramebuffer(GL_READ_FRAMEBUFFER, static_cast<GLuint>(read));
+  glBindFramebuffer(GL_DRAW_FRAMEBUFFER, static_cast<GLuint>(draw));
+}
+
+Offscreen::ReadResolved::ReadResolved(const Offscreen& o) : o_(o) {
+  if (!o.samples_) return;
+  GLint read = 0, buf = 0;
+  glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &read);
+  if (static_cast<GLuint>(read) != o.ms_) return;
+  glGetIntegerv(GL_READ_BUFFER, &buf);
+  if (buf == GL_NONE) return;   // reading it is the script's error, as on the multisampled framebuffer
+  o.resolve();
+  glBindFramebuffer(GL_READ_FRAMEBUFFER, o.fbo_);
+  on_ = true;
+}
+Offscreen::ReadResolved::~ReadResolved() { if (on_) glBindFramebuffer(GL_READ_FRAMEBUFFER, o_.ms_); }
+
 std::vector<std::uint8_t> Offscreen::read() const {
   std::vector<std::uint8_t> px(static_cast<std::size_t>(w_) * h_ * 4);
+  GLint read = 0;
+  if (samples_) { resolve(); glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &read); glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo_); }
   glReadPixels(0, 0, w_, h_, GL_RGBA, GL_UNSIGNED_BYTE, px.data());
+  if (samples_) glBindFramebuffer(GL_READ_FRAMEBUFFER, static_cast<GLuint>(read));
   return px;
 }
 
 bool Offscreen::readScaledAsync(std::uint32_t& pbo, int dw, int dh, int ss) const {
   if (api_ == Api::Gles2 || (ss != 1 && ss != 2) || dw * ss != w_ || dh * ss != h_) return false;
+  resolve();   // antialias: the samples into the single-sampled copy read below
   GLint read = 0, draw = 0, rb = 0, pack = 0, align = 0, rowLen = 0, skipRows = 0, skipPx = 0;
   glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &read);
   glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &draw);

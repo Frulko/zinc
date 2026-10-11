@@ -1,0 +1,6 @@
+webgl default antialias true SAMPLES 4 filled true blended edge true error 0
+webgl {"antialias":false} antialias false SAMPLES 0 filled true blended edge false error 0
+webgl2 default antialias true SAMPLES 4 filled true blended edge true error 0
+copyTexImage2D 0
+copied corner 255,0,0,255
+blit into the multisampled canvas 0x502

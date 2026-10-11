@@ -5,7 +5,7 @@ import { quit } from 'zinc:gfx';
 const SCRIPT = `
 const canvas = document.createElement('canvas');
 canvas.width = 64; canvas.height = 64;
-const gl = canvas.getContext('webgl');
+const gl = canvas.getContext('webgl', { antialias: false });   // the frame hash must not depend on the GPU's sample pattern
 function shader(t, s) { const o = gl.createShader(t); gl.shaderSource(o, s); gl.compileShader(o); return o; }
 const p = gl.createProgram();
 gl.attachShader(p, shader(gl.VERTEX_SHADER, 'attribute vec2 pos; void main() { gl_Position = vec4(pos, 0.0, 1.0); }'));

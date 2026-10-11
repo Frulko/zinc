@@ -2,15 +2,16 @@
 """three-compare: real three.js scenes on zinc's WebGL 2 against headless Chrome (ZN-204).
 
   tools/three-compare                    run every scene of tests/three on `zinc run --engine quickjs`, compare with tests/three/ref/<scene>.png (SSIM >= 0.90, mean error <= 12), exit 1 below
-  tools/three-compare --update-refs      render the references with headless Chrome (needs Google Chrome; a local http server serves this directory), write tests/three/ref/*.png
+  tools/three-compare --update-refs [scene...]  render the references with headless Chrome (needs Google Chrome; a local http server serves this directory), write tests/three/ref/*.png
   tools/three-compare --out DIR          keep the zinc frames as PNG in DIR
-The scene modules (tests/three/scenes.mjs) are the same on both sides; 128 x 128 pixels, antialias off.
+The scene modules (tests/three/scenes.mjs) are the same on both sides; 128 x 128 pixels, antialias off but in `edges` (ZN-576: SSIM >= 0.95).
 """
 import time, resource, http.server, importlib.machinery, importlib.util, os, socketserver, struct, subprocess, sys, tempfile, threading, zlib
 
 HERE = os.path.dirname(os.path.abspath(__file__)); NEXT = os.path.dirname(HERE); T = os.path.join(NEXT, "tests", "three"); REF = os.path.join(T, "ref")
 STATS = {}
-SCENES = ["cube", "instancedShadow", "gltf"]; SIZE = 128
+SCENES = ["cube", "instancedShadow", "gltf", "edges"]; SIZE = 128
+MIN_SSIM = {"edges": 0.95}   # the antialiased edges against Chrome's (ZN-576); 0.90 elsewhere
 ZINC = os.environ.get("ZINC", os.path.join(NEXT, "build", "zinc")); CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 loader = importlib.machinery.SourceFileLoader("pngdiff", os.path.join(HERE, "pngdiff")); spec = importlib.util.spec_from_loader("pngdiff", loader); pd = importlib.util.module_from_spec(spec); loader.exec_module(pd)
 
@@ -40,7 +41,8 @@ def update_refs():
         def log_message(self, *a): pass
     srv = socketserver.TCPServer(("127.0.0.1", 0), Q); port = srv.server_address[1]; threading.Thread(target=srv.serve_forever, daemon=True).start()
     os.makedirs(REF, exist_ok=True)
-    for s in SCENES:
+    only = [a for a in sys.argv[sys.argv.index("--update-refs") + 1:] if a in SCENES]
+    for s in only or SCENES:
         out = os.path.join(REF, s + ".png")
         subprocess.run([CHROME, "--headless=new", "--disable-gpu-vsync", "--hide-scrollbars", "--force-device-scale-factor=1", "--window-size=%d,%d" % (SIZE, SIZE), "--virtual-time-budget=20000", "--screenshot=" + out, "http://127.0.0.1:%d/tests/three/page.html?scene=%s" % (port, s)], capture_output=True, timeout=120)
         w, h, rgb = load_png(out); write_png(out, w, h, rgb); print("ref", s, w, h)
@@ -57,7 +59,7 @@ def main():
         w, h, ref = load_png(os.path.join(REF, s + ".png"))
         if (w, h) != (SIZE, SIZE): print("FAIL %s: reference is %dx%d" % (s, w, h)); bad += 1; continue
         q = pd.ssim(pd.luma(mine), pd.luma(ref), SIZE, SIZE); mae = sum(abs(a - b) for a, b in zip(mine, ref)) / len(mine)
-        ok = q >= 0.90 and mae <= 12; bad += not ok
+        ok = q >= MIN_SSIM.get(s, 0.90) and mae <= 12; bad += not ok
         print("%s %-16s ssim %.3f mean error %.2f   gl calls %s, %.1f s, peak %.0f MB" % ("ok  " if ok else "FAIL", s, q, mae, STATS[s]["calls"], STATS[s]["seconds"], STATS[s]["rss_mb"]))
     return 1 if bad else 0
 sys.exit(main())

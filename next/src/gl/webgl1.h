@@ -55,7 +55,9 @@ class WebGL1 {
   void resizeDrawingBuffer(int w, int h);
   bool drawingBufferDirty() const { return dirty_; }   // something was drawn to the default framebuffer since the last composite
   void compositeClear();
-  void setAttributes(bool depth, bool stencil, bool alpha = true) { depthAttr_ = depth; stencilAttr_ = stencil; alphaAttr_ = alpha; }
+  /** antialias: a multisampled default framebuffer of 4 samples where the driver has them (ZN-576); antialias() says whether it got one. */
+  void setAttributes(bool depth, bool stencil, bool alpha = true, bool antialias = false) { depthAttr_ = depth; stencilAttr_ = stencil; alphaAttr_ = alpha; if (antialias) gl_.setSamples(4); }
+  bool antialias() const { return gl_.samples() > 0; }
   Param getFramebufferAttachmentParameter(std::uint32_t target, std::uint32_t attachment, std::uint32_t pname);
   Param getIndexedParameter(std::uint32_t target, std::uint32_t index);
   std::vector<std::uint32_t> getUniformIndices(Id p, const std::vector<std::string>& names);
