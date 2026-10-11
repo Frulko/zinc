@@ -2,7 +2,8 @@
 id: ZN-327
 title: 'Guide: from template to store, one page'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-08 14:19'
 labels:
   - docs

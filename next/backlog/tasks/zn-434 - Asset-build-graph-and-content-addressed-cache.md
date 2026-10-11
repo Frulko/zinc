@@ -2,7 +2,8 @@
 id: ZN-434
 title: Asset build graph and content-addressed cache
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-09 07:35'
 labels:
   - games
