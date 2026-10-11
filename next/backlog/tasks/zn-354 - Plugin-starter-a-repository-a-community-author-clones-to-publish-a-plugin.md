@@ -2,7 +2,8 @@
 id: ZN-354
 title: 'Plugin starter: a repository a community author clones to publish a plugin'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-08 14:42'
 labels:
   - plugins
