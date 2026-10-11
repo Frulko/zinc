@@ -4,7 +4,8 @@ title: >-
   UI style: Background images and `<image>` fit: `object-fit/position`,
   `bg-size`, `bg-repeat`, tint
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-07 12:57'
 labels:
   - ui
