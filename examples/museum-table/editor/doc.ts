@@ -80,8 +80,27 @@ function reachable(x: number, y: number, width: number, height: number, reach: n
   }
   return [nx, ny];
 }
-function sequenceWord(lang: string): string { return lang === 'fr' ? 'Séquence' : 'Sequence'; }
-function copyWord(lang: string): string { return lang === 'fr' ? ' (copie)' : ' (copy)'; }
+// The words a new thing is named with until the author names it, in the languages the editor offers (strings.ts LANGUAGE_NAMES): a
+// sequence, a guided visit, a point of interest, a copy.
+const SEQUENCE: i32 = 1, TOUR: i32 = 2, POINT: i32 = 3, COPY: i32 = 4;
+const WORDS: string[] = ['fr', 'Séquence', 'Visite', 'Point', 'copie', 'en', 'Sequence', 'Tour', 'Point', 'copy', 'de', 'Sequenz', 'Rundgang', 'Punkt', 'Kopie',
+  'es', 'Secuencia', 'Visita', 'Punto', 'copia', 'it', 'Sequenza', 'Visita', 'Punto', 'copia', 'nl', 'Sequentie', 'Rondleiding', 'Punt', 'kopie', 'pt', 'Sequência', 'Visita', 'Ponto', 'cópia'];
+/** The word of a language ("pt-BR" has Portuguese's); '' when the editor has no word in it. */
+function wordIn(lang: string, which: i32): string {
+  const at = WORDS.indexOf(lang.split('-')[0].toLowerCase());
+  return at >= 0 && at % 5 === 0 ? WORDS[at + which] : '';
+}
+/** The word in the default language, where a name is required: English's when the editor has none. */
+function mainWord(lang: string, which: i32): string { const w = wordIn(lang, which); return w.length > 0 ? w : wordIn('en', which); }
+/** Names a new thing "<word> n" in each language in its own word; a language the editor has no word in is left empty for the author
+ *  (the table then shows the default language's name), except the default one. */
+function nameNew(title: Text, languages: string[], which: i32, n: i32): void {
+  for (let i = 0; i < languages.length; i++) {
+    const w = i === 0 ? mainWord(languages[i], which) : wordIn(languages[i], which);
+    if (w.length > 0) title.set(languages[i], `${w} ${n}`);
+  }
+}
+function copyWord(lang: string): string { const w = wordIn(lang, COPY); return w.length > 0 ? ` (${w})` : ' 2'; }
 
 // ---------------------------------------------------------------- problems
 
@@ -210,7 +229,7 @@ export class Doc {
     this.apply('New sequence', '', (p: Project) => {
       const s = new Sequence();
       s.id = id;
-      for (const lang of p.languages) s.title.set(lang, `${sequenceWord(lang)} ${n}`);
+      nameNew(s.title, p.languages, SEQUENCE, n);
       s.storyX = x; s.storyY = y;
       p.sequences.push(s);
       if (p.sequences.length === 1) p.start = id;
@@ -523,7 +542,7 @@ export class Doc {
     this.apply('New point of interest', '', (p: Project) => {
       const q = new Point();
       q.id = id; q.at = placed(at);
-      for (const lang of p.languages) q.title.set(lang, `Point ${n}`);
+      nameNew(q.title, p.languages, POINT, n);
       this.see(m, q, yaw, pitch, reach);
       m.points.push(q);
     });
@@ -691,6 +710,18 @@ export class Doc {
     this.apply('Add a language', '', (p: Project) => { p.languages.push(code); });
     return true;
   }
+  /** Makes a language of the project the default one, the first of the list: what a visitor reads before choosing, and what a text without
+   *  a translation falls back on. Every required text has to be written in it: returns '' when done, else what the loader misses
+   *  ("sequences[1].title.en: missing (the default language)") and nothing is changed. */
+  setDefaultLanguage(code: string): string {
+    if (this.project.languages.indexOf(code) < 1) return '';
+    const first = (p: Project): void => { p.languages = [code].concat(p.languages.filter((l: string) => l !== code)); };
+    const trial = copyProject(this.project);
+    first(trial);
+    try { parseProject(serializeProject(trial)); } catch (e) { return e.message; }
+    this.apply('Change the default language', '', first);
+    return '';
+  }
   /** How many texts the project has in a language: what removing it loses. */
   textsIn(code: string): i32 {
     let n: i32 = 0;
@@ -772,14 +803,14 @@ export class Doc {
   /** A guided visit, "Visite N" until it is named, that begins where the visit starts. Returns its id, '' while the project has no sequence. */
   addPresentation(): string {
     if (this.project.sequence(this.project.start) === null) return '';
-    const word = (lang: string): string => lang === 'fr' ? 'Visite' : 'Tour', main = this.project.languages[0];
+    const word = (lang: string): string => mainWord(lang, TOUR), main = this.project.languages[0];
     let n = 1;
     while (this.presentation(slug(`${word(main)} ${n}`)) !== null) n++;
     const id = slug(`${word(main)} ${n}`);   // the id of its first title: it follows the title until the author names it otherwise
     this.apply('New presentation', '', (p: Project) => {
       const r = new Presentation();
       r.id = id; r.path = [p.start];
-      for (const lang of p.languages) r.title.set(lang, `${word(lang)} ${n}`);
+      nameNew(r.title, p.languages, TOUR, n);
       p.presentations.push(r);
     });
     return id;

@@ -508,6 +508,11 @@ export function addLanguage(code: string): boolean {
   setStatus(ok ? f(L.DONE_LANGUAGE, L.languageName(code.trim())) : f(L.NOT_A_LANGUAGE, code));
   return ok;
 }
+/** Makes a language the default one; the status says what is missing in it when it cannot be. */
+export function makeDefaultLanguage(code: string): void {
+  const missing = current.setDefaultLanguage(code);
+  setStatus(missing.length === 0 ? f(L.DONE_DEFAULT, L.languageName(code)) : f(L.NOT_DEFAULT, L.languageName(code), missing));
+}
 /** The language whose removal waits for an answer ('' for none): texts are written in it. */
 export const [forgetting, setForgetting] = createSignal<string>('');
 export function textsIn(code: string): i32 { rev(); return current.textsIn(code); }

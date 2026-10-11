@@ -4,7 +4,7 @@
 // Zoom is done by laying the nodes out at the zoom (four steps), not by a transform, so that texts stay sharp at every step.
 import { createSignal, createNodeRef, createMemo, createEffect, For, Show, batch } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
-import { stroke, polygon, rect } from 'zinc:gfx';
+import { stroke, polygon, rect, setTransform, resetTransform } from 'zinc:gfx';
 import { Sequence, Link, Item, unreachable } from '../src/project';
 import { project, lang, selected, selectedLink, select, zoom, zoomStep, panX, panY, setPanX, setPanY, zoomBy, CARD_W, CARD_H, setViewSize, addSequence, addSequenceInView,
   moveSequence, link, sourceOf, setStatus, hovered, setHovered, openSequence, fit, viewW, viewH, ZOOMS } from './state';
@@ -184,7 +184,7 @@ function handleUp(e: ui.PointerEvent): void {
 
 const lost = createMemo<string[]>(() => project().sequences.length > 0 ? unreachable(project()) : [], []);
 
-// ponytail: the miniature shows every item upright; draw them turned as the table of a sequence does (sequence.tsx drawItem) when it matters
+/** The table of a sequence in small: every item where it lies, turned as it is turned. */
 function Miniature(p: { of: Sequence }): i32 {
   const s = p.of;
   const W = (): number => project().table.width, H = (): number => project().table.height;
@@ -193,7 +193,13 @@ function Miniature(p: { of: Sequence }): i32 {
     <For each={(project(), s.items)}>{(it: Item, i: i32) => {
       const h = (): number => { project(); return it.height > 0 ? it.height : it.width * shapeOf(project().medium(it.media)); };
       return <canvas class="absolute" style={{ left: (it.x - it.width / 2) * k(), top: (it.y - h() / 2) * k(), width: Math.max(2, it.width * k()), height: Math.max(2, h() * k()), lazy: 1 }}
-        onDraw={(x: i32, y: i32, w: i32, h: i32) => drawMedia(project().medium(it.media), x, y, w, h)} />;
+        onDraw={(x: i32, y: i32, w: i32, h: i32) => {
+          if (it.rotation === 0) { drawMedia(project().medium(it.media), x, y, w, h); return; }
+          const a = it.rotation * Math.PI / 180;
+          setTransform(Math.cos(a), Math.sin(a), -Math.sin(a), Math.cos(a), x + w / 2, y + h / 2);
+          drawMedia(project().medium(it.media), -w / 2, -h / 2, w, h);
+          resetTransform();
+        }} />;
     }}</For>
     <Show when={(project(), s.items.length === 0) && zoomStep() > 0}>
       <view class="absolute inset-0 items-center justify-center"><text class={`text-zinc-500 ${SMALL[zoomStep()]}`}>{t(L.NO_MEDIA_YET)}</text></view>

@@ -1,5 +1,10 @@
-# And forth again, by both keys (played after undo.input).
-160 key z meta+shift
-162 key z meta+shift
-164 key y meta
-168 key s meta
+# On the saved project: two new sequences, two steps back, and forth again by both keys; Save (tests/t1/museum_editor.sh).
+4 key n
+5 key Escape
+6 key n
+7 key Escape
+9 key z meta
+10 key z meta
+12 key z meta+shift
+13 key y meta
+16 key s meta

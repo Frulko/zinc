@@ -189,6 +189,28 @@ check('the sample project is in canonical form', serializeProject(parseProject(s
   check('the project has a title and an id', d.project.title.get('fr') === 'Le monde flottant' && d.project.id === 'floating-world' && plays(d.text()));
 }
 
+// ---- the default language, and the name of a new thing in each language
+{
+  const d = new Doc(newProject(), '');
+  d.addLanguage('de'); d.addLanguage('ja'); d.addLanguage('pt-BR');
+  d.addSequence(0, 0); d.addPresentation();
+  const s = d.project.sequences[0], tour = d.project.presentations[0];
+  check('a new sequence and a new guided visit are named in each language\'s own word, and left empty where the editor has none',
+    s.title.get('fr') === 'Séquence 1' && s.title.get('en') === 'Sequence 1' && s.title.get('de') === 'Sequenz 1' && s.title.get('pt-BR') === 'Sequência 1' && s.title.get('ja') === undefined
+    && tour.title.get('de') === 'Rundgang 1' && tour.title.get('ja') === undefined && plays(d.text()));
+  d.setProjectTitle('de', 'Neues Projekt');
+  const before = d.text(), refused = d.setDefaultLanguage('ja');
+  check('a language in which a required text is missing cannot be the default one', refused.indexOf('ja: missing') > 0 && d.text() === before);
+  check('the default language is another one of the project, in one step that undo takes back', d.setDefaultLanguage('de') === '' && d.project.languages.join(' ') === 'de fr en ja pt-BR'
+    && plays(d.text()) && d.setDefaultLanguage('de') === '' && d.setDefaultLanguage('xx') === '' && d.undo() === 'Change the default language' && d.text() === before);
+  const p = newProject();
+  p.languages = ['ja', 'fr']; p.title.set('ja', 'Tenji');
+  const e = new Doc(p, '');
+  e.addSequence(0, 0);
+  check('in a default language the editor has no word in, a new sequence has the English word', e.project.sequences[0].title.get('ja') === 'Sequence 1'
+    && e.project.sequences[0].title.get('fr') === 'Séquence 1' && plays(e.text()));
+}
+
 // ---- 50 mixed operations from an empty project: undo and redo give back every file, byte for byte
 {
   const d = new Doc(newProject(), '');

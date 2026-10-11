@@ -4,7 +4,9 @@ import { rrect, imageFromBytes, destroyImage, createImage, beginImage, endImage,
 import { readBytes } from 'zinc:fs';
 import { icon } from 'zinc:icons';
 import { Svg } from 'zinc:svg';
-import { Media, KINDS } from '../src/project';
+import { Media, KINDS, copyProject } from '../src/project';
+import { ObjectView } from '../src/viewer';
+import { Frame } from '../src/frame';
 import { project, folder } from './state';
 
 /** The colours of the editor's chrome (Tailwind's zinc greys, amber for what is selected or primary). */
@@ -32,10 +34,14 @@ class Picture { file = ''; image: i32 = -1; w: i32 = 1; h: i32 = 1; seen: i32 = 
 const pictures: Picture[] = [], wanted: string[] = [];
 let frame: i32 = 0;
 const [arrived, setArrived] = createSignal<i32>(0);
-/** The file of the project folder that shows a medium: a photograph, a panorama, the poster of a film ('' when it has none). */
+/** What a thumbnail of a 3D model is kept under: the model as the table first shows it (its file, its texture, its opening view, its light). */
+const MODEL = 'model ';
+/** The file of the project folder that shows a medium: a photograph, a panorama, the poster of a film ('' when it has none); for a 3D
+ *  model the name of its rendered thumbnail. */
 function pictureFile(m: Media | null): string {
   if (m === null || folder().length === 0) return '';
-  const file = m.kind === 'photo' || m.kind === 'panorama' ? m.file : m.kind === 'video' ? m.poster : m.kind === 'model' ? m.texture : '';
+  if (m.kind === 'model') return `${MODEL}${m.id} ${m.file} ${m.texture} ${m.view.yaw} ${m.view.pitch} ${m.view.distance} ${m.light}`;
+  const file = m.kind === 'photo' || m.kind === 'panorama' ? m.file : m.kind === 'video' ? m.poster : '';
   return file.length > 0 ? `${folder()}/${file}` : '';
 }
 /** The thumbnail of a file, null while it is not decoded yet or when the file is not a picture. */
@@ -53,7 +59,18 @@ export function decodePictures(): void {
   p.file = wanted[0]; p.seen = frame;
   wanted.splice(0, 1);
   try {
-    const full = imageFromBytes(readBytes(p.file));
+    if (p.file.startsWith(MODEL)) {   // the object as the table's own viewer first shows it, drawn once
+      const snap = copyProject(project()), own = snap.medium(p.file.split(' ')[1]);
+      if (own !== null) {
+        const view = new ObjectView(snap, own, snap.theme, snap.languages[0], new Frame(THUMB, THUMB), false);
+        view.x = THUMB / 2; view.y = THUMB / 2; view.w = THUMB; view.h = THUMB;
+        p.w = THUMB; p.h = THUMB;
+        p.image = createImage(THUMB, THUMB);
+        beginImage(p.image); view.render(0, 0, 1); endImage();
+        view.dispose();
+      }
+    }
+    const full: i32 = p.file.startsWith(MODEL) ? -1 : imageFromBytes(readBytes(p.file));
     if (full >= 0) {
       const w = imageWidth(full), h = imageHeight(full);
       p.w = Math.min(w, THUMB); p.h = Math.max(1, Math.round(h * p.w / w));

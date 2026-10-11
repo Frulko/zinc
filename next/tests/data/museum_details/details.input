@@ -1,0 +1,33 @@
+# The editor's details (tests/t1/museum_details.sh), on a project whose first sequence holds a photograph turned by 30 degrees, the sample's
+# vase and its panorama, every text written in French and in English. Ctrl + comma opens the settings: German is added.
+8 key , meta
+14 move 262 407
+15 down
+16 up
+# German cannot be the default language (the project has no title in it); English can.
+20 move 585 374
+21 down
+22 up
+26 move 585 334
+27 down
+28 up
+# A language the editor has no word in, by its code.
+32 move 390 487
+33 down
+34 up
+36 text ja
+40 move 628 487
+41 down
+42 up
+# Back to the storyboard: a new sequence, named in each language (frame 56: its titles, and the miniature of the first sequence).
+46 move 47 70
+47 down
+48 up
+52 key n
+# The table of the first sequence: the library shows the vase as the table will (frame 80). Save.
+58 move 350 230
+59 down
+60 up
+61 down
+62 up
+70 key s meta

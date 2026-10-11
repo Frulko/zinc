@@ -5,7 +5,7 @@ import { createSignal, createNodeRef, createEffect, NodeRef, For, Show, batch } 
 import * as ui from 'zinc:ui';
 import { Sequence, Presentation, Colours } from '../src/project';
 import { COLOURS } from './doc';
-import { project, lang, settings, openSettings, closeSettings, done, advanced, setProjectTitle, addLanguage, removeLanguageCommand, setColour, setThemeFile, filesEnding, setNumber, setFlag, setUpdateUrl,
+import { project, lang, settings, openSettings, closeSettings, done, advanced, setProjectTitle, addLanguage, removeLanguageCommand, makeDefaultLanguage, setColour, setThemeFile, filesEnding, setNumber, setFlag, setUpdateUrl,
   setTextSizes, tour, setTour, addPresentation, renamePresentation, deletePresentation, addStepCommand, removeStep, moveStep, setAttract, nameTour } from './state';
 import { Ico, Tool, Action, Segmented, LangColumns, PlainField, NumberField, ColourField, Heading, ACCENT, MUTED } from './widgets';
 import { SamplePane } from './preview';
@@ -72,6 +72,11 @@ function ProjectForm(): i32 {
           <view class="w-[34] h-6 items-center justify-center rounded bg-zinc-800"><text class="text-[11px] font-bold text-zinc-300">{language.toUpperCase()}</text></view>
           <text class="grow text-sm text-zinc-100">{L.languageName(language)}</text>
           <Show when={project().languages[0] === language}><text class="text-[11px] text-zinc-500">{t(L.DEFAULT_LANGUAGE)}</text></Show>
+          <Show when={project().languages[0] !== language}>
+            <button class="flex-row items-center h-[26] px-2 rounded cursor-pointer bg-zinc-950 border border-zinc-800 hover:border-zinc-600" onClick={() => makeDefaultLanguage(language)}>
+              <text class="text-[11px] text-zinc-300">{t(L.MAKE_DEFAULT)}</text>
+            </button>
+          </Show>
           <Show when={project().languages[0] !== language}>
             <button class="flex-row items-center justify-center w-[26] h-[26] rounded cursor-pointer bg-zinc-950 hover:bg-red-950" onClick={() => removeLanguageCommand(language)}><Ico name="x" size={13} color={MUTED} /></button>
           </Show>

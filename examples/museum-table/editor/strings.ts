@@ -335,7 +335,10 @@ export const PROJECT_ID = S('Identifier (statistics and updates are filed under 
 export const LANGUAGES = S('Languages of the content', 'Langues du contenu');
 export const LANGUAGES_WHAT = S('Every text is written once per language; a visitor chooses on the table. A text not translated yet is shown in the first language.',
   'Chaque texte s’écrit une fois par langue ; le visiteur choisit sur la table. Un texte pas encore traduit est montré dans la première langue.');
-export const DEFAULT_LANGUAGE = S('first language', 'première langue');
+export const DEFAULT_LANGUAGE = S('default language', 'langue par défaut');
+export const MAKE_DEFAULT = S('Make it the default', 'Mettre par défaut');
+export const DONE_DEFAULT = S('{0} is the default language: what a visitor reads first, and what an untranslated text falls back on.', '{0} est la langue par défaut : ce que le visiteur lit d’abord, et ce que montre un texte non traduit.');
+export const NOT_DEFAULT = S('{0} cannot be the default language yet: a required text is not written in it ({1}).', '{0} ne peut pas encore être la langue par défaut : un texte obligatoire n’y est pas écrit ({1}).');
 export const ADD_LANGUAGE = S('Add a language', 'Ajouter une langue');
 export const LANGUAGE_CODE = S('Another one, by its code (pt, nl, ja)', 'Une autre, par son code (pt, nl, ja)');
 export const NOT_A_LANGUAGE = S('"{0}" is not a language code, or the project has it already.', '« {0} » n’est pas un code de langue, ou le projet l’a déjà.');
@@ -420,7 +423,7 @@ const STEPS: string[] = ['New sequence', 'Nouvelle séquence', 'Rename sequence'
   'Rename the project', 'Renommer le projet', 'Add a language', 'Ajouter une langue', 'Remove a language', 'Retirer une langue', 'Change a colour', 'Changer une couleur',
   'Change the theme', 'Changer le thème', 'Change a setting', 'Changer un réglage', 'Change the attract loop', 'Changer la boucle d’appel', 'Change the text sizes', 'Changer les tailles de texte',
   'New presentation', 'Nouvelle visite guidée', 'Rename presentation', 'Renommer la visite guidée', 'Delete presentation', 'Supprimer la visite guidée', 'Add a step', 'Ajouter une étape',
-  'Remove a step', 'Retirer une étape', 'Move a step', 'Déplacer une étape'];
+  'Remove a step', 'Retirer une étape', 'Move a step', 'Déplacer une étape', 'Change the default language', 'Changer la langue par défaut'];
 /** The name of an undo step in the interface language. */
 export function step(label: string): string {
   const at = STEPS.indexOf(label);
