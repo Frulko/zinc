@@ -1969,6 +1969,21 @@ struct Lowering::FnLower {
     for (std::uint32_t pp : p.kids) {  // {a, b: x}: fields of a class instance
       std::uint32_t fi = L.fieldIndex(ct.obj, n(pp).text);
       ValueId prop = emit(IrOp::GetField, L.irType(c.nodeType[pp]), {v}, 0, 0, fi);
+      if (n(pp).kids.size() > 1 && n(pp).kids[1] != kNil && c.types[c.nodeType[pp]].undef) {   // {z = 5}: the default when the property is undefined (ZN-155)
+        const TypeId bt = L.irType(c.nodeType[n(pp).kids[0]]);
+        BlockId hb = newBlock(), eb = newBlock(), join = newBlock();
+        ValueId jp = newValue(bt);
+        f.blocks[join].params.push_back(jp);
+        condbr(emit(IrOp::Ne, m.boolT(), {prop, nullConst(tv(prop))}), hb, eb);
+        sealed[hb] = sealed[eb] = 1;
+        cur = hb;
+        br(join, {coerce(prop, bt)});
+        cur = eb;
+        br(join, {exprTo(n(pp).kids[1], bt)});
+        seal(join);
+        cur = join;
+        prop = jp;
+      }
       assignTarget(n(pp).kids[0], prop, isDecl);
     }
   }

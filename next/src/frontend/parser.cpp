@@ -117,8 +117,9 @@ struct Parser {
       std::uint32_t target;
       if (at(1).kind == Tok::Punct && txt(at(1)) == ":") { i += 2; target = bindingTarget(); }
       else { std::uint32_t is = cur().start; ++i; target = mk(N::Ident, is, prevEnd(), key); }  // shorthand {a}
-      if (isP("=")) unsupported("default values in patterns");
-      props.push_back(mk(N::PatProp, ps, prevEnd(), key, {target}));
+      std::uint32_t def = kNone;
+      if (eatP("=")) def = assignment();   // {z = 5}: used when the property is missing (ZN-155)
+      props.push_back(mk(N::PatProp, ps, prevEnd(), key, def == kNone ? std::vector<std::uint32_t>{target} : std::vector<std::uint32_t>{target, def}));
       if (!eatP(",")) break;
     }
     expectP("}");

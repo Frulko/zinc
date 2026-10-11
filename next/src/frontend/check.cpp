@@ -2139,6 +2139,7 @@ struct Checker {
             const Member* m = lookupMember(ty(out.syms[cs].type).obj, x.text, true);
             if (!m) { if (x.text == "prototype") diag(kZPrototypeMutation, i, ""); else diag(kZNoSuchProperty, i, "static '" + std::string(x.text) + "' on '" + std::string(on.text) + "'"); return tError; }
             if (!accessible(*m)) diag(kZNotAccessible, i, "'" + std::string(x.text) + "'");
+            if (m->getter && i != calleeNode && replaceWith(i, "__H0." + std::string(x.text) + "()", {{x.kids[0]}})) return expr0(i, expected);   // A.v of a static accessor: a call of it (ZN-155)
             if (m->method && i != calleeNode) out.staticMethodValueUses.push_back(i);   // Easing.inOut(Easing.ease): a static method passed as a function
             return m->type;
           }
@@ -2368,6 +2369,12 @@ struct Checker {
       if (!m || m->method) diag(kZNoSuchProperty, pp, "'" + std::string(pn.text) + "' on '" + name(va) + "'");
       else { if (!accessible(*m)) diag(kZNotAccessible, pp, "'" + std::string(pn.text) + "'"); et = m->type; }
       out.nodeType[pp] = et;
+      if (pn.kids.size() > 1 && pn.kids[1] != kNone) {   // {z = 5}: used when the property is undefined (not null, as in JavaScript); the target then has its type without it (ZN-155)
+        const TypeId bt = !bad(et) && ty(et).k == TK::Union && hasNull(et) && ty(et).undef ? withoutNull(et) : et;
+        if (!bad(bt)) require(expr(pn.kids[1], bt), bt, pn.kids[1]); else expr(pn.kids[1]);
+        bindTarget(pn.kids[0], bt, isDecl, isConst);
+        continue;
+      }
       bindTarget(pn.kids[0], et, isDecl, isConst);
     }
   }
@@ -3924,7 +3931,7 @@ struct Checker {
         if (isCtor) { out.objs[objIdx].ctor = func(ty(sig).params, self, ty(sig).minArgs); out.objs[objIdx].ctorAccess = accessOf(fl); ctorNode = m; }
         mem.type = sig; mem.method = true; mem.readonly = true; mem.isAbstract = isIface || (fl & frontend::kFlagAbstract);
         mem.getter = (fl & frontend::kFlagGetter) != 0;
-        if (mem.getter && (isIface || mem.isStatic)) diag(kZUnsupported, m, isIface ? "accessors in interfaces" : "static accessors");
+        if (mem.getter && isIface) diag(kZUnsupported, m, "accessors in interfaces");
         methods.push_back({m, sig});
         methodParams.push_back(std::move(ps));
         if (mn.kids[1] == kNone && !isIface && !(fl & frontend::kFlagAbstract) && !isCtor) diag(kZAbstractViolation, m, "method '" + std::string(mn.text) + "' has no body");
