@@ -20,6 +20,6 @@ How it fits together:
 - `main.js` is the page: it loads p5.js, then `sketch.js`, as two `<script>` tags would.
 - `sketch.js` is the sketch, thirty lines. It runs as it is in the p5 editor; nothing in it is special to Zinc.
 
-Not there yet: only WEBGL mode. A sketch with a plain `createCanvas(w, h)`, and `text()` in both modes, draw with Canvas 2D, which draws nothing yet (ZN-570; p5's start-up checks print one line about it).
+This example is in WEBGL mode. A sketch with a plain `createCanvas(w, h)` and `text()` draws with Canvas 2D, which the web environment has since ZN-570 (shapes, text with the bundled Inter or a font of the project; no patterns, filters or blend modes beyond the common eleven yet: ZN-572).
 
 Test: `next/tests/run --only example_js_p5` (a scripted pointer, then frame 30 against `screenshot.png`).

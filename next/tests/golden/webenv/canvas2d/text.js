@@ -24,6 +24,8 @@ ctx.globalCompositeOperation = 'destination-out'; ctx.fillStyle = '#000'; ctx.fi
 log('clip and composite', at(145, 5), at(155, 5), at(145, 15), at(2, 2), ctx.globalCompositeOperation);
 ctx.beginPath(); ctx.moveTo(160, 0); ctx.lineTo(180, 0); ctx.lineTo(180, 20); ctx.closePath(); ctx.fillStyle = '#ff8000'; ctx.fill();
 log('path', at(175, 5), at(165, 15), ctx.isPointInPath(175, 5), ctx.isPointInPath(165, 15));
+ctx.beginPath(); ctx.roundRect(180, 40, 40, 30, 10); ctx.ellipse(240, 55, 12, 6, 0, 0, Math.PI * 2); ctx.fill();
+log('roundRect and ellipse', at(181, 41), at(200, 55), at(218, 68), at(240, 55), at(240, 47), at(249, 55), at(254, 55));
 const g = ctx.createLinearGradient(200, 0, 240, 0); g.addColorStop(0, '#000'); g.addColorStop(1, '#fff'); ctx.fillStyle = g; ctx.fillRect(200, 0, 40, 20);
 const mid = ctx.getImageData(220, 10, 1, 1).data[0];
 log('gradient', at(200, 10).split(',')[0] < 8, mid > 118 && mid < 138, at(239, 10).split(',')[0] > 247, ctx.fillStyle === g);
@@ -66,7 +68,7 @@ ctx.font = '20px Mine'; log('FontFace', face.status, document.fonts.check('20px 
 const none = new FontFace('None', new Uint8Array(40)); log('not a font', await none.loaded.then(() => 'loaded', e => e.name), none.status);
 
 // what this tier does not do is counted, not thrown
-ctx.roundRect(0, 0, 10, 10, 2); ctx.fill('evenodd'); ctx.fillStyle = ctx.createPattern(src, 'repeat'); ctx.globalCompositeOperation = 'multiply'; ctx.filter = 'blur(2px)'; ctx.isPointInStroke(1, 1);
+ctx.fill('evenodd'); ctx.fillStyle = ctx.createPattern(src, 'repeat'); ctx.globalCompositeOperation = 'multiply'; ctx.filter = 'blur(2px)'; ctx.isPointInStroke(1, 1);
 ctx.arc(0, 0, NaN, 0, 1); ctx.fillRect(0, 0, Infinity, 1); ctx.drawImage(new Image(), 0, 0);
 log('unsupported', __canvas2dUnsupported());
 

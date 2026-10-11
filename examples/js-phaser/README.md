@@ -21,6 +21,6 @@ How it fits together:
 Not there yet:
 
 - No sound: the web environment has no audio (ZN-573). The game loads and plays its two sounds as any Phaser game does, and Phaser stays silent; they will be heard without a change here.
-- No `this.add.text(...)`: Phaser draws text with Canvas 2D, which draws nothing yet (ZN-570; Phaser's start-up checks print one line about it). The score uses a bitmap font instead.
+- No `this.add.text(...)` here: the example was written before the web environment had Canvas 2D, which Phaser draws its text with (ZN-570). The score uses a bitmap font instead.
 
 Test: `next/tests/run --only example_js_phaser` (a scripted game that ends on `game over: 3 stars`, and frame 440 against `screenshot.png`).

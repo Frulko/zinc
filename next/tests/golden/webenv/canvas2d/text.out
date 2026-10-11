@@ -5,6 +5,7 @@ clear and stroke 0,0,0,0 255,0,0,255 0,255,0,255 0,0,0,0 #00ff00
 alpha 128,128,128,255 0,0,255,128
 clip and composite 0,255,0,255 0,0,0,0 0,0,0,0 0,0,0,0 source-over
 path 255,128,0,255 0,0,0,0 true false
+roundRect and ellipse 0,0,0,0 255,128,0,255 0,0,0,0 255,128,0,255 0,0,0,0 255,128,0,255 0,0,0,0
 gradient true true true true
 image data 2 2 255,0,0,255,0,255,0,255,0,0,255,255,255,255,0,128 16
 drawImage 255,0,0,255 0,0,255,255 0,0,0,0 255,0,0,255 0,0,255,255 0,0,255,255 0,0,255,255 0,0,0,0
@@ -16,6 +17,6 @@ text and path 255,255,255,255 0 true true
 maxWidth true true true
 FontFace loaded true true
 not a font SyntaxError error
-unsupported {"roundRect (square corners)":1,"fill 'evenodd' (non-zero rule)":1,"createPattern":1,"pattern as fillStyle":1,"globalCompositeOperation 'multiply'":1,"filter":1,"isPointInStroke":1}
+unsupported {"fill 'evenodd' (non-zero rule)":1,"createPattern":1,"pattern as fillStyle":1,"globalCompositeOperation 'multiply'":1,"filter":1,"isPointInStroke":1}
 texture source 64 32 8192 0 true
 frames 3

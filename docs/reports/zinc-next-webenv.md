@@ -67,7 +67,7 @@ What a program finds:
   in the window; any canvas is a texture source (`texImage2D`) and a `drawImage` source. Against headless Chrome with the same font:
   `measureText` widths equal, TextMetrics, baselines and glyph boxes within a pixel, a scene of game text at SSIM 0.99
   (`tests/t1/webenv_canvas2d.sh`; `tools/canvas2d-ref` makes the references). Not in this tier, counted and never thrown
-  (`__canvas2dUnsupported()`, named by `ZINC_WEB=trace`): Path2D, patterns, conic gradients, rounded corners of `roundRect`, filters, the
+  (`__canvas2dUnsupported()`, named by `ZINC_WEB=trace`): Path2D, patterns, conic gradients, filters, the
   even-odd rule, the blend modes beyond the eleven, `isPointInStroke`; pictures are always resampled with a bicubic filter (no
   nearest-neighbour), italic is drawn upright. These are ZN-572.
 - **Images**: no `createImageBitmap` and no `ImageBitmap`, on purpose, as long as there is no `Worker`: PixiJS 7 and 8, finding
@@ -82,11 +82,11 @@ What a program finds:
 
 | Library | State | Test |
 |---|---|---|
-| p5.js 1.11.13 | boots and draws in WEBGL mode; its 2D mode waits for ZN-570 | `tests/t1/webenv_p5.sh` |
+| p5.js 1.11.13 | boots and draws in WEBGL mode, and in its default 2D mode (shapes, rounded rectangles, text: SSIM 0.99 against Chrome, ZN-570) | `tests/t1/webenv_p5.sh`, `tests/t1/webenv_canvas2d_libs.sh` |
 | three.js r186 | boots, animates, OrbitControls turns the camera by a scripted drag; `TextureLoader` shows a picture from a file | `tests/t1/webenv_three.sh` |
-| PixiJS 7.4.3 | boots, animates, its sprites hear the pointer; `Assets.load` shows a picture from a file; a Graphics fill waits for ZN-570 | `tests/t1/webenv_pixi.sh` |
-| PixiJS 8.22.0 | boots, animates, a Graphics square hears the pointer (since ZN-565: a WebGL 2 context is no longer `instanceof WebGLRenderingContext`, and `#define in attribute` compiles); `Assets.load` shows a picture from a file | `tests/t1/webenv_pixi.sh` |
-| Phaser 3.90.0 | boots and animates on WebGL 1: its shaders compile (ZN-565), its default textures and a picture from a file load (ZN-569), its keyboard and pointer hear scripted input; its Text objects wait for ZN-570 | `tests/t1/webenv_phaser.sh` |
+| PixiJS 7.4.3 | boots, animates, its sprites hear the pointer; `Assets.load` shows a picture from a file; a Graphics fill and a Text draw since ZN-570 (seen in a frame, not in a test) | `tests/t1/webenv_pixi.sh` |
+| PixiJS 8.22.0 | boots, animates, a Graphics square hears the pointer (since ZN-565: a WebGL 2 context is no longer `instanceof WebGLRenderingContext`, and `#define in attribute` compiles); `Assets.load` shows a picture from a file; Text (fill, stroke, drop shadow, alignment, word wrap) at SSIM 0.98 against Chrome (ZN-570) | `tests/t1/webenv_pixi.sh`, `tests/t1/webenv_canvas2d_libs.sh` |
+| Phaser 3.90.0 | boots and animates on WebGL 1: its shaders compile (ZN-565), its default textures and a picture from a file load (ZN-569), its keyboard and pointer hear scripted input; its Text objects (fill, stroke, shadow, background, alignment) at SSIM 0.98 against Chrome (ZN-570) | `tests/t1/webenv_phaser.sh`, `tests/t1/webenv_canvas2d_libs.sh` |
 
 ## Tests
 

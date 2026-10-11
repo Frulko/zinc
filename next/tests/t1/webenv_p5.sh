@@ -2,7 +2,7 @@
 # p5.js on the web environment (ZN-568; ZN-566 for the stack): the unmodified p5.min.js 1.11.13 and a sketch in global mode, loaded as the two
 # script elements of a page, boot to their frames with no shim of the test's own: setup makes a WEBGL canvas (WebGL 2), draw runs on
 # requestAnimationFrame, and the pixels read inside the box and in the corner are the sketch's colours at frames 1 and 5. p5 keeps the
-# native Promise (PromiseRejectionEvent exists) and nothing is thrown. Its 2D mode waits for ZN-570 (the 2D context draws nothing yet).
+# native Promise (PromiseRejectionEvent exists) and nothing is thrown. Its 2D mode is tests/t1/webenv_canvas2d_libs.sh (ZN-570).
 # p5.js is LGPL-2.1, so the repository does not carry it (RULES.md 3): tools/test-lib takes the pinned file from p5's npm release into a cache
 # outside the repository, once, and checks its sha256. Neither cached nor downloadable: the test is skipped.
 cd "$(dirname "$0")/../.." || exit 2

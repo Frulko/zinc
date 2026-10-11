@@ -17,6 +17,6 @@ How it fits together:
 - `importmap.json` says where `import 'pixi.js'` comes from (the copy in `next/third_party/pixi`), as an import map does in a page.
 - `main.js` is the whole program. It is PixiJS as its guide writes it; nothing in it is special to Zinc. It has no asset: one white disc is drawn into a texture, and every star, planet and moon is a sprite of it.
 
-Not there yet: no `Text`. PixiJS draws text with Canvas 2D, which draws nothing yet (ZN-570; PixiJS's start-up checks print one line about it), so the planets have no names.
+No `Text` here: the example was written before the web environment had Canvas 2D, which PixiJS draws its text with (ZN-570), so the planets have no names yet.
 
 Test: `next/tests/run --only example_js_pixi` (a scripted click on the large planet, then frame 60 against `screenshot.png`).

@@ -1,6 +1,6 @@
 // PixiJS 7 as its guide writes it: an Application, its view in the document, a sprite turning on the ticker and hearing the pointer (ZN-568).
 // Run with ZINC_WEB=1 and ../pointer.input by tests/t1/webenv_pixi.sh; the output is page.out. The sprite's texture is made from bytes: an
-// image file is ZN-569's, and a Graphics fill in PixiJS 7 is tinted from a white 2D canvas (ZN-570).
+// image file is ZN-569's, and a Graphics fill in PixiJS 7 is tinted from a white 2D canvas (there since ZN-570).
 import { Application, Sprite, Texture, VERSION } from 'pixi.js';
 const app = new Application({ width: 320, height: 240, backgroundColor: 0x102030, antialias: false });
 document.body.appendChild(app.view);
