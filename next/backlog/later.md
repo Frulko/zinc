@@ -70,6 +70,9 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-450: QuickJS has no host events (`__addEvHandler`): assets.onReload, zinc:sys signals and stdin, and zinc:process events never fire on `--engine quickjs`.
 - ZN-450: a project without asset rules or groups still restarts on an asset save, because its loose images are baked into the program.
 - ZN-450: a sprite removed from an atlas keeps a stale Frame in zinc:sprite until the next restart.
+- ZN-447: the splash's own `fadeMs` (stored since ZN-446) is still unused; `overlay()` could fade `image('.splash')` into the first frame of a program without `loading`.
+- ZN-447: the loader's fade image is in logical pixels, so it looks slightly soft for its duration at 2x; a physical-size snapshot would fix it.
+- ZN-447: the nodes of a zinc:ui loader screen stay allocated after main mounts its own root.
 
 ## Demos
 
@@ -152,3 +155,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-446: OS splashes from the exports (iOS launch storyboard, PSP PIC1, Vita LiveArea, 3DS banner) once those exports exist.
 - ZN-450: send the asset reload messages over `zinc dev --device` (TCP instead of the socket pair).
 - ZN-570: run webenv_canvas2d and webenv_canvas2d_libs on ARM and Linux (flat-colour values come from float maths; SSIM is against the Mac's Chrome).
+- ZN-447: run the loader stage in the browser export (the worker's blocking frame loop should run it like the gfx loop) and on the ESP32 device core (it needs the asset host rows).
