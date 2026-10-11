@@ -2,7 +2,8 @@
 id: ZN-447
 title: Loader stage and default loader screens
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-09 07:36'
 labels:
   - games
