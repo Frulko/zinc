@@ -438,6 +438,13 @@ The CPU time ZINC_GL_STATS calls "to submit" includes waits for the GPU (5.6 to 
 measured at load 6 from other builds, before ZN-432 changed the image path of the replay. GL replay against the software frame for convex
 and concave polygons: 0.06% of the pixels more than 24 apart, mean error 0.07 (tests/t1/gl_convex.sh).
 
+### ZN-581: GPU sprites, the zinc:gfx bunnymark (2026-10-11, Intel Mac, Radeon Pro 555X, load 2.8 to 3.3 with other agents building)
+
+20,000 sprites of 26x37 at 800x600 Retina, AOT, the GL window (`next/tests/data/sprites/bunny`); frame work = the profile's work p50 + the
+GL replay's CPU time to submit: before 0.64 + 3.38 = 4.02 ms, after 0.95 + 2.80 = 3.75 ms (target 4; another run 2.70 ms, the program's
+own update varying 0.22 to 0.39 ms with the clock); GPU about 10 ms before and after. Over 4 ms on this Mac: 20,000 tinted Add sprites
+4.63 ms, 15,000 turned sprites 4.78 ms. Recording a turned sprite costs about 110 ns in AOT. To remeasure on a quiet machine (the M1 Pro).
+
 ### ZN-434: asset builds (2026-10-11, Intel Mac, load 2.5 to 3.3 with another agent building)
 
 `zinc assets build` of the game-2d template: first build 13.5 ms, second (nothing changed) 9.5 ms for the whole command, median of 21

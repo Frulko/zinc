@@ -40,6 +40,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-434: importer versions instead of the engine's executable stamp in the asset keys once the importers settle, so CI shares ~/.zinc/cache/assets across engine builds and `zinc assets verify` can compare.
 - ZN-434: key the font baker on its scan's result (sizes, characters, faces) instead of the source texts, so an edit that adds no size or character reuses the blob in `zinc dev`.
 - ZN-434: zpk::write taking entries already compressed, so a release pack with one changed entry recompresses that entry only.
+- ZN-581: the browser host (targets/wasm/glue/worker.mjs) ignores drawImageRect's new rotation, tint and blend arguments.
+- ZN-581: a turned sprite takes 15 floats of the point pool (about 17,000 per frame on desktops before it fills): let the pool grow like the command buffer.
+- ZN-581: 20,000 Retina sprites cost about 10 ms of GPU on the 555X: measure a sprite-only shader program, or opaque sprites in the occlusion pass.
+- ZN-581: zinc:canvas could map globalCompositeOperation lighter, multiply and screen onto the new blend modes.
 
 ## Demos
 
@@ -55,3 +59,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-274: the 8-tween budget of transitions on a real ESP32.
 - ZN-327: the guide's flow for --target linux and rpi (export, --deb, the itch channels).
 - ZN-434: tests/t0/assets.sh on Linux x86_64 and arm64, and zn_assets (xxhash.h) under the zig cross builds.
+- ZN-581: the sprite path on a Pi 3 (GLES 2) and on Linux GL, frames against the software ones.
