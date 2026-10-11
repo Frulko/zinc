@@ -55,6 +55,7 @@ Resized to 2048 by 1024 pixels with `sips`.
 | --- | --- | --- |
 | `video/great-wave.mp4` | Ten seconds across The Met's photograph of the Great Wave (JP1847, above), made with ffmpeg | CC0 1.0 |
 | `video/great-wave.fr.vtt`, `video/great-wave.en.vtt` | Its subtitles | CC0 1.0 |
+| `video/great-wave.jpg` | Its poster: its first picture | CC0 1.0 |
 | `project.json` | The project file | CC0 1.0 |
 
 ## Narration

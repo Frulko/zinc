@@ -14,6 +14,7 @@ models/vase.obj: model 7058 vertices, 12000 triangles
 models/vase.jpg: image 1536x1536
 panoramas/ninomaru.jpg: image 2048x1024
 video/great-wave.mp4: 347438 bytes
+video/great-wave.jpg: image 854x480
 video/great-wave.fr.vtt: 202 bytes
 video/great-wave.en.vtt: 182 bytes
 audio/welcome.fr.mp3: 75190 bytes
@@ -89,4 +90,4 @@ audio/descriptions/garden.en.mp3: 66403 bytes
 audio/descriptions/garden.fr.vtt: 288 bytes
 audio/descriptions/garden.en.vtt: 247 bytes
 14 pictures, objects and panoramas, each with an audio description in fr and en
-90 files, all read
+91 files, all read

@@ -24,6 +24,7 @@ import { t, f } from './strings';
 const pictures = new Map<string, i32>();
 function inFolder(file: string): string { return `${folder()}/${file}`; }
 files.path = inFolder;
+files.onDisk = inFolder;
 files.exists = (file: string): boolean => folder().length > 0 && fs.exists(inFolder(file));
 files.text = (file: string): string => fs.readText(inFolder(file));
 files.bytes = (file: string): u8[] => fs.readBytes(inFolder(file));

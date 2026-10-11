@@ -49,6 +49,8 @@ sips -z 1024 2048 -s format jpeg -s formatOptions 80 "$work/pano/ninomaru_teien.
 ffmpeg -v error -y -loop 1 -i "$work/photos/great-wave.jpg" -t 10 \
   -vf "scale=3840:-2,zoompan=z=2.4:x='(iw-iw/zoom)*(0.04+0.50*on/240)':y='(ih-ih/zoom)*(0.10+0.55*on/240)':d=1:s=854x480:fps=24" \
   -frames:v 240 -c:v libx264 -preset slow -crf 32 -pix_fmt yuv420p -movflags +faststart -an "$assets/video/great-wave.mp4"
+# its poster: its first picture, so the card has the shape of the film
+ffmpeg -v error -y -i "$assets/video/great-wave.mp4" -frames:v 1 -q:v 4 -map_metadata -1 -fflags +bitexact "$assets/video/great-wave.jpg"
 
 # the placeholder sound of the narration (a soft note), the same for each language; narration.sh replaces it with a synthesised voice
 ffmpeg -v error -y -f lavfi -i "sine=frequency=528:duration=1.6" -af "afade=t=in:d=0.04,afade=t=out:st=0.3:d=1.3,volume=0.35" \

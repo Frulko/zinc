@@ -1,6 +1,5 @@
 // The few words the player itself says (everything else comes from the project file), in French and English; another language reads English.
 const WORDS: string[] = [
-  'film', 'Film, bientôt à l’écran', 'Film, on screen soon',
   'model', 'Objet en 3D', '3D object',
   'describe', 'Audiodescription', 'Audio description',
   'describe-stop', 'Arrêter la description', 'Stop the description',

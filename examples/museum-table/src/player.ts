@@ -179,6 +179,7 @@ export class Player {
     const v = this.voice;
     if (v !== null) v.stop();
     this.voice = null;
+    this.show([]);
     this.views.dispose();
   }
   /** The host changes the language, as the visitor's button does. */
@@ -213,11 +214,23 @@ export class Player {
     this.fault = why;
     console.error(`museum-table: ${why}`);
     this.change = null; this.tour = null; this.paused = false; this.attracting = false; this.session = null; this.voice = null; this.cue = '';
+    for (const s of this.stack) s.table.rest();
     this.stack = [];
     this.first = this.faults < 3 ? this.home : new Sequence();
   }
 
   private top(): Stage { return this.stack[this.stack.length - 1]; }
+  /** Puts these sequences on the table. The ones that leave it, or now wait under another, rest: their films stop. */
+  private show(stack: Stage[]): void {
+    const top: Stage | null = stack.length > 0 ? stack[stack.length - 1] : null;
+    for (const s of this.stack) if (s !== top) { s.table.rest(); this.hear(s); }
+    this.stack = stack;
+  }
+  /** Tells the story what happened to the films of a sequence. */
+  private hear(s: Stage): void {
+    for (const line of s.table.news) this.tell(line);
+    s.table.news = [];
+  }
 
   /** One line of the story log. */
   private tell(what: string): void { if (this.telling) console.log(`${this.count} ${what}`); }
@@ -332,7 +345,7 @@ export class Player {
     else c.after = overlay ? [stack[0], this.stage(s)] : [this.stage(s)];   // ponytail: one overlay at a time; a second one takes the place of the first
     this.top().table.opened = null;
     for (const b of this.top().buttons) b.finger = 0;
-    if (transition === 'none') { this.stack = c.after; this.arrived(s); this.layOutDock(); return; }
+    if (transition === 'none') { this.show(c.after); this.arrived(s); this.layOutDock(); return; }
     this.change = c;
   }
 
@@ -356,7 +369,7 @@ export class Player {
     this.tell('attract start');
     this.session = this.stack; this.change = null;
     this.attracting = true; this.tour = p; this.step = 0; this.played = 0; this.paused = false;
-    this.stack = [this.stage(this.project.sequence(p.path[0]) ?? this.home)];
+    this.show([this.stage(this.project.sequence(p.path[0]) ?? this.home)]);
     this.layOutDock();
     this.arrived(this.top().sequence);
   }
@@ -367,8 +380,8 @@ export class Player {
     const kept = this.session;
     this.session = null;
     this.tell(kept !== null ? `attract stop: back to ${kept[kept.length - 1].sequence.id}` : 'attract stop');
-    if (kept !== null) { this.stack = kept; this.layOutDock(); }
-    else { this.stack = [this.stage(this.home)]; this.layOutDock(); this.arrived(this.home); }
+    if (kept !== null) { this.show(kept); this.layOutDock(); }
+    else { this.show([this.stage(this.home)]); this.layOutDock(); this.arrived(this.home); }
   }
   /** Nobody has touched the table for the time the project gives: the visit is over and everything goes back to the start. */
   private reset(): void {
@@ -381,7 +394,7 @@ export class Player {
     const m = this.board;
     if (m !== null) m.open = false;
     if (this.attracting) { for (const s of this.stack) { s.setLanguage(this.lang); s.place(); } }
-    else { this.endTour('stop'); this.hush(); this.change = null; this.stack = [this.stage(this.home)]; }
+    else { this.endTour('stop'); this.hush(); this.change = null; this.show([this.stage(this.home)]); }
     this.layOutDock();
     this.tell(`reset: sequence ${this.attracting ? this.home.id : this.top().sequence.id}, language ${this.lang}, side ${this.F.name}, ${this.trail.length} seen`);
   }
@@ -591,7 +604,7 @@ export class Player {
     if (c !== null) {   // nothing answers to a touch while the table changes
       for (const f of fingers.down) if (f.fresh) f.owner = NOTHING;
       c.p += dt / (c.kind === 'slide' ? SLIDE : FADE);
-      if (c.p >= 0.5 && this.stack !== c.after) { this.stack = c.after; this.arrived(this.top().sequence); this.layOutDock(); }
+      if (c.p >= 0.5 && this.stack !== c.after) { this.show(c.after); this.arrived(this.top().sequence); this.layOutDock(); }
       if (c.p >= 1) this.change = null;
     } else if (this.tour !== null && !this.paused) {   // a presentation plays by itself: a touch pauses it, and does nothing else
       let touched = false;
@@ -669,6 +682,7 @@ export class Player {
       if (was !== null && was.media.id === this.described) this.hush(); else this.layOutDock();
     }
     if (turn >= 0) this.turnTo(turn);
+    this.hear(this.top());
   }
 
   /** Draws the frame, over the table's colour which the owner of the window has put there. */

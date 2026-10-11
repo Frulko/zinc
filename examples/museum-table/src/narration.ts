@@ -53,6 +53,12 @@ export function paceCues(transcript: string): Cue[] {
   return cues;
 }
 
+/** The subtitles of an audio or a video medium in `lang`: its WebVTT file, else its transcript at a reading pace. */
+export function cuesOf(project: Project, medium: Media, lang: string): Cue[] {
+  const vtt = medium.subtitles.replaceAll('{lang}', lang);
+  return vtt.length > 0 && files.exists(vtt) ? parseVtt(files.text(vtt)) : paceCues(project.say(medium.transcript, lang));
+}
+
 /** The sounds loaded so far, by file: a clip is decoded once. */
 const sounds = new Map<string, Sound>();
 
@@ -66,8 +72,7 @@ export class Narration {
 
   constructor(project: Project, medium: Media, lang: string) {
     this.file = medium.file.replaceAll('{lang}', lang);
-    const vtt = medium.subtitles.replaceAll('{lang}', lang);
-    this.cues = vtt.length > 0 && files.exists(vtt) ? parseVtt(files.text(vtt)) : paceCues(project.say(medium.transcript, lang));
+    this.cues = cuesOf(project, medium, lang);
     this.length = this.cues.length > 0 ? this.cues[this.cues.length - 1].to : 0;
   }
 

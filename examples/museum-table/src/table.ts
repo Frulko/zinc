@@ -2,13 +2,14 @@
 // turn and zoom it, a released card glides on and eases back from the edges; a touch brings a card to the front, a touch on its folded
 // corner turns it over to read the notice, a double tap asks for the full view. Every card answers to its own fingers, so several hands
 // work at once. Positions are in table units. A card is there from its item's `at` to its `until` on the sequence's clock, and carries the
-// hotspots of the sequence that are on its medium: a ring that moves with it and leads to another sequence.
+// hotspots of the sequence that are on its medium: a ring that moves with it and leads to another sequence. A film (film.ts) plays in its
+// card by itself while the card is there; a touch pauses it and starts it again.
 import { imageWidth, imageHeight, rrect, border, shadow, polygon, drawImage, drawText, textWidth, setTransform, resetTransform } from 'zinc:gfx';
 import { Project, Sequence, Media, Link, Colours } from './project';
 import { Fingers, Finger, Pose, manipulate } from './touch';
 import { sans, bold, wrap, leading, reading, faint } from './type';
-import { word } from './words';
 import { files } from './files';
+import { Film } from './film';
 
 /** The owner number of the fingers on the first card; the next cards follow. */
 export const CARD: i32 = 100;
@@ -28,12 +29,14 @@ export class Card {
   /** Size at scale 1. */
   w = 0;
   h = 0;
-  /** The picture it shows (-1: a text panel), its height on the card as designed, how much of that it has when its caption needs more
-   *  room (1: all), and a line that replaces the creator (a medium not played yet). */
+  /** The picture it shows (-1: none), its height on the card as designed (0: a text panel), and how much of that it has when its
+   *  caption needs more room (1: all). */
   picture: i32 = -1;
   pictureHeight = 0;
   shrink = 1;
-  note = '';
+  /** The film it plays in place of its picture, which is the film's poster; and whether it was started since the card came. */
+  film: Film | null = null;
+  rolled = false;
   /** Lines of a text panel; under a picture, the lines its title and what is written under it may take. */
   lines: i32 = 0;
   under: i32 = 1;
@@ -65,6 +68,8 @@ export class LightTable {
   opened: Card | null = null;
   /** The hotspot a tap asked to follow (the caller follows it and sets this back to null). */
   followed: Link | null = null;
+  /** What happened to the films, one line of the story each (the caller tells them and empties this). */
+  news: string[] = [];
   /** The sequence's clock at the last update. */
   private clock = 0;
   private project: Project;
@@ -97,8 +102,10 @@ export class LightTable {
       if (c.picture >= 0) {
         c.pictureHeight = (c.w - 2 * BORDER) * imageHeight(c.picture) / imageWidth(c.picture);
         c.turns = m.kind === 'photo';
-        // ponytail: a film shows its poster until it has its player (ZN-650.08)
-        if (m.kind !== 'photo') c.note = 'film';
+      }
+      if (m.kind === 'video') {   // decoded at the size of its poster; without one, a dark screen
+        if (c.picture < 0) c.pictureHeight = (c.w - 2 * BORDER) * 9 / 16;
+        c.film = new Film(this.project, m, this.lang, c.picture >= 0 ? imageWidth(c.picture) : 1280, c.picture >= 0 ? imageHeight(c.picture) : 720);
       }
       this.measure(c);
       this.cards.push(c);
@@ -110,26 +117,23 @@ export class LightTable {
    *  picture (down to half of it), so that the card keeps its place among the others and nothing of its caption is cut. */
   private measure(c: Card): void {
     const m = c.media, body = sans(16), pad = BORDER * 2;
-    if (c.picture < 0) {
+    if (c.pictureHeight === 0) {
       c.lines = wrap(body, this.project.say(m.kind === 'text' ? m.text : m.title, this.lang), c.w - 2 * pad, 0).length;
       c.h = pad + leading(bold(11)) + 8 + (c.lines + 0.5) * leading(body) + pad;
       return;
     }
     const head = bold(15), small = sans(12), inner = c.w - 2 * BORDER;
     c.lines = Math.max(2, wrap(head, this.project.say(m.title, this.lang), inner - (c.turns ? 22 : 0), 0).length);
-    c.under = wrap(small, this.under(c), inner - 30, 0).length;
+    c.under = wrap(small, m.creator, inner - 30, 0).length;
     // the designed strip at the text size, and one line more for each line more than designed: exactly FOOT when nothing is longer
     const foot = FOOT * reading() + (c.lines - 2) * leading(head) + (c.under - 1) * leading(small);
     c.shrink = foot > FOOT ? Math.max(0.5, (c.pictureHeight + FOOT - foot) / c.pictureHeight) : 1;
     c.h = BORDER + c.pictureHeight * c.shrink + Math.max(FOOT, foot);
   }
-  /** What is written under the title of a picture: who made it, or a word about a medium not played yet. */
-  private under(c: Card): string { return c.note.length > 0 ? word(c.note, this.lang) : c.media.creator; }
-
   /** The language or the text size has changed: every card takes the height of its text. */
   setLanguage(lang: string): void {
     this.lang = lang;
-    for (const c of this.cards) this.measure(c);
+    for (const c of this.cards) { c.film?.setLanguage(lang); this.measure(c); }
   }
   setColours(colours: Colours): void { this.colours = colours; }
 
@@ -168,6 +172,14 @@ export class LightTable {
     for (const c of this.cards) {
       const to = LightTable.there(c.at, c.until, t) ? 1 : 0;
       if (c.shown !== to) c.shown = Math.abs(to - c.shown) < dt / APPEAR ? to : c.shown + (to > c.shown ? dt : -dt) / APPEAR;
+      const film = c.film;
+      if (film === null) continue;
+      // a film plays by itself while its card is there, from its beginning each time the card comes
+      if (to === 1 && !c.rolled) { c.rolled = true; film.play(); this.news.push(`film ${c.media.id} play`); }
+      else if (to === 0) this.halt(c);
+      if (film.update(dt)) this.news.push(`film ${c.media.id} end`);
+      const text = film.said();
+      if (text !== film.cue) { film.cue = text; if (text.length > 0) this.news.push(`subtitle ${text}`); }
     }
     for (const f of fingers.down) {
       if (!f.fresh || f.owner !== 0) continue;
@@ -205,6 +217,16 @@ export class LightTable {
     }
   }
 
+  /** The film of a card stops: the card went, or its sequence did. */
+  private halt(c: Card): void {
+    const film = c.film;
+    if (film === null || !c.rolled) return;
+    c.rolled = false;
+    if (film.on) { film.stop(); this.news.push(`film ${c.media.id} stop`); }
+  }
+  /** The sequence is left, or waits under another: its films stop, and start again when it is back. */
+  rest(): void { for (const c of this.cards) this.halt(c); }
+
   private tapped(c: Card, f: Finger, now: number): void {
     c.vx = 0; c.vy = 0; c.va = 0;
     this.toCard(c, f.x, f.y);
@@ -214,13 +236,18 @@ export class LightTable {
       const dx = this.lx - this.spotX(c, l), dy = this.ly - this.spotY(c, l);
       if (Math.sqrt(dx * dx + dy * dy) * c.pose.scale <= SPOT) { this.followed = l; c.lastTap = -10; return; }
     }
-    if (now - c.lastTap < DOUBLE_TAP && c.picture >= 0) { this.opened = c; c.lastTap = -10; }
+    const film = c.film;
+    if (film !== null) {   // a touch pauses a film and starts it again; one that has ended plays again
+      if (film.on) film.pause(!film.paused); else film.play();
+      this.news.push(`film ${c.media.id} ${!film.paused ? 'play' : 'pause'}`);
+      c.lastTap = -10;
+    } else if (now - c.lastTap < DOUBLE_TAP && c.picture >= 0) { this.opened = c; c.lastTap = -10; }
     else c.lastTap = now;
   }
 
   /** Where a hotspot is in its card's own frame: its fractions are of the picture, or of the whole card when it shows none. */
-  private spotX(c: Card, l: Link): number { return c.picture >= 0 ? -c.w / 2 + BORDER + ((1 - c.shrink) / 2 + l.x * c.shrink) * (c.w - 2 * BORDER) : (l.x - 0.5) * c.w; }
-  private spotY(c: Card, l: Link): number { return c.picture >= 0 ? -c.h / 2 + BORDER + l.y * c.pictureHeight * c.shrink : (l.y - 0.5) * c.h; }
+  private spotX(c: Card, l: Link): number { return c.pictureHeight > 0 ? -c.w / 2 + BORDER + ((1 - c.shrink) / 2 + l.x * c.shrink) * (c.w - 2 * BORDER) : (l.x - 0.5) * c.w; }
+  private spotY(c: Card, l: Link): number { return c.pictureHeight > 0 ? -c.h / 2 + BORDER + l.y * c.pictureHeight * c.shrink : (l.y - 0.5) * c.h; }
 
   /** Zooms (factor) and turns (radians) the card under (x, y) about that point: the wheel and the trackpad of a desk without a touch screen. */
   nudge(x: number, y: number, factor: number, turn: number): void {
@@ -264,7 +291,7 @@ export class LightTable {
 
   private paintFront(c: Card, d: number, left: number, top: number): void {
     const ink = this.colours.ink, m = c.media, title = this.project.say(m.title, this.lang);
-    if (c.picture < 0) {   // a text panel
+    if (c.pictureHeight === 0) {   // a text panel
       const pad = BORDER * 2 * d, head = bold(11 * d), body = sans(16 * d);
       let y = top + pad;
       drawText(head, left + pad, y, title.toUpperCase(), ink, this.a(faint(150)), 0.6 * d);
@@ -278,14 +305,39 @@ export class LightTable {
     }
     const x = left + BORDER * d, inner = (c.w - 2 * BORDER) * d, head = bold(15 * d), small = sans(12 * d);
     let y = top + BORDER * d;
-    const wide = inner * c.shrink, high = c.pictureHeight * d * c.shrink;   // the picture, in the middle of the card's width
-    drawImage(c.picture, x + (inner - wide) / 2, y, wide, high, this.a(255), 0);
+    const wide = inner * c.shrink, high = c.pictureHeight * d * c.shrink, px = x + (inner - wide) / 2;   // the picture, in the middle of the card's width
+    const film = c.film, shot = film !== null ? film.image : -1;
+    if (shot >= 0 || c.picture >= 0) drawImage(shot >= 0 ? shot : c.picture, px, y, wide, high, this.a(255), 0);
+    else rrect(px, y, wide, high, 0, 0x000000, this.a(255));
+    if (film !== null) this.paintFilm(film, d, px, y, wide, high);
     y += high + 8 * d;
     const lines = wrap(head, title, inner - (c.turns ? 22 * d : 0), c.lines);
     for (const line of lines) { drawText(head, x, y, line, ink, this.a(255), 0); y += leading(head); }
-    const under = this.under(c);
+    const under = m.creator;
     if (lines.length < 2 || under.length > 0) for (const line of wrap(small, under, inner - 30 * d, c.under)) { drawText(small, x, y + d, line, ink, this.a(faint(160)), 0); y += leading(small); }
     this.paintSpots(c, d);
+  }
+
+  /** What a film shows over its picture: its timeline and what it says, at the foot; while it does not play, the sign a touch starts it by. */
+  private paintFilm(film: Film, d: number, x: number, y: number, w: number, h: number): void {
+    const colours = this.colours, bar = Math.max(2, 5 * d);
+    if (film.on) {
+      rrect(x, y + h - bar, w, bar, 0, colours.background, this.a(160));
+      rrect(x, y + h - bar, w * Math.min(1, film.t / film.length), bar, 0, colours.accent, this.a(255));
+      if (film.cue.length > 0) {
+        const f = sans(22 * d), lines = wrap(f, film.cue, w - 80 * d, 0), high = lines.length * leading(f) + 16 * d;
+        let wide = 0, ty = y + h - bar - 14 * d - high;
+        for (const line of lines) wide = Math.max(wide, textWidth(f, line, 0));
+        rrect(x + (w - wide) / 2 - 20 * d, ty, wide + 40 * d, high, 10 * d, colours.background, this.a(faint(225)));
+        ty += 8 * d;
+        for (const line of lines) { drawText(f, x + (w - textWidth(f, line, 0)) / 2, ty, line, colours.text, this.a(255), 0); ty += leading(f); }
+      }
+    }
+    if (film.on && !film.paused) return;
+    const r = Math.min(w, h) * 0.11, cx = x + w / 2, cy = y + h / 2;
+    rrect(cx - r, cy - r, 2 * r, 2 * r, r, colours.background, this.a(faint(200)));
+    border(cx - r, cy - r, 2 * r, 2 * r, r, Math.max(1, 2 * d), colours.accent, this.a(255));
+    polygon([cx - r * 0.3, cy - r * 0.45, cx + r * 0.5, cy, cx - r * 0.3, cy + r * 0.45], colours.accent, this.a(255));
   }
 
   /** The hotspots: a ring on its place of the card and what it leads to, on the side where there is room. */

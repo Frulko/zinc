@@ -220,9 +220,9 @@ Fields by kind:
 | `audio` | `file` | | A narration or a sound; `{lang}` for one file per language |
 | | `transcript` | optional text | What is said: `tools/narration.sh` synthesises the narration from it, and without timed subtitles its sentences are shown one after the other, at 15 characters a second |
 | | `subtitles` | none | Timed subtitles, WebVTT (`mm:ss.mmm --> mm:ss.mmm` and the text; settings and styles are ignored); `{lang}` for one file per language. The last cue's end is the length of the narration: a table without sound shows the same subtitles at the same times |
-| `video` | `file`, `transcript`, `subtitles` | | As for an audio |
-| | `poster` | none | The image shown before the film plays |
-| | `loop` | false | Start again at the end |
+| `video` | `file`, `transcript`, `subtitles` | | As for an audio (zinc:video: what FFmpeg decodes; the picture only, a film has no sound). The film plays in its card while the card is there; a touch on it pauses it and starts it again. Its subtitles are shown on its picture |
+| | `poster` | none | The image of the card before the film plays, and when nothing decodes it: it gives the card its shape (16:9 without one). The first picture of the film is a good one |
+| | `loop` | false | Start again at the end; else the card shows the poster again, and a touch plays the film again |
 
 A point of interest:
 
@@ -331,7 +331,7 @@ inside the assets. Whether the files exist is checked by the player when it star
 | --- | --- |
 | photographs and text panels as cards, 3D models (`.obj`, `.glb`, `.gltf`) and panoramas with points of interest and the links of their points | yes |
 | timed items and links, buttons, hotspots, overlays, the three transitions, `next` | yes |
-| a film | its poster on a card, until ZN-650.08 |
+| a film | yes: it plays in its card with its subtitles, a touch pauses it, it stops when its sequence is left (FFmpeg's libraries on the machine; without them, the poster and the subtitles) |
 | the storyboard: the map of the sequences at their `storyboard` positions, with a miniature of each table, an arrow for every link, `next` and point of interest that leads somewhere (dashed for an overlay), the sequences seen ticked and the links followed in the accent colour; a touch on a node goes there | yes |
 | narration (zinc:audio: WAV, FLAC, MP3, Ogg Vorbis) and its subtitles, presentations | yes |
 | the table mode: texts turned to the side of the last tap near an edge, the attract loop, the reset, the kiosk rules | yes |

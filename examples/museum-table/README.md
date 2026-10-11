@@ -32,6 +32,7 @@ zinc run examples/museum-table/src/check.ts -- examples/museum-table/assets/proj
 | a card | one finger drags; two turn and zoom; let go and it glides | drag; wheel or trackpad pinch zooms; Shift + wheel turns |
 | | a touch brings it to the front; the folded corner turns it over to its notice; a double tap opens the full view | click, double click |
 | a ring on a card, with its label | a hotspot: it opens another sequence, here over the current one, which waits underneath | click |
+| a film | it plays in its card by itself, with its subtitles in the visitor's language; a touch pauses it and starts it again; it stops when its sequence is left | click |
 | the 3D object | one finger turns it; two bring it closer and move it | drag; wheel zooms |
 | | a touch on a ring opens the point's panel and shows it; `Lumière` changes the lighting, `Vue de départ` goes back, `Point suivant` opens the points in turn | click |
 | the panorama | one finger looks around; two change the field of view; a ring opens its panel, whose button leads to a sequence | drag; wheel zooms |
@@ -117,14 +118,15 @@ The document is `editor/doc.ts` (one operation per command, checked without a wi
 | `src/check.ts`, `src/assets.ts` | command-line checks of a project file and of its media |
 | `tools/` | rebuild the media from their sources (`fetch-collection.sh`, `decimate.cpp`); synthesise the narration and its subtitles from the transcripts of the project with Piper and two open voices (`narration.sh`) |
 
-Tests: `next/tests/run --tier t1 --only museum_visit` (also `museum_mode`, `museum_access`, `museum_format`, `museum_assets`, `museum_table`,
+Tests: `next/tests/run --tier t1 --only museum_visit` (also `museum_mode`, `museum_access`, `museum_video`, `museum_format`, `museum_assets`, `museum_table`,
 `museum_viewer`, `museum_panorama`). The sessions are scripted touches (`ZINC_INPUT`, `touch ID X Y` and `touchup ID`): `next/tests/data/museum_visit/visit.py`
 is a whole visit, `next/tests/data/museum_table/hands.py` two hands on two cards. A headless run plays no sound: the story log says which clip
 is asked for and when.
 
 ## Not there yet
 
-A film shows its poster on a card (ZN-650.08). A presentation that is paused starts its step again when it resumes, because `zinc:audio`
+A film has no sound (zinc:video decodes its pictures), and needs FFmpeg's libraries on the machine: without them its card keeps the
+poster, with the subtitles and the timeline. A presentation that is paused starts its step again when it resumes, because `zinc:audio`
 cannot pause a clip. The panorama does not turn with the visitor (its texts do). At the two larger text sizes the buttons take two or
 three rows at the visitor's edge and lie over the foot of the lowest cards, which the visitor moves; the notice on the back of a card
 shows what fits, as at the designed size (the full view has all of it). The narration and the audio descriptions were checked by their

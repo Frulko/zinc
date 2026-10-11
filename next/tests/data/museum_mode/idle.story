@@ -27,8 +27,21 @@
 4827 narration end
 6459 sequence wave
 6459 step 2/5 wave
+6475 film wave-film play
+6475 subtitle The foam ends in claws.
+6667 subtitle In the boats the oarsmen bend over their oars.
+6907 subtitle In the distance, Fuji waits.
+7074 subtitle The foam ends in claws.
+7266 subtitle In the boats the oarsmen bend over their oars.
 7343 visit end
 7343 reset: sequence ukiyo-e, language fr, side bottom, 0 seen
+7343 subtitle Dans les barques, les rameurs se couchent sur leurs avirons.
+7506 subtitle Au fond, le Fuji attend.
+7674 subtitle L’écume se termine en griffes.
+7866 subtitle Dans les barques, les rameurs se couchent sur leurs avirons.
+8106 subtitle Au fond, le Fuji attend.
+8274 subtitle L’écume se termine en griffes.
+8291 film wave-film stop
 8291 sequence japonisme
 8291 step 3/5 japonisme
 8291 narration audio/japonisme-voice.fr.mp3 (subtitles only)

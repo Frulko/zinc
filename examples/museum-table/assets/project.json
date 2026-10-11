@@ -633,7 +633,7 @@
       "id": "wave-film",
       "kind": "video",
       "file": "video/great-wave.mp4",
-      "poster": "photos/great-wave.jpg",
+      "poster": "video/great-wave.jpg",
       "subtitles": "video/great-wave.{lang}.vtt",
       "loop": true,
       "title": {

@@ -5,7 +5,10 @@
 153 overlay ukiyo-e -> wave fade
 169 sequence wave
 169 narration stop
+185 film wave-film play
+185 subtitle L’écume se termine en griffes.
 213 close wave -> ukiyo-e none
+213 film wave-film stop
 213 sequence ukiyo-e
 233 link ukiyo-e -> japonisme fade
 249 sequence japonisme
@@ -48,6 +51,18 @@
 2407 narration end
 3980 sequence wave
 3980 step 2/5 wave
+3996 film wave-film play
+3996 subtitle L’écume se termine en griffes.
+4188 subtitle Dans les barques, les rameurs se couchent sur leurs avirons.
+4428 subtitle Au fond, le Fuji attend.
+4595 subtitle L’écume se termine en griffes.
+4787 subtitle Dans les barques, les rameurs se couchent sur leurs avirons.
+5027 subtitle Au fond, le Fuji attend.
+5195 subtitle L’écume se termine en griffes.
+5387 subtitle Dans les barques, les rameurs se couchent sur leurs avirons.
+5627 subtitle Au fond, le Fuji attend.
+5795 subtitle L’écume se termine en griffes.
+5812 film wave-film stop
 5812 sequence japonisme
 5812 step 3/5 japonisme
 5812 narration audio/japonisme-voice.fr.mp3
