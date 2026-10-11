@@ -1969,6 +1969,22 @@ bool buildAssets(const std::string& dir, const std::string& target, bool release
   return true;
 }
 
+bool assetRun(const std::string& dir, const std::string& target, const std::string& engineRoot, bool build, std::string& packs, std::uint64_t& ram, std::string& err) {
+  const fs::path project = fs::absolute(dir).lexically_normal();
+  zn::frontend::Project proj;
+  packs.clear();
+  ram = 0;
+  if (!readProject(project, proj, err)) return false;
+  std::vector<zn::frontend::TargetAssets> rows;
+  if (!zn::frontend::assetProfiles(proj, readAll(fs::path(engineRoot) / ".." / "targets" / "capabilities.json"), rows, err)) return false;
+  for (const auto& t : rows)
+    if (t.target == target) { auto b = t.budgets.find("ram"); ram = b == t.budgets.end() ? 0 : b->second; }
+  if (!build || proj.assets.groups.empty()) return true;   // no groups: the program reads its assets directory as before, no pack to build
+  if (!buildAssets(project.string(), target, false, err)) return false;
+  packs = (project / "build" / "assets" / target).string();
+  return true;
+}
+
 /** zinc assets info: the profile and budgets in force on each target (or on --target T), one line each. */
 int assetsInfo(const fs::path& project, const std::string& only, const std::string& engineRoot) {
   zn::frontend::Project proj;

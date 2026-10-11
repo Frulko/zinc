@@ -400,7 +400,7 @@ bool ensureCrossLibs(const std::string& zig, const std::string& root, const std:
   std::string name = t->name;
   if (name.find("linux") == std::string::npos) { err = "the graphics host is cross-built for the Linux targets only (not " + name + ")"; return false; }
   dir = root + "/build/cross-" + name;
-  const std::string targets = " --target zn_host_gfx zn_layout zn_yoga zn_rt zn_mimalloc zn_zbc zn_ir zn_frontend zn_native zn_regexp zn_codec zn_uv zn_llhttp zn_mbedtls -j 3 >";
+  const std::string targets = " --target zn_host_gfx zn_layout zn_yoga zn_rt zn_mimalloc zn_zbc zn_ir zn_frontend zn_native zn_regexp zn_codec zn_uv zn_llhttp zn_mbedtls zn_zpk zn_lz4 zn_zstd zn_sha256 -j 3 >";
   if (fs::exists(dir + "/libzn_host_gfx.a") && fs::exists(dir + "/CMakeCache.txt"))   // built before: brought up to date (sources added or changed since), quick when nothing did
     return run("cmake --build " + quote(dir) + targets + quote(dir + "/build.log") + " 2>&1", err, "cmake --build");
   if (fs::exists(dir + "/libzn_host_gfx.a")) return true;   // prebuilt libraries without a CMake tree (a package): used as they are

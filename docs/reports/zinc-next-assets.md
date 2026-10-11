@@ -2,7 +2,7 @@
 
 `src/assets` (ZN-434) turns a project's `assets/` directory into ZPK packs (`docs/zpk.md`) and a report, through importers whose results are
 kept in a cache shared by every project. The design is section 4 of `docs/reports/games/toolchain-assets-loading.md`; the run-time side
-(mounting the packs, `zinc:assets` v2) is ZN-436.
+(mounting the packs, `zinc:assets` v2, ZN-436) is the section "At run time" below.
 
 ```sh
 zinc assets build [dir] [--target T] [--release]   # build/assets/<target>/<group>.zpk and report.json (T: this machine by default)
@@ -93,6 +93,44 @@ and with any `ZINC_HOME` (`tests/t0/assets.sh`).
 `build/assets/<target>/report.json`: the target and profile; one row per asset (name, importer, group, `sourceBytes`, `outputBytes`, `ms`,
 `cached`); one row per pack (file, group, entries, bytes); totals (assets, imported, bytes, `ms`). `zinc assets build` prints one line with the
 same totals.
+
+## At run time: `zinc:assets` v2
+
+`src/host/assets_host.cpp` (ZN-436, design: sections 6.3 to 6.6 of the report) mounts the packs and loads them by group; the API is in
+`lib/modules.d.ts`.
+
+```ts
+import * as assets from 'zinc:assets';
+await assets.loadGroup('level1', (p) => bar(p.done / p.total));   // bytes of the TOC sizes, monotone, the last call at done === total
+const map = assets.get('level1/map.bin');   // a handle; throws when its group is not loaded
+assets.prefetch('level2');                  // background priority; a loadGroup of the same group raises it
+assets.unloadGroup('level1');               // frees what no handle holds; map keeps its bytes until map.release()
+assets.mount('mods');                       // a .zpk or a directory of them, in front of the base packs
+assets.stats();                             // resident bytes, peak, the ram budget, groups loaded, packs mounted, jobs pending
+```
+
+- **Mounts.** The packs are mapped (`mmap`) and searched in order: the program's mounts first (the last one first), then the base packs.
+  A group is every mounted `<group>.zpk`; each of its entries is read from the first pack that has the name, so a mod's `level1.zpk`
+  replaces some entries of the base one and leaves the others. The base packs: `ZINC_PACKS` (paths separated by `:`; empty: none), else
+  `assets/<target>/` beside a built program (where `zinc build` writes them: `<project>/build/assets/<target>`, a directory the assets
+  lookup no longer takes for the program's `assets/`). `zinc run` sets `ZINC_PACKS` to the project's dev packs, built at launch, when
+  `zinc.json` has `assets.groups` (a project without groups runs as before, from its directory); a `.zapp` of such a project carries
+  them as `packs/<group>.zpk`.
+- **The v1 calls** (`readText`, `readBytes`, `exists`, `list`) read the data entries of the mounted packs first, then the directory. An
+  entry an importer changed (an image is ZIM1, not the PNG) is not the file's bytes: the v1 calls skip it and read the directory.
+- **Loading.** A group's entries become jobs in one of two queues (group, background); four at a time go to the libuv thread pool, each
+  job with a zstd context taken from the manager's free list. A turn of the loader runs on a timer of the program's loop (once per frame
+  in a frame loop, every millisecond otherwise; promises settle there, never in a frame callback): it makes resident, in the order the
+  jobs were queued, what the workers finished, up to 4 MB a turn (`ZINC_ASSET_TURN`; one entry at least). A deterministic run waits for
+  those jobs, so its frames are the same on every run; with one core (or `ZINC_ASSET_THREADS=0`) the turn decodes them itself.
+- **Budget.** The ram budget in force on the machine (`assets.budgets.<target>.ram` of zinc.json, else the target's default of
+  `targets/capabilities.json`; `zinc run` and the `main` of a built program set `ZINC_ASSET_RAM`) bounds the resident bytes plus those
+  being loaded: `loadGroup` is rejected first, `assets: group 'big' needs 300000 bytes: over the ram budget of 262144 bytes (155554 in use)`.
+- **Memory.** Resident entries are the manager's, outside the program's objects; `zinc mem` prints them (`assets: peak N bytes resident,
+  M at exit`). Unloading a group frees its entries at once, or with the last handle that holds one.
+
+Measured (same machine, load 5.3 to 5.6: another agent building): a group of 64 text entries of 512 KB (32 MB, a 12 MB release pack,
+zstd 19), `loadGroup` to its promise, median of 7 real runs: 62 ms on the libuv pool, 214 ms decoded on the main thread.
 
 ## Measured (macOS x86_64, i7-9750H, 2026-10-11, load 2.5 to 3.3: another agent building)
 

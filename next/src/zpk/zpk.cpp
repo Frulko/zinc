@@ -112,7 +112,7 @@ bool Reader::verify(std::size_t i, const Entry& e, std::string& err) const {
   return true;
 }
 
-bool Reader::read(std::size_t i, std::uint8_t* dst, std::string& err) const {
+bool Reader::read(std::size_t i, std::uint8_t* dst, std::string& err, ZSTD_DCtx* zstd) const {
   const Entry e = entry(i);
   if (!verify(i, e, err)) return false;
   const std::uint8_t* src = base_ + e.offset;
@@ -125,10 +125,10 @@ bool Reader::read(std::size_t i, std::uint8_t* dst, std::string& err) const {
       break;
     case Codec::Zstd:
     case Codec::ZstdDict: {
-      // ponytail: a context per read; reusing one per worker thread (ZN-436 passes it) reads small dictionary entries 30% faster
-      ZSTD_DCtx* z = ZSTD_createDCtx();
+      ZSTD_DCtx* own = zstd ? nullptr : ZSTD_createDCtx();
+      ZSTD_DCtx* z = zstd ? zstd : own;
       const std::size_t r = e.codec == Codec::Zstd ? ZSTD_decompressDCtx(z, dst, e.size, src, e.storedSize) : ZSTD_decompress_usingDDict(z, dst, e.size, src, e.storedSize, dict_.get());
-      ZSTD_freeDCtx(z);
+      ZSTD_freeDCtx(own);
       if (!ZSTD_isError(r)) got = r;
       break;
     }
@@ -137,9 +137,9 @@ bool Reader::read(std::size_t i, std::uint8_t* dst, std::string& err) const {
   return true;
 }
 
-bool Reader::read(std::size_t i, std::string& out, std::string& err) const {
+bool Reader::read(std::size_t i, std::string& out, std::string& err, ZSTD_DCtx* zstd) const {
   out.resize(entry(i).size);
-  return read(i, reinterpret_cast<std::uint8_t*>(out.data()), err);
+  return read(i, reinterpret_cast<std::uint8_t*>(out.data()), err, zstd);
 }
 
 const std::uint8_t* Reader::view(std::size_t i, std::string& err) const {

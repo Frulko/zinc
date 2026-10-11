@@ -70,6 +70,8 @@ file and aligned, a known codec, `stored size = size` for `none`, reserved field
 SHA-256 of the whole index (header, TOC, names, dictionary): the value a signed manifest records for the pack, so that one hash covers every
 row and every row covers its entry. Reading an entry hashes its stored bytes against its row the first time (later reads skip the hash),
 decodes them and checks the decoded size. Errors name the entry: `the pack is corrupted: level1/map.bin does not match its checksum`.
+`read()` takes an optional zstd decoder context that the caller owns: the asset manager keeps one per job in flight and reuses them
+(small dictionary entries read about 30% faster than with a context made per read, ZN-433).
 
 A row states the decoded size before anything is decoded: the asset manager checks it against its budget before it allocates.
 

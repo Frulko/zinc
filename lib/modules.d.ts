@@ -213,12 +213,38 @@ declare module 'zinc:native' {
 }
 
 declare module 'zinc:assets' {
-  /** Assets are embedded in the executable at build time (single-file distribution).
-   *  In development, ZINC_ASSETS=<dir> reads them from disk first (hot reload). */
+  /** The project's assets: the data entries of the mounted packs (zinc assets build), then the assets directory (zinc run sets ZINC_ASSETS;
+   *  a built program finds assets/ beside it or above it). */
   export function readText(name: string): string;
   export function readBytes(name: string): u8[];
   export function exists(name: string): boolean;
   export function list(): string[];
+  // version 2 (docs/reports/games/toolchain-assets-loading.md 6.3): packs, groups, progress, handles, the ram budget of zinc.json
+  export interface Progress { group: string; done: f64; total: f64 }
+  export interface Stats { resident: f64; peak: f64; budget: f64; groups: i32; packs: i32; pending: i32 }
+  export class Asset {
+    readonly name: string;
+    text(): string;
+    bytes(): u8[];
+    /** The data stays resident while a handle holds it, even after its group is unloaded. */
+    release(): void;
+  }
+  /** Loads every entry of the group's packs (<group>.zpk); onProgress gets the bytes done of the total, monotone, the last call with
+   *  done === total. Rejected when no mounted pack has the group, when it would cross the ram budget, or when it is unloaded first. */
+  export function loadGroup(name: string, onProgress?: (p: Progress) => void): Promise<void>;
+  /** loadGroup at background priority; a loadGroup of the same group raises it. */
+  export function prefetch(name: string): Promise<void>;
+  /** Frees the group's entries that no handle holds (the others when their last handle is released). */
+  export function unloadGroup(name: string): void;
+  export function isLoaded(name: string): boolean;
+  export function groups(): string[];
+  /** Mounts a .zpk or a directory of them in front of the others (mods and patches over the base packs); the number of packs. */
+  export function mount(path: string): i32;
+  export function unmount(path: string): boolean;
+  /** A handle on a loaded entry; throws when its group is not loaded. */
+  export function get(name: string): Asset;
+  /** Resident bytes, their peak, the ram budget (0: none), groups loaded, packs mounted, jobs pending. */
+  export function stats(): Stats;
 }
 
 declare module 'zinc:os' {

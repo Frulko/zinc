@@ -321,7 +321,15 @@
   X(HostGfxLoadFont, "host.gfxLoadFont", "sd>i", 2) \
   /* zinc:sys launchDir and locale (ZN-687): the directory the user ran the program from (zinc run starts it in the project), and the system's */ \
   /* preferred language as a BCP 47 tag (LC_ALL, LC_MESSAGES, LANG first); system rows, appended */ \
-  X(HostSysLaunchDir, "host.sysLaunchDir", ">s", 2) X(HostSysLocale, "host.sysLocale", ">s", 2)
+  X(HostSysLaunchDir, "host.sysLaunchDir", ">s", 2) X(HostSysLocale, "host.sysLocale", ">s", 2) \
+  /* zinc:assets version 2 (ZN-436, src/host/assets_host.h): mounts, groups loaded with byte progress (a request id, its done and total bytes, */ \
+  /* its state 0 loading 1 done 2 failed), handles on resident entries, the counters of stats(); system rows, appended */ \
+  X(HostAssetsMount, "host.assetsMount", "s>i", 2) X(HostAssetsUnmount, "host.assetsUnmount", "s>b", 2) X(HostAssetsGroupsCount, "host.assetsGroupsCount", ">i", 2) \
+  X(HostAssetsLoadGroup, "host.assetsLoadGroup", "si>i", 2) X(HostAssetsUnloadGroup, "host.assetsUnloadGroup", "s>n", 2) X(HostAssetsGroupState, "host.assetsGroupState", "s>i", 2) \
+  X(HostAssetsTurn, "host.assetsTurn", ">n", 2) X(HostAssetsReqDone, "host.assetsReqDone", "i>d", 2) X(HostAssetsReqTotal, "host.assetsReqTotal", "i>d", 2) \
+  X(HostAssetsReqState, "host.assetsReqState", "i>i", 2) X(HostAssetsReqError, "host.assetsReqError", "i>s", 2) X(HostAssetsReqForget, "host.assetsReqForget", "i>n", 2) \
+  X(HostAssetsAcquire, "host.assetsAcquire", "s>i", 2) X(HostAssetsRelease, "host.assetsRelease", "i>n", 2) X(HostAssetsHandleText, "host.assetsHandleText", "i>s", 2) \
+  X(HostAssetsHandleLoad, "host.assetsHandleLoad", "i>i", 2) X(HostAssetsStat, "host.assetsStat", "i>d", 2)
 
 namespace zn {
 
@@ -354,7 +362,7 @@ inline constexpr bool isGfxTailRow(Rt r) {
          (r >= Rt::HostGfxOpenWindow && r <= Rt::HostGfxEndWindow) || r == Rt::HostGfxLoadFont;
 }
 // The system rows appended after the gfx ones: the engines that install the host rows (QuickJS) add them too.
-inline constexpr bool isSysTailRow(Rt r) { return r == Rt::HostSysLaunchDir || r == Rt::HostSysLocale; }
+inline constexpr bool isSysTailRow(Rt r) { return r == Rt::HostSysLaunchDir || r == Rt::HostSysLocale || (r >= Rt::HostAssetsMount && r <= Rt::HostAssetsStat); }
 inline constexpr bool isSysRow(Rt r) { return (r >= Rt::HostSysFirst && r <= Rt::HostHostLast && !(r >= Rt::HostGfxCreateImage && r <= Rt::HostGfxEndImage)) || (r >= Rt::HostLoopWait && !isGfxTailRow(r) && !isLayoutRow(r) && !isGlRow(r)); }
 inline const RtInfo& rtInfo(Rt r) { return kRtInfo[static_cast<unsigned>(r)]; }
 // The host calls decode a row's arguments into arrays of this size (src/rt/rtcalls.cpp hostRt, src/qjs/qjs.cpp hostFn): no row has more parameters.

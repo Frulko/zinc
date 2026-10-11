@@ -1,6 +1,7 @@
 // The system modules of the host (ZN-049): zinc:sys, zinc:fs, zinc:storage, zinc:assets and zinc:os on a POSIX machine, behind the Rt::Host*
 // entries from HostSysFirst (include/zn/runtime.h). The Zinc side (the module sources of src/frontend/modules.cpp) turns the flat calls into
 // the API of lib/modules.d.ts: an error is reported with fsFailed()/fsError() and thrown there. Plain C++17, no dependency on the old runtime.
+#include "host/assets_host.h"
 #include "host/permissions.h"
 #include "zrt_assets_dir.h"
 #include <signal.h>
@@ -432,12 +433,42 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostStorageRemove: { auto m = storageLoad(); m.erase(s(0)); storageSave(m); break; }
     case Rt::HostStorageKeysCount: { gNames.clear(); for (auto& kv : storageLoad()) gNames.push_back(kv.first); r->i = static_cast<std::int64_t>(gNames.size()); break; }
     case Rt::HostStorageKey: ret(r, n(0) >= 0 && static_cast<size_t>(n(0)) < gNames.size() ? gNames[static_cast<size_t>(n(0))] : ""); break;
-    // ---- zinc:assets (a directory on disk: assetsDir)
-    case Rt::HostAssetsExists: { struct stat st; std::string d = assetsDir(); r->i = !d.empty() && stat((d + "/" + s(0)).c_str(), &st) == 0 && S_ISREG(st.st_mode); break; }
-    case Rt::HostAssetsReadText: { std::vector<unsigned char> b; std::string d = assetsDir(); if (!d.empty() && readAll(d + "/" + s(0), b, "open")) ret(r, std::string(b.begin(), b.end())); else { if (d.empty()) fail("open", s(0), ENOENT); ret(r, ""); } break; }
-    case Rt::HostAssetsLoad: { std::string d = assetsDir(); if (!d.empty() && readAll(d + "/" + s(0), gBytes, "open")) r->i = static_cast<std::int64_t>(gBytes.size()); else { if (d.empty()) fail("open", s(0), ENOENT); r->i = 0; } break; }
-    case Rt::HostAssetsCount: { gNames.clear(); std::string d = assetsDir(); if (!d.empty()) listAssets(d, "", gNames); r->i = static_cast<std::int64_t>(gNames.size()); break; }
+    // ---- zinc:assets: the data entries of the mounted packs first (src/host/assets_host.h, ZN-436), then a directory on disk (assetsDir)
+    case Rt::HostAssetsExists: { struct stat st; std::string d = assetsDir(); r->i = zn::host::assets::has(s(0)) || (!d.empty() && stat((d + "/" + s(0)).c_str(), &st) == 0 && S_ISREG(st.st_mode)); break; }
+    case Rt::HostAssetsReadText: {
+      std::string packed, err;
+      if (zn::host::assets::read(s(0), packed, err)) { if (!err.empty()) { gFailed = true; gError = err; } ret(r, err.empty() ? packed : ""); break; }
+      std::vector<unsigned char> b; std::string d = assetsDir(); if (!d.empty() && readAll(d + "/" + s(0), b, "open")) ret(r, std::string(b.begin(), b.end())); else { if (d.empty()) fail("open", s(0), ENOENT); ret(r, ""); } break;
+    }
+    case Rt::HostAssetsLoad: {
+      std::string packed, err;
+      if (zn::host::assets::read(s(0), packed, err)) { if (!err.empty()) { gFailed = true; gError = err; packed.clear(); } gBytes.assign(packed.begin(), packed.end()); r->i = static_cast<std::int64_t>(gBytes.size()); break; }
+      std::string d = assetsDir(); if (!d.empty() && readAll(d + "/" + s(0), gBytes, "open")) r->i = static_cast<std::int64_t>(gBytes.size()); else { if (d.empty()) fail("open", s(0), ENOENT); r->i = 0; } break;
+    }
+    case Rt::HostAssetsCount: {
+      gNames.clear(); std::string d = assetsDir(); if (!d.empty()) listAssets(d, "", gNames);
+      zn::host::assets::names(gNames);
+      std::sort(gNames.begin(), gNames.end()); gNames.erase(std::unique(gNames.begin(), gNames.end()), gNames.end());
+      r->i = static_cast<std::int64_t>(gNames.size()); break;
+    }
     case Rt::HostAssetsName: ret(r, n(0) >= 0 && static_cast<size_t>(n(0)) < gNames.size() ? gNames[static_cast<size_t>(n(0))] : ""); break;
+    case Rt::HostAssetsMount: { std::string err; r->i = zn::host::assets::mount(s(0), err); if (!r->i) { gFailed = true; gError = err; } break; }
+    case Rt::HostAssetsUnmount: r->i = zn::host::assets::unmount(s(0)); break;
+    case Rt::HostAssetsGroupsCount: zn::host::assets::groups(gNames); r->i = static_cast<std::int64_t>(gNames.size()); break;
+    case Rt::HostAssetsLoadGroup: { std::string err; r->i = zn::host::assets::load(s(0), n(1), err); if (!r->i) { gFailed = true; gError = err; } break; }
+    case Rt::HostAssetsUnloadGroup: zn::host::assets::unload(s(0)); break;
+    case Rt::HostAssetsGroupState: r->i = zn::host::assets::groupState(s(0)); break;
+    case Rt::HostAssetsTurn: zn::host::assets::turn(); break;
+    case Rt::HostAssetsReqDone: r->d = zn::host::assets::done(n(0)); break;
+    case Rt::HostAssetsReqTotal: r->d = zn::host::assets::total(n(0)); break;
+    case Rt::HostAssetsReqState: r->i = zn::host::assets::state(n(0)); break;
+    case Rt::HostAssetsReqError: ret(r, zn::host::assets::error(n(0))); break;
+    case Rt::HostAssetsReqForget: zn::host::assets::forget(n(0)); break;
+    case Rt::HostAssetsAcquire: { std::string err; r->i = zn::host::assets::acquire(s(0), err); if (!r->i) { gFailed = true; gError = err; } break; }
+    case Rt::HostAssetsRelease: zn::host::assets::release(n(0)); break;
+    case Rt::HostAssetsHandleText: { const std::string* d = zn::host::assets::data(n(0)); ret(r, d ? *d : std::string()); break; }
+    case Rt::HostAssetsHandleLoad: { const std::string* d = zn::host::assets::data(n(0)); if (d) gBytes.assign(d->begin(), d->end()); else gBytes.clear(); r->i = static_cast<std::int64_t>(gBytes.size()); break; }
+    case Rt::HostAssetsStat: r->d = zn::host::assets::stat(n(0)); break;
     // ---- zinc:os
     case Rt::HostOsHostname: { char b[256]; ret(r, gethostname(b, sizeof b) == 0 ? b : ""); break; }
     case Rt::HostOsHomedir: { const char* h = getenv("HOME"); if (!h) { passwd* pw = getpwuid(getuid()); h = pw ? pw->pw_dir : ""; } ret(r, h); break; }

@@ -1,0 +1,13 @@
+{
+  "name": "assets-groups",
+  "entry": "main.ts",
+  "assets": {
+    "groups": {
+      "boot": { "include": ["boot/**"] },
+      "level1": { "include": ["level1/**"] },
+      "level2": { "include": ["level2/**"] },
+      "big": { "include": ["big/**"] }
+    },
+    "budgets": { "macos": { "ram": "256KB" }, "linux": { "ram": "256KB" } }
+  }
+}

@@ -364,6 +364,74 @@ export function readBytes(name: string): u8[] {
 }
 export function exists(name: string): boolean { return __host_assetsExists(name); }
 export function list(): string[] { const r: string[] = []; const n = __host_assetsCount(); for (let i: i32 = 0; i < n; i++) r.push(__host_assetsName(i)); return r; }
+// ---- version 2 (ZN-436, src/host/assets_host.h): packs mounted in order, groups loaded whole with byte progress, handles, the ram budget
+export interface Progress { group: string; done: f64; total: f64 }
+export interface Stats { resident: f64; peak: f64; budget: f64; groups: i32; packs: i32; pending: i32 }
+export class Asset {
+  constructor(public name: string, private handle: i32) {}
+  text(): string { return __host_assetsHandleText(this.handle); }
+  bytes(): u8[] {
+    const n = __host_assetsHandleLoad(this.handle);
+    const r: u8[] = [];
+    for (let i: i32 = 0; i < n; i++) r.push(__host_fsByte(i) as u8);
+    return r;
+  }
+  /** The data stays resident while a handle holds it, even after its group is unloaded. */
+  release(): void { if (this.handle !== 0) { __host_assetsRelease(this.handle); this.handle = 0; } }
+}
+class __AssetLoad {
+  last: f64 = -1;
+  constructor(public id: i32, public group: string, public cb: ((p: Progress) => void) | null, public ok: () => void, public ko: (e: Error) => void) {}
+  report(): void {
+    const done = __host_assetsReqDone(this.id);
+    const cb = this.cb;
+    if (cb !== null && done > this.last) { this.last = done; cb({ group: this.group, done: done, total: __host_assetsReqTotal(this.id) }); }
+  }
+}
+let __assetLoads: __AssetLoad[] = [];
+let __assetTurning = false;
+// A turn of the loader, on a timer: once per frame in a frame loop, every millisecond otherwise. Promises settle here, never in a frame callback.
+function __assetTurn(): void {
+  __host_assetsTurn();
+  const left: __AssetLoad[] = [];
+  for (const l of __assetLoads) {
+    l.report();
+    const st = __host_assetsReqState(l.id);
+    if (st === 0) { left.push(l); continue; }
+    const why = __host_assetsReqError(l.id);
+    __host_assetsReqForget(l.id);
+    if (st === 1) l.ok(); else l.ko(new Error(why));
+  }
+  __assetLoads = left;
+  __assetTurning = left.length > 0;
+  if (__assetTurning) setTimeout(__assetTurn, 1);
+}
+function __assetLoad(name: string, priority: i32, cb: ((p: Progress) => void) | null): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const id = __host_assetsLoadGroup(name, priority);
+    if (id === 0) { __host_fsFailed(); reject(new Error(__host_fsError())); return; }
+    const l = new __AssetLoad(id, name, cb, () => resolve(), (e: Error) => reject(e));
+    l.report();
+    __assetLoads.push(l);
+    if (!__assetTurning) { __assetTurning = true; setTimeout(__assetTurn, 0); }
+  });
+}
+/** Loads every entry of the group's packs; `onProgress` gets the bytes done of the total, monotone, the last call with done === total.
+ *  Rejected when no mounted pack has the group, when it would cross the ram budget, or when it is unloaded before it finishes. */
+export function loadGroup(name: string, onProgress?: (p: Progress) => void): Promise<void> { return __assetLoad(name, 0, onProgress === undefined ? null : onProgress); }
+/** loadGroup at background priority: what a group load waits for goes first; a loadGroup of the same group raises it. */
+export function prefetch(name: string): Promise<void> { return __assetLoad(name, 1, null); }
+export function unloadGroup(name: string): void { __host_assetsUnloadGroup(name); }
+export function isLoaded(name: string): boolean { return __host_assetsGroupState(name) === 2; }
+export function groups(): string[] { const r: string[] = []; const n = __host_assetsGroupsCount(); for (let i: i32 = 0; i < n; i++) r.push(__host_assetsName(i)); return r; }
+/** Mounts a .zpk or a directory of them in front of the others (mods and patches over the base packs); the number of packs. */
+export function mount(path: string): i32 { const n = __host_assetsMount(path); check(); return n; }
+export function unmount(path: string): boolean { return __host_assetsUnmount(path); }
+/** A handle on a loaded entry; throws when its group is not loaded. */
+export function get(name: string): Asset { const h = __host_assetsAcquire(name); check(); return new Asset(name, h); }
+export function stats(): Stats {
+  return { resident: __host_assetsStat(0), peak: __host_assetsStat(1), budget: __host_assetsStat(2), groups: __host_assetsStat(3) as i32, packs: __host_assetsStat(4) as i32, pending: __host_assetsStat(5) as i32 };
+}
 )ZN";
 
 const char* kOsModule = R"ZN(

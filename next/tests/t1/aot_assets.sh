@@ -30,6 +30,23 @@ export ZINC_ASSETS="$tmp/env/assets"
 is "ZINC_ASSETS first" "env|" "$tmp/cwd" "$tmp/dist/app"
 unset ZINC_ASSETS   # (an assignment in front of a shell function would outlive the call)
 
+# a project: zinc build writes build/<name> and the packs of its assets, build/assets/<target> (ZN-434); that directory is not the program's
+# assets (the ZN-436 regression: ENOENT for every file), and the v1 calls read the packs first, so the program needs no assets/ once built
+mkdir -p "$tmp/pp/assets/sub"
+printf '{ "name": "pp", "entry": "main.ts" }\n' > "$tmp/pp/zinc.json"
+printf "import { exists, readText } from 'zinc:assets';\nconsole.log(exists('sub/msg.txt') ? readText('sub/msg.txt') : 'none');\n" > "$tmp/pp/main.ts"
+printf 'packed' > "$tmp/pp/assets/sub/msg.txt"
+"$Z" build "$tmp/pp" 2>"$tmp/err" >/dev/null || { echo "aot_assets: build of a project failed: $(head -c 300 "$tmp/err")"; exit 1; }
+ls "$tmp"/pp/build/assets/*/default.zpk >/dev/null 2>&1 || { echo "aot_assets: zinc build wrote no pack"; fail=1; }
+is "a project's build" "packed|" / "$tmp/pp/build/pp"
+mv "$tmp/pp/assets" "$tmp/pp/gone"
+is "a project's build, through its packs alone" "packed|" / "$tmp/pp/build/pp"
+mv "$tmp/pp/gone" "$tmp/pp/assets"
+printf 'dir' > "$tmp/pp/assets/sub/msg.txt"
+export ZINC_PACKS=
+is "a project's build, its directory alone (ZINC_PACKS empty)" "dir|" / "$tmp/pp/build/pp"
+unset ZINC_PACKS
+
 # permissions enforced (declared in zinc.json: the built program enforces them)
 mkdir -p "$tmp/p" "$tmp/ship" "$tmp/lone"
 printf '{ "name": "p", "entry": "main.ts", "permissions": [] }\n' > "$tmp/p/zinc.json"

@@ -1,5 +1,6 @@
 #pragma once
 // The command line beyond the compiler (ZN-138, audit 01 table D): bare `zinc run|build|check` in a project, `zinc help [command]`, `zinc init <dir> [--template t]`, `zinc doctor`.
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -64,6 +65,9 @@ int assets(const std::vector<std::string>& args, const std::string& engineRoot);
 /** The asset build of the project in `dir` (zinc pack, build and export call it): <dir>/build/assets/<target>, the release profile compressing
  *  the packs. True with nothing done when the project has no assets directory; `summary` gets the line zinc assets build prints. */
 bool buildAssets(const std::string& dir, const std::string& target, bool release, std::string& err, std::string* summary = nullptr);
+/** What zinc:assets needs to run the project in `dir` on `target` (ZN-436): `ram`, the ram budget zinc.json and targets/capabilities.json put
+ *  in force there (0: none); `packs`, when zinc.json has asset groups and `build`, the directory of its dev packs, built now (empty otherwise). */
+bool assetRun(const std::string& dir, const std::string& target, const std::string& engineRoot, bool build, std::string& packs, std::uint64_t& ram, std::string& err);
 /** Where the asset build keeps its artifacts (~/.zinc/cache/assets; empty under ZINC_NO_CACHE), and the engine's build its keys name. */
 std::string assetCacheDir();
 std::string engineBuild();

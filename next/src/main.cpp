@@ -565,7 +565,32 @@ static void prune(std::size_t keep) {
 }
 }  // namespace aotcache
 
+// zinc:assets for a program run from `entry` (ZN-436): ZINC_ASSETS, the assets beside the entry or above it; ZINC_PACKS, the packs of an
+// unpacked .zapp (packs/ beside its program) or, for a project with asset groups, its dev packs built now (none otherwise: a run of the CLI
+// never takes packs beside the zinc executable); ZINC_ASSET_RAM, the ram budget in force on this machine. A value already set wins.
+static void assetsEnv(const std::string& entry) {
+  namespace fs = std::filesystem;
+  const fs::path dir = fs::absolute(entry).parent_path();
+  std::error_code ec;
+  for (const fs::path& d : {dir / "assets", dir.parent_path() / "assets"}) if (fs::is_directory(d, ec)) { setenv("ZINC_ASSETS", d.c_str(), 0); break; }
+  if (fs::is_directory(dir / "packs", ec)) setenv("ZINC_PACKS", (dir / "packs").c_str(), 0);
+  if (const std::string pf = zn::frontend::findProjectFile(entry); !pf.empty()) {
+    std::string packs, err;
+    std::uint64_t ram = 0;
+    if (!zn::cli::assetRun(fs::path(pf).parent_path().string(), zn::tc::pluginTarget(), gRoot, !std::getenv("ZINC_PACKS"), packs, ram, err)) std::fprintf(stderr, "zinc: %s\n", err.c_str());
+    if (!packs.empty()) setenv("ZINC_PACKS", packs.c_str(), 0);
+    if (ram) setenv("ZINC_ASSET_RAM", std::to_string(ram).c_str(), 0);
+  }
+  setenv("ZINC_PACKS", "", 0);
+}
+
 struct RunBuild { std::string have, key; bool reused = false; };
+// The pack reader of zinc:assets and its decoders (ZN-436), after the host library that calls them.
+static std::string packLibs(const std::filesystem::path& libs) {
+  std::string r;
+  for (const char* lib : {"libzn_zpk.a", "libzn_lz4.a", "libzn_zstd.a", "libzn_sha256.a"}) if (std::filesystem::exists(libs / lib)) r += " '" + (libs / lib).string() + "'";
+  return r;
+}
 static int buildNative(const char* argv0, const char* entry, const char* out, zn::zbc::Module& zm, std::chrono::steady_clock::time_point tBuild, RunBuild* run = nullptr) {
   namespace fs = std::filesystem;
   fs::path libs = fs::absolute(argv0).parent_path(), cpp = fs::path(out).string() + ".cpp";
@@ -576,15 +601,20 @@ static int buildNative(const char* argv0, const char* entry, const char* out, zn
     zn::log::Phase ph("build", "bake fonts and images", "resources", "fonts and images baked in");
     if (!bakeResources(entry, blob, err)) { std::fprintf(stderr, "zinc: cannot bake the fonts and images: %s\n", err.c_str()); return 1; }
   }
+  std::string assetLines;   // zinc build: the ram budget of zinc:assets and the packs' target, set in main like ZINC_SIZE (ZN-436)
   if (std::string pf = zn::frontend::findProjectFile(entry); !run && !pf.empty()) {   // zinc build: the packs of the project's assets, build/assets/<target> (ZN-434)
-    std::string err;
-    if (!zn::cli::buildAssets(fs::path(pf).parent_path().string(), gBuildTarget.empty() ? zn::tc::pluginTarget() : gBuildTarget, false, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
+    std::string err, packs;
+    std::uint64_t ram = 0;
+    const std::string dir = fs::path(pf).parent_path().string(), target = gBuildTarget.empty() ? zn::tc::pluginTarget() : gBuildTarget;
+    if (!zn::cli::buildAssets(dir, target, false, err) || !zn::cli::assetRun(dir, target, gRoot, false, packs, ram, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
+    if (ram) assetLines += "  setenv(\"ZINC_ASSET_RAM\", \"" + std::to_string(ram) + "\", 0);   // zinc:assets: the ram budget of zinc.json\n";
+    if (!gBuildTarget.empty()) assetLines += "  setenv(\"ZINC_PACK_TARGET\", \"" + target + "\", 0);   // zinc:assets: the packs of assets/<target> beside the program\n";
   }
   const char* cxx = std::getenv("CXX");
   bool haveLibs = fs::exists(libs / "libzn_rt.a");
   bool haveCxx = cxx || std::system("command -v c++ >/dev/null 2>&1") == 0;
   std::vector<fs::path> moreUnits;   // the other translation units of a large program, compiled at once with the first (ZN-604)
-  { zn::log::Phase ph("build", "AOT C++", "C++", "generated"); std::ofstream o(cpp); std::vector<std::string> parts = zn::aot::emitCppParts(zm, blob.empty() ? nullptr : &blob, (zn::frontend::uiLayout() == "rn" || zn::frontend::directLayoutUse()), haveLibs && haveCxx ? 3 : 1); std::string text = std::move(parts[0]); if (!gBakedSize.empty()) { std::size_t at = text.find("{\n", text.find("int main(")); if (at != std::string::npos) text.insert(at + 2, "  setenv(\"ZINC_SIZE\", \"" + gBakedSize + "\", 0);   // the board's surface\n"); } o << text; if (!o) { std::fprintf(stderr, "cannot write %s\n", cpp.c_str()); return 2; }
+  { zn::log::Phase ph("build", "AOT C++", "C++", "generated"); std::ofstream o(cpp); std::vector<std::string> parts = zn::aot::emitCppParts(zm, blob.empty() ? nullptr : &blob, (zn::frontend::uiLayout() == "rn" || zn::frontend::directLayoutUse()), haveLibs && haveCxx ? 3 : 1); std::string text = std::move(parts[0]); if (!gBakedSize.empty()) { std::size_t at = text.find("{\n", text.find("int main(")); if (at != std::string::npos) text.insert(at + 2, "  setenv(\"ZINC_SIZE\", \"" + gBakedSize + "\", 0);   // the board's surface\n"); } if (!assetLines.empty()) { std::size_t at = text.find("{\n", text.find("int main(")); if (at != std::string::npos) text.insert(at + 2, assetLines); } o << text; if (!o) { std::fprintf(stderr, "cannot write %s\n", cpp.c_str()); return 2; }
     for (std::size_t k = 1; k < parts.size(); ++k) { moreUnits.push_back(fs::path(out).string() + ".part" + std::to_string(k) + ".cpp"); std::ofstream u(moreUnits.back()); u << parts[k]; if (!u) { std::fprintf(stderr, "cannot write %s\n", moreUnits.back().c_str()); return 2; } } }
   std::string shapedLibs;   // "text": "shaped" (ZN-224): the shaping tier is linked into this program only
   if (zn::aot::usesHost(zm)) {
@@ -679,7 +709,7 @@ static int buildNative(const char* argv0, const char* entry, const char* out, zn
                     (libs / "libzn_zbc.a").string() + "' '" + (libs / "libzn_ir.a").string() + "' '" + (libs / "libzn_frontend.a").string() + "'" + (fs::exists(libs / "libzn_regexp.a") ? " '" + (libs / "libzn_regexp.a").string() + "'" : std::string()) + " '" + (libs / "libzn_native.a").string() + "'" + (!zm.natives.empty() && fs::exists(libs / "libzn_native_fixture.a") ? " '" + (libs / "libzn_native_fixture.a").string() + "'" : std::string()) +   // the native registry; libunicode: the string runtime needs it
                     (!nativeLibs.empty() ? nativeLibs : std::string()) +
                     (zn::aot::usesGl(zm) && fs::exists(libs / "libzn_gl.a") ? " '" + (libs / "libzn_gl.a").string() + "' '" + (libs / "libzn_glad.a").string() + "' '" + (libs / "libzn_glslang.a").string() + "'" : std::string()) +   // zinc:gl (ZN-562): WebGL linked in, no libzn_webgl
-                    (zn::aot::usesLayout(zm) && (zn::frontend::uiLayout() == "rn" || zn::frontend::directLayoutUse()) && fs::exists(libs / "libzn_layout.a") ? " '" + (libs / "libzn_layout.a").string() + "' '" + (libs / "libzn_yoga.a").string() + "'" : std::string()) + ((zn::aot::usesHost(zm) || !nativeLibs.empty()) && fs::exists(libs / "libzn_host_gfx.a") ? " '" + (libs / "libzn_host_gfx.a").string() + "'" + (window && separateWindow ? " -Wl,-force_load,'" + (libs / "libzn_host_window.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_codec.a") ? " '" + (libs / "libzn_codec.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_uv.a") ? " '" + (libs / "libzn_uv.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_llhttp.a") ? " '" + (libs / "libzn_llhttp.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_mbedtls.a") ? " '" + (libs / "libzn_mbedtls.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_regexp.a") ? " '" + (libs / "libzn_regexp.a").string() + "'" : std::string()) + " -lpthread" HOSTLIBS : std::string()) + " -o '" + out + "'";  // the graphics host, used by programs that call it
+                    (zn::aot::usesLayout(zm) && (zn::frontend::uiLayout() == "rn" || zn::frontend::directLayoutUse()) && fs::exists(libs / "libzn_layout.a") ? " '" + (libs / "libzn_layout.a").string() + "' '" + (libs / "libzn_yoga.a").string() + "'" : std::string()) + ((zn::aot::usesHost(zm) || !nativeLibs.empty()) && fs::exists(libs / "libzn_host_gfx.a") ? " '" + (libs / "libzn_host_gfx.a").string() + "'" + (window && separateWindow ? " -Wl,-force_load,'" + (libs / "libzn_host_window.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_codec.a") ? " '" + (libs / "libzn_codec.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_uv.a") ? " '" + (libs / "libzn_uv.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_llhttp.a") ? " '" + (libs / "libzn_llhttp.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_mbedtls.a") ? " '" + (libs / "libzn_mbedtls.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_regexp.a") ? " '" + (libs / "libzn_regexp.a").string() + "'" : std::string()) + packLibs(libs) + " -lpthread" HOSTLIBS : std::string()) + " -o '" + out + "'";  // the graphics host, used by programs that call it
   if (run) {   // a compiled run: the program's C++ and what it links, hashed; the same as the cached executable's: nothing to compile
     std::string k;
     for (const fs::path& u : units) { std::ifstream in(u); std::stringstream ss; ss << in.rdbuf(); k += ss.str(); }
@@ -875,8 +905,7 @@ static bool wanted() {
 }
 static int exec(const fs::path& app, bool built, const std::string& entry, const std::string& projectDir, const std::vector<std::string>& progArgs) {
   zn::log::write("run", zn::log::Info, "engine AOT (" + app.string() + ")");
-  const fs::path ed = fs::path(entry).parent_path();   // zinc:assets reads ZINC_ASSETS, set for the interpreter below main's compile: the same directory here
-  for (const fs::path& d : {ed / "assets", ed.parent_path() / "assets"}) if (fs::is_directory(d)) { setenv("ZINC_ASSETS", d.c_str(), 0); break; }
+  assetsEnv(entry);   // as for the interpreter's run below main's compile
   printPlugins();
   zn::log::step("run", built ? "native" : "native, cached build (--interp to interpret)");
   if (!projectDir.empty()) { std::error_code ec; setenv("ZINC_LAUNCH_DIR", fs::current_path(ec).c_str(), 0); fs::current_path(projectDir, ec); }   // sys.launchDir (ZN-687)
@@ -1395,9 +1424,7 @@ int main(int argc, char** argv) {
       std::vector<std::string> args;
       for (int k = 6; k < argc; ++k) args.push_back(argv[k]);
       zn::host::setProgramArgs(args);
-      namespace fs = std::filesystem;
-      fs::path dir = fs::absolute(argv[2]).parent_path();
-      for (fs::path d : {dir / "assets", dir.parent_path() / "assets"}) if (fs::is_directory(d)) { setenv("ZINC_ASSETS", d.c_str(), 0); break; }
+      assetsEnv(argv[2]);
       std::vector<std::uint8_t> blob;
       std::string err;
       {  // the fonts and images the program names: the texts of its files (the Zinc loader follows the imports, a program that does not parse as Zinc bakes from its own text)
@@ -1465,6 +1492,9 @@ int main(int argc, char** argv) {
         files[rel] = as.str();
       }
     if (!zn::cli::buildAssets(projDir, zn::tc::pluginTarget(), false, err)) { std::fprintf(stderr, "zinc pack: %s\n", err.c_str()); return 1; }   // the packs, build/assets/<this machine> (ZN-434)
+    if (have && !project.assets.groups.empty())   // the groups of zinc:assets v2 (ZN-436): the packs ride along as packs/<group>.zpk, read from the unpacked archive
+      for (const auto& e : fs::directory_iterator(fs::path(projDir) / "build" / "assets" / zn::tc::pluginTarget(), ec))
+        if (e.path().extension() == ".zpk") { std::ifstream zf(e.path(), std::ios::binary); std::stringstream zs; zs << zf.rdbuf(); files["packs/" + e.path().filename().string()] = zs.str(); }
     if (outPath.empty()) { fs::create_directories(fs::path(projDir) / "build", ec); outPath = (fs::path(projDir) / "build" / (name + ".zapp")).string(); }
     const std::string archive = zn::zapp::pack(files, name, kVersionText);
     std::ofstream out(outPath, std::ios::binary);
@@ -1681,9 +1711,7 @@ int main(int argc, char** argv) {
       std::vector<std::string> args;
       for (int k = 4; k < argc; ++k) args.push_back(argv[k]);
       zn::host::setProgramArgs(args);
-      namespace fs = std::filesystem;
-      fs::path dir = fs::path(absPath).parent_path();
-      for (fs::path d : {dir / "assets", dir.parent_path() / "assets"}) if (fs::is_directory(d)) { setenv("ZINC_ASSETS", d.c_str(), 0); break; }
+      assetsEnv(absPath);
     }
     if (drawsOf(zm)) {  // a program that draws: bake its fonts and images (from its sources) and install them; a packed or cached program brings them
       std::string err;
@@ -1979,7 +2007,7 @@ int main(int argc, char** argv) {
         if (!pl.vendor.empty()) cmd += " '" + pl.vendor + "'";
         for (const std::string& a : pl.linkArgs) cmd += " " + a;
       }
-      for (const char* lib : {"zn_rt", "zn_mimalloc", "zn_zbc", "zn_ir", "zn_frontend", "zn_native", "zn_host_gfx", "zn_layout", "zn_yoga", "zn_codec", "zn_uv", "zn_llhttp", "zn_mbedtls", "zn_regexp", "zn_yyjson"}) if (fs::exists(L + "lib" + lib + ".a")) cmd += " '" + L + "lib" + lib + ".a'";
+      for (const char* lib : {"zn_rt", "zn_mimalloc", "zn_zbc", "zn_ir", "zn_frontend", "zn_native", "zn_host_gfx", "zn_layout", "zn_yoga", "zn_codec", "zn_uv", "zn_llhttp", "zn_mbedtls", "zn_regexp", "zn_zpk", "zn_lz4", "zn_zstd", "zn_sha256", "zn_yyjson"}) if (fs::exists(L + "lib" + lib + ".a")) cmd += " '" + L + "lib" + lib + ".a'";
       cmd += " -lpthread -o '" + std::string(argv[6]) + "'";
       writeComponents(std::string(argv[6]) + ".components", cmd, crossPlugins);   // ZN-323
       ok = std::system(cmd.c_str()) == 0;

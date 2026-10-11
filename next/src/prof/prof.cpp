@@ -9,6 +9,8 @@
 #include <sys/time.h>
 
 #include "vm/vm.h"
+#include "zn/host.h"
+#include "zn/runtime.h"
 
 namespace zn::prof {
 namespace {
@@ -157,11 +159,23 @@ void finishMem(Machine& m, const void* data) {
 #else
   double peakRssMb = static_cast<double>(ru.ru_maxrss) / 1024.0;
 #endif
+  // what the loaded groups of zinc:assets hold (ZN-436): data outside the objects counted here, freed by unloadGroup
+  double assetsPeak = 0, assetsLeft = 0;
+  if (zn::host::hostSys) {
+    zn::host::HostArg a[1], res;
+    a[0].i = 1;
+    zn::host::hostSys(static_cast<int>(Rt::HostAssetsStat), a, &res);
+    assetsPeak = res.d;
+    a[0].i = 0;
+    zn::host::hostSys(static_cast<int>(Rt::HostAssetsStat), a, &res);
+    assetsLeft = res.d;
+  }
   std::string& r = *mo->report;
   char line[320];
   if (mo->json) {
     r = "{\"allocs\":" + std::to_string(s.allocs) + ",\"frees\":" + std::to_string(s.frees) + ",\"retains\":" + std::to_string(s.retains) + ",\"releases\":" + std::to_string(s.releases) +
         ",\"peakLiveObjects\":" + std::to_string(s.peakLive) + ",\"peakObjectBytes\":" + std::to_string(s.peakBytes) + ",\"leaked\":" + std::to_string(leaked);
+    if (assetsPeak > 0) { std::snprintf(line, sizeof line, ",\"assetsPeakBytes\":%.0f,\"assetsBytesAtExit\":%.0f", assetsPeak, assetsLeft); r += line; }
     std::snprintf(line, sizeof line, ",\"processPeakRssMb\":%.2f,\"classes\":[", peakRssMb);
     r += line;
     bool first = true;
@@ -182,6 +196,7 @@ void finishMem(Machine& m, const void* data) {
   std::snprintf(line, sizeof line, "          reference counting: %llu retains, %llu releases; process peak RSS %.1f MB\n", static_cast<unsigned long long>(s.retains),
                 static_cast<unsigned long long>(s.releases), peakRssMb);
   r += line;
+  if (assetsPeak > 0) { std::snprintf(line, sizeof line, "          assets: peak %.0f bytes resident, %.0f at exit\n", assetsPeak, assetsLeft); r += line; }
   r += "   allocs  peak live   object bytes  storage bytes  left  class\n";
   std::vector<std::size_t> order;
   for (std::size_t k = 0; k < s.perClass.size(); ++k) if (s.perClass[k].allocs) order.push_back(k);
