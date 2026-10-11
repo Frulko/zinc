@@ -209,3 +209,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-718: first tag on CI: check the `macos-15-intel` label, the Package step on each OS, and `install.sh` from the real URL.
 - ZN-718: run `install.sh` and `install_nocompiler` on Linux x86_64 and aarch64; the notarized archive on a clean Mac and on arm64.
 - ZN-718: Windows: the zip of `tools/package` (never run), an install.ps1, a `windows` plugin target, after ZN-054.
+- ZN-714: Windows, first run of the two CI jobs (windows-cross, windows-console), then remove their continue-on-error; nothing has run on Windows yet (output equality, exit codes, UTF-8 console, stack overflow instead of a crash).
+- ZN-714: Windows host library: vendor libuv's `src/win` and SDL3's Windows sources, port `sys_host.cpp` (CreateProcess, ws2_32), `libzn_window` as a DLL; any program that uses the host (window, plugin, timers) is refused today. Table by module in `docs/reports/zinc-next-hosts.md`.
+- ZN-714: Windows plugins (a `windows` target in plugin.json, .dll in plugin_build.cpp, WebView2, Media Foundation, COM serial), file dialog and the system plugin's Win32 backend.
+- ZN-714: zinc.exe itself (curl/tar/sh in src/tc, fork/termios/poll) and the installer (install.ps1, signing, winget or scoop, update-app).
+
