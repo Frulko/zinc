@@ -83,6 +83,7 @@
     {"paths": ["tools/plugin-split"], "tests": ["plugin_split"]},
     {"paths": ["include/zn/log.h", "src/host/ui_log.cpp"], "tests": ["verbose_log"]},
     {"paths": ["../docs/guide/08-security.md"], "tests": ["security_guide"]},
+    {"paths": ["../docs/guide/07-distribution.md", "../docs/guide/08-security.md", "tests/t1/guide_store.sh", "../templates/game-2d/"], "tests": ["guide_store"]},
     {"paths": ["include/zn/native.h", "src/rt/native.cpp", "src/rt/native_lazy.h", "tools/abi-check", "tests/data/native-abi-v1.txt", "tests/native/native_test.cpp"], "tests": ["native", "native_abi_freeze", "native_call", "plugin_build", "script", "native_lazy"]},
     {"paths": ["tools/gh-org-setup", "tools/gh-org-protection.json"], "tests": ["gh_org_setup"]},
     {"paths": ["src/tc/tuf", "tools/index-repo", "tests/data/tuf_interop.py"], "tests": ["tuf_canonical", "tuf_index", "tuf_interop", "index_search", "mirrors", "tlog", "revocation"]},

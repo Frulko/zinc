@@ -7,10 +7,12 @@ its status, is [reports/security-audit.md](../reports/security-audit.md). To rep
 
 ## Threat model
 
-Zinc compiles to C++17 and links a small runtime. There is no JavaScript engine and no `eval` (a compile error,
-`Z1003`), no dynamic `import()` (`Z1009`), no regex engine, and no reflection or prototype mutation. The program is fixed
-at build time: input is data, never code. What an attacker can reach is the data a program reads and the services it
-opens. Per deployment:
+A Zinc program is typed TypeScript compiled ahead of time: `zinc export` and `zinc build` write C++ (AOT) linked with a small runtime,
+`zinc run` and a `.zapp` run its bytecode on the interpreter. There is no `eval` (a compile error, `Z1003`), no dynamic `import()`
+(`Z1009`), and no reflection or prototype mutation; regular expressions run on QuickJS-ng's libregexp, a backtracking engine (a pattern
+built from input can take exponential time). The program is fixed at build time: input is data, never code. The exception is
+`zinc run --engine quickjs`, which runs plain JavaScript on QuickJS-ng, a JavaScript engine. What an attacker can reach is the data a
+program reads and the services it opens. Per deployment:
 
 | Deployment | Who can attack | What they control | What Zinc does |
 | --- | --- | --- | --- |
@@ -18,7 +20,7 @@ opens. Per deployment:
 | **Kiosk** (Pi with a screen) | people on the LAN, people at the device | the network services the app opens; the touch screen | the systemd unit runs it unprivileged; remote display on loopback, token when exposed |
 | **Headless service** (Pi, server) | anyone who can reach its ports | HTTP requests, MQTT packets from the broker, OSC datagrams | size, connection and time limits on `net.serve`; bounded MQTT/OSC parsing; `ZINC_BIND` to restrict listeners; unprivileged hardened unit |
 | **ESP32 device** | the network (WiFi), whoever holds the device | fetch responses, MQTT, OSC; the flash chip | the same bounded parsers with smaller limits (JSON depth 32, 16 KiB stack); no MMU, no ASLR: a bug is worse here |
-| **Dev mode** (`zinc dev`, `--devtools`) | web pages open in the developer's browser, the LAN | the inspector port, the wasm dev server, `zinc monitor` | loopback binds; the inspector rejects foreign `Host` (DNS rebinding) and `Origin` (other web pages) headers |
+| **Dev mode** (`zinc dev`, `--devtools`) | web pages open in the developer's browser, the LAN | the inspector port, the `serve.py` of a wasm export, `zinc monitor --udp` | the inspector and `serve.py` bind loopback; the inspector rejects foreign `Host` (DNS rebinding) and `Origin` (other web pages) headers; `zinc monitor --udp` listens on every interface (below) |
 
 Out of scope: a local user with the same OS account (they can read the process's memory), physical access to an
 unencrypted device, and the build machine and toolchain (trusted, see supply chain).
@@ -32,7 +34,8 @@ The runtime turns most memory errors into a clean **panic** (the message JS woul
   most 2^30 bytes (`RangeError: Invalid string length`), a runtime image at most 16384 pixels per side.
 - **Null dereference** through an object reference panics; reading a property of `null`/`undefined` through a `Dyn`
   panics with the `TypeError` text. **Downcasts** out of `Dyn` are checked (ADR 0014).
-- **Integer division by zero** panics; `i32` arithmetic wraps (`-fwrapv`, no UB).
+- **Integer division by zero** panics; `i32` arithmetic wraps (defined once in `include/zn/ops.h`, the same in the interpreter and
+  the AOT; no UB).
 - **Reference counting** is exact for pooled and weakly referenced objects together (a pooled object freed by its last
   `@weak` goes back to its pool), and an `Arena` disposed while a newer one is open leaves the arena chain.
 - **Drawing** takes any numbers: NaN, infinities, huge sizes and bad contour counts in `gfx` calls draw nothing wrong
@@ -42,12 +45,13 @@ The runtime turns most memory errors into a clean **panic** (the message JS woul
   endpoint, the remote-display stream (RLE), SVG, Lottie, glTF/GLB, PNG/JPEG (stb_image), TrueType, vector tiles and map
   styles, and the whole `gfx` drawing path.
 
-Build with `--debug` (ASan + UBSan + leak report) throughout development; aim for 0 live objects at exit.
+Check with `zinc mem <file> --check-leaks` throughout development (live objects at exit, by class; it exits 4 when some are left); aim
+for 0 live objects at exit.
 
 ## Memory safety: known limits
 
 - **Reference cycles leak.** RC is RAII, not a tracing GC (ADR 0001). A cycle you don't break with `@weak` is a leak,
-  caught by the `--debug` leak report.
+  caught by `zinc mem --check-leaks`.
 - **Bounds checks are runtime, not proved away**, and `unchecked<T>()` opts out of one: it reintroduces UB on violation.
 - **Arena escape is checked at runtime** (a panic at dispose), not at compile time.
 - **Native plugins are C++.** Anything a plugin does in its own code is as safe as that code; the plugins shipped here
@@ -60,35 +64,81 @@ Build with `--debug` (ASan + UBSan + leak report) throughout development; aim fo
   service, it cannot corrupt it. Put systemd's restart behind it (below).
 - **No isolation between the program and the device.** `zinc:fs`, `zinc:sys`, `zinc:net`, `zinc:gpio`,
   `zinc:process` do what the OS user can do; `zinc:fs` has no root directory (a path from outside must be checked by
-  the program: a path containing a NUL byte is refused). Run services as an unprivileged user (the exported unit does).
+  the program: a path containing a NUL byte is refused). Run services as an unprivileged user (the `service` template's unit does).
 
 ## Permissions
 
-`zinc.json` `"permissions"` says what the program's host modules may do. Without the key nothing is checked (as before); with it, every
-call is checked: while developing (`zinc run`) a call the list does not cover works but is warned about once per permission on stderr, and
-when enforced (exported apps, or `ZINC_PERMISSIONS=enforce`) it fails with an `EACCES` error that names the permission to add.
+`zinc.json` `"permissions"` lists what the program may do through the host modules. Without the key, files, network and processes are not
+checked (a script, an app from before permissions). With it, even empty, every call of the table below is checked: while developing
+(`zinc run`) a call the list does not cover works but warns once per permission on stderr; enforced (an app built by `zinc build` or
+`zinc export`, or `ZINC_PERMISSIONS=enforce zinc run`) it fails with an `EACCES` error that names the permission to add. The desktop
+modules of `zinc:system` are stricter: they need their permission whether the key is there or not. An unknown id is an error when zinc.json
+is read.
 
 ```json
-{ "permissions": ["fs:read:data", "fs:write:out", "net:api.example.com", "net:*.cdn.example.com"] }
+{ "permissions": ["fs:read:data", "fs:write:out", "net:api.example.com", "net:*.cdn.example.com", "tray"],
+  "targets": { "linux": { "permissions": ["process", "-tray"] } } }
 ```
 
-| Entry | Allows |
-|---|---|
-| `fs`, `fs:read`, `fs:write` | every file, reading only, writing only (also remove, mkdir, rename, chmod, symlink) |
-| `fs:read:<root>`, `fs:write:<root>` | under that directory (relative to the project, or absolute) |
-| `net`, `net:<host>`, `net:*.<domain>`, `net:*` | fetch to any host, one host, a domain's hosts; listening (`serve`) needs `net` or `net:*` |
-| `net` also covers sockets (`zinc:socket`: connect to the host, listening and UDP need `net` or `net:*`, Unix sockets `net:unix:<path>`), `zinc:mqtt` and `zinc:osc` (send to the host, listen) | |
-| `process` | child processes (`zinc:process`) |
-| `camera` | `zinc:gphoto2` (detect, open) |
-| `serial`, `microphone`, `location` | accepted; no module of the engine reaches them yet |
+`targets.<target>.permissions` adjusts the list for one target: an id adds a permission, `-id` removes one. A build or a run on a Mac takes
+the `macos` list, on Linux and for the Linux targets the `linux` list.
 
-Exported apps enforce them: `zinc build` / `zinc export` of a project with `"permissions"` (for this machine and for the Linux targets) compiles a program that
-enforces the list from its first instruction, `zinc export` prints the list, and on macOS `camera`, `microphone` and `location` add the usage
-strings (`NSCameraUsageDescription`, `NSMicrophoneUsageDescription`, `NSLocationWhenInUseUsageDescription`) the system shows when it asks the
-user.
+### The permission keys
 
-Exempt: the app's own `assets/` (zinc:assets), and files the user picked in a dialog. With `"scopes": {"fs": "user-picked"}` the scope, which
-is stricter, decides for files. Redirects are checked against the new host.
+| Key | Allows |
+| --- | --- |
+| `fs` | every file: reading and writing |
+| `fs:read`, `fs:write` | every file: reading only, writing only (writing includes remove, mkdir, rename, chmod, symlink) |
+| `fs:read:<dir>`, `fs:write:<dir>` | the files under `<dir>` (relative to the project, or absolute; links are resolved before the check) |
+| `net`, `net:*` | every host, and listening (a server, a listening or UDP socket, OSC) |
+| `net:<host>` | requests and connections to that host only |
+| `net:*.<domain>` | requests and connections to the hosts of that domain (not the domain itself) |
+| `net:unix:<path>` | the Unix socket at that path |
+| `process` | starting child processes |
+| `camera` | cameras; on macOS the camera entitlement and `NSCameraUsageDescription` |
+| `microphone`, `location` | accepted, and on macOS their entitlement and usage strings; no module of the engine checks them yet |
+| `serial` | accepted; no module of the engine checks it yet |
+| `notification`, `menu`, `tray`, `dialog`, `window`, `shortcut`, `instance`, `deep-link`, `autostart`, `dock`, `power`, `clipboard`, `opener`, `update` | the module `zinc:system/<id>` (`zinc:system/deeplink` for `deep-link`): every op of it |
+| `window:state`, `notification:notify`, `notification:permission`, `clipboard:rich` | the ops of a module that need that id only (`window:state`: saving and restoring the window's frame; `notification:notify`: notify, cancel, delivered; `clipboard:rich`: html, images and files) |
+
+### What each host module checks
+
+| Module | Call | Needs |
+| --- | --- | --- |
+| `zinc:fs` | `readText`, `readBytes`, `readDir`, `list`, the source of `copyFile`; `watch` of a directory (it lists it) | `fs:read` covering the path |
+| `zinc:fs` | `writeText`, `appendText`, `writeBytes`, `mkdir`, `remove`, `rename` (both paths), `symlink` (the link), `chmod`, the destination of `copyFile` | `fs:write` covering the path |
+| `zinc:fs` | `exists`, `stat`, `lstat`, `readlink`, `realpath`, `mkdtemp`, `tmpdir`; `watch` of a file | not checked (see the gaps below) |
+| `zinc:assets` | reading the app's own assets | nothing (a path that leaves `assets/` with `..` is checked as any file); writing there through `zinc:fs` needs `fs:write` |
+| `zinc:storage` | the app's own key-value file | nothing |
+| `zinc:net` | `fetch` (and `fetch` of `zinc:web/fetch`, built on it): each request, and each redirect again with its new host | `net:<host>` |
+| `zinc:net` | `serve` | `net` or `net:*` |
+| `zinc:socket` (plugin) | connecting | `net:<host>` |
+| `zinc:socket` | listening, UDP | `net` or `net:*` |
+| `zinc:socket` | Unix sockets (connect, listen) | `net:unix:<path>` |
+| `zinc:mqtt` | connecting (plain or TLS) | `net:<broker host>` |
+| `zinc:osc` | sending | `net:<host>` |
+| `zinc:osc` | listening | `net` or `net:*` |
+| `zinc:process` (plugin) | starting a process (`spawn`, `run`) | `process` |
+| `zinc:gphoto2` (plugin) | detecting and opening a camera | `camera` |
+| `zinc:system/<id>` | importing the module (else compile error `Z5006`), then each op (else a `SystemError` with the code `denied`) | its id |
+| `zinc:sys`, `zinc:gfx`, `zinc:ui`, `zinc:audio`, the other modules | | nothing |
+
+**Exempt.** Files the user picked in a dialog (`zinc:system/dialog`) count as granted. With `"scopes": {"fs": "user-picked"}` the scope, which
+is stricter, decides for files instead of the list: only picked files, and what is under a picked directory, can be read, written or listed.
+`"scopes": {"opener": {"allow": [...]}}` limits what `zinc:system/opener` may open.
+
+**Gaps** (found while writing this page, ZN-327): `exists`, `stat`, `lstat`, `readlink` and `realpath` answer for any path (whether a file
+exists, its size and times, where a link points) without `fs:read`, `watch` of a file reports its changes the same way, and `mkdtemp(prefix)` creates a
+directory under any prefix without `fs:write`. Until they are checked, do not count on the list to hide which files exist.
+
+**Exported apps enforce them.** `zinc build` and `zinc export` of a project with `"permissions"` compile a program that enforces the list from
+its first instruction; `zinc export` prints the list. Cross builds for the Linux targets do the same with the `linux` list (proven on macOS
+only so far: `next/tests/t1/permissions_export.sh`). On macOS `camera`, `microphone` and `location` add the usage strings
+(`NSCameraUsageDescription`, `NSMicrophoneUsageDescription`, `NSLocationWhenInUseUsageDescription`) the system shows when it asks the user,
+and the entitlements of the hardened runtime follow the list ([distribution](07-distribution.md#signing)).
+
+**Plugins.** A plugin's `plugin.json` `"permissions"` is something else: the capabilities the plugin asks for, pinned in `zinc.lock` when it is
+added (below, "Plugin distribution"). A plugin's native code is checked only where it asks the engine, as `zinc:gphoto2` does.
 
 ## Network services: defaults
 
@@ -101,8 +151,8 @@ is stricter, decides for files. Redirects are checked against the new host.
 | DevTools inspector (`zinc dev`, `--devtools`) | `127.0.0.1:9229` | loopback + `Host` and `Origin` checks | 64 KiB frames, 4 clients |
 | display-remote (`display: "remote"`) | `127.0.0.1:7700` | token (`ZINC_REMOTE_TOKEN`) when exposed; a warning without | 64-byte viewer messages; PONG stops when a viewer does not read |
 | zinc:remote viewer (ZincStudio devices) | outbound; beacons on UDP 7701 (unauthenticated) | sends the token | messages bounded by the screen size |
-| `zinc run/dev --target wasm` server | `127.0.0.1:8080` (`HOST=0.0.0.0` for the LAN) | – | serves the build directory only |
-| `zinc monitor` | `127.0.0.1` (`ZINC_MONITOR_HOST=0.0.0.0` for devices) | – | control characters are escaped before printing |
+| `serve.py` of a wasm export | `127.0.0.1:8000` (its argument is the port) | – | serves its own folder only |
+| `zinc monitor --udp <port>` | all interfaces | none: any host that reaches the port writes lines | lines are printed as received, control characters included: use it on a trusted network only |
 | mapping web companion | `127.0.0.1:8080` (`--host`) | per-run token in the editor URL (header `x-zinc-token`) | 1 MiB requests |
 
 There is no built-in TLS anywhere: across an untrusted network use a tunnel (`ssh -L`, WireGuard) or a reverse proxy.
@@ -111,48 +161,46 @@ public web server. The mapping plugin's OSC commands `/save` and `/load` take a 
 
 ## Deploying on Linux and Raspberry Pi
 
-`zinc export --target linux|rpi1` writes `<name>.service` and `deploy.sh`:
+`zinc export --target linux` (or `rpi`, `rpi1`, ...) writes the executable, `run.sh` and a `.desktop` file, and `zinc deploy` copies the
+export to the device with scp and starts `./run.sh` with ssh, as the user you log in as. A service that runs at boot needs a systemd unit:
+the `service` template carries one, `deploy/<id>.service`, which runs the program as a transient unprivileged user (`DynamicUser=yes`) with
+`NoNewPrivileges=yes`, `ProtectSystem=strict` (the system is read-only) and `ProtectHome=yes`, and restarts it on failure. Install it as
+root: the executable under `/opt/<id>/`, owned by root (the service cannot rewrite its own binary), the unit under `/etc/systemd/system/`,
+then `systemctl enable --now <id>`.
 
-- **The program runs unprivileged.** `DynamicUser=yes` (a transient user), `CapabilityBoundingSet=` (no capabilities),
-  `NoNewPrivileges=yes`, `ProtectSystem=strict` (the system is read-only), `ProtectHome=yes`, `PrivateTmp=yes`, the
-  kernel, clock, cgroup and hostname protections, `RestrictSUIDSGID`, `RestrictNamespaces`, `LockPersonality`,
-  `SystemCallArchitectures=native`, `UMask=0077`.
-- **State** lives in `/var/lib/<name>` (`StateDirectory`): the working directory, and `ZINC_STORAGE` points there.
-- **Devices** are reached through groups: `SupplementaryGroups=video render input tty gpio spi i2c audio plugdev`,
-  reduced by `deploy.sh` to the groups the device has (systemd refuses a unit naming a missing group). Raspberry Pi OS
-  gives `/dev/fb0` and `/dev/dri` to `video`/`render`, `/dev/input` to `input`, `/dev/gpiochip*` to `gpio`, SPI and I2C
-  to `spi`/`i2c`, USB cameras (gphoto2) to `plugdev`. No udev rules are needed there; on another distribution, give
-  the device nodes you use to a group (e.g. `SUBSYSTEM=="gpio", GROUP="gpio", MODE="0660"` in
-  `/etc/udev/rules.d/99-zinc.rules`) and add the group to the unit.
-- **Install**: `deploy.sh` copies into a fresh `mktemp -d` directory on the device (never a predictable `/tmp` path),
-  installs into `/opt/<name>` owned by root (the service cannot rewrite its own binary), then enables the unit.
-- **Relaxing it** (in a drop-in, `systemctl edit <name>`): a port below 1024 needs
-  `AmbientCapabilities=CAP_NET_BIND_SERVICE` and the same in `CapabilityBoundingSet=`; writing under `/sys` (backlight)
-  needs `ReadWritePaths=/sys/class/backlight/...` and `ProtectKernelTunables=no`; `RestrictRealtime=no` for realtime
-  audio.
-- **Secrets**: `EnvironmentFile=/etc/<name>.env` (root-owned, mode 600), never the unit file.
+- **Harden it further** in the unit: `CapabilityBoundingSet=` (no capabilities), `PrivateTmp=yes`, `ProtectKernelTunables=yes`,
+  `ProtectKernelModules=yes`, `ProtectControlGroups=yes`, `ProtectClock=yes`, `ProtectHostname=yes`, `RestrictSUIDSGID=yes`,
+  `RestrictNamespaces=yes`, `LockPersonality=yes`, `SystemCallArchitectures=native`, `UMask=0077`.
+- **State** lives in `/var/lib/<id>`: `StateDirectory=<id>`, `WorkingDirectory=/var/lib/<id>` and
+  `Environment=ZINC_STORAGE=/var/lib/<id>/storage` (the file `zinc:storage` writes).
+- **Devices** are reached through groups: `SupplementaryGroups=` with the groups the device has (systemd refuses a unit naming a missing
+  group). Raspberry Pi OS gives `/dev/fb0` and `/dev/dri` to `video`/`render`, `/dev/input` to `input`, `/dev/gpiochip*` to `gpio`, SPI and
+  I2C to `spi`/`i2c`, USB cameras (gphoto2) to `plugdev`. No udev rules are needed there; on another distribution, give the device nodes you
+  use to a group (e.g. `SUBSYSTEM=="gpio", GROUP="gpio", MODE="0660"` in `/etc/udev/rules.d/99-zinc.rules`) and add the group to the unit.
+- **Relaxing it** (in a drop-in, `systemctl edit <id>`): a port below 1024 needs `AmbientCapabilities=CAP_NET_BIND_SERVICE` and the same
+  in `CapabilityBoundingSet=`; writing under `/sys` (backlight) needs `ReadWritePaths=/sys/class/backlight/...` and
+  `ProtectKernelTunables=no`; `RestrictRealtime=no` for realtime audio.
+- **Secrets**: `EnvironmentFile=/etc/<id>.env` (root-owned, mode 600), never the unit file.
 
-`zinc export` refuses a project name that is not a plain word (`[A-Za-z0-9._-]`) for these targets: it becomes shell
-words run with `sudo` on the device and unit lines. On the reMarkable (AppLoad), apps run as root: that is the
-tablet's model, not something the export can change.
+`zinc export` refuses a project name that is not a plain word (`[A-Za-z0-9._-]`): it becomes file names, shell words and unit lines.
 
 ## Build hardening
 
-Release builds for macOS, Linux, rpi1 and rmpp add `-fstack-protector-strong -D_FORTIFY_SOURCE=2`, and full RELRO
-(`-Wl,-z,relro,-z,now`) on Linux. Measured on the bench kernels and a raster benchmark
-([audit](../reports/security-audit.md#hardening-flags-overhead)): within noise on rendering and most kernels, 1.8 %
-CPU on a tight array-permutation loop. `ZINC_HARDEN=0` builds without them. Linux executables are PIE (the compiler's default); rpi1 and rmpp
-export builds are linked statically (no PIE, so no ASLR of the main image). ESP32 uses the ESP-IDF defaults.
+Release builds (`zinc build`, `zinc export`) compile with `-O2`, drop local symbols (`-Wl,-x`; `ZN_KEEP_SYMBOLS=1` keeps them for
+profilers) and on macOS strip unreferenced code and export nothing (`-dead_strip`, `-no_exported_symbols`). They are built without a stack
+protector (`-fno-stack-protector`: the generated code indexes its frames with constants only), without `_FORTIFY_SOURCE` and without RELRO:
+the prototype's hardening flags (and its `ZINC_HARDEN` switch) are not applied by Zinc Next. Array bounds, null references and sizes are
+checked by the runtime (above), not by the compiler. ESP32 uses the ESP-IDF defaults.
 
 ## Secrets handling
 
 - **Do not bake secrets into the binary or assets.** Embedded assets and string literals are recoverable from the
-  executable (obfuscation only raises the effort, below). Read secrets at runtime from the environment
+  executable (nothing in Zinc hides them, below). Read secrets at runtime from the environment
   (`sys.env('API_KEY')`), a file with restricted permissions, or `zinc:storage`: its file is written owner-only (0600)
   and atomically (a crash or power cut during a write keeps the previous contents). On ESP32 it is NVS: enable flash
   encryption if the device is physically exposed.
-- **ESP32 WiFi** credentials (`targets.esp32.wifi` in zinc.json) are compiled into the firmware; keep the password out
-  of the committed zinc.json with `ZINC_WIFI_PASSWORD=... zinc build --target esp32`. There is no OTA update.
+- **ESP32**: the program (`app.bin`) and its strings sit in the flash in clear; enable flash encryption if the device is
+  physically exposed. There is no OTA update.
 - **Hidden files are never assets**: files and directories starting with `.` under `assets/` (`.env`, `.git`) are not
   embedded. Symbolic links are followed: whatever they point to is embedded.
 - Keep secrets out of logs: `console.*` and telemetry are plaintext.
@@ -222,36 +270,23 @@ page.
 
 ## Fuzzing
 
-```sh
-scripts/fuzz.sh 60              # every harness in tests/fuzz for 60 s (libFuzzer + ASan + UBSan)
-scripts/fuzz.sh 300 svg lottie  # some of them
-zinc test --fuzz                # replay the checked-in corpora (regressions), no fuzzing
-```
+Two sets of libFuzzer harnesses run with ASan and UBSan. `scripts/fuzz.sh 60` fuzzes, 60 s each, the parsers of untrusted input of the
+runtime Zinc Next links (`tests/fuzz/`: JSON, the HTTP request parser, MQTT, OSC, the DevTools endpoint, the remote-display stream, SVG,
+Lottie, glTF, PNG/JPEG, TrueType, vector tiles and map styles, the `gfx` path); `scripts/fuzz.sh --replay` runs their checked-in corpora
+once. `next/tools/fuzz all 60` fuzzes the engine's own inputs: programs through the parser and the checker, ZBC files through the decoder
+and verifier, the native ABI and ZPK packs; `next/tests/t0/fuzz_regress.sh` replays every input that once failed (`next/tests/fuzz/regress`).
+A crash leaves its input (`tests/fuzz/build/crash-<harness>-*`, `next/tests/fuzz/crashes/<target>-<hash>`): fix it, then add the file to the
+corpus or to the regressions. Both need a clang with libFuzzer: LLVM's, or Apple's with the libFuzzer `next/tools/libfuzzer` builds.
 
-A crash leaves `tests/fuzz/build/crash-<harness>-*`; fix it and add the file to `tests/fuzz/corpus/<harness>/`.
-`CXX` selects the compiler: it needs libFuzzer (LLVM clang; Apple's Xcode clang does not ship it).
+## Obfuscation: what a native build hides
 
-## Obfuscation: what it does and does not protect
-
-`zinc export --obfuscate` XOR-encodes the program's string literals in the generated C++ with a per-literal keystream,
-decodes the pool once at startup, and builds with `-fvisibility=hidden`. Symbol stripping is already on for export
-builds (`strip`, dead-strip / `--gc-sections`, `-Wl,-x` / `-s`). Verified effect:
-
-```sh
-zinc export --target macos --obfuscate myapp
-strings myapp.app/Contents/MacOS/myapp | grep -c MySecretKey   # 0  (plain build: 1)
-```
-
-**What stays readable** even with `--obfuscate`: class names, field and JSON key names, the window title, embedded
-assets, and the runtime's own messages. **The keystream is not a secret**: its seed is a fixed function of the
-literal's position, so one script decodes the pool of any Zinc binary without running it. And anyone running the
-program under a debugger reads the decoded pool in memory.
-
-What a native binary already hides (vs a JS bundle): there is no source, no bytecode, no symbol-rich AST; local names,
-types and comments are gone. What none of it protects against: a debugger or disassembler, extracting an embedded key,
-tampering. There is no anti-tamper or integrity self-check; macOS code signing (chapter 7) detects modification of a
-signed bundle at load time, which is the OS, not Zinc. Use `--obfuscate` and stripping to avoid trivially leaking
-strings, not as a security boundary: the only reliable protection for a secret is to not ship it.
+Zinc Next has no `--obfuscate`: that option of the prototype's export (string literals XOR-encoded in the generated C++) is not carried
+over. What a native build hides anyway, compared with a JavaScript bundle: an exported executable holds no source and no bytecode (a
+`.zapp` and a fused executable do carry the bytecode, `program.zbc`), and local names, types, comments and local symbols are gone. What
+stays readable: the string literals (`strings` finds them), the names the program prints or serializes (classes, JSON keys), the embedded
+assets and the runtime's messages. None of it stands against a debugger, a disassembler or tampering: macOS code signing detects a
+modified signed bundle at load time (the OS, not Zinc), and `zinc verify` a modified artifact. The only reliable protection for a secret is
+to not ship it.
 
 ## Reporting a vulnerability
 
