@@ -120,6 +120,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-712: ZINC_INPUT has no key release, so a scripted key stays down in the web environment.
 - ZN-712: js-p5 (144 lit boxes) took about 80 ms a frame on QuickJS while other trees built; measure alone and profile p5's WEBGL path.
 - ZN-712: when ZN-570 lands, add Text to js-pixi and js-phaser and a 2D sketch to js-p5; when ZN-573 lands, listen to js-phaser's sounds and tick criterion 2.
+- ZN-650.11: a fused or exported table has no `zinc update-app` command, so it never updates; check and download should be a background operation of `zinc:system/update` (today they block the frame on curl with no timeout).
+- ZN-650.11: a published project that does not parse is accepted (signature and hash only), then shows an empty table; check the project before staging.
+- ZN-650.11: `zinc:process` promises are not awaited in deterministic runs, so `museum_update` races frames against the download (fails under heavy load).
+- ZN-650.11: the update period (one hour) is a constant in `src/update.ts`; the storyboard editor has no "publish" step.
 
 ## Cross-platform pass
 
