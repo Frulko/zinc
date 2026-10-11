@@ -1,0 +1,13 @@
+literal a
+literal b
+literal c
+id,tag,name,count
+with req
+with opt
+without req
+index 0 string
+index 1 string
+index 2 string
+2 10 zeta alpha
+3
+3

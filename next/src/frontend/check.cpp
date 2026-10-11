@@ -2765,7 +2765,10 @@ struct Checker {
         break;
       }
       case N::ForOf: case N::ForIn: {
-        if (x.kind == N::ForIn) { diag(kZUnsupported, s, "for...in"); break; }
+        if (x.kind == N::ForIn) {  // for (const k in o): a for...of over the keys of o
+          if (!forInKeys(s)) break;
+          a.nodes[s].kind = N::ForOf;
+        }
         resetAssigned(s);
         TypeId it = expr(x.kids[1]);
         if (!rawDyn() && isDyn(it) && replaceWith(x.kids[1], "__dynIter(__H0)", {{cloneNode(x.kids[1], false)}})) it = expr0(x.kids[1], kNoType);  // iterate the elements of an array held by a Dyn
@@ -2899,6 +2902,34 @@ struct Checker {
       }
       default: diag(kZUnsupported, s, "this statement"); break;
     }
+  }
+
+  // The source of a for...in becomes the array of its keys, as strings: the indices of an array or a string, the own fields of an
+  // object in declaration order (an optional one when it is there), the keys of a Dyn when the loop runs.
+  bool forInKeys(std::uint32_t s) {
+    const std::uint32_t src = n(s).kids[1];
+    const TypeId t = expr(src);
+    if (bad(t)) return false;
+    if (!rawDyn() && isDyn(t)) return replaceWith(src, "__dynKeys(__H0)", {{cloneNode(src, false)}});
+    const Type tt = ty(t);
+    std::string body;
+    if (tt.k == TK::Array) body = "  for (let i: i32 = 0; i < o.length; i++) r.push('' + i);\n";  // (a string is refused, as TypeScript does)
+    else if (tt.k == TK::Object && !isTupleType(t) && !out.objs[tt.obj].isInterface) {
+      // ponytail: the keys of the static type; an instance of a subclass seen through its base type lists the base's fields only
+      ensureBuilt(tt.obj);
+      std::vector<Member> fs;
+      instanceFields(tt.obj, fs);
+      for (const Member& m : fs) {
+        if (m.name.empty() || m.name[0] == '#') continue;  // a #private field is no property
+        const std::string key = m.name[0] == '\'' || m.name[0] == '"' ? m.name : "'" + m.name + "'";
+        body += m.optional ? "  if (o." + m.name + " !== null) r.push(" + key + ");\n" : "  r.push(" + key + ");\n";
+      }
+    } else { diag(kZUnsupported, src, "for...in over '" + name(t) + "' (for...of goes over its values)"); return false; }
+    const std::uint32_t sym = helper("keys," + std::to_string(t), "function $F(o: " + inspectAliasName(t) + "): string[] {\n  const r: string[] = [];\n" + body + "  return r;\n}\n", {t}, s);
+    const std::uint32_t call = callGenerated(sym, {src}, s);
+    rewritten.insert(call);
+    a.nodes[s].kids[1] = call;
+    return true;
   }
 
   // ---- functions and classes

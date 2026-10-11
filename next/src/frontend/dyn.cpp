@@ -447,6 +447,21 @@ function __dynIter(d: Dyn): any[] {
   if (d instanceof DynStr) { const r: any[] = []; for (let i: i32 = 0; i < d.v.length; i++) r.push(new DynStr(d.v.charAt(i))); return r; }
   throw new TypeError(__dynTypeName(d) + ' is not iterable');
 }
+// for...in over a Dyn: the keys JavaScript lists, array indices first in ascending order, then the other keys in insertion order
+function __dynKeys(d: Dyn): string[] {
+  const r: string[] = [];
+  if (d instanceof DynArr) { for (let i: i32 = 0; i < d.items.length; i++) r.push('' + i); return r; }
+  if (d instanceof DynStr) { for (let i: i32 = 0; i < d.v.length; i++) r.push('' + i); return r; }
+  if (d instanceof DynObj) {
+    const ks: string[] = d.map.keys();
+    const idx: i32[] = [];
+    for (const k of ks) { const i: i32 = __indexOfKey(k); if (i >= 0 && '' + i === k) idx.push(i); }
+    idx.sort((a: i32, b: i32): number => a - b);
+    for (const i of idx) r.push('' + i);
+    for (const k of ks) { const i: i32 = __indexOfKey(k); if (!(i >= 0 && '' + i === k)) r.push(k); }
+  }
+  return r;  // ponytail: a typed object seen through a Dyn (DynRef) lists no keys; add a keys row to DynRefT if a program needs them
+}
 function __dynObjOf(keys: string[], vals: any[]): any {
   const m: Map<string, Dyn> = new Map<string, Dyn>();
   for (let i: i32 = 0; i < keys.length; i++) m.set(keys[i], vals[i]);
