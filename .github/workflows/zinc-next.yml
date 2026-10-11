@@ -1,5 +1,6 @@
 # Zinc Next: affected T0/T1 on every host; full T2 on nightly/manual/release runs.
 # Windows is listed so the day the host is ported (ZN-054) it starts running; until then its job may fail and does not block.
+# What Windows proves today (ZN-714): windows-cross builds console programs for it on Linux with the pinned zig, windows-console runs them on a Windows runner.
 # A `v*` tag also makes a release (ZN-329): each OS job signs its package when the signing secrets exist and writes a signed update manifest,
 # then the release job attaches everything to a GitHub Release. The secrets and the tag command: docs/guide/07-distribution.md, "Releases".
 name: zinc-next
@@ -163,6 +164,49 @@ jobs:
           name: package-${{ matrix.name }}
           path: next/dist/
           include-hidden-files: true   # dist/.signed: the macOS package was signed and notarized
+  windows-cross:
+    # ZN-714: zinc does not build on Windows yet, its programs do: the console programs of tests/golden/run are cross-built here (zinc build --target x86_64-windows,
+    # the pinned zig) and handed to windows-console with their frozen outputs. Never run yet, so it does not block.
+    name: windows-cross
+    needs: plan
+    if: needs.plan.outputs.test == 'true'
+    runs-on: ubuntu-24.04
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: next
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dependencies
+        run: sudo apt-get update && sudo apt-get install -y cmake python3 curl xz-utils libx11-dev libxext-dev libxcursor-dev libxi-dev libxfixes-dev libxrandr-dev libxss-dev libxtst-dev libgl1-mesa-dev
+      - name: Build zinc
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build --target zinc -j4
+      - name: Cross build the console programs
+        env:
+          ZINC_HOME: ${{ runner.temp }}/zinc-home
+        run: tools/windows-cross build "$RUNNER_TEMP/windows-console"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-console
+          path: ${{ runner.temp }}/windows-console/
+  windows-console:
+    # ZN-714: the programs of windows-cross run on Windows and print their frozen outputs (one PASS or FAIL line each)
+    name: windows-console
+    needs: windows-cross
+    runs-on: windows-latest
+    continue-on-error: true
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-console
+          path: windows-console
+      - name: Run the console programs
+        run: next/tools/windows-cross check "$PWD/windows-console"
   release:
     # ZN-329: on a v* tag, the packages of every OS job (signed for macOS when the secrets exist) and their update manifests on a GitHub Release
     name: release

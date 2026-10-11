@@ -24,6 +24,12 @@ open(sys.argv[2] + "/sums.sh", "w").write([s for s in rel["steps"] if s.get("nam
 names = [m["name"] for m in wf["jobs"]["test"]["strategy"]["matrix"]["include"]]
 assert {"macos-arm64", "macos-x86_64", "linux-x86_64", "linux-aarch64", "windows-x86_64"} <= set(names), "a platform has no release job: %s" % names
 assert "Windows" not in steps["Package"]["if"], "the Windows job does not package"
+# ZN-714: console programs cross-built for Windows on Linux, run on a Windows runner; both call the script a person can run (tools/windows-cross)
+wc, wr = wf["jobs"]["windows-cross"], wf["jobs"]["windows-console"]
+assert wr["needs"] == "windows-cross" and wr["runs-on"].startswith("windows-") and not wc["runs-on"].startswith("windows-"), "the Windows console jobs"
+assert any("tools/windows-cross build" in s.get("run", "") for s in wc["steps"]) and any("tools/windows-cross check" in s.get("run", "") for s in wr["steps"]), "windows-cross is not called"
+up = [s["with"] for s in wc["steps"] if "upload-artifact" in s.get("uses", "")][0]; down = [s["with"] for s in wr["steps"] if "download-artifact" in s.get("uses", "")][0]
+assert up["name"] == down["name"], "the artifact names differ"
 PY
 "$Z" update-keygen > "$tmp/k"; seed=$(sed -n 's/^seed=//p' "$tmp/k"); pub=$(sed -n 's/^public=//p' "$tmp/k")
 mkdir -p "$tmp/job/dist" "$tmp/job/build" "$tmp/bin"
@@ -47,4 +53,10 @@ mkdir -p "$tmp/r2/release" && cp "$tmp/job/dist/"* "$tmp/r2/release/" && touch "
 (cd "$tmp/r2" && PATH="$tmp/bin:$PATH" GITHUB_REF_NAME=v9.1.0 bash -e "$tmp/release.sh" >/dev/null) || { echo "release_workflow: the signed release step failed"; fail=1; }
 grep -q "not signed\|No update manifests" "$tmp/gh.args" && { echo "release_workflow: a signed release with manifests says otherwise"; fail=1; }
 grep -q "^release/zinc-macos-arm64.manifest$" "$tmp/gh.args" && ! grep -q "\.signed" "$tmp/gh.args" || { echo "release_workflow: the manifest is not attached, or the marker is: $(cat "$tmp/gh.args")"; fail=1; }
+# ZN-714: the half of tools/windows-cross that runs on Windows, here on stand-in programs: one prints its frozen output, the other does not
+mkdir -p "$tmp/wc" && printf '#!/bin/sh\nprintf "a\\r\\nb\\r\\n"\n' > "$tmp/wc/good.exe" && printf 'a\nb\n' > "$tmp/wc/good.out" && chmod +x "$tmp/wc/good.exe"
+[ "$(tools/windows-cross check "$tmp/wc")" = "PASS good" ] || { echo "release_workflow: windows-cross check does not pass a program that prints its output"; fail=1; }
+cp "$tmp/wc/good.exe" "$tmp/wc/bad.exe" && echo other > "$tmp/wc/bad.out"
+tools/windows-cross check "$tmp/wc" >/dev/null && { echo "release_workflow: windows-cross check passes a wrong output"; fail=1; }
+tools/windows-cross check "$tmp/empty" >/dev/null 2>&1 && { echo "release_workflow: windows-cross check passes with no program"; fail=1; }
 exit $fail
