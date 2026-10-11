@@ -44,6 +44,9 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-581: a turned sprite takes 15 floats of the point pool (about 17,000 per frame on desktops before it fills): let the pool grow like the command buffer.
 - ZN-581: 20,000 Retina sprites cost about 10 ms of GPU on the 555X: measure a sprite-only shader program, or opaque sprites in the occlusion pass.
 - ZN-581: zinc:canvas could map globalCompositeOperation lighter, multiply and screen onto the new blend modes.
+- ZN-435: zinc.json assets.dir is honoured only by zinc assets build/info; the baker (bakeResources), zinc export's copy of assets/ and zinc:assets still use assets/ beside the entry.
+- ZN-435: wire the effective asset profile's pack codec into release packs (lz4 on rpi1/esp32/ps1/ps2, none on wasm) with ZN-436/ZN-439.
+- ZN-435: the prototype's zinc:platform now also exports ASSETS = false from capabilities.json's new assets group (as for UI); compiler/src/capabilities.ts could skip object groups.
 
 ## Demos
 
@@ -60,3 +63,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-327: the guide's flow for --target linux and rpi (export, --deb, the itch channels).
 - ZN-434: tests/t0/assets.sh on Linux x86_64 and arm64, and zn_assets (xxhash.h) under the zig cross builds.
 - ZN-581: the sprite path on a Pi 3 (GLES 2) and on Linux GL, frames against the software ones.
+- ZN-435: check the asset defaults of targets/capabilities.json on the devices (the rmpp, ps1 and ps2 values are estimates; the Pi and ESP32 budgets).
