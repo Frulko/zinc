@@ -3,10 +3,11 @@ id: ZN-714
 title: >-
   Windows, first step: a cross build of zinc with the pinned zig and a Windows
   CI job
-status: Backlog
+status: In Progress
 assignee:
   - '@parallel'
 created_date: '2026-10-11 16:08'
+updated_date: '2026-10-11 17:39'
 labels:
   - windows
   - size-L

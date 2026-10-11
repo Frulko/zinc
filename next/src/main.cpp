@@ -2028,6 +2028,7 @@ int main(int argc, char** argv) {
     std::string libsDir;
     const bool draws = zn::aot::usesHost(zm) || !gPlugins.empty();
     std::vector<zn::tc::PluginLib> crossPlugins;
+    if (draws && std::strstr(target->name, "-windows")) { std::fprintf(stderr, "zinc: --target %s builds console programs only for now: this one opens a window or uses a plugin (ZN-714)\n", target->name); return 1; }
     if (draws) {   // a program that draws: the graphics host cross-built for the target (headless null HAL), the fonts and images baked in, the surface size of the project for the target
       if (!zn::tc::ensureCrossLibs(zig, gRoot, argv[3], libsDir, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
       if (!bakeResources(argv[4], blob, err)) { std::fprintf(stderr, "zinc: cannot bake the fonts and images: %s\n", err.c_str()); return 1; }

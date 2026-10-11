@@ -1,0 +1,33 @@
+#!/bin/sh
+# Windows console programs, cross-built here and checked there (ZN-714). There is no Windows build of zinc yet, so the proof is in two halves:
+#   tools/windows-cross build <dir> [program...]   any host with the pinned zig: `zinc build --target x86_64-windows` of programs of tests/golden/run into
+#                                                  <dir>/<name>.exe, each beside its frozen output <dir>/<name>.out. $ZINC is the engine (default build/zinc).
+#   tools/windows-cross check <dir>                on Windows (Git Bash): runs each .exe and compares what it prints with the frozen output.
+# The CI jobs windows-cross and windows-console of .github/workflows/zinc-next.yml run the two halves; tests/t2/cross_windows.sh runs the first.
+cd "$(dirname "$0")/.." || exit 2
+mode=$1; dir=$2
+[ -n "$dir" ] || { echo "usage: tools/windows-cross build|check <dir> [program...]" >&2; exit 2; }
+fail=0
+case "$mode" in
+  build)
+    shift 2
+    [ $# -gt 0 ] || set -- library exceptions dyn_values records const_globals   # those of tests/t1/aot.sh but async: timers need the event loop of the host library, not built for Windows yet
+    mkdir -p "$dir" || exit 2
+    for k in "$@"; do
+      "${ZINC:-build/zinc}" build --target x86_64-windows "tests/golden/run/$k.ts" -o "$dir/$k.exe" >"$dir/$k.log" 2>&1 || { echo "windows-cross: $k does not build:"; tail -20 "$dir/$k.log"; fail=1; continue; }
+      [ "$(od -An -c -N2 "$dir/$k.exe" | tr -d ' \n')" = MZ ] || { echo "windows-cross: $k.exe is not a Windows executable"; fail=1; continue; }
+      cp "tests/golden/run/$k.out" "$dir/$k.out" && rm -f "$dir/$k.log" "$dir/$k.exe.components" "$dir/$k.pdb"
+    done ;;
+  check)
+    n=0
+    for exe in "$dir"/*.exe; do
+      [ -f "$exe" ] || continue
+      k=$(basename "$exe" .exe); n=$((n + 1))
+      # the C runtime of Windows writes \r\n on a text stream
+      "$exe" 2>&1 | tr -d '\r' > "$dir/$k.got"
+      if cmp -s "$dir/$k.got" "$dir/$k.out"; then echo "PASS $k"; else echo "FAIL $k"; diff "$dir/$k.out" "$dir/$k.got" | head -20; fail=1; fi
+    done
+    [ $n -gt 0 ] || { echo "windows-cross: no .exe in $dir"; fail=1; } ;;
+  *) echo "usage: tools/windows-cross build|check <dir> [program...]" >&2; exit 2 ;;
+esac
+exit $fail

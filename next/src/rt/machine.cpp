@@ -1,7 +1,7 @@
 // The machine the engines share: loading a module into classes and functions, allocation, reference counting and
 // destruction order, comparator and exception callbacks. The interpreter (vm) and the compiled programs (aot) both link it.
 #include <pthread.h>
-#ifndef ESP_PLATFORM
+#if !defined(ESP_PLATFORM) && !defined(_WIN32)   // neither has mmap: the stack comes from calloc there (Windows: VirtualAlloc when startup time asks for it)
 #include <sys/mman.h>
 #endif
 #include "rt/rt.h"
@@ -207,7 +207,7 @@ Machine::~Machine() {
       default: freeRaw(o); break;
     }
   }
-#ifndef ESP_PLATFORM
+#if !defined(ESP_PLATFORM) && !defined(_WIN32)
   if (stackMapped) munmap(stack, stackMapped); else
 #endif
   std::free(stack);
@@ -230,7 +230,7 @@ bool Machine::load(const zbc::Module& m, std::string& err) {
   // lazily zeroed pages, so the 20 MB is not touched until used.
   std::size_t slots = stackSlots ? stackSlots : kStackSlots;
   // A large stack comes from mmap: the system's calloc zeroes blocks of this size itself (a 20 MB memset, 90% of the start-up of a small program, ZN-146), mapped pages are zero and untouched until used.
-#ifndef ESP_PLATFORM   // ESP-IDF has no mmap; its stacks are small
+#if !defined(ESP_PLATFORM) && !defined(_WIN32)   // ESP-IDF has no mmap; its stacks are small
   if (slots * sizeof(Slot) >= (1u << 20)) {
     void* p = mmap(nullptr, slots * sizeof(Slot), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
     if (p != MAP_FAILED) { stack = static_cast<Slot*>(p); stackMapped = slots * sizeof(Slot); }

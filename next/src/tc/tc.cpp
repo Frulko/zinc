@@ -84,12 +84,15 @@ const std::vector<Target>& targets() {
       {"x86_64-linux", "x86_64-linux-gnu", "", "PC and server Linux"},
       {"aarch64-macos", "aarch64-macos", "", "Apple Silicon"},
       {"x86_64-macos", "x86_64-macos", "", "Intel Mac"},
+      // ZN-714: console programs only (the runtime, no window host yet); mingw-w64 from zig, so the .exe needs no Visual C++ runtime installed
+      {"x86_64-windows", "x86_64-windows-gnu", "", "PC Windows 10 and 11 (console programs; name the output .exe)"},
   };
   return t;
 }
 
 const Target* findTarget(const std::string& name) {
-  for (const Target& t : targets()) if (name == t.name) return &t;
+  const std::string n = name == "windows-x86_64" || name == "windows" ? "x86_64-windows" : name;   // the names people type
+  for (const Target& t : targets()) if (n == t.name) return &t;
   return nullptr;
 }
 
@@ -389,6 +392,8 @@ bool crossBuild(const std::string& zig, const std::string& root, const std::stri
     }
     objs += " " + quote(obj);
   }
+  // Windows: what mimalloc calls (random numbers, process memory); -static so the .exe carries libc++ and winpthreads and runs on a machine with nothing installed
+  if (std::string(t->name).find("-windows") != std::string::npos) objs += " -static -lbcrypt -ladvapi32 -lpsapi";
   std::string cmd = quote(zig) + " c++ -std=c++20 " + flags + " " + quote(cppFile) + objs + " -o " + quote(outFile);
   return run(cmd, err, "the compiler");
 }
