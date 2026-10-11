@@ -1,0 +1,10 @@
+{ "format": "zinc-museum-table", "version": 1, "id": "theme", "title": { "en": "Theme", "fr": "Thème" }, "languages": ["en", "fr"], "start": "a",
+  "theme": { "font": "fonts/PublicSans-Medium.ttf", "titleFont": "fonts/JetBrainsMono-Regular.ttf", "logo": "logo.png" },
+  "media": [ { "id": "note", "kind": "text", "title": { "en": "A note", "fr": "Une note" },
+    "text": { "en": "The museum sets its own type and signs the table.", "fr": "Le musée compose dans ses caractères et signe la table." } } ],
+  "sequences": [
+    { "id": "a", "title": { "en": "The house style", "fr": "Le style de la maison" },
+      "text": { "en": "Fonts and a logo named by the project file.", "fr": "Des polices et un logo nommés par le fichier du projet." },
+      "items": [ { "media": "note", "x": 960, "y": 560, "width": 520 } ],
+      "links": [ { "to": "b", "label": { "en": "Onward", "fr": "Plus loin" }, "x": 0.5, "y": 0.8 } ] },
+    { "id": "b", "title": { "en": "B", "fr": "B" }, "items": [] } ] }

@@ -1,9 +1,10 @@
 // Type for the museum table: fonts at any pixel size from a ladder of baked sizes, and word wrapping.
-import { font, textWidth, lineHeight } from 'zinc:gfx';
+import { font, loadFont, textWidth, lineHeight } from 'zinc:gfx';
+import { exists } from 'zinc:assets';
 
 // ponytail: the engine bakes only the sizes written as literals in `font('family', px)` calls, and only these families: a text is set in the
-// nearest size of this ladder (at most 6 % off above 14 px), and theme.font / theme.titleFont of the project are not honoured yet. Both go
-// away when zinc:gfx renders a font at a size and from a file asked at run time.
+// nearest size of this ladder (at most 6 % off above 14 px). These are the families a project has when it names none; the fonts a theme
+// names (a family, a font file of the assets) are made at run time, at the very size asked (`setFonts`).
 const SIZES: i32[] = [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 18, 20, 22, 24, 26, 28, 32, 36, 40, 44, 48, 56, 64, 72, 80, 96];
 const SANS: i32[] = [font('sans', 7), font('sans', 8), font('sans', 9), font('sans', 10), font('sans', 11), font('sans', 12), font('sans', 13), font('sans', 14), font('sans', 15), font('sans', 16), font('sans', 18),
   font('sans', 20), font('sans', 22), font('sans', 24), font('sans', 26), font('sans', 28), font('sans', 32), font('sans', 36), font('sans', 40), font('sans', 44),
@@ -12,6 +13,9 @@ const BOLD: i32[] = [font('sans-bold', 7), font('sans-bold', 8), font('sans-bold
   font('sans-bold', 16), font('sans-bold', 18), font('sans-bold', 20), font('sans-bold', 22), font('sans-bold', 24), font('sans-bold', 26), font('sans-bold', 28),
   font('sans-bold', 32), font('sans-bold', 36), font('sans-bold', 40), font('sans-bold', 44), font('sans-bold', 48), font('sans-bold', 56), font('sans-bold', 64),
   font('sans-bold', 72), font('sans-bold', 80), font('sans-bold', 96)];
+
+// 'mono', the third family a theme can name, is in the app because of this line.
+const MONO: i32 = font('mono', 16);
 
 // The characters the table can show besides ASCII. The engine bakes the glyphs it finds in the sources, and the texts of the table come
 // from the project file: this line is how they get their glyphs.
@@ -36,10 +40,25 @@ export function faint(alpha: i32): i32 { return plain ? 255 : alpha; }
 /** How many texts `wrap` has cut short with an ellipsis since the last call: what a layout did not have room for. */
 export function clipped(): i32 { const n = cut; cut = 0; return n; }
 
+// The fonts of the theme being read, set like the reading by each player around its frames, and the fonts made for them so far.
+let textFace = 'sans', titleFace = 'sans-bold';
+const made = new Map<string, i32>();
+/** Sets the fonts of the texts and of the titles for what is laid out and drawn from now on: a family the engine has ('sans', 'sans-bold',
+ *  'mono') or a TrueType file of the assets. */
+export function setFonts(text: string, title: string): void { textFace = text; titleFace = title; }
+/** The font `face` at `px` pixels; `ladder` when it is the family of the ladder, or when there is no such family or file. */
+function face(name: string, px: number, own: string, ladder: i32[]): i32 {
+  if (name === own) return ladder[nearest(px)];
+  const n: i32 = Math.max(6, Math.round(px)), key = `${name} ${n}`;
+  let f: i32 = made.get(key) ?? -2;
+  // a file is looked for first: loadFont on a file that is not there leaves its error to the next read of the assets
+  if (f === -2) { f = name.indexOf('.') > 0 && !exists(name) ? -1 : loadFont(name, n); made.set(key, f); }
+  return f >= 0 ? f : ladder[nearest(px)];
+}
 /** The text font nearest to `px` pixels at the designed size. */
-export function sans(px: number): i32 { return SANS[nearest(px * size)]; }
+export function sans(px: number): i32 { return face(textFace, px * size, 'sans', SANS); }
 /** The title font nearest to `px` pixels at the designed size. */
-export function bold(px: number): i32 { return BOLD[nearest(px * size)]; }
+export function bold(px: number): i32 { return face(titleFace, px * size, 'sans-bold', BOLD); }
 
 /** `text` cut into lines no wider than `width` in font `f`: at spaces, and at every `\n`. With `limit` > 0, at most that many lines, the
  *  last one ending with an ellipsis when text is left over. */

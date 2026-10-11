@@ -457,8 +457,8 @@ export function parseProject(json: string): Project {
   if (given(o.theme)) {
     const t = record(o.theme, 'theme');
     readColours(t, 'theme', p.theme, new Colours());
-    p.theme.font = given(t.font) ? word(t.font, 'theme.font') : 'sans';
-    p.theme.titleFont = given(t.titleFont) ? word(t.titleFont, 'theme.titleFont') : 'sans-bold';
+    p.theme.font = given(t.font) ? assetPath(t.font, 'theme.font') : 'sans';
+    p.theme.titleFont = given(t.titleFont) ? assetPath(t.titleFont, 'theme.titleFont') : 'sans-bold';
     p.theme.logo = optAsset(t.logo, 'theme.logo');
   }
   if (given(o.accessibility)) {
@@ -593,6 +593,7 @@ export function assetFiles(p: Project): string[] {
     for (const n of names) if (out.indexOf(n) < 0) out.push(n);
   };
   add(p.theme.logo);
+  for (const f of [p.theme.font, p.theme.titleFont]) if (f.indexOf('.') > 0) add(f);   // a font file, not a family
   for (const m of p.media) { add(m.file); add(m.texture); add(m.poster); add(m.subtitles); }
   for (const m of p.media) { const said = spokenDescription(p, m); if (said !== null) { add(said.file); add(said.subtitles); } }
   return out;

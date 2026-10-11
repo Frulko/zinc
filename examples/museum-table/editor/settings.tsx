@@ -5,7 +5,7 @@ import { createSignal, createNodeRef, createEffect, NodeRef, For, Show, batch } 
 import * as ui from 'zinc:ui';
 import { Sequence, Presentation, Colours } from '../src/project';
 import { COLOURS } from './doc';
-import { project, lang, settings, openSettings, closeSettings, done, advanced, setProjectTitle, addLanguage, removeLanguageCommand, setColour, setThemeFile, setNumber, setFlag, setUpdateUrl,
+import { project, lang, settings, openSettings, closeSettings, done, advanced, setProjectTitle, addLanguage, removeLanguageCommand, setColour, setThemeFile, filesEnding, setNumber, setFlag, setUpdateUrl,
   setTextSizes, tour, setTour, addPresentation, renamePresentation, deletePresentation, addStepCommand, removeStep, moveStep, setAttract, nameTour } from './state';
 import { Ico, Tool, Action, Segmented, LangColumns, PlainField, NumberField, ColourField, Heading, ACCENT, MUTED } from './widgets';
 import { SamplePane } from './preview';
@@ -95,13 +95,29 @@ function ProjectForm(): i32 {
 
 // ---------------------------------------------------------------- the theme
 
+/** The names to choose among, with the one the file has now when it is not one of them (a file that left the folder). */
+function offer(names: string[], now: string): string[] { return names.indexOf(now) >= 0 ? names : names.concat([now]); }
+/** One name among a few, each a button: a family or a file of the folder (`none`: what the empty name is called). */
+function OneOf(p: { label: string; options: string[]; none: string; value: () => string; onPick: (v: string) => void }): i32 {
+  return <view class="flex-col gap-1">
+    <text class="text-[11px] text-zinc-400">{p.label}</text>
+    <scroll class="flex-row flex-wrap gap-1" style={{ maxHeight: 104 }}>
+      {p.options.map((name: string, i: i32) => <button class={`flex-row items-center h-7 px-2 rounded-md cursor-pointer border ${p.value() === name ? 'bg-zinc-800 border-amber-400' : 'bg-zinc-950 border-zinc-800 hover:border-zinc-600'}`}
+        onClick={() => p.onPick(name)}>
+        <text class="truncate text-xs text-zinc-100" style={{ maxWidth: 200 }}>{name.length > 0 ? name : p.none}</text>
+      </button>)}
+    </scroll>
+  </view>;
+}
 function ThemeForm(): i32 {
+  const fonts = ['sans', 'sans-bold', 'mono'].concat(filesEnding(['ttf']));
   return <view class="flex-col gap-6">
     <Group title={t(L.COLOURS)} what={t(L.COLOURS_WHAT)}><Palette contrast={false} /></Group>
     <Group title={t(L.FONTS)} what={t(L.FONTS_WHAT)}>
-      <PlainField label={t(L.FONT_TEXT)} value={() => project().theme.font} placeholder={t(L.REQUIRED)} onInput={(v: string) => setThemeFile('font', v)} onDone={done} />
-      <PlainField label={t(L.FONT_TITLE)} value={() => project().theme.titleFont} placeholder={t(L.REQUIRED)} onInput={(v: string) => setThemeFile('titleFont', v)} onDone={done} />
-      <PlainField label={t(L.LOGO)} value={() => project().theme.logo} placeholder="" onInput={(v: string) => setThemeFile('logo', v)} onDone={done} />
+      <OneOf label={t(L.FONT_TEXT)} options={offer(fonts, project().theme.font)} none="" value={() => project().theme.font} onPick={(v: string) => { setThemeFile('font', v); done(); }} />
+      <OneOf label={t(L.FONT_TITLE)} options={offer(fonts, project().theme.titleFont)} none="" value={() => project().theme.titleFont} onPick={(v: string) => { setThemeFile('titleFont', v); done(); }} />
+      <OneOf label={t(L.LOGO)} options={offer([''].concat(filesEnding(['png', 'jpg', 'jpeg', 'webp'])), project().theme.logo)} none={t(L.NO_LOGO)} value={() => project().theme.logo}
+        onPick={(v: string) => { setThemeFile('logo', v); done(); }} />
     </Group>
   </view>;
 }

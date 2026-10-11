@@ -21,6 +21,8 @@ import { t, f } from './strings';
 
 // ponytail: a picture decoded for the preview is kept until the editor closes, and a file replaced on disk shows after a restart; look at
 // the file's date and free what a closed project used when a museum's folder outgrows the memory.
+// ponytail: a font file of the folder is not shown by these players (the theme's families and its logo are): zinc:gfx loadFont reads the
+// app's own assets only. They follow when it takes a font from bytes or from a path zinc:fs may read (src/type.ts `face` is the one place).
 const pictures = new Map<string, i32>();
 function inFolder(file: string): string { return `${folder()}/${file}`; }
 files.path = inFolder;

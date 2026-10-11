@@ -356,12 +356,11 @@ export function kindOfFile(file: string): string {
   const at = EXTENSIONS.indexOf(file.slice(file.lastIndexOf('.') + 1).toLowerCase());
   return at >= 0 && at % 2 === 0 ? EXTENSIONS[at + 1] : '';
 }
-/** The media files of the project folder that are not in the library yet, as paths inside the folder.
+/** The files of the project folder that `take` accepts, as paths inside the folder.
  *  ponytail: three directory levels, and names the format accepts; a narration per language (`{lang}` in the path) is added by hand. */
-export function newFiles(): string[] {
-  const out: string[] = [], root = folder(), known = new Set<string>();
+function folderFiles(take: (rel: string) => boolean): string[] {
+  const out: string[] = [], root = folder();
   if (root.length === 0) return out;
-  for (const m of current.project.media) { known.add(m.file); known.add(m.texture); known.add(m.poster); }
   const scan = (dir: string, depth: i32): void => {
     let entries: fs.DirEntry[] = [];
     try { entries = fs.readDir(dir.length > 0 ? `${root}/${dir}` : root); } catch (e) { return; }
@@ -369,11 +368,21 @@ export function newFiles(): string[] {
       const rel = dir.length > 0 ? `${dir}/${e.name}` : e.name;
       if (e.name.startsWith('.') || e.name.indexOf(':') >= 0 || e.name.indexOf('\\') >= 0) continue;
       if (e.isDirectory) { if (depth < 3) scan(rel, depth + 1); }
-      else if (kindOfFile(rel).length > 0 && !known.has(rel)) out.push(rel);
+      else if (take(rel)) out.push(rel);
     }
   };
   scan('', 1);
   return out;
+}
+/** The media files of the project folder that are not in the library yet. */
+export function newFiles(): string[] {
+  const known = new Set<string>();
+  for (const m of current.project.media) { known.add(m.file); known.add(m.texture); known.add(m.poster); }
+  return folderFiles((rel: string): boolean => kindOfFile(rel).length > 0 && !known.has(rel));
+}
+/** The files of the project folder that end in one of `extensions` (lower case, without the dot): the fonts and the pictures a theme can name. */
+export function filesEnding(extensions: string[]): string[] {
+  return folderFiles((rel: string): boolean => extensions.indexOf(rel.slice(rel.lastIndexOf('.') + 1).toLowerCase()) >= 0);
 }
 /** The question open over the editor: '' none, 'file' (add a file of the folder), 'text' (write a text). */
 export const [adding, setAdding] = createSignal<string>('');

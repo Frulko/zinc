@@ -1,13 +1,25 @@
 // Where the files a project names are read. The table reads the assets of its app (zinc:assets; a picture is an image of the app). The
 // storyboard editor's preview plays a project that lies in a folder of the author's disk: it puts its own functions here
 // (../editor/preview.tsx), so the player itself never opens the file system.
-import { image } from 'zinc:gfx';
+import { image, imageFromBytes } from 'zinc:gfx';
 import { readText, readBytes, exists } from 'zinc:assets';
 import { writeBytes, tmpdir } from 'zinc:fs';
 
+const later = new Map<string, i32>();
+
 export class Files {
-  /** The image of a picture file; -1 when there is none or it is not a picture. */
-  picture: (file: string) => i32 = (file: string): i32 => image(file);
+  /** The image of a picture file; -1 when there is none or it is not a picture. An image the app was built with, else the file as it is in
+   *  the assets now (content put there after the build), decoded once. */
+  picture: (file: string) => i32 = (file: string): i32 => {
+    let im: i32 = image(file);
+    if (im >= 0) return im;
+    im = later.get(file) ?? -2;
+    if (im === -2) {
+      try { im = exists(file) ? imageFromBytes(readBytes(file)) : -1; } catch (e) { im = -1; }
+      later.set(file, im);
+    }
+    return im;
+  };
   text: (file: string) => string = (file: string): string => readText(file);
   bytes: (file: string) => u8[] = (file: string): u8[] => readBytes(file);
   exists: (file: string) => boolean = (file: string): boolean => exists(file);

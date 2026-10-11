@@ -22,7 +22,8 @@ import { Button, drawButton, setInRows, rowWidth } from './button';
 import { Frame } from './frame';
 import { Storyboard } from './storyboard';
 import { Narration } from './narration';
-import { sans, bold, wrap, leading, setReading, reading, faint, clipped } from './type';
+import { sans, bold, wrap, leading, setReading, setFonts, reading, faint, clipped } from './type';
+import { files } from './files';
 import { word } from './words';
 import { Statistics, Counts } from './stats';
 
@@ -137,6 +138,8 @@ export class Player {
   private tours = new Button();
   private listing = false;
   private dock: Button[] = [];
+  /** The image of the theme's logo: -2 until it is asked for, -1 when there is none. */
+  private logo: i32 = -2;
   /** The top of those controls, in the frame. */
   private floor = 0;
 
@@ -180,19 +183,19 @@ export class Player {
   frame(dt: number, x: number, y: number, w: number, h: number): void {
     this.read();
     try { this.advance(dt, x, y, w, h); this.paint(x, y, w, h); this.faults = 0; } catch (e) { this.failed(e.message); }
-    setReading(1, false);
+    this.unread();
   }
   /** The two halves of `frame`, for a host that draws at another moment than it counts time (a canvas of zinc:ui). */
   update(dt: number, x: number, y: number, w: number, h: number): void {
     this.read();
     try { this.advance(dt, x, y, w, h); } catch (e) { this.failed(e.message); }
-    setReading(1, false);
+    this.unread();
   }
   draw(x: number, y: number, w: number, h: number): void {
     if (this.stack.length === 0) return;   // nothing is laid out before the first update
     this.read();
     try { this.paint(x, y, w, h); this.faults = 0; } catch (e) { this.failed(e.message); }
-    setReading(1, false);
+    this.unread();
   }
   /** The player is done: its narration stops and what it holds in the 3D renderer is freed. */
   close(): void {
@@ -206,11 +209,12 @@ export class Player {
   setLanguage(lang: string): void {
     this.read();
     this.speak(lang);
-    setReading(1, false);
+    this.unread();
   }
 
   /** What is laid out and drawn from now on is at the visitor's text size and contrast (type.ts), until the player hands back. */
-  private read(): void { setReading(this.project.accessibility.textSizes[this.size], this.contrast); }
+  private read(): void { const p = this.project; setReading(p.accessibility.textSizes[this.size], this.contrast); setFonts(p.theme.font, p.theme.titleFont); }
+  private unread(): void { setReading(1, false); setFonts('sans', 'sans-bold'); }
   /** Puts on the colours of the theme, or those of the high contrast: every part of the player draws with this one object. */
   private wear(): void {
     const c = this.colours, from: Colours = this.contrast ? this.project.accessibility.highContrast : this.project.theme;
@@ -776,6 +780,7 @@ export class Player {
     clipped();
     if (this.contrast) this.veil(255);   // whoever owns the window cleared it with the colour of the theme
     for (const s of stack) s.quiet = this.tour !== null && !this.paused;
+    this.drawLogo(ox, oy, k);
     const moving = this.change;
     if (moving === null) this.drawStack(stack, ox, oy, k, 1, 0);
     else this.drawChange(moving, ox, oy, k);
@@ -872,6 +877,20 @@ export class Player {
 
   /** Covers the player's rectangle with the table's colour, at an opacity of 0 to 255: what dims a sequence, and a fade. */
   private veil(alpha: i32): void { rrect(this.boxX, this.boxY, this.boxW, this.boxH, 0, this.colours.background, alpha); }
+
+  /** The museum's logo, on the table itself under the cards: in the far right corner of the visitor's frame, across from the title of the
+   *  sequence, and turned to the visitor like it. */
+  private drawLogo(ox: number, oy: number, k: number): void {
+    const file = this.project.theme.logo, F = this.F;
+    if (file.length === 0) return;
+    if (this.logo === -2) this.logo = files.picture(file);
+    const im = this.logo;
+    if (im < 0 || imageHeight(im) <= 0) return;   // a logo that cannot be read is the staff's to see in the editor, not a fault of the visit
+    const h = 56, w = Math.min(280, h * imageWidth(im) / imageHeight(im));
+    F.on(ox, oy, k);
+    drawImage(im, F.ox + (F.w - 48 - w) * k, F.oy + 30 * k, w * k, h * k, 255, 0);
+    F.off();
+  }
 
   /** Draws sequences one over the other: the first as it is, the next ones over a table dimmed by `dim` (0 to 1) and moved `shift` table
    *  widths to the right. */

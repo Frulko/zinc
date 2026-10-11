@@ -111,8 +111,8 @@ Dark and calm by default.
 | `paper`, `ink` | `#f4f1ea`, `#23211d` | A card (the border of a photograph, a text panel) and what is written on it |
 | `text`, `muted` | `#ece8df`, `#9b978d` | Texts on the table, and secondary ones |
 | `accent` | `#d0a441` | What answers to a touch: buttons, points of interest |
-| `font`, `titleFont` | `sans`, `sans-bold` | Font families: a family the engine bakes, or a font file of the assets |
-| `logo` | none | The museum's logo, an image of the assets |
+| `font`, `titleFont` | `sans`, `sans-bold` | The fonts of the texts and of the titles: a family the table has (`sans`, `sans-bold`, `mono`) or a TrueType file of the assets (`fonts/house.ttf`); a file that is missing leaves the default |
+| `logo` | none | The museum's logo, an image of the assets: drawn 56 units high on the table itself, under the cards, in the far right corner of the side the visitor stands at |
 
 ### accessibility
 

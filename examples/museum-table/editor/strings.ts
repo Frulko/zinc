@@ -351,11 +351,12 @@ export const COLOUR_NAMES: i32[] = [S('Table', 'Table'), S('Card', 'Carte'), S('
 export const COLOUR_HINTS: i32[] = [S('the background', 'le fond'), S('the border of a photograph, a text panel', 'le bord d’une photographie, un panneau de texte'), S('captions, notices', 'légendes, cartels'),
   S('titles, introductions, subtitles', 'titres, introductions, sous-titres'), S('credits, hints', 'crédits, indications'), S('buttons, points of interest, hotspots', 'boutons, points d’intérêt, zones sensibles')];
 export const FONTS = S('Fonts and logo', 'Polices et logo');
-export const FONTS_WHAT = S('A font family (sans, sans-bold, mono) or a font file of the project folder; a picture of the folder for the logo. Kept in the file: the table does not apply them yet.',
-  'Une famille de police (sans, sans-bold, mono) ou un fichier de police du dossier du projet ; une image du dossier pour le logo. Conservés dans le fichier : la table ne les applique pas encore.');
+export const FONTS_WHAT = S('The table has three font families; a TrueType file (.ttf) put in the project folder is offered beside them, and the pictures of the folder for the logo, shown in a corner of the table.',
+  'La table a trois familles de polices ; un fichier TrueType (.ttf) déposé dans le dossier du projet est proposé à côté d’elles, et les images du dossier pour le logo, affiché dans un coin de la table.');
+export const NO_LOGO = S('None', 'Aucun');
 export const FONT_TEXT = S('Font of the texts', 'Police des textes');
 export const FONT_TITLE = S('Font of the titles', 'Police des titres');
-export const LOGO = S('Logo (a picture of the folder)', 'Logo (une image du dossier)');
+export const LOGO = S('Logo', 'Logo');
 export const TABLE = S('Around the table', 'Autour de la table');
 export const VISITORS = S('Visitors at the same time', 'Visiteurs en même temps');
 export const VISITORS_WHAT = S('They share one story; texts and buttons turn to the side of the last touch near an edge.', 'Ils partagent une même histoire ; textes et boutons se tournent vers le côté du dernier toucher près d’un bord.');
