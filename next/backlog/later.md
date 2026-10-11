@@ -16,6 +16,9 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-155: `p.then(x => promise)` does not flatten the promise it returns, so `fetch(u).then(r => r.text())` yields a Promise (async/await is right): the checker's __then helpers need a Promise-returning variant. The parity gate's most visible PARTIAL.
 - ZN-155: console.log(-0) prints -0 (the prototype printed 0); an i64 near 2^53 rounds otherwise than the prototype; tests/conformance/scroll_physics.tsx prints nothing (its frozen output starts "dragged 150").
 - ZN-155: default values in array patterns (`const [a = 1] = xs`) are still refused (object patterns take them).
+- ZN-583.01: zinc:physics2d steps on one thread; Box2D's task callbacks would spread a step over workers (drop.out must stay identical with 1 and 4 workers).
+- ZN-583.01: zinc:physics2d has no shape casts, overlap queries, distance/weld/wheel joints or queries of contacts in progress yet; add them when a program needs them.
+- ZN-583.01: remeasure next/bench/physics2d_pile.ts on a quiet machine (the 1.79 / 2.61 ms of the perf log were taken at load 3.8).
 
 ## Demos
 
@@ -25,3 +28,4 @@ The next backlog review turns lines into tasks or deletes them.
 
 - ZN-576: tests/golden/webgl/antialias.js expects a multisampled canvas; on a GLES 2 context (Pi 3) antialias is reported false, so the golden needs a GLES 2 variant there.
 - ZN-321: `zinc export --target linux --deb --key <seed>` then `zinc verify` on the .deb and on a changed copy (the .deb is signed by the export's artifact list; never run, a .deb needs the Linux cross build).
+- ZN-583.01: zinc:physics2d on Linux (tests/t1/physics2d.sh in the container, drop.out byte for byte) and on arm64 macOS, rpi, wasm and the handhelds (NEON instead of SSE2), drop.out identical.

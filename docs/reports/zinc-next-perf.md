@@ -438,6 +438,13 @@ The CPU time ZINC_GL_STATS calls "to submit" includes waits for the GPU (5.6 to 
 measured at load 6 from other builds, before ZN-432 changed the image path of the replay. GL replay against the software frame for convex
 and concave polygons: 0.06% of the pixels more than 24 apart, mean error 0.07 (tests/t1/gl_convex.sh).
 
+### ZN-583.01: zinc:physics2d, 2,000 piled bodies (2026-10-11, Intel Mac, load 3.79 to 3.96 from another session, not throttled)
+
+`next/bench/physics2d_pile.ts` (Box2D 3.1.1, 60 Hz with 4 sub-steps, every body awake), ms per step: compiled 1.786 (target 2),
+QuickJS 2.613 (target 3), interpreter 1.835. A program that does not import the plugin is byte-identical (`console.log('hello')`
+231,232 bytes before and after); one that does (`tests/data/physics2d/drop.ts`) is 1,459,368 bytes. The plugin builds cold in 7.9 s
+(Box2D as one unity C file, 4 s) and in 2.4 s after an edit. To remeasure on a quiet machine (backlog/later.md).
+
 ### ZN-430: launching a .zapp with 100 MB of assets (2026-10-11, Intel Mac, load about 4)
 
 The game-2d template plus 100 MB of random bytes in assets/data, packed (105 MB), `ZINC_HEADLESS=1 ZINC_FRAMES=1 zinc run g2d.zapp` under
