@@ -334,7 +334,10 @@ lists the CI secrets not set yet; it never writes a secret's value, and running 
 The `zinc-next` workflow (`.github/workflows/zinc-next.yml`) makes a GitHub Release when a `v*` tag is pushed. Each OS job
 builds, tests and packages (`tools/package`, the version taken from the tag); the macOS job signs and notarizes its package
 with `tools/sign-macos`; each job writes `zinc-<os>-<arch>.manifest`, an update manifest signed with the release key; then
-the `release` job attaches every package and manifest to the release. Without the signing secrets the release still
+the `release` job attaches every package and manifest to the release, with `install.sh` (`next/tools/install.sh`, the one
+command of [Getting started](01-getting-started.md)) and the `SHA256SUMS` it checks its download against. Each package holds
+the native libraries of the plugins, built in that job with the pinned zig (the log of `tools/package` names the plugins left
+without one, and `zinc doctor` lists them on the user's machine). Without the signing secrets the release still
 happens with an unsigned macOS package, and both the job log (a warning) and the release notes say so; without the update
 key the manifests are left out and the notes say that too.
 

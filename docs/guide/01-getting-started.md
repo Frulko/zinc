@@ -1,16 +1,46 @@
 # 1. Getting started
 
 Your first five minutes, command for command: install, a project, a first change on screen, a first mistake and how to read it.
-The project commands and the error messages of this walk are run by `next/tests/t1/first_run.sh` on every template; the build of the install was walked by hand, and the test runs without a window.
+The project commands and the error messages of this walk are run by `next/tests/t1/first_run.sh` on every template, and the install by
+`next/tests/t1/install_nocompiler.sh` on a machine set up with no compiler; both run without a window.
 
 ## Install
 
-There is no installer yet: you build the `zinc` program once from the sources. You need git, CMake 3.20 or later and a C++20
-compiler (on a Mac: `xcode-select --install`, then CMake from cmake.org or `brew install cmake`). Nothing else: the window
-library (SDL3), the fonts and the other libraries are in the repository, and Node.js is not needed.
+One command, and nothing to compile: no compiler, no CMake, no Xcode, no administrator password.
 
 ```sh
-git clone https://github.com/Frulko/zinc.git
+curl -fsSL https://github.com/zinc-engine/zinc/releases/latest/download/install.sh | sh
+```
+
+It downloads the Zinc made for your machine (a Mac, Apple silicon or Intel; Linux, x86_64 or aarch64; about 27 MB), checks its
+SHA-256 against the release's `SHA256SUMS`, unpacks it into `~/.zinc/engine` and links `zinc` into `/usr/local/bin` when you
+can write there, else into `~/.local/bin`, which it adds to your `PATH` (`~/.zprofile` or `~/.profile`). Run the same command
+again to update. Open a new terminal, then ask zinc what it sees:
+
+```sh
+zinc doctor
+```
+
+The download holds the engine, the window library, the fonts, the templates and the plugins, with the native libraries of the
+plugins already compiled (`zinc:system`, `zinc:three`, `zinc:svg`, `zinc:sqlite`, `zinc:audio`, the physics engines and the
+others): a program that imports them starts at once. `zinc doctor` ends with the few plugins that have none, and why:
+`zinc:video` and `zinc:gphoto2`, for example, use libraries of your system (FFmpeg, libgphoto2): the download holds their
+sources, and they are compiled the first time a program imports them, on a machine that has those libraries and, on a Mac,
+the Xcode command line tools.
+
+By hand instead: download `Zinc-<version>-macos-<arch>.zip` or `zinc-<version>-linux-<arch>.tar.gz` from the
+[releases](https://github.com/zinc-engine/zinc/releases), unpack it anywhere, and link `Zinc Atelier.app/Contents/MacOS/zinc`
+(macOS) or `bin/zinc` (Linux) into a directory of your `PATH`. A Mac asks you to confirm an app that came through a browser
+and is not notarized: right-click > Open on "Zinc Atelier" once.
+
+### From the sources
+
+On Windows (no download yet), or to work on Zinc itself, you build the `zinc` program from the sources. You need git, CMake
+3.20 or later and a C++20 compiler (on a Mac: `xcode-select --install`, then CMake from cmake.org or `brew install cmake`).
+Nothing else: the window library (SDL3), the fonts and the other libraries are in the repository, and Node.js is not needed.
+
+```sh
+git clone https://github.com/zinc-engine/zinc.git
 cd zinc/next
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 tools/build zinc                        # 6 to 8 minutes the first time on a 2019 laptop
@@ -18,13 +48,9 @@ sudo ln -s "$PWD/build/zinc" /usr/local/bin/zinc
 ```
 
 The link puts `zinc` on your `PATH`; the program finds its libraries, templates and plugins from where it was built, so keep
-the `zinc` directory. Then ask it what it sees:
+the `zinc` directory. Each plugin is then compiled the first time a program imports it.
 
-```sh
-zinc doctor
-```
-
-It prints the engine and where its files are, this machine (profile, GPU), the tools it will download by itself the day you
+`zinc doctor` prints the engine and where its files are, this machine (profile, GPU), the tools it will download by itself the day you
 build for a board, and the plugins. Nothing in that list has to be installed by hand. `zinc` alone, or `zinc help`, lists the
 commands; `zinc help run` describes one; a misspelt command names the closest one (`zinc rnu`: "did you mean 'zinc run'?").
 
