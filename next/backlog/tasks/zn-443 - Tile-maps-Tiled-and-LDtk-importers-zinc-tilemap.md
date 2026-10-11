@@ -2,7 +2,8 @@
 id: ZN-443
 title: 'Tile maps: Tiled and LDtk importers, zinc:tilemap'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-09 07:36'
 labels:
   - games
