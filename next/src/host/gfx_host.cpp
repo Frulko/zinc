@@ -83,6 +83,7 @@ void installFast() {
 }
 
 extern "C" int zn_asset_font(const char* name, uint32_t n);   // src/host/sys_host.cpp
+extern "C" int zn_asset_image(const char* name, uint32_t n);
 // zinc:gfx loadFont (ZN-669): a family or file the program embeds, else the file read whole from its assets
 int32_t loadFont(const zrt::String& name, double px) {
   const int32_t f = zrt::gfx::loadFont(name, px);
@@ -166,7 +167,11 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostGfxFontAscent: r->i = g::fontAscent(n(0)); break;
     case Rt::HostGfxLineHeight: r->i = g::lineHeight(n(0)); break;
     case Rt::HostGfxTextWidth: r->d = g::textWidth(n(0), str(a[1]), a[2].d); break;
-    case Rt::HostGfxImage: r->i = g::image(str(a[0])); break;
+    case Rt::HostGfxImage: {   // baked, else an image entry of the mounted packs (a page of a sprite atlas, ZN-438)
+      r->i = g::image(str(a[0]));
+      if (r->i < 0) r->i = zn_asset_image(static_cast<const char*>(a[0].p), a[0].n);
+      break;
+    }
     case Rt::HostGfxImageWidth: r->i = g::imageWidth(n(0)); break;
     case Rt::HostGfxImageHeight: r->i = g::imageHeight(n(0)); break;
     case Rt::HostGfxDrawImage: g::drawImage(n(0), a[1].d, a[2].d, a[3].d, a[4].d, n(5), a[6].d); break;

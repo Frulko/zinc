@@ -1,0 +1,11 @@
+{
+  "name": "sprite-atlas",
+  "entry": "main.ts",
+  "assets": {
+    "dir": "assets",
+    "rules": [
+      { "match": "sprites/**", "as": "sprite", "atlas": "sprites" },
+      { "match": "small/*.png", "as": "sprite", "atlas": "small", "maxSize": 32, "pot": true, "extrude": 0, "padding": 0 }
+    ]
+  }
+}

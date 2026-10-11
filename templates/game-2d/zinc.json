@@ -2,6 +2,6 @@
   "name": "{{name}}",
   "app": { "id": "com.example.{{id}}", "name": "{{name}}", "version": "0.1.0" },
   "entry": "src/main.ts",
-  "assets": "assets",
+  "assets": { "dir": "assets", "rules": [{ "match": "*.svg", "as": "sprite", "atlas": "sprites" }] },
   "targets": { "macos": { "width": 640, "height": 400 }, "linux": { "width": 640, "height": 400 } }
 }

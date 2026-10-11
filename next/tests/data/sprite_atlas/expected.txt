@@ -1,0 +1,26 @@
+atlas sprites: 1 page(s)
+  page 58x42
+  frame arrow.png 32,35 5x3 at 0,0 of 5x3 scale 1 pivot 0.5,0.5 120 ms
+  frame gem.png 12,26 8x7 at 0,1 of 8x8 scale 1 pivot 0.25,1 80 ms
+  frame sprites/blink.aseprite#0 49,22 8x8 at 0,0 of 8x8 scale 1 pivot 0.5,0.5 100 ms
+  frame sprites/blink.aseprite#1 1,26 8x8 at 0,0 of 8x8 scale 1 pivot 0.5,0.5 150 ms
+  frame sprites/blink.aseprite#2 23,26 6x6 at 1,1 of 8x8 scale 1 pivot 0.5,0.5 200 ms
+  frame sprites/dot.png 36,22 10x10 at 1,1 of 12x12 scale 1 pivot 0.5,0.5 100 ms
+  frame sprites/hero.png 37,2 16x16 at 0,0 of 8x8 scale 2 pivot 0.5,0.5 100 ms
+  frame sprites/ship.svg 2,2 30x20 at 2.5,1.5 of 20x14 scale 2 pivot 0.5,0.5 100 ms
+  frame sprites/walk_1.png 49,33 6x6 at 0,0 of 6x6 scale 1 pivot 0.5,0.5 100 ms
+  frame sprites/walk_2.png 23,35 6x6 at 0,0 of 6x6 scale 1 pivot 0.5,0.5 100 ms
+  animation pair forward arrow.png gem.png: 200 ms, 0:arrow.png 120:gem.png 260:arrow.png 500:arrow.png, once gem.png
+  animation shine pingpong gem.png arrow.png: 200 ms, 0:gem.png 120:arrow.png 260:gem.png 500:arrow.png, once arrow.png
+  animation sprites/blink.aseprite forward sprites/blink.aseprite#0 sprites/blink.aseprite#1 sprites/blink.aseprite#2: 450 ms, 0:sprites/blink.aseprite#0 120:sprites/blink.aseprite#1 260:sprites/blink.aseprite#2 500:sprites/blink.aseprite#0, once sprites/blink.aseprite#2
+  animation sprites/blink.aseprite#blink pingpong sprites/blink.aseprite#1 sprites/blink.aseprite#2: 350 ms, 0:sprites/blink.aseprite#1 120:sprites/blink.aseprite#1 260:sprites/blink.aseprite#2 500:sprites/blink.aseprite#2, once sprites/blink.aseprite#2
+  animation sprites/walk forward sprites/walk_1.png sprites/walk_2.png: 200 ms, 0:sprites/walk_1.png 120:sprites/walk_2.png 260:sprites/walk_1.png 500:sprites/walk_2.png, once sprites/walk_2.png
+atlas small: 2 page(s)
+  page 32x32
+  page 16x16
+  frame small/s0.png 0,0 12x12 at 0,0 of 12x12 scale 1 pivot 0.5,0.5 100 ms
+  frame small/s1.png 12,0 12x12 at 0,0 of 12x12 scale 1 pivot 0.5,0.5 100 ms
+  frame small/s2.png 0,12 12x12 at 0,0 of 12x12 scale 1 pivot 0.5,0.5 100 ms
+  frame small/s3.png 12,12 12x12 at 0,0 of 12x12 scale 1 pivot 0.5,0.5 100 ms
+  frame small/s4.png 0,0 12x12 at 0,0 of 12x12 scale 1 pivot 0.5,0.5 100 ms
+  animation small/s forward small/s0.png small/s1.png small/s2.png small/s3.png small/s4.png: 500 ms, 0:small/s0.png 120:small/s1.png 260:small/s2.png 500:small/s0.png, once small/s4.png

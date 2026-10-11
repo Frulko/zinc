@@ -59,9 +59,42 @@ matches a path applies in order, a later one overriding an earlier one's options
 |---|---|
 | `copy` | the bytes as they are |
 | `image` | decoded (stb_image, libwebp, the baker's SVG rasterizer), alpha premultiplied, in `format` `rgba8` (default), `rgb565` or `rgba4444`, after the 16-byte header below; an SVG is drawn at `scale` pixels per unit (2 by default, at most 1024 pixels wide), a raster image keeps its pixels and takes its scale from an `@2x` name |
+| `sprite` | a frame of an atlas (below): no entry of its own; the atlas becomes `<atlas>.atlas` (its table) and `<atlas>.atlas.<n>` (its pages) |
 
 Image header (little-endian): `ZIM1`, u8 format (1 rgba8, 2 rgb565, 3 rgba4444), u8 scale, u16 flags (bit 0: premultiplied), u32 width,
-u32 height; then the rows top to bottom (16-bit pixels: red in the high bits, `RRRRRGGGGGGBBBBB` and `RRRRGGGGBBBBAAAA`).
+u32 height; then the rows top to bottom (16-bit pixels: red in the high bits, `RRRRRGGGGGGBBBBB` and `RRRRGGGGBBBBAAAA`). zinc:gfx `image(name)`
+finds an image entry of the mounted packs when the baker did not embed that name: a runtime image with straight alpha (premultiplied texels
+are divided back), made once per name.
+
+### Sprites and atlases (ZN-438)
+
+A rule `"as": "sprite"` makes its files frames of an atlas, `"atlas": "<name>"` (default `sprites`), drawn with `zinc:sprite`
+(`docs/plugins/sprite.md`). `zinc run` builds the packs of a project that has rules or groups, so an atlas is there from the first run.
+
+```json
+"assets": { "rules": [{ "match": "sprites/**", "as": "sprite", "atlas": "sprites", "extrude": 1, "padding": 1, "maxSize": 2048, "pot": false }] }
+```
+
+- **Sources.** A PNG, JPEG, WebP or SVG file is one frame named by its path (`hero@2x.png` is `hero.png` at 2 texels a point; an SVG is
+  drawn at 2, as the baker draws it; of two frames of one name the one with more texels a point wins). An Aseprite file (cute_aseprite)
+  gives `file.aseprite#0`, `#1`... with their durations, the animation `file.aseprite` (every frame) and one per tag, `file.aseprite#tag`
+  (forward, reverse, pingpong). A TexturePacker "JSON hash" or "JSON array" sheet, or Aseprite's `--data` export, gives its frames by their
+  names, cut out of the image `meta.image` names (turned back when packed rotated, put back in their untrimmed size), its `pivot`s and
+  `duration`s, and its animations (`meta.frameTags`, TexturePacker's `animations`); that image, when a sprite rule takes it too, is not a
+  frame. Loose files whose names end in a number (`walk_1.png`, `walk_2.png`) are an animation, `walk`, of `fps` (10) frames a second.
+- **Trim.** Each frame keeps what is not transparent and one transparent texel around it where its source has one (`"trim": false`: the
+  whole image). With linear filtering at a fractional position an edge texel then blends with a transparent neighbour exactly as in the
+  whole image, and the frame's rectangle covers every pixel the whole image would touch.
+- **Pages.** stb_rect_pack (stable sort: the same pages with every C library) places every frame extruded by `extrude` points (its edge
+  texels repeated outwards: what linear filtering reads beyond its rectangle is what the whole image clamps to) and `padding` texels apart;
+  a page is the smallest power-of-two square that takes the frames left, cut to what it holds (`pot`: each side a power of two), at most
+  `maxSize` texels a side; the frames that do not fit go to the next page, and a frame larger than a page is an error. Pages are `rgba8`
+  with straight alpha, the texels the rasterizer samples, so a frame drawn at its size is the loose image's pixels.
+- **Table** (`<atlas>.atlas`, text, tab-separated): `zinc-atlas 1`; `page <entry> <w> <h>`; per frame, by name, `frame <name> <page> <x> <y>
+  <w> <h> <ox> <oy> <source w> <source h> <scale> <pivot x> <pivot y> <ms>` (texels; the pivot 0..1 of the source); `anim <name> <mode>
+  <frame index>...`.
+- **Cache.** The frames of one file are its artifact (trimmed, named relative to the file: a key covers bytes, not paths); an atlas is
+  assembled from them when its pack is written. The frames of one atlas must be in one group and share its packing options.
 
 The font baker (`src/res`, `zinc-next-resources.md`) is the third built-in importer: its inputs are the program's sources, so the program
 build calls it (`bakeResources`: `zinc run`, `pack`, `build`, `export`, `bake`) through the same cache; its blob is not a pack entry yet.
@@ -114,7 +147,7 @@ assets.stats();                             // resident bytes, peak, the ram bud
   replaces some entries of the base one and leaves the others. The base packs: `ZINC_PACKS` (paths separated by `:`; empty: none), else
   `assets/<target>/` beside a built program (where `zinc build` writes them: `<project>/build/assets/<target>`, a directory the assets
   lookup no longer takes for the program's `assets/`). `zinc run` sets `ZINC_PACKS` to the project's dev packs, built at launch, when
-  `zinc.json` has `assets.groups` (a project without groups runs as before, from its directory); a `.zapp` of such a project carries
+  `zinc.json` has `assets.groups` or `assets.rules` (a project without either runs as before, from its directory); a `.zapp` of such a project carries
   them as `packs/<group>.zpk`.
 - **The v1 calls** (`readText`, `readBytes`, `exists`, `list`) read the data entries of the mounted packs first, then the directory. An
   entry an importer changed (an image is ZIM1, not the PNG) is not the file's bytes: the v1 calls skip it and read the directory.

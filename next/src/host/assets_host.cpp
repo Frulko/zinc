@@ -245,11 +245,11 @@ void commit(Manager& g, Job& j) {
 
 }  // namespace
 
-bool read(const std::string& name, std::string& out, std::string& err) {
+bool read(const std::string& name, std::string& out, std::string& err, int kind) {
   Manager& g = ready();
-  if (auto it = g.resident.find(name); it != g.resident.end() && it->second.kind == 0) { out = it->second.data; return true; }
+  if (auto it = g.resident.find(name); it != g.resident.end() && it->second.kind == kind) { out = it->second.data; return true; }
   auto [p, i] = find(g, name);
-  if (!p || p->reader.entry(static_cast<std::size_t>(i)).kind != 0) return false;
+  if (!p || p->reader.entry(static_cast<std::size_t>(i)).kind != kind) return false;
   if (!p->reader.read(static_cast<std::size_t>(i), out, err)) err = "assets: " + err;
   return true;
 }

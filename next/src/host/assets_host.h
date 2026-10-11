@@ -12,8 +12,9 @@
 namespace zn::host::assets {
 
 // ---- v1 through the packs (the base packs are mounted on the first call)
-/** The bytes of `name`: resident, else a data entry of the first mounted pack that has it. False when no pack has it (the caller reads the directory). */
-bool read(const std::string& name, std::string& out, std::string& err);
+/** The bytes of `name`: resident, else an entry of that kind (0 data, 1 image: zinc:gfx image(), ZN-438) of the first mounted pack that has it.
+ *  False when no pack has it (the caller reads the directory). */
+bool read(const std::string& name, std::string& out, std::string& err, int kind = 0);
 bool has(const std::string& name);
 /** The names of the data entries of every mounted pack (an imported image is not the file's bytes: it stays out). */
 void names(std::vector<std::string>& out);

@@ -1979,7 +1979,7 @@ bool assetRun(const std::string& dir, const std::string& target, const std::stri
   if (!zn::frontend::assetProfiles(proj, readAll(fs::path(engineRoot) / ".." / "targets" / "capabilities.json"), rows, err)) return false;
   for (const auto& t : rows)
     if (t.target == target) { auto b = t.budgets.find("ram"); ram = b == t.budgets.end() ? 0 : b->second; }
-  if (!build || proj.assets.groups.empty()) return true;   // no groups: the program reads its assets directory as before, no pack to build
+  if (!build || !proj.assets.packed()) return true;   // no rules nor groups: the program reads its assets directory as before, no pack to build
   if (!buildAssets(project.string(), target, false, err)) return false;
   packs = (project / "build" / "assets" / target).string();
   return true;

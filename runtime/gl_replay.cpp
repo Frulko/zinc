@@ -408,13 +408,17 @@ static void draw_image(const Cmd& c) {
   Rect b = bounds(c.x, c.y, c.w, c.h, HUGE_R);
   const bool boxed = (c.pad & kImageBox) || alpha;
   const float mx0 = m.w < 0 ? m.x + m.w : m.x, my0 = m.h < 0 ? m.y + m.h : m.y;
+  bool copy = false;
   if (boxed) {
     // one texel a pixel on whole pixels is a copy; through a matrix (XFORM) the pixels are not the image's own any more
-    nearest = c.grad == 1 || (!xf_on && mw == (float)t->w && mh == (float)t->h && m.x == (float)ifloor(m.x) && m.y == (float)ifloor(m.y));
+    copy = c.grad != 1 && !xf_on && mw == (float)t->w && mh == (float)t->h && m.x == (float)ifloor(m.x) && m.y == (float)ifloor(m.y);
+    nearest = c.grad == 1 || copy;
     b = isect(b, bounds(mx0, my0, mw, mh, HUGE_R));   // nothing is painted outside the image
   }
   if (b.x0 >= b.x1 || b.y0 >= b.y1) return;
-  set_filter(*t, nearest);
+  // a copy samples texel centres, where both filters give the texel: the texture keeps its filter, so the frames of an atlas page drawn
+  // at their size and scaled stay in one batch (ZN-438)
+  if (!copy) set_filter(*t, nearest);
   use_tex(t->id);
   Q q = box_q(c, b, mode);
   if (boxed && xf_on) {   // through a matrix the quad is the rectangle itself, not the pixels it touches: no texel of the frame beside it at its edges

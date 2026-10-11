@@ -566,7 +566,7 @@ static void prune(std::size_t keep) {
 }  // namespace aotcache
 
 // zinc:assets for a program run from `entry` (ZN-436): ZINC_ASSETS, the assets beside the entry or above it; ZINC_PACKS, the packs of an
-// unpacked .zapp (packs/ beside its program) or, for a project with asset groups, its dev packs built now (none otherwise: a run of the CLI
+// unpacked .zapp (packs/ beside its program) or, for a project with asset rules or groups, its dev packs built now (none otherwise: a run of the CLI
 // never takes packs beside the zinc executable); ZINC_ASSET_RAM, the ram budget in force on this machine. A value already set wins.
 static void assetsEnv(const std::string& entry) {
   namespace fs = std::filesystem;
@@ -1492,7 +1492,7 @@ int main(int argc, char** argv) {
         files[rel] = as.str();
       }
     if (!zn::cli::buildAssets(projDir, zn::tc::pluginTarget(), false, err)) { std::fprintf(stderr, "zinc pack: %s\n", err.c_str()); return 1; }   // the packs, build/assets/<this machine> (ZN-434)
-    if (have && !project.assets.groups.empty())   // the groups of zinc:assets v2 (ZN-436): the packs ride along as packs/<group>.zpk, read from the unpacked archive
+    if (have && project.assets.packed())   // the groups of zinc:assets v2 (ZN-436) and the atlases (ZN-438): the packs ride along as packs/<group>.zpk, read from the unpacked archive
       for (const auto& e : fs::directory_iterator(fs::path(projDir) / "build" / "assets" / zn::tc::pluginTarget(), ec))
         if (e.path().extension() == ".zpk") { std::ifstream zf(e.path(), std::ios::binary); std::stringstream zs; zs << zf.rdbuf(); files["packs/" + e.path().filename().string()] = zs.str(); }
     if (outPath.empty()) { fs::create_directories(fs::path(projDir) / "build", ec); outPath = (fs::path(projDir) / "build" / (name + ".zapp")).string(); }

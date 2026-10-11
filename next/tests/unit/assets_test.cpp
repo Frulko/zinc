@@ -1,5 +1,6 @@
 // The asset build (ZN-434): rules and groups to packs, the image layouts (premultiplied RGBA8, RGB565, RGBA4444), the cache (a second build
 // imports nothing, a changed file is imported alone, no cache imports everything), stale packs, and an unknown importer's error.
+// Sprites and atlases (ZN-438): the page layout and extrusion, the errors of the atlas.
 // Run from next/ (it reads tests/data/images); prints "all checks passed" or one line per failure.
 #include <cstdio>
 #include <cstring>
@@ -125,6 +126,41 @@ void project(const fs::path& tmp) {
   CHECK(!build(o, r, err) && err.rfind("bad.png: ", 0) == 0, "bad image: %s", err.c_str());
 }
 
+// Sprites (ZN-438): two SVG frames in one page, straight alpha, extruded by a point (2 texels at scale 2); the errors of a frame larger than
+// a page, an atlas over two groups and two frames of one name and scale.
+void sprites(const fs::path& tmp) {
+  const fs::path src = tmp / "sprites", out = tmp / "sprites-out";
+  put(src / "a.svg", svg("#ff8000"));
+  put(src / "b.svg", svg("#ff8000"));
+  Options o;
+  o.sourceDir = src.string(); o.outDir = out.string(); o.tool = "test"; o.target = "test";
+  o.rules = {{"*.svg", "sprite", {}}};
+  Report r;
+  std::string err;
+  CHECK(build(o, r, err) && r.items.size() == 2 && r.items[0].importer == "sprite", "sprites: %s", err.c_str());
+  const std::string table = entry(out / "default.zpk", "sprites.atlas"), page = entry(out / "default.zpk", "sprites.atlas.0");
+  CHECK(table.rfind("zinc-atlas\t1\npage\tsprites.atlas.0\t", 0) == 0 && table.find("\nframe\ta.svg\t0\t") != std::string::npos, "table: %s", table.c_str());
+  CHECK(page.size() > kImageHeader && page.compare(0, 4, "ZIM1") == 0 && page[5] == 2 && u16(page, 6) == 0, "page: not a straight-alpha ZIM1 at scale 2");
+  int x = 0, y = 0;
+  const std::size_t at = table.find("\nframe\ta.svg\t0\t");
+  const bool placed = at != std::string::npos && std::sscanf(table.c_str() + at, "\nframe\ta.svg\t0\t%d\t%d", &x, &y) == 2;
+  CHECK(placed, "no place for a.svg in the table");
+  if (placed && page.size() > kImageHeader) {
+    const unsigned W = u32(page, 8);
+    auto texel = [&](int tx, int ty) { return u32(page, kImageHeader + (static_cast<std::size_t>(ty) * W + tx) * 4); };
+    CHECK(x >= 2 && (texel(x, y) & 0xff000000u) == 0x80000000u && (texel(x, y) & 0xff) == 0xff, "a.svg: texel %08x, not straight alpha", texel(x, y));
+    CHECK(x >= 2 && texel(x - 1, y) == texel(x, y) && texel(x - 2, y) == texel(x, y), "a.svg is not extruded by 2 texels");
+  }
+  o.rules = {{"*.svg", "sprite", {{"maxSize", "16"}, {"extrude", "8"}}}};
+  CHECK(!build(o, r, err) && err.find("larger than a page of the atlas sprites") != std::string::npos, "frame over a page: %s", err.c_str());
+  o.rules = {{"*.svg", "sprite", {}}};
+  o.groups = {{"boot", {"a.svg"}, {}}};
+  CHECK(!build(o, r, err) && err.find("an atlas is loaded with one group") != std::string::npos, "atlas over two groups: %s", err.c_str());
+  o.groups.clear();
+  put(src / "a@1x.svg", svg("#00ff00"));
+  CHECK(!build(o, r, err) && err.find("two frames named a.svg") != std::string::npos, "two frames of one name: %s", err.c_str());
+}
+
 void keys() {
   CHECK(Key().add("ab").add("c").hex() != Key().add("a").add("bc").hex(), "part boundaries do not count");
   CHECK(Key().add("x").hex() == Key().add("x").hex() && Key().add("x").hex().size() == 32, "keys are not stable");
@@ -137,6 +173,7 @@ int main() {
   fs::remove_all(tmp);
   keys();
   project(tmp);
+  sprites(tmp);
   fs::remove_all(tmp);
   if (failures) { std::printf("%d failure(s)\n", failures); return 1; }
   std::printf("all checks passed\n");

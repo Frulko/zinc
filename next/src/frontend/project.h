@@ -22,6 +22,8 @@ struct Assets {
   std::vector<AssetGroup> groups;                   // in the manifest's order: the first group that includes an asset takes it
   std::map<std::string, AssetProfile> profiles;
   std::map<std::string, AssetBudgets> budgets;      // by target
+  /** The program reads its packs (zinc run builds them, .zapp carries them): groups and what rules make (a sprite atlas) exist only there. */
+  bool packed() const { return !rules.empty() || !groups.empty(); }
 };
 /** `splash`: an image and/or a background colour shown from the first frame (ZN-446). */
 struct Splash { bool present = false; std::string image, background, fit = "contain"; int minMs = 0, fadeMs = 0; };

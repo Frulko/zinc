@@ -294,9 +294,10 @@ target_link_libraries(zn_zpk PUBLIC zn_lz4 zn_zstd zn_sha256)
 add_executable(zpk_test tests/unit/zpk_test.cpp)
 target_link_libraries(zpk_test PRIVATE zn_zpk)
 # the asset build (ZN-434): importers, the content-addressed cache (xxHash 0.8.4, header only), groups to packs; CLI only
-add_library(zn_assets STATIC src/assets/assets.cpp)
-target_include_directories(zn_assets PUBLIC src PRIVATE third_party/xxhash)
-target_link_libraries(zn_assets PUBLIC zn_zpk zn_res)
+# sprites and atlases (ZN-438): stb_rect_pack 1.01 packs the pages, cute_aseprite 1.04 reads .aseprite files, yyjson the JSON sheets
+add_library(zn_assets STATIC src/assets/assets.cpp src/assets/sprite.cpp)
+target_include_directories(zn_assets PUBLIC src PRIVATE third_party/xxhash third_party/stb third_party/cute_aseprite)
+target_link_libraries(zn_assets PUBLIC zn_zpk zn_res PRIVATE zn_yyjson)
 add_executable(assets_test tests/unit/assets_test.cpp)
 target_link_libraries(assets_test PRIVATE zn_assets)
 add_executable(project_test tests/unit/project_test.cpp)   # zinc.json's game keys (ZN-435)
