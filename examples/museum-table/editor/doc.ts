@@ -226,6 +226,7 @@ export class Doc {
     this.undone = this.undone.slice(0, n + 1);   // the first copy kept is the project before all of them
     this.undone[n].label = label;
     this.lastKey = '';
+    this.changed();   // what Undo would take back has another name now
   }
 
   // ---- the clipboard: sequences, or items of one table, copied here and pasted in this project or in another one

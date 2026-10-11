@@ -8,6 +8,7 @@ import { stroke, polygon, rect, setTransform, resetTransform } from 'zinc:gfx';
 import { Sequence, Link, Item, unreachable } from '../src/project';
 import { project, lang, selected, selectedLink, select, zoom, zoomStep, panX, panY, setPanX, setPanY, zoomBy, CARD_W, CARD_H, setViewSize, addSequence, addSequenceInView,
   moveSequence, link, sourceOf, setStatus, hovered, setHovered, openSequence, fit, viewW, viewH, ZOOMS } from './state';
+import { isChosen, toggleSequence, contextMenu } from './tools';
 import { Ico, IcoAt, Tool, ACCENT, INK, MUTED, WARN, DARK, KIND_ICON, KIND_COLOUR, kindIndex, drawMedia, shapeOf } from './widgets';
 import { PreviewTools } from './preview';
 import * as L from './strings';
@@ -144,7 +145,9 @@ const STAGE_H = 96;
 // the node under the button, where it was pressed, and whether the pointer has moved far enough to be a drag
 let pressed: Sequence | null = null, pressX: number = 0, pressY: number = 0, moving = false;
 function nodeDown(s: Sequence, e: ui.PointerEvent): void {
+  if (e.button === 2) { if (selected() !== s && !isChosen(s)) select(s, null); contextMenu('sequence', e.gx, e.gy); return; }
   if (e.button !== 0) return;
+  if (e.shift || e.meta || e.ctrl) { toggleSequence(s); return; }
   select(s, null);
   const p = pointOf(e);
   pressed = s; pressX = p[0]; pressY = p[1]; moving = false;
@@ -211,7 +214,7 @@ function knob(): number { return Math.max(12, Math.round(20 * zoom())); }
 function Node(s: Sequence): i32 {
   const z = zoom;
   const frame = (): string => target() === s ? 'border-amber-300 bg-zinc-800'
-    : selected() === s && selectedLink() === null ? 'border-amber-400 bg-zinc-800'
+    : (selected() === s && selectedLink() === null) || isChosen(s) ? 'border-amber-400 bg-zinc-800'
     : lost().indexOf(s.id) >= 0 ? 'border-orange-500 border-dashed bg-zinc-900' : 'border-zinc-700 hover:border-zinc-500 bg-zinc-900';
   return <view class="absolute" style={{ left: vx(cx(s) - CARD_W / 2), top: vy(cy(s) - CARD_H / 2), width: CARD_W * z(), height: CARD_H * z() }}>
     <view class={`absolute inset-0 flex-col rounded-lg border-2 shadow-lg overflow-hidden cursor-grab ${frame()}`}
@@ -298,7 +301,10 @@ export function Storyboard(): i32 {
   // the arrows are drawn by hand: ask for a repaint when what they show changes without any node moving
   createEffect(() => { project(); linking(); linkX(); linkY(); target(); selectedLink(); hovered(); dragDX(); dragDY(); panX(); panY(); zoomStep(); ui.repaint(); });
   return <view ref={viewRef} class="grow relative overflow-hidden bg-zinc-950 cursor-default"
-    onPointerDown={(e: ui.PointerEvent) => { if (e.button === 0) { panning = true; panned = false; panFromX = e.x - panX(); panFromY = e.y - panY(); } }}
+    onPointerDown={(e: ui.PointerEvent) => {
+      if (e.button === 0) { panning = true; panned = false; panFromX = e.x - panX(); panFromY = e.y - panY(); }
+      else if (e.button === 2) { const p = pointOf(e); contextMenu('storyboard', e.gx, e.gy, Math.round(p[0]), Math.round(p[1])); }
+    }}
     onPointerMove={(e: ui.PointerEvent) => {
       if (!panning) return;
       if (!panned && Math.abs(e.x - panFromX - panX()) + Math.abs(e.y - panFromY - panY()) < 4) return;

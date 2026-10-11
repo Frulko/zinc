@@ -437,6 +437,43 @@ export const KIND_NAMES: i32[] = [S('Photograph', 'Photographie'), S('3D model',
 export const LANGUAGE_NAMES: string[] = ['fr', 'français', 'en', 'English', 'de', 'Deutsch', 'es', 'español', 'it', 'italiano', 'nl', 'Nederlands', 'pt', 'português'];
 
 // ---- the steps Undo names: the document's labels (doc.ts), which are the English text
+// ---- the tools for agencies: menus, the selection of several things, the clipboard, dropped files
+export const NOT_A_MEDIUM = S('"{0}" is not a picture, a model, a sound or a film.', '« {0} » n’est ni une image, ni un modèle, ni un son, ni un film.');
+export const ALREADY_THERE = S('The project folder already has a file named "{0}": it was not replaced.', 'Le dossier du projet contient déjà un fichier « {0} » : il n’a pas été remplacé.');
+export const CANNOT_COPY = S('"{0}" could not be copied into the project folder: {1}', '« {0} » n’a pas pu être copié dans le dossier du projet : {1}');
+export const M_FILE = S('File', 'Fichier');
+export const M_EDIT = S('Edit', 'Édition');
+export const M_ARRANGE = S('Arrange', 'Disposition');
+export const M_VIEW = S('View', 'Affichage');
+export const OPEN_RECENT = S('Open recent', 'Ouvrir un projet récent');
+export const NO_RECENT = S('No recent project', 'Aucun projet récent');
+export const CUT = S('Cut', 'Couper');
+export const COPY = S('Copy', 'Copier');
+export const PASTE = S('Paste', 'Coller');
+export const DUPLICATE_IT = S('Duplicate', 'Dupliquer');
+export const DELETE_IT = S('Delete', 'Supprimer');
+export const SELECT_ALL = S('Select all', 'Tout sélectionner');
+export const KEY_CLIPBOARD = S('Cut, copy, paste', 'Couper, copier, coller');
+export const KEY_NUDGE = S('Move the selection (Shift: further)', 'Déplacer la sélection (Maj : plus loin)');
+export const ALIGN: i32[] = [S('Align left', 'Aligner à gauche'), S('Centre horizontally', 'Centrer horizontalement'), S('Align right', 'Aligner à droite'), S('Align top', 'Aligner en haut'),
+  S('Centre vertically', 'Centrer verticalement'), S('Align bottom', 'Aligner en bas'), S('Distribute horizontally', 'Répartir horizontalement'), S('Distribute vertically', 'Répartir verticalement')];
+export const ZOOM_IN = S('Zoom in', 'Zoom avant');
+export const ZOOM_OUT = S('Zoom out', 'Zoom arrière');
+export const FIT_ALL = S('Show everything', 'Tout afficher');
+export const M_OPEN_TABLE = S('Open its table', 'Ouvrir sa table');
+export const M_START = S('The visit starts here', 'La visite commence ici');
+export const M_NEW_HERE = S('New sequence here', 'Nouvelle séquence ici');
+export const DONE_COPIED = S('{0} copied. Paste here, on another table or in another project.', '{0} copié(s). Collez ici, sur une autre table ou dans un autre projet.');
+export const DONE_PASTED = S('{0} pasted.', '{0} collé(s).');
+export const NOTHING_TO_PASTE = S('The clipboard holds nothing that can be pasted here.', 'Le presse-papiers ne contient rien qui puisse être collé ici.');
+export const NOTHING_SELECTED = S('Select something first.', 'Sélectionnez d’abord quelque chose.');
+export const NEED_SEVERAL = S('Select at least {0} things (Shift and a click, or Select all).', 'Sélectionnez au moins {0} éléments (Maj et un clic, ou Tout sélectionner).');
+export const N_SELECTED = S('{0} selected.', '{0} sélectionné(s).');
+export const DONE_ARRANGED = S('{0}: {1} moved together.', '{0} : {1} déplacés ensemble.');
+export const DONE_REMOVED_N = S('{0} deleted. Undo brings them back.', '{0} supprimé(s). Annuler les fait revenir.');
+export const SOME_SEQUENCES = S('{0} sequence(s)', '{0} séquence(s)');
+export const SOME_MEDIA = S('{0} media', '{0} média(s)');
+
 const STEPS: string[] = ['New sequence', 'Nouvelle séquence', 'Rename sequence', 'Renommer la séquence', 'Move sequence', 'Déplacer la séquence', 'Duplicate sequence', 'Dupliquer la séquence',
   'Delete sequence', 'Supprimer la séquence', 'Set start sequence', 'Changer le début de la visite', 'New link', 'Nouveau lien', 'Edit link label', 'Modifier le texte du lien',
   'Change link transition', 'Changer la transition du lien', 'Change link kind', 'Changer l’ouverture du lien', 'Delete link', 'Supprimer le lien', 'Change link times', 'Changer les temps du lien',

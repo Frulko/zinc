@@ -8,19 +8,22 @@
 // Two views: the storyboard (storyboard.tsx) and the table of one sequence (sequence.tsx); the panel at the right is inspector.tsx; the
 // preview (preview.tsx) plays the project in their place, or in a window beside them. Every text of the interface is in strings.ts, in
 // English and French.
-import { createSignal, createMemo, render, For, Show } from 'zinc:ui/solid';
+import { createSignal, createMemo, createEffect, render, For, Show } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import { args, launchDir } from 'zinc:sys';
 import { exists } from 'zinc:fs';
 import { quit } from 'zinc:gfx';
 import { onCloseRequested, keepOpen } from 'zinc:system/window';
+import { on } from 'zinc:system';
 import { Sequence, Media } from '../src/project';
 import { Problem } from './doc';
 import { doc, project, path, status, lang, setLang, selected, select, zoomBy, fit, viewW, viewH, addSequenceInView, duplicateSelected, deleteSelection, undo, redo, save, saveAs,
   newProjectCommand, openCommand, openFile, newFile, waiting, answer, goTo, problemText, nameIt, setNameIt, deleting, setDeleting, deleteSequence, linksTo, advanced, setAdvanced, nextLanguage,
   startHere, guard, opened, openSequence, closeSequence, selectedItem, selectedLink, shownMedia, pick, picking, answerPick, adding, setAdding, addFile, addWrittenText, newFiles, kindOfFile, perLanguage, measureTick,
   folder, removing, setRemoving, removeMedia, usesOf, pointing, selectedPoint, pickPoint, closePoints, setLogging, pickFrom, pickAsks, settings, openSettings, closeSettings, forgetting, setForgetting,
-  removeLanguage, textsIn } from './state';
+  removeLanguage, textsIn, dropped, dropFiles, cancelAdding } from './state';
+import { perform, nudge, deleteChosen, chosenItems, chosenSequences, setMenus, toolsTick } from './tools';
+import { recents } from './files';
 import { Ico, Tool, Segmented, Heading, ACCENT, DANGER, WARN, MUTED, decodePictures } from './widgets';
 import { Storyboard } from './storyboard';
 import { SequenceEditor } from './sequence';
@@ -249,8 +252,9 @@ function titleFromFile(path: string): string {
 /** Adding a file of the project folder to the library: which file, then its title, where it comes from and its licence. */
 function AddingFile(): i32 {
   const files = newFiles();
-  const [file, setFile] = createSignal<string>('');
-  const [title, setTitle] = createSignal<string>('');
+  // a file dropped on the window is already chosen
+  const [file, setFile] = createSignal<string>(dropped().length > 0 ? dropped()[0] : '');
+  const [title, setTitle] = createSignal<string>(dropped().length > 0 ? titleFromFile(dropped()[0]) : '');
   const [source, setSource] = createSignal<string>('');
   const [licence, setLicence] = createSignal<string>('');
   const [panorama, setPanorama] = createSignal<string>('photo');
@@ -272,7 +276,7 @@ function AddingFile(): i32 {
             <text class="text-[11px] text-zinc-500">{t(L.KIND_NAMES[['photo', 'model', 'panorama', 'text', 'audio', 'video'].indexOf(kindOfFile(name))])}</text>
           </button>)}
         </scroll>
-        <view class="flex-row justify-end gap-2 mt-4"><Choice label={t(L.CANCEL)} look="plain" onClick={() => setAdding('')} /></view>
+        <view class="flex-row justify-end gap-2 mt-4"><Choice label={t(L.CANCEL)} look="plain" onClick={cancelAdding} /></view>
       </view>
     </Show>
     <Show when={file().length > 0}>
@@ -287,7 +291,7 @@ function AddingFile(): i32 {
         <Asked label={t(L.LICENCE)} value={licence} onInput={setLicence} />
         <Show when={missing()}><text class="text-xs text-orange-300">{t(L.MISSING)}</text></Show>
         <view class="flex-row justify-end gap-2 mt-2">
-          <Choice label={t(L.CANCEL)} look="plain" onClick={() => setAdding('')} />
+          <Choice label={t(L.CANCEL)} look="plain" onClick={cancelAdding} />
           <Choice label={t(L.ADD)} look="primary" onClick={add} />
         </view>
       </view>
@@ -315,6 +319,7 @@ function AddingText(): i32 {
 
 /** The whole window. It is built again when the interface language changes: every view reads its texts once. */
 function Shell(): i32 {
+  createEffect(() => { recents(); setMenus(); });   // the menu bar, in the interface language, with the recent projects of now
   return <view class="relative flex-col w-full h-full bg-zinc-950">
     <Show when={!previewing()}><TopBar /></Show>
     <Show when={previewing()}><PreviewBar /></Show>
@@ -354,7 +359,7 @@ function dismiss(): boolean {
   else if (removing() !== null) setRemoving(null);
   else if (forgetting().length > 0) setForgetting('');
   else if (picking() !== null) answerPick(null);
-  else if (adding().length > 0) setAdding('');
+  else if (adding().length > 0) cancelAdding();
   else return false;
   return true;
 }
@@ -364,24 +369,22 @@ ui.onKey((e: ui.KeyEvent) => {
   if (previewing()) { if (k === 'Escape') stopPreview(); e.preventDefault(); return; }   // the keys are the visitor's, who has none
   if (waiting() !== null || deleting() !== null || removing() !== null || forgetting().length > 0 || picking() !== null || adding().length > 0) { if (k === 'Escape') { dismiss(); e.preventDefault(); } return; }
   if (e.primary) {
-    if (k === 's') { if (e.shift) saveAs(); else save(); }
-    else if (k === 'z') { if (e.shift) redo(); else undo(); }
-    else if (k === 'y') redo();
-    else if (k === 'o') openCommand();
-    else if (k === 'n') newProjectCommand();
-    else if (k === 'd') duplicateSelected();
-    else if (k === '0') fit();
-    else if (k === '=') zoomBy(1, viewW / 2, viewH / 2);
-    else if (k === '-') zoomBy(-1, viewW / 2, viewH / 2);
-    else if (k === 'e') setAdvanced(!advanced());
-    else if (k === ',') { if (settings().length > 0) closeSettings(); else openSettings('project'); }
-    else return;
+    // the same commands as the menu bar and the context menus (tools.ts)
+    const id = k === 's' ? (e.shift ? 'saveAs' : 'save') : k === 'z' ? (e.shift ? 'redo' : 'undo') : k === 'y' ? 'redo' : k === 'o' ? 'open' : k === 'n' ? 'new' : k === 'd' ? 'duplicate'
+      : k === '0' ? 'fit' : k === '=' ? 'zoomIn' : k === '-' ? 'zoomOut' : k === 'e' ? 'advanced' : k === ',' ? 'settings' : k === 'c' ? 'copy' : k === 'x' ? 'cut' : k === 'v' ? 'paste'
+      : k === 'a' ? 'selectAll' : '';
+    if (!perform(id)) return;
     e.preventDefault();
     return;
   }
   if (settings().length > 0) { if (k === 'Escape') { closeSettings(); e.preventDefault(); } return; }   // the keys of the storyboard are not the settings'
   const board = opened() === null;
-  if (k === 'Delete' || k === 'Backspace') deleteSelection();
+  if (k === 'Delete' || k === 'Backspace') deleteChosen();
+  else if (k.startsWith('Arrow') && chosenItems().length + chosenSequences().length > 0) {
+    // one unit of the table, a step of the storyboard's grid; ten times that with Shift
+    const by = (board ? 10 : 1) * (e.shift ? (board ? 5 : 10) : 1);
+    nudge(k === 'ArrowLeft' ? -by : k === 'ArrowRight' ? by : 0, k === 'ArrowUp' ? -by : k === 'ArrowDown' ? by : 0);
+  }
   else if (k === 'Escape' && pointing() !== null) { if (selectedPoint() !== null) pickPoint(null); else closePoints(); }
   else if (k === 'Escape' && !board) { if (selectedItem() !== null || selectedLink() !== null || shownMedia() !== null) pick(null, null, null); else closeSequence(); }
   else if (k === 'Escape' && selected() !== null) select(null, null);
@@ -405,7 +408,9 @@ if (a.length > 0) {
   if (exists(file)) openFile(file); else newFile(file);
 }
 // closing the window with unsaved work asks first
+// files dropped on the window enter the library; a project dropped there is opened
+on('drop', (files: string[]) => dropFiles(files));
 onCloseRequested(() => { if (doc().dirty) { keepOpen(); guard(() => quit()); } else closePreviewWindow(); });
 let frames = 0;
 // the view knows its size once it was drawn: the first fit waits for that
-render(App, 0x09090b, (dt: number) => { if (++frames === 2) fit(); decodePictures(); previewTick(dt); pointsTick(dt); measureTick(); });
+render(App, 0x09090b, (dt: number) => { if (++frames === 2) fit(); toolsTick(); decodePictures(); previewTick(dt); pointsTick(dt); measureTick(); });

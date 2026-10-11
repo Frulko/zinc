@@ -1,0 +1,14 @@
+# What the system does during session.input (tests/t1/museum_editor_tools.sh). Two ticks are one frame of the editor: tick 13 is frame 6.
+# The answers of the three context menus, in the order they open.
+0 dialog-answer openTable
+0 dialog-answer openTable
+0 dialog-answer selectAll
+# The menu bar: Arrange > Align top, Distribute horizontally (the storyboard, frames 6 and 10), Align left, Align top (a table, 28 and 35),
+# Centre vertically (another table, 60).
+13 menu-click arrange:top
+21 menu-click arrange:across
+57 menu-click arrange:left
+71 menu-click arrange:top
+121 menu-click arrange:middle
+# A file dropped on the window (frame 64).
+129 drop @TMP@/outside/estampe.png

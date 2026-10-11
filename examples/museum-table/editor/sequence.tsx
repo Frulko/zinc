@@ -12,6 +12,7 @@ import { project, lang, opened, selectedItem, selectedLink, shownMedia, pick, pl
   openPoints, setStatus, lengthOf } from './state';
 import { Ico, Action, Heading, drawMedia, shapeOf, kindIndex, KIND_ICON, KIND_COLOUR, ACCENT, MUTED } from './widgets';
 import { PreviewTools } from './preview';
+import { isChosenItem, toggleItem, contextMenu } from './tools';
 import * as L from './strings';
 import { t, f } from './strings';
 
@@ -88,7 +89,9 @@ function far(e: ui.PointerEvent): boolean {
   return true;
 }
 function itemDown(it: Item, e: ui.PointerEvent): void {
+  if (e.button === 2) { if (selectedItem() !== it && !isChosenItem(it)) pick(it, null, null); contextMenu('item', e.gx, e.gy); return; }
   if (e.button !== 0) return;
+  if (e.shift || e.meta || e.ctrl) { toggleItem(it); return; }
   pick(it, null, null);
   const p = tableAt(e);
   grabbed = it; gx0 = p[0]; gy0 = p[1]; dragging = false;
@@ -171,7 +174,7 @@ function drawItem(it: Item, x: i32, y: i32, w: i32, h: i32): void {
   const small = sans(9);
   rrect(left, top + h - 14, w, 14, 0, 0x000000, 153);
   drawText(small, left + 4, top + h - 14 + (14 - lineHeight(small)) / 2, wrap(small, titleOf(m), w - 8, 1)[0], 0xe4e4e7, 255, 0);
-  border(left, top, w, h, 4, 2, selectedItem() === it ? 0xfbbf24 : hoveredItem() === it ? 0xa1a1aa : 0x3f3f46, 255);
+  border(left, top, w, h, 4, 2, selectedItem() === it || isChosenItem(it) ? 0xfbbf24 : hoveredItem() === it ? 0xa1a1aa : 0x3f3f46, 255);
   if (turned) resetTransform();
 }
 
@@ -230,7 +233,7 @@ function drawReach(x: i32, y: i32, w: i32, h: i32): void {
 function Stage(): i32 {
   const items = (): Item[] => { const s = opened(); project(); return s === null ? [] : s.items; };
   const links = (): Link[] => { const s = opened(); project(); return s === null ? [] : s.links.filter((l: Link) => l.on.length === 0 || hostOf(l) !== null); };
-  return <view class="grow relative overflow-hidden bg-zinc-950" onPointerDown={(e: ui.PointerEvent) => { if (e.button === 0) pick(null, null, null); }}>
+  return <view class="grow relative overflow-hidden bg-zinc-950" onPointerDown={(e: ui.PointerEvent) => { if (e.button === 0) pick(null, null, null); else if (e.button === 2) contextMenu('table', e.gx, e.gy); }}>
     <canvas class="absolute inset-0" style={{ lazy: 1 }} onDraw={(x: i32, y: i32, w: i32, h: i32) => { if (w !== areaW() || h !== areaH()) batch(() => { setAreaW(w); setAreaH(h); }); }} />
     <view ref={stageRef} class="absolute rounded border border-zinc-700" style={{ left: (areaW() - tableW() * k()) / 2, top: (areaH() - tableH() * k()) / 2, width: tableW() * k(), height: tableH() * k(), bg: project().theme.background }}>
       <canvas class="absolute inset-0" style={{ lazy: 1 }} onDraw={drawReach} />

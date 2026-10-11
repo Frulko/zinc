@@ -190,9 +190,9 @@ function Tip(p: { icon: string; text: string }): i32 {
   </view>;
 }
 /** Every command has a key; the advanced mode lists them. */
-const KEYS: string[] = ['N', 'Enter', 'O', 'S', 'Ctrl D', 'Delete', 'Ctrl Z', 'Shift Ctrl Z', 'Ctrl S', 'Shift Ctrl S', 'Ctrl O', 'Ctrl N', 'Ctrl 0', 'Ctrl + / -', 'L', 'Ctrl E', 'Escape', 'P', 'W', 'Ctrl ,'];
+const KEYS: string[] = ['N', 'Enter', 'O', 'S', 'Ctrl D', 'Delete', 'Ctrl Z', 'Shift Ctrl Z', 'Ctrl S', 'Shift Ctrl S', 'Ctrl O', 'Ctrl N', 'Ctrl 0', 'Ctrl + / -', 'L', 'Ctrl E', 'Escape', 'P', 'W', 'Ctrl ,', 'Ctrl A', 'Ctrl X / C / V', 'Arrows'];
 const KEY_DOES: i32[] = [L.KEY_NEW_SEQUENCE, L.KEY_NAME, L.KEY_OPEN_SEQUENCE, L.KEY_START, L.DUPLICATE, L.KEY_DELETE, L.UNDO, L.REDO, L.SAVE, L.SAVE_AS, L.KEY_OPEN, L.KEY_NEW, L.KEY_FIT, L.KEY_ZOOM,
-  L.KEY_LANGUAGE, L.KEY_ADVANCED, L.KEY_ESCAPE, L.KEY_PLAY, L.KEY_WINDOW, L.KEY_SETTINGS];
+  L.KEY_LANGUAGE, L.KEY_ADVANCED, L.KEY_ESCAPE, L.KEY_PLAY, L.KEY_WINDOW, L.KEY_SETTINGS, L.SELECT_ALL, L.KEY_CLIPBOARD, L.KEY_NUDGE];
 function ProjectPanel(): i32 {
   const links = (): i32 => { let n: i32 = 0; for (const s of project().sequences) n += s.links.length; return n; };
   return <view class="flex-col gap-5 p-4">

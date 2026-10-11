@@ -1,0 +1,5 @@
+# The editor started with no project (tests/t1/museum_editor_tools.sh): recent.system chooses File > Open recent > the first project at
+# frame 4. A new sequence there, then Save.
+8 key n
+9 key Escape
+12 key s meta

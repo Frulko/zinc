@@ -10,6 +10,7 @@ import { decode, Sound } from 'zinc:audio';
 import { Player as Decoder } from 'zinc:video';
 import { cuesOf } from '../src/narration';
 import { clock } from 'zinc:sys';
+import { noteRecent, forgetRecent } from './files';
 import * as L from './strings';
 import { t, f } from './strings';
 
@@ -51,6 +52,9 @@ export const [selected, setSelected] = createSignal<Sequence | null>(null);
 export const [selectedLink, setSelectedLink] = createSignal<Link | null>(null);
 export const [selectedItem, setSelectedItem] = createSignal<Item | null>(null);
 export const [selectedMedia, setSelectedMedia] = createSignal<Media | null>(null);
+/** What is selected with the first one (Shift or Cmd and a click, Select all): other sequences of the storyboard, other items of the table. */
+export const [also, setAlso] = createSignal<Sequence[]>([]);
+export const [alsoItems, setAlsoItems] = createSignal<Item[]>([]);
 /** The model or the panorama whose points of interest are being placed (points.tsx has the window then); null otherwise. And the point
  *  selected there. */
 export const [pointing, setPointing] = createSignal<Media | null>(null);
@@ -65,12 +69,12 @@ export const [namePoint, setNamePoint] = createSignal<i32>(0);
 /** Selects a sequence and at most one thing of it. */
 export function select(s: Sequence | null, l: Link | null): void {
   current.seal();
-  batch(() => { setSelected(s); setSelectedLink(l); setSelectedItem(null); setSelectedMedia(null); });
+  batch(() => { setSelected(s); setSelectedLink(l); setSelectedItem(null); setSelectedMedia(null); setAlso([]); setAlsoItems([]); });
 }
 /** In the sequence editor: an item of the table, a link, a medium of the library, or nothing (the sequence itself). */
 export function pick(it: Item | null, l: Link | null, m: Media | null): void {
   current.seal();
-  batch(() => { setSelectedItem(it); setSelectedLink(l); setSelectedMedia(m); });
+  batch(() => { setSelectedItem(it); setSelectedLink(l); setSelectedMedia(m); setAlsoItems([]); });
 }
 /** The medium the panel shows: the selected item's, else the one selected in the library. */
 export function shownMedia(): Media | null {
@@ -99,6 +103,7 @@ function keepingSelection(step: () => string): string {
   let label = '';
   batch(() => {
     label = step();
+    setAlso([]); setAlsoItems([]);   // ponytail: undo keeps the first thing selected, not the others
     setTour(ti >= 0 && ti < current.project.presentations.length ? current.project.presentations[ti] : null);
     if (current.project.languages.indexOf(lang()) < 0) setLang(current.project.languages[0]);
     const pointed = current.project.medium(pid);
@@ -393,6 +398,28 @@ export function filesEnding(extensions: string[]): string[] {
 }
 /** The question open over the editor: '' none, 'file' (add a file of the folder), 'text' (write a text). */
 export const [adding, setAdding] = createSignal<string>('');
+/** The files dropped on the window that wait to enter the library, as paths in the project folder: the question of `adding` takes the first. */
+export const [dropped, setDropped] = createSignal<string[]>([]);
+/** Files dropped on the window: a project is opened; a medium is copied into the project folder when it is not there, then enters the
+ *  library with its title, its source and its licence, as Add a file does. */
+export function dropFiles(files: string[]): void {
+  if (files.length === 1 && files[0].endsWith('.json')) { const file = files[0]; guard(() => { openFile(file); }); return; }
+  const dir = folder(), rels: string[] = [];
+  if (dir.length === 0) { setStatus(t(L.SAVE_FIRST)); return; }
+  for (const from of files) {
+    const name = from.slice(from.lastIndexOf('/') + 1);
+    if (kindOfFile(name).length === 0) { setStatus(f(L.NOT_A_MEDIUM, name)); continue; }
+    if (from.startsWith(`${dir}/`)) { rels.push(from.slice(dir.length + 1)); continue; }
+    // a file of that name in the folder is never replaced: the library may already show it
+    if (fs.exists(`${dir}/${name}`)) { setStatus(f(L.ALREADY_THERE, name)); continue; }
+    try { fs.copyFile(from, `${dir}/${name}`); rels.push(name); } catch (e) { setStatus(f(L.CANNOT_COPY, name, e.message)); }
+  }
+  const fresh = newFiles(), wanted = rels.filter((rel: string) => fresh.indexOf(rel) >= 0);
+  if (wanted.length === 0) return;
+  batch(() => { setDropped(wanted); setAdding('file'); });
+}
+/** Closes the question of `adding`, and forgets the dropped files that waited behind it. */
+export function cancelAdding(): void { batch(() => { setDropped([]); setAdding(''); }); }
 export function addFileCommand(): void {
   if (folder().length === 0) setStatus(t(L.SAVE_FIRST)); else setAdding('file');
 }
@@ -423,7 +450,9 @@ export function addFile(kind: string, picked: string, title: string, source: str
   const beside = (kind === 'model' && file.toLowerCase().endsWith('.obj')) || kind === 'video' ? textureOf(file.replaceAll('.{lang}', '')) : '';
   const id = current.addMedia(kind, file, title, source, licence, beside, subtitles, beside);
   if (id.length === 0) return false;
-  batch(() => { setAdding(''); pick(null, null, current.project.medium(id)); setStatus(f(L.DONE_MEDIA_ADDED, title)); });
+  const left = dropped().slice(1);
+  batch(() => { setDropped(left); setAdding(''); pick(null, null, current.project.medium(id)); setStatus(f(L.DONE_MEDIA_ADDED, title)); });
+  if (left.length > 0) setTimeout(() => setAdding('file'), 0);   // the next dropped file, in a question of its own
   return true;
 }
 export function addWrittenText(title: string, body: string): boolean {
@@ -713,9 +742,11 @@ export function openFile(file: string): boolean {
     const d = new Doc(parseProject(fs.readText(file)), '');
     d.markSaved();
     show(d, file, f(L.DONE_OPENED, fileName(file)));
+    noteRecent(file);
     return true;
   } catch (e) {
     setStatus(f(L.CANNOT_OPEN, fileName(file), e.message));
+    if (!fs.exists(file)) forgetRecent(file);
     return false;
   }
 }
@@ -731,6 +762,7 @@ function write(file: string): boolean {
     return false;
   }
   current.markSaved();
+  noteRecent(file);
   batch(() => { setPath(file); setStatus(f(L.DONE_SAVED, fileName(file))); refresh(); });
   return true;
 }
