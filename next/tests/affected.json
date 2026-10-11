@@ -46,6 +46,7 @@
     {"paths": ["src/ir/"], "tests": ["ir", "zbc", "rc_refcast", "rc_lend", "rc_borrow", "rc"]},
     {"paths": ["src/zbc/"], "tests": ["zbc", "irformat", "aot"]},
     {"paths": ["src/main.cpp", "tests/t1/zbc_cache.sh"], "tests": ["zbc_cache", "run_cache"]},
+    {"paths": ["src/main.cpp", "tests/t0/plugins_line.sh", "tests/data/plugins_line/"], "tests": ["plugins_line"]},
     {"paths": ["third_party/quickjs-ng/", "tools/quickjs-patches", "src/qjs/qjs_prof.cpp", "bench/qjs/", "tools/qjs2c", "tests/data/qjs2c-sprite.jsonl"], "tests": ["quickjs_patches", "quickjs", "test262_regexp", "qjs_profile", "qjs2c"]},
     {"paths": ["../targets/macos/hal_sdl.cpp", "src/frontend/project", "tests/t1/pixel_scale.sh"], "tests": ["pixel_scale"]},
     {"paths": ["../plugins/3d/", "../plugins/three/", "tests/t1/three_gpu.sh"], "tests": ["three_gpu", "three_3d", "templates_kickstart", "zinc3d_aa", "zinc3d_gltf"]},

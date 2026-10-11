@@ -152,6 +152,33 @@ static void installNativeProvider(const char* entry) {
   };
 }
 
+// The plugins the program imports (ZN-710): those whose files the loader read, in the order zinc plugins lists them, then the display driver.
+// One line on stderr, the prototype's `zinc: plugins: a, b`, where the build steps go: in a terminal (ZINC_STEPS=1 elsewhere), not under -q or
+// ZINC_LOG_FORMAT=json. A cached program keeps the names beside it (file `plugins`).
+static std::vector<std::string> gUsedPlugins;
+static std::string gDisplayPlugin;
+static void notePlugins(const zn::frontend::Program& prog) {
+  namespace fs = std::filesystem;
+  gUsedPlugins.clear();
+  std::vector<std::string> problems, files;
+  for (const auto& f : prog.files) if (!f.path.empty() && f.path[0] != '<' && f.path.rfind("zinc:", 0) != 0) files.push_back(fs::absolute(f.path).lexically_normal().string());
+  for (const auto& p : zn::frontend::discoverPlugins(gRoot + "/..", gProjectDir, problems)) {
+    const std::string dir = (fs::absolute(p.dir).lexically_normal() / "").string();
+    for (const std::string& f : files) if (f.compare(0, dir.size(), dir) == 0) { gUsedPlugins.push_back(p.manifest.name); break; }
+  }
+}
+static void savePlugins(const std::filesystem::path& file) { std::ofstream o(file); for (const std::string& n : gUsedPlugins) o << n << "\n"; }
+static void loadPlugins(const std::filesystem::path& file) { gUsedPlugins.clear(); std::ifstream in(file); for (std::string n; std::getline(in, n);) if (!n.empty()) gUsedPlugins.push_back(n); }
+static void printPlugins() {
+  static bool printed = false;
+  std::string names;
+  for (const std::string& n : gUsedPlugins) names += (names.empty() ? "" : ", ") + n;
+  if (!gDisplayPlugin.empty() && std::find(gUsedPlugins.begin(), gUsedPlugins.end(), gDisplayPlugin) == gUsedPlugins.end()) names += (names.empty() ? "" : ", ") + gDisplayPlugin;
+  if (printed || names.empty() || !zn::log::steps() || zn::log::state().json) return;
+  printed = true;
+  std::fprintf(stderr, "zinc: plugins: %s\n", names.c_str());
+}
+
 // A display driver (zinc.json `display`, the board's, or ZINC_DISPLAY): build its plugin into the cache and load it, so that it registers with the HAL (ZN-104). Not in a headless or
 // deterministic run (golden tests, captures) unless the driver was asked for with ZINC_DISPLAY. A driver that cannot be built is reported and the host window keeps the screen.
 static void installDisplayDriver(const std::string& projectDir, const char* entry) {
@@ -174,6 +201,7 @@ static void installDisplayDriver(const std::string& projectDir, const char* entr
   if (!zn::tc::buildPlugin(*hit, gRoot, dir, zn::tc::pluginTarget(), lib, err) || !zn::tc::loadPlugin(lib, err)) { std::fprintf(stderr, "zinc: display driver '%s': %s\n", sel.driver.c_str(), err.c_str()); return; }
   gPlugins.push_back(lib);
   gPluginDirs.push_back(hit->dir);
+  gDisplayPlugin = hit->manifest.name;
 }
 
 #ifdef ZN_HOST_GFX
@@ -310,6 +338,7 @@ static int compileToZbc(const char* path, zn::zbc::Module& out) {
   zn::frontend::Checked checked;
   if (!loadChecked(path, prog, checked)) return 1;
   scanHostImports(prog);
+  notePlugins(prog);
   gSources.clear();
   gSourceIsLib.clear();
   gSourcePaths.clear();
@@ -487,6 +516,7 @@ struct RunBuild { std::string have, key; bool reused = false; };
 static int buildNative(const char* argv0, const char* entry, const char* out, zn::zbc::Module& zm, std::chrono::steady_clock::time_point tBuild, RunBuild* run = nullptr) {
   namespace fs = std::filesystem;
   fs::path libs = fs::absolute(argv0).parent_path(), cpp = fs::path(out).string() + ".cpp";
+  printPlugins();
   std::vector<std::uint8_t> blob;
   if (drawsOf(zm)) {   // fonts and images: a program that draws (a console program with timers or sockets carries none, ZN-592.06)
     std::string err;
@@ -736,6 +766,7 @@ static bool load(const std::string& entry, zn::zbc::Module& zm) {
   installNativeProvider(entry.c_str());
   std::ifstream mods(dir / "modules");
   for (std::string m; std::getline(mods, m);) if (!m.empty() && !zn::frontend::gNativeProvider(m, err)) return false;
+  loadPlugins(dir / "plugins");
   std::ifstream res(dir / "resources.bin", std::ios::binary);
   gResources.assign(std::istreambuf_iterator<char>(res), std::istreambuf_iterator<char>());
   std::error_code ec;
@@ -753,6 +784,7 @@ static void store(const std::string& entry, const zn::zbc::Module& zm, const std
   const std::vector<std::uint8_t> bytes = zn::zbc::encode(zm);
   std::ofstream(dir / "program.zbc", std::ios::binary).write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
   { std::ofstream mods(dir / "modules"); for (const zn::tc::PluginLib& lib : gPlugins) if (!lib.module.empty()) mods << lib.module << "\n"; }
+  savePlugins(dir / "plugins");
   std::ofstream(dir / "resources.bin", std::ios::binary).write(reinterpret_cast<const char*>(resources.data()), static_cast<std::streamsize>(resources.size()));
   inputs::write(dir / "inputs", signature(entry), entry);
   std::vector<std::pair<fs::file_time_type, fs::path>> all;
@@ -787,6 +819,7 @@ static int exec(const fs::path& app, bool built, const std::string& entry, const
   zn::log::write("run", zn::log::Info, "engine AOT (" + app.string() + ")");
   const fs::path ed = fs::path(entry).parent_path();   // zinc:assets reads ZINC_ASSETS, set for the interpreter below main's compile: the same directory here
   for (const fs::path& d : {ed / "assets", ed.parent_path() / "assets"}) if (fs::is_directory(d)) { setenv("ZINC_ASSETS", d.c_str(), 0); break; }
+  printPlugins();
   zn::log::step("run", built ? "native" : "native, cached build (--interp to interpret)");
   if (!projectDir.empty()) { std::error_code ec; setenv("ZINC_LAUNCH_DIR", fs::current_path(ec).c_str(), 0); fs::current_path(projectDir, ec); }   // sys.launchDir (ZN-687)
   std::vector<std::string> av = {app.string()};
@@ -806,6 +839,7 @@ static int runCached(const std::string& entry, const std::string& projectDir, co
   if (!runcache::wanted()) return -1;
   const fs::path dir = runcache::dirOf(entry);
   if (!fs::exists(dir / "app") || !inputs::fresh(dir / "inputs", runcache::signature(entry))) return -1;
+  loadPlugins(dir / "plugins");
   return runcache::exec(dir / "app", false, entry, projectDir, progArgs);
 }
 /** After the compile: builds the executable in-process from `zm` (one compile, one bake), or keeps the cached one when its C++ did not change. */
@@ -829,6 +863,7 @@ static int runCompiled(zn::zbc::Module& zm, const std::string& entry, const std:
     if (ec) return -1;
     std::ofstream(keyFile) << rb.key << "\n";
   }
+  savePlugins(dir / "plugins");
   inputs::write(dir / "inputs", runcache::signature(entry), entry);
   return runcache::exec(app, !rb.reused, entry, projectDir, progArgs);
 }
@@ -1304,10 +1339,12 @@ int main(int argc, char** argv) {
         gSources.clear();
         for (const auto& f : prog.files) gSources.push_back(f.text);
         if (gSources.empty()) { std::string t; if (readFile(argv[2], t)) gSources.push_back(t); }
+        notePlugins(prog);
       }
       if (bakeResources(argv[2], blob, err)) zn::host::installResources(blob.data(), blob.size());
     }
 #endif
+    printPlugins();
     zn::log::write("run", zn::log::Info, "engine QuickJS-ng");   // ZN-368
 #ifdef ZN_HOST_GFX
     zn::host::setEngineName("QuickJS");   // the perf panel (ZN-375)
@@ -1589,6 +1626,7 @@ int main(int argc, char** argv) {
 #ifdef ZN_HOST_GFX
     zn::host::setEngineName("interpreter");   // the perf panel (ZN-375)
 #endif
+    printPlugins();
     zn::log::step("run", "interpreter");
     auto res = [&] {
       zn::log::Phase ph("run", "program");

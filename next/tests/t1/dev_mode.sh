@@ -1,5 +1,6 @@
 #!/bin/sh
 # zinc dev (ZN-141): edit a file and the running program is replaced within 2 s, a compile error puts the red box on the screen, a fix replaces it; the inspector answers a scripted CDP client; zinc monitor prints telemetry.
+# ZN-710: the edit adds a plugin import and the fix takes it away: each version's run prints the plugins it imports (`zinc: plugins: ...`).
 cd "$(dirname "$0")/../.." || exit 2
 Z="$ZINC"; case "$Z" in /*) ;; *) Z="$PWD/$Z" ;; esac
 root=$PWD
@@ -17,14 +18,15 @@ waitfor() { # file pattern seconds
   n=0; while [ $n -lt $(( $3 * 20 )) ]; do grep -q "$2" "$1" 2>/dev/null && return 0; sleep 0.05; n=$((n+1)); done; return 1; }
 cd "$t" && "$Z" init app --template game >/dev/null && cd app || exit 2
 export ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=200000 ZINC_SIZE=64x48 ZINC_SHOT="$t/frame.png" ZINC_SHOT_FRAMES=3
-"$Z" dev > "$t/dev.log" 2>&1 &
+ZINC_STEPS=1 "$Z" dev > "$t/dev.log" 2>&1 &
 dev=$!
 waitfor "$t/dev.log" "v1 started" 5 || { echo "dev did not start: $(cat "$t/dev.log")"; fail=1; }
 waitfor "$t/frame-3.png" "PNG" 5; [ -f "$t/frame-3.png" ] || sleep 1
 p1=$(pixel "$t/frame-3.png" 1 1)
 # 1. a good edit: the background changes, the new version is on screen within 2 s
 t0=$(now_ms)
-sed -i.bak 's/clear(0x101820)/clear(0x204010)/' src/main.ts
+cp src/main.ts src/main.ts.bak
+{ echo "import { Gestures } from 'zinc:gestures';"; sed 's/clear(0x101820)/clear(0x204010)/' src/main.ts.bak; } > "$t/main.new" && mv "$t/main.new" src/main.ts
 waitfor "$t/dev.log" "v2 started" 2 || { echo "no reload within 2 s: $(cat "$t/dev.log")"; fail=1; }
 sleep 0.4
 p2=$(pixel "$t/frame-3.png" 1 1)
@@ -42,6 +44,11 @@ rb=$(pixel "$t/frame-3.png" 40 4 2>/dev/null)
 # 3. the fix replaces the red box
 cp src/main.ts.bak src/main.ts && sed -i.bak 's/clear(0x101820)/clear(0x204010)/' src/main.ts
 waitfor "$t/dev.log" "v3 started" 2 || { echo "the fix did not restart the program: $(cat "$t/dev.log")"; fail=1; }
+since() { awk -v m="$1" 'index($0, m) {f=1} f' "$t/dev.log"; }   # the log from the last version's start
+n=0; while [ $n -lt 100 ] && ! since "v3 started" | grep -q "run        interpreter"; do sleep 0.05; n=$((n+1)); done
+since "v2 started" | grep -q "^zinc: plugins: .*gestures" || { echo "v2 imports zinc:gestures, its run does not say so: $(cat "$t/dev.log")"; fail=1; }
+since "v3 started" | grep -q "run        interpreter" || { echo "v3 did not run: $(cat "$t/dev.log")"; fail=1; }
+since "v3 started" | grep -q "gestures" && { echo "v3 no longer imports zinc:gestures: $(cat "$t/dev.log")"; fail=1; }
 kill $dev; wait $dev 2>/dev/null
 # 4. the inspector: a UI program under dev answers a scripted CDP client, on the port its zinc.json gives (a free one, ZN-633)
 cd "$t" && "$Z" init ui --template remarkable >/dev/null 2>&1; cd "$t" || exit 2
