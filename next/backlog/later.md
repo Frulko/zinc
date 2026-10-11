@@ -67,6 +67,9 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-446: SDL's video init is about half of exec to splash on the Mac (about 200 ms under load): profile `Cocoa_VideoInit` on a quiet machine, it delays every window's first frame.
 - ZN-446: `zinc run` of a natively built program shows no splash during its first native build (seconds); only the executable shows it as it starts.
 - ZN-446: check on a quiet machine that no blank frame flashes when the hidden window is shown (the second present is the guard).
+- ZN-450: QuickJS has no host events (`__addEvHandler`): assets.onReload, zinc:sys signals and stdin, and zinc:process events never fire on `--engine quickjs`.
+- ZN-450: a project without asset rules or groups still restarts on an asset save, because its loose images are baked into the program.
+- ZN-450: a sprite removed from an atlas keeps a stale Frame in zinc:sprite until the next restart.
 
 ## Demos
 
@@ -132,3 +135,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-446: measure exec to splash on Linux desktop (X11, Wayland) and the Pi 3 (KMSDRM) with `tools/splash-time --runs 11`, record them in the task (AC #1, task in Review).
 - ZN-446: the splash on display plugins (display-fbdev before EGL/GLES, the panels, ESP32 RGB565 from flash); `showSplash` skips runs with a display plugin today.
 - ZN-446: OS splashes from the exports (iOS launch storyboard, PSP PIC1, Vita LiveArea, 3DS banner) once those exports exist.
+- ZN-450: send the asset reload messages over `zinc dev --device` (TCP instead of the socket pair).

@@ -438,6 +438,11 @@ The CPU time ZINC_GL_STATS calls "to submit" includes waits for the GPU (5.6 to 
 measured at load 6 from other builds, before ZN-432 changed the image path of the replay. GL replay against the software frame for convex
 and concave polygons: 0.06% of the pixels more than 24 apart, mean error 0.07 (tests/t1/gl_convex.sh).
 
+### ZN-450: asset hot reload (2026-10-11, Intel Mac, load 2.6 to 3.3 with other agents building)
+
+game-2d under `zinc dev`, one sprite changed (`tests/t1/asset_reload.sh`): save to "sent" 37 to 53 ms (40 ms poll, 30 ms wait for the
+editor's write, import and pack), save to "swapped in" as the program sees it 114 to 166 ms; the criterion asks under 1 s.
+
 ### ZN-446: exec to splash (2026-10-11, Intel Mac, 640x400 window at 2x, load 4.4 with other agents building)
 
 `tools/splash-time --runs 11`: `zinc run` (interpreted) median 406.8 ms (389.9 to 439.7), built executable 425.2 ms (405.2 to 456.3). Of that,
