@@ -19,3 +19,6 @@ pattern repeat-x 255,0,0,255 0,255,0,128 0,0,255,255 255,0,0,255 0,0,0,0 0,0,0,0
 pattern repeat-y 255,0,0,255 0,255,0,128 0,0,255,255 0,0,0,0 255,0,0,255 0,0,0,0
 pattern no-repeat 255,0,0,255 0,255,0,128 0,0,255,255 0,0,0,0 0,0,0,0 0,0,0,0
 pattern stroke 255,0,0,255 0,0,255,255 restored 255,0,0,255 0,0,255,255 SyntaxError object true
+conic 239,0,16,255 130,0,124,255 0,10,244,255 0,131,124,255 0,239,16,255 turned 255,172,0,255 255,87,0,255 117,117,117,255 255,42,0,255 stroke 130,0,124,255
+in stroke true false false true true false Path2D true false true current path true
+in path true false true true

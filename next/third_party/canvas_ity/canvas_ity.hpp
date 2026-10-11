@@ -159,7 +159,7 @@ enum baseline_style {
 struct xy { float x, y; xy(); xy( float, float ); };
 struct rgba { float r, g, b, a; rgba(); rgba( float, float, float, float ); };
 struct affine_matrix { float a, b, c, d, e, f; };
-struct paint_brush { enum types { color, linear, radial, pattern } type;
+struct paint_brush { enum types { color, linear, radial, pattern, conic } type;   // ZINC patch 9: conic
                      std::vector< rgba > colors; std::vector< float > stops;
                      xy start, end; float start_radius, end_radius;
                      int width, height; repetition_style repetition; };
@@ -532,6 +532,14 @@ public:
         float end_y,
         float end_radius );
 
+    // ZINC patch 9 (ZN-572): a conic gradient, its colours around the point (x, y) from the angle given (radians, clockwise from the x
+    // axis), in the space of the transform of the moment. Stops are added as for the two others.
+    void set_conic_gradient(
+        brush_type type,
+        float angle,
+        float x,
+        float y );
+
     /// @brief  Add a color stop to a linear or radial gradient.
     ///
     /// Each color stop has an offset which defines its position from 0.0 at
@@ -842,7 +850,8 @@ public:
     ///
     bool is_point_in_path(
         float x,
-        float y );
+        float y,
+        bool stroked = false );   // ZINC patch 9: true tests the stroke of the path (isPointInStroke); a fill follows even_odd
 
     // ======== DRAWING RECTANGLES ========
 
@@ -2434,6 +2443,11 @@ rgba canvas::paint_pixel(
             return rgba( 0.0f, 0.0f, 0.0f, 0.0f );
         offset = gradient / span;
     }
+    else if ( brush.type == paint_brush::conic )   // ZINC patch 9: the part of a turn from the gradient's angle, kept in start_radius
+    {
+        offset = ( atan2f( relative.y, relative.x ) - brush.start_radius ) / 6.28318531f;
+        offset -= floorf( offset );
+    }
     else
     {
         float initial = brush.start_radius;
@@ -3053,6 +3067,21 @@ void canvas::set_radial_gradient(
     brush.end_radius = end_radius;
 }
 
+void canvas::set_conic_gradient(   // ZINC patch 9
+    brush_type type,
+    float angle,
+    float x,
+    float y )
+{
+    paint_brush &brush = type == fill_style ? fill_brush : stroke_brush;
+    brush.type = paint_brush::conic;
+    brush.colors.clear();
+    brush.stops.clear();
+    brush.start = xy( x, y );
+    brush.end = xy( x, y );
+    brush.start_radius = angle;
+}
+
 void canvas::add_color_stop(
     brush_type type,
     float offset,
@@ -3063,6 +3092,7 @@ void canvas::add_color_stop(
 {
     paint_brush &brush = type == fill_style ? fill_brush : stroke_brush;
     if ( ( brush.type != paint_brush::linear &&
+           brush.type != paint_brush::conic &&   // ZINC patch 9
            brush.type != paint_brush::radial ) ||
          offset < 0.0f || 1.0f < offset )
         return;
@@ -3344,9 +3374,12 @@ void canvas::clip()
 
 bool canvas::is_point_in_path(
     float x,
-    float y )
+    float y,
+    bool stroked )
 {
-    path_to_lines( false );
+    path_to_lines( stroked );
+    if ( stroked )   // ZINC patch 9
+        stroke_lines();
     int winding = 0;
     size_t subpath = 0;
     size_t beginning = 0;
@@ -3372,7 +3405,7 @@ bool canvas::is_point_in_path(
                     ( to.x <= x && x <= from.x ) ) )
             return true;
     }
-    return winding;
+    return even_odd && !stroked ? winding / 2 & 1 : winding;   // ZINC patch 9: each turn around the point is counted on both sides of it
 }
 
 void canvas::clear_rectangle(

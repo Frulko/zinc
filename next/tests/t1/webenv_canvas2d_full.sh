@@ -10,7 +10,7 @@ env ZINC_HEADLESS=1 ZINC_WEB=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_FRAMES=2 "
   || { echo "webenv_canvas2d_full: full.js failed: $(head -c 300 "$tmp/err")"; fail=1; }
 diff "$tmp/out" tests/golden/webenv/canvas2d/full.out > "$tmp/diff" || { echo "webenv_canvas2d_full: full.js differs from tests/golden/webenv/canvas2d/full.out:"; head -20 "$tmp/diff"; fail=1; }
 [ -s "$tmp/err" ] && { echo "webenv_canvas2d_full: full.js wrote on stderr: $(head -c 300 "$tmp/err")"; fail=1; }
-# modes.js: the 15 blend modes and patterns. Its lines against the ones headless Chrome prints for the same script (modes-chrome.out, made by
+# modes.js: the 15 blend modes, patterns, conic gradients, isPointInStroke and isPointInPath by the even-odd rule. Its lines against the ones headless Chrome prints for the same script (modes-chrome.out, made by
 # tools/canvas2d-ref out modes): the same words, each number within 2.
 env ZINC_HEADLESS=1 ZINC_WEB=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_FRAMES=2 "$ZINC" run tests/golden/webenv/canvas2d/modes.js --engine quickjs > "$tmp/modes" 2> "$tmp/err" \
   || { echo "webenv_canvas2d_full: modes.js failed: $(head -c 300 "$tmp/err")"; fail=1; }

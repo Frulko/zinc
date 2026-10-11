@@ -152,7 +152,7 @@ void ellipse(ci::canvas& v, const float* a) {
 // that is not finite does nothing, which is the canvas specification's rule (and canvas_ity does not check).
 enum CanvasOp { Save, Restore, Scale, Rotate, Translate, Transform, SetTransform, GlobalAlpha, Composite, ShadowColor, ShadowBlur, ShadowOffset, LineWidth, LineCap, LineJoin,
           MiterLimit, DashOffset, BeginPath, MoveTo, ClosePath, LineTo, QuadTo, BezierTo, ArcTo, Arc, Rect, Fill, Stroke, Clip, InPath, ClearRect, FillRect, StrokeRect,
-          Color, Linear, Radial, Stop, Smoothing, Ellipse, Exchange, EvenOdd, Blend };
+          Color, Linear, Radial, Stop, Smoothing, Ellipse, Exchange, EvenOdd, Blend, Conic, InStroke };
 JSValue js_op(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
   Canvas* k = argc > 1 ? self(argv[0]) : nullptr;
   if (!k) return JS_UNDEFINED;
@@ -193,12 +193,14 @@ JSValue js_op(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
     case Stroke: v.stroke(); break;
     case Clip: v.clip(); break;
     case InPath: return JS_NewBool(c, v.is_point_in_path(a[0], a[1]));
+    case InStroke: return JS_NewBool(c, v.is_point_in_path(a[0], a[1], true));
     case ClearRect: v.clear_rectangle(a[0], a[1], a[2], a[3]); break;
     case FillRect: v.fill_rectangle(a[0], a[1], a[2], a[3]); break;
     case StrokeRect: v.stroke_rectangle(a[0], a[1], a[2], a[3]); break;
     case Color: v.set_color(brush, a[1], a[2], a[3], a[4]); break;
     case Linear: v.set_linear_gradient(brush, a[1], a[2], a[3], a[4]); break;
     case Radial: v.set_radial_gradient(brush, a[1], a[2], a[3], a[4], a[5], a[6]); break;
+    case Conic: v.set_conic_gradient(brush, a[1], a[2], a[3]); break;
     case Stop: v.add_color_stop(brush, a[1], a[2], a[3], a[4], a[5]); break;
     case Smoothing: v.image_smoothing = a[0] != 0; break;
     case Ellipse: ellipse(v, a); break;

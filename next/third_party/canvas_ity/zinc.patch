@@ -1,10 +1,43 @@
 --- canvas_ity.hpp (upstream 8be29cb)
 +++ canvas_ity.hpp
-@@ -1146,6 +1146,22 @@
-     /// path.  If the stack of canvas states is empty, this does nothing.
+@@ -159,7 +159,7 @@
+ struct xy { float x, y; xy(); xy( float, float ); };
+ struct rgba { float r, g, b, a; rgba(); rgba( float, float, float, float ); };
+ struct affine_matrix { float a, b, c, d, e, f; };
+-struct paint_brush { enum types { color, linear, radial, pattern } type;
++struct paint_brush { enum types { color, linear, radial, pattern, conic } type;   // ZINC patch 9: conic
+                      std::vector< rgba > colors; std::vector< float > stops;
+                      xy start, end; float start_radius, end_radius;
+                      int width, height; repetition_style repetition; };
+@@ -532,6 +532,14 @@
+         float end_y,
+         float end_radius );
+ 
++    // ZINC patch 9 (ZN-572): a conic gradient, its colours around the point (x, y) from the angle given (radians, clockwise from the x
++    // axis), in the space of the transform of the moment. Stops are added as for the two others.
++    void set_conic_gradient(
++        brush_type type,
++        float angle,
++        float x,
++        float y );
++
+     /// @brief  Add a color stop to a linear or radial gradient.
+     ///
+     /// Each color stop has an offset which defines its position from 0.0 at
+@@ -842,7 +850,8 @@
+     ///
+     bool is_point_in_path(
+         float x,
+-        float y );
++        float y,
++        bool stroked = false );   // ZINC patch 9: true tests the stroke of the path (isPointInStroke); a fill follows even_odd
+ 
+     // ======== DRAWING RECTANGLES ========
+ 
+@@ -1147,6 +1156,22 @@
      ///
      void restore();
-+
+ 
 +    // ZINC patch 2 (ZN-570): sets the current path aside, or takes it back. Between the two calls the caller builds and paints a path of
 +    // its own (the outlines of shaped glyphs): fillText and strokeText must leave the current path as it was.
 +    void exchange_path();
@@ -20,10 +53,11 @@
 +    // source-over: 0 normal, then multiply, screen, overlay, darken, lighten, color-dodge, color-burn, hard-light, soft-light, difference,
 +    // exclusion, hue, saturation, color, luminosity (1 to 15). Not saved by save().
 +    int blend_mode;
- 
++
  private:
      int size_x;
-@@ -1163,6 +1179,12 @@
+     int size_y;
+@@ -1163,6 +1188,12 @@
      paint_brush stroke_brush;
      paint_brush image_brush;
      bezier_path path;
@@ -36,7 +70,7 @@
      line_path lines;
      line_path scratch;
      pixel_runs runs;
-@@ -1270,18 +1292,28 @@
+@@ -1270,18 +1301,28 @@
      return left -= right; }
  static rgba const operator*( float left, rgba right ) {
      return right *= left; }
@@ -65,7 +99,7 @@
  static rgba const delinearized( rgba that ) {
      return rgba( delinearized( that.r ), delinearized( that.g ),
                   delinearized( that.b ), that.a ); }
-@@ -2167,6 +2199,17 @@
+@@ -2167,6 +2208,17 @@
               ( from.y > to.y && to.y > next_y.y ) )
              next_y = to;
      } while ( now.y != to.y );
@@ -83,7 +117,7 @@
  }
  
  static bool operator<(
-@@ -2240,6 +2283,37 @@
+@@ -2240,6 +2292,37 @@
      }
      if ( runs.empty() )
          return;
@@ -121,7 +155,7 @@
      std::sort( runs.begin(), runs.end() );
      size_t to = 0;
      for ( size_t from = 1; from < runs.size(); ++from )
-@@ -2280,6 +2354,27 @@
+@@ -2280,6 +2363,27 @@
               ( ( brush.repetition & 1 ) &&
                 ( point.y < 0.0f || height <= point.y ) ) )
              return rgba( 0.0f, 0.0f, 0.0f, 0.0f );
@@ -149,10 +183,25 @@
          float scale_x = fabsf( inverse.a ) + fabsf( inverse.c );
          float scale_y = fabsf( inverse.b ) + fabsf( inverse.d );
          scale_x = std::max( 1.0f, std::min( scale_x, width * 0.25f ) );
-@@ -2538,6 +2633,76 @@
+@@ -2338,6 +2442,11 @@
+         if ( span == 0.0f )
+             return rgba( 0.0f, 0.0f, 0.0f, 0.0f );
+         offset = gradient / span;
++    }
++    else if ( brush.type == paint_brush::conic )   // ZINC patch 9: the part of a turn from the gradient's angle, kept in start_radius
++    {
++        offset = ( atan2f( relative.y, relative.x ) - brush.start_radius ) / 6.28318531f;
++        offset -= floorf( offset );
      }
- }
- 
+     else
+     {
+@@ -2535,8 +2644,78 @@
+         x = std::max( static_cast< int >( next.x ), left - border );
+         y = next.y;
+         sum += next.delta;
++    }
++}
++
 +// ZINC patch 8: the source colour to draw source-over so that the pixel becomes the blend of the two (W3C Compositing and Blending 1:
 +// Cs' = (1 - ab) Cs + ab B(Cb, Cs)). Both colours are premultiplied, and so is the result.
 +static float blended_lum( rgba c ) { return 0.3f * c.r + 0.59f * c.g + 0.11f * c.b; }
@@ -198,8 +247,8 @@
 +            b + ( 2.0f * s - 1.0f ) * ( ( b <= 0.25f ? ( ( 16.0f * b - 12.0f ) * b + 4.0f ) * b : sqrtf( b ) ) - b );
 +        case 10: return fabsf( b - s );
 +        default: return b + s - 2.0f * b * s;
-+    }
-+}
+     }
+ }
 +static rgba blended( rgba fore, rgba back, int mode )
 +{
 +    if ( fore.a <= 0.0f || back.a <= 0.0f )
@@ -222,11 +271,10 @@
 +    fore.a = alpha;
 +    return fore;
 +}
-+
+ 
  // Render the polylines into the pixel buffer.  It scan-converts the lines
  // to runs which represent changes to the signed fractional coverage when
- // read from left-to-right, top-to-bottom.  It scans through these to
-@@ -2556,18 +2721,84 @@
+@@ -2556,18 +2735,84 @@
      render_shadow( brush );
      lines_to_runs( xy( 0.0f, 0.0f ), 0 );
      int operation = global_composite_operation;
@@ -313,7 +361,7 @@
          float visibility = std::min( fabsf( clip_sum ), 1.0f );
          int to = next.y == y ? next.x : x + 1;
          static float const threshold = 1.0f / 8160.0f;
-@@ -2580,6 +2811,8 @@
+@@ -2580,6 +2825,8 @@
                      paint_pixel( xy( static_cast< float >( x ) + 0.5f,
                                       static_cast< float >( y ) + 0.5f ),
                                   brush );
@@ -322,7 +370,7 @@
                  float mix_fore = operation & 1 ? back.a : 0.0f;
                  if ( operation & 2 )
                      mix_fore = 1.0f - mix_fore;
-@@ -2625,6 +2858,11 @@
+@@ -2625,6 +2872,11 @@
        stroke_brush(),
        image_brush(),
        face(),
@@ -334,7 +382,37 @@
        bitmap( new rgba[ width * height ] ),
        saves( 0 )
  {
-@@ -3056,6 +3294,7 @@
+@@ -2813,6 +3065,21 @@
+     brush.end = xy( end_x, end_y );
+     brush.start_radius = start_radius;
+     brush.end_radius = end_radius;
++}
++
++void canvas::set_conic_gradient(   // ZINC patch 9
++    brush_type type,
++    float angle,
++    float x,
++    float y )
++{
++    paint_brush &brush = type == fill_style ? fill_brush : stroke_brush;
++    brush.type = paint_brush::conic;
++    brush.colors.clear();
++    brush.stops.clear();
++    brush.start = xy( x, y );
++    brush.end = xy( x, y );
++    brush.start_radius = angle;
+ }
+ 
+ void canvas::add_color_stop(
+@@ -2825,6 +3092,7 @@
+ {
+     paint_brush &brush = type == fill_style ? fill_brush : stroke_brush;
+     if ( ( brush.type != paint_brush::linear &&
++           brush.type != paint_brush::conic &&   // ZINC patch 9
+            brush.type != paint_brush::radial ) ||
+          offset < 0.0f || 1.0f < offset )
+         return;
+@@ -3056,6 +3324,7 @@
  
  void canvas::clip()
  {
@@ -342,7 +420,7 @@
      path_to_lines( false );
      lines_to_runs( xy( 0.0f, 0.0f ), 0 );
      size_t part = runs.size();
-@@ -3082,7 +3321,7 @@
+@@ -3082,7 +3351,7 @@
              sum_1 += runs[ index_1++ ].delta;
          else
              sum_2 += runs[ index_2++ ].delta;
@@ -351,7 +429,7 @@
                               std::min( fabsf( sum_2 ), 1.0f ) );
          if ( visibility == last )
              continue;
-@@ -3096,6 +3335,11 @@
+@@ -3096,13 +3365,21 @@
          }
          last = visibility;
      }
@@ -363,7 +441,28 @@
  }
  
  bool canvas::is_point_in_path(
-@@ -3273,6 +3517,11 @@
+     float x,
+-    float y )
++    float y,
++    bool stroked )
+ {
+-    path_to_lines( false );
++    path_to_lines( stroked );
++    if ( stroked )   // ZINC patch 9
++        stroke_lines();
+     int winding = 0;
+     size_t subpath = 0;
+     size_t beginning = 0;
+@@ -3128,7 +3405,7 @@
+                     ( to.x <= x && x <= from.x ) ) )
+             return true;
+     }
+-    return winding;
++    return even_odd && !stroked ? winding / 2 & 1 : winding;   // ZINC patch 9: each turn around the point is counted on both sides of it
+ }
+ 
+ void canvas::clear_rectangle(
+@@ -3273,6 +3550,11 @@
      return true;
  }
  
@@ -375,7 +474,7 @@
  void canvas::fill_text(
      char const *text,
      float x,
-@@ -3310,6 +3559,13 @@
+@@ -3310,6 +3592,13 @@
      return static_cast< float >( width ) * face.scale;
  }
  
@@ -389,7 +488,7 @@
  void canvas::draw_image(
      unsigned char const *image,
      int width,
-@@ -3323,6 +3579,96 @@
+@@ -3323,6 +3612,96 @@
      if ( !image || width <= 0 || height <= 0 ||
           to_width == 0.0f || to_height == 0.0f )
          return;
@@ -486,7 +585,7 @@
      std::swap( fill_brush, image_brush );
      set_pattern( fill_style, image, width, height, stride, repeat );
      std::swap( fill_brush, image_brush );
-@@ -3340,6 +3686,13 @@
+@@ -3340,6 +3719,13 @@
                 y + std::min( 0.0f, to_height ) );
      scale( fabsf( to_width ) / static_cast< float >( width ),
             fabsf( to_height ) / static_cast< float >( height ) );
@@ -500,7 +599,7 @@
      render_main( image_brush );
      forward = saved_forward;
      inverse = saved_inverse;
-@@ -3371,6 +3724,11 @@
+@@ -3371,6 +3757,11 @@
                   0 <= canvas_y && canvas_y < size_y )
                  color = bitmap[ canvas_y * size_x + canvas_x ];
              float threshold = bayer[ canvas_y & 3 ][ canvas_x & 3 ];
@@ -512,7 +611,7 @@
              color = rgba( threshold, threshold, threshold, threshold ) +
                  255.0f * delinearized( clamped( unpremultiplied( color ) ) );
              image[ index + 0 ] = static_cast< unsigned char >( color.r );
-@@ -3429,6 +3787,7 @@
+@@ -3429,6 +3820,7 @@
      state->fill_brush = fill_brush;
      state->stroke_brush = stroke_brush;
      state->mask = mask;
@@ -520,7 +619,7 @@
      state->face = face;
      state->saves = saves;
      saves = state;
-@@ -3458,6 +3817,7 @@
+@@ -3458,6 +3850,7 @@
      fill_brush = state->fill_brush;
      stroke_brush = state->stroke_brush;
      mask = state->mask;
