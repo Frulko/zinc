@@ -1,0 +1,1 @@
+{ "name": "gfxbunny", "entry": "main.ts", "targets": { "macos": { "width": 800, "height": 600, "growDrawCommands": true } } }

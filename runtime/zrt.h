@@ -785,7 +785,8 @@ int32_t image(const String& name);
 int32_t imageWidth(int32_t i);
 int32_t imageHeight(int32_t i);
 void drawImage(int32_t i, double x, double y, double w, double h, int32_t alpha, double radius);
-void drawImageRect(int32_t i, double sx, double sy, double sw, double sh, double dx, double dy, double dw, double dh, int32_t alpha = 255, int32_t flags = 0);
+void drawImageRect(int32_t i, double sx, double sy, double sw, double sh, double dx, double dy, double dw, double dh, int32_t alpha = 255, int32_t flags = 0,
+                   double rotation = 0, uint32_t tint = 0xFFFFFF, int32_t blend = 0);
 void clip(double x, double y, double w, double h, double r = 0);
 void unclip();
 void translate(double x, double y);

@@ -5,6 +5,8 @@
 # and 3; a sprite mirrored the wrong way is 1.4% of this frame). The nearest sprites of the GL frame are also checked against the sheet (check.py).
 # Through setTransform (xform.ts: sprites turned, stretched, mirrored): the same comparison with 1% and 1 (the raster smooths a turned edge, the GPU cuts it), and
 # the inside of the texels of the GL frame is the sheet's (xform_check.py).
+# Sprites (ZN-581, sprite.ts: turned, tinted, the four blend modes): the same comparison with 1% and 1, and the tinted and blended nearest sprites
+# of the GL frame are the formulas' (sprite_check.py, 2 of slack: the GPU blends in floats).
 # Opens a window: skipped (77) where there is none.
 cd "$(dirname "$0")/../.." || exit 2
 command -v python3 >/dev/null || { echo "skipped: no python3"; exit 77; }
@@ -34,5 +36,7 @@ out=$(both main.ts sprites 0.5); rc=$?
 python3 $d/check.py "$tmp/sprites.bmp" $d/assets/sheet.png 2 || { echo "image_rect_gl: the sprites of the GL frame are not the sheet's"; fail=1; }
 xout=$(both xform.ts xform 1) || { echo "image_rect_gl: xform.ts: $xout"; fail=1; }
 python3 $d/xform_check.py "$tmp/xform.bmp" $d/assets/sheet.png 2 >"$tmp/xcheck.log" || { cat "$tmp/xcheck.log"; echo "image_rect_gl: through setTransform the sprites of the GL frame are not the sheet's"; fail=1; }
-[ $fail -eq 0 ] && echo "image_rect_gl: ok ($out; through setTransform: $xout)"
+sout=$(both sprite.ts sprite 1) || { echo "image_rect_gl: sprite.ts: $sout"; fail=1; }
+python3 $d/sprite_check.py "$tmp/sprite.bmp" $d/assets/sheet.png 2 || { echo "image_rect_gl: the tinted and blended sprites of the GL frame are not the formulas'"; fail=1; }
+[ $fail -eq 0 ] && echo "image_rect_gl: ok ($out; through setTransform: $xout; sprites: $sout)"
 exit $fail

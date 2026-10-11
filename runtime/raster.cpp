@@ -33,6 +33,30 @@ static inline void blend(uint32_t& d, uint32_t c, uint32_t a) {
   uint32_t g = (((c & 0x00FF00) * a + (d & 0x00FF00) * (255 - a)) >> 8) & 0x00FF00;
   d = rb | g;
 }
+// A sprite's blend mode (ZN-581) over d with the integer alpha a, as the GL replay's blend functions compute it from the premultiplied colour
+// its shader writes (c a / 256, or c from 255 on): add d + c a, multiply d (1 - a + c a), screen d + c a (1 - d). Normal is blend().
+static inline void blend_as(uint32_t& d, uint32_t c, uint32_t a, uint32_t mode) {
+  if (mode == BLEND_NORMAL) { blend(d, c, a); return; }
+  if (!a) return;
+  if (a > 255) a = 255;
+  uint32_t out = 0;
+  for (int k = 0; k < 24; k += 8) {
+    const uint32_t s = (c >> k) & 255, t = (d >> k) & 255, sa = a == 255 ? s : s * a >> 8;
+    uint32_t v;
+    if (mode == BLEND_ADD) v = t + sa;
+    else if (mode == BLEND_MULTIPLY) v = a == 255 ? (t * s + 127) / 255 : t * (s * a / 255 + 255 - a) >> 8;
+    else v = sa + t - (t * sa + 127) / 255;
+    out |= (v > 255 ? 255 : v) << k;
+  }
+  d = out;
+}
+/** A texel's colour times a sprite's tint (0xFFFFFF: unchanged), each channel rounded as the GPU rounds its product. */
+static inline uint32_t tinted(uint32_t p, uint32_t tint) {
+  if (tint == 0xFFFFFF) return p & 0xFFFFFF;
+  uint32_t out = 0;
+  for (int k = 0; k < 24; k += 8) out |= ((((p >> k) & 255) * ((tint >> k) & 255) + 127) / 255) << k;
+  return out;
+}
 static inline uint32_t lerp_color(uint32_t a, uint32_t b, float t) {
   uint32_t k = (uint32_t)clampf(t * 256, 0, 256);
   uint32_t rb = (((a & 0xFF00FF) * (256 - k) + (b & 0xFF00FF) * k) >> 8) & 0xFF00FF;
@@ -664,7 +688,9 @@ static void draw_boxed(const Target& t, const Cmd& c, const Tex& im) {
   const float hw = c.w * 0.5f, hh = c.h * 0.5f, cx = c.x + hw, cy = c.y + hh;   // rounded corners are those of the painted rectangle
   // one texel per pixel on whole pixels is a copy: the nearest path, which the linear weights (0 and 1) would give
   const bool nearest = c.grad == 1 || (fabsf_(m.w) == (float)im.w && fabsf_(m.h) == (float)im.h && m.x == (float)ifloor(m.x) && m.y == (float)ifloor(m.y));
-  const bool plain = c.alpha == 255 && c.r <= 0 && !im.alpha;
+  const float rad = image_radius(c);
+  const uint32_t tint = image_tint(c), mode = image_blend(c);   // a sprite's (ZN-581)
+  const bool plain = c.alpha == 255 && rad <= 0 && !im.alpha && tint == 0xFFFFFF && mode == BLEND_NORMAL;
   const float kx = (float)im.w / m.w, ky = (float)im.h / m.h;
   for (int32_t y = b.y0; y < b.y1; y++) {
     uint32_t* dst = &at(t, 0, y);
@@ -676,8 +702,8 @@ static void draw_boxed(const Target& t, const Cmd& c, const Tex& im) {
         const uint32_t p = texel(im, u <= 0 ? 0 : u >= (float)im.w ? im.w - 1 : (int32_t)u, iy);
         if (plain) { dst[x] = p & 0xFFFFFF; continue; }
         float a = p >> 24 == 255 ? (float)c.alpha : (float)(p >> 24) / 255 * c.alpha;
-        if (c.r > 0) a *= clampf(0.5f - rr_sdf(x + 0.5f, y + 0.5f, cx, cy, hw, hh, c.r), 0, 1);
-        if (a >= 1) blend(dst[x], p & 0xFFFFFF, (uint32_t)a);
+        if (rad > 0) a *= clampf(0.5f - rr_sdf(x + 0.5f, y + 0.5f, cx, cy, hw, hh, rad), 0, 1);
+        if (a >= 1) blend_as(dst[x], tinted(p, tint), (uint32_t)a, mode);
       }
       continue;
     }
@@ -696,8 +722,8 @@ static void draw_boxed(const Target& t, const Cmd& c, const Tex& im) {
         const float ch = (((p00 >> k) & 255) * (1 - tx) + ((p01 >> k) & 255) * tx) * (1 - ty) + (((p10 >> k) & 255) * (1 - tx) + ((p11 >> k) & 255) * tx) * ty;
         if (k == 24) a = ch / 255 * c.alpha; else out |= (uint32_t)ch << k;
       }
-      if (c.r > 0) a *= clampf(0.5f - rr_sdf(x + 0.5f, y + 0.5f, cx, cy, hw, hh, c.r), 0, 1);
-      if (a >= 1) blend(dst[x], out, (uint32_t)a);
+      if (rad > 0) a *= clampf(0.5f - rr_sdf(x + 0.5f, y + 0.5f, cx, cy, hw, hh, rad), 0, 1);
+      if (a >= 1) blend_as(dst[x], tinted(out, tint), (uint32_t)a, mode);
     }
   }
 }
@@ -837,7 +863,8 @@ static void draw_xform(const Target& t, const Cmd& c, const float* p, const char
   if (in.kind == TEXT) { xf_text(t, in, text + in.off, m); return; }
   const Rect b = bounds(c.x, c.y, c.w, c.h, t.clip);
   const float hw = in.w * 0.5f, hh = in.h * 0.5f, cx = in.x + hw, cy = in.y + hh;
-  const float r = clampf(in.r, 0, hw < hh ? hw : hh), bw = in.s, ri = r - bw > 0 ? r - bw : 0, blur = in.s > 0.5f ? in.s : 0.5f;
+  const float r = clampf(in.kind == IMAGE ? image_radius(in) : in.r, 0, hw < hh ? hw : hh), bw = in.s, ri = r - bw > 0 ? r - bw : 0, blur = in.s > 0.5f ? in.s : 0.5f;
+  const uint32_t tint = in.kind == IMAGE ? image_tint(in) : 0xFFFFFF, mode = in.kind == IMAGE ? image_blend(in) : BLEND_NORMAL;   // a sprite's (ZN-581)
   // an IMAGE is sampled through its box (image_box): its own rectangle, or the box of a drawImageRect, outside of which nothing is painted
   const bool boxed = in.kind == IMAGE && (in.pad & kImageBox);
   const Box ib = image_box(in);
@@ -884,7 +911,7 @@ static void draw_xform(const Target& t, const Cmd& c, const float* p, const char
           uint32_t rgb; float a;
           if (xf_sample(in.res, u, v, in.grad == 1, rgb, a)) {
             const float al = a * cov * in.alpha;
-            if (al >= 1) blend(at(t, x, y), rgb, (uint32_t)al);
+            if (al >= 1) blend_as(at(t, x, y), tinted(rgb, tint), (uint32_t)al, mode);
           }
           break;
         }

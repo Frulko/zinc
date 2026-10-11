@@ -146,6 +146,18 @@ drawImageRect(sheet, 3 * 16, 0, 16, 16, x, y, 64, 64, 255, ImageFlag.Nearest | I
 drawImageRect(skin, 0, 0, 16, 16, x, y, 16, 16);          // alpha 255 and the linear blend when left out
 ```
 
+A sprite can also turn, take a colour and blend: after the flags come the rotation in radians (clockwise on the screen, around the
+centre of the destination rectangle, on top of `setTransform`), a tint that multiplies its colour (`0xFFFFFF`: none) and a `Blend`
+mode (`Normal`, `Add` for glows and sparks, `Multiply` for shadows, `Screen` for light). The GL renderer (the default window) draws
+sprites as textured quads, one draw call for every run of sprites of the same image and blend mode; the software renderer draws the
+same pixels and stays the reference. A turned sprite takes 15 floats of the frame's point pool (262,144 on desktops: about 17,000 per
+frame).
+
+```ts
+import { drawImageRect, Blend, ImageFlag } from 'zinc:gfx';
+drawImageRect(sheet, 0, 16, 16, 16, x, y, 32, 32, 255, ImageFlag.Nearest, angle, 0xff8040, Blend.Add);   // a spark, turning, orange
+```
+
 Runtime images (`createImage`, `imageFromBytes`, video frames, a camera's live view) are limited per profile. Past the limit they
 return -1, with one warning, until an image is destroyed. The table of images grows by blocks of 64 entries, allocated when first
 needed, so a program without runtime images allocates none of it. Each image's pixels (w x h x 4 bytes) come on top.

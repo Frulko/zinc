@@ -68,7 +68,7 @@ constexpr uint32_t kXformLen = 15;
 
 struct Cmd {
   uint8_t kind, alpha, grad;   // grad: 0 none, 1 vertical (c1 top -> c2 bottom), 2 horizontal, 3 radial, 4 POLY paint record after the contours (raster.cpp paint_at); IMAGE: 1 = nearest filter
-  uint8_t pad;                 // POLY: bit 0 = even-odd fill rule (default nonzero); IMAGE: kImageBox
+  uint8_t pad;                 // POLY: bit 0 = even-odd fill rule (default nonzero); IMAGE: kImageBox, kImageTint, the blend mode
   int32_t res;                 // font or image index
   float x, y, w, h;            // LINE: x,y -> w,h ; POLY: bbox
   float r, s;                  // radius; border width / shadow blur / line width / tracking
@@ -92,6 +92,14 @@ inline Box image_box(const Cmd& c) {
 inline void set_image_box(Cmd& c, Box b) {
   c.pad |= kImageBox; c.s = b.x; __builtin_memcpy(&c.c1, &b.y, 4); __builtin_memcpy(&c.off, &b.w, 4); __builtin_memcpy(&c.n, &b.h, 4);
 }
+/** A sprite's tint and blend mode (gfx::drawImageRect, ZN-581). Pad bit kImageTint: r holds the tint 0xRRGGBB as a float (24 bits, exact),
+ *  which multiplies the texels' colour, and the image has no radius. Pad bits 4-5: the blend mode. Under a matrix both travel as the box
+ *  does: r in the XFORM's payload, pad in the Cmd. */
+constexpr uint8_t kImageTint = 8, kBlendShift = 4;
+enum Blend : uint8_t { BLEND_NORMAL, BLEND_ADD, BLEND_MULTIPLY, BLEND_SCREEN };
+inline uint32_t image_tint(const Cmd& c) { return c.pad & kImageTint ? (uint32_t)c.r & 0xFFFFFF : 0xFFFFFF; }
+inline float image_radius(const Cmd& c) { return c.pad & kImageTint ? 0.0f : c.r; }
+inline uint32_t image_blend(const Cmd& c) { return (uint32_t)(c.pad >> kBlendShift) & 3; }
 
 /** Returns the index of the font `name` whose pixel size is closest to `px`. */
 int32_t find_font(const char* name, uint32_t name_len, int32_t px);

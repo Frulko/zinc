@@ -25,121 +25,7 @@ struct V { float x, y, u, v, bx, by, bw, bh, r, p1, mode, grad; uint8_t c1[4], c
 enum Mode { FILL, BORDER_M, TEXT_M, IMAGE_RGBA, IMAGE_BGR, SOLID, RESTORE, SHADOW_M, STROKE_M, EDGE_M, CONVEX_M };
 static const int MAXQ = 8192, ATLAS = 1024, CORNER = 32, LEVELS = 16;
 
-static const char* VS =
-  "attribute vec4 a_pos; attribute vec4 a_box; attribute vec4 a_par; attribute vec4 a_c1; attribute vec4 a_c2; attribute float a_z;\n"
-  "uniform vec2 u_res; uniform float u_flip;\n"
-  "varying vec4 v_pos; varying vec4 v_box; varying vec4 v_par; varying vec4 v_c1; varying vec4 v_c2;\n"
-  "void main() { v_pos = a_pos; v_box = a_box; v_par = a_par; v_c1 = a_c1; v_c2 = a_c2;\n"
-  "  gl_Position = vec4(a_pos.x / u_res.x * 2.0 - 1.0, (a_pos.y / u_res.y * 2.0 - 1.0) * u_flip, a_z, 1.0); }\n";  // row 0 = top, like the CPU (u_flip -1: drawn into the window)
-static const char* FS =
-  "varying vec4 v_pos; varying vec4 v_box; varying vec4 v_par; varying vec4 v_c1; varying vec4 v_c2;\n"
-  "uniform sampler2D u_tex; uniform vec3 u_edge;\n"   // u_edge: the EDGE pass (side test, left side, inside)
-  "uniform vec4 u_g0, u_g1, u_gc[8]; uniform float u_go[8];\n"   // a POLY's canvas gradient paint (ZN-590.04): (x0, y0, r0, kind), (x1, y1, r1, n), stops (rgb, alpha 0..255; offset)
-  "uniform vec3 u_cv[8]; uniform float u_cvn;\n"   // a convex POLY (ZN-679): its edges as (nx, ny, c), the signed distance n.p + c positive inside
-  "float sdf(vec2 p, vec2 c, vec2 h, float r) {\n"
-  "  vec2 q = abs(p - c) - (h - r);\n"
-  "  return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r; }\n"
-  "float cover(vec2 p, vec2 c, vec2 h, float r) { return clamp(0.5 - sdf(p, c, h, r), 0.0, 1.0); }\n"
-  "float seg(vec2 p, vec2 a, vec2 b) { vec2 pa = p - a, ba = b - a; return length(pa - ba * clamp(dot(pa, ba) / max(dot(ba, ba), 1e-6), 0.0, 1.0)); }\n"
-  "void main() {\n"
-  "  vec2 p = v_pos.xy, c = v_box.xy, h = v_box.zw;\n"
-  "  float r = v_par.x, mode = v_par.z, grad = v_par.w;\n"
-  "  if (mode > 15.5) { mode -= 16.0; p = v_pos.zw; }\n"   // a box drawn through a matrix (XFORM, ZN-263.01): the pixel in the box's own coordinates
-  "  vec3 col = v_c1.rgb; float cov = 1.0, a = v_c1.a;\n"
-  "  if (mode < 0.5) {\n"                                                        // FILL: rounded box, gradients
-  "    cov = cover(p, c, h, r);\n"
-  "    if (grad > 0.5) {\n"
-  "      float t;\n"
-  "      if (grad < 1.5) t = (p.y - (c.y - h.y)) / max(2.0 * h.y, 1e-6);\n"
-  "      else if (grad < 2.5) t = (p.x - (c.x - h.x)) / max(2.0 * h.x, 1e-6);\n"
-  "      else { vec2 d = (p - (c - h)) / max(2.0 * h, vec2(1e-6)) * 2.0 - 1.0; t = length(d); }\n"
-  "      float k = floor(clamp(t * 256.0, 0.0, 256.0));\n"                         // raster.cpp lerp_color: a weight out of 256, channels rounded down
-  "      col = floor((floor(v_c1.rgb * 255.0 + 0.5) * (256.0 - k) + floor(v_c2.rgb * 255.0 + 0.5) * k) / 256.0) / 255.0; }\n"
-  "  } else if (mode < 1.5) {\n"                                                 // BORDER: ring between two boxes
-  "    float bw = v_par.y;\n"
-  "    cov = cover(p, c, h, r) - cover(p, c, h - bw, max(r - bw, 0.0));\n"
-  "  } else if (mode < 2.5) {\n"                                                 // TEXT: alpha atlas
-  "    cov = texture2D(u_tex, v_pos.zw).r;\n"
-  "  } else if (mode < 4.5) {\n"                                                 // IMAGE: baked RGBA / runtime 0x00RRGGBB (grad 1: 0xAARRGGBB)
-  "    vec4 t = texture2D(u_tex, v_pos.zw);\n"
-  "    col = mode < 3.5 ? t.rgb : t.bgr; cov = mode < 3.5 || grad > 0.5 ? t.a : 1.0;\n"
-  "    if (r > 0.0) cov *= cover(p, c, h, r);\n"
-  "  } else if (mode < 5.5) {\n"                                                 // SOLID: whole pixels
-  "    cov = 1.0;\n"
-  "  } else if (mode < 6.5) {\n"                                                 // RESTORE: rounded clip corners
-  "    col = texture2D(u_tex, v_pos.zw).rgb; a = 1.0 - cover(p, c, h, r); cov = 1.0;\n"
-  "  } else if (mode < 7.5) {\n"                                                 // SHADOW: blurred rounded box
-  "    float blur = v_par.y, k = clamp(1.0 - (sdf(p, c, h, r) + blur * 0.5) / (blur * 1.5), 0.0, 1.0);\n"
-  "    cov = k * k * (3.0 - 2.0 * k);\n"
-  "  } else if (mode < 8.5) {\n"                                                 // STROKE: the capsule of segment A-B (round joins and caps); the
-  "    float d = seg(p, v_pos.zw, c);\n"                                         // pixel is this segment's when no neighbour is nearer (ties to the
-  "    if ((v_c2.x > 0.5 && seg(p, v_box.zw, v_pos.zw) <= d) || (v_c2.y > 0.5 && seg(p, c, v_par.yw) < d)) discard;\n"   // previous one): blended once
-  "    cov = clamp(0.5 - (d - r), 0.0, 1.0);\n"
-  "  } else if (mode > 9.5) {\n"                                                // CONVEX: 0.5 plus the smallest signed distance to the edges
-  "    float m = 1e6;\n"
-  "    for (int k = 0; k < 8; k++) if (float(k) < u_cvn) m = min(m, dot(u_cv[k].xy, p) + u_cv[k].z);\n"
-  "    cov = clamp(0.5 + m, 0.0, 1.0);\n"
-  "    if (cov <= 0.0) discard;\n"
-  "  } else {\n"                                                                 // EDGE: the fringe of a POLY edge A-B (ZN-590.02), owned like a stroke
-  "    float d = seg(p, v_pos.zw, c);\n"                                         // segment; inside the fill (c2.z) the pixel covers 0.5 + d, outside
-  "    if (seg(p, v_box.zw, v_pos.zw) <= d || seg(p, c, v_par.yw) < d) discard;\n"   // 0.5 - d; c2.x: only the pixels on one side (c2.y) of A-B
-  "    if (u_edge.x > 0.5 && ((c.x - v_pos.z) * (p.y - v_pos.w) - (c.y - v_pos.w) * (p.x - v_pos.z) > 0.0) != (u_edge.y > 0.5)) discard;\n"
-  "    cov = clamp(0.5 + (u_edge.z > 0.5 ? d : -d), 0.0, 1.0);\n"
-  "  }\n"
-  // the paint of a POLY's cover and fringes: raster.cpp paint_at (t from the paint geometry, the stop interval, lerp_color's weight out of 256)
-  "  if (u_g0.w > 0.5 && (mode > 8.5 || (mode > 4.5 && mode < 5.5))) {\n"
-  "    vec2 d = u_g1.xy - u_g0.xy, q = p - u_g0.xy; float t = 0.0, A0 = floor(a * 255.0 + 0.5);\n"
-  "    if (u_g0.w < 1.5) { float l = dot(d, d); t = l > 0.0 ? dot(q, d) / l : 0.0; }\n"
-  "    else {\n"
-  "      float dr = u_g1.z - u_g0.z, qa = dot(d, d) - dr * dr, qb = dot(q, d) + u_g0.z * dr, qc = dot(q, q) - u_g0.z * u_g0.z;\n"
-  "      if (abs(qa) < 1e-4) t = qb != 0.0 ? qc / (2.0 * qb) : 0.0;\n"
-  "      else {\n"
-  "        float D = qb * qb - qa * qc, s = sqrt(max(D, 0.0)), t1 = (qb + s) / qa, t2 = (qb - s) / qa;\n"
-  "        t = max(t1, t2);\n"
-  "        if (u_g0.z + t * dr < 0.0) t = min(t1, t2);\n"
-  "        if (D < 0.0 || u_g0.z + t * dr < 0.0) A0 = 0.0;\n"
-  "      }\n"
-  "    }\n"
-  "    int n = int(u_g1.w), i = 0;\n"
-  "    for (int k = 0; k < 8; k++) if (k < n && t > u_go[k]) i++;\n"   // the offsets are sorted (canvas2d addColorStop)
-  "    vec4 L = u_gc[0], R = u_gc[0]; float lo = 0.0, ro = 0.0;\n"
-  "    for (int k = 0; k < 8; k++) { if (k == i - 1) { L = u_gc[k]; lo = u_go[k]; } if (k == i) { R = u_gc[k]; ro = u_go[k]; } }\n"
-  "    if (i == 0 || i == n) { vec4 e = i == 0 ? R : L; col = e.rgb / 255.0; A0 = floor(A0 * e.a / 255.0); }\n"
-  "    else {\n"
-  "      float u = ro > lo ? (t - lo) / (ro - lo) : 1.0, k = floor(clamp(u * 256.0, 0.0, 256.0));\n"
-  "      A0 = floor(A0 * floor(L.a + (R.a - L.a) * u) / 255.0);\n"
-  "      col = floor((L.rgb * (256.0 - k) + R.rgb * k) / 256.0) / 255.0;\n"
-  "    }\n"
-  "    a = A0 / 255.0;\n"
-  "  }\n"
-  // the raster's blend (raster.cpp blend): an integer alpha A = (uint32_t)(coverage * alpha), A >= 255 copies, 0 leaves the pixel, else
-  // (c * A + d * (255 - A)) >> 8: a premultiplied colour c * A / 256 over d * (255 - A) / 256 (GL_ONE, GL_ONE_MINUS_SRC_ALPHA with an
-  // alpha of (A + 1) / 256), less half a step so the framebuffer's rounding becomes the shift's truncation. Stacked translucent layers
-  // (hero's glows) then match the software frame instead of drifting a unit a layer (ZN-412.03). RESTORE keeps the plain mix (lerp_color).
-  "  if (mode > 5.5 && mode < 6.5) { gl_FragColor = vec4(col * a, a); return; }\n"
-  "  float A = floor(cov * floor(a * 255.0 + 0.5) + 0.001);\n"
-  "  if (A >= 255.0) gl_FragColor = vec4(col, 1.0);\n"
-  "  else if (A < 1.0) gl_FragColor = vec4(0.0);\n"
-  "  else gl_FragColor = vec4(max(floor(col * 255.0 + 0.5) * (A / 256.0) / 255.0 - 0.499 / 255.0, 0.0), (A + 1.0) / 256.0);\n"
-  "}\n";
-
-// The occlusion pass draws only opaque square rectangles: a program of its own, 24 bytes a rectangle (bounds, colour, depth), one instance
-// each where the API has instancing (desktop GL), else four 16-byte vertices (GLES 2), instead of four 60-byte vertices (ZN-412.01)
-static const char* SVS =
-  "uniform vec2 u_res; uniform float u_flip; varying vec4 v_col;\n"
-  "#ifdef INSTANCED\n"
-  "attribute vec4 a_rect; attribute vec4 a_col; attribute float a_z;\n"
-  "void main() { vec2 k = vec2(float(gl_VertexID & 1), float(gl_VertexID >> 1)); vec2 p = mix(a_rect.xy, a_rect.zw, k);\n"
-  "#else\n"
-  "attribute vec2 a_pos; attribute vec4 a_col; attribute float a_z;\n"
-  "void main() { vec2 p = a_pos;\n"
-  "#endif\n"
-  "  v_col = a_col; gl_Position = vec4(p.x / u_res.x * 2.0 - 1.0, (p.y / u_res.y * 2.0 - 1.0) * u_flip, a_z, 1.0); }\n";
-static const char* SFS = "varying vec4 v_col; void main() { gl_FragColor = v_col; }\n";
-// POLY's stencil pass: triangles that count the winding, no colour
-static const char* FVS = "attribute vec2 a_pos; uniform vec2 u_res; uniform float u_flip;\n"
-  "void main() { gl_Position = vec4(a_pos.x / u_res.x * 2.0 - 1.0, (a_pos.y / u_res.y * 2.0 - 1.0) * u_flip, 0.0, 1.0); }\n";
-static const char* FFS = "void main() { gl_FragColor = vec4(0.0); }\n";
+#include "gl_replay_shaders.h"   // VS, FS (the commands), SVS, SFS (the occlusion pass), FVS, FFS (the stencil pass)
 struct SV { float x0, y0, x1, y1; uint8_t c[4]; float z; };   // a rectangle (instanced) or, on GLES 2, x, y, c, z of one corner in its first 16 bytes
 
 struct Tex2 { GLuint id; int32_t key; uint32_t ver; int32_t w, h; const void* px; int nearest; };
@@ -336,6 +222,16 @@ static void flush() {
   nq = 0;
 }
 static void use_tex(GLuint t) { if (t != cur_tex) { flush(); cur_tex = t; } }
+// A sprite's blend mode (ZN-581) applied to the premultiplied colour the shader writes: normal, add, multiply, screen (raster.cpp blend_as).
+// Every other command draws in normal mode; a change ends the batch.
+static uint32_t cur_blend;
+static void use_blend(uint32_t m) {
+  if (m == cur_blend) return;
+  flush();
+  static const GLenum src[4] = {GL_ONE, GL_ONE, GL_DST_COLOR, GL_ONE}, dst[4] = {GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA, GL_ONE_MINUS_SRC_COLOR};
+  glBlendFunc(src[m & 3], dst[m & 3]);
+  cur_blend = m & 3;
+}
 static void set_filter(Tex2& t, bool nearest) {
   if (t.nearest == (int)nearest) return;
   flush();
@@ -485,10 +381,18 @@ static void draw_image(const Cmd& c) {
   const float mw = m.w < 0 ? -m.w : m.w, mh = m.h < 0 ? -m.h : m.h;
   Tex2* t; int mode; bool nearest, alpha = false;
   if (c.res >= DYN_BASE) {
-    const uint32_t* px; int32_t w, h, stride;
-    if (!dyn_view(c.res, &px, &w, &h, &stride) || !((float)w / mw < 1e6f && (float)h / mh < 1e6f)) return;
-    t = dyn_tex(c.res);
-    alpha = dyn_alpha(c.res);
+    // the image of the previous IMAGE command, whose version it records (c2), is resolved and uploaded already: sprites skip the lookups
+    static struct { int32_t res; uint32_t ver, frame; Tex2* t; int32_t w, h; bool alpha; } last = {-1, 0, 0, nullptr, 0, 0, false};
+    if (c.res != last.res || c.c2 != last.ver || st.frames != last.frame) {
+      const uint32_t* px; int32_t stride;
+      if (!dyn_view(c.res, &px, &last.w, &last.h, &stride)) { last.res = -1; return; }
+      last.t = dyn_tex(c.res); last.alpha = dyn_alpha(c.res);
+      last.res = c.res; last.ver = c.c2; last.frame = st.frames;
+    }
+    const int32_t w = last.w, h = last.h;
+    if (!((float)w / mw < 1e6f && (float)h / mh < 1e6f)) return;
+    t = last.t;
+    alpha = last.alpha;
     int32_t sx = f2i((float)w / c.w * 65536), sy = f2i((float)h / c.h * 65536);
     nearest = c.grad == 1 || (sx == 65536 && sy == 65536);
     mode = IMAGE_BGR;
@@ -518,8 +422,9 @@ static void draw_image(const Cmd& c) {
     q.x1 = c.x + c.w < mx0 + mw ? c.x + c.w : mx0 + mw; q.y1 = c.y + c.h < my0 + mh ? c.y + c.h : my0 + mh;
     if (q.x0 >= q.x1 || q.y0 >= q.y1) return;
   }
-  q.r = c.r > 0 ? c.r : 0;   // the CPU does not clamp an image's radius
-  q.c1 = 0xffffff;
+  const float rad = image_radius(c);
+  q.r = rad > 0 ? rad : 0;   // the CPU does not clamp an image's radius
+  q.c1 = image_tint(c);
   q.grad = alpha;            // the coverage is the texture's alpha
   q.u0 = (q.x0 - m.x) / m.w; q.u1 = (q.x1 - m.x) / m.w; q.v0 = (q.y0 - m.y) / m.h; q.v1 = (q.y1 - m.y) / m.h;
   quad(q);
@@ -887,7 +792,7 @@ static void draw_xform(const Cmd& c, const float* p, const char* text) {
       Q q = box_q(in, bounds(in.x - blur - 1, in.y - blur - 1, in.w + 2 * blur + 2, in.h + 2 * blur + 2, HUGE_R), SHADOW_M);
       q.p1 = blur; quad(q); break;
     }
-    case IMAGE: in.r = 0; draw_image(in); break;   // ponytail: no rounded corners on a turned image
+    case IMAGE: if (!(in.pad & kImageTint)) in.r = 0; draw_image(in); break;   // ponytail: no rounded corners on a turned image (r: or a tint)
     case TEXT:
       flush();
       glBindTexture(GL_TEXTURE_2D, atlas);
@@ -1017,6 +922,12 @@ static void occlusion_pass(const Frame& f) {
   glEnable(GL_BLEND);
   glDepthMask(GL_FALSE);
 }
+// Culling hides what a later opaque square RECT covers: a frame without one (sprites over a clear) skips it. 20,000 sprites: 1 ms of
+// CPU a frame for nothing, the threads included (ZN-581). ponytail: a CLEAR after other commands is not counted.
+static bool any_occluder(const Frame& f) {
+  for (uint32_t i = 0; i < f.count; i++) { const Cmd& c = f.cmds[i]; if (c.kind == RECT && c.r <= 0 && !c.grad && c.alpha == 255) return true; }
+  return false;
+}
 static void run(const Frame& f, bool first) {
   sp = 0;
   clip = base;
@@ -1025,6 +936,7 @@ static void run(const Frame& f, bool first) {
     const uint32_t e = walk_entry(k, first), i = e & ~kCullOpaque;
     const Cmd& c = f.cmds[i];
     if (occl && first) { if (culled ? (e & kCullOpaque) != 0 : drawn[i] != 0) continue; cur_z = depth_of(i, f.count); }
+    use_blend(c.kind == IMAGE || (c.kind == XFORM && f.pts && f.pts[c.off] == (float)IMAGE) ? image_blend(c) : BLEND_NORMAL);
     switch (c.kind) {
       case CLEAR:
         if (occl && first) {   // inside a clip: a quad at its depth (glClear would ignore the depth test)
@@ -1145,6 +1057,7 @@ static void run(const Frame& f, bool first) {
     }
   }
   flush();
+  use_blend(BLEND_NORMAL);
 }
 
 /** Replays every list of the frame. `direct`: into the window framebuffer (rows bottom-up; its content is undefined after
@@ -1201,6 +1114,7 @@ static void frame(const HalFrame* f, bool direct, Rect dmg) {
   cur_tex = white;
   glEnable(GL_BLEND);
   glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);   // premultiplied: the fragment shader writes the raster's blend (ZN-412.03)
+  cur_blend = BLEND_NORMAL;
   for (int32_t i = 0; i < n; i++) {
     const Frame fr{(const Cmd*)lists[i]->cmds, lists[i]->count, lists[i]->text, lists[i]->pts};
     // a large first list: the commands that later opaque rectangles cover whole are not drawn at all (on a tiling GPU the primitives
@@ -1210,7 +1124,7 @@ static void frame(const HalFrame* f, bool direct, Rect dmg) {
     culled = false;
     // tiles sized from the frame's opaque rectangles; one thread (bands of tile rows on 4 threads were slower: every band reads every command)
     // the packing reads every command (the memory-bound half): 4 threads; the walk over the packed array is serial
-    if (cull_on && i == 0 && fr.count >= kTilesMin && grow(vis, vis_cap, (size_t)fr.count + 1) && grow(packed, packed_cap, (size_t)fr.count)) {
+    if (cull_on && i == 0 && fr.count >= kTilesMin && any_occluder(fr) && grow(vis, vis_cap, (size_t)fr.count + 1) && grow(packed, packed_cap, (size_t)fr.count)) {
       const int32_t tile = cull_tile(fr);
       const uint32_t per = (fr.count + 3) / 4;
       std::thread workers[3];

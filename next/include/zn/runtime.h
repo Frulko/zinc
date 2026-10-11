@@ -310,8 +310,9 @@
   X(HostNetLog, "host.netLog", "is>s", 2) \
   /* zinc:gfx setTransform / resetTransform (ZN-263.01): a 2D matrix for the commands that follow; graphics rows, appended */ \
   X(HostGfxSetTransform, "host.gfxSetTransform", "dddddd>n", 2) X(HostGfxResetTransform, "host.gfxResetTransform", ">n", 2) \
-  /* zinc:gfx sprites (ZN-432): a source rectangle of an image on a destination rectangle (alpha; flags 1 mirror x, 2 mirror y, 4 nearest), and a runtime image decoded from the bytes of a PNG or JPEG file (-1: not an image); graphics rows, appended */ \
-  X(HostGfxDrawImageRect, "host.gfxDrawImageRect", "iddddddddii>n", 2) X(HostGfxImageFromBytes, "host.gfxImageFromBytes", "B>i", 2) \
+  /* zinc:gfx sprites (ZN-432): a source rectangle of an image on a destination rectangle (alpha; flags 1 mirror x, 2 mirror y, 4 nearest; ZN-581: rotation, tint, blend mode), */ \
+  /* and a runtime image decoded from the bytes of a PNG or JPEG file (-1: not an image); graphics rows, appended */ \
+  X(HostGfxDrawImageRect, "host.gfxDrawImageRect", "iddddddddiidui>n", 2) X(HostGfxImageFromBytes, "host.gfxImageFromBytes", "B>i", 2) \
   /* zinc:gfx windows beside the main one (ZN-663): open (title, logical size; the id, -1 when it cannot), close, whether one is open (0: the main window), */ \
   /* and the frame of a window between begin and end; graphics rows, appended */ \
   X(HostGfxOpenWindow, "host.gfxOpenWindow", "sii>i", 2) X(HostGfxCloseWindow, "host.gfxCloseWindow", "i>n", 2) X(HostGfxWindowOpen, "host.gfxWindowOpen", "i>i", 2) \

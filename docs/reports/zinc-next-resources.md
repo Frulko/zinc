@@ -44,6 +44,18 @@ samples through the box, smooths the edges of the rectangle and of the image, an
 draws the exact rectangle as a quad through the matrix, linear unless the sprite asks for nearest. `tests/data/image_rect/xform.ts` is the case: sprites
 turned, stretched and mirrored, every pixel inside a texel computed back from the sheet, in software and on the GPU.
 
+Sprites (ZN-581): `drawImageRect` takes a rotation, a tint and a blend mode after its flags (the row `host.gfxDrawImageRect` grew to 14 parameters, so the
+host calls of the interpreter and QuickJS decode up to `kMaxHostParams` = 16, checked at compile time). A rotation is the matrix in force times a turn around
+the centre of the destination rectangle: the command becomes an XFORM, 15 floats of the point pool. The tint and the blend mode live in the command:
+pad bit `kImageTint` says `r` holds the tint as a float (24 bits, exact; such an image has no radius), pad bits 4-5 the mode (`image_tint`, `image_blend`
+in `zrt_raster.h`). The raster multiplies each channel, `(c t + 127) / 255`, and blends with `blend_as` (normal, add, multiply, screen), the formulas the
+GL replay's blend functions give on the premultiplied colour its shader writes (`GL_ONE, GL_ONE`; `GL_DST_COLOR, GL_ONE_MINUS_SRC_ALPHA`;
+`GL_ONE, GL_ONE_MINUS_SRC_COLOR`); the shader multiplies the texel by the tint in the vertex colour, and a change of mode ends a batch.
+`tests/data/image_rect/sprite.ts` is the case (`sprite_check.py` computes the tinted and blended sprites from the sheet: exact in software, within 2 on the
+GPU). The replay skips the CPU culling of a frame without an opaque square rectangle (sprites over a clear: 1 ms a frame at 20,000 sprites) and keeps the
+resolved texture of the last image, so consecutive sprites skip its lookups. Its shaders live in `runtime/gl_replay_shaders.h`, which
+`tests/t1/gl_replay_es2.sh` compiles and links as GLSL ES 1.00 under display-gl's GLES 2 prelude with glslang (the Pi 3 floor of D29, without a device).
+
 ## Not covered
 
 Fonts and images are fixed per program: an image or a size chosen at run time from data is not found by the scan (`imageFromBytes` decodes one). Plugin and board profiles with their own

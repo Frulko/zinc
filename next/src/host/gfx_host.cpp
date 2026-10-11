@@ -65,7 +65,8 @@ void installFast() {
   at(Rt::HostGfxLine) = [](uint64_t* a) { g::line(D(a[0]), D(a[1]), D(a[2]), D(a[3]), static_cast<uint32_t>(a[4])); };
   at(Rt::HostGfxBorder) = [](uint64_t* a) { g::border(D(a[0]), D(a[1]), D(a[2]), D(a[3]), D(a[4]), D(a[5]), static_cast<uint32_t>(a[6]), static_cast<int32_t>(a[7])); };
   at(Rt::HostGfxDrawImage) = [](uint64_t* a) { g::drawImage(static_cast<int32_t>(a[0]), D(a[1]), D(a[2]), D(a[3]), D(a[4]), static_cast<int32_t>(a[5]), D(a[6])); };
-  at(Rt::HostGfxDrawImageRect) = [](uint64_t* a) { g::drawImageRect(static_cast<int32_t>(a[0]), D(a[1]), D(a[2]), D(a[3]), D(a[4]), D(a[5]), D(a[6]), D(a[7]), D(a[8]), static_cast<int32_t>(a[9]), static_cast<int32_t>(a[10])); };
+  at(Rt::HostGfxDrawImageRect) = [](uint64_t* a) { g::drawImageRect(static_cast<int32_t>(a[0]), D(a[1]), D(a[2]), D(a[3]), D(a[4]), D(a[5]), D(a[6]), D(a[7]), D(a[8]), static_cast<int32_t>(a[9]), static_cast<int32_t>(a[10]),
+                                                         D(a[11]), static_cast<uint32_t>(a[12]), static_cast<int32_t>(a[13])); };
   at(Rt::HostGfxClip) = [](uint64_t* a) { g::clip(D(a[0]), D(a[1]), D(a[2]), D(a[3]), D(a[4])); };
   at(Rt::HostGfxUnclip) = [](uint64_t*) { g::unclip(); };
   at(Rt::HostGfxTranslate) = [](uint64_t* a) { g::translate(D(a[0]), D(a[1])); };
@@ -168,7 +169,7 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostGfxImageWidth: r->i = g::imageWidth(n(0)); break;
     case Rt::HostGfxImageHeight: r->i = g::imageHeight(n(0)); break;
     case Rt::HostGfxDrawImage: g::drawImage(n(0), a[1].d, a[2].d, a[3].d, a[4].d, n(5), a[6].d); break;
-    case Rt::HostGfxDrawImageRect: g::drawImageRect(n(0), a[1].d, a[2].d, a[3].d, a[4].d, a[5].d, a[6].d, a[7].d, a[8].d, n(9), n(10)); break;
+    case Rt::HostGfxDrawImageRect: g::drawImageRect(n(0), a[1].d, a[2].d, a[3].d, a[4].d, a[5].d, a[6].d, a[7].d, a[8].d, n(9), n(10), a[11].d, u(12), n(13)); break;
     case Rt::HostGfxImageFromBytes: r->i = imageFromBytes(static_cast<const uint64_t*>(a[0].p), a[0].n); break;
     case Rt::HostGfxClip: g::clip(a[0].d, a[1].d, a[2].d, a[3].d, a[4].d); break;
     case Rt::HostGfxUnclip: g::unclip(); break;

@@ -138,7 +138,8 @@ export function imageWidth(img: i32): i32 { return __host_gfxImageWidth(img); }
 export function imageHeight(img: i32): i32 { return __host_gfxImageHeight(img); }
 export function drawImage(img: i32, x: number, y: number, w: number, h: number, alpha: i32, radius: number): void { __host_gfxDrawImage(img, x, y, w, h, alpha, radius); }
 export enum ImageFlag { FlipX = 1, FlipY = 2, Nearest = 4 }
-export function drawImageRect(img: i32, sx: number, sy: number, sw: number, sh: number, dx: number, dy: number, dw: number, dh: number, alpha: i32 = 255, flags: i32 = 0): void { __host_gfxDrawImageRect(img, sx, sy, sw, sh, dx, dy, dw, dh, alpha, flags); }
+export enum Blend { Normal = 0, Add = 1, Multiply = 2, Screen = 3 }
+export function drawImageRect(img: i32, sx: number, sy: number, sw: number, sh: number, dx: number, dy: number, dw: number, dh: number, alpha: i32 = 255, flags: i32 = 0, rotation: number = 0, tint: u32 = 0xFFFFFF, blend: i32 = 0): void { __host_gfxDrawImageRect(img, sx, sy, sw, sh, dx, dy, dw, dh, alpha, flags, rotation, tint, blend); }
 export function imageFromBytes(bytes: u8[]): i32 { return __host_gfxImageFromBytes(bytes); }
 export function clip(x: number, y: number, w: number, h: number, radius: number = 0): void { __host_gfxClip(x, y, w, h, radius); }
 export function unclip(): void { __host_gfxUnclip(); }

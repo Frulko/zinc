@@ -1020,7 +1020,7 @@ static void to_physical(Buf& b, uint32_t from = 0) {   // from: the first plugin
     switch (c.kind) {
       case raster::RECT: case raster::CLIP: c.r *= k; break;
       case raster::IMAGE:
-        c.r *= k;
+        if (!(c.pad & raster::kImageTint)) c.r *= k;   // r: a radius, or a sprite's tint
         if (c.pad & raster::kImageBox) { const raster::Box m = raster::image_box(c); raster::set_image_box(c, raster::Box{m.x * k, m.y * k, m.w * k, m.h * k}); }
         break;
       case raster::BORDER: case raster::SHADOW: c.r *= k; c.s *= k; break;
@@ -1327,14 +1327,38 @@ void drawImage(int32_t i, double x, double y, double w, double h, int32_t alpha,
 }
 /** The source rectangle (sx, sy, sw, sh) of an image, in the pixels of imageWidth / imageHeight, on (dx, dy, dw, dh): a frame of a sprite sheet.
  *  flags: 1 mirrors it left to right, 2 top to bottom, 4 samples the nearest texel instead of blending four. The part of the source
- *  rectangle outside the image is not drawn. Linear sampling reads the neighbouring texels at the edges of the rectangle, as a GPU does. */
-void drawImageRect(int32_t i, double sx, double sy, double sw, double sh, double dx, double dy, double dw, double dh, int32_t alpha, int32_t flags) {
+ *  rectangle outside the image is not drawn. Linear sampling reads the neighbouring texels at the edges of the rectangle, as a GPU does.
+ *  A sprite (ZN-581): turned by `rotation` radians (clockwise on the screen) around the centre of (dx, dy, dw, dh), recorded as an XFORM
+ *  through the matrix in force; its colour multiplied by `tint`; blended by `blend` (raster::Blend). */
+void drawImageRect(int32_t i, double sx, double sy, double sw, double sh, double dx, double dy, double dw, double dh, int32_t alpha, int32_t flags,
+                   double rotation, uint32_t tint, int32_t blend) {
+  if (rotation != 0) {   // the turn after the matrix in force, around the centre (logical pixels, after translate)
+    if (!(rotation - rotation == 0)) return;   // NaN or infinite: no turn to draw
+    const bool on = xf_on;
+    double m[6];
+    for (int k = 0; k < 6; k++) m[k] = xf_m[k];
+    const double cs = math::cos(rotation), sn = math::sin(rotation), qx = dx + dw * 0.5 + tx, qy = dy + dh * 0.5 + ty;
+    const double r[6] = {cs, sn, -sn, cs, qx - cs * qx + sn * qy, qy - sn * qx - cs * qy};   // q - R q
+    if (!on) for (int k = 0; k < 6; k++) xf_m[k] = r[k];
+    else {
+      xf_m[0] = m[0] * r[0] + m[2] * r[1]; xf_m[1] = m[1] * r[0] + m[3] * r[1];
+      xf_m[2] = m[0] * r[2] + m[2] * r[3]; xf_m[3] = m[1] * r[2] + m[3] * r[3];
+      xf_m[4] = m[0] * r[4] + m[2] * r[5] + m[4]; xf_m[5] = m[1] * r[4] + m[3] * r[5] + m[5];
+    }
+    xf_on = true;
+    drawImageRect(i, sx, sy, sw, sh, dx, dy, dw, dh, alpha, flags, 0, tint, blend);
+    xf_on = on;
+    for (int k = 0; k < 6; k++) xf_m[k] = m[k];
+    return;
+  }
   int32_t iw, ih;
   if (!raster::image_size(i, &iw, &ih) || !(sw > 0 && sh > 0 && dw > 0 && dh > 0)) return;   // also NaN
   Cmd* c = push(raster::IMAGE, 0, alpha);
   if (!c) return;
   box(c, dx, dy, dw, dh);
   c->res = i; c->c2 = raster::image_version(i); c->grad = flags & 4 ? 1 : 0;
+  if ((tint & 0xFFFFFF) != 0xFFFFFF) { c->pad |= raster::kImageTint; c->r = (float)(tint & 0xFFFFFF); }
+  if (blend > 0 && blend <= raster::BLEND_SCREEN) c->pad |= (uint8_t)(blend << raster::kBlendShift);
   // where the whole image would lie for the source rectangle to land on the destination (zrt_raster.h image_box); mirrored: from the far side, a negative size
   const double fx = dw / sw, fy = dh / sh;
   double bx = dx - sx * fx, by = dy - sy * fy, bw = iw * fx, bh = ih * fy;
