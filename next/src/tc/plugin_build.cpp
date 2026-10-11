@@ -89,6 +89,8 @@ bool haveCommand(const std::string& c) {   // asked again at every compile: one 
 }
 
 bool endsWith(const std::string& s, const char* e) { std::size_t n = std::strlen(e); return s.size() >= n && s.compare(s.size() - n, n, e) == 0; }
+// native/<x>.spec.ts, never a hidden file: `unzip` of an archive made on a Mac leaves ._<x>.spec.ts (AppleDouble) beside each file that had attributes (ZN-718)
+bool isSpec(const fs::path& p) { const std::string f = p.filename().string(); return endsWith(f, ".spec.ts") && f[0] != '.'; }
 
 struct Cross { std::string name, zigTarget, zig; bool on = false; } gCross;
 std::string crossArch() { const Target* t = findTarget(gCross.name); return t ? t->cpuFlags : ""; }
@@ -171,7 +173,7 @@ const frontend::FoundPlugin* pluginForModule(const std::vector<frontend::FoundPl
     std::error_code ec;
     for (const auto& e : fs::directory_iterator(fs::path(p.dir) / "native", ec)) {
       std::string path = e.path().string(), text;
-      if (!endsWith(path, ".spec.ts") || !readAll(path, text)) continue;
+      if (!isSpec(e.path()) || !readAll(path, text)) continue;
       frontend::NativeGen g;
       std::string err;
       if (frontend::generateNative(path, text, g, err) && g.name == module) return &p;
@@ -271,7 +273,7 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
   std::error_code ec;
   frontend::NativeGen gen;
   if (!display) {
-  for (const auto& e : fs::directory_iterator(nativeDir, ec)) if (endsWith(e.path().string(), ".spec.ts")) { specPath = e.path().string(); base = e.path().filename().string(); base.resize(base.size() - 8); }
+  for (const auto& e : fs::directory_iterator(nativeDir, ec)) if (isSpec(e.path())) { specPath = e.path().string(); base = e.path().filename().string(); base.resize(base.size() - 8); }
   if (specPath.empty() || !readAll(specPath, specText)) { err = "plugin '" + m.name + "' has no native/*.spec.ts"; return false; }
   if (!frontend::generateNative(specPath, specText, gen, err)) return false;
   if (gen.thunk.empty()) { err = "plugin '" + m.name + "': no thunk can be written for its spec: " + gen.thunkNote; return false; }

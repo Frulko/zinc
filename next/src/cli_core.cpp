@@ -457,7 +457,7 @@ int doctor(const std::string& engineRoot, const std::string& rendererLines) {
       std::string without;
       for (const zn::frontend::FoundPlugin& p : found) {
         bool native = p.manifest.kind == "display";
-        for (const auto& e : fs::directory_iterator(fs::path(p.dir) / "native", ec)) native = native || e.path().string().ends_with(".spec.ts");
+        for (const auto& e : fs::directory_iterator(fs::path(p.dir) / "native", ec)) native = native || (e.path().filename().string().ends_with(".spec.ts") && e.path().filename().string()[0] != '.');
         if (!native) continue;
         const auto ts = p.manifest.targetSettings.find(target);
         std::string why;

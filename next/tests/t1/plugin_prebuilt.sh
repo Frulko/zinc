@@ -9,6 +9,7 @@ tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fail=0
 mkdir -p "$tmp/proj/plugins"
 cp -R ../plugins/device "$tmp/proj/plugins/device"
+printf "\000\005\026\007" > "$tmp/proj/plugins/device/native/._device.spec.ts"   # what unzip leaves of a Mac archive (AppleDouble): never taken for the spec (ZN-718)
 printf '{ "name": "app", "entry": "main.ts" }\n' > "$tmp/proj/zinc.json"
 printf "import * as device from 'zinc:device';\nconsole.log('touch ' + device.hasTouch());\n" > "$tmp/proj/main.ts"
 ZINC_HOME="$tmp/h1" "$Z" plugin-build device "$tmp/proj" --prebuild > "$tmp/out" 2>&1 || { echo "plugin_prebuilt: --prebuild failed: $(cat "$tmp/out")"; exit 1; }

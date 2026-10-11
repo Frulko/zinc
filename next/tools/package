@@ -51,9 +51,10 @@ def payload(share):
     copy_tree(os.path.join(REPO, "lib", "fonts"), os.path.join(share, "lib", "fonts"))
     copy_tree(os.path.join(REPO, "templates"), os.path.join(share, "templates"))   # zinc new (ZN-315)
     copy_tree(os.path.join(REPO, "plugins"), os.path.join(share, "plugins"), lambda r: r.endswith(('.ts', '.tsx', 'plugin.json')))
-    for f in ("targets/capabilities.json", "runtime/zrt.h", "runtime/include/hal.h"):   # zinc:platform; the two ABI headers a plugin's prebuilt key covers
-        os.makedirs(os.path.dirname(os.path.join(share, f)), exist_ok=True)
-        shutil.copy2(os.path.join(REPO, f), os.path.join(share, f))
+    os.makedirs(os.path.join(share, "targets"))
+    shutil.copy2(os.path.join(REPO, "targets", "capabilities.json"), os.path.join(share, "targets", "capabilities.json"))   # zinc:platform
+    # the runtime headers: a plugin's prebuilt key covers zrt.h and hal.h, and a plugin compiled on the user's machine includes them
+    copy_tree(os.path.join(REPO, "runtime"), os.path.join(share, "runtime"), lambda r: r.endswith('.h'))
     open(os.path.join(share, "VERSION"), "w").write(VERSION + "\n")
 
 def prebuild_plugins(zinc, share, target):
@@ -73,7 +74,9 @@ def prebuild_plugins(zinc, share, target):
             native = m.get("kind") == "display" or (os.path.isdir(nd) and any(f.endswith(".spec.ts") for f in os.listdir(nd)))
             if not native or target not in t: continue
             if isinstance(t, dict) and (t[target] or {}).get("pkg"):
-                without[name] = "needs the system libraries " + " ".join(t[target]["pkg"]); continue
+                without[name] = "needs the system libraries " + " ".join(t[target]["pkg"])
+                shutil.copytree(d, os.path.join(share, "plugins", name), dirs_exist_ok=True)   # its sources: compiled on first use, on a machine that has the libraries
+                continue
             r = subprocess.run([zinc, "plugin-build", name, tmp, "--prebuild"], capture_output=True, text=True, env=dict(os.environ, ZINC_PREBUILT="0"))
             pre = os.path.join(d, "prebuilt", target)
             if r.returncode != 0 or not os.path.exists(os.path.join(pre, "key")):
