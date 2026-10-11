@@ -9,7 +9,7 @@ import { Sequence, Media, Item, Link, Point, View, LIGHTS } from '../src/project
 import { project, lang, selected, selectedLink, selectedItem, shownMedia, opened, select, pick, nameIt, done, renameSelected, duplicateSelected, deleteSelection, startHere, setLinkLabel,
   setLinkTransition, setLinkOverlay, advanced, selectionJson, placeSelected, openSequence, retargetSelected, moveItem, resizeItem, rotateItem, timeItem, raiseItem, moveLink, timeLink,
   addLinkFrom, placeMedia, removeMediaCommand, setMediaText, setMediaCredit, setSequenceText, setSequenceDuration, openSettings, pointing, selectedPoint, pickPoint, openPoints, namePoint,
-  setPointText, useView, setLight, retargetPoint, clearPointTarget, deletePoint, movePoint, pointedJson } from './state';
+  setPointText, useView, setLight, retargetPoint, clearPointTarget, deletePoint, movePoint, pointedJson, narrate, chooseNext, clearNext, setMediaFile, setMediaLoop, lengthOf, listen } from './state';
 import { currentView, showView } from './points';
 import { Ico, Action, Segmented, LangField, LangColumns, PlainField, NumberField, Heading, ACCENT, MUTED, WARN, kindIndex } from './widgets';
 import * as L from './strings';
@@ -228,7 +228,7 @@ function ProjectPanel(): i32 {
 function fileOf(m: Media | null): string { return m === null ? '' : `${t(L.FILE)}: ${m.file}`; }
 function textOf(m: Media | null, field: string, language: string): string {
   if (m === null) return '';
-  const text = field === 'title' ? m.title : field === 'description' ? m.description : field === 'audioDescription' ? m.audioDescription : m.text;
+  const text = field === 'title' ? m.title : field === 'description' ? m.description : field === 'audioDescription' ? m.audioDescription : field === 'transcript' ? m.transcript : m.text;
   return text.get(language) ?? '';
 }
 /** A text of the shown medium in every language, side by side. */
@@ -251,6 +251,14 @@ function MediaPanel(): i32 {
   const num = (get: (i: Item) => number): number => { const i = it(); return i === null ? 0 : get(i); };
   const pointable = (): boolean => { const x = m(); return x !== null && (x.kind === 'model' || x.kind === 'panorama'); };
   const pointCount = (): i32 => { const x = m(); project(); return x === null ? 0 : x.points.length; };
+  const kind = (): string => { const x = m(); return x === null ? '' : x.kind; };
+  const timed = (): boolean => kind() === 'audio' || kind() === 'video';
+  const named = (field: string): string => {
+    const x = m();
+    project();
+    return x === null ? '' : field === 'file' ? x.file : field === 'subtitles' ? x.subtitles : field === 'poster' ? x.poster : x.texture;
+  };
+  const lasts = (): string => { const x = m(), d = x === null ? 0 : lengthOf(x); return d > 0 ? f(L.LASTS, `${d}`) : t(L.LASTS_UNKNOWN); };
   return <view class="flex-col gap-5 p-4">
     <view class="flex-col gap-1">
       <Heading label={t(L.KIND_NAMES[Math.max(0, kindIndex(m()))])} />
@@ -302,6 +310,7 @@ function MediaPanel(): i32 {
     <Show when={isText()}><MediaText label={t(L.BODY)} field="text" rows={4} /></Show>
     <MediaText label={t(L.DESCRIPTION)} field="description" rows={4} />
     <MediaText label={t(L.AUDIO_DESCRIPTION)} field="audioDescription" rows={3} />
+    <Show when={timed()}><MediaText label={t(L.TRANSCRIPT)} field="transcript" rows={3} /></Show>
     <view class="flex-col gap-2">
       <Heading label={t(L.CREDIT)} />
       <PlainField label={t(L.CREATOR)} value={() => credit('creator')} placeholder="" onInput={(v: string) => setMediaCredit('creator', v)} onDone={done} />
@@ -314,6 +323,29 @@ function MediaPanel(): i32 {
         </view>
       </Show>
     </view>
+    <Show when={timed() || (advanced() && kind() === 'model')}>
+      <view class="flex-col gap-2">
+        <Heading label={t(L.FILES)} />
+        <Show when={timed()}>
+          <view class="flex-col gap-2">
+            <text class="text-xs text-zinc-300">{lasts()}</text>
+            <Show when={kind() === 'audio'}><view class="flex-row"><Action icon="volume-2" label={t(L.LISTEN)} look="plain" onClick={() => listen(m())} /></view></Show>
+            <Show when={kind() === 'video'}><text class="text-xs text-zinc-500" style={{ width: 400 }}>{t(L.FILM_VIEW)}</text></Show>
+            <text class="text-xs text-zinc-500" style={{ width: 400 }}>{t(L.FILES_WHAT)}</text>
+          </view>
+        </Show>
+        <PlainField label={t(L.FILE)} value={() => named('file')} placeholder={t(L.REQUIRED)} onInput={(v: string) => setMediaFile('file', v)} onDone={done} />
+        <Show when={timed()}><PlainField label={t(L.SUBTITLES)} value={() => named('subtitles')} placeholder="" onInput={(v: string) => setMediaFile('subtitles', v)} onDone={done} /></Show>
+        <Show when={kind() === 'model'}><PlainField label={t(L.MODEL_TEXTURE)} value={() => named('texture')} placeholder="" onInput={(v: string) => setMediaFile('texture', v)} onDone={done} /></Show>
+        <Show when={kind() === 'video'}>
+          <view class="flex-col gap-2">
+            <PlainField label={t(L.POSTER)} value={() => named('poster')} placeholder="" onInput={(v: string) => setMediaFile('poster', v)} onDone={done} />
+            <text class="text-[11px] text-zinc-400">{t(L.LOOP)}</text>
+            <Segmented options={['once', 'loop']} labels={[t(L.LOOP_ONCE), t(L.LOOP_AGAIN)]} value={() => { const x = m(); project(); return x !== null && x.loop ? 'loop' : 'once'; }} onPick={(v: string) => setMediaLoop(v === 'loop')} />
+          </view>
+        </Show>
+      </view>
+    </Show>
     <view class="flex-row"><Action icon="trash" label={t(L.REMOVE_FROM_PROJECT)} look="danger" onClick={() => { const x = m(); if (x !== null) removeMediaCommand(x); }} /></view>
   </view>;
 }
@@ -321,6 +353,10 @@ function MediaPanel(): i32 {
 function TablePanel(): i32 {
   const s = (): Sequence | null => { project(); return selected(); };
   const none = (): boolean => { const x = s(); return x === null || x.links.length === 0; };
+  const sounds = (): Media[] => project().media.filter((x: Media) => x.kind === 'audio');
+  const said = (x: Media): boolean => { const q = s(); return q !== null && q.narration === x.id; };
+  const narration = (): Media | null => { const q = s(); return q === null || q.narration.length === 0 ? null : project().medium(q.narration); };
+  const next = (): Sequence | null => { const q = s(); return q === null || q.next.length === 0 ? null : project().sequence(q.next); };
   return <view class="flex-col gap-5 p-4">
     <view class="flex-col gap-1">
       <Heading label={t(L.SEQUENCE)} />
@@ -346,6 +382,28 @@ function TablePanel(): i32 {
     <view class="flex-col gap-2">
       <text class="text-[11px] text-zinc-400">{t(L.DURATION)}</text>
       <view class="flex-row"><NumberField label="" value={() => { const x = s(); return x === null ? 0 : x.duration; }} onCommit={setSequenceDuration} onDone={done} /></view>
+    </view>
+    <view class="flex-col gap-2">
+      <Heading label={t(L.NARRATION)} />
+      <text class="text-xs text-zinc-500" style={{ width: 400 }}>{t(sounds().length === 0 ? L.NO_SOUND_YET : L.NARRATION_WHAT)}</text>
+      <view class="flex-col gap-1">
+        <For each={sounds()}>{(x: Media, i: i32) => <button class={`flex-row items-center justify-start gap-2 h-8 px-2 rounded-md cursor-pointer border ${said(x) ? 'bg-zinc-800 border-amber-400' : 'bg-zinc-950 border-zinc-800 hover:border-zinc-600'}`}
+          onClick={() => narrate(x)}>
+          <Ico name="volume-2" size={13} color={said(x) ? ACCENT : MUTED} />
+          <text class="truncate text-xs text-zinc-100" style={{ width: 280 }}>{(project(), project().say(x.title, lang()))}</text>
+          <text class="truncate text-xs text-right text-zinc-500" style={{ width: 80 }}>{f(L.SECONDS, `${lengthOf(x)}`)}</text>
+        </button>}</For>
+      </view>
+      <Show when={narration() !== null}><view class="flex-row"><Action icon="volume-2" label={t(L.LISTEN)} look="plain" onClick={() => listen(narration())} /></view></Show>
+    </view>
+    <view class="flex-col gap-2">
+      <Heading label={t(L.THEN)} />
+      <text class="text-xs text-zinc-300" style={{ width: 400 }}>{next() === null ? t(L.THEN_NOTHING) : say(next())}</text>
+      <view class="flex-row gap-2">
+        <Action icon="arrow-right" label={t(L.CHOOSE_SEQUENCE)} look="plain" onClick={chooseNext} />
+        <Show when={next() !== null}><Action icon="unlink" label={t(L.NO_LINK)} look="plain" onClick={clearNext} /></Show>
+      </view>
+      <text class="text-xs text-zinc-500" style={{ width: 400 }}>{t(L.THEN_WHAT)}</text>
     </view>
     <Show when={advanced()}><Written /></Show>
   </view>;

@@ -103,12 +103,13 @@ zinc run examples/museum-table/editor -- examples/museum-table/assets/project.js
 | the storyboard | sequences as nodes, links drawn from the handle under a node; name, move, duplicate, delete, choose where the visit starts |
 | the table of a sequence (double click a node) | the media library of the project folder; media dragged on the table, moved, sized, turned by the round handle above the selected one, timed on the timeline; buttons and hotspots; texts in every language side by side |
 | a 3D model or a panorama (double click it on the table) | points of interest: turn the object, click it to place a point, drag a point to move it; its name and text in every language, the view it opens with ("Use this view"), the sequence its card leads to |
+| narration, sound and film | a recording per language in the folder (`welcome.fr.mp3`, `welcome.en.mp3`) enters the library as one sound with its subtitles (`.vtt` beside it), a film with its picture and its subtitles; the panel of a sequence chooses its narration among the sounds, plays it ("Listen") and names the sequence that follows by itself; the panel of a sound or a film has what is said in every language, its files, and for a film whether it starts again; the timeline shows the narration and gives a film a bar as long as the film |
 | the preview | "Play from here" (P) plays the project as it is, saved or not, with the table's own player, until Escape; "In a window" (W) keeps a preview beside the editor that follows the sequence being edited |
 | the settings (click the project's name, or Ctrl or Cmd + comma) | the name and the languages of the project (a language more is a column more in every panel; any language in which the required texts are written can be made the default one), the six colours of the theme, its fonts and its logo (the families of the table, the font files and the pictures of the project folder), the table and the kiosk (reach, attract loop and reset delays, statistics, update address), text sizes and high contrast, guided visits (a named path of sequences ordered by dragging); a live sample of a sequence beside the forms follows every change |
 
 Undo and redo cover every step; the advanced mode (Ctrl or Cmd + E) adds exact numbers, the keys and the selection as the file has it.
 The document is `editor/doc.ts` (one operation per command, checked without a window by `editor/selftest.ts`). Test:
-`next/tests/run --tier t1 --only museum_editor` (scripted mouse and keyboard sessions, file and frame goldens).
+`next/tests/run --tier t1 --only museum_editor` (scripted mouse and keyboard sessions, file and frame goldens), `museum_editor_views`, `museum_editor_sound`.
 
 ## What to look at
 

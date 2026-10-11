@@ -432,13 +432,15 @@ export class Doc {
   /** Adds a file of the project folder to the library. A file shown to visitors says where it comes from and under which licence: `title`
    *  (default language), `source` and `licence` are required. `texture`: the picture wrapped on an OBJ model ('' for none). Returns the id,
    *  '' when something is missing. */
-  addMedia(kind: string, file: string, title: string, source: string, licence: string, texture: string = ''): string {
+  addMedia(kind: string, file: string, title: string, source: string, licence: string, texture: string = '', subtitles: string = '', poster: string = ''): string {
     if (KINDS.indexOf(kind) < 0 || kind === 'text' || file.length === 0 || title.length === 0 || source.length === 0 || licence.length === 0) return '';
     const id = this.freeMediaId(slug(title), '');
     this.apply('Add media', '', (p: Project) => {
       const m = new Media();
       m.id = id; m.kind = kind; m.file = file; m.title.set(p.languages[0], title); m.credit.source = source; m.credit.licence = licence;
       if (kind === 'model') m.texture = texture;
+      if (kind === 'audio' || kind === 'video') m.subtitles = subtitles;
+      if (kind === 'video') m.poster = poster;
       p.media.push(m);
     });
     return id;
@@ -489,6 +491,32 @@ export class Doc {
       else if (field === 'line') m.credit.line = value; else if (field === 'source') m.credit.source = value; else if (field === 'licence') m.credit.licence = value;
       else if (field === 'licenceUrl') m.credit.licenceUrl = value;
     });
+  }
+  /** A step the player has to accept: tried on a copy first. Returns '' when done, else what the loader refuses, and nothing is changed. */
+  private checked(label: string, key: string, change: (p: Project) => void): string {
+    const trial = copyProject(this.project);
+    change(trial);
+    try { parseProject(serializeProject(trial)); } catch (e) { return e.message; }
+    this.apply(label, key, change);
+    return '';
+  }
+  /** A file of a medium, as a path in the project folder. `field`: file (the medium itself), subtitles (WebVTT, of a sound or a film),
+   *  poster (the picture of a film's card), texture (the picture wrapped on a model). In the file and the subtitles of a sound or a film
+   *  `{lang}` stands for the language code: one file per language. Returns '' when done, else what the loader refuses. */
+  setMediaFile(id: string, field: string, value: string): string {
+    if (this.project.medium(id) === null) return '';
+    return this.checked('Change a file of a medium', `file:${id}:${field}`, (p: Project) => {
+      const m = p.medium(id);
+      if (m === null) return;
+      if (field === 'file') m.file = value; else if (field === 'subtitles') m.subtitles = value; else if (field === 'poster') m.poster = value; else if (field === 'texture') m.texture = value;
+    });
+  }
+  /** Whether a film starts again at its end. */
+  setMediaLoop(id: string, loop: boolean): void {
+    const found = this.project.medium(id);
+    if (found === null || found.kind !== 'video') return;
+    const m: Media = found;
+    this.apply('Change a film', '', (p: Project) => { m.loop = loop; });
   }
   /** In how many places sequences show or play the medium: what removing it from the project takes away. */
   mediaUses(id: string): i32 {
@@ -679,6 +707,19 @@ export class Doc {
     if (found === null) return;
     const s: Sequence = found;
     this.apply('Edit sequence text', `text:${this.project.sequences.indexOf(s)}:${lang}`, (p: Project) => { if (text.length > 0) s.text.set(lang, text); else s.text.delete(lang); });
+  }
+  /** What is said when the sequence comes on the table: a sound of the library ('' for nothing). */
+  setNarration(id: string, media: string): void {
+    const found = this.project.sequence(id), m = this.project.medium(media);
+    if (found === null || (media.length > 0 && (m === null || m.kind !== 'audio'))) return;
+    const s: Sequence = found;
+    this.apply('Change the narration', '', (p: Project) => { s.narration = media; });
+  }
+  /** The sequence that follows by itself, once the duration or the narration is over ('' for none). Returns '' when done, else what the
+   *  loader refuses. */
+  setNext(id: string, next: string): string {
+    if (this.project.sequence(id) === null || next === id) return '';
+    return this.checked('Change what follows', '', (p: Project) => { const s = p.sequence(id); if (s !== null) s.next = next; });
   }
   /** Seconds the sequence lasts in a guided presentation (0: as long as its narration, else until the visitor moves on). */
   setSequenceDuration(id: string, seconds: number): void {

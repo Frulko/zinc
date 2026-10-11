@@ -6,6 +6,10 @@ import * as fs from 'zinc:fs';
 import * as dialog from 'zinc:system/dialog';
 import { Project, Sequence, Media, Item, Link, Point, Presentation, parseProject } from '../src/project';
 import { Doc, Problem, newProject } from './doc';
+import { decode, Sound } from 'zinc:audio';
+import { Player as Decoder } from 'zinc:video';
+import { cuesOf } from '../src/narration';
+import { clock } from 'zinc:sys';
 import * as L from './strings';
 import { t, f } from './strings';
 
@@ -357,7 +361,7 @@ export function kindOfFile(file: string): string {
   return at >= 0 && at % 2 === 0 ? EXTENSIONS[at + 1] : '';
 }
 /** The files of the project folder that `take` accepts, as paths inside the folder.
- *  ponytail: three directory levels, and names the format accepts; a narration per language (`{lang}` in the path) is added by hand. */
+ *  ponytail: three directory levels, and names the format accepts. A recording per language is one medium (addFile, perLanguage). */
 function folderFiles(take: (rel: string) => boolean): string[] {
   const out: string[] = [], root = folder();
   if (root.length === 0) return out;
@@ -377,7 +381,10 @@ function folderFiles(take: (rel: string) => boolean): string[] {
 /** The media files of the project folder that are not in the library yet. */
 export function newFiles(): string[] {
   const known = new Set<string>();
-  for (const m of current.project.media) { known.add(m.file); known.add(m.texture); known.add(m.poster); }
+  for (const m of current.project.media) {
+    known.add(m.texture); known.add(m.poster);
+    for (const l of current.project.languages) { known.add(m.file.replaceAll('{lang}', l)); known.add(m.subtitles.replaceAll('{lang}', l)); }
+  }
   return folderFiles((rel: string): boolean => kindOfFile(rel).length > 0 && !known.has(rel));
 }
 /** The files of the project folder that end in one of `extensions` (lower case, without the dot): the fonts and the pictures a theme can name. */
@@ -390,15 +397,31 @@ export function addFileCommand(): void {
   if (folder().length === 0) setStatus(t(L.SAVE_FIRST)); else setAdding('file');
 }
 /** The picture of the folder that has the name of a model file ('' when there is none): what is wrapped on an OBJ model.
- *  ponytail: by name only; a model whose texture is named otherwise needs a field for it (ZN-650.07.04 adds the files of a medium). */
+ *  What is named otherwise is typed in the medium's panel (its files). */
 function textureOf(file: string): string {
   const stem = file.slice(0, file.lastIndexOf('.'));
   for (const ext of ['jpg', 'jpeg', 'png', 'webp']) if (fs.exists(`${folder()}/${stem}.${ext}`)) return `${stem}.${ext}`;
   return '';
 }
-/** Adds a file to the library and selects it; false when something required is missing. */
-export function addFile(kind: string, file: string, title: string, source: string, licence: string): boolean {
-  const id = current.addMedia(kind, file, title, source, licence, kind === 'model' && file.toLowerCase().endsWith('.obj') ? textureOf(file) : '');
+/** A file name with `{lang}` where it names a language of the project ("voice.fr.mp3" gives "voice.{lang}.mp3"): one file per language. */
+export function perLanguage(file: string): string {
+  for (const l of current.project.languages) {
+    const at = file.lastIndexOf(`.${l}.`);
+    if (at > file.lastIndexOf('/')) return `${file.slice(0, at)}.{lang}.${file.slice(at + l.length + 2)}`;
+  }
+  return file;
+}
+/** Adds a file to the library and selects it; false when something required is missing. A sound or a film named with a language of the
+ *  project is one medium for every language, and takes with it what lies beside it under its name: its subtitles (.vtt), and for a film
+ *  the picture of its card. */
+export function addFile(kind: string, picked: string, title: string, source: string, licence: string): boolean {
+  const timed = kind === 'audio' || kind === 'video', file = timed ? perLanguage(picked) : picked;
+  // the subtitles: "voice.fr.vtt" beside "voice.fr.mp3", "film.vtt" or "film.fr.vtt" beside "film.mp4"
+  const stem = picked.slice(0, picked.lastIndexOf('.'));
+  let subtitles = '';
+  if (timed) for (const vtt of [`${stem}.vtt`, `${stem}.${current.project.languages[0]}.vtt`]) if (subtitles.length === 0 && fs.exists(`${folder()}/${vtt}`)) subtitles = perLanguage(vtt);
+  const beside = (kind === 'model' && file.toLowerCase().endsWith('.obj')) || kind === 'video' ? textureOf(file.replaceAll('.{lang}', '')) : '';
+  const id = current.addMedia(kind, file, title, source, licence, beside, subtitles, beside);
   if (id.length === 0) return false;
   batch(() => { setAdding(''); pick(null, null, current.project.medium(id)); setStatus(f(L.DONE_MEDIA_ADDED, title)); });
   return true;
@@ -436,6 +459,112 @@ export function setSequenceText(language: string, text: string): void {
 export function setSequenceDuration(seconds: number): void {
   const s = selected();
   if (s !== null) current.setSequenceDuration(s.id, seconds);
+}
+
+// ---------------------------------------------------------------- narration, sound and film
+
+function refused(why: string): void { if (why.length > 0) setStatus(f(L.REFUSED, why)); }
+/** The narration of the open sequence: a sound of the library, or the same one again to take it away. */
+export function narrate(m: Media): void {
+  const s = selected();
+  if (s !== null) current.setNarration(s.id, s.narration === m.id ? '' : m.id);
+}
+/** Asks which sequence follows the open one by itself; `clearNext` says none. */
+export function chooseNext(): void {
+  const s = selected();
+  if (s === null) return;
+  const id = s.id;
+  batch(() => { setPickFrom(s); setPickAsks(L.WHICH_NEXT); });
+  setPicking((target: Sequence) => { refused(current.setNext(id, target.id)); });
+}
+export function clearNext(): void {
+  const s = selected();
+  if (s !== null) current.setNext(s.id, '');
+}
+/** A file of the shown medium (see Doc.setMediaFile); what the player would refuse is said and not taken. */
+export function setMediaFile(field: string, value: string): void {
+  const m = shownMedia();
+  if (m !== null) refused(current.setMediaFile(m.id, field, value));
+}
+export function setMediaLoop(loop: boolean): void {
+  const m = shownMedia();
+  if (m !== null) current.setMediaLoop(m.id, loop);
+}
+
+// what the files say of their own length, by path: a file is opened once
+// ponytail: a file replaced on disk keeps its first length until the editor is started again, like the pictures of the preview
+const measured = new Map<string, number>();
+/** The films being opened: zinc:video knows how long a film lasts once its first picture is decoded, some frames later. */
+class Probe {
+  film: Decoder; path: string; since: number; done = false;
+  constructor(film: Decoder, path: string) { this.film = film; this.path = path; this.since = clock(); }
+}
+let probes: Probe[] = [];
+const [measures, setMeasures] = createSignal<i32>(0);
+/** Every frame (main.tsx): the films that have just opened say their length, and the bars follow.
+ *  ponytail: a film nothing has decoded after ten seconds keeps the length of its subtitles until the editor is started again. */
+export function measureTick(): void {
+  if (probes.length === 0) return;
+  let done = false;
+  for (const q of probes) {
+    const d = q.film.frames > 0 ? q.film.duration : 0;
+    if (!(d > 0) && clock() - q.since < 10000) continue;
+    q.film.close();
+    q.done = true;
+    done = true;
+    if (!(d > 0)) continue;
+    measured.set(q.path, Math.round(d * 10) / 10);
+    if (logging) console.log(`length ${q.path.slice(folder().length + 1)} ${Math.round(d * 10) / 10} s (file)`);
+  }
+  if (!done) return;
+  probes = probes.filter((q: Probe) => !q.done);
+  setMeasures(measures() + 1);
+}
+/** Seconds a sound or a film lasts in the language shown, as the table will count them: what the file says when something decodes it,
+ *  else the end of its subtitles, else for a film the ten seconds its poster is shown (../src/film.ts); 0 for a sound that says nothing. */
+export function lengthOf(m: Media): number {
+  rev(); measures();
+  const file = m.file.replaceAll('{lang}', lang()), path = `${folder()}/${file}`;
+  let d = measured.get(path) ?? -1;
+  if (d < 0) {
+    // asked once per file: 0 until the file says its length, and for good when it never does
+    d = 0;
+    if (folder().length > 0 && fs.exists(path)) {
+      if (m.kind === 'video') {
+        const v = new Decoder(16, 9);
+        v.add(path);
+        if (v.decoder === 'sim') v.close();   // a deterministic run decodes nothing
+        else { v.play(); probes.push(new Probe(v, path)); }
+      } else {
+        try { d = decode(fs.readBytes(path), file).duration; } catch (e) { d = 0; }
+        if (logging && d > 0) console.log(`length ${file} ${Math.round(d * 10) / 10} s (file)`);
+      }
+    }
+    d = Math.round(d * 10) / 10;
+    measured.set(path, d);
+  }
+  if (d > 0) return d;
+  const cues = cuesOf(current.project, m, lang());
+  return cues.length > 0 ? Math.round(cues[cues.length - 1].to * 10) / 10 : m.kind === 'video' ? 10 : 0;
+}
+/** The clip being listened to, and its medium (null: silence). */
+let heard: Sound | null = null;
+export const [listening, setListening] = createSignal<Media | null>(null);
+/** Plays the clip of a sound in the language shown, from its beginning; again on the same one, or on nothing, stops it. */
+export function listen(m: Media | null): void {
+  const was = listening();
+  heard?.stop();
+  heard = null;
+  setListening(null);
+  if (m === null || was === m) return;
+  const file = m.file.replaceAll('{lang}', lang()), path = `${folder()}/${file}`;
+  if (folder().length === 0 || !fs.exists(path)) { setStatus(f(L.NO_CLIP, file)); return; }
+  const s = decode(fs.readBytes(path), file);
+  s.play();
+  heard = s;
+  setListening(m);
+  setStatus(f(L.LISTENING, file, `${lengthOf(m)}`));
+  if (logging) console.log(`listen ${m.id} ${file} ${lengthOf(m)} s${s.playing ? ', playing' : ', silent'}`);
 }
 
 // ---------------------------------------------------------------- points of interest

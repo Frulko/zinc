@@ -1,0 +1,68 @@
+# Narration, sound and film (tests/t1/museum_editor_sound.sh), on the project the first session saved, in a folder that holds
+# audio/welcome.fr.mp3, audio/welcome.en.mp3 with their .vtt, and video/great-wave.mp4 with its picture and its .vtt in two languages.
+# A double click on the first sequence of the storyboard opens its table.
+4 move 350 230
+5 down
+6 up
+7 down
+8 up
+# Add a file: the French recording. It enters the library as one sound for every language, with its subtitles.
+12 move 125 99
+13 down
+14 up
+18 move 700 420
+19 down
+20 up
+26 move 700 477
+27 down
+28 up
+29 text https://example.org/voices
+31 move 700 540
+32 down
+33 up
+34 text CC0
+36 move 895 594
+37 down
+38 up
+# What is said, in French and in English.
+46 move 1116 650
+47 down
+48 up
+49 text "Bienvenue au cabinet."
+51 move 1324 650
+52 down
+53 up
+54 text "Welcome to the cabinet."
+# Nothing selected: the panel of the sequence. The sound becomes its narration, and "Listen" plays it.
+56 move 620 250
+57 down
+58 up
+64 move 1220 658
+65 down
+66 up
+70 move 1220 698
+71 down
+72 up
+# Add a file: the film, which takes its picture and its subtitles with it, then "Put on the table".
+76 move 125 99
+77 down
+78 up
+84 move 700 456
+85 down
+86 up
+90 move 700 477
+91 down
+92 up
+93 text https://example.org/films
+95 move 700 540
+96 down
+97 up
+98 text CC0
+100 move 895 594
+101 down
+102 up
+106 move 1220 167
+107 down
+108 up
+# Frame 112: the timeline has the narration's bar (18.6 s) and the film's (10 s). Save.
+114 key s meta

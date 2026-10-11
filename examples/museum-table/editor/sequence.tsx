@@ -9,7 +9,7 @@ import { rrect, border, drawText, lineHeight, setTransform, resetTransform } fro
 import { Sequence, Media, Item, Link } from '../src/project';
 import { sans, wrap, leading } from '../src/type';
 import { project, lang, opened, selectedItem, selectedLink, shownMedia, pick, placeMedia, moveItem, resizeItem, rotateItem, timeItem, moveLink, timeLink, usesOf, addFileCommand, setAdding,
-  openPoints, setStatus } from './state';
+  openPoints, setStatus, lengthOf } from './state';
 import { Ico, Action, Heading, drawMedia, shapeOf, kindIndex, KIND_ICON, KIND_COLOUR, ACCENT, MUTED } from './widgets';
 import { PreviewTools } from './preview';
 import * as L from './strings';
@@ -308,26 +308,34 @@ function Carried(): i32 {
 
 const NAME_W = 190;
 function trackW(): number { return Math.max(120, areaW() - NAME_W - 112); }
-/** The seconds the bars are drawn over: the duration of the sequence, at least 30, and always past the last time set. */
+/** The sound said when the open sequence comes on the table. */
+function narrationOf(): Media | null { const s = opened(); project(); return s === null || s.narration.length === 0 ? null : project().medium(s.narration); }
+/** Seconds the film of an item lasts; 0 for what is not a film, and for a film that starts again at its end. */
+function filmOf(it: Item): number { const m = mediaOf(it); project(); return m !== null && m.kind === 'video' && !m.loop ? lengthOf(m) : 0; }
+/** The seconds the bars are drawn over: the duration of the sequence, at least 30, and always past the last time set, the narration and the films. */
 function span(): number {
   const s = opened();
   project();
   let d = 30;
   if (s !== null) {
     d = Math.max(d, s.duration);
-    for (const it of s.items) d = Math.max(d, Math.max(it.at, it.until) + 5);
+    for (const it of s.items) d = Math.max(d, Math.max(it.at + filmOf(it), it.until) + 5);
+    const said = narrationOf();
+    if (said !== null) d = Math.max(d, lengthOf(said) + 5);
     for (const l of s.links) d = Math.max(d, Math.max(l.at, l.until) + 5);
   }
   return Math.ceil(d / 10) * 10;
 }
 /** A row: what it is, and the bar of when it is there. Drag the bar to shift it, its ends to change one time; an end at the right edge
- *  means "to the end". */
-function Row(p: { icon: string; colour: i32; label: () => string; chosen: () => boolean; at: () => number; until: () => number; onPick: () => void; onTimes: (at: number, until: number) => void }): i32 {
+ *  means "to the end". `length` (seconds, 0 for none): how long what plays there lasts, a film: with no end set its bar is that long.
+ *  `fixed`: the bar is what a file lasts, a narration, and is not dragged. */
+function Row(p: { icon: string; colour: i32; label: () => string; chosen: () => boolean; at: () => number; until: () => number; length: () => number; fixed: boolean; onPick: () => void; onTimes: (at: number, until: number) => void }): i32 {
   const [live, setLive] = createSignal<boolean>(false);
   const [a, setA] = createSignal<number>(0);
   const [u, setU] = createSignal<number>(0);
   const from = (): number => live() ? a() : p.at();
-  const to = (): number => { const v = live() ? u() : p.until(); return v > 0 ? v : span(); };
+  const open = (): number => p.length() > 0 ? from() + p.length() : span();
+  const to = (): number => { const v = live() ? u() : p.until(); return v > 0 ? v : open(); };
   let zone = '', x0: number = 0, a0: number = 0, u0: number = 0;
   const half = (v: number): number => Math.round(v * 2) / 2;
   return <view class="flex-row items-center gap-2 h-7">
@@ -341,13 +349,14 @@ function Row(p: { icon: string; colour: i32; label: () => string; chosen: () => 
         onPointerDown={(e: ui.PointerEvent) => {
           if (e.button !== 0) return;
           p.onPick();
+          if (p.fixed) return;
           const w = (to() - from()) / span() * trackW();
           zone = e.x < 8 ? 'start' : e.x > w - 8 ? 'end' : 'shift';
           x0 = e.gx; a0 = p.at(); u0 = p.until();
         }}
         onPointerMove={(e: ui.PointerEvent) => {
           if (zone.length === 0) return;
-          const d = (e.gx - x0) * span() / trackW(), end = u0 > 0 ? u0 : span();
+          const d = (e.gx - x0) * span() / trackW(), end = u0 > 0 ? u0 : p.length() > 0 ? a0 + p.length() : span();
           let na = a0, nu = u0;
           if (zone === 'start') na = Math.max(0, Math.min(end - 0.5, half(a0 + d)));
           else if (zone === 'end') { nu = Math.max(a0 + 0.5, half(end + d)); if (nu >= span() - 0.25) nu = 0; }
@@ -361,7 +370,7 @@ function Row(p: { icon: string; colour: i32; label: () => string; chosen: () => 
           batch(() => { setLive(false); p.onTimes(na, nu); });
         }} />
     </view>
-    <text class="w-[70] text-[10px] text-zinc-500">{`${from()} – ${live() ? (u() > 0 ? `${u()}` : '∞') : p.until() > 0 ? `${p.until()}` : '∞'}`}</text>
+    <text class="w-[70] text-[10px] text-zinc-500">{`${from()} – ${live() ? (u() > 0 ? `${u()}` : '∞') : p.until() > 0 ? `${p.until()}` : '∞'}${p.length() > 0 ? ` · ${f(L.SECONDS, `${p.length()}`)}` : ''}`}</text>
   </view>;
 }
 function Timeline(): i32 {
@@ -378,13 +387,17 @@ function Timeline(): i32 {
       <For each={ticks()}>{(v: number, i: i32) => <text class="absolute top-0 text-[10px] text-zinc-500" style={{ left: v / span() * trackW() }}>{f(L.SECONDS, `${v}`)}</text>}</For>
     </view>
     <scroll class="grow flex-col">
+      <Show when={narrationOf() !== null}>
+        <Row icon="volume-2" colour={KIND_COLOUR[4]} label={() => `${t(L.NARRATION)}: ${titleOf(narrationOf())}`} chosen={() => selectedItem() === null && shownMedia() !== null && shownMedia() === narrationOf()}
+          at={() => 0} until={() => { const m = narrationOf(); return m === null ? 0 : lengthOf(m); }} length={() => 0} fixed={true} onPick={() => pick(null, null, narrationOf())} onTimes={(at: number, until: number) => {}} />
+      </Show>
       <For each={items()}>{(it: Item, i: i32) => {
         const kind = kindIndex(mediaOf(it));
         return <Row icon={kind >= 0 ? KIND_ICON[kind] : 'image'} colour={kind >= 0 ? KIND_COLOUR[kind] : MUTED} label={() => titleOf(mediaOf(it))} chosen={() => selectedItem() === it}
-          at={() => { project(); return it.at; }} until={() => { project(); return it.until; }} onPick={() => pick(it, null, null)} onTimes={(at: number, until: number) => timeItem(it, at, until)} />;
+          at={() => { project(); return it.at; }} until={() => { project(); return it.until; }} length={() => filmOf(it)} fixed={false} onPick={() => pick(it, null, null)} onTimes={(at: number, until: number) => timeItem(it, at, until)} />;
       }}</For>
       <For each={links()}>{(l: Link, i: i32) => <Row icon="arrow-right" colour={ACCENT} label={() => `${project().say(l.label, lang())} → ${target(l)}`} chosen={() => selectedLink() === l}
-        at={() => { project(); return l.at; }} until={() => { project(); return l.until; }} onPick={() => pick(null, l, null)} onTimes={(at: number, until: number) => timeLink(l, at, until)} />}</For>
+        at={() => { project(); return l.at; }} until={() => { project(); return l.until; }} length={() => 0} fixed={false} onPick={() => pick(null, l, null)} onTimes={(at: number, until: number) => timeLink(l, at, until)} />}</For>
     </scroll>
   </view>;
 }

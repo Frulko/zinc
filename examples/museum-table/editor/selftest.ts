@@ -211,6 +211,28 @@ check('the sample project is in canonical form', serializeProject(parseProject(s
     && e.project.sequences[0].title.get('fr') === 'Séquence 1' && plays(e.text()));
 }
 
+// ---- narration, sound and film: what a sequence says, what follows it, the files of a medium
+{
+  const d = new Doc(newProject(), '');
+  const a = d.addSequence(0, 0), b = d.addSequence(300, 0);
+  const voice = d.addMedia('audio', 'audio/welcome.{lang}.mp3', 'Accueil', 'https://example.org/voice', 'CC0', '', 'audio/welcome.{lang}.vtt');
+  const film = d.addMedia('video', 'video/wave.mp4', 'La vague', 'https://example.org/wave', 'CC0', '', '', 'video/wave.jpg');
+  d.setMediaText(voice, 'transcript', 'fr', 'Bienvenue.'); d.setMediaText(voice, 'transcript', 'en', 'Welcome.');
+  d.setNarration(a, film);   // a film is not a narration
+  const refusedFilm = d.project.sequences[0].narration === '';
+  d.setNarration(a, voice);
+  const m = d.project.medium(voice), v = d.project.medium(film);
+  check('a sequence is narrated by a sound of the library, in every language, with its subtitles', refusedFilm && d.project.sequences[0].narration === voice && m !== null
+    && m.subtitles === 'audio/welcome.{lang}.vtt' && m.transcript.get('en') === 'Welcome.' && v !== null && v.poster === 'video/wave.jpg' && d.mediaUses(voice) === 1 && plays(d.text()));
+  const before = d.text();
+  const why = d.setMediaFile(film, 'file', '../wave.mp4') + d.setMediaFile(film, 'file', '') + d.setNext(a, 'nowhere');
+  check('a file outside the folder, no file at all and a sequence that is not there are refused, and say why', why.indexOf('file') >= 0 && why.indexOf('next') >= 0 && d.text() === before);
+  check('the next sequence, a film that loops and its subtitles', d.setNext(a, b) === '' && d.setMediaFile(film, 'subtitles', 'video/wave.{lang}.vtt') === '' && (d.setMediaLoop(film, true), true)
+    && d.project.sequences[0].next === b && (d.project.medium(film)?.loop ?? false) && plays(d.text()) && d.undo() === 'Change a film' && d.undo() === 'Change a file of a medium' && d.undo() === 'Change what follows' && d.text() === before);
+  d.removeMedia(voice);
+  check('removing the sound takes the narration away', d.project.sequences[0].narration === '' && plays(d.text()));
+}
+
 // ---- 50 mixed operations from an empty project: undo and redo give back every file, byte for byte
 {
   const d = new Doc(newProject(), '');

@@ -18,7 +18,7 @@ import { Sequence, Media } from '../src/project';
 import { Problem } from './doc';
 import { doc, project, path, status, lang, setLang, selected, select, zoomBy, fit, viewW, viewH, addSequenceInView, duplicateSelected, deleteSelection, undo, redo, save, saveAs,
   newProjectCommand, openCommand, openFile, newFile, waiting, answer, goTo, problemText, nameIt, setNameIt, deleting, setDeleting, deleteSequence, linksTo, advanced, setAdvanced, nextLanguage,
-  startHere, guard, opened, openSequence, closeSequence, selectedItem, selectedLink, shownMedia, pick, picking, answerPick, adding, setAdding, addFile, addWrittenText, newFiles, kindOfFile,
+  startHere, guard, opened, openSequence, closeSequence, selectedItem, selectedLink, shownMedia, pick, picking, answerPick, adding, setAdding, addFile, addWrittenText, newFiles, kindOfFile, perLanguage, measureTick,
   folder, removing, setRemoving, removeMedia, usesOf, pointing, selectedPoint, pickPoint, closePoints, setLogging, pickFrom, pickAsks, settings, openSettings, closeSettings, forgetting, setForgetting,
   removeLanguage, textsIn } from './state';
 import { Ico, Tool, Segmented, Heading, ACCENT, DANGER, WARN, MUTED, decodePictures } from './widgets';
@@ -241,7 +241,8 @@ function Asked(p: { label: string; value: () => string; onInput: (v: string) => 
   </view>;
 }
 /** "photos/great-wave.jpg" gives "Great wave": the title a file is offered with. */
-function titleFromFile(file: string): string {
+function titleFromFile(path: string): string {
+  const file = perLanguage(path).replaceAll('.{lang}', '');   // "welcome.fr.mp3" is the welcome in every language
   const name = file.slice(file.lastIndexOf('/') + 1), words = name.slice(0, name.lastIndexOf('.') > 0 ? name.lastIndexOf('.') : name.length).replaceAll('-', ' ').replaceAll('_', ' ');
   return words.slice(0, 1).toUpperCase() + words.slice(1);
 }
@@ -407,4 +408,4 @@ if (a.length > 0) {
 onCloseRequested(() => { if (doc().dirty) { keepOpen(); guard(() => quit()); } else closePreviewWindow(); });
 let frames = 0;
 // the view knows its size once it was drawn: the first fit waits for that
-render(App, 0x09090b, (dt: number) => { if (++frames === 2) fit(); decodePictures(); previewTick(dt); pointsTick(dt); });
+render(App, 0x09090b, (dt: number) => { if (++frames === 2) fit(); decodePictures(); previewTick(dt); pointsTick(dt); measureTick(); });

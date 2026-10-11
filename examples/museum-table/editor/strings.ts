@@ -406,6 +406,33 @@ export const DELETE_TOUR = S('Delete the guided visit', 'Supprimer la visite gui
 export const DONE_PRESENTATION = S('A guided visit is made. Type its title, then add its steps.', 'Une visite guidée est créée. Tapez son titre, puis ajoutez ses étapes.');
 export const DONE_PRESENTATION_DELETED = S('Deleted the guided visit. Undo brings it back.', 'Visite guidée supprimée. Annuler la rétablit.');
 export const KEY_SETTINGS = S('Project settings', 'Réglages du projet');
+// ---- narration, sound and film
+export const NARRATION = S('Narration', 'Narration');
+export const NARRATION_WHAT = S('A sound of the library, said when the sequence comes on the table, with its subtitles. Click it again to take it away.',
+  'Un son de la bibliothèque, dit quand la séquence arrive sur la table, avec ses sous-titres. Cliquez-le de nouveau pour l’enlever.');
+export const NO_SOUND_YET = S('No sound in the library yet. Put the recording in the folder of the project (one file per language: welcome.fr.mp3, welcome.en.mp3), then add it to the library.',
+  'Pas encore de son dans la bibliothèque. Placez l’enregistrement dans le dossier du projet (un fichier par langue : accueil.fr.mp3, accueil.en.mp3), puis ajoutez-le à la bibliothèque.');
+export const LISTEN = S('Listen, or stop', 'Écouter, ou arrêter');
+export const LISTENING = S('Playing {0} ({1} s).', 'Lecture de {0} ({1} s).');
+export const NO_CLIP = S('There is no file {0} in the folder of the project.', 'Il n’y a pas de fichier {0} dans le dossier du projet.');
+export const THEN = S('Then, by itself', 'Ensuite, d’elle-même');
+export const THEN_NOTHING = S('Nothing: the sequence stays until the visitor moves on.', 'Rien : la séquence reste jusqu’à ce que le visiteur continue.');
+export const THEN_WHAT = S('Shown once the narration, or the duration, is over.', 'Affichée une fois la narration, ou la durée, terminée.');
+export const WHICH_NEXT = S('Which sequence follows by itself?', 'Quelle séquence suit d’elle-même ?');
+export const TRANSCRIPT = S('What is said (shown as subtitles)', 'Ce qui est dit (affiché en sous-titres)');
+export const FILES = S('Files', 'Fichiers');
+export const FILES_WHAT = S('Paths in the folder of the project. {lang} stands for the language: one file per language.',
+  'Chemins dans le dossier du projet. {lang} tient lieu de la langue : un fichier par langue.');
+export const SUBTITLES = S('Timed subtitles (WebVTT)', 'Sous-titres minutés (WebVTT)');
+export const MODEL_TEXTURE = S('Picture wrapped on the model', 'Image appliquée sur le modèle');
+export const POSTER = S('Picture of the card before the film plays', 'Image de la carte avant le film');
+export const LOOP = S('At the end', 'À la fin');
+export const LOOP_ONCE = S('Stop', 'S’arrêter');
+export const LOOP_AGAIN = S('Start again', 'Recommencer');
+export const LASTS = S('Lasts {0} s.', 'Dure {0} s.');
+export const LASTS_UNKNOWN = S('Its length is not known yet.', 'Sa durée n’est pas encore connue.');
+export const FILM_VIEW = S('"Play from here" plays the film in its card.', '« Lire d’ici » joue le film dans sa carte.');
+export const REFUSED = S('Not taken: {0}', 'Refusé : {0}');
 export const KIND_NAMES: i32[] = [S('Photograph', 'Photographie'), S('3D model', 'Modèle 3D'), S('Panorama', 'Panorama'), S('Text', 'Texte'), S('Sound', 'Son'), S('Film', 'Film')];
 export const LANGUAGE_NAMES: string[] = ['fr', 'français', 'en', 'English', 'de', 'Deutsch', 'es', 'español', 'it', 'italiano', 'nl', 'Nederlands', 'pt', 'português'];
 
@@ -423,7 +450,8 @@ const STEPS: string[] = ['New sequence', 'Nouvelle séquence', 'Rename sequence'
   'Rename the project', 'Renommer le projet', 'Add a language', 'Ajouter une langue', 'Remove a language', 'Retirer une langue', 'Change a colour', 'Changer une couleur',
   'Change the theme', 'Changer le thème', 'Change a setting', 'Changer un réglage', 'Change the attract loop', 'Changer la boucle d’appel', 'Change the text sizes', 'Changer les tailles de texte',
   'New presentation', 'Nouvelle visite guidée', 'Rename presentation', 'Renommer la visite guidée', 'Delete presentation', 'Supprimer la visite guidée', 'Add a step', 'Ajouter une étape',
-  'Remove a step', 'Retirer une étape', 'Move a step', 'Déplacer une étape', 'Change the default language', 'Changer la langue par défaut'];
+  'Remove a step', 'Retirer une étape', 'Move a step', 'Déplacer une étape', 'Change the default language', 'Changer la langue par défaut',
+  'Change the narration', 'Changer la narration', 'Change what follows', 'Changer la suite', 'Change a file of a medium', 'Changer un fichier du média', 'Change a film', 'Modifier le film'];
 /** The name of an undo step in the interface language. */
 export function step(label: string): string {
   const at = STEPS.indexOf(label);
