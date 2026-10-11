@@ -767,6 +767,7 @@ void clear(uint32_t color);
 void rect(double x, double y, double w, double h, uint32_t color);
 void rrect(double x, double y, double w, double h, double r, uint32_t color, int32_t alpha);
 void gradient(double x, double y, double w, double h, double r, uint32_t c1, uint32_t c2, bool vertical, int32_t alpha);
+void gradientPaint(double x, double y, double w, double h, double r, const double* paint, uint32_t n, int32_t alpha);   // a paint record of n f64 values (raster.cpp paint_at)
 void border(double x, double y, double w, double h, double r, double width, uint32_t color, int32_t alpha);
 void shadow(double x, double y, double w, double h, double r, double blur, uint32_t color, int32_t alpha);
 void polygon(const Array<double>& pts, uint32_t color, int32_t alpha);

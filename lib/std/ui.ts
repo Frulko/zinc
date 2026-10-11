@@ -3,7 +3,7 @@
 // pointer + focus input (UI-11). Written in Zinc: the same code is compiled to C++ and to the sim.
 // Idle frames cost nothing: when no node, animation or canvas changed, the previous frame is kept (gfx.keep).
 import {
-  onFrame, onResize, clear, rrect, gradient, border, shadow, drawText, drawImage, font, fontAscent, textWidth, image, imageWidth, imageHeight, createImage, destroyImage, commandCount, commandsFree,
+  onFrame, onResize, clear, rrect, gradient, gradientPaint, border, shadow, drawText, drawImage, font, fontAscent, textWidth, image, imageWidth, imageHeight, createImage, destroyImage, commandCount, commandsFree,
   clip, unclip, width, height, pointerX, pointerY, pointerDown, wasPressed, keep, Btn, wheel,
   wheelX, pinch, pointerButtons, modifiers, keyCount, keyKind, keyMods, keyName, buttonEventCount, buttonEventX, buttonEventY,
   buttonEventButton, buttonEventDown, startTextInput, stopTextInput, clipboardText, setClipboardText, setCursor, Cursor, KeyKind,
@@ -14,7 +14,7 @@ import { profiling, profMark, pixelScale } from 'zinc:gfx';   // frame phases (d
 import { openWindow, frame as gfxFrame } from 'zinc:gfx';   // trees in windows of their own (ZN-663)
 import { platform, env } from 'zinc:sys';
 import { PALETTE, SHADES } from './palette';
-import { UI_LAYOUT, UI_PRESET, HEAP_BYTES } from 'zinc:platform';
+import { UI_LAYOUT, UI_PRESET, HEAP_BYTES, TIER } from 'zinc:platform';
 import * as LY from 'zinc:__layout';
 const DEFAULT_TEXT: i32 = UI_PRESET === 'react-native' ? 14 : 16;   // the default text size: React Native's Text is 14 px (ZN-385)
 
@@ -209,6 +209,23 @@ export class InterX {
   trActive: i32 = 0;
 }
 const DEF_INTERX = new InterX();
+/** A background gradient beyond the two-stop `bg-gradient-to-*` (ZN-261): linear at an angle or towards a corner, radial, conic, repeating,
+ *  N stops. Its stops are Tailwind's from- / via- / to- (beside n.gradFrom and n.gradTo) or those of a CSS gradient (bg-[linear-gradient(..)],
+ *  bg-linear-[..], backgroundImage). */
+export class GradX {
+  kind: i32 = 0;            // 0: the direction n.grad, 1 linear, 2 radial, 3 conic
+  angle: number = 180;      // linear: CSS degrees (0 to the top, 90 to the right); conic: its `from` angle
+  corner: i32 = 0;          // linear towards a corner: 1 top right, 2 bottom right, 3 bottom left, 4 top left (the angle follows the box)
+  repeat: boolean = false;
+  circle: boolean = false;  // radial: a circle, else an ellipse
+  extent: i32 = 3;          // radial: 0 closest-side, 1 closest-corner, 2 farthest-side, 3 farthest-corner, 4 the radii rx, ry
+  rx: number = 0; ry: number = 0; rxPct: boolean = false; ryPct: boolean = false;
+  cx: number = 0.5; cy: number = 0.5; cxPx: boolean = false; cyPx: boolean = false;   // radial and conic centre: a fraction of the box, or px
+  fromA: i32 = 255; via: i32 = -2; viaA: i32 = 255; toA: i32 = 255;   // Tailwind's stops: their alphas, the via colour (-2: none)
+  fromP: number = 0; viaP: number = 0.5; toP: number = 1;             // and positions
+  cols: i32[] = NO_IDS; alphas: i32[] = NO_IDS; pos: number[] = NO_LINEW; unit: i32[] = NO_IDS;   // a CSS gradient's stops (unit 0 auto, 1 fraction, 2 px)
+}
+const DEF_GRADX = new GradX();
 /** React Native's transform array, composed in one fixed order around the node's centre: rotate, then scale, then skew (degrees). */
 class TransformX { rot: number = 0; skX: number = 0; skY: number = 0; sx: number = 1; sy: number = 1; }
 /** The part of a transform painted today: an even scale around the centre. Rotate, skew and uneven scales only hit-test until the
@@ -318,6 +335,7 @@ export class UiNode {
   bd: BorderX = DEF_BORDERX;   // cold fields in a record shared by every node that has none of them (copy on write: ownBd())
   sn: SnapX = DEF_SNAPX;   // cold fields in a record shared by every node that has none of them (copy on write: ownSn())
   it: InterX = DEF_INTERX;   // cold fields in a record shared by every node that has none of them (copy on write: ownIt())
+  gx: GradX = DEF_GRADX;     // the gradient record (copy on write: ownGx())
   constructor(tag: i32) { this.tag = tag; }
   // read access under the old names (ui.inspectNode users and tests); the program writes through ownRg() and the like
   get ringW(): i32 { return this.rg.ringW; }
@@ -373,6 +391,7 @@ export class UiNode {
   ownBd(): BorderX { if (this.bd === DEF_BORDERX) this.bd = new BorderX(); return this.bd; }
   ownSn(): SnapX { if (this.sn === DEF_SNAPX) this.sn = new SnapX(); return this.sn; }
   ownIt(): InterX { if (this.it === DEF_INTERX) this.it = new InterX(); return this.it; }
+  ownGx(): GradX { if (this.gx === DEF_GRADX) this.gx = new GradX(); return this.gx; }
 }
 
 /** The paint-only properties a state can change (hover:, focus:, active:, disabled:): one record per state plus the values to go back to. mask bits: 1 opacity, 2 tx, 4 ty, 16 shadow, 32 bg, 64 fg, 128 border colour, 256 radius. */
@@ -1333,6 +1352,213 @@ function alphaOf(s: string): i32 {
   if (s.startsWith('[')) { cssColor(s.slice(1, s.length - 1)); return cssAlpha; }
   return 255;
 }
+// ---- gradients (ZN-261): Tailwind v4's bg-linear-* / bg-radial / bg-conic, from- / via- / to- with positions, and CSS gradient functions
+// (bg-[linear-gradient(..)], bg-linear-[..], backgroundImage). Colours are interpolated in sRGB (CSS's default for these colours; Tailwind
+// v4 asks for oklab).
+const CSS_NAMES: string[] = ['black', 'silver', 'gray', 'grey', 'white', 'maroon', 'red', 'purple', 'fuchsia', 'magenta', 'green', 'lime', 'olive', 'yellow', 'navy', 'blue', 'teal', 'aqua', 'cyan', 'orange'];
+const CSS_RGB: i32[] = [0x000000, 0xc0c0c0, 0x808080, 0x808080, 0xffffff, 0x800000, 0xff0000, 0x800080, 0xff00ff, 0xff00ff, 0x008000, 0x00ff00, 0x808000, 0xffff00, 0x000080, 0x0000ff, 0x008080, 0x00ffff, 0x00ffff, 0xffa500];
+const GRAD_SIDES: string[] = ['t', 'tr', 'r', 'br', 'b', 'bl', 'l', 'tl'];
+/** `s` split on `sep` outside parentheses, trimmed, without empty parts. */
+function splitTop(s: string, sep: string): string[] {
+  const out: string[] = [];
+  let depth: i32 = 0, start: i32 = 0;
+  for (let i: i32 = 0; i <= s.length; i++) {
+    const ch = i < s.length ? s.charAt(i) : sep;
+    if (ch === '(') depth++;
+    else if (ch === ')') depth--;
+    else if (ch === sep && depth === 0) { const p = s.slice(start, i).trim(); if (p.length > 0) out.push(p); start = i + 1; }
+  }
+  return out;
+}
+let stopA: i32 = 255;
+/** The colour of a gradient stop (CSS name, #hex, rgb(), hsl(), var(), transparent, or a Tailwind name like red-500/50); its alpha in stopA. -2: not a colour. */
+function stopColor(w: string): i32 {
+  stopA = 255;
+  if (w === 'transparent') { stopA = 0; return 0; }
+  const k = CSS_NAMES.indexOf(w);
+  if (k >= 0) return CSS_RGB[k];
+  if (w.startsWith('#') || w.indexOf('(') > 0) { const c = cssColor(w); if (c !== -2) stopA = cssAlpha; return c; }
+  const c = colorOf(w);
+  if (c < 0) return -2;
+  stopA = alphaOf(w);
+  return c;
+}
+/** A CSS angle in degrees (deg, grad, rad, turn, a bare 0); NaN when it is not one. */
+function angleOf(s: string): number {
+  if (s.endsWith('deg')) return parseFloat(s.slice(0, s.length - 3));
+  if (s.endsWith('grad')) return parseFloat(s.slice(0, s.length - 4)) * 0.9;
+  if (s.endsWith('rad')) return parseFloat(s.slice(0, s.length - 3)) * 180 / Math.PI;
+  if (s.endsWith('turn')) return parseFloat(s.slice(0, s.length - 4)) * 360;
+  return s === '0' ? 0 : NaN;
+}
+let posVal: number = 0;
+/** A stop or centre position into posVal: 1 a fraction (a percentage, or an angle of a conic), 2 px (a length); -1 when it is not one. */
+function posOf(w: string, conic: boolean): i32 {
+  if (w.endsWith('%')) { posVal = parseFloat(w.slice(0, w.length - 1)) / 100; return posVal === posVal ? 1 : -1; }
+  const a = angleOf(w);
+  if (conic && a === a) { posVal = a / 360; return 1; }
+  if (!(w.endsWith('px') || w.endsWith('rem') || w.endsWith('vh') || w.endsWith('vw') || w === '0')) return -1;
+  posVal = arbitrary(w);
+  return posVal === posVal ? 2 : -1;
+}
+/** `at <x> [<y>]` of a radial or conic gradient (keywords, percentages or lengths) into g's centre; the index after it, -1 when invalid. */
+function gradAt(g: GradX, w: string[], i0: i32): i32 {
+  let i = i0, nv: i32 = 0;
+  const v: number[] = [], px: boolean[] = [], kw: string[] = [];
+  while (i < w.length && nv < 2 && w[i] !== 'in') {
+    const t = w[i];
+    if (t === 'left' || t === 'top') { v.push(0); px.push(false); }
+    else if (t === 'center') { v.push(0.5); px.push(false); }
+    else if (t === 'right' || t === 'bottom') { v.push(1); px.push(false); }
+    else { const u = posOf(t, false); if (u < 0) return -1; v.push(posVal); px.push(u === 2); }
+    kw.push(t); nv++; i++;
+  }
+  if (nv === 0) return -1;
+  if (nv === 1) {   // one value: the other axis is centred
+    if (kw[0] === 'top' || kw[0] === 'bottom') { g.cx = 0.5; g.cxPx = false; g.cy = v[0]; g.cyPx = false; }
+    else { g.cx = v[0]; g.cxPx = px[0]; g.cy = 0.5; g.cyPx = false; }
+    return i;
+  }
+  const swap = kw[0] === 'top' || kw[0] === 'bottom' || kw[1] === 'left' || kw[1] === 'right';   // `top left`
+  g.cx = v[swap ? 1 : 0]; g.cxPx = px[swap ? 1 : 0]; g.cy = v[swap ? 0 : 1]; g.cyPx = px[swap ? 0 : 1];
+  return i;
+}
+/** The first argument of a gradient function: direction or angle (linear), shape, size and position (radial), from angle and position (conic). */
+function gradPrelude(g: GradX, p: string, kind: i32): boolean {
+  const w = splitTop(p, ' ');
+  let i: i32 = 0, lens: i32 = 0;
+  while (i < w.length) {
+    const t = w[i];
+    if (t === 'in') {   // the interpolation space (in oklab, in hsl longer hue): drawn in sRGB
+      i += 2;
+      if (i < w.length && (w[i] === 'shorter' || w[i] === 'longer' || w[i] === 'increasing' || w[i] === 'decreasing')) i += 2;
+      continue;
+    }
+    if (kind === 1 && t === 'to') {
+      let v: i32 = 0, hz: i32 = 0;   // 1 top, 2 bottom; 1 left, 2 right
+      i++;
+      while (i < w.length && w[i] !== 'in') {
+        const s = w[i];
+        if (s === 'top') v = 1; else if (s === 'bottom') v = 2; else if (s === 'left') hz = 1; else if (s === 'right') hz = 2; else return false;
+        i++;
+      }
+      if (v === 0 && hz === 0) return false;
+      g.corner = v === 0 || hz === 0 ? 0 : v === 1 ? (hz === 2 ? 1 : 4) : (hz === 2 ? 2 : 3);
+      g.angle = v === 1 ? 0 : v === 2 ? 180 : hz === 2 ? 90 : 270;
+      continue;
+    }
+    if (t === 'at' && kind !== 1) { i = gradAt(g, w, i + 1); if (i < 0) return false; continue; }
+    if (kind === 3 && t === 'from' && i + 1 < w.length) { const a = angleOf(w[i + 1]); if (a !== a) return false; g.angle = a; i += 2; continue; }
+    if (kind === 1) { const a = angleOf(t); if (a !== a) return false; g.angle = a; g.corner = 0; i++; continue; }
+    if (kind !== 2) return false;
+    if (t === 'circle') g.circle = true;
+    else if (t === 'ellipse') g.circle = false;
+    else if (t === 'closest-side') g.extent = 0;
+    else if (t === 'closest-corner') g.extent = 1;
+    else if (t === 'farthest-side') g.extent = 2;
+    else if (t === 'farthest-corner') g.extent = 3;
+    else {   // explicit radii: a circle's length, an ellipse's two lengths or percentages
+      const u = posOf(t, false);
+      if (u < 0 || lens >= 2) return false;
+      if (lens === 0) { g.rx = posVal; g.rxPct = u === 1; g.ry = posVal; g.ryPct = u === 1; } else { g.ry = posVal; g.ryPct = u === 1; }
+      g.extent = 4; lens++;
+    }
+    i++;
+  }
+  if (lens === 1 && w.indexOf('ellipse') < 0) g.circle = true;   // one length: a circle
+  return true;
+}
+/** The arguments of a gradient function into g: the prelude and the colour stops (a stop with two positions is two stops; colour hints are skipped). */
+function gradArgs(g: GradX, inner: string, kind: i32): boolean {
+  const parts = splitTop(inner, ',');
+  let i: i32 = 0;
+  if (parts.length > 0) { const w0 = splitTop(parts[0], ' '); if (w0.length > 0 && stopColor(w0[0]) === -2) { if (!gradPrelude(g, parts[0], kind)) return false; i = 1; } }
+  const cols: i32[] = [], al: i32[] = [], pos: number[] = [], unit: i32[] = [];
+  for (; i < parts.length; i++) {
+    const w = splitTop(parts[i], ' ');
+    const c = stopColor(w[0]), a = stopA;
+    if (c === -2) { if (w.length === 1 && posOf(w[0], kind === 3) >= 0) continue; return false; }
+    if (w.length === 1) { cols.push(c); al.push(a); pos.push(0); unit.push(0); continue; }
+    for (let k: i32 = 1; k < w.length && k <= 2; k++) {
+      const u = posOf(w[k], kind === 3);
+      if (u < 0) return false;
+      cols.push(c); al.push(a); pos.push(posVal); unit.push(u);
+    }
+  }
+  if (cols.length > 0) { g.cols = cols; g.alphas = al; g.pos = pos; g.unit = unit; }
+  return true;
+}
+/** n's gradient record back to the default shape of `kind` (direction, size, centre) without the CSS stops; Tailwind's stops stay. */
+function gradShape(n: UiNode, kind: i32): GradX {
+  const g = n.ownGx();
+  g.kind = kind; g.angle = kind === 3 ? 0 : 180; g.corner = 0; g.repeat = false; g.circle = false; g.extent = 3;
+  g.rx = 0; g.ry = 0; g.rxPct = false; g.ryPct = false; g.cx = 0.5; g.cy = 0.5; g.cxPx = false; g.cyPx = false;
+  g.cols = NO_IDS; g.alphas = NO_IDS; g.pos = NO_LINEW; g.unit = NO_IDS;
+  n.grad = 0;
+  return g;
+}
+/** A CSS gradient function, repeating- forms included; false when `v` is not one or has no colour stop. */
+function cssGradient(n: UiNode, v: string): boolean {
+  let s = v.trim(), rep = false;
+  if (s.startsWith('repeating-')) { rep = true; s = s.slice(10); }
+  const kind: i32 = s.startsWith('linear-gradient(') ? 1 : s.startsWith('radial-gradient(') ? 2 : s.startsWith('conic-gradient(') ? 3 : 0;
+  if (kind === 0 || !s.endsWith(')')) return false;
+  const g = gradShape(n, kind);
+  g.repeat = rep;
+  return gradArgs(g, s.slice(s.indexOf('(') + 1, s.length - 1), kind) && g.cols.length > 0;
+}
+function digits(s: string): boolean {
+  if (s.length === 0) return false;
+  for (let i: i32 = 0; i < s.length; i++) { const c = s.charAt(i); if ((c < '0' || c > '9') && c !== '.') return false; }
+  return true;
+}
+/** bg-linear-to-*, bg-gradient-to-*, bg-linear-<angle>, bg-radial, bg-conic-<angle>, their [arbitrary] forms, bg-[*-gradient(..)], bg-none:
+ *  1 applied, -1 not valid, 0 not a gradient token. */
+function gradToken(n: UiNode, tok: string): i32 {
+  let t = tok;
+  const neg = t.startsWith('-');
+  if (neg) t = t.slice(1);
+  if (t.indexOf('[') < 0 && t.lastIndexOf('/') > 0) t = t.slice(0, t.lastIndexOf('/'));   // bg-linear-to-r/oklch: the interpolation space (drawn in sRGB)
+  if (t === 'bg-none') { if (neg) return -1; n.grad = 0; n.gx = DEF_GRADX; return 1; }
+  if (t.startsWith('bg-gradient-to-') || t.startsWith('bg-linear-to-')) {
+    const k = GRAD_SIDES.indexOf(t.slice(t.startsWith('bg-gradient-') ? 15 : 13));
+    if (k < 0 || neg) return -1;
+    if (k % 2 === 1) { gradShape(n, 1).corner = (k + 1) / 2; return 1; }
+    n.grad = k === 4 ? 1 : k === 2 ? 2 : k === 0 ? 3 : 4;   // the prototype's directions: 1 to-b, 2 to-r, 3 to-t, 4 to-l
+    if (n.gx !== DEF_GRADX) n.gx.kind = 0;
+    return 1;
+  }
+  if (t.startsWith('bg-[') && t.endsWith(']') && t.indexOf('gradient(') > 0) return !neg && cssGradient(n, t.slice(4, t.length - 1).replaceAll('_', ' ')) ? 1 : -1;
+  const kind: i32 = t.startsWith('bg-linear-') ? 1 : t.startsWith('bg-radial') ? 2 : t.startsWith('bg-conic') ? 3 : 0;
+  if (kind === 0) return 0;
+  let rest = t.slice(kind === 1 ? 10 : kind === 2 ? 9 : 8);
+  if (kind !== 1) {
+    if (rest === '') { if (neg) return -1; gradShape(n, kind); return 1; }
+    if (!rest.startsWith('-')) return 0;
+    rest = rest.slice(1);
+  }
+  if (rest.startsWith('[') && rest.endsWith(']')) return !neg && gradArgs(gradShape(n, kind), rest.slice(1, rest.length - 1).replaceAll('_', ' '), kind) ? 1 : -1;
+  if (kind === 2 || !digits(rest)) return -1;
+  gradShape(n, kind).angle = (neg ? -1 : 1) * parseFloat(rest);
+  return 1;
+}
+/** from- / via- / to-: a colour (with /alpha) or a position (from-10%); via- adds the middle stop. */
+function stopToken(n: UiNode, tok: string): boolean {
+  const k: i32 = tok.startsWith('from-') ? 0 : tok.startsWith('via-') ? 1 : 2;
+  const v = tok.slice(k === 0 ? 5 : k === 1 ? 4 : 3);
+  if (v.endsWith('%') && digits(v.slice(0, v.length - 1))) {
+    const p = parseFloat(v.slice(0, v.length - 1)) / 100, g = n.ownGx();
+    if (k === 0) g.fromP = p; else if (k === 1) g.viaP = p; else g.toP = p;
+    return true;
+  }
+  const c = colorOf(v);
+  if (c === -2) return false;
+  const a: i32 = c === -1 ? 0 : alphaOf(v);
+  if (k === 1) { const g = n.ownGx(); g.via = c; g.viaA = a; return true; }
+  if (k === 0) n.gradFrom = c; else n.gradTo = c;
+  if (a !== 255 || n.gx !== DEF_GRADX) { const g = n.ownGx(); if (k === 0) g.fromA = a; else g.toA = a; }
+  return true;
+}
 const MAX_NAMES: string[] = ['xs', 'sm', 'md', 'lg', 'xl', '2xl', '3xl', '4xl', '5xl', '6xl', '7xl'];
 const MAX_PX: number[] = [320, 384, 448, 512, 576, 672, 768, 896, 1024, 1152, 1280];
 const TEXT_PX: string[] = ['xs', 'sm', 'base', 'lg', 'xl', '2xl', '3xl', '4xl', '5xl', '6xl'];
@@ -1536,7 +1762,7 @@ function stateToken(n: UiNode, variant: string, tok: string): boolean {
   else if (tok.startsWith('translate-x') || tok.startsWith('-translate-x')) m = 2;
   else if (tok.startsWith('translate-y') || tok.startsWith('-translate-y')) m = 4;
   else if (tok.startsWith('shadow')) m = 16;
-  else if (tok.startsWith('bg-') && t.grad === 0) m = 32;
+  else if (tok.startsWith('bg-') && t.grad === 0 && t.gx === DEF_GRADX) m = 32;
   else if (tok.startsWith('text-') && t.size === d.size && t.leading === d.leading && t.fg !== d.fg) m = 64;
   else if (tok.startsWith('border-') && t.borderW === d.borderW && t.borderColor !== d.borderColor) m = 128;
   else if (tok.startsWith('rounded') && t.bd.crTL < 0 && t.bd.crTR < 0 && t.bd.crBR < 0 && t.bd.crBL < 0) m = 256;
@@ -1906,10 +2132,8 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
     n.justify = k === 'start' ? 0 : k === 'center' ? 1 : k === 'end' ? 2 : k === 'between' ? 3 : k === 'around' ? 4 : 5;
     return true;
   }
-  if (tok.startsWith('bg-gradient-to-')) { const k = tok.slice(15); n.grad = k === 'b' ? 1 : k === 'r' ? 2 : k === 't' ? 3 : 4; return true; }
-  if (tok.startsWith('from-')) { n.gradFrom = colorOf(tok.slice(5)); return n.gradFrom !== -2; }
-  if (tok.startsWith('via-')) return true;
-  if (tok.startsWith('to-')) { n.gradTo = colorOf(tok.slice(3)); return n.gradTo !== -2; }
+  if (tok.startsWith('bg-') || tok.startsWith('-bg-')) { const gt = gradToken(n, tok); if (gt !== 0) return gt > 0; }
+  if (tok.startsWith('from-') || tok.startsWith('via-') || tok.startsWith('to-')) return stopToken(n, tok);
   if (tok.startsWith('bg-')) { const c = colorOf(tok.slice(3)); if (c === -2) return false; n.bg = c; n.bgAlpha = alphaOf(tok.slice(3)); return true; }
   if (tok === 'border-solid') { n.ownBd().borderStyle = 0; return true; }
   if (tok === 'border-dashed') { n.ownBd().borderStyle = 1; return true; }
@@ -2044,7 +2268,7 @@ function resetStyle(n: UiNode): void {
   n.tx = 0; n.ty = 0; n.k = 1; n.tf = null; n.z = 0; n.invisible = false; n.noPointer = false; n.rel = false; n.sticky = false; n.stat = false; n.contentBox = false; n.borderColor = fresh.borderColor; n.borderAlpha = 255; n.fgAlpha = 255;
   n.opacity = 1; n.fg = fresh.fg; n.size = DEFAULT_TEXT; n.bold = false; n.weight = 0; n.italic = false; n.transform = 0; n.tsX = 0; n.tsY = 0; n.tsColor = -1; n.tsAlpha = 0; n.selBg = -1; n.selectable = false; n.group = false; n.peer = false; n.ws = 0; n.brk = 0; n.clamp = 0; n.ellipsis = false; n.balance = false; n.deco = 0; n.wordSp = 0; n.vshift = 0; n.family = 'sans'; n.tracking = 0; n.letterSpace = UNSET; n.talign = 0; n.leading = 0;
   n.cursor = -1;
-  n.rg = DEF_RINGX; n.bd = DEF_BORDERX; n.sn = DEF_SNAPX;   // the cold records: back to the shared defaults
+  n.rg = DEF_RINGX; n.bd = DEF_BORDERX; n.sn = DEF_SNAPX; n.gx = DEF_GRADX;   // the cold records: back to the shared defaults
   if (n.it !== DEF_INTERX) { const o = n.it; o.focusBg = -1; o.activeBg = -1; o.focusFg = -1; o.activeFg = -1; o.transMs = 0; o.hoverBg = -1; o.hoverFg = -1; o.hoverBorder = -1; o.focusBorder = -1; o.withinBg = -1; o.withinFg = -1; o.withinBorder = -1; o.transMask = -1; o.transDelay = 0; o.transEase = 7; }   // curBg, fromBg, transStart and the tr* fields stay: a transition goes on across a class change
   if (n.ed !== null) { n.borderW = fresh.borderW; n.borderColor = fresh.borderColor; n.radius = fresh.radius; n.size = fresh.size; n.overflow = true; }
 }
@@ -2088,6 +2312,7 @@ function rebuildStyle(n: UiNode): void {
 }
 function sheetProperty(key: string): string {
   if (key.startsWith('@font-')) return 'fontFamily';
+  if (key.startsWith('@bg-[') || key === '@bg-none') return 'backgroundImage';
   if (key.startsWith('@') && key.indexOf(':') > 0) return key.slice(1, key.indexOf(':'));
   if (key.endsWith('Percent')) return key.slice(0, key.length - 7);   // a length in px and in % are the same CSS property
   return key;
@@ -3010,6 +3235,131 @@ function effectiveBg(h: i32, n: UiNode): i32 {
   animating = true;
   return bgAt(o, t);
 }
+// ---- painting a gradient (ZN-261)
+const RT: number[] = [], RC: i32[] = [], RA: i32[] = [];   // the stops as written: offset (NaN: auto), colour, alpha
+const GT: number[] = [], GC: i32[] = [], GA: i32[] = [];   // the stops painted: offsets fixed up, transparent stops coloured
+const GP: number[] = [];                                    // the paint record (gfx gradientPaint)
+let gradWarned: i32 = 0;
+function gradWarn(bit: i32, msg: string): void {
+  if ((gradWarned & bit) !== 0) return;
+  gradWarned = gradWarned | bit;
+  console.error(`zinc:ui: ${msg} on this profile (tier T${TIER})`);
+}
+function stopRgb(h: i32, c: i32): i32 { return c === -3 ? textFg(h) : c < 0 ? 0 : c; }
+/** Whether a stop of n's gradient is not opaque: the background colour shows through it (CSS paints it under the gradient). */
+function gradOpen(n: UiNode): boolean {
+  const g = n.gx;
+  if (g.cols.length > 0) { for (let i = 0; i < g.alphas.length; i++) if (g.alphas[i] < 255) return true; return false; }
+  return n.gradFrom === -1 || g.fromA < 255 || n.gradTo === -1 || g.toA < 255 || (g.via !== -2 && (g.via === -1 || g.viaA < 255));
+}
+/** n's stops into GT, GC, GA: positions along a gradient line of `len` px (CSS colour stop fix-up: auto ends at 0 and 1, never backwards,
+ *  auto runs evenly spaced); a transparent stop takes its neighbours' colour, as premultiplied interpolation shows it. */
+function gradStops(h: i32, n: UiNode, len: number, kk: number): void {
+  const g = n.gx;
+  RT.length = 0; RC.length = 0; RA.length = 0;
+  if (g.cols.length > 0) {
+    for (let i = 0; i < g.cols.length; i++) { RT.push(g.unit[i] === 0 ? NaN : g.unit[i] === 2 ? (len > 0 ? g.pos[i] * kk / len : 0) : g.pos[i]); RC.push(stopRgb(h, g.cols[i])); RA.push(g.alphas[i]); }
+  } else {
+    RT.push(g.fromP); RC.push(stopRgb(h, n.gradFrom)); RA.push(n.gradFrom === -1 ? 0 : g.fromA);
+    if (g.via !== -2) { RT.push(g.viaP); RC.push(stopRgb(h, g.via)); RA.push(g.via === -1 ? 0 : g.viaA); }
+    RT.push(g.toP); RC.push(stopRgb(h, n.gradTo)); RA.push(n.gradTo === -1 ? 0 : g.toA);
+  }
+  const m = RT.length;
+  if (RT[0] !== RT[0]) RT[0] = 0;
+  if (RT[m - 1] !== RT[m - 1]) RT[m - 1] = 1;
+  let hi = RT[0];
+  for (let i = 1; i < m; i++) if (RT[i] === RT[i]) { if (RT[i] < hi) RT[i] = hi; hi = RT[i]; }
+  for (let i = 1; i < m; i++) if (RT[i] !== RT[i]) {
+    let j = i;
+    while (RT[j] !== RT[j]) j++;
+    for (let k = i; k < j; k++) RT[k] = RT[i - 1] + (RT[j] - RT[i - 1]) * (k - i + 1) / (j - i + 1);
+    i = j;
+  }
+  GT.length = 0; GC.length = 0; GA.length = 0;
+  for (let i = 0; i < m; i++) {
+    let c = RC[i];
+    if (RA[i] === 0) {
+      const l: i32 = i > 0 && RA[i - 1] > 0 ? RC[i - 1] : -1, r: i32 = i + 1 < m && RA[i + 1] > 0 ? RC[i + 1] : -1;
+      if (l >= 0 && r >= 0 && l !== r) { GT.push(RT[i]); GC.push(l); GA.push(0); c = r; }   // between two colours: one stop for each side
+      else if (l >= 0 || r >= 0) c = l >= 0 ? l : r;
+    }
+    GT.push(RT[i]); GC.push(c); GA.push(RA[i]);
+  }
+}
+/** Two-stop gradients along an axis, one per stop interval, and solid ends: the gradient with no new raster work (every profile). The
+ *  seams inside the box are on whole pixels so that no row is blended twice; rev: the stops run from the bottom or the right. */
+function chainGradient(x: number, y: number, w: number, hh: number, r: number, vert: boolean, rev: boolean, a: i32): void {
+  const m = GT.length;
+  if (m === 2 && GT[0] <= 0 && GT[1] >= 1) { gradient(x, y, w, hh, r, rev ? GC[1] : GC[0], rev ? GC[0] : GC[1], vert, a); return; }
+  const base = vert ? y : x, ext = vert ? hh : w;
+  for (let i = -1; i < m; i++) {
+    const t0 = i < 0 ? 0 : GT[i], t1 = i + 1 < m ? GT[i + 1] : 1;
+    if (t1 <= t0) continue;
+    const p0 = t0 <= 0 ? (rev ? base + ext : base) : Math.round(rev ? base + ext - t0 * ext : base + t0 * ext);
+    const p1 = t1 >= 1 ? (rev ? base : base + ext) : Math.round(rev ? base + ext - t1 * ext : base + t1 * ext);
+    const lo = rev ? p1 : p0, hi = rev ? p0 : p1;
+    if (hi <= lo) continue;
+    const c0 = GC[i < 0 ? 0 : i], c1 = GC[i + 1 < m ? i + 1 : m - 1], cl = rev ? c1 : c0, ch = rev ? c0 : c1;
+    if (cl === ch) { if (vert) rrect(x, lo, w, hi - lo, r, cl, a); else rrect(lo, y, hi - lo, hh, r, cl, a); }
+    else if (vert) gradient(x, lo, w, hi - lo, r, cl, ch, true, a);
+    else gradient(lo, y, hi - lo, hh, r, cl, ch, false, a);
+  }
+}
+/** Paints n's gradient over its box (ZN-261). Along an axis with one alpha and stops inside the box: chained two-stop rects (exact, every
+ *  profile); otherwise one gradientPaint command. Profiles below tier T2 (targets/capabilities.json) keep two stops along an axis and below
+ *  T3 draw no conic: the rest collapses to its first and last colours (a conic to the average of its stops), with one log line. */
+function paintGradient(h: i32, n: UiNode, x: number, y: number, w: number, hh: number, r: number, kk: number, ai: i32): void {
+  const g = n.gx, kind: i32 = g.kind === 0 ? 1 : g.kind, rep: i32 = g.repeat ? 8 : 0;
+  let ang: number = g.kind === 0 ? (n.grad === 1 ? 180 : n.grad === 2 ? 90 : n.grad === 3 ? 0 : 270) : g.angle;
+  if (g.corner > 0) {   // towards a corner: the line between the two other corners is the middle of the gradient
+    const c = Math.atan2(hh, w) * 180 / Math.PI;
+    ang = g.corner === 1 ? c : g.corner === 2 ? 180 - c : g.corner === 3 ? 180 + c : 360 - c;
+  }
+  ang = ang - Math.floor(ang / 360) * 360;
+  const th = ang * Math.PI / 180, dx = Math.sin(th), dy = -Math.cos(th);
+  const cx = x + (g.cxPx ? g.cx * kk : g.cx * w), cy = y + (g.cyPx ? g.cy * kk : g.cy * hh);
+  let rx: number = 0, ry: number = 0, len: number = 0;
+  if (kind === 1) len = Math.abs(w * dx) + Math.abs(hh * dy);
+  else if (kind === 2) {   // the ending shape (CSS radial-gradient sizes)
+    const near = g.extent === 0 || g.extent === 1;
+    const sx = near ? Math.min(cx - x, x + w - cx) : Math.max(cx - x, x + w - cx), sy = near ? Math.min(cy - y, y + hh - cy) : Math.max(cy - y, y + hh - cy);
+    if (g.extent === 4) { rx = g.rxPct ? g.rx * w : g.rx * kk; ry = g.circle ? rx : g.ryPct ? g.ry * hh : g.ry * kk; }
+    else if (g.circle) { rx = g.extent === 0 ? Math.min(sx, sy) : g.extent === 2 ? Math.max(sx, sy) : Math.sqrt(sx * sx + sy * sy); ry = rx; }
+    else { const s = g.extent === 1 || g.extent === 3 ? 1.4142135623730951 : 1; rx = sx * s; ry = sy * s; }   // a corner: the side's ellipse, scaled to pass through it
+    len = rx;
+  }
+  gradStops(h, n, len, kk);
+  const m = GT.length;
+  let same = true, visible = false, sr: i32 = 0, sg: i32 = 0, sb: i32 = 0, sa: i32 = 0;
+  for (let i = 0; i < m; i++) {
+    if (GA[i] !== GA[0]) same = false;
+    if (GA[i] > 0) visible = true;
+    sr += (GC[i] >> 16) & 255; sg += (GC[i] >> 8) & 255; sb += GC[i] & 255; sa += GA[i];
+  }
+  if (!visible) return;
+  if (kind === 3 && TIER < 3) {
+    rrect(x, y, w, hh, r, (Math.round(sr / m) << 16) | (Math.round(sg / m) << 8) | Math.round(sb / m), Math.round(ai * (sa / m) / 255));
+    gradWarn(1, 'a conic gradient is drawn as the average of its stops');
+    return;
+  }
+  const vert = Math.abs(dy) >= Math.abs(dx), rev = vert ? dy < 0 : dx < 0;
+  const axisOk = kind === 1 && rep === 0 && ang % 90 === 0 && same && GT[0] >= 0 && GT[m - 1] <= 1;
+  const oneRect = m === 2 && GT[0] <= 0 && GT[1] >= 1;
+  if (TIER <= 1 && !(axisOk && oneRect)) {   // two stops along an axis: the first and the last colour, along the nearest axis
+    gradient(x, y, w, hh, r, rev ? GC[m - 1] : GC[0], rev ? GC[0] : GC[m - 1], vert, Math.round(ai * (GA[0] + GA[m - 1]) / 510));
+    gradWarn(2, 'a gradient beyond two stops along an axis is drawn from its first to its last colour');
+    return;
+  }
+  // ponytail: per-corner radii (rounded-tl-*) are not followed by gradients: the box takes its one radius r
+  if (axisOk && (r <= 0 || oneRect)) { chainGradient(x, y, w, hh, r, vert, rev, Math.round(ai * GA[0] / 255)); return; }
+  GP.length = 0;
+  if (kind === 1) { const l2 = len / 2, mx = x + w / 2, my = y + hh / 2; GP.push(1 + rep); GP.push(mx - dx * l2); GP.push(my - dy * l2); GP.push(0); GP.push(mx + dx * l2); GP.push(my + dy * l2); GP.push(0); }
+  else if (kind === 2) { GP.push(3 + rep); GP.push(cx); GP.push(cy); GP.push(0); GP.push(rx); GP.push(ry); GP.push(0); }
+  else { GP.push(4 + rep); GP.push(cx); GP.push(cy); GP.push(th); GP.push(0); GP.push(0); GP.push(0); }
+  GP.push(m);
+  for (let i = 0; i < m; i++) { GP.push(GT[i]); GP.push(GC[i]); GP.push(GA[i]); }
+  gradientPaint(x, y, w, hh, r, GP, ai);
+}
 const SHADOW_Y: number[] = [0, 1, 1, 4, 10, 20], SHADOW_BLUR: number[] = [0, 2, 3, 6, 15, 25];
 const SHADOW_A: i32[] = [0, 20, 30, 40, 45, 50];
 /** Font of a text node drawn at scale k (zoomed views): the nearest baked size. */
@@ -3034,12 +3384,14 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
     const r = Math.min(n.radius * kk, Math.min(w, hh) / 2);
     if (n.shadowLevel > 0) shadow(x, y + SHADOW_Y[n.shadowLevel] * kk, w, hh, r, SHADOW_BLUR[n.shadowLevel] * kk, 0x000000, Math.round(SHADOW_A[n.shadowLevel] * a));
     if (n.shOpacity > 0) shadow(x + n.shX * kk, y + n.shY * kk, w, hh, r, n.shBlur * kk, n.shColor as u32, Math.round(Math.min(1, n.shOpacity) * 255 * a));
-    if (n.grad > 0 && n.gradFrom >= 0 && n.gradTo >= 0) {
+    const gr = n.grad > 0 || n.gx.kind > 0;
+    if (gr && n.gx === DEF_GRADX && n.gradFrom >= 0 && n.gradTo >= 0) {   // the prototype's two-stop gradient: its one command, as before
       const flip = n.grad === 3 || n.grad === 4;
       gradient(x, y, w, hh, r, flip ? n.gradTo : n.gradFrom, flip ? n.gradFrom : n.gradTo, n.grad === 1 || n.grad === 3, ai);
     } else {
-      const bg = effectiveBg(h, n);
+      const bg = !gr || gradOpen(n) ? effectiveBg(h, n) : -1;   // under a gradient only where it lets it through
       if (bg >= 0) { if (n.bd.crTL >= 0 || n.bd.crTR >= 0 || n.bd.crBR >= 0 || n.bd.crBL >= 0) polygon(roundedPath(x, y, w, hh, cornerR(n.bd.crTL, r, kk, w, hh), cornerR(n.bd.crTR, r, kk, w, hh), cornerR(n.bd.crBR, r, kk, w, hh), cornerR(n.bd.crBL, r, kk, w, hh)), bg, Math.round(n.bgAlpha * a)); else rrect(x, y, w, hh, r, bg, Math.round(n.bgAlpha * a)); }
+      if (gr) paintGradient(h, n, x, y, w, hh, r, kk, ai);
     }
     const focused = h === focus;
     let bc = focused && n.it.focusBorder >= 0 ? n.it.focusBorder : focused && n.ed !== null ? 0x3b82f6 : n.it.withinBorder >= 0 && focus >= 0 && isAncestor(h, focus) ? n.it.withinBorder : n.hovered && n.it.hoverBorder >= 0 ? n.it.hoverBorder : n.borderColor;

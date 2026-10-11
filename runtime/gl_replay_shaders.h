@@ -25,7 +25,7 @@ static const char* FS =
   "  vec3 col = v_c1.rgb; float cov = 1.0, a = v_c1.a;\n"
   "  if (mode < 0.5) {\n"                                                        // FILL: rounded box, gradients
   "    cov = cover(p, c, h, r);\n"
-  "    if (grad > 0.5) {\n"
+  "    if (grad > 0.5 && grad < 4.5) {\n"
   "      float t;\n"
   "      if (grad < 1.5) t = (p.y - (c.y - h.y)) / max(2.0 * h.y, 1e-6);\n"
   "      else if (grad < 2.5) t = (p.x - (c.x - h.x)) / max(2.0 * h.x, 1e-6);\n"
@@ -63,10 +63,13 @@ static const char* FS =
   "    if (u_edge.x > 0.5 && ((c.x - v_pos.z) * (p.y - v_pos.w) - (c.y - v_pos.w) * (p.x - v_pos.z) > 0.0) != (u_edge.y > 0.5)) discard;\n"
   "    cov = clamp(0.5 + (u_edge.z > 0.5 ? d : -d), 0.0, 1.0);\n"
   "  }\n"
-  // the paint of a POLY's cover and fringes: raster.cpp paint_at (t from the paint geometry, the stop interval, lerp_color's weight out of 256)
-  "  if (u_g0.w > 0.5 && (mode > 8.5 || (mode > 4.5 && mode < 5.5))) {\n"
-  "    vec2 d = u_g1.xy - u_g0.xy, q = p - u_g0.xy; float t = 0.0, A0 = floor(a * 255.0 + 0.5);\n"
-  "    if (u_g0.w < 1.5) { float l = dot(d, d); t = l > 0.0 ? dot(q, d) / l : 0.0; }\n"
+  // the paint of a POLY's cover and fringes and of a RECT with grad 5 (ZN-261): raster.cpp paint_at (t from the paint geometry, the stop
+  // interval, lerp_color's weight out of 256); kind 1 linear, 2 two circles, 3 ellipse, 4 conic, + 8 repeating
+  "  if (u_g0.w > 0.5 && (mode > 8.5 || (mode > 4.5 && mode < 5.5) || (mode < 0.5 && grad > 4.5))) {\n"
+  "    vec2 d = u_g1.xy - u_g0.xy, q = p - u_g0.xy; float t = 0.0, A0 = floor(a * 255.0 + 0.5), kind = mod(u_g0.w, 8.0);\n"
+  "    if (kind < 1.5) { float l = dot(d, d); t = l > 0.0 ? dot(q, d) / l : 0.0; }\n"
+  "    else if (kind > 3.5) { t = (atan(q.x, -q.y) - u_g0.z) * 0.15915494; t -= floor(t); }\n"
+  "    else if (kind > 2.5) { vec2 e = vec2(u_g1.x > 0.0 ? q.x / u_g1.x : 1e9, u_g1.y > 0.0 ? q.y / u_g1.y : 1e9); t = length(e); }\n"
   "    else {\n"
   "      float dr = u_g1.z - u_g0.z, qa = dot(d, d) - dr * dr, qb = dot(q, d) + u_g0.z * dr, qc = dot(q, q) - u_g0.z * u_g0.z;\n"
   "      if (abs(qa) < 1e-4) t = qb != 0.0 ? qc / (2.0 * qb) : 0.0;\n"
@@ -78,6 +81,8 @@ static const char* FS =
   "      }\n"
   "    }\n"
   "    int n = int(u_g1.w), i = 0;\n"
+  "    if (u_g0.w > 7.5) { float hi = u_go[0]; for (int k = 1; k < 8; k++) if (k == n - 1) hi = u_go[k];\n"   // repeating: t folded into [first, last)
+  "      float per = hi - u_go[0]; if (per > 0.0) { float f = (t - u_go[0]) / per; t = u_go[0] + (f - floor(f)) * per; } }\n"
   "    for (int k = 0; k < 8; k++) if (k < n && t > u_go[k]) i++;\n"   // the offsets are sorted (canvas2d addColorStop)
   "    vec4 L = u_gc[0], R = u_gc[0]; float lo = 0.0, ro = 0.0;\n"
   "    for (int k = 0; k < 8; k++) { if (k == i - 1) { L = u_gc[k]; lo = u_go[k]; } if (k == i) { R = u_gc[k]; ro = u_go[k]; } }\n"

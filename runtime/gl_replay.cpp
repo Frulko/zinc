@@ -487,6 +487,18 @@ static PolyBox pboxes[64]; static int npoly;
 static bool pevenodd;
 static const float* ppaint;   // the gradient paint record of a batch of one
 static float* boxv; static size_t boxv_cap;
+// raster.cpp's record [kind, x0, y0, r0, x1, y1, r1, n, (offset, 0xRRGGBB, alpha) * n] as the shader's uniforms (u_g0.w = 0: no paint)
+static void set_paint(const float* g) {
+  const int n = (int)g[7] < 8 ? (int)g[7] : 8;   // ponytail: a box turned by a matrix keeps its first 8 stops (unturned, more take a CPU tile)
+  float gc[32] = {}, go[8] = {};
+  for (int i = 0; i < n; i++) {
+    const uint32_t col = (uint32_t)g[9 + i * 3];
+    go[i] = g[8 + i * 3];
+    gc[i * 4] = (float)(col >> 16 & 255); gc[i * 4 + 1] = (float)(col >> 8 & 255); gc[i * 4 + 2] = (float)(col & 255); gc[i * 4 + 3] = (float)(uint32_t)g[10 + i * 3];
+  }
+  glUniform4f(u_g0, g[1], g[2], g[3], g[0]); glUniform4f(u_g1, g[4], g[5], g[6], (float)n);
+  glUniform4fv(u_gc, 8, gc); glUniform1fv(u_go, 8, go);
+}
 static void edge_quads(const float* pts, uint32_t contours, uint32_t c1, uint32_t alpha) {
   uint32_t at = 0;
   for (uint32_t k = 0; k < contours; k++) {
@@ -605,18 +617,7 @@ static void poly_flush() {
     const float q[12] = {(float)b.x0, (float)b.y0, (float)b.x1, (float)b.y0, (float)b.x1, (float)b.y1, (float)b.x0, (float)b.y0, (float)b.x1, (float)b.y1, (float)b.x0, (float)b.y1};
     memcpy(boxv + i * 12, q, sizeof q);
   }
-  if (ppaint) {   // raster.cpp's record: [kind, x0, y0, r0, x1, y1, r1, n, (offset, 0xRRGGBB, alpha) * n]
-    const float* g = ppaint;
-    const int n = (int)g[7];
-    float gc[32] = {}, go[8] = {};
-    for (int i = 0; i < n; i++) {
-      const uint32_t col = (uint32_t)g[9 + i * 3];
-      go[i] = g[8 + i * 3];
-      gc[i * 4] = (float)(col >> 16 & 255); gc[i * 4 + 1] = (float)(col >> 8 & 255); gc[i * 4 + 2] = (float)(col & 255); gc[i * 4 + 3] = (float)(uint32_t)g[10 + i * 3];
-    }
-    glUniform4f(u_g0, g[1], g[2], g[3], g[0]); glUniform4f(u_g1, g[4], g[5], g[6], (float)n);
-    glUniform4fv(u_gc, 8, gc); glUniform1fv(u_go, 8, go);
-  }
+  if (ppaint) set_paint(ppaint);
   glEnable(GL_STENCIL_TEST);
   glStencilFunc(GL_ALWAYS, 0, 0xFF);
   if (pevenodd) { glStencilMask(0x01); glStencilOp(GL_KEEP, GL_KEEP, GL_INVERT); }
@@ -710,24 +711,30 @@ static bool draw_convex(const Cmd& c, const float* pts) {
   flush();
   return true;
 }
+// A RECT with a paint record of more stops than the shader takes (grad 5) is drawn the same way: its box is the shape.
 static void draw_poly(const Cmd& c, const float* pts) {
   if (!(c.w == c.w && c.h == c.h && c.x == c.x && c.y == c.y)) return;
   Rect b = bounds(c.x, c.y, c.w, c.h, Rect{0, 0, W, H});
   if (b.x0 >= b.x1 || b.y0 >= b.y1) return;
   const int32_t bw = b.x1 - b.x0, bh = b.y1 - b.y0;
+  const bool rect = c.kind == RECT;
+  const uint32_t contours = rect ? 0 : c.n;
   size_t nf = 0;   // floats of the contours
-  for (uint32_t k = 0; k < c.n; k++) { float cnt = pts[nf]; if (!(cnt >= 0 && cnt < 1e7f)) return; nf += 1 + (size_t)cnt * 2; }
-  const bool paint = c.grad == 4;   // a canvas gradient paint record follows the contours: [kind, x0, y0, r0, x1, y1, r1, n, (offset, colour, alpha) * n]
+  for (uint32_t k = 0; k < contours; k++) { float cnt = pts[nf]; if (!(cnt >= 0 && cnt < 1e7f)) return; nf += 1 + (size_t)cnt * 2; }
+  const bool paint = c.grad == 4 || rect;   // a gradient paint record follows the contours: [kind, x0, y0, r0, x1, y1, r1, n, (offset, colour, alpha) * n]
   size_t pf = 0;
   if (paint) { float n = pts[nf + 7]; if (!(n >= 0 && n < 4096)) return; pf = 8 + (size_t)n * 3; }
   if (!grow(ptmp, ptmp_cap, nf + pf)) return;
   size_t at = 0;
-  for (uint32_t k = 0; k < c.n; k++) {   // the contours moved so that the tile starts at the origin: the key does not depend on where the shape is
+  for (uint32_t k = 0; k < contours; k++) {   // the contours moved so that the tile starts at the origin: the key does not depend on where the shape is
     int32_t cnt = (int32_t)pts[at]; ptmp[at] = pts[at];
     for (int32_t i = 0; i < cnt; i++) { ptmp[at + 1 + i * 2] = pts[at + 1 + i * 2] - (float)b.x0; ptmp[at + 2 + i * 2] = pts[at + 2 + i * 2] - (float)b.y0; }
     at += 1 + (size_t)cnt * 2;
   }
-  if (paint) { memcpy(ptmp + nf, pts + nf, pf * sizeof(float)); ptmp[nf + 1] -= (float)b.x0; ptmp[nf + 2] -= (float)b.y0; ptmp[nf + 4] -= (float)b.x0; ptmp[nf + 5] -= (float)b.y0; }
+  if (paint) {   // its geometry moved too: points, except the radii of an ellipse (kind 3) and a conic's unused pair (4)
+    memcpy(ptmp + nf, pts + nf, pf * sizeof(float)); ptmp[nf + 1] -= (float)b.x0; ptmp[nf + 2] -= (float)b.y0;
+    if (((int32_t)ptmp[nf] & 7) <= 2) { ptmp[nf + 4] -= (float)b.x0; ptmp[nf + 5] -= (float)b.y0; }
+  }
   uint64_t key = 1469598103934665603ull;
   const int32_t head[4] = {bw, bh, (int32_t)c.n, (int32_t)c.pad};
   key = fnv(key, head, sizeof head); key = fnv(key, ptmp, (nf + pf) * sizeof(float)); key = fnv(key, &c.alpha, 1);
@@ -739,7 +746,7 @@ static void draw_poly(const Cmd& c, const float* pts) {
   if (!t) {
     const size_t px = (size_t)bw * bh;
     if (!grow(pcov, pcov_cap, px) || !grow(pband, pband_cap, px)) return;
-    Cmd tc = c; tc.kind = POLY; tc.x = ox; tc.y = oy; tc.off = 0;
+    Cmd tc = c; tc.kind = rect ? RECT : POLY; tc.x = ox; tc.y = oy; tc.off = 0;
     Frame f = {&tc, 1, nullptr, ptmp};
     memset(pband, 0, px * sizeof(uint32_t));
     if (!paint) {   // a colour: the coverage alone
@@ -774,10 +781,24 @@ static void draw_poly(const Cmd& c, const float* pts) {
   quad(q);
 }
 
+// RECT grad 5 (ZN-261): a box with a gradient paint record, computed by the shader from the POLY paint's uniforms (up to 8 stops; more:
+// a CPU tile, draw_poly). b: the box's pixels; under a matrix (XFORM) the quad's corners and the paint are in the box's own coordinates.
+static void draw_paint_rect(const Cmd& c, const float* g, const Rect& b) {
+  if (!(g[7] >= 1)) return;
+  if (g[7] > 8 && !xf_on) { draw_poly(c, g); return; }
+  flush();
+  set_paint(g);
+  Q q = box_q(c, b, FILL);
+  q.grad = 5;
+  quad(q);
+  flush();
+  glUniform4f(u_g0, 0, 0, 0, 0);
+}
+
 // XFORM (ZN-263.01): the command in its own coordinates (raster.cpp draw_xform has the payload), drawn by the paths of the untransformed
 // commands with quad() taking the corners through the matrix. Boxes take one more pixel around them for their edges; FILL instead of SOLID
 // for a plain rectangle, whose edges are no longer on pixel boundaries; glyphs are sampled linearly while turned.
-static void draw_xform(const Cmd& c, const float* p, const char* text) {
+static void draw_xform(const Cmd& c, const float* p, const char* text, const float* pool) {
   Cmd in = c;
   in.kind = (uint8_t)p[0]; in.x = p[7]; in.y = p[8]; in.w = p[9]; in.h = p[10]; in.r = p[11]; in.s = p[12];
   memcpy(&in.off, p + 13, 4); memcpy(&in.n, p + 14, 4);
@@ -785,7 +806,11 @@ static void draw_xform(const Cmd& c, const float* p, const char* text) {
   for (int i = 0; i < 6; i++) xf_m[i] = p[1 + i];
   xf_on = true;
   switch (in.kind) {
-    case RECT: { Q q = box_q(in, bounds(in.x - 1, in.y - 1, in.w + 2, in.h + 2, HUGE_R), FILL); q.grad = in.grad; quad(q); break; }
+    case RECT: {
+      const Rect b = bounds(in.x - 1, in.y - 1, in.w + 2, in.h + 2, HUGE_R);
+      if (in.grad == 5) { if (pool) draw_paint_rect(in, pool + in.off, b); break; }
+      Q q = box_q(in, b, FILL); q.grad = in.grad; quad(q); break;
+    }
     case BORDER: { Q q = box_q(in, bounds(in.x - 1, in.y - 1, in.w + 2, in.h + 2, HUGE_R), BORDER_M); q.p1 = in.s; quad(q); break; }
     case SHADOW: {
       const float blur = in.s > 0.5f ? in.s : 0.5f;
@@ -959,6 +984,7 @@ static void run(const Frame& f, bool first) {
           Rect in = isect(Rect{iceil(c.x + r), iceil(c.y + r), ifloor(c.x + c.w - r), ifloor(c.y + c.h - r)}, b);
           if (in.x0 < in.x1 && in.y0 < in.y1) { solid_and_bands(c, b, in, FILL, 0); break; }
         }
+        if (c.grad == 5) { draw_paint_rect(c, f.pts + c.off, b); break; }
         Q q = box_q(c, b, plain ? SOLID : FILL);
         q.grad = c.grad;
         quad(q);
@@ -1010,7 +1036,7 @@ static void run(const Frame& f, bool first) {
         break;
       }
       case STROKE: draw_stroke(c, f.pts + c.off); break;
-      case XFORM: draw_xform(c, f.pts + c.off, f.text); break;
+      case XFORM: draw_xform(c, f.pts + c.off, f.text, f.pts); break;
       case CLIP: {
         if (sp >= 16) break;
         flush();

@@ -25,6 +25,7 @@ const toks = [
   'select-text', 'select-none', 'select-all', 'select-auto', 'select-foo',
   'group', 'group-hover:bg-red-500', 'group-focus:opacity-50', 'group-active:translate-y-px', 'group-hover:p-4', 'group-x:bg-red-500',
   'peer', 'peer-hover:bg-red-500', 'peer-focus:opacity-50', 'peer-active:translate-y-px', 'peer-hover:p-4', 'peer-x:p-2', 'aria-checked:bg-emerald-500', 'aria-selected:opacity-50', 'aria-foo:p-2', 'aria-checked:p-2', 'data-[state=open]:bg-sky-500', 'data-[state=open]:p-4', 'data-[x]:p-2',
+  'bg-linear-to-tr', 'bg-gradient-to-bl', 'bg-linear-45', '-bg-linear-45', 'bg-linear-to-r/oklch', 'bg-radial', 'bg-conic', 'bg-conic-180', 'bg-linear-[25deg,red_5%,blue]', 'bg-radial-[at_25%_25%]', 'bg-[conic-gradient(red,blue)]', 'bg-[repeating-linear-gradient(45deg,#000_0_10px,#fff_10px_20px)]', 'via-red-500', 'from-10%', 'to-90%', 'from-transparent', 'bg-none', 'bg-radial-45', 'bg-linear-to-x', 'bg-conic-x',
   'bogus', '-bogus-3', '-mx-auto', 'gap-x', 'mx-', 'w-[', 'inset-q-3', 'foo:bar', '-w-4', 'm-xyz',
 ];
 const h = ui.createNode(ui.VIEW);

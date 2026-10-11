@@ -24,6 +24,12 @@ declare module 'zinc:gfx' {
   export function rrect(x: number, y: number, w: number, h: number, r: number, color: u32, alpha: i32): void;
   /** Linear gradient from c1 to c2 (top to bottom when vertical, else left to right). */
   export function gradient(x: number, y: number, w: number, h: number, r: number, c1: u32, c2: u32, vertical: boolean, alpha: i32): void;
+  /** Rounded box filled with a gradient paint record, in the coordinates of the box: [kind, x0, y0, r0, x1, y1, r1, n, (offset, 0xRRGGBB,
+   *  alpha 0..255) * n] with n stops sorted by offset. kind 1: linear from (x0, y0) to (x1, y1); 2: radial between the circles (x0, y0, r0) and
+   *  (x1, y1, r1) (canvas); 3: ellipse centred on (x0, y0) with radii x1, y1 (CSS radial-gradient); 4: conic around (x0, y0) from r0 radians,
+   *  clockwise from the top (CSS conic-gradient); add 8 to repeat the stops from the first offset to the last (CSS repeating-*). Colours
+   *  are interpolated in sRGB. */
+  export function gradientPaint(x: number, y: number, w: number, h: number, r: number, paint: number[], alpha: i32): void;
   export function border(x: number, y: number, w: number, h: number, r: number, width: number, color: u32, alpha: i32): void;
   /** Soft drop shadow of a rounded box. */
   export function shadow(x: number, y: number, w: number, h: number, r: number, blur: number, color: u32, alpha: i32): void;

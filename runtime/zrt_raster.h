@@ -67,7 +67,7 @@ enum Kind : uint8_t { CLEAR, RECT, BORDER, SHADOW, LINE, TEXT, IMAGE, POLY, CLIP
 constexpr uint32_t kXformLen = 15;
 
 struct Cmd {
-  uint8_t kind, alpha, grad;   // grad: 0 none, 1 vertical (c1 top -> c2 bottom), 2 horizontal, 3 radial, 4 POLY paint record after the contours (raster.cpp paint_at); IMAGE: 1 = nearest filter
+  uint8_t kind, alpha, grad;   // grad: 0 none, 1 vertical (c1 top -> c2 bottom), 2 horizontal, 3 radial, 4 POLY paint record after the contours, 5 RECT paint record of n floats at off (raster.cpp paint_at); IMAGE: 1 = nearest filter
   uint8_t pad;                 // POLY: bit 0 = even-odd fill rule (default nonzero); IMAGE: kImageBox, kImageTint, the blend mode
   int32_t res;                 // font or image index
   float x, y, w, h;            // LINE: x,y -> w,h ; POLY: bbox

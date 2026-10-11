@@ -329,7 +329,9 @@
   X(HostAssetsTurn, "host.assetsTurn", ">n", 2) X(HostAssetsReqDone, "host.assetsReqDone", "i>d", 2) X(HostAssetsReqTotal, "host.assetsReqTotal", "i>d", 2) \
   X(HostAssetsReqState, "host.assetsReqState", "i>i", 2) X(HostAssetsReqError, "host.assetsReqError", "i>s", 2) X(HostAssetsReqForget, "host.assetsReqForget", "i>n", 2) \
   X(HostAssetsAcquire, "host.assetsAcquire", "s>i", 2) X(HostAssetsRelease, "host.assetsRelease", "i>n", 2) X(HostAssetsHandleText, "host.assetsHandleText", "i>s", 2) \
-  X(HostAssetsHandleLoad, "host.assetsHandleLoad", "i>i", 2) X(HostAssetsStat, "host.assetsStat", "i>d", 2)
+  X(HostAssetsHandleLoad, "host.assetsHandleLoad", "i>i", 2) X(HostAssetsStat, "host.assetsStat", "i>d", 2) \
+  /* zinc:gfx gradientPaint (ZN-261): a rounded box filled with a gradient paint record (linear, radial, conic, repeating, N stops); graphics row, appended */ \
+  X(HostGfxGradientPaint, "host.gfxGradientPaint", "dddddDi>n", 2)
 
 namespace zn {
 
@@ -359,7 +361,7 @@ inline constexpr bool isGlRow(Rt r) { return r >= Rt::HostGlCreate && r <= Rt::H
 // The zinc:gfx rows appended after the host block (the block's ids are the device cores'): served by `hostGfx` like the block's own. One list for isSysRow and for the engines that install the host rows.
 inline constexpr bool isGfxTailRow(Rt r) {
   return r == Rt::HostGfxCommands || r == Rt::HostGfxCommandsFree || r == Rt::HostGfxSetResize || r == Rt::HostGfxSetTransform || r == Rt::HostGfxResetTransform || r == Rt::HostGfxDrawImageRect || r == Rt::HostGfxImageFromBytes ||
-         (r >= Rt::HostGfxOpenWindow && r <= Rt::HostGfxEndWindow) || r == Rt::HostGfxLoadFont;
+         (r >= Rt::HostGfxOpenWindow && r <= Rt::HostGfxEndWindow) || r == Rt::HostGfxLoadFont || r == Rt::HostGfxGradientPaint;
 }
 // The system rows appended after the gfx ones: the engines that install the host rows (QuickJS) add them too.
 inline constexpr bool isSysTailRow(Rt r) { return r == Rt::HostSysLaunchDir || r == Rt::HostSysLocale || (r >= Rt::HostAssetsMount && r <= Rt::HostAssetsStat); }
@@ -403,7 +405,7 @@ inline bool rtResultBorrowed(Rt id) { return id == Rt::MapGet; }
 // retained across them (ZN-413). The others only read their arguments: the string rows, the read-only Array, Map and Set members, the
 // graphics host (numbers, borrowed strings and arrays, no callbacks).
 inline bool rtMayRelease(Rt id) {
-  if ((id >= Rt::HostGfxFrames && id < Rt::HostSysFirst) || isGlRow(id) || id == Rt::HostGfxDrawImageRect || id == Rt::HostGfxImageFromBytes || (id >= Rt::HostGfxOpenWindow && id <= Rt::HostGfxEndWindow) || id == Rt::HostGfxLoadFont) return false;
+  if ((id >= Rt::HostGfxFrames && id < Rt::HostSysFirst) || isGlRow(id) || id == Rt::HostGfxDrawImageRect || id == Rt::HostGfxImageFromBytes || (id >= Rt::HostGfxOpenWindow && id <= Rt::HostGfxEndWindow) || id == Rt::HostGfxLoadFont || id == Rt::HostGfxGradientPaint) return false;
   if (id >= Rt::StrConcat && id <= Rt::FromCharCode) return id == Rt::JsonParse || id == Rt::DynGetFast || id == Rt::DynAddFast;
   switch (id) {
     case Rt::ArrSlice: case Rt::ArrIndexOf: case Rt::ArrIncludes: case Rt::MapGet: case Rt::MapHas: case Rt::MapKeys: case Rt::MapValues: case Rt::MapSize:

@@ -118,7 +118,9 @@ static Span row_span(float py, float cx, float cy, float hw, float hh, float r, 
   float half = qy <= 0 ? hw : (hw - r) + __builtin_sqrtf(r * r - qy * qy);
   return Span{iceil(cx - half - 0.5f), ifloor(cx + half - 0.5f) + 1};
 }
-static void fill_rrect(const Target& t, const Cmd& c) {
+static uint32_t paint_at(const float* g, float px, float py, uint32_t& a);
+// paint: a RECT's gradient paint record (grad 5), or null
+static void fill_rrect(const Target& t, const Cmd& c, const float* paint) {
   Rect b = bounds(c.x, c.y, c.w, c.h, t.clip);
   if (b.x0 >= b.x1 || b.y0 >= b.y1) return;
   float hw = c.w * 0.5f, hh = c.h * 0.5f, cx = c.x + hw, cy = c.y + hh;
@@ -130,6 +132,16 @@ static void fill_rrect(const Target& t, const Cmd& c) {
     int32_t x0 = o.x0 > b.x0 ? o.x0 : b.x0, x1 = o.x1 < b.x1 ? o.x1 : b.x1;
     int32_t i0 = in.x0 > x0 ? in.x0 : x0, i1 = in.x1 < x1 ? in.x1 : x1;
     if (i1 < i0) i1 = i0;
+    if (paint) {   // the paint's colour and alpha at each pixel
+      for (int32_t x = x0; x < x1; x++) {
+        const float px = x + 0.5f, cov = x >= i0 && x < i1 ? 1.0f : clampf(0.5f - rr_sdf(px, py, cx, cy, hw, hh, r), 0, 1);
+        if (cov <= 0) continue;
+        uint32_t a = c.alpha;
+        const uint32_t col = paint_at(paint, px, py, a);
+        blend(at(t, x, y), col, (uint32_t)(cov * a));
+      }
+      continue;
+    }
     uint32_t row_color = c.grad == 1 ? color_at(c, 0, py) : c.c1;
     for (int32_t x = x0; x < x1; x++) {
       if (x == i0 && i1 > i0) {   // fully covered run
@@ -290,11 +302,16 @@ static void shadow_rrect(const Target& t, const Cmd& c) {
   }
 }
 
-// Canvas-style gradient paint of a POLY (grad 4), stored after its contours:
-// [kind (1 linear, 2 radial), x0, y0, r0, x1, y1, r1, n, (offset, 0xRRGGBB, alpha 0..255) * n]. Scales `a` by the stop alpha.
+// Gradient paint of a POLY (grad 4, stored after its contours) or of a RECT (grad 5, at its offset, ZN-261):
+// [kind, x0, y0, r0, x1, y1, r1, n, (offset, 0xRRGGBB, alpha 0..255) * n], sorted offsets. Kinds: 1 linear (x0, y0) -> (x1, y1), 2 two circles
+// (HTML canvas), 3 CSS ellipse (centre x0, y0, radii x1, y1), 4 CSS conic (centre x0, y0, from r0 radians, clockwise from the top); +8 repeats
+// the stops from the first offset to the last (CSS repeating-*). Scales `a` by the stop alpha.
 static uint32_t paint_at(const float* g, float px, float py, uint32_t& a) {
   float dx = g[4] - g[1], dy = g[5] - g[2], qx = px - g[1], qy = py - g[2], t;
-  if (g[0] == 1) { float l = dx * dx + dy * dy; t = l > 0 ? (qx * dx + qy * dy) / l : 0; }
+  const int32_t kind = (int32_t)g[0] & 7;
+  if (kind == 1) { float l = dx * dx + dy * dy; t = l > 0 ? (qx * dx + qy * dy) / l : 0; }
+  else if (kind == 3) { float ex = g[4] > 0 ? qx / g[4] : 1e9f, ey = g[5] > 0 ? qy / g[5] : 1e9f; t = __builtin_sqrtf(ex * ex + ey * ey); }
+  else if (kind == 4) { t = (__builtin_atan2f(qx, -qy) - g[3]) * 0.15915494f; t -= (float)ifloor(t); }
   else {  // two circles: the largest t with |p - c(t)| = r(t) >= 0 (HTML canvas)
     float dr = g[6] - g[3], A = dx * dx + dy * dy - dr * dr, B = qx * dx + qy * dy + g[3] * dr, C = qx * qx + qy * qy - g[3] * g[3];
     if (fabsf_(A) < 1e-4f) t = B != 0 ? C / (2 * B) : 0;
@@ -309,6 +326,10 @@ static uint32_t paint_at(const float* g, float px, float py, uint32_t& a) {
   }
   int32_t n = (int32_t)g[7];
   const float* s = g + 8;
+  if (((int32_t)g[0] & 8) && n > 1) {   // repeating: t folded into [first, last)
+    const float lo = s[0], p = s[(n - 1) * 3] - lo;
+    if (p > 0) { const float k = (t - lo) / p; t = lo + (k - (float)ifloor(k)) * p; }
+  }
   int32_t i = 0;
   while (i < n && t > s[i * 3]) i++;
   if (i == 0 || i == n) { const float* e = s + (i ? n - 1 : 0) * 3; a = a * (uint32_t)e[2] / 255; return (uint32_t)e[1]; }
@@ -853,7 +874,7 @@ static bool xf_sample(int32_t res, float u, float v, bool nearest, uint32_t& rgb
   a = ch[3] / 255;
   return true;
 }
-static void draw_xform(const Target& t, const Cmd& c, const float* p, const char* text) {
+static void draw_xform(const Target& t, const Cmd& c, const float* p, const char* text, const float* pool) {
   Cmd in = c;
   in.kind = (uint8_t)p[0]; in.x = p[7]; in.y = p[8]; in.w = p[9]; in.h = p[10]; in.r = p[11]; in.s = p[12];
   __builtin_memcpy(&in.off, p + 13, 4); __builtin_memcpy(&in.n, p + 14, 4);
@@ -878,7 +899,9 @@ static void draw_xform(const Target& t, const Cmd& c, const float* p, const char
       switch (in.kind) {
         case RECT: {
           const float cov = clampf(0.5f - d * m.sc, 0, 1);
-          if (cov > 0) blend(at(t, x, y), color_at(in, lx, ly), (uint32_t)(cov * in.alpha));
+          uint32_t a = in.alpha;
+          const uint32_t col = in.grad == 5 ? paint_at(pool + in.off, lx, ly, a) : color_at(in, lx, ly);   // a paint in the box's own coordinates
+          if (cov > 0) blend(at(t, x, y), col, (uint32_t)(cov * a));
           break;
         }
         case BORDER: {
@@ -962,7 +985,7 @@ template<class Pick> static void run_cmds(const Frame& f, Target t, uint32_t n, 
       case RECT: if (c.r <= 0 && !c.grad && c.alpha == 255) {
           Rect b = bounds(c.x, c.y, c.w, c.h, t.clip);
           for (int32_t y = b.y0; y < b.y1; y++) if (b.x1 > b.x0) fill_row(&at(t, b.x0, y), b.x1 - b.x0, c.c1);
-        } else fill_rrect(t, c);
+        } else fill_rrect(t, c, c.grad == 5 ? f.pts + c.off : nullptr);
         break;
       case BORDER: border_rrect(t, c); break;
       case SHADOW: shadow_rrect(t, c); break;
@@ -970,7 +993,7 @@ template<class Pick> static void run_cmds(const Frame& f, Target t, uint32_t n, 
       case IMAGE: draw_image(t, c); break;
       case LINE: case POLY: fill_poly(t, c, f.pts + c.off); break;
       case STROKE: stroke_poly(t, c, f.pts + c.off); break;
-      case XFORM: draw_xform(t, c, f.pts + c.off, f.text); break;
+      case XFORM: draw_xform(t, c, f.pts + c.off, f.text, f.pts); break;
       case CLIP: {
         if (sp >= 16) break;
         RoundClip k = {c.x, c.y, c.w, c.h, c.r, 0, pool, false};
@@ -1040,9 +1063,11 @@ static bool same(const Frame& a, const Cmd& x, const Frame& b, const Cmd& y) {
     if (__builtin_memcmp(p, q, 13 * sizeof(float))) return false;
     uint32_t ao, an, bo, bn;
     __builtin_memcpy(&ao, p + 13, 4); __builtin_memcpy(&an, p + 14, 4); __builtin_memcpy(&bo, q + 13, 4); __builtin_memcpy(&bn, q + 14, 4);
+    if (p[0] == (float)RECT && x.grad == 5) return an == bn && !__builtin_memcmp(a.pts + ao, b.pts + bo, an * sizeof(float));   // its paint record
     return p[0] == (float)TEXT ? an == bn && !__builtin_memcmp(a.text + ao, b.text + bo, an) : ao == bo && an == bn;
   }
   if (x.kind == IMAGE) return x.off == y.off;   // not a pool offset: part of its box (image_box)
+  if (x.kind == RECT && x.grad == 5) return !__builtin_memcmp(a.pts + x.off, b.pts + y.off, x.n * sizeof(float));   // its paint record
   return true;
 }
 Rect diff(const Frame& a, const Frame& b, int32_t w, int32_t h) {
@@ -1397,9 +1422,12 @@ static uint32_t cmd_hash(const Frame& f, const Cmd& c) {
     h = fnv(h, p, 13 * (uint32_t)sizeof(float));
     uint32_t o, n;
     __builtin_memcpy(&o, p + 13, 4); __builtin_memcpy(&n, p + 14, 4);
-    if (p[0] == (float)TEXT) h = fnv(h, f.text + o, n); else h = fnv(h, p + 13, 2 * (uint32_t)sizeof(float));
+    if (p[0] == (float)TEXT) h = fnv(h, f.text + o, n);
+    else if (p[0] == (float)RECT && c.grad == 5) h = fnv(h, f.pts + o, n * (uint32_t)sizeof(float));
+    else h = fnv(h, p + 13, 2 * (uint32_t)sizeof(float));
   }
   else if (c.kind == IMAGE) h = fnv(h, &c.off, sizeof c.off);
+  else if (c.kind == RECT && c.grad == 5) h = fnv(h, f.pts + c.off, c.n * (uint32_t)sizeof(float));
   return h;
 }
 uint32_t frame_hash(const Frame& f) {

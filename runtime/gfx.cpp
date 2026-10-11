@@ -1197,6 +1197,34 @@ void rrect(double x, double y, double w, double h, double r, uint32_t color, int
 void gradient(double x, double y, double w, double h, double r, uint32_t c1, uint32_t c2, bool vertical, int32_t alpha) {
   if (Cmd* c = push(raster::RECT, c1, alpha)) { box(c, x, y, w, h); c->r = (float)r * rec_k(); c->c2 = c2 & 0xFFFFFF; c->grad = vertical ? 1 : 2; xform(c); }
 }
+// A rounded box filled with a gradient paint record (ZN-261, raster.cpp paint_at): RECT grad 5, the record in the point pool with its
+// geometry in physical pixels like the box. A record that does not hold its stops draws nothing.
+void gradientPaint(double x, double y, double w, double h, double r, const double* g, uint32_t n, int32_t alpha) {
+  if (n < 11 || !(g[0] >= 1 && g[0] <= 12) || !(g[7] >= 1 && g[7] <= (double)((n - 8) / 3)) || g[7] != (double)(uint32_t)g[7]) return;
+  const int32_t kind = (int32_t)g[0];
+  if (g[0] != (double)kind || (kind & 7) < 1 || (kind & 7) > 4 || kind > 12) return;
+  const uint32_t len = 8 + 3 * (uint32_t)g[7];
+  Buf& b = bufs[cur];
+  if (len > ZRT_POINT_POOL - b.npts) { pool_full(2); return; }
+  Cmd* c = push(raster::RECT, 0, alpha);
+  if (!c) return;
+  box(c, x, y, w, h);
+  c->r = (float)r * rec_k(); c->grad = 5; c->off = b.npts; c->n = len;
+  float* p = b.pts + b.npts;
+  const float k = rec_k();
+  for (uint32_t i = 0; i < len; i++) p[i] = (float)g[i];
+  p[1] = (float)(g[1] + tx) * k; p[2] = (float)(g[2] + ty) * k;   // a point
+  if ((kind & 7) <= 2) { p[3] *= k; p[4] = (float)(g[4] + tx) * k; p[5] = (float)(g[5] + ty) * k; p[6] *= k; }   // radius, point, radius
+  else if ((kind & 7) == 3) { p[4] *= k; p[5] *= k; }   // the ellipse's radii; a conic's r0 is an angle
+  for (uint32_t i = 0; i < (uint32_t)g[7]; i++) {   // colours and alphas as the raster reads them (program data: NaN and out of range clamped)
+    float* s = p + 8 + i * 3;
+    const double cv = g[9 + i * 3], av = g[10 + i * 3];
+    s[1] = cv >= 0 && cv <= 16777215.0 ? (float)(uint32_t)cv : 0;
+    s[2] = av >= 0 ? (av <= 255 ? (float)(int32_t)av : 255) : 0;
+  }
+  b.npts += len;
+  xform(c);
+}
 void border(double x, double y, double w, double h, double r, double width, uint32_t color, int32_t alpha) {
   if (Cmd* c = push(raster::BORDER, color, alpha)) { box(c, x, y, w, h); c->r = (float)r * rec_k(); c->s = (float)width * rec_k(); xform(c); }
 }

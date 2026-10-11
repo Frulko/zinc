@@ -157,6 +157,7 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostGfxLine: g::line(a[0].d, a[1].d, a[2].d, a[3].d, u(4)); break;
     case Rt::HostGfxText: g::text(a[0].d, a[1].d, str(a[2]), u(3), n(4)); break;
     case Rt::HostGfxGradient: g::gradient(a[0].d, a[1].d, a[2].d, a[3].d, a[4].d, u(5), u(6), a[7].i != 0, n(8)); break;
+    case Rt::HostGfxGradientPaint: g::gradientPaint(a[0].d, a[1].d, a[2].d, a[3].d, a[4].d, static_cast<const double*>(a[5].p), a[5].n, n(6)); break;
     case Rt::HostGfxBorder: g::border(a[0].d, a[1].d, a[2].d, a[3].d, a[4].d, a[5].d, u(6), n(7)); break;
     case Rt::HostGfxShadow: g::shadow(a[0].d, a[1].d, a[2].d, a[3].d, a[4].d, a[5].d, u(6), n(7)); break;
     case Rt::HostGfxPolygon: g::polygon(static_cast<const double*>(a[0].p), a[0].n, u(1), n(2)); break;   // the program's f64 storage, read in place (ZN-405)

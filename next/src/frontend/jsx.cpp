@@ -73,7 +73,7 @@ std::string ltrOf(const std::string& c) {
 bool validClass(const std::string& c) {
   if (std::string l = ltrOf(c); !l.empty()) return validClass(l);
   if (c.rfind("rtl:", 0) == 0 || c.rfind("ltr:", 0) == 0) return validClass(c.substr(4));
-  static const std::set<std::string> fixed = {"flex", "flex-row", "flex-col", "flex-wrap", "flex-1", "grow", "grow-0", "hidden", "absolute", "relative", "static", "overflow-hidden", "overflow-auto",
+  static const std::set<std::string> fixed = {"bg-none", "flex", "flex-row", "flex-col", "flex-wrap", "flex-1", "grow", "grow-0", "hidden", "absolute", "relative", "static", "overflow-hidden", "overflow-auto",
       "overflow-scroll", "overflow-x-auto", "overflow-x-scroll", "overflow-y-auto", "overflow-y-scroll", "w-screen", "h-screen", "sticky", "sr-only", "border-solid", "border-dashed", "border-dotted", "snap-none", "snap-x", "snap-y", "snap-both", "snap-mandatory", "snap-proximity", "snap-start", "snap-center", "snap-end", "snap-align-none", "invisible", "visible", "pointer-events-none", "pointer-events-auto", "z-auto", "flex-none", "flex-auto", "flex-initial", "flex-row-reverse", "flex-col-reverse", "flex-wrap-reverse", "box-border", "box-content", "w-full", "h-full", "font-bold", "font-semibold", "font-medium", "font-normal", "font-thin", "font-extralight", "font-light", "font-extrabold", "font-black", "italic", "not-italic", "uppercase", "lowercase", "capitalize", "normal-case", "underline", "line-through", "overline", "no-underline", "align-baseline", "whitespace-normal", "whitespace-nowrap", "whitespace-pre", "whitespace-pre-wrap", "text-wrap", "text-nowrap", "break-normal", "break-words", "break-all", "truncate", "text-ellipsis", "text-clip", "text-balance", "text-justify", "@container", "group", "peer", "select-text", "select-all", "select-none", "select-auto", "text-shadow", "text-shadow-sm", "text-shadow-md", "text-shadow-lg", "text-shadow-none", "line-clamp-none", "align-super", "align-sub",
       "font-mono", "font-sans", "text-left", "text-center", "text-right", "rounded", "border", "shadow", "shadow-sm", "shadow-md", "shadow-lg", "shadow-xl", "shadow-none", "transition",
       "transition-colors", "transition-all", "transition-opacity", "transition-shadow", "transition-transform", "transition-none", "ease-linear", "ease-in", "ease-out", "ease-in-out", "tracking-tight", "tracking-wide", "tracking-wider", "tracking-widest"};
@@ -94,7 +94,10 @@ bool validClass(const std::string& c) {
       std::regex(R"(^(items|justify)-(start|center|end|stretch|between|around|evenly)$)"),
       std::regex(R"(^rounded-(none|sm|md|lg|xl|2xl|3xl|full|\[\d+(px)?\])$)"),
       std::regex(R"(^text-(xs|sm|base|lg|xl|[2-6]xl|\[\d+(px)?\])$)"),
-      std::regex(R"(^bg-gradient-to-(t|b|l|r)$)"), std::regex(R"(^border-(\d+|\[\d+(px)?\])$)"), std::regex(R"(^border-[trblxy](-(\d+|\[\d+(px)?\]))?$)"),
+      std::regex(R"(^bg-(gradient|linear)-to-(t|tr|r|br|b|bl|l|tl)(/[a-z]+)?$)"), std::regex(R"(^-?bg-(linear|conic)-\d+(\.\d+)?(/[a-z]+)?$)"),   // gradients (ZN-261)
+      std::regex(R"(^bg-(radial|conic)(/[a-z]+)?$)"), std::regex(R"(^bg-(linear|radial|conic)-\[\S+\]$)"), std::regex(R"(^bg-\[(repeating-)?(linear|radial|conic)-gradient\(\S+\)\]$)"),
+      std::regex(R"(^(from|via|to)-\d+(\.\d+)?%$)"),
+      std::regex(R"(^border-(\d+|\[\d+(px)?\])$)"), std::regex(R"(^border-[trblxy](-(\d+|\[\d+(px)?\]))?$)"),
       std::regex(R"(^rounded-(t|r|b|l|tl|tr|br|bl)(-(none|sm|md|lg|xl|2xl|3xl|full|\[\d+(px)?\]))?$)"),
       std::regex(R"(^ring(-\d+)?$)"), std::regex(R"(^outline(-\d+)?$)"), std::regex(R"(^(ring|outline)-offset-\d+$)"), std::regex(R"(^outline-none$)"),
       std::regex("^-?translate-[xy]-" + num + "$"),
@@ -177,6 +180,17 @@ std::vector<StyleOp> styleEntry(std::string name, StyleVal value) {
     std::vector<StyleOp> a = styleEntry("borderWidth", StyleVal{false, 0, m[1].str()}), b = styleEntry("borderColor", StyleVal{false, 0, m[2].str()});
     a.insert(a.end(), b.begin(), b.end());
     return a;
+  }
+  if ((name == "backgroundImage" || name == "experimental_backgroundImage" || name == "background") && !value.isNum) {   // a CSS gradient (ZN-261): zinc:ui's bg-[...] token
+    static const std::regex gradFn(R"(^\s*((repeating-)?(linear|radial|conic)-gradient\(.*\))\s*$)");
+    std::smatch gm;
+    if (value.str == "none") return {{"@bg-none", 0}};
+    if (std::regex_match(value.str, gm, gradFn)) {
+      std::string css;
+      for (char ch : gm[1].str()) css += ch == ' ' ? '_' : ch;
+      return {{"@bg-[" + css + "]", 0}};
+    }
+    if (name != "background") throw std::runtime_error(name + " takes a linear-, radial- or conic-gradient(...) or none");
   }
   if (name == "background") name = "backgroundColor";
   if (name == "flex" && value.isNum && (uiLayout() == "rn" || uiPreset() == "react-native")) {   // React Native's shorthand in the rn layout mode (ZN-358): n > 0 grows n with shrink 1 and basis 0; 0 is rigid; -1 shrinks only

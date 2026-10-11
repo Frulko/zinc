@@ -122,6 +122,7 @@ export function line(x1: number, y1: number, x2: number, y2: number, color: u32)
 export function text(x: number, y: number, s: string, color: u32, scale: i32): void { __host_gfxText(x, y, s, color, scale); }
 export function rrect(x: number, y: number, w: number, h: number, r: number, color: u32, alpha: i32): void { __host_gfxRRect(x, y, w, h, r, color, alpha); }
 export function gradient(x: number, y: number, w: number, h: number, r: number, c1: u32, c2: u32, vertical: boolean, alpha: i32): void { __host_gfxGradient(x, y, w, h, r, c1, c2, vertical, alpha); }
+export function gradientPaint(x: number, y: number, w: number, h: number, r: number, paint: number[], alpha: i32): void { __host_gfxGradientPaint(x, y, w, h, r, paint, alpha); }
 export function border(x: number, y: number, w: number, h: number, r: number, bw: number, color: u32, alpha: i32): void { __host_gfxBorder(x, y, w, h, r, bw, color, alpha); }
 export function shadow(x: number, y: number, w: number, h: number, r: number, blur: number, color: u32, alpha: i32): void { __host_gfxShadow(x, y, w, h, r, blur, color, alpha); }
 export function polygon(points: number[], color: u32, alpha: i32): void { __host_gfxPolygon(points, color, alpha); }
