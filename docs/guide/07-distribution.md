@@ -145,7 +145,7 @@ export, publish to itch.io and run `zinc publish --key` again: a copy of 0.1.0 t
 | `zinc publish --itch user/game [--dry-run]` | nothing locally: one butler push per export directory of `dist/` |
 | `zinc publish --site <dir>` | a static download page of the artifacts of `dist/` and `SHA256SUMS` |
 | `zinc publish --key <seed>` | `dist/updates/` (or `-o`): `<name>-<version>.zapp` and `<channel>.manifest`, signed |
-| `zinc update-app [--check]` | `~/.zinc/apps/<id>/updates/`: the newer version, checked, staged for the next launch |
+| `zinc update-app [--check] [--url U]` | `~/.zinc/apps/<id>/updates/`: the newer version, checked, staged for the next launch (`--url`: a channel that is not at `update.url`, for an app that keeps the address with its content) |
 | `zinc deploy --target <t> --device user@host` | an export copied with scp and started with ssh (`--print` shows the three commands) |
 
 ## What `zinc export` writes

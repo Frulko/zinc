@@ -605,6 +605,10 @@ static void splashEnv(const zn::frontend::Project& p, const std::string& project
 }
 #endif
 
+// What assetsEnv set itself: an app that starts again into its update (update.restart) must find the assets of the new version, not inherit
+// the old one's; what the user set stays.
+static std::vector<std::string> gOwnEnv;
+static void ownEnv(const char* name, const std::string& value) { if (!std::getenv(name)) { setenv(name, value.c_str(), 1); gOwnEnv.push_back(name); } }
 // zinc:assets for a program run from `entry` (ZN-436): ZINC_ASSETS, the assets beside the entry or above it; ZINC_PACKS, the packs of an
 // unpacked .zapp (packs/ beside its program) or, for a project with asset rules or groups, its dev packs built now (none otherwise: a run of the CLI
 // never takes packs beside the zinc executable); ZINC_ASSET_RAM, the ram budget in force on this machine. A value already set wins.
@@ -612,16 +616,16 @@ static void assetsEnv(const std::string& entry) {
   namespace fs = std::filesystem;
   const fs::path dir = fs::absolute(entry).parent_path();
   std::error_code ec;
-  for (const fs::path& d : {dir / "assets", dir.parent_path() / "assets"}) if (fs::is_directory(d, ec)) { setenv("ZINC_ASSETS", d.c_str(), 0); break; }
-  if (fs::is_directory(dir / "packs", ec)) setenv("ZINC_PACKS", (dir / "packs").c_str(), 0);
+  for (const fs::path& d : {dir / "assets", dir.parent_path() / "assets"}) if (fs::is_directory(d, ec)) { ownEnv("ZINC_ASSETS", d.string()); break; }
+  if (fs::is_directory(dir / "packs", ec)) ownEnv("ZINC_PACKS", (dir / "packs").string());
   if (const std::string pf = zn::frontend::findProjectFile(entry); !pf.empty()) {
     std::string packs, err;
     std::uint64_t ram = 0;
     if (!zn::cli::assetRun(fs::path(pf).parent_path().string(), zn::tc::pluginTarget(), gRoot, !std::getenv("ZINC_PACKS"), packs, ram, err)) std::fprintf(stderr, "zinc: %s\n", err.c_str());
-    if (!packs.empty()) setenv("ZINC_PACKS", packs.c_str(), 0);
-    if (ram) setenv("ZINC_ASSET_RAM", std::to_string(ram).c_str(), 0);
+    if (!packs.empty()) ownEnv("ZINC_PACKS", packs);
+    if (ram) ownEnv("ZINC_ASSET_RAM", std::to_string(ram));
   }
-  setenv("ZINC_PACKS", "", 0);
+  ownEnv("ZINC_PACKS", "");
 }
 
 struct RunBuild { std::string have, key; bool reused = false; };
@@ -1113,6 +1117,7 @@ extern "C" int zn_host_update(const char* op, const char* args, char* out, int c
     std::string exe = zn::tc::executablePath();
     for (std::string& a : gLaunchArgs) av.push_back(a.data());
     av.push_back(nullptr);
+    for (const std::string& name : gOwnEnv) unsetenv(name.c_str());   // the new version's assets and packs, not this one's
     execv(exe.c_str(), av.data());
     return failed(std::string("cannot restart: ") + std::strerror(errno));
   }
@@ -2247,13 +2252,15 @@ int main(int argc, char** argv) {
   }
   if (argc >= 2 && (!std::strcmp(argv[1], "publish") || !std::strcmp(argv[1], "update-app"))) {   // app updates (ZN-324.01)
     // zinc publish [dir] --key <seed-hex> [--channel C] [--notes text] [-o out]: <out>/<name>-<version>.zapp and <out>/<channel>.manifest signed with the app's key
-    // zinc update-app [dir] [--check] [--channel C]: the app's channel checked (signature, newer version), the update downloaded and verified
+    // zinc update-app [dir] [--check] [--channel C] [--url U]: the app's channel checked (signature, newer version), the update downloaded and
+    // verified. --url is where the channel is when zinc.json's update.url is not: an address the app keeps with its content (ZN-650.11)
     namespace fs = std::filesystem;
     const bool publish = !std::strcmp(argv[1], "publish");
-    std::string dir = ".", key, channel, notes, outDir;
+    std::string dir = ".", key, channel, notes, outDir, urlArg;
     bool checkOnly = false;
     for (int k = 2; k < argc; ++k) {
       if (!std::strcmp(argv[k], "--key") && k + 1 < argc) key = argv[++k];
+      else if (!publish && !std::strcmp(argv[k], "--url") && k + 1 < argc) urlArg = argv[++k];
       else if (!std::strcmp(argv[k], "--channel") && k + 1 < argc) channel = argv[++k];
       else if (!std::strcmp(argv[k], "--notes") && k + 1 < argc) notes = argv[++k];
       else if (!std::strcmp(argv[k], "-o") && k + 1 < argc) outDir = argv[++k];
@@ -2267,6 +2274,7 @@ int main(int argc, char** argv) {
     if (!pf || !zn::frontend::parseProject(ps.str(), proj, err)) { std::fprintf(stderr, "zinc %s: %s has no readable zinc.json%s%s\n", argv[1], dir.c_str(), err.empty() ? "" : ": ", err.c_str()); return 2; }
     if (proj.updateKey.empty()) { std::fprintf(stderr, "zinc %s: zinc.json needs \"update\": { \"url\": ..., \"publicKey\": ... } (zinc update-keygen makes a key pair)\n", argv[1]); return 2; }
     if (channel.empty()) channel = proj.updateChannel;
+    if (!urlArg.empty()) proj.updateUrl = urlArg;
     const std::string version = proj.app.version.empty() ? "0.0.0" : proj.app.version, name = proj.name.empty() ? fs::absolute(dir).filename().string() : proj.name;
     if (publish) {
       if (zn::tc::publicKeyOf(key) != proj.updateKey) { std::fprintf(stderr, "zinc publish: --key is not the seed of zinc.json update.publicKey\n"); return 2; }
