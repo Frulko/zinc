@@ -1,54 +1,181 @@
 # 1. Getting started
 
+Your first five minutes, command for command: install, a project, a first change on screen, a first mistake and how to read it.
+The project commands and the error messages of this walk are run by `next/tests/t1/first_run.sh` on every template; the build of the install was walked by hand, and the test runs without a window.
+
 ## Install
 
-Requirements: Node.js ≥ 23.6 (it runs the compiler by stripping TypeScript types; the executables Zinc produces do
-**not** need Node), pnpm, CMake ≥ 3.20, a C++17 compiler (Apple Clang or GCC), and SDL3 for windowed programs on the
-host (`brew install sdl3`). Docker is needed only for cross targets (`linux`, `rpi1`, `rmpp`, `esp32`, `ps1`, `ps2`),
-emscripten only for `wasm` (`brew install emscripten`).
+There is no installer yet: you build the `zinc` program once from the sources. You need git, CMake 3.20 or later and a C++20
+compiler (on a Mac: `xcode-select --install`, then CMake from cmake.org or `brew install cmake`). Nothing else: the window
+library (SDL3), the fonts and the other libraries are in the repository, and Node.js is not needed.
 
 ```sh
-pnpm install
-alias zinc="node $PWD/compiler/bin/zinc.mjs"
+git clone https://github.com/Frulko/zinc.git
+cd zinc/next
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+tools/build zinc                        # 6 to 8 minutes the first time on a 2019 laptop
+sudo ln -s "$PWD/build/zinc" /usr/local/bin/zinc
+```
+
+The link puts `zinc` on your `PATH`; the program finds its libraries, templates and plugins from where it was built, so keep
+the `zinc` directory. Then ask it what it sees:
+
+```sh
 zinc doctor
 ```
 
-`zinc doctor` reports what is present; a missing cross-toolchain only matters when you build for that target.
+It prints the engine and where its files are, this machine (profile, GPU), the tools it will download by itself the day you
+build for a board, and the plugins. Nothing in that list has to be installed by hand. `zinc` alone, or `zinc help`, lists the
+commands; `zinc help run` describes one; a misspelt command names the closest one (`zinc rnu`: "did you mean 'zinc run'?").
 
-## Create a project
+## Create a project and run it
 
 ```sh
-zinc init myapp --template game        # game | cli | server | iot | remarkable
-cd myapp
+zinc new game my-game
+cd my-game
 zinc run
 ```
 
-Templates give you a working starting point:
+`zinc new` answers `created my-game (game); next: cd my-game && zinc run`. `zinc run` opens a window with a yellow square that
+the arrow keys move; the first run prints `zinc: compiling main.ts for this machine` and takes a few seconds, the next ones
+start at once. Close the window to stop the program.
 
-| template | entry | what it does |
-| --- | --- | --- |
-| `game` | `src/main.ts` | `zinc:gfx` frame loop, keyboard/mouse input, an SDL3 window |
-| `cli` | `src/main.ts` | reads `zinc:sys` args/platform, prints |
-| `server` | `src/main.ts` | `zinc:net` HTTP server + `zinc:telemetry`, headless |
-| `iot` | `src/main.ts` | `zinc:gpio` button → LED, OSC out (simulated on the host) |
-| `remarkable` | `src/main.tsx` | JSX + handwriting for the reMarkable Paper Pro e-ink emulator |
+`zinc new --list` prints the templates. Each one runs as it is:
 
-## Project layout
+| template | what you get |
+| --- | --- |
+| `game` | a window, the arrow keys and a square: the smallest game loop (`zinc:gfx`) |
+| `game-2d` | a 2D game to grow from: title, play and game-over scenes, keyboard, gamepad and pointer, SVG sprites, a saved best score |
+| `3d` | a three.js scene: lights, a floor, a spinning ring; drag to orbit, wheel to zoom |
+| `desktop-app` | a desktop app: sidebar, Home / Notes / Settings pages, an app menu, dark mode, saved settings |
+| `dashboard` | stat cards, a line and a bar chart, alerts, fed by a data source you replace with yours |
+| `cli` | a command-line program: its arguments and the platform |
+| `server` | an HTTP server on port 3000 with a telemetry counter (stop it with Ctrl-C) |
+| `service` | an HTTP JSON API with tests and a systemd unit for a Linux box or a Raspberry Pi |
+| `iot` | a button on GPIO 27 lights pin 17 and sends an OSC message, simulated off the board |
+| `iot-board` | an ESP32-S3 with a motion sensor and a small OLED (a bubble level), the sensor emulated on the desktop |
+| `eink` | a reMarkable Paper Pro notebook: a to-do list and a sketch page, shown in an e-paper emulator |
+| `remarkable` | a reMarkable Paper Pro ink canvas with undo |
+| `plugin` | a plugin to publish: a Zinc API, a native part in C++, tests, an example |
 
-`zinc init` produces:
+`zinc new my-app` without a template name takes `game`. The directory must be new or empty.
+
+## What is in the project
 
 ```
-myapp/
-  zinc.json          project manifest (see below)
-  src/main.ts        entry (or main.tsx for JSX)
-  assets/            images and fonts baked in at build time; the other files read at run time (zinc:assets)
-  .gitignore         build/ dist/
-  README.md
+my-game/
+  zinc.json            the project: its name, its entry, its assets (reference below)
+  src/main.ts          the program (main.tsx when it uses JSX)
+  assets/              images, fonts and the other files of the program
+  tests/smoke.test.ts  a first test: zinc test runs every *.test.ts
+  tsconfig.json        for your editor (types of the zinc: modules)
+  README.md  .gitignore
 ```
 
-`build/` holds generated C++ and per-target build trees; `dist/` holds `zinc export` output. Both are disposable.
-The entry defaults to `zinc.json` `"entry"`, then `src/main.ts` / `main.ts` (`.tsx` too). A directory argument means
-its `zinc.json` / `main.ts`, so `zinc run examples/breakout` works.
+`build/` (made by `zinc build`) and `dist/` (made by `zinc export`) can be deleted at any time. In a project directory
+`zinc run`, `zinc check`, `zinc test` and `zinc build` need no argument; from elsewhere give the directory or the file:
+`zinc run my-game`, `zinc run my-game/src/main.ts`.
+
+## A first change
+
+Start the program in dev mode: it watches the files and restarts the program each time you save.
+
+```sh
+zinc dev
+```
+
+Open `src/main.ts` in your editor. The last line of the frame draws the text:
+
+```ts
+  text(4, 4, 'arrows to move', 0xffffff, 1);
+```
+
+Replace `arrows to move` with `hello from me` and save. The terminal prints `zinc dev: v2 started (96 ms after the save)` and the
+window shows the new text. Change `0xfeca57` (the square's colour, red green blue in hexadecimal) to `0xff6b6b`, save: a red
+square. Ctrl-C stops `zinc dev`.
+
+## A first mistake
+
+A mistake stops nothing: `zinc run` (or `zinc check`, which only checks) prints one line per error, `file:line:column: error
+code: what is wrong`, then a last line that says what to do. With `zinc dev` the same lines appear in the terminal and in a red
+box in the window until the next good save. Six mistakes everyone makes, and what Zinc answers (`my-game/` stands for the full
+path it prints):
+
+**A misspelt name in an import** (`isDwon` for `isDown`):
+
+```
+my-game/src/main.ts:1:53: error Z0101: Cannot find name: 'isDwon' is not exported by 'zinc:gfx' (did you mean 'isDown'?)
+my-game/src/main.ts:5:7: error Z0101: Cannot find name: 'isDown'
+...
+zinc: 5 errors, start with the first. Declare it before use, or fix the spelling. `zinc explain Z0101` shows an example.
+```
+
+Fix the first error first: the four others are the places that use the name the import did not bring.
+
+**A misspelt file in an import** (`'./confg'` when the file is `src/config.ts`):
+
+```
+my-game/src/main.ts:1:1: error Z0119: Cannot find module: './confg' (no file my-game/src/confg.ts or .tsx; did you mean './config'?)
+zinc: 1 error. Fix the path or create the file. `zinc explain Z0119` shows an example.
+```
+
+**A type error** (`let score: number = "ten";`):
+
+```
+my-game/src/main.ts:13:21: error Z0103: Type is not assignable: 'string' to 'f64'
+zinc: 1 error. Convert explicitly or change the declared type. `zinc explain Z0103` shows an example.
+```
+
+`f64` is the name Zinc gives to `number` on a desktop (a 64-bit floating-point number). Here: write `10`, or declare
+`let score: string`.
+
+**A `zinc:` module that does not exist** (`'zinc:stoarge'`):
+
+```
+my-game/src/main.ts:1:1: error Z0119: Cannot find module: 'zinc:stoarge' (did you mean 'zinc:storage'?)
+```
+
+**A plugin that is not installed** (`'zinc:confetti'`):
+
+```
+my-game/src/main.ts:1:1: error Z0119: Cannot find module: 'zinc:confetti' is not a module of the engine and no plugin of this project provides it (`zinc plugins` lists the ones it has, `zinc plugins search confetti` looks in the index, `zinc add <name>` installs one)
+```
+
+`zinc plugins` prints every module you can import now, with one line of description each.
+
+**A JSX tag left open** (in a `.tsx` project such as `zinc new remarkable`, a `<text>` without its `</text>`):
+
+```
+my-app/src/main.tsx:10:7: error Z0002: Expected a specific token: JSX: <text> is not closed (line 15 closes </view> instead): add </text>, or end the tag with />
+```
+
+The line is the one of the tag that was opened, not the place where the parser gave up.
+
+**A file that is not there** (`zinc run src/mian.ts`):
+
+```
+src/mian.ts:1:1: error Z0119: Cannot find module: no file src/mian.ts (did you mean src/main.ts?)
+```
+
+and `zinc run` in a directory that is not a project says `zinc: no project here` with the files it looked for.
+
+`zinc explain Z0103` prints, for any code, why the rule exists, how to fix it and a small example.
+
+## Where to go next
+
+- **You teach.** [The language](02-language.md) is TypeScript with the rules listed there, and each error code explains itself
+  (`zinc explain`). `zinc new game-2d` is a complete small game to read and change in class; `zinc run examples/breakout` is
+  another. `zinc test` runs the `*.test.ts` files of a project ([testing](06-testing.md)). The programs run the same on the
+  school's old machines and on a Raspberry Pi.
+- **You make things.** `zinc new iot-board` is a device with a sensor and a screen that runs on your desk with the sensor
+  emulated; its `README.md` goes on to the real ESP32. `zinc new iot` is a button and an LED on a Raspberry Pi's pins.
+  [Boards](../boards.md) lists the supported boards and panels, [plugins](05-plugins.md) how to talk to your own hardware.
+- **You draw, animate, perform.** `zinc run examples/canvas/sketch` is a Canvas 2D sketch and `zinc new 3d` a three.js scene;
+  `zinc run examples/hero` shows what the UI can do. The plugins [canvas2d](../plugins/canvas2d.md), [svg](../plugins/svg.md),
+  [lottie](../plugins/lottie.md), [audio](../plugins/audio.md) and [video](../plugins/video.md) are one import away, and
+  [UI apps](03-ui-apps.md) explains screens made of components.
+
+The rest of this page is reference.
 
 ## `zinc.json` reference
 
@@ -113,22 +240,22 @@ of these in `zinc.json` `targets.<id>`.
 ## Running
 
 ```sh
-zinc run [entry] [--target <id>] [--profile <id>] [--debug] [-- args]
-zinc build [entry] [--emit=hir|mir|cpp|js]     # compile only; --emit prints the IR / generated code
-zinc check [entry] [--json]                    # typecheck + Zinc rules (LSP JSON with --json)
-zinc dev [entry] [--target macos|linux|sim|wasm|rpi1] [--device user@host] [--no-devtools]
-zinc help [commands|targets|options|env|plugins|ui|docs]
+zinc run [entry|dir] [--interp|--native] [--profile P] [-- args]   # compile and run
+zinc check [entry|dir]                                              # the errors, without running
+zinc test                                                           # every *.test.ts of the project
+zinc build [entry|dir] [-o out] [--target T]                        # an executable in build/
+zinc dev [entry|dir] [--no-devtools] [-- args]                      # run, watch, restart on save
+zinc help [command]
 ```
 
-`zinc run` builds and runs: sim runs on Node, cross targets run under docker/QEMU or serve a page (wasm). `zinc dev`
-rebuilds on every save and puts the new version on screen — hot reload on the host platform, page reload for wasm,
-process restart elsewhere — with a red box on crash and a Chrome-DevTools UI inspector on `:9229` (see
-[dev mode](../dev-mode.md)). Pass program arguments after `--`; read them with `sys.args()`.
+`zinc run` compiles a program that draws to native code and keeps the executable (`~/.zinc/cache/run`): the first run of a
+version compiles, the next ones start at once; `--interp` interprets instead and starts at once. `zinc dev` checks and restarts
+the program on every save, with a red box on a compile error and, for UI programs, a Chrome DevTools inspector on port 9229
+(see [dev mode](../dev-mode.md)). Pass program arguments after `--`; read them with `sys.args()`.
 
-Useful environment variables (full list: `zinc help env`): `ZINC_FRAMES=n` stops a frame loop after n frames,
+Useful environment variables: `ZINC_HEADLESS=1` runs without a window, `ZINC_FRAMES=n` stops a frame loop after n frames,
 `ZINC_SHOT=out.png` saves the last frame (`zinc capture` saves any frames), `ZINC_DETERMINISTIC=1` puts the run on
-a virtual clock, `ZINC_LOG_FORMAT=json` switches console output to JSON lines,
-`ZINC_TELEMETRY=udp://host:port` enables telemetry (`zinc monitor` views it).
+a virtual clock.
 
 Next: [the language](02-language.md).
 

@@ -5,6 +5,7 @@
 # - a first change (the text of the game template) changes the frame on screen;
 # - six beginner mistakes each print the file, the line and what to do next: tests/golden/first-run/<mistake>.txt, the project directory
 #   written <project> (FIRST_RUN_UPDATE=1 rewrites them);
+# - the guide quotes the first line of each message;
 # - a bare `zinc`, `zinc --help` and a misspelt command lead to the list of commands.
 cd "$(dirname "$0")/../.." || exit 2
 Z=$(cd "$(dirname "$ZINC")" && pwd)/$(basename "$ZINC")
@@ -44,6 +45,8 @@ mistake() {
   cmp -s "$tmp/$name.txt" "$gold/$name.txt" || { echo "mistake $name: $(diff "$gold/$name.txt" "$tmp/$name.txt" 2>&1 | head -6)"; fail=1; }
   # every golden names a file and a line, and says what to do
   grep -Eq '^(<project>/)?src/[a-z.]+:[0-9]+:[0-9]+: error Z[0-9]+: ' "$tmp/$name.txt" || { echo "mistake $name: no file:line:col: error line"; fail=1; }
+  # the guide quotes the message as it is printed
+  grep -qF "$(sed -n 1p "$tmp/$name.txt" | sed 's|^<project>/||; s|<project>|my-game|g')" ../docs/guide/01-getting-started.md || { echo "mistake $name: docs/guide/01-getting-started.md does not quote its first line"; fail=1; }
   grep -Eq '^zinc: [0-9]+ errors?[.,].*zinc explain Z' "$tmp/$name.txt" || { echo "mistake $name: no closing line with the fix and zinc explain"; fail=1; }
 }
 # 1. a misspelt import: a name of a module, then the path of a file of the project
