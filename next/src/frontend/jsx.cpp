@@ -97,6 +97,8 @@ bool validClass(const std::string& c) {
       std::regex(R"(^bg-(gradient|linear)-to-(t|tr|r|br|b|bl|l|tl)(/[a-z]+)?$)"), std::regex(R"(^-?bg-(linear|conic)-\d+(\.\d+)?(/[a-z]+)?$)"),   // gradients (ZN-261)
       std::regex(R"(^bg-(radial|conic)(/[a-z]+)?$)"), std::regex(R"(^bg-(linear|radial|conic)-\[\S+\]$)"), std::regex(R"(^bg-\[(repeating-)?(linear|radial|conic)-gradient\(\S+\)\]$)"),
       std::regex(R"(^(from|via|to)-\d+(\.\d+)?%$)"),
+      std::regex(R"(^object-(contain|cover|fill|none|scale-down|\[\S+\])$)"), std::regex(R"(^(object|bg)-(center|((top|bottom)(-(left|right))?)|((left|right)(-(top|bottom))?))$)"),   // images in a box (ZN-262)
+      std::regex(R"(^bg-(\[url\(\S+\)\]|auto|cover|contain|(size|position)-\[\S+\]|repeat|no-repeat|repeat-(x|y|space|round))$)"),
       std::regex(R"(^border-(\d+|\[\d+(px)?\])$)"), std::regex(R"(^border-[trblxy](-(\d+|\[\d+(px)?\]))?$)"),
       std::regex(R"(^rounded-(t|r|b|l|tl|tr|br|bl)(-(none|sm|md|lg|xl|2xl|3xl|full|\[\d+(px)?\]))?$)"),
       std::regex(R"(^ring(-\d+)?$)"), std::regex(R"(^outline(-\d+)?$)"), std::regex(R"(^(ring|outline)-offset-\d+$)"), std::regex(R"(^outline-none$)"),
@@ -105,7 +107,7 @@ bool validClass(const std::string& c) {
       std::regex(R"(^-?word-(\d+|\[\d+(px)?\])$)"),
       std::regex(R"(^opacity-\d+$)"), std::regex(R"(^(duration|delay)-\d+$)")};
   static const std::regex variant(R"(^(focus|focus-visible|selection|disabled|group-hover|group-focus|group-active|peer-hover|peer-focus|peer-active|aria-(?:checked|selected|expanded|pressed|disabled|busy|current|invalid|required|readonly)|data-\[[a-z][a-z0-9-]*=[A-Za-z0-9_-]+\]|dark|light|landscape|portrait|pointer-coarse|pointer-fine|hover-none|max-(?:sm|md|lg|xl|2xl)|(?:min|max)-\[\d+px\]|@(?:sm|md|lg|xl)|@\[\d+px\]|focus-within|active|hover|sm|md|lg|xl|2xl):(.*)$)");
-  static const std::regex colored("^(bg|text|text-shadow|border|from|via|to|ring|outline)-" + color + "$");
+  static const std::regex colored("^(bg|text|text-shadow|border|from|via|to|ring|outline|tint)-" + color + "$");
   static const std::set<std::string> families = {"slate", "gray", "zinc", "red", "orange", "amber", "yellow", "lime", "green", "emerald", "teal", "cyan", "sky", "blue", "indigo", "violet", "purple", "fuchsia", "pink", "rose"};
   std::smatch m;
   if (std::regex_match(c, m, variant)) {
@@ -141,7 +143,7 @@ const std::map<std::string, std::vector<std::string>> kStyleAliases = {
 const std::set<std::string> kStyleNumeric = {"width", "height", "gap", "rowGap", "columnGap", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft", "marginTop", "marginRight", "marginBottom", "marginLeft",
     "top", "right", "bottom", "left", "opacity", "translateX", "translateY", "scale", "backgroundColor", "color", "borderColor", "borderWidth", "borderRadius", "borderTopWidth",
     "borderRightWidth", "borderBottomWidth", "borderLeftWidth", "fontSize", "lineHeight", "letterSpacing", "grow", "shrink", "basis", "hidden", "lazy", "minWidth", "maxWidth", "minHeight", "maxHeight", "aspectRatio", "widthPercent", "heightPercent", "shadowColor", "shadowOffsetX", "shadowOffsetY", "shadowOpacity", "shadowRadius", "elevation", "rotate", "skewX", "skewY", "scaleX", "scaleY",
-    "borderTopLeftRadius", "borderTopRightRadius", "borderBottomRightRadius", "borderBottomLeftRadius", "borderTopColor", "borderRightColor", "borderBottomColor", "borderLeftColor"};
+    "borderTopLeftRadius", "borderTopRightRadius", "borderBottomRightRadius", "borderBottomLeftRadius", "borderTopColor", "borderRightColor", "borderBottomColor", "borderLeftColor", "tintColor"};
 const std::map<std::string, std::map<std::string, int>> kStyleEnums = {
     {"flexDirection", {{"column", 0}, {"row", 1}, {"column-reverse", 2}, {"row-reverse", 3}}}, {"borderStyle", {{"solid", 0}, {"dashed", 1}, {"dotted", 2}}}, {"flexWrap", {{"nowrap", 0}, {"wrap", 1}, {"wrap-reverse", 2}}},
     {"justifyContent", {{"flex-start", 0}, {"start", 0}, {"center", 1}, {"flex-end", 2}, {"end", 2}, {"space-between", 3}, {"space-around", 4}, {"space-evenly", 5}}},
@@ -151,7 +153,9 @@ const std::map<std::string, std::map<std::string, int>> kStyleEnums = {
     {"position", {{"relative", 0}, {"static", 2}, {"absolute", 1}}}, {"boxSizing", {{"border-box", 0}, {"content-box", 1}}}, {"display", {{"flex", 0}, {"none", 1}, {"contents", 2}}},
     {"overflow", {{"visible", 0}, {"hidden", 1}, {"auto", 2}, {"scroll", 2}}},
     {"fontWeight", {{"normal", 0}, {"400", 0}, {"500", 0}, {"bold", 1}, {"600", 1}, {"700", 1}, {"800", 1}, {"900", 1}}},
-    {"textAlign", {{"left", 0}, {"start", 0}, {"center", 1}, {"right", 2}, {"end", 2}}}};
+    {"textAlign", {{"left", 0}, {"start", 0}, {"center", 1}, {"right", 2}, {"end", 2}}},
+    {"objectFit", {{"fill", 0}, {"contain", 1}, {"cover", 2}, {"none", 3}, {"scale-down", 4}}},   // React Native's resizeMode is objectFit (ZN-262): center scales down, repeat tiles
+    {"resizeMode", {{"stretch", 0}, {"contain", 1}, {"cover", 2}, {"center", 4}, {"repeat", 5}}}};
 
 // compiler/src/ui-style.ts styleEntry: one CSS-like property with a literal value becomes numeric style operations (the colours as `@key:hex` operations the
 // UI library registers). Errors are thrown as std::runtime_error with the prototype's wording.
@@ -169,6 +173,7 @@ std::vector<std::string> numericStyleKeys(const std::string& raw) {
   if (kStyleNumeric.count(name)) return {name};
   throw std::runtime_error("style '" + name + "' needs a supported literal value (or is unsupported)");
 }
+std::string trim(const std::string& s);
 std::string lowerCase(std::string s) { for (char& c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); return s; }
 std::vector<StyleOp> styleEntry(std::string name, StyleVal value) {
   name = styleName(name);
@@ -190,7 +195,19 @@ std::vector<StyleOp> styleEntry(std::string name, StyleVal value) {
       for (char ch : gm[1].str()) css += ch == ' ' ? '_' : ch;
       return {{"@bg-[" + css + "]", 0}};
     }
-    if (name != "background") throw std::runtime_error(name + " takes a linear-, radial- or conic-gradient(...) or none");
+    static const std::regex urlFn(R"(^\s*(url\(\S+\))\s*$)");   // an image of the assets (ZN-262)
+    if (std::regex_match(value.str, gm, urlFn)) return {{"@bg-[" + gm[1].str() + "]", 0}};
+    if (name != "background") throw std::runtime_error(name + " takes a url(..), a linear-, radial- or conic-gradient(...) or none");
+  }
+  if ((name == "backgroundSize" || name == "backgroundPosition" || name == "objectPosition" || name == "backgroundRepeat") && !value.isNum) {   // zinc:ui's bg-* and object-* tokens (ZN-262)
+    std::string v = trim(value.str), u;
+    for (char ch : v) u += ch == ' ' ? '_' : ch;
+    if (name == "backgroundSize") return {{v == "auto" || v == "cover" || v == "contain" ? "@bg-" + v : "@bg-size-[" + u + "]", 0}};
+    if (name == "backgroundPosition") return {{"@bg-position-[" + u + "]", 0}};
+    if (name == "objectPosition") return {{"@object-[" + u + "]", 0}};
+    static const std::set<std::string> repeats = {"repeat", "no-repeat", "repeat-x", "repeat-y", "space", "round"};
+    if (!repeats.count(v)) throw std::runtime_error("backgroundRepeat takes repeat, no-repeat, repeat-x, repeat-y, space or round");
+    return {{v == "space" || v == "round" ? "@bg-repeat-" + v : "@bg-" + v, 0}};
   }
   if (name == "background") name = "backgroundColor";
   if (name == "flex" && value.isNum && (uiLayout() == "rn" || uiPreset() == "react-native")) {   // React Native's shorthand in the rn layout mode (ZN-358): n > 0 grows n with shrink 1 and basis 0; 0 is rigid; -1 shrinks only
@@ -208,7 +225,7 @@ std::vector<StyleOp> styleEntry(std::string name, StyleVal value) {
     std::string key = value.isNum ? [&] { char b[40]; std::snprintf(b, sizeof b, "%g", value.num); return std::string(b); }() : value.str;
     auto ev = en->second.find(key);
     if (ev == en->second.end()) throw std::runtime_error("unsupported " + name + ": " + key);
-    return {{name == "display" ? "hidden" : name, static_cast<double>(ev->second)}};
+    return {{name == "display" ? "hidden" : name == "resizeMode" ? "objectFit" : name, static_cast<double>(ev->second)}};
   }
   if (name == "fontFamily") {
     static const std::regex ok(R"(^[A-Za-z0-9_.-]+$)");
@@ -906,6 +923,7 @@ struct Lowering {
       } else if (name == "highlight") push("_hl(" + v + ", " + expr + ");");
       else if (name == "type" && lit && a.lit == "password") push("_num(" + v + ", 'password', 1);");
       else if (name == "type" && lit && a.lit == "text") {}
+      else if ((name == "resizeMode" || name == "objectFit") && lit && kStyleEnums.at(name).count(a.lit)) push("_num(" + v + ", 'objectFit', " + num(kStyleEnums.at(name).at(a.lit)) + ");");   // <Image resizeMode="cover"> (ZN-262)
       else if (name == "inputMode" && lit && kInputModes.count(a.lit)) push("_num(" + v + ", 'inputMode', " + num(kInputModes.at(a.lit)) + ");");
       else if (kFlagAttrs.count(name)) {
         if (lit || a.kind == 0 || plainExpr == "true" || plainExpr == "false") push("_num(" + v + ", '" + name + "', " + (lit || plainExpr == "true" || a.kind == 0 ? "1" : "0") + ");");

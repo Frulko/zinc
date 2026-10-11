@@ -26,7 +26,7 @@ component (`View as Box`) is not supported: View, Text, Image and ScrollView mus
 |---|---|---|
 | View | supported | host element; style, onPress (zinc:ui's), `{...panResponder.panHandlers}` |
 | Text | supported | host element; `numberOfLines` (ellipsis); black by default, 14 px under the preset (16 px without it); the face is Inter, or the app's own: an `assets/Roboto*.ttf` (Apache-2.0) and `ui.setFontSans('Roboto')` come closer to Android's, San Francisco cannot be shipped |
-| Image | partial | host element with `src`; `source={{ uri }}`, `resizeMode`, `ImageBackground` missing |
+| Image | partial | host element with `src`; `resizeMode` (attribute or style: cover, contain, stretch, center, repeat) and `tintColor` (a multiply: exact on white and grey pixels); `source={{ uri }}` and `ImageBackground` missing (a View takes `backgroundImage: 'url(..)'`) |
 | ScrollView | partial | host element; `onScroll` with `nativeEvent.contentOffset`; `contentContainerStyle`, `horizontal`, `refreshControl` missing |
 | Pressable | supported | onPress, onLongPress (500 ms), onPressIn / onPressOut, disabled, accessibilityLabel; `style` as a function of `{ pressed }` and `hitSlop` missing |
 | TouchableOpacity, TouchableHighlight, TouchableWithoutFeedback | supported | activeOpacity, underlayColor (replaces the background) |
@@ -69,7 +69,7 @@ component (`View as Box`) is not supported: View, Text, Image and ScrollView mus
 React Native's object style keys: flex (grow, shrink 1, basis 0 under the preset), flexGrow / Shrink / Basis, flexDirection (reverse too), flexWrap (wrap-reverse too), justifyContent,
 alignItems / Self / Content (baseline: Yoga, flex-end in classic), position (relative by default, static, absolute) and insets (percent too in rn: padding, margin, insets, gaps, min / max), width / height (numbers, `'50%'`, `` `${n}%` ``), min / max sizes,
 aspectRatio, margin / padding (sides, horizontal / vertical, margins `'auto'`), gap, rowGap, columnGap, display, overflow, opacity, backgroundColor, color, border widths (they take layout space in the rn engine, paint only in classic: ZN-388), boxSizing, colours (sides),
-radii (corners), borderStyle, shadowColor / Offset / Opacity / Radius, elevation, the transform array (translate, scale, scaleX / Y, rotate, skew: rotate
+radii (corners), borderStyle, backgroundImage (`url(..)` or a gradient) with backgroundSize / Position / Repeat, resizeMode, objectFit, objectPosition, tintColor, shadowColor / Offset / Opacity / Radius, elevation, the transform array (translate, scale, scaleX / Y, rotate, skew: rotate
 and skew hit-test now and paint with ZN-361.01), fontSize, fontWeight, lineHeight, letterSpacing, textAlign, numberOfLines. Values chosen at run time:
 numbers, and conditionals between literals for the keys that take strings (`fontWeight: on ? 'bold' : 'normal'`). Missing: fontStyle italic as a key,
-textDecorationLine, textTransform, direction, zIndex as an object key, backfaceVisibility, tintColor (docs/ui.md lists the keys).
+textDecorationLine, textTransform, direction, zIndex as an object key, backfaceVisibility (docs/ui.md lists the keys).

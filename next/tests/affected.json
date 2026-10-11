@@ -72,6 +72,7 @@
     {"paths": ["../runtime/gfx.cpp", "tests/data/scale_push/"], "tests": ["scale_push"]},
     {"paths": ["../runtime/raster.cpp", "tests/data/shadow_mirror/"], "tests": ["shadow_mirror", "style_shadow"]},
     {"paths": ["../lib/std/ui.ts", "../runtime/raster.cpp", "../runtime/gfx.cpp", "../runtime/gl_replay.cpp", "../runtime/gl_replay_shaders.h", "src/frontend/jsx.cpp", "tests/golden/style-gradient/", "tests/data/style_gradient/", "tests/t1/style_gradient.sh"], "tests": ["style_gradient"]},
+    {"paths": ["../lib/std/ui.ts", "../runtime/raster.cpp", "../runtime/gfx.cpp", "../runtime/gl_replay.cpp", "src/frontend/jsx.cpp", "tests/golden/style-image/", "tests/data/style_image/", "tests/t1/style_image.sh"], "tests": ["style_image"]},
     {"paths": ["CMakeLists.txt", "src/main.cpp", "src/rt/alloc.cpp", "src/rt/alloc_new.cpp", "tests/t1/launch_time.sh"], "tests": ["launch_time", "profile", "aot"]},
     {"paths": ["../runtime/gfx.cpp", "../runtime/raster.cpp", "../runtime/gl_replay.cpp", "../runtime/zrt_raster.h", "tests/t1/gfx_transform.sh", "tests/data/gfx_transform/"], "tests": ["gfx_transform"]},
     {"paths": ["../examples/museum-table/", "tests/t1/museum_panorama.sh", "tests/data/museum_panorama/"], "tests": ["museum_panorama", "museum_format"]},

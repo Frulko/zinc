@@ -3,7 +3,7 @@
 // pointer + focus input (UI-11). Written in Zinc: the same code is compiled to C++ and to the sim.
 // Idle frames cost nothing: when no node, animation or canvas changed, the previous frame is kept (gfx.keep).
 import {
-  onFrame, onResize, clear, rrect, gradient, gradientPaint, border, shadow, drawText, drawImage, font, fontAscent, textWidth, image, imageWidth, imageHeight, createImage, destroyImage, commandCount, commandsFree,
+  onFrame, onResize, clear, rrect, gradient, gradientPaint, border, shadow, drawText, drawImage, drawImageRect, font, fontAscent, textWidth, image, imageWidth, imageHeight, createImage, destroyImage, commandCount, commandsFree,
   clip, unclip, width, height, pointerX, pointerY, pointerDown, wasPressed, keep, Btn, wheel,
   wheelX, pinch, pointerButtons, modifiers, keyCount, keyKind, keyMods, keyName, buttonEventCount, buttonEventX, buttonEventY,
   buttonEventButton, buttonEventDown, startTextInput, stopTextInput, clipboardText, setClipboardText, setCursor, Cursor, KeyKind,
@@ -226,6 +226,20 @@ export class GradX {
   cols: i32[] = NO_IDS; alphas: i32[] = NO_IDS; pos: number[] = NO_LINEW; unit: i32[] = NO_IDS;   // a CSS gradient's stops (unit 0 auto, 1 fraction, 2 px)
 }
 const DEF_GRADX = new GradX();
+/** Images in a box (ZN-262): how an <image> fills its box (object-fit, object-position, React Native's resizeMode), the tint of the node's
+ *  images, and a background image on any node (bg-[url(..)], background-size, -position and -repeat). Positions are a fraction of the free
+ *  space (CSS percentages) or px. */
+export class ImgX {
+  fit: i32 = 0;   // 0 fill, 1 contain, 2 cover, 3 none, 4 scale-down, 5 React Native's repeat (tiles, scaled down to fit when larger)
+  ox: number = 0.5; oy: number = 0.5; oxPx: boolean = false; oyPx: boolean = false;
+  tint: i32 = -1;   // multiplies the colour of the node's images (React Native's tintColor); -1 none
+  bg: i32 = -1;     // the background image
+  size: i32 = 0;    // 0 the lengths sw, sh (-1 auto), 1 cover, 2 contain
+  sw: number = -1; sh: number = -1; swPct: boolean = false; shPct: boolean = false;
+  bx: number = 0; by: number = 0; bxPx: boolean = false; byPx: boolean = false;
+  rx: i32 = 1; ry: i32 = 1;   // repeat along x and y: 0 no, 1 repeat, 2 space, 3 round
+}
+const DEF_IMGX = new ImgX();
 /** React Native's transform array, composed in one fixed order around the node's centre: rotate, then scale, then skew (degrees). */
 class TransformX { rot: number = 0; skX: number = 0; skY: number = 0; sx: number = 1; sy: number = 1; }
 /** The part of a transform painted today: an even scale around the centre. Rotate, skew and uneven scales only hit-test until the
@@ -336,6 +350,7 @@ export class UiNode {
   sn: SnapX = DEF_SNAPX;   // cold fields in a record shared by every node that has none of them (copy on write: ownSn())
   it: InterX = DEF_INTERX;   // cold fields in a record shared by every node that has none of them (copy on write: ownIt())
   gx: GradX = DEF_GRADX;     // the gradient record (copy on write: ownGx())
+  im: ImgX = DEF_IMGX;       // image fit, tint and background image (copy on write: ownIm())
   constructor(tag: i32) { this.tag = tag; }
   // read access under the old names (ui.inspectNode users and tests); the program writes through ownRg() and the like
   get ringW(): i32 { return this.rg.ringW; }
@@ -392,6 +407,7 @@ export class UiNode {
   ownSn(): SnapX { if (this.sn === DEF_SNAPX) this.sn = new SnapX(); return this.sn; }
   ownIt(): InterX { if (this.it === DEF_INTERX) this.it = new InterX(); return this.it; }
   ownGx(): GradX { if (this.gx === DEF_GRADX) this.gx = new GradX(); return this.gx; }
+  ownIm(): ImgX { if (this.im === DEF_IMGX) this.im = new ImgX(); return this.im; }
 }
 
 /** The paint-only properties a state can change (hover:, focus:, active:, disabled:): one record per state plus the values to go back to. mask bits: 1 opacity, 2 tx, 4 ty, 16 shadow, 32 bg, 64 fg, 128 border colour, 256 radius. */
@@ -863,6 +879,8 @@ const PCT_ENC: number = -10000000;   // rnValue's encoding of a percent: PCT_ENC
 const P_SHADOW_LEVEL: i32 = 110;
 const P_COLOR_ALPHA: i32 = 111;
 const P_BORDER_ALPHA: i32 = 112;
+const P_OBJECT_FIT: i32 = 113;   // ImgX.fit and .tint (ZN-262)
+const P_TINT_COLOR: i32 = 114;
 const PROP = new Map<string, i32>();
 function propInit(): void {
   PROP.set('opacity', P_OPACITY);
@@ -938,6 +956,7 @@ function propInit(): void {
   PROP.set('borderTopLeftRadius', P_RADIUS_TL); PROP.set('borderTopRightRadius', P_RADIUS_TR); PROP.set('borderBottomRightRadius', P_RADIUS_BR); PROP.set('borderBottomLeftRadius', P_RADIUS_BL);
   PROP.set('borderTopColor', P_BORDER_TOP_COLOR); PROP.set('borderRightColor', P_BORDER_RIGHT_COLOR); PROP.set('borderBottomColor', P_BORDER_BOTTOM_COLOR); PROP.set('borderLeftColor', P_BORDER_LEFT_COLOR);
   PROP.set('shadowLevel', P_SHADOW_LEVEL); PROP.set('colorAlpha', P_COLOR_ALPHA); PROP.set('borderAlpha', P_BORDER_ALPHA);
+  PROP.set('objectFit', P_OBJECT_FIT); PROP.set('tintColor', P_TINT_COLOR);
 }
 /** The id of a style key; -1 for a class token ('@...'), 0 for a key without an id. */
 export function propId(key: string): i32 {
@@ -958,6 +977,8 @@ function writeProp(n: UiNode, id: i32, key: string, v: number): void {
   if (id === P_COLOR_ALPHA) { n.fgAlpha = iv; paintDirty = true; return; }
   if (id === P_BORDER_ALPHA) { n.borderAlpha = iv; paintDirty = true; return; }
   if (id === P_SHADOW_LEVEL) { n.shadowLevel = iv < 0 ? 0 : iv > 5 ? 5 : iv; paintDirty = true; return; }
+  if (id === P_OBJECT_FIT) { n.ownIm().fit = iv; paintDirty = true; return; }
+  if (id === P_TINT_COLOR) { n.ownIm().tint = iv; paintDirty = true; return; }
   if (id === P_OPACITY) { n.opacity = v; paintDirty = true; return; }
   if (id === P_TRANSLATE_X || id === P_TRANSLATE_X) { n.tx = v; paintDirty = true; return; }
   if (id === P_TRANSLATE_Y || id === P_TRANSLATE_Y) { n.ty = v; paintDirty = true; return; }
@@ -1519,7 +1540,7 @@ function gradToken(n: UiNode, tok: string): i32 {
   const neg = t.startsWith('-');
   if (neg) t = t.slice(1);
   if (t.indexOf('[') < 0 && t.lastIndexOf('/') > 0) t = t.slice(0, t.lastIndexOf('/'));   // bg-linear-to-r/oklch: the interpolation space (drawn in sRGB)
-  if (t === 'bg-none') { if (neg) return -1; n.grad = 0; n.gx = DEF_GRADX; return 1; }
+  if (t === 'bg-none') { if (neg) return -1; n.grad = 0; n.gx = DEF_GRADX; if (n.im !== DEF_IMGX) n.im.bg = -1; return 1; }
   if (t.startsWith('bg-gradient-to-') || t.startsWith('bg-linear-to-')) {
     const k = GRAD_SIDES.indexOf(t.slice(t.startsWith('bg-gradient-') ? 15 : 13));
     if (k < 0 || neg) return -1;
@@ -1558,6 +1579,70 @@ function stopToken(n: UiNode, tok: string): boolean {
   if (k === 0) n.gradFrom = c; else n.gradTo = c;
   if (a !== 255 || n.gx !== DEF_GRADX) { const g = n.ownGx(); if (k === 0) g.fromA = a; else g.toA = a; }
   return true;
+}
+// ---- images in a box (ZN-262): object-fit / -position, background-image url(), -size, -position, -repeat (Tailwind v4's names), tint-*
+const FITS: string[] = ['fill', 'contain', 'cover', 'none', 'scale-down'];
+const REPEATS: string[] = ['repeat', 'no-repeat', 'repeat-x', 'repeat-y', 'repeat-space', 'repeat-round'];
+const REPEAT_X: i32[] = [1, 0, 1, 0, 2, 3], REPEAT_Y: i32[] = [1, 0, 0, 1, 2, 3];
+let posX: number = 0, posY: number = 0, posXPx: boolean = false, posYPx: boolean = false;
+/** One coordinate of a position: lo / center / hi as 0, 0.5, 1, else (when `lengths`) a percentage or a length in px. */
+function posPart(s: string, lo: string, hi: string, lengths: boolean, isX: boolean): boolean {
+  let f: number = s === lo ? 0 : s === 'center' ? 0.5 : s === hi ? 1 : -1, px = false;
+  if (f < 0) {
+    if (!lengths) return false;
+    if (s.endsWith('%') && digits(s.slice(0, s.length - 1))) f = parseFloat(s) / 100;
+    else { f = arbitrary(s); px = true; if (f !== f) return false; }
+  }
+  if (isX) { posX = f; posXPx = px; } else { posY = f; posYPx = px; }
+  return true;
+}
+/** A CSS <position> of one or two values into posX, posY: keywords (top left, right, center...), and when `lengths` percentages and px. */
+function cssPosition(v: string, lengths: boolean): boolean {
+  const p = v.split(' ');
+  if (p.length > 2 || p[0].length === 0) return false;
+  if (p.length === 1) p.push('center');
+  if (p[0] === 'top' || p[0] === 'bottom' || p[1] === 'left' || p[1] === 'right') { const t = p[0]; p[0] = p[1]; p[1] = t; }
+  return posPart(p[0], 'left', 'right', lengths, true) && posPart(p[1], 'top', 'bottom', lengths, false);
+}
+/** background-size lengths: one or two of auto, a percentage of the box, a length. */
+function cssSize(m: ImgX, v: string): boolean {
+  const p = v.split(' ');
+  if (p.length > 2) return false;
+  for (let i = 0; i < 2; i++) {
+    const s = i < p.length ? p[i] : 'auto';
+    let l: number = -1, pct = false;
+    if (s.endsWith('%') && digits(s.slice(0, s.length - 1))) { l = parseFloat(s) / 100; pct = true; }
+    else if (s !== 'auto') { l = arbitrary(s); if (l !== l || l < 0) return false; }
+    if (i === 0) { m.sw = l; m.swPct = pct; } else { m.sh = l; m.shPct = pct; }
+  }
+  m.size = 0;
+  return true;
+}
+/** object-*, tint-<colour>, bg-[url(..)], bg-auto / -cover / -contain / -size-[..], bg-<position> / -position-[..], bg-repeat-*: 1 applied,
+ *  -1 not valid, 0 none of them. */
+function imgToken(n: UiNode, tok: string): i32 {
+  if (tok.startsWith('tint-')) { const c = colorOf(tok.slice(5)); if (c === -2) return -1; n.ownIm().tint = c; return 1; }
+  const obj = tok.startsWith('object-');
+  if (!obj && !tok.startsWith('bg-')) return 0;
+  const v = tok.slice(obj ? 7 : 3);
+  if (obj && FITS.indexOf(v) >= 0) { n.ownIm().fit = FITS.indexOf(v); return 1; }
+  if (!obj && v.startsWith('[url(') && v.endsWith(')]')) {   // the file name as zinc:gfx image() takes it: quotes and a leading / dropped
+    let f = v.slice(5, v.length - 2).trim();
+    if (f.startsWith('\'') || f.startsWith('"')) f = f.slice(1, f.length - 1);
+    n.ownIm().bg = image(f.startsWith('/') ? f.slice(1) : f);
+    return 1;
+  }
+  const sz: i32 = obj ? -1 : v === 'auto' ? 0 : v === 'cover' ? 1 : v === 'contain' ? 2 : -1;
+  if (sz >= 0) { const m = n.ownIm(); m.size = sz; m.sw = -1; m.sh = -1; return 1; }
+  if (!obj && v.startsWith('size-[') && v.endsWith(']')) return cssSize(n.ownIm(), v.slice(6, v.length - 1).replaceAll('_', ' ')) ? 1 : -1;
+  const rp = obj ? -1 : REPEATS.indexOf(v);
+  if (rp >= 0) { const m = n.ownIm(); m.rx = REPEAT_X[rp]; m.ry = REPEAT_Y[rp]; return 1; }
+  const arb = obj ? v.startsWith('[') && v.endsWith(']') : v.startsWith('position-[') && v.endsWith(']');
+  const kw = !arb && (v === 'center' || v.indexOf('center') < 0);   // Tailwind's names: center alone, else sides and corners
+  if (!(arb ? cssPosition(v.slice(obj ? 1 : 10, v.length - 1).replaceAll('_', ' '), true) : kw && cssPosition(v.replaceAll('-', ' '), false))) return obj || arb ? -1 : 0;
+  const m = n.ownIm();
+  if (obj) { m.ox = posX; m.oy = posY; m.oxPx = posXPx; m.oyPx = posYPx; } else { m.bx = posX; m.by = posY; m.bxPx = posXPx; m.byPx = posYPx; }
+  return 1;
 }
 const MAX_NAMES: string[] = ['xs', 'sm', 'md', 'lg', 'xl', '2xl', '3xl', '4xl', '5xl', '6xl', '7xl'];
 const MAX_PX: number[] = [320, 384, 448, 512, 576, 672, 768, 896, 1024, 1152, 1280];
@@ -1762,7 +1847,7 @@ function stateToken(n: UiNode, variant: string, tok: string): boolean {
   else if (tok.startsWith('translate-x') || tok.startsWith('-translate-x')) m = 2;
   else if (tok.startsWith('translate-y') || tok.startsWith('-translate-y')) m = 4;
   else if (tok.startsWith('shadow')) m = 16;
-  else if (tok.startsWith('bg-') && t.grad === 0 && t.gx === DEF_GRADX) m = 32;
+  else if (tok.startsWith('bg-') && t.grad === 0 && t.gx === DEF_GRADX && t.im === DEF_IMGX) m = 32;
   else if (tok.startsWith('text-') && t.size === d.size && t.leading === d.leading && t.fg !== d.fg) m = 64;
   else if (tok.startsWith('border-') && t.borderW === d.borderW && t.borderColor !== d.borderColor) m = 128;
   else if (tok.startsWith('rounded') && t.bd.crTL < 0 && t.bd.crTR < 0 && t.bd.crBR < 0 && t.bd.crBL < 0) m = 256;
@@ -2133,6 +2218,7 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
     return true;
   }
   if (tok.startsWith('bg-') || tok.startsWith('-bg-')) { const gt = gradToken(n, tok); if (gt !== 0) return gt > 0; }
+  if (tok.startsWith('bg-') || tok.startsWith('object-') || tok.startsWith('tint-')) { const it = imgToken(n, tok); if (it !== 0) return it > 0; }
   if (tok.startsWith('from-') || tok.startsWith('via-') || tok.startsWith('to-')) return stopToken(n, tok);
   if (tok.startsWith('bg-')) { const c = colorOf(tok.slice(3)); if (c === -2) return false; n.bg = c; n.bgAlpha = alphaOf(tok.slice(3)); return true; }
   if (tok === 'border-solid') { n.ownBd().borderStyle = 0; return true; }
@@ -2268,7 +2354,7 @@ function resetStyle(n: UiNode): void {
   n.tx = 0; n.ty = 0; n.k = 1; n.tf = null; n.z = 0; n.invisible = false; n.noPointer = false; n.rel = false; n.sticky = false; n.stat = false; n.contentBox = false; n.borderColor = fresh.borderColor; n.borderAlpha = 255; n.fgAlpha = 255;
   n.opacity = 1; n.fg = fresh.fg; n.size = DEFAULT_TEXT; n.bold = false; n.weight = 0; n.italic = false; n.transform = 0; n.tsX = 0; n.tsY = 0; n.tsColor = -1; n.tsAlpha = 0; n.selBg = -1; n.selectable = false; n.group = false; n.peer = false; n.ws = 0; n.brk = 0; n.clamp = 0; n.ellipsis = false; n.balance = false; n.deco = 0; n.wordSp = 0; n.vshift = 0; n.family = 'sans'; n.tracking = 0; n.letterSpace = UNSET; n.talign = 0; n.leading = 0;
   n.cursor = -1;
-  n.rg = DEF_RINGX; n.bd = DEF_BORDERX; n.sn = DEF_SNAPX; n.gx = DEF_GRADX;   // the cold records: back to the shared defaults
+  n.rg = DEF_RINGX; n.bd = DEF_BORDERX; n.sn = DEF_SNAPX; n.gx = DEF_GRADX; n.im = DEF_IMGX;   // the cold records: back to the shared defaults
   if (n.it !== DEF_INTERX) { const o = n.it; o.focusBg = -1; o.activeBg = -1; o.focusFg = -1; o.activeFg = -1; o.transMs = 0; o.hoverBg = -1; o.hoverFg = -1; o.hoverBorder = -1; o.focusBorder = -1; o.withinBg = -1; o.withinFg = -1; o.withinBorder = -1; o.transMask = -1; o.transDelay = 0; o.transEase = 7; }   // curBg, fromBg, transStart and the tr* fields stay: a transition goes on across a class change
   if (n.ed !== null) { n.borderW = fresh.borderW; n.borderColor = fresh.borderColor; n.radius = fresh.radius; n.size = fresh.size; n.overflow = true; }
 }
@@ -3239,10 +3325,10 @@ function effectiveBg(h: i32, n: UiNode): i32 {
 const RT: number[] = [], RC: i32[] = [], RA: i32[] = [];   // the stops as written: offset (NaN: auto), colour, alpha
 const GT: number[] = [], GC: i32[] = [], GA: i32[] = [];   // the stops painted: offsets fixed up, transparent stops coloured
 const GP: number[] = [];                                    // the paint record (gfx gradientPaint)
-let gradWarned: i32 = 0;
-function gradWarn(bit: i32, msg: string): void {
-  if ((gradWarned & bit) !== 0) return;
-  gradWarned = gradWarned | bit;
+let tierWarned: i32 = 0;
+function tierWarn(bit: i32, msg: string): void {
+  if ((tierWarned & bit) !== 0) return;
+  tierWarned = tierWarned | bit;
   console.error(`zinc:ui: ${msg} on this profile (tier T${TIER})`);
 }
 function stopRgb(h: i32, c: i32): i32 { return c === -3 ? textFg(h) : c < 0 ? 0 : c; }
@@ -3339,7 +3425,7 @@ function paintGradient(h: i32, n: UiNode, x: number, y: number, w: number, hh: n
   if (!visible) return;
   if (kind === 3 && TIER < 3) {
     rrect(x, y, w, hh, r, (Math.round(sr / m) << 16) | (Math.round(sg / m) << 8) | Math.round(sb / m), Math.round(ai * (sa / m) / 255));
-    gradWarn(1, 'a conic gradient is drawn as the average of its stops');
+    tierWarn(1, 'a conic gradient is drawn as the average of its stops');
     return;
   }
   const vert = Math.abs(dy) >= Math.abs(dx), rev = vert ? dy < 0 : dx < 0;
@@ -3347,7 +3433,7 @@ function paintGradient(h: i32, n: UiNode, x: number, y: number, w: number, hh: n
   const oneRect = m === 2 && GT[0] <= 0 && GT[1] >= 1;
   if (TIER <= 1 && !(axisOk && oneRect)) {   // two stops along an axis: the first and the last colour, along the nearest axis
     gradient(x, y, w, hh, r, rev ? GC[m - 1] : GC[0], rev ? GC[0] : GC[m - 1], vert, Math.round(ai * (GA[0] + GA[m - 1]) / 510));
-    gradWarn(2, 'a gradient beyond two stops along an axis is drawn from its first to its last colour');
+    tierWarn(2, 'a gradient beyond two stops along an axis is drawn from its first to its last colour');
     return;
   }
   // ponytail: per-corner radii (rounded-tl-*) are not followed by gradients: the box takes its one radius r
@@ -3359,6 +3445,68 @@ function paintGradient(h: i32, n: UiNode, x: number, y: number, w: number, hh: n
   GP.push(m);
   for (let i = 0; i < m; i++) { GP.push(GT[i]); GP.push(GC[i]); GP.push(GA[i]); }
   gradientPaint(x, y, w, hh, r, GP, ai);
+}
+// ---- painting images in a box (ZN-262)
+/** The most tiles a repeated image takes, one command each (tier T0 16, T1 64): past it the box gets that many larger tiles. */
+const TILE_CAP: i32 = TIER <= 0 ? 16 : TIER === 1 ? 64 : 4096;
+/** Draws img in tiles of tw x th px, the first at (x + px, y + py), one every sx / sy px along the axes that repeat (rep bits 1 x, 2 y), cut
+ *  to the box (x, y, w, hh) rounded by r; tint multiplies the colour (-1 none). A tile is one drawImageRect of the part of the image inside
+ *  the box, its edges on whole pixels so that no seam shows between tiles; a rounded box clips them. */
+function drawTiles(img: i32, x: number, y: number, w: number, hh: number, r: number, tw: number, th: number, px: number, py: number, sx: number, sy: number, rep: i32, tint: i32, ai: i32): void {
+  if (tw <= 0 || th <= 0 || w <= 0 || hh <= 0) return;
+  if (rep === 0 && tint < 0 && px === 0 && py === 0 && tw === w && th === hh) { drawImage(img, x, y, w, hh, ai, r); return; }   // the image on the box: one command, as before
+  let k0: i32 = 0, k1: i32 = 0, j0: i32 = 0, j1: i32 = 0;
+  if ((rep & 1) !== 0) { k0 = Math.floor((-px - tw) / sx) + 1; k1 = Math.ceil((w - px) / sx) - 1; }
+  if ((rep & 2) !== 0) { j0 = Math.floor((-py - th) / sy) + 1; j1 = Math.ceil((hh - py) / sy) - 1; }
+  const cap: i32 = Math.max(1, Math.min(TILE_CAP, commandsFree() - 2));
+  if ((k1 - k0 + 1) * (j1 - j0 + 1) > cap) {   // the command budget: fewer, larger tiles laid exactly over the box, about the tiles' shape
+    let mx: i32 = (rep & 1) !== 0 ? Math.max(1, Math.round(w / sx)) : 1, my: i32 = (rep & 2) !== 0 ? Math.max(1, Math.round(hh / sy)) : 1;
+    const f = rep === 3 ? Math.sqrt(mx * my / cap) : mx * my / cap;
+    if (f > 1) { mx = Math.max(1, Math.floor(mx / f)); my = Math.max(1, Math.floor(my / f)); }
+    while (mx * my > cap) { if (mx >= my) mx--; else my--; }
+    if ((rep & 1) !== 0) { tw = w / mx; sx = tw; px = 0; k0 = 0; k1 = mx - 1; }
+    if ((rep & 2) !== 0) { th = hh / my; sy = th; py = 0; j0 = 0; j1 = my - 1; }
+    tierWarn(4, `an image repeated beyond ${cap} tiles is drawn as ${cap} larger tiles at most`);
+  }
+  const iw = imageWidth(img), ih = imageHeight(img), tc: u32 = tint < 0 ? 0xffffff : tint as u32;
+  if (r > 0) clip(x, y, w, hh, r);
+  for (let j = j0; j <= j1; j++) for (let k = k0; k <= k1; k++) {
+    const ax = Math.round(x + px + k * sx), ay = Math.round(y + py + j * sy), bw = Math.round(x + px + k * sx + tw) - ax, bh = Math.round(y + py + j * sy + th) - ay;
+    const x0 = Math.max(x, ax), y0 = Math.max(y, ay), x1 = Math.min(x + w, ax + bw), y1 = Math.min(y + hh, ay + bh);
+    if (x1 > x0 && y1 > y0) drawImageRect(img, (x0 - ax) * iw / bw, (y0 - ay) * ih / bh, (x1 - x0) * iw / bw, (y1 - y0) * ih / bh, x0, y0, x1 - x0, y1 - y0, ai, 0, 0, tc, 0);
+  }
+  if (r > 0) unclip();
+}
+/** n's background image over its box (CSS background-size, -position and -repeat; the box is both the positioning and the painting area). */
+function paintBgImage(n: UiNode, x: number, y: number, w: number, hh: number, r: number, kk: number, ai: i32): void {
+  const m = n.im, iw = imageWidth(m.bg) * kk, ih = imageHeight(m.bg) * kk;
+  if (iw <= 0 || ih <= 0) return;
+  let tw: number = iw, th: number = ih;
+  if (m.size > 0) { const s = m.size === 1 ? Math.max(w / iw, hh / ih) : Math.min(w / iw, hh / ih); tw = iw * s; th = ih * s; }
+  else if (m.sw >= 0 || m.sh >= 0) {   // one side auto keeps the image's ratio
+    tw = m.sw < 0 ? -1 : m.swPct ? m.sw * w : m.sw * kk; th = m.sh < 0 ? -1 : m.shPct ? m.sh * hh : m.sh * kk;
+    if (tw < 0) tw = th * iw / ih; else if (th < 0) th = tw * ih / iw;
+  }
+  if (m.rx === 3) tw = w / Math.max(1, Math.round(w / tw));   // round: a whole number of tiles
+  if (m.ry === 3) th = hh / Math.max(1, Math.round(hh / th));
+  let px = m.bxPx ? m.bx * kk : (w - tw) * m.bx, py = m.byPx ? m.by * kk : (hh - th) * m.by, sx = tw, sy = th, rep: i32 = 0;
+  const cx = Math.floor(w / tw), cy = Math.floor(hh / th);
+  if (m.rx === 2) { if (cx >= 2) { sx = tw + (w - cx * tw) / (cx - 1); px = 0; rep = 1; } }   // space: whole tiles from edge to edge, else one
+  else if (m.rx !== 0) rep = 1;
+  if (m.ry === 2) { if (cy >= 2) { sy = th + (hh - cy * th) / (cy - 1); py = 0; rep = rep | 2; } }
+  else if (m.ry !== 0) rep = rep | 2;
+  drawTiles(m.bg, x, y, w, hh, r, tw, th, px, py, sx, sy, rep, m.tint, ai);
+}
+/** An <image> in its box: CSS object-fit and object-position, React Native's repeat; without any, the prototype's stretch. */
+function paintImage(n: UiNode, x: number, y: number, w: number, hh: number, r: number, kk: number, ai: i32): void {
+  const m = n.im;
+  if (m === DEF_IMGX) { drawImage(n.img, x, y, w, hh, ai, r); return; }
+  const iw = imageWidth(n.img) * kk, ih = imageHeight(n.img) * kk;
+  if (iw <= 0 || ih <= 0) return;
+  const c = Math.min(w / iw, hh / ih), s = m.fit === 1 ? c : m.fit === 2 ? Math.max(w / iw, hh / ih) : m.fit === 3 ? 1 : Math.min(1, c);
+  const tw = m.fit === 0 ? w : iw * s, th = m.fit === 0 ? hh : ih * s;
+  if (m.fit === 5) drawTiles(n.img, x, y, w, hh, r, tw, th, 0, 0, tw, th, 3, m.tint, ai);
+  else drawTiles(n.img, x, y, w, hh, r, tw, th, m.oxPx ? m.ox * kk : (w - tw) * m.ox, m.oyPx ? m.oy * kk : (hh - th) * m.oy, tw, th, 0, m.tint, ai);
 }
 const SHADOW_Y: number[] = [0, 1, 1, 4, 10, 20], SHADOW_BLUR: number[] = [0, 2, 3, 6, 15, 25];
 const SHADOW_A: i32[] = [0, 20, 30, 40, 45, 50];
@@ -3384,15 +3532,17 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
     const r = Math.min(n.radius * kk, Math.min(w, hh) / 2);
     if (n.shadowLevel > 0) shadow(x, y + SHADOW_Y[n.shadowLevel] * kk, w, hh, r, SHADOW_BLUR[n.shadowLevel] * kk, 0x000000, Math.round(SHADOW_A[n.shadowLevel] * a));
     if (n.shOpacity > 0) shadow(x + n.shX * kk, y + n.shY * kk, w, hh, r, n.shBlur * kk, n.shColor as u32, Math.round(Math.min(1, n.shOpacity) * 255 * a));
-    const gr = n.grad > 0 || n.gx.kind > 0;
-    if (gr && n.gx === DEF_GRADX && n.gradFrom >= 0 && n.gradTo >= 0) {   // the prototype's two-stop gradient: its one command, as before
-      const flip = n.grad === 3 || n.grad === 4;
-      gradient(x, y, w, hh, r, flip ? n.gradTo : n.gradFrom, flip ? n.gradFrom : n.gradTo, n.grad === 1 || n.grad === 3, ai);
-    } else {
+    const gr = n.grad > 0 || n.gx.kind > 0, two = gr && n.gx === DEF_GRADX && n.gradFrom >= 0 && n.gradTo >= 0;   // two: the prototype's two-stop gradient
+    if (!two) {
       const bg = !gr || gradOpen(n) ? effectiveBg(h, n) : -1;   // under a gradient only where it lets it through
       if (bg >= 0) { if (n.bd.crTL >= 0 || n.bd.crTR >= 0 || n.bd.crBR >= 0 || n.bd.crBL >= 0) polygon(roundedPath(x, y, w, hh, cornerR(n.bd.crTL, r, kk, w, hh), cornerR(n.bd.crTR, r, kk, w, hh), cornerR(n.bd.crBR, r, kk, w, hh), cornerR(n.bd.crBL, r, kk, w, hh)), bg, Math.round(n.bgAlpha * a)); else rrect(x, y, w, hh, r, bg, Math.round(n.bgAlpha * a)); }
-      if (gr) paintGradient(h, n, x, y, w, hh, r, kk, ai);
     }
+    // ponytail: one background image under the gradient (CSS `background-image: <gradient>, url(..)`, the scrim over a photo); the box's one radius r
+    if (n.im.bg >= 0) paintBgImage(n, x, y, w, hh, r, kk, ai);
+    if (two) {   // its one command, as before
+      const flip = n.grad === 3 || n.grad === 4;
+      gradient(x, y, w, hh, r, flip ? n.gradTo : n.gradFrom, flip ? n.gradFrom : n.gradTo, n.grad === 1 || n.grad === 3, ai);
+    } else if (gr) paintGradient(h, n, x, y, w, hh, r, kk, ai);
     const focused = h === focus;
     let bc = focused && n.it.focusBorder >= 0 ? n.it.focusBorder : focused && n.ed !== null ? 0x3b82f6 : n.it.withinBorder >= 0 && focus >= 0 && isAncestor(h, focus) ? n.it.withinBorder : n.hovered && n.it.hoverBorder >= 0 ? n.it.hoverBorder : n.borderColor;
     const bw = n.borderW < 0 ? 1 : n.borderW;
@@ -3415,7 +3565,7 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
     if (ow > 0) border(x - (oo + ow) * kk, y - (oo + ow) * kk, w + 2 * (oo + ow) * kk, hh + 2 * (oo + ow) * kk, r + (oo + ow) * kk, ow * kk, oc >= 0 ? oc : 0x000000, ai);
     if (rw > 0) border(x - (ro + rw) * kk, y - (ro + rw) * kk, w + 2 * (ro + rw) * kk, hh + 2 * (ro + rw) * kk, r + (ro + rw) * kk, rw * kk, rc >= 0 ? rc : 0x3b82f6, ai);
     if (focused && rw + ow === 0 && !n.rg.outNone && n.it.focusBg < 0 && n.it.focusBorder < 0 && n.ed === null && n.focusable) border(x - 2, y - 2, w + 4, hh + 4, r + 2, 2, 0xfacc15, ai);
-    if (n.tag === IMAGE && n.img >= 0) drawImage(n.img, x, y, w, hh, ai, r);
+    if (n.tag === IMAGE && n.img >= 0) paintImage(n, x, y, w, hh, r, kk, ai);
     if (n.tag === TEXT && n.text.length > 0) {
       const lh = lineHeightOf(n);
       let fg = textFg(h);
