@@ -59,6 +59,11 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-262: the GL replay keeps rounded CLIPs above CORNER = 32 device px square, so object-cover rounded-full images (and overflow-hidden rounded-full avatars) wider than 32 px at scale 2 lose their round corners on the GL renderer; an SDF clip in the shader would lift it.
 - ZN-262: zinc:react-native has no ImageBackground and Image takes no source={{ uri }}; a View with backgroundImage: 'url(..)' covers the first.
 - ZN-262: background images follow the box's one radius, not per-corner radii, and take the border box as their area (no background-origin / -clip).
+- ZN-438: `zinc export` (native targets) should copy `build/assets/<target>` into dist; exported games use the loose-image fallback today.
+- ZN-438: the res baker should skip images a sprite rule takes; game-2d's SVGs are baked twice.
+- ZN-438: atlas page format, `maxSize` and POT should come from the target's asset profile (rgb565/rgba4444 with ZN-439's encoders).
+- ZN-438: zinc:assets v2 image handles should free pack images with their group; they live for the program's lifetime today.
+- ZN-438: the browser export should use the atlas (with ZN-449); check TexturePacker rotated frames on a sheet TexturePacker wrote (the test sheet follows its documentation, clockwise).
 
 ## Demos
 
@@ -80,3 +85,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-436: tests/t0/assets_groups.sh on Linux x86_64/arm64 and the Pi 1 (the in-turn decode path); a cross build that links the pack libraries and sets ZINC_PACK_TARGET.
 - ZN-261: tests/t1/style_gradient.sh's GL comparison on llvmpipe (Linux) and on VideoCore IV GLES2 (Pi 3).
 - ZN-261: rebuild the esp32 prebuilt core so its host table carries host.gfxGradientPaint (T0 programs never call it).
+- ZN-438: sprite atlas sources build warning-free under `zig c++` (cross builds).

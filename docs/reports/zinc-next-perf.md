@@ -438,6 +438,13 @@ The CPU time ZINC_GL_STATS calls "to submit" includes waits for the GPU (5.6 to 
 measured at load 6 from other builds, before ZN-432 changed the image path of the replay. GL replay against the software frame for convex
 and concave polygons: 0.06% of the pixels more than 24 apart, mean error 0.07 (tests/t1/gl_convex.sh).
 
+### ZN-438: sprite atlases, the game-2d template (2026-10-11, Intel Mac, Radeon Pro 555X, load 2.7 to 3.0 with another agent building)
+
+Play scene in the GL window, 120 frames, `ZINC_GL_STATS`: draw calls per frame 4.0 before, 3.0 after (17 quads both times; the atlas
+alone still gave 4.0 until `gl_replay.cpp` kept the texture's filter on one-texel-per-pixel copies, so the coins and the player share a
+batch). CPU to submit 502 then 496 us, GPU 116 us both (noise). `zinc assets build` of game-2d with the atlas rule: 5 ms first, 1 ms
+second. Frames at scales 1 and 2 hash the same as the loose images.
+
 ### ZN-581: GPU sprites, the zinc:gfx bunnymark (2026-10-11, Intel Mac, Radeon Pro 555X, load 2.8 to 3.3 with other agents building)
 
 20,000 sprites of 26x37 at 800x600 Retina, AOT, the GL window (`next/tests/data/sprites/bunny`); frame work = the profile's work p50 + the
