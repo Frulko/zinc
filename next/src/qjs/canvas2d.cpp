@@ -40,6 +40,8 @@ extern "C" {
 #pragma GCC diagnostic pop
 #endif
 
+namespace zrt::raster { void dyn_set_alpha(int32_t id, bool on); }   // runtime/zrt_raster.h: the top byte of a runtime image's pixels is their alpha
+
 namespace zn::qjs {
 namespace {
 
@@ -355,7 +357,8 @@ JSValue js_image(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
                     static_cast<float>(d[0]), static_cast<float>(d[1]), static_cast<float>(d[2]), static_cast<float>(d[3]));
   return JS_UNDEFINED;
 }
-// present(canvas, image): the canvas over black into a zinc:gfx image, which the window then shows; false without a surface to show on
+// present(canvas, image): the canvas into a zinc:gfx image, with its alpha (a transparent canvas lets through what the window drew before
+// it: the page's black, a WebGL canvas under an overlay); false without a surface to show on
 JSValue js_present(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
   Canvas* k = argc > 1 ? self(argv[0]) : nullptr;
   const auto* hooks = static_cast<const zn::gl::PresentHooks*>(zn::host::glPresentHooks());
@@ -364,10 +367,8 @@ JSValue js_present(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
   if (!dst) return JS_FALSE;
   std::vector<uint8_t> px(static_cast<size_t>(k->w) * static_cast<size_t>(k->h) * 4);
   k->cv->get_image_data(px.data(), k->w, k->h, k->w * 4, 0, 0);
-  for (size_t i = 0, count = px.size() / 4; i < count; i++) {
-    const unsigned a = px[i * 4 + 3];
-    dst[i] = (px[i * 4] * a / 255) << 16 | (px[i * 4 + 1] * a / 255) << 8 | (px[i * 4 + 2] * a / 255);
-  }
+  for (size_t i = 0, count = px.size() / 4; i < count; i++) dst[i] = static_cast<unsigned>(px[i * 4 + 3]) << 24 | static_cast<unsigned>(px[i * 4]) << 16 | static_cast<unsigned>(px[i * 4 + 1]) << 8 | px[i * 4 + 2];
+  zrt::raster::dyn_set_alpha(i32(c, argv[1]), true);
   hooks->done(i32(c, argv[1]));
   return JS_TRUE;
 }

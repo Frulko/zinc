@@ -1,11 +1,11 @@
 ---
 id: ZN-570
 title: 'Canvas 2D, text-first tier'
-status: In Progress
+status: Backlog
 assignee:
   - '@parallel'
 created_date: '2026-10-09 08:11'
-updated_date: '2026-10-11 15:00'
+updated_date: '2026-10-11 15:08'
 labels:
   - games
   - js
@@ -26,8 +26,8 @@ A CanvasRenderingContext2D for QuickJS on a CPU RGBA8 premultiplied bitmap, enou
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [ ] #1 PixiJS Text, Phaser Text, Kaplay text() and LittleJS overlay text match headless Chrome at SSIM >= 0.90, glyph boxes within 1 px
-- [ ] #2 measureText('Hello').width within 1% of Chrome for the bundled sans font
-- [ ] #3 unsupported calls are recorded no-ops (debug counter), not exceptions
+- [x] #2 measureText('Hello').width within 1% of Chrome for the bundled sans font
+- [x] #3 unsupported calls are recorded no-ops (debug counter), not exceptions
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -59,4 +59,12 @@ A THIRD MEASURE CHANGED THE LIBRARY, NOT THE CHOICE: get_image_data of 640 x 480
 SCORES REDONE WITH THE MEASURES (fit x3, performance x3, size x2, maintainability x2, licence x2, portability x1, effort x1): (A) own 2D 1,3,5,2,5,5,1 = 42; (B) canvas_ity with its own text 2,4,5,4,5,5,4 = 55; (C) own compositor with the text tier 3,5,5,3,5,5,3 = 58; (D) canvas_ity with the text tier 5,4,5,4,5,5,4 = 64; (E) Skia 5,5,1,2,5,3,1 = 50. (D) rises on fit (text equals Chrome's numbers, see below; strokes, shadows, gradients and transforms on text for free; paths for p5) and on performance (measured, no longer a guess). What would make us revisit: a p5 sketch that fills the screen many times a frame (4 to 5 ms per 640 x 480 fill is the ceiling of a float RGBA bitmap on one thread), or ZN-571 choosing a GPU backend for the full tier.
 SECOND DECISION TO RECORD: linked into zinc (zn_qjs), not a module libzn_canvas2d as the description says. The object is 99 KB of code and zinc grows by 94 KB (13,782,280 to 13,875,824 bytes, 0.7 %); the text tier it needs is already in zinc; a module would add a dlopen, an exported interface and a second copy of nothing. libzn_webgl is a module because of glslang and glad (megabytes). Reversible: one CMake target.
 DONE IN THIS COMMIT: src/qjs/canvas2d.cpp (native.c2d: bitmap, numeric calls, text and measure through src/text, fonts, read, write, image, present), text::outline in src/text, the CanvasRenderingContext2D, CanvasGradient, TextMetrics, FontFace and document.fonts of lib/std/webenv.js, a 2D canvas shown in the window and as a texture source, tools/canvas2d-ref, tests/t1/webenv_canvas2d.sh. Against Chrome with the same font: measureText('Hello') at 32 px 77.125 on both sides (criterion 2: equal, not within 1 %); 23 entries of metrics, baselines, alignments and glyph boxes within a pixel; the scene of game text SSIM 0.989.
+
+2026-10-11 17:50, same agent, HANDOVER. Three commits on the branch: the context and its test; the libraries against Chrome; a 2D canvas shown with its alpha (an overlay over a WebGL canvas).
+CRITERION 2 ticked: measureText('Hello').width at 32 px is 77.125 in headless Chrome and here, 24.102 and 24.102 at 10 px (tests/t1/webenv_canvas2d.sh, chrome.json: 23 entries of widths, TextMetrics, baselines, alignments and glyph boxes, none differs by more than a pixel, widths by 1 %).
+CRITERION 3 ticked: Path2D arguments, patterns, conic gradients, filters, the even-odd rule, blend modes beyond the eleven, isPointInStroke are counted (__canvas2dUnsupported(), named by ZINC_WEB=trace) and throw nothing; a number that is not finite makes a call do nothing (the 'unsupported' line of text.out). Known gap, left for ZN-572: there is no Path2D class, so 'new Path2D()' is a ReferenceError as in a browser without it; a class that draws nothing would make a library that tests for it choose the path that shows nothing.
+CRITERION 1 LEFT OPEN, half proven: PixiJS 8 Text SSIM 0.9755, Phaser 3 Text 0.9838, a p5 sketch in 2D mode 0.9880, the scene of game text 0.9889 against headless Chrome with the same font (tests/t1/webenv_canvas2d_libs.sh and webenv_canvas2d.sh; references by tools/canvas2d-ref); glyph boxes within a pixel (chrome.json). NOT PROVEN: Kaplay text() and LittleJS overlay text with the libraries themselves. Neither library is in the repository or in tools/test-lib, and neither was tried. What they need from this tier is there and tested without them: fillText, strokeText and measureText on a canvas used as a texture (Kaplay's atlas), and a transparent 2D canvas over the WebGL one (LittleJS's overlay: overlay.js). NEXT STEP for whoever takes the task: add kaplay and littlejs (both MIT) to tools/test-lib or third_party with their pins, a page each under tests/golden/webenv/canvas2d/libs, a line each in tools/canvas2d-ref libs and in webenv_canvas2d_libs.sh; then 'tools/canvas2d-ref libs kaplay littlejs' and 'tests/run --tier t1 --only webenv_canvas2d_libs'. Both libraries may ask for an AudioContext at start (ZN-573), not checked.
+ALSO DONE: roundRect with circular corners (p5 calls it), ellipse, FontFace and document.fonts for the program's own files (a font from the network is refused; bytes that are not a font file are refused before stb_truetype reads them), PixiJS 7 Graphics fill and Text seen in a frame (no test).
+NOT DONE, NOT IN THIS TIER: nearest-neighbour drawImage (imageSmoothingEnabled is kept and ignored: always bicubic), italic and bold synthesis, a bold monospaced face, toDataURL. The three example READMEs say Text is now possible; the examples themselves are unchanged (ZN-577 to ZN-579).
+LINES FOR later.md (the coordinator adds them): see the final report.
 <!-- SECTION:NOTES:END -->
