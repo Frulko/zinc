@@ -28,7 +28,7 @@ static const int MAXQ = 8192, ATLAS = 1024, CORNER = 32, LEVELS = 16;
 #include "gl_replay_shaders.h"   // VS, FS (the commands), SVS, SFS (the occlusion pass), FVS, FFS (the stencil pass)
 struct SV { float x0, y0, x1, y1; uint8_t c[4]; float z; };   // a rectangle (instanced) or, on GLES 2, x, y, c, z of one corner in its first 16 bytes
 
-struct Tex2 { GLuint id; int32_t key; uint32_t ver; int32_t w, h; const void* px; int nearest; };
+struct Tex2 { GLuint id; int32_t key; uint32_t ver; int32_t w, h; const void* px; int nearest, cmp; };   // cmp: level 0 is GPU blocks (1), premultiplied ones (2)
 static Tex2* texs;                  // by runtime image index (id - DYN_BASE), grown on demand (ZN-670: thousands of runtime images)
 static int32_t ntexs = 0;
 static Tex2* baked;                 // by baked image index
@@ -65,7 +65,7 @@ struct RC { float x, y, w, h, r; int R; bool on; };
 static RC rstack[16];
 static int sp;
 static uint32_t warned, unsupported;
-static struct { uint32_t frames, idle, draws, quads, glyphs, ptiles; double us, cull_us; uint64_t hidden; } st;
+static struct { uint32_t frames, idle, draws, quads, glyphs, ptiles, blocks, decoded; double us, cull_us; uint64_t hidden, block_bytes; } st;
 #if defined(__APPLE__) && GLR_CORE
 // GPU time of the replays (ZINC_GL_STATS, ZN-679): a timer query per frame, read four frames later so the CPU never waits for the GPU
 static GLuint gq[4];
@@ -339,6 +339,32 @@ static void draw_text(const Cmd& c, const char* s) {
   }
 }
 
+// ---- compressed textures (ZN-439): the internal format this context takes for blocks of OpenGL format `fmt`, 0 when it takes none. From
+// GL_COMPRESSED_TEXTURE_FORMATS, and on GLES the extension string, where some drivers name ETC1 only; ETC1 data is also ETC2 RGB8 data.
+static GLenum block_format(uint32_t fmt) {
+  static GLint n = -1, *list;
+  static bool etc1_ext;
+  if (n < 0) {
+    glGetIntegerv(GL_NUM_COMPRESSED_TEXTURE_FORMATS, &n);
+    list = (GLint*)calloc(n > 0 ? (size_t)n : 1, sizeof(GLint));
+    if (n > 0 && list) glGetIntegerv(GL_COMPRESSED_TEXTURE_FORMATS, list);
+    else n = 0;
+#if !GLR_CORE
+    const char* ext = (const char*)glGetString(GL_EXTENSIONS);
+    etc1_ext = ext && strstr(ext, "GL_OES_compressed_ETC1_RGB8_texture");
+#endif
+    if (getenv("ZINC_GL_STATS")) {
+      fprintf(stderr, "display-gl renderer gl: compressed formats");
+      for (GLint i = 0; i < n; i++) fprintf(stderr, " 0x%04x", (unsigned)list[i]);
+      fprintf(stderr, "%s\n", etc1_ext ? " (and ETC1 by extension)" : "");
+    }
+  }
+  bool has = false, etc2 = false;
+  for (GLint i = 0; i < n; i++) { has |= (uint32_t)list[i] == fmt; etc2 |= list[i] == 0x9274; }
+  if (fmt == 0x8D64) return has || etc1_ext ? fmt : etc2 ? 0x9274 : 0;
+  return has ? fmt : 0;
+}
+
 // ---- images: baked ones are uploaded once, runtime ones again when their version changes
 static Tex2* dyn_tex(int32_t id) {
   Tex2* t = nullptr;
@@ -364,8 +390,21 @@ static Tex2* dyn_tex(int32_t id) {
   }
   if (t->ver != ver || t->px != px) {
     glBindTexture(GL_TEXTURE_2D, t->id);
+    // a compressed texture (ZN-439): its blocks where the driver takes the format, else its decoded texels
+    uint32_t bf, bn; const void* bd; bool pre;
+    const bool blocks = dyn_blocks(id, &bf, &bd, &bn, &pre);
+    GLenum cf = blocks ? block_format(bf) : 0;
+    if (cf) {
+      while (glGetError() != GL_NO_ERROR) {}
+      glCompressedTexImage2D(GL_TEXTURE_2D, 0, cf, w, h, 0, (GLsizei)bn, bd);
+      if (glGetError() == GL_NO_ERROR) { t->cmp = pre ? 2 : 1; st.blocks++; st.block_bytes += bn; }
+      else cf = 0;
+    }
+    if (!cf && blocks) st.decoded++;
+    if (!cf && t->cmp) { glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr); t->cmp = 0; }   // texels again
     glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
-    if (stride == w) glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, px);
+    if (cf) {}
+    else if (stride == w) glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, px);
     else for (int32_t y = 0; y < h; y++) glTexSubImage2D(GL_TEXTURE_2D, 0, 0, y, w, 1, GL_RGBA, GL_UNSIGNED_BYTE, px + (size_t)y * stride);
     glBindTexture(GL_TEXTURE_2D, cur_tex);
     t->ver = ver; t->px = px;
@@ -395,7 +434,7 @@ static void draw_image(const Cmd& c) {
     alpha = last.alpha;
     int32_t sx = f2i((float)w / c.w * 65536), sy = f2i((float)h / c.h * 65536);
     nearest = c.grad == 1 || (sx == 65536 && sy == 65536);
-    mode = IMAGE_BGR;
+    mode = t && t->cmp ? IMAGE_RGBA : IMAGE_BGR;   // blocks decode to RGBA, the pixels are 0xAARRGGBB
   } else {
     if (c.res < 0 || c.res >= image_count) return;
     const Image& im = images[c.res];
@@ -429,7 +468,7 @@ static void draw_image(const Cmd& c) {
   const float rad = image_radius(c);
   q.r = rad > 0 ? rad : 0;   // the CPU does not clamp an image's radius
   q.c1 = image_tint(c);
-  q.grad = alpha;            // the coverage is the texture's alpha
+  q.grad = t->cmp == 2 ? 2 : alpha;   // the coverage is the texture's alpha; 2: its texels are premultiplied
   q.u0 = (q.x0 - m.x) / m.w; q.u1 = (q.x1 - m.x) / m.w; q.v0 = (q.y0 - m.y) / m.h; q.v1 = (q.y1 - m.y) / m.h;
   quad(q);
 }
@@ -1186,7 +1225,8 @@ static void idle() { st.idle++; }
 static void report() {
   if (!getenv("ZINC_GL_STATS")) return;
   double n = st.frames ? st.frames : 1;
-  fprintf(stderr, "display-gl renderer gl: %u frames replayed, %u idle (no damage), %.1f draw calls and %.0f quads per frame, %u glyphs in the atlas, %u LINE/POLY skipped; %.0f us of CPU per replayed frame to submit it, %.0f us of it culling %.0f hidden commands; per frame %.1f LINE/POLY tiles rasterized on the CPU, %.1f strokes tessellated; %.0f us of GPU per frame\n",
-          st.frames, st.idle, st.draws / n, st.quads / n, st.glyphs, unsupported, st.us / n, st.cull_us / n, (double)st.hidden / n, st.ptiles / n, zrt::raster::strokes_built / n, gpu_n ? gpu_us / gpu_n : 0.0);
+  fprintf(stderr, "display-gl renderer gl: %u frames replayed, %u idle (no damage), %.1f draw calls and %.0f quads per frame, %u glyphs in the atlas, %u LINE/POLY skipped; %.0f us of CPU per replayed frame to submit it, %.0f us of it culling %.0f hidden commands; per frame %.1f LINE/POLY tiles rasterized on the CPU, %.1f strokes tessellated; %.0f us of GPU per frame; %u compressed textures uploaded as blocks (%llu bytes), %u decoded\n",
+          st.frames, st.idle, st.draws / n, st.quads / n, st.glyphs, unsupported, st.us / n, st.cull_us / n, (double)st.hidden / n, st.ptiles / n, zrt::raster::strokes_built / n, gpu_n ? gpu_us / gpu_n : 0.0,
+          st.blocks, (unsigned long long)st.block_bytes, st.decoded);
 }
 }  // namespace glr

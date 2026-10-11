@@ -18,6 +18,7 @@ struct Options {
   // mention are not baked (the runtime rasterizes what they really use); empty: every source is the program's (ZN-428).
   std::vector<bool> library;
   bool wholeFonts = false;   // "text": "shaped": the shaper needs the whole TrueType files; otherwise they are subset to what the program can show
+  std::vector<std::string> leave;   // images of the assets directory (relative, '/') its packs carry as textures (ZN-439): not embedded
 };
 
 // `sources` are the texts of every file of the program (user code and standard modules): they decide the sizes and the characters.

@@ -3,6 +3,7 @@
 #include "tc/policy.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
@@ -10,6 +11,7 @@
 #include <iterator>
 #include <map>
 #include <sstream>
+#include <thread>
 #include <unistd.h>
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
@@ -58,6 +60,11 @@ constexpr Pin kButlerPins[] = {
     {"aarch64-linux", "linux-arm64", "2ffd4071dfa715024eedd2b4ac7406c1c7802452214d89a48496adb9c171b737"},
     {"x86_64-linux", "linux-amd64", "4f2a3f22b12f870923504d4b6935535cad377b45859f5fe9419e3adc0611a48c"},
 };
+
+// basis_universal's basisu (ZN-439), the texture encoder of the asset build: the project publishes no binaries, so its source archive (tag v2_50,
+// 2026-08-03, Apache-2.0) is pinned and built once with the pinned zig. The host is "any": the sources are the same for every machine.
+constexpr const char* kBasisuVersion = "2.50";
+constexpr Pin kBasisuSource = {"any", "basis_universal-v2_50.tar.gz", "216e49e1f4213d4bfa4afaa07527e16bac28533dddd444197d3aa19230ac130c"};
 
 std::string quote(const std::string& s) {
   std::string r = "'";
@@ -109,6 +116,8 @@ std::vector<PinnedTool> pinnedTools() {
   add("esptool", kEsptoolVersion, kEsptoolPins, sizeof kEsptoolPins / sizeof *kEsptoolPins, "esptool-", "esptool");
   add("qemu-system-xtensa", kQemuVersion, kQemuPins, sizeof kQemuPins / sizeof *kQemuPins, "qemu-xtensa-", "bin/qemu-system-xtensa");
   add("butler", kButlerVersion, kButlerPins, sizeof kButlerPins / sizeof *kButlerPins, "butler-", "butler");
+  const std::string basisu = (fs::path(home()) / "toolchains" / ("basisu-" + hostName() + "-" + kBasisuVersion)).string();
+  out.push_back(PinnedTool{"basisu", kBasisuVersion, kBasisuSource.file, kBasisuSource.sha256, basisu, fs::exists(fs::path(basisu) / "basisu")});
   return out;
 }
 
@@ -307,6 +316,83 @@ bool ensureButler(std::string& path, std::string& err) {
   if (ec) { err = "cannot move butler into place: " + ec.message(); return false; }
   std::ofstream(dir / "SHA256") << pin->sha256 << "  " << file << "\n";
   return true;
+}
+
+std::string basisuVersion() { return kBasisuVersion; }
+std::string basisuPath() {
+  if (const char* b = std::getenv("ZINC_BASISU")) return b;
+  return (fs::path(home()) / "toolchains" / ("basisu-" + hostName() + "-" + kBasisuVersion) / "basisu").string();
+}
+bool ensureBasisu(std::string& path, std::string& err) {
+  path = basisuPath();
+  if (std::getenv("ZINC_BASISU") || fs::exists(path)) return true;
+  std::string zig;
+  if (!ensureZig(zig, err)) return false;
+  const fs::path dir = fs::path(path).parent_path(), work = dir.parent_path() / ("build-" + dir.filename().string() + "-" + std::to_string(::getpid()));
+  std::error_code ec;
+  fs::remove_all(work, ec);
+  fs::create_directories(work / "obj", ec);
+  const fs::path archive = work / kBasisuSource.file;
+  std::fprintf(stderr, "zinc: downloading basis_universal %s, the texture encoder (once: 190 MB of sources, then a few minutes to build it)...\n", kBasisuVersion);
+  std::string got;
+  if (!downloadTo("https://github.com/BinomialLLC/basis_universal/archive/refs/tags/v2_50.tar.gz", kBasisuSource.file, archive.string(), [&](const std::string& p, std::string& why) {
+        got = sha256File(p);
+        if (got == kBasisuSource.sha256) return true;
+        why = "SHA-256 " + (got.empty() ? std::string("of nothing") : got) + ", the pin is " + kBasisuSource.sha256;
+        return false;
+      }, err)) { fs::remove_all(work, ec); return false; }
+  std::fprintf(stderr, "zinc: checksum verified (%s)\n", got.c_str());
+  // only what the command-line tool compiles: the archive also holds test images, wasm builds and the Python bindings
+  const std::string top = "basis_universal-2_50/";
+  std::string members;
+  for (const char* m : {"encoder", "transcoder", "zstd", "basisu_tool.cpp", "basisu_tool_help.h", "basisu_tool_test_codecs.inl", "basisu_text_image.cpp", "basisu_text_image.h", "LICENSE", "NOTICE"})
+    members += " " + quote(top + m);
+  const bool unpacked = run("tar -xzf " + quote(archive.string()) + " -C " + quote(work.string()) + members, err, "unpacking basis_universal");
+  fs::remove(archive, ec);
+  if (!unpacked) { fs::remove_all(work, ec); return false; }
+  // the sources of its CMakeLists.txt's basisu target without OpenCL, astcenc or SSE: one code path on every machine, so that an encode gives the
+  // same bytes on x86_64 and aarch64 (ponytail: SSE off costs ETC1S encodes speed, not UASTC ones; measure before turning it on per host)
+  const fs::path src = work / "basis_universal-2_50";
+  std::vector<std::string> files = {"basisu_tool.cpp", "basisu_text_image.cpp", "transcoder/basisu_transcoder.cpp", "encoder/jpgd.cpp", "encoder/pvpngreader.cpp",
+                                    "encoder/3rdparty/android_astc_decomp.cpp", "zstd/zstd.c"};
+  for (const char* e : {"backend", "basis_file", "comp", "enc", "etc", "frontend", "gpu_texture", "pvrtc1_4", "resampler", "resample_filters", "ssim", "uastc_enc",
+                        "bc7e_scalar", "dds_export", "bc7enc", "kernels_sse", "bc15_spmd", "bc15_spmd_sse", "opencl", "uastc_hdr_4x4_enc", "astc_hdr_6x6_enc",
+                        "astc_hdr_common", "astc_ldr_common", "astc_ldr_encode", "astc_ldr_fencode", "xbc7_encode", "tinyexr"})
+    files.push_back(std::string("encoder/basisu_") + e + ".cpp");
+  const std::string defs = " -O2 -DNDEBUG -w -fno-strict-aliasing -DBASISU_SUPPORT_SSE=0 -DBASISU_SUPPORT_OPENCL=0 -DBASISU_SUPPORT_ASTCENC=0 -DBASISD_SUPPORT_KTX2_ZSTD=1";
+  std::vector<std::string> cmds;
+  std::string objs;
+  for (std::size_t i = 0; i < files.size(); ++i) {
+    const bool c = files[i].size() > 2 && files[i].compare(files[i].size() - 2, 2, ".c") == 0;
+    const std::string obj = (work / "obj" / (std::to_string(i) + ".o")).string();
+    cmds.push_back(quote(zig) + (c ? " cc" : " c++ -std=c++17") + defs + " -c " + quote((src / files[i]).string()) + " -o " + quote(obj) + " 2>>" + quote((work / "log").string()));
+    objs += " " + quote(obj);
+  }
+  // half the hardware threads: a one-time build that leaves the machine usable meanwhile
+  const unsigned jobs = std::max(1u, std::thread::hardware_concurrency() / 2);
+  std::atomic<std::size_t> next{0};
+  std::atomic<bool> failed{false};
+  std::vector<std::thread> pool;
+  for (unsigned j = 0; j < jobs; ++j)
+    pool.emplace_back([&] { for (std::size_t i; !failed && (i = next++) < cmds.size();) if (std::system(cmds[i].c_str()) != 0) failed = true; });
+  for (std::thread& t : pool) t.join();
+  const fs::path tmpBin = work / "basisu";
+  if (failed || !run(quote(zig) + " c++ -O2" + objs + " -o " + quote(tmpBin.string()) + " 2>>" + quote((work / "log").string()), err, "linking basisu")) {
+    std::string log;
+    std::ifstream in(work / "log");
+    std::getline(in, log, '\0');
+    err = "building basis_universal " + std::string(kBasisuVersion) + " failed: " + log.substr(0, 600);
+    fs::remove_all(work, ec);
+    return false;
+  }
+  fs::create_directories(dir, ec);
+  for (const char* f : {"LICENSE", "NOTICE"}) fs::copy_file(src / f, dir / f, fs::copy_options::overwrite_existing, ec);
+  std::ofstream(dir / "SHA256") << kBasisuSource.sha256 << "  " << kBasisuSource.file << "\n";
+  fs::rename(tmpBin, path, ec);
+  if (ec) err = "cannot move basisu into place: " + ec.message();
+  std::error_code ignored;
+  fs::remove_all(work, ignored);
+  return !ec;
 }
 
 bool ensureEsptool(std::string& path, std::string& err) {

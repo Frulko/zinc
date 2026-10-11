@@ -239,6 +239,7 @@ if(ZN_HOST_GFX AND EXISTS ${ZN_RUNTIME_DIR}/gfx.cpp)
     message(STATUS "zinc: SDL3 not found, apps run headless only")
   endif()
   target_link_libraries(zn_host_gfx PUBLIC zn_uv zn_llhttp zn_mbedtls zn_regexp zn_codec zn_zpk)   # zn_zpk: the packs of zinc:assets (ZN-436)
+  target_include_directories(zn_host_gfx PRIVATE third_party/bcdec third_party/etcdec)   # the CPU decoders of compressed textures (ZN-439)
   if(NOT ZN_TLS)
     target_compile_definitions(zn_host_gfx PRIVATE ZN_NO_TLS)
   endif()
@@ -298,10 +299,11 @@ add_executable(zpk_test tests/unit/zpk_test.cpp)
 target_link_libraries(zpk_test PRIVATE zn_zpk)
 # the asset build (ZN-434): importers, the content-addressed cache (xxHash 0.8.4, header only), groups to packs; CLI only
 # sprites and atlases (ZN-438): stb_rect_pack 1.01 packs the pages, cute_aseprite 1.04 reads .aseprite files, yyjson the JSON sheets; tile maps
-# (ZN-443): yyjson reads Tiled and LDtk JSON, stb_image (zn_res) and zstd (zn_zpk) decompress their layers
-add_library(zn_assets STATIC src/assets/assets.cpp src/assets/sprite.cpp src/assets/tilemap.cpp)
+# (ZN-443): yyjson reads Tiled and LDtk JSON, stb_image (zn_res) and zstd (zn_zpk) decompress their layers; textures (ZN-439): stb_image_resize2
+# 2.18 makes the mipmaps, basisu (a pinned tool, src/tc) encodes the block formats
+add_library(zn_assets STATIC src/assets/assets.cpp src/assets/sprite.cpp src/assets/tilemap.cpp src/assets/texture.cpp)
 target_include_directories(zn_assets PUBLIC src PRIVATE third_party/xxhash third_party/stb third_party/cute_aseprite)
-target_link_libraries(zn_assets PUBLIC zn_zpk zn_res PRIVATE zn_yyjson)
+target_link_libraries(zn_assets PUBLIC zn_zpk zn_res PRIVATE zn_yyjson zn_codec)   # zn_codec: the PNG levels basisu reads (ZN-439)
 add_executable(assets_test tests/unit/assets_test.cpp)
 target_link_libraries(assets_test PRIVATE zn_assets)
 add_executable(project_test tests/unit/project_test.cpp)   # zinc.json's game keys (ZN-435)

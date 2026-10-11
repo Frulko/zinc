@@ -357,6 +357,7 @@ class WebGL1 {
   bool readFormat(int& comps, char& cls);
   bool blendFuncChecked(std::uint32_t sr, std::uint32_t dr, std::uint32_t sa, std::uint32_t da);
   bool compressedBytes(std::uint32_t fmt, int w, int h, std::size_t& bytes) const;
+  std::uint32_t driverFormat(std::uint32_t fmt) const;
   int copyClash(std::uint32_t target, int level, std::uint32_t destName);
   void copyThrough(bool sub, std::uint32_t target, int level, std::uint32_t ifmt, int xoff, int yoff, int x, int y, int w, int h);
   bool renderbufferFormatAllowed(std::uint32_t fmt) const;

@@ -301,12 +301,12 @@ int pot(int v) { int p = 1; while (p < v) p <<= 1; return p; }
 
 }  // namespace
 
-std::string zimHeader(int format, int scale, bool premultiplied, int w, int h) {
+std::string zimHeader(int format, int scale, unsigned flags, int w, int h) {
   std::string o = "ZIM1";
   o += static_cast<char>(format);
   o += static_cast<char>(scale);
-  o += static_cast<char>(premultiplied ? 1 : 0);
-  o += '\0';
+  o += static_cast<char>(flags & 0xff);
+  o += static_cast<char>(flags >> 8);
   put32(o, static_cast<std::uint32_t>(w));
   put32(o, static_cast<std::uint32_t>(h));
   return o;
@@ -455,7 +455,7 @@ bool buildAtlas(const std::string& atlas, const std::vector<std::pair<std::strin
   for (std::size_t p = 0; p < pages.size(); ++p) {
     const std::string entry = atlas + ".atlas." + std::to_string(p);
     table += "page\t" + entry + "\t" + std::to_string(pages[p].first) + "\t" + std::to_string(pages[p].second) + "\n";
-    std::string data = zimHeader(static_cast<int>(Format::Rgba8), pageScale, false, pages[p].first, pages[p].second);
+    std::string data = zimHeader(static_cast<int>(Format::Rgba8), pageScale, 0, pages[p].first, pages[p].second);
     data.append(reinterpret_cast<const char*>(px[p].data()), px[p].size());
     pageEntries.push_back({entry, std::move(data), 0, static_cast<std::uint8_t>(Kind::Image), zpk::Codec::None});
   }

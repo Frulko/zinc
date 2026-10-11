@@ -12,8 +12,8 @@
 
 namespace zn::assets {
 
-/** The 16-byte header of an image entry (ZIM1): format (assets.h Format), scale, flags (bit 0: premultiplied alpha), width, height. */
-std::string zimHeader(int format, int scale, bool premultiplied, int w, int h);
+/** The 16-byte header of an image entry (ZIM1, include/zn/zim.h): format, scale, flags (zim::Flags), width, height. */
+std::string zimHeader(int format, int scale, unsigned flags, int w, int h);
 
 /** A sprite source to its frames: a PNG, JPEG, WebP or SVG image (one frame, named by its path without @Nx), an Aseprite file (a frame per
  *  frame, an animation of the whole file and one per tag) or a TexturePacker / Aseprite JSON sheet (`sheet`: the bytes of the image it

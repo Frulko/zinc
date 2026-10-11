@@ -8,7 +8,8 @@ namespace zn::gl {
 
 enum class Ext : int {
   StdDerivatives, Vao, InstancedArrays, IndexUint, TexFloat, TexFloatLinear, TexHalf, TexHalfLinear, DepthTexture, Aniso, LoseContext, DebugRenderer, BlendMinmax, FragDepth,
-  ShaderTexLod, DrawBuffers, FboRenderMipmap, Srgb, ColorBufHalf, ColorBufFloatWebgl, FloatBlend, ColorBufFloat, S3tc, DrawBuffersIndexed, S3tcSrgb, Rgtc, Count
+  ShaderTexLod, DrawBuffers, FboRenderMipmap, Srgb, ColorBufHalf, ColorBufFloatWebgl, FloatBlend, ColorBufFloat, S3tc, DrawBuffersIndexed, S3tcSrgb, Rgtc,
+  Etc1, Etc, Astc, Pvrtc, Count
 };
 
 /** What the driver must offer, per API, as a string: "core" (always there), "-" (never), else alternatives separated by '|', each a list of tokens separated by spaces that must all hold:
@@ -50,6 +51,12 @@ inline constexpr ExtDef kExtensions[] = {
   {Ext::DrawBuffersIndexed, "OES_draw_buffers_indexed", 2, "V4.0", "-", "GL_OES_draw_buffers_indexed|GL_EXT_draw_buffers_indexed", nullptr},
   {Ext::S3tcSrgb, "WEBGL_compressed_texture_s3tc_srgb", 3, "GL_EXT_texture_sRGB GL_EXT_texture_compression_s3tc|try_s3tc_srgb", "GL_EXT_texture_compression_s3tc_srgb", "GL_EXT_texture_compression_s3tc_srgb", nullptr},
   {Ext::Rgtc, "EXT_texture_compression_rgtc", 3, "core", "GL_EXT_texture_compression_rgtc", "GL_EXT_texture_compression_rgtc", nullptr},
+  // the mobile and small-GPU block formats (ZN-439), where the driver has them: ETC1 also through ETC2 (its data is ETC2 RGB8 data), which GLES 3
+  // and desktop GL 4.3 have; ASTC LDR and PVRTC1 only by their extensions (Apple Silicon, Mali, PowerVR)
+  {Ext::Etc1, "WEBGL_compressed_texture_etc1", 3, "V4.3|GL_ARB_ES3_compatibility", "GL_OES_compressed_ETC1_RGB8_texture|E3.0", "core", nullptr},
+  {Ext::Etc, "WEBGL_compressed_texture_etc", 3, "V4.3|GL_ARB_ES3_compatibility", "E3.0", "core", nullptr},
+  {Ext::Astc, "WEBGL_compressed_texture_astc", 3, "GL_KHR_texture_compression_astc_ldr", "GL_KHR_texture_compression_astc_ldr", "GL_KHR_texture_compression_astc_ldr", nullptr},
+  {Ext::Pvrtc, "WEBGL_compressed_texture_pvrtc", 3, "GL_IMG_texture_compression_pvrtc", "GL_IMG_texture_compression_pvrtc", "GL_IMG_texture_compression_pvrtc", nullptr},
 };
 inline constexpr int kExtCount = static_cast<int>(Ext::Count);
 static_assert(sizeof(kExtensions) / sizeof(kExtensions[0]) == static_cast<std::size_t>(Ext::Count), "one row per extension, in enum order");

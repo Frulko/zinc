@@ -86,9 +86,9 @@ bool WebGL1::uploadTexture(bool storage, std::uint32_t target, int level, std::u
         compressedBytes(ifmt, lw, lh, bytes);
         if (target == GL_TEXTURE_2D_ARRAY) bytes *= static_cast<std::size_t>(d);
         const std::vector<std::uint8_t> zeros(bytes, 0);
-        if (target == GL_TEXTURE_2D_ARRAY) glCompressedTexImage3D(GL_TEXTURE_2D_ARRAY, l, ifmt, lw, lh, d, 0, static_cast<GLsizei>(bytes), zeros.data());
-        else if (bindTarget == GL_TEXTURE_CUBE_MAP) for (int f = 0; f < 6; ++f) glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + f, l, ifmt, lw, lh, 0, static_cast<GLsizei>(bytes), zeros.data());
-        else glCompressedTexImage2D(bindTarget, l, ifmt, lw, lh, 0, static_cast<GLsizei>(bytes), zeros.data());
+        if (target == GL_TEXTURE_2D_ARRAY) glCompressedTexImage3D(GL_TEXTURE_2D_ARRAY, l, driverFormat(ifmt), lw, lh, d, 0, static_cast<GLsizei>(bytes), zeros.data());
+        else if (bindTarget == GL_TEXTURE_CUBE_MAP) for (int f = 0; f < 6; ++f) glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + f, l, driverFormat(ifmt), lw, lh, 0, static_cast<GLsizei>(bytes), zeros.data());
+        else glCompressedTexImage2D(bindTarget, l, driverFormat(ifmt), lw, lh, 0, static_cast<GLsizei>(bytes), zeros.data());
         lw = std::max(1, lw / 2); lh = std::max(1, lh / 2);
       }
       glTexParameteri(bindTarget, GL_TEXTURE_MAX_LEVEL, levels - 1);
@@ -663,15 +663,32 @@ bool WebGL1::unpackBufferFits(std::int64_t offset, std::size_t bytes) {
   const Buf& b = buffers_[it->second];
   return offset >= 0 && offset + static_cast<std::int64_t>(bytes) <= b.size;
 }
-// ---- compressed textures: the block formats of WEBGL_compressed_texture_s3tc, _s3tc_srgb and EXT_texture_compression_rgtc (all 4 x 4 blocks)
+// ---- compressed textures: the block formats of WEBGL_compressed_texture_s3tc, _s3tc_srgb, EXT_texture_compression_rgtc (4 x 4 blocks whose base
+// level is whole blocks), _etc1, _etc, _astc (blocks of 4 x 4 to 12 x 12) and _pvrtc (powers of two, at least 8 x 8 texels of 4 bpp or 16 x 8 of 2 bpp)
 namespace {
-struct CFmt { std::uint32_t fmt; int bytes; Ext ext; };
+struct CFmt { std::uint32_t fmt; int bytes; Ext ext; int bw = 4, bh = 4; };
 constexpr CFmt kCompressed[] = {
   {0x83F0, 8, Ext::S3tc}, {0x83F1, 8, Ext::S3tc}, {0x83F2, 16, Ext::S3tc}, {0x83F3, 16, Ext::S3tc},
   {0x8C4C, 8, Ext::S3tcSrgb}, {0x8C4D, 8, Ext::S3tcSrgb}, {0x8C4E, 16, Ext::S3tcSrgb}, {0x8C4F, 16, Ext::S3tcSrgb},
   {0x8DBB, 8, Ext::Rgtc}, {0x8DBC, 8, Ext::Rgtc}, {0x8DBD, 16, Ext::Rgtc}, {0x8DBE, 16, Ext::Rgtc},
+  {0x8D64, 8, Ext::Etc1},
+  {0x9270, 8, Ext::Etc}, {0x9271, 8, Ext::Etc}, {0x9272, 16, Ext::Etc}, {0x9273, 16, Ext::Etc}, {0x9274, 8, Ext::Etc}, {0x9275, 8, Ext::Etc},
+  {0x9276, 8, Ext::Etc}, {0x9277, 8, Ext::Etc}, {0x9278, 16, Ext::Etc}, {0x9279, 16, Ext::Etc},
+  {0x93B0, 16, Ext::Astc, 4, 4}, {0x93B1, 16, Ext::Astc, 5, 4}, {0x93B2, 16, Ext::Astc, 5, 5}, {0x93B3, 16, Ext::Astc, 6, 5}, {0x93B4, 16, Ext::Astc, 6, 6},
+  {0x93B5, 16, Ext::Astc, 8, 5}, {0x93B6, 16, Ext::Astc, 8, 6}, {0x93B7, 16, Ext::Astc, 8, 8}, {0x93B8, 16, Ext::Astc, 10, 5}, {0x93B9, 16, Ext::Astc, 10, 6},
+  {0x93BA, 16, Ext::Astc, 10, 8}, {0x93BB, 16, Ext::Astc, 10, 10}, {0x93BC, 16, Ext::Astc, 12, 10}, {0x93BD, 16, Ext::Astc, 12, 12},
+  {0x93D0, 16, Ext::Astc, 4, 4}, {0x93D1, 16, Ext::Astc, 5, 4}, {0x93D2, 16, Ext::Astc, 5, 5}, {0x93D3, 16, Ext::Astc, 6, 5}, {0x93D4, 16, Ext::Astc, 6, 6},
+  {0x93D5, 16, Ext::Astc, 8, 5}, {0x93D6, 16, Ext::Astc, 8, 6}, {0x93D7, 16, Ext::Astc, 8, 8}, {0x93D8, 16, Ext::Astc, 10, 5}, {0x93D9, 16, Ext::Astc, 10, 6},
+  {0x93DA, 16, Ext::Astc, 10, 8}, {0x93DB, 16, Ext::Astc, 10, 10}, {0x93DC, 16, Ext::Astc, 12, 10}, {0x93DD, 16, Ext::Astc, 12, 12},
+  {0x8C00, 0, Ext::Pvrtc, 4, 4}, {0x8C01, 0, Ext::Pvrtc, 8, 4}, {0x8C02, 0, Ext::Pvrtc, 4, 4}, {0x8C03, 0, Ext::Pvrtc, 8, 4},   // bytes 0: by the PVRTC rule
 };
-std::size_t blocksBytes(int w, int h, int blockBytes) { return static_cast<std::size_t>((w + 3) / 4) * static_cast<std::size_t>((h + 3) / 4) * static_cast<std::size_t>(blockBytes); }
+const CFmt* cfmt(std::uint32_t fmt) { for (const CFmt& f : kCompressed) if (f.fmt == fmt) return &f; return nullptr; }
+std::size_t blocksBytes(int w, int h, const CFmt& f) {
+  if (f.ext == Ext::Pvrtc) { const int mw = f.bw == 8 ? 16 : 8; return static_cast<std::size_t>(std::max(w, mw)) * static_cast<std::size_t>(std::max(h, 8)) * (f.bw == 8 ? 2 : 4) / 8; }
+  return static_cast<std::size_t>((w + f.bw - 1) / f.bw) * static_cast<std::size_t>((h + f.bh - 1) / f.bh) * static_cast<std::size_t>(f.bytes);
+}
+// whole 4 x 4 blocks at level 0: the rule of S3TC and RGTC in WebGL, not of the other formats
+bool wholeBlocks(std::uint32_t fmt) { const CFmt* f = cfmt(fmt); return f && (f->ext == Ext::S3tc || f->ext == Ext::S3tcSrgb || f->ext == Ext::Rgtc); }
 }  // namespace
 std::vector<std::uint32_t> WebGL1::compressedFormats() const {
   std::vector<std::uint32_t> v;
@@ -679,9 +696,13 @@ std::vector<std::uint32_t> WebGL1::compressedFormats() const {
   return v;
 }
 bool WebGL1::compressedBytes(std::uint32_t fmt, int w, int h, std::size_t& bytes) const {
-  for (const CFmt& f : kCompressed) if (f.fmt == fmt && extOn(f.ext)) { bytes = blocksBytes(w, h, f.bytes); return true; }
-  return false;
+  const CFmt* f = cfmt(fmt);
+  if (!f || !extOn(f->ext)) return false;
+  bytes = blocksBytes(w, h, *f);
+  return true;
 }
+// the format the driver is given: ETC1 data as ETC2 RGB8 where only ETC2 is there (GLES 3, desktop GL 4.3)
+std::uint32_t WebGL1::driverFormat(std::uint32_t fmt) const { return fmt == 0x8D64 && !gl_.hasExtension("GL_OES_compressed_ETC1_RGB8_texture") ? 0x9274 : fmt; }
 void WebGL1::compressedTexImage2D(std::uint32_t target, int level, std::uint32_t ifmt, int w, int h, int border, const void* data, std::size_t bytes, std::int64_t pbo) {
   ++fbGen_;
   const bool face = target >= GL_TEXTURE_CUBE_MAP_POSITIVE_X && target <= GL_TEXTURE_CUBE_MAP_NEGATIVE_Z;
@@ -698,8 +719,9 @@ void WebGL1::compressedTexImage2D(std::uint32_t target, int level, std::uint32_t
   else if (packOrUnpackBufferBound()) return error(GL_INVALID_OPERATION);   // a bound unpack buffer wants an offset
   // 4 x 4 blocks: a level is allowed when the base level it implies (the size shifted up by the level) is a multiple of 4; a WebGL 1 level above the base is also a power of two
   if (version_ != 2 && level > 0 && (((w & (w - 1)) != 0) || ((h & (h - 1)) != 0))) return error(GL_INVALID_VALUE);
-  if (((static_cast<std::int64_t>(w) << level) % 4) != 0 || ((static_cast<std::int64_t>(h) << level) % 4) != 0) return error(GL_INVALID_OPERATION);
-  glCompressedTexImage2D(target, level, ifmt, w, h, 0, static_cast<GLsizei>(bytes), pbo >= 0 || bytes ? data : nullptr);
+  if (wholeBlocks(ifmt) && (((static_cast<std::int64_t>(w) << level) % 4) != 0 || ((static_cast<std::int64_t>(h) << level) % 4) != 0)) return error(GL_INVALID_OPERATION);
+  if (cfmt(ifmt)->ext == Ext::Pvrtc && (((w & (w - 1)) != 0) || ((h & (h - 1)) != 0))) return error(GL_INVALID_VALUE);   // PVRTC: powers of two
+  glCompressedTexImage2D(target, level, driverFormat(ifmt), w, h, 0, static_cast<GLsizei>(bytes), pbo >= 0 || bytes ? data : nullptr);
   if (level == 0) { t.w = w; t.h = h; t.format = 0; t.type = 0; t.cfmt = ifmt; t.f32 = t.f16 = false; t.swz = 0; refreshSampling(id); }
 }
 void WebGL1::compressedTexSubImage2D(std::uint32_t target, int level, int xoff, int yoff, int w, int h, std::uint32_t fmt, const void* data, std::size_t bytes, std::int64_t pbo) {
@@ -717,9 +739,11 @@ void WebGL1::compressedTexSubImage2D(std::uint32_t target, int level, int xoff, 
   glGetTexLevelParameteriv(target, level, GL_TEXTURE_INTERNAL_FORMAT, &lf);
   while (glGetError() != GL_NO_ERROR) {}
   if (t.cfmt != fmt || lw == 0) return error(GL_INVALID_OPERATION);   // another format, or no such level
+  if (fmt == 0x8D64) return error(GL_INVALID_OPERATION);   // WEBGL_compressed_texture_etc1 has no sub-image updates
   if (bytes != want) return error(GL_INVALID_VALUE);
   if (xoff + w > lw || yoff + h > lh) return error(GL_INVALID_VALUE);
-  if (xoff % 4 || yoff % 4 || (w % 4 && xoff + w != lw) || (h % 4 && yoff + h != lh)) return error(GL_INVALID_OPERATION);   // whole blocks, or up to the edge of the level
+  const CFmt& cf = *cfmt(fmt);
+  if (cf.ext == Ext::Pvrtc ? (xoff || yoff || w != lw || h != lh) : (xoff % cf.bw || yoff % cf.bh || (w % cf.bw && xoff + w != lw) || (h % cf.bh && yoff + h != lh))) return error(GL_INVALID_OPERATION);   // whole blocks, or up to the edge of the level; PVRTC: the whole level
   if (pbo >= 0) { if (!unpackBufferFits(pbo, bytes)) return error(GL_INVALID_OPERATION); data = reinterpret_cast<const void*>(static_cast<std::intptr_t>(pbo)); }
   else if (packOrUnpackBufferBound()) return error(GL_INVALID_OPERATION);
   if (w == 0 || h == 0) return;
@@ -740,10 +764,10 @@ void WebGL1::compressedTexImage3D(std::uint32_t target, int level, std::uint32_t
   Tex& t = textures_[id];
   if (t.immutable) return error(GL_INVALID_OPERATION);
   if (bytes != want * static_cast<std::size_t>(d)) return error(GL_INVALID_VALUE);
-  if (((static_cast<std::int64_t>(w) << level) % 4) != 0 || ((static_cast<std::int64_t>(h) << level) % 4) != 0) return error(GL_INVALID_OPERATION);
+  if (wholeBlocks(ifmt) && (((static_cast<std::int64_t>(w) << level) % 4) != 0 || ((static_cast<std::int64_t>(h) << level) % 4) != 0)) return error(GL_INVALID_OPERATION);
   if (pbo >= 0) { if (!unpackBufferFits(pbo, bytes)) return error(GL_INVALID_OPERATION); data = reinterpret_cast<const void*>(static_cast<std::intptr_t>(pbo)); }
   else if (packOrUnpackBufferBound()) return error(GL_INVALID_OPERATION);
-  glCompressedTexImage3D(target, level, ifmt, w, h, d, 0, static_cast<GLsizei>(bytes), pbo >= 0 || bytes ? data : nullptr);
+  glCompressedTexImage3D(target, level, driverFormat(ifmt), w, h, d, 0, static_cast<GLsizei>(bytes), pbo >= 0 || bytes ? data : nullptr);
   if (level == 0) { t.w = w; t.h = h; t.d = d; t.format = 0; t.cfmt = ifmt; t.f32 = t.f16 = false; t.swz = 0; }
 }
 void WebGL1::compressedTexSubImage3D(std::uint32_t target, int level, int xoff, int yoff, int zoff, int w, int h, int d, std::uint32_t fmt, const void* data, std::size_t bytes, std::int64_t pbo) {

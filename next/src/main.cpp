@@ -365,6 +365,7 @@ static bool bakeResources(const char* entry, std::vector<std::uint8_t>& blob, st
   zn::res::Options o;
   o.fontDir = gRoot + "/../lib/fonts";
   o.library = gSourceIsLib;   // ZN-428: the library's style tables do not decide what is baked
+  std::vector<zn::assets::Rule> rules;
   {   // "text": "shaped" (or ZINC_TEXT=shaped): the shaper reads the whole TrueType files
     const char* zt = std::getenv("ZINC_TEXT");
     o.wholeFonts = zt && !std::strcmp(zt, "shaped");
@@ -372,9 +373,15 @@ static bool bakeResources(const char* entry, std::vector<std::uint8_t>& blob, st
     zn::frontend::Project proj;
     std::string perr;
     if (!pf.empty()) { std::ifstream in(pf); std::stringstream ss; ss << in.rdbuf(); if (zn::frontend::parseProject(ss.str(), proj, perr) && proj.text == "shaped") o.wholeFonts = true; }
+    for (const auto& r : proj.assets.rules) rules.push_back({r.match, r.as, r.options});
   }
   fs::path dir = fs::absolute(entry).parent_path();
   for (fs::path d : {dir / "assets", dir.parent_path() / "assets"}) if (fs::is_directory(d)) { o.assetsDir = d.string(); break; }
+  std::error_code ec;   // the images texture rules take are drawn from the packs, in their GPU formats (ZN-439): not baked
+  if (!o.assetsDir.empty() && std::any_of(rules.begin(), rules.end(), [](const zn::assets::Rule& r) { return r.as == "texture"; }))
+    for (auto it = fs::recursive_directory_iterator(o.assetsDir, ec); !ec && it != fs::recursive_directory_iterator(); it.increment(ec))
+      if (const std::string rel = it->path().lexically_relative(o.assetsDir).generic_string(); it->is_regular_file(ec) && zn::assets::importerFor(rel, rules) == "texture") o.leave.push_back(rel);
+  std::sort(o.leave.begin(), o.leave.end());
   std::vector<std::string> src = gSources;
   if (zn::frontend::uiPreset() == "react-native") src.push_back("text-[14px]");   // React Native's default text size under the preset (ZN-385)
   bool hit = false;   // through the asset cache (ZN-434): an unchanged program is not baked again
@@ -1995,9 +2002,9 @@ int main(int argc, char** argv) {
       std::puts(zig.c_str());
       return 0;
     }
-    if (sub == "esptool") {
+    if (sub == "esptool" || sub == "basisu") {
       std::string tool, err;
-      if (!zn::tc::ensureEsptool(tool, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
+      if (!(sub == "basisu" ? zn::tc::ensureBasisu(tool, err) : zn::tc::ensureEsptool(tool, err))) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
       std::puts(tool.c_str());
       return 0;
     }
@@ -2011,7 +2018,7 @@ int main(int argc, char** argv) {
       std::printf("%s  %s\n", h.c_str(), argv[3]);
       return 0;
     }
-    std::fprintf(stderr, "usage: zinc toolchain install | path | esptool | targets | sha256 <file>\n");
+    std::fprintf(stderr, "usage: zinc toolchain install | path | esptool | basisu | targets | sha256 <file>\n");
     return 2;
   }
   if (argc == 7 && !std::strcmp(argv[1], "build") && !std::strcmp(argv[2], "--target") && !std::strcmp(argv[5], "-o")) {  // zinc build --target <t> <file> -o <out>: a program for another machine

@@ -2,8 +2,10 @@
 #include "assets/assets.h"
 
 #include "assets/sprite.h"
+#include "assets/texture.h"
 #include "assets/tilemap.h"
 #include "res/codec.h"
+#include "zn/zim.h"
 #include "zpk/zpk.h"
 
 #define XXH_INLINE_ALL
@@ -17,6 +19,8 @@
 #include <fstream>
 #include <regex>
 #include <set>
+#include <fcntl.h>
+#include <sys/mman.h>
 #include <unistd.h>
 
 namespace fs = std::filesystem;
@@ -87,30 +91,22 @@ std::regex globRegex(const std::string& g) {
 using Opts = std::map<std::string, std::string>;
 // `side`: the bytes of the files a source names and its importer also reads, by name (the image of a sprite sheet, the tilesets of a map)
 using Side = std::map<std::string, std::string>;
-using ImportFn = bool (*)(const std::string& name, const std::string& in, const Side& side, const Opts& o, std::string& out, std::string& err);
+// `opt`: the build's options (the texture importer's encoder); the rest is what the importer's output depends on (its key)
+using ImportFn = bool (*)(const Options& opt, const std::string& name, const std::string& in, const Side& side, const Opts& o, std::string& out, std::string& err);
 
-bool importCopy(const std::string&, const std::string& in, const Side&, const Opts&, std::string& out, std::string&) { out = in; return true; }
+bool importCopy(const Options&, const std::string&, const std::string& in, const Side&, const Opts&, std::string& out, std::string&) { out = in; return true; }
 
 void put16(std::string& o, unsigned v) { o += static_cast<char>(v & 0xff); o += static_cast<char>(v >> 8); }
 unsigned scaleTo(unsigned v, unsigned max) { return (v * max + 127) / 255; }
 
-bool importImage(const std::string& name, const std::string& in, const Side&, const Opts& o, std::string& out, std::string& err) {
+bool importImage(const Options&, const std::string& name, const std::string& in, const Side&, const Opts& o, std::string& out, std::string& err) {
   const std::string fmtName = o.count("format") ? o.at("format") : "rgba8";
   const Format fmt = fmtName == "rgba8" ? Format::Rgba8 : fmtName == "rgb565" ? Format::Rgb565 : fmtName == "rgba4444" ? Format::Rgba4444 : Format{};
-  if (fmt == Format{}) { err = "format \"" + fmtName + "\" is not rgba8, rgb565 or rgba4444"; return false; }
-  const int scale = std::max(1, std::min(8, o.count("scale") ? std::atoi(o.at("scale").c_str()) : 1));
-  int w = 0, h = 0, k = scale;
+  if (fmt == Format{}) { err = "format \"" + fmtName + "\" is not rgba8, rgb565 or rgba4444 (GPU formats: the texture importer)"; return false; }
+  int w = 0, h = 0, k = 1;
   std::vector<std::uint8_t> rgba;
-  const auto* bytes = reinterpret_cast<const std::uint8_t*>(in.data());
-  if (fs::path(name).extension() == ".svg") {   // drawn at `scale` pixels per unit, at most 1024 pixels wide, as the baker does
-    if (!res::rasterizeSvg(in, 0, w, h, rgba, err)) return false;
-    k = std::max(1, std::min(scale, 1024 / std::max(1, w)));
-    if (k > 1 && !res::rasterizeSvg(in, w * k, w, h, rgba, err)) return false;
-  } else if (!res::imageSize(bytes, in.size(), w, h) || static_cast<long long>(w) * h > (1LL << 26) || !res::decodeRgba(bytes, in.size(), w, h, rgba)) {
-    err = "not a PNG, JPEG, WebP, BMP or GIF image this importer reads (or larger than 2^26 pixels)";
-    return false;
-  }
-  out = zimHeader(static_cast<int>(fmt), k, true, w, h);
+  if (!decodeImage(name, in, o, w, h, k, rgba, err)) return false;
+  out = zimHeader(static_cast<int>(fmt), k, zim::Premultiplied, w, h);
   out.reserve(kImageHeader + rgba.size());
   for (std::size_t i = 0; i + 3 < rgba.size(); i += 4) {
     const unsigned a = rgba[i + 3], r = (rgba[i] * a + 127) / 255, g = (rgba[i + 1] * a + 127) / 255, b = (rgba[i + 2] * a + 127) / 255;
@@ -121,8 +117,14 @@ bool importImage(const std::string& name, const std::string& in, const Side&, co
   return true;
 }
 
-bool importSpriteFile(const std::string& name, const std::string& in, const Side& side, const Opts& o, std::string& out, std::string& err) {
+bool importSpriteFile(const Options&, const std::string& name, const std::string& in, const Side& side, const Opts& o, std::string& out, std::string& err) {
   return importSprite(name, in, side.empty() ? std::string() : side.begin()->second, o, out, err);
+}
+bool importTilemapFile(const Options&, const std::string& name, const std::string& in, const Side& side, const Opts& o, std::string& out, std::string& err) {
+  return importTilemap(name, in, side, o, out, err);
+}
+bool importTextureFile(const Options& opt, const std::string& name, const std::string& in, const Side&, const Opts& o, std::string& out, std::string& err) {
+  return importTexture(opt.basisu, name, in, o, out, err);
 }
 
 struct Importer { const char* id; int version; Kind kind; ImportFn run; };
@@ -134,7 +136,8 @@ const Importer kImporters[] = {
   {"copy", 1, Kind::Data, importCopy},
   {"image", 1, Kind::Image, importImage},
   {"sprite", 1, Kind::Image, importSpriteFile},
-  {"tilemap", 1, Kind::Data, importTilemap},
+  {"tilemap", 1, Kind::Data, importTilemapFile},
+  {"texture", 1, Kind::Image, importTextureFile},
 };
 const Importer* findImporter(const std::string& id) {
   for (const Importer& i : kImporters) if (id == i.id) return &i;
@@ -170,6 +173,16 @@ void trim(const std::string& cacheDir) {
     if (total <= budget / 4 * 3) break;
     if (fs::remove(f.p, ec)) total -= f.size;
   }
+}
+
+/** The report's packBytes of the items of `group`: what their entries take in the pack (the TOC's stored sizes). */
+void storedSizes(const void* pack, std::size_t size, const std::string& group, Report& report) {
+  zpk::Reader r;
+  std::string err;
+  if (!r.open(pack, size, err)) return;
+  for (Item& it : report.items)
+    if (it.group == group)
+      if (const long i = r.find(it.importer == std::string("tilemap") ? it.name + ".tilemap" : it.name); i >= 0) it.packBytes = r.entry(static_cast<std::size_t>(i)).storedSize;
 }
 
 }  // namespace
@@ -210,6 +223,8 @@ bool bake(const std::vector<std::string>& sources, const res::Options& opt, cons
   for (bool b : opt.library) lib += b ? '1' : '0';
   k.add(lib).add(std::to_string(sources.size()));
   for (const std::string& s : sources) k.add(s);
+  k.add("leave").add(std::to_string(opt.leave.size()));
+  for (const std::string& s : opt.leave) k.add(s);
   for (const std::string& dir : {opt.fontDir, opt.assetsDir}) {   // names and bytes of what the baker may read: fonts, images, texts
     std::vector<fs::path> files;
     std::error_code ec;
@@ -252,13 +267,23 @@ bool splash(const Splash& s, const std::string& cacheDir, const std::string& too
         if (s.image.empty()) return true;
         std::string zim;
         // an SVG drawn as large as the importer goes (8 pixels a unit, 1024 wide at most): the splash usually fills a window
-        if (!importImage(s.image, bytes, {}, Opts{{"scale", ext == ".svg" ? "8" : "1"}}, zim, e)) { e = "splash " + s.image + ": " + e; return false; }
+        if (!importImage(Options{}, s.image, bytes, {}, Opts{{"scale", ext == ".svg" ? "8" : "1"}}, zim, e)) { e = "splash " + s.image + ": " + e; return false; }
         o += zim;
         return true;
       }, out, hit, err)) return false;
   artifact = cacheDir.empty() ? std::string() : artifactPath(cacheDir, key).string();
   if (hitOut) *hitOut = hit;
   return true;
+}
+
+std::string importerFor(const std::string& name, const std::vector<Rule>& rules) {
+  std::string id;
+  for (const auto* list : {&builtinRules(), &rules})
+    for (const Rule& r : *list) {
+      try { if (!r.as.empty() && std::regex_match(name, globRegex(r.match))) id = r.as; }
+      catch (const std::regex_error&) {}   // build() names the bad glob
+    }
+  return id;
 }
 
 // ---------------------------------------------------------------- the build
@@ -310,7 +335,7 @@ bool build(const Options& opt, Report& report, std::string& err) {
   };
   auto import = [&](Entry& e, const std::string& bytes, const Side& side) {
     std::string ierr;
-    if (!e.imp->run(e.name, bytes, side, e.opts, e.data, ierr)) { err = e.name + ": " + ierr; return false; }
+    if (!e.imp->run(opt, e.name, bytes, side, e.opts, e.data, ierr)) { err = e.name + ": " + ierr; return false; }
     e.loaded = true;
     if (!opt.cacheDir.empty()) writeAtomic(artifactPath(opt.cacheDir, e.key), e.data);   // a cache that cannot be written only costs the next build its time
     return true;
@@ -326,7 +351,12 @@ bool build(const Options& opt, Report& report, std::string& err) {
         for (const auto& [k, v] : r.rule->options) o[k] = v;
       }
     const Importer* imp = findImporter(id);
-    if (!imp) { err = name + ": no importer \"" + id + "\" (built in: copy, image, sprite, tilemap)"; return false; }
+    if (!imp) { err = name + ": no importer \"" + id + "\" (built in: copy, image, sprite, tilemap, texture)"; return false; }
+    if (imp->run == importTextureFile) {   // the target's profile, unless the rule says: part of the key, so each profile has its own artifact
+      auto prof = [&](const char* k) { auto it = opt.targetProfile.find(k); return it == opt.targetProfile.end() ? std::string() : it->second; };
+      if (!o.count("format")) o["format"] = opt.profile == "release" && !prof("texture").empty() ? prof("texture") : "rgba8";   // dev: no encoder to wait for
+      for (const char* k : {"maxSize", "pot"}) if (!o.count(k) && !prof(k).empty()) o[k] = prof(k);
+    }
     if (imp->kind == Kind::Image && !o.count("scale")) {   // an SVG is drawn for 2x screens; a raster image is as many pixels per point as its @Nx says
       static const std::regex hi("@([1-8])x\\.[^.]+$");
       std::smatch m;
@@ -342,7 +372,7 @@ bool build(const Options& opt, Report& report, std::string& err) {
         if (e.deps[0].empty()) { err = name + ": not a sprite sheet (TexturePacker or Aseprite JSON with meta.image in the assets directory)"; return false; }
         sheets.insert(e.deps[0]);
       }
-    } else if (imp->run == importTilemap) {
+    } else if (imp->run == importTilemapFile) {
       e.atlas = e.opts.count("atlas") ? e.opts.at("atlas") : kTileAtlas;
       std::string json;
       if (!readFile(fs::path(opt.sourceDir) / name, json)) { err = name + ": cannot read the file"; return false; }
@@ -383,7 +413,17 @@ bool build(const Options& opt, Report& report, std::string& err) {
     }
     std::uint64_t sourceBytes = bytes.size();
     for (const auto& [d, b] : side) sourceBytes += b.size();
-    report.items.push_back({e.name, e.imp->id, group, sourceBytes, outBytes, msSince(t), hit});
+    report.items.push_back({e.name, e.imp->id, group, sourceBytes, outBytes, msSince(t), hit, {}, 0, 0});
+    if (e.imp->kind == Kind::Image) {   // its layout and GPU bytes, from the artifact's header (a cached one: its first bytes only)
+      std::string head = e.data.substr(0, 512);
+      if (!e.loaded) {
+        std::ifstream in(artifactPath(opt.cacheDir, e.key), std::ios::binary);
+        head.resize(512);
+        in.read(head.data(), 512);
+        head.resize(static_cast<std::size_t>(std::max<std::streamsize>(0, in.gcount())));
+      }
+      describeImage(head, report.items.back().format, report.items.back().gpuBytes);
+    }
     if (!hit) ++report.imported;
     packs[group].push_back(std::move(e));
   }
@@ -396,7 +436,7 @@ bool build(const Options& opt, Report& report, std::string& err) {
     bool hit = false;
     if (!splash(opt.splash, opt.cacheDir, opt.tool, splashData, artifact, err, &hit)) return false;
     const std::uint64_t src = opt.splash.image.empty() ? 0 : fs::file_size(opt.splash.image, ec);
-    report.items.push_back({kSplashEntry, "splash", "boot", src, splashData.size(), msSince(t), hit});
+    report.items.push_back({kSplashEntry, "splash", "boot", src, splashData.size(), msSince(t), hit, {}, 0, 0});
     if (!hit) ++report.imported;
     packs["boot"];   // a pack of the splash alone when no asset is in the group
   }
@@ -411,8 +451,11 @@ bool build(const Options& opt, Report& report, std::string& err) {
   }
   for (auto& [group, entries] : packs) {
     const std::string file = group + ".zpk";
+    // the target's pack codec in a release build (its profile's `pack`), none in a dev build: entries mapped as they are
+    auto pk = opt.targetProfile.find("pack");
+    const std::string packCodec = opt.profile != "release" ? "none" : pk == opt.targetProfile.end() ? "zstd" : pk->second;
     Key k;
-    k.add("zpk 1").add(opt.profile);
+    k.add("zpk 1").add(opt.profile).add(packCodec);
     for (const Entry& e : entries) k.add(e.name).add(e.key).add(std::string(1, static_cast<char>(e.imp->kind)));
     const bool withSplash = opt.splash.on && group == "boot";
     if (withSplash) k.add(kSplashEntry).add(splashData);
@@ -420,7 +463,7 @@ bool build(const Options& opt, Report& report, std::string& err) {
     const fs::path path = fs::path(opt.outDir) / file;
     std::uint64_t size = fs::file_size(path, ec);
     if (ec || before[file] != key) {
-      const zpk::Codec codec = opt.profile == "release" ? zpk::Codec::Zstd : zpk::Codec::None;
+      const zpk::Codec codec = packCodec == "lz4" ? zpk::Codec::Lz4 : packCodec == "zstd" ? zpk::Codec::Zstd : packCodec == "zstd-dict" ? zpk::Codec::ZstdDict : zpk::Codec::None;
       std::vector<zpk::Input> inputs;
       if (withSplash) inputs.push_back({kSplashEntry, splashData, 0, Kind::SplashFrame, zpk::Codec::None});
       std::map<std::string, std::vector<std::pair<std::string, std::string>>> frames;   // the sprites of each atlas
@@ -431,7 +474,7 @@ bool build(const Options& opt, Report& report, std::string& err) {
           Side side;
           if (!readSource(e, bytes, side) || !import(e, bytes, side)) return false;
         }
-        if (e.imp->run == importTilemap) {   // its table is an entry, its tiles are frames of its atlas
+        if (e.imp->run == importTilemapFile) {   // its table is an entry, its tiles are frames of its atlas
           std::string tiles, table;
           if (!splitTilemap(e.data, tiles, table)) { err = e.name + ": a damaged tile map artifact"; return false; }
           inputs.push_back({e.name + ".tilemap", std::move(table), 0, Kind::Data, codec});
@@ -449,6 +492,11 @@ bool build(const Options& opt, Report& report, std::string& err) {
       if (!zpk::write(std::move(inputs), zpk::WriteOptions{}, bytes, err)) { err = file + ": " + err; return false; }
       if (!writeAtomic(path, bytes)) { err = "cannot write " + path.string(); return false; }
       size = bytes.size();
+      storedSizes(bytes.data(), bytes.size(), group, report);
+    } else if (const int fd = ::open(path.c_str(), O_RDONLY); fd >= 0) {   // unchanged: its TOC read in place
+      void* m = size ? ::mmap(nullptr, size, PROT_READ, MAP_PRIVATE, fd, 0) : MAP_FAILED;   // ponytail: POSIX mmap, as the CLI's other file code
+      ::close(fd);
+      if (m != MAP_FAILED) { storedSizes(m, size, group, report); ::munmap(m, size); }
     }
     after[file] = key;
     report.packs.push_back({file, group, entries.size() + withSplash, size});
@@ -465,15 +513,17 @@ bool build(const Options& opt, Report& report, std::string& err) {
 
 std::string reportJson(const Options& opt, const Report& r) {
   auto ms = [](double v) { char b[32]; std::snprintf(b, sizeof b, "%.3f", v); return std::string(b); };
-  std::uint64_t src = 0, outBytes = 0;
+  std::uint64_t src = 0, outBytes = 0, gpu = 0;
   std::string s = "{\n  \"version\": 1,\n  \"target\": " + jsonString(opt.target) + ",\n  \"profile\": " + jsonString(opt.profile) + ",\n  \"assets\": [";
   for (std::size_t i = 0; i < r.items.size(); ++i) {
     const Item& it = r.items[i];
     src += it.sourceBytes;
     outBytes += it.outputBytes;
+    gpu += it.gpuBytes;
     s += std::string(i ? "," : "") + "\n    {\"name\": " + jsonString(it.name) + ", \"importer\": " + jsonString(it.importer) + ", \"group\": " + jsonString(it.group) +
          ", \"sourceBytes\": " + std::to_string(it.sourceBytes) + ", \"outputBytes\": " + std::to_string(it.outputBytes) + ", \"ms\": " + ms(it.ms) +
-         ", \"cached\": " + (it.cached ? "true" : "false") + "}";
+         ", \"cached\": " + (it.cached ? "true" : "false") + ", \"packBytes\": " + std::to_string(it.packBytes) +
+         (it.format.empty() ? std::string() : ", \"format\": " + jsonString(it.format) + ", \"gpuBytes\": " + std::to_string(it.gpuBytes)) + "}";
   }
   s += std::string(r.items.empty() ? "" : "\n  ") + "],\n  \"packs\": [";
   std::uint64_t packBytes = 0;
@@ -484,7 +534,7 @@ std::string reportJson(const Options& opt, const Report& r) {
          ", \"bytes\": " + std::to_string(p.bytes) + "}";
   }
   s += std::string(r.packs.empty() ? "" : "\n  ") + "],\n  \"totals\": {\"assets\": " + std::to_string(r.items.size()) + ", \"imported\": " + std::to_string(r.imported) +
-       ", \"sourceBytes\": " + std::to_string(src) + ", \"outputBytes\": " + std::to_string(outBytes) + ", \"packBytes\": " + std::to_string(packBytes) +
+       ", \"sourceBytes\": " + std::to_string(src) + ", \"outputBytes\": " + std::to_string(outBytes) + ", \"packBytes\": " + std::to_string(packBytes) + ", \"gpuBytes\": " + std::to_string(gpu) +
        ", \"ms\": " + ms(r.ms) + "}\n}\n";
   return s;
 }

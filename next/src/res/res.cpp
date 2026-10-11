@@ -660,7 +660,7 @@ bool bake(const std::vector<std::string>& sources, const Options& opt, std::vect
       std::string rel = fs::relative(p, opt.assetsDir).generic_string(), f = p.filename().string();
       bool hidden = false;
       for (const fs::path& part : fs::relative(p, opt.assetsDir)) if (!part.empty() && part.string()[0] == '.') hidden = true;
-      if (hidden) continue;
+      if (hidden || std::find(opt.leave.begin(), opt.leave.end(), rel) != opt.leave.end()) continue;
       std::smatch hi;
       std::string ext = p.extension().string();
       if (std::regex_search(f, hi, std::regex("@([234])x\\.png$"))) {

@@ -61,9 +61,13 @@ matches a path applies in order, a later one overriding an earlier one's options
 | `image` | decoded (stb_image, libwebp, the baker's SVG rasterizer), alpha premultiplied, in `format` `rgba8` (default), `rgb565` or `rgba4444`, after the 16-byte header below; an SVG is drawn at `scale` pixels per unit (2 by default, at most 1024 pixels wide), a raster image keeps its pixels and takes its scale from an `@2x` name |
 | `sprite` | a frame of an atlas (below): no entry of its own; the atlas becomes `<atlas>.atlas` (its table) and `<atlas>.atlas.<n>` (its pages) |
 | `tilemap` | a Tiled or LDtk map (below): its table `<map>.tilemap`; the tiles it uses are frames of an atlas |
+| `texture` | a GPU texture (below): resized for the target, mipmapped, premultiplied, in the format the target's profile prefers (a block format through basisu) |
 
-Image header (little-endian): `ZIM1`, u8 format (1 rgba8, 2 rgb565, 3 rgba4444), u8 scale, u16 flags (bit 0: premultiplied), u32 width,
-u32 height; then the rows top to bottom (16-bit pixels: red in the high bits, `RRRRRGGGGGGBBBBB` and `RRRRGGGGBBBBAAAA`). zinc:gfx `image(name)`
+Image header (little-endian, `include/zn/zim.h`): `ZIM1`, u8 format (1 rgba8, 2 rgb565, 3 rgba4444, 4 rgba5551; the texture importer's block
+formats 8 bc1, 9 bc3, 10 bc7, 11 etc1, 12 etc2 (RGBA8 EAC), 13 astc (4x4), 14 pvrtc and 15 pvrtca (PVRTC1 4 bpp, RGB and RGBA)), u8 scale,
+u16 flags (bit 0: premultiplied, bit 1: every mipmap level down to 1 x 1 follows, bit 2: sRGB colour), u32 width, u32 height; then the levels,
+the largest first, each its rows top to bottom (16-bit pixels: red in the high bits, `RRRRRGGGGGGBBBBB`, `RRRRGGGGBBBBAAAA`, `RRRRRGGGGGBBBBBA`;
+blocks: their rows of 4 x 4 blocks, PVRTC1 at least 8 x 8 texels a level). zinc:gfx `image(name)`
 finds an image entry of the mounted packs when the baker did not embed that name: a runtime image with straight alpha (premultiplied texels
 are divided back), made once per name.
 
@@ -127,6 +131,42 @@ pages. The importer is built in (yyjson, as the sprite sheets), not a Zinc scrip
   <type> <shape> <x> <y> <w> <h> <rotation> <tile> <points>`; `prop <name> <type> <value>` after the level, layer or object it belongs to.
 - **Cache**: the key of a map covers its bytes and the path and bytes of every file it names (its tiles are named by their image's path).
 
+### Textures (ZN-439)
+
+A rule `"as": "texture"` makes GPU textures, for games and 3D: `zinc:gfx` `image(name)` draws one as it draws any image (the baker leaves
+the files texture rules take to the packs, so the name finds the texture), and its levels are there for the 3D renderers.
+
+```json
+"assets": { "rules": [{ "match": "textures/**", "as": "texture", "linear": false, "mipmaps": true }] }
+```
+
+- **Format.** A release build takes the `texture` list of the target's profile (`zinc assets info`: macos and linux `bc7|bc1|rgba8`, rpi1
+  `etc1|rgba4444|rgba5551|rgb565|rgba8`, wasm `ktx2:uastc|rgba8`); a dev build (`zinc run`) makes `rgba8`, so a change shows without an
+  encode; a rule's `format` (one name or a list) wins in both. An image with alpha takes the first format of the list that has alpha; an
+  opaque one the first, or a later one without alpha that takes fewer bits (`bc7|bc1`: BC7 with alpha, BC1 opaque). Formats: `rgba8`,
+  `rgb565`, `rgba4444`, `rgba5551` (made here), `bc1`, `bc3`, `bc7`, `etc1`, `etc2` (RGBA8 EAC; opaque art is ETC1 data, which ETC2 decoders
+  read), `astc` (4x4), `pvrtc` (PVRTC1 4 bpp, RGB or RGBA), `ktx2` (`ktx2:uastc` or `ktx2:etc1s`, transcoded in the browser by ZN-449); the
+  console layouts `clut4`, `clut8`, `etc1a4` are ZN-452's and are refused with that name.
+- **Steps.** Decoded (stb_image, libwebp, the SVG rasterizer), resized to `maxSize` (the aspect kept) and with `pot` to powers of two
+  (stretched, not padded: draw it with its size; PVRTC1 is made square), mipmaps down to 1 x 1 (`mipmaps`, true) each from level 0 with
+  stb_image_resize2 2.18, alpha-weighted and in linear light for sRGB colour (`linear: true` for data such as normal maps), then alpha
+  premultiplied (`premultiply`, true; opaque art is unchanged), then encoded: the 16- and 32-bit layouts here; the block formats by basisu,
+  each level encoded to UASTC (the quality hub of basis_universal: it transcodes to every block format) and transcoded with `-export_ktx`,
+  one KTX1 file a level read back; `ktx2` is basisu's own file (its mipmaps, from the premultiplied level 0).
+- **basisu** 2.50 is a pinned tool (`src/tc`, `zinc toolchain basisu`): the project publishes no binaries, so its source archive (SHA-256
+  checked before it is unpacked) is built once with the pinned zig, without SSE, OpenCL or astcenc, into `~/.zinc/toolchains/basisu-<host>-2.50`;
+  `ZINC_BASISU` names another. A build fetches it only when a texture needs a block format. It runs with 4 threads, a fixed count: UASTC and
+  ETC1S gave the same bytes with 1, 4 and 8 threads, and `tests/t1/texture.sh` builds a project twice with two caches and compares the packs.
+- **At run time** (`src/host/sys_host.cpp`): a block format is decoded on the CPU (bcdec: BC1, BC3, BC7; etcdec: ETC1, ETC2) for the
+  software raster, and its level 0 is kept beside the texels: the GL renderers (display-gl and the macOS window, `runtime/gl_replay.cpp`) upload
+  the blocks with `glCompressedTexImage2D` when the driver lists the format (`GL_COMPRESSED_TEXTURE_FORMATS`, and on GLES
+  `GL_OES_compressed_ETC1_RGB8_texture`; ETC1 goes up as ETC2 RGB8 where only ETC2 is there), else the decoded texels; premultiplied texels are
+  divided back in the shader, so a texture draws as the RGBA path within the codec's error. ASTC and PVRTC1 have no CPU decoder here: only a GPU
+  that takes them draws them (the software raster leaves them transparent, with one warning). `ZINC_GL_STATS=1` prints the driver's formats and
+  how many textures went up as blocks. macOS's GL 4.1 (Intel) lists DXT1, DXT3 and DXT5 only: BC1 and BC3 go up as blocks, BC7 and ETC are decoded.
+- **WebGL** (`src/gl`): `WEBGL_compressed_texture_etc1`, `_etc`, `_astc` (with `getSupportedProfiles()`) and `_pvrtc` join S3TC and RGTC,
+  offered where the driver has them (ETC1 and ETC through GLES 3 or GL 4.3 too); none of them on this Mac's GL 4.1.
+
 The font baker (`src/res`, `zinc-next-resources.md`) is the third built-in importer: its inputs are the program's sources, so the program
 build calls it (`bakeResources`: `zinc run`, `pack`, `build`, `export`, `bake`) through the same cache; its blob is not a pack entry yet.
 
@@ -150,13 +190,16 @@ and with any `ZINC_HOME` (`tests/t0/assets.sh`).
 
 ## Profiles
 
-`dev` (the default) stores entries as they are; `release` compresses them with zstd (level 19). The encoder profiles of `zinc.json` and
-`targets/capabilities.json` (above) are parsed and shown by `zinc assets info`; texture encoders and audio codecs come with ZN-439.
+`dev` (the default) stores entries as they are; `release` compresses them with the target's `pack` codec (lz4 on the Pi profiles, none for
+the browser, zstd level 19 elsewhere and by default) and makes textures in its `texture` formats, within its `maxSize` and `pot`. The profiles
+of `zinc.json` and `targets/capabilities.json` (above) are shown by `zinc assets info`; the audio codecs come with their importers.
 
 ## The report
 
 `build/assets/<target>/report.json`: the target and profile; one row per asset (name, importer, group, `sourceBytes`, `outputBytes`, `ms`,
-`cached`); one row per pack (file, group, entries, bytes); totals (assets, imported, bytes, `ms`). `zinc assets build` prints one line with the
+`cached`, `packBytes`: what its entry takes in its pack; for an image, `format` and `gpuBytes`: what its levels take on the GPU, a KTX2 file
+counted as transcoded to 16-byte blocks, 8 for opaque ETC1S); one row per pack (file, group, entries, bytes); totals (assets, imported, bytes,
+`gpuBytes`, `ms`). `zinc assets build` prints one line with the
 same totals.
 
 ## At run time: `zinc:assets` v2
@@ -283,3 +326,30 @@ groups load, before the program's own modules start.
 | game-2d plus 100 MB of data, first build | 1.45 s |
 | the same, a second build (each source read and hashed, no artifact read, no pack written) | 117 ms |
 | `zinc bake` of game-2d (compile included), the bake from the cache / baked (`ZINC_NO_CACHE=1`) | 50.5 / 76.3 ms |
+
+### Textures, 2048 x 2048 with mipmaps (ZN-439, `TEXTURE_SIZE=2048 tests/t1/texture.sh`, 2026-10-11, load 6 to 8: other sessions building)
+
+The two textures of `tests/data/texture` (tiles of gradients with fine stripes; one with a soft transparent edge), a release build per
+profile. Pack: the entry in its pack (the profile's codec); GPU: every level as uploaded; time: the import, basisu with 4 threads included
+(each profile encodes again: the UASTC step is not shared yet). rgba8 for comparison: 22,369,620 bytes on the GPU.
+
+| Target (profile) | Texture | Format | Pack bytes | GPU bytes | Import ms |
+|---|---|---|---:|---:|---:|
+| macos | alpha | bc7 | 1,258,382 | 5,592,432 | 12,156 |
+| macos | opaque | bc1 | 586,403 | 2,796,216 | 17,535 |
+| rpi1 (lz4) | alpha | rgba4444 | 1,445,085 | 11,184,810 | 844 |
+| rpi1 (lz4) | opaque | etc1 | 1,211,201 | 2,796,216 | 19,268 |
+| wasm (no codec) | alpha | ktx2:uastc | 1,861,396 | 5,592,432 (as BC7/ASTC) | 15,104 |
+| wasm (no codec) | opaque | ktx2:uastc | 1,592,918 | 5,592,432 (as BC7/ASTC) | 18,923 |
+| pi4 profile (etc2) | alpha | etc2 | 983,643 | 5,592,432 | 14,826 |
+| pi4 profile (etc2) | opaque | etc1 | 616,752 | 2,796,216 | 18,677 |
+| apple profile (astc) | alpha | astc | 1,245,185 | 5,592,432 | 12,091 |
+| apple profile (astc) | opaque | astc | 649,814 | 5,592,432 | 16,769 |
+| iphone4s profile (pvrtc, lz4) | alpha | pvrtca | 1,173,394 | 2,796,288 | 12,876 |
+| iphone4s profile (pvrtc, lz4) | opaque | pvrtc | 1,573,910 | 2,796,288 | 15,708 |
+
+Against the rgba8 frame (glcompare: pixels more than 24 apart, mean error): the software raster draws the macos packs at 0.000% / 0.56,
+the rpi1 packs at 0.065% / 1.70, the etc2 packs at 0.120% / 0.77; display-gl on this Mac's GL 4.1 draws the macos packs (BC1 uploaded as
+blocks, 2,097,152 bytes; BC7 decoded) at 0.000% / 0.58 and the rpi1 packs (ETC1 decoded: the driver has no ETC) at 0.043% / 1.81. basisu
+2.50 alone on one 2048 x 2048 level, UASTC: 37 s with one thread, 11 s with four, the same bytes; built once in 353 s (zig, 6 jobs, the
+machine at load 7).

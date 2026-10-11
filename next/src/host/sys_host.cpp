@@ -7,6 +7,14 @@
 #include "zrt_assets_dir.h"
 #include <signal.h>
 #include "zn/alloc_stats.h"
+#include "zn/zim.h"
+// the CPU decoders of the GPU block formats (ZN-439): the software raster draws a compressed texture from its decoded texels
+#define BCDEC_STATIC
+#define BCDEC_IMPLEMENTATION
+#include "bcdec.h"
+#define ETCDEC_STATIC
+#define ETCDEC_IMPLEMENTATION
+#include "etcdec.h"
 #include <sys/wait.h>
 #include <dirent.h>
 #include <dlfcn.h>
@@ -64,6 +72,7 @@ uint32_t* dyn_pixels(int32_t id);
 void dyn_resize(int32_t id, int32_t w, int32_t h);
 void dyn_set_alpha(int32_t id, bool on);
 void dyn_update(int32_t id, const uint32_t* px, int32_t stride);
+void dyn_set_blocks(int32_t id, uint32_t gl, const void* data, uint32_t bytes, bool premultiplied);
 }
 namespace zn::host {
 namespace {
@@ -711,36 +720,68 @@ extern "C" int zn_asset_font(const char* name, uint32_t n) {
   gFailed = false;
   return ok ? zrt::raster::add_font_file(name, n, b.data(), static_cast<uint32_t>(b.size())) : -1;
 }
-// zinc:gfx image (ZN-438): an image entry of the mounted packs (ZIM1, docs/reports/zinc-next-assets.md: an imported image, a page of a sprite
-// atlas) that the program names and the baker did not embed becomes a runtime image with straight alpha, as the rasterizer samples them; one
-// per name. -1: no pack has such an image.
+// zinc:gfx image (ZN-438): an image entry of the mounted packs (ZIM1, include/zn/zim.h: an imported image, a page of a sprite atlas, a texture)
+// that the program names and the baker did not embed becomes a runtime image with straight alpha, as the rasterizer samples them; one per name.
+// A texture in a GPU block format (ZN-439) keeps its blocks beside the decoded texels: a GL renderer uploads them where its driver takes the
+// format. -1: no pack has such an image.
 static std::map<std::string, int> gPackImages;   // ponytail: kept for the program's life; freed with their group once image handles exist (zinc:assets v2)
+// Level 0 of a block format to RGBA texels; false for the formats only a GPU decodes here (ASTC, PVRTC1).
+static bool decodeBlocks(const zn::zim::Format& f, const unsigned char* src, uint32_t w, uint32_t h, uint32_t* px) {
+  unsigned char blk[64];
+  for (uint32_t by = 0; by < (h + 3) / 4; ++by)
+    for (uint32_t bx = 0; bx < (w + 3) / 4; ++bx, src += f.bytes) {
+      switch (f.id) {
+        case 8: bcdec_bc1(src, blk, 16); for (int i = 3; i < 64; i += 4) blk[i] = 255; break;   // uploaded as RGB DXT1: the BC1A transparent colour is black
+        case 9: bcdec_bc3(src, blk, 16); break;
+        case 10: bcdec_bc7(src, blk, 16); break;
+        case 11: etcdec_etc_rgb(src, blk, 16); break;
+        case 12: etcdec_eac_rgba(src, blk, 16); break;
+        default: return false;
+      }
+      for (uint32_t y = 0; y < 4 && by * 4 + y < h; ++y)
+        for (uint32_t x = 0; x < 4 && bx * 4 + x < w; ++x) {
+          const unsigned char* t = blk + (y * 4 + x) * 4;
+          px[(by * 4 + y) * w + bx * 4 + x] = static_cast<uint32_t>(t[3]) << 24 | t[0] << 16 | t[1] << 8 | t[2];
+        }
+    }
+  return true;
+}
 // The pixels of the image entry `key` into image `id` (-1: a new one; resized to the entry); the image, or -1.
 static int32_t packImage(const std::string& key, int32_t id) {
   std::string zim, err;
   const bool splash = key == ".splash";   // the engine splash's image (ZN-446) for the loader's splash screen (ZN-447): after its 20-byte ZSP1 header
   if (!assets::read(key, zim, err, splash ? 3 : 1) || !err.empty()) return -1;
   if (splash) zim.erase(0, std::min<std::size_t>(zim.size(), 20));
-  if (zim.size() < 16 || zim.compare(0, 4, "ZIM1") != 0) return -1;
+  if (zim.size() < zn::zim::kHeader || zim.compare(0, 4, "ZIM1") != 0) return -1;
   const auto* p = reinterpret_cast<const unsigned char*>(zim.data());
   auto u32 = [&](int at) { return static_cast<uint32_t>(p[at] | p[at + 1] << 8 | p[at + 2] << 16) | static_cast<uint32_t>(p[at + 3]) << 24; };
-  const int fmt = p[4];
-  const bool premultiplied = p[6] & 1;
-  const uint32_t w = u32(8), h = u32(12), bpp = fmt == 1 ? 4 : 2;
-  if ((fmt < 1 || fmt > 3) || w == 0 || h == 0 || w > 16384 || h > 16384 || zim.size() != 16 + static_cast<size_t>(w) * h * bpp) return -1;
+  const zn::zim::Format* f = zn::zim::format(p[4]);
+  const unsigned flags = p[6] | p[7] << 8;
+  const bool premultiplied = flags & zn::zim::Premultiplied;
+  const uint32_t w = u32(8), h = u32(12);
+  if (!f || w == 0 || h == 0 || w > 16384 || h > 16384 || zim.size() != zn::zim::kHeader + zn::zim::dataBytes(*f, w, h, flags & zn::zim::Mipmaps)) return -1;
   if (id < 0) id = zrt::raster::dyn_create(static_cast<int32_t>(w), static_cast<int32_t>(h));
   else zrt::raster::dyn_resize(id, static_cast<int32_t>(w), static_cast<int32_t>(h));
   uint32_t* px = zrt::raster::dyn_pixels(id);
   if (!px) return -1;
+  const unsigned char* data = p + zn::zim::kHeader;
+  const bool blocks = f->bw > 1;
+  if (blocks && !decodeBlocks(*f, data, w, h, px)) {   // left transparent: only a GPU that takes the format draws it
+    static bool warned = false;
+    if (!warned) std::fprintf(stderr, "zinc: %s is %s, which this machine decodes only on a GPU that takes it (the software raster draws it transparent)\n", key.c_str(), f->name);
+    warned = true;
+  }
   bool alpha = false;
   for (size_t i = 0, k = static_cast<size_t>(w) * h; i < k; i++) {
-    const unsigned char* s = p + 16 + i * bpp;
     unsigned r, g, b, a = 255;
-    if (fmt == 1) { r = s[0]; g = s[1]; b = s[2]; a = s[3]; }
+    if (blocks) { const uint32_t v = px[i]; a = v >> 24; r = (v >> 16) & 255; g = (v >> 8) & 255; b = v & 255; }
+    else if (f->id == 1) { const unsigned char* s = data + i * 4; r = s[0]; g = s[1]; b = s[2]; a = s[3]; }
     else {
+      const unsigned char* s = data + i * 2;
       const unsigned v = s[0] | s[1] << 8;
-      if (fmt == 2) { r = ((v >> 11) * 255 + 15) / 31; g = (((v >> 5) & 63) * 255 + 31) / 63; b = ((v & 31) * 255 + 15) / 31; }
-      else { r = (v >> 12) * 17; g = ((v >> 8) & 15) * 17; b = ((v >> 4) & 15) * 17; a = (v & 15) * 17; }
+      if (f->id == 2) { r = ((v >> 11) * 255 + 15) / 31; g = (((v >> 5) & 63) * 255 + 31) / 63; b = ((v & 31) * 255 + 15) / 31; }
+      else if (f->id == 3) { r = (v >> 12) * 17; g = ((v >> 8) & 15) * 17; b = ((v >> 4) & 15) * 17; a = (v & 15) * 17; }
+      else { r = ((v >> 11) * 255 + 15) / 31; g = (((v >> 6) & 31) * 255 + 15) / 31; b = (((v >> 1) & 31) * 255 + 15) / 31; a = (v & 1) * 255; }
     }
     if (premultiplied && a && a < 255) { r = std::min(255u, (r * 255 + a / 2) / a); g = std::min(255u, (g * 255 + a / 2) / a); b = std::min(255u, (b * 255 + a / 2) / a); }
     px[i] = a << 24 | r << 16 | g << 8 | b;
@@ -748,6 +789,7 @@ static int32_t packImage(const std::string& key, int32_t id) {
   }
   zrt::raster::dyn_set_alpha(id, alpha);
   zrt::raster::dyn_update(id, nullptr, 0);
+  if (blocks) zrt::raster::dyn_set_blocks(id, f->gl, data, static_cast<uint32_t>(zn::zim::levelBytes(*f, w, h)), premultiplied);   // level 0: the 2D renderers draw no mipmaps
   return id;
 }
 extern "C" int zn_asset_image(const char* name, uint32_t n) {

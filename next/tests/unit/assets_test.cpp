@@ -1,6 +1,6 @@
 // The asset build (ZN-434): rules and groups to packs, the image layouts (premultiplied RGBA8, RGB565, RGBA4444), the cache (a second build
 // imports nothing, a changed file is imported alone, no cache imports everything), stale packs, and an unknown importer's error.
-// Sprites and atlases (ZN-438): the page layout and extrusion, the errors of the atlas.
+// Sprites and atlases (ZN-438): the page layout and extrusion, the errors of the atlas. Textures (ZN-439): formats, mipmaps, alpha, sizes.
 // Run from next/ (it reads tests/data/images); prints "all checks passed" or one line per failure.
 #include <cstdio>
 #include <cstring>
@@ -11,6 +11,7 @@
 #include <unistd.h>
 
 #include "assets/assets.h"
+#include "res/codec.h"
 #include "zpk/zpk.h"
 
 namespace fs = std::filesystem;
@@ -166,6 +167,36 @@ void keys() {
   CHECK(Key().add("x").hex() == Key().add("x").hex() && Key().add("x").hex().size() == 32, "keys are not stable");
 }
 
+// The texture importer (ZN-439) without its encoder: the format a list picks, mipmaps, premultiplied alpha, maxSize and pot, the 16-bit layouts,
+// the report's view of the artifact, and the errors (a block format with no basisu, a console layout, an unknown name).
+void textures() {
+  const unsigned char px[5 * 3 * 4] = {255, 0, 0, 128};   // 5 x 3: one red texel at half alpha, the rest transparent black
+  const std::vector<std::uint8_t> png = zn::res::encodePng(px, 5, 3, 4);
+  const std::string translucent(png.begin(), png.end());
+  std::vector<unsigned char> o(5 * 3 * 4, 255);
+  const std::vector<std::uint8_t> png2 = zn::res::encodePng(o.data(), 5, 3, 4);
+  const std::string opaque(png2.begin(), png2.end());
+  const ToolPath none;
+  std::string out, err, fmt;
+  std::uint64_t gpu = 0;
+  auto make = [&](const std::string& in, std::map<std::string, std::string> opts) { out.clear(); err.clear(); return importTexture(none, "t.png", in, opts, out, err); };
+  CHECK(make(translucent, {{"format", "rgba8|rgb565"}}), "rgba8: %s", err.c_str());
+  CHECK(out.compare(0, 4, "ZIM1") == 0 && out[4] == 1 && u16(out, 6) == 7 && u32(out, 8) == 5 && u32(out, 12) == 3, "rgba8 header: format %d flags %u", out[4], u16(out, 6));
+  CHECK(out.size() == 16 + 4 * (15 + 2 + 1), "rgba8 with mipmaps 5x3, 2x1, 1x1: %zu bytes", out.size());
+  CHECK(static_cast<unsigned char>(out[16]) == 128 && out[17] == 0 && static_cast<unsigned char>(out[19]) == 128, "premultiplied: %u %u %u %u",
+        static_cast<unsigned char>(out[16]), static_cast<unsigned char>(out[17]), static_cast<unsigned char>(out[18]), static_cast<unsigned char>(out[19]));
+  CHECK(describeImage(out, fmt, gpu) && fmt == "rgba8" && gpu == 4 * 18, "described as %s, %llu GPU bytes", fmt.c_str(), static_cast<unsigned long long>(gpu));
+  CHECK(make(opaque, {{"format", "rgba8|rgb565"}, {"mipmaps", "false"}}) && out[4] == 2 && u16(out, 6) == 4 && out.size() == 16 + 2 * 15, "opaque takes the smaller rgb565: format %d", out[4]);
+  CHECK(make(translucent, {{"format", "rgb565"}, {"mipmaps", "false"}}) && out[4] == 2, "a list without alpha: its first format");
+  CHECK(make(translucent, {{"format", "rgba5551"}, {"mipmaps", "false"}, {"premultiply", "false"}}) && u16(out, 16) == ((31u << 11) | 1u), "rgba5551: %04x", u16(out, 16));
+  CHECK(make(translucent, {{"format", "rgba4444"}, {"maxSize", "4"}, {"pot", "true"}}) && u32(out, 8) == 4 && u32(out, 12) == 2, "maxSize 4, pot: %ux%u", u32(out, 8), u32(out, 12));
+  CHECK(!make(translucent, {{"format", "bc7"}}) && err.find("basisu") != std::string::npos, "bc7 without an encoder: %s", err.c_str());
+  CHECK(!make(translucent, {{"format", "clut8"}}) && err.find("ZN-452") != std::string::npos, "clut8: %s", err.c_str());
+  CHECK(!make(translucent, {{"format", "dxt9"}}) && err.find("not one of") != std::string::npos, "unknown: %s", err.c_str());
+  CHECK(importerFor("tex/a.png", {{"tex/**", "texture", {}}}) == "texture" && importerFor("b.png", {{"tex/**", "texture", {}}}) == "image" &&
+        importerFor("b.wav", {}) == "copy", "importerFor");
+}
+
 }  // namespace
 
 int main() {
@@ -174,6 +205,7 @@ int main() {
   keys();
   project(tmp);
   sprites(tmp);
+  textures();
   fs::remove_all(tmp);
   if (failures) { std::printf("%d failure(s)\n", failures); return 1; }
   std::printf("all checks passed\n");

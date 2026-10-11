@@ -1172,6 +1172,22 @@ const ExtConst kExtConsts[] = {
   {Ext::S3tc, "COMPRESSED_RGB_S3TC_DXT1_EXT", 0x83F0}, {Ext::S3tc, "COMPRESSED_RGBA_S3TC_DXT1_EXT", 0x83F1}, {Ext::S3tc, "COMPRESSED_RGBA_S3TC_DXT3_EXT", 0x83F2}, {Ext::S3tc, "COMPRESSED_RGBA_S3TC_DXT5_EXT", 0x83F3},
   {Ext::S3tcSrgb, "COMPRESSED_SRGB_S3TC_DXT1_EXT", 0x8C4C}, {Ext::S3tcSrgb, "COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT", 0x8C4D}, {Ext::S3tcSrgb, "COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT", 0x8C4E}, {Ext::S3tcSrgb, "COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT", 0x8C4F},
   {Ext::Rgtc, "COMPRESSED_RED_RGTC1_EXT", 0x8DBB}, {Ext::Rgtc, "COMPRESSED_SIGNED_RED_RGTC1_EXT", 0x8DBC}, {Ext::Rgtc, "COMPRESSED_RED_GREEN_RGTC2_EXT", 0x8DBD}, {Ext::Rgtc, "COMPRESSED_SIGNED_RED_GREEN_RGTC2_EXT", 0x8DBE},
+  {Ext::Etc1, "COMPRESSED_RGB_ETC1_WEBGL", 0x8D64},
+  {Ext::Etc, "COMPRESSED_R11_EAC", 0x9270}, {Ext::Etc, "COMPRESSED_SIGNED_R11_EAC", 0x9271}, {Ext::Etc, "COMPRESSED_RG11_EAC", 0x9272}, {Ext::Etc, "COMPRESSED_SIGNED_RG11_EAC", 0x9273},
+  {Ext::Etc, "COMPRESSED_RGB8_ETC2", 0x9274}, {Ext::Etc, "COMPRESSED_SRGB8_ETC2", 0x9275}, {Ext::Etc, "COMPRESSED_RGB8_PUNCHTHROUGH_ALPHA1_ETC2", 0x9276},
+  {Ext::Etc, "COMPRESSED_SRGB8_PUNCHTHROUGH_ALPHA1_ETC2", 0x9277}, {Ext::Etc, "COMPRESSED_RGBA8_ETC2_EAC", 0x9278}, {Ext::Etc, "COMPRESSED_SRGB8_ALPHA8_ETC2_EAC", 0x9279},
+  {Ext::Astc, "COMPRESSED_RGBA_ASTC_4x4_KHR", 0x93B0}, {Ext::Astc, "COMPRESSED_RGBA_ASTC_5x4_KHR", 0x93B1}, {Ext::Astc, "COMPRESSED_RGBA_ASTC_5x5_KHR", 0x93B2},
+  {Ext::Astc, "COMPRESSED_RGBA_ASTC_6x5_KHR", 0x93B3}, {Ext::Astc, "COMPRESSED_RGBA_ASTC_6x6_KHR", 0x93B4}, {Ext::Astc, "COMPRESSED_RGBA_ASTC_8x5_KHR", 0x93B5},
+  {Ext::Astc, "COMPRESSED_RGBA_ASTC_8x6_KHR", 0x93B6}, {Ext::Astc, "COMPRESSED_RGBA_ASTC_8x8_KHR", 0x93B7}, {Ext::Astc, "COMPRESSED_RGBA_ASTC_10x5_KHR", 0x93B8},
+  {Ext::Astc, "COMPRESSED_RGBA_ASTC_10x6_KHR", 0x93B9}, {Ext::Astc, "COMPRESSED_RGBA_ASTC_10x8_KHR", 0x93BA}, {Ext::Astc, "COMPRESSED_RGBA_ASTC_10x10_KHR", 0x93BB},
+  {Ext::Astc, "COMPRESSED_RGBA_ASTC_12x10_KHR", 0x93BC}, {Ext::Astc, "COMPRESSED_RGBA_ASTC_12x12_KHR", 0x93BD},
+  {Ext::Astc, "COMPRESSED_SRGB8_ALPHA8_ASTC_4x4_KHR", 0x93D0}, {Ext::Astc, "COMPRESSED_SRGB8_ALPHA8_ASTC_5x4_KHR", 0x93D1}, {Ext::Astc, "COMPRESSED_SRGB8_ALPHA8_ASTC_5x5_KHR", 0x93D2},
+  {Ext::Astc, "COMPRESSED_SRGB8_ALPHA8_ASTC_6x5_KHR", 0x93D3}, {Ext::Astc, "COMPRESSED_SRGB8_ALPHA8_ASTC_6x6_KHR", 0x93D4}, {Ext::Astc, "COMPRESSED_SRGB8_ALPHA8_ASTC_8x5_KHR", 0x93D5},
+  {Ext::Astc, "COMPRESSED_SRGB8_ALPHA8_ASTC_8x6_KHR", 0x93D6}, {Ext::Astc, "COMPRESSED_SRGB8_ALPHA8_ASTC_8x8_KHR", 0x93D7}, {Ext::Astc, "COMPRESSED_SRGB8_ALPHA8_ASTC_10x5_KHR", 0x93D8},
+  {Ext::Astc, "COMPRESSED_SRGB8_ALPHA8_ASTC_10x6_KHR", 0x93D9}, {Ext::Astc, "COMPRESSED_SRGB8_ALPHA8_ASTC_10x8_KHR", 0x93DA}, {Ext::Astc, "COMPRESSED_SRGB8_ALPHA8_ASTC_10x10_KHR", 0x93DB},
+  {Ext::Astc, "COMPRESSED_SRGB8_ALPHA8_ASTC_12x10_KHR", 0x93DC}, {Ext::Astc, "COMPRESSED_SRGB8_ALPHA8_ASTC_12x12_KHR", 0x93DD},
+  {Ext::Pvrtc, "COMPRESSED_RGB_PVRTC_4BPPV1_IMG", 0x8C00}, {Ext::Pvrtc, "COMPRESSED_RGB_PVRTC_2BPPV1_IMG", 0x8C01}, {Ext::Pvrtc, "COMPRESSED_RGBA_PVRTC_4BPPV1_IMG", 0x8C02},
+  {Ext::Pvrtc, "COMPRESSED_RGBA_PVRTC_2BPPV1_IMG", 0x8C03},
 };
 M(enableiOES) { SELF NEED(2); gl.enablei(U(0), U(1)); return JS_UNDEFINED; }
 M(disableiOES) { SELF NEED(2); gl.disablei(U(0), U(1)); return JS_UNDEFINED; }
@@ -1183,6 +1199,12 @@ M(blendFuncSeparateiOES) { SELF NEED(5); gl.blendFuncSeparatei(U(0), U(1), U(2),
 M(colorMaskiOES) { SELF NEED(5); gl.colorMaski(U(0), JS_ToBool(c, argv[1]) != 0, JS_ToBool(c, argv[2]) != 0, JS_ToBool(c, argv[3]) != 0, JS_ToBool(c, argv[4]) != 0); return JS_UNDEFINED; }
 M(loseContext);
 M(restoreContext);
+M(getSupportedProfiles) {   // WEBGL_compressed_texture_astc: the profiles the driver decodes (LDR only, the extension's driver requirement)
+  JSValue a = JS_NewArray(c);
+  (void)t; (void)argc; (void)argv;
+  JS_SetPropertyUint32(c, a, 0, JS_NewString(c, "ldr"));
+  return a;
+}
 struct ExtFn { Ext ext; Fn fn; };
 const ExtFn kExtFns[] = {
   {Ext::Vao, {"createVertexArrayOES", js_createVertexArray, 0}}, {Ext::Vao, {"deleteVertexArrayOES", js_deleteVertexArray, 1}}, {Ext::Vao, {"isVertexArrayOES", js_isVertexArray, 1}}, {Ext::Vao, {"bindVertexArrayOES", js_bindVertexArray, 1}},
@@ -1192,6 +1214,7 @@ const ExtFn kExtFns[] = {
   {Ext::DrawBuffersIndexed, {"blendEquationiOES", js_blendEquationiOES, 2}}, {Ext::DrawBuffersIndexed, {"blendEquationSeparateiOES", js_blendEquationSeparateiOES, 3}}, {Ext::DrawBuffersIndexed, {"blendFunciOES", js_blendFunciOES, 3}},
   {Ext::DrawBuffersIndexed, {"blendFuncSeparateiOES", js_blendFuncSeparateiOES, 5}}, {Ext::DrawBuffersIndexed, {"colorMaskiOES", js_colorMaskiOES, 5}},
   {Ext::LoseContext, {"loseContext", js_loseContext, 0}}, {Ext::LoseContext, {"restoreContext", js_restoreContext, 0}},
+  {Ext::Astc, {"getSupportedProfiles", js_getSupportedProfiles, 0}},
 };
 
 JSValue gExtProto[kExtCount];

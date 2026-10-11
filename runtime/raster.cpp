@@ -575,7 +575,7 @@ static void draw_text(const Target& t, const Cmd& c, const char* s) {
 #define ZRT_DYN_IMAGES 64
 #endif
 #endif
-struct Dyn { const uint32_t* px; uint32_t* owned; int32_t w, h, stride; uint32_t version; bool used, alpha; };
+struct Dyn { const uint32_t* px; uint32_t* owned; int32_t w, h, stride; uint32_t version; bool used, alpha; void* blocks; uint32_t gl, nblocks; bool pre; };
 static const int32_t DYN_CHUNK = ZRT_DYN_IMAGES < 64 ? ZRT_DYN_IMAGES : 64;
 static Dyn* dyn_chunks[(ZRT_DYN_IMAGES + DYN_CHUNK - 1) / DYN_CHUNK];
 // A version is never given twice, not even to another image that takes a freed slot: whatever keeps an image by (id, version) (the GPU
@@ -596,7 +596,7 @@ int32_t dyn_wrap(int32_t w, int32_t h, const uint32_t* px, int32_t stride) {
       __atomic_store_n(&dyn_chunks[i / DYN_CHUNK], c, __ATOMIC_RELEASE);
       d = &c[i % DYN_CHUNK];
     }
-    if (!d->used) { *d = Dyn{px, nullptr, w, h, stride ? stride : w, ++dyn_versions, true}; return DYN_BASE + i; }
+    if (!d->used) { *d = Dyn{px, nullptr, w, h, stride ? stride : w, ++dyn_versions, true, false, nullptr, 0, 0, false}; return DYN_BASE + i; }
   }
   static bool warned = false;   // one warning, then -1 each time
   if (!warned) {
@@ -617,8 +617,23 @@ int32_t dyn_create(int32_t w, int32_t h) {
   if (id < 0) hal_free(px); else dyn_at(id)->owned = px;
   return id;
 }
+static void dyn_drop_blocks(Dyn* d) { if (d->blocks) { hal_free(d->blocks); d->blocks = nullptr; d->nblocks = 0; } }
 void dyn_update(int32_t id, const uint32_t* px, int32_t stride) {
-  if (Dyn* d = dyn_at(id)) { if (px) { d->px = px; if (stride) d->stride = stride; } d->version = ++dyn_versions; }
+  if (Dyn* d = dyn_at(id)) { if (px) { d->px = px; if (stride) d->stride = stride; } d->version = ++dyn_versions; dyn_drop_blocks(d); }
+}
+void dyn_set_blocks(int32_t id, uint32_t gl, const void* data, uint32_t bytes, bool premultiplied) {
+  Dyn* d = dyn_at(id);
+  if (!d) return;
+  dyn_drop_blocks(d);
+  if (!(d->blocks = hal_alloc(bytes))) return;
+  __builtin_memcpy(d->blocks, data, bytes);
+  d->gl = gl; d->nblocks = bytes; d->pre = premultiplied;
+}
+bool dyn_blocks(int32_t id, uint32_t* gl, const void** data, uint32_t* bytes, bool* premultiplied) {
+  Dyn* d = dyn_at(id);
+  if (!d || !d->blocks) return false;
+  *gl = d->gl; *data = d->blocks; *bytes = d->nblocks; *premultiplied = d->pre;
+  return true;
 }
 uint32_t* dyn_pixels(int32_t id) { Dyn* d = dyn_at(id); return d ? d->owned : nullptr; }
 void dyn_resize(int32_t id, int32_t w, int32_t h) {
@@ -630,8 +645,9 @@ void dyn_resize(int32_t id, int32_t w, int32_t h) {
   d->owned = px;
   __builtin_memset(d->owned, 0, (size_t)w * h * 4);
   d->px = d->owned; d->w = w; d->h = h; d->stride = w; d->version = ++dyn_versions;
+  dyn_drop_blocks(d);
 }
-void dyn_destroy(int32_t id) { if (Dyn* d = dyn_at(id)) { if (d->owned) hal_free(d->owned); *d = Dyn{}; } }
+void dyn_destroy(int32_t id) { if (Dyn* d = dyn_at(id)) { if (d->owned) hal_free(d->owned); dyn_drop_blocks(d); *d = Dyn{}; } }
 bool image_size(int32_t id, int32_t* w, int32_t* h) {
   if (id >= 0 && id < image_count) { int32_t k = images[id].scale > 1 ? images[id].scale : 1; *w = (images[id].w + k / 2) / k; *h = (images[id].h + k / 2) / k; return true; }
   if (Dyn* d = dyn_at(id)) { *w = d->w; *h = d->h; return true; }

@@ -46,6 +46,11 @@ bool ensureEsptool(std::string& path, std::string& err);
 bool ensureButler(std::string& path, std::string& err);
 std::string butlerPath();
 std::string butlerVersion();
+// basis_universal's basisu (ZN-439), the GPU texture encoder of the asset build: ZINC_BASISU, or the pinned source archive (SHA-256 checked before it
+// is unpacked) built once with the pinned zig into ~/.zinc/toolchains/basisu-<host>-<version>/basisu. basisuPath() is where it is (or will be).
+bool ensureBasisu(std::string& path, std::string& err);
+std::string basisuPath();
+std::string basisuVersion();
 
 // The command line that starts the ESP32 emulator on the core firmware image, with the serial port on its stdin and stdout. Downloads the
 // pinned QEMU (Espressif's build) on first use, the same way as the zig. $ZINC_QEMU names a qemu-system-xtensa of your own.

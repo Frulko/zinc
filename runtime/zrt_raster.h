@@ -58,6 +58,11 @@ bool image_size(int32_t id, int32_t* w, int32_t* h);
 uint32_t image_version(int32_t id);
 /** Current pixels of a runtime image (GPU compositors upload them when the version changes). */
 bool dyn_view(int32_t id, const uint32_t** px, int32_t* w, int32_t* h, int32_t* stride);
+/** GPU blocks of the same texels (ZN-439: a compressed texture of a pack): `gl` its OpenGL internal format, `premultiplied` its alpha. A GPU
+ *  compositor uploads them instead of the pixels when its driver takes the format; the software raster keeps the pixels. The runtime copies
+ *  them; new pixels (dyn_update, dyn_resize) drop them. */
+void dyn_set_blocks(int32_t id, uint32_t gl, const void* data, uint32_t bytes, bool premultiplied);
+bool dyn_blocks(int32_t id, uint32_t* gl, const void** data, uint32_t* bytes, bool* premultiplied);
 
 enum Kind : uint8_t { CLEAR, RECT, BORDER, SHADOW, LINE, TEXT, IMAGE, POLY, CLIP, UNCLIP,
   STROKE,   // STROKE (ZN-590.01): a polyline of n points at off, width s, pad bit 1 = closed; recorded only for displays that draw it on the GPU (gfx::gpu_strokes)

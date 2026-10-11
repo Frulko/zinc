@@ -39,6 +39,7 @@ static const char* FS =
   "    cov = texture2D(u_tex, v_pos.zw).r;\n"
   "  } else if (mode < 4.5) {\n"                                                 // IMAGE: baked RGBA / runtime 0x00RRGGBB (grad 1: 0xAARRGGBB), times
   "    vec4 t = texture2D(u_tex, v_pos.zw);\n"                                    // the sprite's tint in c1 (white: none, ZN-581)
+  "    if (grad > 1.5 && t.a > 0.0) t.rgb /= t.a;\n"                              // grad 2: premultiplied texels (a compressed texture, ZN-439)
   "    col = (mode < 3.5 ? t.rgb : t.bgr) * v_c1.rgb; cov = mode < 3.5 || grad > 0.5 ? t.a : 1.0;\n"
   "    if (r > 0.0) cov *= cover(p, c, h, r);\n"
   "  } else if (mode < 5.5) {\n"                                                 // SOLID: whole pixels

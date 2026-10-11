@@ -11,6 +11,7 @@
 #include <string_view>
 #include <vector>
 
+#include "assets/texture.h"
 #include "res/res.h"
 
 namespace zn::assets {
@@ -18,7 +19,7 @@ namespace zn::assets {
 /** The kind byte of a pack entry (zpk::Entry::kind). */
 enum Kind : std::uint8_t { Data = 0, Image = 1, Fonts = 2, SplashFrame = 3 };
 
-/** Pixel layouts of the image importer: rows top to bottom after a 16-byte header (docs/reports/zinc-next-assets.md), premultiplied alpha. */
+/** Pixel layouts of the image importer: rows top to bottom after a 16-byte header (include/zn/zim.h), premultiplied alpha. */
 enum class Format : std::uint8_t { Rgba8 = 1, Rgb565 = 2, Rgba4444 = 3 };
 constexpr std::size_t kImageHeader = 16;
 
@@ -42,13 +43,18 @@ struct Options {
   std::string outDir;      // where the packs and report.json go (build/assets/<target>)
   std::string cacheDir;    // the artifacts by key; empty: no cache (ZINC_NO_CACHE), every asset is imported
   std::string tool;        // the build of the engine (its version and executable stamp): part of every key, so a new engine imports again
-  std::string target, profile = "dev";   // named in the report; "release" compresses the packs with zstd, "dev" stores entries as they are
+  std::string target, profile = "dev";   // named in the report; "release" compresses the packs (the target's `pack` codec, zstd by default), "dev" stores entries as they are
+  /** The asset profile in force on the target (zinc assets info): `texture` (the formats of texture rules in a release build; a dev build makes
+   *  rgba8), `maxSize` and `pot` (texture rules), `pack` (none, lz4, zstd, zstd-dict). */
+  std::map<std::string, std::string> targetProfile;
+  ToolPath basisu;            // the texture encoder (zn::tc::ensureBasisu), asked for when a texture rule needs a block format
   std::vector<Rule> rules;    // after the built-in ones: PNG, JPEG, WebP and SVG to "image" (rgba8), anything else to "copy"
   std::vector<Group> groups;
   Splash splash;              // on: its entry goes into boot.zpk (a pack of the splash alone when no group is named boot)
 };
 
-struct Item { std::string name, importer, group; std::uint64_t sourceBytes = 0, outputBytes = 0; double ms = 0; bool cached = false; };
+/** packBytes: what its entry takes in its pack (compressed); format and gpuBytes, for an image: its layout and what its texels take on the GPU. */
+struct Item { std::string name, importer, group; std::uint64_t sourceBytes = 0, outputBytes = 0; double ms = 0; bool cached = false; std::string format; std::uint64_t gpuBytes = 0, packBytes = 0; };
 struct Pack { std::string file, group; std::size_t entries = 0; std::uint64_t bytes = 0; };
 struct Report { std::vector<Item> items; std::vector<Pack> packs; std::size_t imported = 0; double ms = 0; };
 
@@ -56,6 +62,9 @@ struct Report { std::vector<Item> items; std::vector<Pack> packs; std::size_t im
  *  removed) and report.json. False with `err` naming the asset when an importer fails. */
 bool build(const Options& opt, Report& report, std::string& err);
 std::string reportJson(const Options& opt, const Report& report);
+
+/** The importer the rules (after the built-in ones) give the asset `name` (relative to the assets directory, '/' separated), as build() picks it. */
+std::string importerFor(const std::string& name, const std::vector<Rule>& rules);
 
 /** A cache key: XXH3-128 over parts, each hashed on its own so that their boundaries count. */
 class Key {

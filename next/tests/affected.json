@@ -136,6 +136,7 @@
     {"paths": ["../runtime/raster.cpp", "../runtime/gfx.cpp", "../runtime/zrt_raster.h", "src/host/gfx_host.cpp", "src/res/codec.cpp", "../plugins/canvas2d/", "tests/data/image_rect/", "tests/t1/image_rect.sh"], "tests": ["image_rect", "canvas", "gfx_transform"], "canary": true},
     {"paths": ["../runtime/gl_replay.cpp", "../runtime/gl_replay_shaders.h", "tests/t1/image_rect_gl.sh"], "tests": ["image_rect_gl", "gfx_transform"]},
     {"paths": ["../runtime/gl_replay_shaders.h", "src/gl/essl_check.cpp", "tests/native/gl_replay_es2.cpp", "tests/t1/gl_replay_es2.sh"], "tests": ["gl_replay_es2", "gl_renderer"]},
+    {"paths": ["src/assets/texture.cpp", "src/assets/texture.h", "include/zn/zim.h", "third_party/bcdec/", "third_party/etcdec/", "third_party/stb/stb_image_resize2.h", "../runtime/gl_replay.cpp", "../runtime/gl_replay_shaders.h", "../runtime/raster.cpp", "../runtime/zrt_raster.h", "src/host/sys_host.cpp", "src/res/res.cpp", "src/gl/webgl_ext.h", "src/gl/webgl2_tex.cpp", "tests/data/texture/", "tests/t1/texture.sh"], "tests": ["texture", "assets"]},
     {"paths": ["../runtime/raster.cpp", "../runtime/gl_replay.cpp", "tests/t1/many_images.sh", "tests/data/many_images/"], "tests": ["many_images"]},
     {"paths": ["../runtime/gl_replay.cpp", "tests/t1/gl_convex.sh", "tests/data/gl_convex/"], "tests": ["gl_convex", "gl_renderer", "gpu_strokes"]},
     {"paths": ["src/host/sys_host.cpp", "tests/t1/sys_launch.sh", "tests/data/sys_launch/"], "tests": ["sys_launch"]},

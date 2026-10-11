@@ -19,7 +19,7 @@ one assets build g2d >/dev/null || exit 1
 [ "$(imported "$tmp/one/g2d")" = 0 ] || { echo "second build of an unchanged project imported $(imported "$tmp/one/g2d")"; exit 1; }
 report=$(cat "$tmp/one/g2d"/build/assets/*/report.json)
 for a in coin.svg coin.wav player.svg; do
-  echo "$report" | grep -q "{\"name\": \"$a\", \"importer\": \"[a-z]*\", \"group\": \"default\", \"sourceBytes\": [1-9][0-9]*, \"outputBytes\": [1-9][0-9]*, \"ms\": [0-9.]*, \"cached\": true}" ||
+  echo "$report" | grep -q "{\"name\": \"$a\", \"importer\": \"[a-z]*\", \"group\": \"default\", \"sourceBytes\": [1-9][0-9]*, \"outputBytes\": [1-9][0-9]*, \"ms\": [0-9.]*, \"cached\": true, \"packBytes\": [0-9]*[,}]" ||
     { echo "report: no line for $a"; echo "$report"; exit 1; }
 done
 

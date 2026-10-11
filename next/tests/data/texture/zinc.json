@@ -1,0 +1,17 @@
+{
+  "name": "texture",
+  "entry": "main.ts",
+  "assets": {
+    "rules": [{ "match": "tex/**", "as": "texture" }],
+    "profiles": {
+      "pi4": { "texture": "etc2|rgba8", "pack": "zstd" },
+      "apple": { "texture": "astc|rgba8", "pack": "zstd" },
+      "iphone4s": { "texture": "pvrtc|rgb565", "maxSize": 2048, "pack": "lz4" }
+    }
+  },
+  "targets": {
+    "rmpp": { "assets": { "profile": "pi4" } },
+    "sim": { "assets": { "profile": "apple" } },
+    "ps2": { "assets": { "profile": "iphone4s" } }
+  }
+}
