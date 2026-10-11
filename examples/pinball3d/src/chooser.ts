@@ -3,7 +3,8 @@
 // behind the list is then the chosen one, and Start plays it. The tables are those of the game's own assets (a folder
 // tables/<name>/ with its table.json, or a package tables/<name>.zpinball: a table put there is in the list at the next start)
 // and the one --table names. With one table there is nothing to choose, and no list.
-import { rect, rrect, border, font, drawText, textWidth, imageWidth, imageHeight, drawImageRect, keyCount, keyKind, keyName, KeyKind, isDown, Btn, pointerDown, pointerX, pointerY } from 'zinc:gfx';
+import { rect, rrect, border, font, drawText, textWidth, imageWidth, imageHeight, drawImageRect, pointerDown, pointerX, pointerY } from 'zinc:gfx';
+import { nextTable } from './input';
 import * as assets from 'zinc:assets';
 import { TABLE_FILE } from './format/table';
 import { TableSource, BuiltinSource, packageOfBytes, PACKAGE_EXT, openTable } from './format/source';
@@ -116,18 +117,13 @@ export function drawChooser(v: View, list: Choice[], at: i32): void {
   drawText(f, Math.round(cx - hw / 2), first[1] + first[3] + pad, hint, 0x8090b0, 255, 1);
 }
 
-let nextHeld = false, pressHeld = false;
+let pressHeld = false;
 /** What the player asks of the list this frame: the place of the table to go to (the next one, or the one of the card
  *  pressed), or -1 for nothing. */
 export function chosenNow(v: View, list: Choice[], at: i32): i32 {
   const n: i32 = list.length;
-  let next = isDown(Btn.Select), key = false;
-  for (let i: i32 = 0; i < keyCount(); i++) {
-    const name = keyName(i).toLowerCase();
-    if (keyKind(i) === KeyKind.Down && (name === 'tab' || name === 't')) key = true;
-  }
-  const press = pointerDown(), go = (next && !nextHeld) || key, tap = press && !pressHeld;
-  nextHeld = next; pressHeld = press;
+  const press = pointerDown(), go = nextTable, tap = press && !pressHeld;   // the next table: an action of the controls (input.ts)
+  pressHeld = press;
   if (n < 2) return -1;
   if (tap) for (let i = 0; i < n; i++) {
     const b = cardBox(v, i, n), x = pointerX(), y = pointerY();

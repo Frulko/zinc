@@ -27,14 +27,19 @@ zinc run examples/pinball3d -- --scores=scores.txt            # keep the high sc
 
 ## Controls
 
-| action | keyboard | pad buttons (`zinc:gfx`) | touch |
-| --- | --- | --- | --- |
-| left flipper | Z, Left | L, Left | the left half of the table |
-| right flipper | /, Right | R, Right | the right half of the table |
-| plunger (hold, let go) | Space, Down | Down | the bottom right corner of the table |
-| bump the table from the left, the right, the front | X, . (period), Up | X, Y, Up | |
-| start | Enter, 1 | Start | |
-| the next table, while one waits for a player | Tab, T | Select | a press on its card |
+| action (its name in the settings) | keyboard | gamepad | cabinet (the keys its encoder sends) | touch |
+| --- | --- | --- | --- | --- |
+| left flipper (`left`) | Z, Left | left shoulder, left trigger, d-pad or stick left | Z | the left half of the table |
+| right flipper (`right`) | /, Right | right shoulder, right trigger, d-pad or stick right | / | the right half of the table |
+| plunger: hold, let go (`plunger`) | Space, Down | south button (A, cross), d-pad or stick down | Space | the bottom right corner of the table |
+| bump the table from the left, the right, the front (`nudgeLeft`, `nudgeRight`, `nudgeUp`) | X, . (period), Up | west button (X, square), north button (Y, triangle), d-pad or stick up | X, . (period), Up | |
+| start (`start`) | Enter, 1 | start | 1 | |
+| the next table, while one waits for a player (`nextTable`) | Tab, T | back (select, share) | T | a press on its card |
+
+A gamepad is found when it is plugged in, any number of them, and its buttons are named by their place, so an Xbox, a
+PlayStation and a Switch pad play the same. A cabinet's buttons arrive as keys: its encoder (an I-PAC, a Zero Delay
+board set as a keyboard) sends one key per button, and the defaults above are a layout to wire it to; an encoder that
+shows up as a gamepad is a gamepad.
 
 While a table waits for a player, the list of the tables is over it: a card each, with its picture (its backglass, else
 the painting of its playfield) and its name. The table behind the list is the chosen one, and start plays it. The list
@@ -51,9 +56,18 @@ Every action is remapped by a settings file, `settings.json` beside `zinc.json` 
 { "controls": { "left": ["key:a", "pad:L"], "right": ["key:l", "pad:R"], "plunger": ["key:enter"], "start": ["key:5"] } }
 ```
 
-An input is `key:<name>` (a key, or the key a cabinet's button encoder sends), `pad:<button>` or `touch:left`,
-`touch:right`, `touch:plunger`. The engine has no gamepad input yet; when it has, its inputs join this table
-(`src/input.ts`) and nothing else changes.
+An input is one of:
+
+- `key:<name>`: a key, or the key a cabinet's button encoder sends (`key:z`, `key:arrowleft`, `key:enter`, `key: ` for
+  the space bar);
+- `gamepad:<button>`: a button of any plugged gamepad, by its place: `South` `East` `West` `North` `LeftShoulder`
+  `RightShoulder` `LeftTrigger` `RightTrigger` `Back` `Start` `LeftStick` `RightStick` `Up` `Down` `Left` `Right` `Guide`;
+- `pad:<button>`: one of the twelve buttons every Zinc target has (`Up` `Down` `Left` `Right` `A` `B` `X` `Y` `L` `R`
+  `Start` `Select`): on a gamepad the d-pad or the left stick, the four face buttons, the shoulders, start and back;
+- `touch:left`, `touch:right`, `touch:plunger`: the zones of the table's view.
+
+A binding that is none of these is reported by its name when the game starts:
+`settings.json: controls.left[0]: "mouse:1" is no input (...)`.
 
 ## Tidal Lock
 
