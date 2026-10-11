@@ -64,6 +64,9 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-438: atlas page format, `maxSize` and POT should come from the target's asset profile (rgb565/rgba4444 with ZN-439's encoders).
 - ZN-438: zinc:assets v2 image handles should free pack images with their group; they live for the program's lifetime today.
 - ZN-438: the browser export should use the atlas (with ZN-449); check TexturePacker rotated frames on a sheet TexturePacker wrote (the test sheet follows its documentation, clockwise).
+- ZN-446: SDL's video init is about half of exec to splash on the Mac (about 200 ms under load): profile `Cocoa_VideoInit` on a quiet machine, it delays every window's first frame.
+- ZN-446: `zinc run` of a natively built program shows no splash during its first native build (seconds); only the executable shows it as it starts.
+- ZN-446: check on a quiet machine that no blank frame flashes when the hidden window is shown (the second present is the guard).
 
 ## Demos
 
@@ -103,3 +106,6 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-261: tests/t1/style_gradient.sh's GL comparison on llvmpipe (Linux) and on VideoCore IV GLES2 (Pi 3).
 - ZN-261: rebuild the esp32 prebuilt core so its host table carries host.gfxGradientPaint (T0 programs never call it).
 - ZN-438: sprite atlas sources build warning-free under `zig c++` (cross builds).
+- ZN-446: measure exec to splash on Linux desktop (X11, Wayland) and the Pi 3 (KMSDRM) with `tools/splash-time --runs 11`, record them in the task (AC #1, task in Review).
+- ZN-446: the splash on display plugins (display-fbdev before EGL/GLES, the panels, ESP32 RGB565 from flash); `showSplash` skips runs with a display plugin today.
+- ZN-446: OS splashes from the exports (iOS launch storyboard, PSP PIC1, Vita LiveArea, 3DS banner) once those exports exist.

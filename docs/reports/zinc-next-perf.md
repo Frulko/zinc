@@ -438,6 +438,13 @@ The CPU time ZINC_GL_STATS calls "to submit" includes waits for the GPU (5.6 to 
 measured at load 6 from other builds, before ZN-432 changed the image path of the replay. GL replay against the software frame for convex
 and concave polygons: 0.06% of the pixels more than 24 apart, mean error 0.07 (tests/t1/gl_convex.sh).
 
+### ZN-446: exec to splash (2026-10-11, Intel Mac, 640x400 window at 2x, load 4.4 with other agents building)
+
+`tools/splash-time --runs 11`: `zinc run` (interpreted) median 406.8 ms (389.9 to 439.7), built executable 425.2 ms (405.2 to 456.3). Of that,
+opening the window 277 to 314 ms (SDL video init about 200 ms, GL window and context about 110 ms), presenting 55 ms (first present into the
+hidden window 34.6 ms, show 4.7 ms, second present one vsync 16.1 ms); zinc reaches the splash call 13 to 20 ms after it starts. The first
+launch of a newly built binary adds about 800 ms before `main` (the system's check). `zinc run` of `console.log(1)`: 10.4 ms against 10.2.
+
 ### ZN-438: sprite atlases, the game-2d template (2026-10-11, Intel Mac, Radeon Pro 555X, load 2.7 to 3.0 with another agent building)
 
 Play scene in the GL window, 120 frames, `ZINC_GL_STATS`: draw calls per frame 4.0 before, 3.0 after (17 quads both times; the atlas
