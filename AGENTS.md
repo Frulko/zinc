@@ -56,7 +56,7 @@ The work is a backlog of precise tasks managed with **Backlog.md** (`backlog` CL
 
 Independent tasks can be worked in parallel: a coordinator session hands them out, and each agent works one task in its own git worktree and branch, so no two agents share a working tree, a build directory or an index.
 
-- **Choose** with `next/tools/next-task --list 10`: tasks with no dependency between them that touch different modules (their labels, `next/tests/affected.json`). Two tasks in the shared core (IR, runtime, raster, layout, text, `lib/std/ui.ts`) never run together. Two building agents at most beside the loop on the development Mac (12 threads); agents that do not build (research, documents, a fix in a test) do not count.
+- **Choose** with `next/tools/next-task --list 10`: tasks with no dependency between them that touch different modules (their labels, `next/tests/affected.json`). Two tasks in the shared core (IR, runtime, raster, layout, text, `lib/std/ui.ts`) never run together. Three trees building at most on the development Mac in all, whoever started them: the loop's own tree counts when it builds, and `git worktree list` shows the agents of the other sessions. Agents that do not build (research, documents, a fix in a test) do not count.
 - **Claim**: before the agents start, the coordinator reserves every task it hands out with `next/tools/next-task --claim ZN-a ZN-b` (refused, with nothing changed, when a task is already worked, claimed, parked or waiting) and commits the task files on main: `next/tools/next-task` skips a task that has an assignee, so the loop on main never takes it. `next-task --release ZN-a` gives a task back.
 - **Chains**: small tasks of one module go to one agent, in order, one commit per task: one worktree, one warm build, no conflict between them.
 - **The base**: a new worktree may start from `origin/main`, which is behind while the owner has not pushed. The agent's first command is `git reset --hard main` (the local main), before it reads or builds anything.
@@ -82,6 +82,7 @@ For now the engine is built and tested on the development Mac only. Do as many b
 - No builds or tests for ARM, Raspberry Pi, ESP32, Linux, the handhelds or the CHIP during a task (no `--target` cross builds, no QEMU, no `cross*` tests). Keep the code portable, but do not prove it on those targets now.
 - A task that touches a cross target: implement it, write its test, and write the cross-target verification as one line under "Cross-platform pass" in `next/backlog/later.md` (no new task while the backlog is frozen).
 - The cross-platform pass (the deferred group, the handheld and board milestones, their tests) is done at the end, as one phase.
+- Windows is a target (owner, 2026-10-11): it opens that pass, before the handhelds and the boards. Mobile (iOS, Android) stays at its end.
 
 ## Move fast: finish tasks, prove only what changed (owner, 2026-10-10)
 

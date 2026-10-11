@@ -21,7 +21,7 @@ Resume Zinc Next work. One invocation = one batch: the next task and up to four 
 
 Rules (the full text is `next/RULES.md`):
 - The goal: every demo of the prototype runs unchanged; the engine stays agnostic, pluggable, readable and fast. Match the prototype's observable behaviour.
-- No hardware: use the simulators/emulators. No Windows. No decision left to a person: research, score, record in `docs/reports/zinc-next-decisions.md`, go on.
+- No hardware: use the simulators/emulators. No Windows yet (a target after the Mac, it opens the cross-platform pass). No decision left to a person: research, score, record in `docs/reports/zinc-next-decisions.md`, go on.
 - Proven vendored libraries first (licence, pinned version, `third_party/README.md`); never reinvent regex, TLS, fonts, SQL, codecs, JSON.
 - The backlog is frozen: no new task. An idea, an improvement or a check for later is one line in `next/backlog/later.md`. Too big for one session: split
   with `backlog task create --parent` (the task's own criteria, nothing more; `New-task: split ZN-n` in the commit); stuck twice: write the failing case, fix the root cause; blocked for real: label `parked`, say why, take the next task.

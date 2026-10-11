@@ -64,3 +64,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-434: tests/t0/assets.sh on Linux x86_64 and arm64, and zn_assets (xxhash.h) under the zig cross builds.
 - ZN-581: the sprite path on a Pi 3 (GLES 2) and on Linux GL, frames against the software ones.
 - ZN-435: check the asset defaults of targets/capabilities.json on the devices (the rmpp, ps1 and ps2 values are estimates; the Pi and ESP32 budgets).
+- owner, 2026-10-11: Windows opens the pass; list its tasks at the review (host and window of ZN-054, dialogs, installers, a CI runner or a machine).
