@@ -1586,6 +1586,23 @@ struct Checker {
         if (replaceWith(i, "__arrayFromLength(__H0, __H1)", {{n(n(src).kids[0]).kids[0]}, {x.kids[2]}})) return expr0(i, myExpected);
       } else if (x.kids.size() == 2 ? replaceWith(i, "[...__H0]", {{src}}) : replaceWith(i, "[...__H0].map(__H1)", {{src}, {x.kids[2]}})) return expr0(i, myExpected);
     }
+    if (!isNew && x.kids.size() == 2 && n(x.kids[0]).kind == N::Member && n(x.kids[0]).text == "table" && n(n(x.kids[0]).kids[0]).kind == N::Ident && n(n(x.kids[0]).kids[0]).text == "console") {
+      // console.table(rows): the prototype's two columns, `(index)` and `values` (each row as console.log writes it), from a generated function (ZN-155)
+      const std::uint32_t cs = lookup("console");
+      if (cs != kNone && out.syms[cs].kind == SymKind::Builtin) {
+        const TypeId at = expr(x.kids[1]);
+        if (bad(at)) return tError;
+        if (ty(at).k != TK::Array) { diag(kZNotAssignable, x.kids[1], "'" + name(at) + "' to an array (console.table)"); return tError; }
+        const TypeId et = ty(at).elem;
+        const std::string fmt = needsInspect(et) ? std::string(out.syms[inspectLog(et, i)].name) + "(rows[i])" : "'' + rows[i]";
+        const std::uint32_t sym = helper("table:" + std::to_string(at), "function $F(rows: " + inspectAliasName(at) + "): void {\n  console.log('(index)\\tvalues');\n  for (let i = 0; i < rows.length; i++) console.log(i + '\\t' + " + fmt + ");\n}\n", {at}, i);
+        const std::uint32_t call = callGenerated(sym, {x.kids[1]}, i);
+        a.nodes[i] = a.nodes[call];
+        out.nodeType[i] = tVoid;
+        rewritten.insert(i);
+        return tVoid;
+      }
+    }
     if (!isNew && n(x.kids[0]).kind == N::Member && (n(x.kids[0]).text == "then" || n(x.kids[0]).text == "catch" || n(x.kids[0]).text == "finally") && n(n(x.kids[0]).kids[0]).kind != N::Super) {
       // promise.then(f) and promise.catch(f) are calls of the prelude's helpers with the promise as first argument
       std::uint32_t obj = n(x.kids[0]).kids[0];

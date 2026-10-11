@@ -1,0 +1,8 @@
+(index)	values
+0	{ a: 1 }
+(index)	values
+0	{ a: 1, b: 'x' }
+1	{ a: 22, b: 'yy' }
+(index)	values
+0	1
+1	2

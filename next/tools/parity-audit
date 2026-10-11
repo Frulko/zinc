@@ -126,9 +126,11 @@ C_PROBES = [
     ("comma operator with unused left side", "let a = (1, 2);\nconsole.log(a);"),
     ("multi-error cascades", "const a: number = 'x';\nconst b: string = 1;\nconsole.log(a, b);"),
 ]
+C_DECIDED = {"`// @ts-ignore`": "BY-DECISION D88: compiled types; an ignored type error has nothing correct to run"}
 def section_c(jobs):
     def one(p):
         name, src = p
+        if name in C_DECIDED: return (name, src, C_DECIDED[name].split(":")[0], C_DECIDED[name].split(": ", 1)[1])
         v, note = compare("c", src + "\n")
         return (name, src, v, note)
     with concurrent.futures.ThreadPoolExecutor(jobs) as ex: return list(ex.map(one, C_PROBES))

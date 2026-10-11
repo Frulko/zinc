@@ -4,7 +4,7 @@ title: 'Parity gate: all 63 example entries OK, conformance 61/61, docs updated'
 status: In Progress
 assignee: []
 created_date: '2026-10-06 23:04'
-updated_date: '2026-10-11 09:14'
+updated_date: '2026-10-11 09:17'
 labels:
   - examples
   - tests
@@ -40,4 +40,6 @@ Handover (2026-10-11). Done: next/tools/parity-audit re-runs the three audits as
 Session 2 (2026-10-11): static accessors (`static get v()`: A.v is a call of it; tests/golden/run/static_getter) and default values in object patterns (declarations and parameters, used when the property is undefined and not when it is null, as in JavaScript; tests/golden/run/pattern_default) done. Gate now: A 313 PASS / 2 MISSING (console.table; `let s` without an initializer, which the prototype types from its first assignment: needs the declaration typed at that assignment and its default initializer made then), C 41 / 4 MISSING, D 2 MISSING. Array pattern defaults (`[a = 1]`) are still refused. usage: n/a
 
 Session 2, continued: typeof in a type position (`const q: typeof p`, a TypeRef flagged kFlagTypeQuery: the declared type of the variable), readonly array and tuple types (the same type here; not enforced), and switches that cover every string of a literal union alias (`type K = 'a' | 'b'`: read from the declarations, string literal types being plain strings) count as returning; tests/golden/run/type_queries, switch_literals. Gate: C 44 PASS / 1 MISSING (@ts-ignore).
+
+console.table done (a generated function per row type: '(index)\tvalues' then each row as console.log writes it, the prototype's output; tests/golden/run/console_table, not run on QuickJS). @ts-ignore: decision D88, not honoured (compiled types: an ignored type error has nothing correct to run); the audit lists it BY-DECISION.
 <!-- SECTION:NOTES:END -->
