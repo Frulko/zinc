@@ -1,2 +1,2 @@
-# File > Open recent > the first project, at frame 4 of recent.input (two ticks are one frame).
-9 menu-click recent:0
+# File > Open recent > the first project (a tick is a pass of the event loop, one or two for a frame: it arrives in the frames 4 to 8).
+8 menu-click recent:0

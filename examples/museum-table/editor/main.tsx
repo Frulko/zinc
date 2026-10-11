@@ -21,7 +21,7 @@ import { doc, project, path, status, lang, setLang, selected, select, zoomBy, fi
   newProjectCommand, openCommand, openFile, newFile, waiting, answer, goTo, problemText, nameIt, setNameIt, deleting, setDeleting, deleteSequence, linksTo, advanced, setAdvanced, nextLanguage,
   startHere, guard, opened, openSequence, closeSequence, selectedItem, selectedLink, shownMedia, pick, picking, answerPick, adding, setAdding, addFile, addWrittenText, newFiles, kindOfFile, perLanguage, measureTick,
   folder, removing, setRemoving, removeMedia, usesOf, pointing, selectedPoint, pickPoint, closePoints, setLogging, pickFrom, pickAsks, settings, openSettings, closeSettings, forgetting, setForgetting,
-  removeLanguage, textsIn, dropped, dropFiles, cancelAdding } from './state';
+  removeLanguage, textsIn, dropped, dropFiles, cancelAdding, recovering, setRecovering, restoreBackup, discardBackup, offerBackup, backupTick } from './state';
 import { perform, nudge, deleteChosen, chosenItems, chosenSequences, setMenus, toolsTick } from './tools';
 import { recents } from './files';
 import { Ico, Tool, Segmented, Heading, ACCENT, DANGER, WARN, MUTED, decodePictures } from './widgets';
@@ -159,6 +159,19 @@ function Unsaved(): i32 {
       <Choice label={t(L.CANCEL)} look="plain" onClick={() => { answer('stay'); }} />
       <Choice label={t(L.DO_NOT_SAVE)} look="plain" onClick={() => { answer('drop'); }} />
       <Choice label={t(L.SAVE)} look="primary" onClick={() => { answer('save'); }} />
+    </view>
+  </Modal>;
+}
+/** A backup of unsaved work was found at the start: the author takes it back, deletes it, or decides later (it is offered again). */
+function Recovering(): i32 {
+  const file = (): string => path().length > 0 ? path().slice(path().lastIndexOf('/') + 1) : t(L.NOT_SAVED_YET);
+  return <Modal>
+    <text class="text-lg font-bold text-zinc-100">{t(L.ASK_RESTORE)}</text>
+    <text class="text-sm text-zinc-400">{f(L.ASK_RESTORE_WHY, file())}</text>
+    <view class="flex-row justify-end gap-2 mt-4">
+      <Choice label={t(L.DECIDE_LATER)} look="plain" onClick={() => setRecovering('')} />
+      <Choice label={t(L.DISCARD_BACKUP)} look="plain" onClick={discardBackup} />
+      <Choice label={t(L.RESTORE)} look="primary" onClick={restoreBackup} />
     </view>
   </Modal>;
 }
@@ -346,6 +359,7 @@ function Shell(): i32 {
     <Show when={forgetting().length > 0}><Forgetting /></Show>
     <Show when={deleting() !== null}><Deleting /></Show>
     <Show when={waiting() !== null}><Unsaved /></Show>
+    <Show when={recovering().length > 0}><Recovering /></Show>
   </view>;
 }
 function App(): i32 {
@@ -354,7 +368,8 @@ function App(): i32 {
 
 /** Closes the question that is open; false when there was none. */
 function dismiss(): boolean {
-  if (waiting() !== null) answer('stay');
+  if (recovering().length > 0) setRecovering('');
+  else if (waiting() !== null) answer('stay');
   else if (deleting() !== null) setDeleting(null);
   else if (removing() !== null) setRemoving(null);
   else if (forgetting().length > 0) setForgetting('');
@@ -367,7 +382,7 @@ function dismiss(): boolean {
 ui.onKey((e: ui.KeyEvent) => {
   const k = e.key;
   if (previewing()) { if (k === 'Escape') stopPreview(); e.preventDefault(); return; }   // the keys are the visitor's, who has none
-  if (waiting() !== null || deleting() !== null || removing() !== null || forgetting().length > 0 || picking() !== null || adding().length > 0) { if (k === 'Escape') { dismiss(); e.preventDefault(); } return; }
+  if (recovering().length > 0 || waiting() !== null || deleting() !== null || removing() !== null || forgetting().length > 0 || picking() !== null || adding().length > 0) { if (k === 'Escape') { dismiss(); e.preventDefault(); } return; }
   if (e.primary) {
     // the same commands as the menu bar and the context menus (tools.ts)
     const id = k === 's' ? (e.shift ? 'saveAs' : 'save') : k === 'z' ? (e.shift ? 'redo' : 'undo') : k === 'y' ? 'redo' : k === 'o' ? 'open' : k === 'n' ? 'new' : k === 'd' ? 'duplicate'
@@ -405,12 +420,12 @@ setLogging(args().indexOf('--log') >= 0);
 if (a.length > 0) {
   // `zinc run <dir>` starts the program in the project's directory: a relative path is taken from where the command was typed
   const file = a[0].startsWith('/') ? a[0] : `${launchDir()}/${a[0]}`;
-  if (exists(file)) openFile(file); else newFile(file);
-}
+  if (exists(file)) openFile(file); else { newFile(file); offerBackup(); }
+} else offerBackup();   // the unsaved work of a project that never had a file
 // closing the window with unsaved work asks first
 // files dropped on the window enter the library; a project dropped there is opened
 on('drop', (files: string[]) => dropFiles(files));
 onCloseRequested(() => { if (doc().dirty) { keepOpen(); guard(() => quit()); } else closePreviewWindow(); });
 let frames = 0;
 // the view knows its size once it was drawn: the first fit waits for that
-render(App, 0x09090b, (dt: number) => { if (++frames === 2) fit(); toolsTick(); decodePictures(); previewTick(dt); pointsTick(dt); measureTick(); });
+render(App, 0x09090b, (dt: number) => { if (++frames === 2) fit(); toolsTick(); backupTick(dt); decodePictures(); previewTick(dt); pointsTick(dt); measureTick(); });

@@ -1,14 +1,15 @@
-# What the system does during session.input (tests/t1/museum_editor_tools.sh). Two ticks are one frame of the editor: tick 13 is frame 6.
+# What the system does during session.input (tests/t1/museum_editor_tools.sh). A tick is a pass of the event loop: a frame of the editor
+# is one or two of them, so the event of tick T arrives between the frames T/2 and T, and session.input leaves those frames free.
 # The answers of the three context menus, in the order they open.
 0 dialog-answer openTable
 0 dialog-answer openTable
 0 dialog-answer selectAll
-# The menu bar: Arrange > Align top, Distribute horizontally (the storyboard, frames 6 and 10), Align left, Align top (a table, 28 and 35),
-# Centre vertically (another table, 60).
-13 menu-click arrange:top
-21 menu-click arrange:across
-57 menu-click arrange:left
-71 menu-click arrange:top
-121 menu-click arrange:middle
-# A file dropped on the window (frame 64).
-129 drop @TMP@/outside/estampe.png
+# The menu bar. The storyboard: Arrange > Align top, then Distribute horizontally.
+10 menu-click arrange:top
+12 menu-click arrange:across
+# A table: Align left; later Align top.
+64 menu-click arrange:left
+144 menu-click arrange:top
+# Another table: Centre vertically. Then a file is dropped on the window.
+340 menu-click arrange:middle
+342 drop @TMP@/outside/estampe.png

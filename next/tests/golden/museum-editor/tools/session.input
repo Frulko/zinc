@@ -1,46 +1,46 @@
 # The tools for agencies (tests/t1/museum_editor_tools.sh), on the project of the table session (golden/museum-editor/table.json) in a folder
-# with its photograph. What the menu bar, the context menus and the system do is in session.system, at the same frames.
-# The storyboard: every sequence selected, aligned at the top (menu bar, frame 6), nudged down, spread across (menu bar, frame 10), copied,
-# pasted (the three copies are selected), nudged right by five steps.
+# with its photograph. What the menu bar, the context menus and the system do is in session.system; the gaps left here are the frames in
+# which each of its events may arrive.
+# The storyboard: every sequence selected; aligned at the top and spread across from the menu bar (frames 5 to 12); then nudged down,
+# copied, pasted (the three copies are selected), nudged right by five steps.
 4 key a meta
-8 key ArrowDown
-12 key c meta
-14 key v meta
-16 key ArrowRight shift
-# The context menu of the first sequence: "Open its table".
-20 move 350 200
-21 right-down
-22 right-up
-# Its table: both media selected, aligned left (menu bar, frame 28), nudged, duplicated; the two copies aligned at the top (menu bar,
-# frame 35), then cut.
-26 key a meta
-30 key ArrowRight
-31 key ArrowDown shift
-33 key d meta
-39 key x meta
-41 key Escape
-# The context menu of the sequence beside it opens its table, where the two media are pasted.
-44 move 600 182
-45 right-down
-46 right-up
-50 key v meta
-# Nothing selected; the context menu of the table: "Select all"; then Arrange > Centre vertically (menu bar, frame 60).
-52 key Escape
-54 move 800 300
-55 right-down
-56 right-up
-# A picture is dropped on the window from outside the project (the system, frame 64): it is copied into the project folder and the
-# question of "Add a file" opens on it; its source and its licence are typed, and it enters the library.
-70 move 700 499
-71 down
-72 up
-73 text https://example.org/estampe
-75 move 700 562
-76 down
-77 up
-78 text CC0
-80 move 895 616
-81 down
-82 up
-# Save.
-88 key s meta
+14 key ArrowDown
+16 key c meta
+18 key v meta
+20 key ArrowRight shift
+# The context menu of the first sequence: "Open its table". There, both media selected; aligned left from the menu bar (frames 32 to 64).
+24 move 350 200
+25 right-down
+26 right-up
+30 key a meta
+# Nudged, duplicated; the two copies are aligned at the top from the menu bar (frames 72 to 144).
+66 key ArrowRight
+67 key ArrowDown shift
+69 key d meta
+# The copies are cut. The context menu of the sequence beside the first one opens its table, where the two media are pasted.
+146 key x meta
+148 key Escape
+151 move 600 182
+152 right-down
+153 right-up
+157 key v meta
+# Nothing selected; the context menu of the table: "Select all"; the two media are centred vertically from the menu bar, then a picture
+# is dropped on the window from outside the project (frames 170 to 342): it is copied into the project folder and the question of
+# "Add a file" opens on it.
+159 key Escape
+161 move 800 300
+162 right-down
+163 right-up
+# Its source and its licence are typed, and it enters the library. Save.
+346 move 700 499
+347 down
+348 up
+349 text https://example.org/estampe
+351 move 700 562
+352 down
+353 up
+354 text CC0
+356 move 895 616
+357 down
+358 up
+364 key s meta

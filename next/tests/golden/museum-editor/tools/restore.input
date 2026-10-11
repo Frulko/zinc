@@ -1,0 +1,6 @@
+# The editor started again on the project backup.input left unsaved (tests/t1/museum_editor_tools.sh): it asks whether the unsaved changes
+# should be restored; "Restore", then Save.
+6 move 882 510
+7 down
+8 up
+12 key s meta

@@ -9,8 +9,8 @@ import { Doc, Problem, newProject } from './doc';
 import { decode, Sound } from 'zinc:audio';
 import { Player as Decoder } from 'zinc:video';
 import { cuesOf } from '../src/narration';
-import { clock } from 'zinc:sys';
-import { noteRecent, forgetRecent } from './files';
+import { clock, env } from 'zinc:sys';
+import { noteRecent, forgetRecent, writeBackup, readBackup, dropBackup } from './files';
 import * as L from './strings';
 import { t, f } from './strings';
 
@@ -743,6 +743,7 @@ export function openFile(file: string): boolean {
     d.markSaved();
     show(d, file, f(L.DONE_OPENED, fileName(file)));
     noteRecent(file);
+    offerBackup();
     return true;
   } catch (e) {
     setStatus(f(L.CANNOT_OPEN, fileName(file), e.message));
@@ -761,6 +762,8 @@ function write(file: string): boolean {
     setStatus(f(L.CANNOT_SAVE, fileName(file), e.message));
     return false;
   }
+  dropBackup(path()); dropBackup(file);   // what is on disk is the work: under its former name too (Save as, a project never saved)
+  backedUp = '';
   current.markSaved();
   noteRecent(file);
   batch(() => { setPath(file); setStatus(f(L.DONE_SAVED, fileName(file))); refresh(); });
@@ -789,10 +792,48 @@ export async function answer(choice: string): Promise<void> {
   const then = waiting();
   setWaiting(null);
   if (then === null || choice === 'stay') return;
+  if (choice === 'drop') { dropBackup(path()); backedUp = ''; }   // the changes are given up knowingly
   const go: () => void = then;
   if (choice === 'save' && !(await save())) return;
   go();
 }
+// ---- the backup: unsaved work is written beside the editor's own files every minute, and offered again at the next start
+
+/** Seconds between two backups. MUSEUM_EDITOR_BACKUP=seconds changes it (tests; a slow disk). */
+const BACKUP_EVERY: number = env('MUSEUM_EDITOR_BACKUP').length > 0 ? Math.max(1, parseFloat(env('MUSEUM_EDITOR_BACKUP'))) : 60;
+let sinceBackup: number = 0, backedUp = '';
+/** Once a frame, with the seconds it lasted: when the time has come and the project has changes that are neither saved nor backed up,
+ *  its text is written to the backup. */
+export function backupTick(dt: number): void {
+  sinceBackup += dt;
+  if (sinceBackup < BACKUP_EVERY) return;
+  sinceBackup = 0;
+  if (recovering().length > 0 || current.project.sequences.length === 0 || !current.dirty || current.text() === backedUp) return;
+  if (writeBackup(path(), current.text())) backedUp = current.text();
+}
+/** The backup that waits for an answer ('' for none): the text of the project as it was when the editor last backed it up. */
+export const [recovering, setRecovering] = createSignal<string>('');
+/** Offers the backup of the open project when it has one that differs from the file (main.tsx shows the question); a backup that says
+ *  what the file says is of no use any more. */
+export function offerBackup(): void {
+  const kept = readBackup(path());
+  if (kept.length > 0 && kept !== current.saved) setRecovering(kept); else dropBackup(path());
+}
+/** The answers: the project becomes what the backup holds, unsaved (the file on disk is untouched until Save), or the backup is deleted. */
+export function restoreBackup(): void {
+  const kept = recovering(), file = path(), saved = current.saved;
+  setRecovering('');
+  try {
+    const d = new Doc(parseProject(kept), saved);
+    show(d, file, t(L.DONE_RESTORED));
+    backedUp = kept;
+  } catch (e) {
+    dropBackup(file);
+    setStatus(f(L.CANNOT_RESTORE, e.message));
+  }
+}
+export function discardBackup(): void { dropBackup(path()); setRecovering(''); setStatus(t(L.BACKUP_DISCARDED)); }
+
 export function newProjectCommand(): void { guard(() => newFile('')); }
 export function openCommand(): void {
   guard(() => {

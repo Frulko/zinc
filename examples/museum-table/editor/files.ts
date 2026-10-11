@@ -1,4 +1,5 @@
-// What the editor keeps outside the projects, in its own directory: the list of the projects opened last.
+// What the editor keeps outside the projects, in its own directory: the list of the projects opened last, and a backup of each project
+// that has unsaved changes, which is offered again when the editor did not close properly.
 import { createSignal } from 'zinc:ui/solid';
 import * as fs from 'zinc:fs';
 import { env } from 'zinc:sys';
@@ -28,3 +29,26 @@ function keep(list: string[]): void {
 export function noteRecent(file: string): void { keep([file].concat(recents().filter((p: string) => p !== file)).slice(0, RECENT)); }
 /** A project that is no longer where it was leaves the list. */
 export function forgetRecent(file: string): void { if (recents().indexOf(file) >= 0) keep(recents().filter((p: string) => p !== file)); }
+
+// ---- backups
+
+/** Where the backup of the project `file` is kept ('' for a project that was never saved; '' is returned when nothing is kept).
+ *  ponytail: the name is the end of the path; two projects whose paths end in the same 150 characters would share a backup. */
+function backupOf(file: string): string {
+  if (home().length === 0) return '';
+  const name = file.replaceAll('/', '_').replaceAll('\\', '_').replaceAll(':', '_');
+  return `${home()}/backup-${name.length > 0 ? name.slice(Math.max(0, name.length - 150)) : 'untitled'}.json`;
+}
+/** Keeps `text`, the project as Save would write it, until the project is saved; false when it could not be written. */
+export function writeBackup(file: string, text: string): boolean {
+  const at = backupOf(file);
+  if (at.length === 0) return false;
+  try { fs.writeText(at, text); return true; } catch (e) { return false; }
+}
+/** The backup of a project, '' when there is none. */
+export function readBackup(file: string): string {
+  const at = backupOf(file);
+  if (at.length === 0 || !fs.exists(at)) return '';
+  try { return fs.readText(at); } catch (e) { return ''; }
+}
+export function dropBackup(file: string): void { const at = backupOf(file); if (at.length > 0 && fs.exists(at)) fs.remove(at); }

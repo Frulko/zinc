@@ -1,0 +1,6 @@
+# The backup (tests/t1/museum_editor_tools.sh), on the project of the table session, with a backup every second: every sequence is selected
+# and nudged, a sequence is added, and nothing is saved. The run ends there, as an editor that crashed would.
+4 key a meta
+6 key ArrowDown shift
+10 key n
+11 key Escape

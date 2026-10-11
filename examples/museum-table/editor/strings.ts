@@ -441,6 +441,15 @@ export const LANGUAGE_NAMES: string[] = ['fr', 'français', 'en', 'English', 'de
 export const NOT_A_MEDIUM = S('"{0}" is not a picture, a model, a sound or a film.', '« {0} » n’est ni une image, ni un modèle, ni un son, ni un film.');
 export const ALREADY_THERE = S('The project folder already has a file named "{0}": it was not replaced.', 'Le dossier du projet contient déjà un fichier « {0} » : il n’a pas été remplacé.');
 export const CANNOT_COPY = S('"{0}" could not be copied into the project folder: {1}', '« {0} » n’a pas pu être copié dans le dossier du projet : {1}');
+export const ASK_RESTORE = S('Restore the unsaved changes?', 'Rétablir les modifications non enregistrées ?');
+export const ASK_RESTORE_WHY = S('The editor did not close properly last time. It kept a backup of "{0}" with changes that were never saved. The file itself is untouched until you save.',
+  'L’éditeur ne s’est pas fermé normalement la dernière fois. Il a gardé une sauvegarde de « {0} » avec des modifications jamais enregistrées. Le fichier lui-même reste intact tant que vous n’enregistrez pas.');
+export const RESTORE = S('Restore', 'Rétablir');
+export const DISCARD_BACKUP = S('Delete the backup', 'Supprimer la sauvegarde');
+export const DECIDE_LATER = S('Later', 'Plus tard');
+export const DONE_RESTORED = S('Unsaved changes restored from the backup. Save to keep them.', 'Modifications non enregistrées rétablies depuis la sauvegarde. Enregistrez pour les garder.');
+export const CANNOT_RESTORE = S('The backup could not be read and was deleted: {0}', 'La sauvegarde n’a pas pu être lue et a été supprimée : {0}');
+export const BACKUP_DISCARDED = S('Backup deleted.', 'Sauvegarde supprimée.');
 export const M_FILE = S('File', 'Fichier');
 export const M_EDIT = S('Edit', 'Édition');
 export const M_ARRANGE = S('Arrange', 'Disposition');
