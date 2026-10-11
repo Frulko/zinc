@@ -682,6 +682,8 @@ struct Lowering {
           nodeOfFunc[fi] = s;   // the class node: callFunction finds the base constructor's defaults through it
           jobs.push_back({fi, s, cls, true, s});
         }
+      } else if (x.kind != N::Interface) {  // a function or class declared in a nested block or a lambda's body: collected where it is found
+        for (std::uint32_t k : x.kids) if (k != kNil) collectFunctions({k}, prefix);
       }
     }
   }
