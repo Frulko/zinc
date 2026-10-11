@@ -438,6 +438,13 @@ The CPU time ZINC_GL_STATS calls "to submit" includes waits for the GPU (5.6 to 
 measured at load 6 from other builds, before ZN-432 changed the image path of the replay. GL replay against the software frame for convex
 and concave polygons: 0.06% of the pixels more than 24 apart, mean error 0.07 (tests/t1/gl_convex.sh).
 
+### ZN-443: tile maps (2026-10-11, Intel Mac, load 7 to 8 from other trees: indicative)
+
+Import: the test Tiled map 2.0 ms, the LDtk project (4 levels) 2.3 ms, a generated 256x256 map of 3 layers (196,608 cells) 33 ms (351 ms
+before caching cells by tile id). `load()`: both test maps 2 to 3 ms (native and interpreter), the 256x256x3 map 56 to 72 ms (median 58).
+Drawing a 1280x720 view (6,196 tiles queued) 2 to 4 ms. Parsing 65,536 cells: `split` + `parseInt` 10 to 12 ms against 20 ms for a
+char-code loop (kept `split`). QuickJS not measured (its `Date.now` stayed frozen in the headless run).
+
 ### ZN-450: asset hot reload (2026-10-11, Intel Mac, load 2.6 to 3.3 with other agents building)
 
 game-2d under `zinc dev`, one sprite changed (`tests/t1/asset_reload.sh`): save to "sent" 37 to 53 ms (40 ms poll, 30 ms wait for the
