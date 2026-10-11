@@ -22,6 +22,7 @@ import { Ico, Action, Segmented, Chooser, Word, Menu, Picker, Switch, Heading, d
 import { Piece, pieces, sentenceOf, wordSaid, kindSaid, said, whenSaid, ruleSaid, extrasOf } from './sentences';
 import * as L from './strings';
 import { t, f, fieldName, listName, kindName, phrase } from './strings';
+import { help } from './help';
 
 /** What a form shows and changes. */
 export class Source {
@@ -582,7 +583,7 @@ export function Help(p: { src: Source }): i32 {
       <view class="grow" />
       <text class="font-mono text-[10px] text-zinc-600">{fd() === null ? '' : helped()}</text>
     </view>
-    <text class="text-[11px] text-zinc-400" style={{ width: 308 }}>{fd() === null ? t(L.HELP_HINT) : (fd() as Field).doc}</text>
+    <text class="text-[11px] text-zinc-400" style={{ width: 308 }}>{fd() === null ? t(L.HELP_HINT) : help((fd() as Field).doc)}</text>
     <text class="text-[11px] text-zinc-500">{facts()}</text>
   </view>;
 }
@@ -647,7 +648,7 @@ function Panel(p: { path: string }): i32 {
           <Heading label={kind} />
           {sentenceAt(path) === '' ? <text class="text-lg font-bold text-zinc-100 truncate" style={{ maxWidth: 308 }}>{title()}</text>
             : <text class="text-sm font-bold text-zinc-100" style={{ width: 308 }}>{title()}</text>}
-          <text class="text-[11px] text-zinc-500" style={{ width: 308 }}>{schemaAt(path).doc}</text>
+          <text class="text-[11px] text-zinc-500" style={{ width: 308 }}>{help(schemaAt(path).doc)}</text>
         </view>
         <Show when={path === ''}><text class="px-4 pb-3 text-xs text-zinc-400" style={{ width: 340 }}>{t(L.NOTHING_SELECTED)}</text></Show>
         <Show when={list !== ''}>

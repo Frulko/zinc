@@ -6,8 +6,8 @@ import * as fs from 'zinc:fs';
 import * as assets from 'zinc:assets';
 import * as dialog from 'zinc:system/dialog';
 import { Schema, Kind } from '../../pinball3d/src/format/schema';
-import { TableDef, TableError, TABLE_FILE, formatSchema, filesOf } from '../../pinball3d/src/format/table';
-import { FolderSource, packTable, PACKAGE_EXT } from '../../pinball3d/src/format/source';
+import { TableDef, TableError, TABLE_FILE, formatSchema, filesOf, loadTable } from '../../pinball3d/src/format/table';
+import { FolderSource, PackageSource, packTable, PACKAGE_EXT } from '../../pinball3d/src/format/source';
 import { Doc, newTableText, isPlaced, canTurn, schemaAt, fieldAt, listOf, indexOf, pointsOf } from './doc';
 import { Outline, outlines, levelsOf } from './shapes';
 import { Preset, Start, LANE, palette, itemOf, pointsNeeded, rowsNeeded, laneOf, blankOf, alongWith, startOf } from './presets';
@@ -479,6 +479,37 @@ export function openFolder(path: string): boolean {
     return false;
   }
 }
+function parentOf(path: string): string { return path.slice(0, path.lastIndexOf('/')); }
+/** Opens a package. It is read whole first: one that was altered after it was made, or that lacks a file its table names, is
+ *  refused by the name of the file and nothing is written. A table is worked on in a folder: the package is unpacked into a new
+ *  one beside it (its name, then "name 2", "name 3": never over a folder that is there), and that folder is opened. */
+export function openPackage(file: string): boolean {
+  const name = nameOfFolder(file);
+  let src: PackageSource;
+  try {
+    src = new PackageSource(file, name);
+    loadTable(src);
+  } catch (e) {
+    const why = e instanceof TableError ? (e as TableError).errors.join('; ') : `${(e as Error).message}`;
+    say(f(L.CANNOT_OPEN, name, why.startsWith(`${name}: `) ? why.slice(name.length + 2) : why), true);
+    return false;
+  }
+  const base = file.slice(0, file.length - PACKAGE_EXT.length);
+  let dir = base;
+  for (let n = 2; fs.exists(dir); n++) dir = `${base} ${n}`;
+  try {
+    for (const entry of src.names) {
+      fs.mkdir(parentOf(`${dir}/${entry}`), true);
+      fs.writeBytes(`${dir}/${entry}`, src.bytes(entry));
+    }
+  } catch (e) {
+    say(f(L.CANNOT_OPEN, name, `${(e as Error).message}`), true);
+    return false;
+  }
+  if (!openFolder(dir)) return false;
+  say(f(L.DONE_UNPACKED, name, nameOfFolder(dir)));
+  return true;
+}
 /** A new table that Save will write in `dir` ('' to ask where). */
 export function newTable(dir: string): void { show(new Doc(starter(), ''), dir, t(L.DONE_NEW)); }
 
@@ -503,6 +534,30 @@ export async function save(): Promise<boolean> {
   const dirs = await dialog.open(o);
   if (dirs === null || dirs.length === 0) { say(t(L.NOT_SAVED)); return false; }
   return write(dirs[0]);
+}
+/** The table and the files it names written in another folder, which becomes the table's folder. A folder that holds another
+ *  table is refused: nothing is ever written over a table. */
+export async function saveAs(): Promise<boolean> {
+  current.seal();
+  const o = new dialog.OpenOptions();
+  o.title = t(L.SAVE_AS_TITLE);
+  o.directory = true;
+  const dirs = await dialog.open(o);
+  if (dirs === null || dirs.length === 0) { say(t(L.NOT_SAVED)); return false; }
+  const from = folder(), to = dirs[0];
+  if (to === from) return write(to);
+  if (fs.exists(`${to}/${TABLE_FILE}`)) { say(f(L.FOLDER_TAKEN, nameOfFolder(to)), true); return false; }
+  try {
+    if (from.length > 0) for (const name of filesOf(current.def)) {
+      if (!fs.exists(`${from}/${name}`)) continue;
+      fs.mkdir(parentOf(`${to}/${name}`), true);
+      fs.copyFile(`${from}/${name}`, `${to}/${name}`);
+    }
+  } catch (e) {
+    say(f(L.CANNOT_SAVE, nameOfFolder(to), `${(e as Error).message}`), true);
+    return false;
+  }
+  return write(to);
 }
 /** The table as one file to share: its table.json and every file it names (sounds, images, models), in the game's package format.
  *  The table is saved first (the package holds what is on disk); a file the table names and its folder lacks is said by its name. */
@@ -546,5 +601,13 @@ export function openCommand(): void {
     o.title = t(L.OPEN_TITLE);
     o.directory = true;
     dialog.open(o).then((dirs: string[] | null) => { if (dirs !== null && dirs.length > 0) openFolder(dirs[0]); else say(t(L.NOTHING_OPENED)); });
+  });
+}
+export function openPackageCommand(): void {
+  guard(() => {
+    const o = new dialog.OpenOptions();
+    o.title = t(L.OPEN_PACKAGE_TITLE);
+    o.filters = [new dialog.Filter(t(L.PACKAGE_KIND), [PACKAGE_EXT.slice(1)])];
+    dialog.open(o).then((files: string[] | null) => { if (files !== null && files.length > 0) openPackage(files[0]); else say(t(L.NOTHING_OPENED)); });
   });
 }

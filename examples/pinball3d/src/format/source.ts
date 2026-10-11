@@ -70,6 +70,8 @@ export class PackageSource extends TableSource {
     if (typeof p.version !== 'number' || p.version > PACKAGE_VERSION) throw new Error(`this game reads packages up to version ${PACKAGE_VERSION}, the file is version ${p.version}`);
     for (let i = 0; i < p.files.length; i++) {
       const name: string = `${p.files[i]}`;
+      // the names come from a file someone sent: none may lead out of the folder a package is unpacked into
+      if (name.startsWith('/') || name.indexOf('\\') >= 0 || name.split('/').indexOf('..') >= 0) throw new Error(`the file "${name}" has a name that leaves the table folder`);
       // ponytail: a name the pack lacks would be read from the game's own assets if they had it; they hold tables/<name>/ only
       if (!assets.exists(name)) throw new Error(`the file "${name}" is missing from the package`);
       let b: u8[] = [];

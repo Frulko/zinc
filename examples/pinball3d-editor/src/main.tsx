@@ -14,7 +14,8 @@ import { exists } from 'zinc:fs';
 import { quit } from 'zinc:gfx';
 import { onCloseRequested, keepOpen } from 'zinc:system/window';
 import { TABLE_FILE } from '../../pinball3d/src/format/table';
-import { doc, folder, status, failed, selected, select, zoomBy, fit, frameOfView, viewW, viewH, undo, redo, save, newCommand, openCommand, openFolder, newTable, waiting, answer, guard,
+import { PACKAGE_EXT } from '../../pinball3d/src/format/source';
+import { doc, folder, status, failed, selected, select, zoomBy, fit, frameOfView, viewW, viewH, undo, redo, save, saveAs, newCommand, openCommand, openPackageCommand, openFolder, openPackage, newTable, waiting, answer, guard,
   advanced, setAdvanced, doomed, answerDelete, moveSelected, turnSelected, deleteSelected, duplicateSelected, mirrorSelected, tool, pickTool, finishPlacing, unplace, activeRow, removeActiveRow, nextLevel, exportPackage, setEcho } from './state';
 import { Ico, Tool, Segmented, ACCENT, chord } from './widgets';
 import { Outline, focusGoTo } from './outline';
@@ -146,10 +147,10 @@ ui.onKey((e: ui.KeyEvent) => {
   if (waiting() !== null) { if (k === 'Escape') { answer('stay'); e.preventDefault(); } return; }
   if (doomed().length > 0) { if (k === 'Escape') answerDelete(false); else if (k === 'Enter') answerDelete(true); e.preventDefault(); return; }
   if (e.primary) {
-    if (k === 's') save();
+    if (k === 's') { if (e.shift) saveAs(); else save(); }
     else if (k === 'z') { if (e.shift) redo(); else undo(); }
     else if (k === 'y') redo();
-    else if (k === 'o') openCommand();
+    else if (k === 'o') { if (e.shift) openPackageCommand(); else openCommand(); }
     else if (k === 'n') newCommand();
     else if (k === '0') fit();
     else if (k === '=') zoomBy(1.2, viewW / 2, viewH / 2);
@@ -213,10 +214,14 @@ if (a.length > 0) {
   // so a relative path means what the user meant. A launch directory in zinc:sys (ZN-687) replaces this.
   const given = a[0].startsWith('/') || env('PWD').length === 0 ? a[0] : `${env('PWD')}/${a[0]}`;
   const dir = given.endsWith(`/${TABLE_FILE}`) ? given.slice(0, given.length - TABLE_FILE.length - 1) : given;
-  if (exists(`${dir}/${TABLE_FILE}`)) openFolder(dir); else newTable(dir);
+  if (given.endsWith(PACKAGE_EXT)) openPackage(given); else if (exists(`${dir}/${TABLE_FILE}`)) openFolder(dir); else newTable(dir);
 }
-// a file dropped on the window is copied into the table's folder, as Import does
-on('drop', (dropped: string[]) => { if (dropped.length === 1) importFile(dropped[0]); });
+// a file dropped on the window is copied into the table's folder, as Import does; a package dropped there is opened
+on('drop', (dropped: string[]) => {
+  if (dropped.length !== 1) return;
+  const file = dropped[0];
+  if (file.endsWith(PACKAGE_EXT)) guard(() => { openPackage(file); }); else importFile(file);
+});
 // closing the window with unsaved work asks first
 onCloseRequested(() => { if (doc().dirty) { keepOpen(); guard(() => quit()); } });
 // once a frame: the whole table when the view has just been laid out, and the game played in the editor

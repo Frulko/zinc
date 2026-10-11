@@ -7,6 +7,7 @@ import { parseTable, formatSchema } from '../../pinball3d/src/format/table';
 import { EVENTS } from '../../pinball3d/src/format/table-schema';
 import { Doc, steps, pathOf, listOf, indexOf, fieldAt, schemaAt, canTurn, isPlaced, isProfile, isOffset, isPath, isClosed, found, mirrorName, newTableText } from './doc';
 import { Preset, palette, itemOf, pointsNeeded, rowsNeeded, laneOf, blankOf, alongWith, startOf } from './presets';
+import { help, helpFaults } from './help';
 import { complete, f, setUiLang, step, fieldName, listName, fieldKnown, DONE_UNDONE, phrase, phrasesComplete } from './strings';
 import { Piece, pieces, sentenceOf, wordSaid, ruleSaid, said, kindSaid, extrasOf, word, worded } from './sentences';
 import { ScoreRow, scoreRows, scoreEvents, scoreOf, scoreChange } from './scores';
@@ -38,6 +39,13 @@ check('paths read as the loader writes them', steps('walls[2].points[1]').join('
   const french = `${f(DONE_UNDONE, step('Move pop1'))} / ${fieldName('baseRadius')} / ${listName('walls', false)} / ${listName('walls', true)} / ${fieldName('someNewField')} / ${listName('gizmos', false)}`;
   check('every text of the interface exists in English and in French', complete() && english === 'Undone: Move pop1. / Radius at the pivot / Walls and guides / Wall / Some new field / Gizmos'
     && french === 'Annulé : Déplacer pop1. / Rayon au pivot / Murs et guides / Mur / Some new field / Gizmos');
+  // the help lines of the format: each has its French, and the French table holds no line the format lost
+  const lost = helpFaults(formatSchema());
+  for (const l of lost) console.log(`  ${l}`);
+  setUiLang('fr');
+  check('every help line of the format has its French', lost.length === 0 && help('The ball.') === 'La bille.' && help(schemaAt('bumpers[0]').doc) !== schemaAt('bumpers[0]').doc);
+  setUiLang('en');
+  check('the help lines are the format\'s own in English', help('The ball.') === 'The ball.');
   // every field of the format, wherever it is: the ones the label tables do not know are shown by their key (not a fault: a note)
   const seen: Schema[] = [], unknown: string[] = [];
   const walk = (sc: Schema): void => {

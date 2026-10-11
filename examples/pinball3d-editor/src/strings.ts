@@ -175,6 +175,10 @@ export const UNDO_NEXT = S('Undo: {0}', 'Annuler : {0}');
 export const SELECTED = S('{0} selected.', '{0} est sélectionné.');
 export const OPEN_TITLE = S('Open a table folder', 'Ouvrir le dossier d’une table');
 export const SAVE_TITLE = S('The folder of the table', 'Le dossier de la table');
+export const SAVE_AS_TITLE = S('Save the table in another folder', 'Enregistrer la table dans un autre dossier');
+export const FOLDER_TAKEN = S('The folder {0} already holds a table: choose an empty one.', 'Le dossier {0} contient déjà une table : choisissez-en un vide.');
+export const OPEN_PACKAGE_TITLE = S('Open a table package', 'Ouvrir le paquet d’une table');
+export const DONE_UNPACKED = S('Opened {0}: checked, and unpacked into the folder {1}.', '{0} est ouvert : vérifié, puis déballé dans le dossier {1}.');
 
 // ---- questions
 export const ASK_SAVE = S('Save the changes?', 'Enregistrer les modifications ?');

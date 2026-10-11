@@ -55,7 +55,7 @@ CROP=386,48,714,820
 out=$("$ZINC" run "$ex/src/selftest.ts" -- "$g/table.json" 2>&1) || fail=1
 case $out in *FAILED*|*panic*|*error*) fail=1 ;; esac
 for line in 'ok: the sample table opened and saved untouched is byte-identical' 'ok: 50 undos give back every earlier file, byte for byte' 'ok: 50 redos give back every later file, byte for byte' \
-  'ok: every state on the way is a file the game accepts, in canonical form' 'ok: every text of the interface exists in English and in French' 'ok: a field is found by its key, alone' \
+  'ok: every state on the way is a file the game accepts, in canonical form' 'ok: every text of the interface exists in English and in French' 'ok: every help line of the format has its French' 'ok: a field is found by its key, alone' \
   'ok: the palette has an entry for every kind the format places, and each makes a thing the game accepts' 'ok: the mirror image of a left flipper is a right flipper'; do
   case $out in *"$line"*) ;; *) fail=1 ;; esac
 done

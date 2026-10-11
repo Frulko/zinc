@@ -53,6 +53,26 @@ edit "$tmp/tidal" "$tmp/export.input" 10 0 "$tmp/tidal.script"
 game_on "$tmp/tidal.zpinball" 1200 > "$tmp/tidal.log"
 n=$(wc -l < "$tmp/tidal.log" | tr -d ' ')
 [ "$n" -ge 40 ] && head -n "$n" "$PWD/tests/data/pinball3d/play.log" | cmp -s - "$tmp/tidal.log" || { echo "the game's table played from the package the editor made does not print tests/data/pinball3d/play.log ($n lines)"; fail=1; }
+# the package opened in the editor (ZN-649.16): checked, unpacked into a new folder beside it (never over the folder that is
+# there), and Save as writes the table and its files in another folder
+printf '4 key s meta+shift\n' > "$tmp/saveas.input"
+printf '0 dialog-answer %s\n' "$tmp/copy" > "$tmp/saveas.script"
+edit "$tmp/tidal.zpinball" "$tmp/saveas.input" 10 0 "$tmp/saveas.script"
+for d in "tidal 2" copy; do
+  cmp -s "$tmp/$d/table.json" "$tmp/tidal/table.json" && [ "$(ls "$tmp/$d/sounds" | wc -l)" = "$(ls "$tmp/tidal/sounds" | wc -l)" ] && cmp -s "$tmp/$d/sounds/$(ls "$tmp/tidal/sounds" | head -1)" "$tmp/tidal/sounds/$(ls "$tmp/tidal/sounds" | head -1)" \
+    || { echo "the folder '$d' (a package opened, then Save as) is not the table and its files"; fail=1; }
+done
+# a package altered after it was exported is refused by the name of the file, and nothing is unpacked
+python3 - "$tmp/tidal.zpinball" "$tmp/bad.zpinball" <<'PY'
+import sys
+b = bytearray(open(sys.argv[1], 'rb').read())
+b[-100] ^= 0xff
+open(sys.argv[2], 'wb').write(b)
+PY
+: > "$tmp/none.input"
+edit "$tmp/bad.zpinball" "$tmp/none.input" 4 0 "$tmp/saveas.script"
+grep -q 'Cannot open bad.zpinball: the file "[^"]*" was altered after the package was made' "$tmp/out" || { echo "an altered package is not refused by the name of its file: $(head -c 300 "$tmp/out")"; fail=1; }
+[ -e "$tmp/bad" ] && { echo "an altered package was unpacked"; fail=1; }
 gone=$(ls "$tmp/tidal/sounds" | head -1)
 rm "$tmp/tidal/sounds/$gone" "$tmp/tidal.zpinball"
 edit "$tmp/tidal" "$tmp/export.input" 10 0 "$tmp/tidal.script"
