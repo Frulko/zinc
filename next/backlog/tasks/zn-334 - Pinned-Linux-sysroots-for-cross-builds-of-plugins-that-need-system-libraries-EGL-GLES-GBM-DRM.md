@@ -6,6 +6,7 @@ title: >-
 status: Backlog
 assignee: []
 created_date: '2026-10-08 14:34'
+updated_date: '2026-10-12 10:01'
 labels:
   - distribution
   - toolchain
@@ -28,3 +29,9 @@ zig gives the libc, not mesa or libdrm: display-gl for rpi/rpi1/linux cannot be 
 - [ ] #2 the sysroots are pinned by sha256 in src/tc, listed in third_party/README.md style with their sources and licences, and a changed archive is refused
 - [ ] #3 `zinc export --target rpi` of a display-gl UI app succeeds on macOS
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-10-12 (owner session, Pi 3B+ plugged in): stopgap in place. A cross build now points pkg-config at $ZINC_HOME/sysroots/<target> (src/tc/plugin_build.cpp) and links with --allow-shlib-undefined; the directory is filled by hand from the device (recipe in docs/reports/raspberry-pi.md, last section). hero (zinc:video, FFmpeg) exports for rpi and runs on the Pi with it. Still to do here: the pinned, checksum-verified sysroot fetched by the toolchain manager, and the EGL/GLES/GBM/DRM packages for display-gl (AC 1 to 3 unchanged).
+<!-- SECTION:NOTES:END -->

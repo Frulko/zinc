@@ -542,7 +542,10 @@ bool ensureCrossLibs(const std::string& zig, const std::string& root, const std:
   dir = root + "/build/cross-" + name;
   const std::string targets = " --target zn_host_gfx zn_layout zn_yoga zn_rt zn_mimalloc zn_zbc zn_ir zn_frontend zn_native zn_regexp zn_codec zn_uv zn_llhttp zn_mbedtls zn_zpk zn_lz4 zn_zstd zn_sha256 -j 3 >";
   if (fs::exists(dir + "/libzn_host_gfx.a") && fs::exists(dir + "/CMakeCache.txt"))   // built before: brought up to date (sources added or changed since), quick when nothing did
-    return run("cmake --build " + quote(dir) + targets + quote(dir + "/build.log") + " 2>&1", err, "cmake --build");
+  {   // twice at most: when CMakeLists.txt gained a target since the last build, the first make regenerates its Makefile but has already read the old one ("No rule to make target")
+    const std::string cmd = "cmake --build " + quote(dir) + targets + quote(dir + "/build.log") + " 2>&1";
+    return run(cmd, err, "cmake --build") || run(cmd, err, "cmake --build");
+  }
   if (fs::exists(dir + "/libzn_host_gfx.a")) return true;   // prebuilt libraries without a CMake tree (a package): used as they are
   if (std::system("command -v cmake >/dev/null 2>&1") != 0) { err = "building the graphics host for " + name + " needs cmake (or the prebuilt libraries in " + dir + ")"; return false; }
   std::error_code ec;

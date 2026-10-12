@@ -289,7 +289,16 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
   const frontend::PluginTarget& ts = m.targetSettings.at(target);
   // system libraries: pkg-config must know them; if not, say what to install
   std::vector<std::string> cflags, libs;
-  if (gCross.on && !ts.pkg.empty()) { err = "plugin '" + m.name + "' needs the system library '" + ts.pkg[0] + "', which a cross build for " + gCross.name + " has no sysroot for yet"; return false; }
+  // a cross build asks pkg-config about the target's sysroot, $ZINC_HOME/sysroots/<target> (the usr/ tree of the device's -dev packages), never about this machine.
+  // ponytail: the directory is filled by hand (docs/reports/raspberry-pi.md); ZN-334 makes the toolchain manager fetch a pinned one.
+  const std::string sysroot = gCross.on ? home() + "/sysroots/" + gCross.name : "";
+  if (gCross.on && !ts.pkg.empty() && !fs::exists(sysroot)) { err = "plugin '" + m.name + "' needs the system library '" + ts.pkg[0] + "', which a cross build for " + gCross.name + " looks for in the sysroot " + sysroot + " (not there)"; return false; }
+  std::string pc = "pkg-config";
+  if (gCross.on) {
+    std::string dirs;
+    for (const auto& e : fs::directory_iterator(fs::path(sysroot) / "usr/lib", ec)) if (fs::exists(e.path() / "pkgconfig")) dirs += (e.path() / "pkgconfig").string() + ":";   // usr/lib/<multiarch triple>/pkgconfig
+    pc = "PKG_CONFIG_ALLOW_SYSTEM_CFLAGS=1 PKG_CONFIG_SYSROOT_DIR=" + q(sysroot) + " PKG_CONFIG_LIBDIR=" + q(dirs + sysroot + "/usr/lib/pkgconfig:" + sysroot + "/usr/share/pkgconfig") + " pkg-config";
+  }
   std::vector<std::string> packages;
   for (const std::string& pkg : ts.pkg) {
 #ifdef ZN_SDL_INCLUDE
@@ -301,13 +310,13 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
     std::string all, o;
     for (const std::string& pkg : packages) all += " " + q(pkg);
     const bool have = haveCommand("pkg-config");
-    if (!have || !capture("(pkg-config --exists" + all + " && pkg-config --cflags" + all + " && echo @@ && pkg-config --libs" + all + ")", o) || o.find("@@") == std::string::npos) {
+    if (!have || !capture("(" + pc + " --exists" + all + " && " + pc + " --cflags" + all + " && echo @@ && " + pc + " --libs" + all + ")", o) || o.find("@@") == std::string::npos) {
       std::string missing = packages[0], x;
-      if (have) for (const std::string& pkg : packages) if (!capture("pkg-config --exists " + q(pkg) + " && echo ok", x) || x.empty()) { missing = pkg; break; }
+      if (have) for (const std::string& pkg : packages) if (!capture(pc + " --exists " + q(pkg) + " && echo ok", x) || x.empty()) { missing = pkg; break; }
       std::string hint;
       for (const std::string& pk : ts.packages) hint += (hint.empty() ? "" : ", ") + pk;
       err = "plugin '" + m.name + "' needs the system library '" + missing + "'" + (have ? "" : " (and pkg-config)") + ": install " + (hint.empty() ? "its development package" : "the package " + hint) +
-            (pluginTarget() == "macos" ? " (for example with brew)" : " (for example with apt or apk)") + ", then run the command again";
+            (gCross.on ? " of the device into " + sysroot : pluginTarget() == "macos" ? " (for example with brew)" : " (for example with apt or apk)") + ", then run the command again";
       return false;
     }
     auto trim = [](std::string t) { while (!t.empty() && std::isspace(static_cast<unsigned char>(t.back()))) t.pop_back(); while (!t.empty() && std::isspace(static_cast<unsigned char>(t.front()))) t.erase(0, 1); return t; };
@@ -315,6 +324,8 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
     std::string c = trim(o.substr(0, at)), l = trim(o.substr(at + 2));
     if (!c.empty()) cflags.push_back(c);
     if (!l.empty()) libs.push_back(l);
+    // the device's libraries name symbols of its own glibc, newer than the one zig targets (pthread_once@GLIBC_2.34): they resolve on the device, not at this link
+    if (gCross.on) libs.push_back("-Wl,--allow-shlib-undefined");
   }
   // a path in `flags`, `libs` or `linkFlags` that starts with ./ or ../ (or follows -I / -L) is relative to the plugin, not to wherever zinc runs
   auto rel = [&](const std::string& t) {

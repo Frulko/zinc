@@ -14,6 +14,8 @@
 // Pixels per logical pixel without a window: ZINC_SCALE=1..4 (a HiDPI frame in headless runs and tests), 1 by default.
 static int32_t headlessScale(void) { const char* s = getenv("ZINC_SCALE"); int k = s ? atoi(s) : 1; return k >= 1 && k <= 4 ? k : 1; }
 
+namespace zrt { extern bool display_driver; }   // runtime/zrt.cpp: a plugins/display-* driver holds the screen
+
 extern "C" {
 void null_hal_init(const HalConfig*); void null_hal_shutdown(void); void null_hal_frame_begin(void); void null_hal_frame_end(void);
 void null_hal_poll_input(HalInput*); void null_hal_present(const HalFrame*); void null_hal_surface_size(int*, int*); double null_hal_fixed_dt(void);
@@ -31,7 +33,10 @@ static bool headlessRequested() {
   auto set = [](const char* n) { const char* v = getenv(n); return v && *v && *v != '0'; };
   return set("ZINC_HEADLESS") || set("ZINC_DETERMINISTIC") || getenv("ZINC_RECORD") || getenv("ZINC_REPLAY");
 }
-int zn_hal_is_live(void) { return live ? 1 : 0; }
+// A display driver on the headless HAL (a Pi's framebuffer: no SDL in a cross build) shows real frames: measured time and no budget of 60 frames (the driver's poll clears the null HAL's quit),
+// unless the run is headless or counts its frames (ZINC_FRAMES, the tests)
+static bool driven() { return zrt::display_driver && !headlessRequested() && !getenv("ZINC_FRAMES"); }
+int zn_hal_is_live(void) { return live || driven() ? 1 : 0; }
 int zn_hal_headless_requested(void) { return headlessRequested() ? 1 : 0; }
 // zinc.json splash.minMs (ZN-446): the frame after the splash waits until then, so the splash stays at least that long (0: no wait)
 static uint64_t holdUntil = 0;
@@ -242,7 +247,7 @@ void hal_frame_end(void) { if (live) sdl_hal_frame_end(); else null_hal_frame_en
 void hal_poll_input(HalInput* in) { if (live) sdl_hal_poll_input(in); else { null_hal_poll_input(in); applyScript(in); } }
 void hal_present(const HalFrame* f) { if (holdUntil) hold(); if (live) sdl_hal_present(f); else null_hal_present(f); }
 void hal_surface_size(int* w, int* h) { if (live) sdl_hal_surface_size(w, h); else null_hal_surface_size(w, h); }
-double hal_fixed_dt(void) { return live ? sdl_hal_fixed_dt() : null_hal_fixed_dt(); }
+double hal_fixed_dt(void) { return live ? sdl_hal_fixed_dt() : driven() ? 0 : null_hal_fixed_dt(); }
 void hal_text_input(int32_t on, float x, float y, float w, float h) { if (live) sdl_hal_text_input(on, x, y, w, h); }
 static std::string privateClipboard;
 const char* hal_clipboard_get(void) { return live ? sdl_hal_clipboard_get() : privateClipboard.c_str(); }
@@ -267,7 +272,7 @@ void hal_frame_end(void) { null_hal_frame_end(); }
 void hal_poll_input(HalInput* in) { null_hal_poll_input(in); applyScript(in); }
 void hal_present(const HalFrame* f) { null_hal_present(f); }
 void hal_surface_size(int* w, int* h) { null_hal_surface_size(w, h); }
-double hal_fixed_dt(void) { return null_hal_fixed_dt(); }
+double hal_fixed_dt(void) { return driven() ? 0 : null_hal_fixed_dt(); }
 void hal_text_input(int32_t, float, float, float, float) {}
 static std::string privateClipboard;
 const char* hal_clipboard_get(void) { return privateClipboard.c_str(); }

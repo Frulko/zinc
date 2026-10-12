@@ -146,3 +146,31 @@ vcgencmd get_throttled; vcgencmd measure_clock arm      # before and after
 
 `ZINC_FBDEV_STATS` prints per-frame p50 / p99 / mean of render, convert, vsync and present, and the effective fps;
 options are listed in `docs/plugins/display-fbdev.md`.
+
+## Zinc Next, cross built from the Mac (2026-10-12)
+
+`hero` and `museum-table` are exported on the Mac with the pinned zig (no Docker) and run on the same Pi 3B+:
+
+```sh
+cd next
+build/zinc export ../examples/hero --target rpi                              # ../examples/hero/dist/hero-rpi/ (aarch64, 58 MB, not stripped)
+rsync -aL ../examples/hero/dist/hero-rpi/ pi@spark.local:zn/hero/            # ~/hero on the Pi is the prototype's binary: another directory
+ssh pi@spark.local 'cd ~/zn/hero && ln -sfn ~/media media && (setsid nohup ./hero >/tmp/zn-hero.log 2>&1 </dev/null &)'
+ZINC_DISPLAY=fbdev build/zinc export ../examples/museum-table --target rpi   # its zinc.json has no Linux target: the driver from the environment
+```
+
+What was missing, and what the session changed:
+
+- **No display driver in a cross build.** The program ran on the null HAL and left after 60 frames. `zinc build --target` now builds and links the driver
+  zinc.json names for Linux (`display-fbdev`), and the host measures time and runs without a frame budget while a driver holds the screen
+  (`ZINC_FRAMES` and headless runs keep the fixed step).
+- **No sysroot for plugins that need system libraries** (`zinc:video`: FFmpeg). A cross build now asks pkg-config about
+  `$ZINC_HOME/sysroots/<target>` (`~/.zinc/sysroots/aarch64-linux`), filled by hand until ZN-334 pins one: on the Pi, without sudo,
+  `apt-get download libavformat-dev libavcodec-dev libavutil-dev libswscale-dev libswresample-dev`, `dpkg -x` each into a directory, copy the
+  installed `lib{avformat,avcodec,avutil,swscale,swresample}.so.*` beside them, point each `lib*.so` link at its soname, delete the `.a` files, and
+  bring `usr/` back (20 MB). The device's libraries name a newer glibc than the one zig targets: the link passes `--allow-shlib-undefined`.
+- **A stale cross build directory** failed once with "No rule to make target" after CMakeLists.txt gained a target: the build is tried twice.
+
+Seen on the screen (`ZINC_PERF_HUD=1`, supply still weak: `get_throttled` 0x50005, ARM clock 600 MHz): the home screen at 52.7 fps (frame 19 ms),
+the Navigation tab at 11 fps; touch works (ft5x06, `event6`). These are observations under throttling, not measurements. The console cursor shows in
+the bottom left corner: `pi` is not in the `tty` group (see above).
