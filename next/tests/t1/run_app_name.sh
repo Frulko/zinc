@@ -14,4 +14,6 @@ expect "$(title --interp tests/data/app_name)" "Blue Demo" "zinc.json name, inte
 expect "$(title --interp "$tmp/Folder Name/main.ts")" "Folder Name" "the folder of a main file"
 expect "$(title --interp "$tmp/lone.ts")" "lone" "a file alone"
 expect "$(title --native tests/data/app_name)" "Blue Demo" "zinc.json name, native"
+"$ZINC" build tests/data/app_name -o "$tmp/built" >/dev/null 2>&1 || { echo "run app name: zinc build failed"; fail=1; }
+expect "$(ZINC_HEADLESS=1 ZINC_FRAMES=1 ZINC_WINDOW_LOG=1 ZINC_APP_NAME="The Parent" "$tmp/built" 2>&1 | sed -n 's/^zinc: window "\(.*\)"$/\1/p' | head -1)" "Blue Demo" "a built app, over the name of the app that starts it"
 exit $fail

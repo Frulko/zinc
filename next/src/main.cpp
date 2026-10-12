@@ -664,6 +664,17 @@ static int buildNative(const char* argv0, const char* entry, const char* out, zn
     if (ram) assetLines += "  setenv(\"ZINC_ASSET_RAM\", \"" + std::to_string(ram) + "\", 0);   // zinc:assets: the ram budget of zinc.json\n";
     if (!gBuildTarget.empty()) assetLines += "  setenv(\"ZINC_PACK_TARGET\", \"" + target + "\", 0);   // zinc:assets: the packs of assets/<target> beside the program\n";
   }
+  if (!run) {   // zinc build: the program carries its name as under zinc run (the window's title, SDL's app menu): zinc.json "app".name, else "name", else its folder or file (ZN-733)
+    std::string nm;
+    if (const std::string pf = zn::frontend::findProjectFile(entry); !pf.empty()) {
+      zn::frontend::Project p; std::string perr; std::ifstream in(pf); std::stringstream ss; ss << in.rdbuf();
+      if (zn::frontend::parseProject(ss.str(), p, perr)) nm = !p.app.name.empty() ? p.app.name : !p.name.empty() ? p.name : fs::path(pf).parent_path().filename().string();
+    }
+    if (nm.empty()) { const fs::path f = fs::absolute(entry); const std::string stem = f.stem().string(); nm = stem == "main" || stem == "index" ? f.parent_path().filename().string() : stem; }
+    std::string lit;
+    for (char c : nm) { if (c == '"' || c == '\\') lit += '\\'; if (static_cast<unsigned char>(c) >= 0x20) lit += c; }
+    if (!lit.empty()) assetLines += "  setenv(\"ZINC_APP_NAME\", \"" + lit + "\", 1);   // the app's own name, over the one of an app that started it\n";
+  }
   const char* cxx = std::getenv("CXX");
   bool haveLibs = fs::exists(libs / "libzn_rt.a");
   bool haveCxx = cxx || std::system("command -v c++ >/dev/null 2>&1") == 0;
