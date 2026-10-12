@@ -1181,14 +1181,32 @@ static void box(Cmd* c, double x, double y, double w, double h) {
   const float k = rec_k();
   c->x = (float)(x + tx) * k; c->y = (float)(y + ty) * k; c->w = (float)w * k; c->h = (float)h * k;
 }
+// A matrix that only scales and moves (no turn, no skew, no mirror) leaves a box a box: the command is recorded where it lands, as the
+// program would have given it there, and both rasterizers draw it by their plain paths (ZN-730: a film in a zoomed card cost five times
+// its direct drawing on a Pi 3). A radius, a border's width and a shadow's blur follow one scale: under two, only a command that has
+// none of them. A TEXT keeps the matrix (its glyphs are chosen for the size on screen, D112).
+// ponytail: a paint record (grad 5) keeps the matrix too, its geometry is in the point pool; scale it there if a zoomed gradient costs.
+static bool xf_plain(Cmd* c, const float* m) {
+  if (m[1] != 0 || m[2] != 0 || !(m[0] > 0 && m[3] > 0) || c->kind == raster::TEXT || c->grad == 5) return false;
+  const bool image = c->kind == raster::IMAGE, boxed = image && (c->pad & raster::kImageBox), tinted = image && (c->pad & raster::kImageTint);
+  if (m[0] != m[3] && ((!tinted && c->r != 0) || (!boxed && c->s != 0))) return false;
+  if (boxed) {   // the box the whole image would cover lands with the rectangle painted
+    const raster::Box b = raster::image_box(*c);
+    raster::set_image_box(*c, raster::Box{m[0] * b.x + m[4], m[3] * b.y + m[5], m[0] * b.w, m[3] * b.h});
+  } else c->s *= m[0];
+  if (!tinted) c->r *= m[0];   // a tint is a colour kept in r
+  c->x = m[0] * c->x + m[4]; c->y = m[3] * c->y + m[5]; c->w *= m[0]; c->h *= m[3];
+  return true;
+}
 // Under gfx.setTransform (ZN-263.01) a box command becomes an XFORM: the command as recorded (its own coordinates, physical pixels) and the
 // matrix go to the point pool, its box becomes its screen bounding box (tiles, damage and culling see a box like any other). The matrix acts
 // in logical pixels: on physical ones its linear part is the same and its translation is scaled.
 static void xform(Cmd* c) {
   if (!xf_on || !c) return;
   Buf& b = bufs[cur];
-  if (b.npts + raster::kXformLen > ZRT_POINT_POOL) { pool_full(2); b.ncmd--; return; }
   const float k = rec_k(), m[6] = {(float)xf_m[0], (float)xf_m[1], (float)xf_m[2], (float)xf_m[3], (float)xf_m[4] * k, (float)xf_m[5] * k};
+  if (xf_plain(c, m)) return;
+  if (b.npts + raster::kXformLen > ZRT_POINT_POOL) { pool_full(2); b.ncmd--; return; }
   float* p = b.pts + b.npts;
   p[0] = (float)c->kind;
   for (int i = 0; i < 6; i++) p[1 + i] = m[i];

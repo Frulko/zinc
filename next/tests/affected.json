@@ -100,6 +100,7 @@
     {"paths": ["../lib/std/ui.ts", "../runtime/raster.cpp", "../runtime/gfx.cpp", "../runtime/gl_replay.cpp", "src/frontend/jsx.cpp", "tests/golden/style-image/", "tests/data/style_image/", "tests/t1/style_image.sh"], "tests": ["style_image"]},
     {"paths": ["CMakeLists.txt", "src/main.cpp", "src/rt/alloc.cpp", "src/rt/alloc_new.cpp", "tests/t1/launch_time.sh"], "tests": ["launch_time", "profile", "aot"]},
     {"paths": ["../runtime/gfx.cpp", "../runtime/raster.cpp", "../runtime/gl_replay.cpp", "../runtime/zrt_raster.h", "tests/t1/gfx_transform.sh", "tests/data/gfx_transform/"], "tests": ["gfx_transform"]},
+    {"paths": ["../runtime/gfx.cpp", "../runtime/raster.cpp", "../runtime/gl_replay.cpp", "../runtime/zrt_raster.h", "tests/t1/xform_plain.sh", "tests/data/xform_plain/"], "tests": ["xform_plain"]},
     {"paths": ["../runtime/gfx.cpp", "../runtime/raster.cpp", "../runtime/gl_replay.cpp", "../runtime/ttf.cpp", "../runtime/zrt_raster.h", "../lib/std/ui.ts", "tests/t1/text_scaled.sh", "tests/data/text_scaled/", "tools/scene-texts"], "tests": ["text_scaled"]},
     {"paths": ["../examples/museum-table/src/table.ts", "../examples/museum-table/src/type.ts", "tests/t1/museum_zoom.sh", "tests/data/museum_zoom/", "tools/scene-texts"], "tests": ["museum_zoom"]},
     {"paths": ["../examples/museum-table/", "tests/t1/museum_panorama.sh", "tests/data/museum_panorama/"], "tests": ["museum_panorama", "museum_format"]},

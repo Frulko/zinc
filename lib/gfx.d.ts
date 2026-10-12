@@ -79,6 +79,8 @@ declare module 'zinc:gfx' {
   /** A 2D matrix for the commands that follow, after translate, in logical pixels: x' = a x + c y + e, y' = b x + d y + f (the canvas
    *  setTransform order). Boxes, text and images are drawn through it; polygons, paths and strokes are transformed point by point; a clip
    *  under a matrix is the bounding box of the transformed rectangle. Reset at each frame.
+   *  A matrix that only scales and moves (b and c 0, a and d positive) costs nothing: a box or an image is drawn as if it had been
+   *  given at its place and size on the screen (a radius, a border's width and a shadow's blur need a equal to d for that).
    *  A text keeps the layout of its font: a line is as wide as textWidth says, times the scale, whatever the scale, so a block wrapped
    *  once can be zoomed without a word changing line. Its glyphs are made for the size it has on screen (from the font's TrueType file,
    *  in steps a quarter of an octave apart), so an enlarged text is sharp: draw it in the font of its designed size, not in a larger one. */
