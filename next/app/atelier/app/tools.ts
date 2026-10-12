@@ -12,6 +12,7 @@ import { parseDiagnostics, Diag } from '../model';
 export const ZINC: string = sys.env('ZINC_BIN') !== '' ? sys.env('ZINC_BIN') : 'zinc';
 /** The variables of a scripted or captured run of Atelier itself that its children must not inherit (they would write the same files). */
 const SCRUB: string[] = ['ZINC_SHOT', 'ZINC_SHOT_FRAMES', 'ZINC_INPUT', 'ZINC_SIZE', 'ZINC_SYSTEM_SCRIPT', 'ZINC_SYSTEM_LOG', 'ZINC_ATELIER_SCRIPT'];
+export function spawnZinc(args: string[], cwd: string): proc.Process { return zinc(args, cwd); }
 function zinc(args: string[], cwd: string): proc.Process {
   const a: string[] = [];
   for (const v of SCRUB) { a.push('-u'); a.push(v); }
@@ -235,13 +236,23 @@ export function check(): void {
       for (const b of buffers()) {
         const mine: Diagnostic[] = [];
         for (const d of all) if ((d.file.startsWith('/') ? d.file : dir + '/' + d.file) === b.path) mine.push(new Diagnostic(d.line - 1, d.col - 1, 1, d.message));
-        b.setDiagnostics(mine);
+        if (!b.modified()) b.setDiagnostics(mine);   // a file edited since has newer ones from the language server
       }
       if (phase() !== IDLE) return;
       if (all.length === 0) { if (statusKind() === 2) setStatus('No problems', 1); }
       else setStatus(`${all.length} problem${all.length > 1 ? 's' : ''}: ${all[0].file}:${all[0].line} ${all[0].message}`, 2);
     });
   } catch (e) { checks--; }
+}
+
+/** The status line for the diagnostics the open files hold: the language server sends them as one types. */
+export function problems(): void {
+  if (phase() !== IDLE) return;
+  const dir = sketchDir();
+  let n: i32 = 0, first = '';
+  for (const b of buffers()) for (const d of b.diagnostics()) if (n++ === 0) first = `${b.path.startsWith(dir + '/') ? b.path.slice(dir.length + 1) : b.name}:${d.line + 1} ${d.message}`;
+  const s = n === 0 ? 'No problems' : `${n} problem${n > 1 ? 's' : ''}: ${first}`;
+  if (s !== status() && (n > 0 || statusKind() === 2)) setStatus(s, n > 0 ? 2 : 1);
 }
 
 // ---------------------------------------------------------------- libraries

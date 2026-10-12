@@ -8,7 +8,8 @@ import { active, activate, Buffer, closeBuffer, cycle, saveAll, say, newSketch, 
 import { openFind } from './search';
 import { toggleTheme } from './theme';
 import { run, stop, check, openInspector, inspectorPort, showConsole, consoleOpen, clearConsole, loadLibraries, importLine, setEngine, ENGINES, ZINC } from './tools';
-import { editCommand, setText, menuKey } from './cursors';
+import { editCommand, setText, menuKey, goDefinition } from './cursors';
+import { suggest } from './lsp';
 
 export class Command {
   id: string; menu: string; name: string; keys: string; run: () => void;
@@ -131,6 +132,8 @@ add('Edit', 'line-delete', 'Delete Line', 'CmdOrCtrl+Shift+K', () => { editComma
 add('Edit', 'select-next', 'Select Next Occurrence', 'CmdOrCtrl+D', () => { editCommand('select-next'); }, true);
 add('Edit', 'cursor-above', 'Add Cursor Above', 'CmdOrCtrl+Alt+Up', () => { editCommand('cursor-above'); });
 add('Edit', 'cursor-below', 'Add Cursor Below', 'CmdOrCtrl+Alt+Down', () => { editCommand('cursor-below'); });
+add('Edit', 'suggest', 'Suggest', 'Ctrl+Space', withBuffer((b: Buffer) => suggest(b)), true);
+add('Edit', 'definition', 'Go to Definition', 'F12', () => goDefinition());
 
 add('Sketch', 'run', 'Run', 'CmdOrCtrl+R', () => run(false));
 add('Sketch', 'stop', 'Stop', 'CmdOrCtrl+Period', () => stop());

@@ -327,26 +327,79 @@ export function addCursorV(e: Ed, dir: i32): Ed {
 
 export const M_LEFT: i32 = 0, M_RIGHT: i32 = 1, M_WORD_LEFT: i32 = 2, M_WORD_RIGHT: i32 = 3, M_HOME: i32 = 4, M_END: i32 = 5,
   M_UP: i32 = 6, M_DOWN: i32 = 7, M_TOP: i32 = 8, M_BOTTOM: i32 = 9;
-/** Moves every cursor; `extend` keeps the anchors (Shift). ponytail: up and down keep the column of the head, without the
- *  memory of a wider column the single cursor of the text field has. */
-export function move(e: Ed, how: i32, extend: boolean): Ed {
-  const t = e.text, sels: i32[] = [];
+/** Where a cursor at `h` goes for a move (M_UP and M_DOWN aim at column `col`). */
+function target(t: string, h: i32, how: i32, col: i32): i32 {
+  const ls = lineStart(t, h);
+  let p = h;
+  if (how === M_LEFT) p = imax(0, h - (h > 1 && t.charCodeAt(h - 1) >= 0xdc00 && t.charCodeAt(h - 1) < 0xe000 ? 2 : 1));
+  else if (how === M_RIGHT) p = imin(t.length, h + (t.charCodeAt(h) >= 0xd800 && t.charCodeAt(h) < 0xdc00 ? 2 : 1));
+  else if (how === M_WORD_LEFT) { while (p > 0 && !isWord(t.charCodeAt(p - 1))) p--; while (p > 0 && isWord(t.charCodeAt(p - 1))) p--; }
+  else if (how === M_WORD_RIGHT) { while (p < t.length && !isWord(t.charCodeAt(p))) p++; while (p < t.length && isWord(t.charCodeAt(p))) p++; }
+  else if (how === M_HOME) { const ts = imin(textStart(t, ls), lineEnd(t, ls)); p = h === ts ? ls : ts; }
+  else if (how === M_END) p = lineEnd(t, h);
+  else if (how === M_UP) { if (ls === 0) p = 0; else { const ps = lineStart(t, ls - 1); p = imin(ps + col, ls - 1); } }
+  else if (how === M_DOWN) { const le = lineEnd(t, h); if (le >= t.length) p = t.length; else p = imin(le + 1 + col, lineEnd(t, le + 1)); }
+  else if (how === M_TOP) p = 0;
+  else if (how === M_BOTTOM) p = t.length;
+  return p;
+}
+/** Moves every cursor; `extend` keeps the anchors (Shift). `goal` is the memory of up and down: the column each cursor aims
+ *  at, kept by the caller between two vertical moves (and emptied by anything else), so a cursor that crosses a shorter
+ *  line comes back to its column. It is filled when it does not fit the cursors. */
+export function move(e: Ed, how: i32, extend: boolean, goal: i32[] = []): Ed {
+  const t = e.text, sels: i32[] = [], vertical = how === M_UP || how === M_DOWN;
+  if (vertical && goal.length !== e.count()) { goal.splice(0, goal.length); for (let i = 0; i < e.count(); i++) goal.push(e.head(i) - lineStart(t, e.head(i))); }
   for (let i = 0; i < e.count(); i++) {
-    const h = e.head(i), sel = e.hi(i) > e.lo(i), ls = lineStart(t, h);
-    let p = h;
-    if (how === M_LEFT) p = sel && !extend ? e.lo(i) : imax(0, h - (h > 1 && t.charCodeAt(h - 1) >= 0xdc00 && t.charCodeAt(h - 1) < 0xe000 ? 2 : 1));
-    else if (how === M_RIGHT) p = sel && !extend ? e.hi(i) : imin(t.length, h + (t.charCodeAt(h) >= 0xd800 && t.charCodeAt(h) < 0xdc00 ? 2 : 1));
-    else if (how === M_WORD_LEFT) { while (p > 0 && !isWord(t.charCodeAt(p - 1))) p--; while (p > 0 && isWord(t.charCodeAt(p - 1))) p--; }
-    else if (how === M_WORD_RIGHT) { while (p < t.length && !isWord(t.charCodeAt(p))) p++; while (p < t.length && isWord(t.charCodeAt(p))) p++; }
-    else if (how === M_HOME) { const ts = imin(textStart(t, ls), lineEnd(t, ls)); p = h === ts ? ls : ts; }
-    else if (how === M_END) p = lineEnd(t, h);
-    else if (how === M_UP) { if (ls === 0) p = 0; else { const ps = lineStart(t, ls - 1); p = imin(ps + h - ls, ls - 1); } }
-    else if (how === M_DOWN) { const le = lineEnd(t, h); if (le >= t.length) p = t.length; else p = imin(le + 1 + h - ls, lineEnd(t, le + 1)); }
-    else if (how === M_TOP) p = 0;
-    else if (how === M_BOTTOM) p = t.length;
+    const h = e.head(i), sel = e.hi(i) > e.lo(i);
+    const p = sel && !extend && how === M_LEFT ? e.lo(i) : sel && !extend && how === M_RIGHT ? e.hi(i) : target(t, h, how, vertical ? goal[i] : 0);
     sels.push(extend ? e.anchor(i) : p); sels.push(p);
   }
   return norm(t, sels, e.main);
+}
+/** Alt+Backspace (M_WORD_LEFT), Alt+Delete (M_WORD_RIGHT), Cmd+Backspace (M_HOME: to the start of the line) and Cmd+Delete
+ *  (M_END) at every cursor: what lies between the cursor and where that move would take it goes; a selection goes as it is. */
+export function eraseTo(e: Ed, how: i32): Ed {
+  const a: i32[] = [], b: i32[] = [], s: string[] = [], z: i32[] = [], t = e.text;
+  for (let i = 0; i < e.count(); i++) {
+    let l = e.lo(i), h = e.hi(i);
+    if (h === l) {
+      let p = how === M_HOME ? lineStart(t, l) : target(t, l, how, 0);
+      if (p === l) p = target(t, l, how === M_HOME || how === M_WORD_LEFT ? M_LEFT : M_RIGHT, 0);   // nothing on that side of the line: the line break
+      l = imin(l, p); h = imax(h, p);
+    }
+    a.push(l); b.push(h); s.push(''); z.push(0);
+  }
+  return splice(e, a, b, s, z, z);
+}
+
+/** Accepts a completion: the identifier being typed before every cursor becomes `label` (`spec`: the module name of an import, back to its quote). */
+export function complete(e: Ed, label: string, spec: boolean): Ed {
+  const a: i32[] = [], b: i32[] = [], s: string[] = [], c: i32[] = [], t = e.text;
+  for (let i = 0; i < e.count(); i++) {
+    const h = e.hi(i);
+    let l = e.lo(i);
+    while (l > 0) {
+      const k = t.charCodeAt(l - 1);
+      if (spec ? (k === 39 || k === 34 || k === 10) : !((k >= 48 && k <= 57) || (k >= 65 && k <= 90) || (k >= 97 && k <= 122) || k === 95 || k === 36)) break;
+      l--;
+    }
+    a.push(l); b.push(h); s.push(label); c.push(label.length);
+  }
+  return splice(e, a, b, s, c, c);
+}
+
+/** The other places where the selected word stands as a whole word, between `from` and `to`: [start...]. Empty unless [a, b) is one whole word. */
+export function occurrences(t: string, a: i32, b: i32, from: i32, to: i32): i32[] {
+  const out: i32[] = [];
+  if (b <= a || (a > 0 && isWord(t.charCodeAt(a - 1))) || (b < t.length && isWord(t.charCodeAt(b)))) return out;
+  for (let i = a; i < b; i++) if (!isWord(t.charCodeAt(i))) return out;
+  const w = t.slice(a, b);
+  let p = t.indexOf(w, from);
+  while (p >= 0 && p < to) {
+    if (p !== a && !(p > 0 && isWord(t.charCodeAt(p - 1))) && !(p + w.length < t.length && isWord(t.charCodeAt(p + w.length)))) out.push(p);
+    p = t.indexOf(w, p + w.length);
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------- undo

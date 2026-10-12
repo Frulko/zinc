@@ -7,7 +7,8 @@ import * as ui from 'zinc:ui';
 import * as sys from 'zinc:sys';
 import { clipboardText, setClipboardText } from 'zinc:gfx';
 import { Buffer, active, edited } from './workspace';
-import { Ed, one, typeText, paste, copyText, erase, newline, indent, outdent, toggleComment, deleteLines, duplicateLines, moveLines,
+import { typed, suggest, popupKey, accepted, popupSpec, closePopup, hideHover, definition } from './lsp';
+import { Ed, one, typeText, paste, copyText, erase, eraseTo, complete, newline, indent, outdent, toggleComment, deleteLines, duplicateLines, moveLines,
   single, addSel, setMain, selectNext, addCursorV, move, M_LEFT, M_RIGHT, M_WORD_LEFT, M_WORD_RIGHT, M_HOME, M_END, M_UP, M_DOWN, M_TOP, M_BOTTOM } from './edit';
 
 /** True when the desktop menu takes the shortcuts of its items (macOS): the editor then leaves them to it, else each would run twice. */
@@ -35,12 +36,19 @@ export function sync(b: Buffer): void {
   const r = b.collapse ? one(st.text, a, c) : b.addNext ? addSel(st, a, c) : b.dragAdd && st.count() > 1 ? setMain(st, a, c) : one(st.text, a, c);
   b.sels = r.sels; b.main = r.main;
   b.addNext = false; b.collapse = false; b.hist.typing = false;
+  b.goal = [];
+  closePopup();
   ui.repaint();
 }
 
+let keepPopup = false;   // the edit being shown is typing or Backspace: the completion popup follows it; any other closes it
+let vertical = false;    // the edit being shown is a move up or down: the columns the cursors aim at are kept
 /** Shows a state in the field and keeps it in the buffer; `before` (when the text changed) goes to the undo history. */
 function show(b: Buffer, r: Ed, before: Ed | null, typing: boolean): void {
   const h = b.node();
+  if (!keepPopup) closePopup();
+  if (!vertical) b.goal = [];
+  keepPopup = false; vertical = false;
   if (before !== null && r.text !== (before as Ed).text) b.hist.record(before as Ed, typing); else if (!typing) b.hist.typing = false;
   b.sels = r.sels; b.main = r.main;
   if (h >= 0) {
@@ -64,7 +72,9 @@ export function nativeInput(b: Buffer, v: string): void {
     r = typeText(before, s, typing);
   } else r = one(v, caret, caret);
   b.collapse = false; b.addNext = false;
+  keepPopup = typing;
   show(b, r, before, typing);
+  if (typing) typed(b, v.slice(m0, caret));
 }
 
 /** Replaces the whole text of a buffer as one edit that undo takes back (a library's import line). */
@@ -101,6 +111,14 @@ export function editCommand(id: string): boolean {
   return true;
 }
 
+/** The selected row of the completion popup replaces the name being typed, at every cursor. */
+export function acceptCompletion(): void {
+  const a = active(), label = accepted();
+  if (a === null || label === '') return;
+  const st = state(a as Buffer);
+  show(a as Buffer, complete(st, label, popupSpec()), st, false);
+}
+
 /** The shortcut of an editing command that the menu also lists ('' for another key). */
 function menuCommand(e: ui.KeyEvent): string {
   const k = e.key, cmd = e.primary;
@@ -122,6 +140,12 @@ export function editorKey(b: Buffer, e: ui.KeyEvent, escape: () => void): boolea
   sawKey(e);
   sync(b);
   const st = state(b), multi = st.count() > 1, k = e.key, cmd = e.primary, plain = !cmd && !e.alt && !e.ctrl;
+  hideHover();
+  // the completion popup first: arrows choose, Enter and Tab accept at every cursor, Escape closes
+  const pk = popupKey(k, plain && !e.shift);
+  if (pk === 1) return true;
+  if (pk === 2) { acceptCompletion(); return true; }
+  if (e.ctrl && k === ' ') { suggest(b); return true; }
   const c = menuCommand(e);
   if (c !== '') {
     // undo and redo are the buffer's, never the field's; the others are the menu's on macOS
@@ -131,14 +155,19 @@ export function editorKey(b: Buffer, e: ui.KeyEvent, escape: () => void): boolea
   let r: Ed | null = null;
   if (k === 'Tab' && plain) r = e.shift ? outdent(st) : indent(st);
   else if (k === 'Enter' && plain) r = newline(st);
-  else if ((k === 'Backspace' || k === 'Delete') && (multi || plain)) r = erase(st, k === 'Delete');   // ponytail: with several cursors, Alt and Cmd delete one character too
+  else if (k === 'Backspace' || k === 'Delete') {
+    const fwd = k === 'Delete';
+    if (e.meta) r = eraseTo(st, fwd ? M_END : M_HOME);                        // to the start / end of the line
+    else if (e.alt || e.ctrl) r = eraseTo(st, fwd ? M_WORD_RIGHT : M_WORD_LEFT);   // a word
+    else { keepPopup = !fwd; r = erase(st, fwd); }
+  }
   else if (k === 'Escape') { if (multi) r = single(st); else { escape(); return true; } }
   else if (multi) {
     const byWord = e.alt, byLine = e.meta;
     if (k === 'ArrowLeft') r = move(st, byLine ? M_HOME : byWord ? M_WORD_LEFT : M_LEFT, e.shift);
     else if (k === 'ArrowRight') r = move(st, byLine ? M_END : byWord ? M_WORD_RIGHT : M_RIGHT, e.shift);
-    else if (k === 'ArrowUp') r = move(st, byLine ? M_TOP : M_UP, e.shift);
-    else if (k === 'ArrowDown') r = move(st, byLine ? M_BOTTOM : M_DOWN, e.shift);
+    else if (k === 'ArrowUp') { vertical = !byLine; r = move(st, byLine ? M_TOP : M_UP, e.shift, b.goal); }
+    else if (k === 'ArrowDown') { vertical = !byLine; r = move(st, byLine ? M_BOTTOM : M_DOWN, e.shift, b.goal); }
     else if (k === 'Home') r = move(st, M_HOME, e.shift);
     else if (k === 'End') r = move(st, M_END, e.shift);
     else if (cmd && (k === 'c' || k === 'x')) { const t = copyText(st); if (t !== '') setClipboardText(t); r = k === 'x' ? typeText(st, '', false) : st; }
@@ -150,8 +179,19 @@ export function editorKey(b: Buffer, e: ui.KeyEvent, escape: () => void): boolea
 }
 
 /** The pointer goes down in the editor: with Alt the selection it makes is one more cursor, else it is the only one. */
-export function editorPress(b: Buffer, alt: boolean): void {
+export function editorPress(b: Buffer, alt: boolean, meta: boolean = false): void {
+  hideHover();
+  defNext = meta && !alt;
   if (alt) { b.addNext = true; b.dragAdd = true; } else { b.collapse = b.sels.length > 2; b.dragAdd = false; }
+}
+
+let defNext = false;   // the press under way is a Cmd+click: once the field has put its caret there, go to the definition
+/** F12: goes to where the name at the caret is declared. */
+export function goDefinition(): void {
+  const a = active();
+  if (a === null || (a as Buffer).node() < 0) return;
+  sync(a as Buffer);
+  definition(a as Buffer, (a as Buffer).sels[2 * (a as Buffer).main + 1]);
 }
 
 /** Puts the caret at a line and column (1-based) of a buffer, once its field exists: a click on an error, a diagnostic. */
@@ -172,6 +212,7 @@ export function stepCursors(): void {
     return;
   }
   sync(b);
+  if (defNext) { defNext = false; definition(b, b.sels[2 * b.main + 1]); }
 }
 
 // ---------------------------------------------------------------- the Edit menu's standard items and their keys

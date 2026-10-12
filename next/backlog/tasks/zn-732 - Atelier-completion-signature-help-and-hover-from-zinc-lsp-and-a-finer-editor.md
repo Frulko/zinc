@@ -3,10 +3,11 @@ id: ZN-732
 title: >-
   Atelier: completion, signature help and hover from zinc lsp, and a finer
   editor
-status: Backlog
+status: In Progress
 assignee:
   - '@parallel'
 created_date: '2026-10-12 14:13'
+updated_date: '2026-10-12 14:31'
 labels:
   - app
   - ui

@@ -26,6 +26,7 @@ export class Buffer {
   // the selections (flat [anchor, head...], see edit.ts) and the undo history; the text field shows the main one
   sels: i32[] = [0, 0]; main: i32 = 0;
   hist: History = new History();
+  goal: i32[] = [];   // the columns the cursors aim at while they move up and down (edit.ts move)
   addNext: boolean = false; dragAdd: boolean = false; collapse: boolean = false;   // what the next pointer-made selection does (Editor.tsx)
   constructor(path: string, name: string, text: string) {
     this.path = path; this.name = name;

@@ -10,11 +10,23 @@ import { active, buffers, Buffer, Diagnostic, cycle } from '../app/workspace';
 import { findOpen, findT, findRef, query, setQuery, matches, current, next, closeFind, findFromCaret } from '../app/search';
 import { matchBracket } from '../app/document';
 import { editorKey, editorPress, nativeInput, noteKey } from '../app/cursors';
+import { occurrences } from '../app/edit';
+import { pointerOver } from '../app/lsp';
+import { isIdent, wordStart } from '../app/rpc';
+import { Popup, Signature, Hover, stepAssist } from './Assist';
 import { revealActiveTab } from './Header';
 import { Glyph, Kbd } from './Controls';
 import { I_SEARCH, I_CLOSE } from './icons';
 
 const FONT_PX: i32 = 14, PAD_LEFT: i32 = 14, PAD_TOP: i32 = 10;
+
+/** Offset where the name under a point of the editor starts (the point in the field's own units), -1 over anything else. */
+function nameAt(b: Buffer, x: number, y: number): i32 {
+  const v = ui.editView(b.node()), doc = b.doc, line: i32 = Math.floor((y - PAD_TOP + v[1]) / v[4]);
+  if (line < 0 || line >= doc.lineCount()) return -1;
+  const s = doc.lines[line], col: i32 = Math.floor((x - PAD_LEFT - v[6] + v[0]) / textWidth(font('mono', FONT_PX), 'M', 0));
+  return col < 0 || col >= s.length || !isIdent(s.charCodeAt(col)) ? -1 : doc.starts[line] + wordStart(s, col + 1);
+}
 
 // ---- one editor per buffer
 function BufferEditor(props: { b: Buffer }): i32 {
@@ -27,7 +39,8 @@ function BufferEditor(props: { b: Buffer }): i32 {
       if (e.key === 'Tab' && e.ctrl) { cycle(e.shift ? -1 : 1); e.preventDefault(); }
       else if (editorKey(b, e, () => closeFind())) e.preventDefault();
     }}
-    onPointerDown={(e: ui.PointerEvent) => { if (e.button === 0) editorPress(b, e.alt); }} />;
+    onPointerDown={(e: ui.PointerEvent) => { if (e.button === 0) editorPress(b, e.alt, e.meta); }}
+    onPointerMove={(e: ui.PointerEvent) => pointerOver(b, nameAt(b, e.x, e.y))} onPointerLeave={(e: ui.PointerEvent) => pointerOver(b, -1)} />;
   ui.setHighlightAt(node, (line: string, start: i32) => b.doc.rowColors(line, start, theme()));
   createEffect(() => {
     const t = theme();
@@ -71,6 +84,11 @@ function decorate(b: Buffer, caret: i32, top: i32, rows: i32): void {
       marks.push(m[i]); marks.push(m[i] + q); marks.push(i === current() ? t.matchCurrent : t.match); marks.push(i === current() ? ui.MARK_STRONG : ui.MARK_FILL);
     }
   }
+  // the other places of the selected word, near the visible lines
+  if (sel > 0 && b.sels.length === 2) {
+    const a = Math.min(b.sels[0], b.sels[1]), from = doc.starts[Math.max(0, top - 20)], to = doc.lineEnd(Math.min(doc.lineCount() - 1, top + rows + 20));
+    for (const o of occurrences(doc.text, a, a + sel, from, to)) { marks.push(o); marks.push(o + sel); marks.push(t.selection); marks.push(ui.MARK_FILL); }
+  }
   if (sel === 0) {
     const br = matchBracket(doc, caret);
     for (const o of br) { marks.push(o); marks.push(o + 1); marks.push(t.bracket); marks.push(ui.MARK_BOX); }
@@ -96,8 +114,9 @@ export function stepEditor(): void {
   const top: i32 = Math.floor(v[1] / v[4]), rows: i32 = Math.ceil(v[3] / v[4]);
   const text = buf.text(), m = matches();
   const diag = buf.diagnostics();
-  // the scroll only matters to the search marks (they are limited to the visible lines)
-  const scrolled = findOpen() && Math.abs(top - lastTop) > 10;
+  stepAssist(buf);
+  // the scroll matters to the marks that are limited to the visible lines (search matches, occurrences)
+  const scrolled = Math.abs(top - lastTop) > 10;
   if (buf === lastBuf && caret === lastCaret && text === lastText && m === lastMatches && current() === lastCur && theme() === lastTheme && !scrolled && diag === lastDiag && buf.sels === lastSels) return;
   lastBuf = buf; lastCaret = caret; lastText = text; lastMatches = m; lastCur = current(); lastTheme = theme(); lastTop = top; lastDiag = diag; lastSels = buf.sels;
   decorate(buf, caret, top, rows);
@@ -178,6 +197,9 @@ export function EditorCard(): i32 {
     <View class="grow my-[6]">
       <For each={buffers()}>{(b: Buffer, i: i32) => <BufferEditor b={b} />}</For>
       <Canvas class="absolute inset-0 pointer-events-none" style={{ lazy: 1 }} onDraw={drawCursors} />
+      <Signature />
+      <Hover />
+      <Popup />
       <EmptyPane />
     </View>
   </View>;
