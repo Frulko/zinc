@@ -440,6 +440,7 @@ if(TARGET zn_host_gfx)
   target_sources(zinc PRIVATE src/agent/wire.cpp src/agent/mdns.cpp src/agent/server.cpp src/agent/client.cpp src/agent/inspect.cpp)
   target_include_directories(zinc SYSTEM PRIVATE third_party/mdns)
   target_compile_definitions(zinc PRIVATE ZN_AGENT)
+  target_sources(zinc PRIVATE src/agent/ota.cpp)   # the agent as a service, signed app updates with rollback (ZN-729.04)
   if(NOT APPLE)
     target_link_libraries(zinc PRIVATE util)   # forkpty
   endif()

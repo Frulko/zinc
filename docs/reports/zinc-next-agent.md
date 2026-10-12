@@ -111,6 +111,58 @@ same program run on the workstation, the lines of `monitor`, the numbers of `top
 (`zinc debug --cdp` there is reached with `zinc device forward`, as any port), and the per-app numbers on Linux (read from
 `/proc/<pid>/stat`, written and not run: the cross-platform pass).
 
+## The agent as a service, and signed updates (ZN-729.04)
+
+Code: `next/src/agent/ota.cpp`. Test: `next/tests/t1/agent_ota.sh` (loopback, a test key, `file://` channels).
+
+```sh
+zinc agent install [--port n] [--bind a] [--name s] [--no-shell] [--no-mdns]   # on the device: the agent starts with the machine
+zinc agent install --print [--os macos|linux]                                  # the file and the commands, nothing touched
+zinc agent uninstall
+zinc sign app.zapp <seed>                # on the workstation: app.zapp.sig, which install sends with the archive
+zinc device install app.zapp             # refused over a signed app unless signed with its key and newer
+zinc device update hero [--url u]        # the device fetches hero from its channel (what zinc publish wrote)
+zinc device update [--url u]             # the engine: checked and downloaded on the device, as zinc update does
+```
+
+**The service** runs as the user, never as root (the agent refuses root). macOS: a launchd agent, `~/Library/LaunchAgents/dev.zinc.agent.plist`
+(`RunAtLoad`, `KeepAlive`), loaded with `launchctl bootstrap gui/<uid>`: it starts at login, in the user's session, so the apps it
+starts can open windows; its log is `~/.zinc/agent/logs/.agent.log`, bounded like the logs of the apps. Linux: a unit of the user's
+systemd, `~/.config/systemd/user/zinc-agent.service` (`Restart=always`, `KillMode=process` so the apps outlive a restart of the
+agent, as they do without systemd), enabled with `systemctl --user enable --now` and `loginctl enable-linger <user>`: it starts at
+boot, before anyone logs in. `ZINC_HOME` is carried into the service when it is set.
+
+**A signed app** is one whose `zinc.json` has `update.publicKey` (`zinc update-keygen`). Once it is on a device:
+
+| It arrives | It is accepted when |
+|---|---|
+| pushed: `zinc device install` | the request carries `sig`, the detached Ed25519 signature of the archive (`zinc sign`, read from `<file>.sig`), it verifies with the installed app's key, and the archive's `app.version` is higher. An unsigned archive (what `deploy` packs is one), another key, an equal or older version, an export directory: refused with a message, nothing changed |
+| from its channel: `zinc device update <app>` | the device fetches `<update.url>/<channel>.manifest`, verifies its signature with the installed app's key, refuses an older version, downloads the archive and checks it against the manifest's SHA-256 (the functions of `zinc update-app`), then checks it as any `.zapp` |
+
+The key that decides is the installed one: an update may carry a new key, which then decides for the next. The first install of an app
+needs no signature (nothing on the device says who its publisher is yet), and `uninstall` followed by `install` starts over: a paired
+workstation already has everything the agent's user has, so the signature guards the app against a wrong or stale build, not against
+its owner.
+
+**Rollback.** The version an update replaces stays beside it (`apps/<name>/previous.zapp`, a second name of the same file, not a
+copy) and the file `trial` holds its version. At the next `run`, the agent watches the update for 5 s (`ZINC_AGENT_TRIAL_MS`: a
+slow board may need more to get through its start): still running, or ended with status 0, it holds and the previous version is
+removed; ended with an error, `previous.zapp` takes its place again, the previous version is started with the same arguments, and
+the client gets the refusal, with the end of what the update printed (`zinc device run` and `deploy` exit 1). An update stopped
+during its trial (`stop`, a new `run`) stays on trial. An update over one that was never started keeps the older previous version:
+the one known to start. `update` leaves a running app alone (it keeps the files it opened); the new version is the one its next
+`run` starts.
+
+| `op` | Request | Then |
+|---|---|---|
+| `install` | adds `sig` | the refusals above |
+| `update` | `name` (none: the engine), `url` | `{"ok": true}` at once, then `{"ok": true, "text": ...}` or the refusal when the download is done |
+
+**The engine**: `zinc device update` runs what `zinc update` runs, on the device: the manifest of `--url` (or the device's
+`ZINC_UPDATE_URL`) verified with the keys the device trusts (`ZINC_UPDATE_PUBKEY`, `~/.zinc/update-keys`, the release key), a newer
+version downloaded into `~/.zinc/updates` and checked. Like `zinc update`, it stops there: putting the package in place and
+restarting the agent is still done by hand (or by the service, once the binary is replaced).
+
 ## Files of the agent (`~/.zinc/agent`)
 
 `agent.json` (the device's id and name), `clients.json`, `pairing.json` (the open pairing: `zinc agent pair` writes it, the daemon

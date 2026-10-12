@@ -506,6 +506,7 @@ void opInstall(State& s, Chan& c, const Val& req) {
     err = "neither a .zapp nor an export directory (it has no run.sh)";
   }
   if (ok && name.empty()) { ok = false; err = "the app has no name: give one with --name"; }
+  if (ok) ok = otaAdmit(s.home + "/apps/" + name, app, req.str("sig"), err);   // a signed app takes only its signed, newer versions (ota.cpp)
   if (ok) {
     stopApp(s, name);
     const std::string dest = s.home + "/apps/" + name;
@@ -632,7 +633,9 @@ void handleSession(State& s, int fd) {
     if (!named) refuse(c, "bad app name");
     else if (op == "run") {
       const pid_t pid = startApp(s, name, req.strs("args"), req.pairs("env"), err);
-      if (pid > 0) send(c, kJson, Obj().flag("ok", true).num("pid", pid).done()); else refuse(c, err);
+      std::string back;
+      if (pid > 0 && otaRolledBack(s.home, name, pid, back)) { startApp(s, name, req.strs("args"), req.pairs("env"), err); refuse(c, back); }   // an update that exited at once
+      else if (pid > 0) send(c, kJson, Obj().flag("ok", true).num("pid", pid).done()); else refuse(c, err);
     } else if (op == "stop") {
       send(c, kJson, Obj().flag("ok", true).flag("stopped", stopApp(s, name)).done());
     } else if (!fs::exists(s.home + "/apps/" + name, ec)) {
@@ -644,6 +647,8 @@ void handleSession(State& s, int fd) {
       fs::remove(s.home + "/logs/" + name + ".log.1", ec);
       send(c, kJson, Obj().flag("ok", true).done());
     }
+  } else if (op == "update") {   // from the app's channel, or the engine's: an answer at once, then the result when the download is done
+    if (send(c, kJson, Obj().flag("ok", true).done())) send(c, kJson, otaUpdate(s.home, s.engine, name, req.str("url")));
   } else if (op == "unpair") {
     std::lock_guard<std::mutex> files(s.mu);
     std::vector<Client> all = loadClients(s.home);
@@ -669,14 +674,16 @@ int usage() {
   std::fprintf(stderr, "usage: zinc agent [--port n] [--bind address] [--name name] [--no-shell] [--no-mdns] [--allow-root]\n"
                        "       zinc agent pair            a new pairing code for one workstation\n"
                        "       zinc agent clients         the paired workstations\n"
-                       "       zinc agent forget <client> forget a workstation (its name or id)\n");
+                       "       zinc agent forget <client> forget a workstation (its name or id)\n"
+                       "       zinc agent install [--print] [agent options]   start the agent with the machine; uninstall removes that\n");
   return 2;
 }
 
 }  // namespace
 
 int serve(const std::vector<std::string>& args, const std::string& self, const std::string& engine) {
-  State& s = *new State;   // never freed: the threads of the sessions still open at exit hold it
+  if (!args.empty() && (args[0] == "install" || args[0] == "uninstall")) return serviceCommand(args, self);   // ota.cpp; --print touches nothing
+  State& s = *new State;  // never freed: the threads of the sessions still open at exit hold it
   s.home = zn::tc::home() + "/agent";
   s.self = self;
   s.engine = engine;

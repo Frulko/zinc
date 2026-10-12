@@ -304,8 +304,10 @@ int cmdPull(Device& d, const std::vector<std::string>& args) {
 int install(Device& d, const std::string& path, std::string& name) {
   std::error_code ec;
   if (!fs::exists(path, ec)) return fail(path + ": no such file or directory");
-  std::string answer, err;
-  std::unique_ptr<Chan> c = request(d, Obj().str("op", "install").str("name", name).str("base", baseName(path)).done(), answer);
+  std::string answer, err, sig;
+  readFile(path + ".sig", sig);   // the detached signature zinc sign wrote beside a .zapp: a signed app on the device asks for it
+  while (!sig.empty() && (sig.back() == '\n' || sig.back() == ' ')) sig.pop_back();
+  std::unique_ptr<Chan> c = request(d, Obj().str("op", "install").str("name", name).str("base", baseName(path)).str("sig", sig).done(), answer);
   if (!c) return 1;
   std::uint64_t files = 0, bytes = 0;
   char type = 0;
@@ -476,6 +478,7 @@ int usage() {
                "       zinc device [<device>] deploy [dir] [-- args]   pack, install, start and follow the log (--no-logs, --env K=V, --name n)\n"
                "       zinc device [<device>] install <app.zapp|export-dir> [--name n]\n"
                "       zinc device [<device>] run <app> [-f] [--env K=V] [-- args] | stop <app> | uninstall <app> | apps | logs <app> [-f]\n"
+               "       zinc device [<device>] update [<app>] [--url u]  an app from its signed channel, fetched by the device; no app: the engine\n"
                "       zinc device [<device>] forward <local-port|0> <device-port>   a port of the device here (its inspector)\n"
                "       zinc device [<device>] reverse <device-port|0> <local-port>   a port of this machine there (a server an app calls)\n"
                "       zinc device [<device>] inspect <app> [--port n]              its inspector on a port of this machine: the DevTools address\n"
@@ -519,7 +522,7 @@ int device(const std::vector<std::string>& argsIn, const std::string& self) {
   }
 
   if (first == "inspect" && args.size() == 2 && args[1] == "--all") return inspectAll(paired);
-  static const char* const ops[] = {"info", "shell", "push", "pull", "install", "deploy", "run", "stop", "uninstall", "apps", "logs", "forward", "reverse", "inspect", "shot", "monitor", "top"};
+  static const char* const ops[] = {"info", "shell", "push", "pull", "install", "deploy", "run", "stop", "uninstall", "apps", "logs", "update", "forward", "reverse", "inspect", "shot", "monitor", "top"};
   const auto isOp = [&](const std::string& w) { for (const char* o : ops) if (w == o) return true; return false; };
   Device* d = nullptr;
   if (isOp(first)) {
@@ -543,6 +546,18 @@ int device(const std::vector<std::string>& argsIn, const std::string& self) {
   if (op == "reverse") return cmdReverse(*d, args);
   if (op == "inspect" || op == "shot" || op == "monitor" || op == "top") return inspectCommand(*d, op, args, self);
   if (op == "apps") return simple(*d, "apps", "");
+  if (op == "update") {   // the device fetches and checks (ota.cpp); a second answer when the download is done
+    std::string app, url, answer;
+    for (size_t i = 0; i < args.size(); ++i) { if (args[i] == "--url" && i + 1 < args.size()) url = args[++i]; else app = args[i]; }
+    std::unique_ptr<Chan> c = request(*d, Obj().str("op", "update").str("name", app).str("url", url).done(), answer);
+    char type = 0;
+    if (!c) return 1;
+    if (!recv(*c, type, answer, 600000) || type != kJson) return fail("the session with " + d->name + " ended early");
+    const Doc a(answer);
+    if (!a.flag("ok")) return fail(a.str("error"));
+    std::printf("%s\n", a.str("text").c_str());
+    return 0;
+  }
   if (op == "install") {
     std::string name, path;
     for (size_t i = 0; i < args.size(); ++i) { if (args[i] == "--name" && i + 1 < args.size()) name = args[++i]; else path = args[i]; }

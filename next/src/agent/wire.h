@@ -123,6 +123,21 @@ bool sendTree(Chan& c, const std::string& path, std::uint64_t& files, std::uint6
  *  at the end, so the sender is always read to its last entry. */
 bool recvTree(Chan& c, const std::string& root, std::uint64_t& files, std::uint64_t& bytes, std::string& err);
 
+// ---- the service and signed updates (ota.cpp) ----
+
+/** `zinc agent install|uninstall [--print] ...`: the launchd agent or the systemd user unit that starts `self agent` with the machine. */
+int serviceCommand(const std::vector<std::string>& args, const std::string& self);
+/** May the app staged in the directory `fresh` replace the one installed in `dest`? An app whose zinc.json has update.publicKey takes only a
+ *  .zapp whose detached signature `sigHex` (zinc sign) verifies with that key and whose version is higher; the version it replaces then
+ *  goes with it as previous.zapp, and it is on trial. Any other app is replaced as before. False with `err`. */
+bool otaAdmit(const std::string& dest, const std::string& fresh, const std::string& sigHex, std::string& err);
+/** After `name` started as `pid`: an update on trial is watched until it has held $ZINC_AGENT_TRIAL_MS (5 s) or ended. True when it exited at
+ *  once with an error: the previous version is back in its place, `why` says so, and the caller starts it. `home` is the agent's directory. */
+bool otaRolledBack(const std::string& home, const std::string& name, long pid, std::string& why);
+/** `update`: the app `name` from its channel (zinc.json update, or `url`), as zinc update-app checks it; no name: the engine, as zinc update.
+ *  The answer to send: {"ok": true, "text": ...} or {"ok": false, "error": ...}. */
+std::string otaUpdate(const std::string& home, const std::string& engine, const std::string& name, const std::string& url);
+
 // ---- discovery (mdns.cpp) ----
 
 struct Found { std::string name, host, id, kind, os; int port = 0; bool pairing = false; };

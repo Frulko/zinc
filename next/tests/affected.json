@@ -5,6 +5,7 @@
     {"paths": ["src/agent/", "third_party/mdns/", "tests/t0/agent.sh", "tests/t1/agent_apps.sh"], "tests": ["agent", "agent_apps"]},
     {"paths": ["src/agent/inspect.cpp", "src/agent/server.cpp", "src/agent/client.cpp", "app/inspector/", "tests/t1/agent_inspect.sh"], "tests": ["agent_inspect"]},
     {"paths": ["src/host/tls.cpp", "src/host/tls.h", "third_party/mbedtls/include/mbedtls/mbedtls_config.h"], "tests": ["agent", "tls"]},
+    {"paths": ["src/agent/", "tests/t1/agent_ota.sh"], "tests": ["agent_ota"]},
     {"paths": ["../lib/std/ui.ts", "tests/golden/ui/spread.tsx", "tests/golden/ui/spread.input", "tests/t1/touch_spread.sh"], "tests": ["touch_spread", "touch_finger", "input_touch", "pointer_kind"]},
     {"paths": ["../runtime/gfx.cpp", "tests/t1/touch_marks.sh"], "tests": ["touch_marks"]},
     {"paths": ["include/zn/resource_stats.h", "src/host/resources.cpp", "tests/t0/resource_stats.sh", "../plugins/video/native/video.host.cpp", "../plugins/3d/native/render3d.host.cpp", "../plugins/3d/native/render3d.gl.cpp", "../plugins/three/native/three.host.cpp", "../runtime/raster.cpp", "../runtime/gl_replay.cpp"], "tests": ["resource_stats", "museum_probe"]},
