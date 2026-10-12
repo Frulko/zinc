@@ -4,18 +4,19 @@ Overwritten at the end of every session. Binding rules: `RULES.md`, `ARCHITECTUR
 
 ## State (2026-10-12, 16:30)
 
-- Owner request: a zinc daemon and an adb equivalent over the network. ZN-729 is the epic: ZN-729.01, .02, .03 and .05 are Done, ZN-729.04 is in Review (the start of the service at login was not run for real: the commands are in its notes), ZN-729.06 (Atelier's panel) waits for ZN-728. `.03` to `.05` were worked by three worktree agents and integrated one by one (conflicts of a few lines, both sides kept). Local main only; no push.
+- Owner request: a zinc daemon and an adb equivalent over the network. ZN-729 is the epic: ZN-729.01, .02, .03, .05 and .06 are Done; ZN-729.04 is in Review (the start of the service at login was not run for real: the commands are in its notes), so the epic stays open. `.03` to `.06` were worked by four worktree agents and integrated one by one (conflicts of a few lines, both sides kept). Local main only; no push.
 - `zinc agent` (the daemon on a Linux or macOS device) and `zinc device` (the client) are in `build/zinc`: mDNS discovery (`_zinc._tcp`), pairing by a 6-digit code (EC J-PAKE, three tries), TLS 1.3 sessions with a key per workstation, then `list`, `pair`, `unpair`, `info`, `shell` (a command or a terminal), `push`, `pull`, `install`, `deploy`, `run`, `stop`, `uninstall`, `apps`, `logs`, `forward`, `reverse`, `inspect`, `shot`, `monitor`, `top`, `update`; `zinc agent install|uninstall` (the service); `zinc dev --device <name>` (a saved source runs on the device about 220 ms later on the loopback interface). Code `src/agent/`, page `../docs/reports/zinc-next-agent.md`, decisions D114 and D115.
-- PASS on main after the last integration: agent, cli_core, agent_apps, agent_inspect, agent_ota, agent_dev, dev_mode, asset_reload (and tls, net, security_guide earlier). Everything was proven on the loopback interface of this Mac: no Linux run, no second machine (lines of `backlog/later.md`, cross-platform pass). The numbers were taken with a load average of 7 to 10.
+- PASS on main after the last integration: agent, cli_core, agent_apps, agent_inspect, agent_ota, agent_dev, dev_mode, asset_reload, atelier_devices, atelier_ide, atelier (and tls, net, security_guide earlier). Everything was proven on the loopback interface of this Mac: no Linux run, no second machine (lines of `backlog/later.md`, cross-platform pass). The numbers were taken with a load average of 7 to 10.
 - Changes outside the module: `src/host/tls.{h,cpp}` (PSK and PAKE sessions; `tls::read` no longer returns after a TLS 1.3 session ticket with bytes unread), `MBEDTLS_KEY_EXCHANGE_ECJPAKE_ENABLED` on in the vendored mbedTLS config (the whole of `zn_mbedtls` was rebuilt), `third_party/mdns` added.
 - Usage: n/a (tools/usage reads no transcript for this session).
 
 ## Next
 
-`tools/next-task`: TASK ZN-729.06 Atelier: the devices panel (discover, pair, info, run on, logs, inspector). Of the agent, only the owner's check of ZN-729.04 is left (`build/zinc agent install`, log out and in, `build/zinc agent uninstall`), and ZN-729.06 once ZN-728 is in.
+Of the agent, only the owner's check of ZN-729.04 is left (`build/zinc agent install`, log out and in, `build/zinc agent uninstall`). Then `tools/next-task`.
 
 ## Watch out
 
+- An agent started by a test under `tests/run` hands `ZINC_DETERMINISTIC=1` to the apps it starts (their timers then fire without pause): start it with `env -u ZINC_DETERMINISTIC`, as `tests/t1/atelier_devices.sh` does (line of `backlog/later.md`).
 - The agent's tests start processes that outlive a shell function: in a test, `$!` must be the process itself (start `"$Z" agent` or `"$Z" device forward` directly, not through a function), and `wait` takes pids, never nothing (the agent is a background job too).
 - mbedTLS is built without thread support: every call into it from the agent's threads goes through the lock of `src/agent/wire.cpp`. New agent code calls the wrappers of `wire.h`, never `zn::tls` directly.
 - Existing worktrees from other sessions remain; respect task claims and the shared build limit. `apps/studio/samples/hello-flow.zproj/project.json` is someone else's uncommitted change.
