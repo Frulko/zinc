@@ -1,0 +1,246 @@
+#!/usr/bin/env python3
+"""device: run and diagnose a Zinc program on a Linux device over ssh (a Raspberry Pi, a CHIP, a handheld).
+
+usage: tools/device <user@host> <command> [args]        (or ZINC_DEVICE=user@host tools/device <command> [args])
+
+  status                          model, OS, architecture, CPU clock and throttling, temperature, memory, the programs under ~/zn
+  sysroot <package-dev>...        the device's -dev packages into $ZINC_HOME/sysroots/<target>, where a cross build looks for the system
+                                  libraries of a plugin (apt-get download on the device: no sudo, nothing installed there)
+  push <project> [name] [VAR=v...]  zinc export for the device's architecture (VAR=v: ZINC_DISPLAY=gl ...), copied to ~/zn/<name>
+  run <name> [VAR=v...]           stop the programs under ~/zn, start this one detached, print the head of its log (/tmp/zn-<name>.log)
+  stop                            stop the programs under ~/zn
+  shot <file.png>                 the framebuffer /dev/fb0 as a PNG (what an fbdev program shows; not a KMS/GL scan-out)
+  profile <name> [--frames N] [--offscreen] [VAR=v...]
+                                  N frames (default 260) with ZINC_PROFILE=1 and the display driver's statistics; the phase lines and the
+                                  clock. --offscreen: an fbdev build draws into a file, the programs under ~/zn are paused meanwhile
+  stacks <name> [--samples N]     where a running program spends its time: N stacks (default 20) of its main thread taken with gdb,
+                                  the functions counted (no perf needed; slow on a throttled board)
+  selftest                        checks the pure functions of this file (no device)
+
+A device runs one program on its screen at a time. Programs live in ~/zn/<name>/ (run.sh from zinc export). Measures are only valid when the
+clock is the board's full one: read `status` before and after (docs/reports/raspberry-pi.md).
+"""
+import collections, os, re, shlex, struct, subprocess, sys, zlib
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+ZINC = os.environ.get("ZINC", os.path.join(HERE, "..", "build", "zinc"))
+HOME = os.environ.get("ZINC_HOME", os.path.expanduser("~/.zinc"))
+SSH = ["ssh", "-o", "ConnectTimeout=8", "-o", "BatchMode=yes"]
+# uname -m -> (the zig target of src/tc, the --target of zinc export)
+ARCH = {"aarch64": ("aarch64-linux", "linux"), "armv7l": ("armv7-linux", "rpi2"), "armv6l": ("armhf-linux", "rpi1")}
+# the programs under ~/zn: a process whose working directory is there
+PIDS = 'for p in $(pgrep -u "$USER"); do case "$(readlink /proc/$p/cwd 2>/dev/null)" in "$HOME/zn/%s") echo $p;; esac; done'
+
+
+def die(msg):
+    sys.exit("device: " + msg)
+
+
+def ssh(dev, script, binary=False, check=True, timeout=600):
+    r = subprocess.run(SSH + [dev, script], stdin=subprocess.DEVNULL, capture_output=True, timeout=timeout)
+    if check and r.returncode != 0:
+        die("ssh %s failed (%d): %s" % (dev, r.returncode, r.stderr.decode(errors="replace").strip()[-400:]))
+    return r.stdout if binary else r.stdout.decode(errors="replace")
+
+
+def arch(dev):
+    m = ssh(dev, "uname -m").strip()
+    if m not in ARCH:
+        die("no cross target for a %s device (known: %s)" % (m, ", ".join(ARCH)))
+    return ARCH[m]
+
+
+def split_env(args):
+    """['a', 'X=1', '--n', '3'] -> (['a', '--n', '3'], ['X=1'])"""
+    env = [a for a in args if re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", a)]
+    return [a for a in args if a not in env], env
+
+
+def opt(args, name, default):
+    if name in args:
+        k = args.index(name)
+        v = args[k + 1]
+        del args[k:k + 2]
+        return v
+    return default
+
+
+def png(w, h, bpp, raw):
+    """A framebuffer (16 bpp RGB565 or 32 bpp XRGB, little endian) as PNG bytes."""
+    rows = []
+    for y in range(h):
+        row = bytearray([0])
+        line = raw[y * w * bpp // 8:(y + 1) * w * bpp // 8]
+        if bpp == 16:
+            for (v,) in struct.iter_unpack("<H", line):
+                row += bytes(((v >> 11) * 255 // 31, ((v >> 5) & 63) * 255 // 63, (v & 31) * 255 // 31))
+        else:
+            for k in range(0, len(line), 4):
+                row += bytes((line[k + 2], line[k + 1], line[k]))
+        rows.append(bytes(row))
+    chunk = lambda t, b: struct.pack(">I", len(b)) + t + b + struct.pack(">I", zlib.crc32(t + b) & 0xFFFFFFFF)
+    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0)) + chunk(b"IDAT", zlib.compress(b"".join(rows))) + chunk(b"IEND", b"")
+
+
+def count_stacks(text):
+    """gdb backtraces (one per sample, separated by a blank line) -> the innermost function and the innermost one with source, counted."""
+    top, own = collections.Counter(), collections.Counter()
+    for sample in text.strip().split("\n\n"):
+        frames = re.findall(r"^#\d+\s+(?:0x[0-9a-f]+ in )?(\S+) \(.*?\)(?: (?:at|from) (\S+))?", sample, re.M)
+        if not frames:
+            continue
+        top[frames[0][0] + ("  [" + os.path.basename(frames[0][1]) + "]" if frames[0][1] else "")] += 1
+        for fn, where in frames:
+            if where and not where.endswith((".so", ".1", ".2", ".6")) and ".so." not in where:
+                own[fn] += 1
+                break
+    return top, own
+
+
+def cmd_status(dev, args):
+    print(ssh(dev, r'''
+tr -d '\0' </proc/device-tree/model 2>/dev/null && echo
+. /etc/os-release 2>/dev/null; echo "$PRETTY_NAME, $(uname -m), kernel $(uname -r)"
+f=/sys/devices/system/cpu/cpu0/cpufreq; [ -r $f/scaling_cur_freq ] && echo "cpu: $(nproc) cores, $(($(cat $f/scaling_cur_freq) / 1000)) MHz now, $(($(cat $f/cpuinfo_max_freq) / 1000)) MHz max, governor $(cat $f/scaling_governor)"
+if command -v vcgencmd >/dev/null; then echo "firmware: $(vcgencmd measure_clock arm), $(vcgencmd get_throttled) (0x0: full speed; bit 0 under-voltage, 1 capped, 2 throttled), $(vcgencmd measure_temp), $(vcgencmd get_mem gpu)"; fi
+free -m | awk 'NR==2 {print "memory: " $3 " MB used, " $7 " MB available of " $2}'
+grep -i cmatotal /proc/meminfo | awk '{print "cma (the GPU buffers of a KMS driver): " $2/1024 " MB"}'
+[ -r /sys/class/graphics/fb0/virtual_size ] && echo "fb0: $(cat /sys/class/graphics/fb0/virtual_size) at $(cat /sys/class/graphics/fb0/bits_per_pixel) bpp"
+systemctl is-active --quiet lightdm 2>/dev/null && echo "WARNING: lightdm is running: the desktop owns the display"
+echo "programs under ~/zn: $(ls ~/zn 2>/dev/null | tr '\n' ' ')"
+for p in $(''' + PIDS % "*" + r'''); do echo "running: pid $p $(readlink /proc/$p/cwd) $(ps -o %cpu=,rss= -p $p | awk '{print $1 "% CPU, " int($2/1024) " MB"}')"; done
+''').rstrip())
+
+
+def cmd_sysroot(dev, args):
+    if not args:
+        die("sysroot: which -dev packages? (zinc:video: libavformat-dev libavcodec-dev libavutil-dev libswscale-dev libswresample-dev; display-gl: libegl-dev libgles-dev libgbm-dev libdrm-dev libgl-dev)")
+    target, _ = arch(dev)
+    root = os.path.join(HOME, "sysroots", target)
+    os.makedirs(root, exist_ok=True)
+    # the -dev packages hold headers, .pc files and lib<x>.so links; the shared libraries are the ones installed on the device, so every link is
+    # pointed at the installed soname (the archive's -dev may be newer than what runs there); static libraries are left out
+    out = ssh(dev, r'''set -e
+d=$(mktemp -d); trap 'rm -rf "$d"' EXIT; mkdir "$d/dl" "$d/root"; cd "$d/dl"
+apt-get download %s >/dev/null
+for f in *.deb; do dpkg -x "$f" "$d/root"; done
+rm -rf "$d/root/usr/share/doc" "$d/root/usr/share/man"
+for lib in "$d"/root/usr/lib/*/; do
+  cd "$lib"; rm -f *.a; m=/usr/lib/$(basename "$lib")
+  for l in *.so; do [ -L "$l" ] || continue
+    real=$(ls "$m/${l%%.so}".so.[0-9]* 2>/dev/null | grep -E '\.so\.[0-9]+$' | head -1)
+    if [ -n "$real" ]; then cp -L "$real" .; ln -sfn "$(basename "$real")" "$l"; else rm -f "$l"; fi
+  done
+done
+tar czf - -C "$d/root" .''' % " ".join(shlex.quote(a) for a in args), binary=True)
+    subprocess.run(["tar", "xzf", "-", "-C", root], input=out, check=True)
+    print("%s: %s added (%d KB packed)" % (root, " ".join(args), len(out) // 1024))
+
+
+def cmd_push(dev, args):
+    args, env = split_env(args)
+    if not args:
+        die("push: which project?")
+    project = args[0]
+    name = args[1] if len(args) > 1 else os.path.basename(os.path.abspath(project))
+    _, target = arch(dev)
+    out = os.path.join(os.path.abspath(project), "dist", name + "-device")
+    e = dict(os.environ, **dict(v.split("=", 1) for v in env))
+    if subprocess.run([ZINC, "export", project, "--target", target, "-o", out], env=e).returncode != 0:
+        die("zinc export failed")
+    ssh(dev, "mkdir -p ~/zn/" + shlex.quote(name))
+    # -L: an asset that is a link to another project's file is copied as a file
+    subprocess.run(["rsync", "-aL", "--delete", "-e", " ".join(SSH), out + "/", "%s:zn/%s/" % (dev, name)], stdin=subprocess.DEVNULL, check=True)
+    print("~/zn/%s on %s (tools/device run %s)" % (name, dev, name))
+
+
+def cmd_stop(dev, args):
+    ssh(dev, "for p in $(" + PIDS % "*" + "); do kill $p; done; sleep 1", check=False)
+
+
+def cmd_run(dev, args):
+    args, env = split_env(args)
+    if not args:
+        die("run: which program of ~/zn?")
+    name = shlex.quote(args[0])
+    cmd_stop(dev, [])
+    # detached, nothing of the ssh session kept open: a program that holds the session's descriptors hangs the ssh
+    print(ssh(dev, "cd ~/zn/%s && (env %s setsid nohup ./run.sh >/tmp/zn-%s.log 2>&1 </dev/null &); sleep 6; %s | grep -q . && echo running || echo 'NOT running'; head -c 2000 /tmp/zn-%s.log"
+              % (name, " ".join(shlex.quote(v) for v in env), name, PIDS % args[0], name)).rstrip())
+
+
+def cmd_shot(dev, args):
+    if not args:
+        die("shot: which file?")
+    w, h = map(int, ssh(dev, "cat /sys/class/graphics/fb0/virtual_size").strip().split(","))
+    bpp = int(ssh(dev, "cat /sys/class/graphics/fb0/bits_per_pixel"))
+    if bpp not in (16, 32):
+        die("a %d bpp framebuffer is not handled" % bpp)
+    raw = ssh(dev, "cat /dev/fb0", binary=True)
+    open(args[0], "wb").write(png(w, h, bpp, raw))
+    print("%s: %dx%d, %d bpp" % (args[0], w, h, bpp))
+
+
+def cmd_profile(dev, args):
+    args, env = split_env(args)
+    frames = opt(args, "--frames", "260")
+    off = "--offscreen" in args
+    args = [a for a in args if a != "--offscreen"]
+    if not args:
+        die("profile: which program of ~/zn?")
+    name = shlex.quote(args[0])
+    env += ["ZINC_PROFILE=1", "ZINC_FRAMES=" + frames, "ZINC_FBDEV_STATS=1", "ZINC_GL_STATS=1"]
+    pre = post = ""
+    if off:   # the fbdev driver's file framebuffer, in the real one's format; the others are stopped so that the cores are this run's
+        env += ["ZINC_FBDEV_SIM=/tmp/zn-fb.sim", "ZINC_FBDEV_SIM_FORMAT=$(cat /sys/class/graphics/fb0/virtual_size | tr , x)x$(cat /sys/class/graphics/fb0/bits_per_pixel)"]
+        pre = "o=$(" + PIDS % "*" + "); [ -n \"$o\" ] && kill -STOP $o; trap '[ -n \"$o\" ] && kill -CONT $o; rm -f /tmp/zn-fb.sim' EXIT; "
+    else:
+        pre = "for p in $(" + PIDS % "*" + "); do kill $p; done; sleep 1; "
+    clock = "if command -v vcgencmd >/dev/null; then vcgencmd measure_clock arm; vcgencmd get_throttled; else cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq; fi"
+    envs = " ".join(v if "$(" in v else shlex.quote(v) for v in env)
+    print(ssh(dev, "%scd ~/zn/%s && env %s timeout 300 ./run.sh 2>&1 >/dev/null </dev/null | grep -E 'zinc profile|fbdev|display-gl' | cut -c1-900; %s%s" % (pre, name, envs, clock, post)).rstrip())
+
+
+def cmd_stacks(dev, args):
+    n = int(opt(args, "--samples", "20"))
+    if not args:
+        die("stacks: which running program of ~/zn?")
+    text = ssh(dev, "p=$(" + PIDS % args[0] + " | head -1); [ -n \"$p\" ] || { echo 'not running' >&2; exit 1; }; command -v gdb >/dev/null || { echo 'gdb is not installed' >&2; exit 1; }; "
+               "for i in $(seq %d); do gdb -p $p -batch -ex 'bt 24' 2>/dev/null | grep '^#'; echo; done" % n, timeout=1800)
+    top, own = count_stacks(text)
+    total = sum(top.values())
+    print("%d samples of the main thread\n\nwhere it is (innermost frame):" % total)
+    for fn, c in top.most_common(12):
+        print("  %3d%%  %s" % (100 * c // max(total, 1), fn))
+    print("\ninnermost function of the program or the engine:")
+    for fn, c in own.most_common(12):
+        print("  %3d%%  %s" % (100 * c // max(total, 1), fn))
+
+
+def cmd_selftest(dev, args):
+    p = png(2, 1, 16, struct.pack("<HH", 0xF800, 0x001F))   # a red and a blue pixel
+    assert p[:8] == b"\x89PNG\r\n\x1a\n" and struct.unpack(">II", p[16:24]) == (2, 1)
+    assert zlib.decompress(p[41:41 + struct.unpack(">I", p[33:37])[0]]) == b"\x00\xff\x00\x00\x00\x00\xff"
+    assert zlib.decompress(png(1, 1, 32, b"\x01\x02\x03\xff")[41:-16]) == b"\x00\x03\x02\x01"
+    top, own = count_stacks("#0  0x0000007f in memcpy () from /lib/libc.so.6\n#1  0x0000aaaa in glr::poly (c=...) at gl_replay.cpp:900\n\n"
+                            "#0  glr::poly (c=...) at gl_replay.cpp:910\n#1  main () at hero.cpp:1\n")
+    assert top == {"memcpy  [libc.so.6]": 1, "glr::poly  [gl_replay.cpp:910]": 1}, top
+    assert own == {"glr::poly": 2}, own
+    assert split_env(["hero", "ZINC_DISPLAY=gl", "--frames", "3"]) == (["hero", "--frames", "3"], ["ZINC_DISPLAY=gl"])
+    print("ok")
+
+
+def main():
+    args = sys.argv[1:]
+    cmds = {k[4:]: v for k, v in globals().items() if k.startswith("cmd_")}
+    dev = os.environ.get("ZINC_DEVICE", "")
+    if args and "@" in args[0]:
+        dev = args.pop(0)
+    if not args or args[0] not in cmds:
+        sys.exit(__doc__.strip())
+    if not dev and args[0] != "selftest":
+        die("which device? tools/device user@host %s (or ZINC_DEVICE)" % args[0])
+    cmds[args[0]](dev, args[1:])
+
+
+main()
