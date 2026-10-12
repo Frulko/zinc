@@ -25,10 +25,9 @@ using namespace zrt::raster;
 
 // vertex: position + uv, box (centre, half size), params (radius, border / blur, mode, gradient), two colours
 struct V { float x, y, u, v, bx, by, bw, bh, r, p1, mode, grad; uint8_t c1[4], c2[4]; float z; };   // z: the command's depth (occlusion, ZN-412.01)
-enum Mode { FILL, BORDER_M, TEXT_M, IMAGE_RGBA, IMAGE_BGR, SOLID, RESTORE, SHADOW_M, STROKE_M, EDGE_M, CONVEX_M };
 static const int MAXQ = 8192, ATLAS = 1024, CORNER = 32, LEVELS = 16;
 
-#include "gl_replay_shaders.h"   // VS, FS (the commands), SVS, SFS (the occlusion pass), FVS, FFS (the stencil pass)
+#include "gl_replay_shaders.h"   // Mode, VS, FS (the commands), SVS, SFS (the occlusion pass), FVS, FFS (the stencil pass)
 struct SV { float x0, y0, x1, y1; uint8_t c[4]; float z; };   // a rectangle (instanced) or, on GLES 2, x, y, c, z of one corner in its first 16 bytes
 
 struct Tex2 { GLuint id; int32_t key; uint32_t ver; int32_t w, h; const void* px; int nearest, cmp; uint64_t bytes; };   // cmp: level 0 is GPU blocks (1), premultiplied ones (2)
@@ -49,8 +48,21 @@ static ZnResourceStats replay_texture_stats(void*) {
 static ZnResourceStatsRegistration replay_stats_registration("renderer.textures", replay_texture_stats);
 #endif
 static int32_t W, H;
-static GLuint prog, vbo, ibo, fbo, fbo_tex, fbo_depth, white, atlas, corner_tex, cur_tex;
-static GLint u_res, u_tex, u_flip, u_edge, u_g0, u_g1, u_gc, u_go, u_cv, u_cvn, a_box, a_par, a_c1, a_c2, a_z;
+static GLuint vbo, ibo, fbo, fbo_tex, fbo_depth, white, atlas, corner_tex, cur_tex;
+// The programs that draw the commands. Desktop GL: one, with a branch per mode. GLES 2: one per mode, and one more with the gradient paint
+// block, compiled at first use (ZN-725): a GPU without branches runs every mode of the single program for each pixel, VideoCore IV took
+// 217 ms for a frame that takes 35 with one mode compiled in. A batch is then drawn run by run, a run being its consecutive quads of one
+// program, so the paint order stays. Uniforms belong to a program: use_prog() gives it the frame's (size, flip) at its first use in the
+// frame, and the code that draws a mode sets that mode's own (edge, paint, convex) on the program use_prog() returns.
+struct Prog { GLuint id; GLint u_res, u_flip, u_edge, u_g0, u_g1, u_gc, u_go, u_cv, u_cvn; uint32_t stamp; bool tried; };
+static Prog progs[32];        // by key (key_of): 0 on desktop GL; on GLES 2 the mode, + 16 with the paint block
+static Prog* cur_prog;        // the program in use, nullptr after another one was (occlusion, stencil)
+static uint32_t pstamp;       // the frame's number, for Prog::stamp
+static bool paint_on;         // a gradient paint is set (set_paint): the quads take the program with the paint block
+static int only = -1;         // ZINC_GL_ONLY=<mode>: every quad drawn as that mode (wrong pixels: what a mode's shader costs)
+static bool strips = false;   // ZINC_GL_STRIPS=1: the edges of STROKE and POLY as RAMP quads (below), being measured (ZN-725 #4)
+struct Run { int first; uint8_t key; };
+enum { A_BOX = 2, A_PAR, A_C1, A_C2, A_Z };   // attribute locations, the same in every program (zgl_program binds the names; a_pos is 0)
 static float cur_z;          // NDC depth of the command being drawn: later commands are nearer (GL_LESS)
 static GLuint sprog, svbo;    // the occlusion pass's program and buffer
 static GLuint fprog, fvbo, evbo;   // POLY on the GPU (ZN-590.02): the stencil pass's program (positions only) and buffer, the fringe quads' buffer
@@ -71,13 +83,15 @@ static inline uint32_t walk_entry(uint32_t k, bool first) { return first && cull
 static bool flipy, split = true;   // flipy: drawing into the window framebuffer (rows bottom-up); split: cheap quads for the interior of boxes
 static V verts[MAXQ * 4];
 static int nq;
+static Run runs[MAXQ];
+static int nruns;
 static Rect clip, applied, base;
 static Rect cstack[16];
 struct RC { float x, y, w, h, r; int R; bool on; };
 static RC rstack[16];
 static int sp;
 static uint32_t warned, unsupported;
-static struct { uint32_t frames, idle, draws, quads, glyphs, ptiles, blocks, decoded; double us, cull_us; uint64_t hidden, block_bytes; } st;
+static struct { uint32_t frames, idle, draws, quads, glyphs, ptiles, blocks, decoded, progs; double us, cull_us, prog_us, glyph_us; uint64_t hidden, block_bytes; } st;
 #if defined(__APPLE__) && GLR_CORE
 // GPU time of the replays (ZINC_GL_STATS, ZN-679): a timer query per frame, read four frames later so the CPU never waits for the GPU
 static GLuint gq[4];
@@ -143,31 +157,79 @@ static void depth_storage() {
   glRenderbufferStorage(GL_RENDERBUFFER, packed_ds ? 0x88F0 /* DEPTH24_STENCIL8_OES */ : ext && strstr(ext, "GL_OES_depth24") ? 0x81A6 /* DEPTH_COMPONENT24_OES */ : GL_DEPTH_COMPONENT16, W, H);
 #endif
 }
+// GLES 2: which program draws a mode. group[m] is the first mode of m's group, gmask[it] the modes of the group: one program holds them
+// behind a ladder, so its quads stay in one run whatever their order, and each of its pixels pays for all of them.
+// ZINC_GL_GROUPS="0,1,7;2;3,4" regroups them to measure (a mode it does not name stays alone).
+static uint8_t group[16];
+static unsigned gmask[16];
+static void set_groups(const char* spec) {
+  for (int m = 0; m < 16; m++) { group[m] = (uint8_t)m; gmask[m] = 1u << m; }
+  for (const char* s = spec; s && *s;) {
+    int first = -1;
+    while (*s && *s != ';') {
+      const int m = atoi(s) & 15;
+      if (first < 0) first = m;
+      group[m] = (uint8_t)first; gmask[first] |= 1u << m;
+      while (*s && *s != ',' && *s != ';') s++;
+      if (*s == ',') s++;
+    }
+    if (*s == ';') s++;
+  }
+}
+static inline uint8_t key_of(int mode) {
+#if GLR_CORE
+  (void)mode;
+  return 0;
+#else
+  return (uint8_t)((only >= 0 ? only : group[mode & 15]) | (paint_on && only < 0 ? 16 : 0));   // & 15: a box drawn through a matrix has 16 added to its mode
+#endif
+}
+static Prog& use_prog(uint8_t key) {
+  Prog& p = progs[key];
+  if (!p.tried) {
+    p.tried = true;
+    static char fs[8192];
+    const double t0 = now_us();
+    const unsigned modes = only >= 0 ? 1u << only : GLR_CORE ? ~0u : gmask[key & 15];
+    p.id = fs_source(modes, GLR_CORE ? only < 0 : (key & 16) != 0, fs, sizeof fs) ? zgl_program("", VS, fs) : 0;
+    st.prog_us += now_us() - t0;
+    if (getenv("ZINC_GL_STATS")) fprintf(stderr, "display-gl renderer gl: program of modes 0x%x%s built in %.0f ms (frame %u)\n", modes & ((1u << MODES) - 1), key & 16 ? " with paint" : "", (now_us() - t0) / 1e3, st.frames);
+    if (!p.id) fprintf(stderr, "display-gl: renderer gl: the program of modes 0x%x does not build: their quads are not drawn\n", modes & ((1u << MODES) - 1));
+    else {
+      p.u_flip = glGetUniformLocation(p.id, "u_flip"); p.u_res = glGetUniformLocation(p.id, "u_res"); p.u_edge = glGetUniformLocation(p.id, "u_edge");
+      p.u_g0 = glGetUniformLocation(p.id, "u_g0"); p.u_g1 = glGetUniformLocation(p.id, "u_g1"); p.u_gc = glGetUniformLocation(p.id, "u_gc"); p.u_go = glGetUniformLocation(p.id, "u_go");
+      p.u_cv = glGetUniformLocation(p.id, "u_cv"); p.u_cvn = glGetUniformLocation(p.id, "u_cvn");
+      glUseProgram(p.id);
+      glUniform1i(glGetUniformLocation(p.id, "u_tex"), 0);
+      glUniform3f(p.u_edge, 0, 0, -1);   // RAMP: w - |t|, but in the pass over the pixels inside a fill (edge_draw)
+      cur_prog = &p; p.stamp = pstamp - 1; st.progs++;
+    }
+  }
+  if (cur_prog != &p) { glUseProgram(p.id); cur_prog = &p; }
+  if (p.stamp != pstamp && p.id) { p.stamp = pstamp; glUniform1f(p.u_flip, flipy ? -1.f : 1.f); glUniform2f(p.u_res, (float)W, (float)H); }
+  return p;
+}
 static bool init(int32_t w, int32_t h) {
   W = w; H = h;
-  // ponytail: an experiment switch (ZINC_GL_ONLY=<mode>: every quad drawn by that mode's program alone, wrong pixels) until the programs are per mode
-  static char only[64] = "";
-  if (const char* e = getenv("ZINC_GL_ONLY")) snprintf(only, sizeof only, "#define ZMODE %d.0\n#define ZNOPAINT 1\n", atoi(e));
-  prog = zgl_program(only, VS, FS);
-  if (!prog) return false;
+  if (const char* e = getenv("ZINC_GL_ONLY")) only = atoi(e) % MODES;
+  set_groups(getenv("ZINC_GL_GROUPS"));
+  if (const char* e = getenv("ZINC_GL_STRIPS")) strips = atoi(e) != 0;
+  if (!use_prog(key_of(SOLID)).id) return false;
 #if GLR_CORE
   instanced = true;   // GL 3.3+ core: instanced draws and attribute divisors
 #endif
+  const double t0 = now_us();
   sprog = zgl_program(instanced ? "#define INSTANCED 1\n" : "", SVS, SFS);
   if (!sprog) return false;
   fprog = zgl_program("", FVS, FFS);
   if (!fprog) return false;
+  st.prog_us += now_us() - t0;
   glGenBuffers(1, &evbo);
   f_res = glGetUniformLocation(fprog, "u_res"); f_flip = glGetUniformLocation(fprog, "u_flip");
   glGenBuffers(1, &fvbo);
   s_res = glGetUniformLocation(sprog, "u_res"); s_flip = glGetUniformLocation(sprog, "u_flip");
   s_rect = glGetAttribLocation(sprog, "a_rect"); s_col = glGetAttribLocation(sprog, "a_col"); s_z = glGetAttribLocation(sprog, "a_z"); s_pos = glGetAttribLocation(sprog, "a_pos");
   glGenBuffers(1, &svbo);
-  u_flip = glGetUniformLocation(prog, "u_flip"); u_res = glGetUniformLocation(prog, "u_res"); u_tex = glGetUniformLocation(prog, "u_tex"); u_edge = glGetUniformLocation(prog, "u_edge");
-  u_g0 = glGetUniformLocation(prog, "u_g0"); u_g1 = glGetUniformLocation(prog, "u_g1"); u_gc = glGetUniformLocation(prog, "u_gc"); u_go = glGetUniformLocation(prog, "u_go");
-  u_cv = glGetUniformLocation(prog, "u_cv"); u_cvn = glGetUniformLocation(prog, "u_cvn");
-  a_box = glGetAttribLocation(prog, "a_box"); a_par = glGetAttribLocation(prog, "a_par");
-  a_c1 = glGetAttribLocation(prog, "a_c1"); a_c2 = glGetAttribLocation(prog, "a_c2"); a_z = glGetAttribLocation(prog, "a_z");
   fbo_tex = make_tex(W, H, GL_RGBA, GL_RGBA, nullptr, false);
   glGenFramebuffers(1, &fbo);
   glBindFramebuffer(GL_FRAMEBUFFER, fbo);
@@ -218,23 +280,37 @@ static void apply_clip() {
   glScissor(x0, flipy ? H - (y1 > y0 ? y1 : y0) : y0, x1 > x0 ? x1 - x0 : 0, y1 > y0 ? y1 - y0 : 0);
   applied = clip;
 }
+/** The layout of V in the bound buffer, from byte `base`. */
+static void attribs(size_t base) {
+  const GLsizei S = sizeof(V);
+  glEnableVertexAttribArray(0); glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, S, (void*)(base + 0));
+  glEnableVertexAttribArray(A_BOX); glVertexAttribPointer(A_BOX, 4, GL_FLOAT, GL_FALSE, S, (void*)(base + 16));
+  glEnableVertexAttribArray(A_PAR); glVertexAttribPointer(A_PAR, 4, GL_FLOAT, GL_FALSE, S, (void*)(base + 32));
+  glEnableVertexAttribArray(A_C1); glVertexAttribPointer(A_C1, 4, GL_UNSIGNED_BYTE, GL_TRUE, S, (void*)(base + 48));
+  glEnableVertexAttribArray(A_C2); glVertexAttribPointer(A_C2, 4, GL_UNSIGNED_BYTE, GL_TRUE, S, (void*)(base + 52));
+  glEnableVertexAttribArray(A_Z); glVertexAttribPointer(A_Z, 1, GL_FLOAT, GL_FALSE, S, (void*)(base + 56));
+}
+/** The quad about to be added to the batch is of `mode`: it starts a run when the last one is drawn by another program. */
+static inline void run_of(int mode) {
+  const uint8_t k = key_of(mode);
+  if (!nruns || runs[nruns - 1].key != k) runs[nruns++] = Run{nq, k};
+}
 static void flush() {
   if (!nq) return;
   glBindBuffer(GL_ARRAY_BUFFER, vbo);
   glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)nq * 4 * sizeof(V), verts, GL_STREAM_DRAW);
-  const GLsizei S = sizeof(V);
-  glEnableVertexAttribArray(0); glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, S, (void*)0);
-  glEnableVertexAttribArray(a_box); glVertexAttribPointer(a_box, 4, GL_FLOAT, GL_FALSE, S, (void*)16);
-  glEnableVertexAttribArray(a_par); glVertexAttribPointer(a_par, 4, GL_FLOAT, GL_FALSE, S, (void*)32);
-  glEnableVertexAttribArray(a_c1); glVertexAttribPointer(a_c1, 4, GL_UNSIGNED_BYTE, GL_TRUE, S, (void*)48);
-  glEnableVertexAttribArray(a_c2); glVertexAttribPointer(a_c2, 4, GL_UNSIGNED_BYTE, GL_TRUE, S, (void*)52);
-  glEnableVertexAttribArray(a_z); glVertexAttribPointer(a_z, 1, GL_FLOAT, GL_FALSE, S, (void*)56);
+  attribs(0);
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
   apply_clip();
   glBindTexture(GL_TEXTURE_2D, cur_tex);
-  glDrawElements(GL_TRIANGLES, nq * 6, GL_UNSIGNED_SHORT, nullptr);
-  st.draws++; st.quads += (uint32_t)nq;
-  nq = 0;
+  for (int r = 0; r < nruns; r++) {   // desktop GL: one run
+    const int q0 = runs[r].first, q1 = r + 1 < nruns ? runs[r + 1].first : nq;
+    if (!use_prog(runs[r].key).id) continue;
+    glDrawElements(GL_TRIANGLES, (q1 - q0) * 6, GL_UNSIGNED_SHORT, (void*)((size_t)q0 * 6 * sizeof(uint16_t)));
+    st.draws++;
+  }
+  st.quads += (uint32_t)nq;
+  nq = 0; nruns = 0;
 }
 static void use_tex(GLuint t) { if (t != cur_tex) { flush(); cur_tex = t; } }
 // A sprite's blend mode (ZN-581) applied to the premultiplied colour the shader writes: normal, add, multiply, screen (raster.cpp blend_as).
@@ -280,6 +356,7 @@ static void quad(const Q& q) {
   if (clip.x1 <= clip.x0 || clip.y1 <= clip.y0 || x1 <= (float)clip.x0 || x0 >= (float)clip.x1 || y1 <= (float)clip.y0 || y0 >= (float)clip.y1) return;   // outside the clip: nothing to draw (and no empty scissor for the GPU)
   if (nq == MAXQ) flush();
   V* v = &verts[nq * 4];
+  run_of(mode);
   nq++;
   for (int i = 0; i < 4; i++) {
     v[i] = V{xs[i], ys[i], us[i], vs[i], q.bx, q.by, q.bw, q.bh, q.r, q.p1, (float)mode, (float)q.grad, {0, 0, 0, 0}, {0, 0, 0, 0}, cur_z};
@@ -307,10 +384,12 @@ static const GSlot* glyph_slot(int32_t font, const Font& f, const Glyph* g) {
     if (gtab[i].key == key) return &gtab[i];
     if (gcount > 6000 || gy + g->h > ATLAS) { atlas_reset(); continue; }   // ponytail: reset when full, glyphs come back lazily
     if (gx + g->w + 1 > ATLAS) { gy += growh + 1; gx = 0; growh = 0; if (gy + g->h > ATLAS) continue; }
+    const double t0 = now_us();
     glBindTexture(GL_TEXTURE_2D, atlas);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     glTexSubImage2D(GL_TEXTURE_2D, 0, gx, gy, g->w, g->h, A_FMT, GL_UNSIGNED_BYTE, f.bitmap + g->off);
     glBindTexture(GL_TEXTURE_2D, cur_tex);
+    st.glyph_us += now_us() - t0;
     gtab[i] = GSlot{key, (int16_t)gx, (int16_t)gy};
     gx += g->w + 1; if (g->h > growh) growh = g->h;
     gcount++; st.glyphs++;
@@ -508,6 +587,7 @@ static void draw_stroke(const Cmd& c, const float* p) {
     if (clip.x1 <= clip.x0 || clip.y1 <= clip.y0 || x1 <= (float)clip.x0 || x0 >= (float)clip.x1 || y1 <= (float)clip.y0 || y0 >= (float)clip.y1) continue;
     if (nq == MAXQ) flush();
     V* v = &verts[nq * 4];
+    run_of(STROKE_M);
     nq++;
     const float xs[4] = {x0, x1, x1, x0}, ys[4] = {y0, y0, y1, y1};
     for (int k = 0; k < 4; k++) {
@@ -533,6 +613,94 @@ template<class T> static bool grow(T*& buf, size_t& cap, size_t need) {
   if (!nb) return false;
   buf = nb; cap = n; return true;
 }
+// ---- RAMP (ZN-725): antialiased edges as geometry, for a GPU where maths per pixel is the cost (GLES 2 tilers: VideoCore IV drew the
+// navigation map's edge boxes and capsules in 124 of a frame's 217 ms). A RAMP quad's vertices carry (x, y, t, w) and a pixel covers
+// clamp(w - |t|), both interpolated: thin quads along the edges, nothing to compute or discard per pixel. Default on GLES 2;
+// ZINC_GL_STRIPS=0 goes back to the capsules and the edge boxes there, =1 draws the strips on desktop GL (tests/t1/gl_strips.sh).
+static inline void ramp_set(V* v, const float q[4][3], float w, uint32_t c1, uint32_t alpha) {
+  for (int k = 0; k < 4; k++) {
+    v[k] = V{q[k][0], q[k][1], q[k][2], w, 0, 0, 0, 0, 0, 0, (float)RAMP_M, 0, {0, 0, 0, 0}, {0, 0, 0, 0}, cur_z};
+    setc(v[k].c1, c1, alpha);
+  }
+}
+static void ramp_quad(const float q[4][3], float w, uint32_t c1, uint32_t alpha) {
+  float x0 = q[0][0], x1 = x0, y0 = q[0][1], y1 = y0;
+  for (int k = 1; k < 4; k++) { x0 = q[k][0] < x0 ? q[k][0] : x0; x1 = q[k][0] > x1 ? q[k][0] : x1; y0 = q[k][1] < y0 ? q[k][1] : y0; y1 = q[k][1] > y1 ? q[k][1] : y1; }
+  if (!(x0 == x0 && x1 == x1 && y0 == y0 && y1 == y1)) return;
+  if (clip.x1 <= clip.x0 || clip.y1 <= clip.y0 || x1 <= (float)clip.x0 || x0 >= (float)clip.x1 || y1 <= (float)clip.y0 || y0 >= (float)clip.y1) return;
+  if (nq == MAXQ) flush();
+  run_of(RAMP_M);
+  ramp_set(&verts[nq * 4], q, w, c1, alpha);
+  nq++;
+}
+/** A disc of radius R - 0.5 with its antialiased rim (a round cap, a round join): a fan of n triangles around the circle, n such that
+ *  its corners stand at most a quarter of a pixel outside. */
+static void ramp_disc(float cx, float cy, float R, uint32_t c1, uint32_t alpha) {
+  int n = (int)(4.443f * __builtin_sqrtf(R)) + 1;   // R (1 / cos(pi / n) - 1) <= 0.25: n >= pi sqrt(2 R)
+  n = n < 8 ? 8 : n > 32 ? 32 : (n + 1) & ~1;
+  const float a = 6.2831853f / (float)n, cs = cosf(a), sn = sinf(a), rho = R / cosf(a * 0.5f);
+  float x = rho, y = 0;
+  for (int k = 0; k < n; k += 2) {   // two triangles a quad: the centre and three points of the rim
+    const float xa = x * cs - y * sn, ya = x * sn + y * cs, xb = xa * cs - ya * sn, yb = xa * sn + ya * cs;
+    const float q[4][3] = {{cx, cy, 0}, {cx + x, cy + y, R}, {cx + xa, cy + ya, R}, {cx + xb, cy + yb, R}};
+    ramp_quad(q, R, c1, alpha);
+    x = xb; y = yb;
+  }
+}
+static float* spts; static size_t spts_cap;
+/** The points of a polyline without those that repeat the one before them (closed: nor the last when it repeats the first), in spts. */
+static uint32_t distinct(const float* p, uint32_t n, bool closed) {
+  if (!grow(spts, spts_cap, (size_t)n * 2 + 2)) return 0;
+  uint32_t m = 0;
+  for (uint32_t i = 0; i < n; i++) {
+    const float x = p[i * 2], y = p[i * 2 + 1];
+    if (!(x == x && y == y)) continue;
+    if (m) { const float dx = x - spts[m * 2 - 2], dy = y - spts[m * 2 - 1]; if (dx * dx + dy * dy < 1e-6f) continue; }
+    spts[m * 2] = x; spts[m * 2 + 1] = y; m++;
+  }
+  if (closed && m > 1) { const float dx = spts[0] - spts[m * 2 - 2], dy = spts[1] - spts[m * 2 - 1]; if (dx * dx + dy * dy < 1e-6f) m--; }
+  return m;
+}
+/** An opaque STROKE as strips: one quad per segment across its width, t the signed distance to the centre line, w the half width + 0.5.
+ *  Two segments that turn by less than 37 degrees share their corners (a miter: no gap and no overlap, the tip within 0.06 of the half
+ *  width of the round join); a sharper turn and the ends of an open line get a disc. Where the pieces overlap the colour is blended
+ *  twice, which an opaque stroke does not show: a translucent one keeps the capsules (draw_stroke), blended once. */
+static void stroke_strips(const Cmd& c, const float* p0) {
+  if (c.n < 2 || !(c.s == c.s)) return;
+  bool closed = (c.pad & 2) != 0;
+  const uint32_t n = distinct(p0, c.n, closed);
+  const float* p = spts;
+  const float R = c.s * 0.5f + 0.5f;
+  if (!n) return;
+  if (n == 1) { ramp_disc(p[0], p[1], R, c.c1, c.alpha); return; }
+  if (n == 2) closed = false;
+  const uint32_t segs = closed ? n : n - 1;
+  auto dir = [p, n](uint32_t i, float& dx, float& dy) {   // of segment i, unit
+    const uint32_t j = (i + 1) % n;
+    dx = p[j * 2] - p[i * 2]; dy = p[j * 2 + 1] - p[i * 2 + 1];
+    const float l = __builtin_sqrtf(dx * dx + dy * dy);
+    dx /= l; dy /= l;
+  };
+  float pdx = 0, pdy = 0, dx, dy;
+  if (closed) dir(n - 1, pdx, pdy);
+  dir(0, dx, dy);
+  for (uint32_t i = 0; i < segs; i++) {
+    const uint32_t ib = (i + 1) % n;
+    const float ax = p[i * 2], ay = p[i * 2 + 1], bx = p[ib * 2], by = p[ib * 2 + 1];
+    float oax = -dy, oay = dx, obx = -dy, oby = dx, ndx = 0, ndy = 0;   // the corners' offsets for a radius of 1: the normal, or the miter
+    const float cp = closed || i > 0 ? pdx * dx + pdy * dy : -1;
+    if (cp >= 0.8f) { oax = (-pdy - dy) / (1 + cp); oay = (pdx + dx) / (1 + cp); }
+    else ramp_disc(ax, ay, R, c.c1, c.alpha);   // a sharp join, or the cap of the start
+    if (closed || i + 1 < segs) {
+      dir(ib, ndx, ndy);
+      const float cn = dx * ndx + dy * ndy;
+      if (cn >= 0.8f) { obx = (-dy - ndy) / (1 + cn); oby = (dx + ndx) / (1 + cn); }   // else the next segment draws the join's disc
+    } else ramp_disc(bx, by, R, c.c1, c.alpha);
+    const float q[4][3] = {{ax + R * oax, ay + R * oay, R}, {bx + R * obx, by + R * oby, R}, {bx - R * obx, by - R * oby, -R}, {ax - R * oax, ay - R * oay, -R}};
+    ramp_quad(q, R, c.c1, c.alpha);
+    pdx = dx; pdy = dy; dx = ndx; dy = ndy;
+  }
+}
 // ---- LINE / POLY on the GPU (ZN-590.02): stencil then cover, NanoVG's technique (docs/reports/gpu-renderer-design.md). The contours'
 // triangle fans count the winding at the pixel centres in the stencil's low 7 bits (nonzero: +1 / -1 by facing; even-odd: bit 0 flips).
 // The pixels near an edge take their coverage from the distance to it (EDGE mode, each owned by the nearest edge): inside the fill
@@ -548,7 +716,7 @@ static bool pevenodd;
 static const float* ppaint;   // the gradient paint record of a batch of one
 static float* boxv; static size_t boxv_cap;
 // raster.cpp's record [kind, x0, y0, r0, x1, y1, r1, n, (offset, 0xRRGGBB, alpha) * n] as the shader's uniforms (u_g0.w = 0: no paint)
-static void set_paint(const float* g) {
+static void set_paint(const float* g, int mode) {   // on the program that draws `mode` with a paint
   const int n = (int)g[7] < 8 ? (int)g[7] : 8;   // ponytail: a box turned by a matrix keeps its first 8 stops (unturned, more take a CPU tile)
   float gc[32] = {}, go[8] = {};
   for (int i = 0; i < n; i++) {
@@ -556,8 +724,16 @@ static void set_paint(const float* g) {
     go[i] = g[8 + i * 3];
     gc[i * 4] = (float)(col >> 16 & 255); gc[i * 4 + 1] = (float)(col >> 8 & 255); gc[i * 4 + 2] = (float)(col & 255); gc[i * 4 + 3] = (float)(uint32_t)g[10 + i * 3];
   }
-  glUniform4f(u_g0, g[1], g[2], g[3], g[0]); glUniform4f(u_g1, g[4], g[5], g[6], (float)n);
-  glUniform4fv(u_gc, 8, gc); glUniform1fv(u_go, 8, go);
+  paint_on = true;
+  const Prog& p = use_prog(key_of(mode));
+  glUniform4f(p.u_g0, g[1], g[2], g[3], g[0]); glUniform4f(p.u_g1, g[4], g[5], g[6], (float)n);
+  glUniform4fv(p.u_gc, 8, gc); glUniform1fv(p.u_go, 8, go);
+}
+static void end_paint() {
+  paint_on = false;
+#if GLR_CORE
+  glUniform4f(use_prog(0).u_g0, 0, 0, 0, 0);   // the single program: no paint (u_g0.w); on GLES 2 the programs without the paint block draw again
+#endif
 }
 static double fringe_px;   // ZINC_GL_STATS: the pixels the fringe quads cover (each is the box of its edge, drawn by every pass)
 static void edge_quads(const float* pts, uint32_t contours, uint32_t c1, uint32_t alpha) {
@@ -587,32 +763,86 @@ static void edge_quads(const float* pts, uint32_t contours, uint32_t c1, uint32_
     }
   }
 }
-/** One pass over the fringe quads uploaded by edge_upload: side 0 every pixel, 1 only those left of A-B (cross > 0), 2 right of it. */
-static void edge_draw(int side, bool inside) {
-  if (!nedge) return;
-  glUniform3f(u_edge, side ? 1.f : 0.f, side == 1 ? 1.f : 0.f, inside ? 1.f : 0.f);
+// The fringes as strips (RAMP, ZN-725): each edge A-B gets two quads half a pixel wide, one on its left (edgev) and one on its right
+// (edgev_r), t the distance to the edge: 0 along it, 0.5 at the far side. The passes of poly_flush pick the side by drawing one array
+// instead of testing it per pixel. Neighbouring edges share their far corners on the bisector (no gap, no overlap; past a turn of 120
+// degrees the corner stays within a pixel of the vertex, with the t it has there).
+static V* edgev_r; static size_t edgev_r_cap;
+static float* mit; static size_t mit_cap;   // per point of a contour: the unit normal of the edge that leaves it, its miter, the miter's t
+static void edge_strips(const float* pts, uint32_t contours, uint32_t c1, uint32_t alpha) {
+  static const bool on = !getenv("ZINC_GL_FRINGE") || atoi(getenv("ZINC_GL_FRINGE")) != 0;
+  if (!on) return;
+  static const bool stats = getenv("ZINC_GL_STATS") != nullptr;
+  uint32_t at = 0;
+  for (uint32_t k = 0; k < contours; k++) {
+    const uint32_t cnt = (uint32_t)pts[at];
+    const float* src = pts + at + 1;
+    at += 1 + cnt * 2;
+    if (cnt < 3) continue;
+    const uint32_t m = distinct(src, cnt, true);
+    const float* p = spts;
+    if (m < 3 || !grow(mit, mit_cap, (size_t)m * 5)) continue;
+    for (uint32_t i = 0; i < m; i++) {
+      const uint32_t j = (i + 1) % m;
+      const float dx = p[j * 2] - p[i * 2], dy = p[j * 2 + 1] - p[i * 2 + 1], l = __builtin_sqrtf(dx * dx + dy * dy);
+      mit[i * 5] = -dy / l; mit[i * 5 + 1] = dx / l;   // on the left of A-B: cross > 0
+    }
+    for (uint32_t i = 0; i < m; i++) {
+      const float* a = mit + ((i + m - 1) % m) * 5; const float* b = mit + i * 5;
+      float mx = a[0] + b[0], my = a[1] + b[1];
+      const float den = 1 + a[0] * b[0] + a[1] * b[1];
+      if (den >= 0.5f) { mx /= den; my /= den; }
+      else { const float l = __builtin_sqrtf(mx * mx + my * my); const float s = l > 1e-3f ? 2 / l : 0; mx *= s; my *= s; }
+      mit[i * 5 + 2] = mx; mit[i * 5 + 3] = my; mit[i * 5 + 4] = 0.5f * (mx * b[0] + my * b[1]);
+    }
+    for (uint32_t i = 0; i < m; i++) {
+      const uint32_t j = (i + 1) % m;
+      const float ax = p[i * 2], ay = p[i * 2 + 1], bx = p[j * 2], by = p[j * 2 + 1];
+      const float x0 = (ax < bx ? ax : bx) - 1, y0 = (ay < by ? ay : by) - 1, x1 = (ax > bx ? ax : bx) + 1, y1 = (ay > by ? ay : by) + 1;
+      if (x1 <= (float)clip.x0 || x0 >= (float)clip.x1 || y1 <= (float)clip.y0 || y0 >= (float)clip.y1) continue;
+      if (stats) fringe_px += __builtin_sqrtf((bx - ax) * (bx - ax) + (by - ay) * (by - ay));   // two halves, half a pixel wide each
+      if (!grow(edgev, edgev_cap, ((size_t)nedge + 1) * 4) || !grow(edgev_r, edgev_r_cap, ((size_t)nedge + 1) * 4)) return;
+      const float* ma = mit + i * 5 + 2; const float* mb = mit + j * 5 + 2;
+      const float l[4][3] = {{ax, ay, 0}, {bx, by, 0}, {bx + 0.5f * mb[0], by + 0.5f * mb[1], mb[2]}, {ax + 0.5f * ma[0], ay + 0.5f * ma[1], ma[2]}};
+      const float r[4][3] = {{ax, ay, 0}, {bx, by, 0}, {bx - 0.5f * mb[0], by - 0.5f * mb[1], mb[2]}, {ax - 0.5f * ma[0], ay - 0.5f * ma[1], ma[2]}};
+      ramp_set(&edgev[nedge * 4], l, 0.5f, c1, alpha);
+      ramp_set(&edgev_r[nedge * 4], r, 0.5f, c1, alpha);
+      nedge++;
+    }
+  }
+}
+static void edge_range(uint32_t first, uint32_t count) {   // quads of the buffer edge_upload filled
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
   apply_clip();
   glBindTexture(GL_TEXTURE_2D, cur_tex);
-  const GLsizei S = sizeof(V);
   glBindBuffer(GL_ARRAY_BUFFER, evbo);
-  for (uint32_t q0 = 0; q0 < nedge; q0 += MAXQ) {   // the index buffer holds MAXQ quads
-    const uint32_t nq2 = nedge - q0 < (uint32_t)MAXQ ? nedge - q0 : (uint32_t)MAXQ;
-    const size_t base = (size_t)q0 * 4 * S;
-    glEnableVertexAttribArray(0); glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, S, (void*)(base + 0));
-    glEnableVertexAttribArray(a_box); glVertexAttribPointer(a_box, 4, GL_FLOAT, GL_FALSE, S, (void*)(base + 16));
-    glEnableVertexAttribArray(a_par); glVertexAttribPointer(a_par, 4, GL_FLOAT, GL_FALSE, S, (void*)(base + 32));
-    glEnableVertexAttribArray(a_c1); glVertexAttribPointer(a_c1, 4, GL_UNSIGNED_BYTE, GL_TRUE, S, (void*)(base + 48));
-    glEnableVertexAttribArray(a_c2); glVertexAttribPointer(a_c2, 4, GL_UNSIGNED_BYTE, GL_TRUE, S, (void*)(base + 52));
-    glEnableVertexAttribArray(a_z); glVertexAttribPointer(a_z, 1, GL_FLOAT, GL_FALSE, S, (void*)(base + 56));
+  for (uint32_t q0 = first; q0 < first + count; q0 += MAXQ) {   // the index buffer holds MAXQ quads
+    const uint32_t nq2 = first + count - q0 < (uint32_t)MAXQ ? first + count - q0 : (uint32_t)MAXQ;
+    attribs((size_t)q0 * 4 * sizeof(V));
     glDrawElements(GL_TRIANGLES, (GLsizei)nq2 * 6, GL_UNSIGNED_SHORT, nullptr);
     st.draws++; st.quads += nq2;
   }
 }
+/** One pass over the fringes uploaded by edge_upload: side 0 every pixel near an edge, 1 only those left of A-B (cross > 0), 2 right of
+ *  it; inside: the pixels cover 0.5 + their distance to the edge, else 0.5 - it. */
+static void edge_draw(int side, bool inside) {
+  if (!nedge) return;
+  if (strips) {   // the side is an array: the left quads come first in the buffer
+    glUniform3f(use_prog(key_of(RAMP_M)).u_edge, 0, 0, inside ? 1.f : -1.f);
+    edge_range(side == 2 ? nedge : 0, side ? nedge : nedge * 2);
+    return;
+  }
+  glUniform3f(use_prog(key_of(EDGE_M)).u_edge, side ? 1.f : 0.f, side == 1 ? 1.f : 0.f, inside ? 1.f : 0.f);
+  edge_range(0, nedge);
+}
 static void edge_upload() {
   if (!nedge) return;
   glBindBuffer(GL_ARRAY_BUFFER, evbo);
-  glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)nedge * 4 * sizeof(V), edgev, GL_STREAM_DRAW);
+  const GLsizeiptr half = (GLsizeiptr)nedge * 4 * sizeof(V);
+  if (!strips) { glBufferData(GL_ARRAY_BUFFER, half, edgev, GL_STREAM_DRAW); return; }
+  glBufferData(GL_ARRAY_BUFFER, half * 2, nullptr, GL_STREAM_DRAW);
+  glBufferSubData(GL_ARRAY_BUFFER, 0, half, edgev);
+  glBufferSubData(GL_ARRAY_BUFFER, half, half, edgev_r);
 }
 static void stencil_draw(const float* v, size_t n) {   // triangles (x, y) into the stencil only, depth ignored
   glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
@@ -626,7 +856,7 @@ static void stencil_draw(const float* v, size_t n) {   // triangles (x, y) into 
   apply_clip();
   glDrawArrays(GL_TRIANGLES, 0, (GLsizei)n);
   st.draws++;
-  glUseProgram(prog);
+  cur_prog = nullptr;
   if (occl) glEnable(GL_DEPTH_TEST);
   glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 }
@@ -667,7 +897,7 @@ static bool poly_add(const Cmd& c, const float* pts) {
       nfan += 6;
     }
   }
-  edge_quads(pts, c.n, c.c1, c.alpha);
+  if (strips) edge_strips(pts, c.n, c.c1, c.alpha); else edge_quads(pts, c.n, c.c1, c.alpha);
   pboxes[npoly++] = PolyBox{b, c.c1, c.alpha, cur_z};
   pevenodd = evenodd; ppaint = paint;
   return true;
@@ -682,7 +912,11 @@ static void poly_flush() {
     const float q[12] = {(float)b.x0, (float)b.y0, (float)b.x1, (float)b.y0, (float)b.x1, (float)b.y1, (float)b.x0, (float)b.y0, (float)b.x1, (float)b.y1, (float)b.x0, (float)b.y1};
     memcpy(boxv + i * 12, q, sizeof q);
   }
-  if (ppaint) set_paint(ppaint);
+  if (ppaint) {   // on the program of the cover and on the one of the fringes
+    const int fringe = strips ? RAMP_M : EDGE_M;
+    set_paint(ppaint, SOLID);
+    if (key_of(fringe) != key_of(SOLID)) set_paint(ppaint, fringe);
+  }
   glEnable(GL_STENCIL_TEST);
   glStencilFunc(GL_ALWAYS, 0, 0xFF);
   if (pevenodd) { glStencilMask(0x01); glStencilOp(GL_KEEP, GL_KEEP, GL_INVERT); }
@@ -736,7 +970,7 @@ static void poly_flush() {
   glStencilOp(GL_ZERO, GL_ZERO, GL_ZERO);
   stencil_draw(boxv, (size_t)npoly * 6);
   glDisable(GL_STENCIL_TEST);
-  if (ppaint) glUniform4f(u_g0, 0, 0, 0, 0);
+  if (ppaint) end_paint();
   npoly = 0; nfan = 0; nedge = 0; ppaint = nullptr;
 }
 
@@ -767,13 +1001,64 @@ static bool draw_convex(const Cmd& c, const float* pts) {
   const Rect b = isect(bounds(c.x - 1, c.y - 1, c.w + 2, c.h + 2, HUGE_R), clip);
   if (b.x0 >= b.x1 || b.y0 >= b.y1) return true;
   flush();
-  glUniform3fv(u_cv, 8, eq);
-  glUniform1f(u_cvn, (float)ne);
+  const Prog& cp = use_prog(key_of(CONVEX_M));
+  glUniform3fv(cp.u_cv, 8, eq);
+  glUniform1f(cp.u_cvn, (float)ne);
   Q q = {};
   q.x0 = (float)b.x0; q.y0 = (float)b.y0; q.x1 = (float)b.x1; q.y1 = (float)b.y1;
   q.mode = CONVEX_M; q.c1 = c.c1; q.alpha = c.alpha;
   quad(q);
   flush();
+  return true;
+}
+/** The same polygons as strips (RAMP, ZN-725), without the stencil and without a pass over the box: the polygon shrunk by half a pixel
+ *  covers its pixels whole (a fan), and a quad along each edge goes from there (1) to half a pixel outside (0), which is the same
+ *  0.5 + distance. Neighbouring quads share their corners on the bisector. False: a polygon too thin to shrink, a reflex or a very sharp
+ *  corner (over 150 degrees of turn): the stencil path. */
+static bool convex_strips(const Cmd& c, const float* pts) {
+  if (!convex_ok(c, pts)) return false;
+  if (!(c.w == c.w && c.h == c.h && c.x == c.x && c.y == c.y) || !c.alpha) return true;
+  const Rect b = isect(bounds(c.x - 1, c.y - 1, c.w + 2, c.h + 2, HUGE_R), clip);
+  if (b.x0 >= b.x1 || b.y0 >= b.y1) return true;
+  const uint32_t n = distinct(pts + 1, (uint32_t)pts[0], true);
+  const float* p = spts;
+  if (n < 3) return true;
+  double area = 0;
+  for (uint32_t i = 0; i < n; i++) { const uint32_t j = (i + 1) % n; area += (double)p[i * 2] * p[j * 2 + 1] - (double)p[j * 2] * p[i * 2 + 1]; }
+  if (!(area > 1e-6 || area < -1e-6)) return true;   // no inside: nothing to draw
+  const float s = area > 0 ? 1.f : -1.f;
+  float nrm[8][2], in[8][2], out[8][3];   // the edges' unit normals towards the inside; per point, the shrunk corner and the outer one with its t
+  for (uint32_t i = 0; i < n; i++) {
+    const uint32_t j = (i + 1) % n, k = (i + 2) % n;
+    const float ex = p[j * 2] - p[i * 2], ey = p[j * 2 + 1] - p[i * 2 + 1], fx = p[k * 2] - p[j * 2], fy = p[k * 2 + 1] - p[j * 2 + 1];
+    if ((ex * fy - ey * fx) * s < -1e-3f) return false;   // a reflex corner
+    const float l = __builtin_sqrtf(ex * ex + ey * ey);
+    nrm[i][0] = -s * ey / l; nrm[i][1] = s * ex / l;
+  }
+  for (uint32_t i = 0; i < n; i++) {
+    const float* a = nrm[(i + n - 1) % n]; const float* e = nrm[i];
+    const float den = 1 + a[0] * e[0] + a[1] * e[1];
+    if (den < 0.13f) return false;
+    float mx = (a[0] + e[0]) / den, my = (a[1] + e[1]) / den;
+    in[i][0] = p[i * 2] + 0.5f * mx; in[i][1] = p[i * 2 + 1] + 0.5f * my;
+    const float l = __builtin_sqrtf(mx * mx + my * my);
+    if (l > 2) { mx *= 2 / l; my *= 2 / l; }   // a sharp corner: its outer point stays within a pixel, where the coverage is not 0 yet
+    out[i][0] = p[i * 2] - 0.5f * mx; out[i][1] = p[i * 2 + 1] - 0.5f * my; out[i][2] = 0.5f + 0.5f * (mx * e[0] + my * e[1]);
+  }
+  for (uint32_t i = 0; i < n; i++) {   // shrinking must leave every edge its direction
+    const uint32_t j = (i + 1) % n;
+    if ((in[j][0] - in[i][0]) * (p[j * 2] - p[i * 2]) + (in[j][1] - in[i][1]) * (p[j * 2 + 1] - p[i * 2 + 1]) <= 0) return false;
+  }
+  for (uint32_t k = 1; k + 1 < n; k += 2) {   // the inside: two triangles of the fan a quad
+    const uint32_t k2 = k + 2 < n ? k + 2 : k + 1;
+    const float q[4][3] = {{in[0][0], in[0][1], 0}, {in[k][0], in[k][1], 0}, {in[k + 1][0], in[k + 1][1], 0}, {in[k2][0], in[k2][1], 0}};
+    ramp_quad(q, 1, c.c1, c.alpha);
+  }
+  for (uint32_t i = 0; i < n; i++) {
+    const uint32_t j = (i + 1) % n;
+    const float q[4][3] = {{in[i][0], in[i][1], 0}, {in[j][0], in[j][1], 0}, {out[j][0], out[j][1], out[j][2]}, {out[i][0], out[i][1], out[i][2]}};
+    ramp_quad(q, 1, c.c1, c.alpha);
+  }
   return true;
 }
 // A RECT with a paint record of more stops than the shader takes (grad 5) is drawn the same way: its box is the shape.
@@ -852,12 +1137,12 @@ static void draw_paint_rect(const Cmd& c, const float* g, const Rect& b) {
   if (!(g[7] >= 1)) return;
   if (g[7] > 8 && !xf_on) { draw_poly(c, g); return; }
   flush();
-  set_paint(g);
+  set_paint(g, FILL);
   Q q = box_q(c, b, FILL);
   q.grad = 5;
   quad(q);
   flush();
-  glUniform4f(u_g0, 0, 0, 0, 0);
+  end_paint();
 }
 
 // XFORM (ZN-263.01): the command in its own coordinates (raster.cpp draw_xform has the payload), drawn by the paths of the untransformed
@@ -951,7 +1236,7 @@ static void sflush() {
   }
   st.draws++; st.quads += (uint32_t)ns;
   ns = 0;
-  glUseProgram(prog);
+  cur_prog = nullptr;
 }
 static void solid(const Rect& b, uint32_t c) {
   if (instanced) {
@@ -1086,7 +1371,7 @@ static void run(const Frame& f, bool first) {
       case TEXT: draw_text(c, f.text + c.off); break;
       case IMAGE: draw_image(c); break;
       case LINE: case POLY: {
-        if (stencil_ok && draw_convex(c, f.pts + c.off)) break;
+        if (strips ? convex_strips(c, f.pts + c.off) : stencil_ok && draw_convex(c, f.pts + c.off)) break;
         if (!poly_add(c, f.pts + c.off)) { draw_poly(c, f.pts + c.off); break; }
         while (k + 1 < nw) {   // the next POLYs join the batch while their boxes stay apart from it
           const uint32_t e2 = walk_entry(k + 1, first), i2 = e2 & ~kCullOpaque;
@@ -1100,7 +1385,7 @@ static void run(const Frame& f, bool first) {
         poly_flush();
         break;
       }
-      case STROKE: draw_stroke(c, f.pts + c.off); break;
+      case STROKE: if (strips && c.alpha == 255) stroke_strips(c, f.pts + c.off); else draw_stroke(c, f.pts + c.off); break;
       case XFORM: draw_xform(c, f.pts + c.off, f.text, f.pts); break;
       case CLIP: {
         if (sp >= 16) break;
@@ -1197,10 +1482,7 @@ static void frame(const HalFrame* f, bool direct, Rect dmg) {
   if (stencil_ok) { glStencilMask(0xFF); glClearStencil(0); }
   glClear(GL_COLOR_BUFFER_BIT | (occl ? GL_DEPTH_BUFFER_BIT : 0) | (stencil_ok ? GL_STENCIL_BUFFER_BIT : 0));
   cur_z = 0;
-  glUseProgram(prog);
-  glUniform1f(u_flip, direct ? -1.f : 1.f);
-  glUniform2f(u_res, (float)W, (float)H);
-  glUniform1i(u_tex, 0);
+  pstamp++; cur_prog = nullptr;   // another user of the context may have bound its program since the last frame
   glActiveTexture(GL_TEXTURE0);
   cur_tex = white;
   glEnable(GL_BLEND);
@@ -1236,7 +1518,7 @@ static void frame(const HalFrame* f, bool direct, Rect dmg) {
     culled = false;
     if (i == 0 && occl) { glDisable(GL_DEPTH_TEST); occl = false; cur_z = 0; }   // the overlays (warnings, the profiler) go on top
   }
-  glDisableVertexAttribArray(a_box); glDisableVertexAttribArray(a_par); glDisableVertexAttribArray(a_c1); glDisableVertexAttribArray(a_c2); glDisableVertexAttribArray(a_z);
+  glDisableVertexAttribArray(A_BOX); glDisableVertexAttribArray(A_PAR); glDisableVertexAttribArray(A_C1); glDisableVertexAttribArray(A_C2); glDisableVertexAttribArray(A_Z);
   glDisable(GL_SCISSOR_TEST);
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
   gpu_end();
@@ -1250,6 +1532,7 @@ static void report() {
   fprintf(stderr, "display-gl renderer gl: %u frames replayed, %u idle (no damage), %.1f draw calls and %.0f quads per frame, %u glyphs in the atlas, %u LINE/POLY skipped; %.0f us of CPU per replayed frame to submit it, %.0f us of it culling %.0f hidden commands; per frame %.1f LINE/POLY tiles rasterized on the CPU, %.1f strokes tessellated; %.0f us of GPU per frame; %u compressed textures uploaded as blocks (%llu bytes), %u decoded\n",
           st.frames, st.idle, st.draws / n, st.quads / n, st.glyphs, unsupported, st.us / n, st.cull_us / n, (double)st.hidden / n, st.ptiles / n, zrt::raster::strokes_built / n, gpu_n ? gpu_us / gpu_n : 0.0,
           st.blocks, (unsigned long long)st.block_bytes, st.decoded);
+  fprintf(stderr, "display-gl renderer gl: %u command programs, %.0f ms to build them and the two of the occlusion and stencil passes; %.0f ms to upload the glyphs\n", st.progs, st.prog_us / 1e3, st.glyph_us / 1e3);
   fprintf(stderr, "display-gl renderer gl: the fringe quads of POLY cover %.0f pixels per frame in each of their passes (the surface has %d)\n", fringe_px / n, W * H);
 }
 }  // namespace glr

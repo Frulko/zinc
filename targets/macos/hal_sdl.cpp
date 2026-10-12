@@ -90,8 +90,9 @@ static GLuint zgl_program(const char* defines, const char* vs, const char* fs) {
     glAttachShader(p, sh);
     glDeleteShader(sh);
   }
-  glBindAttribLocation(p, 0, "a_pos");
-  glBindAttribLocation(p, 1, "a_uv");
+  // one vertex layout for every program: the replay draws a batch with several of them (gl_replay.cpp, A_BOX...)
+  static const char* const attrs[] = {"a_pos", "a_uv", "a_box", "a_par", "a_c1", "a_c2", "a_z"};
+  for (GLuint i = 0; i < 7; i++) glBindAttribLocation(p, i, attrs[i]);
   glLinkProgram(p);
   GLint ok = 0;
   glGetProgramiv(p, GL_LINK_STATUS, &ok);

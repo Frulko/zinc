@@ -60,8 +60,9 @@ extern "C" GLuint zgl_program(const char* defines, const char* vs, const char* f
     glAttachShader(p, s);
     glDeleteShader(s);
   }
-  glBindAttribLocation(p, 0, "a_pos");
-  glBindAttribLocation(p, 1, "a_uv");
+  // one vertex layout for every program: the replay draws a batch with several of them (gl_replay.cpp, A_BOX...)
+  static const char* const attrs[] = {"a_pos", "a_uv", "a_box", "a_par", "a_c1", "a_c2", "a_z"};
+  for (GLuint i = 0; i < 7; i++) glBindAttribLocation(p, i, attrs[i]);
   glLinkProgram(p);
   GLint ok = 0;
   glGetProgramiv(p, GL_LINK_STATUS, &ok);
@@ -162,13 +163,23 @@ static void gpu_time(bool tm) {
   (void)tm;
 #endif
 }
+// ZINC_GL_STATS: where the time of the first frame goes, the one a user waits for at start
+static void first_mark(const char* what) {
+  static double t0; static int n;
+  if (!cpu_stats || n > 3) return;
+  const double t = glr::now_us();
+  if (n++) fprintf(stderr, "display-gl first frame: %s %.0f ms\n", what, (t - t0) / 1e3);
+  t0 = t;
+}
 static void present(const HalFrame* f) {
   static const bool tm = getenv("ZINC_GL_TIME") != nullptr;
   double ta = tm ? glr::now_us() : 0, tb = ta;
 #ifdef __APPLE__
   if (tm) { if (!t_query) glGenQueries(1, &t_query); glBeginQuery(GL_TIME_ELAPSED, t_query); }
 #endif
+  first_mark("");
   if (!glr_state) choose_renderer(f);
+  first_mark("renderer setup");
   glBindTexture(GL_TEXTURE_2D, overlay);
   bool damaged = f->y1 > f->y0 && f->x1 > f->x0;
   bool direct = false;
@@ -188,6 +199,7 @@ static void present(const HalFrame* f) {
       glr::frame(f, false, tex_ok && damaged ? glr::Rect{f->x0, f->y0, f->x1, f->y1} : glr::Rect{0, 0, PW, PH});
       tex_ok = true;
     } else glr::idle();
+    first_mark("replay");
     if (tm) { glFinish(); tb = glr::now_us(); t_rep += tb - ta; }
   } else if (damaged) {
     double t0 = cpu_stats ? glr::now_us() : 0;
@@ -206,6 +218,7 @@ static void present(const HalFrame* f) {
     if (tm) { glFinish(); tc = glr::now_us(); t_pas += tc - tb; }
     gpu_time(tm);
     zgl_backend_swap();
+    first_mark("swap");
     if (tm) { t_swp += glr::now_us() - tc; t_n++; }
     return;
   }
@@ -234,6 +247,7 @@ static void present(const HalFrame* f) {
   if (tm) { glFinish(); tc = glr::now_us(); t_pas += tc - tb; }
   gpu_time(tm);
   zgl_backend_swap();
+  first_mark("swap");
   if (tm) { t_swp += glr::now_us() - tc; t_n++; }
 }
 

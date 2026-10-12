@@ -10,6 +10,9 @@ usage: tools/device <user@host> <command> [args]        (or ZINC_DEVICE=user@hos
   run <name> [VAR=v...]           stop the programs under ~/zn, start this one detached, print the head of its log (/tmp/zn-<name>.log)
   stop                            stop the programs under ~/zn
   shot <file.png>                 the framebuffer /dev/fb0 as a PNG (what an fbdev program shows; not a KMS/GL scan-out)
+  capture <name> <file.bmp> [--frames N] [VAR=v...]
+                                  frame N (default 60) of a display-gl program, read back from the GPU by the program itself (ZINC_SHOT),
+                                  at the fixed time step: the same frame at every run, to compare two builds or two renderers
   profile <name> [--frames N] [--offscreen] [--raw] [VAR=v...]
                                   N frames (default 260) with ZINC_PROFILE=1 and the display driver's statistics; the phase lines and the
                                   clock. --offscreen: an fbdev build draws into a file, the programs under ~/zn are paused meanwhile.
@@ -182,6 +185,19 @@ def cmd_shot(dev, args):
     raw = ssh(dev, "cat /dev/fb0", binary=True)
     open(args[0], "wb").write(png(w, h, bpp, raw))
     print("%s: %dx%d, %d bpp" % (args[0], w, h, bpp))
+
+
+def cmd_capture(dev, args):
+    args, env = split_env(args)
+    frames = opt(args, "--frames", "60")
+    if len(args) < 2:
+        die("capture: which program of ~/zn, and which file?")
+    name = shlex.quote(args[0])
+    env += ["ZINC_FRAMES=" + frames, "ZINC_SHOT=/tmp/zn-capture.bmp"]
+    ssh(dev, "for p in $(" + PIDS % "*" + "); do kill $p; done; sleep 1; rm -f /tmp/zn-capture.bmp; cd ~/zn/%s && env %s timeout 300 ./run.sh >/dev/null 2>&1 </dev/null; test -s /tmp/zn-capture.bmp"
+        % (name, " ".join(shlex.quote(v) for v in env)))
+    open(args[1], "wb").write(ssh(dev, "cat /tmp/zn-capture.bmp; rm -f /tmp/zn-capture.bmp", binary=True))
+    print("%s: frame %s of %s" % (args[1], frames, args[0]))
 
 
 def cmd_profile(dev, args):
