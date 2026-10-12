@@ -6,6 +6,8 @@
 #include <string>
 #include <vector>
 
+namespace zn::cli { struct DevRemote; }   // cli_core.h
+
 namespace zn::agent {
 
 /** `zinc agent [--port n] [--bind addr] [--name s] [--no-shell] [--no-mdns] [--allow-root]`, `zinc agent pair|clients|forget <client>`.
@@ -14,5 +16,9 @@ int serve(const std::vector<std::string>& args, const std::string& self, const s
 
 /** `zinc device list|pair|unpair` and `zinc device [<device>] info|shell|push|pull|install|deploy|run|stop|uninstall|apps|logs|forward|reverse`. */
 int device(const std::vector<std::string>& args, const std::string& self);
+
+/** `zinc dev --device <d>` (ZN-729.03, dev.cpp): takes the option out of `args` and opens a dev session with that device, as the hooks
+ *  zn::cli::dev runs the program through. `remote` stays empty without the option; false, with the reason said, when the device refuses. */
+bool devRemote(std::vector<std::string>& args, const std::string& self, const std::string& engine, zn::cli::DevRemote& remote);
 
 }  // namespace zn::agent

@@ -24,6 +24,7 @@ zinc device info                         # kind of machine, system, CPU, memory,
 zinc device shell                        # a terminal on the device; zinc device shell uname -a: one command, its exit status
 zinc device push build/ data             # a file or a tree to the device (paths from its home directory); pull the other way
 zinc device deploy                       # this project packed, installed, started there, its log followed (Ctrl-C leaves it running)
+zinc dev --device spark                  # the dev loop with the program there: a save restarts it, an asset is swapped in, an error is a red box
 zinc device run hero -f | stop hero | logs hero -f | apps | uninstall hero | install app.zapp
 zinc device forward 9229 9229            # a port of the device on this machine: chrome://inspect sees the app running there
 zinc device reverse 8080 3000            # a port of this machine on the device: an app there calls the server you develop here
@@ -81,6 +82,7 @@ interface, measured 2026-10-12 on the M1 Pro), so nothing is multiplexed.
 | `run` | `name`, `args`, `env` | the app starts in a session of its own, output appended to `logs/<name>.log`; it outlives the agent |
 | `stop`, `uninstall`, `apps` | `name` | SIGTERM to the app's process group, SIGKILL after 3 s |
 | `logs` | `name`, `follow` | `O` frames, `X` at the end; with `follow`, until the client leaves |
+| `dev` | `engine` | a dev session, until the client leaves: see "`zinc dev --device`" below |
 | `connect` | `port` | `I` / `O` / `C` relayed to 127.0.0.1:`port` of the device |
 | `listen` | `port` | the agent listens on 127.0.0.1:`port` of the device (0: any; the answer says which) and sends `{"accept": id}` for each connection it takes, until the client leaves |
 | `accepted` | `id` | `I` / `O` / `C` relayed to that connection: the workstation opens this session for each `accept` and connects it to its own port |
@@ -162,6 +164,47 @@ the one known to start. `update` leaves a running app alone (it keeps the files 
 `ZINC_UPDATE_URL`) verified with the keys the device trusts (`ZINC_UPDATE_PUBKEY`, `~/.zinc/update-keys`, the release key), a newer
 version downloaded into `~/.zinc/updates` and checked. Like `zinc update`, it stops there: putting the package in place and
 restarting the agent is still done by hand (or by the service, once the binary is replaced).
+
+## `zinc dev --device` (ZN-729.03)
+
+`zinc dev [dir] --device <name>` is the loop of `zinc dev` with the program on a paired device. The watching, the asset rebuild and the
+red box are those of `zinc dev` (`src/cli_core.cpp`), which runs the program through three hooks (`zn::cli::DevRemote`: start, assets,
+poll); `src/agent/dev.cpp` fills them with one session of the agent, and holds the agent's side of it (`opDev`). Test:
+`next/tests/t1/agent_dev.sh`.
+
+- **A save** packs the project on the workstation (`zinc pack`: the program compiled there, its baked resources, `zinc.json`, its assets
+  and packs, the native libraries of its plugins). The pack is the check: when it fails, what it printed is the diagnostics. The members
+  whose SHA-256 changed since the last start are sent, the others stay on the device; a save of one source file sends `program.zbc`.
+- **On the device** the members are files in `~/.zinc/agent/dev/<agent pid>-<n>/`, laid out as an unpacked `.zapp`, and the program is
+  `zinc run program.zbc` there. The version that runs is stopped before its files change (its packs are mapped). Its output comes back
+  as `O` frames and is printed by `zinc dev`; its exit status as an `X` frame.
+- **A compile error** packs a project of one file, the red box with the diagnostics (file names relative to the project), and starts it
+  over the project's files: it has the project's `zinc.json`, so its window is the program's, and the fix sends only what changed.
+- **A saved asset** of a project that packs its assets is rebuilt on the workstation and its entries are sent as `I` frames: the bytes
+  are the messages of ZN-450 (`src/host/assets_host.h`), which the agent writes to the program's dev socket (`ZINC_DEV_FD`, descriptor
+  3). The program swaps them in and keeps its state, as under `zinc dev` on one machine. When no program runs, the save restarts it.
+- **The end**: the program ends with the session (Ctrl-C on the workstation, a lost connection) and its directory is removed; an agent
+  that stops ends the programs of its dev sessions. `zinc device deploy` is what leaves a program on a device.
+
+Inside the session the client sends `{"start": true, "files": bool, "remove": [names], "args": [...]}`, followed when `files` is set
+by entries as for `push`; the agent answers `{"ok": true, "pid", "files", "bytes"}` or an error, and the session goes on either way.
+The request carries the workstation's engine version and the agent refuses another one than its own: the bytecode is compiled on the
+workstation.
+
+Measured on the loopback interface (2026-10-12, the M1 Pro, other trees building, load average 7 to 10, so an upper bound): the new
+version's first line is read back on the workstation 211 to 250 ms after the save of a source file (six runs of the test; the figure
+includes up to 40 ms before `zinc dev` sees the save, the 30 ms it lets a save settle, and the test's own polling). `zinc dev` itself reports the new version started
+77 to 85 ms after the save (17.8 kB sent), the red box 112 to 119 ms (525 kB: its baked font), an asset sent 35 ms after its save.
+
+Limits (each a `ponytail:` comment or a choice in the code):
+
+- The pack is made for the workstation: its asset packs are those of the workstation's target and the native libraries of its plugins are
+  built for the workstation's machine, as with `zinc device deploy`. A device of another kind runs programs without native plugins.
+- No inspector is added to a UI program (`zinc dev` on one machine imports `zinc:devtools`): import it and use `zinc device forward`.
+- A deployed app of the same project keeps running beside the dev session: `zinc device stop <app>` first on a device with one screen.
+- The first start sends every member; the device's directory does not outlive the session.
+- One thread of the agent relays both ways: megabytes of output while megabytes of assets arrive could stall a session.
+- A program whose child keeps its output open after it ended is not reported as ended until the child closes it.
 
 ## Files of the agent (`~/.zinc/agent`)
 

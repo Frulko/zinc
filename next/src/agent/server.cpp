@@ -263,6 +263,9 @@ std::string infoJson(const State& s) {
 
 // ---- processes ----
 
+}  // namespace
+
+// Shared with dev.cpp (wire.h).
 // This process's environment with `extra` replacing or adding variables, as the strings execve takes.
 std::vector<std::string> environment(const std::vector<std::pair<std::string, std::string>>& extra) {
   std::vector<std::string> env;
@@ -285,15 +288,17 @@ std::vector<char*> pointers(std::vector<std::string>& v) {
 }
 
 // In the child, between fork and exec: only calls that are safe there (other threads hold locks we will never see released).
-[[noreturn]] void execChild(const char* dir, char* const* argv, char* const* envp) {
+[[noreturn]] void execChild(const char* dir, char* const* argv, char* const* envp, int keep) {
   if (dir && ::chdir(dir) != 0) ::_exit(126);
   ::signal(SIGPIPE, SIG_DFL);                      // the agent ignores it, and an ignored signal stays ignored across exec: `yes | head` would complain
-  for (int fd = 3; fd < 4096; ++fd) ::close(fd);   // the sockets of the other sessions are not this program's
+  for (int fd = keep; fd < 4096; ++fd) ::close(fd);   // the sockets of the other sessions are not this program's
   ::execve(argv[0], argv, envp);
   ::_exit(127);
 }
 
 int exitCode(int status) { return WIFEXITED(status) ? WEXITSTATUS(status) : 128 + (WIFSIGNALED(status) ? WTERMSIG(status) : 0); }
+
+namespace {
 
 // Ends a process group: asked first, killed when it has not gone after `graceMs`.
 void endGroup(pid_t pid, int sig, int graceMs) {
@@ -623,6 +628,7 @@ void handleSession(State& s, int fd) {
   else if (op == "pull") opPull(c, req);
   else if (op == "install") opInstall(s, c, req);
   else if (op == "logs") opLogs(s, c, req);
+  else if (op == "dev") opDev(c, req, s.home, s.self, s.engine);
   else if (op == "connect") opConnect(c, req);
   else if (op == "listen") opListen(s, c, req);
   else if (op == "accepted") opAccepted(s, c, req);

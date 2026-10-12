@@ -570,4 +570,13 @@ int device(const std::vector<std::string>& argsIn, const std::string& self) {
   return simple(*d, op, args[0]);
 }
 
+std::unique_ptr<Chan> deviceSession(const std::string& device, const std::string& req, std::string& answer, std::string& name) {
+  std::vector<Device> paired = loadDevices();
+  Device* d = nullptr;
+  for (Device& o : paired) if (device.empty() ? paired.size() == 1 : o.name == device || (device.size() >= 4 && o.id.rfind(device, 0) == 0)) { d = &o; break; }
+  if (!d) { fail(device.empty() ? "name the device (zinc device list)" : "no paired device named " + device + " (zinc device list)"); return nullptr; }
+  name = d->name;
+  return request(*d, req, answer);
+}
+
 }  // namespace zn::agent

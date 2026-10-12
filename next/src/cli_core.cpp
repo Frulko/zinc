@@ -100,7 +100,7 @@ const Command kCommands[] = {
    "list: the agents of the network and the paired devices. pair: with the code the device shows. info [--json]: the kind of machine, system, CPU, memory, load, temperature, disk, engine, apps. shell [-t] [command]: a command with its exit status, or a terminal on the device. push <local> [remote], pull <remote> [local]: a file or a tree. deploy [dir] [--env K=V] [--no-logs] [-- args]: the project packed (zinc pack), installed, started and its log followed. install <app.zapp|export-dir> [--name n], run <app> [-f] [--env K=V] [-- args], stop, uninstall, apps, logs <app> [-f]. An app whose zinc.json has update.publicKey is replaced only by a .zapp signed with that key (zinc sign writes the .sig that install sends) and of a higher version; started and gone at once with an error, the update is rolled back to the version it replaced. update <app> [--url u]: the device fetches the app from its channel (what zinc publish wrote, as zinc update-app checks it); update alone: the engine, as zinc update. forward <local-port|0> <device-port>: a port of the device on this machine (the inspector of an app running there); reverse <device-port|0> <local-port>: a port of this machine on the device, on its own address (a server an app there calls). inspect <app> [--port n]: the app's inspector on a port of this machine, with the address for Chrome DevTools (Zinc Inspector lists the apps of paired devices by itself; a program has an inspector with import 'zinc:devtools'); shot <app> [file.png]: the frame it shows; monitor <app>: its zinc:telemetry lines as zinc monitor prints them; top [-n count] [--json]: the machine's load, memory and temperature and each app's CPU and memory, every second. <device> may be left out when one device is paired; the keys are in ~/.zinc/devices.json."},
   {"tsconfig", "zinc tsconfig [dir]", "editor configuration", "Writes tsconfig.json with the engine's lib so an editor understands zinc:* modules."},
   {"infer", "zinc infer <entry|dir>", "where gradual typing could not infer", "Lists the Z0109 sites (a parameter or variable whose type is unknown) with file and line."},
-  {"dev", "zinc dev [entry|dir] [--no-devtools] [-- args]", "run, watch, restart on save", "Runs the program and watches the project: on every save it type checks and restarts the program (~0.2 s). A compile error puts a red box with the diagnostics on the screen until the next good save. UI programs get the Chrome DevTools inspector (chrome://inspect, localhost:9229; another port: zinc.json plugins.devtools.port or ZINC_DEVTOOLS_PORT). The program restarts from its entry: state is not kept. A save under the assets directory of a project that packs them (zinc.json assets.rules or assets.groups) rebuilds those assets and swaps them into the running program instead (zinc:assets onReload): the program keeps its state."},
+  {"dev", "zinc dev [entry|dir] [--device name] [--no-devtools] [-- args]", "run, watch, restart on save", "Runs the program and watches the project: on every save it type checks and restarts the program (~0.2 s). A compile error puts a red box with the diagnostics on the screen until the next good save. UI programs get the Chrome DevTools inspector (chrome://inspect, localhost:9229; another port: zinc.json plugins.devtools.port or ZINC_DEVTOOLS_PORT). The program restarts from its entry: state is not kept. A save under the assets directory of a project that packs them (zinc.json assets.rules or assets.groups) rebuilds those assets and swaps them into the running program instead (zinc:assets onReload): the program keeps its state. --device <name> runs the program on a paired device instead (zinc device pair): each save sends it what changed and restarts it there, its output comes back here, a compile error is a red box on its screen and assets are swapped in the same way."},
   {"monitor", "zinc monitor [file | --port /dev/tty... [--baud n] | --udp port]", "read telemetry", "Prints zinc:telemetry JSON lines (hello, metric, event, state_snapshot) from stdin, a file, a serial port or UDP, one readable line each; other lines pass through."},
   {"lsp", "zinc lsp", "language server", "Speaks LSP over stdio for an editor: diagnostics (the Z codes of zinc check --json), hover with types, completion (members, names in scope, module specifiers), go to definition, document symbols."},
   {"help", "zinc help [command]", "this text", "zinc help lists the commands; zinc help <command> describes one."},
@@ -1868,7 +1868,7 @@ void eachEntry(const fs::path& dir, const std::function<void(const std::string& 
 // Asset hot reload (ZN-450): a save that changed files under the assets directory alone, in a project that packs them, builds the packs again
 // (the cache imports only what changed) and sends the entries whose bytes changed to the running version on its dev socket, which swaps them
 // in (src/host/assets_host.h): no restart, the program keeps its state. False when that does not apply or the program cannot take them.
-bool reloadAssets(const std::string& dir, const Stamps& was, const Stamps& is, int fd, Clock::time_point t0) {
+bool reloadAssets(const std::string& dir, const Stamps& was, const Stamps& is, int fd, const DevRemote* remote, Clock::time_point t0) {
   zn::frontend::Project proj;
   std::string err;
   if (!readProject(dir, proj, err) || !proj.assets.packed()) return false;
@@ -1893,7 +1893,8 @@ bool reloadAssets(const std::string& dir, const Stamps& was, const Stamps& is, i
   if (kept < were) return false;   // an entry is gone (a file removed): the program may name it, a restart says so
   if (msg.empty()) return true;
   msg += "end\n";
-  for (std::size_t at = 0; at < msg.size();) {
+  if (remote && !remote->assets(msg)) return false;   // on a device: the same messages through the agent's session (ZN-729.03)
+  for (std::size_t at = 0; !remote && at < msg.size();) {
     const ssize_t n = write(fd, msg.data() + at, msg.size() - at);
     if (n < 0 && errno != EINTR) return false;
     if (n > 0) at += static_cast<std::size_t>(n);
@@ -1912,7 +1913,7 @@ std::string redBoxSource(const std::vector<std::string>& lines) {
 
 }  // namespace
 
-int dev(const std::vector<std::string>& args) {
+int dev(const std::vector<std::string>& args, const DevRemote* remote) {
   setenv("ZINC_RUN", "interp", 1);   // the restarts interpret: a save restarts in 0.2 s, a compiled run would rebuild (ZN-398)
   std::vector<std::string> own, rest;
   bool noTools = false;
@@ -1921,14 +1922,14 @@ int dev(const std::vector<std::string>& args) {
     if (args[i] == "--no-devtools") noTools = true; else own.push_back(args[i]);
   }
   Opts o = parseOpts(own, {}, {});
-  if (o.bad) { std::fprintf(stderr, "zinc dev: unknown option %s\nusage: zinc dev [entry|dir] [--no-devtools] [-- args]\n", o.badArg.c_str()); return 2; }
+  if (o.bad) { std::fprintf(stderr, "zinc dev: unknown option %s\nusage: zinc dev [entry|dir] [--device name] [--no-devtools] [-- args]\n", o.badArg.c_str()); return 2; }
   ProjectInfo p; std::string err;
   if (!resolveProject(o.entry, p, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 2; }
   const fs::path devDir = fs::path(p.dir) / "build" / ".zinc-dev";
   std::error_code ec;
   fs::create_directories(devDir, ec);
   std::string runEntry = p.entry;
-  const bool tools = !noTools && projectUsesUi(p.dir);
+  const bool tools = !remote && !noTools && projectUsesUi(p.dir);   // on a device the inspector is reached through zinc device forward
   if (tools) {   // the inspector: the same program with `import 'zinc:devtools'` in front
     runEntry = (devDir / "main.ts").string();
     writeFile(runEntry, "import 'zinc:devtools';\nimport " + jsonString(fs::relative(p.entry, devDir, ec).string()) + ";\n");
@@ -1968,10 +1969,29 @@ int dev(const std::vector<std::string>& args) {
     }
     std::fflush(stderr);
   };
+  // On a device (ZN-729.03): the pack is the check (it compiles the program here, and what the device gets is always a packed project), so
+  // the red box is a project of one file packed the same way.
+  bool boxed = false;
+  auto startRemote = [&](Clock::time_point t0) {
+    std::string out;
+    boxed = false;
+    if (remote->start(p.dir, {rest.begin() + (rest.empty() ? 0 : 1), rest.end()}, false, out)) { std::fprintf(stderr, "zinc dev: v%d started on the device (%ld ms after the save)\n", ++version, msSince(t0)); return; }
+    if (!remote->poll()) return;   // the device is gone: the loop below says so
+    std::vector<std::string> lines;
+    std::istringstream is(out);
+    const std::string here = fs::absolute(p.dir, ec).lexically_normal().string() + "/";   // the pack names files in full: the box is 90 characters wide
+    for (std::string line; std::getline(is, line);) if (!line.empty()) lines.push_back(line.rfind(here, 0) == 0 ? line.substr(here.size()) : line);
+    std::fprintf(stderr, "zinc dev: compile error: %s\n", lines.empty() ? "the build failed" : lines[0].c_str());
+    writeFile(devDir / "redbox" / "src" / "main.ts", redBoxSource(lines));
+    boxed = remote->start((devDir / "redbox").string(), {}, true, out);
+    if (boxed) std::fprintf(stderr, "zinc dev: red box on the device (%ld ms after the save)\n", msSince(t0));
+    else std::fprintf(stderr, "zinc dev: %s\n", out.c_str());
+  };
   Stamps seen = snapshot(p.dir);
-  startProgram(0, false, {});
+  if (remote) startRemote(Clock::now()); else startProgram(0, false, {});
   while (!gStop) {
     usleep(40000);
+    if (remote && !remote->poll()) { std::fprintf(stderr, "zinc dev: the session with the device ended\n"); return 1; }
     int st;
     if (child > 0 && waitpid(child, &st, WNOHANG) == child) { std::fprintf(stderr, "zinc dev: program exited (%d), waiting for changes...\n", WIFEXITED(st) ? WEXITSTATUS(st) : -1); child = 0; }
     Stamps now = snapshot(p.dir);
@@ -1981,7 +2001,8 @@ int dev(const std::vector<std::string>& args) {
     now = snapshot(p.dir);
     const Stamps was = seen;
     seen = now;
-    if (child > 0 && devFd >= 0 && reloadAssets(p.dir, was, now, devFd, t0)) continue;
+    if ((remote ? !boxed : child > 0 && devFd >= 0) && reloadAssets(p.dir, was, now, devFd, remote, t0)) continue;
+    if (remote) { startRemote(t0); continue; }
     const fs::path out = devDir / "check.txt";
     const std::string cmd = q(exe) + " check --check " + q(p.entry) + " > " + q(out.string()) + " 2>&1";
     const int rc = status(std::system(cmd.c_str()));

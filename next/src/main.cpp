@@ -1330,7 +1330,13 @@ int main(int argc, char** argv) {
     if (argc >= 2 && (!std::strcmp(argv[1], "init") || !std::strcmp(argv[1], "new"))) return zn::cli::init(cl, gRoot);
     if (argc >= 2 && !std::strcmp(argv[1], "capture") && !(argc >= 3 && (!std::strcmp(argv[2], "--scene") || !std::strcmp(argv[2], "--stroke-check")))) return zn::cli::capture(cl);
     if (argc >= 2 && !std::strcmp(argv[1], "bench")) return zn::cli::bench(cl);
-    if (argc >= 2 && !std::strcmp(argv[1], "dev")) return zn::cli::dev(cl);
+    if (argc >= 2 && !std::strcmp(argv[1], "dev")) {
+      zn::cli::DevRemote remote;   // filled by zinc dev --device <d> (ZN-729.03): the program runs on a paired device
+#ifdef ZN_AGENT
+      if (!zn::agent::devRemote(cl, zn::tc::executablePath(), kVersionText, remote)) return 1;
+#endif
+      return zn::cli::dev(cl, remote.start ? &remote : nullptr);
+    }
     if (argc >= 2 && !std::strcmp(argv[1], "lsp")) return zn::lsp::serve(gRoot + "/../lib/std");
     if (argc >= 2 && !std::strcmp(argv[1], "monitor")) return zn::cli::monitor(cl);
     if (argc >= 2 && !std::strcmp(argv[1], "assets")) return zn::cli::assets(cl, gRoot);

@@ -291,6 +291,11 @@ For `--target rpi1` (or `linux`): the docker cross build, then `rsync` of the bi
 (the program gets SIGHUP) and starts again. Requires ssh keys (or a password prompt per save) and rsync on the device.
 Not hot reload: the dev library is not used on devices yet.
 
+Zinc Next takes a paired device instead (`zinc device pair`, no ssh): `zinc dev --device <name>` packs the project on this
+machine at each save, sends the device's agent what changed and restarts the program there; its output comes back to this
+terminal, a compile error is the red box on the device's screen, and a saved asset of a project that packs its assets is
+swapped into the running program. Details and limits: `docs/reports/zinc-next-agent.md`.
+
 ## Debugger (`zinc debug`)
 
 `zinc debug app.ts` (or a project directory) compiles a debug build and runs it in the interpreter under the debugger, paused at the first

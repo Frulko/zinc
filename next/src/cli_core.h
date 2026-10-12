@@ -1,6 +1,7 @@
 #pragma once
 // The command line beyond the compiler (ZN-138, audit 01 table D): bare `zinc run|build|check` in a project, `zinc help [command]`, `zinc init <dir> [--template t]`, `zinc doctor`.
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -58,10 +59,22 @@ int tsconfig(const std::vector<std::string>& args, const std::string& engineRoot
 /** `zinc infer <entry|dir>`: the places where gradual typing could not infer a type (Z0109), by file and line. */
 int infer(const std::vector<std::string>& args);
 
+/** Where `zinc dev --device <d>` runs the program instead of this machine (ZN-729.03; src/agent/dev.cpp fills it, main hands it over). */
+struct DevRemote {
+  /** Packs the project of `dir`, sends the device what changed since the last start and starts it there with `args`. `over`: the files
+   *  the device holds stay beside it (the red box over the project: its window, and nothing to send again at the fix). False with the
+   *  compiler's diagnostics, or the reason, in `out`. */
+  std::function<bool(const std::string& dir, const std::vector<std::string>& args, bool over, std::string& out)> start;
+  /** The messages of an asset reload (src/host/assets_host.h) for the version that runs there; false when none runs. */
+  std::function<bool(const std::string& messages)> assets;
+  /** Prints what the program wrote since the last call; false once the device is gone. */
+  std::function<bool()> poll;
+};
 /** `zinc dev [entry|dir] [--no-devtools] [-- args]`: runs the program, watches the project, and on every save checks it and restarts it (the new version on screen in ~0.2 s with the interpreter).
  *  A compile error stops the program and puts a red-box program on the screen with the diagnostics; the next good save replaces it. UI programs get the Chrome DevTools inspector (port 9229).
- *  A save under the assets directory of a project that packs them swaps the rebuilt entries into the running version over its dev socket instead (ZN-450). */
-int dev(const std::vector<std::string>& args);
+ *  A save under the assets directory of a project that packs them swaps the rebuilt entries into the running version over its dev socket instead (ZN-450).
+ *  With `remote` the program runs on a paired device: each save packs it, and the pack's diagnostics are the check. */
+int dev(const std::vector<std::string>& args, const DevRemote* remote = nullptr);
 /** `zinc monitor [file | --port /dev/tty... [--baud n] | --udp port]`: telemetry JSON lines (zinc:telemetry) from stdin, a file, a serial port or UDP, one readable line each; other lines pass through. */
 int monitor(const std::vector<std::string>& args);
 

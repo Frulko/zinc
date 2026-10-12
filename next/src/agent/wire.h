@@ -152,6 +152,24 @@ void announce(const std::string& name, int port, const std::string& bind, const 
 // ---- the devices this workstation is paired with (client.cpp) ----
 
 struct Device { std::string id, name, client, key, host; int port = kPort; };
+/** A session with the paired device `device` (its name or the start of its id; empty: the only one), `req` sent and its answer read into
+ *  `answer`; `name` gets the device's name. Null, with the reason said on stderr, when there is no such device or it refuses. */
+std::unique_ptr<Chan> deviceSession(const std::string& device, const std::string& req, std::string& answer, std::string& name);
+
+// ---- processes the agent starts (server.cpp) ----
+
+/** This process's environment with `extra` replacing or adding variables, as the strings execve takes. */
+std::vector<std::string> environment(const std::vector<std::pair<std::string, std::string>>& extra);
+std::vector<char*> pointers(std::vector<std::string>& v);
+/** In the child, between fork and exec: the directory, then every descriptor from `keep` on closed, then the program. */
+[[noreturn]] void execChild(const char* dir, char* const* argv, char* const* envp, int keep = 3);
+int exitCode(int status);
+
+// ---- zinc dev --device (dev.cpp) ----
+
+/** The agent's side of a dev session: the files the workstation sends, the program restarted at each `start`, its output sent back, the
+ *  bytes of `I` frames written to its dev socket (asset reload, src/host/assets_host.h), until the workstation leaves. */
+void opDev(Chan& c, const Val& req, const std::string& home, const std::string& self, const std::string& engine);
 
 // ---- the inspector, the frame, the telemetry and the load of an app (inspect.cpp, ZN-729.05) ----
 
