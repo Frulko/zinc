@@ -832,7 +832,11 @@ export function lineWidth(n: i32, i: i32): number { return __host_layoutLineWidt
 /** 0: leaves measured so far, 1: calculate calls (tests of the dirty flags) */
 export function counter(which: i32): number { return __host_layoutCounter(which); }
 )ZN";
-// zinc:__netlog (ZN-370): the host's network log (src/host/netlog.h) for plugins/devtools/native/cdp.next.ts.
+// Read-only host diagnostics; providers register where their resources are owned.
+const char* kHostDiagnosticsModule = R"ZN(
+export function resourceStats(): string { return __host_resourceStats(); }
+)ZN";
+// zinc:__netlog (ZN-370): the host's network log for plugins/devtools/native/cdp.next.ts.
 const char* kHostNetLogModule = R"ZN(
 /** op 0: start recording (arg = the inspector's port), 1: the queued Network events (one JSON object per line), 2: a response body, 3: a request body (arg = the request id);
  *  the console: 4 start, 5 the new lines, 6 the last 32; Tracing: 7 start, 8 end (the frame spans as trace events). */
@@ -1145,6 +1149,7 @@ const char* hostModuleSource(std::string_view spec) {
   if (spec == "zinc:gpio") return kGpioModule;
   if (spec == "zinc:osc") return kOscModule;
   if (spec == "zinc:__sock") return kHostSockModule;
+  if (spec == "zinc:__diagnostics") return kHostDiagnosticsModule;
   if (spec == "zinc:__netlog") return kHostNetLogModule;
   if (spec == "zinc:__layout") return kHostLayoutModule;
   if (spec == "zinc:__crypto") return kHostCryptoModule;

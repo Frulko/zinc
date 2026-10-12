@@ -13,6 +13,9 @@
 #endif
 #endif
 #include "zrt_raster.h"
+#if __has_include("zn/resource_stats.h")
+#include "zn/resource_stats.h"
+#endif
 #include <string.h>
 #include <thread>
 #include <time.h>
@@ -28,7 +31,7 @@ static const int MAXQ = 8192, ATLAS = 1024, CORNER = 32, LEVELS = 16;
 #include "gl_replay_shaders.h"   // VS, FS (the commands), SVS, SFS (the occlusion pass), FVS, FFS (the stencil pass)
 struct SV { float x0, y0, x1, y1; uint8_t c[4]; float z; };   // a rectangle (instanced) or, on GLES 2, x, y, c, z of one corner in its first 16 bytes
 
-struct Tex2 { GLuint id; int32_t key; uint32_t ver; int32_t w, h; const void* px; int nearest, cmp; };   // cmp: level 0 is GPU blocks (1), premultiplied ones (2)
+struct Tex2 { GLuint id; int32_t key; uint32_t ver; int32_t w, h; const void* px; int nearest, cmp; uint64_t bytes; };   // cmp: level 0 is GPU blocks (1), premultiplied ones (2)
 static Tex2* texs;                  // by runtime image index (id - DYN_BASE), grown on demand (ZN-670: thousands of runtime images)
 static int32_t ntexs = 0;
 static Tex2* baked;                 // by baked image index
@@ -36,6 +39,15 @@ struct GSlot { uint64_t key; int16_t ax, ay; };
 static GSlot gtab[8192];
 static int gcount, gx, gy, growh;
 
+#if __has_include("zn/resource_stats.h")
+static ZnResourceStats replay_texture_stats(void*) {
+  ZnResourceStats s{};
+  for (int32_t i = 0; i < ntexs; ++i) if (texs[i].id) { ++s.objects; s.gpuBytes += texs[i].bytes; }
+  if (baked) for (int32_t i = 0; i < image_count; ++i) if (baked[i].id) { ++s.objects; s.gpuBytes += baked[i].bytes; }
+  return s;
+}
+static ZnResourceStatsRegistration replay_stats_registration("renderer.textures", replay_texture_stats);
+#endif
 static int32_t W, H;
 static GLuint prog, vbo, ibo, fbo, fbo_tex, fbo_depth, white, atlas, corner_tex, cur_tex;
 static GLint u_res, u_tex, u_flip, u_edge, u_g0, u_g1, u_gc, u_go, u_cv, u_cvn, a_box, a_par, a_c1, a_c2, a_z;
@@ -386,6 +398,7 @@ static Tex2* dyn_tex(int32_t id) {
   if (!t->id || t->w != w || t->h != h) {
     if (t->id) glDeleteTextures(1, &t->id);
     t->id = make_tex(w, h, GL_RGBA, GL_RGBA, nullptr, true);
+    t->bytes = (uint64_t)w * h * 4;
     t->w = w; t->h = h; t->nearest = 1; t->ver = ver - 1;
   }
   if (t->ver != ver || t->px != px) {
@@ -397,9 +410,10 @@ static Tex2* dyn_tex(int32_t id) {
     if (cf) {
       while (glGetError() != GL_NO_ERROR) {}
       glCompressedTexImage2D(GL_TEXTURE_2D, 0, cf, w, h, 0, (GLsizei)bn, bd);
-      if (glGetError() == GL_NO_ERROR) { t->cmp = pre ? 2 : 1; st.blocks++; st.block_bytes += bn; }
+      if (glGetError() == GL_NO_ERROR) { t->cmp = pre ? 2 : 1; st.blocks++; st.block_bytes += bn; t->bytes = bn; }
       else cf = 0;
     }
+    if (!cf) t->bytes = (uint64_t)w * h * 4;
     if (!cf && blocks) st.decoded++;
     if (!cf && t->cmp) { glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr); t->cmp = 0; }   // texels again
     glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
@@ -440,7 +454,7 @@ static void draw_image(const Cmd& c) {
     const Image& im = images[c.res];
     if (!((float)im.w / mw < 1e6f && (float)im.h / mh < 1e6f)) return;
     t = &baked[c.res];
-    if (!t->id) { t->id = make_tex(im.w, im.h, GL_RGBA, GL_RGBA, im.rgba, false); t->nearest = 0; t->w = im.w; t->h = im.h; }
+    if (!t->id) { t->id = make_tex(im.w, im.h, GL_RGBA, GL_RGBA, im.rgba, false); t->bytes = (uint64_t)im.w * im.h * 4; t->nearest = 0; t->w = im.w; t->h = im.h; }
     nearest = false; mode = IMAGE_RGBA;
   }
   if (!t || !t->id) return;

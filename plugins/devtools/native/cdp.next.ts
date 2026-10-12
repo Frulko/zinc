@@ -7,6 +7,7 @@ import { utf8Encode, utf8Decode, env } from 'zinc:sys';
 import { capture } from 'zinc:gfx';
 import { readBytes, remove, tmpdir } from 'zinc:fs';
 import { call as netLog } from 'zinc:__netlog';
+import { resourceStats } from 'zinc:__diagnostics';
 
 const GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
 const clients: (WebSocket | null)[] = [];
@@ -122,6 +123,7 @@ export default {
   num(msg: string, key: string): f64 { return numField(msg, key); },
   str(msg: string, key: string): string { return strField(msg, key); },
   clients(): i32 { let n: i32 = 0; for (const c of clients) if (c !== null) n++; return n; },
+  resourceStats(): string { return resourceStats(); },
   screenshot(maxW: i32, maxH: i32): string {   // ponytail: through a file and not shrunk to maxW x maxH (the screencast gets the frame whole)
     const f = `${tmpdir()}/zinc-devtools-${port}.png`;
     if (!capture(f)) return '';

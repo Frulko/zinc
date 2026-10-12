@@ -13,6 +13,8 @@ export interface Spec extends NativeModule {
   str(msg: string, key: string): string;
   /** Connected WebSocket clients. */
   clients(): i32;
+  /** Read-only live resource counters (Zinc Next); {} on hosts without instrumentation. */
+  resourceStats(): string;
   /** The frame on screen as a base64 PNG, shrunk to fit maxW x maxH (0: full size); '' when there is none. */
   screenshot(maxW: i32, maxH: i32): string;
   /** Profiler spans (runtime/gfx.cpp): true starts collecting (returns ''), false returns them as a JSON array of

@@ -340,7 +340,9 @@
   /* zinc:gfx gradientPaint (ZN-261): a rounded box filled with a gradient paint record (linear, radial, conic, repeating, N stops); graphics row, appended */ \
   X(HostGfxGradientPaint, "host.gfxGradientPaint", "dddddDi>n", 2) \
   /* zinc:assets writePack (ZN-649.06): an entry (name, bytes) added to the pack being made, then the ZPK pack written to a path; system rows, appended */ \
-  X(HostAssetsPackAdd, "host.assetsPackAdd", "sB>n", 2) X(HostAssetsPackWrite, "host.assetsPackWrite", "s>n", 2)
+  X(HostAssetsPackAdd, "host.assetsPackAdd", "sB>n", 2) X(HostAssetsPackWrite, "host.assetsPackWrite", "s>n", 2) \
+  /* read-only resource diagnostics, appended to preserve bytecode row ids */ \
+  X(HostResourceStats, "host.resourceStats", ">s", 2)
 
 namespace zn {
 

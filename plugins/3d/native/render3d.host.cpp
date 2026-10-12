@@ -5,6 +5,9 @@
 #include "zinc_native_render3d.h"
 #include "zrt_raster.h"
 #include "zn/zmesh.h"
+#if __has_include("zn/resource_stats.h")
+#include "zn/resource_stats.h"
+#endif
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -306,6 +309,25 @@ struct Engine : NativeRender3D {
   int32_t tris = 0;
   V* vs = nullptr; uint8_t* oc = nullptr; int32_t cap = 0;
 
+#if __has_include("zn/resource_stats.h")
+  static ZnResourceStats meshStats(void* owner) {
+    auto& e = *(Engine*)owner; ZnResourceStats s{};
+    s.cpuBytes = (uint64_t)e.cap * (sizeof(V) + 1);
+    for (int i = 0; i < e.meshes.n; ++i) if (const Mesh* m = e.meshes.p[i]) {
+      ++s.objects;
+      s.cpuBytes += (uint64_t)m->nv * (24 + (m->uv ? 8 : 0) + (m->col ? 4 : 0)) + (uint64_t)m->ni * 2;
+    }
+    return s;
+  }
+  static ZnResourceStats targetStats(void* owner) {
+    auto& e = *(Engine*)owner; ZnResourceStats s{};
+    for (int i = 0; i < e.targets.n; ++i) if (const Target* t = e.targets.p[i]) {
+      ++s.objects; s.cpuBytes += (uint64_t)t->w * t->h * (4 + sizeof(ZT));
+    }
+    return s;
+  }
+#endif
+
   int32_t meshCreate(Array<N> pos, Array<N> nrm, Array<N> uv, Array<uint32_t> col, Array<int32_t> idx) override {
     int32_t nv = pos.length() / 3, ni = idx.length() / 3 * 3;
     if (nv <= 0 || nv > 65535) return -1;
@@ -564,6 +586,9 @@ NativeRender3D* zinc_create_Render3D() {
   if (NativeRender3D* g = gpuRenderer()) return g;
 #endif
   static Engine e;
+#if __has_include("zn/resource_stats.h")
+  static ZnResourceStatsRegistration meshes("3d.meshes", Engine::meshStats, &e), targets("3d.targets", Engine::targetStats, &e);
+#endif
   e.rc = zrt::IMMORTAL;
   return &e;
 }

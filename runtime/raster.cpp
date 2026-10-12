@@ -2,6 +2,9 @@
 // ponytail: float math per pixel near edges; a fixed-point path would help FPU-less targets (ps1).
 #include "zrt.h"
 #include "zrt_raster.h"
+#if __has_include("zn/resource_stats.h")
+#include "zn/resource_stats.h"
+#endif
 #ifdef ZRT_RASTER_PROFILE
 // -DZRT_RASTER_PROFILE: microseconds per command kind (CLEAR RECT BORDER SHADOW LINE TEXT IMAGE POLY CLIP UNCLIP), then
 // 10: polygon edge setup (n = edges), 11: polygon row sweep (n = painted pixels), 12: polygon calls; read and cleared by
@@ -581,6 +584,24 @@ static Dyn* dyn_chunks[(ZRT_DYN_IMAGES + DYN_CHUNK - 1) / DYN_CHUNK];
 // A version is never given twice, not even to another image that takes a freed slot: whatever keeps an image by (id, version) (the GPU
 // textures of zinc:3d and of the GL replay, the damage test of IMAGE commands) would otherwise go on showing the destroyed image.
 static uint32_t dyn_versions;
+#if __has_include("zn/resource_stats.h")
+static ZnResourceStats dyn_stats(void*) {
+  ZnResourceStats s{};
+  for (int32_t i = 0; i < ZRT_DYN_IMAGES; ++i) {
+    const Dyn* c = dyn_chunks[i / DYN_CHUNK];
+    if (!c) { i += DYN_CHUNK - 1; continue; }
+    const Dyn& d = c[i % DYN_CHUNK];
+    if (!d.used) continue;
+    ++s.objects;
+    const uint64_t bytes = (uint64_t)d.w * d.h * 4;
+    if (d.owned) s.cpuBytes += bytes; else s.borrowedBytes += bytes;
+    s.cpuBytes += d.nblocks;
+  }
+  return s;
+}
+static ZnResourceStatsRegistration dyn_stats_registration("images", dyn_stats);
+#endif
+
 static Dyn* dyn_slot(int32_t i) {   // entry i, null when its chunk was never allocated
   Dyn* c = __atomic_load_n(&dyn_chunks[i / DYN_CHUNK], __ATOMIC_ACQUIRE);
   return c ? &c[i % DYN_CHUNK] : nullptr;

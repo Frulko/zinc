@@ -126,10 +126,10 @@ void main() {
 enum { P_LIT = 1, P_FLAT = 2, P_TEX = 4, P_VCOL = 8, P_SPEC = 16, P_EMIT = 32, P_BLEND = 64 };   // EMIT, BLEND: ZN-696; an opaque draw without them keeps the programs it had
 struct Prog { GLuint id = 0; GLint mvp = -1, model = -1, color = -1, amb = -1, ld = -1, lc = -1, eye = -1, spec = -1, shin = -1, emit = -1, alpha = -1; uint32_t frame = 0; bool failed = false;
   float emitSet[3] = {0, 0, 0}, alphaSet = 0; };   // the values its uniforms hold (a program keeps them): sent again only when they change
-struct GMesh { GLuint vao, vbo, ibo; int32_t ni; bool uv, col; };
+struct GMesh { GLuint vao, vbo, ibo; int32_t ni; bool uv, col; uint64_t bytes; };
 // msfbo (ZN-657): the multisampled framebuffer the frame is drawn into, resolved into fbo (whose colour texture is read back) at end()
 struct GTarget { int32_t img, w, h; uint32_t* px; GLuint fbo, color, depth, pbo[2], msfbo, mscolor, msdepth; int k, samples; bool pending[2]; };
-struct GTex { GLuint id = 0; uint32_t version = 0; int filter = 0; bool mips = false; };   // filter: the one set on the texture (1 nearest, 2 linear, 3 mipmaps)
+struct GTex { GLuint id = 0; uint32_t version = 0; int filter = 0; bool mips = false; uint64_t bytes = 0; };   // filter: the one set on the texture (1 nearest, 2 linear, 3 mipmaps)
 
 GLuint shader(GLenum kind, const char* pre, const char* defs, const char* body) {
   GLuint s = glCreateShader(kind);
@@ -159,6 +159,28 @@ struct Gpu : Engine {
   int samples = 0;       // multisampling of the targets (the `msaa` option or ZINC_3D_MSAA, at most GL_MAX_SAMPLES; 0 or 1 off)
   int filter = 3;        // the texture filter of a material that asks for none (the `filter` option or ZINC_3D_FILTER)
 
+#if __has_include("zn/resource_stats.h")
+  static ZnResourceStats meshStats(void* owner) {
+    auto& g = *(Gpu*)owner; ZnResourceStats s{};
+    for (int i = 0; i < g.gmeshes.n; ++i) if (const GMesh* m = g.gmeshes.p[i]) { ++s.objects; s.gpuBytes += m->bytes; }
+    return s;
+  }
+  static ZnResourceStats targetStats(void* owner) {
+    auto& g = *(Gpu*)owner; ZnResourceStats s{};
+    for (int i = 0; i < g.gtargets.n; ++i) if (const GTarget* t = g.gtargets.p[i]) {
+      ++s.objects; const uint64_t pixels = (uint64_t)t->w * t->h;
+      s.cpuBytes += pixels * 4;
+      // RGBA8 + depth24 (assumed padded to 32 bits), two readback PBOs, and the optional multisampled pair.
+      s.gpuBytes += pixels * (16 + 8 * (uint64_t)t->samples);
+    }
+    return s;
+  }
+  static ZnResourceStats textureStats(void* owner) {
+    auto& g = *(Gpu*)owner; ZnResourceStats s{};
+    for (int i = 0; i < g.ntex; ++i) if (g.texs[i].id) { ++s.objects; s.gpuBytes += g.texs[i].bytes * (g.texs[i].mips ? 4 : 3) / 3; }
+    return s;
+  }
+#endif
   bool open() {
     if (!SDL_WasInit(SDL_INIT_VIDEO) && !SDL_InitSubSystem(SDL_INIT_VIDEO)) return false;
     SDL_GL_ResetAttributes();
@@ -233,7 +255,7 @@ struct Gpu : Engine {
       v[i].c = m->col ? m->col[i] : 0;
     }
     GMesh* g = (GMesh*)mem(sizeof(GMesh));
-    *g = GMesh{0, 0, 0, m->ni, m->uv != nullptr, m->col != nullptr};
+    *g = GMesh{0, 0, 0, m->ni, m->uv != nullptr, m->col != nullptr, sizeof(Vtx) * (uint64_t)m->nv + sizeof(uint16_t) * (uint64_t)m->ni};
     glGenVertexArrays(1, &g->vao); glBindVertexArray(g->vao);
     glGenBuffers(1, &g->vbo); glBindBuffer(GL_ARRAY_BUFFER, g->vbo);
     glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)(sizeof(Vtx) * (size_t)m->nv), v, GL_STATIC_DRAW);
@@ -257,7 +279,7 @@ struct Gpu : Engine {
     const bool uv = flags & zn::zmesh::Uvs, col = flags & zn::zmesh::Colors;
     const size_t vb = zn::zmesh::vertexBytes(nv, flags);
     GMesh* g = (GMesh*)mem(sizeof(GMesh));
-    *g = GMesh{0, 0, 0, (int32_t)ni, uv, col};
+    *g = GMesh{0, 0, 0, (int32_t)ni, uv, col, vb + 2 * (uint64_t)ni};
     glGenVertexArrays(1, &g->vao); glBindVertexArray(g->vao);
     glGenBuffers(1, &g->vbo); glBindBuffer(GL_ARRAY_BUFFER, g->vbo);
     glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)vb, p, GL_STATIC_DRAW);
@@ -395,6 +417,7 @@ struct Gpu : Engine {
       mfree(rgba);
 #endif
     }
+    t.bytes = baked ? (uint64_t)raster::images[id].w * raster::images[id].h * 4 : (uint64_t)w * h * 4;
     t.version = version;
     t.mips = false;
     t.filter = 0;
@@ -507,6 +530,9 @@ NativeRender3D* gpuRenderer() {
     if (!ok) fprintf(stderr, "zinc:3d: no GPU context (%s); drawing with the software renderer\n", SDL_GetError());
   }
   if (!ok) return nullptr;
+#if __has_include("zn/resource_stats.h")
+  static ZnResourceStatsRegistration meshes("3d.meshes", Gpu::meshStats, &g), targets("3d.targets", Gpu::targetStats, &g), textures("3d.textures", Gpu::textureStats, &g);
+#endif
   g.rc = zrt::IMMORTAL;
   return &g;
 }

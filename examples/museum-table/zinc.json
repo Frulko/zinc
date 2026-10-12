@@ -3,7 +3,7 @@
   "entry": "src/main.ts",
   "app": { "id": "dev.zinc.museumtable", "name": "Museum Table" },
   "assets": "assets",
-  "permissions": ["fs", "update", "process"],
+  "permissions": ["fs", "update", "process", "net"],
   "targets": {
     "macos": { "width": 1920, "height": 1080 }
   }

@@ -9,6 +9,7 @@
 #include <cstddef>
 
 #include "zn/host.h"
+#include "zn/resource_stats.h"
 
 namespace zrt { namespace raster {
 struct Glyph { uint32_t cp; int16_t x0, y0; uint16_t w, h; int32_t adv; uint32_t off; };
@@ -28,6 +29,11 @@ int ttf_count = 0;
 namespace zn::host {
 namespace {
 
+ZnResourceStats bakedImages{}, bakedFonts{}, bakedBlob{};
+ZnResourceStats imageStats(void*) { return bakedImages; }
+ZnResourceStats fontStats(void*) { return bakedFonts; }
+ZnResourceStats blobStats(void*) { return bakedBlob; }
+
 struct Reader {
   const uint8_t* p;
   const uint8_t* end;
@@ -41,6 +47,8 @@ struct Reader {
 
 bool installResources(const uint8_t* blob, size_t size) {
   using namespace zrt::raster;
+  bakedImages = {}; bakedFonts = {}; bakedBlob = {1, 0, 0, size, 0};
+  static ZnResourceStatsRegistration imagesStats("baked.images", imageStats), fontsStats("baked.fonts", fontStats), blobStatsRegistration("baked.blob", blobStats);
   Reader r{blob, blob + size};
   const uint8_t* magic = r.take(4);
   if (!magic || memcmp(magic, "ZRS1", 4) != 0) return false;
@@ -61,6 +69,7 @@ bool installResources(const uint8_t* blob, size_t size) {
     const uint8_t* bm = r.take(nb);
     uint8_t* bitmap = static_cast<uint8_t*>(malloc(nb ? nb : 1));
     if (bm) memcpy(bitmap, bm, nb);
+    ++bakedFonts.objects; bakedFonts.cpuBytes += (uint64_t)ng * sizeof(Glyph) + nb;
     f.count = static_cast<int32_t>(ng); f.glyphs = gl; f.bitmap = bitmap;
   }
   uint32_t ni = r.u32();
@@ -73,7 +82,7 @@ bool installResources(const uint8_t* blob, size_t size) {
     const uint8_t* px = r.take(n);
     uint8_t* copy = static_cast<uint8_t*>(malloc(n ? n : 1));
     if (px) memcpy(copy, px, n);
-    im.rgba = copy;
+    im.rgba = copy; ++bakedImages.objects; bakedImages.cpuBytes += n;
   }
   uint32_t nt = r.u32();
   if (nt > 16) return false;
@@ -84,7 +93,7 @@ bool installResources(const uint8_t* blob, size_t size) {
     const uint8_t* d = r.take(n);
     uint8_t* copy = static_cast<uint8_t*>(malloc(n ? n : 1));
     if (d) memcpy(copy, d, n);
-    t.data = copy; t.len = n;
+    t.data = copy; t.len = n; ++bakedFonts.objects; bakedFonts.cpuBytes += n;
   }
   if (!r.ok) return false;
   font_count = static_cast<int>(nf);

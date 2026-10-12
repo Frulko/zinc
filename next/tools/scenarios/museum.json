@@ -1,0 +1,17 @@
+{
+  "stateMethod": "Museum.getState",
+  "navigateMethod": "Museum.navigate",
+  "stateKey": "sequence",
+  "parameter": "sequence",
+  "initial": "ukiyo-e",
+  "route": [
+    "porcelain",
+    "wave",
+    "ukiyo-e"
+  ],
+  "projectDir": "../../../examples/museum-table",
+  "arguments": [
+    "--probe",
+    "--story"
+  ]
+}

@@ -7,6 +7,7 @@
 #include "zrt_assets_dir.h"
 #include <signal.h>
 #include "zn/alloc_stats.h"
+#include "zn/resource_stats.h"
 #include "zn/zim.h"
 // the CPU decoders of the GPU block formats (ZN-439): the software raster draws a compressed texture from its decoded texels
 #define BCDEC_STATIC
@@ -62,6 +63,39 @@
 #include "crypto.h"
 #include "regexp.h"
 #include "zn/runtime.h"
+
+namespace {
+struct ResourceProvider { const char* name; ZnResourceStatsFn read; void* owner; };
+// Providers live with their loaded module; snapshots and registration run on the host thread.
+ResourceProvider resourceProviders[64];
+unsigned resourceProviderCount;
+ZnResourceStats assetStats(void*) { return {0, (uint64_t)zn::host::assets::stat(0), 0, 0, (uint64_t)zn::host::assets::stat(5)}; }
+ZnResourceStats runtimeStats(void*) { return {zn::rt::gAllocs - zn::rt::gFrees, 0, 0, 0, 0}; }
+std::string resourceSnapshot() {
+  static ZnResourceStatsRegistration runtimeStatsRegistration("runtime.blocks", runtimeStats);
+  static ZnResourceStatsRegistration assetsStats("assets.resident", assetStats);
+  std::string out = "{";
+  for (unsigned i = 0; i < resourceProviderCount; ++i) {
+    const auto& p = resourceProviders[i]; const auto v = p.read(p.owner);
+    if (i) out += ",";
+    out += "\"" + std::string(p.name) + "\":{\"objects\":" + std::to_string(v.objects) +
+      ",\"cpuBytes\":" + std::to_string(v.cpuBytes) + ",\"gpuBytesEstimate\":" + std::to_string(v.gpuBytes) +
+      ",\"borrowedBytes\":" + std::to_string(v.borrowedBytes) + ",\"active\":" + std::to_string(v.active) + "}";
+  }
+  return out + "}";
+}
+}
+extern "C" const char* zn_resource_stats_json(void) {
+  static std::string snapshot; snapshot = resourceSnapshot(); return snapshot.c_str();
+}
+extern "C" void zn_resource_stats_register(const char* name, ZnResourceStatsFn read, void* owner) {
+  if (!name || !read) return;
+  for (const char* c = name; *c; ++c) if (!((*c >= 'a' && *c <= 'z') || (*c >= '0' && *c <= '9') || *c == '.' || *c == '_')) return;
+  for (unsigned i = 0; i < resourceProviderCount; ++i) if (!std::strcmp(resourceProviders[i].name, name)) {
+    resourceProviders[i] = {name, read, owner}; return;
+  }
+  if (resourceProviderCount < 64) resourceProviders[resourceProviderCount++] = {name, read, owner};
+}
 
 extern char** environ;
 
@@ -505,6 +539,7 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostAssetsRelease: zn::host::assets::release(n(0)); break;
     case Rt::HostAssetsHandleText: { const std::string* d = zn::host::assets::data(n(0)); ret(r, d ? *d : std::string()); break; }
     case Rt::HostAssetsHandleLoad: { const std::string* d = zn::host::assets::data(n(0)); if (d) gBytes.assign(d->begin(), d->end()); else gBytes.clear(); r->i = static_cast<std::int64_t>(gBytes.size()); break; }
+    case Rt::HostResourceStats: ret(r, resourceSnapshot()); break;
     case Rt::HostAssetsStat: r->d = zn::host::assets::stat(n(0)); break;
     // ---- zinc:os
     case Rt::HostOsHostname: { char b[256]; ret(r, gethostname(b, sizeof b) == 0 ? b : ""); break; }

@@ -98,6 +98,52 @@ renderer still embeds the same images, so the development build duplicates that 
 development pack. With 15 bundled dylibs (34.65 MB), the app is 137.51 MB and its ZIP 66.82 MB. Measurements use
 decimal MB; filesystem tools displaying MiB give smaller numbers.
 
+## Remote lifecycle diagnostics (Zinc Next)
+
+Build once, then let the driver start and stop the native app and repeat the actual player transitions:
+
+```sh
+cd next
+build/zinc build --bundle ../examples/museum-table/src/main.ts -o ../examples/museum-table/build/museum-probe.app
+tools/museum-probe --launch ../examples/museum-table/build/museum-probe.app/Contents/MacOS/zinc --cycles 3 --output .logs/museum-probe
+```
+
+`museum-probe` is a convenience entry for the shared `next/tools/resource-probe`; the route and launch
+settings live in `next/tools/scenarios/museum.json`. Copy that scenario for another demo instead of duplicating
+the sampler. `resource-probe --scenario <json> --remote --port <forwarded-port>` also collects device counters
+without querying a local process for a remote PID. See [reusable diagnostics](../../docs/dev-mode.md#reusable-resource-diagnostics).
+
+The route is `ukiyo-e` (home), `porcelain` (model), `wave` (video), then home. The driver waits for each fade to
+finish, dwells for two seconds, and writes `samples.jsonl` with the app PID, RSS, player state and live resource
+counters. `--dwell 5` changes the settling time. `--screenshots` also writes PNGs, but full-resolution captures
+allocate large temporary buffers: leave it off for memory measurements. A launched app closes after the route;
+`--pid <app-pid>` attaches to an already running app and leaves it open. The endpoint reports its own PID and
+the driver rejects a mismatched compiler/wrapper PID.
+
+For manual control, launch `zinc run examples/museum-table -- --probe` from the repository root.
+Only `--probe` opens the endpoint. That mode disables the idle attract/reset loop and uses wall time for
+the player, including headless runs; timed media and link transitions continue to work. `ZINC_DEVTOOLS_PORT=19329` selects another port; give the driver `--port 19329`.
+The reused DevTools transport listens on loopback and checks Host/Origin. It accepts these CDP messages:
+
+```json
+{"id":1,"method":"Museum.navigate","params":{"sequence":"porcelain"}}
+{"id":2,"method":"Museum.getState"}
+{"id":3,"method":"Zinc.getResourceStats"}
+{"id":4,"method":"Page.captureScreenshot"}
+```
+
+Navigation rejects an unknown sequence or an unfinished transition. State includes `transitioning`, `fault`,
+retained model/panorama/decoder counts and the process PID. There is no arbitrary code evaluation. To control
+another machine, use an SSH tunnel for this loopback endpoint; run the sampling driver on the app's machine
+because its RSS reader uses the local process table. Ordinary `zinc:devtools` apps also expose
+`Zinc.getResourceStats`; the museum adds only its navigation/state commands.
+
+`cpuBytes` counts owned payload buffers; `borrowedBytes` identifies references to buffers counted by their
+owners, so do not sum both. `gpuBytesEstimate` describes requested GL storage, including render targets,
+readback buffers and multisampling, rather than driver residency. Missing provider keys mean no instrumented
+backend registered. FFmpeg internals, allocator reserves and uninstrumented driver allocations are outside
+these totals. See [measured results](../../docs/reports/zinc-next-museum-memory-probe.md).
+
 ## Statistics
 
 ```sh

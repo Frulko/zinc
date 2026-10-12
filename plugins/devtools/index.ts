@@ -177,6 +177,7 @@ function handle(client: i32, msg: string): void {
   else if (method === 'Network.disable') netOn = false;
   else if (method === 'Network.getResponseBody') result = orEmpty(Cdp.net(2, Cdp.str(msg, 'requestId')));
   else if (method === 'Network.getRequestPostData') result = orEmpty(Cdp.net(3, Cdp.str(msg, 'requestId')));
+  else if (method === 'Zinc.getResourceStats') result = Cdp.resourceStats();
   else if (method === 'Runtime.evaluate') result = '{"result":{"type":"string","value":"zinc: no JavaScript engine on the device (the console shows the program output)"}}';
   Cdp.send(client, `{"id":${id},"result":${result}}`);
 }

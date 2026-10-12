@@ -13,12 +13,13 @@
 // --pins puts a red ball on every point of interest of the object (the test of their projection).
 import { onFrame, width, height, clear, escapeByApp } from 'zinc:gfx';
 import { readText } from 'zinc:assets';
-import { args } from 'zinc:sys';
+import { args, clock } from 'zinc:sys';
 import * as fs from 'zinc:fs';
 import { parseProject, Project, Sequence } from './project';
 import { Player } from './player';
 import { Statistics } from './stats';
 import { Updates } from './update';
+import { startProbe } from './probe';
 
 /** The project, or when it cannot be read a table with nothing on it: the fault is logged for the staff and never shown to a visitor. */
 function load(): Project {
@@ -55,11 +56,19 @@ for (let i = 0; i < a.length; i++) {
       });
   }
 }
+const probing = a.includes('--probe');
+if (probing) {
+  project.kiosk.attractAfter = 0; project.kiosk.resetAfter = 0;
+  startProbe(player);
+}
+let probeTime = clock();
 // a project that names where the museum publishes looks there for a newer version; what happens is written for the staff and in the story
 const updates = new Updates(project.kiosk.updateUrl, (what: string): void => { console.error(`museum-table: update: ${what}`); player.note(`update: ${what}`); });
 if (project.kiosk.fullscreen) escapeByApp(true);   // a kiosk: Escape leads nowhere (the window itself is made a kiosk by ZINC_KIOSK=1 or zinc.json)
 
+// A remote driver observes real time, including a headless run whose normal dt is a fixed test step.
 onFrame((dt: number) => {
+  if (probing) { const now = clock(); dt = Math.max(0, Math.min(0.1, (now - probeTime) / 1000)); probeTime = now; }
   clear(project.theme.background);
   player.frame(dt, 0, 0, width(), height());
   updates.frame(dt, player.quiet);

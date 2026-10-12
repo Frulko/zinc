@@ -12,6 +12,7 @@ import { files } from './files';
 /** The decoders opened so far, by file: a clip is opened once, and shows on one card at a time.
  *  ponytail: zinc:video runs 16 players at most; a project of more films has to close the ones of the sequences it left. */
 const decoders = new Map<string, Decoder>();
+export function retainedDecoders(): i32 { return decoders.size; }
 
 export class Film {
   readonly media: Media;

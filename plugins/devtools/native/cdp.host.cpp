@@ -15,6 +15,8 @@
 #include <string.h>
 #include <strings.h>
 
+extern "C" __attribute__((weak)) const char* zn_resource_stats_json(void);
+
 namespace {
 // ---- SHA-1 + base64, for Sec-WebSocket-Accept only
 void sha1(const uint8_t* msg, size_t len, uint8_t out[20]) {
@@ -168,6 +170,7 @@ struct HostCdp : NativeCdp, zrt::Poller {
   }
 
   zrt::String trace(bool on) override { return zrt::gfx::trace(on); }
+  zrt::String resourceStats() override { return lit(zn_resource_stats_json ? zn_resource_stats_json() : "{}"); }
   zrt::String net(int32_t, zrt::String) override { return lit(""); }   // the network log is the Zinc Next host's (ZN-370)
 
   void drop(Client& c) { if (c.fd >= 0) close(c.fd); c.fd = -1; c.ws = false; c.n = 0; }

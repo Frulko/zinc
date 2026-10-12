@@ -241,6 +241,45 @@ an overlay of the runtime: without the variable, frames and goldens are unchange
 When a frame emits more than `ZRT_MAX_DRAW_CMDS` commands (8192), `ZRT_TEXT_POOL` text bytes or `ZRT_POINT_POOL`
 floats, the extra is dropped and the runtime warns once per pool on stderr.
 
+## Reusable resource diagnostics
+
+`next/tools/resource-probe` is the common sampler/driver. Demo-specific routes are JSON files in
+`next/tools/scenarios/`; `museum-probe` is only a convenience entry for `scenarios/museum.json`. The native
+resource counters live beside their owners and are available through `Zinc.getResourceStats` on the existing
+CDP endpoint. No museum code is needed in the host's collector.
+
+From `next/`, attach to an instrumented app on this Mac:
+
+```sh
+tools/resource-probe --scenario tools/scenarios/museum.json --pid APP_PID --cycles 3 --output .logs/probe
+```
+
+For another device, forward its loopback inspector port with the existing SSH/`zinc dev --device` transport,
+then select remote sampling explicitly:
+
+```sh
+tools/resource-probe --scenario tools/scenarios/museum.json --remote --port 9229 --output .logs/device-probe
+```
+
+`--remote` collects the device's resource counters and state but writes `rssBytes: null`: it never mistakes a
+remote PID for a local process. To obtain process RSS on a POSIX device, run the sampler there with `--pid`.
+Only Mac execution has been verified so far; target checks belong to the cross-platform pass.
+
+A scenario provides `stateMethod`, `navigateMethod`, `stateKey`, `parameter`, `initial` and a `route` array.
+The app's state result provides its current state under `stateKey`; optional `transitioning` and `fault`
+fields allow the driver to wait or stop. Local RSS sampling requires the endpoint's `pid` to match the app PID.
+The navigation method accepts the next state's name under `parameter` and must acknowledge/reject it.
+The driver first waits for any active transition, returns to `initial` if needed, then repeats `route`.
+For `--launch`, also provide `projectDir` (relative to the scenario file) and an `arguments` string array.
+The driver closes an app it launches; an attached app stays open.
+
+Each run writes `samples.jsonl`, with elapsed time, state, app PID, RSS and resource counters. Optional
+`--screenshots` uses `Page.captureScreenshot` and saves numbered PNGs. Keep captures off for memory comparison:
+encoding and transport add substantial temporary allocations. GPU bytes are allocation estimates, borrowed
+bytes must not be added to their owners, and absent providers are not zero-byte backends.
+See the [museum measurements](reports/zinc-next-museum-memory-probe.md) for the diagnostic limits and a
+reference before/after route. The tool has no Python dependencies and uses the shared `tools/cdp-probe` client.
+
 ## Remote devices (`--device user@host`)
 
 For `--target rpi1` (or `linux`): the docker cross build, then `rsync` of the binary and the assets directory to

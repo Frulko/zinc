@@ -18,6 +18,10 @@ extern "C" {
 #include <libavutil/hwcontext.h>
 #include <libswscale/swscale.h>
 }
+#if __has_include("zn/resource_stats.h")
+#include "zn/resource_stats.h"
+#endif
+#include <atomic>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -87,8 +91,10 @@ static bool open_decoder(Source* s, const AVCodec* sw, const AVCodecParameters* 
   snprintf(s->name, sizeof s->name, "%s (software)", sw->name);
   return true;
 }
+static std::atomic<uint64_t> live_sources{0};
 static void close_source(Source*& s) {
   if (!s) return;
+  if (s->dec) live_sources.fetch_sub(1, std::memory_order_relaxed);
   avcodec_free_context(&s->dec);
   avformat_close_input(&s->fmt);
   av_buffer_unref(&s->hw);
@@ -118,6 +124,7 @@ static Source* open_source(const char* path, int item) {
   s->fdur = vs->avg_frame_rate.num > 0 && vs->avg_frame_rate.den > 0 ? av_q2d(av_inv_q(vs->avg_frame_rate)) : 1.0 / 30;
   s->dur = fmt->duration > 0 ? fmt->duration / (double)AV_TIME_BASE : 0;
   if (!open_decoder(s, codec, vs->codecpar)) { close_source(s); return nullptr; }
+  live_sources.fetch_add(1, std::memory_order_relaxed);
   return s;
 }
 
@@ -150,6 +157,23 @@ struct Player {
   char dec[48];
 };
 static Player players[MAX_PLAYERS];
+#if __has_include("zn/resource_stats.h")
+static ZnResourceStats video_stats(void*) {
+  ZnResourceStats s{};
+  for (auto& p : players) if (p.used) {
+    ++s.objects;
+    if (p.blank) s.cpuBytes += (uint64_t)(NBUF + 1) * p.w * p.h * 4;
+    pthread_mutex_lock(&p.mu);
+    s.active += p.running;
+    pthread_mutex_unlock(&p.mu);
+  }
+  return s;
+}
+static ZnResourceStats source_stats(void*) { return {live_sources.load(std::memory_order_relaxed), 0, 0, 0, 0}; }
+static ZnResourceStatsRegistration video_stats_registration("video.buffers", video_stats);
+static ZnResourceStatsRegistration source_stats_registration("video.sources", source_stats);
+#endif
+
 static Player* at(int32_t p) { return p >= 0 && p < MAX_PLAYERS && players[p].used ? &players[p] : nullptr; }
 
 static char* entry_path(Player* p, int e) {  // copy under the lock: the playlist may grow while playing

@@ -1,0 +1,127 @@
+#!/usr/bin/env python3
+"""Drive a configured GUI route and record live CDP resource counters; no Python dependencies."""
+import argparse
+import base64
+from contextlib import nullcontext
+import math
+import json
+import os
+from pathlib import Path
+import runpy
+import subprocess
+import time
+
+TOOLS = Path(__file__).resolve().parent
+ws = runpy.run_path(str(TOOLS / 'cdp-probe'))['ws']
+
+
+def request(port, method, **params):
+    reply = ws(port, '/zinc', [{'id': 1, 'method': method, 'params': params}])[0]
+    if 'error' in reply:
+        raise RuntimeError(reply['error']['message'])
+    return reply['result']
+
+
+def wait_scene(port, sequence, scenario, timeout=30):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        state = request(port, scenario['stateMethod'])
+        if state.get('fault'):
+            raise RuntimeError(state['fault'])
+        if (sequence is None or state[scenario['stateKey']] == sequence) and not state.get('transitioning', False):
+            return state
+        time.sleep(.1)
+    raise TimeoutError(f'player did not settle on {sequence}: {state}')
+
+
+def main(default_scenario=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    source = parser.add_mutually_exclusive_group(required=True)
+    parser.add_argument('--scenario', type=Path, default=default_scenario, required=default_scenario is None, help='JSON route, state/navigation methods and launch settings')
+    source.add_argument('--remote', action='store_true', help='attach through a forwarded CDP port; omit local process RSS')
+    source.add_argument('--pid', type=int, help='native app PID, not the zinc compiler parent')
+    source.add_argument('--launch', type=Path, help='compiled native executable (or .app/Contents/MacOS executable)')
+    parser.add_argument('--port', type=int, default=9229)
+    parser.add_argument('--cycles', type=int, default=3)
+    parser.add_argument('--dwell', type=float, default=2, help='seconds on each settled scene')
+    parser.add_argument('--output', type=Path, default=Path('.logs/resource-probe'))
+    parser.add_argument('--screenshots', action='store_true', help='capture after sampling; captures can change later RSS')
+    args = parser.parse_args()
+    if args.cycles < 1 or not math.isfinite(args.dwell) or args.dwell < 0 or not 1 <= args.port <= 65535 or (args.pid is not None and args.pid < 1):
+        parser.error('cycles >= 1, dwell >= 0 and a valid port are required')
+    try:
+        scenario = json.loads(args.scenario.read_text())
+    except (OSError, ValueError) as error:
+        parser.error(f'cannot read scenario: {error}')
+    if not isinstance(scenario, dict):
+        parser.error('scenario must be a JSON object')
+    for key in ('stateMethod', 'navigateMethod', 'stateKey', 'parameter', 'initial'):
+        if not isinstance(scenario.get(key), str) or not scenario[key]:
+            parser.error(f'scenario requires a nonempty string {key}')
+    if not isinstance(scenario.get('route'), list) or not scenario['route'] or any(not isinstance(v, str) or not v for v in scenario['route']):
+        parser.error('scenario requires a nonempty route of state names')
+    if args.launch and (not isinstance(scenario.get('projectDir'), str) or not isinstance(scenario.get('arguments'), list) or any(not isinstance(v, str) for v in scenario['arguments'])):
+        parser.error('launch requires scenario projectDir and string arguments')
+    args.output.mkdir(parents=True, exist_ok=True)
+    process = None
+    with ((args.output / 'app.log').open('w') if args.launch else nullcontext(None)) as log:
+        if args.launch:
+            env = os.environ.copy()
+            for key in ('ZINC_DETERMINISTIC', 'ZINC_HEADLESS', 'ZINC_FRAMES', 'ZINC_INPUT', 'ZINC_DEVAPP'):
+                env.pop(key, None)
+            env['ZINC_DEVTOOLS_PORT'] = str(args.port)
+            process = subprocess.Popen([str(args.launch.resolve())] + scenario['arguments'], cwd=(args.scenario.resolve().parent / scenario['projectDir']).resolve(), env=env, stdout=log, stderr=log)
+            args.pid = process.pid
+        try:
+            deadline = time.monotonic() + 30
+            while True:
+                if process and process.poll() is not None:
+                    raise RuntimeError(f'app exited {process.returncode}; see {args.output / "app.log"}')
+                try:
+                    state = request(args.port, scenario['stateMethod'])
+                    break
+                except (OSError, TimeoutError):
+                    if time.monotonic() >= deadline:
+                        raise
+                    time.sleep(.2)
+            if not args.remote and state.get('pid') != args.pid:
+                raise RuntimeError(f'PID {args.pid} is not the endpoint app PID {state.get("pid")}')
+            state = wait_scene(args.port, None, scenario)
+            if state[scenario['stateKey']] and state[scenario['stateKey']] != scenario['initial']:
+                request(args.port, scenario['navigateMethod'], **{scenario['parameter']: scenario['initial']})
+            wait_scene(args.port, scenario['initial'], scenario)
+            started = time.monotonic()
+            with (args.output / 'samples.jsonl').open('w') as samples:
+                for index, sequence in enumerate([scenario['initial']] + scenario['route'] * args.cycles):
+                    if index:
+                        request(args.port, scenario['navigateMethod'], **{scenario['parameter']: sequence})
+                    wait_scene(args.port, sequence, scenario)
+                    time.sleep(args.dwell)
+                    state = wait_scene(args.port, sequence, scenario)
+                    counters = request(args.port, 'Zinc.getResourceStats')
+                    rss_bytes = None
+                    if not args.remote:
+                        rss = subprocess.check_output(['ps', '-o', 'rss=', '-p', str(args.pid)], text=True).strip()
+                        if not rss:
+                            raise RuntimeError('native process disappeared')
+                        rss_bytes = int(rss) * 1024
+                    sample = dict(step=index, elapsedSeconds=round(time.monotonic() - started, 3), pid=state.get('pid'), rssBytes=rss_bytes, state=state, resources=counters)
+                    samples.write(json.dumps(sample) + '\n'); samples.flush()
+                    label = f'{rss_bytes / 1048576:.1f} MiB' if rss_bytes is not None else 'not sampled (remote)'
+                    print(f'{index:2} {sequence:16} RSS {label}', flush=True)
+                    if args.screenshots:
+                        encoded = request(args.port, 'Page.captureScreenshot')['data']
+                        if not encoded:
+                            raise RuntimeError('no native frame available for screenshot')
+                        (args.output / f'{index:02}.png').write_bytes(base64.b64decode(encoded, validate=True))
+        finally:
+            if process and process.poll() is None:
+                process.terminate()
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    process.kill(); process.wait()
+
+
+if __name__ == '__main__':
+    main()

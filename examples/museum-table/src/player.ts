@@ -177,6 +177,18 @@ export class Player {
   /** The id of the sequence on the table ('' before the first frame). */
   get sequence(): string { return this.stack.length > 0 ? this.top().sequence.id : ''; }
 
+  /** Diagnostic navigation uses the same fade and departure cleanup as a link. */
+  visit(id: string): boolean {
+    if (this.stack.length === 0 || this.change !== null || this.project.sequence(id) === null) return false;
+    this.endTour('stop');
+    this.idle = 0;
+    this.go(id, 'fade', false);
+    return true;
+  }
+  get transitioning(): boolean { return this.change !== null; }
+  get retainedModels(): i32 { return this.views.viewers.size + this.shows.viewers.size; }
+  get retainedPanoramas(): i32 { return this.views.lookouts.size + this.shows.lookouts.size; }
+
   /** One frame of the visit in the rectangle (x, y, w, h) of the window being drawn: the table is as large as fits, in its middle. A fault
    *  (a medium that cannot be read, a bug) is logged for the staff and never shown to a visitor: the table goes back to its first
    *  sequence, and to a table with nothing on it when that sequence is the one at fault. */

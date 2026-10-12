@@ -6,6 +6,8 @@ The next backlog review turns lines into tasks or deletes them.
 
 ## Engine and tools
 
+- ZN-722: budget the full-resolution DevTools capture/encoding/transport buffers before continuous profiling; captures perturb process RSS strongly (separate memory-path investigation).
+
 - ZN-721: connect view lifetimes to existing native/asset resource handles and complete CPU/GPU destruction; research and validation plan in docs/reports/zinc-next-resource-lifecycle.md, addressing the museum's persistent model/video caches.
 
 - ZN-720: let the renderer consume packed image resources instead of embedding the same decoded images again; museum-table carries 75.60 MB of RGBA pixels in its executable as well as its adjacent pack.
@@ -207,6 +209,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-713: profile launch to first frame of the exported app (about 0.5 s under load); retake every time and memory figure alone on the machine (`ZINC=<main>/next/build/zinc ./measure.sh build measure` in `next/bench/vs-electron`); report physical footprint beside the RSS sum.
 
 ## Cross-platform pass
+
+- ZN-722: optional resource diagnostic hooks and CDP snapshots on Windows/Linux/mobile during the final target pass; only the development Mac was checked.
 
 - ZN-576: tests/golden/webgl/antialias.js expects a multisampled canvas; on a GLES 2 context (Pi 3) antialias is reported false, so the golden needs a GLES 2 variant there.
 - ZN-321: `zinc export --target linux --deb --key <seed>` then `zinc verify` on the .deb and on a changed copy (the .deb is signed by the export's artifact list; never run, a .deb needs the Linux cross build).

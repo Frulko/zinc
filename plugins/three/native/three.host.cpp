@@ -6,6 +6,9 @@
 // base colour texture (applied to the uvs).
 #include "zinc_native_three.h"
 #include "zrt_raster.h"
+#if __has_include("zn/resource_stats.h")
+#include "zn/resource_stats.h"
+#endif
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -208,6 +211,18 @@ struct Doc {
 };
 static const int MAX_DOCS = 16;
 static Doc* docs[MAX_DOCS];
+#if __has_include("zn/resource_stats.h")
+static ZnResourceStats document_stats(void*) {
+  ZnResourceStats s{};
+  for (const Doc* d : docs) if (d) {
+    ++s.objects; s.cpuBytes += d->len + d->J.v.cap * sizeof(JV);
+    for (uint32_t i = 0; i < d->bufs.n; ++i) if (d->bufs[i].owned) s.cpuBytes += d->bufs[i].n;
+    for (uint32_t i = 0; i < d->views.n; ++i) if (d->views[i].owned) s.cpuBytes += d->views[i].n;
+  }
+  return s;
+}
+static ZnResourceStatsRegistration document_stats_registration("gltf.documents", document_stats);
+#endif
 static char err[160];
 
 static Doc* doc(int32_t h) { return h >= 0 && h < MAX_DOCS ? docs[h] : nullptr; }
