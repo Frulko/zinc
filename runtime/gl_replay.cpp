@@ -51,7 +51,7 @@ static int32_t W, H;
 static GLuint vbo, ibo, fbo, fbo_tex, fbo_depth, white, atlas, corner_tex, cur_tex;
 // The programs that draw the commands. Desktop GL: one, with a branch per mode. GLES 2: one per mode, and one more with the gradient paint
 // block, compiled at first use (ZN-725): a GPU without branches runs every mode of the single program for each pixel, VideoCore IV took
-// 217 ms for a frame that takes 35 with one mode compiled in. A batch is then drawn run by run, a run being its consecutive quads of one
+// 181 ms for a map frame that takes 65 this way (docs/reports/raspberry-pi.md). A batch is then drawn run by run, a run being its consecutive quads of one
 // program, so the paint order stays. Uniforms belong to a program: use_prog() gives it the frame's (size, flip) at its first use in the
 // frame, and the code that draws a mode sets that mode's own (edge, paint, convex) on the program use_prog() returns.
 struct Prog { GLuint id; GLint u_res, u_flip, u_edge, u_g0, u_g1, u_gc, u_go, u_cv, u_cvn; uint32_t stamp; bool tried; };
@@ -91,7 +91,7 @@ struct RC { float x, y, w, h, r; int R; bool on; };
 static RC rstack[16];
 static int sp;
 static uint32_t warned, unsupported;
-static struct { uint32_t frames, idle, draws, quads, glyphs, ptiles, blocks, decoded, progs; double us, cull_us, prog_us, glyph_us; uint64_t hidden, block_bytes; } st;
+static struct { uint32_t frames, idle, draws, quads, glyphs, ptiles, blocks, decoded, progs, atlas_ups; double us, cull_us, prog_us, glyph_us; uint64_t hidden, block_bytes; } st;
 #if defined(__APPLE__) && GLR_CORE
 // GPU time of the replays (ZINC_GL_STATS, ZN-679): a timer query per frame, read four frames later so the CPU never waits for the GPU
 static GLuint gq[4];
@@ -112,6 +112,11 @@ static void gpu_end() {}
 static const uint32_t gpu_n = 0;
 static const double gpu_us = 0;
 #endif
+// ZINC_GL_TRACE=1: a line before each texture upload, framebuffer copy and clear of a frame, to tell which one a driver's own report
+// follows (Mesa vc4: VC4_DEBUG=perf prints "Blocking on resource BO for bo map" when a call waits for the GPU)
+static bool tracing;
+static uint32_t trace_q0;   // st.quads at the start of the frame
+#define GLR_TRACE(...) do { if (tracing) fprintf(stderr, "glr trace: " __VA_ARGS__); } while (0)
 static double now_us() { timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return t.tv_sec * 1e6 + t.tv_nsec / 1e3; }
 
 // ---- helpers shared in spirit with runtime/raster.cpp (kept identical: the pixels must agree)
@@ -213,6 +218,7 @@ static bool init(int32_t w, int32_t h) {
   W = w; H = h;
   if (const char* e = getenv("ZINC_GL_ONLY")) only = atoi(e) % MODES;
   set_groups(getenv("ZINC_GL_GROUPS"));
+  tracing = getenv("ZINC_GL_TRACE") != nullptr;
   if (const char* e = getenv("ZINC_GL_STRIPS")) strips = atoi(e) != 0;
   if (!use_prog(key_of(SOLID)).id) return false;
 #if GLR_CORE
@@ -295,8 +301,10 @@ static inline void run_of(int mode) {
   const uint8_t k = key_of(mode);
   if (!nruns || runs[nruns - 1].key != k) runs[nruns++] = Run{nq, k};
 }
+static void atlas_sync();
 static void flush() {
   if (!nq) return;
+  atlas_sync();
   glBindBuffer(GL_ARRAY_BUFFER, vbo);
   glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)nq * 4 * sizeof(V), verts, GL_STREAM_DRAW);
   attribs(0);
@@ -375,6 +383,27 @@ static Q box_q(const Cmd& c, const Rect& b, int mode) {
 
 // ---- glyph atlas
 static void atlas_reset() { flush(); memset(gtab, 0, sizeof gtab); gcount = gx = gy = growh = 0; }
+#if !GLR_CORE
+// GLES 2 (ZN-725): a new glyph is written into a copy of the atlas in memory, and the rows that changed go to the texture in one upload
+// before the next draw (flush). An upload per glyph into a texture the frame had already drawn with made VideoCore IV's driver submit
+// the frame so far and wait for the GPU, 1.9 to 3.7 ms a glyph on a throttled Pi 3: a stall at each new glyph.
+// frame() looks the glyphs of its TEXT commands up first (glyphs_ahead), so the upload comes before the frame's first draw.
+static uint8_t* ashadow;
+static int32_t arow0 = ATLAS, arow1 = 0;   // the rows that the texture has not got yet
+static void atlas_sync() {
+  if (arow1 <= arow0) return;
+  const double t0 = now_us();
+  GLR_TRACE("glyph atlas rows %d to %d, %d quads drawn so far\n", arow0, arow1, st.quads - trace_q0);
+  glBindTexture(GL_TEXTURE_2D, atlas);
+  glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+  glTexSubImage2D(GL_TEXTURE_2D, 0, 0, arow0, ATLAS, arow1 - arow0, A_FMT, GL_UNSIGNED_BYTE, ashadow + (size_t)arow0 * ATLAS);
+  glBindTexture(GL_TEXTURE_2D, cur_tex);
+  arow0 = ATLAS; arow1 = 0;
+  st.glyph_us += now_us() - t0; st.atlas_ups++;
+}
+#else
+static void atlas_sync() {}
+#endif
 static const GSlot* glyph_slot(int32_t font, const Font& f, const Glyph* g) {
   if (g->w > ATLAS || g->h > ATLAS) return nullptr;
   uint64_t key = ((uint64_t)(uint32_t)font << 32) | g->cp | (1ull << 63);
@@ -384,12 +413,17 @@ static const GSlot* glyph_slot(int32_t font, const Font& f, const Glyph* g) {
     if (gtab[i].key == key) return &gtab[i];
     if (gcount > 6000 || gy + g->h > ATLAS) { atlas_reset(); continue; }   // ponytail: reset when full, glyphs come back lazily
     if (gx + g->w + 1 > ATLAS) { gy += growh + 1; gx = 0; growh = 0; if (gy + g->h > ATLAS) continue; }
-    const double t0 = now_us();
+#if GLR_CORE
     glBindTexture(GL_TEXTURE_2D, atlas);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     glTexSubImage2D(GL_TEXTURE_2D, 0, gx, gy, g->w, g->h, A_FMT, GL_UNSIGNED_BYTE, f.bitmap + g->off);
     glBindTexture(GL_TEXTURE_2D, cur_tex);
-    st.glyph_us += now_us() - t0;
+#else
+    if (!ashadow && !(ashadow = (uint8_t*)calloc(ATLAS, ATLAS))) return nullptr;
+    for (int32_t y = 0; y < g->h; y++) memcpy(ashadow + (size_t)(gy + y) * ATLAS + gx, f.bitmap + g->off + (size_t)y * g->w, (size_t)g->w);
+    if (gy < arow0) arow0 = gy;
+    if (gy + g->h > arow1) arow1 = gy + g->h;
+#endif
     gtab[i] = GSlot{key, (int16_t)gx, (int16_t)gy};
     gx += g->w + 1; if (g->h > growh) growh = g->h;
     gcount++; st.glyphs++;
@@ -408,6 +442,21 @@ static uint32_t next_cp(const char* s, uint32_t n, uint32_t& i) {
   for (uint32_t k = 1; k < w && i + k < n; k++) cp = (cp << 6) | ((uint8_t)s[i + k] & 0x3F);
   i += w;
   return cp;
+}
+/** The glyphs of a list's TEXT commands enter the atlas now, before the frame draws (GLES 2: see atlas_sync). ponytail: not those of
+ *  a TEXT under a matrix (XFORM), nor after the atlas filled up and was reset in this frame: they come as they are drawn. */
+static void glyphs_ahead(const Frame& f) {
+  for (uint32_t i = 0; i < f.count; i++) {
+    const Cmd& c = f.cmds[i];
+    const Font* fp = c.kind == TEXT ? font_at(c.res) : nullptr;
+    if (!fp) continue;
+    const char* s = f.text + c.off;
+    for (uint32_t k = 0; k < c.n;) {
+      const Glyph* g = glyph_of(c.res, *fp, next_cp(s, c.n, k));
+      if (!g) g = glyph_of(c.res, *fp, '?');
+      if (g && g->w > 0 && g->h > 0) glyph_slot(c.res, *fp, g);
+    }
+  }
 }
 static void draw_text(const Cmd& c, const char* s) {
   const Font* fp = font_at(c.res);
@@ -484,6 +533,7 @@ static Tex2* dyn_tex(int32_t id) {
     t->w = w; t->h = h; t->nearest = 1; t->ver = ver - 1;
   }
   if (t->ver != ver || t->px != px) {
+    GLR_TRACE("runtime image %d, %dx%d, version %u\n", id, w, h, ver);
     glBindTexture(GL_TEXTURE_2D, t->id);
     // a compressed texture (ZN-439): its blocks where the driver takes the format, else its decoded texels
     uint32_t bf, bn; const void* bd; bool pre;
@@ -536,7 +586,7 @@ static void draw_image(const Cmd& c) {
     const Image& im = images[c.res];
     if (!((float)im.w / mw < 1e6f && (float)im.h / mh < 1e6f)) return;
     t = &baked[c.res];
-    if (!t->id) { t->id = make_tex(im.w, im.h, GL_RGBA, GL_RGBA, im.rgba, false); t->bytes = (uint64_t)im.w * im.h * 4; t->nearest = 0; t->w = im.w; t->h = im.h; }
+    if (!t->id) { GLR_TRACE("baked image %d, %dx%d\n", c.res, im.w, im.h); t->id = make_tex(im.w, im.h, GL_RGBA, GL_RGBA, im.rgba, false); t->bytes = (uint64_t)im.w * im.h * 4; t->nearest = 0; t->w = im.w; t->h = im.h; }
     nearest = false; mode = IMAGE_RGBA;
   }
   if (!t || !t->id) return;
@@ -613,8 +663,8 @@ template<class T> static bool grow(T*& buf, size_t& cap, size_t need) {
   if (!nb) return false;
   buf = nb; cap = n; return true;
 }
-// ---- RAMP (ZN-725): antialiased edges as geometry, for a GPU where maths per pixel is the cost (GLES 2 tilers: VideoCore IV drew the
-// navigation map's edge boxes and capsules in 124 of a frame's 217 ms). A RAMP quad's vertices carry (x, y, t, w) and a pixel covers
+// ---- RAMP (ZN-725): antialiased edges as geometry, for a GPU where maths per pixel is the cost (GLES 2 tilers: VideoCore IV draws the
+// navigation map in 30 ms with them, in 65 with the edge boxes and capsules). A RAMP quad's vertices carry (x, y, t, w) and a pixel covers
 // clamp(w - |t|), both interpolated: thin quads along the edges, nothing to compute or discard per pixel. Default on GLES 2;
 // ZINC_GL_STRIPS=0 goes back to the capsules and the edge boxes there, =1 draws the strips on desktop GL (tests/t1/gl_strips.sh).
 static inline void ramp_set(V* v, const float q[4][3], float w, uint32_t c1, uint32_t alpha) {
@@ -902,6 +952,19 @@ static bool poly_add(const Cmd& c, const float* pts) {
   pevenodd = evenodd; ppaint = paint;
   return true;
 }
+static void poly_cover() {   // the boxes of the batch, each in its polygon's colour, where the stencil test passes
+  const float z = cur_z;
+  for (int i = 0; i < npoly; i++) {
+    const PolyBox& pb = pboxes[i];
+    Q q = {};
+    q.x0 = (float)pb.b.x0; q.y0 = (float)pb.b.y0; q.x1 = (float)pb.b.x1; q.y1 = (float)pb.b.y1;
+    q.mode = SOLID; q.c1 = pb.c1; q.alpha = pb.alpha;
+    cur_z = pb.z;
+    quad(q);
+  }
+  cur_z = z;
+  flush();
+}
 /** Draws the batch: the fans count the winding, the fringes inside, the cover, the fringes outside, the stencil back to 0. */
 static void poly_flush() {
   if (!npoly) return;
@@ -930,9 +993,26 @@ static void poly_flush() {
   // crossing A-B takes the winding of a pixel left of it (cross > 0 in our coordinates, front faces counting +1) down by 1 and of a
   // pixel right of it up by 1, so the edge bounds the fill for a winding of 1 on its left and -1 on its right (flipped window rows swap
   // the sides). Overlapping or touching contours therefore leave no seam where one covers the other's edge.
-  glStencilMask(0x80);
   glStencilOp(GL_KEEP, GL_KEEP, GL_INVERT);
   edge_upload();
+  if (strips) {
+    // GLES 2 (ZN-725): the same pixels in five draw calls, not seven. A drawn inside pixel loses its winding with the same write that
+    // marks it (0x01 or 0x7F inverted under the right mask is 0x80), the outside pixels are drawn before the cover and marked the same
+    // way, and the cover zeroes whatever it does not draw: the two stencil-only passes over the boxes are not needed.
+    if (pevenodd) { glStencilMask(0x81); glStencilFunc(GL_EQUAL, 0x01, 0x81); edge_draw(0, true); }
+    else {
+      glStencilMask(0x81); glStencilFunc(GL_EQUAL, 0x01, 0xFF); edge_draw(flipy ? 2 : 1, true);
+      glStencilMask(0xFF); glStencilFunc(GL_EQUAL, 0x7F, 0xFF); edge_draw(flipy ? 1 : 2, true);
+    }
+    glStencilMask(0x80); glStencilFunc(GL_EQUAL, 0, 0xFF); edge_draw(0, false);
+    glStencilMask(0xFF); glStencilFunc(GL_NOTEQUAL, 0, 0x7F); glStencilOp(GL_ZERO, GL_ZERO, GL_ZERO);
+    poly_cover();
+    glDisable(GL_STENCIL_TEST);
+    if (ppaint) end_paint();
+    npoly = 0; nfan = 0; nedge = 0; ppaint = nullptr;
+    return;
+  }
+  glStencilMask(0x80);
   if (pevenodd) {
     glStencilFunc(GL_EQUAL, 0x01, 0x81);
     edge_draw(0, true);
@@ -950,17 +1030,7 @@ static void poly_flush() {
   // the rest of the inside: drawn, then 0 (a hidden pixel too)
   if (pevenodd) glStencilFunc(GL_EQUAL, 0x01, 0x81); else glStencilFunc(GL_NOTEQUAL, 0, 0x7F);
   glStencilOp(GL_KEEP, GL_ZERO, GL_ZERO);
-  const float z = cur_z;
-  for (int i = 0; i < npoly; i++) {
-    const PolyBox& pb = pboxes[i];
-    Q q = {};
-    q.x0 = (float)pb.b.x0; q.y0 = (float)pb.b.y0; q.x1 = (float)pb.b.x1; q.y1 = (float)pb.b.y1;
-    q.mode = SOLID; q.c1 = pb.c1; q.alpha = pb.alpha;
-    cur_z = pb.z;
-    quad(q);
-  }
-  cur_z = z;
-  flush();
+  poly_cover();
   // the outside pixels near an edge: stencil 0 -> drawn, then counted (once)
   glStencilFunc(GL_EQUAL, 0, 0xFF);
   glStencilOp(GL_KEEP, GL_INCR, GL_INCR);
@@ -1118,6 +1188,7 @@ static void draw_poly(const Cmd& c, const float* pts) {
     }
     flush();
     st.ptiles++;
+    GLR_TRACE("LINE/POLY tile %dx%d\n", bw, bh);
     if (oldest->id) glDeleteTextures(1, &oldest->id);
     oldest->id = paint ? make_tex(bw, bh, GL_RGBA, GL_RGBA, pcol, true) : make_tex(bw, bh, A_IFMT, A_FMT, pcov, true);
     oldest->key = key; oldest->rgba = paint; t = oldest;
@@ -1322,6 +1393,7 @@ static void run(const Frame& f, bool first) {
         }
         flush();
         apply_clip();
+        GLR_TRACE("clear by a CLEAR command, %d quads drawn so far\n", st.quads - trace_q0);
         glClearColor(((c.c1 >> 16) & 255) / 255.f, ((c.c1 >> 8) & 255) / 255.f, (c.c1 & 255) / 255.f, 1.f);
         glClear(GL_COLOR_BUFFER_BIT);
         break;
@@ -1396,6 +1468,7 @@ static void run(const Frame& f, bool first) {
         int32_t x0 = ifloor(k.x), y0 = ifloor(k.y), x1 = iceil(k.x + k.w), y1 = iceil(k.y + k.h);
         if (k.R > 0 && k.R <= CORNER && x0 >= 0 && y0 >= 0 && x1 <= W && y1 <= H) {   // ponytail: larger radii or clips off screen stay square
           const int32_t cx[4] = {x0, x1 - k.R, x0, x1 - k.R}, cy[4] = {y0, y0, y1 - k.R, y1 - k.R};
+          GLR_TRACE("corners of a rounded CLIP copied from the framebuffer, radius %d, %d quads drawn so far\n", k.R, st.quads - trace_q0);
           glBindFramebuffer(GL_FRAMEBUFFER, flipy ? 0 : fbo);
           glBindTexture(GL_TEXTURE_2D, corner_tex);
           for (int q = 0; q < 4; q++) glCopyTexSubImage2D(GL_TEXTURE_2D, 0, q * CORNER, sp * CORNER, cx[q], flipy ? H - cy[q] - k.R : cy[q], k.R, k.R);   // flipped copy: the restore quad flips v back
@@ -1482,12 +1555,18 @@ static void frame(const HalFrame* f, bool direct, Rect dmg) {
   if (stencil_ok) { glStencilMask(0xFF); glClearStencil(0); }
   glClear(GL_COLOR_BUFFER_BIT | (occl ? GL_DEPTH_BUFFER_BIT : 0) | (stencil_ok ? GL_STENCIL_BUFFER_BIT : 0));
   cur_z = 0;
+  trace_q0 = st.quads;
+  GLR_TRACE("frame %u, %s\n", st.frames, direct ? "into the window" : "into the surface texture");
   pstamp++; cur_prog = nullptr;   // another user of the context may have bound its program since the last frame
   glActiveTexture(GL_TEXTURE0);
   cur_tex = white;
   glEnable(GL_BLEND);
   glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);   // premultiplied: the fragment shader writes the raster's blend (ZN-412.03)
   cur_blend = BLEND_NORMAL;
+#if !GLR_CORE
+  for (int32_t i = 0; i < n; i++) glyphs_ahead(Frame{(const Cmd*)lists[i]->cmds, lists[i]->count, lists[i]->text, lists[i]->pts});
+  atlas_sync();
+#endif
   for (int32_t i = 0; i < n; i++) {
     const Frame fr{(const Cmd*)lists[i]->cmds, lists[i]->count, lists[i]->text, lists[i]->pts};
     // a large first list: the commands that later opaque rectangles cover whole are not drawn at all (on a tiling GPU the primitives
@@ -1532,7 +1611,7 @@ static void report() {
   fprintf(stderr, "display-gl renderer gl: %u frames replayed, %u idle (no damage), %.1f draw calls and %.0f quads per frame, %u glyphs in the atlas, %u LINE/POLY skipped; %.0f us of CPU per replayed frame to submit it, %.0f us of it culling %.0f hidden commands; per frame %.1f LINE/POLY tiles rasterized on the CPU, %.1f strokes tessellated; %.0f us of GPU per frame; %u compressed textures uploaded as blocks (%llu bytes), %u decoded\n",
           st.frames, st.idle, st.draws / n, st.quads / n, st.glyphs, unsupported, st.us / n, st.cull_us / n, (double)st.hidden / n, st.ptiles / n, zrt::raster::strokes_built / n, gpu_n ? gpu_us / gpu_n : 0.0,
           st.blocks, (unsigned long long)st.block_bytes, st.decoded);
-  fprintf(stderr, "display-gl renderer gl: %u command programs, %.0f ms to build them and the two of the occlusion and stencil passes; %.0f ms to upload the glyphs\n", st.progs, st.prog_us / 1e3, st.glyph_us / 1e3);
+  fprintf(stderr, "display-gl renderer gl: %u command programs, %.0f ms to build them and the two of the occlusion and stencil passes; %u uploads of new glyphs, %.0f ms\n", st.progs, st.prog_us / 1e3, GLR_CORE ? st.glyphs : st.atlas_ups, st.glyph_us / 1e3);
   fprintf(stderr, "display-gl renderer gl: the fringe quads of POLY cover %.0f pixels per frame in each of their passes (the surface has %d)\n", fringe_px / n, W * H);
 }
 }  // namespace glr

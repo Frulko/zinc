@@ -34,6 +34,8 @@ SSH = ["ssh", "-o", "ConnectTimeout=8", "-o", "BatchMode=yes"]
 ARCH = {"aarch64": ("aarch64-linux", "linux"), "armv7l": ("armv7-linux", "rpi2"), "armv6l": ("armhf-linux", "rpi1")}
 # the programs under ~/zn: a process whose working directory is there (%s: a name, or * for all of them; outside the quotes, or * is not a pattern)
 PIDS = 'for p in $(pgrep -u "$USER"); do case "$(readlink /proc/$p/cwd 2>/dev/null)" in "$HOME"/zn/%s) echo $p;; esac; done'
+# before a measure: stop them all, and kill what is still there (a program left running draws behind the one measured)
+STOP = "for p in $(" + PIDS % "*" + "); do kill $p; done; sleep 1; for p in $(" + PIDS % "*" + "); do kill -9 $p; done; "
 
 
 def die(msg):
@@ -194,7 +196,7 @@ def cmd_capture(dev, args):
         die("capture: which program of ~/zn, and which file?")
     name = shlex.quote(args[0])
     env += ["ZINC_FRAMES=" + frames, "ZINC_SHOT=/tmp/zn-capture.bmp"]
-    ssh(dev, "for p in $(" + PIDS % "*" + "); do kill $p; done; sleep 1; rm -f /tmp/zn-capture.bmp; cd ~/zn/%s && env %s timeout 300 ./run.sh >/dev/null 2>&1 </dev/null; test -s /tmp/zn-capture.bmp"
+    ssh(dev, STOP + "rm -f /tmp/zn-capture.bmp; cd ~/zn/%s && env %s timeout 300 ./run.sh >/dev/null 2>&1 </dev/null; test -s /tmp/zn-capture.bmp"
         % (name, " ".join(shlex.quote(v) for v in env)))
     open(args[1], "wb").write(ssh(dev, "cat /tmp/zn-capture.bmp; rm -f /tmp/zn-capture.bmp", binary=True))
     print("%s: frame %s of %s" % (args[1], frames, args[0]))
@@ -214,7 +216,7 @@ def cmd_profile(dev, args):
         env += ["ZINC_FBDEV_SIM=/tmp/zn-fb.sim", "ZINC_FBDEV_SIM_FORMAT=$(cat /sys/class/graphics/fb0/virtual_size | tr , x)x$(cat /sys/class/graphics/fb0/bits_per_pixel)"]
         pre = "o=$(" + PIDS % "*" + "); [ -n \"$o\" ] && kill -STOP $o; trap '[ -n \"$o\" ] && kill -CONT $o; rm -f /tmp/zn-fb.sim' EXIT; "
     else:
-        pre = "for p in $(" + PIDS % "*" + "); do kill $p; done; sleep 1; "
+        pre = STOP
     clock = "if command -v vcgencmd >/dev/null; then vcgencmd measure_clock arm; vcgencmd get_throttled; else cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq; fi"
     envs = " ".join(v if "$(" in v else shlex.quote(v) for v in env)
     print(ssh(dev, "%scd ~/zn/%s && env %s timeout 300 ./run.sh 2>&1 >/dev/null </dev/null | %s | cut -c1-900; %s%s" % (pre, name, envs, "sort | uniq -c | sort -rn | head -60" if raw else "grep -E 'zinc profile|fbdev|display-gl'", clock, post)).rstrip())

@@ -166,6 +166,13 @@ Three changes, each behind an environment switch so one binary can be compared w
 | occlusion | `ZINC_GL_OCCLUDE=1` (on) | with a depth buffer (24 bits on desktop and with `OES_depth24`, 16 bits up to 16k commands), the opaque square RECTs and CLEARs outside clips are drawn first, front to back with depth writes, through a program of their own (one 24-byte instance a rectangle on desktop GL, four 16-byte vertices on GLES 2); every other command is then depth-tested at its place in the paint order, so what they hide costs no fragment shading (ZN-412.01) |
 | culling | `ZINC_GL_CULL=1` (on) | a list of 2048 commands or more first goes through `zrt::raster::cull_pack` (each command's tile range in 8 bytes, on 4 threads) and `cull_walk` (from the last command back, a tile closed under an opaque rectangle, tiles of 2/3 the opaque rectangles' size, 4 to 32 px): the commands covered whole are not submitted at all. On a tiling GPU the primitives cost even when hidden: bouncing-ball's 200k balls 4.0 ms of GPU without, 0.66 ms with (7.9k quads), for 1.5 ms of CPU (ZN-412.05) |
 | vsync | `ZINC_VSYNC=1` (on) | `0`: swaps without waiting for the display (measurements) |
+| one program per mode (GLES 2) | always; `ZINC_GL_GROUPS="0,1,7;2"` regroups modes to measure | a GPU without branches runs every mode of a single fragment shader for each pixel: on GLES 2 a batch is drawn run by run, each run by the program of its mode, built at first use. Desktop GL keeps one program (ZN-725) |
+| edges as strips (GLES 2) | `ZINC_GL_STRIPS=1` (on GLES 2; off on desktop GL, where `1` turns it on) | the antialiased edges of STROKE and POLY are thin quads whose vertices carry the coverage, instead of boxes with distance maths and `discard` per pixel; `ZINC_GL_FRINGE=0` drops POLY's edges altogether (measurements) |
+| multisampled window (`kms.cpp`) | `ZINC_GL_MSAA=0` (off) | `4`: a 4-sample EGL config. Measured slower than the strips on VideoCore IV; kept to measure other GPUs |
+| trace | `ZINC_GL_TRACE=0` (off) | `1`: a line on stderr before each texture upload, framebuffer copy and clear of the replay, to read a driver's own reports against (`VC4_DEBUG=perf`) |
+
+The GLES 2 rows were measured on a Pi 3B+ on 2026-10-12: [raspberry-pi.md](../reports/raspberry-pi.md), last section (navigation 181 to
+25 ms, first frame 1.1 to 0.3 s; the default stays `renderer: "cpu"`, and why).
 
 Correctness of the quad split was checked on macOS with `scripts/gl-compare.sh` (`ZINC_GL_SPLIT=0` and `1` give the
 same numbers to the last digit: rects 2, gradients 3, borders 3, shadows 4, clip 2, text 2, images 194 max channel

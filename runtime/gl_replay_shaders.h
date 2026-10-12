@@ -122,8 +122,8 @@ static const char* const FS_BLEND =
   "}\n";
 /** The fragment shader of the modes of `mask` (bit m: mode m), with the paint block or not, into `out`: one mode's block alone, or the
  *  blocks behind a ladder of ifs on the vertex's mode (every mode: desktop GL). A GPU without branches runs every block of a ladder
- *  for each pixel, and its driver takes 100 ms to build the whole ladder whatever is kept of it (VideoCore IV at 600 MHz): there a
- *  program holds the modes it draws and nothing else. False: `out` is too small. */
+ *  for each pixel, and its driver takes as long to build the whole ladder whatever is kept of it (100 ms on a Pi 3 at 600 MHz, 30 to
+ *  66 ms for one block): there a program holds the modes it draws and nothing else. False: `out` is too small. */
 static bool fs_source(unsigned mask, bool paint, char* out, size_t cap) {
   size_t n = (size_t)snprintf(out, cap, "%s", FS_HEAD);
   if ((mask & (1u << IMAGE_BGR)) && (mask & (1u << IMAGE_RGBA))) mask &= ~(1u << IMAGE_RGBA);   // one block for both images, under IMAGE_BGR's test

@@ -254,3 +254,91 @@ and only the time means something).
 Research: [hardware/vc4-gles2-performance.md](hardware/vc4-gles2-performance.md) (the driver) and
 [gles2-2d-rendering-techniques.md](gles2-2d-rendering-techniques.md) (how NanoVG, Mapbox GL, Impeller and Skia draw on this class of GPU: fringes
 as thin strips with the coverage in a vertex attribute, or 4x MSAA with plain triangles; no distance maths per pixel).
+
+### The GLES 2 fast path of the GL renderer, measured (ZN-725, 2026-10-12)
+
+What was measured, and how. The same Pi 3B+, hero exported with `ZINC_DISPLAY=gl`, `ZINC_RENDERER=gl`, 200 frames a run, `present` p50
+in ms. A new supply was fitted at 13:50: the numbers below are at **1400 MHz**, with nothing else running on the board, the board under
+55 C before each run and the throttling word read after it (`tools/device <pi> profile`; `capture` reads a frame back; `status` lists
+what runs). The numbers of the section above were taken at 600 MHz, and the GL ones of the afternoon under the load of a museum-table
+program that `tools/device` did not stop (fixed): they stay as history and are not compared with these.
+
+| screen | software bands (fbdev, 4 threads, off screen) | display-gl, `renderer: "cpu"` (one core, uploaded) | GL renderer before | GL renderer now |
+| --- | --- | --- | --- | --- |
+| navigation, driving | 19.1 (raster 17.7) | 62.2 | 181.1 | 25.0 |
+| home | 14.9 (raster 2.0, then the vsync) | 14.9 | 31.0 | 14.8 |
+| gallery | 14.1 (raster 3.9, then the vsync) | 13.8 | 32.8 | 22.8 |
+| tasks, settings (70% of the frames idle) | 15.0, 14.7 | | 15.6, 15.4 | 15.6, 15.0 |
+| first frame | | | 1081 to 1126 | 277 to 295 |
+| draw calls a frame (navigation, home, gallery) | | | 63.5, 11.6, 86.1 | 103.1, 73.4, 107.6 |
+
+CPU time of the whole program per frame (user + system, every thread, 300 frames from the start), and the board's temperature over the run:
+
+| screen | software bands | display-gl `cpu` | GL renderer now |
+| --- | --- | --- | --- |
+| navigation | 80.2 ms, 289% of a core, 51 to 58.5 C | 72.8 ms, 99% | 21.3 ms, 56%, 53 to 54.2 C |
+| home | 12.5 ms | 11.5 ms | 11.5 ms |
+| gallery | 23.8 ms, 128% | 20.8 ms, 93% | 14.7 ms, 46% |
+
+What the numbers say:
+
+- **Navigation went from 181 to 25 ms on the GPU, and the software bands still lead it** (19.1 ms): the GL frame holds 22 ms of GPU work
+  (`ZINC_GL_TIME=1`: 33.6 ms with a `glFinish`, 11.6 of them the CPU's), so it misses one vblank in two and runs at 30 frames a second
+  where the bands give about 40. It does so with a fifth of the CPU time (0.56 of a core against 2.9) and without heating the board:
+  the bands take a bare 3B+ from 51 to 58.5 C in eight seconds, and the firmware's limit at 60 C then cuts the clock to 1200 MHz
+  (`throttled` bit 3, seen after a few minutes of the software navigation).
+- **Home is at the vsync with every renderer; gallery is slower on the GPU** (22.8 against 14.1 ms): its two rounded clips each copy
+  their corners from the framebuffer, and each copy ends the driver's job (below).
+- **The first frame is under 0.3 s** (1.1 s before): 8 programs of one mode each, built from their own block of the source, instead
+  of one program of every mode.
+
+What changed in `runtime/gl_replay.cpp` (GLES 2 only; desktop GL keeps its single program, its draw calls and its pixels), with what
+each step gave on navigation:
+
+1. **One program per mode** (181 to 65 ms). VideoCore IV has no branches: it ran every mode of the single fragment shader for each
+   pixel. A batch is still one vertex upload; its consecutive quads of one mode are a run, drawn by that mode's program, built at first
+   use from that mode's block of the source alone (30 to 66 ms a program at 600 MHz, against 100 for any slice of the whole ladder).
+   Program classes were measured against it (`ZINC_GL_GROUPS`, at 600 MHz under the load, present p50 home / gallery / navigation):
+   one program per mode 23.2 / 35.0 / 81.6; a UI core and a vector program 29.3 / 34.7 / 120.4; SOLID apart 22.7 / 35.3 / 100.5. The
+   split measured slower on 2026-09-29 ended the batch at each switch; a run costs a draw call, not an upload.
+2. **Edges as strips** (65 to 29.7 ms). The antialiased edges of POLY and STROKE were boxes with three segment distances and a
+   `discard` per pixel. They are now thin quads whose vertices carry the coverage (mode RAMP: `w - |t|`): a quad per stroke segment
+   with shared corners, discs at sharp joins and ends; a convex polygon shrunk by half a pixel plus a quad per edge, without stencil;
+   two half-pixel quads per edge in the stencil path. 4x MSAA with plain triangles, the other candidate, takes 35.5 ms without any
+   fringe pass (`ZINC_GL_MSAA=4 ZINC_GL_FRINGE=0`; 19.2 ms for the same geometry without MSAA) and would only reach the frames drawn
+   straight into the window: not kept. A translucent stroke keeps the capsules, which blend each pixel once.
+3. **Five draw calls for a batch of polygons, not seven** (29.7 to 25.0 ms): a drawn pixel loses its winding with the write that marks
+   it and the cover zeroes what it does not draw, so the two stencil-only passes over the boxes are gone.
+4. **Glyphs uploaded once a frame** (fewer stalls, below; the p50 does not move). Each new glyph was a `glTexSubImage2D` into the
+   atlas after draws of the same frame: the driver submitted the frame so far and waited for the GPU (1.9 to 3.7 ms a glyph at 600 MHz
+   under load, 300 ms of that first frame; about 10 ms of the first frame at 1400 MHz). A glyph now goes into a copy of the atlas in
+   memory and the changed rows are uploaded before the frame's first draw.
+
+The driver's stalls (`VC4_DEBUG=perf` with `ZINC_GL_TRACE=1`, which prints the replay's uploads, copies and clears in between; 60
+frames, "Blocking on resource BO for bo map"): navigation 22, home 26, gallery 45 before; 10, 18 and 39 after change 4. Every one left
+follows a call the trace names: the atlas upload at the start of a frame that brings new glyphs (the previous frame still samples the
+texture, so the call waits for that frame's GPU work: 11 ms on navigation, time the swap would wait for otherwise), and on gallery 26
+follow `glCopyTexSubImage2D`, the corners of a rounded CLIP saved from the framebuffer: the frame is then three driver jobs, each
+loading and storing its tiles. Not removed: it needs a rounded clip that does not read the framebuffer. No clear comes after a draw on
+these screens.
+
+Pixels, frame 60 against the software frame of the same build (`ZINC_RENDERER=cpu`, `tools/glcompare`, pixels more than 24 away /
+mean error): navigation 0.217% / 0.360 (0.226% / 0.387 before), home 0.063% / 0.098 (0.070% / 0.101), gallery 0.048% / 0.153
+(0.055% / 0.158). The single program left stray pixels of a neighbouring quad on this GPU, most on the 64-pixel tile boundaries; the
+per-mode programs do not. Seen before and after, not investigated: single background-coloured pixels inside some POLY fills of the map.
+
+Which renderer on this GPU:
+
+- **A program that does not need the GPU: the fbdev driver and its bands**, as hero's `rpi` target says. It is the fastest on every
+  screen at the full clock. Its price is the four cores and the heat.
+- **display-gl keeps `renderer: "cpu"` as its default** on GLES 2. `"gl"` is now 2.5 times faster than it on the map (25.0 against
+  62.2 ms) and uses half the CPU everywhere, but it is slower on gallery (22.8 against 13.8 ms) and has not had the long run on
+  partially changing screens that the hang of 2026-09-29 asks for (no GPU reset in any run of this task). A program with a map or
+  another vector-heavy screen should ask for it: `"display": { "driver": "gl", "renderer": "gl" }` or `ZINC_RENDERER=gl`.
+- Not measured: the bands on the real `/dev/fb0` at this clock (the reference is off screen), a board with a heatsink, a run of more
+  than a few seconds for either renderer's heat, Kit and Forms on the GL renderer, any other GLES 2 GPU.
+
+Switches added in `runtime/gl_replay.cpp` and `kms.cpp`: `ZINC_GL_STRIPS=0` (the boxes and capsules again; `1` draws the strips on
+desktop GL, which `tests/t1/gl_strips.sh` compares with the software frame), `ZINC_GL_GROUPS="0,1,7;2"` (modes sharing a program),
+`ZINC_GL_MSAA=4`, `ZINC_GL_TRACE=1`; `ZINC_GL_ONLY=<mode>` and `ZINC_GL_FRINGE=0` still work. `ZINC_GL_STATS=1` also prints the build
+time of each program and where the first frame's time goes.

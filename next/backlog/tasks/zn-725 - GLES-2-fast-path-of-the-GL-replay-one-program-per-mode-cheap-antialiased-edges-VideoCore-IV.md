@@ -3,11 +3,11 @@ id: ZN-725
 title: >-
   GLES 2 fast path of the GL replay: one program per mode, cheap antialiased
   edges (VideoCore IV)
-status: In Progress
+status: Backlog
 assignee:
   - '@parallel'
 created_date: '2026-10-12 10:41'
-updated_date: '2026-10-12 11:44'
+updated_date: '2026-10-12 12:26'
 labels:
   - perf
   - gl
@@ -70,4 +70,47 @@ MSAA costs 22 ms on this frame (every blended pixel reads and writes four sample
 - Quality, frame 60 against the software frame (tools/glcompare, pixels over 24 / mean error): navigation 0.216% / 0.366 (boxes 0.189% / 0.360, the single program 0.226% / 0.387), home 0.063% / 0.098 (0.054 / 0.095; 0.070 / 0.101), gallery 0.048% / 0.153 (0.041 / 0.150; 0.055 / 0.158). On the Mac (ZINC_GL_STRIPS=1 on desktop GL against its own technique): shapes 0.986% both, navigation 0.422% against 0.421%, lottie-gallery 1.154% against 1.290%, svg-gallery 3.911% against 3.916%, hero the same pixels. What differs to the eye: nothing on the map at 4x zoom; hairline rings (lottie) are more even and a little lighter.
 - Seen in every GL capture of the map, before this task too: single background-coloured pixels inside some POLY fills (the software frame has none). Not from the strips; not investigated here.
 - Not under the software bands yet (43.3 ms): 46.8 to 49.5. The frame's CPU side is now the larger part (31 to 54 ms "to submit", which includes 2.5 to 4 ms a frame of glyph uploads that stall, #6).
+
+#4, correction (600 MHz): the MSAA runs above were taken while a second hero-gl was still drawing behind them (a program that gdb was sampling for tools/device stacks kept running after the tool's kill; the tool now kills again with -9). Taken again with the board to themselves, navigation driving, 150 frames, present p50: boxes with distance maths 88.9 ms; no fringe at all 34.0; 4x MSAA with plain triangles and no fringe pass 53.7; strips 44.9; MSAA and strips 73.6. Same conclusion: MSAA costs 20 ms on this frame, the strips 11, the strips are kept. (The 46.8 ms of the commit message was a clean run; its 57.3 for MSAA is the disturbed one: 53.7.)
+
+VALIDITY OF THE NUMBERS ABOVE (2026-10-12 13:50): every device number above this line was taken at 600 MHz AND under a 53% CPU load: tools/device never stopped anything (its pattern for ~/zn/* was quoted: fixed on main in 036a084d, taken here), so a museum-table program on the software renderer ran beside every GL run, and during the MSAA series a second hero-gl too. The software reference of 43.3 ms was taken without that load. Read them as relative steps under a load, not as results.
+New supply, reboot at 13:50. tools/device status: "cpu: 4 cores, 1400 MHz now, 1400 MHz max, governor ondemand; firmware: frequency(48)=1400000000, throttled=0x50000, temp=52.1'C". 0x50000: under-voltage and throttling have occurred since this boot (bits 16 and 18), none now (bits 0 to 2 clear). Nothing else runs under ~/zn (status lists none). Clean series at 1400 MHz follow.
+
+CLEAN SERIES 1 (14:00, nothing else running, tools/device fixed; 200 frames; present p50 in ms; the clock is the one the run ended at). The new supply sags under a four-thread load: the software bands end at 600 MHz with throttled=0x50005, the GL runs stay at 1400 MHz: a real effect on this board, not a like-for-like clock.
+- software bands (fbdev build, --offscreen): navigation driving 42.4 (600 MHz, 0x50005; raster 40.7 + convert 1.7, no vsync wait off screen); home 13.4, gallery 11.2, tasks 15.0, settings 14.7 (1400 MHz; these wait for the vsync: home's raster is 3.9 ms, gallery's 8.6)
+- the single program (hero-gl0, the build before this task): navigation 180.8 (1400 MHz), home 31.6 (ended at 700 MHz), gallery 31.3, tasks 15.6, settings 15.4; first frame 1073 to 1150 ms; 63.5 / 11.6 / 86.1 draw calls a frame
+- per-mode programs + strips (commit e32f93ba): navigation 29.6 (1400 MHz, 115 draw calls, 10838 quads, 14.6 ms of CPU to submit), home 14.9 (75 draw calls), gallery 24.3 (128), tasks 15.6; first frame 289 to 297 ms (replay 231 to 235 ms)
+- The Pi stopped answering during the next run (hero-gl settings, 14:05: ssh timeout, then the name no longer resolves). Cause not known yet (the supply, or the GPU hang recorded in docs/plugins/display-gl.md): checked when it is back.
+
+CLEAN SERIES 2 (14:15, 1400 MHz supply that holds, board to itself, cool before each run; 200 frames, present p50 in ms). Reading the clock: `vcgencmd measure_clock arm` after a run shows what the ondemand governor chose for an idle CPU (600 to 1000 MHz after a light GL run), so a run is discarded on the throttling word (bits 0 to 3), not on that reading.
+- software bands, off screen: navigation 19.2 (raster 17.8; the run ends at 59 C with the soft temperature limit set, 0xd0008, clock 1200: four busy cores take the bare board from 54 C to the limit in five seconds; the coordinator's run of 500 frames gave 18.7), home 14.9 (raster 2.0, the rest waits for the vsync), gallery 14.1 (raster 3.9)
+- the single program (hero-gl0): navigation 181.1, home 31.0, gallery 32.8; first frame 1081 to 1126 ms
+- per-mode programs + strips (commit e32f93ba): navigation 29.7 (115 draw calls, 10838 quads, 14.8 ms of CPU to submit; 53 C before, 54 C after), home 14.8, gallery 24.3 (24.2 ms to submit); first frame 289 to 305 ms
+So at this clock: navigation 181 -> 29.7 ms and its first frame 1.1 s -> 0.29 s, but the software bands on four cores (19 ms) are ahead of the GL path on navigation and gallery; home is the same (both at the vsync).
+
+#6, attribution (VC4_DEBUG=perf with the new ZINC_GL_TRACE=1, which prints a line before each texture upload, framebuffer copy and clear of the replay; 60 frames, "Blocking on resource BO for bo map"):
+- before: navigation 22, home 26, gallery 45 blocks. Cause 1, a glTexSubImage2D per new glyph into the atlas, each one after draws of the same frame: the driver submits the frame so far and waits for the GPU (1.9 to 3.7 ms a glyph at 600 MHz; 300 ms of the first frame).
+- fix: on GLES 2 a glyph goes into a copy of the atlas in memory; the rows that changed are uploaded once, before the frame's first draw (frame() looks the TEXT commands' glyphs up first), or before the next draw when a glyph comes late (a TEXT under a matrix).
+- after: navigation 10, home 18, gallery 39. Every one left follows a call the trace names: the atlas upload at the start of a frame that brings new glyphs (10 / 18 / 13: the texture is still sampled by the previous frame, so the call waits for that frame's GPU work, once; time the swap would wait for otherwise), and in gallery 26 follow the copy of a rounded CLIP's corners from the framebuffer (glCopyTexSubImage2D, two rounded clips a frame: each read ends the driver's job, so the frame is drawn as three jobs, each loading and storing its tiles; "job throttling" 84 times against 34 to 41 on the other screens). Not removed: it needs a rounded clip that does not read the framebuffer (line for later.md).
+- No "Flushing rendering to process new clear" and no "Partial clear" line on these screens: the replay's clear is the frame's first call and no CLEAR command comes after a draw there.
+
+CLEAN SERIES 3 and 4 (14:25 to 14:55, 1400 MHz, throttled=0xd0000 after every run kept, board under 55 C before each; the full tables are in docs/reports/raspberry-pi.md, last section):
+- #4 re-checked on clean numbers, navigation, present p50: boxes with distance maths (ZINC_GL_STRIPS=0) 65.2 ms; no fringe at all 19.2; 4x MSAA with plain triangles and no fringe pass 35.5; 4x MSAA with the strips 44.3; strips 29.7. Strips stay.
+- stencil path in five draw calls instead of seven (the write that marks a drawn pixel also clears its winding, the cover zeroes the rest): navigation 29.7 -> 25.0 ms (115 -> 103 draw calls), gallery 24.3 -> 22.8. Kept.
+- glyph atlas uploaded once a frame: the p50 does not move; 12, 8 and 6 fewer stalls in 60 frames (navigation, home, gallery), about 10 ms of the first frame. Kept.
+- final build, present p50: navigation 25.0, home 14.8, gallery 22.8, tasks 15.6, settings 15.0; first frame 277 to 295 ms. Before the task: 181.1, 31.0, 32.8, 15.6, 15.4; 1081 to 1126 ms.
+- the references at this clock: software bands (fbdev, off screen) navigation 19.1 (raster 17.7), home 14.9, gallery 14.1; display-gl with renderer cpu: navigation 62.2, home 14.9, gallery 13.8.
+- CPU time of the whole program per frame (300 frames) and temperature over the run: navigation, bands 80.2 ms (289% of a core, 51 -> 58.5 C), GL 21.3 ms (56%, 53 -> 54.2 C), display-gl cpu 72.8 ms (99%); gallery 23.8 / 14.7 / 20.8 ms; home 12.5 / 11.5 / 11.5 ms. The GL renderer heats the bare board by 1 C where the bands add 7 C in eight seconds (the firmware's limit at 60 C then cuts the clock to 1200 MHz).
+- ZINC_GL_TIME=1 on navigation: 33.6 ms a frame with a glFinish, 11.6 of them the CPU's: 22 ms of GPU work, so one vblank in two is missed (30 frames a second) whatever the CPU side does. Without any fringe the frame is 19.2 ms: the three fringe passes are the 6 ms that would have to go.
+- pixels of the final build against the software frame (frame 60, pixels over 24 / mean error): navigation 0.217% / 0.360, home 0.063% / 0.098, gallery 0.048% / 0.153 (the single program: 0.226 / 0.387, 0.070 / 0.101, 0.055 / 0.158). No GPU reset in any run (dmesg).
+
+#5: NOT MET for navigation: 25.0 ms against the bands' 19.1 ms at 1400 MHz (the bar the coordinator set after the new supply; at 600 MHz under the museum's load it was 44.9 against 43.3 unloaded). Met for the rest: home 31.0 -> 14.8 and gallery 32.8 -> 22.8 are faster than before, the first frame is 0.28 to 0.30 s.
+#6: attributed (above, ZINC_GL_TRACE); the per-glyph uploads are removed; NOT removed: the framebuffer copy of a rounded CLIP's corners (26 of gallery's 39 blocks, the frame drawn as three driver jobs), and the atlas upload of a frame that brings new glyphs still waits for the previous frame (two atlas textures used in turn would avoid it).
+#7: docs/reports/raspberry-pi.md has the section "The GLES 2 fast path of the GL renderer, measured"; docs/plugins/display-gl.md lists the switches; the lines for docs/reports/zinc-next-perf.md are in the agent's final report (that file is the coordinator's in a worktree). Decision on the default: display-gl keeps renderer "cpu" on GLES 2. "gl" wins navigation (25.0 against 62.2 ms) and halves the CPU everywhere, loses gallery (22.8 against 13.8 ms) and has had no long run on partially changing screens (the 2026-09-29 hang); a program with a map asks for it (ZINC_RENDERER=gl). For a program that needs no GPU layer the fbdev bands stay the fastest renderer of this board.
+
+HANDOVER (task back to Backlog; #5, #6, #7 open):
+- next step for #6 and gallery: a rounded CLIP on GLES 2 that does not read the framebuffer (run: SCREENS=gallery with VC4_DEBUG=perf ZINC_GL_TRACE=1, `tools/device <pi> profile hero-gl --frames 60 --raw ZINC_RENDERER=gl ZINC_DEMO=gallery VC4_DEBUG=perf ZINC_GL_TRACE=1`; the copies are in run(), case CLIP). When gallery is at the vsync, measure Kit and Forms for an hour under `timeout -s KILL` with the reset counter, then flip ZP_DISPLAY_GL_RENDERER to "auto" off __APPLE__ in plugins/display-gl/src/display_gl.cpp.
+- for #5 the GPU has 22 ms of work on the map: the levers left are the fringe passes (6 ms: three passes over 8 vertices an edge; one indexed set of 3 vertices a point would cut the vertex work by 2.7) and geometry kept across frames (the MESH of docs/reports/gpu-renderer-design.md, phase 4).
+- #7: tick when the performance log has its lines.
+- tools/device: `capture <name> <file.bmp>` (a frame read back by the program), `stop` and the measures kill what is left running (main's fix 036a084d taken as is).
 <!-- SECTION:NOTES:END -->
