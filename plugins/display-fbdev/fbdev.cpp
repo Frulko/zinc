@@ -206,7 +206,11 @@ static void read_dev(Dev& d) {
 // plane above it, ARGB8888, transparent where the rasterizer left a hole. Two buffers take turns on that plane; each commit shows the
 // frame and its pictures at the same refresh. The mode and the console's primary plane (/dev/fb0) are never touched: the planes and
 // their buffers belong to this process's DRM file, the kernel removes them when it is closed, by us or by a crash, and the console is
-// what it was. Without a picture the driver writes /dev/fb0 as before; it has no DRM file open then.
+// what it was.
+// Every frame takes that way when the display has the planes (ZN-735), with or without a picture: /dev/fb0 is the buffer on the screen,
+// and a frame converted into it while the screen reads it shows as bands of the new frame beside bands of the old one. The frame is
+// written to the buffer that is not shown and one commit shows it at the refresh. ZINC_FBDEV_FLIP=0: the frames go to /dev/fb0 as before
+// and the planes are taken only while a picture is shown.
 /** A row of a picture's place as the plane above the picture wants it: `n` pixels of the frame at `s`, written opaque at `d` by conv_row.
  *  A hole is transparent. `w`, when given, is the same row drawn over white holes: where the two differ the pixel lets some of the
  *  picture through (hal.h hal_layer_pixel). */
@@ -244,11 +248,14 @@ static int nlay;
 static std::vector<uint32_t> replaced, retired;   // framebuffers of pictures that left: with the next commit, and off the screen once its refresh came
 static bool pending;                   // a commit waits for its refresh
 static bool failed;                    // the display refused the planes: /dev/fb0 until the program ends
+static bool flip;                      // every frame goes through the two buffers (the file stays open), not only the frames with a picture
+static bool refuse;                    // ZINC_FBDEV_PLANES=refuse: no picture is taken on a plane
 static int full, idle;                 // buffers still to write whole; frames since the last picture
 struct Area { int x0, y0, x1, y1; };
 static Area behind;                    // what the buffer on the screen holds and the other one does not yet
 static struct { uint8_t* mem; int pitch, bpp, fmt; uint32_t amask; } fb0;   // /dev/fb0's layout, while the frame goes to the plane
-static uint32_t pictures, frames;      // statistics
+static uint32_t pictures, frames, direct;   // statistics: pictures adopted, frames committed, frames written straight into /dev/fb0
+static uint64_t asked, wrote;          // statistics: pixels of the frames' damage, pixels written to the buffers (the damage before comes too)
 
 static int io(unsigned long req, void* arg) { int r; do r = ioctl(fd, req, arg); while (r < 0 && (errno == EINTR || errno == EAGAIN)); return r; }
 static bool describe(uint32_t id, Plane* p, uint64_t* type) {
@@ -331,6 +338,8 @@ static bool open_file() {
   }
   return false;
 }
+/** The frames go to the two buffers from here: both are still to write whole, and /dev/fb0's layout is kept for the way back. */
+static void take() { fb0 = {fbmem, pitch, bpp, fmt, amask}; full = 2; back = 0; behind = Area{}; }
 struct Request {
   uint32_t objs[HAL_MAX_LAYERS + 1], counts[HAL_MAX_LAYERS + 1], props[(HAL_MAX_LAYERS + 1) * NPROP], nobj = 0, nprop = 0;
   uint64_t vals[(HAL_MAX_LAYERS + 1) * NPROP];
@@ -407,13 +416,12 @@ static void wait_refresh() {
  *  fb_present's, with the frame. */
 static uint32_t fb_layers(const HalLayer* l, int32_t n) {
   using namespace kms;
-  if (n <= 0 || kms::failed) { for (int k = 0; k < nlay; k++) replaced.push_back(lay[k].fb); nlay = 0; return 0; }
+  if (n <= 0 || kms::failed || refuse) { for (int k = 0; k < nlay; k++) replaced.push_back(lay[k].fb); nlay = 0; return 0; }
   if (kms::fd < 0) {
     const uint64_t t0 = now_us();
     if (!open_file()) { kms::failed = true; return 0; }
     if (stats) fprintf(stderr, "fbdev planes: taken in %.1f ms\n", (now_us() - t0) / 1e3);
-    fb0 = {fbmem, pitch, bpp, fmt, amask};
-    full = 2; back = 0; behind = Area{};
+    take();
   }
   Shown next[HAL_MAX_LAYERS];
   uint32_t took = 0;
@@ -502,18 +510,30 @@ static int fb_init(const HalConfig* cfg) {
   stats = on("ZINC_FBDEV_STATS"); crc_on = on("ZINC_FBDEV_CRC"); fuse = on("ZINC_FBDEV_FUSE");
   fprintf(stderr, "fbdev: %s %dx%d %d bpp, surface %dx%d at %d,%d size %dx%d, %d input device(s)\n", ZP_DISPLAY_FBDEV_DEVICE, fw, fh, bpp, W, H, dx, dy, dw, dh, ndev);
 #ifdef ZP_FBDEV_KMS
-  // Hardware layers are offered when the screen's compositor has the planes (tried once here, then left alone until a picture comes),
-  // for a surface shown 1:1. ZINC_FBDEV_PLANES=0: never, a decoder gives pixels and every picture is drawn in software.
+  // When the screen's compositor has the planes, every frame goes to them (kms::flip, the file stays open) and hardware layers are
+  // offered for a surface shown 1:1. ZINC_FBDEV_FLIP=0: the frames go to /dev/fb0 and the planes are left alone until a picture comes.
+  // ZINC_FBDEV_PLANES=0: no layer, a decoder gives pixels and every picture is drawn in software.
   // ZINC_FBDEV_PLANES=refuse: the layers are offered and every one is refused, as a display whose compositor cannot place a picture
   // does: the software path of a picture that came as a dmabuf (what a turned or blended film takes), to test and to measure it.
   const char* pl = getenv("ZINC_FBDEV_PLANES");
   const uint64_t k0 = now_us();
-  if (!sim_fb && !xmap && hal_display && hal_display->init == fb_init && !(pl && *pl == '0') && kms::open_file()) {
-    kms::close_file();
-    hal_display->layers = fb_layers;
-    kms::failed = pl && *pl == 'r';
-    fprintf(stderr, "fbdev: pictures in device memory go to a plane of the display (found in %.1f ms)%s\n", (now_us() - k0) / 1e3, kms::failed ? ", refused as asked" : "");
+  const char* fl = getenv("ZINC_FBDEV_FLIP");
+  const bool layers = !xmap && !(pl && *pl == '0'), flip = !(fl && *fl == '0');
+  const char* why = sim_fb ? nullptr : flip ? "no KMS plane to take" : "ZINC_FBDEV_FLIP=0";
+  if (!sim_fb && hal_display && hal_display->init == fb_init && (layers || flip) && kms::open_file()) {
+    if (layers) {
+      hal_display->layers = fb_layers;
+      kms::refuse = pl && *pl == 'r';
+      fprintf(stderr, "fbdev: pictures in device memory go to a plane of the display (found in %.1f ms)%s\n", (now_us() - k0) / 1e3, kms::refuse ? ", refused as asked" : "");
+    }
+    // the commit is tried before the first frame: a display another program holds says so here, not at the first frame
+    const int e = flip ? kms::commit(0, DRM_MODE_ATOMIC_TEST_ONLY) : 0;
+    if (flip && !e) { kms::flip = true; kms::take(); why = nullptr; }
+    else { kms::close_file(); if (e) why = e == EACCES || e == EPERM ? "another program owns the display" : strerror(e); }
   }
+  // the path the frames take, said once: what a torn picture is checked against
+  if (kms::flip) fprintf(stderr, "fbdev: frames go to the buffer that is not shown, one flip at the refresh (KMS plane, two buffers, 32 bpp; ZINC_FBDEV_FLIP=0: /dev/fb0)\n");
+  else if (why) fprintf(stderr, "fbdev: frames are written into /dev/fb0, the buffer on the screen (%s)\n", why);
 #endif
   return 1;
 }
@@ -550,8 +570,8 @@ static uint64_t first_us, last_us_end;
 // is no longer timed to the beam.
 #ifdef ZP_FBDEV_KMS
 /** The surface's rectangle `a` into the framebuffer, whatever the frame's damage. */
-static void convert_area(const HalFrame* f, kms::Area a) {
-  HalFrame u = *f;
+static void convert_area(kms::Area a) {
+  HalFrame u = {};
   u.x0 = a.x0; u.y0 = a.y0; u.x1 = a.x1; u.y1 = a.y1;
   Job job{&u, 2};
   pool.run(a.y0, a.y1, BAND_ROWS, band, &job);
@@ -563,12 +583,14 @@ static void planes_present(const HalFrame* f, bool has) {
   const Area now = has ? Area{f->x0, f->y0, f->x1, f->y1} : Area{};
   Area a = now;
   if (behind.x1 > behind.x0) a = a.x1 > a.x0 ? Area{std::min(a.x0, behind.x0), std::min(a.y0, behind.y0), std::max(a.x1, behind.x1), std::max(a.y1, behind.y1)} : behind;
-  if (full) { a = Area{0, 0, fw, fh}; full--; }
+  if (full) { a = Area{0, 0, W, H}; full--; }
   const bool turn = a.x1 > a.x0 && a.y1 > a.y0;   // nothing to write: the buffer on the screen stays, only the pictures change
+  asked += (uint64_t)(now.x1 - now.x0) * (now.y1 - now.y0);
   if (turn) {
+    wrote += (uint64_t)(a.x1 - a.x0) * (a.y1 - a.y0);
     const Buffer& b = buf[back];
     fbmem = b.map; pitch = b.pitch; bpp = 32; fmt = FMT_8888; amask = 0xFF000000u;
-    convert_area(f, a);
+    convert_area(a);
     // the rows where the frame draws over a picture are drawn once more, over white holes (punch)
     Area r[HAL_MAX_LAYERS];
     int c0 = fh, c1 = 0;
@@ -595,7 +617,7 @@ static void planes_present(const HalFrame* f, bool has) {
     if (turn) { back ^= 1; behind = now; }
   } else if (e == EBUSY) full = 2;   // the commit before this one is not on the screen yet (no refresh seen in 100 ms): this frame is skipped, both buffers are written whole again
   else {
-    fprintf(stderr, "fbdev: the display refused the planes (%s): pictures are drawn in software\n", strerror(e));
+    fprintf(stderr, "fbdev: the display refused the planes (%s): frames are written into /dev/fb0, pictures are drawn in software\n", strerror(e));
     kms::failed = true;
   }
   idle = nlay ? 0 : idle + 1;
@@ -612,9 +634,11 @@ static void fb_present(const HalFrame* f) {
   cpu_render = 0; cpu_convert = 0;
   bool planes = false;
 #ifdef ZP_FBDEV_KMS
-  // two seconds without a picture (or a display that refused): back to /dev/fb0, which gets the whole surface, and the planes go
-  if (kms::fd >= 0 && (kms::failed || kms::idle > 2 * ZP_DISPLAY_FBDEV_FPS)) { convert_area(f, kms::Area{0, 0, W, H}); kms::close_file(); kms::idle = 0; }
+  // a display that refused, or two seconds without a picture when only the pictures take the planes: back to /dev/fb0, which gets the
+  // whole surface, and the planes go
+  if (kms::fd >= 0 && (kms::failed || (!kms::flip && kms::idle > 2 * ZP_DISPLAY_FBDEV_FPS))) { convert_area(kms::Area{0, 0, W, H}); kms::close_file(); kms::idle = 0; kms::flip = false; }
   planes = kms::fd >= 0;
+  if (has && !planes) kms::direct++;
 #endif
   Job job{f, fuse && !planes ? 3 : 1};
   if (has) pool.run(f->y0, f->y1, BAND_ROWS, band, &job);
@@ -684,6 +708,10 @@ static void fb_shutdown() {
   if (crc_on) fprintf(stderr, "fbdev crc: %08x\n", crc32_of(surf, (size_t)W * H));
 #ifdef ZP_FBDEV_KMS
   if (stats && kms::pictures) fprintf(stderr, "fbdev planes: %u pictures shown from their dmabuf, %u frames committed\n", kms::pictures, kms::frames);
+  // the proof of the path taken: no frame of a flipping run is written into /dev/fb0, and a commit writes little more than the damage
+  if (stats) fprintf(stderr, "fbdev flip: %u commits at the refresh, %u frames written into /dev/fb0 while it was on the screen\n", kms::frames, kms::direct);
+  if (stats && kms::frames) fprintf(stderr, "fbdev flip: damage %.1f%% of the surface a commit, written to its buffer %.1f%%\n", 100.0 * kms::asked / kms::frames / ((double)W * H), 100.0 * kms::wrote / kms::frames / ((double)W * H));
+  if (kms::fd >= 0) convert_area(kms::Area{0, 0, W, H});   // the last frame stays on the console's buffer, under the plane until it goes
   kms::close_file();   // the planes go, the console's is there again
 #endif
   if (tty >= 0) { ioctl(tty, KDSETMODE, KD_TEXT); close(tty); tty = -1; }

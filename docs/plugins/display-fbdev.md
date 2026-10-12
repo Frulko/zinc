@@ -29,6 +29,15 @@ or with options: `"display": { "driver": "fbdev", "device": "/dev/fb1", "grab": 
   its first CRTC and the panel is on another one, so the call returns in microseconds without an error; less than a
   period after the last frame, the driver then sleeps to `fps` as well. No page flipping on `/dev/fb0`: tearing is
   possible on fast motion.
+- **Page flips on a KMS screen** (ZN-735): `/dev/fb0` is the buffer the screen reads, and a frame converted into it
+  while it is read shows as bands of the new frame beside bands of the old one. When the display has free overlay planes
+  the driver writes no frame there: each frame goes to the one of two buffers that is not shown (32 bpp), and one atomic
+  commit shows it at the next refresh, whose event paces the loop. A partial update stays partial: the buffer gets the
+  frame's damage and the damage of the frame before, which went to the other buffer. The driver says which path it
+  took once at start (`fbdev: frames go to the buffer that is not shown, one flip at the refresh` or `fbdev: frames are
+  written into /dev/fb0, the buffer on the screen (<why>)`). `ZINC_FBDEV_FLIP=0` gives the direct path back. While such
+  a program runs, `/dev/fb0` is under its plane: another program that writes `/dev/fb0` is not seen, and
+  `tools/device shot` reads black until the program ends (its last frame is left in `/dev/fb0`).
 - **Hardware layers** (KMS screens, surface shown 1:1): a picture that lies in device memory, the dmabuf of a video
   decoder, is shown by a plane of the display and never read by the CPU. See "Hardware layers" below.
 - The console is switched to graphics mode (`KDSETMODE KD_GRAPHICS` on `/dev/tty0`) so the text cursor and kernel
@@ -75,6 +84,7 @@ Environment variables (read at start, not zinc.json options):
 | `ZINC_RENDER_THREADS=n` | rasterizer threads, the calling thread included; default the online cores, at most 8; `1` is the old single-thread path (no thread is created) |
 | `ZINC_FBDEV_STATS=1` | at exit: frames, wall time, effective fps, and per frame p50 / p99 / mean / max of `raster` (wall time of the parallel rasterization), `vsync`, `convert`, `present`, plus `cpu-render` / `cpu-convert` (thread time summed over the threads); with hardware layers, the time it took to take the planes and `fbdev planes: N pictures shown from their dmabuf, M frames committed` |
 | `ZINC_FBDEV_PLANES=0` | no hardware layer: a decoder gives pixels and every picture is drawn by the rasterizer (to compare, or a display whose planes misbehave). `refuse`: the layers are offered and every one is refused, which is the software path of a picture that came as a dmabuf (what a turned or blended film takes) |
+| `ZINC_FBDEV_FLIP=0` | frames are converted straight into `/dev/fb0` as before ZN-735 (to compare, or a display whose planes misbehave); the planes are then taken only while a hardware layer is shown. With `ZINC_FBDEV_STATS=1` the line `fbdev flip:` counts the commits and the frames written into `/dev/fb0` while it was on the screen (0 when every frame was flipped), and the share of the surface a commit wrote |
 | `ZINC_FBDEV_SKIP_S=s` | leave the first `s` seconds out of the stats |
 | `ZINC_FBDEV_CRC=1` | at exit: CRC-32 of the surface, to compare runs bit for bit (with `ZINC_DETERMINISTIC=1`) |
 | `ZINC_FBDEV_FUSE=1` | each band also converts its rows right after rasterizing them, then the vblank wait (default: rasterize all, wait, convert all, so the write follows the vblank). Measured no faster, worse p99 |
@@ -87,11 +97,13 @@ decoder's buffer itself (ZN-731; the contract is `HalDisplay.layers` in `runtime
 
 - At start the driver looks for the screen in `/dev/dri/card*`: the CRTC of the primary plane that shows the console,
   with the framebuffer's size, and three free overlay planes on it (two for pictures, one that takes ARGB8888 for the
-  frame). It then closes the file again. Without them (no KMS, a scaled surface, `ZINC_FBDEV_SIM`) the driver has no
-  layers and `zinc:video` decodes to pixels as before.
+  frame). It keeps the file and two ARGB8888 buffers for the frames (see "Page flips" above; with `ZINC_FBDEV_FLIP=0`
+  it closes the file again and opens it, 2 to 7 ms, when the first picture comes). Without them (no KMS, a scaled
+  surface, `ZINC_FBDEV_SIM`) the driver has no layers and `zinc:video` decodes to pixels as before; a scaled surface
+  is still flipped.
 - When a frame draws such a picture upright, whole and opaque, the runtime offers it (`gfx.cpp`, "hardware layers").
-  The driver opens the DRM file (2 to 7 ms), makes two ARGB8888 buffers for the frame, imports the picture's dmabufs as
-  a framebuffer (`PRIME_FD_TO_HANDLE`, `ADDFB2`: 0.07 ms, no pixel read) and tries the placement with a test commit;
+  The driver imports the picture's dmabufs as a framebuffer (`PRIME_FD_TO_HANDLE`, `ADDFB2`: 0.07 ms, no pixel read)
+  and tries the placement with a test commit;
   what the compositor refuses (a size it cannot scale to, no memory) is drawn in software instead.
 - The rasterizer writes a hole (`HAL_LAYER_HOLE`) where the picture lies. The driver converts the damaged rows into the
   buffer that is not on the screen with alpha 255, and alpha 0 in the holes. Rows where something is drawn over the
@@ -103,7 +115,8 @@ decoder's buffer itself (ZN-731; the contract is `HalDisplay.layers` in `runtime
   to its rectangle and converts its colours (BT.601 or BT.709, the range the stream names).
 - A picture's framebuffer is removed once the commit that replaced it has reached the screen; the player keeps the
   decoder's frame for two more pictures.
-- Two seconds after the last picture the driver writes the whole surface to `/dev/fb0` again and closes the DRM file.
+- With `ZINC_FBDEV_FLIP=0`, two seconds after the last picture the driver writes the whole surface to `/dev/fb0` again
+  and closes the DRM file.
 - **The console's plane and the mode are never touched.** The planes, the framebuffers and the buffers belong to the
   DRM file: when it is closed, by the driver or by the kernel after a crash, they are gone and `/dev/fb0` shows.
   Another program that owns the display (a compositor, a DRM master) makes the test commit fail: the driver says so
@@ -139,7 +152,8 @@ per run after 2 s of warm-up, `ZINC_FBDEV_STATS=1`, milliseconds unless stated:
   (the program's `onDraw` emitting the map's draw commands, one thread), 1.4 ms of conversion.
 - The `FBIO_WAITFORVSYNC` ioctl returned in 0.01 ms every time on the KMS fbdev emulation: it does not pace the frames
   here, so nothing was quantized to 60 Hz when these numbers were taken. Since ZN-731 the driver holds `fps` by the
-  clock in that case (see Output); tearing on `/dev/fb0` is still possible.
+  clock in that case (see Output); tearing on `/dev/fb0` is still possible, which is why a KMS screen is flipped since
+  ZN-735.
 - Runs at 3-4 threads showed `throttled=0x80008` afterwards (soft temperature limit, 60 C, no heat sink): they are, if
   anything, pessimistic. No under-voltage bit was set during any run.
 - Preview-phase numbers (the route overview before the car starts) are lighter and not representative: 20 fps at one
@@ -151,6 +165,6 @@ Not run on hardware: `rpi1` (ARMv6, 32 bit) and 24/32 bpp framebuffers (the gene
 compiled but the Pi screen is 16 bpp), the scaled path (`xmap`, surface size different from the framebuffer) with
 several threads, and touch mapping / grabbing on other screens. The SDL HAL (`targets/macos/hal_sdl.cpp`) has its own
 copy of a band renderer and could adopt `render_bands.h`. Not implemented: rotation (`fbcon=rotate` / touch axis swap),
-double buffering via panning, the frame on a KMS plane when no picture is shown (page flips without tearing for every
-program: the code is there, only used while a hardware layer is), overlapping the program's `paint` with the
+double buffering via panning (a display without KMS planes still tears), a third buffer (the conversion of a frame
+waits for the refresh of the one before), overlapping the program's `paint` with the
 rasterization of the previous frame. Hardware layers were run on a Pi 3B+ only (vc4, `YU12` from bcm2835-codec).
