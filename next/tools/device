@@ -10,9 +10,10 @@ usage: tools/device <user@host> <command> [args]        (or ZINC_DEVICE=user@hos
   run <name> [VAR=v...]           stop the programs under ~/zn, start this one detached, print the head of its log (/tmp/zn-<name>.log)
   stop                            stop the programs under ~/zn
   shot <file.png>                 the framebuffer /dev/fb0 as a PNG (what an fbdev program shows; not a KMS/GL scan-out)
-  profile <name> [--frames N] [--offscreen] [VAR=v...]
+  profile <name> [--frames N] [--offscreen] [--raw] [VAR=v...]
                                   N frames (default 260) with ZINC_PROFILE=1 and the display driver's statistics; the phase lines and the
-                                  clock. --offscreen: an fbdev build draws into a file, the programs under ~/zn are paused meanwhile
+                                  clock. --offscreen: an fbdev build draws into a file, the programs under ~/zn are paused meanwhile.
+                                  --raw: everything the program prints (a driver's own diagnostics: VC4_DEBUG=perf, ZINC_GL_INFO=1)
   stacks <name> [--samples N]     where a running program spends its time: N stacks (default 20) of its main thread taken with gdb,
                                   the functions counted (no perf needed; slow on a throttled board)
   selftest                        checks the pure functions of this file (no device)
@@ -184,8 +185,8 @@ def cmd_shot(dev, args):
 def cmd_profile(dev, args):
     args, env = split_env(args)
     frames = opt(args, "--frames", "260")
-    off = "--offscreen" in args
-    args = [a for a in args if a != "--offscreen"]
+    off, raw = "--offscreen" in args, "--raw" in args
+    args = [a for a in args if a not in ("--offscreen", "--raw")]
     if not args:
         die("profile: which program of ~/zn?")
     name = shlex.quote(args[0])
@@ -198,7 +199,7 @@ def cmd_profile(dev, args):
         pre = "for p in $(" + PIDS % "*" + "); do kill $p; done; sleep 1; "
     clock = "if command -v vcgencmd >/dev/null; then vcgencmd measure_clock arm; vcgencmd get_throttled; else cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq; fi"
     envs = " ".join(v if "$(" in v else shlex.quote(v) for v in env)
-    print(ssh(dev, "%scd ~/zn/%s && env %s timeout 300 ./run.sh 2>&1 >/dev/null </dev/null | grep -E 'zinc profile|fbdev|display-gl' | cut -c1-900; %s%s" % (pre, name, envs, clock, post)).rstrip())
+    print(ssh(dev, "%scd ~/zn/%s && env %s timeout 300 ./run.sh 2>&1 >/dev/null </dev/null | %s | cut -c1-900; %s%s" % (pre, name, envs, "sort | uniq -c | sort -rn | head -60" if raw else "grep -E 'zinc profile|fbdev|display-gl'", clock, post)).rstrip())
 
 
 def cmd_stacks(dev, args):

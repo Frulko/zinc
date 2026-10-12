@@ -145,7 +145,10 @@ static void depth_storage() {
 }
 static bool init(int32_t w, int32_t h) {
   W = w; H = h;
-  prog = zgl_program("", VS, FS);
+  // ponytail: an experiment switch (ZINC_GL_ONLY=<mode>: every quad drawn by that mode's program alone, wrong pixels) until the programs are per mode
+  static char only[64] = "";
+  if (const char* e = getenv("ZINC_GL_ONLY")) snprintf(only, sizeof only, "#define ZMODE %d.0\n#define ZNOPAINT 1\n", atoi(e));
+  prog = zgl_program(only, VS, FS);
   if (!prog) return false;
 #if GLR_CORE
   instanced = true;   // GL 3.3+ core: instanced draws and attribute divisors
@@ -556,7 +559,11 @@ static void set_paint(const float* g) {
   glUniform4f(u_g0, g[1], g[2], g[3], g[0]); glUniform4f(u_g1, g[4], g[5], g[6], (float)n);
   glUniform4fv(u_gc, 8, gc); glUniform1fv(u_go, 8, go);
 }
+static double fringe_px;   // ZINC_GL_STATS: the pixels the fringe quads cover (each is the box of its edge, drawn by every pass)
 static void edge_quads(const float* pts, uint32_t contours, uint32_t c1, uint32_t alpha) {
+  static const bool on = !getenv("ZINC_GL_FRINGE") || atoi(getenv("ZINC_GL_FRINGE")) != 0;   // 0: no antialiased edges, to measure what they cost
+  if (!on) return;
+  static const bool stats = getenv("ZINC_GL_STATS") != nullptr;
   uint32_t at = 0;
   for (uint32_t k = 0; k < contours; k++) {
     const uint32_t cnt = (uint32_t)pts[at];
@@ -568,6 +575,7 @@ static void edge_quads(const float* pts, uint32_t contours, uint32_t c1, uint32_
       const float ax = p[i * 2], ay = p[i * 2 + 1], bx = p[ib * 2], by = p[ib * 2 + 1];
       const float x0 = (ax < bx ? ax : bx) - 1, y0 = (ay < by ? ay : by) - 1, x1 = (ax > bx ? ax : bx) + 1, y1 = (ay > by ? ay : by) + 1;
       if (x1 <= (float)clip.x0 || x0 >= (float)clip.x1 || y1 <= (float)clip.y0 || y0 >= (float)clip.y1) continue;
+      if (stats) fringe_px += (double)((x1 < (float)clip.x1 ? x1 : (float)clip.x1) - (x0 > (float)clip.x0 ? x0 : (float)clip.x0)) * ((y1 < (float)clip.y1 ? y1 : (float)clip.y1) - (y0 > (float)clip.y0 ? y0 : (float)clip.y0));
       if (!grow(edgev, edgev_cap, ((size_t)nedge + 1) * 4)) return;
       V* v = &edgev[nedge * 4];
       nedge++;
@@ -1242,5 +1250,6 @@ static void report() {
   fprintf(stderr, "display-gl renderer gl: %u frames replayed, %u idle (no damage), %.1f draw calls and %.0f quads per frame, %u glyphs in the atlas, %u LINE/POLY skipped; %.0f us of CPU per replayed frame to submit it, %.0f us of it culling %.0f hidden commands; per frame %.1f LINE/POLY tiles rasterized on the CPU, %.1f strokes tessellated; %.0f us of GPU per frame; %u compressed textures uploaded as blocks (%llu bytes), %u decoded\n",
           st.frames, st.idle, st.draws / n, st.quads / n, st.glyphs, unsupported, st.us / n, st.cull_us / n, (double)st.hidden / n, st.ptiles / n, zrt::raster::strokes_built / n, gpu_n ? gpu_us / gpu_n : 0.0,
           st.blocks, (unsigned long long)st.block_bytes, st.decoded);
+  fprintf(stderr, "display-gl renderer gl: the fringe quads of POLY cover %.0f pixels per frame in each of their passes (the surface has %d)\n", fringe_px / n, W * H);
 }
 }  // namespace glr

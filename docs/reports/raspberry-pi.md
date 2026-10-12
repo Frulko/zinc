@@ -220,3 +220,37 @@ p50 in ms:
   (256 MB, 115 MB free during the run).
 
 The tools of this session are kept in `next/tools/device` (status, sysroot, push, run, shot, profile, stacks) for the next boards.
+
+### Why the GL renderer is slow on VideoCore IV, measured (2026-10-12)
+
+Same Pi, same clock (600 MHz, under-voltage), hero exported with `ZINC_DISPLAY=gl`, run with `ZINC_RENDERER=gl`, 120 to 200 frames each
+(`tools/device <pi> profile hero-gl ZINC_RENDERER=gl ZINC_DEMO=<screen> ...`), present p50 in ms:
+
+| screen | software bands (fbdev, 4 threads) | GL renderer | GL, `ZINC_GL_FRINGE=0` | GL, `ZINC_GL_ONLY=5` | GL, both |
+| --- | --- | --- | --- | --- | --- |
+| navigation, driving | 43.3 | 217.4 | 93.8 | 34.8 | 24.0 |
+| home | 8.7 | 30.2 | | 30.6 (13.2 with `ZINC_GL_ONLY=2`) | |
+| gallery | 16.0 | 41.3 | | 64.0 | |
+| tasks, settings (half the frames idle) | 0.04, 0.9 | 14.7, 14.4 | | | |
+
+The two switches are experiments kept in `runtime/gl_replay.cpp`: `ZINC_GL_FRINGE=0` draws POLY without its antialiased edges, and
+`ZINC_GL_ONLY=<mode>` compiles the replay's fragment shader for one mode alone (5 = SOLID: every quad a flat colour, so the pixels are wrong
+and only the time means something).
+
+- **The fragment shader is the first cost.** One program draws every mode (rounded box and gradients, border, text, image, shadow, stroke,
+  convex, edge, and the gradient paint with its loops over eight stops) behind a ladder of `if`. A GPU without branches runs all of it for
+  every pixel. With one mode compiled in, the driving frame goes from 217 to 35 ms, below the software bands, and the first frame from 2.5 s
+  to 0.3 s (the compile).
+- **The fringes of POLY are the second.** Each edge gets a quad the size of its bounding box: 434 576 pixels a frame in each pass, more than
+  the screen (384 000), several passes, with three segment distances and `discard` per pixel: 124 of the 217 ms.
+- **The driver stalls in the middle of a frame**: `VC4_DEBUG=perf` prints "Blocking on resource BO for bo map" (23 times in 60 frames) and
+  "Blocking on seqno ... for job throttling" at every frame. Not attributed yet (texture uploads into a texture the frame already uses, the
+  rounded clip's `glCopyTexSubImage2D`, a clear after the first draw are the candidates of `docs/reports/hardware/vc4-gles2-performance.md`).
+- **Blended fill is slow by itself**: home (stacked translucent glows) and gallery do not get faster with the flat shader. Not explained:
+  gallery is slower with it (64 against 41 ms).
+- Driver facts: OpenGL ES 2.0 Mesa 25.0.7, highp floats in fragment shaders (23 bits), 4x MSAA configs for an XRGB8888 window (3), no
+  `EXT_multisampled_render_to_texture`, no `OES_standard_derivatives`, `max_vertex_attribs` 8.
+
+Research: [hardware/vc4-gles2-performance.md](hardware/vc4-gles2-performance.md) (the driver) and
+[gles2-2d-rendering-techniques.md](gles2-2d-rendering-techniques.md) (how NanoVG, Mapbox GL, Impeller and Skia draw on this class of GPU: fringes
+as thin strips with the coverage in a vertex attribute, or 4x MSAA with plain triangles; no distance maths per pixel).

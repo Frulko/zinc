@@ -22,6 +22,9 @@ static const char* FS =
   "  vec2 p = v_pos.xy, c = v_box.xy, h = v_box.zw;\n"
   "  float r = v_par.x, mode = v_par.z, grad = v_par.w;\n"
   "  if (mode > 15.5) { mode -= 16.0; p = v_pos.zw; }\n"   // a box drawn through a matrix (XFORM, ZN-263.01): the pixel in the box's own coordinates
+  "#ifdef ZMODE\n"   // a program for one mode: the mode is a constant, so the compiler drops the others (a GPU without branches runs every one: VideoCore IV)
+  "  mode = ZMODE;\n"
+  "#endif\n"
   "  vec3 col = v_c1.rgb; float cov = 1.0, a = v_c1.a;\n"
   "  if (mode < 0.5) {\n"                                                        // FILL: rounded box, gradients
   "    cov = cover(p, c, h, r);\n"
@@ -66,6 +69,7 @@ static const char* FS =
   "  }\n"
   // the paint of a POLY's cover and fringes and of a RECT with grad 5 (ZN-261): raster.cpp paint_at (t from the paint geometry, the stop
   // interval, lerp_color's weight out of 256); kind 1 linear, 2 two circles, 3 ellipse, 4 conic, + 8 repeating
+  "#ifndef ZNOPAINT\n"
   "  if (u_g0.w > 0.5 && (mode > 8.5 || (mode > 4.5 && mode < 5.5) || (mode < 0.5 && grad > 4.5))) {\n"
   "    vec2 d = u_g1.xy - u_g0.xy, q = p - u_g0.xy; float t = 0.0, A0 = floor(a * 255.0 + 0.5), kind = mod(u_g0.w, 8.0);\n"
   "    if (kind < 1.5) { float l = dot(d, d); t = l > 0.0 ? dot(q, d) / l : 0.0; }\n"
@@ -95,6 +99,7 @@ static const char* FS =
   "    }\n"
   "    a = A0 / 255.0;\n"
   "  }\n"
+  "#endif\n"
   // the raster's blend (raster.cpp blend): an integer alpha A = (uint32_t)(coverage * alpha), A >= 255 copies, 0 leaves the pixel, else
   // (c * A + d * (255 - A)) >> 8: a premultiplied colour c * A / 256 over d * (255 - A) / 256 (GL_ONE, GL_ONE_MINUS_SRC_ALPHA with an
   // alpha of (A + 1) / 256), less half a step so the framebuffer's rounding becomes the shift's truncation. Stacked translucent layers
