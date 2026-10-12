@@ -3,11 +3,11 @@ id: ZN-731
 title: >-
   Zero-copy video: from the hardware decoder to the screen without a CPU copy
   (Raspberry Pi first)
-status: In Progress
+status: Review
 assignee:
   - '@parallel'
 created_date: '2026-10-12 13:56'
-updated_date: '2026-10-12 14:52'
+updated_date: '2026-10-12 15:59'
 labels:
   - perf
   - video
@@ -25,12 +25,12 @@ Owner, 2026-10-12, at the Pi 3B+: 'we want performance, zero-copy; no millisecon
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 The design is chosen from the research and recorded as a decision (scored as RULES 4 says): how a decoded picture stays a dmabuf, how a display driver places it (a KMS plane, a GPU texture), what the software rasterizer does when no driver takes it
-- [ ] #2 On the Pi 3B+ the decoder is the hardware one and its pictures reach the screen without a CPU copy or a CPU colour conversion when the video is an upright rectangle; the proof is a counter or a trace that shows no pixel of the picture touched on the CPU
+- [x] #1 The design is chosen from the research and recorded as a decision (scored as RULES 4 says): how a decoded picture stays a dmabuf, how a display driver places it (a KMS plane, a GPU texture), what the software rasterizer does when no driver takes it
+- [x] #2 On the Pi 3B+ the decoder is the hardware one and its pictures reach the screen without a CPU copy or a CPU colour conversion when the video is an upright rectangle; the proof is a counter or a trace that shows no pixel of the picture touched on the CPU
 - [ ] #3 museum-table's film and hero's Video tab on the Pi: 24 and 30 pictures a second shown without a dropped picture over a minute, with the CPU of the whole program measured before and after (tools/device), at 1400 MHz
-- [ ] #4 What the hardware path cannot draw (a turned card, a rounded clip, a blend) falls back to today's path and looks the same; subtitles and UI drawn over the video stay in front of it; a test covers the fallback
-- [ ] #5 The other targets keep working: macOS (VideoToolbox) and the software targets pass their video tests unchanged; the zero-copy route of each (macOS first) is a line of later.md or done
-- [ ] #6 Numbers in docs/reports/raspberry-pi.md and the performance log
+- [x] #4 What the hardware path cannot draw (a turned card, a rounded clip, a blend) falls back to today's path and looks the same; subtitles and UI drawn over the video stay in front of it; a test covers the fallback
+- [x] #5 The other targets keep working: macOS (VideoToolbox) and the software targets pass their video tests unchanged; the zero-copy route of each (macOS first) is a line of later.md or done
+- [x] #6 Numbers in docs/reports/raspberry-pi.md and the performance log
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -64,7 +64,32 @@ Engine path, measured on the Pi 3B+'s real screen (2026-10-12 17:26 to 17:38; CP
 - Entering the planes costs 2 to 7 ms once per film (the planes are looked for once, at the start: 8 to 23 ms).
 - Translucent things over the film (museum's timeline at alpha 160, the box of its subtitles) do not send it back to software: the driver draws the rows they touch a second time over white holes and gets each pixel's alpha from the two renders (D decision above amended: no "nothing translucent over it" rule).
 - The fallback on the device (17:53, ZINC_FBDEV_PLANES=refuse: the layers are offered and all refused, what a turned or blended film gets): the first 4 pictures are converted at the draw on the main thread, the next 555 in the decode thread (the dmabuf mapped, copied, converted), 0 dropped, 24.2 pictures a second, 38.1 ms of CPU a picture: the software path's cost, no more. The final build right after: 3.41 ms a picture, 508 of 508 pictures never read, and only the console's plane on the CRTC once it left.
+- A crash (17:58): the program killed with SIGKILL in the middle of the film. During the film the CRTC has three planes (74 the console's framebuffer 670, 98 the film, 120 the frame); one second after the kill only plane 74 with framebuffer 670, and no DRM client. Nothing to restore, nothing restored.
 - Tests on the Mac: tests/t1/video_layers.sh (new: a test display driver with a layer composes the frame over the picture as a plane does; plain: on the layer, pixels never asked for, an opaque box, a rounded box, a translucent timeline and a shadow in front of it, at most 1 level from the software frame; turned, blend, round, part: no layer, pixels asked once, the software frame byte for byte), chip_models (the driver's alpha from two renders), video, museum_video, xform_plain: PASS; tools/proto-capture compare --canary: 4 of 4.
 - Not seen by me: the screen itself. Colours, the hole's edges, the subtitles over the film and the moment the planes come and go are the owner's to look at.
-- The screen was taken 42 s, 36 s, 2 min 25 s, 1 min 42 s, 2 min 28 s and 2 min 29 s for these runs (and 1 min 47 s for the spike): and 1 min 11 s for the fallback: 13 min 20 s in all; museum-table was started again after each as it was.
+- The screen was taken 1 min 47 s for the spike, then 42 s, 36 s, 2 min 25 s, 1 min 42 s, 2 min 28 s and 2 min 29 s for the engine's runs and 1 min 11 s for the fallback: 13 min 20 s in all; museum-table was started again after each as it was.
+
+For the coordinator (files a worktree leaves alone).
+Decision record (next number; amends the research's design A and gpu-renderer-design.md 7b): "Zero-copy video: a display's hardware layers (ZN-731, owner 2026-10-12 at the Pi 3B+: 'zero-copy; no milliseconds lost without a reason')". Decision: a picture that lies in device memory is shown by the display driver under the software frame, behind one contract (hal.h: HalDisplay.layers, HalPicture, HAL_LAYER_HOLE, HalFrame.render_holes; raster::Picture on a runtime image). zinc:video asks a V4L2 decoder for DRM PRIME frames only when the driver has layers; display-fbdev shows the dmabuf on an overlay plane of the KMS screen and the frame on an ARGB plane above it, with plain KMS ioctls, a DRM file opened while a picture is shown, and never the mode or the console's primary plane. The rasterizer writes a marker in the picture's place; rows drawn over it are rendered twice (black and white holes) and the difference is each pixel's alpha, so the rasterizer keeps its 0x00RRGGBB pixels and its blends. A picture drawn turned, blended, rounded or in part is the software path's: its owner converts it when a frame asks. Scores and options: the four lines above (A 64, A2 53, B 48, C 45). Rejected on the way: an alpha channel in the rasterizer (a multiply more in every blend of every target, for one driver); 'nothing translucent over the picture, else software' (museum-table's timeline is translucent: its film would never have left the CPU); libdrm (a dependency of every fbdev build for a dozen ioctls). Evidence: raspberry-pi.md, 'The film without a CPU copy' (38.3 to 3.45 ms of CPU a picture, 92.6% to 8.3% of a core). Revisit when a film must stay off the CPU while turned (design C, an EGLImage in display-gl), when a second driver needs layers (move the plane code out of fbdev.cpp into a shared file), or if a compositor is the display (a subsurface instead of a plane).
+Performance log (zinc-next-perf.md), Pi 3B+, real screen, CPU of the whole program a picture / share of a core / pictures a second, window of 20 s (museum) or 60 s (hero): museum-table --sequence wave: main 38.3 ms / 92.6% / 24.15 (122.6 frames a second, loop not paced); software path paced 37.0 / 89.6% / 24.2; planes 3.45 / 8.3% / 24.2, 0 dropped, raster of a frame mean 0.10 ms p99 0.40; planes refused (software path of a dmabuf) 38.1 / 92.2% / 24.2. hero Video tab at 24: software 37.5 / 90.8%; planes 4.75 / 11.5%, 1452 pictures in 60 s, 0 dropped over 69 s. hero Video tab at 30: software 35.5 / 107.5%; planes 4.12 / 12.4%, 1815 pictures in 60 s, 0 dropped over 69 s. Spike (kmsvid, FFmpeg and libdrm alone): 0.58 ms a picture at 24, 0.61 at 30; the decoder alone 0.20. Import of a frame 0.07 ms, atomic commit 0.15 ms, taking the planes 2 to 7 ms once per film. Clock: 1400 MHz for the software runs of museum, 900 to 1400 for hero's; 700 MHz most of the time with the planes (ondemand governor), board cooling during the run.
+Lines for later.md, "Engine and tools":
+- ZN-731: a picture with rounded corners of its own or an alpha on a hardware layer too (draw the hole with the image's coverage: the two renders already give each pixel's alpha), so a film that fades in or has a radius stays off the CPU.
+- ZN-731: a part of a picture (drawImageRect) on a layer, through the plane's source rectangle.
+- ZN-731: zero-copy on macOS: VideoToolbox's CVPixelBuffer (an IOSurface) to the window behind HalDisplay.layers (a CALayer under the frame, or CGLTexImageIOSurface2D in display-gl); today the frame is copied back and converted by swscale.
+- ZN-731: the frame on a KMS plane with page flips for every fbdev program, not only while a film plays: a true vertical blank and no tearing instead of the clock (the code is there; it costs holding the DRM master and a second buffer).
+- ZN-731: a capture (ZINC_SHOT, tools/device shot) shows a hole where a hardware picture is; compose the picture for it.
+- ZN-731: a film in a turned card still costs 38 ms of CPU a picture on a Pi 3; design C of video-zero-copy.md (an EGLImage in display-gl) or a card kept upright while its film plays.
+- ZN-731: display-gl's KMS backend takes HalDisplay.layers as well (it owns the primary plane; the film under its frame needs an alpha frame buffer).
+Lines for later.md, "Cross-platform pass":
+- ZN-731: hardware layers on a Pi 4 and 5 (the newer HVS, SAND formats with modifiers, HEVC through v4l2request): the driver passes format and modifier through, never run there; next/tools/kmsvid.cpp --planes lists what the planes take.
+- ZN-731: on the Pi 3B+ with someone at the screen: the colours of a film on the plane beside the software path, the edge of the hole, a card dragged and zoomed with its film playing, the moment the planes come and go; two films at once, a 1080p clip, an hour of play.
+- ZN-731: Linux desktop: VA-API surfaces exported as dmabufs into the same HalPicture; under a compositor a subsurface instead of a KMS plane.
+- ZN-731: display-fbdev's pacing on screens where the vsync wait really waits (HDMI on a Pi) and on SPI panels; its build for rpi1 (musl) with and without the kernel's DRM headers.
+- ZN-731: Windows (D3D11VA textures to a DirectComposition overlay), Android (MediaCodec to a Surface), iOS (AVSampleBufferDisplayLayer) behind HalDisplay.layers.
+
+State, 2026-10-12 18:05: Review. Criteria 1, 2, 4, 5 and 6 are met (1, 5 and 6 with the decision record, the lines of later.md and the performance log written above for the coordinator). Criterion 3 is left open on two points of its letter, both of which need someone at the Pi:
+- "over a minute" holds for hero's Video tab (69 s at 24 and 69 s at 30, no picture dropped) and not for museum-table's film in one go: the sequence plays its film for 30 s and a touch starts it again. Measured: 30 s without a dropped picture (17:25, 722 pictures), then 29 s and 21 s after the player's clock fix (697 and 508 pictures, 0 dropped). Next: at the screen, tools/device pi@192.168.2.107 run museum-zc-wip ZINC_SIZE=800x480 ZINC_PERF_HUD=1 ZINC_VIDEO_LOG=1, play the film twice in a row, then tools/device pi@192.168.2.107 stop and read the last "video: p0 entry" line of /tmp/zn-museum-zc-wip.log on the Pi: its "dropped" must be 0.
+- "at 1400 MHz" holds for the runs before and not for the runs after: with the planes the ondemand governor leaves the clock at 700 MHz (the load is under 13% of a core) and there is no sudo to fix it. The numbers after are therefore upper bounds.
+And nobody has looked at the picture: the colours of the film on the plane, the edge of the hole, the subtitles over it, the moment the planes come and go when a film starts and ends.
+Left on the Pi: ~/zn/museum-zc-wip and ~/zn/hero-zc-wip (this branch; hero-zc-wip/media is a link to ~/media, hero-zc-wip/media30 holds the clip at 30 pictures a second), ~/zn/kmsvid-wip (the spike's binary, the clip, the run scripts), logs in /tmp. The owner's ~/zn/museum-table and ~/zn/hero were not touched and museum-table runs as before.
 <!-- SECTION:NOTES:END -->

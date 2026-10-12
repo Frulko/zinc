@@ -478,7 +478,9 @@ the launch; the board under 55 C before each run, `get_throttled` 0xd0000 after 
   above), at 38.1 ms of CPU a picture against 37.0 for a decoder that gives pixels.
 - **The console is never at risk.** The mode and the primary plane are not touched; the two planes and their buffers belong to a DRM
   file the driver opens when a picture comes (2 to 7 ms) and closes two seconds after the last one. A crash closes it too: the kernel
-  removes the planes and `/dev/fb0` shows again. After each run the only plane on the CRTC was the console's.
+  removes the planes and `/dev/fb0` shows again. After each run the only plane on the CRTC was the console's; and the program killed
+  with SIGKILL in the middle of the film (three planes on the CRTC then: the console's, the film's, the frame's) left the console's
+  alone a second later, with no DRM client.
 
 **Found on the way.**
 
