@@ -1,0 +1,10 @@
+{ "format": "zinc-museum-table", "version": 1, "id": "zoom", "title": { "en": "Zoom" }, "languages": ["en"], "start": "a",
+  "media": [
+    { "id": "note", "kind": "text", "title": { "en": "A note to read closely" },
+      "text": { "en": "From the age of six I had a mania for drawing the forms of things. By the time I was fifty I had published a universe of designs, but all I have done before the age of seventy is not worth bothering with. At seventy-three I began to understand the structure of animals, plants, trees, birds, fishes and insects." } },
+    { "id": "wave", "kind": "photo", "file": "photos/great-wave.jpg", "title": { "en": "Under the Wave off Kanagawa" }, "creator": "Katsushika Hokusai (1760–1849)",
+      "date": { "en": "ca. 1830–32" }, "medium": { "en": "Woodblock print; ink and color on paper" },
+      "description": { "en": "A towering wave rears above three fishing boats; in the distance Mount Fuji looks tiny in its hollow. The most famous print of the Thirty-six Views of Mount Fuji owes its deep blues to Prussian blue, a pigment then newly imported from Europe." },
+      "credit": { "institution": "The Metropolitan Museum of Art, New York", "accession": "JP1847", "line": "H. O. Havemeyer Collection", "source": "https://www.metmuseum.org/art/collection/search/45434", "licence": "CC0 1.0", "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/" } } ],
+  "sequences": [
+    { "id": "a", "title": { "en": "A" }, "items": [ { "media": "note", "x": 520, "y": 540, "width": 420 }, { "media": "wave", "x": 1350, "y": 540, "width": 400 } ] } ] }

@@ -21,6 +21,13 @@ const INSET = 70;                        // a card's centre stays this far insid
 const APPEAR = 0.4;                      // seconds a card takes to come and to go
 const SPOT = 44;                         // a hotspot takes a tap this far from its centre (table units)
 
+/** One line of a card's text, cut and placed once (`measure`): its font, where it is from the card's top left corner (table units), and
+ *  its opacity (below 255: written faintly). */
+class Row {
+  f: i32; x: number; y: number; text: string; alpha: i32; tracking: number;
+  constructor(f: i32, x: number, y: number, text: string, alpha: i32, tracking: number) { this.f = f; this.x = x; this.y = y; this.text = text; this.alpha = alpha; this.tracking = tracking; }
+}
+
 export class Card {
   /** The owner number of its fingers. */
   readonly uid: i32;
@@ -37,9 +44,13 @@ export class Card {
   /** The film it plays in place of its picture, which is the film's poster; and whether it was started since the card came. */
   film: Film | null = null;
   rolled = false;
-  /** Lines of a text panel; under a picture, the lines its title and what is written under it may take. */
-  lines: i32 = 0;
-  under: i32 = 1;
+  /** The lines of its front (a text panel, or the title under a picture and what is written under it) and of the notice on its back
+   *  (null until it is turned over), with the height of the notice's rule; what its film says now, cut into lines. */
+  front: Row[] = [];
+  notice: Row[] | null = null;
+  rule = 0;
+  cue = '';
+  said: string[] = [];
   /** Has a back to read. */
   turns = false;
   /** Speed kept when the last finger lifts: table units and radians per second. */
@@ -112,23 +123,30 @@ export class LightTable {
     }
   }
 
-  /** The height of a card. A text panel grows with its text, which is not as long in every language. Under a picture the caption has
-   *  room for two lines of title and one line under it; a longer title, or a larger text size, takes the room it needs from the
-   *  picture (down to half of it), so that the card keeps its place among the others and nothing of its caption is cut. */
+  /** The texts of a card's front, cut into lines once at the designed size, and its height. A text panel grows with its text, which is
+   *  not as long in every language. Under a picture the caption has room for two lines of title and one line under it; a longer title,
+   *  or a larger text size, takes the room it needs from the picture (down to half of it), so that the card keeps its place among the
+   *  others and nothing of its caption is cut. */
   private measure(c: Card): void {
-    const m = c.media, body = sans(16), pad = BORDER * 2;
-    if (c.pictureHeight === 0) {
-      c.lines = wrap(body, this.project.say(m.kind === 'text' ? m.text : m.title, this.lang), c.w - 2 * pad, 0).length;
-      c.h = pad + leading(bold(11)) + 8 + (c.lines + 0.5) * leading(body) + pad;
+    const m = c.media, title = this.project.say(m.title, this.lang);
+    c.front = []; c.notice = null; c.cue = '';
+    if (c.pictureHeight === 0) {   // a text panel
+      const pad = BORDER * 2, head = bold(11), body = sans(16);
+      let y = pad + leading(head) + 8;
+      c.front.push(new Row(head, pad, pad, title.toUpperCase(), 150, 0.6));
+      for (const line of wrap(body, m.kind === 'text' ? this.project.say(m.text, this.lang) : title, c.w - 2 * pad, 0)) { c.front.push(new Row(body, pad, y, line, 255, 0)); y += leading(body); }
+      c.h = y + 0.5 * leading(body) + pad;
       return;
     }
     const head = bold(15), small = sans(12), inner = c.w - 2 * BORDER;
-    c.lines = Math.max(2, wrap(head, this.project.say(m.title, this.lang), inner - (c.turns ? 22 : 0), 0).length);
-    c.under = wrap(small, m.creator, inner - 30, 0).length;
+    const lines = wrap(head, title, inner - (c.turns ? 22 : 0), 0), under = wrap(small, m.creator, inner - 30, 0);
     // the designed strip at the text size, and one line more for each line more than designed: exactly FOOT when nothing is longer
-    const foot = FOOT * reading() + (c.lines - 2) * leading(head) + (c.under - 1) * leading(small);
+    const foot = FOOT * reading() + (Math.max(2, lines.length) - 2) * leading(head) + (under.length - 1) * leading(small);
     c.shrink = foot > FOOT ? Math.max(0.5, (c.pictureHeight + FOOT - foot) / c.pictureHeight) : 1;
     c.h = BORDER + c.pictureHeight * c.shrink + Math.max(FOOT, foot);
+    let y = BORDER + c.pictureHeight * c.shrink + 8;
+    for (const line of lines) { c.front.push(new Row(head, BORDER, y, line, 255, 0)); y += leading(head); }
+    if (m.creator.length > 0) for (const line of under) { c.front.push(new Row(small, BORDER, y + 1, line, 160, 0)); y += leading(small); }
   }
   /** The language or the text size has changed: every card takes the height of its text. */
   setLanguage(lang: string): void {
@@ -273,106 +291,99 @@ export class LightTable {
   private fade = 1;
   private a(alpha: i32): i32 { return Math.round(alpha * this.fade); }
 
-  /** One card, its centre at (cx, cy) on the screen, at `d` pixels per table unit. Everything is drawn in pixels around the centre, through
-   *  a matrix that only turns (and narrows the card while it turns over): the texts are set in the font of their size on screen, so they
-   *  stay sharp at every zoom. */
+  /** One card, its centre at (cx, cy) on the screen, at `d` pixels per table unit. It is drawn in table units around its centre, through
+   *  one matrix that turns it, zooms it and narrows it while it turns over. Its texts are the lines `measure` cut at the designed size:
+   *  the engine takes their glyphs at the size they have on screen, so they are sharp at every zoom and no line moves. */
   private drawCard(c: Card, cx: number, cy: number, d: number): void {
-    const cos = Math.cos(c.pose.angle), sin = Math.sin(c.pose.angle), narrow = Math.max(0.02, Math.abs(Math.cos(Math.PI * c.turn)));
+    const cos = Math.cos(c.pose.angle) * d, sin = Math.sin(c.pose.angle) * d, narrow = Math.max(0.02, Math.abs(Math.cos(Math.PI * c.turn)));
     setTransform(cos * narrow, sin * narrow, -sin, cos, cx, cy);
-    const w = c.w * d, h = c.h * d, x = -w / 2, y = -h / 2;
-    shadow(x, y + 3 * d, w, h, 2, 14 * d, 0x000000, this.a(150));
+    const w = c.w, h = c.h, x = -w / 2, y = -h / 2;
+    shadow(x, y + 3, w, h, 2, 14, 0x000000, this.a(150));
     if (c.turns) {   // a corner is folded: the one a touch turns the card over by
-      const s = 26 * d;
+      const s = 26;
       polygon([x, y, x + w, y, x + w, y + h - s, x + w - s, y + h, x, y + h], this.colours.paper, this.a(255));
       polygon([x + w - s, y + h, x + w, y + h - s, x + w - s, y + h - s], this.colours.ink, this.a(46));
     } else rrect(x, y, w, h, 2, this.colours.paper, this.a(255));
-    if (c.turn >= 0.5) this.paintBack(c, d, x, y); else this.paintFront(c, d, x, y);
-  }
-
-  private paintFront(c: Card, d: number, left: number, top: number): void {
-    const ink = this.colours.ink, m = c.media, title = this.project.say(m.title, this.lang);
-    if (c.pictureHeight === 0) {   // a text panel
-      const pad = BORDER * 2 * d, head = bold(11 * d), body = sans(16 * d);
-      let y = top + pad;
-      drawText(head, left + pad, y, title.toUpperCase(), ink, this.a(faint(150)), 0.6 * d);
-      y += leading(head) + 8 * d;
-      for (const line of wrap(body, this.project.say(m.kind === 'text' ? m.text : m.title, this.lang), c.w * d - 2 * pad, c.lines + 1)) {
-        drawText(body, left + pad, y, line, ink, this.a(255), 0);
-        y += leading(body);
-      }
-      this.paintSpots(c, d);
+    if (c.turn >= 0.5) {   // the notice: what a museum label says, and where the picture comes from
+      if (c.notice === null) c.notice = this.layNotice(c);
+      this.write(c.notice as Row[], x, y);
+      rrect(x + 18, y + c.rule, 34, Math.max(1, Math.round(1.5 * d)) / d, 0, this.colours.accent, this.a(255));
       return;
     }
-    const x = left + BORDER * d, inner = (c.w - 2 * BORDER) * d, head = bold(15 * d), small = sans(12 * d);
-    let y = top + BORDER * d;
-    const wide = inner * c.shrink, high = c.pictureHeight * d * c.shrink, px = x + (inner - wide) / 2;   // the picture, in the middle of the card's width
-    const film = c.film, shot = film !== null ? film.image : -1;
-    if (shot >= 0 || c.picture >= 0) drawImage(shot >= 0 ? shot : c.picture, px, y, wide, high, this.a(255), 0);
-    else rrect(px, y, wide, high, 0, 0x000000, this.a(255));
-    if (film !== null) this.paintFilm(film, d, px, y, wide, high);
-    y += high + 8 * d;
-    const lines = wrap(head, title, inner - (c.turns ? 22 * d : 0), c.lines);
-    for (const line of lines) { drawText(head, x, y, line, ink, this.a(255), 0); y += leading(head); }
-    const under = m.creator;
-    if (lines.length < 2 || under.length > 0) for (const line of wrap(small, under, inner - 30 * d, c.under)) { drawText(small, x, y + d, line, ink, this.a(faint(160)), 0); y += leading(small); }
+    if (c.pictureHeight > 0) {   // the picture, in the middle of the card's width
+      const inner = c.w - 2 * BORDER, wide = inner * c.shrink, high = c.pictureHeight * c.shrink, px = x + BORDER + (inner - wide) / 2;
+      const film = c.film, shot = film !== null ? film.image : -1;
+      if (shot >= 0 || c.picture >= 0) drawImage(shot >= 0 ? shot : c.picture, px, y + BORDER, wide, high, this.a(255), 0);
+      else rrect(px, y + BORDER, wide, high, 0, 0x000000, this.a(255));
+      if (film !== null) this.paintFilm(c, film, d, px, y + BORDER, wide, high);
+    }
+    this.write(c.front, x, y);
     this.paintSpots(c, d);
   }
+  /** Lines of text of a card whose top left corner is at (left, top). */
+  private write(rows: Row[], left: number, top: number): void {
+    for (const r of rows) drawText(r.f, left + r.x, top + r.y, r.text, this.colours.ink, this.a(r.alpha < 255 ? faint(r.alpha) : 255), r.tracking);
+  }
 
-  /** What a film shows over its picture: its timeline and what it says, at the foot; while it does not play, the sign a touch starts it by. */
-  private paintFilm(film: Film, d: number, x: number, y: number, w: number, h: number): void {
-    const colours = this.colours, bar = Math.max(2, 5 * d);
+  /** What a film shows over its picture: its timeline and what it says, at the foot; while it does not play, the sign a touch starts it by.
+   *  A line of one pixel on screen is 1 / d wide. */
+  private paintFilm(c: Card, film: Film, d: number, x: number, y: number, w: number, h: number): void {
+    const colours = this.colours, bar = Math.max(2 / d, 5);
     if (film.on) {
       rrect(x, y + h - bar, w, bar, 0, colours.background, this.a(160));
       rrect(x, y + h - bar, w * Math.min(1, film.t / film.length), bar, 0, colours.accent, this.a(255));
       if (film.cue.length > 0) {
-        const f = sans(22 * d), lines = wrap(f, film.cue, w - 80 * d, 0), high = lines.length * leading(f) + 16 * d;
-        let wide = 0, ty = y + h - bar - 14 * d - high;
+        const f = sans(22);
+        if (c.cue !== film.cue) { c.cue = film.cue; c.said = wrap(f, film.cue, w - 80, 0); }
+        const lines = c.said, high = lines.length * leading(f) + 16;
+        let wide = 0, ty = y + h - bar - 14 - high;
         for (const line of lines) wide = Math.max(wide, textWidth(f, line, 0));
-        rrect(x + (w - wide) / 2 - 20 * d, ty, wide + 40 * d, high, 10 * d, colours.background, this.a(faint(225)));
-        ty += 8 * d;
+        rrect(x + (w - wide) / 2 - 20, ty, wide + 40, high, 10, colours.background, this.a(faint(225)));
+        ty += 8;
         for (const line of lines) { drawText(f, x + (w - textWidth(f, line, 0)) / 2, ty, line, colours.text, this.a(255), 0); ty += leading(f); }
       }
     }
     if (film.on && !film.paused) return;
     const r = Math.min(w, h) * 0.11, cx = x + w / 2, cy = y + h / 2;
     rrect(cx - r, cy - r, 2 * r, 2 * r, r, colours.background, this.a(faint(200)));
-    border(cx - r, cy - r, 2 * r, 2 * r, r, Math.max(1, 2 * d), colours.accent, this.a(255));
+    border(cx - r, cy - r, 2 * r, 2 * r, r, Math.max(1 / d, 2), colours.accent, this.a(255));
     polygon([cx - r * 0.3, cy - r * 0.45, cx + r * 0.5, cy, cx - r * 0.3, cy + r * 0.45], colours.accent, this.a(255));
   }
 
   /** The hotspots: a ring on its place of the card and what it leads to, on the side where there is room. */
   private paintSpots(c: Card, d: number): void {
-    const accent = this.colours.accent, f = bold(13 * d), r = 15 * d;
+    const accent = this.colours.accent, f = bold(13), r = 15;
     for (const l of c.spots) {
       if (!LightTable.there(l.at, l.until, this.clock)) continue;
-      const x = this.spotX(c, l) * d, y = this.spotY(c, l) * d, label = this.project.say(l.label, this.lang), lw = textWidth(f, label, 0) + 22 * d, lh = 28 * d * reading();
-      const lx = l.x > 0.6 ? x - r - 8 * d - lw : x + r + 8 * d;
+      const x = this.spotX(c, l), y = this.spotY(c, l), label = this.project.say(l.label, this.lang), lw = textWidth(f, label, 0) + 22, lh = 28 * reading();
+      const lx = l.x > 0.6 ? x - r - 8 - lw : x + r + 8;
       rrect(lx, y - lh / 2, lw, lh, lh / 2, this.colours.background, this.a(faint(215)));
-      drawText(f, lx + 11 * d, y - leading(f) / 2 + d, label, this.colours.text, this.a(255), 0);
+      drawText(f, lx + 11, y - leading(f) / 2 + 1, label, this.colours.text, this.a(255), 0);
       rrect(x - r, y - r, 2 * r, 2 * r, r, this.colours.background, this.a(150));
-      border(x - r, y - r, 2 * r, 2 * r, r, Math.max(1.5, 2.5 * d), accent, this.a(255));
-      rrect(x - 5 * d, y - 5 * d, 10 * d, 10 * d, 5 * d, accent, this.a(255));
+      border(x - r, y - r, 2 * r, 2 * r, r, Math.max(1.5 / d, 2.5), accent, this.a(255));
+      rrect(x - 5, y - 5, 10, 10, 5, accent, this.a(255));
     }
   }
 
-  /** The notice: what a museum label says, and where the picture comes from. */
-  private paintBack(c: Card, d: number, left: number, top: number): void {
-    const ink = this.colours.ink, m = c.media, P = this.project, L = this.lang;
-    const pad = 18 * d, x = left + pad, inner = c.w * d - 2 * pad, bottom = top + c.h * d - pad;
-    const head = bold(17 * d), line2 = sans(13 * d), small = sans(11 * d), body = sans(13 * d);
-    let y = top + pad;
-    for (const line of wrap(head, P.say(m.title, L), inner, 3)) { drawText(head, x, y, line, ink, this.a(255), 0); y += leading(head); }
-    y += 3 * d;
-    if (m.creator.length > 0) { drawText(line2, x, y, wrap(line2, m.creator, inner, 1)[0], ink, this.a(255), 0); y += leading(line2); }
+  /** The lines of the notice on the back of a card, cut once when it is first turned over: the title, who made it, when and of what, a
+   *  rule (`rule`), as much of the description as the card has room for, and at its foot where the picture comes from. */
+  private layNotice(c: Card): Row[] {
+    const m = c.media, P = this.project, L = this.lang, rows: Row[] = [];
+    const pad = 18, inner = c.w - 2 * pad, bottom = c.h - pad;
+    const head = bold(17), line2 = sans(13), small = sans(11), body = sans(13);
+    let y = pad;
+    for (const line of wrap(head, P.say(m.title, L), inner, 3)) { rows.push(new Row(head, pad, y, line, 255, 0)); y += leading(head); }
+    y += 3;
+    if (m.creator.length > 0) { rows.push(new Row(line2, pad, y, wrap(line2, m.creator, inner, 1)[0], 255, 0)); y += leading(line2); }
     const facts = [P.say(m.date, L), P.say(m.medium, L)].filter((s: string) => s.length > 0).join(', ');
-    for (const line of wrap(small, facts, inner, 2)) { drawText(small, x, y, line, ink, this.a(faint(160)), 0); y += leading(small); }
-    y += 7 * d;
-    rrect(x, y, 34 * d, Math.max(1, Math.round(1.5 * d)), 0, this.colours.accent, this.a(255));
-    y += 9 * d;
-    const credit = wrap(small, [m.credit.institution, m.credit.accession, m.credit.licence].filter((s: string) => s.length > 0).join(' · '), inner - 24 * d, 2);
-    const room = Math.floor((bottom - credit.length * leading(small) - 6 * d - y) / leading(body));
-    if (room > 0) for (const line of wrap(body, P.say(m.description, L), inner, room)) { drawText(body, x, y, line, ink, this.a(255), 0); y += leading(body); }
+    for (const line of wrap(small, facts, inner, 2)) { rows.push(new Row(small, pad, y, line, 160, 0)); y += leading(small); }
+    c.rule = y + 7;
+    y += 16;
+    const credit = wrap(small, [m.credit.institution, m.credit.accession, m.credit.licence].filter((s: string) => s.length > 0).join(' · '), inner - 24, 2);
+    const room = Math.floor((bottom - credit.length * leading(small) - 6 - y) / leading(body));
+    if (room > 0) for (const line of wrap(body, P.say(m.description, L), inner, room)) { rows.push(new Row(body, pad, y, line, 255, 0)); y += leading(body); }
     y = bottom - credit.length * leading(small);
-    for (const line of credit) { drawText(small, x, y, line, ink, this.a(faint(160)), 0); y += leading(small); }
+    for (const line of credit) { rows.push(new Row(small, pad, y, line, 160, 0)); y += leading(small); }
+    return rows;
   }
 }
