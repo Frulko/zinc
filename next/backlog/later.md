@@ -6,6 +6,13 @@ The next backlog review turns lines into tasks or deletes them.
 
 ## Engine and tools
 
+- ZN-731: a picture with rounded corners of its own or an alpha on a hardware layer too (the two renders already give each pixel's alpha), so a film that fades in stays off the CPU; a part of a picture (drawImageRect) on a layer, through the plane's source rectangle.
+- ZN-731: zero-copy on macOS: VideoToolbox's CVPixelBuffer (an IOSurface) to the window behind `HalDisplay.layers`; today the frame is copied back and converted by swscale.
+- ZN-731: the frame on a KMS plane with page flips for every fbdev program, not only while a film plays: a true vertical blank and no tearing (it costs holding the DRM master and a second buffer).
+- ZN-731: a capture (ZINC_SHOT, tools/device shot) shows a hole where a hardware picture is: compose the picture for it.
+- ZN-731: a film in a turned card still costs 38 ms of CPU a picture on a Pi 3: an EGLImage in display-gl, or a card kept upright while its film plays; display-gl's KMS backend takes `HalDisplay.layers` as well.
+- ZN-731: `museum_editor_views` failed in the agent's partial tier run on editor goldens, like the known `museum_editor`; not checked against main's binary.
+
 - ZN-730: a film decoded at the size it is drawn (museum-table makes its decoder at the poster's 854x480 and the raster scales it to 500x281): the IMAGE would be a row copy instead of 13.5 ms of CPU a picture on a Pi 3.
 - ZN-730: the direct scaled image paths (`draw_dyn`, `draw_image`) are float bilinear loops, 135 cycles a pixel on a Cortex-A53; an integer version would bring a film frame's raster clearly under 8 ms, and changes every golden with a scaled image.
 - ZN-730: a gradient paint record (RECT grad 5) under a scaling matrix still goes through the XFORM; a film in a card with an angle still costs 51 ms of CPU a picture on a Pi 3 (the XFORM path).
@@ -261,6 +268,9 @@ The next backlog review turns lines into tasks or deletes them.
 
 ## Cross-platform pass
 
+- ZN-731: on the Pi 3B+ with someone at the screen: colours beside the software path, the edge of the hole, a card dragged and zoomed with its film playing, two films at once, a 1080p clip, an hour of play, a minute of museum-table's film in one go.
+- ZN-731: hardware layers on a Pi 4 and 5 (SAND formats with modifiers, HEVC through v4l2request): never run there; `next/tools/kmsvid.cpp --planes` lists what the planes take. Linux desktop: VA-API surfaces exported as dmabufs into the same `HalPicture`, a subsurface under a compositor. Windows, Android and iOS behind `HalDisplay.layers`.
+- ZN-731: display-fbdev's pacing where the vsync wait really waits (HDMI on a Pi) and on SPI panels; its rpi1 build with and without the kernel's DRM headers.
 - ZN-733: Linux: the taskbar name of a run app (SDL app metadata, WM class), `ps` (prctl or the same link) and the raise under X11 and Wayland; Windows: the taskbar and Task Manager name, and SetForegroundWindow's rules from a console.
 
 - ZN-730: museum-table's film on the real `/dev/fb0` of the Pi 3B+ (off screen so far) and at a fixed 1400 MHz clock; the ISP (`/dev/video12`) handing the picture in BGRX at the drawn size (ZN-731).- ZN-729: `zinc agent` on Linux (x86_64 and a Raspberry Pi): `tests/t0/agent.sh` and `tests/t1/agent_apps.sh` there (forkpty with libutil, /proc figures, the temperature, a GUI app started from the agent under systemd), and a pairing between two machines over Wi-Fi with discovery through a real network.

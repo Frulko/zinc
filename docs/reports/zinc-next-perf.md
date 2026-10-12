@@ -740,3 +740,23 @@ Measured by the task's agent: sequence wave (854x480 H.264 at 24 pictures a seco
 - `zinc dev --device`: a saved source runs on the device 211 to 250 ms after the save (six runs by the agent that worked ZN-729.03, 220 ms once more after integration); `zinc dev` reports the start 77 to 85 ms after the save, the red box of a compile error 112 to 119 ms, a saved asset sent in 35 ms. All of it with a load average of 7 to 10 (other trees building): to take again on a quiet machine.
 - The agent and its client: 227 KB of code in `zinc` before ZN-729.03 to .05 (not measured after).
 - Not measured: anything over a real network, on Linux or on a Raspberry Pi; large transfers; several sessions at once (they share one lock around mbedTLS).
+
+## Zero-copy video on a Pi 3B+ (ZN-731, D114, 2026-10-12)
+
+Measured by the task's agent on the real screen: CPU of the whole program, every thread, from `/proc/<pid>/stat` over a window that starts 8 s after the launch; the board under 55 C before each run, `get_throttled` 0xd0000 after each. With the planes the `ondemand` governor leaves the clock at 700 MHz most of the time (the load is too small to raise it), so those numbers are upper bounds; the software runs were at 1400 MHz.
+
+| program | build | CPU a picture (ms) | of a core | pictures a second | dropped |
+| --- | --- | --- | --- | --- | --- |
+| museum-table, sequence wave (854x480 at 24), 20 s | main before (ZN-730) | 38.3 | 92.6% | 24.15 | 0 |
+| | software path, paced | 37.0 | 89.6% | 24.2 | 0 |
+| | planes | 3.45 | 8.3% | 24.2 | 0 |
+| hero, Video tab (640x360 at 24), 60 s | software path | 37.5 | 90.8% | 24.25 | 1 at the start, before the clock fix |
+| | planes | 4.75 | 11.5% | 24.2 | 0 over 69 s |
+| hero, Video tab, the clip at 30, 60 s | software path | 35.5 | 107.5% | 30.3 | 0 |
+| | planes | 4.12 | 12.4% | 30.25 | 0 over 69 s |
+
+- 2076 of 2076 pictures never read by the CPU in the 69 s run. With the planes museum-table's frame raster is 0.10 ms on average (p99 0.40).
+- The spike outside the engine (`tools/kmsvid.cpp`): 0.58 ms of CPU a picture at 24 a second, 0.61 at 30, the decoder alone 0.20; importing a frame 0.07 ms, the atomic commit 0.15 ms; taking the planes 2 to 7 ms once per film. Planes refused (`ZINC_FBDEV_PLANES=refuse`): 38.1 ms a picture.
+- display-fbdev did not pace its frames on this screen: `FBIO_WAITFORVSYNC` returns at once (60 waits in 0.1 ms), so every fbdev program ran as fast as it could (122 frames a second and 92% of a core with the film). It now sleeps to 60 a second when the wait did not wait.
+- Not measured: a minute of museum-table's film in one go (the sequence plays 30 s: runs of 30, 29 and 21 s, 0 dropped), a card dragged or zoomed with its film playing, two films at once, 1080p.
+
