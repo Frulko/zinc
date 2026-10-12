@@ -10,6 +10,11 @@
 // Gapless playlists: the timeline is continuous across files (each file starts where the previous one ended), and
 // the next file (demuxer + decoder) is opened as soon as the current one shows its first frame, so switching costs
 // one decode and never a black frame. A single file loops the same way (a second instance of it is pre-opened).
+//
+// Zero copy (ZN-731, Linux): when the display driver has hardware layers (hal.h HalDisplay.layers) a V4L2 decoder is asked for its
+// frames as dmabufs (AV_PIX_FMT_DRM_PRIME) and the player's image gets a raster::Picture: the display shows the decoder's buffer on a
+// plane of its own and nothing here reads it. A frame that draws the image another way (turned, blended, under a translucent box) asks
+// for its pixels: the picture on screen is converted then, and the decode thread converts the following ones as before.
 #include "zinc_native_video.h"
 #include "zrt_raster.h"
 extern "C" {
@@ -17,6 +22,12 @@ extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavutil/hwcontext.h>
 #include <libswscale/swscale.h>
+#if defined(__linux__) && __has_include(<libavutil/hwcontext_drm.h>)
+#include <libavutil/hwcontext_drm.h>
+#include <libavutil/imgutils.h>
+#include <sys/mman.h>
+#define ZP_VIDEO_PRIME 1
+#endif
 }
 #if __has_include("zn/resource_stats.h")
 #include "zn/resource_stats.h"
@@ -40,21 +51,23 @@ static bool vlog;  // ZINC_VIDEO_LOG=1: one stderr line per shown frame (loop-po
 using namespace zrt;
 
 // ---------------------------------------------------------------- one opened file
+struct Conv { SwsContext* sws; int sw_w, sw_h, sw_fmt, ox, oy, ow, oh; };  // swscale, its input and the letterbox rectangle
 struct Source {
-  AVFormatContext* fmt; AVCodecContext* dec; AVBufferRef* hw; SwsContext* sws;
+  AVFormatContext* fmt; AVCodecContext* dec; AVBufferRef* hw; Conv cv;
   AVPixelFormat hwfmt;
   int stream, item, frames;
   double tb, fdur, dur, end;   // time base, nominal frame duration, container duration, end of the last frame (s)
   int64_t start, last;         // first and last pts
   bool draining, wrapped;
   bool uncached;               // the decoder's frames lie in device memory mapped without a cache (V4L2): publish copies them first
+  bool prime;                  // the decoder is asked for dmabufs (AV_PIX_FMT_DRM_PRIME): the display has hardware layers
   int range;                   // the stream's colour range, when it names one (a V4L2 decoder calls every frame limited)
-  int sw_w, sw_h, sw_fmt, ox, oy, ow, oh;  // swscale input and letterbox rectangle
   char name[48];
 };
 
 static AVPixelFormat pick_format(AVCodecContext* c, const AVPixelFormat* f) {
   Source* s = (Source*)c->opaque;
+  for (const AVPixelFormat* q = f; s->prime && *q != AV_PIX_FMT_NONE; q++) if (*q == AV_PIX_FMT_DRM_PRIME) return *q;
   for (const AVPixelFormat* q = f; *q != AV_PIX_FMT_NONE; q++) if (*q == s->hwfmt) return *q;
   return avcodec_default_get_format(c, f);
 }
@@ -63,6 +76,7 @@ static bool try_decoder(Source* s, const AVCodec* c, const AVCodecParameters* pa
   if (!d || avcodec_parameters_to_context(d, par) < 0) { avcodec_free_context(&d); return false; }
   d->opaque = s;
   d->thread_count = 0;  // software: automatic slice/frame threads
+  if (s->prime) d->get_format = pick_format;
   if (hwdev) { d->hw_device_ctx = av_buffer_ref(s->hw); d->get_format = pick_format; d->thread_count = 1; }
   if (avcodec_open2(d, c, nullptr) < 0) { avcodec_free_context(&d); return false; }
   s->dec = d;
@@ -86,7 +100,17 @@ static bool open_decoder(Source* s, const AVCodec* sw, const AVCodecParameters* 
   // Raspberry Pi (bcm2835-codec), other SoCs with a stateful V4L2 decoder; fails fast without /dev/video*
   char n[48];
   snprintf(n, sizeof n, "%s_v4l2m2m", sw->name);
-  if (const AVCodec* m2m = avcodec_find_decoder_by_name(n)) if (try_decoder(s, m2m, par, false)) { snprintf(s->name, sizeof s->name, "%s", n); s->uncached = true; return true; }
+#ifdef ZP_VIDEO_PRIME
+  // ZINC_VIDEO_PRIME=0: the decoder's frames as pixels in memory whatever the display (to compare, or a decoder whose dmabufs fail)
+  const char* off = getenv("ZINC_VIDEO_PRIME");
+  s->prime = hal_display && hal_display->layers && !(off && *off == '0');
+#endif
+  if (const AVCodec* m2m = avcodec_find_decoder_by_name(n)) if (try_decoder(s, m2m, par, false)) {
+    snprintf(s->name, sizeof s->name, "%s%s", n, s->prime ? " (dmabuf)" : "");
+    s->uncached = true;
+    return true;
+  }
+  s->prime = false;
 #endif
 #endif
   if (!try_decoder(s, sw, par, false)) return false;
@@ -100,7 +124,7 @@ static void close_source(Source*& s) {
   avcodec_free_context(&s->dec);
   avformat_close_input(&s->fmt);
   av_buffer_unref(&s->hw);
-  sws_freeContext(s->sws);
+  sws_freeContext(s->cv.sws);
   free(s);
   s = nullptr;
 }
@@ -120,7 +144,7 @@ static Source* open_source(const char* path, int item) {
   for (unsigned i = 0; i < fmt->nb_streams; i++) if ((int)i != st) fmt->streams[i]->discard = AVDISCARD_ALL;  // ponytail: video only, audio is a follow-up
   Source* s = (Source*)calloc(1, sizeof(Source));
   AVStream* vs = fmt->streams[st];
-  s->fmt = fmt; s->stream = st; s->item = item; s->hwfmt = AV_PIX_FMT_NONE; s->sw_fmt = -1;
+  s->fmt = fmt; s->stream = st; s->item = item; s->hwfmt = AV_PIX_FMT_NONE; s->cv.sw_fmt = -1;
   s->start = s->last = AV_NOPTS_VALUE;
   s->range = vs->codecpar->color_range;
   s->tb = av_q2d(vs->time_base);
@@ -133,7 +157,9 @@ static Source* open_source(const char* path, int item) {
 
 // ---------------------------------------------------------------- players
 enum { FREE, WRITING, READY, SHOWN };
-struct Slot { uint32_t* px; int state, item, loop; uint32_t gen; double t, pos, dur, fdur; char dec[48]; };
+// hw: the decoder's own frame when it is a dmabuf (empty otherwise), kept while the display may show it; has_px: px holds the picture
+// too; box: where the picture lies in the player's image; range: the stream's colour range
+struct Slot { uint32_t* px; int state, item, loop; uint32_t gen; double t, pos, dur, fdur; char dec[48]; AVFrame* hw; bool has_px; int box[4], range; };
 
 struct Player {
   bool used;
@@ -158,6 +184,12 @@ struct Player {
   int shown, item, loops, frames, dropped, resume;
   int hist[32], nhist;
   char dec[48];
+  // dmabuf pictures (ZN-731)
+  raster::Picture pic;       // the picture on screen, for a display with hardware layers
+  AVFrame *old[2], *tmp;     // the two pictures shown before it, which the display may still scan; a copy in memory for the conversion at a draw
+  Conv conv;                 // the conversion at a draw (main thread; a Source's is its decode thread's)
+  volatile bool want_px;     // the last frame drew the picture from its pixels: the decode thread converts the next ones
+  int direct, at_draw;       // pictures shown and never read by the CPU; pictures converted at a draw
 };
 static Player players[MAX_PLAYERS];
 #if __has_include("zn/resource_stats.h")
@@ -229,21 +261,27 @@ static Source* open_entry(Player* p, int e, bool* wrapped) {
 static void fill(uint32_t* px, int32_t stride, int x, int y, int w, int h, uint32_t c) {
   for (int j = 0; j < h; j++) for (int i = 0; i < w; i++) px[(size_t)(y + j) * stride + x + i] = c;
 }
-/** Frame -> 0x00RRGGBB at the player's size, aspect kept, bars in the background colour. */
-static bool convert(Player* p, Source* s, AVFrame* f, uint32_t* px) {
+/** Where a frame lies in the player's image: aspect kept, centred (box: x, y, w, h). */
+static void fit(const Player* p, const AVFrame* f, int* box) {
+  double sar = f->sample_aspect_ratio.num > 0 && f->sample_aspect_ratio.den > 0 ? av_q2d(f->sample_aspect_ratio) : 1;
+  double dw = f->width * sar, k = p->w / dw < p->h / (double)f->height ? p->w / dw : p->h / (double)f->height;
+  int ow = (int)(dw * k + 0.5), oh = (int)(f->height * k + 0.5);
+  if (ow > p->w) ow = p->w;
+  if (oh > p->h) oh = p->h;
+  if (ow < 1) ow = 1;
+  if (oh < 1) oh = 1;
+  box[0] = (p->w - ow) / 2; box[1] = (p->h - oh) / 2; box[2] = ow; box[3] = oh;
+}
+/** Frame -> 0x00RRGGBB at the player's size, aspect kept, bars in the background colour. `range`: the stream's, when it names one. */
+static bool convert(Player* p, Conv* s, AVFrame* f, int range, uint32_t* px) {
   if (f->width != s->sw_w || f->height != s->sw_h || f->format != s->sw_fmt) {
-    double sar = f->sample_aspect_ratio.num > 0 && f->sample_aspect_ratio.den > 0 ? av_q2d(f->sample_aspect_ratio) : 1;
-    double dw = f->width * sar, k = p->w / dw < p->h / (double)f->height ? p->w / dw : p->h / (double)f->height;
-    s->ow = (int)(dw * k + 0.5); s->oh = (int)(f->height * k + 0.5);
-    if (s->ow > p->w) s->ow = p->w;
-    if (s->oh > p->h) s->oh = p->h;
-    if (s->ow < 1) s->ow = 1;
-    if (s->oh < 1) s->oh = 1;
-    s->ox = (p->w - s->ow) / 2; s->oy = (p->h - s->oh) / 2;
+    int box[4];
+    fit(p, f, box);
+    s->ox = box[0]; s->oy = box[1]; s->ow = box[2]; s->oh = box[3];
     s->sws = sws_getCachedContext(s->sws, f->width, f->height, (AVPixelFormat)f->format, s->ow, s->oh, AV_PIX_FMT_BGR0, SWS_BILINEAR, nullptr, nullptr, nullptr);
     if (!s->sws) return false;
     const int* coef = sws_getCoefficients(f->colorspace == AVCOL_SPC_BT709 ? SWS_CS_ITU709 : SWS_CS_DEFAULT);
-    sws_setColorspaceDetails(s->sws, coef, (s->range != AVCOL_RANGE_UNSPECIFIED ? s->range : f->color_range) == AVCOL_RANGE_JPEG, coef, 1, 0, 1 << 16, 1 << 16);
+    sws_setColorspaceDetails(s->sws, coef, (range != AVCOL_RANGE_UNSPECIFIED ? range : f->color_range) == AVCOL_RANGE_JPEG, coef, 1, 0, 1 << 16, 1 << 16);
     s->sw_w = f->width; s->sw_h = f->height; s->sw_fmt = f->format;
   }
   uint32_t bg = p->bg;
@@ -261,10 +299,64 @@ static bool convert(Player* p, Source* s, AVFrame* f, uint32_t* px) {
 
 static int free_slot(Player* p) { for (int k = 0; k < NBUF; k++) if (p->slot[k].state == FREE) return k; return -1; }
 
+#ifdef ZP_VIDEO_PRIME
+/** A dmabuf frame for the display: its buffers by descriptor, nothing mapped. False: a layout a HalPicture does not describe. */
+static bool picture_of(const AVFrame* fr, int range, HalPicture* h) {
+  const AVDRMFrameDescriptor* d = (const AVDRMFrameDescriptor*)fr->data[0];
+  if (!d || d->nb_layers != 1 || d->layers[0].nb_planes > 4) return false;
+  const AVDRMLayerDescriptor& l = d->layers[0];
+  h->modifier = d->objects[0].format_modifier; h->format = l.format; h->w = fr->width; h->h = fr->height; h->nplanes = l.nb_planes;
+  for (int i = 0; i < l.nb_planes; i++) { h->fd[i] = d->objects[l.planes[i].object_index].fd; h->offset[i] = (uint32_t)l.planes[i].offset; h->pitch[i] = (uint32_t)l.planes[i].pitch; }
+  h->full_range = (range != AVCOL_RANGE_UNSPECIFIED ? range : fr->color_range) == AVCOL_RANGE_JPEG;
+  h->bt709 = fr->colorspace == AVCOL_SPC_BT709;
+  return true;
+}
+/** A dmabuf frame copied into ordinary memory (`tmp`, kept from picture to picture) for swscale: the software way of showing it, at the
+ *  price of the copy ZN-730 measured (5 ms for 854x480 on a Pi 3: the buffer is mapped without a cache). Null: not readable here.
+ *  ponytail: YU12 and NV12 in one buffer, what bcm2835-codec gives; another layout is shown by a hardware layer only. */
+static AVFrame* from_prime(const AVFrame* fr, AVFrame* tmp) {
+  const AVDRMFrameDescriptor* d = (const AVDRMFrameDescriptor*)fr->data[0];
+  if (!d || d->nb_layers != 1 || d->nb_objects != 1) return nullptr;
+  const AVDRMLayerDescriptor& l = d->layers[0];
+  const AVPixelFormat fmt = l.format == MKTAG('Y', 'U', '1', '2') ? AV_PIX_FMT_YUV420P : l.format == MKTAG('N', 'V', '1', '2') ? AV_PIX_FMT_NV12 : AV_PIX_FMT_NONE;
+  if (fmt == AV_PIX_FMT_NONE) return nullptr;
+  if (tmp->format != fmt || tmp->width != fr->width || tmp->height != fr->height) {
+    av_frame_unref(tmp);
+    tmp->format = fmt; tmp->width = fr->width; tmp->height = fr->height;
+    if (av_frame_get_buffer(tmp, 0) < 0) return nullptr;
+  }
+  void* m = mmap(nullptr, d->objects[0].size, PROT_READ, MAP_SHARED, d->objects[0].fd, 0);
+  if (m == MAP_FAILED) return nullptr;
+  const uint8_t* src[4] = {};
+  int pitch[4] = {};
+  for (int i = 0; i < l.nb_planes; i++) { src[i] = (const uint8_t*)m + l.planes[i].offset; pitch[i] = (int)l.planes[i].pitch; }
+  av_image_copy(tmp->data, tmp->linesize, src, pitch, fmt, fr->width, fr->height);
+  munmap(m, d->objects[0].size);
+  tmp->sample_aspect_ratio = fr->sample_aspect_ratio; tmp->colorspace = fr->colorspace; tmp->color_range = fr->color_range;
+  return tmp;
+}
+#else
+static bool picture_of(const AVFrame*, int, HalPicture*) { return false; }
+static AVFrame* from_prime(const AVFrame*, AVFrame*) { return nullptr; }
+#endif
+/** A frame draws the picture on screen from its pixels and they are not there (raster::Picture.fill, main thread): converted now. */
+static void fill_picture(void* user) {
+  Player* p = (Player*)user;
+  p->pic.filled = true;   // whatever comes of it: asked once per picture
+  if (p->shown < 0) return;
+  Slot& sl = p->slot[p->shown];
+  AVFrame* f = from_prime(sl.hw, p->tmp);
+  if (!f || !convert(p, &p->conv, f, sl.range, sl.px)) return;
+  sl.has_px = true; p->at_draw++;
+  raster::dyn_update(p->img, sl.px, p->w);
+}
+
 /** Worker: waits for a free slot, converts the frame into it and marks it ready with its timeline position. */
 static bool publish(Player* p, Source* s, AVFrame* fr, AVFrame* sw, uint32_t gen, double base, int loop) {
   AVFrame* f = fr;
-  if (s->hwfmt != AV_PIX_FMT_NONE && fr->format == s->hwfmt) {
+  const bool prime = fr->format == AV_PIX_FMT_DRM_PRIME;
+  if (prime) f = nullptr;   // a dmabuf: kept as it is, read only if a frame draws it in software (below)
+  else if (s->hwfmt != AV_PIX_FMT_NONE && fr->format == s->hwfmt) {
     av_frame_unref(sw);
     if (av_hwframe_transfer_data(sw, fr, 0) < 0) return false;
     av_frame_copy_props(sw, fr);
@@ -296,10 +388,19 @@ static bool publish(Player* p, Source* s, AVFrame* fr, AVFrame* sw, uint32_t gen
   p->slot[k].state = WRITING;
   pthread_mutex_unlock(&p->mu);
   const uint64_t c0 = vlog ? hal_time_us() : 0;
-  bool ok = convert(p, s, f, p->slot[k].px);
-  if (vlog) fprintf(stderr, "video: p%d converted pos %.4f in %.2f ms (%s)\n", (int)(p - players), pos, (hal_time_us() - c0) / 1e3, s->name);
-  pthread_mutex_lock(&p->mu);
   Slot& sl = p->slot[k];
+  av_frame_unref(sl.hw);
+  bool ok = true;
+  sl.has_px = !prime || p->want_px;
+  if (prime) {
+    ok = av_frame_ref(sl.hw, fr) == 0;
+    sl.range = s->range;
+    fit(p, fr, sl.box);
+    if (ok && sl.has_px) f = from_prime(fr, sw);
+  }
+  if (ok && sl.has_px) ok = f && convert(p, &s->cv, f, s->range, sl.px);
+  if (vlog) fprintf(stderr, sl.has_px ? "video: p%d converted pos %.4f in %.2f ms (%s)\n" : "video: p%d kept pos %.4f as a dmabuf, %.2f ms (%s)\n", (int)(p - players), pos, (hal_time_us() - c0) / 1e3, s->name);
+  pthread_mutex_lock(&p->mu);
   if (!ok || p->gen != gen) sl.state = FREE;
   else {
     sl.state = READY; sl.gen = gen; sl.t = base + pos; sl.pos = pos; sl.dur = s->dur; sl.fdur = fd; sl.item = s->item; sl.loop = loop;
@@ -384,9 +485,35 @@ static void* worker(void* arg) {
 }
 
 // ---------------------------------------------------------------- main thread
+/** The picture on screen leaves. A dmabuf stays ours for two more pictures: the display may scan it until its next refreshes. */
+static void retire(Player* p, Slot& sl) {
+  sl.state = FREE;
+  if (!sl.hw || !sl.hw->buf[0]) return;
+  if (!sl.has_px) p->direct++;
+  AVFrame* last = p->old[1];
+  p->old[1] = p->old[0]; p->old[0] = sl.hw; sl.hw = last;
+  av_frame_unref(sl.hw);
+}
+/** A slot's picture becomes the player's image: pixels, or a dmabuf for the display with the pixels to come if a frame asks. */
+static void show(Player* p, Slot& b) {
+  static uint32_t serial;
+  p->want_px = p->pic.software;   // what the frames did with the picture before this one: the decode thread goes on the same way
+  p->pic.software = false;
+  if (b.hw && b.hw->buf[0] && picture_of(b.hw, b.range, &p->pic.hal)) {
+    p->pic.hal.serial = ++serial;
+    p->pic.bx = b.box[0]; p->pic.by = b.box[1]; p->pic.bw = b.box[2]; p->pic.bh = b.box[3];
+    p->pic.fill = fill_picture; p->pic.user = p; p->pic.filled = b.has_px;
+    raster::dyn_set_picture(p->img, &p->pic);
+    raster::dyn_update(p->img, b.has_px ? b.px : p->blank, p->w);   // around the picture, the image is the background colour
+  } else {
+    raster::dyn_set_picture(p->img, nullptr);
+    raster::dyn_update(p->img, b.px, p->w);
+  }
+}
 static void show_blank(Player* p) {
-  if (p->shown >= 0) p->slot[p->shown].state = FREE;
+  if (p->shown >= 0) retire(p, p->slot[p->shown]);
   p->shown = -1;
+  raster::dyn_set_picture(p->img, nullptr);
   raster::dyn_update(p->img, p->blank, p->w);
 }
 /** Restart the timeline at `target` (-1: next entry in order). Caller holds the lock. */
@@ -402,29 +529,32 @@ static bool update(Player* p, uint64_t now) {
   double dt = p->last_us ? (now - p->last_us) / 1e6 : 0;
   p->last_us = now;
   if (p->started && !p->paused) p->clock += dt;
-  int first = -1, best = -1;
+  int first = -1, best = -1, ready = 0;
   bool freed = false;
   for (int k = 0; k < NBUF; k++) {
     Slot& s = p->slot[k];
     if (s.state != READY) continue;
     if (s.gen != p->gen) { s.state = FREE; freed = true; continue; }
     if (first < 0 || s.t < p->slot[first].t) first = k;
+    ready++;
   }
-  if (!p->started && first >= 0) { p->clock = p->slot[first].t; p->started = true; }
+  // The clock starts with two pictures in hand (or all there will be): a decoder that hands its frames in bursts (V4L2) gave the second
+  // one 70 ms after the first, and it was dropped as late (ZN-731, once the first was no longer held back by its conversion).
+  if (!p->started && first >= 0 && (ready >= 2 || !p->running)) { p->clock = p->slot[first].t; p->started = true; }
   for (int k = 0; k < NBUF; k++) {
     Slot& s = p->slot[k];
     // due within half a 60 Hz refresh: shown at the nearest vsync instead of one late when phases align
-    if (s.state == READY && s.t <= p->clock + 0.008 && (best < 0 || s.t > p->slot[best].t)) best = k;
+    if (p->started && s.state == READY && s.t <= p->clock + 0.008 && (best < 0 || s.t > p->slot[best].t)) best = k;
   }
   if (best >= 0) {
     Slot& b = p->slot[best];
     for (int k = 0; k < NBUF; k++) if (k != best && p->slot[k].state == READY && p->slot[k].t < b.t) { p->slot[k].state = FREE; p->dropped++; }
-    if (p->shown >= 0) p->slot[p->shown].state = FREE;
+    if (p->shown >= 0) retire(p, p->slot[p->shown]);
     b.state = SHOWN; p->shown = best; freed = true;
     if (b.item != p->item) { if (p->nhist == 32) { memmove(p->hist, p->hist + 1, sizeof(int) * 31); p->nhist--; } p->hist[p->nhist++] = b.item; }
     p->item = b.item; p->pos = b.pos; p->dur = b.dur; p->fdur = b.fdur; p->last_t = b.t; p->loops = b.loop; p->frames++;
     memcpy(p->dec, b.dec, sizeof p->dec);
-    raster::dyn_update(p->img, b.px, p->w);
+    show(p, b);
     if (vlog) fprintf(stderr, "video: p%d entry %d pos %.4f t %.4f clock %.4f dropped %d\n", (int)(p - players), b.item, b.pos, b.t, p->clock, p->dropped);
   } else if (p->started && first < 0) {
     if (!p->running && p->shown >= 0 && p->clock >= p->last_t + p->fdur) { show_blank(p); p->resume = -1; }
@@ -459,7 +589,9 @@ static void alloc(Player* p, int32_t w, int32_t h) {
   if (!ok) { free(blank); for (uint32_t* b : px) free(b); return; }
   p->w = w; p->h = h; p->blank = blank;
   for (size_t i = 0; i < n; i++) p->blank[i] = p->bg;
-  for (int k = 0; k < NBUF; k++) p->slot[k].px = px[k];
+  for (int k = 0; k < NBUF; k++) { p->slot[k].px = px[k]; p->slot[k].hw = av_frame_alloc(); }
+  p->old[0] = av_frame_alloc(); p->old[1] = av_frame_alloc(); p->tmp = av_frame_alloc();
+  p->conv.sw_fmt = -1;
   p->img = raster::dyn_wrap(w, h, p->blank, w);
 }
 
@@ -571,8 +703,11 @@ struct VideoImpl : NativeVideo {
       pthread_mutex_lock(&p->mu); p->quit = true; pthread_cond_broadcast(&p->cv); pthread_mutex_unlock(&p->mu);
       pthread_join(p->th, nullptr);
     }
+    if (vlog && p->direct + p->at_draw) fprintf(stderr, "video: p%d showed %d pictures, %d of them dmabufs the CPU never read, %d converted at a draw\n", (int)id, p->frames, p->direct + (p->shown >= 0 && !p->slot[p->shown].has_px), p->at_draw);
     if (p->img >= 0) raster::dyn_destroy(p->img);
-    for (int k = 0; k < NBUF; k++) free(p->slot[k].px);
+    for (int k = 0; k < NBUF; k++) { free(p->slot[k].px); av_frame_free(&p->slot[k].hw); }
+    av_frame_free(&p->old[0]); av_frame_free(&p->old[1]); av_frame_free(&p->tmp);
+    sws_freeContext(p->conv.sws);
     free(p->blank); free(p->bag);
     for (int i = 0; i < p->nfiles; i++) free(p->files[i]);
     free(p->files);

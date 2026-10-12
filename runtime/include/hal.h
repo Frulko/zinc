@@ -118,6 +118,8 @@ struct HalFrame {
   // GPU displays (docs/reports/gpu-renderer-design.md): the command lists to draw, in paint order (the program's
   // frame, then the runtime overlays); returns how many were written (at most `max`). Null: pixels only.
   int32_t (*frames)(const HalCmdList* out[], int32_t max);
+  // render() with the holes of the hardware layers (HAL_LAYER_HOLE) filled with `color` instead; null when the frame has no layer.
+  void (*render_holes)(uint32_t* rows, int32_t y0, int32_t y1, uint32_t color);
 };
 
 // Pen / stylus: HALs and display drivers push every sample they read (in hal_poll_input / HalDisplay.poll); the
@@ -161,6 +163,34 @@ double hal_fixed_dt(void);
 // Drives the main loop: native HALs loop until step() returns 0; the web HAL hands it to requestAnimationFrame.
 void hal_run(int (*step)(void));
 
+// Hardware layers (ZN-731): a picture that lies in device memory (on Linux the dmabufs of a video decoder) is shown by the display itself,
+// under the software frame, and the CPU never reads it. Before it asks for a frame's pixels the runtime offers the driver the pictures
+// that frame draws (HalDisplay.layers); where the driver takes one, the rasterizer writes HAL_LAYER_HOLE in place of the picture and the
+// driver shows its layer through those pixels. What the frame draws after the picture stays in front of it: an opaque pixel replaces
+// the hole; where something was blended over it the driver asks for the same rows again with the holes white (HalFrame.render_holes)
+// and has, from the two, how much of the picture each pixel lets through.
+#define HAL_LAYER_HOLE 0x01000000u
+#define HAL_MAX_LAYERS 2
+struct HalPicture {
+  uint64_t modifier;             // DRM format modifier of the buffers
+  uint32_t serial;               // another value for each new picture
+  uint32_t format;               // DRM fourcc (YU12, NV12...)
+  int32_t w, h;                  // the visible size
+  int32_t nplanes;
+  int32_t fd[4];                 // the dmabuf of each plane
+  uint32_t offset[4], pitch[4];
+  int32_t full_range, bt709;     // the stream's colour range and matrix (else limited, BT.601)
+};
+struct HalLayer { const HalPicture* pic; int32_t x, y, w, h; };   // where on the frame, in its pixels; it may pass the edges
+/** A pixel of the frame in the place of a layer, as the driver composes it over the picture (ARGB, colour multiplied by alpha): `s` from
+ *  render(), `w` the same pixel from render_holes(.., 0xFFFFFF). A hole is transparent; a pixel that differs in the two renders was
+ *  blended over the picture and lets that much of it through (white minus black, read on green); its colour is the one over the black hole. */
+static inline uint32_t hal_layer_pixel(uint32_t s, uint32_t w) {
+  if (s == HAL_LAYER_HOLE) return 0;
+  const int32_t through = (int32_t)((w >> 8) & 255) - (int32_t)((s >> 8) & 255);
+  return (uint32_t)(255 - (through < 0 ? 0 : through)) << 24 | (s & 0xFFFFFF);
+}
+
 // Display drivers (plugins/display-*): a linked driver registers itself from a static constructor
 // (`static HalDisplay d = {...}; static int r = (hal_display = &d, 0);`). The runtime then hands it the frames and
 // asks it for input; init returns 0 to decline (no device), and the target HAL keeps the screen.
@@ -173,6 +203,9 @@ struct HalDisplay {
   int host_window;              // 1: the driver shows its frames through the target HAL's window (hal_present), e.g.
                                 //    the reMarkable emulator; 0: it has its own output (a panel, an emulator window)
   int32_t (*pixel_scale)(void); // may be null: 1, a panel's own pixels. A desktop window returns zoom x screen density (Retina), read once after init
+  // may be null (no hardware layers). The layers of the frame presented next, in paint order (n = 0: none); returns a bit per layer it
+  // will show. A layer it refuses is drawn by the rasterizer from the picture's pixels.
+  uint32_t (*layers)(const HalLayer* l, int32_t n);
 };
 extern HalDisplay* hal_display;
 }

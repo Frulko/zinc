@@ -569,7 +569,7 @@ static void draw_text(const Target& t, const Cmd& c, const char* s) {
 }
 // ---------------------------------------------------------------- runtime images
 // At most ZRT_DYN_IMAGES runtime images at once (ZN-670): 4096 on desktops and the web, 64 on devices (ps1: 4, targets/ps1/ps1.cmake). The
-// table grows by chunks of 64 entries (40 bytes each on a 64-bit host, 28 on a 32-bit device) allocated on first use and never moved, so a producer thread reading an
+// table grows by chunks of 64 entries (48 bytes each on a 64-bit host, 32 on a 32-bit device) allocated on first use and never moved, so a producer thread reading an
 // entry (dyn_update) never races a growth; a program without runtime images allocates none.
 #ifndef ZRT_DYN_IMAGES
 #if ((defined(__APPLE__) || defined(__linux__)) && !defined(ESP_PLATFORM)) || defined(__EMSCRIPTEN__)
@@ -578,7 +578,7 @@ static void draw_text(const Target& t, const Cmd& c, const char* s) {
 #define ZRT_DYN_IMAGES 64
 #endif
 #endif
-struct Dyn { const uint32_t* px; uint32_t* owned; int32_t w, h, stride; uint32_t version; bool used, alpha; void* blocks; uint32_t gl, nblocks; bool pre; };
+struct Dyn { const uint32_t* px; uint32_t* owned; int32_t w, h, stride; uint32_t version; bool used, alpha; void* blocks; uint32_t gl, nblocks; bool pre; Picture* pic; };
 static const int32_t DYN_CHUNK = ZRT_DYN_IMAGES < 64 ? ZRT_DYN_IMAGES : 64;
 static Dyn* dyn_chunks[(ZRT_DYN_IMAGES + DYN_CHUNK - 1) / DYN_CHUNK];
 // A version is never given twice, not even to another image that takes a freed slot: whatever keeps an image by (id, version) (the GPU
@@ -668,7 +668,21 @@ void dyn_resize(int32_t id, int32_t w, int32_t h) {
   d->px = d->owned; d->w = w; d->h = h; d->stride = w; d->version = ++dyn_versions;
   dyn_drop_blocks(d);
 }
-void dyn_destroy(int32_t id) { if (Dyn* d = dyn_at(id)) { if (d->owned) hal_free(d->owned); dyn_drop_blocks(d); *d = Dyn{}; } }
+void dyn_destroy(int32_t id) { if (Dyn* d = dyn_at(id)) { if (d->owned) hal_free(d->owned); dyn_drop_blocks(d); dyn_set_picture(id, nullptr); *d = Dyn{}; } }
+uint32_t dyn_pictures;
+void dyn_set_picture(int32_t id, Picture* p) {
+  Dyn* d = dyn_at(id);
+  if (!d) return;
+  dyn_pictures += (p != nullptr) - (d->pic != nullptr);
+  d->pic = p;
+}
+Picture* dyn_picture(int32_t id) { Dyn* d = dyn_at(id); return d ? d->pic : nullptr; }
+static ZRT_TLS uint32_t layer_fill = HAL_LAYER_HOLE;
+void set_layer_fill(uint32_t color) { layer_fill = color; }
+Rect layer_rect(const Cmd& c, const Picture& p, int32_t iw, int32_t ih) {
+  const float kx = c.w / (float)iw, ky = c.h / (float)ih;
+  return bounds(c.x + p.bx * kx, c.y + p.by * ky, p.bw * kx, p.bh * ky, Rect{-100000, -100000, 100000, 100000});
+}
 bool image_size(int32_t id, int32_t* w, int32_t* h) {
   if (id >= 0 && id < image_count) { int32_t k = images[id].scale > 1 ? images[id].scale : 1; *w = (images[id].w + k / 2) / k; *h = (images[id].h + k / 2) / k; return true; }
   if (Dyn* d = dyn_at(id)) { *w = d->w; *h = d->h; return true; }
@@ -790,6 +804,12 @@ static void draw_image(const Target& t, const Cmd& c) {
   // sample positions (x - c.x) * scale stay in int range: finite origin and size, at most 1e6 texels per pixel
   if (!(c.w > 0 && c.h > 0 && c.w < 1e30f && c.h < 1e30f && c.x - c.x == 0 && c.y - c.y == 0)) return;
   if (const Dyn* d = dyn_at(c.res)) {
+    if ((c.pad & kImageLayer) && d->pic) {   // the picture is on a hardware layer under the frame: a hole there, the image's own pixels around it
+      const Rect hole = layer_rect(c, *d->pic, d->w, d->h), b = intersect(hole, t.clip), all = bounds(c.x, c.y, c.w, c.h, Rect{-100000, -100000, 100000, 100000});
+      if (hole.x0 > all.x0 || hole.y0 > all.y0 || hole.x1 < all.x1 || hole.y1 < all.y1) { Cmd bars = c; bars.pad &= (uint8_t)~kImageLayer; draw_image(t, bars); }
+      for (int32_t y = b.y0; y < b.y1; y++) if (b.x1 > b.x0) fill_row(&at(t, b.x0, y), b.x1 - b.x0, layer_fill);
+      return;
+    }
     if (!d->px) return;
     if (d->alpha || (c.pad & kImageBox)) draw_boxed(t, c, Tex{nullptr, d->px, d->w, d->h, d->stride, d->alpha});
     else if ((float)d->w / c.w < 1e6f && (float)d->h / c.h < 1e6f) draw_dyn(t, c, *d);

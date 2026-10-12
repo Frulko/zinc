@@ -252,6 +252,13 @@ static void render_rows(uint32_t* rows, int32_t y0, int32_t y1) {
   if (hud_ovl && hud_ovl->ncmd) hud_render(rows, y0, y1, all);
   if (taps.ncmd) raster::render(ovl_frame(taps), rows, pw, y0, y1, all);
 }
+// the same rows with the holes of the hardware layers in another colour (HalFrame.render_holes, "hardware layers" below)
+static int32_t nlay = 0;   // the pictures of the shown frame that are on a layer
+static void render_holes(uint32_t* rows, int32_t y0, int32_t y1, uint32_t color) {
+  raster::set_layer_fill(color);
+  render_rows(rows, y0, y1);
+  raster::set_layer_fill(HAL_LAYER_HOLE);
+}
 // the frame as command lists in paint order, for GPU displays (HalFrame.frames); same lists as render_rows
 static HalCmdList lists[6];
 static int32_t frame_lists(const HalCmdList* out[], int32_t max) {
@@ -1022,7 +1029,7 @@ void present_overlay() {
   init_scale();
   banner_expire();
   if (ovl_changed) set_full_damage(); else ndmg = 0;
-  HalFrame f = {pw, ph, 0, 0, ovl_changed ? pw : 0, ovl_changed ? ph : 0, render_rows, render_damage, frame_lists};
+  HalFrame f = {pw, ph, 0, 0, ovl_changed ? pw : 0, ovl_changed ? ph : 0, render_rows, render_damage, frame_lists, nlay ? render_holes : nullptr};
   ovl_changed = false;
   present(&f);
 }
@@ -1075,6 +1082,85 @@ static void to_physical(Buf& b, uint32_t from = 0) {   // from: the first plugin
   }
 }
 
+// ---------- hardware layers (ZN-731, hal.h) ----------
+// A runtime image whose picture lies in device memory (raster::Picture: the dmabuf of a video decoder) goes to a layer of the display when
+// the frame draws it the way a layer shows it: a plain IMAGE (upright, whole, opaque, square corners, no tint). The rasterizer leaves a
+// hole there and the layer shows through it; what the frame draws after the picture (text, boxes, translucent or not, the corners of a
+// rounded clip) stays in front of it, since the driver works out from two renders of those rows how much of the picture each pixel
+// lets through (hal.h). Every other way of drawing it (turned, blended, rounded, a part of it, into an image or a window, on a display
+// without layers) is the software one, from the picture's pixels, which its owner fills when asked: the frame is the same either way.
+// ZINC_LAYER_LOG=1 says on stderr where each picture goes, at each change.
+static struct { uint32_t cmd; HalLayer at; raster::Picture* pic; } lay[HAL_MAX_LAYERS];
+static bool layers_on = false;   // the driver was given layers at the last frame
+static bool is_picture(const Buf& b, const Cmd& c) { return c.kind == raster::IMAGE || (c.kind == raster::XFORM && (uint8_t)b.pts[c.off] == raster::IMAGE); }
+static void layer_log(const char* where) {
+  static const bool on = hal_env("ZINC_LAYER_LOG") != nullptr;
+  static const char* last = nullptr;
+  if (!on || where == last) return;
+  last = where;   // ponytail: one state for all pictures; per image when two films have to be told apart
+  static const char head[] = "gfx: a picture in device memory ";
+  hal_log_err(head, sizeof head - 1); hal_log_err(where, __builtin_strlen(where)); hal_log_err("\n", 1);
+}
+/** The frame draws this picture itself: its pixels, now. */
+static void draw_soft(Cmd& c, raster::Picture* p, const char* why) {
+  if (!p->filled && p->fill) p->fill(p->user);
+  p->software = true;
+  c.pad &= (uint8_t)~raster::kImageLayer;
+  c.c2 = raster::image_version(c.res);
+  layer_log(why);
+}
+/** The pictures among the commands from `from` on are drawn in software (into an image, a window): their pixels are asked for. */
+static void soft_pictures(Buf& b, uint32_t from) {
+  for (uint32_t i = from; raster::dyn_pictures && i < b.ncmd; i++)
+    if (is_picture(b, b.cmds[i]) && !(b.cmds[i].kind == raster::IMAGE && (b.cmds[i].pad & raster::kImageLayer)))
+      if (raster::Picture* p = raster::dyn_picture(b.cmds[i].res)) draw_soft(b.cmds[i], p, "is drawn in software: into an image or a window, or in a frame nobody draws again");
+}
+static void place_layers(Buf& b) {
+  nlay = 0;
+  const bool can = display_driver && hal_display->layers;
+  HalLayer offer[HAL_MAX_LAYERS];
+  int32_t n = 0;
+  for (uint32_t i = 0; raster::dyn_pictures && i < b.ncmd; i++) {
+    Cmd& c = b.cmds[i];
+    raster::Picture* p = is_picture(b, c) ? raster::dyn_picture(c.res) : nullptr;
+    if (!p) continue;
+    int32_t iw = 0, ih = 0;
+    raster::image_size(c.res, &iw, &ih);
+    const raster::Rect r = raster::layer_rect(c, *p, iw, ih);
+    const char* why = !can ? "is drawn in software: the display has no hardware layer" : n == HAL_MAX_LAYERS ? "is drawn in software: no layer left" :
+                      c.kind != raster::IMAGE ? "is drawn in software: it is turned" : c.alpha != 255 ? "is drawn in software: it is blended" :
+                      c.pad || c.grad || c.r != 0 ? "is drawn in software: rounded, tinted, a part of it or unfiltered" : r.x1 <= r.x0 || r.y1 <= r.y0 ? "is drawn in software: it is empty" : nullptr;
+    if (why) { draw_soft(c, p, why); continue; }
+    lay[n] = {i, HalLayer{&p->hal, r.x0, r.y0, r.x1 - r.x0, r.y1 - r.y0}, p};
+    offer[n] = lay[n].at; n++;
+  }
+  if (!n && !layers_on) return;
+  const uint32_t took = hal_display->layers(offer, n);   // n = 0: the layers of the frame before go
+  layers_on = n > 0;
+  for (int32_t k = 0; k < n; k++) {
+    Cmd& c = b.cmds[lay[k].cmd];
+    if (took >> k & 1) { c.pad |= raster::kImageLayer; c.c2 = 0; lay[nlay++] = lay[k]; layer_log("is on a hardware layer of the display: no pixel of it is read"); }
+    else draw_soft(c, lay[k].pic, "is drawn in software: the display refused the layer");
+  }
+}
+/** A retained frame: its layers go on showing the new pictures. True when one of them is gone (its picture, or the driver's layer): the
+ *  frame, which nobody draws again, is then painted whole with that picture in software. */
+static bool layers_again(Buf& b) {
+  soft_pictures(b, 0);   // the ones it draws itself keep their pixels: an overlay may repaint over them
+  if (!layers_on) return false;
+  HalLayer offer[HAL_MAX_LAYERS];
+  bool same = true;
+  for (int32_t k = 0; k < nlay; k++) { offer[k] = lay[k].at; if (raster::dyn_picture(b.cmds[lay[k].cmd].res) != lay[k].pic) same = false; }
+  if (same && nlay && hal_display->layers(offer, nlay) == (1u << nlay) - 1) return false;
+  hal_display->layers(offer, 0);
+  layers_on = false; nlay = 0;
+  for (uint32_t i = 0; i < b.ncmd; i++) if (b.cmds[i].kind == raster::IMAGE && (b.cmds[i].pad & raster::kImageLayer)) {
+    b.cmds[i].pad &= (uint8_t)~raster::kImageLayer;
+    if (raster::Picture* p = raster::dyn_picture(b.cmds[i].res)) draw_soft(b.cmds[i], p, "is drawn in software: the display refused the layer");
+  }
+  return true;
+}
+
 static bool first_frame() { first = true; return true; }
 // Bulk frames (ZN-402): when most commands changed, the damage is the union of everything the two frames draw, found without comparing them;
 // a full diff every 16th frame leaves the mode once the scene calms down. all_box caches that union per buffer.
@@ -1092,12 +1178,13 @@ void end_frame() {
   pen_n = 0;
   banner_expire();
   if (kept && !first) {  // retained frame: no rasterization, no swap
+    if (layers_again(bufs[cur ^ 1])) ovl_changed = true;
     if (vis.mode && vis_update(shown, false)) ovl_changed = true;   // damage flashes fade while idle
     if (ovl_changed) set_full_damage(); else ndmg = 0;
     hud::before_present(raster::Rect{0, 0, 0, 0});   // the panel keeps counting while the program is idle
     taps_update();
     const raster::Rect d = damage_box();
-    HalFrame f = {pw, ph, d.x0, d.y0, d.x1, d.y1, render_rows, render_damage, frame_lists};
+    HalFrame f = {pw, ph, d.x0, d.y0, d.x1, d.y1, render_rows, render_damage, frame_lists, nlay ? render_holes : nullptr};
     ovl_changed = false;
     present(&f);
     if (prof_on) prof::end();
@@ -1105,6 +1192,7 @@ void end_frame() {
     return;
   }
   to_physical(bufs[cur]);
+  place_layers(bufs[cur]);
   const Buf& now = bufs[cur];
   const Buf& before = bufs[cur ^ 1];
   if (first || ovl_changed) set_full_damage();
@@ -1132,7 +1220,7 @@ void end_frame() {
   shown = &now;
   __atomic_store_n(&tiles_state, 0, __ATOMIC_RELEASE);
   stats.draw_cmds = now.ncmd;
-  HalFrame f = {pw, ph, d.x0, d.y0, d.x1, d.y1, render_rows, render_damage, frame_lists};
+  HalFrame f = {pw, ph, d.x0, d.y0, d.x1, d.y1, render_rows, render_damage, frame_lists, nlay ? render_holes : nullptr};
   present(&f);
   if (prof_on) prof::end();
   after_present();
@@ -1535,6 +1623,7 @@ void endImage() {
   uint32_t* px = raster::dyn_pixels(target_img);
   int32_t w, h;
   if (px && raster::image_size(target_img, &w, &h)) {
+    soft_pictures(b, mark_cmd);
     raster::Frame fr{b.cmds + mark_cmd, b.ncmd - mark_cmd, b.text, b.pts};
     raster::render(fr, px, w, 0, h, raster::Rect{0, 0, w, h});
     raster::dyn_set_alpha(target_img, false);   // the raster writes 0x00RRGGBB: a decoded image drawn into is opaque from now on
@@ -1604,6 +1693,7 @@ void endWindow() {
     x->px = (uint32_t*)hal_alloc((size_t)wpw * wph * 4);
     x->pw = wpw; x->ph = wph; x->hash = 0;
   }
+  soft_pictures(b, outer.cmd);
   raster::Frame fr{b.cmds + outer.cmd, b.ncmd - outer.cmd, b.text, b.pts};
   const uint32_t hsh = raster::frame_hash(fr) | 1;   // never 0: a new buffer is always drawn
   if (x->px && hsh != x->hash && !kept) {   // an unchanged frame (or keep()) keeps the pixels the window shows

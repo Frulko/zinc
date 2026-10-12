@@ -4,6 +4,7 @@
 #pragma once
 #include <stdint.h>
 #include <stddef.h>
+#include "include/hal.h"   // HalPicture (found beside this file, whatever the include path)
 
 namespace zrt { namespace raster {
 
@@ -66,6 +67,16 @@ bool dyn_view(int32_t id, const uint32_t** px, int32_t* w, int32_t* h, int32_t* 
 void dyn_set_blocks(int32_t id, uint32_t gl, const void* data, uint32_t bytes, bool premultiplied);
 bool dyn_blocks(int32_t id, uint32_t* gl, const void** data, uint32_t* bytes, bool* premultiplied);
 
+/** A picture in device memory behind a runtime image (ZN-731, hal.h HalPicture: a video decoder's dmabuf). A display with hardware layers
+ *  shows it without the CPU reading it (gfx.cpp, "hardware layers"); a frame that has to draw it in software calls `fill(user)` first,
+ *  which puts the same picture in the image's pixels (dyn_update) and sets `filled`. The picture lies in the image's rectangle
+ *  (bx, by, bw, bh), in the image's pixels; around it the image keeps its own pixels (a video's bars). Owned by the caller, who changes
+ *  it in place on the main thread; null: the image is its pixels again. */
+struct Picture { HalPicture hal; int32_t bx, by, bw, bh; void (*fill)(void* user); void* user; bool filled, software; };   // software: a frame drew it from its pixels since the caller cleared it
+void dyn_set_picture(int32_t id, Picture* p);
+Picture* dyn_picture(int32_t id);
+extern uint32_t dyn_pictures;   // runtime images with a picture now
+
 enum Kind : uint8_t { CLEAR, RECT, BORDER, SHADOW, LINE, TEXT, IMAGE, POLY, CLIP, UNCLIP,
   STROKE,   // STROKE (ZN-590.01): a polyline of n points at off, width s, pad bit 1 = closed; recorded only for displays that draw it on the GPU (gfx::gpu_strokes)
   XFORM };  // XFORM (ZN-263.01): a RECT, BORDER, SHADOW, IMAGE or TEXT drawn through a 2D matrix (gfx.setTransform). x, y, w, h: its screen bounding
@@ -107,6 +118,13 @@ enum Blend : uint8_t { BLEND_NORMAL, BLEND_ADD, BLEND_MULTIPLY, BLEND_SCREEN };
 inline uint32_t image_tint(const Cmd& c) { return c.pad & kImageTint ? (uint32_t)c.r & 0xFFFFFF : 0xFFFFFF; }
 inline float image_radius(const Cmd& c) { return c.pad & kImageTint ? 0.0f : c.r; }
 inline uint32_t image_blend(const Cmd& c) { return (uint32_t)(c.pad >> kBlendShift) & 3; }
+/** Pad bit kImageLayer (ZN-731): the image's picture is on a hardware layer of the display, under the frame. The rasterizer writes
+ *  HAL_LAYER_HOLE where the picture lies (layer_rect) and the image's own pixels around it; c2 is 0, a new picture damages nothing. */
+constexpr uint8_t kImageLayer = 64;
+/** What this thread's rasterizer writes in the holes from now on: HAL_LAYER_HOLE, unless a driver asks for rows over another colour. */
+void set_layer_fill(uint32_t color);
+/** Where the picture `p` of an IMAGE's runtime image (iw x ih pixels) lies on the frame: whole pixels, as the hole and the layer need. */
+Rect layer_rect(const Cmd& c, const Picture& p, int32_t iw, int32_t ih);
 
 /** Returns the index of the font `name` whose pixel size is closest to `px`. */
 int32_t find_font(const char* name, uint32_t name_len, int32_t px);

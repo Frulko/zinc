@@ -1,0 +1,9 @@
+{
+  "name": "display-layertest",
+  "kind": "display",
+  "description": "Test display with a hardware layer: composes the frame over a picture as a plane would (tests/t1/video_layers.sh)",
+  "targets": {
+    "macos": { "sources": ["layertest.cpp"] },
+    "linux": { "sources": ["layertest.cpp"] }
+  }
+}

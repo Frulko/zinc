@@ -73,6 +73,8 @@
     {"paths": ["src/tc/plugin_build"], "tests": ["plugin_build", "plugin_prebuilt", "plugin_key", "plugin_repro", "plugin_fetch", "plugin_tiers", "native_plugins", "native_lazy", "plugin_stamp"]},
     {"paths": ["src/host/sys_host.cpp", "src/main.cpp", "tests/golden/clock/"], "tests": ["clock"]},
     {"paths": ["src/sim/chips/", "tests/native/chip_wave3.cpp", "tests/native/chip_common.h"], "tests": ["chip_models"]},
+    {"paths": ["../plugins/display-fbdev/", "tests/native/chip_fbdev.cpp", "tests/t1/video_layers.sh", "tests/data/video_layers/"], "tests": ["chip_models", "video_layers"]},
+    {"paths": ["../plugins/video/native/video.host.cpp"], "tests": ["video", "museum_video", "video_layers"]},
     {"paths": ["src/sim/", "include/zn/sim.h", "tests/native/sim_test.cpp", "tests/native/board_test.cpp", "tests/native/scenario_test.cpp", "tests/golden/sim/", "third_party/libyaml/", "../examples/boards/s3-matrix/dice/", "src/host/hal_dispatch.cpp", "src/vm/vm.cpp"], "tests": ["sim_core", "sim_board", "sim_scenario", "sim_program", "sim_replay", "sim_compare"]},
     {"paths": ["tests/three/", "third_party/three/", "tools/three-compare"], "tests": ["three"]},
     {"paths": ["src/frontend/check.cpp", "src/frontend/check.h", "src/frontend/desugar.cpp", "src/frontend/snippet.cpp"], "tests": ["checker", "lang", "tdz"]},

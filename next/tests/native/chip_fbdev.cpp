@@ -110,5 +110,17 @@ int main(int argc, char** argv) {
     CHECK(in.ntouch == 0);
     fb_shutdown();
   }
+  // the frame over a picture on a plane (ZN-731): a hole is transparent, an opaque pixel stays, a pixel blended over the hole carries
+  // its alpha (the same row over white holes tells how much of the picture it lets through)
+  {
+    const uint32_t s[4] = {HAL_LAYER_HOLE, 0x112233, 0x400000, 0x000000}, w[4] = {0xFFFFFF, 0x112233, 0xBF7F7F, 0x7F7F7F};
+    uint32_t d[4] = {0xFF000000, 0xFF112233, 0xFF400000, 0xFF000000};   // what conv_row wrote
+    punch(s, w, d, 4);
+    CHECK(d[0] == 0 && d[1] == 0xFF112233 && d[2] == 0x80400000 && d[3] == 0x80000000);
+    uint32_t e[2] = {0xFF000000, 0xFF112233};
+    punch(s, nullptr, e, 2);   // rows nothing was drawn over: no second render
+    CHECK(e[0] == 0 && e[1] == 0xFF112233);
+    CHECK(!covered(s, 1) && covered(s, 2));
+  }
   printf("fbdev sim ok\n");
 }

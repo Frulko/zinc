@@ -118,6 +118,7 @@ function script(): void {
   else if (demo === 'kit') go(KIT);
   else if (demo === 'forms') go(FORMS);
   else if (demo === 'navigation' || demo === 'navdrive') go(NAVIGATION);
+  else if (demo === 'video') go(7);
   else if (demo === 'palette') openPalette();
   else if (demo === 'dialog') showShortcuts();
   else if (demo === 'dark') { setDark(true); toast('Dark mode', 'Every kit component follows the theme.', 'success'); }
