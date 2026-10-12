@@ -1,0 +1,13 @@
+# a finger 9 px to the right of the 20 px box (16..36): it is within reach
+4 touch 1 45 26
+5 touchup 1
+# a finger lands on the field (y 52..92) and drags up, then rests: the page scrolls, the field does not take the focus
+8 touch 1 100 70
+9 touch 1 100 50
+10 touch 1 100 30
+11 touch 1 100 30
+12 touch 1 100 30
+13 touchup 1
+# a tap on the field (the scroll took it 40 px up): now it takes the focus
+16 touch 1 100 30
+17 touchup 1

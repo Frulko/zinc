@@ -4463,9 +4463,24 @@ function hitIn(h: i32, px: number, py: number, ox: number, oy: number, k: number
   if (n.tag !== FRAGMENT && inside && wants(n, mode)) return h;
   return -1;
 }
-function hit(px: number, py: number, mode: i32): i32 {
+function hitExact(px: number, py: number, mode: i32): i32 {
   if (layers.length > 0) { const l = layerHit(px, py, mode, 0); if (l !== -2) return l; }
   return root < 0 ? -1 : hitIn(root, px, py, 0, 0, 1, mode);
+}
+// A finger is wider than a pointer. When it presses beside a small control (a 20 pixel checkbox, an icon button), the control within its
+// reach takes the press: anything pressable is about 44 pixels across under a finger, the size the touch guidelines ask of a target,
+// whatever size it is drawn at. A control that is already that large, or the exact one under the finger when it is small, is not replaced.
+const TARGET: number = 44, REACH: number[] = [6, 12];
+function smallTarget(h: i32): boolean { boxOf(h); return nodes[h].lw * boxK < TARGET || nodes[h].lh * boxK < TARGET; }
+function hit(px: number, py: number, mode: i32): i32 {
+  const h = hitExact(px, py, mode);
+  if (mode !== HIT_CLICK || !byFinger || (h >= 0 && smallTarget(h))) return h;
+  for (const r of REACH) for (let d = 0; d < 8; d++) {
+    const dx = d === 0 || d === 4 || d === 5 ? -r : d === 1 || d === 6 || d === 7 ? r : 0, dy = d === 2 || d === 4 || d === 6 ? -r : d === 3 || d === 5 || d === 7 ? r : 0;
+    const c = hitExact(px + dx, py + dy, mode);
+    if (c >= 0 && c !== h && smallTarget(c)) return c;
+  }
+  return h;
 }
 let boxX: number = 0, boxY: number = 0, boxK: number = 1;
 /** Surface position (boxX, boxY) and scale (boxK) of a node's box. */
@@ -4610,7 +4625,12 @@ function tsSelected(): string {
 }
 /** The selected text of a static node, for tests and for programs that copy it. */
 export function selectedStaticText(): string { return tsSelected(); }
+let tapEdit: i32 = -1;   // the text field a finger pressed without giving it the focus yet (pressAt)
+// The press under way is a finger's (a touch screen, or a test's touch), not a mouse's: what is made for fingers alone (their reach in
+// hit(), the focus of a field at the lift) does not change what a mouse does, in a deterministic run either.
+let byFinger = false;
 function pressAt(px: number, py: number, button: i32): void {
+  byFinger = touchCount() > 0 || primaryId >= 0;
   keyboardFocus = false;
   held = held | bitOf(button);
   if (button === lastBtn && clock - lastDownAt < 400 && Math.abs(px - lastDownX) + Math.abs(py - lastDownY) < 6) clicks++; else clicks = 1;
@@ -4633,6 +4653,10 @@ function pressAt(px: number, py: number, button: i32): void {
     // a virtual keyboard key: it activates on release like a button, but the focused field keeps the focus
     const h = hit(px, py, HIT_CLICK);
     if (h >= 0) { pressed = h; paintDirty = true; }
+  } else if (t >= 0 && nodes[t].ed !== null && byFinger && focus !== t) {
+    // a finger on a field that does not have the focus: it may be the start of a scroll. The field takes the focus (and the on-screen
+    // keyboard opens) when the finger lifts without having dragged; a drag that starts on a field scrolls the page like any other.
+    tapEdit = t;
   } else if (t >= 0 && nodes[t].ed !== null) {
     // text field: caret, word / line selection, drag to select
     setFocusTo(t);
@@ -4651,6 +4675,9 @@ function pressAt(px: number, py: number, button: i32): void {
     }
   }
   dragScroller = selecting >= 0 || keepsGrab(capture) || !dragScrolls() ? -1 : scrollerTop(px, py, 3);
+  // a scroll area that something covers at this point (a splash screen, an overlay over the page) is not what the finger is on: its drags
+  // stay with what it touches (hero's home screen follows the finger instead of scrolling the page hidden under it)
+  if (dragScroller >= 0 && !isAncestor(dragScroller, hitExact(px, py, HIT_NODE))) dragScroller = -1;
   dragX = px; dragY = py; lastX = px; lastY = py; dragging = false;
   if (dragScroller >= 0) { catchScroll(dragScroller); wakeScroll(dragScroller); }   // a press stops the inertia
   if (button === 0) gestureBegin(t, px, py);
@@ -4665,6 +4692,15 @@ function releaseAt(px: number, py: number, button: i32): void {
   gestureEnd(px, py);
   selecting = -1;
   tsDrag = false;
+  if (tapEdit >= 0) {
+    const t = tapEdit;
+    tapEdit = -1;
+    if (!dragging && nodes[t].alive && nodes[t].ed !== null && isAncestor(t, hitExact(px, py, HIT_NODE))) {
+      setFocusTo(t);
+      boxOf(t);
+      editPress(t, nodes[t], nodes[t].ed as Edit, (px - boxX) / boxK, (py - boxY) / boxK, clicks, false);
+    }
+  }
   if (pressed >= 0) {
     const h = pressed;
     pressed = -1;

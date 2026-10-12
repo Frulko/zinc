@@ -1,0 +1,5 @@
+# a finger dragged down over what covers the page: its moves reach the cover, the page under it does not scroll them away
+4 touch 1 100 60
+6 touch 1 100 90
+8 touch 1 100 140
+10 touchup 1

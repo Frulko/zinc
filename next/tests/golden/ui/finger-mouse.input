@@ -1,0 +1,4 @@
+# the same press with a mouse, 9 px beside the box: a mouse points exactly, nothing is pressed
+4 move 45 26
+5 down
+6 up
