@@ -710,3 +710,12 @@ Pi 3B+ at 1400 MHz (a supply that holds; under 55 C before each run), VideoCore 
 - Why navigation stays at 30 frames a second on the GPU: about 22 ms of GPU work a frame (`ZINC_GL_TIME=1`: 33.6 ms with a glFinish, 11.6 of them CPU), so one vblank in two is missed. Geometry kept across frames (MESH) is the next step.
 - Draw calls a frame, before to after: navigation 63.5 to 103.1, home 11.6 to 73.4, gallery 86.1 to 107.6.
 
+## Text under a scaling matrix (ZN-726, D112, 2026-10-12)
+
+Measured by the task's agent on the development Mac while other trees were building (load about 7): to be taken again on a quiet machine.
+
+- Sharpness of a 16 px text enlarged x2 and x3 against the same text set at 32 and 48 px: ssim 0.926 to 0.990, mae 8.55 to 2.00, edge energy 24 to 32% before, 77 to 83% now. GL replay against software on the same scene: 1.94% of the pixels over 24, mae 1.90.
+- A full screen of text under a matrix, software raster, less 12.3 ms of clear and hash: a 48 px font under a matrix that only moves 8.9 to 4.0 ms (`xf_glyph` takes the inner pixels of a glyph without the per-texel tests, same sums); a 16 px font at x3 9.5 ms blurred to 5.8 ms sharp.
+- museum-table, a text card and a notice zoomed from 1 to 3 over 60 frames each at 1920x1080, CPU per frame with every frame rasterized and hashed: interpreter 26.5 to 25.9 ms, compiled 26.6 to 26.1 ms (within the noise). The GL replay's frame time was not measured.
+- Glyph cache: 300 scales of two families made 24 fonts, 525 KB (the `resourceStats` counter "fonts").
+

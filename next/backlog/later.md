@@ -6,6 +6,13 @@ The next backlog review turns lines into tasks or deletes them.
 
 ## Engine and tools
 
+- ZN-726: once a zoom rests, set the glyphs at the exact size and on whole pixels when the matrix does not turn: the last 17 to 23% of edge contrast against text set directly.
+- ZN-726: free the fonts made for scaled text that were not drawn for a while (an LRU over `ZRT_SCALED_FONTS`); today they are never freed.
+- ZN-726: the GL glyph atlas (1024 px square, reset when full) fills after a few ladder steps of large text: count the resets on a zoomed museum card, grow it or evict by age if they show.
+- ZN-726: zinc:ui inputs and the selection highlight in a scaled view still take the nearest font (`paintEdit`, `fontAtScale`).
+- ZN-726: museum-table's other views (dock, titles, storyboard, viewer and panorama panels) still multiply by k and take ladder fonts; a matrix there would let `type.ts` drop its ladder of 26 sizes.
+- ZN-726, seen outside the task: `ui_alloc_text` counts 6 allocations above its golden on main; `font('mono', 16)` returns -1 in a program without a `font-mono` class although `type.ts` relies on it; display-gl on a Retina Mac replays logical-pixel frames into a 2x window (text from logical glyphs, 1 px lower than the software frame); `phys_font` drops the synthetic italic of a run-time font on HiDPI (read, not tested).
+
 - ZN-722: budget the full-resolution DevTools capture/encoding/transport buffers before continuous profiling; captures perturb process RSS strongly (separate memory-path investigation).
 
 - ZN-721: connect view lifetimes to existing native/asset resource handles and complete CPU/GPU destruction; research and validation plan in docs/reports/zinc-next-resource-lifecycle.md, addressing the museum's persistent model/video caches.
@@ -211,6 +218,7 @@ The next backlog review turns lines into tasks or deletes them.
 
 ## Cross-platform pass
 
+- ZN-726: museum-table's zoom on the Pi 3 (GLES 2): frame time at the ladder steps, sharpness; on a target without TrueType files a scaled text takes the nearest baked size.
 - ZN-725: a rounded CLIP on GLES 2 that does not read the framebuffer: the corner copy (`glCopyTexSubImage2D`) ends the driver's job, 26 of gallery's 39 stalls in 60 frames (gallery 22.8 ms against 13.8 for display-gl's cpu renderer).
 - ZN-725: then an hour of Kit and Forms on the GL renderer under `timeout -s KILL` with the GPU reset counter (the 2026-09-29 hang), and display-gl's default renderer "auto" outside macOS.
 - ZN-725: geometry kept across frames for maps (MESH, phase 4 of gpu-renderer-design.md): 22 ms of GPU work a frame on hero's map, and the city reprojected on the CPU at every frame.

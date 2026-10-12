@@ -117,7 +117,7 @@ Between 2026-10-10 08:00 and 2026-10-11 09:00 the sessions closed 129 tasks and 
 
 - Backlog and session: `next-task`, `status`, `tasks-import`, `usage`.
 - Comparison and correctness: `diff-matrix` (interpreter vs AOT vs frozen), `oracle` (reference tsc), `test262`, `dts-walk`, `abi-check`, `example-output`, `examples-status`, `layout-fuzz`, `layout-fixtures`, `webgl-conformance`, `three-compare`, `fuzz` (libFuzzer).
-- Pixels: `proto-capture` (prototype pixel goldens: `compare`, `--canary`, `--all`), `pngdiff`, `pixel-compare`, `glcompare`, `style-neutrality`, `contrast-check`, `oklab-tints`; `cdp.py` drives headless Chrome.
+- Pixels: `proto-capture` (prototype pixel goldens: `compare`, `--canary`, `--all`), `pngdiff`, `pixel-compare`, `glcompare`, `style-neutrality`, `contrast-check`, `oklab-tints`, `scene-texts` (the TEXT strings of a scene dump); `cdp.py` drives headless Chrome.
 - Performance: `bench`, `bench-gate` (fails above 15%), `bench-m1`, `bench-m4`, `bench-layout`, `bench-render`, `resmon` (CPU, RSS, energy); log every number in `docs/reports/zinc-next-perf.md`.
 - Devices: `device <user@host>` (a Linux board over ssh: `status`, `sysroot` for cross-built plugins, `push`, `run`, `shot`, `profile`, `stacks`; `docs/reports/raspberry-pi.md`).
 - Packaging and distribution: `package`, `sign-macos`, `appimage`, `build-wasm`, `build-esp32-core`, `index-repo` (signed TUF index), `tlog`, `plugin-split`, `gh-org-setup`.
