@@ -2,6 +2,7 @@
 """Zinc packaging (ZN-053): one self-contained download for this machine's OS.
 
   tools/package [--build build] [--out dist] [--budget-only]
+  tools/package --app path/to/App.app   # bundle non-system dylibs and make App.app.zip
 
 macOS: dist/Zinc-<version>-macos-<arch>.zip holding "Zinc Atelier.app" (the engine, lib/std, the runtime sources for cross builds, the core
 firmware, the app, SDL3 in Frameworks, the plugins' native libraries built with the pinned zig: ZN-718). Linux: dist/zinc-<version>-linux-<arch>.tar.gz (bin, lib, share/zinc) and, when appimagetool is
@@ -9,7 +10,7 @@ installed, the AppImage (tools/appimage). Windows follows the Windows host (ZN-0
 Then the size of each package is checked against its budget (tools/package-budget in this file); over budget exits 3.
 Signing and notarization are separate (tools/sign-macos).
 """
-import json, os, platform, re, shutil, subprocess, sys, tarfile, tempfile, zipfile
+import json, os, platform, plistlib, re, shutil, subprocess, sys, tarfile, tempfile, zipfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 NEXT = os.path.dirname(HERE)
@@ -92,15 +93,40 @@ def run(*cmd, check=True):
 def bundle_libs_macos(binary, libdir):
     """Copy the non-system dylibs the binary needs next to it and point the binary at them."""
     os.makedirs(libdir, exist_ok=True)
-    for line in run("otool", "-L", binary).stdout.splitlines()[1:]:
-        path = line.strip().split(" ")[0]
-        if path.startswith(("/usr/lib/", "/System/")):
-            continue
-        name = os.path.basename(path)
-        shutil.copy2(path, os.path.join(libdir, name))
-        os.chmod(os.path.join(libdir, name), 0o755)
-        run("install_name_tool", "-id", "@rpath/" + name, os.path.join(libdir, name))
-        run("install_name_tool", "-change", path, "@executable_path/../Frameworks/" + name, binary)
+    pending, copied = [(binary, binary)], {}
+    while pending:
+        source, dest = pending.pop()
+        for line in run("otool", "-L", source).stdout.splitlines()[1:]:
+            path = line.strip().split(" (compatibility version", 1)[0]
+            if path.startswith(("/usr/lib/", "/System/")) or os.path.basename(path) == os.path.basename(source):
+                continue
+            original = path
+            if path.startswith("@loader_path/"):
+                original = os.path.join(os.path.dirname(source), path[len("@loader_path/"):])
+            elif path.startswith("@executable_path/"):
+                original = os.path.join(os.path.dirname(binary), path[len("@executable_path/"):])
+            elif path.startswith("@rpath/"):
+                candidates = [os.path.join(os.path.dirname(source), path[len("@rpath/"):])]
+                load = run("otool", "-l", source).stdout
+                for rpath in re.findall(r"cmd LC_RPATH\s+cmdsize \d+\s+path (.*?) \(offset", load):
+                    root = rpath.replace("@loader_path", os.path.dirname(source)).replace("@executable_path", os.path.dirname(binary))
+                    candidates.append(os.path.join(root, path[len("@rpath/"):]))
+                original = next((p for p in candidates if os.path.isfile(p)), original)
+            name = os.path.basename(original)
+            if not os.path.isfile(original):
+                raise RuntimeError("cannot bundle dependency %s of %s" % (path, source))
+            if name in copied and os.path.realpath(copied[name]) != os.path.realpath(original):
+                raise RuntimeError("two different dependencies have the name " + name)
+            if name not in copied:
+                copied[name] = original
+                target = os.path.join(libdir, name)
+                if os.path.realpath(original) != os.path.realpath(target):
+                    shutil.copy2(original, target)
+                os.chmod(target, 0o755)
+                run("install_name_tool", "-id", "@rpath/" + name, target)
+                pending.append((original, target))
+            prefix = "@executable_path/../Frameworks/" if dest == binary else "@loader_path/"
+            run("install_name_tool", "-change", path, prefix + name, dest)
     for f in os.listdir(libdir):  # arm64 refuses to load code whose signature broke: ad hoc sign (tools/sign-macos signs for distribution)
         run("codesign", "--force", "--sign", "-", os.path.join(libdir, f))
     run("codesign", "--force", "--sign", "-", binary)
@@ -205,6 +231,20 @@ def package_windows(build, out):
     return "windows", archive, without
 
 def main():
+    if "--app" in sys.argv:
+        if platform.system() != "Darwin": sys.exit("--app packages a macOS .app on macOS")
+        app = os.path.abspath(arg("--app", ""))
+        with open(os.path.join(app, "Contents", "Info.plist"), "rb") as f: info = plistlib.load(f)
+        name = info["CFBundleExecutable"]
+        if name != os.path.basename(name): sys.exit("invalid CFBundleExecutable")
+        binary = os.path.join(app, "Contents", "MacOS", name)
+        bundle_libs_macos(binary, os.path.join(app, "Contents", "Frameworks"))
+        run("codesign", "--force", "--sign", "-", "--preserve-metadata=identifier,entitlements", app)
+        run("codesign", "--verify", "--deep", "--strict", app)
+        archive = app + ".zip"
+        run("ditto", "-c", "-k", "--keepParent", app, archive)
+        print("%s: %.1f MB" % (archive, os.path.getsize(archive) / 1e6))
+        return
     build = os.path.abspath(arg("--build", os.path.join(NEXT, "build")))
     out = os.path.abspath(arg("--out", os.path.join(NEXT, "dist")))
     os.makedirs(out, exist_ok=True)

@@ -76,6 +76,28 @@ the synthesised voice with its own subtitles (`tools/narration.sh` makes the cli
 next/tools/contrast-check --museum examples/museum-table/assets/project.json   # the contrast of the theme and of the high-contrast colours
 ```
 
+## macOS distribution
+
+From the repository root on a Mac:
+
+```sh
+next/build/zinc build --bundle examples/museum-table/src/main.ts -o examples/museum-table/build/museum-table.app
+next/tools/package --app examples/museum-table/build/museum-table.app
+```
+
+The second command copies FFmpeg and its transitive non-system dylibs into `Contents/Frameworks`, rewrites their
+paths, signs the app ad hoc, verifies it, and writes `museum-table.app.zip` beside it. The app carries its source
+assets in `Contents/Resources/assets` and needs no Zinc checkout or Homebrew installation. This builds for the
+current Mac architecture. Developer ID signing and notarization remain the final distribution steps
+([guide](../../docs/guide/07-distribution.md)).
+
+Size inspection on 2026-10-12 (macOS arm64): the executable is 93.65 MB before dependency-path rewriting,
+including 75.60 MB of decoded RGBA images and 11.69 MB of glyph tables/bitmaps. The source assets are only 9.16 MB;
+the adjacent development pack expands them to roughly 79 MB because it also stores decoded images. The legacy
+renderer still embeds the same images, so the development build duplicates that payload. The app carries no
+development pack. With 15 bundled dylibs (34.65 MB), the app is 137.51 MB and its ZIP 66.82 MB. Measurements use
+decimal MB; filesystem tools displaying MiB give smaller numbers.
+
 ## Statistics
 
 ```sh

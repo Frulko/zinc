@@ -1,6 +1,7 @@
 {
   "name": "museum-table",
   "entry": "src/main.ts",
+  "app": { "id": "dev.zinc.museumtable", "name": "Museum Table" },
   "assets": "assets",
   "permissions": ["fs", "update", "process"],
   "targets": {

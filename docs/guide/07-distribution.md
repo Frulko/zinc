@@ -72,6 +72,10 @@ zinc verify dist/my-game-0.1.0.dmg
 codesign --verify --strict dist/my-game-macos/my-game.app
 ```
 
+In a Zinc checkout, `next/tools/package --app path/to/my-game.app` bundles the app's non-system dylibs
+(including transitive dependencies), rewrites their paths, signs ad hoc and verifies the bundle, then writes
+`my-game.app.zip`. Run it before Developer ID signing/notarization. It does not build the app itself.
+
 The export also writes `sbom.spdx.json` and `THIRD-PARTY-LICENSES.txt` and prints the permissions the game enforces (`none (every checked
 call is refused)`). An ad hoc signature runs on your Mac; players on other Macs need a Developer ID signature and Apple's notarization. Add
 your identity to zinc.json (the Developer ID certificate in your keychain, a profile made once by `xcrun notarytool store-credentials`):
