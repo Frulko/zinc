@@ -129,6 +129,12 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-728: Atelier: Alt or Cmd+Backspace with several cursors deletes one character, up and down keep no column memory, no box selection; ANSI colours in the console, soft wrap, a font size setting.
 - ZN-728: Atelier: Add Library from the signed index (`zinc add` fails with no trusted root today, the import line is written instead); the Profile and Frames views of the old shell (ZN-143) are out of the window.
 - ZN-728: `ZINC_INPUT` has no pointer modifiers, so Alt+click cannot be scripted in a test.
+- ZN-732: zinc:ui `select()` and `setValue()` should reset a field's `goalX` (the column of up and down), and `caretBox(h, offset)` / `offsetAt(h, x, y)` for a text field: Atelier moves up and down itself and places its popup, cards and hover with font metrics meanwhile.
+- ZN-732: F12 has no key name outside the macOS menu bar (HAL keys stop at PageDown): Go to Definition is in the menu and the palette only on Linux and Windows; `ZINC_INPUT` pointer events carry no modifier, so Cmd+click is untested.
+- ZN-732: zinc lsp publishes the diagnostics of the changed document only: re-publish the open documents that import it, then Atelier can drop `zinc check` after a save; ModuleInfo keeps no `import * as ns` alias, so the server finds the module of `ns.` by its path.
+- ZN-732: completion inside the braces of an import, of JSX element and attribute names, and of string and array members with their signatures (a fixed list of names today); several signatures for overloads; signature help inside an object literal argument.
+- ZN-732: Atelier: accepting a function could add its parentheses; long hover and signature texts are cut at the editor card's edge and the signature card covers the line above; PageUp and PageDown with the buffer's column memory.
+- ZN-733: `zinc build` and packaged apps still name their window "zinc" unless zinc.json sets window.title; old links stay in `~/.zinc/cache/run/names`: clear them with the run cache.
 
 - ZN-729.05: `zinc device deploy --inspect`, a pack with `import 'zinc:devtools'` in front as `zinc dev` does, so any app can be inspected (today only an app that imports it has an inspector).
 - ZN-729.05: `zinc device debug <app>`, the app restarted under `zinc debug --cdp` with its port forwarded (today: `zinc device forward` by hand).
@@ -247,6 +253,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-713: profile launch to first frame of the exported app (about 0.5 s under load); retake every time and memory figure alone on the machine (`ZINC=<main>/next/build/zinc ./measure.sh build measure` in `next/bench/vs-electron`); report physical footprint beside the RSS sum.
 
 ## Cross-platform pass
+
+- ZN-733: Linux: the taskbar name of a run app (SDL app metadata, WM class), `ps` (prctl or the same link) and the raise under X11 and Wayland; Windows: the taskbar and Task Manager name, and SetForegroundWindow's rules from a console.
 
 - ZN-730: museum-table's film on the real `/dev/fb0` of the Pi 3B+ (off screen so far) and at a fixed 1400 MHz clock; the ISP (`/dev/video12`) handing the picture in BGRX at the drawn size (ZN-731).- ZN-729: `zinc agent` on Linux (x86_64 and a Raspberry Pi): `tests/t0/agent.sh` and `tests/t1/agent_apps.sh` there (forkpty with libutil, /proc figures, the temperature, a GUI app started from the agent under systemd), and a pairing between two machines over Wi-Fi with discovery through a real network.
 - ZN-729.05: `tests/t1/agent_inspect.sh` on Linux and a Pi: `top`'s CPU and memory come from /proc there, the temperature from thermal_zone0 (written, never run).
