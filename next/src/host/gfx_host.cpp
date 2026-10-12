@@ -124,6 +124,9 @@ void startSurface() {
   if (zn::host::gfxStarted) return;
   zn::host::gfxStarted = true;
   static HalConfig cfg = {320, 240, "zinc", 1};
+  // the name `zinc run` gives its program (zinc.json "name", else the folder): the window's title unless zinc.json sets one, the app's name (ZN-733)
+  if (const char* nm = getenv("ZINC_APP_NAME"); nm && *nm) cfg.title = nm;
+  if (getenv("ZINC_WINDOW_LOG")) fprintf(stderr, "zinc: window \"%s\"\n", cfg.title);   // tests read the name here: a headless run has no window to ask
   int w = 0, h = 0;
   if (const char* sz = getenv("ZINC_SIZE")) if (sscanf(sz, "%dx%d", &w, &h) == 2 && w > 0 && h > 0) { cfg.width = w; cfg.height = h; }  // ZINC_SIZE=1100x700: the window (or surface) size
   zrt::start(cfg, 0, nullptr);

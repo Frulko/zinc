@@ -267,6 +267,13 @@ extern "C" void hal_set_resize(int32_t on) {
   resize_pending = true;
 }
 
+// The window comes to the front with the keyboard when it is first shown: a program started from a terminal or from another
+// app (Zinc Atelier) would open behind it. Not in a deterministic run (tests) nor in a kiosk (it is already above everything).
+static void show_main() {
+  SDL_ShowWindow(win);
+  if (!det && !kiosk && !getenv("ZINC_NO_RAISE")) SDL_RaiseWindow(win);
+}
+
 extern "C" {
 void hal_init(const HalConfig* cfg) {
   // a display plugin brings its own output, unless it draws through this window (host_window: the e-ink emulator)
@@ -284,6 +291,9 @@ void hal_init(const HalConfig* cfg) {
 #ifdef SDL_HINT_TRACKPAD_IS_TOUCH_ONLY
   SDL_SetHint(SDL_HINT_TRACKPAD_IS_TOUCH_ONLY, "1");
 #endif
+  // the app's name for SDL (the items of the app menu it builds: About, Hide, Quit). The title the menu bar prints is the executable's
+  // file name: `zinc run` starts the program through a link that carries it (ZN-733; NSProcessInfo's processName changes nothing there)
+  if (cfg->title && cfg->title[0] && strcmp(cfg->title, "zinc")) SDL_SetAppMetadata(cfg->title, nullptr, nullptr);
   if (!SDL_Init(SDL_INIT_VIDEO)) hal_panic(SDL_GetError(), "hal_sdl", __LINE__);
   // window size in points: zinc.json targets.<id>.zoom (ZINC_ZOOM overrides); auto only enlarges tiny surfaces
 #ifdef ZINC_ZOOM
@@ -358,7 +368,7 @@ void hal_init(const HalConfig* cfg) {
   if (!fill) { const float a = (float)W / (float)H; SDL_SetWindowAspectRatio(win, a, a); }
   if (ren) SDL_SetRenderVSync(ren, 1);
   start_workers();
-  if (full) { SDL_ShowWindow(win); shown = true; set_fullscreen(true); SDL_SyncWindow(win); }   // fullscreen applies to a shown window: no wait on a hidden one
+  if (full) { show_main(); shown = true; set_fullscreen(true); SDL_SyncWindow(win); }   // fullscreen applies to a shown window: no wait on a hidden one
   if (kiosk) { SDL_HideCursor(); SDL_SetWindowAlwaysOnTop(win, true); }
   // HiDPI: frames are rasterized at the window's pixel size, so text and shapes stay sharp (ZINC_SCALE overrides)
   apply_size();
@@ -843,7 +853,7 @@ void hal_present(const HalFrame* f) {
   present_frame(f);
   if (shown) return;
   shown = true;
-  SDL_ShowWindow(win);
+  show_main();
   present_frame(f);   // again into the shown window: what it composites first may be the buffer of before the show
 }
 static void present_frame(const HalFrame* f) {

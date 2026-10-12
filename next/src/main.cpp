@@ -966,13 +966,23 @@ static int exec(const fs::path& app, bool built, const std::string& entry, const
   printPlugins();
   zn::log::step("run", built ? "native" : "native, cached build (--interp to interpret)");
   if (!projectDir.empty()) { std::error_code ec; setenv("ZINC_LAUNCH_DIR", fs::current_path(ec).c_str(), 0); fs::current_path(projectDir, ec); }   // sys.launchDir (ZN-687)
-  std::vector<std::string> av = {app.string()};
+  // The process list, the Dock and the app menu show the executable's file name: the program starts through a link named after
+  // the project, beside `app` (ZN-733). Not when the name is one of the cache's own files.
+  fs::path named = app;
+  if (const char* nm = std::getenv("ZINC_APP_NAME"); nm && *nm && nm[0] != '.' && !std::strchr(nm, '/') && std::strcmp(nm, "app") && std::strcmp(nm, "key") && std::strcmp(nm, "inputs") && std::strcmp(nm, "plugins")) {
+    std::error_code ec;
+    const fs::path link = app.parent_path() / nm;
+    if (fs::is_regular_file(link, ec)) fs::remove(link, ec);   // the link of the previous build
+    fs::create_hard_link(app, link, ec);
+    if (!ec) named = link;
+  }
+  std::vector<std::string> av = {named.string()};
   av.insert(av.end(), progArgs.begin(), progArgs.end());
   std::vector<char*> cav;
   for (std::string& a : av) cav.push_back(a.data());
   cav.push_back(nullptr);
   std::fflush(nullptr);
-  execv(app.c_str(), cav.data());
+  execv(named.c_str(), cav.data());
   std::fprintf(stderr, "zinc: cannot start %s: %s; interpreting\n", app.c_str(), std::strerror(errno));
   return -1;
 }
@@ -1653,6 +1663,32 @@ int main(int argc, char** argv) {
         std::string err;
         if (zn::frontend::parseProject(ss.str(), project, err)) { have = true; projectDir = fs::path(projFile).parent_path().string(); for (const std::string& w : project.warnings) std::fprintf(stderr, "zinc: %s: %s\n", projFile.c_str(), w.c_str()); }
         else { std::fprintf(stderr, "zinc: %s: %s\n", projFile.c_str(), err.c_str()); if (project.fatal) return 2; }
+      }
+      {   // the name the program carries (window title, app menu, process list): zinc.json "name", else its folder, else its file (ZN-733)
+        const fs::path file = fs::absolute(path);
+        const std::string stem = file.stem().string();
+        std::string nm = have && !project.name.empty() ? project.name : have ? fs::path(projectDir).filename().string() : stem == "main" || stem == "index" ? file.parent_path().filename().string() : stem;
+        if (!nm.empty()) setenv("ZINC_APP_NAME", nm.c_str(), 1);   // over the name of the app that starts this one (Atelier runs sketches)
+#ifdef __APPLE__
+        // macOS names an app after its executable file (the menu bar, the Dock, the process list), whatever the process says of itself: when a
+        // window may open, the engine starts again, once, through a link that carries the program's name. The native program has its own link.
+        if (!nm.empty() && nm[0] != '.' && nm.find('/') == std::string::npos && fs::path(gOriginalArgs[0]).filename().string() != nm && !std::getenv("ZINC_HEADLESS") && !std::getenv("ZINC_DETERMINISTIC")) {
+          std::error_code ec;
+          const std::string self = zn::tc::executablePath();
+          const fs::path dir = fs::path(zn::tc::home()) / "cache" / "run" / "names", link = dir / nm;
+          fs::create_directories(dir, ec);
+          if (fs::read_symlink(link, ec) != fs::path(self)) { fs::remove(link, ec); fs::create_symlink(self, link, ec); }
+          if (!self.empty() && fs::read_symlink(link, ec) == fs::path(self)) {
+            std::vector<std::string> args = gOriginalArgs;
+            args[0] = link.string();
+            std::vector<char*> av;
+            for (std::string& a : args) av.push_back(a.data());
+            av.push_back(nullptr);
+            std::fflush(nullptr);
+            execv(link.c_str(), av.data());   // on failure the run goes on under the engine's name
+          }
+        }
+#endif
       }
       if (have && !project.profile.empty() && !gProfile) {   // zinc.json "profile": the target's number, typing and heap on the host
         gProfile = zn::frontend::findProfile(project.profile);
