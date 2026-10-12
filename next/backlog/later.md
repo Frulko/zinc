@@ -125,7 +125,6 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-728: Atelier: Add Library from the signed index (`zinc add` fails with no trusted root today, the import line is written instead); the Profile and Frames views of the old shell (ZN-143) are out of the window.
 - ZN-728: `ZINC_INPUT` has no pointer modifiers, so Alt+click cannot be scripted in a test.
 
-- ZN-729: `zinc device reverse <device-port> <local-port>` (a port of the workstation reached from the device, adb reverse): a dev server on the workstation seen by an app on the device.
 - ZN-729: the pairing code on the device's screen (a Zinc window, or the app's splash) and as a QR code, for devices nobody has a terminal on.
 - ZN-729: IPv6 for the agent's listener and its discovery; today both are IPv4.
 - ZN-729: build mbedTLS with `MBEDTLS_THREADING_PTHREAD` and drop the agent's lock around its calls, when several large transfers at once are a real case (measure first).

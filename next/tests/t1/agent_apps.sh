@@ -2,6 +2,7 @@
 # Apps on a device through the agent (ZN-729.02), on the loopback interface: a project deployed (packed, installed, started) with its log
 # and its exit status; a UI app started with its inspector, whose /json/list is read through a forwarded port; an export directory
 # installed and started with arguments and variables, its log followed while it runs, stopped, removed; a log that grows past its bound;
+# a reversed port (a server of the workstation called from the device);
 # and the shell as a terminal: typed commands, the window's size followed when it changes, the exit status. Skips (77) without python3.
 cd "$(dirname "$0")/../.." || exit 2
 command -v python3 >/dev/null 2>&1 || exit 77
@@ -12,7 +13,7 @@ dev() { ZINC_HOME="$W" timeout 60 "$Z" device "$@"; }
 bad() { echo "FAIL: $*"; fail=1; }
 cleanup() {
   for f in "$D"/agent/run/*.pid; do [ -e "$f" ] && kill -- "-$(cat "$f")" 2>/dev/null; done   # apps outlive their agent
-  kill $apid $fpid $lpid 2>/dev/null; wait $apid $fpid $lpid 2>/dev/null
+  kill $apid $fpid $lpid $rpid $spid 2>/dev/null; wait $apid $fpid $lpid $rpid $spid 2>/dev/null
   rm -rf "$tmp"
 }
 trap cleanup EXIT
@@ -64,6 +65,17 @@ dev stop tool > /dev/null; until_grep "^\[exited" "$tmp/tool.log" || bad "the fo
 dev apps | grep -q "^tool .*stopped" || bad "the tool still runs after stop"
 dev uninstall tool > /dev/null && dev uninstall inspected > /dev/null && dev uninstall "$app" > /dev/null || bad "uninstall"
 [ -z "$(dev apps)" ] || bad "apps are left after uninstall: $(dev apps)"
+# the other way: a server of the workstation called from the device through a reversed port
+mkdir -p "$tmp/site"; echo "from the workstation" > "$tmp/site/index.html"
+python3 -m http.server "$arg" --bind 127.0.0.1 --directory "$tmp/site" > /dev/null 2>&1 & spid=$!
+ZINC_HOME="$W" "$Z" device reverse 0 "$arg" > "$tmp/rev.log" 2>&1 & rpid=$!
+until_grep "reaches 127.0.0.1:$arg" "$tmp/rev.log" || bad "reverse did not start: $(cat "$tmp/rev.log")"
+there=$(sed -n 's/^port \([0-9]*\) of .*/\1/p' "$tmp/rev.log")
+n=0; got=; while [ $n -lt 30 ] && [ "$got" != "from the workstation" ]; do   # the server may still be starting
+  got=$(dev shell "python3 -c 'import urllib.request; print(urllib.request.urlopen(\"http://127.0.0.1:$there/index.html\", timeout=5).read().decode(), end=\"\")'" 2>/dev/null); n=$((n+1)); [ "$got" = "from the workstation" ] || sleep 0.2
+done
+[ "$got" = "from the workstation" ] || bad "the device does not reach the workstation's server through the reversed port: $got"
+
 # an app that prints 5 MB: its log is cut back to its bound while it runs, the end kept beside it
 mkdir -p "$tmp/loud"
 printf '#!/bin/sh\nhead -c 5000000 /dev/zero | tr "\\000" x\necho\necho loud-done\nexec sleep 60\n' > "$tmp/loud/run.sh"

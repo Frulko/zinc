@@ -66,6 +66,8 @@ struct State {
   std::string pairCode;
   int pairTries = 0;
   std::atomic<int> live{0};
+  std::mutex parkMu;                    // connections a reversed port took, each waiting for the workstation's session to carry it
+  std::map<std::string, int> parked;
 };
 
 void say(const std::string& line) { std::printf("zinc agent: %s\n", line.c_str()); std::fflush(stdout); }
@@ -542,6 +544,54 @@ void opConnect(Chan& c, const Val& req) {
   ::close(sock);
 }
 
+// A port of the device that reaches a port of the workstation (adb reverse): the agent listens here, on this machine's own address only;
+// each connection it takes is parked under a name sent on this session, and the workstation opens a session of its own to carry it.
+void opListen(State& s, Chan& c, const Val& req) {
+  const int lfd = ::socket(AF_INET, SOCK_STREAM, 0);
+  sockaddr_in addr{};
+  addr.sin_family = AF_INET;
+  addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+  addr.sin_port = htons(static_cast<std::uint16_t>(req.num("port")));
+  int one = 1;
+  ::setsockopt(lfd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one);
+  socklen_t n = sizeof addr;
+  if (lfd < 0 || ::bind(lfd, reinterpret_cast<sockaddr*>(&addr), sizeof addr) != 0 || ::listen(lfd, 16) != 0 || ::getsockname(lfd, reinterpret_cast<sockaddr*>(&addr), &n) != 0) {
+    refuse(c, "the device cannot listen on port " + std::to_string(req.num("port")) + ": " + std::strerror(errno));
+    if (lfd >= 0) ::close(lfd);
+    return;
+  }
+  ::fcntl(lfd, F_SETFD, FD_CLOEXEC);
+  std::vector<std::string> mine;
+  bool open = send(c, kJson, Obj().flag("ok", true).num("port", ntohs(addr.sin_port)).done());
+  while (open && !gStop) {
+    pollfd p[2] = {{c.fd, POLLIN, 0}, {lfd, POLLIN, 0}};
+    if (::poll(p, 2, 500) <= 0) continue;
+    if (p[0].revents && !fill(c)) break;   // the workstation left: the port closes with it
+    if (!p[1].revents) continue;
+    const int fd = ::accept(lfd, nullptr, nullptr);
+    if (fd < 0) continue;
+    prepare(fd);
+    const std::string id = hex(randomBytes(8));
+    { std::lock_guard<std::mutex> lock(s.parkMu); s.parked[id] = fd; }
+    mine.push_back(id);
+    open = send(c, kJson, Obj().str("accept", id).done());
+  }
+  ::close(lfd);
+  std::lock_guard<std::mutex> lock(s.parkMu);
+  for (const std::string& id : mine) if (const auto it = s.parked.find(id); it != s.parked.end()) { ::close(it->second); s.parked.erase(it); }   // never fetched
+}
+
+void opAccepted(State& s, Chan& c, const Val& req) {
+  int fd = -1;
+  {
+    std::lock_guard<std::mutex> lock(s.parkMu);
+    if (const auto it = s.parked.find(req.str("id")); it != s.parked.end()) { fd = it->second; s.parked.erase(it); }
+  }
+  if (fd < 0) { refuse(c, "no such connection"); return; }
+  if (send(c, kJson, Obj().flag("ok", true).done())) relaySocket(c, fd, kOut, kIn);
+  ::close(fd);
+}
+
 void handleSession(State& s, int fd) {
   Chan c;
   c.fd = fd;
@@ -568,6 +618,8 @@ void handleSession(State& s, int fd) {
   else if (op == "install") opInstall(s, c, req);
   else if (op == "logs") opLogs(s, c, req);
   else if (op == "connect") opConnect(c, req);
+  else if (op == "listen") opListen(s, c, req);
+  else if (op == "accepted") opAccepted(s, c, req);
   else if (op == "apps") send(c, kJson, Obj().flag("ok", true).raw("apps", appsJson(s)).done());
   else if (op == "run" || op == "stop" || op == "uninstall") {
     std::error_code ec;

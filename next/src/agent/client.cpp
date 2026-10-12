@@ -438,6 +438,32 @@ int cmdForward(Device& d, const std::vector<std::string>& args) {
   }
 }
 
+// The other way (adb reverse): a port of the device, on its own address, that reaches a port of this machine. The device names each
+// connection it takes on this session; a session of its own carries it.
+int cmdReverse(Device& d, const std::vector<std::string>& args) {
+  if (args.size() != 2) return fail("usage: zinc device [<device>] reverse <device-port|0> <local-port>");
+  const int local = std::atoi(args[1].c_str());
+  std::string answer;
+  std::unique_ptr<Chan> c = request(d, Obj().str("op", "listen").num("port", std::atoi(args[0].c_str())).done(), answer);
+  if (!c) return 1;
+  std::printf("port %lld of %s reaches 127.0.0.1:%d\n", Doc(answer).num("port"), d.name.c_str(), local);
+  std::fflush(stdout);
+  char type;
+  std::string payload;
+  while (recv(*c, type, payload)) {
+    const std::string id = Doc(payload).str("accept");
+    if (type != kJson || id.empty()) continue;
+    std::thread([d, id, local]() mutable {
+      std::string err, reply;
+      const int sock = dial("127.0.0.1", local, 3000, err);   // nothing there: the session below is not opened and the device closes its end when the port closes
+      if (sock < 0) return;
+      if (std::unique_ptr<Chan> s = request(d, Obj().str("op", "accepted").str("id", id).done(), reply, false)) relaySocket(*s, sock, kIn, kOut);
+      ::close(sock);
+    }).detach();
+  }
+  return fail("the session with " + d.name + " ended");
+}
+
 int usage() {
   std::fprintf(stderr,
                "usage: zinc device list [--json]                        the devices of the network and the paired ones\n"
@@ -449,7 +475,8 @@ int usage() {
                "       zinc device [<device>] deploy [dir] [-- args]   pack, install, start and follow the log (--no-logs, --env K=V, --name n)\n"
                "       zinc device [<device>] install <app.zapp|export-dir> [--name n]\n"
                "       zinc device [<device>] run <app> [-f] [--env K=V] [-- args] | stop <app> | uninstall <app> | apps | logs <app> [-f]\n"
-               "       zinc device [<device>] forward <local-port|0> <device-port>\n"
+               "       zinc device [<device>] forward <local-port|0> <device-port>   a port of the device here (its inspector)\n"
+               "       zinc device [<device>] reverse <device-port|0> <local-port>   a port of this machine there (a server an app calls)\n"
                "<device> may be left out when one device is paired.\n");
   return 2;
 }
@@ -480,7 +507,7 @@ int device(const std::vector<std::string>& argsIn, const std::string& self) {
     return saveDevices(paired) ? 0 : fail("cannot write " + storePath());
   }
 
-  static const char* const ops[] = {"info", "shell", "push", "pull", "install", "deploy", "run", "stop", "uninstall", "apps", "logs", "forward"};
+  static const char* const ops[] = {"info", "shell", "push", "pull", "install", "deploy", "run", "stop", "uninstall", "apps", "logs", "forward", "reverse"};
   const auto isOp = [&](const std::string& w) { for (const char* o : ops) if (w == o) return true; return false; };
   Device* d = nullptr;
   if (isOp(first)) {
@@ -501,6 +528,7 @@ int device(const std::vector<std::string>& argsIn, const std::string& self) {
   if (op == "pull") return cmdPull(*d, args);
   if (op == "deploy") return cmdDeploy(*d, args, self);
   if (op == "forward") return cmdForward(*d, args);
+  if (op == "reverse") return cmdReverse(*d, args);
   if (op == "apps") return simple(*d, "apps", "");
   if (op == "install") {
     std::string name, path;

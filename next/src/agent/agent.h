@@ -12,7 +12,7 @@ namespace zn::agent {
  *  `self` is the running binary (it runs the apps), `engine` its version. */
 int serve(const std::vector<std::string>& args, const std::string& self, const std::string& engine);
 
-/** `zinc device list|pair|unpair` and `zinc device [<device>] info|shell|push|pull|install|deploy|run|stop|uninstall|apps|logs|forward`. */
+/** `zinc device list|pair|unpair` and `zinc device [<device>] info|shell|push|pull|install|deploy|run|stop|uninstall|apps|logs|forward|reverse`. */
 int device(const std::vector<std::string>& args, const std::string& self);
 
 }  // namespace zn::agent

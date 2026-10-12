@@ -26,6 +26,7 @@ zinc device push build/ data             # a file or a tree to the device (paths
 zinc device deploy                       # this project packed, installed, started there, its log followed (Ctrl-C leaves it running)
 zinc device run hero -f | stop hero | logs hero -f | apps | uninstall hero | install app.zapp
 zinc device forward 9229 9229            # a port of the device on this machine: chrome://inspect sees the app running there
+zinc device reverse 8080 3000            # a port of this machine on the device: an app there calls the server you develop here
 ```
 
 `<device>` goes after `device` when several are paired (`zinc device spark info`); its name or the start of its id.
@@ -35,7 +36,8 @@ zinc device forward 9229 9229            # a port of the device on this machine:
 Everything the agent's user can: a shell, files, apps. Deploying a program is already running code on the device, so the shell adds
 no power, only convenience. Two consequences are built in: the agent refuses to run as root (`--allow-root` insists), and
 `--no-shell` turns the shell off for devices where only apps should arrive. Forwarded ports reach the device's own ports
-(127.0.0.1) and nothing behind it.
+(127.0.0.1) and nothing behind it; a reversed port listens on the device's own address only, for as long as the workstation's
+command runs.
 
 ## Security
 
@@ -79,6 +81,8 @@ interface, measured 2026-10-12 on the M1 Pro), so nothing is multiplexed.
 | `stop`, `uninstall`, `apps` | `name` | SIGTERM to the app's process group, SIGKILL after 3 s |
 | `logs` | `name`, `follow` | `O` frames, `X` at the end; with `follow`, until the client leaves |
 | `connect` | `port` | `I` / `O` / `C` relayed to 127.0.0.1:`port` of the device |
+| `listen` | `port` | the agent listens on 127.0.0.1:`port` of the device (0: any; the answer says which) and sends `{"accept": id}` for each connection it takes, until the client leaves |
+| `accepted` | `id` | `I` / `O` / `C` relayed to that connection: the workstation opens this session for each `accept` and connects it to its own port |
 | `unpair` | | the agent forgets this workstation |
 
 A name in a transfer that is absolute or holds `..` is refused by whoever receives it (the device on `push`, the workstation on
