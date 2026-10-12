@@ -1,12 +1,14 @@
 // The zinc binary Atelier runs on, driven through zinc:process: run, debug and stop of the sketch with everything the
 // child prints streamed into the console as it arrives, `zinc check` for the diagnostics, `zinc plugins` for the libraries.
+// The sketch runs on this machine or on a paired device (ZN-729.06): there it is `zinc device <name> deploy`, which packs it,
+// installs it, starts it and follows its log, and Stop is `zinc device <name> stop`.
 // The binary is $ZINC_BIN (the zinc that started Atelier exports it), else `zinc` on the PATH.
 import { createSignal } from 'zinc:ui/solid';
 import * as sys from 'zinc:sys';
 import * as fs from 'zinc:fs';
 import * as proc from 'zinc:process';
 import { Spring } from './motion';
-import { Buffer, Diagnostic, buffers, saveAll, sketchDir, mainFile, openFile, say, APP_HOME } from './workspace';
+import { Buffer, Diagnostic, buffers, saveAll, sketchDir, sketchName, mainFile, openFile, say, APP_HOME } from './workspace';
 import { parseDiagnostics, Diag } from '../model';
 
 export const ZINC: string = sys.env('ZINC_BIN') !== '' ? sys.env('ZINC_BIN') : 'zinc';
@@ -14,10 +16,10 @@ export const ZINC: string = sys.env('ZINC_BIN') !== '' ? sys.env('ZINC_BIN') : '
 const SCRUB: string[] = ['ZINC_SHOT', 'ZINC_SHOT_FRAMES', 'ZINC_INPUT', 'ZINC_SIZE', 'ZINC_SYSTEM_SCRIPT', 'ZINC_SYSTEM_LOG', 'ZINC_ATELIER_SCRIPT',
   'ZINC_RUN'];   // nor the engine Atelier itself was started on (`zinc run --interp`, `zinc dev`): the sketch runs on the one its menu names
 export function spawnZinc(args: string[], cwd: string): proc.Process { return zinc(args, cwd); }
-function zinc(args: string[], cwd: string): proc.Process {
+export function zinc(args: string[], cwd: string): proc.Process {
   const a: string[] = [];
   for (const v of SCRUB) { a.push('-u'); a.push(v); }
-  a.push('ZINC_STEPS=' + (args[0] === 'run' || args[0] === 'dev' ? '1' : '0'));   // the steps of a build are what the console shows; a check or a list is read whole
+  a.push('ZINC_STEPS=' + (args[0] === 'run' || args[0] === 'dev' || args.indexOf('deploy') > 0 ? '1' : '0'));   // the steps of a build are what the console shows; a check or a list is read whole
   a.push(ZINC);
   return proc.spawn('/usr/bin/env', a.concat(args), { cwd: cwd });
 }
@@ -115,34 +117,66 @@ function setStatus(s: string, kind: i32): void { setStatusText(s); setStatusKind
 export const ENGINES: string[] = ['Native', 'Interpreter', 'QuickJS', 'ESP32 emulator'];
 const ENGINE_ARGS: string[][] = [[], ['--interp'], ['--engine', 'quickjs'], ['--target', 'esp32', '--qemu']];
 export const [engine, setEngine] = createSignal<i32>(0);
+/** The paired device Run sends the sketch to (its name); '': this machine, as `engine` says. */
+export const [device, setDevice] = createSignal<string>('');
 
 let child: proc.Process | null = null;
 let startedAt: number = 0, stopped = false;
 let again: i32 = -1;   // a run asked while one was ending: 0 run, 1 debug
+// a run on a device: its name, the name the sketch got there once it is started, the status its log ended with, what the CLI refused
+let remote = '', app = '', ended: i32 = -1, refused = '';
+
+function nowRunning(): void {
+  setPhase(RUNNING); startedAt = sys.clock(); setSeconds(0);
+  setStatus((debugging() ? 'Debugging' : 'Running') + (remote !== '' ? ' on ' + remote : ''), 1);
+}
+/** A line of `zinc device <name> deploy` that is about the device, not from the program: true when it is dealt with. */
+function deviceLine(text: string): boolean {
+  if (text.startsWith('zinc device: ')) { refused = text.slice(13); return false; }
+  if (app !== '') {
+    // the followed log never ends by itself; `[exited <status>]` is the agent's last line of a run: nothing more to follow
+    // ponytail: a program that prints this very line ends its own run here; ask the agent for the app's state if that ever matters
+    if (!text.startsWith('[exited ')) return false;
+    ended = parseInt(text.slice(8));
+    if (child !== null) (child as proc.Process).kill();
+    return true;
+  }
+  const step = text.startsWith('packed ') ? 'send' : text.startsWith('installed ') ? 'start' : text.startsWith('started ') ? 'run' : '';
+  if (step === '') return false;
+  add(new Line(text, K_STAGE));
+  if (step !== 'run') { setStage(step); return true; }
+  app = text.slice(8, text.indexOf(' on '));
+  nowRunning();
+  if (debugging()) add(new Line("inspector: it opens when the sketch has import 'zinc:devtools'", K_STAGE));
+  return true;
+}
 
 function onLine(text: string, stderr: boolean): void {
   if (text.startsWith('zinc run ') || text.startsWith('zinc dev ')) return;   // the command, already shown
+  if (remote !== '' && deviceLine(text)) return;
   // `zinc dev` of a program with an interface: "zinc devtools: chrome://inspect (Discover network targets: localhost:9229) or ws://..."
   const dt = text.startsWith('zinc devtools:') ? text.indexOf('localhost:') : -1;
-  if (dt > 0 && debugging()) { setInspectorPort(parseInt(text.slice(dt + 10))); openInspector(); }
+  if (dt > 0 && debugging()) { if (remote !== '') inspectThere(); else { setInspectorPort(parseInt(text.slice(dt + 10))); openInspector(); } }
   const l = classify(text, stderr);
   if (l.kind === K_STAGE) {
     const name = text.trim().split(' ')[0];
-    if (name === 'run' || name === 'dev') { setPhase(RUNNING); startedAt = sys.clock(); setSeconds(0); setStatus(debugging() ? 'Debugging' : 'Running', 1); }
+    if (name === 'run' || name === 'dev') nowRunning();
     else if (phase() === BUILDING && name !== 'zinc') setStage(name);
-  } else if (phase() === BUILDING && l.kind === K_OUT) { setPhase(RUNNING); startedAt = sys.clock(); setSeconds(0); setStatus('Running', 1); }   // a program that prints before any step line
+  } else if (phase() === BUILDING && l.kind === K_OUT) nowRunning();   // a program that prints before any step line
   add(l);
   if (l.kind !== K_STAGE && !consoleOpen()) showConsole(true);
 }
 
-/** Saves the sketch, then builds and runs it (`debug`: under `zinc dev`, with the inspector). A program still running is stopped first. */
+/** Saves the sketch, then builds and runs it (`debug`: under `zinc dev`, with the inspector). A program still running is stopped first.
+ *  With a device chosen the sketch goes there under its folder's name, and `debug` brings its inspector here. */
 export function run(debug: boolean = false): void {
   if (child !== null) { again = debug ? 1 : 0; stop(); return; }
   const dir = sketchDir(), main = mainFile(dir);
   if (dir === '' || main === '') { setStatus('Nothing to run: this sketch has no code file', 2); return; }
   saveAll();
   clearConsole();
-  const args: string[] = [debug ? 'dev' : 'run', main].concat(debug ? [] : ENGINE_ARGS[engine()]);
+  remote = device(); app = ''; ended = -1; refused = '';
+  const args: string[] = remote !== '' ? ['device', remote, 'deploy', '.', '--name', sketchName()] : [debug ? 'dev' : 'run', main].concat(debug ? [] : ENGINE_ARGS[engine()]);
   add(new Line('$ zinc ' + args.join(' '), K_CMD));
   stopped = false;
   setDebugging(debug); setPhase(BUILDING); setStage('starting'); setStatus('Building', 0);
@@ -154,10 +188,13 @@ export function run(debug: boolean = false): void {
     p.onExit((code: i32) => {
       child = null;
       const ran = phase() === RUNNING;
+      const lost = app !== '' && ended < 0 && !stopped;   // the follower ended before the program did: the device went away
+      if (ended >= 0) code = ended;
       setPhase(IDLE); setStage(''); setDebugging(false); closeInspector();
       if (stopped) setStatus('Stopped', 0);
+      else if (lost) { setStatus(`Lost ${remote}: the sketch may still run there`, 2); showConsole(true); }
       else if (code === 0) setStatus('Finished', 1);
-      else { setStatus(ran ? `Exited with code ${code}` : 'Build failed', 2); showConsole(true); }
+      else { setStatus(ran ? `Exited with code ${code}` : refused !== '' ? `${remote}: ${refused}` : 'Build failed', 2); showConsole(true); }
       add(new Line(stopped ? 'stopped' : `exit ${code}`, K_END));
       const next = again;
       again = -1;
@@ -187,19 +224,41 @@ export function openInspector(): void {
     p.onExit((code: i32) => { if (inspector === p) inspector = null; });
   } catch (e) { inspector = null; }
 }
+/** The inspector of the sketch running on a device, on a port of this machine: `zinc device <name> inspect <app>` forwards it until the run ends. */
+let forward: proc.Process | null = null;
+function inspectThere(): void {
+  if (forward !== null) return;
+  try {
+    const p = zinc(['device', remote, 'inspect', app], '');
+    forward = p;
+    p.onStdout((l: string) => { const at = l.indexOf('ws://127.0.0.1:'); if (at >= 0 && forward === p) { setInspectorPort(parseInt(l.slice(at + 15))); openInspector(); } });
+    p.onStderr((l: string) => { if (forward === p && !stopped) add(new Line(l, K_ERR)); });   // not what it says while the sketch is being ended
+    p.onExit((code: i32) => { if (forward === p) forward = null; });
+  } catch (e) { forward = null; }
+}
 function closeInspector(): void {
-  const p = inspector;
-  inspector = null;
+  const p = inspector, f = forward;
+  inspector = null; forward = null;
   setInspectorPort(0);
   if (p !== null) (p as proc.Process).kill();
+  if (f !== null) (f as proc.Process).kill();
 }
 
 let killAt: number = 0;
-/** Ends the program (or the build): SIGTERM, then SIGKILL two seconds later if it is still there. */
+/** Ends the program (or the build): SIGTERM, then SIGKILL two seconds later if it is still there. A sketch started on a
+ *  device is ended there: the child here only follows its log, and ends with it. */
 export function stop(): void {
   const c = child;
   if (c === null) return;
   stopped = true;
+  if (app !== '') {
+    try {
+      const p = zinc(['device', remote, 'stop', app], '');
+      p.onStderr((l: string) => { add(new Line(l, K_ERR)); });   // the device did not answer: the sketch may still run there
+      p.onExit((code: i32) => { if (child === c) (c as proc.Process).kill(); });
+      return;
+    } catch (e) { /* no zinc to ask: end the follower at least */ }
+  }
   (c as proc.Process).kill();
   killAt = sys.clock() + 2000;
 }

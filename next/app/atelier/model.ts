@@ -88,3 +88,47 @@ export function projectFiles(root: string): string[] {
   out.sort((a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0));
   return out;
 }
+
+// ---- devices (ZN-729.06): what `zinc device` prints with --json
+
+export interface Device { name: string; address: string; state: string; kind: string; id: string }
+
+/** The rows of `zinc device list --json`: the agents the network shows and the paired devices. Anything else: no row. */
+export function parseDevices(json: string): Device[] {
+  const out: Device[] = [];
+  try {
+    for (const d of JSON.parse(json)) {
+      const name: string = d.name, address: string = d.address, state: string = d.state, kind: string = d.kind, id: string = d.id;
+      out.push({ name, address, state, kind, id });
+    }
+  } catch (e) { /* not a list: the command failed and said why on stderr */ }
+  return out;
+}
+
+export interface DeviceApp { name: string; running: boolean; rss: number }
+/** What a device is and how it is doing: one sample of `zinc device top --json`. `temp` is in °C, -1 when the system gives none. */
+export interface Figures { name: string; kind: string; system: string; cpu: string; load: number; memFree: number; memTotal: number; temp: number; apps: DeviceApp[] }
+
+/** One line of `zinc device top --json` (the device's info, a sample a second), or null when the line is not one. */
+export function parseFigures(line: string): Figures | null {
+  try {
+    const d = JSON.parse(line);
+    const name: string = d.name, kind: string = d.kind, os: string = d.os, version: string = d.osVersion, arch: string = d.arch, chip: string = d.cpu;
+    const cores: i32 = d.cores, load: number = d.load1, memFree: number = d.memFree, memTotal: number = d.memTotal;
+    let temp: number = -1;
+    if (d.tempC !== undefined) temp = d.tempC;
+    const apps: DeviceApp[] = [];
+    for (const a of d.apps) {
+      const app: string = a.name, running: boolean = a.running;
+      let rss: number = 0;
+      if (a.rss !== undefined) rss = a.rss;   // a stopped app has none
+      apps.push({ name: app, running, rss });
+    }
+    return { name, kind, system: `${os} ${version} ${arch}`, cpu: `${chip === '' ? '' : chip + ', '}${cores} core${cores > 1 ? 's' : ''}`, load, memFree, memTotal, temp, apps };
+  } catch (e) { return null; }
+}
+
+/** '3.1 GiB', '160 MiB': a size as `zinc device info` writes it. */
+export function sizeText(bytes: number): string {
+  return bytes >= 1073741824 ? (bytes / 1073741824).toFixed(1) + ' GiB' : Math.round(bytes / 1048576) + ' MiB';
+}

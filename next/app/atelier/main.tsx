@@ -5,7 +5,10 @@
 // It drives the zinc binary it runs on ($ZINC_BIN): zinc run, zinc dev, zinc check, zinc plugins, and zinc lsp beside the editor.
 // Tests: ZINC_ATELIER_HOME (the sketchbook), ZINC_ATELIER_SYNC=1 (a frame waits for the child), ZINC_ATELIER_PACE=ms (a frame
 // lasts that long), ZINC_ATELIER_ECHO=1 (the console on stdout), ZINC_ATELIER_THEME=dark, ZINC_ATELIER_SCRIPT=file (a session:
-// `<frame> <command id>`, `<frame> example:<folder>` or `<frame> quit` per line, run at that frame as the menu item would be).
+// `<frame> <command id>`, `<frame> example:<folder>` or `<frame> quit` per line, run at that frame as the menu item would be;
+// for the devices panel `<frame> pair:<name or address> <code>` fills its form and pairs, `<frame> device:<name>` is a press on
+// that device, and `<frame> wait:<text>` holds the frame until the console, the status line or the panel says it, 10 s at most),
+// ZINC_ATELIER_BROWSE=ms (how long the list of devices waits for the network; 0: the paired ones only).
 import { render } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import * as sys from 'zinc:sys';
@@ -18,7 +21,8 @@ import { theme, bg, setTheme, DARK } from './app/theme';
 import { Buffer, setHooks, applyFocus, stepNotice, openSketch, lastSketch, openFile } from './app/workspace';
 import { findOpen, closeFind } from './app/search';
 import { COMMANDS, Command, command, commandOf, paletteMode, closePalette, PAL_CLOSED, startOpen, setStartOpen, promptLabel, answer } from './app/commands';
-import { check, stepTools, setJump, stopAll } from './app/tools';
+import { check, stepTools, setJump, stopAll, consoleText, status } from './app/tools';
+import { devicesOpen, closeDevices, setWho, setCode, pair, choose, panelText, refresh } from './app/devices';
 import { stepCursors, stepMenuKeys, jumpTo, setMenuKeys, menuKey, noteKey } from './app/cursors';
 import { stepLsp, setGo, stopLsp } from './app/lsp';
 import { Header, EngineMenu, engineOpen, setEngineOpen } from './components/Header';
@@ -26,6 +30,7 @@ import { EditorCard, stepEditor } from './components/Editor';
 import { ConsoleCard, stepConsole } from './components/Console';
 import { StartView, EXAMPLES, Example, openExample } from './components/Start';
 import { Palette } from './components/Palette';
+import { DevicesPanel } from './components/Devices';
 
 function App(): i32 {
   return <View class={`flex-col h-full ${bg(theme().chrome)}`}>
@@ -36,6 +41,7 @@ function App(): i32 {
       <StartView />
     </View>
     <EngineMenu />
+    <DevicesPanel />
     <Palette />
   </View>;
 }
@@ -79,6 +85,7 @@ ui.onKey((e: ui.KeyEvent) => {
   if (e.key === 'Escape') {
     if (engineOpen()) setEngineOpen(false);
     else if (paletteMode() !== PAL_CLOSED) closePalette();
+    else if (devicesOpen()) closeDevices();
     else if (promptLabel() !== '') answer(false);
     else if (findOpen()) closeFind();
     else if (startOpen()) setStartOpen(false);
@@ -110,6 +117,7 @@ let opened = false;
 if (args.length > 0 && args[0] !== '') opened = openSketch(args[0].startsWith('/') ? args[0] : sys.launchDir() + '/' + args[0]);
 if (!opened) { const last = lastSketch(); if (last !== '') opened = openSketch(last); }
 if (opened) check(); else setStartOpen(true);
+refresh('', '0');   // the paired devices, for the menu of the run control: read from a file, no network
 
 // ---- scripted sessions
 const scriptAt: i32[] = [], scriptDo: string[] = [];
@@ -120,12 +128,22 @@ if (sys.env('ZINC_ATELIER_SCRIPT') !== '') {
   }
 }
 let frame: i32 = 0;
+function says(text: string): boolean { return consoleText().indexOf(text) >= 0 || status().indexOf(text) >= 0 || panelText().indexOf(text) >= 0; }
 function stepScript(): void {
   frame++;
   for (let i = 0; i < scriptAt.length; i++) {
     if (scriptAt[i] !== frame) continue;
     const id = scriptDo[i];
-    if (id === 'quit') { leave(); quit(); } else if (id.startsWith('example:')) openExample(id.slice(8)); else if (!command(id)) console.log('atelier script: no command ' + id);
+    if (id === 'quit') { leave(); quit(); }
+    else if (id.startsWith('example:')) openExample(id.slice(8));
+    else if (id.startsWith('pair:')) { const w = id.slice(5).split(' '); setWho(w[0]); setCode(w.length > 1 ? w[1] : ''); pair(); }
+    else if (id.startsWith('device:')) choose(id.slice(7));
+    else if (id.startsWith('wait:')) {
+      let n = 0;
+      while (!says(id.slice(5)) && n++ < 1000) sys.poll(10);
+      if (n > 1000) console.log('atelier script: nothing said ' + id.slice(5));
+    }
+    else if (!command(id)) console.log('atelier script: no command ' + id);
   }
 }
 

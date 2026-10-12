@@ -6,7 +6,9 @@ import * as ui from 'zinc:ui';
 import { rrect } from 'zinc:gfx';
 import { theme, bg, fg, bd, toggleTheme } from '../app/theme';
 import { active, activate, buffers, Buffer, closeBuffer, sketchName } from '../app/workspace';
-import { phase, stage, seconds, debugging, run, stop, IDLE, BUILDING, ENGINES, engine, setEngine } from '../app/tools';
+import { phase, stage, seconds, debugging, run, stop, IDLE, BUILDING, ENGINES, engine, setEngine, device, setDevice } from '../app/tools';
+import { devices, isPaired, choose, openDevices } from '../app/devices';
+import { Device } from '../model';
 import { command, startOpen, setStartOpen, openPalette, PAL_COMMANDS } from '../app/commands';
 import { Glyph, IconButton } from './Controls';
 import { I_PLAY, I_STOP, I_CLOSE, I_BUG, I_PLUS, I_DOWN, I_SUN, I_MOON, I_COMMAND, I_GRID, I_CHECK } from './icons';
@@ -97,16 +99,27 @@ function Tabs(): i32 {
 
 // ---- right side
 export const [engineOpen, setEngineOpen] = createSignal<boolean>(false);
-/** The list under the engine pill; drawn by the app over everything else. */
+const CHOICE = (): string => `flex-row items-center h-[30] px-2.5 gap-2 rounded-lg cursor-pointer hover:${bg(theme().hover)}`;
+/** The list under the engine pill; drawn by the app over everything else. Where the sketch runs: this machine, one way or
+ *  another, or a paired device (the devices panel finds and pairs them). */
 export function EngineMenu(): i32 {
   return <View class="absolute inset-0" style={{ hidden: engineOpen() ? 0 : 1 }}>
     <View class="absolute inset-0" onPointerDown={() => setEngineOpen(false)} />
     <View class={`absolute top-[50] right-[92] w-[190] flex-col p-1 rounded-xl border shadow-lg ${bg(theme().elevated)} ${bd(theme().border)}`}>
-      {ENGINES.map((name: string, i: i32) => <View class={`flex-row items-center h-[30] px-2.5 gap-2 rounded-lg cursor-pointer hover:${bg(theme().hover)}`}
-        onPointerDown={(e: ui.PointerEvent) => { setEngine(i); setEngineOpen(false); }}>
+      {ENGINES.map((name: string, i: i32) => <View class={CHOICE()}
+        onPointerDown={(e: ui.PointerEvent) => { setEngine(i); setDevice(''); setEngineOpen(false); }}>
         <Text class={`grow text-[13px] ${fg(theme().text)}`}>{name}</Text>
-        {engine() === i && <Glyph kind={I_CHECK} size={13} color={() => theme().accent} back={() => theme().elevated} />}
+        {engine() === i && device() === '' && <Glyph kind={I_CHECK} size={13} color={() => theme().accent} back={() => theme().elevated} />}
       </View>)}
+      <View class={`h-px my-1 ${bg(theme().borderSoft)}`} />
+      {devices().filter(isPaired).map((d: Device) => <View class={CHOICE()}
+        onPointerDown={(e: ui.PointerEvent) => { if (device() !== d.name) choose(d.name); setEngineOpen(false); }}>
+        <Text class={`grow text-[13px] ${fg(theme().text)}`}>{d.name}</Text>
+        {device() === d.name && <Glyph kind={I_CHECK} size={13} color={() => theme().accent} back={() => theme().elevated} />}
+      </View>)}
+      <View class={CHOICE()} onPointerDown={(e: ui.PointerEvent) => { setEngineOpen(false); openDevices(); }}>
+        <Text class={`grow text-[13px] ${fg(theme().text)}`}>Devices…</Text>
+      </View>
     </View>
   </View>;
 }
@@ -122,7 +135,7 @@ export function Header(): i32 {
       <Text class={`text-[13px] font-medium ${fg(theme().text)}`}>{sketchName()}</Text>
     </View>
     <View class={`${PILL} ${engineOpen() ? bg(theme().active) : ''} hover:${bg(theme().hover)}`} onPointerDown={(e: ui.PointerEvent) => setEngineOpen(!engineOpen())}>
-      <Text class={`text-[13px] ${fg(theme().muted)}`}>{ENGINES[engine()]}</Text>
+      <Text class={`text-[13px] ${fg(theme().muted)}`}>{device() !== '' ? device() : ENGINES[engine()]}</Text>
       <Glyph kind={I_DOWN} size={12} color={() => theme().faint} />
     </View>
     <View class="flex-row items-center">

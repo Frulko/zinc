@@ -229,7 +229,45 @@ past 4 MiB: the last 1 MiB goes to `<name>.log.1`), `run/<name>.pid` (the pid, t
 - An app's CPU and memory are those of the first 256 processes of its group (macOS).
 - Linux and macOS (POSIX sockets, `forkpty`): the Windows client is part of the cross-platform pass.
 
+## Atelier's devices panel (ZN-729.06)
+
+Zinc Atelier (`next/app/atelier`) drives the commands above through `zinc:process`, as it drives `zinc run`: no protocol in the app.
+The pill that says where the sketch runs lists the paired devices under the engines, and "Devices…" (Sketch > Run on a Device…) opens
+the panel. State: `app/devices.ts`; view: `components/Devices.tsx`; the run itself: `app/tools.ts`; the JSON read: `model.ts`.
+
+| In the panel | Command |
+|---|---|
+| the list, at opening and at "Look again": the agents the network shows and the paired devices | `zinc device list --json` |
+| the form: a name or an address, the code, Pair. A device that shows a code is a press away from the form | `zinc device pair <name or host[:port]> <code>` |
+| a press on a paired device: Run goes there (again: back to this computer). Its kind, system, processor, load, free memory, temperature and apps, renewed every second while the panel is open | `zinc device <name> top --json` |
+| Run | `zinc device <name> deploy . --name <the sketch's folder>`: the steps and the app's log in the console |
+| Stop | `zinc device <name> stop <app>`; the follower ends at the log's `[exited n]` line, which is also how a sketch that ends by itself is seen |
+| Debug | Run, then at the app's `zinc devtools:` line `zinc device <name> inspect <app>`, and Zinc Inspector on the port it gives |
+
+The first run is written for someone who has never paired: an empty list says to start `zinc agent` on the device and what to type; a
+wrong code, a closed pairing and an address where nothing answers have their own sentence, any other refusal is the CLI's. A device that
+goes away during a run is "Lost <name>: the sketch may still run there".
+
+Test: `next/tests/t1/atelier_devices.sh`, one scripted session against an agent on the loopback interface (a wrong code, the right one typed
+in its field, the figures, Run, the log, Stop, what the device then says of the app) and one golden of the panel, compared without its right column:
+addresses and figures change with the machine and the moment, and the session's own lines prove them. The session waits on what the app
+says (`wait:<text>` in `ZINC_ATELIER_SCRIPT`), not on a number of frames. The parsing of a list with a device found on the network is in
+`next/tests/t0/atelier.sh`.
+
+Choices and limits:
+
+- Debug on a device is Run with the inspector, not `zinc dev --device`: a dev session is not an app of the device, so `inspect` has
+  nothing to forward. The sketch needs `import 'zinc:devtools'`, as the console says.
+- A sketch started from Atelier keeps running on the device when Atelier quits, as after `zinc device deploy` and Ctrl-C.
+- The test's workstation home is new, with links to the pinned tools and the plugin cache of the real one: Atelier's native plugins
+  would otherwise download a compiler. With `--no-mdns` the list of the test holds paired devices only (`ZINC_ATELIER_BROWSE=0`).
+- The test's agent is started without `ZINC_DETERMINISTIC`, which `tests/run` exports: its apps would inherit the virtual clock, and a
+  sketch's timer then fires without a pause (a whole core, thousands of lines). Any test that runs a Zinc program through an agent
+  has to do the same, or pass `ZINC_REALTIME=1` to the app.
+- Not there: forgetting a device (`zinc device unpair`), the app's share of a core in the list of apps, a device chosen kept for the
+  next session.
+
 ## Next
 
-Atelier's devices panel (ZN-729.06, after ZN-728). Open: the start of the service at login run for real (ZN-729.04, in review), and
+Open: the start of the service at login run for real (ZN-729.04, in review), and
 everything on Linux, a Raspberry Pi and a second machine (the cross-platform pass in `next/backlog/later.md`).
