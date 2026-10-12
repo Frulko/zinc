@@ -6,6 +6,11 @@ The next backlog review turns lines into tasks or deletes them.
 
 ## Engine and tools
 
+- ZN-730: a film decoded at the size it is drawn (museum-table makes its decoder at the poster's 854x480 and the raster scales it to 500x281): the IMAGE would be a row copy instead of 13.5 ms of CPU a picture on a Pi 3.
+- ZN-730: the direct scaled image paths (`draw_dyn`, `draw_image`) are float bilinear loops, 135 cycles a pixel on a Cortex-A53; an integer version would bring a film frame's raster clearly under 8 ms, and changes every golden with a scaled image.
+- ZN-730: a gradient paint record (RECT grad 5) under a scaling matrix still goes through the XFORM; a film in a card with an angle still costs 51 ms of CPU a picture on a Pi 3 (the XFORM path).
+- ZN-730: zinc:video's colour-range fix was checked with FFmpeg's command line only: compare a frame of the program on the Pi with the Mac's.
+
 - ZN-726: once a zoom rests, set the glyphs at the exact size and on whole pixels when the matrix does not turn: the last 17 to 23% of edge contrast against text set directly.
 - ZN-726: free the fonts made for scaled text that were not drawn for a while (an LRU over `ZRT_SCALED_FONTS`); today they are never freed.
 - ZN-726: the GL glyph atlas (1024 px square, reset when full) fills after a few ladder steps of large text: count the resets on a zoomed museum card, grow it or evict by age if they show.
@@ -233,7 +238,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-713: profile launch to first frame of the exported app (about 0.5 s under load); retake every time and memory figure alone on the machine (`ZINC=<main>/next/build/zinc ./measure.sh build measure` in `next/bench/vs-electron`); report physical footprint beside the RSS sum.
 
 ## Cross-platform pass
-- ZN-729: `zinc agent` on Linux (x86_64 and a Raspberry Pi): `tests/t0/agent.sh` and `tests/t1/agent_apps.sh` there (forkpty with libutil, /proc figures, the temperature, a GUI app started from the agent under systemd), and a pairing between two machines over Wi-Fi with discovery through a real network.
+
+- ZN-730: museum-table's film on the real `/dev/fb0` of the Pi 3B+ (off screen so far) and at a fixed 1400 MHz clock; the ISP (`/dev/video12`) handing the picture in BGRX at the drawn size (ZN-731).- ZN-729: `zinc agent` on Linux (x86_64 and a Raspberry Pi): `tests/t0/agent.sh` and `tests/t1/agent_apps.sh` there (forkpty with libutil, /proc figures, the temperature, a GUI app started from the agent under systemd), and a pairing between two machines over Wi-Fi with discovery through a real network.
 - ZN-729: `zinc device` on Windows (Winsock, ConPTY for the terminal); the agent itself stays Linux and macOS.
 
 - ZN-726: museum-table's zoom on the Pi 3 (GLES 2): frame time at the ladder steps, sharpness; on a target without TrueType files a scaled text takes the nearest baked size.

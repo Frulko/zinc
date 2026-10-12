@@ -719,3 +719,17 @@ Measured by the task's agent on the development Mac while other trees were build
 - museum-table, a text card and a notice zoomed from 1 to 3 over 60 frames each at 1920x1080, CPU per frame with every frame rasterized and hashed: interpreter 26.5 to 25.9 ms, compiled 26.6 to 26.1 ms (within the noise). The GL replay's frame time was not measured.
 - Glyph cache: 300 scales of two families made 24 fonts, 525 KB (the `resourceStats` counter "fonts").
 
+## museum-table's film on a Pi 3B+ (ZN-730, D113, 2026-10-12)
+
+Measured by the task's agent: sequence wave (854x480 H.264 at 24 pictures a second, drawn 500x281), off screen (file framebuffer 800x480x16), real time, 16 s less the first 3, four raster threads, `ondemand` governor (7 of 8 clock samples at 1400 MHz).
+
+| build | film frame raster p50 / p90 (ms) | raster CPU p50 (ms) | conversion in the decode thread (ms) | pictures a second | frames a second |
+| --- | --- | --- | --- | --- | --- |
+| before | 27.2 / 28.8 | 100.4 | 85.4 | 11.6 | 51.9 |
+| plain commands under the matrix | 6.0 / 8.2 | 18.7 | 85.4 | 11.6 | 59.8 |
+| and a copy of the decoder's frame before swscale | 6.2 / 8.4 | 18.2 | 10.0 | 24.0 | 59.7 |
+
+- The decoder is `h264_v4l2m2m` (0.6 ms of CPU a picture; software decode 10 to 13.5 ms). swscale straight from its buffer: 82 ms a picture; after one copy: 13.7 ms (copy 5.1, conversion 8.0). BGRX asked of the decoder itself: 12.9 ms, no gain, and the wrong colour range for this clip.
+- The picture alone, direct or under a scale-only matrix: 3.83 ms wall, 13.5 ms CPU on the Pi (82 ms CPU under the matrix before, taken at 1200 MHz); on the Mac 3.88 to 1.17 ms. Turned by 2 degrees it stays on the XFORM path: 51 ms of CPU.
+- Not measured: the real `/dev/fb0` (the owner's program held the screen), a fixed 1400 MHz clock.
+
