@@ -4,7 +4,8 @@ title: >-
   Text under a scaling matrix: sharp glyphs, the base font's layout (and
   museum-table's cards)
 status: Ready
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-12 12:31'
 labels:
   - ui
