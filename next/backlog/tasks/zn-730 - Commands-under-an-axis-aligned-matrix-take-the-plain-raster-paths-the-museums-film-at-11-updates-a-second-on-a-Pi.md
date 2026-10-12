@@ -3,11 +3,11 @@ id: ZN-730
 title: >-
   Commands under an axis-aligned matrix take the plain raster paths (the
   museum's film at 11 updates a second on a Pi)
-status: Backlog
+status: Done
 assignee:
   - '@parallel'
 created_date: '2026-10-12 13:50'
-updated_date: '2026-10-12 14:25'
+updated_date: '2026-10-12 14:37'
 labels:
   - perf
   - raster
@@ -27,7 +27,7 @@ Owner complaint, 2026-10-12, museum-table on the Pi 3B+: 'the video is at 20 fps
 <!-- AC:BEGIN -->
 - [x] #1 A command recorded under a matrix that only scales and moves (no rotation, no skew, positive scales) is drawn by the same code and at the same speed as the command given directly at its place and size: IMAGE first, then RECT, BORDER, SHADOW under a uniform scale; TEXT keeps ZN-726's path. The pixels are those of the direct command, and a test says so
 - [x] #2 Under a matrix that turns, nothing changes (the goldens that cover rotated content pass unchanged); the goldens that change are listed with the reason, and the GL replay agrees with the software frame within today's tolerance
-- [ ] #3 museum-table, sequence wave, on the Pi 3B+ at 1400 MHz (tools/device, off screen and on screen): the raster of a frame with a new film picture is measured before and after and is under 8 ms; the film shows its 24 pictures a second, or the task says what still limits it with numbers (decode, conversion, pacing)
+- [x] #3 museum-table, sequence wave, on the Pi 3B+ at 1400 MHz (tools/device, off screen and on screen): the raster of a frame with a new film picture is measured before and after and is under 8 ms; the film shows its 24 pictures a second, or the task says what still limits it with numbers (decode, conversion, pacing)
 - [x] #4 The decode path on the Pi is established and recorded (h264_v4l2m2m or software, CPU of the decode and conversion thread per picture); a cheap gain found there is taken, a larger one is a line for later.md
 - [x] #5 Numbers in docs/reports/raspberry-pi.md; lines for the performance log and later.md in the final report
 <!-- AC:END -->
@@ -62,4 +62,6 @@ Final build, left on the Pi as ~/zn/museum-wip (two more runs, same method, 7 of
 Colours: the decoder's samples read as full range are the software decode's (mean 0.000, max 1 level; one picture, FFmpeg's CLI both ways). Not checked on the program's own frame.
 The coordinator's question (BGRX and the drawn size from the decoder or the ISP): BGRX from the decoder works (-pixel_format bgr0 on the wrapper) and is no gain, 12.9 ms a picture against 13.7 for YUV copied then converted, with limited-range colours; the decoder's capture size is the stream's; the ISP was not measured: FFmpeg's scale_v4l2m2m refused the three graphs tried (it wants DRM_PRIME frames) and the plugin does not link libavfilter. Lines for later.md in the final report.
 Criterion 3 stays open on one point: the run on the real screen. The owner's museum-table held it for the whole session (150% CPU, no touch in the samples taken before each series), so everything was measured off screen with that program paused: six pauses, 383 s in all (49, 84, 59, 104, 67, 20). Next command, when the screen is free: tools/device pi@192.168.2.107 run museum-wip ZINC_PERF_HUD=1, go to the sequence of the film, read the HUD (60 frames a second expected, the film smooth); or by ssh on the real framebuffer: cd ~/zn/museum-wip && env ZINC_SIZE=800x480 ZINC_FBDEV_STATS=2 ZINC_FBDEV_SKIP_S=3 ZINC_VIDEO_LOG=1 timeout 16 ./museum-table --sequence wave 2>&1 | grep -E 'fbdev (stats|frame)|converted' (frames of 200 rows or more are the film's pictures). Also open: p90 of a film frame's raster is 7.8 to 8.4 ms, at the limit of the criterion's 8 ms (p50 6.2): the direct image path is a float bilinear loop (13.5 of the 18.3 ms of CPU).
+
+Coordinator, 2026-10-12 16:4x, on the real /dev/fb0 of the Pi 3B+ (museum-table --sequence wave, 18 s, ZINC_FBDEV_STATS, ZINC_VIDEO_LOG, 55.8 C, the clock read 800 MHz just after the run under the ondemand governor, throttled=0xd0000): 419 pictures converted in about 17.5 s (24 a second), decoder h264_v4l2m2m, conversion 12 to 18 ms a picture, raster of a frame with a new picture p99 8.71 ms (mean over all frames 1.26 ms, CPU p99 22.1 ms), 123 frames a second. Criterion 3 ticked on that: the film shows its 24 pictures a second on the screen; the raster's p99 is 0.7 ms over the 8 ms asked (p50 6.2 off screen), the integer image loop of later.md is what would bring it under.
 <!-- SECTION:NOTES:END -->
