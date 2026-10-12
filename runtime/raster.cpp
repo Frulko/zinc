@@ -840,18 +840,28 @@ static Rect xf_box(const Xf& m, float x0, float y0, float x1, float y1, Rect lim
   }
   return intersect(Rect{ifloor(minx), ifloor(miny), iceil(maxx), iceil(maxy)}, lim);
 }
-/** A w x h coverage bitmap (or straight-alpha 0xAABBGGRR colours) whose top-left corner is at (gx, gy) in local pixels, through m. */
-static void xf_glyph(const Target& t, const Xf& m, float gx, float gy, int32_t w, int32_t h, const uint8_t* cov, const uint32_t* rgba, uint32_t col, uint32_t alpha) {
+/** A w x h coverage bitmap (or straight-alpha 0xAABBGGRR colours) whose top-left corner is at (gx, gy) in local pixels, through m; `q` of
+ *  its pixels to a local one (1, or a bitmap made for the size on screen: xf_text). */
+static void xf_glyph(const Target& t, const Xf& m, float gx, float gy, int32_t w, int32_t h, const uint8_t* cov, const uint32_t* rgba, uint32_t col, uint32_t alpha, float q = 1) {
   if (w <= 0 || h <= 0) return;
-  const Rect b = xf_box(m, gx - 1, gy - 1, gx + w + 1, gy + h + 1, t.clip);
+  const float e = 1 / q;   // one pixel of the bitmap around it
+  const Rect b = xf_box(m, gx - e, gy - e, gx + w / q + e, gy + h / q + e, t.clip);
   for (int32_t y = b.y0; y < b.y1; y++)
     for (int32_t x = b.x0; x < b.x1; x++) {
       float lx, ly;
       xf_back(m, x + 0.5f, y + 0.5f, lx, ly);
-      const float fx = lx - gx - 0.5f, fy = ly - gy - 0.5f;
+      const float fx = (lx - gx) * q - 0.5f, fy = (ly - gy) * q - 0.5f;
       const int32_t x0 = ifloor_fast(fx), y0 = ifloor_fast(fy);
       if (x0 < -1 || y0 < -1 || x0 >= w || y0 >= h) continue;
       const float tx = fx - x0, ty = fy - y0;
+      if (cov && x0 >= 0 && y0 >= 0 && x0 + 1 < w && y0 + 1 < h) {   // inside a coverage bitmap (most pixels of a text): the sums of the loop below, in its order, without its tests
+        const uint8_t* p = cov + y0 * w + x0;
+        if (!(p[0] | p[1] | p[w] | p[w + 1])) continue;
+        float a = 0;
+        a += p[0] * ((1 - tx) * (1 - ty)); a += p[1] * (tx * (1 - ty)); a += p[w] * ((1 - tx) * ty); a += p[w + 1] * (tx * ty);
+        if (a >= 0.5f) blend(at(t, x, y), col, (uint32_t)(a * alpha / 255));
+        continue;
+      }
       float acc[4] = {0, 0, 0, 0};
       for (int k = 0; k < 4; k++) {
         const int32_t sx = x0 + (k & 1), sy = y0 + (k >> 1);
@@ -871,19 +881,27 @@ static void xf_text(const Target& t, const Cmd& c, const char* s, const Xf& m) {
   if (!fp) return;
   const Font& f = *fp;
   const float base = c.y + f.ascent;
+  // Under a matrix that scales, r names the font of the glyphs (plus one; gfx.cpp glyph_font): made for about the size on screen, `q`
+  // times the text's own, and drawn that much smaller here, on the advances of the text's font. The layout is the one without the matrix.
+  const int32_t gf = (int32_t)c.r - 1;
+  const Font* gp = gf >= 0 ? font_at(gf) : nullptr;
+  const float q = gp ? (float)gp->px / f.px : 1;
   if (shape_hooks && (needs_shaping(s, c.n) || (c.res < font_count && !fp->count))) {
-    struct Ctx { const Target* t; const Xf* m; const Cmd* c; float x, y; } cx = {&t, &m, &c, c.x, base};
-    if (shape_hooks->run(c.res, s, c.n, c.s, [](void* u, const ShapedGlyph& g) {
+    struct Ctx { const Target* t; const Xf* m; const Cmd* c; float x, y, q; } cx = {&t, &m, &c, c.x, base, q};
+    if (shape_hooks->run(gp ? gf : c.res, s, c.n, gp ? c.s * gp->px / f.px : c.s, [](void* u, const ShapedGlyph& g) {
           Ctx& k = *static_cast<Ctx*>(u);
-          xf_glyph(*k.t, *k.m, k.x + g.x, k.y + g.y, g.w, g.h, g.a, g.rgba, k.c->c1, k.c->alpha);
+          xf_glyph(*k.t, *k.m, k.x + g.x / k.q, k.y + g.y / k.q, g.w, g.h, g.a, g.rgba, k.c->c1, k.c->alpha, k.q);
         }, &cx) >= 0) return;
   }
   float pen = c.x;
   for (uint32_t i = 0; i < c.n;) {
-    const Glyph* g = glyph_of(c.res, f, next_cp(s, c.n, i));
+    const uint32_t cp = next_cp(s, c.n, i);
+    const Glyph* g = glyph_of(c.res, f, cp);
     if (!g) g = glyph_of(c.res, f, '?');
     if (!g) continue;
-    xf_glyph(t, m, pen + g->x0, base + g->y0, g->w, g->h, f.bitmap + g->off, nullptr, c.c1, c.alpha);
+    const Glyph* b = gp ? glyph_of(gf, *gp, cp) : nullptr;
+    if (b) xf_glyph(t, m, pen + b->x0 / q, base + b->y0 / q, b->w, b->h, gp->bitmap + b->off, nullptr, c.c1, c.alpha, q);
+    else xf_glyph(t, m, pen + g->x0, base + g->y0, g->w, g->h, f.bitmap + g->off, nullptr, c.c1, c.alpha);
     pen += (g->adv + f2i(c.s * 64)) / 64.0f;
   }
 }

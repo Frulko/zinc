@@ -443,18 +443,26 @@ static uint32_t next_cp(const char* s, uint32_t n, uint32_t& i) {
   i += w;
   return cp;
 }
-/** The glyphs of a list's TEXT commands enter the atlas now, before the frame draws (GLES 2: see atlas_sync). ponytail: not those of
- *  a TEXT under a matrix (XFORM), nor after the atlas filled up and was reset in this frame: they come as they are drawn. */
+/** The glyphs of a list's TEXT commands enter the atlas now, before the frame draws (GLES 2: see atlas_sync); those of a TEXT under a
+ *  matrix (XFORM) too, in the font its glyphs are drawn from (draw_text). ponytail: not after the atlas filled up and was reset in this
+ *  frame: they come as they are drawn. */
 static void glyphs_ahead(const Frame& f) {
   for (uint32_t i = 0; i < f.count; i++) {
     const Cmd& c = f.cmds[i];
-    const Font* fp = c.kind == TEXT ? font_at(c.res) : nullptr;
+    int32_t font = c.res;
+    uint32_t off = c.off, n = c.n;
+    if (c.kind == XFORM && f.pts && f.pts[c.off] == (float)TEXT) {
+      const float* p = f.pts + c.off;
+      if (p[11] >= 1) font = (int32_t)p[11] - 1;
+      memcpy(&off, p + 13, 4); memcpy(&n, p + 14, 4);
+    } else if (c.kind != TEXT) continue;
+    const Font* fp = font_at(font);
     if (!fp) continue;
-    const char* s = f.text + c.off;
-    for (uint32_t k = 0; k < c.n;) {
-      const Glyph* g = glyph_of(c.res, *fp, next_cp(s, c.n, k));
-      if (!g) g = glyph_of(c.res, *fp, '?');
-      if (g && g->w > 0 && g->h > 0) glyph_slot(c.res, *fp, g);
+    const char* s = f.text + off;
+    for (uint32_t k = 0; k < n;) {
+      const Glyph* g = glyph_of(font, *fp, next_cp(s, n, k));
+      if (!g) g = glyph_of(font, *fp, '?');
+      if (g && g->w > 0 && g->h > 0) glyph_slot(font, *fp, g);
     }
   }
 }
@@ -463,12 +471,30 @@ static void draw_text(const Cmd& c, const char* s) {
   if (!fp) return;
   const Font& f = *fp;
   int32_t pen = f2i(c.x * 64), base = f2i(c.y + 0.5f) + f.ascent;
+  // Under a matrix that scales, r names the font of the glyphs (plus one): made for about the size on screen, k times this font's, and
+  // drawn that much smaller, on this font's advances and unrounded as the software raster places them (raster.cpp xf_text).
+  const int32_t gf = xf_on ? (int32_t)c.r - 1 : -1;
+  const Font* gp = gf >= 0 ? font_at(gf) : nullptr;
+  float fpen = c.x;
   for (uint32_t i = 0; i < c.n;) {
-    const Glyph* g = glyph_of(c.res, f, next_cp(s, c.n, i));
+    const uint32_t cp = next_cp(s, c.n, i);
+    const Glyph* g = glyph_of(c.res, f, cp);
     if (!g) g = glyph_of(c.res, f, '?');
     if (!g) continue;
     int32_t px = ((pen + 32) >> 6) + g->x0, py = base + g->y0;
-    if (g->w > 0 && g->h > 0) {
+    const Glyph* b = gp ? glyph_of(gf, *gp, cp) : nullptr;
+    if (b) {
+      const GSlot* sl = b->w > 0 && b->h > 0 ? glyph_slot(gf, *gp, b) : nullptr;
+      if (sl) {
+        const float k = (float)gp->px / f.px;
+        use_tex(atlas);
+        Q q = {};
+        q.x0 = fpen + b->x0 / k; q.y0 = c.y + f.ascent + b->y0 / k; q.x1 = q.x0 + b->w / k; q.y1 = q.y0 + b->h / k;
+        q.u0 = (float)sl->ax / ATLAS; q.v0 = (float)sl->ay / ATLAS; q.u1 = (float)(sl->ax + b->w) / ATLAS; q.v1 = (float)(sl->ay + b->h) / ATLAS;
+        q.mode = TEXT_M; q.c1 = c.c1; q.alpha = c.alpha;
+        quad(q);
+      }
+    } else if (g->w > 0 && g->h > 0) {
       const GSlot* sl = glyph_slot(c.res, f, g);
       if (!sl) { pen += g->adv + f2i(c.s * 64); continue; }
       use_tex(atlas);
@@ -479,6 +505,7 @@ static void draw_text(const Cmd& c, const char* s) {
       quad(q);
     }
     pen += g->adv + f2i(c.s * 64);
+    fpen += (g->adv + f2i(c.s * 64)) / 64.0f;
   }
 }
 

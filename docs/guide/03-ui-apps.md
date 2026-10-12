@@ -128,6 +128,28 @@ drawText(title, 20, 20, card.title, 0x111827, 255, 0);
 - **Cost.** The first draw of a new size rasterizes its glyphs: about 0.6 ms for 37 glyphs at 24 px and 3 ms at 96 px on the
   development Mac; later draws take a few microseconds. A program that never calls `loadFont` and has no text field bakes exactly
   what it baked before, and its frames take the same time.
+
+**Text that zooms.** A text drawn under `setTransform` keeps the layout of its font and takes its glyphs at the size it has on
+screen. Wrap a block once at its designed size, then turn it and zoom it with one matrix: no word changes line, a line is exactly
+`textWidth` times the scale wide, and the letters stay sharp.
+
+```ts
+import { font, drawText, setTransform, resetTransform } from 'zinc:gfx';
+
+const body = font('sans', 16);
+const lines = wrap(body, card.text, card.width);        // once, at the designed size
+setTransform(cos * zoom, sin * zoom, -sin * zoom, cos * zoom, card.x, card.y);
+for (let i = 0; i < lines.length; i++) drawText(body, 0, i * 22, lines[i], 0x111827, 255, 0);
+resetTransform();
+```
+
+Do not pick a font per zoom (`font('sans', 16 * zoom)`) and wrap again: fonts come in whole pixels, so the widths do not follow
+the zoom and the breaks move. The glyphs come from the font's TrueType file in sizes a quarter of an octave apart (8, 10, 11, 13,
+16, 19, 23, 27, 32... up to 128 pixels), the first that is not below the size on screen, and are drawn at 84 to 103 % of their
+size: a zoom through hundreds of scales makes at most 17 fonts of a family, each with the glyphs that were drawn. A scale within
+84 to 103 % (a matrix that only turns or mirrors, a small zoom) keeps the font's own glyphs. On a target that embeds no font
+file the nearest baked size serves, so bake the sizes a zoom reaches there.
+
 Images: `<image src="logo.png" />` draws an image of the `assets/` directory, baked into the executable at build time; `zinc:assets`
 reads the directory's files at run time (where a built program finds it: [distribution](07-distribution.md#assets-of-a-built-program)); `zinc:gfx` can build runtime images (video frames, generated textures) and render-to-image. HiDPI is
 automatic — resources are baked at the display scale (Retina ×2 on macOS, ×window `zoom`).

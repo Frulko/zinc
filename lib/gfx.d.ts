@@ -78,7 +78,10 @@ declare module 'zinc:gfx' {
   export function translate(x: number, y: number): void;
   /** A 2D matrix for the commands that follow, after translate, in logical pixels: x' = a x + c y + e, y' = b x + d y + f (the canvas
    *  setTransform order). Boxes, text and images are drawn through it; polygons, paths and strokes are transformed point by point; a clip
-   *  under a matrix is the bounding box of the transformed rectangle. Reset at each frame. */
+   *  under a matrix is the bounding box of the transformed rectangle. Reset at each frame.
+   *  A text keeps the layout of its font: a line is as wide as textWidth says, times the scale, whatever the scale, so a block wrapped
+   *  once can be zoomed without a word changing line. Its glyphs are made for the size it has on screen (from the font's TrueType file,
+   *  in steps a quarter of an octave apart), so an enlarged text is sharp: draw it in the font of its designed size, not in a larger one. */
   export function setTransform(a: number, b: number, c: number, d: number, e: number, f: number): void;
   export function resetTransform(): void;
   /** Stroked polyline [x0, y0, x1, y1, ...] with round joins and caps. */

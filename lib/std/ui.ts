@@ -3,7 +3,7 @@
 // pointer + focus input (UI-11). Written in Zinc: the same code is compiled to C++ and to the sim.
 // Idle frames cost nothing: when no node, animation or canvas changed, the previous frame is kept (gfx.keep).
 import {
-  onFrame, onResize, clear, rrect, gradient, gradientPaint, border, shadow, drawText, drawImage, drawImageRect, font, fontAscent, textWidth, image, imageWidth, imageHeight, createImage, destroyImage, commandCount, commandsFree,
+  onFrame, onResize, clear, rrect, gradient, gradientPaint, border, shadow, drawText, setTransform, resetTransform, drawImage, drawImageRect, font, fontAscent, textWidth, image, imageWidth, imageHeight, createImage, destroyImage, commandCount, commandsFree,
   clip, unclip, width, height, pointerX, pointerY, pointerDown, wasPressed, keep, Btn, wheel,
   wheelX, pinch, pointerButtons, modifiers, keyCount, keyKind, keyMods, keyName, buttonEventCount, buttonEventX, buttonEventY,
   buttonEventButton, buttonEventDown, startTextInput, stopTextInput, clipboardText, setClipboardText, setCursor, Cursor, KeyKind,
@@ -3578,7 +3578,9 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
       else if (p >= 0 && nodes[p].it.withinFg >= 0 && focus >= 0 && isAncestor(p, focus)) fg = nodes[p].it.withinFg;
       else if (p >= 0 && nodes[p].hovered && nodes[p].it.hoverFg >= 0) fg = nodes[p].it.hoverFg;
       const top = Math.round((lh - n.size * 1.21) / 2);
-      const f = fontAtScale(n, kk);
+      // In a view with a scale of its own (a style scale, a transform) a line is drawn through a matrix: it keeps the advances of its
+      // layout, so its width is its laid out width times the scale, and gfx takes its glyphs at the size on screen (ZN-726).
+      const f = n.fontId;
       const fa = textFgAlpha(h);
       const tai: i32 = fa === 255 ? ai : Math.round(ai * fa / 255);
       for (let i = 0; i < n.lines.length; i++) {
@@ -3590,10 +3592,13 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
           if (b0 > a0) { const x0 = textWidth(f, n.lines[i].slice(0, a0 - ls), trackPx(n)), x1 = textWidth(f, n.lines[i].slice(0, b0 - ls), trackPx(n)); rrect(tx + x0 * kk, y + (n.pt + i * lh) * kk, (x1 - x0) * kk, lh * kk, 0, n.selBg >= 0 ? n.selBg : SEL_FOCUSED, 110); }
         }
         const jx = n.talign === 3 && i < n.lines.length - 1 && spaces(n.lines[i]) > 0 ? (n.lw - n.pl - n.pr - n.lineW[i]) / spaces(n.lines[i]) : 0;   // justify: the free width goes to the spaces
-        if (n.tsAlpha > 0 && commandsFree() > 32) drawLine(n, f, tx + n.tsX * kk, ty + n.tsY * kk, n.lines[i], n.tsColor >= 0 ? n.tsColor : 0x000000, Math.round(tai * n.tsAlpha / 255), jx, kk);
-        drawLine(n, f, tx, ty, n.lines[i], fg, tai, jx, kk);
+        const lx = kk !== 1 ? 0 : tx, ly = kk !== 1 ? 0 : ty;
+        if (kk !== 1) setTransform(kk, 0, 0, kk, tx, ty);
+        if (n.tsAlpha > 0 && commandsFree() > 32) drawLine(n, f, lx + n.tsX, ly + n.tsY, n.lines[i], n.tsColor >= 0 ? n.tsColor : 0x000000, Math.round(tai * n.tsAlpha / 255), jx, 1);
+        drawLine(n, f, lx, ly, n.lines[i], fg, tai, jx, 1);
+        if (kk !== 1) resetTransform();
         if (n.deco !== 0) {
-          const th = Math.max(1, Math.round(n.size / 14)) * kk, asc = fontAscent(f), lw = (n.lineW[i] + jx * spaces(n.lines[i])) * kk;
+          const th = Math.max(1, Math.round(n.size / 14)) * kk, asc = fontAscent(f) * kk, lw = (n.lineW[i] + jx * spaces(n.lines[i])) * kk;
           if ((n.deco & 1) !== 0) rrect(tx, ty + asc + Math.round(n.size * 0.1) * kk, lw, th, 0, fg, tai);
           if ((n.deco & 2) !== 0) rrect(tx, ty + asc - Math.round(n.size * 0.3) * kk, lw, th, 0, fg, tai);
           if ((n.deco & 4) !== 0) rrect(tx, ty, lw, th, 0, fg, tai);

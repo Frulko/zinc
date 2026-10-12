@@ -97,6 +97,7 @@
     {"paths": ["../lib/std/ui.ts", "../runtime/raster.cpp", "../runtime/gfx.cpp", "../runtime/gl_replay.cpp", "src/frontend/jsx.cpp", "tests/golden/style-image/", "tests/data/style_image/", "tests/t1/style_image.sh"], "tests": ["style_image"]},
     {"paths": ["CMakeLists.txt", "src/main.cpp", "src/rt/alloc.cpp", "src/rt/alloc_new.cpp", "tests/t1/launch_time.sh"], "tests": ["launch_time", "profile", "aot"]},
     {"paths": ["../runtime/gfx.cpp", "../runtime/raster.cpp", "../runtime/gl_replay.cpp", "../runtime/zrt_raster.h", "tests/t1/gfx_transform.sh", "tests/data/gfx_transform/"], "tests": ["gfx_transform"]},
+    {"paths": ["../runtime/gfx.cpp", "../runtime/raster.cpp", "../runtime/gl_replay.cpp", "../runtime/ttf.cpp", "../runtime/zrt_raster.h", "../lib/std/ui.ts", "tests/t1/text_scaled.sh", "tests/data/text_scaled/", "tools/scene-texts"], "tests": ["text_scaled"]},
     {"paths": ["../examples/museum-table/", "tests/t1/museum_panorama.sh", "tests/data/museum_panorama/"], "tests": ["museum_panorama", "museum_format"]},
     {"paths": ["src/host/window_module.cpp", "tools/zinc-unexported.txt", "src/tc/bundle.cpp", "../targets/macos/hal_sdl.cpp", "../targets/macos/hal_cocoa.mm"], "tests": ["launch_time", "window_renderer", "gl_cube", "native_plugins", "fuse"]},
     {"paths": ["src/rt/rt.h", "src/rt/rtcalls.cpp", "src/aot/aot.cpp", "tests/data/map_rows/"], "tests": ["map_rows", "diffmatrix", "corpus"]},

@@ -317,8 +317,10 @@ handlers) holding a world view:
 ```
 
 Zoom around the pointer: `wx = (e.x - panX) / z`, then `panX = e.x - wx * z2` (same for y). Text in a scaled view
-uses the nearest baked font size, so its width is approximate at unusual zooms. (`scale` on a `<text>` keeps its
-legacy meaning: font size 8 × scale.)
+(a `scale`, a `transform` with an even scale, a `scale-*` class) keeps the line breaks and the widths of its layout,
+times the scale, and is drawn with glyphs made for its size on screen (`zinc:gfx` under `setTransform`,
+[UI apps](guide/03-ui-apps.md)): it stays sharp at every zoom and no word changes line while a view grows.
+(`scale` on a `<text>` keeps its legacy meaning: font size 8 × scale.)
 
 ## Scrolling
 

@@ -37,6 +37,8 @@ int32_t render_font(const char* name, uint32_t name_len, int32_t px);
 int32_t add_font_file(const char* name, uint32_t name_len, const uint8_t* data, uint32_t len);
 /** Font `name` at exactly `px`: baked, else rasterized from its TrueType file; -1 when it has no file and no baked font of that size. */
 int32_t exact_font(const char* name, uint32_t name_len, int32_t px);
+/** The family and style of `font` at `px` pixels (or the closest size there is) for glyphs drawn through a scaling matrix; -1: none. */
+int32_t scaled_font(int32_t font, int32_t px);
 /** `font`, or its twin rasterized from the TrueType file when it is baked and lacks a character of `s` (same pixels for the others). */
 int32_t text_font(int32_t font, const char* s, uint32_t n);
 bool has_glyph(int32_t font, uint32_t cp);

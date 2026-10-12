@@ -1358,6 +1358,35 @@ int32_t loadFont(const String& name, double px) {
 }
 int32_t fontAscent(int32_t f) { const raster::Font* fo = raster::font_at(f); return fo ? fo->ascent : 0; }
 int32_t lineHeight(int32_t f) { const raster::Font* fo = raster::font_at(f); return fo ? fo->ascent + fo->descent + fo->lineGap : 0; }
+// A text under a matrix that scales (ZN-726). The software raster and the GL replay sample the glyph bitmaps through the matrix, so the
+// glyphs of the text's own font come out blurred when enlarged. The text keeps that font for its layout (its box, its advances: a line is
+// as wide as without the matrix, times the scale) and takes its glyphs from a font of about its size on screen, drawn through the matrix
+// with what is left of the scale. The size is the first of a ladder, a quarter of an octave apart, that is not below the size on screen:
+// the glyphs are drawn at 84 to 103 % of their size (reduced rather than enlarged: measured, an enlarged glyph loses twice the edge
+// contrast), and a zoom that passes through hundreds of scales makes at most 17 fonts of a family, each with the glyphs that were drawn.
+// Above 128 pixels the glyphs are enlarged again: the GL replay's atlas (1024 pixels) holds few larger ones.
+// The scale is the larger of the two axes': a box narrowed along one (a card turning over) keeps its glyphs. A text whose own glyphs
+// would be drawn at 84 to 103 % (a matrix that turns or flips, a small zoom) is drawn with them, as before. Returns the glyphs' font, or
+// -1 for the text's own.
+static int32_t glyph_font(int32_t f, const char* s, uint32_t n) {
+  static const int16_t ladder[] = {8, 10, 11, 13, 16, 19, 23, 27, 32, 38, 45, 54, 64, 76, 91, 108, 128};   // round(2^(k/4))
+  const double up = 1.03;   // how much a glyph may be enlarged
+  const raster::Font* fo = raster::font_at(f);
+  if (!xf_on || !fo) return -1;
+  const double sx = xf_m[0] * xf_m[0] + xf_m[1] * xf_m[1], sy = xf_m[2] * xf_m[2] + xf_m[3] * xf_m[3], s2 = sx > sy ? sx : sy;
+  if (!(s2 < 0.7071068 || s2 > up * up) || !(s2 < 1e12)) return -1;   // 2^(-1/4) <= scale <= up
+  const double want = fo->px * math::sqrt(s2);
+  uint32_t i = 0;
+  while (i + 1 < sizeof ladder / sizeof *ladder && ladder[i] * up < want) i++;
+  if (ladder[i] == fo->px) return -1;
+  const int32_t g = raster::scaled_font(f, ladder[i]);
+  const raster::Font* go = raster::font_at(g);
+  if (!go || go->px == fo->px) return -1;
+  // No font of that size could be made (no TrueType file, the table full) and this is the closest baked one: it serves when it is large
+  // enough and not far larger than needed, or at least nearer than the text's own.
+  if (!(go->px * up >= want ? go->px < want * 1.5 || go->px < fo->px : go->px > fo->px)) return -1;
+  return raster::text_font(g, s, n);
+}
 double textWidth(int32_t f, const String& s, double tracking) { return raster::text_advance(raster::text_font(f, s.ptr(), s.bytes()), s.ptr(), s.bytes(), (float)tracking) / 64.0; }
 void drawText(int32_t f, double x, double y, const String& s, uint32_t color, int32_t alpha, double tracking) {
   f = raster::text_font(f, s.ptr(), s.bytes());   // a character the baked font lacks: its twin from the TrueType file
@@ -1374,6 +1403,11 @@ void drawText(int32_t f, double x, double y, const String& s, uint32_t color, in
   if (k != 1.0f) {
     c->res = phys_font(f);
     raster::text_advance(c->res, b.text + c->off, n, 0);   // rasterize missing runtime glyphs now, on this thread: bands are rendered in parallel (hal_sdl.cpp)
+  }
+  const int32_t g = glyph_font(c->res, b.text + c->off, n);
+  if (g >= 0) {   // r, which a TEXT has no use for, carries the glyphs' font (plus one) in the XFORM's payload
+    c->r = (float)(g + 1);
+    raster::text_advance(g, b.text + c->off, n, c->s * raster::font_at(g)->px / raster::font_at(c->res)->px);   // its glyphs, made on this thread too
   }
   xform(c);
 }

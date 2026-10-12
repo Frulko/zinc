@@ -3,6 +3,9 @@
 // (font, size). Small targets (esp32, ps1/ps2) embed no TTF and only use the baked bitmaps.
 #include "zrt.h"
 #include "zrt_raster.h"
+#if __has_include("zn/resource_stats.h")
+#include "zn/resource_stats.h"
+#endif
 
 namespace zrt { namespace raster {
 
@@ -248,14 +251,32 @@ static void cover(const Outline& o, int32_t w, int32_t h, uint8_t* bits) {
 #ifndef ZRT_RUNTIME_FONTS
 #define ZRT_RUNTIME_FONTS 48
 #endif
+// Besides the fonts a program asks for, those gfx makes for a text drawn through a matrix that scales (scaled_font, ZN-726): their own
+// share of the table, so a zoom never takes a font the program asks for later. None where no TrueType file is embedded.
+#ifndef ZRT_SCALED_FONTS
+#if ((defined(__APPLE__) || defined(__linux__)) && !defined(ESP_PLATFORM)) || defined(__EMSCRIPTEN__)
+#define ZRT_SCALED_FONTS 64
+#else
+#define ZRT_SCALED_FONTS 0
+#endif
+#endif
 struct RFont {
   Font f;          // name/px/metrics; glyphs/bitmap point into the growable arrays below
   int32_t file; bool italic;   // italic: synthetic slant (12 degrees), the font is asked as "Name~i"
   Glyph* glyphs; int32_t nglyph, capglyph;   // open-addressing table keyed by cp (cp 0xFFFFFFFF = empty)
   uint8_t* bitmap; uint32_t nbits, capbits;
 };
-static RFont rfonts[ZRT_RUNTIME_FONTS];
-static int32_t nrfonts = 0;
+static RFont rfonts[ZRT_RUNTIME_FONTS + ZRT_SCALED_FONTS];
+static int32_t nrfonts = 0, nscaled = 0;
+#if __has_include("zn/resource_stats.h")
+static ZnResourceStats font_stats(void*) {   // the fonts made at run time and their glyphs; active: those made for scaled texts
+  ZnResourceStats s{};
+  s.objects = (uint64_t)nrfonts; s.active = (uint64_t)nscaled;
+  for (int32_t i = 0; i < nrfonts; i++) s.cpuBytes += rfonts[i].capbits + (uint64_t)rfonts[i].capglyph * sizeof(Glyph);
+  return s;
+}
+static ZnResourceStatsRegistration font_stats_registration("fonts", font_stats);
+#endif
 static const int32_t MAX_TTF = 32;  // ponytail: fixed table, fonts past it render with the baked sizes only
 static Ttf ttfs[MAX_TTF];
 
@@ -347,7 +368,7 @@ const Glyph* runtime_glyph(int32_t id, uint32_t cp) {
 }
 /** Font `name` at exactly `px` pixels, rasterized from its TrueType file (embedded, or added at run time); `baked`: a baked font of that size
  *  first. -1 when no file has that name. */
-static int32_t from_file(const char* name, uint32_t name_len, int32_t px, bool baked_first) {
+static int32_t from_file(const char* name, uint32_t name_len, int32_t px, bool baked_first, bool scaled = false) {
   bool italic = name_len > 2 && name[name_len - 2] == '~' && name[name_len - 1] == 'i';
   if (italic) name_len -= 2;
   if (baked_first) { int32_t b = find_font(name, name_len, px); if (b >= 0 && fonts[b].px == px && !italic) return b; }
@@ -356,7 +377,8 @@ static int32_t from_file(const char* name, uint32_t name_len, int32_t px, bool b
     uint32_t k = 0; while (f.name[k]) k++;
     if (f.px == px && rfonts[i].italic == italic && k == name_len && !__builtin_memcmp(f.name, name, k)) return RUNTIME_FONT_BASE + i;
   }
-  for (int32_t i = 0; i < ttf_count + nextra && i < MAX_TTF && nrfonts < ZRT_RUNTIME_FONTS; i++) {
+  if (scaled ? nscaled >= ZRT_SCALED_FONTS : nrfonts - nscaled >= ZRT_RUNTIME_FONTS) return -1;
+  for (int32_t i = 0; i < ttf_count + nextra && i < MAX_TTF; i++) {
     const TtfFile& file = *file_at(i);
     uint32_t k = 0; while (file.name[k]) k++;
     if (k != name_len || __builtin_memcmp(file.name, name, k)) continue;
@@ -368,6 +390,7 @@ static int32_t from_file(const char* name, uint32_t name_len, int32_t px, bool b
     const double s = (double)px / t.upem;   // the baker's metrics: Math.round of the scaled values
     r.f = Font{file.name, px, (int32_t)__builtin_floor(t.ascent * s + 0.5), (int32_t)__builtin_floor(-t.descent * s + 0.5), (int32_t)__builtin_floor(t.lineGap * s + 0.5), 0, nullptr, nullptr};
     r.file = i; r.italic = italic;
+    nscaled += scaled;
     return RUNTIME_FONT_BASE + nrfonts++;
   }
   return -1;
@@ -380,6 +403,22 @@ int32_t render_font(const char* name, uint32_t name_len, int32_t px) {
   if (f >= 0) return f;
   bool italic = name_len > 2 && name[name_len - 2] == '~' && name[name_len - 1] == 'i';
   return find_font(name, italic ? name_len - 2 : name_len, px);
+}
+/** The family and style of `font` at `px` pixels, for the glyphs of a text drawn through a matrix that scales (gfx drawText): a baked or
+ *  runtime font of that size, else one made from its TrueType file while ZRT_SCALED_FONTS allows, else the closest baked size. -1: none.
+ *  ponytail: these fonts are never freed; gfx asks for a few sizes only (its ladder), so the table bounds them. An LRU if a program
+ *  zooms more families than the table holds. */
+int32_t scaled_font(int32_t font, int32_t px) {
+  const Font* f = font_at(font);
+  char name[96];
+  uint32_t n = 0;
+  if (!f) return -1;
+  while (f->name[n] && n < sizeof name - 3) { name[n] = f->name[n]; n++; }
+  if (f->name[n]) return -1;
+  uint32_t asked = n;
+  if (runtime_font(font) && rfonts[font - RUNTIME_FONT_BASE].italic) { name[n] = '~'; name[n + 1] = 'i'; asked = n + 2; }
+  const int32_t r = from_file(name, asked, px, true, true);
+  return r >= 0 ? r : find_font(name, n, px);
 }
 /** The font text `s` should be drawn in: `font`, or when it is a baked font that lacks one of the characters (typed at run time, read from a
  *  file the baker did not see) the same family and size rasterized from its TrueType file, which has the same pixels for the characters both
