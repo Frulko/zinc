@@ -308,6 +308,46 @@ Choices and limits:
 - Not there: forgetting a device (`zinc device unpair`), the app's share of a core in the list of apps, a device chosen kept for the
   next session.
 
+## The agent on a Linux device: a Raspberry Pi (ZN-729.07)
+
+A device gets exported apps, not the engine, so nothing ran `zinc agent` there. The engine for it is built on the workstation, in a
+container that has the device's system and architecture, and copied as it is: no compiler and no build on the device (a Pi 3 has
+905 MB of memory).
+
+```sh
+cd next
+tools/linux-build                                   # Debian trixie arm64 in Docker: build-linux-arm64/, then the package; the last line is its path
+tools/linux-build --test agent --test agent_apps    # the same, and these tests run in the container, as a plain user
+tools/device pi@192.168.2.107 engine dist/linux-arm64/zinc-0.0.1-linux-aarch64.tar.gz    # unpacked in ~/zinc-engine, nothing started
+tools/device pi@192.168.2.107 agent                 # the agent (re)started detached; prints its log: name, port, pairing code
+tools/device pi@192.168.2.107 agent stop
+```
+
+On the device itself the same start is `(setsid nohup ~/zinc-engine/bin/zinc agent >/tmp/zinc-agent.log 2>&1 </dev/null &)`, then
+`cat /tmp/zinc-agent.log` for the code (`~/zinc-engine/bin/zinc agent pair` gives a new one), and `pkill -f 'zinc-engine/bin/zinc agent'`
+stops it. The engine finds its files in the package around it (`bin/zinc`, `share/zinc`): no `ZINC_ROOT`, no other variable; the agent keeps
+its state in `~/.zinc/agent`. Then, on the workstation, `zinc device list` and `zinc device pair <name> <code>` as in "Use".
+
+`tools/linux-build` builds from the checkout it is in, through `tools/build`, in `next/build-linux-<arch>` (never `next/build`), with 4
+jobs and 4 CPUs unless `--jobs n` says more, as the user `zinc` (the agent refuses root). ccache and the pinned tools live in the Docker
+volume `zinc-linux-build-<arch>`. `--arch amd64` builds for a PC; `ZN_LINUX_IMAGE=debian:bookworm` for an older system (a binary built
+on trixie needs glibc 2.41). `tools/package` then writes the same package as a release: `bin/zinc`, `bin/libzn_webgl.so`, `share/zinc`
+(lib/std, the plugins and their libraries built with the pinned zig). It links nothing outside libc, libm, libstdc++ and libgcc: SDL3
+is static and loads X11, KMS/DRM and EGL when a window opens.
+
+Measured 2026-10-12 on the Apple Silicon Mac (OrbStack), 4 jobs: the image in about 1 min, the engine in about 9 min (summed over runs
+that were interrupted, not one clean run), the package in 2 min 30 s; `zinc` is 18 MB, the package 42.7 MB packed (146 MB on the Pi),
+over the 40 MB budget of a release, which `linux-build` reports without failing. In the container `agent` (discovery over mDNS
+included) and `agent_apps` pass. On the Pi 3B+ (aarch64, Debian trixie): `zinc --version`, `zinc run` of a console program and
+`zinc agent pair` work from `~/zinc-engine`.
+
+What Linux needed: `runtime/gl_replay.cpp` included no `<math.h>` (libc++ brings it in through other headers, libstdc++ does not);
+proof: the container build. `src/agent` compiled and passed its tests unchanged. Wayland is left out of the container: `third_party/SDL3`
+is vendored without its `wayland-protocols`, so with `libwayland-dev` installed its configure turns on a backend that cannot be built.
+
+Not proven yet: the agent running on the Pi and a workstation paired with it (discovery beside avahi, which holds port 5353 there;
+info, shell, push and pull, an export installed and started); `zinc agent install` (the systemd user unit) on the Pi.
+
 ## Next
 
 Open: the start of the service at login run for real (ZN-729.04, in review), and

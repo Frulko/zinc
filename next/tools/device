@@ -19,6 +19,10 @@ usage: tools/device <user@host> <command> [args]        (or ZINC_DEVICE=user@hos
                                   --raw: everything the program prints (a driver's own diagnostics: VC4_DEBUG=perf, ZINC_GL_INFO=1)
   stacks <name> [--samples N]     where a running program spends its time: N stacks (default 20) of its main thread taken with gdb,
                                   the functions counted (no perf needed; slow on a throttled board)
+  engine <package.tar.gz>         the Linux package of tools/linux-build unpacked in ~/zinc-engine on the device (bin/zinc, lib, share/zinc);
+                                  an older one there is replaced, nothing is started
+  agent [stop]                    the zinc agent of ~/zinc-engine (re)started detached, its log shown (/tmp/zinc-agent.log: its name, its port,
+                                  the pairing code for zinc device pair on the workstation: docs/reports/zinc-next-agent.md). stop: stopped
   selftest                        checks the pure functions of this file (no device)
 
 A device runs one program on its screen at a time. Programs live in ~/zn/<name>/ (run.sh from zinc export). Measures are only valid when the
@@ -237,6 +241,30 @@ def cmd_stacks(dev, args):
     print("\ninnermost function of the program or the engine:")
     for fn, c in own.most_common(12):
         print("  %3d%%  %s" % (100 * c // max(total, 1), fn))
+
+
+def cmd_engine(dev, args):
+    if not args:
+        die("engine: which package? (tools/linux-build makes dist/linux-<arch>/zinc-<version>-linux-<machine>.tar.gz)")
+    with open(args[0], "rb") as f:   # the package's one directory becomes ~/zinc-engine, once it is whole there
+        r = subprocess.run(SSH + [dev, "rm -rf ~/zinc-engine.new && mkdir ~/zinc-engine.new && tar xzf - --strip-components=1 -C ~/zinc-engine.new && "
+                                       "rm -rf ~/zinc-engine && mv ~/zinc-engine.new ~/zinc-engine && ~/zinc-engine/bin/zinc --version"], stdin=f, capture_output=True)
+    if r.returncode != 0:
+        die("the package was not installed: " + r.stderr.decode(errors="replace").strip()[-400:])
+    print("~/zinc-engine on %s: %s" % (dev, r.stdout.decode(errors="replace").strip()))
+
+
+def cmd_agent(dev, args):
+    # the agent of ~/zinc-engine alone, whoever started it: the apps it started go on (they are groups of their own)
+    mine = "-u \"$(id -u)\" -f '^[^ ]*/zinc-engine/bin/zinc agent'"
+    if args[:1] == ["stop"]:
+        print(ssh(dev, "pkill %s; sleep 1; pgrep %s >/dev/null && echo 'still running' || echo 'no agent running'" % (mine, mine)).rstrip())
+        return
+    # detached, as cmd_run does; the agent says it listens within a second or says why it does not
+    print(ssh(dev, "[ -x ~/zinc-engine/bin/zinc ] || { echo 'no ~/zinc-engine/bin/zinc: tools/device <dev> engine <package.tar.gz> first' >&2; exit 1; }; "
+              "pkill %s && sleep 1; (setsid nohup ~/zinc-engine/bin/zinc agent >/tmp/zinc-agent.log 2>&1 </dev/null &); "
+              "n=0; while [ $n -lt 50 ] && ! grep -q listening /tmp/zinc-agent.log; do sleep 0.2; n=$((n+1)); done; head -c 2000 /tmp/zinc-agent.log; "
+              "pgrep %s >/dev/null || { echo 'the agent is NOT running' >&2; exit 1; }" % (mine, mine)).rstrip())
 
 
 def cmd_selftest(dev, args):
