@@ -734,7 +734,7 @@ Measured by the task's agent: sequence wave (854x480 H.264 at 24 pictures a seco
 - Not measured: the real `/dev/fb0` (the owner's program held the screen), a fixed 1400 MHz clock.
 
 
-## The device agent on the loopback interface (ZN-729, D114, D115, 2026-10-12)
+## The device agent on the loopback interface (ZN-729, D116, D115, 2026-10-12)
 
 - M1 Pro, `build/zinc` Release, agent and client on the same machine (`--bind 127.0.0.1`). A session with one request (`zinc device info`: connect, TLS 1.3 PSK with ECDHE, the answer): 35 ms; `zinc device shell true`: 43 ms. Pairing (EC J-PAKE): not timed apart from the 1.2 s of discovery that came before it.
 - `zinc dev --device`: a saved source runs on the device 211 to 250 ms after the save (six runs by the agent that worked ZN-729.03, 220 ms once more after integration); `zinc dev` reports the start 77 to 85 ms after the save, the red box of a compile error 112 to 119 ms, a saved asset sent in 35 ms. All of it with a load average of 7 to 10 (other trees building): to take again on a quiet machine.
@@ -760,3 +760,15 @@ Measured by the task's agent on the real screen: CPU of the whole program, every
 - display-fbdev did not pace its frames on this screen: `FBIO_WAITFORVSYNC` returns at once (60 waits in 0.1 ms), so every fbdev program ran as fast as it could (122 frames a second and 92% of a core with the film). It now sleeps to 60 a second when the wait did not wait.
 - Not measured: a minute of museum-table's film in one go (the sequence plays 30 s: runs of 30, 29 and 21 s, 0 dropped), a card dragged or zoomed with its film playing, two films at once, 1080p.
 
+
+## Frames flipped at the refresh on the Pi 3B+ (ZN-735, D117, 2026-10-12)
+
+Pi 3B+, DSI screen 800x480 (16 bpp), 1400 MHz, no throttle bit active; `tools/device pi@192.168.2.107 profile hero-flip ZINC_DEMO=navdrive ZINC_FBDEV_SKIP_S=4`, 260 frames, one binary, two pairs. "Before" is `ZINC_FBDEV_FLIP=0` on the new driver, not a build of the old one.
+
+| path | fps | present p50 | present p99 | convert p50 | vsync p50 | CPU a frame (render + convert, all threads) | frames into /dev/fb0 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| /dev/fb0 (FLIP=0) | 39.9, 40.0 | 18.50, 18.47 | 19.75, 18.96 | 1.44 | 0.01 | 64.7 + 5.1 = 69.8 ms | 260 of 260 |
+| flip | 38.5, 37.9 | 19.27, 19.27 | 20.07, 22.28 | 2.07 | 0.03 | 65.0 + 6.7 = 71.7 ms | 0 of 260 (260 commits) |
+
+- Other runs at 1400 MHz: hero's tour (`ZINC_DEMO=bench`) 59.3 fps before, 59.8 flipped; pocket-hero scaled 59.7 and 60.0; hero's home screen 139% CPU before, 147% flipped (ps, 26 s).
+- Not kept: a pair of 700 frames that ended at 1200 MHz (soft temperature limit). Not measured: a build of the driver before the change, other depths, a Pi 4 or 5.

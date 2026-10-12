@@ -167,6 +167,12 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-729.07: the Linux arm64 package is 42.7 MB against the 40 MB budget of `tools/package`: trim it or raise the budget before a Linux release.
 - ZN-729.07: Wayland cannot be built from `third_party/SDL3` (no `wayland-protocols`): a Linux desktop without X11 gets no window.
 - ZN-729.07: `zinc device info` on a Pi repeats the board's model as its CPU (no `model name` in /proc/cpuinfo there): read the core's name (lscpu's "Model name", or the CPU part) instead.
+- ZN-735: RGB565 buffers for the flip while no video picture is shown: the 32 bpp buffers cost 3.5 to 5% of hero's navigation on a Pi 3B+.
+- ZN-735: a third buffer, so a frame's conversion does not wait for the refresh of the frame before; at 38 fps on a 60 Hz panel a flipped frame stays one or two refreshes (no tear, uneven motion).
+- ZN-735: `tools/device shot` reads black while a flipping program runs (`/dev/fb0` is under its plane); read the plane's buffer, or ask the program.
+- ZN-735: a DRM stub for `tests/native/chip_fbdev.cpp`, so the flip is tested on the Mac (the KMS code is not compiled there).
+- ZN-735: rebuild and install the Pi's engine (`tools/linux-build`, `tools/device ... engine`): a `.zapp` run by `~/zinc-engine` still has the old driver; exports made on the Mac have the new one.
+- ZN-735: a display without a free KMS plane still tears: double buffering by panning `/dev/fb0`.
 - ZN-729: the pairing code on the device's screen (a Zinc window, or the app's splash) and as a QR code, for devices nobody has a terminal on.
 - ZN-729: IPv6 for the agent's listener and its discovery; today both are IPv4.
 - ZN-729: build mbedTLS with `MBEDTLS_THREADING_PTHREAD` and drop the agent's lock around its calls, when several large transfers at once are a real case (measure first).
@@ -290,6 +296,7 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-729.06: Atelier's devices panel on a real device and in a real window (discovery by mDNS and pairing by name are not in the committed test).
 - ZN-729.08: deploy to `rpi2`, `rpi1`, `linux` and `x86_64-linux` devices on real machines (mapped, never built); `tests/t1/agent_deploy.sh` runs on macOS only.
 - ZN-729.07: `zinc agent install` (systemd user unit, linger) never run on the Pi; time one clean `tools/linux-build`.
+- ZN-735: the flip on a Pi 4 or 5, at 24 and 32 bpp, and on the CHIP.
 - ZN-729: `zinc device` on Windows (Winsock, ConPTY for the terminal); the agent itself stays Linux and macOS.
 
 - ZN-726: museum-table's zoom on the Pi 3 (GLES 2): frame time at the ladder steps, sharpness; on a target without TrueType files a scaled text takes the nearest baked size.
