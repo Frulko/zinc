@@ -102,6 +102,7 @@ static raster::Frame frame_of(const Buf& b) { return raster::Frame{b.cmds, b.ncm
 #endif
 struct Overlay { Cmd cmds[64]; char text[ZRT_OVERLAY_TEXT]; uint32_t ncmd, ntext; };
 static Overlay rbox, banner;       // box: full-screen red box; banner: LogBox-style strip at the bottom
+static Overlay taps;               // the fingers of a touch screen, where they press (taps_update below)
 static bool ovl_changed = false;  // next present repaints the whole screen
 static double banner_until = 0;
 static int32_t banner_count = 0;
@@ -249,17 +250,19 @@ static void render_rows(uint32_t* rows, int32_t y0, int32_t y1) {
   if (banner.ncmd) raster::render(ovl_frame(banner), rows, pw, y0, y1, all);
   if (vis.ncmd) raster::render(raster::Frame{vis.cmds, vis.ncmd, nullptr, nullptr}, rows, pw, y0, y1, all);
   if (hud_ovl && hud_ovl->ncmd) hud_render(rows, y0, y1, all);
+  if (taps.ncmd) raster::render(ovl_frame(taps), rows, pw, y0, y1, all);
 }
 // the frame as command lists in paint order, for GPU displays (HalFrame.frames); same lists as render_rows
-static HalCmdList lists[5];
+static HalCmdList lists[6];
 static int32_t frame_lists(const HalCmdList* out[], int32_t max) {
   int32_t n = 0;
-  auto add = [&](const raster::Frame& f) { if (n < max && n < 5) { lists[n] = HalCmdList{f.cmds, f.count, f.text, f.pts}; out[n] = &lists[n]; n++; } };
+  auto add = [&](const raster::Frame& f) { if (n < max && n < 6) { lists[n] = HalCmdList{f.cmds, f.count, f.text, f.pts}; out[n] = &lists[n]; n++; } };
   if (shown) add(frame_of(*shown));
   if (rbox.ncmd) add(ovl_frame(rbox));
   if (banner.ncmd) add(ovl_frame(banner));
   if (vis.ncmd) add(raster::Frame{vis.cmds, vis.ncmd, nullptr, nullptr});
   if (hud_ovl && hud_ovl->ncmd) add(ovl_frame(*hud_ovl));
+  if (taps.ncmd) add(ovl_frame(taps));
   return n;
 }
 // damage of the frame being presented, as disjoint rectangles (render_damage)
@@ -277,6 +280,7 @@ static void render_damage(uint32_t* rows, int32_t y0, int32_t y1) {
     if (banner.ncmd) raster::render(ovl_frame(banner), rows, pw, y0, y1, r);
     if (vis.ncmd) raster::render(raster::Frame{vis.cmds, vis.ncmd, nullptr, nullptr}, rows, pw, y0, y1, r);
     if (hud_ovl && hud_ovl->ncmd) hud_render(rows, y0, y1, r);
+    if (taps.ncmd) raster::render(ovl_frame(taps), rows, pw, y0, y1, r);
   }
 }
 static void set_full_damage() { dmg[0] = raster::Rect{0, 0, pw, ph}; ndmg = 1; }
@@ -686,6 +690,35 @@ static void before_present(const raster::Rect& dmg_box) {
   was = box;
 }
 }  // namespace hud
+// The fingers of a touch screen, shown where they press (owner 2026-10-12): a soft disc and a ring each, over everything the program and
+// the panels draw, like the "show taps" of a phone. On wherever fingers arrive; ZINC_TOUCHES=0 hides them, and a deterministic or headless
+// run (the goldens, the captures) shows them only with ZINC_TOUCHES=1. Their damage is their own boxes, now and at the last frame.
+static void taps_update() {
+  static const bool on = [] {
+    const char* e = hal_env("ZINC_TOUCHES");
+    if (e && *e) return *e != '0';
+    const char *d = hal_env("ZINC_DETERMINISTIC"), *h = hal_env("ZINC_HEADLESS");
+    return !(d && *d && *d != '0') && !(h && *h && *h != '0');
+  }();
+  static raster::Rect was = {0, 0, 0, 0};
+  if (!on || (input.ntouch <= 0 && !taps.ncmd)) return;
+  init_scale();
+  const float R = 26.0f * pxk;
+  raster::Rect at = {pw, ph, 0, 0};
+  taps.ncmd = 0;
+  for (int32_t i = 0; i < input.ntouch && i < HAL_MAX_TOUCH; i++) {
+    const float x = input.touch[i].x * pxk - R, y = input.touch[i].y * pxk - R;
+    if (Cmd* c = ovl_push(taps, raster::RECT, 0xFFFFFF)) { c->x = x; c->y = y; c->w = c->h = 2 * R; c->r = R; c->alpha = 96; }
+    if (Cmd* c = ovl_push(taps, raster::BORDER, 0x111827)) { c->x = x; c->y = y; c->w = c->h = 2 * R; c->r = R; c->s = 2.0f * pxk; c->alpha = 160; }
+    const raster::Rect b = {(int32_t)x - 1, (int32_t)y - 1, (int32_t)(x + 2 * R) + 2, (int32_t)(y + 2 * R) + 2};
+    at.x0 = b.x0 < at.x0 ? b.x0 : at.x0; at.y0 = b.y0 < at.y0 ? b.y0 : at.y0; at.x1 = b.x1 > at.x1 ? b.x1 : at.x1; at.y1 = b.y1 > at.y1 ? b.y1 : at.y1;
+  }
+  auto clipped = [](raster::Rect r) { r.x0 = r.x0 < 0 ? 0 : r.x0; r.y0 = r.y0 < 0 ? 0 : r.y0; r.x1 = r.x1 > pw ? pw : r.x1; r.y1 = r.y1 > ph ? ph : r.y1; return r; };
+  at = clipped(at);
+  hud::add_rect(at);
+  hud::add_rect(was);
+  was = at;
+}
 static raster::Rect damage_box() {
   raster::Rect d = {pw, ph, 0, 0};
   for (int32_t i = 0; i < ndmg; i++) { d.x0 = dmg[i].x0 < d.x0 ? dmg[i].x0 : d.x0; d.y0 = dmg[i].y0 < d.y0 ? dmg[i].y0 : d.y0; d.x1 = dmg[i].x1 > d.x1 ? dmg[i].x1 : d.x1; d.y1 = dmg[i].y1 > d.y1 ? dmg[i].y1 : d.y1; }
@@ -1062,6 +1095,7 @@ void end_frame() {
     if (vis.mode && vis_update(shown, false)) ovl_changed = true;   // damage flashes fade while idle
     if (ovl_changed) set_full_damage(); else ndmg = 0;
     hud::before_present(raster::Rect{0, 0, 0, 0});   // the panel keeps counting while the program is idle
+    taps_update();
     const raster::Rect d = damage_box();
     HalFrame f = {pw, ph, d.x0, d.y0, d.x1, d.y1, render_rows, render_damage, frame_lists};
     ovl_changed = false;
@@ -1091,6 +1125,7 @@ void end_frame() {
   if (vis.mode && vis_update(&now, true)) set_full_damage();
   if (prof_on) prof::mark(prof::DIFF);
   hud::before_present(damage_box());
+  taps_update();
   const raster::Rect d = damage_box();
   ovl_changed = false;
   first = false;
