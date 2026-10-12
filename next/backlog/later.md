@@ -163,6 +163,9 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-729.08: move the fbdev default for a Pi into `zinc export --target rpi*`, so export and deploy agree (today deploy alone sets `ZINC_DISPLAY=fbdev` for a project that names no display).
 - ZN-729.08: deploy sends the whole export each run (hero-rpi is 58 MB, not stripped); send only changed files, and strip.
 - ZN-729.08: Atelier shows its send stage on the line `packed`; an export is sent under the build stage.
+- ZN-729.07: GCC 14 warns where clang does not (`cli_core.cpp` dangling-reference x5, `assets/model.cpp` x6, `main.cpp` unused `bundleSpecOf`, `zapp.cpp`, `qjs/strip.cpp`): the Linux build is not warning-free.
+- ZN-729.07: the Linux arm64 package is 42.7 MB against the 40 MB budget of `tools/package`: trim it or raise the budget before a Linux release.
+- ZN-729.07: Wayland cannot be built from `third_party/SDL3` (no `wayland-protocols`): a Linux desktop without X11 gets no window.
 - ZN-729: the pairing code on the device's screen (a Zinc window, or the app's splash) and as a QR code, for devices nobody has a terminal on.
 - ZN-729: IPv6 for the agent's listener and its discovery; today both are IPv4.
 - ZN-729: build mbedTLS with `MBEDTLS_THREADING_PTHREAD` and drop the agent's lock around its calls, when several large transfers at once are a real case (measure first).
@@ -285,6 +288,7 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-729.03: `zinc dev --device` on a real second machine over Wi-Fi: save-to-running time with megabytes of program and assets.
 - ZN-729.06: Atelier's devices panel on a real device and in a real window (discovery by mDNS and pairing by name are not in the committed test).
 - ZN-729.08: deploy to `rpi2`, `rpi1`, `linux` and `x86_64-linux` devices on real machines (mapped, never built); `tests/t1/agent_deploy.sh` runs on macOS only.
+- ZN-729.07: `zinc agent install` (systemd user unit, linger) never run on the Pi; time one clean `tools/linux-build`.
 - ZN-729: `zinc device` on Windows (Winsock, ConPTY for the terminal); the agent itself stays Linux and macOS.
 
 - ZN-726: museum-table's zoom on the Pi 3 (GLES 2): frame time at the ladder steps, sharpness; on a target without TrueType files a scaled text takes the nearest baked size.
