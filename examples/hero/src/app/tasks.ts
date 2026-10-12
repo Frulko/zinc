@@ -5,14 +5,15 @@ import { Tween, Spring, easeOut, easeInOut } from './motion';
 
 export class Task {
   id: i32;
-  title: string;
+  title: () => string; setTitle: (v: string) => void;   // renamed in place (Tasks screen)
   tag: string;
   done: () => boolean; setDone: (v: boolean) => void;
   life: Tween = new Tween(0);          // row height and opacity: 0 gone, 1 fully in
   check: Spring = new Spring(1, 320, 16);   // the checkbox pops when toggled
   leaving: boolean = false;
   constructor(id: i32, title: string, tag: string, done: boolean) {
-    this.id = id; this.title = title; this.tag = tag;
+    this.id = id; this.tag = tag;
+    const [t, st] = createSignal<string>(title); this.title = t; this.setTitle = st;
     const [d, sd] = createSignal<boolean>(done); this.done = d; this.setDone = sd;
   }
 }
