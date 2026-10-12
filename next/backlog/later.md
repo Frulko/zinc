@@ -115,6 +115,15 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-441: plugin keys and stamps do not cover the engine third_party files a plugin includes; a meshoptimizer upgrade needs the key bumped by hand.
 - ZN-724: a typed program gives other numbers on `--engine quickjs` than on the interpreter: `i32` 2147483647 + 1 prints 2147483648 (interpreter -2147483648), `u8` 250 + 10 prints 260 (4), `f32` 0.1 + 0.2 prints 0.30000000000000004 (0.30000001192092896); `src/qjs/strip.cpp` blanks the types and emits no wrap or rounding. The engines are meant to agree; MicroTS wraps and rounds in its emitted JavaScript (docs/reports/microts-vs-zinc.md).
 - ZN-724: from docs/reports/microts-vs-zinc.md, worth a task at the next review: programs generated at random and run on the interpreter, AOT and QuickJS with an input tape (today a fixed corpus in `tools/diff-matrix` and crash-only libFuzzer); the `requires` of a program inferred from what it uses and checked against `targets/capabilities.json`; a bounded `Cap<T, N>` string and array type for boards.
+- ZN-728: port Atelier's `app/edit.ts` and `app/cursors.ts` back to examples/zed-editor (Tab on a selection, several cursors, comments, pairs): the example still replaces a selection by two spaces on Tab.
+- ZN-728: zinc:ui `anchorOf(h)`, `caretBox(h, offset)` and a typed-text hook for `<TextArea>`, so an editor neither guesses the selection anchor nor places carets with font metrics.
+- ZN-728: `font('mono', px)` returns -1 in a gfx-only program: bake the mono family for literal calls, sketches want it.
+- ZN-728: the simulator answers `supports('menubar')` true, so an app cannot tell a real menu bar from the recorder; and `ZINC_SYSTEM_SCRIPT` ticks advance inside `sys.poll`: document it in docs/plugins/system.md or count frames.
+- ZN-728: on a real macOS menu bar, check that each Atelier shortcut runs once and that Edit > Copy with the mouse copies; Atelier on Linux and Windows has no menu bar yet (the kit's MenuBar from the same command table).
+- ZN-728: Atelier: stop a running sketch when Atelier quits (a windowed child may outlive it); Stop was shown on an interpreted child only, check a native one.
+- ZN-728: Atelier: Alt or Cmd+Backspace with several cursors deletes one character, up and down keep no column memory, no box selection; ANSI colours in the console, soft wrap, a font size setting.
+- ZN-728: Atelier: Add Library from the signed index (`zinc add` fails with no trusted root today, the import line is written instead); the Profile and Frames views of the old shell (ZN-143) are out of the window.
+- ZN-728: `ZINC_INPUT` has no pointer modifiers, so Alt+click cannot be scripted in a test.
 
 ## Demos
 
