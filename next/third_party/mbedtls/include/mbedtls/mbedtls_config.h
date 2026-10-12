@@ -301,7 +301,7 @@
  * enabled as well):
  *      MBEDTLS_TLS_ECJPAKE_WITH_AES_128_CCM_8
  */
-//#define MBEDTLS_KEY_EXCHANGE_ECJPAKE_ENABLED
+#define MBEDTLS_KEY_EXCHANGE_ECJPAKE_ENABLED   /* zinc: on for the pairing of the device agent (ZN-729.01) */
 
 /**
  * \def MBEDTLS_KEY_EXCHANGE_PSK_ENABLED

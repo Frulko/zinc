@@ -435,6 +435,14 @@ if(TARGET zn_host_gfx)
     target_compile_definitions(zinc PRIVATE ZN_HOST_LIBS="${ZN_HOST_LIBS_LINE}")  # linked into the programs zinc build writes
   endif()
   target_link_libraries(zinc PRIVATE zn_host_gfx)
+  # the device agent (ZN-729): zinc agent and zinc device, compiled into zinc like the rest of its commands. Its TLS sessions are those of
+  # src/host/tls.cpp (zn_host_gfx); discovery is mjansson/mdns (third_party/mdns, one header)
+  target_sources(zinc PRIVATE src/agent/wire.cpp src/agent/mdns.cpp src/agent/server.cpp src/agent/client.cpp)
+  target_include_directories(zinc SYSTEM PRIVATE third_party/mdns)
+  target_compile_definitions(zinc PRIVATE ZN_AGENT)
+  if(NOT APPLE)
+    target_link_libraries(zinc PRIVATE util)   # forkpty
+  endif()
   if(TARGET zn_window)   # the window host is a module beside zinc (ZN-592.01): src/host/window_module.cpp loads it; programs link zn_host_window
     target_sources(zinc PRIVATE src/host/window_module.cpp)
     target_include_directories(zinc PRIVATE src)

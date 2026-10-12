@@ -125,6 +125,14 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-728: Atelier: Add Library from the signed index (`zinc add` fails with no trusted root today, the import line is written instead); the Profile and Frames views of the old shell (ZN-143) are out of the window.
 - ZN-728: `ZINC_INPUT` has no pointer modifiers, so Alt+click cannot be scripted in a test.
 
+- ZN-729: `zinc device reverse <device-port> <local-port>` (a port of the workstation reached from the device, adb reverse): a dev server on the workstation seen by an app on the device.
+- ZN-729: the pairing code on the device's screen (a Zinc window, or the app's splash) and as a QR code, for devices nobody has a terminal on.
+- ZN-729: IPv6 for the agent's listener and its discovery; today both are IPv4.
+- ZN-729: build mbedTLS with `MBEDTLS_THREADING_PTHREAD` and drop the agent's lock around its calls, when several large transfers at once are a real case (measure first).
+- ZN-729: links in `push` / `pull` / `install` (left out today), and `install` of a large `.zapp` checked as a stream instead of read whole.
+- ZN-729: `zinc deploy --device <paired name>` through the agent, next to the ssh form; `next/tools/device` (push, run, shot, profile, stacks) moved onto `zinc device` so a board needs no ssh key.
+- ZN-729: the mDNS announce probes for a name already taken on the network (two devices with one host name answer under the same name today; their ids differ, so sessions never mix).
+
 ## Demos
 
 - ZN-649.14: a rule of a pinball table can listen to the plunger, so a skill shot needs no hidden sensor.
@@ -226,6 +234,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-713: profile launch to first frame of the exported app (about 0.5 s under load); retake every time and memory figure alone on the machine (`ZINC=<main>/next/build/zinc ./measure.sh build measure` in `next/bench/vs-electron`); report physical footprint beside the RSS sum.
 
 ## Cross-platform pass
+- ZN-729: `zinc agent` on Linux (x86_64 and a Raspberry Pi): `tests/t0/agent.sh` and `tests/t1/agent_apps.sh` there (forkpty with libutil, /proc figures, the temperature, a GUI app started from the agent under systemd), and a pairing between two machines over Wi-Fi with discovery through a real network.
+- ZN-729: `zinc device` on Windows (Winsock, ConPTY for the terminal); the agent itself stays Linux and macOS.
 
 - ZN-726: museum-table's zoom on the Pi 3 (GLES 2): frame time at the ladder steps, sharpness; on a target without TrueType files a scaled text takes the nearest baked size.
 - ZN-725: a rounded CLIP on GLES 2 that does not read the framebuffer: the corner copy (`glCopyTexSubImage2D`) ends the driver's job, 26 of gallery's 39 stalls in 60 frames (gallery 22.8 ms against 13.8 for display-gl's cpu renderer).

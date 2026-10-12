@@ -24,6 +24,8 @@ next/
   src/assets/     the asset build (ZN-434, docs/reports/zinc-next-assets.md): rules, importers, the content-addressed cache, groups to ZPK packs, report.json; the font baker behind the cache; CLI only, includes zpk and res
   src/res/        the baker of fonts and images (ZN-048): TrueType and SVG rasterizers ported exactly from compiler/src/resources.ts, PNG through stb_image; its blob is installed by src/host/resources.cpp
   src/dev/        the device core and the upload protocol (ZN-030): the same code runs in the firmware of a small device and in `zinc device-sim`; includes rt, vm, zbc
+  src/agent/      the device agent (ZN-729, docs/reports/zinc-next-agent.md): `zinc agent`, the daemon on a device, and `zinc device`, its client (pairing by code,
+                  TLS sessions, mDNS discovery, shell, files, apps, forwarded ports); compiled into zinc, includes host/tls.h, tc and zapp, only main includes it
   firmware/esp32/ the ESP-IDF project of the ESP32 core; its image is kept in firmware/esp32/prebuilt (rebuilt by tools/build-esp32-core)
   src/gl/         WebGL 1/2 for the QuickJS engine (ZN-203), with glad and glslang: not linked into zinc but built as the module libzn_webgl beside it, loaded with dlopen on the
                   first QuickJS context (ZN-330.01); it resolves SDL3, QuickJS and zn_qjs from zinc; its one entry is zn_webgl_open (src/gl/webgl_js.h)

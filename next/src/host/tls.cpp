@@ -4,6 +4,11 @@
 namespace zn::tls {
 Conn* openClient(const std::string&, std::string& err) { err = "this build has no TLS (ZN_TLS=OFF)"; return nullptr; }
 Conn* openServer(const std::string&, const std::string&, std::string& err) { err = "this build has no TLS (ZN_TLS=OFF)"; return nullptr; }
+Conn* openPskClient(const std::string&, const std::string&, std::string& err) { err = "this build has no TLS (ZN_TLS=OFF)"; return nullptr; }
+Conn* openPskServer(std::function<std::string(const std::string&)>, std::string& err) { err = "this build has no TLS (ZN_TLS=OFF)"; return nullptr; }
+const std::string& pskIdentity(Conn*) { static const std::string e; return e; }
+Conn* openPake(bool, const std::string&, std::string& err) { err = "this build has no TLS (ZN_TLS=OFF)"; return nullptr; }
+std::string randomBytes(size_t) { return std::string(); }
 void destroy(Conn*) {}
 void feed(Conn*, const char*, size_t) {}
 std::string takeOutput(Conn*) { return std::string(); }
@@ -34,6 +39,8 @@ struct Conn {
   mbedtls_x509_crt own;
   mbedtls_pk_context key;
   std::string in, out, err;
+  std::function<std::string(const std::string&)> pskLookup;
+  std::string pskId;
   bool server = false, done = false, failed = false, closed = false;
 };
 
@@ -123,6 +130,72 @@ Conn* openServer(const std::string& certPem, const std::string& keyPem, std::str
   return c;
 }
 
+namespace {
+
+// The key of the identity the client presents; refusing it fails the handshake.
+int pskCb(void* ctx, mbedtls_ssl_context* ssl, const unsigned char* id, size_t n) {
+  auto* c = static_cast<Conn*>(ctx);
+  const std::string identity(reinterpret_cast<const char*>(id), n);
+  const std::string key = c->pskLookup(identity);
+  if (key.empty()) return MBEDTLS_ERR_SSL_UNKNOWN_IDENTITY;
+  c->pskId = identity;
+  return mbedtls_ssl_set_hs_psk(ssl, reinterpret_cast<const unsigned char*>(key.data()), key.size());
+}
+
+Conn* finish(Conn* c, int rc, std::string& err) {
+  if (rc == 0) rc = mbedtls_ssl_setup(&c->ssl, &c->conf);
+  if (rc != 0) { err = describe(c, rc); destroy(c); return nullptr; }
+  mbedtls_ssl_set_bio(&c->ssl, c, sendCb, recvCb, nullptr);
+  return c;
+}
+
+void pskOnly(Conn* c) {
+  mbedtls_ssl_conf_min_tls_version(&c->conf, MBEDTLS_SSL_VERSION_TLS1_3);
+  mbedtls_ssl_conf_max_tls_version(&c->conf, MBEDTLS_SSL_VERSION_TLS1_3);
+  mbedtls_ssl_conf_tls13_key_exchange_modes(&c->conf, MBEDTLS_SSL_TLS1_3_KEY_EXCHANGE_MODE_PSK_EPHEMERAL);
+}
+
+}  // namespace
+
+Conn* openPskClient(const std::string& identity, const std::string& key, std::string& err) {
+  Conn* c = make(false, err);
+  if (!c) return nullptr;
+  pskOnly(c);
+  return finish(c, mbedtls_ssl_conf_psk(&c->conf, reinterpret_cast<const unsigned char*>(key.data()), key.size(),
+                                        reinterpret_cast<const unsigned char*>(identity.data()), identity.size()), err);
+}
+
+Conn* openPskServer(std::function<std::string(const std::string&)> lookup, std::string& err) {
+  Conn* c = make(true, err);
+  if (!c) return nullptr;
+  pskOnly(c);
+  c->pskLookup = std::move(lookup);
+  mbedtls_ssl_conf_psk_cb(&c->conf, pskCb, c);
+  return finish(c, 0, err);
+}
+
+const std::string& pskIdentity(Conn* c) { return c->pskId; }
+
+Conn* openPake(bool server, const std::string& password, std::string& err) {
+  static const int suites[] = {MBEDTLS_TLS_ECJPAKE_WITH_AES_128_CCM_8, 0};
+  Conn* c = make(server, err);
+  if (!c) return nullptr;
+  mbedtls_ssl_conf_min_tls_version(&c->conf, MBEDTLS_SSL_VERSION_TLS1_2);
+  mbedtls_ssl_conf_max_tls_version(&c->conf, MBEDTLS_SSL_VERSION_TLS1_2);
+  mbedtls_ssl_conf_ciphersuites(&c->conf, suites);
+  c = finish(c, 0, err);
+  if (!c) return nullptr;
+  int rc = mbedtls_ssl_set_hs_ecjpake_password(&c->ssl, reinterpret_cast<const unsigned char*>(password.data()), password.size());
+  if (rc != 0) { err = describe(c, rc); destroy(c); return nullptr; }
+  return c;
+}
+
+std::string randomBytes(size_t n) {
+  std::string s(n, '\0');
+  if (!psaReady() || psa_generate_random(reinterpret_cast<unsigned char*>(s.data()), n) != PSA_SUCCESS) return std::string();
+  return s;
+}
+
 void destroy(Conn* c) {
   if (!c) return;
   mbedtls_ssl_free(&c->ssl);
@@ -168,7 +241,8 @@ State read(Conn* c, std::string& out) {
     int rc = mbedtls_ssl_read(&c->ssl, buf, sizeof buf);
     if (rc > 0) { out.append(reinterpret_cast<char*>(buf), static_cast<size_t>(rc)); continue; }
     if (rc == 0 || rc == MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY) { c->closed = true; return State::Closed; }
-    if (rc == MBEDTLS_ERR_SSL_WANT_READ || rc == MBEDTLS_ERR_SSL_WANT_WRITE || rc == MBEDTLS_ERR_SSL_RECEIVED_NEW_SESSION_TICKET) return State::Ready;
+    if (rc == MBEDTLS_ERR_SSL_RECEIVED_NEW_SESSION_TICKET) continue;   // a TLS 1.3 message of its own: the bytes fed after it are still to read
+    if (rc == MBEDTLS_ERR_SSL_WANT_READ || rc == MBEDTLS_ERR_SSL_WANT_WRITE) return State::Ready;
     c->failed = true;
     c->err = describe(c, rc);
     return State::Failed;

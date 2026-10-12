@@ -37,7 +37,7 @@ build/zinc doctor                                   # engine, renderer, pinned t
 tests/run --only <name>                             # one test; tests/run --changed: the tests mapped to your changes
 ```
 
-Main `zinc` commands (table in `next/src/cli_core.cpp`): `run`, `build` (`--target` cross builds with the pinned zig), `check`, `test`, `new`/`init`, `dev` (watch + DevTools inspector), `export`, `deploy`, `pack`/`fuse` (.zapp), `publish`/`update-app`, `add`/`remove`/`install`/`plugins`/`trust` (signed plugin index), `capture`, `bench`, `toolchain`, `explain`, `lsp`, `flash`.
+Main `zinc` commands (table in `next/src/cli_core.cpp`): `run`, `build` (`--target` cross builds with the pinned zig), `check`, `test`, `new`/`init`, `dev` (watch + DevTools inspector), `export`, `deploy`, `pack`/`fuse` (.zapp), `publish`/`update-app`, `add`/`remove`/`install`/`plugins`/`trust` (signed plugin index), `capture`, `bench`, `toolchain`, `explain`, `lsp`, `flash`, `agent` (the daemon that makes a Linux or macOS machine a device) and `device` (its client: what adb does, over the network; `docs/reports/zinc-next-agent.md`).
 Useful environment: `ZINC_HEADLESS=1`, `ZINC_DETERMINISTIC=1`, `ZINC_FRAMES=n`, `ZINC_SHOT=file.png`, `ZINC_SCALE=1..4`, `ZINC_HOME` (toolchains and caches, default `~/.zinc`), `ZN_TRAP_TRACE=1`, `ZN_DUMP_JSX=<name>`.
 
 ## Development workflow: the backlog
@@ -119,7 +119,7 @@ Between 2026-10-10 08:00 and 2026-10-11 09:00 the sessions closed 129 tasks and 
 - Comparison and correctness: `diff-matrix` (interpreter vs AOT vs frozen), `oracle` (reference tsc), `test262`, `dts-walk`, `abi-check`, `example-output`, `examples-status`, `layout-fuzz`, `layout-fixtures`, `webgl-conformance`, `three-compare`, `fuzz` (libFuzzer).
 - Pixels: `proto-capture` (prototype pixel goldens: `compare`, `--canary`, `--all`), `pngdiff`, `pixel-compare`, `glcompare`, `style-neutrality`, `contrast-check`, `oklab-tints`, `scene-texts` (the TEXT strings of a scene dump); `cdp.py` drives headless Chrome.
 - Performance: `bench`, `bench-gate` (fails above 15%), `bench-m1`, `bench-m4`, `bench-layout`, `bench-render`, `resmon` (CPU, RSS, energy); log every number in `docs/reports/zinc-next-perf.md`.
-- Devices: `device <user@host>` (a Linux board over ssh: `status`, `sysroot` for cross-built plugins, `push`, `run`, `shot`, `profile`, `stacks`; `docs/reports/raspberry-pi.md`).
+- Devices: `zinc agent` on the device and `zinc device` on the workstation for everything a paired device does (shell, files, apps, logs, forwarded ports); `device <user@host>` (the measuring tool, a Linux board over ssh: `status`, `sysroot` for cross-built plugins, `push`, `run`, `shot`, `profile`, `stacks`; `docs/reports/raspberry-pi.md`).
 - Packaging and distribution: `package`, `sign-macos`, `appimage`, `build-wasm`, `build-esp32-core`, `index-repo` (signed TUF index), `tlog`, `plugin-split`, `gh-org-setup`.
 
 ## Documentation and references

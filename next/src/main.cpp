@@ -21,6 +21,9 @@
 #include "frontend/plugin_manifest.h"
 #include "frontend/project.h"
 #include "cli_core.h"
+#ifdef ZN_AGENT
+#include "agent/agent.h"
+#endif
 #include "lsp/lsp.h"
 #include "frontend/capabilities.h"
 #include "gl/webgl_js.h"
@@ -1317,6 +1320,10 @@ int main(int argc, char** argv) {
   }
   {   // help, init and the bare project commands (ZN-138)
     std::vector<std::string> cl(argv, argv + argc);
+#ifdef ZN_AGENT   // the device agent and its client (ZN-729); before --help is read, which belongs to the command a remote shell runs
+    if (argc >= 2 && !std::strcmp(argv[1], "agent")) return zn::agent::serve({cl.begin() + 2, cl.end()}, zn::tc::executablePath(), kVersionText);
+    if (argc >= 2 && !std::strcmp(argv[1], "device")) return zn::agent::device({cl.begin() + 2, cl.end()}, zn::tc::executablePath());
+#endif
     if (argc >= 2 && !std::strcmp(argv[1], "publish") && std::any_of(cl.begin(), cl.end(), [](const std::string& a) { return a == "--itch" || a == "--site"; })) return zn::cli::publishStore(cl);
     if (argc >= 2 && (!std::strcmp(argv[1], "help") || !std::strcmp(argv[1], "--help") || !std::strcmp(argv[1], "-h"))) { if (!std::strcmp(argv[1], "--help") || !std::strcmp(argv[1], "-h")) cl[1] = "help"; return zn::cli::help(cl); }
     if (argc >= 3 && (!std::strcmp(argv[argc - 1], "--help") || !std::strcmp(argv[argc - 1], "-h"))) return zn::cli::help({cl[0], "help", cl[1]});
