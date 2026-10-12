@@ -130,6 +130,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-728: Atelier: Add Library from the signed index (`zinc add` fails with no trusted root today, the import line is written instead); the Profile and Frames views of the old shell (ZN-143) are out of the window.
 - ZN-728: `ZINC_INPUT` has no pointer modifiers, so Alt+click cannot be scripted in a test.
 
+- ZN-729.05: `zinc device deploy --inspect`, a pack with `import 'zinc:devtools'` in front as `zinc dev` does, so any app can be inspected (today only an app that imports it has an inspector).
+- ZN-729.05: `zinc device debug <app>`, the app restarted under `zinc debug --cdp` with its port forwarded (today: `zinc device forward` by hand).
+- ZN-729.05: `inspect --all` follows apps started later (it lists those running when it starts).
+- ZN-729.05: the app chooses its inspector port (`ZINC_DEVTOOLS_PORT=0`) and tells the agent, closing the gap between the agent finding a port free and the app listening.
 - ZN-729: the pairing code on the device's screen (a Zinc window, or the app's splash) and as a QR code, for devices nobody has a terminal on.
 - ZN-729: IPv6 for the agent's listener and its discovery; today both are IPv4.
 - ZN-729: build mbedTLS with `MBEDTLS_THREADING_PTHREAD` and drop the agent's lock around its calls, when several large transfers at once are a real case (measure first).
@@ -240,6 +244,7 @@ The next backlog review turns lines into tasks or deletes them.
 ## Cross-platform pass
 
 - ZN-730: museum-table's film on the real `/dev/fb0` of the Pi 3B+ (off screen so far) and at a fixed 1400 MHz clock; the ISP (`/dev/video12`) handing the picture in BGRX at the drawn size (ZN-731).- ZN-729: `zinc agent` on Linux (x86_64 and a Raspberry Pi): `tests/t0/agent.sh` and `tests/t1/agent_apps.sh` there (forkpty with libutil, /proc figures, the temperature, a GUI app started from the agent under systemd), and a pairing between two machines over Wi-Fi with discovery through a real network.
+- ZN-729.05: `tests/t1/agent_inspect.sh` on Linux and a Pi: `top`'s CPU and memory come from /proc there, the temperature from thermal_zone0 (written, never run).
 - ZN-729: `zinc device` on Windows (Winsock, ConPTY for the terminal); the agent itself stays Linux and macOS.
 
 - ZN-726: museum-table's zoom on the Pi 3 (GLES 2): frame time at the ladder steps, sharpness; on a target without TrueType files a scaled text takes the nearest baked size.
