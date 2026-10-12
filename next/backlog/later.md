@@ -159,6 +159,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-729.06: a device lost in the middle of a run (the "Lost <name>" status is written, never run), and Debug on a device in a scripted session (tried by hand only).
 - ZN-728: with a sketch that prints without pause (230 lines a second), Stop had no effect in 50 s; cause not looked for, the console rebuilding its rows at each line is where to look first.
 - ZN-729: the agent hands its own environment to the apps it starts: under `tests/run` that is `ZINC_DETERMINISTIC=1`, and a timer then fires without pause (found by ZN-729.06, whose test unsets it; `agent_apps` and `agent_inspect` pass `ZINC_REALTIME` by hand). Decide what an app inherits.
+- ZN-729.08: `info` gives the kernel's architecture, so a 32-bit system on a 64-bit kernel (Pi OS 32-bit on a Pi 4) says `aarch64` and gets an export it cannot run; report the agent's build architecture.
+- ZN-729.08: move the fbdev default for a Pi into `zinc export --target rpi*`, so export and deploy agree (today deploy alone sets `ZINC_DISPLAY=fbdev` for a project that names no display).
+- ZN-729.08: deploy sends the whole export each run (hero-rpi is 58 MB, not stripped); send only changed files, and strip.
+- ZN-729.08: Atelier shows its send stage on the line `packed`; an export is sent under the build stage.
 - ZN-729: the pairing code on the device's screen (a Zinc window, or the app's splash) and as a QR code, for devices nobody has a terminal on.
 - ZN-729: IPv6 for the agent's listener and its discovery; today both are IPv4.
 - ZN-729: build mbedTLS with `MBEDTLS_THREADING_PTHREAD` and drop the agent's lock around its calls, when several large transfers at once are a real case (measure first).
@@ -280,6 +284,7 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-729.03: `zinc dev --device` and `zinc device deploy` pack for the workstation's target; pack for the device's (its asset packs, its plugins cross-built from what `info` says), or a Mac cannot drive a Pi app that has plugins.
 - ZN-729.03: `zinc dev --device` on a real second machine over Wi-Fi: save-to-running time with megabytes of program and assets.
 - ZN-729.06: Atelier's devices panel on a real device and in a real window (discovery by mDNS and pairing by name are not in the committed test).
+- ZN-729.08: deploy to `rpi2`, `rpi1`, `linux` and `x86_64-linux` devices on real machines (mapped, never built); `tests/t1/agent_deploy.sh` runs on macOS only.
 - ZN-729: `zinc device` on Windows (Winsock, ConPTY for the terminal); the agent itself stays Linux and macOS.
 
 - ZN-726: museum-table's zoom on the Pi 3 (GLES 2): frame time at the ladder steps, sharpness; on a target without TrueType files a scaled text takes the nearest baked size.
