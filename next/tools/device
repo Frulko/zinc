@@ -155,8 +155,9 @@ def cmd_push(dev, args):
     if subprocess.run([ZINC, "export", project, "--target", target, "-o", out], env=e).returncode != 0:
         die("zinc export failed")
     ssh(dev, "mkdir -p ~/zn/" + shlex.quote(name))
-    # -L: an asset that is a link to another project's file is copied as a file
-    subprocess.run(["rsync", "-aL", "--delete", "-e", " ".join(SSH), out + "/", "%s:zn/%s/" % (dev, name)], stdin=subprocess.DEVNULL, check=True)
+    # -L: an asset that is a link to another project's file is copied as a file. Nothing is deleted there: what was put beside the program
+    # on the device (hero's media/ link) stays
+    subprocess.run(["rsync", "-aL", "-e", " ".join(SSH), out + "/", "%s:zn/%s/" % (dev, name)], stdin=subprocess.DEVNULL, check=True)
     print("~/zn/%s on %s (tools/device run %s)" % (name, dev, name))
 
 
