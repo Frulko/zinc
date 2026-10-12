@@ -62,7 +62,7 @@ The 3D target owns its CPU output, resolved color/depth, two PBOs and four-sampl
 image borrows the CPU output; adding `images.borrowedBytes` to `3d.targets.cpuBytes` would count that memory
 twice. Video's five output buffers use 8.20 decimal MB; FFmpeg's internal frames and hardware decoder surfaces
 are additional, unmeasured storage. The two source contexts remain open when the film is stopped. glTF
-document handles were zero throughout the visit: this packaged model uses the imported representation.
+document handles were zero throughout the visit: the museum loads its vase from an OBJ through `viewer.ts`.
 
 Baked images own 75,596,032 B and baked font payloads own 11,611,819 B at startup. The baked blob references
 87,353,953 B mapped from the executable separately. No entries were resident in the new asset manager for

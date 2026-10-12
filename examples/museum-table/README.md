@@ -98,6 +98,10 @@ renderer still embeds the same images, so the development build duplicates that 
 development pack. With 15 bundled dylibs (34.65 MB), the app is 137.51 MB and its ZIP 66.82 MB. Measurements use
 decimal MB; filesystem tools displaying MiB give smaller numbers.
 
+The [asset storage and RAM report](../../docs/reports/zinc-next-assets-outside-binary.md) lists the exact
+embedded images, the proposed external resource layout and what the memory tests establish. Externalization
+and automatic view unload have not yet been implemented.
+
 ## Remote lifecycle diagnostics (Zinc Next)
 
 Build once, then let the driver start and stop the native app and repeat the actual player transitions:
