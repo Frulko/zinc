@@ -2,6 +2,8 @@
 // Also the state of the palette (commands, examples, libraries) and of the one-line prompt of the status line.
 import { createSignal } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
+import * as sys from 'zinc:sys';
+import * as dialog from 'zinc:system/dialog';
 import { Tween, easeOut, easeInOut } from './motion';
 import { active, activate, Buffer, closeBuffer, cycle, saveAll, say, newSketch, openSketch, newFile, renameFile, deleteFile,
   sketchDir, sketchbook, mainFile, openFile, baseName } from './workspace';
@@ -114,7 +116,17 @@ export function addLibrary(name: string): void {
 
 // ---------------------------------------------------------------- the table
 add('File', 'new', 'New Sketch', 'CmdOrCtrl+N', () => { setStartOpen(false); newSketch(); });
-add('File', 'open', 'Open Sketch…', 'CmdOrCtrl+O', () => ask('Open the sketch folder', sketchDir() === '' ? sketchbook() : sketchDir(), (v: string) => { if (openSketch(v)) setStartOpen(false); }));
+/** Open Sketch…: the system's own folder dialog in a real window; the one-line prompt where there is none (a scripted or headless run, a desktop without dialogs). */
+function chooseSketch(): void {
+  const from = sketchDir() === '' ? sketchbook() : sketchDir();
+  if (!dialog.isSupported() || sys.env('ZINC_HEADLESS') !== '' || sys.env('ZINC_DETERMINISTIC') !== '') { ask('Open the sketch folder', from, (v: string) => { if (openSketch(v)) setStartOpen(false); }); return; }
+  const o = new dialog.OpenOptions();
+  o.title = 'Open a sketch folder'; o.directory = true; o.defaultPath = from;
+  const abort = sys.env('ZINC_ATELIER_DIALOG_MS');   // a test: the dialog closes by itself after that long
+  if (abort !== '') o.abortMs = parseInt(abort);
+  dialog.open(o).then((paths: string[] | null) => { if (paths !== null && paths.length > 0 && openSketch(paths[0])) setStartOpen(false); });
+}
+add('File', 'open', 'Open Sketch…', 'CmdOrCtrl+O', () => chooseSketch());
 add('File', 'examples', 'Examples…', 'CmdOrCtrl+Shift+O', () => setStartOpen(true));
 add('File', 'open-file', 'Open File…', 'CmdOrCtrl+P', () => { if (sketchDir() !== '') openPalette(PAL_FILES); });
 add('File', 'save', 'Save', 'CmdOrCtrl+S', () => { saveAll(); const b = active(); if (b !== null && !(b as Buffer).modified()) say('Saved'); check(); }, true);
