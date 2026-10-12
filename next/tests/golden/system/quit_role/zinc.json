@@ -1,0 +1,1 @@
+{ "name": "quit_role", "entry": "main.ts", "permissions": ["menu"] }

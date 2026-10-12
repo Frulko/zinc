@@ -1,0 +1,1 @@
+{ "name": "close_without_window", "entry": "main.ts", "permissions": ["menu"] }

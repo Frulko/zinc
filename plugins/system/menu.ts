@@ -1,6 +1,6 @@
 // zinc:system/menu: the application menu and context menus (docs/reports/system-integration.md 4.3). One serializable model: items carry ids, handlers register by id here and the native
 // side only ever sends ids back. Roles expand here (labels, accelerators), so the simulator, the macOS menu bar and the UI kit's menu bar all show the same menus.
-import { callRaw, on, supports } from 'zinc:system';
+import { callRaw, on, supports, quit } from 'zinc:system';
 import { APP } from 'zinc:system/app';
 import { GRANTED } from 'zinc:system/permissions';
 import { parseAccelerator, formatAccelerator, macModifiers } from './accelerator';
@@ -102,7 +102,7 @@ function wire(): void {
   wired = true;
   on('menu-click', (a: string[]) => {
     const i = ids.indexOf(a[0]);
-    if (i < 0) return;
+    if (i < 0) { if (a[0] === 'role:quit') quit(); return; }   // Quit of the app menu ends the app unless the app answers it itself
     const source = a.length > 1 ? a[1] : 'app';
     for (const cb of cbs[i]) cb(source);
   });

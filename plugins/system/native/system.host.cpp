@@ -206,7 +206,7 @@ struct Sim : NativeSystem, zrt::Poller {
     char buf[512];
     for (const ZnSystemOp& o : kSystemOps) {
       if (strcmp(name, o.op)) continue;
-      if (!allowed(o.permission)) {
+      if (!allowed(o.permission) && strcmp(name, "window.confirmClose")) {   // the close this backend held back must go through whatever the app was granted: without it no window closes
         log("[system] denied ", name);
         int n = snprintf(buf, sizeof buf, "{\"error\":{\"code\":\"denied\",\"message\":\"%s needs the permission %s (zinc.json \\\"permissions\\\")\"}}", name, o.permission);
         return zrt::String::from(buf, (uint32_t)n);

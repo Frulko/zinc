@@ -1,0 +1,4 @@
+[system] menu.setApp {"template":[{"label":"App","menuRole":"appMenu","submenu":[{"label":"About App","id":"role:about","type":"normal","role":"about","native":true},{"type":"separator"},{"label":"Services","id":"role:services","type":"normal","role":"services","native":true},{"type":"separator"},{"label":"Hide App","id":"role:hide","type":"normal","role":"hide","native":true,"accelerator":"Cmd+H","key":"H","mods":1048576},{"label":"Hide Others","id":"role:hideOthers","type":"normal","role":"hideOthers","native":true,"accelerator":"Alt+Cmd+H","key":"H","mods":1572864},{"label":"Show All","id":"role:unhide","type":"normal","role":"unhide","native":true},{"type":"separator"},{"label":"Quit App","id":"role:quit","type":"normal","role":"quit","native":false,"accelerator":"Cmd+Q","key":"Q","mods":1048576}]}]}
+[system] event {"type":"window","args":["close-requested"]}
+[system] window.confirmClose {}
+frame 1
