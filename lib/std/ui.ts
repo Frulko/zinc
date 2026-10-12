@@ -4675,9 +4675,11 @@ function pressAt(px: number, py: number, button: i32): void {
     }
   }
   dragScroller = selecting >= 0 || keepsGrab(capture) || !dragScrolls() ? -1 : scrollerTop(px, py, 3);
-  // a scroll area that something covers at this point (a splash screen, an overlay over the page) is not what the finger is on: its drags
-  // stay with what it touches (hero's home screen follows the finger instead of scrolling the page hidden under it)
-  if (dragScroller >= 0 && !isAncestor(dragScroller, hitExact(px, py, HIT_NODE))) dragScroller = -1;
+  // a scroll area under something else that takes the pointer at this point (a splash screen with its own handlers over the page) is not
+  // what the finger is on: its drags stay with what it touches (hero's home screen follows the finger instead of scrolling the page hidden
+  // under it). What takes the pointer inside the scroll area, or around it (an ancestor), leaves the area its drags; so does a node that
+  // takes nothing (the transparent screens a program stacks over the one it shows).
+  if (dragScroller >= 0 && t >= 0 && !isAncestor(dragScroller, t) && !isAncestor(t, dragScroller)) dragScroller = -1;
   dragX = px; dragY = py; lastX = px; lastY = py; dragging = false;
   if (dragScroller >= 0) { catchScroll(dragScroller); wakeScroll(dragScroller); }   // a press stops the inertia
   if (button === 0) gestureBegin(t, px, py);
@@ -4695,7 +4697,7 @@ function releaseAt(px: number, py: number, button: i32): void {
   if (tapEdit >= 0) {
     const t = tapEdit;
     tapEdit = -1;
-    if (!dragging && nodes[t].alive && nodes[t].ed !== null && isAncestor(t, hitExact(px, py, HIT_NODE))) {
+    if (!dragging && nodes[t].alive && nodes[t].ed !== null && isAncestor(t, hitExact(px, py, HIT_ANY))) {
       setFocusTo(t);
       boxOf(t);
       editPress(t, nodes[t], nodes[t].ed as Edit, (px - boxX) / boxK, (py - boxY) / boxK, clicks, false);
