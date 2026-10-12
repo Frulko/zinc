@@ -60,7 +60,7 @@ static Prog* cur_prog;        // the program in use, nullptr after another one w
 static uint32_t pstamp;       // the frame's number, for Prog::stamp
 static bool paint_on;         // a gradient paint is set (set_paint): the quads take the program with the paint block
 static int only = -1;         // ZINC_GL_ONLY=<mode>: every quad drawn as that mode (wrong pixels: what a mode's shader costs)
-static bool strips = false;   // ZINC_GL_STRIPS=1: the edges of STROKE and POLY as RAMP quads (below), being measured (ZN-725 #4)
+static bool strips = !GLR_CORE;   // the edges of STROKE and POLY as RAMP quads (below); ZINC_GL_STRIPS=0 / 1
 struct Run { int first; uint8_t key; };
 enum { A_BOX = 2, A_PAR, A_C1, A_C2, A_Z };   // attribute locations, the same in every program (zgl_program binds the names; a_pos is 0)
 static float cur_z;          // NDC depth of the command being drawn: later commands are nearer (GL_LESS)

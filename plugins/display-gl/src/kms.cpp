@@ -183,11 +183,13 @@ bool zgl_backend_init(const HalConfig* cfg) {
   // a depth buffer lets the GL renderer skip what opaque rectangles hide (ZN-412.01); a config without one is taken when there is none.
   // 8 stencil bits are asked for first: without them the renderer fills LINE and POLY in CPU tiles (eglChooseConfig puts the configs with the
   // smallest stencil first, so a list that does not name it gets none: a Pi 3 drew the map of the navigation on one core)
+  // ZINC_GL_MSAA=4: a multisampled window, to measure it against the replay's own antialiased edges (ZN-725; off: see docs/reports/raspberry-pi.md)
+  const int samples = getenv("ZINC_GL_MSAA") ? atoi(getenv("ZINC_GL_MSAA")) : 0;
   EGLConfig cfgs[64], chosen = nullptr;
   for (int k = 0; k < 4 && !chosen; k++) {
     const int depth = k & 1 ? 0 : 16, stencil = k & 2 ? 0 : 8;
     const EGLint attr[] = {EGL_SURFACE_TYPE, EGL_WINDOW_BIT, EGL_RED_SIZE, 8, EGL_GREEN_SIZE, 8, EGL_BLUE_SIZE, 8, EGL_ALPHA_SIZE, 0, EGL_DEPTH_SIZE, depth,
-                           EGL_STENCIL_SIZE, stencil, EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT, EGL_NONE};
+                           EGL_STENCIL_SIZE, stencil, EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT, EGL_SAMPLE_BUFFERS, samples > 1, EGL_SAMPLES, samples > 1 ? samples : 0, EGL_NONE};
     EGLint n = 0;
     eglChooseConfig(dpy, attr, cfgs, 64, &n);
     for (int i = 0; i < n && !chosen; i++) {
@@ -204,7 +206,9 @@ bool zgl_backend_init(const HalConfig* cfg) {
   if (getenv("ZINC_GL_INFO")) print_info();
   open_inputs();
   px = cfg->width / 2.f; py = cfg->height / 2.f;
-  fprintf(stderr, "display-gl: %dx%d@%d, %s\n", mode.hdisplay, mode.vdisplay, mode.vrefresh, glGetString(GL_RENDERER));
+  GLint got = 0;
+  glGetIntegerv(GL_SAMPLES, &got);
+  fprintf(stderr, "display-gl: %dx%d@%d, %s%s\n", mode.hdisplay, mode.vdisplay, mode.vrefresh, glGetString(GL_RENDERER), got > 1 ? ", 4x MSAA" : "");
   return true;
 }
 

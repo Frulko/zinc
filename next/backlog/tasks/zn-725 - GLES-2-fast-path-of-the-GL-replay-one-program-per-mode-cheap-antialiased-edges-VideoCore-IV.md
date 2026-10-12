@@ -7,7 +7,7 @@ status: In Progress
 assignee:
   - '@parallel'
 created_date: '2026-10-12 10:41'
-updated_date: '2026-10-12 11:38'
+updated_date: '2026-10-12 11:44'
 labels:
   - perf
   - gl
@@ -28,7 +28,7 @@ Owner request, 2026-10-12, with the Pi 3B+ plugged in: put the UI and the maps o
 - [x] #1 On GLES 2 every batch is drawn by a program compiled for its mode (ZMODE, without the gradient paint block unless a paint is set), compiled at first use; desktop GL is unchanged (its goldens and draw counts)
 - [x] #2 tests/native/gl_replay_es2 checks every program variant as GLSL ES 1.00 with glslang
 - [x] #3 The GLES 2 pixels of hero home, gallery and navigation are those of the single program (a capture before and after on the device or on a GLES 2 context of the Mac, tools/pngdiff)
-- [ ] #4 POLY and STROKE edges on GLES 2 cost no distance maths per pixel over a bounding box: thin strips with the coverage in a vertex attribute, or 4x MSAA with plain triangles, chosen on measured numbers, the visible quality kept (captures compared with the software frame)
+- [x] #4 POLY and STROKE edges on GLES 2 cost no distance maths per pixel over a bounding box: thin strips with the coverage in a vertex attribute, or 4x MSAA with plain triangles, chosen on measured numbers, the visible quality kept (captures compared with the software frame)
 - [ ] #5 hero navigation driving on the Pi 3B+: present p50 below the software bands at the same clock (43 ms at 600 MHz, tools/device profile), home and gallery not slower than before; the first frame under 0.5 s
 - [ ] #6 The mid-frame stalls VC4_DEBUG=perf reports (Blocking on resource BO for bo map) are attributed, and removed where the cause is the replay's (uploads into a texture or buffer in use, a clear after the first draw)
 - [ ] #7 Numbers in docs/reports/raspberry-pi.md and docs/reports/zinc-next-perf.md; the default renderer of display-gl on GLES 2 follows them (gl when it wins, else cpu)
@@ -58,4 +58,16 @@ Plan (2026-10-12, worktree agent): the criteria in their order, each change kept
 One program per mode wins or ties on every screen and builds fastest. What differs from 09-29: a program switch no longer ends the batch (one vertex upload, a draw call per run), so a switch costs a draw call, not an upload; and a pixel of the UI core pays two texture reads and three box distances. No GPU reset during the runs (dmesg, 0).
 
 State of this commit: criteria 1 to 3. The RAMP mode and the strip geometry of #4 are in the file but off (ZINC_GL_STRIPS=1 turns them on, on desktop GL too); their numbers follow.
+
+#4, the edges of POLY and STROKE, measured on the Pi (600 MHz, navigation driving, present p50, 150 to 200 frames; ZINC_GL_MSAA=4 is a new switch of kms.cpp that takes a 4-sample window config, ZINC_GL_FRINGE=0 drops POLY's fringe passes):
+- distance maths over boxes (the state of #1): 82.3 ms
+- no antialiased POLY edge at all, strokes and convex polygons as strips (ZINC_GL_STRIPS=1 ZINC_GL_FRINGE=0), the floor: 35.1 ms
+- 4x MSAA with that same geometry and no fringe pass (the "plain triangles" option): 57.3 ms; 4x MSAA with the strips too: 73.4 ms
+- strips with the coverage in a vertex attribute, no MSAA: 46.8 ms (200 frames), 49.5 ms (150 frames)
+MSAA costs 22 ms on this frame (every blended pixel reads and writes four samples, the tiles are 32 pixels), the strips' three fringe passes 12 to 14 ms: strips are chosen. MSAA would also antialias only the frames drawn straight into the window, not those drawn into the surface texture (no EXT_multisampled_render_to_texture on this driver).
+- What the strips are (runtime/gl_replay.cpp, RAMP mode: coverage = w - |t| from the vertices): an opaque STROKE is one quad per segment across its width, corners shared on the bisector under 37 degrees of turn, a fan disc at sharper joins and at the ends; a translucent STROKE keeps the capsules (they blend each pixel once); a convex POLY of 3 to 8 points is its shape shrunk by half a pixel plus one quad per edge, without stencil; other POLYs keep stencil then cover with two half-pixel quads per edge (left, right) in place of the edge's box, the side chosen by drawing one array instead of a test per pixel.
+- home 22.7 -> 18.4 ms with them, gallery 33 to 38 -> 36.5 (the same within the noise of the 33.3 ms step).
+- Quality, frame 60 against the software frame (tools/glcompare, pixels over 24 / mean error): navigation 0.216% / 0.366 (boxes 0.189% / 0.360, the single program 0.226% / 0.387), home 0.063% / 0.098 (0.054 / 0.095; 0.070 / 0.101), gallery 0.048% / 0.153 (0.041 / 0.150; 0.055 / 0.158). On the Mac (ZINC_GL_STRIPS=1 on desktop GL against its own technique): shapes 0.986% both, navigation 0.422% against 0.421%, lottie-gallery 1.154% against 1.290%, svg-gallery 3.911% against 3.916%, hero the same pixels. What differs to the eye: nothing on the map at 4x zoom; hairline rings (lottie) are more even and a little lighter.
+- Seen in every GL capture of the map, before this task too: single background-coloured pixels inside some POLY fills (the software frame has none). Not from the strips; not investigated here.
+- Not under the software bands yet (43.3 ms): 46.8 to 49.5. The frame's CPU side is now the larger part (31 to 54 ms "to submit", which includes 2.5 to 4 ms a frame of glyph uploads that stall, #6).
 <!-- SECTION:NOTES:END -->
