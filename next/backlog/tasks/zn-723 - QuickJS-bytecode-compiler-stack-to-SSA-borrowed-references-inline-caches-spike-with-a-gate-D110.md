@@ -6,6 +6,7 @@ title: >-
 status: Backlog
 assignee: []
 created_date: '2026-10-12 09:45'
+updated_date: '2026-10-12 09:51'
 labels:
   - perf
   - quickjs
@@ -30,3 +31,9 @@ Owner, 2026-10-12, on examples/js-p5 at 40 fps: the number of boxes of a sketch 
 - [ ] #3 the test262 subset and the QuickJS T1 tests give the same results with the compiled functions bound
 - [ ] #4 code size against the bytecode reported; a go or no-go recorded against D110 with what the next level (number types behind guards, object creation) would need
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-10-12, from D110. The compiler is the front half of the JIT the owner asked for: keep the lowering (bytecode to values, caches, guards) apart from the C emitter, so a machine-code backend can follow on desktop. Longbridge's quickjs-jit 0.12.11 (github.com/longbridge/rquickjs, MIT, Cranelift) is the prior art to read first: 32 to 45x on numeric kernels, 0.99 to 1.00x on its realistic panel, because 124 of about 255 opcodes are refused (closure variables, push_this, typeof, for_of, try) and every call returns through JS_CallInternal (its docs/PERFORMANCE_ROADMAP_V8_BUN.md): cover closures, this and calls before numeric speculation, p5 and three are made of them. Runtime fast paths the js-p5 samples point at, as patches of the queue, measured one by one: the copy of a plain object (Object.assign and spread: JS_DefineProperty, JS_CreateProperty, add_shape_property), Array.prototype.every and slice on fast arrays, malloc and free of short-lived arrays.
+<!-- SECTION:NOTES:END -->
