@@ -152,7 +152,7 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-712: a JS project cannot name its engine in zinc.json, so `zinc run <dir>` without `--engine quickjs` fails with a compile error.
 - ZN-712: importmap.json maps exact names only; a prefix such as `three/addons/` fails, so each addon needs its line.
 - ZN-712: ZINC_INPUT has no key release, so a scripted key stays down in the web environment.
-- ZN-712: js-p5 (144 lit boxes) took about 80 ms a frame on QuickJS while other trees built; measure alone and profile p5's WEBGL path.
+- ZN-712: js-p5 (144 lit boxes) measured alone on the M1 Pro, 2026-10-12: 17 ms of script a frame on QuickJS, 40 fps on a 120 Hz display; the engine is the bound (D110, ZN-723). The canvas goes to the window through a read and an upload (1.7 ms at 1600 x 1000): draw a full-window WebGL canvas straight into the window.
 - ZN-712: when ZN-570 lands, add Text to js-pixi and js-phaser and a 2D sketch to js-p5; when ZN-573 lands, listen to js-phaser's sounds and tick criterion 2.
 - ZN-650.11: a fused or exported table has no `zinc update-app` command, so it never updates; check and download should be a background operation of `zinc:system/update` (today they block the frame on curl with no timeout).
 - ZN-650.11: a published project that does not parse is accepted (signature and hash only), then shows an empty table; check the project before staging.

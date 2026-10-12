@@ -4,7 +4,7 @@ title: 'Spike (decision): a JIT JavaScript engine as an optional desktop engine'
 status: Backlog
 assignee: []
 created_date: '2026-10-09 08:12'
-updated_date: '2026-10-09 09:29'
+updated_date: '2026-10-12 09:46'
 labels:
   - games
   - js
@@ -32,3 +32,9 @@ Decision D44 (docs/reports/zinc-next-decisions.md, docs/reports/quickjs-aot-jit-
 - [ ] #1 numbers for the four demos on QuickJS and on the JIT engine
 - [ ] #2 a decision recorded against D3, D13 and D36 with a revisit condition
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-10-12, answered by D110 (owner: "we want a fast QuickJS or our VM fast"): no third-party JIT engine, this task is not to be worked; the next backlog review removes it. What was measured before the answer (docs/reports/zinc-next-perf.md, same day): the bench/qjs workloads on the system JavaScriptCore run 6 to 32x faster than on QuickJS with its JIT and 1.2 to 2.1x without; the framework embedded in a program has no JIT unless the executable carries com.apple.security.cs.allow-jit (bench/qjs/jsc-host.c). The four demos were not run on it.
+<!-- SECTION:NOTES:END -->

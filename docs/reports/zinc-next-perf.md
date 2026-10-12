@@ -672,3 +672,20 @@ AOT / native: fib 1.93x to 1.42x, sort 2.68x to **1.15x**, spectralnorm 1.14x, m
 Observed on the current development Mac (arm64), with warm native plugin and C++ object caches, during targeted verification; these are diagnostic timings, not a cold-build benchmark. `ZINC_HEADLESS=1 ZINC_FRAMES=3 next/build/zinc run --native -v examples/museum-table` succeeded: 43 files, 618 functions, Zinc compile 205 ms, resources 76 ms, C++ emission 3.64 s, 14/14 objects reused, link 377 ms, native build stage 11.2 s including emission and object-cache preparation. The resulting executable is 93,647,232 bytes. Parsing its embedded ZRS1 table gives 87,353,953 bytes of baked resources: 75,596,032 bytes of RGBA pixels across 15 images, 11,689,077 bytes of glyph tables/bitmaps, and 68,273 bytes of TrueType subsets plus format metadata. Museum source assets total 9,159,587 bytes; the dev asset report expands them to 79,048,233 bytes before pack overhead/compression. The old resource baker and the newer asset packs both hold those decoded images.
 
 The command runner now polls completed children rather than waiting on the oldest one; its progress costs no work on a cached native exec. No cold-build speed improvement or cross-platform performance claim is made.
+
+## JavaScript libraries: where js-p5's frame goes, and the ceilings (D110, 2026-10-12)
+
+The development Mac (M1 Pro, macOS 15.7.4, 120 Hz display), **under a load of 4.5 to 6 (another session worked), one run each: to retake alone**. The ratios are large against that noise.
+
+`build/zinc run ../examples/js-p5` (p5.js 1.11.13 in WEBGL mode, 144 lit boxes, 800 x 500 window, 1600 x 1000 canvas): `ZINC_PROFILE=1` gives work p50 16.13 ms and present p50 8.78 ms over 420 frames, 25 ms a frame (40 fps, three refreshes). `sample <pid> 4` on the main thread, 2,806 samples: the frame callback 69% (17.2 ms; the WebGL calls inside it 1.6 ms), the wait for the refresh in `SDL_GL_SwapWindow` 24% (6.0 ms), the upload of the canvas image `glr::draw_image` 4% (1.2 ms), the swap 2% (0.5 ms). Of the script's samples inside zinc (1,639), `JS_CallInternal` itself is 57%; the rest is QuickJS's runtime: `JS_DefineProperty`, `JS_CreateProperty`, `add_shape_property`, `JS_NewObjectFromShape`, `js_free_rt`, `js_arena_malloc`, `js_realloc_rt`. A copy of the sketch with every method of p5, its renderer, its shader and its matrix wrapped (the wrappers double the frame, so only counts and order count): per frame 6,480 `Shader.setUniform` (45 a box), 3,312 `RendererGL._arraysEqual`, 1,152 `Matrix.copy`, 144 `Renderer.pop`, 4,301 WebGL calls (30 a box).
+
+The same files on five engines, ms per frame (`bench/qjs`; three is three.js r186's CPU half for 500 meshes; p5shape is a kernel shaped like p5's path for one box, 144 a frame; the outputs are identical):
+
+| Workload | QuickJS-ng 0.17 (`zinc run`) | JavaScriptCore, no JIT | V8 jitless | JavaScriptCore | V8 (Node 24.14) |
+|---|---:|---:|---:|---:|---:|
+| three | 4.97 | 2.34 (2.1x) | 3.09 (1.6x) | 0.204 (24x) | 0.271 (18x) |
+| sprite | 8.02 | 3.74 (2.1x) | 8.29 (1.0x) | 0.250 (32x) | 0.477 (17x) |
+| objects | 0.747 | 0.598 (1.2x) | 0.463 (1.6x) | 0.118 (6.3x) | 0.100 (7.5x) |
+| p5shape | 8.45 | 6.05 (1.4x) | 4.75 (1.8x) | 0.31 (27x) | 1.71 (4.9x) |
+
+JavaScriptCore is the system's `jsc` (`/System/Library/Frameworks/JavaScriptCore.framework/Versions/Current/Helpers/jsc`, `--useJIT=false` for the second column; with `--useDFGJIT=false`, its baseline compiler alone, p5shape takes 1.77 ms). For the module workloads the import of `three` is rewritten to the path of `third_party/three/three.core.js`, and a first file gives `performance.now` from `preciseTime()`. The framework embedded in a program (`bench/qjs/jsc-host.c`) runs p5shape in 6.16 ms: its JIT is off unless the executable carries the entitlement `com.apple.security.cs.allow-jit`; signed ad hoc with it 0.41 ms, with the hardened runtime too (0.42 ms).
