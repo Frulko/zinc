@@ -4,7 +4,8 @@ title: >-
   Commands under an axis-aligned matrix take the plain raster paths (the
   museum's film at 11 updates a second on a Pi)
 status: Ready
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-12 13:50'
 labels:
   - perf
