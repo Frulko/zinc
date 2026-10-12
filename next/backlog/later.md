@@ -210,7 +210,14 @@ The next backlog review turns lines into tasks or deletes them.
 
 ## Cross-platform pass
 
-- ZN-334: display-gl's GL renderer on VideoCore IV (Pi 3, GLES 2) is GPU-bound: hero's navigation takes 184 ms of present a frame (63 draw calls, 6313 quads, the CPU idle at 89%) against 43 ms for the software bands on four cores (docs/reports/raspberry-pi.md, 2026-10-12). A GLES 2 path with cheap fragment shaders (4x MSAA resolves on a tiler instead of distance fringes, plain triangulated fills, fewer passes) is what would put the map on the GPU there.
+- ZN-725: a rounded CLIP on GLES 2 that does not read the framebuffer: the corner copy (`glCopyTexSubImage2D`) ends the driver's job, 26 of gallery's 39 stalls in 60 frames (gallery 22.8 ms against 13.8 for display-gl's cpu renderer).
+- ZN-725: then an hour of Kit and Forms on the GL renderer under `timeout -s KILL` with the GPU reset counter (the 2026-09-29 hang), and display-gl's default renderer "auto" outside macOS.
+- ZN-725: geometry kept across frames for maps (MESH, phase 4 of gpu-renderer-design.md): 22 ms of GPU work a frame on hero's map, and the city reprojected on the CPU at every frame.
+- ZN-725: fringe strips as 3 indexed vertices per point instead of 8 per edge (the three fringe passes are 6 of navigation's 25 ms); translucent strokes as strips blended once (they keep the capsule shader).
+- ZN-725: two glyph atlases used in turn, so an upload never waits for the previous frame (11 ms on a frame with new glyphs).
+- ZN-725: stray background-coloured pixels inside some POLY fills of the map on VideoCore IV, also before the task.
+- ZN-725: the GLES 2 path on v3d (Pi 4 and 5) and on Mali; the bands on the real `/dev/fb0` at 1400 MHz and with a heatsink; the program classes re-measured at 1400 MHz (they were compared at 600 MHz under a stray load).
+- ZN-725: hero's map as a GPU layer under a software UI overlay (display-gl `cpu` renderer with its bands on four threads, `zgl_layers`), the mix the owner asked about on 2026-10-12: the UI is cheapest in software on this GPU, moving geometry on the GPU.
 - ZN-334: display-gl defaults to `renderer: "cpu"`, which rasterizes on one core and uploads a texture: on a Pi it is slower than display-fbdev's bands (142 against 43 ms). Run its software path through render_bands.h, or make the default follow a measured choice per target.
 - ZN-334: hero and museum-table name no Linux display that suits every board (hero: fbdev; museum-table: none, exported with ZINC_DISPLAY). Decide the default driver of the `linux`/`rpi` targets once the two above are measured at full clock.
 

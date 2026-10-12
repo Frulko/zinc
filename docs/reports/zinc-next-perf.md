@@ -693,3 +693,20 @@ JavaScriptCore is the system's `jsc` (`/System/Library/Frameworks/JavaScriptCore
 ## ZN-722: museum resource lifecycle counters (2026-10-12)
 
 macOS arm64 MacBookPro18,3, uncontrolled load (nearby 22.6), native GL + FFmpeg, 3840x2160 frame; allocation diagnostics, not a quiet-machine speed benchmark. Three capture-free home/model/video/home cycles with two-second dwells: home RSS initially 347.3 MiB, then 315.0 / 320.9 / 321.2 MiB; runtime live blocks recur at 2,638. Home retains one 3D target: CPU pixels 12,960,000 B, estimated GPU storage 155,520,000 B; one mesh 326,088 B GPU; one 3D texture 12,582,912 B GPU estimate. Video stopped but allocated: 8,198,400 B output buffers and two open sources. 2D replay textures grow 31,262,720 -> 47,502,080 B once, then stable. Baked images 75,596,032 B and font payload 11,611,819 B CPU, plus referenced blob 87,353,953 B. A separate four-capture visual check reached RSS 818.6 MiB: capture/encoding changes the workload; default probe disables screenshots. Decoder/driver internals excluded, GPU storage is not residency, borrowed bytes must not be added to their owner. Commands, all ten samples and coverage limits: `zinc-next-museum-memory-probe.md`; raw local `.logs/museum-probe/samples.jsonl`.
+
+## The GL replay on GLES 2, Raspberry Pi 3B+ (ZN-725, D111, 2026-10-12)
+
+Pi 3B+ at 1400 MHz (a supply that holds; under 55 C before each run), VideoCore IV, Mesa 25.0.7, 800x480, hero, 200 frames, present p50 in ms, measured by the task's agent with `tools/device profile` (history at 600 MHz and under a stray load: the task notes).
+
+| screen | fbdev bands, 4 threads | display-gl `cpu` | GL replay before | GL replay after |
+| --- | --- | --- | --- | --- |
+| navigation, driving | 19.1 | 62.2 | 181.1 | 25.0 |
+| home | 14.9 | 14.9 | 31.0 | 14.8 |
+| gallery | 14.1 | 13.8 | 32.8 | 22.8 |
+| first frame | | | 1081 to 1126 | 277 to 295 |
+
+- Steps on navigation: one program per mode 65.2, edges as strips 29.7, five passes per POLY batch 25.0; 4x MSAA with plain triangles 35.5; no antialiased edge at all 19.2 (the floor).
+- CPU of the whole program per frame on navigation: bands 80.2 ms (289% of a core, the bare board goes from 51 to 58.5 C in eight seconds), GL replay 21.3 ms (56%, 53 to 54.2 C). Gallery: 23.8 ms (128%) against 14.7 (46%).
+- Why navigation stays at 30 frames a second on the GPU: about 22 ms of GPU work a frame (`ZINC_GL_TIME=1`: 33.6 ms with a glFinish, 11.6 of them CPU), so one vblank in two is missed. Geometry kept across frames (MESH) is the next step.
+- Draw calls a frame, before to after: navigation 63.5 to 103.1, home 11.6 to 73.4, gallery 86.1 to 107.6.
+
