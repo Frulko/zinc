@@ -174,3 +174,23 @@ What was missing, and what the session changed:
 Seen on the screen (`ZINC_PERF_HUD=1`, supply still weak: `get_throttled` 0x50005, ARM clock 600 MHz): the home screen at 52.7 fps (frame 19 ms),
 the Navigation tab at 11 fps; touch works (ft5x06, `event6`). These are observations under throttling, not measurements. The console cursor shows in
 the bottom left corner: `pi` is not in the `tty` group (see above).
+
+### Navigation at 11 to 15 fps: the supply, then the rasterizer (2026-10-12)
+
+Measured off the screen on the same Pi (museum-table stopped during the run), hero driving from the start of the route, the framebuffer a file:
+`ZINC_FBDEV_SIM=/tmp/fb.sim ZINC_FBDEV_SIM_FORMAT=800x480x16 ZINC_FBDEV_STATS=1 ZINC_FBDEV_SKIP_S=4 ZINC_PROFILE=1 ZINC_DEMO=navdrive ZINC_FRAMES=260 ./hero`.
+ARM clock 600 MHz for the whole run (`get_throttled` 0x50005: under-voltage), p50 in ms:
+
+| `ZINC_RENDER_THREADS` | fps | paint (logic thread) | raster (wall) | raster (CPU, all threads) | convert | diff |
+| --- | --- | --- | --- | --- | --- | --- |
+| 4 | 17.8 | 12.7 | 41.2 | 158.0 | 1.8 | 0.5 |
+| 1 | 6.8 | 12.7 | 137.9 | 137.8 | 2.3 | 0.5 |
+
+- The clock is the first factor: 600 MHz instead of 1400 (x2.3). The prototype's numbers above were taken at 1.4 GHz (25 ms of raster and 6 to 9 ms
+  of paint at 4 threads, 28 to 30 fps); scaled by the clock they give 58 and 14 to 21 ms, so Zinc Next is not slower than the prototype here.
+- A frame is paint then present, one after the other: 12.7 + 43.1 = 56 ms. The rasterizer is 73% of it and already uses the four cores (x3.3 for
+  +15% of CPU time); paint, the program's own drawing of the city, is 22% and runs on one core.
+- The whole map changes at every frame while driving, so damage tracking saves nothing; the GPU (VideoCore IV) is not used: display-gl is not
+  cross-built yet (its EGL, GLES, GBM and DRM packages are the sysroot of ZN-334).
+- Not measured: the same run with a proper supply (the clock ratio alone would give about 40 fps; the prototype reached 28 to 30 at 1.4 GHz), other points of the route, the real
+  `/dev/fb0` (the on-screen HUD showed 11 fps on the quays, with the HUD's own cost).
