@@ -342,3 +342,17 @@ Switches added in `runtime/gl_replay.cpp` and `kms.cpp`: `ZINC_GL_STRIPS=0` (the
 desktop GL, which `tests/t1/gl_strips.sh` compares with the software frame), `ZINC_GL_GROUPS="0,1,7;2"` (modes sharing a program),
 `ZINC_GL_MSAA=4`, `ZINC_GL_TRACE=1`; `ZINC_GL_ONLY=<mode>` and `ZINC_GL_FRINGE=0` still work. `ZINC_GL_STATS=1` also prints the build
 time of each program and where the first frame's time goes.
+
+### hero at 1920x1080 on the Pi 3B+, software bands (2026-10-12)
+
+Off screen (the fbdev driver's file framebuffer at 1920x1080x16, the other programs paused), 4 threads, the board at its soft temperature limit
+(1200 MHz, `get_throttled` 0xd0008: about 15% under the full clock), p50 in ms. hero takes its desktop layout at this width.
+
+| screen | paint | raster | convert | frames a second |
+| --- | --- | --- | --- | --- |
+| navigation, driving | 16.9 | 98.1 | 7.3 | 8.1 |
+| home | 1.4 | 8.6 | 0.9 | 60 (paced) |
+| gallery | 2.5 | 12.2 | 3.5 | 53 |
+
+The screens of an interface hold at 1080p (their damage is partial); a full-screen vector map does not: 5.4 times the pixels of 800x480 cost
+5.8 times the raster. Not measured: museum-table at 1080p, the real `/dev/fb0` on a 1080p screen, the same at 1400 MHz with a heatsink.
