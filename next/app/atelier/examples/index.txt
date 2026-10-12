@@ -1,0 +1,8 @@
+hello|Hello|Print a line, draw a word.
+shapes|Shapes|Rectangles, lines and colour.
+animation|Animation|Move a little every frame.
+pointer|Pointer|Follow the mouse or a finger.
+keys|Keys|Arrow keys and key names.
+text|Text|Fonts, sizes and measuring.
+interface|Interface|A button and its number.
+sound|Sound|Play notes with the pointer.

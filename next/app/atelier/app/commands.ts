@@ -4,11 +4,11 @@ import { createSignal } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import { Tween, easeOut, easeInOut } from './motion';
 import { active, activate, Buffer, closeBuffer, cycle, saveAll, say, newSketch, openSketch, newFile, renameFile, deleteFile,
-  sketchDir, sketchbook, mainFile, openFile, edited } from './workspace';
+  sketchDir, sketchbook, mainFile, openFile } from './workspace';
 import { openFind } from './search';
 import { toggleTheme } from './theme';
 import { run, stop, check, showConsole, consoleOpen, clearConsole, loadLibraries, importLine, setEngine, ENGINES, ZINC } from './tools';
-import { editCommand } from './cursors';
+import { editCommand, setText, menuKey } from './cursors';
 
 export class Command {
   id: string; menu: string; name: string; keys: string; run: () => void;
@@ -106,9 +106,7 @@ export function addLibrary(name: string): void {
   const lines = buf.text().split('\n');
   let at: i32 = 0;
   while (at < lines.length && lines[at].startsWith('//')) at++;
-  const text = lines.slice(0, at).concat([line]).concat(lines.slice(at)).join('\n'), h = buf.node();
-  if (h >= 0) ui.setValue(h, text);
-  edited(buf, text);
+  setText(buf, lines.slice(0, at).concat([line]).concat(lines.slice(at)).join('\n'));
   say(`Added ${name}`);
 }
 
@@ -119,8 +117,9 @@ add('File', 'examples', 'Examples…', 'CmdOrCtrl+Shift+O', () => setStartOpen(t
 add('File', 'save', 'Save', 'CmdOrCtrl+S', () => { saveAll(); const b = active(); if (b !== null && !(b as Buffer).modified()) say('Saved'); check(); }, true);
 add('File', 'close', 'Close Tab', 'CmdOrCtrl+W', withBuffer((b: Buffer) => closeBuffer(b)));
 
-add('Edit', 'undo', 'Undo', 'CmdOrCtrl+Z', () => { editCommand('undo'); });
-add('Edit', 'redo', 'Redo', 'CmdOrCtrl+Shift+Z', () => { editCommand('redo'); });
+// undo and redo go to the focused field as their key (the editor's history, or the field's own in the find bar); see menuKey
+add('Edit', 'undo', 'Undo', 'CmdOrCtrl+Z', () => menuKey('z', ui.META));
+add('Edit', 'redo', 'Redo', 'CmdOrCtrl+Shift+Z', () => menuKey('z', ui.META | ui.SHIFT));
 add('Edit', 'find', 'Find…', 'CmdOrCtrl+F', () => openFind(), true);
 add('Edit', 'comment', 'Toggle Comment', 'CmdOrCtrl+Slash', () => { editCommand('comment'); }, true);
 add('Edit', 'indent', 'Indent', '', () => { editCommand('indent'); });

@@ -67,6 +67,9 @@ export function nativeInput(b: Buffer, v: string): void {
   show(b, r, before, typing);
 }
 
+/** Replaces the whole text of a buffer as one edit that undo takes back (a library's import line). */
+export function setText(b: Buffer, text: string): void { sync(b); const st = state(b); show(b, one(text, st.head(st.main), st.head(st.main)), st, false); }
+
 export function undo(b: Buffer, redo: boolean): void {
   sync(b);
   const now = state(b), to = redo ? b.hist.forward(now) : b.hist.back(now);

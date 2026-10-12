@@ -33,7 +33,7 @@ const items = createMemo<Item[]>(() => {
   const out: Item[] = [];
   if (mode === PAL_LIBRARIES) {
     for (const l of libraries()) {
-      const it = new Item(l.name, l.text, '', '', () => addLibrary(l.name));
+      const it = new Item(l.name, l.text.length > 84 ? l.text.slice(0, 82) + '…' : l.text, '', '', () => addLibrary(l.name));
       if (q !== '') {
         const m = fuzzy(q, l.name, 0);
         if (m === null) continue;

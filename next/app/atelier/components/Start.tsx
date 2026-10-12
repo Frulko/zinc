@@ -4,7 +4,7 @@
 import * as ui from 'zinc:ui';
 import * as fs from 'zinc:fs';
 import * as sys from 'zinc:sys';
-import { imageFromBytes, drawImage, rrect } from 'zinc:gfx';
+import { imageFromBytes, drawImage, rrect, border } from 'zinc:gfx';
 import { theme, bg, fg, bd } from '../app/theme';
 import { newSketch, openCopy, sketchbook, say } from '../app/workspace';
 import { startOpen, setStartOpen } from '../app/commands';
@@ -52,13 +52,16 @@ function picture(e: Example): i32 {
   }
   return e.image;
 }
-const CARD = 'flex-col w-[272] p-2 pb-3 gap-2.5 rounded-[16] border cursor-pointer';
+/** A path with the home folder as ~. */
+function tilde(p: string): string { const h = sys.env('HOME'); return h !== '' && p.startsWith(h + '/') ? '~' + p.slice(h.length) : p; }
+const CARD = 'flex-col w-[224] p-2 pb-3 gap-2.5 rounded-[16] border cursor-pointer';
 function Card(props: { e: Example }): i32 {
   const e = props.e;
   return <View class={`${CARD} ${bg(theme().bg)} ${bd(theme().borderSoft)} hover:${bd(theme().accent)}`} onPointerDown={(p: ui.PointerEvent) => { if (p.button === 0) openExample(e.dir); }}>
-    <Canvas class="w-full h-[160]" style={{ lazy: 1 }} onDraw={(x: i32, y: i32, w: i32, h: i32) => {
-      const img = picture(e);
-      if (img >= 0) drawImage(img, x, y, w, h, 255, 10 * w / 256); else rrect(x, y, w, h, 10 * w / 256, theme().chrome, 255);
+    <Canvas class="w-full h-[130]" style={{ lazy: 1 }} onDraw={(x: i32, y: i32, w: i32, h: i32) => {
+      const img = picture(e), r = 10 * w / 208;
+      if (img >= 0) drawImage(img, x, y, w, h, 255, r); else rrect(x, y, w, h, r, theme().chrome, 255);
+      border(x, y, w, h, r, w / 208, theme().borderSoft, 255);
     }} />
     <View class="flex-col px-1.5 gap-0.5">
       <Text class={`text-[14px] font-semibold ${fg(theme().text)}`}>{e.title}</Text>
@@ -71,15 +74,15 @@ export function StartView(): i32 {
   return <View class={`absolute inset-0 ${bg(theme().chrome)}`} style={{ hidden: startOpen() ? 0 : 1 }}>
     <ScrollView class="grow flex-col px-[44] pt-[28] pb-[40]">
       <Text class={`text-[26px] font-bold ${fg(theme().text)}`}>Start a sketch</Text>
-      <Text class={`text-[13px] pt-1 pb-6 ${fg(theme().muted)}`}>{`An example opens as a copy in ${sketchbook()}: change anything.`}</Text>
+      <Text class={`text-[13px] pt-1 pb-6 ${fg(theme().muted)}`}>{`An example opens as a copy in ${tilde(sketchbook())}: change anything.`}</Text>
       <View class="flex-row flex-wrap gap-4">
         <View class={`${CARD} ${bg(theme().bg)} ${bd(theme().borderSoft)} hover:${bd(theme().accent)}`} onPointerDown={(p: ui.PointerEvent) => { if (p.button === 0) { setStartOpen(false); newSketch(); } }}>
-          <View class={`w-full h-[160] rounded-[10] items-center justify-center ${bg(theme().accentSoft)}`}>
+          <View class={`w-full h-[130] rounded-[10] items-center justify-center ${bg(theme().accentSoft)}`}>
             <Glyph kind={I_PLUS} size={30} color={() => theme().accent} back={() => theme().accentSoft} />
           </View>
           <View class="flex-col px-1.5 gap-0.5">
             <Text class={`text-[14px] font-semibold ${fg(theme().text)}`}>Empty sketch</Text>
-            <Text class={`text-[12px] ${fg(theme().muted)}`}>A few lines that draw, to begin from.</Text>
+            <Text class={`text-[12px] ${fg(theme().muted)}`}>A few lines to begin from.</Text>
           </View>
         </View>
         {EXAMPLES.map((e: Example) => <Card e={e} />)}

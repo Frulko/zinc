@@ -185,7 +185,7 @@ export function stepTools(): void {
 }
 
 // ---------------------------------------------------------------- diagnostics
-let checks: i32 = 0;      // checks under way
+let checks: i32 = 0;      // short jobs under way (a check, the list of libraries): a scripted session waits for them
 let checkGen: i32 = 0;
 /** Type checks the sketch as saved (`zinc check <main file>`) and gives every open file its diagnostics: squiggles and gutter
  *  dots in the editor, the first message on the status line. */
@@ -226,8 +226,10 @@ export function loadLibraries(): void {
   let out = '';
   try {
     const p = zinc(['plugins', sketchDir() === '' ? '.' : sketchDir()], '');
+    checks++;
     p.onData((chunk: string, stderr: boolean) => { out += chunk; });
     p.onExit((code: i32) => {
+      checks--;
       const list: Library[] = [];
       for (const l of out.split('\n')) {
         if (!l.startsWith('  ') || l.startsWith('  display:')) continue;
