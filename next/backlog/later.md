@@ -6,6 +6,8 @@ The next backlog review turns lines into tasks or deletes them.
 
 ## Engine and tools
 
+- ZN-721: connect view lifetimes to existing native/asset resource handles and complete CPU/GPU destruction; research and validation plan in docs/reports/zinc-next-resource-lifecycle.md, addressing the museum's persistent model/video caches.
+
 - ZN-720: let the renderer consume packed image resources instead of embedding the same decoded images again; museum-table carries 75.60 MB of RGBA pixels in its executable as well as its adjacent pack.
 
 - ZN-569: a Worker in the web environment, and `createImageBitmap` with it; PixiJS `Assets.load` takes that path when both exist.

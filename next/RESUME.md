@@ -10,6 +10,7 @@ Overwritten at the end of every session. Binding rules: `RULES.md`, `ARCHITECTUR
 - Museum artifacts: `../examples/museum-table/build/museum-table.app`, `.app.zip` (66.82 MB), `museum-table-sizes.json`. macOS arm64, local ad-hoc signature; 15 bundled dylibs. Extracted ZIP launched from `/` for 3 headless frames with no Homebrew library references/loads; strict/deep signature valid. Not notarized or published.
 - Size cause: 93.65 MB executable includes 75.60 MB of decoded RGBA images and 11.69 MB of baked glyph tables/bitmaps. The old resource baker duplicates images held in the newer asset packs. Detail: museum README and `docs/reports/zinc-next-perf.md`; a later line records the renderer/pack convergence, no optimization performed.
 - Targeted PASS: webview, build_progress, steps, plugin_fallback, verbose_log, run_js_engine, modules, run_cache, run_compiled, perf_hud, package_app, package. Headless p5 HUD, Phaser startup, museum native run and an actual terminal spinner smoke passed. No whole corpus or cross-platform checks.
+- Follow-up research: `../docs/reports/zinc-next-resource-lifecycle.md` compares primary engine/framework sources and proposes view scopes over the existing native resource ABI, shared references, bounded idle cache, async cancellation and complete CPU/GPU retirement. Proposal only; no memory fix implemented or new benchmark run.
 - Usage: n/a for this Codex session; tools/usage reads an unrelated Claude transcript.
 
 ## Next
