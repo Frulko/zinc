@@ -316,6 +316,7 @@
  "dyn-images-limit": "ZN-670",
  "dyn-object-keys": "ZN-664",
  "editor-kit": "ZN-700",
+ "fbdev-tearing": "ZN-735",
  "framehash-uncovered": "ZN-675",
  "fuse-native-plugins": "ZN-652",
  "gestures-manipulate": "ZN-684",
