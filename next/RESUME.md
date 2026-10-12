@@ -2,26 +2,23 @@
 
 Overwritten at the end of every session. Binding rules: `RULES.md`, `ARCHITECTURE.md`, `TESTING.md`.
 
-## State (2026-10-12)
+## State (2026-10-12, 16:30)
 
-- Owner batch completed: ZN-655 (real macOS WebView), ZN-720 (run/build progress and plugin fallback diagnostics), ZN-721 (standalone museum .app). Commits: `1a6ecb9a`, `9733d0e4`, `57d54780`. Local main only; no push.
-- `build/zinc` rebuilt. All engines now announce startup stages on stderr by default; native C++ builds show an elapsed-time spinner, completed jobs and object-cache reuse. `-q` / `ZINC_STEPS=0` suppress progress; JSON remains structured. Failed native plugins warn with their fallback and cause, including cached runs. QuickJS honors `dev.perfHud`.
-- WebView actually loads local pages and exchanges messages/RPC in AOT and interpreter. Fixed hosted-C++ compilation, prototype-only asset symbols, lazy window startup, the shadowing weak window-handle stub, and duplicate SDL linkage. QuickJS native callbacks remain unsupported with an explicit error; deterministic simulation opens no page.
-- Museum artifacts: `../examples/museum-table/build/museum-table.app`, `.app.zip` (66.82 MB), `museum-table-sizes.json`. macOS arm64, local ad-hoc signature; 15 bundled dylibs. Extracted ZIP launched from `/` for 3 headless frames with no Homebrew library references/loads; strict/deep signature valid. Not notarized or published.
-- Size cause: 93.65 MB executable includes 75.60 MB of decoded RGBA images and 11.69 MB of baked glyph tables/bitmaps. The old resource baker duplicates images held in the newer asset packs. Detail: museum README and `docs/reports/zinc-next-perf.md`; a later line records the renderer/pack convergence, no optimization performed.
-- Targeted PASS: webview, build_progress, steps, plugin_fallback, verbose_log, run_js_engine, modules, run_cache, run_compiled, perf_hud, package_app, package. Headless p5 HUD, Phaser startup, museum native run and an actual terminal spinner smoke passed. No whole corpus or cross-platform checks.
-- Follow-up research: `../docs/reports/zinc-next-resource-lifecycle.md` compares primary engine/framework sources and proposes view scopes over the existing native resource ABI, shared references, bounded idle cache, async cancellation and complete CPU/GPU retirement. Proposal only; no memory fix implemented or new benchmark run.
-- ZN-722 Done: `--probe` / generic `tools/resource-probe` (JSON scenarios, remote counter mode; `museum-probe` convenience entry) remotely drive the museum and record native app RSS plus live CPU/GPU resource counters. Three native GUI cycles retain one 3D target (12.96 MB CPU, 155.52 MB GPU estimate) and one stopped video (8.20 MB buffers, two open sources) at home; counts remain stable. PASS resource_stats, resource_probe, museum_probe, devtools_port. Model/video captures inspected separately; captures strongly perturb RSS, disabled for memory runs. No unload policy changed. Report: `../docs/reports/zinc-next-museum-memory-probe.md`; local JSONL: `.logs/museum-probe/samples.jsonl`.
-- Owner report: `../docs/reports/zinc-next-assets-outside-binary.md` inventories all 15 baked JPEGs (75.60 MB RGBA from 5.71 MB sources), 58 font variants and the bundle contents; recommends external assets inside Resources/packs, demand loading and view release. Existing capture-free home RSS is 315.0 / 320.9 / 321.2 MiB over three cycles; retained media remain. No optimization or new benchmark in this report. Corrected the earlier glTF note: the museum vase is loaded from OBJ.
-- Usage: n/a for this Codex session; tools/usage reads an unrelated Claude transcript.
+- Owner request: a zinc daemon and an adb equivalent over the network. ZN-729 is the epic (six subtasks, at the head of the queue); ZN-729.01 and ZN-729.02 are Done. Commits `6ae32770`, `6fbd3d15`, `4d7369f8` (and `eff57b45` for the tasks). Local main only; no push.
+- `zinc agent` (the daemon on a Linux or macOS device) and `zinc device` (the client) are in `build/zinc`: mDNS discovery (`_zinc._tcp`), pairing by a 6-digit code (EC J-PAKE, three tries), TLS 1.3 sessions with a key per workstation, then `list`, `pair`, `unpair`, `info`, `shell` (a command or a terminal), `push`, `pull`, `install`, `deploy`, `run`, `stop`, `uninstall`, `apps`, `logs`, `forward`, `reverse`. Code `src/agent/`, page `../docs/reports/zinc-next-agent.md`, decision D113.
+- PASS: agent (T0, 9 s), agent_apps (T1, 4 s), tls, net, cli_core, security_guide. Everything was proven on the loopback interface of this Mac: no Linux run, no second machine (lines of `backlog/later.md`, cross-platform pass).
+- Changes outside the module: `src/host/tls.{h,cpp}` (PSK and PAKE sessions; `tls::read` no longer returns after a TLS 1.3 session ticket with bytes unread), `MBEDTLS_KEY_EXCHANGE_ECJPAKE_ENABLED` on in the vendored mbedTLS config (the whole of `zn_mbedtls` was rebuilt), `third_party/mdns` added.
+- Usage: n/a (tools/usage reads no transcript for this session).
 
 ## Next
 
-`tools/next-task` selects ZN-158 (typed arrays, ArrayBuffer, DataView). No task started by this session beyond the owner's batch.
+`tools/next-task` selects ZN-729.03 (`zinc dev --device`: reload at every save, assets swapped live), then ZN-729.04 (the agent as a service, signed OTA with rollback) and ZN-729.05 (inspect, shot, monitor, top): one module, one batch for a fresh session. ZN-729.06 (Atelier's devices panel) waits for ZN-728, which another agent holds.
 
 ## Watch out
 
-- Existing worktrees from other sessions remain; respect task claims and the shared build limit. No other session's changes were committed.
+- The agent's tests start processes that outlive a shell function: in a test, `$!` must be the process itself (start `"$Z" agent` or `"$Z" device forward` directly, not through a function), and `wait` takes pids, never nothing (the agent is a background job too).
+- mbedTLS is built without thread support: every call into it from the agent's threads goes through the lock of `src/agent/wire.cpp`. New agent code calls the wrappers of `wire.h`, never `zn::tls` directly.
+- Existing worktrees from other sessions remain; respect task claims and the shared build limit. `apps/studio/samples/hello-flow.zproj/project.json` is someone else's uncommitted change.
 - Earlier machine-specific failures, not re-investigated here: tls (ZN-610), macos_window fullscreen readback (ZN-394), macos_vibrancy; system_instance can fail under load (ZN-613). Screen locking can block non-Apple executables in the kernel; leave the development session unlocked for builds/tests.
 - Distribution is rebuilt with `build/zinc build --bundle <entry> -o <app>` then `tools/package --app <app>` before Developer ID signing/notarization. The museum's app identity is now declared in zinc.json; source runs with permissions may use the existing macOS dev-bundle path.
 
