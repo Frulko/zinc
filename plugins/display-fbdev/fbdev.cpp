@@ -301,9 +301,12 @@ static void fb_present(const HalFrame* f) {
   uint64_t t1 = now_us();
   // pacing: the null HAL has no vsync; wait for the display's, or sleep to the configured rate
   if (vsync) { int z = 0; if (sim_fb || ioctl(fd, FBIO_WAITFORVSYNC, &z) < 0) vsync = false; }
-  if (!vsync) {
+  {
+    // A wait that does not wait is no pacing either: the kernel's framebuffer emulation waits for its first CRTC, and the DSI screen of a
+    // Raspberry Pi is on another one (60 waits returned in 0.1 ms, ZN-731: the loop ran at 120 frames a second and a core was spent on
+    // it). A wait that returned at once, less than a period after the last frame, is that case: the clock holds the rate.
     uint64_t period = 1000000u / ZP_DISPLAY_FBDEV_FPS, t = now_us();
-    if (last_us && t - last_us < period) usleep((useconds_t)(period - (t - last_us)));
+    if (last_us && t - last_us < period - 1000 && (!vsync || t - t1 < 1000)) usleep((useconds_t)(period - (t - last_us)));
     last_us = now_us();
   }
   uint64_t t2 = now_us();
