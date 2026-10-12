@@ -25,7 +25,12 @@ or with options: `"display": { "driver": "fbdev", "device": "/dev/fb1", "grab": 
   nearest-neighbour, aspect kept, centered on black. Match the sizes on slow boards (Pi 1): scaling touches every
   pixel of the output.
 - Pacing: waits for vblank with `FBIO_WAITFORVSYNC` when the driver supports it, otherwise sleeps to `fps`
-  (default 60). No page flipping: tearing is possible on fast motion.
+  (default 60). A wait that returns at once is no pacing: on a Raspberry Pi's DSI screen the kernel's emulation waits for
+  its first CRTC and the panel is on another one, so the call returns in microseconds without an error; less than a
+  period after the last frame, the driver then sleeps to `fps` as well. No page flipping on `/dev/fb0`: tearing is
+  possible on fast motion.
+- **Hardware layers** (KMS screens, surface shown 1:1): a picture that lies in device memory, the dmabuf of a video
+  decoder, is shown by a plane of the display and never read by the CPU. See "Hardware layers" below.
 - The console is switched to graphics mode (`KDSETMODE KD_GRAPHICS` on `/dev/tty0`) so the text cursor and kernel
   messages do not draw over the picture; text mode is restored on exit (Esc, SIGINT, SIGTERM, or `gfx.quit()`).
 - No framebuffer (headless, docker/QEMU, no permission): `init` returns 0 and the target HAL keeps the screen.
@@ -68,10 +73,46 @@ Environment variables (read at start, not zinc.json options):
 | variable | meaning |
 |---|---|
 | `ZINC_RENDER_THREADS=n` | rasterizer threads, the calling thread included; default the online cores, at most 8; `1` is the old single-thread path (no thread is created) |
-| `ZINC_FBDEV_STATS=1` | at exit: frames, wall time, effective fps, and per frame p50 / p99 / mean of `raster` (wall time of the parallel rasterization), `vsync`, `convert`, `present`, plus `cpu-render` / `cpu-convert` (thread time summed over the threads) |
+| `ZINC_FBDEV_STATS=1` | at exit: frames, wall time, effective fps, and per frame p50 / p99 / mean / max of `raster` (wall time of the parallel rasterization), `vsync`, `convert`, `present`, plus `cpu-render` / `cpu-convert` (thread time summed over the threads); with hardware layers, the time it took to take the planes and `fbdev planes: N pictures shown from their dmabuf, M frames committed` |
+| `ZINC_FBDEV_PLANES=0` | no hardware layer: a decoder gives pixels and every picture is drawn by the rasterizer (to compare, or a display whose planes misbehave). `refuse`: the layers are offered and every one is refused, which is the software path of a picture that came as a dmabuf (what a turned or blended film takes) |
 | `ZINC_FBDEV_SKIP_S=s` | leave the first `s` seconds out of the stats |
 | `ZINC_FBDEV_CRC=1` | at exit: CRC-32 of the surface, to compare runs bit for bit (with `ZINC_DETERMINISTIC=1`) |
 | `ZINC_FBDEV_FUSE=1` | each band also converts its rows right after rasterizing them, then the vblank wait (default: rasterize all, wait, convert all, so the write follows the vblank). Measured no faster, worse p99 |
+
+## Hardware layers
+
+A film drawn by the rasterizer costs a copy out of the decoder's buffer, a colour conversion and the raster of its
+rectangle for each picture: 37 ms of CPU on a Pi 3B+ for a 854x480 clip. With a KMS display the driver shows the
+decoder's buffer itself (ZN-731; the contract is `HalDisplay.layers` in `runtime/include/hal.h`):
+
+- At start the driver looks for the screen in `/dev/dri/card*`: the CRTC of the primary plane that shows the console,
+  with the framebuffer's size, and three free overlay planes on it (two for pictures, one that takes ARGB8888 for the
+  frame). It then closes the file again. Without them (no KMS, a scaled surface, `ZINC_FBDEV_SIM`) the driver has no
+  layers and `zinc:video` decodes to pixels as before.
+- When a frame draws such a picture upright, whole and opaque, the runtime offers it (`gfx.cpp`, "hardware layers").
+  The driver opens the DRM file (2 to 7 ms), makes two ARGB8888 buffers for the frame, imports the picture's dmabufs as
+  a framebuffer (`PRIME_FD_TO_HANDLE`, `ADDFB2`: 0.07 ms, no pixel read) and tries the placement with a test commit;
+  what the compositor refuses (a size it cannot scale to, no memory) is drawn in software instead.
+- The rasterizer writes a hole (`HAL_LAYER_HOLE`) where the picture lies. The driver converts the damaged rows into the
+  buffer that is not on the screen with alpha 255, and alpha 0 in the holes. Rows where something is drawn over the
+  picture are rendered a second time over white holes: where the two renders differ, the pixel was blended over the
+  picture, and its alpha is 255 minus the difference (`hal_layer_pixel`). A subtitle, a translucent timeline, the
+  antialiased corners of a rounded clip are composed over the film by the display as the rasterizer would have.
+- One atomic commit per frame shows the frame's buffer on the plane above and the pictures on the planes under it, at
+  the next refresh; its page-flip event paces the loop (a true vertical blank, no tearing). The plane scales the picture
+  to its rectangle and converts its colours (BT.601 or BT.709, the range the stream names).
+- A picture's framebuffer is removed once the commit that replaced it has reached the screen; the player keeps the
+  decoder's frame for two more pictures.
+- Two seconds after the last picture the driver writes the whole surface to `/dev/fb0` again and closes the DRM file.
+- **The console's plane and the mode are never touched.** The planes, the framebuffers and the buffers belong to the
+  DRM file: when it is closed, by the driver or by the kernel after a crash, they are gone and `/dev/fb0` shows.
+  Another program that owns the display (a compositor, a DRM master) makes the test commit fail: the driver says so
+  once and pictures are drawn in software.
+
+Limits: two pictures at once (`HAL_MAX_LAYERS`); a picture turned, blended, with rounded corners of its own or drawn in
+part is the rasterizer's; a blend mode other than the normal one over a picture is composed as a normal one; a
+screenshot of the surface (`ZINC_SHOT`) shows the hole, not the picture. Measured on a Pi 3B+: 3.4 to 4.8 ms of CPU a
+picture for the whole program against 35 to 38 (`docs/reports/raspberry-pi.md`).
 
 ## Measured
 
@@ -97,7 +138,8 @@ per run after 2 s of warm-up, `ZINC_FBDEV_STATS=1`, milliseconds unless stated:
 - What is left in a frame at 4 threads (about 34 ms): 25 ms of rasterization, 6-9 ms of `paint` on the logic thread
   (the program's `onDraw` emitting the map's draw commands, one thread), 1.4 ms of conversion.
 - The `FBIO_WAITFORVSYNC` ioctl returned in 0.01 ms every time on the KMS fbdev emulation: it does not pace the frames
-  here, so nothing is quantized to 60 Hz and tearing is possible. Not investigated further.
+  here, so nothing was quantized to 60 Hz when these numbers were taken. Since ZN-731 the driver holds `fps` by the
+  clock in that case (see Output); tearing on `/dev/fb0` is still possible.
 - Runs at 3-4 threads showed `throttled=0x80008` afterwards (soft temperature limit, 60 C, no heat sink): they are, if
   anything, pessimistic. No under-voltage bit was set during any run.
 - Preview-phase numbers (the route overview before the car starts) are lighter and not representative: 20 fps at one
@@ -109,5 +151,6 @@ Not run on hardware: `rpi1` (ARMv6, 32 bit) and 24/32 bpp framebuffers (the gene
 compiled but the Pi screen is 16 bpp), the scaled path (`xmap`, surface size different from the framebuffer) with
 several threads, and touch mapping / grabbing on other screens. The SDL HAL (`targets/macos/hal_sdl.cpp`) has its own
 copy of a band renderer and could adopt `render_bands.h`. Not implemented: rotation (`fbcon=rotate` / touch axis swap),
-double buffering via panning, KMS/DRM output (a `display-drm` plugin would give page flips and planes), overlapping the
-program's `paint` with the rasterization of the previous frame.
+double buffering via panning, the frame on a KMS plane when no picture is shown (page flips without tearing for every
+program: the code is there, only used while a hardware layer is), overlapping the program's `paint` with the
+rasterization of the previous frame. Hardware layers were run on a Pi 3B+ only (vc4, `YU12` from bcm2835-codec).

@@ -40,18 +40,30 @@ Using `zinc:video` on an unlisted target is error Z5003 at build time.
   A V4L2 decoder's frame is copied into ordinary memory before the conversion: its buffer is mapped without a cache,
   and swscale read it at 85 ms a picture on a Pi 3B+ (854x480), against 10 ms with the copy. The conversion takes the
   colour range the stream names (a V4L2 decoder calls every frame limited range). Numbers: `docs/reports/raspberry-pi.md`.
+- **Zero copy on a KMS screen** (Linux, ZN-731): when the display driver has hardware layers (`display-fbdev` on a
+  Raspberry Pi, `docs/plugins/display-fbdev.md`), a V4L2 decoder is asked for its frames as dmabufs
+  (`AV_PIX_FMT_DRM_PRIME`). A slot then holds the decoder's frame and no pixels; the player's image gets a
+  `raster::Picture` (the buffers' descriptors, the colour range and matrix, where the picture lies in the image) and the
+  display shows the buffer on a plane of its own, scaled and converted there. `player.decoder` reads
+  `h264_v4l2m2m (dmabuf)`. A frame that draws the image another way (turned, blended, rounded, a part of it, into an
+  image) asks for the pixels: the picture on screen is mapped, copied and converted at that moment on the main thread,
+  and the decode thread converts the following ones, as long as frames draw them so. The frame is the same either way.
+  `ZINC_VIDEO_PRIME=0` turns the dmabufs off. Measured on a Pi 3B+: 3.4 to 4.8 ms of CPU a picture for the whole
+  program against 35 to 38 (`docs/reports/raspberry-pi.md`).
 - **Hand-over**: a ring of `buffers` slots (plugin option, default 4). The worker only writes free slots; the main
   thread (a `zrt::Poller`, once per loop iteration, before `onFrame`) picks the newest frame whose timestamp is due,
   frees older ones (`dropped`), and publishes it with `raster::dyn_update`. The player's image id never changes:
   `gfx.drawImage` sees a new version every frame, and GPU compositors read the pixels with `raster::dyn_view`.
-- **Pacing**: a player clock starts at the first frame and follows `hal_time_us`; frames are shown when due (within
+- **Pacing**: a player clock starts when two frames are in hand (a V4L2 decoder hands its frames in bursts: the second
+  one came 70 ms after the first and was dropped as late) and follows `hal_time_us`; frames are shown when due (within
   half a 60 Hz refresh). When the decoder falls behind, the clock waits for it (at most 100 ms ahead) instead of
   skipping.
 - **Gapless looping**: one continuous timeline per playlist pass — each file starts exactly where the previous one
   ended (last PTS + frame duration). The next file (demuxer + decoder) is opened as soon as the current one shows
   its first frame, so a switch costs one decode, never an open. One file loops the same way (a second instance of it
   is pre-opened). `ZINC_VIDEO_LOG=1` prints one line per shown frame with entry, position, timeline and clock,
-  and one per converted frame with the time of its conversion and the decoder.
+  and one per converted frame with the time of its conversion and the decoder ("kept ... as a dmabuf" for a frame that
+  is not converted); when a player closes, how many of its pictures the CPU never read.
   Measured on macOS (M1 Pro, VideoToolbox) over 3.5 passes of a 3-file playlist with 30 and 25 fps clips: the first
   frame of each file is shown one frame period after the last frame of the previous one, within 3 ms of its due time,
   no frame dropped at any loop point (one dropped at startup).
@@ -73,7 +85,8 @@ Using `zinc:video` on an unlisted target is error Z5003 at build time.
 - Hardware decode needs the `bcm2835-codec` V4L2 driver (`/dev/video10`, Raspberry Pi kernels with the default
   `vc4-kms-v3d`/`fkms` overlays, Pi 1..4) and enough `gpu_mem`. When it cannot be opened the player falls back to
   software decoding silently (`player.decoder` tells which one runs).
-- Performance is **not measured** (no hardware here). Expectations: a Pi 1/Zero (ARMv6, no NEON) is limited by the
+- Performance on a Pi 3B+ (64-bit OS, `linux` target) is measured in `docs/reports/raspberry-pi.md`. On `rpi1` it is
+  **not measured** (no hardware here). Expectations: a Pi 1/Zero (ARMv6, no NEON) is limited by the
   YUV to RGB conversion and memory bandwidth, so keep clips at 480p..720p and the surface equal to the framebuffer
   size; Pi 3/4 should handle 1080p H.264 through V4L2. Four simultaneous players (quad) need small clips on a Pi 1.
 - Pi 5 has no H.264 decoder block (software only) and is a 64-bit target; use the `linux` target there.
@@ -82,5 +95,7 @@ Using `zinc:video` on an unlisted target is error Z5003 at build time.
 
 - Audio (SDL3 audio on macOS, ALSA on Linux) with the video clock slaved to the audio clock; `wait_time` pauses and
   one-shot already work without it.
-- Zero-copy paths: DRM PRIME / CVPixelBuffer frames handed directly to a GPU compositor instead of RGB conversion.
+- Zero-copy paths on the other targets: a VideoToolbox `CVPixelBuffer` (an IOSurface) to the window's compositor on
+  macOS, VA-API surfaces as dmabufs on a Linux desktop, an EGLImage in `display-gl` for a film that is turned or
+  blended. The contract is the one the KMS planes use (`HalDisplay.layers`, `raster::Picture`).
 - Seeking (`seek(seconds)`), playback rate, frame-accurate sync between players or machines.

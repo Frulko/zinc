@@ -347,3 +347,37 @@ metrics as above. Recommended as the fallback for Design A, not as the first pat
 - All API names in section 5 for non-Pi targets are from memory, not fetched.
 - Nothing was started or written on the device; no playback was done, so no latency or throughput number of the
   decoder is in this report.
+
+## 9. What ZN-731 built, and what the device answered (2026-10-12)
+
+Design A was built, inside `display-fbdev` and without owning the mode or the primary plane (numbers:
+`raspberry-pi.md`, "The film without a CPU copy"; how: `docs/plugins/display-fbdev.md`, "Hardware layers").
+The items above that were inference or not verified, as read on the Pi 3B+:
+
+- **1.3, the DRM PRIME request**: a `get_format` callback that returns `AV_PIX_FMT_DRM_PRIME` is all `h264_v4l2m2m` of
+  this FFmpeg (7.1.3 rpt1) needs: no hardware device context. The frame is one dmabuf (622 080 bytes for 854x480), one
+  layer, DRM format `YU12`, pitches 864/432/432, offsets 0 / 414 720 / 518 400, modifier 0. The decoder says limited
+  range for a full-range stream, as it does for its frames in memory: the plane's `COLOR_RANGE` is set from the stream.
+- **1.3 (5), lifetime**: a KMS framebuffer made from the dmabuf holds the memory, so the GEM handle is closed right
+  after `ADDFB2`; the player keeps the `AVFrame` of the picture on screen and of the two before it, so that the decoder
+  does not write into a buffer the display still scans. No "unreleased buffer" warning, no stall over 2076 pictures.
+- **2a, the live plane list**: plane 74 is the primary (the console's `RG16` framebuffer), planes 98 to 263 are 16
+  overlays (zpos 1 to 16) and 648 the cursor; every one lists `YU12`, `NV12` and `AR24` among 34 formats. Properties of
+  an overlay: `alpha`, `pixel blend mode` (0, premultiplied, by default), `rotation`, `zpos`, `COLOR_ENCODING` (default 1,
+  BT.709), `COLOR_RANGE` (default 0, limited), `CHROMA_SITING_H/V`, `SCALING_FILTER`.
+- **2a, the HVS's limits**: an ARGB8888 800x480 plane over a `YU12` 854x480 plane scaled to 500x281, to 800x450 or
+  640x360 to its box, at 24 and 30 pictures a second with a commit per frame: no commit refused, no late flip. The
+  ceiling is still unknown; the driver tries each new placement with a test commit and draws in software what is refused.
+- **2c, the framebuffer and KMS**: a process that opens `/dev/dri/card0` while a program writes `/dev/fb0` becomes the
+  master and can use the overlay planes; the primary plane goes on showing the console's buffer underneath. Closing the
+  file removes the planes and their framebuffers, with nothing to restore. `FBIO_WAITFORVSYNC` returns at once on this
+  screen (the emulation waits for its first CRTC; the DSI panel is on the third).
+- **4, what is drawn over the video**: no alpha channel was added to the rasterizer. A hole is a marker value; rows
+  where something is drawn over a picture are rendered twice, over black and over white holes, and the difference is
+  the pixel's transparency. Text, translucent boxes and rounded clips come out as the rasterizer blends them.
+- **Still not verified**: `EGL_EXT_image_dma_buf_import` formats on vc4 (design C was not needed), a Pi 4 or 5 (SAND
+  formats, HEVC), several videos at once, 1080p, what the picture looks like beside the software path (nobody was at
+  the screen with a reference).
+
+`next/tools/kmsvid.cpp` is the spike: it plays a file on a plane with FFmpeg and libdrm alone, measures it, and
+`--planes` lists the planes of the screen (the board has no `modetest`).

@@ -130,6 +130,11 @@ mode cannot fix that; a **retained mesh** can:
 zero-copy path (V4L2 M2M decoder dmabuf imported as an `EGLImage` external texture, no CPU colour conversion) is a
 later phase and needs a Pi measurement to justify it.
 
+Since ZN-731 the dmabuf of an upright film does not go through a renderer at all on a KMS screen: the display driver
+shows it on a plane under the software frame (`HalDisplay.layers` in `hal.h`, `docs/plugins/display-fbdev.md`,
+measured in `raspberry-pi.md`). The `EGLImage` route stays the one for a film that is turned or blended, on a GPU
+display; it would take the same `raster::Picture` the planes take.
+
 ## 8. Platforms
 
 | target | renderer |

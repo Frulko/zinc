@@ -418,3 +418,78 @@ sequence of the film with `ZINC_PERF_HUD=1`), and a fixed clock: the governor is
 started at 600 MHz (7 of the 8 samples taken every 2 s during a run read 1400 MHz) and their times are not better than a fixed
 1400 MHz would give. The numbers of the task before this work (raster p99 29.9 ms, mean 6.25) are met again by the build of main
 left as `museum-wip-before` (29.1 and 6.16).
+
+### The film without a CPU copy: the decoder's buffer on a plane of the display (ZN-731, 2026-10-12)
+
+The owner at the Pi 3B+: "we want performance, zero-copy; no milliseconds lost without a reason; a video must be fast". After ZN-730 a
+picture of the film still cost a 5 ms copy out of the decoder's buffer, an 8 ms conversion and 18 ms of raster CPU. It now costs none of
+the three: `h264_v4l2m2m` hands its frame as a dmabuf (`AV_PIX_FMT_DRM_PRIME`), the fbdev driver shows that buffer on an overlay plane
+of the Pi's compositor (the HVS scales and converts it), and the software frame goes to a second plane above it, transparent where the
+film shows. How it is built: [docs/plugins/display-fbdev.md](../plugins/display-fbdev.md) ("Hardware layers") and
+[docs/plugins/video.md](../plugins/video.md); the research and what the device confirmed: [video-zero-copy.md](video-zero-copy.md).
+
+**The spike first** (`next/tools/kmsvid.cpp`, outside the engine: FFmpeg and libdrm, the museum's clip, the owner's program stopped,
+board at 52 to 54 C). The frame is one dmabuf of 622 080 bytes, DRM format `YU12`, pitches 864/432/432, linear. The screen's CRTC has the
+console's primary plane and 16 free overlay planes; each takes `YU12`, `NV12` and `AR24`.
+
+| | pictures a second | late pictures | CPU of the process a picture |
+| --- | --- | --- | --- |
+| the decoder alone, frames left in its buffers | 24 | | 0.20 ms |
+| dmabuf on a plane scaled to 500x281, an ARGB plane with a hole above | 24 (479 in 20 s) | 0 | 0.58 ms (1.4% of a core) |
+| the same, timestamps scaled to 30 a second | 30 (599 in 20 s) | 0 | 0.61 ms |
+| the whole screen (800x450), 30 a second | 30 | 0 | 0.55 ms |
+
+Importing a frame (`PRIME_FD_TO_HANDLE`, `ADDFB2`) takes 0.06 to 0.08 ms, the atomic commit 0.15 ms; a picture is on the screen 5.6 ms
+(p50) to 14 ms (max) after it is due, the next refresh.
+
+**In the engine, on the real screen.** CPU of the whole program (every thread, `/proc/<pid>/stat`) over a window that starts 8 s after
+the launch; the board under 55 C before each run, `get_throttled` 0xd0000 after each, the owner's program stopped meanwhile.
+"Software path" is the same build with `ZINC_FBDEV_PLANES=0`.
+
+| program | build | CPU a picture | of a core | pictures a second | dropped | frames a second |
+| --- | --- | --- | --- | --- | --- | --- |
+| museum-table `--sequence wave` (854x480 at 24, drawn 500x281, a translucent timeline over it), 20 s | main (ZN-730) | 38.3 ms | 92.6% | 24.15 | 0 | 122.6 (not paced, below) |
+| | software path | 37.0 ms | 89.6% | 24.2 | 0 | 61.0 |
+| | **planes** | **3.45 ms** | **8.3%** | 24.2 | 0 | 60.1 |
+| | planes refused (`ZINC_FBDEV_PLANES=refuse`): the software path of a dmabuf, what a turned or blended film takes, 14 s | 38.1 ms | 92.2% | 24.2 | 0 | 59.6 |
+| hero, Video tab (`ZINC_DEMO=video`, 640x360 at 24 in a rounded box), 60 s | software path (20 s) | 37.5 ms | 90.8% | 24.25 | | |
+| | **planes** | **4.75 ms** | **11.5%** | 24.2 (1452 in 60 s) | 0 over 69 s | 60.0 |
+| hero, Video tab, the clip re-encoded at 30 a second (it loops at 40 s), 60 s | software path (20 s) | 35.5 ms | 107.5% | 30.3 | 0 | 59.7 |
+| | **planes** | **4.12 ms** | **12.4%** | 30.25 (1815 in 60 s) | 0 over 69 s | 60.0 |
+
+- **Ten times less CPU for the same film**, and what is left is the program's own frame loop at 60 a second (its layout and the diff of
+  its commands), not the picture: the raster of a frame is 0.10 ms on average (p99 0.40 ms) on museum-table, where the timeline's few
+  rows are all that changes.
+- **No pixel of a picture is read.** `ZINC_VIDEO_LOG=1`: every picture is "kept ... as a dmabuf", none "converted", and the player says
+  at its end "showed 2076 pictures, 2076 of them dmabufs the CPU never read, 0 converted at a draw". `ZINC_LAYER_LOG=1`: "a picture in
+  device memory is on a hardware layer of the display: no pixel of it is read". `ZINC_FBDEV_STATS=1`: "fbdev planes: 2076 pictures shown
+  from their dmabuf". The kernel's state file during the run: `plane-4` with a `YU12` framebuffer and `plane-6` with the `AR24` one on
+  `pixelvalve-1`.
+- **The clock.** The software runs were at 1400 MHz (museum) and between 900 and 1400 (hero). With the planes the load is so small that
+  the `ondemand` governor leaves the clock at 700 MHz for most of the run (museum, read every 2 s: 700 1400 1400 700 700 700 1400 1400
+  700 700; hero: 700 from the fourth second on), and the board cools while it plays (54.8 to 53.7 C, 55.3 to 51.0 C). The milliseconds
+  of the "planes" rows are therefore mostly milliseconds at half the clock.
+- **What is drawn over the film stays in front of it**: museum-table's translucent timeline and the box of its subtitles, the rounded
+  corners of hero's box. The driver draws the rows they touch a second time over white holes and takes each pixel's alpha from the two
+  renders, so nothing sends the film back to software but the way the film itself is drawn: turned, blended, with rounded corners of
+  its own or a part of it. Then the frame is the software one (`next/tests/t1/video_layers.sh` compares the two).
+- **The fallback costs what the software path cost, no more.** A picture that came as a dmabuf and is drawn by the rasterizer is
+  mapped, copied and converted: the first four at the draw, on the main thread, then in the decode thread (555 of 559 in the run
+  above), at 38.1 ms of CPU a picture against 37.0 for a decoder that gives pixels.
+- **The console is never at risk.** The mode and the primary plane are not touched; the two planes and their buffers belong to a DRM
+  file the driver opens when a picture comes (2 to 7 ms) and closes two seconds after the last one. A crash closes it too: the kernel
+  removes the planes and `/dev/fb0` shows again. After each run the only plane on the CRTC was the console's.
+
+**Found on the way.**
+
+- `FBIO_WAITFORVSYNC` does not wait on this screen (60 waits in 0.1 ms): the kernel's framebuffer emulation waits for its first CRTC and
+  the DSI panel is on the third. The fbdev driver believed it and every program ran its loop as fast as it could: 122 frames a second
+  with the film and 92% of a core on the build of main, most of it for frames nobody could see. The driver now holds the rate by the
+  clock when the wait returned at once (61 frames a second). With the planes the pacing is the page flip's, a true vertical blank.
+- The player's clock started with the first picture; the V4L2 decoder hands its frames in bursts and gave the second one 70 ms later,
+  which was dropped as late once the first was no longer held back by a conversion. The clock starts with two pictures in hand.
+
+Not seen by the one who measured: the screen itself (colours against the software path, the edge of the hole, the moment the planes
+come and go). Not measured: a film in a card that is being dragged or zoomed (the plane and the frame move in one commit, but no number
+was taken), two films at once (the driver has two planes for pictures), a 1080p clip, the same on a Pi 4 or 5 (their decoders give
+other formats), a run of an hour.
