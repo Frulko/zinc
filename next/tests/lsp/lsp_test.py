@@ -54,6 +54,7 @@ def pos_of(text, needle, nth=0, delta=0):
 init = request("initialize", {"processId": None, "rootUri": None, "capabilities": {}})
 caps = init["capabilities"]
 check(caps.get("hoverProvider") and caps.get("definitionProvider") and caps.get("documentSymbolProvider") and "completionProvider" in caps, "capabilities")
+check(caps.get("signatureHelpProvider", {}).get("triggerCharacters") == ["(", ","], "signature help capability")
 notify("initialized", {})
 
 tmp = tempfile.mkdtemp()
@@ -115,6 +116,52 @@ check(len(got) >= 2 and norm(got) == norm(want), "diagnostics differ from check 
 # 7. a fix clears them; shutdown and exit
 notify("textDocument/didChange", {"textDocument": {"uri": uri, "version": 6}, "contentChanges": [{"text": text}]})
 check(diagnostics(uri) == [], "fix leaves diagnostics")
+
+# 8. signatures and doc comments (ZN-732): completion items, signature help, hover; a member's definition
+uri2 = "file://" + os.path.join(tmp, "docs.ts")
+docs = open(os.path.join(HERE, "docs.ts")).read()
+def edit(t, version=[10]):
+    version[0] += 1
+    notify("textDocument/didChange" if version[0] > 11 else "textDocument/didOpen", {"textDocument": {"uri": uri2, "languageId": "typescript", "version": version[0], "text": t}, "contentChanges": [{"text": t}]})
+    return diagnostics(uri2)
+def items_at(t, line, ch):
+    return {i["label"]: i for i in request("textDocument/completion", {"textDocument": {"uri": uri2}, "position": {"line": line, "character": ch}})["items"]}
+def sig_at(t, needle, delta):
+    return request("textDocument/signatureHelp", {"textDocument": {"uri": uri2}, "position": pos_of(t, needle, 0, delta)})
+check(edit(docs) == [], "docs.ts has diagnostics")
+last = docs.count("\n")
+t = docs + "b.\n"; edit(t); it = items_at(t, last, 2)
+check(it.get("step", {}).get("detail") == "step(dt: number, w: number): void" and it["step"].get("documentation") == "Moves the ball.", "a method's signature and doc: %r" % it.get("step"))
+check(it.get("x", {}).get("detail") == "f64" and it["x"].get("documentation") == "Position, in pixels.", "a field's type and doc: %r" % it.get("x"))
+t = docs + "b.st\n"; edit(t); it = items_at(t, last, 4)
+check("step" in it and "x" in it, "members while a name is typed after the dot: %r" % sorted(it))
+t = docs + "tw\n"; edit(t); it = items_at(t, last, 2)
+check(it.get("twice", {}).get("detail") == "twice(n: number): number" and it["twice"].get("documentation") == "Twice a number.", "a function's signature and its // doc: %r" % it.get("twice"))
+check("Ball" in it and "const" in it, "names are not cut to the typed prefix: the editor filters")
+check(it.get("rrect", {}).get("detail", "").startswith("rrect(x: number, y: number") and "Rounded rectangle" in it["rrect"].get("documentation", ""), "a standard function's signature and doc: %r" % it.get("rrect"))
+t = docs + "sys.\n"; edit(t); it = items_at(t, last, 4)
+check("clock" in it and "Monotonic clock" in it["clock"].get("documentation", "") and it["clock"]["detail"].startswith("clock("), "the exports of a namespace import: %r" % it.get("clock"))
+edit(docs)
+h = sig_at(docs, "b.step(1, 2)", 10)
+s0 = h["signatures"][0] if h else {}
+check(s0.get("label") == "step(dt: number, w: number): void" and h["activeParameter"] == 1 and s0.get("documentation") == "Moves the ball.", "signature help in a method call: %r" % h)
+check([p["label"] for p in s0.get("parameters", [])] == [[5, 15], [17, 26]] and s0["parameters"][1].get("documentation") == "the width of the field", "its parameters and their docs: %r" % s0.get("parameters"))
+h = sig_at(docs, "twice(3)", 6)
+check(h and h["signatures"][0]["label"] == "twice(n: number): number" and h["activeParameter"] == 0, "signature help in a function call: %r" % h)
+h = sig_at(docs, "new Ball()", 9)
+check(h and h["signatures"][0]["label"] == "new Ball()" and h["signatures"][0].get("documentation") == "A ball that bounces.", "signature help in a constructor call: %r" % h)
+check(sig_at(docs, "const b", 3) is None, "no signature help outside a call")
+t = docs + "b.step(1, "; edit(t)
+h = request("textDocument/signatureHelp", {"textDocument": {"uri": uri2}, "position": {"line": last, "character": 10}})
+check(h and h["signatures"][0]["label"] == "step(dt: number, w: number): void" and h["activeParameter"] == 1, "signature help while the call is being typed: %r" % h)
+edit(docs)
+h = request("textDocument/hover", {"textDocument": {"uri": uri2}, "position": pos_of(docs, "b.step(1, 2)", 0, 3)})
+check(h and "step(dt: number, w: number): void" in h["contents"]["value"] and "Moves the ball." in h["contents"]["value"], "hover on a method: %r" % h)
+h = request("textDocument/hover", {"textDocument": {"uri": uri2}, "position": pos_of(docs, "twice(3)", 0, 1)})
+check(h and "twice(n: number): number" in h["contents"]["value"] and "Twice a number." in h["contents"]["value"], "hover on a function: %r" % h)
+d = request("textDocument/definition", {"textDocument": {"uri": uri2}, "position": pos_of(docs, "b.step(1, 2)", 0, 3)})
+check(d and d["uri"] == uri2 and d["range"]["start"]["line"] == docs[:docs.index("  step(")].count("\n"), "definition of a member: %r" % d)
+
 request("shutdown", None)
 notify("exit", None)
 check(proc.wait(timeout=5) == 0, "exit code")

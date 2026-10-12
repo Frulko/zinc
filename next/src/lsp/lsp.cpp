@@ -81,6 +81,119 @@ struct Lines {
   }
 };
 
+// ---------------------------------------------------------------- what a declaration says of itself, read in its source
+bool identChar(char c) { return std::isalnum(static_cast<unsigned char>(c)) || c == '_' || c == '$'; }
+std::string trim(const std::string& t, const char* drop = " \t\r\n") {
+  const std::size_t a = t.find_first_not_of(drop), b = t.find_last_not_of(drop);
+  return a == std::string::npos ? std::string() : t.substr(a, b - a + 1);
+}
+bool startsWith(const std::string& t, const char* p) { return t.rfind(p, 0) == 0; }
+bool endsWith(const std::string& t, const std::string& p) { return t.size() >= p.size() && t.compare(t.size() - p.size(), p.size(), p) == 0; }
+
+// `step(dt: number, w: number): void`: a function or a method from its name to its body, on one line.
+std::string signatureOf(const SourceFile& sf, const Node& n) {
+  const std::string& t = sf.text;
+  const char* base = t.data();
+  std::size_t i = !n.text.empty() && n.text.data() >= base && n.text.data() < base + t.size() ? static_cast<std::size_t>(n.text.data() - base) : n.start;   // the node's text views the name
+  std::string out;
+  int depth = 0;
+  for (; i < t.size() && i < n.end; ++i) {
+    const char c = t[i];
+    if (c == '(' || c == '[' || c == '<') ++depth;
+    else if (c == ')' || c == ']' || (c == '>' && t[i - 1] != '=')) depth = std::max(0, depth - 1);
+    else if (depth == 0 && (c == '{' || c == ';')) break;
+    if (c == ' ' || c == '\t' || c == '\n' || c == '\r') { if (!out.empty() && out.back() != ' ') out += ' '; }
+    else out += c;
+  }
+  return trim(out, " :");
+}
+
+// The parameters of a signature, as [start, end) in it.
+std::vector<std::pair<std::size_t, std::size_t>> paramsOf(const std::string& label) {
+  std::vector<std::pair<std::size_t, std::size_t>> out;
+  const std::size_t open = label.find('(');
+  if (open == std::string::npos) return out;
+  int depth = 0;
+  std::size_t from = open + 1;
+  for (std::size_t i = open; i < label.size(); ++i) {
+    const char c = label[i];
+    if (c == '(' || c == '[' || c == '{' || c == '<') ++depth;
+    else if (c == ')' || c == ']' || c == '}' || (c == '>' && label[i - 1] != '=')) --depth;
+    if ((c == ',' && depth == 1) || (c == ')' && depth == 0)) {
+      std::size_t a = from, b = i;
+      while (a < b && label[a] == ' ') ++a;
+      while (b > a && label[b - 1] == ' ') --b;
+      if (b > a) out.push_back({a, b});
+      from = i + 1;
+      if (c == ')') break;
+    }
+  }
+  return out;
+}
+
+// The comment right above the declaration at `pos` (or before it on its line): a /** */ block or a run of // lines,
+// one cleaned line per line. Empty when there is none.
+std::string commentAbove(const std::string& t, std::size_t pos) {
+  pos = std::min(pos, t.size());
+  std::size_t ls = pos == 0 ? std::string::npos : t.rfind('\n', pos - 1);
+  ls = ls == std::string::npos ? 0 : ls + 1;
+  std::vector<std::string> lines;
+  const std::string head = trim(t.substr(ls, pos - ls));
+  if (endsWith(head, "*/") && head.rfind("/*") != std::string::npos) lines.push_back(head.substr(head.rfind("/*")));
+  else {
+    bool block = false, opened = false;
+    for (std::size_t s = ls; s > 0 && !opened;) {
+      const std::size_t pe = s - 1;   // the line break
+      std::size_t ps = pe == 0 ? std::string::npos : t.rfind('\n', pe - 1);
+      ps = ps == std::string::npos ? 0 : ps + 1;
+      const std::string line = trim(t.substr(ps, pe - ps));
+      if (lines.empty() && endsWith(line, "*/")) block = true;
+      if (block) opened = line.find("/*") != std::string::npos;
+      else if (!startsWith(line, "//")) break;
+      lines.insert(lines.begin(), line);
+      s = ps;
+    }
+    if (block && !opened) lines.clear();
+  }
+  std::string out;
+  for (std::string l : lines) {
+    if (startsWith(l, "/*")) l = l.substr(l.find_first_not_of("/*") == std::string::npos ? l.size() : l.find_first_not_of("/*"));
+    else if (startsWith(l, "//")) l = l.substr(2);
+    if (endsWith(l, "*/")) l = l.substr(0, l.size() - 2);
+    l = trim(l);
+    if (startsWith(l, "*")) l = trim(l.substr(1));
+    l = trim(l, " \t-=/");   // a ruler: `// ---- title`
+    if (!l.empty()) out += l + "\n";
+  }
+  return out;
+}
+
+// What an editor shows of a declaration: its signature (or `class Name`; empty for a variable), its doc, the docs of its parameters.
+struct About {
+  std::string code, doc;
+  std::vector<std::pair<std::string, std::string>> params;   // @param name text
+};
+void readComment(const std::string& raw, About& out) {
+  std::stringstream ss(raw);
+  int cur = -1;   // the text a line continues: the doc, or a parameter
+  for (std::string l; std::getline(ss, l);) {
+    if (startsWith(l, "@param ")) {
+      std::string rest = trim(l.substr(7));
+      if (!rest.empty() && rest[0] == '{') rest = trim(rest.substr(std::min(rest.size(), rest.find('}') + 1)));   // {type}
+      std::size_t e = 0;
+      while (e < rest.size() && identChar(rest[e])) ++e;
+      out.params.push_back({rest.substr(0, e), trim(rest.substr(e), " \t-:")});
+      cur = static_cast<int>(out.params.size()) - 1;
+    } else if (startsWith(l, "@")) { out.doc += (out.doc.empty() ? "" : "\n") + l; cur = -1; }
+    else { std::string& dst = cur < 0 ? out.doc : out.params[cur].second; dst += (dst.empty() ? "" : " ") + l; }
+  }
+}
+std::size_t utf16(const std::string& t, std::size_t bytes) {
+  std::size_t n = 0;
+  for (std::size_t i = 0; i < bytes && i < t.size(); ++i) { const unsigned char c = static_cast<unsigned char>(t[i]); if ((c & 0xC0) != 0x80) n += c >= 0xF0 ? 2 : 1; }
+  return n;
+}
+
 struct Analysis {
   Program prog;
   Checked checked;
@@ -88,7 +201,7 @@ struct Analysis {
   std::vector<Diag> diags;
 };
 
-struct Doc { std::string text; int version = 0; std::shared_ptr<Analysis> last; };
+struct Doc { std::string text; int version = 0; std::shared_ptr<Analysis> last; };   // last: the latest analysis that reached the type checker (answers survive a syntax error being typed)
 
 class Server {
  public:
@@ -98,6 +211,8 @@ class Server {
  private:
   std::string stdRoot_;
   std::map<std::string, Doc> docs_;   // uri -> text
+  std::string dts_;                   // lib/gfx.d.ts and lib/modules.d.ts, read when a built-in module's doc is asked
+  bool dtsRead_ = false;
   bool shutdown_ = false;
 
   bool read(const std::string& path, std::string& out) {
@@ -134,12 +249,13 @@ class Server {
 
   void publish(const std::string& uri, Doc& d) {
     const std::string path = uriToPath(uri);
-    d.last = analyze(path);
+    const std::shared_ptr<Analysis> now = analyze(path);
+    if (now->checkedOk || !d.last) d.last = now;
     std::string items;
     int n = 0;
-    for (const Diag& dg : d.last->diags) {
-      if (dg.file >= d.last->prog.files.size() || d.last->prog.files[dg.file].path != path) continue;
-      const std::string line = formatDiag(d.last->prog, dg);   // file:line:col: error Zxxxx: message
+    for (const Diag& dg : now->diags) {
+      if (dg.file >= now->prog.files.size() || now->prog.files[dg.file].path != path) continue;
+      const std::string line = formatDiag(now->prog, dg);   // file:line:col: error Zxxxx: message
       std::size_t a = line.find(':'), b = line.find(':', a + 1), c = line.find(':', b + 1);
       const int ln = std::atoi(line.c_str() + a + 1) - 1, col = std::atoi(line.c_str() + b + 1) - 1;
       std::size_t m = line.find(": error ", c);
@@ -163,13 +279,131 @@ class Server {
   }
   static std::size_t fileIndex(const Analysis& a, const std::string& path) { for (std::size_t i = 0; i < a.prog.files.size(); ++i) if (a.prog.files[i].path == path) return i; return 0; }
 
+  // A document position as an offset in the text the nodes view (the JSX of a .tsx file is lowered: its map leads there), and a range back.
+  static std::size_t nodeOffset(const SourceFile& sf, int line, int ch) {
+    const std::string& doc = sf.map.empty() ? sf.text : sf.original;
+    const std::size_t off = Lines(doc).offset(doc, line, ch);
+    return sf.map.empty() ? off : loweredOffset(sf.map, static_cast<std::uint32_t>(off));
+  }
+  std::string docRange(const SourceFile& sf, std::size_t a, std::size_t b) {
+    if (sf.map.empty()) return range(sf.text, a, b);
+    return range(sf.original, sourceOffset(sf.map, static_cast<std::uint32_t>(a)), sourceOffset(sf.map, static_cast<std::uint32_t>(b)));
+  }
+  static std::uint32_t findNamed(const Ast& ast, std::uint32_t file, N kind, std::string_view text) {
+    for (std::uint32_t i = 0; i < ast.nodes.size(); ++i) if (ast.nodes[i].kind == kind && ast.nodes[i].file == file && ast.nodes[i].text == text) return i;
+    return kNone;
+  }
+
+  // The Field or Method node that declares member `name` of an object type, through its parents (kNone: a builtin's, or not an object).
+  static std::uint32_t memberNode(const Analysis& a, TypeId t, std::string_view name) {
+    const Checked& c = a.checked;
+    const Ast& ast = a.prog.ast;
+    if (t == kNoType || t >= c.types.size() || c.types[t].k != TK::Object) return kNone;
+    std::set<std::uint32_t> seen;
+    for (std::uint32_t o = c.types[t].obj; o != 0xFFFFFFFFu && o < c.objs.size() && seen.insert(o).second; o = c.objs[o].parent) {
+      std::string_view cls = c.objs[o].name;
+      cls = cls.substr(0, cls.find('<'));   // an instance of a generic class
+      for (const Node& k : ast.nodes) {
+        if ((k.kind != N::Class && k.kind != N::Interface) || k.text != cls) continue;
+        for (std::size_t i = k.kind == N::Class ? kClassMembersFrom : 1; i < k.kids.size(); ++i) {
+          if (k.kids[i] >= ast.nodes.size()) continue;
+          const Node& m = ast.nodes[k.kids[i]];
+          if ((m.kind == N::Method || m.kind == N::Field) && m.text == name) return k.kids[i];
+        }
+      }
+    }
+    return kNone;
+  }
+  // The declaration behind a node: of the symbol an identifier names, of the member `object.name` reads; a declaration is its own.
+  static std::uint32_t declOf(const Analysis& a, std::uint32_t id) {
+    const Node& n = a.prog.ast.nodes[id];
+    if (n.kind == N::Ident) return id < a.checked.nodeSym.size() && a.checked.nodeSym[id] != kNone ? a.checked.syms[a.checked.nodeSym[id]].decl : kNone;
+    if (n.kind == N::Member) return n.kids.empty() || n.kids[0] >= a.checked.nodeType.size() ? kNone : memberNode(a, a.checked.nodeType[n.kids[0]], n.text);
+    return n.kind == N::Call ? kNone : id;
+  }
+  // The docs of the built-in modules ('zinc:gfx', 'zinc:sys'...): they are compiled from sources without comments, their declarations are in lib/*.d.ts.
+  std::string builtinDoc(const std::string& spec, std::string_view name) {
+    if (!dtsRead_) {
+      dtsRead_ = true;
+      for (const char* f : {"/../gfx.d.ts", "/../modules.d.ts"}) { std::ifstream in(stdRoot_ + f, std::ios::binary); std::stringstream ss; ss << in.rdbuf(); dts_ += ss.str() + "\n"; }
+    }
+    const std::size_t m = dts_.find("declare module '" + spec + "'");
+    if (m == std::string::npos) return "";
+    const std::size_t end = std::min(dts_.find("\ndeclare module", m + 1), dts_.size());
+    for (const char* kw : {"function ", "const ", "class ", "interface ", "let "}) {
+      const std::string key = kw + std::string(name);
+      for (std::size_t at = dts_.find(key, m); at != std::string::npos && at < end; at = dts_.find(key, at + 1))
+        if (at + key.size() < dts_.size() && !identChar(dts_[at + key.size()])) return commentAbove(dts_, at);
+    }
+    return "";
+  }
+  About about(const Analysis& a, std::uint32_t decl) {
+    About out;
+    if (decl == kNone || decl >= a.prog.ast.nodes.size()) return out;
+    const Node& n = a.prog.ast.nodes[decl];
+    if (n.file >= a.prog.files.size()) return out;
+    const SourceFile& sf = a.prog.files[n.file];
+    if (n.kind == N::Function || n.kind == N::Method) out.code = signatureOf(sf, n);
+    else if (n.kind == N::Class) out.code = "class " + std::string(n.text);
+    else if (n.kind == N::Interface) out.code = "interface " + std::string(n.text);
+    std::string raw = commentAbove(sf.text, n.start);
+    if (raw.empty() && startsWith(sf.path, "zinc:")) raw = builtinDoc(sf.path, n.text);
+    readComment(raw, out);
+    return out;
+  }
+  // `name(f64, f64): void` when only the type of a function is known (a builtin, a function value).
+  static std::string typeSignature(const Checked& c, const std::string& name, TypeId t) {
+    if (t == kNoType || t >= c.types.size() || c.types[t].k != TK::Func) return "";
+    std::string out = name + "(";
+    for (std::size_t i = 0; i < c.types[t].params.size(); ++i) out += (i ? ", " : "") + typeName(c, c.types[t].params[i]);
+    return out + "): " + typeName(c, c.types[t].elem);
+  }
+
+  // ---- `import * as ns from '...'`: the loader turns each `ns.name` into a named import, so the module behind `ns` is found from the text
+  // ponytail: by the module's path; a list of the aliases in ModuleInfo would end the guess
+  const ModuleInfo* namespaceOf(const Doc& d, const std::string& text, const std::string& alias) {
+    if (alias.empty() || !d.last) return nullptr;
+    const std::size_t at = text.find("* as " + alias + " from");
+    const std::size_t q = at == std::string::npos ? at : text.find_first_of("'\"", at);
+    const std::size_t e = q == std::string::npos ? q : text.find(text[q], q + 1);
+    if (e == std::string::npos) return nullptr;
+    const std::string spec = text.substr(q + 1, e - q - 1), file(stdModuleFile(spec)), last = spec.substr(spec.find_last_of(":/") + 1);
+    for (const ModuleInfo& m : d.last->prog.ast.modules) {
+      if (m.path == spec || (!file.empty() && endsWith(m.path, "/" + file))) return &m;
+      if (file.empty() && !last.empty() && (endsWith(m.path, "/" + last + ".ts") || endsWith(m.path, "/" + last + ".tsx") || endsWith(m.path, "/" + last + "/index.ts"))) return &m;
+    }
+    return nullptr;
+  }
+  // The top-level declaration of a module named `name` (kNone when it has none).
+  static std::uint32_t declNamed(const Ast& ast, const ModuleInfo& m, std::string_view name) {
+    for (std::uint32_t st : m.stmts) {
+      const Node* n = &ast.nodes[st];
+      std::uint32_t id = st;
+      if (n->kind == N::Export && !n->kids.empty() && n->kids[0] < ast.nodes.size()) { id = n->kids[0]; n = &ast.nodes[id]; }
+      if ((n->kind == N::Function || n->kind == N::Class || n->kind == N::Interface || n->kind == N::Enum || n->kind == N::TypeAlias) && n->text == name) return id;
+      if (n->kind == N::VarDecl) for (std::uint32_t k : n->kids) if (ast.nodes[k].kind == N::Declarator && ast.nodes[k].text == name) return k;
+    }
+    return kNone;
+  }
+  // What a module exports: name -> declaration, through `export * from` and `export { a } from`.
+  static void exportsOf(const Ast& ast, const ModuleInfo& m, std::map<std::string, std::uint32_t>& out, int depth = 0) {
+    for (const ModuleExport& e : m.exports) {
+      if (e.from != kNone) {
+        if (depth > 3 || e.from >= ast.modules.size()) continue;
+        if (e.all) exportsOf(ast, ast.modules[e.from], out, depth + 1);
+        else { std::map<std::string, std::uint32_t> far; exportsOf(ast, ast.modules[e.from], far, depth + 1); if (far.count(std::string(e.local))) out.emplace(std::string(e.name), far[std::string(e.local)]); }
+      } else if (const std::uint32_t id = declNamed(ast, m, e.local); id != kNone) out.emplace(std::string(e.name), id);
+    }
+  }
+  static int kindOf(const Node& n) { return n.kind == N::Function ? 3 : n.kind == N::Method ? 2 : n.kind == N::Class ? 7 : n.kind == N::Interface || n.kind == N::TypeAlias ? 8 : n.kind == N::Enum ? 13 : n.kind == N::Field ? 5 : 6; }
+
   std::string hover(const std::string& uri, Doc& d, int line, int ch) {
     if (!d.last || !d.last->checkedOk) return "null";
     const std::string path = uriToPath(uri);
     const Analysis& a = *d.last;
     const std::uint32_t file = static_cast<std::uint32_t>(fileIndex(a, path));
-    const std::string& text = a.prog.files[file].text;
-    const std::size_t off = Lines(text).offset(text, line, ch);
+    const SourceFile& sf = a.prog.files[file];
+    const std::size_t off = nodeOffset(sf, line, ch);
     std::uint32_t id = innermost(a.prog.ast, file, off, [&](const Node& n) {
       return n.kind == N::Ident || n.kind == N::Declarator || n.kind == N::Param || n.kind == N::Function || n.kind == N::Method || n.kind == N::Field || n.kind == N::Member || n.kind == N::Call || n.kind == N::Class;
     });
@@ -177,10 +411,11 @@ class Server {
     const Node& n = a.prog.ast.nodes[id];
     TypeId t = id < a.checked.nodeType.size() ? a.checked.nodeType[id] : kNoType;
     if (n.kind == N::Ident && id < a.checked.nodeSym.size() && a.checked.nodeSym[id] != kNone) t = a.checked.syms[a.checked.nodeSym[id]].type;
-    if (t == kNoType) return "null";
+    const About ab = about(a, declOf(a, id));   // a function shows its signature, anything else its type; the doc comment under it
+    if (t == kNoType && ab.code.empty()) return "null";
     const std::string label = n.kind == N::Call ? std::string("call") : n.text.empty() ? std::string("expression") : std::string(n.text);
-    const std::string md = "```ts\n" + label + ": " + typeName(a.checked, t) + "\n```";
-    return "{\"contents\":{\"kind\":\"markdown\",\"value\":" + quote(md) + "},\"range\":" + range(text, n.start, n.end) + "}";
+    const std::string md = "```ts\n" + (ab.code.empty() ? label + ": " + typeName(a.checked, t) : ab.code) + "\n```" + (ab.doc.empty() ? "" : "\n\n" + ab.doc);
+    return "{\"contents\":{\"kind\":\"markdown\",\"value\":" + quote(md) + "},\"range\":" + docRange(sf, n.start, n.end) + "}";
   }
 
   std::string definition(const std::string& uri, Doc& d, int line, int ch) {
@@ -188,20 +423,18 @@ class Server {
     const std::string path = uriToPath(uri);
     const Analysis& a = *d.last;
     const std::uint32_t file = static_cast<std::uint32_t>(fileIndex(a, path));
-    const std::string& text = a.prog.files[file].text;
-    const std::size_t off = Lines(text).offset(text, line, ch);
-    std::uint32_t id = innermost(a.prog.ast, file, off, [](const Node& n) { return n.kind == N::Ident; });
-    if (id == kNone || id >= a.checked.nodeSym.size() || a.checked.nodeSym[id] == kNone) return "null";
-    const Symbol& s = a.checked.syms[a.checked.nodeSym[id]];
-    if (s.decl == kNone || s.decl >= a.prog.ast.nodes.size()) return "null";
-    const Node& dn = a.prog.ast.nodes[s.decl];
-    if (dn.file >= a.prog.files.size()) return "null";
+    const std::size_t off = nodeOffset(a.prog.files[file], line, ch);
+    std::uint32_t id = innermost(a.prog.ast, file, off, [](const Node& n) { return n.kind == N::Ident || n.kind == N::Member; });
+    const std::uint32_t decl = id == kNone ? kNone : declOf(a, id);
+    if (decl == kNone || decl >= a.prog.ast.nodes.size()) return "null";
+    const Node& dn = a.prog.ast.nodes[decl];
+    if (dn.file >= a.prog.files.size() || startsWith(a.prog.files[dn.file].path, "zinc:")) return "null";   // a built-in module has no file
     const SourceFile& sf = a.prog.files[dn.file];
     // the name inside the declaration node, not the whole declaration
     std::size_t at = sf.text.find(std::string(dn.text), dn.start);
     const std::size_t from = !dn.text.empty() && at != std::string::npos && at < dn.end ? at : dn.start;
     const std::size_t to = !dn.text.empty() && from != dn.start ? from + dn.text.size() : dn.end;
-    return "{\"uri\":" + quote(pathToUri(sf.path)) + ",\"range\":" + range(sf.text, from, to) + "}";
+    return "{\"uri\":" + quote(pathToUri(sf.path)) + ",\"range\":" + docRange(sf, from, to) + "}";
   }
 
   std::string symbols(const std::string& uri, Doc& d) {
@@ -251,7 +484,9 @@ class Server {
     const std::size_t off = Lines(text).offset(text, line, ch);
     std::string items;
     int n = 0;
-    auto add = [&](const std::string& label, int kind, const std::string& detail) { items += std::string(n++ ? "," : "") + "{\"label\":" + quote(label) + ",\"kind\":" + std::to_string(kind) + ",\"detail\":" + quote(detail) + "}"; };
+    auto add = [&](const std::string& label, int kind, const std::string& detail, const std::string& doc = "") {
+      items += std::string(n++ ? "," : "") + "{\"label\":" + quote(label) + ",\"kind\":" + std::to_string(kind) + ",\"detail\":" + quote(detail) + (doc.empty() ? "" : ",\"documentation\":" + quote(doc)) + "}";
+    };
     // module specifier: inside the quotes of `from '...'` / `import '...'`
     {
       std::size_t ls = text.rfind('\n', off == 0 ? 0 : off - 1);
@@ -268,13 +503,27 @@ class Server {
         return "{\"isIncomplete\":false,\"items\":[" + items + "]}";
       }
     }
-    // member access: parse the text with a placeholder name after the dot, then list the members of the object's type
-    if (off > 0 && text[off - 1] == '.') {
+    // member access: the name being typed after the dot gives way to a placeholder, the text is analysed and the members of the object's type are listed
+    std::size_t b = off;
+    while (b > 0 && identChar(text[b - 1])) --b;
+    if (b > 0 && text[b - 1] == '.') {
+      std::size_t ob = b - 1;
+      while (ob > 0 && identChar(text[ob - 1])) --ob;
+      if (const ModuleInfo* m = namespaceOf(d, text, text.substr(ob, b - 1 - ob))) {   // ns. : what the module exports
+        std::map<std::string, std::uint32_t> ex;
+        exportsOf(d.last->prog.ast, *m, ex);
+        for (const auto& [name, id] : ex) {
+          const About ab = about(*d.last, id);
+          const TypeId t = id < d.last->checked.nodeType.size() ? d.last->checked.nodeType[id] : kNoType;
+          add(name, kindOf(d.last->prog.ast.nodes[id]), !ab.code.empty() ? ab.code : t != kNoType && d.last->checkedOk ? typeName(d.last->checked, t) : "", ab.doc);
+        }
+        return "{\"isIncomplete\":false,\"items\":[" + items + "]}";
+      }
       std::string patched = text;
-      patched.insert(off, "__zn_complete__");
+      patched.replace(b, off - b, "__zn_complete__");
       auto a = analyze(path, &patched);
       const std::uint32_t file = static_cast<std::uint32_t>(fileIndex(*a, path));
-      std::uint32_t id = innermost(a->prog.ast, file, off + 1, [](const Node& nd) { return nd.kind == N::Member && nd.text == "__zn_complete__"; });
+      std::uint32_t id = findNamed(a->prog.ast, file, N::Member, "__zn_complete__");
       if (id != kNone && a->checkedOk) {
         const Node& mem = a->prog.ast.nodes[id];
         TypeId t = mem.kids.empty() ? kNoType : a->checked.nodeType[mem.kids[0]];
@@ -282,29 +531,139 @@ class Server {
           const Type& ty = a->checked.types[t];
           if (ty.k == TK::Object && ty.obj < a->checked.objs.size()) {
             std::set<std::uint32_t> seen;
+            std::set<std::string> names;
             for (std::uint32_t o = ty.obj; o != 0xFFFFFFFFu && o < a->checked.objs.size() && seen.insert(o).second; o = a->checked.objs[o].parent)
-              for (const Member& m : a->checked.objs[o].members) if (m.access == 0) add(m.name, m.method ? 2 : 5, typeName(a->checked, m.type));
+              for (const Member& m : a->checked.objs[o].members) {
+                if (m.access != 0 || !names.insert(m.name).second) continue;
+                const About ab = about(*a, memberNode(*a, t, m.name));
+                add(m.name, m.method ? 2 : 5, m.method && !ab.code.empty() ? ab.code : m.method ? typeSignature(a->checked, m.name, m.type) : typeName(a->checked, m.type), ab.doc);
+              }
           } else if (ty.k == TK::Str) { for (const char* s : {"length", "charAt", "charCodeAt", "indexOf", "slice", "split", "toUpperCase", "toLowerCase", "trim", "startsWith", "endsWith", "includes", "replace", "padStart", "padEnd", "at"}) add(s, 6, "string"); }
           else if (ty.k == TK::Array) { for (const char* s : {"length", "push", "pop", "shift", "unshift", "slice", "splice", "indexOf", "includes", "map", "filter", "reduce", "forEach", "join", "sort", "reverse", "find", "some", "every", "at"}) add(s, 6, "array"); }
         }
       }
       return "{\"isIncomplete\":false,\"items\":[" + items + "]}";
     }
-    // names in scope: the symbols of the last analysis whose name starts with the typed prefix, plus the keywords
-    std::size_t b = off;
-    while (b > 0 && (std::isalnum(static_cast<unsigned char>(text[b - 1])) || text[b - 1] == '_' || text[b - 1] == '$')) --b;
-    const std::string prefix = text.substr(b, off - b);
+    // names in scope: this file's and the imported ones, the globals, the locals of the functions around the position; then the keywords.
+    // Everything is sent whatever is typed: the editor filters (and can match `sw` to strokeWidth).
     std::set<std::string> seen;
     if (d.last && d.last->checkedOk) {
-      for (const Symbol& s : d.last->checked.syms) {
+      const Analysis& a = *d.last;
+      const Ast& ast = a.prog.ast;
+      const std::uint32_t file = static_cast<std::uint32_t>(fileIndex(a, path));
+      const std::size_t at = nodeOffset(a.prog.files[file], line, ch);
+      std::set<std::string_view> imported;
+      for (const ModuleInfo& m : ast.modules) if (m.file == file) for (const ModuleImport& im : m.imports) imported.insert(im.local);
+      for (const Symbol& s : a.checked.syms) {
         const std::string name(s.name);
-        if (name.empty() || name.rfind(prefix, 0) != 0 || name.rfind("__", 0) == 0 || !seen.insert(name).second) continue;
-        add(name, s.kind == SymKind::Func || s.kind == SymKind::GenericFunc ? 3 : s.kind == SymKind::Class || s.kind == SymKind::GenericClass ? 7 : 6, typeName(d.last->checked, s.type));
+        // not the engine's own: __host_* and the names the loader makes (ns$name); a host function's name can be a view of freed text
+        if (name.empty() || name.rfind("__", 0) == 0 || name.find("_host_") != std::string::npos || seen.count(name) || std::isdigit(static_cast<unsigned char>(name[0])) || !std::all_of(name.begin(), name.end(), [](char c) { return identChar(c) && c != '$'; })) continue;
+        if (s.decl != kNone && s.decl < ast.nodes.size()) {
+          if (ast.nodes[s.decl].file != file && !imported.count(s.name)) continue;   // another module's own name
+          if (s.ownerFn < ast.nodes.size()) { const Node& fn = ast.nodes[s.ownerFn]; if (fn.file != file || at < fn.start || at > fn.end) continue; }   // a local of another function
+        }
+        seen.insert(name);
+        const About ab = about(a, s.decl);
+        const bool fn = s.kind == SymKind::Func || s.kind == SymKind::GenericFunc || (s.kind == SymKind::Builtin && s.type < a.checked.types.size() && a.checked.types[s.type].k == TK::Func);
+        const std::string sig = !ab.code.empty() ? ab.code : fn ? typeSignature(a.checked, name, s.type) : "";
+        add(name, fn ? 3 : s.kind == SymKind::Class || s.kind == SymKind::GenericClass ? 7 : s.kind == SymKind::Enum ? 13 : s.kind == SymKind::TypeAlias || s.kind == SymKind::GenericAlias ? 8 : 6,
+            !sig.empty() ? sig : typeName(a.checked, s.type), ab.doc);
       }
     }
-    for (const char* kw : {"const", "let", "function", "class", "interface", "type", "enum", "return", "if", "else", "for", "while", "switch", "import", "export", "new", "this", "true", "false", "null", "async", "await", "try", "catch", "throw"})
-      if (std::string(kw).rfind(prefix, 0) == 0 && seen.insert(kw).second) add(kw, 14, "keyword");
+    for (const char* kw : {"const", "let", "function", "class", "interface", "type", "enum", "return", "if", "else", "for", "while", "switch", "import", "export", "new", "this", "true", "false", "null", "async", "await", "try", "catch", "finally", "throw", "break", "continue", "case", "default", "do", "of", "in", "extends", "implements", "static", "readonly", "private", "public", "typeof", "instanceof", "as", "from", "void", "undefined"})
+      if (seen.insert(kw).second) add(kw, 14, "keyword");
     return "{\"isIncomplete\":false,\"items\":[" + items + "]}";
+  }
+
+  // The call the position is in: the signature of what is called, its parameters, the one being typed (the commas before the position), the docs.
+  std::string signatureHelp(const std::string& uri, Doc& d, int line, int ch) {
+    const std::string path = uriToPath(uri);
+    const std::string& text = d.text;
+    const std::size_t off = Lines(text).offset(text, line, ch);
+    std::size_t open = std::string::npos;
+    int depth = 0, active = 0;
+    for (std::size_t i = off; i-- > 0 && off - i < 4000;) {
+      const char c = text[i];
+      if (c == '"' || c == '\'' || c == '`') {   // a string is skipped whole
+        const std::size_t q = i == 0 ? std::string::npos : text.rfind(c, i - 1);
+        if (q == std::string::npos || text.find('\n', q) < i) break;
+        i = q;
+      } else if (c == ')' || c == ']' || c == '}') ++depth;
+      else if (c == '(' || c == '[' || c == '{') { if (depth == 0) { if (c == '(') open = i; break; } --depth; }
+      else if (c == ',' && depth == 0) ++active;
+      else if (c == ';' && depth == 0) break;
+    }
+    if (open == std::string::npos) return "null";
+    std::size_t e = open;
+    while (e > 0 && text[e - 1] == ' ') --e;
+    std::size_t b = e;
+    while (b > 0 && identChar(text[b - 1])) --b;
+    std::size_t w = b;
+    while (w > 0 && text[w - 1] == ' ') --w;
+    std::size_t w0 = w;
+    while (w0 > 0 && identChar(text[w0 - 1])) --w0;
+    const std::string name = text.substr(b, e - b), before = text.substr(w0, w - w0);   // before: `new`, `function`
+    static const std::set<std::string> notCalls = {"if", "for", "while", "switch", "catch", "function", "return", "constructor", "typeof", "await"};
+    if (name.empty() || notCalls.count(name) || before == "function") return "null";
+
+    About ab;
+    if (b > 0 && text[b - 1] == '.') {
+      std::size_t ob = b - 1;
+      while (ob > 0 && identChar(text[ob - 1])) --ob;
+      if (const ModuleInfo* m = namespaceOf(d, text, text.substr(ob, b - 1 - ob))) {   // ns.name(
+        std::map<std::string, std::uint32_t> ex;
+        exportsOf(d.last->prog.ast, *m, ex);
+        if (ex.count(name)) ab = about(*d.last, ex[name]);
+      } else for (const char* placeholder : {"__zn_complete__(", "__zn_complete__"}) {   // object.name( : the type of the object, with the call set aside
+        std::string patched = text;
+        patched.replace(b, off - b, placeholder);
+        auto a = analyze(path, &patched);
+        const std::uint32_t id = a->checkedOk ? findNamed(a->prog.ast, static_cast<std::uint32_t>(fileIndex(*a, path)), N::Member, "__zn_complete__") : kNone;
+        if (id == kNone || a->prog.ast.nodes[id].kids.empty()) continue;
+        const TypeId t = a->checked.nodeType[a->prog.ast.nodes[id].kids[0]];
+        ab = about(*a, memberNode(*a, t, name));
+        if (ab.code.empty() && t != kNoType && t < a->checked.types.size() && a->checked.types[t].k == TK::Object) {
+          std::set<std::uint32_t> seen;
+          for (std::uint32_t o = a->checked.types[t].obj; o < a->checked.objs.size() && seen.insert(o).second; o = a->checked.objs[o].parent)
+            for (const Member& mb : a->checked.objs[o].members) if (mb.name == name && ab.code.empty()) ab.code = typeSignature(a->checked, name, mb.type);
+        }
+        break;
+      }
+    } else if (d.last && d.last->checkedOk) {   // name( and new Name( : a symbol of the last analysis
+      const Analysis& a = *d.last;
+      for (const Symbol& s : a.checked.syms) {
+        if (s.name != name) continue;
+        const bool cls = s.kind == SymKind::Class || s.kind == SymKind::GenericClass;
+        if (cls != (before == "new")) continue;
+        if (cls && s.decl < a.prog.ast.nodes.size()) {
+          const Node& c = a.prog.ast.nodes[s.decl];
+          ab.code = "new " + name + "()";
+          for (std::size_t i = kClassMembersFrom; i < c.kids.size(); ++i)
+            if (c.kids[i] < a.prog.ast.nodes.size() && a.prog.ast.nodes[c.kids[i]].kind == N::Method && a.prog.ast.nodes[c.kids[i]].text == "constructor") {
+              ab = about(a, c.kids[i]);
+              ab.code = "new " + name + ab.code.substr(std::min(ab.code.size(), std::string("constructor").size()));
+            }
+          if (ab.doc.empty()) ab.doc = about(a, s.decl).doc;
+        } else {
+          ab = about(a, s.decl);
+          if (ab.code.empty() || startsWith(ab.code, "class ")) ab.code = typeSignature(a.checked, name, s.type);
+        }
+        if (!ab.code.empty()) break;
+      }
+    }
+    if (ab.code.empty()) return "null";
+    std::string params;
+    const auto ps = paramsOf(ab.code);
+    for (std::size_t i = 0; i < ps.size(); ++i) {
+      std::string pname = ab.code.substr(ps[i].first, ps[i].second - ps[i].first), pdoc;
+      pname = pname.substr(pname.find_first_not_of('.') == std::string::npos ? 0 : pname.find_first_not_of('.'));
+      std::size_t pe = 0;
+      while (pe < pname.size() && identChar(pname[pe])) ++pe;
+      for (const auto& [pn, pd] : ab.params) if (pn == pname.substr(0, pe)) pdoc = pd;
+      params += std::string(i ? "," : "") + "{\"label\":[" + std::to_string(utf16(ab.code, ps[i].first)) + "," + std::to_string(utf16(ab.code, ps[i].second)) + "]" + (pdoc.empty() ? "" : ",\"documentation\":" + quote(pdoc)) + "}";
+    }
+    if (!ps.empty()) active = std::min(active, static_cast<int>(ps.size()) - 1);
+    return "{\"signatures\":[{\"label\":" + quote(ab.code) + (ab.doc.empty() ? "" : ",\"documentation\":" + quote(ab.doc)) + ",\"parameters\":[" + params + "]}],\"activeSignature\":0,\"activeParameter\":" + std::to_string(active) + "}";
   }
 };
 
@@ -347,7 +706,7 @@ int Server::run() {
     const int ch = pos ? static_cast<int>(yyjson_get_sint(yyjson_obj_get(pos, "character"))) : 0;
 
     if (method == "initialize") {
-      reply(id, "{\"capabilities\":{\"textDocumentSync\":1,\"hoverProvider\":true,\"definitionProvider\":true,\"documentSymbolProvider\":true,\"completionProvider\":{\"triggerCharacters\":[\".\",\"'\",\"\\\"\",\"/\"]}},\"serverInfo\":{\"name\":\"zinc\",\"version\":\"0.0.1\"}}");
+      reply(id, "{\"capabilities\":{\"textDocumentSync\":1,\"hoverProvider\":true,\"definitionProvider\":true,\"documentSymbolProvider\":true,\"completionProvider\":{\"triggerCharacters\":[\".\",\"'\",\"\\\"\",\"/\"]},\"signatureHelpProvider\":{\"triggerCharacters\":[\"(\",\",\"]}},\"serverInfo\":{\"name\":\"zinc\",\"version\":\"0.0.1\"}}");
     } else if (method == "shutdown") { shutdown_ = true; reply(id, "null"); }
     else if (method == "exit") { yyjson_doc_free(doc); return shutdown_ ? 0 : 1; }
     else if (method == "textDocument/didOpen") {
@@ -374,6 +733,7 @@ int Server::run() {
       else if (method == "textDocument/definition") reply(id, definition(uri, d, line, ch));
       else if (method == "textDocument/documentSymbol") reply(id, symbols(uri, d));
       else if (method == "textDocument/completion") reply(id, completion(uri, d, line, ch));
+      else if (method == "textDocument/signatureHelp") reply(id, signatureHelp(uri, d, line, ch));
       else reply(id, "null");
     } else if (!id.empty()) reply(id, "null");
     yyjson_doc_free(doc);
