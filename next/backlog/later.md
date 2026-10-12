@@ -166,6 +166,7 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-729.07: GCC 14 warns where clang does not (`cli_core.cpp` dangling-reference x5, `assets/model.cpp` x6, `main.cpp` unused `bundleSpecOf`, `zapp.cpp`, `qjs/strip.cpp`): the Linux build is not warning-free.
 - ZN-729.07: the Linux arm64 package is 42.7 MB against the 40 MB budget of `tools/package`: trim it or raise the budget before a Linux release.
 - ZN-729.07: Wayland cannot be built from `third_party/SDL3` (no `wayland-protocols`): a Linux desktop without X11 gets no window.
+- ZN-729.07: `zinc device info` on a Pi repeats the board's model as its CPU (no `model name` in /proc/cpuinfo there): read the core's name (lscpu's "Model name", or the CPU part) instead.
 - ZN-729: the pairing code on the device's screen (a Zinc window, or the app's splash) and as a QR code, for devices nobody has a terminal on.
 - ZN-729: IPv6 for the agent's listener and its discovery; today both are IPv4.
 - ZN-729: build mbedTLS with `MBEDTLS_THREADING_PTHREAD` and drop the agent's lock around its calls, when several large transfers at once are a real case (measure first).
