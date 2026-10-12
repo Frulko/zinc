@@ -2,9 +2,9 @@
 id: ZN-727
 title: 'Demo js-anatomy: a gallery of the Anatomy figures, live, without a webview'
 status: Backlog
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-12 12:57'
+updated_date: '2026-10-12 13:18'
 labels:
   - js
   - demo
@@ -28,3 +28,9 @@ Owner request (2026-10-12): a demo gallery of the figures of https://skills.wher
 - [ ] #4 Frame work of each figure measured alone on the development Mac and logged in docs/reports/zinc-next-perf.md, with what keeps it from 60 fps if it does not reach it
 - [ ] #5 The example's README says what the SVG scene draws and what it leaves out, and the lines for later.md are written
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-10-12: the owner cut the scope to a proof of the principle. Done: examples/js-anatomy downloads a figure's module from unpkg (anatomy-figures 0.1.0) and draws its paths and circles still with Canvas 2D, five rules standing for the stylesheet; a click or a key shows the next one (watch, turbofan). Watch: 859 shapes, download about 300 ms, draw about 190 ms at 800x720 under load. Left out, criteria 1 to 5 stay open: the figure's own render(host) (it needs an SVG tree with CSS: an unfinished, uncommitted scene.js of 553 lines is in the worktree .claude/worktrees/agent-aed53744c488c2df3), movement, input to the figure, use, gradients, clips, the WebGL layer, seasons, the test. The click to the turbofan was not run in the window; the same rules drew it in the measure before the task.
+<!-- SECTION:NOTES:END -->
