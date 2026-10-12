@@ -4,6 +4,9 @@
 #   session    File > Open Example > Hello through the desktop menu (zinc:system), Run: the steps of the build and the program's line are in
 #              the console, the status line says how it ended; the window, console folded again, is the golden
 #   check      a sketch with a type error in its second file, saved with the keyboard: the status line names the problem of `zinc check`
+#   assist     the language server beside the editor (ZN-732): `b.st` typed in a sketch opens the completion popup on the members of
+#              its class (the golden: two rows, the signature and the doc of the selected one), a diagnostic arrives before any save,
+#              Enter puts `step` in the text, `(` brings the signature with its first parameter marked; the server ends with Atelier
 cd "$(dirname "$0")/../.." || exit 2
 fail=0
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
@@ -30,4 +33,20 @@ printf '4 key s meta\n' > "$tmp/keys"
 ZINC_ATELIER_HOME="$tmp/book" ZINC_ATELIER_SYNC=1 ZINC_ATELIER_ECHO=1 ZINC_SYSTEM_LOG=/dev/null ZINC_INPUT="$tmp/keys" ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=8 \
   "$ZINC" run app/atelier -- "$tmp/broken" >"$tmp/out" 2>"$tmp/err" || { echo "atelier check failed: $(head -c 300 "$tmp/err")"; fail=1; }
 grep -q "^\[status\] 1 problem: util.ts:1 Type is not assignable: 'string' to 'i32'" "$tmp/out" || { echo "atelier check: the diagnostic of zinc check is not on the status line: $(grep status "$tmp/out" | tail -2)"; fail=1; }
+
+mkdir -p "$tmp/assist"
+printf "import { Ball } from './ball';\nconst b = new Ball();\n\nconsole.log(b.x);\n" > "$tmp/assist/main.ts"
+printf "/** A ball that bounces between the walls. */\nexport class Ball {\n  /** Position, in pixels from the left. */\n  x: number = 0;\n  vx: number = 120;\n  /** Moves the ball by one frame and bounces on the walls. */\n  step(dt: number, width: number): void {\n    this.x += this.vx * dt;\n    if (this.x < 0 || this.x > width) this.vx = -this.vx;\n  }\n  stop(): void { this.vx = 0; }\n}\n" > "$tmp/assist/ball.ts"
+printf '6 key ArrowDown\n7 key ArrowDown\n9 text "b"\n10 text "."\n12 text "s"\n13 text "t"\n16 key Enter\n18 text "("\n22 key s meta\n' > "$tmp/keys"
+ZINC_ATELIER_HOME="$tmp/book" ZINC_ATELIER_SYNC=1 ZINC_ATELIER_ECHO=1 ZINC_SYSTEM_LOG=/dev/null ZINC_INPUT="$tmp/keys" ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=26 ZINC_SCALE=1 \
+  ZINC_SHOT="$tmp/assist.png" ZINC_SHOT_FRAMES=15 "$ZINC" run app/atelier -- "$tmp/assist" >"$tmp/out" 2>"$tmp/err" || { echo "atelier assist failed: $(head -c 300 "$tmp/err")"; fail=1; }
+grep -q '^\[lsp\] completion 4 item(s), 4 shown: x$' "$tmp/out" || { echo "atelier assist: no popup with the members of Ball after the dot: $(grep '^\[lsp\]' "$tmp/out" | head -4)"; fail=1; }
+grep -q "^\[status\] 1 problem: main.ts:3 Property does not exist: 'st' on 'Ball'" "$tmp/out" || { echo "atelier assist: no diagnostic from the server while typing: $(grep status "$tmp/out" | tail -2)"; fail=1; }
+grep -q '^\[lsp\] signature step(dt: number, width: number): void \[dt: number\]$' "$tmp/out" || { echo "atelier assist: no signature with its first parameter marked: $(grep '^\[lsp\]' "$tmp/out" | tail -2)"; fail=1; }
+grep -q '^b\.step()$' "$tmp/assist/main.ts" || { echo "atelier assist: the accepted item is not in the text: $(sed -n 3p "$tmp/assist/main.ts")"; fail=1; }
+tools/pngdiff "$tmp/assist-15.png" "$g/assist-15.png" >/dev/null || { echo "atelier assist: frame 15 differs from $g/assist-15.png"; fail=1; }
+[ -n "$ATELIER_KEEP" ] && cp "$tmp/assist-15.png" "$(dirname "$ATELIER_KEEP")/assist-15.png"
+pid=$(sed -n 's/^\[lsp\] started //p' "$tmp/out" | head -1)
+n=0; while [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null && [ $n -lt 10 ]; do sleep 0.2; n=$((n + 1)); done   # it ends when its stdin closes
+[ -n "$pid" ] && kill -0 "$pid" 2>/dev/null && { echo "atelier assist: the language server $pid outlives Atelier"; fail=1; }
 exit $fail

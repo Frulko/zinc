@@ -91,7 +91,7 @@ function Tabs(): i32 {
       }}>
       <For each={buffers()}>{(b: Buffer, i: i32) => <Tab b={b} />}</For>
     </View>
-    <IconButton kind={I_PLUS} size={14} onPress={() => command('add-file')} />
+    <IconButton kind={I_PLUS} size={14} onPress={() => command('open-file')} />
   </View>;
 }
 

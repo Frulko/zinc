@@ -1,11 +1,11 @@
-// The palette (⌘⇧P): one floating list with a query field, for every command of the menu, and for the libraries (the
-// plugins `zinc plugins` lists; Enter adds the import line to the sketch). Items are fuzzy-matched and the matched
+// The palette (⌘⇧P): one floating list with a query field, for every command of the menu, for the libraries (the
+// plugins `zinc plugins` lists; Enter adds the import line to the sketch) and for the sketch's files (⌘P, the + of the tabs). Items are fuzzy-matched and the matched
 // characters are drawn in the accent colour; ↑↓ choose, Enter runs, Esc closes. The panel fades and grows in (paletteT).
 import { createSignal, createMemo, createNodeRef, createEffect } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import { theme, bg, fg, bd } from '../app/theme';
-import { COMMANDS, paletteMode, paletteT, closePalette, PAL_CLOSED, PAL_LIBRARIES, keysText, addLibrary } from '../app/commands';
-import { focusLater } from '../app/workspace';
+import { COMMANDS, command, paletteMode, paletteT, closePalette, PAL_CLOSED, PAL_LIBRARIES, PAL_FILES, keysText, addLibrary } from '../app/commands';
+import { focusLater, sketchDir, sketchFiles, buffers, openFile } from '../app/workspace';
 import { libraries } from '../app/tools';
 import { fuzzy, segments, Fuzzy } from '../app/fuzzy';
 import { noteKey } from '../app/cursors';
@@ -36,6 +36,22 @@ const items = createMemo<Item[]>(() => {
       const it = new Item(l.name, l.text.length > 84 ? l.text.slice(0, 82) + '…' : l.text, '', '', () => addLibrary(l.name));
       if (q !== '') {
         const m = fuzzy(q, l.name, 0);
+        if (m === null) continue;
+        it.score = (m as Fuzzy).score; it.labelHits = (m as Fuzzy).hits;
+      }
+      out.push(it);
+    }
+  } else if (mode === PAL_FILES) {
+    // every source file of the sketch, in its folders too: the way to the files that have no tab yet
+    const dir = sketchDir();
+    if (q === '') out.push(new Item('New File…', 'add a file to the sketch', '⌘T', '', () => { command('add-file'); }));
+    for (const f of sketchFiles(dir)) {
+      let open = false;
+      for (const b of buffers()) if (b.path === dir + '/' + f) open = true;
+      const slash = f.lastIndexOf('/');
+      const it = new Item(f, open ? 'open' : '', '', '', () => { openFile(dir + '/' + f); });
+      if (q !== '') {
+        const m = fuzzy(q, f, slash + 1);
         if (m === null) continue;
         it.score = (m as Fuzzy).score; it.labelHits = (m as Fuzzy).hits;
       }
@@ -117,7 +133,7 @@ export function Palette(): i32 {
       onPointerDown={() => {}}>
       <View class={`flex-row items-center h-[46] px-4 border-b ${bd(theme().borderSoft)}`}>
         <Input ref={inputRef} class={`grow text-[14px] border-0 rounded-none bg-transparent p-0 ${fg(theme().text)} focus:${bd(theme().elevated)}`}
-          placeholder={paletteMode() === PAL_LIBRARIES ? 'Add a library to the sketch…' : 'Do something…'}
+          placeholder={paletteMode() === PAL_LIBRARIES ? 'Add a library to the sketch…' : paletteMode() === PAL_FILES ? 'Open a file of the sketch…' : 'Do something…'}
           value={query()} onInput={(v: string) => { setQuery(v); setCursor(0); if (listRef.node >= 0) ui.scrollTo(listRef.node, 0, 0); }}
           onKeyDown={paletteKey} />
       </View>

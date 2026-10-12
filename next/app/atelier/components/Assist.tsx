@@ -32,7 +32,7 @@ function popupHeight(): number {
   const it = chosen();
   if (it === null) return 0;
   const info = (it as Item).detail !== '' || (it as Item).doc !== '';
-  return 10 + Math.min(popup().length, ROWS) * ROW + (info ? 13 : 0) + ((it as Item).detail !== '' ? 20 : 0) + docLines((it as Item).doc, 50) * 17;
+  return 10 + Math.min(popup().length, ROWS) * ROW + (info ? 13 : 0) + ((it as Item).detail !== '' ? 20 : 0) + docLines((it as Item).doc, 56) * 17;
 }
 function sigDoc(s: Sig): string { return s.paramDoc !== '' ? s.paramDoc : s.doc; }
 
@@ -93,7 +93,7 @@ export function Popup(): i32 {
     {popup().slice(firstRow(), firstRow() + ROWS).map((it: Item) => <Row it={it} />)}
     {(info().detail !== '' || info().doc !== '') && <View class={`flex-col mt-1 pt-1.5 px-2 pb-1 border-t ${bd(theme().borderSoft)}`}>
       {info().detail !== '' && <View class="h-[20] overflow-hidden"><Text class={`font-mono text-[12px] ${fg(theme().text)}`}>{info().detail}</Text></View>}
-      {info().doc !== '' && <View class="overflow-hidden" style={{ height: docLines(info().doc, 50) * 17 }}><Text class={`text-[12px] leading-[17] ${fg(theme().muted)}`}>{info().doc}</Text></View>}
+      {info().doc !== '' && <View class="overflow-hidden" style={{ height: docLines(info().doc, 56) * 17 }}><Text class={`text-[12px] leading-[17] ${fg(theme().muted)}`}>{info().doc}</Text></View>}
     </View>}
   </View>;
 }

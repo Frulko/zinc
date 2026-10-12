@@ -356,15 +356,32 @@ export function move(e: Ed, how: i32, extend: boolean, goal: i32[] = []): Ed {
   }
   return norm(t, sels, e.main);
 }
+/** Where a word deletion from `p` stops (dir -1 back, 1 forward): the spaces, then one word or one run of punctuation, never
+ *  past the line; at the edge of the line, its line break. */
+function wordEdge(t: string, p: i32, dir: i32): i32 {
+  let i = p;
+  if (dir < 0) {
+    if (i > 0 && t.charCodeAt(i - 1) === 10) return i - 1;
+    while (i > 0 && isSpace(t.charCodeAt(i - 1))) i--;
+    if (i > 0 && isWord(t.charCodeAt(i - 1))) while (i > 0 && isWord(t.charCodeAt(i - 1))) i--;
+    else while (i > 0 && !isWord(t.charCodeAt(i - 1)) && !isSpace(t.charCodeAt(i - 1)) && t.charCodeAt(i - 1) !== 10) i--;
+    return i;
+  }
+  if (i < t.length && t.charCodeAt(i) === 10) return i + 1;
+  while (i < t.length && isSpace(t.charCodeAt(i))) i++;
+  if (i < t.length && isWord(t.charCodeAt(i))) while (i < t.length && isWord(t.charCodeAt(i))) i++;
+  else while (i < t.length && !isWord(t.charCodeAt(i)) && !isSpace(t.charCodeAt(i)) && t.charCodeAt(i) !== 10) i++;
+  return i;
+}
 /** Alt+Backspace (M_WORD_LEFT), Alt+Delete (M_WORD_RIGHT), Cmd+Backspace (M_HOME: to the start of the line) and Cmd+Delete
- *  (M_END) at every cursor: what lies between the cursor and where that move would take it goes; a selection goes as it is. */
+ *  (M_END) at every cursor; a selection goes as it is. */
 export function eraseTo(e: Ed, how: i32): Ed {
   const a: i32[] = [], b: i32[] = [], s: string[] = [], z: i32[] = [], t = e.text;
   for (let i = 0; i < e.count(); i++) {
     let l = e.lo(i), h = e.hi(i);
     if (h === l) {
-      let p = how === M_HOME ? lineStart(t, l) : target(t, l, how, 0);
-      if (p === l) p = target(t, l, how === M_HOME || how === M_WORD_LEFT ? M_LEFT : M_RIGHT, 0);   // nothing on that side of the line: the line break
+      let p = how === M_HOME ? lineStart(t, l) : how === M_END ? lineEnd(t, l) : wordEdge(t, l, how === M_WORD_LEFT ? -1 : 1);
+      if (p === l) p = target(t, l, how === M_HOME ? M_LEFT : M_RIGHT, 0);   // nothing on that side of the line: the line break
       l = imin(l, p); h = imax(h, p);
     }
     a.push(l); b.push(h); s.push(''); z.push(0);

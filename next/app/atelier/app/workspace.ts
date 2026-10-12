@@ -73,7 +73,7 @@ export function applyFocus(): void {
   focusWanted = null;
 }
 
-function baseName(path: string): string { const i = path.lastIndexOf('/'); return i < 0 ? path : path.slice(i + 1); }
+export function baseName(path: string): string { const i = path.lastIndexOf('/'); return i < 0 ? path : path.slice(i + 1); }
 function isDir(path: string): boolean { return fs.exists(path + '/.'); }
 
 /** Opens a file as a tab (or switches to it). */
@@ -81,7 +81,7 @@ export function openFile(path: string, focus: boolean = true): Buffer | null {
   for (const b of buffers()) if (b.path === path) { activate(b, focus); return b; }
   let text = '';
   try { text = fs.readText(path); } catch (e) { say(`Cannot open ${baseName(path)}`); return null; }
-  const b = new Buffer(path, baseName(path), text);
+  const b = new Buffer(path, tabName(path), text);
   setBuffers(buffers().concat([b]));
   activate(b, focus);
   onOpened(b);
@@ -164,16 +164,35 @@ export function mainFile(dir: string): string {
   for (const n of sketchFiles(dir)) if (n.endsWith('.ts') || n.endsWith('.tsx') || n.endsWith('.js')) return n;
   return '';
 }
-/** The files of a sketch that are tabs: the sources at its top level (and under src/), sorted, zinc.json last. */
+/** The files of a sketch that can be tabs: its sources, in its folders too (not the hidden ones, nor what tools write), the top
+ *  level first, zinc.json last. Paths from the sketch's folder. */
 export function sketchFiles(dir: string): string[] {
   const out: string[] = [];
-  let names: string[] = [];
-  try { names = fs.list(dir); } catch (e) { return out; }
-  for (const n of names) if (isSource(n) && n !== 'zinc.json' && !isDir(dir + '/' + n)) out.push(n);
-  if (isDir(dir + '/src')) for (const n of fs.list(dir + '/src')) if (isSource(n) && !isDir(dir + '/src/' + n)) out.push('src/' + n);
+  collect(dir, '', 0, out);
   if (fs.exists(dir + '/zinc.json')) out.push('zinc.json');
   return out;
 }
+function collect(dir: string, rel: string, depth: i32, out: string[]): void {
+  let names: string[] = [];
+  try { names = fs.list(rel === '' ? dir : dir + '/' + rel); } catch (e) { return; }
+  names.sort((a: string, b: string): number => a < b ? -1 : a > b ? 1 : 0);
+  const folders: string[] = [];
+  for (const n of names) {
+    const r = rel === '' ? n : rel + '/' + n;
+    if (n.startsWith('.') || n === 'node_modules' || n === 'build' || n === 'dist') continue;
+    if (isDir(dir + '/' + r)) folders.push(r);
+    else if (isSource(n) && r !== 'zinc.json' && out.length < 500) out.push(r);
+  }
+  if (depth < 5) for (const f of folders) collect(dir, f, depth + 1, out);
+}
+/** The name of a file on its tab: its path in the sketch, without the src/ every file would carry (`game/game.ts`). */
+export function tabName(path: string): string {
+  const d = sketchDir();
+  if (d === '' || !path.startsWith(d + '/')) return baseName(path);
+  const rel = path.slice(d.length + 1);
+  return rel.startsWith('src/') ? rel.slice(4) : rel;
+}
+const OPEN_ALL: i32 = 8;   // a sketch with more code files opens its main file only: the others come from the + of the tab strip
 
 /** Opens a sketch folder: its code files become the tabs, the main file first and active. */
 export function openSketch(dir: string): boolean {
@@ -184,7 +203,8 @@ export function openSketch(dir: string): boolean {
   setSketchDir(d);
   const main = mainFile(d);
   if (main !== '') openFile(d + '/' + main, false);
-  for (const n of sketchFiles(d)) if (n !== main && (n.endsWith('.ts') || n.endsWith('.tsx') || n.endsWith('.js'))) openFile(d + '/' + n, false);
+  const code = sketchFiles(d).filter((n: string) => n !== main && (n.endsWith('.ts') || n.endsWith('.tsx') || n.endsWith('.js')));
+  if (code.length < OPEN_ALL) for (const n of code) openFile(d + '/' + n, false);
   const first = buffers();
   if (first.length > 0) activate(first[0]);
   try { fs.writeText(lastFile(), d); } catch (e) { }
@@ -259,12 +279,12 @@ export function newFile(typed: string): void {
 /** Renames the file of a tab (saved first). */
 export function renameFile(b: Buffer, typed: string): void {
   const n = fileName(typed), dir = b.path.slice(0, b.path.lastIndexOf('/')), path = dir + '/' + n;
-  if (n === '' || n === b.name) return;
+  if (n === '' || n === baseName(b.path)) return;
   if (fs.exists(path)) { say(`${n} already exists`); return; }
   if (b.modified() && !save(b)) return;
   try { fs.rename(b.path, path); } catch (e) { say(`Cannot rename ${b.name}`); return; }
   const text = b.text(), list = buffers().slice(), i = list.indexOf(b);
-  const nb = new Buffer(path, n, text);   // a new buffer: the language follows the extension
+  const nb = new Buffer(path, tabName(path), text);   // a new buffer: the language follows the extension
   list[i] = nb;
   setBuffers(list);
   activate(nb);

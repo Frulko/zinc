@@ -10,6 +10,7 @@ import { render } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import * as sys from 'zinc:sys';
 import * as fs from 'zinc:fs';
+import * as system from 'zinc:system';
 import * as menu from 'zinc:system/menu';
 import { quit } from 'zinc:gfx';
 import { stepMotion } from './app/motion';
@@ -17,9 +18,9 @@ import { theme, bg, setTheme, DARK } from './app/theme';
 import { Buffer, setHooks, applyFocus, stepNotice, openSketch, lastSketch, openFile } from './app/workspace';
 import { findOpen, closeFind } from './app/search';
 import { COMMANDS, Command, command, commandOf, paletteMode, closePalette, PAL_CLOSED, startOpen, setStartOpen, promptLabel, answer } from './app/commands';
-import { check, stepTools, setJump } from './app/tools';
+import { check, stepTools, setJump, stopAll } from './app/tools';
 import { stepCursors, stepMenuKeys, jumpTo, setMenuKeys, menuKey, noteKey } from './app/cursors';
-import { stepLsp, setGo } from './app/lsp';
+import { stepLsp, setGo, stopLsp } from './app/lsp';
 import { Header, EngineMenu, engineOpen, setEngineOpen } from './components/Header';
 import { EditorCard, stepEditor } from './components/Editor';
 import { ConsoleCard, stepConsole } from './components/Console';
@@ -92,6 +93,12 @@ ui.onKey((e: ui.KeyEvent) => {
   e.preventDefault();
 });
 
+// ---- the way out: the running sketch, its inspector and the language server end with Atelier, whether it is Quit of the app
+// menu (⌘Q) or the window's close button (the system plugin then closes the window and ends the app by itself)
+function leave(): void { stopAll(); stopLsp(); }
+menu.onClick('role:quit', (source: string) => { leave(); system.quit(); });
+system.on('window', (a: string[]) => { if (a.length > 0 && a[0] === 'close-requested') leave(); });
+
 setHooks((b: Buffer) => {}, (b: Buffer) => check());
 setJump(jumpTo);
 setGo((path: string, line: i32, col: i32) => { const b = openFile(path); if (b !== null) jumpTo(b as Buffer, line, col); });
@@ -118,7 +125,7 @@ function stepScript(): void {
   for (let i = 0; i < scriptAt.length; i++) {
     if (scriptAt[i] !== frame) continue;
     const id = scriptDo[i];
-    if (id === 'quit') quit(); else if (id.startsWith('example:')) openExample(id.slice(8)); else if (!command(id)) console.log('atelier script: no command ' + id);
+    if (id === 'quit') { leave(); quit(); } else if (id.startsWith('example:')) openExample(id.slice(8)); else if (!command(id)) console.log('atelier script: no command ' + id);
   }
 }
 

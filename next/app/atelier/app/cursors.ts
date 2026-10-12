@@ -162,6 +162,8 @@ export function editorKey(b: Buffer, e: ui.KeyEvent, escape: () => void): boolea
     else { keepPopup = !fwd; r = erase(st, fwd); }
   }
   else if (k === 'Escape') { if (multi) r = single(st); else { escape(); return true; } }
+  // up and down are the buffer's, with one cursor too: the field keeps a column of its own that the edits made here do not reset
+  else if ((k === 'ArrowUp' || k === 'ArrowDown') && !e.meta && !e.alt && !e.ctrl) { vertical = true; r = move(st, k === 'ArrowUp' ? M_UP : M_DOWN, e.shift, b.goal); }
   else if (multi) {
     const byWord = e.alt, byLine = e.meta;
     if (k === 'ArrowLeft') r = move(st, byLine ? M_HOME : byWord ? M_WORD_LEFT : M_LEFT, e.shift);

@@ -124,6 +124,9 @@ check(eraseTo(ed('  foo| bar\n  baz| qux'), M_HOME), '| bar\n| qux', 'Cmd+Backsp
 check(eraseTo(ed('a|bc\nd|ef'), M_END), 'a|\nd|', 'Cmd+Delete deletes to the end of the line');
 check(eraseTo(ed('a\n|b'), M_HOME), 'a|b', 'Cmd+Backspace at the start of a line joins it to the one above');
 check(eraseTo(ed('a «bc» d|'), M_WORD_LEFT), 'a | |', 'a selection goes as it is');
+check(eraseTo(ed('foo();|\n  |bar'), M_WORD_LEFT), 'foo|\n|bar', 'a word deletion takes a run of punctuation, or the indent, and stays on its line');
+check(eraseTo(ed('a\n|b'), M_WORD_LEFT), 'a|b', 'at the start of a line it takes the line break');
+check(eraseTo(ed('a|\nb'), M_WORD_RIGHT), 'a|b', 'and forward at its end');
 const goal: i32[] = [];
 let g = move(ed('abcdef|\nab\nabcdefgh'), M_DOWN, false, goal);
 check(g, 'abcdef\nab|\nabcdefgh', 'down through a shorter line stops at its end');

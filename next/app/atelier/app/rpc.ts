@@ -135,7 +135,7 @@ export function itemsOf(result: any): Item[] {
   for (let i = 0; i < n; i++) { const it = list[i]; out.push(new Item(str(it.label), int(it.kind), str(it.detail), docOf(it.documentation))); }
   return out;
 }
-/** The items that match what is typed, best first: a label that starts with it, then the fuzzy score, then the name. Nothing typed: all, in the server's order. */
+/** The items that match what is typed, best first: a label that starts with it (names before keywords), then the fuzzy score, then the name. Nothing typed: all, in the server's order. */
 export function filterItems(all: Item[], typed: string, max: i32): Item[] {
   if (typed === '') return all.length > max ? all.slice(0, max) : all;
   const out: Item[] = [];
@@ -144,7 +144,7 @@ export function filterItems(all: Item[], typed: string, max: i32): Item[] {
     if (m === null) continue;
     const row = new Item(it.label, it.kind, it.detail, it.doc);   // a row of its own: the list is drawn again when its rows are new
     row.hits = (m as Fuzzy).hits;
-    row.score = (m as Fuzzy).score + (it.label.startsWith(typed) ? 100 : it.label.toLowerCase().startsWith(typed.toLowerCase()) ? 60 : 0);
+    row.score = (m as Fuzzy).score + (it.label.startsWith(typed) ? 100 : it.label.toLowerCase().startsWith(typed.toLowerCase()) ? 60 : 0) - (it.kind === 14 ? 30 : 0);   // the program's names before the keywords
     out.push(row);
   }
   out.sort((a: Item, b: Item): number => b.score !== a.score ? b.score - a.score : a.label < b.label ? -1 : 1);

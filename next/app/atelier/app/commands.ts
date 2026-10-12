@@ -4,7 +4,7 @@ import { createSignal } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import { Tween, easeOut, easeInOut } from './motion';
 import { active, activate, Buffer, closeBuffer, cycle, saveAll, say, newSketch, openSketch, newFile, renameFile, deleteFile,
-  sketchDir, sketchbook, mainFile, openFile } from './workspace';
+  sketchDir, sketchbook, mainFile, openFile, baseName } from './workspace';
 import { openFind } from './search';
 import { toggleTheme } from './theme';
 import { run, stop, check, openInspector, inspectorPort, showConsole, consoleOpen, clearConsole, loadLibraries, importLine, setEngine, ENGINES, ZINC } from './tools';
@@ -76,7 +76,7 @@ export function answer(ok: boolean): void {
 }
 
 // ---------------------------------------------------------------- palette: commands, examples, libraries
-export const PAL_CLOSED: i32 = -1, PAL_COMMANDS: i32 = 0, PAL_LIBRARIES: i32 = 1;
+export const PAL_CLOSED: i32 = -1, PAL_COMMANDS: i32 = 0, PAL_LIBRARIES: i32 = 1, PAL_FILES: i32 = 2;
 export const [paletteMode, setPaletteMode] = createSignal<i32>(PAL_CLOSED);
 /** 0 closed → 1 open: fade and scale. */
 export const paletteT = new Tween(0);
@@ -115,6 +115,7 @@ export function addLibrary(name: string): void {
 add('File', 'new', 'New Sketch', 'CmdOrCtrl+N', () => { setStartOpen(false); newSketch(); });
 add('File', 'open', 'Open Sketch…', 'CmdOrCtrl+O', () => ask('Open the sketch folder', sketchDir() === '' ? sketchbook() : sketchDir(), (v: string) => { if (openSketch(v)) setStartOpen(false); }));
 add('File', 'examples', 'Examples…', 'CmdOrCtrl+Shift+O', () => setStartOpen(true));
+add('File', 'open-file', 'Open File…', 'CmdOrCtrl+P', () => { if (sketchDir() !== '') openPalette(PAL_FILES); });
 add('File', 'save', 'Save', 'CmdOrCtrl+S', () => { saveAll(); const b = active(); if (b !== null && !(b as Buffer).modified()) say('Saved'); check(); }, true);
 add('File', 'close', 'Close Tab', 'CmdOrCtrl+W', withBuffer((b: Buffer) => closeBuffer(b)));
 
@@ -140,7 +141,7 @@ add('Sketch', 'stop', 'Stop', 'CmdOrCtrl+Period', () => stop());
 add('Sketch', 'debug', 'Debug', 'CmdOrCtrl+Shift+R', () => run(true));
 for (let i = 0; i < ENGINES.length; i++) add('Sketch', 'engine-' + ENGINES[i].split(' ')[0].toLowerCase(), 'Run on: ' + ENGINES[i], '', () => { setEngine(i); say('Runs on: ' + ENGINES[i]); }, i === 0);
 add('Sketch', 'add-file', 'Add File…', 'CmdOrCtrl+T', () => { if (sketchDir() !== '') ask('Name of the new file', '', (v: string) => newFile(v)); }, true);
-add('Sketch', 'rename-file', 'Rename File…', '', withBuffer((b: Buffer) => ask('New name of ' + b.name, b.name, (v: string) => renameFile(b, v))));
+add('Sketch', 'rename-file', 'Rename File…', '', withBuffer((b: Buffer) => ask('New name of ' + b.name, baseName(b.path), (v: string) => renameFile(b, v))));
 add('Sketch', 'delete-file', 'Delete File', '', withBuffer((b: Buffer) => ask(`Type "delete" to remove ${b.name} from the sketch`, '', (v: string) => { if (v === 'delete') deleteFile(b); })));
 add('Sketch', 'add-library', 'Add Library…', 'CmdOrCtrl+Shift+L', () => openPalette(PAL_LIBRARIES), true);
 

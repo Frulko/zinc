@@ -62,6 +62,8 @@ function start(): void {
     notify('initialized', '{}');
   } catch (e) { child = null; }
 }
+/** Ends the child: another sketch opens, or Atelier leaves. */
+export function stopLsp(): void { stop(); }
 function stop(): void {
   const c = child;
   child = null; waiting = 0;

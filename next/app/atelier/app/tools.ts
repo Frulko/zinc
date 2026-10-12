@@ -203,6 +203,11 @@ export function stop(): void {
   killAt = sys.clock() + 2000;
 }
 export function running(): boolean { return child !== null; }
+/** Atelier is leaving: the sketch (or its build) and the inspector end with it. */
+export function stopAll(): void {
+  stop();
+  closeInspector();
+}
 
 const sync: boolean = sys.env('ZINC_ATELIER_SYNC') !== '';   // tests: a frame waits for the child to end, so a scripted session does not depend on timing
 const pace: i32 = sys.env('ZINC_ATELIER_PACE') !== '' ? parseInt(sys.env('ZINC_ATELIER_PACE')) : 0;   // tests: a headless frame lasts up to this many ms, so a child has the time to run
