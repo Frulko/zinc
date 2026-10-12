@@ -356,3 +356,65 @@ Off screen (the fbdev driver's file framebuffer at 1920x1080x16, the other progr
 
 The screens of an interface hold at 1080p (their damage is partial); a full-screen vector map does not: 5.4 times the pixels of 800x480 cost
 5.8 times the raster. Not measured: museum-table at 1080p, the real `/dev/fb0` on a 1080p screen, the same at 1400 MHz with a heatsink.
+
+### The film of museum-table at 11 pictures a second: the matrix, then the decoder's buffer (ZN-730, 2026-10-12)
+
+The owner's complaint at the Pi 3B+ (800x480): the film of `examples/museum-table` (sequence `wave`: one card, an 854x480 H.264 clip at
+24 pictures a second, drawn 500x281) "is at 20 fps and stutters". Two causes, measured apart and together. How: the program run off the
+screen for 16 s in real time (`ZINC_FBDEV_SIM`, 800x480x16, four raster threads, `ZINC_FBDEV_STATS=2`, `ZINC_VIDEO_LOG=1`, the first 3 s
+left out), the owner's program on the screen paused meanwhile, the board under 55 C before each run and `get_throttled` 0xd0000 during
+it unless said. A frame "with a new picture" is one that repaints 200 rows or more (279 here); the others repaint nothing.
+
+| build | raster of a frame with a new picture, p50 / p90 / max | CPU of the raster threads, p50 | conversion in the decode thread, p50 | pictures shown a second | frames a second |
+| --- | --- | --- | --- | --- | --- |
+| before | 27.2 / 28.8 / 36.2 ms | 100.4 ms | 85.4 ms | 11.6 | 51.9 |
+| plain commands under a scaling matrix | 6.0 / 8.2 / 10.3 ms | 18.7 ms | 85.4 ms | 11.6 | 59.8 |
+| a copy of the decoder's frame before swscale (soft limit reached during the run: 60.1 C) | 27.6 / 31.7 / 36.0 ms | 99.7 ms | 17.5 ms | 24.0 | 43.1 |
+| both | 6.2 / 8.4 / 11.2 ms | 18.2 ms | 10.0 ms | 24.0 | 59.7 |
+| both, the build left on the Pi as `museum-wip`, two more runs | 6.2 / 8.2 / 12.3 and 6.1 / 7.8 / 12.0 ms | 18.3 and 18.4 ms | 10.0 and 10.1 ms | 24.0 | 59.7 |
+
+No picture was dropped in any run: before, the decode thread simply delivered 11.6 a second and the player's clock waited for it.
+
+**The matrix.** Since ZN-726 every card of the museum is drawn through one `gfx.setTransform` (its angle and its zoom), and every box
+command under a matrix was an XFORM, drawn pixel by pixel through the inverse matrix (D71). A matrix that only scales and moves now
+leaves no trace: the command is recorded at its place and size on the screen and takes the plain paths (`runtime/gfx.cpp` `xf_plain`;
+a text and a gradient paint keep the matrix). The picture alone (`next/tests/data/xform_plain -- film-direct | film-matrix |
+film-turned`, the same 854x480 runtime image drawn 500x281 at each frame; raster p50 wall / CPU of the four threads):
+
+| | Mac (one thread, ms a picture) | Pi 3B+ before, at 1200 MHz beside a program at 146% | Pi 3B+ after, cooled, the others paused |
+| --- | --- | --- | --- |
+| drawn directly | 1.17 | 5.49 / 16.5 ms | 3.83 / 13.5 ms |
+| under a matrix that scales and moves | 3.88 before, 1.17 after | 23.0 / 82.0 ms | 3.83 / 13.5 ms |
+| under the same matrix turned by 2 degrees | 3.94 | 23.7 / 84.0 ms | 14.3 / 51.1 ms (the run ended at 60.1 C) |
+
+A card with an angle still pays the XFORM price (a film in a tilted card: 51 ms of CPU a picture). The direct path is itself a float
+bilinear loop, 135 cycles a pixel on the Cortex-A53: a film decoded at the size it is drawn would be a row copy.
+
+**The decoder's buffer.** zinc:video takes `h264_v4l2m2m` on this Pi (`/dev/video10`, bcm2835-codec; the wrapper is in the Pi's FFmpeg
+7.1.3 and `pi` is in the `video` group). Its frames are the driver's capture buffers, mapped without a cache, and swscale read them
+sample by sample. FFmpeg alone on the clip (`ffmpeg -benchmark ... -f null -`, 240 pictures, CPU a picture, 1400 MHz, 55 to 58 C):
+
+| decode, then | CPU a picture |
+| --- | --- |
+| software, 4 threads / 1 thread, nothing | 13.5 / 10.0 ms |
+| `h264_v4l2m2m`, nothing | 0.6 ms |
+| software, 1 thread, bgr0 by swscale (854x480; bgra the same; 500x281 11.2) | 18.7 ms (8.7 of conversion) |
+| `h264_v4l2m2m`, bgr0 by swscale straight from the buffer, 1 thread | 82 ms: 12 pictures a second |
+| `h264_v4l2m2m`, a copy of the buffer (0.6 MB), then bgr0 by swscale | 13.7 ms (copy 5.1, conversion 8.0) |
+| `h264_v4l2m2m` asked for bgr0 itself (`-pixel_format bgr0`), copied (1.64 MB) | 12.9 ms |
+
+The plugin now copies a V4L2 decoder's frame into ordinary memory before converting it (one buffer kept from picture to picture):
+85 to 10 ms a picture in its thread, and 24 pictures a second. BGRX from the decoder is no gain (the larger copy costs what the
+conversion saved) and its colours are wrong for this clip: the decoder calls every frame limited range, the clip is full range
+(yuvj420p), mean difference 11 levels of 255 against the software decode. For the same reason the conversion now takes the range the
+stream names: the decoder's samples read as full range are the software decode's (mean difference 0.000, at most 1 level, one
+picture of the clip converted by FFmpeg both ways), so the film gets on the Pi the colours it has elsewhere (it was more contrasted;
+not checked on the program's own frame). Not measured: the ISP node (`/dev/video12`) handing the picture at the drawn size. FFmpeg's
+`scale_v4l2m2m` filter refused the three graphs tried from the command line, it wants DRM_PRIME frames, and the plugin does not link
+libavfilter: it belongs with the zero-copy route to a KMS plane (ZN-731, `docs/reports/video-zero-copy.md`).
+
+Not proven: the same run on the real `/dev/fb0` (the owner's program held the screen; `tools/device <pi> run museum-wip`, then the
+sequence of the film with `ZINC_PERF_HUD=1`), and a fixed clock: the governor is `ondemand` and there is no sudo, so the light runs
+started at 600 MHz (7 of the 8 samples taken every 2 s during a run read 1400 MHz) and their times are not better than a fixed
+1400 MHz would give. The numbers of the task before this work (raster p99 29.9 ms, mean 6.25) are met again by the build of main
+left as `museum-wip-before` (29.1 and 6.16).

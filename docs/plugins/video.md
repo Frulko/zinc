@@ -37,6 +37,9 @@ Using `zinc:video` on an unlisted target is error Z5003 at build time.
 - **Worker thread per player**: demux + decode (FFmpeg), then swscale converts to `0x00RRGGBB` straight at the
   player's size, aspect ratio kept (sample aspect honoured), bars filled with `background`. Hardware frames are copied
   back with `av_hwframe_transfer_data` (NV12) first. Decode at the size you draw: a 1:1 `drawImage` is a row copy.
+  A V4L2 decoder's frame is copied into ordinary memory before the conversion: its buffer is mapped without a cache,
+  and swscale read it at 85 ms a picture on a Pi 3B+ (854x480), against 10 ms with the copy. The conversion takes the
+  colour range the stream names (a V4L2 decoder calls every frame limited range). Numbers: `docs/reports/raspberry-pi.md`.
 - **Hand-over**: a ring of `buffers` slots (plugin option, default 4). The worker only writes free slots; the main
   thread (a `zrt::Poller`, once per loop iteration, before `onFrame`) picks the newest frame whose timestamp is due,
   frees older ones (`dropped`), and publishes it with `raster::dyn_update`. The player's image id never changes:
@@ -47,7 +50,8 @@ Using `zinc:video` on an unlisted target is error Z5003 at build time.
 - **Gapless looping**: one continuous timeline per playlist pass — each file starts exactly where the previous one
   ended (last PTS + frame duration). The next file (demuxer + decoder) is opened as soon as the current one shows
   its first frame, so a switch costs one decode, never an open. One file loops the same way (a second instance of it
-  is pre-opened). `ZINC_VIDEO_LOG=1` prints one line per shown frame with entry, position, timeline and clock.
+  is pre-opened). `ZINC_VIDEO_LOG=1` prints one line per shown frame with entry, position, timeline and clock,
+  and one per converted frame with the time of its conversion and the decoder.
   Measured on macOS (M1 Pro, VideoToolbox) over 3.5 passes of a 3-file playlist with 30 and 25 fps clips: the first
   frame of each file is shown one frame period after the last frame of the previous one, within 3 ms of its due time,
   no frame dropped at any loop point (one dropped at startup).

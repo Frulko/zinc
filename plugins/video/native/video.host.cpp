@@ -47,6 +47,8 @@ struct Source {
   double tb, fdur, dur, end;   // time base, nominal frame duration, container duration, end of the last frame (s)
   int64_t start, last;         // first and last pts
   bool draining, wrapped;
+  bool uncached;               // the decoder's frames lie in device memory mapped without a cache (V4L2): publish copies them first
+  int range;                   // the stream's colour range, when it names one (a V4L2 decoder calls every frame limited)
   int sw_w, sw_h, sw_fmt, ox, oy, ow, oh;  // swscale input and letterbox rectangle
   char name[48];
 };
@@ -84,7 +86,7 @@ static bool open_decoder(Source* s, const AVCodec* sw, const AVCodecParameters* 
   // Raspberry Pi (bcm2835-codec), other SoCs with a stateful V4L2 decoder; fails fast without /dev/video*
   char n[48];
   snprintf(n, sizeof n, "%s_v4l2m2m", sw->name);
-  if (const AVCodec* m2m = avcodec_find_decoder_by_name(n)) if (try_decoder(s, m2m, par, false)) { snprintf(s->name, sizeof s->name, "%s", n); return true; }
+  if (const AVCodec* m2m = avcodec_find_decoder_by_name(n)) if (try_decoder(s, m2m, par, false)) { snprintf(s->name, sizeof s->name, "%s", n); s->uncached = true; return true; }
 #endif
 #endif
   if (!try_decoder(s, sw, par, false)) return false;
@@ -120,6 +122,7 @@ static Source* open_source(const char* path, int item) {
   AVStream* vs = fmt->streams[st];
   s->fmt = fmt; s->stream = st; s->item = item; s->hwfmt = AV_PIX_FMT_NONE; s->sw_fmt = -1;
   s->start = s->last = AV_NOPTS_VALUE;
+  s->range = vs->codecpar->color_range;
   s->tb = av_q2d(vs->time_base);
   s->fdur = vs->avg_frame_rate.num > 0 && vs->avg_frame_rate.den > 0 ? av_q2d(av_inv_q(vs->avg_frame_rate)) : 1.0 / 30;
   s->dur = fmt->duration > 0 ? fmt->duration / (double)AV_TIME_BASE : 0;
@@ -240,7 +243,7 @@ static bool convert(Player* p, Source* s, AVFrame* f, uint32_t* px) {
     s->sws = sws_getCachedContext(s->sws, f->width, f->height, (AVPixelFormat)f->format, s->ow, s->oh, AV_PIX_FMT_BGR0, SWS_BILINEAR, nullptr, nullptr, nullptr);
     if (!s->sws) return false;
     const int* coef = sws_getCoefficients(f->colorspace == AVCOL_SPC_BT709 ? SWS_CS_ITU709 : SWS_CS_DEFAULT);
-    sws_setColorspaceDetails(s->sws, coef, f->color_range == AVCOL_RANGE_JPEG, coef, 1, 0, 1 << 16, 1 << 16);
+    sws_setColorspaceDetails(s->sws, coef, (s->range != AVCOL_RANGE_UNSPECIFIED ? s->range : f->color_range) == AVCOL_RANGE_JPEG, coef, 1, 0, 1 << 16, 1 << 16);
     s->sw_w = f->width; s->sw_h = f->height; s->sw_fmt = f->format;
   }
   uint32_t bg = p->bg;
@@ -266,6 +269,17 @@ static bool publish(Player* p, Source* s, AVFrame* fr, AVFrame* sw, uint32_t gen
     if (av_hwframe_transfer_data(sw, fr, 0) < 0) return false;
     av_frame_copy_props(sw, fr);
     f = sw;
+  } else if (s->uncached) {
+    // swscale read a V4L2 buffer at 82 ms a picture on a Pi 3 (854x480, ZN-730): each sample is a trip to the memory. One copy into
+    // ordinary memory first (5 ms), kept from picture to picture, and the conversion reads that (8 ms).
+    if (sw->format != fr->format || sw->width != fr->width || sw->height != fr->height) {
+      av_frame_unref(sw);
+      sw->format = fr->format; sw->width = fr->width; sw->height = fr->height;
+      if (av_frame_get_buffer(sw, 0) < 0) return false;
+    }
+    if (av_frame_copy(sw, fr) < 0) return false;
+    sw->sample_aspect_ratio = fr->sample_aspect_ratio; sw->colorspace = fr->colorspace; sw->color_range = fr->color_range;
+    f = sw;
   }
   int64_t pts = fr->best_effort_timestamp;
   if (pts == AV_NOPTS_VALUE) pts = s->last == AV_NOPTS_VALUE ? 0 : s->last + (int64_t)(s->fdur / s->tb + 0.5);
@@ -281,7 +295,9 @@ static bool publish(Player* p, Source* s, AVFrame* fr, AVFrame* sw, uint32_t gen
   if (k < 0) { pthread_mutex_unlock(&p->mu); return false; }
   p->slot[k].state = WRITING;
   pthread_mutex_unlock(&p->mu);
+  const uint64_t c0 = vlog ? hal_time_us() : 0;
   bool ok = convert(p, s, f, p->slot[k].px);
+  if (vlog) fprintf(stderr, "video: p%d converted pos %.4f in %.2f ms (%s)\n", (int)(p - players), pos, (hal_time_us() - c0) / 1e3, s->name);
   pthread_mutex_lock(&p->mu);
   Slot& sl = p->slot[k];
   if (!ok || p->gen != gen) sl.state = FREE;

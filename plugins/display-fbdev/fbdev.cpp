@@ -280,7 +280,7 @@ static void band(void* p, int32_t a, int32_t b) {
   if (stats) { cpu_render += t1 - t0; cpu_convert += now_us() - t1; }
 }
 
-struct Sample { float raster, vsync, convert, total, cpu_render, cpu_convert; };
+struct Sample { float raster, vsync, convert, total, cpu_render, cpu_convert; int rows; };
 static std::vector<Sample> samples;
 static uint64_t first_us, last_us_end;
 
@@ -310,7 +310,7 @@ static void fb_present(const HalFrame* f) {
   if (has && !fuse) { job.phase = 2; pool.run(f->y0, f->y1, BAND_ROWS, band, &job); }
   uint64_t t3 = now_us();
   last_us_end = t3;
-  if (count && samples.size() < 100000) samples.push_back({(t1 - t0) / 1e3f, (t2 - t1) / 1e3f, (t3 - t2) / 1e3f, (t3 - t0) / 1e3f, cpu_render / 1e3f, cpu_convert / 1e3f});
+  if (count && samples.size() < 100000) samples.push_back({(t1 - t0) / 1e3f, (t2 - t1) / 1e3f, (t3 - t2) / 1e3f, (t3 - t0) / 1e3f, cpu_render / 1e3f, cpu_convert / 1e3f, has ? f->y1 - f->y0 : 0});
 }
 
 static void fb_poll(HalInput* in) {
@@ -349,6 +349,8 @@ static void fb_shutdown() {
     fprintf(stderr, "fbdev stats: threads=%d fuse=%d frames=%zu wall=%.2f s effective=%.1f fps\n", pool.threads, (int)fuse, samples.size(), (last_us_end - first_us) / 1e6, samples.size() * 1e6 / (double)(last_us_end - first_us));
     report("raster", &Sample::raster); report("vsync", &Sample::vsync); report("convert", &Sample::convert); report("present", &Sample::total);
     report("cpu-render", &Sample::cpu_render); report("cpu-convert", &Sample::cpu_convert);
+    // ZINC_FBDEV_STATS=2: every frame, to tell the frames that repaint a large part (a film's picture) from the others
+    if (atoi(getenv("ZINC_FBDEV_STATS")) > 1) for (auto& x : samples) fprintf(stderr, "fbdev frame: rows=%d raster=%.2f cpu-render=%.2f ms\n", x.rows, x.raster, x.cpu_render);
   }
   if (crc_on) fprintf(stderr, "fbdev crc: %08x\n", crc32_of(surf, (size_t)W * H));
   if (tty >= 0) { ioctl(tty, KDSETMODE, KD_TEXT); close(tty); tty = -1; }
