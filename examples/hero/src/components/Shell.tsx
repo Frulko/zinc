@@ -136,8 +136,10 @@ export function syncStage(): void {
 }
 
 /** Sidebar + top bar + stage; `stage` holds the screens (and the detail layer). */
+// The shell is as high as the window, not as its content (`absolute inset-0`, not `h-full`): the full sidebar needs 724 px, and in a lower window
+// (hero's own is 700 px high) `h-full` grew the shell to 724 px, which put the bottom of every page under the window's edge, out of the scroll's reach.
 export function Shell(props: { children: () => i32 }): i32 {
-  return <View ref={rootRef} class={`flex-row h-full bg-${theme().background}`}>
+  return <View ref={rootRef} class={`absolute inset-0 flex-row bg-${theme().background}`}>
     <Sidebar />
     <View class="flex-col grow">
       <TopBar />
