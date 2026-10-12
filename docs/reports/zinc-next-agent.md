@@ -23,7 +23,8 @@ zinc device pair spark 482913            # by its name, or by address: zinc devi
 zinc device info                         # kind of machine, system, CPU, memory, load, temperature, disk, engine, apps (--json)
 zinc device shell                        # a terminal on the device; zinc device shell uname -a: one command, its exit status
 zinc device push build/ data             # a file or a tree to the device (paths from its home directory); pull the other way
-zinc device deploy                       # this project packed, installed, started there, its log followed (Ctrl-C leaves it running)
+zinc device deploy                       # this project built for the device (a .zapp, or the export for its target: below), installed,
+                                         # started there, its log followed (Ctrl-C leaves it running); --pack, --target rpi decide
 zinc dev --device spark                  # the dev loop with the program there: a save restarts it, an asset is swapped in, an error is a red box
 zinc device run hero -f | stop hero | logs hero -f | apps | uninstall hero | install app.zapp
 zinc device forward 9229 9229            # a port of the device on this machine: chrome://inspect sees the app running there
@@ -91,6 +92,45 @@ interface, measured 2026-10-12 on the M1 Pro), so nothing is multiplexed.
 
 A name in a transfer that is absolute or holds `..` is refused by whoever receives it (the device on `push`, the workstation on
 `pull`); the receiver reads the sender to its last entry and reports the first error at the end.
+
+## What `deploy` builds (ZN-729.08)
+
+`zinc device deploy [dir]` asks the device what it is (`info`: `os`, `arch` as `uname` says it, `kind`) and builds for it. A `.zapp` holds
+the program for the device's engine and the native libraries of this machine's plugins, so it goes only to a machine of the
+workstation's system and architecture. Any other device gets the export of `zinc export --target <t>`, cross built on the workstation
+with the pinned zig: a directory with the executable and `run.sh`, which the agent installs and starts as it is (no engine needed for
+it there). One line on stderr says which and why, before the build:
+
+```
+spark is linux aarch64 (Raspberry Pi 3 Model B Plus Rev 1.3): exporting for rpi
+mini is macos x86_64 (Macmini8,1), as this machine: packing a .zapp
+```
+
+| `os` | `arch` | `kind` | Sent |
+|---|---|---|---|
+| the workstation's | the workstation's (`arm64` and `aarch64` are one) | | the `.zapp` of `zinc pack` |
+| `linux` | `aarch64` | holds `Raspberry Pi` | the export for `rpi` |
+| `linux` | `aarch64` | anything else | the export for `linux` |
+| `linux` | `armv7l`, `armv8l` | | the export for `rpi2` (`--target chip` or `pocketchip` for those boards) |
+| `linux` | `armv6l` | | the export for `rpi1` |
+| `linux` | `x86_64` | | the export for `x86_64-linux` |
+| anything else (a Mac of the other architecture, `riscv64`...) | | | refused: `<name> is <os> <arch>: zinc export has no target for it` |
+
+- `--target <t>` sends the export for `<t>` and `--pack` the `.zapp`, whatever the device says; `info` is then not asked.
+- The export is the one of `zinc export`: it is written in the project's `dist/<name>-<target>/` and stays there. The app takes the
+  project's name on the device (`--name` gives another), as with a `.zapp`.
+- A Raspberry Pi target (`rpi`, `rpi1`, `rpi2`) and a project whose zinc.json names no display for Linux (no `board`, no `display`, no
+  `targets.linux.display`: a sketch without zinc.json): the export is built with `ZINC_DISPLAY=fbdev`, as the prototype's Pi targets
+  draw on the framebuffer, and the line says so. Without a driver the program would run with no screen and leave after 60 frames.
+  `ZINC_DISPLAY` in the environment of `zinc device deploy` chooses another driver.
+- A directory that holds `run.sh` and a `.zapp` file are sent as they are, as before.
+- Atelier's Run on a device is this command (`zinc device <name> deploy . --name <sketch>`): it needed no change.
+
+Test: `next/tests/t1/agent_deploy.sh`, on the loopback interface with agents that say they are another machine (`ZINC_AGENT_AS="os arch
+kind"`, a test switch of the agent): the `.zapp` for an agent of this machine, `rpi` and the framebuffer chosen for one that says it is
+a Pi 3B+ (the export stops at once on a directory that is no project: nothing is cross built in the test), the refusal for `linux
+riscv64`, and for that same agent `--pack`, then `--target macos`: the real `zinc export`, its directory installed, the app started,
+its log read. Not run yet: a cross export deployed on a real Pi (the cross-platform pass).
 
 ## Inspector, frame, telemetry, load (ZN-729.05)
 
@@ -199,7 +239,8 @@ includes up to 40 ms before `zinc dev` sees the save, the 30 ms it lets a save s
 Limits (each a `ponytail:` comment or a choice in the code):
 
 - The pack is made for the workstation: its asset packs are those of the workstation's target and the native libraries of its plugins are
-  built for the workstation's machine, as with `zinc device deploy`. A device of another kind runs programs without native plugins.
+  built for the workstation's machine. A device of another kind runs programs without native plugins, and needs the engine built for
+  it (ZN-729.07); `zinc device deploy` has no such limit since ZN-729.08 (it sends the export for the device's target).
 - No inspector is added to a UI program (`zinc dev` on one machine imports `zinc:devtools`): import it and use `zinc device forward`.
 - A deployed app of the same project keeps running beside the dev session: `zinc device stop <app>` first on a device with one screen.
 - The first start sends every member; the device's directory does not outlive the session.

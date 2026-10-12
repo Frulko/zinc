@@ -4,6 +4,7 @@
 
 #include "../tc/tc.h"
 #include "wire.h"
+#include "yyjson.h"
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -11,6 +12,7 @@
 #include <signal.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
+#include <sys/utsname.h>
 #include <sys/wait.h>
 #include <termios.h>
 #include <unistd.h>
@@ -365,36 +367,113 @@ Launch launchOptions(std::vector<std::string>& args) {
   return l;
 }
 
-int spawnWait(const std::vector<std::string>& argv) {
+// Runs a tool to its end. With `out`, what it prints on its standard output is kept there too (it is still printed).
+int spawnWait(const std::vector<std::string>& argv, std::string* out = nullptr) {
   std::vector<char*> p;
   for (const std::string& a : argv) p.push_back(const_cast<char*>(a.c_str()));
   p.push_back(nullptr);
+  int fds[2] = {-1, -1};
+  if (out && ::pipe(fds) != 0) return 1;
   const pid_t pid = ::fork();
-  if (pid == 0) { ::signal(SIGPIPE, SIG_DFL); ::execv(p[0], p.data()); ::_exit(127); }
+  if (pid == 0) {
+    if (out) { ::dup2(fds[1], STDOUT_FILENO); ::close(fds[0]); ::close(fds[1]); }
+    ::signal(SIGPIPE, SIG_DFL);
+    ::execv(p[0], p.data());
+    ::_exit(127);
+  }
+  if (out) {
+    ::close(fds[1]);
+    char buf[4096];
+    ssize_t n = 0;
+    while (pid > 0 && ((n = ::read(fds[0], buf, sizeof buf)) > 0 || (n < 0 && errno == EINTR)))
+      if (n > 0) { out->append(buf, static_cast<size_t>(n)); writeAll(STDOUT_FILENO, buf, static_cast<size_t>(n)); }
+    ::close(fds[0]);
+  }
   int status = 0;
   while (pid > 0 && ::waitpid(pid, &status, 0) < 0 && errno == EINTR) {}
   return pid > 0 && WIFEXITED(status) ? WEXITSTATUS(status) : 1;
 }
 
-// The project of `dir` packed, installed and started on the device, its log followed: the loop of `zinc run`, on another machine.
+#ifdef __APPLE__
+const char* const kThisOs = "macos";   // the names the agent gives (server.cpp)
+#else
+const char* const kThisOs = "linux";
+#endif
+std::string cpuName(const std::string& arch) { return arch == "arm64" ? "aarch64" : arch; }   // uname's two names of one architecture (macOS, Linux)
+
+// The target of `zinc export` for a machine as its agent describes it (`info`: os, arch as uname says it, kind); empty when export has none.
+std::string exportTarget(const std::string& os, const std::string& arch, const std::string& kind) {
+  if (os != "linux") return "";   // export's macos is the build for this very Mac: nothing crosses to a Mac
+  if (cpuName(arch) == "aarch64") return kind.find("Raspberry Pi") != std::string::npos ? "rpi" : "linux";
+  if (arch == "armv7l" || arch == "armv8l") return "rpi2";   // a 32-bit system on ARMv7 or later; --target chip names a CHIP
+  if (arch == "armv6l") return "rpi1";                       // the first Pi and the Zero
+  if (arch == "x86_64") return "x86_64-linux";
+  return "";
+}
+
+// True when the project names what shows its picture on Linux (zinc.json: a board, `display`, `targets.linux.display`), as a cross build reads it.
+bool namesLinuxDisplay(const std::string& dir) {
+  std::string text;
+  readFile(dir + "/zinc.json", text);
+  const Doc j(text);
+  return j.has("board") || j.has("display") || yyjson_obj_get(yyjson_obj_get(yyjson_obj_get(j.v, "targets"), "linux"), "display") != nullptr;
+}
+
+// The project of `dir` installed and started on the device, its log followed: the loop of `zinc run`, on another machine. What is sent
+// follows from what the device is: a .zapp (the program for the device's engine, the plugins' libraries of this machine) to a machine of
+// this one's system and architecture, else the export for the device's target, which `zinc export` cross builds.
 int cmdDeploy(Device& d, std::vector<std::string> args, const std::string& self) {
   Launch l = launchOptions(args);
-  bool follow = true;
-  std::string name, path = ".";
+  bool follow = true, pack = false;
+  std::string name, path = ".", target;
   for (size_t i = 0; i < args.size(); ++i) {
     if (args[i] == "--no-logs") follow = false;
+    else if (args[i] == "--pack") pack = true;
+    else if (args[i] == "--target" && i + 1 < args.size()) target = args[++i];
     else if (args[i] == "--name" && i + 1 < args.size()) name = args[++i];
     else path = args[i];
   }
+  if (pack && !target.empty()) return fail("--pack sends a .zapp, --target an export: give one of them");
   std::error_code ec;
-  std::string packed;
-  if (fs::is_directory(path, ec) && !fs::exists(path + "/run.sh", ec)) {   // a project: one file to send, checked on arrival
-    packed = (fs::temp_directory_path(ec) / ("zinc-deploy-" + std::to_string(::getpid()) + ".zapp")).string();
-    const int rc = spawnWait({self, "pack", path, "-o", packed});
-    if (rc != 0) return rc;
+  std::string made;   // what is built here to be sent: a .zapp in the temporary directory, or the export in the project's dist/
+  if (fs::is_directory(path, ec) && !fs::exists(path + "/run.sh", ec)) {   // a project
+    std::string why = pack ? "--pack" : "--target " + target;
+    if (!pack && target.empty()) {
+      std::string answer;
+      if (!request(d, Obj().str("op", "info").done(), answer)) return 1;
+      const Doc a(answer);
+      struct utsname u{};
+      ::uname(&u);
+      const std::string os = a.str("os"), arch = a.str("arch"), kind = a.str("kind");
+      why = d.name + " is " + os + " " + arch + (kind.empty() ? "" : " (" + kind + ")");
+      pack = os == kThisOs && cpuName(arch) == cpuName(u.machine);
+      if (pack) why += ", as this machine";
+      else if ((target = exportTarget(os, arch, kind)).empty())
+        return fail(why + ": zinc export has no target for it (--target <t> names one; --pack sends a .zapp, which its engine runs without native plugins)");
+    }
+    if (pack) {   // one file to send, checked on arrival
+      std::fprintf(stderr, "%s: packing a .zapp\n", why.c_str());
+      made = (fs::temp_directory_path(ec) / ("zinc-deploy-" + std::to_string(::getpid()) + ".zapp")).string();
+      const int rc = spawnWait({self, "pack", path, "-o", made});
+      if (rc != 0) return rc;
+    } else {
+      // A Raspberry Pi shows a program on its framebuffer (the prototype's rpi targets): a project that names no display for Linux (a sketch
+      // without zinc.json) is built with that driver, or it would run there with no screen and leave after 60 frames.
+      const bool fb = target.rfind("rpi", 0) == 0 && !std::getenv("ZINC_DISPLAY") && !namesLinuxDisplay(path);
+      if (fb) ::setenv("ZINC_DISPLAY", "fbdev", 1);
+      std::fprintf(stderr, "%s: exporting for %s%s\n", why.c_str(), target.c_str(), fb ? ", shown on its framebuffer (ZINC_DISPLAY=fbdev: zinc.json names no display for Linux)" : "");
+      std::string said;
+      const int rc = spawnWait({self, "export", path, "--target", target}, &said);
+      if (rc != 0) return rc;
+      while (!said.empty() && said.back() == '\n') said.pop_back();
+      made = said.substr(said.rfind('\n') + 1);   // export's last line: the directory it wrote, dist/<name>-<target>
+      if (!fs::exists(made + "/run.sh", ec)) return fail("zinc export --target " + target + " made nothing a device starts (no run.sh in " + made + ")");
+      const std::string base = baseName(made), tail = "-" + target;
+      if (name.empty() && base.size() > tail.size() && base.compare(base.size() - tail.size(), tail.size(), tail) == 0) name = base.substr(0, base.size() - tail.size());   // the project's name, as its .zapp has it
+    }
   }
-  const int rc = install(d, packed.empty() ? path : packed, name);
-  if (!packed.empty()) fs::remove(packed, ec);
+  const int rc = install(d, made.empty() ? path : made, name);
+  if (pack && !made.empty()) fs::remove(made, ec);   // the export stays in dist/, as after zinc export
   if (rc != 0) return rc;
   l.follow = follow;
   return run(d, name, l);
@@ -475,7 +554,8 @@ int usage() {
                "       zinc device [<device>] info [--json]            what the machine is, its load, its apps\n"
                "       zinc device [<device>] shell [-t] [command]     a command with its exit status, or a terminal\n"
                "       zinc device [<device>] push <local> [remote]    a file or a tree to the device; pull <remote> [local] the other way\n"
-               "       zinc device [<device>] deploy [dir] [-- args]   pack, install, start and follow the log (--no-logs, --env K=V, --name n)\n"
+               "       zinc device [<device>] deploy [dir] [-- args]   build for the device, install, start, follow the log (--no-logs, --env K=V, --name n)\n"
+               "                                                       a .zapp for a machine like this one, else zinc export for its target; --pack, --target <t> decide\n"
                "       zinc device [<device>] install <app.zapp|export-dir> [--name n]\n"
                "       zinc device [<device>] run <app> [-f] [--env K=V] [-- args] | stop <app> | uninstall <app> | apps | logs <app> [-f]\n"
                "       zinc device [<device>] update [<app>] [--url u]  an app from its signed channel, fetched by the device; no app: the engine\n"

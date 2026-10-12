@@ -227,7 +227,15 @@ std::string infoJson(const State& s) {
   struct utsname u{};
   ::uname(&u);
   Obj o;
-  o.flag("ok", true).str("id", s.id).str("name", s.name).str("engine", s.engine).str("os", s.os).str("osVersion", u.release).str("arch", u.machine).str("kind", s.kind);
+  std::string os = s.os, arch = u.machine, kind = s.kind;
+  if (const char* as = std::getenv("ZINC_AGENT_AS"); as && *as) {   // a test switch (tests/t1/agent_deploy.sh): "os arch kind", an agent that says it is another machine than its own
+    const std::string t = as;
+    const size_t a = t.find(' '), b = a == std::string::npos ? a : t.find(' ', a + 1);
+    os = t.substr(0, a);
+    arch = a == std::string::npos ? "" : t.substr(a + 1, b == std::string::npos ? b : b - a - 1);
+    kind = b == std::string::npos ? "" : t.substr(b + 1);
+  }
+  o.flag("ok", true).str("id", s.id).str("name", s.name).str("engine", s.engine).str("os", os).str("osVersion", u.release).str("arch", arch).str("kind", kind);
   o.num("cores", std::thread::hardware_concurrency());
   double load[3] = {0, 0, 0};
   ::getloadavg(load, 3);
