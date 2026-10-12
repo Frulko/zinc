@@ -3,9 +3,11 @@ id: ZN-731
 title: >-
   Zero-copy video: from the hardware decoder to the screen without a CPU copy
   (Raspberry Pi first)
-status: Backlog
-assignee: []
+status: Ready
+assignee:
+  - '@parallel'
 created_date: '2026-10-12 13:56'
+updated_date: '2026-10-12 14:37'
 labels:
   - perf
   - video
