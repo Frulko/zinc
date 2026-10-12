@@ -104,6 +104,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-441: .zmesh flattens the scene; moving a named part (the truck's wheels) needs a node table.
 - ZN-441: the sim target's three stand-in (`three.sim.ts`) refuses gltfpack output (KHR_mesh_quantization and EXT_meshopt_compression required).
 - ZN-441: plugin keys and stamps do not cover the engine third_party files a plugin includes; a meshoptimizer upgrade needs the key bumped by hand.
+- ZN-724: a typed program gives other numbers on `--engine quickjs` than on the interpreter: `i32` 2147483647 + 1 prints 2147483648 (interpreter -2147483648), `u8` 250 + 10 prints 260 (4), `f32` 0.1 + 0.2 prints 0.30000000000000004 (0.30000001192092896); `src/qjs/strip.cpp` blanks the types and emits no wrap or rounding. The engines are meant to agree; MicroTS wraps and rounds in its emitted JavaScript (docs/reports/microts-vs-zinc.md).
+- ZN-724: from docs/reports/microts-vs-zinc.md, worth a task at the next review: programs generated at random and run on the interpreter, AOT and QuickJS with an input tape (today a fixed corpus in `tools/diff-matrix` and crash-only libFuzzer); the `requires` of a program inferred from what it uses and checked against `targets/capabilities.json`; a bounded `Cap<T, N>` string and array type for boards.
 
 ## Demos
 
