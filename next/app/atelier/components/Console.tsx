@@ -2,7 +2,7 @@
 // diagnostic under the caret, the caret's place. When the program prints or something fails it opens under that line:
 // the steps of the build in a quiet tone, the program's output, and errors as cards that open the file at their line.
 // The same line asks for the one text Atelier ever needs (a file name).
-import { createNodeRef, createEffect } from 'zinc:ui/solid';
+import { createNodeRef, createEffect, untrack } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import { theme, bg, fg, bd } from '../app/theme';
 import { active, Buffer, notice, focusLater } from '../app/workspace';
@@ -60,7 +60,8 @@ function dotColor(): i32 {
   return statusKind() === 2 ? t.error : statusKind() === 1 ? t.success : t.faint;
 }
 
-createEffect(() => { if (promptLabel() !== '') { ui.setValue(promptRef.node, promptValue()); ui.select(promptRef.node, 0, promptValue().length); focusLater(promptRef.node); } });
+// the prompt opens with its starting text selected; the text is read untracked, or each typed character would be selected and replaced by the next
+createEffect(() => { if (promptLabel() !== '') { const v = untrack(() => promptValue()); ui.setValue(promptRef.node, v); ui.select(promptRef.node, 0, v.length); focusLater(promptRef.node); } });
 function promptKey(e: ui.KeyEvent): void {
   if (e.key === 'Enter') { answer(true); e.preventDefault(); }
   else if (e.key === 'Escape') { answer(false); e.preventDefault(); }

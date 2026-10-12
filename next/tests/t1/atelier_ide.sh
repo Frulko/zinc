@@ -49,4 +49,11 @@ tools/pngdiff "$tmp/assist-15.png" "$g/assist-15.png" >/dev/null || { echo "atel
 pid=$(sed -n 's/^\[lsp\] started //p' "$tmp/out" | head -1)
 n=0; while [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null && [ $n -lt 10 ]; do sleep 0.2; n=$((n + 1)); done   # it ends when its stdin closes
 [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null && { echo "atelier assist: the language server $pid outlives Atelier"; fail=1; }
+# the name prompt keeps what is typed: a new file named with five letters (each typed character used to be selected and replaced by the next)
+mkdir -p "$tmp/name" && printf "console.log('hi');\n" > "$tmp/name/main.ts"
+printf '6 add-file\n' > "$tmp/name.script"
+printf '10 text "s"\n11 text "c"\n12 text "e"\n13 text "n"\n14 text "e"\n17 key Enter\n' > "$tmp/name.keys"
+ZINC_ATELIER_HOME="$tmp/book" ZINC_ATELIER_SYNC=1 ZINC_SYSTEM_LOG=/dev/null ZINC_ATELIER_SCRIPT="$tmp/name.script" ZINC_INPUT="$tmp/name.keys" ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=24 ZINC_SCALE=1 \
+  "$ZINC" run app/atelier -- "$tmp/name" >/dev/null 2>"$tmp/err" || { echo "atelier name prompt failed: $(head -c 300 "$tmp/err")"; fail=1; }
+[ -f "$tmp/name/scene.ts" ] || { echo "atelier name prompt: typing \"scene\" did not make scene.ts: $(ls "$tmp/name" | tr '\n' ' ')"; fail=1; }
 exit $fail
