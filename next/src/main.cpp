@@ -969,6 +969,9 @@ static bool wanted() {
   const char* mode = std::getenv("ZINC_RUN");
   if (mode && !std::strcmp(mode, "interp")) return false;
   if (!(mode && !std::strcmp(mode, "native")) && (std::getenv("ZINC_DETERMINISTIC") || std::getenv("ZINC_HEADLESS") || std::getenv("ZINC_DEVAPP"))) return false;
+  // zinc.json "webgl": the script contexts get WebGL (their `document`, the canvas) from the module the interpreter loads (webglHook); a
+  // native program has no such hook yet, so the project runs on the interpreter unless --native asks for the native program
+  if (!(mode && !std::strcmp(mode, "native"))) if (const char* w = std::getenv("ZINC_WEBGL"); w && *w && *w != '0') return false;
   return !gProfile;
 }
 static int exec(const fs::path& app, bool built, const std::string& entry, const std::string& projectDir, const std::vector<std::string>& progArgs) {
