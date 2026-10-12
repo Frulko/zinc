@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Zinc Atelier: a sheet of code and the run button, on the app's iris. The macOS grid: an 824 px rounded square in a 1024 px canvas. -->
+  <defs>
+    <linearGradient id="iris" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8273ff"/><stop offset="1" stop-color="#4a38d6"/></linearGradient>
+    <linearGradient id="paper" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#efecfb"/></linearGradient>
+    <linearGradient id="run" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a2350"/><stop offset="1" stop-color="#171230"/></linearGradient>
+    <filter id="drop" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="14" stdDeviation="18" flood-color="#150c3d" flood-opacity="0.32"/></filter>
+    <filter id="lift" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#150c3d" flood-opacity="0.35"/></filter>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="186" fill="url(#iris)" filter="url(#drop)"/>
+  <g filter="url(#lift)">
+    <rect x="226" y="244" width="500" height="470" rx="62" fill="url(#paper)"/>
+  </g>
+  <g stroke-linecap="round" stroke-width="34" fill="none">
+    <path d="M298 346h150" stroke="#c9438f"/>
+    <path d="M492 346h160" stroke="#3a3560" opacity="0.55"/>
+    <path d="M346 438h230" stroke="#4a38d6"/>
+    <path d="M346 530h120" stroke="#2e8f5b"/>
+    <path d="M298 622h90" stroke="#3a3560" opacity="0.55"/>
+  </g>
+  <g filter="url(#lift)">
+    <circle cx="682" cy="668" r="150" fill="url(#run)"/>
+    <path d="M640 590 L640 746 Q640 764 656 755 L776 684 Q790 668 776 652 L656 581 Q640 572 640 590 Z" fill="#ffffff"/>
+  </g>
+</svg>

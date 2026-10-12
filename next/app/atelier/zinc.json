@@ -1,6 +1,6 @@
 {
   "name": "Zinc Atelier",
-  "app": { "id": "dev.zinc.atelier", "name": "Zinc Atelier", "version": "0.2.0" },
+  "app": { "id": "dev.zinc.atelier", "name": "Zinc Atelier", "version": "0.2.0", "icon": "icon.png" },
   "entry": "main.tsx",
   "permissions": ["menu", "fs", "process"],
   "targets": {
