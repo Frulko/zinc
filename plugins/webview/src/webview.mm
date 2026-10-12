@@ -13,13 +13,13 @@
 #define ZP_WEBVIEW_INSPECTABLE 0
 #endif
 
-// HALs without a window (null HAL) do not define it; hal_sdl.cpp's definition wins when linked.
-extern "C" __attribute__((weak)) void* hal_window_handle(void) { return nullptr; }
+extern "C" void* hal_window_handle(void);
 
 // Embedded assets (zinc_assets.cpp, generated because index.ts uses zinc:assets).
 struct ZincAsset { const char* name; const unsigned char* data; uint32_t size; };
-extern const ZincAsset zinc_assets[];
-extern const uint32_t zinc_asset_count;
+// Next has no embedded table; the prototype's strong definitions replace these empty defaults.
+extern const ZincAsset zinc_assets[] __attribute__((weak)) = {{nullptr, nullptr, 0}};
+extern const uint32_t zinc_asset_count __attribute__((weak)) = 0;
 
 // Events for the program, delivered by the poller: [view, kind, id, a, b].
 static NSMutableArray* queue;

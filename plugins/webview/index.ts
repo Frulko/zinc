@@ -4,6 +4,7 @@
 // handler registered with handle(cmd, ...) (commands that are not registered reject: the allowlist). `zinc://app/<path>`
 // serves the project's assets (disk in dev through ZINC_ASSETS, embedded in the executable in release).
 import * as assets from 'zinc:assets';
+import { width } from 'zinc:gfx';
 import W from './native/webview.spec';
 
 export interface WebViewOptions {
@@ -42,6 +43,7 @@ export class WebView {
   private bx: number = -1; private by: number = -1; private bw: number = -1; private bh: number = -1;
 
   constructor(o: WebViewOptions) {
+    width();   // Next creates the window on its first graphics call, before the native view attaches.
     listen();
     this.id = W.create(o.x, o.y, o.w, o.h);
     this.bx = o.x; this.by = o.y; this.bw = o.w; this.bh = o.h;

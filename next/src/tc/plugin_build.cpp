@@ -289,13 +289,20 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
   // system libraries: pkg-config must know them; if not, say what to install
   std::vector<std::string> cflags, libs;
   if (gCross.on && !ts.pkg.empty()) { err = "plugin '" + m.name + "' needs the system library '" + ts.pkg[0] + "', which a cross build for " + gCross.name + " has no sysroot for yet"; return false; }
-  if (!ts.pkg.empty()) {   // one query for all of them: this runs at every compile and start, and each pkg-config costs a process (16 of them for zinc:video, 140 ms; ZN-614)
+  std::vector<std::string> packages;
+  for (const std::string& pkg : ts.pkg) {
+#ifdef ZN_SDL_INCLUDE
+    if (!gCross.on && pluginTarget() == "macos" && pkg == "sdl3") continue;   // use the host's SDL, never load a second copy
+#endif
+    packages.push_back(pkg);
+  }
+  if (!packages.empty()) {   // one query for all of them: this runs at every compile and start, and each pkg-config costs a process (16 of them for zinc:video, 140 ms; ZN-614)
     std::string all, o;
-    for (const std::string& pkg : ts.pkg) all += " " + q(pkg);
+    for (const std::string& pkg : packages) all += " " + q(pkg);
     const bool have = haveCommand("pkg-config");
     if (!have || !capture("(pkg-config --exists" + all + " && pkg-config --cflags" + all + " && echo @@ && pkg-config --libs" + all + ")", o) || o.find("@@") == std::string::npos) {
-      std::string missing = ts.pkg[0], x;
-      if (have) for (const std::string& pkg : ts.pkg) if (!capture("pkg-config --exists " + q(pkg) + " && echo ok", x) || x.empty()) { missing = pkg; break; }
+      std::string missing = packages[0], x;
+      if (have) for (const std::string& pkg : packages) if (!capture("pkg-config --exists " + q(pkg) + " && echo ok", x) || x.empty()) { missing = pkg; break; }
       std::string hint;
       for (const std::string& pk : ts.packages) hint += (hint.empty() ? "" : ", ") + pk;
       err = "plugin '" + m.name + "' needs the system library '" + missing + "'" + (have ? "" : " (and pkg-config)") + ": install " + (hint.empty() ? "its development package" : "the package " + hint) +

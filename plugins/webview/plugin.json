@@ -6,6 +6,6 @@
   "description": "Web views embedded in the app window (WKWebView), zinc:// assets, postMessage and invoke RPC (Tauri-like)",
   "options": { "inspectable": false },
   "targets": {
-    "macos": { "sources": ["src/webview.mm"], "pkg": ["sdl3"], "frameworks": ["WebKit", "Cocoa"] }
+    "macos": { "sources": ["src/webview.mm"], "defines": ["ZRT_HOSTED_CPP"], "pkg": ["sdl3"], "frameworks": ["WebKit", "Cocoa"] }
   }
 }

@@ -13,6 +13,12 @@ the page calls Zinc commands and Zinc pushes data into the page.
 Example: `examples/webview/hybrid` (a native sidebar next to a web panel, both ways), run with
 `zinc run examples/webview/hybrid -- <dir>`.
 
+Zinc Next on macOS runs the real WKWebView on the interpreter and in native builds. The plugin uses the
+host's SDL3; no separate SDL installation is needed. Native `.app` bundles carry their web files in
+`Contents/Resources/assets`, so `zinc://` pages still load after moving the app. Deterministic tests and
+`ZINC_NATIVE=sim` use the simulator, which opens no page. QuickJS currently rejects this plugin's native
+callback API explicitly; use the default engine or `--interp` for WebView.
+
 ## API
 
 ```ts
