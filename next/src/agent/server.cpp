@@ -214,7 +214,10 @@ std::string appsJson(const State& s) {
     const std::string name = e.path().filename().string();
     if (name.empty() || name[0] == '.' || !e.is_directory(ec)) continue;
     const pid_t pid = runningPid(s, name);
-    items.push_back(Obj().str("name", name).str("kind", fs::exists(e.path() / "app.zapp", ec) ? "zapp" : "export").flag("running", pid > 0).num("pid", pid).done());
+    Obj o;
+    o.str("name", name).str("kind", fs::exists(e.path() / "app.zapp", ec) ? "zapp" : "export").flag("running", pid > 0).num("pid", pid);
+    if (pid > 0) appStats(o, s.home + "/run/" + name + ".pid", pid);   // its inspector's port, its CPU time and its memory
+    items.push_back(o.done());
   }
   std::sort(items.begin(), items.end());
   return array(items);
@@ -329,7 +332,9 @@ pid_t startApp(const State& s, const std::string& name, const std::vector<std::s
   const int log = ::open((s.home + "/logs/" + name + ".log").c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_APPEND, 0600);
   const int null = ::open("/dev/null", O_RDONLY);
   if (log < 0 || null < 0) { err = std::string("cannot open the log: ") + std::strerror(errno); if (log >= 0) ::close(log); if (null >= 0) ::close(null); return 0; }
-  std::vector<std::string> env = environment(extraEnv);
+  Env withInspector = extraEnv;
+  const int inspector = inspectorPort(withInspector);   // every app gets a port for its inspector, and `apps` says which (ZN-729.05)
+  std::vector<std::string> env = environment(withInspector);
   const std::vector<char*> argvp = pointers(argv), envp = pointers(env);
   const pid_t pid = ::fork();
   if (pid == 0) {
@@ -343,7 +348,7 @@ pid_t startApp(const State& s, const std::string& name, const std::vector<std::s
   ::close(null);
   if (pid < 0) { err = std::string("cannot start it: ") + std::strerror(errno); return 0; }
   const std::string pidFile = s.home + "/run/" + name + ".pid", logFile = s.home + "/logs/" + name + ".log";
-  writePrivate(pidFile, std::to_string(pid) + "\n");
+  writePrivate(pidFile, std::to_string(pid) + "\n" + std::to_string(inspector) + "\n");
   std::thread([pid, pidFile, logFile] {   // its end goes in its log, and its pid file with it
     int status = 0;
     while (::waitpid(pid, &status, 0) < 0 && errno == EINTR) {}
@@ -620,6 +625,7 @@ void handleSession(State& s, int fd) {
   else if (op == "connect") opConnect(c, req);
   else if (op == "listen") opListen(s, c, req);
   else if (op == "accepted") opAccepted(s, c, req);
+  else if (op == "top") every(c, 1000, [&] { return infoJson(s); }, gStop);
   else if (op == "apps") send(c, kJson, Obj().flag("ok", true).raw("apps", appsJson(s)).done());
   else if (op == "run" || op == "stop" || op == "uninstall") {
     std::error_code ec;

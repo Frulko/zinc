@@ -3,6 +3,7 @@
 // (highlighted in the program), its rules and element.style to edit (ZN-373.02), the program's screen, its console, its requests (ZN-373.03),
 // its frames and their phases (Performance, ZN-373.05), and for zinc debug --cdp the Sources view: breakpoints, the stack, the scopes, watches
 // and stepping (ZN-373.04).
+// The apps of the paired devices are listed with the programs of this machine (ZN-729.05): `zinc device inspect --all` brings their inspectors here.
 // Usage: zinc run app/inspector/main.tsx -- [port...]
 // ZINC_INSPECTOR_DUMP=1: attach to the first program, select the first node with a padding class, wait a second and print what each view
 // shows, then quit; a debugger target gets a scripted session instead (tests/t1/inspector.sh).
@@ -10,6 +11,7 @@ import { createSignal, render } from 'zinc:ui/solid';
 import * as sys from 'zinc:sys';
 import { quit, imageFromBytes, destroyImage, imageWidth, imageHeight, drawImage, rect } from 'zinc:gfx';
 import { base64Decode } from 'zinc:web';
+import { spawn, Process } from 'zinc:process';
 import { Target, Cdp, Row, Inline, Req, Script, Frame, Prop, discover, rows, styleLines, consoleLine, ruleLines, inlineOf, applyNetwork, framesOf, propsOf, remoteText, TraceFrame, PhaseTotal, traceFrames, phaseTotals, msText } from './model';
 
 const args = sys.args();
@@ -62,11 +64,45 @@ let traceEvents: any[] = [];
 let cdp: Cdp | null = null;
 let reloading = false;
 
-async function refresh(): Promise<void> {
-  setStatus('looking on ports ' + ports.join(', ') + '…');
-  const found = await discover(ports);
+// The apps of the paired devices: `zinc device inspect --all` forwards the inspector of each to a port of this machine and names it, one line
+// "<port> <device> <app>" each, then "ready"; it ends when this program does. ZINC names the engine to run, else the zinc of PATH.
+let devicePorts: i32[] = [];
+let deviceApps: string[] = [];
+let devices: Process | null = null;
+let held: i32 = 0;   // the port of the program attached to
+let devicesListed: Promise<void> = new Promise<void>((resolve) => { resolve(); });
+function findDevices(): void {
+  if (devices !== null) {
+    if (devicePorts.indexOf(held) >= 0) return;   // ponytail: attached to a device's app, its forwarding is kept and the list not renewed
+    (devices as Process).kill();
+  }
+  devicePorts = []; deviceApps = [];
+  devicesListed = new Promise<void>((resolve) => {
+    try {
+      const p = spawn(sys.env('ZINC') !== '' ? sys.env('ZINC') : 'zinc', ['device', 'inspect', '--all'], {});
+      devices = p;
+      p.onStdout((line: string) => {
+        const w = line.split(' ');
+        if (w.length === 3) { devicePorts.push(parseInt(w[0])); deviceApps.push(w[2] + ' on ' + w[1]); }
+        else if (line === 'ready') { resolve(); if (devicePorts.length > 0) list(); }
+      });
+      p.onExit((code: i32) => { resolve(); });
+    } catch (e) { resolve(); }   // no zinc to run: the programs of this machine only
+  });
+}
+
+async function list(): Promise<void> {
+  const all = ports.concat(devicePorts);
+  setStatus('looking on ports ' + all.join(', ') + '…');
+  const found = await discover(all);
+  for (const t of found) { const at = devicePorts.indexOf(t.port); if (at >= 0) t.title = deviceApps[at]; }
   setTargets(found);
   setStatus(found.length + (found.length === 1 ? ' program' : ' programs'));
+}
+
+async function refresh(): Promise<void> {
+  findDevices();
+  await list();
 }
 
 async function loadDocument(): Promise<void> {
@@ -116,6 +152,7 @@ async function attach(t: Target): Promise<void> {
   if (cdp !== null) (cdp as Cdp).close();
   const c = new Cdp(t.ws);
   cdp = c;
+  held = t.port;
   c.onEvent = onEvent;
   c.onClose = () => { setStatus('detached from ' + t.name()); setEnded(true); setPaused(false); };
   setStatus('attaching to ' + t.name() + '…');
@@ -443,6 +480,7 @@ function App(): i32 {
 
 async function dump(): Promise<void> {   // ZINC_INSPECTOR_DUMP: the views as text, for scripted tests
   await refresh();
+  if (targets().length === 0) { await devicesListed; await list(); }   // none here: those of the paired devices, once they are known
   const ts = targets();
   console.log('programs: ' + ts.length);
   for (const t of ts) console.log('program: ' + t.title + ' (' + t.type + ')');

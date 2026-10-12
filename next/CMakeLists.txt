@@ -437,7 +437,7 @@ if(TARGET zn_host_gfx)
   target_link_libraries(zinc PRIVATE zn_host_gfx)
   # the device agent (ZN-729): zinc agent and zinc device, compiled into zinc like the rest of its commands. Its TLS sessions are those of
   # src/host/tls.cpp (zn_host_gfx); discovery is mjansson/mdns (third_party/mdns, one header)
-  target_sources(zinc PRIVATE src/agent/wire.cpp src/agent/mdns.cpp src/agent/server.cpp src/agent/client.cpp)
+  target_sources(zinc PRIVATE src/agent/wire.cpp src/agent/mdns.cpp src/agent/server.cpp src/agent/client.cpp src/agent/inspect.cpp)
   target_include_directories(zinc SYSTEM PRIVATE third_party/mdns)
   target_compile_definitions(zinc PRIVATE ZN_AGENT)
   if(NOT APPLE)

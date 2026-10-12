@@ -409,7 +409,7 @@ int simple(Device& d, const std::string& op, const std::string& name) {
 }
 
 // A port of this machine that reaches a port of the device (its own ports only): the inspector or the debugger of an app running there.
-int cmdForward(Device& d, const std::vector<std::string>& args) {
+int cmdForward(Device& d, const std::vector<std::string>& args, const std::function<void(int port)>& listening = {}) {
   if (args.size() != 2) return fail("usage: zinc device [<device>] forward <local-port|0> <device-port>");
   const int remote = std::atoi(args[1].c_str());
   std::string answer;
@@ -424,7 +424,8 @@ int cmdForward(Device& d, const std::vector<std::string>& args) {
   if (lfd < 0 || ::bind(lfd, reinterpret_cast<sockaddr*>(&addr), sizeof addr) != 0 || ::listen(lfd, 16) != 0) return fail("cannot listen on port " + args[0] + ": " + std::strerror(errno));
   socklen_t n = sizeof addr;
   ::getsockname(lfd, reinterpret_cast<sockaddr*>(&addr), &n);
-  std::printf("forwarding 127.0.0.1:%d to port %d of %s\n", ntohs(addr.sin_port), remote, d.name.c_str());
+  if (listening) listening(ntohs(addr.sin_port));
+  else std::printf("forwarding 127.0.0.1:%d to port %d of %s\n", ntohs(addr.sin_port), remote, d.name.c_str());
   std::fflush(stdout);
   for (;;) {
     const int sock = ::accept(lfd, nullptr, nullptr);
@@ -477,11 +478,21 @@ int usage() {
                "       zinc device [<device>] run <app> [-f] [--env K=V] [-- args] | stop <app> | uninstall <app> | apps | logs <app> [-f]\n"
                "       zinc device [<device>] forward <local-port|0> <device-port>   a port of the device here (its inspector)\n"
                "       zinc device [<device>] reverse <device-port|0> <local-port>   a port of this machine there (a server an app calls)\n"
+               "       zinc device [<device>] inspect <app> [--port n]              its inspector on a port of this machine: the DevTools address\n"
+               "       zinc device [<device>] shot <app> [file.png]                 the frame the app shows\n"
+               "       zinc device [<device>] monitor <app>                         its zinc:telemetry lines, as zinc monitor prints them\n"
+               "       zinc device [<device>] top [-n count] [--json]               the machine's load and each app's CPU and memory, every second\n"
                "<device> may be left out when one device is paired.\n");
   return 2;
 }
 
 }  // namespace
+
+// What inspect.cpp takes from the commands above (wire.h).
+std::unique_ptr<Chan> ask(Device& d, const std::string& req, std::string& answer, bool mayLook) { return request(d, req, answer, mayLook); }
+int forwardPort(Device& d, int local, int remote, const std::function<void(int port)>& listening) { return cmdForward(d, {std::to_string(local), std::to_string(remote)}, listening); }
+int followLogs(Device& d, const std::string& name) { return logs(d, name, true); }
+int runTool(const std::vector<std::string>& argv) { return spawnWait(argv); }
 
 int device(const std::vector<std::string>& argsIn, const std::string& self) {
   std::vector<std::string> args = argsIn;
@@ -507,7 +518,8 @@ int device(const std::vector<std::string>& argsIn, const std::string& self) {
     return saveDevices(paired) ? 0 : fail("cannot write " + storePath());
   }
 
-  static const char* const ops[] = {"info", "shell", "push", "pull", "install", "deploy", "run", "stop", "uninstall", "apps", "logs", "forward", "reverse"};
+  if (first == "inspect" && args.size() == 2 && args[1] == "--all") return inspectAll(paired);
+  static const char* const ops[] = {"info", "shell", "push", "pull", "install", "deploy", "run", "stop", "uninstall", "apps", "logs", "forward", "reverse", "inspect", "shot", "monitor", "top"};
   const auto isOp = [&](const std::string& w) { for (const char* o : ops) if (w == o) return true; return false; };
   Device* d = nullptr;
   if (isOp(first)) {
@@ -529,6 +541,7 @@ int device(const std::vector<std::string>& argsIn, const std::string& self) {
   if (op == "deploy") return cmdDeploy(*d, args, self);
   if (op == "forward") return cmdForward(*d, args);
   if (op == "reverse") return cmdReverse(*d, args);
+  if (op == "inspect" || op == "shot" || op == "monitor" || op == "top") return inspectCommand(*d, op, args, self);
   if (op == "apps") return simple(*d, "apps", "");
   if (op == "install") {
     std::string name, path;

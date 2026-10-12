@@ -27,6 +27,7 @@ zinc device deploy                       # this project packed, installed, start
 zinc device run hero -f | stop hero | logs hero -f | apps | uninstall hero | install app.zapp
 zinc device forward 9229 9229            # a port of the device on this machine: chrome://inspect sees the app running there
 zinc device reverse 8080 3000            # a port of this machine on the device: an app there calls the server you develop here
+zinc device inspect hero | shot hero | monitor hero | top    # its inspector here, its frame, its telemetry, the machine's load (below)
 ```
 
 `<device>` goes after `device` when several are paired (`zinc device spark info`); its name or the start of its id.
@@ -83,16 +84,38 @@ interface, measured 2026-10-12 on the M1 Pro), so nothing is multiplexed.
 | `connect` | `port` | `I` / `O` / `C` relayed to 127.0.0.1:`port` of the device |
 | `listen` | `port` | the agent listens on 127.0.0.1:`port` of the device (0: any; the answer says which) and sends `{"accept": id}` for each connection it takes, until the client leaves |
 | `accepted` | `id` | `I` / `O` / `C` relayed to that connection: the workstation opens this session for each `accept` and connects it to its own port |
+| `top` | | the answer of `info` now and every second, until the client leaves |
 | `unpair` | | the agent forgets this workstation |
 
 A name in a transfer that is absolute or holds `..` is refused by whoever receives it (the device on `push`, the workstation on
 `pull`); the receiver reads the sender to its last entry and reports the first error at the end.
 
+## Inspector, frame, telemetry, load (ZN-729.05)
+
+The agent gives every app it starts a port for its inspector: `ZINC_DEVTOOLS_PORT`, a free port of the device unless `run --env` names
+one. A program listens there when it imports `zinc:devtools`. The port is the second line of the app's pid file, and a running app's
+entry in `apps` (and in `info`) holds it with what the app costs: `inspector`, `cpuMs` and `rss` (the CPU time and the resident memory of
+the app's process group, summed), `at` (the device's monotonic clock at the reading, in ms). No new kind of session carries any of
+this: the four commands are a forwarded port, the followed log and `top`.
+
+| Command | What it does |
+|---|---|
+| `zinc device [<d>] inspect <app> [--port n]` | forwards the app's inspector to a port of this machine (any free one, or `n`) and prints `ws://127.0.0.1:<port>/zinc` with the address for Chrome DevTools; until Ctrl-C. An app that is stopped, or has no inspector, is said so |
+| `zinc device inspect --all` | the same for every running app of every paired device: a line `<port> <device> <app>` each, then `ready`; it ends with the program that started it. Zinc Inspector (`next/app/inspector`) runs it and lists these apps with the programs of this machine, named `<app> on <device>` |
+| `zinc device [<d>] shot <app> [file.png]` | the frame the app shows (`Page.captureScreenshot` of its inspector), written as `<app>.png` or the file named. The DevTools protocol is spoken by a few lines of Zinc run by the engine (the WebSocket of `zinc:socket`), not by a second implementation in the agent |
+| `zinc device [<d>] monitor <app>` | the app's log, followed, through `zinc monitor`: the `zinc:telemetry` lines of an app that called `telemetry.connect('stdout')` in its words, the other lines as they are |
+| `zinc device [<d>] top [-n count] [--json]` | every second the machine's line (load, free memory, temperature where the system gives one) and, per running app, its pid, its share of one core since the sample before and its memory. `--json`: each sample as the agent sends it, one per line |
+
+Test: `next/tests/t1/agent_inspect.sh` (a DevTools client and Zinc Inspector attached through `inspect`, the frame of `shot` against the
+same program run on the workstation, the lines of `monitor`, the numbers of `top`). Not covered: the debugger of a program on a device
+(`zinc debug --cdp` there is reached with `zinc device forward`, as any port), and the per-app numbers on Linux (read from
+`/proc/<pid>/stat`, written and not run: the cross-platform pass).
+
 ## Files of the agent (`~/.zinc/agent`)
 
 `agent.json` (the device's id and name), `clients.json`, `pairing.json` (the open pairing: `zinc agent pair` writes it, the daemon
 reads it, so the two need no channel between them), `apps/<name>/` (`app.zapp`, or an export directory), `logs/<name>.log` (cut back
-past 4 MiB: the last 1 MiB goes to `<name>.log.1`), `run/<name>.pid`.
+past 4 MiB: the last 1 MiB goes to `<name>.log.1`), `run/<name>.pid` (the pid, then the port of its inspector).
 
 ## Known limits (each is a `ponytail:` comment in the code)
 
@@ -104,6 +127,11 @@ past 4 MiB: the last 1 MiB goes to `<name>.log.1`), `run/<name>.pid`.
 - The writes to a shell's input block: a paste larger than the terminal's buffer into a program that prints as much without reading stalls
   that session.
 - An app is known by its pid file alone.
+- The inspector's port is found free by the agent, then given to the app: another program can take it in between (the app's log then
+  says the port is unavailable).
+- `zinc device inspect --all` forwards the apps that run when it starts; Zinc Inspector renews the list at "Find programs", unless it is
+  attached to a device's app.
+- An app's CPU and memory are those of the first 256 processes of its group (macOS).
 - Linux and macOS (POSIX sockets, `forkpty`): the Windows client is part of the cross-platform pass.
 
 ## Next (ZN-729.03 to .06)

@@ -164,6 +164,10 @@ last 32768 spans (about 3600 frames). `next/tests/t1/inspector.sh` runs it again
 On a remote device, `zinc dev --device` runs ssh with `-L 9229:127.0.0.1:9229`, so Chrome on the dev machine uses
 `localhost:9229` as well.
 
+A device that runs the agent needs no ssh: `zinc device [<device>] inspect <app>` brings the inspector of an app running there to a port
+of this machine and prints the address for Chrome, and Zinc Inspector lists the apps of the paired devices with the programs of this
+machine (`docs/reports/zinc-next-agent.md`).
+
 ### HAR export
 
 `zinc run --har out.har <entry>` (or `ZINC_HAR=out.har`, which compiled and exported programs read too) records the

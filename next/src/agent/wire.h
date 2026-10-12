@@ -138,4 +138,25 @@ void announce(const std::string& name, int port, const std::string& bind, const 
 
 struct Device { std::string id, name, client, key, host; int port = kPort; };
 
+// ---- the inspector, the frame, the telemetry and the load of an app (inspect.cpp, ZN-729.05) ----
+
+using Env = std::vector<std::pair<std::string, std::string>>;
+/** The device: the port an app about to start gives its inspector. ZINC_DEVTOOLS_PORT of `env` when the workstation chose one, else a free
+ *  port of this machine, added to `env`. */
+int inspectorPort(Env& env);
+/** The device: what a running app adds to its entry in `apps`: "inspector" (the second line of its pid file), "cpuMs" and "rss" (the
+ *  processes of its group, summed), "at" (the monotonic clock when they were read, in ms). */
+void appStats(Obj& o, const std::string& pidFile, long pid);
+/** The device: sends `what()` now and every `ms` until the workstation leaves or `stop`. */
+void every(Chan& c, int ms, const std::function<std::string()>& what, const std::atomic<bool>& stop);
+/** The workstation: `zinc device [<device>] inspect <app> [--port n] | shot <app> [file.png] | monitor <app> | top [-n count] [--json]`. */
+int inspectCommand(Device& d, const std::string& op, const std::vector<std::string>& args, const std::string& self);
+/** The workstation: `zinc device inspect --all`, the inspector of every running app of every paired device on a port of this machine. */
+int inspectAll(std::vector<Device>& paired);
+// What these commands take from client.cpp.
+std::unique_ptr<Chan> ask(Device& d, const std::string& req, std::string& answer, bool mayLook = true);   // `request`
+int forwardPort(Device& d, int local, int remote, const std::function<void(int port)>& listening);       // `forward`, never returns while it works
+int followLogs(Device& d, const std::string& name);
+int runTool(const std::vector<std::string>& argv);                                                         // its exit status
+
 }  // namespace zn::agent
