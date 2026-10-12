@@ -92,10 +92,18 @@ static Dev devs[16];
 static int ndev;
 static uint32_t held;
 static float px, py;
-static bool mouse_down, touch_down, quit_key;
+// A press and its release can both arrive between two polls (a quick tap on a screen drawn 20 times a second): the press is then shown
+// for one poll and released at the next, instead of never being seen.
+struct Latch {
+  bool down, fresh, gone;
+  void set(bool v) { if (v) { down = fresh = true; gone = false; } else if (fresh) gone = true; else down = false; }
+  void shown() { if (gone) down = false; fresh = gone = false; }
+};
+static Latch mouse_btn, touch_btn;
+static bool quit_key;
 static float wheel;
 static int slot;
-static struct { int id; float x, y; } slots[HAL_MAX_TOUCH];
+static struct { int id; float x, y; bool fresh, gone; } slots[HAL_MAX_TOUCH];   // fresh, gone: as Latch, for a finger
 
 // ZINC_FBDEV_SIM=<file> (ZN-129): the framebuffer is a plain file with a fixed screeninfo, so the format conversion and the letterbox run anywhere, on a Mac too.
 //   ZINC_FBDEV_SIM_FORMAT=<w>x<h>x<bpp> (default 640x480x32; 16 = RGB565, 24 = RGB888 in BGR byte order, 32 = XRGB8888 with alpha 0xFF)
@@ -161,14 +169,15 @@ static void read_dev(Dev& d) {
   input_event e[64];
   ssize_t n;
   bool frameDone = false;
-  while (!frameDone && (n = read(d.fd, e, sim_fb ? sizeof(input_event) : sizeof e)) > 0) {   // a script: one frame of events (up to SYN_REPORT) per poll
+  // a script: one frame of events (up to SYN_REPORT) per poll; a device: everything it has sent, so the pointer never lags behind the finger
+  while (!(sim_fb && frameDone) && (n = read(d.fd, e, sim_fb ? sizeof(input_event) : sizeof e)) > 0) {
     for (int i = 0; i < (int)(n / sizeof(input_event)); i++) {
       const input_event& v = e[i];
       if (v.type == EV_SYN && v.code == SYN_REPORT) frameDone = true;
       if (v.type == EV_KEY) {
         if (v.code == KEY_ESC && v.value == 1) quit_key = true;
-        else if (v.code == BTN_LEFT) mouse_down = v.value != 0;
-        else if (v.code == BTN_TOUCH) touch_down = v.value != 0;
+        else if (v.code == BTN_LEFT) mouse_btn.set(v.value != 0);
+        else if (v.code == BTN_TOUCH) touch_btn.set(v.value != 0);
         else if (uint32_t b = button_of(v.code)) { if (v.value) held |= b; else held &= ~b; }
       } else if (v.type == EV_REL) {
         if (v.code == REL_X) px += v.value;
@@ -178,7 +187,10 @@ static void read_dev(Dev& d) {
       } else if (v.type == EV_ABS && d.abs) {
         static int32_t ax, ay;
         if (v.code == ABS_MT_SLOT) slot = v.value < HAL_MAX_TOUCH ? v.value : HAL_MAX_TOUCH - 1;
-        else if (v.code == ABS_MT_TRACKING_ID) slots[slot].id = v.value;
+        else if (v.code == ABS_MT_TRACKING_ID) {
+          auto& s = slots[slot];
+          if (v.value >= 0) { s.id = v.value; s.fresh = true; s.gone = false; } else if (s.fresh) s.gone = true; else s.id = -1;
+        }
         else if (v.code == ABS_MT_POSITION_X) { float y; to_surface(d, v.value, 0, &slots[slot].x, &y); }
         else if (v.code == ABS_MT_POSITION_Y) { float x; to_surface(d, 0, v.value, &x, &slots[slot].y); }
         else if (!d.mt && v.code == ABS_X) { ax = v.value; to_surface(d, ax, ay, &px, &py); }
@@ -308,10 +320,15 @@ static void fb_poll(HalInput* in) {
   for (int i = 0; i < ndev; i++) read_dev(devs[i]);
   in->buttons |= held;
   in->ntouch = 0;
-  for (auto& s : slots) if (s.id >= 0 && in->ntouch < HAL_MAX_TOUCH) in->touch[in->ntouch++] = HalTouch{s.id, s.x, s.y};
+  for (auto& s : slots) {
+    if (s.id >= 0 && in->ntouch < HAL_MAX_TOUCH) in->touch[in->ntouch++] = HalTouch{s.id, s.x, s.y};
+    if (s.gone) s.id = -1;
+    s.fresh = s.gone = false;
+  }
   if (in->ntouch) { px = in->touch[0].x; py = in->touch[0].y; }
   in->px = px; in->py = py;
-  in->pdown = mouse_down || touch_down || in->ntouch > 0;
+  in->pdown = mouse_btn.down || touch_btn.down || in->ntouch > 0;
+  mouse_btn.shown(); touch_btn.shown();
   in->wheel += wheel; wheel = 0;
   if (quit_key || sig_quit) in->quit = 1;
 }

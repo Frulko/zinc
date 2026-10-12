@@ -80,6 +80,9 @@ int main(int argc, char** argv) {
     ev(script, EV_ABS, ABS_MT_SLOT, 1); ev(script, EV_ABS, ABS_MT_TRACKING_ID, 8); ev(script, EV_ABS, ABS_MT_POSITION_X, 100); ev(script, EV_ABS, ABS_MT_POSITION_Y, 8 + 60); ev(script, EV_SYN, SYN_REPORT, 0);
     ev(script, EV_ABS, ABS_MT_SLOT, 0); ev(script, EV_ABS, ABS_MT_POSITION_X, 40); ev(script, EV_SYN, SYN_REPORT, 0);
     ev(script, EV_ABS, ABS_MT_SLOT, 0); ev(script, EV_ABS, ABS_MT_TRACKING_ID, -1); ev(script, EV_ABS, ABS_MT_SLOT, 1); ev(script, EV_ABS, ABS_MT_TRACKING_ID, -1); ev(script, EV_SYN, SYN_REPORT, 0);
+    // a quick tap: the finger lands and lifts before the next poll (both in one report here)
+    ev(script, EV_ABS, ABS_MT_SLOT, 0); ev(script, EV_ABS, ABS_MT_TRACKING_ID, 9); ev(script, EV_ABS, ABS_MT_POSITION_X, 60); ev(script, EV_ABS, ABS_MT_POSITION_Y, 8 + 20);
+    ev(script, EV_KEY, BTN_TOUCH, 1); ev(script, EV_KEY, BTN_TOUCH, 0); ev(script, EV_ABS, ABS_MT_TRACKING_ID, -1); ev(script, EV_SYN, SYN_REPORT, 0);
     std::ofstream(dir + "/touch.evt", std::ios::binary) << script;
     setenv("ZINC_FBDEV_SIM", (dir + "/fbtouch").c_str(), 1); sim_fb = getenv("ZINC_FBDEV_SIM");
     setenv("ZINC_FBDEV_SIM_INPUT", (dir + "/touch.evt").c_str(), 1); sim_input = getenv("ZINC_FBDEV_SIM_INPUT");
@@ -95,6 +98,12 @@ int main(int argc, char** argv) {
     CHECK(in.ntouch == 2 && in.touch[0].x == 20 && in.touch[1].x == 50);
     in = {};
     fb_poll(&in);   // frame 3: both lifted
+    CHECK(in.ntouch == 0 && !in.pdown);
+    in = {};
+    fb_poll(&in);   // frame 4: the quick tap is seen pressed, where it landed
+    CHECK(in.ntouch == 1 && in.touch[0].id == 9 && in.touch[0].x == 30 && in.touch[0].y == 10 && in.pdown);
+    in = {};
+    fb_poll(&in);   // frame 5: and released at the next poll
     CHECK(in.ntouch == 0 && !in.pdown);
     in = {};
     fb_poll(&in);   // the script is over: nothing new
