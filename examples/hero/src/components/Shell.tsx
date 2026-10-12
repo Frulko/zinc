@@ -16,6 +16,7 @@ export const rootRef = createNodeRef();
 export const [winW, setWinW] = createSignal<number>(0);
 export const compact = (): boolean => winW() < 960;
 // nav row height: 48 px (a comfortable touch target), 44 px without gap when compact so that nine rows fit in 480 px
+// (a compact row is as wide as the sidebar's inside, 56 px: centred as a column's child it was only as wide as its icon, 22 px under a finger)
 const rowH = (): i32 => compact() ? 44 : 48;
 const rowGap = (): i32 => compact() ? 0 : 4;
 
@@ -47,7 +48,7 @@ function initialsOf(s: string): string {
 }
 
 function Sidebar(): i32 {
-  return <View class={`flex-col ${compact() ? 'w-[72] p-2 items-center' : 'w-[232] p-4'} gap-6 border-r bg-${theme().card} border-${theme().border}`}>
+  return <View class={`flex-col ${compact() ? 'w-[72] p-2' : 'w-[232] p-4'} gap-6 border-r bg-${theme().card} border-${theme().border}`}>
     <Show when={!compact()}><View class="flex-row items-center gap-3 px-2 pt-1">
       <View class="w-8 h-8 rounded-lg bg-gradient-to-r from-indigo-500 to-fuchsia-500 items-center justify-center">
         <Text class="text-sm font-bold text-white">Z</Text>
