@@ -134,6 +134,9 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-729.05: `zinc device debug <app>`, the app restarted under `zinc debug --cdp` with its port forwarded (today: `zinc device forward` by hand).
 - ZN-729.05: `inspect --all` follows apps started later (it lists those running when it starts).
 - ZN-729.05: the app chooses its inspector port (`ZINC_DEVTOOLS_PORT=0`) and tells the agent, closing the gap between the agent finding a port free and the app listening.
+- ZN-729.04: the engine update of `zinc device update` stops at "downloaded and verified": put the package in place and restart the agent, with a way back.
+- ZN-729.04: `zinc device deploy --key <seed>`: deploy's pack is unsigned, so it is refused over a signed app.
+- ZN-729.04: under `--no-shell`, uninstall then install replaces a signed app with anything: decide whether a signed app's uninstall needs its key.
 - ZN-729: the pairing code on the device's screen (a Zinc window, or the app's splash) and as a QR code, for devices nobody has a terminal on.
 - ZN-729: IPv6 for the agent's listener and its discovery; today both are IPv4.
 - ZN-729: build mbedTLS with `MBEDTLS_THREADING_PTHREAD` and drop the agent's lock around its calls, when several large transfers at once are a real case (measure first).
@@ -245,6 +248,8 @@ The next backlog review turns lines into tasks or deletes them.
 
 - ZN-730: museum-table's film on the real `/dev/fb0` of the Pi 3B+ (off screen so far) and at a fixed 1400 MHz clock; the ISP (`/dev/video12`) handing the picture in BGRX at the drawn size (ZN-731).- ZN-729: `zinc agent` on Linux (x86_64 and a Raspberry Pi): `tests/t0/agent.sh` and `tests/t1/agent_apps.sh` there (forkpty with libutil, /proc figures, the temperature, a GUI app started from the agent under systemd), and a pairing between two machines over Wi-Fi with discovery through a real network.
 - ZN-729.05: `tests/t1/agent_inspect.sh` on Linux and a Pi: `top`'s CPU and memory come from /proc there, the temperature from thermal_zone0 (written, never run).
+- ZN-729.04: `zinc agent install` on a Linux board: the unit loads, the agent is back after a reboot with nobody logged in, apps survive `systemctl --user restart zinc-agent`, and mDNS announces when the agent starts before the network is up (`announce` returns at once without multicast).
+- ZN-729.04: measure the 5 s trial of an update on a Pi 3 with a large `.zapp`: unpacking may outlast it, so the update would hold before its program starts.
 - ZN-729: `zinc device` on Windows (Winsock, ConPTY for the terminal); the agent itself stays Linux and macOS.
 
 - ZN-726: museum-table's zoom on the Pi 3 (GLES 2): frame time at the ladder steps, sharpness; on a target without TrueType files a scaled text takes the nearest baked size.
