@@ -195,6 +195,22 @@ Every frame is split into phases, timed on the logic thread (`runtime/gfx.cpp`, 
 - `zinc bench` (or `zinc test --bench`): see [testing](guide/06-testing.md#benchmarks).
 - Off (the default), a mark costs one test; buffers (~700 KiB) are allocated only when profiling.
 
+### Run and build progress
+
+`zinc run` and `zinc build` report their stages on stderr by default, also when redirected. JavaScript projects
+name QuickJS and show preparation, entry loading, execution and exit status. Native builds report how many
+C++ units came from the cache, completed jobs and elapsed time; a terminal animates the current stage while
+the compiler or linker runs. A stage announces itself before it starts, so a long operation is visible.
+
+`-q` or `ZINC_STEPS=0` hides progress. `-v` adds detailed module timings; `--log-format json -v` keeps stderr
+as JSON. Program stdout is separate. Tests set `ZINC_STEPS=0` unless they check these messages.
+
+When an automatic native-plugin build or load fails, Zinc warns with the module, cause and selected
+simulation or Next implementation. Cached launches repeat that warning. `ZINC_NATIVE=real` refuses the
+fallback instead. Explicit simulation and deterministic runs name the selected simulation without claiming
+the real plugin is broken. These diagnostics describe backend selection; they cannot detect arbitrary bugs
+inside successfully loaded plugin code.
+
 ### Performance panel (`ZINC_PERF_HUD`)
 
 `ZINC_PERF_HUD=1` (or `"dev": {"perfHud": true}` in `zinc.json`, or Cmd/Ctrl+Shift+P while the program runs) shows

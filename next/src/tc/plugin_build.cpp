@@ -144,6 +144,7 @@ bool compilers(bool system, std::string& cxx, std::string& cc, std::string& id, 
 std::string arTool() { return gAr; }
 
 bool run(const std::string& cmd, std::string& err, const std::string& what) {
+  log::Phase phase("plugin", what, "plugin", what);
   std::string log = cmd + " 2>&1";
   FILE* f = popen(log.c_str(), "r");
   if (!f) { err = "cannot run " + what; return false; }
@@ -596,6 +597,7 @@ bool buildPlugin(const frontend::FoundPlugin& p, const std::string& engineRoot, 
     if (readStamp(stamp, out)) {
       out.seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
       log::write("plugin", log::Info, m.name + ": unchanged since its last build (" + stamp + ")", out.seconds * 1000);
+      log::step("plugin", m.name + ": cached native library");
       return true;
     }
   }

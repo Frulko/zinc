@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <cstring>
 #include <fstream>
+#include <iomanip>
 #include <iterator>
 #include <vector>
 #include <sstream>
@@ -57,8 +58,6 @@ int runTestCommand(const std::string& self, const zn::frontend::Profile& p, cons
 #include "zbc/zbc.h"
 #include "zapp.h"
 #include <thread>
-#include <spawn.h>
-#include <sys/wait.h>
 #include <set>
 #include "host/permissions.h"
 namespace zn::text { void installSegmenter(); void installShapedGfx(); }
@@ -197,6 +196,7 @@ static void installNativeProvider(const char* entry) {
 // One line on stderr, the prototype's `zinc: plugins: a, b`, where the build steps go: in a terminal (ZINC_STEPS=1 elsewhere), not under -q or
 // ZINC_LOG_FORMAT=json. A cached program keeps the names beside it (file `plugins`).
 static std::vector<std::string> gUsedPlugins;
+static std::vector<zn::frontend::NativeFallback> gNativeFallbacks;
 static std::string gDisplayPlugin;
 static void notePlugins(const zn::frontend::Program& prog) {
   namespace fs = std::filesystem;
@@ -208,15 +208,30 @@ static void notePlugins(const zn::frontend::Program& prog) {
     for (const std::string& f : files) if (f.compare(0, dir.size(), dir) == 0) { gUsedPlugins.push_back(p.manifest.name); break; }
   }
 }
-static void savePlugins(const std::filesystem::path& file) { std::ofstream o(file); for (const std::string& n : gUsedPlugins) o << n << "\n"; }
-static void loadPlugins(const std::filesystem::path& file) { gUsedPlugins.clear(); std::ifstream in(file); for (std::string n; std::getline(in, n);) if (!n.empty()) gUsedPlugins.push_back(n); }
+static void savePlugins(const std::filesystem::path& file) {
+  std::ofstream o(file); for (const std::string& n : gUsedPlugins) o << n << "\n";
+  std::ofstream notices(file.string() + ".fallbacks");
+  for (const auto& n : gNativeFallbacks) notices << std::quoted(n.module) << ' ' << std::quoted(n.backend) << ' ' << std::quoted(n.reason) << '\n';
+}
+static void loadPlugins(const std::filesystem::path& file) {
+  gUsedPlugins.clear(); std::ifstream in(file); for (std::string n; std::getline(in, n);) if (!n.empty()) gUsedPlugins.push_back(n);
+  gNativeFallbacks.clear(); std::ifstream notices(file.string() + ".fallbacks");
+  zn::frontend::NativeFallback n;
+  while (notices >> std::quoted(n.module) >> std::quoted(n.backend) >> std::quoted(n.reason)) gNativeFallbacks.push_back(n);
+}
 static void printPlugins() {
   static bool printed = false;
+  if (printed) return;
+  printed = true;
+  for (const auto& n : gNativeFallbacks) {
+    const std::string detail = n.module + ": using " + n.backend;
+    if (!n.reason.empty()) zn::log::warning("plugin", detail + "; native implementation unavailable: " + n.reason);
+    else zn::log::step("plugin", detail);
+  }
   std::string names;
   for (const std::string& n : gUsedPlugins) names += (names.empty() ? "" : ", ") + n;
   if (!gDisplayPlugin.empty() && std::find(gUsedPlugins.begin(), gUsedPlugins.end(), gDisplayPlugin) == gUsedPlugins.end()) names += (names.empty() ? "" : ", ") + gDisplayPlugin;
-  if (printed || names.empty() || !zn::log::steps() || zn::log::state().json) return;
-  printed = true;
+  if (names.empty() || !zn::log::steps()) return;
   std::fprintf(stderr, "zinc: plugins: %s\n", names.c_str());
 }
 
@@ -341,6 +356,7 @@ static bool loadChecked(const char* path, zn::frontend::Program& prog, zn::front
   if (!loadManifestPermissions(path)) return false;
   installNativeProvider(path);
   { zn::log::Phase ph("build", "read and parse"); prog = zn::frontend::loadProgram(path, readFile, gStrict, gRoot + "/../lib/std"); }
+  gNativeFallbacks = prog.nativeFallbacks;
   if (zn::log::on("build", zn::log::Info)) zn::log::write("build", zn::log::Info, std::to_string(prog.files.size()) + " files; target " + (gBuildTarget.empty() ? zn::tc::pluginTarget() : gBuildTarget) + ", profile " + (gProfile ? gProfile->name : std::string("host")) + ", layout " + (zn::frontend::uiLayout().empty() ? std::string("classic") : zn::frontend::uiLayout()));
   auto diags = prog.diags;
   if (diags.empty()) {
@@ -411,6 +427,7 @@ static bool gDebugNative = false;              // zinc build --debug (ZN-371.06)
 static std::vector<std::string> gDebugSources;  // the text of each file of the debug build (Module::files)
 static int compileToZbc(const char* path, zn::zbc::Module& out) {
   const auto t0 = std::chrono::steady_clock::now();
+  zn::log::step("compile", "read, check and lower sources...");
   zn::frontend::Program prog;
   zn::frontend::Checked checked;
   if (!loadChecked(path, prog, checked)) return 1;
@@ -535,7 +552,6 @@ static void writeComponents(const std::string& file, const std::string& link, co
 // The units of a large compiled program (ZN-427): their objects are cached by the hash of their C++ and of how they are compiled, so a change to one
 // function compiles the one unit that holds it; the units that miss are compiled at most ZINC_JOBS at once (half the cores, 1 to 8); with clang
 // the headers every unit includes are precompiled once per compiler, flags and engine headers (they are 1.4 s of each unit's compile).
-extern char** environ;
 namespace aotcache {
 namespace fs = std::filesystem;
 static fs::path dir() { return fs::path(zn::tc::home()) / "cache" / "aot-obj"; }
@@ -547,24 +563,6 @@ static std::string capture(const std::string& cmd) {
   std::string outText;
   if (FILE* f = popen((cmd + " 2>/dev/null").c_str(), "r")) { char buf[256]; std::size_t n; while ((n = std::fread(buf, 1, sizeof buf, f)) > 0) outText.append(buf, n); pclose(f); }
   return outText;
-}
-/** Runs the shell commands, at most `limit` at once; false when one fails. */
-static bool runAll(const std::vector<std::string>& cmds, unsigned limit) {
-  std::vector<pid_t> live;
-  bool ok = true;
-  for (std::size_t next = 0; next < cmds.size() || !live.empty();) {
-    while (ok && live.size() < limit && next < cmds.size()) {
-      const char* argv[] = {"/bin/sh", "-c", cmds[next++].c_str(), nullptr};
-      pid_t pid;
-      if (posix_spawn(&pid, "/bin/sh", nullptr, nullptr, const_cast<char* const*>(argv), environ) != 0) { ok = false; break; }
-      live.push_back(pid);
-    }
-    if (live.empty()) break;
-    int st = 0;
-    const pid_t done = waitpid(live.front(), &st, 0);   // the oldest first: the others keep running meanwhile
-    if (done > 0) { live.erase(live.begin()); if (!WIFEXITED(st) || WEXITSTATUS(st) != 0) ok = false; }
-  }
-  return ok;
 }
 /** `-include-pch <file>` for the units' headers, built when missing; "" when the compiler is not clang or the header cannot be built. */
 static std::string pch(const std::string& cxx, const std::string& cflags) {
@@ -585,7 +583,8 @@ static std::string pch(const std::string& cxx, const std::string& cflags) {
   fs::create_directories(dir(), ec);
   const fs::path header = file.string() + ".h", tmp = file.string() + ".part" + std::to_string(::getpid());
   std::ofstream(header) << "#include \"rt/rt.h\"\n#include \"zn/host.h\"\n#include \"zn/ops.h\"\n";
-  const bool made = std::system((cxx + cflags + " -x c++-header '" + header.string() + "' -o '" + tmp.string() + "'").c_str()) == 0;
+  zn::log::Phase phase("build", "precompile headers", "headers", "precompile shared C++ headers");
+  const bool made = zn::tc::runCommands({cxx + cflags + " -x c++-header '" + header.string() + "' -o '" + tmp.string() + "'"}, 1, "headers");
   if (made) fs::rename(tmp, file, ec); else fs::remove(tmp, ec);
   return made && !ec ? " -include-pch '" + file.string() + "'" : "";
 }
@@ -775,8 +774,7 @@ static int buildNative(const char* argv0, const char* entry, const char* out, zn
       run->reused = true;
       return 0;
     }
-    if (zn::log::steps()) zn::log::step("build", "first run of this version: native build, cached for the next runs");
-    else std::fprintf(stderr, "zinc: compiling %s for this machine (cached for the next runs; --interp starts at once)\n", fs::path(entry).filename().c_str());
+    zn::log::step("build", "first run of this version: native build, cached for the next runs");
   }
   writeComponents(std::string(out) + ".components", cmd, gPlugins);   // for the SBOM of zinc export (ZN-323)
   zn::log::write("build", zn::log::Debug, "compile and link: " + cmd);
@@ -792,10 +790,11 @@ static int buildNative(const char* argv0, const char* entry, const char* out, zn
     }
     const unsigned limit = aotcache::jobs();
     zn::log::Phase ph("build", "compile (C++)", "native", std::to_string(cmds.size()) + " of " + std::to_string(units.size()) + " units, " + std::to_string(limit) + " at once");
-    rc = aotcache::runAll(cmds, limit) ? 0 : 1;
+    zn::log::step("cache", std::to_string(units.size() - cmds.size()) + " of " + std::to_string(units.size()) + " C++ units reused");
+    rc = zn::tc::runCommands(cmds, limit, "native") ? 0 : 1;
     aotcache::prune(1500);
   }
-  if (rc == 0) { zn::log::Phase ph("build", "compile and link (C++)", "native", std::string(cxx ? cxx : "c++") + (moreUnits.empty() ? " -O2, compile and link" : ", link")); rc = std::system(cmd.c_str()); }
+  if (rc == 0) { zn::log::Phase ph("build", "compile and link (C++)", "native", std::string(cxx ? cxx : "c++") + (moreUnits.empty() ? " -O2, compile and link" : ", link")); rc = zn::tc::runCommands({cmd}, 1, "link") ? 0 : 1; }
   for (const fs::path& u : units) {
     std::error_code ec;
     if (!std::getenv("ZN_KEEP_CPP")) fs::remove(u, ec);
@@ -864,10 +863,12 @@ static void write(const fs::path& file, const std::string& signature, const std:
 static bool fresh(const fs::path& file, const std::string& signature) {
   std::ifstream in(file);
   std::string line;
-  if (!in || !std::getline(in, line) || line != signature) return false;
+  if (!in || !std::getline(in, line)) { zn::log::step("cache", "no saved build inputs; compiling"); return false; }
+  if (line != signature) { zn::log::step("cache", "engine, runtime or build settings changed; compiling"); return false; }
   while (std::getline(in, line)) {
     const std::size_t tab = line.find('\t');
-    if (tab == std::string::npos || stampOf(line.substr(tab + 1)) != line.substr(0, tab)) return false;
+    if (tab == std::string::npos) return false;
+    if (stampOf(line.substr(tab + 1)) != line.substr(0, tab)) { zn::log::step("cache", "changed: " + zn::log::shortPath(line.substr(tab + 1))); return false; }
   }
   return true;
 }
@@ -912,6 +913,7 @@ static bool load(const std::string& entry, zn::zbc::Module& zm) {
   std::error_code ec;
   fs::last_write_time(dir, fs::file_time_type::clock::now(), ec);   // recently run: kept when the cache is trimmed
   zn::log::write("build", zn::log::Info, "cached program, no compile (" + dir.string() + ")");
+  zn::log::step("cache", "cached bytecode, no compile");
   return true;
 }
 /** After the compile of an interpreted run: the program, what it loaded and baked, and what it read. */
@@ -1471,6 +1473,10 @@ int main(int argc, char** argv) {
       argv[2] = entryOfDir.data();
     }
     qo.entry = argv[2];
+    if (zn::log::steps()) std::fprintf(stderr, "zinc run %s\n", zn::log::shortPath(std::filesystem::absolute(qo.entry).string()).c_str());
+    zn::log::step("engine", "QuickJS-ng (JavaScript)");
+    const auto preparedAt = std::chrono::steady_clock::now();
+    zn::log::step("prepare", "project, plugins and resources...");
     qo.stdRoot = gRoot + "/../lib/std";
     qo.profileHz = qjsProfileHz;
     if (!loadManifestPermissions(argv[2])) return 2;   // zinc.json "ui" (UI_LAYOUT of zinc:platform) and the permissions, as for the typed engines
@@ -1480,6 +1486,7 @@ int main(int argc, char** argv) {
       zn::frontend::Project sp; std::string perr;
       if (zn::frontend::parseProject(ss.str(), sp, perr)) {
         windowEnv(hostWindow(sp));   // the size and window settings of zinc.json, as `zinc run` gives the typed engines
+        if (sp.perfHud) setenv("ZINC_PERF_HUD", "1", 0);
         splashEnv(sp, std::filesystem::path(pf).parent_path().string(), zn::tc::pluginTarget().c_str());
       }
     }
@@ -1502,6 +1509,7 @@ int main(int argc, char** argv) {
       if (bakeResources(argv[2], blob, err)) zn::host::installResources(blob.data(), blob.size());
     }
 #endif
+    zn::log::step("prepare", "project, plugins and resources ready", zn::log::since(preparedAt));
     printPlugins();
     zn::log::write("run", zn::log::Info, "engine QuickJS-ng");   // ZN-368
 #ifdef ZN_HOST_GFX
@@ -1703,6 +1711,11 @@ int main(int argc, char** argv) {
       }
     }
     if (zn::log::steps()) std::fprintf(stderr, "zinc run %s\n", zn::log::shortPath(std::filesystem::absolute(path).string()).c_str());
+#ifdef ZN_HOST_GFX
+    zn::log::step("engine", runcache::wanted() ? "Zinc native, C++ cache enabled" : "Zinc interpreter");
+#else
+    zn::log::step("engine", "Zinc interpreter");
+#endif
     installDisplayDriver(projectDir, path.c_str());
     windowEnv(window);
 #ifdef ZN_HOST_GFX
@@ -2085,6 +2098,7 @@ int main(int argc, char** argv) {
   if (argc == 5 && !std::strcmp(argv[1], "build") && !std::strcmp(argv[3], "-o")) {  // zinc build <file> -o <out>: compile to C++ and then to a native program
     const auto tBuild = std::chrono::steady_clock::now();
     if (zn::log::steps()) std::fprintf(stderr, "zinc build %s for %s\n", zn::log::shortPath(std::filesystem::absolute(argv[2]).string()).c_str(), zn::tc::hostName().c_str());
+    zn::log::step("engine", "Zinc, C++ AOT");
     static std::string bundleExe;
     if (!gBundleOut.empty()) {   // --bundle: <out> is the .app, the program is linked into it
 #ifdef __APPLE__

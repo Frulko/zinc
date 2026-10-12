@@ -75,11 +75,10 @@ inline void write(const char* module, int level, const std::string& msg, double 
   }
 }
 
-// The steps of a command: one short line per stage a user cares about (compile, resources, native build, result), on by default when stderr is a
-// terminal, off when it is a pipe (scripts, tests, CI); ZINC_STEPS=1 forces them, ZINC_STEPS=0 (or -q) hides them. -v adds the module details above.
+// Command progress is on by default, including redirected stderr. ZINC_STEPS=0 (or -q) hides it; JSON uses structured logs instead.
 inline bool steps() {
-  static const bool on = [] { const char* e = std::getenv("ZINC_STEPS"); return e ? std::atoi(e) != 0 : isatty(2) != 0; }();
-  return on;
+  const char* e = std::getenv("ZINC_STEPS");
+  return !state().json && (!e || std::atoi(e) != 0);
 }
 inline std::string duration(double ms) { char b[32]; if (ms < 1000) std::snprintf(b, sizeof b, "%.0f ms", ms); else std::snprintf(b, sizeof b, "%.1f s", ms / 1000); return b; }
 // "  compile    6 files                           35 ms"; `ms` < 0: no duration.
@@ -87,6 +86,11 @@ inline void step(const char* what, const std::string& detail, double ms = -1) {
   if (!steps()) return;
   if (ms >= 0) std::fprintf(stderr, "  %-10s %-44s %s\n", what, detail.c_str(), duration(ms).c_str());
   else std::fprintf(stderr, "  %-10s %s\n", what, detail.c_str());
+}
+inline void warning(const char* module, const std::string& msg) {
+  const double t = std::chrono::duration<double>(std::chrono::steady_clock::now() - state().t0).count();
+  if (state().json) std::fprintf(stderr, "{\"t\":%.4f,\"module\":\"%s\",\"level\":\"warning\",\"msg\":\"%s\"}\n", t, module, jsonEscape(msg).c_str());
+  else std::fprintf(stderr, "zinc: warning: %s\n", msg.c_str());
 }
 // A path as the user would type it: relative to the working directory when that is shorter.
 inline std::string shortPath(const std::string& p) {
@@ -109,7 +113,7 @@ struct Phase {
   const char* stepName = nullptr;   // also a step line of the command (see step())
   std::string stepDetail;
   Phase(const char* m, std::string n, int l = Info) : module(m), name(std::move(n)), level(l) {}
-  Phase(const char* m, std::string n, const char* stepAs, std::string detail) : module(m), name(std::move(n)), level(Info), stepName(stepAs), stepDetail(std::move(detail)) {}
+  Phase(const char* m, std::string n, const char* stepAs, std::string detail) : module(m), name(std::move(n)), level(Info), stepName(stepAs), stepDetail(std::move(detail)) { step(stepName, stepDetail + "..."); }
   ~Phase() {
     const double ms = since(t0);
     if (on(module, level)) write(module, level, name, ms);

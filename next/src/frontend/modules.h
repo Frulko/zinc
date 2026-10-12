@@ -19,10 +19,13 @@ struct SourceFile {
   std::vector<SrcPiece> map;
 };
 
+struct NativeFallback { std::string module, backend, reason; };
+
 struct Program {
   Ast ast;
   std::deque<SourceFile> files;  // files[0] is the entry
   std::vector<Diag> diags;       // syntax and module resolution errors; Diag::file indexes `files`
+  std::vector<NativeFallback> nativeFallbacks;
 };
 
 // Reads a file into `out`; false if it cannot be read.

@@ -41,5 +41,8 @@ printf '{ "name": "hud", "entry": "main.ts", "dev": { "perfHud": true } }\n' > "
 out=$(ZINC_FRAMES=4 "$ZINC" run "$tmp/proj" --interp 2>&1)
 set -- $(hud "$out")
 [ "$3" = "248" ] || { echo "zinc.json dev.perfHud did not show the panel: $out"; fail=1; }
+out=$(ZINC_FRAMES=4 "$ZINC" run "$tmp/proj" --engine quickjs 2>&1)
+set -- $(hud "$out")
+[ "$3" = "248" ] || { echo "QuickJS zinc.json dev.perfHud did not show the panel: $out"; fail=1; }
 [ $fail -eq 0 ] && echo "perf hud: ok"
 exit $fail

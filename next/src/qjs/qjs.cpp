@@ -2,6 +2,7 @@
 #include <map>
 #include "qjs/qjs.h"
 #include "zn/js_ext.h"
+#include "zn/log.h"
 
 #include <algorithm>
 #include <array>
@@ -398,6 +399,8 @@ bool timerLoop(Engine& e) {
 }  // namespace
 
 int run(const Options& o) {
+  const auto startedAt = std::chrono::steady_clock::now();
+  zn::log::step("context", "initialise QuickJS and host services...");
   Engine e;
   e.stdRoot = o.stdRoot;
   zn_lre_delegate(qjs_lre_realloc, qjs_lre_check_timeout, qjs_lre_check_stack_overflow);
@@ -446,8 +449,10 @@ int run(const Options& o) {
     if (!drain(e)) { JS_FreeValue(e.ctx, stage); return 101; }
   }
   if (!moduleText(e, entry, js, err)) { std::fprintf(stderr, "%s\n", err.c_str()); return 101; }
+  zn::log::step("load", zn::log::shortPath(entry));
   JSValue mod = JS_Eval(e.ctx, js.data(), js.size(), entry.c_str(), JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
   if (JS_IsException(mod)) { JSValue ex = JS_GetException(e.ctx); report(e.ctx, ex); JS_FreeValue(e.ctx, ex); return 101; }
+  zn::log::step("run", "QuickJS-ng, executing JavaScript");
   JSValue res = JS_EvalFunction(e.ctx, mod);  // links the imports through the loader, then runs; a promise (top-level await)
   if (JS_IsException(res)) { JSValue ex = JS_GetException(e.ctx); report(e.ctx, ex); JS_FreeValue(e.ctx, ex); rc = 101; }
   else {
@@ -457,6 +462,7 @@ int run(const Options& o) {
   }
   JS_FreeValue(e.ctx, stage);
   std::fflush(stdout);
+  zn::log::step("exit", "QuickJS-ng, status " + std::to_string(rc), zn::log::since(startedAt));
   return rc;
 }
 

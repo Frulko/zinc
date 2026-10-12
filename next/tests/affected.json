@@ -43,6 +43,8 @@
     {"paths": ["src/host/assets_host.cpp", "src/host/assets_host.h", "src/prof/", "tests/data/assets_groups/", "tests/t0/assets_groups.sh"], "tests": ["assets_groups"]},
     {"paths": ["../runtime/include/zrt_assets_dir.h"], "tests": ["aot_assets", "assets_groups"]},
     {"paths": ["../plugins/webview/", "tests/t1/webview.sh"], "tests": ["webview"]},
+    {"paths": ["src/tc/progress.cpp", "include/zn/log.h", "tests/t0/build_progress.sh"], "tests": ["build_progress", "steps", "verbose_log", "plugin_fallback"]},
+    {"paths": ["src/frontend/modules.cpp", "src/frontend/modules.h", "src/main.cpp", "tests/t1/plugin_fallback.sh"], "tests": ["plugin_fallback"]},
     {"paths": ["src/assets/", "third_party/xxhash/", "src/res/res.cpp", "src/res/res.h", "tests/unit/assets_test.cpp", "tests/t0/assets.sh"], "tests": ["assets"]},
     {"paths": ["src/assets/tilemap.cpp", "src/assets/tilemap.h", "src/assets/sprite.cpp", "src/assets/assets.cpp", "../plugins/tilemap/", "../plugins/sprite/", "tests/data/tilemap/", "tests/t1/tilemap.sh"], "tests": ["tilemap", "assets"]},
     {"paths": ["src/assets/sprite.cpp", "src/assets/sprite.h", "third_party/stb/stb_rect_pack.h", "third_party/cute_aseprite/", "../plugins/sprite/", "src/host/gfx_host.cpp", "src/host/sys_host.cpp", "tests/data/sprite_atlas/", "tests/t1/sprite_atlas.sh"], "tests": ["sprite_atlas", "assets"]},

@@ -1631,6 +1631,7 @@ struct Loader {
         if (read(simPath, text)) {
           std::string specText;
           if (read(base + ".ts", specText)) specOf[simPath] = std::move(specText);  // the Spec the sim implements: the calls are checked against it
+          prog.nativeFallbacks.push_back({requireNativeName(specText0), isSim ? "simulation" : "Next implementation", whyNot});
           return load(simPath, std::move(text));
         }
       }

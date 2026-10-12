@@ -6,6 +6,8 @@ The next backlog review turns lines into tasks or deletes them.
 
 ## Engine and tools
 
+- ZN-720: let the renderer consume packed image resources instead of embedding the same decoded images again; museum-table carries 75.60 MB of RGBA pixels in its executable as well as its adjacent pack.
+
 - ZN-569: a Worker in the web environment, and `createImageBitmap` with it; PixiJS `Assets.load` takes that path when both exist.
 - ZN-569: images read and decoded off the frame in the host; a large image stalls the frame that loads it.
 - ZN-565: one whole run of `tests/t1/webgl_conformance.sh` on a quiet machine; the last one timed out on one page under a load of 85 (695 of 787).
