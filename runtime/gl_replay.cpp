@@ -16,6 +16,7 @@
 #if __has_include("zn/resource_stats.h")
 #include "zn/resource_stats.h"
 #endif
+#include <math.h>     // cosf, fabsf: libstdc++ does not bring it in through the headers above, as libc++ does
 #include <string.h>
 #include <thread>
 #include <time.h>
