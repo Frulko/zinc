@@ -206,6 +206,9 @@ struct HalDisplay {
   // may be null (no hardware layers). The layers of the frame presented next, in paint order (n = 0: none); returns a bit per layer it
   // will show. A layer it refuses is drawn by the rasterizer from the picture's pixels.
   uint32_t (*layers)(const HalLayer* l, int32_t n);
+  // may be null (a panel of a fixed size, a window). The screen's own size, asked before init when the program names no size (zinc.json, the
+  // board, ZINC_SIZE): the surface is then the screen, pixel for pixel. Leaves w and h alone when there is no screen to ask.
+  void (*native_size)(int32_t* w, int32_t* h);
 };
 extern HalDisplay* hal_display;
 }

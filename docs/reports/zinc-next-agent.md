@@ -99,12 +99,21 @@ A name in a transfer that is absolute or holds `..` is refused by whoever receiv
 the program for the device's engine and the native libraries of this machine's plugins, so it goes only to a machine of the
 workstation's system and architecture. Any other device gets the export of `zinc export --target <t>`, cross built on the workstation
 with the pinned zig: a directory with the executable and `run.sh`, which the agent installs and starts as it is (no engine needed for
-it there). One line on stderr says which and why, before the build:
+it there). What is sent and why is a note, said before the build as a step line of the command, where the build's own steps go
+(stderr; `-q` hides them), and the transfer says its progress the same way (ZN-734): percent, sent and whole size, speed, rewritten in
+place in a terminal, a line every half second on a pipe (`ZINC_PROGRESS_MS` sets the pause), then the whole with its duration.
+`install` and `push` print the same `send` lines:
 
 ```
-spark is linux aarch64 (Raspberry Pi 3 Model B Plus Rev 1.3): exporting for rpi
-mini is macos x86_64 (Macmini8,1), as this machine: packing a .zapp
+  device     spark is linux aarch64 (Raspberry Pi 3 Model B Plus Rev 1.3): exporting for rpi
+  device     mini is macos x86_64 (Macmini8,1), as this machine: packing a .zapp
+  send       45%  16 MiB of 35 MiB  2.1 MiB/s
+  send       100%  35 MiB of 35 MiB  2.2 MiB/s                    16.1 s
 ```
+
+`deploy --inspect` builds the program with the inspector in front, as `zinc dev` does on the workstation: an entry in
+`build/.zinc-dev` that imports `zinc:devtools`, then the program (`zinc pack --inspect`, `zinc export --inspect`); a project that
+never names `zinc:ui` has nothing to inspect and is built as it is. `zinc device inspect <app>` then opens it.
 
 | `os` | `arch` | `kind` | Sent |
 |---|---|---|---|
@@ -283,7 +292,7 @@ the panel. State: `app/devices.ts`; view: `components/Devices.tsx`; the run itse
 | a press on a paired device: Run goes there (again: back to this computer). Its kind, system, processor, load, free memory, temperature and apps, renewed every second while the panel is open | `zinc device <name> top --json` |
 | Run | `zinc device <name> deploy . --name <the sketch's folder>`: the steps and the app's log in the console |
 | Stop | `zinc device <name> stop <app>`; the follower ends at the log's `[exited n]` line, which is also how a sketch that ends by itself is seen |
-| Debug | Run, then at the app's `zinc devtools:` line `zinc device <name> inspect <app>`, and Zinc Inspector on the port it gives |
+| Debug | Run with `--inspect` (the inspector in front of the sketch, no import to write), then at the app's `zinc devtools:` line `zinc device <name> inspect <app>`, and Zinc Inspector on the port it gives |
 
 The first run is written for someone who has never paired: an empty list says to start `zinc agent` on the device and what to type; a
 wrong code, a closed pairing and an address where nothing answers have their own sentence, any other refusal is the CLI's. A device that
@@ -298,7 +307,9 @@ says (`wait:<text>` in `ZINC_ATELIER_SCRIPT`), not on a number of frames. The pa
 Choices and limits:
 
 - Debug on a device is Run with the inspector, not `zinc dev --device`: a dev session is not an app of the device, so `inspect` has
-  nothing to forward. The sketch needs `import 'zinc:devtools'`, as the console says.
+  nothing to forward. The deploy of a debug run puts the inspector in front of the sketch (`deploy --inspect`, ZN-734), and Tools >
+  Open the Inspector on a plain run starts the sketch again in debug. The console shows the deploy's notes and the transfer's
+  progress as steps (one `send` line that updates, repeated on the status line), and its lines can be selected and copied.
 - A sketch started from Atelier keeps running on the device when Atelier quits, as after `zinc device deploy` and Ctrl-C.
 - The test's workstation home is new, with links to the pinned tools and the plugin cache of the real one: Atelier's native plugins
   would otherwise download a compiler. With `--no-mdns` the list of the test holds paired devices only (`ZINC_ATELIER_BROWSE=0`).

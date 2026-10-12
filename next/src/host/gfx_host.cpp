@@ -128,7 +128,9 @@ void startSurface() {
   if (const char* nm = getenv("ZINC_APP_NAME"); nm && *nm) cfg.title = nm;
   if (getenv("ZINC_WINDOW_LOG")) fprintf(stderr, "zinc: window \"%s\"\n", cfg.title);   // tests read the name here: a headless run has no window to ask
   int w = 0, h = 0;
-  if (const char* sz = getenv("ZINC_SIZE")) if (sscanf(sz, "%dx%d", &w, &h) == 2 && w > 0 && h > 0) { cfg.width = w; cfg.height = h; }  // ZINC_SIZE=1100x700: the window (or surface) size
+  const char* sz = getenv("ZINC_SIZE");
+  if (sz && sscanf(sz, "%dx%d", &w, &h) == 2 && w > 0 && h > 0) { cfg.width = w; cfg.height = h; }  // ZINC_SIZE=1100x700: the window (or surface) size
+  else if (hal_display && hal_display->native_size) hal_display->native_size(&cfg.width, &cfg.height);   // no size named: a device's screen (fbdev, KMS) at its own resolution, not 320x240 scaled up (ZN-734)
   zrt::start(cfg, 0, nullptr);
   installFast();
 }

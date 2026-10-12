@@ -54,6 +54,7 @@ int32_t zgl_backend_scale() {
 }
 
 void zgl_backend_size(int32_t* w, int32_t* h) { int a, b; SDL_GetWindowSizeInPixels(win, &a, &b); *w = a; *h = b; }
+void zgl_backend_native(int32_t*, int32_t*) {}   // a window: the size the program names, else the default one
 void zgl_backend_swap() { SDL_GL_SwapWindow(win); }
 
 void zgl_backend_poll(HalInput* in, int32_t W, int32_t H) {

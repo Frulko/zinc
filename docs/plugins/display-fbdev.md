@@ -21,9 +21,14 @@ or with options: `"display": { "driver": "fbdev", "device": "/dev/fb1", "grab": 
   run ahead of or behind the frame and the pixels are identical to a single-threaded render (checked, see below).
   Then, after the vblank wait, the bands are converted to the framebuffer format the same way (branch-free loops for
   RGB565 and XRGB8888, a generic path for other layouts). Shared code: `runtime/include/render_bands.h`.
-- The program surface (zinc.json `width` x `height`) is copied 1:1 when it matches the framebuffer, else scaled with
-  nearest-neighbour, aspect kept, centered on black. Match the sizes on slow boards (Pi 1): scaling touches every
-  pixel of the output.
+- **The surface's size.** A program that names no size (no `width` x `height` for the target in zinc.json, no board,
+  no `ZINC_SIZE`: a sketch) is drawn at the screen's own resolution, pixel for pixel: 800x480 on the 7" panel of a
+  Pi. The driver reads it from the device before the surface exists (`HalDisplay::native_size`); `display-gl` does
+  the same with the mode of its KMS connector. A desktop window keeps its default (320x240). A program that names a
+  size keeps it: copied 1:1 when it matches the framebuffer, else scaled with nearest-neighbour, aspect kept,
+  centered on black (a small surface on a large screen draws fewer pixels: name one on a slow board, or give
+  `ZINC_SIZE=400x240` to one run, `zinc device run <app> --env ZINC_SIZE=400x240`). The line `fbdev: /dev/fb0
+  800x480 16 bpp, surface 800x480 at 0,0 size 800x480` at the start says what was chosen.
 - Pacing: waits for vblank with `FBIO_WAITFORVSYNC` when the driver supports it, otherwise sleeps to `fps`
   (default 60). A wait that returns at once is no pacing: on a Raspberry Pi's DSI screen the kernel's emulation waits for
   its first CRTC and the panel is on another one, so the call returns in microseconds without an error; less than a

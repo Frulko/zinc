@@ -97,7 +97,7 @@ const Command kCommands[] = {
   {"agent", "zinc agent [--port n] [--bind address] [--name name] [--no-shell] [--no-mdns] | zinc agent pair|clients|forget <client> | zinc agent install|uninstall [--print]", "the daemon that makes this machine a device",
    "Runs without a UI on a Linux or macOS machine (port 7733) and announces it on the local network (mDNS, _zinc._tcp). A workstation pairs once with the code the agent shows (zinc agent pair gives a new one: 6 digits, 5 minutes, three tries, one workstation) and gets a key of its own; every session after that is TLS with that key. A paired workstation has a shell as the agent's user (--no-shell turns it off), so the agent refuses to run as root. Its files are in ~/.zinc/agent: apps, logs, the paired workstations (zinc agent clients, zinc agent forget). zinc agent install makes it start with the machine (a launchd agent at login on macOS, a systemd user unit with lingering at boot on Linux; --print shows the file and the commands and touches nothing), zinc agent uninstall removes that. docs/reports/zinc-next-agent.md."},
   {"device", "zinc device list | pair <name|host[:port]> [code] | unpair <device> | [<device>] info|shell|push|pull|deploy|install|run|stop|uninstall|apps|logs|update|forward|reverse|inspect|shot|monitor|top", "a paired device: what adb does, over the network",
-   "list: the agents of the network and the paired devices. pair: with the code the device shows. info [--json]: the kind of machine, system, CPU, memory, load, temperature, disk, engine, apps. shell [-t] [command]: a command with its exit status, or a terminal on the device. push <local> [remote], pull <remote> [local]: a file or a tree. deploy [dir] [--env K=V] [--no-logs] [--pack | --target <t>] [-- args]: the project built for the device, installed, started and its log followed. What is built follows from what info says the device is: a .zapp (zinc pack) for a machine of this one's system and architecture, else the export of zinc export for its target (rpi for a Raspberry Pi on a 64-bit system, rpi2 and rpi1 on a 32-bit one, linux, x86_64-linux), cross built here and left in dist/; one line says which and why, and a device zinc export has no target for is refused. --pack and --target <t> decide instead. install <app.zapp|export-dir> [--name n], run <app> [-f] [--env K=V] [-- args], stop, uninstall, apps, logs <app> [-f]. An app whose zinc.json has update.publicKey is replaced only by a .zapp signed with that key (zinc sign writes the .sig that install sends) and of a higher version; started and gone at once with an error, the update is rolled back to the version it replaced. update <app> [--url u]: the device fetches the app from its channel (what zinc publish wrote, as zinc update-app checks it); update alone: the engine, as zinc update. forward <local-port|0> <device-port>: a port of the device on this machine (the inspector of an app running there); reverse <device-port|0> <local-port>: a port of this machine on the device, on its own address (a server an app there calls). inspect <app> [--port n]: the app's inspector on a port of this machine, with the address for Chrome DevTools (Zinc Inspector lists the apps of paired devices by itself; a program has an inspector with import 'zinc:devtools'); shot <app> [file.png]: the frame it shows; monitor <app>: its zinc:telemetry lines as zinc monitor prints them; top [-n count] [--json]: the machine's load, memory and temperature and each app's CPU and memory, every second. <device> may be left out when one device is paired; the keys are in ~/.zinc/devices.json."},
+   "list: the agents of the network and the paired devices. pair: with the code the device shows. info [--json]: the kind of machine, system, CPU, memory, load, temperature, disk, engine, apps. shell [-t] [command]: a command with its exit status, or a terminal on the device. push <local> [remote], pull <remote> [local]: a file or a tree. deploy [dir] [--env K=V] [--no-logs] [--inspect] [--pack | --target <t>] [-- args]: the project built for the device, installed, started and its log followed; the transfer says its progress (percent, size, speed) as step lines; --inspect builds it with the inspector in front, as zinc dev does on this machine (zinc device inspect then opens it). What is built follows from what info says the device is: a .zapp (zinc pack) for a machine of this one's system and architecture, else the export of zinc export for its target (rpi for a Raspberry Pi on a 64-bit system, rpi2 and rpi1 on a 32-bit one, linux, x86_64-linux), cross built here and left in dist/; one line says which and why, and a device zinc export has no target for is refused. --pack and --target <t> decide instead. install <app.zapp|export-dir> [--name n], run <app> [-f] [--env K=V] [-- args], stop, uninstall, apps, logs <app> [-f]. An app whose zinc.json has update.publicKey is replaced only by a .zapp signed with that key (zinc sign writes the .sig that install sends) and of a higher version; started and gone at once with an error, the update is rolled back to the version it replaced. update <app> [--url u]: the device fetches the app from its channel (what zinc publish wrote, as zinc update-app checks it); update alone: the engine, as zinc update. forward <local-port|0> <device-port>: a port of the device on this machine (the inspector of an app running there); reverse <device-port|0> <local-port>: a port of this machine on the device, on its own address (a server an app there calls). inspect <app> [--port n]: the app's inspector on a port of this machine, with the address for Chrome DevTools (Zinc Inspector lists the apps of paired devices by itself; a program has an inspector with import 'zinc:devtools'); shot <app> [file.png]: the frame it shows; monitor <app>: its zinc:telemetry lines as zinc monitor prints them; top [-n count] [--json]: the machine's load, memory and temperature and each app's CPU and memory, every second. <device> may be left out when one device is paired; the keys are in ~/.zinc/devices.json."},
   {"tsconfig", "zinc tsconfig [dir]", "editor configuration", "Writes tsconfig.json with the engine's lib so an editor understands zinc:* modules."},
   {"infer", "zinc infer <entry|dir>", "where gradual typing could not infer", "Lists the Z0109 sites (a parameter or variable whose type is unknown) with file and line."},
   {"dev", "zinc dev [entry|dir] [--device name] [--no-devtools] [-- args]", "run, watch, restart on save", "Runs the program and watches the project: on every save it type checks and restarts the program (~0.2 s). A compile error puts a red box with the diagnostics on the screen until the next good save. UI programs get the Chrome DevTools inspector (chrome://inspect, localhost:9229; another port: zinc.json plugins.devtools.port or ZINC_DEVTOOLS_PORT). The program restarts from its entry: state is not kept. A save under the assets directory of a project that packs them (zinc.json assets.rules or assets.groups) rebuilds those assets and swaps them into the running program instead (zinc:assets onReload): the program keeps its state. --device <name> runs the program on a paired device instead (zinc device pair): each save sends it what changed and restarts it there, its output comes back here, a compile error is a red box on its screen and assets are swapped in the same way."},
@@ -861,12 +861,13 @@ static void notarizeHint(const ProjectInfo& p, const fs::path& out, const std::v
 }
 
 int exportApp(const std::vector<std::string>& args, const std::string& engineRoot) {
-  Opts o = parseOpts(args, {"--target", "-o", "--key"}, {"--deb", "--dmg"});
-  if (o.bad) { std::fprintf(stderr, "zinc export: unknown option %s\nusage: zinc export [entry|dir] [--target linux|rpi|rpi1|rpi2|chip|pocketchip|rmpp|macos|wasm|esp32] [-o dir] [--deb] [--dmg] [--key <seed-hex>]\n", o.badArg.c_str()); return 2; }
+  Opts o = parseOpts(args, {"--target", "-o", "--key"}, {"--deb", "--dmg", "--inspect"});
+  if (o.bad) { std::fprintf(stderr, "zinc export: unknown option %s\nusage: zinc export [entry|dir] [--target linux|rpi|rpi1|rpi2|chip|pocketchip|rmpp|macos|wasm|esp32] [-o dir] [--deb] [--dmg] [--inspect] [--key <seed-hex>]\n", o.badArg.c_str()); return 2; }
   const std::string seed = o.v.count("--key") ? o.v["--key"] : std::getenv("ZINC_UPDATE_SEED") ? std::getenv("ZINC_UPDATE_SEED") : "";   // the artifacts' signatures (ZN-321)
   std::vector<fs::path> artifacts;
   ProjectInfo p; std::string err;
   if (!resolveProject(o.entry, p, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 2; }
+  if (has(o, "--inspect")) p.entry = inspectEntry(p.dir, p.entry);   // a debug build for a device (zinc device deploy --inspect)
   for (char c : p.name) if (!(std::isalnum(static_cast<unsigned char>(c)) || c == '.' || c == '_' || c == '-')) { std::fprintf(stderr, "zinc export: zinc.json name \"%s\" is not usable in a file name (letters, digits, '.', '_', '-')\n", p.name.c_str()); return 2; }
 #if defined(__APPLE__)
   const std::string target = o.v.count("--target") ? o.v["--target"] : "macos";
@@ -1913,6 +1914,15 @@ std::string redBoxSource(const std::vector<std::string>& lines) {
 
 }  // namespace
 
+std::string inspectEntry(const std::string& dir, const std::string& entry) {
+  if (!projectUsesUi(dir)) return entry;
+  const fs::path devDir = fs::path(dir) / "build" / ".zinc-dev";
+  std::error_code ec;
+  fs::create_directories(devDir, ec);
+  writeFile(devDir / "main.ts", "import 'zinc:devtools';\nimport " + jsonString(fs::relative(entry, devDir, ec).string()) + ";\n");
+  return (devDir / "main.ts").string();
+}
+
 int dev(const std::vector<std::string>& args, const DevRemote* remote) {
   setenv("ZINC_RUN", "interp", 1);   // the restarts interpret: a save restarts in 0.2 s, a compiled run would rebuild (ZN-398)
   std::vector<std::string> own, rest;
@@ -1928,12 +1938,9 @@ int dev(const std::vector<std::string>& args, const DevRemote* remote) {
   const fs::path devDir = fs::path(p.dir) / "build" / ".zinc-dev";
   std::error_code ec;
   fs::create_directories(devDir, ec);
-  std::string runEntry = p.entry;
-  const bool tools = !remote && !noTools && projectUsesUi(p.dir);   // on a device the inspector is reached through zinc device forward
-  if (tools) {   // the inspector: the same program with `import 'zinc:devtools'` in front
-    runEntry = (devDir / "main.ts").string();
-    writeFile(runEntry, "import 'zinc:devtools';\nimport " + jsonString(fs::relative(p.entry, devDir, ec).string()) + ";\n");
-  }
+  // the inspector: the same program with `import 'zinc:devtools'` in front; on a device it is reached through zinc device forward
+  const std::string runEntry = !remote && !noTools ? inspectEntry(p.dir, p.entry) : p.entry;
+  const bool tools = runEntry != p.entry;
   std::signal(SIGINT, onSignal);
   std::signal(SIGTERM, onSignal);
   std::signal(SIGPIPE, SIG_IGN);   // a version that exited closed its dev socket: the write fails and the save restarts it

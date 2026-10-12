@@ -1,42 +1,71 @@
 // The console card. At rest it is one line: what happened last (ready, building, running, exited with its code), the
 // diagnostic under the caret, the caret's place. When the program prints or something fails it opens under that line:
-// the steps of the build in a quiet tone, the program's output, and errors as cards that open the file at their line.
-// The same line asks for the one text Atelier ever needs (a file name).
+// the steps of the build in a quiet tone, the program's output, errors in red; a place a line names (`main.ts:12:5`) opens the file
+// there. The lines are one text: they can be selected and copied (⌘C, ⌘A, the Copy control). The same line asks for the one text
+// Atelier ever needs (a file name).
 import { createNodeRef, createEffect, untrack } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import { theme, bg, fg, bd } from '../app/theme';
 import { active, Buffer, notice, focusLater } from '../app/workspace';
-import { lines, Line, K_OUT, K_ERR, jump, consoleH, consoleOpen, showConsole, takeFollow, status, statusKind, phase, IDLE, BUILDING, inspectorPort, openInspector } from '../app/tools';
+import { lines, Line, K_OUT, K_ERR, jump, consoleH, consoleOpen, showConsole, takeFollow, copyConsole, status, statusKind, phase, IDLE, BUILDING, inspectorPort, openInspector } from '../app/tools';
 import { promptLabel, promptValue, setPromptValue, answer } from '../app/commands';
 import { jumpTo } from '../app/cursors';
 import { caretInfo } from './Editor';
 import { Glyph, IconButton, Kbd } from './Controls';
-import { I_ERROR, I_DOWN, I_UP, I_DOT } from './icons';
+import { I_DOWN, I_UP, I_DOT } from './icons';
 
 const logRef = createNodeRef(), promptRef = createNodeRef();
 
-function ErrorCard(props: { l: Line }): i32 {
-  const l = props.l;
-  return <View class={`flex-row items-start my-1 px-3 py-2 gap-2.5 rounded-[10] cursor-pointer ${bg(theme().errorSoft)} hover:opacity-80`}
-    onPointerDown={(e: ui.PointerEvent) => jump(l)}>
-    <View class="pt-[2]"><Glyph kind={I_ERROR} size={14} color={() => theme().error} back={() => theme().errorSoft} /></View>
-    <View class="flex-col grow shrink gap-0.5">
-      <Text class={`text-[13px] ${fg(theme().text)}`}>{l.message}</Text>
-      <Text class={`text-[11px] font-mono ${fg(theme().muted)}`}>{`${l.file}:${l.line}:${l.col}${l.code !== '' ? '  ·  ' + l.code : ''}`}</Text>
-    </View>
-  </View>;
+/** The line of the console a position of its text falls in: [its index, where it starts]; [-1, 0] past the end. */
+function lineAt(off: i32): i32[] {
+  const all = lines();
+  let at = 0;
+  for (let i = 0; i < all.length; i++) {
+    const n = all[i].text.length + 1;
+    if (off < at + n) return [i, at];
+    at += n;
+  }
+  return [-1, 0];
 }
-function Row(props: { l: Line }): i32 {
-  const l = props.l;
-  if (l.code !== '') return <ErrorCard l={l} />;
-  const color = (): i32 => l.kind === K_ERR ? theme().error : l.kind === K_OUT ? theme().text : theme().faint;
-  return <View class={`flex-row h-[19] ${l.line > 0 ? 'cursor-pointer' : ''}`} onPointerDown={(e: ui.PointerEvent) => jump(l)}>
-    <Text class={`font-mono text-[12px] ${l.line > 0 ? 'underline' : ''} ${fg(color())}`}>{l.text === '' ? ' ' : l.text}</Text>
-  </View>;
+/** The colours of one displayed row (a long line wraps into several): the colour of its line's kind, and the place a line names
+ *  (`main.ts:12:5`) as a link. Runs of [length, colour]. */
+function rowColors(row: string, start: i32): i32[] {
+  const at = lineAt(start), t = theme();
+  if (at[0] < 0) return [];
+  const l = lines()[at[0]];
+  const c: i32 = l.kind === K_ERR ? t.error : l.kind === K_OUT ? t.text : t.faint;
+  const a = Math.max(0, l.p0 - (start - at[1])), b = Math.min(row.length, l.p1 - (start - at[1]));
+  return l.line > 0 && b > a ? [a, c, b - a, t.accent, row.length - b, c] : [row.length, c];
+}
+/** A click on the place a line names opens the file there; a press that selected something is a selection. */
+function linkClick(): void {
+  const h = logRef.node;
+  if (h < 0 || ui.selectedText(h) !== '') return;
+  const off = ui.caretOf(h), at = lineAt(off);
+  if (at[0] < 0) return;
+  const l = lines()[at[0]];
+  if (l.line > 0 && off - at[1] >= l.p0 && off - at[1] < l.p1) jump(l);
+}
+/** The lines of the console as one read-only text field, so that they can be taken elsewhere: the pointer selects (drag, double click
+ *  a word, triple click a line, Shift+click), ⌘C copies, ⌘A selects it all once it has the focus. A line longer than the card wraps
+ *  onto as many rows as it needs. */
+function Log(): i32 {
+  const node = <TextArea ref={logRef} readOnly
+    class={`absolute inset-0 font-mono text-[12px] leading-[19] rounded-none border-0 px-3.5 py-2.5 ${bg(theme().bg)} ${fg(theme().text)} focus:${bd(theme().bg)}`}
+    placeholder="Nothing yet. Run the sketch: its build and what it prints arrive here."
+    value={lines().map((l: Line) => l.text).join('\n')} onPointerUp={(e: ui.PointerEvent) => linkClick()} />;
+  ui.setHighlightAt(node, (row: string, start: i32) => rowColors(row, start));
+  createEffect(() => { const t = theme(); ui.setEditColors(node, [-1, -1, -2, t.selection, t.caret, -1]); });
+  return node;
 }
 
-/** Keeps the end of the output in view while it grows (called by the frame loop). */
-export function stepConsole(): void { if (takeFollow() && logRef.node >= 0) ui.scrollTo(logRef.node, 0, 1000000); }
+/** Keeps the end of the output in view while it grows, and while the card opens (called by the frame loop); a selection stays where it is. */
+export function stepConsole(): void {
+  const h = logRef.node, opening = Math.abs(consoleH.x - consoleH.target) > 0.5;
+  if ((!takeFollow() && !opening) || h < 0 || ui.selectedText(h) !== '') return;
+  const n = ui.getValue(h).length;
+  ui.select(h, n, n);
+}
 
 /** The diagnostics of the active file: [count, line of the first (1-based), its column]. */
 function problems(): i32[] {
@@ -90,6 +119,10 @@ function StatusLine(): i32 {
       onPointerDown={(e: ui.PointerEvent) => openInspector()}>
       <Text class={`text-[12px] font-medium ${fg(theme().accent)}`}>{`Inspector · port ${inspectorPort()}`}</Text>
     </View>}
+    {consoleOpen() && lines().length > 0 && !asking() && <View class={`flex-row items-center h-[24] px-2.5 rounded-full cursor-pointer hover:${bg(theme().hover)}`}
+      onPointerDown={(e: ui.PointerEvent) => copyConsole()}>
+      <Text class={`text-[12px] font-medium ${fg(theme().muted)}`}>Copy</Text>
+    </View>}
     {active() !== null && <Text class={`text-[12px] ${fg(theme().faint)}`}>{place()}</Text>}
     {consoleOpen() ? <IconButton kind={I_DOWN} size={14} onPress={() => showConsole(false)} /> : <IconButton kind={I_UP} size={14} onPress={() => showConsole(true)} />}
   </View>;
@@ -99,10 +132,7 @@ export function ConsoleCard(): i32 {
   return <View class={`flex-col overflow-hidden rounded-[14] border ${bg(theme().bg)} ${bd(theme().borderSoft)}`}>
     <StatusLine />
     <View class={`overflow-hidden border-t ${bd(theme().borderSoft)}`} style={{ height: consoleH.get(), hidden: consoleH.get() < 1 ? 1 : 0 }}>
-      <ScrollView ref={logRef} class="grow flex-col px-3.5 py-2.5">
-        {lines().length === 0 && <Text class={`text-[12px] ${fg(theme().faint)}`}>Nothing yet. Run the sketch: its build and what it prints arrive here.</Text>}
-        {lines().map((l: Line) => <Row l={l} />)}
-      </ScrollView>
+      <Log />
     </View>
   </View>;
 }

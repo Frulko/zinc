@@ -20,6 +20,7 @@
 bool zgl_backend_init(const HalConfig* cfg);
 int32_t zgl_backend_scale();                    // surface pixels per logical pixel: zoom x density in a desktop window, 1 on a panel
 void zgl_backend_size(int32_t* w, int32_t* h);  // drawable pixels
+void zgl_backend_native(int32_t* w, int32_t* h);  // before the init: the screen's own size for a program that names none; a window leaves them alone
 void zgl_backend_swap();
 void zgl_backend_poll(HalInput* in, int32_t w, int32_t h);  // buttons, pointer (logical), touch, quit
 void zgl_backend_shutdown();
@@ -264,5 +265,5 @@ static void shutdown() {
 }
 
 static int32_t scale() { return K; }
-static HalDisplay display = {init, present, poll, shutdown, 1, 0, scale};  // SDL events are read in src/sdl.cpp
+static HalDisplay display = {init, present, poll, shutdown, 1, 0, scale, nullptr, zgl_backend_native};  // SDL events are read in src/sdl.cpp
 static int registered = (hal_display = &display, 0);

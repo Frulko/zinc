@@ -34,6 +34,20 @@ n=0; while [ $n -lt 100 ] && ! dev logs inspected 2>/dev/null | grep -q "zinc de
 said=$(dev info --json | sed -n 's/.*"name":"inspected"[^}]*"inspector":\([0-9]*\).*/\1/p')
 [ -n "$said" ] && dev logs inspected | grep -q "localhost:$said)" || bad "the agent says the inspector is on '$said', the app: $(dev logs inspected | grep devtools)"
 
+# deploy --inspect (ZN-734): a program that does not import zinc:devtools gets it in front, as under zinc dev; without the option it has none
+mkdir -p "$tmp/plain/src"
+cp tests/golden/ui-style/radius.tsx "$tmp/plain/src/main.tsx"
+printf '{"name":"plain","entry":"src/main.tsx"}\n' > "$tmp/plain/zinc.json"
+out=$(dev deploy "$tmp/plain" --inspect --no-logs --env ZINC_HEADLESS=1 --env ZINC_REALTIME=1 --env ZINC_FRAMES=100000000 2>&1) || bad "deploy --inspect: $out"
+n=0; while [ $n -lt 100 ] && ! dev logs plain 2>/dev/null | grep -q "zinc devtools:"; do sleep 0.1; n=$((n+1)); done
+port2=$(dev info --json | sed -n 's/.*"name":"plain"[^}]*"inspector":\([0-9]*\).*/\1/p')
+[ -n "$port2" ] && dev logs plain | grep -q "localhost:$port2)" || bad "deploy --inspect: the app has no inspector (the agent says '$port2'): $(dev logs plain | tail -3)"
+grep -q "zinc:devtools" "$tmp/plain/src/main.tsx" && bad "deploy --inspect wrote in the program's source"
+dev stop plain > /dev/null 2>&1
+out=$(dev deploy "$tmp/plain" --no-logs --env ZINC_HEADLESS=1 --env ZINC_REALTIME=1 --env ZINC_FRAMES=20 2>&1) || bad "deploy without --inspect: $out"
+n=0; while [ $n -lt 100 ] && ! dev logs plain 2>/dev/null | grep -q '^\[exited'; do sleep 0.1; n=$((n+1)); done
+dev logs plain | grep -q "zinc devtools:" && bad "a plain deploy has an inspector: $(dev logs plain | tail -3)"
+
 # inspect: the address, attached to by a DevTools client (the document over the WebSocket) and read as Chrome discovers it
 ZINC_HOME="$W" "$Z" device inspect inspected > "$tmp/inspect.log" 2>&1 & ipid=$!   # not through dev(): $! must be the process to end
 until_grep "ws://127.0.0.1:" "$tmp/inspect.log" || bad "inspect gave no address: $(cat "$tmp/inspect.log")"

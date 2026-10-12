@@ -9,7 +9,7 @@ import { active, activate, Buffer, closeBuffer, cycle, saveAll, say, newSketch, 
   sketchDir, sketchbook, mainFile, openFile, baseName } from './workspace';
 import { openFind } from './search';
 import { toggleTheme } from './theme';
-import { run, stop, check, openInspector, inspectorPort, showConsole, consoleOpen, clearConsole, loadLibraries, importLine, setEngine, setDevice, ENGINES, ZINC } from './tools';
+import { run, stop, check, inspect, copyConsole, showConsole, consoleOpen, clearConsole, loadLibraries, importLine, setEngine, setDevice, ENGINES, ZINC } from './tools';
 import { openDevices } from './devices';
 import { editCommand, setText, menuKey, goDefinition } from './cursors';
 import { suggest } from './lsp';
@@ -162,8 +162,9 @@ add('Sketch', 'add-library', 'Add Library…', 'CmdOrCtrl+Shift+L', () => openPa
 add('Tools', 'palette', 'Command Palette…', 'CmdOrCtrl+Shift+P', () => openPalette(PAL_COMMANDS));
 add('Tools', 'console', 'Show or Hide the Console', 'CmdOrCtrl+J', () => showConsole(!consoleOpen()));
 add('Tools', 'clear', 'Clear the Console', '', () => clearConsole());
+add('Tools', 'copy-console', 'Copy the Console', '', () => copyConsole());
 add('Tools', 'check', 'Check the Sketch', '', () => { saveAll(); check(); });
-add('Tools', 'inspector', 'Open the Inspector', '', () => { if (inspectorPort() > 0) openInspector(); else say('Debug the sketch first (⌘⇧R): the inspector opens on a running interface'); });
+add('Tools', 'inspector', 'Open the Inspector', '', () => inspect());
 add('Tools', 'theme', 'Light or Dark', '', () => toggleTheme(), true);
 add('Tools', 'next-tab', 'Next Tab', 'CmdOrCtrl+Shift+BracketRight', () => cycle(1), true);
 add('Tools', 'prev-tab', 'Previous Tab', 'CmdOrCtrl+Shift+BracketLeft', () => cycle(-1));

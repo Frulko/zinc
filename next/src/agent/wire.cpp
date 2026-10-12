@@ -403,7 +403,7 @@ bool safeRel(const std::string& name) {
 
 namespace {
 
-bool sendFile(Chan& c, const std::string& path, const std::string& rel, std::uint64_t& files, std::uint64_t& bytes, std::string& err) {
+bool sendFile(Chan& c, const std::string& path, const std::string& rel, std::uint64_t& files, std::uint64_t& bytes, std::string& err, const Sent& sent) {
   const int fd = ::open(path.c_str(), O_RDONLY | O_CLOEXEC);
   struct stat st{};
   if (fd < 0 || ::fstat(fd, &st) != 0) { err = path + ": " + std::strerror(errno); if (fd >= 0) ::close(fd); return false; }
@@ -415,6 +415,7 @@ bool sendFile(Chan& c, const std::string& path, const std::string& rel, std::uin
     ok = send(c, kOut, std::string_view(buf, static_cast<size_t>(n)));
     left -= static_cast<std::uint64_t>(n);
     bytes += static_cast<std::uint64_t>(n);
+    if (ok && sent) sent(bytes);
   }
   ::close(fd);
   if (ok) ++files;
@@ -424,12 +425,12 @@ bool sendFile(Chan& c, const std::string& path, const std::string& rel, std::uin
 
 }  // namespace
 
-bool sendTree(Chan& c, const std::string& path, std::uint64_t& files, std::uint64_t& bytes, std::string& err) {
+bool sendTree(Chan& c, const std::string& path, std::uint64_t& files, std::uint64_t& bytes, std::string& err, const Sent& sent) {
   std::error_code ec;
   bool ok = true;
   const char* fault = std::getenv("ZINC_AGENT_FAULT");   // tests/t0/agent.sh: a sender that lies about a name, to see the receiver refuse it
   if (fs::is_regular_file(path, ec)) {
-    ok = sendFile(c, path, fault && !std::strcmp(fault, "escape") ? "../escaped" : "", files, bytes, err);
+    ok = sendFile(c, path, fault && !std::strcmp(fault, "escape") ? "../escaped" : "", files, bytes, err, sent);
   } else if (fs::is_directory(path, ec)) {
     ok = send(c, kJson, Obj().str("dir", "").done());
     // ponytail: links and special files are left out (a link could name anything on the other side); add them when a tree needs its links
@@ -437,7 +438,7 @@ bool sendTree(Chan& c, const std::string& path, std::uint64_t& files, std::uint6
       const std::string rel = it->path().lexically_relative(path).generic_string();
       if (it->is_symlink(ec)) continue;
       if (it->is_directory(ec)) ok = send(c, kJson, Obj().str("dir", rel).done());
-      else if (it->is_regular_file(ec)) ok = sendFile(c, it->path().string(), rel, files, bytes, err);
+      else if (it->is_regular_file(ec)) ok = sendFile(c, it->path().string(), rel, files, bytes, err, sent);
     }
     if (!ok && err.empty()) err = "the connection was lost";
   } else {

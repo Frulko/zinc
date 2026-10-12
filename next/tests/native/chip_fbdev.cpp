@@ -56,6 +56,22 @@ int main(int argc, char** argv) {
     CHECK(got == first);   // 16, 24 and 32 bpp: the same picture
     W = 0; xmap = ymap = nullptr; ndev = 0;
   }
+  // a program that names no size is given the screen's own, asked before the init (ZN-734); a screen that cannot be read leaves the default
+  {
+    int32_t w = 320, h = 240;
+    setenv("ZINC_FBDEV_SIM_FORMAT", "800x480x16", 1);
+    fbdev.native_size(&w, &h);
+    CHECK(w == 800 && h == 480);
+    HalConfig cfg = {w, h, "t", 1};
+    CHECK(fb_init(&cfg));
+    CHECK(dx == 0 && dy == 0 && dw == 800 && dh == 480 && !xmap);   // shown 1:1: nothing is scaled
+    fb_shutdown();
+    W = 0; xmap = ymap = nullptr; ndev = 0;
+    sim_fb = nullptr; w = 320; h = 240;   // no simulated screen and no /dev/fb0 here
+    fbdev.native_size(&w, &h);
+    CHECK(w == 320 && h == 240);
+    sim_fb = getenv("ZINC_FBDEV_SIM");
+  }
   // letterbox: a 64x48 surface on a 128x112 screen is scaled 2x (nearest) and centred vertically
   {
     std::string path = dir + "/fbbox";

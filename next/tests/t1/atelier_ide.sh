@@ -3,6 +3,9 @@
 #   editing    the editing commands (indent, several cursors, comments, pairs, lines, undo) as plain functions: app/atelier/selftest.ts
 #   session    File > Open Example > Hello through the desktop menu (zinc:system), Run: the steps of the build and the program's line are in
 #              the console, the status line says how it ended; the window, console folded again, is the golden
+#   console    the console is a text that can be taken elsewhere (ZN-734): a line longer than the card wraps onto the rows it needs (four
+#              here; its second row was drawn over the next line), a click on the place it names opens the file there, three clicks select
+#              a line and Cmd+C copies it, Copy the Console takes every line. The golden: the end of the console with the selected line
 #   check      a sketch with a type error in its second file, saved with the keyboard: the status line names the problem of `zinc check`
 #   assist     the language server beside the editor (ZN-732): `b.st` typed in a sketch opens the completion popup on the members of
 #              its class (the golden: two rows, the signature and the doc of the selected one), a diagnostic arrives before any save,
@@ -25,6 +28,21 @@ grep -q '^\[console\] Hello from Zinc$' "$tmp/out" || { echo "atelier session: t
 grep -q '^\[status\] Finished$' "$tmp/out" || { echo "atelier session: the status line does not say the program finished"; fail=1; }
 tools/pngdiff "$tmp/ide-30.png" "$g/ide-30.png" >/dev/null || { echo "atelier session: frame 30 differs from $g/ide-30.png"; fail=1; }
 [ -n "$ATELIER_KEEP" ] && cp "$tmp/ide-30.png" "$ATELIER_KEEP"   # the frame of this run, to look at it or to renew the golden
+
+mkdir -p "$tmp/wrap"
+printf "for (let i = 1; i <= 7; i++) console.log('row ' + i);\nconsole.log('A line longer than the console card: it names the device, what it is, what is built for it and why, and it goes on well past the right edge of the card so that it has to wrap onto a second row, and then onto a third one for good measure, without ever being drawn over the line that follows it, as the line of a failed build did: zinc: cmake --build failed, with the whole command behind it, its directory, its target and what the shell answered, sh: cmake: command not found, all of it on one line of the console (main.ts:3:1).');\nconsole.log('the line after it');\n" > "$tmp/wrap/main.ts"
+printf '4 run\n55 clipboard\n56 copy-console\n57 clipboard\n' > "$tmp/session"
+# a click on the place the long line names (frame 40), three clicks on the line after it (44 to 49), Cmd+C
+printf '%s\n' "40 move 130 733" "40 down" "41 up" "44 move 80 752" "44 down" "45 up" "46 down" "47 up" "48 down" "49 up" "50 key c meta" > "$tmp/keys"
+ZINC_ATELIER_HOME="$tmp/book" ZINC_ATELIER_SYNC=1 ZINC_ATELIER_ECHO=1 ZINC_SYSTEM_LOG=/dev/null ZINC_ATELIER_SCRIPT="$tmp/session" ZINC_INPUT="$tmp/keys" ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=60 ZINC_SCALE=1 \
+  ZINC_SHOT="$tmp/console.png" ZINC_SHOT_FRAMES=60 "$ZINC" run app/atelier -- "$tmp/wrap" >"$tmp/out" 2>"$tmp/err" || { echo "atelier console failed: $(head -c 300 "$tmp/err")"; fail=1; }
+[ "$(grep -c '^\[clipboard\]' "$tmp/out")" = 2 ] && sed -n '/^\[clipboard\]/p' "$tmp/out" | head -1 | grep -q '^\[clipboard\] the line after it$' \
+  || { echo "atelier console: three clicks on a line and Cmd+C did not copy it: $(grep '^\[clipboard\]' "$tmp/out" | head -1 | cut -c1-200)"; fail=1; }
+grep -q '^\[clipboard\] \$ zinc run main.ts | .* | row 1 | .* | the line after it | exit 0$' "$tmp/out" || { echo "atelier console: Copy the Console did not take every line: $(grep '^\[clipboard\]' "$tmp/out" | tail -1 | cut -c1-200)"; fail=1; }
+# the console's text (the long line on four rows, the selected line) and the caret's place after the click on main.ts:3:1
+tools/pngdiff "$tmp/console-60.png" "$g/console-60.png" --crop 12,566,1250,222 >/dev/null && tools/pngdiff "$tmp/console-60.png" "$g/console-60.png" --crop 1140,530,100,28 >/dev/null \
+  || { echo "atelier console: the wrapped line, the selection or the place opened differ from $g/console-60.png"; fail=1; }
+[ -n "$ATELIER_KEEP" ] && cp "$tmp/console-60.png" "$(dirname "$ATELIER_KEEP")/console-60.png"
 
 mkdir -p "$tmp/broken"
 printf "import { size } from './util';\nconsole.log(size);\n" > "$tmp/broken/main.ts"

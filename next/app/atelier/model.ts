@@ -132,3 +132,15 @@ export function parseFigures(line: string): Figures | null {
 export function sizeText(bytes: number): string {
   return bytes >= 1073741824 ? (bytes / 1073741824).toFixed(1) + ' GiB' : Math.round(bytes / 1048576) + ' MiB';
 }
+
+// ---------------------------------------------------------------- the step lines of a command
+/** A step line of the CLI: two spaces, a name, its text in columns ("  compile    6 files      35 ms"). The notes of a command are steps too
+ *  ("  device     spark is linux aarch64: exporting for rpi"), and so is the progress of a transfer ("  send       45%  16 MiB of 35 MiB
+ *  2.1 MiB/s"). Returns [the name, the text with its columns joined by commas]; [] for any other line: what a program prints, an error. */
+export function stepOf(text: string): string[] {
+  const gap = text.indexOf('  ', 3);
+  if (!text.startsWith('  ') || text.length <= 4 || text.charCodeAt(2) === 32 || gap <= 0 || gap >= 14) return [];
+  const cols: string[] = [];
+  for (const c of text.slice(gap).split('  ')) if (c.trim() !== '') cols.push(c.trim());
+  return [text.slice(2, gap), cols.join(', ')];
+}

@@ -456,6 +456,22 @@ static uint32_t fb_layers(const HalLayer* l, int32_t n) {
 // ---------------------------------------------------------------- HalDisplay
 static void on_signal(int) { sig_quit = 1; }
 
+/** The screen's own size, for a program that names none (ZN-734): its surface is then the framebuffer, pixel for pixel, where 320x240 would be
+ *  scaled up. Asked before fb_init; w and h are left alone when the device cannot be read. */
+static void fb_native(int32_t* w, int32_t* h) {
+  int sw = 640, sh = 480, sb = 32;
+  if (sim_fb) { if (const char* f = getenv("ZINC_FBDEV_SIM_FORMAT")) sscanf(f, "%dx%dx%d", &sw, &sh, &sb); }
+  else {
+    fb_var_screeninfo var;
+    const int f = open(ZP_DISPLAY_FBDEV_DEVICE, O_RDONLY | O_CLOEXEC);
+    const bool ok = f >= 0 && ioctl(f, FBIOGET_VSCREENINFO, &var) == 0;
+    if (f >= 0) close(f);
+    if (!ok) return;
+    sw = var.xres; sh = var.yres;
+  }
+  if (sw > 0 && sh > 0) { *w = sw; *h = sh; }
+}
+
 static int fb_init(const HalConfig* cfg) {
   fb_var_screeninfo var; fb_fix_screeninfo fix;
   if (sim_fb) {
@@ -721,5 +737,5 @@ static void fb_shutdown() {
   fd = -1;
 }
 
-static HalDisplay fbdev = {fb_init, fb_present, fb_poll, fb_shutdown, 0, 0, nullptr, nullptr};   // layers: set by fb_init when the screen has the planes
+static HalDisplay fbdev = {fb_init, fb_present, fb_poll, fb_shutdown, 0, 0, nullptr, nullptr, fb_native};   // layers: set by fb_init when the screen has the planes
 static int registered = (hal_display = &fbdev, 0);

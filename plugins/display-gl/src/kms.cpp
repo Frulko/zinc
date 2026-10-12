@@ -34,6 +34,7 @@ static bool first_frame = true;
 
 // First card with a connected connector (Pi 4/5: card0 is often the render-only v3d node, card1 the vc4 display).
 static bool open_card() {
+  if (fd >= 0) return true;   // chosen already: zgl_backend_native asks before the init
   for (int i = 0; i < 4; i++) {
     char path[32];
     snprintf(path, sizeof path, "/dev/dri/card%d", i);
@@ -214,6 +215,8 @@ bool zgl_backend_init(const HalConfig* cfg) {
 
 int32_t zgl_backend_scale() { return 1; }   // the panel's own pixels
 void zgl_backend_size(int32_t* w, int32_t* h) { *w = mode.hdisplay; *h = mode.vdisplay; }
+// A program that names no size draws at the mode's (ZN-734), as on the framebuffer: no small surface scaled up by the GPU.
+void zgl_backend_native(int32_t* w, int32_t* h) { if (open_card()) { *w = mode.hdisplay; *h = mode.vdisplay; } }
 
 static void drop_fb(gbm_bo* bo, void* data) { uint32_t id = (uint32_t)(uintptr_t)data; if (id) drmModeRmFB(fd, id); (void)bo; }
 static uint32_t fb_of(gbm_bo* bo) {

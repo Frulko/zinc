@@ -10,7 +10,7 @@ cd "$(dirname "$0")/../.." || exit 2
 Z=$(cd "$(dirname "$ZINC")" && pwd)/$(basename "$ZINC")
 tmp=$(mktemp -d)
 W="$tmp/work" fail=0 pids=
-dev() { ZINC_HOME="$W" timeout 120 "$Z" device "$@"; }
+dev() { ZINC_HOME="$W" ZINC_STEPS=1 timeout 120 "$Z" device "$@"; }   # the steps: what is sent and why, the progress of the transfer
 bad() { echo "FAIL: $*"; fail=1; }
 cleanup() {
   for f in "$tmp"/dev-*/agent/run/*.pid; do [ -e "$f" ] && kill -- "-$(cat "$f")" 2>/dev/null; done   # apps outlive their agent
@@ -38,17 +38,17 @@ want=$(cd "$tmp/cli" && ZINC_HOME="$W" "$Z" run . 2>/dev/null | head -1)
 
 # the same system and architecture: the .zapp, and the line that says why
 out=$(dev same deploy "$tmp/cli" --no-logs 2>&1) || bad "deploy to the same machine: $out"
-echo "$out" | grep -q "^same is macos .*, as this machine: packing a \.zapp$" || bad "the same machine: no line for the .zapp: $out"
+echo "$out" | grep -q "^  device  *same is macos .*, as this machine: packing a \.zapp$" || bad "the same machine: no line for the .zapp: $out"
 dev same apps | grep -q "^cli .*zapp" || bad "the same machine did not get a .zapp: $(dev same apps)"
 
 # a Raspberry Pi: the export for rpi, on its framebuffer when the project names no display (the export itself stops: no project there)
 mkdir -p "$tmp/empty" "$tmp/named"
 printf '{"name":"named","targets":{"linux":{"display":"gl"}}}\n' > "$tmp/named/zinc.json"
 out=$(dev pi deploy "$tmp/empty" --no-logs 2>&1) && bad "a directory that is no project was deployed: $out"
-echo "$out" | grep -q "^pi is linux aarch64 (Raspberry Pi 3 Model B Plus Rev 1.3): exporting for rpi, shown on its framebuffer (ZINC_DISPLAY=fbdev" || bad "the Pi: no line for the rpi export on the framebuffer: $out"
+echo "$out" | grep -q "^  device  *pi is linux aarch64 (Raspberry Pi 3 Model B Plus Rev 1.3): exporting for rpi, shown on its framebuffer (ZINC_DISPLAY=fbdev" || bad "the Pi: no line for the rpi export on the framebuffer: $out"
 out=$(dev pi deploy "$tmp/named" --no-logs 2>&1)
-echo "$out" | grep -q "^pi is linux aarch64 (.*): exporting for rpi$" || bad "the Pi, a project with its display: $out"
-out=$(ZINC_HOME="$W" ZINC_DISPLAY=gl "$Z" device pi deploy "$tmp/empty" --no-logs 2>&1)
+echo "$out" | grep -q "^  device  *pi is linux aarch64 (.*): exporting for rpi$" || bad "the Pi, a project with its display: $out"
+out=$(ZINC_DISPLAY=gl dev pi deploy "$tmp/empty" --no-logs 2>&1)
 echo "$out" | grep -q ": exporting for rpi$" || bad "the Pi, ZINC_DISPLAY given: $out"
 [ -z "$(dev pi apps)" ] || bad "the Pi got an app: $(dev pi apps)"
 
@@ -60,17 +60,32 @@ out=$(dev odd deploy "$tmp/cli" --pack --target macos --no-logs 2>&1) && bad "--
 
 # --pack: the .zapp whatever the device says
 out=$(dev odd deploy "$tmp/cli" --pack --no-logs 2>&1) || bad "deploy --pack: $out"
-echo "$out" | grep -q "^--pack: packing a \.zapp$" || bad "--pack: no line: $out"
+echo "$out" | grep -q "^  device  *--pack: packing a \.zapp$" || bad "--pack: no line: $out"
 dev odd apps | grep -q "^cli .*zapp" || bad "--pack did not install a .zapp: $(dev odd apps)"
 
 # --target: the export, for real (this machine's own target stands in for the device's): built, installed as a directory, started, its log read
 out=$(dev odd deploy "$tmp/cli" --target macos --no-logs 2>&1) || bad "deploy --target macos: $out"
-echo "$out" | grep -q "^--target macos: exporting for macos$" || bad "--target: no line: $out"
+echo "$out" | grep -q "^  device  *--target macos: exporting for macos$" || bad "--target: no line: $out"
 echo "$out" | grep -q "^installed cli on odd" || bad "the export was not installed under the project's name: $out"
 [ -x "$tmp/cli/dist/cli-macos/run.sh" ] || bad "the export is not in the project's dist/"
 dev odd apps | grep -q "^cli .*export" || bad "the device does not hold an export: $(dev odd apps)"
 ended_log odd cli
 grep -qF "$want" "$tmp/log" && grep -q '^\[exited 0\]' "$tmp/log" || bad "the log of the exported app lacks its output '$want' or its exit: $(cat "$tmp/log")"
+
+# the transfer says where it is (ZN-734), in step lines: percent, sent and whole size, speed, and its duration on the last one. On a pipe a
+# line every half second at most (the loopback is done before the first: one line); every frame of data with ZINC_PROGRESS_MS=0; none
+# when the steps are off; and what is said is a note, never the error line of the command
+progress='^  send  *[0-9]*%  [0-9]* [KM]iB of [0-9]* [KM]iB  [0-9.]* MiB/s'
+echo "$out" | grep -q "$progress  *[0-9.]* m*s$" || bad "deploy does not end its transfer with a line of progress: $out"
+echo "$out" | grep -q "^zinc device: " && bad "a deploy that worked has an error line: $out"
+head -c 300000 /dev/urandom > "$tmp/blob"   # ten frames of 32 KiB
+out=$(dev same push "$tmp/blob" "$tmp/got" 2>&1) && cmp -s "$tmp/blob" "$tmp/got" || bad "push: $out"
+[ "$(echo "$out" | grep -c "$progress")" = 1 ] && echo "$out" | grep -q "^  send  *100%  293 KiB of 293 KiB  " || bad "a fast push has more than its last line of progress: $out"
+out=$(ZINC_PROGRESS_MS=0 dev same push "$tmp/blob" "$tmp/got" 2>&1) || bad "push, every frame: $out"
+[ "$(echo "$out" | grep -c "$progress")" = 10 ] && echo "$out" | grep -q "^  send  *10%  32 KiB of 293 KiB  " && echo "$out" | grep "^  send" | tail -1 | grep -q "100%  293 KiB of 293 KiB" \
+  || bad "the progress of a push is not a line per frame from 10% to 100%: $out"
+out=$(ZINC_STEPS=0 ZINC_HOME="$W" "$Z" device same push "$tmp/blob" "$tmp/got" 2>&1) || bad "push, quiet: $out"
+echo "$out" | grep -q "^  send" && bad "a quiet push says its progress: $out"
 
 [ $fail -eq 0 ] && echo "agent_deploy: ok"
 exit $fail

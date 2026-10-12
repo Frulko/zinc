@@ -117,8 +117,10 @@ std::string cleanName(std::string s);                                   // what 
 
 /** A name inside a transfer: relative, no "..", nothing that leaves the root it is written under. */
 bool safeRel(const std::string& name);
-/** The file or the tree at `path` as entries: {"dir": rel}, {"file": rel, "mode", "size"} followed by its bytes, then {"end": true}. */
-bool sendTree(Chan& c, const std::string& path, std::uint64_t& files, std::uint64_t& bytes, std::string& err);
+/** The file or the tree at `path` as entries: {"dir": rel}, {"file": rel, "mode", "size"} followed by its bytes, then {"end": true}.
+ *  `sent`, when given, is told the bytes handed to the connection so far, after each frame of data (the progress of a transfer). */
+using Sent = std::function<void(std::uint64_t bytes)>;
+bool sendTree(Chan& c, const std::string& path, std::uint64_t& files, std::uint64_t& bytes, std::string& err, const Sent& sent = {});
 /** Writes the entries under `root` (the file itself when the sender had one file). An entry that cannot be written is skipped and reported
  *  at the end, so the sender is always read to its last entry. */
 bool recvTree(Chan& c, const std::string& root, std::uint64_t& files, std::uint64_t& bytes, std::string& err);

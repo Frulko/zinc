@@ -7,7 +7,7 @@
 // lasts that long), ZINC_ATELIER_ECHO=1 (the console on stdout), ZINC_ATELIER_THEME=dark, ZINC_ATELIER_SCRIPT=file (a session:
 // `<frame> <command id>`, `<frame> example:<folder>` or `<frame> quit` per line, run at that frame as the menu item would be;
 // for the devices panel `<frame> pair:<name or address> <code>` fills its form and pairs, `<frame> device:<name>` is a press on
-// that device, and `<frame> wait:<text>` holds the frame until the console, the status line or the panel says it, 10 s at most),
+// that device, `<frame> clipboard` prints what the clipboard holds, and `<frame> wait:<text>` holds the frame until the console, the status line or the panel says it, 10 s at most),
 // ZINC_ATELIER_BROWSE=ms (how long the list of devices waits for the network; 0: the paired ones only).
 import { render } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
@@ -15,7 +15,7 @@ import * as sys from 'zinc:sys';
 import * as fs from 'zinc:fs';
 import * as system from 'zinc:system';
 import * as menu from 'zinc:system/menu';
-import { quit } from 'zinc:gfx';
+import { quit, clipboardText } from 'zinc:gfx';
 import { stepMotion } from './app/motion';
 import { theme, bg, setTheme, DARK } from './app/theme';
 import { Buffer, setHooks, applyFocus, stepNotice, openSketch, lastSketch, openFile } from './app/workspace';
@@ -138,6 +138,7 @@ function stepScript(): void {
     else if (id.startsWith('example:')) openExample(id.slice(8));
     else if (id.startsWith('pair:')) { const w = id.slice(5).split(' '); setWho(w[0]); setCode(w.length > 1 ? w[1] : ''); pair(); }
     else if (id.startsWith('device:')) choose(id.slice(7));
+    else if (id === 'clipboard') console.log('[clipboard] ' + clipboardText().split('\n').join(' | '));   // what a copy took, for the tests
     else if (id.startsWith('wait:')) {
       let n = 0;
       while (!says(id.slice(5)) && n++ < 1000) sys.poll(10);

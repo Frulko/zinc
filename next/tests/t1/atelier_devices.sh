@@ -3,7 +3,8 @@
 # (no mDNS: the device is reached by its address, and the list waits for no answer of the network, so a real agent nearby is not in it).
 #   the panel opens on an empty list and says how to start; a wrong code is said in plain words; the right code, typed in its field, pairs:
 #   the device is listed and Run goes to it; its figures arrive every second; Run installs and starts the sketch there and its lines are in the console; Stop ends
-#   it on the device. The golden is the window at the end, compared over the panel without its right column (addresses and figures, which
+#   it on the device. Tools > Open the Inspector with nothing running starts the sketch again in debug: the deploy that puts the inspector in
+#   front (ZN-734). The transfer's progress is a line of the console and the status line. The golden is the window at the end, compared over the panel without its right column (addresses and figures, which
 #   change with the machine and the moment: the session's own lines prove them).
 cd "$(dirname "$0")/../.." || exit 2
 Z=$(cd "$(dirname "$ZINC")" && pwd)/$(basename "$ZINC")
@@ -46,6 +47,12 @@ cat > "$tmp/session" <<EOF
 18 stop
 19 wait:blink stopped
 20 wait:Stopped
+21 inspector
+22 wait:Debugging on bench
+23 wait:blink running
+24 stop
+25 wait:blink stopped
+26 wait:Stopped
 EOF
 printf '%s\n' "8 move 1150 181" "8 down" "9 up" "10 key a meta" "11 text $code" "12 key Enter" > "$tmp/keys"
 ZINC_HOME="$W" ZINC_ATELIER_HOME="$tmp/book" ZINC_ATELIER_ECHO=1 ZINC_ATELIER_BROWSE=0 ZINC_ATELIER_SCRIPT="$tmp/session" ZINC_INPUT="$tmp/keys" ZINC_SYSTEM_LOG=/dev/null \
@@ -63,6 +70,14 @@ has '^\[status\] Running on bench$' "the status line does not say where the sket
 has '^\[console\] Hello from the device$' "the sketch's output is not in the console" '^\[console\]'
 has '^\[console\] tick 2$' "the followed log does not arrive in the console" '^\[console\]'
 has '^\[status\] Stopped$' "Stop did not end the run" '^\[status\]'
+# what the deploy says: the note of what is sent is a step of the console (not the command's error), the transfer its progress, there and on the status line
+has '^\[console\]   device  +bench is macos .*: packing a \.zapp$' "the note of the deploy is not a step line of the console" '^\[console\]  '
+has '^\[console\]   send  +100%  [0-9]+ [KM]iB of [0-9]+ [KM]iB  [0-9.]+ MiB/s' "the transfer's progress is not in the console" '^\[console\]  '
+has '^\[status\] Sending to bench: 100%, [0-9]+ [KM]iB of [0-9]+ [KM]iB, [0-9.]+ MiB/s' "the transfer's progress is not on the status line" '^\[status\]'
+# the inspector asked with no debug run: the sketch starts again in debug, deployed with the inspector in front
+has '^\[console\] \$ zinc device bench deploy \. --name blink --inspect$' "Open the Inspector did not start a debug run on the device" '^\[console\] \$'
+has '^\[status\] Debugging on bench$' "the status line does not say the sketch is debugged on the device" '^\[status\]'
+grep -q "import 'zinc:devtools'" "$tmp/out" && bad "the console still asks for an import: $(grep devtools "$tmp/out" | head -2)"
 # the figures: a sample a second, so several over the session; the sketch is seen running, then stopped
 figure='^\[devices\] bench: load [0-9]+\.[0-9]+, memory [0-9.]+ [GM]iB free of [0-9.]+ [GM]iB, temperature '
 [ "$(grep -Ec "$figure" "$tmp/out")" -ge 2 ] || bad "the figures are not renewed: $(grep -Ec "$figure" "$tmp/out") sample(s)"

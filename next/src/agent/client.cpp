@@ -5,6 +5,7 @@
 #include "../tc/tc.h"
 #include "wire.h"
 #include "yyjson.h"
+#include "zn/log.h"
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -19,6 +20,7 @@
 
 #include <algorithm>
 #include <cerrno>
+#include <chrono>
 #include <csignal>
 #include <cstdio>
 #include <cstdlib>
@@ -105,6 +107,32 @@ std::string human(long long bytes) {
   else if (bytes >= 1 << 10) std::snprintf(b, sizeof b, "%.0f KiB", static_cast<double>(bytes) / 1024.0);
   else std::snprintf(b, sizeof b, "%lld bytes", bytes);
   return b;
+}
+
+// The progress of a transfer, as step lines where the build's go ("  send       45%  16 MiB of 35 MiB  2.1 MiB/s"): rewritten in place in a
+// terminal, a line every half second elsewhere (a pipe is not flooded; Atelier shows the last one), then the whole with its duration.
+// ZINC_PROGRESS_MS sets the pause between two lines. Quiet under -q, as every step.
+Sent progress(const std::string& path) {
+  std::error_code ec;
+  std::uint64_t total = 0;   // what sendTree sends: the file, or the regular files of the tree
+  if (fs::is_regular_file(path, ec)) total = fs::file_size(path, ec);
+  else for (auto it = fs::recursive_directory_iterator(path, fs::directory_options::skip_permission_denied, ec); !ec && it != fs::recursive_directory_iterator(); it.increment(ec))
+    if (!it->is_symlink(ec) && it->is_regular_file(ec)) total += it->file_size(ec);
+  const bool tty = ::isatty(STDERR_FILENO);
+  const char* e = std::getenv("ZINC_PROGRESS_MS");
+  const double every = e ? std::atof(e) : tty ? 200 : 500;
+  return [total, tty, every, t0 = std::chrono::steady_clock::now(), last = 0.0](std::uint64_t sent) mutable {
+    const double ms = zn::log::since(t0);
+    const bool end = sent >= total;
+    if (!zn::log::steps() || (!end && ms - last < every)) return;
+    last = ms;
+    char b[96];
+    std::snprintf(b, sizeof b, "%d%%  %s of %s  %.1f MiB/s", static_cast<int>(sent * 100 / total), human(static_cast<long long>(sent)).c_str(), human(static_cast<long long>(total)).c_str(),
+                  static_cast<double>(sent) / std::max(ms, 1.0) * 1000.0 / (1 << 20));
+    if (tty) std::fputs("\r\033[2K", stderr);
+    if (tty && !end) { std::fprintf(stderr, "  %-10s %s", "send", b); std::fflush(stderr); }
+    else zn::log::step("send", b, end ? ms : -1);
+  };
 }
 
 std::string baseName(const std::string& path) {
@@ -278,7 +306,7 @@ int cmdPush(Device& d, const std::vector<std::string>& args) {
   if (!c) return 1;
   std::uint64_t files = 0, bytes = 0;
   char type = 0;
-  if (!sendTree(*c, args[0], files, bytes, err)) return fail(err);
+  if (!sendTree(*c, args[0], files, bytes, err, progress(args[0]))) return fail(err);
   if (!recv(*c, type, answer, 60000) || type != kJson) return fail("the session with " + d.name + " ended early");
   const Doc a(answer);
   if (!a.flag("ok")) return fail(a.str("error"));
@@ -313,7 +341,7 @@ int install(Device& d, const std::string& path, std::string& name) {
   if (!c) return 1;
   std::uint64_t files = 0, bytes = 0;
   char type = 0;
-  if (!sendTree(*c, path, files, bytes, err)) return fail(err);
+  if (!sendTree(*c, path, files, bytes, err, progress(path))) return fail(err);
   if (!recv(*c, type, answer, 120000) || type != kJson) return fail("the session with " + d.name + " ended early");
   const Doc a(answer);
   if (!a.flag("ok")) return fail(a.str("error"));
@@ -424,11 +452,12 @@ bool namesLinuxDisplay(const std::string& dir) {
 // this one's system and architecture, else the export for the device's target, which `zinc export` cross builds.
 int cmdDeploy(Device& d, std::vector<std::string> args, const std::string& self) {
   Launch l = launchOptions(args);
-  bool follow = true, pack = false;
+  bool follow = true, pack = false, inspect = false;
   std::string name, path = ".", target;
   for (size_t i = 0; i < args.size(); ++i) {
     if (args[i] == "--no-logs") follow = false;
     else if (args[i] == "--pack") pack = true;
+    else if (args[i] == "--inspect") inspect = true;
     else if (args[i] == "--target" && i + 1 < args.size()) target = args[++i];
     else if (args[i] == "--name" && i + 1 < args.size()) name = args[++i];
     else path = args[i];
@@ -451,19 +480,26 @@ int cmdDeploy(Device& d, std::vector<std::string> args, const std::string& self)
       else if ((target = exportTarget(os, arch, kind)).empty())
         return fail(why + ": zinc export has no target for it (--target <t> names one; --pack sends a .zapp, which its engine runs without native plugins)");
     }
+    // what is sent and why is a note, said as a step of the command (quiet under -q; Atelier shows it as one, not as an error)
+    std::vector<std::string> more;
+    if (inspect) more.push_back("--inspect");   // the program with the inspector in front, as zinc dev starts it
     if (pack) {   // one file to send, checked on arrival
-      std::fprintf(stderr, "%s: packing a .zapp\n", why.c_str());
+      zn::log::step("device", why + ": packing a .zapp");
       made = (fs::temp_directory_path(ec) / ("zinc-deploy-" + std::to_string(::getpid()) + ".zapp")).string();
-      const int rc = spawnWait({self, "pack", path, "-o", made});
+      std::vector<std::string> cmd = {self, "pack", path, "-o", made};
+      cmd.insert(cmd.end(), more.begin(), more.end());
+      const int rc = spawnWait(cmd);
       if (rc != 0) return rc;
     } else {
       // A Raspberry Pi shows a program on its framebuffer (the prototype's rpi targets): a project that names no display for Linux (a sketch
       // without zinc.json) is built with that driver, or it would run there with no screen and leave after 60 frames.
       const bool fb = target.rfind("rpi", 0) == 0 && !std::getenv("ZINC_DISPLAY") && !namesLinuxDisplay(path);
       if (fb) ::setenv("ZINC_DISPLAY", "fbdev", 1);
-      std::fprintf(stderr, "%s: exporting for %s%s\n", why.c_str(), target.c_str(), fb ? ", shown on its framebuffer (ZINC_DISPLAY=fbdev: zinc.json names no display for Linux)" : "");
+      zn::log::step("device", why + ": exporting for " + target + (fb ? ", shown on its framebuffer (ZINC_DISPLAY=fbdev: zinc.json names no display for Linux)" : ""));
       std::string said;
-      const int rc = spawnWait({self, "export", path, "--target", target}, &said);
+      std::vector<std::string> cmd = {self, "export", path, "--target", target};
+      cmd.insert(cmd.end(), more.begin(), more.end());
+      const int rc = spawnWait(cmd, &said);
       if (rc != 0) return rc;
       while (!said.empty() && said.back() == '\n') said.pop_back();
       made = said.substr(said.rfind('\n') + 1);   // export's last line: the directory it wrote, dist/<name>-<target>
@@ -471,7 +507,7 @@ int cmdDeploy(Device& d, std::vector<std::string> args, const std::string& self)
       const std::string base = baseName(made), tail = "-" + target;
       if (name.empty() && base.size() > tail.size() && base.compare(base.size() - tail.size(), tail.size(), tail) == 0) name = base.substr(0, base.size() - tail.size());   // the project's name, as its .zapp has it
     }
-  }
+  } else if (inspect) return fail("--inspect is for a project: a .zapp or an export is sent as it was built (zinc pack --inspect, zinc export --inspect)");
   const int rc = install(d, made.empty() ? path : made, name);
   if (pack && !made.empty()) fs::remove(made, ec);   // the export stays in dist/, as after zinc export
   if (rc != 0) return rc;
@@ -555,6 +591,7 @@ int usage() {
                "       zinc device [<device>] shell [-t] [command]     a command with its exit status, or a terminal\n"
                "       zinc device [<device>] push <local> [remote]    a file or a tree to the device; pull <remote> [local] the other way\n"
                "       zinc device [<device>] deploy [dir] [-- args]   build for the device, install, start, follow the log (--no-logs, --env K=V, --name n)\n"
+               "                                                       --inspect puts the inspector in front of a program with an interface, as zinc dev does\n"
                "                                                       a .zapp for a machine like this one, else zinc export for its target; --pack, --target <t> decide\n"
                "       zinc device [<device>] install <app.zapp|export-dir> [--name n]\n"
                "       zinc device [<device>] run <app> [-f] [--env K=V] [-- args] | stop <app> | uninstall <app> | apps | logs <app> [-f]\n"

@@ -7,9 +7,10 @@ import { createSignal } from 'zinc:ui/solid';
 import * as sys from 'zinc:sys';
 import * as fs from 'zinc:fs';
 import * as proc from 'zinc:process';
+import { setClipboardText } from 'zinc:gfx';
 import { Spring } from './motion';
 import { Buffer, Diagnostic, buffers, saveAll, sketchDir, sketchName, mainFile, openFile, say, APP_HOME } from './workspace';
-import { parseDiagnostics, Diag } from '../model';
+import { parseDiagnostics, Diag, stepOf } from '../model';
 
 export const ZINC: string = sys.env('ZINC_BIN') !== '' ? sys.env('ZINC_BIN') : 'zinc';
 /** The variables of a scripted or captured run of Atelier itself that its children must not inherit (they would write the same files). */
@@ -32,6 +33,7 @@ export const K_OUT: i32 = 0, K_STAGE: i32 = 1, K_ERR: i32 = 2, K_CMD: i32 = 3, K
 export class Line {
   text: string; kind: i32;
   file: string = ''; line: i32 = 0; col: i32 = 0;   // 1-based, 0: no place
+  p0: i32 = 0; p1: i32 = 0;                         // where the place is written in `text`: the link of the line
   code: string = ''; message: string = '';          // of a diagnostic (`error Z0103: message`): shown as a card
   constructor(text: string, kind: i32) { this.text = text; this.kind = kind; }
 }
@@ -69,19 +71,22 @@ function place(s: string): i32[] {
 /** A console line from what a child printed: stage lines of the build, diagnostics, places. */
 export function classify(text: string, stderr: boolean): Line {
   const l = new Line(text, stderr ? K_ERR : K_OUT);
-  // the steps `zinc run` prints: two spaces, a name, its text ("  compile    4 files, 34 functions   44 ms")
-  if (text.startsWith('  ') && text.length > 4 && text.charCodeAt(2) !== 32 && text.indexOf('  ', 3) > 0 && text.indexOf('  ', 3) < 14) l.kind = K_STAGE;
+  // the steps a command prints ("  compile    4 files, 34 functions   44 ms"), its notes and its progress among them: never errors,
+  // though they arrive on the standard error
+  if (stepOf(text).length > 0) l.kind = K_STAGE;
   const d: Diag[] = parseDiagnostics(text);
-  if (d.length > 0) { l.kind = K_ERR; l.file = d[0].file; l.line = d[0].line; l.col = d[0].col; l.code = d[0].code; l.message = d[0].message; return l; }
   const p = place(text);
+  if (p.length > 0) { l.p0 = p[0]; l.p1 = p[1]; }
+  if (d.length > 0) { l.kind = K_ERR; l.file = d[0].file; l.line = d[0].line; l.col = d[0].col; l.code = d[0].code; l.message = d[0].message; return l; }
   if (p.length > 0) {
     const parts = text.slice(p[0], p[1]).split(':');
     l.file = parts[0]; l.line = parseInt(parts[1]); l.col = parts.length > 2 ? parseInt(parts[2]) : 1;
   }
   return l;
 }
-function add(l: Line): void {
-  buf.push(l);
+/** `over`: the line takes the place of the last one (a step that says where it is, again and again). */
+function add(l: Line, over: boolean = false): void {
+  if (over && buf.length > 0) buf[buf.length - 1] = l; else buf.push(l);
   if (buf.length > MAX_LINES) buf = buf.slice(buf.length - MAX_LINES);
   setLines(buf.slice());
   follow = 2;
@@ -89,6 +94,8 @@ function add(l: Line): void {
 }
 export function clearConsole(): void { buf = []; setLines([]); }
 export function consoleText(): string { return buf.map((l: Line) => l.text).join('\n'); }
+/** The whole console on the clipboard (the Copy control of the console, Tools > Copy the Console). */
+export function copyConsole(): void { if (buf.length === 0) return; setClipboardText(consoleText()); say(`Copied the console: ${buf.length} line${buf.length > 1 ? 's' : ''}`); }
 
 /** Opens the file a console line names, at its line and column. `go` is set by the editor (it owns the caret). */
 let go: (b: Buffer, line: i32, col: i32) => void = (b: Buffer, line: i32, col: i32) => {};
@@ -147,7 +154,6 @@ function deviceLine(text: string): boolean {
   if (step !== 'run') { setStage(step); return true; }
   app = text.slice(8, text.indexOf(' on '));
   nowRunning();
-  if (debugging()) add(new Line("inspector: it opens when the sketch has import 'zinc:devtools'", K_STAGE));
   return true;
 }
 
@@ -158,17 +164,24 @@ function onLine(text: string, stderr: boolean): void {
   const dt = text.startsWith('zinc devtools:') ? text.indexOf('localhost:') : -1;
   if (dt > 0 && debugging()) { if (remote !== '') inspectThere(); else { setInspectorPort(parseInt(text.slice(dt + 10))); openInspector(); } }
   const l = classify(text, stderr);
+  let over = false;
   if (l.kind === K_STAGE) {
-    const name = text.trim().split(' ')[0];
+    const step = stepOf(text), name = step[0];
     if (name === 'run' || name === 'dev') nowRunning();
     else if (phase() === BUILDING && name !== 'zinc') setStage(name);
+    // the transfer to a device, live: "Sending to spark: 45%, 16 MiB of 35 MiB, 2.1 MiB/s"
+    if (name === 'send' && remote !== '' && phase() === BUILDING) setStatus(`Sending to ${remote}: ${step[1]}`, 0);
+    // a step said again is one line that updates: the progress of a transfer or of the native builds, "compile ..." then its result
+    const last = buf.length > 0 ? buf[buf.length - 1] : null;
+    over = last !== null && (last as Line).kind === K_STAGE && stepOf((last as Line).text).length > 0 && stepOf((last as Line).text)[0] === name;
   } else if (phase() === BUILDING && l.kind === K_OUT) nowRunning();   // a program that prints before any step line
-  add(l);
+  add(l, over);
   if (l.kind !== K_STAGE && !consoleOpen()) showConsole(true);
 }
 
 /** Saves the sketch, then builds and runs it (`debug`: under `zinc dev`, with the inspector). A program still running is stopped first.
- *  With a device chosen the sketch goes there under its folder's name, and `debug` brings its inspector here. */
+ *  With a device chosen the sketch goes there under its folder's name; `debug` builds it with the inspector in front, as `zinc dev` does
+ *  here (`deploy --inspect`), and brings that inspector to this machine when the sketch says it listens. */
 export function run(debug: boolean = false): void {
   if (child !== null) { again = debug ? 1 : 0; stop(); return; }
   const dir = sketchDir(), main = mainFile(dir);
@@ -176,7 +189,7 @@ export function run(debug: boolean = false): void {
   saveAll();
   clearConsole();
   remote = device(); app = ''; ended = -1; refused = '';
-  const args: string[] = remote !== '' ? ['device', remote, 'deploy', '.', '--name', sketchName()] : [debug ? 'dev' : 'run', main].concat(debug ? [] : ENGINE_ARGS[engine()]);
+  const args: string[] = remote !== '' ? ['device', remote, 'deploy', '.', '--name', sketchName()].concat(debug ? ['--inspect'] : []) : [debug ? 'dev' : 'run', main].concat(debug ? [] : ENGINE_ARGS[engine()]);
   add(new Line('$ zinc ' + args.join(' '), K_CMD));
   stopped = false;
   setDebugging(debug); setPhase(BUILDING); setStage('starting'); setStatus('Building', 0);
@@ -223,6 +236,14 @@ export function openInspector(): void {
     p.onStdout((l: string) => { add(new Line('inspector: ' + l, K_STAGE)); });
     p.onExit((code: i32) => { if (inspector === p) inspector = null; });
   } catch (e) { inspector = null; }
+}
+/** Tools > Open the Inspector. It belongs to a debug run: one that has it shows it, a plain run (or no run) starts again in debug, which
+ *  opens it by itself, here or on the device. */
+export function inspect(): void {
+  if (inspectorPort() > 0) { openInspector(); return; }
+  if (child !== null && debugging()) { say('No inspector yet: it opens when the sketch shows an interface (zinc:ui)'); return; }
+  say(child !== null ? 'Starting the sketch again in debug: the inspector opens with it' : 'Starting the sketch in debug: the inspector opens with it');
+  run(true);
 }
 /** The inspector of the sketch running on a device, on a port of this machine: `zinc device <name> inspect <app>` forwards it until the run ends. */
 let forward: proc.Process | null = null;

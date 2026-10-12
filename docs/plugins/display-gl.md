@@ -15,6 +15,10 @@ Options (`"display": { "driver": "gl", ... }` or `plugins.display-gl`):
 | `fullscreen` | `false` | macOS: start fullscreen (F toggles it at run time). The Pi is always fullscreen |
 | `mode` | `""` | Pi: display mode `"1920x1080"`; default is the connector's preferred mode |
 
+On a KMS screen a program that names no size (no `width` x `height` for the target, no board, no `ZINC_SIZE`) is
+drawn at the mode's size, pixel for pixel, as on the framebuffer (`docs/plugins/display-fbdev.md`, "The surface's
+size"); one that names a size keeps it and the GPU scales it. The desktop window keeps its default size.
+
 ## Support matrix
 
 | target | status | backend | notes |

@@ -1,5 +1,5 @@
 import * as fs from 'zinc:fs';
-import { parseDiagnostics, hottest, tracePhases, projectFiles, Phase, parseDevices, parseFigures, sizeText, Figures } from '../../../app/atelier/model';
+import { parseDiagnostics, hottest, tracePhases, projectFiles, Phase, parseDevices, parseFigures, sizeText, Figures, stepOf } from '../../../app/atelier/model';
 const d = parseDiagnostics("/a/b.ts:1:14: error Z0103: Type is not assignable: 'string' to 'i32'\nnoise\n");
 console.log(d.length, d[0].file, d[0].line, d[0].col, d[0].code, d[0].message);
 const h = hottest("main;a;b 3\nmain;a 1\nmain;c;b 4\n", 5);
@@ -19,3 +19,8 @@ const pi = parseFigures('{"ok":true,"name":"spark","os":"linux","osVersion":"6.6
 console.log(pi.name, pi.system, pi.cpu, pi.load, sizeText(pi.memFree), sizeText(17179869184), pi.temp, pi.apps.length, pi.apps[0].name, pi.apps[0].running, pi.apps[1].running, pi.apps[1].rss);
 const mac = parseFigures('{"ok":true,"name":"mac","os":"macos","osVersion":"24","arch":"arm64","kind":"","cores":1,"load1":1,"cpu":"","memTotal":1,"memFree":1,"apps":[]}') as Figures;
 console.log(mac.cpu, mac.temp, parseFigures('zinc device: nothing answers') === null);
+// the step lines of a command (ZN-734): a note of zinc device deploy and the progress of its transfer are steps, an error and a program's line are not
+console.log(stepOf('  device     spark is linux aarch64 (Raspberry Pi 3 Model B Plus Rev 1.3): exporting for rpi, shown on its framebuffer').join('|'));
+console.log(stepOf('  send       45%  16 MiB of 35 MiB  2.1 MiB/s').join('|'), '/', stepOf('  send       100%  35 MiB of 35 MiB  2.1 MiB/s               16.4 s').join('|'));
+console.log(stepOf('  compile    4 files, 34 functions                        44 ms').join('|'));
+console.log(stepOf('zinc device: spark does not answer').length, stepOf('installed blink on spark (35 MiB)').length, stepOf('  indented by the program').length, stepOf('').length);

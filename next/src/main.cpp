@@ -1557,18 +1557,21 @@ int main(int argc, char** argv) {
   if (argc >= 2 && !std::strcmp(argv[1], "pack")) {   // zinc pack [dir] [-o app.zapp]: the program, its baked resources, assets and zinc.json in one file (ZN-318)
     namespace fs = std::filesystem;
     std::string dir = ".", outPath;
+    bool inspect = false;   // the program with the inspector in front, as zinc dev runs it (zinc device deploy --inspect)
     for (int k = 2; k < argc; ++k) {
       if (!std::strcmp(argv[k], "-o") && k + 1 < argc) outPath = argv[++k];
+      else if (!std::strcmp(argv[k], "--inspect")) inspect = true;
       else if (argv[k][0] != '-') dir = argv[k];
-      else { std::fprintf(stderr, "zinc pack: unknown option %s\nusage: zinc pack [dir] [-o app.zapp]\n", argv[k]); return 2; }
+      else { std::fprintf(stderr, "zinc pack: unknown option %s\nusage: zinc pack [dir] [-o app.zapp] [--inspect]\n", argv[k]); return 2; }
     }
     const std::string projDir = fs::absolute(dir).lexically_normal().string();
     std::ifstream pf(fs::path(projDir) / "zinc.json");
     std::stringstream ps; ps << pf.rdbuf();
     zn::frontend::Project project; std::string perr;
     const bool have = pf && zn::frontend::parseProject(ps.str(), project, perr);
-    const std::string entry = zn::frontend::entryOf(projDir, have ? &project : nullptr);
+    std::string entry = zn::frontend::entryOf(projDir, have ? &project : nullptr);
     if (entry.empty()) { std::fprintf(stderr, "zinc pack: %s has no zinc.json entry nor src/main.ts[x]\n", projDir.c_str()); return 2; }
+    if (inspect) entry = zn::cli::inspectEntry(projDir, entry);
     std::string name = have && !project.name.empty() ? project.name : fs::path(projDir).filename().string();
     zn::zbc::Module zm;
     if (int rc = compileToZbc(entry.c_str(), zm)) return rc;
