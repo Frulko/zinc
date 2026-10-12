@@ -1,0 +1,8 @@
+2 touch 1 100 100
+3 touch 2 200 100
+5 touch 2 300 100
+7 touch 1 50 100
+9 touch 2 175 100
+10 touchup 2
+11 touch 1 60 100
+12 touchup 1

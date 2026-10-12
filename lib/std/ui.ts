@@ -5298,6 +5298,7 @@ function takeGrab(c: i32, kind: i32, px: number, py: number): void {
   if (kind === 2) fireGesture(c, PDRAG, px, py, 0);
 }
 function gestureMove(px: number, py: number): void {
+  if (spreadD > 0 && fIds.length > 0) spread();
   if (grabKind === 3) { if (pinching) pinchUpdate(px, py); return; }
   if (grabKind === 2 && nodes[grabber].alive) fireGesture(grabber, PDRAG, px, py, 1);
 }
@@ -5305,7 +5306,7 @@ function gestureEnd(px: number, py: number): void {
   if (grabKind === 2 && nodes[grabber].alive) fireGesture(grabber, PDRAG, px, py, 2);
   else if (grabKind === 3 && pinching) pinchEnd(px, py);
   else if (grabber === -1 && !longFired && tapNode >= 0 && nodes[tapNode].alive && isAncestor(tapNode, hit(px, py, HIT_NODE))) fireGesture(tapNode, PTAP, px, py, 0);
-  grabber = -1; grabKind = 0; tapNode = -1; longNode = -1; dragCands = []; pinching = false;
+  grabber = -1; grabKind = 0; tapNode = -1; longNode = -1; dragCands = []; pinching = false; spreadD = 0;
 }
 /** Long press: held LONG_MS without a grab taken; the click and the tap are dropped. */
 function stepGestures(): void {
@@ -5333,13 +5334,23 @@ function secondFinger(): void {
   if ((held & 1) === 0 || pinching) return;
   let pn = bubble(gHit, PPINCH, false);
   if (pn < 0) pn = bubble(hit(fXs[0], fYs[0], HIT_ANY), PPINCH, false);
-  if (pn < 0) return;
+  if (pn < 0) { spreadD = fingerGap(); return; }
   if (grabKind === 2 && nodes[grabber].alive) fireGesture(grabber, PDRAG, ptrX, ptrY, 3);
   takeGrab(pn, 3, ptrX, ptrY);
   pinching = true; pinchScale = 1; pinchRot = 0;
   const dx = fXs[0] - ptrX, dy = fYs[0] - ptrY;
   pinchD0 = Math.max(1, Math.sqrt(dx * dx + dy * dy)); pinchA0 = Math.atan2(dy, dx);
   fireGesture(pn, PPINCH, (ptrX + fXs[0]) / 2, (ptrY + fYs[0]) / 2, 0);
+}
+// Two fingers over something that has no onPinch but takes the wheel (a map or a canvas written for a mouse and a trackpad): their spread
+// is sent as a trackpad's pinch, the factor since the last move. It zooms around the pointer finger, which goes on dragging: a pan by that
+// finger and a zoom around it keep both fingers on the points they touched.
+let spreadD: number = 0;   // the distance between the two fingers at the last move, 0 when no such spread is going on
+function fingerGap(): number { const dx = fXs[0] - ptrX, dy = fYs[0] - ptrY; return Math.max(1, Math.sqrt(dx * dx + dy * dy)); }
+function spread(): void {
+  const d = fingerGap();
+  if (d !== spreadD) wheelInput(ptrX, ptrY, 0, 0, d / spreadD);
+  spreadD = d;
 }
 function pinchUpdate(ax: number, ay: number): void {
   const dx = fXs[0] - ax, dy = fYs[0] - ay;
@@ -5363,8 +5374,10 @@ function touchSecondary(id: i32, x: number, y: number, phase: i32): void {
   fXs[i] = x; fYs[i] = y;
   if (phase === 2) {
     if (i === 0 && pinching) pinchEnd(ptrX, ptrY);
+    if (i === 0) spreadD = 0;
     fIds.splice(i, 1); fXs.splice(i, 1); fYs.splice(i, 1);
   } else if (i === 0 && pinching) pinchUpdate(ptrX, ptrY);
+  else if (i === 0 && spreadD > 0) spread();
 }
 /** HAL touch screens: the pointer already follows the first finger (mouse emulation); the others come from here. */
 function halTouches(): void {
