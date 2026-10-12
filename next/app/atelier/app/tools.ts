@@ -11,7 +11,8 @@ import { parseDiagnostics, Diag } from '../model';
 
 export const ZINC: string = sys.env('ZINC_BIN') !== '' ? sys.env('ZINC_BIN') : 'zinc';
 /** The variables of a scripted or captured run of Atelier itself that its children must not inherit (they would write the same files). */
-const SCRUB: string[] = ['ZINC_SHOT', 'ZINC_SHOT_FRAMES', 'ZINC_INPUT', 'ZINC_SIZE', 'ZINC_SYSTEM_SCRIPT', 'ZINC_SYSTEM_LOG', 'ZINC_ATELIER_SCRIPT'];
+const SCRUB: string[] = ['ZINC_SHOT', 'ZINC_SHOT_FRAMES', 'ZINC_INPUT', 'ZINC_SIZE', 'ZINC_SYSTEM_SCRIPT', 'ZINC_SYSTEM_LOG', 'ZINC_ATELIER_SCRIPT',
+  'ZINC_RUN'];   // nor the engine Atelier itself was started on (`zinc run --interp`, `zinc dev`): the sketch runs on the one its menu names
 export function spawnZinc(args: string[], cwd: string): proc.Process { return zinc(args, cwd); }
 function zinc(args: string[], cwd: string): proc.Process {
   const a: string[] = [];
