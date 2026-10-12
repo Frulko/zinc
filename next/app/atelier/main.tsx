@@ -1,185 +1,132 @@
-// Zinc Atelier: the desktop app of Zinc. A project browser, a text editor with diagnostics, run and stop, a device panel (the emulated ESP32)
-// and the profiler views, written with zinc:ui and run by the engine it drives. Usage: zinc run app/atelier/main.tsx -- <project dir>
-import { createSignal, render } from 'zinc:ui/solid';
-import * as fs from 'zinc:fs';
-import * as proc from 'zinc:process';
+// Zinc Atelier: the place to write Zinc sketches and run them, written in Zinc. One window: the run control and the
+// sketch's files as tabs, the editor, and a console that is one line of status until the program speaks.
+//   zinc run next/app/atelier                 the sketch opened last time, else the start view (examples, a new sketch)
+//   zinc run next/app/atelier -- <folder>     that sketch
+// It drives the zinc binary it runs on ($ZINC_BIN): zinc run, zinc dev, zinc check, zinc plugins.
+// Tests: ZINC_ATELIER_HOME (the sketchbook), ZINC_ATELIER_SYNC=1 (a frame waits for the child), ZINC_ATELIER_PACE=ms (a frame
+// lasts that long), ZINC_ATELIER_ECHO=1 (the console on stdout), ZINC_ATELIER_THEME=dark, ZINC_ATELIER_SCRIPT=file (a session:
+// `<frame> <command id>` or `<frame> example:<folder>` per line, run at that frame as the menu item would be).
+import { render } from 'zinc:ui/solid';
+import * as ui from 'zinc:ui';
 import * as sys from 'zinc:sys';
-import { Diag, Hot, Phase, parseDiagnostics, hottest, tracePhases, projectFiles } from './model';
-
-const args = sys.args();
-const root: string = args.length > 0 ? args[0] : '.';
-const zincBin: string = sys.env('ZINC_BIN') !== '' ? sys.env('ZINC_BIN') : 'zinc';
-
-const [files, setFiles] = createSignal<string[]>(projectFiles(root));
-const [current, setCurrent] = createSignal<string>('');
-const [text, setText] = createSignal<string>('');
-const [dirty, setDirty] = createSignal<boolean>(false);
-const [tab, setTab] = createSignal<string>('output');
-const [output, setOutput] = createSignal<string>('');
-const [diags, setDiags] = createSignal<Diag[]>([]);
-const [hot, setHot] = createSignal<Hot[]>([]);
-const [phases, setPhases] = createSignal<Phase[]>([]);
-const [status, setStatus] = createSignal<string>('ready');
-
-function q(s: string): string { return "'" + s.split("'").join("'\\''") + "'"; }
-function path(rel: string): string { return root + '/' + rel; }
-
-// The one background job (a run, a check, a profile): its output streams into the output tab, `onDone` receives all of it.
-let job: proc.Process | null = null;
-let jobOut: string = '';
-let jobDone: ((out: string, code: i32) => void) | null = null;
-
-function start(label: string, args: string, done: ((out: string, code: i32) => void) | null): void {
-  if (job !== null) { setStatus('busy: ' + label + ' not started'); return; }
-  jobOut = '';
-  jobDone = done;
-  setOutput('$ zinc ' + args + '\n');
-  setStatus(label + '…');
-  const p = proc.spawn('/bin/sh', ['-c', 'exec 2>&1\n' + q(zincBin) + ' ' + args], {});
-  job = p;
-  p.onData((chunk: string, stderr: boolean) => { jobOut += chunk; setOutput(output() + chunk); });
-  p.onExit((code: i32) => {
-    job = null;
-    setStatus(code === 0 ? 'done' : 'exit ' + code);
-    const cb = jobDone;
-    jobDone = null;
-    if (cb !== null) cb(jobOut, code);
-  });
-}
-
-const syncJobs: boolean = sys.env('ZINC_ATELIER_SYNC') !== '';  // tests: a frame waits for the job to end, so a scripted run does not depend on timing
-
-function pump(): void {
-  if (syncJobs) while (job !== null) sys.poll(5);
-}
-
-function openFile(rel: string): void {
-  setCurrent(rel);
-  setText(fs.readText(path(rel)));
-  setDirty(false);
-  setDiags([]);
-}
-
-function save(): void {
-  if (current() === '') return;
-  fs.writeText(path(current()), text());
-  setDirty(false);
-  setStatus('saved ' + current());
-}
-
-function check(): void {
-  if (current() === '') return;
-  save();
-  start('check', 'check --check ' + q(path(current())), (out: string, code: i32) => {
-    setDiags(parseDiagnostics(out));
-    setTab(code === 0 ? 'output' : 'problems');
-    if (code === 0) setOutput('no problems in ' + current() + '\n');
-  });
-}
-
-function run(extra: string): void {
-  if (current() === '') return;
-  save();
-  start('run', 'run ' + q(path(current())) + ' ' + extra + ' 2>&1', (out: string, code: i32) => {
-    if (code !== 0) setDiags(parseDiagnostics(out));
-  });
-}
-
-function profile(): void {
-  if (current() === '') return;
-  save();
-  const folded = sys.env('TMPDIR') !== '' ? sys.env('TMPDIR') + '/atelier.folded' : '/tmp/atelier.folded';
-  start('profile', 'profile ' + q(path(current())) + ' --folded ' + q(folded) + ' 2>&1', (out: string, code: i32) => {
-    if (code === 0 && fs.exists(folded)) { setHot(hottest(fs.readText(folded), 12)); setTab('profile'); }
-  });
-}
-
-function loadTrace(file: string): void {
-  if (!fs.exists(file)) { setStatus('no such trace: ' + file); return; }
-  setPhases(tracePhases(fs.readText(file)));
-  setTab('frames');
-}
-
-function stop(): void { const j = job; if (j !== null) j.kill(); }
-
-// The kit's props are read once; these rows and tabs use the host elements, whose class and text follow the signals.
-function Btn(p: { label: string; kind: string; onClick: () => void }): i32 {
-  const look = p.kind === 'primary' ? 'bg-slate-900' : p.kind === 'danger' ? 'bg-red-600' : 'bg-white border text-slate-900';
-  return <Button class={'flex-row items-center justify-center h-8 px-3 rounded-md ' + look} onClick={p.onClick}>
-    <Text class={'text-xs font-medium ' + (p.kind === 'plain' ? 'text-slate-900' : 'text-white')}>{p.label}</Text>
-  </Button>;
-}
-
-function FileRow(p: { name: string }): i32 {
-  return <Button class={'flex-row items-center justify-start h-8 px-2 rounded-md ' + (current() === p.name ? 'bg-slate-300' : 'bg-slate-100')} onClick={() => openFile(p.name)}>
-    <Text class="text-sm text-slate-900">{p.name}</Text>
-  </Button>;
-}
-
-function Tab(p: { id: string; label: () => string }): i32 {
-  return <Button class={'flex-row items-center h-8 px-3 rounded-md ' + (tab() === p.id ? 'bg-slate-300' : 'bg-slate-50')} onClick={() => setTab(p.id)}>
-    <Text class="text-xs font-medium text-slate-900">{p.label()}</Text>
-  </Button>;
-}
-
-function lastLines(t: string, n: i32): string[] {
-  const l = t.split('\n');
-  return l.length > n ? l.slice(l.length - n) : l;
-}
-
-function Bar(p: { label: string; value: number; max: number }): i32 {
-  return <View class="flex-row items-center gap-2">
-    <Text class="w-40 text-xs text-slate-700">{p.label}</Text>
-    <View class="h-3 bg-sky-500 rounded" style={{ width: Math.max(2, Math.round(p.value * 240 / Math.max(1, p.max))) }} />
-    <Text class="text-xs text-slate-500">{'' + p.value}</Text>
-  </View>;
-}
-
-function Panel(): i32 {
-  return <View class="flex-col gap-1 p-2 h-48 bg-slate-50 border-t">
-    <View class="flex-row gap-1">
-      <Tab id="output" label={() => 'Output'} />
-      <Tab id="problems" label={() => 'Problems ' + diags().length} />
-      <Tab id="profile" label={() => 'Profile'} />
-      <Tab id="frames" label={() => 'Frames'} />
-    </View>
-    <ScrollView class="flex-1">
-      <View class="flex-col gap-1">
-        {tab() === 'output' ? <View class="flex-col">{lastLines(output(), 300).map((l: string) => <Text class="text-xs font-mono text-slate-800">{l === '' ? ' ' : l}</Text>)}</View> : <View />}
-        {tab() === 'problems' ? <View class="flex-col gap-1">{diags().map((d: Diag) => <Text class="text-xs text-red-700">{d.file.split('/').pop() + ':' + d.line + ':' + d.col + ' ' + d.code + ' ' + d.message}</Text>)}</View> : <View />}
-        {tab() === 'profile' ? <View class="flex-col gap-1">{hot().map((h: Hot) => <Bar label={h.name} value={h.self} max={hot().length > 0 ? hot()[0].self : 1} />)}</View> : <View />}
-        {tab() === 'frames' ? <View class="flex-col gap-1">{phases().map((p: Phase) => <Bar label={p.name} value={p.total} max={phases().length > 0 ? phases()[0].total : 1} />)}</View> : <View />}
-      </View>
-    </ScrollView>
-  </View>;
-}
+import * as fs from 'zinc:fs';
+import * as menu from 'zinc:system/menu';
+import { stepMotion } from './app/motion';
+import { theme, bg, setTheme, DARK } from './app/theme';
+import { Buffer, setHooks, applyFocus, stepNotice, openSketch, lastSketch } from './app/workspace';
+import { findOpen, closeFind } from './app/search';
+import { COMMANDS, Command, command, commandOf, paletteMode, closePalette, PAL_CLOSED, startOpen, setStartOpen, promptLabel, answer } from './app/commands';
+import { check, stepTools, setJump } from './app/tools';
+import { stepCursors, stepMenuKeys, jumpTo, setMenuKeys, menuKey, noteKey } from './app/cursors';
+import { Header, EngineMenu, engineOpen, setEngineOpen } from './components/Header';
+import { EditorCard, stepEditor } from './components/Editor';
+import { ConsoleCard, stepConsole } from './components/Console';
+import { StartView, EXAMPLES, Example, openExample } from './components/Start';
+import { Palette } from './components/Palette';
 
 function App(): i32 {
-  return <View class="flex-row w-full h-full bg-white">
-    <View class="flex-col w-56 gap-1 p-2 bg-slate-100 border-r">
-      <Text class="text-lg font-bold text-slate-900">Zinc Atelier</Text>
-      <Text class="text-xs text-slate-500">{root}</Text>
-      <ScrollView class="flex-1">
-        <View class="flex-col gap-1">{files().map((f: string) => <FileRow name={f} />)}</View>
-      </ScrollView>
+  return <View class={`flex-col h-full ${bg(theme().chrome)}`}>
+    <Header />
+    <View class="grow flex-col px-2.5 pb-2.5 gap-2">
+      <EditorCard />
+      <ConsoleCard />
+      <StartView />
     </View>
-    <View class="flex-col flex-1">
-      <View class="flex-row items-center gap-2 p-2 border-b">
-        <Btn label="Save" kind="plain" onClick={() => save()} />
-        <Btn label="Check" kind="plain" onClick={() => check()} />
-        <Btn label="Run" kind="primary" onClick={() => run('')} />
-        <Btn label="ESP32 (emulated)" kind="plain" onClick={() => run('--target esp32 --qemu')} />
-        <Btn label="Profile" kind="plain" onClick={() => profile()} />
-        <Btn label="Stop" kind="danger" onClick={() => stop()} />
-        <Text class="flex-1 text-sm text-slate-600">{(current() === '' ? 'no file' : current()) + (dirty() ? ' *' : '')}</Text>
-        <Text class="px-2 text-xs font-medium text-slate-700">{status()}</Text>
-      </View>
-      <TextArea class="flex-1 p-2 font-mono text-sm" value={text()} onInput={(v: string) => { setText(v); setDirty(true); }} />
-      <Panel />
-    </View>
+    <EngineMenu />
+    <Palette />
   </View>;
 }
 
-if (sys.env('ZINC_ATELIER_TRACE') !== '') loadTrace(sys.env('ZINC_ATELIER_TRACE'));
-if (files().length > 0) openFile(files()[0]);
-render(App, 0xffffff, (dt: number) => { pump(); });
+// ---- the desktop menu, from the command table. On macOS it is the menu bar and it takes the shortcuts of its items;
+// elsewhere the same shortcuts are handled below and the palette lists everything.
+/** True when a real menu bar takes the shortcuts (not the recording simulator of headless and deterministic runs, which says it has every feature). */
+const menuBar: boolean = menu.native && sys.platform() === 'macos' && sys.env('ZINC_HEADLESS') === '' && sys.env('ZINC_DETERMINISTIC') === '';
+function installMenu(): void {
+  const bar: menu.Item[] = [menu.role('appMenu')];
+  for (const name of ['File', 'Edit', 'Sketch', 'Tools', 'Help']) {
+    const items: menu.Item[] = [];
+    for (const c of COMMANDS) {
+      if (c.menu !== name) continue;
+      if (c.sep) items.push(menu.separator());
+      items.push(menu.item(c.id, c.name, c.keys));
+      if (c.id === 'examples') items.push(menu.submenu('Open Example', EXAMPLES.map((e: Example) => menu.item('example:' + e.dir, e.title))));
+      if (c.id === 'redo') {
+        items.push(menu.separator());
+        items.push(menu.item('cut', 'Cut', 'CmdOrCtrl+X')); items.push(menu.item('copy', 'Copy', 'CmdOrCtrl+C'));
+        items.push(menu.item('paste', 'Paste', 'CmdOrCtrl+V')); items.push(menu.item('select-all', 'Select All', 'CmdOrCtrl+A'));
+      }
+    }
+    bar.push(menu.submenu(name, items));
+  }
+  bar.push(menu.role('windowMenu'));
+  menu.setApp(bar);
+  for (const c of COMMANDS) menu.onClick(c.id, (source: string) => c.run());
+  for (const e of EXAMPLES) menu.onClick('example:' + e.dir, (source: string) => { openExample(e.dir); });
+  // the field handles these keys itself: the item's click is replayed as the key when it was made with the mouse
+  menu.onClick('cut', (source: string) => menuKey('x', ui.META));
+  menu.onClick('copy', (source: string) => menuKey('c', ui.META));
+  menu.onClick('paste', (source: string) => menuKey('v', ui.META));
+  menu.onClick('select-all', (source: string) => menuKey('a', ui.META));
+  setMenuKeys(menuBar);
+}
+
+// ---- keyboard: what the focused field did not take. Overlays first, then the shortcuts of the command table.
+ui.onKey((e: ui.KeyEvent) => {
+  noteKey(e);
+  if (e.key === 'Escape') {
+    if (engineOpen()) setEngineOpen(false);
+    else if (paletteMode() !== PAL_CLOSED) closePalette();
+    else if (promptLabel() !== '') answer(false);
+    else if (findOpen()) closeFind();
+    else if (startOpen()) setStartOpen(false);
+    else return;
+    e.preventDefault();
+    return;
+  }
+  if (menuBar) return;
+  const c = commandOf(e);
+  if (c === null) return;
+  (c as Command).run();
+  e.preventDefault();
+});
+
+setHooks((b: Buffer) => {}, (b: Buffer) => check());
+setJump(jumpTo);
+installMenu();
+if (sys.env('ZINC_ATELIER_THEME') === 'dark') setTheme(DARK);
+
+const args = sys.args();
+let opened = false;
+if (args.length > 0 && args[0] !== '') opened = openSketch(args[0].startsWith('/') ? args[0] : sys.launchDir() + '/' + args[0]);
+if (!opened) { const last = lastSketch(); if (last !== '') opened = openSketch(last); }
+if (opened) check(); else setStartOpen(true);
+
+// ---- scripted sessions
+const scriptAt: i32[] = [], scriptDo: string[] = [];
+if (sys.env('ZINC_ATELIER_SCRIPT') !== '') {
+  for (const l of fs.readText(sys.env('ZINC_ATELIER_SCRIPT')).split('\n')) {
+    const sp = l.indexOf(' ');
+    if (sp > 0) { scriptAt.push(parseInt(l.slice(0, sp))); scriptDo.push(l.slice(sp + 1).trim()); }
+  }
+}
+let frame: i32 = 0;
+function stepScript(): void {
+  frame++;
+  for (let i = 0; i < scriptAt.length; i++) {
+    if (scriptAt[i] !== frame) continue;
+    const id = scriptDo[i];
+    if (id.startsWith('example:')) openExample(id.slice(8)); else if (!command(id)) console.log('atelier script: no command ' + id);
+  }
+}
+
+render(App, 0xf3f1ec, (dt: number) => {
+  if (scriptAt.length > 0) stepScript();
+  stepMotion(dt);
+  stepNotice(dt);
+  applyFocus();
+  stepCursors();
+  stepEditor();
+  stepTools();
+  stepConsole();
+  stepMenuKeys();
+});
