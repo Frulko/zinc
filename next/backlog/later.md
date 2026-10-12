@@ -137,6 +137,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-729.04: the engine update of `zinc device update` stops at "downloaded and verified": put the package in place and restart the agent, with a way back.
 - ZN-729.04: `zinc device deploy --key <seed>`: deploy's pack is unsigned, so it is refused over a signed app.
 - ZN-729.04: under `--no-shell`, uninstall then install replaces a signed app with anything: decide whether a signed app's uninstall needs its key.
+- ZN-729.03: `zinc dev --device` beside a deployed app of the same project: both run; stop the app for the session on a one-screen device.
+- ZN-729.03: `zinc dev --device` sends every member at its first start; keep the device's directory and compare hashes when projects reach tens of megabytes.
 - ZN-729: the pairing code on the device's screen (a Zinc window, or the app's splash) and as a QR code, for devices nobody has a terminal on.
 - ZN-729: IPv6 for the agent's listener and its discovery; today both are IPv4.
 - ZN-729: build mbedTLS with `MBEDTLS_THREADING_PTHREAD` and drop the agent's lock around its calls, when several large transfers at once are a real case (measure first).
@@ -250,6 +252,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-729.05: `tests/t1/agent_inspect.sh` on Linux and a Pi: `top`'s CPU and memory come from /proc there, the temperature from thermal_zone0 (written, never run).
 - ZN-729.04: `zinc agent install` on a Linux board: the unit loads, the agent is back after a reboot with nobody logged in, apps survive `systemctl --user restart zinc-agent`, and mDNS announces when the agent starts before the network is up (`announce` returns at once without multicast).
 - ZN-729.04: measure the 5 s trial of an update on a Pi 3 with a large `.zapp`: unpacking may outlast it, so the update would hold before its program starts.
+- ZN-729.03: `zinc dev --device` and `zinc device deploy` pack for the workstation's target; pack for the device's (its asset packs, its plugins cross-built from what `info` says), or a Mac cannot drive a Pi app that has plugins.
+- ZN-729.03: `zinc dev --device` on a real second machine over Wi-Fi: save-to-running time with megabytes of program and assets.
 - ZN-729: `zinc device` on Windows (Winsock, ConPTY for the terminal); the agent itself stays Linux and macOS.
 
 - ZN-726: museum-table's zoom on the Pi 3 (GLES 2): frame time at the ladder steps, sharpness; on a target without TrueType files a scaled text takes the nearest baked size.
@@ -284,7 +288,6 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-446: measure exec to splash on Linux desktop (X11, Wayland) and the Pi 3 (KMSDRM) with `tools/splash-time --runs 11`, record them in the task (AC #1, task in Review).
 - ZN-446: the splash on display plugins (display-fbdev before EGL/GLES, the panels, ESP32 RGB565 from flash); `showSplash` skips runs with a display plugin today.
 - ZN-446: OS splashes from the exports (iOS launch storyboard, PSP PIC1, Vita LiveArea, 3DS banner) once those exports exist.
-- ZN-450: send the asset reload messages over `zinc dev --device` (TCP instead of the socket pair).
 - ZN-570: run webenv_canvas2d and webenv_canvas2d_libs on ARM and Linux (flat-colour values come from float maths; SSIM is against the Mac's Chrome).
 - ZN-447: run the loader stage in the browser export (the worker's blocking frame loop should run it like the gfx loop) and on the ESP32 device core (it needs the asset host rows).
 - ZN-574: gamepads on Linux and Windows (frameworks and link line of the SDL joystick build, a real pad), with ZN-552's evdev hub.

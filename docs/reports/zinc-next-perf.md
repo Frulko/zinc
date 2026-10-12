@@ -733,3 +733,10 @@ Measured by the task's agent: sequence wave (854x480 H.264 at 24 pictures a seco
 - The picture alone, direct or under a scale-only matrix: 3.83 ms wall, 13.5 ms CPU on the Pi (82 ms CPU under the matrix before, taken at 1200 MHz); on the Mac 3.88 to 1.17 ms. Turned by 2 degrees it stays on the XFORM path: 51 ms of CPU.
 - Not measured: the real `/dev/fb0` (the owner's program held the screen), a fixed 1400 MHz clock.
 
+
+## The device agent on the loopback interface (ZN-729, D114, D115, 2026-10-12)
+
+- M1 Pro, `build/zinc` Release, agent and client on the same machine (`--bind 127.0.0.1`). A session with one request (`zinc device info`: connect, TLS 1.3 PSK with ECDHE, the answer): 35 ms; `zinc device shell true`: 43 ms. Pairing (EC J-PAKE): not timed apart from the 1.2 s of discovery that came before it.
+- `zinc dev --device`: a saved source runs on the device 211 to 250 ms after the save (six runs by the agent that worked ZN-729.03, 220 ms once more after integration); `zinc dev` reports the start 77 to 85 ms after the save, the red box of a compile error 112 to 119 ms, a saved asset sent in 35 ms. All of it with a load average of 7 to 10 (other trees building): to take again on a quiet machine.
+- The agent and its client: 227 KB of code in `zinc` before ZN-729.03 to .05 (not measured after).
+- Not measured: anything over a real network, on Linux or on a Raspberry Pi; large transfers; several sessions at once (they share one lock around mbedTLS).

@@ -2,8 +2,8 @@
 
 What adb is to Android, for a machine that runs Zinc, over the network (ZN-729, owner 2026-10-12). `zinc agent` is a daemon without a
 UI on a Linux or macOS machine: the device. `zinc device` is the client on the workstation; Atelier will drive the same client
-(ZN-729.06). Code: `next/src/agent/` (`agent.h` is the public header). Tests: `next/tests/t0/agent.sh`, `next/tests/t1/agent_apps.sh`,
-both on the loopback interface. Decision record: D113.
+(ZN-729.06). Code: `next/src/agent/` (`agent.h` is the public header). Tests: `next/tests/t0/agent.sh` and, in `next/tests/t1/`,
+`agent_apps.sh`, `agent_dev.sh`, `agent_inspect.sh`, `agent_ota.sh`, all on the loopback interface. Decision record: D114.
 
 ## Use
 
@@ -229,7 +229,7 @@ past 4 MiB: the last 1 MiB goes to `<name>.log.1`), `run/<name>.pid` (the pid, t
 - An app's CPU and memory are those of the first 256 processes of its group (macOS).
 - Linux and macOS (POSIX sockets, `forkpty`): the Windows client is part of the cross-platform pass.
 
-## Next (ZN-729.03 to .06)
+## Next
 
-`zinc dev --device` (reload at every save, assets swapped live), the agent as a service with signed OTA updates and rollback, the
-inspector, capture and telemetry (`inspect`, `shot`, `monitor`, `top`), and Atelier's devices panel.
+Atelier's devices panel (ZN-729.06, after ZN-728). Open: the start of the service at login run for real (ZN-729.04, in review), and
+everything on Linux, a Raspberry Pi and a second machine (the cross-platform pass in `next/backlog/later.md`).
