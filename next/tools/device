@@ -29,8 +29,8 @@ HOME = os.environ.get("ZINC_HOME", os.path.expanduser("~/.zinc"))
 SSH = ["ssh", "-o", "ConnectTimeout=8", "-o", "BatchMode=yes"]
 # uname -m -> (the zig target of src/tc, the --target of zinc export)
 ARCH = {"aarch64": ("aarch64-linux", "linux"), "armv7l": ("armv7-linux", "rpi2"), "armv6l": ("armhf-linux", "rpi1")}
-# the programs under ~/zn: a process whose working directory is there
-PIDS = 'for p in $(pgrep -u "$USER"); do case "$(readlink /proc/$p/cwd 2>/dev/null)" in "$HOME/zn/%s") echo $p;; esac; done'
+# the programs under ~/zn: a process whose working directory is there (%s: a name, or * for all of them; outside the quotes, or * is not a pattern)
+PIDS = 'for p in $(pgrep -u "$USER"); do case "$(readlink /proc/$p/cwd 2>/dev/null)" in "$HOME"/zn/%s) echo $p;; esac; done'
 
 
 def die(msg):
@@ -156,7 +156,9 @@ def cmd_push(dev, args):
 
 
 def cmd_stop(dev, args):
-    ssh(dev, "for p in $(" + PIDS % "*" + "); do kill $p; done; sleep 1", check=False)
+    out = ssh(dev, "for p in $(" + PIDS % "*" + "); do echo \"stopped: pid $p $(readlink /proc/$p/cwd)\"; kill $p; done; sleep 1; for p in $(" + PIDS % "*" + "); do kill -9 $p; echo \"killed: pid $p\"; done", check=False)
+    if out.strip():
+        print(out.rstrip())
 
 
 def cmd_run(dev, args):
