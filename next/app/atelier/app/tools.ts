@@ -205,6 +205,7 @@ export function stop(): void {
 export function running(): boolean { return child !== null; }
 /** Atelier is leaving: the sketch (or its build) and the inspector end with it. */
 export function stopAll(): void {
+  if (echo) console.log('[status] Leaving');
   stop();
   closeInspector();
 }
