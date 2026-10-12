@@ -7,7 +7,7 @@ import { active, activate, Buffer, closeBuffer, cycle, saveAll, say, newSketch, 
   sketchDir, sketchbook, mainFile, openFile } from './workspace';
 import { openFind } from './search';
 import { toggleTheme } from './theme';
-import { run, stop, check, showConsole, consoleOpen, clearConsole, loadLibraries, importLine, setEngine, ENGINES, ZINC } from './tools';
+import { run, stop, check, openInspector, inspectorPort, showConsole, consoleOpen, clearConsole, loadLibraries, importLine, setEngine, ENGINES, ZINC } from './tools';
 import { editCommand, setText, menuKey } from './cursors';
 
 export class Command {
@@ -145,6 +145,7 @@ add('Tools', 'palette', 'Command Palette…', 'CmdOrCtrl+Shift+P', () => openPal
 add('Tools', 'console', 'Show or Hide the Console', 'CmdOrCtrl+J', () => showConsole(!consoleOpen()));
 add('Tools', 'clear', 'Clear the Console', '', () => clearConsole());
 add('Tools', 'check', 'Check the Sketch', '', () => { saveAll(); check(); });
+add('Tools', 'inspector', 'Open the Inspector', '', () => { if (inspectorPort() > 0) openInspector(); else say('Debug the sketch first (⌘⇧R): the inspector opens on a running interface'); });
 add('Tools', 'theme', 'Light or Dark', '', () => toggleTheme(), true);
 add('Tools', 'next-tab', 'Next Tab', 'CmdOrCtrl+Shift+BracketRight', () => cycle(1), true);
 add('Tools', 'prev-tab', 'Previous Tab', 'CmdOrCtrl+Shift+BracketLeft', () => cycle(-1));

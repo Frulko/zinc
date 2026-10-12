@@ -122,6 +122,18 @@ export function cycle(step: i32): void {
   activate(list[(i + step + list.length) % list.length]);
 }
 
+/** Where this app's own files are (its examples, the inspector beside it): the working directory when zinc runs the project, else
+ *  found from the launch directory or the binary. '' when not found. */
+function appHome(): string {
+  const bin = sys.env('ZINC_BIN'), up = bin.lastIndexOf('/build/');
+  const cands: string[] = ['.', sys.launchDir() + '/next/app/atelier', sys.launchDir() + '/app/atelier', sys.launchDir()];
+  if (up > 0) cands.push(bin.slice(0, up) + '/app/atelier');
+  if (bin !== '') cands.push(bin.slice(0, bin.lastIndexOf('/')) + '/../Resources/zinc/next/app/atelier');
+  for (const c of cands) if (fs.exists(c + '/examples/index.txt')) { try { return fs.realpath(c); } catch (e) { return c; } }
+  return '';
+}
+export const APP_HOME: string = appHome();
+
 // ---------------------------------------------------------------- the sketch
 export const [sketchDir, setSketchDir] = createSignal<string>('');
 export function sketchName(): string { return sketchDir() === '' ? 'No sketch' : baseName(sketchDir()); }
@@ -174,12 +186,19 @@ export function openSketch(dir: string): boolean {
   for (const n of sketchFiles(d)) if (n !== main && (n.endsWith('.ts') || n.endsWith('.tsx') || n.endsWith('.js'))) openFile(d + '/' + n, false);
   const first = buffers();
   if (first.length > 0) activate(first[0]);
-  try { fs.mkdir(sketchbook(), true); fs.writeText(sketchbook() + '/.last', d); } catch (e) { }
+  try { fs.writeText(lastFile(), d); } catch (e) { }
   return true;
+}
+/** Where the path of the last sketch is kept: with zinc's own files (~/.zinc), or in the sketchbook a test names. */
+function lastFile(): string {
+  const book = sys.env('ZINC_ATELIER_HOME'), home = sys.env('ZINC_HOME') !== '' ? sys.env('ZINC_HOME') : sys.env('HOME') + '/.zinc';
+  const dir = book !== '' ? book : home;
+  fs.mkdir(dir, true);
+  return dir + (book !== '' ? '/.last' : '/atelier.last');
 }
 /** The sketch opened last time ('' when none, or gone). */
 export function lastSketch(): string {
-  try { const d = fs.readText(sketchbook() + '/.last').trim(); return isDir(d) ? d : ''; } catch (e) { return ''; }
+  try { const d = fs.readText(lastFile()).trim(); return isDir(d) ? d : ''; } catch (e) { return ''; }
 }
 
 /** A folder name that is free in the sketchbook: `base`, else base_2, base_3... */

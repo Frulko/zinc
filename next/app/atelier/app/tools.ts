@@ -3,9 +3,10 @@
 // The binary is $ZINC_BIN (the zinc that started Atelier exports it), else `zinc` on the PATH.
 import { createSignal } from 'zinc:ui/solid';
 import * as sys from 'zinc:sys';
+import * as fs from 'zinc:fs';
 import * as proc from 'zinc:process';
 import { Spring } from './motion';
-import { Buffer, Diagnostic, buffers, saveAll, sketchDir, mainFile, openFile, say } from './workspace';
+import { Buffer, Diagnostic, buffers, saveAll, sketchDir, mainFile, openFile, say, APP_HOME } from './workspace';
 import { parseDiagnostics, Diag } from '../model';
 
 export const ZINC: string = sys.env('ZINC_BIN') !== '' ? sys.env('ZINC_BIN') : 'zinc';
@@ -14,9 +15,12 @@ const SCRUB: string[] = ['ZINC_SHOT', 'ZINC_SHOT_FRAMES', 'ZINC_INPUT', 'ZINC_SI
 function zinc(args: string[], cwd: string): proc.Process {
   const a: string[] = [];
   for (const v of SCRUB) { a.push('-u'); a.push(v); }
+  a.push('ZINC_STEPS=' + (args[0] === 'run' || args[0] === 'dev' ? '1' : '0'));   // the steps of a build are what the console shows; a check or a list is read whole
   a.push(ZINC);
   return proc.spawn('/usr/bin/env', a.concat(args), { cwd: cwd });
 }
+
+const echo: boolean = sys.env('ZINC_ATELIER_ECHO') !== '';   // tests read the console and the status line on Atelier's own output
 
 // ---------------------------------------------------------------- console
 export const K_OUT: i32 = 0, K_STAGE: i32 = 1, K_ERR: i32 = 2, K_CMD: i32 = 3, K_END: i32 = 4;
@@ -79,7 +83,6 @@ function add(l: Line): void {
   follow = 2;
   if (echo) console.log('[console] ' + l.text);
 }
-const echo: boolean = sys.env('ZINC_ATELIER_ECHO') !== '';   // tests read the console on Atelier's own output
 export function clearConsole(): void { buf = []; setLines([]); }
 export function consoleText(): string { return buf.map((l: Line) => l.text).join('\n'); }
 
@@ -104,7 +107,7 @@ export const [debugging, setDebugging] = createSignal<boolean>(false);
 /** The status line: what happened last. kind 0 quiet, 1 good, 2 bad. */
 export const [status, setStatusText] = createSignal<string>('Ready');
 export const [statusKind, setStatusKind] = createSignal<i32>(0);
-function setStatus(s: string, kind: i32): void { setStatusText(s); setStatusKind(kind); }
+function setStatus(s: string, kind: i32): void { setStatusText(s); setStatusKind(kind); if (echo) console.log('[status] ' + s); }
 
 /** How the sketch runs: the choices of the run control's menu and their `zinc run` arguments. */
 export const ENGINES: string[] = ['Native', 'Interpreter', 'QuickJS', 'ESP32 emulator'];
@@ -117,6 +120,9 @@ let again: i32 = -1;   // a run asked while one was ending: 0 run, 1 debug
 
 function onLine(text: string, stderr: boolean): void {
   if (text.startsWith('zinc run ') || text.startsWith('zinc dev ')) return;   // the command, already shown
+  // `zinc dev` of a program with an interface: "zinc devtools: chrome://inspect (Discover network targets: localhost:9229) or ws://..."
+  const dt = text.startsWith('zinc devtools:') ? text.indexOf('localhost:') : -1;
+  if (dt > 0 && debugging()) { setInspectorPort(parseInt(text.slice(dt + 10))); openInspector(); }
   const l = classify(text, stderr);
   if (l.kind === K_STAGE) {
     const name = text.trim().split(' ')[0];
@@ -146,7 +152,7 @@ export function run(debug: boolean = false): void {
     p.onExit((code: i32) => {
       child = null;
       const ran = phase() === RUNNING;
-      setPhase(IDLE); setStage(''); setDebugging(false);
+      setPhase(IDLE); setStage(''); setDebugging(false); closeInspector();
       if (stopped) setStatus('Stopped', 0);
       else if (code === 0) setStatus('Finished', 1);
       else { setStatus(ran ? `Exited with code ${code}` : 'Build failed', 2); showConsole(true); }
@@ -162,6 +168,30 @@ export function run(debug: boolean = false): void {
     showConsole(true);
   }
 }
+// ---- Debug: the sketch runs under `zinc dev` (it restarts at every save, a compile error stays on its screen) and, when it
+// has an interface, the Zinc Inspector (the app beside this one) opens on its DevTools port: elements, styles, console, frames.
+/** The port of the running sketch's inspector, 0 when it has none. */
+export const [inspectorPort, setInspectorPort] = createSignal<i32>(0);
+let inspector: proc.Process | null = null;
+export function openInspector(): void {
+  if (inspectorPort() === 0 || inspector !== null) return;
+  const app = APP_HOME + '/../inspector/main.tsx';
+  if (APP_HOME === '' || !fs.exists(app)) { add(new Line(`inspector: chrome://inspect, Discover network targets: localhost:${inspectorPort()}`, K_STAGE)); return; }
+  try {
+    const p = zinc(['run', app, '--', `${inspectorPort()}`], '');
+    inspector = p;
+    add(new Line(`inspector: opened on port ${inspectorPort()}`, K_STAGE));
+    p.onStdout((l: string) => { add(new Line('inspector: ' + l, K_STAGE)); });
+    p.onExit((code: i32) => { if (inspector === p) inspector = null; });
+  } catch (e) { inspector = null; }
+}
+function closeInspector(): void {
+  const p = inspector;
+  inspector = null;
+  setInspectorPort(0);
+  if (p !== null) (p as proc.Process).kill();
+}
+
 let killAt: number = 0;
 /** Ends the program (or the build): SIGTERM, then SIGKILL two seconds later if it is still there. */
 export function stop(): void {
@@ -231,8 +261,10 @@ export function loadLibraries(): void {
     p.onExit((code: i32) => {
       checks--;
       const list: Library[] = [];
+      let table = false;
       for (const l of out.split('\n')) {
-        if (!l.startsWith('  ') || l.startsWith('  display:')) continue;
+        if (l.startsWith('plugin (')) { table = true; continue; }   // the header of the table
+        if (!table || !l.startsWith('  ') || l.startsWith('  display:')) continue;
         const t = l.trim(), sp = t.indexOf(' ');
         if (sp < 0) continue;
         // name, targets, description: columns separated by runs of spaces

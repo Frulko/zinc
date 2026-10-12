@@ -5,12 +5,13 @@
 // It drives the zinc binary it runs on ($ZINC_BIN): zinc run, zinc dev, zinc check, zinc plugins.
 // Tests: ZINC_ATELIER_HOME (the sketchbook), ZINC_ATELIER_SYNC=1 (a frame waits for the child), ZINC_ATELIER_PACE=ms (a frame
 // lasts that long), ZINC_ATELIER_ECHO=1 (the console on stdout), ZINC_ATELIER_THEME=dark, ZINC_ATELIER_SCRIPT=file (a session:
-// `<frame> <command id>` or `<frame> example:<folder>` per line, run at that frame as the menu item would be).
+// `<frame> <command id>`, `<frame> example:<folder>` or `<frame> quit` per line, run at that frame as the menu item would be).
 import { render } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import * as sys from 'zinc:sys';
 import * as fs from 'zinc:fs';
 import * as menu from 'zinc:system/menu';
+import { quit } from 'zinc:gfx';
 import { stepMotion } from './app/motion';
 import { theme, bg, setTheme, DARK } from './app/theme';
 import { Buffer, setHooks, applyFocus, stepNotice, openSketch, lastSketch } from './app/workspace';
@@ -115,7 +116,7 @@ function stepScript(): void {
   for (let i = 0; i < scriptAt.length; i++) {
     if (scriptAt[i] !== frame) continue;
     const id = scriptDo[i];
-    if (id.startsWith('example:')) openExample(id.slice(8)); else if (!command(id)) console.log('atelier script: no command ' + id);
+    if (id === 'quit') quit(); else if (id.startsWith('example:')) openExample(id.slice(8)); else if (!command(id)) console.log('atelier script: no command ' + id);
   }
 }
 

@@ -6,7 +6,7 @@ import { createNodeRef, createEffect } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import { theme, bg, fg, bd } from '../app/theme';
 import { active, Buffer, notice, focusLater } from '../app/workspace';
-import { lines, Line, K_OUT, K_ERR, jump, consoleH, consoleOpen, showConsole, takeFollow, status, statusKind, phase, IDLE, BUILDING } from '../app/tools';
+import { lines, Line, K_OUT, K_ERR, jump, consoleH, consoleOpen, showConsole, takeFollow, status, statusKind, phase, IDLE, BUILDING, inspectorPort, openInspector } from '../app/tools';
 import { promptLabel, promptValue, setPromptValue, answer } from '../app/commands';
 import { jumpTo } from '../app/cursors';
 import { caretInfo } from './Editor';
@@ -84,6 +84,10 @@ function StatusLine(): i32 {
     {problems()[0] > 0 && !asking() && <View class={`flex-row items-center h-[24] px-2.5 gap-1.5 rounded-full cursor-pointer ${bg(theme().errorSoft)}`}
       onPointerDown={(e: ui.PointerEvent) => { const p = problems(), b = active(); if (b !== null) jumpTo(b as Buffer, p[1], p[2]); }}>
       <Text class={`text-[12px] font-medium ${fg(theme().error)}`}>{`${problems()[0]} problem${problems()[0] > 1 ? 's' : ''}`}</Text>
+    </View>}
+    {inspectorPort() > 0 && !asking() && <View class={`flex-row items-center h-[24] px-2.5 rounded-full cursor-pointer ${bg(theme().accentSoft)}`}
+      onPointerDown={(e: ui.PointerEvent) => openInspector()}>
+      <Text class={`text-[12px] font-medium ${fg(theme().accent)}`}>{`Inspector · port ${inspectorPort()}`}</Text>
     </View>}
     {active() !== null && <Text class={`text-[12px] ${fg(theme().faint)}`}>{place()}</Text>}
     {consoleOpen() ? <IconButton kind={I_DOWN} size={14} onPress={() => showConsole(false)} /> : <IconButton kind={I_UP} size={14} onPress={() => showConsole(true)} />}

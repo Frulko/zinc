@@ -6,7 +6,7 @@ import * as fs from 'zinc:fs';
 import * as sys from 'zinc:sys';
 import { imageFromBytes, drawImage, rrect, border } from 'zinc:gfx';
 import { theme, bg, fg, bd } from '../app/theme';
-import { newSketch, openCopy, sketchbook, say } from '../app/workspace';
+import { newSketch, openCopy, sketchbook, say, APP_HOME } from '../app/workspace';
 import { startOpen, setStartOpen } from '../app/commands';
 import { Glyph } from './Controls';
 import { I_PLUS } from './icons';
@@ -16,23 +16,13 @@ export class Example {
   image: i32 = -2;   // -2 not loaded yet, -1 no picture
   constructor(dir: string, title: string, text: string) { this.dir = dir; this.title = title; this.text = text; }
 }
-/** Where this app's own files are: the working directory when zinc runs the project, else found from the launch directory or the binary. */
-function home(): string {
-  const bin = sys.env('ZINC_BIN'), up = bin.lastIndexOf('/build/');
-  const cands: string[] = ['.', sys.launchDir() + '/next/app/atelier', sys.launchDir() + '/app/atelier', sys.launchDir()];
-  if (up > 0) cands.push(bin.slice(0, up) + '/app/atelier');
-  if (bin !== '') cands.push(bin.slice(0, bin.lastIndexOf('/')) + '/../Resources/zinc/next/app/atelier');
-  for (const c of cands) if (fs.exists(c + '/examples/index.txt')) return c;
-  return '';
-}
-const HOME: string = home();
 function load(): Example[] {
   const out: Example[] = [];
-  if (HOME === '') return out;
+  if (APP_HOME === '') return out;
   try {
-    for (const l of fs.readText(HOME + '/examples/index.txt').split('\n')) {
+    for (const l of fs.readText(APP_HOME + '/examples/index.txt').split('\n')) {
       const p = l.split('|');
-      if (p.length >= 3 && fs.exists(`${HOME}/examples/${p[0]}`)) out.push(new Example(p[0], p[1], p[2]));
+      if (p.length >= 3 && fs.exists(`${APP_HOME}/examples/${p[0]}`)) out.push(new Example(p[0], p[1], p[2]));
     }
   } catch (e) { }
   return out;
@@ -40,7 +30,7 @@ function load(): Example[] {
 export const EXAMPLES: Example[] = load();
 /** Opens a copy of an example by its folder name; false when there is none. */
 export function openExample(dir: string): boolean {
-  for (const e of EXAMPLES) if (e.dir === dir) { if (openCopy(`${HOME}/examples/${e.dir}`)) setStartOpen(false); return true; }
+  for (const e of EXAMPLES) if (e.dir === dir) { if (openCopy(`${APP_HOME}/examples/${e.dir}`)) setStartOpen(false); return true; }
   say(`No example named ${dir}`);
   return false;
 }
@@ -48,7 +38,7 @@ export function openExample(dir: string): boolean {
 function picture(e: Example): i32 {
   if (e.image === -2) {
     e.image = -1;
-    try { e.image = imageFromBytes(fs.readBytes(`${HOME}/thumbs/${e.dir}.png`)); } catch (x) { }
+    try { e.image = imageFromBytes(fs.readBytes(`${APP_HOME}/thumbs/${e.dir}.png`)); } catch (x) { }
   }
   return e.image;
 }
