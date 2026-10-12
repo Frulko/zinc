@@ -2441,7 +2441,7 @@ export function isKnownClass(tok: string): boolean { return applyToken(new UiNod
 
 // ---------------------------------------------------------------- layout (UI-08)
 // Child lists of the layout passes: one per depth of the recursion, emptied and reused (a relayout allocates none).
-const mKids: UiNode[][] = [], mAbs: UiNode[][] = [], pKids: UiNode[][] = [], pAbs: UiNode[][] = [];
+const mKids: UiNode[][] = [], pKids: UiNode[][] = [], pAbs: UiNode[][] = [];
 let mDepth: i32 = 0, pDepth: i32 = 0;
 function pooled(pool: UiNode[][], d: i32): UiNode[] {
   if (pool.length <= d) pool.push([]);
@@ -2657,8 +2657,9 @@ function outerW(c: UiNode): number { return c.lw + c.ml + c.mr; }
 function outerH(c: UiNode): number { return c.lh + c.mt + c.mb; }
 let pctBase: number = -1;   // the width a percent width is taken of: the container's content width, whatever margins the child has (CSS)
 function measure(n: UiNode, maxW: number, maxH: number): void {
-  const ownW: number = n.w >= 0 ? n.w : n.wFrac > 0 ? Math.round((pctBase >= 0 ? pctBase : maxW) * n.wFrac) : -1;
+  let ownW: number = n.w >= 0 ? n.w : n.wFrac > 0 ? Math.round((pctBase >= 0 ? pctBase : maxW) * n.wFrac) : -1;
   pctBase = -1;
+  if (n.maxW >= 0) { if (maxW > n.maxW) maxW = n.maxW; if (ownW > n.maxW) ownW = n.maxW; }   // a box with a max-width never ends wider: what wraps in it is measured for that width, not for the one offered (ZN-737)
   const ownH: number = n.h >= 0 ? n.h : n.hFrac > 0 ? Math.round(maxH * n.hFrac) : -1;
   if (n.tag === TEXT) {
     inheritText(n);
@@ -2680,7 +2681,7 @@ function measure(n: UiNode, maxW: number, maxH: number): void {
     n.lw = ownW >= 0 ? ownW : ownH >= 0 && ih > 0 ? Math.round(ownH * iw / ih) : n.fullW ? 0 : iw;
     n.lh = ownH >= 0 ? ownH : ownW >= 0 && iw > 0 ? Math.round(ownW * ih / iw) : n.fullH ? 0 : ih;
   } else {
-    const kids = pooled(mKids, mDepth), abs = pooled(mAbs, mDepth);
+    const kids = pooled(mKids, mDepth);
     mDepth++;
     flat(n, kids, false);
     orderKids(kids);
@@ -2730,9 +2731,7 @@ function measure(n: UiNode, maxW: number, maxH: number): void {
     cross += lineCross;
     n.lw = (n.row ? main : cross) + n.pl + n.pr;
     n.lh = (n.row ? cross : main) + n.pt + n.pb;
-    flat(n, abs, true);
-    for (const c of abs) measure(c, inner, innerH);
-    mDepth--;
+    mDepth--;   // (the absolute children are measured by place(), for the box this node ends with)
   }
   if (n.scroll !== 0) {
     // the viewport is sized by its constraints (grow / full / fixed), the content keeps its natural size
@@ -2906,6 +2905,11 @@ function place(n: UiNode, x: number, y: number, vw: number, vh: number): void {
   }
   flat(n, abs, true);
   for (const c of abs) {
+    // An absolute child is measured here, for the box its parent ends with, not in measure(), for the box its parent was offered: a parent that ends narrower
+    // (a column that grows beside a bar, with screens stacked `absolute inset-0` in it) had its screens measured for a width they never get, with fewer lines
+    // in a flex-wrap and percent widths too large, and a scroll area in them took its content for shorter than it is placed and stopped before its end (ZN-737).
+    const bw: number = c.left !== UNSET && c.right !== UNSET ? w - c.left - c.right : c.fullW ? w : iw, bh: number = c.top !== UNSET && c.bottom !== UNSET ? h - c.top - c.bottom : c.fullH ? h : ih;
+    measure(c, bw, bh);
     let cw: number = c.fullW ? w : c.lw;
     let ch: number = c.fullH ? h : c.lh;
     if (c.left !== UNSET && c.right !== UNSET) cw = w - c.left - c.right;
