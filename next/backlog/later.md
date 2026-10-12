@@ -210,6 +210,10 @@ The next backlog review turns lines into tasks or deletes them.
 
 ## Cross-platform pass
 
+- ZN-334: display-gl's GL renderer on VideoCore IV (Pi 3, GLES 2) is GPU-bound: hero's navigation takes 184 ms of present a frame (63 draw calls, 6313 quads, the CPU idle at 89%) against 43 ms for the software bands on four cores (docs/reports/raspberry-pi.md, 2026-10-12). A GLES 2 path with cheap fragment shaders (4x MSAA resolves on a tiler instead of distance fringes, plain triangulated fills, fewer passes) is what would put the map on the GPU there.
+- ZN-334: display-gl defaults to `renderer: "cpu"`, which rasterizes on one core and uploads a texture: on a Pi it is slower than display-fbdev's bands (142 against 43 ms). Run its software path through render_bands.h, or make the default follow a measured choice per target.
+- ZN-334: hero and museum-table name no Linux display that suits every board (hero: fbdev; museum-table: none, exported with ZINC_DISPLAY). Decide the default driver of the `linux`/`rpi` targets once the two above are measured at full clock.
+
 - ZN-722: optional resource diagnostic hooks and CDP snapshots on Windows/Linux/mobile during the final target pass; only the development Mac was checked.
 
 - ZN-576: tests/golden/webgl/antialias.js expects a multisampled canvas; on a GLES 2 context (Pi 3) antialias is reported false, so the golden needs a GLES 2 variant there.

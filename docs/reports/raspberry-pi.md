@@ -194,3 +194,29 @@ ARM clock 600 MHz for the whole run (`get_throttled` 0x50005: under-voltage), p5
   cross-built yet (its EGL, GLES, GBM and DRM packages are the sysroot of ZN-334).
 - Not measured: the same run with a proper supply (the clock ratio alone would give about 40 fps; the prototype reached 28 to 30 at 1.4 GHz), other points of the route, the real
   `/dev/fb0` (the on-screen HUD showed 11 fps on the quays, with the HUD's own cost).
+
+### The GPU on the same run: display-gl on VideoCore IV (2026-10-12)
+
+hero exported with `ZINC_DISPLAY=gl` (`display-gl: 800x480@60, VC4 V3D 2.1`; its EGL, GLES, GBM and DRM come from the sysroot, taken from the
+Pi with `tools/device <pi> sysroot libegl-dev libgles-dev libgbm-dev libdrm-dev libgl-dev`), same driving run, 260 frames, clock 600 to 700 MHz,
+p50 in ms:
+
+| display, renderer | present | paint | what draws |
+| --- | --- | --- | --- |
+| fbdev, 4 threads | 43.3 | 12.7 | software bands on four cores |
+| gl, `renderer: "cpu"` (the driver's default) | 142.6 | 13.1 | the software rasterizer on one core, uploaded as a texture |
+| gl, `ZINC_RENDERER=gl`, before the fix below | 186.4 | 11.2 | 23 draw calls, 987 quads, 5.5 LINE/POLY tiles filled on the CPU a frame; 115 ms of CPU to submit |
+| gl, `ZINC_RENDERER=gl`, with a stencil buffer | 183.9 | 11.0 | 64 draw calls, 6313 quads, no CPU tile; 29 ms of CPU to submit |
+
+- **A bug**: `plugins/display-gl/src/kms.cpp` chose its EGL config without naming a stencil size, and eglChooseConfig lists the smallest stencil
+  first: the context had none, so every LINE and POLY of the map was filled in a CPU tile on one core and uploaded (`glr::draw_poly`, 5 of 16
+  sampled stacks). The config now asks for 8 stencil bits first. CPU time to submit a frame: 115 to 29 ms.
+- **The GPU is then the limit**: the frame still takes 184 ms while the process uses 11% of one core (9% user, 2% kernel, over 10 s): it waits
+  for the GPU. The renderer's fills (stencil then cover, distance fringes computed by the fragment shader) were written and measured on desktop
+  GL; VideoCore IV does not keep up with them. On this board the software bands are four times faster for the map.
+- Not measured: the UI screens (rectangles, text, images) on the GL renderer, where the fragment work is much lighter; the split between the
+  GPU's passes (no timer query on this driver).
+- The firmware's memory split (`gpu_mem`, 76 MB here) is not involved: with `vc4-kms-v3d` the GPU's buffers come from the kernel's CMA
+  (256 MB, 115 MB free during the run).
+
+The tools of this session are kept in `next/tools/device` (status, sysroot, push, run, shot, profile, stacks) for the next boards.

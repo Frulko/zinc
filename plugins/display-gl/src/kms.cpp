@@ -180,11 +180,14 @@ bool zgl_backend_init(const HalConfig* cfg) {
   dpy = platform ? platform(EGL_PLATFORM_GBM_KHR, gbm, nullptr) : eglGetDisplay((EGLNativeDisplayType)gbm);
   if (!eglInitialize(dpy, nullptr, nullptr)) { fprintf(stderr, "display-gl: eglInitialize failed\n"); return false; }
   eglBindAPI(EGL_OPENGL_ES_API);
-  // a depth buffer lets the GL renderer skip what opaque rectangles hide (ZN-412.01); a config without one is taken when there is none
+  // a depth buffer lets the GL renderer skip what opaque rectangles hide (ZN-412.01); a config without one is taken when there is none.
+  // 8 stencil bits are asked for first: without them the renderer fills LINE and POLY in CPU tiles (eglChooseConfig puts the configs with the
+  // smallest stencil first, so a list that does not name it gets none: a Pi 3 drew the map of the navigation on one core)
   EGLConfig cfgs[64], chosen = nullptr;
-  for (int depth = 16; depth >= 0 && !chosen; depth -= 16) {
+  for (int k = 0; k < 4 && !chosen; k++) {
+    const int depth = k & 1 ? 0 : 16, stencil = k & 2 ? 0 : 8;
     const EGLint attr[] = {EGL_SURFACE_TYPE, EGL_WINDOW_BIT, EGL_RED_SIZE, 8, EGL_GREEN_SIZE, 8, EGL_BLUE_SIZE, 8, EGL_ALPHA_SIZE, 0, EGL_DEPTH_SIZE, depth,
-                           EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT, EGL_NONE};
+                           EGL_STENCIL_SIZE, stencil, EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT, EGL_NONE};
     EGLint n = 0;
     eglChooseConfig(dpy, attr, cfgs, 64, &n);
     for (int i = 0; i < n && !chosen; i++) {
