@@ -50,8 +50,9 @@ export const SYMBOLS2: string[] = [
 ];
 /** Digit pads for inputMode numeric / decimal / tel. */
 export const NUMERIC: string[] = ['1 2 3', '4 5 6', '7 8 9', '{hide} 0 {bksp}'];
-export const DECIMAL: string[] = ['1 2 3', '4 5 6', '7 8 9', ', 0 . {bksp}'];
-export const PHONE: string[] = ['1 2 3', '4 5 6', '7 8 9', '* 0 # {bksp}', '+ {space:2} {enter}'];
+// every pad has the {hide} key, like the letters: the handle above the keys is small under a finger
+export const DECIMAL: string[] = ['1 2 3', '4 5 6', '7 8 9', '{hide} , 0 . {bksp}'];
+export const PHONE: string[] = ['1 2 3', '4 5 6', '7 8 9', '* 0 # {bksp}', '{hide} + {space:2} {enter}'];
 
 const LATIN_ACCENTS = 'a:àáâäæãåā c:çćč e:éèêëēėę i:îïíīįì n:ñń o:ôöòóœøōõ s:ßśš u:ûüùúū y:ÿ z:žźż';
 
