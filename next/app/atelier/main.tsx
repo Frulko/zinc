@@ -7,7 +7,7 @@
 // lasts that long), ZINC_ATELIER_ECHO=1 (the console on stdout), ZINC_ATELIER_THEME=dark, ZINC_ATELIER_SCRIPT=file (a session:
 // `<frame> <command id>`, `<frame> example:<folder>` or `<frame> quit` per line, run at that frame as the menu item would be;
 // for the devices panel `<frame> pair:<name or address> <code>` fills its form and pairs, `<frame> device:<name>` is a press on
-// that device, `<frame> clipboard` prints what the clipboard holds, and `<frame> wait:<text>` holds the frame until the console, the status line or the panel says it, 10 s at most),
+// that device, `<frame> clipboard` prints what the clipboard holds, `<frame> permission:<id>` allows or removes a permission of the project, and `<frame> wait:<text>` holds the frame until the console, the status line or the panel says it, 10 s at most),
 // ZINC_ATELIER_BROWSE=ms (how long the list of devices waits for the network; 0: the paired ones only).
 import { render } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
@@ -31,6 +31,8 @@ import { ConsoleCard, stepConsole } from './components/Console';
 import { StartView, EXAMPLES, Example, openExample } from './components/Start';
 import { Palette } from './components/Palette';
 import { DevicesPanel } from './components/Devices';
+import { ProjectCard } from './components/Project';
+import { projectOpen, setProjectOpen, projectText, togglePermission } from './app/project';
 
 function App(): i32 {
   return <View class={`flex-col h-full ${bg(theme().chrome)}`}>
@@ -42,6 +44,7 @@ function App(): i32 {
     </View>
     <EngineMenu />
     <DevicesPanel />
+    <ProjectCard />
     <Palette />
   </View>;
 }
@@ -86,6 +89,7 @@ ui.onKey((e: ui.KeyEvent) => {
     if (engineOpen()) setEngineOpen(false);
     else if (paletteMode() !== PAL_CLOSED) closePalette();
     else if (devicesOpen()) closeDevices();
+    else if (projectOpen()) setProjectOpen(false);
     else if (promptLabel() !== '') answer(false);
     else if (findOpen()) closeFind();
     else if (startOpen()) setStartOpen(false);
@@ -128,7 +132,7 @@ if (sys.env('ZINC_ATELIER_SCRIPT') !== '') {
   }
 }
 let frame: i32 = 0;
-function says(text: string): boolean { return consoleText().indexOf(text) >= 0 || status().indexOf(text) >= 0 || panelText().indexOf(text) >= 0; }
+function says(text: string): boolean { return consoleText().indexOf(text) >= 0 || status().indexOf(text) >= 0 || panelText().indexOf(text) >= 0 || projectText().indexOf(text) >= 0; }
 function stepScript(): void {
   frame++;
   for (let i = 0; i < scriptAt.length; i++) {
@@ -138,6 +142,7 @@ function stepScript(): void {
     else if (id.startsWith('example:')) openExample(id.slice(8));
     else if (id.startsWith('pair:')) { const w = id.slice(5).split(' '); setWho(w[0]); setCode(w.length > 1 ? w[1] : ''); pair(); }
     else if (id.startsWith('device:')) choose(id.slice(7));
+    else if (id.startsWith('permission:')) togglePermission(id.slice(11));   // the project card: allows it, or removes it
     else if (id === 'clipboard') console.log('[clipboard] ' + clipboardText().split('\n').join(' | '));   // what a copy took, for the tests
     else if (id.startsWith('wait:')) {
       let n = 0;

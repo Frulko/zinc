@@ -11,3 +11,11 @@ device|spark is linux aarch64 (Raspberry Pi 3 Model B Plus Rev 1.3): exporting f
 send|45%, 16 MiB of 35 MiB, 2.1 MiB/s / send|100%, 35 MiB of 35 MiB, 2.1 MiB/s, 16.4 s
 compile|4 files, 34 functions, 44 ms
 0 0 0 0
+hero dev.zinc.hero 1.2.0 icon.png src/main.tsx true menu+fs:read:data heap>=8M+display
+macos 1100x700  | linux 800x480 fbdev | rpi1 0x0 gl
+true true true false
+0 1280 true
+  "permissions": ["menu"], /   "app": { "id": "dev.zinc.hero", "version": "1.2.0", "icon": "icon.png", "name": "Hero" },
+"{ \"name\": \"a\", \"app\": { \"version\": \"0.2.0\" } }" "{ \"name\": \"a\" }" "{\n  \"name\": \"a\",\n  \"permissions\": []\n}\n"
+an icon in the tray / reading the files under data / connections to api.example.com / more windows, and their place kept (state only) / []
+zinc:ui,zinc:gfx,three

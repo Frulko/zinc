@@ -9,7 +9,8 @@ import { active, activate, Buffer, closeBuffer, cycle, saveAll, say, newSketch, 
   sketchDir, sketchbook, mainFile, openFile, baseName } from './workspace';
 import { openFind } from './search';
 import { toggleTheme } from './theme';
-import { run, stop, check, inspect, copyConsole, showConsole, consoleOpen, clearConsole, loadLibraries, importLine, setEngine, setDevice, ENGINES, ZINC } from './tools';
+import { openProject } from './project';
+import { run, stop, build, check, inspect, copyConsole, showConsole, consoleOpen, clearConsole, loadLibraries, importLine, setEngine, setDevice, ENGINES, ZINC } from './tools';
 import { openDevices } from './devices';
 import { editCommand, setText, menuKey, goDefinition } from './cursors';
 import { suggest } from './lsp';
@@ -154,6 +155,8 @@ add('Sketch', 'stop', 'Stop', 'CmdOrCtrl+Period', () => stop());
 add('Sketch', 'debug', 'Debug', 'CmdOrCtrl+Shift+R', () => run(true));
 for (let i = 0; i < ENGINES.length; i++) add('Sketch', 'engine-' + ENGINES[i].split(' ')[0].toLowerCase(), 'Run on: ' + ENGINES[i], '', () => { setEngine(i); setDevice(''); say('Runs on: ' + ENGINES[i]); }, i === 0);
 add('Sketch', 'devices', 'Run on a Device…', '', () => openDevices());
+add('Sketch', 'project', 'Project…', '', () => openProject(), true);
+add('Sketch', 'build', 'Build App', '', () => build());
 add('Sketch', 'add-file', 'Add File…', 'CmdOrCtrl+T', () => { if (sketchDir() !== '') ask('Name of the new file', '', (v: string) => newFile(v)); }, true);
 add('Sketch', 'rename-file', 'Rename File…', '', withBuffer((b: Buffer) => ask('New name of ' + b.name, baseName(b.path), (v: string) => renameFile(b, v))));
 add('Sketch', 'delete-file', 'Delete File', '', withBuffer((b: Buffer) => ask(`Type "delete" to remove ${b.name} from the sketch`, '', (v: string) => { if (v === 'delete') deleteFile(b); })));

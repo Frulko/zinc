@@ -20,6 +20,30 @@ The app starts `zinc` through `zinc:process` (new host module: `spawn`, `read`, 
 reads polled once per frame). `ZINC_BIN` (set by `zinc` itself to its own path) tells the app which binary to start; `ZINC_SIZE=WxH` sets the window
 size.
 
+## The project card (ZN-736)
+
+A sketch is a folder of code; a project is a folder with a `zinc.json`. The pill of the header says which: the folder's name for a sketch,
+the app's name, version and icon for a project. A press opens the card under it (`components/Project.tsx`, state in `app/project.ts`):
+
+| In the card | From |
+|---|---|
+| name, id, version, icon | `app.name` (else `name`), `app.id`, `app.version`, `app.icon` |
+| entry | `entry` (else the main file Atelier found) |
+| window on this machine, other targets | `targets.<macos or linux>.width / height`; the others with their size and display |
+| requires | `requires` |
+| plugins | the modules the code imports that `zinc plugins` lists |
+| assets | the `assets` folder (or the one zinc.json names): files and size |
+| permissions | `permissions`, each with one line on what it allows (`docs/guide/08-security.md`) |
+
+The name, the version, the window's size and the permissions are edited there (a field is taken when it is left or on Enter; a permission
+is allowed by its id and removed by its cross). An edit replaces one value of the text of zinc.json, or adds one key: the other keys,
+their order and the layout stay as they were (`model.ts: jsonSet`). It goes through the tab of zinc.json when that tab is open, and
+`zinc check` runs again: what the engine refuses in zinc.json (`zinc.json: line 4: app.id is required…`) is on the status line. Open
+zinc.json makes it a tab, Show Folder opens the folder in the Finder, Build App runs `zinc export .` with its steps in the console and
+says where the app is. A plain sketch's card offers Make it a Project: a zinc.json with its name, an id, a version and its entry.
+
+zinc.json is read as text in the app: the CLI has no command that prints a parsed project (a line of `next/backlog/later.md` asks for one).
+
 ## Limits and lessons
 
 - A program that uses `any` or `JSON.parse` cannot use `zinc:ui` (Dyn's `undefined` differs from null, and the std library uses `undefined` as null), so the

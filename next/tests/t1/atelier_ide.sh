@@ -6,6 +6,10 @@
 #   console    the console is a text that can be taken elsewhere (ZN-734): a line longer than the card wraps onto the rows it needs (four
 #              here; its second row was drawn over the next line), a click on the place it names opens the file there, three clicks select
 #              a line and Cmd+C copies it, Copy the Console takes every line. The golden: the end of the console with the selected line
+#   project    a folder with a zinc.json is a project (ZN-736): its card reads the name, the id and the version, the icon, the entry, the
+#              targets, the permissions, the plugins the code imports, the assets and what it requires; a permission allowed from the
+#              card and a name typed in its field are two changed lines of zinc.json (the golden: the pill and the card, light). A plain sketch is offered to become a project: a
+#              press on the card's button writes a zinc.json with its name and its entry
 #   check      a sketch with a type error in its second file, saved with the keyboard: the status line names the problem of `zinc check`
 #   assist     the language server beside the editor (ZN-732): `b.st` typed in a sketch opens the completion popup on the members of
 #              its class (the golden: two rows, the signature and the doc of the selected one), a diagnostic arrives before any save,
@@ -43,6 +47,34 @@ grep -q '^\[clipboard\] \$ zinc run main.ts | .* | row 1 | .* | the line after i
 tools/pngdiff "$tmp/console-60.png" "$g/console-60.png" --crop 12,566,1250,222 >/dev/null && tools/pngdiff "$tmp/console-60.png" "$g/console-60.png" --crop 1140,530,100,28 >/dev/null \
   || { echo "atelier console: the wrapped line, the selection or the place opened differ from $g/console-60.png"; fail=1; }
 [ -n "$ATELIER_KEEP" ] && cp "$tmp/console-60.png" "$(dirname "$ATELIER_KEEP")/console-60.png"
+
+mkdir -p "$tmp/weather/src" "$tmp/weather/assets"
+cp app/atelier/icon.png "$tmp/weather/icon.png"; printf 'sunny\n' > "$tmp/weather/assets/today.txt"
+printf '{\n  "name": "weather",\n  "app": { "id": "org.example.weather", "version": "1.4.0", "icon": "icon.png" },\n  "entry": "src/main.tsx",\n  "permissions": ["menu", "fs:read:data"],\n  "targets": {\n    "macos": { "width": 900, "height": 600 },\n    "linux": { "width": 800, "height": 480, "display": "fbdev" }\n  },\n  "requires": ["heap>=8M", "display"]\n}\n' > "$tmp/weather/zinc.json"
+printf "import * as audio from 'zinc:audio';\nimport { onFrame, clear } from 'zinc:gfx';\nonFrame((dt: number) => { clear(0x101820); });\n" > "$tmp/weather/src/main.tsx"
+cp "$tmp/weather/zinc.json" "$tmp/zinc.before"
+printf '2 project\n3 wait:plugins zinc:audio\n4 permission:tray\n5 wait:permissions menu, fs:read:data, tray\n11 wait:project Weather Station 1.4.0\n' > "$tmp/session"
+# the name, typed in its field (frames 6 to 9): a press, its text selected, the new one, Enter
+printf '%s\n' "6 move 958 102" "6 down" "7 up" "7 key a meta" '8 text "Weather Station"' "9 key Enter" > "$tmp/keys"
+ZINC_ATELIER_HOME="$tmp/book" ZINC_ATELIER_SYNC=1 ZINC_ATELIER_ECHO=1 ZINC_SYSTEM_LOG=/dev/null ZINC_ATELIER_SCRIPT="$tmp/session" ZINC_INPUT="$tmp/keys" ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=12 ZINC_SCALE=1 \
+  ZINC_SHOT="$tmp/project.png" ZINC_SHOT_FRAMES=12 "$ZINC" run app/atelier -- "$tmp/weather" >"$tmp/out" 2>"$tmp/err" || { echo "atelier project failed: $(head -c 300 "$tmp/err")"; fail=1; }
+grep -q '^atelier script:' "$tmp/out" && { echo "atelier project: the session waited in vain: $(grep '^atelier script:' "$tmp/out" | head -2)"; fail=1; }
+grep -q '^\[project\] project weather 1\.4\.0 id org\.example\.weather entry src/main\.tsx targets macos 900x600, linux 800x480 fbdev permissions menu, fs:read:data plugins .* assets assets/, 1 file, 6 bytes requires heap>=8M, display$' "$tmp/out" \
+  || { echo "atelier project: the card does not read zinc.json: $(grep '^\[project\]' "$tmp/out" | head -1 | cut -c1-300)"; fail=1; }
+grep -q '^  "permissions": \["menu", "fs:read:data", "tray"\],$' "$tmp/weather/zinc.json" && grep -q '^  "name": "Weather Station",$' "$tmp/weather/zinc.json" \
+  && [ "$(diff "$tmp/zinc.before" "$tmp/weather/zinc.json" | grep -c '^[<>]')" = 4 ] && "$ZINC" check "$tmp/weather" >/dev/null 2>&1 \
+  || { echo "atelier project: allowing tray and a new name are not two changed lines of a zinc.json the engine takes: $(diff "$tmp/zinc.before" "$tmp/weather/zinc.json" | head -6)"; fail=1; }
+tools/pngdiff "$tmp/project-12.png" "$g/project-12.png" --crop 760,8,440,466 >/dev/null || { echo "atelier project: the header's pill or the card differ from $g/project-12.png"; fail=1; }
+[ -n "$ATELIER_KEEP" ] && cp "$tmp/project-12.png" "$(dirname "$ATELIER_KEEP")/project-12.png"
+# a plain sketch: the card offers to make it a project (a press on its button, frame 6)
+mkdir -p "$tmp/plain" && printf "console.log('plain');\n" > "$tmp/plain/main.ts"
+printf '2 project\n3 wait:sketch plain\n10 wait:project plain 0.1.0\n' > "$tmp/session"
+printf '%s\n' "6 move 838 225" "6 down" "7 up" > "$tmp/keys"
+ZINC_ATELIER_HOME="$tmp/book" ZINC_ATELIER_SYNC=1 ZINC_ATELIER_ECHO=1 ZINC_SYSTEM_LOG=/dev/null ZINC_ATELIER_SCRIPT="$tmp/session" ZINC_INPUT="$tmp/keys" ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=12 ZINC_SCALE=1 \
+  "$ZINC" run app/atelier -- "$tmp/plain" >"$tmp/out" 2>"$tmp/err" || { echo "atelier plain sketch failed: $(head -c 300 "$tmp/err")"; fail=1; }
+grep -q '^\[project\] sketch plain$' "$tmp/out" && grep -q '^\[project\] project plain 0\.1\.0 id com\.example\.plain entry main\.ts ' "$tmp/out" && grep -q '"name": "plain"' "$tmp/plain/zinc.json" && grep -q '"entry": "main.ts"' "$tmp/plain/zinc.json" \
+  && "$ZINC" check "$tmp/plain" >/dev/null 2>&1 \
+  || { echo "atelier plain sketch: Make it a Project did not write a zinc.json the engine takes, with its name and entry: $(grep '^\[project\]' "$tmp/out" | cut -c1-200; cat "$tmp/plain/zinc.json" 2>&1 | head -5)"; fail=1; }
 
 mkdir -p "$tmp/broken"
 printf "import { size } from './util';\nconsole.log(size);\n" > "$tmp/broken/main.ts"

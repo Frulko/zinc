@@ -20,7 +20,7 @@ export function spawnZinc(args: string[], cwd: string): proc.Process { return zi
 export function zinc(args: string[], cwd: string): proc.Process {
   const a: string[] = [];
   for (const v of SCRUB) { a.push('-u'); a.push(v); }
-  a.push('ZINC_STEPS=' + (args[0] === 'run' || args[0] === 'dev' || args.indexOf('deploy') > 0 ? '1' : '0'));   // the steps of a build are what the console shows; a check or a list is read whole
+  a.push('ZINC_STEPS=' + (args[0] === 'run' || args[0] === 'dev' || args[0] === 'export' || args.indexOf('deploy') > 0 ? '1' : '0'));   // the steps of a build are what the console shows; a check or a list is read whole
   a.push(ZINC);
   return proc.spawn('/usr/bin/env', a.concat(args), { cwd: cwd });
 }
@@ -220,6 +220,39 @@ export function run(debug: boolean = false): void {
     showConsole(true);
   }
 }
+/** Build App: the app for this machine (`zinc export`: the program, its bundle on a Mac, in dist/), the steps of the build in the console
+ *  and where the app is on the status line. */
+export function build(): void {
+  if (child !== null) { say('Stop the sketch first: one build at a time'); return; }
+  const dir = sketchDir();
+  if (dir === '' || mainFile(dir) === '') { setStatus('Nothing to build: this sketch has no code file', 2); return; }
+  saveAll();
+  clearConsole();
+  remote = ''; app = ''; ended = -1; refused = ''; stopped = false;
+  add(new Line('$ zinc export .', K_CMD));
+  setDebugging(false); setPhase(BUILDING); setStage('starting'); setStatus('Building the app', 0);
+  let made = '';
+  try {
+    const p = zinc(['export', '.'], dir);
+    child = p;
+    // every line is the build's: what export prints last on its standard output is the folder it wrote
+    p.onStdout((l: string) => { if (l.trim() !== '') made = l.trim(); add(classify(l, false)); });
+    p.onStderr((l: string) => { const c = classify(l, true), s = stepOf(l); if (s.length > 0) setStage(s[0]); add(c, s.length > 0 && buf.length > 0 && stepOf(buf[buf.length - 1].text).length > 0 && stepOf(buf[buf.length - 1].text)[0] === s[0]); if (c.kind === K_ERR) showConsole(true); });
+    p.onExit((code: i32) => {
+      child = null;
+      setPhase(IDLE); setStage('');
+      if (stopped) setStatus('Stopped', 0);
+      else if (code === 0) setStatus(`Built ${made.startsWith(dir + '/') ? made.slice(dir.length + 1) : made}`, 1);
+      else { setStatus('Build failed', 2); showConsole(true); }
+      add(new Line(stopped ? 'stopped' : `exit ${code}`, K_END));
+    });
+  } catch (e) {
+    child = null; setPhase(IDLE);
+    setStatus('Cannot start zinc', 2);
+    add(new Line(`${ZINC}: ${(e as Error).message}`, K_ERR));
+    showConsole(true);
+  }
+}
 // ---- Debug: the sketch runs under `zinc dev` (it restarts at every save, a compile error stays on its screen) and, when it
 // has an interface, the Zinc Inspector (the app beside this one) opens on its DevTools port: elements, styles, console, frames.
 /** The port of the running sketch's inspector, 0 when it has none. */
@@ -326,7 +359,12 @@ export function check(): void {
         if (!b.modified()) b.setDiagnostics(mine);   // a file edited since has newer ones from the language server
       }
       if (phase() !== IDLE) return;
-      if (all.length === 0) { if (statusKind() === 2) setStatus('No problems', 1); }
+      if (all.length === 0) {
+        // what the engine refuses in zinc.json itself: "zinc: <path>/zinc.json: line 4: app.id is required (...)"
+        const at = out.indexOf('zinc.json: line ');
+        if (at >= 0) { const end = out.indexOf('\n', at); setStatus(out.slice(at, end < 0 ? out.length : end), 2); }
+        else if (statusKind() === 2) setStatus('No problems', 1);
+      }
       else setStatus(`${all.length} problem${all.length > 1 ? 's' : ''}: ${all[0].file}:${all[0].line} ${all[0].message}`, 2);
     });
   } catch (e) { checks--; }

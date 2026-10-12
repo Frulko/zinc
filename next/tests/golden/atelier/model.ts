@@ -1,5 +1,5 @@
 import * as fs from 'zinc:fs';
-import { parseDiagnostics, hottest, tracePhases, projectFiles, Phase, parseDevices, parseFigures, sizeText, Figures, stepOf } from '../../../app/atelier/model';
+import { parseDiagnostics, hottest, tracePhases, projectFiles, Phase, parseDevices, parseFigures, sizeText, Figures, stepOf, readProject, jsonSet, jsonGet, jsonList, permissionText, importsOf, Project, Target } from '../../../app/atelier/model';
 const d = parseDiagnostics("/a/b.ts:1:14: error Z0103: Type is not assignable: 'string' to 'i32'\nnoise\n");
 console.log(d.length, d[0].file, d[0].line, d[0].col, d[0].code, d[0].message);
 const h = hottest("main;a;b 3\nmain;a 1\nmain;c;b 4\n", 5);
@@ -24,3 +24,15 @@ console.log(stepOf('  device     spark is linux aarch64 (Raspberry Pi 3 Model B 
 console.log(stepOf('  send       45%  16 MiB of 35 MiB  2.1 MiB/s').join('|'), '/', stepOf('  send       100%  35 MiB of 35 MiB  2.1 MiB/s               16.4 s').join('|'));
 console.log(stepOf('  compile    4 files, 34 functions                        44 ms').join('|'));
 console.log(stepOf('zinc device: spark does not answer').length, stepOf('installed blink on spark (35 MiB)').length, stepOf('  indented by the program').length, stepOf('').length);
+// zinc.json (ZN-736): what a project says, and edits that change one value and nothing else
+const hero = '{\n  "name": "hero",\n  "app": { "id": "dev.zinc.hero", "version": "1.2.0", "icon": "icon.png" },\n  "entry": "src/main.tsx",\n  "permissions": ["menu", "fs:read:data"],\n  "targets": {\n    "macos": {\n      "width": 1100,\n      "height": 700\n    },\n    "linux": { "width": 800, "height": 480, "display": "fbdev" },\n    "rpi1": { "display": { "driver": "gl", "mode": "1280x720" } }\n  },\n  "requires": ["heap>=8M", "display"]\n}\n';
+const pr = readProject(hero) as Project;
+console.log(pr.name, pr.id, pr.version, pr.icon, pr.entry, pr.declared, pr.permissions.join('+'), pr.requires.join('+'));
+console.log(pr.targets.map((t: Target) => `${t.name} ${t.width}x${t.height} ${t.display}`).join(' | '));
+console.log(readProject('[1, 2]') === null, readProject('') === null, readProject('{} x') === null, (readProject('{}') as Project).declared);
+const sized = jsonSet(hero, ['targets', 'macos', 'width'], '1280');
+console.log(sized.length - hero.length, jsonGet(sized, ['targets', 'macos', 'width']), sized.replace('1280', '1100') === hero);
+console.log(jsonSet(hero, ['permissions'], jsonList(['menu'])).split('\n')[4], '/', jsonSet(hero, ['app', 'name'], '"Hero"').split('\n')[2]);
+console.log(JSON.stringify(jsonSet('{ "name": "a" }', ['app', 'version'], '"0.2.0"')), JSON.stringify(jsonSet('{}', ['name'], '"a"')), JSON.stringify(jsonSet('{\n  "name": "a"\n}\n', ['permissions'], '[]')));
+console.log(permissionText('tray'), '/', permissionText('fs:read:data'), '/', permissionText('net:api.example.com'), '/', permissionText('window:state'), '/', '[' + permissionText('teleport') + ']');
+console.log(importsOf("import * as ui from 'zinc:ui';\nimport { a } from './a';\nimport 'three';\nimport { b } from \"zinc:gfx\";\n").join(','));

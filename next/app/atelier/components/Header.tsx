@@ -1,11 +1,15 @@
-// The header: the run control, the sketch's files as tabs, and on the right the sketch (a click opens the start view),
+// The header: the run control, the sketch's files as tabs, and on the right the sketch (a click opens its card: the project's,
+// or the offer to make a plain sketch one; the start view when nothing is open),
 // how it runs, and the theme. The run control is one pill: "Run" at rest; while the sketch builds it names the step under
 // way, then counts the seconds the program has been running, with the stop inside it.
 import { createSignal, createNodeRef, For } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import { rrect } from 'zinc:gfx';
 import { theme, bg, fg, bd, toggleTheme } from '../app/theme';
-import { active, activate, buffers, Buffer, closeBuffer, sketchName } from '../app/workspace';
+import { active, activate, buffers, Buffer, closeBuffer, sketchName, sketchDir } from '../app/workspace';
+import { project, projectOpen, setProjectOpen, openProject, iconPath } from '../app/project';
+import { Project } from '../model';
+import { ProjectIcon } from './Project';
 import { phase, stage, seconds, debugging, run, stop, IDLE, BUILDING, ENGINES, engine, setEngine, device, setDevice } from '../app/tools';
 import { devices, isPaired, choose, openDevices } from '../app/devices';
 import { Device } from '../model';
@@ -124,15 +128,20 @@ export function EngineMenu(): i32 {
   </View>;
 }
 const PILL = 'flex-row items-center h-[30] px-2.5 gap-1.5 rounded-full cursor-pointer';
+// the sketch pill: a project (a folder with a zinc.json) shows the app's name, its version and its icon; a plain sketch its folder's name
+function appName(): string { const p = project(); return p !== null && (p as Project).name !== '' ? (p as Project).name : sketchName(); }
+function appVersion(): string { const p = project(); return p === null ? '' : (p as Project).version; }
 
 export function Header(): i32 {
   return <View class="flex-row items-center h-[54] pl-3 pr-2.5 gap-3">
     <RunControl />
     <View class={`w-px h-[18] ${bg(theme().border)}`} />
     <Tabs />
-    <View class={`${PILL} ${startOpen() ? bg(theme().active) : ''} hover:${bg(theme().hover)}`} onPointerDown={(e: ui.PointerEvent) => setStartOpen(!startOpen())}>
-      <Glyph kind={I_GRID} size={14} color={() => theme().muted} />
-      <Text class={`text-[13px] font-medium ${fg(theme().text)}`}>{sketchName()}</Text>
+    <View class={`${PILL} ${startOpen() || projectOpen() ? bg(theme().active) : ''} hover:${bg(theme().hover)}`}
+      onPointerDown={(e: ui.PointerEvent) => { if (sketchDir() === '') setStartOpen(!startOpen()); else if (projectOpen()) setProjectOpen(false); else openProject(); }}>
+      {iconPath() !== '' ? <ProjectIcon size={18} /> : <Glyph kind={I_GRID} size={14} color={() => theme().muted} />}
+      <Text class={`text-[13px] font-medium ${fg(theme().text)}`}>{appName()}</Text>
+      {appVersion() !== '' && <Text class={`text-[12px] ${fg(theme().muted)}`}>{appVersion()}</Text>}
     </View>
     <View class={`${PILL} ${engineOpen() ? bg(theme().active) : ''} hover:${bg(theme().hover)}`} onPointerDown={(e: ui.PointerEvent) => setEngineOpen(!engineOpen())}>
       <Text class={`text-[13px] ${fg(theme().muted)}`}>{device() !== '' ? device() : ENGINES[engine()]}</Text>
