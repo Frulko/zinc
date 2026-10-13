@@ -233,6 +233,50 @@ Decision: a tile cache of scroll content in the UI library, as an accelerator wi
 - Then: the same for a screen in a transition, NEON in `fill_rrect` and `blend_row`, a frame budget per profile with a developer warning
   (the panel already counts `dropped`), and the profile itself.
 
+## 11. What the GPU can do, and what held it back (2026-10-13, later)
+
+A trial benchmark in the GL backend (120 frames, then `glFinish`; removed after the measure), 1024x768, a frame with its swap:
+
+| Frame | Time |
+|---|---|
+| a clear and one flat quad over the screen | 2.2 ms |
+| one textured quad (640x480, linear) over the screen, blended | 2.3 ms |
+| three textured quads over each other, blended | 5.8 ms |
+| depth test on, or blending on: no difference | 2.2 ms |
+
+So the Adreno 220 and the swap of a webOS card are not the limit: a full-screen layer is about 2 ms. The same pixels through the GL replay's
+programs took 16 ms (SOLID) and 32 ms (IMAGE): five `vec4` varyings, the raster's integer blend redone with `floor` per pixel, branches.
+Its lean programs (`ZINC_GL_LEAN=1`, set by the webOS backend; `runtime/gl_replay_shaders.h`) draw a square quad of one colour, glyphs
+and an image without rounded corners with two or three varyings and a plain premultiplied blend.
+
+A sprite game written for the trial (a 640x480 background over the screen, rotated fruit pictures, a text line; typed Zinc, 12 commands
+a frame; the pictures come from the owner's `fruit-ninja` folder and are not in the tree):
+
+| Renderer | Frames a second (performance panel, steady) |
+|---|---|
+| software | 3.8 (269 ms in the raster: a scaled image and rotated ones) |
+| GL replay, general programs | 37.3 (present 25.6 ms) |
+| GL replay, lean programs | **59.7** (frame 16.73 ms: the screen's refresh; 5 frames dropped in 260) |
+
+The application itself takes 0.4 ms a frame in both cases.
+
+The tile cache of section 10 was written (`ZINC_UI_TILES=1`, `lib/std/ui.ts` `paintTiles`; `gfx.endImage` keeps an image whose cleared
+command range is the one last drawn into it). As it is it makes `hero` slower (Kit 16.3 to 13.5 frames a second, Home 19.9 to 8.6): its
+validity rule is one global epoch, `hero` keeps every screen mounted with live canvases, so every frame records the 20 visible tiles again.
+It is off by default.
+
+What follows from these numbers, in the order of the gain:
+1. Lean variants for what a UI frame is made of: FILL without a gradient, BORDER and SHADOW are distance shaders over whole boxes; a box's
+   inside is a flat quad and only its corners and edges need the distance (nine quads a box, or the corner texture the code already has).
+   `hero`'s 150 ms of GPU is this.
+2. The tile cache with a validity per scroll container (one recording of the content to know whether anything changed, then a version per
+   node), drawn by the lean IMAGE program: a scroll becomes 20 textured quads.
+3. The default renderer on this device: `gl` once 1 is done; today `cpu` is faster for a UI (19.5 against 16.6 on Home) and `gl` for sprites.
+4. NEON in `fill_rrect` and `blend_row` for the software path, a `touchpad` profile (tier T2, the frame budget and the developer warning).
+
+Also seen: Palm's SDL ignores `SDL_GL_SWAP_CONTROL` (the EGL swap interval works: `ZINC_VSYNC=0`); a glClear with nothing drawn costs
+0.6 ms; a draw call costs 0.2 to 0.9 ms of CPU in this driver, a program change about 1 ms.
+
 ## Sources
 
 Read by two research agents on 2026-10-13; pages they could not open are marked.
