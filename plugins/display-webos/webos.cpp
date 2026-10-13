@@ -1,10 +1,11 @@
 // display-webos: a Zinc program as a full-screen card of HP webOS 3 (HP TouchPad; docs/reports/hardware/hp-touchpad-webos.md).
 // webOS gives a native program its screen and its touches through Palm's SDL 1.2: LunaSysMgr composes the card. The library is
 // loaded from the device when the program starts, and the few functions and structures used are declared here (the ABI of SDL 1.2
-// is frozen), so a cross build needs neither the PDK nor a sysroot. Frames come from the software rasterizer; a surface smaller
-// than the screen is centred, not scaled. Not on webOS (no libSDL-1.2.so.0, no screen): init returns 0 and the target HAL keeps
+// is frozen), so a cross build needs neither the PDK nor a sysroot. Frames come from the software rasterizer, drawn in bands on every
+// core; a surface smaller than the screen is centred, not scaled. Not on webOS (no libSDL-1.2.so.0, no screen): init returns 0 and the target HAL keeps
 // the screen.
 #include "hal.h"
+#include "render_bands.h"
 #include <dlfcn.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -54,6 +55,19 @@ bool stats = false;
 uint64_t stat_t = 0, sum_draw = 0, sum_show = 0;
 int stat_frames = 0, stat_drawn = 0;
 
+zbands::Pool& pool = *new zbands::Pool;   // never destroyed: its workers wait (render_bands.h)
+enum { BAND_ROWS = 16 };
+// one band of a frame: drawn into the surface, then copied to the screen's (locked) pixels
+void band(void* ctx, int32_t a, int32_t b) {
+  ((const HalFrame*)ctx)->render(surf + (size_t)a * W, a, b);
+  for (int y = a; y < b; y++) {
+    const uint32_t* s = surf + (size_t)y * W;
+    uint32_t* d = (uint32_t*)((uint8_t*)screen->pixels + (size_t)(y + oy) * screen->pitch) + ox;
+    if (!swap_rb) memcpy(d, s, (size_t)W * 4);
+    else for (int x = 0; x < W; x++) d[x] = (s[x] & 0xFF00FF00u) | ((s[x] >> 16) & 0xFF) | ((s[x] & 0xFF) << 16);
+  }
+}
+
 uint64_t now_us() { timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return (uint64_t)t.tv_sec * 1000000u + t.tv_nsec / 1000; }
 
 // The card of this process, at the size of the screen. Once: the size is asked for before init.
@@ -83,8 +97,9 @@ int wb_init(const HalConfig* cfg) {
   if (W > screen->w || H > screen->h) { fprintf(stderr, "display-webos: the surface (%dx%d) is larger than the screen (%dx%d)\n", W, H, screen->w, screen->h); return 0; }
   ox = (screen->w - W) / 2; oy = (screen->h - H) / 2;
   surf = (uint32_t*)calloc((size_t)W * H, 4);
+  pool.init();
   if (const char* e = getenv("ZINC_WEBOS_STATS")) stats = *e && *e != '0';
-  fprintf(stderr, "display-webos: %dx%d on a %dx%d screen\n", W, H, screen->w, screen->h);
+  fprintf(stderr, "display-webos: %dx%d on a %dx%d screen, %d threads\n", W, H, screen->w, screen->h, pool.threads);
   return surf != nullptr;
 }
 
@@ -92,19 +107,11 @@ void wb_present(const HalFrame* f) {
   const bool has = f->x1 > f->x0 && f->y1 > f->y0;
   const uint64_t t0 = now_us();
   uint64_t t1 = t0;
-  if (has) {
-    f->render(surf + (size_t)f->y0 * W, f->y0, f->y1);
+  if (has && SDL_LockSurface(screen) == 0) {
+    pool.run(f->y0, f->y1, BAND_ROWS, band, (void*)f);
+    SDL_UnlockSurface(screen);
     t1 = now_us();
-    if (SDL_LockSurface(screen) == 0) {
-      for (int y = f->y0; y < f->y1; y++) {
-        const uint32_t* s = surf + (size_t)y * W;
-        uint32_t* d = (uint32_t*)((uint8_t*)screen->pixels + (size_t)(y + oy) * screen->pitch) + ox;
-        if (!swap_rb) memcpy(d, s, (size_t)W * 4);
-        else for (int x = 0; x < W; x++) d[x] = (s[x] & 0xFF00FF00u) | ((s[x] >> 16) & 0xFF) | ((s[x] & 0xFF) << 16);
-      }
-      SDL_UnlockSurface(screen);
-      SDL_UpdateRect(screen, ox, oy + f->y0, W, f->y1 - f->y0);
-    }
+    SDL_UpdateRect(screen, ox, oy + f->y0, W, f->y1 - f->y0);
   }
   if (stats) {
     const uint64_t t2 = now_us();
