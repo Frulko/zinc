@@ -10,6 +10,8 @@
 #include <utility>
 #include <vector>
 
+#include "zn/limits.h"
+
 struct yyjson_doc;
 struct yyjson_val;
 namespace zn::tls { struct Conn; }
@@ -18,7 +20,6 @@ namespace zn::agent {
 
 inline constexpr int kPort = 7733;
 inline constexpr const char* kService = "_zinc._tcp.local.";
-inline constexpr std::size_t kMaxFrame = 1 << 20;   // a longer frame ends the session: nothing we send comes close
 inline constexpr std::size_t kChunk = 32 * 1024;    // the data frames of streams and files
 
 // A frame is one byte of type, four bytes of length (big endian) and the payload.
@@ -58,7 +59,7 @@ bool handshake(Chan& c, int timeoutMs, std::string& err);
 bool send(Chan& c, char type, std::string_view payload);
 /** Reads what the socket holds and decrypts it into `c.in`; false once the peer closed or the session failed (frames may still be waiting). */
 bool fill(Chan& c);
-/** Takes one whole frame out of `c.in`; `bad` is set for a frame longer than kMaxFrame. */
+/** Takes one whole frame out of `c.in`; `bad` is set for a frame longer than kMaxAgentFrame. */
 bool next(Chan& c, char& type, std::string& payload, bool* bad = nullptr);
 /** The next frame, waiting for it; false when the session ended or nothing came in `timeoutMs` (-1: no limit). */
 bool recv(Chan& c, char& type, std::string& payload, int timeoutMs = -1);

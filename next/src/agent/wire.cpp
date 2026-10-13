@@ -214,7 +214,7 @@ bool next(Chan& c, char& type, std::string& payload, bool* bad) {
   if (c.in.size() < 5) return false;
   const auto* p = reinterpret_cast<const unsigned char*>(c.in.data());
   const std::size_t n = (static_cast<std::size_t>(p[1]) << 24) | (static_cast<std::size_t>(p[2]) << 16) | (static_cast<std::size_t>(p[3]) << 8) | p[4];
-  if (n > kMaxFrame) { if (bad) *bad = true; return false; }
+  if (n > kMaxAgentFrame) { if (bad) *bad = true; return false; }
   if (c.in.size() < 5 + n) return false;
   type = c.in[0];
   payload.assign(c.in, 5, n);

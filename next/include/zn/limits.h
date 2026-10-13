@@ -1,5 +1,6 @@
 #pragma once
 // Limits shared by compiler and VM. The only place a limit is defined (see ARCHITECTURE.md).
+#include <cstddef>
 #include <cstdint>
 
 namespace zn {
@@ -19,5 +20,7 @@ inline constexpr std::uint32_t kMaxFields = 255;           // GetField/SetField 
 inline constexpr std::int64_t kMaxImagePixels = std::int64_t{1} << 26;
 // The largest data alignment of a ZPK pack (src/zpk, docs/zpk.md): a power of two up to 1 MiB (4 KiB and 2 KiB sectors fit well under it).
 inline constexpr std::uint32_t kMaxPackAlignment = 1u << 20;
+// The longest frame of the device agent's protocol (src/agent/wire.h, docs/reports/zinc-next-agent.md): a longer one ends the session; nothing we send comes close.
+inline constexpr std::size_t kMaxAgentFrame = std::size_t{1} << 20;
 
 }  // namespace zn
