@@ -140,6 +140,12 @@ const std::vector<Target>& targets() {
       {"armhf-linux", "arm-linux-gnueabihf", " -mcpu=arm1176jzf_s", "every 32-bit Raspberry Pi OS, the Pi 1 and Zero included (ARMv6)"},
       // ARMv7-A with NEON and VFPv3: the Cortex-A8 of the NTC CHIP is the oldest core, so no VFPv4 instruction reaches it; the Pi 2 (A7) and Pi 3 (A53) run it
       {"armv7-linux", "arm-linux-gnueabihf", " -mcpu=cortex_a8", "Raspberry Pi 2 and 3 on a 32-bit OS, NTC CHIP and PocketCHIP (ARMv7 with NEON)"},
+      // webOS 3 on the HP TouchPad: glibc 2.8, and the soft-float calling convention its GL and system libraries were built with (hp-touchpad-webos.md).
+      // softfp: the FPU and NEON are used, numbers are passed in the integer registers. zig 0.15.2 turns VFPv2 off for a gnueabi target and leaves
+      // VFPv3 and NEON on, and LLVM's ARM backend then dies on NEON intrinsics ("Do not know how to split this operator's operand", zstd and
+      // mbedTLS): +vfp2 puts it back. No undefined-behaviour checks: the runtime zig links for them into an unoptimized program (CMake's compiler
+      // test) calls pwritev64, of glibc 2.10
+      {"armv7-webos", "arm-linux-gnueabi.2.8", " -mcpu=cortex_a8+neon -mfloat-abi=softfp -Xclang -target-feature -Xclang +vfp2 -fno-sanitize=undefined", "HP TouchPad on webOS 3 (ARMv7 with NEON, glibc 2.8, soft-float calls)"},
       {"x86_64-linux", "x86_64-linux-gnu", "", "PC and server Linux"},
       {"aarch64-macos", "aarch64-macos", "", "Apple Silicon"},
       {"x86_64-macos", "x86_64-macos", "", "Intel Mac"},
@@ -538,7 +544,7 @@ bool ensureCrossLibs(const std::string& zig, const std::string& root, const std:
   const Target* t = findTarget(target);
   if (!t) { err = "unknown target '" + target + "' (zinc toolchain targets)"; return false; }
   std::string name = t->name;
-  if (name.find("linux") == std::string::npos) { err = "the graphics host is cross-built for the Linux targets only (not " + name + ")"; return false; }
+  if (std::string(t->zigTarget).find("linux") == std::string::npos) { err = "the graphics host is cross-built for the Linux targets only (not " + name + ")"; return false; }
   dir = root + "/build/cross-" + name;
   const std::string targets = " --target zn_host_gfx zn_layout zn_yoga zn_rt zn_mimalloc zn_zbc zn_ir zn_frontend zn_native zn_regexp zn_codec zn_uv zn_llhttp zn_mbedtls zn_zpk zn_lz4 zn_zstd zn_sha256 -j 3 >";
   if (fs::exists(dir + "/libzn_host_gfx.a") && fs::exists(dir + "/CMakeCache.txt"))   // built before: brought up to date (sources added or changed since), quick when nothing did

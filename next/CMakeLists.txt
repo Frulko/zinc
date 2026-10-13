@@ -69,6 +69,7 @@ if(APPLE)
   target_compile_definitions(zn_uv PRIVATE _DARWIN_UNLIMITED_SELECT=1 _DARWIN_USE_64_BIT_INODE=1)
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   target_compile_definitions(zn_uv PRIVATE _GNU_SOURCE _POSIX_C_SOURCE=200112)
+  target_sources(zn_uv PRIVATE src/host/glibc_compat.c)   # what an old glibc lacks (webOS 3: 2.8); empty on a current one
   target_link_libraries(zn_uv PUBLIC dl rt)
 endif()
 find_package(Threads REQUIRED)

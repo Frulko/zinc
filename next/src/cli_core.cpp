@@ -546,6 +546,7 @@ std::string zigTargetFor(const std::string& t) {
   if (t == "linux" || t == "rpi" || t == "rmpp") return "aarch64-linux";
   if (t == "rpi1") return "armhf-linux";   // ARMv6: the first Pi and the Zero
   if (t == "rpi2" || t == "chip" || t == "pocketchip") return "armv7-linux";   // a 32-bit OS on ARMv7 with NEON (ZN-414)
+  if (t == "touchpad" || t == "webos") return "armv7-webos";
   return t;
 }
 

@@ -35,3 +35,12 @@ constexpr std::size_t kInterpreterHeadroom = 1u << 20;
 void setHeapBudget(std::size_t bytes) { gHeapBudget = bytes; gHeapLimit = bytes + kInterpreterHeadroom; gHeapUsed = 0; gHeapBudgetOn = true; }
 }  // namespace zn::rt
 
+
+#if defined(__GLIBC__) && __GLIBC__ == 2 && __GLIBC_MINOR__ < 16
+// glibc before 2.16 has no aligned_alloc, which libc++abi calls for an exception (webOS 3 on the HP TouchPad has 2.8). libc++abi gives the block
+// back with free(), so it comes from the C library, not from mimalloc.
+extern "C" void* aligned_alloc(std::size_t align, std::size_t n) noexcept {
+  void* p = nullptr;
+  return posix_memalign(&p, align < sizeof(void*) ? sizeof(void*) : align, n) ? nullptr : p;
+}
+#endif
