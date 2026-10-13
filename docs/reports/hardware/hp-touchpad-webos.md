@@ -277,6 +277,34 @@ What follows from these numbers, in the order of the gain:
 Also seen: Palm's SDL ignores `SDL_GL_SWAP_CONTROL` (the EGL swap interval works: `ZINC_VSYNC=0`); a glClear with nothing drawn costs
 0.6 ms; a draw call costs 0.2 to 0.9 ms of CPU in this driver, a program change about 1 ms.
 
+## 12. Lean box programs, square clips, the device's libm (2026-10-13, last)
+
+`examples/hero` without its video screen, GL replay, frames a second over a whole scripted session (the method: `docs/targets/adapting-to-hardware.md`):
+
+| Session | general programs | + lean SOLID, TEXT, IMAGE, FILL, BORDER, SHADOW and the device's libm | + square clips |
+|---|---|---|---|
+| start screen | 4.8 | 15.8 | 16.0 |
+| Home, flicks | 16.6 | 30.5 | 31.0 |
+| Kit, flicks | not run | 29.1 | 31.4 |
+| Gallery, flicks | 8.1 | 10.3 | 27.9 |
+| transitions between four light screens | not run | 12.0 | 24.1 |
+| eight tab changes, twice (the map and the gallery among them) | 8.3 | 10.9 | 17.4 |
+
+The software frame on two cores gives 19.5, 21.9, 17.3, 15.7 and 12.9 on the same sessions: the GL replay is now the faster renderer on this device.
+
+- **Rounded clips** were the slow transitions: a CLIP with a radius copies its four corners from the framebuffer (`glCopyTexSubImage2D`) and
+  blends them back at UNCLIP. The Adreno draws in tiles: each copy makes it draw the frame so far and load it back. The performance panel
+  showed 77 ms of present for the 255 commands of the Settings screen. `ZINC_GL_CORNERS=0` (set by the webOS backend) makes every clip
+  square; what a rounded container holds can then reach into its corners. The repair that keeps the corners: the clip in the stencil buffer.
+- **Math without the FPU**: `sin`, `cos`, `tan`, `exp`, `exp2`, `log`, `sqrt`, `fmod` were zig's compiler-rt, built soft-float for the
+  gnueabi ABI and taken before the device's libm (PC samples in `__aeabi_dmul`; `llvm-nm` shows them as local text symbols).
+  `next/src/rt/alloc.cpp` now sends them to the device's libm. `floor`, `ceil` and `round` are still zig's (bit operations, no arithmetic).
+- A capture of the Kit screen drawn by the lean programs matches the software frame (3.6% of the pixels differ, the animated counters and edges).
+
+Left, in the order of the expected gain: fewer draw calls (95 to 150 a frame, 11 ms of CPU: a program change ends a batch and the lean
+programs made more of them); the paint phase (the UI records every command again each frame, 10 to 17 ms); the stencil clip; the scroll
+tiles with a validity per container; the polygon-heavy screens (the map: 9400 quads a frame).
+
 ## Sources
 
 Read by two research agents on 2026-10-13; pages they could not open are marked.
