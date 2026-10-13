@@ -1,0 +1,30 @@
+2 pad A
+3 padup A
+30 key 2
+34 key s
+70 key 3
+90 key s
+92 move 210 460
+93 down
+94 move 235 380
+95 move 260 340
+96 move 285 380
+97 move 310 460
+98 up
+99 move 236 410
+100 down
+101 move 286 410
+102 up
+103 move 356 340
+104 down
+105 move 356 460
+106 move 400 460
+107 up
+108 move 960 578
+109 down
+110 up
+111 down
+112 up
+114 key u
+118 key 1
+122 key 3

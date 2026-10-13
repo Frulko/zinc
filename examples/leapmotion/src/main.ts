@@ -1,0 +1,233 @@
+import { onFrame, clear, rrect, border, line, stroke, clip, unclip, pointerX, pointerY, pointerDown,
+  wasPressed, Btn, setTransform, width, height, onResize, keyCount, keyKind, keyName, KeyKind } from 'zinc:gfx';
+import { env } from 'zinc:sys';
+import { Tracker, Hand, Vec3 } from 'zinc:leapmotion';
+import { Game, Ink, Fruit, clamp, COLORS } from './model';
+import { label, disc, ring, segment, fruit, BG, PANEL, MUTED, WHITE, LIME, CYAN } from './draw';
+
+const tracker = new Tracker(env('ZINC_LEAP_SIM') === '1');
+const game = new Game(), ink = new Ink();
+const names = ['Fruit slice', 'Hand lab', 'Air ink'];
+const subtitles = ['Une main. Des fruits. Un peu de chaos.', 'Vos mains, sous un autre angle.', 'Dessinez quelque chose dans l’air.'];
+let mode = env('ZINC_LEAP_MODE') === 'ink' ? 2 : env('ZINC_LEAP_MODE') === 'hands' ? 1 : 0;
+let t = 0, pointerWasDown = false, pinchWasDown = false, pinched = false;
+let x = 440, y = 390, oldX = 440, oldY = 390, active = false, lastHand = -1;
+let hover = -1, dwell = 0, hoverFired = false;
+let range = 420, inkColor = 0, inkWidth = 5;
+let trail: number[] = [];
+let lastMode = -1;
+const palette: u32[] = [LIME, CYAN, 0xff8fa3, 0xc3a4ff, WHITE];
+const autoStart = env('ZINC_LEAP_AUTOPLAY') === '1';
+if (autoStart) game.start();
+onResize((_w: number, _h: number) => {});
+
+function select(next: number): void {
+  mode = next; trail = []; active = false; lastHand = -1; pinched = false; ink.drawing = false;
+}
+function mapX(p: Vec3): number { return 600 + p.x / range * 1160; }
+function mapY(p: Vec3): number { return 734 - (p.y - 100) / 350 * 704; }
+function primary(): Hand | null {
+  for (const h of tracker.hands) if (h.id === lastHand) return h;
+  for (const h of tracker.hands) if (h.right) return h;
+  return tracker.hands.length > 0 ? tracker.hands[0] : null;
+}
+function hit(px: number, py: number): number {
+  if (py >= 30 && py <= 80) for (let i = 0; i < 3; i++) if (px >= 359 + i * 150 && px <= 502 + i * 150) return i;
+  if (px >= 924 && px <= 1152) {
+    if (py >= 620 && py <= 668) return 10;
+    if (py >= 684 && py <= 728) return 11;
+    if (mode === 2 && py >= 490 && py <= 530) return 12;
+    if (py >= 555 && py <= 599) return px < 1038 ? 13 : 14;
+    if (mode === 2 && py >= 425 && py <= 472) return 20 + Math.min(4, Math.floor((px - 924) / 46));
+  }
+  return -1;
+}
+function activate(id: number): void {
+  if (id >= 0 && id <= 2) select(id);
+  if (id === 10) { if (mode === 0) game.start(); else if (mode === 2) ink.clear(); else range = 420; }
+  if (id === 11) { tracker.setSimulation(!tracker.simulated); active = false; lastHand = -1; trail = []; ink.drawing = false; }
+  if (id === 12) ink.undo();
+  if (id === 13) { if (mode === 2) inkWidth = clamp(inkWidth - 1, 2, 12); else range = clamp(range - 40, 260, 660); }
+  if (id === 14) { if (mode === 2) inkWidth = clamp(inkWidth + 1, 2, 12); else range = clamp(range + 40, 260, 660); }
+  if (id >= 20 && id <= 24) { inkColor = id - 20; ink.drawing = false; }
+}
+function button(id: number, bx: number, by: number, bw: number, bh: number, text: string, bright: boolean = false): void {
+  const over = hover === id;
+  rrect(bx, by, bw, bh, 12, bright ? LIME : over ? 0x334544 : 0x253332, 255);
+  if (over && dwell > 0) rrect(bx, by + bh - 3, bw * clamp(dwell / 0.7, 0, 1), 3, 1, bright ? 0x5a7849 : LIME, 255);
+  label(bx + 16, by + (bh - 20) / 2, text, bright ? BG : WHITE, 16);
+}
+function meter(y0: number, title: string, value: number, color: u32): void {
+  label(924, y0, title, MUTED, 12); label(1090, y0, `${Math.round(value * 100)}%`, color, 12);
+  rrect(924, y0 + 24, 228, 5, 3, 0x344543, 255); rrect(924, y0 + 24, 228 * value, 5, 3, color, 255);
+}
+function background(): void {
+  clear(BG);
+  label(32, 32, 'AIR / ARCADE', WHITE, 20);
+  label(32, 62, 'ZINC × LEAP MOTION', MUTED, 12);
+  for (let i = 0; i < 3; i++) {
+    const tx = 359 + i * 150;
+    if (mode === i) rrect(tx, 30, 143, 50, 25, LIME, 255);
+    else if (hover === i) rrect(tx, 30, 143, 50, 25, 0x253332, 255);
+    label(tx + 16, 44, `${i + 1}  ${names[i]}`, mode === i ? BG : MUTED);
+    if (hover === i && dwell > 0) line(tx + 22, 77, tx + 22 + 100 * clamp(dwell / 0.7, 0, 1), 77, CYAN);
+  }
+  disc(955, 54, 4, tracker.simulated ? 0xffc976 : tracker.status === 2 ? LIME : 0x6b807a);
+  label(970, 46, tracker.simulated ? 'SIMULATION' : tracker.status === 2 ? 'LEAP CONNECTÉ' : 'EN ATTENTE', MUTED, 12);
+  label(32, 112, names[mode], WHITE, 32); label(32, 157, subtitles[mode], MUTED);
+  rrect(32, 196, 848, 534, 22, PANEL, 255);
+  rrect(900, 112, 276, 618, 22, PANEL, 255);
+  label(32, 759, '1 2 3 / ← →  modes     ESPACE  jouer / effacer     S  simulation', MUTED, 12);
+  label(716, 759, 'Pincez pour cliquer · Survolez 0,7 s', MUTED, 12);
+}
+function gameScene(): void {
+  clip(32, 196, 848, 534, 22);
+  for (let row = 0; row < 9; row++) for (let col = 0; col < 15; col++) disc(64 + col * 56, 218 + row * 58, 1, 0x35453c, 130);
+  ring(452, 488, 172, 0x32463b, 90); ring(452, 488, 228, 0x32463b, 70);
+  label(60, 220, '60 SECONDES POUR FAIRE LE PLEIN', MUTED, 12);
+  if (!game.running && game.fruits.length === 0) {
+    label(212, 294, game.remaining === 0 ? 'Bien joué.' : 'À vous de trancher.', WHITE, 32);
+    label(212, 342, game.remaining === 0 ? `${game.score} points. Encore une partie ?` : 'Balayez les fruits avec votre index.', MUTED);
+    label(212, 371, 'Évitez les bombes. Enchaînez les combos.', MUTED);
+    for (let i = 0; i < 4; i++) { const f = new Fruit(296 + i * 104, 490 + Math.sin(t * 1.5 + i) * 12, 0, 0, i, 36); f.angle = t * 0.2; fruit(f); }
+    label(275, 593, 'ESPACE ou « Jouer » pour commencer', LIME);
+  }
+  for (const f of game.fruits) { const fy = f.y; f.y += 170; fruit(f); f.y = fy; }
+  for (const p of game.sparks) disc(p.x, p.y + 170, 2 + p.life * 3, p.color, p.life * 210);
+  if (game.popupTime > 0) label(345, 285 - (0.8 - game.popupTime) * 28, game.popup, game.flash > 0 ? 0xff8fa3 : LIME, 20, Math.min(255, game.popupTime * 500));
+  if (trail.length >= 4) { stroke(trail, 15, CYAN, 24, false); stroke(trail, 5, CYAN, 150, false); stroke(trail, 2, WHITE, 255, false); }
+  if (game.flash > 0) rrect(32, 196, 848, 534, 22, 0xff6472, Math.round(game.flash * 65));
+  unclip();
+}
+function projectX(p: Vec3): number { return 454 + p.x * 1.8 + p.z * 0.6; }
+function projectY(p: Vec3): number { return 690 - (p.y - 70) * 1.15 + p.z * 0.35; }
+function bone(a: Vec3, b: Vec3, color: u32, thickness: number): void {
+  segment(projectX(a), projectY(a), projectX(b), projectY(b), thickness + 5, color, 22);
+  segment(projectX(a), projectY(a), projectX(b), projectY(b), thickness, color, 240);
+  disc(projectX(b), projectY(b), thickness * 0.85, WHITE, 235);
+}
+function handScene(): void {
+  clip(32, 196, 848, 534, 22);
+  for (let i = -5; i <= 5; i++) { line(440 + i * 60, 695, 440 + i * 26, 433, 0x2a3c38); line(142 - i * 7, 520 + i * 27, 715 + i * 7, 520 + i * 27, 0x2a3c38); }
+  label(60, 220, 'SQUELETTE 3D / PROJECTION OBLIQUE', MUTED, 12);
+  for (const h of tracker.hands) {
+    const color = h.right ? CYAN : LIME;
+    bone(h.elbow, h.wrist, color, 7); bone(h.wrist, h.palm, color, 10);
+    for (let f = 0; f < 5; f++) {
+      bone(h.wrist, h.joints[f * 5 + 1], color, 3);
+      for (let j = 1; j < 5; j++) bone(h.joints[f * 5 + j - 1], h.joints[f * 5 + j], color, 4 - j * 0.45);
+    }
+    const tip = h.joints[9];
+    ring(projectX(tip), projectY(tip), 14 + h.pinch * 13, color, 210);
+    label(projectX(h.wrist) - 25, projectY(h.wrist) + 20, h.right ? 'DROITE' : 'GAUCHE', color, 12);
+  }
+  if (tracker.hands.length === 0) {
+    ring(452, 430, 64, MUTED, 100); label(245, 536, 'Placez vos mains au-dessus du capteur.', WHITE);
+    label(265, 570, 'Ou essayez les mains simulées.', MUTED);
+  }
+  label(60, 688, '25 articulations / main     x →     y ↑     z ↗', MUTED, 12);
+  unclip();
+}
+function inkScene(): void {
+  clip(32, 196, 848, 534, 22);
+  for (let row = 0; row < 14; row++) for (let col = 0; col < 23; col++) disc(54 + col * 36, 218 + row * 36, 0.85, 0x40554d, 150);
+  for (const s of ink.strokes) {
+    if (s.points.length >= 4) { stroke(s.points, s.width + 8, s.color, 18, false); stroke(s.points, s.width, s.color, 255, false); }
+    else if (s.points.length === 2) disc(s.points[0], s.points[1], s.width / 2, s.color);
+  }
+  if (ink.strokes.length === 0) {
+    label(258, 366, 'L’air est votre carnet.', WHITE, 32);
+    label(246, 419, 'Pincez le pouce et l’index pour écrire.', MUTED);
+    label(288, 448, 'Relâchez pour lever le stylo.', MUTED);
+    segment(352, 524, 384, 495, 4, LIME); segment(384, 495, 422, 539, 4, LIME); segment(422, 539, 502, 476, 4, LIME);
+  }
+  label(60, 220, pinched ? '● ENCRE EN COURS' : 'PINCEZ POUR ÉCRIRE', pinched ? palette[inkColor] : MUTED, 12);
+  unclip();
+}
+function sidebar(hand: Hand | null): void {
+  label(924, 137, mode === 0 ? 'VOTRE SESSION' : mode === 1 ? 'TÉLÉMÉTRIE' : 'VOTRE ATELIER', MUTED, 12);
+  if (mode === 0) {
+    label(924, 171, `${game.score}`.padStart(4, '0'), LIME, 64);
+    label(924, 251, 'POINTS', MUTED, 12);
+    label(924, 301, `${Math.ceil(game.remaining)} s`, WHITE, 32); label(1050, 311, `×${game.combo}`, CYAN, 20);
+    rrect(924, 354, 228, 5, 3, 0x344543, 255); rrect(924, 354, 228 * game.remaining / 60, 5, 3, LIME, 255);
+    label(924, 390, `Record       ${game.best}`, MUTED); label(924, 420, `Manqués      ${game.missed}`, MUTED);
+    label(924, 450, `Bombes       ${game.bombs}`, MUTED);
+    label(924, 499, 'Fruits +10 · Bombe −30', WHITE);
+  } else if (mode === 1) {
+    label(924, 181, `${tracker.hands.length}`.padStart(2, '0'), CYAN, 64); label(924, 258, 'MAINS DÉTECTÉES', MUTED, 12);
+    label(924, 302, `${Math.round(tracker.fps)} Hz`, WHITE, 32);
+    meter(370, 'PINCE', hand === null ? 0 : hand.pinch, CYAN); meter(435, 'POING', hand === null ? 0 : hand.grab, LIME);
+    label(924, 494, hand === null ? 'En attente d’une main' : `${Math.round(hand.palm.y)} mm au-dessus`, MUTED);
+  } else {
+    label(924, 177, 'Pincez.', LIME, 32); label(924, 219, 'Tracez.', CYAN, 32); label(924, 261, 'Relâchez.', WHITE, 32);
+    meter(333, 'PRESSION DE PINCE', hand === null ? (pinched ? 1 : 0) : hand.pinch, palette[inkColor]);
+    label(924, 397, 'COULEUR', MUTED, 12);
+    for (let i = 0; i < 5; i++) { disc(944 + i * 46, 448, 13, palette[i]); if (inkColor === i) ring(944 + i * 46, 448, 18, WHITE); }
+    button(12, 924, 490, 228, 40, 'Annuler le dernier trait');
+  }
+  label(924, 535, mode === 2 ? `TRAIT ${inkWidth} PX` : `AMPLITUDE ${range} MM`, MUTED, 12);
+  button(13, 924, 557, 106, 40, '−'); button(14, 1046, 557, 106, 40, '+');
+  button(10, 924, 620, 228, 48, mode === 0 ? (game.running ? 'Recommencer' : 'Jouer  →') : mode === 1 ? 'Réinitialiser l’amplitude' : 'Effacer le carnet', true);
+  button(11, 924, 684, 228, 44, tracker.simulated ? 'Revenir au capteur' : 'Essayer la simulation');
+}
+
+onFrame((elapsed: number) => {
+  const dt = clamp(elapsed, 0.001, 0.05); t += dt;
+  const scale = Math.min(width() / 1200, height() / 800), ox = (width() - 1200 * scale) / 2, oy = (height() - 800 * scale) / 2;
+  tracker.update(dt);
+  const hand = primary();
+  const px = (pointerX() - ox) / scale, py = (pointerY() - oy) / scale, mouse = pointerDown();
+  const previous = active;
+  oldX = x; oldY = y;
+  if (hand !== null) {
+    const fresh = lastHand !== hand.id;
+    const tip = hand.joints[9], tx = clamp(mapX(tip), 20, 1176), ty = clamp(mapY(tip), 24, 734);
+    const follow = mode === 2 ? 1 - Math.exp(-dt * 23) : 1 - Math.exp(-dt * 45);
+    x = fresh ? tx : x + (tx - x) * follow; y = fresh ? ty : y + (ty - y) * follow;
+    if (fresh) { oldX = x; oldY = y; trail = []; ink.drawing = false; pinched = false; }
+    pinched = hand.pinch >= (pinched ? 0.55 : 0.8); active = true; lastHand = hand.id;
+  } else {
+    active = mouse; pinched = mouse; x = px; y = py;
+    if (lastHand !== -1 || !previous) { oldX = x; oldY = y; trail = []; ink.drawing = false; }
+    lastHand = -1;
+  }
+  const mouseClick = mouse && !pointerWasDown, pinchClick = pinched && !pinchWasDown;
+  const target = hit(mouseClick || hand === null ? px : x, mouseClick || hand === null ? py : y);
+  if (target !== hover) { hover = target; dwell = 0; hoverFired = false; }
+  if (hand !== null && hover >= 0 && !hoverFired) dwell += dt;
+  if (hover >= 0 && (mouseClick || pinchClick || (!hoverFired && dwell >= 0.7))) { activate(hover); hoverFired = true; dwell = 0; }
+  if (wasPressed(Btn.Left)) select((mode + 2) % 3);
+  if (wasPressed(Btn.Right)) select((mode + 1) % 3);
+  if (wasPressed(Btn.A) || wasPressed(Btn.Start)) activate(10);
+  for (let k = 0; k < keyCount(); k++) if (keyKind(k) === KeyKind.Down) {
+    const key = keyName(k);
+    if (key === '1' || key === '2' || key === '3') select(parseInt(key) - 1);
+    if (key === 's') activate(11);
+    if (key === 'u' && mode === 2) ink.undo();
+  }
+  if (mode !== lastMode) { console.log('air-arcade mode', names[mode]); lastMode = mode; }
+  const inside = active && x > 42 && x < 870 && y > 202 && y < 725 && hover < 0;
+  if (mode === 0) {
+    game.update(dt, oldX, oldY - 170, x, y - 170, inside && previous);
+    if (inside) { trail.push(x); trail.push(y); if (trail.length > 24) trail.splice(0, 2); }
+    else if (trail.length > 0) trail.splice(0, 2);
+  }
+  if (mode === 2) ink.update(x, y, inside && pinched, palette[inkColor], inkWidth);
+  else ink.drawing = false;
+  setTransform(scale, 0, 0, scale, ox, oy);
+  background();
+  if (mode === 0) gameScene(); else if (mode === 1) handScene(); else inkScene();
+  sidebar(hand);
+  if (hand !== null || mouse) {
+    disc(x, y, pinched ? 5 : 3, pinched ? LIME : WHITE);
+    ring(x, y, pinched ? 12 : 18, pinched ? LIME : CYAN, 225);
+    if (dwell > 0) ring(x, y, 23, LIME, 255, -Math.PI / 2, -Math.PI / 2 + dwell / 0.7 * Math.PI * 2);
+  }
+  if (!tracker.simulated && tracker.hands.length === 0) {
+    rrect(194, 678, 524, 34, 17, BG, 235);
+    label(211, 686, tracker.status === 2 ? 'Placez une main au-dessus du Leap · Souris : glisser' : 'Lancez Ultraleap Hand Tracking · Souris : glisser', MUTED, 12);
+  }
+  pointerWasDown = mouse; pinchWasDown = pinched;
+});
+console.log('air-arcade ready: Leap Motion / mouse / explicit simulation');

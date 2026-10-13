@@ -294,6 +294,8 @@ The next backlog review turns lines into tasks or deletes them.
 
 ## Cross-platform pass
 
+- ZN-738: add LeapC library discovery and verify the leapmotion plugin on Windows/Linux during the cross-platform pass; only macOS is declared and tested today.
+
 - ZN-734: on the Pi (spark), the command in the task notes: a sketch without a size must print `fbdev: /dev/fb0 800x480 16 bpp, surface 800x480 at 0,0 size 800x480`; and the same under ZINC_DISPLAY=gl on a KMS screen. ZN-736: the project card on Linux (its `Window, linux` label, xdg-open) with its own golden.
 
 - ZN-731: on the Pi 3B+ with someone at the screen: colours beside the software path, the edge of the hole, a card dragged and zoomed with its film playing, two films at once, a 1080p clip, an hour of play, a minute of museum-table's film in one go.

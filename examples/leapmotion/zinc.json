@@ -1,0 +1,9 @@
+{
+  "name": "Air Arcade — Leap Motion",
+  "entry": "src/main.ts",
+  "targets": {
+    "macos": { "width": 1200, "height": 800 },
+    "sim": { "width": 1200, "height": 800 }
+  },
+  "requires": ["display", "pointer|touch", "heap>=8M"]
+}

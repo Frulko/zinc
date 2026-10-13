@@ -1,0 +1,31 @@
+import { Tracker } from 'zinc:leapmotion';
+import { cuts, Game, Fruit, Ink } from '../../../../examples/leapmotion/src/model';
+function check(ok: boolean, why: string): void { if (!ok) throw new Error(why); }
+check(cuts(0, 40, 100, 40, 50, 40, 8), 'fast blade crossed a fruit');
+check(!cuts(0, 0, 100, 0, 50, 40, 8), 'distant swipe is not a cut');
+check(!cuts(50, 40, 50, 40, 50, 40, 8), 'stationary hand must not cut');
+check(!cuts(0, 0, 20, 0, 50, 0, 8), 'segment must not extend past the cursor');
+const a = new Tracker(true), b = new Tracker(true);
+a.update(0.016); b.update(0.016);
+check(a.status === 2 && a.hands.length === 2 && a.hands[0].joints.length === 25, 'simulated skeleton');
+check(a.hands[1].joints[9].x === b.hands[1].joints[9].x, 'deterministic simulation');
+for (let i = 0; i < 100; i++) { a.update(0.016); check(a.hands[1].pinch >= 0 && a.hands[1].pinch <= 1, 'pinch range'); }
+a.close(); check(a.hands.length === 0 && a.status === 0, 'close clears stale hands');
+const g = new Game(); g.start(); g.update(0.01, 0, 0, 0, 0, false); g.fruits = [];
+g.fruits.push(new Fruit(50, 40, 0, 0, 0, 10)); g.fruits.push(new Fruit(80, 40, 0, 0, 1, 10));
+g.update(0.001, 0, 40, 120, 40, true);
+check(g.score === 30 && g.combo === 2 && g.sparks.length === 24, 'two-fruit combo');
+g.update(0.001, 0, 40, 120, 40, true); check(g.score === 30, 'cannot cut a half again');
+g.fruits.push(new Fruit(50, 40, 0, 0, 4, 10)); g.update(0.001, 0, 40, 120, 40, true);
+check(g.score === 0 && g.bombs === 1 && g.combo === 0, 'bomb resets combo and floors score');
+g.fruits.push(new Fruit(30, 690, 0, 0, 1, 10)); g.update(0.001, 0, 0, 0, 0, false);
+check(g.missed === 1, 'missed fruit'); g.remaining = 0.001; g.update(0.01, 0, 0, 0, 0, false);
+check(!g.running, 'round ends'); g.start(); check(g.score === 0 && g.remaining === 60 && g.fruits.length === 0, 'restart');
+const ink = new Ink(); ink.update(100, 100, true, 0xffffff, 5); ink.update(110, 110, true, 0xffffff, 5);
+ink.update(110, 110, false, 0xffffff, 5); ink.update(300, 300, true, 0xffffff, 5);
+check(ink.strokes.length === 2 && ink.strokes[1].points.length === 2, 'lifting never joins separate strokes');
+ink.undo(); check(ink.strokes.length === 1, 'undo'); ink.clear(); check(ink.strokes.length === 0, 'clear');
+for (let i = 0; i < 14000; i++) ink.update(i * 3, 200, true, 0xffffff, 5);
+let points = 0; for (const s of ink.strokes) points += s.points.length / 2;
+check(points <= 6000 && ink.strokes.length <= 120, 'bounded ink page');
+console.log('leapmotion model: all checks passed');
