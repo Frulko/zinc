@@ -1,5 +1,12 @@
 2 pad A
 3 padup A
+5 key m
+7 key m
+9 move 985 500
+10 down
+11 up
+13 pad A
+14 padup A
 30 key 2
 34 key s
 70 key 3

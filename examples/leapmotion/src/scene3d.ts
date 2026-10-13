@@ -1,7 +1,7 @@
-import { createImage, beginImage, endImage, clear, polygon, rrect } from 'zinc:gfx';
+import { image, createImage, beginImage, endImage, clear, rrect } from 'zinc:gfx';
 import { Scene, Camera, Node, Mesh, Material, Light, sphere, cube, plane, render } from 'zinc:3d';
 import { Hand, Vec3, Tracker } from 'zinc:leapmotion';
-import { Game, Fruit, clamp, COLORS } from './model';
+import { Game, Fruit, clamp } from './model';
 
 function material(color: u32, shine: number = 0): Material {
   const m = new Material(color); m.specular = shine > 0 ? 0x777777 : 0; m.shininess = shine; return m;
@@ -113,20 +113,21 @@ export class HandScene {
 
 /** Upper hemisphere plus a separate flat cut face: the two halves rotate independently. */
 function hemisphere(): Mesh {
-  const p: number[] = [], n: number[] = [], ix: i32[] = [];
+  const p: number[] = [], n: number[] = [], uv: number[] = [], ix: i32[] = [];
   const rings = 10, sectors = 24;
   for (let r = 0; r <= rings; r++) for (let s = 0; s <= sectors; s++) {
     const phi = r / rings * Math.PI / 2, a = s / sectors * Math.PI * 2;
     const x = Math.sin(phi) * Math.cos(a), y = Math.cos(phi), z = Math.sin(phi) * Math.sin(a);
     p.push(x); p.push(y); p.push(z); n.push(x); n.push(y); n.push(z);
+    uv.push(s / sectors); uv.push(r / rings / 2);
     if (r < rings && s < sectors) { const v = r * (sectors + 1) + s; ix.push(v); ix.push(v + 1); ix.push(v + sectors + 1); ix.push(v + 1); ix.push(v + sectors + 2); ix.push(v + sectors + 1); }
   }
-  return new Mesh(p, ix, n, [], []);
+  return new Mesh(p, ix, n, uv, []);
 }
-function cutFace(): Mesh {
-  const p: number[] = [0, 0, 0], n: number[] = [0, -1, 0], ix: i32[] = [];
-  for (let i = 0; i <= 32; i++) { const a = i / 32 * Math.PI * 2; p.push(Math.cos(a)); p.push(0); p.push(Math.sin(a)); n.push(0); n.push(-1); n.push(0); if (i < 32) { ix.push(0); ix.push(i + 1); ix.push(i + 2); } }
-  return new Mesh(p, ix, n, [], []);
+function cutFace(cx: number, cy: number, rx: number, ry: number): Mesh {
+  const p: number[] = [0, 0, 0], n: number[] = [0, -1, 0], uv: number[] = [cx, cy], ix: i32[] = [];
+  for (let i = 0; i <= 32; i++) { const a = i / 32 * Math.PI * 2, x = Math.cos(a), z = Math.sin(a); p.push(x); p.push(0); p.push(z); n.push(0); n.push(-1); n.push(0); uv.push(cx + x * rx); uv.push(cy + z * ry); if (i < 32) { ix.push(0); ix.push(i + 1); ix.push(i + 2); } }
+  return new Mesh(p, ix, n, uv, []);
 }
 class FruitMesh {
   root: Node;
@@ -154,24 +155,25 @@ export class FruitScene {
   private models: FruitMesh[] = [];
   private sparks: Node[] = [];
   private skins: Material[] = [];
-  private wholeSkins: Material[] = [];
   private pulp: Material[] = [];
+  private faces: Mesh[] = [];
   constructor() {
     this.scene.background = 0x101a20; this.scene.ambient = 0x646066;
     this.scene.lights.push(new Light(-0.4, -0.7, -1, 0xffe5c9));
     this.scene.lights.push(new Light(0.6, 0.4, -0.3, 0x547596));
     this.camera.setPosition(0, 0, 1000).lookAt(0, 0, 0); this.camera.fov = 2 * Math.atan2(267, 1000) * 180 / Math.PI;
     this.camera.near = 5; this.camera.far = 2400; this.camera.pixelRatio = 1;
-    const mesh = sphere(1, 24, 16), half = hemisphere(), face = cutFace();
-    const inside: u32[] = [0xffe7b6, 0xffdb72, 0xff6780, 0xf0d7ff, 0x1d2930];
+    const mesh = sphere(1, 24, 16), half = hemisphere();
+    const skins = [image('fruits/apple-skin.jpg'), image('fruits/orange-skin.jpg'), image('fruits/watermelon-skin.jpg'), kiwiTexture()];
+    const cuts = [image('fruits/apple-cut.png'), image('fruits/orange-cut.jpg'), image('fruits/watermelon-atlas.png'), image('fruits/kiwi-cut.png')];
+    for (let i = 0; i < 4; i++) if (skins[i] < 0 || cuts[i] < 0) throw new Error('Fruit textures missing: run examples/leapmotion with its assets directory.');
+    this.faces = [cutFace(0.5, 0.5, 0.4, 0.4), cutFace(0.5, 0.5, 0.475, 0.475), cutFace(0.756, 0.764, 0.209, 0.197), cutFace(0.5, 0.5, 0.425, 0.425), cutFace(0.5, 0.5, 0.5, 0.5)];
     for (let i = 0; i < 5; i++) {
-      this.skins.push(material(i === 4 ? 0x253238 : COLORS[i], 18)); this.pulp.push(material(inside[i]));
       const skin = material(i === 4 ? 0x253238 : 0xffffff, 24);
-      skin.specular = 0x303030;
-      if (i < 4) skin.texture = fruitTexture(i);
-      this.wholeSkins.push(skin);
+      skin.specular = 0x303030; if (i < 4) skin.texture = skins[i]; this.skins.push(skin);
+      const flesh = material(i === 4 ? 0x1d2930 : 0xffffff); if (i < 4) flesh.texture = cuts[i]; this.pulp.push(flesh);
     }
-    for (let i = 0; i < 24; i++) this.models.push(new FruitMesh(this.scene, mesh, half, face, this.skins[0]));
+    for (let i = 0; i < 24; i++) this.models.push(new FruitMesh(this.scene, mesh, half, this.faces[0], this.skins[0]));
     for (let i = 0; i < 100; i++) this.sparks.push(node(this.scene, ball, material(0xffffff)));
     const back = node(this.scene, box, material(0x15282c)); back.setPosition(0, -25, -160).setScale(1300, 850, 8);
     for (let i = -8; i <= 8; i++) node(this.scene, box, material(0x213d40)).setPosition(i * 75, 0, -150).setScale(1, 820, 1);
@@ -188,12 +190,12 @@ export class FruitScene {
       // Perspective depth changes while x/y and radius keep the exact same screen-space collision circle.
       const z = Math.sin(f.age * 1.4 + i * 0.8) * 70, k = (1000 - z) / 1000;
       m.root.setPosition((f.x - 456) * k, (463 - (f.y + 170)) * k, z).setScale(f.r * k, f.r * k, f.r * k).setRotation(0.2, f.angle, f.angle * 0.5);
-      m.whole.visible = !f.cut; m.whole.material = this.wholeSkins[f.kind]; m.leaf.visible = f.kind !== 4;
+      m.whole.visible = !f.cut; m.whole.material = this.skins[f.kind]; m.leaf.visible = f.kind === 0 || f.kind === 1;
       m.stem.material = f.kind === 4 ? red : materialStem;
       for (let h = 0; h < 2; h++) {
         const part = m.halves[h], side = h === 0 ? -1 : 1;
         part.visible = f.cut; part.setPosition(side * f.split * 2.4, -f.split * f.split * 2, 0).setRotation(f.split * side * 2.1, 0.25 + f.split * side, -side * Math.PI / 2);
-        m.shells[h].material = this.skins[f.kind]; m.faces[h].material = this.pulp[f.kind];
+        m.shells[h].material = this.skins[f.kind]; m.faces[h].material = this.pulp[f.kind]; m.faces[h].mesh = this.faces[f.kind];
       }
     }
     for (let i = 0; i < this.sparks.length; i++) {
@@ -207,21 +209,9 @@ export class FruitScene {
 }
 const materialStem = material(0x735135);
 
-function fruitTexture(kind: number): number {
+function kiwiTexture(): number {
   const texture = createImage(128, 64); beginImage(texture);
-  clear(kind === 2 ? 0x91bd3c : COLORS[kind]);
-  if (kind === 2) {
-    for (let band = 0; band < 12; band++) {
-      const p: number[] = [];
-      for (let row = 0; row <= 8; row++) { p.push(band * 12 + Math.sin(row * 0.7 + band) * 2); p.push(row * 8); }
-      for (let row = 8; row >= 0; row--) { p.push(band * 12 + 5 + Math.sin(row * 0.7 + band) * 2); p.push(row * 8); }
-      polygon(p, 0x286738, 255);
-    }
-  } else {
-    for (let i = 0; i < 180; i++) {
-      const x = (i * 47) % 128, y = (i * 23) % 64;
-      rrect(x, y, kind === 1 ? 1.5 : 1, 1, 0.5, kind === 1 ? 0xffe5aa : 0xffffff, 45);
-    }
-  }
+  clear(0x947047);
+  for (let i = 0; i < 700; i++) rrect((i * 47) % 128, (i * 23) % 64, 0.7, 2, 0.3, 0x523d22, 95);
   endImage(); return texture;
 }

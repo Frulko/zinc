@@ -1,0 +1,82 @@
+{
+  "verified": "2026-10-13",
+  "assets": [
+    {
+      "kind": "watermelon skin",
+      "author": "TextureCan",
+      "file": "watermelon-skin.jpg",
+      "source": "https://www.texturecan.com/details/111/",
+      "download": "https://www.texturecan.com/downloads/food_0001/food_0001_1k_jcHc5F.zip",
+      "license": "CC0-1.0",
+      "license_evidence": "https://www.texturecan.com/terms/",
+      "sha256": "a1d47f72364d59124dbdbcb50c4490f6c4f1b0c64bde0101de1e9160c0658375",
+      "bytes": 205691
+    },
+    {
+      "kind": "apple skin",
+      "author": "TextureCan",
+      "file": "apple-skin.jpg",
+      "source": "https://www.texturecan.com/details/185/",
+      "download": "https://www.texturecan.com/downloads/food_0006/food_0006_1k_p5P3df.zip",
+      "license": "CC0-1.0",
+      "license_evidence": "https://www.texturecan.com/terms/",
+      "sha256": "c257e7da6c90e22fe304dfff94f1ef17cc8630fca79d39833ba60eb59518fb40",
+      "bytes": 211936
+    },
+    {
+      "kind": "orange skin",
+      "author": "TextureCan",
+      "file": "orange-skin.jpg",
+      "source": "https://www.texturecan.com/details/451/",
+      "download": "https://www.texturecan.com/downloads/food_0022/food_0022_1k_Z1rbdX.zip",
+      "license": "CC0-1.0",
+      "license_evidence": "https://www.texturecan.com/terms/",
+      "sha256": "74459545d0d60c136bb54df628b7bed47ee966e0c6c3c41cb6501a220534e1c4",
+      "bytes": 129060
+    },
+    {
+      "kind": "orange cut",
+      "author": "TextureCan",
+      "file": "orange-cut.jpg",
+      "source": "https://www.texturecan.com/details/452/",
+      "download": "https://www.texturecan.com/downloads/food_0023/food_0023_1k_MQpn0V.zip",
+      "license": "CC0-1.0",
+      "license_evidence": "https://www.texturecan.com/terms/",
+      "sha256": "4c10c35f984eef0e0007787993871e0a53cfb7e9bc0649f00b98a3e0f7996cb6",
+      "bytes": 73995
+    },
+    {
+      "kind": "apple cut",
+      "author": "qubodup (derived from linked PublicDomainPictures photographs)",
+      "file": "apple-cut.png",
+      "source": "https://opengameart.org/content/fruit-cut-open-for-uv-maps",
+      "download": "https://opengameart.org/sites/default/files/qubodup-cc0pd-cutUpFruit.7z",
+      "license": "CC0-1.0",
+      "license_evidence": "https://opengameart.org/content/fruit-cut-open-for-uv-maps",
+      "sha256": "8d8e68c2470093e37cdfb4f4232a48aac283e3bfb119058678e221df95dc9e80",
+      "bytes": 1233279
+    },
+    {
+      "kind": "kiwi cut",
+      "author": "qubodup (derived from linked PublicDomainPictures photographs)",
+      "file": "kiwi-cut.png",
+      "source": "https://opengameart.org/content/fruit-cut-open-for-uv-maps",
+      "download": "https://opengameart.org/sites/default/files/qubodup-cc0pd-cutUpFruit.7z",
+      "license": "CC0-1.0",
+      "license_evidence": "https://opengameart.org/content/fruit-cut-open-for-uv-maps",
+      "sha256": "282cfba80cae2df3c62565dfba88e14f491b134b7a110f8d12d9b556fed92581",
+      "bytes": 1504799
+    },
+    {
+      "kind": "watermelon skin and cut atlas",
+      "author": "nevak",
+      "file": "watermelon-atlas.png",
+      "source": "https://opengameart.org/content/a-watermelon",
+      "download": "https://opengameart.org/sites/default/files/Melon.zip",
+      "license": "CC0-1.0",
+      "license_evidence": "https://opengameart.org/content/a-watermelon",
+      "sha256": "1fbbb63c533194dca6301c636fb261dbaab89fd56f21d71d441b4d4b52d3f7ef",
+      "bytes": 590812
+    }
+  ]
+}

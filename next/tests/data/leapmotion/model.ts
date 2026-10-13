@@ -1,6 +1,8 @@
 import { Hand, Device, Tracker } from 'zinc:leapmotion';
 import { Duel, gesture, winner } from '../../../../examples/leapmotion/src/shifumi';
-import { cuts, Game, Fruit, Ink } from '../../../../examples/leapmotion/src/model';
+import { cuts, cutTime, Blade, Game, Fruit, Ink } from '../../../../examples/leapmotion/src/model';
+import { FruitInput } from '../../../../examples/leapmotion/src/fruit-input';
+function blade(ax: number, ay: number, bx: number, by: number): Blade { const b = new Blade(); b.move(ax, ay, true, 1, 1); b.move(bx, by, true, 1, 1); return b; }
 function check(ok: boolean, why: string): void { if (!ok) throw new Error(why); }
 check(cuts(0, 40, 100, 40, 50, 40, 8), 'fast blade crossed a fruit');
 check(!cuts(0, 0, 100, 0, 50, 40, 8), 'distant swipe is not a cut');
@@ -12,16 +14,16 @@ check(a.status === 2 && a.hands.length === 2 && a.hands[0].joints.length === 25,
 check(a.hands[1].joints[9].x === b.hands[1].joints[9].x, 'deterministic simulation');
 for (let i = 0; i < 100; i++) { a.update(0.016); check(a.hands[1].pinch >= 0 && a.hands[1].pinch <= 1, 'pinch range'); }
 a.close(); check(a.hands.length === 0 && a.status === 0, 'close clears stale hands');
-const g = new Game(); g.start(); g.update(0.01, 0, 0, 0, 0, false); g.fruits = [];
+const g = new Game(); g.start(); g.update(0.01, []); g.fruits = [];
 g.fruits.push(new Fruit(50, 40, 0, 0, 0, 10)); g.fruits.push(new Fruit(80, 40, 0, 0, 1, 10));
-g.update(0.001, 0, 40, 120, 40, true);
-check(g.score === 30 && g.combo === 2 && g.sparks.length === 24, 'two-fruit combo');
-g.update(0.001, 0, 40, 120, 40, true); check(g.score === 30, 'cannot cut a half again');
-g.fruits.push(new Fruit(50, 40, 0, 0, 4, 10)); g.update(0.001, 0, 40, 120, 40, true);
-check(g.score === 0 && g.bombs === 1 && g.combo === 0, 'bomb resets combo and floors score');
-g.fruits.push(new Fruit(30, 690, 0, 0, 1, 10)); g.update(0.001, 0, 0, 0, 0, false);
-check(g.missed === 1, 'missed fruit'); g.remaining = 0.001; g.update(0.01, 0, 0, 0, 0, false);
-check(!g.running, 'round ends'); g.start(); check(g.score === 0 && g.remaining === 60 && g.fruits.length === 0, 'restart');
+g.update(0.001, [blade(0, 40, 120, 40)]);
+check(g.players[0].score === 30 && g.players[0].combo === 2 && g.sparks.length === 24, 'two-fruit combo');
+g.update(0.001, [blade(0, 40, 120, 40)]); check(g.players[0].score === 30, 'cannot cut a half again');
+g.fruits.push(new Fruit(50, 40, 0, 0, 4, 10)); g.update(0.001, [blade(0, 40, 120, 40)]);
+check(g.players[0].score === 0 && g.players[0].bombs === 1 && g.players[0].combo === 0, 'bomb resets combo and floors score');
+g.fruits.push(new Fruit(30, 690, 0, 0, 1, 10)); g.update(0.001, []);
+check(g.missed === 1, 'missed fruit'); g.remaining = 0.001; g.update(0.01, []);
+check(!g.running, 'round ends'); g.start(); check(g.players[0].score === 0 && g.remaining === 60 && g.fruits.length === 0, 'restart');
 const ink = new Ink(); ink.update(100, 100, true, 0xffffff, 5); ink.update(110, 110, true, 0xffffff, 5);
 ink.update(110, 110, false, 0xffffff, 5); ink.update(300, 300, true, 0xffffff, 5);
 check(ink.strokes.length === 2 && ink.strokes[1].points.length === 2, 'lifting never joins separate strokes');
@@ -51,4 +53,33 @@ duel.reassign(); sensor.devices.push(new Device(30, 'C')); sensor.devices[1].han
 duel.update(sensor, 0.01); duel.start(); sensor.devices[1].hands = [new Hand()];
 for (let i = 0; i < 62; i++) duel.update(sensor, 0.05);
 check(duel.round === 1 && duel.scores[0] === 1, 'ambiguous final gesture awards no point');
+// Both blades are evaluated before awarding a fruit, using earliest contact within the frame.
+const multi = new Game(); multi.multiplayer = true; multi.start(); multi.update(0.01, []); multi.fruits = [];
+multi.fruits.push(new Fruit(80, 40, 0, 0, 0, 10));
+multi.update(0.001, [blade(0, 40, 100, 40), blade(60, 40, 100, 40)]);
+check(multi.players[0].score === 0 && multi.players[1].score === 10, 'earlier contact wins once, not player order');
+multi.update(0.001, [blade(0, 40, 100, 40), blade(60, 40, 100, 40)]);
+check(multi.players[1].score === 10, 'cut fruit cannot award both players');
+multi.fruits = [new Fruit(80, 40, 0, 0, 1, 10)];
+multi.update(0.001, [blade(0, 40, 100, 40)]);
+check(multi.players[0].score === 10 && multi.players[0].combo === 1 && multi.players[1].combo === 1, 'independent combos');
+multi.fruits = [new Fruit(80, 40, 0, 0, 4, 10)];
+multi.update(0.001, [blade(0, 40, 100, 40)]);
+check(multi.players[0].score === 0 && multi.players[0].bombs === 1 && multi.players[1].score === 10, 'bomb penalizes only its slicer');
+multi.multiplayer = false; multi.start(); multi.update(0.01, []); multi.fruits = [new Fruit(80, 40, 0, 0, 0, 10)];
+multi.update(0.001, [new Blade(), blade(0, 40, 100, 40)]);
+check(!multi.fruits[0].cut && multi.players[1].score === 0, 'solo ignores the second blade and restart clears scores');
+const interrupted = blade(0, 40, 40, 40);
+interrupted.move(0, 0, false, 1, 1); interrupted.move(100, 40, true, 1, 1);
+check(!interrupted.continuous && interrupted.ax === 100, 'returning hand cannot cut across its absence');
+interrupted.move(20, 40, true, 2, 1); check(!interrupted.continuous, 'same hand ID on another sensor is a new blade');
+check(cutTime(0, 0, 100, 0, 50, 0, 10) === 0.4, 'first contact time');
+const inputs = new FruitInput(), tracked = new Tracker(true);
+tracked.update(0.01); inputs.update(tracked, 420); inputs.update(tracked, 420);
+check(inputs.blades[0].continuous && inputs.blades[1].continuous, 'both simulated players have independent blades');
+const second = tracked.devices[1]; tracked.devices = [second]; inputs.update(tracked, 420);
+check(!inputs.blades[0].active && inputs.blades[1].active && inputs.devices[1] === second.id, 'losing player one preserves player two');
+inputs.pause(); inputs.update(tracked, 260);
+check(inputs.devices[0] === 1 && inputs.devices[1] === second.id && !inputs.blades[1].continuous, 'navigation or calibration keeps assignments and breaks the sweep');
+inputs.reset(); check(!inputs.blades[1].active && inputs.devices[1] === -1, 'restart can reassign sensors');
 console.log('leapmotion model: all checks passed');

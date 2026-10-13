@@ -1,4 +1,4 @@
-# Leap Motion plugin and Air Arcade (ZN-738, ZN-739)
+# Leap Motion plugin and Air Arcade (ZN-738, ZN-739, ZN-740)
 
 The owner's request was a Zinc Fruit Ninja style demo, hand visualizer and air writing, treating Leap Motion as a plugin.
 `plugins/leapmotion` wraps the installed LeapC SDK through the existing native-module ABI. The app, projections, gestures,
@@ -28,12 +28,24 @@ A three-second countdown accepts only a recognised pose held for at least 180 ms
 uncertain poses score nothing. Valid poses are copied and frozen at reveal so the model matches the result even as players
 move again. Each valid non-draw round awards one point. Device replacement is explicit through the reassignment control.
 
+ZN-740 adds a Solo/2 joueurs toggle to Fruit 3D, with solo as the default. Two players share the arena with separate sensor
+bindings, blade histories, scores, combos and bomb penalties. First segment/circle contact within the frame decides ownership;
+exact ties alternate priority. Missing/replaced hands, navigation and range changes interrupt blade continuity without changing
+sensor ownership. Restart reassigns devices; changing player count clears the round and returns to the ready screen.
+
+Seven unmodified CC0 images from TextureCan, qubodup and nevak replace placeholder fruit colours with skin and cut-face textures.
+They are reusable alternatives, not Halfbrick assets. Local source URLs, download URLs, hashes and licence text are recorded in
+`examples/leapmotion/assets/fruits/`. Existing mesh UVs map the skins; custom disc UVs sample cut photographs and the watermelon
+atlas. Geometry, plugin ABI and renderer remain unchanged; kiwi skin and the bomb remain procedural. No runtime network access.
+
 Validation: `tests/t0/leapmotion.sh` covers deterministic skeletons, collision/combos/bombs/restarts, ink lift/undo/bounds,
 missing SDK, all nine shifumi outcomes, gesture rejection and device assignment. With the installed SDK header, a fake LeapC
 library verifies two-device subscription, overlapping hand/frame IDs, duplicate discovery, event memory invalidation,
 independent staleness, empty/lost frames, reconnect and shutdown. Native API checks run on interpreter, AOT and QuickJS.
-`tests/t1/leapmotion_demo.sh` drives all four modes, compares duel and fruit geometry goldens, and compares a short identical
-3D hand frame on all three engines. The fake SDK and simulated hands keep those checks independent of physical gestures.
+`tests/t1/leapmotion_demo.sh` drives all four modes and toggles fruit multiplayer through keyboard and mouse. It compares duel,
+fruit geometry and multiplayer goldens, including short identical textured multiplayer frames on all three engines. Model tests
+check first-hit ownership, no double award, per-player combos/bombs, solo ignoring the second blade and interrupted tracking.
+The fake SDK and simulated hands keep those checks independent of physical gestures.
 The real service reported one device and tracking frames on this Mac; two physical sensors together have not been verified.
 The updated interactive demo was launched in real tracking mode. No engine build or cross-target test was needed.
 

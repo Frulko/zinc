@@ -2,31 +2,33 @@ import { onFrame, clear, rrect, border, line, stroke, clip, unclip, pointerX, po
   wasPressed, Btn, setTransform, width, height, onResize, keyCount, keyKind, keyName, KeyKind, wheel } from 'zinc:gfx';
 import { env } from 'zinc:sys';
 import { Tracker, Hand, Vec3 } from 'zinc:leapmotion';
-import { Game, Ink, clamp } from './model';
+import { Game, Ink, Blade, clamp } from './model';
+import { FruitInput } from './fruit-input';
 import { HandScene, FruitScene } from './scene3d';
 import { Duel, GESTURES } from './shifumi';
 import { label, disc, ring, segment, BG, PANEL, MUTED, WHITE, LIME, CYAN } from './draw';
 
 const tracker = new Tracker(env('ZINC_LEAP_SIM') === '1');
 const game = new Game(), ink = new Ink();
+const fruitInput = new FruitInput(), soloBlade = new Blade();
 const hands3d = new HandScene(), fruits3d = new FruitScene(), duel = new Duel();
 let lastMouseX = 0, lastMouseY = 0, lastDevice = -1;
 const names = ['Fruit 3D', 'Hand lab', 'Air ink', 'Shifumi'];
 const subtitles = ['Une main. Des fruits. Un peu de chaos.', 'Vos mains, sous un autre angle.', 'Dessinez quelque chose dans l’air.', 'Deux capteurs. Deux joueurs. Un seul gagnant.'];
 let mode = env('ZINC_LEAP_MODE') === 'duel' ? 3 : env('ZINC_LEAP_MODE') === 'ink' ? 2 : env('ZINC_LEAP_MODE') === 'hands' ? 1 : 0;
 let t = 0, pointerWasDown = false, pinchWasDown = false, pinched = false;
-let x = 440, y = 390, oldX = 440, oldY = 390, active = false, lastHand = -1;
+let x = 440, y = 390, active = false, lastHand = -1;
 let hover = -1, dwell = 0, hoverFired = false;
 let range = 420, inkColor = 0, inkWidth = 5;
-let trail: number[] = [];
 let lastMode = -1;
 const palette: u32[] = [LIME, CYAN, 0xff8fa3, 0xc3a4ff, WHITE];
 const autoStart = env('ZINC_LEAP_AUTOPLAY') === '1';
+game.multiplayer = env('ZINC_LEAP_MULTIPLAYER') === '1';
 if (autoStart) game.start();
 onResize((_w: number, _h: number) => {});
 
 function select(next: number): void {
-  mode = next; trail = []; active = false; lastHand = -1; pinched = false; ink.drawing = false;
+  mode = next; fruitInput.pause(); soloBlade.move(0, 0, false, -1, -1); active = false; lastHand = -1; pinched = false; ink.drawing = false;
 }
 function mapX(p: Vec3): number { return 600 + p.x / range * 1160; }
 function mapY(p: Vec3): number { return 734 - (p.y - 100) / 350 * 704; }
@@ -41,6 +43,7 @@ function hit(px: number, py: number): number {
     if (py >= 620 && py <= 668) return 10;
     if (py >= 684 && py <= 728) return 11;
     if ((mode === 2 || mode === 3) && py >= 490 && py <= 530) return 12;
+    if (mode === 0 && py >= 480 && py <= 524) return 15;
     if (py >= 555 && py <= 599) return px < 1038 ? 13 : 14;
     if (mode === 2 && py >= 425 && py <= 472) return 20 + Math.min(4, Math.floor((px - 924) / 46));
   }
@@ -48,11 +51,13 @@ function hit(px: number, py: number): number {
 }
 function activate(id: number): void {
   if (id >= 0 && id <= 3) select(id);
-  if (id === 10) { if (mode === 0) game.start(); else if (mode === 2) ink.clear(); else if (mode === 3) duel.start(); else hands3d.reset(); }
-  if (id === 11) { tracker.setSimulation(!tracker.simulated); active = false; lastHand = -1; trail = []; ink.drawing = false; }
+  if (id === 10) { if (mode === 0) { game.start(); fruitInput.reset(); soloBlade.move(0, 0, false, -1, -1); } else if (mode === 2) ink.clear(); else if (mode === 3) duel.start(); else hands3d.reset(); }
+  if (id === 11) { tracker.setSimulation(!tracker.simulated); fruitInput.reset(); soloBlade.move(0, 0, false, -1, -1); active = false; lastHand = -1; ink.drawing = false; }
   if (id === 12) { if (mode === 3) duel.reassign(); else ink.undo(); }
   if (id === 13) { if (mode === 2) inkWidth = clamp(inkWidth - 1, 2, 12); else if (mode === 1 || mode === 3) hands3d.orbit(0, 0, -1); else range = clamp(range - 40, 260, 660); }
   if (id === 14) { if (mode === 2) inkWidth = clamp(inkWidth + 1, 2, 12); else if (mode === 1 || mode === 3) hands3d.orbit(0, 0, 1); else range = clamp(range + 40, 260, 660); }
+  if (mode === 0 && (id === 13 || id === 14)) fruitInput.pause();
+  if (id === 15) { game.multiplayer = !game.multiplayer; game.start(); game.running = false; fruitInput.reset(); soloBlade.move(0, 0, false, -1, -1); console.log('air-arcade fruit players', game.multiplayer ? 2 : 1); }
   if (id >= 20 && id <= 24) { inkColor = id - 20; ink.drawing = false; }
 }
 function button(id: number, bx: number, by: number, bw: number, bh: number, text: string, bright: boolean = false): void {
@@ -78,24 +83,30 @@ function background(): void {
   }
   disc(955, 54, 4, tracker.simulated ? 0xffc976 : tracker.status === 2 ? LIME : 0x6b807a);
   label(970, 46, tracker.simulated ? 'SIMULATION' : tracker.status === 2 ? 'LEAP CONNECTÉ' : 'EN ATTENTE', MUTED, 12);
-  label(32, 112, names[mode], WHITE, 32); label(32, 157, subtitles[mode], MUTED);
+  label(32, 112, names[mode], WHITE, 32); label(32, 157, mode === 0 && game.multiplayer ? 'Deux lames. Une arène. À vous de trancher.' : subtitles[mode], MUTED);
   rrect(32, 196, 848, 534, 22, PANEL, 255);
   rrect(900, 112, 276, 618, 22, PANEL, 255);
-  label(32, 759, '1 2 3 4 / ← →  modes     ESPACE  jouer / effacer     S  simulation', MUTED, 12);
+  label(32, 759, '1 2 3 4  modes    ESPACE  jouer    S  simulation    M  solo / duo', MUTED, 12);
   label(716, 759, 'Pincez pour cliquer · Survolez 0,7 s', MUTED, 12);
 }
 function gameScene(): void {
   clip(32, 196, 848, 534, 22);
   fruits3d.draw(game, t);
-  label(60, 220, '60 SECONDES POUR FAIRE LE PLEIN', MUTED, 12);
+  label(60, 220, game.multiplayer ? 'J1 VERT · J2 TURQUOISE · 1 LEAP PAR JOUEUR' : '60 SECONDES POUR FAIRE LE PLEIN', MUTED, 12);
   if (!game.running && game.fruits.length === 0) {
     label(212, 294, game.remaining === 0 ? 'Bien joué.' : 'À vous de trancher.', WHITE, 32);
-    label(212, 342, game.remaining === 0 ? `${game.score} points. Encore une partie ?` : 'Balayez les fruits avec votre index.', MUTED);
+    const result = game.multiplayer ? game.players[0].score === game.players[1].score ? 'Égalité !' : game.players[0].score > game.players[1].score ? 'Joueur 1 gagne !' : 'Joueur 2 gagne !' : `${game.players[0].score} points.`;
+    label(212, 342, game.remaining === 0 ? `${result} Encore une partie ?` : 'Balayez les fruits avec votre index.', MUTED);
     label(212, 371, 'Évitez les bombes. Enchaînez les combos.', MUTED);
     label(275, 593, 'ESPACE ou « Jouer » pour commencer', LIME);
   }
   if (game.popupTime > 0) label(345, 285 - (0.8 - game.popupTime) * 28, game.popup, game.flash > 0 ? 0xff8fa3 : LIME, 20, Math.min(255, game.popupTime * 500));
-  if (trail.length >= 4) { stroke(trail, 15, CYAN, 24, false); stroke(trail, 5, CYAN, 150, false); stroke(trail, 2, WHITE, 255, false); }
+  const blades = game.multiplayer ? fruitInput.blades : [soloBlade];
+  for (let p = 0; p < blades.length; p++) {
+    const blade = blades[p], trail = blade.trail, color = game.multiplayer && p === 0 ? LIME : CYAN;
+    if (trail.length >= 4) { stroke(trail, 15, color, 24, false); stroke(trail, 5, color, 150, false); stroke(trail, 2, WHITE, 255, false); }
+    if (game.multiplayer && blade.active) { ring(blade.x, blade.y + 170, 14, color); label(blade.x + 19, blade.y + 157, `J${p + 1}`, color, 12); }
+  }
   if (game.flash > 0) rrect(32, 196, 848, 534, 22, 0xff6472, Math.round(game.flash * 65));
   unclip();
 }
@@ -147,13 +158,23 @@ function inkScene(): void {
 function sidebar(hand: Hand | null): void {
   label(924, 137, mode === 0 ? 'VOTRE SESSION' : mode === 1 ? 'TÉLÉMÉTRIE' : mode === 3 ? 'LE DUEL' : 'VOTRE ATELIER', MUTED, 12);
   if (mode === 0) {
-    label(924, 171, `${game.score}`.padStart(4, '0'), LIME, 64);
-    label(924, 251, 'POINTS', MUTED, 12);
-    label(924, 301, `${Math.ceil(game.remaining)} s`, WHITE, 32); label(1050, 311, `×${game.combo}`, CYAN, 20);
+    if (game.multiplayer) {
+      for (let p = 0; p < 2; p++) {
+        const top = 177 + p * 63, score = game.players[p], color = p === 0 ? LIME : CYAN;
+        label(924, top, `J${p + 1}`, color, 12); label(958, top - 8, `${score.score}`.padStart(3, '0'), color, 32);
+        label(1070, top, `×${score.combo}`, MUTED, 20);
+        label(924, top + 32, fruitInput.blades[p].active ? 'Lame prête' : 'Main attendue', MUTED, 12);
+      }
+    } else {
+      label(924, 171, `${game.players[0].score}`.padStart(4, '0'), LIME, 64); label(924, 251, 'POINTS', MUTED, 12);
+    }
+    label(924, 310, `${Math.ceil(game.remaining)} s`, WHITE, 32);
+    if (!game.multiplayer) label(1050, 320, `×${game.players[0].combo}`, CYAN, 20);
     rrect(924, 354, 228, 5, 3, 0x344543, 255); rrect(924, 354, 228 * game.remaining / 60, 5, 3, LIME, 255);
-    label(924, 390, `Record       ${game.best}`, MUTED); label(924, 420, `Manqués      ${game.missed}`, MUTED);
-    label(924, 450, `Bombes       ${game.bombs}`, MUTED);
-    label(924, 499, 'Fruits +10 · Bombe −30', WHITE);
+    label(924, 378, game.multiplayer ? `Bombes J1 / J2   ${game.players[0].bombs} / ${game.players[1].bombs}` : `Record       ${game.best}`, MUTED);
+    label(924, 409, `Manqués      ${game.missed}`, MUTED);
+    label(924, 446, 'Fruit +10 · Bombe −30', WHITE, 12);
+    button(15, 924, 480, 228, 44, game.multiplayer ? '2 joueurs · passer solo' : 'Solo · passer à 2');
   } else if (mode === 1) {
     label(924, 181, `${tracker.hands.length}`.padStart(2, '0'), CYAN, 64); label(924, 258, 'MAINS DÉTECTÉES', MUTED, 12);
     label(924, 302, `${Math.round(tracker.fps)} Hz`, WHITE, 32);
@@ -192,17 +213,16 @@ onFrame((elapsed: number) => {
   }
   lastMouseX = px; lastMouseY = py;
   const previous = active;
-  oldX = x; oldY = y;
   if (hand !== null) {
     const fresh = lastHand !== hand.id || lastDevice !== hand.deviceId;
     const tip = hand.joints[9], tx = clamp(mapX(tip), 20, 1176), ty = clamp(mapY(tip), 24, 734);
     const follow = mode === 2 ? 1 - Math.exp(-dt * 23) : 1 - Math.exp(-dt * 45);
     x = fresh ? tx : x + (tx - x) * follow; y = fresh ? ty : y + (ty - y) * follow;
-    if (fresh) { oldX = x; oldY = y; trail = []; ink.drawing = false; pinched = false; }
+    if (fresh) { ink.drawing = false; pinched = false; }
     pinched = hand.pinch >= (pinched ? 0.55 : 0.8); active = true; lastHand = hand.id; lastDevice = hand.deviceId;
   } else {
     active = mouse; pinched = mouse; x = px; y = py;
-    if (lastHand !== -1 || !previous) { oldX = x; oldY = y; trail = []; ink.drawing = false; }
+    if (lastHand !== -1 || !previous) ink.drawing = false;
     lastHand = -1;
   }
   const mouseClick = mouse && !pointerWasDown, pinchClick = pinched && !pinchWasDown;
@@ -217,14 +237,14 @@ onFrame((elapsed: number) => {
     const key = keyName(k);
     if (key === '1' || key === '2' || key === '3' || key === '4') select(parseInt(key) - 1);
     if (key === 's') activate(11);
+    if (key === 'm' && mode === 0) activate(15);
     if (key === 'u' && mode === 2) ink.undo();
   }
   if (mode !== lastMode) { console.log('air-arcade mode', names[mode]); lastMode = mode; }
   const inside = active && x > 42 && x < 870 && y > 202 && y < 725 && hover < 0;
   if (mode === 0) {
-    game.update(dt, oldX, oldY - 170, x, y - 170, inside && previous);
-    if (inside) { trail.push(x); trail.push(y); if (trail.length > 24) trail.splice(0, 2); }
-    else if (trail.length > 0) trail.splice(0, 2);
+    if (game.multiplayer) { fruitInput.update(tracker, range); game.update(dt, fruitInput.blades); }
+    else { soloBlade.move(x, y - 170, inside, hand === null ? -2 : hand.deviceId, hand === null ? -2 : hand.id); game.update(dt, [soloBlade]); }
   }
   if (mode === 2) ink.update(x, y, inside && pinched, palette[inkColor], inkWidth);
   else ink.drawing = false;
@@ -232,7 +252,7 @@ onFrame((elapsed: number) => {
   background();
   if (mode === 0) gameScene(); else if (mode === 1) handScene(); else if (mode === 3) duelScene(); else inkScene();
   sidebar(hand);
-  if (hand !== null || mouse) {
+  if ((hand !== null || mouse) && !(mode === 0 && game.multiplayer && hover < 0)) {
     disc(x, y, pinched ? 5 : 3, pinched ? LIME : WHITE);
     ring(x, y, pinched ? 12 : 18, pinched ? LIME : CYAN, 225);
     if (dwell > 0) ring(x, y, 23, LIME, 255, -Math.PI / 2, -Math.PI / 2 + dwell / 0.7 * Math.PI * 2);
