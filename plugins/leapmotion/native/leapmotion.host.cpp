@@ -1,5 +1,6 @@
 #define ZRT_HOSTED_CPP
 #include "zinc_native_leapmotion.h"
+#include <array>
 #include <chrono>
 #include <cstdlib>
 #include <cstring>
@@ -18,7 +19,9 @@
 
 struct HostLeapMotion : NativeLeapMotion {
   std::string message;
-  std::vector<double> snapshot{0, 0, 0, 0};
+  std::vector<double> snapshot{0, 0, 0, 0, 0};
+  int service = 0;
+  uint64_t revision = 0;
 #ifdef ZINC_HAS_LEAP
   void* library = nullptr;
   LEAP_CONNECTION connection = nullptr;
@@ -29,8 +32,43 @@ struct HostLeapMotion : NativeLeapMotion {
   decltype(&LeapPollConnection) read = nullptr;
   decltype(&LeapCloseConnection) disconnect = nullptr;
   decltype(&LeapDestroyConnection) destroy = nullptr;
-  std::chrono::steady_clock::time_point received{};
-  void vector(const LEAP_VECTOR& v) { snapshot.push_back(v.x); snapshot.push_back(v.y); snapshot.push_back(v.z); }
+  decltype(&LeapOpenDevice) openDevice = nullptr;
+  decltype(&LeapCloseDevice) closeDevice = nullptr;
+  decltype(&LeapSubscribeEvents) subscribe = nullptr;
+  decltype(&LeapUnsubscribeEvents) unsubscribe = nullptr;
+  decltype(&LeapGetDeviceInfo) getInfo = nullptr;
+  struct Device {
+    uint32_t id = 0;
+    LEAP_DEVICE handle = nullptr;
+    std::string serial;
+    int state = 1;
+    int64_t frame = 0;
+    float fps = 0;
+    uint32_t count = 0;
+    std::vector<double> hands;
+    std::chrono::steady_clock::time_point received{};
+  };
+  std::array<Device, 2> devices;
+  Device* find(uint32_t id) { for (auto& d : devices) if (d.handle && d.id == id) return &d; return nullptr; }
+  void release(Device& d) {
+    if (d.handle) { if (connection) unsubscribe(connection, d.handle); closeDevice(d.handle); }
+    d = Device{}; ++revision;
+  }
+  void attach(LEAP_DEVICE_REF ref) {
+    if (find(ref.id)) return;
+    for (auto& d : devices) if (!d.handle) {
+      if (openDevice(ref, &d.handle) != eLeapRS_Success) { d.handle = nullptr; message = "Cannot open Leap device"; return; }
+      d.id = ref.id;
+      if (subscribe(connection, d.handle) != eLeapRS_Success) { release(d); message = "Cannot subscribe to Leap device"; return; }
+      if (getInfo) {
+        char serial[256]{};
+        LEAP_DEVICE_INFO info{}; info.size = sizeof(info); info.serial = serial; info.serial_length = sizeof(serial);
+        if (getInfo(d.handle, &info) == eLeapRS_Success) d.serial.assign(serial, strnlen(serial, sizeof(serial)));
+      }
+      ++revision; return;
+    }
+  }
+  void vector(Device& d, const LEAP_VECTOR& v) { d.hands.push_back(v.x); d.hands.push_back(v.y); d.hands.push_back(v.z); }
 #endif
   ~HostLeapMotion() { close(); }
   bool open() override {
@@ -46,11 +84,18 @@ struct HostLeapMotion : NativeLeapMotion {
       read = reinterpret_cast<decltype(read)>(dlsym(library, "LeapPollConnection"));
       disconnect = reinterpret_cast<decltype(disconnect)>(dlsym(library, "LeapCloseConnection"));
       destroy = reinterpret_cast<decltype(destroy)>(dlsym(library, "LeapDestroyConnection"));
-      if (!create || !connect || !read || !disconnect || !destroy) {
+      openDevice = reinterpret_cast<decltype(openDevice)>(dlsym(library, "LeapOpenDevice"));
+      closeDevice = reinterpret_cast<decltype(closeDevice)>(dlsym(library, "LeapCloseDevice"));
+      subscribe = reinterpret_cast<decltype(subscribe)>(dlsym(library, "LeapSubscribeEvents"));
+      unsubscribe = reinterpret_cast<decltype(unsubscribe)>(dlsym(library, "LeapUnsubscribeEvents"));
+      getInfo = reinterpret_cast<decltype(getInfo)>(dlsym(library, "LeapGetDeviceInfo"));
+      if (!create || !connect || !read || !disconnect || !destroy || !openDevice || !closeDevice || !subscribe || !unsubscribe) {
         message = "LeapC is missing required entry points"; dlclose(library); library = nullptr; return false;
       }
     }
-    if (create(nullptr, &connection) != eLeapRS_Success || connect(connection) != eLeapRS_Success) {
+    LEAP_CONNECTION_CONFIG config{};
+    config.size = sizeof(config); config.flags = eLeapConnectionConfig_MultiDeviceAware;
+    if (create(&config, &connection) != eLeapRS_Success || connect(connection) != eLeapRS_Success) {
       message = "Cannot open LeapC connection; start Ultraleap Hand Tracking"; close(); return false;
     }
     if (!cleanupRegistered) {
@@ -80,41 +125,71 @@ struct HostLeapMotion : NativeLeapMotion {
         const auto result = read(connection, 0, &event);
         if (result == eLeapRS_Timeout) break;
         if (result != eLeapRS_Success) { message = "LeapC polling failed; reconnecting"; close(); break; }
-        if (event.type == eLeapEventType_Connection) { snapshot = {1, 0, 0, 0}; message.clear(); }
-        if (event.type == eLeapEventType_ConnectionLost) { snapshot = {0, 0, 0, 0}; }
-        if (event.type == eLeapEventType_DeviceLost) { snapshot = {1, 0, 0, 0}; }
+        if (event.type == eLeapEventType_Connection) { service = 1; message.clear(); ++revision; }
+        if (event.type == eLeapEventType_ConnectionLost) { for (auto& d : devices) release(d); service = 0; }
+        if (event.type == eLeapEventType_Device && event.device_event) attach(event.device_event->device);
+        if (event.type == eLeapEventType_DeviceLost && event.device_event) {
+          auto* d = find(event.device_event->device.id); if (d) release(*d);
+        }
         if (event.type != eLeapEventType_Tracking || !event.tracking_event) continue;
+        auto* device = find(event.device_id);
+        if (!device) continue;
+        auto& d = *device;
         const auto& frame = *event.tracking_event;
         const auto count = frame.nHands > 2 ? 2u : frame.nHands;
-        snapshot = {2, static_cast<double>(frame.tracking_frame_id), frame.framerate, static_cast<double>(count)};
+        d.state = 2; d.frame = frame.tracking_frame_id; d.fps = frame.framerate; d.count = count; d.hands.clear();
         for (uint32_t i = 0; i < count; ++i) {
           const auto& h = frame.pHands[i];
-          snapshot.push_back(h.id); snapshot.push_back(h.type == eLeapHandType_Right ? 1 : 0);
-          snapshot.push_back(h.pinch_strength); snapshot.push_back(h.grab_strength);
-          vector(h.palm.position); vector(h.arm.next_joint); vector(h.arm.prev_joint);
+          d.hands.push_back(h.id); d.hands.push_back(h.type == eLeapHandType_Right ? 1 : 0);
+          d.hands.push_back(h.pinch_strength); d.hands.push_back(h.grab_strength);
+          vector(d, h.palm.position); vector(d, h.arm.next_joint); vector(d, h.arm.prev_joint);
           for (int f = 0; f < 5; ++f) {
-            vector(h.digits[f].bones[0].prev_joint);
-            for (int b = 0; b < 4; ++b) vector(h.digits[f].bones[b].next_joint);
+            vector(d, h.digits[f].bones[0].prev_joint);
+            for (int b = 0; b < 4; ++b) vector(d, h.digits[f].bones[b].next_joint);
           }
+          for (int f = 0; f < 5; ++f) d.hands.push_back(h.digits[f].is_extended ? 1 : 0);
         }
-        received = std::chrono::steady_clock::now();
+        d.received = std::chrono::steady_clock::now(); ++revision;
       }
-      if (snapshot[0] == 2 && std::chrono::steady_clock::now() - received > std::chrono::milliseconds(250)) {
-        snapshot = {1, 0, 0, 0};
+      for (auto& d : devices) if (d.handle && d.state == 2 && std::chrono::steady_clock::now() - d.received > std::chrono::milliseconds(250)) {
+        d.state = 1; d.count = 0; d.hands.clear(); d.fps = 0; ++revision;
       }
     }
+#endif
+    snapshot = {static_cast<double>(service), static_cast<double>(revision), 0, 0, 0};
+#ifdef ZINC_HAS_LEAP
+    int deviceCount = 0;
+    for (const auto& d : devices) if (d.handle) {
+      ++deviceCount;
+      if (d.state == 2) snapshot[0] = 2;
+      snapshot[2] += d.fps; snapshot[3] += d.count;
+      snapshot.insert(snapshot.end(), {static_cast<double>(d.id), static_cast<double>(d.state), static_cast<double>(d.frame), d.fps, static_cast<double>(d.count)});
+      snapshot.insert(snapshot.end(), d.hands.begin(), d.hands.end());
+    }
+    snapshot[4] = deviceCount;
+    if (deviceCount) snapshot[2] /= deviceCount;
 #endif
     auto out = zrt::Array<double>::with_cap(static_cast<int32_t>(snapshot.size()));
     std::memcpy(out.a->data, snapshot.data(), snapshot.size() * sizeof(double));
     out.a->len = static_cast<int32_t>(snapshot.size());
     return out;
   }
+  zrt::String deviceSerial(int32_t id) override {
+#ifdef ZINC_HAS_LEAP
+    auto* d = find(static_cast<uint32_t>(id));
+    if (d) return zrt::String::from(d->serial.data(), static_cast<uint32_t>(d->serial.size()));
+#else
+    (void)id;
+#endif
+    return zrt::String::from("", 0);
+  }
   void close() override {
 #ifdef ZINC_HAS_LEAP
+    for (auto& d : devices) release(d);
     if (connection) { disconnect(connection); destroy(connection); connection = nullptr; }
     // Keep LeapC loaded across reconnects; the registered exit callback releases it.
 #endif
-    snapshot = {0, 0, 0, 0};
+    service = 0; revision = 0; snapshot = {0, 0, 0, 0, 0};
   }
 };
 NativeLeapMotion* zinc_create_LeapMotion() {

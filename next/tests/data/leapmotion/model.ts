@@ -1,4 +1,5 @@
-import { Tracker } from 'zinc:leapmotion';
+import { Hand, Device, Tracker } from 'zinc:leapmotion';
+import { Duel, gesture, winner } from '../../../../examples/leapmotion/src/shifumi';
 import { cuts, Game, Fruit, Ink } from '../../../../examples/leapmotion/src/model';
 function check(ok: boolean, why: string): void { if (!ok) throw new Error(why); }
 check(cuts(0, 40, 100, 40, 50, 40, 8), 'fast blade crossed a fruit');
@@ -28,4 +29,26 @@ ink.undo(); check(ink.strokes.length === 1, 'undo'); ink.clear(); check(ink.stro
 for (let i = 0; i < 14000; i++) ink.update(i * 3, 200, true, 0xffffff, 5);
 let points = 0; for (const s of ink.strokes) points += s.points.length / 2;
 check(points <= 6000 && ink.strokes.length <= 120, 'bounded ink page');
+const rock = new Hand(), paper = new Hand(), scissors = new Hand();
+rock.grab = 0.95; paper.extended = [true, true, true, true, true]; scissors.extended = [false, true, true, false, false];
+check(gesture(rock) === 0 && gesture(paper) === 1 && gesture(scissors) === 2, 'shifumi poses');
+check(gesture(null) === -1 && gesture(new Hand()) === -1, 'unknown pose');
+for (let left = 0; left < 3; left++) for (let right = 0; right < 3; right++) {
+  const expected = left === right ? -1 : left === 0 && right === 2 || left === 1 && right === 0 || left === 2 && right === 1 ? 0 : 1;
+  check(winner(left, right) === expected, 'all nine shifumi outcomes');
+}
+const sensor = new Tracker(true), duel = new Duel();
+sensor.devices = [new Device(10, 'A'), new Device(20, 'B')];
+rock.id = 1; rock.deviceId = 10; scissors.id = 1; scissors.deviceId = 20;
+sensor.devices[0].hands = [rock]; sensor.devices[1].hands = [scissors];
+duel.update(sensor, 0.01); duel.start();
+for (let i = 0; i < 62; i++) duel.update(sensor, 0.05);
+check(duel.scores[0] === 1 && duel.scores[1] === 0 && duel.round === 1, 'timed shifumi scores once');
+duel.update(sensor, 1); check(duel.scores[0] === 1, 'reveal cannot score twice');
+duel.start(); sensor.devices = [sensor.devices[1]]; duel.update(sensor, 0.05);
+check(duel.phase === 0 && duel.hands[0] === null && duel.hands[1] === scissors && duel.devices[1] === 20, 'detached player never steals other device');
+duel.reassign(); sensor.devices.push(new Device(30, 'C')); sensor.devices[1].hands = [paper];
+duel.update(sensor, 0.01); duel.start(); sensor.devices[1].hands = [new Hand()];
+for (let i = 0; i < 62; i++) duel.update(sensor, 0.05);
+check(duel.round === 1 && duel.scores[0] === 1, 'ambiguous final gesture awards no point');
 console.log('leapmotion model: all checks passed');

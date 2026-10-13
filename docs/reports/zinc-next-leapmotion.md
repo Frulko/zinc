@@ -1,4 +1,4 @@
-# Leap Motion plugin and Air Arcade (ZN-738)
+# Leap Motion plugin and Air Arcade (ZN-738, ZN-739)
 
 The owner's request was a Zinc Fruit Ninja style demo, hand visualizer and air writing, treating Leap Motion as a plugin.
 `plugins/leapmotion` wraps the installed LeapC SDK through the existing native-module ABI. The app, projections, gestures,
@@ -8,19 +8,33 @@ The supplied `Leap-Motion-for-Mac/build/leap_clion` is an example executable. It
 in `/Applications/Ultraleap Hand Tracking.app/Contents/LeapSDK`. This development Mac and both binaries are arm64;
 the historical Intel machine description in AGENTS.md no longer describes the running machine.
 
-A native snapshot contains connection state, frame ID, frame rate, hand count, and 88 numbers per hand: identity, side,
-pinch/grab, palm/wrist/elbow and 25 joint positions. SDK memory is copied before another poll; the loop never blocks and
-drains at most 64 events. A stalled stream expires after 250 ms. LeapC stays loaded across reconnects and is closed before
-its own process-exit destructors. The public API has an explicitly selected deterministic two-hand simulator.
+A native snapshot contains connection state, aggregate revision, mean frame rate, total hand/device counts, then per-device
+identity, state, SDK frame ID, rate and hands. Each hand has 93 numbers: identity, side, pinch/grab, palm/wrist/elbow,
+25 joint positions and five finger-extension flags. Device serials are read only at discovery. The multi-device-aware connection
+opens and subscribes to at most two devices, routing tracking by `event.device_id`; attach/loss uses the event's device reference.
+SDK memory is copied before another poll; the loop never blocks and drains at most 64 events. Each stalled stream expires
+independently after 250 ms. LeapC stays loaded across reconnects and is closed before its own process-exit destructors.
+The explicit deterministic simulator exposes two devices with one hand each, cycling through rock/paper/scissors.
 
-Air Arcade uses `zinc:gfx` vector primitives and the bundled Inter fonts. The game uses a swept segment/circle collision;
-ink uses pinch hysteresis and time-based smoothing. Hand changes interrupt both gestures. The mouse can operate all modes;
-clicks/pinches and timed hover operate controls. Ink and particle storage are bounded. Drawings and records last for one session.
+Air Arcade retains `zinc:gfx` and bundled Inter fonts for its interface; the existing `zinc:3d` plugin renders lit hand meshes
+and textured fruit. Geometry is pooled. Hand lab has a floor grid, sensor models and an orbit camera; independent sensor
+coordinate spaces are offset side by side, not fused. The game retains swept segment/circle collision; perspective placement
+preserves the screen-space collision centre/radius. Hemisphere meshes have sealed flesh-coloured cut faces and separate rotations.
+Ink uses pinch hysteresis and time-based smoothing. Hand/device changes interrupt gestures; clicks, pinches and timed hover
+operate controls. Ink and particle storage are bounded. Drawings and records last for one session.
+
+The fourth mode, Shifumi, binds a device to each player without moving player two into player one's slot on disconnection.
+A three-second countdown accepts only a recognised pose held for at least 180 ms at the end. Tracking loss cancels a round;
+uncertain poses score nothing. Valid poses are copied and frozen at reveal so the model matches the result even as players
+move again. Each valid non-draw round awards one point. Device replacement is explicit through the reassignment control.
 
 Validation: `tests/t0/leapmotion.sh` covers deterministic skeletons, collision/combos/bombs/restarts, ink lift/undo/bounds,
-missing SDK and, when the installed SDK header is present, a fake LeapC library that invalidates its own memory, emits empty
-frames and disconnects, then stalls. `tests/t1/leapmotion_demo.sh` drives the actual UI, compares one golden, and checks a short
-identical simulated frame on the interpreter, AOT and QuickJS. The real service produced tracking frames on this Mac;
-physical gestures require a hand over the sensor. No cross-target build was run.
+missing SDK, all nine shifumi outcomes, gesture rejection and device assignment. With the installed SDK header, a fake LeapC
+library verifies two-device subscription, overlapping hand/frame IDs, duplicate discovery, event memory invalidation,
+independent staleness, empty/lost frames, reconnect and shutdown. Native API checks run on interpreter, AOT and QuickJS.
+`tests/t1/leapmotion_demo.sh` drives all four modes, compares duel and fruit geometry goldens, and compares a short identical
+3D hand frame on all three engines. The fake SDK and simulated hands keep those checks independent of physical gestures.
+The real service reported one device and tracking frames on this Mac; two physical sensors together have not been verified.
+The updated interactive demo was launched in real tracking mode. No engine build or cross-target test was needed.
 
 See [the plugin API](../plugins/leapmotion.md) and [launch and controls](../../examples/leapmotion/README.md).

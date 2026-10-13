@@ -6,6 +6,8 @@ const timer = setInterval(() => {
   ticks++;
   if (ticks === 40) {
     console.log('leap status', tracker.status, 'hands', tracker.hands.length, 'fps', Math.round(tracker.fps));
+    console.log('leap devices', tracker.devices.length);
+    for (const d of tracker.devices) console.log('leap device', d.id, 'hands', d.hands.length);
     console.log('leap message', tracker.message);
     tracker.close(); clearInterval(timer);
   }

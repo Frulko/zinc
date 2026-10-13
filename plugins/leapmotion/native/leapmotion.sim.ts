@@ -2,6 +2,7 @@
 export default {
   open(): boolean { return false; },
   error(): string { return 'Native tracking unavailable. Use Tracker(true) for simulated hands.'; },
-  poll(): number[] { return [0, 0, 0, 0]; },
+  poll(): number[] { return [0, 0, 0, 0, 0]; },
+  deviceSerial(_id: i32): string { return ''; },
   close(): void {},
 };

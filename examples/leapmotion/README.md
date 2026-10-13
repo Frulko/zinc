@@ -1,6 +1,6 @@
 # Air Arcade — Leap Motion
 
-Three native Zinc experiences in one window: Fruit slice, Hand lab, and Air ink.
+Four native Zinc experiences in one window: Fruit 3D, Hand lab, Air ink and Shifumi.
 The reusable sensor API is the `zinc:leapmotion` plugin in `plugins/leapmotion`.
 
 From the repository root:
@@ -16,23 +16,30 @@ Place the sensor flat on the desk and hold a hand roughly 15–40 cm above it, f
 
 | Mode | Interaction |
 |---|---|
-| Fruit slice | Press Space or **Jouer**. Sweep your index through fruit. A round lasts 60 seconds; fruit gives 10 points, chained cuts multiply points up to ×5, bombs remove 30. Misses are counted. |
-| Hand lab | Shows both hands, all 25 joints per hand, wrists/forearms, pinch/grab strengths and sensor frame rate. |
+| Fruit 3D | Press Space or **Jouer**. Sweep your index through lit, textured fruit; cut halves rotate and expose their flesh. A round lasts 60 seconds; fruit gives 10 points, chained cuts multiply points up to ×5, bombs remove 30. Misses are counted. |
+| Hand lab | Lit 3D bones, joints, palms and forearms above a perspective grid and sensor models. Supports up to four hands from two devices. Drag to orbit, scroll or use the zoom buttons; Space resets the camera. |
 | Air ink | Pinch thumb and index to draw; release to lift the pen. Select a colour and width; undo or clear the page. This is freehand drawing, not handwriting recognition. |
+| Shifumi | One Leap Motion per player. Hold one hand over each sensor and press Space or **Lancer la manche**. After three seconds, stable rock/paper/scissors poses are frozen and scored. |
 
-**Navigation:** 1/2/3 or Left/Right changes mode; point and pinch on a control, or dwell on it for 0.7 seconds.
-Space starts/restarts a game, resets the amplitude in Hand lab, or clears the ink page. U undoes ink; S toggles simulation.
-The **Amplitude** buttons set the horizontal range of motion (260–660 mm); a smaller range moves the cursor farther.
+**Navigation:** 1/2/3/4 or Left/Right changes mode; point and pinch on a control, or dwell on it for 0.7 seconds.
+Space starts/restarts a round, resets the Hand lab camera, or clears the ink page. U undoes ink; S toggles simulation.
+The fruit mode's **Amplitude** buttons set the horizontal range of motion (260–660 mm); a smaller range moves the cursor farther.
 The index maps 100–450 mm of height to the window. The window scales its interface when resized.
 
-**Without a sensor:** drag with the mouse to cut/write, and click the buttons. **Essayer la simulation** shows two animated
-hands, clearly labelled as simulated. Simulated pinching also draws in Air ink. It never silently replaces a disconnected sensor.
-Changing mode pauses the game and keeps the ink page. Closing the app discards the session and drawing.
+**Without a sensor:** drag with the mouse to cut/write, and click the buttons. **Essayer la simulation** shows two independent
+simulated devices, with one animated hand each. They cycle through shifumi poses; simulated pinching also draws in Air ink.
+Simulation is labelled and never silently replaces a disconnected sensor. Changing mode pauses the current game and keeps the
+ink page. Closing the app discards the session and drawing.
+
+For a real duel, place the two sensors far enough apart that each sees its own player's hand. Their coordinates are independent,
+displayed side by side; they are not fused into one calibrated space. Player assignments survive a lost stream; use **Réattribuer**
+after replacing/reconnecting a device. A lost hand cancels the countdown. An ambiguous pose or a pose held for less than 180 ms
+at the reveal gives no point. A fist is rock, four extended fingers are paper, and index/middle only are scissors; the thumb is ignored.
 
 ```sh
-# Start with two simulated hands, without contacting the device:
-ZINC_NATIVE=sim ZINC_LEAP_SIM=1 next/build/zinc run examples/leapmotion
-# Open a particular mode (hands or ink), or start the fruit round immediately:
+# Start with two simulated devices, retaining the real 3D renderer:
+ZINC_NATIVE=real ZINC_LEAP_SIM=1 next/build/zinc run examples/leapmotion
+# Open a particular mode (hands, ink or duel), or start the fruit round immediately:
 ZINC_LEAP_MODE=hands next/build/zinc run examples/leapmotion
 ZINC_LEAP_AUTOPLAY=1 next/build/zinc run examples/leapmotion
 # Other engines:
@@ -45,4 +52,6 @@ The plugin clears stale tracking after 250 ms and breaks drawing/cutting on lost
 (start at 0.8, release below 0.55); the pen uses time-based smoothing. Drawing history and particles have fixed upper bounds.
 
 Checks: `next/tests/run --only leapmotion` and `next/tests/run --tier t1 --only leapmotion_demo`.
-The latter scripts the three modes and writing, verifies a visual golden, and compares short frames across all three engines.
+The latter scripts all four modes, verifies duel and cut-fruit visual goldens, and compares short frames across all three engines.
+The two-device route is tested with a fake SDK; the development session detected one physical sensor, so a real two-player duel
+still needs a second connected device.
