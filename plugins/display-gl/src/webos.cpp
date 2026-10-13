@@ -105,7 +105,16 @@ bool zgl_backend_init(const HalConfig*) {
 int32_t zgl_backend_scale() { return 1; }   // the panel's own pixels
 void zgl_backend_size(int32_t* w, int32_t* h) { *w = sw; *h = sh; }
 void zgl_backend_native(int32_t* w, int32_t* h) { if (open_sdl() && sw > 0 && sh > 0) { *w = sw; *h = sh; } }
-void zgl_backend_swap() { SDL_GL_SwapBuffers(); }
+// LunaSysMgr composes the card with the alpha of its pixels: where a frame left less than 1 the system's wallpaper shows through. The frame
+// is made opaque before it is shown (nothing in the renderer reads the alpha it wrote).
+void zgl_backend_swap() {
+  glDisable(GL_SCISSOR_TEST);
+  glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_TRUE);
+  glClearColor(0, 0, 0, 1);
+  glClear(GL_COLOR_BUFFER_BIT);
+  glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+  SDL_GL_SwapBuffers();
+}
 
 void zgl_backend_poll(HalInput* in, int32_t W, int32_t H) {
   const float kx = sw > 0 ? (float)W / sw : 1, ky = sh > 0 ? (float)H / sh : 1;   // screen pixels to the logical surface

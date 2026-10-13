@@ -32,10 +32,12 @@ install() {
   [ -f "$out/icon.png" ] && { sips -z 128 128 "$out/icon.png" >/dev/null 2>&1; sips -z 64 64 "$out/icon.png" --out "$out/icon64.png" >/dev/null 2>&1; }
   [ -d "$dir/assets" ] && cp -R "$dir/assets" "$out/assets"
   printf '{\n\t"title": "%s",\n\t"type": "pdk",\n\t"main": "%s",\n\t"id": "%s",\n\t"version": "0.1.0",\n\t"vendor": "Zinc",\n\t"icon": "icon64.png",\n\t"visible": %s,\n\t"requiredMemory": 64\n}\n' "$title" "$name" "$id" "$visible" > "$out/appinfo.json"
-  remote "killall $name 2>/dev/null; mkdir -p $APPS/$id"
+  # the program may be running: it is stopped, and its file is replaced by a rename, which a file still in use allows
+  remote "killall $name 2>/dev/null; sleep 1; killall -9 $name 2>/dev/null; mkdir -p $APPS/$id"
   (cd "$out" && find . -type d ! -name . | while read -r d; do remote "mkdir -p '$APPS/$id/${d#./}'"; done
-   find . -type f | while read -r f; do novacom put "file:/$APPS/$id/${f#./}" < "$f"; done)
-  remote "chmod 755 $APPS/$id/$name"
+   find . -type f ! -name "$name" | while read -r f; do novacom put "file:/$APPS/$id/${f#./}" < "$f"; done)
+  novacom put "file:/$APPS/$id/$name.new" < "$out/$name"
+  remote "chmod 755 $APPS/$id/$name.new && mv -f $APPS/$id/$name.new $APPS/$id/$name"
   echo "$id"
 }
 
