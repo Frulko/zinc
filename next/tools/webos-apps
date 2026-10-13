@@ -3,6 +3,7 @@
 # Builds each project and examples/webos-shell for armv7-webos, installs them over novacom as webOS applications (org.zinc.<name>, hidden
 # from the system's launcher; the shell is "Zinc" there) and writes the shell's list. An icon is the project's icon.png, else a picture of
 # its first second on this machine. Needs: the tablet in developer mode and seen by `novacom -l`, tools/webos-sysroot run once, macOS (sips).
+# A plugin whose native code does not build stops the build (ZINC_NATIVE=real): its simulation would be installed in its place, silently.
 # docs/reports/hardware/hp-touchpad-webos.md
 set -e
 here=$(cd "$(dirname "$0")" && pwd -P); next=$(dirname "$here"); repo=$(dirname "$next")
@@ -20,7 +21,7 @@ install() {
   dir=$1; title=$2; visible=$3
   name=$(field "$dir" name app | tr 'A-Z ' 'a-z-' | tr -cd 'a-z0-9-'); id=org.zinc.$name; out=$work/$name; mkdir -p "$out"
   echo "webos-apps: $title ($id)" >&2
-  ZINC_DISPLAY= "$ZINC" build --target armv7-webos "$dir/$(field "$dir" entry src/main.ts)" -o "$out/$name" >"$work/build.log" 2>&1 || { tail -5 "$work/build.log" >&2; exit 1; }
+  ZINC_DISPLAY= ZINC_NATIVE=real "$ZINC" build --target armv7-webos "$dir/$(field "$dir" entry src/main.ts)" -o "$out/$name" >"$work/build.log" 2>&1 || { tail -5 "$work/build.log" >&2; exit 1; }
   rm -f "$out/$name.components"
   [ -z "$strip" ] || "$strip" "$out/$name"
   if [ -f "$dir/icon.png" ]; then cp "$dir/icon.png" "$out/icon.png"

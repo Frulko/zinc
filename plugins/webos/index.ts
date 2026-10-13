@@ -8,6 +8,8 @@ export function isWebOS(): boolean { return W.available(); }
 /** Sends a request to a service of the Luna bus ('palm://com.palm.applicationManager/launch') with its parameters, a JSON object as text.
  *  The answer is not waited for. False when it could not be sent. */
 export function serviceCall(uri: string, params: string): boolean { return W.call(uri, params); }
+/** Why the last serviceCall or launch answered false. */
+export function lastError(): string { return W.error(); }
 /** Starts (or brings to the front) an installed application by its id, with launch parameters as a JSON object. */
 export function launch(appId: string, params: string = '{}'): boolean {
   return W.call('palm://com.palm.applicationManager/launch', `{"id":${JSON.stringify(appId)},"params":${params}}`);

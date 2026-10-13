@@ -2,4 +2,5 @@
 export default {
   available(): boolean { return false; },
   call(uri: string, params: string): boolean { return false; },
+  error(): string { return 'not webOS'; },
 };
