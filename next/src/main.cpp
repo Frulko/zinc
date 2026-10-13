@@ -2120,7 +2120,10 @@ int main(int argc, char** argv) {
       if (!bakeResources(argv[4], blob, err)) { std::fprintf(stderr, "zinc: cannot bake the fonts and images: %s\n", err.c_str()); return 1; }
       std::string pdir = zn::frontend::findProjectFile(argv[4]);
       pdir = pdir.empty() ? "." : fs::path(pdir).parent_path().string();
-      auto sel = zn::frontend::selectDisplay(pdir, gRoot + "/..", "linux");
+      // webOS: the program is a full-screen card on the GPU unless its zinc.json says otherwise under "webos" (the size it names for Linux is a desktop window's)
+      const bool webos = std::strstr(target->name, "-webos") != nullptr;
+      auto sel = zn::frontend::selectDisplay(pdir, gRoot + "/..", webos ? "webos" : "linux");
+      if (webos && sel.driver.empty()) sel.driver = "gl";
       if (sel.width > 0 && sel.height > 0) gBakedSize = std::to_string(sel.width) + "x" + std::to_string(sel.height);
       // the native code of the plugins the program calls, built again for the target (the desktop ones, dlopen'ed to compile, are for this machine)
       std::vector<std::string> problems;

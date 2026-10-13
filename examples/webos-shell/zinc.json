@@ -1,0 +1,6 @@
+{
+  "name": "webos-shell",
+  "entry": "src/main.ts",
+  "targets": { "macos": { "width": 1024, "height": 768 }, "linux": { "width": 1024, "height": 768 }, "sim": { "width": 1024, "height": 768 } },
+  "requires": ["display", "pointer|touch"]
+}

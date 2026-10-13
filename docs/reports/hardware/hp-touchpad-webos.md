@@ -305,6 +305,26 @@ Left, in the order of the expected gain: fewer draw calls (95 to 150 a frame, 11
 programs made more of them); the paint phase (the UI records every command again each frame, 10 to 17 ms); the stencil clip; the scroll
 tiles with a validity per container; the polygon-heavy screens (the map: 9400 quads a frame).
 
+## 13. Installed programs and a launcher (2026-10-13)
+
+A Zinc program is a webOS application once its folder is in `/media/cryptofs/apps/usr/palm/applications/<id>/` with an `appinfo.json`
+(`"type": "pdk"`, `main`, `id`, `icon`, `requiredMemory`; `"visible": false` keeps it out of the system's launcher) and the application
+manager has scanned again (`palm://com.palm.applicationManager/rescan`). No `.ipk` is needed on a developer-mode tablet. The system
+starts it in a jail (`/var/palm/jail/<id>`) with the application's folder as the working directory, so files beside the program are
+found by their relative path.
+
+- `plugins/webos` (`zinc:webos`): `isWebOS()`, `serviceCall(uri, params)`, `launch(appId)`, through the PDK's `libpdl.so` loaded with `dlopen`.
+- `examples/webos-shell`: a grid of icons from `apps.txt` (id, title, icon file); a tap calls `launch`. Each program has its own card, and
+  the tablet's home gesture brings the shell back.
+- `next/tools/webos-apps <project>[=Title] ...`: builds the projects and the shell, makes the icons (the project's `icon.png`, else a
+  picture of its first second on the workstation), installs everything over novacom and writes the shell's list.
+- A build for `armv7-webos` now takes the GL display and the screen's own size unless `zinc.json` has a `webos` target; the backend
+  sets the GL renderer, the lean programs and square clips.
+
+Installed with it: Fruits, Hero (without its video screen), Nuxt UI, Keyboard, and the shell as "Zinc". Checked from the workstation: the
+five folders, the rescan, the shell started by the application manager and running in its jail. Not checked by eye: the grid on the
+screen and a tap starting a program.
+
 ## Sources
 
 Read by two research agents on 2026-10-13; pages they could not open are marked.

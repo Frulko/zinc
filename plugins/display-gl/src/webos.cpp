@@ -82,6 +82,7 @@ bool zgl_backend_init(const HalConfig*) {
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
   SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);    // the GL renderer's occlusion of what opaque rectangles hide (as src/sdl.cpp)
   SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);   // measured: without them a frame takes as long on the Adreno 220
+  setenv("ZINC_RENDERER", "gl", 0);              // the GPU draws the UI: the faster renderer on this device (hp-touchpad-webos.md, section 12)
   setenv("ZINC_GL_LEAN", "1", 0);                // the GL renderer's lean programs: an image over the screen in 2 ms, 32 ms with the general one
   setenv("ZINC_GL_CORNERS", "0", 0);             // square clips: a rounded one copies the framebuffer in mid-frame, a whole pass on this GPU (12 to 24 frames a second in hero's transitions)
   SDL_GL_SetAttribute(SDL_GL_SWAP_CONTROL, getenv("ZINC_VSYNC") && atoi(getenv("ZINC_VSYNC")) == 0 ? 0 : 1);

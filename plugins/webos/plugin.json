@@ -1,0 +1,11 @@
+{
+  "name": "webos",
+  "kind": "module",
+  "module": "zinc:webos",
+  "entry": "index.ts",
+  "description": "HP webOS 3 (HP TouchPad): calls to the system's services (the Luna bus, through the PDK's libpdl), launching an installed application",
+  "targets": {
+    "macos": {},
+    "linux": { "linkFlags": ["-ldl"] }
+  }
+}
