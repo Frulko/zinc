@@ -56,7 +56,8 @@ static GLuint vbo, ibo, fbo, fbo_tex, fbo_depth, white, atlas, corner_tex, cur_t
 // program, so the paint order stays. Uniforms belong to a program: use_prog() gives it the frame's (size, flip) at its first use in the
 // frame, and the code that draws a mode sets that mode's own (edge, paint, convex) on the program use_prog() returns.
 struct Prog { GLuint id; GLint u_res, u_flip, u_edge, u_g0, u_g1, u_gc, u_go, u_cv, u_cvn; uint32_t stamp; bool tried; };
-static Prog progs[32];        // by key (key_of): 0 on desktop GL; on GLES 2 the mode, + 16 with the paint block
+static Prog progs[32 + 4];    // by key (key_of): 0 on desktop GL; on GLES 2 the mode, + 16 with the paint block; from 32 the lean programs
+static bool lean_on;          // ZINC_GL_LEAN=1 (GLES 2): the lean programs for the quads they can draw (gl_replay_shaders.h)
 static Prog* cur_prog;        // the program in use, nullptr after another one was (occlusion, stencil)
 static uint32_t pstamp;       // the frame's number, for Prog::stamp
 static bool paint_on;         // a gradient paint is set (set_paint): the quads take the program with the paint block
@@ -196,8 +197,8 @@ static Prog& use_prog(uint8_t key) {
     p.tried = true;
     static char fs[8192];
     const double t0 = now_us();
-    const unsigned modes = only >= 0 ? 1u << only : GLR_CORE ? ~0u : gmask[key & 15];
-    p.id = fs_source(modes, GLR_CORE ? only < 0 : (key & 16) != 0, fs, sizeof fs) ? zgl_program("", VS, fs) : 0;
+    const unsigned modes = key >= 32 ? 0 : only >= 0 ? 1u << only : GLR_CORE ? ~0u : gmask[key & 15];
+    p.id = key >= 32 ? zgl_program("", LVS, LFS[key - 32]) : fs_source(modes, GLR_CORE ? only < 0 : (key & 16) != 0, fs, sizeof fs) ? zgl_program("", VS, fs) : 0;
     st.prog_us += now_us() - t0;
     if (getenv("ZINC_GL_STATS")) fprintf(stderr, "display-gl renderer gl: program of modes 0x%x%s built in %.0f ms (frame %u)\n", modes & ((1u << MODES) - 1), key & 16 ? " with paint" : "", (now_us() - t0) / 1e3, st.frames);
     if (!p.id) fprintf(stderr, "display-gl: renderer gl: the program of modes 0x%x does not build: their quads are not drawn\n", modes & ((1u << MODES) - 1));
@@ -218,6 +219,7 @@ static Prog& use_prog(uint8_t key) {
 static bool init(int32_t w, int32_t h) {
   W = w; H = h;
   if (const char* e = getenv("ZINC_GL_ONLY")) only = atoi(e) % MODES;
+  lean_on = !GLR_CORE && getenv("ZINC_GL_LEAN") && atoi(getenv("ZINC_GL_LEAN")) != 0;
   set_groups(getenv("ZINC_GL_GROUPS"));
   tracing = getenv("ZINC_GL_TRACE") != nullptr;
   if (const char* e = getenv("ZINC_GL_STRIPS")) strips = atoi(e) != 0;
@@ -298,8 +300,8 @@ static void attribs(size_t base) {
   glEnableVertexAttribArray(A_Z); glVertexAttribPointer(A_Z, 1, GL_FLOAT, GL_FALSE, S, (void*)(base + 56));
 }
 /** The quad about to be added to the batch is of `mode`: it starts a run when the last one is drawn by another program. */
-static inline void run_of(int mode) {
-  const uint8_t k = key_of(mode);
+static inline void run_of(int mode, int lean = -1) {
+  const uint8_t k = lean >= 0 ? (uint8_t)(32 + lean) : key_of(mode);
   if (!nruns || runs[nruns - 1].key != k) runs[nruns++] = Run{nq, k};
 }
 static void atlas_sync();
@@ -365,7 +367,8 @@ static void quad(const Q& q) {
   if (clip.x1 <= clip.x0 || clip.y1 <= clip.y0 || x1 <= (float)clip.x0 || x0 >= (float)clip.x1 || y1 <= (float)clip.y0 || y0 >= (float)clip.y1) return;   // outside the clip: nothing to draw (and no empty scissor for the GPU)
   if (nq == MAXQ) flush();
   V* v = &verts[nq * 4];
-  run_of(mode);
+  const int m15 = mode & 15;
+  run_of(mode, !lean_on || only >= 0 || paint_on || q.r > 0 ? -1 : m15 == SOLID ? LEAN_SOLID : m15 == TEXT_M ? LEAN_TEXT : (m15 == IMAGE_RGBA || m15 == IMAGE_BGR) && q.grad != 2 ? LEAN_IMAGE : -1);
   nq++;
   for (int i = 0; i < 4; i++) {
     v[i] = V{xs[i], ys[i], us[i], vs[i], q.bx, q.by, q.bw, q.bh, q.r, q.p1, (float)mode, (float)q.grad, {0, 0, 0, 0}, {0, 0, 0, 0}, cur_z};

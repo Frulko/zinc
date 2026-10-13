@@ -120,6 +120,27 @@ static const char* const FS_BLEND =
   "  else if (A < 1.0) gl_FragColor = vec4(0.0);\n"
   "  else gl_FragColor = vec4(max(floor(col * 255.0 + 0.5) * (A / 256.0) / 255.0 - 0.499 / 255.0, 0.0), (A + 1.0) / 256.0);\n"
   "}\n";
+// The lean programs (GLES 2, ZINC_GL_LEAN=1): what a square quad of one colour, a run of glyphs or an image without rounded corners needs
+// and nothing else: two or three varyings in place of five vectors, no distance, no branch, a plain premultiplied blend in place of the
+// raster's integer one (a unit of difference at most on a channel). On an Adreno 220 the general program takes 16 ms to fill 1024x768
+// with one colour and 32 ms with an image; a program of this kind takes 2 ms (docs/reports/hardware/hp-touchpad-webos.md).
+enum Lean { LEAN_SOLID, LEAN_TEXT, LEAN_IMAGE, LEANS };
+static const char* LVS =
+  "attribute vec4 a_pos; attribute vec4 a_par; attribute vec4 a_c1; attribute float a_z;\n"
+  "uniform vec2 u_res; uniform float u_flip;\n"
+  "varying vec2 v_uv; varying vec4 v_col; varying vec2 v_k;\n"
+  "void main() { v_uv = a_pos.zw; v_col = a_c1;\n"
+  "  float m = a_par.z > 15.5 ? a_par.z - 16.0 : a_par.z;\n"
+  "  v_k = vec2(m > 3.5 ? 1.0 : 0.0, m < 3.5 || a_par.w > 0.5 ? 1.0 : 0.0);\n"   // IMAGE: the texels are B, G, R; the texel's alpha counts
+  "  gl_Position = vec4(a_pos.x / u_res.x * 2.0 - 1.0, (a_pos.y / u_res.y * 2.0 - 1.0) * u_flip, a_z, 1.0); }\n";
+static const char* const LFS[LEANS] = {
+  "varying vec4 v_col; void main() { gl_FragColor = vec4(v_col.rgb * v_col.a, v_col.a); }\n",
+  "varying vec2 v_uv; varying vec4 v_col; uniform sampler2D u_tex;\n"
+  "void main() { float a = texture2D(u_tex, v_uv).r * v_col.a; gl_FragColor = vec4(v_col.rgb * a, a); }\n",
+  "varying vec2 v_uv; varying vec4 v_col; varying vec2 v_k; uniform sampler2D u_tex;\n"
+  "void main() { vec4 t = texture2D(u_tex, v_uv); float a = mix(1.0, t.a, v_k.y) * v_col.a;\n"
+  "  gl_FragColor = vec4(mix(t.rgb, t.bgr, v_k.x) * v_col.rgb * a, a); }\n",
+};
 /** The fragment shader of the modes of `mask` (bit m: mode m), with the paint block or not, into `out`: one mode's block alone, or the
  *  blocks behind a ladder of ifs on the vertex's mode (every mode: desktop GL). A GPU without branches runs every block of a ladder
  *  for each pixel, and its driver takes as long to build the whole ladder whatever is kept of it (100 ms on a Pi 3 at 600 MHz, 30 to
