@@ -178,6 +178,13 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-735: a DRM stub for `tests/native/chip_fbdev.cpp`, so the flip is tested on the Mac (the KMS code is not compiled there).
 - ZN-735: rebuild and install the Pi's engine (`tools/linux-build`, `tools/device ... engine`): a `.zapp` run by `~/zinc-engine` still has the old driver; exports made on the Mac have the new one.
 - ZN-735: a display without a free KMS plane still tears: double buffering by panning `/dev/fb0`.
+- ZN-737: `h-full` / `w-full` along the main axis grows past its parent in the classic layout (CSS: 100%); fixing it in the core moves pixels and needs the prototype goldens. hero's shell was the case seen (fixed there with `absolute inset-0`).
+- ZN-737: a row child with `basis-N` is measured for the offered width, not its basis (scroll range 30 for 170 on a probe).
+- ZN-737: `layoutLayers()` measures a layer with left and right insets for the whole window; not reproduced.
+- ZN-737: the classic layout never shrinks a growing column whose content is wider than its siblings leave (310 px in a 220 px slot).
+- ZN-737: scroll areas take no key (Page Down, End, the arrows).
+- ZN-737: hero has no test that scrolls each page to its end at 800x480; a 70x10 px detail at the bottom of Kit at 1100x700 moved with the fix and was not looked at.
+- ZN-737: `ui_style` (the ring-mouse hash) and `ui_alloc_text` (431 allocations for 425) fail on main at `9e2b64ae`, before this fix: someone else's change of 2026-10-12 to find.
 - ZN-729: the pairing code on the device's screen (a Zinc window, or the app's splash) and as a QR code, for devices nobody has a terminal on.
 - ZN-729: IPv6 for the agent's listener and its discovery; today both are IPv4.
 - ZN-729: build mbedTLS with `MBEDTLS_THREADING_PTHREAD` and drop the agent's lock around its calls, when several large transfers at once are a real case (measure first).
@@ -304,6 +311,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-729.08: deploy to `rpi2`, `rpi1`, `linux` and `x86_64-linux` devices on real machines (mapped, never built); `tests/t1/agent_deploy.sh` runs on macOS only.
 - ZN-729.07: `zinc agent install` (systemd user unit, linger) never run on the Pi; time one clean `tools/linux-build`.
 - ZN-735: the flip on a Pi 4 or 5, at 24 and 32 bpp, and on the CHIP.
+- ZN-737: hero's gallery scrolled to its end on the Pi 3B+ with a finger (the owner's check after the fix).
+- ZN-737: the whole T1 of 2026-10-12 (377 pass, 25 fail) left failures to sort, none looked at: `fuse` (a fused app prints the step lines and gets `run <program> --` in its arguments), `native_gen`, `plugin_manifest`, `zinc_gl_api` (`getSupportedProfiles`), `first_run` (`net.serve: cannot listen`), `image_rect_wasm`, `install_nocompiler`, `launch_time` (two weak definitions), `museum_assets` (670 MB example), `profile` (psp), `proto_devtools` (tsc errors at `lib/std/ui.ts:3431`), `example_output` (chataigne), `museum_editor_views`, `pinball3d_editor`; `nuxt_ui`, `rn_tester` and `museum_details` fail the same with the sources of `9e2b64ae`, so not from the scroll fix.
 - ZN-729: `zinc device` on Windows (Winsock, ConPTY for the terminal); the agent itself stays Linux and macOS.
 
 - ZN-726: museum-table's zoom on the Pi 3 (GLES 2): frame time at the ladder steps, sharpness; on a target without TrueType files a scaled text takes the nearest baked size.
