@@ -83,6 +83,7 @@ bool zgl_backend_init(const HalConfig*) {
   SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);    // the GL renderer's occlusion of what opaque rectangles hide (as src/sdl.cpp)
   SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);   // measured: without them a frame takes as long on the Adreno 220
   setenv("ZINC_GL_LEAN", "1", 0);                // the GL renderer's lean programs: an image over the screen in 2 ms, 32 ms with the general one
+  setenv("ZINC_GL_CORNERS", "0", 0);             // square clips: a rounded one copies the framebuffer in mid-frame, a whole pass on this GPU (12 to 24 frames a second in hero's transitions)
   SDL_GL_SetAttribute(SDL_GL_SWAP_CONTROL, getenv("ZINC_VSYNC") && atoi(getenv("ZINC_VSYNC")) == 0 ? 0 : 1);
   screen = SDL_SetVideoMode(0, 0, 0, SDL_OPENGL);   // 0 x 0: the screen's own mode
   if (!screen) { fprintf(stderr, "display-gl: no GL screen: %s\n", SDL_GetError()); return false; }

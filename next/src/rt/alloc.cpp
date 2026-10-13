@@ -44,3 +44,15 @@ extern "C" void* aligned_alloc(std::size_t align, std::size_t n) noexcept {
   return posix_memalign(&p, align < sizeof(void*) ? sizeof(void*) : align, n) ? nullptr : p;
 }
 #endif
+
+#if defined(__arm__) && defined(__GLIBC__) && defined(__ARM_FP) && !defined(__ARM_PCS_VFP)
+// ARM with an FPU and the soft-float calling convention (webOS 3): zig builds its own sin, cos, exp, log and sqrt without the FPU for this
+// ABI, and a program takes them before the C library's, so every call was computed in software (a sine: microseconds). These send the
+// calls to the device's libm, which uses the FPU. In this file because it is always linked.
+#include <dlfcn.h>
+#define ZN_LIBM(T, name) extern "C" T name(T x) { static T (*f)(T); if (!f) f = reinterpret_cast<T (*)(T)>(dlsym(RTLD_NEXT, #name)); return f(x); }
+ZN_LIBM(double, sin) ZN_LIBM(double, cos) ZN_LIBM(double, tan) ZN_LIBM(double, exp) ZN_LIBM(double, exp2) ZN_LIBM(double, log) ZN_LIBM(double, sqrt)
+ZN_LIBM(float, sinf) ZN_LIBM(float, cosf) ZN_LIBM(float, sqrtf)
+extern "C" double fmod(double x, double y) { static double (*f)(double, double); if (!f) f = reinterpret_cast<double (*)(double, double)>(dlsym(RTLD_NEXT, "fmod")); return f(x, y); }
+#undef ZN_LIBM
+#endif

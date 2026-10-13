@@ -535,6 +535,7 @@ bool crossBuild(const std::string& zig, const std::string& root, const std::stri
   }
   // Windows: what mimalloc calls (random numbers, process memory); -static so the .exe carries libc++ and winpthreads and runs on a machine with nothing installed
   if (std::string(t->name).find("-windows") != std::string::npos) objs += " -static -lbcrypt -ladvapi32 -lpsapi";
+  if (std::string(t->name).find("-webos") != std::string::npos) objs += " -ldl";   // the runtime finds the device's libm functions with dlsym (src/rt/alloc.cpp)
   std::string cmd = quote(zig) + " c++ -std=c++20 " + flags + " " + quote(cppFile) + objs + " -o " + quote(outFile);
   return run(cmd, err, "the compiler");
 }

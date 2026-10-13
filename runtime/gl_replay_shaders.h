@@ -124,7 +124,7 @@ static const char* const FS_BLEND =
 // and nothing else: two or three varyings in place of five vectors, no distance, no branch, a plain premultiplied blend in place of the
 // raster's integer one (a unit of difference at most on a channel). On an Adreno 220 the general program takes 16 ms to fill 1024x768
 // with one colour and 32 ms with an image; a program of this kind takes 2 ms (docs/reports/hardware/hp-touchpad-webos.md).
-enum Lean { LEAN_SOLID, LEAN_TEXT, LEAN_IMAGE, LEANS };
+enum Lean { LEAN_SOLID, LEAN_TEXT, LEAN_IMAGE, LEAN_FILL, LEAN_RADIAL, LEAN_BORDER, LEAN_SHADOW, LEANS };
 static const char* LVS =
   "attribute vec4 a_pos; attribute vec4 a_par; attribute vec4 a_c1; attribute float a_z;\n"
   "uniform vec2 u_res; uniform float u_flip;\n"
@@ -133,6 +133,19 @@ static const char* LVS =
   "  float m = a_par.z > 15.5 ? a_par.z - 16.0 : a_par.z;\n"
   "  v_k = vec2(m > 3.5 ? 1.0 : 0.0, m < 3.5 || a_par.w > 0.5 ? 1.0 : 0.0);\n"   // IMAGE: the texels are B, G, R; the texel's alpha counts
   "  gl_Position = vec4(a_pos.x / u_res.x * 2.0 - 1.0, (a_pos.y / u_res.y * 2.0 - 1.0) * u_flip, a_z, 1.0); }\n";
+// The boxes (a rounded fill with its two-colour gradient, a border, a shadow): the pixel from the box's centre, the box's half size, radius
+// and width or blur, and the gradient's place worked out per vertex (a linear gradient is an interpolation). Ten floats a pixel, one
+// distance (two for a border), no integer blend.
+static const char* LBVS =
+  "attribute vec4 a_pos; attribute vec4 a_box; attribute vec4 a_par; attribute vec4 a_c1; attribute vec4 a_c2; attribute float a_z;\n"
+  "uniform vec2 u_res; uniform float u_flip;\n"
+  "varying vec2 v_q; varying vec4 v_h; varying vec4 v_col; varying vec4 v_c2;\n"
+  "void main() { v_q = (a_par.z > 15.5 ? a_pos.zw : a_pos.xy) - a_box.xy; v_h = vec4(a_box.zw, a_par.x, a_par.y); v_col = a_c1;\n"
+  "  float t = a_par.w < 0.5 ? 0.0 : a_par.w < 1.5 ? (v_q.y + a_box.w) / max(2.0 * a_box.w, 1e-6) : (v_q.x + a_box.z) / max(2.0 * a_box.z, 1e-6);\n"
+  "  v_c2 = vec4(a_c2.rgb, t);\n"
+  "  gl_Position = vec4(a_pos.x / u_res.x * 2.0 - 1.0, (a_pos.y / u_res.y * 2.0 - 1.0) * u_flip, a_z, 1.0); }\n";
+#define LB_HEAD "varying vec2 v_q; varying vec4 v_h; varying vec4 v_col; varying vec4 v_c2;\n" \
+  "float cover(vec2 h, float r) { vec2 d = abs(v_q) - (h - r); return clamp(0.5 - (length(max(d, 0.0)) + min(max(d.x, d.y), 0.0) - r), 0.0, 1.0); }\n"
 static const char* const LFS[LEANS] = {
   "varying vec4 v_col; void main() { gl_FragColor = vec4(v_col.rgb * v_col.a, v_col.a); }\n",
   "varying vec2 v_uv; varying vec4 v_col; uniform sampler2D u_tex;\n"
@@ -140,6 +153,16 @@ static const char* const LFS[LEANS] = {
   "varying vec2 v_uv; varying vec4 v_col; varying vec2 v_k; uniform sampler2D u_tex;\n"
   "void main() { vec4 t = texture2D(u_tex, v_uv); float a = mix(1.0, t.a, v_k.y) * v_col.a;\n"
   "  gl_FragColor = vec4(mix(t.rgb, t.bgr, v_k.x) * v_col.rgb * a, a); }\n",
+  // FILL, one colour or a linear gradient
+  LB_HEAD "void main() { float a = cover(v_h.xy, v_h.z) * v_col.a; gl_FragColor = vec4(mix(v_col.rgb, v_c2.rgb, clamp(v_c2.a, 0.0, 1.0)) * a, a); }\n",
+  // FILL, a radial gradient
+  LB_HEAD "void main() { float a = cover(v_h.xy, v_h.z) * v_col.a;\n"
+  "  gl_FragColor = vec4(mix(v_col.rgb, v_c2.rgb, clamp(length(v_q / max(v_h.xy, vec2(1e-6))), 0.0, 1.0)) * a, a); }\n",
+  // BORDER: the ring between two boxes
+  LB_HEAD "void main() { float a = (cover(v_h.xy, v_h.z) - cover(v_h.xy - v_h.w, max(v_h.z - v_h.w, 0.0))) * v_col.a; gl_FragColor = vec4(v_col.rgb * a, a); }\n",
+  // SHADOW: a blurred box
+  LB_HEAD "void main() { vec2 d = abs(v_q) - (v_h.xy - v_h.z); float s = length(max(d, 0.0)) + min(max(d.x, d.y), 0.0) - v_h.z;\n"
+  "  float k = clamp(1.0 - (s + v_h.w * 0.5) / (v_h.w * 1.5), 0.0, 1.0), a = k * k * (3.0 - 2.0 * k) * v_col.a; gl_FragColor = vec4(v_col.rgb * a, a); }\n",
 };
 /** The fragment shader of the modes of `mask` (bit m: mode m), with the paint block or not, into `out`: one mode's block alone, or the
  *  blocks behind a ladder of ifs on the vertex's mode (every mode: desktop GL). A GPU without branches runs every block of a ladder

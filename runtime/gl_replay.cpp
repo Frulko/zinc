@@ -56,7 +56,7 @@ static GLuint vbo, ibo, fbo, fbo_tex, fbo_depth, white, atlas, corner_tex, cur_t
 // program, so the paint order stays. Uniforms belong to a program: use_prog() gives it the frame's (size, flip) at its first use in the
 // frame, and the code that draws a mode sets that mode's own (edge, paint, convex) on the program use_prog() returns.
 struct Prog { GLuint id; GLint u_res, u_flip, u_edge, u_g0, u_g1, u_gc, u_go, u_cv, u_cvn; uint32_t stamp; bool tried; };
-static Prog progs[32 + 4];    // by key (key_of): 0 on desktop GL; on GLES 2 the mode, + 16 with the paint block; from 32 the lean programs
+static Prog progs[32 + 8];    // by key (key_of): 0 on desktop GL; on GLES 2 the mode, + 16 with the paint block; from 32 the lean programs
 static bool lean_on;          // ZINC_GL_LEAN=1 (GLES 2): the lean programs for the quads they can draw (gl_replay_shaders.h)
 static Prog* cur_prog;        // the program in use, nullptr after another one was (occlusion, stencil)
 static uint32_t pstamp;       // the frame's number, for Prog::stamp
@@ -198,7 +198,7 @@ static Prog& use_prog(uint8_t key) {
     static char fs[8192];
     const double t0 = now_us();
     const unsigned modes = key >= 32 ? 0 : only >= 0 ? 1u << only : GLR_CORE ? ~0u : gmask[key & 15];
-    p.id = key >= 32 ? zgl_program("", LVS, LFS[key - 32]) : fs_source(modes, GLR_CORE ? only < 0 : (key & 16) != 0, fs, sizeof fs) ? zgl_program("", VS, fs) : 0;
+    p.id = key >= 32 ? zgl_program("", key - 32 < LEAN_FILL ? LVS : LBVS, LFS[key - 32]) : fs_source(modes, GLR_CORE ? only < 0 : (key & 16) != 0, fs, sizeof fs) ? zgl_program("", VS, fs) : 0;
     st.prog_us += now_us() - t0;
     if (getenv("ZINC_GL_STATS")) fprintf(stderr, "display-gl renderer gl: program of modes 0x%x%s built in %.0f ms (frame %u)\n", modes & ((1u << MODES) - 1), key & 16 ? " with paint" : "", (now_us() - t0) / 1e3, st.frames);
     if (!p.id) fprintf(stderr, "display-gl: renderer gl: the program of modes 0x%x does not build: their quads are not drawn\n", modes & ((1u << MODES) - 1));
@@ -368,7 +368,14 @@ static void quad(const Q& q) {
   if (nq == MAXQ) flush();
   V* v = &verts[nq * 4];
   const int m15 = mode & 15;
-  run_of(mode, !lean_on || only >= 0 || paint_on || q.r > 0 ? -1 : m15 == SOLID ? LEAN_SOLID : m15 == TEXT_M ? LEAN_TEXT : (m15 == IMAGE_RGBA || m15 == IMAGE_BGR) && q.grad != 2 ? LEAN_IMAGE : -1);
+  int lean = -1;   // the lean program that draws this quad, when there is one (gl_replay_shaders.h)
+  if (lean_on && only < 0 && !paint_on) {
+    if (m15 == FILL) lean = q.grad <= 2 ? LEAN_FILL : q.grad == 3 ? LEAN_RADIAL : -1;
+    else if (m15 == BORDER_M) lean = LEAN_BORDER;
+    else if (m15 == SHADOW_M) lean = LEAN_SHADOW;
+    else if (q.r <= 0) lean = m15 == SOLID ? LEAN_SOLID : m15 == TEXT_M ? LEAN_TEXT : (m15 == IMAGE_RGBA || m15 == IMAGE_BGR) && q.grad != 2 ? LEAN_IMAGE : -1;
+  }
+  run_of(mode, lean);
   nq++;
   for (int i = 0; i < 4; i++) {
     v[i] = V{xs[i], ys[i], us[i], vs[i], q.bx, q.by, q.bw, q.bh, q.r, q.p1, (float)mode, (float)q.grad, {0, 0, 0, 0}, {0, 0, 0, 0}, cur_z};
@@ -1497,7 +1504,10 @@ static void run(const Frame& f, bool first) {
         float hw2 = c.w / 2, hh2 = c.h / 2;
         k.R = c.r > 0 ? iceil(c.r < hw2 ? (c.r < hh2 ? c.r : hh2) : (hw2 < hh2 ? hw2 : hh2)) : 0;
         int32_t x0 = ifloor(k.x), y0 = ifloor(k.y), x1 = iceil(k.x + k.w), y1 = iceil(k.y + k.h);
-        if (k.R > 0 && k.R <= CORNER && x0 >= 0 && y0 >= 0 && x1 <= W && y1 <= H) {   // ponytail: larger radii or clips off screen stay square
+        // ZINC_GL_CORNERS=0: every clip is square. The copies below read the framebuffer in the middle of a frame; a GPU that draws in tiles
+        // (Adreno, Mali, VideoCore) then draws everything recorded so far and loads it back for what follows: a whole pass per rounded clip
+        static const bool corners = !getenv("ZINC_GL_CORNERS") || atoi(getenv("ZINC_GL_CORNERS")) != 0;
+        if (corners && k.R > 0 && k.R <= CORNER && x0 >= 0 && y0 >= 0 && x1 <= W && y1 <= H) {   // ponytail: larger radii or clips off screen stay square
           const int32_t cx[4] = {x0, x1 - k.R, x0, x1 - k.R}, cy[4] = {y0, y0, y1 - k.R, y1 - k.R};
           GLR_TRACE("corners of a rounded CLIP copied from the framebuffer, radius %d, %d quads drawn so far\n", k.R, st.quads - trace_q0);
           glBindFramebuffer(GL_FRAMEBUFFER, flipy ? 0 : fbo);
