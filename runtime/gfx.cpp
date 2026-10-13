@@ -1617,6 +1617,11 @@ void destroyImage(int32_t i) { raster::dyn_destroy(i); }
 // Render-to-image: commands between beginImage and endImage are rasterized into the image instead of the screen
 // (cached map tiles, static layers). They never reach the frame diff.
 static uint32_t mark_cmd, mark_text, mark_pts;
+// A range that starts with CLEAR does not depend on what the image held. When it is the range last drawn into this image, and nothing else
+// wrote the image since, the image is left as it is: a cached layer (the scroll tiles of lib/std/ui.ts) is recorded again whenever something
+// may have changed, and rasterized, uploaded and diffed only when something did.
+struct Drawn { int32_t img; uint32_t version, hash; };
+static Drawn drawn[256];   // by image id; ponytail: two cached images that share a slot draw every time, a map when a program keeps that many
 void beginImage(int32_t i) { Buf& b = bufs[cur]; target_img = i; mark_cmd = b.ncmd; mark_text = b.ntext; mark_pts = b.npts; }
 void endImage() {
   Buf& b = bufs[cur];
@@ -1625,9 +1630,14 @@ void endImage() {
   if (px && raster::image_size(target_img, &w, &h)) {
     soft_pictures(b, mark_cmd);
     raster::Frame fr{b.cmds + mark_cmd, b.ncmd - mark_cmd, b.text, b.pts};
-    raster::render(fr, px, w, 0, h, raster::Rect{0, 0, w, h});
-    raster::dyn_set_alpha(target_img, false);   // the raster writes 0x00RRGGBB: a decoded image drawn into is opaque from now on
-    raster::dyn_update(target_img, nullptr, 0);
+    Drawn& d = drawn[(uint32_t)target_img % 256];
+    const uint32_t hsh = fr.count && fr.cmds[0].kind == raster::CLEAR ? raster::frame_hash(fr) | 1 : 0;   // 0: it draws over what is there
+    if (!hsh || d.img != target_img || d.hash != hsh || d.version != raster::image_version(target_img)) {
+      raster::render(fr, px, w, 0, h, raster::Rect{0, 0, w, h});
+      raster::dyn_set_alpha(target_img, false);   // the raster writes 0x00RRGGBB: a decoded image drawn into is opaque from now on
+      raster::dyn_update(target_img, nullptr, 0);
+      d = Drawn{target_img, raster::image_version(target_img), hsh};
+    }
   }
   b.ncmd = mark_cmd; b.ntext = mark_text; b.npts = mark_pts; target_img = -1;
 }

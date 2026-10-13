@@ -3,7 +3,7 @@
 // pointer + focus input (UI-11). Written in Zinc: the same code is compiled to C++ and to the sim.
 // Idle frames cost nothing: when no node, animation or canvas changed, the previous frame is kept (gfx.keep).
 import {
-  onFrame, onResize, clear, rrect, gradient, gradientPaint, border, shadow, drawText, setTransform, resetTransform, drawImage, drawImageRect, font, fontAscent, textWidth, image, imageWidth, imageHeight, createImage, destroyImage, commandCount, commandsFree,
+  onFrame, onResize, clear, rrect, gradient, gradientPaint, border, shadow, drawText, setTransform, resetTransform, drawImage, drawImageRect, font, fontAscent, textWidth, image, imageWidth, imageHeight, createImage, destroyImage, beginImage, endImage, commandCount, commandsFree,
   clip, unclip, width, height, pointerX, pointerY, pointerDown, wasPressed, keep, Btn, wheel,
   wheelX, pinch, pointerButtons, modifiers, keyCount, keyKind, keyMods, keyName, buttonEventCount, buttonEventX, buttonEventY,
   buttonEventButton, buttonEventDown, startTextInput, stopTextInput, clipboardText, setClipboardText, setCursor, Cursor, KeyKind,
@@ -443,6 +443,7 @@ const DEAD: UiNode = new UiNode(0);
 DEAD.alive = false;
 let layoutDirty = true;
 let paintDirty = true;
+let scrollDirty = false;   // a scroll offset moved: the frame is painted again, with the same content (the tiles of paintTiles stay)
 let canvases: i32 = 0;
 let root: i32 = -1;
 let focus: i32 = -1;
@@ -3524,6 +3525,68 @@ function fontAtScale(n: UiNode, k: number): i32 {
 }
 // Coordinates: a layout point p of a node's children is drawn at p * k + o; a node's own box at (n.x + n.tx) * k + o,
 // sized n.lw * k * n.k (style scale zooms the node and its subtree around its top-left corner).
+// ---- scroll tiles: what a scroll container holds, kept as pictures (docs/reports/hardware/hp-touchpad-webos.md, section 10)
+// A scroll paints every child again at its new place, and the frame rasterizes the whole area again: 63 ms a frame on a 2011 tablet whose
+// own UI moves textures. With ZINC_UI_TILES=1 the content of a scroll container is kept as TILE x TILE runtime images over the solid colour
+// behind it. A frame draws the visible tiles; a tile is recorded again when something other than a scroll may have changed (contentEpoch),
+// and gfx.endImage rasterizes it only when its commands differ. No solid colour behind, a scale, a sticky child, more tiles than the cache
+// holds: the children are painted as without it. A scroll offset is rounded to a pixel, the only difference in the pixels.
+const TILE: i32 = 256, TILES: i32 = 96;   // 96 tiles: 25 MB of pixels at most; a 1024 x 768 view shows 20
+let tilesOn: boolean = env('ZINC_UI_TILES') === '1';
+let contentEpoch: i32 = 1, tileFrame: i32 = 0, frameBg: i32 = -1;
+let tileRec: boolean = false, tileSticky: boolean = false;
+const tNode: i32[] = [], tI: i32[] = [], tJ: i32[] = [], tImg: i32[] = [], tEpoch: i32[] = [], tSeen: i32[] = [], tBg: i32[] = [];
+const tileOff: i32[] = [];   // the scroll containers that cannot be kept as tiles (a sticky child)
+/** The colour the content of h is drawn over when it is one opaque colour, else -1. */
+function solidBehind(h: i32): i32 {
+  let p = h;
+  while (p >= 0) {
+    const q = nodes[p];
+    if (q.grad > 0 || q.gx.kind > 0 || q.im.bg >= 0) return -1;
+    const bg = effectiveBg(p, q);
+    if (bg >= 0) return q.bgAlpha === 255 ? bg : -1;
+    p = q.parent;
+  }
+  return frameBg;
+}
+function tileAt(h: i32, i: i32, j: i32): i32 {
+  for (let t = 0; t < tNode.length; t++) if (tNode[t] === h && tI[t] === i && tJ[t] === j) return t;
+  let t = -1;
+  if (tNode.length < TILES) { t = tNode.length; tNode.push(h); tI.push(i); tJ.push(j); tImg.push(createImage(TILE, TILE)); tEpoch.push(0); tSeen.push(0); tBg.push(-1); }
+  else { for (let u = 0; u < TILES; u++) if (tSeen[u] !== tileFrame && (t < 0 || tSeen[u] < tSeen[t])) t = u; }   // the one shown longest ago
+  if (t < 0) return -1;
+  tNode[t] = h; tI[t] = i; tJ[t] = j; tEpoch[t] = 0;
+  return t;
+}
+function paintTiles(h: i32, n: UiNode, zp: i32[] | null, x: number, y: number, ai: i32): boolean {
+  if (tileOff.indexOf(h) >= 0) return false;
+  const bg = solidBehind(h);
+  if (bg < 0) return false;
+  const i0: i32 = Math.max(0, Math.floor(n.sx / TILE)), i1: i32 = Math.min(Math.ceil(Math.max(n.contentW, n.lw) / TILE) - 1, Math.floor((n.sx + n.lw - 1) / TILE));
+  const j0: i32 = Math.max(0, Math.floor(n.sy / TILE)), j1: i32 = Math.min(Math.ceil(Math.max(n.contentH, n.lh) / TILE) - 1, Math.floor((n.sy + n.lh - 1) / TILE));
+  if ((i1 - i0 + 1) * (j1 - j0 + 1) > TILES / 2) return false;
+  const shown: i32[] = [];
+  for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+    const t = tileAt(h, i, j);
+    if (t < 0) return false;
+    tSeen[t] = tileFrame;
+    if (tEpoch[t] !== contentEpoch || tBg[t] !== bg) {
+      const ox = -(n.x + i * TILE), oy = -(n.y + j * TILE);
+      beginImage(tImg[t]);
+      clear(bg);
+      tileRec = true; tileSticky = false;
+      if (zp !== null) { for (const c of zp) paint(c, ox, oy, 1, 1); } else for (const c of n.children) paint(c, ox, oy, 1, 1);
+      tileRec = false;
+      endImage();
+      if (tileSticky) { tileOff.push(h); return false; }   // it moves with the scroll: no picture of it
+      tEpoch[t] = contentEpoch; tBg[t] = bg;
+    }
+    shown.push(t);
+  }
+  const vx = Math.round(x - n.sx), vy = Math.round(y - n.sy);   // where the content's corner is on the surface
+  for (const t of shown) drawImage(tImg[t], vx + tI[t] * TILE, vy + tJ[t] * TILE, TILE, TILE, ai, 0);
+  return true;
+}
 function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
   const n = node(h);
   if (n.hidden || n.invisible || (n.layer && h !== layerPass)) return;
@@ -3533,6 +3596,11 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
   if (n.tf !== null) { const s = tfK(n); x += n.lw * kk * (1 - s) / 2; y += n.lh * kk * (1 - s) / 2; kk *= s; }
   const w = n.lw * kk, hh = n.lh * kk;
   const ai: i32 = Math.round(a * 255);
+  if (tileRec) {   // recording one tile of a scroll container: what lies outside it is not recorded
+    if (n.sticky) tileSticky = true;
+    // ponytail: a ring or an outline wider than the margin is cut at a tile's edge; the node's own extent when one shows
+    if ((n.children.length === 0 || n.overflow) && n.shadowLevel === 0 && n.shOpacity <= 0 && n.tf === null && (x >= TILE + 16 || y >= TILE + 16 || x + w <= -16 || y + hh <= -16)) return;
+  }
   if (n.tag !== FRAGMENT) {
     const r = Math.min(n.radius * kk, Math.min(w, hh) / 2);
     if (n.shadowLevel > 0) shadow(x, y + SHADOW_Y[n.shadowLevel] * kk, w, hh, r, SHADOW_BLUR[n.shadowLevel] * kk, 0x000000, Math.round(SHADOW_A[n.shadowLevel] * a));
@@ -3621,7 +3689,8 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
   }
   const cx = x - (n.x + n.sx) * kk, cy = y - (n.y + n.sy) * kk;
   const zp = zSorted(n);
-  if (zp !== null) { for (const c of zp) paint(c, cx, cy, kk, a); } else for (const c of n.children) paint(c, cx, cy, kk, a);
+  if (tilesOn && n.scroll !== 0 && !tileRec && kk === 1 && n.overflow && n.tag !== FRAGMENT && paintTiles(h, n, zp, x, y, ai)) { /* drawn from its tiles */ }
+  else if (zp !== null) { for (const c of zp) paint(c, cx, cy, kk, a); } else for (const c of n.children) paint(c, cx, cy, kk, a);
   if (n.scroll !== 0) paintScrollbars(n, x, y, kk, a);
   if (n.overflow && n.tag !== FRAGMENT) unclip();
 }
@@ -4314,7 +4383,7 @@ function directScroll(h: i32, dx: number, dy: number): void {
   // the horizontal axis follows the fingers only when its content is wider than the viewport (iOS and React Native's alwaysBounceHorizontal = false); the
   // vertical one always does, so a short page still rubber-bands vertically
   if ((n.scroll & 2) !== 0 && maxScrollX(n) > 0.5) { const a = axisX(n); beginDirect(a, maxScrollX(n), n.lw); if (dx !== 0) directBy(a, dx, maxScrollX(n), n.lw); n.sx = a.pos; }
-  n.scrolledAt = clock; paintDirty = true;
+  n.scrolledAt = clock; scrolled(n);
   wakeScroll(h);
 }
 /** The fingers left: inertia or bounce from the release velocity. */
@@ -4359,6 +4428,12 @@ function snapTo(sc: UiNode, yAxis: boolean, v: number, dir: number): number {
   if (sc.sn.snapProx && bd > 32) return v;
   return best;
 }
+/** A scroll offset of n moved. Inside another scroll container it is a change of that one's content. */
+function scrolled(n: UiNode): void {
+  let p = n.parent;
+  while (p >= 0 && nodes[p].scroll === 0) p = nodes[p].parent;
+  if (p >= 0) paintDirty = true; else scrollDirty = true;
+}
 function stepScroll(dt: number): void {
   for (let i = scrollers.length - 1; i >= 0; i--) {
     const h = scrollers[i], n = node(h);
@@ -4385,7 +4460,7 @@ function stepScroll(dt: number): void {
       n.sx = a.pos;
     }
     n.scrolledAt = clock;
-    paintDirty = true;
+    scrolled(n);
     if (!moving) { n.live = false; n.vx = 0; n.vy = 0; clampScroll(n); scrollers.splice(i, 1); }
   }
 }
@@ -4946,12 +5021,15 @@ export function frame(dt: number, background: i32): void {
   if (layoutDirty) layout();
   if (anchors.length > 0) applyAnchors();
   if (prof) profMark(PROF_LAYOUT);
-  if (hoverDirty || paintDirty) updateHover();
+  if (hoverDirty || paintDirty || scrollDirty) updateHover();
   if (prof) profMark(PROF_INPUT);
-  if (!paintDirty && !extPaint && !animating && anims.length === 0 && steppers.length === 0 && canvases === 0 && scrollers.length === 0 && editScrollers.length === 0 && !overlaid()) { keep(); return; }
+  if (!paintDirty && !scrollDirty && !extPaint && !animating && anims.length === 0 && steppers.length === 0 && canvases === 0 && scrollers.length === 0 && editScrollers.length === 0 && !overlaid()) { keep(); return; }
+  // everything that repaints except a scroll may have changed what a scroll container holds: its tiles are recorded again (paintTiles)
+  if (paintDirty || extPaint || animating || anims.length > 0 || steppers.length > 0 || canvases !== 0 || editScrollers.length > 0 || overlaid()) contentEpoch++;
+  tileFrame++; frameBg = background;
   animating = false;
-  if (paintDirty && surfaces.length > 0) othersDirty(false);
-  paintDirty = false; extPaint = false;
+  if ((paintDirty || scrollDirty) && surfaces.length > 0) othersDirty(false);
+  paintDirty = false; scrollDirty = false; extPaint = false;
   if (background >= 0) clear(background);
   paint(root, 0, 0, 1, 1);
   if (layers.length > 0) paintLayers();
@@ -5047,7 +5125,7 @@ export function mount(h: i32, background: i32, extra: ((dt: number) => void) | n
 let extLayout = false, extPaint = false;
 let steppedAt: i32 = -1;
 class Surface {
-  root: i32 = -1; layoutDirty = true; paintDirty = true; extLayout = false; extPaint = false; surfW: i32 = -1; surfH: i32 = -1;
+  root: i32 = -1; layoutDirty = true; paintDirty = true; scrollDirty = false; extLayout = false; extPaint = false; surfW: i32 = -1; surfH: i32 = -1;
   focus: i32 = -1; pressed: i32 = -1; animating = false; focusShown: i32 = -1; keyboardFocus = false; restoreTo: i32 = -1; lastCommands: i32 = 0;
   dragScroller: i32 = -1; dragging = false; dragX: number = 0; dragY: number = 0; lastX: number = 0; lastY: number = 0;
   capture: i32 = -1; captureBtn: i32 = 0; selecting: i32 = -1; ptrX: number = -1; ptrY: number = -1; held: i32 = 0; curMods: i32 = 0;
@@ -5068,6 +5146,7 @@ function swapSurface(s: Surface): void {
   i = root; root = s.root; s.root = i;
   b = layoutDirty; layoutDirty = s.layoutDirty; s.layoutDirty = b;
   b = paintDirty; paintDirty = s.paintDirty; s.paintDirty = b;
+  b = scrollDirty; scrollDirty = s.scrollDirty; s.scrollDirty = b;
   b = extLayout; extLayout = s.extLayout; s.extLayout = b;
   b = extPaint; extPaint = s.extPaint; s.extPaint = b;
   i = surfW; surfW = s.surfW; s.surfW = i;
