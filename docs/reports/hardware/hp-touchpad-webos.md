@@ -192,6 +192,47 @@ Found on the way, not specific to the tablet:
 Not done: an installable `.ipk` (launcher icon), the `touchpad` profile, the webOS services plugin (PDL, Luna bus), the system's
 keyboard and orientation, the GL renderer (`ZINC_RENDERER=gl`) measured, and the shell in place of LunaSysMgr.
 
+## 10. Performance: where the time goes and what is decided (2026-10-13)
+
+Owner, 2026-10-13: the same smoothness as the native UI of webOS, at the full resolution, limits per device and a way to warn the developer.
+
+Tools (all driven from the Mac): `ZINC_INPUT=<script>` (touches by frame; the GL backend keeps the script's pointer while no finger is on the
+screen), `ZINC_FRAMES`, `ZINC_SHOT` (a BMP of the last frame, also the way to read `ZINC_PERF_HUD`), `ZINC_GL_STATS`, `strace -T` on the
+tablet for the driver's ioctls, and PC samples of the main thread from `/proc/<pid>/stat` field 30, named with `llvm-symbolizer`.
+
+Baseline, `examples/hero` without its video screen, 1024x768, frames a second over a whole scripted session:
+
+| Session | software frame on 2 cores, shown by GLES | GL replay (`ZINC_RENDERER=gl`) |
+|---|---|---|
+| start screen (two full-screen radial gradients, a grid of 3000 dots, animated) | 8.5 (6.1 on one core) | 4 to 5 |
+| Home, flicks | 19.5 | 16.6 |
+| Gallery, flicks | 15.4 | 8.1 |
+| Kit, flicks | 21.9 | not run |
+| eight tab changes, twice | 12.6 | 8.3 |
+
+- Software: 61% of the samples in `fill_rrect`, 13% `fill_poly`, 10% `shadow_rrect`; 113 ms for the start screen on one core. The rasterizer has no NEON code.
+- GL replay: the CPU is idle (17%); one `IOCTL_KGSL_DEVICE_WAITTIMESTAMP` a frame lasts about 150 ms: the Adreno 220 needs that long for the
+  per-pixel shaders. With every quad drawn as SOLID the run still makes 8.5 frames a second. No depth or stencil buffer, no occlusion pass,
+  drawing straight to the window, client-side vertex arrays instead of a buffer filled per batch: no change. A quarter of the pixels: 7.1.
+- The performance panel during a Gallery flick: frame 63.5 ms = `pnt` 16.8 ms (the UI records its 1811 commands again) + present 41.6 ms
+  (raster and upload). Layout, input and the diff are under 1 ms each.
+
+Why the native UI is smooth and this is not: it rasterizes content once into textures and then only composes them; Zinc records and
+rasterizes every changed pixel again each frame (`lib/std/ui.ts` `paint`: a scroll re-emits every child at its new place, a transition
+multiplies the alpha into every command; the damage of a 2 px scroll is the whole scroll area). The engine has no retained layer, but it has
+the bricks: `gfx.beginImage` / `endImage` (a command range rasterized into a runtime image) and IMAGE, cheap in both renderers (a row copy,
+one textured quad). `ui-rendering-architecture.md` proposes the same (`LayerPush cache_key`, retained layer tiles for T2/T3); D71 refused
+offscreen subtrees for transforms because runtime images have no alpha.
+
+Decision: a tile cache of scroll content in the UI library, as an accelerator with a fallback.
+- The content of a scroll container is kept as 256 px tiles (runtime images, filled with the solid background behind the content; no solid
+  background, a scale, a sticky child: no cache). A frame draws the tiles when every visible one is valid, else it paints as today and
+  brings one tile up to date, so a content change never costs more than a frame of today.
+- First validity rule: one global content epoch (any paint or layout dirtiness that is not a scroll or a tween). Per-node versions come after.
+- Off by default; a device profile turns it on (`touchpad`: T2). Pixels with the cache off are unchanged.
+- Then: the same for a screen in a transition, NEON in `fill_rrect` and `blend_row`, a frame budget per profile with a developer warning
+  (the panel already counts `dropped`), and the profile itself.
+
 ## Sources
 
 Read by two research agents on 2026-10-13; pages they could not open are marked.
