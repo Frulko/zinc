@@ -27,6 +27,10 @@ const std::string& error(Conn*) { static const std::string e = "this build has n
 #include <psa/crypto.h>
 
 #include <cstdio>
+#include <string>
+#ifdef __linux__
+#include <unistd.h>
+#endif
 #include <cstdlib>
 #include <cstring>
 #include <memory>
@@ -57,6 +61,15 @@ mbedtls_x509_crt* roots() {
     auto* c = new mbedtls_x509_crt;
     mbedtls_x509_crt_init(c);
     if (const char* f = std::getenv("ZINC_CA_FILE")) { mbedtls_x509_crt_parse_file(c, f); return c; }
+#ifdef __linux__
+    {  // a cacert.pem shipped beside the program replaces the store of a device that no longer updates its own (webOS 3 has one root, of 2011)
+      char exe[4096];
+      const ssize_t n = readlink("/proc/self/exe", exe, sizeof exe - 1);
+      std::string dir(exe, n > 0 ? static_cast<size_t>(n) : 0);
+      dir.erase(dir.find_last_of('/') == std::string::npos ? 0 : dir.find_last_of('/'));
+      if (!dir.empty() && mbedtls_x509_crt_parse_file(c, (dir + "/cacert.pem").c_str()) >= 0) return c;
+    }
+#endif
     for (const char* f : {"/etc/ssl/cert.pem", "/etc/ssl/certs/ca-certificates.crt", "/etc/pki/tls/certs/ca-bundle.crt", "/etc/ssl/ca-bundle.pem", "/etc/ssl/certs/ca-bundle.crt"})
       if (mbedtls_x509_crt_parse_file(c, f) >= 0) break;
     return c;
