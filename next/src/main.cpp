@@ -2127,19 +2127,21 @@ int main(int argc, char** argv) {
       auto found = zn::frontend::discoverPlugins(gRoot + "/..", pdir, problems);
       const zn::tc::Target* tg0 = zn::tc::findTarget(argv[3]);
       zn::tc::setCrossTarget(tg0->name, tg0->zigTarget, zig);
+      // the entry of a plugin's manifest: "linux" for every Linux, or the system's own when the plugin has one (webOS: its SDL, no KMS)
+      auto entryOf = [&](const zn::frontend::FoundPlugin& f) { for (const std::string& t : f.manifest.targets) if (t == "webos" && std::strstr(tg0->name, "-webos")) return std::string("webos"); return std::string("linux"); };
       for (const zn::tc::PluginLib& host : gPlugins) {
         if (host.display) continue;   // this machine's driver: the target's own is built below
         const zn::frontend::FoundPlugin* hit = nullptr;
         for (const auto& f : found) if (f.manifest.name == host.plugin) hit = &f;
         zn::tc::PluginLib lib;
-        if (!hit || !zn::tc::buildPlugin(*hit, gRoot, pdir, "linux", lib, err)) { zn::tc::clearCrossTarget(); std::fprintf(stderr, "zinc: plugin '%s' for %s: %s\n", host.plugin.c_str(), argv[3], err.c_str()); return 1; }
+        if (!hit || !zn::tc::buildPlugin(*hit, gRoot, pdir, entryOf(*hit), lib, err)) { zn::tc::clearCrossTarget(); std::fprintf(stderr, "zinc: plugin '%s' for %s: %s\n", host.plugin.c_str(), argv[3], err.c_str()); return 1; }
         crossPlugins.push_back(lib);
       }
       if (!sel.driver.empty()) {   // the display driver zinc.json names for Linux (fbdev on a Pi), linked whole like the modules; none: the program runs headless on the null HAL
         const zn::frontend::FoundPlugin* hit = nullptr;
         for (const auto& f : found) if (f.manifest.kind == "display" && (f.manifest.name == sel.driver || f.manifest.name == "display-" + sel.driver)) hit = &f;
         zn::tc::PluginLib lib;
-        if (!hit || !zn::tc::buildPlugin(*hit, gRoot, pdir, "linux", lib, err)) { zn::tc::clearCrossTarget(); std::fprintf(stderr, "zinc: display driver '%s' for %s: %s\n", sel.driver.c_str(), argv[3], hit ? err.c_str() : "not found (zinc plugins lists them)"); return 1; }
+        if (!hit || !zn::tc::buildPlugin(*hit, gRoot, pdir, entryOf(*hit), lib, err)) { zn::tc::clearCrossTarget(); std::fprintf(stderr, "zinc: display driver '%s' for %s: %s\n", sel.driver.c_str(), argv[3], hit ? err.c_str() : "not found (zinc plugins lists them)"); return 1; }
         crossPlugins.push_back(lib);
       }
       zn::tc::clearCrossTarget();

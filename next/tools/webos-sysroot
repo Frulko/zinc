@@ -1,0 +1,24 @@
+#!/bin/sh
+# The sysroot of a webOS 3 device (HP TouchPad) for cross builds of GPU plugins: tools/webos-sysroot
+# Takes the device's own OpenGL ES 2 library over novacom (USB, developer mode; `novacom -l` must list the device), adds the Khronos
+# headers the tree vendors and a pkg-config file, in $ZINC_HOME/sysroots/armv7-webos. The library is the device maker's: it stays on
+# this machine. docs/reports/hardware/hp-touchpad-webos.md
+set -e
+here=$(cd "$(dirname "$0")" && pwd -P)
+root=${ZINC_HOME:-$HOME/.zinc}/sysroots/armv7-webos
+command -v novacom >/dev/null || { echo "webos-sysroot: novacom is not installed (see the report)" >&2; exit 2; }
+mkdir -p "$root/usr/lib/pkgconfig" "$root/usr/include"
+novacom get file://usr/lib/libGLESv2.so > "$root/usr/lib/libGLESv2.so"
+[ -s "$root/usr/lib/libGLESv2.so" ] || { echo "webos-sysroot: could not read /usr/lib/libGLESv2.so from the device" >&2; exit 1; }
+cp -R "$here/../third_party/SDL3/src/video/khronos/GLES2" "$here/../third_party/SDL3/src/video/khronos/KHR" "$root/usr/include/"
+cat > "$root/usr/lib/pkgconfig/glesv2.pc" <<PC
+prefix=/usr
+libdir=\${prefix}/lib
+includedir=\${prefix}/include
+Name: glesv2
+Description: OpenGL ES 2 of the webOS device
+Version: 2.0
+Libs: -L\${libdir} -lGLESv2
+Cflags: -I\${includedir}
+PC
+echo "webos-sysroot: $root"
