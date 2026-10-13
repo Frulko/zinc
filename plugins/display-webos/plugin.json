@@ -1,0 +1,9 @@
+{
+  "name": "display-webos",
+  "kind": "display",
+  "description": "HP webOS 3 (HP TouchPad): a full-screen card through the system's SDL 1.2, software frames, multitouch",
+  "options": { "fps": 60 },
+  "targets": {
+    "linux": { "sources": ["webos.cpp"], "linkFlags": ["-ldl"] }
+  }
+}
