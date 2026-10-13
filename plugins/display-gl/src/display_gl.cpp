@@ -3,6 +3,7 @@
 // are transparent. The backend (sdl.cpp on macOS, kms.cpp on Raspberry Pi) owns the context and input.
 #include "hal.h"
 #include "zgl.h"
+#include "render_bands.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -204,7 +205,9 @@ static void present(const HalFrame* f) {
     if (tm) { glFinish(); tb = glr::now_us(); t_rep += tb - ta; }
   } else if (damaged) {
     double t0 = cpu_stats ? glr::now_us() : 0;
-    f->render(fb + (size_t)f->y0 * PW, f->y0, f->y1);
+    // the software frame, in bands on every core (as display-fbdev: the same pixels as one call)
+    static zbands::Pool& pool = *([] { auto* p = new zbands::Pool; p->init(); return p; })();
+    pool.run(f->y0, f->y1, 16, [](void* ctx, int32_t a, int32_t b) { ((const HalFrame*)ctx)->render(fb + (size_t)a * PW, a, b); }, (void*)f);
     if (cpu_stats) { cpu_us += glr::now_us() - t0; cpu_n++; }
     glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
     glTexSubImage2D(GL_TEXTURE_2D, 0, 0, f->y0, PW, f->y1 - f->y0, GL_RGBA, GL_UNSIGNED_BYTE, fb + (size_t)f->y0 * PW);

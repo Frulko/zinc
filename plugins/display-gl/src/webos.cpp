@@ -41,21 +41,24 @@ enum Phase : uint8_t { IDLE, DOWN, LEAVING, LEFT };
 struct Finger { Phase phase; int32_t id; float x, y; };
 Finger fingers[HAL_MAX_TOUCH] = {};
 int32_t contacts = 0;   // each press is another touch for the program
-SdlEvent held;          // the press that has to wait for the next frame
-bool holding = false;
+SdlEvent queue[256];    // the events not given to the program yet, oldest at `head`: SDL's own queue is short, and a slow frame must not lose a release
+int head = 0, queued = 0;
 float px = 0, py = 0;   // the pointer stays where the last finger was: a release is read at that place
 
-// false: the event waits for the next frame, and those after it
-bool take(const SdlEvent& e, float kx, float ky) {
-  if (e.type == SDL_QUIT) { quit = true; return true; }
-  if (e.type != SDL_MOUSEMOTION && e.type != SDL_MOUSEBUTTONDOWN && e.type != SDL_MOUSEBUTTONUP) return true;
-  if (e.button.which >= HAL_MAX_TOUCH) return true;   // `which` is at the same place in the motion event
+// An event for this frame. TAKEN: go on with the next one. LAST: taken, and the frame's input ends here (a press: the program sees the
+// finger where it landed before it sees it move, so a flick shorter than a slow frame is still a flick). WAIT: it is for the next frame.
+enum Took { TAKEN, LAST, WAIT };
+Took take(const SdlEvent& e, float kx, float ky) {
+  if (e.type == SDL_QUIT) { quit = true; return TAKEN; }
+  if (e.type != SDL_MOUSEMOTION && e.type != SDL_MOUSEBUTTONDOWN && e.type != SDL_MOUSEBUTTONUP) return TAKEN;
+  if (e.button.which >= HAL_MAX_TOUCH) return TAKEN;   // `which` is at the same place in the motion event
   Finger& g = fingers[e.button.which];
-  if (e.type == SDL_MOUSEMOTION) { if (g.phase == DOWN) { g.x = e.motion.x * kx; g.y = e.motion.y * ky; } return true; }   // a move before a press belongs to that press, which has the place
-  if (e.type == SDL_MOUSEBUTTONUP) { if (g.phase == DOWN) g.phase = LEAVING; return true; }
-  if (g.phase != IDLE) return false;
+  if (e.type == SDL_MOUSEMOTION) { if (g.phase == DOWN) { g.x = e.motion.x * kx; g.y = e.motion.y * ky; } return TAKEN; }   // a move before a press belongs to that press, which has the place
+  if (e.type == SDL_MOUSEBUTTONUP) { if (g.phase == DOWN) g.phase = LEAVING; return TAKEN; }
+  if (g.phase != IDLE) return WAIT;
   g = Finger{DOWN, contacts++, e.button.x * kx, e.button.y * ky};
-  return true;
+  if (getenv("ZINC_GL_INFO")) fprintf(stderr, "gl-info: touch %d down at %.0f,%.0f (finger %d)\n", g.id, g.x, g.y, e.button.which);
+  return LAST;
 }
 
 bool open_sdl() {   // once: the screen's size is asked for before the init
@@ -78,12 +81,15 @@ bool zgl_backend_init(const HalConfig*) {
   if (!open_sdl()) return false;
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
   SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);    // the GL renderer's occlusion of what opaque rectangles hide (as src/sdl.cpp)
-  SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
+  SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);   // measured on the Adreno 220: no depth, no stencil or a 16-bit colour request change nothing to the frame time
   SDL_GL_SetAttribute(SDL_GL_SWAP_CONTROL, getenv("ZINC_VSYNC") && atoi(getenv("ZINC_VSYNC")) == 0 ? 0 : 1);
   screen = SDL_SetVideoMode(0, 0, 0, SDL_OPENGL);   // 0 x 0: the screen's own mode
   if (!screen) { fprintf(stderr, "display-gl: no GL screen: %s\n", SDL_GetError()); return false; }
   sw = screen->w; sh = screen->h;
-  fprintf(stderr, "display-gl: webOS %dx%d, %s, %s\n", sw, sh, glGetString(GL_RENDERER), glGetString(GL_VERSION));
+  GLint r = 0, g = 0, bl = 0, al = 0, dz = 0, st = 0;
+  glGetIntegerv(GL_RED_BITS, &r); glGetIntegerv(GL_GREEN_BITS, &g); glGetIntegerv(GL_BLUE_BITS, &bl); glGetIntegerv(GL_ALPHA_BITS, &al); glGetIntegerv(GL_DEPTH_BITS, &dz); glGetIntegerv(GL_STENCIL_BITS, &st);
+  fprintf(stderr, "display-gl: webOS %dx%d, %s, %s, colour %d%d%d%d depth %d stencil %d\n", sw, sh, glGetString(GL_RENDERER), glGetString(GL_VERSION), r, g, bl, al, dz, st);
+  if (getenv("ZINC_GL_INFO")) fprintf(stderr, "gl-info: extensions %s\n", glGetString(GL_EXTENSIONS));
   return true;
 }
 
@@ -94,15 +100,30 @@ void zgl_backend_swap() { SDL_GL_SwapBuffers(); }
 
 void zgl_backend_poll(HalInput* in, int32_t W, int32_t H) {
   const float kx = sw > 0 ? (float)W / sw : 1, ky = sh > 0 ? (float)H / sh : 1;   // screen pixels to the logical surface
-  if (holding) holding = !take(held, kx, ky);
+  static const bool info = getenv("ZINC_GL_INFO") != nullptr;   // every press and release as the program gets them, and the events that are not touches
+  const int cap = (int)(sizeof queue / sizeof *queue);
   SdlEvent e;
-  while (!holding && SDL_PollEvent(&e)) if (!take(e, kx, ky)) { held = e; holding = true; }
+  while (queued < cap && SDL_PollEvent(&e)) {
+    if (info && (e.type < SDL_MOUSEMOTION || e.type > SDL_MOUSEBUTTONUP)) fprintf(stderr, "gl-info: event %d (%d %d %d)\n", e.type, e.room[1], e.room[2], e.room[3]);
+    queue[(head + queued++) % cap] = e;
+  }
+  while (queued) {
+    const Took t = take(queue[head], kx, ky);
+    if (t == WAIT) break;
+    head = (head + 1) % cap; queued--;
+    if (t == LAST) break;
+  }
+  static const bool scripted = getenv("ZINC_INPUT") != nullptr;   // a scripted run (measurements): the script's pointer stays while no finger is on the screen
+  bool any = false;
+  for (const Finger& g : fingers) any = any || g.phase != IDLE;
+  if (scripted && !any) { if (quit) in->quit = 1; return; }
   in->ntouch = 0;
   for (Finger& g : fingers) {
     if (g.phase == LEFT) g.phase = IDLE;
     if (g.phase != DOWN && g.phase != LEAVING) continue;
     if (!in->ntouch) { px = g.x; py = g.y; }
     in->touch[in->ntouch++] = HalTouch{g.id, g.x, g.y};
+    if (info && g.phase == LEAVING) fprintf(stderr, "gl-info: touch %d up at %.0f,%.0f (finger %d)\n", g.id, g.x, g.y, (int)(&g - fingers));
     if (g.phase == LEAVING) g.phase = LEFT;
   }
   in->buttons = 0; in->px = px; in->py = py; in->pdown = in->ntouch > 0; in->quit = quit;
