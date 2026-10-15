@@ -28,24 +28,17 @@ UI, games, 3D, video and hardware, from one strict, typed subset of TypeScript a
 
 ## 🚀 Quick start
 
-```sh
-curl -fsSL https://github.com/zinc-engine/zinc/releases/latest/download/install.sh | sh   # macOS, Linux; nothing to compile
-zinc doctor                                   # what this machine can do
-zinc new desktop-app my-app && cd my-app
-zinc run                                      # a window opens; edit, save, it reloads
-```
-
-<details>
-<summary>Build from the sources (Windows, or to work on Zinc)</summary>
-
-CMake 3.20+ and a C++20 compiler; every library is vendored, Node.js is not needed.
+From the sources (CMake 3.20+ and a C++20 compiler; every library is vendored, Node.js is not needed):
 
 ```sh
-cd next && cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && tools/build zinc
-build/zinc run ../examples/hero
+git clone https://github.com/Frulko/zinc && cd zinc/next
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && tools/build zinc
+build/zinc doctor                             # what this machine can do
+build/zinc new desktop-app ../my-app && cd ../my-app
+../next/build/zinc run                        # a window opens; edit, save, it reloads
 ```
 
-</details>
+A prebuilt one-line installer comes with the first release.
 
 A first app, step by step: [docs/guide/01-getting-started.md](docs/guide/01-getting-started.md).
 
