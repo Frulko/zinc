@@ -11,7 +11,7 @@ import { spinner, decodeStats, decodeOne, picturesTick, prefetch, ui, F, BG, CAR
 import { Station, loadMine, saveMine, indexOf, directory } from './radios';
 import { keyboard, KEYBOARD_H } from './keyboard';
 import { Screen } from './screen';
-import { arc, watchFace, kaleidoscope, odometer, HUGE, RINGS } from './faces';
+import { arc, watchFace, spirograph, odometer, HUGE, RINGS } from './faces';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { setPlace, weatherTick, weatherSlide } from './weather';
 import { openPort } from 'zinc:webos';
@@ -691,10 +691,10 @@ function ringsFace(W: number, H: number): void {
   dateLines(rx, cy - 120, rw);
   nowCard(rx, cy + 40, rw);
 }
-/** Kaleidoscope: petals turning around the time, what plays under it. */
+/** Spirograph: fine curves breathing around the time, what plays under it. */
 function kaleidoFace(W: number, H: number): void {
   const d = new Date(), r = Math.min(250, H * 0.34);
-  kaleidoscope(72 + r, H / 2, r, d.getHours(), d.getMinutes());
+  spirograph(72 + r, H / 2, r, d.getHours(), d.getMinutes());
   const rx = 72 + r * 2 + 72, rw = W - rx - 56;
   dateLines(rx, H / 2 - 120, rw);
   nowCard(rx, H / 2 + 40, rw);

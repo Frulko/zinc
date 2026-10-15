@@ -1,6 +1,6 @@
 // The drawings of the home's other slides (main.ts): a watch face in the spirit of iOS StandBy and the Apple Watch, and activity rings.
 // Strokes and polygons of zinc:gfx, nothing cached: a frame of either costs less than the player's.
-import { stroke, rrect, rect, polygon, clip, unclip, font, fontAscent } from 'zinc:gfx';
+import { stroke, rrect, rect, clip, unclip, font, fontAscent } from 'zinc:gfx';
 import { ui, F, TEXT, TEXT3, centered } from './ui';
 
 export const ORANGE = 0xff9f0a;
@@ -56,34 +56,37 @@ export function watchFace(cx: number, cy: number, r: number, h: number, m: numbe
   rrect(cx - 2.5, cy - 2.5, 5, 5, 2.5, 0x000000, 255);
 }
 
-// ---------------------------------------------------------------- Kaleidoscope (Apple Watch's) and the odometer (flip clocks)
+// ---------------------------------------------------------------- Spirograph and the odometer (flip clocks)
 const MID = font('sans-bold', 92);
 const ODO = font('sans-bold', 170);
 const nowS = (): number => performance.now() / 1000;
 
-/** A closed ellipse of `n` points, `a` along the direction `rot` and `b` across, centred at (cx, cy). */
-function ellipse(cx: number, cy: number, a: number, b: number, rot: number, n: i32): number[] {
-  const pts: number[] = [], c = Math.cos(rot), s = Math.sin(rot);
-  for (let i = 0; i < n; i++) {
-    const t = (i / n) * Math.PI * 2, x = Math.cos(t) * a, y = Math.sin(t) * b;
+/** One hypotrochoid (a spirograph curve): a wheel of radius r rolling inside one of radius R, the pen d from its centre, scaled to fit
+ *  `reach`; closed after r / gcd(R, r) turns. */
+function spiro(cx: number, cy: number, reach: number, R: number, r: number, d: number, spin: number): number[] {
+  const pts: number[] = [], k = (R - r) / r, turns = r / gcd(R, r), steps = 260 * turns;
+  const scale = reach / (R - r + d), c = Math.cos(spin), s = Math.sin(spin);
+  for (let i = 0; i < steps; i++) {
+    const t = (i / steps) * Math.PI * 2 * turns;
+    const x = ((R - r) * Math.cos(t) + d * Math.cos(k * t)) * scale, y = ((R - r) * Math.sin(t) - d * Math.sin(k * t)) * scale;
     pts.push(cx + x * c - y * s); pts.push(cy + x * s + y * c);
   }
   return pts;
 }
-/** Rings of translucent petals turning against each other, the time in a dark disc at the centre: always moving (the caller keeps the
- *  frames coming through ui.animating). */
-export function kaleidoscope(cx: number, cy: number, r: number, h: number, m: number): void {
+function gcd(a: i32, b: i32): i32 { return b === 0 ? a : gcd(b, a % b); }
+/** Spirograph (Apple's generative faces): four fine curves in the colours of the rings, each breathing (the pen moves in and out) and
+ *  turning at its own pace, the time in a dark disc at their centre. Always moving: the caller keeps the frames coming (ui.animating). */
+export function spirograph(cx: number, cy: number, r: number, h: number, m: number): void {
   const t = nowS();
-  for (let ring = 0; ring < 3; ring++) {
-    const petals = 8 + ring * 4, reach = r * (0.52 + ring * 0.2), size = r * (0.34 - ring * 0.04);
-    const spin = t * (0.12 + ring * 0.05) * (ring % 2 === 0 ? 1 : -1);
-    const breathe = 1 + 0.12 * Math.sin(t * 0.8 + ring);
-    for (let k = 0; k < petals; k++) {
-      const a = spin + (k / petals) * Math.PI * 2;
-      polygon(ellipse(cx + Math.cos(a) * reach * breathe, cy + Math.sin(a) * reach * breathe, size, size * 0.42, a, 18), RINGS[(ring + k) % RINGS.length], 120);
-    }
+  const R = [12, 10, 11, 9], P = [5, 3, 4, 2], reach = [1.0, 0.92, 0.84, 0.76];
+  for (let i = 0; i < 4; i++) {
+    const d = P[i] * (0.55 + 0.35 * Math.sin(t * (0.25 + i * 0.07) + i * 1.7));
+    const spin = t * (0.05 + i * 0.03) * (i % 2 === 0 ? 1 : -1);
+    const pts = spiro(cx, cy, r * reach[i], R[i], P[i], d, spin);
+    stroke(pts, 5, RINGS[i], 70, true);    // a soft wide stroke under the fine one: a glow
+    stroke(pts, 1.6, RINGS[i], 255, true);
   }
-  rrect(cx - 160, cy - 160, 320, 320, 160, 0x0e0e10, 235);
+  rrect(cx - 150, cy - 70, 300, 140, 70, 0x0e0e10, 215);
   centered(MID, cx, cy - fontAscent(MID) / 2 - 4, `${h}:${m < 10 ? '0' : ''}${m}`, TEXT);
   ui.animating = true;
 }
