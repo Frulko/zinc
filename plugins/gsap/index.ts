@@ -535,6 +535,8 @@ class Gsap {
     for (const a of root.items) if (a instanceof Tween) { for (const t of (a as Tween).targets) if (t === target) out.push(a as Tween); }
     return out;
   }
+  /** True while any animation is running at the top level (a program that draws only when something moves asks it each frame). */
+  active(): boolean { return root.items.length > 0; }
   /** Moves the clock without a frame: `gsap.tick(0.5)`. */
   tick(dt: number): void { this.ticker.tick(dt); }
   /** Stops and forgets everything (a test between scenes). */

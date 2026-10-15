@@ -2,6 +2,7 @@
 // Strokes and polygons of zinc:gfx, nothing cached: a frame of either costs less than the player's.
 import { stroke, rrect, rect, gradient, gradientPaint, imageFromBytes, destroyImage, drawImageRect, clip, unclip, font, fontAscent } from 'zinc:gfx';
 import { ui, F, TEXT, TEXT3, centered } from './ui';
+import gsap from 'gsap';
 
 export const ORANGE = 0xff9f0a;
 /** The rings' colours: Apple's Move, Exercise and Stand, then orange and purple. */
@@ -183,15 +184,19 @@ export function lava(W: number, H: number): void {
   ui.animating = true;
 }
 
-let odoPrev = '', odoCur = '', odoAt = 0;
+let odoPrev = '', odoCur = '';
+const odo = { p: 1 };   // the roll of the digits that changed, 0..1, eased by gsap
 const ROLL = 0.65;   // seconds a changed digit takes to roll
 /** Four digit cards; a digit that changes rolls up out of its card and the next one rolls in (easing out), only for ROLL seconds each
  *  minute: the rest of the time nothing moves and no frame is asked for. */
 export function odometer(cx: number, cy: number, h: number, m: number): void {
   const s = `${h < 10 ? '0' : ''}${h}${m < 10 ? '0' : ''}${m}`;
-  if (s !== odoCur) { odoPrev = odoCur === '' ? s : odoCur; odoCur = s; odoAt = nowS(); }
-  const p0 = (nowS() - odoAt) / ROLL, rolling = p0 < 1;
-  const p = rolling ? 1 - Math.pow(1 - p0, 3) : 1;
+  if (s !== odoCur) {
+    odoPrev = odoCur === '' ? s : odoCur; odoCur = s;
+    gsap.killTweensOf(odo); odo.p = odoPrev === s ? 1 : 0;
+    if (odo.p === 0) gsap.to(odo, { p: 1, duration: ROLL, ease: 'power3.out' });
+  }
+  const p = odo.p, rolling = p < 1;
   const cw = 170, ch = 250, gap = 18, colon = 56, total = cw * 4 + gap * 2 + colon + gap * 2;
   let x = cx - total / 2;
   const y = cy - ch / 2;

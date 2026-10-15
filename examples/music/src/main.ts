@@ -13,6 +13,7 @@ import { keyboard, KEYBOARD_H } from './keyboard';
 import { Screen } from './screen';
 import { arc, watchFace, lava, odometer, lampPalette, setLampPalette, LAMP_NAMES, HUGE, RINGS } from './faces';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import gsap, { Timeline } from 'gsap';
 import { setPlace, weatherTick, weatherSlide } from './weather';
 import { openPort } from 'zinc:webos';
 
@@ -46,6 +47,15 @@ let page: i32 = NOW;
 // where it is (in slides, between two while it moves); a horizontal swipe on the home drags it.
 const PLAYER = 0, CLOCK = 1, WEATHER = 2, RINGS_SLIDE = 3, SLIDES = 4;
 let slide: i32 = PLAYER, slideX = 0;
+// The motion of the app is gsap's (typed port, plugins/gsap), one clock ticked per frame in onFrame: the carousel and the clock's faces settle
+// with a power3.out, a page and the sheets arrive with a rise and a fade, the lamp's hint fades in and out.
+const anim = { x: 0 };                  // the carousel's x while it settles
+const animY = { y: 0 };                 // the clock face's y while it settles
+const fx = { a: 1, y: 0 };              // a page arriving: opacity and the rise still to do
+const pop = { y: 0 };                   // a popover or the context sheet arriving: the rise still to do
+const hint = { a: 0, r: 14 };           // the lamp's hint: opacity and rise
+let settleX = false, settleY = false, slideTo = 0, faceTo = 0, shownPage: i32 = 0, popWas = false;
+let hintTl: Timeline | null = null;
 let swipeOk = false, swiping = false, swipeFrom = 0, swipeVel = 0, lastX = 0;
 // the clock's faces, one above the other: a vertical swipe on the clock changes it, as StandBy does
 const FACES = 5;
@@ -702,14 +712,15 @@ function lavaFace(W: number, H: number): void {
   tabular(HUGE, (W - tabularWidth(HUGE, t)) / 2, H * 0.2, t, TEXT);
   nowCard((W - 480) / 2, H - 150, 480);
   // the hint: fades in and rises on arriving, gone after 10 s (then a touch on the glass still works)
-  if (clockS - lampSeen > 0.5) lampHintAt = clockS;
-  lampSeen = clockS;
-  const he = clockS - lampHintAt;
-  if (he < 10) {
-    const k = Math.min(1, he / 0.6) * Math.min(1, (10 - he) / 0.6), rise = (1 - Math.min(1, he / 0.6)) * 14;
-    centered(F.small, W / 2, H - 44 + rise, `${LAMP_NAMES[lampPalette()]} · touche le verre pour changer de couleur`, TEXT, Math.round(190 * k) as i32);
-    ui.animating = true;
+  if (clockS - lampSeen > 0.5) {
+    if (hintTl !== null) (hintTl as Timeline).kill();
+    hint.a = 0; hint.r = 14;
+    const tl = gsap.timeline();
+    tl.to(hint, { a: 1, r: 0, duration: 0.6, ease: 'power2.out' }).to(hint, { a: 0, duration: 0.6, ease: 'power1.in' }, '+=9');
+    hintTl = tl;
   }
+  lampSeen = clockS;
+  if (hint.a > 0.01) centered(F.small, W / 2, H - 44 + hint.r, `${LAMP_NAMES[lampPalette()]} · touche le verre pour changer de couleur`, TEXT, Math.round(190 * hint.a) as i32);
 }
 /** Odometer: the digits roll when the minute changes. */
 function odometerFace(W: number, H: number): void {
@@ -1118,17 +1129,20 @@ function draw(W: number, H0: number): void {
     }
     setTransform(1, 0, 0, 1, 0, TOP); ui.ox = 0;
   } else {
-    setTransform(1, 0, 0, 1, 0, TOP); ui.oy = TOP;
+    setTransform(1, 0, 0, 1, 0, TOP + fx.y); ui.oy = TOP + fx.y;
     if (page === RADIOS) radiosPage(W, H);
     else if (page === SPOTIFY) spotifyPage(W, H);
     else if (page === ROOMS) roomsPage(W, H);
     else settingsPage(W, H);
     sidebar(W, H);
   }
+  setTransform(1, 0, 0, 1, 0, TOP + pop.y); ui.oy = TOP + pop.y;
   volumePopover(W, H);
   contextSheet(W, H);
+  setTransform(1, 0, 0, 1, 0, TOP); ui.oy = TOP;
   toastLayer(W, H);
   resetTransform(); ui.oy = 0;
+  if (page !== NOW && fx.a < 1) rrect(0, TOP, W, H0 - TOP, 0, BG, Math.round((1 - fx.a) * 255) as i32);   // the page fades in from the ground
   statusBar(W);
 }
 
@@ -1229,16 +1243,34 @@ onFrame((dt: number) => {
   if (volumeOpen && dragZone === null) { volumeFor -= dt; if (volumeFor <= 0) { volumeOpen = false; ui.dirty = true; } }
   let moving = false;
   for (const s of scrolls) if (s.step(dt)) { ui.dirty = true; moving = true; }
-  if (!swiping && slideX !== slide) {   // the carousel settles on its slide
-    slideX += (slide - slideX) * (1 - Math.exp(-dt * 14));
-    if (Math.abs(slide - slideX) < 0.002) slideX = slide;
-    ui.dirty = true; moving = true;
+  // gsap's clock first, then what it moved is read back
+  gsap.tick(Math.min(dt, 0.1));
+  if (gsap.active()) { ui.dirty = true; moving = true; }
+  if (swiping) { if (settleX) { gsap.killTweensOf(anim); settleX = false; } }
+  else {
+    if (settleX && slideTo !== slide) { gsap.killTweensOf(anim); settleX = false; }
+    if (!settleX && slideX !== slide) {   // the carousel settles on its slide
+      settleX = true; slideTo = slide; anim.x = slideX;
+      gsap.to(anim, { x: slide, duration: 0.55, ease: 'power3.out' }).onComplete(() => { settleX = false; });
+    }
   }
-  if (!faceSwipe && faceY !== face) {   // and the clock on its face
-    faceY += (face - faceY) * (1 - Math.exp(-dt * 14));
-    if (Math.abs(face - faceY) < 0.002) faceY = face;
-    ui.dirty = true; moving = true;
+  if (settleX) slideX = anim.x;
+  if (!faceSwipe) {
+    if (settleY && faceTo !== face) { gsap.killTweensOf(animY); settleY = false; }
+    if (!settleY && faceY !== face) {   // and the clock on its face
+      settleY = true; faceTo = face; animY.y = faceY;
+      gsap.to(animY, { y: face, duration: 0.5, ease: 'power3.out' }).onComplete(() => { settleY = false; });
+    }
+  } else if (settleY) { gsap.killTweensOf(animY); settleY = false; }
+  if (settleY) faceY = animY.y;
+  if (page !== shownPage) {   // a page arrives
+    shownPage = page;
+    gsap.killTweensOf(fx); fx.a = 0; fx.y = 18;
+    gsap.to(fx, { a: 1, y: 0, duration: 0.35, ease: 'power2.out' });
   }
+  const popNow = contextOpen || volumeOpen;
+  if (popNow && !popWas) { gsap.killTweensOf(pop); pop.y = 28; gsap.to(pop, { y: 0, duration: 0.3, ease: 'back.out(1.4)' }); }
+  popWas = popNow;
   if (page === NOW && slideX > 0 && slideX < 2 && !screen.asleep) {   // the clock on the screen: a frame when the second turns, not a second of frames later
     const sec = new Date().getSeconds() as i32;
     if (sec !== secondShown) { secondShown = sec; ui.dirty = true; }
