@@ -1,0 +1,53 @@
+{
+  "name": "devicesim",
+  "entry": "src/main.ts",
+  "targets": {
+    "macos": {
+      "width": 1024,
+      "height": 96
+    },
+    "linux": {
+      "width": 1024,
+      "height": 96
+    }
+  },
+  "requires": [
+    "display",
+    "pointer|touch"
+  ],
+  "icons": [
+    "tablet",
+    "smartphone",
+    "laptop",
+    "battery",
+    "battery-charging",
+    "wifi",
+    "wifi-off",
+    "move-3d",
+    "compass",
+    "sun",
+    "eye",
+    "circle-dot",
+    "circle",
+    "cpu",
+    "volume-1",
+    "volume-2",
+    "power",
+    "undo-2",
+    "headphones",
+    "rotate-ccw",
+    "rotate-cw",
+    "ellipsis",
+    "eye-off",
+    "lock",
+    "gauge",
+    "keyboard",
+    "bell",
+    "vibrate",
+    "minimize-2"
+  ],
+  "permissions": [
+    "window",
+    "fs"
+  ]
+}

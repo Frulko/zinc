@@ -1,0 +1,14 @@
+{
+  "$comment": "This machine as a device: its battery and its network relayed, no sensors (`zinc run --simulate mac` shows the panel with the Mac's own values).",
+  "name": "This Mac",
+  "icon": "laptop",
+  "model": "Mac",
+  "os": "macOS",
+  "language": "",
+  "screen": { "width": 1024, "height": 768 },
+  "battery": { "relay": true, "sources": ["none", "ac"] },
+  "network": { "relay": true, "types": ["wifi"] },
+  "sensors": {},
+  "keys": [],
+  "outputs": { "wakelock": true, "keyboard": false, "indicator": false, "backlight": false, "performance": false, "vibrate": false, "notifications": false }
+}

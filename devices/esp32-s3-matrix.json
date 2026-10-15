@@ -1,0 +1,14 @@
+{
+  "$comment": "The Waveshare ESP32-S3-Matrix (boards/waveshare-esp32-s3-matrix.json) for `zinc run --simulate esp32-s3-matrix`: an 8x8 LED matrix and a QMI8658 motion sensor (accelerometer and gyroscope, read through zinc:imu). Turn it in the panel and the matrix turns; tilt it and what falls follows.",
+  "name": "ESP32-S3 Matrix",
+  "icon": "cpu",
+  "model": "Waveshare ESP32-S3-Matrix",
+  "os": "Zinc on ESP32-S3",
+  "language": "",
+  "screen": { "width": 8, "height": 8 },
+  "sensors": { "motion": true, "gyro": true },
+  "keys": [
+    { "key": "Boot", "label": "BOOT button", "icon": "circle-dot" }
+  ],
+  "outputs": {}
+}

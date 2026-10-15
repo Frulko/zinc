@@ -342,7 +342,10 @@
   /* zinc:assets writePack (ZN-649.06): an entry (name, bytes) added to the pack being made, then the ZPK pack written to a path; system rows, appended */ \
   X(HostAssetsPackAdd, "host.assetsPackAdd", "sB>n", 2) X(HostAssetsPackWrite, "host.assetsPackWrite", "s>n", 2) \
   /* read-only resource diagnostics, appended to preserve bytecode row ids */ \
-  X(HostResourceStats, "host.resourceStats", ">s", 2)
+  X(HostResourceStats, "host.resourceStats", ">s", 2) \
+  /* the device's features behind the web APIs (navigator.getBattery, wakeLock, onLine, visibility, sensors): a query and its argument to the */ \
+  /* display driver's HalDisplay::device, else the host's own answer for a desktop; system row, appended */ \
+  X(HostSysDevice, "host.sysDevice", "ss>s", 2)
 
 namespace zn {
 
@@ -375,7 +378,7 @@ inline constexpr bool isGfxTailRow(Rt r) {
          (r >= Rt::HostGfxOpenWindow && r <= Rt::HostGfxEndWindow) || r == Rt::HostGfxLoadFont || r == Rt::HostGfxGradientPaint;
 }
 // The system rows appended after the gfx ones: the engines that install the host rows (QuickJS) add them too.
-inline constexpr bool isSysTailRow(Rt r) { return r == Rt::HostSysLaunchDir || r == Rt::HostSysLocale || (r >= Rt::HostAssetsMount && r <= Rt::HostAssetsStat); }
+inline constexpr bool isSysTailRow(Rt r) { return r == Rt::HostSysLaunchDir || r == Rt::HostSysLocale || r == Rt::HostSysDevice || (r >= Rt::HostAssetsMount && r <= Rt::HostAssetsStat); }
 inline constexpr bool isSysRow(Rt r) { return (r >= Rt::HostSysFirst && r <= Rt::HostHostLast && !(r >= Rt::HostGfxCreateImage && r <= Rt::HostGfxEndImage)) || (r >= Rt::HostLoopWait && !isGfxTailRow(r) && !isLayoutRow(r) && !isGlRow(r)); }
 inline const RtInfo& rtInfo(Rt r) { return kRtInfo[static_cast<unsigned>(r)]; }
 // The host calls decode a row's arguments into arrays of this size (src/rt/rtcalls.cpp hostRt, src/qjs/qjs.cpp hostFn): no row has more parameters.

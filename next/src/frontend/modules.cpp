@@ -269,6 +269,8 @@ export function cwd(): string { return __host_sysCwd(); }
 export function launchDir(): string { return __host_sysLaunchDir(); }
 /** The system's preferred language as a BCP 47 tag ("fr-FR"): LC_ALL, LC_MESSAGES or LANG when set, else the system's setting (an app started from the Finder has no LANG). */
 export function locale(): string { return __host_sysLocale(); }
+/** A device feature (the backend of the web APIs of zinc:web): a JSON or plain answer, '' when this machine has none. */
+export function device(query: string, arg: string = ''): string { return __host_sysDevice(query, arg); }
 export function chdir(dir: string): boolean { return __host_sysChdir(dir); }
 export function setEnv(name: string, value: string): void { __host_sysSetEnv(name, value); }
 export function unsetEnv(name: string): void { __host_sysUnsetEnv(name); }
@@ -1189,6 +1191,11 @@ const std::pair<const char*, const char*> kWebGlobals[] = {
     {"crypto", "zinc:web"}, {"Crypto", "zinc:web"}, {"SubtleCrypto", "zinc:web"}, {"CryptoKey", "zinc:web"}, {"Blob", "zinc:web"}, {"File", "zinc:web"}, {"FormData", "zinc:web"},
     {"reportError", "zinc:web"}, {"navigator", "zinc:web"}, {"structuredClone", "zinc:web"}, {"encodeURIComponent", "zinc:web"}, {"decodeURIComponent", "zinc:web"},
     {"encodeURI", "zinc:web"}, {"decodeURI", "zinc:web"},
+    {"document", "zinc:web"}, {"screen", "zinc:web"}, {"addEventListener", "zinc:web"}, {"removeEventListener", "zinc:web"}, {"dispatchEvent", "zinc:web"},
+    {"Accelerometer", "zinc:web"}, {"Gyroscope", "zinc:web"}, {"AbsoluteOrientationSensor", "zinc:web"}, {"AmbientLightSensor", "zinc:web"}, {"DeviceMotionEvent", "zinc:web"},
+    {"DeviceOrientationEvent", "zinc:web"}, {"BatteryManager", "zinc:web"}, {"Notification", "zinc:web"}, {"MediaMetadata", "zinc:web"}, {"KeyboardEvent", "zinc:web"},
+    {"SensorErrorEvent", "zinc:web"}, {"Sensor", "zinc:web"}, {"WakeLockSentinel", "zinc:web"}, {"NetworkInformation", "zinc:web"}, {"MediaSession", "zinc:web"},
+    {"ScreenOrientation", "zinc:web"}, {"MediaDeviceInfo", "zinc:web"},
     {"WebAssembly", "zinc:wasm"}, {"fetch", "zinc:web/fetch"}, {"Request", "zinc:web/fetch"}, {"Response", "zinc:web/fetch"}, {"Headers", "zinc:web/fetch"}};
 bool isWebFile(const std::string& path) {
   for (const char* f : {"lib/std/web.ts", "lib/std/fetch.ts", "lib/std/subtle.ts"}) { std::size_t n = std::strlen(f); if (path.size() >= n && path.compare(path.size() - n, n, f) == 0) return true; }

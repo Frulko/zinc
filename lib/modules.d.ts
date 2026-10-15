@@ -33,6 +33,9 @@ declare module 'zinc:sys' {
   export function launchDir(): string;
   /** The system's preferred language as a BCP 47 tag ("fr-FR"): LC_ALL, LC_MESSAGES or LANG when set, else the system's setting. */
   export function locale(): string;
+  /** A device feature, the backend of the web APIs of zinc:web (navigator.getBattery, wakeLock, onLine, visibility, sensors): a JSON or
+   *  plain answer, '' when this machine has none. Queries: docs/guide/09-web-apis.md "Device". */
+  export function device(query: string, arg?: string): string;
   export function chdir(dir: string): boolean;
   export function setEnv(name: string, value: string): void;
   export function unsetEnv(name: string): void;

@@ -12,6 +12,8 @@ namespace zn::cli {
 
 /** `zinc run|build|check` with no entry (or only options): the project of the working directory supplies it (zinc.json "entry", else src/main.ts[x]).
  *  Rewrites `args` in place to the form the compiler commands take; false with `err` set when there is no project. Other commands are left alone. */
+// zinc run --simulate <device>: the definition, the state file and the control panel of a simulated device; false and `err` when it is unknown.
+bool simulate(std::vector<std::string>& args, const std::string& engineRoot, std::string& err);
 bool discoverEntry(std::vector<std::string>& args, std::string& err);
 
 /** `zinc help [command]`, `zinc --help`, `zinc <command> --help`: the text on stdout, exit code 0; an unknown command: stderr, 2. */

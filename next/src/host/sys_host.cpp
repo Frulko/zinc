@@ -9,6 +9,7 @@
 #include "zn/alloc_stats.h"
 #include "zn/resource_stats.h"
 #include "zn/zim.h"
+#include "hal.h"
 // the CPU decoders of the GPU block formats (ZN-439): the software raster draws a compressed texture from its decoded texels
 #define BCDEC_STATIC
 #define BCDEC_IMPLEMENTATION
@@ -141,6 +142,192 @@ std::string bcp47(std::string v) {
 }
 // The system's preferred language (ZN-687): the environment first, then on macOS the first of the user's languages (CoreFoundation, opened when
 // asked: programs do not link it, ZN-592.01), else en-US.
+std::string systemLocale();
+std::string desktopDevice(const std::string& q, const std::string& a);
+// zinc run --simulate <device> (docs/guide/09-web-apis.md "Simulated devices"): a device's answers from the state its control panel
+// (app/devicesim) writes, one `key=value` a line in ZINC_SIM_STATE (the panel copies there what devices/<id>.json says); the keys pressed in
+// the panel are lines appended to <state>.keys; what the program asks of the device (wake lock, lights, vibration, a notification...) is
+// written to <state>.app for the panel to show. A value marked relayed takes this machine's own answer (a Mac's battery, its network).
+struct SimDevice {
+  std::string path;
+  std::map<std::string, std::string> v, asked;
+  long keysAt = 0;
+  explicit SimDevice(const char* p) : path(p) {}
+  void load() {
+    v.clear();
+    std::ifstream in(path);
+    std::string line;
+    while (std::getline(in, line)) { const auto eq = line.find('='); if (eq != std::string::npos) v[line.substr(0, eq)] = line.substr(eq + 1); }
+  }
+  std::string get(const std::string& k, const std::string& d = "") const { auto i = v.find(k); return i == v.end() ? d : i->second; }
+  bool has(const std::string& k) const { return get(k) == "1"; }
+  void tell(const std::string& k, const std::string& val) {
+    asked[k] = val;
+    std::ofstream o(path + ".app.new");
+    for (const auto& [key, x] : asked) o << key << '=' << x << '\n';
+    o.close();
+    std::rename((path + ".app.new").c_str(), (path + ".app").c_str());
+  }
+  std::string keys() {   // the keys pressed since the last call, comma-separated
+    std::ifstream in(path + ".keys");
+    if (!in) return "";
+    in.seekg(keysAt);
+    std::string out, line;
+    while (std::getline(in, line)) if (!line.empty()) out += (out.empty() ? "" : ",") + line;
+    in.clear();
+    keysAt = static_cast<long>(in.tellg() < 0 ? keysAt : static_cast<long>(in.tellg()));
+    return out;
+  }
+};
+SimDevice* simDevice() { static SimDevice* s = getenv("ZINC_SIM_STATE") ? new SimDevice(getenv("ZINC_SIM_STATE")) : nullptr; return s; }
+// The panel goes with the program: the CLI started it before the program replaced the CLI's process (exec), so the program stops it.
+const int simPanelGuard = [] {
+  static pid_t panel = getenv("ZINC_SIM_PANEL") ? static_cast<pid_t>(std::atoi(getenv("ZINC_SIM_PANEL"))) : 0;
+  if (panel > 0) std::atexit([] {
+    kill(panel, SIGTERM);
+    if (const char* st = getenv("ZINC_SIM_STATE")) for (const char* x : {"", ".keys", ".app", ".new", ".win", ".win.new"}) std::remove((std::string(st) + x).c_str());
+  });
+  return 0;
+}();
+// A simulated device's answer, or false when the query is not one it answers (the display driver and the desktop then do).
+bool simAnswer(const std::string& q, const std::string& a, std::string& out) {
+  SimDevice* s = simDevice();
+  if (!s) return false;
+  s->load();
+  if (s->v.empty()) return false;   // the panel has not written its first state yet
+  auto cap = [&](const char* k) { return s->has(std::string("can.") + k); };
+  if (q == "battery") {
+    if (!cap("battery")) { out = ""; return true; }
+    if (s->has("battery.relay")) { out = desktopDevice(q, a); return true; }
+    const std::string src = s->get("battery.source", "none");
+    out = "{\"level\":" + s->get("battery.level", "1") + ",\"charging\":" + (src == "none" ? "false" : "true") + ",\"source\":\"" + src +
+          "\",\"chargingTime\":-1,\"dischargingTime\":-1,\"temperature\":" + s->get("battery.temperature", "25") + "}";
+    return true;
+  }
+  if (q == "network") {
+    if (s->has("network.relay")) { out = desktopDevice(q, a); return true; }
+    const bool on = s->has("network.online");
+    out = std::string("{\"online\":") + (on ? "true" : "false") + ",\"type\":\"" + (on ? s->get("network.type", "wifi") : "none") + "\",\"ssid\":\"" +
+          (on ? s->get("network.ssid") : "") + "\",\"ip\":\"" + (on ? "10.0.0.2" : "") + "\",\"quality\":\"" + s->get("network.quality", "excellent") + "\"}";
+    return true;
+  }
+  if (q == "motion") { out = cap("motion") ? "{\"x\":" + s->get("motion.x", "0") + ",\"y\":" + s->get("motion.y", "9.81") + ",\"z\":" + s->get("motion.z", "0") + "}" : ""; return true; }
+  if (q == "compass") { out = cap("compass") ? "{\"heading\":" + s->get("compass.heading", "0") + ",\"magnetic\":" + s->get("compass.heading", "0") + ",\"accuracy\":" + s->get("compass.accuracy", "80") + "}" : ""; return true; }
+  if (q == "gyro") { out = cap("gyro") ? "{\"x\":" + s->get("gyro.x", "0") + ",\"y\":" + s->get("gyro.y", "0") + ",\"z\":" + s->get("gyro.z", "0") + "}" : ""; return true; }
+  if (q == "orientation") { s->tell("orientation", a); out = "1"; return true; }
+  if (q == "turn") {   // the program's picture turned: the device's turn when it follows (screen.orientation.unlock), else none
+    const bool follows = s->asked.count("orientation") && s->asked["orientation"] == "any";
+    out = follows ? std::to_string((std::atoi(s->get("rotation", "0").c_str()) / 90) & 3) : "0";
+    return true;
+  }   // the program turns with the device ('any') or not: the window follows
+  if (q == "light") { out = cap("light") ? "{\"lux\":" + s->get("light.lux", "300") + "}" : ""; return true; }
+  if (q == "visibility") { out = s->get("visible", "1") == "1" ? "visible" : "hidden"; return true; }
+  if (q == "keys") { out = s->keys(); return true; }
+  if (q == "language") { out = s->get("language"); if (out.empty()) return false; return true; }
+  if (q == "device") {
+    out = "{\"model\":\"" + s->get("device.model") + "\",\"os\":\"" + s->get("device.os") + "\",\"name\":\"" + s->get("device.name") + "\",\"natural\":\"" +
+          s->get("device.natural", "landscape") + "\",\"sensorAngle\":" + s->get("device.sensorAngle", "0") + "}";
+    return true;
+  }
+  if (q == "vibrate") { if (cap("vibrate")) s->tell("vibrate", a + "@" + std::to_string(std::time(nullptr))); out = cap("vibrate") ? "1" : "0"; return true; }
+  if (q == "notify") {
+    if (!a.empty() && cap("notifications")) { std::string one = a; for (char& c : one) if (c == '\n') c = ' '; s->tell("notify", one); }
+    out = cap("notifications") ? "1" : "0";
+    return true;
+  }
+  // what the program asks and the device shows: the screen kept on, the system keyboard, the lights, the backlight, full speed (zinc:webos)
+  for (const char* k : {"wakelock", "keyboard", "indicator", "backlight", "performance"})
+    if (q == k) { s->tell(k, a); out = cap(k) ? "1" : "0"; return true; }
+  if (q == "cpu") {   // a simulated device's clock: full speed when the program asked for it (zinc:webos setPerformance)
+    if (!cap("performance")) { out = ""; return true; }
+    const bool fast = s->asked.count("performance") && s->asked["performance"] == "1";
+    out = std::string("{\"freq\":") + (fast ? "1188000" : "192000") + ",\"max\":1188000,\"cores\":" + (fast ? "2" : "1") + ",\"governor\":\"" + (fast ? "performance" : "ondemand") + "\"}";
+    return true;
+  }
+  if (q == "camera" || q == "cameras") { out = ""; return true; }   // ponytail: the host's camera relayed once Zinc has a capture backend
+  return false;
+}
+
+// A desktop's device features for the web APIs (HalDisplay::device answers first on a device): the network, the battery of a Mac (IOKit,
+// opened when asked), the language, the machine; '' for what a desktop has not (sensors, wake lock: zinc:system/power has a sleep blocker).
+std::string desktopDevice(const std::string& q, const std::string& a) {
+  if (q == "language") return systemLocale();
+  if (q == "visibility") return "visible";   // ponytail: a desktop window is taken as visible; its minimised state when a program needs it
+  if (q == "device") { struct utsname u; uname(&u); return std::string("{\"model\":\"") + u.machine + "\",\"os\":\"" + u.sysname + " " + u.release + "\"}"; }
+  if (q == "network") {
+    bool up = false;
+    struct ifaddrs* all = nullptr;
+    if (getifaddrs(&all) == 0) {
+      for (struct ifaddrs* a = all; a; a = a->ifa_next)
+        if (a->ifa_addr && a->ifa_addr->sa_family == AF_INET && (a->ifa_flags & IFF_UP) && (a->ifa_flags & IFF_RUNNING) && !(a->ifa_flags & IFF_LOOPBACK)) up = true;
+      freeifaddrs(all);
+    }
+    return std::string("{\"online\":") + (up ? "true" : "false") + ",\"type\":\"" + (up ? "unknown" : "none") + "\"}";
+  }
+#ifdef __APPLE__
+  if (q == "wakelock") {   // the display kept awake (IOPMAssertion), as navigator.wakeLock.request('screen') on a Mac
+    static void* io = dlopen("/System/Library/Frameworks/IOKit.framework/IOKit", RTLD_LAZY | RTLD_LOCAL);
+    static void* cf = dlopen("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation", RTLD_LAZY | RTLD_LOCAL);
+    static uint32_t held = 0;   // the assertion's id, 0 none
+    using MkStr = const void* (*)(const void*, const char*, unsigned);
+    using Create = int (*)(const void*, uint32_t, const void*, uint32_t*);
+    using Release = int (*)(uint32_t);
+    auto mk = io && cf ? (MkStr)dlsym(cf, "CFStringCreateWithCString") : nullptr;
+    auto create = io ? (Create)dlsym(io, "IOPMAssertionCreateWithName") : nullptr;
+    auto release = io ? (Release)dlsym(io, "IOPMAssertionRelease") : nullptr;
+    if (!mk || !create || !release) return "0";
+    if (a == "1" && !held) {
+      const void* type = mk(nullptr, "PreventUserIdleDisplaySleep", 0x08000100u), *why = mk(nullptr, "Zinc: navigator.wakeLock", 0x08000100u);
+      if (create(type, 255 /* kIOPMAssertionLevelOn */, why, &held) != 0) held = 0;
+    } else if (a != "1" && held) { release(held); held = 0; }
+    return a == "1" ? (held ? "1" : "0") : "1";
+  }
+  if (q == "battery") {
+    static void* io = dlopen("/System/Library/Frameworks/IOKit.framework/IOKit", RTLD_LAZY | RTLD_LOCAL);
+    static void* cf = dlopen("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation", RTLD_LAZY | RTLD_LOCAL);
+    if (!io || !cf) return "";
+    using Info = const void* (*)();
+    using List = const void* (*)(const void*);
+    using Desc = const void* (*)(const void*, const void*);
+    using Count = long (*)(const void*);
+    using At = const void* (*)(const void*, long);
+    using Get = const void* (*)(const void*, const void*);
+    using MkStr = const void* (*)(const void*, const char*, unsigned);
+    using NumVal = unsigned char (*)(const void*, long, void*);
+    using BoolVal = unsigned char (*)(const void*);
+    using StrVal = unsigned char (*)(const void*, char*, long, unsigned);
+    using Rel = void (*)(const void*);
+    auto info = (Info)dlsym(io, "IOPSCopyPowerSourcesInfo"); auto list = (List)dlsym(io, "IOPSCopyPowerSourcesList"); auto desc = (Desc)dlsym(io, "IOPSGetPowerSourceDescription");
+    auto count = (Count)dlsym(cf, "CFArrayGetCount"); auto at = (At)dlsym(cf, "CFArrayGetValueAtIndex"); auto get = (Get)dlsym(cf, "CFDictionaryGetValue");
+    auto mk = (MkStr)dlsym(cf, "CFStringCreateWithCString"); auto num = (NumVal)dlsym(cf, "CFNumberGetValue"); auto bv = (BoolVal)dlsym(cf, "CFBooleanGetValue");
+    auto sv = (StrVal)dlsym(cf, "CFStringGetCString"); auto rel = (Rel)dlsym(cf, "CFRelease");
+    if (!info || !list || !desc || !count || !at || !get || !mk || !num || !bv || !sv || !rel) return "";
+    const void* blob = info();
+    const void* arr = blob ? list(blob) : nullptr;
+    std::string out;
+    if (arr && count(arr) > 0) {
+      const void* d = desc(blob, at(arr, 0));
+      auto key = [&](const char* k) { const void* s = mk(nullptr, k, 0x08000100u); const void* v = d ? get(d, s) : nullptr; rel(s); return v; };
+      auto inum = [&](const char* k) { int v = -1; if (const void* n = key(k)) num(n, 9 /* kCFNumberIntType */, &v); return v; };
+      const int cur = inum("Current Capacity"), max = inum("Max Capacity"), empty = inum("Time to Empty"), full = inum("Time to Full Charge");
+      const void* ch = key("Is Charging");
+      char state[64] = "";
+      if (const void* st = key("Power Source State")) sv(st, state, sizeof state, 0x08000100u);
+      const bool ac = std::strcmp(state, "AC Power") == 0;
+      if (cur >= 0 && max > 0) {
+        char b[256];
+        std::snprintf(b, sizeof b, "{\"level\":%.3f,\"charging\":%s,\"source\":\"%s\",\"chargingTime\":%d,\"dischargingTime\":%d}",
+                      cur / (double)max, ac || (ch && bv(ch)) ? "true" : "false", ac ? "ac" : "none", full > 0 ? full * 60 : (ac && cur >= max ? 0 : -1), empty > 0 && !ac ? empty * 60 : -1);
+        out = b;
+      }
+    }
+    if (arr) rel(arr);
+    if (blob) rel(blob);
+    return out;
+  }
+#endif
+  return "";
+}
 std::string systemLocale() {
   for (const char* k : {"LC_ALL", "LC_MESSAGES", "LANG"}) {
     const char* v = getenv(k);
@@ -540,6 +727,14 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostAssetsHandleText: { const std::string* d = zn::host::assets::data(n(0)); ret(r, d ? *d : std::string()); break; }
     case Rt::HostAssetsHandleLoad: { const std::string* d = zn::host::assets::data(n(0)); if (d) gBytes.assign(d->begin(), d->end()); else gBytes.clear(); r->i = static_cast<std::int64_t>(gBytes.size()); break; }
     case Rt::HostResourceStats: ret(r, resourceSnapshot()); break;
+    case Rt::HostSysDevice: {   // the display driver of a device first, then the desktop's own answer
+      const std::string q = s(0), a = s(1);
+      std::string sim;
+      if (simAnswer(q, a, sim)) { ret(r, sim); break; }   // zinc run --simulate: the simulated device first
+      const char* d = hal_display && hal_display->device ? hal_display->device(q.c_str(), a.c_str()) : nullptr;
+      ret(r, d ? std::string(d) : desktopDevice(q, a));
+      break;
+    }
     case Rt::HostAssetsStat: r->d = zn::host::assets::stat(n(0)); break;
     // ---- zinc:os
     case Rt::HostOsHostname: { char b[256]; ret(r, gethostname(b, sizeof b) == 0 ? b : ""); break; }

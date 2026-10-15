@@ -1,0 +1,34 @@
+{
+  "name": "hardware",
+  "entry": "src/main.ts",
+  "targets": {
+    "macos": {
+      "width": 1024,
+      "height": 768
+    },
+    "linux": {
+      "width": 1024,
+      "height": 768
+    }
+  },
+  "requires": [
+    "display",
+    "pointer|touch"
+  ],
+  "icons": [
+    "battery",
+    "battery-charging",
+    "zap",
+    "wifi",
+    "wifi-off",
+    "monitor",
+    "move-3d",
+    "compass",
+    "sun",
+    "circle-dot",
+    "keyboard",
+    "cpu",
+    "rotate-cw",
+    "gauge"
+  ]
+}

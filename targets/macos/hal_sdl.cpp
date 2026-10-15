@@ -1,4 +1,5 @@
 // SDL3 HAL for macos and linux (TGT-MAC-02, D-05): window, renderer, keyboard/mouse input.
+#include <string>
 #include "hal.h"
 #include "hal_window.h"
 #include <SDL3/SDL.h>
@@ -104,9 +105,11 @@ static GLuint zgl_program(const char* defines, const char* vs, const char* fs) {
 static SDL_GLContext glctx;
 static bool gl_on, glr_ok, glr_made, glr_stale, gl_tex_ok;   // the window presents with GL; the replay works; it was set up; its size is stale; its texture holds the last frame
 static GLuint gl_prog, gl_quad, gl_upload, gl_vao;
-static GLint gl_u_tex, gl_u_bgr;
+static GLint gl_u_tex, gl_u_bgr, gl_u_rot;
 // the present pass: a texture of the surface over the window (rows top first); u_bgr for the software rows (bytes B, G, R)
-static const char* kPresentVS = "attribute vec2 a_pos; varying vec2 v_uv; void main() { v_uv = vec2(a_pos.x, 1.0 - a_pos.y); gl_Position = vec4(a_pos * 2.0 - 1.0, 0.0, 1.0); }\n";
+// u_rot: cos and sin of the picture's turn (a simulated device turned while its program keeps its orientation: zinc run --simulate)
+static const char* kPresentVS = "attribute vec2 a_pos; varying vec2 v_uv; uniform vec2 u_rot; void main() { v_uv = vec2(a_pos.x, 1.0 - a_pos.y); vec2 p = a_pos * 2.0 - 1.0;\n"
+  "  gl_Position = vec4(p.x * u_rot.x - p.y * u_rot.y, p.x * u_rot.y + p.y * u_rot.x, 0.0, 1.0); }\n";
 static const char* kPresentFS = "varying vec2 v_uv; uniform sampler2D u_tex; uniform float u_bgr;\n"
   "void main() { vec4 t = texture2D(u_tex, v_uv); gl_FragColor = vec4(u_bgr > 0.5 ? t.bgr : t.rgb, 1.0); }\n";
 /** Creates the window with an OpenGL context; false (nothing left behind) without a hardware context, unless ZINC_RENDERER=gl. */
@@ -149,7 +152,7 @@ static bool gl_window(const char* title, int ww, int wh) {
     win = nullptr;
     return false;
   }
-  gl_u_tex = glGetUniformLocation(gl_prog, "u_tex"); gl_u_bgr = glGetUniformLocation(gl_prog, "u_bgr");
+  gl_u_tex = glGetUniformLocation(gl_prog, "u_tex"); gl_u_bgr = glGetUniformLocation(gl_prog, "u_bgr"); gl_u_rot = glGetUniformLocation(gl_prog, "u_rot");
   static const float q[] = {0, 0, 1, 0, 0, 1, 1, 1};
   glGenBuffers(1, &gl_quad);
   glBindBuffer(GL_ARRAY_BUFFER, gl_quad);
@@ -163,12 +166,17 @@ static bool gl_window(const char* title, int ww, int wh) {
   if (getenv("ZINC_GL_STATS")) fprintf(stderr, "zinc: window renderer gl (%s, %s)\n", r, (const char*)glGetString(GL_VERSION));   // macOS: "4.1 Metal - ...", Apple's GL on Metal
   return true;
 }
+// zinc run --simulate (docs/guide/09-web-apis.md "Simulated devices"): the device turned in the panel, in quarter turns clockwise. A program
+// that turns with it (screen.orientation.unlock()) gets a surface of the window's new shape; any other keeps its own and is shown turned.
+static int sim_turn = 0;   // the picture's quarter turns clockwise (0 when the program follows)
+static int turned_w() { return sim_turn & 1 ? PH : PW; }
+static int turned_h() { return sim_turn & 1 ? PW : PH; }
 // the surface's place in the window, letterboxed like SDL_LOGICAL_PRESENTATION_LETTERBOX: origin and scale in window points
 static void letterbox(float* ox, float* oy, float* sc) {
   int ww = 1, wh = 1;
   SDL_GetWindowSize(win, &ww, &wh);
-  const float s = SDL_min((float)ww / PW, (float)wh / PH);
-  *sc = s > 0 ? s : 1; *ox = (ww - PW * *sc) * 0.5f; *oy = (wh - PH * *sc) * 0.5f;
+  const float s = SDL_min((float)ww / turned_w(), (float)wh / turned_h());
+  *sc = s > 0 ? s : 1; *ox = (ww - turned_w() * *sc) * 0.5f; *oy = (wh - turned_h() * *sc) * 0.5f;
 }
 #endif
 // window points <-> surface pixels (the SDL_Renderer's logical presentation, or the GL window's letterbox)
@@ -177,7 +185,11 @@ static void from_window(float wx, float wy, float* sx, float* sy) {
 #ifdef ZN_HAL_GL
   float ox, oy, sc;
   letterbox(&ox, &oy, &sc);
-  *sx = (wx - ox) / sc; *sy = (wy - oy) / sc;
+  const float dx = (wx - ox) / sc, dy = (wy - oy) / sc;   // in the turned picture, then back to the surface
+  if (sim_turn == 1) { *sx = dy; *sy = PH - dx; }
+  else if (sim_turn == 2) { *sx = PW - dx; *sy = PH - dy; }
+  else if (sim_turn == 3) { *sx = PW - dy; *sy = dx; }
+  else { *sx = dx; *sy = dy; }
 #else
   *sx = wx; *sy = wy;
 #endif
@@ -590,9 +602,80 @@ static void gamepads_poll(HalInput* in) {
   }
 }
 
+// The simulated device's turn (its panel's state) and whether the program turns with it (what it asked, <state>.app), read five times a
+// second: the window takes the device's shape, the surface follows it or the picture is turned.
+// The control panel of the simulated device (ZINC_SIM_DOCK: the device's state file) stays docked under the program's window, as wide as
+// it: the program's window writes where it is to <state>.win.
+static void sim_dock(const char* st) {
+  FILE* f = fopen((std::string(st) + ".win").c_str(), "r");
+  if (!f) return;
+  int x = 0, y = 0, w = 0, h = 0;
+  const bool ok = fscanf(f, "%d %d %d %d", &x, &y, &w, &h) == 4;
+  fclose(f);
+  if (!ok || w <= 0) return;
+  int top = 0, left = 0, bottom = 0, right = 0, mw = 0, mh = 0, mx = 0, my = 0;
+  SDL_GetWindowBordersSize(win, &top, &left, &bottom, &right);
+  SDL_GetWindowSize(win, &mw, &mh);
+  SDL_GetWindowPosition(win, &mx, &my);
+  if (mw != w) SDL_SetWindowSize(win, w, mh);
+  if (mx != x || my != y + h + top + 4) SDL_SetWindowPosition(win, x, y + h + top + 4);
+}
+static void sim_turned() {
+  static const char* st = getenv("ZINC_SIM_STATE");
+  static const char* dock = getenv("ZINC_SIM_DOCK");
+  static uint64_t at = 0;
+  static int device = 0;
+  static bool follows = false, base_fill = false, known = false;
+  if ((!st && !dock) || !gfx_on || !win || SDL_GetTicks() - at < 200) return;
+  at = SDL_GetTicks();
+  if (dock) { sim_dock(dock); return; }
+  {   // where this window is, for the panel docked under it
+    static int last[4] = {-1, -1, -1, -1};
+    int r[4] = {0, 0, 0, 0};
+    SDL_GetWindowPosition(win, &r[0], &r[1]);
+    SDL_GetWindowSize(win, &r[2], &r[3]);
+    if (memcmp(r, last, sizeof r) != 0) {
+      memcpy(last, r, sizeof r);
+      const std::string path = std::string(st) + ".win";
+      if (FILE* f = fopen((path + ".new").c_str(), "w")) { fprintf(f, "%d %d %d %d\n", r[0], r[1], r[2], r[3]); fclose(f); rename((path + ".new").c_str(), path.c_str()); }
+    }
+  }
+  if (!known) { known = true; base_fill = fill; fill = false; }   // a simulated device's screen has its size: the window only scales it
+  auto value = [](const std::string& path, const char* key) {
+    FILE* f = fopen(path.c_str(), "r");
+    std::string v;
+    if (!f) return v;
+    char line[256];
+    const size_t n = strlen(key);
+    while (fgets(line, sizeof line, f)) if (!strncmp(line, key, n) && line[n] == '=') { v = line + n + 1; while (!v.empty() && (v.back() == '\n' || v.back() == '\r')) v.pop_back(); }
+    fclose(f);
+    return v;
+  };
+  const std::string rot = value(st, "rotation"), want = value(std::string(st) + ".app", "orientation");
+  const int turn = rot.empty() ? device : (atoi(rot.c_str()) / 90) & 3;
+  const bool follow = want == "any";
+  if (turn == device && follow == follows) return;
+  static int base_w = 0, base_h = 0;   // the device's surface, untouched by turns (logical pixels)
+  if (!base_w) { base_w = W; base_h = H; }
+  device = turn; follows = follow;
+  sim_turn = follow ? 0 : turn;
+  (void)base_fill;
+  // the surface: the device's own size, its sides swapped when the program follows a quarter turn
+  const int sw = follow && (turn & 1) ? base_h : base_w, sh = follow && (turn & 1) ? base_w : base_h;
+  if (sw != W || sh != H) { W = sw; H = sh; PW = W * K; PH = H * K; alloc_surface(); }
+  // the window: the picture as the device shows it (turned or not), scaled down to fit the screen, never from its current size
+  const int pw = (turn & 1) ? base_h : base_w, ph = (turn & 1) ? base_w : base_h;
+  float s = (float)zoom;
+  SDL_Rect usable;
+  if (SDL_GetDisplayUsableBounds(SDL_GetDisplayForWindow(win), &usable)) s = SDL_min(s, SDL_min((usable.w - 40) / (float)pw, (usable.h - 60) / (float)ph));
+  SDL_SetWindowSize(win, (int)(pw * s), (int)(ph * s));
+  zrt_redraw();
+}
+
 void hal_poll_input(HalInput* in) {
   in->nkeys = 0; in->ntext = 0; in->nbtn = 0; in->wheel_x = 0;
   if (resize_pending) { resize_pending = false; apply_size(); }
+  sim_turned();
   // A display plugin with its own window (LED / OLED / e-ink emulators) still needs this HAL to pump the OS events,
   // unless it reads them itself (display-gl).
   if (!gfx_on && (!hal_display || hal_display->owns_input || !SDL_WasInit(SDL_INIT_VIDEO))) {
@@ -791,7 +874,7 @@ static void gl_present(const HalFrame* f) {
   float bgr = 0;
   if (glr_ok && f->frames) {
     const int64_t area = damaged ? (int64_t)(f->x1 - f->x0) * (f->y1 - f->y0) : 0;
-    if (dw == PW && dh == PH && damaged && area * 2 >= (int64_t)PW * PH) {   // straight into the window: no texture, no copy
+    if (dw == PW && dh == PH && !sim_turn && damaged && area * 2 >= (int64_t)PW * PH) {   // straight into the window: no texture, no copy
       glr::frame(f, true, glr::Rect{0, 0, PW, PH});
       gl_tex_ok = false;
       SDL_GL_SwapWindow(win);
@@ -813,10 +896,12 @@ static void gl_present(const HalFrame* f) {
   glViewport(0, 0, dw, dh);
   glClearColor(0, 0, 0, 1);
   glClear(GL_COLOR_BUFFER_BIT);
-  const float sc = SDL_min((float)dw / PW, (float)dh / PH);
-  const int vw = (int)(PW * sc + 0.5f), vh = (int)(PH * sc + 0.5f);
+  const float sc = SDL_min((float)dw / turned_w(), (float)dh / turned_h());
+  const int vw = (int)(turned_w() * sc + 0.5f), vh = (int)(turned_h() * sc + 0.5f);
   glViewport((dw - vw) / 2, (dh - vh) / 2, vw, vh);
   glUseProgram(gl_prog);
+  static const float kCos[] = {1, 0, -1, 0}, kSin[] = {0, -1, 0, 1};   // clockwise on the screen: minus a quarter turn each
+  glUniform2f(gl_u_rot, kCos[sim_turn & 3], kSin[sim_turn & 3]);
   glActiveTexture(GL_TEXTURE0);
   glBindTexture(GL_TEXTURE_2D, src);
   const GLint flt = logical_px ? GL_NEAREST : GL_LINEAR;   // pixel art keeps square pixels when the window magnifies it

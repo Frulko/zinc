@@ -209,6 +209,13 @@ struct HalDisplay {
   // may be null (a panel of a fixed size, a window). The screen's own size, asked before init when the program names no size (zinc.json, the
   // board, ZINC_SIZE): the surface is then the screen, pixel for pixel. Leaves w and h alone when there is no screen to ask.
   void (*native_size)(int32_t* w, int32_t* h);
+  // may be null (no device features). The device's features behind the web APIs of lib/std/web.ts (navigator.getBattery, wakeLock, onLine,
+  // document.visibilityState, the sensors...): a query and its argument, a JSON or plain answer valid until the next call, nullptr when the
+  // driver does not know the query (the host then answers for the desktop). Queries: docs/guide/09-web-apis.md "Device".
+  const char* (*device)(const char* query, const char* arg);
+  // may be null (a fixed surface). The surface's logical size now, when the system changed it after init: a system keyboard that takes
+  // the bottom of the screen, a rotation. The runtime then draws a whole frame at that size.
+  void (*surface_size)(int32_t* w, int32_t* h);
 };
 extern HalDisplay* hal_display;
 }

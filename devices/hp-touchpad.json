@@ -1,0 +1,87 @@
+{
+  "$comment": "A device for `zinc run --simulate hp-touchpad` (docs/guide/09-web-apis.md \"Simulated devices\"). What it has and how it behaves; measured on the tablet: docs/reports/hardware/touchpad-device-apis.md.",
+  "name": "HP TouchPad",
+  "icon": "tablet",
+  "model": "HP TouchPad",
+  "os": "HP webOS 3.0.0",
+  "language": "fr-FR",
+  "screen": {
+    "width": 1024,
+    "height": 768
+  },
+  "sensorAngle": 270,
+  "battery": {
+    "level": 0.8,
+    "source": "wireless",
+    "sources": [
+      "none",
+      "usb",
+      "ac",
+      "wireless"
+    ],
+    "temperature": 27,
+    "drainPerHour": 0.1,
+    "chargePerHour": {
+      "usb": 0.2,
+      "ac": 0.45,
+      "wireless": 0.3
+    }
+  },
+  "network": {
+    "online": true,
+    "type": "wifi",
+    "ssid": "Freebox",
+    "types": [
+      "wifi"
+    ]
+  },
+  "sensors": {
+    "motion": true,
+    "compass": true,
+    "light": {
+      "lux": 250
+    },
+    "gyro": false
+  },
+  "keys": [
+    {
+      "key": "AudioVolumeUp",
+      "label": "Volume +",
+      "icon": "volume-2"
+    },
+    {
+      "key": "AudioVolumeDown",
+      "label": "Volume -",
+      "icon": "volume-1"
+    },
+    {
+      "key": "GoHome",
+      "label": "Center button",
+      "icon": "circle-dot"
+    },
+    {
+      "key": "Power",
+      "label": "Power",
+      "icon": "power"
+    },
+    {
+      "key": "Escape",
+      "label": "Back gesture",
+      "icon": "undo-2"
+    },
+    {
+      "key": "MediaPlayPause",
+      "label": "Headset play",
+      "icon": "headphones"
+    }
+  ],
+  "outputs": {
+    "wakelock": true,
+    "keyboard": true,
+    "indicator": true,
+    "backlight": true,
+    "performance": true,
+    "vibrate": false,
+    "notifications": false
+  }
+}

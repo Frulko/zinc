@@ -1380,6 +1380,7 @@ int main(int argc, char** argv) {
     // the commands a person types get the closing line; `check --check|--types|--json <file>` and the stage commands keep one line per diagnostic for the tools that read them
     gHint = argc >= 2 && (!std::strcmp(argv[1], "run") || !std::strcmp(argv[1], "build") || (!std::strcmp(argv[1], "check") && (argc == 2 || argv[2][0] != '-')));
     std::string derr;
+    if (!zn::cli::simulate(cl, gRoot, derr)) { std::fprintf(stderr, "zinc: %s\n", derr.c_str()); return 2; }
     if (!zn::cli::discoverEntry(cl, derr)) { std::fprintf(stderr, "zinc: %s\n", derr.c_str()); return 2; }
     if (cl.size() != static_cast<std::size_t>(argc) || !std::equal(cl.begin(), cl.end(), argv, [](const std::string& a, const char* b) { return a == b; })) {
       static std::vector<std::string> keep;

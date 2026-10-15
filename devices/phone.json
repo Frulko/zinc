@@ -1,0 +1,75 @@
+{
+  "$comment": "A generic phone for `zinc run --simulate phone`: portrait, a motor, notifications, cellular and Wi-Fi.",
+  "name": "Phone",
+  "icon": "smartphone",
+  "model": "Generic phone",
+  "os": "Zinc",
+  "language": "fr-FR",
+  "screen": {
+    "width": 390,
+    "height": 844
+  },
+  "battery": {
+    "level": 0.55,
+    "source": "none",
+    "sources": [
+      "none",
+      "usb",
+      "wireless"
+    ],
+    "temperature": 31,
+    "drainPerHour": 0.15,
+    "chargePerHour": {
+      "usb": 0.5,
+      "wireless": 0.3
+    }
+  },
+  "network": {
+    "online": true,
+    "type": "cellular",
+    "ssid": "",
+    "types": [
+      "cellular",
+      "wifi"
+    ]
+  },
+  "sensors": {
+    "motion": true,
+    "compass": true,
+    "light": {
+      "lux": 120
+    },
+    "gyro": true
+  },
+  "keys": [
+    {
+      "key": "AudioVolumeUp",
+      "label": "Volume +",
+      "icon": "volume-2"
+    },
+    {
+      "key": "AudioVolumeDown",
+      "label": "Volume -",
+      "icon": "volume-1"
+    },
+    {
+      "key": "Power",
+      "label": "Side button",
+      "icon": "power"
+    },
+    {
+      "key": "GoBack",
+      "label": "Back",
+      "icon": "undo-2"
+    }
+  ],
+  "outputs": {
+    "wakelock": true,
+    "keyboard": true,
+    "indicator": false,
+    "backlight": false,
+    "performance": false,
+    "vibrate": true,
+    "notifications": true
+  }
+}

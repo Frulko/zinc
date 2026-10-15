@@ -52,6 +52,7 @@ const Command kCommands[] = {
    "  --native                compile even a headless or deterministic run\n"
    "  --profile <name>        a target profile (macos, linux, sim, wasm, rpi1, rmpp, esp32, ps1, ps2, psp, vita, n3ds, chip, pocketchip): numbers, heap and typing of that target\n"
    "  --har <file>            write every network request of the run (fetch, WebSocket, MQTT, TCP) as a HAR 1.2 file when the program ends\n"
+   "  --simulate <device>     run as on a device of devices/ (hp-touchpad, phone...): its screen, battery, sensors and keys, set in a control panel\n"
    "  --engine quickjs        plain JavaScript on QuickJS-ng (chosen by itself for a .js or .mjs entry, or by zinc.json \"engine\")\n  --target esp32 [--port P | --device CMD | --qemu] [--boot-ms N] [--log]   run on the board or the emulator\n  --force                 run although zinc.json \"requires\" is not met\n"
    "Environment: ZINC_HEADLESS=1 (no window), ZINC_FRAMES=n, ZINC_SHOT=file.png, ZINC_DETERMINISTIC=1."},
   {"debug", "zinc debug [entry|dir] [-- args] | zinc debug --dap | zinc debug --cdp[=port] entry", "run a program under the debugger",
@@ -253,6 +254,52 @@ std::string devtoolsPort(const std::string& entry) {
 }
 
 }  // namespace
+
+// zinc run --simulate <device> (docs/guide/09-web-apis.md "Simulated devices"): the program runs as on that device. Its definition is
+// devices/<device>.json (or a path): the screen's size, the battery and its chargers, the sensors, the keys. The control panel
+// (app/devicesim, a Zinc program) starts beside it and writes the device's state into a file the host reads (src/host/sys_host.cpp SimDevice);
+// the program stops the panel when it ends. A value the definition marks "relay" is this machine's own (a Mac's battery, its network).
+bool simulate(std::vector<std::string>& args, const std::string& engineRoot, std::string& err) {
+  if (args.size() < 2 || args[1] != "run") return true;
+  std::size_t k = 2;
+  while (k + 1 < args.size() && args[k] != "--" && args[k] != "--simulate") ++k;
+  if (k + 1 >= args.size() || args[k] != "--simulate") return true;
+  const std::string name = args[k + 1];
+  args.erase(args.begin() + static_cast<std::ptrdiff_t>(k), args.begin() + static_cast<std::ptrdiff_t>(k) + 2);
+  std::error_code ec;
+  fs::path def = fs::exists(name, ec) ? fs::absolute(name) : fs::path(engineRoot) / ".." / "devices" / (name + ".json");
+  if (!fs::exists(def, ec)) {
+    std::string known;
+    for (const auto& e : fs::directory_iterator(fs::path(engineRoot) / ".." / "devices", ec)) if (e.path().extension() == ".json") known += " " + e.path().stem().string();
+    err = "no device '" + name + "' (devices/<name>.json):" + (known.empty() ? " none" : known);
+    return false;
+  }
+  def = fs::canonical(def, ec);
+  const std::string state = (fs::temp_directory_path(ec) / ("zinc-sim-" + std::to_string(getpid()))).string();
+  for (const char* x : {"", ".keys", ".app"}) fs::remove(state + x, ec);
+  setenv("ZINC_SIM_DEVICE", def.string().c_str(), 1);
+  setenv("ZINC_SIM_STATE", state.c_str(), 1);
+  pid_t panel = fork();
+  if (panel == 0) {   // the panel: this engine running app/devicesim, which reads the two variables
+    const std::string self = zn::tc::executablePath(), app = (fs::path(engineRoot) / "app" / "devicesim").string();
+    unsetenv("ZINC_SIZE");
+    setenv("ZINC_SIM_DOCK", state.c_str(), 1);   // its window docks under the program's (targets/macos/hal_sdl.cpp sim_dock)
+    setenv("ZINC_RESIZE", "fill", 1);            // and lays out for the width it gets
+    execl(self.c_str(), self.c_str(), "run", app.c_str(), static_cast<char*>(nullptr));
+    _exit(127);
+  }
+  if (panel > 0) setenv("ZINC_SIM_PANEL", std::to_string(panel).c_str(), 1);
+  // the device's screen, unless the run names a size
+  if (!getenv("ZINC_SIZE"))
+    if (yyjson_doc* doc = yyjson_read_file(def.string().c_str(), 0, nullptr, nullptr)) {
+      yyjson_val* s = yyjson_obj_get(yyjson_doc_get_root(doc), "screen");
+      const int w = static_cast<int>(yyjson_get_int(yyjson_obj_get(s, "width"))), h = static_cast<int>(yyjson_get_int(yyjson_obj_get(s, "height")));
+      if (w > 0 && h > 0) setenv("ZINC_SIZE", (std::to_string(w) + "x" + std::to_string(h)).c_str(), 1);
+      yyjson_doc_free(doc);
+    }
+  for (int i = 0; i < 50 && !fs::exists(state, ec); ++i) usleep(100000);   // the panel's first state, up to 5 s (its first run compiles it)
+  return true;
+}
 
 bool discoverEntry(std::vector<std::string>& args, std::string& err) {
   if (args.size() < 2 || (args[1] != "run" && args[1] != "build" && args[1] != "check")) return true;

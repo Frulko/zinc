@@ -3,12 +3,14 @@
 // Axes are the board's screen frame: x to the right, y down, z out of the screen (towards you). Lying flat, face up,
 // the accelerometer reads (0, 0, +1) g: it measures the reaction to gravity, so the axis pointing up reads +1 g.
 //
-// Without a sensor (macOS, Linux, sim, or QEMU) the IMU is emulated from the program's input:
+// Without a sensor, a simulated device (zinc run --simulate esp32-s3-matrix) gives the tilt, the turn and the rotation rate set in its
+// panel; else (macOS, Linux, sim, or QEMU) the IMU is emulated from the program's input:
 //   arrow keys / WASD   tilt the board (hold), it levels out when released
 //   mouse drag          tilt proportionally to the drag distance
 //   Space               shake
 import I from './native/imu.spec';
 import { isDown, wasPressed, pointerDown, pointerX, pointerY, Btn } from 'zinc:gfx';
+import { device as deviceQuery } from 'zinc:sys';
 
 export class Vec3 {
   x: number = 0; y: number = 0; z: number = 0;
@@ -48,7 +50,19 @@ function clamp(v: number, lo: number, hi: number): number { return v < lo ? lo :
 /** Arc sine in radians (Math has atan2, not asin). */
 function asin(s: number): number { const c = clamp(s, -1, 1); return Math.atan2(c, Math.sqrt(1 - c * c)); }
 
+/** A simulated device's motion (the web's axes, m/s² and °/s: y up) in the board's frame (g and °/s: y down); false without one. */
+function simulated(): boolean {
+  const m = deviceQuery('motion');
+  if (m === '') return false;
+  const j = JSON.parse(m), g = 9.80665;
+  accel.x = (j.x as number) / g; accel.y = -(j.y as number) / g; accel.z = (j.z as number) / g;
+  const r = deviceQuery('gyro');
+  if (r !== '') { const k = JSON.parse(r); gyro.x = k.x as number; gyro.y = -(k.y as number); gyro.z = k.z as number; }
+  return true;
+}
+
 function emulate(dt: number): void {
+  if (simulated()) return;
   let tx = 0, ty = 0;
   if (isDown(Btn.Left)) tx -= 0.7;
   if (isDown(Btn.Right)) tx += 0.7;

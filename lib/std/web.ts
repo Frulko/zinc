@@ -6,7 +6,7 @@
 // lib/std/fetch.ts. Programs use them as globals: the compiler adds the import (compiler/src/frontend.ts webGlobals).
 // Deviations (docs/guide/09-web-apis.md): bytes are u8[] (Zinc has no ArrayBuffer / typed arrays), a WebIDL union
 // argument is `unknown` (narrowed inside), no IDNA mapping beyond lowercase + Punycode.
-import { randomBytes, utf8Encode, utf8Decode } from 'zinc:sys';
+import { randomBytes, utf8Encode, utf8Decode, device, locale } from 'zinc:sys';
 
 // ================================================================ DOMException (WebIDL)
 const DOM_CODES: string[] = ['', 'IndexSizeError', '', 'HierarchyRequestError', 'WrongDocumentError', 'InvalidCharacterError', '',
@@ -1099,6 +1099,8 @@ export class EventTarget {
   /** Zinc extension: drops every listener, for a target that will fire no more events (listeners that capture the
    *  target would otherwise keep it alive: reference counting does not collect cycles). */
   clearListeners(): void { this.ls = new Map<string, Listener[]>(); }
+  /** Zinc extension: whether a listener of this type is registered (a sensor is read only while someone listens). */
+  hasListeners(type: string): boolean { const l = this.ls.get(type); return l !== undefined && l.length > 0; }
   /** The options object form (a boolean `useCapture` is `{ capture: true }`). */
   addEventListener(type: string, callback: EventListener | null, options: AddEventListenerOptions = {}): void {
     if (callback === null) return;
@@ -1339,12 +1341,465 @@ export function structuredClone(value: unknown): unknown {
   return r;
 }
 
-// ================================================================ HTML: navigator
+// ================================================================ The device: navigator, document, screen and the global events
+// The web's device APIs over one native call, `device(query, arg)` of zinc:sys: the display driver of a device answers (webOS: Palm's SDL
+// and libpdl, zinc-helper), else the host for a desktop, else a simulated device (zinc run --device). Polled while someone uses them: a
+// sensor at its frequency, the battery, the network and the visibility every half second to two seconds. Queries and answers:
+// docs/guide/09-web-apis.md "Device". What a machine lacks answers as a browser without it does (a rejected promise, an error event).
+
+function deviceJson(query: string, arg: string = ''): any {
+  const s = device(query, arg);
+  if (s === '') return null;
+  try { return JSON.parse(s); } catch (e) { return null; }
+}
+function num(v: any, fallback: number): number { return v === undefined || v === null ? fallback : v as number; }
+
+/** The global object's events (window's in a browser): `addEventListener('online' | 'offline' | 'devicemotion' | 'deviceorientation' |
+ *  'keydown', ...)` as globals. */
+export const globalEvents: EventTarget = new EventTarget();
+export function addEventListener(type: string, callback: EventListener | null, options: AddEventListenerOptions = {}): void { globalEvents.addEventListener(type, callback, options); watchGlobal(); }
+export function removeEventListener(type: string, callback: EventListener | null, options: EventListenerOptions = {}): void { globalEvents.removeEventListener(type, callback, options); }
+export function dispatchEvent(event: Event): boolean { return globalEvents.dispatchEvent(event); }
+
+// ---------------------------------------------------------------- Battery Status API
+/** navigator.getBattery(). `source` (Zinc): what charges it, 'usb' | 'ac' | 'wireless' (an induction dock: the TouchPad's Touchstone) | 'none'. */
+export class BatteryManager extends EventTarget {
+  charging: boolean = true;
+  level: number = 1;
+  chargingTime: number = 0;
+  dischargingTime: number = Infinity;
+  source: string = 'none';
+  /** Zinc: the battery's temperature (°C), NaN when unknown. */
+  temperature: number = NaN;
+  onchargingchange: EventListener | null = null;
+  onlevelchange: EventListener | null = null;
+  onchargingtimechange: EventListener | null = null;
+  ondischargingtimechange: EventListener | null = null;
+  onsourcechange: EventListener | null = null;
+  update(): void {
+    const j = deviceJson('battery');
+    if (j === null) return;   // no battery: charging, full (as a browser on a desktop without one)
+    const charging = j.charging === true, level = num(j.level, 1), source = j.source === undefined ? 'none' : '' + j.source;
+    const ct = num(j.chargingTime, -1), dt = num(j.dischargingTime, -1);
+    const chargingTime = ct < 0 ? (charging && level >= 1 ? 0 : Infinity) : ct, dischargingTime = dt < 0 ? Infinity : dt;
+    this.temperature = num(j.temperature, NaN);
+    if (charging !== this.charging) { this.charging = charging; this.fire('chargingchange', this.onchargingchange); }
+    if (level !== this.level) { this.level = level; this.fire('levelchange', this.onlevelchange); }
+    if (chargingTime !== this.chargingTime) { this.chargingTime = chargingTime; this.fire('chargingtimechange', this.onchargingtimechange); }
+    if (dischargingTime !== this.dischargingTime) { this.dischargingTime = dischargingTime; this.fire('dischargingtimechange', this.ondischargingtimechange); }
+    if (source !== this.source) { this.source = source; this.fire('sourcechange', this.onsourcechange); }
+  }
+  private fire(type: string, handler: EventListener | null): void {
+    const e = new Event(type);
+    if (handler !== null) { try { handler(e); } catch (x) { reportError(x); } }
+    this.dispatchEvent(e);
+  }
+}
+let theBattery: BatteryManager | null = null;
+
+// ---------------------------------------------------------------- Network Information API, navigator.onLine
+/** navigator.connection. `ssid` and `ip` (Zinc): the Wi-Fi network and the address, '' when unknown. */
+export class NetworkInformation extends EventTarget {
+  type: string = 'unknown';
+  effectiveType: string = '4g';
+  ssid: string = '';
+  ip: string = '';
+  online: boolean = true;
+  onchange: EventListener | null = null;
+  update(): void {
+    const j = deviceJson('network');
+    if (j === null) return;
+    const online = j.online !== false, type = j.type === undefined ? 'unknown' : '' + j.type;
+    const q = j.quality === undefined ? '' : '' + j.quality;
+    const effective = q === 'poor' ? '2g' : q === 'fair' ? '3g' : '4g';
+    const ssid = j.ssid === undefined ? '' : '' + j.ssid, ip = j.ip === undefined ? '' : '' + j.ip;
+    const changed = type !== this.type || ssid !== this.ssid || ip !== this.ip || effective !== this.effectiveType;
+    this.type = type; this.ssid = ssid; this.ip = ip; this.effectiveType = effective;
+    if (online !== this.online) { this.online = online; globalEvents.dispatchEvent(new Event(online ? 'online' : 'offline')); }
+    if (changed) { const e = new Event('change'); if (this.onchange !== null) { try { (this.onchange as EventListener)(e); } catch (x) { reportError(x); } } this.dispatchEvent(e); }
+  }
+}
+const theConnection = new NetworkInformation();
+
+// ---------------------------------------------------------------- Screen Wake Lock API
+export class WakeLockSentinel extends EventTarget {
+  readonly type: string = 'screen';
+  released: boolean = false;
+  onrelease: EventListener | null = null;
+  async release(): Promise<void> {
+    if (this.released) return;
+    this.released = true;
+    wakeLocks--;
+    if (wakeLocks === 0) device('wakelock', '0');
+    const e = new Event('release');
+    if (this.onrelease !== null) { try { (this.onrelease as EventListener)(e); } catch (x) { reportError(x); } }
+    this.dispatchEvent(e);
+  }
+}
+let wakeLocks: i32 = 0;
+let vibrateGen: i32 = 0;
+export class WakeLock {
+  /** Keeps the screen on until the sentinel is released. @throws DOMException NotAllowedError when the device cannot hold the screen */
+  async request(type: string = 'screen'): Promise<WakeLockSentinel> {
+    if (type !== 'screen') throw new TypeError(`WakeLock: unknown type ${type}`);
+    if (wakeLocks === 0 && device('wakelock', '1') !== '1') throw new DOMException('This device cannot keep its screen on.', 'NotAllowedError');
+    wakeLocks++;
+    return new WakeLockSentinel();
+  }
+}
+
+// ---------------------------------------------------------------- Media Session API, hardware keys
+export class MediaMetadata {
+  title: string; artist: string; album: string;
+  constructor(init: { title?: string; artist?: string; album?: string } = {}) { this.title = init.title ?? ''; this.artist = init.artist ?? ''; this.album = init.album ?? ''; }
+}
+export class MediaSession {
+  metadata: MediaMetadata | null = null;
+  playbackState: string = 'none';
+  private handlers = new Map<string, () => void>();
+  /** 'play' | 'pause' | 'previoustrack' | 'nexttrack' | 'stop'..., from a headset's or a keyboard's media keys. */
+  setActionHandler(action: string, handler: (() => void) | null): void {
+    if (handler === null) this.handlers.delete(action); else this.handlers.set(action, handler as () => void);
+  }
+  /** Zinc: runs the handler of an action as the system would. */
+  act(action: string): boolean {
+    const h = this.handlers.get(action);
+    if (h === undefined) return false;
+    try { h(); } catch (x) { reportError(x); }
+    return true;
+  }
+}
+const theMediaSession = new MediaSession();
+/** A key of the device itself or of a headset (UI Events key values: 'AudioVolumeUp', 'AudioVolumeDown', 'GoHome', 'Power', 'GoBack',
+ *  'MediaPlayPause', 'MediaTrackNext'...), dispatched as 'keydown' on the global object. A window's keyboard stays with zinc:gfx. */
+export class KeyboardEvent extends Event {
+  readonly key: string; readonly code: string;
+  constructor(type: string, init: { key?: string; code?: string } = {}) { super(type); this.key = init.key ?? ''; this.code = init.code ?? this.key; }
+}
+const MEDIA_ACTIONS: string[] = ['MediaPlayPause', 'play', 'MediaPlay', 'play', 'MediaPause', 'pause', 'MediaStop', 'stop', 'MediaTrackNext', 'nexttrack', 'MediaTrackPrevious', 'previoustrack'];
+function deliverKeys(): void {
+  const s = device('keys');
+  if (s === '') return;
+  for (const k of s.split(',')) {
+    if (k === '') continue;
+    globalEvents.dispatchEvent(new KeyboardEvent('keydown', { key: k }));
+    const i = MEDIA_ACTIONS.indexOf(k);
+    if (i >= 0 && i % 2 === 0) {
+      let action = MEDIA_ACTIONS[i + 1];
+      if (k === 'MediaPlayPause') action = theMediaSession.playbackState === 'playing' ? 'pause' : 'play';
+      theMediaSession.act(action);
+    }
+  }
+}
+
+// ---------------------------------------------------------------- Notifications API
+export class Notification extends EventTarget {
+  static permission: string = 'default';
+  /** 'granted' when the device can show one, else 'denied'. */
+  static async requestPermission(): Promise<string> { Notification.permission = device('notify', '') === '1' ? 'granted' : 'denied'; return Notification.permission; }
+  readonly title: string; readonly body: string;
+  onshow: EventListener | null = null;
+  onerror: EventListener | null = null;
+  constructor(title: string, options: { body?: string } = {}) {
+    super();
+    this.title = title; this.body = options.body ?? '';
+    const shown = device('notify', JSON.stringify({ title: title, body: this.body })) === '1';
+    setTimeout(() => {
+      const e = new Event(shown ? 'show' : 'error');
+      const h = shown ? this.onshow : this.onerror;
+      if (h !== null) { try { (h as EventListener)(e); } catch (x) { reportError(x); } }
+      this.dispatchEvent(e);
+    }, 0);
+  }
+  close(): void { /* a banner goes by itself */ }
+}
+
+// ---------------------------------------------------------------- Media Capture (camera)
+export class MediaDeviceInfo {
+  readonly deviceId: string; readonly kind: string; readonly label: string;
+  constructor(id: string, kind: string, label: string) { this.deviceId = id; this.kind = kind; this.label = label; }
+}
+export class MediaDevices extends EventTarget {
+  async enumerateDevices(): Promise<MediaDeviceInfo[]> {
+    const out: MediaDeviceInfo[] = [];
+    const j = deviceJson('cameras');
+    if (j !== null) for (let i = 0; i < j.length; i++) out.push(new MediaDeviceInfo('' + j[i].id, 'videoinput', '' + j[i].label));
+    return out;
+  }
+  /** @throws DOMException NotFoundError when there is no camera, NotReadableError when it cannot be opened (the reason in the message). */
+  async getUserMedia(constraints: { video?: boolean; audio?: boolean } = {}): Promise<unknown> {
+    const s = device('camera', 'open');
+    if (s === '') throw new DOMException('No camera on this device.', 'NotFoundError');
+    throw new DOMException(`The camera cannot be opened yet: ${s}`, 'NotReadableError');
+  }
+}
+
+// ---------------------------------------------------------------- VirtualKeyboard API
+/** The system's on-screen keyboard (the TouchPad's): show() over the program, the typed text comes as zinc:gfx text input. */
+export class VirtualKeyboard extends EventTarget {
+  overlaysContent: boolean = true;
+  visible: boolean = false;
+  /** false when the device has no system keyboard (a desktop: its own keyboard types). */
+  show(): boolean { this.visible = device('keyboard', '1') === '1'; return this.visible; }
+  hide(): void { if (this.visible) device('keyboard', '0'); this.visible = false; }
+}
+
+// ---------------------------------------------------------------- navigator
 export class Navigator {
   /** WinterTC: a runtime identifies itself in the default User-Agent. */
   readonly userAgent: string = 'Zinc/0.1';
+  readonly wakeLock: WakeLock = new WakeLock();
+  readonly mediaSession: MediaSession = theMediaSession;
+  readonly mediaDevices: MediaDevices = new MediaDevices();
+  readonly virtualKeyboard: VirtualKeyboard = new VirtualKeyboard();
+  get connection(): NetworkInformation { watchNetwork(); return theConnection; }
+  get onLine(): boolean { if (!networkWatched) theConnection.update(); watchNetwork(); return theConnection.online; }
+  get language(): string { const l = device('language'); return l !== '' ? l : locale(); }
+  get languages(): string[] { return [this.language]; }
+  async getBattery(): Promise<BatteryManager> {
+    if (theBattery === null) {
+      const b = new BatteryManager();
+      theBattery = b;
+      b.update();
+      setInterval(() => { b.update(); }, 2000);
+    }
+    return theBattery as BatteryManager;
+  }
+  /** Vibrates for `pattern` ms, or a pattern [on, off, on, ...] ms; 0 or [] stops. false: no motor here (a desktop). */
+  vibrate(pattern: unknown): boolean {
+    const steps: number[] = [];
+    if (typeof pattern === 'number') steps.push(pattern as number);
+    else if (Array.isArray(pattern)) { const a = pattern as number[]; for (let i = 0; i < a.length; i++) steps.push(a[i]); }
+    vibrateGen++;
+    if (steps.length === 0 || steps[0] <= 0) return device('vibrate', '0') === '1' || steps.length === 0;
+    if (device('vibrate', '' + steps[0]) !== '1') return false;
+    let at = steps[0];
+    const gen = vibrateGen;
+    for (let i = 2; i < steps.length; i += 2) {   // the next pulses after their pauses; a new call cancels them
+      at += steps[i - 1];
+      const ms = steps[i];
+      setTimeout(() => { if (gen === vibrateGen) device('vibrate', '' + ms); }, at);
+      at += ms;
+    }
+    return true;
+  }
+  /** Zinc: the machine ({model, os, name}), null when unknown. */
+  get deviceInfo(): any { return deviceJson('device'); }
 }
 export const navigator: Navigator = new Navigator();
+
+// ---------------------------------------------------------------- Page Visibility API
+export class Document extends EventTarget {
+  visibilityState: string = 'visible';
+  onvisibilitychange: EventListener | null = null;
+  get hidden(): boolean { return this.visibilityState === 'hidden'; }
+  update(): void {
+    const v = device('visibility');
+    const state = v === 'hidden' ? 'hidden' : 'visible';
+    if (state === this.visibilityState) return;
+    this.visibilityState = state;
+    const e = new Event('visibilitychange');
+    if (this.onvisibilitychange !== null) { try { (this.onvisibilitychange as EventListener)(e); } catch (x) { reportError(x); } }
+    this.dispatchEvent(e);
+  }
+  addEventListener(type: string, callback: EventListener | null, options: AddEventListenerOptions = {}): void { super.addEventListener(type, callback, options); watchVisibility(); }
+}
+/** Only what a program without a DOM can use: the page's visibility (the card shown or hidden on webOS, a window's state elsewhere). */
+export const document: Document = new Document();
+
+// ---------------------------------------------------------------- Screen Orientation API
+export class ScreenOrientation extends EventTarget {
+  type: string = 'landscape-primary';
+  angle: i32 = 0;
+  onchange: EventListener | null = null;
+  locked: boolean = false;
+  /** The device does not turn the program's picture: a locked orientation is the one the program draws; the sensor stops changing `type`. */
+  async lock(orientation: string): Promise<void> {
+    this.locked = orientation !== 'any';
+    device('orientation', orientation);
+    if (orientation.startsWith('portrait') || orientation.startsWith('landscape')) this.set(orientation === 'portrait' ? 'portrait-primary' : orientation === 'landscape' ? 'landscape-primary' : orientation);
+  }
+  /** The program turns with the device: its surface takes the screen's new shape (Zinc keeps a program in its natural orientation until
+   *  it calls this). */
+  unlock(): void { this.locked = false; device('orientation', 'any'); watchMotion(); }
+  /** The program's natural orientation on this device (Zinc): 'landscape' or 'portrait'. */
+  natural(): string { const d = deviceJson('device'); return d !== null && d.natural === 'portrait' ? 'portrait' : 'landscape'; }
+  init(): void { this.type = this.natural() + '-primary'; this.angle = sensorAngle() as i32; }
+  set(type: string): void {
+    if (type === this.type) return;
+    this.type = type;
+    const turn = type === this.natural() + '-primary' ? 0 : type.endsWith('-primary') ? 90 : type === this.natural() + '-secondary' ? 180 : 270;
+    this.angle = ((sensorAngle() + turn) % 360) as i32;
+    const e = new Event('change');
+    if (this.onchange !== null) { try { (this.onchange as EventListener)(e); } catch (x) { reportError(x); } }
+    this.dispatchEvent(e);
+  }
+  addEventListener(type: string, callback: EventListener | null, options: AddEventListenerOptions = {}): void { super.addEventListener(type, callback, options); watchMotion(); }
+}
+export class Screen {
+  readonly orientation: ScreenOrientation = new ScreenOrientation();
+  constructor() { this.orientation.init(); }
+}
+export const screen: Screen = new Screen();
+
+// ---------------------------------------------------------------- Generic Sensor API, devicemotion / deviceorientation
+export class SensorErrorEvent extends Event {
+  readonly error: DOMException;
+  constructor(type: string, error: DOMException) { super(type); this.error = error; }
+}
+/** The base of the sensors: start() reads it `frequency` times a second while activated; `reading`, `activate`, `error` events. */
+export class Sensor extends EventTarget {
+  activated: boolean = false;
+  hasReading: boolean = false;
+  timestamp: number = 0;
+  frequency: number;
+  onreading: EventListener | null = null;
+  onactivate: EventListener | null = null;
+  onerror: ((e: SensorErrorEvent) => void) | null = null;
+  private timer: i32 = -1;
+  private query: string;
+  constructor(query: string, options: { frequency?: number } = {}) { super(); this.query = query; this.frequency = Math.min(60, Math.max(1, options.frequency ?? 30)); }
+  start(): void {
+    if (this.timer >= 0) return;
+    this.timer = setInterval(() => { this.poll(); }, 1000 / this.frequency);
+    this.poll();
+  }
+  stop(): void { if (this.timer >= 0) { clearInterval(this.timer); this.timer = -1; } this.activated = false; }
+  read(j: any): void {}
+  private poll(): void {
+    const j = deviceJson(this.query);
+    if (j === null) {
+      this.stop();
+      const e = new SensorErrorEvent('error', new DOMException(`This device has no ${this.query} sensor.`, 'NotReadableError'));
+      if (this.onerror !== null) { try { (this.onerror as (e: SensorErrorEvent) => void)(e); } catch (x) { reportError(x); } }
+      this.dispatchEvent(e);
+      return;
+    }
+    this.read(j);
+    this.hasReading = true;
+    this.timestamp = performance.now();
+    if (!this.activated) {
+      this.activated = true;
+      const a = new Event('activate');
+      if (this.onactivate !== null) { try { (this.onactivate as EventListener)(a); } catch (x) { reportError(x); } }
+      this.dispatchEvent(a);
+    }
+    const e = new Event('reading');
+    if (this.onreading !== null) { try { (this.onreading as EventListener)(e); } catch (x) { reportError(x); } }
+    this.dispatchEvent(e);
+  }
+}
+// The sensors' frame is the device's (its natural orientation: the TouchPad's is portrait, its home button at the bottom); the program's
+// screen may be turned from it: `sensorAngle` of the device (degrees, from deviceInfo) plus the turns the program follows. referenceFrame
+// 'screen' gives the values in the screen's axes (x right, y up, z out of the screen), as the Generic Sensor API says.
+let baseAngle = -1;
+function sensorAngle(): number {
+  if (baseAngle < 0) { const d = deviceJson('device'); baseAngle = d !== null && d.sensorAngle !== undefined ? d.sensorAngle as number : 0; }
+  return baseAngle;
+}
+/** [x, y] of a vector of the device's frame in the screen's (z is the same). */
+function toScreen(x: number, y: number, angle: number): number[] {
+  const a = angle * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+  return [x * c - y * s, x * s + y * c];
+}
+/** Acceleration including gravity, m/s², in the device's axes, or the screen's with `{ referenceFrame: 'screen' }` (x right, y up, z out). */
+export class Accelerometer extends Sensor {
+  x: number = NaN; y: number = NaN; z: number = NaN;
+  readonly referenceFrame: string;
+  constructor(options: { frequency?: number; referenceFrame?: string } = {}) { super('motion', options); this.referenceFrame = options.referenceFrame ?? 'device'; }
+  read(j: any): void {
+    const x = num(j.x, NaN), y = num(j.y, NaN);
+    const v = this.referenceFrame === 'screen' ? toScreen(x, y, screen.orientation.angle) : [x, y];
+    this.x = v[0]; this.y = v[1]; this.z = num(j.z, NaN);
+  }
+}
+/** The device's heading as a rotation around the vertical axis (the compass): `quaternion` [x, y, z, w]; `heading` (Zinc), degrees from
+ *  the north, clockwise; `accuracy` (Zinc) 0..100. */
+export class AbsoluteOrientationSensor extends Sensor {
+  quaternion: number[] = [];
+  heading: number = NaN;
+  accuracy: number = 0;
+  constructor(options: { frequency?: number } = {}) { super('compass', options); }
+  read(j: any): void {
+    this.heading = num(j.heading, NaN); this.accuracy = num(j.accuracy, 0);
+    const a = -this.heading * Math.PI / 360;   // half the angle around z, counter-clockwise
+    this.quaternion = [0, 0, Math.sin(a), Math.cos(a)];
+  }
+}
+/** The rate of rotation around the device's axes, rad/s (x: tilting forward, y: tilting sideways, z: turning flat). */
+export class Gyroscope extends Sensor {
+  x: number = NaN; y: number = NaN; z: number = NaN;
+  readonly referenceFrame: string;
+  constructor(options: { frequency?: number; referenceFrame?: string } = {}) { super('gyro', options); this.referenceFrame = options.referenceFrame ?? 'device'; }
+  read(j: any): void {
+    const k = Math.PI / 180, x = num(j.x, NaN) * k, y = num(j.y, NaN) * k;
+    const v = this.referenceFrame === 'screen' ? toScreen(x, y, screen.orientation.angle) : [x, y];
+    this.x = v[0]; this.y = v[1]; this.z = num(j.z, NaN) * k;
+  }
+}
+/** Light falling on the device, lux. */
+export class AmbientLightSensor extends Sensor {
+  illuminance: number = NaN;
+  constructor(options: { frequency?: number } = {}) { super('light', options); }
+  read(j: any): void { this.illuminance = num(j.lux, NaN); }
+}
+export class DeviceMotionEvent extends Event {
+  readonly accelerationIncludingGravity: { x: number; y: number; z: number };
+  /** °/s around z (alpha), x (beta) and y (gamma); null without a gyroscope. */
+  readonly rotationRate: { alpha: number; beta: number; gamma: number } | null;
+  readonly interval: number;
+  constructor(type: string, x: number, y: number, z: number, interval: number, rate: { alpha: number; beta: number; gamma: number } | null = null) {
+    super(type); this.accelerationIncludingGravity = { x: x, y: y, z: z }; this.interval = interval; this.rotationRate = rate;
+  }
+}
+/** beta: front-back tilt (-180..180), gamma: left-right tilt (-90..90), alpha: the compass's heading turned as the web counts it (null without a compass). */
+export class DeviceOrientationEvent extends Event {
+  readonly alpha: number | null; readonly beta: number; readonly gamma: number; readonly absolute: boolean;
+  constructor(type: string, alpha: number | null, beta: number, gamma: number) { super(type); this.alpha = alpha; this.beta = beta; this.gamma = gamma; this.absolute = alpha !== null; }
+}
+
+// ---------------------------------------------------------------- the polling behind the events
+let networkWatched = false, visibilityWatched = false, motionTimer: i32 = -1, keysWatched = false;
+function watchNetwork(): void { if (networkWatched) return; networkWatched = true; theConnection.update(); setInterval(() => { theConnection.update(); }, 2000); }
+function watchVisibility(): void { if (visibilityWatched) return; visibilityWatched = true; setInterval(() => { document.update(); }, 500); }
+function watchKeys(): void { if (keysWatched) return; keysWatched = true; setInterval(() => { deliverKeys(); }, 50); }
+function watchGlobal(): void {
+  if (globalEvents.hasListeners('online') || globalEvents.hasListeners('offline')) watchNetwork();
+  if (globalEvents.hasListeners('devicemotion') || globalEvents.hasListeners('deviceorientation')) watchMotion();
+  if (globalEvents.hasListeners('keydown')) watchKeys();
+}
+/** devicemotion / deviceorientation at 30 Hz and the screen's orientation from gravity, while someone listens. */
+function watchMotion(): void {
+  if (motionTimer >= 0) return;
+  motionTimer = setInterval(() => {
+    const m = deviceJson('motion');
+    if (m === null) return;
+    const x = num(m.x, 0), y = num(m.y, 0), z = num(m.z, 0);
+    if (globalEvents.hasListeners('devicemotion')) {
+      const g = deviceJson('gyro');
+      globalEvents.dispatchEvent(new DeviceMotionEvent('devicemotion', x, y, z, 1000 / 30, g === null ? null : { alpha: num(g.z, 0), beta: num(g.x, 0), gamma: num(g.y, 0) }));
+    }
+    if (globalEvents.hasListeners('deviceorientation')) {
+      const c = deviceJson('compass');
+      const alpha: number | null = c === null ? null : (360 - num(c.heading, 0)) % 360;
+      const beta = Math.atan2(y, z) * 180 / Math.PI, gamma = Math.atan2(-x, Math.sqrt(y * y + z * z)) * 180 / Math.PI;
+      globalEvents.dispatchEvent(new DeviceOrientationEvent('deviceorientation', alpha, beta, gamma));
+    }
+    const o = screen.orientation;
+    const t = device('turn');
+    if (t !== '') {   // the device turns the program itself (webOS, a simulated device): its turn is the orientation
+      const n = o.natural(), other = n === 'landscape' ? 'portrait' : 'landscape', k = parseInt(t) as i32;
+      o.set(k === 0 ? n + '-primary' : k === 2 ? n + '-secondary' : k === 1 ? other + '-primary' : other + '-secondary');
+      return;
+    }
+    const s = toScreen(x, y, sensorAngle());   // in the program's natural screen
+    if (!o.locked && Math.abs(s[0]) + Math.abs(s[1]) > 4) {   // gravity mostly in the screen's plane: held upright enough to tell
+      const n = o.natural(), other = n === 'landscape' ? 'portrait' : 'landscape';
+      if (Math.abs(s[0]) > Math.abs(s[1]) * 1.3) o.set(s[0] > 0 ? other + '-secondary' : other + '-primary');
+      else if (Math.abs(s[1]) > Math.abs(s[0]) * 1.3) o.set(s[1] > 0 ? n + '-primary' : n + '-secondary');
+    }
+  }, 1000 / 30);
+}
 
 // ================================================================ Web Cryptography: SHA digests, random values
 const K256: u32[] = [
