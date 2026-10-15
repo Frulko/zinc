@@ -1,0 +1,10 @@
+{
+	"title": "Zinc notifications",
+	"type": "web",
+	"main": "index.html",
+	"id": "org.zinc.notifier",
+	"version": "1.0.0",
+	"vendor": "Zinc",
+	"noWindow": true,
+	"visible": false
+}

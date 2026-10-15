@@ -325,6 +325,48 @@ Installed with it: Fruits, Hero (without its video screen), Nuxt UI, Keyboard, a
 five folders, the rescan, the shell started by the application manager and running in its jail. Not checked by eye: the grid on the
 screen and a tap starting a program.
 
+## 14. A wall remote: the screen off, Sonos, Spotify, and a TLS 1.3 fault (2026-10-15)
+
+`examples/music` (owner's request): a Sonos remote that never quits, on the charger. What it needed from the tablet and the engine:
+
+- **The screen.** Measured: the backlight is `/sys/class/leds/lcd-backlight/brightness` (0..255, root only; 92 at the owner's setting);
+  `com.palm.display/control/getProperty` answers `maximumBrightness` 100, `timeout` 120, `onWhenConnected` false; `setProperty
+  {"maximumBrightness":0}` as root takes the LED to 3, not 0. The open sources say the system's display "off" turns the touch panel off
+  too, and `com.palm.display/control` is on the private bus only (docs/reports/hardware/webos-screen-power.md). So: the program calls
+  `PDL_ScreenTimeoutEnable(false)` (new: `screenTimeout()` in zinc:webos) and writes `off`/`on` into a file under /tmp (now `setBacklight` of zinc:webos, /tmp/zinc/backlight), which a PDK
+  jail shares with the system (`mount rw /tmp` in `/etc/jail_pdk.conf`); a root upstart job (now zinc-helper, below) copies it to
+  the LED and lights it again when the program is gone. The application folder is the jail's `$HOME` and writable.
+- **Exhibition mode** (the Touchstone's clock): an `appinfo.json` `"dockMode": true`, but the sources show the dock window manager hosts
+  web-app windows only; not tried for a PDK program.
+- **TLS 1.3.** `fetch` to `api.spotify.com` and `upload.wikimedia.org` failed with ECONNRESET on the Mac (the `example.com` failure of
+  section 9 too). mbedTLS 4.0's debug output: the TLS 1.3 handshake completes, the request goes out (one record), the server sends two
+  NewSessionTickets and closes, with no alert. OpenSSL's TLS 1.3 with the same request gets the answer; mbedTLS capped at TLS 1.2 too.
+  Record padding is not the cause (granularity 1 tried). Root cause not found; `next/src/host/http.cpp` now makes the request again once
+  over TLS 1.2 when a TLS 1.3 session is closed after the request with no byte of answer (`tls::openClient(..., tls12)`). Verified: the
+  five hosts answer; `t0/tls` and `t1/plugin_fetch` pass.
+- **Spotify and Sonos.** Spotify lists the owner's Sonos group as the active device but `is_restricted` and absent from `/me/player/devices`:
+  the Web API takes no command for it. Spotify content is therefore started through the speakers' Spotify service (service id 9 here,
+  `x-rincon-cpcontainer:1006206cspotify%3aplaylist%3a...?sid=9&flags=8300&sn=N` queued, as the Sonos app does; zinc:sonos `playSpotify`).
+  The account number `sn` was not found on the speakers (no favorites, empty queue, `/status/accounts` empty on S2): the program tries the
+  first numbers and keeps the one that plays.
+- **The status-bar strip.** Every Zinc program showed the wallpaper in its top 13 px: LunaSysMgr kept the card as a normal one, laid out
+  under its 28 px status bar (docs/reports/hardware/webos-fullscreen.md). `plugins/display-gl/src/webos.cpp` now calls `PDL_Init(0)`
+  before `SDL_Init`, as the PDK's own ports do, and asks `SDL_SetVideoMode(0, 0, 0, SDL_OPENGL | SDL_FULLSCREEN)`: the card is full
+  screen (captured). Which of the two did it was not separated.
+- **The CPU governor: the lag.** `ondemandtcl` holds cpu0 at 192 MHz (most of `time_in_state`), samples the load every 200 ms
+  (`sampling_rate`), keeps cpu1 offline, and a touch lifts the clock to 1.188 GHz for 3 s (`max_tickle_window`). So a burst of work
+  (a page drawn for the first time: 50 to 70 ms at full speed) stalls for hundreds of ms, and an animation runs at 30 to 40 frames a
+  second until a finger touches the screen (the owner's observation on the fruit demo). Measured with both cores at `performance`
+  (zinc-helper while the app shows, below): a 300 px cover decodes in 0 to 5 ms instead of 15 to 40. The GPU's clock has no knob
+  in this kernel (`/sys/devices/platform/kgsl/msm_kgsl` holds only `io_fraction`).
+- **zinc-helper.** What a jailed program may not do is served by one root job, `plugins/webos/helper.sh` (installed by
+  `next/tools/webos-helper`, called by `webos-apps` and `examples/music/install.sh`): `setPerformance`, `setBacklight`, `openPort` of
+  zinc:webos write request files into /tmp/zinc holding the program's pid, and the helper drops them when the process is gone. It writes
+  the system's zone to /tmp/zinc/tz and the GL display sets `TZ` from it (a jail has no /etc/localtime; the clock read UTC).
+- **Other facts.** An application has no right to `com.palm.firewall` (PDL_SetFirewallPortStatus fails: "does not have sufficient
+  outbound permissions"): zinc-helper adds the iptables rules. A program started by hand from novacom inside an application's folder registers as that application: LunaSysMgr then sends
+  every launch to its dead card (`processId` unchanged) until `stop LunaSysMgr; start LunaSysMgr`.
+
 ## Sources
 
 Read by two research agents on 2026-10-13; pages they could not open are marked.

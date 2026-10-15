@@ -1,0 +1,26 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Zinc notifications</title></head>
+<body>
+<script>
+// org.zinc.notifier: shows a banner for a Zinc program (zinc:web Notification, plugins/display-gl/src/webos_device.cpp "notify"). webOS 3 gives
+// banners to web applications only (PalmSystem.addBannerMessage); a native program launches this headless one with {title, body}, and a
+// launch while it runs is a relaunch (Mojo.relaunch), with the new parameters in PalmSystem.launchParams.
+function show() {
+  var p = {};
+  try { p = JSON.parse(PalmSystem.launchParams || '{}'); } catch (e) {}
+  if (!p.title && !p.body) return;
+  // over every card, the full-screen ones too: a popup alert (the window an alarm or a call opens); the banner of the status bar when the
+  // system refuses it (the bar is hidden under a full-screen card)
+  var q = 'popup.html?title=' + encodeURIComponent(p.title || '') + '&body=' + encodeURIComponent(p.body || '');
+  var w = window.open(q, 'zinc' + (++shown), 'height=96,attributes={"window":"popupalert"}');
+  if (!w) PalmSystem.addBannerMessage(p.title && p.body ? p.title + ' : ' + p.body : (p.title || p.body), '{}', '', 'alerts', '', 0, true);
+}
+var shown = 0;
+window.Mojo = window.Mojo || {};
+Mojo.relaunch = function () { show(); return true; };
+show();
+if (window.PalmSystem) PalmSystem.stageReady();
+</script>
+</body>
+</html>

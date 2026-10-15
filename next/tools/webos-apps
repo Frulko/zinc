@@ -31,7 +31,9 @@ install() {
   fi
   [ -f "$out/icon.png" ] && { sips -z 128 128 "$out/icon.png" >/dev/null 2>&1; sips -z 64 64 "$out/icon.png" --out "$out/icon64.png" >/dev/null 2>&1; }
   [ -d "$dir/assets" ] && cp -R "$dir/assets" "$out/assets"
-  printf '{\n\t"title": "%s",\n\t"type": "pdk",\n\t"main": "%s",\n\t"id": "%s",\n\t"version": "0.1.0",\n\t"vendor": "Zinc",\n\t"icon": "icon64.png",\n\t"visible": %s,\n\t"requiredMemory": 64\n}\n' "$title" "$name" "$id" "$visible" > "$out/appinfo.json"
+# requiredMemory: the MB webOS's MemoryMonitor allows a native card (64 warned at 111 for Musique, 2026-10-15: a GL program with its
+# images and buffers)
+  printf '{\n\t"title": "%s",\n\t"type": "pdk",\n\t"main": "%s",\n\t"id": "%s",\n\t"version": "0.1.0",\n\t"vendor": "Zinc",\n\t"icon": "icon64.png",\n\t"visible": %s,\n\t"requiredMemory": 160\n}\n' "$title" "$name" "$id" "$visible" > "$out/appinfo.json"
   # the program may be running: it is stopped, and its file is replaced by a rename, which a file still in use allows
   remote "killall $name 2>/dev/null; sleep 1; killall -9 $name 2>/dev/null; mkdir -p $APPS/$id"
   (cd "$out" && find . -type d ! -name . | while read -r d; do remote "mkdir -p '$APPS/$id/${d#./}'"; done
@@ -53,6 +55,7 @@ shell=$(install "$repo/examples/webos-shell" Zinc true)
 remote "mkdir -p $APPS/$shell/icons"
 novacom put "file:/$APPS/$shell/apps.txt" < "$work/apps.txt"
 for f in "$work"/icons/*.png; do [ -f "$f" ] && novacom put "file:/$APPS/$shell/icons/$(basename "$f")" < "$f"; done
+"$here/webos-helper"   # full speed, backlight, firewall ports, time zone for the programs that ask (zinc:webos)
 remote 'luna-send -n 1 palm://com.palm.applicationManager/rescan "{}" < /dev/null > /dev/null 2>&1'
 echo "webos-apps: installed. Start the shell: the Zinc icon in the webOS launcher, or" >&2
 echo "  echo 'luna-send -n 1 palm://com.palm.applicationManager/launch \"{\\\"id\\\":\\\"$shell\\\"}\" < /dev/null' | novacom run file://bin/sh" >&2

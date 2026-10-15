@@ -9,5 +9,7 @@ export interface Spec extends NativeModule {
   call(uri: string, params: string): boolean;
   /** Why the last call() answered false ('' after a call that was sent). */
   error(): string;
+  /** PDL_ScreenTimeoutEnable: false keeps the screen on (and the tablet awake) while the program is in front. False when it failed. */
+  screenTimeout(enable: boolean): boolean;
 }
 export default requireNative<Spec>('Webos');

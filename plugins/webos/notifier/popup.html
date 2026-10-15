@@ -1,0 +1,22 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Zinc</title>
+<style>
+html, body { margin: 0; height: 100%; background: #1c1c1e; color: #fff; font-family: Prelude, sans-serif; }
+body { padding: 22px 24px 0; box-sizing: border-box; }
+#t { font-size: 20px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#b { font-size: 17px; color: #c7c7cc; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+</style></head>
+<body onclick="window.close()">
+<div id="t"></div><div id="b"></div>
+<script>
+// one notification over the screen (org.zinc.notifier's popup alert): its title and body from the address; a touch or 6 s closes it
+var q = {};
+location.search.substring(1).split('&').forEach(function (kv) { var i = kv.indexOf('='); if (i > 0) q[kv.substring(0, i)] = decodeURIComponent(kv.substring(i + 1)); });
+document.getElementById('t').textContent = q.title || q.body || '';
+document.getElementById('b').textContent = q.title ? (q.body || '') : '';
+if (window.PalmSystem) PalmSystem.stageReady();   // without it the system waits, then shows the window late
+setTimeout(function () { window.close(); }, 6000);
+</script>
+</body>
+</html>

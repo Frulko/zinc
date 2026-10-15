@@ -1,0 +1,135 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noLib": true,
+    "types": [],
+    "useUnknownInCatchVariables": false,
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "jsx": "preserve",
+    "paths": {
+      "zinc:ui": [
+        "../../lib/std/ui.ts"
+      ],
+      "zinc:ui/solid": [
+        "../../lib/std/solid.ts"
+      ],
+      "zinc:ui/react": [
+        "../../lib/std/react.ts"
+      ],
+      "zinc:ui/kit": [
+        "../../lib/std/kit/index.ts"
+      ],
+      "solid-js": [
+        "../../lib/std/solid.ts"
+      ],
+      "@pocketjs/framework/solid/components": [
+        "../../lib/compat/pocketjs/components.ts"
+      ],
+      "@pocketjs/framework/solid/lifecycle": [
+        "../../lib/compat/pocketjs/lifecycle.ts"
+      ],
+      "@pocketjs/framework/animation": [
+        "../../lib/compat/pocketjs/animation.ts"
+      ],
+      "@pocketjs/framework/solid/std": [
+        "../../lib/compat/pocketjs/std.ts"
+      ],
+      "@pocketjs/framework/solid": [
+        "../../lib/compat/pocketjs/mount.ts"
+      ],
+      "@pocketjs/framework/clock": [
+        "../../lib/compat/pocketjs/clock.ts"
+      ],
+      "inferno": [
+        "../../lib/compat/inferno.ts"
+      ],
+      "react": [
+        "../../lib/std/react.ts"
+      ],
+      "zinc:3d": [
+        "../../plugins/3d/index.ts"
+      ],
+      "zinc:canvas": [
+        "../../plugins/canvas2d/index.ts"
+      ],
+      "zinc:devtools": [
+        "../../plugins/devtools/index.ts"
+      ],
+      "zinc:gestures": [
+        "../../plugins/gestures/index.ts"
+      ],
+      "zinc:gphoto2": [
+        "../../plugins/gphoto2/index.ts"
+      ],
+      "zinc:imu": [
+        "../../plugins/imu-qmi8658/index.ts"
+      ],
+      "zinc:ink": [
+        "../../plugins/ink/index.ts"
+      ],
+      "zinc:lottie": [
+        "../../plugins/lottie/index.ts"
+      ],
+      "zinc:map": [
+        "../../plugins/map/index.ts"
+      ],
+      "zinc:mapping": [
+        "../../plugins/mapping/index.ts"
+      ],
+      "zinc:pixelfont": [
+        "../../plugins/pixelfont/index.ts"
+      ],
+      "zinc:process": [
+        "../../plugins/process/index.ts"
+      ],
+      "zinc:remote": [
+        "../../plugins/remote-view/index.ts"
+      ],
+      "zinc:svg": [
+        "../../plugins/svg/index.ts"
+      ],
+      "three": [
+        "../../plugins/three/index.ts"
+      ],
+      "three/addons/loaders/GLTFLoader.js": [
+        "../../plugins/three/addons/GLTFLoader.ts"
+      ],
+      "three/examples/jsm/loaders/GLTFLoader.js": [
+        "../../plugins/three/addons/GLTFLoader.ts"
+      ],
+      "three/addons/controls/OrbitControls.js": [
+        "../../plugins/three/addons/OrbitControls.ts"
+      ],
+      "three/examples/jsm/controls/OrbitControls.js": [
+        "../../plugins/three/addons/OrbitControls.ts"
+      ],
+      "zinc:video": [
+        "../../plugins/video/index.ts"
+      ],
+      "zinc:webview": [
+        "../../plugins/webview/index.ts"
+      ]
+    },
+    "plugins": [
+      {
+        "name": "zinc-ts-plugin"
+      }
+    ]
+  },
+  "files": [
+    "../../lib/zinc.d.ts",
+    "../../lib/gfx.d.ts",
+    "../../lib/modules.d.ts",
+    "../../lib/ui.d.ts",
+    "../../lib/editor/jsx.d.ts"
+  ],
+  "include": [
+    "src/**/*",
+    "*.ts",
+    "*.tsx"
+  ]
+}
