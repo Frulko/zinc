@@ -169,7 +169,15 @@ export function lava(W: number, H: number): void {
     }
   }
   const img = imageFromBytes(pngOf(lampRgb, LAMP_W, LAMP_H));
-  if (img >= 0) drawImageRect(img, 0, 0, LAMP_W, LAMP_H, 0, 0, W, H, 255, 0, 0, 0xffffff);   // the sampled path of the backdrop: smooth on the GPU
+  if (img >= 0) {
+    // the picture is small: four taps of it, half a texel apart and averaged (alphas 1, 1/2, 1/3, 1/4 stack to equal weights), melt the
+    // grid that one bilinear stretch leaves visible
+    const dx = W / LAMP_W * 0.5, dy = H / LAMP_H * 0.5;
+    drawImageRect(img, 0, 0, LAMP_W, LAMP_H, -dx * 2, -dy * 2, W + dx * 4, H + dy * 4, 255, 0, 0, 0xffffff);
+    drawImageRect(img, 0, 0, LAMP_W, LAMP_H, -dx, -dy, W + dx * 4, H + dy * 4, 128, 0, 0, 0xffffff);
+    drawImageRect(img, 0, 0, LAMP_W, LAMP_H, -dx * 2, -dy, W + dx * 4, H + dy * 4, 85, 0, 0, 0xffffff);
+    drawImageRect(img, 0, 0, LAMP_W, LAMP_H, -dx, -dy * 2, W + dx * 4, H + dy * 4, 64, 0, 0, 0xffffff);
+  }
   if (lampPrev >= 0) destroyImage(lampPrev);   // drawing is recorded: the picture of this frame must outlive it
   lampPrev = img;
   ui.animating = true;

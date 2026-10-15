@@ -95,6 +95,35 @@ export function fit(f: i32, s: string, w: number): string {
   while (lo < hi) { const mid = Math.ceil((lo + hi) / 2) as i32; if (textWidth(f, s.slice(0, mid) + '…', 0) <= w) lo = mid; else hi = mid - 1; }
   return s.slice(0, lo).trimEnd() + '…';
 }
+// Tabular figures (owner, 2026-10-15): every digit takes the width of the widest one, so a clock does not shift as its digits change.
+// Done here, a cell per character; the engine's own font feature (OpenType tnum) is a line of next/backlog/later.md.
+const cellOf = new Map<i32, number>();
+function digitCell(f: i32): number {
+  const c = cellOf.get(f);
+  if (c !== undefined) return c as number;
+  let w = 0;
+  for (let d = 0; d < 10; d++) w = Math.max(w, textWidth(f, '' + d, 0));
+  cellOf.set(f, w);
+  return w;
+}
+/** The width of `s` with tabular digits. */
+export function tabularWidth(f: i32, s: string): number {
+  let w = 0;
+  const cell = digitCell(f);
+  for (let i = 0; i < s.length; i++) { const ch = s.charAt(i); w += ch >= '0' && ch <= '9' ? cell : textWidth(f, ch, 0); }
+  return w;
+}
+/** Text with its top at y and tabular digits, from x; the width used. */
+export function tabular(f: i32, x: number, y: number, s: string, color: u32, alpha: i32 = 255): number {
+  const cell = digitCell(f);
+  let px = x;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s.charAt(i), digit = ch >= '0' && ch <= '9', w = textWidth(f, ch, 0);
+    drawText(f, digit ? px + (cell - w) / 2 : px, y, ch, color, alpha, 0);
+    px += digit ? cell : w;
+  }
+  return px - x;
+}
 /** Draws text with its top at y (not its baseline), cut to the width. */
 export function label(f: i32, x: number, y: number, s: string, color: u32, w: number = 10000, alpha: i32 = 255): void {
   drawText(f, x, y, fit(f, s, w), color, alpha, 0);

@@ -7,7 +7,7 @@ import { udp } from 'zinc:socket';
 import { utf8Decode } from 'zinc:sys';
 import { discover, System, Group, Speaker, serviceId, accountOf, playSpotify as sonosSpotify } from 'zinc:sonos';
 import { Spotify, Item, Playback } from 'zinc:spotify';
-import { spinner, decodeStats, decodeOne, picturesTick, prefetch, ui, F, BG, CARD, CARD2, FILL, TEXT, TEXT2, TEXT3, ACCENT, GREEN, Scroll, Zone, zoneAt, resetZones, onTap, beginScroll, endScroll, label, centered, wrap, clock, glyph, transport, cover, backdrop, iconButton, pill, segmented, slider, card, separator, cardShadow, isPressed } from './ui';
+import { spinner, tabular, tabularWidth, decodeStats, decodeOne, picturesTick, prefetch, ui, F, BG, CARD, CARD2, FILL, TEXT, TEXT2, TEXT3, ACCENT, GREEN, Scroll, Zone, zoneAt, resetZones, onTap, beginScroll, endScroll, label, centered, wrap, clock, glyph, transport, cover, backdrop, iconButton, pill, segmented, slider, card, separator, cardShadow, isPressed } from './ui';
 import { Station, loadMine, saveMine, indexOf, directory } from './radios';
 import { keyboard, KEYBOARD_H } from './keyboard';
 import { Screen } from './screen';
@@ -673,7 +673,7 @@ function digitalFace(W: number, H: number): void {
   const d = new Date(), m = d.getMinutes(), t = `${d.getHours()}:${m < 10 ? '0' : ''}${m}`;
   const dl = `${DAYS_LONG[d.getDay()]} ${d.getDate()} ${MONTHS_LONG[d.getMonth()]}`.toUpperCase();
   centered(F.smallB, W / 2, H * 0.16, dl, ACCENT);
-  drawText(HUGE, (W - textWidth(HUGE, t, 0)) / 2, H * 0.2, t, TEXT, 255, 0);
+  tabular(HUGE, (W - tabularWidth(HUGE, t)) / 2, H * 0.2, t, TEXT);
   nowCard((W - 480) / 2, H - 150, 480);
 }
 /** Hours, minutes and seconds as rings (the Apple Watch's activity rings), the time in their middle. */
@@ -692,15 +692,24 @@ function ringsFace(W: number, H: number): void {
   dateLines(rx, cy - 120, rw);
   nowCard(rx, cy + 40, rw);
 }
+let lampSeen = -10, lampHintAt = -10;
 /** Lava lamp: blobs rising and melting behind the time, what plays under it. */
 function lavaFace(W: number, H: number): void {
   const d = new Date(), m = d.getMinutes(), t = `${d.getHours()}:${m < 10 ? '0' : ''}${m}`;
   lava(W, H);
   onTap('lava/colour', 0, 0, W, H, () => { setLampPalette(lampPalette() + 1); remember(); ui.dirty = true; });   // a touch on the glass: the next colours
   centered(F.smallB, W / 2, H * 0.16, `${DAYS_LONG[d.getDay()]} ${d.getDate()} ${MONTHS_LONG[d.getMonth()]}`.toUpperCase(), TEXT, 200);
-  drawText(HUGE, (W - textWidth(HUGE, t, 0)) / 2, H * 0.2, t, TEXT, 255, 0);
+  tabular(HUGE, (W - tabularWidth(HUGE, t)) / 2, H * 0.2, t, TEXT);
   nowCard((W - 480) / 2, H - 150, 480);
-  centered(F.tiny, W / 2, H - 40, `${LAMP_NAMES[lampPalette()]} · touche le verre pour changer de couleur`, TEXT, 150);
+  // the hint: fades in and rises on arriving, gone after 10 s (then a touch on the glass still works)
+  if (clockS - lampSeen > 0.5) lampHintAt = clockS;
+  lampSeen = clockS;
+  const he = clockS - lampHintAt;
+  if (he < 10) {
+    const k = Math.min(1, he / 0.6) * Math.min(1, (10 - he) / 0.6), rise = (1 - Math.min(1, he / 0.6)) * 14;
+    centered(F.small, W / 2, H - 44 + rise, `${LAMP_NAMES[lampPalette()]} · touche le verre pour changer de couleur`, TEXT, Math.round(190 * k) as i32);
+    ui.animating = true;
+  }
 }
 /** Odometer: the digits roll when the minute changes. */
 function odometerFace(W: number, H: number): void {
@@ -1132,8 +1141,8 @@ function statusBar(W: number): void {
   const c = clockParts(), m = c[1];
   const time = `${c[0]}:${m < 10 ? '0' : ''}${m}`;
   const ty = (TOP - fontAscent(F.smallB)) / 2;
-  drawText(F.smallB, 20, ty, time, TEXT, 255, 0);
-  drawText(F.small, 28 + textWidth(F.smallB, time, 0), ty, `${DAYS[c[2]]} ${c[3]} ${MONTHS[c[4]]}`, TEXT2, 255, 0);
+  tabular(F.smallB, 20, ty, time, TEXT);
+  drawText(F.small, 28 + tabularWidth(F.smallB, time), ty, `${DAYS[c[2]]} ${c[3]} ${MONTHS[c[4]]}`, TEXT2, 255, 0);
   if (page === NOW) for (let i: i32 = 0; i < SLIDES; i++) {   // where the carousel is
     const on = Math.max(0, 1 - Math.abs(slideX - i));
     rrect(W / 2 + (i - (SLIDES - 1) / 2) * 18 - 4, TOP / 2 - 4, 8, 8, 4, TEXT, Math.round(70 + 185 * on) as i32);
