@@ -1,6 +1,5 @@
 # Zinc Next: affected T0/T1 on every host; full T2 on nightly/manual/release runs.
-# Windows is listed so the day the host is ported (ZN-054) it starts running; until then its job may fail and does not block.
-# What Windows proves today (ZN-714): windows-cross builds console programs for it on Linux with the pinned zig, windows-console runs them on a Windows runner.
+# macOS only for now (owner, 2026-10-15): the Linux and Windows jobs are out of the matrix; windows-cross and windows-console stay below, switched off.
 # A `v*` tag also makes a release (ZN-329): each OS job signs its package when the signing secrets exist and writes a signed update manifest,
 # then the release job attaches everything to a GitHub Release. The secrets and the tag command: docs/guide/07-distribution.md, "Releases".
 name: zinc-next
@@ -55,11 +54,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: ubuntu-24.04, name: linux-x86_64, tier: t2 }
-          - { os: ubuntu-24.04-arm, name: linux-aarch64, tier: t2 }
           - { os: macos-14, name: macos-arm64, tier: t2 }
           - { os: macos-15-intel, name: macos-x86_64, tier: t1, experimental: true }   # ZN-718: the Intel Macs of schools get a download too; never run yet
-          - { os: windows-latest, name: windows-x86_64, tier: t1, experimental: true }
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     continue-on-error: ${{ matrix.experimental == true }}
@@ -169,7 +165,7 @@ jobs:
     # the pinned zig) and handed to windows-console with their frozen outputs. Never run yet, so it does not block.
     name: windows-cross
     needs: plan
-    if: needs.plan.outputs.test == 'true'
+    if: false   # off: macOS only (owner, 2026-10-15)
     runs-on: ubuntu-24.04
     continue-on-error: true
     defaults:
@@ -194,6 +190,7 @@ jobs:
     # ZN-714: the programs of windows-cross run on Windows and print their frozen outputs (one PASS or FAIL line each)
     name: windows-console
     needs: windows-cross
+    if: false
     runs-on: windows-latest
     continue-on-error: true
     defaults:
@@ -230,7 +227,7 @@ jobs:
         run: |
           cp next/tools/install.sh release/
           cd release
-          for f in Zinc-*.zip zinc-*.tar.gz zinc-*-windows-*.zip; do if [ -f "$f" ]; then shasum -a 256 "$f"; fi; done > SHA256SUMS
+          for f in Zinc-*.zip; do if [ -f "$f" ]; then shasum -a 256 "$f"; fi; done > SHA256SUMS
           [ -s SHA256SUMS ] || { echo "::error::no package to release"; exit 1; }
       - name: Release
         env:
