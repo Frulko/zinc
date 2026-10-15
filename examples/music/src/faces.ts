@@ -88,8 +88,8 @@ function lavaGradients(W: number, H: number): void {
 // ---- metaballs, the way a lava lamp really merges: a small field computed in Zinc (what a fragment shader would do), made into a picture
 // that is stretched to the screen; the field is smooth, so linear sampling shows no pixels. (zinc:gl would be the GPU's way, but its
 // WebGL module is not part of the webOS build: docs/reports/hardware/hp-touchpad-webos.md.)
-const LAMP_W: i32 = 96, LAMP_H: i32 = 72;
-const LAMP_COLS: number[][] = [[250, 18, 79], [255, 158, 10], [122, 61, 255], [30, 235, 240], [250, 18, 79], [255, 158, 10]];
+const LAMP_W: i32 = 64, LAMP_H: i32 = 48, LAMP_N: i32 = 4;   // small and few: the tablet's CPU computes it every frame
+const LAMP_COLS: number[][] = [[200, 14, 63], [214, 120, 8], [96, 48, 204], [24, 170, 180]];
 const CRC: number[] = [];
 for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = (c & 1) !== 0 ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1); CRC.push(c >>> 0); }
 function be32(o: u8[], v: number): void { o.push((v >>> 24) & 255); o.push((v >>> 16) & 255); o.push((v >>> 8) & 255); o.push(v & 255); }
@@ -121,16 +121,16 @@ function pngOf(rgb: u8[], w: i32, h: i32): u8[] {
 }
 const lampRgb: u8[] = [];
 let lampPrev: i32 = -1;
-/** A lava lamp behind the time: six metaballs of the ring colours that rise, stretch and melt into each other. Always moving: the caller
+/** A lava lamp behind the time: four metaballs of the ring colours that rise, stretch and melt into each other. Always moving: the caller
  *  keeps the frames coming (ui.animating). */
 export function lava(W: number, H: number): void {
   const t = nowS() % 1200, asp = LAMP_W / LAMP_H;
   const cx: number[] = [], cy: number[] = [], r2: number[] = [], st: number[] = [];
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < LAMP_N; i++) {
     const sp = 1 + 0.31 * i;
-    cx.push(asp * (0.14 + 0.72 * i / 5) + 0.07 * Math.sin(t * 0.17 + i * 1.9));
+    cx.push(asp * (0.18 + 0.64 * i / (LAMP_N - 1)) + 0.07 * Math.sin(t * 0.17 + i * 1.9));
     cy.push(0.5 + 0.4 * Math.sin(t * 0.13 * sp + i * 2.1) * Math.cos(t * 0.05 + i));
-    const r = 0.13 + 0.035 * Math.sin(t * 0.21 + i * 1.3);
+    const r = 0.12 + 0.03 * Math.sin(t * 0.21 + i * 1.3);
     r2.push(r * r);
     st.push(0.8 + 0.25 * Math.sin(t * 0.13 * sp + i * 2.1 + 1));   // stretches while it moves
   }
@@ -140,7 +140,7 @@ export function lava(W: number, H: number): void {
     for (let x = 0; x < LAMP_W; x++) {
       const px = (x / LAMP_W) * asp;
       let field = 0, cr = 0, cg = 0, cb = 0;
-      for (let i = 0; i < 6; i++) {
+      for (let i = 0; i < LAMP_N; i++) {
         const dx = px - cx[i], dy = (v - cy[i]) * st[i];
         const f = r2[i] / (dx * dx + dy * dy + 0.0008);
         field += f; cr += LAMP_COLS[i][0] * f; cg += LAMP_COLS[i][1] * f; cb += LAMP_COLS[i][2] * f;
@@ -148,12 +148,12 @@ export function lava(W: number, H: number): void {
       const k = field > 0.0001 ? 1 / field : 0;
       cr *= k; cg *= k; cb *= k;
       const body = Math.min(1, Math.max(0, (field - 0.85) / 0.4)), glow = Math.min(1, Math.max(0, (field - 0.15) / 0.7));
-      const bgk = 1 - v, br = 18 + bgk * 41, bgc = 5 + bgk * 8, bb = 10 + bgk * 13;
-      const lit = 0.85 + 0.25 * Math.min(1, Math.max(0, (field - 1.2) / 1.8));
+      const bgk = 1 - v, br = 12 + bgk * 26, bgc = 4 + bgk * 5, bb = 8 + bgk * 9;
+      const lit = 0.7 + 0.2 * Math.min(1, Math.max(0, (field - 1.2) / 1.8));
       const gr = body * body * (3 - 2 * body);   // smoothstep
-      const rr = (br + cr * glow * 0.35) * (1 - gr) + cr * lit * gr;
-      const gg = (bgc + cg * glow * 0.35) * (1 - gr) + cg * lit * gr;
-      const bl = (bb + cb * glow * 0.35) * (1 - gr) + cb * lit * gr;
+      const rr = (br + cr * glow * 0.22) * (1 - gr) + cr * lit * gr;
+      const gg = (bgc + cg * glow * 0.22) * (1 - gr) + cg * lit * gr;
+      const bl = (bb + cb * glow * 0.22) * (1 - gr) + cb * lit * gr;
       lampRgb.push(Math.min(255, rr) as u8); lampRgb.push(Math.min(255, gg) as u8); lampRgb.push(Math.min(255, bl) as u8);
     }
   }
