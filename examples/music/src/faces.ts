@@ -1,6 +1,6 @@
 // The drawings of the home's other slides (main.ts): a watch face in the spirit of iOS StandBy and the Apple Watch, and activity rings.
 // Strokes and polygons of zinc:gfx, nothing cached: a frame of either costs less than the player's.
-import { stroke, rrect, rect, gradient, gradientPaint, imageFromBytes, destroyImage, drawImage, clip, unclip, font, fontAscent } from 'zinc:gfx';
+import { stroke, rrect, rect, gradient, gradientPaint, imageFromBytes, destroyImage, drawImageRect, clip, unclip, font, fontAscent } from 'zinc:gfx';
 import { ui, F, TEXT, TEXT3, centered } from './ui';
 
 export const ORANGE = 0xff9f0a;
@@ -88,8 +88,19 @@ function lavaGradients(W: number, H: number): void {
 // ---- metaballs, the way a lava lamp really merges: a small field computed in Zinc (what a fragment shader would do), made into a picture
 // that is stretched to the screen; the field is smooth, so linear sampling shows no pixels. (zinc:gl would be the GPU's way, but its
 // WebGL module is not part of the webOS build: docs/reports/hardware/hp-touchpad-webos.md.)
-const LAMP_W: i32 = 64, LAMP_H: i32 = 48, LAMP_N: i32 = 4;   // small and few: the tablet's CPU computes it every frame
-const LAMP_COLS: number[][] = [[200, 14, 63], [214, 120, 8], [96, 48, 204], [24, 170, 180]];
+const LAMP_W: i32 = 80, LAMP_H: i32 = 60, LAMP_N: i32 = 4;   // small and few: the tablet's CPU computes it every frame
+/** The lamps' colours (a touch on the lamp changes them; main.ts keeps the choice): four blobs each, the first one also tints the glass. */
+export const LAMPS: number[][][] = [
+  [[200, 14, 63], [214, 120, 8], [96, 48, 204], [24, 170, 180]],    // lava
+  [[190, 20, 20], [220, 90, 10], [230, 160, 20], [120, 10, 60]],    // magma
+  [[10, 90, 200], [20, 170, 190], [90, 60, 200], [10, 40, 120]],    // ocean
+  [[60, 200, 40], [190, 210, 20], [20, 150, 110], [10, 90, 60]],    // acid
+  [[220, 60, 150], [240, 120, 90], [150, 60, 200], [90, 30, 120]],  // candy
+];
+export const LAMP_NAMES: string[] = ['Lave', 'Magma', 'Océan', 'Acide', 'Bonbon'];
+let lampPal: i32 = 0;
+export function lampPalette(): i32 { return lampPal; }
+export function setLampPalette(i: i32): void { lampPal = i % LAMPS.length; }
 const CRC: number[] = [];
 for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = (c & 1) !== 0 ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1); CRC.push(c >>> 0); }
 function be32(o: u8[], v: number): void { o.push((v >>> 24) & 255); o.push((v >>> 16) & 255); o.push((v >>> 8) & 255); o.push(v & 255); }
@@ -124,7 +135,7 @@ let lampPrev: i32 = -1;
 /** A lava lamp behind the time: four metaballs of the ring colours that rise, stretch and melt into each other. Always moving: the caller
  *  keeps the frames coming (ui.animating). */
 export function lava(W: number, H: number): void {
-  const t = nowS() % 1200, asp = LAMP_W / LAMP_H;
+  const t = nowS() % 1200, asp = LAMP_W / LAMP_H, cols = LAMPS[lampPal];
   const cx: number[] = [], cy: number[] = [], r2: number[] = [], st: number[] = [];
   for (let i = 0; i < LAMP_N; i++) {
     const sp = 1 + 0.31 * i;
@@ -143,12 +154,12 @@ export function lava(W: number, H: number): void {
       for (let i = 0; i < LAMP_N; i++) {
         const dx = px - cx[i], dy = (v - cy[i]) * st[i];
         const f = r2[i] / (dx * dx + dy * dy + 0.0008);
-        field += f; cr += LAMP_COLS[i][0] * f; cg += LAMP_COLS[i][1] * f; cb += LAMP_COLS[i][2] * f;
+        field += f; cr += cols[i][0] * f; cg += cols[i][1] * f; cb += cols[i][2] * f;
       }
       const k = field > 0.0001 ? 1 / field : 0;
       cr *= k; cg *= k; cb *= k;
       const body = Math.min(1, Math.max(0, (field - 0.85) / 0.4)), glow = Math.min(1, Math.max(0, (field - 0.15) / 0.7));
-      const bgk = 1 - v, br = 12 + bgk * 26, bgc = 4 + bgk * 5, bb = 8 + bgk * 9;
+      const bgk = 1 - v, br = cols[0][0] * (0.05 + bgk * 0.13), bgc = cols[0][1] * (0.05 + bgk * 0.13), bb = cols[0][2] * (0.05 + bgk * 0.13);
       const lit = 0.7 + 0.2 * Math.min(1, Math.max(0, (field - 1.2) / 1.8));
       const gr = body * body * (3 - 2 * body);   // smoothstep
       const rr = (br + cr * glow * 0.22) * (1 - gr) + cr * lit * gr;
@@ -158,7 +169,7 @@ export function lava(W: number, H: number): void {
     }
   }
   const img = imageFromBytes(pngOf(lampRgb, LAMP_W, LAMP_H));
-  if (img >= 0) drawImage(img, 0, 0, W, H, 255, 0);
+  if (img >= 0) drawImageRect(img, 0, 0, LAMP_W, LAMP_H, 0, 0, W, H, 255, 0, 0, 0xffffff);   // the sampled path of the backdrop: smooth on the GPU
   if (lampPrev >= 0) destroyImage(lampPrev);   // drawing is recorded: the picture of this frame must outlive it
   lampPrev = img;
   ui.animating = true;

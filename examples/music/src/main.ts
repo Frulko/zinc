@@ -11,7 +11,7 @@ import { spinner, decodeStats, decodeOne, picturesTick, prefetch, ui, F, BG, CAR
 import { Station, loadMine, saveMine, indexOf, directory } from './radios';
 import { keyboard, KEYBOARD_H } from './keyboard';
 import { Screen } from './screen';
-import { arc, watchFace, lava, odometer, HUGE, RINGS } from './faces';
+import { arc, watchFace, lava, odometer, lampPalette, setLampPalette, LAMP_NAMES, HUGE, RINGS } from './faces';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { setPlace, weatherTick, weatherSlide } from './weather';
 import { openPort } from 'zinc:webos';
@@ -52,10 +52,11 @@ const FACES = 5;
 let face: i32 = 0, faceY = 0, faceSwipe = false, faceFrom = 0, faceVel = 0;
 /** The slide and the face, kept for the next start. */
 function remember(): void {
-  AsyncStorage.multiSet([['music.slide', '' + slide], ['music.face', '' + face]]);
+  AsyncStorage.multiSet([['music.slide', '' + slide], ['music.face', '' + face], ['music.lamp', '' + lampPalette()]]);
 }
 async function recall(): Promise<void> {
-  const v = await AsyncStorage.multiGet(['music.slide', 'music.face']);
+  const v = await AsyncStorage.multiGet(['music.slide', 'music.face', 'music.lamp']);
+  if (v[2][1] !== null) setLampPalette(parseInt(v[2][1] as string) as i32);
   if (v[0][1] !== null) { slide = Math.max(0, Math.min(SLIDES - 1, parseInt(v[0][1] as string))) as i32; slideX = slide; }
   if (v[1][1] !== null) { face = Math.max(0, Math.min(FACES - 1, parseInt(v[1][1] as string))) as i32; faceY = face; }
   ui.dirty = true;
@@ -695,9 +696,11 @@ function ringsFace(W: number, H: number): void {
 function lavaFace(W: number, H: number): void {
   const d = new Date(), m = d.getMinutes(), t = `${d.getHours()}:${m < 10 ? '0' : ''}${m}`;
   lava(W, H);
+  onTap('lava/colour', 0, 0, W, H, () => { setLampPalette(lampPalette() + 1); remember(); ui.dirty = true; });   // a touch on the glass: the next colours
   centered(F.smallB, W / 2, H * 0.16, `${DAYS_LONG[d.getDay()]} ${d.getDate()} ${MONTHS_LONG[d.getMonth()]}`.toUpperCase(), TEXT, 200);
   drawText(HUGE, (W - textWidth(HUGE, t, 0)) / 2, H * 0.2, t, TEXT, 255, 0);
   nowCard((W - 480) / 2, H - 150, 480);
+  centered(F.tiny, W / 2, H - 40, `${LAMP_NAMES[lampPalette()]} · touche le verre pour changer de couleur`, TEXT, 150);
 }
 /** Odometer: the digits roll when the minute changes. */
 function odometerFace(W: number, H: number): void {
