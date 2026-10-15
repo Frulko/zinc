@@ -1,0 +1,59 @@
+{
+  "name": "music",
+  "entry": "src/main.ts",
+  "targets": {
+    "macos": {
+      "width": 1024,
+      "height": 768
+    },
+    "linux": {
+      "width": 1024,
+      "height": 768
+    },
+    "sim": {
+      "width": 1024,
+      "height": 768
+    }
+  },
+  "requires": [
+    "display",
+    "pointer|touch"
+  ],
+  "icons": [
+    "audio-lines",
+    "radio",
+    "library",
+    "speaker",
+    "settings",
+    "volume-1",
+    "volume-2",
+    "volume-x",
+    "shuffle",
+    "repeat",
+    "repeat-1",
+    "heart",
+    "plus",
+    "check",
+    "search",
+    "x",
+    "music",
+    "delete",
+    "refresh-cw",
+    "chevron-right",
+    "chevron-down",
+    "unlink",
+    "link",
+    "panel-left-close",
+    "panel-left-open",
+    "sun",
+    "moon",
+    "cloud",
+    "cloud-sun",
+    "cloud-moon",
+    "cloud-fog",
+    "cloud-drizzle",
+    "cloud-rain",
+    "cloud-snow",
+    "cloud-lightning"
+  ]
+}
