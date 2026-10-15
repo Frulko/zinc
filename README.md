@@ -75,47 +75,47 @@ Web = WebAssembly.
 
 ### Modules
 
-| Plugin | Import | What it does | Code | Platforms |
-|---|---|---|---|---|
-| 3d | `zinc:3d` | 3D: meshes, materials, lights, camera, scene graph; software or GPU | Native | macOS, Linux, Pi, ESP32, Web |
-| three | `three` | three.js API subset on `zinc:3d` (GLTFLoader, OrbitControls) | Native | macOS, Linux, Pi, Web |
-| canvas2d | `zinc:canvas` | HTML Canvas 2D-style context | Native | macOS, Linux, Pi, rM, Web, ESP32 |
-| svg | `zinc:svg` | SVG rendered at run time | Native | macOS, Linux, Pi, Web |
-| lottie | `zinc:lottie` | Lottie animations, `<Lottie/>` | Native | macOS, Linux, Pi, rM, Web, PS2, ESP32 |
-| map | `zinc:map` | Vector maps (Mapbox tiles, MapLibre styles) | Native | macOS, Linux, Pi |
-| mapping | `zinc:mapping` | GPU video mapping (warp, masks, blends) driven by OSC | Native | macOS, Pi |
-| video | `zinc:video` | Video: FFmpeg (VideoToolbox, V4L2), GStreamer and the hardware decoder on webOS | Native | macOS, Linux, Pi, webOS |
-| audio | `zinc:audio` | Sounds and music (WAV, FLAC, MP3, Ogg) on miniaudio | Native | macOS, Linux |
-| midi | `zinc:midi` | MIDI in and out (RtMidi) | Native | macOS, Linux |
-| osc | `zinc:osc/full` | Open Sound Control over UDP | Zinc | macOS, Linux, Pi, rM |
-| physics2d | `zinc:physics2d` | 2D physics (Box2D 3.1) | Native | macOS, Linux |
-| physics3d | `zinc:physics3d` | 3D physics (Jolt 5.6) | Native | macOS, Linux |
-| gestures | `zinc:gestures` | Pan, pinch, rotate, tap | Zinc | macOS, Linux, Pi, Web, ESP32, PS2 |
-| ink | `zinc:ink` | Handwriting: pressure, eraser, SVG/JSON export | Zinc | macOS, Linux, Pi, Web, rM |
-| sprite | `zinc:sprite` | Sprite animations from packed atlases | Zinc | macOS, Linux, Pi, Web, ESP32, PS2 |
-| tilemap | `zinc:tilemap` | Tiled and LDtk levels | Zinc | macOS, Linux, Pi, Web, ESP32, PS2 |
-| pixelfont | `zinc:pixelfont` | 5x7 and 3x5 bitmap fonts for LED matrices | Zinc | macOS, Linux, Pi, ESP32, Web, PS2 |
-| loader | `zinc:loader` | Loading screens (bar, splash, `<Loader>`) | Zinc | macOS, Linux, Pi, Web, ESP32, PS2 |
-| sqlite | `zinc:sqlite` | SQLite 3.53 databases | Native | macOS, Linux, Pi, rM |
-| async-storage | `zinc:async-storage` | React Native's AsyncStorage on `zinc:storage` | Zinc | macOS, Linux, Windows, Pi, rM, webOS, ESP32 |
-| socket | `zinc:socket` | TCP, UDP and Unix sockets, DNS, WebSocket client and server | Native | macOS, Linux, Pi, rM |
-| process | `zinc:process` | Child processes (args, streams, kill) | Native | macOS, Linux, Pi |
-| ffi | `zinc:ffi` | C functions of shared libraries (libffi) | Native | macOS, Linux |
-| script | `zinc:script` | Sandboxed JavaScript at run time (QuickJS-ng) | Native | macOS, Linux, Pi, rM |
-| wasm | `zinc:wasm` | WebAssembly on wasm3 | Native | macOS, Linux, Pi, rM |
-| system | `zinc:system` | Desktop integration: notifications, menus, tray, dialogs, shortcuts, clipboard | Native | macOS, Linux |
-| webview | `zinc:webview` | Embedded web views (WKWebView), Tauri-like messages | Native | macOS |
-| devtools | `zinc:devtools` | UI inspector for Chrome DevTools | Native | macOS, Linux, Pi |
-| serial | `zinc:serial` | Serial ports (Arduino and other boards) | Native | macOS, Linux |
-| gphoto2 | `zinc:gphoto2` | Camera remote control over USB (libgphoto2) | Native | macOS, Linux, Pi |
-| leapmotion | `zinc:leapmotion` | Ultraleap hand tracking (LeapC) | Native | macOS |
-| imu-qmi8658 | `zinc:imu` | QMI8658 motion sensor | Native | ESP32, macOS, Linux |
-| device | `zinc:device` | Board services: backlight, chip, heap | Native | ESP32, macOS, Linux |
-| remarkable | `zinc:remarkable` | reMarkable status bar (clock, battery, exit) | Native | rM, macOS, Linux |
-| remote-view | `zinc:remote` | View and drive a `display-remote` app | Native | macOS, Linux, Pi |
-| webos | `zinc:webos` | webOS services (Luna bus through PDL), root helper, notifications | Native | macOS, Linux |
-| sonos | `zinc:sonos` | Sonos speakers (UPnP): rooms, groups, playback, volume, radios | Zinc | macOS, Linux, Pi, rM |
-| spotify | `zinc:spotify` | Spotify Web API: paged lists, search, playback | Zinc | macOS, Linux, Pi, rM |
+| Plugin | What it does | Code | Platforms |
+|---|---|---|---|
+| `zinc:3d` | 3D: meshes, materials, lights, camera, scene graph; software or GPU | Native | macOS, Linux, Pi, ESP32, Web |
+| `three` | three.js API subset on `zinc:3d` (GLTFLoader, OrbitControls) | Native | macOS, Linux, Pi, Web |
+| `zinc:canvas` | HTML Canvas 2D-style context | Native | macOS, Linux, Pi, rM, Web, ESP32 |
+| `zinc:svg` | SVG rendered at run time | Native | macOS, Linux, Pi, Web |
+| `zinc:lottie` | Lottie animations, `<Lottie/>` | Native | macOS, Linux, Pi, rM, Web, PS2, ESP32 |
+| `zinc:map` | Vector maps (Mapbox tiles, MapLibre styles) | Native | macOS, Linux, Pi |
+| `zinc:mapping` | GPU video mapping (warp, masks, blends) driven by OSC | Native | macOS, Pi |
+| `zinc:video` | Video: FFmpeg (VideoToolbox, V4L2), GStreamer and the hardware decoder on webOS | Native | macOS, Linux, Pi, webOS |
+| `zinc:audio` | Sounds and music (WAV, FLAC, MP3, Ogg) on miniaudio | Native | macOS, Linux |
+| `zinc:midi` | MIDI in and out (RtMidi) | Native | macOS, Linux |
+| `zinc:osc/full` | Open Sound Control over UDP | Zinc | macOS, Linux, Pi, rM |
+| `zinc:physics2d` | 2D physics (Box2D 3.1) | Native | macOS, Linux |
+| `zinc:physics3d` | 3D physics (Jolt 5.6) | Native | macOS, Linux |
+| `zinc:gestures` | Pan, pinch, rotate, tap | Zinc | macOS, Linux, Pi, Web, ESP32, PS2 |
+| `zinc:ink` | Handwriting: pressure, eraser, SVG/JSON export | Zinc | macOS, Linux, Pi, Web, rM |
+| `zinc:sprite` | Sprite animations from packed atlases | Zinc | macOS, Linux, Pi, Web, ESP32, PS2 |
+| `zinc:tilemap` | Tiled and LDtk levels | Zinc | macOS, Linux, Pi, Web, ESP32, PS2 |
+| `zinc:pixelfont` | 5x7 and 3x5 bitmap fonts for LED matrices | Zinc | macOS, Linux, Pi, ESP32, Web, PS2 |
+| `zinc:loader` | Loading screens (bar, splash, `<Loader>`) | Zinc | macOS, Linux, Pi, Web, ESP32, PS2 |
+| `zinc:sqlite` | SQLite 3.53 databases | Native | macOS, Linux, Pi, rM |
+| `zinc:async-storage` | React Native's AsyncStorage on `zinc:storage` | Zinc | macOS, Linux, Windows, Pi, rM, webOS, ESP32 |
+| `zinc:socket` | TCP, UDP and Unix sockets, DNS, WebSocket client and server | Native | macOS, Linux, Pi, rM |
+| `zinc:process` | Child processes (args, streams, kill) | Native | macOS, Linux, Pi |
+| `zinc:ffi` | C functions of shared libraries (libffi) | Native | macOS, Linux |
+| `zinc:script` | Sandboxed JavaScript at run time (QuickJS-ng) | Native | macOS, Linux, Pi, rM |
+| `zinc:wasm` | WebAssembly on wasm3 | Native | macOS, Linux, Pi, rM |
+| `zinc:system` | Desktop integration: notifications, menus, tray, dialogs, shortcuts, clipboard | Native | macOS, Linux |
+| `zinc:webview` | Embedded web views (WKWebView), Tauri-like messages | Native | macOS |
+| `zinc:devtools` | UI inspector for Chrome DevTools | Native | macOS, Linux, Pi |
+| `zinc:serial` | Serial ports (Arduino and other boards) | Native | macOS, Linux |
+| `zinc:gphoto2` | Camera remote control over USB (libgphoto2) | Native | macOS, Linux, Pi |
+| `zinc:leapmotion` | Ultraleap hand tracking (LeapC) | Native | macOS |
+| `zinc:imu` | QMI8658 motion sensor | Native | ESP32, macOS, Linux |
+| `zinc:device` | Board services: backlight, chip, heap | Native | ESP32, macOS, Linux |
+| `zinc:remarkable` | reMarkable status bar (clock, battery, exit) | Native | rM, macOS, Linux |
+| `zinc:remote` | View and drive a `display-remote` app | Native | macOS, Linux, Pi |
+| `zinc:webos` | webOS services (Luna bus through PDL), root helper, notifications | Native | macOS, Linux |
+| `zinc:sonos` | Sonos speakers (UPnP): rooms, groups, playback, volume, radios | Zinc | macOS, Linux, Pi, rM |
+| `zinc:spotify` | Spotify Web API: paged lists, search, playback | Zinc | macOS, Linux, Pi, rM |
 
 ### Display drivers
 
