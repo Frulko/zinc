@@ -49,7 +49,7 @@ def payload(share):
     copy_tree(mo, os.path.join(nx, "third_party", "meshoptimizer"), lambda r: r in ("vertexcodec.cpp", "indexcodec.cpp", "vertexfilter.cpp", "meshoptimizer.h", "LICENSE.md"))
     shutil.copy2(os.path.join(NEXT, "third_party", "README.md"), os.path.join(nx, "third_party", "README.md"))
     copy_tree(os.path.join(NEXT, "firmware", "esp32", "prebuilt"), os.path.join(nx, "firmware", "esp32", "prebuilt"))
-    copy_tree(os.path.join(NEXT, "app"), os.path.join(nx, "app"), lambda r: r.endswith(('.ts', '.tsx')))
+    copy_tree(os.path.join(NEXT, "app"), os.path.join(nx, "app"), lambda r: r.endswith(('.ts', '.tsx', '.json', '.png', '.txt')) and not r.startswith('atelier/build'))   # zinc.json (permissions), icon, thumbs, examples/index.txt: Atelier does not run without them
     copy_tree(os.path.join(REPO, "lib", "std"), os.path.join(share, "lib", "std"))
     copy_tree(os.path.join(REPO, "lib", "fonts"), os.path.join(share, "lib", "fonts"))
     copy_tree(os.path.join(REPO, "templates"), os.path.join(share, "templates"))   # zinc new (ZN-315)
@@ -89,6 +89,25 @@ def prebuild_plugins(zinc, share, target):
 
 def run(*cmd, check=True):
     return subprocess.run(cmd, check=check, capture_output=True, text=True)
+
+def minos(path):
+    """The macOS version a Mach-O file asks for (vtool), '' when it is none."""
+    for line in run("vtool", "-show-build", path, check=False).stdout.splitlines():
+        if line.strip().startswith("minos"): return line.split()[1]
+    return ""
+
+def lower_minos(share, floor):
+    """zig stamps the plugins' libraries with the version of the machine that built them (15.x on a current Mac), so an older Mac refuses to load them: stamp them with
+    the engine's own minimum. ponytail: the code is not recompiled; a plugin that calls a newer API fails on that call, not at load (proved on no older Mac yet)."""
+    for r, _, fs_ in os.walk(share):
+        for f in fs_:
+            p = os.path.join(r, f)
+            if not f.endswith((".dylib", ".so", ".a")) or os.path.islink(p) or f.endswith(".a"): continue
+            have = minos(p)
+            if have and [int(x) for x in have.split(".")] > [int(x) for x in floor.split(".")]:
+                sdk = next((l.split()[1] for l in run("vtool", "-show-build", p).stdout.splitlines() if l.strip().startswith("sdk")), floor)
+                run("vtool", "-set-build-version", "macos", floor, sdk, "-replace", "-output", p, p)
+                run("codesign", "--force", "--sign", "-", p)
 
 def bundle_libs_macos(binary, libdir):
     """Copy the non-system dylibs the binary needs next to it and point the binary at them."""
@@ -182,9 +201,11 @@ def package_macos(build, out):
     bundle_libs_macos(binary, os.path.join(app, "Contents", "Frameworks"))
     payload(os.path.join(res, "zinc"))
     without = prebuild_plugins(os.path.join(build, "zinc"), os.path.join(res, "zinc"), "macos")
+    floor = minos(binary) or "12.0"   # what the engine really asks for: the plist and the plugins say the same
+    lower_minos(os.path.join(res, "zinc"), floor)
     with open(os.path.join(macos, "zinc-atelier"), "w") as f: f.write(LAUNCHER)
     os.chmod(os.path.join(macos, "zinc-atelier"), 0o755)
-    open(os.path.join(app, "Contents", "Info.plist"), "w").write(PLIST % (VERSION, VERSION))
+    open(os.path.join(app, "Contents", "Info.plist"), "w").write((PLIST % (VERSION, VERSION)).replace("<string>12.0</string>", "<string>%s</string>" % floor))
     run("codesign", "--force", "--sign", "-", "--deep", app)
     archive = os.path.join(out, "Zinc-%s-macos-%s.zip" % (VERSION, arch))
     if os.path.exists(archive): os.remove(archive)

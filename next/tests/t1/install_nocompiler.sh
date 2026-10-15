@@ -44,7 +44,7 @@ Z="$tmp/home/.local/bin/zinc"
 real=$(cd "$tmp" && pwd -P)
 case "$(clean "$Z" --root)" in "$real"/home/.zinc/engine/*) ;; *) echo "the engine files are not read from the install: $(clean "$Z" --root)"; fail=1 ;; esac
 
-run() { clean ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=3 ZINC_SIZE=160x120 "$@"; }
+run() { clean ZINC_STEPS=0 ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=3 ZINC_SIZE=160x120 "$@"; }
 cd "$tmp/work" || exit 2
 [ "$(clean "$Z" new game my-game 2>&1)" = "created my-game (game); next: cd my-game && zinc run" ] || { echo "zinc new game fails from the install"; fail=1; }
 cd my-game || exit 2
@@ -79,6 +79,12 @@ clean "$Z" doctor >"$tmp/doctor" 2>&1
 grep -Eq "^plugin libraries for (macos|linux) \(this machine\): [1-9][0-9]* prebuilt" "$tmp/doctor" || { echo "zinc doctor does not count the prebuilt plugin libraries"; fail=1; }
 grep -q "^    video: needs the system libraries libavformat" "$tmp/doctor" || { echo "zinc doctor does not name a plugin without a prebuilt library"; fail=1; }
 grep -q "(by the manifests)" "$tmp/doctor" && grep -q "^plugin libraries for windows: none" "$tmp/doctor" || { echo "zinc doctor does not report the other platforms"; fail=1; }
+
+# Atelier from the install: its zinc.json (permissions, icon) travels with it, or it stops at Z5006 on a machine that is not this checkout
+at="$(clean "$Z" --root)/next/app/atelier"
+if [ -d "$at" ]; then
+  clean "$Z" check "$at" >"$tmp/atelier" 2>&1 || { echo "Atelier does not check from the install: $(head -c 300 "$tmp/atelier")"; fail=1; }
+fi
 
 # nothing was compiled, nothing was fetched
 [ ! -s "$tmp/shim.log" ] || { echo "a compiler or a build tool was run: $(sort -u "$tmp/shim.log" | head -5 | tr '\n' ';')"; fail=1; }

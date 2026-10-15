@@ -84,7 +84,7 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install cmake sdl3 coreutils quickjs pixman libgcrypt sdl2
       - name: Build
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j4
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0 && cmake --build build -j4
       - name: Cache pinned toolchains
         if: runner.os != 'Windows'
         uses: actions/cache@v4
@@ -181,7 +181,7 @@ jobs:
       - name: Dependencies
         run: sudo apt-get update && sudo apt-get install -y cmake python3 curl xz-utils libx11-dev libxext-dev libxcursor-dev libxi-dev libxfixes-dev libxrandr-dev libxss-dev libxtst-dev libgl1-mesa-dev
       - name: Build zinc
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build --target zinc -j4
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0 && cmake --build build --target zinc -j4
       - name: Cross build the console programs
         env:
           ZINC_HOME: ${{ runner.temp }}/zinc-home
@@ -281,7 +281,7 @@ jobs:
       - name: Build twice
         run: |
           for d in one second/copy; do
-            cmake -S "$d/next" -B "$d/next/build" -DCMAKE_BUILD_TYPE=Release -DZN_REPRODUCIBLE=ON && cmake --build "$d/next/build" -j4 --target zinc
+            cmake -S "$d/next" -B "$d/next/build" -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0 -DZN_REPRODUCIBLE=ON && cmake --build "$d/next/build" -j4 --target zinc
             sleep 2
           done
       - name: Compare zinc and libzn_webgl
@@ -311,7 +311,7 @@ jobs:
         with: { fetch-depth: 0 }
       - run: brew install cmake
       - name: Build
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build --target zinc -j3
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0 && cmake --build build --target zinc -j3
       - name: Build the measured reference revision
         run: |
           reference="$RUNNER_TEMP/zinc-benchmark-reference"

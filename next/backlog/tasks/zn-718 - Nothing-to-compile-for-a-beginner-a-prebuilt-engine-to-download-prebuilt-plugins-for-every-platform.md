@@ -67,6 +67,10 @@ Tests passed: install_nocompiler, plugin_prebuilt, plugin_build, plugin_key, plu
 - Not proven: the real URL (no release exists), an install on Linux, an arm64 Mac, a Mac that never had the Xcode tools (the shims stand for it), the notarized archive with the plugins' dylibs under Resources, `zinc build` / `zinc export` of a program with plugins from the install, `tests/t2/package.sh` (it cross builds; not run).
 - Known limits: a project that sets a plugin's options asks for another prebuilt key, and the install holds no C++ of that plugin: it stops with "no native source ... and no prebuilt library for this engine". `zinc:webview` does not compile on macOS, in the tree either (`zrt.h`: redefinition of `operator new` from webview.mm); display-st7789 does not link with zig on macOS; imu-qmi8658 and script have no thunk: none of the four has a library.
 
+## Atelier from the install (2026-10-15)
+
+Walked the macOS archive as a stranger (empty HOME and ZINC_HOME, PATH /usr/bin:/bin): Zinc Atelier.app stopped at Z5006 (zinc.json, icon, thumbs, examples/index.txt were not packaged): fixed in `tools/package`, checked by `install_nocompiler` (`zinc check` of the installed Atelier). The 8 examples and the 13 templates run headless from the .app. The binary and the plugin libraries were stamped minos 15 (the build Mac's): the plist now says what the engine asks for, plugin libraries are re-stamped to it (`vtool`), and the CI cmake lines pass `-DCMAKE_OSX_DEPLOYMENT_TARGET=12.0`. Not proven: an older macOS, an Intel Mac, a notarized download (Gatekeeper), the CI run.
+
 ## The owner's steps
 
 - A release (the workflow builds, packages, and attaches the archives, the manifests, `install.sh` and `SHA256SUMS`): `git push origin main && git tag -a v0.1.0 -m "Zinc 0.1.0" && git push origin v0.1.0`
