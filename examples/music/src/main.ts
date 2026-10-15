@@ -11,7 +11,7 @@ import { spinner, decodeStats, decodeOne, picturesTick, prefetch, ui, F, BG, CAR
 import { Station, loadMine, saveMine, indexOf, directory } from './radios';
 import { keyboard, KEYBOARD_H } from './keyboard';
 import { Screen } from './screen';
-import { arc, watchFace, spirograph, odometer, HUGE, RINGS } from './faces';
+import { arc, watchFace, aurora, odometer, HUGE, RINGS } from './faces';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { setPlace, weatherTick, weatherSlide } from './weather';
 import { openPort } from 'zinc:webos';
@@ -646,7 +646,7 @@ function clockSlide(W: number, H: number): void {
     const o = Math.round((j - faceY) * H);
     if (Math.abs(o) >= H) continue;
     setTransform(1, 0, 0, 1, ox, TOP + o); ui.oy = TOP + o;
-    if (j === 0) analogFace(W, H); else if (j === 1) digitalFace(W, H); else if (j === 2) ringsFace(W, H); else if (j === 3) kaleidoFace(W, H); else odometerFace(W, H);
+    if (j === 0) analogFace(W, H); else if (j === 1) digitalFace(W, H); else if (j === 2) ringsFace(W, H); else if (j === 3) auroraFace(W, H); else odometerFace(W, H);
   }
   setTransform(1, 0, 0, 1, ox, TOP); ui.oy = TOP;
   for (let j: i32 = 0; j < FACES; j++) {
@@ -691,13 +691,13 @@ function ringsFace(W: number, H: number): void {
   dateLines(rx, cy - 120, rw);
   nowCard(rx, cy + 40, rw);
 }
-/** Spirograph: fine curves breathing around the time, what plays under it. */
-function kaleidoFace(W: number, H: number): void {
-  const d = new Date(), r = Math.min(250, H * 0.34);
-  spirograph(72 + r, H / 2, r, d.getHours(), d.getMinutes());
-  const rx = 72 + r * 2 + 72, rw = W - rx - 56;
-  dateLines(rx, H / 2 - 120, rw);
-  nowCard(rx, H / 2 + 40, rw);
+/** Aurora: soft colour fields drifting behind the time (iOS wallpaper look), what plays under it. */
+function auroraFace(W: number, H: number): void {
+  const d = new Date(), m = d.getMinutes(), t = `${d.getHours()}:${m < 10 ? '0' : ''}${m}`;
+  aurora(W, H);
+  centered(F.smallB, W / 2, H * 0.16, `${DAYS_LONG[d.getDay()]} ${d.getDate()} ${MONTHS_LONG[d.getMonth()]}`.toUpperCase(), TEXT, 200);
+  drawText(HUGE, (W - textWidth(HUGE, t, 0)) / 2, H * 0.2, t, TEXT, 255, 0);
+  nowCard((W - 480) / 2, H - 150, 480);
 }
 /** Odometer: the digits roll when the minute changes. */
 function odometerFace(W: number, H: number): void {

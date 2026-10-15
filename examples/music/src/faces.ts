@@ -1,6 +1,6 @@
 // The drawings of the home's other slides (main.ts): a watch face in the spirit of iOS StandBy and the Apple Watch, and activity rings.
 // Strokes and polygons of zinc:gfx, nothing cached: a frame of either costs less than the player's.
-import { stroke, rrect, rect, clip, unclip, font, fontAscent } from 'zinc:gfx';
+import { stroke, rrect, rect, gradientPaint, clip, unclip, font, fontAscent } from 'zinc:gfx';
 import { ui, F, TEXT, TEXT3, centered } from './ui';
 
 export const ORANGE = 0xff9f0a;
@@ -56,38 +56,25 @@ export function watchFace(cx: number, cy: number, r: number, h: number, m: numbe
   rrect(cx - 2.5, cy - 2.5, 5, 5, 2.5, 0x000000, 255);
 }
 
-// ---------------------------------------------------------------- Spirograph and the odometer (flip clocks)
+// ---------------------------------------------------------------- Aurora and the odometer (flip clocks)
 const MID = font('sans-bold', 92);
 const ODO = font('sans-bold', 170);
 const nowS = (): number => performance.now() / 1000;
 
-/** One hypotrochoid (a spirograph curve): a wheel of radius r rolling inside one of radius R, the pen d from its centre, scaled to fit
- *  `reach`; closed after r / gcd(R, r) turns. */
-function spiro(cx: number, cy: number, reach: number, R: number, r: number, d: number, spin: number): number[] {
-  const pts: number[] = [], k = (R - r) / r, turns = r / gcd(R, r), steps = 260 * turns;
-  const scale = reach / (R - r + d), c = Math.cos(spin), s = Math.sin(spin);
-  for (let i = 0; i < steps; i++) {
-    const t = (i / steps) * Math.PI * 2 * turns;
-    const x = ((R - r) * Math.cos(t) + d * Math.cos(k * t)) * scale, y = ((R - r) * Math.sin(t) - d * Math.sin(k * t)) * scale;
-    pts.push(cx + x * c - y * s); pts.push(cy + x * s + y * c);
-  }
-  return pts;
-}
-function gcd(a: i32, b: i32): i32 { return b === 0 ? a : gcd(b, a % b); }
-/** Spirograph (Apple's generative faces): four fine curves in the colours of the rings, each breathing (the pen moves in and out) and
- *  turning at its own pace, the time in a dark disc at their centre. Always moving: the caller keeps the frames coming (ui.animating). */
-export function spirograph(cx: number, cy: number, r: number, h: number, m: number): void {
+/** Aurora (the soft colour fields of Apple's wallpapers and watch faces): four large radial blobs of the ring colours drifting on slow
+ *  paths over black, overlapping where they meet. Only the field: the caller draws the time over it. Always moving: the caller keeps the
+ *  frames coming (ui.animating). */
+export function aurora(W: number, H: number): void {
   const t = nowS();
-  const R = [12, 10, 11, 9], P = [5, 3, 4, 2], reach = [1.0, 0.92, 0.84, 0.76];
+  clip(0, 0, W, H);
+  const cols = [0xfa114f, 0x7a3cff, 0x1eeaef, 0xff9f0a];
   for (let i = 0; i < 4; i++) {
-    const d = P[i] * (0.55 + 0.35 * Math.sin(t * (0.25 + i * 0.07) + i * 1.7));
-    const spin = t * (0.05 + i * 0.03) * (i % 2 === 0 ? 1 : -1);
-    const pts = spiro(cx, cy, r * reach[i], R[i], P[i], d, spin);
-    stroke(pts, 5, RINGS[i], 70, true);    // a soft wide stroke under the fine one: a glow
-    stroke(pts, 1.6, RINGS[i], 255, true);
+    const R = Math.min(W, H) * (0.46 + 0.06 * Math.sin(t * 0.3 + i * 1.3));
+    const x = W / 2 + Math.sin(t * (0.11 + i * 0.023) + i * 1.9) * W * 0.3;
+    const y = H / 2 + Math.cos(t * (0.09 + i * 0.019) + i * 2.3) * H * 0.24;
+    gradientPaint(x - R, y - R, R * 2, R * 2, R, [2, R, R, 0, R, R, R, 4, 0, cols[i], 200, 0.35, cols[i], 120, 0.7, cols[i], 34, 1, cols[i], 0], 255);
   }
-  rrect(cx - 150, cy - 70, 300, 140, 70, 0x0e0e10, 215);
-  centered(MID, cx, cy - fontAscent(MID) / 2 - 4, `${h}:${m < 10 ? '0' : ''}${m}`, TEXT);
+  unclip();
   ui.animating = true;
 }
 
