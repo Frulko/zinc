@@ -1,6 +1,6 @@
 // The drawings of the home's other slides (main.ts): a watch face in the spirit of iOS StandBy and the Apple Watch, and activity rings.
 // Strokes and polygons of zinc:gfx, nothing cached: a frame of either costs less than the player's.
-import { stroke, rrect, rect, gradientPaint, clip, unclip, font, fontAscent } from 'zinc:gfx';
+import { stroke, rrect, rect, gradient, gradientPaint, imageFromBytes, destroyImage, drawImage, clip, unclip, font, fontAscent } from 'zinc:gfx';
 import { ui, F, TEXT, TEXT3, centered } from './ui';
 
 export const ORANGE = 0xff9f0a;
@@ -56,25 +56,111 @@ export function watchFace(cx: number, cy: number, r: number, h: number, m: numbe
   rrect(cx - 2.5, cy - 2.5, 5, 5, 2.5, 0x000000, 255);
 }
 
-// ---------------------------------------------------------------- Aurora and the odometer (flip clocks)
+// ---------------------------------------------------------------- Lava lamp and the odometer (flip clocks)
 const MID = font('sans-bold', 92);
 const ODO = font('sans-bold', 170);
 const nowS = (): number => performance.now() / 1000;
 
-/** Aurora (the soft colour fields of Apple's wallpapers and watch faces): four large radial blobs of the ring colours drifting on slow
- *  paths over black, overlapping where they meet. Only the field: the caller draws the time over it. Always moving: the caller keeps the
- *  frames coming (ui.animating). */
-export function aurora(W: number, H: number): void {
+/** A lava lamp: seven blobs of the ring colours rise, sink and stretch in a warm glow. Each is an elliptical radial gradient with a dense
+ *  core and a soft rim, so where two meet they melt into one (no offscreen picture: it came out pixelated). Only the lamp: the caller
+ *  draws the time over it. Always moving: the caller keeps the frames coming (ui.animating). */
+function lavaGradients(W: number, H: number): void {
   const t = nowS();
   clip(0, 0, W, H);
-  const cols = [0xfa114f, 0x7a3cff, 0x1eeaef, 0xff9f0a];
-  for (let i = 0; i < 4; i++) {
-    const R = Math.min(W, H) * (0.46 + 0.06 * Math.sin(t * 0.3 + i * 1.3));
-    const x = W / 2 + Math.sin(t * (0.11 + i * 0.023) + i * 1.9) * W * 0.3;
-    const y = H / 2 + Math.cos(t * (0.09 + i * 0.019) + i * 2.3) * H * 0.24;
-    gradientPaint(x - R, y - R, R * 2, R * 2, R, [2, R, R, 0, R, R, R, 4, 0, cols[i], 200, 0.35, cols[i], 120, 0.7, cols[i], 34, 1, cols[i], 0], 255);
+  gradient(0, 0, W, H, 0, 0x12050b, 0x3a0c18, true, 255);   // the bulb's glow, hotter at the foot
+  const cols = [0xfa114f, 0xff9f0a, 0x7a3cff, 0xfa114f, 0x1eeaef, 0xff9f0a, 0x7a3cff];
+  for (let i = 0; i < cols.length; i++) {
+    const k = 0.5 + i * 0.37, ph = i * 2.1;
+    const y = H * (0.5 + 0.4 * Math.sin(t * 0.16 * k + ph) * Math.cos(t * 0.07 + ph));   // a slow rise and fall
+    const x = W * (0.12 + (i / (cols.length - 1)) * 0.76) + Math.sin(t * 0.11 * k + ph) * W * 0.06;
+    const r = H * (0.19 + 0.04 * Math.sin(t * 0.2 + ph)), stretch = 1 + 0.4 * Math.abs(Math.cos(t * 0.16 * k + ph));   // longer while it moves
+    // stretched = two round blobs pulled apart (a gradient does not follow a transform): their soft rims melt into one body
+    const R = r * 1.5, gap = r * 0.5 * (stretch - 1) / 0.4;
+    for (let k = 0; k < 2; k++) {
+      const by = y + (k === 0 ? -gap : gap);
+      gradientPaint(x - R, by - R, R * 2, R * 2, R, [2, R, R, 0, R, R, R, 3, 0, cols[i], 255, 0.5, cols[i], 150, 1, cols[i], 0], 255);
+    }
   }
   unclip();
+  ui.animating = true;
+}
+
+// ---- metaballs, the way a lava lamp really merges: a small field computed in Zinc (what a fragment shader would do), made into a picture
+// that is stretched to the screen; the field is smooth, so linear sampling shows no pixels. (zinc:gl would be the GPU's way, but its
+// WebGL module is not part of the webOS build: docs/reports/hardware/hp-touchpad-webos.md.)
+const LAMP_W: i32 = 96, LAMP_H: i32 = 72;
+const LAMP_COLS: number[][] = [[250, 18, 79], [255, 158, 10], [122, 61, 255], [30, 235, 240], [250, 18, 79], [255, 158, 10]];
+const CRC: number[] = [];
+for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = (c & 1) !== 0 ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1); CRC.push(c >>> 0); }
+function be32(o: u8[], v: number): void { o.push((v >>> 24) & 255); o.push((v >>> 16) & 255); o.push((v >>> 8) & 255); o.push(v & 255); }
+/** A PNG chunk: length, type, data, CRC of type and data. */
+function chunk(o: u8[], type: string, data: u8[]): void {
+  be32(o, data.length);
+  let c = 0xffffffff;
+  const body: u8[] = [];
+  for (let i = 0; i < 4; i++) body.push(type.charCodeAt(i) as u8);
+  for (const d of data) body.push(d);
+  for (const b of body) { c = CRC[(c ^ b) & 255] ^ (c >>> 8); o.push(b); }
+  be32(o, (c ^ 0xffffffff) >>> 0);
+}
+/** An RGB PNG whose pixels are stored uncompressed (zlib stored block): the decoder is the engine's own, no encoder needed. */
+function pngOf(rgb: u8[], w: i32, h: i32): u8[] {
+  const raw: u8[] = [];
+  let a1 = 1, a2 = 0;
+  const z: u8[] = [0x78, 0x01];
+  for (let y = 0; y < h; y++) { raw.push(0); for (let x = 0; x < w * 3; x++) raw.push(rgb[y * w * 3 + x]); }
+  for (const b of raw) { a1 = (a1 + b) % 65521; a2 = (a2 + a1) % 65521; }
+  z.push(1); z.push(raw.length & 255); z.push((raw.length >> 8) & 255); z.push(~raw.length & 255); z.push((~raw.length >> 8) & 255);
+  for (const b of raw) z.push(b);
+  be32(z, (a2 * 65536 + a1) >>> 0);
+  const o: u8[] = [137, 80, 78, 71, 13, 10, 26, 10];
+  const ihdr: u8[] = [];
+  be32(ihdr, w); be32(ihdr, h); ihdr.push(8); ihdr.push(2); ihdr.push(0); ihdr.push(0); ihdr.push(0);
+  chunk(o, 'IHDR', ihdr); chunk(o, 'IDAT', z); chunk(o, 'IEND', []);
+  return o;
+}
+const lampRgb: u8[] = [];
+let lampPrev: i32 = -1;
+/** A lava lamp behind the time: six metaballs of the ring colours that rise, stretch and melt into each other. Always moving: the caller
+ *  keeps the frames coming (ui.animating). */
+export function lava(W: number, H: number): void {
+  const t = nowS() % 1200, asp = LAMP_W / LAMP_H;
+  const cx: number[] = [], cy: number[] = [], r2: number[] = [], st: number[] = [];
+  for (let i = 0; i < 6; i++) {
+    const sp = 1 + 0.31 * i;
+    cx.push(asp * (0.14 + 0.72 * i / 5) + 0.07 * Math.sin(t * 0.17 + i * 1.9));
+    cy.push(0.5 + 0.4 * Math.sin(t * 0.13 * sp + i * 2.1) * Math.cos(t * 0.05 + i));
+    const r = 0.13 + 0.035 * Math.sin(t * 0.21 + i * 1.3);
+    r2.push(r * r);
+    st.push(0.8 + 0.25 * Math.sin(t * 0.13 * sp + i * 2.1 + 1));   // stretches while it moves
+  }
+  lampRgb.length = 0;
+  for (let y = 0; y < LAMP_H; y++) {
+    const v = 1 - y / (LAMP_H - 1);   // top row first; v = 0 at the bottom
+    for (let x = 0; x < LAMP_W; x++) {
+      const px = (x / LAMP_W) * asp;
+      let field = 0, cr = 0, cg = 0, cb = 0;
+      for (let i = 0; i < 6; i++) {
+        const dx = px - cx[i], dy = (v - cy[i]) * st[i];
+        const f = r2[i] / (dx * dx + dy * dy + 0.0008);
+        field += f; cr += LAMP_COLS[i][0] * f; cg += LAMP_COLS[i][1] * f; cb += LAMP_COLS[i][2] * f;
+      }
+      const k = field > 0.0001 ? 1 / field : 0;
+      cr *= k; cg *= k; cb *= k;
+      const body = Math.min(1, Math.max(0, (field - 0.85) / 0.4)), glow = Math.min(1, Math.max(0, (field - 0.15) / 0.7));
+      const bgk = 1 - v, br = 18 + bgk * 41, bgc = 5 + bgk * 8, bb = 10 + bgk * 13;
+      const lit = 0.85 + 0.25 * Math.min(1, Math.max(0, (field - 1.2) / 1.8));
+      const gr = body * body * (3 - 2 * body);   // smoothstep
+      const rr = (br + cr * glow * 0.35) * (1 - gr) + cr * lit * gr;
+      const gg = (bgc + cg * glow * 0.35) * (1 - gr) + cg * lit * gr;
+      const bl = (bb + cb * glow * 0.35) * (1 - gr) + cb * lit * gr;
+      lampRgb.push(Math.min(255, rr) as u8); lampRgb.push(Math.min(255, gg) as u8); lampRgb.push(Math.min(255, bl) as u8);
+    }
+  }
+  const img = imageFromBytes(pngOf(lampRgb, LAMP_W, LAMP_H));
+  if (img >= 0) drawImage(img, 0, 0, W, H, 255, 0);
+  if (lampPrev >= 0) destroyImage(lampPrev);   // drawing is recorded: the picture of this frame must outlive it
+  lampPrev = img;
   ui.animating = true;
 }
 

@@ -380,3 +380,4 @@ The next backlog review turns lines into tasks or deletes them.
   profile refuses; there it needs a typed JSON walk or mergeItem left out.
 - webOS strip (docs/reports/hardware/webos-fullscreen-intermittent.md): log the raw SDL y of a touch with ZINC_WEBOS_TOP=0 (86 at row 100
   proves the card is placed 14 px low), then try re-sending fullScreen false/true on libnapp's IPC channel after the card is maximized.
+- zinc:gl (libzn_webgl) is not in the armv7-webos build: a real fragment shader on the TouchPad needs the GLES2 display to expose a shader pass (Musique's lava lamp computes its field on the CPU at 96x72 meanwhile).

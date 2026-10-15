@@ -11,7 +11,7 @@ import { spinner, decodeStats, decodeOne, picturesTick, prefetch, ui, F, BG, CAR
 import { Station, loadMine, saveMine, indexOf, directory } from './radios';
 import { keyboard, KEYBOARD_H } from './keyboard';
 import { Screen } from './screen';
-import { arc, watchFace, aurora, odometer, HUGE, RINGS } from './faces';
+import { arc, watchFace, lava, odometer, HUGE, RINGS } from './faces';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { setPlace, weatherTick, weatherSlide } from './weather';
 import { openPort } from 'zinc:webos';
@@ -646,7 +646,7 @@ function clockSlide(W: number, H: number): void {
     const o = Math.round((j - faceY) * H);
     if (Math.abs(o) >= H) continue;
     setTransform(1, 0, 0, 1, ox, TOP + o); ui.oy = TOP + o;
-    if (j === 0) analogFace(W, H); else if (j === 1) digitalFace(W, H); else if (j === 2) ringsFace(W, H); else if (j === 3) auroraFace(W, H); else odometerFace(W, H);
+    if (j === 0) analogFace(W, H); else if (j === 1) digitalFace(W, H); else if (j === 2) ringsFace(W, H); else if (j === 3) lavaFace(W, H); else odometerFace(W, H);
   }
   setTransform(1, 0, 0, 1, ox, TOP); ui.oy = TOP;
   for (let j: i32 = 0; j < FACES; j++) {
@@ -691,10 +691,10 @@ function ringsFace(W: number, H: number): void {
   dateLines(rx, cy - 120, rw);
   nowCard(rx, cy + 40, rw);
 }
-/** Aurora: soft colour fields drifting behind the time (iOS wallpaper look), what plays under it. */
-function auroraFace(W: number, H: number): void {
+/** Lava lamp: blobs rising and melting behind the time, what plays under it. */
+function lavaFace(W: number, H: number): void {
   const d = new Date(), m = d.getMinutes(), t = `${d.getHours()}:${m < 10 ? '0' : ''}${m}`;
-  aurora(W, H);
+  lava(W, H);
   centered(F.smallB, W / 2, H * 0.16, `${DAYS_LONG[d.getDay()]} ${d.getDate()} ${MONTHS_LONG[d.getMonth()]}`.toUpperCase(), TEXT, 200);
   drawText(HUGE, (W - textWidth(HUGE, t, 0)) / 2, H * 0.2, t, TEXT, 255, 0);
   nowCard((W - 480) / 2, H - 150, 480);
