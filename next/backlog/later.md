@@ -191,6 +191,14 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-729: links in `push` / `pull` / `install` (left out today), and `install` of a large `.zapp` checked as a stream instead of read whole.
 - ZN-729: `zinc deploy --device <paired name>` through the agent, next to the ssh form; `next/tools/device` (push, run, shot, profile, stacks) moved onto `zinc device` so a board needs no ssh key.
 - ZN-729: the mDNS announce probes for a name already taken on the network (two devices with one host name answer under the same name today; their ids differ, so sessions never mix).
+- music (2026-10-15): `for (const s of list) { s.field = await f(); }` fails with Z0108 "Cannot assign to a constant: '__vNN'" (an await in a for-of whose body writes a field of the loop variable); plugins/sonos readVolumes uses an index loop meanwhile.
+- music (2026-10-15): mbedTLS 4.0's TLS 1.3 client is dropped by api.spotify.com and upload.wikimedia.org after the request (no answer, no alert; OpenSSL's TLS 1.3 works): http.cpp retries once over TLS 1.2. Find the root cause (a local server reproducing it, then a regression test in t0/tls) and remove the retry. hp-touchpad-webos.md section 14.
+- music (2026-10-15): zinc:svg `Svg.draw` ignores `setTransform`/`translate` of zinc:gfx (an icon drawn under a transform lands at the untransformed place); examples/music adds the offset itself.
+- music (2026-10-15): headless runs (ZINC_HEADLESS) run tens of thousands of frames a second, so a program waiting on the network needs ZINC_FRAMES of 200000 for a few seconds of wall time; a ZINC_REALTIME that paces headless frames would make scripted captures of networked programs simple.
+
+- display-gl webOS (2026-10-15): the Matériel page full frame is 38 ms on the TouchPad (115 draw calls, 1716 quads, 14 ms of CPU to submit, the rest GPU; ZINC_GL_TIME and ZINC_GL_STATS through /tmp/zinc/env): 24 frames a second at best whatever the CPU clock. Occlusion, fringes and split change nothing; the gain is fewer draw calls (one program for the box kinds) and redrawing only the cards that change.
+- zinc:storage: one file for every program on a desktop (~/.zinc/storage.kv): localStorage and AsyncStorage of two apps share it (the
+  async-storage plugin prefixes its keys so its clear() stays its own); a store per program (by the project's name or bundle id) is the fix.
 
 ## Demos
 
@@ -291,6 +299,7 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-713: 33 MB of the 65 MB footprint of a list app is the GPU context (OpenGL on the Intel Mac): measure the Metal path and a CPU-raster window for UI-only apps.
 - ZN-713: 25 MB of malloc heap for 200 text rows, one field, one image: find what holds it (glyph atlas, baked fonts, node tree, mimalloc arenas); 14 threads in a one-window list app: name them, start the unused ones lazily.
 - ZN-713: profile launch to first frame of the exported app (about 0.5 s under load); retake every time and memory figure alone on the machine (`ZINC=<main>/next/build/zinc ./measure.sh build measure` in `next/bench/vs-electron`); report physical footprint beside the RSS sum.
+- music (2026-10-15): check on the TouchPad by hand: the screen off after the delay and the first touch waking it at LED 0 (the open source warns a panel at level 0 may misbehave: write 3 instead), the SSDP search through openPort, UDP 7777 from another machine, a radio and a Spotify playlist started through the speakers (the account number tried 1..4).
 
 ## Cross-platform pass
 
@@ -367,3 +376,7 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-439: tests/t1/texture.sh on a Pi 3 (vc4, display-gl on KMS): ETC1 of the rpi1 packs uploaded as blocks within 2% / mae 3 of the RGBA path, and webgl_ext.js offering WEBGL_compressed_texture_etc1 (task in Review).
 - ZN-439: basisu built on aarch64 gives the same pack bytes as on x86_64 (SSE is off); Linux Mesa offers WEBGL_compressed_texture_etc and uploads ETC1 as ETC2.
 - ZN-441: gltfpack on aarch64 macOS and Linux gives the same packs as x86_64; the meshopt decoder on the Pi (NEON) and wasm (SIMD) decodes the truck as on the Mac (`tests/t1/model.sh`).
+- async-storage (plugins/async-storage): prove it on the strict profile (esp32): mergeItem's deep merge walks Dyn JSON, which the strict
+  profile refuses; there it needs a typed JSON walk or mergeItem left out.
+- webOS strip (docs/reports/hardware/webos-fullscreen-intermittent.md): log the raw SDL y of a touch with ZINC_WEBOS_TOP=0 (86 at row 100
+  proves the card is placed 14 px low), then try re-sending fullScreen false/true on libnapp's IPC channel after the card is maximized.
