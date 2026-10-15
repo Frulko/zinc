@@ -1,0 +1,20 @@
+{
+  "name": "gsap",
+  "kind": "module",
+  "module": "zinc:gsap",
+  "entry": "index.ts",
+  "description": "GSAP's core API in Zinc: tweens, timelines, eases, staggers, position parameters, labels and utils; typed, so it runs in the interpreter, in zinc build programs (AOT) and on every target",
+  "modules": {
+    "gsap": "index.ts"
+  },
+  "targets": {
+    "macos": {},
+    "linux": {},
+    "windows": {},
+    "rpi1": {},
+    "rmpp": {},
+    "webos": {},
+    "wasm": {},
+    "esp32": {}
+  }
+}

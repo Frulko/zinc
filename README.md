@@ -137,6 +137,7 @@ the guides are in [docs/plugins/](docs/plugins/). Abbreviations: Pi = Raspberry 
 | `zinc:pixelfont` | 5x7 and 3x5 bitmap fonts for LED matrices | Zinc | macOS, Linux, Pi, ESP32, Web, PS2 |
 | `zinc:loader` | Loading screens (bar, splash, `<Loader>`) | Zinc | macOS, Linux, Pi, Web, ESP32, PS2 |
 | `zinc:sqlite` | SQLite 3.53 databases | Native | macOS, Linux, Pi, rM |
+| `gsap` | GSAP's core API in typed Zinc (tweens, timelines, eases, staggers), compiled by `zinc build`; the whole library runs on the QuickJS engine | Zinc | macOS, Linux, Windows, Pi, rM, webOS, Web, ESP32 |
 | `zinc:async-storage` | React Native's AsyncStorage on `zinc:storage` | Zinc | macOS, Linux, Windows, Pi, rM, webOS, ESP32 |
 | `zinc:socket` | TCP, UDP and Unix sockets, DNS, WebSocket client and server | Native | macOS, Linux, Pi, rM |
 | `zinc:process` | Child processes (args, streams, kill) | Native | macOS, Linux, Pi |

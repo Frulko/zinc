@@ -7,6 +7,8 @@
 # Why not third_party: next/RULES.md §3 keeps LGPL code out of the tree. p5.js is LGPL-2.1; the test loads it at run time and nothing of it
 # is compiled, linked or packaged into zinc.
 #   p5-1.11.13   p5.min.js of p5 1.11.13: lib/p5.min.js of the npm tarball p5-1.11.13.tgz (the release the p5 project publishes)
+#   gsap-3.15.0  all.js of GSAP 3.15.0: dist/all.js of the npm tarball gsap-3.15.0.tgz, GSAP with every plugin in one file (GreenSock's "no
+#                charge" licence is not an open-source one: the file is taken from GreenSock's own release, never kept in this repository)
 set -u
 case "${1:-}" in
   p5-1.11.13)
@@ -14,7 +16,12 @@ case "${1:-}" in
     url=https://registry.npmjs.org/p5/-/p5-1.11.13.tgz   # the archive's own sha256: 8f2c1e0e07b006c967d085154a6b92fd80906a9743373243944e4ea6cc737ec3
     member=package/lib/p5.min.js
     sha=e9df7d05fd7c3ff028fc09a312a43101241f23c43143b387bf89d96b2e4e0849 ;;
-  *) echo "test-lib: unknown library '${1:-}' (p5-1.11.13)" >&2; exit 2 ;;
+  gsap-3.15.0)
+    file=all.js
+    url=https://registry.npmjs.org/gsap/-/gsap-3.15.0.tgz   # the archive's own sha256: d2e33ad202d4811e9084883f7ff9a27967ac4095caef51ca4c9d20697a253b1c
+    member=package/dist/all.js
+    sha=cf0a1a9dded0ac5f5caa64208af0cec045a0f2ef79e6bfd47967eaf6f707b421 ;;
+  *) echo "test-lib: unknown library '${1:-}' (p5-1.11.13, gsap-3.15.0)" >&2; exit 2 ;;
 esac
 sum() { if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1"; else shasum -a 256 "$1"; fi | cut -d' ' -f1; }
 dir="${ZINC_HOME:-$HOME/.zinc}/cache/test-libs/$1"

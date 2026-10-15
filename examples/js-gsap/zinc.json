@@ -1,0 +1,1 @@
+{ "name": "js-gsap", "entry": "main.js", "web": true, "targets": { "sim": { "width": 800, "height": 500 } } }

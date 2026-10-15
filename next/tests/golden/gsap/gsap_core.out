@@ -1,0 +1,23 @@
+x@0.25 25
+x@0.5 50
+x@end 100
+complete
+from@0 0
+from@0.5 25
+fromTo@1 1.25
+duration 3
+a@1 10
+b@1 5
+c@1 0
+b@2 10
+c@2 0
+c@3 10
+call,done
+30,15,0
+yoyo@1.5 5
+yoyo@2 0
+10 50 2 10
+back 1.088
+bounce 0.766
+elastic 0.875
+steps 0.5

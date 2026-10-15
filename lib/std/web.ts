@@ -1094,6 +1094,7 @@ class Listener {
   f: EventListener; capture: boolean; once: boolean; passive: boolean; removed: boolean = false;
   constructor(f: EventListener, capture: boolean, once: boolean, passive: boolean) { this.f = f; this.capture = capture; this.once = once; this.passive = passive; }
 }
+let baseAngle = -1;   // the sensors' mounting angle (read at the first sensor; declared up here: a module-level `let` below its first use is a TDZ error under QuickJS)
 export class EventTarget {
   private ls = new Map<string, Listener[]>();
   /** Zinc extension: drops every listener, for a target that will fire no more events (listeners that capture the
@@ -1456,7 +1457,7 @@ export class MediaMetadata {
 export class MediaSession {
   metadata: MediaMetadata | null = null;
   playbackState: string = 'none';
-  private handlers = new Map<string, () => void>();
+  private handlers: Map<string, () => void> = new Map();   // (not `new Map<..., () => void>()`: the QuickJS type stripper blanks that wrongly)
   /** 'play' | 'pause' | 'previoustrack' | 'nexttrack' | 'stop'..., from a headset's or a keyboard's media keys. */
   setActionHandler(action: string, handler: (() => void) | null): void {
     if (handler === null) this.handlers.delete(action); else this.handlers.set(action, handler as () => void);
@@ -1692,7 +1693,6 @@ export class Sensor extends EventTarget {
 // The sensors' frame is the device's (its natural orientation: the TouchPad's is portrait, its home button at the bottom); the program's
 // screen may be turned from it: `sensorAngle` of the device (degrees, from deviceInfo) plus the turns the program follows. referenceFrame
 // 'screen' gives the values in the screen's axes (x right, y up, z out of the screen), as the Generic Sensor API says.
-let baseAngle = -1;
 function sensorAngle(): number {
   if (baseAngle < 0) { const d = deviceJson('device'); baseAngle = d !== null && d.sensorAngle !== undefined ? d.sensorAngle as number : 0; }
   return baseAngle;
