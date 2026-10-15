@@ -48,13 +48,12 @@ let page: i32 = NOW;
 const PLAYER = 0, CLOCK = 1, WEATHER = 2, RINGS_SLIDE = 3, SLIDES = 4;
 let slide: i32 = PLAYER, slideX = 0;
 // The motion of the app is gsap's (typed port, plugins/gsap), one clock ticked per frame in onFrame: the carousel and the clock's faces settle
-// with a power3.out, a page and the sheets arrive with a rise and a fade, the lamp's hint fades in and out.
+// with a power3.out, the sheets arrive with a rise, the lamp's hint fades in and out. A page changes at once (a fade made every change cost frames).
 const anim = { x: 0 };                  // the carousel's x while it settles
 const animY = { y: 0 };                 // the clock face's y while it settles
-const fx = { a: 1, y: 0 };              // a page arriving: opacity and the rise still to do
 const pop = { y: 0 };                   // a popover or the context sheet arriving: the rise still to do
 const hint = { a: 0, r: 14 };           // the lamp's hint: opacity and rise
-let settleX = false, settleY = false, slideTo = 0, faceTo = 0, shownPage: i32 = 0, popWas = false;
+let settleX = false, settleY = false, slideTo = 0, faceTo = 0, popWas = false;
 let hintTl: Timeline | null = null;
 let swipeOk = false, swiping = false, swipeFrom = 0, swipeVel = 0, lastX = 0;
 // the clock's faces, one above the other: a vertical swipe on the clock changes it, as StandBy does
@@ -1129,7 +1128,7 @@ function draw(W: number, H0: number): void {
     }
     setTransform(1, 0, 0, 1, 0, TOP); ui.ox = 0;
   } else {
-    setTransform(1, 0, 0, 1, 0, TOP + fx.y); ui.oy = TOP + fx.y;
+    setTransform(1, 0, 0, 1, 0, TOP); ui.oy = TOP;
     if (page === RADIOS) radiosPage(W, H);
     else if (page === SPOTIFY) spotifyPage(W, H);
     else if (page === ROOMS) roomsPage(W, H);
@@ -1142,7 +1141,6 @@ function draw(W: number, H0: number): void {
   setTransform(1, 0, 0, 1, 0, TOP); ui.oy = TOP;
   toastLayer(W, H);
   resetTransform(); ui.oy = 0;
-  if (page !== NOW && fx.a < 1) rrect(0, TOP, W, H0 - TOP, 0, BG, Math.round((1 - fx.a) * 255) as i32);   // the page fades in from the ground
   statusBar(W);
 }
 
@@ -1263,11 +1261,6 @@ onFrame((dt: number) => {
     }
   } else if (settleY) { gsap.killTweensOf(animY); settleY = false; }
   if (settleY) faceY = animY.y;
-  if (page !== shownPage) {   // a page arrives
-    shownPage = page;
-    gsap.killTweensOf(fx); fx.a = 0; fx.y = 18;
-    gsap.to(fx, { a: 1, y: 0, duration: 0.35, ease: 'power2.out' });
-  }
   const popNow = contextOpen || volumeOpen;
   if (popNow && !popWas) { gsap.killTweensOf(pop); pop.y = 28; gsap.to(pop, { y: 0, duration: 0.3, ease: 'back.out(1.4)' }); }
   popWas = popNow;
