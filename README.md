@@ -7,7 +7,7 @@
 Desktop and mobile apps the way Electron makes them, without shipping a browser.<br>
 UI, games, 3D, video and hardware, from one strict, typed subset of TypeScript and JSX.
 
-[Quick start](#-quick-start) · [The CLI](#-the-cli) · [Demos](#-demos) · [Plugins](#-plugins) · [Guide](docs/guide/README.md)
+[Quick start](#-quick-start) · [The CLI](#-the-cli) · [Demos](#-demos) · [Plugins](#-plugins) · [AI](#-a-note-on-ai) · [Guide](docs/guide/README.md)
 
 <img src="docs/img/hero.png" alt="The hero demo: an app with an intro, screens, transitions and a gallery" width="820">
 
@@ -90,21 +90,28 @@ Everything goes through one command.
 
 ## 🎮 Demos
 
+From a desktop app to a microcontroller, the same engine and the same language:
+
 <table>
 <tr>
-<td width="33%"><img src="docs/img/zed-editor.png" alt="A Zed-style code editor"><br><b>Code editor</b><br><code>zinc run examples/zed-editor</code></td>
+<td width="33%"><img src="docs/img/zed-editor.png" alt="A Zed-style code editor"><br><b>A code editor, Zed style</b><br><code>zinc run examples/zed-editor</code></td>
+<td width="33%"><img src="docs/img/museum-table-full.jpg" alt="A museum's multi-touch table showing a collection"><br><b>A museum touch table</b><br><code>zinc run examples/museum-table</code></td>
 <td width="33%"><img src="docs/img/pinball3d-play.png" alt="A 3D pinball table in play"><br><b>3D pinball</b><br><code>zinc run examples/pinball3d</code></td>
-<td width="33%"><img src="docs/img/map-explorer.png" alt="An offline vector map of Paris"><br><b>Offline maps</b><br><code>zinc run examples/maps/explorer</code></td>
 </tr>
 <tr>
-<td><img src="docs/img/kit-gallery-dark.png" alt="The component kit in dark mode"><br><b>Component kit</b><br><code>zinc run examples/ui/kit-gallery</code></td>
+<td><img src="docs/img/navigation.png" alt="Turn-by-turn navigation through Paris"><br><b>Offline GPS navigation</b><br><code>zinc run examples/maps/navigation</code></td>
+<td><img src="examples/js-three/screenshot.png" alt="A lighthouse at night made with three.js"><br><b>three.js, unmodified</b><br><code>zinc run examples/js-three</code></td>
+<td><img src="docs/img/video-mapper.png" alt="Video layers warped onto surfaces"><br><b>GPU video mapping</b><br><code>zinc run examples/video/mapper</code></td>
+</tr>
+<tr>
+<td><img src="docs/img/remarkable-notes.png" alt="A handwriting notebook on e-ink"><br><b>e-ink notebook (reMarkable)</b><br><code>zinc run examples/remarkable/notes</code></td>
+<td><img src="docs/img/esp32-2432s022-home.png" alt="A widgets tour on a 2.2 inch ESP32 screen"><br><b>A 2.2" ESP32 touch screen</b><br><code>zinc run examples/boards/esp32-2432s022</code></td>
 <td><img src="docs/img/music-touchpad.png" alt="The Musique app on an HP TouchPad"><br><b>A Sonos remote on a 2011 tablet</b><br><code>examples/music/install.sh</code></td>
-<td><img src="docs/img/music-weather.png" alt="The weather page of Musique"><br><b>Weather, clocks, carousel</b><br><code>zinc run examples/music</code></td>
 </tr>
 </table>
 
-More: `examples/hero`, `examples/nuxt-ui`, `examples/rn-showcase`, `examples/three/gltf-viewer`, `examples/leapmotion`,
-`examples/hardware` (the device web APIs on one screen, try it with `--simulate hp-touchpad`).
+More: `examples/hero` (a complete app), `examples/nuxt-ui`, `examples/rn-showcase`, `examples/js-phaser` (Phaser, unmodified),
+`examples/leapmotion` (hand tracking games), `examples/hardware` (the device web APIs; try `--simulate hp-touchpad`).
 
 ## 🔌 Plugins
 
@@ -178,6 +185,14 @@ the guides are in [docs/plugins/](docs/plugins/). Abbreviations: Pi = Raspberry 
 
 Sonos, Spotify and `zinc:webos` also run on the TouchPad (`examples/music`), though their manifests do not list `webos` yet; Windows is
 declared by `async-storage` only and not yet proven anywhere.
+
+## 🤖 A note on AI
+
+Zinc has been a project of several years, and of many failures: attempts that went nowhere, designs that had to be thrown away. It
+exists today thanks to intensive help from AI. A large part of the code, tests and documentation of Zinc Next was written with AI
+coding agents, working through a backlog of precise tasks under rules a person sets and checks: [AGENTS.md](AGENTS.md) and
+[next/RULES.md](next/RULES.md) are the instructions they follow. The direction, the design choices and the tests on real hardware stay
+human. Mistakes remain possible; every behaviour is meant to be proven by a test, and reports of what is wrong are welcome.
 
 ## 📚 Documentation
 
