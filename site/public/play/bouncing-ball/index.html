@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>bouncing-ball · Zinc in the browser</title>
+<style>html,body{margin:0;background:#111318;color:#ECE8DF;font:15px system-ui,sans-serif;text-align:center}canvas{display:block;margin:24px auto 8px;width:min(96vw,960px);height:auto;image-rendering:pixelated;border-radius:12px;outline:none}a{color:#C8F25A}pre{color:#9AA0A8;white-space:pre-wrap}</style></head>
+<body><canvas id="c" width="480" height="320" tabindex="0"></canvas>
+<p>Arrow keys, Space, or the mouse. <a href="../../demos/">All demos</a></p><pre id="log"></pre>
+<script>
+if (crossOriginIsolated) import('./app.js');
+else if ('serviceWorker' in navigator && !sessionStorage.zincCoi) {
+  sessionStorage.zincCoi = '1';
+  navigator.serviceWorker.register('../coi-sw.js').then(() => location.reload());
+} else document.getElementById('log').textContent = 'This page needs a browser with service workers and SharedArrayBuffer.';
+</script></body></html>

@@ -8,7 +8,17 @@ import { demos, img } from '../data/site';
     <h1>Every demo runs unchanged</h1>
     <p class="lead">Clone the repository and run any of them with the command under its picture.</p>
   </div>
+  <div class="wrap" style="padding-bottom:24px">
+    <h2>Play in your browser</h2>
+    <p class="lead">The browser build runs the interpreter as WebAssembly: the simplest demos, drawn on a canvas, no install.</p>
+    <p>
+      <a class="btn" href={`${import.meta.env.BASE_URL}play/breakout/`}>▶ Breakout</a>
+      <a class="btn" href={`${import.meta.env.BASE_URL}play/bouncing-ball/`}>▶ Bouncing ball</a>
+    </p>
+    <p style="color:var(--muted);font-size:.9rem">Keys: arrows and Space, or the mouse. The first visit reloads once to enable cross-origin isolation.</p>
+  </div>
   <div class="wrap" style="padding-bottom:72px">
+    <h2>Gallery</h2>
     <div class="gallery">
       {demos.map((d) => <figure><img src={img(d.f)} alt={d.t} loading="lazy" /><figcaption><b>{d.t}</b>{d.d}<code>{d.cmd}</code></figcaption></figure>)}
     </div>
