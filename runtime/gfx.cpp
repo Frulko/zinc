@@ -49,9 +49,9 @@ static void init_scale() {
 static bool first_frame();
 /** Follows the HAL's surface (window resized, moved to a screen with another density): full redraw at the new size. */
 void sync_surface() {
-  if (display_driver) return;
+  if (display_driver && !hal_display->surface_size) return;
   int w = surf_w, h = surf_h;
-  hal_surface_size(&w, &h);
+  if (display_driver) hal_display->surface_size(&w, &h); else hal_surface_size(&w, &h);
   int32_t k = hal_pixel_scale(); if (k < 1) k = 1;
   if (w == surf_w && h == surf_h && k == pxk) return;
   surf_w = w; surf_h = h; pxk = 0;

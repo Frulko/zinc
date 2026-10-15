@@ -5,6 +5,7 @@
 #include "zgl.h"
 #include "render_bands.h"
 #include <stdio.h>
+#include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -24,6 +25,15 @@ void zgl_backend_size(int32_t* w, int32_t* h);  // drawable pixels
 void zgl_backend_native(int32_t* w, int32_t* h);  // before the init: the screen's own size for a program that names none; a window leaves them alone
 void zgl_backend_swap();
 void zgl_backend_poll(HalInput* in, int32_t w, int32_t h);  // buttons, pointer (logical), touch, quit
+// The surface's logical size when the system changed it (a system keyboard, a rotation); a backend of a fixed surface leaves this weak one.
+extern "C" __attribute__((weak)) void zgl_backend_surface(int32_t*, int32_t*) {}
+// Where the surface's picture goes on the screen (top-left rectangle in screen pixels) and its quarter turns clockwise, when not the whole
+// screen upright (webOS: the system keyboard's band, the program turned with the device); a backend that does not place leaves this weak one.
+extern "C" __attribute__((weak)) int zgl_backend_place(int32_t*, int32_t*, int32_t*, int32_t*, int32_t*) { return 0; }
+// The largest surface a backend will ask for (its turns, its keyboard): the GPU target is allocated once at that size; 0 when it never changes.
+extern "C" __attribute__((weak)) void zgl_backend_reserve(int32_t*, int32_t*) {}
+// The device's features (HalDisplay::device); a backend without them leaves this weak one.
+extern "C" __attribute__((weak)) const char* zgl_backend_device(const char*, const char*) { return nullptr; }
 void zgl_backend_shutdown();
 
 extern "C" void (*zgl_layers)(int32_t, int32_t) = nullptr;
@@ -72,8 +82,9 @@ extern "C" GLuint zgl_program(const char* defines, const char* vs, const char* f
   return p;
 }
 
-static const char* OVL_VS = "attribute vec2 a_pos; varying vec2 v_uv;\n"
-  "void main() { v_uv = vec2(a_pos.x, 1.0 - a_pos.y); gl_Position = vec4(a_pos * 2.0 - 1.0, 0.0, 1.0); }\n";
+// u_rot: cos and sin of the picture's turn on the screen (zgl_backend_place)
+static const char* OVL_VS = "attribute vec2 a_pos; varying vec2 v_uv; uniform vec2 u_rot; uniform vec2 u_uv;\n"
+  "void main() { v_uv = vec2(a_pos.x, 1.0 - a_pos.y) * u_uv; vec2 p = a_pos * 2.0 - 1.0; gl_Position = vec4(p.x * u_rot.x - p.y * u_rot.y, p.x * u_rot.y + p.y * u_rot.x, 0.0, 1.0); }\n";
 // Texture bytes are B,G,R,0 (0x00RRGGBB little endian), hence .bgr.
 static const char* OVL_FS = "varying vec2 v_uv; uniform sampler2D u_tex; uniform vec4 u_key; uniform float u_bgr;\n"
   "void main() { vec4 t = texture2D(u_tex, v_uv); vec3 c = u_bgr > 0.5 ? t.bgr : t.rgb; float a = (u_key.a > 0.5 && distance(c, u_key.rgb) < 0.01) ? 0.0 : 1.0;\n"
@@ -89,6 +100,9 @@ static void choose_renderer(const HalFrame* f) {
   glr_state = -1;
   if (!gl && !autor) return;
   if (!f->frames) { fprintf(stderr, "display-gl: renderer %s: the runtime gives no command lists, using cpu\n", r); return; }
+  int32_t rw = 0, rh = 0;
+  zgl_backend_reserve(&rw, &rh);
+  glr::reserve(rw, rh);
   if (!glr::init(f->w, f->h)) { fprintf(stderr, "display-gl: renderer %s: GL setup failed, using cpu\n", r); return; }
   glr_tex = glr::texture();
   glr_state = 1;
@@ -154,6 +168,9 @@ static double t_rep, t_pas, t_swp, t_gpu; static long t_n;
 #ifdef __APPLE__
 static GLuint t_query;   // GL_TIME_ELAPSED of the replay and the present pass: the GPU's own time, without the driver's submission (ZN-412.01)
 #endif
+static void time_report() {   // also every 120 frames: a program the system stops (webOS) never reaches its exit
+  if (t_n) fprintf(stderr, "display-gl time: per frame replay %.0f us (GPU done), present pass %.0f us (GPU done), swap %.0f us, GPU %.0f us (timer query) (%ld frames)\n", t_rep / t_n, t_pas / t_n, t_swp / t_n, t_gpu / t_n, t_n);
+}
 static void gpu_time(bool tm) {
 #ifdef __APPLE__
   if (!tm) return;
@@ -173,7 +190,26 @@ static void first_mark(const char* what) {
   if (n++) fprintf(stderr, "display-gl first frame: %s %.0f ms\n", what, (t - t0) / 1e3);
   t0 = t;
 }
+// The runtime follows zgl_backend_surface: a frame of another size reallocates the surface's buffer, texture and GPU target.
+static void follow_size(const HalFrame* f) {
+  if (f->w == PW && f->h == PH) return;   // the frame's buffer is physical
+  PW = f->w; PH = f->h; W = PW / K; H = PH / K;
+  if (glr_state <= 0) {   // the software frame's buffer and texture (the GPU renderer keeps its own target, glr::resize)
+    free(fb);
+    fb = (uint32_t*)calloc((size_t)PW * PH, 4);
+    glBindTexture(GL_TEXTURE_2D, overlay);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, PW, PH, 0, GL_RGBA, GL_UNSIGNED_BYTE, fb);
+  }
+  if (glr_state > 0) {
+    const bool ok = glr::resize(PW, PH);
+    glr_tex = glr::texture();
+    if (FILE* lf = access("/tmp/zinc/glinfo", F_OK) == 0 ? fopen("/tmp/zinc/glinfo.log", "a") : nullptr) { fprintf(lf, "follow_size: %dx%d glr::resize %s, GL error 0x%x\n", PW, PH, ok ? "complete" : "INCOMPLETE", glGetError()); fclose(lf); }
+  }
+}
+static void surface(int32_t* w, int32_t* h) { zgl_backend_surface(w, h); }
+
 static void present(const HalFrame* f) {
+  follow_size(f);
   static const bool tm = getenv("ZINC_GL_TIME") != nullptr;
   double ta = tm ? glr::now_us() : 0, tb = ta;
 #ifdef __APPLE__
@@ -187,13 +223,26 @@ static void present(const HalFrame* f) {
   bool direct = false;
   int32_t dw, dh;
   zgl_backend_size(&dw, &dh);
+  int32_t px = 0, py = 0, pw = dw, ph = dh, turn = 0;
+  const bool placed = zgl_backend_place(&px, &py, &pw, &ph, &turn) != 0;
+  {   // each new size or placement, while /tmp/zinc/glinfo exists (the tablet's diagnosis)
+    static int last[9] = {0};
+    const int now[9] = {PW, PH, f->w, f->h, px, py, pw, ph, turn};
+    if (memcmp(now, last, sizeof now) != 0) {
+      memcpy(last, now, sizeof now);
+      if (FILE* lf = access("/tmp/zinc/glinfo", F_OK) == 0 ? fopen("/tmp/zinc/glinfo.log", "a") : nullptr) {
+        fprintf(lf, "present: surface %dx%d frame %dx%d screen %dx%d place %d,%d %dx%d turn %d renderer %d damaged %d\n", PW, PH, f->w, f->h, dw, dh, px, py, pw, ph, turn, glr_state, f->y1 > f->y0);
+        fclose(lf);
+      }
+    }
+  }
   if (glr_state > 0) {
     // GPU: replay the command lists. Either straight into the window (when the surface is the screen and nothing draws
     // under it, and most of it changed: the window content is undefined after a swap, so the whole frame is drawn, and
     // the intermediate texture and the copy pass are skipped), or into the surface texture, then copied to the window.
     static const int mode = getenv("ZINC_GL_DIRECT") ? atoi(getenv("ZINC_GL_DIRECT")) : 2;   // 0 texture, 1 direct, 2 adaptive
     static bool tex_ok = false;   // the texture holds the last frame
-    bool can = dw == PW && dh == PH && !zgl_layers;
+    bool can = dw == PW && dh == PH && !zgl_layers && !placed;
     int64_t area = damaged ? (int64_t)(f->x1 - f->x0) * (f->y1 - f->y0) : 0;
     direct = can && damaged && (mode == 1 || (mode == 2 && area * 2 >= (int64_t)PW * PH));
     if (direct) { glr::frame(f, true, glr::Rect{0, 0, PW, PH}); tex_ok = false; }
@@ -223,7 +272,7 @@ static void present(const HalFrame* f) {
     gpu_time(tm);
     zgl_backend_swap();
     first_mark("swap");
-    if (tm) { t_swp += glr::now_us() - tc; t_n++; }
+    if (tm) { t_swp += glr::now_us() - tc; if (++t_n % 120 == 0) { time_report(); if (glr_state > 0) glr::report(); } }
     return;
   }
   glDisable(GL_BLEND);
@@ -231,8 +280,13 @@ static void present(const HalFrame* f) {
   glClear(GL_COLOR_BUFFER_BIT);
   if (zgl_layers) zgl_layers(dw, dh);
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
-  glViewport(0, 0, dw, dh);
+  if (placed) glViewport(px, dh - py - ph, pw, ph); else glViewport(0, 0, dw, dh);
   glUseProgram(prog);
+  static const float kCos[] = {1, 0, -1, 0}, kSin[] = {0, -1, 0, 1};   // clockwise on the screen: minus a quarter turn each
+  glUniform2f(glGetUniformLocation(prog, "u_rot"), kCos[turn & 3], kSin[turn & 3]);
+  int32_t tw = PW, th = PH;
+  if (glr_state > 0) glr::texture_size(&tw, &th);   // the frame fills the first PW x PH of the target
+  glUniform2f(glGetUniformLocation(prog, "u_uv"), tw > 0 ? (float)PW / tw : 1.f, th > 0 ? (float)PH / th : 1.f);
   glActiveTexture(GL_TEXTURE0);
   glBindTexture(GL_TEXTURE_2D, glr_state > 0 ? glr_tex : overlay);
   glUniform1i(glGetUniformLocation(prog, "u_tex"), 0);
@@ -246,13 +300,29 @@ static void present(const HalFrame* f) {
   glEnable(GL_BLEND);
   glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
   glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+  {   // the diagnosis of a placed or resized frame: a pixel of the surface's texture and of the screen, once per placement
+    static int seen = -1;
+    const int key = PW * 7 + PH * 13 + px * 3 + py * 5 + turn;
+    if (key != seen && access("/tmp/zinc/glinfo", F_OK) == 0) {
+      seen = key;
+      unsigned char s[4] = {0}, t[4] = {0};
+      glReadPixels(dw / 2, dh / 2, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, s);
+      if (glr_state > 0) {
+        GLuint fb2 = 0; glGenFramebuffers(1, &fb2); glBindFramebuffer(GL_FRAMEBUFFER, fb2);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, glr_tex, 0);
+        glReadPixels(PW / 2, PH / 2, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, t);   // the frame's centre (it fills the first PW x PH)
+        glBindFramebuffer(GL_FRAMEBUFFER, 0); glDeleteFramebuffers(1, &fb2);
+      }
+      if (FILE* lf = fopen("/tmp/zinc/glinfo.log", "a")) { fprintf(lf, "pixels: screen centre %d,%d,%d texture centre %d,%d,%d, GL error 0x%x\n", s[0], s[1], s[2], t[0], t[1], t[2], glGetError()); fclose(lf); }
+    }
+  }
   if (shot_path && frames_left == 0) save_bmp(shot_path, dw, dh);
   double tc = 0;
   if (tm) { glFinish(); tc = glr::now_us(); t_pas += tc - tb; }
   gpu_time(tm);
   zgl_backend_swap();
   first_mark("swap");
-  if (tm) { t_swp += glr::now_us() - tc; t_n++; }
+  if (tm) { t_swp += glr::now_us() - tc; if (++t_n % 120 == 0) { time_report(); if (glr_state > 0) glr::report(); } }
 }
 
 static void poll(HalInput* in) {
@@ -261,12 +331,12 @@ static void poll(HalInput* in) {
 }
 
 static void shutdown() {
-  if (t_n) fprintf(stderr, "display-gl time: per frame replay %.0f us (GPU done), present pass %.0f us (GPU done), swap %.0f us, GPU %.0f us (timer query) (%ld frames)\n", t_rep / t_n, t_pas / t_n, t_swp / t_n, t_gpu / t_n, t_n);
+  time_report();
   if (glr_state > 0) glr::report();
   else if (cpu_stats && cpu_n) fprintf(stderr, "display-gl renderer cpu: %ld damaged frames, %.0f us of CPU per frame in the software raster\n", cpu_n, cpu_us / cpu_n);
   zgl_backend_shutdown();
 }
 
 static int32_t scale() { return K; }
-static HalDisplay display = {init, present, poll, shutdown, 1, 0, scale, nullptr, zgl_backend_native};  // SDL events are read in src/sdl.cpp
+static HalDisplay display = {init, present, poll, shutdown, 1, 0, scale, nullptr, zgl_backend_native, zgl_backend_device, surface};  // SDL events are read in src/sdl.cpp
 static int registered = (hal_display = &display, 0);

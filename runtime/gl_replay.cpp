@@ -49,6 +49,9 @@ static ZnResourceStats replay_texture_stats(void*) {
 static ZnResourceStatsRegistration replay_stats_registration("renderer.textures", replay_texture_stats);
 #endif
 static int32_t W, H;
+// The render target's allocated size: at least the surface, more when a display reserves room to change size in place (reserve()): a GPU
+// that cannot reallocate a texture attached to a framebuffer (the Adreno 220 of the TouchPad answers GL_OUT_OF_MEMORY) never has to.
+static int32_t TW, TH, RW, RH;
 static GLuint vbo, ibo, fbo, fbo_tex, fbo_depth, white, atlas, corner_tex, cur_tex;
 // The programs that draw the commands. Desktop GL: one, with a branch per mode. GLES 2: one per mode, and one more with the gradient paint
 // block, compiled at first use (ZN-725): a GPU without branches runs every mode of the single program for each pixel, VideoCore IV took
@@ -154,6 +157,7 @@ static const GLenum A_IFMT = GL_LUMINANCE, A_FMT = GL_LUMINANCE;
  *  OES_packed_depth_stencil), else depth only (24 or 16 bits) and POLY stays on the CPU tiles. */
 static bool packed_ds;
 static void depth_storage() {
+  const int32_t W = TW, H = TH;   // the allocation, not the surface
   glBindRenderbuffer(GL_RENDERBUFFER, fbo_depth);
 #if GLR_CORE
   packed_ds = true;
@@ -239,7 +243,8 @@ static bool init(int32_t w, int32_t h) {
   s_res = glGetUniformLocation(sprog, "u_res"); s_flip = glGetUniformLocation(sprog, "u_flip");
   s_rect = glGetAttribLocation(sprog, "a_rect"); s_col = glGetAttribLocation(sprog, "a_col"); s_z = glGetAttribLocation(sprog, "a_z"); s_pos = glGetAttribLocation(sprog, "a_pos");
   glGenBuffers(1, &svbo);
-  fbo_tex = make_tex(W, H, GL_RGBA, GL_RGBA, nullptr, false);
+  TW = W > RW ? W : RW; TH = H > RH ? H : RH;
+  fbo_tex = make_tex(TW, TH, GL_RGBA, GL_RGBA, nullptr, false);
   glGenFramebuffers(1, &fbo);
   glBindFramebuffer(GL_FRAMEBUFFER, fbo);
   glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fbo_tex, 0);
@@ -269,12 +274,19 @@ static bool init(int32_t w, int32_t h) {
   return true;
 }
 static GLuint texture() { return fbo_tex; }
-/** The surface changed size (a window resized): the render texture and its depth buffer follow; the programs and atlases stay. */
+/** The texture's allocated size: the frame fills its first W x H. */
+static void texture_size(int32_t* w, int32_t* h) { *w = TW; *h = TH; }
+/** Room to allocate at init for the sizes the surface will take (a keyboard's band, a turn): resize() then stays in place. */
+static void reserve(int32_t w, int32_t h) { RW = w; RH = h; }
+/** The surface changed size (a window resized): the render texture and its depth buffer follow, in place when they are large enough; the
+ *  programs and atlases stay. */
 static bool resize(int32_t w, int32_t h) {
   if (w == W && h == H) return true;
   W = w; H = h;
+  if (W <= TW && H <= TH && (RW || RH)) return true;   // reserved: draw into the first W x H of the same target
+  TW = W; TH = H;
   glBindTexture(GL_TEXTURE_2D, fbo_tex);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, W, H, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, TW, TH, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
   depth_storage();
   glBindFramebuffer(GL_FRAMEBUFFER, fbo);
   const bool ok = glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
