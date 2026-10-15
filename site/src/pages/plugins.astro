@@ -1,0 +1,25 @@
+---
+import Base from '../layouts/Base.astro';
+import { modules, drivers } from '../data/site';
+const b = import.meta.env.BASE_URL;
+---
+<Base title="Plugins" description="Zinc plugins: 3D, three.js, video, sound, maps, physics, SQLite and display drivers for e-ink, LCD, OLED and LED matrices.">
+  <div class="wrap page-head">
+    <span class="eyebrow">Plugins</span>
+    <h1>Pay only for what you import</h1>
+    <p class="lead">Plugins live in <code>plugins/</code>, one directory each, and are compiled into a program only when it imports them. Native ones hold C/C++ code or a library; Zinc ones are written in Zinc. <code>zinc plugins</code> lists them for your project. Abbreviations: Pi = Raspberry Pi, rM = reMarkable Paper Pro, Web = WebAssembly.</p>
+  </div>
+  <div class="wrap" style="padding-bottom:72px">
+    <h2>{modules.length} modules</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Plugin</th><th>What it does</th><th>Code</th><th>Platforms</th></tr></thead>
+      <tbody>{modules.map((r) => <tr><td><code>{r[0]}</code></td><td>{r[1]}</td><td>{r[2]}</td><td>{r[3]}</td></tr>)}</tbody>
+    </table></div>
+    <h2>{drivers.length} display drivers</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Plugin</th><th>What it does</th><th>Platforms</th></tr></thead>
+      <tbody>{drivers.map((r) => <tr><td><code>{r[0]}</code></td><td>{r[1]}</td><td>{r[2]}</td></tr>)}</tbody>
+    </table></div>
+    <p>Plugin guides: <a href={`${b}docs/plugins/`}>docs</a>.</p>
+  </div>
+</Base>

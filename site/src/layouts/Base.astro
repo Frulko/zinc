@@ -1,34 +1,61 @@
 ---
 import '../styles/global.css';
-const { title, description = 'Zinc compiles a strict subset of TypeScript to native C++17. No JavaScript engine on the device.' } = Astro.props;
+const {
+  title,
+  description = 'Zinc: write TypeScript once, run it natively from a Mac to a Raspberry Pi or an ESP32. An Electron alternative with no browser inside.',
+} = Astro.props;
 const b = import.meta.env.BASE_URL;
 const path = Astro.url.pathname;
-const links = [['Features', 'features/'], ['Showcase', 'showcase/'], ['Targets', 'targets/'], ['Performance', 'performance/'], ['Limitations', 'limitations/'], ['Docs', 'docs/guide/readme/']];
+const full = title === 'Zinc' ? 'Zinc: TypeScript to native apps, Electron alternative, for desktop, Raspberry Pi and ESP32' : `${title} · Zinc`;
+const og = `${Astro.site}${b.slice(1)}docs-assets/img/hero.png`;
+const links = [['Philosophy', 'philosophy/'], ['Uses', 'uses/'], ['Get started', 'get-started/'], ['CLI', 'cli/'], ['Demos', 'demos/'], ['Plugins', 'plugins/'], ['Docs', 'docs/guide/readme/'], ['About', 'about/']];
 ---
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>{title === 'Zinc' ? 'Zinc — TypeScript in, native out' : `${title} · Zinc`}</title>
+  <title>{full}</title>
   <meta name="description" content={description} />
-  <meta property="og:title" content={title} /><meta property="og:description" content={description} />
-  <meta property="og:image" content={`${Astro.site}${b.slice(1)}docs-assets/img/hero.png`} />
+  <meta property="og:type" content="website" /><meta property="og:site_name" content="Zinc" />
+  <meta property="og:title" content={full} /><meta property="og:description" content={description} />
+  <meta property="og:image" content={og} /><meta property="og:url" content={Astro.url.href} />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content={full} /><meta name="twitter:description" content={description} /><meta name="twitter:image" content={og} />
   <link rel="icon" href={`${b}favicon.svg`} type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" />
+  <script is:inline>
+    try { var t = localStorage.getItem('zn-theme'); } catch (e) {}
+    document.documentElement.dataset.theme = t || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+  </script>
 </head>
 <body>
   <header class="nav"><div class="wrap">
     <a class="brand" href={b}>zinc<b>.</b></a>
-    <nav>
+    <nav aria-label="Main">
       {links.map(([n, h]) => <a href={`${b}${h}`} class={path.startsWith(`${b}${h.split('/')[0]}/`) ? 'on' : ''}>{n}</a>)}
+      <button class="theme" id="theme" aria-label="Toggle light and dark theme" type="button">◐</button>
       <a class="btn primary" href="https://github.com/Frulko/zinc">GitHub ↗</a>
     </nav>
   </div></header>
-  <slot />
+  <main><slot /></main>
   <footer><div class="wrap">
-    <div><b>zinc.</b> TypeScript in, native out. A prototype — see <a href={`${b}limitations/`}>limitations</a>.</div>
-    <div><a href="https://github.com/Frulko/zinc">Source</a><a href={`${b}docs/licenses/`}>Licenses</a><a href={`${b}docs/reports/status/`}>Status</a></div>
+    <div><b>zinc.</b> One program, every screen. <a href={`${b}about/`}>About and AI note</a></div>
+    <div><a href="https://github.com/Frulko/zinc">GitHub</a><a href={`${b}docs/licenses/`}>Licenses</a><a href="https://github.com/Frulko/zinc/blob/main/docs/prototype.md">The prototype</a></div>
   </div></footer>
+  <script is:inline>
+    document.getElementById('theme').onclick = function () {
+      var n = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+      document.documentElement.dataset.theme = n;
+      try { localStorage.setItem('zn-theme', n); } catch (e) {}
+    };
+    document.querySelectorAll('[data-copy]').forEach(function (btn) {
+      btn.onclick = function () {
+        navigator.clipboard.writeText(btn.dataset.copy).then(function () {
+          btn.textContent = 'copied'; setTimeout(function () { btn.textContent = 'copy'; }, 1500);
+        });
+      };
+    });
+  </script>
 </body>
 </html>

@@ -1,0 +1,28 @@
+---
+import Base from '../layouts/Base.astro';
+import { demo, img } from '../data/site';
+const uses = [
+  ['Desktop apps', 'Windows of your own: sidebars, menus, tray, dialogs, dark mode, saved settings, packaged as a .app, a single executable or a .zapp, with signed updates.', ['zed-editor.png', 'hero.png'], 'Plugins: zinc:system, zinc:sqlite, zinc:webview.'],
+  ['Games and 3D', 'A 2D game loop, a three.js scene on zinc:3d, physics with Box2D and Jolt. Phaser and three.js run unmodified on QuickJS.', ['pinball3d-play.png', '3d-model.png'], 'Plugins: zinc:3d, three, zinc:physics2d, zinc:physics3d.'],
+  ['Video and audio', 'GPU video mapping, gapless playlists, sound and MIDI. FFmpeg with the hardware decoders of the platform.', ['video-mapper.png', 'video-looper.png'], 'Plugins: zinc:video, zinc:mapping, zinc:audio, zinc:midi.'],
+  ['Hardware and IoT', 'GPIO, sensors, small LCDs and OLEDs, telemetry. Develop on the desktop with simulators, then flash the board.', ['esp32-2432s022-home.png', 'iot-panel.png'], 'Drivers: display-st7789, display-ssd1306, display-ws2812.'],
+  ['E-ink and retro devices', 'A reMarkable Paper Pro notebook with the pen API, a Sonos remote on an HP TouchPad from 2011, tested under simulators.', ['remarkable-notes.png', 'music-touchpad.png'], 'Drivers: display-rmpp, display-webos, zinc:ink.'],
+];
+---
+<Base title="Uses" description="What you can make with Zinc: desktop apps, games and 3D, video and audio, hardware and IoT, e-ink and retro devices.">
+  <div class="wrap page-head">
+    <span class="eyebrow">Uses</span>
+    <h1>What you can make</h1>
+    <p class="lead">One engine, one language, from an app window to a board without an operating system to speak of.</p>
+  </div>
+  <div class="wrap">
+    {uses.map(([t, d, fs, n]) => (
+      <section class="use">
+        <div><h2>{t}</h2><p>{d}</p><p><small>{n}</small></p>
+          {(fs as string[]).map((f) => <p><code>{demo(f).cmd}</code></p>)}
+        </div>
+        <div class="use-img"><img class="shot" src={img((fs as string[])[0])} alt={demo((fs as string[])[0]).t} loading="lazy" /></div>
+      </section>
+    ))}
+  </div>
+</Base>

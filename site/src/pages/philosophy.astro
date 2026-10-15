@@ -1,0 +1,25 @@
+---
+import Base from '../layouts/Base.astro';
+const b = import.meta.env.BASE_URL;
+const p = [
+  ['Native, not embedded', 'Your program is interpreted while you work and compiled to C++ when you ship: one executable, with no JavaScript engine or browser inside, and a fast start on modest hardware. Plain JavaScript can still run as it is on QuickJS (three.js, PixiJS, Phaser) when you want it.'],
+  ['One program, every screen', 'A Mac, Windows, Linux, every Raspberry Pi, a reMarkable, an HP TouchPad from 2011, an ESP32, a PS2. The target is a build flag, not a rewrite. When a machine cannot do something, the build says why.'],
+  ['Proven libraries, not rewrites', 'Zinc does not write its own regex engine, TLS stack, font rasterizer, SQL engine, codec or JSON parser. It vendors mature libraries with their licences and pinned versions: SDL3, QuickJS-ng, mbedTLS, HarfBuzz, SQLite, Yoga, Box2D, Jolt, three.js and others.'],
+  ['UI people already know', 'Solid or React models, Tailwind-like classes, a shadcn-style kit, Nuxt UI 4 and React Native components. The goal is to make the first screen easy, not to invent another way to write buttons.'],
+  ['Made for makers', 'Education, makers, artists, DIY. That means a clear first run, clear errors (zinc explain Z0104) and modest machines: a Pi 1 and a 2.2 inch ESP32 board are first-class citizens.'],
+  ['Honest about limits', 'Zinc is a strict, typed subset of TypeScript, not all of it. Some targets are build-only or emulated, Windows runs console programs for now, and every behaviour is meant to be proven by a test. Reports of what is wrong are welcome.'],
+];
+---
+<Base title="Philosophy" description="Why Zinc exists: native not embedded, one program for every screen, proven libraries, honest about its limits.">
+  <div class="wrap page-head">
+    <span class="eyebrow">Philosophy</span>
+    <h1>Why Zinc exists</h1>
+    <p class="lead">Electron made desktop apps easy to write and heavy to ship. Zinc keeps the way of writing and drops the browser, then goes further down: to a Raspberry Pi, a e-ink tablet, a microcontroller.</p>
+  </div>
+  <section class="section" style="padding-top:20px"><div class="wrap">
+    <div class="grid" style="margin-top:0">
+      {p.map(([t, d]) => <div class="card"><h3>{t}</h3><p>{d}</p></div>)}
+    </div>
+    <p style="margin-top:40px"><a class="btn primary" href={`${b}get-started/`}>Try it</a></p>
+  </div></section>
+</Base>

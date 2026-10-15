@@ -1,0 +1,50 @@
+---
+import Base from '../layouts/Base.astro';
+import { INSTALL, targets } from '../data/site';
+const b = import.meta.env.BASE_URL;
+const code = (s: string) => s;
+---
+<Base title="Get started" description="Install Zinc, check the machine with zinc doctor, create a project, run it with hot reload, build for another target and flash a board.">
+  <div class="wrap page-head">
+    <span class="eyebrow">Get started</span>
+    <h1>Your first five minutes</h1>
+    <p class="lead">One command, nothing to compile: no compiler, no CMake, no Xcode, no administrator password.</p>
+  </div>
+  <div class="wrap" style="padding-bottom:72px">
+    <ol class="steps">
+      <li><h3>Install</h3>
+        <p>On macOS or Linux (x86_64 or aarch64). It checks the download's SHA-256 and puts <code>zinc</code> on your PATH. Run it again to update.</p>
+        <div class="install"><code><i>$</i> {INSTALL}</code><button class="copy" type="button" data-copy={INSTALL}>copy</button></div>
+        <p><small>On Windows, or to work on Zinc itself, build from the sources: CMake 3.20+ and a C++20 compiler, see the <a href={`${b}docs/guide/01-getting-started/`}>guide</a>.</small></p>
+      </li>
+      <li><h3>Ask Zinc what it sees</h3>
+        <pre><code>zinc doctor</code></pre>
+        <p>The engine, this machine's renderer, the tools it downloads by itself the day you build for a board, and the plugins.</p>
+      </li>
+      <li><h3>Create a project</h3>
+        <pre><code>zinc new desktop-app my-app
+cd my-app</code></pre>
+        <p><code>zinc new --list</code> prints the 13 templates: game, game-2d, 3d, desktop-app, dashboard, cli, server, service, iot, iot-board, eink, remarkable, plugin.</p>
+      </li>
+      <li><h3>Run it</h3>
+        <pre><code>zinc run</code></pre>
+        <p>A window opens. The first run compiles for this machine and takes a few seconds, the next ones start at once.</p>
+      </li>
+      <li><h3>Edit with hot reload</h3>
+        <pre><code>zinc dev</code></pre>
+        <p>Watches the project, type checks and restarts on every save. A compile error is a red box on the screen. UI programs get the Chrome DevTools inspector.</p>
+      </li>
+      <li><h3>Build for another target</h3>
+        <pre><code>zinc build                          # this machine
+zinc build --target aarch64-linux   # a Raspberry Pi 64-bit</code></pre>
+        <div class="table-wrap"><table><thead><tr><th>Target</th><th>Machines</th></tr></thead>
+          <tbody>{targets.map(([t, m]) => <tr><td><code>{t}</code></td><td>{m}</td></tr>)}</tbody></table></div>
+      </li>
+      <li><h3>Flash a board</h3>
+        <pre><code>zinc flash --target esp32</code></pre>
+        <p>Uses the pinned esptool. Without a board, <code>zinc run --simulate hp-touchpad</code> and the ESP32 QEMU runner let you try a device you do not have.</p>
+      </li>
+    </ol>
+    <p><a class="btn primary" href={`${b}cli/`}>CLI cheat sheet</a> <a class="btn" href={`${b}docs/guide/readme/`}>Developer guide</a></p>
+  </div>
+</Base>

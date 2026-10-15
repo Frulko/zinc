@@ -1,0 +1,30 @@
+---
+import Base from '../layouts/Base.astro';
+import { cli } from '../data/site';
+const b = import.meta.env.BASE_URL;
+---
+<Base title="CLI reference" description="The zinc command line: new, run, dev, build, test, flash, export, publish and more, as a cheat sheet.">
+  <div class="wrap page-head">
+    <span class="eyebrow">CLI</span>
+    <h1>One command, everything</h1>
+    <p class="lead"><code>zinc help</code> lists the commands and <code>zinc help run</code> describes one. A misspelt command names the closest one.</p>
+  </div>
+  <div class="wrap" style="padding-bottom:72px">
+    <div class="table-wrap"><table>
+      <thead><tr><th>I want to...</th><th>Command</th></tr></thead>
+      <tbody>{cli.map(([w, c]) => <tr><td>{w}</td><td><code>{c}</code></td></tr>)}</tbody>
+    </table></div>
+    <h2>Useful environment</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Variable</th><th>Effect</th></tr></thead>
+      <tbody>
+        <tr><td><code>ZINC_HEADLESS=1</code></td><td>no window</td></tr>
+        <tr><td><code>ZINC_DETERMINISTIC=1</code></td><td>deterministic run</td></tr>
+        <tr><td><code>ZINC_FRAMES=n</code></td><td>stop after n frames</td></tr>
+        <tr><td><code>ZINC_SHOT=file.png</code></td><td>save a frame</td></tr>
+        <tr><td><code>ZINC_HOME</code></td><td>toolchains and caches, default <code>~/.zinc</code></td></tr>
+      </tbody>
+    </table></div>
+    <p><a href={`${b}get-started/`}>Get started</a> · <a href={`${b}docs/guide/readme/`}>Developer guide</a></p>
+  </div>
+</Base>

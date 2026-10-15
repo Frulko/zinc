@@ -1,0 +1,16 @@
+---
+import Base from '../layouts/Base.astro';
+import { demos, img } from '../data/site';
+---
+<Base title="Demos" description="A gallery of Zinc demos with screenshot and command: editor, 3D pinball, navigation, video mapping, e-ink, ESP32.">
+  <div class="wrap page-head">
+    <span class="eyebrow">Demos</span>
+    <h1>Every demo runs unchanged</h1>
+    <p class="lead">Clone the repository and run any of them with the command under its picture.</p>
+  </div>
+  <div class="wrap" style="padding-bottom:72px">
+    <div class="gallery">
+      {demos.map((d) => <figure><img src={img(d.f)} alt={d.t} loading="lazy" /><figcaption><b>{d.t}</b>{d.d}<code>{d.cmd}</code></figcaption></figure>)}
+    </div>
+  </div>
+</Base>

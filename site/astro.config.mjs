@@ -34,5 +34,5 @@ export default defineConfig({
   site: 'https://frulko.github.io',
   base: BASE,
   trailingSlash: 'always',
-  markdown: { rehypePlugins: [rehypeDocLinks], shikiConfig: { theme: 'github-light' } },
+  markdown: { rehypePlugins: [rehypeDocLinks], shikiConfig: { themes: { light: 'github-light', dark: 'github-dark' }, defaultColor: false } },
 });
