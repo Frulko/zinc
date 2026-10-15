@@ -106,8 +106,10 @@ def lower_minos(share, floor):
             have = minos(p)
             if have and [int(x) for x in have.split(".")] > [int(x) for x in floor.split(".")]:
                 sdk = next((l.split()[1] for l in run("vtool", "-show-build", p).stdout.splitlines() if l.strip().startswith("sdk")), floor)
-                run("vtool", "-set-build-version", "macos", floor, sdk, "-replace", "-output", p, p)
-                run("codesign", "--force", "--sign", "-", p)
+                if run("vtool", "-set-build-version", "macos", floor, sdk, "-replace", "-output", p, p, check=False).returncode == 0:
+                    run("codesign", "--force", "--sign", "-", p)
+                else:
+                    print("could not lower the macOS minimum of " + os.path.relpath(p, share), file=sys.stderr)   # left as built
 
 def bundle_libs_macos(binary, libdir):
     """Copy the non-system dylibs the binary needs next to it and point the binary at them."""
