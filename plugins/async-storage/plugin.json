@@ -1,0 +1,19 @@
+{
+  "name": "async-storage",
+  "kind": "module",
+  "module": "zinc:async-storage",
+  "entry": "index.ts",
+  "description": "React Native's AsyncStorage (@react-native-async-storage/async-storage) on zinc:storage: a key/value store kept between runs, on every target",
+  "modules": {
+    "@react-native-async-storage/async-storage": "index.ts"
+  },
+  "targets": {
+    "macos": {},
+    "linux": {},
+    "windows": {},
+    "rpi1": {},
+    "rmpp": {},
+    "webos": {},
+    "esp32": {}
+  }
+}
