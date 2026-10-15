@@ -2,7 +2,8 @@
 
 #ifdef ZN_NO_TLS   // a build without mbedTLS (cmake -DZN_TLS=OFF): https, TLS brokers and crypto.subtle report that they are missing
 namespace zn::tls {
-Conn* openClient(const std::string&, std::string& err) { err = "this build has no TLS (ZN_TLS=OFF)"; return nullptr; }
+Conn* openClient(const std::string&, std::string& err, bool) { err = "this build has no TLS (ZN_TLS=OFF)"; return nullptr; }
+bool isTls13(Conn*) { return false; }
 Conn* openServer(const std::string&, const std::string&, std::string& err) { err = "this build has no TLS (ZN_TLS=OFF)"; return nullptr; }
 Conn* openPskClient(const std::string&, const std::string&, std::string& err) { err = "this build has no TLS (ZN_TLS=OFF)"; return nullptr; }
 Conn* openPskServer(std::function<std::string(const std::string&)>, std::string& err) { err = "this build has no TLS (ZN_TLS=OFF)"; return nullptr; }
@@ -118,11 +119,12 @@ Conn* make(bool server, std::string& err) {
 
 }  // namespace
 
-Conn* openClient(const std::string& serverName, std::string& err) {
+Conn* openClient(const std::string& serverName, std::string& err, bool tls12) {
   Conn* c = make(false, err);
   if (!c) return nullptr;
   mbedtls_ssl_conf_authmode(&c->conf, MBEDTLS_SSL_VERIFY_REQUIRED);
   mbedtls_ssl_conf_ca_chain(&c->conf, roots(), nullptr);
+  if (tls12) mbedtls_ssl_conf_max_tls_version(&c->conf, MBEDTLS_SSL_VERSION_TLS1_2);
   int rc = mbedtls_ssl_setup(&c->ssl, &c->conf);
   if (rc == 0) rc = mbedtls_ssl_set_hostname(&c->ssl, serverName.c_str());
   if (rc != 0) { err = describe(c, rc); destroy(c); return nullptr; }
@@ -261,6 +263,8 @@ State read(Conn* c, std::string& out) {
     return State::Failed;
   }
 }
+
+bool isTls13(Conn* c) { return c->done && mbedtls_ssl_get_version_number(&c->ssl) == MBEDTLS_SSL_VERSION_TLS1_3; }
 
 void close(Conn* c) { if (c->done && !c->failed && !c->closed) mbedtls_ssl_close_notify(&c->ssl); }
 

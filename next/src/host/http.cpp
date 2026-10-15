@@ -63,6 +63,7 @@ struct Fetch {
   uint64_t timeoutMs = 0, startMs = 0;
   Msg msg;
   bool tooBig = false, finished = false, restart = false, released = false, tcpOpen = false, timerOpen = false;
+  bool tls12 = false, answered = false;   // tls12: the retry of a server that dropped a TLS 1.3 session; answered: response bytes came
   bool secure = false, reqSent = false;
   tls::Conn* tls = nullptr;
   int closing = 0;
@@ -181,6 +182,7 @@ void rawWrite(Fetch* f, const std::string& bytes) {
 // Plain bytes of the response into llhttp.
 void parseBytes(Fetch* f, const char* data, size_t n) {
   if (f->finished || f->restart) return;
+  f->answered = true;
   netlog::mark(f->log, netlog::FirstByte);
   llhttp_errno_t e = llhttp_execute(&f->parser, data, n);
   if (e != HPE_OK && e != HPE_PAUSED && !f->finished && !f->restart) finish(f, false, f->tooBig ? "fetch failed: response too large" : std::string("fetch failed: ") + llhttp_get_error_reason(&f->parser));
@@ -225,7 +227,10 @@ void onFetchRead(uv_stream_t* s, ssize_t n, const uv_buf_t* buf) {
     if (f->tls) { tls::feed(f->tls, buf->base, static_cast<size_t>(n)); pumpTls(f); }
     else parseBytes(f, buf->base, static_cast<size_t>(n));
   } else if (n < 0 && !f->finished && !f->restart) {
-    if (f->tls) finish(f, false, f->reqSent ? "fetch failed: ECONNRESET" : "fetch failed: TLS handshake failed");   // closed without close_notify
+    // Some servers drop mbedTLS's TLS 1.3 session once the request is in, without a word (no response, no alert); OpenSSL's works.
+    // The root cause is not found (docs/reports/hardware/hp-touchpad-webos.md, section 14): the request is made again once over TLS 1.2.
+    if (f->tls && f->reqSent && !f->answered && !f->tls12 && tls::isTls13(f->tls)) { f->tls12 = true; f->msg = Msg(); f->restart = true; closeTcp(f); }
+    else if (f->tls) finish(f, false, f->reqSent ? "fetch failed: ECONNRESET" : "fetch failed: TLS handshake failed");   // closed without close_notify
     else parseEof(f);
   }
   if (buf->base) std::free(buf->base);
@@ -267,7 +272,8 @@ void startConnection(Fetch* f) {
     uv_read_start(reinterpret_cast<uv_stream_t*>(&k->tcp), alloc, onFetchRead);
     if (k->secure) {
       std::string err;
-      k->tls = tls::openClient(k->host, err);
+      k->answered = false;
+      k->tls = tls::openClient(k->host, err, k->tls12);
       if (!k->tls) { finish(k, false, "fetch failed: " + err); return; }
       pumpTls(k);
     } else { rawWrite(k, buildRequest(k)); netlog::mark(k->log, netlog::Sent); }

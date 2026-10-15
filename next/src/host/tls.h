@@ -10,7 +10,9 @@ struct Conn;
 enum class State { Handshaking, Ready, Closed, Failed };
 
 // A client that verifies the server's certificate for `serverName` against the system root store (or the file named by ZINC_CA_FILE). nullptr and `err` when it cannot start.
-Conn* openClient(const std::string& serverName, std::string& err);
+// `tls12`: TLS 1.2 at most, for a server that closes mbedTLS's TLS 1.3 sessions after the request (api.spotify.com, upload.wikimedia.org in 2026-10).
+Conn* openClient(const std::string& serverName, std::string& err, bool tls12 = false);
+bool isTls13(Conn* c);                              // the handshake is done and chose TLS 1.3
 // A server with a PEM certificate chain and a PEM private key.
 Conn* openServer(const std::string& certPem, const std::string& keyPem, std::string& err);
 // The sessions of the device agent (ZN-729.01), without certificates. A session keyed by a secret both ends hold: TLS 1.3 with a pre-shared key
