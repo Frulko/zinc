@@ -11,7 +11,7 @@ import { spinner, decodeStats, decodeOne, picturesTick, prefetch, ui, F, BG, CAR
 import { Station, loadMine, saveMine, indexOf, directory } from './radios';
 import { keyboard, KEYBOARD_H } from './keyboard';
 import { Screen } from './screen';
-import { arc, watchFace, HUGE, RINGS } from './faces';
+import { arc, watchFace, kaleidoscope, odometer, HUGE, RINGS } from './faces';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { setPlace, weatherTick, weatherSlide } from './weather';
 import { openPort } from 'zinc:webos';
@@ -48,7 +48,7 @@ const PLAYER = 0, CLOCK = 1, WEATHER = 2, RINGS_SLIDE = 3, SLIDES = 4;
 let slide: i32 = PLAYER, slideX = 0;
 let swipeOk = false, swiping = false, swipeFrom = 0, swipeVel = 0, lastX = 0;
 // the clock's faces, one above the other: a vertical swipe on the clock changes it, as StandBy does
-const FACES = 3;
+const FACES = 5;
 let face: i32 = 0, faceY = 0, faceSwipe = false, faceFrom = 0, faceVel = 0;
 /** The slide and the face, kept for the next start. */
 function remember(): void {
@@ -646,12 +646,12 @@ function clockSlide(W: number, H: number): void {
     const o = Math.round((j - faceY) * H);
     if (Math.abs(o) >= H) continue;
     setTransform(1, 0, 0, 1, ox, TOP + o); ui.oy = TOP + o;
-    if (j === 0) analogFace(W, H); else if (j === 1) digitalFace(W, H); else ringsFace(W, H);
+    if (j === 0) analogFace(W, H); else if (j === 1) digitalFace(W, H); else if (j === 2) ringsFace(W, H); else if (j === 3) kaleidoFace(W, H); else odometerFace(W, H);
   }
   setTransform(1, 0, 0, 1, ox, TOP); ui.oy = TOP;
   for (let j: i32 = 0; j < FACES; j++) {
     const on = Math.max(0, 1 - Math.abs(faceY - j));
-    rrect(W - 24, H / 2 + (j - 1) * 18 - 4, 8, 8, 4, TEXT, Math.round(70 + 185 * on) as i32);
+    rrect(W - 24, H / 2 + (j - (FACES - 1) / 2) * 18 - 4, 8, 8, 4, TEXT, Math.round(70 + 185 * on) as i32);
   }
 }
 function dateLines(x: number, y: number, w: number): void {
@@ -690,6 +690,21 @@ function ringsFace(W: number, H: number): void {
   const rx = cx + R + 72, rw = W - rx - 56;
   dateLines(rx, cy - 120, rw);
   nowCard(rx, cy + 40, rw);
+}
+/** Kaleidoscope: petals turning around the time, what plays under it. */
+function kaleidoFace(W: number, H: number): void {
+  const d = new Date(), r = Math.min(250, H * 0.34);
+  kaleidoscope(72 + r, H / 2, r, d.getHours(), d.getMinutes());
+  const rx = 72 + r * 2 + 72, rw = W - rx - 56;
+  dateLines(rx, H / 2 - 120, rw);
+  nowCard(rx, H / 2 + 40, rw);
+}
+/** Odometer: the digits roll when the minute changes. */
+function odometerFace(W: number, H: number): void {
+  const d = new Date();
+  centered(F.smallB, W / 2, H * 0.12, `${DAYS_LONG[d.getDay()]} ${d.getDate()} ${MONTHS_LONG[d.getMonth()]}`.toUpperCase(), ACCENT);
+  odometer(W / 2, H * 0.42, d.getHours(), d.getMinutes());
+  nowCard((W - 480) / 2, H - 150, 480);
 }
 /** What plays, as a card: a touch opens the player, the button plays or pauses. */
 function nowCard(x: number, y: number, w: number): void {
