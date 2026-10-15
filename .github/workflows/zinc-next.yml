@@ -47,16 +47,17 @@ jobs:
           git diff --name-only "$base" HEAD -- > "$RUNNER_TEMP/changed-paths"
           python3 next/tools/ci-plan ${full:+"$full"} < "$RUNNER_TEMP/changed-paths" >> "$GITHUB_OUTPUT"
           echo "base=$base" >> "$GITHUB_OUTPUT"
-  test:
+  package:
+    # The binary first: build, one smoke test of the archive (installed with no compiler on the PATH, Atelier checked), package, upload. A release needs this job only.
+    name: package-${{ matrix.name }}
     needs: plan
-    if: needs.plan.outputs.test == 'true'
+    if: needs.plan.outputs.package == 'true' || startsWith(github.ref, 'refs/tags/v')
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { os: macos-14, name: macos-arm64, tier: t2 }
-          - { os: macos-15-intel, name: macos-x86_64, tier: t1, experimental: true }   # ZN-718: the Intel Macs of schools get a download too; never run yet
-    name: ${{ matrix.name }}
+          - { os: macos-14, name: macos-arm64 }
+          - { os: macos-15-intel, name: macos-x86_64, experimental: true }   # ZN-718: the Intel Macs of schools; its failure does not stop the release
     runs-on: ${{ matrix.os }}
     continue-on-error: ${{ matrix.experimental == true }}
     defaults:
@@ -66,60 +67,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
-      - uses: pnpm/action-setup@v4
-        with: { version: '10' }
-      - uses: actions/setup-node@v4
-        with: { node-version: '24', cache: 'pnpm' }
-      - name: Install compiler dependencies
-        working-directory: .
-        run: pnpm install --frozen-lockfile
-      - name: Dependencies (Linux)
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y cmake python3 curl xz-utils libx11-dev libxext-dev libxcursor-dev libxi-dev libxfixes-dev libxrandr-dev libxss-dev libxtst-dev libgl1-mesa-dev libpixman-1-0 libsdl2-2.0-0 libslirp0  # the last three: Espressif's QEMU
       - name: Dependencies (macOS)
-        if: runner.os == 'macOS'
         run: brew install cmake sdl3 coreutils quickjs pixman libgcrypt sdl2
       - name: Build
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_DEPLOYMENT_TARGET=13.3 && cmake --build build -j4
       - name: Cache pinned toolchains
-        if: runner.os != 'Windows'
         uses: actions/cache@v4
         with:
-          path: |
-            ~/.zinc/toolchains
-            ${{ runner.temp }}/zinc-home/toolchains
+          path: ~/.zinc/toolchains
           key: toolchains-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('next/src/tc/tc.cpp', 'next/src/tc/tc.h') }}
-      - name: Tests
-        env:
-          ZINC_TEST_HOME: ${{ runner.temp }}/zinc-home
-          FULL: ${{ needs.plan.outputs.full }}
-          BASE: ${{ needs.plan.outputs.base }}
-        run: |
-          if [ "$FULL" = true ]; then
-            tests/run --tier ${{ matrix.tier }}
-          else
-            tests/run --changed-from "$BASE" --tier ${{ matrix.tier }}
-          fi
-      - name: Pixel canary for visible changes
-        if: needs.plan.outputs.full != 'true' && runner.os != 'Windows'
-        env:
-          BASE: ${{ needs.plan.outputs.base }}
-        run: |
-          git diff --name-only "$BASE" HEAD -- | python3 tests/affected.py tests/affected.json > "$RUNNER_TEMP/affected-tests"
-          if grep -qx canary "$RUNNER_TEMP/affected-tests"; then tools/proto-capture compare --canary --zinc build/zinc; fi
-      - name: Upload failed test logs
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-logs-${{ matrix.name }}
-          path: next/.logs/
-          include-hidden-files: true
       - name: Package
         # ZN-718: the engine and, built here with the pinned zig, the native library of every plugin that needs no system library (the log names the others)
-        if: needs.plan.outputs.package == 'true'
         run: |
           if [ "$GITHUB_REF_TYPE" = tag ]; then export ZINC_VERSION="${GITHUB_REF_NAME#v}"; fi   # v1.2.0 -> Zinc-1.2.0-...
-          ${{ runner.os == 'Windows' && 'python' || 'python3' }} tools/package --out dist
+          python3 tools/package --out dist
+      - name: Smoke test of the archive
+        run: ZINC_DIST="$PWD/dist" tests/run --only install_nocompiler
       - name: Sign and notarize (macOS release)
         if: runner.os == 'macOS' && startsWith(github.ref, 'refs/tags/v')
         env:
@@ -146,7 +109,7 @@ jobs:
           done
           echo signed > dist/.signed
       - name: Update manifest (release)
-        if: runner.os != 'Windows' && startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v')
         env:
           ZINC_UPDATE_SEED: ${{ secrets.ZINC_UPDATE_SEED }}
         run: |
@@ -155,11 +118,98 @@ jobs:
           printf 'version=%s\nurl=%s\nsha256=%s\nnotes=%s\n' "${GITHUB_REF_NAME#v}" "$(basename "$pkg")" "$(shasum -a 256 "$pkg" | cut -d' ' -f1)" "Zinc ${GITHUB_REF_NAME}" > "$RUNNER_TEMP/m"
           build/zinc update-sign "$RUNNER_TEMP/m" "$ZINC_UPDATE_SEED" > "dist/zinc-${{ matrix.name }}.manifest"
       - uses: actions/upload-artifact@v4
-        if: needs.plan.outputs.package == 'true'
         with:
           name: package-${{ matrix.name }}
           path: next/dist/
           include-hidden-files: true   # dist/.signed: the macOS package was signed and notarized
+  test:
+    # The whole tier, split in parallel shards (tests/run --shard i/n). A FAIL never blocks the release: each shard uploads its results and logs, and `report` gathers them.
+    needs: plan
+    if: needs.plan.outputs.test == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6]
+    name: tests ${{ matrix.shard }}/6
+    runs-on: macos-14
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: next
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: pnpm/action-setup@v4
+        with: { version: '10' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '24', cache: 'pnpm' }
+      - name: Install compiler dependencies
+        working-directory: .
+        run: pnpm install --frozen-lockfile
+      - name: Dependencies (macOS)
+        run: brew install cmake sdl3 coreutils quickjs pixman libgcrypt sdl2
+      - name: Build
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_DEPLOYMENT_TARGET=13.3 && cmake --build build -j4
+      - name: Cache pinned toolchains
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.zinc/toolchains
+            ${{ runner.temp }}/zinc-home/toolchains
+          key: toolchains-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('next/src/tc/tc.cpp', 'next/src/tc/tc.h') }}
+      - name: Tests
+        env:
+          ZINC_TEST_HOME: ${{ runner.temp }}/zinc-home
+          ZINC_TEST_RESULTS: ${{ runner.temp }}/results-${{ matrix.shard }}.txt
+          FULL: ${{ needs.plan.outputs.full }}
+          BASE: ${{ needs.plan.outputs.base }}
+        run: |
+          if [ "$FULL" = true ]; then
+            tests/run --tier t2 --shard ${{ matrix.shard }}/6
+          else
+            tests/run --changed-from "$BASE" --tier t1 --shard ${{ matrix.shard }}/6
+          fi
+      - name: Keep results and logs
+        if: always()
+        run: |
+          mkdir -p "$RUNNER_TEMP/out"
+          cp "$RUNNER_TEMP/results-${{ matrix.shard }}.txt" "$RUNNER_TEMP/out/" 2>/dev/null || true
+          cp -R .logs "$RUNNER_TEMP/out/logs-${{ matrix.shard }}" 2>/dev/null || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-${{ matrix.shard }}
+          path: ${{ runner.temp }}/out/
+  report:
+    # One artifact with every test's result and the logs of the failures, plus the list in the run's summary.
+    needs: [plan, test]
+    if: always() && needs.test.result != 'skipped'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: test-results-*
+          path: parts
+          merge-multiple: true
+      - name: Build the report
+        run: |
+          mkdir -p report
+          cat parts/results-*.txt 2>/dev/null | sort -k2 > report/results.txt || true
+          p=$(grep -c '^PASS' report/results.txt || true); f=$(grep -c '^FAIL' report/results.txt || true); k=$(grep -c '^SKIP' report/results.txt || true)
+          {
+            echo "# Zinc tests: $p passed, $f failed, $k skipped"
+            echo
+            if [ "$f" != 0 ]; then echo "## Failed"; grep '^FAIL' report/results.txt | awk '{print "- " $2 " (" $3 ")"}'; fi
+            echo
+            echo "Logs of the failures: artifact \`test-report\` (logs-*/*.log)."
+          } > report/REPORT.md
+          cp -R parts/logs-* report/ 2>/dev/null || true
+          cat report/REPORT.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          path: report/
   windows-cross:
     # ZN-714: zinc does not build on Windows yet, its programs do: the console programs of tests/golden/run are cross-built here (zinc build --target x86_64-windows,
     # the pinned zig) and handed to windows-console with their frozen outputs. Never run yet, so it does not block.
@@ -207,8 +257,8 @@ jobs:
   release:
     # ZN-329: on a v* tag, the packages of every OS job (signed for macOS when the secrets exist) and their update manifests on a GitHub Release
     name: release
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: test
+    needs: [package, report]
+    if: always() && !cancelled() && needs.package.result == 'success' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -220,6 +270,11 @@ jobs:
           pattern: package-*
           path: release
           merge-multiple: true
+      - uses: actions/download-artifact@v4
+        continue-on-error: true   # the report is an extra: a release does not wait for it to exist
+        with:
+          name: test-report
+          path: test-report
       - name: plugins.lock (ZN-335)
         run: next/tools/plugin-split --lock release/plugins.lock
       - name: Installer and checksums
@@ -227,6 +282,7 @@ jobs:
         run: |
           cp next/tools/install.sh release/
           cd release
+          [ -d ../test-report ] && (cd ../test-report && zip -qr ../release/test-report.zip .)
           for f in Zinc-*.zip; do if [ -f "$f" ]; then shasum -a 256 "$f"; fi; done > SHA256SUMS
           [ -s SHA256SUMS ] || { echo "::error::no package to release"; exit 1; }
       - name: Release
