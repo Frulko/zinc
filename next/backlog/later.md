@@ -213,7 +213,9 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-620: zn_app runs AOT programs only; a bundled .zapp (interpreter + ZBC, the player of mobile-core §6) needs zn_vm in zn_app and the zapp reader moved out of zn_tc.
 - ZN-620: `zn_app_quit` during a run skips `__host_gfxFinish`; call a prelude `__appEnd` by name.
 - ZN-620: an app build on macOS/iOS has no wake lock or battery (the IOKit dlopen is off); link IOKit directly.
-- ZN-618: the socket, osc, sonos and spotify plugins require "process" where they mean "an OS", so phones refuse them; their manifests should require net only.
+- music (2026-10-16): the Nexus 7 needs its own Spotify login (a copied token dies at the next refresh); then check browsing and playing a playlist on the group from the tablet.
+- ZN-618: a press and release between two frames (`adb shell input tap`, a quick finger) is not seen by a program that reads `pointerDown()` once per frame; it should still count as a tap.
+- ZN-618: `setPerformance` on Android could map to `Window.setSustainedPerformanceMode` (API 24+ where supported) if a program needs steady clocks.
 - ZN-622: hero needs zinc:video without FFmpeg system libraries before it can be exported to Android (ZN-628).
 - ZN-622: mimalloc prints "unable to allocate aligned OS memory" for the 128 MiB budget into logcat at every start (D121).
 - ZN-622: measure touch-to-frame latency and page faults of the mapped library on the Nexus 7 (simpleperf).
