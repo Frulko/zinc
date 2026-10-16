@@ -2,7 +2,8 @@
 id: ZN-627
 title: 'Mobile GPU path: GLES 3 replay on android, renderer decision for ios'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-10 14:07'
 updated_date: '2026-10-16 12:46'
 labels:
