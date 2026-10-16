@@ -4,7 +4,7 @@ title: 'GLES 2 base: one capability record, context providers, GPU tuning'
 status: Backlog
 assignee: []
 created_date: '2026-10-16 12:41'
-updated_date: '2026-10-16 12:46'
+updated_date: '2026-10-16 14:04'
 labels:
   - mobile
   - gl
@@ -36,4 +36,6 @@ Owner 2026-10-16: the Pi 3 (VideoCore IV), the HP TouchPad (Adreno 220) and the 
 
 <!-- SECTION:NOTES:BEGIN -->
 D119 (owner 2026-10-16): keep our own layer, written to be extractable later as a project of its own (own directory and CMake target, C ABI, no dependency on the runtime beyond the command-list header, its own tests), because back ends for CHIP, PS Vita (GXM), 3DS (citro3d), Wii (GX), Wii U (GX2), Switch (deko3d/NVN) are planned. Do not extract it in this task; keep the boundary.
+
+2026-10-16, measured by the Android chain (ZN-622, docs/reports/zinc-next-android.md): the GLES 2 replay already drives the SDL3 window on Android (ZINC_RENDERER=gl) with correct pixels but is SLOWER than the software raster on Tegra 3 (rn-showcase 13.7 fps, present p50 89 / p99 158 ms; breakout present p99 32.8 ms) because it replays the whole frame while the raster redraws only the damage. So this task must make the replay damage-aware (scissor to the damaged rectangles over a preserved back buffer: EGL_SWAP_BEHAVIOR_PRESERVED, EGL_KHR_partial_update or EGL_EXT_buffer_age where the driver has them, else an FBO of the frame and a copy of the damage) before it can become Android's default; the software raster at idle is 60 fps, scrolling ~25 fps (raster ~23 ms + present ~13 ms).
 <!-- SECTION:NOTES:END -->
