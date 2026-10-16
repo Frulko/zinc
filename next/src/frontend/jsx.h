@@ -1,6 +1,7 @@
 #pragma once
 // JSX lowering (ZN-028): rewrites the JSX of a .tsx source into calls on the zinc:ui helper functions (Solid or React model).
 #include <cstdint>
+#include <map>
 #include <string>
 #include <set>
 #include <string_view>
@@ -15,6 +16,9 @@ namespace zn::frontend {
 // (when given) says where every piece comes from, for columns and generated code (ZN-371.03). Problems (unsupported attributes, malformed
 // tags) are added to `diags` as Z0005.
 std::string lowerJsx(std::string_view src, std::vector<Diag>& diags, std::uint32_t file, const std::set<std::string>* classTags = nullptr, std::vector<SrcPiece>* map = nullptr);   // classTags: components declared as classes (this file or a relative import), lowered to _cc in the React model
+
+// The lowercase tags Z0007 names a component for ("view" -> "View", "div" -> "View"...): what `zinc migrate jsx-capitalised-tags` rewrites.
+const std::map<std::string, std::string>& jsxLowercaseTags();
 
 // StyleSheet.create({...}) of a .ts or .tsx source (StyleSheet imported from zinc:ui): the CSS-like objects become style operations. The source unchanged when there is none.
 std::string lowerStyleSheets(std::string_view src, std::vector<Diag>& diags, std::uint32_t file, bool tsx);

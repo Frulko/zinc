@@ -23,10 +23,7 @@ namespace zn::frontend {
 namespace {
 
 const std::map<std::string, int> kTags = {{"View", 0}, {"Text", 1}, {"Button", 2}, {"Image", 3}, {"ScrollView", 4}, {"Canvas", 5}, {"Input", 7}, {"TextArea", 8}};
-// A lowercase tag is refused (Z0007, owner 2026-10-16): the component to write instead, for the old host tags and the HTML ones people reach for.
-const std::map<std::string, std::string> kLowerTags = {{"view", "View"}, {"text", "Text"}, {"button", "Button"}, {"image", "Image"}, {"scroll", "ScrollView"},
-                                                       {"canvas", "Canvas"}, {"input", "Input"}, {"textarea", "TextArea"}, {"div", "View"}, {"span", "Text"},
-                                                       {"p", "Text"}, {"img", "Image"}, {"scrollview", "ScrollView"}};
+const std::map<std::string, std::string>& kLowerTags = jsxLowercaseTags();
 const std::set<std::string> kNumAttrs = {"width", "height", "grow", "gap", "bg", "color", "scale", "hidden", "x", "y", "opacity", "translateX", "translateY", "rows", "tabIndex", "dragThreshold", "numberOfLines"};
 const std::map<std::string, int> kPointerAttrs = {{"onPointerDown", 0}, {"onPointerMove", 1}, {"onPointerUp", 2}, {"onDoubleClick", 3}, {"onContextMenu", 4}, {"onWheel", 5}, {"onPointerEnter", 6},
                                                   {"onPointerLeave", 7}, {"onTap", 8}, {"onLongPress", 9}, {"onDrag", 10}, {"onPinch", 11}, {"onPointerCancel", 12}};
@@ -1103,6 +1100,16 @@ struct Lowering {
 };
 
 }  // namespace
+
+// A lowercase tag is refused (Z0007, owner 2026-10-16): the component to write instead, for the old host tags and the HTML ones people reach for.
+// zinc migrate jsx-capitalised-tags rewrites exactly these (src/lint).
+const std::map<std::string, std::string>& jsxLowercaseTags() {
+  static const std::map<std::string, std::string> tags = {{"view", "View"}, {"text", "Text"}, {"button", "Button"}, {"image", "Image"}, {"scroll", "ScrollView"},
+                                                          {"canvas", "Canvas"}, {"input", "Input"}, {"textarea", "TextArea"}, {"div", "View"}, {"span", "Text"},
+                                                          {"p", "Text"}, {"img", "Image"}, {"scrollview", "ScrollView"}};
+  return tags;
+}
+
 
 // React Native's imports under the react-native preset (ZN-367.05): 'react' is zinc:ui/react (a default `React` becomes a namespace import of it), and of
 // 'react-native' the names live in zinc:react-native except Animated and Easing (zinc:ui/animated) and Linking (zinc:react-native/linking, it needs the
