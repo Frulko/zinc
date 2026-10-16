@@ -309,6 +309,14 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-628: on iOS a deep link at launch arrives as an open-url event, not through deep-link.getCurrent; set the notification delegate before launch ends, for a tap that starts the app.
 - ZN-628: zinc:video on phones (Android AMediaExtractor + AMediaCodec, NV12 converted as the webOS backend does; iOS AVAssetReader in 32BGRA; both behind player.h, about one session each): then examples/hero exports to Android and iOS (plan in the task notes).
 - ZN-628: zinc:webview on WKWebView and the Android WebView through the NativeView overlay (ZN-749).
+- ZN-750: the raster could write RGBA itself (an output-order flag in zrt_raster) instead of the per-stripe swap from API 26 (5 ms a scrolled frame on a Nexus 7).
+- ZN-750: measure the sustained performance mode on a device that supports it (Pixel 1-3 era) and whether it helps a fling.
+- ZN-629: zinc publish --play / --app-store: upload the AAB through the Play Developer API (a service account) and the IPA through altool with an API key, once the owner's accounts exist.
+- ZN-629: zinc.json targets.ios.privacy for the app's own required-reason uses, and NSPrivacyCollectedDataTypes when crash reports leave the device.
+- ZN-629: a T0 case for the 16 KB check's failure path (a 4 KB-aligned .so in a package).
+- ZN-748: the OS's own UI font at run time (CoreText on iOS and macOS, /system/fonts through fonts.xml on Android), after variable-font support in runtime/ttf.cpp.
+- ZN-748: Android 12+ dynamic colour as the android tint; re-read the macOS accent when the user changes it; a test of the accent paths.
+- ZN-748: more controls per look: checkbox, radio, RefreshControl, Alert, the nuxt Checkbox shape; iOS's context-menu preview.
 
 ## Demos
 
@@ -595,3 +603,6 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-744: the GPU scroll on the Pi 3 (display-gl does not call glr::scroll yet) and the TouchPad.
 - ZN-745: zinc build --target armv7-webos and --target aarch64-linux pick x.webos.ts / x.linux.ts (ZINC_PLATFORM from the target): implemented, not run.
 - ZN-628: the services and Swift/Kotlin fixtures on the Nexus 7 (armeabi-v7a Kotlin build) and a real iPhone; zinc.json targets.android/targets.ios raw manifest and plist fragments for apps.
+- ZN-750: check BGRA_8888 against RGBX on a real API 26-36 device and move the API line if it honours format 5.
+- ZN-629: --aab and --apk on Linux (unzip, the JDK at /opt/android-studio/jbr) and an IPA archive on a device with the owner's team.
+- ZN-748: the platform looks on the Nexus 7 and the iOS simulator, screenshots in docs/reports/zinc-next-android and zinc-next-ios.
