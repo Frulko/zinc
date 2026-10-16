@@ -21,4 +21,9 @@ got=$(timeout 60 "$tmp/aot" 2>/dev/null)
 [ "$got" = "$want" ] || { echo "the loopback differs compiled: $(echo "$got" | diff tests/golden/host/webrtc_loopback.out - | head -6)"; fail=1; }
 got=$(timeout 30 "$ZINC" run tests/data/webrtc_globals.ts 2>/dev/null)
 [ "$got" = "got global hello" ] || { echo "the RTC globals: $got"; fail=1; }
+# zinc.json permissions: a project without "net" cannot create a connection when enforced
+mkdir -p "$tmp/denied" && printf '{ "name": "denied", "entry": "main.ts", "permissions": ["fs"] }\n' > "$tmp/denied/zinc.json"
+printf "import { RTCPeerConnection } from 'zinc:webrtc';\nimport { DOMException } from 'zinc:web';\ntry { new RTCPeerConnection(); console.log('created'); } catch (e) { console.log((e as DOMException).name + ' ' + (e as Error).message); }\n" > "$tmp/denied/main.ts"
+got=$(cd "$tmp/denied" && ZINC_PERMISSIONS=enforce timeout 30 "$ZINC" run . 2>/dev/null)
+echo "$got" | grep -q '^NotAllowedError webrtc: .*"net' || { echo "a connection without the net permission: $got"; fail=1; }
 exit $fail

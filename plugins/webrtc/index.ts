@@ -238,7 +238,8 @@ export class RTCPeerConnection extends EventTarget {
   private h: i32;
   private asked: boolean = false;
 
-  /** @throws DOMException SyntaxError for an ICE server URL libdatachannel cannot read. */
+  /** @throws DOMException SyntaxError for an ICE server URL libdatachannel cannot read; NotAllowedError when zinc.json "permissions" lack
+   *  "net" (or "net:*": a peer can be any host, and the connection listens). */
   constructor(config: RTCConfiguration = {}) {
     super();
     let servers = '';
@@ -254,7 +255,7 @@ export class RTCPeerConnection extends EventTarget {
       }
     }
     this.h = S.create(servers, config.iceTransportPolicy === 'relay');
-    if (this.h < 0) throw fail('SyntaxError');
+    if (this.h < 0) throw fail(S.error().indexOf('permission') >= 0 ? 'NotAllowedError' : 'SyntaxError');
     pcs.set(this.h, this);
     watch();
   }

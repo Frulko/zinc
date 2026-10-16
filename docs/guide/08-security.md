@@ -122,6 +122,7 @@ the `macos` list, on Linux and for the Linux targets the `linux` list.
 | `zinc:process` (plugin) | starting a process (`spawn`, `run`) | `process` |
 | `zinc:gphoto2` (plugin) | detecting and opening a camera | `camera` |
 | `zinc:camera` (plugin), `navigator.mediaDevices` | listing and opening a webcam (`devices`, `open`, `getUserMedia`) | `camera` |
+| `zinc:webrtc` (plugin) | creating an `RTCPeerConnection` (it listens, and a peer can be any host) | `net` or `net:*` |
 | `zinc:microphone` (plugin), `navigator.mediaDevices` | listing and opening a microphone (`devices`, `open`, `getUserMedia({ audio })`) | `microphone` |
 | `zinc:system/<id>` | importing the module (else compile error `Z5006`), then each op (else a `SystemError` with the code `denied`) | its id |
 | `zinc:sys`, `zinc:gfx`, `zinc:ui`, `zinc:audio`, the other modules | | nothing |

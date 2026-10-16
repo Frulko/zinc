@@ -14,6 +14,7 @@
 #include <string.h>
 #include <string>
 #include <vector>
+extern "C" int zn_host_permission(const char* feature, const char* detail, char* why, int n) __attribute__((weak));   // zinc.json "permissions" (src/host/permissions.cpp)
 
 namespace {
 const char FS = '\x1f';
@@ -105,6 +106,8 @@ struct HostWebRTC : NativeWebRTC {
       rtcInitLogger(show && *show ? RTC_LOG_DEBUG : RTC_LOG_ERROR, onLog);
     }
     err.clear();
+    char why[512];
+    if (zn_host_permission && zn_host_permission("net", "*", why, sizeof why)) { err = std::string("webrtc: ") + why; return -1; }   // any peer, and it listens: "net" or "net:*"
     std::vector<std::string> urls;
     std::string all = cstr(servers), line;
     for (size_t i = 0; i <= all.size(); i++)
