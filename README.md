@@ -135,7 +135,7 @@ From a desktop app to a microcontroller, the same engine and the same language:
 </table>
 
 More: `examples/hero` (a complete app), `examples/nuxt-ui`, `examples/rn-showcase`, `examples/js-phaser` (Phaser, unmodified),
-`examples/leapmotion` (hand tracking games), `examples/webcam` (a camera app on `zinc:camera`), `examples/hardware` (the device web APIs; try `--simulate hp-touchpad`).
+`examples/leapmotion` (hand tracking games), `examples/webcam` (a camera app on `zinc:camera`), `examples/webrtc-call` (a video call on `zinc:webrtc`), `examples/hardware` (the device web APIs; try `--simulate hp-touchpad`).
 
 ## 🔌 Plugins
 
