@@ -28,7 +28,8 @@ function renderHeader(p: ModalProps): i32 {
     <Show when={p.close ?? true}><Button icon="x" color="neutral" variant="ghost" size="md" onClick={() => p.onUpdate(false)} /></Show>
   </View>;
 }
-/** Nuxt UI's UModal: a 512 px panel over the page dimmed with bg-elevated/75; Escape, a press outside (dismissible) and the close button ask onUpdate(false). */
+/** Nuxt UI's UModal: a 512 px panel over the page dimmed with bg-elevated/75; Escape, a press outside (dismissible) and the close button ask onUpdate(false).
+ *  The dim fades in and out, the panel fades and grows from 96%. */
 export function Modal(p: ModalProps): i32 {
   const screen = createNodeRef(), panel = createNodeRef();
   const ask = (): void => { if (p.dismissible ?? true) p.onUpdate(false); };
@@ -40,7 +41,7 @@ export function Modal(p: ModalProps): i32 {
       <Show when={p.footer !== undefined}><View className={`flex-row items-center justify-end gap-1.5 px-6 py-4 border-t border-${hex(theme().border)}`}>{renderSlot(p.footer)}</View></Show>
     </View>
   </View>;
-  ui.openLayer(screen.node, { priority: 200, modal: true, backdrop: rgb(theme().bgElevated), backdropAlpha: 191 });
+  ui.openLayer(screen.node, { priority: 200, modal: true, backdrop: rgb(theme().bgElevated), backdropAlpha: 191, motion: full ? 'fade' : 'scale' });
   ui.focusScope(screen.node, { trap: true, restore: true, autoFocus: true });
   ui.onDismiss(screen.node, ask);
   ui.onOutsidePointer(panel.node, (e: ui.PointerEvent) => ask());
@@ -65,7 +66,7 @@ export function Slideover(p: SlideoverProps): i32 {
       <Show when={p.footer !== undefined}><View className={`flex-row items-center gap-1.5 px-6 py-4 border-t border-${hex(theme().border)}`}>{renderSlot(p.footer)}</View></Show>
     </View>
   </View>;
-  ui.openLayer(screen.node, { priority: 200, modal: true, backdrop: rgb(theme().bgElevated), backdropAlpha: 191 });
+  ui.openLayer(screen.node, { priority: 200, modal: true, backdrop: rgb(theme().bgElevated), backdropAlpha: 191, motion: `slide-${side}`, duration: 220 });   // the panel slides, the dim fades
   ui.focusScope(screen.node, { trap: true, restore: true, autoFocus: true });
   ui.onDismiss(screen.node, ask);
   ui.onOutsidePointer(panel.node, (e: ui.PointerEvent) => ask());

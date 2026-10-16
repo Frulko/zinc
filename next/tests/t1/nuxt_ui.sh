@@ -14,7 +14,8 @@ while read -r name scheme open page sect want; do
   p=''; [ "$page" != - ] && p=$page
   c=''; [ "$sect" != - ] && c=$sect
   size=1100x900; [ "$p" = "" ] && size=1280x860
-  got=$(cd $app && ZINC_FRAMES=8 ZINC_SIZE=$size NUXT_SCHEME=$s NUXT_OPEN=$o NUXT_PAGE=$p NUXT_SECTION=$c ZINC_FRAMEHASH=last "$ZINC" run . 2>&1 | grep framehash | awk '{print $5}')
+  frames=8; [ "$o" = modal ] || [ "$o" = slideover ] && frames=24   # a modal fades and moves in (zinc:ui layer motions): the hash is of it at rest
+  got=$(cd $app && ZINC_FRAMES=$frames ZINC_SIZE=$size NUXT_SCHEME=$s NUXT_OPEN=$o NUXT_PAGE=$p NUXT_SECTION=$c ZINC_FRAMEHASH=last "$ZINC" run . 2>&1 | grep framehash | awk '{print $5}')
   [ "$got" = "$want" ] || { echo "nuxt-ui $name $scheme: $got, recorded $want"; fail=1; }
 done < tests/golden/nuxt-ui/hashes.txt
 check() {   # check <entry> <frames> <size> <golden>

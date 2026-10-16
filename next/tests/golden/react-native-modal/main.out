@@ -1,5 +1,5 @@
-closed: modal text 700 hidden
-sliding: below its place
+closed: modal shown true
+sliding: on its way up
 open: show, text at 40
 after Escape: show request close
 alert shown: true

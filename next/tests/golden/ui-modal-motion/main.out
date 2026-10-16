@@ -1,0 +1,6 @@
+opening: in motion
+open: 1
+closing: in motion
+closed: 0
+toggled, ends open: 1
+toggled, ends closed: 0

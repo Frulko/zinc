@@ -409,28 +409,26 @@ export function useAnimated(n: A.Node): number {
 
 // ---------------------------------------------------------------- Modal, Alert (ZN-367.04); Linking is zinc:react-native/linking (it needs the opener permission)
 export type ModalProps = { visible?: boolean; transparent?: boolean; animationType?: string; onRequestClose?: () => void; onShow?: () => void; children?: () => i32 };
-class ModalState { open: boolean = false; at: A.Value = new A.Value(0); }
-/** A full-screen modal layer above the app: the backdrop is white unless transparent, Escape asks onRequestClose, animationType 'slide' comes up from
- *  the bottom and 'fade' fades in (300 ms). ponytail: it hides at once on close (React Native animates the way out too). */
+class ModalState { open: boolean = false; }
+/** A full-screen modal layer above the app: the backdrop is white unless transparent, Escape asks onRequestClose. animationType 'slide' brings the
+ *  content up from the bottom (250 ms) while a dimmed full-size view of a transparent modal (its scrim) fades in place, as on iOS; 'fade' fades all
+ *  of it (200 ms); 'none' (the default) shows it at once. Closing plays the same motion backwards (zinc:ui's layer motions). */
 export function Modal(p: ModalProps): i32 {
   const host = useRef<i32>(-1);
   const st = useRef<ModalState>(new ModalState());
   const visible = p.visible ?? true;
-  const k = useAnimated(st.current.at);
   useEffect((): void => {
     const s = st.current, h = host.current;
     if (visible && !s.open) {
       s.open = true;
-      ui.openLayer(h, { modal: true, priority: 1000 });
+      const anim = p.animationType ?? 'none';
+      ui.openLayer(h, { modal: true, priority: 1000, motion: anim === 'slide' ? 'slide' : anim === 'fade' ? 'fade' : 'none', duration: anim === 'slide' ? 250 : 200 });
       ui.onDismiss(h, (): void => { const f = p.onRequestClose; if (f !== undefined) f(); });
-      if (p.animationType === 'slide' || p.animationType === 'fade') { s.at.setValue(0); A.timing(s.at, { toValue: 1, duration: 300, easing: A.Easing.out(A.Easing.cubic) }).start(); }
-      else s.at.setValue(1);
       const f = p.onShow; if (f !== undefined) f();
-    } else if (!visible && s.open) { s.open = false; ui.closeLayer(h); }
+    } else if (!visible && s.open) s.open = false;   // hidden: the layer plays its motion out
   }, [visible ? 1 : 0]);
-  const motion = p.animationType === 'slide' ? new ui.Style(['translateY'], [(1 - k) * height()]) : p.animationType === 'fade' ? new ui.Style(['opacity'], [k]) : NONE;
   return <View ref={host} style={[{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0 }, p.transparent === true ? NONE : new ui.Style(['backgroundColor', 'backgroundAlpha'], [0xffffff, 255]),
-    motion, visible ? NONE : new ui.Style(['hidden'], [1])]}>{renderChildren(p.children)}</View>;
+    visible ? NONE : new ui.Style(['hidden'], [1])]}>{renderChildren(p.children)}</View>;
 }
 
 export type AlertButton = { text?: string; onPress?: () => void; style?: string };
@@ -447,7 +445,7 @@ export class Alert {
       return;
     }
     const box = new AlertBox();
-    const close = (): void => { ui.closeLayer(box.node); ui.remove(root, box.node); };
+    const close = (): void => { ui.setNumber(box.node, 'hidden', 1); setTimeout((): void => { ui.remove(root, box.node); }, 200); };   // it fades out, then leaves
     const shade = ui.createNode(ui.VIEW);
     ui.setStyles(shade, [new ui.Style(['position', 'left', 'top', 'right', 'bottom', 'alignItems', 'justifyContent', 'backgroundColor', 'backgroundAlpha'], [1, 0, 0, 0, 0, 1, 1, 0x000000, 90])]);
     const card = ui.createNode(ui.VIEW);
@@ -477,7 +475,7 @@ export class Alert {
     ui.insert(shade, card, -1);
     box.node = shade;
     ui.insert(root, shade, -1);
-    ui.openLayer(shade, { modal: true, priority: 2000 });
+    ui.openLayer(shade, { modal: true, priority: 2000, motion: 'fade' });   // the shade is its scrim: all of it fades
     ui.onDismiss(shade, (): void => { const c = box.cancel; if (c !== null) (c as () => void)(); else if (buttons.length <= 1) close(); });
   }
 }

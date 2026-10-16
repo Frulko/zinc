@@ -39,7 +39,7 @@ component (`View as Box`) is not supported: View, Text, Image and ScrollView mus
 | FlatList | partial | virtualised: data, renderItem, keyExtractor (item, index), ItemSeparatorComponent, ListHeader / Footer / EmptyComponent, numColumns, columnWrapperStyle, getItemLayout, onEndReached + threshold, refreshing / onRefresh; horizontal, inverted, scrollToIndex, onViewableItemsChanged missing |
 | SectionList | partial | sections exactly `{ title, data }` (a declared array of sections cannot widen to optional members yet: ZN-389), renderItem, renderSectionHeader / Footer, sticky headers, separators, refresh, onEndReached; not virtualised |
 | RefreshControl | partial | the spinner row of FlatList / SectionList `refreshing`; the ScrollView `refreshControl` prop is missing |
-| Modal | supported | visible, transparent, animationType slide / fade, onRequestClose (Escape), onShow; closes without an exit animation |
+| Modal | supported | visible, transparent, animationType slide (the content comes up in 250 ms; the dimmed full-size view of a transparent modal fades in place, as on iOS) / fade (200 ms) / none, onRequestClose (Escape), onShow; closing plays the motion backwards |
 | SafeAreaView | supported | a View (no notch on desktop and simulator surfaces) |
 | StatusBar | partial | renders nothing (no system status bar); the props are kept |
 | VirtualizedList, ImageBackground, DrawerLayoutAndroid, TouchableNativeFeedback, InputAccessoryView | missing | |
@@ -53,7 +53,7 @@ component (`View as Box`) is not supported: View, Text, Image and ScrollView mus
 | Easing | supported | linear, ease, quad, cubic, poly, sin, circle, exp, elastic, back, bounce, bezier, in / out / inOut |
 | LayoutAnimation | supported | configureNext, create, Presets easeInEaseOut / linear / spring |
 | PanResponder | partial | create, panHandlers, gestureState dx dy vx vy moveX moveY x0 y0; the should-set callbacks are asked once, when the drag starts |
-| Alert | partial | alert(title, message, buttons) as an in-app dialog (cancel, destructive); prompt missing |
+| Alert | partial | alert(title, message, buttons) as an in-app dialog (cancel, destructive) that fades in and out; prompt missing |
 | Linking | supported | openURL, canOpenURL, getInitialURL, addEventListener('url'), openSettings (zinc:react-native/linking) |
 | Keyboard | supported | addListener keyboardDid/WillShow, Hide, ChangeFrame; dismiss, isVisible, metrics |
 | Platform | partial | OS (zinc's platform names: macos, linux, web, device targets), Version, select (with a fallback argument: no undefined result) |

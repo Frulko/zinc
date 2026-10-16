@@ -92,7 +92,7 @@ toast('Saved', 'All changes are on disk.');
 | `Tooltip` | `label`, `action?` (its shortcut is shown), `placement?` (`top` default), `delay?` (500 ms), `class?`, children | shows while the pointer rests on the children |
 | `Popover` | `label` (the trigger button), `variant?`, `placement?` (`bottom-start`), `class?` (the panel), children | focus moves into the panel and comes back when it closes |
 | `DropdownMenu` | `label`, `items: MenuItem[]` (`label`, `action?`, `onSelect?`, `disabled?`), `variant?`, `placement?`, `class?` | opens focused on its first item; arrows move (trapped), Enter picks; actions show their shortcut (`keyLabel`) |
-| `Dialog` | `open: () => boolean`, `onOpenChange`, `title?`, `description?`, `class?`, children, `footer?` | modal, dims the page, traps the focus, focuses its first control, gives the focus back |
+| `Dialog` | `open: () => boolean`, `onOpenChange`, `title?`, `description?`, `class?`, children, `footer?` | modal, dims the page (the dim fades, the panel fades and grows from 96%, both ways), traps the focus, focuses its first control, gives the focus back |
 | `toast(title, description?, ms?)` | | a stack in the bottom-right corner, 4 s by default; no component to mount |
 
 Tooltip, Popover and DropdownMenu keep their open state in the engine (the panel's `hidden`), so they work the same in

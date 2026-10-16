@@ -172,6 +172,17 @@ backdrop dims them. `ui.anchor` places the float next to a node or a point at th
 (so it follows a scrolling target), flips it to the other side when it does not fit and there is more room there, and
 keeps it `margin` px inside the surface. `closeLayer` / `unanchor` undo them; a destroyed node leaves every registry.
 
+A layer shows and hides with a motion: `motion` is `'none'`, `'fade'` (the default with a backdrop), `'scale'` (fades and grows from 96%: a
+dialog), `'slide'` (from the bottom: a sheet) or `'slide-top'` / `'slide-left'` / `'slide-right'` (a drawer), over `duration` ms (180; the way
+out is 20% quicker), ease-out in and ease-in out. Only the content moves: the backdrop, and a translucent full-size view the content puts
+behind itself (React Native's dimmed view in a transparent Modal), fade in place and never slide or scale. Hiding the layer node (`hidden`)
+plays the motion backwards: the node is painted until it has left, out of reach of the pointer and the focus; a toggle half way turns back
+from where it is. Frames run only while a motion moves. `ui.layerProgress(h)` (0..1) tells where it is.
+
+```tsx
+ui.openLayer(sheet, { priority: 200, modal: true, backdrop: 0x000000, backdropAlpha: 110, motion: 'slide', duration: 250 });
+```
+
 The kit builds its overlays on these (docs/ui-kit.md): Tooltip, Popover, DropdownMenu, Dialog, toast.
 
 ## Hover and cursors
@@ -196,6 +207,7 @@ grabbing while its node has the pointer captured. SDL has no hand cursors: grab 
 | `data-[state=open]:` | the attribute `data-state` equals `open`: `data-state="open"` in JSX or `ui.setAttr(node, 'data-state', 'open')` |
 
 A program can use at most 20 distinct attribute conditions; the golden is `tests/golden/ui-state`.
+
 
 ## Transitions
 

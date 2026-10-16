@@ -156,7 +156,8 @@ export interface DialogProps {
   children?: () => i32;
   footer?: () => i32;       // buttons, right-aligned
 }
-/** A modal panel over a dimmed page: the focus stays inside it; Escape or a press outside asks to close it. */
+/** A modal panel over a dimmed page: the focus stays inside it; Escape or a press outside asks to close it. The dim fades in and out, the panel
+ *  fades and grows from 96%. */
 export function Dialog(props: DialogProps): i32 {
   const screen = createNodeRef(), panel = createNodeRef();
   const t = theme();
@@ -171,7 +172,7 @@ export function Dialog(props: DialogProps): i32 {
       <View className="flex-row justify-end gap-2">{renderSlot(props.footer)}</View>
     </View>
   </View>;
-  ui.openLayer(screen.node, { priority: 200, modal: true, backdrop: 0x000000, backdropAlpha: 128 });
+  ui.openLayer(screen.node, { priority: 200, modal: true, backdrop: 0x000000, backdropAlpha: 128, motion: 'scale' });   // the dim fades, the panel grows in
   ui.focusScope(screen.node, { trap: true, restore: true, autoFocus: true });
   ui.onDismiss(screen.node, close);
   ui.onOutsidePointer(panel.node, (e: ui.PointerEvent) => close());

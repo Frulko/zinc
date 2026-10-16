@@ -5752,20 +5752,32 @@ function runKeymap(key: string, mods: i32): boolean {
 // ---- layers (GPUI deferred): a layer node stays where it is in the tree (its component owns it), but is laid out on
 // the whole surface (absolute: its classes place it, or ui.anchor), painted after the root in priority order and
 // hit-tested first; the overflow clipping of its ancestors does not apply. A modal layer blocks everything below it.
-export interface LayerOptions { priority?: i32; modal?: boolean; backdrop?: i32; backdropAlpha?: i32 }
+// A layer shows and hides with a motion (`motion`): its backdrop (the scrim) only ever fades, the content fades ('fade'), fades and grows
+// from 96% ('scale', a dialog) or slides in from an edge ('slide' or 'slide-bottom', 'slide-top', 'slide-left', 'slide-right': a sheet, a
+// drawer) while the scrim fades under it. A content's own translucent full-size background (React Native's transparent Modal with a dimmed
+// view) is its scrim: it fades in place too. Hiding the node plays the motion backwards: the node is painted, out of reach of the pointer,
+// until it has left. Ease-out in, ease-in out (one curve run both ways, so a toggle half way turns back without a jump).
+export interface LayerOptions { priority?: i32; modal?: boolean; backdrop?: i32; backdropAlpha?: i32; motion?: string; duration?: number }
+const MOTIONS: string[] = ['none', 'fade', 'scale', 'slide-bottom', 'slide-top', 'slide-left', 'slide-right'];
 class Layer {
   node: i32; priority: i32 = 0; modal = false; backdrop: i32 = -1; alpha: i32 = 110; seq: i32 = 0;
+  motion: i32 = 0; ms: number = 0;     // MOTIONS index, the time in (out is 20% quicker)
+  t: number = 0; at: number = -1;      // 0 gone .. 1 shown; the clock of the last step (-1: at rest)
   constructor(node: i32) { this.node = node; }
 }
 const layers: Layer[] = [];   // bottom first: priority, then opening order
 let layerSeq: i32 = 0, layerPass: i32 = -1;
-/** Opens (or updates) a layer; backdrop: a colour drawn over the whole surface below it (backdropAlpha, default 110). */
+/** Opens (or updates) a layer; backdrop: a colour drawn over the whole surface below it (backdropAlpha, default 110); motion: how it shows
+ *  and hides ('none', 'fade', 'scale', 'slide' and 'slide-<edge>'; 'fade' when it has a backdrop), over `duration` ms (180). */
 export function openLayer(h: i32, o: LayerOptions): void {
   let l: Layer | null = null;
   for (let i = 0; i < layers.length; i++) if (layers[i].node === h) { l = layers[i]; layers.splice(i, 1); break; }
   if (l === null) { l = new Layer(h); l.seq = ++layerSeq; layoutDirty = true; }
   const ll = l as Layer;
   ll.priority = o.priority ?? 0; ll.modal = o.modal ?? false; ll.backdrop = o.backdrop ?? -1; ll.alpha = o.backdropAlpha ?? 110;
+  const m = o.motion ?? (ll.backdrop >= 0 ? 'fade' : 'none');
+  ll.motion = m === 'slide' ? 3 : imax(0, MOTIONS.indexOf(m));
+  ll.ms = ll.motion === 0 ? 0 : o.duration ?? 180;
   layers.push(ll);
   let at: i32 = layers.length - 1;
   while (at > 0 && (layers[at - 1].priority > ll.priority || (layers[at - 1].priority === ll.priority && layers[at - 1].seq > ll.seq))) { layers[at] = layers[at - 1]; at--; }
@@ -5793,11 +5805,87 @@ function layoutLayers(): void {
 }
 function paintLayers(): void {
   for (const l of layers) {
-    if (!shownNow(l.node)) continue;
-    if (l.backdrop >= 0) rrect(0, 0, width(), height(), 0, l.backdrop, l.alpha);
-    layerPass = l.node;
-    paint(l.node, 0, 0, 1, 1);
-    layerPass = -1;
+    const on = shownNow(l.node);
+    if (!stepLayer(l, on)) continue;
+    const n = nodes[l.node], hid = n.hidden;
+    if (l.t >= 1 && on) {   // at rest
+      if (l.backdrop >= 0) rrect(0, 0, width(), height(), 0, l.backdrop, l.alpha);
+      layerPass = l.node; paint(l.node, 0, 0, 1, 1); layerPass = -1;
+      continue;
+    }
+    const v = 1 - (1 - l.t) * (1 - l.t) * (1 - l.t);
+    if (l.backdrop >= 0) rrect(0, 0, width(), height(), 0, l.backdrop, Math.round(l.alpha * v));
+    n.hidden = false;   // leaving: painted until it is gone
+    const sc = scrimOf(l.node), c = contentOf(l.node, sc);
+    let sa: i32 = 0;
+    if (sc >= 0) {   // the content's own scrim fades where it is
+      const s = nodes[sc];
+      boxOf(sc);
+      rrect(boxX, boxY, s.lw * boxK, s.lh * boxK, 0, effectiveBg(sc, s), Math.round(s.bgAlpha * v * layerAlpha(sc)));
+      sa = s.bgAlpha; s.bgAlpha = 0;
+    }
+    boxOf(c);
+    const cw = nodes[c].lw * boxK, ch = nodes[c].lh * boxK, u = 1 - v;
+    let ox: number = 0, oy: number = 0, k: number = 1, a: number = 1;
+    if (l.motion === 1) a = v;
+    else if (l.motion === 2) { a = v; k = 0.96 + 0.04 * v; ox = (boxX + cw / 2) * (1 - k); oy = (boxY + ch / 2) * (1 - k); }
+    else if (l.motion === 3) oy = (height() - boxY) * u;
+    else if (l.motion === 4) oy = -(boxY + ch) * u;
+    else if (l.motion === 5) ox = -(boxX + cw) * u;
+    else if (l.motion === 6) ox = (width() - boxX) * u;
+    layerPass = l.node; paint(l.node, ox, oy, k, a); layerPass = -1;
+    if (sc >= 0) nodes[sc].bgAlpha = sa;
+    n.hidden = hid;
+  }
+}
+/** How far the layer of h has shown (0 gone .. 1 shown, eased as it is painted), -1 when h is not a layer; for tests. */
+export function layerProgress(h: i32): number { for (const l of layers) if (l.node === h) return 1 - (1 - l.t) * (1 - l.t) * (1 - l.t); return -1; }
+/** Moves the layer's motion one frame; false when there is nothing to paint (gone, or hidden with something else). */
+function stepLayer(l: Layer, on: boolean): boolean {
+  const n = nodes[l.node];
+  if (!on) {   // leaving only when the node itself was hidden: under a hidden ancestor, or released, it is gone at once
+    let can = n.alive && n.hidden && l.t > 0 && l.ms > 0;
+    if (can) { n.hidden = false; can = shownNow(l.node); n.hidden = true; }
+    if (!can) { l.t = 0; l.at = -1; return false; }
+  }
+  const goal: number = on ? 1 : 0;
+  if (l.ms <= 0) l.t = goal;
+  if (l.t === goal) { l.at = -1; return on; }
+  if (l.at < 0) l.at = clock;   // the first frame of a motion shows where it starts
+  const d = (clock - l.at) / l.ms;
+  l.at = clock;
+  l.t = on ? Math.min(1, l.t + d) : Math.max(0, l.t - d * 1.25);
+  animating = true;
+  return on || l.t > 0;
+}
+/** The opacity a node gets from its ancestors' (the scrim drawn apart keeps it). */
+function layerAlpha(h: i32): number { let a: number = 1; for (let p = h; p >= 0; p = nodes[p].parent) { a *= nodes[p].opacity; if (nodes[p].layer) break; } return a; }
+/** Down a layer's chain of single full-size children (fragments pass): the first with a translucent background, -1 when none. */
+function scrimOf(h: i32): i32 {
+  const W = nodes[h].lw, H = nodes[h].lh;
+  for (let c = h; ;) {
+    const n = nodes[c];
+    if (n.tag !== FRAGMENT) {
+      if (n.lw < W - 1 || n.lh < H - 1 || n.grad > 0 || n.im.bg >= 0) return -1;
+      if (effectiveBg(c, n) >= 0) return n.bgAlpha < 255 ? c : -1;
+    }
+    let only: i32 = -1, count: i32 = 0;
+    for (const k of n.children) if (!nodes[k].hidden) { only = k; count++; }
+    if (count !== 1) return -1;
+    c = only;
+  }
+}
+/** What moves: under the scrim (or the layer node), the first node that does not fill it alone; the layer node when everything does. */
+function contentOf(h: i32, sc: i32): i32 {
+  const W = nodes[h].lw, H = nodes[h].lh;
+  let c = sc >= 0 ? sc : h;
+  for (;;) {
+    const n = nodes[c];
+    if (n.tag !== FRAGMENT && (n.lw < W - 1 || n.lh < H - 1 || (c !== sc && effectiveBg(c, n) >= 0))) return c;
+    let only: i32 = -1, count: i32 = 0;
+    for (const k of n.children) if (!nodes[k].hidden) { only = k; count++; }
+    if (count !== 1) return c;
+    c = only;
   }
 }
 /** Topmost layer's answer at (px, py): a node, -1 when a modal layer blocks what is below, -2: go on to the tree.
