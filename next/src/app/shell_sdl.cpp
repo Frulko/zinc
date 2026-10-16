@@ -123,13 +123,23 @@ static void android_setup() {
   if (cache) setenv("TMPDIR", cache, 0);
   // An app has no environment: a debuggable build takes the Zinc variables a desktop run takes from its shell from the project (zinc.json "dev",
   // baked by zinc export as ZN_APP_DEV_ENV) and from the launch, `adb shell am start -n <id>/.<Activity> --es zinc.env "ZINC_PERF_HUD=1 ZINC_PROFILE=1"`.
-  // A release build takes neither.
+  // A release build takes neither. zinc.json targets.android (fullscreen, kiosk) is baked as ZN_APP_ENV for every build, before them.
+#ifdef ZN_APP_ENV
+  set_env_words(ZN_APP_ENV);
+#endif
   if (debuggable()) {
 #ifdef ZN_APP_DEV_ENV
     set_env_words(ZN_APP_DEV_ENV);
 #endif
     set_env_words(intent_extra("zinc.env").c_str());
   }
+  // SDL keeps the screen on for every app (FLAG_KEEP_SCREEN_ON, unless SDL_HINT_VIDEO_ALLOW_SCREENSAVER): a phone app lets it sleep, as a
+  // web page does; a program keeps it on with navigator.wakeLock (zinc:sys "wakelock"), a kiosk always. A kiosk also keeps the back
+  // button (the desktop's kiosk ignores the quit shortcuts); Home still leaves.
+  const char* kv = getenv("ZINC_KIOSK");
+  const bool kiosk = kv && kv[0] == '1';
+  SDL_SetHint(SDL_HINT_VIDEO_ALLOW_SCREENSAVER, kiosk ? "0" : "1");
+  if (kiosk) SDL_SetHint(SDL_HINT_ANDROID_TRAP_BACK_BUTTON, "1");
   // The heap of the runtime (one region, targets/common/hal_posix.cpp): the program's need, at most a quarter of the device's memory. The
   // desktop's 512 MiB cannot be had on a 1 GB device (a 32-bit process, ~400 MB free on the Nexus 7 2012).
   if (!getenv("ZINC_HEAP")) {
@@ -161,6 +171,9 @@ SDL_AppResult SDL_AppEvent(void*, SDL_Event* e) {
   if (e->type == SDL_EVENT_WILL_ENTER_BACKGROUND || e->type == SDL_EVENT_DID_ENTER_BACKGROUND) paused = true;
   if (e->type == SDL_EVENT_DID_ENTER_FOREGROUND) paused = false;
   if (e->type == SDL_EVENT_TERMINATING) return SDL_APP_SUCCESS;
+#ifdef __ANDROID__
+  if (e->type == SDL_EVENT_QUIT) return SDL_APP_SUCCESS;   // the activity is being destroyed: neither a kiosk nor a close handler can refuse
+#endif
   zn_app_event(e);
   return SDL_APP_CONTINUE;
 }

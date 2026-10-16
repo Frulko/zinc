@@ -26,5 +26,12 @@ grep -q "zinc.abis=armeabi-v7a,arm64-v8a,x86_64" "$tmp/hello/gradle.properties" 
 grep -q 'name="HelloActivity"' "$tmp/hello/app/src/main/AndroidManifest.xml" || { echo "the manifest does not name HelloActivity"; fail=1; }
 grep -q "minSdkVersion 24" "$tmp/hello/app/build.gradle" && grep -q "targetSdkVersion 36" "$tmp/hello/app/build.gradle" || { echo "min 24 / target 36 not set"; fail=1; }
 grep -q "max-page-size=16384" "$tmp/hello/app/jni/src/CMakeLists.txt" || { echo "no 16 KB page alignment"; fail=1; }
+grep -q "ZN_APP_ENV" "$tmp/hello/app/jni/src/CMakeLists.txt" && { echo "hello has no targets.android, yet ZN_APP_ENV is defined"; fail=1; }
+# zinc.json targets.android fullscreen and kiosk are baked for every build (ZN_APP_ENV, read by src/app/shell_sdl.cpp)
+mkdir -p "$tmp/kiosk"
+echo 'console.log("kiosk");' > "$tmp/kiosk/main.ts"
+echo '{ "name": "kiosk", "entry": "main.ts", "targets": { "android": { "fullscreen": true, "kiosk": true } } }' > "$tmp/kiosk/zinc.json"
+PATH="$tmp/bin:$PATH" ANDROID_HOME= ANDROID_SDK_ROOT= "$Z" export "$tmp/kiosk" --target android -o "$tmp/kiosk-android" >/dev/null 2>&1 || { echo "export of a kiosk project failed"; fail=1; }
+grep -q '"ZN_APP_ENV=\\"ZINC_FULLSCREEN=1 ZINC_KIOSK=1\\""' "$tmp/kiosk-android/app/jni/src/CMakeLists.txt" || { echo "targets.android fullscreen and kiosk are not baked as ZN_APP_ENV"; fail=1; }
 [ $fail -eq 0 ] && echo "export android: ok"
 exit $fail

@@ -25,7 +25,13 @@ Needs: the Android SDK (`ANDROID_HOME`), NDK r29 (29.0.14206865), a JDK 17 to 21
   NDK's `__ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__`: an app never spawns, the linker drops `uv_spawn`.
 - The native library is stored uncompressed and 16 KB aligned in the APK and mapped from it (`extractNativeLibs=false`, LOAD alignment 0x4000).
 - An app has no environment: a debuggable build takes Zinc variables from the launch (`--es zinc.env "..."`) and from zinc.json `"dev": {"perfHud": true}`
-  (baked by the export); a release build takes neither.
+  (baked by the export); a release build takes neither. zinc.json `targets.android` `fullscreen` and `kiosk` are baked for every build
+  (`ZN_APP_ENV`, applied first): `fullscreen` is SDL's immersive sticky mode (no status bar nor navigation buttons, the window takes the
+  whole screen); `kiosk` adds the screen kept on and the back button kept by the app.
+- The screen sleeps as for any phone app: SDL keeps it on for every app by default (`FLAG_KEEP_SCREEN_ON`, seen on every Zinc app before),
+  so the shell sets `SDL_HINT_VIDEO_ALLOW_SCREENSAVER` unless the app is a kiosk. A program keeps it on with `navigator.wakeLock`
+  (zinc:sys `wakelock`). Why: an app is a phone app or a web page, not a game; a screen that never sleeps drains a battery, and the program
+  that needs it on says so.
 
 ## What changed in hal_sdl.cpp (criterion 3 of ZN-372, Android half)
 
@@ -108,8 +114,8 @@ adb shell am start -n dev.zinc.music/.MusicActivity                          # s
 | Sonos discovery (SSDP M-SEARCH from a UDP socket on port 37451, unicast answers) | Works with no MulticastLock: the group, what plays, the cover, the progress, live (`music-player.png`) |
 | Transport, volume | Pause and play on the speakers ("En pause", then "En lecture" with the progress going on); the volume slider moved the group from 9 to 13 and back, the room sliders follow (`music-volume.png`) |
 | HTTPS (radio logos from upload.wikimedia.org and others, radio-browser.info) | Works once the engine reads Android's root store (below) (`music-radios.png`) |
-| The screen | Fills the 1280 x 704 window (the status and navigation bars take the rest); zinc.json's 1024 x 768 targets are for the desktop, the Android window fills (`hal_sdl.cpp`) |
-| The wall remote's dimming (zinc:webos `setBacklight`) | After the delay the window's brightness goes to 0 (`dumpsys window`: `sbrt=0.0`) over a black picture, and the next touch gives the system's back; the screen stays on (`FLAG_KEEP_SCREEN_ON`) |
+| The screen | `"android": { "kiosk": true }` in its zinc.json: the whole 1280 x 800 screen, no status bar nor navigation buttons (`music-kiosk.png`; `dumpsys window`: frame `[0,0][1280,800]`, `fl=#1810580` = `FULLSCREEN` and `KEEP_SCREEN_ON`, `vsysui=0x1706` = immersive sticky, fullscreen, navigation hidden); the back button stays in the app, Home leaves. Without kiosk (`--es zinc.env ZINC_KIOSK=0`): `fl=#1810900`, no `KEEP_SCREEN_ON`, the 1280 x 704 window between the bars |
+| The wall remote's dimming (zinc:webos `setBacklight`) | After the delay (10 s for the check, then back to 120) the window's brightness goes to 0 (`dumpsys window`: `sbrt=0.0`) over a black picture with the flags above kept, and the next touch gives the system's back (no `sbrt`); the screen stays on (`Display Power: state=ON`) |
 | Spotify | Not connected: no `spotify.json` on the tablet (below) |
 
 What it took, each where every program benefits:

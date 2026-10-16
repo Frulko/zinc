@@ -1025,6 +1025,11 @@ static int exportAndroid(const ProjectInfo& p, const fs::path& out, const std::s
     else if (f == "microphone") perm("RECORD_AUDIO");
     else if (f == "location") perm("ACCESS_FINE_LOCATION");
   }
+  std::string appEnv;   // zinc.json targets.android, for every build (shell_sdl.cpp): the HAL's variables that zinc run sets on a desktop
+  if (auto t = proj.targets.find("android"); t != proj.targets.end()) {
+    if (t->second.fullscreen) appEnv += " ZINC_FULLSCREEN=1";
+    if (t->second.kiosk) appEnv += " ZINC_KIOSK=1";
+  }
   const std::string orient = proj.app.orientation == "portrait" ? "sensorPortrait" : proj.app.orientation == "landscape" ? "sensorLandscape" : "unspecified";
   std::string pkgPath = id;
   std::replace(pkgPath.begin(), pkgPath.end(), '.', '/');
@@ -1037,7 +1042,7 @@ static int exportAndroid(const ProjectInfo& p, const fs::path& out, const std::s
       replaceIn(out / "app/jni/CMakeLists.txt", "add_subdirectory(SDL)\n", "add_compile_options(-O2)   # Zinc: the engine and SDL optimized in a debug APK too (AGP builds it as Debug, -O0)\nset(ZN_WEBGL OFF CACHE BOOL \"\" FORCE)\nadd_subdirectory(${ZINC_ENGINE} zinc EXCLUDE_FROM_ALL)   # Zinc: the engine (zn_app), SDL3 inside it\n", err) &&
       replaceIn(src / "CMakeLists.txt", "target_link_libraries(main PRIVATE SDL3::SDL3)\n",
                 "# Zinc (zinc export --target android): the program's plugins, then libmain.so = the program, the shell, the engine\nset(ZINC_PLUGINS ${ZINC_ENGINE}/../plugins)\n" + pluginCmake +
-                "set_target_properties(main PROPERTIES CXX_STANDARD 20)\ntarget_compile_definitions(main PRIVATE ZN_APP_LIBRARY ZN_APP_HEAP_MB=" + heapMb + (proj.perfHud ? " \"ZN_APP_DEV_ENV=\\\"ZINC_PERF_HUD=1\\\"\"" : "") + ")\n"   // zinc.json \"dev\": {\"perfHud\": true}, for debuggable builds (shell_sdl.cpp)
+                "set_target_properties(main PROPERTIES CXX_STANDARD 20)\ntarget_compile_definitions(main PRIVATE ZN_APP_LIBRARY ZN_APP_HEAP_MB=" + heapMb + (proj.perfHud ? " \"ZN_APP_DEV_ENV=\\\"ZINC_PERF_HUD=1\\\"\"" : "") + (appEnv.empty() ? "" : " \"ZN_APP_ENV=\\\"" + appEnv.substr(1) + "\\\"\"") + ")\n"   // zinc.json \"dev\": {\"perfHud\": true}, for debuggable builds (shell_sdl.cpp)
                 "target_compile_options(main PRIVATE -O2 -w -ffp-contract=off -fno-stack-protector)\n"
                 "target_include_directories(main PRIVATE ${ZINC_ENGINE}/include ${ZINC_ENGINE}/src ${ZINC_ENGINE}/third_party/mimalloc/include)\n"
                 "target_link_libraries(main PRIVATE SDL3::SDL3" + pluginLibs + " zn_app log android)\n"

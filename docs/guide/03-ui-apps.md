@@ -252,6 +252,16 @@ new size (zinc:ui does it for every app). `resize` in `zinc.json` wins over that
 { "targets": { "macos": { "width": 1024, "height": 600, "resize": "fill", "kiosk": true } } }
 ```
 
+On Android (`zinc export --target android`) the window always fills the screen; `targets.android` is baked into the app for
+every build. `fullscreen` hides the status bar and the navigation buttons (immersive mode: a swipe from the edge shows them for
+a moment, and the program then gets the whole screen). `kiosk` does that, keeps the screen on while the app is in front, and
+keeps the back button from closing the app (Home still leaves it). Without `kiosk` the screen sleeps after the system's delay,
+as with any phone app; a program that must stay visible asks for it with `navigator.wakeLock.request('screen')`.
+
+```json
+{ "targets": { "android": { "kiosk": true } } }
+```
+
 On macOS, `zinc` loads the window (`libzn_window`, beside it: SDL3 and the system's GUI frameworks) when a program first
 opens one, so `zinc check`, `zinc build` and console programs start without it (`ZINC_WINDOW_LIB` names another copy).
 Without the module a program that draws runs headless and says why. A built program links the window in; `zinc fuse`
