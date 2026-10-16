@@ -2,7 +2,8 @@
 id: ZN-623
 title: 'zinc export --target ios: Xcode project generator'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-10 14:05'
 labels:
   - mobile

@@ -2,7 +2,8 @@
 id: ZN-624
 title: 'iOS: hello and rn-showcase on the simulator'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-10 14:05'
 labels:
   - mobile
