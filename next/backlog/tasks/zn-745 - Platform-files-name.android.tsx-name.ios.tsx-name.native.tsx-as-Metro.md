@@ -4,6 +4,7 @@ title: 'Platform files: name.android.tsx, name.ios.tsx, name.native.tsx, as Metr
 status: Backlog
 assignee: []
 created_date: '2026-10-16 14:28'
+updated_date: '2026-10-16 21:04'
 labels:
   - mobile
   - frontend
@@ -26,3 +27,9 @@ Owner 2026-10-16, while running examples/music (made for webOS) on Android uncha
 - [ ] #3 zinc lsp go-to-definition from the import lands on the file of the current profile; templates write moduleSuffixes
 - [ ] #4 docs: the rule, its order and an example in docs/react-native.md and the UI guide
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-10-16: the resolution of x.<profile>.ts / x.android.ts / x.ios.ts is in (zinc-f5, commit 640cb5fb; tests/t0/platform_files.sh for esp32 and the host, platform_identity.sh for android and ios, interpreter included). Left: the .native fallback for every non-web profile (as Metro), a test with Screen.native.tsx and Screen.webos.ts, zinc export android/ios resolving the same file, moduleSuffixes in the tsconfig that zinc new/init write and zinc lsp honouring it (AC3), docs in docs/react-native.md and the UI guide (AC4).
+<!-- SECTION:NOTES:END -->

@@ -4,6 +4,7 @@ title: 'Platform identity: platform() says ios or android, Platform.select branc
 status: Backlog
 assignee: []
 created_date: '2026-10-16 20:29'
+updated_date: '2026-10-16 21:04'
 labels:
   - mobile
   - ui
@@ -21,6 +22,12 @@ Owner 2026-10-16 (native fidelity, ../docs/reports/native-fidelity-and-plugins.m
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 a T0 test: one program prints platform(), Platform.OS and a Platform.select result, built for android, ios, macos and linux profiles
+- [x] #1 a T0 test: one program prints platform(), Platform.OS and a Platform.select result, built for android, ios, macos and linux profiles
 - [ ] #2 on the Nexus 7 the values are android and 25; on the iOS simulator ios and 26.x
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-10-16: done by the session zinc-f5 (commit 640cb5fb, docs/reports/mobile-native-feel.md item 1): ZINC_PLATFORM, platform()/Platform.OS/select/Version, zn/platform.h; tests/t0/platform_identity.sh covers android, ios, the host and the interpreter (AC1). Left: AC2, the values on the Nexus 7 (expect android / 25) and the iOS simulator (ios / 26.x): one run of tests/golden/platform-identity/main.tsx exported to each.
+<!-- SECTION:NOTES:END -->
