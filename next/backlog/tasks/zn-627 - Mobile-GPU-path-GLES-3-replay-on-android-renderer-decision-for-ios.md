@@ -4,13 +4,13 @@ title: 'Mobile GPU path: GLES 3 replay on android, renderer decision for ios'
 status: Backlog
 assignee: []
 created_date: '2026-10-10 14:07'
+updated_date: '2026-10-16 12:41'
 labels:
   - mobile
   - size-M
 milestone: m-26
 dependencies:
-  - ZN-622
-  - ZN-624
+  - ZN-741
 ordinal: 203000
 ---
 
@@ -25,4 +25,11 @@ ordinal: 203000
 - [ ] #1 frame times of rn-showcase and hero on both in `docs/reports/zinc-next-perf.md`
 - [ ] #2 pixels equal to the desktop GL goldens within the existing tolerance
 - [ ] #3 a decision record for iOS
+- [ ] #4 the iOS decision re-scores (RULES §4) with the GLES 2 floor of ZN-741 kept: bgfx (GLES 2 to Metal and Vulkan, shaderc as a pinned tool), sokol_gfx (no GLES 2: a second renderer), ANGLE on Metal (size), our own Metal replay of the command lists
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-10-16 (owner): the Nexus 7 is GLES 2 only, so the Android GLES path is ZN-741's GLES 2 base; this task keeps GLES 3 for capable Android devices and the iOS decision. The 2026-09 scoring (docs/reports/parity/04-library-choices.md §2.10, ui-rendering-architecture.md §2.11) rejected bgfx for its shader tool chain when GLES 2 and Metal were not both required; now they are.
+<!-- SECTION:NOTES:END -->
