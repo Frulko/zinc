@@ -1520,18 +1520,114 @@ export class MediaDeviceInfo {
   readonly deviceId: string; readonly kind: string; readonly label: string;
   constructor(id: string, kind: string, label: string) { this.deviceId = id; this.kind = kind; this.label = label; }
 }
+export class MediaTrackSettings {
+  deviceId: string = ''; width: number = 0; height: number = 0; frameRate: number = 0;
+  /** 'user' (a front camera), 'environment' (a back one), '' (not known). */
+  facingMode: string = '';
+}
+/** What getUserMedia takes for video: numbers only (no { ideal, exact } objects); facingMode 'user' or 'environment'. */
+export interface MediaTrackConstraints {
+  width?: number; height?: number; frameRate?: number; facingMode?: string; deviceId?: string;
+}
+/** video: true, or a MediaTrackConstraints object; audio is not captured yet. */
+export interface MediaStreamConstraints { video?: unknown; audio?: boolean }
+// null when no video is asked for
+function trackConstraints(v: unknown): MediaTrackConstraints | null {
+  if (v === undefined || v === null || v === false) return null;
+  const c: MediaTrackConstraints = {};
+  if (v === true) return c;
+  const o: any = v;
+  if (typeof o.width === 'number') c.width = o.width as number;
+  if (typeof o.height === 'number') c.height = o.height as number;
+  if (typeof o.frameRate === 'number') c.frameRate = o.frameRate as number;
+  if (typeof o.facingMode === 'string') c.facingMode = o.facingMode as string;
+  if (typeof o.deviceId === 'string') c.deviceId = o.deviceId as string;
+  return c;
+}
+/** A video track of a camera opened by zinc:camera. `camera` is its Camera (`track.camera as Camera`); `image` is the zinc:gfx runtime
+ *  image with the newest frame (what a <video> element would show). */
+export class MediaStreamTrack extends EventTarget {
+  readonly kind: string = 'video';
+  readonly id: string = crypto.randomUUID();
+  readonly label: string;
+  readonly camera: unknown;
+  enabled: boolean = true;
+  readyState: string = 'live';
+  private settings: MediaTrackSettings;
+  private stopFn: () => void;
+  private imageFn: () => number;
+  constructor(label: string, settings: MediaTrackSettings, camera: unknown, stop: () => void, image: () => number) {
+    super();
+    this.label = label; this.settings = settings; this.camera = camera; this.stopFn = stop; this.imageFn = image;
+  }
+  get image(): number { return this.readyState === 'live' ? this.imageFn() : -1; }
+  getSettings(): MediaTrackSettings { return this.settings; }
+  stop(): void { if (this.readyState === 'live') { this.readyState = 'ended'; this.stopFn(); } }
+}
+export class MediaStream extends EventTarget {
+  readonly id: string = crypto.randomUUID();
+  private tracks: MediaStreamTrack[];
+  constructor(tracks: MediaStreamTrack[] = []) { super(); this.tracks = tracks.slice(); }
+  get active(): boolean { return this.tracks.some((t: MediaStreamTrack) => t.readyState === 'live'); }
+  getTracks(): MediaStreamTrack[] { return this.tracks.slice(); }
+  getVideoTracks(): MediaStreamTrack[] { return this.tracks.slice(); }
+  /** Always []: there is no microphone capture yet. */
+  getAudioTracks(): MediaStreamTrack[] { return []; }
+}
+/** How zinc:camera reaches navigator.mediaDevices: this module cannot import a plugin (every program would build it), so the plugin
+ *  registers itself when a program imports it. Devices are "id \u001f name \u001f position" records. */
+export interface CameraBridge {
+  devices(): Promise<string[]>;
+  open(id: string, width: i32, height: i32, fps: i32): Promise<MediaStreamTrack>;
+}
+let cameraBridge: CameraBridge | null = null;
+export function setCameraBridge(b: CameraBridge): void { cameraBridge = b; }
+async function cameraList(b: CameraBridge): Promise<string[]> {
+  try { return await b.devices(); } catch (e) { throw new DOMException(e instanceof Error ? e.message : '' + e, 'NotAllowedError'); }
+}
+// The camera of the constraints: deviceId (or '' when it is not there), else the first of the facingMode, else the first one.
+function pickCamera(list: string[], c: MediaTrackConstraints): string {
+  const want = c.facingMode === 'user' ? 'front' : c.facingMode === 'environment' ? 'back' : '';
+  for (const r of list) {
+    const f = r.split('\u001f');
+    if (c.deviceId !== undefined ? f[0] === c.deviceId : want !== '' && f[2] === want) return f[0];
+  }
+  return c.deviceId !== undefined ? '' : list[0].split('\u001f')[0];
+}
+async function openTrack(b: CameraBridge, id: string, c: MediaTrackConstraints): Promise<MediaStreamTrack> {
+  try { return await b.open(id, c.width ?? 0, c.height ?? 0, c.frameRate ?? 0); } catch (e) {
+    const m = e instanceof Error ? e.message : '' + e;
+    throw new DOMException(m, m.indexOf('permission') >= 0 || m.indexOf('access') >= 0 ? 'NotAllowedError' : 'NotReadableError');
+  }
+}
+const NO_CAMERA_MODULE = "getUserMedia needs the camera plugin: add `import 'zinc:camera';` to the program";
+
 export class MediaDevices extends EventTarget {
+  /** The cameras ('videoinput'); [] when the program does not import zinc:camera. */
   async enumerateDevices(): Promise<MediaDeviceInfo[]> {
     const out: MediaDeviceInfo[] = [];
-    const j = deviceJson('cameras');
-    if (j !== null) for (let i = 0; i < j.length; i++) out.push(new MediaDeviceInfo('' + j[i].id, 'videoinput', '' + j[i].label));
+    const b = cameraBridge;
+    if (b === null) return out;
+    for (const r of await b.devices()) { const f = r.split('\u001f'); out.push(new MediaDeviceInfo(f[0], 'videoinput', f[1])); }
     return out;
   }
-  /** @throws DOMException NotFoundError when there is no camera, NotReadableError when it cannot be opened (the reason in the message). */
-  async getUserMedia(constraints: { video?: boolean; audio?: boolean } = {}): Promise<unknown> {
-    const s = device('camera', 'open');
-    if (s === '') throw new DOMException('No camera on this device.', 'NotFoundError');
-    throw new DOMException(`The camera cannot be opened yet: ${s}`, 'NotReadableError');
+  /** A stream with one video track: { video: true } or { video: { width, height, frameRate, facingMode, deviceId } }. Audio is not captured:
+   *  { audio: true } alone is NotSupportedError, with video the stream has the video track only.
+   *  @throws DOMException NotFoundError (no camera, no zinc:camera import), NotAllowedError (access or zinc.json permissions), NotReadableError. */
+  async getUserMedia(constraints: MediaStreamConstraints = {}): Promise<MediaStream> {
+    const asked = trackConstraints(constraints.video);
+    if (asked === null) {
+      if (constraints.audio === true) throw new DOMException('Audio capture is not available yet.', 'NotSupportedError');
+      throw new TypeError('getUserMedia: ask for { video: true }');
+    }
+    if (cameraBridge === null) throw new DOMException(NO_CAMERA_MODULE, 'NotFoundError');
+    const b = cameraBridge as CameraBridge, c = asked as MediaTrackConstraints;
+    const list = await cameraList(b);
+    if (list.length === 0) throw new DOMException('No camera on this device.', 'NotFoundError');
+    const id = pickCamera(list, c);
+    if (id === '') throw new DOMException(`No camera '${c.deviceId ?? ''}'.`, 'NotFoundError');
+    const track = await openTrack(b, id, c);
+    return new MediaStream([track]);
   }
 }
 
