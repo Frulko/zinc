@@ -20,8 +20,10 @@ export interface Spec extends NativeModule {
   /** An offer or an answer for the current state, without applying it; '' on failure (see error()). */
   createOffer(pc: i32): string;
   createAnswer(pc: i32): string;
-  /** Applies a local description of that type ('offer', 'answer'; '' for the one the state calls for). */
-  setLocalDescription(pc: i32, type: string): boolean;
+  /** Applies a local description of that type ('offer', 'answer'; '' for the one the state calls for). libdatachannel writes it again:
+   *  from `sdp` (the program's, maybe edited; '' for none) each media section gives its codecs and their order, its direction and its
+   *  b=AS / b=TIAS bandwidth to its transceiver first. */
+  setLocalDescription(pc: i32, type: string, sdp: string): boolean;
   setRemoteDescription(pc: i32, sdp: string, type: string): boolean;
   /** A remote candidate ("candidate:..." or "a=candidate:..."), with the mid of its media section ('' for the first). */
   addIceCandidate(pc: i32, candidate: string, mid: string): boolean;
@@ -45,5 +47,45 @@ export interface Spec extends NativeModule {
   /** local address \u001f remote address of the selected candidate pair, bytes sent \u001f bytes received \u001f messages sent \u001f
    *  messages received of the connection's channels. */
   stats(pc: i32): string;
+
+  // ---- media: a transceiver is one media section (audio or video), its id the libdatachannel track's. Codecs: VP8 and Opus everywhere,
+  // H.264 constrained baseline where the machine has it in hardware (VideoToolbox on macOS).
+  /** The codecs of a kind ('audio', 'video') in the default order: mimeType \u001f clockRate \u001f channels \u001f sdpFmtpLine records (\u001e). */
+  capabilities(kind: string): string;
+  /** A new transceiver of a kind with a direction ('sendrecv', 'sendonly', 'recvonly', 'inactive'); its id, or -1 (see error()). */
+  addTransceiver(pc: i32, kind: string, direction: string): i32;
+  /** The transceivers of a connection (a remote offer adds some): id \u001f mid \u001f kind \u001f direction \u001f currentDirection \u001f
+   *  ontrack due (1: the peer started sending; reported once) \u001f remote stream id \u001f remote track id \u001f send mimeType \u001f
+   *  receive mimeType records (\u001e). */
+  transceivers(pc: i32): string;
+  setDirection(tx: i32, direction: string): void;
+  /** mimeTypes in order of preference, comma-separated ('video/VP8,video/H264'), '' for the default; false for one this build lacks. */
+  setCodecPreferences(tx: i32, mimeTypes: string): boolean;
+  /** The msid of what the transceiver sends: stream ids (comma-separated) and the track id, '' when it sends no track. */
+  setSender(tx: i32, streams: string, track: string): void;
+  /** maxBitrate (bit/s, 0: chosen from the size), maxFramerate (0: the source's), scaleResolutionDownBy (1 or more), active. */
+  setEncoding(tx: i32, maxBitrate: f64, maxFramerate: f64, scaleDown: f64, active: boolean): void;
+  stopTransceiver(tx: i32): void;
+  /** Sends the frame a runtime image of zinc:gfx holds (a camera's image), black when not enabled; false when the image cannot be read
+   *  (a program without the rasterizer: sendPixels). */
+  sendImage(tx: i32, image: i32, enabled: boolean): boolean;
+  /** Sends an RGBA frame of w x h (a camera's snapshot()). */
+  sendPixels(tx: i32, rgba: u8[], w: i32, h: i32, enabled: boolean): void;
+  /** Sends samples (-1..1, channels interleaved) at a rate; silence when not enabled. */
+  sendAudio(tx: i32, samples: f64[], rate: i32, channels: i32, enabled: boolean): void;
+  /** Takes the newest decoded frame of the peer into the transceiver's image: the index of that frame, -1 before the first. */
+  remoteFrame(tx: i32): i32;
+  /** The runtime image with the peer's video (-1 before the first frame, or without the rasterizer). */
+  remoteImage(tx: i32): i32;
+  /** [width, height] of the peer's newest frame. */
+  remoteSize(tx: i32): f64[];
+  /** The peer's newest frame as RGBA bytes. */
+  remoteSnapshot(tx: i32): u8[];
+  /** The peer's audio decoded since the last call: 48 kHz, mono, -1..1. */
+  remoteAudio(tx: i32): f64[];
+  /** Asks the peer for a key frame (an RTCP PLI). */
+  requestKeyframe(tx: i32): void;
+  /** The counters of a transceiver: name=value fields (\u001f), read by getStats(). */
+  txStats(tx: i32): string;
 }
 export default requireNative<Spec>('WebRTC');

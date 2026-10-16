@@ -152,7 +152,9 @@ class Bridge {
     const s = new MediaTrackSettings();
     s.deviceId = cam.id; s.width = cam.width; s.height = cam.height; s.frameRate = cam.fps;
     s.facingMode = name === undefined ? '' : name.position === 'front' ? 'user' : name.position === 'back' ? 'environment' : '';
-    return new MediaStreamTrack(name === undefined ? cam.id : name.name, s, cam, () => cam.close(), () => cam.image);
+    const t = new MediaStreamTrack(name === undefined ? cam.id : name.name, s, cam, () => cam.close(), () => cam.image);
+    t.setFrames(() => cam.frameIndex, () => cam.snapshot());
+    return t;
   }
 }
 setCameraBridge(new Bridge());

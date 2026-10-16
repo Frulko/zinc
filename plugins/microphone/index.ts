@@ -108,7 +108,9 @@ class Bridge {
     const name = (await devices()).find((d: MicrophoneDevice) => d.id === mic.id);
     const s = new MediaTrackSettings();
     s.deviceId = mic.id; s.sampleRate = mic.sampleRate; s.channelCount = mic.channels;
-    return new MediaStreamTrack(name === undefined ? mic.id : name.name, s, mic, () => mic.close(), () => -1, 'audio');
+    const t = new MediaStreamTrack(name === undefined ? mic.id : name.name, s, mic, () => mic.close(), () => -1, 'audio');
+    mic.onData((samples: number[]) => t.feed(samples, mic.sampleRate, mic.channels));
+    return t;
   }
 }
 setMicrophoneBridge(new Bridge());

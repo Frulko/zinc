@@ -1,0 +1,36 @@
+capabilities: video has VP8 true, audio audio/opus, other kind null
+addTrack twice: InvalidAccessError
+a senders 2 transceivers video:sendrecv:null audio:sendrecv:null
+negotiationneeded 1
+ontrack video audio streams ok; b transceivers 0:recvonly/recvonly 1:recvonly/recvonly
+a current 0:sendrecv 1:sendrecv
+connected
+video 320x240, settings 320x240, codec ok
+picture: PSNR of the bars above 30 dB ok
+rate: sent ok, decoded ok, decoded <= encoded ok
+PLI: the sender saw it ok, sent a key frame ok
+audio: 480 Hz above 1 kHz x10 ok, above 3 kHz x10 ok, level ok, settings 48000 Hz
+disabled: black ok, silent ok
+enabled: picture back ok
+replaceTrack: 160x120, signaling stable
+replaceTrack with audio: TypeError
+parameters: 1 encoding, codecs 1
+scaled: 160x120, target bitrate within the cap ok
+no encoding: InvalidModificationError
+stats types: candidate-pair codec inbound-rtp outbound-rtp peer-connection remote-inbound-rtp transport
+outbound: bytes ok packets ok size 320x240 keyframes ok encode time ok codec ok
+remote-inbound: rtt ok lost and fraction reported ok
+inbound video: bytes ok packets ok lost 0 jitter ok decoded ok size 320x240
+inbound audio: packets ok samples ok jitter ok
+transport counts media ok, candidate pair rtt ok
+removeTrack: sender track null, direction recvonly
+after: a sendrecv recvonly b recvonly inactive
+sendonly: a sendonly b recvonly
+inactive: a inactive b inactive, frames stopped ok
+sendrecv: a sendrecv, frames again
+bad direction: TypeError
+closed: a closed, remote track ended, transceiver stopped
+AV1 preference: InvalidModificationError
+preferences: offer VP8 only ok, sent video/VP8, current sendonly, frames ok
+munging: offer VP8 only ok, sent video/VP8, current sendonly, frames ok
+done

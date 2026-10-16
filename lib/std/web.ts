@@ -1582,11 +1582,36 @@ export class MediaStreamTrack extends EventTarget {
   get image(): number { return this.readyState === 'live' ? this.imageFn() : -1; }
   getSettings(): MediaTrackSettings { return this.settings; }
   stop(): void { if (this.readyState === 'live') { this.readyState = 'ended'; this.stopFn(); } }
+  // What a consumer of any track reads (zinc:webrtc sends tracks this way, whatever plugin made them): the index of the newest video
+  // frame and its RGBA bytes, and the audio samples as they come. The plugin that makes a track sets them up.
+  private frameFn: () => number = () => -1;
+  private snapFn: () => u8[] = () => [];
+  private sinks: ((samples: number[], rate: number, channels: number) => void)[] = [];
+  /** Video: the index of the newest frame (it grows by one per frame), -1 before the first or once ended. */
+  get frameIndex(): number { return this.readyState === 'live' ? this.frameFn() : -1; }
+  /** Video: the newest frame as RGBA bytes (getSettings().width x height x 4). */
+  snapshot(): u8[] { return this.readyState === 'live' ? this.snapFn() : []; }
+  /** Audio: each block of samples as it arrives (-1..1, channels interleaved); the function returned stops it. */
+  onSamples(cb: (samples: number[], rate: number, channels: number) => void): () => void {
+    this.sinks.push(cb);
+    return () => { this.sinks = this.sinks.filter((x: (samples: number[], rate: number, channels: number) => void) => x !== cb); };
+  }
+  /** For the plugin that makes a video track: where frameIndex and snapshot() read. */
+  setFrames(index: () => number, snapshot: () => u8[]): void { this.frameFn = index; this.snapFn = snapshot; }
+  /** For the plugin that makes an audio track: a block of samples for the onSamples listeners. */
+  feed(samples: number[], rate: number, channels: number): void {
+    if (this.readyState !== 'live') return;
+    for (const s of this.sinks.slice()) s(samples, rate, channels);
+  }
 }
 export class MediaStream extends EventTarget {
-  readonly id: string = crypto.randomUUID();
+  readonly id: string;
   private tracks: MediaStreamTrack[];
-  constructor(tracks: MediaStreamTrack[] = []) { super(); this.tracks = tracks.slice(); }
+  /** `id`: a stream of a peer keeps the id it has there (zinc:webrtc); a new one otherwise. */
+  constructor(tracks: MediaStreamTrack[] = [], id: string = '') { super(); this.tracks = tracks.slice(); this.id = id !== '' ? id : crypto.randomUUID(); }
+  addTrack(t: MediaStreamTrack): void { if (this.tracks.indexOf(t) < 0) this.tracks.push(t); }
+  removeTrack(t: MediaStreamTrack): void { this.tracks = this.tracks.filter((x: MediaStreamTrack) => x !== t); }
+  getTrackById(id: string): MediaStreamTrack | null { for (const t of this.tracks) if (t.id === id) return t; return null; }
   get active(): boolean { return this.tracks.some((t: MediaStreamTrack) => t.readyState === 'live'); }
   getTracks(): MediaStreamTrack[] { return this.tracks.slice(); }
   getVideoTracks(): MediaStreamTrack[] { return this.tracks.filter((t: MediaStreamTrack) => t.kind === 'video'); }
