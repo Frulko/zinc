@@ -56,7 +56,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: macos-14, name: macos-arm64 }
+          - { os: macos-15, name: macos-arm64 }
           - { os: macos-15-intel, name: macos-x86_64, experimental: true }
     runs-on: ${{ matrix.os }}
     continue-on-error: ${{ matrix.experimental == true }}
@@ -87,7 +87,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: macos-14, name: macos-arm64 }
+          - { os: macos-15, name: macos-arm64 }
           - { os: macos-15-intel, name: macos-x86_64, experimental: true }   # ZN-718: the Intel Macs of schools; its failure does not stop the release
     runs-on: ${{ matrix.os }}
     continue-on-error: ${{ matrix.experimental == true }}
@@ -166,7 +166,7 @@ jobs:
       matrix:
         shard: [1, 2, 3, 4, 5, 6]
     name: tests ${{ matrix.shard }}/6
-    runs-on: macos-14
+    runs-on: macos-15
     continue-on-error: true
     defaults:
       run:
@@ -365,7 +365,7 @@ jobs:
     name: reproducible
     needs: plan
     if: needs.plan.outputs.reproducible == 'true'
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
         with: { path: one }
@@ -395,7 +395,7 @@ jobs:
     name: bench-gate
     needs: plan
     if: needs.plan.outputs.bench == 'true'
-    runs-on: macos-14
+    runs-on: macos-15
     defaults:
       run:
         working-directory: next

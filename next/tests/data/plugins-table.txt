@@ -1,22 +1,27 @@
 plugin (import / display)  targets                             description
   zinc:3d                  macos,linux,rpi1,esp32,wasm        3D: meshes (primitives, OBJ), materials, textures, lights, camera, scene graph; a z-buffered software rasterizer, and the GPU where the target has it
+  zinc:async-storage       macos,linux,windows,rpi1,rmpp,webos,esp32 React Native's AsyncStorage (@react-native-async-storage/async-storage) on zinc:storage: a key/value store kept between runs, on every target
   zinc:audio               macos,linux                        Sound effects and music: WAV, FLAC, MP3 and Ogg Vorbis sounds mixed by miniaudio 0.11.25 (public domain), generated tones, volume, loops; silent when headless
   zinc:canvas              macos,linux,rpi1,rmpp,wasm,esp32   HTML Canvas 2D-style context (paths, strokes, gradients, text, images, transforms) on the shared rasterizer
   zinc:device              esp32,macos,linux                  Device services for board demos: backlight level (display-st7789 PWM), chip and heap figures, frame statistics
   zinc:devtools            macos,linux,rpi1                   UI inspector for Chrome DevTools (subset of the DevTools protocol on port 9229); zinc dev adds it
   display: fbdev           linux,rpi1                         Linux framebuffer (/dev/fb0, 16/24/32 bpp) with evdev keyboard, mouse and multitouch
-  display: gl              macos,rpi1,linux                   GPU screen: OpenGL 3.2 (SDL3) on macOS, KMS/DRM + GBM + EGL + GLES2 on Raspberry Pi and Linux; UI as an overlay
+  display: gl              macos,rpi1,webos,linux             GPU screen: OpenGL 3.2 (SDL3) on macOS, KMS/DRM + GBM + EGL + GLES2 on Raspberry Pi and Linux, GLES2 through Palm's SDL on webOS 3; UI as an overlay
   display: remote          macos,linux,rpi1                   Headless: streams frames over TCP (damage + RLE) to zinc:remote viewers, takes their input, LAN beacon
   display: rmpp            rmpp,macos,linux                   reMarkable Paper Pro: e-ink refresh policy, Marker pen + touch (emulated e-ink look on desktop)
   display: scrollphat      rpi1,linux,macos                   Pimoroni Scroll pHAT 11x5 white LEDs, IS31FL3730 over I2C (Raspberry Pi, macOS emulator)
   display: ssd1306         esp32,rpi1,linux,macos             SSD1306 I2C OLED 128x64/128x32, 1-bit with dithering (ESP32, Raspberry Pi, macOS emulator)
   display: st7789          esp32,macos                        ST7789/ILI9341 LCD over SPI or 8-bit i80 with damage-only band rendering, PWM backlight, CST820 touch (ESP32; macOS uses the normal window)
+  display: webos           linux                              HP webOS 3 (HP TouchPad): a full-screen card through the system's SDL 1.2, software frames, multitouch
   display: ws2812          esp32,rpi1,linux,macos             WS2812/NeoPixel LED matrix (ESP32 RMT, Raspberry Pi SPI, macOS emulator)
   zinc:ffi                 macos,linux                        Call C functions of shared libraries: dlopen / dlsym, scalar and string signatures through libffi, C memory helpers
   zinc:gestures            macos,linux,rpi1,wasm,esp32,ps2    Pan / pinch / rotate / tap gestures from mouse, wheel, trackpad and multitouch
   zinc:gphoto2             macos,linux,rpi1                   Camera remote control over libgphoto2 (USB PTP): config, capture, events, JPEG live view
+  zinc:gsap                macos,linux,windows,rpi1,rmpp,webos,wasm,esp32 GSAP's core API in Zinc: tweens, timelines, eases, staggers, position parameters, labels and utils; typed, so it runs in the interpreter, in zinc build programs (AOT) and on every target
   zinc:imu                 esp32,macos,linux                  QMI8658 6-axis IMU: accel, gyro, temperature, tilt and shake (ESP32 I2C; emulated from keys/mouse elsewhere)
   zinc:ink                 macos,linux,rpi1,wasm,rmpp         Handwriting surface: pressure strokes, eraser, undo, JSON/SVG export
+  zinc:leapmotion          macos                              Ultraleap hand tracking: hands, finger joints and pinch strength through LeapC, with an explicit simulator
+  zinc:loader              macos,linux,rpi1,wasm,esp32,ps2    The screens of the loader stage (zinc.json "loading"): a progress bar, the splash with a thin bar, and a zinc:ui <Loader> component
   zinc:lottie              macos,linux,rpi1,rmpp,wasm,ps2,esp32 Lottie (Bodymovin JSON) animations rendered natively: shapes, trims, precomps, Player, <Lottie/> UI node
   zinc:map                 macos,linux,rpi1                   Interactive vector maps: Mapbox Vector Tiles, MapLibre style subset, tile cache, labels
   zinc:mapping             macos,rpi1                         GPU video-mapping compositor (corner pin, mesh warp, masks, edge blend, colour) driven by OSC; needs display gl
@@ -31,10 +36,15 @@ plugin (import / display)  targets                             description
   zinc:script              macos,linux,rpi1,rmpp,sim          Runtime scripting: sandboxed JavaScript (QuickJS-ng) with typed host functions, time / memory limits, ES modules, promises
   zinc:serial              macos,linux                        Serial ports for Arduino and other boards: list, open with baud rate and framing, lines and bytes in, text and bytes out, DTR and RTS, unplug reported (POSIX termios; a loopback port when simulated)
   zinc:socket              macos,linux,rpi1,rmpp              TCP, Unix domain and UDP sockets, DNS lookup, WebSocket client and server (non-blocking, on the event loop)
+  zinc:sonos               macos,linux,rpi1,rmpp              Sonos speakers on the local network (UPnP, port 1400): discovery, rooms and groups, what plays, transport, volume, grouping, favorites, radio streams; written in Zinc on zinc:socket and fetch
+  zinc:spotify             macos,linux,rpi1,rmpp              The Spotify Web API for a remote: playlists, liked songs, recent plays, search, playback on a Spotify Connect device; one login on a computer (login.py), token refresh and rotation here
+  zinc:sprite              macos,linux,rpi1,wasm,esp32,ps2    Frames, animations and pivots of the sprite atlases the asset build packs (zinc.json "as": "sprite" rules)
   zinc:sqlite              macos,linux,rpi1,rmpp              SQLite 3 databases (bundled amalgamation 3.53.4, public domain): prepare / run / get / all, parameters, transactions
   zinc:svg                 macos,linux,rpi1,wasm              Runtime SVG rendering (paths, shapes, transforms, gradients, CSS classes) on the vector rasterizer
   zinc:system              macos,linux                        Desktop integration: notifications, menus, tray, dialogs, window control, shortcuts, deep links, autostart, dock, power, clipboard, opener (one native call, JSON ops, permission gate; recording simulator)
   three                    macos,linux,rpi1,wasm              three.js API subset on zinc:3d: scene graph, geometries, materials, lights, cameras, raycasting, GLTFLoader, OrbitControls
-  zinc:video               macos,linux,rpi1                   Video playback (FFmpeg, VideoToolbox / V4L2 M2M decode), gapless playlists as runtime images
+  zinc:tilemap             macos,linux,rpi1,wasm,esp32,ps2    Levels of Tiled and LDtk maps imported by the asset build (zinc.json "as": "tilemap" rules): layers, IntGrid values, objects, tiles drawn from an atlas
+  zinc:video               macos,linux,rpi1,webos             Video playback (FFmpeg with VideoToolbox / V4L2 M2M decode; GStreamer with the hardware decoder on webOS), gapless playlists as runtime images
   zinc:wasm                macos,linux,rpi1,rmpp              WebAssembly (the JS API's shape) on the wasm3 interpreter 0.5.0 (MIT): validate, compile, instantiate with host function imports, exported functions, memory and globals
+  zinc:webos               macos,linux                        HP webOS 3 (HP TouchPad): calls to the system's services (the Luna bus, through the PDK's libpdl), launching an installed application
   zinc:webview             macos                              Web views embedded in the app window (WKWebView), zinc:// assets, postMessage and invoke RPC (Tauri-like)

@@ -12,6 +12,8 @@ ts = open('../lib/std/gl.ts').read()
 cls = ts[ts.index('export class WebGLRenderingContext'):ts.index('export function createContext')]
 have = set(re.findall(r'^  (\w+)\(', cls, re.M))
 renamed = {'zincPresent': 'present'}
+extension_only = {'getSupportedProfiles'}   # a method of the WEBGL_compressed_texture_astc object: zinc:gl's getExtension returns a boolean, there is no object to hold it
+names -= extension_only
 missing = sorted(n for n in names if renamed.get(n, n) not in have)
 if missing: print('zinc:gl lacks %d method(s) of the QuickJS binding: %s' % (len(missing), ' '.join(missing))); sys.exit(1)
 print('zinc gl api: ok (%d methods of the QuickJS binding)' % len(names))

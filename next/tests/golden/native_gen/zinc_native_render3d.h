@@ -5,6 +5,7 @@
 
 struct NativeRender3D : zrt::Object {
   virtual int32_t meshCreate(zrt::Array<double> pos, zrt::Array<double> nrm, zrt::Array<double> uv, zrt::Array<uint32_t> col, zrt::Array<int32_t> idx) = 0;
+  virtual int32_t meshLoad(zrt::Array<uint8_t> data, int32_t at) = 0;
   virtual void meshDestroy(int32_t mesh) = 0;
   virtual int32_t target(int32_t t, int32_t w, int32_t h) = 0;
   virtual void targetDestroy(int32_t t) = 0;
