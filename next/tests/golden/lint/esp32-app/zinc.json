@@ -1,0 +1,6 @@
+{
+  "name": "esp32-app",
+  "entry": "src/main.tsx",
+  "requires": ["gpio", "heap>=96K"],
+  "targets": { "esp32": {} }
+}

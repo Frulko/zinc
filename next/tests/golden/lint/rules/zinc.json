@@ -1,0 +1,8 @@
+{
+  "name": "lint-rules",
+  "entry": "src/main.tsx",
+  "requires": ["heap>=1M"],
+  "ui": { "layout": "rn" },
+  "assets": { "budgets": { "esp32": { "flash": "1KB" } } },
+  "targets": { "esp32": {} }
+}

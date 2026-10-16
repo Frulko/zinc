@@ -24,6 +24,7 @@
 #ifdef ZN_AGENT
 #include "agent/agent.h"
 #endif
+#include "lint/lint.h"
 #include "lsp/lsp.h"
 #include "frontend/capabilities.h"
 #include "gl/webgl_js.h"
@@ -1378,6 +1379,8 @@ int main(int argc, char** argv) {
     if (argc >= 3 && !std::strcmp(argv[1], "plugins") && !std::strcmp(argv[2], "update")) return zn::cli::updatePlugins(cl, gRoot);
     if (argc >= 2 && !std::strcmp(argv[1], "tsconfig")) return zn::cli::tsconfig(cl, gRoot);
     if (argc >= 2 && !std::strcmp(argv[1], "infer")) return zn::cli::infer(cl);
+    if (argc >= 2 && !std::strcmp(argv[1], "lint")) return zn::lint::lint(cl, gRoot);
+    if (argc >= 2 && !std::strcmp(argv[1], "migrate")) return zn::lint::migrate(cl);
     // the commands a person types get the closing line; `check --check|--types|--json <file>` and the stage commands keep one line per diagnostic for the tools that read them
     gHint = argc >= 2 && (!std::strcmp(argv[1], "run") || !std::strcmp(argv[1], "build") || (!std::strcmp(argv[1], "check") && (argc == 2 || argv[2][0] != '-')));
     std::string derr;

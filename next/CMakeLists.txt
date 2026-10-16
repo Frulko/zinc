@@ -391,6 +391,9 @@ target_link_libraries(zn_qjs PUBLIC zn_quickjs zn_frontend zn_qjs_ext zn_native)
 target_link_libraries(zn_qjs PRIVATE zn_text)   # canvas2d.cpp: the web environment's Canvas 2D shapes its text with the text tier (ZN-570)
 target_include_directories(zn_qjs PUBLIC include src)
 
+# zinc lint and zinc migrate (docs/reports/zinc-lint-migrate.md): rules and codemods on the frontend's lexer and loader
+add_library(zn_lint STATIC src/lint/lint.cpp src/lint/migrate.cpp)
+target_link_libraries(zn_lint PUBLIC zn_frontend)
 add_executable(zinc src/main.cpp src/test_cmd.cpp src/cli_core.cpp src/lsp/lsp.cpp)
 option(ZN_NATIVE_FIXTURE "register the C test module 'Fixture' (tests/native/fixture.c) in zinc, for the native-call tests" ON)
 if(ZN_NATIVE_FIXTURE)
@@ -411,7 +414,7 @@ if(APPLE)   # but not zinc's own C++ (zn::), harfbuzz's or the libc++ templates 
   target_link_options(zinc PRIVATE "LINKER:-unexported_symbols_list,${CMAKE_SOURCE_DIR}/tools/zinc-unexported.txt")
   set_property(TARGET zinc APPEND PROPERTY LINK_DEPENDS ${CMAKE_SOURCE_DIR}/tools/zinc-unexported.txt)
 endif()
-target_link_libraries(zinc PRIVATE zn_sim zn_script zn_qjs zn_assets zn_res zn_dev zn_tc zn_prof zn_dbg zn_vm zn_aot zn_rt zn_zbc zn_ir zn_frontend)
+target_link_libraries(zinc PRIVATE zn_lint zn_sim zn_script zn_qjs zn_assets zn_res zn_dev zn_tc zn_prof zn_dbg zn_vm zn_aot zn_rt zn_zbc zn_ir zn_frontend)
 if(TARGET zn_rt_new)
   add_dependencies(zinc zn_rt_new)   # not linked into zinc (ZN-592): `zinc build` links it into the programs that have a heap budget
 endif()

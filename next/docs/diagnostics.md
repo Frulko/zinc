@@ -57,7 +57,7 @@ function* g() { }
 
 JSX is the language React defines: `class` is a keyword of JavaScript and TypeScript, so the attribute that carries the style classes, and the prop of a component that takes them, are named `className`.
 
-Fix: Rename the attribute to className (<View className="p-4">) and declare the prop of your components as className.
+Fix: Rename the attribute to className (<View className="p-4">) and declare the prop of your components as className; `zinc migrate jsx-classname --apply` rewrites a whole project.
 
 ```ts
 function App(): i32 {
@@ -69,7 +69,7 @@ function App(): i32 {
 
 As in React and React Native, a JSX tag names a component and components start with a capital letter: <View>, <Text>, <Button>, <Image>, <ScrollView>, <Canvas>, <Input>, <TextArea> or one of yours. A lowercase tag is not a component of Zinc.
 
-Fix: Write the capitalised component the message names: <view> is <View>, <scroll> is <ScrollView>.
+Fix: Write the capitalised component the message names: <view> is <View>, <scroll> is <ScrollView>; `zinc migrate jsx-capitalised-tags --apply` rewrites a whole project.
 
 ```ts
 function App(): i32 {

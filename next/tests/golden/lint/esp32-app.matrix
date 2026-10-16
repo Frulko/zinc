@@ -1,0 +1,10 @@
+target   tier status   reason
+esp32    T0   ok
+macos    T4   refuses  project-requires: requires gpio (macos has gpio no)
+linux    T3   refuses  project-requires: requires gpio (linux has gpio no)
+rpi1     T2   warns    plugin-targets: plugin device is not made for this target (its plugin.json targets: esp32, macos, linux)
+rmpp     T0   refuses  project-requires: requires gpio (rmpp has gpio no)
+ps1      T1   refuses  project-requires: requires gpio (ps1 has gpio no)
+ps2      T1   refuses  project-requires: requires gpio (ps2 has gpio no)
+wasm     T3   refuses  project-requires: requires gpio (wasm has gpio no)
+sim      T0   refuses  project-requires: requires gpio (sim has gpio no)
