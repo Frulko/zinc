@@ -25,10 +25,15 @@ export function icon(name: string, color: i32 = 0x000000, strokeWidth: number = 
 /** The names compiled into this program. */
 export function iconNames(): string[] { return NAMES; }
 
+/** A lazy canvas: an icon is drawn when the frame is painted for another reason, so a screen of icons stays idle (no repaint every frame); the
+ *  parsed icon of the last colour is kept, so a repaint allocates nothing. */
 export function Icon(p: { name: string; size?: number; color?: () => i32; strokeWidth?: number }): i32 {
   const size = p.size ?? 24;
-  return <Canvas style={{ width: size, height: size }} onDraw={(x: i32, y: i32, w: i32, h: i32) => {
-    const s = icon(p.name, p.color !== undefined ? (p.color as () => i32)() : 0x000000, p.strokeWidth ?? 2);
+  let lastColor: i32 = -1, last: Svg | null = null;
+  return <Canvas style={{ width: size, height: size, lazy: 1 }} onDraw={(x: i32, y: i32, w: i32, h: i32) => {
+    const c = p.color !== undefined ? (p.color as () => i32)() : 0x000000;
+    if (c !== lastColor || last === null) { last = icon(p.name, c, p.strokeWidth ?? 2); lastColor = c; }
+    const s = last;
     if (s !== null) (s as Svg).draw(x, y, w, h, 255);
   }} />;
 }

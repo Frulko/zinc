@@ -90,7 +90,7 @@ export function ActivityIndicator(p: ActivityIndicatorProps): i32 {
   const n = p.size === 'large' ? 36 : 20, run = p.animating ?? true, col = processColor(p.color ?? '#999999');
   if (!run && (p.hidesWhenStopped ?? true)) return <View style={[{ width: n, height: n }, p.style ?? NONE]} />;
   return <View style={[{ alignItems: 'center', justifyContent: 'center' }, p.style ?? NONE]} role="progressbar">
-    <Canvas style={{ width: n, height: n }} onDraw={(x: i32, y: i32, w: i32, h: i32) => {
+    <Canvas style={{ width: n, height: n, lazy: run ? 0 : 1 }} onDraw={(x: i32, y: i32, w: i32, h: i32) => {   // stopped: a lazy canvas, the frame stays idle
       const cx = x + w / 2, cy = y + h / 2, r1 = w * 0.22, r2 = w * 0.46, lead = run ? Math.floor(ui.now() / 83) % 12 : 0;
       for (let i = 0; i < 12; i++) {
         const a = i * Math.PI / 6, age = (lead - i + 12) % 12;
@@ -142,9 +142,9 @@ export class Dimensions {
   static get(dim: string): ScaledSize { return size(); }
   /** 'change', called once per frame in which the surface size moved. */
   static addEventListener(type: string, f: (e: DimensionsChange) => void): Subscription {
-    if (dimFns.length === 0) { lastW = width(); lastH = height(); ui.addStepper(dimStep); }
+    if (dimFns.length === 0) { lastW = width(); lastH = height(); ui.addWatcher(dimStep); }
     dimFns.push(f);
-    return new Subscription((): void => { const i = dimFns.indexOf(f); if (i >= 0) dimFns.splice(i, 1); if (dimFns.length === 0) ui.removeStepper(dimStep); });
+    return new Subscription((): void => { const i = dimFns.indexOf(f); if (i >= 0) dimFns.splice(i, 1); if (dimFns.length === 0) ui.removeWatcher(dimStep); });
   }
 }
 /** The window size; the component renders again when it changes. ponytail: the subscription lives as long as the program (useEffect has no cleanup). */
@@ -249,9 +249,9 @@ const kbStep: () => void = (): void => {
 export class Keyboard {
   /** keyboardDidShow / WillShow, keyboardDidHide / WillHide, keyboardDidChangeFrame / WillChangeFrame. */
   static addListener(kind: string, f: (e: KeyboardEvent) => void): Subscription {
-    if (kbFns.length === 0) { kbShown = ui.keyboardInset(); ui.addStepper(kbStep); }
+    if (kbFns.length === 0) { kbShown = ui.keyboardInset(); ui.addWatcher(kbStep); }
     kbFns.push(f); kbKinds.push(kind);
-    return new Subscription((): void => { const i = kbFns.indexOf(f); if (i >= 0) { kbFns.splice(i, 1); kbKinds.splice(i, 1); } if (kbFns.length === 0) ui.removeStepper(kbStep); });
+    return new Subscription((): void => { const i = kbFns.indexOf(f); if (i >= 0) { kbFns.splice(i, 1); kbKinds.splice(i, 1); } if (kbFns.length === 0) ui.removeWatcher(kbStep); });
   }
   /** Takes the focus from the field, which hides the on-screen keyboard. */
   static dismiss(): void { ui.focusNode(-1); }

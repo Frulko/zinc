@@ -3271,7 +3271,12 @@ function laStep(): void {
 const steppers: (() => void)[] = [];
 export function addStepper(f: () => void): void { if (steppers.indexOf(f) < 0) steppers.push(f); }
 export function removeStepper(f: () => void): void { const i = steppers.indexOf(f); if (i >= 0) steppers.splice(i, 1); }
-function runSteppers(): void { for (let i = 0; i < steppers.length; i++) steppers[i](); }
+// watchers run each frame too, but a frame stays kept while they are registered: they poll a state (the surface size, the keyboard inset) and
+// mark what they change themselves (a setState, a style), so a screen that listens to Dimensions or the keyboard is still idle
+const watchers: (() => void)[] = [];
+export function addWatcher(f: () => void): void { if (watchers.indexOf(f) < 0) watchers.push(f); }
+export function removeWatcher(f: () => void): void { const i = watchers.indexOf(f); if (i >= 0) watchers.splice(i, 1); }
+function runSteppers(): void { for (let i = 0; i < steppers.length; i++) steppers[i](); for (let i = 0; i < watchers.length; i++) watchers[i](); }
 function stepAnims(): void {
   let i: i32 = 0;
   while (i < anims.length) {
@@ -4993,7 +4998,7 @@ export function frame(dt: number, background: i32): void {
   frameDt = dt;
   looks++;   // from here on, style changes transition on the nodes that had their transition classes before (transitional)
   if (first) stepAnims();
-  if (first && steppers.length > 0) runSteppers();
+  if (first && (steppers.length > 0 || watchers.length > 0)) runSteppers();
   if (prof) profMark(PROF_ANIM);
   if (width() !== surfW || height() !== surfH) {  // window resized: responsive classes, then a new layout
     const crossed = surfW < 0 || BREAKPOINT_PX.some((b: i32) => (surfW >= b) !== (width() >= b));
@@ -5302,7 +5307,7 @@ export function find(text: string): i32 {
   return -1;
 }
 /** Advances the engine clock without the frame loop (tests). */
-export function tick(ms: number): void { clock += ms; looks++; stepAnims(); if (steppers.length > 0) runSteppers(); if (grabber === -1 && longNode >= 0) stepGestures(); }
+export function tick(ms: number): void { clock += ms; looks++; stepAnims(); if (steppers.length > 0 || watchers.length > 0) runSteppers(); if (grabber === -1 && longNode >= 0) stepGestures(); }
 
 // ---------------------------------------------------------------- input test hooks: from the first call on, the
 // HAL's pointer and keyboard are ignored, so runs are identical on the sim and on native targets.

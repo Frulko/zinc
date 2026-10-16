@@ -34,6 +34,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
   It needs `"camera"` in zinc.json `permissions` when the project declares them.
 
 ### Fixed
+- A React Native screen at rest no longer repaints every frame: icons, a stopped `ActivityIndicator`, `useWindowDimensions` and
+  `KeyboardAvoidingView` used to keep the app drawing (and allocating) sixty times a second; it now sleeps until something changes.
 - Platform-specific files work again: next to `feed.ts`, a `feed.macos.ts` (or `feed.esp32.ts`, `feed.android.ts`...) replaces it when building for
   that platform, and imports keep writing `./feed`.
 - A method with a default parameter that a subclass overrides received `null` for it (`new EventTarget().addEventListener('x', fn)` crashed).
