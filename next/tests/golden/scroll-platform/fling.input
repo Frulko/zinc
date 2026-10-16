@@ -1,0 +1,26 @@
+2 touch 1 120 100
+3 touch 1 120 115
+4 touch 1 120 130
+5 touch 1 120 145
+6 touch 1 120 160
+7 touch 1 120 175
+8 touch 1 120 190
+9 touch 1 120 205
+10 touch 1 120 220
+12 touchup 1
+40 touch 1 120 280
+41 touch 1 120 245
+42 touch 1 120 210
+43 touch 1 120 175
+44 touch 1 120 140
+45 touch 1 120 105
+46 touch 1 120 70
+47 touchup 1
+150 touch 1 120 40
+151 touch 1 120 80
+152 touch 1 120 120
+153 touch 1 120 160
+154 touch 1 120 200
+155 touch 1 120 240
+156 touch 1 120 280
+157 touchup 1

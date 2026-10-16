@@ -357,6 +357,18 @@ Scroll containers (`<ScrollView>`, `overflow-y-auto` / `overflow-x-auto`) run on
 | bounce | critically damped spring toward the edge, ω = 10/s (iOS / GTK overshoot) |
 | wheel | notches: a critically damped spring toward 48 px per notch, retargeted while turning |
 
+On Android (`ui.platformStyle()` 'android', `ZINC_PLATFORM=android` on the desktop) the physics are Android's (`lib/std/overscroller.ts`):
+
+| phase | behaviour |
+| --- | --- |
+| direct | the content stops at the edge; a pull past it **stretches** the content (Android 12+, at most 8 % of the viewport, drawn by spreading the children from the pulled edge) or lights the **glow** (Android 11 and before) |
+| release | a fling above 50 px/s (ViewConfiguration) follows `OverScroller`'s spline: duration `1000·e^(l/(2.358-1))` ms and distance `0.015·C·e^(2.358/(2.358-1)·l)` with `l = ln(0.35·v/(0.015·C))`, `C = 9.80665·39.37·160·0.84` (AOSP's constants) |
+| edge | a fling that reaches an edge stops there and turns a quarter of its velocity into a stretch |
+| release of a stretch | EdgeEffect's spring back (stiffness 200, damping 0.98) |
+| scrollbars | shown 300 ms after the last move, then a 250 ms fade (iOS and the desktop: 800 ms and 400 ms) |
+
+`tests/t1/scroll_platform.sh` runs one script of fingers under each platform and keeps every frame's offset and stretch.
+
 Input: the SDL HAL reports trackpad fingers (`SDL_HINT_TRACKPAD_IS_TOUCH_ONLY`), so the lift is exact, and
 resamples the precise deltas at frame time (now - 5 ms, linear between events, extrapolation ≤ 8 ms: Chromium /
 Android) into `HalInput.scroll_dx / dy / phase` (`gfx.scrollDX / scrollDY / scrollPhase`). OS momentum is off;

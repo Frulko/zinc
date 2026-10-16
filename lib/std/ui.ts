@@ -16,6 +16,7 @@ import { overlaid } from 'zinc:gfx';   // the loader's fade draws over the first
 import { platform, env, device } from 'zinc:sys';
 import { signalCount, signalNext } from 'zinc:gfx';   // the system's signals (safe area, theme, back...)
 import { PALETTE, SHADES } from './palette';
+import * as OS from './overscroller';   // Android's fling and stretch overscroll (ANDROID_SCROLL)
 import { UI_LAYOUT, UI_PRESET, HEAP_BYTES, TIER } from 'zinc:platform';
 import * as LY from 'zinc:__layout';
 const DEFAULT_TEXT: i32 = UI_PRESET === 'react-native' ? 14 : 16;   // the default text size: React Native's Text is 14 px (ZN-385)
@@ -3755,7 +3756,9 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
   const ps = n.scroll !== 0 ? pixelScale() : 1;
   const cx = x - n.x * kk - (n.sx !== 0 ? Math.round(n.sx * kk * ps) / ps : 0), cy = y - n.y * kk - (n.sy !== 0 ? Math.round(n.sy * kk * ps) / ps : 0);
   const zp = zSorted(n);
-  if (tilesOn && n.scroll !== 0 && !tileRec && kk === 1 && n.overflow && n.tag !== FRAGMENT && paintTiles(h, n, zp, x, y, ai)) { /* drawn from its tiles */ }
+  const sty = n.ay !== null && !ANDROID_GLOW ? (n.ay as ScrollAxis).stretch : 0, stx = n.ax !== null && !ANDROID_GLOW ? (n.ax as ScrollAxis).stretch : 0;
+  if (sty !== 0 || stx !== 0) paintStretched(n, zp, cx, cy, kk, a, stx, sty);
+  else if (tilesOn && n.scroll !== 0 && !tileRec && kk === 1 && n.overflow && n.tag !== FRAGMENT && paintTiles(h, n, zp, x, y, ai)) { /* drawn from its tiles */ }
   else if (zp !== null) { for (const c of zp) paint(c, cx, cy, kk, a); } else for (const c of n.children) paint(c, cx, cy, kk, a);
   if (n.scroll !== 0) paintScrollbars(n, x, y, kk, a);
   if (n.overflow && n.tag !== FRAGMENT) unclip();
@@ -3825,11 +3828,33 @@ function paintBorderExt(n: UiNode, x: number, y: number, w: number, hh: number, 
   const wd: number[] = [t, rr, b, l];
   for (let i = 0; i < 4; i++) strokeStyled(sides[i], wd[i], cols[i], bai, n.bd.borderStyle);
 }
+/** Android's stretch overscroll: each child of the scroll container moves away from the pulled edge in proportion to its distance from it, so
+ *  the content looks stretched, up to the stretch at the far side (ponytail: children are moved, not scaled: the raster takes no uneven scale). */
+function paintStretched(n: UiNode, zp: i32[] | null, cx: number, cy: number, kk: number, a: number, stx: number, sty: number): void {
+  const list = zp !== null ? zp : n.children;
+  for (const c of list) {
+    const ch = nodes[c];
+    let dx: number = 0, dy: number = 0;
+    if (sty !== 0) { const mid = ch.y + ch.lh / 2 - n.y - n.sy, f = sty > 0 ? mid / Math.max(1, n.lh) : (n.lh - mid) / Math.max(1, n.lh); dy = sty * Math.max(0, Math.min(1, f)); }
+    if (stx !== 0) { const mid = ch.x + ch.lw / 2 - n.x - n.sx, f = stx > 0 ? mid / Math.max(1, n.lw) : (n.lw - mid) / Math.max(1, n.lw); dx = stx * Math.max(0, Math.min(1, f)); }
+    paint(c, cx + dx * kk, cy + dy * kk, kk, a);
+  }
+}
+/** Android before 12: the glow at the pulled edge (EdgeEffect's), its height following the pull. */
+function paintGlow(n: UiNode, x: number, y: number, k: number, a: number): void {
+  const sy = n.ay !== null ? (n.ay as ScrollAxis).stretch : 0;
+  if (sy === 0) return;
+  const w = n.lw * k, gh = Math.min(n.lh * 0.25, Math.abs(sy) * 6) * k, al: i32 = Math.round(Math.min(1, Math.abs(sy) / (n.lh * OS.STRETCH_MAX)) * 90 * a);
+  const top = sy > 0, ey = top ? y : y + n.lh * k, pts: number[] = [];
+  for (let i = 0; i <= 16; i++) { const t = i / 16; pts.push(x + w * t); pts.push(ey + (top ? 1 : -1) * gh * Math.sin(Math.PI * t)); }
+  polygon(pts, 0x64748b, al);
+}
 function paintScrollbars(n: UiNode, x: number, y: number, k: number, a: number): void {
-  // thin overlay bars, shown while scrolling and fading out after ~1 s
-  const age = clock - n.scrolledAt;
-  if (age > 1200) return;
-  const fade = age < 800 ? 1 : 1 - (age - 800) / 400;
+  if (ANDROID_GLOW) paintGlow(n, x, y, k, a);
+  // thin overlay bars, shown while scrolling and fading out after ~1 s (Android: ViewConfiguration's 300 ms, then a 250 ms fade)
+  const age = clock - n.scrolledAt, shown = ANDROID_SCROLL ? 300 : 800, fadeMs = ANDROID_SCROLL ? 250 : 400;
+  if (age > shown + fadeMs) return;
+  const fade = age < shown ? 1 : 1 - (age - shown) / fadeMs;
   animating = true;
   const al: i32 = Math.round(110 * fade * a);
   if (al === 0) return;   // faded out: no command, so the frame diff sees it gone now rather than one frame later
@@ -4377,7 +4402,11 @@ function scrollerAt(h: i32, px: number, py: number, ox: number, oy: number, k: n
 // Trackpad deltas arrive resampled at frame time (HAL scroll_dx / dy), so the stream is even and nothing judders.
 const RUBBER_C: number = 0.55, DECEL: number = 0.998, BOUNCE_W: number = 10, WHEEL_W: number = 30;
 const MIN_FLING: number = 100, MAX_FLING: number = 8000, MAX_EDGE_V: number = 5000, NOTCH_PX: number = 48;
-const IDLE: i32 = 0, DIRECT: i32 = 1, INERTIA: i32 = 2, BOUNCE: i32 = 3, WHEEL: i32 = 4;
+const IDLE: i32 = 0, DIRECT: i32 = 1, INERTIA: i32 = 2, BOUNCE: i32 = 3, WHEEL: i32 = 4, FLING: i32 = 5, STRETCH: i32 = 6;
+// Android's physics instead (platformStyle() 'android', ZINC_PLATFORM=android; lib/std/overscroller.ts): no rubber band; a pull past an edge
+// stretches the content (Android 12+) or lights a glow (before), the fling is OverScroller's spline, and an edge it reaches absorbs it as a stretch
+const ANDROID_SCROLL: boolean = platform() === 'android';
+const ANDROID_GLOW: boolean = ANDROID_SCROLL && device('osversion') !== '' && parseInt(device('osversion')) < 31;
 export class ScrollAxis {
   mode: i32 = 0;
   pos: number = 0;       // shown offset
@@ -4386,6 +4415,8 @@ export class ScrollAxis {
   target: number = 0;    // wheel easing target
   ts: number[] = [];     // recent direct samples (engine ms, raw) for the release velocity
   ps: number[] = [];
+  // Android: the stretch shown past an edge (px, + pulled past the start), its velocity, and the running fling (OverScroller's spline)
+  stretch: number = 0; sv: number = 0; t0: number = 0; p0: number = 0; fl: OS.Fling | null = null;
 }
 function rubberOf(x: number, dim: number): number { return (1 - 1 / (x * RUBBER_C / Math.max(1, dim) + 1)) * dim; }
 function unrubber(f: number, dim: number): number { return f < dim ? f * dim / (RUBBER_C * (dim - f)) : dim * 100; }
@@ -4395,13 +4426,17 @@ function banded(raw: number, max: number, dim: number): number {
 }
 function beginDirect(a: ScrollAxis, max: number, dim: number): void {
   if (a.mode === DIRECT) return;
+  if (ANDROID_SCROLL) { a.raw = a.pos - OS.overOf(a.stretch, dim); a.mode = DIRECT; a.v = 0; a.sv = 0; a.ts = []; a.ps = []; return; }   // a stretch taken back in hand
   // continue from what is shown, even mid-bounce: the raw offset is the rubber band inverted
   a.raw = a.pos < 0 ? -unrubber(-a.pos, dim) : a.pos > max ? max + unrubber(a.pos - max, dim) : a.pos;
   a.mode = DIRECT; a.v = 0; a.ts = []; a.ps = [];
 }
 function directBy(a: ScrollAxis, d: number, max: number, dim: number): void {
   a.raw += d;
-  a.pos = banded(a.raw, max, dim);
+  if (ANDROID_SCROLL) {   // the content stops at the edge; what the finger pulls further is a stretch
+    a.pos = Math.max(0, Math.min(max, a.raw));
+    a.stretch = a.raw < 0 ? -OS.stretchOf(a.raw, dim) : a.raw > max ? -OS.stretchOf(a.raw - max, dim) : 0;
+  } else a.pos = banded(a.raw, max, dim);
   a.ts.push(clock); a.ps.push(a.raw);
   while (a.ts.length > 1 && clock - a.ts[0] > 100) { a.ts.shift(); a.ps.shift(); }
 }
@@ -4419,6 +4454,12 @@ function releaseVelocity(a: ScrollAxis): number {
 function releaseAxis(a: ScrollAxis, max: number): void {
   if (a.mode !== DIRECT) return;
   const v = releaseVelocity(a);
+  if (ANDROID_SCROLL) {
+    if (a.stretch !== 0) { a.mode = STRETCH; a.sv = 0; }
+    else if (Math.abs(v) > OS.MIN_FLING_V) { a.fl = OS.fling(v); a.t0 = clock; a.p0 = a.pos; a.v = v; a.mode = FLING; }
+    else { a.mode = IDLE; a.v = 0; }
+    return;
+  }
   if (a.pos < 0 || a.pos > max) { a.mode = BOUNCE; a.v = Math.max(-MAX_EDGE_V, Math.min(MAX_EDGE_V, v)); }
   else if (Math.abs(v) > MIN_FLING) { a.mode = INERTIA; a.v = v; }
   else { a.mode = IDLE; a.v = 0; }
@@ -4432,6 +4473,21 @@ function springStep(a: ScrollAxis, to: number, w: number, dt: number): boolean {
 }
 /** One frame of an axis; false once it rests. */
 function stepAxis(a: ScrollAxis, max: number, dt: number): boolean {
+  if (a.mode === FLING) {   // OverScroller's spline from the release; an edge reached turns the velocity left into a stretch
+    const f = a.fl as OS.Fling;
+    const t = f.duration > 0 ? (clock - a.t0) / f.duration : 1;
+    a.pos = a.p0 + OS.splineAt(Math.min(1, t), f) * f.distance;
+    a.v = OS.splineVelocity();
+    if (a.pos < 0 || a.pos > max) { a.pos = a.pos < 0 ? 0 : max; a.mode = STRETCH; a.sv = -a.v * OS.ABSORB; a.v = 0; return true; }
+    if (t >= 1) { a.mode = IDLE; a.v = 0; return false; }
+    return true;
+  }
+  if (a.mode === STRETCH) {   // EdgeEffect's release: a spring of stiffness 200 and damping 0.98 back to no stretch
+    const w = Math.sqrt(OS.STRETCH_K), n: i32 = Math.max(1, Math.ceil(dt * 480)), h = dt / n;
+    for (let i = 0; i < n; i++) { a.sv += (-w * w * a.stretch - 2 * OS.STRETCH_DAMPING * w * a.sv) * h; a.stretch += a.sv * h; }
+    if (Math.abs(a.stretch) < 0.3 && Math.abs(a.sv) < 6) { a.stretch = 0; a.sv = 0; a.mode = IDLE; return false; }
+    return true;
+  }
   if (a.mode === INERTIA) {
     const f = Math.pow(DECEL, dt * 1000), k = 1000 * Math.log(DECEL);
     a.pos += a.v * (f - 1) / k;
@@ -4474,7 +4530,7 @@ function releaseScroll(h: i32): void {
 /** Fingers landed on a moving scroller: it stops where it is (an overscroll still springs back). */
 function catchScroll(h: i32): void {
   const n = node(h);
-  for (const a of [n.ay, n.ax]) if (a !== null && (a.mode === INERTIA || a.mode === WHEEL)) { a.mode = IDLE; a.v = 0; }
+  for (const a of [n.ay, n.ax]) if (a !== null && (a.mode === INERTIA || a.mode === WHEEL || a.mode === FLING)) { a.mode = IDLE; a.v = 0; }
 }
 // ---- scroll snap: the snap points are the offsets that put a child with snap-start / snap-center / snap-end at the start, centre or end of the scroll container's padded viewport
 const snapPts: number[] = [];
@@ -4543,6 +4599,8 @@ function stepScroll(dt: number): void {
     if (!moving) { n.live = false; n.vx = 0; n.vy = 0; clampScroll(n); scrollers.splice(i, 1); }
   }
 }
+/** The stretch an Android overscroll shows on node h's vertical axis (px; 0 none), for tests and inspectors. */
+export function scrollStretch(h: i32): number { const n = node(h); return n.ay !== null ? (n.ay as ScrollAxis).stretch : 0; }
 /** Scrolls the enclosing containers so the focused node is visible (again): call it after the layout changed, e.g. an on-screen keyboard took room. */
 export function revealFocused(): void { if (focus >= 0) revealFocus(focus); }
 /** Keyboard focus: scroll every enclosing container so the focused node is visible. */
