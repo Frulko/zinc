@@ -104,6 +104,17 @@ Pixels: `ZINC_PRESENT_VERIFY=1` compares the whole window buffer with a full red
 precision and resamples (the texture path differs from a desktop raster of the same frame on 28,925 edge pixels, max 32 levels; the window
 buffer on 20,077, max 20: the compositor's own share).
 
+The buffer's byte order (ZN-750). HAL format 5 (BGRA_8888, the raster's own order) is not one of the NDK's window formats. The API 37
+arm64 emulator (AVD Pixel_10) accepts it, answers 5 from `ANativeWindow_getFormat` and from the lock, and composes the buffer as RGBA: red
+and blue swapped on screen (`zinc-next-android/rn-showcase-api37-bgra.png`, the hero's orange drawn (42, 73, 232)). No query tells such a
+device from one that honours the format, so from API 26 the window asks for RGBX_8888 and each band stripe is drawn into the thread's own
+cached rows, then written once into the buffer with red and blue swapped (`rn-showcase-api37-rgbx.png`: (232, 73, 42); 0 stale pixels in
+60 posts of six drags with `ZINC_PRESENT_VERIFY=1`). Below API 26 it keeps BGRA_8888, drawn in place: on the Nexus 7 the swapped path costs
+5 ms of raster a scrolled frame (fling raster p50 13.2 against 8.3 ms, 433 to 474 late frames of 720 against 324 to 380, three runs each),
+though its pixels are right there too (0 stale pixels in 300 posts of the fling). `ZINC_PRESENT_BGRA=1` or `0` forces one. The Nexus 7's
+screencap at rest is identical to the one before the change (0 differing pixels below the status bar). The API 26 line is a guess between
+the two devices measured (API 25 honours the format, API 37 does not): a device of API 26 to 36 that honours it pays the swap.
+
 ### A GPU layer under the software frame (ZN-746)
 
 zinc:gfx runtime shaders (shaderProgram, drawShader, shaderAvailable) are drawn by the GPU without the GL replay of the whole frame: a
@@ -174,6 +185,51 @@ measured: the latency from the touch to the first frame that answers it (outside
 
 Screenshots: `zinc-next-android/rn-showcase-first-pixels.png`, `rn-showcase-panel-cpu.png`, `rn-showcase-panel-gles2.png`,
 `breakout-panel-cpu.png`; hello's logcat: `zinc-next-android/hello-logcat.txt`.
+
+### CPU cores (ZN-750)
+
+The owner saw one core online most of the time in a running app. What decides it on this ROM: Tegra's **cpuquiet** with its `balanced`
+governor (autosmp is built in but off: `/sys/module/autosmp/parameters/enabled` is N, so its `min_cpus` does nothing). `balanced` brings a
+core up when the clock is above `idle_top_freq` and the average count of runnable threads exceeds the cores online, takes one down below
+`idle_bottom_freq` or when they are idle; init.grouper.rc sets 60 ms delays and a 102 MHz floor, and **setting any cpuquiet governor puts the
+kernel's defaults back** (up 1 s, down 2 s, a 513 MHz floor): the state the tablet was in on 2026-10-16, after an earlier session's
+measurement. Any app launch brings all four cores up for about 1.5 s (the system's boost, whatever the governor). The cores were held
+with PM QoS (`/dev/min_online_cpus` and `max_online_cpus` kept open by a root shell, set 8 s before the run, no root during it); the cores
+and cpu0's clock were sampled every 0.5 s on the tablet during each run (`/sys/devices/system/cpu/online`, `scaling_cur_freq`, readable by
+the shell user). rn-showcase: ten scripted flings, moving frames 170 to 890; music: six carousel swipes (player, clock face 0, weather, rings
+and back), moving frames 110 to 500; perf panel on; debug APKs of 2026-10-17.
+
+| Cores | Fling: late frames of 720 (runs) | Fling interval p50 / p99 | Fling raster p50 | Swipes: late of 390 | Cores seen, cpu0 clock |
+|---|---|---|---|---|---|
+| 1 held | 474 | 22.2 / 38.3 ms | 15.3 ms | 327 (interval p50 106 ms) | 1; 1300 MHz |
+| 2 held (max 2) | 443 | 18.8 / 41.0 ms | 10.2 ms | 203 | 2 |
+| at least 2 | 318, 397 | 16.8-18.2 / 36-38 ms | 7.3-8.7 ms | | 2-4 |
+| at least 3 | 352 | 17.4 / 33.8 ms | 8.6 ms | | 3-4 |
+| 4 held | 240, 270, 295, 297 | 16.7-16.8 / 30-36 ms | 7.3-8.4 ms | 184, 185, 189 | 4; p50 860 MHz (fling), 1200-1300 (swipes) |
+| the ROM's balanced (a normal run) | 303, 305, 321, 335, 338, 362, 365, 366 | 16.9-17.6 / 28-35 ms | 8.0-9.2 ms | 175, 184, 189, 199 | 2: 22-32%, 3: 22-45%, 4: 30-52% of the samples; p50 860-1000 MHz (513-1300) |
+| kernel defaults (after a governor switch) | 314, 349, 453 | 17.0-18.9 / 33-38 ms | 8.0-10.6 ms | | 453: 1 core 22%, 2 cores 60% |
+
+A fling needs the four cores: the raster's bands (D126) run on whatever is online, and with one core the raster doubles. The music swipes
+are bound elsewhere (the frames that move the whole carousel take 80 to 110 ms of raster with any count from two up). The ROM's balanced
+governor keeps two to four online and loses 15 to 25% more frames than four held; at least two or three is no better than the ROM.
+
+What the engine does now, for every Android app: it asks for steady clocks while frames move (`Window.setSustainedPerformanceMode`, from
+the first frame with damage to a second after the last; dropped while paused), and zinc:webos `setPerformance` (device('performance'))
+asks for it too. `PowerManager.isSustainedPerformanceModeSupported()` answers **false** on the Nexus 7 (and on the API 37 emulator), so
+nothing is asked there: logcat says `sustained performance mode supported: false`, then `sustained performance mode on (not supported here:
+nothing asked)` at each fling's start and `off` a second after it; device('performance') answers "0" there, as webOS's helper does when it
+is absent.
+
+Tried and dropped: keeping the raster's workers runnable between frames (spinning on `sched_yield` for 30 ms after a band, so cpuquiet
+counts four runnable threads). It works on the hotplug (four cores online 75 to 85% of the time, clock p50 1300 MHz, raster p50 5.8 to 6.2
+ms from 8.0 to 9.2) and loses on the frames: 365 to 427 late against 314 to 366 in alternated runs, interval p50 17.5 to 18.4 ms against
+17.0 to 17.6 (the spinning threads take the main thread's time for paint and layout and the memory bandwidth). Not kept.
+
+For this development tablet, `docs/reports/hardware/nexus7-tune.sh apply` now keeps the four cores online (cpuquiet's `userspace`
+governor, which takes no core down; all four written online, again at each boot from its init file); `revert` puts `balanced` back with
+init.grouper.rc's values; `status` prints the cores online and the governor. Before and after `apply`, the same APK: flings 321 and 365
+late frames (p99 29.7, 33.7 ms) before, 281, 302 and 255 after (p99 31.6, 30.6, 30.3 ms; raster p99 13.9 from 15.3 to 18.9 ms); swipes 184
+before, 184 and 184 after. The cost: no core ever sleeps nor the low-power companion core runs, which a tablet on its charger can afford.
 
 ## Not done here
 

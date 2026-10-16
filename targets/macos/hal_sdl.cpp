@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <atomic>
 #include <thread>
+#include <vector>
 
 extern "C" { static void start_workers(); }   // parallel rasterization (hal_present); defined inside the extern "C" block below (GCC wants the same linkage)
 static SDL_Window* win;
@@ -56,7 +57,10 @@ static bool surface_ok;        // the surface of the current size is allocated
 static bool shown;             // the main window is created hidden and shown by its first present, so it never appears blank (ZN-446)
 #ifdef __ANDROID__
 #include <android/native_window.h>
-static int anw_mode;          // present into the window's buffer (ZN-743, anw_present): 0 SDL_Renderer; 1 BGRA_8888 copied from fb; 2 RGB_565 packed from fb; 3 BGRA_8888 drawn in place (default)
+#include <sys/system_properties.h>
+#include "zn/app.h"   // ZN_APP_ANDROID_SUSTAINED
+static int anw_mode;          // present into the window's buffer (ZN-743, anw_present): 0 SDL_Renderer; 1 copied from fb; 2 RGB_565 packed from fb; 3 drawn in place (default)
+static bool anw_bgra;         // ask for HAL format 5 (BGRA_8888, the raster's byte order): below API 26, or ZINC_PRESENT_BGRA=1 (0: RGBX_8888)
 static ANativeWindow* anw;    // our reference to the window's surface (SDL releases its own when the surface goes away)
 #endif
 
@@ -486,6 +490,8 @@ void hal_init(const HalConfig* cfg) {
 #endif
 #ifdef __ANDROID__
   { const char* p = getenv("ZINC_PRESENT"); anw_mode = p && !strcmp(p, "texture") ? 0 : p && !strcmp(p, "565") ? 2 : p && !strcmp(p, "shadow") ? 1 : 3; }
+  if (const char* p = getenv("ZINC_PRESENT_BGRA")) anw_bgra = atoi(p) != 0;
+  else { char v[PROP_VALUE_MAX] = ""; __system_property_get("ro.build.version.sdk", v); anw_bgra = atoi(v) > 0 && atoi(v) < 26; }
   if (anw_mode) {   // the raster draws into the window's buffer (anw_present): a window without a renderer
     if (!(win = SDL_CreateWindow(cfg->title, ww, wh, SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_HIDDEN))) hal_panic(SDL_GetError(), "hal_sdl", __LINE__);
   } else
@@ -1009,10 +1015,26 @@ extern "C" __attribute__((weak)) int32_t zrt_profiling(void) { return 0; }
 extern "C" __attribute__((weak)) void zrt_prof_band(int32_t, uint64_t, uint64_t) {}
 static bool band_prof;
 static uint32_t* band_px;   // the buffer the bands write: fb, or the window's own (ZN-743); PW pixels per row
+// The raster's pixel is 0x00RRGGBB (bytes B, G, R, 0); an RGBA window buffer takes R, G, B, A
+static inline uint32_t to_rgba(uint32_t p) { return (p & 0x0000FF00u) | (p >> 16 & 0xFFu) | (p & 0xFFu) << 16 | 0xFF000000u; }
+// An RGBA or RGBX window buffer (anw_present, ZN-750): each stripe is drawn into the thread's own cached rows, then written into the buffer
+// once, red and blue swapped, columns swap_x0 to swap_x1 only (the rest of a damage box is the previous frame's)
+static bool band_swap;
+static int32_t swap_x0, swap_x1;
 static void run_band(int i) {
   uint64_t t0 = band_prof ? hal_time_us() : 0;
-  for (int32_t a; (a = band_y0 + band_next.fetch_add(1, std::memory_order_relaxed) * kStripe) < band_y1;)
-    band_fn(band_px + (size_t)a * PW, a, a + kStripe < band_y1 ? a + kStripe : band_y1);
+  for (int32_t a; (a = band_y0 + band_next.fetch_add(1, std::memory_order_relaxed) * kStripe) < band_y1;) {
+    const int32_t e = a + kStripe < band_y1 ? a + kStripe : band_y1;
+    if (!band_swap) { band_fn(band_px + (size_t)a * PW, a, e); continue; }
+    thread_local std::vector<uint32_t> rows;
+    rows.resize((size_t)kStripe * PW);
+    band_fn(rows.data(), a, e);
+    for (int32_t y = a; y < e; y++) {
+      const uint32_t* s = rows.data() + (size_t)(y - a) * PW;
+      uint32_t* d = band_px + (size_t)y * PW;
+      for (int32_t x = swap_x0; x < swap_x1; x++) d[x] = to_rgba(s[x]);
+    }
+  }
   if (band_prof) zrt_prof_band(i, t0, hal_time_us());
 }
 static void band_worker(int id) {
@@ -1042,6 +1064,7 @@ static void render_rows_parallel(void (*fn)(uint32_t*, int32_t, int32_t), int32_
   band_prof = zrt_profiling() != 0;
   band_px = px ? px : fb;
   if (workers == 0 || y1 - y0 < 2 * kStripe) {
+    if (band_swap) { band_fn = fn; band_y0 = y0; band_y1 = y1; band_next.store(0, std::memory_order_relaxed); run_band(0); return; }
     uint64_t t0 = band_prof ? hal_time_us() : 0;
     fn(band_px + (size_t)y0 * PW, y0, y1);
     if (band_prof) zrt_prof_band(0, t0, hal_time_us());
@@ -1116,8 +1139,12 @@ static void apply_move(const HalFrame* f, uint32_t* px) {
 #ifdef __ANDROID__
 // Present into the window's own buffer (ZN-743): no SDL_Renderer, no texture, no GL context; SurfaceFlinger composes the buffer.
 // ANativeWindow_lock gets the damage box as its dirty bounds and copies the rest from the previous buffer; the box it returns (the whole
-// buffer after a new surface or size) is filled whole. BGRA_8888 (HAL format 5) is the raster's own byte order (0x00RRGGBB little-endian:
-// B, G, R, 0); the layer is opaque, so the zero alpha byte is never read. By default the raster draws into the buffer itself (zero copy). The
+// buffer after a new surface or size) is filled whole. Below API 26 the buffer is BGRA_8888 (HAL format 5), the raster's own byte order
+// (0x00RRGGBB little-endian: B, G, R, 0), and the raster draws in it; from API 26 it is RGBX_8888, a format of the NDK, each stripe drawn
+// in the thread's cached rows and written once with red and blue swapped (band_swap). Why (ZN-750): format 5 is not an NDK window format;
+// the API 37 emulator takes it, reports it back from ANativeWindow_getFormat and the lock, and composes it as RGBA (red and blue swapped on
+// screen), so no query tells a device that honours it from one that does not; the Nexus 7 (API 25) honours it, and the swap there costs
+// 5 ms of raster a scrolled frame (p50 13.2 against 8.3 ms). ZINC_PRESENT_BGRA=1 or 0 forces one. The layer is opaque. The
 // buffer is write-combined memory the CPU reads at a crawl (a scroll's pixel move inside it took 60 ms on a Nexus 7), so a scroll is drawn
 // whole there; ZINC_PRESENT=shadow draws into fb, in cached memory, moves its pixels for a scroll (ZN-744) and copies the box into the buffer
 // (on the Nexus 7: frame p50 better, p99 worse, the copy of a full box costs 8 to 10 ms of its memory bandwidth). ZINC_PRESENT=565 packs
@@ -1141,7 +1168,7 @@ static void anw_present(const HalFrame* f) {
   if (!anw) { anw_idle(); return; }
   ARect r = {f->x0, f->y0, f->x1, f->y1};
   if (anw_w != PW || anw_h != PH) {   // the lock answers with the whole buffer: nothing to copy back from a buffer of another size
-    ANativeWindow_setBuffersGeometry(anw, PW, PH, anw_mode == 2 ? WINDOW_FORMAT_RGB_565 : 5);
+    ANativeWindow_setBuffersGeometry(anw, PW, PH, anw_mode == 2 ? WINDOW_FORMAT_RGB_565 : anw_bgra ? 5 : WINDOW_FORMAT_RGBX_8888);
     anw_w = PW; anw_h = PH;
     r = ARect{0, 0, PW, PH};
   } else if (r.right <= r.left || r.bottom <= r.top) { anw_idle(); return; }
@@ -1151,12 +1178,23 @@ static void anw_present(const HalFrame* f) {
   ps_mark(PS_SWAP);   // dequeueing a buffer waits for the compositor: part of the swap
   if (b.width != PW || b.height != PH) { ANativeWindow_unlockAndPost(anw); anw_w = 0; return; }   // a resize on its way
   r.left = SDL_max(r.left, 0); r.top = SDL_max(r.top, 0); r.right = SDL_min(r.right, PW); r.bottom = SDL_min(r.bottom, PH);
+  const bool rgba = b.format == WINDOW_FORMAT_RGBA_8888 || b.format == WINDOW_FORMAT_RGBX_8888;
   if (r.left < r.right && r.top < r.bottom) {
-    const bool direct = anw_mode == 3 && b.format == 5 && b.stride == PW;
+    static bool said;
+    if (!said && !rgba && b.format != 5 && b.format != WINDOW_FORMAT_RGB_565) {   // a format nothing here writes: say it once
+      said = true;
+      char m[96]; const int n = snprintf(m, sizeof m, "zinc present: the window buffer is format %d, not RGBX_8888\n", b.format);
+      hal_log_err(m, (size_t)n);
+    }
+    const bool direct = anw_mode == 3 && (b.format == 5 || rgba) && b.stride == PW;
     void (*rows)(uint32_t*, int32_t, int32_t) = f->render;
     if (f->render_box) { box_fn = f->render_box; box_x0 = r.left; box_x1 = r.right; rows = box_rows; }
     else { r.left = 0; r.right = PW; }   // whole rows: the box would hold stale pixels
-    if (direct) render_rows_parallel(rows, r.top, r.bottom, (uint32_t*)b.bits);
+    if (direct) {
+      band_swap = rgba; swap_x0 = r.left; swap_x1 = r.right;
+      render_rows_parallel(rows, r.top, r.bottom, (uint32_t*)b.bits);
+      band_swap = false;
+    }
     else {
       const bool fresh = !fb;
       if (fresh) { fb = (uint32_t*)calloc((size_t)PW * PH, 4); r = ARect{0, 0, PW, PH}; box_x0 = 0; box_x1 = PW; }
@@ -1168,6 +1206,9 @@ static void anw_present(const HalFrame* f) {
         if (b.format == WINDOW_FORMAT_RGB_565) {
           uint16_t* d = (uint16_t*)b.bits + (size_t)y * b.stride + r.left;
           for (int x = 0; x < r.right - r.left; x++) d[x] = (uint16_t)(((s[x] >> 8) & 0xF800) | ((s[x] >> 5) & 0x07E0) | ((s[x] >> 3) & 0x001F));
+        } else if (rgba) {
+          uint32_t* d = (uint32_t*)b.bits + (size_t)y * b.stride + r.left;
+          for (int x = 0; x < r.right - r.left; x++) d[x] = to_rgba(s[x]);
         } else memcpy((uint32_t*)b.bits + (size_t)y * b.stride + r.left, s, (size_t)(r.right - r.left) * 4);
       }
       ps_mark(PS_UPLOAD);
@@ -1175,11 +1216,15 @@ static void anw_present(const HalFrame* f) {
     ps_mark(PS_RASTER);
   }
   static const bool verify = getenv("ZINC_PRESENT_VERIFY") && atoi(getenv("ZINC_PRESENT_VERIFY")) != 0;
-  if (verify && b.format == 5) {   // the whole buffer against a full redraw: the box drawn and the rest copied back hold no stale pixel
+  if (verify && (b.format == 5 || rgba)) {   // the whole buffer against a full redraw: the box drawn and the rest copied back hold no stale pixel
     uint32_t* full = (uint32_t*)malloc((size_t)PW * PH * 4);
     f->render(full, 0, PH);
     int bad = 0;
-    for (int y = 0; y < PH; y++) for (int x = 0; x < PW; x++) bad += (((const uint32_t*)b.bits)[(size_t)y * b.stride + x] & 0xFFFFFF) != (full[(size_t)y * PW + x] & 0xFFFFFF);
+    for (int y = 0; y < PH; y++)
+      for (int x = 0; x < PW; x++) {
+        const uint32_t want = rgba ? to_rgba(full[(size_t)y * PW + x]) : full[(size_t)y * PW + x];
+        bad += (((const uint32_t*)b.bits)[(size_t)y * b.stride + x] & 0xFFFFFF) != (want & 0xFFFFFF);
+      }
     free(full);
     static int frames, frames_bad;
     frames++; frames_bad += bad != 0;
@@ -1522,7 +1567,22 @@ void hal_present(const HalFrame* f) {
   show_main();
   present_frame(f);   // again into the shown window: what it composites first may be the buffer of before the show
 }
+#ifdef __ANDROID__
+// Steady clocks while frames move (ZN-750): the activity asks for Window.setSustainedPerformanceMode where the device has it, and lets it go
+// a second after the last frame with damage (the activity drops it while paused and asks again on resume).
+static void steady_clocks(bool moving) {
+  static bool on;
+  static uint64_t moved;
+  const uint64_t now = SDL_GetTicksNS();
+  if (moving) moved = now;
+  const bool want = moving || (on && now - moved < 1000000000ull);
+  if (want != on) SDL_SendAndroidMessage(ZN_APP_ANDROID_SUSTAINED, (on = want) ? 1 : 0);
+}
+#endif
 static void present_frame(const HalFrame* f) {
+#ifdef __ANDROID__
+  steady_clocks(f->y1 > f->y0 && f->x1 > f->x0);
+#endif
   ps_begin();
 #ifdef ZN_HAL_GL
   if (gl_on) { gl_present(f); ps_mark(PS_SWAP); ps_end(); return; }

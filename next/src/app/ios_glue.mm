@@ -228,7 +228,7 @@ static void run(const std::string& q, const std::string& a) {
 static const char* command(const char* q, const char* a) {
   const std::string qs = q, as = a;
   dispatch_async(dispatch_get_main_queue(), ^{ run(qs, as); });
-  return "1";
+  return qs == "performance" ? "0" : "1";   // steady clocks: iOS has no request for them (Android's sustained mode, ZN-750)
 }
 
 // ---- the plugins' lifecycle subscribers (plugin.json targets.ios.lifecycle, ZN-628): classes that answer any of zincPause, zincResume,

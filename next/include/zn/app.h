@@ -8,6 +8,9 @@
 // The SDL_SendAndroidMessage command the activity of `zinc export --target android` answers on its UI thread: the window's brightness,
 // 0 (darkest) to 255, -1 the system's (device('backlight'), src/host/sys_host.cpp)
 #define ZN_APP_ANDROID_BRIGHTNESS 0x8001
+// ... and steady clocks while frames move (targets/macos/hal_sdl.cpp, ZN-750): 1 frames move, 0 at rest; the activity asks for
+// Window.setSustainedPerformanceMode while frames move or the program asks for it (device('performance'))
+#define ZN_APP_ANDROID_SUSTAINED 0x8002
 
 extern "C" {
 int zn_app_init(int argc, char** argv);    // the program's top level, up to where its loop would start: 0 running, 1 done, <0 error

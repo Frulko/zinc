@@ -44,7 +44,7 @@ La première ouverture n'est pas strictement comparable (moments différents apr
 
 Magisk 30.7 (armeabi-v7a) installé : `boot.img` (partition `LNX`, mmcblk0p2) sauvegardé avec la recovery (`SOS`, mmcblk0p1) dans `~/nexus7-grouper-backup/` (SHA256SUMS à côté), patché sur l'appareil par `boot_patch.sh` de l'APK, testé par `fastboot boot`, puis écrit sur `LNX`. `su` accordé au shell adb (uid 2000) par `magisk --sqlite`. Retour arrière : `fastboot flash boot ~/nexus7-grouper-backup/boot.img`.
 
-Horloges relues (debugfs) : GPU 3D/2D 228 MHz courant, 416 MHz max (valeur d'origine T30L) ; EMC 667 MHz ; CPU 1,3 GHz max ; hotplug `autosmp` (min 1, max 4 cœurs). Le surcadençage du GPU (446/520 MHz, voir `nexus7-2012-boost-online.md`) demande un noyau recompilé : non fait.
+Horloges relues (debugfs) : GPU 3D/2D 228 MHz courant, 416 MHz max (valeur d'origine T30L) ; EMC 667 MHz ; CPU 1,3 GHz max ; hotplug `cpuquiet`, gouverneur `balanced` (`autosmp` est compilé mais éteint : `/sys/module/autosmp/parameters/enabled` = N ; ZN-750, `zinc-next-android.md` « CPU cores »). Le surcadençage du GPU (446/520 MHz, voir `nexus7-2012-boost-online.md`) demande un noyau recompilé : non fait.
 
 ## Gains rapides (dans l'ordre)
 
@@ -127,7 +127,7 @@ Les chiffres exacts ci-dessous sont **[connaissance]** sauf mention ; valider ch
   ```sh
   for c in /sys/devices/system/cpu/cpu[0-3]; do echo performance > $c/cpufreq/scaling_governor; done
   ```
-  Les cœurs se coupent (hotplug `tegra_hotplug`/`mpdecision`-like) : pour un banc, bloquer `min_cpus` ou écrire `echo 1 > cpu1/online` ; fréquence max stock 1,3 GHz (1,2 GHz quand 4 cœurs actifs) ; la T30L plafonne plus bas que la T30 **[connaissance]**.
+  Les cœurs se coupent (cpuquiet `balanced`) : pour un banc, une requête PM QoS tenue ouverte (`/dev/min_online_cpus`, `/dev/max_online_cpus`) ou le gouverneur cpuquiet `userspace` avec `echo 1 > cpuN/online` (`nexus7-tune.sh apply` garde les 4 cœurs) ; changer de gouverneur cpuquiet remet les valeurs du noyau (montée 1 s, descente 2 s, plancher 513 MHz) au lieu de celles d'init.grouper.rc (60 ms, 102 MHz) ; fréquence max stock 1,3 GHz (1,2 GHz quand 4 cœurs actifs) ; la T30L plafonne plus bas que la T30 **[connaissance]**.
 - E/S : `echo deadline > /sys/block/mmcblk0/queue/scheduler` (ou `noop`) ; `echo 512 > .../queue/read_ahead_kb` ; plusieurs noyaux XDA fixent deadline par défaut [source: M-Kernel, lien ci-dessus]. `row`/`fiops` : seulement si le noyau les contient.
 - Swap/zram : 1 Go de RAM ; zram ~128-256 Mo (`swappiness` 60-100) aide en multitâche mais coûte du CPU ; non pertinent pour une app plein écran unique.
 - lowmemorykiller : relever `/sys/module/lowmemorykiller/parameters/minfree` (ex. `1536,2048,4096,8192,10240,12288` pages) pour garder plus de RAM libre.

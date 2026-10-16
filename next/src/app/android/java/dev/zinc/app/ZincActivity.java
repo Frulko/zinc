@@ -8,9 +8,11 @@ import android.graphics.Color;
 import android.graphics.Rect;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.PowerManager;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.provider.Settings;
+import android.util.Log;
 import android.view.HapticFeedbackConstants;
 import android.view.View;
 import android.view.ViewTreeObserver;
@@ -32,6 +34,8 @@ import org.libsdl.app.ZincEdit;
 public class ZincActivity extends SDLActivity {
     /** The SDL_SendAndroidMessage command of the window's brightness (include/zn/app.h ZN_APP_ANDROID_BRIGHTNESS). */
     static final int BRIGHTNESS = 0x8001;
+    /** ... and steady clocks while frames move (ZN_APP_ANDROID_SUSTAINED: 1 frames move, 0 at rest, targets/macos/hal_sdl.cpp). */
+    static final int SUSTAINED = 0x8002;
     static ZincActivity self;
     static native void nativeInit();
     public static native void nativeSignal(String line);
@@ -43,6 +47,8 @@ public class ZincActivity extends SDLActivity {
 
     /** The activity, for a plugin's code (null before onCreate). */
     public static ZincActivity current() { return self; }
+    private boolean moving, programFast, sustainedOn;   // who wants steady clocks, and what the window has
+    private static int sustainedSupported = -1;        // PowerManager.isSustainedPerformanceModeSupported, asked once
 
     @Override
     protected void onCreate(Bundle state) {
@@ -65,6 +71,7 @@ public class ZincActivity extends SDLActivity {
 
     @Override
     protected void onPause() {
+        setSustained(false);   // the system ends it with the focus too; the wishes stay for the resume
         super.onPause();
         for (ZincLifecycle p : plugins) p.onPause(this);
     }
@@ -98,6 +105,28 @@ public class ZincActivity extends SDLActivity {
         super.onResume();
         sendReduceMotion();   // the setting may have changed while the app was away
         for (ZincLifecycle p : plugins) p.onResume(this);
+        sustain();
+    }
+
+    /** Steady clocks (Window.setSustainedPerformanceMode, API 24) where the device has them: the clocks a device can hold without heating, rather
+     *  than bursts the thermal limits cut. Wanted while frames move or while the program asks for full speed (zinc:webos setPerformance). */
+    static boolean sustainedSupported(Activity a) {
+        if (sustainedSupported < 0) {
+            PowerManager pm = Build.VERSION.SDK_INT >= 24 ? (PowerManager) a.getSystemService(Context.POWER_SERVICE) : null;
+            sustainedSupported = pm != null && pm.isSustainedPerformanceModeSupported() ? 1 : 0;
+            Log.i("zinc", "sustained performance mode supported: " + (sustainedSupported == 1));
+        }
+        return sustainedSupported == 1;
+    }
+
+    void sustain() { setSustained(moving || programFast); }
+
+    void setSustained(boolean on) {
+        if (on == sustainedOn) return;
+        sustainedOn = on;
+        final boolean can = sustainedSupported(this);
+        if (can) getWindow().setSustainedPerformanceMode(on);
+        Log.d("zinc", "sustained performance mode " + (on ? "on" : "off") + (can ? "" : " (not supported here: nothing asked)"));
     }
 
     /** The surface's units: the window's pixels over the zoom of targets/macos/hal_sdl.cpp (the display scale, whole, 1 below 1.5). */
@@ -165,7 +194,8 @@ public class ZincActivity extends SDLActivity {
     }
 
     @Override
-    protected boolean onUnhandledMessage(int command, Object param) {   // the window's brightness, on the UI thread (zn/app.h)
+    protected boolean onUnhandledMessage(int command, Object param) {   // the window's brightness, steady clocks, on the UI thread (zn/app.h)
+        if (command == SUSTAINED && param instanceof Integer) { moving = (Integer) param != 0; sustain(); return true; }
         if (command != BRIGHTNESS || !(param instanceof Integer)) return super.onUnhandledMessage(command, param);
         WindowManager.LayoutParams lp = getWindow().getAttributes();
         lp.screenBrightness = (Integer) param < 0 ? -1f : (Integer) param / 255f;   // -1: the system's
@@ -178,7 +208,7 @@ public class ZincActivity extends SDLActivity {
         final ZincActivity act = self;
         if (act == null) return "0";
         act.runOnUiThread(new Runnable() { @Override public void run() { act.command(q, a); } });
-        return "1";
+        return q.equals("performance") && !sustainedSupported(act) ? "0" : "1";
     }
 
     void command(String q, String a) {
@@ -188,6 +218,7 @@ public class ZincActivity extends SDLActivity {
             case "exitapp": systemBack(); break;
             case "textinput": ZincEdit.sync(a); break;
             case "keyboard-traits": ZincEdit.traits(a); break;
+            case "performance": programFast = a.equals("1"); sustain(); break;
             default: break;
         }
     }
