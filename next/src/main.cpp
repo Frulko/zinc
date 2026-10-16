@@ -1599,6 +1599,7 @@ int main(int argc, char** argv) {
     const auto preparedAt = std::chrono::steady_clock::now();
     zn::log::step("prepare", "project, plugins and resources...");
     qo.stdRoot = gRoot + "/../lib/std";
+    qo.cacheDir = zn::tc::home() + "/cache/qjs";
     qo.profileHz = qjsProfileHz;
     if (!loadManifestPermissions(argv[2])) return 2;   // zinc.json "ui" (UI_LAYOUT of zinc:platform) and the permissions, as for the typed engines
 #ifdef ZN_HOST_GFX
@@ -1620,8 +1621,19 @@ int main(int argc, char** argv) {
       std::vector<std::uint8_t> blob;
       std::string err;
       {  // the fonts and images the program names: the texts of its files (the Zinc loader follows the imports, a program that does not parse as Zinc bakes from its own text)
-        installNativeProvider(argv[2]);
-        zn::frontend::Program prog = zn::frontend::loadProgram(argv[2], readFile, false, qo.stdRoot);
+        std::string source = argv[2];   // a bundle (zinc bundle) names the entry it was made from on its first line: its files decide, as when it runs unbundled
+        {
+          std::string js = source, first;
+          if (js.size() > 4 && js.compare(js.size() - 4, 4, ".qbc") == 0) js = js.substr(0, js.size() - 4) + ".js";
+          std::ifstream in(js);
+          static const std::string kMark = "// zinc-bundle-entry: ";
+          if (std::getline(in, first) && first.rfind(kMark, 0) == 0) {
+            const std::filesystem::path from = std::filesystem::absolute(js).parent_path() / first.substr(kMark.size());
+            if (std::filesystem::exists(from)) source = from.lexically_normal().string();
+          }
+        }
+        installNativeProvider(source.c_str());
+        zn::frontend::Program prog = zn::frontend::loadProgram(source, readFile, false, qo.stdRoot);
         gSources.clear();
         for (const auto& f : prog.files) gSources.push_back(f.text);
         if (gSources.empty()) { std::string t; if (readFile(argv[2], t)) gSources.push_back(t); }
@@ -1637,6 +1649,56 @@ int main(int argc, char** argv) {
     zn::host::setEngineName("QuickJS");   // the perf panel (ZN-375)
 #endif
     return zn::qjs::run(qo);
+  }
+  if (argc >= 2 && (!std::strcmp(argv[1], "bundle") || (!std::strcmp(argv[1], "check") && argc >= 4 && !std::strcmp(argv[2], "--engine") && !std::strcmp(argv[3], "quickjs")))) {
+    // zinc bundle [entry|dir] [-o out.js] [--minify] [--sourcemap] [--bytecode] [--check] [--watch]; zinc check --engine quickjs [entry|dir] is its --check
+    namespace fs = std::filesystem;
+    zn::qjs::BundleOptions bo;
+    std::string target = ".";
+    const bool check = !std::strcmp(argv[1], "check");
+    bo.check = check;
+    for (int k = check ? 4 : 2; k < argc; ++k) {
+      const std::string a = argv[k];
+      if (a == "-o" && k + 1 < argc) bo.out = argv[++k];
+      else if (a == "--minify") bo.minify = true;
+      else if (a == "--sourcemap") bo.sourcemap = true;
+      else if (a == "--bytecode") bo.bytecode = true;
+      else if (a == "--check") bo.check = true;
+      else if (a == "--watch") bo.watch = true;
+      else if (a == "--target" && k + 1 < argc) { if (std::strcmp(argv[++k], "quickjs")) { std::fprintf(stderr, "zinc bundle: the only target is quickjs\n"); return 2; } }
+      else if (a[0] != '-') target = a;
+      else { std::fprintf(stderr, "zinc bundle: unknown option %s\nusage: zinc bundle [entry|dir] [-o out.js] [--minify] [--sourcemap] [--bytecode] [--check] [--watch]\n", a.c_str()); return 2; }
+    }
+    std::string entry = target;
+    if (fs::is_directory(target)) {
+      zn::frontend::Project proj;
+      std::string pf = target + "/zinc.json", perr;
+      bool have = false;
+      if (fs::exists(pf)) { std::ifstream in(pf); std::stringstream ss; ss << in.rdbuf(); have = zn::frontend::parseProject(ss.str(), proj, perr); }
+      entry = zn::frontend::entryOf(target, have ? &proj : nullptr);
+      if (entry.empty()) { std::fprintf(stderr, "zinc bundle: no entry in %s (zinc.json \"entry\", src/main.ts or main.ts)\n", target.c_str()); return 2; }
+    }
+    if (!fs::exists(entry)) { std::fprintf(stderr, "zinc bundle: no such file: %s\n", entry.c_str()); return 2; }
+    bo.entry = fs::absolute(entry).lexically_normal().string();
+    if (!loadManifestPermissions(bo.entry.c_str())) return 2;   // zinc.json: the ui preset and layout, the permissions (zinc:system/permissions)
+    bo.stdRoot = fs::path(gRoot + "/../lib/std").lexically_normal().string();
+    bo.capsFile = gRoot + "/../targets/capabilities.json";
+    if (bo.out.empty()) {   // dist/<entry>.js beside the project's zinc.json (dist/ is ignored by git)
+      const std::string pf = zn::frontend::findProjectFile(bo.entry);
+      bo.out = ((pf.empty() ? fs::path(bo.entry).parent_path() : fs::path(pf).parent_path()) / "dist" / (fs::path(bo.entry).stem().string() + ".js")).string();
+    }
+    bo.out = fs::absolute(bo.out).lexically_normal().string();
+    bo.work = zn::tc::home() + "/cache/bundle/" + std::to_string(std::hash<std::string>{}(bo.out));
+    bo.cacheDir = zn::tc::home() + "/cache/qjs";
+    if (!bo.check) {
+      std::string err;
+      if (!zn::tc::ensureEsbuild(bo.esbuild, err)) {
+        std::fprintf(stderr, "zinc bundle: %s\n  zinc bundle links with esbuild %s (downloaded and verified once); offline, `zinc run --engine quickjs` runs the program without it.\n",
+                     err.c_str(), zn::tc::esbuildVersion().c_str());
+        return 2;
+      }
+    }
+    return zn::qjs::bundle(bo);
   }
   if (argc >= 2 && !std::strcmp(argv[1], "pack")) {   // zinc pack [dir] [-o app.zapp]: the program, its baked resources, assets and zinc.json in one file (ZN-318)
     namespace fs = std::filesystem;
@@ -2187,9 +2249,9 @@ int main(int argc, char** argv) {
       std::puts(zig.c_str());
       return 0;
     }
-    if (sub == "esptool" || sub == "basisu" || sub == "gltfpack") {
+    if (sub == "esptool" || sub == "esbuild" || sub == "basisu" || sub == "gltfpack") {
       std::string tool, err;
-      if (!(sub == "basisu" ? zn::tc::ensureBasisu(tool, err) : sub == "gltfpack" ? zn::tc::ensureGltfpack(tool, err) : zn::tc::ensureEsptool(tool, err))) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
+      if (!(sub == "basisu" ? zn::tc::ensureBasisu(tool, err) : sub == "gltfpack" ? zn::tc::ensureGltfpack(tool, err) : sub == "esbuild" ? zn::tc::ensureEsbuild(tool, err) : zn::tc::ensureEsptool(tool, err))) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
       std::puts(tool.c_str());
       return 0;
     }
@@ -2204,7 +2266,7 @@ int main(int argc, char** argv) {
       std::printf("%s  %s\n", h.c_str(), argv[3]);
       return 0;
     }
-    std::fprintf(stderr, "usage: zinc toolchain install | path | esptool | basisu | gltfpack | targets | sha256 <file>\n");
+    std::fprintf(stderr, "usage: zinc toolchain install | path | esptool | esbuild | basisu | gltfpack | targets | sha256 <file>\n");
     return 2;
   }
   if (argc == 7 && !std::strcmp(argv[1], "build") && !std::strcmp(argv[2], "--target") && !std::strcmp(argv[5], "-o")) {  // zinc build --target <t> <file> -o <out>: a program for another machine

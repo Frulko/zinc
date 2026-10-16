@@ -13,6 +13,10 @@ How to add a line: see "Changelog" in `AGENTS.md`.
   The engine refuses the old spelling with errors Z0006 and Z0007. Migrate a project with `zinc migrate --apply`.
 
 ### Added
+- `zinc bundle` makes one optimised JavaScript file of a program for QuickJS: TypeScript, TSX, zinc: modules, plugins and npm packages
+  linked, unused code dropped, `__ZINC_ENGINE__`, `__ZINC_PROFILE__`, `__ZINC_CAPS__` and `process.env.NODE_ENV` folded in, with
+  `--minify`, `--sourcemap` (traces mapped back to your files), `--bytecode` (a `.qbc` that starts without parsing) and `--watch`. The pinned
+  esbuild is downloaded and checked once (`zinc toolchain esbuild`); `zinc check --engine quickjs` reports what QuickJS-ng lacks (Q0001).
 - Buttons, links, rows, tabs, chips and every pressable dim while a mouse, a finger or Space / Enter presses them (in every kit, React Native's
   Pressable included), and come back after the release; dragging off cancels. `active:opacity-*`, `activeOpacity` or `pressFeedback={0}` set
   your own; `ui.setPressFeedback(false)` turns it off.
@@ -58,6 +62,11 @@ How to add a line: see "Changelog" in `AGENTS.md`.
   without a warning. The android and ios profiles now offer the camera.
 - `Camera.still()` copies the frame on screen into a new image in about a millisecond, and `Camera.encodePng()` encodes a PNG on another thread;
   `ZINC_FAKE_CAMERA=4` lists four fake cameras to try a camera picker.
+
+### Changed
+- `zinc run --engine quickjs` runs TSX and the whole UI stack (zinc:ui, the kits, React Native, Nuxt UI): hero, rn-showcase and nuxt-ui
+  draw the same frames as on the typed engine. Imports resolve as there too (plugins, `tsconfig.json` paths, `node_modules`), and
+  `import.meta.url` is set.
 
 ### Fixed
 - Resizing a window on macOS by dragging its edge re-lays out the app at each size instead of stretching the last frame; animations,

@@ -1598,7 +1598,7 @@ struct Loader {
         if (from.size() < 6 || from.compare(from.size() - 6, 6, "/ui.ts") != 0) noteDirectLayoutUse();
       }
       if (done.count(spec)) return done[spec];
-      if (spec == "zinc:telemetry") return load(spec, telemetryModuleSource());
+      if (spec == "zinc:telemetry") return load(spec, generatedModuleSource(spec));
       if (spec == "zinc:platform") return load(spec, platformModuleSource((std::filesystem::path(stdRoot.empty() ? "." : stdRoot).parent_path().parent_path() / "targets" / "capabilities.json").string()));
       if (const char* src = hostModuleSource(spec)) return load(spec, src);
       static const std::map<std::string, std::string> kStd = {{"zinc:ui", "ui.ts"}, {"zinc:gl", "gl.ts"}, {"zinc:web", "web.ts"}, {"zinc:web/fetch", "fetch.ts"}, {"zinc:subtle", "subtle.ts"}, {"zinc:ui/solid", "solid.ts"}, {"zinc:ui/react", "react.ts"}, {"zinc:ui/kit", "kit/index.ts"}, {"zinc:icons", "icons.tsx"}, {"zinc:ui/animated", "animated.ts"}, {"zinc:react-native", "react-native.tsx"}, {"zinc:react-native/linking", "react-native-linking.ts"}, {"zinc:ui/nuxt", "nuxt/index.ts"},
@@ -1606,26 +1606,11 @@ struct Loader {
                                                               {"zinc:system/notification", "system/notification.ts"}, {"zinc:system/menu", "system/menu.ts"}, {"zinc:system/tray", "system/tray.ts"}, {"zinc:system/dialog", "system/dialog.ts"}, {"zinc:system/window", "system/window.ts"},
                                                               {"zinc:system/shortcut", "system/shortcut.ts"}, {"zinc:system/instance", "system/instance.ts"}, {"zinc:system/deeplink", "system/deeplink.ts"}, {"zinc:system/autostart", "system/autostart.ts"},
                                                               {"zinc:system/dock", "system/dock.ts"}, {"zinc:system/power", "system/power.ts"}, {"zinc:system/clipboard", "system/clipboard.ts"}, {"zinc:system/opener", "system/opener.ts"}, {"zinc:system/update", "system/update.ts"}};
-      if (spec == "zinc:system/permissions") {   // the permissions of zinc.json as a constant, so the native gate of the system plugin knows what was compiled in
-        std::string csv;
-        if (const std::vector<std::string>* g = systemPermissions()) for (const std::string& p : *g) csv += (csv.empty() ? "" : ",") + p;
-        const std::string path = "zinc:system/permissions";
-        if (done.count(path)) return done[path];
-        return load(path, "export const GRANTED: string = '" + csv + "';\n");
-      }
+      if (spec == "zinc:system/permissions" || spec == "zinc:system/app") return done.count(spec) ? done[spec] : load(spec, generatedModuleSource(spec));
       if (spec == "zinc:icons/lucide") {   // the icons this project names (ZN-374)
         const std::string path = "zinc:icons/lucide";
         if (done.count(path)) return done[path];
         return load(path, lucideModuleSource(prog.files[0].path, stdRoot + "/../../next/third_party/lucide/icon-nodes.json"));
-      }
-      if (spec == "zinc:system/app") {   // the app object of zinc.json as JSON text: the simulator logs the window request from it
-        std::string quoted;
-        for (char c : systemAppJson()) { if (c == '\\' || c == '\'') quoted += '\\'; quoted += c; }
-        const std::string path = "zinc:system/app";
-        if (done.count(path)) return done[path];
-        std::string sq;
-        for (char c : systemScopesJson()) { if (c == '\\' || c == '\'') sq += '\\'; sq += c; }
-        return load(path, "export const APP: string = '" + quoted + "';\nexport const SCOPES: string = '" + sq + "';\n");
       }
       auto hit = kStd.find(spec);
       if (std::string feature = systemFeatureOf(spec); !feature.empty() && hit != kStd.end()) {   // a system module needs its permission in zinc.json (deny by default)
@@ -1669,13 +1654,9 @@ struct Loader {
         std::string ptext;
         if (read(pl->second, ptext)) return load(pl->second, std::move(ptext));
       }
-      // the compat packages the prototype maps on its own (compiler/src/frontend.ts STD_MODULES), for a project without a tsconfig.json paths entry (react and solid-js stay errors without one, tests/t0/modules.sh)
-      static const std::map<std::string, std::string> kCompat = {{"inferno", "../compat/inferno.ts"},
-        {"@pocketjs/framework/solid/components", "../compat/pocketjs/components.ts"}, {"@pocketjs/framework/solid/lifecycle", "../compat/pocketjs/lifecycle.ts"},
-        {"@pocketjs/framework/animation", "../compat/pocketjs/animation.ts"}, {"@pocketjs/framework/solid/std", "../compat/pocketjs/std.ts"},
-        {"@pocketjs/framework/solid", "../compat/pocketjs/mount.ts"}, {"@pocketjs/framework/clock", "../compat/pocketjs/clock.ts"}};
-      if (auto cm = kCompat.find(spec); cm != kCompat.end() && !stdRoot.empty()) {
-        std::string path = normalize(stdRoot + "/" + cm->second), ctext;
+      // the compat packages the prototype maps on its own, for a project without a tsconfig.json paths entry (react and solid-js stay errors without one, tests/t0/modules.sh)
+      if (std::string_view cm = compatModuleFile(spec); !cm.empty() && !stdRoot.empty()) {
+        std::string path = normalize(stdRoot + "/" + std::string(cm)), ctext;
         if (done.count(path)) return done[path];
         if (visiting.count(path)) { diag(kZUnsupported, fromFile, node, "circular imports ('" + spec + "')"); return kNone; }
         if (read(path, ctext)) return load(path, std::move(ctext));
@@ -1789,47 +1770,7 @@ struct Loader {
       }
     }
   }
-  // Components written as classes (Inferno, React classes): declared in this file, or in a file this one imports with a relative path (ZN-163)
-  std::set<std::string> classTagsOf(const std::string& path, const std::string& text) {
-    std::set<std::string> tags;
-    auto isId = [](char c) { return std::isalnum(static_cast<unsigned char>(c)) || c == '_' || c == '$'; };
-    auto classes = [&](const std::string& t) {
-      std::set<std::string> found;
-      for (std::size_t p = t.find("class "); p != std::string::npos; p = t.find("class ", p + 1)) {
-        if (p > 0 && (isId(t[p - 1]) || t[p - 1] == '.')) continue;
-        std::size_t a = p + 6;
-        while (a < t.size() && std::isspace(static_cast<unsigned char>(t[a]))) ++a;
-        std::size_t b = a;
-        while (b < t.size() && isId(t[b])) ++b;
-        if (b > a) found.insert(t.substr(a, b - a));
-      }
-      return found;
-    };
-    for (const std::string& c : classes(text)) tags.insert(c);
-    static const std::regex imp("import\\s+([^;'\"]*?)\\s+from\\s+['\"](\\.[^'\"]*)['\"]");
-    for (std::sregex_iterator it(text.begin(), text.end(), imp), end; it != end; ++it) {
-      std::string names = (*it)[1], spec = (*it)[2], other;
-      const std::string dir = dirOf(path);
-      const std::string base = normalize(dir + (dir.empty() ? "" : "/") + spec);
-      for (const char* ext : {".tsx", ".ts", "/index.tsx", "/index.ts"}) if (read(base + ext, other)) break; else other.clear();
-      if (other.empty()) continue;
-      const std::set<std::string> declared = classes(other);
-      // `Default, { A, B as C }`: the local name takes the class of the imported name (the default import: any class of the file named like it)
-      std::string cleaned;
-      for (char c : names) cleaned += (c == '{' || c == '}') ? ',' : c;
-      std::stringstream ss(cleaned);
-      std::string part;
-      while (std::getline(ss, part, ',')) {
-        std::stringstream ps(part);
-        std::string a, as, b;
-        ps >> a >> as >> b;
-        if (a.empty()) continue;
-        const std::string imported = a, local = (as == "as" && !b.empty()) ? b : a;
-        if (declared.count(imported)) tags.insert(local);
-      }
-    }
-    return tags;
-  }
+  std::set<std::string> classTagsOf(const std::string& path, const std::string& text) { return jsxClassTags(path, text, read); }
   // A file reached by two spellings of its path (`lib/std/solid.ts` through a tsconfig `paths` entry, `next/../lib/std/solid.ts` through the std root) is one module:
   // two instances would each have their own state (a Solid signal read in one and tracked in the other never updates).
   std::map<std::string, std::uint32_t> byCanonical;
@@ -3426,6 +3367,73 @@ std::string formatDiag(const Program& p, const Diag& d) {
 
 const char* builtinModuleSource(std::string_view spec) { return hostModuleSource(spec); }
 
+std::string webImportsOf(const Ast& A) { return webGlobalImports(A); }
+
+// Components written as classes (Inferno, React classes): declared in this file, or in a file this one imports with a relative path (ZN-163)
+std::set<std::string> jsxClassTags(const std::string& path, const std::string& text, const ReadFile& read) {
+  std::set<std::string> tags;
+  auto isId = [](char c) { return std::isalnum(static_cast<unsigned char>(c)) || c == '_' || c == '$'; };
+  auto classes = [&](const std::string& t) {
+    std::set<std::string> found;
+    for (std::size_t p = t.find("class "); p != std::string::npos; p = t.find("class ", p + 1)) {
+      if (p > 0 && (isId(t[p - 1]) || t[p - 1] == '.')) continue;
+      std::size_t a = p + 6;
+      while (a < t.size() && std::isspace(static_cast<unsigned char>(t[a]))) ++a;
+      std::size_t b = a;
+      while (b < t.size() && isId(t[b])) ++b;
+      if (b > a) found.insert(t.substr(a, b - a));
+    }
+    return found;
+  };
+  for (const std::string& c : classes(text)) tags.insert(c);
+  static const std::regex imp("import\\s+([^;'\"]*?)\\s+from\\s+['\"](\\.[^'\"]*)['\"]");
+  for (std::sregex_iterator it(text.begin(), text.end(), imp), end; it != end; ++it) {
+    std::string names = (*it)[1], spec = (*it)[2], other;
+    const std::string dir = dirOf(path);
+    const std::string base = normalize(dir + (dir.empty() ? "" : "/") + spec);
+    for (const char* ext : {".tsx", ".ts", "/index.tsx", "/index.ts"}) if (read(base + ext, other)) break; else other.clear();
+    if (other.empty()) continue;
+    const std::set<std::string> declared = classes(other);
+    // `Default, { A, B as C }`: the local name takes the class of the imported name (the default import: any class of the file named like it)
+    std::string cleaned;
+    for (char c : names) cleaned += (c == '{' || c == '}') ? ',' : c;
+    std::stringstream ss(cleaned);
+    std::string part;
+    while (std::getline(ss, part, ',')) {
+      std::stringstream ps(part);
+      std::string a, as, b;
+      ps >> a >> as >> b;
+      if (a.empty()) continue;
+      const std::string imported = a, local = (as == "as" && !b.empty()) ? b : a;
+      if (declared.count(imported)) tags.insert(local);
+    }
+  }
+  return tags;
+}
+
+std::string generatedModuleSource(std::string_view spec) {
+  auto quote = [](const std::string& t) { std::string q; for (char c : t) { if (c == '\\' || c == '\'') q += '\\'; q += c; } return q; };
+  if (spec == "zinc:telemetry") return telemetryModuleSource();
+  if (spec == "zinc:system/permissions") {   // the permissions of zinc.json as a constant, so the native gate of the system plugin knows what was compiled in
+    std::string csv;
+    if (const std::vector<std::string>* g = systemPermissions()) for (const std::string& p : *g) csv += (csv.empty() ? "" : ",") + p;
+    return "export const GRANTED: string = '" + csv + "';\n";
+  }
+  if (spec == "zinc:system/app")   // the app object of zinc.json as JSON text: the simulator logs the window request from it
+    return "export const APP: string = '" + quote(systemAppJson()) + "';\nexport const SCOPES: string = '" + quote(systemScopesJson()) + "';\n";
+  return "";
+}
+
+std::string_view compatModuleFile(std::string_view spec) {
+  // the compat packages the prototype maps on its own (compiler/src/frontend.ts STD_MODULES), relative to lib/std
+  static const std::map<std::string, std::string, std::less<>> kCompat = {{"inferno", "../compat/inferno.ts"},
+    {"@pocketjs/framework/solid/components", "../compat/pocketjs/components.ts"}, {"@pocketjs/framework/solid/lifecycle", "../compat/pocketjs/lifecycle.ts"},
+    {"@pocketjs/framework/animation", "../compat/pocketjs/animation.ts"}, {"@pocketjs/framework/solid/std", "../compat/pocketjs/std.ts"},
+    {"@pocketjs/framework/solid", "../compat/pocketjs/mount.ts"}, {"@pocketjs/framework/clock", "../compat/pocketjs/clock.ts"}};
+  auto it = kCompat.find(spec);
+  return it == kCompat.end() ? std::string_view() : std::string_view(it->second);
+}
+
 std::string_view stdModuleFile(std::string_view spec) {
   if (spec == "zinc:ui") return "ui.ts";
   if (spec == "zinc:gl") return "gl.ts";
@@ -3444,6 +3452,10 @@ std::string_view stdModuleFile(std::string_view spec) {
   if (spec == "zinc:path") return "path.ts";
   if (spec == "zinc:assert") return "assert.ts";
   if (spec == "zinc:hot") return "hot.ts";
+  if (spec == "zinc:system") return "system/index.ts";
+  static const char* const kSystem[] = {"system/notification.ts", "system/menu.ts", "system/tray.ts", "system/dialog.ts", "system/window.ts", "system/shortcut.ts", "system/instance.ts",
+                                        "system/deeplink.ts", "system/autostart.ts", "system/dock.ts", "system/power.ts", "system/clipboard.ts", "system/opener.ts", "system/update.ts"};
+  for (const char* f : kSystem) { const std::string_view v(f); if (spec.size() == 5 + v.size() - 3 && spec.substr(5) == v.substr(0, v.size() - 3)) return v; }   // zinc:system/menu -> system/menu.ts
   return "";
 }
 

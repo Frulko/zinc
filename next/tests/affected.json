@@ -125,6 +125,8 @@
     {"paths": ["src/gl/"], "tests": ["webenv_canvas", "webenv_pixi", "webgl_libs", "webenv_image", "webenv_phaser"]},
     {"paths": ["src/res/"], "tests": ["codec", "webenv_image"]},
     {"paths": ["src/qjs/strip.cpp"], "tests": ["qjs", "quickjs", "webenv"]},
+    {"paths": ["src/qjs/bundle.cpp", "src/qjs/strip.cpp", "src/qjs/qjs.cpp", "src/qjs/qjs.h", "src/frontend/jsx.cpp", "src/tc/tc.cpp", "../lib/std/", "tests/t0/qjs_bundle.sh", "tests/golden/jsx/"], "tests": ["qjs_bundle"]},
+    {"paths": ["src/qjs/strip.cpp", "src/qjs/qjs.cpp", "src/qjs/bundle.cpp", "../lib/std/react-native.tsx", "../lib/std/nuxt/", "tests/t1/qjs_demos.sh"], "tests": ["qjs_demos"]},
     {"paths": [".spec.ts", "tests/golden/native_gen/"], "tests": ["native_gen"]},
     {"paths": ["runtime/raster.cpp", "runtime/gfx.cpp", "runtime/ttf.cpp", "src/host/backend_sw.cpp"], "tests": ["scene_dump", "backend_sw", "damage_sig", "ui_style"], "canary": true},
     {"paths": ["../runtime/gfx.cpp", "src/host/gfx_host.cpp", "src/host/hal_dispatch.cpp", "tools/pngdiff"], "tests": ["perf_hud"]},

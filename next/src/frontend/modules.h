@@ -3,6 +3,7 @@
 // one Ast. Modules are ordered so each comes after the modules it imports (initialisation order); `Ast::root`'s kids are
 // every module's statements in that order, with imports and exports unwrapped, and `Ast::modules` keeps the structure.
 #include <deque>
+#include <set>
 #include <functional>
 #include <string_view>
 #include <string>
@@ -60,6 +61,14 @@ std::string platformModule(const std::string& capsFile);
 std::string lucideModule(const std::string& entry, const std::string& nodesFile);
 // The file under lib/std of a standard module written in Zinc ('zinc:ui' is "ui.ts"); empty for any other spec.
 std::string_view stdModuleFile(std::string_view spec);
+// The source of a module generated for the program (zinc:telemetry, zinc:system/permissions, zinc:system/app from zinc.json); "" for any other spec.
+std::string generatedModuleSource(std::string_view spec);
+// The file (relative to lib/std) of a compat package the engine maps by itself ('inferno', '@pocketjs/framework/solid'...); empty for any other spec.
+std::string_view compatModuleFile(std::string_view spec);
+// `import { navigator } from 'zinc:web'` and the like for the web globals a parsed file reads and does not declare (appended to its text by the loader).
+std::string webImportsOf(const Ast& A);
+// The JSX tags of `path` that are components written as classes (Inferno, React classes): declared in its text or in a file it imports with a relative path (ZN-163).
+std::set<std::string> jsxClassTags(const std::string& path, const std::string& text, const ReadFile& read);
 
 // `file:line:col: error Zxxxx: title: detail` for a diagnostic of the program.
 std::string formatDiag(const Program& p, const Diag& d);

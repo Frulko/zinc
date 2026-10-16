@@ -6,6 +6,7 @@
 #include <atomic>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
@@ -59,6 +60,17 @@ constexpr Pin kButlerPins[] = {
     {"x86_64-macos", "darwin-amd64", "70a4b8543fddee7031052ea76f1846ba071913148e20cf7a2f18421702fc1929"},
     {"aarch64-linux", "linux-arm64", "2ffd4071dfa715024eedd2b4ac7406c1c7802452214d89a48496adb9c171b737"},
     {"x86_64-linux", "linux-amd64", "4f2a3f22b12f870923504d4b6935535cad377b45859f5fe9419e3adc0611a48c"},
+};
+
+// esbuild (docs/reports/zinc-quickjs-bundler.md), the linker and minifier of `zinc bundle`: the npm package of each platform
+// (https://registry.npmjs.org/@esbuild/<platform>/-/<platform>-0.28.2.tgz, 2026-08-08), its SHA-256 computed here and its SHA-1 checked against the registry's dist.shasum.
+constexpr const char* kEsbuildVersion = "0.28.2";
+constexpr Pin kEsbuildPins[] = {
+    {"aarch64-macos", "darwin-arm64-0.28.2.tgz", "1980cde09749094452b20d36ff267585ccb3f72749c7bc97291cd9996ccf5a2a"},
+    {"x86_64-macos", "darwin-x64-0.28.2.tgz", "abb6a7a895aaf2cc0df36fecc3bf0042479ffec51a643a056d54e9109f27db55"},
+    {"x86_64-linux", "linux-x64-0.28.2.tgz", "9573bb2233aab0f9ea7647d5cca9726113cc1768de61d66b17267f4db84488f6"},
+    {"aarch64-linux", "linux-arm64-0.28.2.tgz", "a96dbfa41d3ef5dbd1ef22b1c10d5187be9267e86093a870f06402a7ec931596"},
+    {"x86_64-windows", "win32-x64-0.28.2.tgz", "7286c3611b6f1f4c4d9ec90adcbc478407ff0d28ead96567f361d53e67613e19"},   // the binary is package/esbuild.exe
 };
 
 // Tools of the asset build whose projects publish no binaries: a source archive pinned by its SHA-256 and built once with the pinned zig into
@@ -188,6 +200,7 @@ std::vector<PinnedTool> pinnedTools() {
   add("esptool", kEsptoolVersion, kEsptoolPins, sizeof kEsptoolPins / sizeof *kEsptoolPins, "esptool-", "esptool");
   add("qemu-system-xtensa", kQemuVersion, kQemuPins, sizeof kQemuPins / sizeof *kQemuPins, "qemu-xtensa-", "bin/qemu-system-xtensa");
   add("butler", kButlerVersion, kButlerPins, sizeof kButlerPins / sizeof *kButlerPins, "butler-", "butler");
+  add("esbuild", kEsbuildVersion, kEsbuildPins, sizeof kEsbuildPins / sizeof *kEsbuildPins, "esbuild-", hostName() == "x86_64-windows" ? "esbuild.exe" : "bin/esbuild");
   for (const SourceTool* t : {&basisuTool(), &gltfpackTool()})
     out.push_back(PinnedTool{t->name, t->version, t->pin.file, t->pin.sha256, toolDir(*t), fs::exists(fs::path(toolDir(*t)) / t->name)});
   return out;
@@ -204,6 +217,8 @@ std::string hostName() {
   const char* os = "macos";
 #elif defined(__linux__)
   const char* os = "linux";
+#elif defined(_WIN32)
+  const char* os = "windows";
 #else
   const char* os = "unknown";
 #endif
@@ -385,6 +400,22 @@ bool ensureZig(std::string& zigPath, std::string& err) {
   if (!fetchTool("the toolchain", *pin, base + "/" + pin->file, dir, "zig", err)) return false;
   zigPath = (dir / "zig").string();
   return true;
+}
+
+std::string esbuildVersion() { return kEsbuildVersion; }
+std::string esbuildPath() {
+  if (const char* e = std::getenv("ZINC_ESBUILD")) return e;
+  return (fs::path(home()) / "toolchains" / ("esbuild-" + hostName() + "-" + kEsbuildVersion) / (hostName() == "x86_64-windows" ? "esbuild.exe" : "bin/esbuild")).string();
+}
+bool ensureEsbuild(std::string& path, std::string& err) {
+  path = esbuildPath();
+  if (std::getenv("ZINC_ESBUILD")) { if (fs::exists(path)) return true; err = "ZINC_ESBUILD points to a missing file: " + path; return false; }
+  const Pin* pin = nullptr;
+  for (const Pin& p : kEsbuildPins) if (hostName() == p.host) pin = &p;
+  if (!pin) { err = "no pinned esbuild for this machine (" + hostName() + "); set ZINC_ESBUILD to an esbuild " + kEsbuildVersion + " you installed"; return false; }
+  const std::string file = pin->file, platform = file.substr(0, file.size() - std::strlen(kEsbuildVersion) - 5);   // darwin-x64-0.28.2.tgz -> darwin-x64
+  const fs::path dir = fs::path(home()) / "toolchains" / ("esbuild-" + hostName() + "-" + kEsbuildVersion);
+  return fetchTool("esbuild", *pin, "https://registry.npmjs.org/@esbuild/" + platform + "/-/" + file, dir, hostName() == "x86_64-windows" ? "esbuild.exe" : "bin/esbuild", err);   // the tarball's one directory is package/
 }
 
 std::string butlerVersion() { return kButlerVersion; }

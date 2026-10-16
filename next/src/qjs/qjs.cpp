@@ -10,6 +10,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <pthread.h>
 #include <sstream>
@@ -27,6 +28,7 @@ bool qjs_lre_check_stack_overflow(void*, size_t);
 #include "frontend/modules.h"
 #include "frontend/plugin_manifest.h"
 #include "frontend/project.h"
+#include "frontend/tsconfig.h"
 #include "qjs/strip.h"
 #include "zn/host.h"
 #include "zn/runtime.h"
@@ -39,6 +41,7 @@ struct Engine {
   JSContext* ctx = nullptr;
   std::string stdRoot;
   std::string entry;   // the program's entry file (zinc:icons/lucide reads its project)
+  std::string cacheDir;   // the transformed modules by content hash ("" : none)
   std::map<std::string, std::string> imports;   // bare specifiers -> files, from importmap.json next to the entry (like a browser import map): `import 'three'` (ZN-204)
   std::vector<zn::frontend::FoundPlugin> plugins;   // found at the first zinc: specifier that is no standard module (ZN-583.02)
   bool pluginsFound = false;
@@ -199,6 +202,7 @@ bool moduleText(Engine& e, const std::string& name, std::string& js, std::string
     else if (name == "zinc:platform") src = zn::frontend::platformModule(e.stdRoot + "/../../targets/capabilities.json");
     else if (name == "zinc:icons/lucide") src = zn::frontend::lucideModule(e.entry, e.stdRoot + "/../../next/third_party/lucide/icon-nodes.json");
     else if (const char* b = zn::frontend::builtinModuleSource(name)) src = b;
+    else if (std::string g = zn::frontend::generatedModuleSource(name); !g.empty()) src = std::move(g);
     else {
       std::string_view f = zn::frontend::stdModuleFile(name);
       if (f.empty() || e.stdRoot.empty()) { err = "cannot find module '" + name + "'"; return false; }
@@ -206,47 +210,135 @@ bool moduleText(Engine& e, const std::string& name, std::string& js, std::string
       if (!readFile(path, src)) { err = "cannot read " + path; return false; }
     }
   } else if (!readFile(path, src)) { err = "cannot load module " + name; return false; }
-  if (endsWith(path, ".tsx")) { err = path + ": JSX needs the typed engine (zinc run)"; return false; }
-  if (name.rfind("zinc:", 0) == 0 || endsWith(path, ".ts")) return stripTypes(src, name, js, err);
-  js = std::move(src);
+  const std::string file = name.rfind("zinc:", 0) == 0 && !endsWith(path, ".tsx") ? name : path;
+  // ponytail: the cache is never pruned (one small file per version of a module); prune by age if ~/.zinc/cache/qjs grows
+  // the transform stage of the bundler (.tsx too), cached by content: the source, its name and what the transform reads besides (the UI preset and
+  // layout of zinc.json, this build of the engine)
+  std::string cached;
+  if (!e.cacheDir.empty()) {
+    std::uint64_t h = 1469598103934665603ull;
+    for (const std::string& part : {src, file, zn::frontend::uiPreset(), zn::frontend::uiLayout(), std::string(__DATE__ __TIME__)})
+      for (unsigned char c : part + '\0') { h ^= c; h *= 1099511628211ull; }
+    char key[40];
+    std::snprintf(key, sizeof key, "/%016llx-%zx.js", static_cast<unsigned long long>(h), src.size());
+    cached = e.cacheDir + key;
+    if (readFile(cached, js)) return true;
+  }
+  if (!toJavaScript(src, file, js, err)) return false;
+  if (!cached.empty()) {   // written aside then renamed: two programs starting at once never read half a file
+    std::error_code ec;
+    std::filesystem::create_directories(e.cacheDir, ec);
+    const std::string tmp = cached + "." + std::to_string(getpid());
+    { std::ofstream out(tmp, std::ios::binary); out << js; }
+    std::filesystem::rename(tmp, cached, ec);
+  }
   return true;
 }
 
 // The entry file of the plugin that provides a module ('zinc:physics3d' -> plugins/physics3d/index.ts), "" when none does: the engine's plugins,
 // the project's, then its pluginDirs, as for the typed engines. A plugin's files are then ordinary modules; its native code comes through zinc:native.
 std::string pluginEntry(Engine& e, const std::string& name) {
-  if (e.stdRoot.empty() || name == "zinc:native" || zn::frontend::builtinModuleSource(name) || !zn::frontend::stdModuleFile(name).empty()) return "";
+  if (e.stdRoot.empty() || name == "zinc:native" || zn::frontend::builtinModuleSource(name)) return "";   // a plugin wins over lib/std, as in the typed loader (zinc:system/*)
   if (!e.pluginsFound) {
     e.pluginsFound = true;
     std::vector<std::string> problems;
     const std::string pf = zn::frontend::findProjectFile(e.entry);
     e.plugins = zn::frontend::discoverPlugins(e.stdRoot + "/../..", pf.empty() ? dirOf(e.entry) : dirOf(pf), problems);
   }
-  for (const zn::frontend::FoundPlugin& p : e.plugins) if (p.manifest.module == name) return normalize(p.dir + "/" + p.manifest.entry);
+  for (const zn::frontend::FoundPlugin& p : e.plugins) if (p.manifest.kind == "module" && p.manifest.module == name) return normalize(p.dir + "/" + p.manifest.entry);
+  for (const zn::frontend::FoundPlugin& p : e.plugins)   // `modules` of plugin.json: the other specifiers it answers (three/addons/..., zinc:3d/gltf)
+    if (p.manifest.kind == "module") if (auto it = p.manifest.aliases.find(name); it != p.manifest.aliases.end()) return normalize(p.dir + "/" + it->second);
+  return "";
+}
+
+bool isFile(const std::string& p) { std::error_code ec; return std::filesystem::is_regular_file(p, ec); }
+
+// The file a path names, as written or with the extensions the typed loader tries; "" when none is there.
+std::string probe(const std::string& path) {
+  std::string stem = path;
+  for (const char* js : {".js", ".mjs"}) if (endsWith(stem, js)) { stem.resize(stem.size() - std::strlen(js)); break; }
+  for (const std::string& c : {path, path + ".ts", path + ".tsx", path + ".js", path + ".mjs", path + "/index.ts", path + "/index.tsx", path + "/index.js", stem + ".ts", stem + ".tsx"})
+    if (isFile(c)) return c;
+  return "";
+}
+
+// `paths` of the nearest tsconfig.json above `dir` (`three`, `inferno`, `@pocketjs/framework/solid`...), as the typed loader maps them
+std::string byTsconfig(const std::string& dir, const std::string& spec) {
+  for (std::string d = dir; !d.empty(); d = dirOf(d)) {
+    std::string text;
+    if (!readFile(d + "/tsconfig.json", text)) continue;
+    zn::frontend::TsConfig cfg;
+    std::string err, matched;
+    if (!zn::frontend::parseTsConfig(text, cfg, err)) return "";
+    const std::string root = cfg.baseUrl.empty() ? d : normalize(d + "/" + cfg.baseUrl);
+    for (const std::string& t : zn::frontend::mapSpecifier(cfg, spec, matched)) if (std::string f = probe(normalize(root + "/" + t)); !f.empty()) return f;
+    return "";
+  }
+  return "";
+}
+
+// A package of node_modules above `dir`, as Node and the bundlers find it: `pkg/sub/path` as a file, else package.json "exports" (".": a string or
+// the "import" / "module" / "default" condition), "module", "main", index.js. A CommonJS package is found but only the linker (zinc bundle) runs it.
+std::string byNodeModules(const std::string& dir, const std::string& spec) {
+  const std::size_t cut = spec[0] == '@' ? spec.find('/', spec.find('/') + 1) : spec.find('/');
+  const std::string pkg = spec.substr(0, cut), sub = cut == std::string::npos ? "" : spec.substr(cut + 1);
+  for (std::string d = dir; !d.empty(); d = dirOf(d)) {
+    const std::string root = d + "/node_modules/" + pkg;
+    std::error_code ec;
+    if (!std::filesystem::is_directory(root, ec)) continue;
+    if (!sub.empty()) return probe(root + "/" + sub);
+    std::string text, main;
+    if (readFile(root + "/package.json", text)) {
+      yyjson_doc* doc = yyjson_read(text.data(), text.size(), 0);
+      yyjson_val* j = doc ? yyjson_doc_get_root(doc) : nullptr;
+      yyjson_val* ex = j ? yyjson_obj_get(j, "exports") : nullptr;
+      if (yyjson_is_obj(ex) && yyjson_obj_get(ex, ".")) ex = yyjson_obj_get(ex, ".");
+      for (int depth = 0; depth < 3 && yyjson_is_obj(ex); ++depth) {   // nested conditions: {"import": {"default": "./x.mjs"}}
+        yyjson_val* c = nullptr;
+        for (const char* k : {"import", "module", "default"}) if ((c = yyjson_obj_get(ex, k))) break;
+        ex = c;
+      }
+      if (yyjson_is_str(ex)) main = yyjson_get_str(ex);
+      for (const char* k : {"module", "main"}) if (main.empty() && j && yyjson_is_str(yyjson_obj_get(j, k))) main = yyjson_get_str(yyjson_obj_get(j, k));
+      yyjson_doc_free(doc);
+    }
+    return probe(normalize(root + "/" + (main.empty() ? "index.js" : main)));
+  }
   return "";
 }
 
 char* normalizeName(JSContext* ctx, const char* base, const char* name, void* opaque) {
   std::string n = name;
   std::string r = n;
-  if (auto* e = static_cast<Engine*>(opaque)) { auto it = e->imports.find(n); if (it != e->imports.end()) r = it->second; }
-  if (auto* e = static_cast<Engine*>(opaque); e && r == n && n.rfind("zinc:", 0) == 0) { const std::string entry = pluginEntry(*e, n); if (!entry.empty()) r = entry; }
-  if (r == n && n.rfind("zinc:", 0) != 0 && (n.rfind("./", 0) == 0 || n.rfind("../", 0) == 0)) {
-    std::string dir = dirOf(base);
-    if (auto* e = static_cast<Engine*>(opaque); e && std::string_view(base).rfind("zinc:", 0) == 0) {   // a standard module's own imports (zinc:ui -> ./palette): beside its file
-      std::string_view f = zn::frontend::stdModuleFile(base);
-      if (!f.empty() && !e->stdRoot.empty()) dir = dirOf(e->stdRoot + "/" + std::string(f));
-    }
+  auto* e = static_cast<Engine*>(opaque);
+  std::string dir = dirOf(base);
+  if (e && std::string_view(base).rfind("zinc:", 0) == 0) {   // a standard module's own imports (zinc:ui -> ./palette): beside its file
+    std::string_view f = zn::frontend::stdModuleFile(base);
+    if (!f.empty() && !e->stdRoot.empty()) dir = dirOf(e->stdRoot + "/" + std::string(f));
+  }
+  if (e) { auto it = e->imports.find(n); if (it != e->imports.end()) r = it->second; }
+  if (r == n && (n.rfind("./", 0) == 0 || n.rfind("../", 0) == 0)) {
     r = normalize(dir + "/" + n);
-    std::string probe;
-    for (const char* ext : {"", ".ts", ".js", ".mjs", "/index.ts"}) {
-      std::ifstream f(r + ext);
-      if (f) { r += ext; break; }
+    if (std::string f = probe(r); !f.empty()) r = f;
+  } else if (e && r == n && n[0] != '/') {   // a bare specifier or a zinc: module: a plugin, then (bare) tsconfig.json paths, the compat packages, node_modules
+    std::string f = pluginEntry(*e, n);
+    if (f.empty() && n.rfind("zinc:", 0) != 0) {
+      f = byTsconfig(dir, n);
+      if (std::string_view cm = zn::frontend::compatModuleFile(n); f.empty() && !cm.empty() && !e->stdRoot.empty()) f = normalize(e->stdRoot + "/" + std::string(cm));
+      if (f.empty()) f = byNodeModules(dir, n);
     }
+    if (!f.empty()) r = f;
   }
   char* out = static_cast<char*>(js_malloc(ctx, r.size() + 1));
   std::memcpy(out, r.c_str(), r.size() + 1);
   return out;
+}
+
+// import.meta.url of a module (QuickJS leaves import.meta empty for the host to fill): file:// and the path, or the zinc: name
+void setMeta(JSContext* ctx, JSModuleDef* m, const std::string& name) {
+  JSValue meta = JS_GetImportMeta(ctx, m);
+  if (JS_IsObject(meta)) JS_SetPropertyStr(ctx, meta, "url", JS_NewString(ctx, (name[0] == '/' ? "file://" + name : name).c_str()));
+  JS_FreeValue(ctx, meta);
 }
 
 JSModuleDef* loadModule(JSContext* ctx, const char* name, void* opaque) {
@@ -257,6 +349,7 @@ JSModuleDef* loadModule(JSContext* ctx, const char* name, void* opaque) {
   if (JS_IsException(v)) return nullptr;
   auto* m = static_cast<JSModuleDef*>(JS_VALUE_GET_PTR(v));
   JS_FreeValue(ctx, v);
+  setMeta(ctx, m, name);
   return m;
 }
 
@@ -280,12 +373,16 @@ std::size_t stackBudget() {
   return left > 2 * margin ? std::min<std::size_t>(left - margin, 8u << 20) : left / 2;
 }
 
+// A bundle run with its source map beside it (zinc bundle --sourcemap): the traces name the files and lines the user wrote
+std::string gMapFile, gMapJson;
+
 void report(JSContext* ctx, JSValue ex, const char* what = "Uncaught") {
   const char* s = JS_ToCString(ctx, ex);
   JSValue st = JS_GetPropertyStr(ctx, ex, "stack");
   const char* stack = JS_IsUndefined(st) ? nullptr : JS_ToCString(ctx, st);
   std::fflush(stdout);
-  std::fprintf(stderr, "%s %s\n%s", what, s ? s : "exception", stack ? stack : "");
+  const std::string trace = !stack ? "" : gMapJson.empty() ? stack : mapStack(stack, gMapFile, gMapJson);
+  std::fprintf(stderr, "%s %s\n%s", what, s ? s : "exception", trace.c_str());
   if (stack) JS_FreeCString(ctx, stack);
   JS_FreeValue(ctx, st);
   if (s) JS_FreeCString(ctx, s);
@@ -408,13 +505,117 @@ bool timerLoop(Engine& e) {
   return ok;
 }
 
+// the walk of `collect`: the engine's own resolution, each module recorded with its transformed text
+struct Walk { Engine e; std::vector<Collected> mods; std::map<std::string, std::size_t> at; };
+
+char* walkName(JSContext* ctx, const char* base, const char* name, void* opaque) {
+  auto* w = static_cast<Walk*>(opaque);
+  char* r = normalizeName(ctx, base, name, &w->e);
+  if (auto it = w->at.find(base); it != w->at.end() && r) w->mods[it->second].deps.push_back({name, r});
+  return r;
+}
+
+JSModuleDef* walkLoad(JSContext* ctx, const char* name, void* opaque) {
+  auto* w = static_cast<Walk*>(opaque);
+  Collected c;
+  c.name = name;
+  c.host = c.name == "zinc:native";
+  c.bare = (c.name.rfind("zinc:", 0) != 0 && c.name[0] != '/' && c.name[0] != '.') || c.name.find("/node_modules/") != std::string::npos;   // a package (CommonJS too): the linker reads it
+  std::string err;
+  if (c.bare) c.js = "export {};";
+  else if (!moduleText(w->e, c.name, c.js, err)) { JS_ThrowReferenceError(ctx, "%s", err.c_str()); return nullptr; }
+  w->at[c.name] = w->mods.size();
+  w->mods.push_back(c);
+  const std::string& js = w->mods.back().js;
+  JSValue v = JS_Eval(ctx, js.data(), js.size(), name, JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);   // a syntax error is reported here, before the linker
+  if (JS_IsException(v)) return nullptr;
+  auto* m = static_cast<JSModuleDef*>(JS_VALUE_GET_PTR(v));
+  JS_FreeValue(ctx, v);
+  return m;
+}
+
+std::string exceptionText(JSContext* ctx) {
+  JSValue ex = JS_GetException(ctx);
+  const char* m = JS_ToCString(ctx, ex);
+  JSValue st = JS_GetPropertyStr(ctx, ex, "stack");
+  const char* stack = JS_IsUndefined(st) ? nullptr : JS_ToCString(ctx, st);
+  std::string r = std::string(m ? m : "error") + (stack && *stack ? "\n" + std::string(stack) : "");
+  if (stack) JS_FreeCString(ctx, stack);
+  if (m) JS_FreeCString(ctx, m);
+  JS_FreeValue(ctx, st);
+  JS_FreeValue(ctx, ex);
+  while (!r.empty() && r.back() == '\n') r.pop_back();
+  return r;
+}
+
 }  // namespace
+
+bool collect(const std::string& entry, const std::string& stdRoot, const std::string& cacheDir, std::vector<Collected>& mods, std::string& err) {
+  Walk w;
+  w.e.stdRoot = stdRoot;
+  w.e.cacheDir = cacheDir;
+  w.e.entry = entry;
+  {   // importmap.json next to the entry, as run reads it
+    std::string text, dir = dirOf(entry);
+    if (readFile(dir + "/importmap.json", text)) {
+      yyjson_doc* doc = yyjson_read(text.data(), text.size(), 0);
+      yyjson_val* im = doc ? yyjson_obj_get(yyjson_doc_get_root(doc), "imports") : nullptr;
+      size_t i, n; yyjson_val *k, *v;
+      if (im && yyjson_is_obj(im)) yyjson_obj_foreach(im, i, n, k, v) if (yyjson_is_str(v)) w.e.imports[yyjson_get_str(k)] = normalize(yyjson_get_str(v)[0] == '/' ? std::string(yyjson_get_str(v)) : dir + "/" + yyjson_get_str(v));
+      yyjson_doc_free(doc);
+    }
+  }
+  JSRuntime* rt = JS_NewRuntime();
+  JSContext* ctx = JS_NewContext(rt);
+  JS_SetModuleLoaderFunc(rt, walkName, walkLoad, &w);
+  Collected c;
+  c.name = entry;
+  bool ok = moduleText(w.e, entry, c.js, err);
+  if (ok) {
+    w.at[entry] = 0;
+    w.mods.push_back(c);
+    JSValue mv = JS_Eval(ctx, c.js.data(), c.js.size(), entry.c_str(), JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
+    ok = !JS_IsException(mv) && JS_ResolveModule(ctx, mv) >= 0;   // loads every static import through walkLoad
+    if (!ok) err = exceptionText(ctx);
+    JS_FreeValue(ctx, mv);
+  }
+  JS_FreeContext(ctx);
+  JS_FreeRuntime(rt);
+  mods = std::move(w.mods);
+  return ok;
+}
+
+bool compileBytecode(const std::string& js, const std::string& name, std::string& bytes, std::string& err) {
+  JSRuntime* rt = JS_NewRuntime();
+  JSContext* ctx = JS_NewContext(rt);
+  JS_SetModuleLoaderFunc(rt, nullptr, [](JSContext* c, const char* mod, void*) -> JSModuleDef* {   // a bundle imports zinc:native only; it is not written with it
+    const std::string src = std::strcmp(mod, "zinc:native") ? "" : kNativeModule;
+    JSValue v = JS_Eval(c, src.data(), src.size(), mod, JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
+    if (JS_IsException(v)) return nullptr;
+    auto* m = static_cast<JSModuleDef*>(JS_VALUE_GET_PTR(v));
+    JS_FreeValue(c, v);
+    return m;
+  }, nullptr);
+  JSValue m = JS_Eval(ctx, js.data(), js.size(), name.c_str(), JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
+  bool ok = !JS_IsException(m);
+  if (!ok) err = exceptionText(ctx);
+  else {
+    size_t n = 0;
+    uint8_t* b = JS_WriteObject(ctx, &n, m, JS_WRITE_OBJ_BYTECODE | JS_WRITE_OBJ_STRIP_SOURCE);   // the lines stay (debug info): the traces keep their positions
+    if (b) { bytes.assign(reinterpret_cast<char*>(b), n); js_free(ctx, b); } else { ok = false; err = exceptionText(ctx); }
+  }
+  JS_FreeValue(ctx, m);
+  JS_FreeContext(ctx);
+  JS_FreeRuntime(rt);
+  return ok;
+}
 
 int run(const Options& o) {
   const auto startedAt = std::chrono::steady_clock::now();
   zn::log::step("context", "initialise QuickJS and host services...");
   Engine e;
   e.stdRoot = o.stdRoot;
+  e.cacheDir = o.cacheDir;
   zn_lre_delegate(qjs_lre_realloc, qjs_lre_check_timeout, qjs_lre_check_stack_overflow);
   e.rt = JS_NewRuntime();
 #ifdef ZN_QJS_PROFILE
@@ -434,6 +635,12 @@ int run(const Options& o) {
   JSValue shims = JS_Eval(e.ctx, kWebShims, std::strlen(kWebShims), "<web-shims>", JS_EVAL_TYPE_GLOBAL);
   if (JS_IsException(shims)) { JSValue ex = JS_GetException(e.ctx); report(e.ctx, ex); return 101; }
   JS_FreeValue(e.ctx, shims);
+  {   // what a bundle has folded in (zinc bundle --define), as globals: the same program runs bundled or not
+    const std::string caps = capsJson(o.stdRoot + "/../../targets/capabilities.json");
+    const std::string defs = "globalThis.__ZINC_ENGINE__ = 'quickjs'; globalThis.__ZINC_CAPS__ = " + caps +
+                             "; globalThis.__ZINC_TARGET__ = __ZINC_CAPS__.TARGET; globalThis.__ZINC_PROFILE__ = __ZINC_CAPS__.PROFILE;";
+    JS_FreeValue(e.ctx, JS_Eval(e.ctx, defs.data(), defs.size(), "<defines>", JS_EVAL_TYPE_GLOBAL));
+  }
 
   std::string entry = o.entry;
   if (!entry.empty() && entry[0] != '/') { char b[4096]; if (getcwd(b, sizeof b)) entry = normalize(std::string(b) + "/" + entry); }
@@ -460,9 +667,21 @@ int run(const Options& o) {
     e.entryPromise = JS_VALUE_GET_PTR(stage);   // a throw in the stage rejects its module's promise: reported as the entry's would be
     if (!drain(e)) { JS_FreeValue(e.ctx, stage); return 101; }
   }
-  if (!moduleText(e, entry, js, err)) { std::fprintf(stderr, "%s\n", err.c_str()); return 101; }
   zn::log::step("load", zn::log::shortPath(entry));
-  JSValue mod = JS_Eval(e.ctx, js.data(), js.size(), entry.c_str(), JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
+  JSValue mod;
+  if (endsWith(entry, ".qbc")) {   // a bundle's bytecode (zinc bundle --bytecode): no parse; the version check is QuickJS's own
+    if (!readFile(entry, js)) { std::fprintf(stderr, "cannot read %s\n", entry.c_str()); return 101; }
+    mod = JS_ReadObject(e.ctx, reinterpret_cast<const uint8_t*>(js.data()), js.size(), JS_READ_OBJ_BYTECODE);
+    if (!JS_IsException(mod) && JS_ResolveModule(e.ctx, mod) < 0) { JS_FreeValue(e.ctx, mod); mod = JS_EXCEPTION; }
+    gMapFile = entry.substr(0, entry.size() - 4) + ".js";   // compiled under the name of its .js: that bundle's source map
+    if (!JS_IsException(mod)) setMeta(e.ctx, static_cast<JSModuleDef*>(JS_VALUE_GET_PTR(mod)), gMapFile);
+    if (!readFile(gMapFile + ".map", gMapJson)) gMapJson.clear();
+  } else {
+    if (!moduleText(e, entry, js, err)) { std::fprintf(stderr, "%s\n", err.c_str()); return 101; }
+    if (readFile(entry + ".map", gMapJson)) gMapFile = entry;
+    mod = JS_Eval(e.ctx, js.data(), js.size(), entry.c_str(), JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
+    if (!JS_IsException(mod)) setMeta(e.ctx, static_cast<JSModuleDef*>(JS_VALUE_GET_PTR(mod)), entry);
+  }
   if (JS_IsException(mod)) { JSValue ex = JS_GetException(e.ctx); report(e.ctx, ex); JS_FreeValue(e.ctx, ex); return 101; }
   zn::log::step("run", "QuickJS-ng, executing JavaScript");
   JSValue res = JS_EvalFunction(e.ctx, mod);  // links the imports through the loader, then runs; a promise (top-level await)

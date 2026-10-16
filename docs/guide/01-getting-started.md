@@ -257,7 +257,7 @@ The rest of this page is reference.
 | --- | --- |
 | `name` | app name; the executable and `dist/<name>-<target>` are named after it |
 | `entry` | source entry (`.ts` / `.tsx` / `.js`) |
-| `engine` | `"quickjs"` runs the project on the QuickJS engine, `"zinc"` on the typed engines; not set: QuickJS when the entry is `.js` or `.mjs` (`zinc run --engine quickjs` on the command line wins) |
+| `engine` | `"quickjs"` runs the project on the QuickJS engine (TS, TSX and JS: [Bundling for QuickJS](11-quickjs-bundle.md)), `"zinc"` on the typed engines; not set: QuickJS when the entry is `.js`, `.mjs` or a bundle's `.qbc` (`zinc run --engine quickjs` on the command line wins) |
 | `assets` | the assets directory (default `assets`): its images and fonts are baked into the executable, its files are read at run time with `zinc:assets` (see [distribution](07-distribution.md#assets-of-a-built-program)); or an object `{ dir, rules, groups, profiles, budgets }` for the asset build (`zinc assets build`, `zinc assets info`: [the asset build](../reports/zinc-next-assets.md)) |
 | `splash` | an image path, or `{ image, background, fit, minMs, fadeMs }`: shown from the first frame (also per target, `targets.<id>.splash`) |
 | `loading` | `{ screen, groups, minMs, fadeMs }`: the screen (`default`, `bar` or a module) shown while the asset groups load before `main` |

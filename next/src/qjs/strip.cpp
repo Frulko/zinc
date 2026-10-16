@@ -3,10 +3,17 @@
 #include <algorithm>
 #include <cctype>
 #include <cstdio>
+#include <fstream>
+#include <set>
+#include <sstream>
 #include <unordered_set>
 #include <vector>
 
+#include "frontend/diagnostics.h"
+#include "frontend/jsx.h"
+#include "frontend/modules.h"
 #include "frontend/parser.h"
+#include "frontend/project.h"
 
 namespace zn::qjs {
 namespace {
@@ -52,7 +59,7 @@ struct Stripper {
     int depth = 0;
     for (std::uint32_t i = from; i < s.size(); ++i) {
       if (s[i] == '<') depth++;
-      else if (s[i] == '>' && --depth == 0) { blank(from, i + 1); return; }
+      else if (s[i] == '>' && s[i - 1] != '=' && --depth == 0) { blank(from, i + 1); return; }   // not the `>` of a function type's `=>`
     }
   }
   // the angle brackets that hold the nodes `list` (type parameters or arguments): the `<` just before the first, up to the `>` after the last
@@ -200,7 +207,14 @@ struct Stripper {
         case N::Import: importDecl(x, values); break;
         case N::Export:
           decorators(x.start);
-          if (!x.kids.empty() && x.kids[0] != kNone && (n(x.kids[0]).kind == N::Interface || n(x.kids[0]).kind == N::TypeAlias)) blank(x.start, x.end); break;
+          if (!x.kids.empty() && x.kids[0] != kNone && (n(x.kids[0]).kind == N::Interface || n(x.kids[0]).kind == N::TypeAlias)) {
+            // an exported type: a binding with no value, so that `export { Theme } from './theme'` and `import { Theme }` in a file that only
+            // re-exports it still link (TypeScript elides them with the type information QuickJS does not have); merged with a value: nothing
+            const std::string_view name = n(x.kids[0]).text;
+            if (!name.empty() && !values.count(name)) edits.push_back({x.start, x.end, "export var " + std::string(name) + ";"});
+            else blank(x.start, x.end);
+          }
+          break;
         case N::As: {
           std::uint32_t k = n(x.kids[0]).end;
           const std::string_view word = x.text.empty() ? std::string_view("as") : x.text;  // "as" or "satisfies"
@@ -251,6 +265,37 @@ bool stripTypes(std::string_view src, const std::string& file, std::string& out,
   }
   out.append(src.substr(at));
   return true;
+}
+
+bool toJavaScript(std::string_view src, const std::string& file, std::string& out, std::string& err) {
+  auto ends = [&](std::string_view x) { return file.size() >= x.size() && file.compare(file.size() - x.size(), x.size(), x) == 0; };
+  const bool tsx = ends(".tsx"), ts = tsx || ends(".ts") || file.rfind("zinc:", 0) == 0;
+  if (!ts) { out.assign(src); return true; }
+  std::string text(src), original;
+  std::vector<Diag> diags;
+  std::vector<SrcPiece> map;
+  if (uiPreset() == "react-native") text = rewriteReactNativeImports(text, tsx);   // as the typed loader does (ZN-367.05)
+  if (text.find("StyleSheet") != std::string::npos) text = lowerStyleSheets(text, diags, 0, tsx);
+  if (tsx && diags.empty()) {
+    original = text;
+    const std::set<std::string> classTags = jsxClassTags(file, text, [](const std::string& p, std::string& out) {   // components written as classes (Inferno, React)
+      std::ifstream in(p, std::ios::binary);
+      if (!in) return false;
+      std::stringstream ss; ss << in.rdbuf(); out = ss.str();
+      return true;
+    });
+    text = lowerJsx(text, diags, 0, &classTags, &map);
+  }
+  if (!diags.empty()) {   // the lowering's own positions are in the source the user wrote
+    err.clear();
+    for (const Diag& d : diags) err += (err.empty() ? "" : "\n") + format(d, original.empty() ? std::string_view(text) : std::string_view(original), file);
+    return false;
+  }
+  if (!ends("lib/std/web.ts") && !ends("lib/std/fetch.ts") && !ends("lib/std/subtle.ts")) {   // the web globals the typed loader imports for a file (navigator, fetch...)
+    ParseResult pr = parse(text);
+    if (pr.diags.empty() && pr.ast.root != kNone) text += webImportsOf(pr.ast);
+  }
+  return stripTypes(text, file, out, err);
 }
 
 }  // namespace zn::qjs
