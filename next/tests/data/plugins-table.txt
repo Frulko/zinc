@@ -1,8 +1,8 @@
 plugin (import / display)  targets                             description
   zinc:3d                  macos,linux,rpi1,esp32,wasm        3D: meshes (primitives, OBJ), materials, textures, lights, camera, scene graph; a z-buffered software rasterizer, and the GPU where the target has it
-  zinc:async-storage       macos,linux,windows,rpi1,rmpp,webos,esp32 React Native's AsyncStorage (@react-native-async-storage/async-storage) on zinc:storage: a key/value store kept between runs, on every target
+  zinc:async-storage       macos,linux,android,ios,windows,rpi1,rmpp,webos,esp32 React Native's AsyncStorage (@react-native-async-storage/async-storage) on zinc:storage: a key/value store kept between runs, on every target
   zinc:audio               macos,linux                        Sound effects and music: WAV, FLAC, MP3 and Ogg Vorbis sounds mixed by miniaudio 0.11.25 (public domain), generated tones, volume, loops; silent when headless
-  zinc:camera              macos,linux,rpi1                   Webcams and built-in cameras (AVFoundation, V4L2): list, open at a size and rate, frames as a runtime image, RGBA snapshots; a generated test pattern camera when there is none
+  zinc:camera              macos,linux,rpi1,android,ios       Webcams, phone and built-in cameras (AVFoundation on macOS and iOS, V4L2 on Linux, camera2 on Android): list, open at a size and rate, frames as a runtime image, stills, PNG photos encoded off the main thread; a generated test pattern camera when there is none
   zinc:canvas              macos,linux,rpi1,rmpp,wasm,esp32   HTML Canvas 2D-style context (paths, strokes, gradients, text, images, transforms) on the shared rasterizer
   zinc:device              esp32,macos,linux                  Device services for board demos: backlight level (display-st7789 PWM), chip and heap figures, frame statistics
   zinc:devtools            macos,linux,rpi1                   UI inspector for Chrome DevTools (subset of the DevTools protocol on port 9229); zinc dev adds it
@@ -18,17 +18,17 @@ plugin (import / display)  targets                             description
   zinc:ffi                 macos,linux                        Call C functions of shared libraries: dlopen / dlsym, scalar and string signatures through libffi, C memory helpers
   zinc:gestures            macos,linux,rpi1,wasm,esp32,ps2    Pan / pinch / rotate / tap gestures from mouse, wheel, trackpad and multitouch
   zinc:gphoto2             macos,linux,rpi1                   Camera remote control over libgphoto2 (USB PTP): config, capture, events, JPEG live view
-  zinc:gsap                macos,linux,windows,rpi1,rmpp,webos,wasm,esp32 GSAP's core API in Zinc: tweens, timelines, eases, staggers, position parameters, labels and utils; typed, so it runs in the interpreter, in zinc build programs (AOT) and on every target
+  zinc:gsap                macos,linux,android,ios,windows,rpi1,rmpp,webos,wasm,esp32 GSAP's core API in Zinc: tweens, timelines, eases, staggers, position parameters, labels and utils; typed, so it runs in the interpreter, in zinc build programs (AOT) and on every target
   zinc:imu                 esp32,macos,linux                  QMI8658 6-axis IMU: accel, gyro, temperature, tilt and shake (ESP32 I2C; emulated from keys/mouse elsewhere)
   zinc:ink                 macos,linux,rpi1,wasm,rmpp         Handwriting surface: pressure strokes, eraser, undo, JSON/SVG export
   zinc:leapmotion          macos                              Ultraleap hand tracking: hands, finger joints and pinch strength through LeapC, with an explicit simulator
   zinc:loader              macos,linux,rpi1,wasm,esp32,ps2    The screens of the loader stage (zinc.json "loading"): a progress bar, the splash with a thin bar, and a zinc:ui <Loader> component
-  zinc:lottie              macos,linux,rpi1,rmpp,wasm,ps2,esp32 Lottie (Bodymovin JSON) animations rendered natively: shapes, trims, precomps, Player, <Lottie/> UI node
+  zinc:lottie              macos,linux,android,ios,rpi1,rmpp,wasm,ps2,esp32 Lottie (Bodymovin JSON) animations rendered natively: shapes, trims, precomps, Player, <Lottie/> UI node
   zinc:map                 macos,linux,rpi1                   Interactive vector maps: Mapbox Vector Tiles, MapLibre style subset, tile cache, labels
   zinc:mapping             macos,rpi1                         GPU video-mapping compositor (corner pin, mesh warp, masks, edge blend, colour) driven by OSC; needs display gl
   zinc:microphone          macos,linux,rpi1                   Microphones (Core Audio, PulseAudio, ALSA through miniaudio): list, open at a rate and channel count, samples in blocks, a level for a meter; a generated fake microphone when there is none
   zinc:midi                macos,linux                        MIDI in and out on RtMidi 6.0.0 (MIT): list and open ports, virtual ports, notes, control changes, clock, any message, ports plugged and unplugged; in-memory ports when simulated
-  zinc:osc/full            macos,linux,rpi1,rmpp              Open Sound Control 1.0 over UDP: typed messages (int, float, double, string, blob, time tag, booleans, nil), bundles, address patterns, several endpoints, any port; written in Zinc on zinc:socket
+  zinc:osc/full            macos,linux,android,ios,rpi1,rmpp  Open Sound Control 1.0 over UDP: typed messages (int, float, double, string, blob, time tag, booleans, nil), bundles, address patterns, several endpoints, any port; written in Zinc on zinc:socket
   zinc:physics2d           macos,linux                        2D rigid bodies on Box2D 3.1.1 (MIT): worlds stepped at a fixed rate with sub-steps, shapes and chains, continuous collision, revolute and prismatic joints, contact and sensor events, ray casts
   zinc:physics3d           macos,linux                        3D rigid bodies on Jolt Physics 5.6.0 (MIT): worlds stepped at a fixed rate, shapes, continuous collision, hinge and slider constraints, contact events, ray and shape casts
   zinc:pixelfont           macos,linux,rpi1,esp32,wasm,ps2    5x7 and 3x5 bitmap fonts for LED matrices and tiny screens
@@ -37,17 +37,17 @@ plugin (import / display)  targets                             description
   zinc:remote              macos,linux,rpi1                   Viewer for display-remote apps: live screen as a runtime image, input forwarding, LAN discovery
   zinc:script              macos,linux,rpi1,rmpp,sim          Runtime scripting: sandboxed JavaScript (QuickJS-ng) with typed host functions, time / memory limits, ES modules, promises
   zinc:serial              macos,linux                        Serial ports for Arduino and other boards: list, open with baud rate and framing, lines and bytes in, text and bytes out, DTR and RTS, unplug reported (POSIX termios; a loopback port when simulated)
-  zinc:socket              macos,linux,rpi1,rmpp              TCP, Unix domain and UDP sockets, DNS lookup, WebSocket client and server (non-blocking, on the event loop)
-  zinc:sonos               macos,linux,rpi1,rmpp              Sonos speakers on the local network (UPnP, port 1400): discovery, rooms and groups, what plays, transport, volume, grouping, favorites, radio streams; written in Zinc on zinc:socket and fetch
-  zinc:spotify             macos,linux,rpi1,rmpp              The Spotify Web API for a remote: playlists, liked songs, recent plays, search, playback on a Spotify Connect device; one login on a computer (login.py), token refresh and rotation here
+  zinc:socket              macos,linux,android,ios,rpi1,rmpp  TCP, Unix domain and UDP sockets, DNS lookup, WebSocket client and server (non-blocking, on the event loop)
+  zinc:sonos               macos,linux,android,ios,rpi1,rmpp  Sonos speakers on the local network (UPnP, port 1400): discovery, rooms and groups, what plays, transport, volume, grouping, favorites, radio streams; written in Zinc on zinc:socket and fetch
+  zinc:spotify             macos,linux,android,ios,rpi1,rmpp  The Spotify Web API for a remote: playlists, liked songs, recent plays, search, playback on a Spotify Connect device; one login on a computer (login.py), token refresh and rotation here
   zinc:sprite              macos,linux,rpi1,wasm,esp32,ps2    Frames, animations and pivots of the sprite atlases the asset build packs (zinc.json "as": "sprite" rules)
-  zinc:sqlite              macos,linux,rpi1,rmpp              SQLite 3 databases (bundled amalgamation 3.53.4, public domain): prepare / run / get / all, parameters, transactions
-  zinc:svg                 macos,linux,rpi1,wasm              Runtime SVG rendering (paths, shapes, transforms, gradients, CSS classes) on the vector rasterizer
-  zinc:system              macos,linux                        Desktop integration: notifications, menus, tray, dialogs, window control, shortcuts, deep links, autostart, dock, power, clipboard, opener (one native call, JSON ops, permission gate; recording simulator)
+  zinc:sqlite              macos,linux,android,ios,rpi1,rmpp  SQLite 3 databases (bundled amalgamation 3.53.4, public domain): prepare / run / get / all, parameters, transactions
+  zinc:svg                 macos,linux,android,ios,rpi1,wasm  Runtime SVG rendering (paths, shapes, transforms, gradients, CSS classes) on the vector rasterizer
+  zinc:system              macos,linux,android,ios            Desktop and phone integration: notifications, menus, tray, dialogs and pickers, window control, shortcuts, deep links, autostart, dock, power, clipboard, opener, share sheet (one native call, JSON ops, permission gate; recording simulator)
   three                    macos,linux,rpi1,wasm              three.js API subset on zinc:3d: scene graph, geometries, materials, lights, cameras, raycasting, GLTFLoader, OrbitControls
   zinc:tilemap             macos,linux,rpi1,wasm,esp32,ps2    Levels of Tiled and LDtk maps imported by the asset build (zinc.json "as": "tilemap" rules): layers, IntGrid values, objects, tiles drawn from an atlas
   zinc:video               macos,linux,rpi1,webos             Video playback (FFmpeg with VideoToolbox / V4L2 M2M decode; GStreamer with the hardware decoder on webOS), gapless playlists as runtime images
   zinc:wasm                macos,linux,rpi1,rmpp              WebAssembly (the JS API's shape) on the wasm3 interpreter 0.5.0 (MIT): validate, compile, instantiate with host function imports, exported functions, memory and globals
-  zinc:webos               macos,linux                        HP webOS 3 (HP TouchPad): calls to the system's services (the Luna bus, through the PDK's libpdl), launching an installed application
+  zinc:webos               macos,linux,android,ios            HP webOS 3 (HP TouchPad): calls to the system's services (the Luna bus, through the PDK's libpdl), launching an installed application
   zinc:webrtc              macos,linux,rpi1                   WebRTC (RTCPeerConnection): data channels and audio and video tracks on libdatachannel (MPL-2.0) with libjuice, usrsctp, libsrtp and the engine's mbedTLS; Opus audio (libopus), VP8 video (libvpx) everywhere and H.264 through VideoToolbox on macOS; STUN/TURN, stats, an in-process loopback
   zinc:webview             macos                              Web views embedded in the app window (WKWebView), zinc:// assets, postMessage and invoke RPC (Tauri-like)

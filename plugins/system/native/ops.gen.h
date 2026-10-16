@@ -33,6 +33,7 @@ static const ZnSystemOp kSystemOps[] = {
   {"clipboard.writeRich", "clipboard:rich", "{}"},
   {"clipboard.readRich", "clipboard:rich", "{\"text\":\"\",\"html\":\"\"}"},
   {"opener.open", "opener", "{}"},
+  {"share.share", "share", "{\"shared\":true}"},
   {"window.confirmClose", "window", "{}"},
   {"notification.backend", "notification", "{\"backend\":\"sim\"}"},
   {"notification.openSettings", "notification", "{\"opened\":true}"},
@@ -78,4 +79,4 @@ static const ZnSystemOp kSystemOps[] = {
   {"update.restart", "update", "{}"},
   {"update.healthy", "update", "{}"},
 };
-static const char* const kSystemEvents[] = {"menu-click", "tray-click", "notification-click", "notification-action", "notification-reply", "notification-close", "shortcut", "drop", "open-url", "second-instance", "power", "appearance", "window", "dialog-answer", "tray-menu-click", "tray-double", "open-file"};
+static const char* const kSystemEvents[] = {"menu-click", "tray-click", "notification-click", "notification-action", "notification-reply", "notification-close", "shortcut", "drop", "open-url", "second-instance", "power", "appearance", "window", "dialog-answer", "tray-menu-click", "tray-double", "open-file", "dialog-result"};

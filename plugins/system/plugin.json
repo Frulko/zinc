@@ -4,7 +4,8 @@
   "deterministic": true,
   "module": "zinc:system",
   "entry": "index.ts",
-  "description": "Desktop integration: notifications, menus, tray, dialogs, window control, shortcuts, deep links, autostart, dock, power, clipboard, opener (one native call, JSON ops, permission gate; recording simulator)",
+  "description": "Desktop and phone integration: notifications, menus, tray, dialogs and pickers, window control, shortcuts, deep links, autostart, dock, power, clipboard, opener, share sheet (one native call, JSON ops, permission gate; recording simulator)",
+  "native": { "impl": { "android": "native/system.host.cpp", "ios": "native/system.host.cpp" } },
   "targets": {
     "macos": {
       "sources": [
@@ -19,9 +20,22 @@
       ],
       "flags": [
         "-fobjc-arc"
-      ]
+      ],
+      "defines": ["ZN_SYSTEM_LIVE"]
     },
-    "linux": {}
+    "linux": {},
+    "android": {
+      "sources": ["native/system.android.cpp", "native/android/SystemBackend.java"],
+      "defines": ["ZN_SYSTEM_LIVE"],
+      "lifecycle": "dev.zinc.system.SystemBackend",
+      "manifest": { "permissions": ["POST_NOTIFICATIONS"] }
+    },
+    "ios": {
+      "sources": ["native/system.ios.mm"],
+      "frameworks": ["UIKit", "UserNotifications", "UniformTypeIdentifiers", "PhotosUI"],
+      "flags": ["-fobjc-arc"],
+      "defines": ["ZN_SYSTEM_LIVE", "ZN_SYSTEM_URL_DROPS"]
+    }
   },
   "modules": {
     "zinc:system/notification": "notification.ts",
@@ -35,6 +49,7 @@
     "zinc:system/autostart": "autostart.ts",
     "zinc:system/deeplink": "deeplink.ts",
     "zinc:system/opener": "opener.ts",
+    "zinc:system/share": "share.ts",
     "zinc:system/power": "power.ts",
     "zinc:system/clipboard": "clipboard.ts",
     "zinc:system/update": "update.ts"

@@ -33,6 +33,7 @@ export interface OpArgs {
   'clipboard.writeRich': { text: string; html?: string };
   'clipboard.readRich': {  };
   'opener.open': { target: string };
+  'share.share': { text?: string; url?: string; title?: string };
   'window.confirmClose': {  };
   'notification.backend': {  };
   'notification.openSettings': {  };
@@ -90,7 +91,7 @@ export interface OpResult {
   'tray.create': {};
   'tray.update': {};
   'tray.remove': {};
-  'dialog.open': {paths: string[] | null};
+  'dialog.open': {paths: string[] | null; pending?: string};
   'dialog.save': {path: string | null};
   'dialog.message': {button: number};
   'window.setTitle': {};
@@ -111,6 +112,7 @@ export interface OpResult {
   'clipboard.writeRich': {};
   'clipboard.readRich': {text: string; html: string};
   'opener.open': {};
+  'share.share': {shared: boolean};
   'window.confirmClose': {};
   'notification.backend': {backend: 'native' | 'osascript' | 'dbus' | 'sim' | 'none'};
   'notification.openSettings': {opened: boolean};
@@ -158,7 +160,7 @@ export interface OpResult {
 }
 
 export type OpName = keyof OpArgs;
-export type EventName = 'menu-click' | 'tray-click' | 'notification-click' | 'notification-action' | 'notification-reply' | 'notification-close' | 'shortcut' | 'drop' | 'open-url' | 'second-instance' | 'power' | 'appearance' | 'window' | 'dialog-answer' | 'tray-menu-click' | 'tray-double' | 'open-file';
+export type EventName = 'menu-click' | 'tray-click' | 'notification-click' | 'notification-action' | 'notification-reply' | 'notification-close' | 'shortcut' | 'drop' | 'open-url' | 'second-instance' | 'power' | 'appearance' | 'window' | 'dialog-answer' | 'tray-menu-click' | 'tray-double' | 'open-file' | 'dialog-result';
 
 /** The permission id an op needs. */
 export const PERMISSION_OF: { [op in OpName]: string };

@@ -734,7 +734,9 @@ static int clipboardCall(const char* op, NSDictionary* a, char* out, int cap) {
 extern "C" {
 
 /** Answers a notification op; 1 when handled (out holds the JSON result), 0 for an op this backend does not do. */
-int zn_sys_macos_call(const char* op, const char* args, char* out, int cap) {
+const char* zn_sys_live_backend(void) { return "macos"; }
+
+int zn_sys_live_call(const char* op, const char* args, char* out, int cap) {
   @autoreleasepool {
     ensureQueue();
     NSDictionary* a = [NSJSONSerialization JSONObjectWithData:[NSData dataWithBytes:args length:strlen(args)] options:0 error:nil] ?: @{};
@@ -833,7 +835,7 @@ int zn_sys_macos_call(const char* op, const char* args, char* out, int cap) {
 
 /** A program without a window of its own (a tray-only app, a console program with a menu) has nobody serving AppKit's event queue: status items, menus and the dock would stay frozen.
  *  Called each loop turn; does nothing when a window exists (SDL pumps then). */
-int zn_sys_macos_pump(void) {
+int zn_sys_live_pump(void) {
   @autoreleasepool {
     gPumps++;
     if ((!gTrays || gTrays.count == 0) && !gDockMenu && !gStartUrls && !(NSApp && NSApp.mainMenu)) return 0;
@@ -848,7 +850,7 @@ int zn_sys_macos_pump(void) {
 }
 
 /** The next event the system delivered (a notification click...), 1 when `out` holds one. */
-int zn_sys_macos_poll(char* out, int cap) {
+int zn_sys_live_poll(char* out, int cap) {
   @autoreleasepool {
     if (!gEvents) return 0;
     NSString* e = nil;

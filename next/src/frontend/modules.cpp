@@ -1640,7 +1640,7 @@ struct Loader {
                                                               {"zinc:signals", "signals.ts"}, {"zinc:haptics", "haptics.ts"}, {"zinc:ui/navigation", "navigation.tsx"}, {"zinc:path", "path.ts"}, {"zinc:assert", "assert.ts"}, {"zinc:hot", "hot.ts"}, {"zinc:system", "system/index.ts"},
                                                               {"zinc:system/notification", "system/notification.ts"}, {"zinc:system/menu", "system/menu.ts"}, {"zinc:system/tray", "system/tray.ts"}, {"zinc:system/dialog", "system/dialog.ts"}, {"zinc:system/window", "system/window.ts"},
                                                               {"zinc:system/shortcut", "system/shortcut.ts"}, {"zinc:system/instance", "system/instance.ts"}, {"zinc:system/deeplink", "system/deeplink.ts"}, {"zinc:system/autostart", "system/autostart.ts"},
-                                                              {"zinc:system/dock", "system/dock.ts"}, {"zinc:system/power", "system/power.ts"}, {"zinc:system/clipboard", "system/clipboard.ts"}, {"zinc:system/opener", "system/opener.ts"}, {"zinc:system/update", "system/update.ts"}};
+                                                              {"zinc:system/dock", "system/dock.ts"}, {"zinc:system/power", "system/power.ts"}, {"zinc:system/clipboard", "system/clipboard.ts"}, {"zinc:system/opener", "system/opener.ts"}, {"zinc:system/share", "system/share.ts"}, {"zinc:system/update", "system/update.ts"}};
       if (spec == "zinc:system/permissions" || spec == "zinc:system/app") return done.count(spec) ? done[spec] : load(spec, generatedModuleSource(spec));
       if (spec == "zinc:icons/lucide") {   // the icons this project names (ZN-374)
         const std::string path = "zinc:icons/lucide";
@@ -3482,7 +3482,7 @@ std::string_view stdModuleFile(std::string_view spec) {
   if (spec == "zinc:hot") return "hot.ts";
   if (spec == "zinc:system") return "system/index.ts";
   static const char* const kSystem[] = {"system/notification.ts", "system/menu.ts", "system/tray.ts", "system/dialog.ts", "system/window.ts", "system/shortcut.ts", "system/instance.ts",
-                                        "system/deeplink.ts", "system/autostart.ts", "system/dock.ts", "system/power.ts", "system/clipboard.ts", "system/opener.ts", "system/update.ts"};
+                                        "system/deeplink.ts", "system/autostart.ts", "system/dock.ts", "system/power.ts", "system/clipboard.ts", "system/opener.ts", "system/share.ts", "system/update.ts"};
   for (const char* f : kSystem) { const std::string_view v(f); if (spec.size() == 5 + v.size() - 3 && spec.substr(5) == v.substr(0, v.size() - 3)) return v; }   // zinc:system/menu -> system/menu.ts
   return "";
 }

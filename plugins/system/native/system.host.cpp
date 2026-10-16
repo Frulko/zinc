@@ -23,10 +23,11 @@
 extern "C" void hal_set_close_handler(int (*)(void)) __attribute__((weak));   // the desktop HAL has them (runtime/include/hal_window.h); headless HALs do not
 extern "C" void hal_set_drop_handler(void (*)(const char*, int)) __attribute__((weak));
 
-#ifdef __APPLE__
-extern "C" int zn_sys_macos_call(const char* op, const char* args, char* out, int cap);   // native/system.macos.mm
-extern "C" int zn_sys_macos_poll(char* out, int cap);
-extern "C" int zn_sys_macos_pump(void);
+#ifdef ZN_SYSTEM_LIVE   // the real system's backend (plugin.json defines it per target): native/system.macos.mm, system.ios.mm, system.android.cpp
+extern "C" int zn_sys_live_call(const char* op, const char* args, char* out, int cap);   // 0: not done there (the simulator's answer stands)
+extern "C" int zn_sys_live_poll(char* out, int cap);   // an event as JSON, 0 when none
+extern "C" int zn_sys_live_pump(void);                  // nonzero while the backend keeps the loop alive (a tray, an open picker)
+extern "C" const char* zn_sys_live_backend(void);       // "macos", "ios", "android"
 #endif
 extern "C" void zn_host_fs_scope(int) __attribute__((weak));    // src/host/sys_host.cpp: the fs scope
 extern "C" void zn_host_fs_grant(const char*) __attribute__((weak));
@@ -104,6 +105,7 @@ struct Sim : NativeSystem, zrt::Poller {
   char openerAllow[16][160];   // zinc.json scopes.opener.allow: prefixes, `*` matches anything after
   int nopenerAllow = -1;       // -1: no scope given (everything the permission allows)
   char lastOpen[400] = "";
+  char startUrl[512] = "";   // ZN_SYSTEM_URL_DROPS: the first deep link (deep-link.getCurrent)
   int lockFd = -1, listenFd = -1;   // single instance: the lock file and the socket the second instance writes to
   int sleepTokens = 0;
   char clipText[256] = "", clipHtml[512] = "", clipPng[1024] = "", clipFiles[512] = "[]";   // the simulator's pasteboard
@@ -132,6 +134,7 @@ struct Sim : NativeSystem, zrt::Poller {
     const char* force = getenv("ZINC_SYSTEM");
     live = !(det && *det && *det != '0') && !(head && *head && *head != '0') && !(force && !strcmp(force, "sim"));
     zrt::add_poller(this);
+    self() = this;   // the drop handler may run before the first call
     if (hal_set_close_handler) hal_set_close_handler(&Sim::onClose);
     if (hal_set_drop_handler) hal_set_drop_handler(&Sim::onDrop);
   }
@@ -190,8 +193,8 @@ struct Sim : NativeSystem, zrt::Poller {
     }
   }
   bool supports(zrt::String feature) override { return feature.bytes() > 0; }   // the simulator does every feature
-#ifdef __APPLE__
-  zrt::String backend() override { return live ? zrt::String::from("macos", 5) : zrt::String::from("sim", 3); }
+#ifdef ZN_SYSTEM_LIVE
+  zrt::String backend() override { const char* b = live ? zn_sys_live_backend() : "sim"; return zrt::String::from(b, (uint32_t)strlen(b)); }
 #else
   zrt::String backend() override { return zrt::String::from("sim", 3); }
 #endif
@@ -217,12 +220,14 @@ struct Sim : NativeSystem, zrt::Poller {
         if (!zn_host_update || !zn_host_update(name, args, ubuf, sizeof ubuf)) return reply("{\"error\":{\"code\":\"unsupported\",\"message\":\"this engine has no app updates\"}}");
         return reply(ubuf);
       }
-#ifdef __APPLE__
-      if (live) { static char big[65536]; if (zn_sys_macos_call(name, args, big, sizeof big)) return reply(big); }
-#endif
-
       if (!strcmp(name, "opener.last")) { char b[500] = "{\"text\":"; appendJson(b, sizeof b, lastOpen); strcat(b, "}"); return reply(b); }
       if (!strncmp(name, "opener.", 7)) { zrt::String r = opener(name, args); if (strstr(r.ptr(), "\"error\"")) return r; }   // the scope check runs first, in the simulator and live alike
+#ifdef ZN_SYSTEM_URL_DROPS
+      if (!strcmp(name, "deep-link.getCurrent")) { char b[600] = "{\"urls\":["; if (startUrl[0]) appendJson(b, sizeof b, startUrl); strcat(b, "]}"); return reply(b); }
+#endif
+#ifdef ZN_SYSTEM_LIVE
+      if (live) { static char big[65536]; if (zn_sys_live_call(name, args, big, sizeof big)) return reply(big); }
+#endif
       if (!strcmp(name, "deep-link.register")) return registerScheme(args);
       if (!strcmp(name, "instance.lock")) return lockInstance(args);
       if (!strcmp(name, "autostart.set") || !strcmp(name, "autostart.get")) return autostart(name, args);
@@ -518,9 +523,9 @@ struct Sim : NativeSystem, zrt::Poller {
     fclose(f);
   }
   bool poll() override {
-#ifdef __APPLE__
+#ifdef ZN_SYSTEM_LIVE
     bool servingAppKit = false;
-    if (live) { servingAppKit = zn_sys_macos_pump() != 0; char ev[1200]; while (zn_sys_macos_poll(ev, sizeof ev)) deliver(ev); }
+    if (live) { servingAppKit = zn_sys_live_pump() != 0; char ev[1200]; while (zn_sys_live_poll(ev, sizeof ev)) deliver(ev); }
 #endif
     if (!scriptRead) readScript();
     bool serving = serveInstance();
@@ -529,7 +534,7 @@ struct Sim : NativeSystem, zrt::Poller {
       const char* json = script[next++].json;
       deliver(json);
     }
-#ifdef __APPLE__
+#ifdef ZN_SYSTEM_LIVE
     if (servingAppKit) return true;
 #endif
     if (serving) return true;   // a first instance keeps listening for the second
@@ -547,6 +552,16 @@ int Sim::onClose() {   // the window's close button: a handler may veto with win
 void Sim::onDrop(const char* path, int isText) {
   Sim* s = self();
   if (!s) return;
+#ifdef ZN_SYSTEM_URL_DROPS   // iOS: UIKit's openURL reaches SDL's delegate, which sends the URL as a dropped file: a deep link
+  if (!isText && strstr(path, "://")) {
+    if (!s->startUrl[0]) snprintf(s->startUrl, sizeof s->startUrl, "%s", path);
+    char ev[700] = "{\"type\":\"open-url\",\"args\":[";
+    appendJson(ev, sizeof ev, path);
+    strcat(ev, "]}");
+    s->deliver(ev);
+    return;
+  }
+#endif
   char json[1200] = "{\"type\":\"drop\",\"args\":[";
   appendJson(json, sizeof json, path);
   strncat(json, isText ? ",\"text\"]}" : "]}", sizeof json - strlen(json) - 1);

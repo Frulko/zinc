@@ -311,7 +311,7 @@ bool assetProfiles(const Project& p, const std::string& capabilities, std::vecto
 }
 
 const std::vector<std::string>& systemFeatures() {
-  static const std::vector<std::string> f = {"notification", "menu", "tray", "dialog", "window", "shortcut", "instance", "deep-link", "autostart", "dock", "power", "clipboard", "opener", "update"};
+  static const std::vector<std::string> f = {"notification", "menu", "tray", "dialog", "window", "shortcut", "instance", "deep-link", "autostart", "dock", "power", "clipboard", "opener", "share", "update"};
   return f;
 }
 void setSystemAppJson(const std::string& json) { gAppJson = json; }

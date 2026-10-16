@@ -1,6 +1,6 @@
 // zinc:system/dialog: open, save and message dialogs (docs/reports/system-integration.md 4.6). Without a user (the simulator, a test) a dialog resolves as cancelled unless the script queued an
 // answer. The paths the user picks join the fs scope of the session: an app limited to "fs": "user-picked" can read exactly those.
-import { call, callRaw, supports } from 'zinc:system';
+import { call, callRaw, on, supports } from 'zinc:system';
 
 export class Filter {
   name: string; extensions: string[];
@@ -36,8 +36,29 @@ export function isSupported(): boolean { return supports('dialogs'); }
 
 /** The chosen paths, or null when the user cancelled. */
 export async function open(o: OpenOptions): Promise<string[] | null> {
-  const r = call('dialog.open', { title: o.title, defaultPath: o.defaultPath, multiple: o.multiple, directory: o.directory, filters: o.filters, abortMs: o.abortMs }) as { paths: string[] | null };
+  const r = call('dialog.open', { title: o.title, defaultPath: o.defaultPath, multiple: o.multiple, directory: o.directory, filters: o.filters, abortMs: o.abortMs }) as { paths: string[] | null; pending?: string };
+  if (r.pending !== undefined) return await picked(r.pending);
   return r.paths;
+}
+
+// A phone's picker (Android's document picker, iOS's document or photo picker) answers later, with the event dialog-result [token, paths as
+// JSON]: the paths are copies in the app's cache, readable with zinc:fs.
+const waiting: string[] = [];
+const resolvers: ((paths: string[] | null) => void)[] = [];
+let answering = false;
+function picked(token: string): Promise<string[] | null> {
+  if (!answering) {
+    answering = true;
+    on('dialog-result', (args: string[]) => {
+      const i = waiting.indexOf(args[0]);
+      if (i < 0) return;
+      const done = resolvers[i];
+      waiting.splice(i, 1);
+      resolvers.splice(i, 1);
+      done(JSON.parse(args[1]) as string[] | null);
+    });
+  }
+  return new Promise<string[] | null>((resolve) => { waiting.push(token); resolvers.push(resolve); });
 }
 /** The chosen path, or null when the user cancelled. */
 export async function save(o: SaveOptions): Promise<string | null> {

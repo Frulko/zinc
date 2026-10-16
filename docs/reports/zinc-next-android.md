@@ -70,7 +70,7 @@ region is only reserved address space until it is touched. Revisit with zinc.jso
   1280 x 800 on the A9 cores is the cost; idle frames are at the display's 60 Hz.
 - The GLES 2 replay draws correct pixels (screenshot) but replays the whole frame (damage 100%) and Tegra 3 takes about 90 ms for it; the software
   raster redraws only the damaged rows. Android keeps the software raster by default (`hal_sdl.cpp`); a damage-aware replay is the next step.
-- hero does not export yet: it uses zinc:video, whose plugin needs FFmpeg (`pkg` libavformat), which an app cannot link yet (ZN-628).
+- hero does not export yet: it uses zinc:video, whose plugin needs FFmpeg (`pkg` libavformat), which an app cannot link yet; zinc:video has no android entry, so the export refuses it with that reason (ZN-628: the plan for MediaCodec and AVFoundation backends is in its notes).
 
 ### Zero-copy present (ZN-743)
 
@@ -177,7 +177,7 @@ Screenshots: `zinc-next-android/rn-showcase-first-pixels.png`, `rn-showcase-pane
 
 ## Not done here
 
-Lifecycle events to the program, context loss, safe areas, the back button and IME (ZN-625, ZN-626), plugins with android entries (ZN-628),
+Lifecycle events to the program, context loss, safe areas, the back button and IME (ZN-625, ZN-626),
 signing (ZN-629), arm64-v8a and x86_64 builds (the export lists them; only armeabi-v7a was built), an emulator run.
 
 ## Music remote on Android (examples/music, 2026-10-16)
@@ -228,3 +228,16 @@ spotify.json` on the Mac, then the commands above).
 
 Seen on the way: `adb shell input tap` (the press and the release within a few milliseconds) did not reach the program's buttons, while a press
 held 120 ms (`input swipe x y x y 120`) did; a finger works.
+
+## Plugins on Android (ZN-628, 2026-10-17)
+
+A plugin reaches an app through its `targets.android` entry of plugin.json (docs/plugins.md "Phones"): C++ compiled into libmain.so,
+Java and Kotlin compiled by Gradle, Gradle dependencies (AndroidX: `android.useAndroidX`), manifest permissions and fragments, `minSdk`,
+a lifecycle subscriber that `ZincActivity` calls, and `class`: a Java or Kotlin class behind the plugin's spec through the JNI bridge
+`zinc native-gen --android` writes. zinc:system has an Android backend (notifications, the share sheet, opening URLs, the document picker,
+deep links). Proven on an emulator (API 37, arm64, the AVD `Pixel_10`): `tests/data/mobile-sqlite` (zinc:sqlite, a database file kept
+between starts), `tests/data/mobile-plugin` (a Kotlin class, callbacks from another thread, the lifecycle subscriber),
+`tests/data/mobile-services` (the share sheet, a URL opened in Chrome, Android 13's notification prompt then a notification, a tap's
+intent, the document picker, deep links warm and cold). Not run on the Nexus 7: another agent's app was in front during the session. Seen
+on the emulator: the software frame's red and blue are swapped (sky-600 buttons draw brown; iOS draws them blue), the window buffer's
+format there is not the Nexus 7's BGRA (`hal_sdl.cpp` `anw_present`, later.md).

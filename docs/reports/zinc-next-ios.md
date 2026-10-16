@@ -115,5 +115,17 @@ iOS 26.0 universal runtime with x86_64, and forum reports say the later iOS 26 r
 ## Not done here
 
 Safe areas (the content and the panel scroll under the status bar and the Dynamic Island; ZN-625), lifecycle events to the program, the
-keyboard and IME (ZN-626), plugins with ios entries (ZN-628), signing and the device build (the commands above), HTTPS certificates on a device
+keyboard and IME (ZN-626), signing and the device build (the commands above), HTTPS certificates on a device
 (`src/host/tls.cpp` reads root stores from Linux and macOS files such as `/etc/ssl/cert.pem`; a phone has none; not tried on the simulator), a launch screen from zinc.json's splash, the Metal decision.
+
+## Plugins on iOS (ZN-628, 2026-10-17)
+
+A plugin reaches an app through its `targets.ios` entry of plugin.json (docs/plugins.md "Phones"): C++, Objective-C and Swift sources
+(Swift in a static library of its own, `-ObjC` for the classes found by name), frameworks, Info.plist keys, entitlements, a lifecycle
+subscriber (`zincPause`, `zincResume`, `zincLowMemory`, `zincOpenURL:`), and `class`: an Objective-C or Swift class behind the plugin's
+spec through the bridge `zinc native-gen --ios` writes. A simulator build is configured with `-DCMAKE_OSX_SYSROOT=iphonesimulator` (the
+`--print` commands; a device build uses `build-device`): CMake links Swift with the libraries of the SDK it was configured for. zinc:system
+has an iOS backend (notifications, the share sheet, opening URLs, the document and photo pickers, deep links through SDL's dropped URLs).
+Proven on the iPhone 17 simulator: zinc:sqlite, the Swift fixture (`tests/data/mobile-plugin`: calls, callbacks from another queue, the
+lifecycle subscriber), the share sheet, the photo picker and the notification prompt (`tests/data/mobile-services`). Not verified: a deep
+link's delivery (the simulator asks "Open in ...?", which needs a tap), a notification's tap, a picked document's copy.

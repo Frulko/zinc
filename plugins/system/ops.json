@@ -118,7 +118,7 @@
     "directory?": "boolean",
     "abortMs?": "number"
    },
-   "returns": "{paths: string[] | null}",
+   "returns": "{paths: string[] | null; pending?: string}",
    "sim": "{\"paths\":null}"
   },
   {
@@ -320,6 +320,17 @@
    },
    "returns": "{}",
    "sim": "{}"
+  },
+  {
+   "op": "share.share",
+   "permission": "share",
+   "params": {
+    "text?": "string",
+    "url?": "string",
+    "title?": "string"
+   },
+   "returns": "{shared: boolean}",
+   "sim": "{\"shared\":true}"
   },
   {
    "op": "window.confirmClose",
@@ -688,6 +699,7 @@
   "dialog-answer",
   "tray-menu-click",
   "tray-double",
-  "open-file"
+  "open-file",
+  "dialog-result"
  ]
 }

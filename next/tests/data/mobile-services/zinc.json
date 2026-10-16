@@ -1,0 +1,7 @@
+{
+  "name": "services",
+  "entry": "main.tsx",
+  "permissions": ["share", "opener", "notification", "dialog", "deep-link"],
+  "scopes": { "opener": { "allow": ["https://*"] } },
+  "app": { "id": "dev.zinc.services", "name": "Phone services", "version": "0.1.0", "urlSchemes": ["zincdemo"] }
+}
