@@ -1,7 +1,7 @@
 // The editor's document without a window: one line per property, `FAILED:` and exit code 1 when one does not hold.
 //   zinc run examples/museum-table/editor/selftest.ts -- examples/museum-table/assets/project.json [directory]
 // With a directory, the file each command of the tools for agencies leaves (align, distribute, nudge, cut, copy, paste) is written there:
-// tests/t1/museum_editor_tools.sh compares them with its goldens.
+// (the editor session test was removed on 2026-10-16: it was not stable on a hosted runner)
 import { args, launchDir, exit } from 'zinc:sys';
 import { readText, writeText } from 'zinc:fs';
 import { parseProject, serializeProject, Link, Media } from '../src/project';
