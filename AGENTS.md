@@ -107,6 +107,15 @@ Between 2026-10-10 08:00 and 2026-10-11 09:00 the sessions closed 129 tasks and 
 - **One long proof, short smoke checks.** The scripted session of a feature (inputs, frames, goldens) runs on one engine; the other engines run the same program for a few frames and one hash. The comparison of the three engines over the corpus is `tools/diff-matrix` at a milestone. One golden per feature, not per step. A T1 test that lasts more than a minute on a quiet machine is shortened before it is committed.
 - **Fresh contexts.** A session can be restarted at any time from `next/RESUME.md` and the task notes: start a new one each morning and after a compaction instead of keeping one for days. The coordinator gives each batch to a new agent and resumes a finished agent only for a short answer; a brief names the task ids and the files to read, it does not retype them.
 
+## Real JSX and TSX: `className` and capitalised components, always (owner, 2026-10-16)
+
+Zinc supports JSX/TSX as the language defines it, so two spellings are banned everywhere (engine, standard library, kits, plugins, templates, examples, tests, documents, generated code):
+
+- **`className`, never `class`.** `class` is a keyword of JavaScript and TypeScript; a JSX attribute or a component prop named `class` is a defect. Write `<View className="p-4">`; a component that takes the classes declares the prop `className`.
+- **Components start with a capital letter, as in React and React Native**: `<View>`, `<Text>`, `<Button>`, `<ScrollView>`, `<Image>`, `<TextInput>`. A lowercase tag (`<view>`, `<text>`, `<button>`...) is not a component of Zinc: the engine refuses it with an error that names the capitalised component.
+
+The engine enforces both (a diagnostic with the fix, `zinc explain` entry, a test); never add a back door that accepts the old spelling, and never write the old spelling in a new file, a doc or an example. Existing uses are migrated, not tolerated.
+
 ## Tests
 
 - `next/tests/<tier>/<name>.sh`, given `$ZINC`: T0 (seconds, the stage touched), T1 (end of a task, the feature's demo), T2 (milestone: whole corpus, interpreter vs AOT vs frozen output, benchmarks). Runner: `next/tests/run [--tier t0|t1|t2] [--only name] [--changed | --changed-from ref]`, one line per test, details in `next/.logs/`.
