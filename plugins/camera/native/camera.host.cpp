@@ -276,7 +276,9 @@ struct HostCamera : NativeCamera {
     while (id < (int32_t)jobs.size() && jobs[id]) id++;
     if (id == (int32_t)jobs.size()) jobs.emplace_back();
     jobs[id] = job;
-    std::thread([job, rgb = rgb_of(view(*c), c->shown.size()), w = c->w, hh = c->h]() { encode(job->out, rgb.data(), w, hh); job->state = 1; }).detach();
+    std::vector<uint8_t> rgb = rgb_of(view(*c), c->shown.size());
+    if (*env("ZINC_DETERMINISTIC")) { encode(job->out, rgb.data(), c->w, c->h); job->state = 1; }   // a test: ready at the same frame on every machine
+    else std::thread([job, rgb = std::move(rgb), w = c->w, hh = c->h]() { encode(job->out, rgb.data(), w, hh); job->state = 1; }).detach();
     return id;
   }
   int32_t pngReady(int32_t job) override { return job >= 0 && job < (int32_t)jobs.size() && jobs[job] ? jobs[job]->state.load() : -1; }
