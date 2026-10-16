@@ -4,6 +4,7 @@
 # Filtering: a magnified 4 x 4 checkerboard (tex.ts) on two quads; the left material asks for the nearest texel and keeps two colours whatever
 # the renderer's filter, the right one follows ZINC_3D_FILTER: grey levels with linear, two colours with nearest.
 cd "$(dirname "$0")/../.." || exit 2
+[ -z "$ZINC_CI" ] || { echo "skipped: needs a real GPU (a hosted CI runner has a virtual one: no multisampling, other pixels)"; exit 77; }
 command -v python3 >/dev/null || { echo "skipped: no python3"; exit 77; }
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fail=0

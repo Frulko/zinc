@@ -220,6 +220,7 @@ jobs:
       - name: Tests
         env:
           ZINC_TEST_HOME: ${{ runner.temp }}/zinc-home
+          ZINC_CI: '1'   # a hosted runner: a virtual GPU and no debugger rights, the tests that need them skip
           ZINC_TEST_RESULTS: ${{ runner.temp }}/results-${{ matrix.shard }}.txt
           FULL: ${{ needs.plan.outputs.full }}
           BASE: ${{ needs.plan.outputs.base }}

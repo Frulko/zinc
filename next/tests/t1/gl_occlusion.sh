@@ -2,6 +2,7 @@
 # GL occlusion and culling (ZN-412.01): tests/data/tiles (6141 commands: opaque covers, rounded and nested clips, translucent boxes, text,
 # shadows, polygons) gives the same GL frame with the occlusion pass and the culling as without them (ZINC_GL_OCCLUDE=0 ZINC_GL_CULL=0).
 cd "$(dirname "$0")/../.." || exit 2
+[ -z "$ZINC_CI" ] || { echo "skipped: needs a real GPU (a hosted CI runner has a virtual one: no multisampling, other pixels)"; exit 77; }
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 export ZINC_HOME=${ZINC_HOME:-$tmp/home}
 for v in 1 0; do

@@ -3,6 +3,7 @@
 # (tests/golden/examples, SSIM >= 0.95) read synchronously (deterministic) and one frame late (asynchronous read); the renderer is the one the option
 # "renderer" (zinc.json), ZINC_3D or a deterministic run (software, for the goldens) chooses.
 cd "$(dirname "$0")/../.." || exit 2
+[ -z "$ZINC_CI" ] || { echo "skipped: needs a real GPU (a hosted CI runner has a virtual one: no multisampling, other pixels)"; exit 77; }
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fail=0
 shot() {   # example frame file [env...]

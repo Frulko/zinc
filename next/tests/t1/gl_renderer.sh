@@ -6,6 +6,7 @@
 # raster's integer blend in the shader. lottie-gallery and svg-gallery: LINE/POLY filled on the GPU (stencil then cover, ZN-590.02), batched when
 # their boxes are apart (ZN-590.04).
 cd "$(dirname "$0")/../.." || exit 2
+[ -z "$ZINC_CI" ] || { echo "skipped: needs a real GPU (a hosted CI runner has a virtual one: no multisampling, other pixels)"; exit 77; }
 command -v python3 >/dev/null || { echo "skipped: no python3"; exit 77; }
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 export ZINC_HOME=${ZINC_HOME:-$tmp/home}

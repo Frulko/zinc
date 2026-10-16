@@ -4,6 +4,7 @@
 # types (total: double). The session that stops and prints a local runs only where lldb may launch a process (developer mode on:
 # sudo DevToolsSecurity -enable); otherwise the test says so. Skips (77) without lldb.
 cd "$(dirname "$0")/../.." || exit 2
+[ -z "$ZINC_CI" ] || { echo "skipped: a hosted CI runner does not let lldb attach to a program it starts"; exit 77; }
 command -v lldb >/dev/null 2>&1 && command -v dwarfdump >/dev/null 2>&1 || exit 77
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fail=0

@@ -3,9 +3,9 @@
 #include <stdint.h>
 struct ZnResourceStats { uint64_t objects, cpuBytes, gpuBytes, borrowedBytes, active; };
 using ZnResourceStatsFn = ZnResourceStats (*)(void*);
-// the host (src/host/sys_host.cpp) defines both and defines ZN_RESOURCE_STATS_HOST first: a weak attribute on the declaration would make its definitions weak too,
+// the host (src/host/sys_host.cpp) defines both and defines HOST_DEFINES_RESOURCE_STATS first: a weak attribute on the declaration would make its definitions weak too,
 // and an exported weak definition costs dyld a coalescing pass at every launch (tests/t1/launch_time.sh); a plugin or an engine without the host only declares them weak
-#ifdef ZN_RESOURCE_STATS_HOST
+#ifdef HOST_DEFINES_RESOURCE_STATS
 #define ZN_RS_WEAK
 #else
 #define ZN_RS_WEAK __attribute__((weak))

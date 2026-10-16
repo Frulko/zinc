@@ -7,7 +7,7 @@
 #include "zrt_assets_dir.h"
 #include <signal.h>
 #include "zn/alloc_stats.h"
-#define ZN_RESOURCE_STATS_HOST
+#define HOST_DEFINES_RESOURCE_STATS
 #include "zn/resource_stats.h"
 #include "zn/zim.h"
 #include "hal.h"
