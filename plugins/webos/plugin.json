@@ -6,6 +6,8 @@
   "description": "HP webOS 3 (HP TouchPad): calls to the system's services (the Luna bus, through the PDK's libpdl), launching an installed application",
   "targets": {
     "macos": {},
-    "linux": { "linkFlags": ["-ldl"] }
+    "linux": { "linkFlags": ["-ldl"] },
+    "android": {},
+    "ios": {}
   }
 }

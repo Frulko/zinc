@@ -2,6 +2,7 @@ package dev.zinc.app;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.Intent;
 import android.content.res.Configuration;
 import android.graphics.Color;
 import android.graphics.Rect;
@@ -37,6 +38,11 @@ public class ZincActivity extends SDLActivity {
 
     private int keyboardShown = -1;
     private Object backCallback;
+    /** The plugins' lifecycle subscribers (plugin.json targets.android.lifecycle), listed by zinc export in ZincPlugins. */
+    private final ZincLifecycle[] plugins = ZincPlugins.lifecycles();
+
+    /** The activity, for a plugin's code (null before onCreate). */
+    public static ZincActivity current() { return self; }
 
     @Override
     protected void onCreate(Bundle state) {
@@ -47,6 +53,38 @@ public class ZincActivity extends SDLActivity {
         ZincEdit.install(this);
         watchKeyboard();
         registerBack();
+        for (ZincLifecycle p : plugins) p.onCreate(this, getIntent());
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {   // a deep link or a notification's tap while the app runs
+        super.onNewIntent(intent);
+        setIntent(intent);
+        for (ZincLifecycle p : plugins) p.onNewIntent(this, intent);
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        for (ZincLifecycle p : plugins) p.onPause(this);
+    }
+
+    @Override
+    public void onLowMemory() {
+        super.onLowMemory();
+        for (ZincLifecycle p : plugins) p.onLowMemory(this);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        for (ZincLifecycle p : plugins) if (p.onActivityResult(this, requestCode, resultCode, data)) return;
+        super.onActivityResult(requestCode, resultCode, data);   // SDL's file dialog
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        for (ZincLifecycle p : plugins) if (p.onRequestPermissionsResult(this, requestCode, permissions, grantResults)) return;
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);   // SDL's SDL_RequestPermission
     }
 
     @Override
@@ -59,6 +97,7 @@ public class ZincActivity extends SDLActivity {
     protected void onResume() {
         super.onResume();
         sendReduceMotion();   // the setting may have changed while the app was away
+        for (ZincLifecycle p : plugins) p.onResume(this);
     }
 
     /** The surface's units: the window's pixels over the zoom of targets/macos/hal_sdl.cpp (the display scale, whole, 1 below 1.5). */

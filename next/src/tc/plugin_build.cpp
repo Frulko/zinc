@@ -628,21 +628,39 @@ bool pluginSource(const frontend::FoundPlugin& p, const std::string& engineRoot,
   if (specPath.empty() || !readAll(specPath, specText)) { err = "plugin '" + m.name + "' has no native/*.spec.ts"; return false; }
   if (!frontend::generateNative(specPath, specText, gen, err)) return false;
   out.module = gen.name;
+  std::string lower = gen.name;
+  for (char& c : lower) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+  fs::create_directories(genDir, ec);
+  const std::string& cls = ts->second.nativeClass;
   auto it = m.nativeImpl.find(target);
-  if (it != m.nativeImpl.end()) impl = (fs::path(p.dir) / it->second).string();
-  else for (std::string cand : {base + "." + target + ".cpp", base + ".host.cpp"}) if (impl.empty() && fs::exists(nativeDir / cand)) impl = (nativeDir / cand).string();
+  if (!cls.empty()) {   // a Java or Objective-C/Swift class behind the spec (ZN-628): the generated bridge is the implementation, the interface goes with the sources
+    if (gen.java.empty()) { err = "plugin '" + m.name + "': targets." + target + ".class needs a spec the phone glue carries: " + gen.mobileNote; return false; }
+    const bool android = target == "android";
+    impl = genDir + "/zinc_native_" + lower + (android ? "_android.cpp" : "_ios.mm");
+    std::ofstream(impl) << (android ? gen.jniBridge : gen.objcBridge);
+    if (android) { out.java.push_back(genDir + "/" + gen.javaName + ".java"); std::ofstream(out.java.back()) << gen.java; }
+    else {
+      std::ofstream(genDir + "/" + gen.objcName + ".h") << gen.objcHeader;
+      bool swift = false;
+      for (const std::string& s : ts->second.sources) swift = swift || endsWith(s, ".swift");
+      if (swift) { out.own.push_back(genDir + "/" + gen.objcName + ".swift"); std::ofstream(out.own.back()) << gen.swiftProtocol; }   // for the author's Swift class to conform to
+    }
+    std::string q = "ZN_NATIVE_CLASS=\"";
+    for (char c : cls) if (std::isalnum(static_cast<unsigned char>(c)) || c == '.' || c == '_' || c == '$') q += c;
+    out.defines.push_back(q + "\"");
+    if (!android) out.flags.push_back("-fobjc-arc");   // the bridge keeps the instance and the blocks as ARC references
+  } else if (it != m.nativeImpl.end()) impl = (fs::path(p.dir) / it->second).string();
+  else for (std::string cand : {base + "." + target + ".cpp", base + "." + target + ".mm", base + ".host.cpp"}) if (impl.empty() && fs::exists(nativeDir / cand)) impl = (nativeDir / cand).string();
   if (impl.empty()) { err = "plugin '" + m.name + "' has no native source for " + target; return false; }
   out.own.push_back(impl);
-  for (const std::string& s : ts->second.sources) (endsWith(s, ".c") || s.rfind("vendor/", 0) == 0 ? out.vendored : out.own).push_back((fs::path(p.dir) / s).string());
-  out.defines = buildDefines(p, ts->second, engineRoot, projectDir, target);
+  for (const std::string& s : ts->second.sources) (endsWith(s, ".java") || endsWith(s, ".kt") ? out.java : endsWith(s, ".c") || s.rfind("vendor/", 0) == 0 ? out.vendored : out.own).push_back((fs::path(p.dir) / s).string());
+  { std::vector<std::string> d = buildDefines(p, ts->second, engineRoot, projectDir, target); out.defines.insert(out.defines.begin(), d.begin(), d.end()); }   // ZN_NATIVE_CLASS stays after them
   out.libs = ts->second.libs;
+  out.frameworks = ts->second.frameworks;
   for (const std::string& f : ts->second.flags) {
     const size_t at = f.rfind("-I", 0) == 0 ? 2 : 0;
     out.flags.push_back(f.compare(at, 2, "./") != 0 && f.compare(at, 3, "../") != 0 ? f : f.substr(0, at) + (fs::path(p.dir) / f.substr(at)).lexically_normal().string());
   }
-  std::string lower = gen.name;
-  for (char& c : lower) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-  fs::create_directories(genDir, ec);
   std::ofstream(genDir + "/zinc_native_" + lower + ".h") << gen.cppHeader;
   std::ofstream(genDir + "/zinc_native_" + lower + "_thunk.cpp") << gen.thunk;
   out.own.push_back(genDir + "/zinc_native_" + lower + "_thunk.cpp");

@@ -231,6 +231,31 @@ static const char* command(const char* q, const char* a) {
   return "1";
 }
 
+// ---- the plugins' lifecycle subscribers (plugin.json targets.ios.lifecycle, ZN-628): classes that answer any of zincPause, zincResume,
+// zincLowMemory and zincOpenURL: (a deep link), as src/app/ios/ZincLifecycle.h declares them; a Swift class marks them @objc
+static NSMutableArray* gLifecycle;
+static void each(SEL s, id arg = nil) {
+  for (id o in gLifecycle) if ([o respondsToSelector:s]) ((void (*)(id, SEL, id))[o methodForSelector:s])(o, s, arg);
+}
+extern "C" void zn_mobile_lifecycle(const char* classes) {   // "A,B", from the shell (ZN_APP_LIFECYCLE, baked by zinc export)
+  gLifecycle = [NSMutableArray new];
+  for (NSString* n in [@(classes) componentsSeparatedByString:@","]) {
+    Class c = n.length ? NSClassFromString(n) : nil;
+    if (c) [gLifecycle addObject:[c new]];
+    else if (n.length) NSLog(@"zinc: the lifecycle class %@ (plugin.json targets.ios.lifecycle) is not in the app", n);
+  }
+  NSNotificationCenter* nc = NSNotificationCenter.defaultCenter;
+  [nc addObserverForName:UIApplicationWillResignActiveNotification object:nil queue:nil usingBlock:^(NSNotification*) { each(@selector(zincPause)); }];
+  [nc addObserverForName:UIApplicationDidBecomeActiveNotification object:nil queue:nil usingBlock:^(NSNotification*) { each(@selector(zincResume)); }];
+  [nc addObserverForName:UIApplicationDidReceiveMemoryWarningNotification object:nil queue:nil usingBlock:^(NSNotification*) { each(@selector(zincLowMemory)); }];
+  // the app may be active already (SDL starts the program after launching): the subscribers hear it, as Android's onResume follows onCreate
+  if (UIApplication.sharedApplication.applicationState == UIApplicationStateActive) each(@selector(zincResume));
+}
+extern "C" void zn_mobile_open_url(const char* url) {   // SDL's openURL, which reaches the shell as a dropped file named by the URL
+  NSURL* u = [NSURL URLWithString:@(url)];
+  if (u) each(@selector(zincOpenURL:), u);
+}
+
 extern "C" void zn_mobile_glue_init(void) {
   zn_mobile_command = command;
   dispatch_async(dispatch_get_main_queue(), ^{

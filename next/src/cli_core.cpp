@@ -9,6 +9,7 @@
 #include <filesystem>
 #include <fstream>
 #include <map>
+#include <set>
 #include <sstream>
 #include <csignal>
 #include <chrono>
@@ -927,6 +928,7 @@ constexpr const char* kAgp = "8.13.2";            // the Android Gradle Plugin o
 constexpr const char* kNdk = "29.0.14206865";     // NDK r29, named by its version as AGP wants it
 constexpr const char* kGradle = "8.14.3";         // the wrapper's distribution, pinned by its sha256 (the template names 8.12, unpinned)
 constexpr const char* kGradleSha = "bd71102213493060956ec229d946beee57158dbd89d0e62b91bca0fa2c5f3531";
+constexpr const char* kKotlin = "2.2.20";       // the Kotlin Gradle plugin, added only for a plugin with .kt sources (AGP 8 has no Kotlin of its own)
 constexpr int kMinSdk = 24;   // libuv calls pthread_barrier_*, in bionic since API 24 (SDL3 alone needs 21); Android 7.0, the Nexus 7 2012 runs 7.1 (25)
 std::string javaId(const std::string& s) {        // a Java package or applicationId: letters, digits and '_' in dot-separated parts
   std::string r;
@@ -950,10 +952,19 @@ bool replaceIn(const fs::path& f, const std::string& what, const std::string& wi
 }
 }  // namespace android
 
-// The program's plugins as static libraries of the generated CMake project (no dlopen in an app, D120), compiled from their sources: `names` from
-// program.plugins, the sources the plugin's `tgt` entry lists, copied under `copyDir`; paths relative to `cmakeDir`, the plugin's own as ${ZINC_PLUGINS}.
-static bool appPluginsCmake(const std::vector<std::string>& names, const fs::path& engine, const ProjectInfo& p, const std::string& platform, const char* tgt,
-                            const fs::path& cmakeDir, const fs::path& copyDir, std::string& cmake, std::string& libs) {
+// The program's plugins in the generated project (no dlopen in an app, D120; ZN-628): `names` from program.plugins, each compiled from the sources
+// its plugin.json `targets.<platform>` entry lists (copied under `copyDir`; paths relative to `cmakeDir`, the plugin's own as ${ZINC_PLUGINS}) as a
+// static library, and what the entry adds to the project: Java and Kotlin sources, Gradle dependencies, manifest permissions and fragments, the
+// minimum API level (android); frameworks, Info.plist keys, entitlements (ios). A plugin without an entry for the platform is refused: its
+// desktop build is not a phone's.
+struct AppPlugins {
+  std::string cmake, libs;
+  std::vector<std::string> java, gradle, permissions, manifestXml, applicationXml, lifecycle, plist, entitlements;   // plist, entitlements: JSON objects
+  int minSdk = 0;
+  bool swift = false, objc = false;   // objc: an Objective-C or Swift class found by name at run time (class, lifecycle), which -ObjC keeps in the link
+};
+static bool appPluginsCmake(const std::vector<std::string>& names, const fs::path& engine, const ProjectInfo& p, const std::string& platform,
+                            const fs::path& cmakeDir, const fs::path& copyDir, AppPlugins& out) {
   if (names.empty()) return true;
   std::vector<std::string> problems;
   std::string err;
@@ -962,35 +973,87 @@ static bool appPluginsCmake(const std::vector<std::string>& names, const fs::pat
     const zn::frontend::FoundPlugin* hit = nullptr;
     for (const auto& f : found) if (f.manifest.name == nm) hit = &f;
     if (!hit) { std::fprintf(stderr, "zinc export: plugin '%s' not found\n", nm.c_str()); return false; }
-    // ponytail: the plugin's linux build stands for a phone until the manifests have android and ios entries (ZN-628)
-    const std::string t = hit->manifest.targetSettings.count(platform) ? platform : tgt;
+    auto entry = hit->manifest.targetSettings.find(platform);
+    if (entry == hit->manifest.targetSettings.end()) {
+      std::string list;
+      for (const std::string& t : hit->manifest.targets) list += (list.empty() ? "" : ", ") + t;
+      std::fprintf(stderr, "zinc export: plugin '%s' is not made for %s: its plugin.json has no \"targets\".\"%s\" entry (it has %s); docs/plugins.md \"Phones\" says what one holds\n",
+                   nm.c_str(), platform.c_str(), platform.c_str(), list.c_str());
+      return false;
+    }
+    const zn::frontend::PluginTarget& ts = entry->second;
     zn::tc::PluginSource ps;
-    if (!zn::tc::pluginSource(*hit, engine.string(), p.dir, t, (copyDir / nm).string(), ps, err)) { std::fprintf(stderr, "zinc export: %s\n", err.c_str()); return false; }
-    const std::string lib = "zn_plugin_" + nm, pdir = fs::path(hit->dir).lexically_normal().string();
-    auto path = [&](const std::string& s) { return s.rfind(pdir, 0) == 0 ? "${ZINC_PLUGINS}/" + nm + s.substr(pdir.size()) : fs::path(s).lexically_relative(cmakeDir).generic_string(); };
-    cmake += "add_library(" + lib + " STATIC";
-    for (const std::string& s : ps.own) cmake += " " + path(s);
-    for (const std::string& s : ps.vendored) cmake += " " + path(s);
-    cmake += ")\ntarget_include_directories(" + lib + " PRIVATE " + (copyDir / nm).lexically_relative(cmakeDir).generic_string() + " ${ZINC_PLUGINS}/" + nm + " ${ZINC_ENGINE}/src ${ZINC_ENGINE}/include ${ZINC_ENGINE}/../runtime ${ZINC_ENGINE}/../runtime/include ${ZINC_ENGINE}/third_party ${ZINC_ENGINE}/third_party/SDL3/include)\n"
+    if (!zn::tc::pluginSource(*hit, engine.string(), p.dir, platform, (copyDir / nm).string(), ps, err)) { std::fprintf(stderr, "zinc export: %s\n", err.c_str()); return false; }
+    const std::string lib = "zn_app_plugin_" + nm, pdir = fs::path(hit->dir).lexically_normal().string();
+    // the engine's plugins by ${ZINC_PLUGINS}, as the engine by ${ZINC_ENGINE}; a project's own plugin (its plugins/ or pluginDirs) by its absolute path
+    const std::string home = (engine.parent_path() / "plugins" / nm).lexically_normal().string() == pdir ? "${ZINC_PLUGINS}/" + nm : fs::path(pdir).generic_string();
+    auto path = [&](const std::string& s) { return s.rfind(pdir, 0) == 0 ? home + s.substr(pdir.size()) : fs::path(s).lexically_relative(cmakeDir).generic_string(); };
+    std::string swift;   // a plugin's Swift in a library of its own: the C++ options and NAME=value defines are not swiftc's
+    for (const std::string& s : ps.own) if (fs::path(s).extension() == ".swift") swift += " " + path(s);
+    if (!swift.empty()) { out.cmake += "add_library(" + lib + "_swift STATIC" + swift + ")\n"; out.swift = true; }
+    out.cmake += "add_library(" + lib + " STATIC";
+    for (const std::string& s : ps.own) if (fs::path(s).extension() != ".swift") out.cmake += " " + path(s);
+    for (const std::string& s : ps.vendored) out.cmake += " " + path(s);
+    out.cmake += ")\ntarget_include_directories(" + lib + " PRIVATE " + (copyDir / nm).lexically_relative(cmakeDir).generic_string() + " " + home + " ${ZINC_ENGINE}/src ${ZINC_ENGINE}/include ${ZINC_ENGINE}/../runtime ${ZINC_ENGINE}/../runtime/include ${ZINC_ENGINE}/third_party ${ZINC_ENGINE}/third_party/SDL3/include)\n"
              "target_compile_options(" + lib + " PRIVATE -O2 -fno-exceptions -fno-rtti -fwrapv -ffp-contract=off -fno-threadsafe-statics -w";
-    for (const std::string& f : ps.flags) cmake += " " + path(f);
-    cmake += ")\nset_target_properties(" + lib + " PROPERTIES CXX_STANDARD 17)\ntarget_compile_definitions(" + lib + " PRIVATE";
+    for (std::string f : ps.flags) { if (const std::size_t at = f.find(pdir); at != std::string::npos) f.replace(at, pdir.size(), home); out.cmake += " " + f; }   // a flag's path, made absolute by pluginSource
+    out.cmake += ")\nset_target_properties(" + lib + " PROPERTIES CXX_STANDARD 17)\ntarget_compile_definitions(" + lib + " PRIVATE";
     for (std::string d : ps.defines) {
       if (d.rfind("ZRT_PLATFORM=", 0) == 0) d = "ZRT_PLATFORM=\"" + platform + "\"";
       if (d.rfind("ZRT_HEAP_BYTES=", 0) == 0) continue;   // the runtime's region is sized at start (shell_sdl.cpp)
       std::string e;
       for (char c : d) e += c == '"' ? "\\\"" : std::string(1, c);
-      cmake += " \"" + e + "\"";
+      out.cmake += " \"" + e + "\"";
     }
-    cmake += ")\n";
-    if (!ps.libs.empty()) {   // the system libraries of plugin.json targets.<platform>.libs (camera2ndk, mediandk...)
-      cmake += "target_link_libraries(" + lib + " PUBLIC";
-      for (const std::string& l : ps.libs) cmake += " " + l;
-      cmake += ")\n";
+    out.cmake += ")\n";
+    if (!ps.libs.empty() || !ps.frameworks.empty()) {   // the system libraries (camera2ndk, mediandk, sqlite3...) and frameworks of the entry
+      out.cmake += "target_link_libraries(" + lib + " PUBLIC";
+      for (const std::string& l : ps.libs) out.cmake += " " + l;
+      for (const std::string& f : ps.frameworks) out.cmake += " \"-framework " + f + "\"";
+      out.cmake += ")\n";
     }
-    libs += " " + lib;
+    if (!swift.empty()) out.cmake += "target_link_libraries(" + lib + " PUBLIC " + lib + "_swift)\n";
+    out.libs += " " + lib;
+    out.java.insert(out.java.end(), ps.java.begin(), ps.java.end());
+    out.gradle.insert(out.gradle.end(), ts.gradle.begin(), ts.gradle.end());
+    out.permissions.insert(out.permissions.end(), ts.permissions.begin(), ts.permissions.end());
+    if (!ts.manifestXml.empty()) out.manifestXml.push_back(ts.manifestXml);
+    if (!ts.applicationXml.empty()) out.applicationXml.push_back(ts.applicationXml);
+    if (!ts.lifecycle.empty()) out.lifecycle.push_back(ts.lifecycle);
+    out.objc = out.objc || !ts.lifecycle.empty() || !ts.nativeClass.empty();
+    if (!ts.plistJson.empty()) out.plist.push_back(ts.plistJson);
+    if (!ts.entitlementsJson.empty()) out.entitlements.push_back(ts.entitlementsJson);
+    out.minSdk = std::max(out.minSdk, ts.minSdk);
   }
   return true;
+}
+
+// A JSON value as property-list XML (Info.plist keys and entitlements of the plugins, ZN-628), one level of tabs per depth
+static std::string plistValue(yyjson_val* v, const std::string& tab) {
+  if (yyjson_is_str(v)) return tab + "<string>" + android::xml(yyjson_get_str(v)) + "</string>\n";
+  if (yyjson_is_bool(v)) return tab + (yyjson_get_bool(v) ? "<true/>\n" : "<false/>\n");
+  if (yyjson_is_int(v)) return tab + "<integer>" + std::to_string(yyjson_get_sint(v)) + "</integer>\n";
+  if (yyjson_is_real(v)) { char b[40]; std::snprintf(b, sizeof b, "%.17g", yyjson_get_real(v)); return tab + "<real>" + b + "</real>\n"; }
+  std::string r;
+  size_t i, n;
+  if (yyjson_is_arr(v)) { yyjson_val* e; r = tab + "<array>\n"; yyjson_arr_foreach(v, i, n, e) r += plistValue(e, tab + "\t"); return r + tab + "</array>\n"; }
+  yyjson_val *k, *e;
+  r = tab + "<dict>\n";
+  yyjson_obj_foreach(v, i, n, k, e) r += tab + "\t<key>" + android::xml(yyjson_get_str(k)) + "</key>\n" + plistValue(e, tab + "\t");
+  return r + tab + "</dict>\n";
+}
+// The keys of JSON objects as plist entries of the top <dict>: the first object that names a key wins, and keys of `taken` are kept as they are
+static std::string plistEntries(const std::vector<std::string>& objects, std::set<std::string>& taken) {
+  std::string r;
+  for (const std::string& o : objects) {
+    yyjson_doc* d = yyjson_read(o.data(), o.size(), 0);
+    if (!d) continue;
+    size_t i, n;
+    yyjson_val *k, *v;
+    yyjson_obj_foreach(yyjson_doc_get_root(d), i, n, k, v) if (taken.insert(yyjson_get_str(k)).second) r += "\t<key>" + android::xml(yyjson_get_str(k)) + "</key>\n" + plistValue(v, "\t");
+    yyjson_doc_free(d);
+  }
+  return r;
 }
 
 // zinc.json app.versionCode, else from the version: 1.2.3 -> 10203 (Android's versionCode, iOS's CFBundleVersion)
@@ -1029,8 +1092,11 @@ static int exportAndroid(const ProjectInfo& p, const fs::path& out, const std::s
   // the program's C++ for the android profile (number, heap, requires) in app/jni/src, where the script copies the sources, and the plugins it calls
   std::vector<std::string> units, names;
   if (!appProgram(p, "android", src, units, names)) return 1;
-  std::string pluginCmake, pluginLibs;
-  if (!appPluginsCmake(names, engine, p, "android", "linux", src, src / "plugins", pluginCmake, pluginLibs)) return 1;
+  AppPlugins plugs;
+  if (!appPluginsCmake(names, engine, p, "android", src, src / "plugins", plugs)) return 1;
+  const std::string& pluginCmake = plugs.cmake;
+  const std::string& pluginLibs = plugs.libs;
+  const int minSdk = std::max(kMinSdk, plugs.minSdk);
   const zn::frontend::Profile* prof = zn::frontend::findProfile("android");
   const std::string heapMb = std::to_string(prof ? prof->heapBytes >> 20 : 128);
   const std::string id = javaId(proj.app.id.empty() ? "dev.zinc." + p.name : proj.app.id);
@@ -1039,7 +1105,21 @@ static int exportAndroid(const ProjectInfo& p, const fs::path& out, const std::s
   const std::string activity = [&] { std::string last = id.substr(id.rfind('.') + 1); if (!last.empty()) last[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(last[0]))); return last + "Activity"; }();   // the script's name
   std::string units1;
   for (const std::string& u : units) { units1 += u + "\n    "; }
-  const std::string perms = zn::frontend::androidManifestPermissions(proj);   // <uses-permission> and <uses-feature> from zinc.json "permissions"
+  std::string perms = zn::frontend::androidManifestPermissions(proj);   // <uses-permission> and <uses-feature> from zinc.json "permissions"
+  // and those of the plugins' manifest entries: the manifest lists exactly what was declared, each once (SDL's template has VIBRATE, kept for
+  // navigator.vibrate and zinc:haptics: a normal permission, granted at install without a prompt, as in Expo's template)
+  const std::string tplManifest = [&] { std::ifstream in(out / "app/src/main/AndroidManifest.xml"); std::stringstream ss; ss << in.rdbuf(); return ss.str(); }();
+  for (const std::string& pm : plugs.permissions) {
+    const std::string full = pm.find('.') == std::string::npos ? "android.permission." + pm : pm, at = "<uses-permission android:name=\"" + xml(full) + "\" />";
+    if (perms.find(at) == std::string::npos && tplManifest.find("\n    " + at) == std::string::npos) perms += "    " + at + "\n";
+  }
+  std::string topXml, appXml;   // the plugins' fragments, inside <manifest> and inside <application>
+  for (const std::string& x : plugs.manifestXml) topXml += "    " + x + "\n";
+  for (const std::string& x : plugs.applicationXml) appXml += "        " + x + "\n";
+  std::string links;   // zinc.json app.urlSchemes: the activity opens their links (deep links, zinc:system open-url)
+  for (const std::string& s : proj.app.urlSchemes)
+    links += "            <intent-filter>\n                <action android:name=\"android.intent.action.VIEW\" />\n                <category android:name=\"android.intent.category.DEFAULT\" />\n"
+             "                <category android:name=\"android.intent.category.BROWSABLE\" />\n                <data android:scheme=\"" + xml(s) + "\" />\n            </intent-filter>\n";
   std::string appEnv;   // zinc.json targets.android, for every build (shell_sdl.cpp): the HAL's variables that zinc run sets on a desktop
   if (auto t = proj.targets.find("android"); t != proj.targets.end()) {
     if (t->second.fullscreen) appEnv += " ZINC_FULLSCREEN=1";
@@ -1071,9 +1151,9 @@ static int exportAndroid(const ProjectInfo& p, const fs::path& out, const std::s
       replaceIn(out / "app/build.gradle", "versionName \"1.0\"", "versionName \"" + version + "\"", err) &&
       replaceIn(out / "app/build.gradle", "abiFilters 'arm64-v8a'", "abiFilters(*project.property('zinc.abis').split(','))", err) &&
       replaceIn(out / "app/build.gradle", "arguments \"-DANDROID_PLATFORM=android-21\", \"-DANDROID_STL=c++_static\"",
-                std::string("arguments \"-DANDROID_PLATFORM=android-") + std::to_string(kMinSdk) + "\", \"-DANDROID_STL=c++_static\", \"-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON\", \"-DZINC_ENGINE=${project.property('zinc.engine')}\"\n                targets \"main\"   // Zinc: AGP builds every library of the CMake project otherwise, the engine's CLI and tools among them", err) &&
-      replaceIn(out / "app/build.gradle", "minSdkVersion 21", "minSdkVersion " + std::to_string(kMinSdk), err) &&
-      replaceIn(out / "app/build.gradle", "APP_PLATFORM=android-21", "APP_PLATFORM=android-" + std::to_string(kMinSdk), err) &&
+                std::string("arguments \"-DANDROID_PLATFORM=android-") + std::to_string(minSdk) + "\", \"-DANDROID_STL=c++_static\", \"-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON\", \"-DZINC_ENGINE=${project.property('zinc.engine')}\"\n                targets \"main\"   // Zinc: AGP builds every library of the CMake project otherwise, the engine's CLI and tools among them", err) &&
+      replaceIn(out / "app/build.gradle", "minSdkVersion 21", "minSdkVersion " + std::to_string(minSdk), err) &&
+      replaceIn(out / "app/build.gradle", "APP_PLATFORM=android-21", "APP_PLATFORM=android-" + std::to_string(minSdk), err) &&
       replaceIn(out / "build.gradle", "com.android.tools.build:gradle:8.7.3", std::string("com.android.tools.build:gradle:") + kAgp, err) &&
       replaceIn(out / "gradle/wrapper/gradle-wrapper.properties", "distributionUrl=https\\://services.gradle.org/distributions/gradle-8.12-bin.zip",
                 std::string("distributionUrl=https\\://services.gradle.org/distributions/gradle-") + kGradle + "-bin.zip\ndistributionSha256Sum=" + kGradleSha, err) &&
@@ -1081,17 +1161,47 @@ static int exportAndroid(const ProjectInfo& p, const fs::path& out, const std::s
       replaceIn(out / "app/src/main/res/values/strings.xml", "<string name=\"app_name\">Game</string>", "<string name=\"app_name\">" + xml(!proj.app.name.empty() ? proj.app.name : p.name) + "</string>", err) &&
       replaceIn(out / "app/src/main/AndroidManifest.xml", "    <uses-feature android:glEsVersion=\"0x00020000\" />\n", "    <uses-feature android:glEsVersion=\"0x00020000\" />\n" + perms, err) &&
       // Zinc: back goes to the program's back handlers, the predictive gesture's progress too (Android 13+, ZincActivity.registerBack)
-      replaceIn(out / "app/src/main/AndroidManifest.xml", "android:enableOnBackInvokedCallback=\"false\"", "android:enableOnBackInvokedCallback=\"true\"", err);
+      replaceIn(out / "app/src/main/AndroidManifest.xml", "android:enableOnBackInvokedCallback=\"false\"", "android:enableOnBackInvokedCallback=\"true\"", err) &&
+      // Zinc: the plugins' manifest fragments and Gradle dependencies (plugin.json targets.android)
+      (topXml.empty() || replaceIn(out / "app/src/main/AndroidManifest.xml", "    <application android:label", topXml + "    <application android:label", err)) &&
+      (appXml.empty() || replaceIn(out / "app/src/main/AndroidManifest.xml", "    </application>", appXml + "    </application>", err)) &&
+      (links.empty() || replaceIn(out / "app/src/main/AndroidManifest.xml", "        </activity>", links + "        </activity>", err)) &&
+      (plugs.gradle.empty() || replaceIn(out / "app/build.gradle", "    implementation fileTree(include: ['*.jar'], dir: 'libs')\n",
+                                        "    implementation fileTree(include: ['*.jar'], dir: 'libs')\n" + [&] { std::string d; for (const std::string& g : plugs.gradle) d += "    implementation '" + g + "'   // a plugin's (plugin.json targets.android.gradle)\n"; return d; }(), err));
   if (!ok) { std::fprintf(stderr, "zinc export: %s\n", err.c_str()); return 1; }
+  // the plugins' Java and Kotlin sources, in the directory of their package; Kotlin brings its Gradle plugin
+  bool kotlin = false;
+  for (const std::string& j : plugs.java) {
+    std::ifstream in(j);
+    std::string line, pkg;
+    while (pkg.empty() && std::getline(in, line)) if (line.rfind("package ", 0) == 0) { pkg = line.substr(8); pkg = pkg.substr(0, pkg.find_first_of("; \r")); }
+    std::replace(pkg.begin(), pkg.end(), '.', '/');
+    fs::create_directories(out / "app/src/main/java" / pkg, ec);
+    fs::copy_file(j, out / "app/src/main/java" / pkg / fs::path(j).filename(), fs::copy_options::overwrite_existing, ec);
+    if (ec) { std::fprintf(stderr, "zinc export: copying %s: %s\n", j.c_str(), ec.message().c_str()); return 1; }
+    kotlin = kotlin || fs::path(j).extension() == ".kt";
+  }
+  if (kotlin && !(replaceIn(out / "build.gradle", std::string("classpath 'com.android.tools.build:gradle:") + kAgp + "'", std::string("classpath 'com.android.tools.build:gradle:") + kAgp + "'\n        classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:" + kKotlin + "'", err) &&
+                  replaceIn(out / "app/build.gradle", "    id 'com.android.application'\n", "    id 'com.android.application'\n    id 'org.jetbrains.kotlin.android'   // a plugin's Kotlin sources\n", err) &&
+                  replaceIn(out / "app/build.gradle", "    lint {", "    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }\n    lint {", err) &&
+                  replaceIn(out / "app/build.gradle", "\ndependencies {", "\nkotlin { compilerOptions { jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17 } }\n\ndependencies {", err))) {
+    std::fprintf(stderr, "zinc export: %s\n", err.c_str()); return 1;
+  }
   {   // gradle.properties: the CMake build of the template (BUILD_WITH_CMAKE), the engine, the ABIs
     std::ifstream in(out / "gradle.properties"); std::stringstream ss; ss << in.rdbuf();
     writeFile(out / "gradle.properties", ss.str() + "\n# Zinc (zinc export --target android): the CMake build, the engine whose sources it compiles (next/ of a checkout), the ABIs\n"
-              "# (-Pzinc.abis=armeabi-v7a builds one)\nBUILD_WITH_CMAKE=1\nzinc.engine=" + engine.string() + "\nzinc.abis=armeabi-v7a,arm64-v8a,x86_64\n");
+              "# (-Pzinc.abis=armeabi-v7a builds one)\nBUILD_WITH_CMAKE=1\nzinc.engine=" + engine.string() + "\nzinc.abis=armeabi-v7a,arm64-v8a,x86_64\n# the plugins' Gradle dependencies are AndroidX libraries (androidx.core, androidx.webkit...)\nandroid.useAndroidX=true\n");
   }
   fs::create_directories(out / "app/src/main/java" / pkgPath, ec);
   // Zinc's activity (src/app/android/java: ZincActivity, the system signals and commands, and ZincEdit, the text input connection), and the
   // script's activity on it, with SDL3 linked into libmain.so rather than a libSDL3.so of its own
   fs::copy(engine / "src/app/android/java", out / "app/src/main/java", fs::copy_options::recursive | fs::copy_options::overwrite_existing, ec);
+  {   // the plugins' lifecycle subscribers (plugin.json targets.android.lifecycle), which ZincActivity calls
+    std::string list;
+    for (const std::string& c : plugs.lifecycle) list += "            new " + javaId(c) + "(),\n";
+    writeFile(out / "app/src/main/java/dev/zinc/app/ZincPlugins.java", "// Written by zinc export from the program's plugins (plugin.json targets.android.lifecycle).\npackage dev.zinc.app;\n\nfinal class ZincPlugins {\n"
+              "    static ZincLifecycle[] lifecycles() {\n        return new ZincLifecycle[] {\n" + list + "        };\n    }\n}\n");
+  }
   writeFile(out / "app/src/main/java" / pkgPath / (activity + ".java"),
             "package " + id + ";\n\nimport dev.zinc.app.ZincActivity;\n\npublic class " + activity + " extends ZincActivity\n{\n    @Override\n    protected String[] getLibraries() { return new String[] { \"main\" }; }   // Zinc: SDL3 is inside libmain.so\n}\n");
   if (!proj.app.icon.empty() && fs::exists(fs::path(p.dir) / proj.app.icon))   // zinc.json app.icon, a PNG, for every density
@@ -1136,8 +1246,10 @@ static int exportIos(const ProjectInfo& p, const fs::path& out, const std::strin
   fs::create_directories(src, ec);
   std::vector<std::string> units, names;
   if (!appProgram(p, "ios", src, units, names)) return 1;
-  std::string pluginCmake, pluginLibs;
-  if (!appPluginsCmake(names, engine, p, "ios", "linux", out, src / "plugins", pluginCmake, pluginLibs)) return 1;
+  AppPlugins plugs;
+  if (!appPluginsCmake(names, engine, p, "ios", out, src / "plugins", plugs)) return 1;
+  const std::string& pluginCmake = plugs.cmake;
+  const std::string& pluginLibs = plugs.libs;
   const zn::frontend::Profile* prof = zn::frontend::findProfile("ios");
   const std::string heapMb = std::to_string(prof ? prof->heapBytes >> 20 : 256);
   const std::string id = proj.app.id.empty() ? "dev.zinc." + p.name : proj.app.id;   // zinc check took it as reverse DNS: a valid CFBundleIdentifier
@@ -1149,12 +1261,22 @@ static int exportIos(const ProjectInfo& p, const fs::path& out, const std::strin
   auto key = [](const std::string& k, const std::string& v) { return "\t<key>" + k + "</key>\n\t<string>" + v + "</string>\n"; };
   auto orients = [](std::initializer_list<const char*> l) { std::string r = "\t<array>\n"; for (const char* o : l) r += std::string("\t\t<string>UIInterfaceOrientation") + o + "</string>\n"; return r + "\t</array>\n"; };
   std::string usage;
+  std::set<std::string> taken = {"CFBundleDevelopmentRegion", "CFBundleDisplayName", "CFBundleExecutable", "CFBundleIdentifier", "CFBundleInfoDictionaryVersion", "CFBundleName",
+                                 "CFBundlePackageType", "CFBundleShortVersionString", "CFBundleVersion", "LSRequiresIPhoneOS", "UILaunchScreen", "UIRequiresFullScreen"};
   for (const std::string& f : zn::frontend::permissionsFor(proj, "ios")) {
     if (f == "camera") usage += key("NSCameraUsageDescription", display + " uses the camera.");
     else if (f == "microphone") usage += key("NSMicrophoneUsageDescription", display + " uses the microphone.");
     else if (f == "location") usage += key("NSLocationWhenInUseUsageDescription", display + " uses your location.");
     else if (f == "net") usage += key("NSLocalNetworkUsageDescription", display + " talks to devices on your network.");   // only the LAN asks; the internet needs no key
   }
+  for (const char* k : {"NSCameraUsageDescription", "NSMicrophoneUsageDescription", "NSLocationWhenInUseUsageDescription", "NSLocalNetworkUsageDescription"}) if (usage.find(k) != std::string::npos) taken.insert(k);
+  if (!proj.app.urlSchemes.empty()) {   // zinc.json app.urlSchemes: the app opens their links (deep links, zinc:system open-url)
+    usage += "\t<key>CFBundleURLTypes</key>\n\t<array>\n\t\t<dict>\n\t\t\t<key>CFBundleURLName</key>\n\t\t\t<string>" + android::xml(id) + "</string>\n\t\t\t<key>CFBundleURLSchemes</key>\n\t\t\t<array>\n";
+    for (const std::string& s : proj.app.urlSchemes) usage += "\t\t\t\t<string>" + android::xml(s) + "</string>\n";
+    usage += "\t\t\t</array>\n\t\t</dict>\n\t</array>\n";
+    taken.insert("CFBundleURLTypes");
+  }
+  usage += plistEntries(plugs.plist, taken);   // the plugins' Info.plist keys (plugin.json targets.ios.plist): Zinc's own keys and the first plugin's win
   const std::string phone = proj.app.orientation == "portrait" ? orients({"Portrait"}) : proj.app.orientation == "landscape" ? orients({"LandscapeLeft", "LandscapeRight"})
                                                                                                                         : orients({"Portrait", "LandscapeLeft", "LandscapeRight"});
   const std::string pad = proj.app.orientation == "portrait" ? orients({"Portrait", "PortraitUpsideDown"}) : proj.app.orientation == "landscape" ? orients({"LandscapeLeft", "LandscapeRight"})
@@ -1182,17 +1304,26 @@ static int exportIos(const ProjectInfo& p, const fs::path& out, const std::strin
     if (t->second.fullscreen) appEnv += " ZINC_FULLSCREEN=1";
     if (t->second.kiosk) appEnv += " ZINC_KIOSK=1";
   }
+  if (!plugs.entitlements.empty()) {   // the plugins' entitlements (plugin.json targets.ios.entitlements), signed into a device build
+    std::set<std::string> none;
+    writeFile(out / (p.name + ".entitlements"), "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\">\n<dict>\n" +
+              plistEntries(plugs.entitlements, none) + "</dict>\n</plist>\n");
+  }
   std::string unitList;
   for (const std::string& u : units) unitList += " src/" + u;
+  if (plugs.swift) {   // a plugin's Swift in a static library: the app needs a Swift file of its own for Xcode to link the Swift runtime's libraries
+    writeFile(src / "zinc_swift.swift", "// Empty: the plugins' Swift code is linked through it (zinc export --target ios)\n");
+    unitList += " src/zinc_swift.swift";
+  }
   const std::string& n = p.name;
   writeFile(out / "CMakeLists.txt",
             "# " + n + " " + version + " (ios), exported by Zinc (zinc export --target ios): CMake's Xcode generator makes the Xcode project (README-zinc.txt)\n"
             "cmake_minimum_required(VERSION 3.24)\n"
             "set(CMAKE_OSX_DEPLOYMENT_TARGET " + ios::kMinIos + " CACHE STRING \"the oldest iOS the app runs on\")\n"
-            "project(" + n + " C CXX)\n"
+            "project(" + n + " C CXX OBJC OBJCXX" + (plugs.swift ? " Swift" : "") + ")   # Objective-C for the plugins' .m and .mm sources, Swift for their .swift ones\n"
             "set(ZINC_ENGINE \"" + engine.generic_string() + "\" CACHE PATH \"the engine whose sources this project compiles (next/ of a checkout)\")\n"
             "set(ZINC_TEAM \"\" CACHE STRING \"the Apple team that signs a device build (DEVELOPMENT_TEAM)\")\n"
-            "add_compile_options(-O2)   # the engine and SDL optimized in a Debug build too\n"
+            "add_compile_options(" + std::string(plugs.swift ? "\"$<$<NOT:$<COMPILE_LANGUAGE:Swift>>:-O2>\"" : "-O2") + ")   # the engine and SDL optimized in a Debug build too\n"
             "set(ZN_WEBGL OFF CACHE BOOL \"\" FORCE)\n"
             "add_subdirectory(${ZINC_ENGINE} zinc EXCLUDE_FROM_ALL)   # the engine (zn_app), SDL3 inside it\n"
             "set(ZINC_PLUGINS ${ZINC_ENGINE}/../plugins)\n" + pluginCmake +
@@ -1205,22 +1336,24 @@ static int exportIos(const ProjectInfo& p, const fs::path& out, const std::strin
             "  get_filename_component(d ${r} DIRECTORY)\n"
             "  set_source_files_properties(${f} PROPERTIES MACOSX_PACKAGE_LOCATION Resources/${d})\n"
             "endforeach()\n"
-            "set_target_properties(" + n + " PROPERTIES CXX_STANDARD 20 MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/Info.plist\n"
+            "set_target_properties(" + n + " PROPERTIES CXX_STANDARD 20 MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/Info.plist\n" +
+            (plugs.entitlements.empty() ? "" : "  XCODE_ATTRIBUTE_CODE_SIGN_ENTITLEMENTS ${CMAKE_CURRENT_SOURCE_DIR}/" + n + ".entitlements\n") +
             "  XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER " + id + " XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY \"1,2\"\n" +
             (icon ? "  XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME AppIcon\n" : "") +
             "  XCODE_ATTRIBUTE_CODE_SIGN_STYLE Automatic XCODE_ATTRIBUTE_DEVELOPMENT_TEAM \"${ZINC_TEAM}\")\n"
             "target_compile_definitions(" + n + " PRIVATE ZN_APP_LIBRARY ZN_APP_HEAP_MB=" + heapMb + (proj.perfHud ? " \"ZN_APP_DEV_ENV=\\\"ZINC_PERF_HUD=1\\\"\"" : "") +
-            (appEnv.empty() ? "" : " \"ZN_APP_ENV=\\\"" + appEnv.substr(1) + "\\\"\"") + ")\n"   // zinc.json "dev": {"perfHud": true}, for Debug builds (shell_sdl.cpp)
-            "target_compile_options(" + n + " PRIVATE -w -ffp-contract=off -fno-stack-protector)\n"
+            (appEnv.empty() ? "" : " \"ZN_APP_ENV=\\\"" + appEnv.substr(1) + "\\\"\"") +
+            (plugs.lifecycle.empty() ? "" : " \"ZN_APP_LIFECYCLE=\\\"" + [&] { std::string l; for (const std::string& c : plugs.lifecycle) l += (l.empty() ? "" : ",") + android::javaId(c); return l; }() + "\\\"\"") + ")\n"   // zinc.json "dev": {"perfHud": true}, for Debug builds; the plugins' lifecycle classes (shell_sdl.cpp)
+            "target_compile_options(" + n + " PRIVATE " + (plugs.swift ? "\"$<$<NOT:$<COMPILE_LANGUAGE:Swift>>:-w;-ffp-contract=off;-fno-stack-protector>\"" : "-w -ffp-contract=off -fno-stack-protector") + ")\n"   // not swiftc's (src/zinc_swift.swift)
             "target_include_directories(" + n + " PRIVATE ${ZINC_ENGINE}/include ${ZINC_ENGINE}/src ${ZINC_ENGINE}/third_party/mimalloc/include)\n"
             "target_link_libraries(" + n + " PRIVATE SDL3::SDL3" + pluginLibs + " zn_app)\n"
-            "target_link_options(" + n + " PRIVATE -dead_strip)\n");
+            "target_link_options(" + n + " PRIVATE -dead_strip" + (plugs.objc ? " -ObjC" : "") + ")\n");   // -ObjC: the plugins' classes that only NSClassFromString names
   const std::string cmds = "  cd " + q(out.string()) + "\n"
-                           "  cmake -S . -B build -G Xcode -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_ARCHITECTURES=arm64     # writes build/" + n + ".xcodeproj\n"
+                           "  cmake -S . -B build -G Xcode -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_SYSROOT=iphonesimulator     # writes build/" + n + ".xcodeproj\n"
                            "  xcodebuild -project build/" + n + ".xcodeproj -scheme " + n + " -configuration Debug -sdk iphonesimulator -arch arm64 -derivedDataPath build/dd CODE_SIGNING_ALLOWED=NO build\n"
                            "  xcrun simctl install booted build/Debug-iphonesimulator/" + n + ".app\n"
                            "  xcrun simctl launch --console-pty booted " + id + "\n"
-                           "  cmake -S . -B build -DZINC_TEAM=<your team id> && xcodebuild -project build/" + n + ".xcodeproj -scheme " + n + " -configuration Release -sdk iphoneos -derivedDataPath build/dd -allowProvisioningUpdates archive -archivePath build/" + n + ".xcarchive\n";
+                           "  cmake -S . -B build-device -G Xcode -DCMAKE_SYSTEM_NAME=iOS -DZINC_TEAM=<your team id> && xcodebuild -project build-device/" + n + ".xcodeproj -scheme " + n + " -configuration Release -sdk iphoneos -derivedDataPath build-device/dd -allowProvisioningUpdates archive -archivePath build-device/" + n + ".xcarchive\n";
   writeFile(out / "README-zinc.txt", n + " " + version + " (ios) exported by Zinc: a CMake project for CMake's Xcode generator (CMake 3.24 or later, Xcode 26). It compiles the\n"
             "Zinc engine from " + engine.string() + " (CMakeLists.txt ZINC_ENGINE). The simulator build needs no signing; a device build is signed by\n"
             "your Apple team (-DZINC_TEAM=, or in Xcode: Signing & Capabilities). An Intel Mac builds the simulator with -arch x86_64.\n\n" + cmds);

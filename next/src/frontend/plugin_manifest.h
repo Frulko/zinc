@@ -20,6 +20,15 @@ struct PluginTarget {
   std::vector<std::string> vendorFlags;               // flags of the vendored sources only (libdatachannel's -frtti, which the plugin's own code, built against zrt, cannot take)
   std::map<std::string, std::string> idfComponents;   // ESP Component Registry dependencies
   std::vector<std::string> nodeFlags;                 // the old simulator's: read, never used
+  // the phone targets (android, ios; ZN-628, docs/plugins.md "Phones"): what zinc export merges into the generated project. `sources` there may
+  // hold .java and .kt (Android, compiled by Gradle) and .m, .mm and .swift (iOS) beside the C++.
+  std::vector<std::string> gradle;                    // android: dependencies of app/build.gradle ("androidx.webkit:webkit:1.12.1")
+  std::vector<std::string> permissions;               // android: manifest.permissions, <uses-permission> names ("VIBRATE" means android.permission.VIBRATE)
+  std::string manifestXml, applicationXml;            // android: manifest.manifest (inside <manifest>: <queries>...) and manifest.application (inside <application>)
+  int minSdk = 0;                                     // android: the lowest API level the plugin needs (the export takes the highest of all)
+  std::string plistJson, entitlementsJson;            // ios: Info.plist keys and entitlements, as JSON objects (strings, booleans, numbers, arrays, objects)
+  std::string lifecycle;                              // android: a Java class implementing dev.zinc.app.ZincLifecycle; ios: an ObjC class conforming to ZincLifecycle
+  std::string nativeClass;                            // android and ios: the Java or ObjC/Swift class behind the spec (zinc native-gen --android/--ios), in place of a C++ implementation
 };
 
 struct PluginManifest {

@@ -8,7 +8,10 @@
 ./app/jni/src/program.cpp (the program's C++)
 ./app/proguard-rules.pro a0d17050053f5ffa
 ./app/src/main/AndroidManifest.xml 0183781a57bfedb8
-./app/src/main/java/dev/zinc/app/ZincActivity.java 1a4c08c37f93544d
+./app/src/main/java/dev/zinc/app/ZincActivity.java 75e22c0c9951ebd1
+./app/src/main/java/dev/zinc/app/ZincCallback.java 69ff214bb9014b9c
+./app/src/main/java/dev/zinc/app/ZincLifecycle.java a708d19bd83e76ac
+./app/src/main/java/dev/zinc/app/ZincPlugins.java b7779b5f3856760c
 ./app/src/main/java/dev/zinc/hello/HelloActivity.java e1fe502afc0b6cd0
 ./app/src/main/java/org/libsdl/app/HIDDevice.java afdeaf583f051583
 ./app/src/main/java/org/libsdl/app/HIDDeviceBLESteamController.java 2f88711d2c5bb211
@@ -32,7 +35,7 @@
 ./app/src/main/res/values/strings.xml 207d395f37fc9858
 ./app/src/main/res/values/styles.xml ff6caac240f6451d
 ./build.gradle 3642fb060606c1f7
-./gradle.properties dc47c6409d92ce2a
+./gradle.properties 1b65b2c22b1ce344
 ./gradle/wrapper/gradle-wrapper.jar 2c23278a62dc9f96
 ./gradle/wrapper/gradle-wrapper.properties e2933ce9bda949ed
 ./gradlew a3cad034edd7578f

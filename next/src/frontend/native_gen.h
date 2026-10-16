@@ -20,6 +20,13 @@ struct NativeGen {
   std::string cNote;       // why cHeader is empty
   std::string thunk;       // zinc_native_<name lower>_thunk.cpp: a ZnModule over the NativeX of the header (src/native/zrt_compat.h), for the plugins' x.host.cpp
   std::string thunkNote;   // why thunk is empty
+  // zinc native-gen --android / --ios (ZN-628, docs/plugins.md "Phones"): the spec as a Java interface and an Objective-C protocol (and the same protocol
+  // in Swift), and the C++ NativeX over them (JNI; Objective-C++), so a plugin's phone code is Java or Kotlin and Objective-C or Swift. The class that
+  // implements them is named by plugin.json targets.<android|ios>.class, compiled in as ZN_NATIVE_CLASS. Empty with mobileNote when a member uses a
+  // type they do not carry (scalars, strings, callbacks returning void).
+  std::string javaPackage, javaName, java, jniBridge;   // dev.zinc.plugins.<lower>, <Name>Spec, <Name>Spec.java, zinc_native_<lower>_android.cpp
+  std::string objcName, objcHeader, swiftProtocol, objcBridge;   // Zinc<Name>Spec, its .h and .swift, zinc_native_<lower>_ios.mm
+  std::string mobileNote;
 };
 
 // `specFile` is only used in the comment of the header. False with `err` when the text is not a native spec or uses a type the generator cannot write.

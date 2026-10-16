@@ -39,5 +39,29 @@ grep -q '"ZN_APP_ENV=\\"ZINC_FULLSCREEN=1 ZINC_KIOSK=1\\""' "$tmp/kiosk-android/
 m="$tmp/kiosk-android/app/src/main/AndroidManifest.xml"
 [ "$(grep -c '<uses-permission android:name="android.permission.CAMERA" />' "$m")" = 2 ] &&   # the template has a commented one
   grep -q '<uses-feature android:name="android.hardware.camera" android:required="false" />' "$m" || { echo "the camera permission is not in the manifest as zinc.json declares it"; fail=1; }
+# a plugin's targets.android entry (ZN-628, tests/data/mobile-plugin): its Java in the directory of its package, its Gradle dependency, its manifest
+# fragments and minSdk; the manifest lists exactly the declared permissions (zinc.json "net" and the plugin's), the template's comments aside
+PATH="$tmp/bin:$PATH" ANDROID_HOME= ANDROID_SDK_ROOT= "$Z" export tests/data/mobile-plugin --target android -o "$tmp/beep" >/dev/null 2>"$tmp/beep.err" || { echo "export of the fixture plugin failed: $(tail -2 "$tmp/beep.err")"; fail=1; }
+m="$tmp/beep/app/src/main/AndroidManifest.xml"
+got=$(perl -0pe 's/<!--.*?-->//gs' "$m" | grep -o '<uses-permission android:name="[^"]*"' | sed 's/.*name="//; s/"$//' | sort | tr '\n' ' ')
+[ "$got" = "android.permission.INTERNET android.permission.VIBRATE com.example.permission.BEEP " ] || { echo "the manifest's permissions are not exactly the declared ones: $got"; fail=1; }
+grep -q '<queries><intent>' "$m" && grep -q '<meta-data android:name="org.example.beep"' "$m" || { echo "the plugin's manifest fragments are missing"; fail=1; }
+perl -0ne 'exit(/<meta-data android:name="org.example.beep"[^\n]*\n\s*<\/application>/ ? 0 : 1)' "$m" || { echo "the application fragment is not inside <application>"; fail=1; }
+grep -q "implementation 'androidx.core:core:1.13.1'" "$tmp/beep/app/build.gradle" && grep -q "minSdkVersion 26" "$tmp/beep/app/build.gradle" || { echo "the plugin's Gradle dependency or minSdk is missing"; fail=1; }
+[ -f "$tmp/beep/app/src/main/java/org/example/beep/BeepHelper.java" ] || { echo "the plugin's Java source is not in its package's directory"; fail=1; }
+grep -q "add_library(zn_app_plugin_beep STATIC" "$tmp/beep/app/jni/src/CMakeLists.txt" && grep -q "target_link_libraries(zn_app_plugin_beep PUBLIC log)" "$tmp/beep/app/jni/src/CMakeLists.txt" || { echo "the plugin's library is not in the CMake project"; fail=1; }
+# targets.android.class: the generated interface beside the Kotlin class, the JNI bridge as the implementation; the Kotlin Gradle plugin; the lifecycle subscriber listed for ZincActivity
+j="$tmp/beep/app/src/main/java"
+[ -f "$j/dev/zinc/plugins/beep/BeepSpec.java" ] && [ -f "$j/org/example/beep/BeepModule.kt" ] && [ -f "$j/dev/zinc/app/ZincCallback.java" ] || { echo "the generated interface or the Kotlin class is missing"; fail=1; }
+grep -q 'zinc_native_beep_android.cpp' "$tmp/beep/app/jni/src/CMakeLists.txt" && grep -q 'ZN_NATIVE_CLASS=\\"org.example.beep.BeepModule\\"' "$tmp/beep/app/jni/src/CMakeLists.txt" || { echo "the JNI bridge is not the plugin's implementation"; fail=1; }
+grep -q "id 'org.jetbrains.kotlin.android'" "$tmp/beep/app/build.gradle" && grep -q "kotlin-gradle-plugin" "$tmp/beep/build.gradle" || { echo "Kotlin sources without the Kotlin Gradle plugin"; fail=1; }
+grep -q "new org.example.beep.BeepLife()," "$j/dev/zinc/app/ZincPlugins.java" || { echo "the lifecycle subscriber is not in ZincPlugins.java"; fail=1; }
+grep -q "new ZincLifecycle\[\] {" "$tmp/hello/app/src/main/java/dev/zinc/app/ZincPlugins.java" && ! grep -q "kotlin" "$tmp/hello/app/build.gradle" || { echo "hello's ZincPlugins.java or Gradle files are wrong"; fail=1; }
+# a plugin without an entry for the target is refused, with a message that names it
+cp -R tests/data/mobile-plugin "$tmp/noentry"
+perl -0pi -e 's/"android": \{.*?\n    \},\n//s' "$tmp/noentry/plugins/beep/plugin.json"
+PATH="$tmp/bin:$PATH" "$Z" export "$tmp/noentry" --target android -o "$tmp/noentry-android" >/dev/null 2>"$tmp/noentry.err" && { echo "a plugin without an android entry was exported"; fail=1; }
+grep -q "plugin 'beep' is not made for android: its plugin.json has no \"targets\".\"android\" entry" "$tmp/noentry.err" || { echo "the refusal does not say why: $(tail -1 "$tmp/noentry.err")"; fail=1; }
+[ -f "$tmp/ran" ] && { echo "an Android tool ran: $(cat "$tmp/ran")"; fail=1; }
 [ $fail -eq 0 ] && echo "export android: ok"
 exit $fail

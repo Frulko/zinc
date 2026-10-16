@@ -5,6 +5,8 @@
     {"paths": ["../plugins/gsap/", "tests/t1/gsap.sh", "tests/golden/gsap/", "../docs/plugins/gsap.md"], "tests": ["gsap"]},
     {"paths": ["../examples/js-gsap/", "tests/t1/example_js_gsap.sh", "tools/test-lib"], "tests": ["example_js_gsap"]},
     {"paths": ["../plugins/async-storage/", "tests/t0/async_storage.sh", "../docs/plugins/async-storage.md"], "tests": ["async_storage"]},
+    {"paths": ["src/frontend/plugin_manifest.cpp", "src/frontend/native_gen.cpp", "src/app/mobile_bridge.h", "src/app/ios/", "src/app/ios_glue.mm", "tests/data/mobile-plugin/", "tests/data/mobile-sqlite/", "tests/golden/native_gen/mobile/"], "tests": ["export_android", "export_ios", "native_gen", "plugin_manifest"]},
+    {"paths": ["../plugins/system/", "../lib/std/system/", "tests/data/mobile-services/", "tests/t0/system_phone.sh"], "tests": ["system_phone", "system_ops"]},
     {"paths": ["../plugins/leapmotion/", "tests/t0/leapmotion.sh", "tests/data/leapmotion/", "../docs/plugins/leapmotion.md", "../docs/reports/zinc-next-leapmotion.md"], "tests": ["leapmotion", "leapmotion_demo"]},
     {"paths": ["../examples/leapmotion/", "tests/t1/leapmotion_demo.sh", "tests/golden/leapmotion/"], "tests": ["leapmotion", "leapmotion_demo"]},
     {"paths": ["src/cli_core.cpp", "third_party/SDL3/android-project/", "src/tc/plugin_build.cpp", "tests/t0/export_android.sh", "tests/golden/export-android/"], "tests": ["export_android"]},

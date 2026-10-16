@@ -17,6 +17,12 @@ echo '{"name":"c" "kind"}' > "$tmp/p/plugins/c/plugin.json"
 out=$("$ZINC" plugins "$tmp/p" 2>"$tmp/err"); rc=$?
 [ $rc -eq 1 ] && echo "$out" | grep -q "^  zinc:a  *macos  *$" || { echo "a good manifest next to bad ones is not listed (rc=$rc): $out"; fail=1; }
 [ "$(grep -c 'unknown key "extra"' "$tmp/err")" = 1 ] && [ "$(grep -c 'unknown key "macos.bogus"' "$tmp/err")" = 1 ] && grep -q '"module" must be a string' "$tmp/err" && grep -q "invalid JSON" "$tmp/err" || { echo "warnings and errors of the manifests are not reported once each: $(cat "$tmp/err")"; fail=1; }
+# the phone keys (ZN-628): a wrong type is an error that names the key, as for the top-level keys
+mkdir -p "$tmp/q/plugins/d" "$tmp/q/plugins/e"
+echo '{"name":"d","module":"zinc:d","targets":{"android":{"manifest":{"permissions":"CAMERA"}}}}' > "$tmp/q/plugins/d/plugin.json"
+echo '{"name":"e","module":"zinc:e","targets":{"ios":{"plist":["NSCameraUsageDescription"]},"android":{"gradle":["a:b:1"],"minSdk":26,"manifest":{"permissions":["CAMERA"],"application":"<x/>"},"lifecycle":"org.e.Life"}}}' > "$tmp/q/plugins/e/plugin.json"
+"$ZINC" plugins "$tmp/q" >/dev/null 2>"$tmp/err"
+grep -q '"targets.android.manifest.permissions" must be an array of strings' "$tmp/err" && grep -q '"targets.ios.plist" must be an object' "$tmp/err" && [ "$(grep -c 'unknown key' "$tmp/err")" = 0 ] || { echo "the phone keys are not validated: $(cat "$tmp/err")"; fail=1; }
 printf "import { drawText } from 'zinc:pixelfont';\nconsole.log(typeof drawText);\n" > "$tmp/m.ts"
 [ "$(ZINC_HEADLESS=1 "$ZINC" run "$tmp/m.ts" 2>&1)" = "function" ] || { echo "import from zinc:pixelfont does not resolve"; fail=1; }
 # options (ZN-100): plugin.json defaults, zinc.json `plugins.<name>`, then `targets.<t>.plugins.<name>`, as ZP_<PLUGIN>_<KEY> for the native code

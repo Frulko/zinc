@@ -46,6 +46,24 @@ sed -n '/<key>UISupportedInterfaceOrientations<\/key>/,/<\/array>/p' "$pl" | gre
 [ -f "$tmp/cam-ios/Assets.xcassets/AppIcon.appiconset/icon.png" ] && grep -q "ASSETCATALOG_COMPILER_APPICON_NAME AppIcon" "$cm" || { echo "the icon is not in the asset catalog"; fail=1; }
 [ -f "$tmp/cam-ios/assets/a.txt" ] || { echo "assets/ is not copied"; fail=1; }
 grep -q '"ZN_APP_ENV=\\"ZINC_KIOSK=1\\""' "$cm" || { echo "targets.ios kiosk is not baked as ZN_APP_ENV"; fail=1; }
+# a plugin's targets.ios entry (ZN-628, tests/data/mobile-plugin): its framework, its Info.plist keys (Zinc's own keys win), its entitlements
+PATH="$tmp/bin:$PATH" "$Z" export tests/data/mobile-plugin --target ios -o "$tmp/beep" >/dev/null 2>"$tmp/beep.err" || { echo "export of the fixture plugin failed: $(tail -2 "$tmp/beep.err")"; fail=1; }
+pl="$tmp/beep/Info.plist"; cm="$tmp/beep/CMakeLists.txt"; en="$tmp/beep/beepapp.entitlements"
+command -v plutil >/dev/null 2>&1 && { plutil -lint "$pl" "$en" >/dev/null || { echo "the merged Info.plist or the entitlements are not valid plists"; fail=1; }; }
+grep -A1 NSBluetoothAlwaysUsageDescription "$pl" | grep -q 'Beeps over Bluetooth.' && grep -A2 UIBackgroundModes "$pl" | grep -q '<string>audio</string>' || { echo "the plugin's Info.plist keys are missing"; fail=1; }
+[ "$(grep -c CFBundleIdentifier "$pl")" = 1 ] && grep -A1 CFBundleIdentifier "$pl" | grep -q dev.zinc.beepapp || { echo "a plugin's key replaced Zinc's CFBundleIdentifier"; fail=1; }
+grep -q 'applinks:example.org' "$en" && grep -q 'CODE_SIGN_ENTITLEMENTS ${CMAKE_CURRENT_SOURCE_DIR}/beepapp.entitlements' "$cm" || { echo "the entitlements are not written or not signed in"; fail=1; }
+grep -q 'target_link_libraries(zn_app_plugin_beep PUBLIC "-framework AudioToolbox")' "$cm" || { echo "the plugin's framework is not linked"; fail=1; }
+# targets.ios.class: the Swift class and the generated Swift protocol in a library of their own, the Objective-C++ bridge as the implementation,
+# -ObjC for the classes only NSClassFromString names, the lifecycle subscriber for the shell, Swift enabled
+grep -q "add_library(zn_app_plugin_beep_swift STATIC src/plugins/beep/ZincBeepSpec.swift $engine/tests/data/mobile-plugin/plugins/beep/native/ios/BeepModule.swift)" "$cm" && grep -q 'zinc_native_beep_ios.mm' "$cm" || { echo "the Swift library or the bridge is missing (a project's plugin by its absolute path)"; fail=1; }
+grep -q 'project(beepapp C CXX OBJC OBJCXX Swift)' "$cm" && grep -q -- '-dead_strip -ObjC' "$cm" && grep -q 'ZN_APP_LIFECYCLE=\\"BeepLife\\"' "$cm" && [ -f "$tmp/beep/src/zinc_swift.swift" ] || { echo "Swift, -ObjC or the lifecycle define is missing"; fail=1; }
+grep -q -- '-ObjC\|OBJCXX Swift' "$tmp/hello/CMakeLists.txt" && { echo "hello has no plugin, yet Swift or -ObjC is in its project"; fail=1; }
+# a plugin without an entry for the target is refused, with a message that names it
+cp -R tests/data/mobile-plugin "$tmp/noentry"
+perl -0pi -e 's/,\n    "ios": \{.*?\n    \}\n/\n/s' "$tmp/noentry/plugins/beep/plugin.json"
+PATH="$tmp/bin:$PATH" "$Z" export "$tmp/noentry" --target ios -o "$tmp/noentry-ios" >/dev/null 2>"$tmp/noentry.err" && { echo "a plugin without an ios entry was exported"; fail=1; }
+grep -q "plugin 'beep' is not made for ios" "$tmp/noentry.err" || { echo "the refusal does not say why: $(tail -1 "$tmp/noentry.err")"; fail=1; }
 [ -f "$tmp/ran" ] && { echo "an Apple tool ran: $(cat "$tmp/ran")"; fail=1; }
 [ $fail -eq 0 ] && echo "export ios: ok"
 exit $fail

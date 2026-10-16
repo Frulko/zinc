@@ -69,6 +69,35 @@ std::string dumped(yyjson_val* v) {
   return s;
 }
 
+// The keys of a phone target (android, ios): a wrong type is an error, as for the top-level keys
+bool phoneKey(const std::string& target, const std::string& key, yyjson_val* v, PluginTarget& pt, std::string& err) {
+  const std::string at = "\"targets." + target + "." + key + "\"";
+  auto strArr = [&](yyjson_val* v, std::vector<std::string>& dst) {
+    if (!yyjson_is_arr(v)) { err = at + " must be an array of strings"; return false; }
+    size_t i, n; yyjson_val* e;
+    yyjson_arr_foreach(v, i, n, e) { if (!yyjson_is_str(e)) { err = at + " must be an array of strings"; return false; } dst.push_back(yyjson_get_str(e)); }
+    return true;
+  };
+  auto obj = [&](std::string& dst) { if (!yyjson_is_obj(v)) { err = at + " must be an object"; return false; } dst = dumped(v); return true; };
+  auto text = [&](std::string& dst) { if (!yyjson_is_str(v)) { err = at + " must be a string"; return false; } dst = yyjson_get_str(v); return true; };
+  if (key == "gradle") return strArr(v, pt.gradle);
+  if (key == "plist") return obj(pt.plistJson);
+  if (key == "entitlements") return obj(pt.entitlementsJson);
+  if (key == "lifecycle") return text(pt.lifecycle);
+  if (key == "class") return text(pt.nativeClass);
+  if (key == "minSdk") { if (!yyjson_is_int(v)) { err = at + " must be an integer"; return false; } pt.minSdk = static_cast<int>(yyjson_get_int(v)); return true; }
+  // manifest: { "permissions": [...], "manifest": "<xml>", "application": "<xml>" }
+  if (!yyjson_is_obj(v)) { err = at + " must be an object"; return false; }
+  size_t i, n; yyjson_val *mk, *mv;
+  yyjson_obj_foreach(v, i, n, mk, mv) {
+    const std::string k2 = yyjson_get_str(mk);
+    if (k2 == "permissions") { if (!strArr(mv, pt.permissions)) { err = "\"targets." + target + ".manifest.permissions\" must be an array of strings"; return false; } }
+    else if (k2 == "manifest" || k2 == "application") { if (!yyjson_is_str(mv)) { err = "\"targets." + target + ".manifest." + k2 + "\" must be a string (an XML fragment)"; return false; } (k2 == "manifest" ? pt.manifestXml : pt.applicationXml) = yyjson_get_str(mv); }
+    else { err = "\"targets." + target + ".manifest\" has an unknown key \"" + k2 + "\" (permissions, manifest, application)"; return false; }
+  }
+  return true;
+}
+
 }  // namespace
 
 bool parsePluginManifest(std::string_view text, PluginManifest& out, std::string& err, std::vector<std::string>& warnings) {
@@ -118,6 +147,9 @@ bool parsePluginManifest(std::string_view text, PluginManifest& out, std::string
           else if (key == "idf") pt.idf = strings(tv);
           else if (key == "nodeFlags") pt.nodeFlags = strings(tv);
           else if (key == "idfComponents" && yyjson_is_obj(tv)) { size_t a, b; yyjson_val *ck, *cv; yyjson_obj_foreach(tv, a, b, ck, cv) if (yyjson_is_str(cv)) pt.idfComponents[yyjson_get_str(ck)] = yyjson_get_str(cv); }
+          else if (key == "gradle" || key == "manifest" || key == "minSdk" || key == "plist" || key == "entitlements" || key == "lifecycle" || key == "class") {
+            if (!phoneKey(yyjson_get_str(k), key, tv, pt, err)) return false;
+          }
           else warnings.push_back("unknown key \"" + std::string(yyjson_get_str(k)) + "." + key + "\"");
         }
       }

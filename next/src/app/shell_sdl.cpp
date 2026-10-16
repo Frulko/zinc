@@ -227,6 +227,10 @@ static bool paused;
 #if defined(__ANDROID__) || (defined(__APPLE__) && TARGET_OS_IPHONE)
 extern "C" void zn_mobile_glue_init(void);   // src/app/android_glue.cpp, src/app/ios_glue.mm: the system signals and commands of a phone
 #endif
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+extern "C" void zn_mobile_lifecycle(const char* classes);   // src/app/ios_glue.mm: the plugins' lifecycle subscribers (ZN_APP_LIFECYCLE, zinc export)
+extern "C" void zn_mobile_open_url(const char* url);
+#endif
 
 SDL_AppResult SDL_AppInit(void**, int argc, char** argv) {
 #ifdef ZN_PHONE
@@ -234,6 +238,13 @@ SDL_AppResult SDL_AppInit(void**, int argc, char** argv) {
 #endif
 #if defined(__ANDROID__) || (defined(__APPLE__) && TARGET_OS_IPHONE)
   zn_mobile_glue_init();
+#endif
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+#ifdef ZN_APP_LIFECYCLE
+  zn_mobile_lifecycle(ZN_APP_LIFECYCLE);
+#else
+  zn_mobile_lifecycle("");
+#endif
 #endif
   const int rc = zn_app_init(argc, argv);
   return rc == 0 ? SDL_APP_CONTINUE : rc == 1 ? SDL_APP_SUCCESS : SDL_APP_FAILURE;
@@ -250,6 +261,11 @@ SDL_AppResult SDL_AppEvent(void*, SDL_Event* e) {
   if (e->type == SDL_EVENT_WILL_ENTER_BACKGROUND || e->type == SDL_EVENT_DID_ENTER_BACKGROUND) paused = true;
   if (e->type == SDL_EVENT_DID_ENTER_FOREGROUND) paused = false;
   if (e->type == SDL_EVENT_TERMINATING) return SDL_APP_SUCCESS;
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+  // UIKit's openURL reaches SDL's delegate, which sends the URL as a dropped file: the plugins' subscribers hear it as a deep link (the program
+  // still gets the drop, which zinc:system turns into open-url)
+  if (e->type == SDL_EVENT_DROP_FILE && e->drop.data && strstr(e->drop.data, "://")) zn_mobile_open_url(e->drop.data);
+#endif
 #ifdef __ANDROID__
   if (e->type == SDL_EVENT_QUIT) return SDL_APP_SUCCESS;   // the activity is being destroyed: neither a kiosk nor a close handler can refuse
 #endif

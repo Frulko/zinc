@@ -5,7 +5,16 @@
 // Unproven on a device (written 2026-10-16 without one): next/backlog/later.md, cross-platform pass.
 #ifdef __ANDROID__
 #include <jni.h>
+#include <android/log.h>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
+#include <mutex>
 #include <string>
+#include <utility>
+#include <vector>
+
+#include "app/mobile_bridge.h"
 
 extern "C" void zn_hal_signal(const char* line);                                  // src/host/hal_dispatch.cpp
 extern "C" const char* (*zn_mobile_command)(const char* q, const char* a);         // src/host/hal_dispatch.cpp, read by sys_host.cpp
@@ -59,7 +68,70 @@ const char* command(const char* q, const char* a) {
 }
 }  // namespace
 
+// The helpers of the plugins' generated JNI bridges (src/app/mobile_bridge.h, zinc native-gen --android, ZN-628)
+JNIEnv* zn_jni_env() { return static_cast<JNIEnv*>(SDL_GetAndroidJNIEnv()); }
+void zn_jni_check(JNIEnv* env, const char* what) {
+  if (!env->ExceptionCheck()) return;
+  __android_log_print(ANDROID_LOG_ERROR, "zinc", "%s threw a Java exception:", what);
+  env->ExceptionDescribe();   // the stack to logcat, then cleared
+  env->ExceptionClear();
+}
+jobject zn_jni_new(JNIEnv* env, const char* className) {
+  std::string slashed = className;
+  for (char& c : slashed) if (c == '.') c = '/';
+  jclass c = env->FindClass(slashed.c_str());   // the program's thread is SDL's Java thread: the app's class loader
+  if (!c) { zn_jni_check(env, className); __android_log_print(ANDROID_LOG_ERROR, "zinc", "the class %s (plugin.json targets.android.class) is not in the app", className); return nullptr; }
+  jmethodID ctor = env->GetMethodID(c, "<init>", "()V");
+  jobject o = ctor ? env->NewObject(c, ctor) : nullptr;
+  zn_jni_check(env, className);
+  jobject g = o ? env->NewGlobalRef(o) : nullptr;
+  if (o) env->DeleteLocalRef(o);
+  env->DeleteLocalRef(c);
+  return g;
+}
+jobject zn_jni_callback(JNIEnv* env, ZnJavaCallback* cb) {
+  static jclass cls = static_cast<jclass>(env->NewGlobalRef(env->FindClass("dev/zinc/app/ZincCallback")));
+  static jmethodID ctor = env->GetMethodID(cls, "<init>", "(J)V");
+  return env->NewObject(cls, ctor, static_cast<jlong>(reinterpret_cast<intptr_t>(cb)));
+}
+jstring zn_jni_string(JNIEnv* env, const char* s, size_t n) { return utf16(env, std::string(s, n).c_str()); }
+char* zn_jni_utf8(JNIEnv* env, jstring s, size_t* n) {
+  const std::string u = utf8(env, s);
+  char* p = static_cast<char*>(std::malloc(u.size() + 1));
+  std::memcpy(p, u.c_str(), u.size() + 1);
+  if (n) *n = u.size();
+  return p;
+}
+void zn_jni_free(char* p) { std::free(p); }
+static jobject argAt(JNIEnv* env, jobjectArray a, int i) { return a && i < env->GetArrayLength(a) ? env->GetObjectArrayElement(a, i) : nullptr; }
+double zn_jni_arg_double(JNIEnv* env, jobjectArray a, int i) {
+  jobject o = argAt(env, a, i);
+  if (!o) return 0;
+  static jclass num = static_cast<jclass>(env->NewGlobalRef(env->FindClass("java/lang/Number"))), boo = static_cast<jclass>(env->NewGlobalRef(env->FindClass("java/lang/Boolean")));
+  static jmethodID dv = env->GetMethodID(num, "doubleValue", "()D"), bv = env->GetMethodID(boo, "booleanValue", "()Z");
+  const double d = env->IsInstanceOf(o, num) ? env->CallDoubleMethod(o, dv) : env->IsInstanceOf(o, boo) ? (env->CallBooleanMethod(o, bv) ? 1 : 0) : 0;
+  env->DeleteLocalRef(o);
+  return d;
+}
+int32_t zn_jni_arg_int(JNIEnv* env, jobjectArray a, int i) { return static_cast<int32_t>(static_cast<int64_t>(zn_jni_arg_double(env, a, i))); }
+bool zn_jni_arg_bool(JNIEnv* env, jobjectArray a, int i) { return zn_jni_arg_double(env, a, i) != 0; }
+
+// ZincCallback.call from any thread: queued here, made by zn_jni_drain on the program's thread (the program's values belong to it)
+static std::mutex gCallsLock;
+static std::vector<std::pair<ZnJavaCallback*, jobject>> gCalls;
+int zn_jni_drain(JNIEnv* env) {
+  std::vector<std::pair<ZnJavaCallback*, jobject>> now;
+  { std::lock_guard<std::mutex> l(gCallsLock); now.swap(gCalls); }
+  for (auto& [cb, args] : now) { cb->call(env, static_cast<jobjectArray>(args)); zn_jni_check(env, "a ZincCallback"); env->DeleteGlobalRef(args); }
+  return static_cast<int>(now.size());
+}
+
 extern "C" {
+JNIEXPORT void JNICALL Java_dev_zinc_app_ZincCallback_nativeCall(JNIEnv* env, jclass, jlong h, jobjectArray args) {
+  if (!h) return;
+  std::lock_guard<std::mutex> l(gCallsLock);
+  gCalls.emplace_back(reinterpret_cast<ZnJavaCallback*>(static_cast<intptr_t>(h)), env->NewGlobalRef(args));
+}
 void zn_mobile_glue_init(void) {}   // referenced by the shell: keeps this object (and its JNI entries) in libmain.so
 JNIEXPORT void JNICALL Java_dev_zinc_app_ZincActivity_nativeInit(JNIEnv* env, jclass cls) {
   if (!activity) activity = static_cast<jclass>(env->NewGlobalRef(cls));

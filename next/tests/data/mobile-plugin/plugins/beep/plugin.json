@@ -1,0 +1,31 @@
+{
+  "name": "beep",
+  "kind": "module",
+  "module": "zinc:beep",
+  "description": "The fixture of the phone plugin entries (ZN-628)",
+  "targets": {
+    "macos": {},
+    "linux": {},
+    "android": {
+      "class": "org.example.beep.BeepModule",
+      "lifecycle": "org.example.beep.BeepLife",
+      "sources": ["native/android/BeepHelper.java", "native/android/BeepModule.kt"],
+      "libs": ["log"],
+      "gradle": ["androidx.core:core:1.13.1"],
+      "minSdk": 26,
+      "manifest": {
+        "permissions": ["VIBRATE", "INTERNET", "com.example.permission.BEEP"],
+        "manifest": "<queries><intent><action android:name=\"android.intent.action.VIEW\" /></intent></queries>",
+        "application": "<meta-data android:name=\"org.example.beep\" android:value=\"1\" />"
+      }
+    },
+    "ios": {
+      "class": "BeepModule",
+      "lifecycle": "BeepLife",
+      "sources": ["native/ios/BeepModule.swift"],
+      "frameworks": ["AudioToolbox"],
+      "plist": { "NSBluetoothAlwaysUsageDescription": "Beeps over Bluetooth.", "UIBackgroundModes": ["audio"], "CFBundleIdentifier": "not.this.one" },
+      "entitlements": { "com.apple.developer.associated-domains": ["applinks:example.org"] }
+    }
+  }
+}

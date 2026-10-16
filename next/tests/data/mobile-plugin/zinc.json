@@ -1,0 +1,1 @@
+{ "name": "beepapp", "entry": "main.ts", "permissions": ["net"] }

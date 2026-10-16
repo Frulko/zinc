@@ -47,6 +47,57 @@ uses them. The core stays small (`runtime/`, `lib/`); the toolbox grows in `plug
 | `requires` | top level: capabilities the target must offer (`["heap>=4M"]`, [capabilities](targets/capabilities.md)); an incompatible target is error Z5005 |
 | `options` | defaults, overridden by `zinc.json` `plugins.<name>` (or `targets.<id>.plugins.<name>`, or display options); C++ sees them as `ZP_<PLUGIN>_<KEY>` defines, plus `ZP_<PLUGIN>=1` |
 
+## Phones
+
+An app has no `dlopen` (D120): `zinc export --target android|ios` compiles each plugin the program calls into the generated project from the
+sources its `targets.android` or `targets.ios` entry lists, and merges what the entry adds into the project, the way Expo's config plugins do
+(the project is regenerated at each export; nothing is edited by hand). A plugin without an entry for the target is refused at export, with
+the reason; one that has an entry is listed by `zinc lint` for that target. The entry of `tests/data/mobile-plugin/plugins/beep` uses every key:
+
+```json
+"android": {
+  "class": "org.example.beep.BeepModule",
+  "lifecycle": "org.example.beep.BeepLife",
+  "sources": ["native/android/BeepHelper.java", "native/android/BeepModule.kt"],
+  "libs": ["log"],
+  "gradle": ["androidx.core:core:1.13.1"],
+  "minSdk": 26,
+  "manifest": {
+    "permissions": ["VIBRATE", "com.example.permission.BEEP"],
+    "manifest": "<queries><intent><action android:name=\"android.intent.action.VIEW\" /></intent></queries>",
+    "application": "<meta-data android:name=\"org.example.beep\" android:value=\"1\" />"
+  }
+},
+"ios": {
+  "class": "BeepModule",
+  "lifecycle": "BeepLife",
+  "sources": ["native/ios/BeepModule.swift"],
+  "frameworks": ["AudioToolbox"],
+  "plist": { "NSBluetoothAlwaysUsageDescription": "Beeps over Bluetooth.", "UIBackgroundModes": ["audio"] },
+  "entitlements": { "com.apple.developer.associated-domains": ["applinks:example.org"] }
+}
+```
+
+| key | target | meaning |
+|---|---|---|
+| `sources` | both | C++ as on the desktop; `.java` and `.kt` go to Gradle, into the directory of their `package` (Kotlin adds its Gradle plugin, pinned in `cli_core.cpp`); `.m`, `.mm` and `.swift` to the Xcode project (Swift in a library of its own) |
+| `defines`, `flags`, `libs`, `frameworks` | both | as on the desktop; `libs` are the NDK's or the SDK's (`camera2ndk`, `mediandk`, `sqlite3`) |
+| `gradle` | android | dependencies of `app/build.gradle` |
+| `manifest` | android | `permissions` (a bare name is `android.permission.<name>`), `manifest` (an XML fragment inside `<manifest>`), `application` (inside `<application>`). The manifest lists exactly the declared permissions: those of `zinc.json` `permissions`, those of the plugins, and SDL's `VIBRATE` (`navigator.vibrate`, `zinc:haptics`; a permission granted at install) |
+| `minSdk` | android | the lowest API level the plugin needs; the project takes the highest of all (24 at least) |
+| `plist`, `entitlements` | ios | JSON objects written as property lists: keys of `Info.plist` (Zinc's own keys, such as the bundle id, are kept) and `<name>.entitlements`, which a device build is signed with |
+| `class` | both | the Java/Kotlin or Objective-C/Swift class behind the plugin's spec, in place of a C++ implementation: the export writes the glue below and compiles the class in as `ZN_NATIVE_CLASS` |
+| `lifecycle` | both | a class that hears the app's life: Android `dev.zinc.app.ZincLifecycle` (`onCreate`, `onNewIntent`, `onPause`, `onResume`, `onLowMemory`, `onActivityResult`, `onRequestPermissionsResult`; all with defaults), listed for `ZincActivity` in the generated `ZincPlugins.java`; iOS any of `zincPause`, `zincResume`, `zincLowMemory`, `zincOpenURL:` (`src/app/ios/ZincLifecycle.h`; a Swift class marks them `@objc` and is named with `@objc(Name)`) |
+
+`zinc native-gen --android <x.spec.ts> [dir]` writes `<Name>Spec.java` (the interface the class implements, package
+`dev.zinc.plugins.<name>`) and the JNI bridge; `--ios` writes `Zinc<Name>Spec.h` and `Zinc<Name>Spec.swift` (the protocol, for Objective-C
+and for Swift: `func greet(_ name: String, loud: Bool) -> String` is the selector `greet:loud:`) and the Objective-C++ bridge. The export
+regenerates them from the spec at each run. The glue carries `i32`, `u32`, `f64`/`number`, `boolean` and `string` arguments and results,
+and callbacks returning `void` with such arguments (`ZincCallback.call(Object...)` in Java, a block in Objective-C, an `@escaping` closure in
+Swift); a spec with other types is refused with the member's name. The class's methods run on the program's thread (Android: SDL's thread,
+so UI work goes through `runOnUiThread`; iOS: the main thread). A callback may be called from any thread: the call is queued and made on the
+program's thread. Promises, arrays and records are not carried yet: use a callback, or JSON text in a string (as `zinc:system` does).
+
 ## Search path
 
 `<zinc>/plugins/*`, then `<project>/plugins/*`, then `zinc.json` `"pluginDirs"`. A project plugin shadows a bundled one
