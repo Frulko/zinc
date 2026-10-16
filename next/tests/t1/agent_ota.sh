@@ -46,7 +46,7 @@ project() {   # <dir> <version> <the program>
 }
 project v09 0.9.0 'console.log("this is 0.9.0");'
 project v10 1.0.0 'console.log("this is 1.0.0");'
-project v11 1.1.0 "console.log('this is 1.1.0'); setTimeout(() => { console.log('still there'); }, $((6000 * S)));"
+project v11 1.1.0 "console.log('this is 1.1.0'); setTimeout(() => { console.log('still there'); }, $((6000 * S + 12000)));"
 project v12 1.2.0 'console.log("this is 1.2.0"); throw new Error("a broken build");'
 project v13 1.3.0 'console.log("this is 1.3.0");'
 
