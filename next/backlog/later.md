@@ -392,3 +392,8 @@ The next backlog review turns lines into tasks or deletes them.
 
 - ZN-741: once the GLES 2 base exists, measure it on the Pi 3 (VideoCore IV) and the HP TouchPad (Adreno 220) against the Nexus 7 (Tegra 3): same capability record, same programs, frame times in `docs/reports/zinc-next-perf.md`, and whether one tuning table fits the three.
 - D119: back ends of the GPU layer for the connected platforms the owner named (CHIP Mali-400 on the GLES 2 base; PS Vita GXM; 3DS citro3d; Wii GX; Wii U GX2; Switch deko3d or NVN), one small back end per GPU as PocketJS does; and the extraction of the layer as a project of its own once a second back end exists.
+- ZN-718: zinc lint: an opt-in `zinc lint --js` running a pinned oxlint for generic hygiene rules; pin ast-grep if users ask for their own codemod rules (docs/reports/zinc-lint-migrate.md).
+- ZN-718: zinc lint: a rule for zinc.json dependencies that nothing imports (the knip idea).
+- ZN-718: zinc lint: JPEG and WebP pixel sizes in the asset estimate (only PNG reads its size from the header).
+- ZN-718: zinc lint: target rules in the LSP (`--json` is the hook), and a `boot` budget estimate from assets.groups.
+
