@@ -369,7 +369,7 @@ in `tools/package`, 35 MB each), so one cannot grow without the check seeing it.
 apps) is left out: a zip is enough to drag the app, and it is what the notarization service takes.
 
 `zinc update` reads `zinc-<os>-<arch>.manifest`, which points at the CLI archive; the app is updated by downloading it again
-(or `install.sh --atelier`).
+(or `install.sh --atelier`): see "Updating zinc" below.
 
 Signing (`tools/sign-macos`, on a tag with the secrets below): every Mach-O file of both downloads is signed with the
 Developer ID and the hardened runtime, `zinc` with the `disable-library-validation` entitlement (it loads the plugin
@@ -382,16 +382,19 @@ not look at them at all.
 ### The release job
 
 The `zinc-next` workflow (`.github/workflows/zinc-next.yml`) makes a GitHub Release when a `v*` tag is pushed. Each OS job
-builds and packages (`tools/package`, the version taken from the tag), smoke-tests both downloads
+builds with `-DZN_VERSION=<the tag's version>` and packages (`tools/package` names the archives after the version the binary reports), smoke-tests both downloads
 (`tests/t1/install_nocompiler.sh`: installed with no compiler, the app opened headless), signs and notarizes them with
-`tools/sign-macos`, and writes `zinc-<os>-<arch>.manifest`, an update manifest signed with the release key; then the
+`tools/sign-macos`, and writes the update manifests `zinc-<os>-<arch>.manifest` (stable) and `zinc-<os>-<arch>-beta.manifest`, signed with the release key; then the
 `release` job attaches the downloads and the manifests to the release, with `install.sh` (`next/tools/install.sh`, the one
 command of [Getting started](01-getting-started.md)), the `SHA256SUMS` it checks its downloads against and `plugins.lock`,
 and release notes that say what each file is. Each download holds
 the native libraries of the plugins, built in that job with the pinned zig (the log of `tools/package` names the plugins left
 without one, and `zinc doctor` lists them on the user's machine). Without the signing secrets the release still
 happens with unsigned macOS downloads, and both the job log (a warning) and the release notes say so; without the update
-key the manifests are left out and the notes say that too.
+seed the manifests are still published, unsigned (a first line `signature=none`, checksums only), and the notes say that too:
+`zinc update` refuses such a manifest unless `ZINC_UPDATE_ALLOW_UNSIGNED=1`, so nothing skips the verification silently.
+A prerelease tag (`v1.3.0-beta.1`) makes a GitHub prerelease and writes only the beta manifest, with the archive's whole
+address, which the job uploads to the latest release, where `zinc update --channel beta` reads it; a stable tag writes both.
 
 The owner's steps, once (Settings > Secrets and variables > Actions):
 
@@ -401,12 +404,59 @@ The owner's steps, once (Settings > Secrets and variables > Actions):
 | `MACOS_CERTIFICATE_PASSWORD` | the password of that .p12 |
 | `ZINC_SIGN_IDENTITY` | `Developer ID Application: Name (TEAMID)` |
 | `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD` | the notarization account: Apple ID, team ID, an app-specific password |
-| `ZINC_UPDATE_SEED` | the seed of `zinc update-keygen` whose public key is the release key compiled into zinc |
+| `ZINC_UPDATE_SEED` | the seed of `zinc update-keygen` that signs the update manifests; its public key is `next/update.pub` |
+
+The release key, once: `zinc update-keygen` prints `seed=` (the secret above) and `public=`; the public key goes into
+`next/update.pub` (one line, 64 hex digits), committed: a public key is not secret, and a source build then trusts the same key
+as a release. CMake reads it into the build (`-DZN_UPDATE_PUBKEY=<hex>` overrides it); the workflow needs no other variable.
+Until then the file holds the placeholder (64 zeros): such a build has no update key, `zinc update` says so, and only unsigned
+manifests with `ZINC_UPDATE_ALLOW_UNSIGNED=1` pass. When the seed is stored but the keygen output was not kept,
+`zinc update-pubkey <seed>` prints its public key.
 
 Then, for each release, `git tag -a v0.1.0 -m "Zinc 0.1.0"` and `git push origin v0.1.0`.
-`zinc update https://github.com/<owner>/<repo>/releases/latest/download/zinc-macos-arm64.manifest` then finds it (the manifest's package URL
+`zinc update` then finds it at `https://github.com/<owner>/<repo>/releases/latest/download/zinc-macos-arm64.manifest` (the manifest's package URL
 is relative, so it resolves to the CLI archive next to it). `next/tests/t0/release_workflow.sh` runs the manifest, checksum and release steps of
 the workflow locally (a stand-in for `gh`) and lints the workflow with actionlint. The packaging steps run on a Mac as the job runs them:
-`cd next && ZINC_VERSION=0.0.0 python3 tools/package --out /tmp/zd`, then `ZINC_DIST=/tmp/zd tests/run --only install_nocompiler`.
+`cd next && python3 tools/package --out /tmp/zd`, then `ZINC_DIST=/tmp/zd tests/run --only install_nocompiler`.
+
+### Updating zinc
+
+The version is a build constant: `zinc --version` and `zinc doctor` print it. CMake takes `-DZN_VERSION=<x.y.z>` (the release
+job passes the tag's), else `git describe` of the checkout at configure time (`v0.1.1-46-g9e97` gives `0.1.1+46.g9e97`), else
+`0.0.0-dev`. `.zapp` archives carry it as the engine they were made with (a `.zapp` made by a newer zinc asks for an update).
+
+`zinc update` replaces the zinc that `install.sh` installed:
+
+```sh
+zinc update --check            # "zinc 0.2.0 is available (this is 0.1.1): <notes>", exit 10; or "is up to date", exit 0
+zinc update                    # download, verify, install; the previous version is kept
+zinc update --rollback         # back to the previous version (again: forward to the newer one)
+zinc update --channel beta     # follow the betas from now on (--channel stable goes back)
+```
+
+What it does: it reads the manifest of this machine's CLI archive (`zinc-<os>-<arch>.manifest`, `-beta.manifest` on the beta
+channel) where `install.sh` installed from (by default `https://github.com/zinc-engine/zinc/releases/latest/download`;
+`ZINC_UPDATE_REPO=<owner/repo>` takes another repository's latest release, `ZINC_UPDATE_URL` or an argument a whole manifest
+URL), checks its Ed25519 signature with the key compiled in (and `ZINC_UPDATE_PUBKEY`, `~/.zinc/update-keys`), downloads the
+archive beside the engine (`~/.zinc/engine.incoming`, the same filesystem), checks its SHA-256, unpacks it, checks that its
+`bin/zinc` starts and reports the manifest's version, then swaps the directories: `~/.zinc/engine` becomes `~/.zinc/engine.prev`
+(one version is kept) and the new one takes its place. The running zinc is never overwritten (its files move, a command still
+running keeps them), and the `zinc` link on the `PATH` points at `~/.zinc/engine/bin/zinc`, so it follows. A wrong checksum, a
+signature that does not verify, an unsigned manifest, a new zinc that does not start or a directory it cannot write change
+nothing. `install.sh` marks the engine it installs with `.zinc-install` (where it came from, the channel); a zinc without it (a
+source build, a package manager, the copy inside Zinc Atelier.app) refuses and says how to update it instead: `git pull` and
+`tools/build zinc`, the package manager's upgrade, or the new app zip. Linux uses the same path; Windows has no update yet.
+
+**Zinc Atelier.** Help > Check for Updates… runs `zinc update --check` with the zinc the app runs on and shows the answer
+on the status line; Help > Install the Update runs `zinc update`. The zinc inside the app bundle does not replace itself (a
+running, notarized `.app` is not rewritten in place): it answers with the address of the release, whose
+`Zinc-Atelier-<version>-macos-<arch>.zip` replaces the app (or run `install.sh --atelier` again).
+
+**The daily notice.** `zinc run` and `zinc dev` print one dim line on stderr when a newer zinc exists
+(`zinc 0.2.0 is available: run zinc update`). The check runs at most once a day, in a detached background process (one try,
+1.5 s at most), so no command waits for the network, and offline it says nothing; its result is kept in
+`~/.zinc/update-check.json`. It is silent with `ZINC_NO_UPDATE_CHECK=1`, in CI (`CI`, `ZINC_CI`), with `ZINC_HEADLESS`,
+with `--quiet`, when stderr is not a terminal, and for a zinc that does not update itself. The short `zinc doctor` has a line
+for it: "Zinc is up to date" or "Zinc 0.2.0 is available". `next/tests/t1/self_update.sh` proves all of it on a local release.
 
 Next: [security](08-security.md).

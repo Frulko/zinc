@@ -64,6 +64,8 @@ Or, from a release, nothing to compile: the `zinc` CLI on your `PATH` with one c
 curl -fsSL https://github.com/zinc-engine/zinc/releases/latest/download/install.sh | sh
 ```
 
+Then `zinc update` installs each new release (`--check`, `--rollback`, `--channel beta`: [Updating](docs/guide/01-getting-started.md#updating)).
+
 Each release has two downloads per Mac (arm64, Intel): `zinc-<version>-macos-<arch>.tar.gz`, the CLI, and
 `Zinc-Atelier-<version>-macos-<arch>.zip`, the app ([docs/guide/07-distribution.md](docs/guide/07-distribution.md#the-two-downloads-of-a-release)).
 

@@ -14,8 +14,8 @@ curl -fsSL https://github.com/zinc-engine/zinc/releases/latest/download/install.
 
 It downloads the `zinc` CLI made for your machine (a Mac, Apple silicon or Intel; Linux, x86_64 or aarch64; about 27 MB), checks its
 SHA-256 against the release's `SHA256SUMS`, unpacks it into `~/.zinc/engine` and links `zinc` into `/usr/local/bin` when you
-can write there, else into `~/.local/bin`, which it adds to your `PATH` (`~/.zprofile` or `~/.profile`). Run the same command
-again to update. Open a new terminal, then ask zinc what it sees:
+can write there, else into `~/.local/bin`, which it adds to your `PATH` (`~/.zprofile` or `~/.profile`). `zinc update`
+updates it (see "Updating" below). Open a new terminal, then ask zinc what it sees:
 
 ```sh
 zinc doctor
@@ -44,6 +44,23 @@ By hand instead, each release has two downloads per machine on its
 - `Zinc-Atelier-<version>-macos-<arch>.zip`: the app, with its own copy of the engine. Unzip it and drag "Zinc Atelier" to
   Applications. A Mac asks you to confirm an app that came through a browser and is not notarized: right-click > Open on
   "Zinc Atelier" once.
+
+### Updating
+
+```sh
+zinc update --check      # is there a newer zinc? (exit 10 when there is)
+zinc update              # install it; the previous version is kept
+zinc update --rollback   # back to the previous version
+```
+
+`zinc update` downloads the new release for your machine, checks its signature and its SHA-256, and puts it in place of
+`~/.zinc/engine` in one step (the old one stays in `~/.zinc/engine.prev`); if anything fails, nothing changes.
+`zinc update --channel beta` follows the beta releases (`--channel stable` goes back). Once a day at most, `zinc run` and
+`zinc dev` print one dim line when a newer zinc exists, and `zinc doctor` says whether yours is up to date; the check runs in
+the background and never slows a command. Turn it off with `export ZINC_NO_UPDATE_CHECK=1` (it is already off in CI and
+when the output is not a terminal). Zinc Atelier has Help > Check for Updates…; the app itself is updated by downloading its
+new zip (or `install.sh --atelier` again). A zinc built from the sources updates with `git pull` and `tools/build zinc`.
+Details: [Updating zinc](07-distribution.md#updating-zinc).
 
 ### From the sources
 
