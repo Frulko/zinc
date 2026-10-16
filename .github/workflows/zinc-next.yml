@@ -443,6 +443,53 @@ jobs:
           windows-zinc/zinc.exe --version
           printf 'console.log(6 * 7);\n' > answer.ts
           [ "$(ZINC_ROOT="$PWD/next" windows-zinc/zinc.exe run answer.ts | tr -d '\r')" = 42 ]
+  linux-cross:
+    # zinc for Linux cross-built with the pinned zig (tools/build-linux, docs/targets/linux.md), one job per architecture, then started under
+    # qemu-user against Ubuntu's cross C libraries (glibc 2.39: the 2.28 floor is proven in Debian 10 containers, not here). Off unless the
+    # repository variable ZINC_LINUX_JOBS is 'true' (macOS only for now, owner 2026-10-15); never run yet, so it does not block.
+    name: linux-cross (${{ matrix.arch }})
+    needs: plan
+    if: vars.ZINC_LINUX_JOBS == 'true'
+    runs-on: ubuntu-24.04
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: aarch64, run: 'qemu-aarch64 -L /usr/aarch64-linux-gnu', libc: libc6-arm64-cross }
+          - { arch: armhf, run: 'qemu-arm -L /usr/arm-linux-gnueabihf', libc: libc6-armhf-cross }
+          - { arch: x86_64, run: '', libc: '' }
+          - { arch: i686, run: '', libc: libc6-i386 }
+    defaults:
+      run:
+        working-directory: next
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dependencies
+        run: sudo apt-get update && sudo apt-get install -y cmake python3 curl xz-utils zstd file qemu-user ${{ matrix.libc }}
+      - name: The pinned zig (the pin of src/tc/tc.cpp)
+        run: |
+          ZINC_HOME=$RUNNER_TEMP/zinc-home; echo "ZINC_HOME=$ZINC_HOME" >> "$GITHUB_ENV"
+          pin=$(grep -o '"x86_64-linux", "zig-x86_64-linux-[^"]*", "[0-9a-f]*"' src/tc/tc.cpp | head -1 | tr -d '"' | tr ',' ' ')
+          read -r _ file sha <<< "$pin"; version=${file#zig-x86_64-linux-}; version=${version%.tar.xz}
+          curl -fL --retry 2 -sS -o "$RUNNER_TEMP/$file" "https://ziglang.org/download/$version/$file"
+          echo "$sha  $RUNNER_TEMP/$file" | sha256sum -c -
+          mkdir -p "$ZINC_HOME/toolchains/zig-x86_64-linux-$version"
+          tar -xJf "$RUNNER_TEMP/$file" -C "$ZINC_HOME/toolchains/zig-x86_64-linux-$version" --strip-components=1
+      - name: Cross build zinc and its archive
+        run: tools/build-linux --arch ${{ matrix.arch }}
+      - name: zinc starts, runs a program, checks it
+        run: |
+          printf 'console.log(6 * 7);\n' > "$RUNNER_TEMP/answer.ts"
+          z="${{ matrix.run }} build-linux-${{ matrix.arch }}/zinc"
+          $z --version
+          [ "$(ZINC_ROOT="$PWD" $z run --interp "$RUNNER_TEMP/answer.ts" 2>/dev/null)" = 42 ]
+          ZINC_ROOT="$PWD" $z check "$RUNNER_TEMP/answer.ts"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-${{ matrix.arch }}
+          path: next/dist/linux-${{ matrix.arch }}/*.tar.gz
   release:
     # ZN-329: on a v* tag, the downloads of every OS job (the zinc CLI archive, the Zinc Atelier app on macOS; signed for macOS when the secrets exist)
     # and their update manifests on a GitHub Release

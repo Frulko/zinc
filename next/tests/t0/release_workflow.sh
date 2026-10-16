@@ -32,6 +32,10 @@ assert wr["needs"] == "windows-cross" and wr["runs-on"].startswith("windows-") a
 assert any("tools/windows-cross build" in s.get("run", "") for s in wc["steps"]) and any("tools/windows-cross check" in s.get("run", "") for s in wr["steps"]), "windows-cross is not called"
 up = [s["with"] for s in wc["steps"] if "upload-artifact" in s.get("uses", "")][0]; down = [s["with"] for s in wr["steps"] if "download-artifact" in s.get("uses", "")][0]
 assert up["name"] == down["name"], "the artifact names differ"
+# the Linux CLI cross-built per architecture by the script a person runs (tools/build-linux), behind its own switch
+lc = wf["jobs"]["linux-cross"]
+assert "ZINC_LINUX_JOBS" in lc["if"] and any("tools/build-linux --arch" in s.get("run", "") for s in lc["steps"]), "linux-cross does not call tools/build-linux"
+assert {m["arch"] for m in lc["strategy"]["matrix"]["include"]} == {"aarch64", "armhf", "x86_64", "i686"}, "linux-cross misses an architecture"
 PY
 "$Z" update-keygen > "$tmp/k"; seed=$(sed -n 's/^seed=//p' "$tmp/k"); pub=$(sed -n 's/^public=//p' "$tmp/k")
 mkdir -p "$tmp/job/dist" "$tmp/job/build" "$tmp/bin"
