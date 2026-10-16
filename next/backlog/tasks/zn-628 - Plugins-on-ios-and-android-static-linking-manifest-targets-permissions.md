@@ -2,7 +2,8 @@
 id: ZN-628
 title: 'Plugins on ios and android: static linking, manifest targets, permissions'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-10 14:07'
 updated_date: '2026-10-16 20:30'
 labels:
