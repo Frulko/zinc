@@ -1922,7 +1922,17 @@ struct Lowering::FnLower {
           std::uint32_t sel = L.selectorFor(std::string(callee.text), c.nodeType[x.kids[0]]);
           const Selector& sg = m.selectors[sel];
           std::vector<ValueId> vs{recv};
-          for (std::size_t k = 0; k < sg.params.size(); ++k) vs.push_back(k + 1 < x.kids.size() ? exprTo(x.kids[k + 1], sg.params[k]) : nullConst(sg.params[k]));  // an optional parameter left out is null
+          // an argument left out takes the default of the method the static type names (a default is evaluated at the call, as callFunction does); an optional one is null
+          std::uint32_t sfn = L.resolveMethod(ct.obj, callee.text), sdecl = kNil;
+          if (sfn != kNil) { auto nf = L.nodeOfFunc.find(sfn); if (nf != L.nodeOfFunc.end() && (n(nf->second).kind == N::Function || n(nf->second).kind == N::Method)) sdecl = nf->second; }
+          for (std::size_t k = 0; k < sg.params.size(); ++k) {
+            if (k + 1 < x.kids.size()) { vs.push_back(exprTo(x.kids[k + 1], sg.params[k])); continue; }
+            std::uint32_t d = sdecl != kNil && 2 + k < n(sdecl).kids.size() ? n(n(sdecl).kids[2 + k]).kids[1] : kNil;
+            std::unordered_map<std::uint32_t, ValueId> saved = paramSubst;   // a default may read the parameters before it
+            for (std::size_t j = 0; d != kNil && j < k; ++j) { std::uint32_t ps = c.nodeSym[n(sdecl).kids[2 + j]]; if (ps != kNil) paramSubst[ps] = vs[1 + j]; }
+            vs.push_back(d != kNil ? exprTo(d, sg.params[k]) : nullConst(sg.params[k]));
+            paramSubst = std::move(saved);
+          }
           return emit(IrOp::CallVirt, sg.ret, std::move(vs), 0, 0, sel);
         }
       }

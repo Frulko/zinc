@@ -86,7 +86,7 @@
     {"paths": ["src/frontend/check.cpp", "src/frontend/check.h", "src/frontend/desugar.cpp", "src/frontend/snippet.cpp"], "tests": ["checker", "lang", "tdz"]},
     {"paths": ["src/frontend/modules.cpp", "src/frontend/modules.h"], "tests": ["modules", "checker", "lang", "plugin_manifest"]},
     {"paths": ["src/frontend/lexer.cpp", "src/frontend/parser.cpp"], "tests": ["parser", "lexer", "checker"]},
-    {"paths": ["src/ir/"], "tests": ["ir", "zbc", "rc_refcast", "rc_lend", "rc_borrow", "rc"]},
+    {"paths": ["src/ir/"], "tests": ["ir", "zbc", "rc_refcast", "rc_lend", "rc_borrow", "rc", "virtual_default"]},
     {"paths": ["src/zbc/"], "tests": ["zbc", "irformat", "aot"]},
     {"paths": ["src/main.cpp", "tests/t1/zbc_cache.sh"], "tests": ["zbc_cache", "run_cache"]},
     {"paths": ["src/main.cpp", "tests/t0/plugins_line.sh", "tests/data/plugins_line/"], "tests": ["plugins_line"]},

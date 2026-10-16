@@ -7,7 +7,8 @@ printf "import { render } from 'zinc:ui/solid';\nfunction App(): i32 { return <v
 fail=0
 "$ZINC" build "$tmp/small.tsx" -o "$tmp/classic" >/dev/null 2>&1 || { echo "classic build failed"; exit 1; }
 ZINC_UI_LAYOUT=rn "$ZINC" build "$tmp/small.tsx" -o "$tmp/rn" >/dev/null 2>&1 || { echo "rn build failed"; exit 1; }
-[ "$(nm "$tmp/classic" | grep -c 'YG')" = 0 ] || { echo "a classic build links Yoga"; fail=1; }
-[ "$(nm "$tmp/rn" | grep -c 'YG')" -gt 0 ] || { echo "an rn build has no Yoga"; fail=1; }
+# the binaries are stripped of local symbols (nm shows no YG* any more): Yoga's own strings tell whether it is linked
+[ "$(strings -a "$tmp/classic" | grep -ci yoga)" = 0 ] || { echo "a classic build links Yoga"; fail=1; }
+[ "$(strings -a "$tmp/rn" | grep -ci yoga)" -gt 0 ] || { echo "an rn build has no Yoga"; fail=1; }
 [ $fail -eq 0 ] && echo "aot layout link: ok ($(wc -c < "$tmp/classic" | tr -d ' ') bytes classic, $(wc -c < "$tmp/rn" | tr -d ' ') rn)"
 exit $fail

@@ -115,7 +115,8 @@ lines = ["import * as ui from 'zinc:ui';", "import { quit } from 'zinc:gfx';", "
          "function boxes(h: i32): string { const n = ui.inspectNode(h); if (n === null) return ''; let s = `${Math.round(n.x * 100) / 100},${Math.round(n.y * 100) / 100},${Math.round(n.lw * 100) / 100},${Math.round(n.lh * 100) / 100};`; for (const c of n.children) s += boxes(c); return s; }"]
 for i, t in enumerate(cases):
     f = flat(t)
-    lines.append("{ const w = ui.createNode(ui.VIEW); ui.setClass(w, 'flex-row items-start justify-start'); const r = build(%s, %s); ui.insert(w, r, -1); ui.setRoot(w); ui.layout(); console.log('%d ' + boxes(r)); }" % (json.dumps([x[0] and " ".join(x[0]) for x in f]), json.dumps([x[1] for x in f]), i))
+    lines.append("function c%d(): void { const w = ui.createNode(ui.VIEW); ui.setClass(w, 'flex-row items-start justify-start'); const r = build(%s, %s); ui.insert(w, r, -1); ui.setRoot(w); ui.layout(); console.log('%d ' + boxes(r)); }" % (i, json.dumps([x[0] and " ".join(x[0]) for x in f]), json.dumps([x[1] for x in f]), i))   # one function per case: a main with 200 inline blocks needs more than 256 registers
+lines.extend("c%d();" % i for i in range(len(cases)))
 lines.append("quit();")
 prog = os.path.join(tmp, "fuzz.ts"); open(prog, "w").write("\n".join(lines) + "\n")
 r = subprocess.run([ZINC, "run", prog], env=dict(os.environ, ZINC_HEADLESS="1", ZINC_DETERMINISTIC="1", ZINC_SIZE="%dx%d" % (W, H), ZINC_FRAMES="1"), capture_output=True, text=True, timeout=300)

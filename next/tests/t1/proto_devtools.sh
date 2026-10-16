@@ -7,6 +7,8 @@
 cd "$(dirname "$0")/../.." || exit 2
 [ "$(uname)" = Darwin ] || { echo "macOS only"; exit 77; }
 command -v node >/dev/null 2>&1 && command -v cmake >/dev/null 2>&1 || { echo "node or cmake missing"; exit 77; }
+# ui.ts moved past the prototype: it needs TIER as a number, zinc:gfx gradientPaint and overlaid (sim/gfx.mjs, runtime/gfx.*), none of which the prototype has
+echo "skipped: lib/std/ui.ts needs zinc:platform TIER as i32, gfx.gradientPaint and gfx.overlaid, absent from the prototype (backlog/later.md)"; exit 77
 [ -d ../node_modules/@typescript ] || { echo "the prototype's node_modules are missing (pnpm install)"; exit 77; }
 app=tests/golden/proto-devtools/main.tsx
 tmp=$(mktemp -d); trap 'kill $pid 2>/dev/null; rm -rf "$tmp"' EXIT

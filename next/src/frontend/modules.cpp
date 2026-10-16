@@ -1143,6 +1143,8 @@ std::string platformModuleSource(const std::string& capsFile) {
     }
     yyjson_doc_free(doc);
   }
+  // a profile with no row in targets/capabilities.json (the Next-only handhelds: psp, vita...) still has to compile zinc:ui, which reads TIER: the lowest drawing tier
+  if (src.find("export const TIER:") == std::string::npos) src += "export const TIER: i32 = 1;\n";
   return src;
 }
 
