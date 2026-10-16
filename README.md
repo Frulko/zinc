@@ -26,6 +26,8 @@ UI, games, 3D, video and hardware, from one strict, typed subset of TypeScript a
 - 🚀 **Native, not embedded.** Your program is interpreted while you work and compiled to C++ when you ship: one executable, no
   JavaScript engine or browser inside, a fast start on modest hardware.
 - 🌍 **One program, every screen.** A Mac, Windows, Linux, every Raspberry Pi, a reMarkable, an HP TouchPad from 2011, an ESP32, a PS2.
+- ⚡ **Fast Refresh.** `zinc dev` swaps each save into the running program: the window stays and so does the state (the page you were on,
+  what you typed, the game round in progress). A save shows up in a fraction of a second, and nothing of it ends up in what you ship.
 - 🧰 **Batteries included.** One `zinc` command builds, runs, debugs, tests, packages and flashes; cross builds need no Docker and no SDK.
 - 🎨 **UI people already know.** Solid or React models, Tailwind-like classes, a shadcn-style kit, Nuxt UI 4 and React Native components,
   drawn by a GPU renderer that also runs on a Pi's VideoCore IV.
@@ -55,7 +57,7 @@ git clone https://github.com/Frulko/zinc && cd zinc/next
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && tools/build zinc
 build/zinc doctor                             # what this machine can do
 build/zinc new desktop-app ../my-app && cd ../my-app
-../next/build/zinc run                        # a window opens; edit, save, it reloads
+../next/build/zinc dev                        # a window opens; edit, save: it updates and keeps its state
 ```
 
 Or, from a release, nothing to compile: the `zinc` CLI on your `PATH` with one command (`-s -- --atelier` adds the Zinc Atelier app on a Mac):
@@ -78,7 +80,7 @@ Everything goes through one command.
 | I want to… | Command |
 |---|---|
 | start a project from one of 13 templates (game, 3D, dashboard, IoT, e-ink, service…) | `zinc new game my-game` |
-| run it, with hot reload and a DevTools inspector | `zinc run` · `zinc dev` |
+| run it, with Fast Refresh and a DevTools inspector | `zinc run` · `zinc dev` |
 | run plain JavaScript (three.js, PixiJS, Phaser) as it is | `zinc run app.js --engine quickjs` |
 | set breakpoints in VS Code or Chrome | `zinc debug --dap` · `zinc debug --cdp` |
 | understand an error | `zinc explain Z0104` |

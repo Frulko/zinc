@@ -5,6 +5,7 @@ const b = import.meta.env.BASE_URL;
 const feats = [
   ['🚀', 'Native, not embedded', 'Interpreted while you work, compiled to C++ when you ship: one executable, no JavaScript engine or browser inside.'],
   ['🌍', 'One program, every screen', 'A Mac, Windows, Linux, every Raspberry Pi, a reMarkable, an HP TouchPad from 2011, an ESP32, a PS2.'],
+  ['⚡', 'Fast Refresh', 'zinc dev swaps each save into the running app: the window and the state stay, the page you were on, what you typed, the round in progress.'],
   ['🧰', 'Batteries included', 'One zinc command builds, runs, debugs, tests, packages and flashes. Cross builds need no Docker and no SDK.'],
   ['🎨', 'UI people already know', 'Solid or React models, Tailwind-like classes, a shadcn-style kit, Nuxt UI 4 and React Native components, on a GPU renderer.'],
   ['🔌', 'Web APIs on real devices', 'fetch, WebSocket, crypto.subtle, localStorage, and the battery, sensors, vibration and notifications of the device.'],
@@ -30,8 +31,8 @@ const picks = ['zed-editor.png', 'museum-table-full.jpg', 'pinball3d-play.png', 
         <div class="bar"><i></i><i></i><i></i></div>
         <pre><code><span class="l" style="animation-delay:.2s"><span class="p">$</span> zinc new desktop-app my-app && cd my-app</span>
 <span class="l d" style="animation-delay:.9s">created my-app (desktop-app); next: cd my-app && zinc run</span>
-<span class="l" style="animation-delay:1.6s"><span class="p">$</span> zinc run</span>
-<span class="l d" style="animation-delay:2.2s">a window opens; edit, save, it reloads</span>
+<span class="l" style="animation-delay:1.6s"><span class="p">$</span> zinc dev</span>
+<span class="l d" style="animation-delay:2.2s">zinc dev: v1 refreshed src/pages/home.tsx (560 ms after the save)</span>
 <span class="l" style="animation-delay:3s"><span class="p">$</span> zinc build --target aarch64-linux</span>
 <span class="l" style="animation-delay:3.8s"><span class="p">$</span> zinc flash --target esp32</span>
 <span class="l o" style="animation-delay:4.4s">same source, another screen</span></code></pre>

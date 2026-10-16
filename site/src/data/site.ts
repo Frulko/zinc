@@ -52,7 +52,7 @@ export const targets = [
 
 export const cli: [string, string][] = [
   ['start a project from one of 13 templates (game, 3D, dashboard, IoT, e-ink, service...)', 'zinc new game my-game'],
-  ['run it, with hot reload and a DevTools inspector', 'zinc run  |  zinc dev'],
+  ['run it, with Fast Refresh and a DevTools inspector', 'zinc run  |  zinc dev'],
   ['run plain JavaScript (three.js, PixiJS, Phaser) as it is', 'zinc run app.js --engine quickjs'],
   ['set breakpoints in VS Code or Chrome', 'zinc debug --dap  |  zinc debug --cdp'],
   ['understand an error', 'zinc explain Z0104'],
