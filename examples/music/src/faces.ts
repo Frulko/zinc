@@ -1,6 +1,6 @@
 // The drawings of the home's other slides (main.ts): a watch face in the spirit of iOS StandBy and the Apple Watch, and activity rings.
 // Strokes and polygons of zinc:gfx, nothing cached: a frame of either costs less than the player's.
-import { stroke, rrect, rect, gradient, gradientPaint, imageFromPixels, updateImage, drawImageRect, ImageFlag, clip, unclip, font, fontAscent } from 'zinc:gfx';
+import { stroke, rrect, rect, gradient, gradientPaint, imageFromPixels, updateImage, drawImageRect, ImageFlag, shaderProgram, drawShader, shaderAvailable, clip, unclip, font, fontAscent } from 'zinc:gfx';
 import { ui, F, TEXT, TEXT3, centered } from './ui';
 import gsap from 'gsap';
 
@@ -102,6 +102,26 @@ export const LAMP_NAMES: string[] = ['Lave', 'Magma', 'Océan', 'Acide', 'Bonbon
 let lampPal: i32 = 0;
 export function lampPalette(): i32 { return lampPal; }
 export function setLampPalette(i: i32): void { lampPal = i % LAMPS.length; }
+// The same field as a fragment program, for the displays that draw shaders on the GPU (zinc:gfx drawShader): every pixel computes it, nothing
+// is stretched. u_p[0..3]: the blobs (x, y, r^2, stretch); u_p[4..7]: their colours, 0..1. Made at load, before the first frame, so that
+// an Android window puts a GPU layer under its frame; a quarter of the resolution is enough for a field this smooth (the CPU path below
+// computes a sixteenth of it).
+const LAVA = shaderProgram(`
+void main() {
+  float px = v_uv.x * ${LAMP_W / LAMP_H}, v = 1.0 - v_uv.y, field = 0.0;
+  vec3 c = vec3(0.0);
+  for (int i = 0; i < 4; i++) {
+    vec4 b = u_p[i];
+    float dx = px - b.x, dy = (v - b.y) * b.w, f = b.z / (dx * dx + dy * dy + 0.0008);
+    field += f; c += u_p[4 + i].rgb * f;
+  }
+  c = field > 0.0001 ? c / field : vec3(0.0);
+  float body = clamp((field - 0.85) / 0.4, 0.0, 1.0), glow = clamp((field - 0.15) / 0.7, 0.0, 1.0);
+  float lit = 0.7 + 0.2 * clamp((field - 1.2) / 1.8, 0.0, 1.0), gr = body * body * (3.0 - 2.0 * body);
+  vec3 bg = u_p[4].rgb * (0.05 + (1.0 - v) * 0.13);
+  gl_FragColor = vec4(min((bg + c * glow * 0.22) * (1.0 - gr) + c * lit * gr, vec3(1.0)), 1.0);
+}`, 4);
+const lampU: number[] = [];
 const lampRgba: u8[] = [];
 let lampImg: i32 = -1;   // the field's picture: made once, its pixels replaced every frame (a GPU display uploads only them)
 /** A lava lamp behind the time: four metaballs of the ring colours that rise, stretch and melt into each other. Always moving: the caller
@@ -116,6 +136,14 @@ export function lava(W: number, H: number): void {
     const r = 0.12 + 0.03 * Math.sin(t * 0.21 + i * 1.3);
     r2.push(r * r);
     st.push(0.8 + 0.25 * Math.sin(t * 0.13 * sp + i * 2.1 + 1));   // stretches while it moves
+  }
+  if (shaderAvailable()) {   // the GPU computes the field at every pixel
+    lampU.length = 0;
+    for (let i = 0; i < LAMP_N; i++) { lampU.push(cx[i]); lampU.push(cy[i]); lampU.push(r2[i]); lampU.push(st[i]); }
+    for (let i = 0; i < LAMP_N; i++) { lampU.push(cols[i][0] / 255); lampU.push(cols[i][1] / 255); lampU.push(cols[i][2] / 255); lampU.push(0); }
+    drawShader(LAVA, 0, 0, W, H, lampU);
+    ui.animating = true;
+    return;
   }
   lampRgba.length = 0;
   for (let y = 0; y < LAMP_H; y++) {

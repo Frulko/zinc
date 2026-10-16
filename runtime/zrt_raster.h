@@ -79,10 +79,15 @@ extern uint32_t dyn_pictures;   // runtime images with a picture now
 
 enum Kind : uint8_t { CLEAR, RECT, BORDER, SHADOW, LINE, TEXT, IMAGE, POLY, CLIP, UNCLIP,
   STROKE,   // STROKE (ZN-590.01): a polyline of n points at off, width s, pad bit 1 = closed; recorded only for displays that draw it on the GPU (gfx::gpu_strokes)
-  XFORM };  // XFORM (ZN-263.01): a RECT, BORDER, SHADOW, IMAGE or TEXT drawn through a 2D matrix (gfx.setTransform). x, y, w, h: its screen bounding
+  XFORM,    // XFORM (ZN-263.01): a RECT, BORDER, SHADOW, IMAGE or TEXT drawn through a 2D matrix (gfx.setTransform). x, y, w, h: its screen bounding
             // box; the n = kXformLen floats at off: [kind, a, b, c, d, e, f, x, y, w, h, r, s, off, n (bits: a TEXT's text, an IMAGE's box)], the command in its
             // own coordinates and the matrix to the screen (x' = a x + c y + e, y' = b x + d y + f); colours, alpha, grad and res stay in the Cmd.
+  SHADER };  // SHADER (ZN-746): the box x, y, w, h filled by a fragment program on the GPU (res: the program, gfx::shaderProgram; n floats of
+             // uniforms at off). The software raster draws nothing there, or the hole of a GPU layer under the frame (shader_holes).
 constexpr uint32_t kXformLen = 15;
+/** A display draws the SHADER commands on a GPU layer under the frame (the Android window, ZN-746): the software raster leaves their hole
+ *  (layer_fill) and a change of their uniforms alone is no damage of the frame. */
+extern bool shader_holes;
 
 struct Cmd {
   uint8_t kind, alpha, grad;   // grad: 0 none, 1 vertical (c1 top -> c2 bottom), 2 horizontal, 3 radial, 4 POLY paint record after the contours, 5 RECT paint record of n floats at off (raster.cpp paint_at); IMAGE: 1 = nearest filter
@@ -206,5 +211,10 @@ raster::Cmd* emit(uint8_t kind, const float* pts, uint32_t len);
 /** Set by a display that replays the command lists on the GPU and draws STROKE itself (the GL window, display-gl): stroke() then records
  *  the polyline instead of tessellating it. The software raster draws a STROKE too (it tessellates it), so a fallback stays correct. */
 extern bool gpu_strokes;
+/** Runtime shaders (ZN-746, zrt.h shaderProgram): a program's GLSL source by id (null: none), for the displays that compile it; shaders_drawn
+ *  is set by the display that draws SHADER commands on the GPU (zinc:gfx shaderAvailable). */
+const char* shaderSource(int32_t id);
+int32_t shaderScale(int32_t id);   // 1 to 8: the program may be shaded at that fraction of the resolution (zrt.h shaderProgram)
+extern bool shaders_drawn;
 }
 }  // namespace zrt

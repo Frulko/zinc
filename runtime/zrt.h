@@ -768,6 +768,12 @@ void rect(double x, double y, double w, double h, uint32_t color);
 void rrect(double x, double y, double w, double h, double r, uint32_t color, int32_t alpha);
 void gradient(double x, double y, double w, double h, double r, uint32_t c1, uint32_t c2, bool vertical, int32_t alpha);
 void gradientPaint(double x, double y, double w, double h, double r, const double* paint, uint32_t n, int32_t alpha);   // a paint record of n f64 values (raster.cpp paint_at)
+// Runtime shaders (ZN-746): a fragment program in GLSL ES 1.00 (its main() writes gl_FragColor from v_uv, 0..1 over the box, u_size, the
+// box in pixels, and u_p[8], the uniforms), kept by its id for the displays that compile it; a SHADER command fills a box with it (at most
+// kShaderUniforms floats). shaders_drawn: set by the display that draws them on the GPU (the GL window, the Android GPU layer).
+constexpr uint32_t kShaderUniforms = 32;
+int32_t shaderProgram(const String& source, int32_t scale = 1);
+void drawShader(int32_t program, double x, double y, double w, double h, const double* uniforms, uint32_t n);   // shaderSource, shaders_drawn: zrt_raster.h
 void border(double x, double y, double w, double h, double r, double width, uint32_t color, int32_t alpha);
 void shadow(double x, double y, double w, double h, double r, double blur, uint32_t color, int32_t alpha);
 void polygon(const Array<double>& pts, uint32_t color, int32_t alpha);

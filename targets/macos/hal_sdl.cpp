@@ -127,13 +127,13 @@ static GLuint zgl_program(const char* defines, const char* vs, const char* fs) {
 static SDL_GLContext glctx;
 static bool gl_on, glr_ok, glr_made, glr_stale, gl_tex_ok;   // the window presents with GL; the replay works; it was set up; its size is stale; its texture holds the last frame
 static GLuint gl_prog, gl_quad, gl_upload, gl_vao;
-static GLint gl_u_tex, gl_u_bgr, gl_u_rot;
+static GLint gl_u_tex, gl_u_bgr, gl_u_rot, gl_u_alpha;
 // the present pass: a texture of the surface over the window (rows top first); u_bgr for the software rows (bytes B, G, R)
 // u_rot: cos and sin of the picture's turn (a simulated device turned while its program keeps its orientation: zinc run --simulate)
 static const char* kPresentVS = "attribute vec2 a_pos; varying vec2 v_uv; uniform vec2 u_rot; void main() { v_uv = vec2(a_pos.x, 1.0 - a_pos.y); vec2 p = a_pos * 2.0 - 1.0;\n"
   "  gl_Position = vec4(p.x * u_rot.x - p.y * u_rot.y, p.x * u_rot.y + p.y * u_rot.x, 0.0, 1.0); }\n";
-static const char* kPresentFS = "varying vec2 v_uv; uniform sampler2D u_tex; uniform float u_bgr;\n"
-  "void main() { vec4 t = texture2D(u_tex, v_uv); gl_FragColor = vec4(u_bgr > 0.5 ? t.bgr : t.rgb, 1.0); }\n";
+static const char* kPresentFS = "varying vec2 v_uv; uniform sampler2D u_tex; uniform float u_bgr; uniform float u_alpha;\n"   // u_alpha: the GPU layers' frame (premultiplied)
+  "void main() { vec4 t = texture2D(u_tex, v_uv); gl_FragColor = vec4(u_bgr > 0.5 ? t.bgr : t.rgb, u_alpha > 0.5 ? t.a : 1.0); }\n";
 /** Creates the window with an OpenGL context; false (nothing left behind) without a hardware context, unless ZINC_RENDERER=gl. */
 static bool gl_window(const char* title, int ww, int wh) {
   const char* rr = getenv("ZINC_RENDERER");
@@ -184,6 +184,7 @@ static bool gl_window(const char* title, int ww, int wh) {
     return false;
   }
   gl_u_tex = glGetUniformLocation(gl_prog, "u_tex"); gl_u_bgr = glGetUniformLocation(gl_prog, "u_bgr"); gl_u_rot = glGetUniformLocation(gl_prog, "u_rot");
+  gl_u_alpha = glGetUniformLocation(gl_prog, "u_alpha");
   static const float q[] = {0, 0, 1, 0, 0, 1, 1, 1};
   glGenBuffers(1, &gl_quad);
   glBindBuffer(GL_ARRAY_BUFFER, gl_quad);
@@ -418,6 +419,7 @@ void hal_init(const HalConfig* cfg) {
 #endif
     if (want_gl && !(wcfg_set && wcfg.transparent) && !hal_display) gl_on = gl_window(cfg->title, ww, wh);
     zrt::gfx::gpu_strokes = gl_on;   // the replay draws strokes on the GPU (ZN-590.01)
+    zrt::gfx::shaders_drawn = gl_on; glr::shader_source = zrt::gfx::shaderSource;   // and the programs' shaders (ZN-746)
   }
   if (!gl_on) {
     if (getenv("ZINC_GL_STATS")) fprintf(stderr, "zinc: window renderer cpu\n");
@@ -1086,8 +1088,99 @@ static void anw_present(const HalFrame* f) {
 #ifdef ZN_HAL_GL
 // GL: the command lists replayed on the GPU into the replay's texture (or straight into the window when it has the surface's size and
 // most of the frame changed), else the software rows uploaded; then the texture over the window, letterboxed.
+#ifdef __ANDROID__
+static bool layers_on;   // GPU layers under the frame (ZN-746): GL draws the SHADER commands, the software frame goes over them with its holes
+static uint32_t *lay_w, *lay_rgba;   // the damaged rows rendered with white holes; the frame's RGBA (premultiplied) as it is uploaded
+static void (*holes_fn)(uint32_t*, int32_t, int32_t, uint32_t);
+static void holes_black(uint32_t* rows, int32_t y0, int32_t y1) { holes_fn(rows, y0, y1, 0x000000); }
+static void holes_white(uint32_t* rows, int32_t y0, int32_t y1) { holes_fn(rows, y0, y1, 0xFFFFFF); }
+/** The damaged rows rendered twice, holes black then white: a pixel's alpha is what the white showed through, its colour the black render
+ *  (premultiplied); the rows go to the texture, which is drawn over the SHADER commands of the frame. */
+static void layers_present(const HalFrame* f, int dw, int dh) {
+  if (f->y1 > f->y0 && f->x1 > f->x0 && f->render_holes) {
+    if (!lay_w) { lay_w = (uint32_t*)calloc((size_t)PW * PH, 4); lay_rgba = (uint32_t*)calloc((size_t)PW * PH, 4); }
+    holes_fn = f->render_holes;
+    render_rows_parallel(holes_black, f->y0, f->y1);
+    render_rows_parallel(holes_white, f->y0, f->y1, lay_w);
+    for (size_t i = (size_t)f->y0 * PW, e = (size_t)f->y1 * PW; i < e; i++) {
+      const uint32_t b = fb[i], w = lay_w[i], a = 255 - (((w >> 8) & 255) - ((b >> 8) & 255));
+      lay_rgba[i] = a << 24 | (b & 255) << 16 | (b & 0xFF00) | ((b >> 16) & 255);   // bytes R, G, B, A
+    }
+    glBindTexture(GL_TEXTURE_2D, gl_upload);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, f->y0, PW, f->y1 - f->y0, GL_RGBA, GL_UNSIGNED_BYTE, lay_rgba + (size_t)f->y0 * PW);
+  }
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  glDisable(GL_SCISSOR_TEST); glDisable(GL_DEPTH_TEST); glDisable(GL_BLEND);
+  glViewport(0, 0, dw, dh);
+  glClearColor(0, 0, 0, 1);
+  glClear(GL_COLOR_BUFFER_BIT);
+  const HalCmdList* lists[8];
+  const int32_t nl = f->frames ? f->frames(lists, 8) : 0;
+  // the shaders at 1 / scale of the size, into a texture stretched linearly over the window, when their programs allow it (shaderProgram's
+  // scale: a smooth picture loses nothing, and Tegra 3 shades the lava lamp's screen in 40 ms, a quarter of it in under 16); ZINC_SHADER_SCALE
+  // overrides
+  int sc = 8;
+  for (int32_t l = 0; l < nl; l++)
+    for (uint32_t i = 0; i < lists[l]->count; i++) {
+      const zrt::raster::Cmd& c = ((const zrt::raster::Cmd*)lists[l]->cmds)[i];
+      if (c.kind == zrt::raster::SHADER) sc = SDL_min(sc, zrt::gfx::shaderScale(c.res));
+    }
+  if (const char* e = getenv("ZINC_SHADER_SCALE")) sc = atoi(e);
+  sc = SDL_max(1, SDL_min(sc, 8));
+  static GLuint sfbo, stex;
+  static int sw, sh;
+  if (sc > 1 && (sw != (dw + sc - 1) / sc || sh != (dh + sc - 1) / sc)) {
+    sw = (dw + sc - 1) / sc; sh = (dh + sc - 1) / sc;
+    if (!stex) { glGenTextures(1, &stex); glGenFramebuffers(1, &sfbo); }
+    glBindTexture(GL_TEXTURE_2D, stex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, sw, sh, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE); glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glBindFramebuffer(GL_FRAMEBUFFER, sfbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, stex, 0);
+    glClear(GL_COLOR_BUFFER_BIT);
+  }
+  if (sc > 1) { glBindFramebuffer(GL_FRAMEBUFFER, sfbo); glViewport(0, 0, sw, sh); }
+  for (int32_t l = 0; l < nl; l++)
+    for (uint32_t i = 0; i < lists[l]->count; i++) {
+      const zrt::raster::Cmd& c = ((const zrt::raster::Cmd*)lists[l]->cmds)[i];
+      if (c.kind == zrt::raster::SHADER) glr::shader_quad(c, lists[l]->pts + c.off, dw, dh, sc == 1, 0);
+    }
+  glUseProgram(gl_prog);
+  glUniform2f(gl_u_rot, 1, 0);
+  glActiveTexture(GL_TEXTURE0);
+  glUniform1i(gl_u_tex, 0); glUniform1f(gl_u_bgr, 0);
+  glBindBuffer(GL_ARRAY_BUFFER, gl_quad);
+  glEnableVertexAttribArray(0);
+  glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
+  if (sc > 1) {
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glViewport(0, 0, dw, dh);
+    glBindTexture(GL_TEXTURE_2D, stex);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR); glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glUniform1f(gl_u_alpha, 0);
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+  }
+  glEnable(GL_BLEND);
+  glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+  glUseProgram(gl_prog);
+  glBindBuffer(GL_ARRAY_BUFFER, gl_quad);
+  glEnableVertexAttribArray(0);
+  glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
+  glBindTexture(GL_TEXTURE_2D, gl_upload);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  glUniform1f(gl_u_alpha, 1);
+  glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+  glDisableVertexAttribArray(0);
+  glDisable(GL_BLEND);
+  SDL_GL_SwapWindow(win);
+}
+#endif
 static void gl_present(const HalFrame* f) {
   GlCurrent cur;
+#ifdef __ANDROID__
+  if (layers_on) { int dw = PW, dh = PH; SDL_GetWindowSizeInPixels(win, &dw, &dh); layers_present(f, dw, dh); return; }
+#endif
   if (glr_stale && f->frames) {   // not for a frame of rows alone (the splash, ZN-446): the replay sizes its tables by the fonts and images installed
     if (!glr_made && getenv("ZINC_GL_STATS")) atexit([] { if (glr_ok) glr::report(); });   // at exit: the Next host never calls hal_shutdown
     glr_ok = glr_made ? glr::resize(PW, PH) : glr::init(PW, PH);
@@ -1133,7 +1226,7 @@ static void gl_present(const HalFrame* f) {
   const GLint flt = logical_px ? GL_NEAREST : GL_LINEAR;   // pixel art keeps square pixels when the window magnifies it
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, flt); glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, flt);
   glUniform1i(gl_u_tex, 0);
-  glUniform1f(gl_u_bgr, bgr);
+  glUniform1f(gl_u_bgr, bgr); glUniform1f(gl_u_alpha, 0);
   glBindBuffer(GL_ARRAY_BUFFER, gl_quad);
   glEnableVertexAttribArray(0);
   glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
@@ -1143,6 +1236,27 @@ static void gl_present(const HalFrame* f) {
 }
 #endif
 static void present_frame(const HalFrame* f);
+static bool presented;   // a frame was shown: the kind of the window is settled
+#ifdef __ANDROID__
+// zinc:gfx shaderProgram (ZN-746): a program that makes a shader before its first frame is shown gets a GL window with a GPU layer under its
+// software frame (the window's buffer was never locked by the CPU, so EGL can still take it); ZINC_GPU_LAYERS=0 keeps the CPU window.
+extern "C" void zn_hal_sdl_gpu_layers(void) {
+  if (!gfx_on || presented || layers_on || !anw_mode || (getenv("ZINC_GPU_LAYERS") && getenv("ZINC_GPU_LAYERS")[0] == '0')) return;
+  int ww = 0, wh = 0;
+  SDL_GetWindowSize(win, &ww, &wh);
+  SDL_DestroyWindow(win);
+  win = nullptr;
+  if (!gl_window("zinc", ww, wh)) {   // no GLES 2 context: the CPU window again
+    if (!(win = SDL_CreateWindow("zinc", ww, wh, SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_HIDDEN))) hal_panic(SDL_GetError(), "hal_sdl", __LINE__);
+    return;
+  }
+  anw_mode = 0; gl_on = true; layers_on = true;
+  zrt::raster::shader_holes = true; zrt::gfx::shaders_drawn = true; glr::shader_source = zrt::gfx::shaderSource;
+  surface_ok = false;
+  apply_size();
+  if (getenv("ZINC_GL_STATS")) fprintf(stderr, "zinc: window renderer cpu with GPU layers\n");
+}
+#endif
 // The shared rasterizer renders only the damaged rows; the texture is updated for those rows.
 void hal_present(const HalFrame* f) {
   if (!gfx_on) return;
@@ -1162,6 +1276,7 @@ void hal_present(const HalFrame* f) {
     return;
   }
   present_frame(f);
+  presented = true;
   if (shown) return;
   shown = true;
   show_main();

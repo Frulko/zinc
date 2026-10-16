@@ -104,6 +104,17 @@ Pixels: `ZINC_PRESENT_VERIFY=1` compares the whole window buffer with a full red
 precision and resamples (the texture path differs from a desktop raster of the same frame on 28,925 edge pixels, max 32 levels; the window
 buffer on 20,077, max 20: the compositor's own share).
 
+### A GPU layer under the software frame (ZN-746)
+
+zinc:gfx runtime shaders (shaderProgram, drawShader, shaderAvailable) are drawn by the GPU without the GL replay of the whole frame: a
+program that makes a shader before its first frame gets a GL window (its buffer was never locked by the CPU, so EGL can still take it); each
+frame GL draws the frame's SHADER commands (at 1 / scale of the screen when the program allows it), then the software frame over them, its
+damaged rows rendered with holes where the shaders are (twice, holes black and white: alpha and premultiplied colour) and uploaded. A change of
+the shaders' uniforms alone is no damage: an animated shader under a still UI costs the CPU nothing. The music app's lava face: 4.0 fps with
+its PNG round trip and four taps, 22 fps with one smooth stretch of a raw picture on the CPU, 61 fps as a shader at a quarter of the
+resolution (24 fps at full resolution: Tegra 3 needs about 40 ms to shade and blend 1280 x 704). ZINC_GPU_LAYERS=0 keeps the CPU window,
+ZINC_SHADER_SCALE overrides the scale.
+
 ### The first interaction (owner's report: the first touch is slow)
 
 Cold launch, the panel and a trace (`ZINC_TRACE`), a tap on Settings at 3 s, a tap on Stats about 2 s later; worst frame (and the gap between

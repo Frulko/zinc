@@ -678,6 +678,7 @@ void dyn_set_picture(int32_t id, Picture* p) {
 }
 Picture* dyn_picture(int32_t id) { Dyn* d = dyn_at(id); return d ? d->pic : nullptr; }
 static ZRT_TLS uint32_t layer_fill = HAL_LAYER_HOLE;
+bool shader_holes = false;
 void set_layer_fill(uint32_t color) { layer_fill = color; }
 Rect layer_rect(const Cmd& c, const Picture& p, int32_t iw, int32_t ih) {
   const float kx = c.w / (float)iw, ky = c.h / (float)ih;
@@ -1125,6 +1126,11 @@ template<class Pick> static void run_cmds(const Frame& f, Target t, uint32_t n, 
       case LINE: case POLY: fill_poly(t, c, f.pts + c.off); break;
       case STROKE: stroke_poly(t, c, f.pts + c.off); break;
       case XFORM: draw_xform(t, c, f.pts + c.off, f.text, f.pts); break;
+      case SHADER: if (shader_holes) {   // the GPU layer under the frame shows there
+          Rect b = bounds(c.x, c.y, c.w, c.h, t.clip);
+          for (int32_t y = b.y0; y < b.y1; y++) if (b.x1 > b.x0) fill_row(&at(t, b.x0, y), b.x1 - b.x0, layer_fill);
+        }
+        break;
       case CLIP: {
         if (sp >= 16) break;
         RoundClip k = {c.x, c.y, c.w, c.h, c.r, 0, pool, false};
@@ -1199,6 +1205,7 @@ static bool same(const Frame& a, const Cmd& x, const Frame& b, const Cmd& y) {
   }
   if (x.kind == IMAGE) return x.off == y.off;   // not a pool offset: part of its box (image_box)
   if (x.kind == RECT && x.grad == 5) return !__builtin_memcmp(a.pts + x.off, b.pts + y.off, x.n * sizeof(float));   // its paint record
+  if (x.kind == SHADER) return shader_holes || !__builtin_memcmp(a.pts + x.off, b.pts + y.off, x.n * sizeof(float));   // its uniforms
   return true;
 }
 Rect diff(const Frame& a, const Frame& b, int32_t w, int32_t h) {
@@ -1567,6 +1574,7 @@ static uint32_t cmd_hash(const Frame& f, const Cmd& c) {
   }
   else if (c.kind == IMAGE) h = fnv(h, &c.off, sizeof c.off);
   else if (c.kind == RECT && c.grad == 5) h = fnv(h, f.pts + c.off, c.n * (uint32_t)sizeof(float));
+  else if (c.kind == SHADER && !shader_holes) h = fnv(h, f.pts + c.off, c.n * (uint32_t)sizeof(float));
   return h;
 }
 uint32_t frame_hash(const Frame& f) {

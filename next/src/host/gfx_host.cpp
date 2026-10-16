@@ -88,6 +88,9 @@ static const HalGamepad* pad(int32_t i) { return i >= 0 && i < HAL_MAX_GAMEPADS 
 
 extern "C" int zn_asset_font(const char* name, uint32_t n);   // src/host/sys_host.cpp
 extern "C" int zn_asset_image(const char* name, uint32_t n);
+// The SDL window on Android draws SHADER commands on a GPU layer under its software-rastered frame when a program asks for a shader before its
+// first frame is shown (targets/macos/hal_sdl.cpp, ZN-746); no SDL window: nothing to do
+extern "C" __attribute__((weak)) void zn_hal_sdl_gpu_layers(void) {}
 // zinc:gfx loadFont (ZN-669): a family or file the program embeds, else the file read whole from its assets
 int32_t loadFont(const zrt::String& name, double px) {
   const int32_t f = zrt::gfx::loadFont(name, px);
@@ -219,6 +222,9 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostGfxImageFromBytes: r->i = imageFromBytes(static_cast<const uint64_t*>(a[0].p), a[0].n); break;
     case Rt::HostGfxImageFromPixels: r->i = imageFromPixels(static_cast<const uint64_t*>(a[0].p), a[0].n, n(1), n(2)); break;
     case Rt::HostGfxUpdateImage: putRgba(n(0), static_cast<const uint64_t*>(a[1].p), a[1].n); break;
+    case Rt::HostGfxShaderProgram: r->i = g::shaderProgram(str(a[0]), n(1)); zn_hal_sdl_gpu_layers(); break;   // a window that can still put a GPU layer under its frame does
+    case Rt::HostGfxDrawShader: g::drawShader(n(0), a[1].d, a[2].d, a[3].d, a[4].d, static_cast<const double*>(a[5].p), a[5].n); break;
+    case Rt::HostGfxShaderAvailable: r->i = g::shaders_drawn ? 1 : 0; break;
     case Rt::HostGfxClip: g::clip(a[0].d, a[1].d, a[2].d, a[3].d, a[4].d); break;
     case Rt::HostGfxUnclip: g::unclip(); break;
     case Rt::HostGfxTranslate: g::translate(a[0].d, a[1].d); break;

@@ -21,6 +21,7 @@
     {"paths": ["../runtime/raster.cpp", "../lib/std/ui.ts", "src/host/render_bench.cpp", "tests/t0/damage_tap.sh"], "tests": ["damage_tap", "damage_sig"]},
     {"paths": ["../runtime/raster.cpp", "../runtime/gfx.cpp", "../lib/std/ui.ts", "../targets/macos/hal_sdl.cpp", "src/host/render_bench.cpp", "tests/t0/scroll_move.sh"], "tests": ["scroll_move"]},
     {"paths": ["../runtime/raster.cpp", "../runtime/gfx.cpp", "src/host/gfx_host.cpp", "src/frontend/modules.cpp", "include/zn/runtime.h", "../lib/gfx.d.ts", "tests/t0/image_pixels.sh", "tests/data/image_pixels/"], "tests": ["image_pixels"]},
+    {"paths": ["../runtime/gl_replay.cpp", "../runtime/gl_replay_shaders.h", "../runtime/gfx.cpp", "../runtime/raster.cpp", "../plugins/display-gl/", "../targets/macos/hal_sdl.cpp", "src/host/gfx_host.cpp", "tests/t1/shader_gl.sh", "tests/data/shader/"], "tests": ["shader_gl", "image_pixels"]},
     {"paths": ["include/zn/resource_stats.h", "src/host/resources.cpp", "tests/t0/resource_stats.sh", "../plugins/video/native/video.host.cpp", "../plugins/3d/native/render3d.host.cpp", "../plugins/3d/native/render3d.gl.cpp", "../plugins/three/native/three.host.cpp", "../runtime/raster.cpp", "../runtime/gl_replay.cpp"], "tests": ["resource_stats", "museum_probe"]},
     {"paths": ["tools/museum-probe", "tools/resource-probe", "tools/scenarios/", "tools/cdp-probe", "../examples/museum-table/src/probe.ts"], "tests": ["resource_probe", "museum_probe", "devtools_port"]},
     {"paths": ["src/rt/rt.h"], "tests": ["cross_linux"]},

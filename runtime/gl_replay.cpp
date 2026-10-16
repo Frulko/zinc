@@ -1427,6 +1427,49 @@ static bool any_occluder(const Frame& f) {
   for (uint32_t i = 0; i < f.count; i++) { const Cmd& c = f.cmds[i]; if (c.kind == RECT && c.r <= 0 && !c.grad && c.alpha == 255) return true; }
   return false;
 }
+// ---- SHADER (ZN-746): a box filled by a program's own fragment shader (gfx::shaderProgram), compiled at its first use behind the varyings and
+// uniforms every such program reads, and drawn alone in paint order. The includer gives the sources (shader_source); without it SHADER draws
+// nothing. Also used outside a replay: the Android window's GPU layer under a software frame (hal_sdl.cpp).
+static const char* (*shader_source)(int32_t id) = nullptr;
+static const char* const SH_HEAD = "varying vec2 v_uv; uniform vec2 u_size; uniform vec4 u_p[8];\n";
+static const char* const SH_VS = "attribute vec4 a_pos; uniform vec4 u_rect; uniform vec2 u_res; uniform float u_flip; uniform float u_zz;\n"
+  "void main() { v_uv = a_pos.xy; vec2 p = u_rect.xy + a_pos.xy * u_rect.zw;\n"
+  "  gl_Position = vec4(p.x / u_res.x * 2.0 - 1.0, (p.y / u_res.y * 2.0 - 1.0) * u_flip, u_zz, 1.0); }\n";
+struct ShProg { GLuint id; GLint u_rect, u_res, u_flip, u_zz, u_size, u_p; bool tried; };
+static ShProg sh_progs[64];   // ponytail: the first 64 programs of a run are drawn; more would need a table that grows
+static GLuint sh_vbo;
+/** Draws one SHADER command over a target of w x h pixels (flip: the window's rows bottom-up) at depth z; the caller's program, buffer and
+ *  attributes are left changed. */
+static void shader_quad(const Cmd& c, const float* u, int32_t w, int32_t h, bool flip, float z) {
+  if (c.res < 0 || c.res >= 64 || !shader_source) return;
+  ShProg& p = sh_progs[c.res];
+  if (!p.tried) {
+    p.tried = true;
+    const char* src = shader_source(c.res);
+    p.id = src ? zgl_program(SH_HEAD, SH_VS, src) : 0;
+    if (!p.id) { fprintf(stderr, "zinc: shader program %d does not compile: its boxes are not drawn\n", c.res); return; }
+    p.u_rect = glGetUniformLocation(p.id, "u_rect"); p.u_res = glGetUniformLocation(p.id, "u_res"); p.u_flip = glGetUniformLocation(p.id, "u_flip");
+    p.u_zz = glGetUniformLocation(p.id, "u_zz"); p.u_size = glGetUniformLocation(p.id, "u_size"); p.u_p = glGetUniformLocation(p.id, "u_p");
+  }
+  if (!p.id) return;
+  if (!sh_vbo) {
+    static const float q[] = {0, 0, 1, 0, 0, 1, 1, 1};
+    glGenBuffers(1, &sh_vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, sh_vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof q, q, GL_STATIC_DRAW);
+  }
+  float up[32] = {0};
+  for (uint32_t i = 0; i < c.n && i < 32; i++) up[i] = u[i];
+  glUseProgram(p.id);
+  glUniform4f(p.u_rect, c.x, c.y, c.w, c.h); glUniform2f(p.u_res, (float)w, (float)h); glUniform1f(p.u_flip, flip ? -1.f : 1.f);
+  glUniform1f(p.u_zz, z); glUniform2f(p.u_size, c.w, c.h); glUniform4fv(p.u_p, 8, up);
+  glBindBuffer(GL_ARRAY_BUFFER, sh_vbo);
+  for (GLuint i = 1; i < 7; i++) glDisableVertexAttribArray(i);
+  glEnableVertexAttribArray(0);
+  glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
+  glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+}
+
 static void run(const Frame& f, bool first) {
   sp = 0;
   clip = base;
@@ -1512,6 +1555,13 @@ static void run(const Frame& f, bool first) {
       }
       case STROKE: if (strips && c.alpha == 255) stroke_strips(c, f.pts + c.off); else draw_stroke(c, f.pts + c.off); break;
       case XFORM: draw_xform(c, f.pts + c.off, f.text, f.pts); break;
+      case SHADER:
+        flush();
+        apply_clip();
+        shader_quad(c, f.pts + c.off, W, H, flipy, cur_z);
+        cur_prog = nullptr;   // the next run binds its program again
+        st.draws++;
+        break;
       case CLIP: {
         if (sp >= 16) break;
         flush();

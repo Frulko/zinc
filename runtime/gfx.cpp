@@ -1038,7 +1038,7 @@ void present_overlay() {
   init_scale();
   banner_expire();
   if (ovl_changed) set_full_damage(); else ndmg = 0;
-  HalFrame f = {pw, ph, 0, 0, ovl_changed ? pw : 0, ovl_changed ? ph : 0, render_rows, render_damage, frame_lists, nlay ? render_holes : nullptr, render_box};
+  HalFrame f = {pw, ph, 0, 0, ovl_changed ? pw : 0, ovl_changed ? ph : 0, render_rows, render_damage, frame_lists, nlay || raster::shader_holes ? render_holes : nullptr, render_box};
   ovl_changed = false;
   present(&f);
 }
@@ -1193,7 +1193,7 @@ void end_frame() {
     hud::before_present(raster::Rect{0, 0, 0, 0});   // the panel keeps counting while the program is idle
     taps_update();
     const raster::Rect d = damage_box();
-    HalFrame f = {pw, ph, d.x0, d.y0, d.x1, d.y1, render_rows, render_damage, frame_lists, nlay ? render_holes : nullptr, render_box};
+    HalFrame f = {pw, ph, d.x0, d.y0, d.x1, d.y1, render_rows, render_damage, frame_lists, nlay || raster::shader_holes ? render_holes : nullptr, render_box};
     ovl_changed = false;
     present(&f);
     if (prof_on) prof::end();
@@ -1260,7 +1260,7 @@ void end_frame() {
   shown = &now;
   __atomic_store_n(&tiles_state, 0, __ATOMIC_RELEASE);
   stats.draw_cmds = now.ncmd;
-  HalFrame f = {pw, ph, d.x0, d.y0, d.x1, d.y1, render_rows, render_damage, frame_lists, nlay ? render_holes : nullptr, render_box, moved ? &hm : nullptr};
+  HalFrame f = {pw, ph, d.x0, d.y0, d.x1, d.y1, render_rows, render_damage, frame_lists, nlay || raster::shader_holes ? render_holes : nullptr, render_box, moved ? &hm : nullptr};
   present(&f);
   if (prof_on) prof::end();
   after_present();
@@ -1380,6 +1380,45 @@ void gradient(double x, double y, double w, double h, double r, uint32_t c1, uin
 }
 // A rounded box filled with a gradient paint record (ZN-261, raster.cpp paint_at): RECT grad 5, the record in the point pool with its
 // geometry in physical pixels like the box. A record that does not hold its stops draws nothing.
+// ---------- runtime shaders (ZN-746): the sources by id; the displays that draw SHADER compile them at first use
+bool shaders_drawn = false;
+static char** shader_srcs = nullptr;
+static int32_t* shader_scales = nullptr;
+static int32_t shader_n = 0, shader_cap = 0;
+int32_t shaderProgram(const String& source, int32_t scale) {
+  if (shader_n == shader_cap) {
+    const int32_t cap = shader_cap ? shader_cap * 2 : 8;
+    char** a = (char**)hal_alloc((size_t)cap * sizeof(char*));
+    int32_t* k = (int32_t*)hal_alloc((size_t)cap * sizeof(int32_t));
+    if (!a || !k) { if (a) hal_free(a); if (k) hal_free(k); return -1; }
+    for (int32_t i = 0; i < shader_n; i++) { a[i] = shader_srcs[i]; k[i] = shader_scales[i]; }
+    if (shader_srcs) { hal_free(shader_srcs); hal_free(shader_scales); }
+    shader_srcs = a; shader_scales = k; shader_cap = cap;
+  }
+  shader_scales[shader_n] = scale < 1 ? 1 : scale > 8 ? 8 : scale;
+  const uint32_t n = source.bytes();
+  char* s = (char*)hal_alloc(n + 1);
+  if (!s) return -1;
+  __builtin_memcpy(s, source.ptr(), n);
+  s[n] = 0;
+  shader_srcs[shader_n] = s;
+  return shader_n++;
+}
+const char* shaderSource(int32_t id) { return id >= 0 && id < shader_n ? shader_srcs[id] : nullptr; }
+int32_t shaderScale(int32_t id) { return id >= 0 && id < shader_n ? shader_scales[id] : 1; }
+void drawShader(int32_t program, double x, double y, double w, double h, const double* u, uint32_t n) {
+  if (!shaderSource(program) || !(w > 0 && h > 0)) return;
+  if (n > kShaderUniforms) n = kShaderUniforms;
+  Buf& b = bufs[cur];
+  if (n > ZRT_POINT_POOL - b.npts) { pool_full(2); return; }
+  Cmd* c = push(raster::SHADER, 0, 255);
+  if (!c) return;
+  box(c, x, y, w, h);
+  c->res = program; c->off = b.npts; c->n = n;
+  for (uint32_t i = 0; i < n; i++) b.pts[b.npts + i] = (float)u[i];
+  b.npts += n;
+}
+
 void gradientPaint(double x, double y, double w, double h, double r, const double* g, uint32_t n, int32_t alpha) {
   if (n < 11 || !(g[0] >= 1 && g[0] <= 12) || !(g[7] >= 1 && g[7] <= (double)((n - 8) / 3)) || g[7] != (double)(uint32_t)g[7]) return;
   const int32_t kind = (int32_t)g[0];

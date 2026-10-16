@@ -107,6 +107,7 @@ static void choose_renderer(const HalFrame* f) {
   glr_tex = glr::texture();
   glr_state = 1;
   zrt::gfx::gpu_strokes = true;   // strokes are recorded as polylines from the next frame on, drawn by the replay (ZN-590.01)
+  zrt::gfx::shaders_drawn = true; glr::shader_source = zrt::gfx::shaderSource;   // and the programs' shaders (ZN-746)
 }
 
 static int init(const HalConfig* cfg) {

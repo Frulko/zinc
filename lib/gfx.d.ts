@@ -78,6 +78,21 @@ declare module 'zinc:gfx' {
   /** New RGBA pixels for a runtime image of imageFromPixels (as many bytes as it has pixels times four; fewer: nothing changes). The frames
    *  drawn after it show them; a GPU display uploads only this image again. */
   export function updateImage(image: i32, rgba: u8[]): void;
+  /** A fragment program for drawShader, in GLSL ES 1.00 (WebGL 1's language): its main() sets gl_FragColor from `varying vec2 v_uv` (0..1
+   *  across the box, top left first), `uniform vec2 u_size` (the box in pixels) and `uniform vec4 u_p[8]` (drawShader's uniforms, four a
+   *  vector); mediump floats are enough on every GPU (the shader runs where fragment highp is missing). Create it before the first frame:
+   *  on Android the window then puts a GPU layer under the frame. Compiled by the display at its first use; a program that does not
+   *  compile draws nothing (the error on stderr). `scale` (1 to 8): the program may be shaded at 1 / scale of the screen's resolution and
+   *  stretched, for a picture without sharp edges (a smooth field: 2 to 4), on a GPU that cannot shade the whole screen each frame (an
+   *  Android window's GPU layer takes it; a desktop GPU shades every pixel). */
+  export function shaderProgram(fragment: string, scale?: i32): i32;
+  /** Fills the box with the program (at most 32 uniforms, u_p[0].x first), on the GPU; under it what was drawn before, over it what follows.
+   *  Only where shaderAvailable(): the software raster draws nothing for it, so a program keeps its own CPU path (an imageFromPixels picture
+   *  computed at a lower resolution and drawn with ImageFlag.Smooth) for the displays without one. */
+  export function drawShader(program: i32, x: number, y: number, w: number, h: number, uniforms: number[]): void;
+  /** Whether this display draws drawShader on the GPU (the GL window of a desktop, an Android window whose program made a shader before its
+   *  first frame); false on the software raster and headless. */
+  export function shaderAvailable(): boolean;
   /** Clips the following draws to the box until unclip(); radius > 0 also clips to its rounded corners (anti-aliased). */
   export function clip(x: number, y: number, w: number, h: number, radius?: number): void;
   export function unclip(): void;
