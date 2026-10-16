@@ -119,11 +119,17 @@ int cam_backend_open(const char* idc, int w, int h, int fps, int* ow, int* oh, d
     if (![session canAddInput:input]) { [session commitConfiguration]; [session release]; snprintf(err, n, "the camera is in use or cannot be opened"); return -1; }
     [session addInput:input];
     const double got = rate < fps ? rate : fps;
-    bool inRange = false;   // a duration outside the format's ranges raises an exception
-    for (AVFrameRateRange* r in best.videoSupportedFrameRateRanges) inRange = inRange || (got >= r.minFrameRate - 0.01 && got <= r.maxFrameRate + 0.01);
     if (best && [dev lockForConfiguration:nil]) {
       dev.activeFormat = best;
-      if (got > 0 && inRange) { dev.activeVideoMinFrameDuration = CMTimeMake(1, (int32_t)got); dev.activeVideoMaxFrameDuration = CMTimeMake(1, (int32_t)got); }
+      // a camera with fixed rates (a phone, a UVC webcam) takes only the exact durations of its ranges, a 1/30 that is not theirs raises
+      AVFrameRateRange* hit = nil;
+      for (AVFrameRateRange* r in dev.activeFormat.videoSupportedFrameRateRanges)
+        if (got >= r.minFrameRate - 0.01 && got <= r.maxFrameRate + 0.01 && (!hit || fabs(r.maxFrameRate - got) < fabs(hit.maxFrameRate - got))) hit = r;
+      if (got > 0 && hit) {
+        const bool fixed = hit.maxFrameRate - hit.minFrameRate < 0.01;
+        const CMTime d = fixed ? hit.maxFrameDuration : CMTimeMake(1, (int32_t)got);
+        @try { dev.activeVideoMinFrameDuration = d; dev.activeVideoMaxFrameDuration = d; } @catch (NSException*) {}   // the default rate stays
+      }
       [dev unlockForConfiguration];
     }
     ZnCamSink* sink = [[ZnCamSink alloc] init];
