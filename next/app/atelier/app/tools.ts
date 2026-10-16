@@ -417,3 +417,26 @@ export function importLine(name: string): string {
   id = id.split('/')[0].split('-').join('_');
   return `import * as ${id === '3d' ? 'z3d' : id} from '${name}';`;
 }
+
+// ---------------------------------------------------------------- updates
+// `zinc update --check`, then `zinc update` when asked: the zinc CLI installed with install.sh replaces itself (its next start is the new one);
+// the zinc inside the Zinc Atelier app does not, and says so: the app is updated by downloading its new zip (docs/guide/07-distribution.md).
+export const [updateReady, setUpdateReady] = createSignal<boolean>(false);
+export function updates(install: boolean): void {
+  let out = '';
+  try {
+    const p = zinc(install ? ['update'] : ['update', '--check'], '');
+    checks++;
+    setStatus(install ? 'Installing the update…' : 'Checking for updates…', 0);
+    p.onData((chunk: string, stderr: boolean) => { out += chunk; });
+    p.onExit((code: i32) => {
+      checks--;
+      const ls = out.trim().split('\n');
+      const last = ls[ls.length - 1];
+      setUpdateReady(!install && code === 10);
+      if (code === 10) setStatus(ls[0] + ': Help > Install the Update', 0);
+      else if (code === 0) setStatus(install ? last + '; restart Atelier to use it' : ls[0], 1);
+      else setStatus('Update: ' + last, 2);
+    });
+  } catch (e) { setStatus('Cannot run zinc update', 2); }
+}

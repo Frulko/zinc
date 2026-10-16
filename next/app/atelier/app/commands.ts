@@ -10,7 +10,7 @@ import { active, activate, Buffer, closeBuffer, cycle, saveAll, say, newSketch, 
 import { openFind } from './search';
 import { toggleTheme } from './theme';
 import { openProject } from './project';
-import { run, stop, build, check, inspect, copyConsole, showConsole, consoleOpen, clearConsole, loadLibraries, importLine, setEngine, setDevice, ENGINES, ZINC } from './tools';
+import { run, stop, build, check, inspect, copyConsole, showConsole, consoleOpen, clearConsole, loadLibraries, importLine, setEngine, setDevice, ENGINES, ZINC, updates, updateReady } from './tools';
 import { openDevices } from './devices';
 import { editCommand, setText, menuKey, goDefinition } from './cursors';
 import { suggest } from './lsp';
@@ -174,3 +174,5 @@ add('Tools', 'prev-tab', 'Previous Tab', 'CmdOrCtrl+Shift+BracketLeft', () => cy
 
 add('Help', 'help-keys', 'Keyboard Shortcuts', '', () => openPalette(PAL_COMMANDS));
 add('Help', 'help-about', 'About Zinc Atelier', '', () => say('Zinc Atelier, running on ' + ZINC));
+add('Help', 'update-check', 'Check for Updates…', '', () => updates(false), true);
+add('Help', 'update-install', 'Install the Update', '', () => updates(updateReady()));   // checks first when no update was found yet
