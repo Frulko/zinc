@@ -50,7 +50,7 @@ project v12 1.2.0 'console.log("this is 1.2.0"); throw new Error("a broken build
 project v13 1.3.0 'console.log("this is 1.3.0");'
 
 # ZINC_REALTIME: the apps wait on the real clock (tests/run sets the virtual one, where a timer of 6 s is over at once)
-ZINC_HOME="$D" SHELL=/bin/sh ZINC_REALTIME=1ZINC_AGENT_TRIAL_MS=4000 ZINC_UPDATE_PUBKEY="$e_public" "$Z" agent --bind 127.0.0.1 --port 0 --no-mdns --name "$name" > "$tmp/agent.log" 2>&1 & apid=$!
+ZINC_HOME="$D" SHELL=/bin/sh ZINC_REALTIME=1 ZINC_AGENT_TRIAL_MS=4000 ZINC_UPDATE_PUBKEY="$e_public" "$Z" agent --bind 127.0.0.1 --port 0 --no-mdns --name "$name" > "$tmp/agent.log" 2>&1 & apid=$!
 until_grep "pairing code" "$tmp/agent.log" || { echo "the agent did not start: $(cat "$tmp/agent.log")"; exit 1; }
 port=$(sed -n 's/.*listening on 127.0.0.1:\([0-9]*\).*/\1/p' "$tmp/agent.log")
 dev pair "127.0.0.1:$port" "$(sed -n 's/.*pairing code: \([0-9]*\).*/\1/p' "$tmp/agent.log")" > /dev/null || { echo "pairing failed"; exit 1; }

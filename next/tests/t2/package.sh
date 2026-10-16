@@ -16,7 +16,7 @@ cd "$tmp/work" || exit 2
 printf 'console.log("hello", 6 * 7);\n' > hello.ts
 real=$(cd "$tmp" && pwd -P)
 case "$(clean "$Z" --root)" in "$real"/*) ;; *) echo "the engine files are not read from the package: $(clean "$Z" --root)"; fail=1 ;; esac
-[ "$(clean "$Z" run hello.ts 2>&1)" = "hello 42" ] || { echo "hello.ts does not run from the package"; fail=1; }
+out=$(clean "$Z" run hello.ts 2>&1); [ "$out" = "hello 42" ] || { echo "hello.ts does not run from the package: $(printf '%s' "$out" | head -c 600)"; fail=1; }
 clean ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=2 ZINC_SIZE=800x500 ZINC_SHOT="$tmp/work/atelier.png" ZINC_SHOT_FRAMES=2 "$Z" run "$APP" -- "$tmp/work" >/dev/null 2>"$tmp/err" \
   && [ -s "$tmp/work/atelier-2.png" ] || { echo "the app does not open from the package: $(head -c 300 "$tmp/err")"; fail=1; }
 clean "$Z" build --target aarch64-linux hello.ts -o hello-pi >/dev/null 2>"$tmp/err"

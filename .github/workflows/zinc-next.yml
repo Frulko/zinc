@@ -195,6 +195,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }   # the tests' helper servers (http.server, ssl, sockets) were written for 3.9 to 3.12; Homebrew's python 3.14 is on the runner's PATH first
       - uses: pnpm/action-setup@v4
         with: { version: '10' }
       - uses: actions/setup-node@v4
@@ -258,8 +260,10 @@ jobs:
           mkdir -p "$RUNNER_TEMP/out"
           export ZINC="$PWD/build/zinc" ZINC_DETERMINISTIC=1 ZINC_STEPS=0
           for name in $(grep '^FAIL' "$RUNNER_TEMP/results-${{ matrix.shard }}.txt" 2>/dev/null | awk '{print $2}' | head -8); do
-            f=$(ls tests/t*/$name.sh 2>/dev/null | head -1); [ -n "$f" ] || continue
-            timeout 300 sh -x "$f" > "$RUNNER_TEMP/out/trace-$name.log" 2>&1 || true
+            for f in tests/t*/$name.sh; do   # a name may exist in two tiers (package): the trace of each
+              [ -e "$f" ] || continue
+              timeout 300 sh -x "$f" > "$RUNNER_TEMP/out/trace-$name-$(basename "$(dirname "$f")").log" 2>&1 || true
+            done
           done
       - name: Keep results and logs
         if: always()
@@ -272,6 +276,44 @@ jobs:
         with:
           name: test-results-${{ matrix.shard }}
           path: ${{ runner.temp }}/out/
+  fuzz:
+    # Fuzzing (60 s per target with ASan and UBSan) is a milestone check: the nightly and manual runs, not every push. It needs Homebrew's clang: Apple's libc++ marks the
+    # unused capacity of a vector as poisoned and reports a read there as a heap overflow, which the same code does not do with LLVM's libc++.
+    name: fuzz
+    needs: [plan, build]
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+    runs-on: macos-15
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: next
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - uses: actions/download-artifact@v4
+        with:
+          name: build-macos-arm64
+          path: next
+      - name: Unpack the build
+        run: tar xzf build.tgz && rm build.tgz && ls build/zinc
+      - name: Dependencies (macOS)
+        run: brew install cmake sdl3 coreutils quickjs pixman libgcrypt sdl2 ccache llvm
+      - name: Fuzz
+        env:
+          ZINC_CI: '1'
+          ZINC_FUZZ: '1'
+        run: tests/run --tier t2 --only fuzz
+      - name: Keep the crashes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-crashes
+          path: |
+            next/tests/fuzz/crashes/
+            next/build-fuzz/log-*.txt
+          if-no-files-found: ignore
   report:
     # One artifact with every test's result and the logs of the failures, plus the list in the run's summary.
     needs: [plan, test, release]

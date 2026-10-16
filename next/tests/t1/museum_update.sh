@@ -24,7 +24,7 @@ port=
 for i in $(seq 1 $((20 * ${ZN_WAIT_SCALE:-1}))); do
   port=$(sed -n 's/.* port \([0-9][0-9]*\).*/\1/p' "$tmp/srv.out" | head -1); [ -n "$port" ] && break; sleep 0.25
 done
-[ -n "$port" ] || { echo "museum_update: no local server"; exit 2; }
+[ -n "$port" ] || { echo "museum_update: no local server: $(head -c 500 "$tmp/srv.out" "$tmp/requests" 2>&1 | tr '\n' ' ') ($(python3 --version 2>&1), $(command -v python3))"; exit 2; }
 
 table() {  # directory, version, start sequence, address ("" for none): the sample table with its project changed
   mkdir "$tmp/$1"; cp -R "$src/src" "$src/assets" "$src/zinc.json" "$tmp/$1/"

@@ -1,6 +1,7 @@
 // zinc:gphoto2 on the sim target: the fake camera of gphoto2.host.cpp (same widgets, same answers).
 // The sim is headless, so the live view is a blank runtime image of the fitted 1024x683 frame size.
 import { createImage, destroyImage } from 'zinc:gfx';
+import * as sys from 'zinc:sys';
 
 const FS = '\u001f', RS = '\u001e';
 const W = [
@@ -25,7 +26,8 @@ const shot = () => `/store_00020001/DCIM/100ZINC/IMG_${String(++shots).padStart(
 const local = (dir: string, p: string) => dir + '/' + p.slice(p.lastIndexOf('/') + 1);
 
 export default {
-  detect: () => Promise.resolve('Zinc Fake Camera' + FS + 'usb:fake'),
+  // ZINC_FAKE_CAMERA=0 asks for the real detection of libgphoto2 (none on a machine without a camera): the sim answers as it does, so the golden of examples/camera/remote is one picture everywhere
+  detect: () => Promise.resolve(sys.env('ZINC_FAKE_CAMERA') === '0' ? '' : 'Zinc Fake Camera' + FS + 'usb:fake'),
   open: (_m: string, _p: string) => { open = true; return Promise.resolve('Zinc Fake Camera'); },
   close: () => { open = false; live = false; return Promise.resolve(''); },
   summary: () => open ? Promise.resolve('Manufacturer: Zinc\nModel: Zinc Fake Camera\nVersion: 1.0\nSerial Number: 0000000001\nVendor Extension: generated frames (ZINC_FAKE_CAMERA)\n') : fail('no camera open'),
