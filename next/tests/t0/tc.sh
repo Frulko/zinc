@@ -8,6 +8,23 @@ printf abc > "$tmp/abc"
 [ "$("$ZINC" toolchain sha256 "$tmp/abc" | cut -d' ' -f1)" = ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad ] || { echo "sha256 differs from the test vector of 'abc'"; fail=1; }
 "$ZINC" toolchain targets | grep -q "^aarch64-linux " || { echo "aarch64-linux is not a target"; fail=1; }
 "$ZINC" build --target nowhere-os ../tests/bench/kernels/fib.ts -o "$tmp/x" 2>&1 | grep -q "unknown target" || { echo "an unknown target is not refused"; fail=1; }
+# the Linux targets (docs/targets/linux.md): the spellings people type are targets (the build goes on to the program, missing here), i686 is one,
+# and every one names its oldest glibc (zig's default for 32-bit ARM is 2.34, too new for Raspberry Pi OS Bullseye)
+for t in linux-arm64 linux-armhf linux-x86_64 linux-x86; do
+  "$ZINC" build --target $t "$tmp/none.ts" -o "$tmp/x" 2>&1 | grep -q "unknown target" && { echo "$t is not a target"; fail=1; }
+done
+"$ZINC" toolchain targets | grep -q "^x86-linux " || { echo "x86-linux (i686) is not a target"; fail=1; }
+"$ZINC" toolchain targets | grep -- "-linux " | grep -vq "glibc 2.28 and newer" && { echo "a Linux target has no glibc floor: $("$ZINC" toolchain targets)"; fail=1; }
+# the pinned sysroot of the cross builds: the same packages for every architecture, each with its pool path and SHA-256
+python3 - tools/linux-sysroot.lock <<'PY' || { echo "tools/linux-sysroot.lock is malformed"; fail=1; }
+import collections, re, sys
+rows = [l.split() for l in open(sys.argv[1]) if l.strip() and not l.startswith("#")]
+by = collections.defaultdict(set)
+for r in rows:
+    assert len(r) == 5 and r[3].startswith("pool/") and re.fullmatch("[0-9a-f]{64}", r[4]), r
+    by[r[0]].add(r[1])
+assert set(by) == {"aarch64", "armhf", "x86_64", "x86"} and len({frozenset(v) for v in by.values()}) == 1, sorted(by)
+PY
 case "$(uname -s)-$(uname -m)" in
   Darwin-arm64) f=zig-aarch64-macos-0.15.2.tar.xz ;; Darwin-x86_64) f=zig-x86_64-macos-0.15.2.tar.xz ;;
   Linux-aarch64) f=zig-aarch64-linux-0.15.2.tar.xz ;; Linux-x86_64) f=zig-x86_64-linux-0.15.2.tar.xz ;;

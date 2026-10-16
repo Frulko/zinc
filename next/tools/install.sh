@@ -28,6 +28,11 @@ case "$(uname -s)" in
   *) die "no prebuilt zinc for $(uname -s) yet: macOS and Linux only (Windows: build from the sources, docs/guide/01-getting-started.md)" ;;
 esac
 arch=$(uname -m)
+case $os-$arch in   # the 32-bit Linux builds have one archive each, whatever the kernel says (tools/build-linux)
+  linux-armv6l|linux-armv7l|linux-armv8l) arch=armhf ;;
+  linux-i[3-6]86) arch=i686 ;;
+  linux-aarch64) [ "$(getconf LONG_BIT 2>/dev/null)" != 32 ] || arch=armhf ;;   # a 32-bit Raspberry Pi OS on a 64-bit kernel
+esac
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 curl -fsSL -o "$tmp/SHA256SUMS" "$url/SHA256SUMS" || die "cannot read $url/SHA256SUMS: no network, or no release yet"

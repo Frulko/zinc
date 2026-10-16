@@ -68,13 +68,24 @@ Install installOf() {
   return in;
 }
 std::string channelOf(const Install& in) { auto c = in.conf.find("channel"); return c == in.conf.end() || c->second.empty() ? "stable" : c->second; }
+/** The flavour of the running zinc in the archive names (tools/build-linux): uname's machine, except for the 32-bit builds, whose uname may say
+ *  armv6l, armv7l, even aarch64 (a 32-bit Raspberry Pi OS on a 64-bit kernel), or i386 to i686, for one archive each. */
+static std::string archiveMachine() {
+#if defined(__linux__) && defined(__arm__)
+  return "armhf";
+#elif defined(__linux__) && defined(__i386__)
+  return "i686";
+#else
+  return zn::plat::machine();
+#endif
+}
 /** The manifest of this machine's CLI archive on `channel`: the argument, $ZINC_UPDATE_URL, the latest release of $ZINC_UPDATE_REPO, where install.sh installed from, the official releases. */
 std::string manifestUrl(const Install& in, const std::string& channel, const std::string& arg) {
   if (!arg.empty()) return arg;
   if (const char* u = std::getenv("ZINC_UPDATE_URL"); u && *u) return u;
   std::string base = releases() + "/download";
   if (const auto u = in.conf.find("url"); u != in.conf.end() && !u->second.empty() && !std::getenv("ZINC_UPDATE_REPO")) base = u->second;
-  return base + "/zinc-" + zn::plat::osName() + "-" + zn::plat::machine() + (channel == "beta" ? "-beta" : "") + ".manifest";
+  return base + "/zinc-" + zn::plat::osName() + "-" + archiveMachine() + (channel == "beta" ? "-beta" : "") + ".manifest";
 }
 bool haveKey() { return !trustedUpdateKeys().empty(); }
 

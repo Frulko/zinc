@@ -2278,7 +2278,8 @@ int main(int argc, char** argv) {
     const zn::tc::Target* target = zn::tc::findTarget(argv[3]);
     if (!target && zn::tc::findAppTarget(argv[3])) { std::fprintf(stderr, "zinc build: %s apps are built by zinc export --target %s (%s)\n", argv[3], argv[3], zn::tc::findAppTarget(argv[3])->note); return 2; }
     if (!target) { std::fprintf(stderr, "unknown target '%s' (zinc toolchain targets)\n", argv[3]); return 2; }
-    gBuildTarget = std::string(argv[3]) == "rpi" ? "rpi1" : argv[3];
+    gBuildTarget = target->name;   // linux-arm64 and the other spellings: one name for the layout rules and the asset packs
+    if (gBuildTarget == "rpi") gBuildTarget = "rpi1";
     if (const char* os = std::strrchr(target->name, '-'); os && zn::knownPlatform(os + 1)) setenv("ZINC_PLATFORM", os + 1, 0);   // the target's platform files (x.webos.ts), not this machine's
     zn::zbc::Module zm;
     if (int rc = compileToZbc(argv[4], zm)) return rc;

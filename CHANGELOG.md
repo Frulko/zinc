@@ -88,6 +88,10 @@ How to add a line: see "Changelog" in `AGENTS.md`.
   without a warning. The android and ios profiles now offer the camera.
 - `Camera.still()` copies the frame on screen into a new image in about a millisecond, and `Camera.encodePng()` encodes a PNG on another thread;
   `ZINC_FAKE_CAMERA=4` lists four fake cameras to try a camera picker.
+- `zinc build --target` takes the names people type for Linux (`linux-arm64`, `linux-armhf`, `linux-armv7`, `linux-x86_64`) and a 32-bit PC
+  target, `linux-x86` (i686); `zinc toolchain targets` says the oldest glibc each one needs (2.28).
+- `next/tools/build-linux --arch aarch64|armhf|x86_64|i686` builds zinc for Linux from a Mac with the pinned zig (no Docker), windows
+  included (X11 and KMS/DRM), and packs `zinc-<version>-linux-<arch>.tar.gz`; it runs on Debian 10, Raspberry Pi OS Buster and newer.
 
 ### Changed
 - `zinc run --engine quickjs` runs TSX and the whole UI stack (zinc:ui, the kits, React Native, Nuxt UI): hero, rn-showcase and nuxt-ui
@@ -95,6 +99,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
   `import.meta.url` is set.
 
 ### Fixed
+- Programs built for 32-bit Raspberry Pi OS (`zinc build --target armhf-linux` or `armv7-linux`, `zinc export --target rpi1` or `rpi2`) start
+  on Bullseye and Buster: they asked for glibc 2.34. Every Linux target now runs on glibc 2.28 and newer.
 - Resizing a window on macOS by dragging its edge re-lays out the app at each size instead of stretching the last frame; animations,
   timers and video keep running during the drag, and the growing edge shows the app's background colour.
 - `zinc.json` `app.window` (title, `minWidth`, `minHeight`, frame...) now applies to the native program `zinc run` starts and to the programs

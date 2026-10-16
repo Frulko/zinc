@@ -147,18 +147,22 @@ bool run(const std::string& cmd, std::string& err, const char* what) {
 const std::vector<Target>& targets() {
   static const std::vector<Target> t = {
       // ARMv8.0 tuned for the Pi 3's Cortex-A53, which the A55 (reMarkable Paper Pro), A72 (Pi 4) and A76 (Pi 5) also run
-      {"aarch64-linux", "aarch64-linux-gnu", " -mcpu=cortex_a53", "Raspberry Pi 3, 4 and 5 (64-bit), reMarkable Paper Pro, servers"},
+      // glibc 2.28 and newer (.2.28): Debian 10 and Raspberry Pi OS Buster, Ubuntu 20.04, RHEL 8. Without it zig 0.15 picks 2.34 for the 32-bit
+      // ARM targets (the 64-bit time functions), and the program does not start on Raspberry Pi OS Bullseye (2.31) or older
+      {"aarch64-linux", "aarch64-linux-gnu.2.28", " -mcpu=cortex_a53", "Raspberry Pi 3, 4 and 5 (64-bit), reMarkable Paper Pro, servers; glibc 2.28 and newer"},
       // ARMv6 with VFPv2, no NEON: the first Pi and the Pi Zero, and every later Pi on a 32-bit OS (slower there: armv7-linux)
-      {"armhf-linux", "arm-linux-gnueabihf", " -mcpu=arm1176jzf_s", "every 32-bit Raspberry Pi OS, the Pi 1 and Zero included (ARMv6)"},
+      {"armhf-linux", "arm-linux-gnueabihf.2.28", " -mcpu=arm1176jzf_s", "every 32-bit Raspberry Pi OS, the Pi 1 and Zero included (ARMv6); glibc 2.28 and newer"},
       // ARMv7-A with NEON and VFPv3: the Cortex-A8 of the NTC CHIP is the oldest core, so no VFPv4 instruction reaches it; the Pi 2 (A7) and Pi 3 (A53) run it
-      {"armv7-linux", "arm-linux-gnueabihf", " -mcpu=cortex_a8", "Raspberry Pi 2 and 3 on a 32-bit OS, NTC CHIP and PocketCHIP (ARMv7 with NEON)"},
+      {"armv7-linux", "arm-linux-gnueabihf.2.28", " -mcpu=cortex_a8", "Raspberry Pi 2 and 3 on a 32-bit OS, NTC CHIP and PocketCHIP (ARMv7 with NEON); glibc 2.28 and newer"},
       // webOS 3 on the HP TouchPad: glibc 2.8, and the soft-float calling convention its GL and system libraries were built with (hp-touchpad-webos.md).
       // softfp: the FPU and NEON are used, numbers are passed in the integer registers. zig 0.15.2 turns VFPv2 off for a gnueabi target and leaves
       // VFPv3 and NEON on, and LLVM's ARM backend then dies on NEON intrinsics ("Do not know how to split this operator's operand", zstd and
       // mbedTLS): +vfp2 puts it back. No undefined-behaviour checks: the runtime zig links for them into an unoptimized program (CMake's compiler
       // test) calls pwritev64, of glibc 2.10
       {"armv7-webos", "arm-linux-gnueabi.2.8", " -mcpu=cortex_a8+neon -mfloat-abi=softfp -Xclang -target-feature -Xclang +vfp2 -fno-sanitize=undefined", "HP TouchPad on webOS 3 (ARMv7 with NEON, glibc 2.8, soft-float calls)"},
-      {"x86_64-linux", "x86_64-linux-gnu", "", "PC and server Linux"},
+      {"x86_64-linux", "x86_64-linux-gnu.2.28", "", "PC and server Linux; glibc 2.28 and newer"},
+      // i686 with SSE2 (an x87-only CPU would round doubles apart from every other target): old 32-bit PCs and netbooks still on a 32-bit Debian
+      {"x86-linux", "x86-linux-gnu.2.28", " -mcpu=pentium4", "32-bit PC Linux (i686 with SSE2); glibc 2.28 and newer"},
       {"aarch64-macos", "aarch64-macos", "", "Apple Silicon"},
       {"x86_64-macos", "x86_64-macos", "", "Intel Mac"},
       // ZN-714: console programs only (the runtime, no window host yet); mingw-w64 from zig, so the .exe needs no Visual C++ runtime installed
@@ -182,7 +186,13 @@ const Target* findAppTarget(const std::string& name) {
 }
 
 const Target* findTarget(const std::string& name) {
-  const std::string n = name == "windows-x86_64" || name == "windows" ? "x86_64-windows" : name;   // the names people type
+  static const std::map<std::string, std::string> alias = {   // the names people type
+      {"windows-x86_64", "x86_64-windows"}, {"windows", "x86_64-windows"},
+      {"linux-arm64", "aarch64-linux"}, {"linux-aarch64", "aarch64-linux"}, {"arm64-linux", "aarch64-linux"}, {"linux-armhf", "armhf-linux"},
+      {"linux-armv7", "armv7-linux"}, {"linux-x86_64", "x86_64-linux"}, {"linux-amd64", "x86_64-linux"}, {"amd64-linux", "x86_64-linux"},
+      {"linux-x86", "x86-linux"}, {"linux-i686", "x86-linux"}, {"i686-linux", "x86-linux"}};
+  const auto a = alias.find(name);
+  const std::string n = a == alias.end() ? name : a->second;
   for (const Target& t : targets()) if (n == t.name) return &t;
   return nullptr;
 }
@@ -627,6 +637,14 @@ bool ensureCrossLibs(const std::string& zig, const std::string& root, const std:
   std::string name = t->name;
   if (std::string(t->zigTarget).find("linux") == std::string::npos) { err = "the graphics host is cross-built for the Linux targets only (not " + name + ")"; return false; }
   dir = root + "/build/cross-" + name;
+  {   // a tree configured for another triple or CPU (an older zinc, before the glibc floor) starts again: make would not see the wrappers change
+    const std::string want = std::string(t->zigTarget) + t->cpuFlags;
+    std::ifstream in(dir + "/zig-target");
+    std::string had;
+    std::getline(in, had);
+    std::error_code ec;
+    if (fs::exists(dir + "/CMakeCache.txt") && had != want) fs::remove_all(dir, ec);
+  }
   const std::string targets = " --target zn_host_gfx zn_layout zn_yoga zn_rt zn_mimalloc zn_zbc zn_ir zn_frontend zn_native zn_regexp zn_codec zn_uv zn_llhttp zn_mbedtls zn_zpk zn_lz4 zn_zstd zn_sha256 -j 3 >";
   if (fs::exists(dir + "/libzn_host_gfx.a") && fs::exists(dir + "/CMakeCache.txt"))   // built before: brought up to date (sources added or changed since), quick when nothing did
   {   // twice at most: when CMakeLists.txt gained a target since the last build, the first make regenerates its Makefile but has already read the old one ("No rule to make target")
@@ -644,7 +662,8 @@ bool ensureCrossLibs(const std::string& zig, const std::string& root, const std:
     w.close();
     fs::permissions(dir + "/wrap/" + tool, fs::perms::owner_all, ec);
   }
-  std::string arch = name.rfind("aarch64", 0) == 0 ? "aarch64" : std::string(t->zigTarget).rfind("arm-", 0) == 0 ? "arm" : "x86_64";
+  std::string arch = name.rfind("aarch64", 0) == 0 ? "aarch64" : std::string(t->zigTarget).rfind("arm-", 0) == 0 ? "arm" : name.rfind("x86-", 0) == 0 ? "i686" : "x86_64";
+  std::ofstream(dir + "/zig-target") << t->zigTarget << t->cpuFlags << "\n";
   std::fprintf(stderr, "zinc: building the graphics host for %s (first time only)\n", name.c_str());
   std::string cfg = "cmake -S " + quote(root) + " -B " + quote(dir) + " -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=" + arch + " -DCMAKE_C_COMPILER=" + quote(dir + "/wrap/cc") + " -DCMAKE_CXX_COMPILER=" + quote(dir + "/wrap/c++") +
                     " -DCMAKE_AR=" + quote(dir + "/wrap/ar") + " -DCMAKE_RANLIB=" + quote(dir + "/wrap/ranlib") + " -DCMAKE_BUILD_TYPE=Release -DZN_SDL_VENDORED=OFF >" + quote(dir + "/configure.log") + " 2>&1";
