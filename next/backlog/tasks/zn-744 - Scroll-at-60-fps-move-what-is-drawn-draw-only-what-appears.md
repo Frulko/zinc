@@ -1,10 +1,11 @@
 ---
 id: ZN-744
 title: 'Scroll at 60 fps: move what is drawn, draw only what appears'
-status: Backlog
+status: In Progress
 assignee:
   - '@parallel'
 created_date: '2026-10-16 14:06'
+updated_date: '2026-10-16 14:31'
 labels:
   - perf
   - ui
@@ -28,3 +29,9 @@ Owner 2026-10-16: "le scroll à 60 fps, y'a pas de raison", on every platform. M
 - [ ] #4 a T0 test: a scroll of N px rasterises only the exposed rows (counted) and gives the full-redraw hash
 - [ ] #5 Pi 3 and TouchPad runs are one line each under Cross-platform pass in backlog/later.md
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-10-16, part 1 (coordinator's addition, docs/reports/zinc-next-first-interaction.md): a tap in a scroll view no longer damages the whole screen twice. (1) runtime/raster.cpp diff_rects and diff_rects_sig skip the common tail as well as the head: a command inserted or removed in the middle damages its own box, not every command it shifts (the shifted UNCLIP's bounds are the screen). (2) lib/std/ui.ts: scrolledAt is set only when the content moves (directScroll with dx or dy non-zero, stepScroll when sx/sy changed): a finger that lands without moving shows no indicator and starts no 1.2 s of animating; the indicator's RECT at alpha 0 is skipped. (3) zinc capture --scene A --damage B prints the union box. Test tests/t0/damage_tap.sh (rn-showcase, deterministic): a press on the tab bar gap damages nothing (before: 414,1 419,603 then the whole 420x860 on the indicator's removal), and every frame of the wheel indicator's fade-out, including the frame that removes the RECT, damages only its 5 px column (before: the whole screen on removal). damage_sig, scene_dump, framehash, backend_sw, scroll_axis, scroll_end, ui_virtual, rn_showcase, react_native_lists, ui, touch_spread, input_touch, pan_responder, perf_hud pass; proto-capture compare canary 4/4.
+<!-- SECTION:NOTES:END -->

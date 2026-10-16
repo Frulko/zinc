@@ -26,7 +26,7 @@ bool load(const char* scene, Loaded& l) {
 }
 }  // namespace
 
-bool damageCheck(const char* before, const char* now, int& rects, bool& same) {
+bool damageCheck(const char* before, const char* now, int& rects, bool& same, int box[4]) {
   Loaded a, b;
   if (!load(before, a) || !load(now, b) || a.head[2] != b.head[2] || a.head[3] != b.head[3]) return false;
   const int w = static_cast<int>(a.head[2]), h = static_cast<int>(a.head[3]);
@@ -36,6 +36,13 @@ bool damageCheck(const char* before, const char* now, int& rects, bool& same) {
   zrt::raster::sign_frame(fa, w, h, sigs.data());
   const int nf = zrt::raster::diff_rects(fa, fb, w, h, full, 8), ns = zrt::raster::diff_rects_sig(sigs.data(), a.head[5], fb, w, h, sig, 8);
   rects = nf;
+  box[0] = box[1] = box[2] = box[3] = 0;
+  for (int i = 0; i < nf; ++i) {
+    if (!i || full[i].x0 < box[0]) box[0] = full[i].x0;
+    if (!i || full[i].y0 < box[1]) box[1] = full[i].y0;
+    if (!i || full[i].x1 > box[2]) box[2] = full[i].x1;
+    if (!i || full[i].y1 > box[3]) box[3] = full[i].y1;
+  }
   same = nf == ns;
   for (int i = 0; same && i < nf; ++i) same = full[i].x0 == sig[i].x0 && full[i].y0 == sig[i].y0 && full[i].x1 == sig[i].x1 && full[i].y1 == sig[i].y1;
   // the bulk damage (ZN-402) covers the exact one: diff_rects past its change threshold, and the union of everything the two frames draw

@@ -3766,6 +3766,7 @@ function paintScrollbars(n: UiNode, x: number, y: number, k: number, a: number):
   const fade = age < 800 ? 1 : 1 - (age - 800) / 400;
   animating = true;
   const al: i32 = Math.round(110 * fade * a);
+  if (al === 0) return;   // faded out: no command, so the frame diff sees it gone now rather than one frame later
   const w = n.lw * k, h = n.lh * k;
   if ((n.scroll & 1) !== 0 && n.contentH > n.lh) {
     const len = Math.max(24, h * n.lh / n.contentH), pos = (h - len) * n.sy / (n.contentH - n.lh);
@@ -4383,7 +4384,8 @@ function directScroll(h: i32, dx: number, dy: number): void {
   // the horizontal axis follows the fingers only when its content is wider than the viewport (iOS and React Native's alwaysBounceHorizontal = false); the
   // vertical one always does, so a short page still rubber-bands vertically
   if ((n.scroll & 2) !== 0 && maxScrollX(n) > 0.5) { const a = axisX(n); beginDirect(a, maxScrollX(n), n.lw); if (dx !== 0) directBy(a, dx, maxScrollX(n), n.lw); n.sx = a.pos; }
-  n.scrolledAt = clock; scrolled(n);
+  if (dx !== 0 || dy !== 0) n.scrolledAt = clock;   // a finger that lands without moving shows no indicator (iOS, Android): a tap stays a tap
+  scrolled(n);
   wakeScroll(h);
 }
 /** The fingers left: inertia or bounce from the release velocity. */
@@ -4439,6 +4441,7 @@ function stepScroll(dt: number): void {
     const h = scrollers[i], n = node(h);
     if (!n.alive) { scrollers.splice(i, 1); continue; }
     let moving = false;
+    const sx0 = n.sx, sy0 = n.sy;
     if (n.ay !== null) {
       const a = n.ay as ScrollAxis, my = maxScrollY(n);
       if (a.mode === IDLE && (a.pos < 0 || a.pos > my)) a.mode = BOUNCE;   // content shrank, or a press ended an overscroll
@@ -4459,7 +4462,7 @@ function stepScroll(dt: number): void {
       }
       n.sx = a.pos;
     }
-    n.scrolledAt = clock;
+    if (n.sx !== sx0 || n.sy !== sy0) n.scrolledAt = clock;   // the indicator shows while the content moves, not while a finger rests
     scrolled(n);
     if (!moving) { n.live = false; n.vx = 0; n.vy = 0; clampScroll(n); scrollers.splice(i, 1); }
   }

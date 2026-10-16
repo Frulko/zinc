@@ -54,6 +54,6 @@ const char* traceEvents(bool on, std::size_t* n);   // DevTools Tracing.start (t
 struct RenderBench { int width, height, cmds; double medianUs, p99Us; std::uint64_t hash; };   // hash: FNV-1a 64 of the pixels like ZINC_FRAMEHASH
 bool benchScene(const char* scene, int runs, int threads, RenderBench& out);   // ZN-171: replay a scene dump `runs` times on `threads` band threads (src/host/render_bench.cpp)
 int strokeCheck(int count);   // ZN-406: random polylines through stroke_contours against the per-vertex cosf/sinf reference; mismatches (0 = identical)
-bool damageCheck(const char* before, const char* now, int& rects, bool& same);   // ZN-179: diff_rects of two scene dumps with the full previous frame and with its compact signatures: the same rectangles
+bool damageCheck(const char* before, const char* now, int& rects, bool& same, int box[4]);   // ZN-179: diff_rects of two scene dumps with the full previous frame and with its compact signatures: the same rectangles; box: their union (x0 y0 x1 y1)
 
 }  // namespace zn::host

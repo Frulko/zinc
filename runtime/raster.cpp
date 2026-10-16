@@ -1447,9 +1447,15 @@ int32_t diff_rects(const Frame& a, const Frame& b, int32_t w, int32_t h, Rect* o
   uint32_t nch = 0;
   const Rect screen{0, 0, w, h};
   Rect bulk = {w, h, 0, 0};   // past kBulkChanged changes: one box instead of joining every rectangle
-  uint32_t cnt = a.count > b.count ? a.count : b.count;
-  for (uint32_t i = 0; i < cnt; i++) {
-    bool ina = i < a.count, inb = i < b.count;
+  // the common head and tail are skipped: a command inserted or removed in the middle (a scroll indicator, a press highlight, a toast) damages
+  // its own box, not every command it shifts (the shifted UNCLIP of the container is the whole screen)
+  const uint32_t m = a.count < b.count ? a.count : b.count;
+  uint32_t head = 0, tail = 0;
+  while (head < m && same(a, a.cmds[head], b, b.cmds[head])) head++;
+  while (tail < m - head && same(a, a.cmds[a.count - 1 - tail], b, b.cmds[b.count - 1 - tail])) tail++;
+  const uint32_t ea = a.count - tail, eb = b.count - tail, cnt = ea > eb ? ea : eb;
+  for (uint32_t i = head; i < cnt; i++) {
+    bool ina = i < ea, inb = i < eb;
     if (ina && inb && same(a, a.cmds[i], b, b.cmds[i])) continue;
     if (++nch > bulk_after) {
       if (ina) grow(bulk, cmd_bounds(a.cmds[i], w, h));
@@ -1520,9 +1526,13 @@ void sign_frame(const Frame& f, int32_t w, int32_t h, CmdSig* out) {
 int32_t diff_rects_sig(const CmdSig* before, uint32_t nbefore, const Frame& now, int32_t w, int32_t h, Rect* out, int32_t max) {
   int32_t n = 0;
   const Rect screen{0, 0, w, h};
-  uint32_t cnt = nbefore > now.count ? nbefore : now.count;
-  for (uint32_t i = 0; i < cnt; i++) {
-    bool ina = i < nbefore, inb = i < now.count;
+  const uint32_t m = nbefore < now.count ? nbefore : now.count;   // the head and tail of diff_rects
+  uint32_t head = 0, tail = 0;
+  while (head < m && before[head].hash == cmd_hash(now, now.cmds[head])) head++;
+  while (tail < m - head && before[nbefore - 1 - tail].hash == cmd_hash(now, now.cmds[now.count - 1 - tail])) tail++;
+  const uint32_t ea = nbefore - tail, eb = now.count - tail, cnt = ea > eb ? ea : eb;
+  for (uint32_t i = head; i < cnt; i++) {
+    bool ina = i < ea, inb = i < eb;
     if (ina && inb && before[i].hash == cmd_hash(now, now.cmds[i])) continue;
     if (ina) damage_add(out, n, max, screen, Rect{before[i].x0, before[i].y0, before[i].x1, before[i].y1});
     if (inb) damage_add(out, n, max, screen, cmd_bounds(now.cmds[i], w, h));
