@@ -63,6 +63,7 @@ component (`View as Box`) is not supported: View, Text, Image and ScrollView mus
 | AppRegistry | partial | registerComponent mounts the app; runApplication missing |
 | processColor | partial | #rgb, #rrggbb, #rrggbbaa (alpha dropped), white, black, transparent |
 | I18nManager | partial | isRTL, forceRTL (at once, for the whole surface), allowRTL |
+| Navigation (React Navigation's native stack) | partial | not React Navigation's API: `Stack` of zinc:ui/navigation (push, pop, replace, popToTop, present) with each platform's transitions, iOS's swipe back and Android's back and predictive back (docs/ui.md, "Navigation stack") |
 | BackHandler | supported | addEventListener('hardwareBackPress') (the newest listener that returns true takes it; none: the app goes back to the system), exitApp; the back key and the predictive back gesture on Android |
 | Vibration | partial | vibrate(ms), cancel; a pattern plays its first pulse. Touch feedback: `Haptics.impact / selection / notification` of zinc:haptics |
 | AccessibilityInfo, AppState, InteractionManager, PlatformColor, Share, ToastAndroid | missing | |

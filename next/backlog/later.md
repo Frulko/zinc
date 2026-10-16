@@ -279,6 +279,11 @@ The next backlog review turns lines into tasks or deletes them.
 - zinc bundle: Q0001 as a `zinc lint` rule (quickjs-api) for projects whose zinc.json says "engine": "quickjs", and oxlint's built-in rules as an optional pass on plain JavaScript files, so the editor shows them.
 - zinc bundle: follow dynamic `import()` with a literal specifier, load JSON modules (`with { type: 'json' }`), set `import.meta.resolve`; prune ~/.zinc/cache/qjs by age.
 - zinc bundle: `zinc pack` / `export` of a QuickJS project could ship the minified bundle (or its .qbc, same engine build) instead of the sources, and `zinc dev` on QuickJS could swap modules instead of restarting.
+- ZN-623: a launch screen from zinc.json's splash (UILaunchScreen colour and image).
+- ZN-623: an ExportOptions.plist and `xcodebuild -exportArchive` to make the IPA (with ZN-629).
+- ZN-624: iOS safe areas: content and the perf panel scroll under the status bar and the Dynamic Island (ZN-625).
+- ZN-624: a present that uploads only the damaged area on iOS (CAMetalLayer or IOSurface, or the GPU replay: the Metal decision ZN-627); uploading the whole 1206x2622 frame costs 5.6-6.8 ms p50.
+- ZN-624: HTTPS root certificates on an iOS device (SecTrust, or a cacert.pem in the bundle).
 
 ## Demos
 
@@ -535,3 +540,4 @@ The next backlog review turns lines into tasks or deletes them.
 - zinc:webrtc: two machines on a LAN (the Mac and a Pi) through the room server of examples/webrtc-chat, and a Zinc peer with Chrome and Firefox (DTLS 1.2 of mbedTLS, SCTP, max-message-size): never tried, only the in-process loopback is.
 - zinc:webrtc: Windows (libjuice and usrsctp build there; Winsock defines), the Android export (the app's CMake must pass vendorFlags: -frtti -fexceptions -fthreadsafe-statics), iOS.
 - zinc:webrtc: the browser target (wasm): map RTCPeerConnection to the page's own through an import shim, not this plugin.
+- ZN-624: run on a real iPhone, signed with the owner's team (`cmake -DZINC_TEAM=<team>`, xcodebuild archive and -exportArchive), and on an Intel Mac's simulator.
