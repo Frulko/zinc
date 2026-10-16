@@ -1,7 +1,7 @@
 // The shell: a header (title, back button), the current screen, a bottom tab bar and the toast host. Only the top of the stack is mounted: a screen
 // starts fresh when it is opened again, and its timers and sockets stop when it is left (nav.ts onLeave).
 import { useState } from 'zinc:ui/react';
-import { View, Text, Pressable, StyleSheet, useColorScheme } from 'zinc:react-native';
+import { View, Text, Pressable, StyleSheet, useColorScheme, BackHandler } from 'zinc:react-native';
 import { Icon } from 'zinc:icons';
 import { theme, SP, T_HEADING, T_TINY } from './theme';
 import { tr, language } from './i18n';
@@ -45,6 +45,9 @@ function Tab(p: { id: string; index: number; on: boolean; press: (id: string) =>
 
 export function startRoute(tab: string, stack: string[]): void { startTab = tab; startStack = stack; }
 let startTab = 'home', startStack: string[] = [];
+// Android's back key and gesture: back one screen of the stack, else the system's back (the app leaves)
+let depth = 0;
+BackHandler.addEventListener('hardwareBackPress', (): boolean => { if (depth === 0) return false; nav.pop(); return true; });
 
 export default function App() {
   useColorScheme();   // the whole tree renders again when the scheme changes: screens read theme()
@@ -56,6 +59,7 @@ export default function App() {
   nav.push = (sc: string): void => { leaveScreen(); setStack(stack.concat([sc])); };
   nav.pop = (): void => { leaveScreen(); setStack(stack.slice(0, stack.length - 1)); };
   nav.relabel = (): void => setLang(language());
+  depth = stack.length;
   const top = stack.length > 0 ? stack[stack.length - 1] : tab;
   const si = SCREENS.indexOf(top);
   const title = si >= 0 ? SCREEN_TITLES[si] : TAB_TITLES[TABS.indexOf(top)];

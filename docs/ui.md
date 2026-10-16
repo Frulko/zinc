@@ -394,6 +394,30 @@ The other way, the program asks the OS through zinc:sys `device()`: `haptic` (zi
 (the text input connection). The Android activity (`src/app/android/java`) and the iOS glue (`src/app/ios_glue.mm`) do them; a desktop
 does nothing, and `ZINC_DEVICE_LOG=file` writes each call to the file.
 
+## Navigation stack
+
+`zinc:ui/navigation` is a stack navigator in the React model, shaped like React Navigation's native stack:
+
+```tsx
+import { Stack, Route, Navigation } from 'zinc:ui/navigation';
+function Page(r: Route, nav: Navigation): i32 { /* r.name, r.title, r.params */ return <Pressable onPress={() => nav.push('detail', 'Detail', 7)}>...</Pressable>; }
+<Stack initial="home" initialTitle="Inbox" renderScreen={Page} largeTitle={true} />
+```
+
+`nav.push(name, title, params)`, `pop()`, `replace(...)`, `popToTop()`, `present(...)` (modal), `canGoBack()`. Lower screens stay mounted
+(state and scroll kept). The transitions follow `ui.platformStyle()` (or `style="ios"|"android"`):
+
+| | iOS (and the desktop) | Android |
+| --- | --- | --- |
+| push / pop | the new screen slides in from the right in 350 ms (cubic ease out), the previous one moves a third of the way left under a 10 % dimming | Material's shared X axis in 300 ms: a 30 px slide and a fade through |
+| back gesture | an edge swipe (the left 24 px) moves the screen with the finger; past the middle, or thrown right faster than 500 px/s, it completes, otherwise it returns | the back key and gesture pop (the back handlers); Android 14's predictive back shrinks the screen toward 90 % and leans it the gesture's way while the finger moves (`backstart`, `backprogress`, `backcancel`), then commits or returns |
+| header | a chevron with the previous title in the tint, the title centred, a large title (34 px bold) on the first screen with `largeTitle` | an arrow, the title on the left (22 px) |
+| present | a sheet over a scrim (React Native's `Modal`), dismissed by dragging its grabber down a quarter of the screen | a full-screen dialog with a back arrow |
+
+With reduce motion (`ui.prefersReducedMotion()`) both become a 200 ms cross-fade. The motion runs in a stepper on the screens' own nodes:
+a transition re-renders nothing. `tests/t1/navigation.sh` drives a push and a pop, the swipe completed and cancelled, the back key, predictive
+back and both modal styles under `ZINC_PLATFORM=ios|android`, and keeps the hashes of the frames at the start, middle and end of each.
+
 ## Tests
 
 Test hooks drive the input headlessly; from the first call on, the HAL's pointer and keyboard are ignored, so a
