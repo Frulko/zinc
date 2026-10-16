@@ -28,7 +28,7 @@ struct Unit {
     std::size_t hash = 0;              // of its text
     std::vector<std::string> imports;  // the modules it imports or re-exports from
     bool library = false;              // the engine's (zinc:*, <prelude>, lib/, plugins/)
-    bool boundary = false;             // exports only components (capitalised functions) or calls import.meta.hot.accept
+    bool boundary = false;             // exports only code and types (functions, classes, interfaces, type aliases) or calls import.meta.hot.accept
     bool disposes = false;             // calls import.meta.hot.dispose
     std::string effect;                // its first top-level effect ("src/main.ts:4 `setInterval(...)`"), empty when none
   };

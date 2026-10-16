@@ -1,7 +1,7 @@
 #!/bin/sh
 # Asset hot reload in zinc dev (ZN-450): game-2d runs under zinc dev and scores, then its player sprite is redrawn bigger and in another colour:
 # within 1 s the running program draws the new sprite (the atlas rebuilt, its page and frame table swapped in) with the score kept and no
-# restart; a code change is swapped in (ZN-742) or restarts it. Headless frames run as fast as they can: shots every 20000 frames, a round longer than the test.
+# restart; a change of colour in scenes.ts is swapped in with the play scene and its score kept (ZN-742). Headless frames run as fast as they can: shots every 20000 frames, a round longer than the test.
 cd "$(dirname "$0")/../.." || exit 2
 Z="$ZINC"; case "$Z" in /*) ;; *) Z="$PWD/$Z" ;; esac
 root=$PWD
@@ -38,7 +38,7 @@ x = 16 + r() * (640 - 20 - 32); y = 56 + r() * (400 - 20 - 72)
 print(f"1 move {x + 10:.0f} {y + 10:.0f}\n2 down")
 P
 mkdir -p "$t/shots"
-export ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=2000000000 ZINC_SHOT="$t/shots/f.png" ZINC_SHOT_FRAMES=10 ZINC_SHOT_EVERY=20000 ZINC_INPUT="$t/input.txt"
+export ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=2000000000 ZINC_SHOT="$t/shots/f.png" ZINC_SHOT_FRAMES=10 ZINC_SHOT_EVERY=20000 ZINC_SCENE_DUMP="$t/shots/s.bin" ZINC_INPUT="$t/input.txt"
 "$Z" dev > "$t/dev.log" 2>&1 &
 dev=$!
 waitfor "$t/dev.log" "v1 started" 10 || { echo "dev did not start: $(cat "$t/dev.log")"; exit 1; }
@@ -47,7 +47,22 @@ b="$t/shots/f-$before.png"
 [ "$(pix hud "$t/shots/f-10.png")" != "$(pix hud "$b")" ] || { echo "the score did not move by frame $before"; fail=1; }
 old=$(pix count "$b" 4fc3f7)
 [ "$old" -gt 100 ] || { echo "the player is not on frame $before ($old pixels of its colour)"; fail=1; }
-# 1. the sprite changes: a full square in another colour (its frame grows, the atlas is packed again)
+# 1. a code change is swapped in place (Fast Refresh, ZN-742): scenes.ts exports only classes and an interface, so main.ts does not run
+#    again; the next frames are still the play scene with its score, in the new background colour, in the same process. (Before the
+#    sprite: after an asset swap a code save restarts, the baked images differ from the first compile's.)
+pid1=$(pgrep -P $dev)
+sed -i.bak 's/BG = 0x14213d/BG = 0x3d1421/' src/scenes.ts && rm src/scenes.ts.bak
+waitfor "$t/dev.log" "v1 refreshed src/scenes.ts" 5 || { echo "the code change was not refreshed: $(cat "$t/dev.log")"; fail=1; }
+code=$(newer "$(latest)" 20) || { echo "no shot after the code change"; exit 1; }
+c="$t/shots/f-$code.png"
+[ "$(pix count "$c" 3d1421)" -gt 10000 ] || { echo "frame $code is not the play scene in the new colour ($(pix count "$c" 3d1421) pixels of it)"; fail=1; }
+[ "$(pix hud "$c")" = "$(pix hud "$b")" ] || { echo "the score changed with the code change (frame $code)"; fail=1; }
+# the clock of the round, from the scene dump: it runs from the click (frame 2) at 60 frames a second; a new game would start it again
+secs=$(python3 "$root/tools/scene-texts" "$t/shots/s-$code.bin" | sed -n 's/^\([0-9]*\) s$/\1/p')
+want=$(( 100000 - (code - 2) / 60 ))
+[ -n "$secs" ] && [ $(( secs - want )) -le 2 ] && [ $(( want - secs )) -le 2 ] || { echo "the round started again: ${secs:-no} s left at frame $code, want $want"; fail=1; }
+[ "$(pgrep -P $dev)" = "$pid1" ] && ! grep -q "v2 started" "$t/dev.log" || { echo "the code change restarted the program: $(cat "$t/dev.log")"; fail=1; }
+# 2. the sprite changes: a full square in another colour (its frame grows, the atlas is packed again)
 printf '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><rect width="32" height="32" rx="4" fill="#e040fb"/></svg>\n' > "$t/player.svg"
 t0=$(now_ms)
 mv "$t/player.svg" assets/player.svg
@@ -61,9 +76,6 @@ new=$(pix count "$a" e040fb); stale=$(pix count "$a" 4fc3f7)
 [ "$new" -gt "$old" ] && [ "$stale" -eq 0 ] || { echo "frame $after: $new pixels of the new sprite (want > $old), $stale of the old one (want 0)"; fail=1; }
 [ "$(pix hud "$a")" = "$(pix hud "$b")" ] || { echo "the score changed between frames $before and $after"; fail=1; }
 grep -q "v2 started" "$t/dev.log" && { echo "the asset change restarted the program: $(cat "$t/dev.log")"; fail=1; }
-# 2. a code change goes the code's way: swapped in place (Fast Refresh, ZN-742) or, when it cannot be, a restart
-echo "// a change" >> src/scenes.ts
-waitfor "$t/dev.log" "v1 refreshed src/scenes.ts\|v2 started" 5 || { echo "the code change was not taken: $(cat "$t/dev.log")"; fail=1; }
 kill $dev; wait $dev 2>/dev/null
 [ $fail -eq 0 ] && echo "asset_reload: ok (swapped in $ms ms after the save; $(sed -n 's/.*rebuilt and sent (\(.*\) after the save).*/sent \1/p' "$t/dev.log"))"
 exit $fail

@@ -133,7 +133,7 @@ my-game/
 
 ## A first change
 
-Start the program in dev mode: it watches the files and restarts the program each time you save.
+Start the program in dev mode: it watches the files and puts the new code into the running program each time you save.
 
 ```sh
 zinc dev
@@ -145,8 +145,8 @@ Open `src/main.ts` in your editor. The last line of the frame draws the text:
   text(4, 4, 'arrows to move', 0xffffff, 1);
 ```
 
-Replace `arrows to move` with `hello from me` and save. The terminal prints `zinc dev: v2 started (96 ms after the save)` and the
-window shows the new text. Change `0xfeca57` (the square's colour, red green blue in hexadecimal) to `0xff6b6b`, save: a red
+Replace `arrows to move` with `hello from me` and save. The terminal prints `zinc dev: v1 refreshed src/main.ts (96 ms after the
+save)` and the window shows the new text without closing: the code of the save is swapped into the running program (Fast Refresh). Change `0xfeca57` (the square's colour, red green blue in hexadecimal) to `0xff6b6b`, save: a red
 square. Ctrl-C stops `zinc dev`.
 
 ## A first mistake
@@ -300,13 +300,13 @@ zinc run [entry|dir] [--interp|--native] [--profile P] [-- args]   # compile and
 zinc check [entry|dir]                                              # the errors, without running
 zinc test                                                           # every *.test.ts of the project
 zinc build [entry|dir] [-o out] [--target T]                        # an executable in build/
-zinc dev [entry|dir] [--no-devtools] [-- args]                      # run, watch, restart on save
+zinc dev [entry|dir] [--no-devtools] [-- args]                      # run, watch, swap each save in (Fast Refresh)
 zinc help [command]
 ```
 
 `zinc run` compiles a program that draws to native code and keeps the executable (`~/.zinc/cache/run`): the first run of a
-version compiles, the next ones start at once; `--interp` interprets instead and starts at once. `zinc dev` checks and restarts
-the program on every save, with a red box on a compile error and, for UI programs, a Chrome DevTools inspector on port 9229
+version compiles, the next ones start at once; `--interp` interprets instead and starts at once. `zinc dev` swaps every save into the
+running program (or restarts it, and says why), with a red box on a compile error and, for UI programs, a Chrome DevTools inspector on port 9229
 (see [dev mode](../dev-mode.md)). Pass program arguments after `--`; read them with `sys.args()`.
 
 Useful environment variables: `ZINC_HEADLESS=1` runs without a window, `ZINC_BACKGROUND=1` (or `zinc --background run`) opens it without taking the focus, `ZINC_FRAMES=n` stops a frame loop after n frames,

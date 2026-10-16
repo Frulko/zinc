@@ -15,7 +15,10 @@ namespace zn::frontend {
 // Each copy of the source and each element's code starts on the line it comes from (line breaks added where the code is shorter), and `map`
 // (when given) says where every piece comes from, for columns and generated code (ZN-371.03). Problems (unsupported attributes, malformed
 // tags) are added to `diags` as Z0005.
-std::string lowerJsx(std::string_view src, std::vector<Diag>& diags, std::uint32_t file, const std::set<std::string>* classTags = nullptr, std::vector<SrcPiece>* map = nullptr);   // classTags: components declared as classes (this file or a relative import), lowered to _cc in the React model
+// `hot` (zinc dev's hot mode, a file of the project): a Solid call to a component of the project (declared here or imported with a relative path)
+// becomes `_hotC('@hot:<Tag>', () => Tag(...))`, its Fast Refresh proxy; the loader replaces the marker with the path of the file that declares it.
+std::string lowerJsx(std::string_view src, std::vector<Diag>& diags, std::uint32_t file, const std::set<std::string>* classTags = nullptr, std::vector<SrcPiece>* map = nullptr,
+                     bool hot = false);   // classTags: components declared as classes (this file or a relative import), lowered to _cc in the React model
 
 // The lowercase tags Z0007 names a component for ("view" -> "View", "div" -> "View"...): what `zinc migrate jsx-capitalised-tags` rewrites.
 const std::map<std::string, std::string>& jsxLowercaseTags();

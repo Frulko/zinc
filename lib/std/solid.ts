@@ -261,9 +261,56 @@ export function _virtual(n: i32, count: () => i32, itemH: number, render: (i: i3
     });
   });
 }
+/** zinc dev's Fast Refresh (ZN-742; hot mode only: the JSX lowering wraps each call to a component of the project, `<Home />`, in it, and
+ *  `file` is the file that declares it). The instance renders in a fragment under a root of its own. When an update runs `file` again, the
+ *  instance is disposed before the new code runs and rendered again with it afterwards, under the same owner: its own local state starts over,
+ *  its parents and siblings keep theirs (solid-refresh's rule). */
+export function _hotC(file: string, make: () => i32): i32 {
+  const frag = ui.createNode(ui.FRAGMENT);
+  const scope = owner;
+  let root = newRoot(scope);
+  owner = root;
+  ui.insert(frag, make(), -1);   // tracked as the plain call is: `_comp` reads the props in its effect
+  owner = scope;
+  if (import.meta.hot) {
+    const hot = import.meta.hot;
+    let gone = false, stale = false;
+    const before = (modules: string[]): void => {
+      if (gone || modules.indexOf(file) < 0) return;
+      stale = true;
+      dispose(root);
+      ui.clearChildren(frag);   // its nodes hold the old code's handlers
+    };
+    const after = (modules: string[]): void => {
+      if (gone || !stale) return;   // an instance the update itself mounted has the new code already
+      stale = false;
+      root = newRoot(scope);
+      ui.insert(frag, rendered(root, make), -1);
+    };
+    hot.on('beforeUpdate', before);
+    hot.on('afterUpdate', after);
+    // ponytail: an instance without an owner (a component called outside render) stays registered until the program ends
+    if (scope !== null) {
+      if (scope.cleanups === NO_CLN) scope.cleanups = [];
+      scope.cleanups.push(() => { gone = true; hot.off('beforeUpdate', before); hot.off('afterUpdate', after); });
+    }
+  }
+  return frag;
+}
+/** Hot mode only: unmounts the tree render() mounted last. */
+let hotTree: (() => void) | null = null;
 /** Mounts the app on the screen; `onTick` runs every frame (games put their update there). */
 export function render(app: () => i32, background: i32, onTick: ((dt: number) => void) | null): void {
   const root = ui.createNode(ui.VIEW);
+  if (import.meta.hot) {   // zinc dev: the tree renders under an owner, so the entry running again replaces it instead of mounting a second one
+    const last = hotTree;
+    if (last !== null) last();
+    const tree = newRoot(null);
+    hotTree = () => { dispose(tree); ui.destroy(root); };
+    ui.insert(root, rendered(tree, app), -1);
+    ui.mount(root, background, onTick);
+    return;
+  }
   ui.insert(root, app(), -1);
   ui.mount(root, background, onTick);
 }

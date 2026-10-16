@@ -1840,7 +1840,7 @@ struct Loader {
       std::size_t before = prog.diags.size();
       const std::set<std::string> classTags = classTagsOf(path, text);
       original = text;
-      text = lowerJsx(text, prog.diags, fi, &classTags, &map);
+      text = lowerJsx(text, prog.diags, fi, &classTags, &map, hot && !libraryModule(path));
       if (map.empty()) original.clear();
       else for (std::size_t k = diagsAtStart; k < prog.diags.size(); ++k) if (prog.diags[k].file == fi) prog.diags[k].pos = loweredOffset(map, prog.diags[k].pos);   // in the lowered text, as the parser's
       if (const char* d = std::getenv("ZN_DUMP_JSX")) if (path.find(d) != std::string::npos) std::fprintf(stderr, "=== %s (JSX lowered)\n%s\n", path.c_str(), text.c_str());  // debugging: the plain code a .tsx file became
@@ -1945,6 +1945,26 @@ struct Loader {
           mod.imports.push_back({from, propText, A.generated.back(), static_cast<std::uint32_t>(k)});
         }
       }
+      // hot mode: the Fast Refresh proxy of a component (`_hotC('@hot:Home', ...)`, jsx.cpp) names the file that declares it, through re-exports
+      if (hot)
+        for (std::size_t k = off; k < A.nodes.size(); ++k) {
+          Node& nd = A.nodes[k];
+          if (nd.file != fi || nd.kind != N::String || nd.text.rfind("'@hot:", 0) != 0) continue;
+          std::string_view name = nd.text.substr(6, nd.text.size() - 7);
+          std::string where = path;
+          std::uint32_t m = kNone;
+          for (const ModuleImport& im : mod.imports) if (im.local == name) { m = im.from; name = im.name; break; }
+          for (int hops = 0; m != kNone && hops < 8; ++hops) {
+            where = A.modules[m].path;
+            std::uint32_t next = kNone;
+            for (const ModuleExport& ex : A.modules[m].exports) if (ex.name == name && ex.from != kNone) { next = ex.from; name = ex.local; break; }
+            m = next;
+          }
+          std::string q = "'";
+          for (char c : where) { if (c == '\\' || c == '\'') q += '\\'; q += c; }
+          A.generated.push_back(q + "'");
+          nd.text = A.generated.back();
+        }
       result = static_cast<std::uint32_t>(A.modules.size());
       for (std::uint32_t st : mod.stmts) flat.push_back(st);
       A.modules.push_back(std::move(mod));
@@ -3262,6 +3282,11 @@ bool needsTdz(const Ast& A) {
 }
 
 }  // namespace
+
+bool libraryModule(const std::string& p) {
+  return p.rfind("zinc:", 0) == 0 || (!p.empty() && p[0] == '<') || p.find("/lib/std/") != std::string::npos || p.find("/lib/compat/") != std::string::npos ||
+         p.find("/plugins/") != std::string::npos;
+}
 
 Program loadProgram(const std::string& entry, const ReadFile& read, bool strict, const std::string& stdRoot, bool hot) {
   Program p;

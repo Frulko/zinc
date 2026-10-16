@@ -1,7 +1,6 @@
 // zinc dev's Fast Refresh on the interpreter (ZN-742): see hot.h and docs/reports/zinc-next-fast-refresh.md §10.
 #include "dev/hot.h"
 
-#include <cctype>
 #include <cstring>
 #include <chrono>
 #include <cstdio>
@@ -25,11 +24,6 @@ using rt::Machine;
 using rt::Obj;
 
 namespace {
-
-bool libraryPath(const std::string& p) {
-  return p.rfind("zinc:", 0) == 0 || (!p.empty() && p[0] == '<') || p.find("/lib/std/") != std::string::npos || p.find("/lib/compat/") != std::string::npos ||
-         p.find("/plugins/") != std::string::npos;
-}
 
 // A module path as zinc dev's user reads it: relative to the project (the child runs there).
 std::string shown(const std::string& p) {
@@ -64,17 +58,22 @@ void describe(const frontend::Program& prog, const ir::Module& low, Unit& u) {
     Unit::Mod m;
     m.path = mi.path;
     m.hash = std::hash<std::string>{}(f.text);
-    m.library = libraryPath(mi.path);
+    m.library = frontend::libraryModule(mi.path);
     for (const frontend::ModuleImport& im : mi.imports) m.imports.push_back(a.modules[im.from].path);
-    bool components = !mi.exports.empty();
+    // A boundary exports only code and types: functions (components among them), classes, interfaces, type aliases. Importers reach them
+    // by symbol and live objects take the new classes by key, so they need not run again; only an exported value (let, var, a const that
+    // is not a function) can have been copied into an importer's state at its init, which then has to run again (React Native re-runs
+    // the importers of any module that exports more than components: Zinc's binding by symbol makes that unnecessary, owner 2026-10-16).
+    bool codeOnly = !mi.exports.empty();
     for (const frontend::ModuleExport& ex : mi.exports) {
       if (ex.from != frontend::kNone) m.imports.push_back(a.modules[ex.from].path);
       const frontend::Node* d = ex.node == frontend::kNone ? nullptr : &a.nodes[ex.node];
-      const bool fn = d && (d->kind == N::Function || (d->kind == N::Declarator && d->kids.size() > 1 && d->kids[1] != frontend::kNone && a.nodes[d->kids[1]].kind == N::FuncExpr));
-      if (ex.from != frontend::kNone || ex.all || ex.name.empty() || !std::isupper(static_cast<unsigned char>(ex.name[0])) || !fn) components = false;
+      const bool code = d && (d->kind == N::Function || d->kind == N::Class || d->kind == N::Interface || d->kind == N::TypeAlias ||
+                              (d->kind == N::Declarator && d->kids.size() > 1 && d->kids[1] != frontend::kNone && a.nodes[d->kids[1]].kind == N::FuncExpr));
+      if (ex.from != frontend::kNone || ex.all || ex.name.empty() || !code) codeOnly = false;
     }
     // import.meta.hot keeps its spelling in the text (the loader rewrites nodes, not text)
-    m.boundary = components || f.text.find("import.meta.hot.accept(") != std::string::npos;
+    m.boundary = codeOnly || f.text.find("import.meta.hot.accept(") != std::string::npos;
     m.disposes = f.text.find("import.meta.hot.dispose(") != std::string::npos;
     for (std::uint32_t st : mi.stmts) {
       const frontend::Node& x = a.nodes[st];

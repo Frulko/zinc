@@ -1,4 +1,4 @@
-# Dev mode: hot reload, red box, inspector
+# Dev mode: Fast Refresh, red box, inspector
 
 `zinc dev [entry] [--target <id>] [--device user@host] [--no-devtools]` rebuilds on every save and puts the new
 version on screen, shows crashes in the app instead of killing it, and exposes the UI tree to Chrome DevTools.
@@ -6,7 +6,7 @@ What is possible depends on the target:
 
 | | macos (on macOS), linux (on Linux) | wasm | sim | rpi1 / linux `--device user@host` | linux, rpi1 without a device (docker/QEMU) | esp32, ps1, ps2 |
 |---|---|---|---|---|---|---|
-| **reload on save** | hot: new library in the same window | page reload (server-sent event) | process restart | copy + restart over ssh | process restart | not available (`zinc build` + flash) |
+| **reload on save** | Fast Refresh: the save swapped into the running program, state kept (Zinc Next); the prototype loads a new library in the same window | page reload (server-sent event) | process restart | copy + restart over ssh | process restart | not available (`zinc build` + flash) |
 | **red box** (dev) | yes, window stays up | yes, in the canvas | no (Node prints the error) | yes (on the device's screen when it has one) | yes (headless: printed) | release policy only |
 | **fatal signals caught** | yes (SIGSEGV/BUS/FPE/ILL/ABRT, stack overflow) | no (a wasm trap is a JS exception) | — | yes | yes | no |
 | **Zinc stack in the report** | yes | yes | Node stack | yes | yes | release: message only |
@@ -18,7 +18,54 @@ Release builds choose a crash policy in `zinc.json`: `"crash": "exit" | "redbox"
 previous behaviour). `redbox` and `restart` work on every target, the overlay is drawn by the runtime with the
 software rasterizer, so it also shows on esp32/ps2 screens.
 
-## Hot reload (macos, linux)
+## Fast Refresh (Zinc Next: macos, linux)
+
+`zinc dev` runs the program on the interpreter and puts each save into the running program, as React Native's Fast Refresh does: the
+process, the window and the state of what you did not touch stay. The terminal says what happened in one line:
+
+```
+zinc dev: v1 refreshed src/pages/home.tsx (540 ms after the save)
+zinc dev: restart: src/state.ts:13 `setColorMode(...)` runs at the top level, and the module has no import.meta.hot.dispose to undo it
+```
+
+- **What runs again.** The modules you saved run again (their top-level code, with their new functions). A module that exports only
+  code and types (functions and components, classes, interfaces, type aliases), or calls `import.meta.hot.accept()`, is a boundary: it
+  runs again alone, since its importers reach what it exports by name and its live objects take the new code of their class. A module
+  that exports values (`let`, `var`, a `const` that is not a function) runs again with the modules that import it, which may have
+  computed something from them as they started, up to a boundary or the entry. React Native re-runs the importers of every module that
+  exports more than components: in the game-2d template an edit of `src/scenes.ts` (classes) keeps the game where it is. A module that runs again starts its own state over; every other module
+  keeps its variables, its signals and its objects, which take the new code of their class.
+- **Components** (`zinc:ui/solid`). Each component of the project used in JSX (`<Home />`, declared in a file of the project) renders
+  under a proxy. When the file that declares it runs again, the proxy disposes that instance before the new code runs and renders it again
+  in the same place afterwards: its own local state starts over, its parents and siblings keep theirs (solid-refresh's rule). The
+  components of `zinc:ui/nuxt`, `zinc:ui/kit` and plugins are not proxied: they never change during a session. When the entry runs again,
+  `render()` replaces the tree it mounted instead of mounting a second one.
+- **`import.meta.hot`** (Vite's spelling, typed): `accept(cb?)`, `dispose(cb)`, `on(event, cb)` and `off(event, cb)` with `'beforeUpdate'`
+  or `'afterUpdate'` (`cb` gets the paths of the modules the update runs again). It exists only under `zinc dev`: `zinc run`, `build`,
+  `export` and `pack` remove every `if (import.meta.hot) { ... }` from the program, so it costs nothing there.
+
+  ```ts
+  const timer = setInterval(tick, 1000);
+  if (import.meta.hot) import.meta.hot.dispose(() => clearInterval(timer));   // this module can now run again without a restart
+  ```
+- **When it restarts** (from the entry, as before, with the reason): a module that runs again has a top-level statement with an effect
+  (other than `render`, `renderWindow`, `onFrame` and `import.meta.hot` calls) and no `import.meta.hot.dispose`; `zinc.json`, a file that
+  is not a module, a plugin or a module of the engine changed; the fonts or images to bake changed; a callback of the old code is still alive
+  after the update (a timer or a listener the program kept: undo it in `dispose`); the program has no frame loop; it runs on QuickJS.
+- **The desktop-app template.** Its pages (`src/pages/*.tsx`) refresh in place, with the page you are on and the name you typed kept.
+  `src/state.ts`, `src/router.ts` and `src/main.tsx` restart: `state.ts` holds the state a refresh keeps (running it again would reset it
+  anyway), and `main.tsx` installs the menus, like the `index.js` of a React Native app, which reloads too.
+- **A compile error** shows the red box and stops the program; the next good save starts it again (state lost).
+- **AOT and QuickJS.** `zinc dev` always interprets, so there is no compiled program to swap; `zinc build` and `zinc run` of a compiled
+  program are not affected. A program on QuickJS (a `.js` entry, `zinc.json` `"engine": "quickjs"`) restarts on every save:
+  `zinc dev: restart: the program runs on QuickJS, which has no Fast Refresh`. `zinc dev --device` restarts the program on the device.
+
+Measured on the development Mac (Intel, 6 cores), save to the first frame of the new code: 60-126 ms for a two-file `zinc:gfx`
+program, about 100 ms for the game template, 300-400 ms for a small Solid program, 540 ms for a page of the desktop-app template
+(42 files, `zinc:ui/nuxt` compiled again at each save), against about 570 ms for a restart that loses the state. How it works:
+`docs/reports/zinc-next-fast-refresh.md`.
+
+### The prototype's hot reload (`compiler/`)
 
 The program is split in two:
 

@@ -388,3 +388,39 @@ Lines for `next/backlog/later.md`:
   (`setColorMode(...)` at the top level) and `src/main.tsx` (`installMenus(APP_NAME)`) restart for their top-level effects, and
   `src/router.ts` restarts through its importer `state.ts`. A second `render()` mounts a new root and leaves the old tree's nodes and
   computations alive (harmless, a leak per refresh): the `render()` root of §7.6 replaces it.
+
+## 11. Built: components, the render root, docs (ZN-742.03)
+
+- **The proxies.** In hot mode the JSX lowering (`frontend/jsx.cpp`) wraps each Solid call to a component of the project (declared in the
+  file, or imported with a relative path; not the kits, plugins or `zinc:*`, and only in files of the project) as
+  `_hotC('@hot:Home', () => Home({...}))`, also inside `_comp` (props that read signals). Once the imports of the file are resolved, the
+  loader replaces the marker with the path of the module that declares the component, through re-exports (`frontend/modules.cpp`).
+  `_hotC` (`lib/std/solid.ts`) renders the thunk in a fragment under a root owned by the caller's owner, with the caller's tracking (so
+  `_comp` still reads the props in its effect). In its `if (import.meta.hot)` block it listens to its own `import.meta.hot`:
+  `beforeUpdate` disposes the root and releases the fragment's nodes (their handlers are closures of the old file) when the update runs
+  the file again; `afterUpdate` renders the thunk again under a new root with the same owner. The listeners leave (`off`, new in zinc:hot)
+  through a cleanup on the owner, so an instance that unmounts or is disposed by an outer refresh is never called. An instance the update
+  itself mounted is not rendered twice. Outside hot mode `_hotC` is never called and the optimiser drops it.
+- **The render root.** In hot mode `render()` renders the app under an owner and keeps a closure that disposes it and destroys the root
+  node; the next `render()` (the entry ran again) calls it first. Cost in other builds: one global of solid.ts (`hotTree`).
+- **The boundary rule changed** (owner, 2026-10-16): a module whose exports are only code and types (functions, classes, interfaces, type
+  aliases) is a boundary, not only a module of components. Imports are bound by symbol and live objects take the new classes by key (D123),
+  so importers need not run again for code; only exported values (`let`, `var`, a `const` that is not a function) can have been copied into
+  an importer's state at its init. The game-2d template went back to its title screen on an edit of `src/scenes.ts`; it now keeps the round.
+- **Top-level effects of the desktop-app.** `src/state.ts` (`setColorMode`), `src/main.tsx` (`installMenus`) and `src/router.ts` (through
+  its importer `state.ts`) still restart. Running `state.ts` again resets the signals a refresh exists to keep, so a refresh would save only
+  the window; an allow-list of function names in `replaces()` cannot tell a call that replaces (setColorMode) from one that stacks (menus,
+  listeners); an empty `dispose` in the template would teach users to silence the check. `main.tsx` restarting matches React Native's
+  `index.js`. The pages refresh in place.
+- **QuickJS** says `hot off <why>` on the channel at its start; zinc dev prints `restart: the program runs on QuickJS, which has no Fast
+  Refresh` at a save. AOT: zinc dev always interprets.
+- **Not built:** the in-process red box (a compile error still replaces the program by the red-box program; the state is lost at a typo).
+  It needs a draw path for the paused program: the frame-end hook cannot draw over a frame zinc:ui kept. A later.md line.
+- **Proof.** `tests/t1/fast_refresh.sh` (headless, ~15 s): the desktop-app, a name typed in Settings and the Notes page by ZINC_INPUT;
+  an edit of `notes.tsx` (on screen) and of `home.tsx` refresh in the same process, the scene dumps show the new texts, the page and
+  "Hello, Ada"; QuickJS restarts with its line. It fails on the binary before this change (`a callback of src/pages/notes.tsx from before
+  the change is still alive`). `hot_swap.sh` checks that the entry running again disposes its first tree (its effects stop);
+  `asset_reload.sh` that an edit of `scenes.ts` keeps the play scene, its score and its clock (fails with the old boundary rule: the
+  round started again).
+- **Measured** (this Mac, other trees building): save to the first frame of the new code 523-565 ms for a page of the desktop-app (42
+  files; the restart it replaces is ~570 ms but loses the state), 96 ms for the game template, 60-300 ms for the hot_swap fixtures.

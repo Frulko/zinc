@@ -4,7 +4,8 @@
 #    version), and the module it did not touch keeps its state (the frame counter goes on);
 # 2. a top-level effect without import.meta.hot.dispose restarts with a one-line reason, and a file that is not a module restarts too;
 # 3. a compile error keeps the red box (the program is replaced by it) and the fix starts the program again;
-# 4. a Solid program whose entry runs again mounts its root again, with the state of its store kept.
+# 4. a Solid program whose entry runs again mounts its root again, with the state of its store kept, and the first tree is disposed (its
+#    effects stop).
 cd "$(dirname "$0")/../.." || exit 2
 Z="$ZINC"; case "$Z" in /*) ;; *) Z="$PWD/$Z" ;; esac
 t=$(mktemp -d); trap 'kill $dev 2>/dev/null; wait $dev 2>/dev/null; [ -n "$HOT_SWAP_KEEP" ] && cp "$t"/dev*.log "$HOT_SWAP_KEEP"; rm -rf "$t"' EXIT
@@ -64,9 +65,11 @@ export const [count, setCount] = createSignal<i32>(0);
 T
 echo "export const title = 'one';" > src/labels.ts
 cat > src/app.tsx <<'T'
+import { createEffect } from 'zinc:ui/solid';
 import { count } from './store';
 export function App(props: { title: string }): i32 {
   console.log('mount', props.title, count() > 0 ? 'counting' : 'zero');
+  createEffect(() => { if (count() % 20000 === 0) console.log('tick', props.title); });
   return <View><Text>{props.title}</Text></View>;
 }
 T
@@ -86,6 +89,8 @@ echo "export const title = 'two';" > src/labels.ts
 waitfor "$t/dev2.log" "v1 refreshed src/labels.ts" 5 || { echo "no refresh of the Solid program: $(cat "$t/dev2.log")"; fail=1; }
 waitfor "$t/dev2.log" "^mount two counting" 5 || { echo "the root did not mount again with the count kept: $(tail -5 "$t/dev2.log")"; fail=1; }
 [ "$(pgrep -P $dev)" = "$pid1" ] || { echo "the Solid program's process changed"; fail=1; }
+waitfor "$t/dev2.log" "^tick two" 5 || { echo "the new tree does not run: $(tail -5 "$t/dev2.log")"; fail=1; }
+sed -n '/^mount two/,$p' "$t/dev2.log" | grep -q "^tick one" && { echo "the first tree is still alive after the entry ran again"; fail=1; }
 ms2=$(sed -n 's/.*refreshed src\/labels.ts (\([0-9]*\) ms after the save).*/\1/p' "$t/dev2.log")
 [ $fail -eq 0 ] && echo "hot_swap: ok (refreshed $ms ms after the save on gfx, $ms2 ms on Solid)"
 exit $fail

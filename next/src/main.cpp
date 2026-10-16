@@ -1564,6 +1564,10 @@ int main(int argc, char** argv) {
   zn::host::hostGl = glRows;   // document.createElement('canvas').getContext('webgl') in the QuickJS engine (ZN-203.03), from the module
   if (argc >= 5 && !std::strcmp(argv[1], "run") && !std::strcmp(argv[3], "--engine")) {  // zinc run <file> --engine quickjs [-- args...]: plain JavaScript or stripped TypeScript on QuickJS-ng
     if (std::strcmp(argv[4], "quickjs")) { std::fprintf(stderr, "zinc: unknown engine '%s' (quickjs)\n", argv[4]); return 2; }
+    if (const char* hotFd = std::getenv("ZINC_HOT_FD")) {   // zinc dev's child: no Fast Refresh on QuickJS (docs/dev-mode.md), a save restarts it
+      static const char kOff[] = "hot off the program runs on QuickJS, which has no Fast Refresh\n";
+      if (write(std::atoi(hotFd), kOff, sizeof kOff - 1) < 0) {}
+    }
     zn::qjs::Options qo;
     static std::string entryOfDir;   // a project directory runs its entry (zinc.json "entry", src/main.ts...), as `zinc run <dir>` does
     if (std::filesystem::is_directory(argv[2])) {

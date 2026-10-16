@@ -394,6 +394,7 @@ struct Lowering {
   int counter = 0;
   std::map<std::string, std::string> imported;
   std::string lib;
+  bool hot = false;   // zinc dev's hot mode, a file of the project: Solid calls to the project's components get their Fast Refresh proxy
 
   std::string tx(std::size_t i) const { return std::string(s.substr(t[i].start, t[i].end - t[i].start)); }
   bool isP(std::size_t i, const char* p) const { return i < t.size() && t[i].kind == Tok::Punct && tx(i) == p; }
@@ -1128,6 +1129,10 @@ struct Lowering {
       std::string args;
       for (std::size_t k = 0; k < props.size(); ++k) args += (k ? ", " : "") + props[k];
       std::string call = tag + "(" + (props.empty() ? "" : "{ " + args + " }") + ")";
+      if (hot && !react && lib == "zinc:ui/solid" && tag.find('.') == std::string::npos) {   // a component of the project: its Fast Refresh proxy
+        auto im = imported.find(tag);
+        if (im == imported.end() || im->second.rfind("./", 0) == 0 || im->second.rfind("../", 0) == 0) call = "_hotC('@hot:" + tag + "', () => " + call + ")";
+      }
       std::string keyArg = key ? "'' + (" + valueOf(*key) + ")" : "''";
       if (react && classTags.count(tag)) out.push_back("_cc(" + v + ", () => new " + tag + "(" + (props.empty() ? "{}" : "{ " + args + " }") + "), " + quote(tag) + ", " + keyArg + ");");   // a class component (Inferno, React classes): an instance per mount
       else out.push_back(react ? "_rc(" + v + ", () => " + call + ", " + quote(tag) + ", " + keyArg + ");" : tracked ? "_comp(" + v + ", () => " + call + ");" : "_append(" + v + ", " + call + ");");
@@ -1336,7 +1341,7 @@ std::uint32_t loweredOffset(const std::vector<SrcPiece>& map, std::uint32_t src)
   return best;
 }
 
-std::string lowerJsx(std::string_view src, std::vector<Diag>& diags, std::uint32_t file, const std::set<std::string>* classTags, std::vector<SrcPiece>* map) {
+std::string lowerJsx(std::string_view src, std::vector<Diag>& diags, std::uint32_t file, const std::set<std::string>* classTags, std::vector<SrcPiece>* map, bool hot) {
   std::size_t lt = src.find('<');
   bool maybe = false;
   for (; lt != std::string_view::npos && lt + 1 < src.size(); lt = src.find('<', lt + 1))
@@ -1346,6 +1351,7 @@ std::string lowerJsx(std::string_view src, std::vector<Diag>& diags, std::uint32
   L.s = src;
   L.t = lex(src, true);
   L.marks = true;
+  L.hot = hot;
   if (classTags) L.classTags = *classTags;
   try {
     // imports: names to modules (a kit component's explicit import wins over the host tag of the same name); the model
@@ -1393,6 +1399,7 @@ std::string lowerJsx(std::string_view src, std::vector<Diag>& diags, std::uint32
     if (out.find("_scroll(") != std::string::npos) helpers += ", _scroll";
     if (out.find("_flat(") != std::string::npos) helpers += ", _flat";
     if (out.find("_comp(") != std::string::npos) helpers += ", _comp, _u";
+    if (out.find("_hotC(") != std::string::npos) helpers += ", _hotC";
     std::string styleImport = out.find("new __ZStyle(") != std::string::npos && out.find("Style as __ZStyle") == std::string::npos ? "import { Style as __ZStyle } from 'zinc:ui'; " : "";
     return unmark(styleImport + "import { " + helpers + " } from '" + L.lib + "'; " + out, src, map);
   } catch (const Failure& f) {

@@ -55,6 +55,7 @@ interface ImportMetaHot {
   accept(cb?: () => void): void;
   dispose(cb: () => void): void;
   on(event: 'beforeUpdate' | 'afterUpdate', cb: (modules: string[]) => void): void;
+  off(event: 'beforeUpdate' | 'afterUpdate', cb: (modules: string[]) => void): void;
 }
 interface ImportMeta { readonly url: string; readonly dirname: string; readonly filename: string; readonly hot?: ImportMetaHot; }
 type Partial<T> = { [P in keyof T]?: T[P] };

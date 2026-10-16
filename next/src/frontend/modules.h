@@ -48,6 +48,9 @@ extern std::function<bool(const std::string& module)> gNativeLive;
 // `hot`: zinc dev's hot mode (ZINC_HOT=1, ZN-742): zinc:hot is loaded first and import.meta.hot is each module's record; in any other build
 // the statements that only run with import.meta.hot are removed.
 Program loadProgram(const std::string& entry, const ReadFile& read, bool strict = false, const std::string& stdRoot = "", bool hot = false);
+// A module of the engine (zinc:*, a prelude, lib/std, lib/compat, plugins/), not of the project: Fast Refresh never runs one again, and hot
+// mode wraps only the project's components in their refresh proxies.
+bool libraryModule(const std::string& path);
 
 // The source (Zinc, over the __host_* calls) of a module the host provides ('zinc:gfx', 'zinc:sys', 'zinc:fs'...); null for any other spec.
 const char* builtinModuleSource(std::string_view spec);

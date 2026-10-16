@@ -34,6 +34,12 @@ export class HotModule {
     else if (event === 'afterUpdate') this.after.push(cb);
     else throw new Error(`import.meta.hot.on: no event '${event}' (beforeUpdate, afterUpdate)`);
   }
+  /** Removes a listener `on` added. */
+  off(event: string, cb: UpdateCallback): void {
+    const list = event === 'beforeUpdate' ? this.before : this.after;
+    const i = list.indexOf(cb);
+    if (i >= 0) list.splice(i, 1);
+  }
 }
 
 const records = new Map<string, HotModule>();
@@ -50,7 +56,7 @@ export function hotModule(path: string): HotModule {
 
 /** Before an update: every 'beforeUpdate' listener, then the dispose hooks of the modules about to be re-evaluated, whose records start over. */
 export function beforeUpdate(modules: string[]): void {
-  for (const r of records.values()) for (const cb of r.before) cb(modules);
+  for (const r of records.values()) for (const cb of r.before.slice()) cb(modules);   // a listener may remove others (zinc:ui/solid)
   for (const path of modules) {
     const r = records.get(path);
     if (r === null) continue;
@@ -65,5 +71,5 @@ export function afterUpdate(modules: string[]): void {
     const r = records.get(path);
     if (r !== null) for (const cb of r.acceptors) cb();
   }
-  for (const r of records.values()) for (const cb of r.after) cb(modules);
+  for (const r of records.values()) for (const cb of r.after.slice()) cb(modules);
 }

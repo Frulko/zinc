@@ -106,7 +106,7 @@ const Command kCommands[] = {
   {"lint", "zinc lint [--target <profile> | --all-targets] [--json] [--rules] [path]", "check a program for its targets before a compile", "Rules on the engine's own lexer and loader (zinc lint --rules lists them): the source rules (class in JSX, lowercase tags: the zinc migrate codemod that fixes them), and per target what cannot work or weighs too much there: zinc.json requires, plugins whose plugin.json requires or targets exclude it, @requires modules, styles its UI tier simplifies, fixed sizes beyond its screen, assets against its flash, ram and gpu budgets. The targets in force: --target, else the targets of zinc.json, else this machine; --all-targets adds every profile of targets/capabilities.json and prints the matrix (ok, warns, refuses and why). --json for editors and CI. Exit 1 only for an error on the source or on a target in force (docs/guide/10-lint-migrate.md)."},
   {"migrate", "zinc migrate [--list] [--dry-run | --apply] [<codemod>...] [paths]", "rewrite a project for a language or API change", "Runs the codemods (all, or those named; --list prints them with the engine change that needs them) over the .tsx, .jsx and .md files (their ts/tsx/js/jsx fences) of the paths (default: the current directory). --dry-run (the default) prints the diff, --apply writes the files. A codemod rewrites code tokens only: strings, comments and JSX text are left as they are; a second run changes nothing. A diagnostic that has a codemod names it (zinc explain Z0006)."},
   {"infer", "zinc infer <entry|dir>", "where gradual typing could not infer", "Lists the Z0109 sites (a parameter or variable whose type is unknown) with file and line."},
-  {"dev", "zinc dev [entry|dir] [--device name] [--no-devtools] [-- args]", "run, watch, restart on save", "Runs the program and watches the project: on every save it type checks and restarts the program (~0.2 s). A compile error puts a red box with the diagnostics on the screen until the next good save. UI programs get the Chrome DevTools inspector (chrome://inspect, localhost:9229; another port: zinc.json plugins.devtools.port or ZINC_DEVTOOLS_PORT). The program restarts from its entry: state is not kept. A save under the assets directory of a project that packs them (zinc.json assets.rules or assets.groups) rebuilds those assets and swaps them into the running program instead (zinc:assets onReload): the program keeps its state. --device <name> runs the program on a paired device instead (zinc device pair): each save sends it what changed and restarts it there, its output comes back here, a compile error is a red box on its screen and assets are swapped in the same way."},
+  {"dev", "zinc dev [entry|dir] [--device name] [--no-devtools] [-- args]", "run, watch, swap each save in (Fast Refresh)", "Runs the program on the interpreter and watches the project. A saved module is swapped into the running program (Fast Refresh): same process and window, the modules you did not touch keep their state, and the components of the edited files render again (zinc:ui/solid; their own local state starts over). When it cannot, the program restarts from its entry and zinc dev says why in one line: a top-level effect without import.meta.hot.dispose (a module that exports values, not only functions and classes, runs again with its importers), zinc.json or a plugin changed, a program on QuickJS (.js entries, --engine quickjs), a program without a frame loop. A compile error puts a red box with the diagnostics on the screen until the next good save. UI programs get the Chrome DevTools inspector (chrome://inspect, localhost:9229; another port: zinc.json plugins.devtools.port or ZINC_DEVTOOLS_PORT). A save under the assets directory of a project that packs them (zinc.json assets.rules or assets.groups) rebuilds those assets and swaps them into the running program instead (zinc:assets onReload): the program keeps its state. --device <name> runs the program on a paired device instead (zinc device pair): each save sends it what changed and restarts it there, its output comes back here, a compile error is a red box on its screen and assets are swapped in the same way."},
   {"monitor", "zinc monitor [file | --port /dev/tty... [--baud n] | --udp port]", "read telemetry", "Prints zinc:telemetry JSON lines (hello, metric, event, state_snapshot) from stdin, a file, a serial port or UDP, one readable line each; other lines pass through."},
   {"lsp", "zinc lsp", "language server", "Speaks LSP over stdio for an editor: diagnostics (the Z codes of zinc check --json), hover with types, completion (members, names in scope, module specifiers), go to definition, document symbols."},
   {"help", "zinc help [command]", "this text", "zinc help lists the commands; zinc help <command> describes one."},
@@ -2294,12 +2294,14 @@ int dev(const std::vector<std::string>& args, const DevRemote* remote) {
   int version = 0, devFd = -1;   // devFd: our end of the running version's dev socket (asset hot reload)
   int hotFd = -1;                // our end of its hot channel (Fast Refresh, ZN-742): it swaps the code of a save in place
   bool hotReady = false;         // it said `hot ready`: its frame loop runs
+  std::string hotOff;            // or `hot off <why>`: it cannot swap (QuickJS)
   std::string hotBuf;
   auto startProgram = [&](long sinceSave, bool redbox, const std::vector<std::string>& msg) {
     killChild(child);
     if (devFd >= 0) { close(devFd); devFd = -1; }
     if (hotFd >= 0) { close(hotFd); hotFd = -1; }
     hotReady = false;
+    hotOff.clear();
     hotBuf.clear();
     std::vector<std::string> cmd = {exe, "run", redbox ? (devDir / "redbox.ts").string() : runEntry};
     if (!redbox) cmd.insert(cmd.end(), rest.begin(), rest.end());
@@ -2372,8 +2374,11 @@ int dev(const std::vector<std::string>& args, const DevRemote* remote) {
     const std::string saved = savedFiles(p.dir, was, now, why);
     if (child > 0 && hotFd >= 0) {
       std::string line;
-      while (!hotReady && hotLine(hotFd, hotBuf, line, 0)) hotReady = line == "hot ready";
-      if (why.empty() && !hotReady) why = "the program has no frame loop";
+      while (!hotReady && hotOff.empty() && hotLine(hotFd, hotBuf, line, 0)) {
+        hotReady = line == "hot ready";
+        if (line.rfind("hot off ", 0) == 0) hotOff = line.substr(8);
+      }
+      if (why.empty() && !hotReady) why = hotOff.empty() ? "the program has no frame loop" : hotOff;
       if (why.empty()) {
         const bool sent = write(hotFd, "reload\n", 7) == 7;
         if (!sent || !hotLine(hotFd, hotBuf, line, 5000)) why = "the program did not answer";
