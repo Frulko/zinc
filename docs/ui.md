@@ -8,10 +8,10 @@ events with capture, hover, cursors, keyboard shortcuts and zoomable views. Exam
 
 ```tsx
 const [name, setName] = createSignal('');
-<input value={name()} onInput={(v: string) => setName(v)} onChange={(v: string) => save(v)} placeholder="Name" />
-<input type="password" value={pin()} onInput={(v: string) => setPin(v)} />
-<textarea rows={4} value={notes()} onInput={(v: string) => setNotes(v)} />
-<textarea class="font-mono text-sm" lineNumbers wrap={false} value={code()} onInput={(v: string) => setCode(v)}
+<Input value={name()} onInput={(v: string) => setName(v)} onChange={(v: string) => save(v)} placeholder="Name" />
+<Input type="password" value={pin()} onInput={(v: string) => setPin(v)} />
+<TextArea rows={4} value={notes()} onInput={(v: string) => setNotes(v)} />
+<TextArea className="font-mono text-sm" lineNumbers wrap={false} value={code()} onInput={(v: string) => setCode(v)}
   highlight={(line: string) => ui.tsHighlight(line)} />
 ```
 
@@ -102,9 +102,9 @@ On any node: `onPointerDown`, `onPointerMove`, `onPointerUp`, `onDoubleClick`, `
 pinch started) and `x` / `y` (local: the pointer, or the centroid of a pinch).
 
 ```tsx
-<view class="h-12" dragAxis="x" onDrag={(e: ui.PointerEvent) => swipe(e.phase, e.dx)} />   {/* in a vertical list */}
-<view class="grow" onPinch={(e: ui.PointerEvent) => zoomTo(start * e.scale, e.x, e.y)} onTap={select} />
-<view grab="keep" onPointerDown={...} onPointerMove={...} />                                {/* never stolen */}
+<View className="h-12" dragAxis="x" onDrag={(e: ui.PointerEvent) => swipe(e.phase, e.dx)} />   {/* in a vertical list */}
+<View className="grow" onPinch={(e: ui.PointerEvent) => zoomTo(start * e.scale, e.x, e.y)} onTap={select} />
+<View grab="keep" onPointerDown={...} onPointerMove={...} />                                {/* never stolen */}
 ```
 
 Arbitration, after Qt's pointer handlers: a press goes to the raw `onPointerDown` node (it captures the pointer) and,
@@ -129,7 +129,7 @@ screens (`zinc:gfx` touches), and `ui.touchAt(id, x, y, phase)` (0 down, 1 move,
 ## Focus scopes and keymaps
 
 ```tsx
-<view keyContext="Editor">...</view>
+<View keyContext="Editor">...</View>
 ui.bindKeys('mod-s', 'save');                  // everywhere; mod = Cmd or Ctrl
 ui.bindKeys('mod-k', 'palette', 'Editor');     // only with the focus inside keyContext="Editor"
 ui.onAction(-1, 'save', save);                 // global handler; ui.onAction(h, ...) for a node and its subtree
@@ -192,7 +192,7 @@ grabbing while its node has the pointer captured. SDL has no hand cursors: grab 
 | --- | --- |
 | `group-hover:` `group-focus:` `group-active:` | the nearest ancestor with the `group` class |
 | `peer-hover:` `peer-focus:` `peer-active:` | the nearest sibling before it with the `peer` class |
-| `aria-checked:` (also `selected`, `expanded`, `pressed`, `disabled`, `busy`, `current`, `invalid`, `required`, `readonly`) | the attribute is `"true"`: `<View aria-checked={on()} class="bg-slate-400 aria-checked:bg-emerald-500" />`, or `ui.setAttr(node, 'aria-checked', 'true')` |
+| `aria-checked:` (also `selected`, `expanded`, `pressed`, `disabled`, `busy`, `current`, `invalid`, `required`, `readonly`) | the attribute is `"true"`: `<View aria-checked={on()} className="bg-slate-400 aria-checked:bg-emerald-500" />`, or `ui.setAttr(node, 'aria-checked', 'true')` |
 | `data-[state=open]:` | the attribute `data-state` equals `open`: `data-state="open"` in JSX or `ui.setAttr(node, 'data-state', 'open')` |
 
 A program can use at most 20 distinct attribute conditions; the golden is `tests/golden/ui-state`.
@@ -259,23 +259,23 @@ from its first to its last colour along the nearest axis, a conic as the average
 
 ## Images in a box
 
-How an `<image>` fills its box, and background images on any node (ZN-262), with Tailwind v4's names and CSS's geometry:
+How an `<Image>` fills its box, and background images on any node (ZN-262), with Tailwind v4's names and CSS's geometry:
 
 | Class | Style key | Effect |
 | --- | --- | --- |
-| `object-fill` (default), `object-contain`, `object-cover`, `object-none`, `object-scale-down` | `objectFit`; React Native's `resizeMode` (`stretch`, `contain`, `cover`, `center`, `repeat`), also an attribute: `<image resizeMode="cover">` | the image stretched, inside the box, covering it (cut), at its own size, or at its own size unless larger. `center` is `scale-down`; `repeat` tiles the image from the top left at its size, scaled down when larger than the box |
+| `object-fill` (default), `object-contain`, `object-cover`, `object-none`, `object-scale-down` | `objectFit`; React Native's `resizeMode` (`stretch`, `contain`, `cover`, `center`, `repeat`), also an attribute: `<Image resizeMode="cover">` | the image stretched, inside the box, covering it (cut), at its own size, or at its own size unless larger. `center` is `scale-down`; `repeat` tiles the image from the top left at its size, scaled down when larger than the box |
 | `object-center` (default), `object-top`, `object-top-left`, `object-left-bottom` ..., `object-[25%_75%]`, `object-[10px_0]` | `objectPosition: '25% 75%'` | where the image sits in the free space: keywords, percentages of the free space, px |
 | `bg-[url(hero.png)]` | `backgroundImage: 'url(hero.png)'` | an image of the assets (as `image()` names it; quotes and a leading `/` are dropped) behind the content |
 | `bg-auto` (default), `bg-cover`, `bg-contain`, `bg-size-[50%_auto]`, `bg-size-[32px]` | `backgroundSize` | the tile size: its own, cover, contain, or one or two lengths (`auto` keeps the image's ratio) |
 | `bg-top-left` (default) ... `bg-center`, `bg-position-[10px_20%]` | `backgroundPosition` | where the first tile sits, as `object-*` |
 | `bg-repeat` (default), `bg-no-repeat`, `bg-repeat-x`, `bg-repeat-y`, `bg-repeat-space`, `bg-repeat-round` | `backgroundRepeat` (`space`, `round` too) | tiles along both axes, none, one axis; `space` spreads whole tiles from edge to edge, `round` stretches them to a whole number |
-| `tint-sky-500`, `tint-[#80c0ff]` | `tintColor` | multiplies the colour of the node's images (`<image>` and background): white and grey pixels take the tint, as React Native's `tintColor` does for template icons |
+| `tint-sky-500`, `tint-[#80c0ff]` | `tintColor` | multiplies the colour of the node's images (`<Image>` and background): white and grey pixels take the tint, as React Native's `tintColor` does for template icons |
 
 A background image is painted over the background colour and under a gradient (`bg-[url(photo.png)] bg-cover bg-linear-to-b from-transparent
 to-black/60`: a scrim over a photo); the whole box is its positioning and painting area, rounded by the box's radius. `bg-none` removes it.
 
 Each tile is one `drawImageRect` of the part of the image inside the box, its edges on whole pixels so that no seam shows; a rounded box adds a
-clip around them. An `<image>` that only stretches keeps the prototype's one `drawImage` command. The command budget bounds the tiles: 16 on tier T0
+clip around them. An `<Image>` that only stretches keeps the prototype's one `drawImage` command. The command budget bounds the tiles: 16 on tier T0
 (ESP32), 64 on T1 (PS1), 4096 above, and never more than the commands left in the frame. Past it the box is drawn with fewer, larger tiles laid
 exactly over it (about the tiles' shape), with one log line. The tint is the raster's multiply on every renderer (the GL replay multiplies the texel
 by the vertex colour, within a few units). The golden is `tests/golden/style-image` (`tests/t1/style_image.sh`).
@@ -283,7 +283,7 @@ by the vertex colour, within a few units). The golden is `tests/golden/style-ima
 ## Keyboard
 
 ```tsx
-<view focusable onKeyDown={(e: ui.KeyEvent) => { if (e.key === 'Delete') removeSelected(); }}>...</view>
+<View focusable onKeyDown={(e: ui.KeyEvent) => { if (e.key === 'Delete') removeSelected(); }}>...</View>
 ui.onKey((e: ui.KeyEvent) => { if (e.primary && e.key === 's') { save(); e.preventDefault(); } });
 ```
 
@@ -309,18 +309,18 @@ top-left corner, then translate (in the parent's units). Painting, hit testing, 
 handlers) holding a world view:
 
 ```tsx
-<view class="grow overflow-hidden" onWheel={zoomAt} onPointerDown={startPan} onPointerMove={pan} onPointerUp={endPan}>
-  <view ref={world} class="absolute left-0 top-0 w-[2000] h-[2000]" style={{ scale: zoom(), translateX: panX(), translateY: panY() }}>
+<View className="grow overflow-hidden" onWheel={zoomAt} onPointerDown={startPan} onPointerMove={pan} onPointerUp={endPan}>
+  <View ref={world} className="absolute left-0 top-0 w-[2000] h-[2000]" style={{ scale: zoom(), translateX: panX(), translateY: panY() }}>
     <For each={nodes()}>{(n: GNode) => <Card node={n} />}</For>
-  </view>
-</view>
+  </View>
+</View>
 ```
 
 Zoom around the pointer: `wx = (e.x - panX) / z`, then `panX = e.x - wx * z2` (same for y). Text in a scaled view
 (a `scale`, a `transform` with an even scale, a `scale-*` class) keeps the line breaks and the widths of its layout,
 times the scale, and is drawn with glyphs made for its size on screen (`zinc:gfx` under `setTransform`,
 [UI apps](guide/03-ui-apps.md)): it stays sharp at every zoom and no word changes line while a view grows.
-(`scale` on a `<text>` keeps its legacy meaning: font size 8 × scale.)
+(`scale` on a `<Text>` keeps its legacy meaning: font size 8 × scale.)
 
 ## Scrolling
 
@@ -398,7 +398,7 @@ are ports of React Native 0.76 (MIT) and give its values (tests/t1/animated.sh c
 import * as A from 'zinc:ui/animated';
 const fade = new A.Value(0);
 A.spring(fade, { toValue: 1, bounciness: 6 }).start();
-<view style={{ opacity: fade.get(), translateY: (1 - fade.get()) * 20 }} />
+<View style={{ opacity: fade.get(), translateY: (1 - fade.get()) * 20 }} />
 ```
 
 Values are signals: a style reads them with `.get()` and the node follows. Animations advance on the engine clock (deterministic in tests, `ui.tick`).
@@ -442,7 +442,7 @@ const responder = PanResponder.create({
   onPanResponderMove: A.event([null, { dx: pan.x, dy: pan.y }]),
   onPanResponderRelease: (e: ui.ResponderEvent, g: ui.GestureState): void => { pan.flattenOffset(); A.decay(pan.x, { velocity: g.vx }).start(); },
 });
-<view {...responder.panHandlers} style={{ transform: [{ translateX: pan.x.get() }, { translateY: pan.y.get() }] }} />
+<View {...responder.panHandlers} style={{ transform: [{ translateX: pan.x.get() }, { translateY: pan.y.get() }] }} />
 ```
 
 ## LayoutAnimation
@@ -467,8 +467,8 @@ const styles = StyleSheet.create({
 });
 
 // Solid: active() and opacity() are signals. React: use the corresponding state values.
-<view class="w-full" style={[styles.card, active() && styles.selected, { opacity: opacity() }]} />
-<text style={{ fontSize: 24, fontWeight: 'bold', color: 'rgb(15,23,42)' }}>Hello</text>
+<View className="w-full" style={[styles.card, active() && styles.selected, { opacity: opacity() }]} />
+<Text style={{ fontSize: 24, fontWeight: 'bold', color: 'rgb(15,23,42)' }}>Hello</Text>
 ```
 
 Named styles can live in an imported `.ts` module or inside a component. Use module scope when the values are
@@ -540,7 +540,7 @@ styles and engine animations for long-running motion. CSS strings are normalized
 
 ## Surfaces: a canvas inside a page
 
-`ui.createSurface(w, h)` makes a node that shows a runtime image the program fills (a WebGL canvas, video frames). It is laid out and painted like an `<image>`, so it scrolls and clips with its page; `ui.surfaceImage(node)` is the image handle to fill.
+`ui.createSurface(w, h)` makes a node that shows a runtime image the program fills (a WebGL canvas, video frames). It is laid out and painted like an `<Image>`, so it scrolls and clips with its page; `ui.surfaceImage(node)` is the image handle to fill.
 
 With `"webgl": true` in `zinc.json`, `zinc:script` contexts get `document.createElement('canvas').getContext('webgl' | 'webgl2')`, and `gl.zincPresent(image)` copies the drawing buffer into the surface (rows flipped, no alpha):
 

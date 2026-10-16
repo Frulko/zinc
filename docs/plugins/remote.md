@@ -56,7 +56,7 @@ s.onOpen(() => {}); s.onClose(() => {})                  // open fires again aft
 s.close()
 
 // zinc:ui: draws fitted in the node and forwards pointer, wheel and keys while the mouse is over it
-<canvas class="grow" onDraw={(x, y, w, h) => s.view(x, y, w, h)}/>
+<Canvas className="grow" onDraw={(x, y, w, h) => s.view(x, y, w, h)}/>
 
 remote.discover((apps: remote.App[]) => { /* name, target, host, port, pid, width, height, seen */ });
 remote.stopDiscovery();

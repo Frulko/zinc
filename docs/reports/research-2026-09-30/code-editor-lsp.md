@@ -7,9 +7,9 @@ Repo state: the working tree was dirty (many modified files); line numbers below
 
 ## 1. What exists today
 
-### 1.1 The editor is the engine's `<textarea>`, not a component
+### 1.1 The editor is the engine's `<TextArea>`, not a component
 
-There is no separate editor widget. A "code editor" is a `<textarea>` in code mode plus a small extension API.
+There is no separate editor widget. A "code editor" is a `<TextArea>` in code mode plus a small extension API.
 [verified]
 
 - `lib/std/ui.ts:17-18`: `INPUT`/`TEXTAREA` node tags. `ui.ts:233`: `n.ed = new Edit(tag === TEXTAREA)`.
@@ -152,12 +152,12 @@ Recommendation [inferred]: **write the editing core in Zinc TypeScript** as a ne
   `docs/reports/PERF.md:101-119`). The core therefore must **not** be string-slice based: use typed arrays/chunks and
   integer offsets, never concatenate the document.
 
-The existing `<textarea>` stays as the small-form field. The new component is a distinct node kind or a canvas-backed
+The existing `<TextArea>` stays as the small-form field. The new component is a distinct node kind or a canvas-backed
 widget. Two options:
 
 - (A) New engine node `EDITOR` painted by new `paintEditor` in `ui.ts`, reusing scroll physics, focus, key routing,
   IME hook and marks painting. Pro: input/IME/scroll/focus for free. Con: `ui.ts` is already 2843 lines.
-- (B) A widget drawn with `gfx` inside a `<canvas onDraw>` plus key/pointer handlers in a std module. Pro: isolated,
+- (B) A widget drawn with `gfx` inside a `<Canvas onDraw>` plus key/pointer handlers in a std module. Pro: isolated,
   no ui.ts growth. Con: must re-implement focus/IME/clipboard glue and scroll physics.
 
 Recommend (A) with the model in `lib/std/editor/*` and only the painter/input glue in `ui.ts` (or a sibling

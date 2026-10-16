@@ -34,7 +34,7 @@ web.postMessage('{"type":"tick","n":1}');                                       
 |---|---|
 | `create(opts)` / `new WebView(opts)` | `url` (`zinc://...`, `https://...`, `file://...`) or `html` (inline, relative links resolve against `zinc://app/`), and `x, y, w, h` in logical pixels |
 | `setBounds(x, y, w, h)` | logical pixels, the gfx / zinc:ui coordinate space; follows the window's zoom, HiDPI density and letterbox |
-| `follow()` | an `onDraw` callback for a zinc:ui `<canvas>`: `<canvas class="grow" onDraw={web.follow()}/>` keeps the view on that layout node every frame |
+| `follow()` | an `onDraw` callback for a zinc:ui `<Canvas>`: `<Canvas className="grow" onDraw={web.follow()}/>` keeps the view on that layout node every frame |
 | `show()` / `hide()` | |
 | `navigate(url)`, `loadHtml(html)` | |
 | `eval(js)` | runs JavaScript in the page, fire and forget |

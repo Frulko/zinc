@@ -13,12 +13,12 @@ import { createSignal, render } from 'zinc:ui/solid';
 const [count, setCount] = createSignal<i32>(0);
 
 function App(): i32 {
-  return <view class="flex-col items-center justify-center h-full gap-3 bg-slate-900">
-    <text class="text-2xl text-amber-400">count: {count()}</text>
-    <button class="px-4 py-2 rounded bg-slate-700 focus:bg-slate-600" onClick={() => setCount(count() + 1)}>
-      <text class="text-slate-100">increment</text>
-    </button>
-  </view>;
+  return <View className="flex-col items-center justify-center h-full gap-3 bg-slate-900">
+    <Text className="text-2xl text-amber-400">count: {count()}</Text>
+    <Button className="px-4 py-2 rounded bg-slate-700 focus:bg-slate-600" onClick={() => setCount(count() + 1)}>
+      <Text className="text-slate-100">increment</Text>
+    </Button>
+  </View>;
 }
 
 render(App, 0x0f172a, null);   // component, background color, optional per-frame callback
@@ -31,7 +31,7 @@ render(App, 0x0f172a, null);   // component, background color, optional per-fram
 only inside `text`. A `canvas` gives you an immediate-mode `zinc:gfx` draw area:
 
 ```tsx
-<canvas class="grow" onDraw={(x, y, w, h) => { rect(x, y, w, h, 0x0b1220); /* zinc:gfx calls */ }} />
+<Canvas className="grow" onDraw={(x, y, w, h) => { rect(x, y, w, h, 0x0b1220); /* zinc:gfx calls */ }} />
 ```
 
 Attributes: `class` (Tailwind-like tokens), `style={{ opacity, translateX, translateY, scale, rotate }}` for
@@ -44,7 +44,7 @@ per-node transforms, `bg={0xRRGGBB}` for a dynamic background color, `onClick`, 
 ```tsx
 import { createSignal, createMemo, Show, For } from 'zinc:ui/solid';
 const [items, setItems] = createSignal<string[]>(['a', 'b']);
-<For each={items()}>{(it) => <text>{it}</text>}</For>;   // keyed
+<For each={items()}>{(it) => <Text>{it}</Text>}</For>;   // keyed
 ```
 
 **React** — hooks and reconciled re-renders:
@@ -54,7 +54,7 @@ import { useState, useEffect, render } from 'zinc:ui/react';
 function App(): i32 {
   const [n, setN] = useState<i32>(0);
   useEffect(() => { console.log('n is', n); }, [n]);
-  return <button onClick={() => setN(n + 1)}><text>{n}</text></button>;
+  return <Button onClick={() => setN(n + 1)}><Text>{n}</Text></Button>;
 }
 render(App, 0x101010, null);
 ```
@@ -68,12 +68,12 @@ Tailwind-like utility tokens are compiled at build time: flexbox (`flex-row`/`fl
 `gap-*`, `grow`, `wrap`), spacing (`p-*`, `px-*`, `m-*`), sizing (`w-*`, `h-*`, `w-full`, `h-full`, `w-[120px]`),
 colors (`bg-slate-900`, `text-amber-400`, gradients), `rounded*`, shadows, borders (all sides, or `border-t` / `border-x-2` / `border-b-[3px]` per side), typography
 (`text-2xl`, `font-bold`, `text-center`), and `focus:` / `active:` variants. A text color set on any element
-(`<View class="text-zinc-500">`) is inherited by the text inside it, like CSS `color`. Import a CSS file to define named classes compiled to
+(`<View className="text-zinc-500">`) is inherited by the text inside it, like CSS `color`. Import a CSS file to define named classes compiled to
 the same tokens:
 
 ```tsx
 import './app.css';    // .card { padding: 12px; background: #1e293b; border-radius: 8px }
-<view class="card">…</view>
+<View className="card">…</View>
 ```
 
 **Responsive**: `sm:` `md:` `lg:` `xl:` `2xl:` prefixes (640/768/1024/1280/1536 px) are re-evaluated when the window
@@ -82,7 +82,7 @@ resizes. Use them for layouts that follow the window.
 ## Scrolling and virtual lists
 
 ```tsx
-<scroll class="h-full">…</scroll>                          <!-- or class="overflow-y-auto" -->
+<ScrollView className="h-full">…</ScrollView>                          <!-- or className="overflow-y-auto" -->
 ```
 
 Scroll containers behave like iOS / macOS: fingers (trackpad, touch screen, mouse drag) move the content 1:1,
@@ -95,7 +95,7 @@ visible rows:
 
 ```tsx
 import { VirtualList } from 'zinc:ui/solid';
-<VirtualList count={10000} itemHeight={28}>{(i) => <text>row {i}</text>}</VirtualList>
+<VirtualList count={10000} itemHeight={28}>{(i) => <Text>row {i}</Text>}</VirtualList>
 ```
 
 ## Animations
@@ -122,7 +122,7 @@ drawText(title, 20, 20, card.title, 0x111827, 255, 0);
   the `fs:read` permission for that path. `loadFont` returns -1 when there is no such file or the read is refused. On small targets that embed no font files, it returns the
   nearest baked size.
 - **Characters.** A character that the sources and the text assets never contain (typed by the user, read from the network) is
-  drawn from the font's TrueType file at the same size. A program with a text field (`<input>`, `<textarea>`, `TextInput`) keeps
+  drawn from the font's TrueType file at the same size. A program with a text field (`<Input>`, `<TextArea>`, `TextInput`) keeps
   every character of its fonts for that. This costs about 370 KB more in the build (examples/ui/forms: 256 to 643 KB of
   resources): the files are no longer reduced to the characters the program shows.
 - **Cost.** The first draw of a new size rasterizes its glyphs: about 0.6 ms for 37 glyphs at 24 px and 3 ms at 96 px on the
@@ -150,7 +150,7 @@ size: a zoom through hundreds of scales makes at most 17 fonts of a family, each
 84 to 103 % (a matrix that only turns or mirrors, a small zoom) keeps the font's own glyphs. On a target that embeds no font
 file the nearest baked size serves, so bake the sizes a zoom reaches there.
 
-Images: `<image src="logo.png" />` draws an image of the `assets/` directory, baked into the executable at build time; `zinc:assets`
+Images: `<Image src="logo.png" />` draws an image of the `assets/` directory, baked into the executable at build time; `zinc:assets`
 reads the directory's files at run time (where a built program finds it: [distribution](07-distribution.md#assets-of-a-built-program)); `zinc:gfx` can build runtime images (video frames, generated textures) and render-to-image. HiDPI is
 automatic — resources are baked at the display scale (Retina ×2 on macOS, ×window `zoom`).
 

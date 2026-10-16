@@ -113,7 +113,7 @@ camera orbits and dollies by script (`controls.rotateLeft`, `dollyIn`) and a pic
   is false afterwards).
 - Rotation and quaternion are kept in step lazily (at the next matrix update or rotation call), not by callbacks:
   reading `rotation` right after writing `quaternion` directly shows the old angles until then.
-- No DOM: the renderer draws on the screen (or in a `<canvas onDraw>` box through `setViewport(x, y, w, h)`, whose
+- No DOM: the renderer draws on the screen (or in a `<Canvas onDraw>` box through `setViewport(x, y, w, h)`, whose
   origin is the top-left corner), `OrbitControls` poll `zinc:gfx` input inside `renderer.domElement`'s box and must be
   updated every frame. `loader.load` completes synchronously (onLoad runs before `load` returns).
 - **Shading** is `zinc:3d`'s: per-vertex (Gouraud) or flat Lambert lighting, nearest texel sampling, one texture per

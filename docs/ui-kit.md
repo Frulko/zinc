@@ -20,13 +20,13 @@ import { Card, CardHeader, CardContent, CardFooter, Button, Switch, heading, mut
 const [wifi, setWifi] = createSignal<boolean>(true);
 
 function App(): i32 {
-  return <View class="flex-col gap-6 p-8 h-full bg-zinc-50">
-    <Text class={heading(1)}>Settings</Text>
-    <Card class="w-96">
+  return <View className="flex-col gap-6 p-8 h-full bg-zinc-50">
+    <Text className={heading(1)}>Settings</Text>
+    <Card className="w-96">
       <CardHeader title="Network" description="Wireless and wired connections." />
       <CardContent>
         <Switch checked={wifi} onChange={setWifi} label="Wi-Fi" />
-        <Text class={mutedText()}>{wifi() ? 'Connected to zinc-lab' : 'Offline'}</Text>
+        <Text className={mutedText()}>{wifi() ? 'Connected to zinc-lab' : 'Offline'}</Text>
       </CardContent>
       <CardFooter><Button label="Save" onClick={() => {}} /></CardFooter>
     </Card>
@@ -127,8 +127,8 @@ Typography helpers return class strings for host `<Text>` nodes in the current t
 `heading(1..4)`, `leadText()`, `bodyText()`, `smallText()`, `mutedText()`, `captionText()`, `overline()`.
 
 ```tsx
-<Text class={heading(2)}>Devices</Text>
-<Text class={mutedText()}>{count()} online</Text>
+<Text className={heading(2)}>Devices</Text>
+<Text className={mutedText()}>{count()} online</Text>
 ```
 
 ## Themes
@@ -139,7 +139,7 @@ Typography helpers return class strings for host `<Text>` nodes in the current t
 theme applies on the next render. Your own nodes can use the same tokens:
 
 ```tsx
-<View class={`h-full bg-${theme().background}`}>...</View>
+<View className={`h-full bg-${theme().background}`}>...</View>
 ```
 
 A custom theme is a `Theme` object: copy `LIGHT`, change the colours (e.g. `accent: 'emerald-600'`), `setTheme` it.

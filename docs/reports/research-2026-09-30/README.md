@@ -68,7 +68,7 @@ Details, sources and verified/inferred tags are in the five reports next to this
    LibJS not viable now. Measured (single runs, JS-side only): Three r186 mock GL 500 cubes 13.2 ms/frame QuickJS-ng,
    0.54 JSC, 0.81 V8; no-JIT JSC/V8 still ~2x faster than QuickJS. This revises item 4: JSC removes the QuickJS speed
    bottleneck on macOS. Highest-value independent change: ABI v5 with borrowed typed-array views (4-6 days).
-8. **Code editor:** today it is the engine `<textarea>` in code mode plus an extension API (single caret, whole-string
+8. **Code editor:** today it is the engine `<TextArea>` in code mode plus an extension API (single caret, whole-string
    undo snapshots, commit-only IME, no shaping). Plan: rope + range-set selection + ChangeSet transactions written in Zinc
    TS (`zinc:editor`), tree-sitter as a vendored native plugin, LSP client in Zinc TS over `zinc:process`, `zinc lsp`
    reusing `frontend.ts`. M1-M6 ~32-44 engineer-weeks. Several ABI gaps (non-blocking write, byte-safe I/O, PTY) unverified.

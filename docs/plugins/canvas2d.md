@@ -12,7 +12,7 @@ import { CanvasRenderingContext2D } from 'zinc:canvas';
 
 const ctx = new CanvasRenderingContext2D();
 function Clock(x: i32, y: i32, w: i32, h: i32): void {
-  ctx.begin(x, y, w, h);              // the <canvas> box: origin and clip
+  ctx.begin(x, y, w, h);              // the <Canvas> box: origin and clip
   ctx.save();
   ctx.translate(w / 2, h / 2);
   ctx.beginPath();
@@ -26,7 +26,7 @@ function Clock(x: i32, y: i32, w: i32, h: i32): void {
   ctx.restore();
   ctx.end();
 }
-render(() => <canvas class="grow" onDraw={Clock}></canvas>, 0x0f172a, null);
+render(() => <Canvas className="grow" onDraw={Clock}></Canvas>, 0x0f172a, null);
 ```
 
 Outside `zinc:ui`, call `ctx.begin(0, 0, width(), height())` / `ctx.end()` inside `onFrame`.
@@ -44,7 +44,7 @@ zinc run examples/canvas/sketch --target sim    # Node (headless: the geometry r
 
 | | |
 | --- | --- |
-| `new CanvasRenderingContext2D()` | draws into the current frame: `begin(x, y, w, h)` sets the origin and clips to the box (a `<canvas onDraw>` box or the screen), `end()` pops the clips. Frames are immediate: every frame redraws everything (web code that clears and redraws each frame ports as is) |
+| `new CanvasRenderingContext2D()` | draws into the current frame: `begin(x, y, w, h)` sets the origin and clips to the box (a `<Canvas onDraw>` box or the screen), `end()` pops the clips. Frames are immediate: every frame redraws everything (web code that clears and redraws each frame ports as is) |
 | `new Canvas(w, h)` + `canvas.getContext('2d')` | an offscreen canvas backed by a runtime image: `begin()` / `end()` render into its pixels, which persist between frames like a web canvas (trails, paint programs). Show it with `ctx.drawImage(canvas.image, ...)` or `gfx.drawImage`, or use it as a three.js `CanvasTexture` |
 
 `ctx.canvas.width` / `height` give the box (or image) size.

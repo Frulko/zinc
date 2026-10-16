@@ -183,7 +183,7 @@ manifests; `icon` is a PNG: the `.app` gets `icon.icns` (made with `sips` and `i
 
 ### Assets of a built program
 
-The images and fonts a program draws (`<image src="…">`, `gfx.image`, the font sizes it uses) are baked into the executable at
+The images and fonts a program draws (`<Image src="…">`, `gfx.image`, the font sizes it uses) are baked into the executable at
 build time. The other files of `assets/` (JSON, text, sounds, models, photographs read with `imageFromBytes`) stay files, which
 `zinc:assets` (`readText`, `readBytes`, `exists`) and `zinc://` pages of a webview read at run time from the first of:
 

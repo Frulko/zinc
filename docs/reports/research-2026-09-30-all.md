@@ -68,7 +68,7 @@ Details, sources and verified/inferred tags are in the five reports next to this
    LibJS not viable now. Measured (single runs, JS-side only): Three r186 mock GL 500 cubes 13.2 ms/frame QuickJS-ng,
    0.54 JSC, 0.81 V8; no-JIT JSC/V8 still ~2x faster than QuickJS. This revises item 4: JSC removes the QuickJS speed
    bottleneck on macOS. Highest-value independent change: ABI v5 with borrowed typed-array views (4-6 days).
-8. **Code editor:** today it is the engine `<textarea>` in code mode plus an extension API (single caret, whole-string
+8. **Code editor:** today it is the engine `<TextArea>` in code mode plus an extension API (single caret, whole-string
    undo snapshots, commit-only IME, no shaping). Plan: rope + range-set selection + ChangeSet transactions written in Zinc
    TS (`zinc:editor`), tree-sitter as a vendored native plugin, LSP client in Zinc TS over `zinc:process`, `zinc lsp`
    reusing `frontend.ts`. M1-M6 ~32-44 engineer-weeks. Several ABI gaps (non-blocking write, byte-safe I/O, PTY) unverified.
@@ -1878,9 +1878,9 @@ Repo state: the working tree was dirty (many modified files); line numbers below
 
 ## 1. What exists today
 
-### 1.1 The editor is the engine's `<textarea>`, not a component
+### 1.1 The editor is the engine's `<TextArea>`, not a component
 
-There is no separate editor widget. A "code editor" is a `<textarea>` in code mode plus a small extension API.
+There is no separate editor widget. A "code editor" is a `<TextArea>` in code mode plus a small extension API.
 [verified]
 
 - `lib/std/ui.ts:17-18`: `INPUT`/`TEXTAREA` node tags. `ui.ts:233`: `n.ed = new Edit(tag === TEXTAREA)`.
@@ -2023,12 +2023,12 @@ Recommendation [inferred]: **write the editing core in Zinc TypeScript** as a ne
   `docs/reports/PERF.md:101-119`). The core therefore must **not** be string-slice based: use typed arrays/chunks and
   integer offsets, never concatenate the document.
 
-The existing `<textarea>` stays as the small-form field. The new component is a distinct node kind or a canvas-backed
+The existing `<TextArea>` stays as the small-form field. The new component is a distinct node kind or a canvas-backed
 widget. Two options:
 
 - (A) New engine node `EDITOR` painted by new `paintEditor` in `ui.ts`, reusing scroll physics, focus, key routing,
   IME hook and marks painting. Pro: input/IME/scroll/focus for free. Con: `ui.ts` is already 2843 lines.
-- (B) A widget drawn with `gfx` inside a `<canvas onDraw>` plus key/pointer handlers in a std module. Pro: isolated,
+- (B) A widget drawn with `gfx` inside a `<Canvas onDraw>` plus key/pointer handlers in a std module. Pro: isolated,
   no ui.ts growth. Con: must re-implement focus/IME/clipboard glue and scroll physics.
 
 Recommend (A) with the model in `lib/std/editor/*` and only the painter/input glue in `ui.ts` (or a sibling
@@ -2702,7 +2702,7 @@ Not portable (browser-dependent) **[verified]**:
   components, keys, hook-order check at build; deps are `number[]` only (`react.ts:110-131`); **no context, no portals
   (layers are `ui.openLayer`), no `memo`/`forwardRef`** (grep of `react.ts`/`solid.ts`: no `createContext|useContext|Portal`).
   A component re-renders wholesale. Real React libraries do not run; only Zinc-written components do.
-- Text: `<text>` has one font/size/bold per node; `wrapText` splits on spaces with baked metrics (`lib/std/ui.ts:799-813`);
+- Text: `<Text>` has one font/size/bold per node; `wrapText` splits on spaces with baked metrics (`lib/std/ui.ts:799-813`);
   `lineHeightOf = size*1.4`. **No inline spans, no per-run style in a paragraph.** `bold` is a boolean (`ui.ts:168`),
   italic only via a separate family file (e.g. `Inter-Italic.ttf` in `examples/zed-editor`).
 - Fonts: own TTF rasterizer, `cmap` 4/12, glyf composites, cache per (font,size) (`runtime/ttf.cpp:1-80`). grep finds **no
@@ -2808,7 +2808,7 @@ Ordered by dependency. "CE" = shared with the code editor.
 
 | # | Gap | Today [verified] | Needed for block editor | CE shared? |
 |---|---|---|---|---|
-| 1 | **Rich-text span layout** | `<text>` = one style; `wrapText` by spaces (`ui.ts:799`) | `RichText` node: `Run[]` with per-span font/weight/italic/colour/underline/strike/code bg/link, wrapping across spans, line boxes with mixed sizes, inline atoms (mentions, emoji) | Partly (code editor needs colour runs per line: `setHighlightAt`) |
+| 1 | **Rich-text span layout** | `<Text>` = one style; `wrapText` by spaces (`ui.ts:799`) | `RichText` node: `Run[]` with per-span font/weight/italic/colour/underline/strike/code bg/link, wrapping across spans, line boxes with mixed sizes, inline atoms (mentions, emoji) | Partly (code editor needs colour runs per line: `setHighlightAt`) |
 | 2 | **Shaping and fallback** | none (`ttf.cpp`) | at least kerning + font fallback + colour emoji; complex scripts later (HarfBuzz as a native module on host targets, none on esp32/ps1) | Yes |
 | 3 | **Grapheme/word/line-break segmentation** | none; Zinc has UTF-8 storage | UAX#29 grapheme + word, UAX#14 line breaking (Carnet's `grapheme.ts` needs `Intl.Segmenter`) | Yes |
 | 4 | **Text geometry API** | `editRowOf`, `caretOf`, `editView` per textarea | per-run hit test (point -> (blockId, offset)), caret rects, selection rects for any offset range, across blocks | Yes |

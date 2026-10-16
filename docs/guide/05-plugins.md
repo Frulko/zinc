@@ -114,7 +114,7 @@ export function Badge(props: { label: string }): i32 { /* build and return a nod
 ```tsx
 // in the app
 import { Badge } from 'zinc:mybadge';
-<view><Badge label="new" /></view>
+<View><Badge label="new" /></View>
 ```
 
 ## Kind 4 — display driver plugin

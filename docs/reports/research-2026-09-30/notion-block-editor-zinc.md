@@ -128,7 +128,7 @@ Not portable (browser-dependent) **[verified]**:
   components, keys, hook-order check at build; deps are `number[]` only (`react.ts:110-131`); **no context, no portals
   (layers are `ui.openLayer`), no `memo`/`forwardRef`** (grep of `react.ts`/`solid.ts`: no `createContext|useContext|Portal`).
   A component re-renders wholesale. Real React libraries do not run; only Zinc-written components do.
-- Text: `<text>` has one font/size/bold per node; `wrapText` splits on spaces with baked metrics (`lib/std/ui.ts:799-813`);
+- Text: `<Text>` has one font/size/bold per node; `wrapText` splits on spaces with baked metrics (`lib/std/ui.ts:799-813`);
   `lineHeightOf = size*1.4`. **No inline spans, no per-run style in a paragraph.** `bold` is a boolean (`ui.ts:168`),
   italic only via a separate family file (e.g. `Inter-Italic.ttf` in `examples/zed-editor`).
 - Fonts: own TTF rasterizer, `cmap` 4/12, glyf composites, cache per (font,size) (`runtime/ttf.cpp:1-80`). grep finds **no
@@ -234,7 +234,7 @@ Ordered by dependency. "CE" = shared with the code editor.
 
 | # | Gap | Today [verified] | Needed for block editor | CE shared? |
 |---|---|---|---|---|
-| 1 | **Rich-text span layout** | `<text>` = one style; `wrapText` by spaces (`ui.ts:799`) | `RichText` node: `Run[]` with per-span font/weight/italic/colour/underline/strike/code bg/link, wrapping across spans, line boxes with mixed sizes, inline atoms (mentions, emoji) | Partly (code editor needs colour runs per line: `setHighlightAt`) |
+| 1 | **Rich-text span layout** | `<Text>` = one style; `wrapText` by spaces (`ui.ts:799`) | `RichText` node: `Run[]` with per-span font/weight/italic/colour/underline/strike/code bg/link, wrapping across spans, line boxes with mixed sizes, inline atoms (mentions, emoji) | Partly (code editor needs colour runs per line: `setHighlightAt`) |
 | 2 | **Shaping and fallback** | none (`ttf.cpp`) | at least kerning + font fallback + colour emoji; complex scripts later (HarfBuzz as a native module on host targets, none on esp32/ps1) | Yes |
 | 3 | **Grapheme/word/line-break segmentation** | none; Zinc has UTF-8 storage | UAX#29 grapheme + word, UAX#14 line breaking (Carnet's `grapheme.ts` needs `Intl.Segmenter`) | Yes |
 | 4 | **Text geometry API** | `editRowOf`, `caretOf`, `editView` per textarea | per-run hit test (point -> (blockId, offset)), caret rects, selection rects for any offset range, across blocks | Yes |

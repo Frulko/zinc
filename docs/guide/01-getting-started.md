@@ -169,10 +169,10 @@ my-game/src/main.ts:1:1: error Z0119: Cannot find module: 'zinc:confetti' is not
 
 `zinc plugins` prints every module you can import now, with one line of description each.
 
-**A JSX tag left open** (in a `.tsx` project such as `zinc new remarkable`, a `<text>` without its `</text>`):
+**A JSX tag left open** (in a `.tsx` project such as `zinc new remarkable`, a `<Text>` without its `</Text>`):
 
 ```
-my-app/src/main.tsx:10:7: error Z0002: Expected a specific token: JSX: <text> is not closed (line 15 closes </view> instead): add </text>, or end the tag with />
+my-app/src/main.tsx:10:7: error Z0002: Expected a specific token: JSX: <Text> is not closed (line 15 closes </View> instead): add </Text>, or end the tag with />
 ```
 
 The line is the one of the tag that was opened, not the place where the parser gave up.

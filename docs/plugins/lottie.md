@@ -7,7 +7,7 @@ into a compact scene, and each frame is evaluated, flattened and drawn through t
 ```tsx
 import { Lottie } from 'zinc:lottie';
 // UI node (zinc:ui canvas), played on the UI engine clock
-<Lottie src="spinner.json" loop autoplay class="w-24 h-24" />
+<Lottie src="spinner.json" loop autoplay className="w-24 h-24" />
 ```
 
 ```ts

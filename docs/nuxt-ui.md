@@ -8,7 +8,7 @@ component maps the classes of its theme (`src/theme/<component>.ts`) one for one
 import { theme, setColorMode, setColors, NuxtColors, hex, rounded } from 'zinc:ui/nuxt';
 setColorMode('dark');                    // Nuxt UI's .dark
 const c = new NuxtColors(); c.primary = 'blue'; setColors(c);   // app.config ui.colors
-<view class={`bg-${hex(theme().bgElevated)} text-${hex(theme().text)} ${rounded('md')}`} />
+<View className={`bg-${hex(theme().bgElevated)} text-${hex(theme().text)} ${rounded('md')}`} />
 ```
 
 ## Tokens
