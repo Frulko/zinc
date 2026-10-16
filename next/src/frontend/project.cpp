@@ -451,6 +451,14 @@ bool parseProject(const std::string& text, Project& out, std::string& err) {
     if (!str("id", app.id) || !str("name", app.name) || !str("version", app.version) || !str("icon", app.icon) || !str("copyright", app.copyright) || !str("category", app.category)) return false;
     if (app.id.empty()) return fatal(lineOf(text, "app"), "app.id is required (a reverse-DNS id such as com.example.notes)");
     if (!reverseDns(app.id)) return fatal(lineOf(text, app.id), "app.id '" + app.id + "' is not a reverse-DNS id (letters, digits and hyphens in two or more dot-separated labels, like com.example.notes)");
+    if (yyjson_val* vc = yyjson_obj_get(a, "versionCode")) {   // the build number of the stores (ZN-618): a positive integer that only grows
+      if (!yyjson_is_int(vc) || yyjson_get_sint(vc) < 1 || yyjson_get_sint(vc) > 2100000000) return fatal(lineOf(text, "versionCode"), "app.versionCode must be a whole number from 1 to 2100000000");
+      app.versionCode = static_cast<int>(yyjson_get_sint(vc));
+    }
+    if (!str("orientation", app.orientation)) return false;
+    if (!app.orientation.empty() && app.orientation != "portrait" && app.orientation != "landscape" && app.orientation != "any")
+      return fatal(lineOf(text, "orientation"), "app.orientation '" + app.orientation + "' is not one of portrait, landscape, any");
+    if (app.orientation == "any") app.orientation.clear();
     if (yyjson_val* d = yyjson_obj_get(a, "dock")) { if (!yyjson_is_bool(d)) return fatal(lineOf(text, "dock"), "app.dock must be true or false"); app.dock = yyjson_get_bool(d); }
     for (const char* key : {"urlSchemes", "fileTypes"}) {
       yyjson_val* x = yyjson_obj_get(a, key);

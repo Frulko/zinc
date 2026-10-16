@@ -155,6 +155,20 @@ const std::vector<Target>& targets() {
   return t;
 }
 
+const std::vector<Target>& appTargets() {
+  static const std::vector<Target> t = {
+      // armeabi-v7a for the 32-bit devices still in use (the Nexus 7 2012, Android 7.1); x86_64 for the emulator
+      {"android", "", "", "Android 7.1 (API 25) and later, armeabi-v7a, arm64-v8a and x86_64 (needs the Android NDK: zinc export --target android)"},
+      {"ios", "", "", "iPhone and iPad, arm64 (needs Xcode: zinc export --target ios)"},
+      {"ios-sim", "", "", "the iOS simulator, arm64 and x86_64 (needs Xcode)"},
+  };
+  return t;
+}
+const Target* findAppTarget(const std::string& name) {
+  for (const Target& t : appTargets()) if (name == t.name) return &t;
+  return nullptr;
+}
+
 const Target* findTarget(const std::string& name) {
   const std::string n = name == "windows-x86_64" || name == "windows" ? "x86_64-windows" : name;   // the names people type
   for (const Target& t : targets()) if (n == t.name) return &t;

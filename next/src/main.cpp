@@ -338,6 +338,10 @@ static bool loadManifestPermissions(const char* path) {
     if (!zn::frontend::parseProject(ss.str(), p, err)) { if (p.fatal) { std::fprintf(stderr, "zinc: %s: %s\n", pf.c_str(), err.c_str()); return false; } }
     else { granted = zn::frontend::permissionsFor(p, gProfile ? gProfile->name : zn::tc::pluginTarget()); appJson = p.app.json; scopesJson = p.scopes; }
   }
+  if (const zn::frontend::Profile* rp = zn::frontend::currentProfile(); rp && !p.requires_.empty() && !zn::frontend::force()) {   // zinc.json "requires" for zinc check and build --profile (ZN-618; zinc run checks it before, with --force's warning)
+    const std::string why = zn::frontend::explain(p.requires_, zn::frontend::capsFromFile(*rp, gRoot + "/../targets/capabilities.json"), rp->name);
+    if (!why.empty()) { std::fprintf(stderr, "zinc: %s cannot run on %s: it requires %s (zinc.json \"requires\"; --force builds anyway)\n", p.name.empty() ? std::filesystem::path(pf).parent_path().filename().string().c_str() : p.name.c_str(), rp->name, why.c_str()); return false; }
+  }
   {  // the layout engine (ZN-285): zinc.json "ui", or ZINC_UI_LAYOUT for a run (ZN-286), against the rules of the machine compiled for
     if (const char* forced = std::getenv("ZINC_UI_LAYOUT"); forced && *forced) p.uiLayout = forced;
     const std::string target = !gBuildTarget.empty() ? gBuildTarget : gProfile ? gProfile->name : zn::tc::pluginTarget();
@@ -2108,6 +2112,7 @@ int main(int argc, char** argv) {
     }
     if (sub == "targets") {
       for (const auto& t : zn::tc::targets()) std::printf("%-14s %s\n", t.name, t.note);
+      for (const auto& t : zn::tc::appTargets()) std::printf("%-14s %s\n", t.name, t.note);   // phones: the platform's tools build them (ZN-618)
       return 0;
     }
     if (sub == "sha256" && argc == 4) {
@@ -2122,6 +2127,7 @@ int main(int argc, char** argv) {
   if (argc == 7 && !std::strcmp(argv[1], "build") && !std::strcmp(argv[2], "--target") && !std::strcmp(argv[5], "-o")) {  // zinc build --target <t> <file> -o <out>: a program for another machine
     namespace fs = std::filesystem;
     const zn::tc::Target* target = zn::tc::findTarget(argv[3]);
+    if (!target && zn::tc::findAppTarget(argv[3])) { std::fprintf(stderr, "zinc build: %s apps are built by zinc export --target %s (%s)\n", argv[3], argv[3], zn::tc::findAppTarget(argv[3])->note); return 2; }
     if (!target) { std::fprintf(stderr, "unknown target '%s' (zinc toolchain targets)\n", argv[3]); return 2; }
     gBuildTarget = std::string(argv[3]) == "rpi" ? "rpi1" : argv[3];
     zn::zbc::Module zm;

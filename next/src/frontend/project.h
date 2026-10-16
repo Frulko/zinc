@@ -50,6 +50,8 @@ struct AppInfo {
   bool present = false;
   std::string id, name, version, icon, copyright, category;   // id is reverse DNS: com.example.notes
   bool dock = true;                                          // false: LSUIElement, a tray-only app
+  int versionCode = 0;                                       // the store build number (Android versionCode, iOS CFBundleVersion); 0: from version
+  std::string orientation;                                   // "portrait", "landscape" or "" (both: the system rotates), phones and tablets (ZN-618)
   std::vector<std::string> urlSchemes, fileTypes;
   std::string window;                                        // the `window` object as JSON text (title, width, height, minWidth, minHeight, x, y, frame, titleBar, alwaysOnTop, transparent, resizable)
   std::string json;                                          // the whole `app` object as JSON text (what zinc:system/app bakes for the simulator's log)

@@ -19,6 +19,11 @@ constexpr Profile kProfiles[] = {
     {"n3ds", Num::f64, 400, 240, false, 16ull << 20, false},
     {"chip", Num::f64, 720, 576, false, 128ull << 20, false},
     {"pocketchip", Num::f64, 480, 272, false, 128ull << 20, false},
+    // phones and tablets (ZN-618, D59): the default surface of a phone in logical pixels; the heap fits a 1 GB Android device (the Nexus 7 2012:
+    // ~400 MB free) and an iPhone of the iOS versions SDL3 supports
+    {"android", Num::f64, 360, 640, false, 128ull << 20, false},
+    {"ios", Num::f64, 390, 844, false, 256ull << 20, false},
+    {"ios-sim", Num::f64, 390, 844, false, 256ull << 20, false},
 };
 }  // namespace
 

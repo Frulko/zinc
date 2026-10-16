@@ -18,6 +18,10 @@ struct Target {
 };
 const std::vector<Target>& targets();
 const Target* findTarget(const std::string& name);
+// Phones and tablets (ZN-618, D59): built by the platform's own tools through zinc export --target <name> (Gradle and the NDK, Xcode), not by the
+// pinned zig: zigTarget is empty and note says what the build needs.
+const std::vector<Target>& appTargets();
+const Target* findAppTarget(const std::string& name);
 
 std::string home();         // $ZINC_HOME or ~/.zinc
 std::string hostName();     // the pin key of this machine: aarch64-macos, x86_64-linux, ...
