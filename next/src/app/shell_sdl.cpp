@@ -13,6 +13,7 @@
 
 #ifdef __ANDROID__
 #include <android/log.h>
+#include <jni.h>
 #include <pthread.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -65,6 +66,43 @@ static void copy_assets(const std::string& files) {
   setenv("ZINC_ASSETS", dir.c_str(), 1);
 }
 
+// The activity through JNI (SDL keeps it): whether the app is debuggable (ApplicationInfo.FLAG_DEBUGGABLE), a string extra of its intent
+static bool debuggable() {
+  JNIEnv* env = (JNIEnv*)SDL_GetAndroidJNIEnv();
+  jobject act = (jobject)SDL_GetAndroidActivity();
+  if (!env || !act) return false;
+  jobject info = env->CallObjectMethod(act, env->GetMethodID(env->GetObjectClass(act), "getApplicationInfo", "()Landroid/content/pm/ApplicationInfo;"));
+  const jint flags = info ? env->GetIntField(info, env->GetFieldID(env->GetObjectClass(info), "flags", "I")) : 0;
+  env->DeleteLocalRef(act);
+  return (flags & 2) != 0;   // FLAG_DEBUGGABLE
+}
+static std::string intent_extra(const char* key) {
+  JNIEnv* env = (JNIEnv*)SDL_GetAndroidJNIEnv();
+  jobject act = (jobject)SDL_GetAndroidActivity();
+  std::string out;
+  if (!env || !act) return out;
+  jobject intent = env->CallObjectMethod(act, env->GetMethodID(env->GetObjectClass(act), "getIntent", "()Landroid/content/Intent;"));
+  if (intent) {
+    jstring k = env->NewStringUTF(key);
+    jstring v = (jstring)env->CallObjectMethod(intent, env->GetMethodID(env->GetObjectClass(intent), "getStringExtra", "(Ljava/lang/String;)Ljava/lang/String;"), k);
+    if (v) { const char* s = env->GetStringUTFChars(v, nullptr); out = s; env->ReleaseStringUTFChars(v, s); }
+  }
+  env->DeleteLocalRef(act);
+  return out;
+}
+// "KEY=VALUE KEY2=VALUE2": each word with an '=' set in the environment
+static void set_env_words(const char* words) {
+  const std::string text = words;
+  for (size_t at = 0; at < text.size();) {
+    size_t end = text.find(' ', at);
+    if (end == std::string::npos) end = text.size();
+    const std::string w = text.substr(at, end - at);
+    at = end + 1;
+    const size_t eq = w.find('=');
+    if (eq != std::string::npos && eq > 0) setenv(w.substr(0, eq).c_str(), w.substr(eq + 1).c_str(), 1);
+  }
+}
+
 static void android_setup() {
   pipe(log_fd);
   dup2(log_fd[1], 1);
@@ -81,6 +119,15 @@ static void android_setup() {
     copy_assets(files);
   }
   if (cache) setenv("TMPDIR", cache, 0);
+  // An app has no environment: a debuggable build takes the Zinc variables a desktop run takes from its shell from the project (zinc.json "dev",
+  // baked by zinc export as ZN_APP_DEV_ENV) and from the launch, `adb shell am start -n <id>/.<Activity> --es zinc.env "ZINC_PERF_HUD=1 ZINC_PROFILE=1"`.
+  // A release build takes neither.
+  if (debuggable()) {
+#ifdef ZN_APP_DEV_ENV
+    set_env_words(ZN_APP_DEV_ENV);
+#endif
+    set_env_words(intent_extra("zinc.env").c_str());
+  }
   // The heap of the runtime (one region, targets/common/hal_posix.cpp): the program's need, at most a quarter of the device's memory. The
   // desktop's 512 MiB cannot be had on a 1 GB device (a 32-bit process, ~400 MB free on the Nexus 7 2012).
   if (!getenv("ZINC_HEAP")) {

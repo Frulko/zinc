@@ -2,7 +2,7 @@
 ./app/build.gradle d208359918138e44
 ./app/jni/Android.mk b944a6752c2da4ce
 ./app/jni/Application.mk f118def06e042f72
-./app/jni/CMakeLists.txt cca926764ededf65
+./app/jni/CMakeLists.txt 61c6fed859bdacd3
 ./app/jni/src/Android.mk d7b8e5f8aea08c32
 ./app/jni/src/CMakeLists.txt 964943eeecdf7f1e
 ./app/jni/src/program.cpp (the program's C++)

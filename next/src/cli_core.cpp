@@ -1029,10 +1029,10 @@ static int exportAndroid(const ProjectInfo& p, const fs::path& out, const std::s
       replaceIn(out / "app/build.gradle", "org.libsdl.app", id, err) &&
       replaceIn(out / "app/src/main/AndroidManifest.xml", "name=\"SDLActivity\"", "name=\"" + activity + "\"\n            android:screenOrientation=\"" + orient + "\"", err) &&
       // Zinc: the engine and the program in libmain.so (SDL3 is built inside the engine), linked with zn_app and the program's plugins
-      replaceIn(out / "app/jni/CMakeLists.txt", "add_subdirectory(SDL)\n", "set(ZN_WEBGL OFF CACHE BOOL \"\" FORCE)\nadd_subdirectory(${ZINC_ENGINE} zinc EXCLUDE_FROM_ALL)   # Zinc: the engine (zn_app), SDL3 inside it\n", err) &&
+      replaceIn(out / "app/jni/CMakeLists.txt", "add_subdirectory(SDL)\n", "add_compile_options(-O2)   # Zinc: the engine and SDL optimized in a debug APK too (AGP builds it as Debug, -O0)\nset(ZN_WEBGL OFF CACHE BOOL \"\" FORCE)\nadd_subdirectory(${ZINC_ENGINE} zinc EXCLUDE_FROM_ALL)   # Zinc: the engine (zn_app), SDL3 inside it\n", err) &&
       replaceIn(src / "CMakeLists.txt", "target_link_libraries(main PRIVATE SDL3::SDL3)\n",
                 "# Zinc (zinc export --target android): the program's plugins, then libmain.so = the program, the shell, the engine\nset(ZINC_PLUGINS ${ZINC_ENGINE}/../plugins)\n" + pluginCmake +
-                "set_target_properties(main PROPERTIES CXX_STANDARD 20)\ntarget_compile_definitions(main PRIVATE ZN_APP_LIBRARY ZN_APP_HEAP_MB=" + heapMb + ")\n"
+                "set_target_properties(main PROPERTIES CXX_STANDARD 20)\ntarget_compile_definitions(main PRIVATE ZN_APP_LIBRARY ZN_APP_HEAP_MB=" + heapMb + (proj.perfHud ? " \"ZN_APP_DEV_ENV=\\\"ZINC_PERF_HUD=1\\\"\"" : "") + ")\n"   // zinc.json \"dev\": {\"perfHud\": true}, for debuggable builds (shell_sdl.cpp)
                 "target_compile_options(main PRIVATE -O2 -w -ffp-contract=off -fno-stack-protector)\n"
                 "target_include_directories(main PRIVATE ${ZINC_ENGINE}/include ${ZINC_ENGINE}/src ${ZINC_ENGINE}/third_party/mimalloc/include)\n"
                 "target_link_libraries(main PRIVATE SDL3::SDL3" + pluginLibs + " zn_app log android)\n"

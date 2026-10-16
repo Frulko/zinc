@@ -53,6 +53,12 @@ static bool shown;             // the main window is created hidden and shown by
 #ifdef __APPLE__
 #include <OpenGL/gl3.h>
 static bool zgl_load() { return true; }
+#elif defined(__ANDROID__)
+// Android (Zinc Next, ZN-622): an OpenGL ES 2 context, libGLESv2 linked, the replay's GLES 2 path (GLR_CORE 0, as plugins/display-gl on the Pi
+// and webOS): Tegra 3 (Nexus 7 2012) has no GLES 3
+#include <GLES2/gl2.h>
+#define ZGL_ES 1
+static bool zgl_load() { return true; }
 #else
 // Linux (ZN-412.06): glad's types and names with GLAD_API_CALL static, a private table of this file filled through SDL_GL_GetProcAddress. Nothing is
 // exported, so the WebGL module's own glad (libzn_webgl, which resolves symbols against zinc) cannot interpose, and zinc does not link libGL.
@@ -77,8 +83,13 @@ static bool zgl_load() {
 #endif
 #include "zrt_raster.h"
 static GLuint zgl_program(const char* defines, const char* vs, const char* fs) {   // GLSL ES 1.00 sources as GLSL 1.50 core
+#ifdef ZGL_ES   // the sources as they are, with display-gl's precision (Tegra 3 has no fragment highp)
+  static const char* pre_vs = "#version 100\n";
+  static const char* pre_fs = "#version 100\n#ifdef GL_FRAGMENT_PRECISION_HIGH\nprecision highp float;\n#else\nprecision mediump float;\n#endif\n";
+#else
   static const char* pre_vs = "#version 150\n#define attribute in\n#define varying out\n";
   static const char* pre_fs = "#version 150\n#define varying in\n#define texture2D texture\nout vec4 zgl_color;\n#define gl_FragColor zgl_color\n";
+#endif
   GLuint p = glCreateProgram();
   const char* src[2][3] = {{pre_vs, defines, vs}, {pre_fs, defines, fs}};
   for (int i = 0; i < 2; i++) {
@@ -100,7 +111,11 @@ static GLuint zgl_program(const char* defines, const char* vs, const char* fs) {
   if (!ok) { glDeleteProgram(p); return 0; }
   return p;
 }
+#ifdef ZGL_ES
+#define GLR_CORE 0
+#else
 #define GLR_CORE 1
+#endif
 #include "gl_replay.cpp"
 static SDL_GLContext glctx;
 static bool gl_on, glr_ok, glr_made, glr_stale, gl_tex_ok;   // the window presents with GL; the replay works; it was set up; its size is stale; its texture holds the last frame
@@ -116,12 +131,19 @@ static const char* kPresentFS = "varying vec2 v_uv; uniform sampler2D u_tex; uni
 static bool gl_window(const char* title, int ww, int wh) {
   const char* rr = getenv("ZINC_RENDERER");
   const bool force = rr && !strcmp(rr, "gl");
+#ifdef ZGL_ES
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+  SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 16);   // what Tegra 3's window surfaces offer
+#else
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG);
-  SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
   SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);   // the replay's occlusion pass
+#endif
+  SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
   SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);  // POLY fills on the GPU when the replay draws straight into the window (ZN-590.02)
   SDL_PropertiesID props = SDL_CreateProperties();
   SDL_SetStringProperty(props, SDL_PROP_WINDOW_CREATE_TITLE_STRING, wcfg_set && wcfg.title[0] ? wcfg.title : title);
@@ -141,8 +163,10 @@ static bool gl_window(const char* title, int ww, int wh) {
   const char* r = glctx && SDL_GL_MakeCurrent(win, glctx) && zgl_load() ? (const char*)glGetString(GL_RENDERER) : nullptr;
   const bool soft = r && (strstr(r, "llvmpipe") || strstr(r, "softpipe") || strstr(r, "Software"));
   if (r && (!soft || force)) {
+#ifndef ZGL_ES   // GLES 2 has no vertex array objects
     glGenVertexArrays(1, &gl_vao);   // core profile: one VAO bound for the whole program
     glBindVertexArray(gl_vao);
+#endif
     gl_prog = zgl_program("", kPresentVS, kPresentFS);
   }
   if (!r || (soft && !force) || !gl_prog) {
@@ -257,6 +281,9 @@ static void apply_size() {
 }
 // macOS blocks the event loop during a live resize: redraw from the event watcher so the layout follows the mouse
 static bool SDLCALL watch(void*, SDL_Event* e) {
+  // only on the thread that draws: Android sends the size changes from its UI thread, where a redraw makes the GL context current on a second
+  // thread (eglMakeCurrent crashed the Tegra 3 driver, ZN-622); the poll of the next frame applies them there
+  if (!SDL_IsMainThread()) return true;
   if (e->type == SDL_EVENT_WINDOW_EXPOSED || e->type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED) { apply_size(); zrt_redraw(); }
   return true;
 }
@@ -373,7 +400,13 @@ void hal_init(const HalConfig* cfg) {
 #ifdef ZN_HAL_GL
   {   // ZINC_RENDERER=cpu|gl|auto (default auto): GL when a hardware context comes up; transparent windows and display plugins stay on SDL_Renderer
     const char* rr = getenv("ZINC_RENDERER");
-    if (!(rr && !strcmp(rr, "cpu")) && !(wcfg_set && wcfg.transparent) && !hal_display) gl_on = gl_window(cfg->title, ww, wh);
+#ifdef ZGL_ES   // Android: the software raster unless ZINC_RENDERER=gl. On the Nexus 7 2012 (Tegra 3) the GLES 2 replay presents rn-showcase in 89 ms
+    // (p50) against 15 ms for the raster uploaded through SDL_Renderer (ZN-622): the replay is not faster there yet
+    const bool want_gl = rr && !strcmp(rr, "gl");
+#else
+    const bool want_gl = !(rr && !strcmp(rr, "cpu"));
+#endif
+    if (want_gl && !(wcfg_set && wcfg.transparent) && !hal_display) gl_on = gl_window(cfg->title, ww, wh);
     zrt::gfx::gpu_strokes = gl_on;   // the replay draws strokes on the GPU (ZN-590.01)
   }
   if (!gl_on) {
@@ -693,7 +726,9 @@ static void sim_turned() {
   static int base_w = 0, base_h = 0;   // the device's surface, untouched by turns (logical pixels)
   if (!base_w) { base_w = W; base_h = H; }
   device = turn; follows = follow;
+#ifdef ZN_HAL_GL   // the GL window turns the picture; the SDL_Renderer path has no turn (and no sim_turn: a build without ZN_HAL_GL, Android's, ZN-622)
   sim_turn = follow ? 0 : turn;
+#endif
   (void)base_fill;
   // the surface: the device's own size, its sides swapped when the program follows a quarter turn
   const int sw = follow && (turn & 1) ? base_h : base_w, sh = follow && (turn & 1) ? base_w : base_h;

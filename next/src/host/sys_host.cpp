@@ -928,7 +928,14 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostOsGid: r->i = static_cast<std::int64_t>(getgid()); break;
     case Rt::HostOsShell: { passwd* pw = getpwuid(getuid()); ret(r, pw && pw->pw_shell ? pw->pw_shell : ""); break; }
     case Rt::HostOsUser: { passwd* pw = getpwuid(getuid()); ret(r, pw ? pw->pw_name : ""); break; }
-    case Rt::HostOsLoad: { double l[3] = {0, 0, 0}; getloadavg(l, 3); r->d = n(0) >= 0 && n(0) < 3 ? l[n(0)] : 0; break; }
+    case Rt::HostOsLoad: {
+      double l[3] = {0, 0, 0};
+#if defined(__ANDROID__) && __ANDROID_API__ < 29   // bionic has getloadavg since API 29: the kernel's file says the same
+      if (FILE* f = fopen("/proc/loadavg", "r")) { if (fscanf(f, "%lf %lf %lf", &l[0], &l[1], &l[2]) != 3) l[0] = l[1] = l[2] = 0; fclose(f); }
+#else
+      getloadavg(l, 3);
+#endif
+      r->d = n(0) >= 0 && n(0) < 3 ? l[n(0)] : 0; break; }
     default: break;
   }
 }
