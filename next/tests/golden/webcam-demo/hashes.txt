@@ -1,0 +1,13 @@
+live - - light 130 c4235795912e12e2
+dark - - dark 60 9b4e175aa28c4571
+cover cover - light 60 9950cc4fa8ca9179
+mirror mirror - light 60 fd7164ddfddc4795
+bright bright - light 60 a18e0453c2836fea
+contrast contrast - light 60 3b333a1c73f2309d
+format format - light 270 056332a243dd0962
+viewer viewer - light 80 fad928d0c0e15689
+delete delete - light 90 bb4cbd15c6867dbf
+denied - denied light 20 445950e7a82d5949
+retry retry denied light 60 c0395b779b1d044b
+allow - undetermined light 20 b6395b29d57522a4
+asked allow undetermined dark 60 f3a805e60e666892
