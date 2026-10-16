@@ -4,7 +4,8 @@ Zinc runs React Native screens written for React Native: `"ui": { "preset": "rea
 engine; `classic` with the same style semantics on targets without Yoga) and resolves React Native's own imports, so `import React, { useState } from
 'react'` and `import { View, FlatList } from 'react-native'` compile unchanged. The components and APIs are `zinc:react-native` (`lib/std/react-native.tsx`)
 in the React model of `zinc:ui/react`; Animated is `zinc:ui/animated`. Examples: `examples/rn-tester` (every component and API, a page each),
-`examples/rn-port` (a React Native screen unchanged), `examples/rn-showcase` (StyleSheet in the Solid model).
+`examples/rn-port` (a React Native screen unchanged), `examples/rn-showcase` (a kitchen-sink app in the React model: tabs and a stack, forms,
+network with a mock mode, media, camera, motion, storage, platform APIs, platform-specific files).
 
 ## Imports
 

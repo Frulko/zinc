@@ -59,7 +59,7 @@ function SignUpForm() {
     const bad = validate(form, birthday, terms);
     if (bad.join('') !== '') { trace(`signup invalid: ${['name', 'email', 'password', 'birthday', 'terms'].filter((f: string, i: number) => bad[i] !== '').join(',')}`); toast(tr('Check the fields in red'), 'circle-alert'); return; }
     setState('sending');
-    api.signUp(form).then((r: string): void => { trace(`signup ok: ${r}`); setReply(r); setState('done'); }).catch((e: Error): void => { setReply(e.message); setState('failed'); });
+    api.signUp(form).then((r: string): void => { trace(`signup ok: ${r}`); toast(tr('Welcome aboard!')); setReply(r); setState('done'); }).catch((e: Error): void => { setReply(e.message); setState('failed'); });
   };
   if (state === 'done') return <Screen><Section title="Sign up">
     <EmptyState icon="circle-check" tone="ok" title={tr('Welcome aboard!')} body={reply} action={tr('Back')} onAction={() => { setState('idle'); setTried(false); }} />
