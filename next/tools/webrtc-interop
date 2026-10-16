@@ -1,0 +1,124 @@
+#!/usr/bin/env python3
+"""zinc:webrtc against headless Chrome: audio and video both ways, no real device (Chrome's and Zinc's fake camera and microphone).
+
+  tools/webrtc-interop [--zinc build/zinc] [--codec video/VP8|video/H264] [--role offer|answer]
+
+The Zinc side is tests/data/webrtc_interop.ts; the signalling is two files in a temporary directory (offer.json, answer.json), carried to and
+from the page through the DevTools protocol (tools/cdp.py). --role offer: Zinc offers and the page answers; answer: the page offers.
+Prints what each side received; exits 0 when both decoded the other's video and heard its audio, 77 without Chrome."""
+import json, os, subprocess, sys, tempfile, time
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from cdp import Chrome, find_chrome
+
+HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+def arg(name, default): return sys.argv[sys.argv.index(name) + 1] if name in sys.argv else default
+zinc = arg("--zinc", os.environ.get("ZINC", os.path.join(HERE, "build", "zinc")))
+codec = arg("--codec", "video/VP8")
+role = arg("--role", "offer")
+if not find_chrome(): print("skipped: no Chrome"); sys.exit(77)
+
+PAGE = """
+window.log = [];
+window.start = async function (offerJson) {
+  const s = await navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240 }, audio: true });
+  const pc = new RTCPeerConnection(); window.pc = pc;
+  pc.ontrack = (e) => {
+    window.log.push('track ' + e.track.kind);
+    if (e.track.kind !== 'audio') return;
+    // Chrome plays a remote track into Web Audio only while a media element plays it too (muted here)
+    const el = document.createElement('audio'); el.muted = true; el.autoplay = true; el.srcObject = new MediaStream([e.track]); document.body.appendChild(el);
+    const ctx = new AudioContext(); window.ctx = ctx;
+    const an = ctx.createAnalyser(); an.fftSize = 8192; an.smoothingTimeConstant = 0.5;
+    ctx.createMediaStreamSource(new MediaStream([e.track])).connect(an); window.analyser = an;
+  };
+  const gathered = () => new Promise((r) => { if (pc.iceGatheringState === 'complete') r(); else pc.addEventListener('icegatheringstatechange', () => { if (pc.iceGatheringState === 'complete') r(); }); });
+  if (offerJson) {
+    await pc.setRemoteDescription(JSON.parse(offerJson));
+    for (const t of s.getTracks()) pc.addTrack(t, s);
+    await pc.setLocalDescription(await pc.createAnswer());
+  } else {
+    for (const t of s.getTracks()) pc.addTrack(t, s);
+    await pc.setLocalDescription(await pc.createOffer());
+  }
+  await gathered();
+  return JSON.stringify(pc.localDescription);
+};
+window.answer = async function (answerJson) { await window.pc.setRemoteDescription(JSON.parse(answerJson)); return 'ok'; };
+window.report = async function () {
+  const r = { state: window.pc.connectionState, video: 0, w: 0, h: 0, audio: 0, codec: '', sentVideo: 0, peakHz: 0 };
+  if (window.analyser) {   // the loudest frequency of what the page hears: the fake microphone's triangle is 480 Hz
+    const a = window.analyser, f = new Float32Array(a.frequencyBinCount);
+    a.getFloatFrequencyData(f);
+    let best = 1;
+    for (let i = 2; i < f.length; i++) if (f[i] > f[best]) best = i;
+    if (f[best] > -90) r.peakHz = best * window.ctx.sampleRate / a.fftSize;
+  }
+  const st = await window.pc.getStats();
+  st.forEach((s) => {
+    if (s.type === 'inbound-rtp' && s.kind === 'video') { r.video = s.framesDecoded || 0; r.w = s.frameWidth || 0; r.h = s.frameHeight || 0; const c = st.get(s.codecId); r.codec = c ? c.mimeType : ''; }
+    if (s.type === 'inbound-rtp' && s.kind === 'audio') { r.audio = s.totalSamplesReceived || 0; r.audioPackets = s.packetsReceived || 0; r.audioBytes = s.bytesReceived || 0; const c = st.get(s.codecId); r.audioCodec = c ? c.mimeType : ''; }
+    if (s.type === 'outbound-rtp' && s.kind === 'video') r.sentVideo = s.framesEncoded || 0;
+  });
+  return JSON.stringify(r);
+};
+"""
+
+def main():
+    d = tempfile.mkdtemp()
+    env = dict(os.environ, INTEROP_DIR=d, INTEROP_CODEC=codec, INTEROP_ROLE=role, ZINC_HEADLESS="1", ZINC_BACKGROUND="1",
+               ZINC_FAKE_CAMERA="1", ZINC_FAKE_MICROPHONE="1")
+    env.pop("ZINC_DETERMINISTIC", None)
+    ok = False
+    page = os.path.join(d, "page.html")   # a file: page is a secure context (about:blank has no navigator.mediaDevices)
+    open(page, "w").write("<!doctype html><title>zinc:webrtc interop</title>")
+    with Chrome(["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream", "--autoplay-policy=no-user-gesture-required"]) as c:
+        c.open("file://" + page)
+        end = time.time() + 10
+        while time.time() < end and c.eval("document.readyState") != "complete": time.sleep(0.1)
+        c.eval(PAGE)
+        if "--verbose" in sys.argv: env["ZINC_WEBRTC_LOG"] = "1"
+        z = subprocess.Popen([zinc, "run", os.path.join(HERE, "tests", "data", "webrtc_interop.ts")], env=env, stdout=subprocess.PIPE, stderr=open(os.path.join(d, "zinc.err"), "w"), text=True)
+        try:
+            def wait_file(name, secs):
+                end = time.time() + secs
+                while time.time() < end and not os.path.exists(os.path.join(d, name)): time.sleep(0.05)
+                return os.path.exists(os.path.join(d, name))
+            if role == "offer":
+                if not wait_file("offer.json", 60): print("no offer from Zinc"); return False
+                time.sleep(0.1)
+                ans = c.eval("window.start(%s)" % json.dumps(open(os.path.join(d, "offer.json")).read()))
+                if not ans: print("the page did not answer: %s" % c.console[-3:]); return False
+                open(os.path.join(d, "answer.json.tmp"), "w").write(ans); os.rename(os.path.join(d, "answer.json.tmp"), os.path.join(d, "answer.json"))
+            else:
+                off = c.eval("window.start(null)")
+                if not off: print("the page made no offer: %s" % c.console[-3:]); return False
+                open(os.path.join(d, "offer.json.tmp"), "w").write(off); os.rename(os.path.join(d, "offer.json.tmp"), os.path.join(d, "offer.json"))
+                if not wait_file("answer.json", 60): print("no answer from Zinc"); return False
+                time.sleep(0.1)
+                c.eval("window.answer(%s)" % json.dumps(open(os.path.join(d, "answer.json")).read()))
+            r = {}
+            end = time.time() + 30
+            while time.time() < end:
+                r = json.loads(c.eval("window.report()") or "{}")
+                if r.get("video", 0) >= 30 and r.get("audioPackets", 0) >= 50 and 400 < r.get("peakHz", 0) < 560 and os.path.exists(os.path.join(d, "zinc.done")): break
+                time.sleep(0.25)
+            if "--verbose" in sys.argv:   # the descriptions' media lines and candidates, both sides
+                for name in ("offer.json", "answer.json"):
+                    sdp = json.loads(open(os.path.join(d, name)).read()).get("sdp", "")
+                    print(name + ":\n  " + "\n  ".join(l for l in sdp.split("\r\n") if l.startswith(("m=", "a=candidate", "a=setup", "a=mid", "a=group", "a=rtpmap"))))
+                print("page log: %s %s" % (c.eval("JSON.stringify(window.log)"), c.console[-5:]))
+                print("zinc log:\n  " + "\n  ".join([l for l in open(os.path.join(d, "zinc.err")).read().splitlines() if any(k in l for k in ("ICE", "DTLS", "SRTP", "rror", "ailed", "State", "state"))][-40:]))
+            print("page: %s, decoded %d frames of %dx%d (%s) from Zinc, %d audio samples; encoded %d frames" % (
+                r.get("state"), r.get("video", 0), r.get("w", 0), r.get("h", 0), r.get("codec"), r.get("audio", 0), r.get("sentVideo", 0)))
+            print("page: audio from Zinc: %d packets, %d bytes (%s), loudest frequency %.0f Hz" % (r.get("audioPackets", 0), r.get("audioBytes", 0), r.get("audioCodec", ""), r.get("peakHz", 0)))
+            ok = r.get("video", 0) >= 30 and r.get("audioPackets", 0) >= 50 and 400 < r.get("peakHz", 0) < 560 and os.path.exists(os.path.join(d, "zinc.done"))
+            open(os.path.join(d, "page.done"), "w").write("ok")
+            try: out, _ = z.communicate(timeout=20)
+            except subprocess.TimeoutExpired: z.kill(); out, _ = z.communicate()
+            for line in out.splitlines():
+                if line.startswith("zinc:") and not line.startswith("zinc: plugins"): print(line)
+        finally:
+            if z.poll() is None: z.kill()
+    return ok
+
+sys.exit(0 if main() else 1)

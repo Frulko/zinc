@@ -662,7 +662,7 @@ export class RTCPeerConnection extends EventTarget {
   }
   // The transceivers as the native side has them now: new ones of a remote offer, mids, negotiated directions and codecs; ontrack for the
   // ones the peer started sending on.
-  private sync(): void {
+  sync(): void {
     const due: RTCRtpTransceiver[] = [], streamOf: string[] = [];
     for (const r of S.transceivers(this.h).split(RS)) {
       if (r === '') continue;
@@ -757,6 +757,7 @@ export class RTCPeerConnection extends EventTarget {
     return new RTCDataChannel(h, this, negotiated, 'connecting');
   }
   async getStats(): Promise<Map<string, RTCStats>> {
+    if (this.signalingState !== 'closed') this.sync();   // the receive codec is known once the first packet came
     const f = S.stats(this.h).split(FS), out = new Map<string, RTCStats>();
     const p = new RTCStats('P', 'peer-connection');
     p.dataChannelsOpened = this.openedChannels; p.dataChannelsClosed = this.closedChannels;

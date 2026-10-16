@@ -99,6 +99,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
   timers and video keep running during the drag, and the growing edge shows the app's background colour.
 - `zinc.json` `app.window` (title, `minWidth`, `minHeight`, frame...) now applies to the native program `zinc run` starts and to the programs
   `zinc build` writes, not only to the interpreter; `maxWidth`, `maxHeight` and `aspectRatio` are new.
+- `zinc:webrtc` connects to Chrome when Zinc makes the offer: the offer asks to be the DTLS client, since Chrome's large handshake
+  could not be read by the server side.
 - The macOS camera no longer aborts the app on cameras that accept only fixed frame rates (an iPhone as webcam, some USB webcams): the rate asked is matched to one the camera offers.
 - Modals, dialogs, sheets and alerts no longer slide their dimmed background in with them: the dim fades in and out in place while the
   content fades, grows or slides (React Native's Modal `animationType`, the kit's Dialog, Nuxt UI's Modal and Slideover, `Alert.alert`), and

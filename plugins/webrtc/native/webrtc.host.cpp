@@ -676,6 +676,14 @@ template <class F> std::string fetch(F f) {
   }
   return "";
 }
+// An offer of ours says a=setup:active (the offerer may: RFC 5763 section 5 lets the answer pick passive), so this side is the DTLS client.
+// mbedTLS cannot be the server for a browser: Chrome's ClientHello (with its post-quantum key share) comes in several DTLS fragments, and
+// mbedTLS refuses a fragmented ClientHello ("The requested feature is not available"). libdatachannel offers actpass and takes the role
+// the answer leaves it, so only the text the peer reads changes. A browser's offer (actpass) is answered active by libdatachannel already.
+std::string activeSetup(std::string sdp) {
+  for (size_t at = 0; (at = sdp.find("a=setup:actpass", at)) != std::string::npos;) { sdp.replace(at, 15, "a=setup:active"); at += 14; }
+  return sdp;
+}
 zrt::Array<double> nums(const std::vector<double>& v) {
   zrt::Array<double> r = zrt::Array<double>::with_cap((int32_t)v.size());
   if (!v.empty()) memcpy(r.a->data, v.data(), v.size() * sizeof(double));
@@ -762,7 +770,7 @@ struct HostWebRTC : NativeWebRTC {
     syncTracks(pc);
     std::string s = fetch([&](char* b, int n) { return rtcCreateOffer(pc, b, n); });
     if (s.empty()) fail("createOffer failed");
-    return str(s);
+    return str(activeSetup(s));
   }
   zrt::String createAnswer(int32_t pc) override {
     err.clear();
@@ -820,7 +828,8 @@ struct HostWebRTC : NativeWebRTC {
   }
   zrt::String localDescription(int32_t pc) override {
     std::string t = fetch([&](char* b, int n) { return rtcGetLocalDescriptionType(pc, b, n); });
-    return str(t.empty() ? "" : t + FS + fetch([&](char* b, int n) { return rtcGetLocalDescription(pc, b, n); }));
+    const std::string d = t.empty() ? "" : fetch([&](char* b, int n) { return rtcGetLocalDescription(pc, b, n); });
+    return str(t.empty() ? "" : t + FS + (t == "offer" ? activeSetup(d) : d));
   }
   zrt::String remoteDescription(int32_t pc) override {
     std::string t = fetch([&](char* b, int n) { return rtcGetRemoteDescriptionType(pc, b, n); });

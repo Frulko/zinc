@@ -181,6 +181,7 @@
     {"paths": ["../plugins/camera/", "tests/golden/host/webcam_session.ts", "tests/golden/host/webcam_session.out", "tests/golden/host/webcam_draw.ts", "tests/data/bmp_pixel.py"], "tests": ["webcam_sim", "webcam"]},
     {"paths": ["../plugins/webrtc/", "tests/golden/host/webrtc_loopback.ts", "tests/golden/host/webrtc_loopback.out", "tests/data/webrtc_globals.ts", "../examples/webrtc-chat/"], "tests": ["webrtc", "webrtc_chat"]},
     {"paths": ["../plugins/webrtc/", "tests/golden/host/webrtc_media.ts", "tests/golden/host/webrtc_media.out"], "tests": ["webrtc_media"]},
+    {"paths": ["../plugins/webrtc/", "tests/data/webrtc_interop.ts", "tools/webrtc-interop", "tools/cdp.py"], "tests": ["webrtc_interop"]},
     {"paths": ["../plugins/webrtc/", "../plugins/audio/", "../examples/webrtc-call/", "tests/golden/webrtc-call/"], "tests": ["webrtc_call"]},
     {"paths": ["../plugins/microphone/", "tests/golden/host/microphone_session.ts", "tests/golden/host/microphone_session.out"], "tests": ["microphone_sim", "microphone", "webcam"]},
     {"paths": ["../plugins/serial/", "../examples/serial/", "tests/data/serial/"], "tests": ["serial"]},
