@@ -297,7 +297,7 @@ static void present(const HalFrame* f) {
     else if (damaged || !tex_ok) {
       glr::frame(f, false, tex_ok && damaged ? glr::Rect{f->x0, f->y0, f->x1, f->y1} : glr::Rect{0, 0, PW, PH});
       tex_ok = true;
-    } else glr::idle();
+    } else { glr::idle(); glr::warm(); }   // a program the next frames may need, built while nothing changes (ZN-741)
     first_mark("replay");
     if (tm) { glFinish(); tb = glr::now_us(); t_rep += tb - ta; }
   } else if (damaged) {

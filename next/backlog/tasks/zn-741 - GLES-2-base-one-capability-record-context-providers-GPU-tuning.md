@@ -1,11 +1,11 @@
 ---
 id: ZN-741
 title: 'GLES 2 base: one capability record, context providers, GPU tuning'
-status: Backlog
+status: In Progress
 assignee:
   - '@parallel'
 created_date: '2026-10-16 12:41'
-updated_date: '2026-10-16 14:07'
+updated_date: '2026-10-16 19:34'
 labels:
   - mobile
   - gl
@@ -57,4 +57,6 @@ Not done in this session (handover): AC1 hero (does not export, ZN-628), AC2 and
 Lines for backlog/later.md:
 - ZN-741: Cross-platform pass: the damage-aware replay on the Pi 3 (display-gl: ZINC_GL_DMG=1 was the suspect of GPU resets on the 3B+, test it again with the FBO of the frame) and the TouchPad (Adreno 220).
 - ZN-741: GLES 2 builds a program per mode at its first quad: the first tab switch of rn-showcase on a Nexus 7 takes 147 ms; build the programs of the common modes at start or on a worker context.
+
+2026-10-16 (second worktree agent), step 1: the GLES 2 programs are built while the screen rests. glr::warm() builds the next command program not built yet (the common modes first, then the lean ones when on), one per frame without damage (hal_sdl.cpp's GLES 2 idle branch, display-gl's idle frames). Nexus 7, rn-showcase (the new shell of 19:09), ZINC_GL_STATS: every program is built by frame 4; on the first run after an install the image programs take 60 to 70 ms each, stroke 36, edge 42, convex 29, the others 2 to 3 ms; on later runs Tegra's driver cache makes them all 2 to 4 ms. Tab switches (five taps): the worst present is 37.8 ms at the first switch (was 146.6 ms with the programs built at first use); the switches now cost the app's effects and layout (30 to 118 ms and 22 to 91 ms on the new Components and Forms screens), on both renderers: GLES 2 p99 42.1 ms, 26 late of 450; software p99 46.2 ms, 32 late of 450. Also fixed on the way: rn-showcase did not export for Android (links.ts, Promise.reject in a Promise<void> function: the checker's NeverPromise conversion knew Promise<T> only; commit 388d01c7).
 <!-- SECTION:NOTES:END -->

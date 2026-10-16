@@ -1299,6 +1299,7 @@ static void gl_present(const HalFrame* f) {
     glr::dmg_default = true;
     if (!damaged && gl_tex_ok) {
       static uint64_t idle_at;
+      glr::warm();   // a program the next frames may need, built while nothing changes on the screen
       const uint64_t now = SDL_GetTicksNS();
       if (idle_at && now - idle_at < 16666666) SDL_DelayPrecise(16666666 - (now - idle_at));
       idle_at = SDL_GetTicksNS();

@@ -220,6 +220,25 @@ static Prog& use_prog(uint8_t key) {
   if (p.stamp != pstamp && p.id) { p.stamp = pstamp; glUniform1f(p.u_flip, flipy ? -1.f : 1.f); glUniform2f(p.u_res, (float)W, (float)H); }
   return p;
 }
+/** GLES 2: builds the next command program not built yet, the common modes first, then the lean ones when they are on, so no frame waits
+ *  for the driver to compile one (the first tab switch of rn-showcase took 147 ms on a Nexus 7, Tegra 3, for the programs it met first).
+ *  The includer calls it in frames without damage, one program each; false when nothing is left (desktop GL: one program, built at init). */
+static bool warm() {
+#if GLR_CORE
+  return false;
+#else
+  static const uint8_t order[] = {FILL, TEXT_M, SOLID, IMAGE_RGBA, IMAGE_BGR, BORDER_M, SHADOW_M, RESTORE, RAMP_M, STROKE_M, EDGE_M, CONVEX_M};
+  if (only >= 0) return false;
+  for (uint8_t m : order) {
+    const uint8_t k = group[m];
+    if (progs[k].tried) continue;
+    use_prog(k);
+    return true;
+  }
+  for (int l = 0; lean_on && l < LEANS; l++) if (!progs[32 + l].tried) { use_prog((uint8_t)(32 + l)); return true; }
+  return false;
+#endif
+}
 static bool init(int32_t w, int32_t h) {
   W = w; H = h;
   if (const char* e = getenv("ZINC_GL_ONLY")) only = atoi(e) % MODES;
