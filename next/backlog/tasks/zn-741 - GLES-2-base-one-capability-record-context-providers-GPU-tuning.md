@@ -4,6 +4,7 @@ title: 'GLES 2 base: one capability record, context providers, GPU tuning'
 status: Backlog
 assignee: []
 created_date: '2026-10-16 12:41'
+updated_date: '2026-10-16 12:46'
 labels:
   - mobile
   - gl
@@ -28,4 +29,11 @@ Owner 2026-10-16: the Pi 3 (VideoCore IV), the HP TouchPad (Adreno 220) and the 
 - [ ] #3 a mediump-only shader build (forced on the desktop) draws the GL goldens within the existing tolerance
 - [ ] #4 the Pi 3 and TouchPad runs are one line each under Cross-platform pass in backlog/later.md, or measured if the device is on the bench
 - [ ] #5 a T0 test of the record and the tuning table (fake GL strings of VC4, Adreno 220, Tegra 3, desktop)
+- [ ] #6 the layer builds as its own CMake target that links nothing of the runtime (checked by the T0 test)
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+D119 (owner 2026-10-16): keep our own layer, written to be extractable later as a project of its own (own directory and CMake target, C ABI, no dependency on the runtime beyond the command-list header, its own tests), because back ends for CHIP, PS Vita (GXM), 3DS (citro3d), Wii (GX), Wii U (GX2), Switch (deko3d/NVN) are planned. Do not extract it in this task; keep the boundary.
+<!-- SECTION:NOTES:END -->
