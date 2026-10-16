@@ -384,3 +384,5 @@ The next backlog review turns lines into tasks or deletes them.
   proves the card is placed 14 px low), then try re-sending fullScreen false/true on libnapp's IPC channel after the card is maximized.
 - zinc:gl (libzn_webgl) is not in the armv7-webos build: a real fragment shader on the TouchPad needs the GLES2 display to expose a shader pass (Musique's lava lamp computes its field on the CPU at 96x72 meanwhile).
 - Fonts: an engine-level tabular-figures feature (OpenType tnum through HarfBuzz in src/text/layout.cpp, chosen per font like the size) so any text can ask for fixed-width digits; Musique draws its clock digit by digit meanwhile (examples/music/src/ui.ts tabular).
+- ZN-718: display-gl: verify the ZINC_SHOT offscreen target on KMS (Pi) and webOS, GLES 2: screenshots are now surface-sized and unplaced, and the window is not refreshed during the run.
+
