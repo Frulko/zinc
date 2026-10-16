@@ -772,3 +772,18 @@ Pi 3B+, DSI screen 800x480 (16 bpp), 1400 MHz, no throttle bit active; `tools/de
 
 - Other runs at 1400 MHz: hero's tour (`ZINC_DEMO=bench`) 59.3 fps before, 59.8 flipped; pocket-hero scaled 59.7 and 60.0; hero's home screen 139% CPU before, 147% flipped (ps, 26 s).
 - Not kept: a pair of 700 frames that ended at 1200 MHz (soft temperature limit). Not measured: a build of the driver before the change, other depths, a Pi 4 or 5.
+
+## First Android device: Nexus 7 2012 (ZN-622, D120, D121, 2026-10-16)
+
+Tegra 3 T30L, 1 GB, Android 7.1.2 (LineageOS 14.1, API 25), debug APKs for armeabi-v7a only, perf panel (`ZINC_PERF_HUD=1 ZINC_PROFILE=1` through `am start --es zinc.env`). Report and screenshots: `docs/reports/zinc-next-android.md`.
+
+| | hello | rn-showcase | breakout |
+|---|---|---|---|
+| APK debug / release (unsigned) | 2.46 MB / – | 6.12 / 5.99 MB (`libmain.so` 5.8 MB stripped) | 5.10 MB / – |
+| Start, warm (`am start -W`) | 600-634 ms | 460-640 ms (741 ms with the page cache dropped) | 454-582 ms |
+| Software raster at rest | – | 60.0 fps; work p50 1.38 / p99 4.3 ms; present p50 15.0 / p99 17.4-19.9 ms | 59.9 fps; work p50 0.26 / p99 1.5 ms; present p50 16.2 / p99 22.7 ms |
+| Software raster, scrolling by hand | – | ~25 fps (raster ~23 ms + present ~13 ms per frame) | – |
+| GLES 2 replay (`ZINC_RENDERER=gl`) | – | 13.7 fps; present p50 89 / p99 158 ms (whole frame replayed) | present p50 16.3 / p99 32.8 ms |
+
+- First interaction (owner report): worst frame of the first tap 41.8-42.4 ms against 51.4-55.8 ms for the second, warm, cold page cache, or all four cores at the performance governor: no first-time cost and no CPU wake-up effect; each tab switch costs ~11 ms of input and ~10 ms of layout. A Magisk `su` during a run made every other present ~105 ms for the whole run.
+- Follow-ups: ZN-744 (scroll at 60 fps), ZN-741 (damage-aware GLES 2 replay), ZN-743 (zero-copy present).

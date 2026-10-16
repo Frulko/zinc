@@ -210,6 +210,15 @@ The next backlog review turns lines into tasks or deletes them.
 - JSX (aabbf0fb): when every prop reads and the last one holds JSX, the component body stays tracked (a top-level read remounts it); calls with explicit type arguments (`f<T>(x)`) are not seen as reads.
 - JSX (aabbf0fb): a prop that reads a signal remounts the component and loses its local state, where Solid updates in place; real getter props need typed records to accept getter objects (Z0103 today).
 - Prototype: `compiler/src/jsx.ts:305` evaluates Solid component props once, like Zinc Next did before aabbf0fb.
+- ZN-620: zn_app runs AOT programs only; a bundled .zapp (interpreter + ZBC, the player of mobile-core §6) needs zn_vm in zn_app and the zapp reader moved out of zn_tc.
+- ZN-620: `zn_app_quit` during a run skips `__host_gfxFinish`; call a prelude `__appEnd` by name.
+- ZN-620: an app build on macOS/iOS has no wake lock or battery (the IOKit dlopen is off); link IOKit directly.
+- ZN-618: the socket, osc, sonos and spotify plugins require "process" where they mean "an OS", so phones refuse them; their manifests should require net only.
+- ZN-622: hero needs zinc:video without FFmpeg system libraries before it can be exported to Android (ZN-628).
+- ZN-622: mimalloc prints "unable to allocate aligned OS memory" for the 128 MiB budget into logcat at every start (D121).
+- ZN-622: measure touch-to-frame latency and page faults of the mapped library on the Nexus 7 (simpleperf).
+- ZN-622: the window section of `next/CMakeLists.txt` tests `APPLE`; scope it to Darwin when the iOS export comes.
+- ZN-622: Android shows the status and navigation bars; immersive full screen for games belongs with ZN-625.
 
 ## Demos
 
@@ -410,6 +419,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-701: webgl_conformance on a GPU that does not zero new memory (the AMD driver of an Intel Mac, a hosted runner's virtual GPU): our WebGL layer leaves new textures, renderbuffers and the area outside a copyTexImage2D source to the driver; WebGL says zeros. 61 pages differ on the hosted runner (list: docs/reports/ci-run-38901269935/trace-webgl_conformance.log): zero-initialise explicitly; the hosted runner then proves it (ZINC_CI skip to remove).
 - ZN-718: `zinc update` (src/main.cpp ~2429) still prints "the macOS app: drag it over the old one; Linux: unpack...": say to unpack the tar.gz or run install.sh again.
 - ZN-718: AGENTS.md describes the development Mac as an Intel one; it is an Apple M1 Pro (arm64): correct "The development machine" and the Intel-specific numbers.
-
-
-
+- ZN-622: build arm64-v8a and x86_64 and do an emulator smoke run; only armeabi-v7a was built and run (Nexus 7).
