@@ -18,19 +18,24 @@
 #include <map>
 #include <sstream>
 
-#ifndef ZN_VERSION
-#define ZN_VERSION "0.0.0-dev"
+// the build defines them (-DZN_VERSION, -DZN_UPDATE_PUBKEY); constants here, not macros of ours (tests/t0/shared_headers)
+#ifdef ZN_VERSION
+static const char* const kBuildVersion = ZN_VERSION;
+#else
+static const char* const kBuildVersion = "0.0.0-dev";
 #endif
-#ifndef ZN_UPDATE_PUBKEY
-#define ZN_UPDATE_PUBKEY ""
+#ifdef ZN_UPDATE_PUBKEY
+static const char* const kBuildReleaseKey = ZN_UPDATE_PUBKEY;
+#else
+static const char* const kBuildReleaseKey = "";
 #endif
 
 namespace fs = std::filesystem;
 
 namespace zn::tc {
 
-const char* version() { return ZN_VERSION; }
-const char* releaseKey() { return ZN_UPDATE_PUBKEY; }
+const char* version() { return kBuildVersion; }
+const char* releaseKey() { return kBuildReleaseKey; }
 
 namespace {
 const char* const kMarker = ".zinc-install";   // written by install.sh: url=<where it installed from>, channel=<stable|beta>

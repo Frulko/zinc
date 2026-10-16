@@ -18,8 +18,10 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#ifndef ZN_APP_HEAP_MB
-#define ZN_APP_HEAP_MB 128   // zinc export writes the project's need (zinc.json targets.android.heapMB)
+#ifdef ZN_APP_HEAP_MB   // zinc export defines it from the project's need (zinc.json targets.android.heapMB); a constant, not a macro of ours (tests/t0/shared_headers)
+static const long kAppHeapMb = ZN_APP_HEAP_MB;
+#else
+static const long kAppHeapMb = 128;
 #endif
 
 // stdout and stderr of the program (console.log, errors, the runtime's messages) go to logcat, a line per entry, tag "zinc"
@@ -131,7 +133,7 @@ static void android_setup() {
   // The heap of the runtime (one region, targets/common/hal_posix.cpp): the program's need, at most a quarter of the device's memory. The
   // desktop's 512 MiB cannot be had on a 1 GB device (a 32-bit process, ~400 MB free on the Nexus 7 2012).
   if (!getenv("ZINC_HEAP")) {
-    long mb = ZN_APP_HEAP_MB, cap = SDL_GetSystemRAM() / 4;
+    long mb = kAppHeapMb, cap = SDL_GetSystemRAM() / 4;
     if (cap > 16 && mb > cap) mb = cap;
     setenv("ZINC_HEAP", std::to_string(mb << 20).c_str(), 1);
   }
