@@ -787,3 +787,4 @@ Tegra 3 T30L, 1 GB, Android 7.1.2 (LineageOS 14.1, API 25), debug APKs for armea
 
 - First interaction (owner report): worst frame of the first tap 41.8-42.4 ms against 51.4-55.8 ms for the second, warm, cold page cache, or all four cores at the performance governor: no first-time cost and no CPU wake-up effect; each tab switch costs ~11 ms of input and ~10 ms of layout. A Magisk `su` during a run made every other present ~105 ms for the whole run.
 - Follow-ups: ZN-744 (scroll at 60 fps), ZN-741 (damage-aware GLES 2 replay), ZN-743 (zero-copy present).
+- ZN-742.03 Fast Refresh (2026-10-16, other trees building): save -> first frame of the new code, state kept: desktop-app page 523-565 ms in the test, 603-738 ms with a real window and the inspector (a restart takes ~570 ms and loses the state); game-2d template 96 ms (189-234 ms with a real window); hot_swap fixtures 60-300 ms.

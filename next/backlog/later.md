@@ -229,6 +229,12 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-742.02: side-effect-only imports (`import './x'`) are not in the importer graph, so editing such a module does not re-run its importer.
 - ZN-742.02: hot-swap a newly imported std module instead of restarting (any library-module change restarts today).
 - ZN-742.02: test that a native plugin callback still works across a swap (`rebindCallbacks`).
+- ZN-742: the in-process red box: keep the paused program and draw the diagnostics over its window, so a typo does not lose the state.
+- ZN-742: after an asset swap (D97) the next code save restarts ("the fonts and images to bake changed"): count the swapped packs in the hot unit's resources.
+- ZN-742: `renderWindow()` in hot mode: dispose the window's tree when the entry runs again, as `render()` does.
+- ZN-742: a component imported through tsconfig paths or `import * as` gets no proxy, so editing its file restarts.
+- ZN-742: a save before the child said `hot ready` restarts with the misleading reason "the program has no frame loop" (seen 3 s after start on hotdemo); say it is still starting, or queue the save.
+- ZN-742: one save by `sed -i` (and some editors: temp file + rename) gives two `refreshed` lines; settle the change once.
 
 ## Demos
 
