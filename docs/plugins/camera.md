@@ -2,7 +2,8 @@
 
 Webcams and built-in cameras: list them, open one at a size and a rate, draw its frames, take RGBA snapshots. The frames land in a
 runtime image of `zinc:gfx`, as `zinc:video` and `zinc:gphoto2` do, so a program draws the camera like any image. Sources:
-`plugins/camera/`. For DSLRs over USB (settings, capture, files) see [gphoto2](gphoto2.md).
+`plugins/camera/`. For DSLRs over USB (settings, capture, files) see [gphoto2](gphoto2.md). A complete app on it: [`examples/webcam`](../../examples/webcam/README.md)
+(preview, camera picker, photos saved as PNG, adjustments, formats, the permission screens).
 
 ```ts
 import { devices, requestPermission, Camera } from 'zinc:camera';
@@ -28,6 +29,7 @@ cam.close();
 | `onFrame(cb)` / `frameIndex` | each new frame, with its index (0, 1, 2...), once the image shows it |
 | `setOption(name, value)` | `mirror` (0 or 1), `brightness` (-1..1, 0), `contrast` (0..2, 1), in software on the image and the snapshots |
 | `snapshot()` | the newest frame as RGBA bytes (`u8[]`: Zinc has no typed arrays; a real `Uint8Array` on the QuickJS engine) |
+| `toPng()` | the newest frame as the bytes of a PNG file, options applied (stb_image_write): `fs.writeBytes(path, cam.toPng())` saves a photo, `gfx.imageFromBytes` makes its thumbnail; `[]` on the sim stand-in |
 | `close()` | stops the camera and destroys its image |
 
 ## Backends
@@ -97,6 +99,7 @@ Without the import, `getUserMedia` is `NotFoundError` with the line to add.
   Camera). The camera access of the terminal was undetermined and the tests never ask (a question would wait on a dialog), so **no
   frame of a real camera was captured**: the AVFoundation capture path is written to Apple's documented API and unproven.
 - The fake camera on the interpreter, AOT, QuickJS and the sim stand-in: `next/tests/t1/webcam.sh`, `next/tests/t0/webcam_sim.sh`.
+- The demo `examples/webcam` on the fake camera, scripted (photos, viewer, adjustments, formats, permission screens): `next/tests/t1/webcam_demo.sh`.
 - Linux and the Pi: the V4L2 backend is not built or run yet (the cross-platform pass, `next/backlog/later.md`).
 
 ## Not done

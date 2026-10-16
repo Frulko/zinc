@@ -81,6 +81,8 @@ video/bounce/src/main.ts | OK |  |
 video/looper/src/main.ts | OK |  | 
 video/mapper/src/main.ts | OK |  | 
 video/quad/src/main.ts | OK |  | 
+webcam/src/main.tsx | OK |  | 
+webcam/src/web.tsx | OK |  | 
 webgl-cube/src/main.tsx | OK |  | 
 webgl-studio/src/main.tsx | OK |  | 
 webos-shell/src/main.ts | OK |  | 

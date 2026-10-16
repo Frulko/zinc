@@ -1,0 +1,47 @@
+{
+  "name": "webcam",
+  "entry": "src/main.tsx",
+  "scheme": "auto",
+  "requires": [
+    "display",
+    "pointer|touch",
+    "camera"
+  ],
+  "permissions": [
+    "camera",
+    "fs"
+  ],
+  "targets": {
+    "macos": {
+      "width": 1040,
+      "height": 680,
+      "resize": "fill"
+    },
+    "linux": {
+      "width": 1040,
+      "height": 680
+    },
+    "rpi1": {
+      "width": 800,
+      "height": 480
+    }
+  },
+  "icons": [
+    "aperture",
+    "arrow-left-right",
+    "camera",
+    "camera-off",
+    "chevron-left",
+    "chevron-right",
+    "contrast",
+    "expand",
+    "info",
+    "rotate-ccw",
+    "shield-alert",
+    "shrink",
+    "sun",
+    "trash",
+    "video",
+    "x"
+  ]
+}
