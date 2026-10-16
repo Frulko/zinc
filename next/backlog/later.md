@@ -248,6 +248,12 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-746: a SHADER under a matrix (setTransform) or inside a rounded clip on the Android GPU layer (the hole is square there); several shader programs per frame at different scales.
 - ZN-746: an Android window cannot switch to GL after its first frame: a program that makes its first shader later keeps the CPU path.
 - ZN-741: build the GLES 2 programs at start (the first tab switch takes 147 ms on the Nexus 7).
+- zinc:camera: the compiler crashes (SIGSEGV in ir Lowering::FnLower::writeVar) on `const v = o.video; if (v === undefined || v === false) throw ...` where `video?: boolean | SomeInterface`, in an async function; without the local it is "internal error: instruction eq ... uses a missing value". lib/std/web.ts getUserMedia takes `video?: unknown` to avoid it. A user program can hit it.
+- zinc:camera: a microphone plugin (zinc:microphone, AVFoundation / ALSA through miniaudio's capture) so getUserMedia gives audio tracks too; today `{ audio: true }` alone is NotSupportedError.
+- zinc:camera: QR and barcode decoding on the frames (a vendored decoder such as quirc or ZXing-C++ over snapshot()), the common reason a maker app opens a webcam. Face tracking stays out of scope.
+- zinc:camera: getUserMedia could load the plugin by itself (a web global entry in modules.cpp kWebGlobals for MediaStream, or the frontend adding `import 'zinc:camera'` when navigator.mediaDevices is used) instead of asking the program to import it.
+- zinc:camera: `zinc doctor --details` could list the cameras and the macOS camera access of the terminal (permissionStatus), the first thing a beginner checks when the picture stays black.
+- zinc:camera: export could add NSCameraUseContinuityCameraDeviceType to the Info.plist with "camera", so an iPhone as Continuity Camera is listed (left out: without the key macOS logs a warning at each listing).
 
 ## Demos
 
@@ -353,6 +359,12 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-203: webgl_conformance: glsl/bugs/sampler-struct-function-arg.html and sampler-array-struct-function-arg.html report PASS, then zinc aborts (SIGABRT, exit 134) while the QuickJS run ends; reproduce with `WGC_BUNDLE=/tmp/w.js python3 tools/webgl-conformance <page>`, then `zinc run /tmp/w.js --engine quickjs`; on the runner misc/uninitialized-test.html also fails (non-zero bytes in an uninitialised buffer).
 
 ## Cross-platform pass
+
+- zinc:camera: on a Mac with the camera access granted to the terminal (a person clicks once), `Camera.open` on the FaceTime HD camera and a USB webcam (C920): frames arrive, the image shows them, `snapshot()` is the picture, close stops the green light; never tried (the access was undetermined and a test must not wait on the dialog).
+- zinc:camera: build and run the V4L2 backend (plugins/camera/native/camera.linux.cpp) on Linux and a Pi 1 with a UVC webcam: YUYV and MJPEG (stb_image) paths, a camera unplugged while streaming, the frame rate a Pi 1 keeps at 320x240 and 640x480.
+- zinc:camera: Windows backend on Media Foundation (IMFSourceReader, RGB32 output), opening the Windows part of the pass.
+- zinc:camera: Android backend on Camera2 (an ImageReader in YUV_420_888 through the NDK's ACameraManager) with android.permission.CAMERA asked at run time; iOS shares camera.macos.mm but has no output scaling (pick the format, scale ourselves) and needs the usage string in its Info.plist.
+- zinc:camera: the web target maps zinc:camera to the browser's getUserMedia (a <video> element copied into the runtime image each frame); only noted, nothing written.
 
 - ZN-738: add LeapC library discovery and verify the leapmotion plugin on Windows/Linux during the cross-platform pass; only macOS is declared and tested today.
 
