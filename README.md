@@ -7,7 +7,7 @@
 Desktop and mobile apps the way Electron makes them, without shipping a browser.<br>
 UI, games, 3D, video and hardware, from one strict, typed subset of TypeScript and JSX.
 
-[Quick start](#-quick-start) · [The CLI](#-the-cli) · [Demos](#-demos) · [Plugins](#-plugins) · [AI](#-a-note-on-ai) · [Guide](docs/guide/README.md)
+[Architecture](#️-architecture) · [Quick start](#-quick-start) · [The CLI](#-the-cli) · [Demos](#-demos) · [Plugins](#-plugins) · [AI](#-a-note-on-ai) · [Guide](docs/guide/README.md)
 
 <img src="docs/img/hero.png" alt="The hero demo: an app with an intro, screens, transitions and a gallery" width="820">
 
@@ -33,6 +33,18 @@ UI, games, 3D, video and hardware, from one strict, typed subset of TypeScript a
   notifications of the device the program runs on.
 - 📦 **45 plugins.** three.js, video, sound, MIDI, maps, physics, SQLite, Sonos, Spotify, AsyncStorage, and drivers for LED matrices,
   e-ink and OLED screens.
+
+## 🏗️ Architecture
+
+<p align="center"><img src="docs/img/architecture.svg" alt="Zinc in layers: program, standard library, compiler, three engines over one shared runtime, host and HAL, with plugins on the side and the zinc CLI under everything" width="880"></p>
+
+One program goes down the stack, and each layer only knows the one below it:
+
+- **Core** (L3 and L2): the compiler turns your TypeScript into a typed IR and one bytecode (ZBC); the shared runtime and `include/zn` define every value and operation once, so every engine behaves the same, byte for byte.
+- **Engines** (L2): the interpreter runs while you work (`zinc run`, `zinc dev`), the AOT compiler writes C++ for a native executable (`zinc build`), QuickJS runs plain JavaScript. Pick one, the program does not change.
+- **Host and HAL** (L1): the host gives programs a screen, sound, network, files and an inspector; a thin HAL per target (macOS, Windows, Linux, Raspberry Pi, webOS, ESP32, the web...) is all that changes from one machine to the next.
+- **Plugins** (side): a plugin is a `plugin.json`, some Zinc code and optional native code. Its Zinc side extends the standard library, its native side loads into the host; the engine itself stays small and agnostic.
+- **Toolchain** (under everything): the `zinc` CLI and a pinned `zig` build, cross-compile and package, with no Docker and no SDK to install.
 
 ## 🚀 Quick start
 
