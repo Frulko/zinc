@@ -1,5 +1,5 @@
 // Test entry of the dashboard app (next/tests/t1/nuxt_ui.sh): the sidebar navigates, the customer search filters, the "New customer" modal adds a row and
-// a toast, the scheme switch and the sidebar collapse work.
+// a toast, the scheme switch and the sidebar collapse (icons only, then the labels again) work.
 import * as ui from 'zinc:ui';
 import { render } from 'zinc:ui/solid';
 import { quit } from 'zinc:gfx';
@@ -19,6 +19,7 @@ render(Dashboard, 0xffffff, (dt: number) => {
   if (f === 6) { click('Create'); }
   if (f === 7) { console.log(`created: customers ${customers().length} modal ${creating()} toasts ${toastCount()}`); ui.click(byLabel('moon')); }
   if (f === 8) { console.log(`scheme ${colorMode()}`); ui.click(byLabel('chevron-left')); }
-  if (f === 9) { console.log(`sidebar collapsed ${collapsed()}`); click('Settings'); }
-  if (f === 10) { console.log(`section ${section()}`); quit(); }
+  if (f === 9) { console.log(`sidebar collapsed ${collapsed()} labels ${ui.find('Settings') >= 0}`); ui.click(byLabel('chevron-right')); }
+  if (f === 10) { console.log(`sidebar collapsed ${collapsed()}`); click('Settings'); }
+  if (f === 11) { console.log(`section ${section()}`); quit(); }
 });

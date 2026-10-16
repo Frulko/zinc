@@ -666,7 +666,7 @@ struct Checker {
   TypeId binaryExpr(std::uint32_t i, const Node& x, TypeId expected0 = kNoType) {
     const std::string op(x.text);
     std::uint32_t le = x.kids[0], re = x.kids[1];
-    if (op == ",") { expr(le); return expr(re); }
+    if (op == ",") { expr(le); return expr(re, expected0); }   // the right operand is the value: it takes the wanted type, as in TypeScript
     if (op == "in") {
       TypeId rt0 = expr(re);
       if (!rawDyn() && isDyn(rt0) && replaceWith(i, "__dynIn(__H0, __H1)", {{le}, {re}})) return expr0(i, expected0);

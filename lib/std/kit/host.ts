@@ -66,6 +66,10 @@ export function _virtual(n: i32, count: () => i32, itemH: number, render: (i: i3
   if (fineGrained()) solid._virtual(n, count, itemH, render); else react._virtual(n, count(), itemH, render);
 }
 
+/** A component whose props read signals: mounted again when they change under Solid, a plain call under React (it re-renders anyway). */
+export function _comp(parent: i32, make: () => i32): void { if (fineGrained()) solid._comp(parent, make); else ui.insert(parent, make(), -1); }
+export function _u(): void { if (fineGrained()) solid._u(); }
+
 /** Renders an optional node-valued prop (`children`, `leading`...): an empty fragment when it is absent. */
 export function renderSlot(slot: (() => i32) | undefined): i32 { return slot !== undefined ? slot() : _el(ui.FRAGMENT); }
 

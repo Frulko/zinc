@@ -190,6 +190,13 @@ export function _onText(n: i32, change: boolean, f: (v: string) => void): void {
 export function _str(n: i32, key: string, s: string): void { if (key === 'value') ui.setValue(n, s); else if (key === 'role') ui.setRole(n, s); else if (key === 'label') ui.setLabel(n, s); else if (key.startsWith('attr:')) ui.setAttr(n, key.slice(5), s); else ui.setPlaceholder(n, s); }
 export function _dynStr(n: i32, key: string, get: () => string): void { createEffect(() => { _str(n, key, get()); }); }
 export function _hl(n: i32, f: (line: string) => i32[]): void { ui.setHighlight(n, f); }
+/** A component whose props read signals (`<Navbar title={page()}/>`): Solid passes props as getters, Zinc's typed props are values,
+ *  so the props are read in this effect and the component is mounted again when one of them changes. The lowering calls _u() right
+ *  after the props: the body runs untracked, as Solid runs components. */
+export function _comp(parent: i32, make: () => i32): void {
+  createEffect(() => { ui.clearChildren(parent); ui.insert(parent, make(), -1); });
+}
+export function _u(): void { current = null; }
 /** <Show when={...} fallback={...}>children</Show> */
 export function _show(parent: i32, when: () => boolean, render: () => i32, fallback: (() => i32) | null): void {
   const frag = ui.createNode(ui.FRAGMENT);

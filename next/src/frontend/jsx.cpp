@@ -651,6 +651,29 @@ struct Lowering {
     static const std::set<std::string> builtins{"String", "Number", "Boolean", "BigInt", "Symbol", "Date", "Array", "Object", "Error", "RegExp", "Map", "Set", "Promise", "JSON", "Math", "Intl"};
     return std::isupper(static_cast<unsigned char>(callee[0])) && !builtins.count(callee);
   }
+  // A prop value that may read a signal when it is evaluated: a call outside the bodies of the functions it holds and outside JSX
+  // (`title={page()}`, `items={xs.map(...)}`), not `onClick={() => go(p)}`, `label="x"`, `size={n}`, `icon={<Icon/>}`.
+  bool readsAtEval(std::size_t a, std::size_t b) {
+    for (std::size_t i = a; i < b; ++i) {
+      if (jsxStart(i)) { i = parseElem(i)->end - 1; continue; }
+      if (isK(i, "function")) { while (i < b && !isP(i, "{")) ++i; if (i < b) i = match(i); continue; }
+      if (isP(i, "=>")) {   // an arrow's body: a block, or an expression up to the `,` or the bracket that ends it
+        if (isP(i + 1, "{")) { i = match(i + 1); continue; }
+        std::size_t j = i + 1;
+        for (; j < b; ++j) {
+          if (jsxStart(j)) { j = parseElem(j)->end - 1; continue; }
+          if (isP(j, "(") || isP(j, "[") || isP(j, "{")) { j = match(j); continue; }
+          if (isP(j, ",") || isP(j, ")") || isP(j, "]") || isP(j, "}")) break;
+        }
+        i = j - 1;
+        continue;
+      }
+      if (isP(i, "(") && i > a && (t[i - 1].kind == Tok::Ident || isP(i - 1, ")") || isP(i - 1, "]") || isP(i - 1, "?."))) return true;
+    }
+    return false;
+  }
+  bool hasJsx(std::size_t a, std::size_t b) const { for (std::size_t i = a; i < b; ++i) if (jsxStart(i)) return true; return false; }
+
   // an arrow function over [a, b) that returns JSX
   bool returnsJsx(std::size_t a, std::size_t b) {
     std::size_t arrow = 0;
@@ -1066,10 +1089,16 @@ struct Lowering {
       auto imp = imported.find(tag);
       const bool rn = imp != imported.end() && imp->second == "zinc:react-native";   // its style props are one flattened Style, as React Native composes them
       auto styleProp = [](const std::string& n) { return n == "style" || (n != "barStyle" && n.size() > 5 && n.compare(n.size() - 5, 5, "Style") == 0); };   // StatusBar's barStyle is a string
+      // Solid: props that read signals (`title={page()}`) are evaluated in an effect that mounts the component again when they change
+      // (Solid passes them as getters; Zinc's props are typed values). They come first; `_u()` then stops the tracking, so the body
+      // runs untracked as Solid runs components: on the first static prop, or, when every prop reads, after a second read of the last.
+      std::vector<std::string> dyn;
+      const Attr* lastDyn = nullptr;
       for (auto& p : attrs) {
         if (p.first == "key") continue;
-        if (rn && p.second->kind == 2 && styleProp(p.first)) props.push_back(p.first + ": _flat(" + styleLayers(p.second->eb, p.second->ee) + ")");
-        else props.push_back(p.first + ": " + valueOf(*p.second));
+        std::string val = rn && p.second->kind == 2 && styleProp(p.first) ? "_flat(" + styleLayers(p.second->eb, p.second->ee) + ")" : valueOf(*p.second);
+        if (!react && p.second->kind == 2 && readsAtEval(p.second->eb, p.second->ee)) { dyn.push_back(p.first + ": " + val); lastDyn = p.second; }
+        else props.push_back(p.first + ": " + val);
       }
       auto nodeValued = [&](const Child* k) {
         if (k->kind != 1 || k->ee <= k->eb) return true;
@@ -1088,12 +1117,20 @@ struct Lowering {
         for (auto& l : lines) body += l + " ";
         props.push_back("children: () => ((): i32 => { " + body + "return " + f + "; })()");
       } else if (kids.size() == 1) props.push_back("children: () => " + childNode(kids[0]));
+      const bool tracked = !dyn.empty();
+      if (tracked) {
+        auto untrackAt = [](std::string& prop, const std::string& before) { std::size_t c = prop.find(": ") + 2; prop = prop.substr(0, c) + "(" + before + "_u(), " + prop.substr(c) + ")"; };
+        if (!props.empty()) untrackAt(props[0], "");
+        else if (!hasJsx(lastDyn->eb, lastDyn->ee)) untrackAt(dyn.back(), dyn.back().substr(dyn.back().find(": ") + 2) + ", ");   // the read that tracks, then the value
+        // ponytail: every prop reads and the last holds JSX: the body is tracked too (a read at its top level mounts it again)
+        props.insert(props.begin(), dyn.begin(), dyn.end());
+      }
       std::string args;
       for (std::size_t k = 0; k < props.size(); ++k) args += (k ? ", " : "") + props[k];
       std::string call = tag + "(" + (props.empty() ? "" : "{ " + args + " }") + ")";
       std::string keyArg = key ? "'' + (" + valueOf(*key) + ")" : "''";
       if (react && classTags.count(tag)) out.push_back("_cc(" + v + ", () => new " + tag + "(" + (props.empty() ? "{}" : "{ " + args + " }") + "), " + quote(tag) + ", " + keyArg + ");");   // a class component (Inferno, React classes): an instance per mount
-      else out.push_back(react ? "_rc(" + v + ", () => " + call + ", " + quote(tag) + ", " + keyArg + ");" : "_append(" + v + ", " + call + ");");
+      else out.push_back(react ? "_rc(" + v + ", () => " + call + ", " + quote(tag) + ", " + keyArg + ");" : tracked ? "_comp(" + v + ", () => " + call + ");" : "_append(" + v + ", " + call + ");");
     }
     return v;
   }
@@ -1355,6 +1392,7 @@ std::string lowerJsx(std::string_view src, std::vector<Diag>& diags, std::uint32
     if (out.find("_spread(") != std::string::npos) helpers += ", _spread";   // only when used: not every JSX library has them
     if (out.find("_scroll(") != std::string::npos) helpers += ", _scroll";
     if (out.find("_flat(") != std::string::npos) helpers += ", _flat";
+    if (out.find("_comp(") != std::string::npos) helpers += ", _comp, _u";
     std::string styleImport = out.find("new __ZStyle(") != std::string::npos && out.find("Style as __ZStyle") == std::string::npos ? "import { Style as __ZStyle } from 'zinc:ui'; " : "";
     return unmark(styleImport + "import { " + helpers + " } from '" + L.lib + "'; " + out, src, map);
   } catch (const Failure& f) {

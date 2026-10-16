@@ -47,6 +47,11 @@ const [items, setItems] = createSignal<string[]>(['a', 'b']);
 <For each={items()}>{(it) => <Text>{it}</Text>}</For>;   // keyed
 ```
 
+A component's props may read signals too: `<DashboardNavbar title={page()} />` follows `page()`. Solid passes such props as
+getters; Zinc's props are typed values, so the props are read in an effect and the component is mounted again when one
+changes (its body still runs untracked). Pass an accessor (`modelValue={tab}`) when the component should update in place
+and keep its own state.
+
 **React** — hooks and reconciled re-renders:
 
 ```tsx

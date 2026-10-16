@@ -43,7 +43,8 @@ Conventions, identical in both UI models:
 - **Text comes from props**: `label`, `title`, `description`, `hint`, `trailing`; the kit places and colours it.
 - **Values that change are accessors**: `value={() => temp()}`, `checked={wifi}`, `selected={tab}`. Under Solid the
   component subscribes to them (only the affected node updates); under React write `value={() => temp}`, the
-  accessor is read on every render.
+  accessor is read on every render. A plain prop that reads a signal (`title={page()}`) also follows it under Solid:
+  the component is mounted again when the value changes (an accessor updates in place instead).
 - **`children` adds custom content** (several children are passed as one fragment), and `class` adds layout
   classes to the component's outer node (`grow`, `w-80`, `w-full`).
 - An explicit import wins over the host tag of the same name: `import { Button } from 'zinc:ui/kit'` makes

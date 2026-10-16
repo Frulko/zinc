@@ -4,7 +4,7 @@ import * as ui from 'zinc:ui';
 import * as solid from 'zinc:ui/solid';
 import * as react from 'zinc:ui/react';
 export { _el, _text, _textOf, _append, _class, _on, _draw, _styles, _dynStyles, _num, _img, _focusable, _ref, _dynTextOf, _dynText, _dynClass, _dynNum, _dynImg,
-  _show, _for, _virtual, renderSlot, _ptr, _key, _ctx, _onText, _hl } from '../kit/host';
+  _show, _for, _virtual, _comp, _u, renderSlot, _ptr, _key, _ctx, _onText, _hl } from '../kit/host';
 
 export function _str(n: i32, key: string, s: string): void {
   if (key === 'value') ui.setValue(n, s); else if (key === 'role') ui.setRole(n, s); else if (key === 'label') ui.setLabel(n, s);

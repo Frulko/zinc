@@ -35,6 +35,8 @@ export function _key(h: i32, f: () => void): void { n(h).ops.push('key'); }
 export function _onText(h: i32, change: boolean, f: (v: string) => void): void { n(h).ops.push('onText'); }
 export function _hl(h: i32, f: (line: string) => i32[]): void { n(h).ops.push('highlight'); }
 export function _ctx(h: i32, s: string): void { n(h).ops.push('ctx ' + s); }
+export function _comp(h: i32, make: () => i32): void { _append(h, make()); }
+export function _u(): void {}
 function out(x: N, ind: string): void {
   console.log(ind + 'node ' + x.tag);
   for (const o of x.ops) console.log(ind + '  ' + o);
