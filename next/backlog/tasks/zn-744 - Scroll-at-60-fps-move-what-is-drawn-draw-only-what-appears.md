@@ -5,7 +5,7 @@ status: Backlog
 assignee:
   - '@parallel'
 created_date: '2026-10-16 14:06'
-updated_date: '2026-10-16 21:27'
+updated_date: '2026-10-16 21:40'
 labels:
   - perf
   - ui
@@ -57,4 +57,6 @@ Lines for backlog/later.md:
 - ZN-744: a frame's replay passes cost Tegra 3's CPU 1 to 3 ms each before any pixel: profile them on the device (simpleperf needs perf_event access: security.perf_harden 0 with root, before a run, not during it).
 - ZN-744: overlays (the perf panel, taps) drawn into the window after the frame instead of into the frame texture: a scroll would no longer damage the panel at two places.
 - ZN-744: Cross-platform pass: the GPU scroll on the Pi 3 (display-gl: glr::scroll is not called there yet, the KMS window is the surface) and the TouchPad (webOS, a tiler: turned rows cost it nothing).
+
+Handover (2026-10-16 late): AC1/AC2 (60 fps fling on the Nexus 7) not met by either path (software raster p99 27 to 29 ms, GLES 2 with the turned rows 32 ms); AC3 done (scroll_move with scroll_header, gl_scroll); AC5 lines in the coordinator report. Next: the replay passes CPU cost on Tegra 3 (see ZN-741), or overlays drawn into the window instead of the frame texture.
 <!-- SECTION:NOTES:END -->

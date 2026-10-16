@@ -1,11 +1,11 @@
 ---
 id: ZN-741
 title: 'GLES 2 base: one capability record, context providers, GPU tuning'
-status: In Progress
+status: Backlog
 assignee:
   - '@parallel'
 created_date: '2026-10-16 12:41'
-updated_date: '2026-10-16 21:26'
+updated_date: '2026-10-16 21:40'
 labels:
   - mobile
   - gl
@@ -79,4 +79,6 @@ Lines for backlog/later.md:
 - ZN-741: the webOS platform defaults ZINC_GL_DIRECT=1 and ZINC_GL_CORNERS=0 belong in the tuning table (Adreno 2xx row), measured there first.
 - ZN-741: fp16-only GPUs (Mali-400 on the CHIP): positions relative to the box centre lose a quarter pixel on 400 px boxes at 10 bits; relative to the nearest corner in bands would keep them (ZINC_GL_MEDIUMP=10 to see it).
 - ZN-741: GL_OES_get_program_binary or the driver's cache: the first run after an install builds the image programs in 60 to 70 ms each on Tegra 3 (warm() hides it at rest).
+
+Handover (2026-10-16 late): open AC1 (hero: ZN-628), AC4 (the coordinator adds the later.md lines), AC6 (the replay as its own target), AC7 second half (Android default: the fling is 3 to 4 ms behind the software raster at p99). Next: profile a replay pass on the Nexus 7 (ZINC_GL_MOVE_LOG=2 prints each pass CPU and GPU time; 1 to 3 ms of A9 each), then compare again with the scripts in /tmp/zn744 (FLING=fling-c.txt sh pair.sh s 900 2 170 890 "gl:ZINC_RENDERER=gl" "cpu:").
 <!-- SECTION:NOTES:END -->
