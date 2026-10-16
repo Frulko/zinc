@@ -34,9 +34,9 @@ assert.deepEqual(styleEntry('padding', '2px 4px'), [{ key: 'paddingTop', value: 
 assert.deepEqual(styleEntry('background-color', 'rgba(255,0,0,0.5)'), [{ key: 'backgroundColor', value: 0xff0000 }, { key: 'backgroundAlpha', value: 128 }]);
 const lowered = lowerStyleSheets("import {StyleSheet as S} from 'zinc:ui'; export const styles = S.create({'card': {padding: 10, color: '#fff'}});", 'styles.ts');
 assert.match(lowered, /card: new __ZStyle/); assert.match(lowered, /@color:ffffff/);
-const inline = lowerJsx('const v = <view style={{ width: 20, opacity: 0.5 }} />;', 'app.tsx');
+const inline = lowerJsx('const v = <View style={{ width: 20, opacity: 0.5 }} />;', 'app.tsx');
 assert.match(inline, /const __zsheet0/);
-assert.throws(() => lowerJsx('const v = <view style={{ fontSzie: 20 }} />;', 'app.tsx'));
+assert.throws(() => lowerJsx('const v = <View style={{ fontSzie: 20 }} />;', 'app.tsx'));
 const zipped = await packUI(doc, new Map());
 assert.ok(zipped.length < Buffer.byteLength(JSON.stringify(doc)), 'JSON is compressed');
 assert.deepEqual((await unpackUI(zipped)).document, doc);

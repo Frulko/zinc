@@ -1042,7 +1042,7 @@ function help(topic?: string) {
   Solid model: signals, memos, effects, <Show>, keyed <For>. React model: hooks, reconciled re-renders, keys.
   Components: zinc:ui/kit (shadcn-style Button, Card, Tabs, Switch, Slider, Stat..., light/dark themes, docs/ui-kit.md).
   Responsive: sm: md: lg: xl: 2xl: prefixes (640/768/1024/1280/1536 px), re-evaluated when the window is resized.
-  Scrolling: <scroll>/<ScrollView> or overflow-y-auto / overflow-x-auto (wheel, drag with inertia, focus reveal);
+  Scrolling: <ScrollView> or overflow-y-auto / overflow-x-auto (wheel, drag with inertia, focus reveal);
   <VirtualList count={n} itemHeight={h}>{(i) => <row/>}</VirtualList> builds only the visible rows.
   Compatible imports: solid-js, react, inferno, @pocketjs/framework/* (PocketJS apps compile unchanged).`,
     docs: `Docs

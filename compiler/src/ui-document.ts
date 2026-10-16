@@ -21,6 +21,7 @@ export interface UIDocument {
   styles?: Record<string, UIStyle>; components: Component[]; assets?: string[];
 }
 const hosts = new Set(['view', 'text', 'button', 'image', 'scroll', 'input', 'textarea']);
+const HOST_TAGS: Record<string, string> = { view: 'View', text: 'Text', button: 'Button', image: 'Image', scroll: 'ScrollView', input: 'Input', textarea: 'TextArea' };
 const reserved = new Set('break case catch class const continue debugger default delete do else enum export extends false finally for function if import in instanceof new null return super switch this throw true try typeof var void while with yield let static implements interface package private protected public await constructor prototype toString valueOf hasOwnProperty'.split(' '));
 function ident(s: unknown): asserts s is string {
   if (typeof s !== 'string' || !/^[A-Za-z][A-Za-z0-9_]*$/.test(s) || reserved.has(s) || s.startsWith('__')) throw new Error(`invalid public identifier: ${String(s)}`);
@@ -167,16 +168,17 @@ export function generateUI(input: unknown): string {
       if (n.value !== undefined) attrs.push(`value={${read(n.value)}}`);
       if (n.placeholder !== undefined) attrs.push(`placeholder={${q(n.placeholder)}}`);
       if (n.src) attrs.push(`src={${q(n.src)}}`);
-      const start = `${indent}<${n.type}${attrs.length ? ' ' + attrs.join(' ') : ''}`;
+      const tag = HOST_TAGS[n.type] ?? n.type;   // JSX components are capitalised: the document's host types are lowercase
+      const start = `${indent}<${tag}${attrs.length ? ' ' + attrs.join(' ') : ''}`;
       const kids = (n.children ?? []).map(ch => node(ch, indent + '  '));
       if (n.text !== undefined) kids.unshift(`${indent}  {${typeof n.text === 'object' && c.inputs![n.text.input].type !== 'string' ? "'' + " : ''}${read(n.text)}}`);
-      return kids.length ? `${start}>\n${kids.join('\n')}\n${indent}</${n.type}>` : `${start} />`;
+      return kids.length ? `${start}>\n${kids.join('\n')}\n${indent}</${tag}>` : `${start} />`;
     };
     if (c.root) out.push('  return (', node(c.root, '    '), '  );');
     else {
-      out.push('  return <view style={{ width: "100%", height: "100%" }}>');
+      out.push('  return <View style={{ width: "100%", height: "100%" }}>');
       for (const s of c.screens!) out.push(`    <Show when={screen() === ${q(s.id)}}>`, node(s.root, '      '), '    </Show>');
-      out.push('  </view>;');
+      out.push('  </View>;');
     }
     out.push('}', '');
   }
