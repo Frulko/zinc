@@ -1,0 +1,17 @@
+=== museum_probe
+Traceback (most recent call last):
+  File "<stdin>", line 7, in <module>
+  File "tools/resource-probe", line 19, in request
+    reply = ws(port, '/zinc', [{'id': 1, 'method': method, 'params': params}])[0]
+            ~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/runner/work/zinc/zinc/next/tools/cdp-probe", line 6, in ws
+    with socket.create_connection(("127.0.0.1", port), 5 * float(os.environ.get("ZN_WAIT_SCALE", "1"))) as s:
+         ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/lib/python3.14/socket.py", line 874, in create_connection
+    raise exceptions[0]
+  File "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/lib/python3.14/socket.py", line 859, in create_connection
+    sock.connect(sa)
+    ~~~~~~~~~~~~^^^^
+ConnectionRefusedError: [Errno 61] Connection refused
+/Users/runner/work/zinc/zinc/plugins/video/index.ts:6:1: error Z5011: The native module is not linked into this engine: 'Video': plugin 'video' needs the system library 'libavformat': install its development package (for example with brew), then run the command again
+zinc: 1 error. Link the module, add a stand-in, or fix the Spec to match the module. `zinc explain Z5011` shows an example.

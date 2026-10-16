@@ -1,0 +1,5 @@
+=== agent_ota
+FAIL: the good update is not running after its trial: otaapp                   zapp    stopped
+=== examples_pixels
+FAIL camera/remote/src/main.tsx  frame 30: 395416 pixels differ above 0 (max 246, mae 15.226), diff image /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/pixels-mo_j8x0f/camera-remote-src-main-30-diff.png
+41 of 42 entries match

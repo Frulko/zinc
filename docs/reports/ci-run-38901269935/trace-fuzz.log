@@ -1,0 +1,92 @@
+++ dirname tests/t2/fuzz.sh
++ cd tests/t2/../..
+++ brew --prefix llvm
++ '[' -x /opt/homebrew/opt/llvm/bin/clang++ ']'
++ '[' -n '' ']'
+++ uname
++ '[' Darwin = Darwin ']'
++ rm -f tests/fuzz/crashes/check-crash-385c53e37f768aa9dce3f03595d145d0ffcb24c6 tests/fuzz/crashes/parse-crash-ad977004b83144b3905c66fcffcacb09b5f6da7c
++ tools/fuzz all 60
+== fuzz_parse (60 s)
+tools/fuzz: line 33: 69337 Abort trap: 6           build-fuzz/fuzz_$t -max_total_time=$secs -rss_limit_mb=4096 -timeout=20 -artifact_prefix=tests/fuzz/crashes/$t- $extra build-fuzz/corpus/$t > build-fuzz/log-$t.txt 2>&1
+  Right alloca redzone:    cb
+==69337==ABORTING
+MS: 0 ; base unit: 0000000000000000000000000000000000000000
+artifact_prefix='tests/fuzz/crashes/parse-'; Test unit written to tests/fuzz/crashes/parse-crash-ad977004b83144b3905c66fcffcacb09b5f6da7c
+==69337==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x602000076c1c at pc 0x0001011b9f98 bp 0x00016f47a7d0 sp 0x00016f479f70
+READ of size 12 at 0x602000076c1c thread T0
+    #0 0x0001011b9f94 in memcpy+0x294 (libclang_rt.asan_osx_dynamic.dylib:arm64e+0x85f94)
+    #1 0x0001009b2b8c in std::__1::vector<unsigned int, std::__1::allocator<unsigned int>>::insert(std::__1::__wrap_iter<unsigned int const*>, unsigned int const&) vector:1627
+    #2 0x0001009ea43c in zn::frontend::(anonymous namespace)::Parser::classDecl(unsigned int) parser.cpp:931
+    #3 0x0001009da354 in zn::frontend::(anonymous namespace)::Parser::statement() parser.cpp:1295
+    #4 0x0001009d2c00 in zn::frontend::parse(std::__1::basic_string_view<char, std::__1::char_traits<char>>) parser.cpp:1433
+    #5 0x0001009817e0 in LLVMFuzzerTestOneInput fuzz_parse.cpp:9
+    #6 0x0001009a863c in fuzzer::Fuzzer::ExecuteCallback(unsigned char const*, unsigned long) FuzzerLoop.cpp:614
+    #7 0x0001009a7db8 in fuzzer::Fuzzer::RunOne(unsigned char const*, unsigned long, bool, fuzzer::InputInfo*, bool, bool*) FuzzerLoop.cpp:516
+    #8 0x0001009a9f2c in fuzzer::Fuzzer::ReadAndExecuteSeedCorpora(std::__1::vector<fuzzer::SizedFile, std::__1::allocator<fuzzer::SizedFile>>&) FuzzerLoop.cpp:829
+    #9 0x0001009aa080 in fuzzer::Fuzzer::Loop(std::__1::vector<fuzzer::SizedFile, std::__1::allocator<fuzzer::SizedFile>>&) FuzzerLoop.cpp:867
+    #10 0x00010099ac30 in fuzzer::FuzzerDriver(int*, char***, int (*)(unsigned char const*, unsigned long)) FuzzerDriver.cpp:915
+    #11 0x0001009ae55c in main FuzzerMain.cpp:20
+    #12 0x00019cc32b94  (<unknown module>)
+
+0x602000076c20 is located 0 bytes after 16-byte region [0x602000076c10,0x602000076c20)
+input tests/fuzz/crashes/parse-crash-ad977004b83144b3905c66fcffcacb09b5f6da7c (    1601 bytes):
+// Accessors, numeric enums and switch: fall-through, default in the middle, break, strings, continue inside a loop.
+enum Dir { Up, Down, Left = 10, Right }
+enum Level { Low = -1, Mid = 5, High }
+
+function describe(dir: Dir): string {
+  switch (dir) {
+    case Dir.Up: return 'up';
+    case Dir.Left:
+    case Dir.Right: return 'side';
+    default: return 'down';
+  }
+}
+
+function weird(n: i32): strin
+CRASH: tests/fuzz/crashes/parse-crash-ad977004b83144b3905c66fcffcacb09b5f6da7c
+== fuzz_check (60 s)
+tools/fuzz: line 33: 71146 Abort trap: 6           build-fuzz/fuzz_$t -max_total_time=$secs -rss_limit_mb=4096 -timeout=20 -artifact_prefix=tests/fuzz/crashes/$t- $extra build-fuzz/corpus/$t > build-fuzz/log-$t.txt 2>&1
+0x63,0x6f,0x6e,0x73,0x6f,0x6c,0x65,0x2e,0x6c,0x6f,0x67,0x28,0x31,0x5f,0x30,0x30,0x30,0x5f,0x30,0x30,0x30,0x2c,0x20,0x30,0x78,0x46,0x46,0x5f,0x46,0x46,0x2c,0x20,0x30,0x62,0x31,0x30,0x31,0x30,0x29,0xa,
+console.log(1_000_000, 0xFF_FF, 0b1010)\012
+artifact_prefix='tests/fuzz/crashes/check-'; Test unit written to tests/fuzz/crashes/check-crash-385c53e37f768aa9dce3f03595d145d0ffcb24c6
+Base64: Y29uc29sZS5sb2coMV8wMDBfMDAwLCAweEZGX0ZGLCAwYjEwMTApCg==
+==71146==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x60200017595c at pc 0x0001051f4f00 bp 0x00016b06cb70 sp 0x00016b06cb68
+READ of size 4 at 0x60200017595c thread T0
+    #0 0x0001051f4efc in zn::frontend::(anonymous namespace)::Loader::loadFile(std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>> const&, std::__1::basic_string<char, std::__1::char_trai
+    #1 0x0001051d44f0 in zn::frontend::(anonymous namespace)::Loader::load(std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>> const&, std::__1::basic_string<char, std::__1::char_traits<c
+    #2 0x0001051ca5a4 in zn::frontend::loadProgram(std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>> const&, std::__1::function<bool (std::__1::basic_string<char, std::__1::char_traits<
+    #3 0x000104d8d918 in LLVMFuzzerTestOneInput fuzz_check.cpp:16
+    #4 0x000104ddf270 in fuzzer::Fuzzer::ExecuteCallback(unsigned char const*, unsigned long) FuzzerLoop.cpp:614
+    #5 0x000104dde9ec in fuzzer::Fuzzer::RunOne(unsigned char const*, unsigned long, bool, fuzzer::InputInfo*, bool, bool*) FuzzerLoop.cpp:516
+    #6 0x000104de0b60 in fuzzer::Fuzzer::ReadAndExecuteSeedCorpora(std::__1::vector<fuzzer::SizedFile, std::__1::allocator<fuzzer::SizedFile>>&) FuzzerLoop.cpp:829
+    #7 0x000104de0cb4 in fuzzer::Fuzzer::Loop(std::__1::vector<fuzzer::SizedFile, std::__1::allocator<fuzzer::SizedFile>>&) FuzzerLoop.cpp:867
+    #8 0x000104dd1828 in fuzzer::FuzzerDriver(int*, char***, int (*)(unsigned char const*, unsigned long)) FuzzerDriver.cpp:915
+    #9 0x000104de5190 in main FuzzerMain.cpp:20
+    #10 0x00019cc32b94  (<unknown module>)
+
+0x60200017595c is located 12 bytes inside of 16-byte region [0x602000175950,0x602000175960)
+allocated by thread T0 here:
+    #0 0x000106ddb6e4 in _Znwm+0x74 (libclang_rt.asan_osx_dynamic.dylib:arm64e+0x4b6e4)
+input tests/fuzz/crashes/check-crash-385c53e37f768aa9dce3f03595d145d0ffcb24c6 (      40 bytes):
+console.log(1_000_000, 0xFF_FF, 0b1010)
+
+CRASH: tests/fuzz/crashes/check-crash-385c53e37f768aa9dce3f03595d145d0ffcb24c6
+== fuzz_zbc (60 s)
+"\000\001" # Uses: 241
+"\206\000\034\000\001\000\001\000\000\000\000\000\000\000\000\000" # Uses: 83
+###### End of recommended dictionary. ######
+Done 128670 runs in 61 second(s)
+== fuzz_native (60 s)
+tools/fuzz: line 33: 73022 Abort trap: 6           build-fuzz/fuzz_$t -max_total_time=$secs -rss_limit_mb=4096 -timeout=20 -artifact_prefix=tests/fuzz/crashes/$t- $extra build-fuzz/corpus/$t > build-fuzz/log-$t.txt 2>&1
+  ASan internal:           fe
+  Left alloca redzone:     ca
+  Right alloca redzone:    cb
+==73022==ABORTING
+== fuzz_zpk (60 s)
+"\377\377a0\000\000\375\003" # Uses: 79
+"\020\000\000\000" # Uses: 38
+###### End of recommended dictionary. ######
+Done 227485 runs in 61 second(s)
++ exit 1

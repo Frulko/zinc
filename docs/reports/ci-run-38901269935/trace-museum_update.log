@@ -1,0 +1,171 @@
+++ dirname tests/t1/museum_update.sh
++ cd tests/t1/../..
++++ dirname /Users/runner/work/zinc/zinc/next/build/zinc
+++ cd /Users/runner/work/zinc/zinc/next/build
+++ pwd
+++ basename /Users/runner/work/zinc/zinc/next/build/zinc
++ Z=/Users/runner/work/zinc/zinc/next/build/zinc
++ src=/Users/runner/work/zinc/zinc/next/../examples/museum-table
+++ mktemp -d
++ tmp=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VPB7P2acmC
++ srv=
++ trap '[ -n "$srv" ] && { kill $srv; wait $srv; } 2>/dev/null; [ -n "$ZN_KEEP" ] && echo "kept $tmp" || rm -rf "$tmp"' EXIT
++ real=/Users/runner/.zinc
++ mkdir -p /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VPB7P2acmC/home
++ for f in '"$real"/*'
++ '[' -e /Users/runner/.zinc/cache ']'
+++ basename /Users/runner/.zinc/cache
++ '[' cache '!=' apps ']'
++ ln -s /Users/runner/.zinc/cache /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VPB7P2acmC/home/
++ for f in '"$real"/*'
++ '[' -e /Users/runner/.zinc/toolchains ']'
+++ basename /Users/runner/.zinc/toolchains
++ '[' toolchains '!=' apps ']'
++ ln -s /Users/runner/.zinc/toolchains /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VPB7P2acmC/home/
++ export ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VPB7P2acmC/home ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_SIZE=1920x1080
++ ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VPB7P2acmC/home
++ ZINC_HEADLESS=1
++ ZINC_DETERMINISTIC=1
++ ZINC_SCALE=1
++ ZINC_SIZE=1920x1080
++ id=org.zinc.test.museum-update
++ staged=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VPB7P2acmC/home/apps/org.zinc.test.museum-update/staged
+++ /Users/runner/work/zinc/zinc/next/build/zinc update-keygen
+++ sed 's/^/k_/'
++ eval 'k_seed=95ba8fbd092d1431ffe47b97acaefb1688b9806aeab90c79740d6284c23c7cfb
+k_public=256306390b1fb1796982d004eae2d41ba118a9253171fdc4cb47f7596db220d2'
+++ k_seed=95ba8fbd092d1431ffe47b97acaefb1688b9806aeab90c79740d6284c23c7cfb
+++ k_public=256306390b1fb1796982d004eae2d41ba118a9253171fdc4cb47f7596db220d2
++ mkdir /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VPB7P2acmC/www
++ srv=22045
++ port=
++ cd /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VPB7P2acmC/www
++ exec python3 -u -m http.server 0 --bind 127.0.0.1
+++ seq 1 20
++ for i in '$(seq 1 $((20 * ${ZN_WAIT_SCALE:-1})))'
+++ sed -n 's/.* port \([0-9][0-9]*\).*/\1/p' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VPB7P2acmC/srv.out
+++ head -1
++ port=
++ '[' -n '' ']'
++ sleep 0.25
++ for i in '$(seq 1 $((20 * ${ZN_WAIT_SCALE:-1})))'
+++ sed -n 's/.* port \([0-9][0-9]*\).*/\1/p' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VPB7P2acmC/srv.out
+++ head -1
++ port=
++ '[' -n '' ']'
++ sleep 0.25
++ for i in '$(seq 1 $((20 * ${ZN_WAIT_SCALE:-1})))'
+++ sed -n 's/.* port \([0-9][0-9]*\).*/\1/p' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VPB7P2acmC/srv.out
+++ head -1
++ port=
++ '[' -n '' ']'
++ sleep 0.25
++ for i in '$(seq 1 $((20 * ${ZN_WAIT_SCALE:-1})))'
+++ sed -n 's/.* port \([0-9][0-9]*\).*/\1/p' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VPB7P2acmC/srv.out
+++ head -1
++ port=
++ '[' -n '' ']'
++ sleep 0.25
++ for i in '$(seq 1 $((20 * ${ZN_WAIT_SCALE:-1})))'
+++ sed -n 's/.* port \([0-9][0-9]*\).*/\1/p' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VPB7P2acmC/srv.out
+++ head -1
++ port=
++ '[' -n '' ']'
++ sleep 0.25
++ for i in '$(seq 1 $((20 * ${ZN_WAIT_SCALE:-1})))'
+++ sed -n 's/.* port \([0-9][0-9]*\).*/\1/p' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VPB7P2acmC/srv.out
+++ head -1
++ port=
++ '[' -n '' ']'
++ sleep 0.25
++ for i in '$(seq 1 $((20 * ${ZN_WAIT_SCALE:-1})))'
+++ sed -n 's/.* port \([0-9][0-9]*\).*/\1/p' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VPB7P2acmC/srv.out
+++ head -1
++ port=
++ '[' -n '' ']'
++ sleep 0.25
++ for i in '$(seq 1 $((20 * ${ZN_WAIT_SCALE:-1})))'
+++ sed -n 's/.* port \([0-9][0-9]*\).*/\1/p' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VPB7P2acmC/srv.out
+++ head -1
++ port=
++ '[' -n '' ']'
++ sleep 0.25
++ for i in '$(seq 1 $((20 * ${ZN_WAIT_SCALE:-1})))'
+++ sed -n 's/.* port \([0-9][0-9]*\).*/\1/p' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VPB7P2acmC/srv.out
+++ head -1
++ port=
++ '[' -n '' ']'
++ sleep 0.25
++ for i in '$(seq 1 $((20 * ${ZN_WAIT_SCALE:-1})))'
+++ sed -n 's/.* port \([0-9][0-9]*\).*/\1/p' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VPB7P2acmC/srv.out
+++ head -1
++ port=
++ '[' -n '' ']'
++ sleep 0.25
++ for i in '$(seq 1 $((20 * ${ZN_WAIT_SCALE:-1})))'
+++ sed -n 's/.* port \([0-9][0-9]*\).*/\1/p' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VPB7P2acmC/srv.out
+++ head -1
++ port=
++ '[' -n '' ']'
++ sleep 0.25
++ for i in '$(seq 1 $((20 * ${ZN_WAIT_SCALE:-1})))'
+++ sed -n 's/.* port \([0-9][0-9]*\).*/\1/p' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VPB7P2acmC/srv.out
+++ head -1
++ port=
++ '[' -n '' ']'
++ sleep 0.25
++ for i in '$(seq 1 $((20 * ${ZN_WAIT_SCALE:-1})))'
+++ sed -n 's/.* port \([0-9][0-9]*\).*/\1/p' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VPB7P2acmC/srv.out
+++ head -1
++ port=
++ '[' -n '' ']'
++ sleep 0.25
++ for i in '$(seq 1 $((20 * ${ZN_WAIT_SCALE:-1})))'
+++ sed -n 's/.* port \([0-9][0-9]*\).*/\1/p' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VPB7P2acmC/srv.out
+++ head -1
++ port=
++ '[' -n '' ']'
++ sleep 0.25
++ for i in '$(seq 1 $((20 * ${ZN_WAIT_SCALE:-1})))'
+++ head -1
+++ sed -n 's/.* port \([0-9][0-9]*\).*/\1/p' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VPB7P2acmC/srv.out
++ port=
++ '[' -n '' ']'
++ sleep 0.25
++ for i in '$(seq 1 $((20 * ${ZN_WAIT_SCALE:-1})))'
+++ sed -n 's/.* port \([0-9][0-9]*\).*/\1/p' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VPB7P2acmC/srv.out
+++ head -1
++ port=
++ '[' -n '' ']'
++ sleep 0.25
++ for i in '$(seq 1 $((20 * ${ZN_WAIT_SCALE:-1})))'
+++ sed -n 's/.* port \([0-9][0-9]*\).*/\1/p' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VPB7P2acmC/srv.out
+++ head -1
++ port=
++ '[' -n '' ']'
++ sleep 0.25
++ for i in '$(seq 1 $((20 * ${ZN_WAIT_SCALE:-1})))'
+++ sed -n 's/.* port \([0-9][0-9]*\).*/\1/p' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VPB7P2acmC/srv.out
+++ head -1
++ port=
++ '[' -n '' ']'
++ sleep 0.25
++ for i in '$(seq 1 $((20 * ${ZN_WAIT_SCALE:-1})))'
+++ sed -n 's/.* port \([0-9][0-9]*\).*/\1/p' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VPB7P2acmC/srv.out
+++ head -1
++ port=
++ '[' -n '' ']'
++ sleep 0.25
++ for i in '$(seq 1 $((20 * ${ZN_WAIT_SCALE:-1})))'
+++ sed -n 's/.* port \([0-9][0-9]*\).*/\1/p' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VPB7P2acmC/srv.out
+++ head -1
++ port=
++ '[' -n '' ']'
++ sleep 0.25
++ '[' -n '' ']'
++ echo 'museum_update: no local server'
+museum_update: no local server
++ exit 2
++ '[' -n 22045 ']'
++ '[' -n '' ']'
++ rm -rf /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VPB7P2acmC
