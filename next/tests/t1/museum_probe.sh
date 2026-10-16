@@ -2,6 +2,7 @@
 # Remote commands use completed transitions and reject invalid/busy requests. RSS belongs to the native engine process.
 set -eu
 cd "$(dirname "$0")/../.."
+command -v pkg-config >/dev/null && pkg-config --exists libavformat || { echo "skipped: the museum plays video: ZINC_NATIVE=real needs FFmpeg's libavformat (brew install ffmpeg)"; exit 77; }
 tmp=$(mktemp -d); app=''; trap 'rc=$?; if [ $rc -ne 0 ]; then cat "$tmp/app.log"; fi; if [ -n "$app" ]; then kill "$app" 2>/dev/null || true; fi; rm -rf "$tmp"' EXIT
 port=$(python3 tests/free_ports.py 1)
 env -u ZINC_DETERMINISTIC ZINC_NATIVE=real ZINC_3D=software ZINC_REALTIME=1 ZINC_HEADLESS=1 ZINC_FRAMES=1000000 ZINC_DEVTOOLS_PORT="$port" "$ZINC" run --interp ../examples/museum-table -- --probe --story > "$tmp/app.log" 2>&1 & app=$!
