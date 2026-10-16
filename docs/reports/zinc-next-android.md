@@ -90,3 +90,52 @@ Screenshots: `zinc-next-android/rn-showcase-first-pixels.png`, `rn-showcase-pane
 
 Lifecycle events to the program, context loss, safe areas, the back button and IME (ZN-625, ZN-626), plugins with android entries (ZN-628),
 signing (ZN-629), arm64-v8a and x86_64 builds (the export lists them; only armeabi-v7a was built), an emulator run.
+
+## Music remote on Android (examples/music, 2026-10-16)
+
+The TouchPad's Sonos and Spotify wall remote (`examples/music`, zinc:sonos, zinc:spotify, zinc:socket UDP, zinc:fs, zinc:webos, AsyncStorage,
+gsap) on the same Nexus 7, with no change to the program:
+
+```sh
+zinc export examples/music --target android -o dist/music-android
+cd dist/music-android && ./gradlew assembleDebug -Pzinc.abis=armeabi-v7a     # APK 16.0 MB (debug, one ABI)
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb shell am start -n dev.zinc.music/.MusicActivity                          # start 526 to 613 ms
+```
+
+| | On the Nexus 7 |
+|---|---|
+| Sonos discovery (SSDP M-SEARCH from a UDP socket on port 37451, unicast answers) | Works with no MulticastLock: the group, what plays, the cover, the progress, live (`music-player.png`) |
+| Transport, volume | Pause and play on the speakers ("En pause", then "En lecture" with the progress going on); the volume slider moved the group from 9 to 13 and back, the room sliders follow (`music-volume.png`) |
+| HTTPS (radio logos from upload.wikimedia.org and others, radio-browser.info) | Works once the engine reads Android's root store (below) (`music-radios.png`) |
+| The screen | Fills the 1280 x 704 window (the status and navigation bars take the rest); zinc.json's 1024 x 768 targets are for the desktop, the Android window fills (`hal_sdl.cpp`) |
+| The wall remote's dimming (zinc:webos `setBacklight`) | After the delay the window's brightness goes to 0 (`dumpsys window`: `sbrt=0.0`) over a black picture, and the next touch gives the system's back; the screen stays on (`FLAG_KEEP_SCREEN_ON`) |
+| Spotify | Not connected: no `spotify.json` on the tablet (below) |
+
+What it took, each where every program benefits:
+
+- **The plugins' requirements.** socket, sonos, spotify and osc required `process` (meaning "an OS"), which the `android` profile has not;
+  none spawns a child process. They require `net` now (spotify `net` and `fs`).
+- **Root certificates.** An app has no `/etc/ssl`, and `/proc/self/exe` is `app_process`, so no HTTPS request could be verified.
+  `src/host/tls.cpp` reads `/system/etc/security/cacerts` (135 PEM files on this tablet) and the user's added roots beside it.
+- **zinc:webos on a phone.** Unchanged: off webOS its helper requests are `device()` queries of zinc:sys, which the Android host now answers
+  for the two that a phone has: `wakelock` (SDL's screen saver off or on, as `navigator.wakeLock` wants) and `backlight` (the window's
+  `screenBrightness`, 0 or -1 for the system's, set on the UI thread by the exported activity through `SDL_SendAndroidMessage`,
+  `ZN_APP_ANDROID_BRIGHTNESS`). `performance` and `port` answer false as on a desktop: a phone has neither a governor stuck at 192 MHz nor a
+  firewall for an app's own sockets, and the program does not look at the answers. `isWebOS()` is false (no `libpdl.so`), so the TouchPad
+  paths (`screenTimeout`, the power activity) are not taken.
+
+The files beside the program (`config.json`, `radios.json`, `spotify.json`, read with zinc:fs by relative paths) are in the app's files
+directory, the shell's working directory (`/data/data/dev.zinc.music/files`, `src/app/shell_sdl.cpp`). The program writes `config.json` there
+itself at the first start. To bring one from a computer to a debuggable APK:
+
+```sh
+adb push spotify.json /data/local/tmp/ && adb shell run-as dev.zinc.music cp /data/local/tmp/spotify.json files/ && adb shell rm /data/local/tmp/spotify.json
+```
+
+Spotify was not tried: the login is a PKCE refresh token that Spotify rotates at each refresh, so a copy of the TouchPad's `spotify.json`
+would log one of the two devices out at the first refresh. The tablet needs its own login (`python3 plugins/spotify/login.py <CLIENT_ID>
+spotify.json` on the Mac, then the commands above).
+
+Seen on the way: `adb shell input tap` (the press and the release within a few milliseconds) did not reach the program's buttons, while a press
+held 120 ms (`input swipe x y x y 120`) did; a finger works.
