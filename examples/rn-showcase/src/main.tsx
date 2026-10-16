@@ -1,86 +1,27 @@
-// A modern app styled the React Native way (ZN-356): StyleSheet.create and style={{...}} objects only (no class strings, no kit), laid out by Yoga
-// ("ui": {"layout": "rn"} in zinc.json), with its own visual language in a light and a dark scheme. Four screens and a bottom sheet; switches and the sheet
-// ease every frame. SHOWCASE_SCREEN=discover|detail|stats|settings|sheet and SHOWCASE_SCHEME=light|dark open a given state (screenshots and goldens).
+// rn-showcase: a kitchen-sink app written the React Native way (React model, zinc:react-native, StyleSheet), see README.md.
 //   zinc run examples/rn-showcase
-import { createSignal, createNodeRef, Show } from 'zinc:ui/solid';
-import * as ui from 'zinc:ui';
-import { StyleSheet, PanResponder } from 'zinc:ui';
-import { render } from 'zinc:ui/solid';
-import { env } from 'zinc:sys';
-import { t, setDark, isDark } from './theme';
-import { styles } from './parts';
-import { Icon } from 'zinc:icons';
-import * as A from 'zinc:ui/animated';
-import { Discover, Story, STORIES } from './screens/Discover';
-import { Detail } from './screens/Detail';
-import { Stats } from './screens/Stats';
-import { Settings, Sheet, Toggle } from './screens/Settings';
+// Test and screenshot hooks: SHOWCASE_SCREEN=<tab>[/<screen>] opens a route (forms, network, more/media, more/camera...), SHOWCASE_SCHEME=dark,
+// SHOWCASE_LANG=fr, SHOWCASE_NET=live (real network; mock by default when deterministic or offline).
+import { render } from 'zinc:ui/react';
+import { quit } from 'zinc:gfx';
+import { Appearance } from 'zinc:react-native';
+import { env, allocations } from 'zinc:sys';
+import App, { startRoute } from './App';
+import { TABS } from './nav';
+import { loadPrefs } from './store';
 
-const tabStyles = StyleSheet.create({
-  bar: { position: 'absolute', left: 16, right: 16, bottom: 18, height: 64, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', borderRadius: 24 },
-  tab: { flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, width: 76, height: 50, borderRadius: 16 },
-  dot: { width: 6, height: 6, borderRadius: 3 },
-});
-
-const DISCOVER = 0, DETAIL = 1, STATS = 2, SETTINGS = 3;
-const [screen, setScreen] = createSignal<i32>(DISCOVER);
-const [story, setStory] = createSignal<Story>(STORIES[0]);
-const sheetAt = new A.Value(0);   // the sheet: 0 hidden .. 1 open (Animated)
-const [textSize, setTextSize] = createSignal<string>('Comfortable');
-const toggles: Toggle[] = [new Toggle('Download for offline', true), new Toggle('Daily digest', false), new Toggle('Autoplay audio', true)];
-const darkPos = new A.Value(0);
-const SPRING: A.SpringConfig = { toValue: 0, bounciness: 6, speed: 16 };
-function springTo(v: A.Value, to: number): void { A.spring(v, { toValue: to, bounciness: SPRING.bounciness, speed: SPRING.speed }).start(); }
-function openSheet(): void { A.spring(sheetAt, { toValue: 1, bounciness: 4, speed: 14 }).start(); }
-function closeSheet(): void { A.timing(sheetAt, { toValue: 0, duration: 220, easing: A.Easing.out(A.Easing.cubic) }).start(); }
-const scroller = createNodeRef();
-// the sheet follows the finger pulling it down (ZN-366): released past 100 px or flung, it closes; otherwise it springs back
-let sheetFrom = 1;
-const sheetPan = PanResponder.create({
-  onMoveShouldSetPanResponder: (e: ui.ResponderEvent, g: ui.GestureState): boolean => g.dy > Math.abs(g.dx),
-  onPanResponderGrant: (e: ui.ResponderEvent, g: ui.GestureState): void => { sheetAt.stopAnimation(); sheetFrom = sheetAt.get(); },
-  onPanResponderMove: (e: ui.ResponderEvent, g: ui.GestureState): void => sheetAt.setValue(Math.max(0, Math.min(1, sheetFrom - g.dy / 320))),
-  onPanResponderRelease: (e: ui.ResponderEvent, g: ui.GestureState): void => { if (g.dy > 100 || g.vy > 0.5) closeSheet(); else openSheet(); },
-  onPanResponderTerminate: (e: ui.ResponderEvent, g: ui.GestureState): void => openSheet(),
-});
-
-function Tab(p: { label: string; id: i32; icon: string }): i32 {
-  const on = (): boolean => screen() === p.id || (p.id === DISCOVER && screen() === DETAIL);
-  return <View style={[tabStyles.tab, { backgroundColor: on() ? t().accentSoft : t().surface }]} onClick={() => setScreen(p.id)}>
-    <Icon name={p.icon} size={22} color={() => on() ? t().accent : t().muted} strokeWidth={on() ? 2.2 : 1.8} />
-    <Text style={[styles.tiny, { color: on() ? t().accent : t().muted }, on() && styles.bold]}>{p.label}</Text>
-  </View>;
+loadPrefs();
+if (env('SHOWCASE_SCHEME') === 'dark' || env('SHOWCASE_SCHEME') === 'light') Appearance.setColorScheme(env('SHOWCASE_SCHEME'));
+const route = env('SHOWCASE_SCREEN').split('/');
+if (route[0] !== '') {
+  const tab = TABS.indexOf(route[0]) >= 0 ? route[0] : 'more';
+  startRoute(tab, route.length > 1 ? route.slice(1) : (TABS.indexOf(route[0]) >= 0 ? [] : [route[0]]));
 }
-
-function App(): i32 {
-  return <View style={{ flexDirection: 'column', width: '100%', height: '100%', backgroundColor: t().bg }}>
-    <View ref={scroller} style={{ flexDirection: 'column', flex: 1, overflow: 'scroll', paddingBottom: 100 }}>
-      <Show when={screen() === DISCOVER}>{Discover((s: Story) => { setStory(s); setScreen(DETAIL); })}</Show>
-      <Show when={screen() === DETAIL}>{Detail(story, () => setScreen(DISCOVER))}</Show>
-      <Show when={screen() === STATS}>{Stats()}</Show>
-      <Show when={screen() === SETTINGS}>{Settings(toggles, (i: i32) => toggles[i].pos.get(), (i: i32) => { toggles[i].on = !toggles[i].on; springTo(toggles[i].pos, toggles[i].on ? 1 : 0); }, openSheet, () => darkPos.get(), () => { setDark(!isDark()); springTo(darkPos, isDark() ? 1 : 0); })}</Show>
-    </View>
-    <View style={[tabStyles.bar, { backgroundColor: t().surface, borderWidth: 1, borderColor: t().line }]}>
-      <Tab label="Discover" id={DISCOVER} icon="compass" />
-      <Tab label="Stats" id={STATS} icon="chart-column" />
-      <Tab label="Settings" id={SETTINGS} icon="settings" />
-    </View>
-    <Sheet at={() => sheetAt.get()} pan={sheetPan.panHandlers} close={closeSheet} choose={(s: string) => { setTextSize(s); closeSheet(); }} current={textSize} />
-  </View>;
-}
-
-
-// test hooks: start on a given screen and scheme, with the sheet open
-const start = env('SHOWCASE_SCREEN'), scheme = env('SHOWCASE_SCHEME'), scrollTo = env('SHOWCASE_SCROLL'), drag = env('SHOWCASE_DRAG');
-let frames = 0;
-if (scheme === 'dark') { setDark(true); darkPos.setValue(1); }
-if (start === 'detail') { setStory(STORIES[2]); setScreen(DETAIL); }
-if (start === 'stats') setScreen(STATS);
-if (start === 'settings' || start === 'sheet') setScreen(SETTINGS);
-if (start === 'sheet') sheetAt.setValue(1);
-
-render(App, 0xF6F3EE, (dt: number) => {
-  if (++frames === 2 && scrollTo !== '') ui.scrollTo(scroller.node, 0, parseFloat(scrollTo));   // SHOWCASE_SCROLL=400: the content scrolled (screenshots)
-  if (drag !== '' && frames >= 3 && frames <= 9) ui.pointerAt(210, 640 + parseFloat(drag) * (frames - 3) / 6, frames < 9);   // SHOWCASE_DRAG=200: pull the sheet down
-  if (drag !== '' && (frames === 8 || frames === 40)) console.log(`frame ${frames}: sheet ${sheetAt.get().toFixed(2)}`);
-});   // switches, the sheet and the scheme move with zinc:ui/animated (springs and timing): nothing to step here
+// SHOWCASE_IDLE=n: after the first 60 frames, counts the allocations of the next n idle frames and quits (the idle budget: 0)
+const idle = env('SHOWCASE_IDLE') === '' ? 0 : parseInt(env('SHOWCASE_IDLE'));
+let frames = 0, from = 0;
+render(App, 0xF6F3EE, idle === 0 ? null : (dt: number): void => {
+  frames++;
+  if (frames === 60) from = allocations();
+  if (frames === 60 + idle) { console.log(`idle ${idle} frames: ${allocations() - from} allocations`); quit(); }
+});

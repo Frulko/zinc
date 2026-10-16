@@ -2,8 +2,13 @@
   "name": "rn-showcase",
   "entry": "src/main.tsx",
   "ui": {
-    "layout": "rn"
+    "preset": "react-native"
   },
+  "requires": [
+    "display",
+    "pointer|touch",
+    "heap>=32M"
+  ],
   "targets": {
     "macos": {
       "width": 420,
@@ -23,13 +28,62 @@
       "height": 860
     }
   },
+  "permissions": [
+    "opener",
+    "deep-link"
+  ],
+  "scopes": {
+    "opener": {
+      "allow": [
+        "https://*"
+      ]
+    }
+  },
   "icons": [
-    "compass",
-    "chart-column",
-    "settings",
-    "download",
-    "newspaper",
-    "volume-2",
-    "moon"
+    "activity",
+    "bell",
+    "calendar",
+    "camera",
+    "check",
+    "chevron-down",
+    "chevron-left",
+    "chevron-right",
+    "circle-alert",
+    "circle-check",
+    "clipboard-list",
+    "copy",
+    "database",
+    "external-link",
+    "grip-vertical",
+    "hand",
+    "heart",
+    "house",
+    "image",
+    "info",
+    "layout-grid",
+    "mail",
+    "minus",
+    "music",
+    "pause",
+    "play",
+    "plus",
+    "radio-tower",
+    "refresh-cw",
+    "rotate-ccw",
+    "search",
+    "send",
+    "shapes",
+    "share-2",
+    "skip-back",
+    "skip-forward",
+    "smartphone",
+    "sparkles",
+    "trash",
+    "user",
+    "vibrate",
+    "wifi",
+    "wifi-off",
+    "x",
+    "zap"
   ]
 }
