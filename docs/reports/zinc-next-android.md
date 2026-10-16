@@ -61,7 +61,7 @@ region is only reserved address space until it is touched. Revisit with zinc.jso
 | APK (release, unsigned) | | 5.99 MB (`libmain.so` 5.9 MB: text 5.8 MB, stripped) | |
 | Start, `am start -W` TotalTime (warm) | 600 to 634 ms | 460 to 640 ms | 454 to 582 ms |
 | Start after dropping the page cache | | 741 ms | |
-| Software raster (default): frame | | 60.0 fps, 16.66 ms; work p50 1.38 p99 4.3 ms; present p50 15.0 p99 17.4 to 19.9 ms (300 to 700 frames) | 59.9 fps, 16.68 ms; work p50 0.26 p99 1.5 ms; present p50 16.2 p99 22.7 ms |
+| Software raster through SDL_Renderer (ZN-622; `ZINC_PRESENT=texture` since ZN-743): frame | | 60.0 fps, 16.66 ms; work p50 1.38 p99 4.3 ms; present p50 15.0 p99 17.4 to 19.9 ms (300 to 700 frames) | 59.9 fps, 16.68 ms; work p50 0.26 p99 1.5 ms; present p50 16.2 p99 22.7 ms |
 | GLES 2 replay (`ZINC_RENDERER=gl`): frame | | 13.7 fps, 72.9 ms; work p50 1.98 p99 23.4 ms; present p50 89 p99 158 ms | present p50 16.3 p99 32.8 ms |
 | Output | logcat (tag `zinc`) equals `zinc run ../examples/hello`, 29 lines | | |
 
@@ -71,6 +71,38 @@ region is only reserved address space until it is touched. Revisit with zinc.jso
 - The GLES 2 replay draws correct pixels (screenshot) but replays the whole frame (damage 100%) and Tegra 3 takes about 90 ms for it; the software
   raster redraws only the damaged rows. Android keeps the software raster by default (`hal_sdl.cpp`); a damage-aware replay is the next step.
 - hero does not export yet: it uses zinc:video, whose plugin needs FFmpeg (`pkg` libavformat), which an app cannot link yet (ZN-628).
+
+### Zero-copy present (ZN-743)
+
+Where the present of the software raster went (ZN-622's path: the raster into `fb`, `SDL_UpdateTexture`, the SDL_Renderer's GLES 2 quad,
+`SDL_RenderPresent`), measured with `ZINC_PRESENT_STATS=1` (per step, p50 and p99 over 120 frames, in logcat) and a trace of a scripted fling
+(`ZINC_INPUT`, which a window takes now too: ten flings of 400 px, rn-showcase, the frames that rasterized more than 2 ms):
+
+| Step (texture path) | at rest | while scrolling |
+|---|---|---|
+| raster of the damaged rows | 0 (no damage) | 25 to 26 ms |
+| `SDL_UpdateTexture` of those rows | 0 | 9.4 to 9.8 ms (breakout, 1 to 3 rows: 14.5 ms, it waits for the GPU still reading the texture) |
+| `SDL_RenderClear` + `SDL_RenderTexture` | 0.02 ms | 0.02 ms |
+| `SDL_RenderPresent` (eglSwapBuffers, vsync) | 14 to 15 ms (the display's period) | 1.6 to 1.8 ms |
+
+Now the raster writes the damaged box straight into the window's own buffer (`hal_sdl.cpp` `anw_present`): `ANativeWindow_lock` with the box as the
+dirty bounds (Android copies the rest from the previous buffer), `HalFrame.render_box` draws every pixel of the box it returns, `unlockAndPost`;
+no SDL_Renderer, no texture, no GL context; SurfaceFlinger composes the buffer. The buffer is `BGRA_8888` (HAL format 5), the raster's own
+byte order, so nothing is converted; `ZINC_PRESENT=565` packs into `RGB_565` from `fb` (no dither: the card gradients band visibly), and
+`ZINC_PRESENT=texture` keeps the old path. Frames without damage post nothing and are paced at 60 Hz by a sleep; a post waits in the buffer queue.
+
+| rn-showcase, scripted fling (moving frames) | interval p50 / p99 | raster p50 | present without the raster p50 / p99 |
+|---|---|---|---|
+| texture (before) | 40.6 / 60.7 ms (24.6 fps) | 26.0 ms | 12.8 / 18.2 ms |
+| window buffer (now, the default) | 31.3 / 53.7 ms (31.9 fps) | 25.6 ms | 4.2 / 20.2 ms |
+
+At rest both are at 60 fps (present p50 14.5 and 14.8 ms: the wait for the display); breakout is at 60 fps on both (present p50 16.27 and
+16.37 ms, p99 26.6 and 26.2). The present lost 8.6 ms of its 12.8; the raster of the scrolled area (26 ms) is what remains, ZN-744's subject.
+
+Pixels: `ZINC_PRESENT_VERIFY=1` compares the whole window buffer with a full redraw at every post: 0 stale pixels in 480 posts of the fling
+(partial boxes: the panel, the scroll indicator, the feed). A screencap cannot prove equality on this device: Tegra 3 composes at mediump
+precision and resamples (the texture path differs from a desktop raster of the same frame on 28,925 edge pixels, max 32 levels; the window
+buffer on 20,077, max 20: the compositor's own share).
 
 ### The first interaction (owner's report: the first touch is slow)
 

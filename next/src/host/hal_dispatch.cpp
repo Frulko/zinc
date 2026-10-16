@@ -244,7 +244,10 @@ void hal_init(const HalConfig* c) { live = c->gfx && zn_hal_wants_window(); if (
 void hal_shutdown(void) { if (live) sdl_hal_shutdown(); else null_hal_shutdown(); }
 void hal_frame_begin(void) { if (live) sdl_hal_frame_begin(); else null_hal_frame_begin(); }
 void hal_frame_end(void) { if (live) sdl_hal_frame_end(); else null_hal_frame_end(); }
-void hal_poll_input(HalInput* in) { if (live) sdl_hal_poll_input(in); else { null_hal_poll_input(in); applyScript(in); } }
+// a window takes a ZINC_INPUT script too (ZN-744): a scripted fling measured on a real display (a phone, the desktop window); the script's pointer and
+// fingers then replace the live ones
+static bool windowScript() { static const bool on = [] { const char* p = getenv("ZINC_INPUT"); return p && *p; }(); return on; }
+void hal_poll_input(HalInput* in) { if (live) { sdl_hal_poll_input(in); if (windowScript()) applyScript(in); } else { null_hal_poll_input(in); applyScript(in); } }
 void hal_present(const HalFrame* f) { if (holdUntil) hold(); if (live) sdl_hal_present(f); else null_hal_present(f); }
 void hal_surface_size(int* w, int* h) { if (live) sdl_hal_surface_size(w, h); else null_hal_surface_size(w, h); }
 double hal_fixed_dt(void) { return live ? sdl_hal_fixed_dt() : driven() ? 0 : null_hal_fixed_dt(); }

@@ -120,6 +120,9 @@ struct HalFrame {
   int32_t (*frames)(const HalCmdList* out[], int32_t max);
   // render() with the holes of the hardware layers (HAL_LAYER_HOLE) filled with `color` instead; null when the frame has no layer.
   void (*render_holes)(uint32_t* rows, int32_t y0, int32_t y1, uint32_t color);
+  // Every pixel of the box x0..x1 of rows y0..y1 and nothing outside it, for a buffer whose box holds stale pixels and the rest the previous
+  // frame (an Android window buffer, ZN-743). Null: render() the whole rows.
+  void (*render_box)(uint32_t* rows, int32_t y0, int32_t y1, int32_t x0, int32_t x1);
 };
 
 // Pen / stylus: HALs and display drivers push every sample they read (in hal_poll_input / HalDisplay.poll); the

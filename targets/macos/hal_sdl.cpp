@@ -8,6 +8,7 @@
 #include <string.h>
 #include <condition_variable>
 #include <mutex>
+#include <algorithm>
 #include <atomic>
 #include <thread>
 
@@ -44,6 +45,11 @@ static uint32_t* tbuf;         // transparent windows: the rows being uploaded w
 static size_t tbuf_n;
 static bool surface_ok;        // the surface of the current size is allocated
 static bool shown;             // the main window is created hidden and shown by its first present, so it never appears blank (ZN-446)
+#ifdef __ANDROID__
+#include <android/native_window.h>
+static int anw_mode;          // zero-copy present (ZN-743, anw_present): 0 SDL_Renderer; 1 BGRA_8888 written in place; 2 RGB_565 packed from fb
+static ANativeWindow* anw;    // our reference to the window's surface (SDL releases its own when the surface goes away)
+#endif
 
 #ifdef ZN_HAL_GL
 // The window presents with OpenGL and replays the frame's command lists on the GPU (ZN-412.02, runtime/gl_replay.cpp): no software raster
@@ -254,6 +260,9 @@ static void alloc_surface() {
     return;
   }
 #endif
+#ifdef __ANDROID__
+  if (anw_mode) { free(fb); fb = nullptr; return; }   // the window's buffer is the surface; fb only for a packed or strided buffer (anw_present)
+#endif
   if (tex) SDL_DestroyTexture(tex);
   free(fb);
   SDL_SetRenderLogicalPresentation(ren, PW, PH, SDL_LOGICAL_PRESENTATION_LETTERBOX);
@@ -412,6 +421,12 @@ void hal_init(const HalConfig* cfg) {
   if (!gl_on) {
     if (getenv("ZINC_GL_STATS")) fprintf(stderr, "zinc: window renderer cpu\n");
 #endif
+#ifdef __ANDROID__
+  { const char* p = getenv("ZINC_PRESENT"); anw_mode = p && !strcmp(p, "texture") ? 0 : p && !strcmp(p, "565") ? 2 : 1; }
+  if (anw_mode) {   // the raster draws into the window's buffer (anw_present): a window without a renderer
+    if (!(win = SDL_CreateWindow(cfg->title, ww, wh, SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_HIDDEN))) hal_panic(SDL_GetError(), "hal_sdl", __LINE__);
+  } else
+#endif
   if (!wcfg_set) {
     if (!SDL_CreateWindowAndRenderer(cfg->title, ww, wh, SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_HIDDEN, &win, &ren))
       hal_panic(SDL_GetError(), "hal_sdl", __LINE__);
@@ -458,6 +473,9 @@ void hal_shutdown(void) {
   if (!gfx_on) return;
 #ifdef ZN_HAL_GL
   if (glctx) SDL_GL_DestroyContext(glctx);
+#endif
+#ifdef __ANDROID__
+  if (anw) ANativeWindow_release(anw);
 #endif
   if (ren) SDL_DestroyRenderer(ren);
   SDL_DestroyWindow(win);
@@ -880,10 +898,11 @@ static std::condition_variable &band_go = *new std::condition_variable, &band_do
 extern "C" __attribute__((weak)) int32_t zrt_profiling(void) { return 0; }
 extern "C" __attribute__((weak)) void zrt_prof_band(int32_t, uint64_t, uint64_t) {}
 static bool band_prof;
+static uint32_t* band_px;   // the buffer the bands write: fb, or the window's own (ZN-743); PW pixels per row
 static void run_band(int i) {
   uint64_t t0 = band_prof ? hal_time_us() : 0;
   for (int32_t a; (a = band_y0 + band_next.fetch_add(1, std::memory_order_relaxed) * kStripe) < band_y1;)
-    band_fn(fb + (size_t)a * PW, a, a + kStripe < band_y1 ? a + kStripe : band_y1);
+    band_fn(band_px + (size_t)a * PW, a, a + kStripe < band_y1 ? a + kStripe : band_y1);
   if (band_prof) zrt_prof_band(i, t0, hal_time_us());
 }
 static void band_worker(int id) {
@@ -909,11 +928,12 @@ static void start_workers() {
   for (int i = 1; i < n; i++) std::thread(band_worker, i).detach();
   workers = n > 1 ? n - 1 : 0;
 }
-static void render_rows_parallel(void (*fn)(uint32_t*, int32_t, int32_t), int32_t y0, int32_t y1) {
+static void render_rows_parallel(void (*fn)(uint32_t*, int32_t, int32_t), int32_t y0, int32_t y1, uint32_t* px = nullptr) {
   band_prof = zrt_profiling() != 0;
+  band_px = px ? px : fb;
   if (workers == 0 || y1 - y0 < 2 * kStripe) {
     uint64_t t0 = band_prof ? hal_time_us() : 0;
-    fn(fb + (size_t)y0 * PW, y0, y1);
+    fn(band_px + (size_t)y0 * PW, y0, y1);
     if (band_prof) zrt_prof_band(0, t0, hal_time_us());
     return;
   }
@@ -926,6 +946,115 @@ static void render_rows_parallel(void (*fn)(uint32_t*, int32_t, int32_t), int32_
   std::unique_lock<std::mutex> l(band_mu);
   band_done.wait(l, [] { return band_pending == 0; });
 }
+
+// ZINC_PRESENT_STATS=1 (ZN-743): where a present goes, step by step (raster the damaged rows, upload them, draw the window, swap or post), p50 and
+// p99 over every 120 frames on stderr (logcat on Android)
+enum { PS_RASTER, PS_UPLOAD, PS_DRAW, PS_SWAP, PS_N };
+static int ps_on = -1, ps_n;
+static uint32_t ps_us[PS_N][120];
+static uint64_t ps_t;
+static void ps_begin() {
+  if (ps_on < 0) { const char* e = getenv("ZINC_PRESENT_STATS"); ps_on = e && *e && *e != '0'; }
+  if (!ps_on) return;
+  for (int k = 0; k < PS_N; k++) ps_us[k][ps_n] = 0;
+  ps_t = hal_time_us();
+}
+static void ps_mark(int step) {
+  if (!ps_on) return;
+  const uint64_t t = hal_time_us();
+  ps_us[step][ps_n] += (uint32_t)(t - ps_t);
+  ps_t = t;
+}
+static void ps_end() {
+  if (!ps_on || ++ps_n < 120) return;
+  ps_n = 0;
+  static const char* const names[PS_N] = {"raster", "upload", "draw", "swap"};
+  char b[256]; int n = snprintf(b, sizeof b, "zinc present:");
+  for (int k = 0; k < PS_N; k++) {
+    uint32_t* v = ps_us[k];
+    std::sort(v, v + 120);
+    n += snprintf(b + n, sizeof b - n, " %s p50 %.2f p99 %.2f", names[k], v[59] / 1000.0, v[118] / 1000.0);
+  }
+  n += snprintf(b + n, sizeof b - n, " ms\n");
+  hal_log_err(b, (size_t)n);
+}
+
+#ifdef __ANDROID__
+// Zero-copy present (ZN-743): the raster writes the damaged box straight into the window's own buffer and SurfaceFlinger composes that buffer:
+// no texture, no GL context, no copy. ANativeWindow_lock gets the box as its dirty bounds and copies the rest from the previous buffer; the box
+// it returns (the whole buffer after a new surface or size) holds stale pixels and is drawn whole (HalFrame.render_box). BGRA_8888 (HAL format
+// 5) is the raster's own byte order (0x00RRGGBB little-endian: B, G, R, 0); the layer is opaque, so the zero alpha byte is never read.
+// ZINC_PRESENT=texture keeps the SDL_Renderer path, ZINC_PRESENT=565 packs the box from fb into RGB_565 (half the bytes for the compositor, a
+// conversion, no dither); a buffer whose stride is not the surface's width is filled the same way, from fb. ZINC_PRESENT_VERIFY=1 compares
+// the whole buffer with a full redraw at every post (a screencap cannot: Tegra 3's compositor resamples at mediump precision).
+static int anw_w, anw_h;      // the geometry set on it
+static uint64_t anw_at;       // when the last frame was presented: frames without damage are paced from it
+static void (*box_fn)(uint32_t*, int32_t, int32_t, int32_t, int32_t);
+static int32_t box_x0, box_x1;
+static void box_rows(uint32_t* rows, int32_t y0, int32_t y1) { box_fn(rows, y0, y1, box_x0, box_x1); }
+static void anw_idle() {   // nothing to post: one frame period since the last one (a post waits in the buffer queue instead)
+  const uint64_t now = SDL_GetTicksNS();
+  if (anw_at && now - anw_at < 16666666) SDL_DelayPrecise(16666666 - (now - anw_at));
+  anw_at = SDL_GetTicksNS();
+}
+static void anw_present(const HalFrame* f) {
+  ANativeWindow* nw = (ANativeWindow*)SDL_GetPointerProperty(SDL_GetWindowProperties(win), SDL_PROP_WINDOW_ANDROID_WINDOW_POINTER, nullptr);
+  if (nw != anw) {   // the first frame, or a new surface (back from the background)
+    if (anw) ANativeWindow_release(anw);
+    if ((anw = nw)) ANativeWindow_acquire(anw);
+    anw_w = anw_h = 0;
+  }
+  if (!anw) { anw_idle(); return; }
+  ARect r = {f->x0, f->y0, f->x1, f->y1};
+  if (anw_w != PW || anw_h != PH) {   // the lock answers with the whole buffer: nothing to copy back from a buffer of another size
+    ANativeWindow_setBuffersGeometry(anw, PW, PH, anw_mode == 2 ? WINDOW_FORMAT_RGB_565 : 5);
+    anw_w = PW; anw_h = PH;
+    r = ARect{0, 0, PW, PH};
+  } else if (r.right <= r.left || r.bottom <= r.top) { anw_idle(); return; }
+  ANativeWindow_Buffer b;
+  ps_mark(PS_DRAW);
+  if (ANativeWindow_lock(anw, &b, &r) != 0) { anw_w = 0; anw_idle(); return; }   // the surface is going away: set it up again next time
+  ps_mark(PS_SWAP);   // dequeueing a buffer waits for the compositor: part of the swap
+  if (b.width != PW || b.height != PH) { ANativeWindow_unlockAndPost(anw); anw_w = 0; return; }   // a resize on its way
+  r.left = SDL_max(r.left, 0); r.top = SDL_max(r.top, 0); r.right = SDL_min(r.right, PW); r.bottom = SDL_min(r.bottom, PH);
+  if (r.left < r.right && r.top < r.bottom) {
+    const bool direct = anw_mode == 1 && b.format == 5 && b.stride == PW;
+    void (*rows)(uint32_t*, int32_t, int32_t) = f->render;
+    if (f->render_box) { box_fn = f->render_box; box_x0 = r.left; box_x1 = r.right; rows = box_rows; }
+    else { r.left = 0; r.right = PW; }   // whole rows: the box would hold stale pixels
+    if (direct) render_rows_parallel(rows, r.top, r.bottom, (uint32_t*)b.bits);
+    else {
+      if (!fb) fb = (uint32_t*)calloc((size_t)PW * PH, 4);
+      render_rows_parallel(rows, r.top, r.bottom);
+      ps_mark(PS_RASTER);
+      for (int y = r.top; y < r.bottom; y++) {
+        const uint32_t* s = fb + (size_t)y * PW + r.left;
+        if (b.format == WINDOW_FORMAT_RGB_565) {
+          uint16_t* d = (uint16_t*)b.bits + (size_t)y * b.stride + r.left;
+          for (int x = 0; x < r.right - r.left; x++) d[x] = (uint16_t)(((s[x] >> 8) & 0xF800) | ((s[x] >> 5) & 0x07E0) | ((s[x] >> 3) & 0x001F));
+        } else memcpy((uint32_t*)b.bits + (size_t)y * b.stride + r.left, s, (size_t)(r.right - r.left) * 4);
+      }
+      ps_mark(PS_UPLOAD);
+    }
+    ps_mark(PS_RASTER);
+  }
+  static const bool verify = getenv("ZINC_PRESENT_VERIFY") && atoi(getenv("ZINC_PRESENT_VERIFY")) != 0;
+  if (verify && b.format == 5) {   // the whole buffer against a full redraw: the box drawn and the rest copied back hold no stale pixel
+    uint32_t* full = (uint32_t*)malloc((size_t)PW * PH * 4);
+    f->render(full, 0, PH);
+    int bad = 0;
+    for (int y = 0; y < PH; y++) for (int x = 0; x < PW; x++) bad += (((const uint32_t*)b.bits)[(size_t)y * b.stride + x] & 0xFFFFFF) != (full[(size_t)y * PW + x] & 0xFFFFFF);
+    free(full);
+    static int frames, frames_bad;
+    frames++; frames_bad += bad != 0;
+    char m[160]; const int n = snprintf(m, sizeof m, "zinc present verify: frame %d box %d,%d %d,%d: %d stale pixels (%d of %d frames had some)\n", frames, r.left, r.top, r.right, r.bottom, bad, frames_bad, frames);
+    if (bad || frames % 60 == 0) hal_log_err(m, (size_t)n);
+  }
+  ANativeWindow_unlockAndPost(anw);
+  ps_mark(PS_SWAP);
+  anw_at = SDL_GetTicksNS();
+}
+#endif
 
 #ifdef ZN_HAL_GL
 // GL: the command lists replayed on the GPU into the replay's texture (or straight into the window when it has the surface's size and
@@ -1012,11 +1141,16 @@ void hal_present(const HalFrame* f) {
   present_frame(f);   // again into the shown window: what it composites first may be the buffer of before the show
 }
 static void present_frame(const HalFrame* f) {
+  ps_begin();
 #ifdef ZN_HAL_GL
-  if (gl_on) { gl_present(f); return; }
+  if (gl_on) { gl_present(f); ps_mark(PS_SWAP); ps_end(); return; }
+#endif
+#ifdef __ANDROID__
+  if (anw_mode) { anw_present(f); ps_end(); return; }
 #endif
   if (f->y1 > f->y0 && f->x1 > f->x0) {
     render_rows_parallel(f->render_damage ? f->render_damage : f->render, f->y0, f->y1);  // fb keeps the previous frame
+    ps_mark(PS_RASTER);
     SDL_Rect r = {0, f->y0, PW, f->y1 - f->y0};
     if (wcfg_set && wcfg.transparent) {   // the key colour becomes alpha 0, everything else opaque
       size_t n = (size_t)PW * (size_t)(f->y1 - f->y0);
@@ -1025,11 +1159,15 @@ static void present_frame(const HalFrame* f) {
       for (size_t i = 0; i < n; i++) tbuf[i] = (src[i] & 0xFFFFFF) == key ? 0u : (src[i] | 0xFF000000u);
       SDL_UpdateTexture(tex, &r, tbuf, PW * 4);
     } else SDL_UpdateTexture(tex, &r, fb + (size_t)f->y0 * PW, PW * 4);
+    ps_mark(PS_UPLOAD);
   }
   if (wcfg_set && wcfg.transparent) SDL_SetRenderDrawColor(ren, 0, 0, 0, 0);
   SDL_RenderClear(ren);
   SDL_RenderTexture(ren, tex, nullptr, nullptr);
+  ps_mark(PS_DRAW);
   SDL_RenderPresent(ren);
+  ps_mark(PS_SWAP);
+  ps_end();
 }
 void hal_surface_size(int* w, int* h) { *w = W; *h = H; }
 // Text input (IME candidate window next to the field), clipboard, cursor shapes.

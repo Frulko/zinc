@@ -283,17 +283,23 @@ static int32_t frame_lists(const HalCmdList* out[], int32_t max) {
 #endif
 static raster::Rect dmg[ZRT_DAMAGE_RECTS];
 static int32_t ndmg = 0;
+static void render_in(uint32_t* rows, int32_t y0, int32_t y1, raster::Rect r) {   // every layer of the frame, clipped to r
+  if (shown) paint_shown(rows, y0, y1, r);
+  if (rbox.ncmd) raster::render(ovl_frame(rbox), rows, pw, y0, y1, r);
+  if (banner.ncmd) raster::render(ovl_frame(banner), rows, pw, y0, y1, r);
+  if (vis.ncmd) raster::render(raster::Frame{vis.cmds, vis.ncmd, nullptr, nullptr}, rows, pw, y0, y1, r);
+  if (hud_ovl && hud_ovl->ncmd) hud_render(rows, y0, y1, r);
+  if (taps.ncmd) raster::render(ovl_frame(taps), rows, pw, y0, y1, r);
+}
 static void render_damage(uint32_t* rows, int32_t y0, int32_t y1) {
   for (int32_t i = 0; i < ndmg; i++) {
     raster::Rect r{dmg[i].x0, dmg[i].y0 > y0 ? dmg[i].y0 : y0, dmg[i].x1, dmg[i].y1 < y1 ? dmg[i].y1 : y1};
-    if (r.y0 >= r.y1) continue;
-    if (shown) paint_shown(rows, y0, y1, r);
-    if (rbox.ncmd) raster::render(ovl_frame(rbox), rows, pw, y0, y1, r);
-    if (banner.ncmd) raster::render(ovl_frame(banner), rows, pw, y0, y1, r);
-    if (vis.ncmd) raster::render(raster::Frame{vis.cmds, vis.ncmd, nullptr, nullptr}, rows, pw, y0, y1, r);
-    if (hud_ovl && hud_ovl->ncmd) hud_render(rows, y0, y1, r);
-    if (taps.ncmd) raster::render(ovl_frame(taps), rows, pw, y0, y1, r);
+    if (r.y0 < r.y1) render_in(rows, y0, y1, r);
   }
+}
+static void render_box(uint32_t* rows, int32_t y0, int32_t y1, int32_t x0, int32_t x1) {
+  if (!shown) for (int32_t y = 0; y < y1 - y0; y++) for (int32_t x = x0; x < x1; x++) rows[(size_t)y * pw + x] = 0;
+  render_in(rows, y0, y1, raster::Rect{x0, y0, x1, y1});
 }
 static void set_full_damage() { dmg[0] = raster::Rect{0, 0, pw, ph}; ndmg = 1; }
 
@@ -1032,7 +1038,7 @@ void present_overlay() {
   init_scale();
   banner_expire();
   if (ovl_changed) set_full_damage(); else ndmg = 0;
-  HalFrame f = {pw, ph, 0, 0, ovl_changed ? pw : 0, ovl_changed ? ph : 0, render_rows, render_damage, frame_lists, nlay ? render_holes : nullptr};
+  HalFrame f = {pw, ph, 0, 0, ovl_changed ? pw : 0, ovl_changed ? ph : 0, render_rows, render_damage, frame_lists, nlay ? render_holes : nullptr, render_box};
   ovl_changed = false;
   present(&f);
 }
@@ -1187,7 +1193,7 @@ void end_frame() {
     hud::before_present(raster::Rect{0, 0, 0, 0});   // the panel keeps counting while the program is idle
     taps_update();
     const raster::Rect d = damage_box();
-    HalFrame f = {pw, ph, d.x0, d.y0, d.x1, d.y1, render_rows, render_damage, frame_lists, nlay ? render_holes : nullptr};
+    HalFrame f = {pw, ph, d.x0, d.y0, d.x1, d.y1, render_rows, render_damage, frame_lists, nlay ? render_holes : nullptr, render_box};
     ovl_changed = false;
     present(&f);
     if (prof_on) prof::end();
@@ -1223,7 +1229,7 @@ void end_frame() {
   shown = &now;
   __atomic_store_n(&tiles_state, 0, __ATOMIC_RELEASE);
   stats.draw_cmds = now.ncmd;
-  HalFrame f = {pw, ph, d.x0, d.y0, d.x1, d.y1, render_rows, render_damage, frame_lists, nlay ? render_holes : nullptr};
+  HalFrame f = {pw, ph, d.x0, d.y0, d.x1, d.y1, render_rows, render_damage, frame_lists, nlay ? render_holes : nullptr, render_box};
   present(&f);
   if (prof_on) prof::end();
   after_present();
