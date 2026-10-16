@@ -1,21 +1,23 @@
-# Zinc Next: affected T0/T1 on every host; full T2 on nightly/manual/release runs.
+# Zinc Next, by branch (owner, 2026-10-16): feature/* branches are built and tested only through their pull request into develop (affected T0/T1 tests, no package);
+# a push to develop does the same; a push to main (a merge from develop) and every nightly, manual or `v*` tag run does the whole tier T2 and the package; only a tag releases.
 # macOS only for now (owner, 2026-10-15): the Linux and Windows jobs are out of the matrix; windows-cross and windows-console stay below, switched off.
 # A `v*` tag also makes a release (ZN-329): each OS job signs its package when the signing secrets exist and writes a signed update manifest,
 # then the release job attaches everything to a GitHub Release. The secrets and the tag command: docs/guide/07-distribution.md, "Releases".
 name: zinc-next
 on:
   push:
-    branches: ['**']
+    branches: [main, develop]   # a feature branch is not built on every push: open a pull request into develop
     tags: ['v*']   # path filters are not applied to tags
     paths: ['next/**', 'lib/**', 'runtime/**', 'targets/**', 'plugins/**', 'compiler/**', 'examples/**', 'tests/**', 'package.json', 'pnpm-lock.yaml', '.github/workflows/zinc-next.yml']
   pull_request:
+    branches: [develop, main]
     paths: ['next/**', 'lib/**', 'runtime/**', 'targets/**', 'plugins/**', 'compiler/**', 'examples/**', 'tests/**', 'package.json', 'pnpm-lock.yaml', '.github/workflows/zinc-next.yml']
   schedule:
     - cron: '0 3 * * *'
   workflow_dispatch:
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.head_ref || github.ref_name }}-${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && github.event_name || 'code' }}
-  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/') }}   # a main or tag run is never cancelled by the next push
 jobs:
   plan:
     runs-on: ubuntu-24.04
@@ -38,7 +40,7 @@ jobs:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           full=
-          if [[ "$EVENT" == schedule || "$EVENT" == workflow_dispatch || "$GITHUB_REF" == refs/tags/v* ]]; then full=--full; fi
+          if [[ "$EVENT" == schedule || "$EVENT" == workflow_dispatch || "$GITHUB_REF" == refs/tags/v* || "$GITHUB_REF" == refs/heads/main ]]; then full=--full; fi
           base="$BEFORE"
           if [ "$EVENT" = pull_request ]; then base="$PR_BASE"; fi
           if ! git cat-file -e "${base}^{commit}" 2>/dev/null; then

@@ -335,6 +335,18 @@ lists the CI secrets not set yet; it never writes a secret's value, and running 
 `gh auth login` as an owner of zinc-engine, `next/tools/gh-org-setup --dry-run` (every gh command it would run), then
 `next/tools/gh-org-setup` and `gh secret set -R zinc-engine/zinc NAME` for each secret it lists.
 
+Branches (owner, 2026-10-16): work happens on `feature/*` branches, merged into `develop` through a pull request; `develop` is merged
+into `main` when it is worth releasing; a `v*` tag on `main` releases. What CI does with each:
+
+| event | what runs |
+| --- | --- |
+| push to a `feature/*` branch | nothing: open a pull request |
+| pull request into `develop` or `main`, push to `develop` | the arm64 build and the tests the change touches (T0/T1, no package) |
+| push to `main` | the build, the whole tier T2 in six shards, the package and its smoke test (no release) |
+| nightly, manual run, `v*` tag | the same as `main`; the tag also signs, notarizes and releases |
+
+Set `develop` as the default branch of the repository so that the nightly run, which GitHub runs on the default branch, tests it.
+
 The `zinc-next` workflow (`.github/workflows/zinc-next.yml`) makes a GitHub Release when a `v*` tag is pushed. Each OS job
 builds, tests and packages (`tools/package`, the version taken from the tag); the macOS job signs and notarizes its package
 with `tools/sign-macos`; each job writes `zinc-<os>-<arch>.manifest`, an update manifest signed with the release key; then
