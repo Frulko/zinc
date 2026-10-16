@@ -29,7 +29,7 @@ if app ../examples/hello hello "$tmp/main.cpp"; then
 else fail=1; fi
 if app ../examples/rn-showcase rn src/app/shell_sdl.cpp; then
   read -r screen scheme want _ < tests/golden/rn-showcase/hashes.txt
-  got=$(cd ../examples/rn-showcase && ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=20 ZINC_SCALE=1 ZINC_SIZE=420x860 ZINC_FRAMEHASH=last SHOWCASE_SCREEN=$screen SHOWCASE_SCHEME=$scheme "$tmp/rn" 2>&1 | grep framehash | awk '{print $5}')
+  got=$(cd ../examples/rn-showcase && ZINC_STORAGE="$tmp/s.kv" ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=20 ZINC_SCALE=1 ZINC_SIZE=420x860 ZINC_FRAMEHASH=last SHOWCASE_SCREEN=$screen SHOWCASE_SCHEME=$scheme "$tmp/rn" 2>&1 | grep framehash | awk '{print $5}')
   [ "$got" = "$want" ] || { echo "rn-showcase on the SDL callbacks shell: frame hash '$got', recorded $want ($screen $scheme)"; fail=1; }
 else fail=1; fi
 # timers and promises on the real clock, one turn per tick of the callbacks shell (__loopStep: nothing sleeps, the next tick comes back)
