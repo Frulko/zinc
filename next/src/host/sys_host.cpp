@@ -274,6 +274,9 @@ std::string osVersion() {
   __system_property_get("ro.build.version.sdk", b);
   return b;
 #elif defined(__APPLE__)
+#if TARGET_OS_SIMULATOR
+  if (const char* v = getenv("SIMULATOR_RUNTIME_VERSION"); v && *v) return v;   // the simulator's iOS: sysctl answers the Mac's version there
+#endif
   char b[64] = "";
   size_t n = sizeof b;
   return sysctlbyname("kern.osproductversion", b, &n, nullptr, 0) == 0 ? std::string(b) : std::string();
