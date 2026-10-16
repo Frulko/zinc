@@ -269,8 +269,8 @@ jobs:
             echo "## firewall"; /usr/libexec/ApplicationFirewall/socketfilterfw --getglobalstate 2>&1 | head -2
             echo "## display"; system_profiler SPDisplaysDataType 2>&1 | head -12
             echo "## python"; python3 --version; which python3
-            echo "## a local http server (what several tests start)"; d=$(mktemp -d); (cd "$d" && exec python3 -u -m http.server 0 --bind 127.0.0.1 >"$d/o" 2>"$d/e") & hp=$!
-            sleep 6; echo "stdout: $(cat "$d/o")"; echo "stderr: $(head -c 300 "$d/e")"; p=$(sed -n 's/.* port \([0-9][0-9]*\).*/\1/p' "$d/o" | head -1); [ -n "$p" ] && echo "curl: $(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$p/")"; kill $hp 2>/dev/null
+            echo "## a local http server (what several tests start): where does python wait?"
+            python3 -c "import faulthandler,socket,time; faulthandler.dump_traceback_later(8,exit=True); t=time.time(); print('getfqdn', socket.getfqdn('127.0.0.1'), round(time.time()-t,2)); t=time.time(); socket.getaddrinfo('127.0.0.1',0,type=socket.SOCK_STREAM,flags=socket.AI_PASSIVE); print('getaddrinfo', round(time.time()-t,2)); import http.server; t=time.time(); s=http.server.ThreadingHTTPServer(('127.0.0.1',0),http.server.SimpleHTTPRequestHandler); print('bound', s.server_address, round(time.time()-t,2))" 2>&1 | head -30
             echo "## disk"; df -h . | tail -1
           } > "$RUNNER_TEMP/out/env-${{ matrix.shard }}.txt" 2>&1 || true
       - name: Rerun the failures with a trace

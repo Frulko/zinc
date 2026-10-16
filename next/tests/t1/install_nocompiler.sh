@@ -70,7 +70,7 @@ cp "$tmp/main.ts" src/main.ts
 clean "$Z" lint >"$tmp/out" 2>&1 || { echo "zinc lint fails from the install: $(head -c 400 "$tmp/out")"; fail=1; }
 
 # zinc dev: the program starts, an edit reloads it
-waitfor() { n=0; while [ $n -lt $(( $3 * 20 )) ]; do grep -q "$2" "$1" 2>/dev/null && return 0; sleep 0.05; n=$((n+1)); done; return 1; }
+waitfor() { n=0; while [ $n -lt $(( $3 * 20 * ${ZN_WAIT_SCALE:-1} )) ]; do grep -q "$2" "$1" 2>/dev/null && return 0; sleep 0.05; n=$((n+1)); done; return 1; }
 env -i HOME="$tmp/home" ZINC_HOME="$tmp/home/zinc-home" PATH="$tmp/shims:$tmp/bin:/bin" ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=200000 ZINC_SIZE=64x48 \
   "$Z" dev >"$tmp/dev.log" 2>&1 &   # not through clean(): $! must be zinc itself (env execs it), or the kill below leaves zinc dev running
 dev=$!

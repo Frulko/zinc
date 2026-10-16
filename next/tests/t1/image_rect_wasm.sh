@@ -28,7 +28,7 @@ if [ -n "$CXX" ] || command -v c++ >/dev/null; then
 fi
 # game-2d: its title waits for Start; then the play scene draws the player and five coins over its background
 "$Z" new game-2d "$tmp/game" >/dev/null && "$Z" export "$tmp/game" --target wasm -o "$tmp/game-site" >/dev/null || { echo "image_rect_wasm: game-2d could not be exported"; exit 1; }
-python3 tools/wasm-export-test "$CHROME" "$tmp/game-site" 180 "exit 0" "$tmp/game.png" Enter >"$tmp/game.log" || { cat "$tmp/game.log"; exit 1; }
+python3 tools/wasm-export-test "$CHROME" "$tmp/game-site" $((180 * ${ZN_WAIT_SCALE:-1})) "exit 0" "$tmp/game.png" Enter >"$tmp/game.log" || { cat "$tmp/game.log"; exit 1; }
 python3 - "$tmp/game.png" <<'PY' || fail=1
 import importlib.machinery, importlib.util, sys
 l = importlib.machinery.SourceFileLoader("pngdiff", "tools/pngdiff"); s = importlib.util.spec_from_loader("pngdiff", l); pd = importlib.util.module_from_spec(s); l.exec_module(pd)

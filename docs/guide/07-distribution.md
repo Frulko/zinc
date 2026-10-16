@@ -436,7 +436,7 @@ job passes the tag's), else `git describe` of the checkout at configure time (`v
 
 `zinc update` replaces the zinc that `install.sh` installed:
 
-```sh
+```console
 zinc update --check            # "zinc 0.2.0 is available (this is 0.1.1): <notes>", exit 10; or "is up to date", exit 0
 zinc update                    # download, verify, install; the previous version is kept
 zinc update --rollback         # back to the previous version (again: forward to the newer one)
@@ -462,7 +462,7 @@ running, notarized `.app` is not rewritten in place): it answers with the addres
 `Zinc-Atelier-<version>-macos-<arch>.zip` replaces the app (or run `install.sh --atelier` again).
 
 **The daily notice.** `zinc run` and `zinc dev` print one dim line on stderr when a newer zinc exists
-(`zinc 0.2.0 is available: run zinc update`). The check runs at most once a day, in a detached background process (one try,
+("zinc 0.2.0 is available: run zinc update"). The check runs at most once a day, in a detached background process (one try,
 1.5 s at most), so no command waits for the network, and offline it says nothing; its result is kept in
 `~/.zinc/update-check.json`. It is silent with `ZINC_NO_UPDATE_CHECK=1`, in CI (`CI`, `ZINC_CI`), with `ZINC_HEADLESS`,
 with `--quiet`, when stderr is not a terminal, and for a zinc that does not update itself. The short `zinc doctor` has a line
