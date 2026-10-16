@@ -68,7 +68,7 @@ navigator.mediaSession.setActionHandler('nexttrack', () => note('Média : suivan
 let wake: WakeLockSentinel | null = null, wakeError = '';
 let text = '', typing = false;
 let notified = '', vibrated = '', camera = '', indicator = 'off', fast = false, darkFor = 0;
-navigator.mediaDevices.getUserMedia({ video: true }).then((s: unknown) => { camera = 'ouverte'; }).catch((e: Error) => { camera = `${e.name} : ${e.message}`; dirty = true; });
+navigator.mediaDevices.getUserMedia({ video: true }).then((s: MediaStream) => { camera = 'ouverte'; }).catch((e: Error) => { camera = `${e.name} : ${e.message}`; dirty = true; });
 
 // ---------------------------------------------------------------- touch zones
 class Zone { x: number = 0; y: number = 0; w: number = 0; h: number = 0; f: () => void = () => {}; }
