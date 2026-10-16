@@ -11,30 +11,77 @@
 
 #include "zn/app.h"
 
-#ifdef __ANDROID__
-#include <android/log.h>
-#include <jni.h>
+#ifdef __APPLE__
+#include <TargetConditionals.h>   // TARGET_OS_IOS: __APPLE__ is true on macOS too
+#endif
+#if defined(__ANDROID__) || (defined(TARGET_OS_IOS) && TARGET_OS_IOS)
+#define ZN_PHONE 1   // an app of a phone or tablet: no environment, no terminal, its own data directory
 #include <pthread.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#ifdef __ANDROID__
+#include <android/log.h>
+#include <jni.h>
+#else
+#include <os/log.h>
+#endif
 
-#ifdef ZN_APP_HEAP_MB   // zinc export defines it from the project's need (zinc.json targets.android.heapMB); a constant, not a macro of ours (tests/t0/shared_headers)
+#ifdef ZN_APP_HEAP_MB   // zinc export defines it from the profile's heap (android 128 MiB, ios 256 MiB); a constant, not a macro of ours (tests/t0/shared_headers)
 static const long kAppHeapMb = ZN_APP_HEAP_MB;
 #else
 static const long kAppHeapMb = 128;
 #endif
 
-// stdout and stderr of the program (console.log, errors, the runtime's messages) go to logcat, a line per entry, tag "zinc"
+// stdout and stderr of the program (console.log, errors, the runtime's messages) go to the system's log, a line per entry: logcat (tag "zinc"),
+// os_log on iOS (Console.app, `xcrun simctl spawn booted log stream`, Xcode)
 static int log_fd[2];
 static void* log_pump(void*) {
   char buf[4096];
   std::string line;
   for (ssize_t n; (n = read(log_fd[0], buf, sizeof buf)) > 0;) {
     line.append(buf, (size_t)n);
-    for (size_t nl; (nl = line.find('\n')) != std::string::npos; line.erase(0, nl + 1)) __android_log_write(ANDROID_LOG_INFO, "zinc", line.substr(0, nl).c_str());
+    for (size_t nl; (nl = line.find('\n')) != std::string::npos; line.erase(0, nl + 1)) {
+#ifdef __ANDROID__
+      __android_log_write(ANDROID_LOG_INFO, "zinc", line.substr(0, nl).c_str());
+#else
+      os_log(OS_LOG_DEFAULT, "%{public}s", line.substr(0, nl).c_str());
+#endif
+    }
   }
   return nullptr;
 }
+static pthread_t log_thread;
+static bool log_on;
+static void log_to_system() {
+  pipe(log_fd);
+  dup2(log_fd[1], 1);
+  dup2(log_fd[1], 2);
+  setvbuf(stdout, nullptr, _IOLBF, 0);
+  log_on = pthread_create(&log_thread, nullptr, log_pump, nullptr) == 0;
+}
+// at the end of the run: the lines still in the pipe reach the log before the process ends (a console program on iOS ends at once)
+static void log_drain() {
+  if (!log_on) return;
+  fflush(stdout);
+  close(1); close(2); close(log_fd[1]);
+  pthread_join(log_thread, nullptr);
+  log_on = false;
+}
+// "KEY=VALUE KEY2=VALUE2": each word with an '=' set in the environment
+static void set_env_words(const char* words) {
+  const std::string text = words;
+  for (size_t at = 0; at < text.size();) {
+    size_t end = text.find(' ', at);
+    if (end == std::string::npos) end = text.size();
+    const std::string w = text.substr(at, end - at);
+    at = end + 1;
+    const size_t eq = w.find('=');
+    if (eq != std::string::npos && eq > 0) setenv(w.substr(0, eq).c_str(), w.substr(eq + 1).c_str(), 1);
+  }
+}
+#endif
+
+#ifdef __ANDROID__
 
 // The project's assets/ travel in the APK under zinc/assets/ (zinc export lists them in zinc/assets.txt, with a stamp first): copied once per
 // version into the app's files, where zinc:assets and file reads find them. ponytail: a copy, not AAsset descriptors; mapping the packs in
@@ -92,26 +139,8 @@ static std::string intent_extra(const char* key) {
   env->DeleteLocalRef(act);
   return out;
 }
-// "KEY=VALUE KEY2=VALUE2": each word with an '=' set in the environment
-static void set_env_words(const char* words) {
-  const std::string text = words;
-  for (size_t at = 0; at < text.size();) {
-    size_t end = text.find(' ', at);
-    if (end == std::string::npos) end = text.size();
-    const std::string w = text.substr(at, end - at);
-    at = end + 1;
-    const size_t eq = w.find('=');
-    if (eq != std::string::npos && eq > 0) setenv(w.substr(0, eq).c_str(), w.substr(eq + 1).c_str(), 1);
-  }
-}
-
 static void android_setup() {
-  pipe(log_fd);
-  dup2(log_fd[1], 1);
-  dup2(log_fd[1], 2);
-  setvbuf(stdout, nullptr, _IOLBF, 0);
-  pthread_t t;
-  pthread_create(&t, nullptr, log_pump, nullptr);
+  log_to_system();
   const char* files = SDL_GetAndroidInternalStoragePath();
   const char* cache = SDL_GetAndroidCachePath();
   if (files) {
@@ -133,15 +162,53 @@ static void android_setup() {
 #endif
     set_env_words(intent_extra("zinc.env").c_str());
   }
-  // SDL keeps the screen on for every app (FLAG_KEEP_SCREEN_ON, unless SDL_HINT_VIDEO_ALLOW_SCREENSAVER): a phone app lets it sleep, as a
-  // web page does; a program keeps it on with navigator.wakeLock (zinc:sys "wakelock"), a kiosk always. A kiosk also keeps the back
-  // button (the desktop's kiosk ignores the quit shortcuts); Home still leaves.
+}
+#elif defined(ZN_PHONE)
+// iOS: the bundle is read-only (SDL makes it the working directory) and holds the project's assets/; the program's files (zinc.storage, what it
+// writes by relative paths) go to Library/Application Support/zinc, which becomes the working directory as the files directory does on
+// Android, with assets/ there a link to the bundle's. The environment: what Xcode's scheme or `xcrun simctl launch` (SIMCTL_CHILD_*) gives,
+// zinc.json "dev" (ZN_APP_DEV_ENV) in a Debug build, and targets.ios (ZN_APP_ENV) for every build, first.
+static void ios_setup() {
+  if (!isatty(1)) log_to_system();   // a terminal (`simctl launch --console-pty`, Xcode's console) keeps the output as it is
+  const char* base = SDL_GetBasePath();
+  if (char* pref = SDL_GetPrefPath("", "zinc")) {
+    const std::string dir = pref, assets = std::string(base ? base : "") + "assets";
+    SDL_free(pref);
+    setenv("ZINC_HOME", dir.c_str(), 0);
+    chdir(dir.c_str());
+    struct stat st;
+    if (base && stat(assets.c_str(), &st) == 0) {
+      unlink("assets");   // the bundle moves at each install: the link is made again at each start
+      symlink(assets.c_str(), "assets");
+      setenv("ZINC_ASSETS", assets.c_str(), 1);
+    }
+  }
+#ifdef ZN_APP_ENV
+  set_env_words(ZN_APP_ENV);
+#endif
+#if defined(ZN_APP_DEV_ENV) && !defined(NDEBUG)
+  set_env_words(ZN_APP_DEV_ENV);
+#endif
+}
+#endif
+
+#ifdef ZN_PHONE
+static void phone_setup() {
+#ifdef __ANDROID__
+  android_setup();
+#else
+  ios_setup();
+#endif
+  // SDL keeps the screen on for every app (FLAG_KEEP_SCREEN_ON on Android, idleTimerDisabled on iOS, unless SDL_HINT_VIDEO_ALLOW_SCREENSAVER):
+  // a phone app lets it sleep, as a web page does; a program keeps it on with navigator.wakeLock (zinc:sys "wakelock"), a kiosk always. A
+  // kiosk also keeps Android's back button (the desktop's kiosk ignores the quit shortcuts); Home still leaves.
   const char* kv = getenv("ZINC_KIOSK");
   const bool kiosk = kv && kv[0] == '1';
   SDL_SetHint(SDL_HINT_VIDEO_ALLOW_SCREENSAVER, kiosk ? "0" : "1");
   if (kiosk) SDL_SetHint(SDL_HINT_ANDROID_TRAP_BACK_BUTTON, "1");
   // The heap of the runtime (one region, targets/common/hal_posix.cpp): the program's need, at most a quarter of the device's memory. The
-  // desktop's 512 MiB cannot be had on a 1 GB device (a 32-bit process, ~400 MB free on the Nexus 7 2012).
+  // desktop's 512 MiB cannot be had on a 1 GB device (a 32-bit process, ~400 MB free on the Nexus 7 2012); iOS ends an app that grows
+  // past its share (jetsam).
   if (!getenv("ZINC_HEAP")) {
     long mb = kAppHeapMb, cap = SDL_GetSystemRAM() / 4;
     if (cap > 16 && mb > cap) mb = cap;
@@ -153,8 +220,8 @@ static void android_setup() {
 static bool paused;
 
 SDL_AppResult SDL_AppInit(void**, int argc, char** argv) {
-#ifdef __ANDROID__
-  android_setup();
+#ifdef ZN_PHONE
+  phone_setup();
 #endif
   const int rc = zn_app_init(argc, argv);
   return rc == 0 ? SDL_APP_CONTINUE : rc == 1 ? SDL_APP_SUCCESS : SDL_APP_FAILURE;
@@ -178,4 +245,9 @@ SDL_AppResult SDL_AppEvent(void*, SDL_Event* e) {
   return SDL_APP_CONTINUE;
 }
 
-void SDL_AppQuit(void*, SDL_AppResult) { zn_app_quit(); }
+void SDL_AppQuit(void*, SDL_AppResult) {
+  zn_app_quit();
+#ifdef ZN_PHONE
+  log_drain();
+#endif
+}

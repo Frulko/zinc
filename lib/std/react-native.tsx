@@ -114,7 +114,7 @@ export function statusBarProps(): StatusBarProps { return statusBar; }
 // ---------------------------------------------------------------- Platform, Dimensions, useWindowDimensions, PixelRatio, Appearance
 export type PlatformSelect<T> = { ios?: T; android?: T; macos?: T; windows?: T; web?: T; native?: T; default?: T };
 export class Platform {
-  /** platform() of zinc:sys: 'macos', 'linux', 'web' and the device targets; never 'ios' or 'android' until those targets exist (ZN-372). */
+  /** platform() of zinc:sys: 'macos', 'linux', 'web', 'ios' (an iOS app) and the device targets; Android apps answer 'linux' for now. */
   static OS: string = platform();
   static Version: string = '';
   static isPad: boolean = false;
@@ -123,6 +123,7 @@ export class Platform {
   static select<T>(o: PlatformSelect<T>, fallback: T): T {
     const os = Platform.OS;
     if (os === 'macos' && o.macos !== undefined) return o.macos as T;
+    if (os === 'ios' && o.ios !== undefined) return o.ios as T;
     if (os === 'web' && o.web !== undefined) return o.web as T;
     if (os !== 'web' && o.native !== undefined) return o.native as T;
     if (o.default !== undefined) return o.default as T;

@@ -1,0 +1,29 @@
+
+Greetings
+---------
+Hello, Zinc!
+Bonjour, Ada.
+Bonjour, Grace.
+greeted     2 people
+
+A counter
+---------
+value       10
+trail       2 -> 4 -> 6 -> 8 -> 10
+
+A shopping basket
+-----------------
+items       apples, bread, pears, milk, cherries
+total       17.85 EUR
+over 3 EUR  APPLES, PEARS, CHERRIES
+fruit       3
+bakery      1
+dairy       1
+
+Numbers
+-------
+1 / 3       0.3333333333333333
+0.1 + 0.2   0.30000000000000004
+1e21        1e+21
+-0          0
+array       [ 1, 2.5, 3 ]

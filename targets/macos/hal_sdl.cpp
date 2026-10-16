@@ -479,11 +479,12 @@ void hal_init(const HalConfig* cfg) {
 #ifdef ZN_HAL_GL
   }
 #endif
-#ifdef __ANDROID__
-  // the window is the screen (Zinc Next, ZN-622): the program follows it, in logical pixels of the screen's density (a whole zoom: the
-  // Nexus 7 2012's 1.33 stays 1); a deterministic run keeps its fixed surface, letterboxed
+#if defined(__ANDROID__) || defined(SDL_PLATFORM_IOS)
+  // the window is the screen (Zinc Next, ZN-622; iOS ZN-624): the program follows it, in logical pixels of the screen's density (a whole zoom: the
+  // Nexus 7 2012's 1.33 stays 1); a deterministic run keeps its fixed surface, letterboxed. The part of the scale the window's pixel density
+  // does not already give: all of it on Android (sizes in pixels), none on iOS (sizes in points, density 3 on an iPhone)
   if (!det) fill = true;
-  { const float ds = SDL_GetWindowDisplayScale(win); zoom = ds >= 1.5f ? (int)(ds + 0.5f) : 1; }
+  { const float ds = SDL_GetWindowDisplayScale(win) / SDL_GetWindowPixelDensity(win); zoom = ds >= 1.5f ? (int)(ds + 0.5f) : 1; }
 #endif
   // a fixed surface (letterbox) keeps its proportions while the window is resized, so it never shows bars
   if (!fill) { const float a = (float)W / (float)H; SDL_SetWindowAspectRatio(win, a, a); }

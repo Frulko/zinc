@@ -1174,6 +1174,7 @@ static int exportIos(const ProjectInfo& p, const fs::path& out, const std::strin
             key("CFBundleInfoDictionaryVersion", "6.0") + key("CFBundleName", display) + key("CFBundlePackageType", "APPL") + key("CFBundleShortVersionString", android::xml(version)) +
             key("CFBundleVersion", std::to_string(appVersionCode(proj, version))) + "\t<key>LSRequiresIPhoneOS</key>\n\t<true/>\n" + usage +
             "\t<key>UILaunchScreen</key>\n\t<dict/>\n"
+            "\t<key>UIApplicationSupportsIndirectInputEvents</key>\n\t<true/>\n"   // an iPad's mouse and trackpad reach SDL as a mouse (SDL asks for it)
             "\t<key>UIRequiresFullScreen</key>\n\t<true/>\n"   // the window is the screen: no iPad split view, and every orientation is not required
             "\t<key>UISupportedInterfaceOrientations</key>\n" + phone + "\t<key>UISupportedInterfaceOrientations~ipad</key>\n" + pad + "</dict>\n</plist>\n");
   // the asset catalog: the icon (zinc.json app.icon, a PNG; one 1024 x 1024 image, which Xcode 14 and later scale for every size)

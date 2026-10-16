@@ -48,6 +48,7 @@
 #include <vector>
 
 #ifdef __APPLE__
+#include <TargetConditionals.h>
 #include <mach-o/dyld.h>
 #include <mach/mach.h>
 #include <sys/sysctl.h>
@@ -568,7 +569,9 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostSysArg: ret(r, n(0) >= 0 && static_cast<size_t>(n(0)) < gArgs.size() ? gArgs[static_cast<size_t>(n(0))] : ""); break;
     case Rt::HostSysEnv: { const char* v = getenv(s(0).c_str()); ret(r, v ? v : ""); break; }
     case Rt::HostSysPlatform: {
-#ifdef __APPLE__
+#if defined(__APPLE__) && TARGET_OS_IOS
+      ret(r, "ios");   // React Native's Platform.OS (ZN-624); Android still answers linux (later.md)
+#elif defined(__APPLE__)
       ret(r, "macos");
 #else
       ret(r, "linux");
