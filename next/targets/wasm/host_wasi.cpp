@@ -38,7 +38,13 @@ void call(int id, const zn::host::HostArg* a, zn::host::HostArg* r) {
     case Rt::HostAssetsUnloadGroup: case Rt::HostAssetsTurn: case Rt::HostAssetsReqForget: break;
     case Rt::HostFsFailed: r->i = 0; break;
     case Rt::HostFsError: ret(r, ""); break;
-    case Rt::HostSysDevice: ret(r, ""); break;                // no device feature in a browser page here: the web APIs answer as a browser without them
+    case Rt::HostSysDevice: ret(r, ""); break;
+    // zinc:storage and asset lookups of the web export: nothing kept between runs here (the browser page has localStorage in its own glue), no loose asset files
+    case Rt::HostStorageGet: ret(r, ""); break;
+    case Rt::HostStorageSet: case Rt::HostStorageRemove: break;
+    case Rt::HostStorageKeysCount: r->i = 0; break;
+    case Rt::HostStorageKey: ret(r, ""); break;
+    case Rt::HostAssetsExists: r->i = 0; break;                // no device feature in a browser page here: the web APIs answer as a browser without them
     case Rt::HostSysAllocations: case Rt::HostSysLiveBlocks: r->d = 0; break;
     default: {
       static std::set<int> seen;

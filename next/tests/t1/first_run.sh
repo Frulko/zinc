@@ -18,7 +18,7 @@ for d in ../templates/*/; do
   t=$(basename "$d")
   p="$tmp/$t"
   "$Z" new "$t" "$p" >/dev/null || { echo "zinc new $t failed"; fail=1; continue; }
-  (cd "$p" && ZINC_STORAGE="$tmp/storage.$t" ZINC_FRAMES=3 timeout 5 "$Z" run >"$tmp/out.$t" 2>"$tmp/err.$t")
+  (cd "$p" && ZINC_STORAGE="$tmp/storage.$t" ZINC_FRAMES=3 timeout $((5 * ${ZN_WAIT_SCALE:-1})) "$Z" run >"$tmp/out.$t" 2>"$tmp/err.$t")
   rc=$?
   case "$t" in
     server|service) [ $rc -eq 124 ] && grep -q 'listening on http' "$tmp/out.$t" || { echo "$t: zinc run exits $rc without listening: $(head -3 "$tmp/err.$t")"; fail=1; } ;;
