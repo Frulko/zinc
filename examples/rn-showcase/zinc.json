@@ -30,7 +30,8 @@
   },
   "permissions": [
     "opener",
-    "deep-link"
+    "deep-link",
+    "net"
   ],
   "scopes": {
     "opener": {

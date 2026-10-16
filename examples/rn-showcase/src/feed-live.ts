@@ -48,7 +48,7 @@ export class LiveFeed {
       const t = e.data;
       this.onMessage(message(t.startsWith('echo: ') || t.startsWith('Welcome') ? 'server' : 'ticker', t));
     };
-    ws.onclose = (e: CloseEvent): void => { this.ws = null; this.onState('closed'); };
+    ws.onclose = (e: CloseEvent): void => { if (this.ws === ws) { this.ws = null; this.onState('closed'); } };   // the server went away
   }
   send(text: string): void {
     const m = this.mock;
@@ -62,8 +62,8 @@ export class LiveFeed {
     const m = this.mock;
     if (m !== null) { m.close(); this.mock = null; return; }
     const ws = this.ws;
-    if (ws !== null) (ws as WebSocket).close();
     this.ws = null;
+    if (ws !== null) (ws as WebSocket).close();
     this.onState('closed');
   }
 }
