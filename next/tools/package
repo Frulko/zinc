@@ -17,7 +17,7 @@ import json, os, platform, plistlib, re, shutil, subprocess, sys, tarfile, tempf
 HERE = os.path.dirname(os.path.abspath(__file__))
 NEXT = os.path.dirname(HERE)
 REPO = os.path.dirname(NEXT)
-VERSION = os.environ.get("ZINC_VERSION", "0.0.1")   # the release job sets it from the tag (v1.2.0 -> 1.2.0)
+VERSION = os.environ.get("ZINC_VERSION", "")   # default: what the binary says (CMake ZN_VERSION); the archive, share/zinc/VERSION and zinc update agree
 # size budgets in MB of the download (the archive); a package over its budget fails the script
 BUDGET_MB = {"macos-cli": 35, "macos-app": 35, "linux": 40, "windows": 40}   # 2026-10-16, arm64: the CLI 27.1 MB, the app 28.0 MB
 
@@ -293,6 +293,9 @@ def main():
     if system == "Windows" and not os.path.exists(os.path.join(build, "zinc.exe")): build = os.path.join(build, "Release")   # the Visual Studio generator
     if not os.path.exists(os.path.join(build, "zinc.exe" if system == "Windows" else "zinc")):
         sys.exit("no %s/zinc: build first (cmake --build build)" % build)
+    global VERSION
+    if not VERSION:
+        VERSION = run(os.path.join(build, "zinc.exe" if system == "Windows" else "zinc"), "--version").stdout.split()[-1]
     if system == "Darwin": archives, without = package_macos(build, out)
     elif system == "Linux": archives, without = package_linux(build, out)
     elif system == "Windows": archives, without = package_windows(build, out)

@@ -1,4 +1,5 @@
 #include "lsp/lsp.h"
+#include "tc/tc.h"
 
 #include <algorithm>
 #include <cstdio>
@@ -706,7 +707,7 @@ int Server::run() {
     const int ch = pos ? static_cast<int>(yyjson_get_sint(yyjson_obj_get(pos, "character"))) : 0;
 
     if (method == "initialize") {
-      reply(id, "{\"capabilities\":{\"textDocumentSync\":1,\"hoverProvider\":true,\"definitionProvider\":true,\"documentSymbolProvider\":true,\"completionProvider\":{\"triggerCharacters\":[\".\",\"'\",\"\\\"\",\"/\"]},\"signatureHelpProvider\":{\"triggerCharacters\":[\"(\",\",\"]}},\"serverInfo\":{\"name\":\"zinc\",\"version\":\"0.0.1\"}}");
+      reply(id, "{\"capabilities\":{\"textDocumentSync\":1,\"hoverProvider\":true,\"definitionProvider\":true,\"documentSymbolProvider\":true,\"completionProvider\":{\"triggerCharacters\":[\".\",\"'\",\"\\\"\",\"/\"]},\"signatureHelpProvider\":{\"triggerCharacters\":[\"(\",\",\"]}},\"serverInfo\":{\"name\":\"zinc\",\"version\":\"" + std::string(zn::tc::version()) + "\"}}");
     } else if (method == "shutdown") { shutdown_ = true; reply(id, "null"); }
     else if (method == "exit") { yyjson_doc_free(doc); return shutdown_ ? 0 : 1; }
     else if (method == "textDocument/didOpen") {

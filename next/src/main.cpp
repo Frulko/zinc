@@ -83,7 +83,7 @@ static uint8_t* webpShot(const uint32_t* px, int32_t w, int32_t h, size_t* n, vo
 #include "vm/vm.h"
 #include "zbc/zbc.h"
 
-static const char* const kVersionText = "0.0.1";
+static const char* const kVersionText = zn::tc::version();   // CMake ZN_VERSION (src/tc/selfupdate.cpp)
 #ifdef ZN_HOST_LIBS
 static std::string hostLibs() {   // ZN_HOST_LIBS with @bin@ (the directory of this zinc, where the build tree keeps libSDL3.a) filled in
   std::string s = ZN_HOST_LIBS;
@@ -1371,6 +1371,7 @@ int main(int argc, char** argv) {
     for (int j = k; j + used < argc; ++j) argv[j] = argv[j + used];
     argc -= used; --k;
   }
+  if (argc >= 2 && (!std::strcmp(argv[1], "run") || !std::strcmp(argv[1], "dev"))) zn::tc::updateNotice();   // one dim line a day at most when a newer zinc exists
   {   // help, init and the bare project commands (ZN-138)
     std::vector<std::string> cl(argv, argv + argc);
 #ifdef ZN_AGENT   // the device agent and its client (ZN-729); before --help is read, which belongs to the command a remote shell runs
@@ -2352,6 +2353,12 @@ int main(int argc, char** argv) {
     std::printf("seed=%s\npublic=%s\n", seed.c_str(), pub.c_str());
     return 0;
   }
+  if (argc == 3 && !std::strcmp(argv[1], "update-pubkey")) {   // zinc update-pubkey <seed-hex>: the public key of a signing seed (next/update.pub of a release key)
+    const std::string pub = zn::tc::publicKeyOf(argv[2]);
+    if (pub.empty()) { std::fprintf(stderr, "zinc update-pubkey: the seed is 64 hex digits (zinc update-keygen prints one)\n"); return 2; }
+    std::printf("%s\n", pub.c_str());
+    return 0;
+  }
   if (argc == 4 && !std::strcmp(argv[1], "sign")) {   // zinc sign <file> <seed-hex>: <file>.sig, the detached signature zinc add --key checks (ZN-328.02)
     std::ifstream in(argv[2], std::ios::binary);
     const std::string bytes((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
@@ -2446,21 +2453,7 @@ int main(int argc, char** argv) {
     std::printf("downloaded and verified: %s\n", path.c_str());
     return 0;
   }
-  if (argc >= 2 && !std::strcmp(argv[1], "update")) {  // zinc update [--check] [manifest-url]: look for a newer release; without --check, download and verify it
-    bool checkOnly = argc >= 3 && !std::strcmp(argv[2], "--check");
-    const char* url = argc >= (checkOnly ? 4 : 3) ? argv[checkOnly ? 3 : 2] : std::getenv("ZINC_UPDATE_URL");
-    if (!url || !*url) { std::fprintf(stderr, "usage: zinc update [--check] <manifest-url>   (or set ZINC_UPDATE_URL)\n"); return 2; }
-    zn::tc::UpdateInfo info;
-    std::string err;
-    if (!zn::tc::fetchManifest(url, info, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
-    if (!zn::tc::newerVersion(info.version, kVersionText)) { std::printf("zinc %s is up to date (latest %s)\n", kVersionText, info.version.c_str()); return 0; }
-    std::printf("zinc %s is available (this is %s)%s%s\n", info.version.c_str(), kVersionText, info.notes.empty() ? "" : ": ", info.notes.c_str());
-    if (checkOnly) return 10;  // an update exists
-    std::string path;
-    if (!zn::tc::downloadUpdate(info, zn::tc::home() + "/updates", path, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
-    std::printf("downloaded and verified: %s\nopen it to install (the macOS app: drag it over the old one; Linux: unpack over the old directory)\n", path.c_str());
-    return 0;
-  }
+  if (argc >= 2 && !std::strcmp(argv[1], "update")) return zn::tc::updateCommand(std::vector<std::string>(argv + 2, argv + argc));   // zinc updates itself (src/tc/selfupdate.cpp)
   if (argc >= 3 && !std::strcmp(argv[1], "plugins") && !std::strcmp(argv[2], "search")) return zn::cli::indexSearch(std::vector<std::string>(argv, argv + argc), gRoot);   // ZN-336.03
   if (argc >= 2 && !std::strcmp(argv[1], "plugins")) {  // zinc plugins [project-dir] [--defines <plugin> [target]]: the toolbox table (the engine's plugins/, the project's, its pluginDirs), or the C++ defines one plugin gets
     std::vector<std::string> problems;

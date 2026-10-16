@@ -9,7 +9,7 @@
 # in ~/.zprofile or ~/.profile). With --atelier (or ZINC_INSTALL_ATELIER=1) on a Mac it also installs Zinc-Atelier-<version>-macos-<arch>.zip, checked the same
 # way, as "Zinc Atelier.app" in /Applications when you can write there, else in ~/Applications.
 # Needs curl and what every Mac and Linux has (shasum or sha256sum, tar, ditto on a Mac); no compiler, no CMake, no Xcode, no administrator password.
-# Run it again to update; `rm -rf ~/.zinc/engine` and the link (and the app) to uninstall.
+# `zinc update` updates it (or run this again); `rm -rf ~/.zinc/engine ~/.zinc/engine.prev` and the link (and the app) to uninstall.
 #   ZINC_INSTALL_URL   where SHA256SUMS and the archives are (default: the latest release of $ZINC_REPO, default zinc-engine/zinc; file:// works)
 #   ZINC_INSTALL_DIR   where the engine goes (default ~/.zinc/engine)
 #   ZINC_BIN_DIR       where the `zinc` link goes
@@ -60,6 +60,7 @@ rm -rf "$dir.old"
 mv "$inner" "$dir" || { [ ! -e "$dir.old" ] || mv "$dir.old" "$dir"; die "cannot write $dir"; }
 rm -rf "$dir.old"
 [ -x "$bin" ] || die "the archive holds no zinc program ($bin)"
+printf 'url=%s\nchannel=stable\n' "$url" > "$dir/.zinc-install"   # zinc update replaces this engine from there (and only an engine with this file)
 version=$("$bin" --version 2>/dev/null) || die "$bin does not start on this machine"
 
 bindir=${ZINC_BIN_DIR:-}

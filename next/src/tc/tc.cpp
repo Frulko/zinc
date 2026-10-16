@@ -656,17 +656,27 @@ std::string sourceRoot(const std::string& compiledIn) {
 }
 
 bool newerVersion(const std::string& candidate, const std::string& current) {
-  auto parts = [](const std::string& v) { std::vector<long> r; std::stringstream ss(v); std::string t; while (std::getline(ss, t, '.')) r.push_back(std::atol(t.c_str())); return r; };
-  std::vector<long> a = parts(candidate), b = parts(current);
+  // semver order: 1.2.0 > 1.2.0-beta.2 > 1.2.0-beta.1; the build part (+46-gabc, what git describe adds) is ignored
+  auto parts = [](const std::string& v, char sep) { std::vector<std::string> r; std::stringstream ss(v); std::string t; while (std::getline(ss, t, sep)) r.push_back(t); return r; };
+  auto num = [](const std::string& t) { return !t.empty() && t.find_first_not_of("0123456789") == std::string::npos; };
+  auto split = [](const std::string& v, std::string& pre) { std::string core = v.substr(0, v.find('+')); const std::size_t d = core.find('-'); pre = d == std::string::npos ? "" : core.substr(d + 1); return core.substr(0, d); };
+  std::string pa, pb;
+  std::vector<std::string> a = parts(split(candidate, pa), '.'), b = parts(split(current, pb), '.');
   for (std::size_t i = 0; i < std::max(a.size(), b.size()); ++i) {
-    long x = i < a.size() ? a[i] : 0, y = i < b.size() ? b[i] : 0;
+    long x = i < a.size() ? std::atol(a[i].c_str()) : 0, y = i < b.size() ? std::atol(b[i].c_str()) : 0;
     if (x != y) return x > y;
   }
-  return false;
+  if (pa.empty() || pb.empty()) return pa.empty() && !pb.empty();   // a release is newer than its prereleases
+  a = parts(pa, '.'); b = parts(pb, '.');
+  for (std::size_t i = 0; i < std::min(a.size(), b.size()); ++i) {
+    if (a[i] == b[i]) continue;
+    if (num(a[i]) && num(b[i])) return std::atol(a[i].c_str()) > std::atol(b[i].c_str());
+    return num(a[i]) != num(b[i]) ? !num(a[i]) : a[i] > b[i];
+  }
+  return a.size() > b.size();
 }
 
 namespace {
-const char* const kReleaseKeys[] = {nullptr};   // the hex public keys of the release signing key(s), set when the first signed release is cut (zinc update-keygen)
 int hexv(char c) { return c >= '0' && c <= '9' ? c - '0' : c >= 'a' && c <= 'f' ? c - 'a' + 10 : c >= 'A' && c <= 'F' ? c - 'A' + 10 : -1; }
 bool fromHex(const std::string& h, std::uint8_t* out, std::size_t n) {
   if (h.size() != n * 2) return false;
@@ -696,7 +706,7 @@ std::vector<std::string> trustedUpdateKeys() {
   std::ifstream in(home() + "/update-keys");
   std::string line;
   while (std::getline(in, line)) if (line.size() == 64) keys.push_back(line);
-  for (const char* k : kReleaseKeys) if (k) keys.push_back(k);
+  if (*releaseKey()) keys.push_back(releaseKey());   // compiled in: ZN_UPDATE_PUBKEY (src/tc/selfupdate.cpp)
   return keys;
 }
 bool verifyManifest(const std::string& text, const std::vector<std::string>& trusted, std::string& err) {
@@ -751,13 +761,16 @@ std::string publicKeyOf(const std::string& seedHex) {
   return toHex(pk, 32);
 }
 bool fetchManifest(const std::string& manifestUrl, UpdateInfo& info, std::string& err) { return fetchManifest(manifestUrl, info, err, trustedUpdateKeys()); }
-bool fetchManifest(const std::string& manifestUrl, UpdateInfo& info, std::string& err, const std::vector<std::string>& keys) {
-  fs::path tmp = fs::temp_directory_path() / ("zinc-manifest-" + std::to_string(std::rand()));
-  std::string cmd = "curl -fL --retry 2 -sS -o " + quote(tmp.string()) + " " + quote(manifestUrl);
-  if (!run(cmd, err, "fetching the update manifest")) return false;
+bool fetchManifest(const std::string& manifestUrl, UpdateInfo& info, std::string& err, const std::vector<std::string>& keys, bool allowUnsigned, double maxSeconds) {
+  fs::path tmp = fs::temp_directory_path() / ("zinc-manifest-" + std::to_string(::getpid()) + "-" + std::to_string(std::rand()));
+  std::string cmd = "curl -fL -sS " + (maxSeconds > 0 ? "--max-time " + std::to_string(maxSeconds) + " -o " : std::string("--retry 2 -o ")) + quote(tmp.string()) + " " + quote(manifestUrl) + (maxSeconds > 0 ? " 2>/dev/null" : "");
+  if (!run(cmd, err, "fetching the update manifest")) { std::error_code ec0; fs::remove(tmp, ec0); return false; }
   std::string text;
   { std::ifstream f(tmp, std::ios::binary); std::stringstream ss; ss << f.rdbuf(); text = ss.str(); }
-  if (!verifyManifest(text, keys, err)) { std::error_code ec0; fs::remove(tmp, ec0); return false; }
+  std::string sig;
+  const bool unsignedRelease = (text.rfind("signature=none\n", 0) == 0 || text.find("\nsignature=none\n") != std::string::npos) && (unsignedPart(text, sig), sig.empty());
+  if (unsignedRelease && !allowUnsigned) { std::error_code ec0; fs::remove(tmp, ec0); err = "the update manifest is unsigned (signature=none: the release was made without a signing key): refused; set ZINC_UPDATE_ALLOW_UNSIGNED=1 to trust its SHA-256 alone"; return false; }
+  if (!unsignedRelease && !verifyManifest(text, keys, err)) { std::error_code ec0; fs::remove(tmp, ec0); return false; }
   std::istringstream in(text);
   std::string line;
   while (std::getline(in, line)) {

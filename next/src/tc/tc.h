@@ -105,10 +105,23 @@ bool signBytes(const std::string& bytes, const std::string& seedHex, std::string
 bool verifyBytes(const std::string& bytes, const std::string& sigHex, const std::string& publicHex);
 bool fetchManifest(const std::string& manifestUrl, UpdateInfo& info, std::string& err);
 // The same for an app's channel (ZN-324): verified with the app's own public keys; a relative `url` in the manifest is resolved against the manifest's.
-bool fetchManifest(const std::string& manifestUrl, UpdateInfo& info, std::string& err, const std::vector<std::string>& keys);
+// A release made without a signing key writes `signature=none` and no sig= line: refused unless allowUnsigned. maxSeconds > 0: one try, that long at most.
+bool fetchManifest(const std::string& manifestUrl, UpdateInfo& info, std::string& err, const std::vector<std::string>& keys, bool allowUnsigned = false, double maxSeconds = 0);
 std::string publicKeyOf(const std::string& seedHex);   // the hex Ed25519 public key of a signing seed, "" when the seed is not 64 hex digits
-bool newerVersion(const std::string& candidate, const std::string& current);  // dotted numbers
+bool newerVersion(const std::string& candidate, const std::string& current);  // semver: dotted numbers, -prerelease below its release, +build ignored
 // Downloads info.url into `dir`, checks its SHA-256 against the manifest before keeping it; `path` is the verified file.
 bool downloadUpdate(const UpdateInfo& info, const std::string& dir, std::string& path, std::string& err);
+
+// zinc itself (src/tc/selfupdate.cpp). The version and the release key are build constants: CMake -DZN_VERSION (default: git describe, else
+// 0.0.0-dev) and -DZN_UPDATE_PUBKEY (the hex Ed25519 public key whose seed signs the release manifests; default none).
+const char* version();
+const char* releaseKey();
+// `zinc update [--check] [--rollback] [--channel stable|beta] [manifest-url]`: the engine installed by install.sh (<engine>/.zinc-install) replaced by the
+// release of its channel, verified, unpacked beside it and swapped in as a whole directory (the old one kept as <engine>.prev).
+int updateCommand(const std::vector<std::string>& args);
+// One dim line on stderr when the daily check found a newer release (zinc run, zinc dev); the check itself runs in a detached child.
+void updateNotice();
+// For zinc doctor: "" when this zinc does not update itself (a source build, an app bundle), else "up to date" / "<version> available" / "not checked: <why>".
+std::string updateStatus();
 
 }  // namespace zn::tc
