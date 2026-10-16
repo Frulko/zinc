@@ -34,6 +34,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
   It needs `"camera"` in zinc.json `permissions` when the project declares them.
 
 ### Fixed
+- Platform-specific files work again: next to `feed.ts`, a `feed.macos.ts` (or `feed.esp32.ts`, `feed.android.ts`...) replaces it when building for
+  that platform, and imports keep writing `./feed`.
 - A method with a default parameter that a subclass overrides received `null` for it (`new EventTarget().addEventListener('x', fn)` crashed).
 - A program run as a standalone app on macOS saw extra arguments in front of its own.
 - The camera simulator did not compile on a machine without libgphoto2, so the camera examples failed there.

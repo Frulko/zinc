@@ -1718,8 +1718,17 @@ struct Loader {
         }
       }
     }
+    // platform-specific files (docs/targets/capabilities.md): `keyboard.<profile>.tsx` next to `keyboard.tsx` replaces it for that profile (the host's
+    // own name, macos or linux, when no --profile is given), as React Native's `.ios.tsx`; imports keep writing './keyboard'
+    const Profile* vp = currentProfile();
+    const std::string vtag = vp ? std::string(vp->name) : platformName();
     for (const char* ext : {"", ".ts", ".tsx", "/index.ts"}) {
       std::string cand = base + ext;
+      if (ext[0] == '.') {
+        std::string v = base + "." + vtag + ext;
+        if (done.count(v)) return done[v];
+        if (!visiting.count(v) && read(v, text)) return load(v, std::move(text));
+      }
       if (done.count(cand)) return done[cand];
       if (visiting.count(cand)) { diag(kZUnsupported, fromFile, node, "circular imports ('" + spec + "')"); return kNone; }
       if (read(cand, text)) return load(cand, std::move(text));
