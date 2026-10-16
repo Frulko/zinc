@@ -286,6 +286,23 @@ static void show_main() {
   if (!det && !kiosk && !getenv("ZINC_NO_RAISE") && !(getenv("ZINC_BACKGROUND") && getenv("ZINC_BACKGROUND")[0] != '0')) SDL_RaiseWindow(win);
 }
 
+// An app shell on SDL's main callbacks (Zinc Next, ZN-620) takes the events off SDL's queue itself and hands them here (zn_app_event); the poll
+// reads them first. A mutex: SDL delivers the lifecycle events from the platform's thread (Android's UI thread).
+static std::mutex app_ev_mu;
+static SDL_Event app_ev[256];
+static int app_ev_head, app_ev_n;
+extern "C" void zn_hal_sdl_event(const void* e) {
+  std::lock_guard<std::mutex> g(app_ev_mu);
+  if (app_ev_n < 256) app_ev[(app_ev_head + app_ev_n++) % 256] = *(const SDL_Event*)e;
+}
+static bool next_event(SDL_Event* e) {
+  {
+    std::lock_guard<std::mutex> g(app_ev_mu);
+    if (app_ev_n > 0) { *e = app_ev[app_ev_head]; app_ev_head = (app_ev_head + 1) % 256; app_ev_n--; return true; }
+  }
+  return SDL_PollEvent(e);
+}
+
 extern "C" {
 void hal_init(const HalConfig* cfg) {
   // a display plugin brings its own output, unless it draws through this window (host_window: the e-ink emulator)
@@ -387,6 +404,12 @@ void hal_init(const HalConfig* cfg) {
   }
 #ifdef ZN_HAL_GL
   }
+#endif
+#ifdef __ANDROID__
+  // the window is the screen (Zinc Next, ZN-622): the program follows it, in logical pixels of the screen's density (a whole zoom: the
+  // Nexus 7 2012's 1.33 stays 1); a deterministic run keeps its fixed surface, letterboxed
+  if (!det) fill = true;
+  { const float ds = SDL_GetWindowDisplayScale(win); zoom = ds >= 1.5f ? (int)(ds + 0.5f) : 1; }
 #endif
   // a fixed surface (letterbox) keeps its proportions while the window is resized, so it never shows bars
   if (!fill) { const float a = (float)W / (float)H; SDL_SetWindowAspectRatio(win, a, a); }
@@ -697,7 +720,7 @@ void hal_poll_input(HalInput* in) {
   }
   SDL_Event e;
   const bool several = secs_open() > 0 || main_hidden;
-  while (SDL_PollEvent(&e)) {
+  while (next_event(&e)) {
     if (several) {   // the events of the other windows are theirs; closing the main window hides it while they are open
       SDL_Window* ew = SDL_GetWindowFromEvent(&e);
       if (Sec* s = sec_of(ew)) { sec_event(*s, e); continue; }

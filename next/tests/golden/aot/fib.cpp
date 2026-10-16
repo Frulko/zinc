@@ -96,6 +96,12 @@ bool zn::rt::Machine::exec(const Func* f, Slot* base) {
   return st == 0;
 }
 
-int main() {
+#ifdef ZN_APP_LIBRARY   // linked into an app shell (ZN-620, include/zn/app.h): main is zn_app_init, which keeps the machine for zn_app_iterate
+#include "zn/app.h"
+#define main zn_app_init
+#define runProgramPacked runProgramApp
+namespace zn::rt { int runProgramApp(const unsigned char*, decltype(sizeof 0), int (*const*)(Machine&, Slot*), decltype(sizeof 0)); }
+#endif
+int main(int, char**) {
   return zn::rt::runProgramPacked(reinterpret_cast<const unsigned char*>(kModule), kModuleSize, kNatives, 2);
 }

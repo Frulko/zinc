@@ -68,6 +68,9 @@ void pump() {
 }
 
 void wait(double ms) {
+#ifdef ZN_APP_LIBRARY
+  ms = 0;   // an app shell owns the run loop (ZN-620): a turn looks at the loop and returns, the next tick comes back
+#endif
   if (ms <= 0) { pump(); return; }
   netlog::tick(ms);   // nothing looks at the log while the process sleeps
   uv_timer_t t;
@@ -85,6 +88,10 @@ double nowMs() {
 }
 
 int spawn(const std::string& line) {
+#ifdef ZN_APP_LIBRARY   // no shell in an app (ZN-620)
+  (void)line;
+  return -1;
+#else
   auto c = std::make_unique<Child>();
   std::memset(&c->proc, 0, sizeof c->proc);
   uv_pipe_init(loop(), &c->out, 0);
@@ -108,6 +115,7 @@ int spawn(const std::string& line) {
   uv_read_start(reinterpret_cast<uv_stream_t*>(&c->out), onAlloc, onRead);
   gChildren.push_back(std::move(c));
   return static_cast<int>(gChildren.size()) - 1;
+#endif
 }
 
 std::string read(int h) {
@@ -196,6 +204,10 @@ Proc* procAt(int h) { return h > 0 && static_cast<size_t>(h) <= gProcs.size() ? 
 int spawnProcess(const std::vector<std::string>& argvIn, const std::string& cwd, const std::vector<std::string>& env) {
   gError.clear();
   if (argvIn.empty() || argvIn[0].empty()) { gError = "no program"; return -1; }
+#ifdef ZN_APP_LIBRARY   // an app starts no child process (ZN-620: iOS has none, Android forbids exec of downloaded code)
+  gError = argvIn[0] + ": child processes are not available in an app";
+  return -1;
+#else
   auto p = std::make_unique<Proc>();
   std::memset(&p->proc, 0, sizeof p->proc);
   uv_pipe_init(loop(), &p->in, 0); uv_pipe_init(loop(), &p->out, 0); uv_pipe_init(loop(), &p->err, 0);
@@ -242,6 +254,7 @@ int spawnProcess(const std::vector<std::string>& argvIn, const std::string& cwd,
   gProcs.push_back(std::move(p));
   gProcs.back()->handle = static_cast<int>(gProcs.size());
   return gProcs.back()->handle;
+#endif
 }
 const std::string& lastError() { return gError; }
 int pidOf(int h) { Proc* p = procAt(h); return p ? p->pid : -1; }

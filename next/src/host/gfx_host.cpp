@@ -119,6 +119,11 @@ int32_t imageFromBytes(const uint64_t* slots, uint32_t n) {
 
 static void (*frameEnd[4])();   // zn::host::onFrameEnd
 static int nFrameEnd = 0;
+#ifdef ZN_APP_LIBRARY
+static constexpr bool kAppShell = true;    // the shell paces the frames (its tick, the display's vsync), ZN-620
+#else
+static constexpr bool kAppShell = false;
+#endif
 // The surface exists from the first graphics call: `const W = width()` at the top of a module sees the board's size, not the default
 void startSurface() {
   if (zn::host::gfxStarted) return;
@@ -153,7 +158,7 @@ void call(int id, const HostArg* a, HostArg* r) {
       zrt::frame_no++;
       zn::rt::gStampFrame = zrt::frame_no;
       hal_frame_end();
-      if (hal_fixed_dt() <= 0) {  // a window: keep to about 125 frames per second when presenting does not wait for the display
+      if (!kAppShell && hal_fixed_dt() <= 0) {  // a window: keep to about 125 frames per second when presenting does not wait for the display
         uint64_t spent = hal_time_us() - frameStartUs;
         if (spent < 8000) hal_sleep_us(8000 - spent);
       }

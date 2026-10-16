@@ -12,6 +12,7 @@
 #include <set>
 
 #include "ir/ir.h"
+#include "zn/limits.h"
 
 namespace zn::ir {
 namespace {
@@ -520,6 +521,7 @@ void removeUnreachable(Module& m) {
   std::vector<std::uint32_t> work{0};
   live[0] = 1;
   auto reach = [&](std::uint32_t fn) { if (fn < nf && !live[fn]) { live[fn] = 1; work.push_back(fn); } };
+  for (std::uint32_t k = 1; k < nf; ++k) if (m.functions[k].name == kAppStepFunction) reach(k);   // called by name by an app shell (ZN-620)
   auto build = [&](std::uint32_t c) {
     if (c >= built.size() || built[c]) return;
     built[c] = 1;

@@ -18,6 +18,8 @@ inline constexpr std::uint32_t kMaxFields = 255;           // GetField/SetField 
 // The web environment refuses a larger image before its pixels are allocated (src/qjs/webenv.cpp): the file may come from a network, and
 // its header alone can ask for gigabytes. 2^26 pixels is 8192 x 8192, 256 MiB of RGBA: above any texture a game loads.
 inline constexpr std::int64_t kMaxImagePixels = std::int64_t{1} << 26;
+// The prelude function an app shell calls by name once per tick (zn_app_iterate, ZN-620): a root of the program, kept by removeUnreachable.
+inline constexpr const char* kAppStepFunction = "__appStep";
 // The largest data alignment of a ZPK pack (src/zpk, docs/zpk.md): a power of two up to 1 MiB (4 KiB and 2 KiB sectors fit well under it).
 inline constexpr std::uint32_t kMaxPackAlignment = 1u << 20;
 // The longest frame of the device agent's protocol (src/agent/wire.h, docs/reports/zinc-next-agent.md): a longer one ends the session; nothing we send comes close.

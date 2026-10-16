@@ -513,6 +513,38 @@ if(TARGET zn_host_gfx)   # shaped zinc:gfx / zinc:ui text (ZN-224): linked by pr
   target_link_libraries(zn_text_gfx PUBLIC zn_text)
   target_link_libraries(zinc PRIVATE zn_text_gfx)
 endif()
+# The engine as a library for an app shell (ZN-620, D59, include/zn/app.h): the runtime, the graphics host with the SDL3 window HAL linked in,
+# the native registry, the rn layout; no frontend, no toolchain manager, no child process and nothing loaded at run time (ZN_APP_LIBRARY).
+# Its own objects, so the CLI's stay as they are; the program is the C++ of `zinc build` compiled with -DZN_APP_LIBRARY (zn_app_main).
+# An Android or iOS project builds it from these sources with the platform's compiler (zinc export --target android, ZN-621).
+if(TARGET zn_host_gfx AND SDL3_FOUND)
+  get_target_property(ZN_APP_HOST_SRC zn_host_gfx SOURCES)
+  list(APPEND ZN_APP_HOST_SRC ${CMAKE_SOURCE_DIR}/../targets/macos/hal_sdl.cpp)
+  list(REMOVE_DUPLICATES ZN_APP_HOST_SRC)
+  add_library(zn_app_host STATIC ${ZN_APP_HOST_SRC})
+  set_target_properties(zn_app_host PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON CXX_EXTENSIONS OFF POSITION_INDEPENDENT_CODE ON)
+  target_include_directories(zn_app_host PUBLIC include PRIVATE ${ZN_RUNTIME_DIR} ${ZN_RUNTIME_DIR}/include third_party/bcdec third_party/etcdec)
+  target_compile_options(zn_app_host PRIVATE -fno-exceptions -fno-rtti -fwrapv -ffp-contract=off -fno-threadsafe-statics -O2 -w)
+  target_compile_definitions(zn_app_host PRIVATE ZN_APP_LIBRARY ZN_HOST_SDL ZRT_HEAP_BYTES=536870912u ZRT_PLATFORM="${ZN_PLATFORM_NAME}" ZRT_POINT_POOL=262144 ZRT_GROW_DRAW_CMDS)
+  if(NOT ZN_TLS)
+    target_compile_definitions(zn_app_host PRIVATE ZN_NO_TLS)
+  endif()
+  target_link_libraries(zn_app_host PUBLIC zn_uv zn_llhttp zn_mbedtls zn_regexp zn_codec zn_zpk SDL3::SDL3)
+  if(APPLE)
+    target_link_libraries(zn_app_host PUBLIC "-framework OpenGL")
+  elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    target_include_directories(zn_app_host PRIVATE third_party/glad/include)
+  endif()
+  add_library(zn_app STATIC src/app/app.cpp src/rt/machine.cpp src/rt/rtcalls.cpp src/rt/program.cpp src/rt/unicode.cpp src/zbc/zbc.cpp)   # the shell, src/app/shell_sdl.cpp, goes into the app itself
+  if(NOT ZN_SANITIZE)
+    target_sources(zn_app PRIVATE src/rt/alloc.cpp)
+  endif()
+  set_target_properties(zn_app PROPERTIES POSITION_INDEPENDENT_CODE ON)
+  target_include_directories(zn_app PUBLIC include src)
+  target_link_libraries(zn_app PUBLIC zn_app_host zn_layout zn_native zn_mimalloc zn_regexp)
+  # the archives an embedder links, in order, for a link outside CMake (tests/t0/app_library.sh)
+  file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/zn_app.link CONTENT "$<TARGET_FILE:zn_app>\n$<TARGET_FILE:zn_app_host>\n$<TARGET_FILE:zn_layout>\n$<TARGET_FILE:zn_yoga>\n$<TARGET_FILE:zn_native>\n$<TARGET_FILE:zn_mimalloc>\n$<TARGET_FILE:zn_regexp>\n$<TARGET_FILE:zn_uv>\n$<TARGET_FILE:zn_llhttp>\n$<TARGET_FILE:zn_mbedtls>\n$<TARGET_FILE:zn_codec>\n$<TARGET_FILE:zn_zpk>\n$<TARGET_FILE:zn_lz4>\n$<TARGET_FILE:zn_zstd>\n$<TARGET_FILE:zn_sha256>\n${ZN_SDL_LIB}\n")
+endif()
 # glTF cross-check (ZN-119): cgltf reads the models independently of the three plugin's reader, meshoptimizer's vertex cache optimiser must keep their triangles.
 file(GLOB ZN_MESHOPT_SRC third_party/meshoptimizer/*.cpp)
 add_library(zn_meshopt STATIC ${ZN_MESHOPT_SRC})

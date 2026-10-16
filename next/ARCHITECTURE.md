@@ -31,6 +31,8 @@ next/
                   first QuickJS context (ZN-330.01); it resolves SDL3, QuickJS and zn_qjs from zinc; its one entry is zn_webgl_open (src/gl/webgl_js.h)
   src/qjs/        the QuickJS engine (ZN-051): type stripper, host calls generated from the runtime table, module loader, prelude; depends on frontend, include/zn and the vendored QuickJS-ng
   app/atelier/    Zinc Atelier (ZN-050), the desktop app: Zinc source run by the engine, talks to the CLI through zinc:process; not part of the engine build
+  src/app/        the engine as a library for an app shell (ZN-620, include/zn/app.h, docs/reports/zinc-next-mobile-core.md): the embedder contract over rt (app.cpp,
+                  in the CMake target zn_app with its own copies of rt and the host compiled with ZN_APP_LIBRARY) and the SDL3 main-callbacks shell (shell_sdl.cpp, built into the app)
   src/main.cpp    CLI wiring only, no logic
   tests/<tier>/   one executable <name>.sh per test, see TESTING.md
 ```

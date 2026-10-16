@@ -265,7 +265,7 @@ std::string desktopDevice(const std::string& q, const std::string& a) {
     }
     return std::string("{\"online\":") + (up ? "true" : "false") + ",\"type\":\"" + (up ? "unknown" : "none") + "\"}";
   }
-#ifdef __APPLE__
+#if defined(__APPLE__) && !defined(ZN_APP_LIBRARY)   // an app library loads nothing at run time (ZN-620): no wake lock nor battery from IOKit
   if (q == "wakelock") {   // the display kept awake (IOPMAssertion), as navigator.wakeLock.request('screen') on a Mac
     static void* io = dlopen("/System/Library/Frameworks/IOKit.framework/IOKit", RTLD_LAZY | RTLD_LOCAL);
     static void* cf = dlopen("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation", RTLD_LAZY | RTLD_LOCAL);
@@ -334,7 +334,7 @@ std::string systemLocale() {
     const char* v = getenv(k);
     if (v && *v && strcmp(v, "C") != 0 && strcmp(v, "POSIX") != 0 && strncmp(v, "C.", 2) != 0) return bcp47(v);
   }
-#ifdef __APPLE__
+#if defined(__APPLE__) && !defined(ZN_APP_LIBRARY)
   if (void* cf = dlopen("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation", RTLD_LAZY | RTLD_LOCAL)) {
     using Langs = const void* (*)();
     using Count = long (*)(const void*);
@@ -790,9 +790,12 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostLoopReal: {  // real time unless the run is deterministic (ZINC_DETERMINISTIC, recording, replay); ZINC_REALTIME forces it
       auto set = [](const char* n) { const char* v = getenv(n); return v && *v && *v != '0'; };
       const char* clock = getenv("ZINC_CLOCK");   // --clock virtual | real (ZN-293): virtual means timers and sleeps advance a virtual clock and nothing waits
-      if (clock && !strcmp(clock, "virtual")) { r->i = 0; break; }
-      if (clock && !strcmp(clock, "real")) { r->i = 1; break; }
-      r->i = set("ZINC_REALTIME") || !(set("ZINC_DETERMINISTIC") || getenv("ZINC_RECORD") || getenv("ZINC_REPLAY")) ? 1 : 0;
+      if (clock && !strcmp(clock, "virtual")) r->i = 0;
+      else if (clock && !strcmp(clock, "real")) r->i = 1;
+      else r->i = set("ZINC_REALTIME") || !(set("ZINC_DETERMINISTIC") || getenv("ZINC_RECORD") || getenv("ZINC_REPLAY")) ? 1 : 0;
+#ifdef ZN_APP_LIBRARY
+      r->i |= 2;   // an app shell steps the program (zn_app_iterate): the prelude returns from __runLoop and waits never sleep (ZN-620)
+#endif
       break;
     }
     case Rt::HostLoopNow: r->d = zn::loop::nowMs(); break;

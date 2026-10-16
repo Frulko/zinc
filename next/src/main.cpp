@@ -710,7 +710,8 @@ static int buildNative(const char* argv0, const char* entry, const char* out, zn
     }
   }
   if (zn::aot::usesHost(zm)) injectPermissions(cpp.string(), entry, zn::tc::hostName().find("macos") != std::string::npos ? "macos" : "linux");   // ZN-322.03
-  if (!haveLibs || !haveCxx) {  // a packaged zinc on a machine without a compiler: the pinned zig builds the program for this machine (no graphics host in that path)
+  const bool cppOnly = std::getenv("ZN_AOT_CPP_ONLY") != nullptr;   // the C++ units and the plugins' archives for another build: an app library (ZN-620), zinc export --target android
+  if ((!haveLibs || !haveCxx) && !cppOnly) {  // a packaged zinc on a machine without a compiler: the pinned zig builds the program for this machine (no graphics host in that path)
     if (zn::aot::usesHost(zm)) {
       fs::remove(cpp);
       const char* why = "a native build of a program that draws needs a C++ compiler and the SDK (`zinc run` and `zinc fuse` need neither; or set CXX)";
@@ -739,6 +740,11 @@ static int buildNative(const char* argv0, const char* entry, const char* out, zn
     } else nativeLibs += " '" + pl.archive + "'";
     if (!pl.vendor.empty()) nativeLibs += " '" + pl.vendor + "'";
     for (const std::string& a : pl.linkArgs) nativeLibs += " " + a;
+  }
+  if (cppOnly) {   // out.cpp (and out.partN.cpp) kept, out.libs: what the program links beside the engine library (its plugins)
+    std::ofstream l(std::string(out) + ".libs");
+    l << nativeLibs << "\n";
+    return l ? 0 : 2;
   }
 #if defined(__APPLE__) && defined(__aarch64__)
   // Apple clang outlines repeated code into calls even at -O2: 40% of the frame loop of bouncing-ball (ZN-397); its load/store pairing turns

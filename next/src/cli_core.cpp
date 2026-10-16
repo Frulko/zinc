@@ -2297,7 +2297,7 @@ function __loaderStage(groups: string[], minMs: number, fadeMs: number, screen: 
   }
   if (ids.length === 0) return;   // nothing to load: no loader
   __host_assetsTurn();
-  if (__host_loopReal() !== 0) {   // a load shorter than a frame shows no loader; a deterministic turn waits for its jobs instead
+  if ((__host_loopReal() & 1) !== 0) {   // a load shorter than a frame shows no loader; a deterministic turn waits for its jobs instead
     const until = __host_loopNow() + 16;
     while (!__loaderSettled(ids) && __host_loopNow() < until) { __host_loopWait(until - __host_loopNow()); __host_assetsTurn(); }
   }

@@ -63,42 +63,51 @@ const __resizeFns: ((w: i32, h: i32) => void)[] = [];
 let __lastW: i32 = 0, __lastH: i32 = 0;
 const __winIds: i32[] = [];                       // the windows beside the main one (ZN-663) and their frame callbacks
 const __winFns: ((dt: number) => void)[] = [];
+// One frame (ZN-620): __gfxLoop runs them in a loop on a desktop, an app shell runs one per tick (__gfxAppStep). False when the program quits.
+function __gfxStep(): boolean {
+  const dt = __host_gfxPoll();
+  __clock = __real ? __host_loopNow() : __clock + dt * 1000;  // a real run follows the clock of the host, a deterministic one the fixed step
+  __pollHost();
+  __frameTimers();
+  __host_gfxBegin();
+  if (__resizeFns.length > 0 && (__host_gfxWidth() !== __lastW || __host_gfxHeight() !== __lastH)) {   // the window was resized (ZN-608)
+    __lastW = __host_gfxWidth(); __lastH = __host_gfxHeight();
+    for (let i: i32 = 0; i < __resizeFns.length; i++) __resizeFns[i](__lastW, __lastH);
+  }
+  const cb = __frameCb;
+  if (cb !== null && (__winIds.length === 0 || __host_gfxWindowOpen(0) !== 0)) cb(dt);   // a closed main window is hidden while others are open
+  for (let i: i32 = 0; i < __winIds.length; i++) {
+    const id = __winIds[i];
+    if (__host_gfxWindowOpen(id) === 0) { __winIds.splice(i, 1); __winFns.splice(i, 1); i--; continue; }
+    __host_gfxBeginWindow(id);
+    __winFns[i](dt);
+    __host_gfxEndWindow();
+  }
+  const over = __overFn;
+  if (over !== null && !over(dt)) __overFn = null;
+  __drainJobs();
+  __host_gfxEnd();
+  __frameNo++;
+  return !__host_gfxShouldQuit();
+}
 function __gfxLoop(): void {
   const n = __host_gfxFrames();
-  for (let f: i32 = 0; f < n; f++) {
-    const dt = __host_gfxPoll();
-    __clock = __real ? __host_loopNow() : __clock + dt * 1000;  // a real run follows the clock of the host, a deterministic one the fixed step
-    __pollHost();
-    __frameTimers();
-    __host_gfxBegin();
-    if (__resizeFns.length > 0 && (__host_gfxWidth() !== __lastW || __host_gfxHeight() !== __lastH)) {   // the window was resized (ZN-608)
-      __lastW = __host_gfxWidth(); __lastH = __host_gfxHeight();
-      for (let i: i32 = 0; i < __resizeFns.length; i++) __resizeFns[i](__lastW, __lastH);
-    }
-    const cb = __frameCb;
-    if (cb !== null && (__winIds.length === 0 || __host_gfxWindowOpen(0) !== 0)) cb(dt);   // a closed main window is hidden while others are open
-    for (let i: i32 = 0; i < __winIds.length; i++) {
-      const id = __winIds[i];
-      if (__host_gfxWindowOpen(id) === 0) { __winIds.splice(i, 1); __winFns.splice(i, 1); i--; continue; }
-      __host_gfxBeginWindow(id);
-      __winFns[i](dt);
-      __host_gfxEndWindow();
-    }
-    const over = __overFn;
-    if (over !== null && !over(dt)) __overFn = null;
-    __drainJobs();
-    __host_gfxEnd();
-    __frameNo++;
-    if (__host_gfxShouldQuit()) break;
-  }
+  for (let f: i32 = 0; f < n; f++) if (!__gfxStep()) break;
   __host_gfxFinish();
+}
+let __appFrames: i32 = -1;   // the frames an app shell still runs (ZINC_FRAMES), counted as __gfxLoop counts them
+function __gfxAppStep(): boolean {
+  if (__appFrames < 0) __appFrames = __host_gfxFrames();
+  if (__appFrames > 0) { __appFrames--; if (__gfxStep()) return true; }
+  __host_gfxFinish();
+  return false;
 }
 let __overFn: ((dt: number) => boolean) | null = null;
 /** Draws over every frame of the main window, after the program, until `draw` returns false (the loader's fade, ZN-447). */
 export function overlay(draw: (dt: number) => boolean): void { __overFn = draw; }
 /** Whether an overlay draws: zinc:ui paints its frame again instead of keeping it. */
 export function overlaid(): boolean { return __overFn !== null; }
-export function onFrame(cb: (dt: number) => void): void { __frameCb = cb; __frameHook = __gfxLoop; }
+export function onFrame(cb: (dt: number) => void): void { __frameCb = cb; __frameHook = __gfxLoop; __frameStep = __gfxAppStep; }
 /** Calls `cb(width, height)` before the next frame each time the surface changes size. Asking for it makes the surface follow the window
  *  (responsive) instead of a fixed size scaled into it, unless zinc.json chose: targets.<target>.resize "letterbox" keeps the fixed surface. */
 export function onResize(cb: (w: i32, h: i32) => void): void {
@@ -112,7 +121,7 @@ export function frame(): i32 { return __frameNo; }
  *  last one ends the program. */
 export function openWindow(title: string, w: i32, h: i32, cb: (dt: number) => void): i32 {
   const id = __host_gfxOpenWindow(title, w, h);
-  if (id > 0) { __winIds.push(id); __winFns.push(cb); __frameHook = __gfxLoop; }
+  if (id > 0) { __winIds.push(id); __winFns.push(cb); __frameHook = __gfxLoop; __frameStep = __gfxAppStep; }
   return id;
 }
 /** Closes window `id` (0: the main one). */
@@ -2237,7 +2246,9 @@ let __cancelled: i32[] = [];
 let __ids: i32 = 0;
 // The clock: milliseconds since the program started. A real run reads the host's; a deterministic run (ZINC_DETERMINISTIC, goldens) only moves it when the
 // event loop jumps to the next timer or a frame passes, so every run reads the same values.
-const __real: boolean = __host_loopReal() !== 0;
+const __loopMode: i32 = __host_loopReal();   // bit 0: a real clock; bit 1: an app shell steps the program (zn_app_iterate, ZN-620)
+const __real: boolean = (__loopMode & 1) !== 0;
+const __appMode: boolean = (__loopMode & 2) !== 0;
 const __epoch: f64 = __real ? __host_loopEpoch() : 0;
 function __now(): f64 { if (__real) __clock = __host_loopNow(); return __clock; }
 function __addTimer(f: () => void, ms: f64, every: f64): i32 {
@@ -2676,46 +2687,59 @@ function __pollHost(): boolean {
   __drainJobs();
   return any;
 }
+// One turn of the event loop (ZN-620): the next timer, or a wait on the host's loop; false when nothing is left to run. __runLoop runs turns
+// until then; an app shell runs one per tick (__appStep), and there no wait sleeps.
+function __loopStep(): boolean {
+  __pollHost();
+  const busy = __host_evActive() !== 0 || __host_nativePoll(0) !== 0;  // a child still runs, a signal or stdin is being watched, a native module waits
+  if (__timers.length === 0) {
+    if (!busy) return false;
+    __host_loopWait(5);
+    return true;
+  }
+  let best: i32 = 0;
+  for (let i: i32 = 1; i < __timers.length; i++) {
+    const a = __timers[i];
+    const b = __timers[best];
+    if (a.ord < b.ord || (a.ord === b.ord && a.seq < b.seq)) best = i;
+  }
+  const t = __timers[best];
+  const now = __now();
+  if (t.at > now) {
+    if (busy) {  // outside work may finish before the timer: look again soon (a virtual clock moves on by what was waited, or a timer behind open sockets never fires)
+      const w = t.at - now < 5 ? t.at - now : 5;
+      __host_loopWait(w);
+      if (!__real) __clock = __clock + w;
+      return true;
+    }
+    if (__real && __appMode) { __host_loopWait(0); return true; }   // an app shell comes back at its next tick
+    if (__real) __host_loopWait(t.at - now);  // a real run sleeps on the host's event loop until the timer is due
+    __clock = __real ? __now() : t.at;
+  }
+  const rest: Timer[] = [];
+  for (let i: i32 = 0; i < __timers.length; i++) if (i !== best) rest.push(__timers[i]);
+  __timers = rest;
+  t.f();
+  if (t.every > 0 && __cancelled.indexOf(t.id) < 0) {
+    __timerSeq++;
+    __timers.push(new Timer(t.at + t.every, t.ord + t.every, __timerSeq, t.id, t.every, t.f));
+  }
+  __drainJobs();
+  return true;
+}
+let __frameStep: (() => boolean) | null = null;   // the frame of an app shell's tick (zinc:gfx __gfxAppStep)
+// The tick of an app shell (zn_app_iterate, include/zn/app.h): a frame when the program draws, else a turn of the loop. False when it is done.
+function __appStep(): boolean {
+  const s = __frameStep;
+  if (s !== null) return s();
+  return __loopStep();
+}
 function __runLoop(): void {
   const hook = __frameHook;
+  if (__appMode) { if (hook === null) __drainJobs(); return; }   // the shell runs the turns from here, calling __appStep by name (ZN-620, kAppStepFunction)
   if (hook !== null) { hook(); return; }
   __drainJobs();
-  for (;;) {
-    __pollHost();
-    const busy = __host_evActive() !== 0 || __host_nativePoll(0) !== 0;  // a child still runs, a signal or stdin is being watched, a native module waits
-    if (__timers.length === 0) {
-      if (!busy) break;
-      __host_loopWait(5);
-      continue;
-    }
-    let best: i32 = 0;
-    for (let i: i32 = 1; i < __timers.length; i++) {
-      const a = __timers[i];
-      const b = __timers[best];
-      if (a.ord < b.ord || (a.ord === b.ord && a.seq < b.seq)) best = i;
-    }
-    const t = __timers[best];
-    const now = __now();
-    if (t.at > now) {
-      if (busy) {  // outside work may finish before the timer: look again soon (a virtual clock moves on by what was waited, or a timer behind open sockets never fires)
-        const w = t.at - now < 5 ? t.at - now : 5;
-        __host_loopWait(w);
-        if (!__real) __clock = __clock + w;
-        continue;
-      }
-      if (__real) __host_loopWait(t.at - now);  // a real run sleeps on the host's event loop until the timer is due
-      __clock = __real ? __now() : t.at;
-    }
-    const rest: Timer[] = [];
-    for (let i: i32 = 0; i < __timers.length; i++) if (i !== best) rest.push(__timers[i]);
-    __timers = rest;
-    t.f();
-    if (t.every > 0 && __cancelled.indexOf(t.id) < 0) {
-      __timerSeq++;
-      __timers.push(new Timer(t.at + t.every, t.ord + t.every, __timerSeq, t.id, t.every, t.f));
-    }
-    __drainJobs();
-  }
+  while (__loopStep()) {}
 }
 
 // A promise rejected with nobody waiting for it when the microtasks have drained is an uncaught error, as in Node (exit code 101 and the message).
