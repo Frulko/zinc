@@ -115,6 +115,38 @@ its PNG round trip and four taps, 22 fps with one smooth stretch of a raw pictur
 resolution (24 fps at full resolution: Tegra 3 needs about 40 ms to shade and blend 1280 x 704). ZINC_GPU_LAYERS=0 keeps the CPU window,
 ZINC_SHADER_SCALE overrides the scale.
 
+### The GLES 2 replay: a scroll on the GPU, one capability record (ZN-741, ZN-744)
+
+`ZINC_RENDERER=gl` (not the default yet). rn-showcase (the shell of 2026-10-16 19:09), its Components screen flung ten times by `ZINC_INPUT`,
+perf panel on, moving frames 170 to 890:
+
+| Step | Late frames (> 16.7 ms apart) of 720 | interval p99 |
+|---|---|---|
+| Software raster (ZN-743's direct path), three runs | 228, 222, 263 | 29.4, 26.8, 28.3 ms |
+| GLES 2 replay of the damage box (before) | 96 (fewer frames: a scroll frame replayed the whole area, 40 to 56 ms; the input is counted in frames) | 56.8 ms |
+| + a scroll moves the texture's pixels on the GPU (copy and draw back), only the rectangles left replayed | 384 | 32.2 ms |
+| + lean programs on Tegra 3 (tuning table), no window clear on an immediate GPU | 384 → 386 (flat) | 32 ms |
+| + the scrolled area kept turned in the texture (no pixel moves, the window quad drawn in pieces), three runs | 225, 228, 285 | 32.1, 31.6, 32.5 ms |
+| same, perf panel off (software raster off-panel: 270, p99 31.5) | 221 | 29.5 ms |
+
+Where the time goes (`ZINC_GL_FINISH=1`: every step waits for the GPU): the window quad 4.2 ms (5.4 with the clear an immediate GPU does not
+need), the move 3.9 to 5.2 ms (gone with the turned rows), the replay of the rectangles 10 to 13 ms: a pass costs Tegra 3's CPU 1 to 3 ms
+before any pixel and the GPU about 70 ns a pixel of a strip (a 1280x50 strip of cards and text: 4.5 ms; the software raster draws it in about
+1 ms on the four A9 cores). At rest both paths are at 60 Hz (1 late frame of 230); in tab switches GLES 2 has 23 late of 450, the software
+raster 20 (the screens' own effects and layout, 30 to 118 ms, dominate both). So the replay is as fast as the software raster at rest and in a
+tab switch and within a few milliseconds of it in a fling: Android keeps the software raster by default.
+
+Tried and dropped: one pass over the union of the rectangles with the depth buffer as a mask (GPU 7 to 19 ms: the GPU shades every quad
+before the test); rotating vertex buffers (no change: the driver did not wait on them); the software raster under a GL window that only moves
+and presents (`glTexSubImage2D` on Tegra 3: 26 to 30 ms a frame into the presented texture, 7 to 10 ms into staging textures, about
+100 MB/s).
+
+The capability record (`runtime/gl_caps.h`): `ZINC_GL_INFO=1` prints it on every provider (the SDL3 window on desktops and Android,
+display-gl's KMS/EGL and webOS SDL 1.2). Nexus 7: `OpenGL ES 2.0, NVIDIA Tegra 3 (family Tegra 3)`, fragment highp no, mediump 13 bits,
+surface depth 16 stencil 8, max texture 2048, no npot, VAO, instancing, 32-bit indices, packed depth-stencil nor depth24, framebuffer fetch
+(NV), derivatives, ETC1, S3TC, half floats; EGL swap-with-damage but no buffer age nor partial update nor a preserved swap; tuning: immediate
+(not a tiler), lean programs.
+
 ### The first interaction (owner's report: the first touch is slow)
 
 Cold launch, the panel and a trace (`ZINC_TRACE`), a tap on Settings at 3 s, a tap on Stats about 2 s later; worst frame (and the gap between

@@ -324,6 +324,9 @@ target_include_directories(zn_zpk PUBLIC src include)   # include: zn/limits.h
 target_link_libraries(zn_zpk PUBLIC zn_lz4 zn_zstd zn_sha256)
 add_executable(zpk_test tests/unit/zpk_test.cpp)
 target_link_libraries(zpk_test PRIVATE zn_zpk)
+# the GL replay's capability record and tuning table (ZN-741, D119): driver strings in, no GL, nothing of the runtime linked
+add_executable(gl_caps_test tests/native/gl_caps.cpp)
+target_include_directories(gl_caps_test PRIVATE ../runtime)
 # the asset build (ZN-434): importers, the content-addressed cache (xxHash 0.8.4, header only), groups to packs; CLI only
 # sprites and atlases (ZN-438): stb_rect_pack 1.01 packs the pages, cute_aseprite 1.04 reads .aseprite files, yyjson the JSON sheets; tile maps
 # (ZN-443): yyjson reads Tiled and LDtk JSON, stb_image (zn_res) and zstd (zn_zpk) decompress their layers; textures (ZN-439): stb_image_resize2

@@ -1,0 +1,1 @@
+{ "name": "scroll_header", "entry": "main.tsx", "targets": { "macos": { "width": 420, "height": 640 }, "linux": { "width": 420, "height": 640 } } }

@@ -216,7 +216,6 @@ bool zgl_backend_init(const HalConfig*) {
   SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);    // the GL renderer's occlusion of what opaque rectangles hide (as src/sdl.cpp)
   SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);   // measured: without them a frame takes as long on the Adreno 220
   setenv("ZINC_RENDERER", "gl", 0);              // the GPU draws the UI: the faster renderer on this device (hp-touchpad-webos.md, section 12)
-  setenv("ZINC_GL_LEAN", "1", 0);                // the GL renderer's lean programs: an image over the screen in 2 ms, 32 ms with the general one
   setenv("ZINC_GL_DIRECT", "1", 0);              // a frame straight into the window: on this tiled GPU the texture's reload and copy cost 12 ms (52 ms against 40 for the Matériel page, 2026-10-15)
   setenv("ZINC_GL_CORNERS", "0", 0);             // square clips: a rounded one copies the framebuffer in mid-frame, a whole pass on this GPU (12 to 24 frames a second in hero's transitions)
   SDL_GL_SetAttribute(SDL_GL_SWAP_CONTROL, getenv("ZINC_VSYNC") && atoi(getenv("ZINC_VSYNC")) == 0 ? 0 : 1);
@@ -232,7 +231,6 @@ bool zgl_backend_init(const HalConfig*) {
   GLint r = 0, g = 0, bl = 0, al = 0, dz = 0, st = 0;
   glGetIntegerv(GL_RED_BITS, &r); glGetIntegerv(GL_GREEN_BITS, &g); glGetIntegerv(GL_BLUE_BITS, &bl); glGetIntegerv(GL_ALPHA_BITS, &al); glGetIntegerv(GL_DEPTH_BITS, &dz); glGetIntegerv(GL_STENCIL_BITS, &st);
   fprintf(stderr, "display-gl: webOS %dx%d, %s, %s, colour %d%d%d%d depth %d stencil %d\n", sw, sh, glGetString(GL_RENDERER), glGetString(GL_VERSION), r, g, bl, al, dz, st);
-  if (getenv("ZINC_GL_INFO")) fprintf(stderr, "gl-info: extensions %s\n", glGetString(GL_EXTENSIONS));
   return true;
 }
 

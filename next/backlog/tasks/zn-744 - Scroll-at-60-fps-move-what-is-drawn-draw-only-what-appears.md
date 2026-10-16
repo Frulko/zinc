@@ -5,7 +5,7 @@ status: Backlog
 assignee:
   - '@parallel'
 created_date: '2026-10-16 14:06'
-updated_date: '2026-10-16 15:34'
+updated_date: '2026-10-16 21:27'
 labels:
   - perf
   - ui
@@ -25,7 +25,7 @@ Owner 2026-10-16: "le scroll à 60 fps, y'a pas de raison", on every platform. M
 <!-- AC:BEGIN -->
 - [ ] #1 rn-showcase scrolled by a scripted fling (ZINC_INPUT) at 60 fps on the Nexus 7 with the software raster: p99 frame under 16.7 ms in the perf panel, numbers before and after in docs/reports/zinc-next-perf.md
 - [ ] #2 the same on the desktop (macOS window and headless timing) and with the GLES 2 replay once ZN-741 lands
-- [ ] #3 pixels: a scrolled frame equals a full redraw of the same state (hash), including rounded clips, shadows crossing the scroll edge and translucent fixed headers
+- [x] #3 pixels: a scrolled frame equals a full redraw of the same state (hash), including rounded clips, shadows crossing the scroll edge and translucent fixed headers
 - [x] #4 a T0 test: a scroll of N px rasterises only the exposed rows (counted) and gives the full-redraw hash
 - [ ] #5 Pi 3 and TouchPad runs are one line each under Cross-platform pass in backlog/later.md
 <!-- AC:END -->
@@ -46,4 +46,15 @@ Lines for backlog/later.md:
 - ZN-744: Cross-platform pass: rn-showcase fling on a Pi 3 (display-gl overlay and fbdev do not take HalFrame.move yet; fbdev and the KMS dumb buffer could) and on the HP TouchPad (webOS SDL 1.2 HAL), frame times before and after.
 - ZN-744: exact moves of fractional coordinates (content space with an integer pixel-grid translation in the raster), so art crossing a power of two moves instead of drawing again.
 - ZN-744: horizontal and two-axis scrolls are moved (dx) but no test proves them yet; nested scroll views move only the innermost clip that changed first.
+
+2026-10-16 (second worktree agent), part 3: the scroll on the GPU, and what a move carries wrongly under translucent headers and rounded cards.
+- runtime/gl_replay.cpp: glr::scroll(area, dx, dy) for the GLES 2 replay's frame texture. A vertical scroll turns the area's rows in the texture (row y kept at ring.y0 + (y - ring.y0 + ring_off) mod h): no pixel moves; the rectangles HalFrame.move names are replayed (frame_rects -> frame_box: the parts outside the area as they are, the part inside in at most two pieces drawn shifted through the viewport and scissor); the window quad is drawn in pieces (hal_sdl gl_show, a source rectangle in the present shader), each pixel once. Anything else (a horizontal scroll, another area, a window that is not the surface, a check) puts the rows back (unrotate) or moves the pixels through a scratch texture (move_on: a copy and a blit). Each replay pass skips the commands outside its rectangle before any work (outside()) and the occlusion pass under a quarter of the surface; depth and stencil bits are asked once per target. hal_sdl: on by default for GLES 2 (Android with ZINC_RENDERER=gl); on desktop GL (ZINC_GL_MOVE=1) the pieces cost Apple's GL more CPU than a whole replay (4.6 against 1.8 ms a frame), so it stays off there. ZINC_GL_VERIFY=1 replays every moved frame whole as well and logs the pixels that differ; ZINC_GL_MOVE_LOG=1|2 the rectangles and the time of each pass; ZINC_GL_FINISH=1 with ZINC_PRESENT_STATS each step's GPU time.
+- runtime/raster.cpp diff_move: a rounded clip around the scroll view (a card with overflow hidden) no longer stops the move: every rounded clip of the stack damages its corner bands; a rounded background under the area that covers it is flat but in its corners (bands, not the whole area); CLIP and UNCLIP after the content no longer damage everything (their bounds are the screen's). tests/data/scroll_header: a translucent header fixed over the area, cards whose shadows cross its edges, the area clipped with rounded corners: every pair equal and 15 to 19% of the area drawn (was 88%, the whole area).
+- AC3: tests/t0/scroll_move.sh adds scroll_header (4 pairs, equal, under a quarter drawn); tests/t1/gl_scroll.sh (window, GL) flings rn-showcase's Components and scroll_header with ZINC_GL_VERIFY: a moved frame differs from a whole replay in at most a pixel or two (a vector icon's antialiased edge on a tie: the GPU interpolates at the new place, not bit for bit the same; 6 to 12 of 70 moved frames have one such pixel), checked at 4 at most. On the Nexus 7 the same check shows 18 to 22 pixels a frame on the 1280-wide cards' edges: mediump.
+- AC1 / AC2: not met on the Nexus 7. Software raster (ZN-743's direct path, unchanged) 222 to 263 late frames of 720, interval p99 26.8 to 29.4 ms; the GLES 2 replay with the GPU scroll 225 to 285, p99 31.6 to 32.5 (it was p99 56.8 with the damage box replayed; perf panel on; numbers in ZN-741's notes and docs/reports/zinc-next-android.md). The limits found: Tegra 3's replay of the rectangles (strip, perf panel, icons) costs 1 to 3 ms of CPU a pass and about 70 ns of GPU a pixel; its texture uploads run at about 100 MB/s, so the software raster cannot hand its strips to a GPU compositor either (tried: 26 to 30 ms a frame). Desktop window (macOS, GL, rn-showcase Components flung for 700 frames): interval p50 16.66 / p99 23.2 ms with the GPU scroll asked for, present p99 28.9 against 32.5 without; the software raster's numbers of part 2 stand (raster p50 0.23 / p99 5.2 ms).
+
+Lines for backlog/later.md:
+- ZN-744: a frame's replay passes cost Tegra 3's CPU 1 to 3 ms each before any pixel: profile them on the device (simpleperf needs perf_event access: security.perf_harden 0 with root, before a run, not during it).
+- ZN-744: overlays (the perf panel, taps) drawn into the window after the frame instead of into the frame texture: a scroll would no longer damage the panel at two places.
+- ZN-744: Cross-platform pass: the GPU scroll on the Pi 3 (display-gl: glr::scroll is not called there yet, the KMS window is the surface) and the TouchPad (webOS, a tiler: turned rows cost it nothing).
 <!-- SECTION:NOTES:END -->

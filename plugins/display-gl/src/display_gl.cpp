@@ -34,6 +34,8 @@ extern "C" __attribute__((weak)) int zgl_backend_place(int32_t*, int32_t*, int32
 extern "C" __attribute__((weak)) void zgl_backend_reserve(int32_t*, int32_t*) {}
 // The device's features (HalDisplay::device); a backend without them leaves this weak one.
 extern "C" __attribute__((weak)) const char* zgl_backend_device(const char*, const char*) { return nullptr; }
+// The context's EGL extensions for the GL replay's capability record (gl_caps.h); a backend without EGL leaves this weak one.
+extern "C" __attribute__((weak)) const char* zgl_backend_egl() { return nullptr; }
 void zgl_backend_shutdown();
 
 extern "C" void (*zgl_layers)(int32_t, int32_t) = nullptr;
@@ -113,6 +115,8 @@ static void choose_renderer(const HalFrame* f) {
 static int init(const HalConfig* cfg) {
   W = cfg->width; H = cfg->height;
   if (!zgl_backend_init(cfg)) return 0;
+  glr::egl_extensions = zgl_backend_egl();
+  glr::probe();   // the context's capability record, read by every renderer (ZINC_GL_INFO prints it)
   K = zgl_backend_scale(); PW = W * K; PH = H * K;
 #ifdef __APPLE__
   GLuint vao;  // core profile: one VAO bound for the whole program
@@ -150,8 +154,7 @@ static GLuint shot_target() {
   static bool failed;
   if (!shot_path || failed) return 0;
   if (shot_fb && shot_w == PW && shot_h == PH) return shot_fb;
-  GLint max = 0;
-  glGetIntegerv(GL_MAX_TEXTURE_SIZE, &max);
+  const GLint max = glr::caps.max_texture;
   if (!shot_fb) { glGenTextures(1, &shot_tex); glGenFramebuffers(1, &shot_fb); }
   bool ok = PW <= max && PH <= max;
   if (ok) {

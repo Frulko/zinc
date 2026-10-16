@@ -13,6 +13,7 @@
 #endif
 #endif
 #include "zrt_raster.h"
+#include "gl_caps.h"
 #if __has_include("zn/resource_stats.h")
 #include "zn/resource_stats.h"
 #endif
@@ -86,6 +87,10 @@ static uint32_t* vis; static size_t vis_cap; static uint32_t nvis;   // when cul
 static inline uint32_t walk_count(const Frame& f, bool first) { return first && culled ? nvis : f.count; }
 static inline uint32_t walk_entry(uint32_t k, bool first) { return first && culled ? vis[nvis - 1 - k] : k; }
 static bool flipy, split = true;   // flipy: drawing into the window framebuffer (rows bottom-up); split: cheap quads for the interior of boxes
+// A scroll area kept rotated in the surface texture (scroll(), ZN-744): its row y is at row ring.y0 + (y - ring.y0 + ring_off) mod its height;
+// ring_ty: the rows the piece being replayed is shifted by
+static Rect ring;
+static int32_t ring_off, ring_ty;
 static V verts[MAXQ * 4];
 static int nq;
 static Run runs[MAXQ];
@@ -153,9 +158,34 @@ static const GLenum A_IFMT = GL_R8, A_FMT = GL_RED;   // core profile: no LUMINA
 static const GLenum A_IFMT = GL_LUMINANCE, A_FMT = GL_LUMINANCE;
 #endif
 
+// ---- the context's capability record (gl_caps.h), filled once by init(); the provider gives its EGL extensions first when it has EGL
+static glcaps::Caps caps;
+static const char* egl_extensions;
+static void probe() {
+  static bool probed;
+  if (probed) return;
+  probed = true;
+  glcaps::Info in{};
+  in.vendor = (const char*)glGetString(GL_VENDOR); in.renderer = (const char*)glGetString(GL_RENDERER); in.version = (const char*)glGetString(GL_VERSION);
+  in.egl_extensions = egl_extensions;
+  glGetIntegerv(GL_MAX_TEXTURE_SIZE, &in.max_texture);
+#if GLR_CORE   // a core profile has no GL_EXTENSIONS string (what the record asks is core there) nor default-framebuffer bit queries
+  glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, GL_DEPTH, GL_FRAMEBUFFER_ATTACHMENT_DEPTH_SIZE, &in.depth_bits);
+  glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, GL_STENCIL, GL_FRAMEBUFFER_ATTACHMENT_STENCIL_SIZE, &in.stencil_bits);
+#else
+  in.extensions = (const char*)glGetString(GL_EXTENSIONS);
+  GLint range[2] = {0, 0};
+  glGetShaderPrecisionFormat(GL_FRAGMENT_SHADER, GL_HIGH_FLOAT, range, &in.highp_bits);
+  glGetShaderPrecisionFormat(GL_FRAGMENT_SHADER, GL_MEDIUM_FLOAT, range, &in.mediump_bits);
+  glGetIntegerv(GL_DEPTH_BITS, &in.depth_bits); glGetIntegerv(GL_STENCIL_BITS, &in.stencil_bits);
+#endif
+  glcaps::fill(caps, in);
+  if (getenv("ZINC_GL_INFO")) { char b[1024]; glcaps::print(caps, b, sizeof b); fputs(b, stderr); }
+}
 /** The FBO's depth (and stencil) storage at W x H: depth 24 / stencil 8 where the API has it (desktop GL, GLES 2 with
  *  OES_packed_depth_stencil), else depth only (24 or 16 bits) and POLY stays on the CPU tiles. */
 static bool packed_ds;
+static GLint target_bits[2][2] = {{-1, -1}, {-1, -1}};   // depth and stencil bits of the surface texture's framebuffer [0] and the window's [1], asked once
 static void depth_storage() {
   const int32_t W = TW, H = TH;   // the allocation, not the surface
   glBindRenderbuffer(GL_RENDERBUFFER, fbo_depth);
@@ -163,9 +193,8 @@ static void depth_storage() {
   packed_ds = true;
   glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, W, H);   // 24 bits: 4M commands told apart
 #else
-  const char* ext = (const char*)glGetString(GL_EXTENSIONS);
-  packed_ds = ext && strstr(ext, "GL_OES_packed_depth_stencil");
-  glRenderbufferStorage(GL_RENDERBUFFER, packed_ds ? 0x88F0 /* DEPTH24_STENCIL8_OES */ : ext && strstr(ext, "GL_OES_depth24") ? 0x81A6 /* DEPTH_COMPONENT24_OES */ : GL_DEPTH_COMPONENT16, W, H);
+  packed_ds = caps.packed_ds;
+  glRenderbufferStorage(GL_RENDERBUFFER, packed_ds ? 0x88F0 /* DEPTH24_STENCIL8_OES */ : caps.depth24 ? 0x81A6 /* DEPTH_COMPONENT24_OES */ : GL_DEPTH_COMPONENT16, W, H);
 #endif
 }
 // GLES 2: which program draws a mode. group[m] is the first mode of m's group, gmask[it] the modes of the group: one program holds them
@@ -202,7 +231,11 @@ static Prog& use_prog(uint8_t key) {
     static char fs[8192];
     const double t0 = now_us();
     const unsigned modes = key >= 32 ? 0 : only >= 0 ? 1u << only : GLR_CORE ? ~0u : gmask[key & 15];
-    p.id = key >= 32 ? zgl_program("", key - 32 < LEAN_FILL ? LVS : LBVS, LFS[key - 32]) : fs_source(modes, GLR_CORE ? only < 0 : (key & 16) != 0, fs, sizeof fs) ? zgl_program("", VS, fs) : 0;
+    char defs[96];   // VS: positions absolute under a paint; FS: ZINC_GL_MEDIUMP's precision
+    const char* mpb = getenv("ZINC_GL_MEDIUMP");
+    snprintf(defs, sizeof defs, "%s%s%s%s", GLR_CORE ? "#define ZN_PAINT_UNIFORM 1\n" : key & 16 ? "#define ZN_PAINT 1\n" : "",
+             mpb ? "#define ZN_MP " : "", mpb ? mpb : "", mpb ? ".0\n" : "");
+    p.id = key >= 32 ? zgl_program("", key - 32 < LEAN_FILL ? LVS : LBVS, LFS[key - 32]) : fs_source(modes, GLR_CORE ? only < 0 : (key & 16) != 0, fs, sizeof fs) ? zgl_program(defs, VS, fs) : 0;
     st.prog_us += now_us() - t0;
     if (getenv("ZINC_GL_STATS")) fprintf(stderr, "display-gl renderer gl: program of modes 0x%x%s built in %.0f ms (frame %u)\n", modes & ((1u << MODES) - 1), key & 16 ? " with paint" : "", (now_us() - t0) / 1e3, st.frames);
     if (!p.id) fprintf(stderr, "display-gl: renderer gl: the program of modes 0x%x does not build: their quads are not drawn\n", modes & ((1u << MODES) - 1));
@@ -242,7 +275,8 @@ static bool warm() {
 static bool init(int32_t w, int32_t h) {
   W = w; H = h;
   if (const char* e = getenv("ZINC_GL_ONLY")) only = atoi(e) % MODES;
-  lean_on = !GLR_CORE && getenv("ZINC_GL_LEAN") && atoi(getenv("ZINC_GL_LEAN")) != 0;
+  probe();
+  lean_on = !GLR_CORE && (getenv("ZINC_GL_LEAN") ? atoi(getenv("ZINC_GL_LEAN")) != 0 : caps.lean);   // the tuning table's choice unless asked
   set_groups(getenv("ZINC_GL_GROUPS"));
   tracing = getenv("ZINC_GL_TRACE") != nullptr;
   if (const char* e = getenv("ZINC_GL_STRIPS")) strips = atoi(e) != 0;
@@ -302,8 +336,10 @@ static void reserve(int32_t w, int32_t h) { RW = w; RH = h; }
 static bool resize(int32_t w, int32_t h) {
   if (w == W && h == H) return true;
   W = w; H = h;
+  ring_off = 0;   // the texture is drawn again whole
   if (W <= TW && H <= TH && (RW || RH)) return true;   // reserved: draw into the first W x H of the same target
   TW = W; TH = H;
+  target_bits[0][0] = target_bits[1][0] = -1;   // asked again
   glBindTexture(GL_TEXTURE_2D, fbo_tex);
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, TW, TH, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
   depth_storage();
@@ -317,7 +353,7 @@ static bool resize(int32_t w, int32_t h) {
 static void apply_clip() {
   if (memcmp(&clip, &applied, sizeof clip) == 0) return;
   int32_t x0 = clip.x0 < 0 ? 0 : clip.x0, y0 = clip.y0 < 0 ? 0 : clip.y0, x1 = clip.x1 > W ? W : clip.x1, y1 = clip.y1 > H ? H : clip.y1;
-  glScissor(x0, flipy ? H - (y1 > y0 ? y1 : y0) : y0, x1 > x0 ? x1 - x0 : 0, y1 > y0 ? y1 - y0 : 0);
+  glScissor(x0, flipy ? H - (y1 > y0 ? y1 : y0) : y0 + ring_ty, x1 > x0 ? x1 - x0 : 0, y1 > y0 ? y1 - y0 : 0);
   applied = clip;
 }
 /** The layout of V in the bound buffer, from byte `base`. */
@@ -488,6 +524,19 @@ static uint32_t next_cp(const char* s, uint32_t n, uint32_t& i) {
 /** The glyphs of a list's TEXT commands enter the atlas now, before the frame draws (GLES 2: see atlas_sync); those of a TEXT under a
  *  matrix (XFORM) too, in the font its glyphs are drawn from (draw_text). ponytail: not after the atlas filled up and was reset in this
  *  frame: they come as they are drawn. */
+/** A command whose pixels all lie outside the clip (raster.cpp cmd_bounds, a pixel wider): a replay of a small rectangle (a scroll's strip,
+ *  the perf panel) skips it before any work, a pass over 260 commands cost Tegra 3's CPU 2 to 5 ms when each was set up and then clipped. */
+static inline bool outside(const Cmd& c) {
+  float m;
+  switch (c.kind) {
+    case RECT: case BORDER: case STROKE: case POLY: m = 2; break;   // (a LINE keeps its end point in w, h)
+    case SHADOW: m = c.s + 2; break;
+    case TEXT: m = c.h * 0.5f + 2; break;
+    case IMAGE: if (c.pad & kImageBox) return false; m = 2; break;
+    default: return false;   // CLIP, UNCLIP and CLEAR keep their state; XFORM draws through its matrix
+  }
+  return c.x + c.w + m <= (float)clip.x0 || c.x - m >= (float)clip.x1 || c.y + c.h + m <= (float)clip.y0 || c.y - m >= (float)clip.y1;
+}
 static void glyphs_ahead(const Frame& f) {
   for (uint32_t i = 0; i < f.count; i++) {
     const Cmd& c = f.cmds[i];
@@ -497,7 +546,7 @@ static void glyphs_ahead(const Frame& f) {
       const float* p = f.pts + c.off;
       if (p[11] >= 1) font = (int32_t)p[11] - 1;
       memcpy(&off, p + 13, 4); memcpy(&n, p + 14, 4);
-    } else if (c.kind != TEXT) continue;
+    } else if (c.kind != TEXT || outside(c)) continue;
     const Font* fp = font_at(font);
     if (!fp) continue;
     const char* s = f.text + off;
@@ -555,16 +604,12 @@ static void draw_text(const Cmd& c, const char* s) {
 // GL_COMPRESSED_TEXTURE_FORMATS, and on GLES the extension string, where some drivers name ETC1 only; ETC1 data is also ETC2 RGB8 data.
 static GLenum block_format(uint32_t fmt) {
   static GLint n = -1, *list;
-  static bool etc1_ext;
+  const bool etc1_ext = caps.etc1;
   if (n < 0) {
     glGetIntegerv(GL_NUM_COMPRESSED_TEXTURE_FORMATS, &n);
     list = (GLint*)calloc(n > 0 ? (size_t)n : 1, sizeof(GLint));
     if (n > 0 && list) glGetIntegerv(GL_COMPRESSED_TEXTURE_FORMATS, list);
     else n = 0;
-#if !GLR_CORE
-    const char* ext = (const char*)glGetString(GL_EXTENSIONS);
-    etc1_ext = ext && strstr(ext, "GL_OES_compressed_ETC1_RGB8_texture");
-#endif
     if (getenv("ZINC_GL_STATS")) {
       fprintf(stderr, "display-gl renderer gl: compressed formats");
       for (GLint i = 0; i < n; i++) fprintf(stderr, " 0x%04x", (unsigned)list[i]);
@@ -704,8 +749,9 @@ static void draw_stroke(const Cmd& c, const float* p) {
     const uint32_t ib = (i + 1) % n, ip = (i + n - 1) % n, in = (i + 2) % n;
     const bool hp = closed || i > 0, hn = closed || i + 1 < segs;
     const float ax = p[i * 2], ay = p[i * 2 + 1], bx = p[ib * 2], by = p[ib * 2 + 1];
-    const float x0 = (ax < bx ? ax : bx) - e, y0 = (ay < by ? ay : by) - e, x1 = (ax > bx ? ax : bx) + e, y1 = (ay > by ? ay : by) + e;
-    if (!(x0 == x0 && y0 == y0 && x1 == x1 && y1 == y1)) continue;
+    // whole pixels: a segment moved by whole pixels (a scroll) gets the same fragments with the same values (ZN-744)
+    const float x0 = (float)ifloor((ax < bx ? ax : bx) - e), y0 = (float)ifloor((ay < by ? ay : by) - e), x1 = (float)iceil((ax > bx ? ax : bx) + e), y1 = (float)iceil((ay > by ? ay : by) + e);
+    if (!(ax == ax && ay == ay && bx == bx && by == by)) continue;
     if (clip.x1 <= clip.x0 || clip.y1 <= clip.y0 || x1 <= (float)clip.x0 || x0 >= (float)clip.x1 || y1 <= (float)clip.y0 || y0 >= (float)clip.y1) continue;
     if (nq == MAXQ) flush();
     V* v = &verts[nq * 4];
@@ -871,7 +917,7 @@ static void edge_quads(const float* pts, uint32_t contours, uint32_t c1, uint32_
     for (uint32_t i = 0; i < cnt; i++) {
       const uint32_t ib = (i + 1) % cnt, ip = (i + cnt - 1) % cnt, in = (i + 2) % cnt;
       const float ax = p[i * 2], ay = p[i * 2 + 1], bx = p[ib * 2], by = p[ib * 2 + 1];
-      const float x0 = (ax < bx ? ax : bx) - 1, y0 = (ay < by ? ay : by) - 1, x1 = (ax > bx ? ax : bx) + 1, y1 = (ay > by ? ay : by) + 1;
+      const float x0 = (float)ifloor((ax < bx ? ax : bx) - 1), y0 = (float)ifloor((ay < by ? ay : by) - 1), x1 = (float)iceil((ax > bx ? ax : bx) + 1), y1 = (float)iceil((ay > by ? ay : by) + 1);   // whole pixels (ZN-744)
       if (x1 <= (float)clip.x0 || x0 >= (float)clip.x1 || y1 <= (float)clip.y0 || y0 >= (float)clip.y1) continue;
       if (stats) fringe_px += (double)((x1 < (float)clip.x1 ? x1 : (float)clip.x1) - (x0 > (float)clip.x0 ? x0 : (float)clip.x0)) * ((y1 < (float)clip.y1 ? y1 : (float)clip.y1) - (y0 > (float)clip.y0 ? y0 : (float)clip.y0));
       if (!grow(edgev, edgev_cap, ((size_t)nedge + 1) * 4)) return;
@@ -1143,11 +1189,13 @@ static bool draw_convex(const Cmd& c, const float* pts) {
   const Rect b = isect(bounds(c.x - 1, c.y - 1, c.w + 2, c.h + 2, HUGE_R), clip);
   if (b.x0 >= b.x1 || b.y0 >= b.y1) return true;
   flush();
+  for (int k = 0; k < ne; k++) eq[k * 3 + 2] = (float)((double)eq[k * 3 + 2] + (double)eq[k * 3] * b.x0 + (double)eq[k * 3 + 1] * b.y0);   // relative to the quad's corner (the VS's origin)
   const Prog& cp = use_prog(key_of(CONVEX_M));
   glUniform3fv(cp.u_cv, 8, eq);
   glUniform1f(cp.u_cvn, (float)ne);
   Q q = {};
   q.x0 = (float)b.x0; q.y0 = (float)b.y0; q.x1 = (float)b.x1; q.y1 = (float)b.y1;
+  q.bx = (float)b.x0; q.by = (float)b.y0;
   q.mode = CONVEX_M; q.c1 = c.c1; q.alpha = c.alpha;
   quad(q);
   flush();
@@ -1489,6 +1537,160 @@ static void shader_quad(const Cmd& c, const float* u, int32_t w, int32_t h, bool
   glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 }
 
+// ---- a scroll (HalFrame.move, ZN-744): the content of a scroll view moved by whole pixels; the pixels the surface texture already has move
+// on the GPU, and the includer replays only the rectangles left (frame_rects): the rows that came into view, what changed, what is drawn
+// over the area. The area is copied into a scratch texture, then drawn back shifted: two passes over the area, no command replayed, where
+// Tegra 3 takes 90 to 130 ms to replay a whole rn-showcase frame. A layer of the whole content (taller than the view, in tiles) would also
+// keep what scrolls back into view; the move needs no tiles and no content recorded apart, and diff_move already says what it carries wrongly.
+static const char* const MVS = "attribute vec4 a_pos; uniform vec2 u_res; varying vec2 v_uv;\n"
+  "void main() { v_uv = a_pos.zw; gl_Position = vec4(a_pos.x / u_res.x * 2.0 - 1.0, a_pos.y / u_res.y * 2.0 - 1.0, 0.0, 1.0); }\n";
+static const char* const MFS = "varying vec2 v_uv; uniform sampler2D u_tex; void main() { gl_FragColor = texture2D(u_tex, v_uv); }\n";
+static GLuint mprog, mtex, mvbo;
+static GLint m_res, m_tex;
+static int32_t mtw, mth;
+static struct { uint32_t moves; double px; } mst;
+static bool blit_ready() {
+  if (mprog) return true;
+  if (!(mprog = zgl_program("", MVS, MFS))) return false;
+  m_res = glGetUniformLocation(mprog, "u_res"); m_tex = glGetUniformLocation(mprog, "u_tex");
+  glGenBuffers(1, &mvbo);
+  return true;
+}
+/** The texels `src` of texture `tex` (tw x th allocated) copied as they are to (x, y) of framebuffer `target` (sw x sh pixels): no blend,
+ *  nearest texels. Rows count from the top in both, as the replay's surface texture and the uploads of rows do. */
+static void blit_on(GLuint target, int32_t sw, int32_t sh, GLuint tex, int32_t tw, int32_t th, Rect src, int32_t x, int32_t y) {
+  if (!blit_ready()) return;
+  glBindFramebuffer(GL_FRAMEBUFFER, target);
+  glDisable(GL_SCISSOR_TEST); glDisable(GL_BLEND); glDisable(GL_DEPTH_TEST);
+  glViewport(0, 0, sw, sh);
+  glActiveTexture(GL_TEXTURE0);
+  glBindTexture(GL_TEXTURE_2D, tex);
+  glUseProgram(mprog);
+  cur_prog = nullptr;
+  glUniform2f(m_res, (float)sw, (float)sh); glUniform1i(m_tex, 0);
+  const float x0 = (float)x, y0 = (float)y, x1 = x0 + (float)(src.x1 - src.x0), y1 = y0 + (float)(src.y1 - src.y0);
+  const float u0 = (float)src.x0 / (float)tw, v0 = (float)src.y0 / (float)th, u1 = (float)src.x1 / (float)tw, v1 = (float)src.y1 / (float)th;
+  const float q[16] = {x0, y0, u0, v0, x1, y0, u1, v0, x0, y1, u0, v1, x1, y1, u1, v1};
+  glBindBuffer(GL_ARRAY_BUFFER, mvbo);
+  glBufferData(GL_ARRAY_BUFFER, sizeof q, q, GL_STREAM_DRAW);
+  for (GLuint i = 1; i < 7; i++) glDisableVertexAttribArray(i);
+  glEnableVertexAttribArray(0);
+  glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 16, nullptr);
+  glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+  glDisableVertexAttribArray(0);
+}
+/** Moves the pixels of `area` in the texture of framebuffer `target` (sw x sh pixels used, tw x th allocated) by (dx, dy), as
+ *  raster::move_pixels does in memory: a pixel at p goes to p + (dx, dy), what would come from outside the area stays. False: the GL objects
+ *  could not be made (the includer draws the whole damage instead). */
+static bool move_on(GLuint target, int32_t sw, int32_t sh, int32_t tw, int32_t th, Rect area, int32_t dx, int32_t dy) {
+  area = isect(area, Rect{0, 0, sw, sh});
+  const Rect src = isect(area, Rect{area.x0 - dx, area.y0 - dy, area.x1 - dx, area.y1 - dy});
+  if (src.x0 >= src.x1 || src.y0 >= src.y1) return true;   // nothing that was in view stays in view
+  if (!blit_ready()) return false;
+  if (mtw < tw || mth < th) {   // the target's allocation: any area fits
+    if (mtex) glDeleteTextures(1, &mtex);
+    mtw = mtw > tw ? mtw : tw; mth = mth > th ? mth : th;
+    mtex = make_tex(mtw, mth, GL_RGBA, GL_RGBA, nullptr, true);
+  }
+  const int32_t w = src.x1 - src.x0, h = src.y1 - src.y0;
+  glBindFramebuffer(GL_FRAMEBUFFER, target);   // its rows are the surface's from the top: y is the same in both
+  glDisable(GL_SCISSOR_TEST); glDisable(GL_BLEND); glDisable(GL_DEPTH_TEST);
+  glActiveTexture(GL_TEXTURE0);
+  glBindTexture(GL_TEXTURE_2D, mtex);
+  glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, src.x0, src.y0, w, h);
+  blit_on(target, sw, sh, mtex, mtw, mth, Rect{0, 0, w, h}, src.x0 + dx, src.y0 + dy);
+  mst.moves++; mst.px += (double)w * h;
+  return true;   // the target stays bound: the rectangles are drawn into it next
+}
+/** move_on() over the replay's own surface texture. */
+static bool move(Rect area, int32_t dx, int32_t dy) { return move_on(fbo, W, H, TW, TH, area, dx, dy); }
+static void frame_in(const HalFrame* f, bool direct, Rect box, int32_t ty = 0);
+/** The rows of the rotated scroll area back in place (a copy through the scratch texture and two blits): before a plain picture is needed
+ *  (another area scrolls, a horizontal scroll, a check, a window that is not the surface). */
+static void unrotate() {
+  if (!ring_off) return;
+  const int32_t h = ring.y1 - ring.y0, w = ring.x1 - ring.x0, off = ring_off;
+  ring_off = 0;
+  if (!blit_ready()) return;
+  if (mtw < TW || mth < TH) {
+    if (mtex) glDeleteTextures(1, &mtex);
+    mtw = mtw > TW ? mtw : TW; mth = mth > TH ? mth : TH;
+    mtex = make_tex(mtw, mth, GL_RGBA, GL_RGBA, nullptr, true);
+  }
+  glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+  glActiveTexture(GL_TEXTURE0);
+  glBindTexture(GL_TEXTURE_2D, mtex);
+  glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, ring.x0, ring.y0, w, h);
+  blit_on(fbo, W, H, mtex, mtw, mth, Rect{0, off, w, h}, ring.x0, ring.y0);   // the rows of y0.. are off rows down
+  blit_on(fbo, W, H, mtex, mtw, mth, Rect{0, 0, w, off}, ring.x0, ring.y1 - off);
+}
+/** A scroll of `area` by (dx, dy) whole pixels: a vertical one only turns the area's rows in the surface texture (no pixel moves; the window
+ *  picture is drawn from the turned rows, present_pieces()), anything else moves the pixels (move()). The rows that came into view and the
+ *  rest are replayed next (frame_rects). On Tegra 3 the move cost 3.7 to 5 ms of GPU a frame, two passes over the area. */
+static bool scroll(Rect area, int32_t dx, int32_t dy) {
+  area = isect(area, Rect{0, 0, W, H});
+  static const bool on = !getenv("ZINC_GL_RING") || atoi(getenv("ZINC_GL_RING")) != 0;
+  if (!on || dx || area.y1 - area.y0 < 2 || (ring_off && memcmp(&area, &ring, sizeof area))) { unrotate(); return move(area, dx, dy); }
+  const int32_t h = area.y1 - area.y0;
+  ring = area;
+  ring_off = ((ring_off - dy) % h + h) % h;
+  mst.moves++; mst.px += (double)(area.x1 - area.x0) * h;
+  return true;
+}
+/** Replays `b` of the surface: its parts outside the rotated area as they are, its part inside in at most two pieces shifted to where those
+ *  rows are kept. */
+static void frame_box(const HalFrame* f, Rect b) {
+  b = isect(b, Rect{0, 0, W, H});
+  if (b.x0 >= b.x1 || b.y0 >= b.y1) return;
+  const Rect in = isect(b, ring);
+  if (!ring_off || in.x0 >= in.x1 || in.y0 >= in.y1) { frame_in(f, false, b); return; }
+  frame_in(f, false, Rect{b.x0, b.y0, b.x1, in.y0});   // above, below, left, right of the area (empty ones return at once)
+  frame_in(f, false, Rect{b.x0, in.y1, b.x1, b.y1});
+  frame_in(f, false, Rect{b.x0, in.y0, in.x0, in.y1});
+  frame_in(f, false, Rect{in.x1, in.y0, b.x1, in.y1});
+  const int32_t h = ring.y1 - ring.y0, wrap = ring.y1 - ring_off;   // rows above `wrap` are kept ring_off rows lower, the others h - ring_off higher
+  frame_in(f, false, Rect{in.x0, in.y0, in.x1, in.y1 < wrap ? in.y1 : wrap}, ring_off);
+  frame_in(f, false, Rect{in.x0, in.y0 > wrap ? in.y0 : wrap, in.x1, in.y1}, ring_off - h);
+}
+/** ZINC_GL_VERIFY (ZN-744): the surface texture as a partial replay left it, against a full replay of the same frame, which it keeps: the
+ *  number of pixels that differ (0: the move and the rectangles drew what a whole replay draws); `box` gets their bounds. */
+static uint64_t verify(const HalFrame* f, Rect* box) {
+  static uint32_t *a, *b;
+  static size_t cap;
+  const size_t n = (size_t)W * H;
+  if (cap < n) { free(a); free(b); a = (uint32_t*)malloc(n * 4); b = (uint32_t*)malloc(n * 4); cap = a && b ? n : 0; }
+  if (!cap) return 0;
+  unrotate();
+  glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+  glPixelStorei(GL_PACK_ALIGNMENT, 4);
+  glReadPixels(0, 0, W, H, GL_RGBA, GL_UNSIGNED_BYTE, a);
+  frame_in(f, false, Rect{0, 0, W, H});
+  glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+  glReadPixels(0, 0, W, H, GL_RGBA, GL_UNSIGNED_BYTE, b);
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  uint64_t d = 0;
+  *box = Rect{W, H, 0, 0};
+  for (size_t i = 0; i < n; i++) {
+    if (a[i] == b[i]) continue;
+    if (d++ < 3 && getenv("ZINC_GL_VERIFY_PX")) {
+      const float px = (float)(i % (size_t)W) + 0.5f, py = (float)(i / (size_t)W) + 0.5f;
+      fprintf(stderr, "zinc gl verify: pixel %d,%d moved %08x replayed %08x, under:", (int)px, (int)py, a[i], b[i]);
+      const HalCmdList* lists[8];
+      const int32_t nl = f->frames ? f->frames(lists, 8) : 0;
+      for (int32_t l = 0; l < nl; l++)
+        for (uint32_t k = 0; k < lists[l]->count; k++) {
+          const Cmd& c = ((const Cmd*)lists[l]->cmds)[k];
+          if (c.kind != CLIP && c.kind != UNCLIP && px >= c.x - 2 && px <= c.x + c.w + 2 && py >= c.y - 2 && py <= c.y + c.h + 2)
+            fprintf(stderr, " [%u kind %d %.2f,%.2f %.2fx%.2f r %.2f s %.2f grad %d pad %d]", k, c.kind, c.x, c.y, c.w, c.h, c.r, c.s, c.grad, c.pad);
+        }
+      fprintf(stderr, "\n");
+    }
+    const int32_t x = (int32_t)(i % (size_t)W), y = (int32_t)(i / (size_t)W);
+    if (x < box->x0) box->x0 = x; if (y < box->y0) box->y0 = y; if (x >= box->x1) box->x1 = x + 1; if (y >= box->y1) box->y1 = y + 1;
+  }
+  return d;
+}
+
 static void run(const Frame& f, bool first) {
   sp = 0;
   clip = base;
@@ -1496,6 +1698,7 @@ static void run(const Frame& f, bool first) {
   for (uint32_t k = 0; k < nw; k++) {
     const uint32_t e = walk_entry(k, first), i = e & ~kCullOpaque;
     const Cmd& c = f.cmds[i];
+    if (outside(c)) continue;
     if (occl && first) { if (culled ? (e & kCullOpaque) != 0 : drawn[i] != 0) continue; cur_z = depth_of(i, f.count); }
     use_blend(c.kind == IMAGE || (c.kind == XFORM && f.pts && f.pts[c.off] == (float)IMAGE) ? image_blend(c) : BLEND_NORMAL);
     switch (c.kind) {
@@ -1596,7 +1799,7 @@ static void run(const Frame& f, bool first) {
           GLR_TRACE("corners of a rounded CLIP copied from the framebuffer, radius %d, %d quads drawn so far\n", k.R, st.quads - trace_q0);
           glBindFramebuffer(GL_FRAMEBUFFER, flipy ? 0 : fbo);
           glBindTexture(GL_TEXTURE_2D, corner_tex);
-          for (int q = 0; q < 4; q++) glCopyTexSubImage2D(GL_TEXTURE_2D, 0, q * CORNER, sp * CORNER, cx[q], flipy ? H - cy[q] - k.R : cy[q], k.R, k.R);   // flipped copy: the restore quad flips v back
+          for (int q = 0; q < 4; q++) glCopyTexSubImage2D(GL_TEXTURE_2D, 0, q * CORNER, sp * CORNER, cx[q], flipy ? H - cy[q] - k.R : cy[q] + ring_ty, k.R, k.R);   // flipped copy: the restore quad flips v back
           glBindTexture(GL_TEXTURE_2D, cur_tex);
           k.on = true;
         }
@@ -1641,36 +1844,57 @@ static void run(const Frame& f, bool first) {
 static bool dmg_default = false;   // the includer's choice when ZINC_GL_DMG is not set (the Android window, ZN-741)
 static void frame(const HalFrame* f, bool direct, Rect dmg) {
   static const bool dmg_on = getenv("ZINC_GL_DMG") ? atoi(getenv("ZINC_GL_DMG")) != 0 : dmg_default;
+  if (direct) ring_off = 0;   // the window gets the whole frame: the texture is drawn again whole after it
+  if (direct) frame_in(f, true, Rect{0, 0, W, H});
+  else frame_box(f, !dmg_on ? Rect{0, 0, W, H} : dmg);
+}
+/** Replays the frame into the surface texture inside each of the `n` rectangles only: what a scroll leaves to draw once move() moved the
+ *  pixels (HalFrame.move). A pass per rectangle (one pass over their union with the depth buffer as a mask was slower on Tegra 3: the GPU
+ *  still shades every command's quad there before the test). */
+static void frame_rects(const HalFrame* f, const HalRect* r, int32_t n) {
+  static const int log = getenv("ZINC_GL_MOVE_LOG") ? atoi(getenv("ZINC_GL_MOVE_LOG")) : 0;   // 2: each pass's time, the GPU waited for
+  for (int32_t i = 0; i < n; i++) {
+    const double t0 = log > 1 ? now_us() : 0;
+    frame_box(f, Rect{r[i].x0, r[i].y0, r[i].x1, r[i].y1});
+    if (log > 1) { const double t1 = now_us(); glFinish(); fprintf(stderr, "zinc gl pass %dx%d: cpu %.2f gpu %.2f ms\n", r[i].x1 - r[i].x0, r[i].y1 - r[i].y0, (t1 - t0) / 1e3, (now_us() - t1) / 1e3); }
+  }
+}
+/** The replay of the frame's lists into the window (`direct`) or the surface texture, inside `box` only, drawn `ty` rows lower in the texture
+ *  (a piece of the rotated scroll area). */
+static void frame_in(const HalFrame* f, bool direct, Rect box, int32_t ty) {
+  base = isect(box, Rect{0, 0, W, H});
+  if (base.x0 >= base.x1 || base.y0 >= base.y1) return;
+  ring_ty = direct ? 0 : ty;
   double t0 = now_us();
   gpu_begin();
   const HalCmdList* lists[8];
   int32_t n = f->frames ? f->frames(lists, 8) : 0;
   flipy = direct;
-  base = direct || !dmg_on ? Rect{0, 0, W, H} : isect(dmg, Rect{0, 0, W, H});
   glBindFramebuffer(GL_FRAMEBUFFER, direct ? 0 : fbo);
-  glViewport(0, 0, W, H);
+  glViewport(0, direct ? 0 : ring_ty, W, H);   // a piece of a rotated scroll area is drawn shifted (scroll())
   memset(&applied, 0xff, sizeof applied);
   glEnable(GL_SCISSOR_TEST);
   clip = base;
   apply_clip();   // the clear stays inside the base rectangle
   // occlusion (ZN-412.01) when the framebuffer has a depth buffer that tells the commands apart (16 bits: up to 16k commands); ZINC_GL_OCCLUDE=0 turns it off
   static const bool occl_on = !getenv("ZINC_GL_OCCLUDE") || atoi(getenv("ZINC_GL_OCCLUDE")) != 0;
-  GLint bits = 0;
+  // asked once per target (a query each pass made a driver validate the framebuffer: a scroll replays several rectangles a frame)
+  GLint& bits = target_bits[direct][0];
+  GLint& sbits = target_bits[direct][1];
+  if (bits < 0) {
 #if GLR_CORE
-  glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, direct ? GL_DEPTH : GL_DEPTH_ATTACHMENT, GL_FRAMEBUFFER_ATTACHMENT_DEPTH_SIZE, &bits);
+    glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, direct ? GL_DEPTH : GL_DEPTH_ATTACHMENT, GL_FRAMEBUFFER_ATTACHMENT_DEPTH_SIZE, &bits);
+    glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, direct ? GL_STENCIL : GL_STENCIL_ATTACHMENT, GL_FRAMEBUFFER_ATTACHMENT_STENCIL_SIZE, &sbits);
 #else
-  glGetIntegerv(GL_DEPTH_BITS, &bits);
+    glGetIntegerv(GL_DEPTH_BITS, &bits);
+    glGetIntegerv(GL_STENCIL_BITS, &sbits);
 #endif
-  GLint sbits = 0;
-#if GLR_CORE
-  glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, direct ? GL_STENCIL : GL_STENCIL_ATTACHMENT, GL_FRAMEBUFFER_ATTACHMENT_STENCIL_SIZE, &sbits);
-#else
-  glGetIntegerv(GL_STENCIL_BITS, &sbits);
-#endif
+  }
   static const bool gpu_poly = !getenv("ZINC_GL_POLY") || atoi(getenv("ZINC_GL_POLY")) != 0;   // 0: LINE/POLY on the CPU tiles, to compare
   stencil_ok = gpu_poly && sbits >= 8;
   const uint32_t first_n = n > 0 ? lists[0]->count : 0;
-  occl = occl_on && bits >= 16 && first_n >= 64 && (uint64_t)first_n * 4 < (1ull << (bits > 24 ? 24 : bits));
+  // and only over most of the surface: for a small rectangle (a scroll's strip) the pass costs more than the overdraw it saves
+  occl = occl_on && bits >= 16 && first_n >= 64 && (uint64_t)first_n * 4 < (1ull << (bits > 24 ? 24 : bits)) && (int64_t)(base.x1 - base.x0) * (base.y1 - base.y0) * 4 >= (int64_t)W * H;
   glClearColor(0, 0, 0, 1);
 #if GLR_CORE
   glClearDepth(1.0);
@@ -1726,6 +1950,7 @@ static void frame(const HalFrame* f, bool direct, Rect dmg) {
   glDisableVertexAttribArray(A_BOX); glDisableVertexAttribArray(A_PAR); glDisableVertexAttribArray(A_C1); glDisableVertexAttribArray(A_C2); glDisableVertexAttribArray(A_Z);
   glDisable(GL_SCISSOR_TEST);
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  ring_ty = 0;
   gpu_end();
   st.frames++;
   st.us += now_us() - t0;
@@ -1738,6 +1963,7 @@ static void report() {
           st.frames, st.idle, st.draws / n, st.quads / n, st.glyphs, unsupported, st.us / n, st.cull_us / n, (double)st.hidden / n, st.ptiles / n, zrt::raster::strokes_built / n, gpu_n ? gpu_us / gpu_n : 0.0,
           st.blocks, (unsigned long long)st.block_bytes, st.decoded);
   fprintf(stderr, "display-gl renderer gl: %u command programs, %.0f ms to build them and the two of the occlusion and stencil passes; %u uploads of new glyphs, %.0f ms\n", st.progs, st.prog_us / 1e3, GLR_CORE ? st.glyphs : st.atlas_ups, st.glyph_us / 1e3);
+  if (mst.moves) fprintf(stderr, "display-gl renderer gl: %u scrolls moved on the GPU, %.0f pixels each\n", mst.moves, mst.px / mst.moves);
   fprintf(stderr, "display-gl renderer gl: the fringe quads of POLY cover %.0f pixels per frame in each of their passes (the surface has %d)\n", fringe_px / n, W * H);
 }
 }  // namespace glr

@@ -1675,7 +1675,6 @@ int32_t diff_move(const Frame& a, const Frame& b, int32_t w, int32_t h, Rect* ou
   Rect area{0, 0, w, h};
   for (int32_t k = 0; k < sp; k++) {
     const Cmd& q = a.cmds[stack[k]];
-    if (k < sp - 1 && q.r > 0) return -1;
     area = intersect(area, bounds(q.x, q.y, q.w, q.h, Rect{0, 0, w, h}));
   }
   if (area.x0 >= area.x1 || area.y0 >= area.y1) return -1;
@@ -1722,12 +1721,33 @@ int32_t diff_move(const Frame& a, const Frame& b, int32_t w, int32_t h, Rect* ou
     const int64_t i = (int64_t)j - off;
     if (i < (int64_t)head || i >= (int64_t)ia) dadd(area, cmd_bounds(b.cmds[j], w, h));
   }
-  // what the move carries wrongly: below the content (not one flat colour over the area), fixed inside the clip, over it after the clip
-  for (uint32_t i = 0; i < c; i++) if (!flat_over(a.cmds[i], area)) both(cmd_bounds(a.cmds[i], w, h));
-  for (uint32_t i = c + 1; i < head; i++) both(cmd_bounds(a.cmds[i], w, h));
-  for (uint32_t i = ia; i < ua; i++) both(cmd_bounds(a.cmds[i], w, h));
-  for (uint32_t i = ua + 1; i < a.count; i++) both(cmd_bounds(a.cmds[i], w, h));
-  for (uint32_t j = ub + 1; j < b.count; j++) dadd(area, cmd_bounds(b.cmds[j], w, h));
+  // a rounded box's corners stay where they are (a rounded clip, the scroll view's own or one around it such as a card with overflow
+  // hidden, or a rounded background under the area): the bands they lie in, and what moved out of them
+  auto corners = [&](const Cmd& q) {
+    const Rect cb = bounds(q.x, q.y, q.w, q.h, Rect{0, 0, w, h});
+    const int32_t rr = iceil(q.r) + 1, ay = dy < 0 ? -dy : dy, ax = dx < 0 ? -dx : dx;
+    dadd(area, Rect{area.x0, cb.y0, area.x1, cb.y0 + rr + ay});
+    dadd(area, Rect{area.x0, cb.y1 - rr - ay, area.x1, cb.y1});
+    if (dx) {
+      dadd(area, Rect{cb.x0, area.y0, cb.x0 + rr + ax, area.y1});
+      dadd(area, Rect{cb.x1 - rr - ax, area.y0, cb.x1, area.y1});
+    }
+  };
+  // what the move carries wrongly: below the content (not one flat colour over the area, but in a rounded one's corners), fixed inside the
+  // clip, over it after the clip
+  for (uint32_t i = 0; i < c; i++) {
+    const Cmd& q = a.cmds[i];
+    if (flat_over(q, area)) continue;
+    if (q.kind == RECT && q.grad == 0 && q.x <= area.x0 && q.y <= area.y0 && q.x + q.w >= area.x1 && q.y + q.h >= area.y1) corners(q);
+    else both(cmd_bounds(q, w, h));
+  }
+  // (a CLIP or UNCLIP draws nothing: its bounds are the screen's, it would damage everything; a fixed header in a card with overflow hidden
+  // comes before the card's UNCLIP)
+  auto drawn = [](const Cmd& q) { return q.kind != CLIP && q.kind != UNCLIP; };
+  for (uint32_t i = c + 1; i < head; i++) if (drawn(a.cmds[i])) both(cmd_bounds(a.cmds[i], w, h));
+  for (uint32_t i = ia; i < ua; i++) if (drawn(a.cmds[i])) both(cmd_bounds(a.cmds[i], w, h));
+  for (uint32_t i = ua + 1; i < a.count; i++) if (drawn(a.cmds[i])) both(cmd_bounds(a.cmds[i], w, h));
+  for (uint32_t j = ub + 1; j < b.count; j++) if (drawn(b.cmds[j])) dadd(area, cmd_bounds(b.cmds[j], w, h));
   // what changed after the clip, outside the area too, compared index by index as diff_rects does
   const uint32_t ra = a.count - ua, rb = b.count - ub, rn = ra > rb ? ra : rb;
   for (uint32_t k = 1; k < rn; k++) {
@@ -1736,17 +1756,7 @@ int32_t diff_move(const Frame& a, const Frame& b, int32_t w, int32_t h, Rect* ou
     if (ina) dadd(screen, cmd_bounds(a.cmds[ua + k], w, h));
     if (inb) dadd(screen, cmd_bounds(b.cmds[ub + k], w, h));
   }
-  // a rounded clip's corners stay where they are: the bands they lie in, and what moved out of them
-  const Cmd& cc = a.cmds[c];
-  if (cc.r > 0) {
-    const int32_t rr = iceil(cc.r) + 1, ay = dy < 0 ? -dy : dy, ax = dx < 0 ? -dx : dx;
-    dadd(area, Rect{area.x0, area.y0, area.x1, area.y0 + rr + ay});
-    dadd(area, Rect{area.x0, area.y1 - rr - ay, area.x1, area.y1});
-    if (dx) {
-      dadd(area, Rect{area.x0, area.y0, area.x0 + rr + ax, area.y1});
-      dadd(area, Rect{area.x1 - rr - ax, area.y0, area.x1, area.y1});
-    }
-  }
+  for (int32_t k = 0; k < sp; k++) if (a.cmds[stack[k]].r > 0) corners(a.cmds[stack[k]]);
   // what came into view
   if (dy < 0) dadd(area, Rect{area.x0, area.y1 + dy, area.x1, area.y1});
   if (dy > 0) dadd(area, Rect{area.x0, area.y0, area.x1, area.y0 + dy});

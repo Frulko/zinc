@@ -5,11 +5,30 @@
 // What a quad is, in a vertex's v_par.z. The fragment shader has a block per mode (FS_MODE): desktop GL compiles them all behind a ladder
 // of ifs, GLES 2 one program per mode from that mode's block alone (fs_source, ZN-725).
 enum Mode { FILL, BORDER_M, TEXT_M, IMAGE_RGBA, IMAGE_BGR, SOLID, RESTORE, SHADOW_M, STROKE_M, EDGE_M, CONVEX_M, RAMP_M, MODES };
+// The fragment shaders see positions relative to a whole pixel of the quad's own primitive (o: the box's centre or the segment's start,
+// floored), not to the surface (ZN-741, ZN-744): a fragment of mediump precision (Tegra 3: 13 bits, no highp) keeps a fraction of a pixel
+// where an absolute 1280 would keep an eighth, and a primitive moved by whole pixels (a scroll) gets the same values at the same places
+// of it, so a pixel moved on the GPU equals the pixel replayed there. Quads through a matrix (mode + 16) are in the box's own space
+// already; under a gradient paint (its geometry is absolute, ZN_PAINT, or u_g0.w on desktop GL) the positions stay absolute.
 static const char* VS =
   "attribute vec4 a_pos; attribute vec4 a_box; attribute vec4 a_par; attribute vec4 a_c1; attribute vec4 a_c2; attribute float a_z;\n"
   "uniform vec2 u_res; uniform float u_flip;\n"
+  "#ifdef ZN_PAINT_UNIFORM\n"
+  "uniform vec4 u_g0;\n"
+  "#endif\n"
   "varying vec4 v_pos; varying vec4 v_box; varying vec4 v_par; varying vec4 v_c1; varying vec4 v_c2;\n"
-  "void main() { v_pos = a_pos; v_box = a_box; v_par = a_par; v_c1 = a_c1; v_c2 = a_c2;\n"
+  "void main() {\n"
+  "  float m = a_par.z; bool seg = m > 7.5 && m < 9.5;\n"   // STROKE, EDGE: points in a_pos.zw, a_box and a_par.yw
+  "  vec2 o = m > 15.5 ? vec2(0.0) : floor(seg ? a_pos.zw : a_box.xy);\n"
+  "#ifdef ZN_PAINT\n"
+  "  o = vec2(0.0);\n"
+  "#endif\n"
+  "#ifdef ZN_PAINT_UNIFORM\n"
+  "  if (u_g0.w > 0.5) o = vec2(0.0);\n"
+  "#endif\n"
+  "  vec2 so = seg ? o : vec2(0.0);\n"
+  "  v_pos = vec4(a_pos.xy - o, a_pos.zw - so); v_box = vec4(a_box.xy - o, a_box.zw - so); v_par = vec4(a_par.x, a_par.y - so.x, a_par.z, a_par.w - so.y);\n"
+  "  v_c1 = a_c1; v_c2 = a_c2;\n"
   "  gl_Position = vec4(a_pos.x / u_res.x * 2.0 - 1.0, (a_pos.y / u_res.y * 2.0 - 1.0) * u_flip, a_z, 1.0); }\n";  // row 0 = top, like the CPU (u_flip -1: drawn into the window)
 static const char* const FS_HEAD =
   "varying vec4 v_pos; varying vec4 v_box; varying vec4 v_par; varying vec4 v_c1; varying vec4 v_c2;\n"
@@ -21,9 +40,17 @@ static const char* const FS_HEAD =
   "  return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r; }\n"
   "float cover(vec2 p, vec2 c, vec2 h, float r) { return clamp(0.5 - sdf(p, c, h, r), 0.0, 1.0); }\n"
   "float seg(vec2 p, vec2 a, vec2 b) { vec2 pa = p - a, ba = b - a; return length(pa - ba * clamp(dot(pa, ba) / max(dot(ba, ba), 1e-6), 0.0, 1.0)); }\n"
+  // ZINC_GL_MEDIUMP=<bits> (ZN-741): the positions a fragment reads rounded to that many mantissa bits, as a GPU without fragment highp
+  // stores them (Tegra 3: 13, fp16 GPUs: 10), so a desktop shows what such a GPU draws (the arithmetic after them keeps its precision)
+  "#ifdef ZN_MP\n"
+  "float mp(float x) { if (x == 0.0) return 0.0; float e = exp2(floor(log2(abs(x))) - ZN_MP); return floor(x / e + 0.5) * e; }\n"
+  "vec2 mp(vec2 v) { return vec2(mp(v.x), mp(v.y)); }\n"
+  "#else\n"
+  "#define mp(x) (x)\n"
+  "#endif\n"
   "void main() {\n"
-  "  vec2 p = v_pos.xy, c = v_box.xy, h = v_box.zw;\n"
-  "  float r = v_par.x, mode = v_par.z, grad = v_par.w;\n"
+  "  vec2 p = mp(v_pos.xy), c = mp(v_box.xy), h = mp(v_box.zw);\n"
+  "  float r = mp(v_par.x), mode = v_par.z, grad = v_par.w;\n"
   "  if (mode > 15.5) { mode -= 16.0; p = v_pos.zw; }\n"   // a box drawn through a matrix (XFORM, ZN-263.01): the pixel in the box's own coordinates
   "  vec3 col = v_c1.rgb; float cov = 1.0, a = v_c1.a;\n";
 // IMAGE: baked RGBA / runtime 0x00RRGGBB (grad 1: 0xAARRGGBB), times the sprite's tint in c1 (white: none, ZN-581); grad 2: premultiplied

@@ -139,38 +139,8 @@ void zgl_backend_poll(HalInput* in, int32_t W, int32_t H) {
 }
 
 // ---------- display ----------
-// ZINC_GL_INFO=1: what the driver offers (renderer choices are made from these numbers, docs/reports/gpu-renderer-design.md).
-static void print_info() {
-  auto has = [](const char* list, const char* name) { return list && strstr(list, name) ? "yes" : "no"; };
-  const char* ext = (const char*)glGetString(GL_EXTENSIONS);
-  const char* eext = eglQueryString(dpy, EGL_EXTENSIONS);
-  fprintf(stderr, "gl-info: vendor=%s renderer=%s version=%s glsl=%s\n", glGetString(GL_VENDOR), glGetString(GL_RENDERER), glGetString(GL_VERSION), glGetString(GL_SHADING_LANGUAGE_VERSION));
-  fprintf(stderr, "gl-info: egl=%s\n", eglQueryString(dpy, EGL_VERSION));
-  static const char* const names[] = {"GL_OES_EGL_image_external", "GL_EXT_texture_format_BGRA8888", "GL_OES_texture_npot", "GL_OES_packed_depth_stencil",
-    "GL_EXT_multisampled_render_to_texture", "GL_OES_rgb8_rgba8", "GL_EXT_unpack_subimage", "GL_OES_vertex_array_object", "GL_OES_standard_derivatives",
-    "GL_EXT_shader_texture_lod", "GL_OES_depth_texture", "GL_OES_element_index_uint"};
-  for (const char* n : names) fprintf(stderr, "gl-info: %s=%s\n", n, has(ext, n));
-  static const char* const enames[] = {"EGL_KHR_image_base", "EGL_EXT_image_dma_buf_import", "EGL_EXT_image_dma_buf_import_modifiers", "EGL_KHR_surfaceless_context", "EGL_MESA_platform_gbm"};
-  for (const char* n : enames) fprintf(stderr, "gl-info: %s=%s\n", n, has(eext, n));
-  GLint v = 0, r[2] = {0, 0}, p = 0;
-  glGetIntegerv(GL_MAX_TEXTURE_SIZE, &v);
-  fprintf(stderr, "gl-info: max_texture_size=%d\n", v);
-  glGetIntegerv(GL_MAX_VERTEX_ATTRIBS, &v); fprintf(stderr, "gl-info: max_vertex_attribs=%d\n", v);
-  glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &v); fprintf(stderr, "gl-info: max_texture_image_units=%d\n", v);
-  glGetIntegerv(GL_MAX_FRAGMENT_UNIFORM_VECTORS, &v); fprintf(stderr, "gl-info: max_fragment_uniform_vectors=%d\n", v);
-  glGetShaderPrecisionFormat(GL_FRAGMENT_SHADER, GL_HIGH_FLOAT, r, &p);
-  fprintf(stderr, "gl-info: fragment highp float: range=%d,%d precision=%d bits (0 = unsupported)\n", r[0], r[1], p);
-  glGetShaderPrecisionFormat(GL_FRAGMENT_SHADER, GL_MEDIUM_FLOAT, r, &p);
-  fprintf(stderr, "gl-info: fragment mediump float: range=%d,%d precision=%d bits\n", r[0], r[1], p);
-  for (int samples = 2; samples <= 8; samples *= 2) {
-    const EGLint a[] = {EGL_SURFACE_TYPE, EGL_WINDOW_BIT, EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT, EGL_SAMPLES, samples, EGL_NONE};
-    EGLConfig c[16];
-    EGLint n = 0, xrgb = 0, id;
-    eglChooseConfig(dpy, a, c, 16, &n);
-    for (int i = 0; i < n; i++) if (eglGetConfigAttrib(dpy, c[i], EGL_NATIVE_VISUAL_ID, &id) && id == GBM_FORMAT_XRGB8888) xrgb++;
-    fprintf(stderr, "gl-info: EGL configs with >= %d samples: %d (XRGB8888 window: %d)\n", samples, n, xrgb);
-  }
-}
+// The EGL extensions for the GL replay's capability record (runtime/gl_caps.h), which ZINC_GL_INFO prints with the rest of the context.
+extern "C" const char* zgl_backend_egl() { return dpy ? eglQueryString(dpy, EGL_EXTENSIONS) : nullptr; }
 
 bool zgl_backend_init(const HalConfig* cfg) {
   if (!open_card()) { fprintf(stderr, "display-gl: no connected display on /dev/dri/card*\n"); return false; }
@@ -204,7 +174,6 @@ bool zgl_backend_init(const HalConfig* cfg) {
   surf = eglCreateWindowSurface(dpy, chosen, (EGLNativeWindowType)gs, nullptr);
   if (ctx == EGL_NO_CONTEXT || surf == EGL_NO_SURFACE || !eglMakeCurrent(dpy, surf, surf, ctx)) { fprintf(stderr, "display-gl: EGL context failed\n"); return false; }
   saved = drmModeGetCrtc(fd, crtc_id);
-  if (getenv("ZINC_GL_INFO")) print_info();
   open_inputs();
   px = cfg->width / 2.f; py = cfg->height / 2.f;
   GLint got = 0;

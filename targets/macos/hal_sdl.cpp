@@ -82,9 +82,9 @@ static bool zgl_load() { return true; }
 #define ZGL_FUNCS(X) X(ActiveTexture) X(AttachShader) X(BindAttribLocation) X(BindBuffer) X(BindFramebuffer) X(BindRenderbuffer) X(BindTexture) \
   X(BindVertexArray) X(BlendFunc) X(BufferData) X(CheckFramebufferStatus) X(Clear) X(ClearColor) X(ClearDepth) X(CompileShader) X(CopyTexSubImage2D) \
   X(CreateProgram) X(CreateShader) X(DeleteProgram) X(DeleteShader) X(DeleteTextures) X(DepthFunc) X(DepthMask) X(Disable) X(DisableVertexAttribArray) \
-  X(DrawArrays) X(DrawArraysInstanced) X(DrawElements) X(Enable) X(EnableVertexAttribArray) X(FramebufferRenderbuffer) X(FramebufferTexture2D) \
+  X(DrawArrays) X(DrawArraysInstanced) X(DrawElements) X(Enable) X(EnableVertexAttribArray) X(Finish) X(FramebufferRenderbuffer) X(FramebufferTexture2D) \
   X(GenBuffers) X(GenFramebuffers) X(GenRenderbuffers) X(GenTextures) X(GenVertexArrays) X(GetAttribLocation) X(GetFramebufferAttachmentParameteriv) \
-  X(GetIntegerv) X(GetProgramiv) X(GetShaderInfoLog) X(GetShaderiv) X(GetString) X(GetUniformLocation) X(LinkProgram) X(PixelStorei) \
+  X(GetIntegerv) X(GetProgramiv) X(GetShaderInfoLog) X(GetShaderiv) X(GetString) X(GetUniformLocation) X(LinkProgram) X(PixelStorei) X(ReadPixels) \
   X(RenderbufferStorage) X(Scissor) X(ShaderSource) X(TexImage2D) X(TexParameteri) X(TexSubImage2D) X(Uniform1f) X(Uniform1i) X(Uniform2f) X(UseProgram) \
   X(VertexAttribDivisor) X(VertexAttribPointer) X(Viewport)
 /** After the context is current: false when a function is missing (the window then stays on SDL_Renderer). */
@@ -135,10 +135,10 @@ static GLuint zgl_program(const char* defines, const char* vs, const char* fs) {
 static SDL_GLContext glctx;
 static bool gl_on, glr_ok, glr_made, glr_stale, gl_tex_ok;   // the window presents with GL; the replay works; it was set up; its size is stale; its texture holds the last frame
 static GLuint gl_prog, gl_quad, gl_upload, gl_vao;
-static GLint gl_u_tex, gl_u_bgr, gl_u_rot, gl_u_alpha;
+static GLint gl_u_tex, gl_u_bgr, gl_u_rot, gl_u_alpha, gl_u_src;
 // the present pass: a texture of the surface over the window (rows top first); u_bgr for the software rows (bytes B, G, R)
 // u_rot: cos and sin of the picture's turn (a simulated device turned while its program keeps its orientation: zinc run --simulate)
-static const char* kPresentVS = "attribute vec2 a_pos; varying vec2 v_uv; uniform vec2 u_rot; void main() { v_uv = vec2(a_pos.x, 1.0 - a_pos.y); vec2 p = a_pos * 2.0 - 1.0;\n"
+static const char* kPresentVS = "attribute vec2 a_pos; varying vec2 v_uv; uniform vec2 u_rot; uniform vec4 u_src; void main() { v_uv = u_src.xy + vec2(a_pos.x, 1.0 - a_pos.y) * u_src.zw; vec2 p = a_pos * 2.0 - 1.0;\n"
   "  gl_Position = vec4(p.x * u_rot.x - p.y * u_rot.y, p.x * u_rot.y + p.y * u_rot.x, 0.0, 1.0); }\n";
 static const char* kPresentFS = "varying vec2 v_uv; uniform sampler2D u_tex; uniform float u_bgr; uniform float u_alpha;\n"   // u_alpha: the GPU layers' frame (premultiplied)
   "void main() { vec4 t = texture2D(u_tex, v_uv); gl_FragColor = vec4(u_bgr > 0.5 ? t.bgr : t.rgb, u_alpha > 0.5 ? t.a : 1.0); }\n";
@@ -192,7 +192,8 @@ static bool gl_window(const char* title, int ww, int wh) {
     return false;
   }
   gl_u_tex = glGetUniformLocation(gl_prog, "u_tex"); gl_u_bgr = glGetUniformLocation(gl_prog, "u_bgr"); gl_u_rot = glGetUniformLocation(gl_prog, "u_rot");
-  gl_u_alpha = glGetUniformLocation(gl_prog, "u_alpha");
+  gl_u_alpha = glGetUniformLocation(gl_prog, "u_alpha"); gl_u_src = glGetUniformLocation(gl_prog, "u_src");
+  glUseProgram(gl_prog); glUniform4f(gl_u_src, 0, 0, 1, 1);   // the whole texture (gl_show draws parts of it for a rotated scroll area)
   static const float q[] = {0, 0, 1, 0, 0, 1, 1, 1};
   glGenBuffers(1, &gl_quad);
   glBindBuffer(GL_ARRAY_BUFFER, gl_quad);
@@ -204,6 +205,11 @@ static bool gl_window(const char* title, int ww, int wh) {
   window_limits(win);
   SDL_GL_SetSwapInterval(getenv("ZINC_VSYNC") && atoi(getenv("ZINC_VSYNC")) == 0 ? 0 : 1);   // shown by its first present (hal_present)
   if (getenv("ZINC_GL_STATS")) fprintf(stderr, "zinc: window renderer gl (%s, %s)\n", r, (const char*)glGetString(GL_VERSION));   // macOS: "4.1 Metal - ...", Apple's GL on Metal
+#ifdef __ANDROID__   // the EGL side of the capability record
+  typedef const char* (*EglQuery)(void*, int);
+  if (EglQuery query = (EglQuery)SDL_EGL_GetProcAddress("eglQueryString")) glr::egl_extensions = query(SDL_EGL_GetCurrentDisplay(), 0x3055 /* EGL_EXTENSIONS */);
+#endif
+  glr::probe();   // the context's capability record (ZINC_GL_INFO prints it)
   return true;
 }
 // zinc run --simulate (docs/guide/09-web-apis.md "Simulated devices"): the device turned in the panel, in quarter turns clockwise. A program
@@ -1277,6 +1283,124 @@ static void layers_present(const HalFrame* f, int dw, int dh) {
   SDL_GL_SwapWindow(win);
 }
 #endif
+static void gl_mark(int step);
+/** The texture `src` over the window (letterboxed, turned), then the swap. */
+static void gl_show(GLuint src, float bgr, int dw, int dh) {
+  const float sc = SDL_min((float)dw / turned_w(), (float)dh / turned_h());
+  const int vw = (int)(turned_w() * sc + 0.5f), vh = (int)(turned_h() * sc + 0.5f);
+  // a scroll area whose rows the texture keeps turned (glr::scroll): drawn in pieces when the window is the surface, else put back first
+  const bool pieces = src == glr::texture() && glr::ring_off && vw == PW && vh == PH && vw == dw && vh == dh;
+  if (src == glr::texture() && glr::ring_off && !pieces) glr::unrotate();
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  glDisable(GL_SCISSOR_TEST); glDisable(GL_DEPTH_TEST); glDisable(GL_BLEND);
+  glViewport(0, 0, dw, dh);
+  // the bars of a letterbox; a picture over the whole window needs no clear but on a tiler, where it spares loading the old pixels (an
+  // immediate GPU writes the whole window twice with it: Tegra 3, ZN-741)
+  if (vw != dw || vh != dh || glr::caps.tiler) { glClearColor(0, 0, 0, 1); glClear(GL_COLOR_BUFFER_BIT); }
+  glViewport((dw - vw) / 2, (dh - vh) / 2, vw, vh);
+  glUseProgram(gl_prog);
+  static const float kCos[] = {1, 0, -1, 0}, kSin[] = {0, -1, 0, 1};   // clockwise on the screen: minus a quarter turn each
+  glUniform2f(gl_u_rot, kCos[sim_turn & 3], kSin[sim_turn & 3]);
+  glActiveTexture(GL_TEXTURE0);
+  glBindTexture(GL_TEXTURE_2D, src);
+  const GLint flt = logical_px ? GL_NEAREST : GL_LINEAR;   // pixel art keeps square pixels when the window magnifies it
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, flt); glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, flt);
+  glUniform1i(gl_u_tex, 0);
+  glUniform1f(gl_u_bgr, bgr); glUniform1f(gl_u_alpha, 0);
+  glBindBuffer(GL_ARRAY_BUFFER, gl_quad);
+  glEnableVertexAttribArray(0);
+  glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
+  if (pieces) {   // the parts around the area as they are, the area's two runs of rows where they belong: each pixel once
+    int32_t tw = 1, th = 1;
+    glr::texture_size(&tw, &th);
+    const glr::Rect R = glr::ring;
+    const int32_t off = glr::ring_off, wrap = R.y1 - off, w = R.x1 - R.x0;
+    auto piece = [&](int32_t x, int32_t y, int32_t pw, int32_t ph, int32_t sx, int32_t sy) {
+      if (pw <= 0 || ph <= 0) return;
+      glViewport(x, dh - y - ph, pw, ph);
+      glUniform4f(gl_u_src, (float)sx / tw, (float)sy / th, (float)pw / tw, (float)ph / th);
+      glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    };
+    piece(0, 0, PW, R.y0, 0, 0);
+    piece(0, R.y1, PW, PH - R.y1, 0, R.y1);
+    piece(0, R.y0, R.x0, R.y1 - R.y0, 0, R.y0);
+    piece(R.x1, R.y0, PW - R.x1, R.y1 - R.y0, R.x1, R.y0);
+    piece(R.x0, R.y0, w, wrap - R.y0, R.x0, R.y0 + off);
+    piece(R.x0, wrap, w, R.y1 - wrap, R.x0, R.y0);
+    glUniform4f(gl_u_src, 0, 0, 1, 1);
+  } else glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+  glDisableVertexAttribArray(0);
+  gl_mark(PS_DRAW);
+  SDL_GL_SwapWindow(win);
+}
+// ZINC_PRESENT_STATS with ZINC_GL_FINISH=1: each step of a GL present waits for the GPU, so its time is the step's own (slower in all)
+static void gl_mark(int step) {
+  static const bool fin = getenv("ZINC_GL_FINISH") && atoi(getenv("ZINC_GL_FINISH")) != 0;
+  if (fin && ps_on > 0) glFinish();
+  ps_mark(step);
+}
+// A scroll (HalFrame.move, ZN-744): the replay's texture holds the previous frame, its pixels move on the GPU and only the rectangles left are
+// replayed. ZINC_GL_MOVE=0|1 overrides the default below; ZINC_GL_VERIFY=1 compares each moved frame with a whole replay of it (logged).
+static bool gl_moved(const HalFrame* f) {
+  // on by default where a whole replay costs the GPU most (GLES 2: Tegra 3 replays rn-showcase in 90 to 130 ms); a desktop GPU replays a
+  // frame in under 2 ms of CPU, less than the passes of the pieces (940 us each on Apple's GL), so there it is asked for (ZINC_GL_MOVE=1)
+#ifdef ZGL_ES
+  static const bool on = !getenv("ZINC_GL_MOVE") || atoi(getenv("ZINC_GL_MOVE")) != 0;
+#else
+  static const bool on = getenv("ZINC_GL_MOVE") && atoi(getenv("ZINC_GL_MOVE")) != 0;
+#endif
+  if (!on || !f->move || !gl_tex_ok) return false;
+  const HalMove& m = *f->move;
+  const uint64_t t0 = hal_time_us();
+  if (!glr::scroll(glr::Rect{m.area.x0, m.area.y0, m.area.x1, m.area.y1}, m.dx, m.dy)) return false;
+  gl_mark(PS_MOVE);
+  const uint64_t t1 = hal_time_us();
+  // each rectangle is a pass over the commands: overlapping or close ones (the perf panel at its old and new place, its own change) are
+  // joined when their union costs little more than the two (a pass costs Tegra 3 about a millisecond before any pixel)
+  HalRect r[16];
+  int32_t n = 0;
+  for (int32_t i = 0; i < m.n && n < 16; i++) r[n++] = m.damage[i];
+  auto area = [](const HalRect& a) { return (int64_t)(a.x1 - a.x0) * (a.y1 - a.y0); };
+  for (bool joined = true; joined;) {
+    joined = false;
+    for (int32_t i = 0; i < n && !joined; i++)
+      for (int32_t j = i + 1; j < n; j++) {
+        const HalRect u = {SDL_min(r[i].x0, r[j].x0), SDL_min(r[i].y0, r[j].y0), SDL_max(r[i].x1, r[j].x1), SDL_max(r[i].y1, r[j].y1)};
+        if (area(u) > area(r[i]) + area(r[j]) + 16384) continue;
+        r[i] = u; r[j] = r[--n]; joined = true;
+        break;
+      }
+  }
+  glr::frame_rects(f, r, n);
+  gl_mark(PS_RASTER);
+  static const bool log = getenv("ZINC_GL_MOVE_LOG") != nullptr;   // each moved frame: the delta and the rectangles replayed
+  if (log) {
+    char s[400];
+    int k = snprintf(s, sizeof s, "zinc gl move: (%d, %d) move %.1f ms, %d rects %.1f ms:", m.dx, m.dy, (t1 - t0) / 1e3, n, (hal_time_us() - t1) / 1e3);
+    for (int32_t i = 0; i < n && k < (int)sizeof s - 40; i++) k += snprintf(s + k, sizeof s - k, " %d,%d %dx%d", r[i].x0, r[i].y0, r[i].x1 - r[i].x0, r[i].y1 - r[i].y0);
+    k += snprintf(s + k, sizeof s - k, "\n");
+    hal_log_err(s, (size_t)k);
+  }
+  static const bool check = getenv("ZINC_GL_VERIFY") && atoi(getenv("ZINC_GL_VERIFY")) != 0;
+  if (check) {
+    static uint32_t moved, bad;
+    glr::Rect b;
+    const uint64_t d = glr::verify(f, &b);
+    moved++; bad += d != 0;
+    if (d || moved % 60 == 0) {
+      char s[240];
+      int k = snprintf(s, sizeof s, "zinc gl verify: %u moved frames, %u differ from a whole replay", moved, bad);
+      if (d) k += snprintf(s + k, sizeof s - k, "; this one (%d, %d): %llu pixels in %d,%d %d,%d", m.dx, m.dy, (unsigned long long)d, b.x0, b.y0, b.x1, b.y1);
+      if (d && getenv("ZINC_GL_VERIFY_PX")) {
+        k += snprintf(s + k, sizeof s - k, "; area %d,%d %d,%d, drawn", m.area.x0, m.area.y0, m.area.x1, m.area.y1);
+        for (int32_t i = 0; i < m.n && k < (int)sizeof s - 40; i++) k += snprintf(s + k, sizeof s - k, " %d,%d %d,%d", m.damage[i].x0, m.damage[i].y0, m.damage[i].x1, m.damage[i].y1);
+      }
+      k += snprintf(s + k, sizeof s - k, "\n");
+      hal_log_err(s, (size_t)k);
+    }
+  }
+  return true;
+}
 static void gl_present(const HalFrame* f) {
   GlCurrent cur;
 #ifdef __ANDROID__
@@ -1306,17 +1430,18 @@ static void gl_present(const HalFrame* f) {
       glr::idle();
       return;
     }
-    glr::frame(f, false, gl_tex_ok ? glr::Rect{f->x0, f->y0, f->x1, f->y1} : glr::Rect{0, 0, PW, PH});
+    if (!gl_moved(f)) { glr::frame(f, false, gl_tex_ok ? glr::Rect{f->x0, f->y0, f->x1, f->y1} : glr::Rect{0, 0, PW, PH}); gl_mark(PS_RASTER); }
     gl_tex_ok = true;
 #else
     const int64_t area = damaged ? (int64_t)(f->x1 - f->x0) * (f->y1 - f->y0) : 0;
-    if (dw == PW && dh == PH && !sim_turn && damaged && area * 2 >= (int64_t)PW * PH) {   // straight into the window: no texture, no copy
+    if (damaged && gl_moved(f)) {}   // a scroll: the texture's pixels moved, the rest replayed
+    else if (dw == PW && dh == PH && !sim_turn && damaged && area * 2 >= (int64_t)PW * PH) {   // straight into the window: no texture, no copy
       glr::frame(f, true, glr::Rect{0, 0, PW, PH});
       gl_tex_ok = false;
       SDL_GL_SwapWindow(win);
       return;
     }
-    if (damaged || !gl_tex_ok) { glr::frame(f, false, glr::Rect{0, 0, PW, PH}); gl_tex_ok = true; }
+    else if (damaged || !gl_tex_ok) { glr::frame(f, false, glr::Rect{0, 0, PW, PH}); gl_tex_ok = true; }
     else glr::idle();
 #endif
   } else {
@@ -1328,29 +1453,7 @@ static void gl_present(const HalFrame* f) {
     }
     src = gl_upload; bgr = 1;   // 0x00RRGGBB in memory: B, G, R, 0
   }
-  glBindFramebuffer(GL_FRAMEBUFFER, 0);
-  glDisable(GL_SCISSOR_TEST); glDisable(GL_DEPTH_TEST); glDisable(GL_BLEND);
-  glViewport(0, 0, dw, dh);
-  glClearColor(0, 0, 0, 1);
-  glClear(GL_COLOR_BUFFER_BIT);
-  const float sc = SDL_min((float)dw / turned_w(), (float)dh / turned_h());
-  const int vw = (int)(turned_w() * sc + 0.5f), vh = (int)(turned_h() * sc + 0.5f);
-  glViewport((dw - vw) / 2, (dh - vh) / 2, vw, vh);
-  glUseProgram(gl_prog);
-  static const float kCos[] = {1, 0, -1, 0}, kSin[] = {0, -1, 0, 1};   // clockwise on the screen: minus a quarter turn each
-  glUniform2f(gl_u_rot, kCos[sim_turn & 3], kSin[sim_turn & 3]);
-  glActiveTexture(GL_TEXTURE0);
-  glBindTexture(GL_TEXTURE_2D, src);
-  const GLint flt = logical_px ? GL_NEAREST : GL_LINEAR;   // pixel art keeps square pixels when the window magnifies it
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, flt); glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, flt);
-  glUniform1i(gl_u_tex, 0);
-  glUniform1f(gl_u_bgr, bgr); glUniform1f(gl_u_alpha, 0);
-  glBindBuffer(GL_ARRAY_BUFFER, gl_quad);
-  glEnableVertexAttribArray(0);
-  glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
-  glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-  glDisableVertexAttribArray(0);
-  SDL_GL_SwapWindow(win);
+  gl_show(src, bgr, dw, dh);
 }
 #endif
 static void present_frame(const HalFrame* f);
