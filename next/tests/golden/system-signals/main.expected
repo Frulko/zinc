@@ -1,0 +1,9 @@
+signal safearea 24 0 20 0 -> safe 24,0,20,0 scheme light font 1 keyboard 0 motion full
+signal theme dark -> safe 24,0,20,0 scheme dark font 1 keyboard 0 motion full
+signal fontscale 1.5 -> safe 24,0,20,0 scheme dark font 1.5 keyboard 0 motion full
+signal keyboard 40 -> safe 24,0,20,0 scheme dark font 1.5 keyboard 40 motion full
+signal reducemotion 1 -> safe 24,0,20,0 scheme dark font 1.5 keyboard 40 motion reduced
+signal back  -> safe 24,0,20,0 scheme dark font 1.5 keyboard 40 motion reduced
+back taken (1)
+signal back  -> safe 24,0,20,0 scheme dark font 1.5 keyboard 40 motion reduced
+back taken (2)

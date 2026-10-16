@@ -364,6 +364,36 @@ static bool next_event(SDL_Event* e) {
   return SDL_PollEvent(e);
 }
 
+// The system's signals (src/host/hal_dispatch.cpp zn_hal_signal; docs/ui.md "System signals"): the theme and the safe area at the start and when
+// they change, the back key (Android), the on-screen keyboard hidden, the IME's composition, the display's orientation. Weak: the prototype's
+// build links no dispatcher.
+extern "C" __attribute__((weak)) void zn_hal_signal(const char*);
+static void sys_signal(const char* line) { if (zn_hal_signal) zn_hal_signal(line); }
+static void signal_theme() {
+  const SDL_SystemTheme t = SDL_GetSystemTheme();
+  if (t != SDL_SYSTEM_THEME_UNKNOWN) sys_signal(t == SDL_SYSTEM_THEME_DARK ? "theme dark" : "theme light");
+}
+static void signal_safe_area() {   // window points into the surface's units
+  SDL_Rect r;
+  int ww = 0, wh = 0;
+  if (!win || !SDL_GetWindowSafeArea(win, &r)) return;
+  SDL_GetWindowSize(win, &ww, &wh);
+  if (ww <= 0 || wh <= 0) return;
+  const float kx = (float)W / ww, ky = (float)H / wh;
+  char b[96];
+  snprintf(b, sizeof b, "safearea %d %d %d %d", (int)(r.y * ky + 0.5f), (int)((ww - r.x - r.w) * kx + 0.5f), (int)((wh - r.y - r.h) * ky + 0.5f), (int)(r.x * kx + 0.5f));
+  sys_signal(b);
+}
+static void signal_event(const SDL_Event& e) {
+  if (e.type == SDL_EVENT_SYSTEM_THEME_CHANGED) signal_theme();
+  else if (e.type == SDL_EVENT_WINDOW_SAFE_AREA_CHANGED || e.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED) signal_safe_area();
+  else if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_AC_BACK && !e.key.repeat) sys_signal("back");
+  else if (e.type == SDL_EVENT_SCREEN_KEYBOARD_HIDDEN) sys_signal("keyboard 0");   // its height comes from the phone's glue (src/app)
+  else if (e.type == SDL_EVENT_TEXT_EDITING) { std::string c = "compose "; c += e.edit.text ? e.edit.text : ""; sys_signal(c.c_str()); }
+  else if (e.type == SDL_EVENT_DISPLAY_ORIENTATION && e.display.data1 != SDL_ORIENTATION_UNKNOWN)
+    sys_signal(e.display.data1 == SDL_ORIENTATION_PORTRAIT || e.display.data1 == SDL_ORIENTATION_PORTRAIT_FLIPPED ? "orientation portrait" : "orientation landscape");
+}
+
 extern "C" {
 void hal_init(const HalConfig* cfg) {
   // a display plugin brings its own output, unless it draws through this window (host_window: the e-ink emulator)
@@ -396,6 +426,7 @@ void hal_init(const HalConfig* cfg) {
     SDL_SetHint(SDL_HINT_MAC_BACKGROUND_APP, "1");   // no Dock icon, never the active application
 #endif
   }
+  SDL_SetHint(SDL_HINT_IME_IMPLEMENTED_UI, "composition");   // zinc:ui draws the composing text in the field (SDL_EVENT_TEXT_EDITING)
   if (!SDL_Init(SDL_INIT_VIDEO)) hal_panic(SDL_GetError(), "hal_sdl", __LINE__);
   // window size in points: zinc.json targets.<id>.zoom (ZINC_ZOOM overrides); auto only enlarges tiny surfaces
 #ifdef ZINC_ZOOM
@@ -495,6 +526,8 @@ void hal_init(const HalConfig* cfg) {
   // HiDPI: frames are rasterized at the window's pixel size, so text and shapes stay sharp (ZINC_SCALE overrides)
   apply_size();
   SDL_AddEventWatch(watch, nullptr);
+  signal_theme();
+  signal_safe_area();
 }
 void hal_shutdown(void) {
   if (!gfx_on) return;
@@ -853,6 +886,7 @@ void hal_poll_input(HalInput* in) {
       if (int32_t k = key_code(e.key.key)) key_push(in, k, e.type == SDL_EVENT_KEY_UP ? HAL_KEY_UP : e.key.repeat ? HAL_KEY_REPEAT : HAL_KEY_DOWN, e.key.mod, nullptr);
     }
     if (e.type == SDL_EVENT_TEXT_INPUT) key_push(in, 0, HAL_KEY_TEXT, SDL_GetModState(), e.text.text);
+    signal_event(e);
     if ((e.type == SDL_EVENT_MOUSE_BUTTON_DOWN || e.type == SDL_EVENT_MOUSE_BUTTON_UP) && in->nbtn < HAL_MAX_BUTTON_EVENTS) {
       HalButtonEvent& b = in->btn[in->nbtn++];
       float bx = e.button.x, by = e.button.y;
@@ -1415,6 +1449,28 @@ static void present_frame(const HalFrame* f) {
   ps_end();
 }
 void hal_surface_size(int* w, int* h) { *w = W; *h = H; }
+// The keyboard the focused field asks for (zinc:ui, src/host/hal_dispatch.cpp zn_hal_text_traits: `type=email cap=none autocorrect=0 multiline=0
+// secure=1`): SDL's text input properties, which choose the phone's keyboard (a desktop's IME ignores them). Restarted when they change.
+extern "C" __attribute__((weak)) const char* zn_hal_text_traits(void);
+static std::string traits_on;
+static void start_text_input() {
+  const std::string t = zn_hal_text_traits ? zn_hal_text_traits() : "";
+  if (t.empty()) { SDL_StartTextInput(win); traits_on.clear(); return; }
+  auto has = [&](const char* kv) { return (" " + t + " ").find(std::string(" ") + kv + " ") != std::string::npos; };
+  if (SDL_TextInputActive(win) && t != traits_on) SDL_StopTextInput(win);   // another field, another keyboard
+  traits_on = t;
+  SDL_PropertiesID p = SDL_CreateProperties();
+  const bool secure = has("secure=1"), number = has("type=number") || has("type=phone") || has("type=decimal");
+  SDL_SetNumberProperty(p, SDL_PROP_TEXTINPUT_TYPE_NUMBER, number ? (secure ? SDL_TEXTINPUT_TYPE_NUMBER_PASSWORD_HIDDEN : SDL_TEXTINPUT_TYPE_NUMBER) :
+                        secure ? SDL_TEXTINPUT_TYPE_TEXT_PASSWORD_HIDDEN : has("type=email") ? SDL_TEXTINPUT_TYPE_TEXT_EMAIL :
+                        has("type=name") ? SDL_TEXTINPUT_TYPE_TEXT_NAME : has("type=username") ? SDL_TEXTINPUT_TYPE_TEXT_USERNAME : SDL_TEXTINPUT_TYPE_TEXT);
+  SDL_SetNumberProperty(p, SDL_PROP_TEXTINPUT_CAPITALIZATION_NUMBER, has("cap=none") ? SDL_CAPITALIZE_NONE : has("cap=words") ? SDL_CAPITALIZE_WORDS :
+                        has("cap=characters") ? SDL_CAPITALIZE_LETTERS : SDL_CAPITALIZE_SENTENCES);
+  SDL_SetBooleanProperty(p, SDL_PROP_TEXTINPUT_AUTOCORRECT_BOOLEAN, !has("autocorrect=0") && !secure);
+  SDL_SetBooleanProperty(p, SDL_PROP_TEXTINPUT_MULTILINE_BOOLEAN, has("multiline=1"));
+  SDL_StartTextInputWithProperties(win, p);
+  SDL_DestroyProperties(p);
+}
 // Text input (IME candidate window next to the field), clipboard, cursor shapes.
 void hal_text_input(int32_t on, float x, float y, float w, float h) {
   if (!gfx_on) return;
@@ -1431,7 +1487,7 @@ void hal_text_input(int32_t on, float x, float y, float w, float h) {
   to_window(x1, y1, &x1, &y1);
   SDL_Rect r = {(int)x0, (int)y0, (int)(x1 - x0), (int)(y1 - y0)};
   SDL_SetTextInputArea(win, &r, 0);
-  SDL_StartTextInput(win);
+  start_text_input();
 }
 int32_t hal_win_open(int32_t id, const char* title, int32_t w, int32_t h) {
   if (!gfx_on) return 0;

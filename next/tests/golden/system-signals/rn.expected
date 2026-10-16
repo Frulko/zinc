@@ -1,0 +1,8 @@
+appearance dark fontScale 1
+hardwareBackPress taken
+haptic impact light
+haptic selection
+haptic notification error
+haptic vibrate 30
+statusbar light-content 0 #0f172a 0
+exitapp 

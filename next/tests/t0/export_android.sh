@@ -25,6 +25,8 @@ grep -q "applicationId 'dev.zinc.hello'\|namespace = \"dev.zinc.hello\"" "$tmp/h
 grep -q "zinc.abis=armeabi-v7a,arm64-v8a,x86_64" "$tmp/hello/gradle.properties" || { echo "the ABIs are not armeabi-v7a, arm64-v8a, x86_64"; fail=1; }
 grep -q 'name="HelloActivity"' "$tmp/hello/app/src/main/AndroidManifest.xml" || { echo "the manifest does not name HelloActivity"; fail=1; }
 grep -q "minSdkVersion 24" "$tmp/hello/app/build.gradle" && grep -q "targetSdkVersion 36" "$tmp/hello/app/build.gradle" || { echo "min 24 / target 36 not set"; fail=1; }
+grep -q 'extends ZincActivity' "$tmp/hello/app/src/main/java/dev/zinc/hello/HelloActivity.java" && [ -f "$tmp/hello/app/src/main/java/org/libsdl/app/ZincEdit.java" ] || { echo "the activity is not Zinc's (src/app/android/java)"; fail=1; }
+grep -q 'enableOnBackInvokedCallback="true"' "$tmp/hello/app/src/main/AndroidManifest.xml" || { echo "the back callbacks are off in the manifest"; fail=1; }
 grep -q "max-page-size=16384" "$tmp/hello/app/jni/src/CMakeLists.txt" || { echo "no 16 KB page alignment"; fail=1; }
 grep -q "ZN_APP_ENV" "$tmp/hello/app/jni/src/CMakeLists.txt" && { echo "hello has no targets.android, yet ZN_APP_ENV is defined"; fail=1; }
 # zinc.json targets.android fullscreen and kiosk are baked for every build (ZN_APP_ENV, read by src/app/shell_sdl.cpp)

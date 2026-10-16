@@ -5,6 +5,7 @@
 #include "frontend/jsx.h"
 #include "frontend/native_gen.h"
 #include "frontend/plugin_manifest.h"
+#include "zn/platform.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -165,6 +166,10 @@ export function updateImage(img: i32, rgba: u8[]): void { __host_gfxUpdateImage(
 export function shaderProgram(fragment: string, scale: i32 = 1): i32 { return __host_gfxShaderProgram(fragment, scale); }
 export function drawShader(program: i32, x: number, y: number, w: number, h: number, uniforms: number[]): void { __host_gfxDrawShader(program, x, y, w, h, uniforms); }
 export function shaderAvailable(): boolean { return __host_gfxShaderAvailable() !== 0; }
+/** The system's signals waiting for this frame (safe area, theme, font scale, back, keyboard, IME composition; docs/ui.md): zinc:ui reads them. */
+export function signalCount(): i32 { return __host_gfxSignalCount(); }
+/** The next signal as `kind args` ('safearea 47 0 34 0', 'theme dark', 'back'), '' when none waits. */
+export function signalNext(): string { return __host_gfxSignalNext(); }
 export function clip(x: number, y: number, w: number, h: number, radius: number = 0): void { __host_gfxClip(x, y, w, h, radius); }
 export function unclip(): void { __host_gfxUnclip(); }
 export function translate(x: number, y: number): void { __host_gfxTranslate(x, y); }
@@ -1112,12 +1117,11 @@ std::string lucideModuleSource(const std::string& entry, const std::string& node
 }
 
 // zinc:platform: the capabilities of the profile this engine runs as, constants like compiler/src/capabilities.ts platformModule (targets/capabilities.json).
+// The OS the program is built for: ZINC_PLATFORM, else a phone profile's (--profile android, ios, ios-sim), else this machine's (zn/platform.h)
 std::string platformName() {
-#if defined(__APPLE__)
-  return "macos";
-#else
-  return "linux";
-#endif
+  if (zn::knownPlatform(std::getenv("ZINC_PLATFORM"))) return std::getenv("ZINC_PLATFORM");
+  if (const Profile* p = currentProfile()) { const std::string n = p->name; if (n == "android" || n == "ios") return n; if (n == "ios-sim") return "ios"; }
+  return zn::builtPlatform();
 }
 std::string platformModuleSource(const std::string& capsFile) {
   std::string target = platformName(), text;
@@ -1602,7 +1606,7 @@ struct Loader {
       if (spec == "zinc:platform") return load(spec, platformModuleSource((std::filesystem::path(stdRoot.empty() ? "." : stdRoot).parent_path().parent_path() / "targets" / "capabilities.json").string()));
       if (const char* src = hostModuleSource(spec)) return load(spec, src);
       static const std::map<std::string, std::string> kStd = {{"zinc:ui", "ui.ts"}, {"zinc:gl", "gl.ts"}, {"zinc:web", "web.ts"}, {"zinc:web/fetch", "fetch.ts"}, {"zinc:subtle", "subtle.ts"}, {"zinc:ui/solid", "solid.ts"}, {"zinc:ui/react", "react.ts"}, {"zinc:ui/kit", "kit/index.ts"}, {"zinc:icons", "icons.tsx"}, {"zinc:ui/animated", "animated.ts"}, {"zinc:react-native", "react-native.tsx"}, {"zinc:react-native/linking", "react-native-linking.ts"}, {"zinc:ui/nuxt", "nuxt/index.ts"},
-                                                              {"zinc:signals", "signals.ts"}, {"zinc:path", "path.ts"}, {"zinc:assert", "assert.ts"}, {"zinc:hot", "hot.ts"}, {"zinc:system", "system/index.ts"},
+                                                              {"zinc:signals", "signals.ts"}, {"zinc:haptics", "haptics.ts"}, {"zinc:ui/navigation", "navigation.tsx"}, {"zinc:path", "path.ts"}, {"zinc:assert", "assert.ts"}, {"zinc:hot", "hot.ts"}, {"zinc:system", "system/index.ts"},
                                                               {"zinc:system/notification", "system/notification.ts"}, {"zinc:system/menu", "system/menu.ts"}, {"zinc:system/tray", "system/tray.ts"}, {"zinc:system/dialog", "system/dialog.ts"}, {"zinc:system/window", "system/window.ts"},
                                                               {"zinc:system/shortcut", "system/shortcut.ts"}, {"zinc:system/instance", "system/instance.ts"}, {"zinc:system/deeplink", "system/deeplink.ts"}, {"zinc:system/autostart", "system/autostart.ts"},
                                                               {"zinc:system/dock", "system/dock.ts"}, {"zinc:system/power", "system/power.ts"}, {"zinc:system/clipboard", "system/clipboard.ts"}, {"zinc:system/opener", "system/opener.ts"}, {"zinc:system/update", "system/update.ts"}};

@@ -34,14 +34,14 @@ component (`View as Box`) is not supported: View, Text, Image and ScrollView mus
 | Button | supported | title, onPress, color, disabled (iOS's look) |
 | Switch | supported | value, onValueChange, trackColor, thumbColor, ios_backgroundColor, disabled (iOS 51 x 31) |
 | ActivityIndicator | supported | size small / large, color, animating, hidesWhenStopped |
-| TextInput | partial | value, defaultValue, onChangeText, onSubmitEditing, placeholder, keyboardType, secureTextEntry, multiline, editable, maxLength, autoFocus; onFocus / onBlur, placeholderTextColor, returnKeyType, autoCapitalize, selection missing |
+| TextInput | partial | value, defaultValue, onChangeText, onSubmitEditing, placeholder, keyboardType, secureTextEntry, multiline, editable, maxLength, autoFocus; autoCapitalize, autoCorrect, returnKeyType, textContentType, autoComplete reach the phone's keyboard; onFocus / onBlur, placeholderTextColor, selection missing |
 | KeyboardAvoidingView | supported | behavior padding / height (both pad) / position, keyboardVerticalOffset, enabled |
 | FlatList | partial | virtualised: data, renderItem, keyExtractor (item, index), ItemSeparatorComponent, ListHeader / Footer / EmptyComponent, numColumns, columnWrapperStyle, getItemLayout, onEndReached + threshold, refreshing / onRefresh; horizontal, inverted, scrollToIndex, onViewableItemsChanged missing |
 | SectionList | partial | sections exactly `{ title, data }` (a declared array of sections cannot widen to optional members yet: ZN-389), renderItem, renderSectionHeader / Footer, sticky headers, separators, refresh, onEndReached; not virtualised |
 | RefreshControl | partial | the spinner row of FlatList / SectionList `refreshing`; the ScrollView `refreshControl` prop is missing |
 | Modal | supported | visible, transparent, animationType slide (the content comes up in 250 ms; the dimmed full-size view of a transparent modal fades in place, as on iOS) / fade (200 ms) / none, onRequestClose (Escape), onShow; closing plays the motion backwards |
-| SafeAreaView | supported | a View (no notch on desktop and simulator surfaces) |
-| StatusBar | partial | renders nothing (no system status bar); the props are kept |
+| SafeAreaView | supported | pads its content by the system's safe area (notch, status bar, home indicator), which the OS feeds to zinc:ui; 0 on a desktop |
+| StatusBar | partial | barStyle, hidden, backgroundColor (Android before 15) go to the phone's system bar; `setStatusBarStyle`, `setStatusBarHidden`, `setStatusBarBackgroundColor`, `setStatusBarTranslucent` stand for the statics; renders nothing |
 | VirtualizedList, ImageBackground, DrawerLayoutAndroid, TouchableNativeFeedback, InputAccessoryView | missing | |
 
 ## APIs
@@ -56,14 +56,16 @@ component (`View as Box`) is not supported: View, Text, Image and ScrollView mus
 | Alert | partial | alert(title, message, buttons) as an in-app dialog (cancel, destructive) that fades in and out; prompt missing |
 | Linking | supported | openURL, canOpenURL, getInitialURL, addEventListener('url'), openSettings (zinc:react-native/linking) |
 | Keyboard | supported | addListener keyboardDid/WillShow, Hide, ChangeFrame; dismiss, isVisible, metrics |
-| Platform | partial | OS (zinc's platform names: macos, linux, web, device targets), Version, select (with a fallback argument: no undefined result) |
+| Platform | partial | OS (`android`, `ios`, `macos`, `linux`, `web`), Version (a string: Android's API level, the iOS version), select with `ios`, `android`, `native`, `default` (and a fallback argument: no undefined result); `ZINC_PLATFORM=android\|ios` runs a phone's branch on the desktop; isPad, isTV false |
 | Dimensions, useWindowDimensions | supported | get('window' / 'screen'), change events |
-| PixelRatio | supported | get, getFontScale (1), getPixelSizeForLayoutSize, roundToNearestPixel |
-| Appearance, useColorScheme | partial | ZINC_COLOR_SCHEME or setColorScheme; the system setting is not read yet |
+| PixelRatio | supported | get, getFontScale (the OS's text size: Android's font size, iOS's Dynamic Type; Text sizes follow it), getPixelSizeForLayoutSize, roundToNearestPixel |
+| Appearance, useColorScheme | supported | the system's light or dark and its changes (Android, iOS, macOS); ZINC_COLOR_SCHEME or setColorScheme override it ('unspecified' follows the system again) |
 | AppRegistry | partial | registerComponent mounts the app; runApplication missing |
 | processColor | partial | #rgb, #rrggbb, #rrggbbaa (alpha dropped), white, black, transparent |
 | I18nManager | partial | isRTL, forceRTL (at once, for the whole surface), allowRTL |
-| AccessibilityInfo, AppState, BackHandler, InteractionManager, PlatformColor, Share, Vibration, ToastAndroid | missing | |
+| BackHandler | supported | addEventListener('hardwareBackPress') (the newest listener that returns true takes it; none: the app goes back to the system), exitApp; the back key and the predictive back gesture on Android |
+| Vibration | partial | vibrate(ms), cancel; a pattern plays its first pulse. Touch feedback: `Haptics.impact / selection / notification` of zinc:haptics |
+| AccessibilityInfo, AppState, InteractionManager, PlatformColor, Share, ToastAndroid | missing | |
 
 ## Styles
 

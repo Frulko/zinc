@@ -10,6 +10,9 @@
 #include <string>
 
 #include "zn/app.h"
+#ifdef __APPLE__
+#include <TargetConditionals.h>
+#endif
 
 #ifdef __APPLE__
 #include <TargetConditionals.h>   // TARGET_OS_IOS: __APPLE__ is true on macOS too
@@ -205,7 +208,9 @@ static void phone_setup() {
   const char* kv = getenv("ZINC_KIOSK");
   const bool kiosk = kv && kv[0] == '1';
   SDL_SetHint(SDL_HINT_VIDEO_ALLOW_SCREENSAVER, kiosk ? "0" : "1");
-  if (kiosk) SDL_SetHint(SDL_HINT_ANDROID_TRAP_BACK_BUTTON, "1");
+  // the back key goes to the program's back handlers (zinc:ui addBackHandler, React Native's BackHandler) as the window HAL's `back` signal; one that
+  // none takes goes back to the system (device('exitapp'), ZincActivity.systemBack), except in a kiosk
+  SDL_SetHint(SDL_HINT_ANDROID_TRAP_BACK_BUTTON, "1");
   // The heap of the runtime (one region, targets/common/hal_posix.cpp): the program's need, at most a quarter of the device's memory. The
   // desktop's 512 MiB cannot be had on a 1 GB device (a 32-bit process, ~400 MB free on the Nexus 7 2012); iOS ends an app that grows
   // past its share (jetsam).
@@ -219,9 +224,16 @@ static void phone_setup() {
 
 static bool paused;
 
+#if defined(__ANDROID__) || (defined(__APPLE__) && TARGET_OS_IPHONE)
+extern "C" void zn_mobile_glue_init(void);   // src/app/android_glue.cpp, src/app/ios_glue.mm: the system signals and commands of a phone
+#endif
+
 SDL_AppResult SDL_AppInit(void**, int argc, char** argv) {
 #ifdef ZN_PHONE
   phone_setup();
+#endif
+#if defined(__ANDROID__) || (defined(__APPLE__) && TARGET_OS_IPHONE)
+  zn_mobile_glue_init();
 #endif
   const int rc = zn_app_init(argc, argv);
   return rc == 0 ? SDL_APP_CONTINUE : rc == 1 ? SDL_APP_SUCCESS : SDL_APP_FAILURE;

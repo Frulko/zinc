@@ -1088,7 +1088,9 @@ static int exportAndroid(const ProjectInfo& p, const fs::path& out, const std::s
                 std::string("distributionUrl=https\\://services.gradle.org/distributions/gradle-") + kGradle + "-bin.zip\ndistributionSha256Sum=" + kGradleSha, err) &&
       // Zinc: the app's name, its permissions
       replaceIn(out / "app/src/main/res/values/strings.xml", "<string name=\"app_name\">Game</string>", "<string name=\"app_name\">" + xml(!proj.app.name.empty() ? proj.app.name : p.name) + "</string>", err) &&
-      replaceIn(out / "app/src/main/AndroidManifest.xml", "    <uses-feature android:glEsVersion=\"0x00020000\" />\n", "    <uses-feature android:glEsVersion=\"0x00020000\" />\n" + perms, err);
+      replaceIn(out / "app/src/main/AndroidManifest.xml", "    <uses-feature android:glEsVersion=\"0x00020000\" />\n", "    <uses-feature android:glEsVersion=\"0x00020000\" />\n" + perms, err) &&
+      // Zinc: back goes to the program's back handlers, the predictive gesture's progress too (Android 13+, ZincActivity.registerBack)
+      replaceIn(out / "app/src/main/AndroidManifest.xml", "android:enableOnBackInvokedCallback=\"false\"", "android:enableOnBackInvokedCallback=\"true\"", err);
   if (!ok) { std::fprintf(stderr, "zinc export: %s\n", err.c_str()); return 1; }
   {   // gradle.properties: the CMake build of the template (BUILD_WITH_CMAKE), the engine, the ABIs
     std::ifstream in(out / "gradle.properties"); std::stringstream ss; ss << in.rdbuf();
@@ -1096,14 +1098,11 @@ static int exportAndroid(const ProjectInfo& p, const fs::path& out, const std::s
               "# (-Pzinc.abis=armeabi-v7a builds one)\nBUILD_WITH_CMAKE=1\nzinc.engine=" + engine.string() + "\nzinc.abis=armeabi-v7a,arm64-v8a,x86_64\n");
   }
   fs::create_directories(out / "app/src/main/java" / pkgPath, ec);
-  // the script's activity, with SDL3 linked into libmain.so rather than a libSDL3.so of its own
+  // Zinc's activity (src/app/android/java: ZincActivity, the system signals and commands, and ZincEdit, the text input connection), and the
+  // script's activity on it, with SDL3 linked into libmain.so rather than a libSDL3.so of its own
+  fs::copy(engine / "src/app/android/java", out / "app/src/main/java", fs::copy_options::recursive | fs::copy_options::overwrite_existing, ec);
   writeFile(out / "app/src/main/java" / pkgPath / (activity + ".java"),
-            "package " + id + ";\n\nimport org.libsdl.app.SDLActivity;\n\npublic class " + activity + " extends SDLActivity\n{\n    @Override\n    protected String[] getLibraries() { return new String[] { \"main\" }; }   // Zinc: SDL3 is inside libmain.so\n\n"
-            "    @Override\n    protected boolean onUnhandledMessage(int command, Object param) {   // Zinc: the window's brightness, on the UI thread (zn/app.h)\n"
-            "        if (command != " + std::to_string(ZN_APP_ANDROID_BRIGHTNESS) + " || !(param instanceof Integer)) return super.onUnhandledMessage(command, param);\n"
-            "        android.view.WindowManager.LayoutParams lp = getWindow().getAttributes();\n"
-            "        lp.screenBrightness = (Integer) param < 0 ? -1f : (Integer) param / 255f;   // -1: the system's\n"
-            "        getWindow().setAttributes(lp);\n        return true;\n    }\n}\n");
+            "package " + id + ";\n\nimport dev.zinc.app.ZincActivity;\n\npublic class " + activity + " extends ZincActivity\n{\n    @Override\n    protected String[] getLibraries() { return new String[] { \"main\" }; }   // Zinc: SDL3 is inside libmain.so\n}\n");
   if (!proj.app.icon.empty() && fs::exists(fs::path(p.dir) / proj.app.icon))   // zinc.json app.icon, a PNG, for every density
     for (const char* d : {"mdpi", "hdpi", "xhdpi", "xxhdpi", "xxxhdpi"}) fs::copy_file(fs::path(p.dir) / proj.app.icon, out / "app/src/main/res" / (std::string("mipmap-") + d) / "ic_launcher.png", fs::copy_options::overwrite_existing, ec);
   // assets/ of the project: in the APK under zinc/assets, listed for the shell, which copies them once per version (src/app/shell_sdl.cpp)

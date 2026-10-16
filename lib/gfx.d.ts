@@ -93,6 +93,10 @@ declare module 'zinc:gfx' {
   /** Whether this display draws drawShader on the GPU (the GL window of a desktop, an Android window whose program made a shader before its
    *  first frame); false on the software raster and headless. */
   export function shaderAvailable(): boolean;
+  /** The system's signals waiting for this frame (safe area, theme, font scale, back, keyboard, IME composition): zinc:ui reads them (docs/ui.md). */
+  export function signalCount(): i32;
+  /** The next signal as `kind args` ('safearea 47 0 34 0', 'theme dark', 'back'), '' when none waits. */
+  export function signalNext(): string;
   /** Clips the following draws to the box until unclip(); radius > 0 also clips to its rounded corners (anti-aliased). */
   export function clip(x: number, y: number, w: number, h: number, radius?: number): void;
   export function unclip(): void;

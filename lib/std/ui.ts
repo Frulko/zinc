@@ -13,7 +13,8 @@ import {
 import { profiling, profMark, pixelScale } from 'zinc:gfx';   // frame phases (docs/dev-mode.md, profiling)
 import { openWindow, frame as gfxFrame } from 'zinc:gfx';   // trees in windows of their own (ZN-663)
 import { overlaid } from 'zinc:gfx';   // the loader's fade draws over the first frames (ZN-447): a kept frame would hold it
-import { platform, env } from 'zinc:sys';
+import { platform, env, device } from 'zinc:sys';
+import { signalCount, signalNext } from 'zinc:gfx';   // the system's signals (safe area, theme, back...)
 import { PALETTE, SHADES } from './palette';
 import { UI_LAYOUT, UI_PRESET, HEAP_BYTES, TIER } from 'zinc:platform';
 import * as LY from 'zinc:__layout';
@@ -92,6 +93,8 @@ export class Edit {
   placeholder: string = '';
   password: boolean = false; readOnly: boolean = false; lineNumbers: boolean = false; wrap: boolean = true;
   rows: i32 = 4;                        // visible lines of a textarea without a height
+  compA: i32 = -1; compB: i32 = -1;     // the IME's composing run [compA, compB) in value (composeText), -1 none
+  traits: string = '';                  // keyboard traits for the OS (setInputTraits: cap, autocorrect, return, autofill)
   sx: number = 0; sy: number = 0;       // scroll of the text inside the field
   goalX: number = -1;                   // x kept by up/down moves
   blinkAt: number = 0;
@@ -1058,7 +1061,7 @@ function writeProp(n: UiNode, id: i32, key: string, v: number): void {
   else if (id === P_GROW) n.grow = v; else if (id === P_GAP) n.gap = iv;
   else if (id === P_PADDING) { n.pt = iv; n.pr = iv; n.pb = iv; n.pl = iv; }
   else if (id === P_SCALE) n.size = 8 * iv;
-  else if (id === P_FONT_SIZE) { n.size = iv; if (n.letterSpace !== UNSET) n.tracking = n.letterSpace / (iv > 0 ? iv : 16); }
+  else if (id === P_FONT_SIZE) { n.size = fontScale === 1 ? iv : Math.round(iv * fontScale); if (n.letterSpace !== UNSET) n.tracking = n.letterSpace / (iv > 0 ? iv : 16); }
   else if (id === P_HIDDEN) { n.hidden = iv === 1; n.contents = iv === 2; }   // display: flex 0, none 1, contents 2
   else if (id >= P_PCT0 && id < P_PCT0 + PCT_KEYS.length) { if (n.pct === null) { const a: number[] = []; for (let i = 0; i < PCT_KEYS.length; i++) a.push(-1); n.pct = a; } (n.pct as number[])[id - P_PCT0] = v; }
   else if (id === P_KEEP_FOCUS) { n.keepFocus = iv !== 0; return; }
@@ -1767,6 +1770,55 @@ export function setKeyboardInset(px: number): void { if (px === kbInset) return;
 export function keyboardInset(): number { return kbInset; }
 /** Safe-area insets (notches, rounded corners): `env(safe-area-inset-top|right|bottom|left)`. */
 export function setSafeArea(t: number, r: number, b: number, l: number): void { if (t === safeT && r === safeR && b === safeB && l === safeL) return; safeT = t; safeR = r; safeB = b; safeL = l; restyleMedia(8); }
+export function safeArea(): number[] { return [safeT, safeR, safeB, safeL]; }
+// ---- the system's signals (docs/ui.md, "System signals"): what a phone's OS tells the app, fed into the hooks above. The window HAL sends them
+// (SDL: theme, safe area, the back key, IME composition), a phone's glue (Android activity, iOS glue: font scale, reduce motion, keyboard height,
+// predictive back) and a ZINC_INPUT script (`safearea 47 0 34 0`, `theme dark`, `fontscale 1.3`, `back`, `keyboard 336`...)
+/** The OS's look: 'android', 'ios' or 'desktop', from platform() (ZINC_PLATFORM forces it): scroll physics, transitions, selection handles. */
+export function platformStyle(): string { const p = platform(); return p === 'android' ? 'android' : p === 'ios' ? 'ios' : 'desktop'; }
+let fontScale: number = 1, reduceMotion = false;
+const signalFns: ((kind: string, arg: string) => void)[] = [];
+const backFns: (() => boolean)[] = [];
+/** The OS's text size setting (Dynamic Type, Android's font size): 1 by default. rem lengths, text classes and fontSize scale with it. */
+export function systemFontScale(): number { return fontScale; }
+/** The OS asks for less motion (iOS Reduce Motion, Android's animations off): transitions become fades or cuts. */
+export function prefersReducedMotion(): boolean { return reduceMotion; }
+export function setFontScale(k: number): void {
+  if (!(k > 0) || k === fontScale) return;
+  const base = rootFont / fontScale;
+  fontScale = k;
+  rootFont = 0;   // restyles every node, even when the root size comes out the same
+  setRootFontSize(base * k);
+}
+/** f(kind, args) after zinc:ui applied each signal: 'safearea', 'theme', 'fontscale', 'reducemotion', 'keyboard', 'back', 'backstart', 'backprogress',
+ *  'backcancel', 'orientation', and the input connection's 'compose', 'commit', 'imedelete', 'imeselect', 'imeaction'. */
+export function addSignalListener(f: (kind: string, arg: string) => void): void { signalFns.push(f); }
+export function removeSignalListener(f: (kind: string, arg: string) => void): void { const i = signalFns.indexOf(f); if (i >= 0) signalFns.splice(i, 1); }
+/** The back key or gesture (Android): handlers run newest first until one returns true; when none does, the app goes back to the system. */
+export function addBackHandler(f: () => boolean): void { backFns.push(f); }
+export function removeBackHandler(f: () => boolean): void { const i = backFns.lastIndexOf(f); if (i >= 0) backFns.splice(i, 1); }
+/** What the back key does: the newest handler that takes it, else the system's back (Android only: elsewhere nothing). */
+export function goBack(): void {
+  for (let i = backFns.length - 1; i >= 0; i--) if (backFns[i]()) return;
+  if (platform() === 'android') device('exitapp');
+}
+/** One system signal, as the host sends it (`kind args`); also the way to inject one in a test. */
+export function systemSignal(line: string): void {
+  const sp = line.indexOf(' '), kind = sp < 0 ? line : line.substring(0, sp), arg = sp < 0 ? '' : line.substring(sp + 1);
+  const a = arg.split(' ');
+  if (kind === 'safearea' && a.length >= 4) setSafeArea(parseFloat(a[0]), parseFloat(a[1]), parseFloat(a[2]), parseFloat(a[3]));
+  else if (kind === 'theme') setSystemScheme(arg === 'dark' ? 'dark' : 'light');
+  else if (kind === 'fontscale') setFontScale(parseFloat(arg));
+  else if (kind === 'reducemotion') reduceMotion = arg === '1' || arg === 'true';
+  else if (kind === 'keyboard') setKeyboardInset(Math.max(0, parseFloat(arg)));
+  else if (kind === 'compose') composeText(arg);
+  else if (kind === 'commit') { if (focus >= 0) typeInto(focus, arg); }
+  else if (kind === 'imedelete' || kind === 'imeselect' || kind === 'imeaction') imeEdit(kind, a);
+  for (const f of signalFns.slice()) f(kind, arg);
+  if (kind === 'back') goBack();
+  paintDirty = true;
+}
+function systemSignals(): void { while (signalCount() > 0) systemSignal(signalNext()); }
 /** The last pointer was a finger or a pen (a touch screen), not a mouse. Devices that are not desktops start with it true. */
 export function pointerIsCoarse(): boolean { return coarse; }
 function setCoarse(c: boolean): void { if (c === coarse) return; coarse = c; restyleMedia(2); }
@@ -2356,7 +2408,7 @@ function resetStyle(n: UiNode): void {
   n.abs = false; n.top = UNSET; n.left = UNSET; n.right = UNSET; n.bottom = UNSET; n.hidden = false; n.contents = false; n.pct = null; n.overflow = n.tag === SCROLL; n.scroll = n.tag === SCROLL ? 1 : 0;
   n.bg = fresh.bg; n.bgAlpha = 255; n.grad = 0; n.gradFrom = -1; n.gradTo = -1; n.radius = 0; n.borderW = 0; n.shadowLevel = 0; n.shX = 0; n.shY = 0; n.shBlur = 0; n.shColor = 0; n.shOpacity = 0;
   n.tx = 0; n.ty = 0; n.k = 1; n.tf = null; n.z = 0; n.invisible = false; n.noPointer = false; n.rel = false; n.sticky = false; n.stat = false; n.contentBox = false; n.borderColor = fresh.borderColor; n.borderAlpha = 255; n.fgAlpha = 255;
-  n.opacity = 1; n.fg = fresh.fg; n.size = DEFAULT_TEXT; n.bold = false; n.weight = 0; n.italic = false; n.transform = 0; n.tsX = 0; n.tsY = 0; n.tsColor = -1; n.tsAlpha = 0; n.selBg = -1; n.selectable = false; n.group = false; n.peer = false; n.ws = 0; n.brk = 0; n.clamp = 0; n.ellipsis = false; n.balance = false; n.deco = 0; n.wordSp = 0; n.vshift = 0; n.family = 'sans'; n.tracking = 0; n.letterSpace = UNSET; n.talign = 0; n.leading = 0;
+  n.opacity = 1; n.fg = fresh.fg; n.size = fontScale === 1 ? DEFAULT_TEXT : Math.round(DEFAULT_TEXT * fontScale); n.bold = false; n.weight = 0; n.italic = false; n.transform = 0; n.tsX = 0; n.tsY = 0; n.tsColor = -1; n.tsAlpha = 0; n.selBg = -1; n.selectable = false; n.group = false; n.peer = false; n.ws = 0; n.brk = 0; n.clamp = 0; n.ellipsis = false; n.balance = false; n.deco = 0; n.wordSp = 0; n.vshift = 0; n.family = 'sans'; n.tracking = 0; n.letterSpace = UNSET; n.talign = 0; n.leading = 0;
   n.cursor = -1;
   n.rg = DEF_RINGX; n.bd = DEF_BORDERX; n.sn = DEF_SNAPX; n.gx = DEF_GRADX; n.im = DEF_IMGX;   // the cold records: back to the shared defaults
   if (n.it !== DEF_INTERX) { const o = n.it; o.focusBg = -1; o.activeBg = -1; o.focusFg = -1; o.activeFg = -1; o.transMs = 0; o.hoverBg = -1; o.hoverFg = -1; o.hoverBorder = -1; o.focusBorder = -1; o.withinBg = -1; o.withinFg = -1; o.withinBorder = -1; o.transMask = -1; o.transDelay = 0; o.transEase = 7; }   // curBg, fromBg, transStart and the tr* fields stay: a transition goes on across a class change
@@ -3947,6 +3999,10 @@ function paintEdit(h: i32, n: UiNode, e: Edit, x: number, y: number, k: number, 
       if (s1 > b && r + 1 < e.rs.length && e.rs[r + 1] > b) x1 += 6;  // the selected line break
       if (x1 > x0) rrect(rx + x0 * k, ry, (x1 - x0) * k, lh * k, 0, selColor, selAlpha);
     }
+    if (e.compA >= 0 && e.compA <= b && e.compB >= a) {   // the IME's composing run: underlined, as every platform draws it
+      const x0 = xrOf(n, chunk, e, c0, r, imax(e.compA, a)), x1 = xrOf(n, chunk, e, c0, r, imin(e.compB, b));
+      if (x1 > x0) rrect(rx + x0 * k, ry + (lh - 3) * k, (x1 - x0) * k, Math.max(1, Math.round(k * 1.5)), 0, n.fg, ai);
+    }
     if (line.length === 0) continue;
     // squiggles (diagnostics) under the glyphs' baseline
     for (let i = 0; i + 3 < mk.length; i += 4) {
@@ -3983,7 +4039,13 @@ function snapshot(e: Edit, typing: boolean): void {
   e.redo = []; e.redoAt = [];
   e.typing = typing;
 }
+// The text input connection (ZN-626, docs/ui.md "Text input on phones"): on a phone the OS's keyboard reads the field it types into (the text
+// around the caret, the selection, the composing run) to suggest, autocorrect and compose: each change is mirrored to the platform's client
+// (src/app/android ZincInputConnection, src/app/ios_glue.mm) as `caret anchor compA compB` and the value on the next line.
+const IME_MIRROR: boolean = platform() === 'android' || platform() === 'ios';
+function mirrorIme(e: Edit): void { if (IME_MIRROR) device('textinput', `${e.caret} ${e.anchor} ${e.compA} ${e.compB}\n${e.value}`); }
 function edited(e: Edit): void {
+  mirrorIme(e);
   e.reveal = true; e.blinkAt = clock; e.goalX = -1; e.dirty = true; paintDirty = true;
   const f = e.onInput;
   if (f !== null) f(e.value);
@@ -4646,7 +4708,7 @@ function fire(h: i32, kind: i32, gx: number, gy: number, button: i32): PointerEv
 let keyboardFocus = false;   // the last input was the keyboard: focus-visible: applies
 function setFocusTo(h: i32): void {
   if (focus === h) return;
-  if (focus >= 0 && nodes[focus].alive) { const e = nodes[focus].ed; if (e !== null) commit(e as Edit); }
+  if (focus >= 0 && nodes[focus].alive) { const e = nodes[focus].ed; if (e !== null) { (e as Edit).compA = -1; (e as Edit).compB = -1; commit(e as Edit); } }   // a composing run stays as typed
   focus = h;
   if (h >= 0) { const e = nodes[h].ed; if (e !== null) { e.blinkAt = clock; e.reveal = true; } }
   paintDirty = true;
@@ -4922,9 +4984,39 @@ function updateHover(): void {
 }
 function typeInto(h: i32, s: string): void {
   if (h < 0) return;
-  const e = nodes[h].ed;
-  if (e !== null && !e.readOnly) replaceSel(e as Edit, s, true);
+  if (nodes[h].ed === null) return;
+  const e = nodes[h].ed as Edit;
+  if (e.readOnly) return;
+  if (e.compA >= 0) { e.anchor = e.compA; e.caret = e.compB; e.compA = -1; e.compB = -1; }   // the text an IME commits replaces its composing run
+  replaceSel(e, s, true);
 }
+/** IME composition (SDL_EVENT_TEXT_EDITING, Android's setComposingText, iOS's marked text; ZINC_INPUT `compose "ni"`): the composing run is in
+ *  the value, underlined, until the IME commits it (typed text or `commit`) or clears it (''). */
+function composeText(t: string): void {
+  if (focus < 0 || nodes[focus].ed === null) return;
+  const e = nodes[focus].ed as Edit;
+  if (e.readOnly || (t.length === 0 && e.compA < 0)) return;
+  const a = e.compA >= 0 ? e.compA : imin(e.caret, e.anchor), b = e.compA >= 0 ? e.compB : imax(e.caret, e.anchor);
+  replaceRange(e, a, b, t, true);
+  e.compA = t.length > 0 ? a : -1; e.compB = t.length > 0 ? a + t.length : -1;
+  mirrorIme(e);
+}
+/** The rest of an input connection's calls on the focused field: delete around the caret, set the selection, the return key's action. */
+function imeEdit(kind: string, a: string[]): void {
+  if (focus < 0 || nodes[focus].ed === null) return;
+  const e = nodes[focus].ed as Edit, len = e.value.length;
+  if (kind === 'imedelete') {   // deleteSurroundingText(before, after): around the selection
+    const s0 = imin(e.caret, e.anchor), s1 = imax(e.caret, e.anchor);
+    const b0 = imax(0, s0 - parseInt(a[0])), a1 = imin(len, s1 + (a.length > 1 ? parseInt(a[1]) : 0));
+    if (s1 < a1) replaceRange(e, s1, a1, '', true);
+    if (b0 < s0) replaceRange(e, b0, s0, '', true);
+    e.compA = -1; e.compB = -1;
+  } else if (kind === 'imeselect') {   // setSelection(start, end)
+    e.anchor = imax(0, imin(len, parseInt(a[0]))); e.caret = imax(0, imin(len, parseInt(a.length > 1 ? a[1] : a[0]))); e.blinkAt = clock; e.reveal = true;
+  } else if (kind === 'imeaction') dispatchKey('Enter', 0, false);   // performEditorAction (done, go, next, search, send): the return key
+}
+/** The composing run of the focused field as [start, end), or [-1, -1]. */
+export function composingRange(): i32[] { const e = focus >= 0 ? nodes[focus].ed : null; return e !== null ? [e.compA, e.compB] : [-1, -1]; }
 /** Key down: the focused node's (or nearest ancestor's) onKeyDown, text field editing, then the global handlers. */
 function dispatchKey(key: string, mods: i32, repeat: boolean): KeyEvent {
   const ev = new KeyEvent(key, mods, repeat);
@@ -4961,6 +5053,7 @@ let dropText = false;   // the text event of a key down that a handler consumed 
 function navPressed(b: i32): boolean { return wasPressed(b) || (navKeys & (1 << b)) !== 0; }
 function inputFrame(): void {
   curMods = modifiers();
+  if (signalCount() > 0) systemSignals();
   const px = pointerX(), py = pointerY();
   if (pick !== null) { pickInput(px, py); return; }
   const wy = wheel(), wx = wheelX(), pz = pinch();
@@ -5059,7 +5152,7 @@ export function frame(dt: number, background: i32): void {
   const ed = focus >= 0 ? nodes[focus].ed : null;
   const want: i32 = ed !== null && !(ed as Edit).readOnly ? focus : -1;
   if (want !== textOn) {
-    if (want >= 0) { boxOf(want); startTextInput(boxX, boxY, nodes[want].lw * boxK, nodes[want].lh * boxK); } else stopTextInput();
+    if (want >= 0) { boxOf(want); device('keyboard-traits', keyboardTraits(want)); mirrorIme(nodes[want].ed as Edit); startTextInput(boxX, boxY, nodes[want].lw * boxK, nodes[want].lh * boxK); } else stopTextInput();
     textOn = want;
   }
   if (ed !== null) { const ph = Math.floor((clock - (ed as Edit).blinkAt) / 530); if (ph !== blinkShown) { blinkShown = ph; paintDirty = true; } }
@@ -5386,6 +5479,15 @@ export function insertText(s: string): void { if (focus >= 0) { typeInto(focus, 
 export function sendKey(key: string, mods: i32 = 0): boolean { if (layoutDirty) layout(); return dispatchKey(key, mods, false).handled; }
 /** The focused editable text field, or -1. */
 export function focusedField(): i32 { return focus >= 0 && nodes[focus].ed !== null && !(nodes[focus].ed as Edit).readOnly ? focus : -1; }
+const TRAIT_TYPES: string[] = ['text', 'number', 'decimal', 'phone', 'email', 'url', 'search'];
+/** The keyboard a field asks the OS for (docs/ui.md, "Text input on phones"): `type=email secure=0 multiline=0` and what setInputTraits added
+ *  (cap=none|sentences|words|characters, autocorrect=0|1, return=done|go|next|search|send, autofill=<hint>, maxlength=N). */
+function keyboardTraits(h: i32): string {
+  const n = nodes[h], e = n.ed as Edit;
+  return 'type=' + TRAIT_TYPES[imax(0, imin(6, n.inputMode))] + ' secure=' + (e.password ? '1' : '0') + ' multiline=' + (e.multi ? '1' : '0') + (e.traits !== '' ? ' ' + e.traits : '');
+}
+/** Keyboard traits of a text field beyond its inputMode, password and multiline: space-separated `key=value` (see keyboardTraits). */
+export function setInputTraits(h: i32, traits: string): void { const e = nodes[h].ed; if (e !== null) (e as Edit).traits = traits; }
 /** inputMode of a text field (0 text, 1 numeric, 2 decimal, 3 tel, 4 email, 5 url, 6 search); multiline: 7. */
 export function fieldMode(h: i32): i32 { const e = nodes[h].ed; return e !== null && (e as Edit).multi ? 7 : nodes[h].inputMode; }
 /** Text typed into the focused field (focus moves to h first when h >= 0). */

@@ -3,8 +3,8 @@
 // style props of these components (style, *Style) arrive as one flattened Style, as React Native composes `style={[a, b]}`.
 import * as ui from 'zinc:ui';
 import { useState, useEffect, useRef, render } from 'zinc:ui/react';   // _virtual comes with the JSX helpers
-import { platform, env } from 'zinc:sys';
-import { width, height, pixelScale, stroke } from 'zinc:gfx';
+import { platform, env, device } from 'zinc:sys';
+import { width, height, pixelScale, stroke, quit } from 'zinc:gfx';
 import { createEffect } from 'zinc:ui/solid';
 import * as A from 'zinc:ui/animated';
 
@@ -103,25 +103,60 @@ export function ActivityIndicator(p: ActivityIndicatorProps): i32 {
     }} />
   </View>;
 }
-/** No notch or home indicator on the desktop and simulator surfaces: a plain View. */
-export function SafeAreaView(p: { style?: ui.Style; children?: () => i32 }): i32 { return <View style={p.style ?? NONE}>{renderChildren(p.children)}</View>; }
+const SAFE = new ui.Style([], []);
+/** Pads its content by the system's safe area (notch, status bar, home indicator: zinc:ui safe-area insets, which the OS feeds); 0 on a desktop. */
+export function SafeAreaView(p: { style?: ui.Style; children?: () => i32 }): i32 {
+  return <View className="pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)]" style={p.style ?? SAFE}>{renderChildren(p.children)}</View>;
+}
 export type StatusBarProps = { barStyle?: string; hidden?: boolean; backgroundColor?: string; translucent?: boolean; animated?: boolean };
-/** There is no system status bar to style: StatusBar renders nothing; the last props are kept for StatusBar.currentProps. */
-export function StatusBar(p: StatusBarProps): i32 { statusBar = p; return ui.createNode(ui.FRAGMENT); }
+/** The system status bar of a phone: barStyle ('default', 'light-content', 'dark-content'), hidden, backgroundColor and translucent (Android) go to the OS
+ *  (zinc:sys device('statusbar', 'STYLE HIDDEN COLOR TRANSLUCENT')); a desktop has none. Renders nothing; the last props stay in statusBarProps(). */
+export function StatusBar(p: StatusBarProps): i32 { statusBar = p; applyStatusBar(); return ui.createNode(ui.FRAGMENT); }
 let statusBar: StatusBarProps = {};
+let statusSent: string = '';
+function applyStatusBar(): void {
+  const p = statusBar;
+  const line = (p.barStyle ?? 'default') + ' ' + (p.hidden === true ? '1' : '0') + ' ' + (p.backgroundColor ?? '-') + ' ' + (p.translucent === true ? '1' : '0');
+  if (line !== statusSent) { statusSent = line; device('statusbar', line); }
+}
 export function statusBarProps(): StatusBarProps { return statusBar; }
+/** React Native's StatusBar.setBarStyle, setHidden, setBackgroundColor, setTranslucent (a function component carries no statics here). */
+export function setStatusBarStyle(style: string): void { statusBar.barStyle = style; applyStatusBar(); }
+export function setStatusBarHidden(hidden: boolean): void { statusBar.hidden = hidden; applyStatusBar(); }
+export function setStatusBarBackgroundColor(color: string): void { statusBar.backgroundColor = color; applyStatusBar(); }
+export function setStatusBarTranslucent(on: boolean): void { statusBar.translucent = on; applyStatusBar(); }
+
+// ---------------------------------------------------------------- BackHandler, Vibration
+/** Android's back button and back gesture (zinc:ui's back handlers): the newest listener that returns true takes it; when none does, the app goes back to the system. */
+export class BackHandler {
+  static addEventListener(kind: string, f: () => boolean): Subscription {
+    ui.addBackHandler(f);
+    return new Subscription((): void => ui.removeBackHandler(f));
+  }
+  /** Leaves the app as the system's back would (Android); elsewhere the program ends. */
+  static exitApp(): void { if (platform() === 'android') device('exitapp'); else quit(); }
+}
+/** Vibration.vibrate(ms) and cancel(): the phone's vibrator (zinc:sys device('haptic', 'vibrate MS')); a desktop has none. ponytail: a pattern plays its first pulse. */
+export class Vibration {
+  static vibrate(ms: number = 400): void { device('haptic', 'vibrate ' + Math.round(ms)); }
+  static cancel(): void { device('haptic', 'vibrate 0'); }
+}
 
 // ---------------------------------------------------------------- Platform, Dimensions, useWindowDimensions, PixelRatio, Appearance
 export type PlatformSelect<T> = { ios?: T; android?: T; macos?: T; windows?: T; web?: T; native?: T; default?: T };
 export class Platform {
-  /** platform() of zinc:sys: 'macos', 'linux', 'web', 'ios' (an iOS app) and the device targets; Android apps answer 'linux' for now. */
+  /** platform() of zinc:sys: 'android', 'ios', 'macos', 'linux', 'web'; ZINC_PLATFORM=android|ios forces it on the desktop (docs/react-native.md). */
   static OS: string = platform();
-  static Version: string = '';
+  /** The OS version: Android's API level ('35'), iOS's or macOS's version ('18.0'); ZINC_PLATFORM_VERSION forces it. A string (React Native: a number on Android). */
+  static Version: string = device('osversion');
   static isPad: boolean = false;
   static isTV: boolean = false;
   /** The entry for this OS, else `native` (any non-web target), else `default`, else `fallback` (React Native returns undefined: no undefined T here). */
   static select<T>(o: PlatformSelect<T>, fallback: T): T {
     const os = Platform.OS;
+    if (os === 'ios' && o.ios !== undefined) return o.ios as T;
+    if (os === 'android' && o.android !== undefined) return o.android as T;
+    if (os === 'windows' && o.windows !== undefined) return o.windows as T;
     if (os === 'macos' && o.macos !== undefined) return o.macos as T;
     if (os === 'ios' && o.ios !== undefined) return o.ios as T;
     if (os === 'web' && o.web !== undefined) return o.web as T;
@@ -133,7 +168,7 @@ export class Platform {
 export class ScaledSize { width: number = 0; height: number = 0; scale: number = 1; fontScale: number = 1; }
 export class DimensionsChange { window: ScaledSize = new ScaledSize(); screen: ScaledSize = new ScaledSize(); }
 export class Subscription { private f: () => void; constructor(f: () => void) { this.f = f; } remove(): void { this.f(); } }
-function size(): ScaledSize { const s = new ScaledSize(); s.width = width(); s.height = height(); s.scale = pixelScale(); return s; }
+function size(): ScaledSize { const s = new ScaledSize(); s.width = width(); s.height = height(); s.scale = pixelScale(); s.fontScale = ui.systemFontScale(); return s; }
 const dimFns: ((e: DimensionsChange) => void)[] = [];
 let lastW: number = -1, lastH: number = -1;
 const dimStep: () => void = (): void => {
@@ -165,22 +200,27 @@ export function useWindowDimensions(): ScaledSize {
 }
 export class PixelRatio {
   static get(): number { return pixelScale(); }
-  static getFontScale(): number { return 1; }
+  /** The OS's text size setting (Android's font size, iOS's Dynamic Type), 1 by default: Text sizes are already scaled by it. */
+  static getFontScale(): number { return ui.systemFontScale(); }
   static getPixelSizeForLayoutSize(n: number): number { return Math.round(n * pixelScale()); }
   static roundToNearestPixel(n: number): number { const k = pixelScale(); return Math.round(n * k) / k; }
 }
 let scheme: string = env('ZINC_COLOR_SCHEME') === 'dark' ? 'dark' : 'light';
+let schemeSet = env('ZINC_COLOR_SCHEME') !== '';   // the app or the run chose one: the system's no longer counts
 const schemeFns: ((p: AppearancePreferences) => void)[] = [];
 export class AppearancePreferences { colorScheme: string = 'light'; }
-/** The colour scheme: ZINC_COLOR_SCHEME=dark or setColorScheme; the system setting is not read yet (listed in docs/react-native.md). */
+function schemeTo(s: string): void {
+  if (s === scheme) return;
+  scheme = s === 'dark' ? 'dark' : 'light';
+  const e = new AppearancePreferences(); e.colorScheme = scheme;
+  for (const f of schemeFns.slice()) f(e);
+}
+// the system's light or dark (the theme signal of zinc:ui: the OS setting, ZINC_INPUT `theme dark`) until the app sets one
+ui.addSignalListener((kind: string, arg: string): void => { if (kind === 'theme' && !schemeSet) schemeTo(arg); });
+/** The colour scheme: the system's (Android's and iOS's dark theme, macOS's appearance), ZINC_COLOR_SCHEME=dark or setColorScheme ('unspecified' follows the system again). */
 export class Appearance {
   static getColorScheme(): string { return scheme; }
-  static setColorScheme(s: string): void {
-    if (s === scheme) return;
-    scheme = s === 'dark' ? 'dark' : 'light';
-    const e = new AppearancePreferences(); e.colorScheme = scheme;
-    for (const f of schemeFns.slice()) f(e);
-  }
+  static setColorScheme(s: string): void { schemeSet = s === 'light' || s === 'dark'; if (schemeSet) schemeTo(s); }
   static addChangeListener(f: (p: AppearancePreferences) => void): Subscription {
     schemeFns.push(f);
     return new Subscription((): void => { const i = schemeFns.indexOf(f); if (i >= 0) schemeFns.splice(i, 1); });
@@ -203,8 +243,17 @@ const INPUT_MODES: string[] = ['default', 'number-pad', 'decimal-pad', 'phone-pa
 export type TextInputProps = {
   value?: string; defaultValue?: string; onChangeText?: (text: string) => void; onSubmitEditing?: () => void; placeholder?: string;
   keyboardType?: string; secureTextEntry?: boolean; multiline?: boolean; editable?: boolean; maxLength?: number; autoFocus?: boolean;
+  autoCapitalize?: string; autoCorrect?: boolean; returnKeyType?: string; textContentType?: string; autoComplete?: string;
   style?: ui.Style; testID?: string; accessibilityLabel?: string;
 };
+/** The keyboard traits a phone's OS gets for the field (zinc:ui setInputTraits): capitalisation, autocorrect, the return key, the autofill hint. */
+function inputTraits(p: TextInputProps): string {
+  let t = 'cap=' + (p.autoCapitalize ?? 'sentences') + ' autocorrect=' + (p.autoCorrect === false ? '0' : '1') + ' return=' + (p.returnKeyType ?? 'default');
+  const fill = p.autoComplete ?? p.textContentType ?? '';
+  if (fill !== '') t += ' autofill=' + fill;
+  if (p.maxLength !== undefined) t += ' maxlength=' + p.maxLength;
+  return t;
+}
 /** A zinc:ui text field (a TextArea when multiline). Controlled through value + onChangeText as in React Native; maxLength cuts what is typed past it;
  *  onSubmitEditing on Enter (single line); keyboardType picks the on-screen keyboard (numeric 'numeric' / 'number-pad', 'decimal-pad', 'phone-pad',
  *  'email-address', 'url', 'web-search'). ponytail: onFocus / onBlur are not offered yet (zinc:ui's focus listeners cannot be removed). */
@@ -224,10 +273,11 @@ export function TextInput(p: TextInputProps): i32 {
   };
   const key = (e: ui.KeyEvent): void => { if (e.key === 'Enter' && p.multiline !== true) { const f = p.onSubmitEditing; if (f !== undefined) f(); } };
   useEffect((): void => {
+    ui.setInputTraits(field.current, inputTraits(p));
     if (started.current) return;
     started.current = true;
     if (p.autoFocus === true) ui.focusNode(field.current);
-  }, []);
+  }, null);
   if (p.multiline === true)
     return <TextArea ref={field} style={[bare, p.style ?? NONE, flags]} value={text} placeholder={p.placeholder ?? ''} onInput={typed} aria-label={p.accessibilityLabel ?? ''} />;
   return <Input ref={field} style={[bare, p.style ?? NONE, flags]} value={text} placeholder={p.placeholder ?? ''} onInput={typed} onKeyDown={key} aria-label={p.accessibilityLabel ?? ''} />;

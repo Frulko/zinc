@@ -25,6 +25,8 @@ namespace gfx { void begin_frame(); void end_frame(); void sync_surface(); exter
   extern uint8_t* (*png_encoder)(const uint32_t*, int32_t, int32_t, size_t*, void* (*)(size_t)); }
 }
 extern "C" int zn_hal_is_live(void);  // hal_dispatch.cpp: a window (the SDL HAL) or the headless one
+extern "C" int zn_hal_signal_count(void);        // hal_dispatch.cpp: the system's signals (safe area, theme, back...)
+extern "C" const char* zn_hal_signal_next(void);
 extern "C" void hal_set_resize(int32_t on) __attribute__((weak));   // targets/macos/hal_sdl.cpp (ZN-608)
 
 namespace zn::res {   // src/res/codec.cpp (no <vector> here: zrt.h clashes with it)
@@ -240,6 +242,8 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostGfxShaderProgram: r->i = g::shaderProgram(str(a[0]), n(1)); zn_hal_sdl_gpu_layers(); break;   // a window that can still put a GPU layer under its frame does
     case Rt::HostGfxDrawShader: g::drawShader(n(0), a[1].d, a[2].d, a[3].d, a[4].d, static_cast<const double*>(a[5].p), a[5].n); break;
     case Rt::HostGfxShaderAvailable: r->i = g::shaders_drawn ? 1 : 0; break;
+    case Rt::HostGfxSignalCount: r->i = zn_hal_signal_count(); break;
+    case Rt::HostGfxSignalNext: { const char* s = zn_hal_signal_next(); answer(r, s, strlen(s)); break; }
     case Rt::HostGfxClip: g::clip(a[0].d, a[1].d, a[2].d, a[3].d, a[4].d); break;
     case Rt::HostGfxUnclip: g::unclip(); break;
     case Rt::HostGfxTranslate: g::translate(a[0].d, a[1].d); break;

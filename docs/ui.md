@@ -364,6 +364,36 @@ the engine's inertia replaces it, so the same physics run on touch screens and i
 (`tests/conformance/scroll_physics.tsx`). Without finger events a 50 ms gap ends the gesture. Landing fingers
 catches a running inertia.
 
+## Platform and system signals
+
+`platform()` (zinc:sys) answers `android` and `ios` on the phones, `macos` and `linux` on desktops; `ZINC_PLATFORM=android|ios|macos|linux`
+forces it, at run time and for the compiler (zinc:platform `TARGET`, the `x.android.ts` / `x.ios.ts` files next to `x.ts`), so a phone's
+behaviour runs and is tested on the desktop. `ui.platformStyle()` is `android`, `ios` or `desktop`: the scroll physics, the navigation
+transitions and the selection handles follow it.
+
+What a phone's OS tells an app reaches zinc:ui as **signals**, one line each, `kind args`, taken at the start of a frame
+(`gfx.signalCount` / `signalNext`, queued by `src/host/hal_dispatch.cpp`):
+
+| signal | from | effect |
+| --- | --- | --- |
+| `safearea T R B L` | SDL (`SDL_GetWindowSafeArea`, at start and on change) | `env(safe-area-inset-*)`, `ui.safeArea()`, React Native's `SafeAreaView` |
+| `theme dark\|light` | SDL (`SDL_GetSystemTheme`, `SDL_EVENT_SYSTEM_THEME_CHANGED`) | `setScheme('auto')` follows it; React Native's `Appearance` |
+| `fontscale K` | Android `Configuration.fontScale`, iOS Dynamic Type | `ui.systemFontScale()`: rem, text classes and `fontSize` scale by it (the nearest baked size) |
+| `reducemotion 0\|1` | Android animator scale 0, iOS Reduce Motion | `ui.prefersReducedMotion()`: transitions become fades |
+| `keyboard H` | Android IME insets / visible frame, iOS keyboard frame, SDL (hidden) | `ui.setKeyboardInset`: the focused field is revealed, `env(keyboard-inset)`, React Native's `Keyboard` |
+| `back` | Android back key (SDL, trapped) and `OnBackInvokedCallback` | the back handlers (`ui.addBackHandler`, React Native's `BackHandler`), newest first; none takes it: the app goes back to the system |
+| `backstart left\|right`, `backprogress P`, `backcancel` | Android 14 predictive back (`OnBackAnimationCallback`) | the navigation stack's predictive back |
+| `orientation portrait\|landscape` | SDL | listeners only (rotation is a resize) |
+| `compose TEXT`, `commit TEXT`, `imedelete B A`, `imeselect S E`, `imeaction NAME` | SDL `SDL_EVENT_TEXT_EDITING`, the text input connection | see "Text input on phones" |
+
+`ui.addSignalListener((kind, args) => ...)` sees each one after zinc:ui applied it; `ui.systemSignal(line)` sends one. A test sends them
+with a `ZINC_INPUT` script, `<frame> safearea 47 0 34 0`, `<frame> theme dark`, `<frame> back` (`tests/t0/system_signals.sh`).
+
+The other way, the program asks the OS through zinc:sys `device()`: `haptic` (zinc:haptics `Haptics.impact('light')`, `selection()`,
+`notification('error')`; React Native's `Vibration`), `statusbar` (React Native's `StatusBar`), `exitapp`, `keyboard-traits` and `textinput`
+(the text input connection). The Android activity (`src/app/android/java`) and the iOS glue (`src/app/ios_glue.mm`) do them; a desktop
+does nothing, and `ZINC_DEVICE_LOG=file` writes each call to the file.
+
 ## Tests
 
 Test hooks drive the input headlessly; from the first call on, the HAL's pointer and keyboard are ignored, so a

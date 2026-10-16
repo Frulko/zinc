@@ -6,6 +6,8 @@
 #include <string.h>
 
 #include <stdio.h>
+#include <deque>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -52,8 +54,39 @@ static void hold() {
 //   0 to 16, held until gbuttonup; VALUE 0..1 for the triggers 6 and 7) | gbuttonup I B | gaxis I A VALUE (axis 0 to 3, -1..1, kept)
 //   touch ID X Y (a finger lands or moves; up to HAL_MAX_TOUCH at once, held until its touchup) | touchup ID
 //   window ID: the events after it in the same frame go to that window (ZN-663; 0 the main one) | close: the user closes the window the events go to
+//   the system's signals, as a phone's OS sends them (zn_hal_signal below): safearea T R B L | theme dark|light | fontscale K | reducemotion 0|1 |
+//   keyboard HEIGHT (0 hidden) | back | backstart EDGE | backprogress P | backcancel | orientation portrait|landscape | compose "TEXT" | commit "TEXT" |
+//   imedelete BEFORE AFTER | imeselect START END | imeaction NAME (an input connection's calls on the focused field)
 // The events reach zinc:gfx exactly as a window's would (pointer position and buttons, button events, keys, typed text, wheel, touch points:
 // the first finger is also the pointer, as on a touch screen).
+// The system's signals (docs/ui.md, "System signals"): one line each, `kind args`, queued by the window HAL (SDL events: theme, safe area, the
+// back key, the on-screen keyboard, IME composition), by a phone's glue (src/app/android, src/app/ios_glue.mm: font scale, reduce motion, back
+// progress) and by a ZINC_INPUT script; zinc:ui takes them at the start of its frame (zinc:gfx signalCount, signalNext). Any thread may push.
+static std::mutex sigMu;
+static std::deque<std::string> sigQueue;
+static std::string sigLast;
+extern "C" void zn_hal_signal(const char* line) { std::lock_guard<std::mutex> g(sigMu); if (sigQueue.size() < 256) sigQueue.emplace_back(line); }
+extern "C" int zn_hal_signal_count(void) { std::lock_guard<std::mutex> g(sigMu); return static_cast<int>(sigQueue.size()); }
+extern "C" const char* zn_hal_signal_next(void) {   // valid until the next call
+  std::lock_guard<std::mutex> g(sigMu);
+  sigLast.clear();
+  if (!sigQueue.empty()) { sigLast = sigQueue.front(); sigQueue.pop_front(); }
+  return sigLast.c_str();
+}
+// The keyboard the focused field asks for, set by zinc:ui through zinc:sys device('keyboard-traits', ...) (sys_host.cpp) and read by the window HAL
+// when it starts the text input (SDL's text input properties: type, capitalisation, autocorrect, multiline)
+static std::string textTraits;
+extern "C" void zn_hal_set_text_traits(const char* t) { std::lock_guard<std::mutex> g(sigMu); textTraits = t; }
+extern "C" const char* zn_hal_text_traits(void) { return textTraits.c_str(); }
+// What the program asks of a phone's system UI (zinc:sys device('haptic' | 'statusbar' | 'exitapp' | 'textinput' | 'keyboard-traits'), sys_host.cpp):
+// the phone's glue sets it when the app starts (src/app/android_glue.cpp, src/app/ios_glue.mm); null on a desktop
+extern "C" { const char* (*zn_mobile_command)(const char* q, const char* a) = nullptr; }
+static bool isSignal(const std::string& k) {
+  static const char* kinds[] = {"safearea", "theme", "fontscale", "reducemotion", "keyboard", "back", "backstart", "backprogress", "backcancel", "orientation", "compose", "commit", "imedelete", "imeselect", "imeaction"};
+  for (const char* x : kinds) if (k == x) return true;
+  return false;
+}
+
 namespace {
 struct Event { int frame; std::string kind, a, b, c; };
 std::vector<Event> script;
@@ -78,11 +111,17 @@ void readScript() {
     Event e{frame, kind, "", "", ""};
     const char* rest = line + used;
     while (*rest == ' ' || *rest == '\t') rest++;
-    if (e.kind == "text" && *rest == '"') {   // text "two words": the whole string, with \" and \\ (ZN-688)
+    if ((e.kind == "text" || e.kind == "compose" || e.kind == "commit") && *rest == '"') {   // text "two words": the whole string, with \" and \\ (ZN-688)
       for (const char* q = rest + 1; *q && *q != '"' && *q != '\n'; q++) {
         if (*q == '\\' && (q[1] == '"' || q[1] == '\\')) q++;
         e.a += *q;
       }
+      script.push_back(e);
+      continue;
+    }
+    if (isSignal(e.kind)) {   // the rest of the line, as the signal's arguments
+      e.a = rest;
+      while (!e.a.empty() && (e.a.back() == '\n' || e.a.back() == '\r' || e.a.back() == ' ')) e.a.pop_back();
       script.push_back(e);
       continue;
     }
@@ -156,6 +195,7 @@ void applyScript(HalInput* in) {
   for (const Event& e : script) {
     if (e.frame != pollNo) continue;
     if (e.kind == "window") { target = atoi(e.a.c_str()); continue; }
+    if (isSignal(e.kind)) { zn_hal_signal((e.kind + (e.a.empty() ? "" : " " + e.a)).c_str()); continue; }
     if (e.kind == "close") { nullClose(target); continue; }
     if (target != 0) { if (NullWin* w = nullWin(target)) applyEvent(e, &w->in, w->x, w->y, w->held); continue; }
     if (e.kind == "pad" || e.kind == "padup") {

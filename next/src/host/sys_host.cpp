@@ -11,6 +11,7 @@
 #include "zn/resource_stats.h"
 #include "zn/zim.h"
 #include "zn/app.h"
+#include "zn/platform.h"
 #include "hal.h"
 // the CPU decoders of the GPU block formats (ZN-439): the software raster draws a compressed texture from its decoded texels
 #define BCDEC_STATIC
@@ -55,6 +56,9 @@
 #include <net/if_dl.h>
 #else
 #include <linux/if_packet.h>
+#endif
+#ifdef __ANDROID__
+#include <sys/system_properties.h>
 #endif
 
 #include "zn/host.h"
@@ -259,8 +263,42 @@ extern "C" bool SDL_SendAndroidMessage(unsigned command, int param);
 // A desktop's device features for the web APIs (HalDisplay::device answers first on a device): the network, the battery of a Mac (IOKit,
 // opened when asked), the language, the machine; '' for what a desktop has not (sensors, wake lock: zinc:system/power has a sleep blocker).
 // An Android app: the screen kept on and its brightness.
+// Platform.Version: Android's API level, the iOS or macOS version, the Linux kernel's; ZINC_PLATFORM_VERSION forces it, and a phone forced
+// on a desktop (ZINC_PLATFORM) answers a current version of that OS
+std::string osVersion() {
+  if (const char* v = getenv("ZINC_PLATFORM_VERSION"); v && *v) return v;
+  const std::string run = zn::runPlatform();
+  if (run != zn::builtPlatform()) return run == "android" ? "35" : run == "ios" ? "18.0" : "";
+#if defined(__ANDROID__)
+  char b[PROP_VALUE_MAX] = "";
+  __system_property_get("ro.build.version.sdk", b);
+  return b;
+#elif defined(__APPLE__)
+  char b[64] = "";
+  size_t n = sizeof b;
+  return sysctlbyname("kern.osproductversion", b, &n, nullptr, 0) == 0 ? std::string(b) : std::string();
+#else
+  struct utsname u; uname(&u); return u.release;
+#endif
+}
+// What a program asks of a phone's system UI: haptics (zinc:ui/haptics), the status bar (StatusBar), the system's back (BackHandler.exitApp),
+// the text input connection (zinc:ui's fields, ZN-626). The Android activity (src/app/android, through JNI) or the iOS glue (src/app/ios_glue.mm)
+// does it; a desktop does nothing and answers "0". ZINC_DEVICE_LOG=file appends each call as `query arg` (the tests read it).
+extern "C" const char* (*zn_mobile_command)(const char* q, const char* a);   // hal_dispatch.cpp, set by the phone's glue
+extern "C" void zn_hal_set_text_traits(const char* t);
+bool mobileCommand(const std::string& q, const std::string& a, std::string& out) {
+  if (q != "haptic" && q != "statusbar" && q != "exitapp" && q != "textinput" && q != "keyboard-traits") return false;
+  if (const char* log = getenv("ZINC_DEVICE_LOG"); log && *log) if (FILE* f = fopen(log, "a")) { fprintf(f, "%s %s\n", q.c_str(), a.c_str()); fclose(f); }
+  if (q == "keyboard-traits") zn_hal_set_text_traits(a.c_str());   // the window HAL starts the text input with them (hal_dispatch.cpp)
+  const char* r = zn_mobile_command ? zn_mobile_command(q.c_str(), a.c_str()) : nullptr;
+  out = r ? r : "0";
+  return true;
+}
 std::string desktopDevice(const std::string& q, const std::string& a) {
   if (q == "language") return systemLocale();
+  if (q == "osversion") return osVersion();
+  if (std::string out; mobileCommand(q, a, out)) return out;
+  if (q == "osversion") return osVersion();
   if (q == "visibility") return "visible";   // ponytail: a desktop window is taken as visible; its minimised state when a program needs it
   if (q == "device") { struct utsname u; uname(&u); return std::string("{\"model\":\"") + u.machine + "\",\"os\":\"" + u.sysname + " " + u.release + "\"}"; }
   if (q == "network") {
@@ -568,16 +606,7 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostSysArgsCount: r->i = static_cast<std::int64_t>(gArgs.size()); break;
     case Rt::HostSysArg: ret(r, n(0) >= 0 && static_cast<size_t>(n(0)) < gArgs.size() ? gArgs[static_cast<size_t>(n(0))] : ""); break;
     case Rt::HostSysEnv: { const char* v = getenv(s(0).c_str()); ret(r, v ? v : ""); break; }
-    case Rt::HostSysPlatform: {
-#if defined(__APPLE__) && TARGET_OS_IOS
-      ret(r, "ios");   // React Native's Platform.OS (ZN-624); Android still answers linux (later.md)
-#elif defined(__APPLE__)
-      ret(r, "macos");
-#else
-      ret(r, "linux");
-#endif
-      break;
-    }
+    case Rt::HostSysPlatform: ret(r, zn::runPlatform()); break;   // android and ios on the phones; ZINC_PLATFORM forces it (zn/platform.h)
     case Rt::HostSysPid: r->i = getpid(); break;
     case Rt::HostSysAllocations: r->d = static_cast<double>(zn::rt::gAllocs); break;
     case Rt::HostSysLiveBlocks: r->d = static_cast<double>(zn::rt::gAllocs - zn::rt::gFrees); break;
