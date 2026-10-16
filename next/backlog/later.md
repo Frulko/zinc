@@ -249,11 +249,23 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-746: an Android window cannot switch to GL after its first frame: a program that makes its first shader later keeps the CPU path.
 - ZN-741: build the GLES 2 programs at start (the first tab switch takes 147 ms on the Nexus 7).
 - zinc:camera: the compiler crashes (SIGSEGV in ir Lowering::FnLower::writeVar) on `const v = o.video; if (v === undefined || v === false) throw ...` where `video?: boolean | SomeInterface`, in an async function; without the local it is "internal error: instruction eq ... uses a missing value". lib/std/web.ts getUserMedia takes `video?: unknown` to avoid it. A user program can hit it.
-- zinc:camera: a microphone plugin (zinc:microphone, AVFoundation / ALSA through miniaudio's capture) so getUserMedia gives audio tracks too; today `{ audio: true }` alone is NotSupportedError.
 - zinc:camera: QR and barcode decoding on the frames (a vendored decoder such as quirc or ZXing-C++ over snapshot()), the common reason a maker app opens a webcam. Face tracking stays out of scope.
 - zinc:camera: getUserMedia could load the plugin by itself (a web global entry in modules.cpp kWebGlobals for MediaStream, or the frontend adding `import 'zinc:camera'` when navigator.mediaDevices is used) instead of asking the program to import it.
 - zinc:camera: `zinc doctor --details` could list the cameras and the macOS camera access of the terminal (permissionStatus), the first thing a beginner checks when the picture stays black.
 - zinc:camera: export could add NSCameraUseContinuityCameraDeviceType to the Info.plist with "camera", so an iPhone as Continuity Camera is listed (left out: without the key macOS logs a warning at each listing).
+- zinc:webrtc: audio and video tracks: RTC_ENABLE_MEDIA=1 with libsrtp (BSD; its mbedTLS 4 port is cisco/libsrtp#813), Opus through libopus for audio (zinc:microphone captures, miniaudio plays), VP8 through libvpx as the software fallback every browser takes, H.264 in hardware (VideoToolbox on macOS, V4L2 M2M on a Pi); addTrack/ontrack and getUserMedia's tracks sent as they are.
+- zinc:webrtc: TURN for a classroom or a workshop: a guide page for coturn (static auth secret, time-limited TURN REST credentials in iceServers), and a test against a local coturn in a container, no Internet.
+- zinc:webrtc: move the libdatachannel pin from master commit bdc5ff28 to the first release with mbedTLS 4 support (0.25), and libjuice with it.
+- zinc:webrtc: getStats: the SCTP round-trip time (rtt() of the C++ API, not in the C API), one entry per candidate and per channel, as browsers report them.
+- zinc:webrtc: the WPT subset for RTCDataChannel and RTCPeerConnection (webrtc/RTCDataChannel-*.html, RTCPeerConnection-createDataChannel.html, -setRemoteDescription) run against the plugin, like the WebGL conformance.
+- zinc:webrtc: mDNS host candidates (a .local name instead of the LAN address, as browsers do): the LAN address is shared with the peer today; libjuice has no mDNS yet.
+- zinc:webrtc: events come by polling the native queue every 5 ms; cb_post of native.h from libdatachannel's threads would wake the loop instead, once generated thunks take callbacks, and spare the CPU on QuickJS where a program that does not draw runs its timers on a virtual clock (the poll spins there, and a setTimeout used as a time limit fires early).
+- zinc:webrtc: a zinc built with -DZN_TLS=OFF has no mbedTLS, so the plugin does not load (a dlopen error naming a symbol); say "this zinc has no TLS" instead.
+- plugins: zig adds DWARF by default, so every plugin's plugin.a and vendor.a carry debug information (webrtc's vendor.a was 35 MB before -g0, miniaudio's 3.2 MB against 0.8 MB); -g0 in the plugin build for all would shrink the prebuilt libraries of the CLI archive.
+- package: the CLI archive ships no mbedTLS headers, so zinc:webrtc cannot be rebuilt on a user's machine when its prebuilt key does not match (other options); ship third_party/mbedtls/{include,tf-psa-crypto/include,tf-psa-crypto/drivers/builtin/include} (about 400 KB compressed) or say why it cannot be built.
+- zinc:microphone: it compiles plugins/audio/vendor/miniaudio_impl.c by a relative path; a mirror repository of the plugin (tools/plugin-split, zinc add) needs its own copy or a vendor package both plugins share.
+- zinc:microphone: `zinc doctor --details` could list the microphones and the macOS microphone access of the terminal (permissionStatus).
+- zinc:microphone: hand the samples to zinc:audio (a monitor, a recorder to WAV) and an FFT helper for a spectrum, an artist's first use of a microphone.
 
 ## Demos
 
@@ -494,3 +506,10 @@ The next backlog review turns lines into tasks or deletes them.
 - Mobile feel: zinc:react-native `Button`, `Switch`, `ActivityIndicator`, `RefreshControl` draw iOS on every OS; add the Android looks and `TouchableNativeFeedback`, and a short press delay in scroll views so rows do not flash when a scroll starts (item 11).
 - ZN-628: a `NativeView` host element generalising the webview overlay, then the web view, date/time picker, photo and document pickers, share sheet and an optional native alert on both phones (item 12).
 - ZN-632: measure touch-to-photon on a phone (engine trace from the touch timestamp to the present, then a 240 fps camera) and resample touches at vsync as the wheel is (item 13).
+- zinc:microphone: on a Mac with the microphone access granted to the terminal (a person clicks once), `Microphone.open` on the built-in microphone and a USB one: blocks arrive, the level follows the voice, close turns the orange indicator off; never tried (a background run must not ask).
+- zinc:microphone: build and run on Linux and a Pi with a USB microphone (PulseAudio, then plain ALSA), the `audio` group, 16 kHz mono on a Pi 1.
+- zinc:microphone: Windows (WASAPI through the same miniaudio), Android (AAudio through miniaudio, RECORD_AUDIO asked at run time), iOS (an AVAudioSession category for recording).
+- zinc:webrtc: build the plugin for Linux and armhf (rpi1) with the pinned zig: usrsctp's Linux defines (HAVE_LINUX_IF_ADDR_H, _GNU_SOURCE), -pthread, the order of vendor.a and zn_mbedtls on the GNU link line (ld64 does not care); the loopback test on a Pi 1: time to connect, rate of a 1 MB file.
+- zinc:webrtc: two machines on a LAN (the Mac and a Pi) through the room server of examples/webrtc-chat, and a Zinc peer with Chrome and Firefox (DTLS 1.2 of mbedTLS, SCTP, max-message-size): never tried, only the in-process loopback is.
+- zinc:webrtc: Windows (libjuice and usrsctp build there; Winsock defines), the Android export (the app's CMake must pass vendorFlags: -frtti -fexceptions -fthreadsafe-statics), iOS.
+- zinc:webrtc: the browser target (wasm): map RTCPeerConnection to the page's own through an import shim, not this plugin.
