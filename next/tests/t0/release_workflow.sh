@@ -1,6 +1,6 @@
 #!/bin/sh
 # The release of .github/workflows/zinc-next.yml (ZN-329): the workflow passes actionlint (when installed); its "Update manifest" step, run here with a test key,
-# writes a manifest that `zinc update` verifies and follows to the CLI archive; its checksums step lists both downloads (the zinc CLI tar.gz, the Atelier app
+# writes the stable and beta manifests that `zinc update` verifies and follows to the CLI archive (unsigned, signature=none, refused by default, without the seed); its checksums step lists both downloads (the zinc CLI tar.gz, the Atelier app
 # zip); its "Release" step, run with a stand-in gh, attaches both, says in the notes what each file is and when the macOS downloads are unsigned or the
 # manifests are missing. Skipped (77) without PyYAML.
 cd "$(dirname "$0")/../.." || exit 2
@@ -21,7 +21,7 @@ steps = {s.get("name"): s for s in wf["jobs"]["package"]["steps"]}
 sign = steps["Sign and notarize (macOS release)"]["run"]
 assert "dist/Zinc-Atelier-*-macos-*.zip" in sign and "dist/zinc-*-macos-*.tar.gz" in sign, "the signing step does not sign both downloads"
 assert "install_nocompiler" in steps["Smoke test of the CLI archive and the app"]["run"], "no smoke test of the downloads"
-open(sys.argv[2] + "/manifest.sh", "w").write(steps["Update manifest (release)"]["run"].replace("${{ matrix.name }}", "macos-arm64"))
+open(sys.argv[2] + "/manifest.sh", "w").write(steps["Update manifests (release)"]["run"].replace("${{ matrix.name }}", "macos-arm64"))
 open(sys.argv[2] + "/release.sh", "w").write([s for s in rel["steps"] if s.get("name") == "Release"][0]["run"])
 open(sys.argv[2] + "/sums.sh", "w").write([s for s in rel["steps"] if s.get("name") == "Installer and checksums"][0]["run"])
 names = [m["name"] for m in wf["jobs"]["package"]["strategy"]["matrix"]["include"]]
@@ -39,12 +39,18 @@ ln -s "$Z" "$tmp/job/build/zinc"
 cli=zinc-9.1.0-macos-arm64.tar.gz app=Zinc-Atelier-9.1.0-macos-arm64.zip
 echo "cli" > "$tmp/job/dist/$cli"; echo "app" > "$tmp/job/dist/$app"; echo '{}' > "$tmp/job/dist/sizes-macos-cli.json"
 (cd "$tmp/job" && GITHUB_REF_NAME=v9.1.0 RUNNER_TEMP="$tmp" ZINC_UPDATE_SEED="$seed" bash -e "$tmp/manifest.sh") || { echo "release_workflow: the manifest step failed"; fail=1; }
-out=$(ZINC_HOME="$tmp/home" ZINC_UPDATE_PUBKEY="$pub" "$Z" update "file://$tmp/job/dist/zinc-macos-arm64.manifest" 2>&1)
-echo "$out" | grep -q "zinc 9.1.0 is available" && echo "$out" | grep -q "downloaded and verified" || { echo "release_workflow: zinc update does not follow the manifest: $out"; fail=1; }
-cmp -s "$tmp/home/updates/$cli" "$tmp/job/dist/$cli" || { echo "release_workflow: zinc update does not fetch the CLI archive: $(ls "$tmp/home/updates")"; fail=1; }
-(cd "$tmp/job" && GITHUB_REF_NAME=v9.1.0 RUNNER_TEMP="$tmp" ZINC_UPDATE_SEED= bash -e "$tmp/manifest.sh" >/dev/null) || { echo "release_workflow: without a key the manifest step fails"; fail=1; }
+for m in zinc-macos-arm64 zinc-macos-arm64-beta; do
+  out=$(ZINC_HOME="$tmp/home" ZINC_UPDATE_PUBKEY="$pub" "$Z" update --check "file://$tmp/job/dist/$m.manifest" 2>&1); rc=$?
+  [ $rc -eq 10 ] && echo "$out" | grep -q "zinc 9.1.0 is available" && grep -qx "url=$cli" "$tmp/job/dist/$m.manifest" || { echo "release_workflow: $m.manifest does not verify or does not name the CLI archive ($rc): $out"; fail=1; }
+done
+# without the secret: unsigned manifests (signature=none) that zinc update refuses unless ZINC_UPDATE_ALLOW_UNSIGNED=1
+mkdir -p "$tmp/job2/dist" "$tmp/job2/build" && cp "$tmp/job/dist/$cli" "$tmp/job2/dist/" && ln -s "$Z" "$tmp/job2/build/zinc"
+(cd "$tmp/job2" && GITHUB_REF_NAME=v9.1.0 RUNNER_TEMP="$tmp" ZINC_UPDATE_SEED= bash -e "$tmp/manifest.sh" >/dev/null) || { echo "release_workflow: without a key the manifest step fails"; fail=1; }
+u="file://$tmp/job2/dist/zinc-macos-arm64.manifest"
+ZINC_HOME="$tmp/home" ZINC_UPDATE_PUBKEY="$pub" "$Z" update --check "$u" 2>&1 | grep -q "unsigned (signature=none" || { echo "release_workflow: an unsigned manifest is not refused"; fail=1; }
+ZINC_HOME="$tmp/home" ZINC_UPDATE_ALLOW_UNSIGNED=1 "$Z" update --check "$u" >/dev/null 2>&1; [ $? -eq 10 ] || { echo "release_workflow: ZINC_UPDATE_ALLOW_UNSIGNED=1 does not accept the unsigned manifest"; fail=1; }
 printf '#!/bin/sh\nprintf "%%s\\n" "$@" > "%s/gh.args"\n' "$tmp" > "$tmp/bin/gh"; chmod +x "$tmp/bin/gh"
-mkdir -p "$tmp/r1/release" && cp "$tmp/job/dist/$cli" "$tmp/job/dist/$app" "$tmp/job/dist/sizes-macos-cli.json" "$tmp/r1/release/"
+mkdir -p "$tmp/r1/release" && cp "$tmp/job/dist/$cli" "$tmp/job/dist/$app" "$tmp/job/dist/sizes-macos-cli.json" "$tmp/job2/dist/"*.manifest "$tmp/r1/release/"
 # ZN-718: the installer and the checksums it reads are release assets; one line per download, the CLI and the app
 mkdir -p "$tmp/r1/next/tools" && cp tools/install.sh "$tmp/r1/next/tools/"
 (cd "$tmp/r1" && bash -e "$tmp/sums.sh") || { echo "release_workflow: the checksums step failed"; fail=1; }
@@ -54,11 +60,11 @@ grep -q "^release/install.sh$" "$tmp/gh.args" && grep -q "^release/SHA256SUMS$" 
 grep -q "^release/$cli$" "$tmp/gh.args" && grep -q "^release/$app$" "$tmp/gh.args" || { echo "release_workflow: the CLI archive or the app is not attached"; fail=1; }
 grep -q "sizes-" "$tmp/gh.args" && { echo "release_workflow: the size reports are attached"; fail=1; }
 grep -q "the zinc CLI" "$tmp/gh.args" && grep -q "the Zinc Atelier app" "$tmp/gh.args" || { echo "release_workflow: the notes do not say what each file is"; fail=1; }
-grep -q "not signed" "$tmp/gh.args" && grep -q "No update manifests" "$tmp/gh.args" || { echo "release_workflow: the notes do not say unsigned / no manifests: $(cat "$tmp/gh.args")"; fail=1; }
+grep -q "not signed" "$tmp/gh.args" && grep -q "manifests are unsigned" "$tmp/gh.args" || { echo "release_workflow: the notes do not say unsigned downloads / manifests: $(cat "$tmp/gh.args")"; fail=1; }
 mkdir -p "$tmp/r2/release" && cp "$tmp/job/dist/"* "$tmp/r2/release/" && touch "$tmp/r2/release/.signed"
 (cd "$tmp/r2" && PATH="$tmp/bin:$PATH" GITHUB_REF_NAME=v9.1.0 bash -e "$tmp/release.sh" >/dev/null) || { echo "release_workflow: the signed release step failed"; fail=1; }
-grep -q "not signed\|No update manifests" "$tmp/gh.args" && { echo "release_workflow: a signed release with manifests says otherwise"; fail=1; }
-grep -q "^release/zinc-macos-arm64.manifest$" "$tmp/gh.args" && ! grep -q "\.signed" "$tmp/gh.args" || { echo "release_workflow: the manifest is not attached, or the marker is: $(cat "$tmp/gh.args")"; fail=1; }
+grep -q "not signed\|unsigned" "$tmp/gh.args" && { echo "release_workflow: a signed release with manifests says otherwise"; fail=1; }
+grep -q "^release/zinc-macos-arm64.manifest$" "$tmp/gh.args" && grep -q "^release/zinc-macos-arm64-beta.manifest$" "$tmp/gh.args" && ! grep -q "\.signed" "$tmp/gh.args" || { echo "release_workflow: the manifest is not attached, or the marker is: $(cat "$tmp/gh.args")"; fail=1; }
 # ZN-714: the half of tools/windows-cross that runs on Windows, here on stand-in programs: one prints its frozen output, the other does not
 mkdir -p "$tmp/wc" && printf '#!/bin/sh\nprintf "a\\r\\nb\\r\\n"\n' > "$tmp/wc/good.exe" && printf 'a\nb\n' > "$tmp/wc/good.out" && chmod +x "$tmp/wc/good.exe"
 [ "$(tools/windows-cross check "$tmp/wc")" = "PASS good" ] || { echo "release_workflow: windows-cross check does not pass a program that prints its output"; fail=1; }

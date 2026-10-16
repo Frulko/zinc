@@ -74,7 +74,9 @@ jobs:
         env:
           CCACHE_DIR: ${{ runner.temp }}/ccache
           CCACHE_MAXSIZE: 600M
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_DEPLOYMENT_TARGET=13.3 -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache && cmake --build build -j4
+        run: |   # the version zinc reports: the tag's (v1.2.0 -> 1.2.0), else git describe (0.0.0-dev in a shallow clone); the update key is next/update.pub
+          ver=(); if [ "$GITHUB_REF_TYPE" = tag ]; then ver=(-DZN_VERSION="${GITHUB_REF_NAME#v}"); fi
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_DEPLOYMENT_TARGET=13.3 -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache "${ver[@]}" && cmake --build build -j4
       - name: Keep the build tree, objects included (12 tests run cmake --build on it)
         run: tar czf build.tgz build
       - uses: actions/upload-artifact@v4
@@ -126,7 +128,9 @@ jobs:
         env:
           CCACHE_DIR: ${{ runner.temp }}/ccache
           CCACHE_MAXSIZE: 600M
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_DEPLOYMENT_TARGET=13.3 -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache && cmake --build build -j4
+        run: |   # the version zinc reports: the tag's (v1.2.0 -> 1.2.0), else git describe (0.0.0-dev in a shallow clone); the update key is next/update.pub
+          ver=(); if [ "$GITHUB_REF_TYPE" = tag ]; then ver=(-DZN_VERSION="${GITHUB_REF_NAME#v}"); fi
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_DEPLOYMENT_TARGET=13.3 -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache "${ver[@]}" && cmake --build build -j4
       - name: Cache pinned toolchains
         uses: actions/cache@v4
         with:
@@ -135,8 +139,7 @@ jobs:
       - name: Package
         # ZN-718: the engine and, built here with the pinned zig, the native library of every plugin that needs no system library (the log names the others)
         run: |
-          if [ "$GITHUB_REF_TYPE" = tag ]; then export ZINC_VERSION="${GITHUB_REF_NAME#v}"; fi   # v1.2.0 -> Zinc-1.2.0-...
-          python3 tools/package --out dist
+          python3 tools/package --out dist   # named after the version the binary reports (the tag's on a release)
           ls dist/zinc-*-macos-*.tar.gz dist/Zinc-Atelier-*-macos-*.zip
       - name: Smoke test of the CLI archive and the app
         run: ZINC_DIST="$PWD/dist" tests/run --only install_nocompiler
@@ -169,17 +172,27 @@ jobs:
             ZINC_NOTARY_PROFILE=zinc-notary tools/sign-macos "$t" && mv "${t%.tar.gz}-notarized.tar.gz" "$t"
           done
           echo signed > dist/.signed
-      - name: Update manifest (release)
+      - name: Update manifests (release)
+        # what zinc update reads: zinc-<os>-<arch>.manifest (stable) and zinc-<os>-<arch>-beta.manifest, signed with ZINC_UPDATE_SEED (its public key is
+        # next/update.pub); without the secret they are written unsigned (signature=none), which zinc update refuses unless ZINC_UPDATE_ALLOW_UNSIGNED=1.
+        # A prerelease tag (v1.3.0-beta.1) writes the beta one only, with the archive's whole address: the release job puts it on the latest release.
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           ZINC_UPDATE_SEED: ${{ secrets.ZINC_UPDATE_SEED }}
         run: |
-          if [ -z "$ZINC_UPDATE_SEED" ]; then echo "::warning::no ZINC_UPDATE_SEED: no update manifest for ${{ matrix.name }}"; exit 0; fi
-          # zinc update follows it to the CLI archive (zinc-<version>-<os>-<arch>.tar.gz, .zip on Windows), never to the app
           for pkg in dist/zinc-*.tar.gz dist/zinc-*.zip; do [ -f "$pkg" ] && break; done
           [ -f "$pkg" ] || { echo "::error::no CLI archive in dist"; exit 1; }
-          printf 'version=%s\nurl=%s\nsha256=%s\nnotes=%s\n' "${GITHUB_REF_NAME#v}" "$(basename "$pkg")" "$(shasum -a 256 "$pkg" | cut -d' ' -f1)" "Zinc ${GITHUB_REF_NAME}" > "$RUNNER_TEMP/m"
-          build/zinc update-sign "$RUNNER_TEMP/m" "$ZINC_UPDATE_SEED" > "dist/zinc-${{ matrix.name }}.manifest"
+          v=${GITHUB_REF_NAME#v} file=$(basename "$pkg") sum=$(shasum -a 256 "$pkg" | cut -d' ' -f1)
+          manifest() {   # manifest <channel> <url> <out>
+            printf 'channel=%s\nversion=%s\nurl=%s\nsha256=%s\nnotes=%s\n' "$1" "$v" "$2" "$sum" "Zinc $GITHUB_REF_NAME" > "$RUNNER_TEMP/m"
+            if [ -n "$ZINC_UPDATE_SEED" ]; then build/zinc update-sign "$RUNNER_TEMP/m" "$ZINC_UPDATE_SEED" > "$3"
+            else { echo "signature=none"; cat "$RUNNER_TEMP/m"; } > "$3"; fi
+          }
+          [ -n "$ZINC_UPDATE_SEED" ] || echo "::warning::no ZINC_UPDATE_SEED: the update manifests of ${{ matrix.name }} are unsigned (signature=none)"
+          case "$v" in
+            *-*) manifest beta "${GITHUB_SERVER_URL:-https://github.com}/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/$file" "dist/zinc-${{ matrix.name }}-beta.manifest" ;;
+            *) manifest stable "$file" "dist/zinc-${{ matrix.name }}.manifest"; manifest beta "$file" "dist/zinc-${{ matrix.name }}-beta.manifest" ;;
+          esac
       - uses: actions/upload-artifact@v4
         with:
           name: package-${{ matrix.name }}
@@ -441,12 +454,16 @@ jobs:
           notes="Zinc ${GITHUB_REF_NAME}.${nl}${nl}Install the zinc CLI: \`curl -fsSL https://github.com/${GH_REPO}/releases/latest/download/install.sh | sh\` (add \`-s -- --atelier\` for the app too).${nl}${nl}"
           notes="$notes- \`zinc-<version>-macos-<arch>.tar.gz\`: the zinc CLI (bin/zinc, the standard library, templates, plugins with their native libraries); unpack anywhere and link bin/zinc onto your PATH.${nl}"
           notes="$notes- \`Zinc-Atelier-<version>-macos-<arch>.zip\`: the Zinc Atelier app, the engine inside; unzip and drag it to Applications.${nl}"
-          notes="$notes- \`install.sh\`, \`SHA256SUMS\`: the installer and the checksums it checks; \`zinc-<os>-<arch>.manifest\`: what \`zinc update\` reads; \`plugins.lock\`: the plugin mirrors.${nl}"
+          notes="$notes- \`install.sh\`, \`SHA256SUMS\`: the installer and the checksums it checks; \`zinc-<os>-<arch>[-beta].manifest\`: what \`zinc update\` reads (stable and beta channels); \`plugins.lock\`: the plugin mirrors.${nl}"
           if [ ! -f release/.signed ]; then notes="$notes${nl}The macOS downloads are not signed or notarized (no signing secrets): right-click > Open on the app the first time."; echo "::warning::releasing unsigned macOS downloads"; fi
-          ls release/*.manifest >/dev/null 2>&1 || notes="$notes${nl}No update manifests (no ZINC_UPDATE_SEED secret)."
+          if grep -L '^sig=' release/*.manifest 2>/dev/null | grep -q .; then notes="$notes${nl}The update manifests are unsigned (no ZINC_UPDATE_SEED secret): zinc update refuses them unless ZINC_UPDATE_ALLOW_UNSIGNED=1."; echo "::warning::unsigned update manifests"; fi
           files=(release/zinc-* release/install.sh release/SHA256SUMS)   # the CLI archives and the manifests, not the size reports
           for f in release/Zinc-Atelier-* release/plugins.lock; do if [ -f "$f" ]; then files+=("$f"); fi; done
-          gh release create "$GITHUB_REF_NAME" --title "Zinc ${GITHUB_REF_NAME}" --notes "$notes" "${files[@]}"
+          pre=(); case "$GITHUB_REF_NAME" in *-*) pre=(--prerelease) ;; esac   # v1.3.0-beta.1: not the latest release, the beta channel only
+          gh release create "$GITHUB_REF_NAME" --title "Zinc ${GITHUB_REF_NAME}" --notes "$notes" "${pre[@]}" "${files[@]}"
+          if [ ${#pre[@]} -gt 0 ]; then   # the beta manifests go on the latest release, where zinc update --channel beta reads them
+            latest=$(gh release view --json tagName -q .tagName) && gh release upload "$latest" release/*-beta.manifest --clobber
+          fi
   plugin-mirrors:
     # ZN-335, D37: each plugins/<name> changed on main is split (git subtree, history kept) and pushed to zinc-engine/plugin-<name>
     name: plugin-mirrors
