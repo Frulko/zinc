@@ -29,4 +29,19 @@ lines('break-words', 'Supercalifragilisticexpialidocious', 80);
 lines('break-all', 'abcdefghijklmnopqrstuvwxyz', 60);
 lines('', 'aaa bbb ccc ddd eee fff ggg', 140);
 lines('text-balance', 'aaa bbb ccc ddd eee fff ggg', 140);
+// truncate in a row that shrinks it (a camera's name beside its position badge): the ellipsis is cut at the final width, as CSS does
+function shrunk(cls: string): void {
+  const root = ui.createNode(ui.VIEW), row = ui.createNode(ui.VIEW), h = ui.createNode(ui.TEXT), badge = ui.createNode(ui.VIEW);
+  ui.setClass(row, 'w-[200px] flex-row');
+  ui.setClass(h, cls);
+  ui.setText(h, 'Zinc Fake Camera 2 with a rather long device name');
+  ui.setClass(badge, 'w-[60px] h-4');
+  ui.insert(row, h, -1); ui.insert(row, badge, -1); ui.insert(root, row, -1);
+  ui.setRoot(root);
+  ui.layout();
+  const n = ui.inspectNode(h), b = ui.inspectNode(badge);
+  if (n === null || b === null) return;
+  console.log(cls, 'width', n.lw, 'badge at', b.x, JSON.stringify(n.lines));
+}
+shrunk('flex-1 shrink truncate');
 quit();

@@ -2783,8 +2783,12 @@ function place(n: UiNode, x: number, y: number, vw: number, vh: number): void {
   if (n.tag === TEXT) {
     // measured at the width offered before grow and stretch were shared out: when it ends wider than the width it was wrapped at and has several lines, its lines
     // are wrapped again to use that width (ZN-287). A box narrower than the lines keeps them: its height was decided by them (re-wrapping would overflow it).
+    // A truncated text (ellipsis) is cut again at its final width, as CSS's text-overflow is: flex-shrink can make its box narrower than the measure.
     const k = n.wk;
-    if (k !== null && n.lines.length > 1 && vw - n.pl - n.pr > (k as WrapKey).avail + 0.5) wrapText(n, vw);
+    if (k !== null) {
+      const inner = vw - n.pl - n.pr, at = (k as WrapKey).avail;
+      if ((n.lines.length > 1 && inner > at + 0.5) || (n.ellipsis && Math.abs(inner - at) > 0.5)) wrapText(n, vw);
+    }
     return;
   }
   // scroll containers lay their content out at its natural size; the viewport only clips and offsets it

@@ -69,5 +69,6 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - The camera simulator did not compile on a machine without libgphoto2, so the camera examples failed there.
 - Solid component props that read signals now follow them; the touch marks are off by default (`ZINC_TOUCHES=1` shows them).
 - The web export of programs that use asset groups, storage or device features no longer stops at start.
+- A `truncate` text in a row that shrinks it (a long name beside a badge) ends with "…" at its final width instead of running over its neighbours.
 
 [Unreleased]: https://github.com/Frulko/zinc/compare/v0.1.1...HEAD
