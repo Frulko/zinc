@@ -18,6 +18,7 @@ while [ $# -gt 0 ]; do
 done
 case $tier in t0) tiers="t0" ;; t1) tiers="t0 t1" ;; t2) tiers="t0 t1 t2" ;; *) echo "bad tier: $tier" >&2; exit 2 ;; esac
 export ZINC=${ZINC:-$root/build/zinc}
+[ -z "$ZINC_CI" ] || export ZN_WAIT_SCALE=${ZN_WAIT_SCALE:-4}   # a shared 3-core runner under load: tests wait four times as long for a server or an inspector
 export ZINC_DETERMINISTIC=1   # the goldens read the virtual clock; tests/t0/clock_real.sh checks both clocks itself
 export ZINC_STEPS=${ZINC_STEPS:-0}   # tests opt into command progress when they assert it
 command -v timeout >/dev/null || export PATH="$root/tools/compat:$PATH"   # a stock macOS has no GNU timeout (ZN-609)

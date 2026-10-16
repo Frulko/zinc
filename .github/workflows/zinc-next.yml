@@ -217,6 +217,9 @@ jobs:
             ~/.zinc/toolchains
             ${{ runner.temp }}/zinc-home/toolchains
           key: toolchains-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('next/src/tc/tc.cpp', 'next/src/tc/tc.h') }}
+      - name: Quiet the runner
+        # Spotlight indexes the fresh checkout and the build tree on a 3-core runner: the tests run under it
+        run: sudo mdutil -a -i off >/dev/null 2>&1 || true
       - name: Tests
         env:
           ZINC_TEST_HOME: ${{ runner.temp }}/zinc-home
@@ -237,7 +240,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/out"
           {
             echo "## system"; sw_vers; uname -a; sysctl -n machdep.cpu.brand_string hw.ncpu hw.memsize; xcodebuild -version 2>&1 | head -2; clang --version | head -1
-            echo "## load"; uptime; vm_stat | head -4
+            echo "## load"; uptime; vm_stat | head -4; echo "## busiest processes"; ps -Ao pid,pcpu,etime,comm -r | head -12
             echo "## limits"; ulimit -a
             echo "## loopback"; ifconfig lo0 | head -6; netstat -an -p tcp | grep -c LISTEN; python3 -c "import socket;s=socket.socket();s.bind(('127.0.0.1',0));print('can bind 127.0.0.1:',s.getsockname()[1])"
             echo "## firewall"; /usr/libexec/ApplicationFirewall/socketfilterfw --getglobalstate 2>&1 | head -2

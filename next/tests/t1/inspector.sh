@@ -12,7 +12,7 @@ set -- $(python3 tests/free_ports.py 2); port=$1; http=$2
 python3 tests/netlog_servers.py $http > /dev/null 2>&1 & server=$!   # ZN-373.03: the target posts to its /echo
 sleep 0.5
 INSPECTOR_FETCH=http://127.0.0.1:$http/echo ZINC_REALTIME=1 ZINC_HEADLESS=1 ZINC_FRAMES=100000000 ZINC_DEVTOOLS_PORT=$port timeout 90 "$ZINC" run tests/data/inspector > "$tmp/target.log" 2>&1 & target=$!
-n=0; while [ $n -lt 400 ] && ! grep -q "zinc devtools:" "$tmp/target.log"; do sleep 0.05; n=$((n+1)); done
+n=0; while [ $n -lt $((400 * ${ZN_WAIT_SCALE:-1})) ] && ! grep -q "zinc devtools:" "$tmp/target.log"; do sleep 0.05; n=$((n+1)); done
 grep -q "localhost:$port)" "$tmp/target.log" || { echo "the target does not listen on $port: $(cat "$tmp/target.log")"; exit 1; }
 sleep 0.6   # a few console lines before the inspector attaches
 ZINC_INSPECTOR_DUMP=1 ZINC_REALTIME=1 ZINC_HEADLESS=1 ZINC_FRAMES=100000000 timeout 60 "$ZINC" run app/inspector/main.tsx -- "$port" > "$tmp/dump" 2>&1 || { echo "the inspector failed: $(head -c 600 "$tmp/dump")"; exit 1; }
@@ -40,7 +40,7 @@ grep -q "^  slowest: .*layout.* present$" "$tmp/dump" || { echo "the slowest fra
 [ $fail -eq 0 ] || cat "$tmp/dump"
 
 timeout 60 "$ZINC" debug --cdp=0 tests/data/debug_cli/main.ts > "$tmp/debug.out" 2> "$tmp/debug.err" & debug=$!
-n=0; while [ $n -lt 400 ] && ! grep -q "localhost:" "$tmp/debug.err"; do sleep 0.05; n=$((n+1)); done
+n=0; while [ $n -lt $((400 * ${ZN_WAIT_SCALE:-1})) ] && ! grep -q "localhost:" "$tmp/debug.err"; do sleep 0.05; n=$((n+1)); done
 dport=$(grep -o 'localhost:[0-9]*' "$tmp/debug.err" | cut -d: -f2)
 [ -n "$dport" ] || { echo "zinc debug --cdp does not listen: $(cat "$tmp/debug.err")"; exit 1; }
 ZINC_INSPECTOR_DUMP=1 ZINC_REALTIME=1 ZINC_HEADLESS=1 ZINC_FRAMES=100000000 timeout 60 "$ZINC" run app/inspector/main.tsx -- "$dport" > "$tmp/dump" 2>&1 || { echo "the inspector failed on zinc debug: $(head -c 600 "$tmp/dump")"; exit 1; }

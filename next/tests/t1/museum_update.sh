@@ -21,7 +21,7 @@ eval "$("$Z" update-keygen | sed 's/^/k_/')"
 mkdir "$tmp/www"
 (cd "$tmp/www" && exec python3 -u -m http.server 0 --bind 127.0.0.1 > "$tmp/srv.out" 2>> "$tmp/requests") & srv=$!
 port=
-for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+for i in $(seq 1 $((20 * ${ZN_WAIT_SCALE:-1}))); do
   port=$(sed -n 's/.* port \([0-9][0-9]*\).*/\1/p' "$tmp/srv.out" | head -1); [ -n "$port" ] && break; sleep 0.25
 done
 [ -n "$port" ] || { echo "museum_update: no local server"; exit 2; }

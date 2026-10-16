@@ -18,7 +18,7 @@ python3 tests/mqtt_broker.py $mqtt >/dev/null 2>&1 & broker=$!
 sleep 1
 ZINC_NET_SENSITIVE=pin,API_KEY ZINC_DEVTOOLS_PORT=$inspector ZINC_CA_FILE="$tmp/ca.pem" ZINC_REALTIME=1 ZINC_HEADLESS=1 ZINC_FRAMES=100000000 timeout 60 "$ZINC" run --har "$tmp/out.har" tests/golden/host/netlog.tsx -- $http $https $mqtt $quit > "$tmp/app.log" 2>&1 &
 app=$!
-n=0; while [ $n -lt 200 ] && ! grep -q "zinc devtools:" "$tmp/app.log"; do sleep 0.05; n=$((n+1)); done   # the inspector listens (stderr, not buffered)
+n=0; while [ $n -lt $((200 * ${ZN_WAIT_SCALE:-1})) ] && ! grep -q "zinc devtools:" "$tmp/app.log"; do sleep 0.05; n=$((n+1)); done   # the inspector listens (stderr, not buffered)
 python3 tests/netlog_check.py $quit "$tmp/out.har" $tls $inspector > "$tmp/check.log" 2>&1 || { cat "$tmp/check.log"; echo "the program:"; cat "$tmp/app.log"; exit 1; }
 wait $app
 [ -n "$NETLOG_KEEP" ] && { cp "$tmp/out.har" "$NETLOG_KEEP"; cat "$tmp/check.log"; }   # for a look at the file and the checker's lines
