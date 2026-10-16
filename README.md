@@ -13,6 +13,14 @@ UI, games, 3D, video and hardware, from one strict, typed subset of TypeScript a
 
 </div>
 
+> [!WARNING]
+> **Zinc is under active construction. Nothing here is stable or final.**
+> The language subset, the `zinc` CLI, the plugin ABI, the file formats, the APIs and the release packages change without notice and
+> without a deprecation period, and a version may break what the previous one ran. Releases are early previews (`0.x`), not signed or
+> notarized yet, and only macOS is built and tested today; other platforms are goals, not promises.
+> Expect rough edges, missing documentation and failing tests. Do not build anything you cannot afford to rewrite on it yet.
+> Feedback and bug reports are welcome in the [issues](../../issues).
+
 ## ✨ Why Zinc
 
 - 🚀 **Native, not embedded.** Your program is interpreted while you work and compiled to C++ when you ship: one executable, no
