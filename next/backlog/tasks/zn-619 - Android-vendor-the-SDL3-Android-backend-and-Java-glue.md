@@ -2,7 +2,8 @@
 id: ZN-619
 title: 'Android: vendor the SDL3 Android backend and Java glue'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-10 14:03'
 labels:
   - mobile

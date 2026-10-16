@@ -2,7 +2,8 @@
 id: ZN-618
 title: 'Mobile targets: ids, profiles and capabilities for ios and android'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-10 14:02'
 labels:
   - mobile

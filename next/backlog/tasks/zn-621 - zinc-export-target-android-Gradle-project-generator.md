@@ -2,7 +2,8 @@
 id: ZN-621
 title: 'zinc export --target android: Gradle project generator'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-10 14:04'
 labels:
   - mobile

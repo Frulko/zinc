@@ -2,7 +2,8 @@
 id: ZN-622
 title: 'Android: hello and rn-showcase on the emulator'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-10 14:04'
 labels:
   - mobile

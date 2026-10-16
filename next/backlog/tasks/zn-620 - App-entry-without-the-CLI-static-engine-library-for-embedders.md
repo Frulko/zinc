@@ -2,7 +2,8 @@
 id: ZN-620
 title: 'App entry without the CLI: static engine library for embedders'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-10 14:03'
 labels:
   - mobile
