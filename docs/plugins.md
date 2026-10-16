@@ -99,6 +99,23 @@ Swift); a spec with other types is refused with the member's name. The class's m
 so UI work goes through `runOnUiThread`; iOS: the main thread). A callback may be called from any thread: the call is queued and made on the
 program's thread. Promises, arrays and records are not carried yet: use a callback, or JSON text in a string (as `zinc:system` does).
 
+## Native views
+
+A plugin that shows a real OS view (a web view, a map, an ad) lets zinc:ui place it: its TypeScript object implements
+`place(x, y, w, h, cx, cy, cw, ch, shown)` (`ui.NativeViewHost`) and the program writes `<NativeView view={obj} className="..." />`
+(docs/ui.md "Native views"). zinc:ui calls `place` after a painted frame when the node's box (x, y, w, h), its clip (cx, cy, cw, ch: the scroll
+areas around it) or its visibility changed, in logical pixels of the surface; the plugin forwards them to its native side. The native side lays
+the view over the surface inside a clipping container at the clip, the view at the box within it:
+
+- macOS and iOS: a subview of SDL's view (the window's content view; the view controller's view on iOS), mapped by the surface's zoom and
+  letterbox (`hal_surface_size` against the view's bounds); `plugins/webview/src/webview.mm` is the example for both.
+- Android: `dev.zinc.app.ZincNativeView` (in the shell) wraps a plugin's `View`: `attach()`, `place(...)`, `setShown(on)`, `detach()`, callable
+  from the program's thread; it adds a FrameLayout to SDL's layout above the SurfaceView and moves it with translations
+  (`plugins/webview/native/android/WebviewModule.java`).
+
+Touches inside the clip go to the native view. Zinc does not draw over it: while a zinc:ui layer (menu, dialog, toast) overlaps it, `shown` is
+false and the view is hidden.
+
 ## Search path
 
 `<zinc>/plugins/*`, then `<project>/plugins/*`, then `zinc.json` `"pluginDirs"`. A project plugin shadows a bundled one

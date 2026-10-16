@@ -5,6 +5,9 @@ export interface Spec extends NativeModule {
   /** New view at x, y, w, h (logical pixels of the program's surface); -1 when there is no window. */
   create(x: f64, y: f64, w: f64, h: f64): i32;
   setBounds(v: i32, x: f64, y: f64, w: f64, h: f64): void;
+  /** The box (x, y, w, h) and the clip (cx, cy, cw, ch) of a zinc:ui NativeView, both in logical pixels of the surface: the view shows only
+   *  inside the clip. */
+  place(v: i32, x: f64, y: f64, w: f64, h: f64, cx: f64, cy: f64, cw: f64, ch: f64): void;
   setVisible(v: i32, on: boolean): void;
   navigate(v: i32, url: string): void;
   loadHtml(v: i32, html: string, baseUrl: string): void;

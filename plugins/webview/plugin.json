@@ -3,9 +3,16 @@
   "kind": "module",
   "module": "zinc:webview",
   "entry": "index.ts",
-  "description": "Web views embedded in the app window (WKWebView), zinc:// assets, postMessage and invoke RPC (Tauri-like)",
+  "description": "Web views over the app window (WKWebView, android.webkit.WebView) placed by a zinc:ui NativeView, zinc:// assets, postMessage and invoke RPC (Tauri-like)",
   "options": { "inspectable": false },
+  "native": { "impl": { "ios": "src/webview.mm" } },
   "targets": {
-    "macos": { "sources": ["src/webview.mm"], "defines": ["ZRT_HOSTED_CPP"], "pkg": ["sdl3"], "frameworks": ["WebKit", "Cocoa"] }
+    "macos": { "sources": ["src/webview.mm"], "defines": ["ZRT_HOSTED_CPP"], "pkg": ["sdl3"], "frameworks": ["WebKit", "Cocoa"] },
+    "ios": { "defines": ["ZRT_HOSTED_CPP"], "frameworks": ["WebKit", "UIKit"] },
+    "android": {
+      "class": "dev.zinc.plugins.webview.WebviewModule",
+      "sources": ["native/android/WebviewModule.java"],
+      "manifest": { "permissions": ["INTERNET"] }
+    }
   }
 }

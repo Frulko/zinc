@@ -5386,6 +5386,7 @@ export function frame(dt: number, background: i32): void {
   if (dimNode >= 0) stepPress();
   paint(root, 0, 0, 1, 1);
   if (layers.length > 0) paintLayers();
+  if (natives.length > 0) syncNatives();
   if (touchSel >= 0) paintTouchSelection();
   lastCommands = commandCount();
   if (highlight >= 0 && nodes[highlight].alive) {
@@ -6259,6 +6260,85 @@ function scrollerTop(px: number, py: number, axes: i32): i32 {
   if (axes === 0) return -1;
   if (layers.length > 0) { const l = layerHit(px, py, HIT_ANY, axes); if (l !== -2) return l; }
   return root < 0 ? -1 : scrollerAt(root, px, py, 0, 0, 1, axes);
+}
+
+// ---- native views (ZN-749; Flutter's platform views, React Native's native components): a real OS view (a web view, a map) laid over the
+// surface at a node's box. After each painted frame the host is told the box, the clip (the surface and every clipping ancestor up to its
+// layer, all on the surface) and whether it shows, only when one of them changed. It does not show while its node is off screen, hidden,
+// transparent, clipped away, or under a layer painted above it (a menu, a dialog, a toast): Zinc never draws over a native view, so the
+// view is hidden instead (Decision B of docs/reports/native-fidelity-and-plugins.md §4.3). Touches inside the clip go to the view.
+/** What a native view plugin implements (plugins/webview's WebView): surface coordinates, logical pixels. */
+export interface NativeViewHost { place(x: number, y: number, w: number, h: number, cx: number, cy: number, cw: number, ch: number, shown: boolean): void }
+class NativeRec {
+  h: i32; n: UiNode; host: NativeViewHost;
+  last: number[] = [-1, -1, -1, -1, -1, -1, -1, -1, -1];   // x y w h cx cy cw ch shown (-1: never told)
+  constructor(h: i32, n: UiNode, host: NativeViewHost) { this.h = h; this.n = n; this.host = host; }
+}
+const natives: NativeRec[] = [];
+let nativeSyncs: i32 = 0;
+/** Lays `host`'s native view over node h from the next frame on; a node takes one host (the last). */
+export function nativeView(h: i32, host: NativeViewHost): void {
+  for (let i = natives.length - 1; i >= 0; i--) if (natives[i].h === h) natives.splice(i, 1);
+  natives.push(new NativeRec(h, node(h), host));
+  paintDirty = true;
+}
+export interface NativeViewProps { className?: string; view: NativeViewHost }
+/** `<NativeView view={web} className="grow" />`: a leaf whose box the native view of `view` takes. */
+export function NativeView(p: NativeViewProps): i32 {
+  const h = createNode(VIEW);
+  setClass(h, p.className ?? '');
+  nativeView(h, p.view);
+  return h;
+}
+/** How many times the hosts were told something (tests, the cost of a scroll). */
+export function nativeViewUpdates(): i32 { return nativeSyncs; }
+/** A layer above `own` (the layer node holding the view, -1: the tree) painted over the rectangle. ponytail: the layer node's box, not its
+ *  painted children; a layer laid out on the whole surface with a small panel hides the view everywhere. */
+function nativeCovered(own: i32, x: number, y: number, w: number, h: number): boolean {
+  let i: i32 = 0;
+  if (own >= 0) { while (i < layers.length && layers[i].node !== own) i++; i++; }
+  for (; i < layers.length; i++) {
+    const l = layers[i];
+    if (!(l.t > 0 || shownNow(l.node))) continue;
+    if (l.backdrop >= 0) return true;
+    boxOf(l.node);
+    const n = nodes[l.node];
+    if (boxX < x + w && x < boxX + n.lw * boxK && boxY < y + h && y < boxY + n.lh * boxK) return true;
+  }
+  return false;
+}
+function syncNatives(): void {
+  for (let i = 0; i < natives.length; i++) {
+    const r = natives[i];
+    const live = r.n.alive && nodes[r.h] === r.n;
+    let shown = live && shownNow(r.h);
+    let x: number = 0, y: number = 0, w: number = 0, hh: number = 0, cx: number = 0, cy: number = 0, cw: number = 0, ch: number = 0;
+    if (shown) {
+      boxOf(r.h);
+      x = boxX; y = boxY; w = r.n.lw * boxK; hh = r.n.lh * boxK;
+      let x0: number = Math.max(0, x), y0: number = Math.max(0, y), x1: number = Math.min(width(), x + w), y1: number = Math.min(height(), y + hh);
+      let a: number = 1, own: i32 = -1;
+      for (let p = r.h; p >= 0; p = nodes[p].parent) {
+        const q = nodes[p];
+        a *= q.opacity;
+        if (q.invisible) a = 0;
+        if (p !== r.h && (q.overflow || q.scroll !== 0)) {
+          boxOf(p);
+          x0 = Math.max(x0, boxX); y0 = Math.max(y0, boxY); x1 = Math.min(x1, boxX + q.lw * boxK); y1 = Math.min(y1, boxY + q.lh * boxK);
+        }
+        if (q.layer) { own = p; break; }
+      }
+      cx = x0; cy = y0; cw = Math.max(0, x1 - x0); ch = Math.max(0, y1 - y0);
+      shown = a > 0 && cw > 0 && ch > 0 && !nativeCovered(own, cx, cy, cw, ch);
+    }
+    const s: number = shown ? 1 : 0, l = r.last;
+    if (l[0] !== x || l[1] !== y || l[2] !== w || l[3] !== hh || l[4] !== cx || l[5] !== cy || l[6] !== cw || l[7] !== ch || l[8] !== s) {
+      l[0] = x; l[1] = y; l[2] = w; l[3] = hh; l[4] = cx; l[5] = cy; l[6] = cw; l[7] = ch; l[8] = s;
+      nativeSyncs++;
+      r.host.place(x, y, w, hh, cx, cy, cw, ch, shown);
+    }
+    if (!live) { natives.splice(i, 1); i--; }
+  }
 }
 
 // ---- anchored positioning (GPUI anchored): a float placed next to a target node or point on every frame, flipped to

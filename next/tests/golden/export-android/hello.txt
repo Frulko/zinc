@@ -11,6 +11,7 @@
 ./app/src/main/java/dev/zinc/app/ZincActivity.java ac255744975060f8
 ./app/src/main/java/dev/zinc/app/ZincCallback.java 69ff214bb9014b9c
 ./app/src/main/java/dev/zinc/app/ZincLifecycle.java a708d19bd83e76ac
+./app/src/main/java/dev/zinc/app/ZincNativeView.java d0407421a424816d
 ./app/src/main/java/dev/zinc/app/ZincPlugins.java b7779b5f3856760c
 ./app/src/main/java/dev/zinc/hello/HelloActivity.java e1fe502afc0b6cd0
 ./app/src/main/java/org/libsdl/app/HIDDevice.java afdeaf583f051583

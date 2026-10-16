@@ -107,6 +107,13 @@ export function Switch(p: SwitchProps): i32 {
 }
 
 // ---------------------------------------------------------------- ActivityIndicator, SafeAreaView, StatusBar
+export type NativeViewProps = { style?: ui.Style; view: ui.NativeViewHost };
+/** A real OS view (zinc:webview's WebView, a map) at this box: zinc:ui's NativeView with React Native styles (docs/ui.md "Native views"). */
+export function NativeView(p: NativeViewProps): i32 {
+  const h = <View style={p.style ?? NONE} />;
+  ui.nativeView(h, p.view);
+  return h;
+}
 export type ActivityIndicatorProps = { animating?: boolean; color?: string; size?: string; hidesWhenStopped?: boolean; style?: ui.Style };
 /** The platform's spinner (zinc:ui/platform's look): iOS and macOS 12 bars, the bright one turning once a second (grey by default); Material a turning arc
  *  that grows and shrinks, in the primary colour. Size 'small' (20) or 'large' (36). */

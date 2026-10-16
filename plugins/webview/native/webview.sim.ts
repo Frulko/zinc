@@ -3,6 +3,7 @@ let n = 0;
 export default {
   create(_x: number, _y: number, _w: number, _h: number): number { return n++; },
   setBounds(_v: number, _x: number, _y: number, _w: number, _h: number): void {},
+  place(_v: number, _x: number, _y: number, _w: number, _h: number, _cx: number, _cy: number, _cw: number, _ch: number): void {},
   setVisible(_v: number, _on: boolean): void {},
   navigate(_v: number, _url: string): void {},
   loadHtml(_v: number, _html: string, _base: string): void {},

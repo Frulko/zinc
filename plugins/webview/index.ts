@@ -1,5 +1,6 @@
 // zinc:webview — web content inside the app window, Tauri-like (docs/plugins/webview.md).
-// A WebView is a native WKWebView on top of the software-rendered surface, placed in logical pixels. The page talks
+// A WebView is a native web view (WKWebView on macOS and iOS, android.webkit.WebView on Android) over the surface, placed in
+// logical pixels, best by a zinc:ui <NativeView view={web} /> (box, clip, hidden under overlays). The page talks
 // to the program through `window.zinc`: postMessage(x) -> onMessage, and `await zinc.invoke(cmd, args)` -> the
 // handler registered with handle(cmd, ...) (commands that are not registered reject: the allowlist). `zinc://app/<path>`
 // serves the project's assets (disk in dev through ZINC_ASSETS, embedded in the executable in release).
@@ -41,6 +42,7 @@ export class WebView {
   private loadCbs: ((url: string) => void)[] = [];
   private cmds: Map<string, (args: string) => string> = new Map<string, (args: string) => string>();
   private bx: number = -1; private by: number = -1; private bw: number = -1; private bh: number = -1;
+  private wanted: boolean = true; private placed: boolean = true; private visible: boolean = true;   // show()/hide(), what zinc:ui says, what the view has
 
   constructor(o: WebViewOptions) {
     width();   // Next creates the window on its first graphics call, before the native view attaches.
@@ -58,12 +60,28 @@ export class WebView {
     this.bx = x; this.by = y; this.bw = w; this.bh = h;
     W.setBounds(this.id, x, y, w, h);
   }
-  /** An onDraw callback for a zinc:ui `<Canvas>`: the view follows the layout node every frame. */
+  /** zinc:ui's NativeView host (`<NativeView view={web} className="grow" />`): the node's box, the clip of its scroll areas, and whether it
+   *  shows (not under a menu or a dialog, not hidden or scrolled away), told when they change. */
+  place(x: number, y: number, w: number, h: number, cx: number, cy: number, cw: number, ch: number, shown: boolean): void {
+    if (shown) {
+      this.bx = x; this.by = y; this.bw = w; this.bh = h;
+      W.place(this.id, x, y, w, h, cx, cy, cw, ch);
+    }
+    this.placed = shown;
+    this.apply();
+  }
+  /** An onDraw callback for a zinc:ui `<Canvas>`: the view follows the layout node every frame (no clip; NativeView replaces it). */
   follow(): (x: i32, y: i32, w: i32, h: i32) => void {
     return (x: i32, y: i32, w: i32, h: i32) => { this.setBounds(x, y, w, h); };
   }
-  show(): void { W.setVisible(this.id, true); }
-  hide(): void { W.setVisible(this.id, false); }
+  show(): void { this.wanted = true; this.apply(); }
+  hide(): void { this.wanted = false; this.apply(); }
+  private apply(): void {
+    const on = this.wanted && this.placed;
+    if (on === this.visible) return;
+    this.visible = on;
+    W.setVisible(this.id, on);
+  }
   navigate(url: string): void { W.navigate(this.id, normalize(url)); }
   loadHtml(html: string): void { W.loadHtml(this.id, html, 'zinc://app/'); }
   /** Runs JavaScript in the page (fire and forget; use invoke/postMessage for results). */

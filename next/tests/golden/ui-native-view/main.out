@@ -1,0 +1,23 @@
+frame 1: mounted, 0 call
+  place 16 100 168x200 clip 16 100 168x200 shown
+frame 3: scroll 50
+  place 16 50 168x200 clip 16 50 168x200 shown
+frame 5: scroll 150 (the view goes under the header)
+  place 16 -50 168x200 clip 16 40 168x110 shown
+frame 7: scroll back to 0
+  place 16 100 168x200 clip 16 100 168x200 shown
+frame 9: a menu over the view
+  place 16 100 168x200 clip 16 100 168x200 hidden
+frame 11: the menu closes
+  place 16 100 168x200 clip 16 100 168x200 shown
+frame 13: a dialog away from the view, with a scrim
+  place 16 100 168x200 clip 16 100 168x200 hidden
+frame 15: the dialog closes
+  place 16 100 168x200 clip 16 100 168x200 shown
+frame 17: its parent hidden
+  place 0 0 0x0 clip 0 0 0x0 hidden
+frame 19: its parent shown
+  place 16 100 168x200 clip 16 100 168x200 shown
+frame 21: unmounted
+  place 0 0 0x0 clip 0 0 0x0 hidden
+done: 11 calls, 11 updates

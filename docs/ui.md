@@ -717,6 +717,29 @@ ui.repaint();                                      // the surface changed behind
 
 `tests/golden/webgl-surface` is the working example.
 
+## Native views: a real OS view at a node's box
+
+`<NativeView view={host} className="..." />` (from `zinc:ui`) is a leaf laid out like a `<View>` whose box a real native view takes: a web view
+(`zinc:webview`'s `WebView` is a host), later a map or an ad. What Flutter calls platform views and React Native native components.
+
+```tsx
+import { NativeView } from 'zinc:ui';
+const web = webview.create({ url: 'zinc://index.html', html: '', x: 0, y: 0, w: 1, h: 1 });
+<ScrollView className="grow"><NativeView className="h-[420px] mx-3" view={web} /></ScrollView>
+```
+
+After each painted frame zinc:ui tells the host the node's box and its clip (the surface, then every scroll area and `overflow-hidden` ancestor
+up to its layer), in logical pixels of the surface, and whether it shows: `host.place(x, y, w, h, cx, cy, cw, ch, shown)`, only when one of
+them changed. A host is any object with that method (`ui.NativeViewHost`); `ui.nativeView(node, host)` attaches one to a node made otherwise.
+
+The rule: **Zinc never draws over a native view.** The view is laid over the surface (an NSView subview on macOS, a UIView subview of SDL's
+view on iOS, a child of SDL's layout above its SurfaceView on Android), inside a container that clips it to the clip. It does not show while
+its node is off screen, hidden, transparent or clipped away, nor while a layer painted above it overlaps it: a menu, a popover, a toast, and
+any dialog with a backdrop (the kits' overlays are layers; docs above). Touches inside the clip go to the view, not to zinc:ui's gestures.
+Costs, accepted: no Zinc content, shadow, blur, rounded clip or transform over or on the view (a rectangle clip only); inside a moving scroll
+area the native view follows the frame the UI just painted, so it can trail a fast fling by a frame on a slow device. What one update costs is
+measured in docs/reports/zinc-next-native-view.md. `tests/t0/ui_native_view.sh` is the reference of what a host is told.
+
 ## Style reference
 
 <!-- ui-docs:begin -->

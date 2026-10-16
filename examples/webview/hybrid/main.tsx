@@ -1,13 +1,18 @@
 // Hybrid app: a native zinc:ui sidebar next to a web panel (assets/index.html, served as zinc://app/...) — both ways:
 // the page calls Zinc commands (`await zinc.invoke('listFiles')`, 'readFile' over zinc:fs), Zinc pushes live data
-// and sidebar clicks into the page (postMessage). macOS only (zinc:webview).
-//   zinc run examples/webview/hybrid -- <dir>     (browses <dir>, default: the current directory)
-import { createSignal, render, For } from 'zinc:ui/solid';
+// and sidebar clicks into the page (postMessage). The web panel is a <NativeView>: a real web view (WKWebView on macOS and
+// iOS, android.webkit.WebView on Android) at the node's box. On a phone the page scrolls: the web panel moves with it and
+// the bar at the top cuts it off.
+//   zinc run examples/webview/hybrid -- <dir>     (browses <dir>, default: the current directory; a phone browses the app's assets)
+import { createSignal, render, For, createNodeRef } from 'zinc:ui/solid';
+import * as ui from 'zinc:ui';
+import { NativeView } from 'zinc:ui';
 import * as fs from 'zinc:fs';
 import * as sys from 'zinc:sys';
 import * as webview from 'zinc:webview';
 
-const DIR = sys.args().length > 0 ? sys.args()[0] : '.';
+const PHONE = ui.platformStyle() !== 'desktop';
+const DIR = sys.args().length > 0 ? sys.args()[0] : PHONE && sys.env('ZINC_ASSETS') !== '' ? sys.env('ZINC_ASSETS') : '.';
 const EXTS: string[] = ['.md', '.ts', '.tsx', '.json', '.txt', '.html', '.css', '.js', '.mjs'];
 
 function textFiles(): string[] {
@@ -39,8 +44,10 @@ web.onMessage((m: string) => {
 });
 
 // HYBRID_DEMO=1: scripted check — open the first file from the native side, then have the page call a command
-// that is not registered (it must be rejected).
+// that is not registered (it must be rejected). HYBRID_SCROLL=<px>: then the phone layout scrolls by that much.
 function demo(): void {
+  const by = parseFloat(sys.env('HYBRID_SCROLL'));
+  if (by > 0 && page.node >= 0) setTimeout(() => { ui.scrollTo(page.node, 0, by); console.log(`hybrid: scrolled ${by}`); }, 500);
   if (sys.env('HYBRID_DEMO') === '' || files().length === 0) return;
   open(files()[0]);
   web.eval(`document.getElementById('bad').click()`);
@@ -74,12 +81,44 @@ function Sidebar(): i32 {
   </View>;
 }
 
-function App(): i32 {
+function Desktop(): i32 {
   return <View className="flex-row h-full bg-slate-950">
     <Sidebar />
-    <Canvas className="grow" onDraw={web.follow()}></Canvas>
+    <NativeView className="grow" view={web} />
   </View>;
 }
+
+// A phone (or HYBRID_PHONE=1): one scrolling column under a fixed bar; the web panel scrolls with the page and is clipped by the bar.
+const page = createNodeRef();
+function Phone(): i32 {
+  return <View className="flex-col h-full bg-slate-950">
+    <View className="flex-row items-center gap-2 px-3 pb-2 pt-[env(safe-area-inset-top)] bg-slate-900">
+      <Text className="grow text-sm text-slate-300">Zinc + web</Text>
+      <Button className="h-9 px-3 rounded bg-sky-700 active:bg-sky-500" onClick={() => { pings++; web.postMessage(`{"type":"ping","n":${pings}}`); }}>
+        <Text className="text-sm">Ping the page</Text>
+      </Button>
+    </View>
+    <ScrollView ref={page} className="grow">
+      <View className="flex-col gap-1 p-3">
+        <Text className="text-xs text-slate-500 tracking-wider">NATIVE (zinc:ui)</Text>
+        <Text className="text-sm text-slate-300">The panel below is a real web view laid over the Zinc page. Scroll: it moves with the page and the bar cuts it off.</Text>
+        <Text className="text-xs text-emerald-400">{status()}</Text>
+      </View>
+      <NativeView className="h-[420px] mx-3" view={web} />
+      <View className="flex-col gap-2 p-3">
+        <Text className="text-xs text-slate-500 tracking-wider">FILES</Text>
+        <For each={files()}>{(f: string, _i: i32) =>
+          <Button className={f === selected() ? 'h-9 px-2 rounded bg-amber-600 items-start' : 'h-9 px-2 rounded bg-slate-800 active:bg-slate-600 items-start'} onClick={() => { open(f); }}>
+            <Text className="text-sm">{f}</Text>
+          </Button>}
+        </For>
+        <View className="h-[480px]"></View>
+      </View>
+    </ScrollView>
+  </View>;
+}
+
+const App = PHONE || sys.env('HYBRID_PHONE') !== '' ? Phone : Desktop;
 
 // live data pushed into the page twice a second
 let acc = 0, frames = 0;

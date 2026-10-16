@@ -1,9 +1,27 @@
-// zinc:webview for macOS: WKWebViews added on top of the SDL window's content view (docs/plugins/webview.md).
-// Manual retain/release (the app is not built with ARC). WebKit calls back on the main thread while SDL pumps Cocoa
-// events inside hal_poll_input; those callbacks only queue events, a zrt::Poller hands them to the program.
+// zinc:webview for macOS and iOS: WKWebViews laid over the SDL window's view (docs/plugins/webview.md), each inside a clipping container:
+// the container takes the clip zinc:ui computes (NativeView, ZN-749), the web view the node's box inside it, so a scroll area cuts it off.
+// Manual retain/release (the app is not built with ARC). WebKit calls back on the main thread while SDL pumps the platform's events
+// inside hal_poll_input; those callbacks only queue events, a zrt::Poller hands them to the program.
+#include <TargetConditionals.h>
+#if TARGET_OS_IPHONE
+#import <UIKit/UIKit.h>
+typedef UIView ZView;
+typedef CGRect ZRect;
+typedef CGSize ZSize;
+#define ZMakeRect CGRectMake
+#define ZEqualRects CGRectEqualToRect
+#else
 #import <Cocoa/Cocoa.h>
+typedef NSView ZView;
+typedef NSRect ZRect;
+typedef NSSize ZSize;
+#define ZMakeRect NSMakeRect
+#define ZEqualRects NSEqualRects
+#endif
 #import <WebKit/WebKit.h>
 #include <SDL3/SDL.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include "hal.h"
 #include "zrt_assets_dir.h"
@@ -105,25 +123,54 @@ static bool trusted(WKFrameInfo* f, NSInteger port) {
 @end
 
 // ---------------------------------------------------------------- views
+#if !TARGET_OS_IPHONE
+/** The clipping container: a top-left origin as UIKit's, so both platforms place the web view inside it the same way. */
+@interface ZincClip : NSView
+@end
+@implementation ZincClip
+- (BOOL)isFlipped { return YES; }
+@end
+#endif
+
 static const int MAXV = 16;
-struct View { WKWebView* wv; ZincBridge* br; double x, y, w, h; };
+struct View { WKWebView* wv; ZincBridge* br; ZView* clip; double x, y, w, h, cx, cy, cw, ch; };
 static View views[MAXV];
 static View* at(int32_t v) { return v >= 0 && v < MAXV && views[v].wv ? &views[v] : nullptr; }
 
-static NSWindow* window() {
+/** The view SDL draws the surface into: the window's content view (macOS), its view controller's view (iOS). */
+static ZView* hostView() {
   SDL_Window* sw = (SDL_Window*)hal_window_handle();
-  return sw ? (NSWindow*)SDL_GetPointerProperty(SDL_GetWindowProperties(sw), SDL_PROP_WINDOW_COCOA_WINDOW_POINTER, nullptr) : nil;
+  if (!sw) return nil;
+#if TARGET_OS_IPHONE
+  UIWindow* w = (UIWindow*)SDL_GetPointerProperty(SDL_GetWindowProperties(sw), SDL_PROP_WINDOW_UIKIT_WINDOW_POINTER, nullptr);
+  return w.rootViewController.view ?: w;
+#else
+  NSWindow* w = (NSWindow*)SDL_GetPointerProperty(SDL_GetWindowProperties(sw), SDL_PROP_WINDOW_COCOA_WINDOW_POINTER, nullptr);
+  return w.contentView;
+#endif
 }
-/** Logical surface rectangle -> content view frame (same letterbox/zoom mapping as the SDL renderer). */
-static void place(View& v) {
-  NSView* cv = v.wv.superview;
-  if (!cv) return;
+/** Logical surface rectangles -> the container's frame in the host view (the letterbox/zoom mapping of the SDL renderer) and the web view's
+ *  frame inside it. */
+static void frameOf(View& v) {
+  ZView* hv = v.clip.superview;
+  if (!hv) return;
   int W = 1, H = 1;
   hal_surface_size(&W, &H);
-  NSSize s = cv.bounds.size;
+  ZSize s = hv.bounds.size;
   double k = fmin(s.width / W, s.height / H), ox = (s.width - W * k) / 2, oy = (s.height - H * k) / 2;
-  NSRect r = NSMakeRect(ox + v.x * k, cv.isFlipped ? oy + v.y * k : s.height - (oy + (v.y + v.h) * k), v.w * k, v.h * k);
-  if (!NSEqualRects(r, v.wv.frame)) v.wv.frame = r;
+#if TARGET_OS_IPHONE
+  const bool flipped = true;
+#else
+  const bool flipped = hv.isFlipped;
+#endif
+  ZRect c = ZMakeRect(ox + v.cx * k, flipped ? oy + v.cy * k : s.height - (oy + (v.cy + v.ch) * k), v.cw * k, v.ch * k);
+  ZRect r = ZMakeRect((v.x - v.cx) * k, (v.y - v.cy) * k, v.w * k, v.h * k);
+  if (ZEqualRects(c, v.clip.frame) && ZEqualRects(r, v.wv.frame)) return;
+  v.clip.frame = c;
+  v.wv.frame = r;
+  static const bool trace = getenv("ZINC_WEBVIEW_TRACE") != nullptr;   // the frames the OS was given, top-left origin, in the host view's units (tests)
+  if (trace) std::fprintf(stderr, "webview %d: clip %g,%g %gx%g view %g,%g %gx%g\n", v.br.vid, c.origin.x, flipped ? c.origin.y : s.height - c.origin.y - c.size.height,
+                          c.size.width, c.size.height, r.origin.x, r.origin.y, r.size.width, r.size.height);
 }
 
 struct MacWebview : NativeWebview, zrt::Poller {
@@ -131,10 +178,10 @@ struct MacWebview : NativeWebview, zrt::Poller {
 
   int32_t create(double x, double y, double w, double h) override {
     @autoreleasepool {
-      NSWindow* win = window();
+      ZView* hv = hostView();
       int slot = 0;
       while (slot < MAXV && views[slot].wv) slot++;
-      if (!win || slot == MAXV) return -1;
+      if (!hv || slot == MAXV) return -1;
       ZincBridge* br = [[ZincBridge alloc] init];
       br.vid = slot;
       br.port = -1;
@@ -142,19 +189,36 @@ struct MacWebview : NativeWebview, zrt::Poller {
       [cfg setURLSchemeHandler:br forURLScheme:@"zinc"];
       [cfg.userContentController addScriptMessageHandler:br name:@"zinc"];
       [cfg.userContentController addUserScript:[[[WKUserScript alloc] initWithSource:BRIDGE injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:YES] autorelease]];
-      WKWebView* wv = [[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 1, 1) configuration:cfg];
+      WKWebView* wv = [[WKWebView alloc] initWithFrame:ZMakeRect(0, 0, 1, 1) configuration:cfg];
       wv.navigationDelegate = br;
+#if TARGET_OS_IPHONE
+      ZView* clip = [[UIView alloc] initWithFrame:ZMakeRect(0, 0, 1, 1)];
+      clip.clipsToBounds = YES;
+      if (@available(iOS 16.4, *)) wv.inspectable = ZP_WEBVIEW_INSPECTABLE;
+#else
+      ZView* clip = [[ZincClip alloc] initWithFrame:ZMakeRect(0, 0, 1, 1)];
+      clip.wantsLayer = YES;
+      clip.layer.masksToBounds = YES;
+      if (@available(macOS 14.0, *)) clip.clipsToBounds = YES;   // NSView stopped clipping its subviews by default with the macOS 14 SDK
       if (@available(macOS 13.3, *)) wv.inspectable = ZP_WEBVIEW_INSPECTABLE;
-      [win.contentView addSubview:wv];
-      views[slot] = View{wv, br, x, y, w, h};
-      place(views[slot]);
+#endif
+      [clip addSubview:wv];
+      [hv addSubview:clip];
+      views[slot] = View{wv, br, clip, x, y, w, h, x, y, w, h};
+      frameOf(views[slot]);
       return slot;
     }
   }
-  void setBounds(int32_t v, double x, double y, double w, double h) override {
-    if (View* p = at(v)) { p->x = x; p->y = y; p->w = w; p->h = h; place(*p); }
+  void setBounds(int32_t v, double x, double y, double w, double h) override { place(v, x, y, w, h, x, y, w, h); }
+  void place(int32_t v, double x, double y, double w, double h, double cx, double cy, double cw, double ch) override {
+    if (View* p = at(v)) { *p = View{p->wv, p->br, p->clip, x, y, w, h, cx, cy, cw, ch}; frameOf(*p); }
   }
-  void setVisible(int32_t v, bool on) override { if (View* p = at(v)) p->wv.hidden = !on; }
+  void setVisible(int32_t v, bool on) override {
+    View* p = at(v);
+    if (!p) return;
+    p->clip.hidden = !on;
+    if (getenv("ZINC_WEBVIEW_TRACE")) std::fprintf(stderr, "webview %d: %s\n", v, on ? "shown" : "hidden");
+  }
   void navigate(int32_t v, zrt::String url) override {
     @autoreleasepool {
       View* p = at(v);
@@ -192,7 +256,8 @@ struct MacWebview : NativeWebview, zrt::Poller {
       if (!p) return;
       [p->wv.configuration.userContentController removeScriptMessageHandlerForName:@"zinc"];
       p->wv.navigationDelegate = nil;
-      [p->wv removeFromSuperview];
+      [p->clip removeFromSuperview];
+      [p->clip release];
       [p->wv release];
       [p->br release];
       *p = View{};
@@ -202,7 +267,7 @@ struct MacWebview : NativeWebview, zrt::Poller {
 
   bool poll() override {
     bool any = false;
-    for (View& v : views) if (v.wv) { place(v); any = true; }  // follows window resizes (letterbox, zoom)
+    for (View& v : views) if (v.wv) { frameOf(v); any = true; }  // follows window resizes (letterbox, zoom)
     if (!queue.count) return any;
     @autoreleasepool {
       NSArray* evs = [[queue copy] autorelease];

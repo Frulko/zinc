@@ -6,6 +6,7 @@
 struct NativeWebview : zrt::Object {
   virtual int32_t create(double x, double y, double w, double h) = 0;
   virtual void setBounds(int32_t v, double x, double y, double w, double h) = 0;
+  virtual void place(int32_t v, double x, double y, double w, double h, double cx, double cy, double cw, double ch) = 0;
   virtual void setVisible(int32_t v, bool on) = 0;
   virtual void navigate(int32_t v, zrt::String url) = 0;
   virtual void loadHtml(int32_t v, zrt::String html, zrt::String baseUrl) = 0;
