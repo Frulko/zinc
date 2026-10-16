@@ -9,8 +9,8 @@
   "requires": ["microphone"],
   "native": { "impl": { "macos": "native/microphone.macos.mm" } },
   "targets": {
-    "macos": { "sources": ["../audio/vendor/miniaudio_impl.c"], "defines": ["MA_NO_ENCODING", "MA_NO_RESOURCE_MANAGER"], "frameworks": ["AVFoundation", "Foundation"] },
-    "linux": { "sources": ["../audio/vendor/miniaudio_impl.c"], "defines": ["MA_NO_ENCODING", "MA_NO_RESOURCE_MANAGER"], "libs": ["m", "dl"], "linkFlags": ["-pthread"] },
-    "rpi1": { "sources": ["../audio/vendor/miniaudio_impl.c"], "defines": ["MA_NO_ENCODING", "MA_NO_RESOURCE_MANAGER"], "libs": ["m", "dl"], "linkFlags": ["-pthread"] }
+    "macos": { "sources": ["../audio/vendor/miniaudio_impl.c"], "flags": ["-g0"], "defines": ["MA_NO_ENCODING", "MA_NO_RESOURCE_MANAGER"], "frameworks": ["AVFoundation", "Foundation"] },
+    "linux": { "sources": ["../audio/vendor/miniaudio_impl.c"], "flags": ["-g0"], "defines": ["MA_NO_ENCODING", "MA_NO_RESOURCE_MANAGER"], "libs": ["m", "dl"], "linkFlags": ["-pthread"] },
+    "rpi1": { "sources": ["../audio/vendor/miniaudio_impl.c"], "flags": ["-g0"], "defines": ["MA_NO_ENCODING", "MA_NO_RESOURCE_MANAGER"], "libs": ["m", "dl"], "linkFlags": ["-pthread"] }
   }
 }
