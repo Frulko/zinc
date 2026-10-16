@@ -2134,6 +2134,18 @@ int main(int argc, char** argv) {
     std::printf("damage %d rects %s box %d,%d %d,%d\n", n, same ? "equal" : "DIFFERENT", box[0], box[1], box[2], box[3]);
     return same ? 0 : 1;
   }
+  if (argc == 7 && !std::strcmp(argv[1], "capture") && !std::strcmp(argv[2], "--scene") && !std::strcmp(argv[5], "--scroll")) {   // zinc capture --scene <before> <file> --scroll <now>: the move of a scroll and the pixels it gives against a full raster (ZN-744)
+    zn::zbc::Module zm;
+    if (int rc = compileToZbc(argv[4], zm)) return rc;
+    std::vector<std::uint8_t> blob;
+    std::string err;
+    if (!bakeResources(argv[4], blob, err) || !zn::host::installResources(blob.data(), blob.size())) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
+    zn::host::ScrollCheck sc;
+    if (!zn::host::scrollCheck(argv[3], argv[6], sc)) { std::fprintf(stderr, "zinc: cannot compare %s and %s\n", argv[3], argv[6]); return 1; }
+    if (!sc.moved) { std::printf("scroll none\n"); return 0; }
+    std::printf("scroll %d %d area %d,%d %d,%d rects %d drawn %lld of %lld pixels %s\n", sc.dx, sc.dy, sc.area[0], sc.area[1], sc.area[2], sc.area[3], sc.rects, sc.drawn, sc.full, sc.same ? "equal" : "DIFFERENT");
+    return sc.same ? 0 : 1;
+  }
   if (argc == 7 && !std::strcmp(argv[1], "capture") && !std::strcmp(argv[2], "--scene") && !std::strcmp(argv[5], "-o")) {  // zinc capture --scene <dump> <file> -o <png>: replay a ZINC_SCENE_DUMP through the software raster, with the fonts and images of <file> (ZN-170)
     zn::zbc::Module zm;
     if (int rc = compileToZbc(argv[4], zm)) return rc;

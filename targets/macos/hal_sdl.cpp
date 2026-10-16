@@ -2,6 +2,7 @@
 #include <string>
 #include "hal.h"
 #include "hal_window.h"
+#include "zrt_raster.h"   // move_pixels (HalFrame.move, ZN-744)
 #include <SDL3/SDL.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -47,7 +48,7 @@ static bool surface_ok;        // the surface of the current size is allocated
 static bool shown;             // the main window is created hidden and shown by its first present, so it never appears blank (ZN-446)
 #ifdef __ANDROID__
 #include <android/native_window.h>
-static int anw_mode;          // zero-copy present (ZN-743, anw_present): 0 SDL_Renderer; 1 BGRA_8888 written in place; 2 RGB_565 packed from fb
+static int anw_mode;          // present into the window's buffer (ZN-743, anw_present): 0 SDL_Renderer; 1 BGRA_8888 copied from fb; 2 RGB_565 packed from fb; 3 BGRA_8888 drawn in place (default)
 static ANativeWindow* anw;    // our reference to the window's surface (SDL releases its own when the surface goes away)
 #endif
 
@@ -261,7 +262,7 @@ static void alloc_surface() {
   }
 #endif
 #ifdef __ANDROID__
-  if (anw_mode) { free(fb); fb = nullptr; return; }   // the window's buffer is the surface; fb only for a packed or strided buffer (anw_present)
+  if (anw_mode) { free(fb); fb = nullptr; return; }   // made by the first present at this size (anw_present)
 #endif
   if (tex) SDL_DestroyTexture(tex);
   free(fb);
@@ -422,7 +423,7 @@ void hal_init(const HalConfig* cfg) {
     if (getenv("ZINC_GL_STATS")) fprintf(stderr, "zinc: window renderer cpu\n");
 #endif
 #ifdef __ANDROID__
-  { const char* p = getenv("ZINC_PRESENT"); anw_mode = p && !strcmp(p, "texture") ? 0 : p && !strcmp(p, "565") ? 2 : 1; }
+  { const char* p = getenv("ZINC_PRESENT"); anw_mode = p && !strcmp(p, "texture") ? 0 : p && !strcmp(p, "565") ? 2 : p && !strcmp(p, "shadow") ? 1 : 3; }
   if (anw_mode) {   // the raster draws into the window's buffer (anw_present): a window without a renderer
     if (!(win = SDL_CreateWindow(cfg->title, ww, wh, SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_HIDDEN))) hal_panic(SDL_GetError(), "hal_sdl", __LINE__);
   } else
@@ -948,8 +949,8 @@ static void render_rows_parallel(void (*fn)(uint32_t*, int32_t, int32_t), int32_
 }
 
 // ZINC_PRESENT_STATS=1 (ZN-743): where a present goes, step by step (raster the damaged rows, upload them, draw the window, swap or post), p50 and
-// p99 over every 120 frames on stderr (logcat on Android)
-enum { PS_RASTER, PS_UPLOAD, PS_DRAW, PS_SWAP, PS_N };
+// p99 over every 120 frames that drew something, on stderr (logcat on Android)
+enum { PS_RASTER, PS_UPLOAD, PS_DRAW, PS_SWAP, PS_MOVE, PS_GAP, PS_N };   // gap: since the previous present began
 static int ps_on = -1, ps_n;
 static uint32_t ps_us[PS_N][120];
 static uint64_t ps_t;
@@ -957,7 +958,10 @@ static void ps_begin() {
   if (ps_on < 0) { const char* e = getenv("ZINC_PRESENT_STATS"); ps_on = e && *e && *e != '0'; }
   if (!ps_on) return;
   for (int k = 0; k < PS_N; k++) ps_us[k][ps_n] = 0;
+  static uint64_t prev;
   ps_t = hal_time_us();
+  ps_us[PS_GAP][ps_n] = prev ? (uint32_t)(ps_t - prev) : 0;
+  prev = ps_t;
 }
 static void ps_mark(int step) {
   if (!ps_on) return;
@@ -966,10 +970,14 @@ static void ps_mark(int step) {
   ps_t = t;
 }
 static void ps_end() {
-  if (!ps_on || ++ps_n < 120) return;
+  if (!ps_on) return;
+  uint32_t total = 0;
+  for (int k = 0; k < PS_N; k++) total += k == PS_SWAP || k == PS_GAP ? 0 : ps_us[k][ps_n];
+  if (total < 50) return;   // a frame that drew nothing (its swap is the wait for the display): not counted
+  if (++ps_n < 120) return;
   ps_n = 0;
-  static const char* const names[PS_N] = {"raster", "upload", "draw", "swap"};
-  char b[256]; int n = snprintf(b, sizeof b, "zinc present:");
+  static const char* const names[PS_N] = {"raster", "upload", "draw", "swap", "move", "interval"};
+  char b[320]; int n = snprintf(b, sizeof b, "zinc present:");
   for (int k = 0; k < PS_N; k++) {
     uint32_t* v = ps_us[k];
     std::sort(v, v + 120);
@@ -979,19 +987,36 @@ static void ps_end() {
   hal_log_err(b, (size_t)n);
 }
 
-#ifdef __ANDROID__
-// Zero-copy present (ZN-743): the raster writes the damaged box straight into the window's own buffer and SurfaceFlinger composes that buffer:
-// no texture, no GL context, no copy. ANativeWindow_lock gets the box as its dirty bounds and copies the rest from the previous buffer; the box
-// it returns (the whole buffer after a new surface or size) holds stale pixels and is drawn whole (HalFrame.render_box). BGRA_8888 (HAL format
-// 5) is the raster's own byte order (0x00RRGGBB little-endian: B, G, R, 0); the layer is opaque, so the zero alpha byte is never read.
-// ZINC_PRESENT=texture keeps the SDL_Renderer path, ZINC_PRESENT=565 packs the box from fb into RGB_565 (half the bytes for the compositor, a
-// conversion, no dither); a buffer whose stride is not the surface's width is filled the same way, from fb. ZINC_PRESENT_VERIFY=1 compares
-// the whole buffer with a full redraw at every post (a screencap cannot: Tegra 3's compositor resamples at mediump precision).
-static int anw_w, anw_h;      // the geometry set on it
-static uint64_t anw_at;       // when the last frame was presented: frames without damage are paced from it
+// HalFrame.render_box on the band threads, into px (PW pixels per row)
 static void (*box_fn)(uint32_t*, int32_t, int32_t, int32_t, int32_t);
 static int32_t box_x0, box_x1;
 static void box_rows(uint32_t* rows, int32_t y0, int32_t y1) { box_fn(rows, y0, y1, box_x0, box_x1); }
+static void render_box_parallel(const HalFrame* f, const HalRect& r, uint32_t* px) {
+  box_fn = f->render_box; box_x0 = SDL_max(r.x0, 0); box_x1 = SDL_min(r.x1, PW);
+  if (box_x0 < box_x1 && r.y0 < r.y1) render_rows_parallel(box_rows, SDL_max(r.y0, 0), SDL_min(r.y1, PH), px);
+}
+// a scroll (HalFrame.move, ZN-744): the pixels of a buffer that holds the previous frame move, then what is left is drawn
+static void apply_move(const HalFrame* f, uint32_t* px) {
+  const HalMove& m = *f->move;
+  ps_mark(PS_RASTER);
+  zrt::raster::move_pixels(px, PW, zrt::raster::Move{{m.area.x0, m.area.y0, m.area.x1, m.area.y1}, m.dx, m.dy});
+  ps_mark(PS_MOVE);
+  for (int32_t k = 0; k < m.n; k++) render_box_parallel(f, m.damage[k], px);
+}
+
+#ifdef __ANDROID__
+// Present into the window's own buffer (ZN-743): no SDL_Renderer, no texture, no GL context; SurfaceFlinger composes the buffer.
+// ANativeWindow_lock gets the damage box as its dirty bounds and copies the rest from the previous buffer; the box it returns (the whole
+// buffer after a new surface or size) is filled whole. BGRA_8888 (HAL format 5) is the raster's own byte order (0x00RRGGBB little-endian:
+// B, G, R, 0); the layer is opaque, so the zero alpha byte is never read. By default the raster draws into the buffer itself (zero copy). The
+// buffer is write-combined memory the CPU reads at a crawl (a scroll's pixel move inside it took 60 ms on a Nexus 7), so a scroll is drawn
+// whole there; ZINC_PRESENT=shadow draws into fb, in cached memory, moves its pixels for a scroll (ZN-744) and copies the box into the buffer
+// (on the Nexus 7: frame p50 better, p99 worse, the copy of a full box costs 8 to 10 ms of its memory bandwidth). ZINC_PRESENT=565 packs
+// into RGB_565 from fb (half the bytes for the compositor, no dither), ZINC_PRESENT=texture keeps the SDL_Renderer path, a buffer whose stride
+// is not the width goes through fb. ZINC_PRESENT_VERIFY=1 compares the whole buffer with a full redraw at every post (a screencap cannot:
+// Tegra 3's compositor resamples at mediump precision).
+static int anw_w, anw_h;      // the geometry set on it
+static uint64_t anw_at;       // when the last frame was presented: frames without damage are paced from it
 static void anw_idle() {   // nothing to post: one frame period since the last one (a post waits in the buffer queue instead)
   const uint64_t now = SDL_GetTicksNS();
   if (anw_at && now - anw_at < 16666666) SDL_DelayPrecise(16666666 - (now - anw_at));
@@ -1018,14 +1043,16 @@ static void anw_present(const HalFrame* f) {
   if (b.width != PW || b.height != PH) { ANativeWindow_unlockAndPost(anw); anw_w = 0; return; }   // a resize on its way
   r.left = SDL_max(r.left, 0); r.top = SDL_max(r.top, 0); r.right = SDL_min(r.right, PW); r.bottom = SDL_min(r.bottom, PH);
   if (r.left < r.right && r.top < r.bottom) {
-    const bool direct = anw_mode == 1 && b.format == 5 && b.stride == PW;
+    const bool direct = anw_mode == 3 && b.format == 5 && b.stride == PW;
     void (*rows)(uint32_t*, int32_t, int32_t) = f->render;
     if (f->render_box) { box_fn = f->render_box; box_x0 = r.left; box_x1 = r.right; rows = box_rows; }
     else { r.left = 0; r.right = PW; }   // whole rows: the box would hold stale pixels
     if (direct) render_rows_parallel(rows, r.top, r.bottom, (uint32_t*)b.bits);
     else {
-      if (!fb) fb = (uint32_t*)calloc((size_t)PW * PH, 4);
-      render_rows_parallel(rows, r.top, r.bottom);
+      const bool fresh = !fb;
+      if (fresh) { fb = (uint32_t*)calloc((size_t)PW * PH, 4); r = ARect{0, 0, PW, PH}; box_x0 = 0; box_x1 = PW; }
+      if (f->move && f->render_box && !fresh) apply_move(f, fb);   // fb holds every frame: it moves, then the whole box is copied from it
+      else render_rows_parallel(rows, r.top, r.bottom);
       ps_mark(PS_RASTER);
       for (int y = r.top; y < r.bottom; y++) {
         const uint32_t* s = fb + (size_t)y * PW + r.left;
@@ -1149,7 +1176,8 @@ static void present_frame(const HalFrame* f) {
   if (anw_mode) { anw_present(f); ps_end(); return; }
 #endif
   if (f->y1 > f->y0 && f->x1 > f->x0) {
-    render_rows_parallel(f->render_damage ? f->render_damage : f->render, f->y0, f->y1);  // fb keeps the previous frame
+    if (f->move && f->render_box) apply_move(f, fb);   // fb keeps the previous frame: its pixels move
+    else render_rows_parallel(f->render_damage ? f->render_damage : f->render, f->y0, f->y1);  // fb keeps the previous frame
     ps_mark(PS_RASTER);
     SDL_Rect r = {0, f->y0, PW, f->y1 - f->y0};
     if (wcfg_set && wcfg.transparent) {   // the key colour becomes alpha 0, everything else opaque

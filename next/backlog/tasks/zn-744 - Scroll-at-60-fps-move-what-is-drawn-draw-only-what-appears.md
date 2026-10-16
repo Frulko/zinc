@@ -1,11 +1,11 @@
 ---
 id: ZN-744
 title: 'Scroll at 60 fps: move what is drawn, draw only what appears'
-status: In Progress
+status: Backlog
 assignee:
   - '@parallel'
 created_date: '2026-10-16 14:06'
-updated_date: '2026-10-16 14:31'
+updated_date: '2026-10-16 15:34'
 labels:
   - perf
   - ui
@@ -26,7 +26,7 @@ Owner 2026-10-16: "le scroll à 60 fps, y'a pas de raison", on every platform. M
 - [ ] #1 rn-showcase scrolled by a scripted fling (ZINC_INPUT) at 60 fps on the Nexus 7 with the software raster: p99 frame under 16.7 ms in the perf panel, numbers before and after in docs/reports/zinc-next-perf.md
 - [ ] #2 the same on the desktop (macOS window and headless timing) and with the GLES 2 replay once ZN-741 lands
 - [ ] #3 pixels: a scrolled frame equals a full redraw of the same state (hash), including rounded clips, shadows crossing the scroll edge and translucent fixed headers
-- [ ] #4 a T0 test: a scroll of N px rasterises only the exposed rows (counted) and gives the full-redraw hash
+- [x] #4 a T0 test: a scroll of N px rasterises only the exposed rows (counted) and gives the full-redraw hash
 - [ ] #5 Pi 3 and TouchPad runs are one line each under Cross-platform pass in backlog/later.md
 <!-- AC:END -->
 
@@ -34,4 +34,16 @@ Owner 2026-10-16: "le scroll à 60 fps, y'a pas de raison", on every platform. M
 
 <!-- SECTION:NOTES:BEGIN -->
 2026-10-16, part 1 (coordinator's addition, docs/reports/zinc-next-first-interaction.md): a tap in a scroll view no longer damages the whole screen twice. (1) runtime/raster.cpp diff_rects and diff_rects_sig skip the common tail as well as the head: a command inserted or removed in the middle damages its own box, not every command it shifts (the shifted UNCLIP's bounds are the screen). (2) lib/std/ui.ts: scrolledAt is set only when the content moves (directScroll with dx or dy non-zero, stepScroll when sx/sy changed): a finger that lands without moving shows no indicator and starts no 1.2 s of animating; the indicator's RECT at alpha 0 is skipped. (3) zinc capture --scene A --damage B prints the union box. Test tests/t0/damage_tap.sh (rn-showcase, deterministic): a press on the tab bar gap damages nothing (before: 414,1 419,603 then the whole 420x860 on the indicator's removal), and every frame of the wheel indicator's fade-out, including the frame that removes the RECT, damages only its 5 px column (before: the whole screen on removal). damage_sig, scene_dump, framehash, backend_sw, scroll_axis, scroll_end, ui_virtual, rn_showcase, react_native_lists, ui, touch_spread, input_touch, pan_responder, perf_hud pass; proto-capture compare canary 4/4.
+2026-10-16, part 2 (worktree agent): the pixel move. runtime/raster.cpp diff_move finds a scroll in the commands themselves (no marker, no new API): the first change lies inside a clip and its commands match the previous frame's moved by one whole-pixel delta (same_moved: boxes, text, images and their boxes, POLY/LINE/STROKE points and the canvas paint record); what does not match, what the move carries wrongly (commands under the area that are not one flat colour over it, fixed ones inside the clip, everything drawn over it after the clip, a rounded clip's corner bands) and the rows that came into view are the damage left; overlapping damage rectangles are not joined there (a thin column and a band stay two). move_pixels does the move. gfx.cpp end_frame tries it first (ZINC_SCROLL_MOVE=0 turns it off) and hands HalFrame.move (runtime/include/hal.h HalMove: area, delta, the rectangles left, the overlays over the area added), the frame's own damage still covering the area for a display that does not move pixels. hal_sdl.cpp: the texture path and Android's ZINC_PRESENT=shadow move fb and draw the rest with render_box on the band threads. zinc:ui rounds a painted scroll offset to a device pixel (browsers snap the same way), so deltas are whole pixels. The raster and the GL replay place a text line with floor instead of truncation: a line above the top edge was drawn one pixel lower than the same line moved there (rn-showcase's discover-scrolled-600 hash re-recorded for it).
+
+Proof: tests/t0/scroll_move.sh (zinc capture --scene A file --scroll B: A rasterized, its pixels moved, the damage left drawn, compared with a full raster of B): rn-showcase fling and settle, every pair equal, settling frames draw under a tenth of the screen (8.6%: the rows that came in, the tab bar over the feed, the indicator). Over 40 frame pairs of a fling at 420x860 all equal; drawn 30k to 200k of 361k pixels (was 361k each).
+
+Measured, desktop window (software raster, the ZINC_INPUT fling now taken by a window, machine loaded): raster p50 1.05 -> 0.23 ms, p99 12.7 -> 5.2 ms. Nexus 7 (fling, frames that drew, p50 / p99): direct (zero copy, no move) raster 20-26 / 36-46 ms, interval 21.6-33 / 47-56; shadow + move raster 2.8-6.5 / 60, move 0 / 14-22, copy into the buffer 0.6-1.1 / 11-15, interval 17.9-24.5 / 88; shadow without move raster 2.8-24 / 42-54, copy 0.7-7.6 / 11-15. 60 fps is not reached on Tegra 3: its memory moves about 0.5 GB/s (a 1280x704 frame memmove 6.8 ms on one core, 5.5 on four, measured with a native probe), so moving and copying a full-screen area costs what rasterizing it does; reading the window buffer is far slower still (write-combined: a move inside it made frames 66 ms p50), so the Android default stays ZN-743's direct path and the move runs on fb (desktop, the texture path, ZINC_PRESENT=shadow). The remaining large damages come from float32 coordinates: a fractional coordinate that crosses a power of two (32, 64, 128, 256, 512) is not exact once moved (float(v) - 48 differs from float(v - 48)), so the generated art of the cards (circles of 600 px at fractional positions) is drawn again when it crosses one.
+
+Handover (the owner moved ZN-746 ahead; this task goes back to Backlog): AC1 and AC2 (60 fps on the Nexus 7 and the desktop timing) are not met: on Tegra 3 the way is the GPU (ZN-741: the scrolled content in a layer texture drawn translated); on the CPU, the next steps are exact moves of fractional content (the raster evaluating coverage in content space with an integer translation of the pixel grid, or gfx recording scroll content at unscrolled coordinates with the offset applied in integers) and a 16-bit shadow on memory-bound devices. AC3: rounded clips and shadows crossing the edge are covered by the test; a translucent fixed header is not yet. Next commands: tests/run --tier t1 --only scroll_move; on the device the four present paths with ZINC_PRESENT=direct|shadow|texture and ZINC_SCROLL_MOVE=0, ZINC_PRESENT_STATS=1 and a ZINC_INPUT fling.
+
+Lines for backlog/later.md:
+- ZN-744: Cross-platform pass: rn-showcase fling on a Pi 3 (display-gl overlay and fbdev do not take HalFrame.move yet; fbdev and the KMS dumb buffer could) and on the HP TouchPad (webOS SDL 1.2 HAL), frame times before and after.
+- ZN-744: exact moves of fractional coordinates (content space with an integer pixel-grid translation in the raster), so art crossing a power of two moves instead of drawing again.
+- ZN-744: horizontal and two-axis scrolls are moved (dx) but no test proves them yet; nested scroll views move only the innermost clip that changed first.
 <!-- SECTION:NOTES:END -->

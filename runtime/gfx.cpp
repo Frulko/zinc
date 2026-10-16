@@ -1204,7 +1204,16 @@ void end_frame() {
   place_layers(bufs[cur]);
   const Buf& now = bufs[cur];
   const Buf& before = bufs[cur ^ 1];
-  if (first || ovl_changed) set_full_damage();
+  // a scroll (ZN-744): the content moved inside a clip by whole pixels; the display moves the pixels it has and draws only the rest
+  static const bool moves_on = [] { const char* e = hal_env("ZINC_SCROLL_MOVE"); return !e || *e != '0'; }();
+  raster::Move mv{};
+  bool moved = false;
+  if (moves_on && !first && !ovl_changed && !vis.mode) {
+    const int32_t nm = raster::diff_move(frame_of(before), frame_of(now), pw, ph, dmg, ZRT_DAMAGE_RECTS, &mv);
+    if (nm >= 0) { ndmg = nm; moved = true; bulk_mode = false; }
+  }
+  if (moved) {}
+  else if (first || ovl_changed) set_full_damage();
   else if (bulk_mode && (++bulk_n & 15)) {
     if (!all_ok[cur ^ 1]) { all_box[cur ^ 1] = raster::bounds_all(frame_of(before), pw, ph); all_ok[cur ^ 1] = true; }
     all_box[cur] = raster::bounds_all(frame_of(now), pw, ph); all_ok[cur] = true;
@@ -1223,13 +1232,35 @@ void end_frame() {
   if (prof_on) prof::mark(prof::DIFF);
   hud::before_present(damage_box());
   taps_update();
+  static HalRect mdmg[16];
+  HalMove hm{};
+  if (moved) {   // what is left to draw once the pixels moved, the overlays over the area included (their pixels moved too); the area joins the frame's damage
+    int32_t mn = 0;
+    const raster::Rect& A = mv.area;
+    auto put = [&](raster::Rect r) {
+      if (r.x0 >= r.x1 || r.y0 >= r.y1) return;
+      if (mn == 16) { HalRect& u = mdmg[15]; u = HalRect{r.x0 < u.x0 ? r.x0 : u.x0, r.y0 < u.y0 ? r.y0 : u.y0, r.x1 > u.x1 ? r.x1 : u.x1, r.y1 > u.y1 ? r.y1 : u.y1}; return; }
+      mdmg[mn++] = HalRect{r.x0, r.y0, r.x1, r.y1};
+    };
+    auto inside = [&](raster::Rect r) {
+      put(raster::Rect{r.x0 > A.x0 ? r.x0 : A.x0, r.y0 > A.y0 ? r.y0 : A.y0, r.x1 < A.x1 ? r.x1 : A.x1, r.y1 < A.y1 ? r.y1 : A.y1});
+    };
+    auto both = [&](raster::Rect b) { if (b.x0 < b.x1) { inside(b); inside(raster::Rect{b.x0 + mv.dx, b.y0 + mv.dy, b.x1 + mv.dx, b.y1 + mv.dy}); } };
+    for (int32_t i = 0; i < ndmg; i++) put(dmg[i]);
+    if (rbox.ncmd) both(raster::bounds_all(ovl_frame(rbox), pw, ph));
+    if (banner.ncmd) both(raster::bounds_all(ovl_frame(banner), pw, ph));
+    if (hud_ovl && hud_ovl->ncmd) both(hud_ovl->at);
+    if (taps.ncmd) both(raster::bounds_all(ovl_frame(taps), pw, ph));
+    hud::add_rect(A);
+    hm = HalMove{HalRect{A.x0, A.y0, A.x1, A.y1}, mv.dx, mv.dy, mn, mdmg};
+  }
   const raster::Rect d = damage_box();
   ovl_changed = false;
   first = false;
   shown = &now;
   __atomic_store_n(&tiles_state, 0, __ATOMIC_RELEASE);
   stats.draw_cmds = now.ncmd;
-  HalFrame f = {pw, ph, d.x0, d.y0, d.x1, d.y1, render_rows, render_damage, frame_lists, nlay ? render_holes : nullptr, render_box};
+  HalFrame f = {pw, ph, d.x0, d.y0, d.x1, d.y1, render_rows, render_damage, frame_lists, nlay ? render_holes : nullptr, render_box, moved ? &hm : nullptr};
   present(&f);
   if (prof_on) prof::end();
   after_present();

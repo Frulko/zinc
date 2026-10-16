@@ -189,6 +189,13 @@ struct CmdSig { uint32_t hash; int16_t x0, y0, x1, y1; };
 void sign_frame(const Frame& f, int32_t w, int32_t h, CmdSig* out);
 /** Same damage as diff_rects(previous, now) (up to 32-bit hash collisions) with only the signatures of the previous frame. */
 int32_t diff_rects_sig(const CmdSig* before, uint32_t nbefore, const Frame& now, int32_t w, int32_t h, Rect* out, int32_t max);
+/** A scroll (ZN-744): the pixels of `area` move by (dx, dy), a pixel at p going to p + (dx, dy). */
+struct Move { Rect area; int32_t dx, dy; };
+/** When the change from a to b is content moved inside a clip by whole pixels: the move, and the damage left once the pixels moved (up to
+ *  `max` rectangles: what came into view, what changed, what the move carries wrongly). -1 when it is not such a frame (diff_rects then). */
+int32_t diff_move(const Frame& a, const Frame& b, int32_t w, int32_t h, Rect* out, int32_t max, Move* mv);
+/** Moves the pixels of a buffer of `stride` pixels per row as `mv` says; what would come from outside the area is left as it was. */
+void move_pixels(uint32_t* px, int32_t stride, const Move& mv);
 
 }  // namespace raster
 

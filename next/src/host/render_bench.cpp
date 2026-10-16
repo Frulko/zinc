@@ -53,6 +53,39 @@ bool damageCheck(const char* before, const char* now, int& rects, bool& same, in
   return true;
 }
 
+bool scrollCheck(const char* before, const char* now, ScrollCheck& out) {
+  Loaded a, b;
+  if (!load(before, a) || !load(now, b) || a.head[2] != b.head[2] || a.head[3] != b.head[3]) return false;
+  const int w = static_cast<int>(a.head[2]), h = static_cast<int>(a.head[3]);
+  const zrt::raster::Frame fa{a.cmds.data(), a.head[5], a.text.data(), a.pts.data()}, fb{b.cmds.data(), b.head[5], b.text.data(), b.pts.data()};
+  const zrt::raster::Rect all{0, 0, w, h};
+  std::vector<std::uint32_t> px(static_cast<size_t>(w) * h), full(px.size());
+  zrt::raster::render(fa, px.data(), w, 0, h, all);
+  zrt::raster::Rect d[8];
+  zrt::raster::Move mv{};
+  const int n = zrt::raster::diff_move(fa, fb, w, h, d, 8, &mv);
+  out = ScrollCheck{};
+  out.full = static_cast<long long>(w) * h;
+  if (n < 0) return true;
+  out.moved = true; out.dx = mv.dx; out.dy = mv.dy; out.rects = n;
+  out.area[0] = mv.area.x0; out.area[1] = mv.area.y0; out.area[2] = mv.area.x1; out.area[3] = mv.area.y1;
+  zrt::raster::move_pixels(px.data(), w, mv);
+  for (int k = 0; k < n; ++k) {
+    zrt::raster::render(fb, px.data() + static_cast<size_t>(d[k].y0) * w, w, d[k].y0, d[k].y1, d[k]);
+    out.drawn += static_cast<long long>(d[k].x1 - d[k].x0) * (d[k].y1 - d[k].y0);
+  }
+  zrt::raster::render(fb, full.data(), w, 0, h, all);
+  out.same = px == full;
+  if (!out.same) {   // where they differ, and the rectangles that were drawn, on stderr
+    int bx0 = w, by0 = h, bx1 = 0, by1 = 0, cnt = 0;
+    for (int y = 0; y < h; ++y) for (int x = 0; x < w; ++x) if (px[static_cast<size_t>(y) * w + x] != full[static_cast<size_t>(y) * w + x]) { cnt++; bx0 = std::min(bx0, x); by0 = std::min(by0, y); bx1 = std::max(bx1, x + 1); by1 = std::max(by1, y + 1); }
+    std::fprintf(stderr, "scroll: %d pixels differ in %d,%d %d,%d; drawn:", cnt, bx0, by0, bx1, by1);
+    for (int k = 0; k < n; ++k) std::fprintf(stderr, " %d,%d %d,%d", d[k].x0, d[k].y0, d[k].x1, d[k].y1);
+    std::fprintf(stderr, "\n");
+  }
+  return true;
+}
+
 // ZN-406: stroke_contours with the precomputed join circles gives the same floats as the per-vertex cosf/sinf it replaced (kept here as the
 // reference), over random polylines of every join size. Returns the number of mismatching polylines (0 = identical).
 namespace {

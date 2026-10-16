@@ -523,7 +523,7 @@ static void draw_text(const Target& t, const Cmd& c, const char* s) {
   const Font* fp = font_at(c.res);
   if (!fp) return;
   const Font& f = *fp;
-  int32_t pen = f2i(c.x * 64), base = f2i(c.y + 0.5f) + f.ascent;
+  int32_t pen = ifloor(c.x * 64), base = ifloor(c.y + 0.5f) + f.ascent;   // floor, not truncation: a line above the top or left edge lands where it would lower down (ZN-744)
   if (shape_hooks && (needs_shaping(s, c.n) || (c.res < font_count && !fp->count))) {   // a baked font without glyphs is an outline format the tables cannot read (CFF)
     struct Ctx { const Target* t; const Cmd* c; int32_t px, py; } cx = {&t, &c, (pen + 32) >> 6, base};
     int32_t a = shape_hooks->run(c.res, s, c.n, c.s, [](void* u, const ShapedGlyph& g) {
@@ -1419,7 +1419,9 @@ static int64_t area(Rect r) { return (int64_t)(r.x1 - r.x0) * (r.y1 - r.y0); }
 static Rect united(Rect a, Rect b) { grow(a, b); return a; }
 // The damage list (ZN-179): a rectangle joins an existing one when they overlap or when the union is smaller than the two apart (LVGL lv_refr.c join rule: area(union) < area(a) + area(b));
 // over budget the cheapest pair is merged, so the list never overflows and the frame is never redrawn whole just because there were many small changes.
-static void damage_add(Rect* out, int32_t& n, int32_t max, Rect screen, Rect r) {
+// join_overlap false (diff_move): overlapping rectangles stay apart unless their union is smaller, so a thin column and a band that cross are
+// drawn as two, not as their bounding box (a frame starts with a CLEAR, so a pixel drawn twice is drawn the same)
+static void damage_add(Rect* out, int32_t& n, int32_t max, Rect screen, Rect r, bool join_overlap = true) {
   r = intersect(r, screen);
   if (r.x0 >= r.x1 || r.y0 >= r.y1) return;
   for (int32_t i = 0; i < n; i++)   // already covered: nothing to join (ZN-402)
@@ -1427,7 +1429,7 @@ static void damage_add(Rect* out, int32_t& n, int32_t max, Rect screen, Rect r) 
   auto join_all = [&]() {
     for (;;) {
       int32_t hit = -1;
-      for (int32_t i = 0; i < n; i++) if (overlaps(out[i], r) || area(united(out[i], r)) < area(out[i]) + area(r)) { hit = i; break; }
+      for (int32_t i = 0; i < n; i++) if ((join_overlap && overlaps(out[i], r)) || area(united(out[i], r)) < area(out[i]) + area(r)) { hit = i; break; }
       if (hit < 0) return;
       grow(r, out[hit]);
       out[hit] = out[--n];
@@ -1538,6 +1540,163 @@ int32_t diff_rects_sig(const CmdSig* before, uint32_t nbefore, const Frame& now,
     if (inb) damage_add(out, n, max, screen, cmd_bounds(now.cmds[i], w, h));
   }
   return n;
+}
+
+// ---------------------------------------------------------------- scrolling (ZN-744)
+// A frame whose only change is content moved inside a clip (a scroll container) need not be drawn again there: the pixels already drawn
+// move by the delta, and only what came into view and what changed is rasterized, as browsers (composited scroll layers), Flutter and
+// Android's RecyclerView do. The move is found in the commands themselves, nothing marks it: the first change lies inside a clip, and its
+// commands match the previous frame's shifted by one whole-pixel delta (zinc:ui rounds a scroll offset to a device pixel). The commands
+// that do not match, and what the move would carry wrongly (the commands before the content that are not one flat colour over the area,
+// fixed ones inside the clip, those drawn over it after, a rounded clip's corners), are damaged where they were moved to and where they are.
+static bool same_moved(const Frame& a, const Cmd& x, const Frame& b, const Cmd& y, float dx, float dy) {
+  if (x.kind != y.kind) return false;
+  Cmd m = x;
+  switch (x.kind) {
+    case UNCLIP: return same(a, x, b, y);
+    case RECT: if (x.grad == 5) return false; break;   // a paint record's geometry is in the point pool
+    case BORDER: case SHADOW: case TEXT: case CLIP: break;
+    case IMAGE: if (x.pad & kImageBox) { Box bb = image_box(x); bb.x += dx; bb.y += dy; set_image_box(m, bb); } break;
+    case POLY: case LINE: case STROKE: {   // the points in the pool move too
+      if (x.kind == LINE) { m.w += dx; m.h += dy; }
+      m.x += dx; m.y += dy;
+      if (__builtin_memcmp(&m, &y, sizeof(Cmd) - 2 * sizeof(uint32_t)) || x.n != y.n) return false;
+      const float *p = a.pts + x.off, *q = b.pts + y.off;
+      if (x.kind == STROKE) {
+        for (uint32_t i = 0; i < x.n; i++) if (q[2 * i] != p[2 * i] + dx || q[2 * i + 1] != p[2 * i + 1] + dy) return false;
+        return true;
+      }
+      uint32_t len = 0;
+      for (uint32_t k = 0; k < x.n; k++) {
+        const uint32_t cnt = (uint32_t)p[len];
+        if (q[len] != p[len]) return false;
+        for (uint32_t i = 0; i < cnt; i++) if (q[len + 1 + 2 * i] != p[len + 1 + 2 * i] + dx || q[len + 2 + 2 * i] != p[len + 2 + 2 * i] + dy) return false;
+        len += 1 + cnt * 2;
+      }
+      if (x.grad == 4) {   // the paint record [kind, x0, y0, r0, x1, y1, r1, n, stops...]: its two centres move
+        const float *g = p + len, *k = q + len;
+        const uint32_t gl = 8 + 3 * (uint32_t)g[7];
+        for (uint32_t i = 0; i < gl; i++) if (k[i] != g[i] + (i == 1 || i == 4 ? dx : i == 2 || i == 5 ? dy : 0.0f)) return false;
+      }
+      return true;
+    }
+    default: return false;   // XFORM keeps its matrix in the pool: drawn again
+  }
+  m.x += dx; m.y += dy;
+  return same(a, m, b, y);
+}
+static Rect shifted(Rect r, int32_t dx, int32_t dy) { return Rect{r.x0 + dx, r.y0 + dy, r.x1 + dx, r.y1 + dy}; }
+/** A command before the content that the move cannot carry wrongly: no pixels, or one flat colour over the whole area. */
+static bool flat_over(const Cmd& c, Rect area) {
+  if (c.kind == CLIP || c.kind == UNCLIP || c.kind == CLEAR) return true;
+  if (c.kind != RECT || c.grad != 0) return false;
+  const float r = c.r > 0 ? c.r : 0;
+  return c.x + r <= area.x0 && c.y + r <= area.y0 && c.x + c.w - r >= area.x1 && c.y + c.h - r >= area.y1;
+}
+int32_t diff_move(const Frame& a, const Frame& b, int32_t w, int32_t h, Rect* out, int32_t max, Move* mv) {
+  const uint32_t m = a.count < b.count ? a.count : b.count;
+  uint32_t head = 0, tail = 0;
+  while (head < m && same(a, a.cmds[head], b, b.cmds[head])) head++;
+  if (head == m && a.count == b.count) return -1;
+  while (tail < m - head && same(a, a.cmds[a.count - 1 - tail], b, b.cmds[b.count - 1 - tail])) tail++;
+  const uint32_t ea = a.count - tail, eb = b.count - tail;
+  // the clip the first change lies in, and the clips around it (square ones only)
+  uint32_t stack[16]; int32_t sp = 0;
+  for (uint32_t i = 0; i < head; i++) {
+    if (a.cmds[i].kind == CLIP) { if (sp == 16) return -1; stack[sp++] = i; }
+    else if (a.cmds[i].kind == UNCLIP && sp > 0) sp--;
+  }
+  if (sp == 0) return -1;
+  const uint32_t c = stack[sp - 1];
+  Rect area{0, 0, w, h};
+  for (int32_t k = 0; k < sp; k++) {
+    const Cmd& q = a.cmds[stack[k]];
+    if (k < sp - 1 && q.r > 0) return -1;
+    area = intersect(area, bounds(q.x, q.y, q.w, q.h, Rect{0, 0, w, h}));
+  }
+  if (area.x0 >= area.x1 || area.y0 >= area.y1) return -1;
+  auto unclip_of = [c](const Frame& f) -> uint32_t {
+    int32_t depth = 0;
+    for (uint32_t i = c + 1; i < f.count; i++) {
+      if (f.cmds[i].kind == CLIP) depth++;
+      else if (f.cmds[i].kind == UNCLIP && depth-- == 0) return i;
+    }
+    return f.count;
+  };
+  const uint32_t ua = unclip_of(a), ub = unclip_of(b);
+  if (ua >= a.count || ub >= b.count) return -1;
+  const uint32_t ia = ea < ua ? ea : ua, ib = eb < ub ? eb : ub;   // the changed content inside the clip: [head, ia) and [head, ib)
+  // the delta: the first pair of commands near the start of the change that match once moved by whole pixels
+  uint32_t ai = 0, bj = 0; int32_t dx = 0, dy = 0; bool found = false;
+  for (uint32_t i = head; i < ia && i < head + 24 && !found; i++)
+    for (uint32_t j = head; j < ib && j < head + 24; j++) {
+      const Cmd &x = a.cmds[i], &y = b.cmds[j];
+      if (x.kind != y.kind || x.w != y.w || x.h != y.h) continue;
+      const float fx = y.x - x.x, fy = y.y - x.y;
+      if ((fx == 0 && fy == 0) || fx != (float)(int32_t)fx || fy != (float)(int32_t)fy) continue;
+      if (!same_moved(a, x, b, y, fx, fy)) continue;
+      ai = i; bj = j; dx = (int32_t)fx; dy = (int32_t)fy; found = true; break;
+    }
+  if (!found || (dx < 0 ? -dx : dx) >= area.x1 - area.x0 || (dy < 0 ? -dy : dy) >= area.y1 - area.y0) return -1;
+  int32_t n = 0;
+  const Rect screen{0, 0, w, h};
+  auto dadd = [&](Rect lim, Rect r) { damage_add(out, n, max, lim, r, false); };
+  auto both = [&](Rect r) { dadd(area, r); dadd(area, shifted(r, dx, dy)); };
+  // the content, paired at the anchor's offset: a pair that does not match once moved is drawn again where it went and where it is
+  const int64_t off = (int64_t)bj - (int64_t)ai;
+  uint32_t matched = 0, pairs = 0;
+  for (uint32_t i = head; i < ia; i++) {
+    const int64_t j = (int64_t)i + off;
+    if (j < (int64_t)head || j >= (int64_t)ib) { dadd(area, shifted(cmd_bounds(a.cmds[i], w, h), dx, dy)); continue; }
+    pairs++;
+    if (same_moved(a, a.cmds[i], b, b.cmds[j], (float)dx, (float)dy)) { matched++; continue; }
+    dadd(area, shifted(cmd_bounds(a.cmds[i], w, h), dx, dy));
+    dadd(area, cmd_bounds(b.cmds[j], w, h));
+  }
+  if (matched * 2 < pairs || !matched) return -1;   // not a move of this content
+  for (uint32_t j = head; j < ib; j++) {   // what came in without a partner
+    const int64_t i = (int64_t)j - off;
+    if (i < (int64_t)head || i >= (int64_t)ia) dadd(area, cmd_bounds(b.cmds[j], w, h));
+  }
+  // what the move carries wrongly: below the content (not one flat colour over the area), fixed inside the clip, over it after the clip
+  for (uint32_t i = 0; i < c; i++) if (!flat_over(a.cmds[i], area)) both(cmd_bounds(a.cmds[i], w, h));
+  for (uint32_t i = c + 1; i < head; i++) both(cmd_bounds(a.cmds[i], w, h));
+  for (uint32_t i = ia; i < ua; i++) both(cmd_bounds(a.cmds[i], w, h));
+  for (uint32_t i = ua + 1; i < a.count; i++) both(cmd_bounds(a.cmds[i], w, h));
+  for (uint32_t j = ub + 1; j < b.count; j++) dadd(area, cmd_bounds(b.cmds[j], w, h));
+  // what changed after the clip, outside the area too, compared index by index as diff_rects does
+  const uint32_t ra = a.count - ua, rb = b.count - ub, rn = ra > rb ? ra : rb;
+  for (uint32_t k = 1; k < rn; k++) {
+    const bool ina = k < ra, inb = k < rb;
+    if (ina && inb && same(a, a.cmds[ua + k], b, b.cmds[ub + k])) continue;
+    if (ina) dadd(screen, cmd_bounds(a.cmds[ua + k], w, h));
+    if (inb) dadd(screen, cmd_bounds(b.cmds[ub + k], w, h));
+  }
+  // a rounded clip's corners stay where they are: the bands they lie in, and what moved out of them
+  const Cmd& cc = a.cmds[c];
+  if (cc.r > 0) {
+    const int32_t rr = iceil(cc.r) + 1, ay = dy < 0 ? -dy : dy, ax = dx < 0 ? -dx : dx;
+    dadd(area, Rect{area.x0, area.y0, area.x1, area.y0 + rr + ay});
+    dadd(area, Rect{area.x0, area.y1 - rr - ay, area.x1, area.y1});
+    if (dx) {
+      dadd(area, Rect{area.x0, area.y0, area.x0 + rr + ax, area.y1});
+      dadd(area, Rect{area.x1 - rr - ax, area.y0, area.x1, area.y1});
+    }
+  }
+  // what came into view
+  if (dy < 0) dadd(area, Rect{area.x0, area.y1 + dy, area.x1, area.y1});
+  if (dy > 0) dadd(area, Rect{area.x0, area.y0, area.x1, area.y0 + dy});
+  if (dx < 0) dadd(area, Rect{area.x1 + dx, area.y0, area.x1, area.y1});
+  if (dx > 0) dadd(area, Rect{area.x0, area.y0, area.x0 + dx, area.y1});
+  mv->area = area; mv->dx = dx; mv->dy = dy;
+  return n;
+}
+void move_pixels(uint32_t* px, int32_t stride, const Move& mv) {
+  const Rect& r = mv.area;
+  const int32_t w = r.x1 - r.x0 - (mv.dx < 0 ? -mv.dx : mv.dx), sx = mv.dx > 0 ? r.x0 : r.x0 - mv.dx, tx = sx + mv.dx;
+  if (w <= 0) return;
+  if (mv.dy > 0) for (int32_t y = r.y1 - 1; y >= r.y0 + mv.dy; y--) __builtin_memmove(px + (size_t)y * stride + tx, px + (size_t)(y - mv.dy) * stride + sx, (size_t)w * 4);
+  else for (int32_t y = r.y0; y < r.y1 + mv.dy; y++) __builtin_memmove(px + (size_t)y * stride + tx, px + (size_t)(y - mv.dy) * stride + sx, (size_t)w * 4);
 }
 
 int32_t find_font(const char* name, uint32_t name_len, int32_t px) {

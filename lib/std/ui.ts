@@ -3687,7 +3687,10 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
       clip(x + l, y + t, w - l - rr, hh - t - b, Math.max(0, r - Math.max(Math.max(t, b), Math.max(l, rr))));
     }
   }
-  const cx = x - (n.x + n.sx) * kk, cy = y - (n.y + n.sy) * kk;
+  // a scroll offset lands on a device pixel, as browsers snap it: text stays sharp while it moves, and the frame diff sees the content moved by
+  // whole pixels, which the raster moves instead of drawing again (ZN-744)
+  const ps = n.scroll !== 0 ? pixelScale() : 1;
+  const cx = x - n.x * kk - (n.sx !== 0 ? Math.round(n.sx * kk * ps) / ps : 0), cy = y - n.y * kk - (n.sy !== 0 ? Math.round(n.sy * kk * ps) / ps : 0);
   const zp = zSorted(n);
   if (tilesOn && n.scroll !== 0 && !tileRec && kk === 1 && n.overflow && n.tag !== FRAGMENT && paintTiles(h, n, zp, x, y, ai)) { /* drawn from its tiles */ }
   else if (zp !== null) { for (const c of zp) paint(c, cx, cy, kk, a); } else for (const c of n.children) paint(c, cx, cy, kk, a);

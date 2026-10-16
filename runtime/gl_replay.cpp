@@ -493,7 +493,7 @@ static void draw_text(const Cmd& c, const char* s) {
   const Font* fp = font_at(c.res);
   if (!fp) return;
   const Font& f = *fp;
-  int32_t pen = f2i(c.x * 64), base = f2i(c.y + 0.5f) + f.ascent;
+  int32_t pen = ifloor(c.x * 64), base = ifloor(c.y + 0.5f) + f.ascent;   // floor, not truncation: a line above the top or left edge lands where it would lower down (ZN-744)
   // Under a matrix that scales, r names the font of the glyphs (plus one): made for about the size on screen, k times this font's, and
   // drawn that much smaller, on this font's advances and unrounded as the software raster places them (raster.cpp xf_text).
   const int32_t gf = xf_on ? (int32_t)c.r - 1 : -1;

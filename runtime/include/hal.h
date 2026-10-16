@@ -108,6 +108,11 @@ void hal_win_current(int32_t id);                                           // t
  *  needs (whole damage at once on hosts, a few lines at a time on SPI panels). Pixels are 0x00RRGGBB. */
 // A frame as draw commands (layout of zrt::raster::Frame, runtime/zrt_raster.h): what a GPU display replays.
 struct HalCmdList { const void* cmds; uint32_t count; const char* text; const float* pts; };
+// A frame that scrolled (ZN-744, zrt::raster::diff_move): the pixels of `area` move by (dx, dy), a pixel at p going to p + (dx, dy) (what would come
+// from outside the area stays), then the `n` rectangles of `damage` are drawn whole (HalFrame.render_box). The frame's own damage box and
+// render_damage cover the area as well, for a display that does not move pixels.
+struct HalRect { int32_t x0, y0, x1, y1; };
+struct HalMove { HalRect area; int32_t dx, dy; int32_t n; const HalRect* damage; };
 struct HalFrame {
   int32_t w, h;
   int32_t x0, y0, x1, y1;   // damaged rectangle (empty when nothing changed)
@@ -123,6 +128,7 @@ struct HalFrame {
   // Every pixel of the box x0..x1 of rows y0..y1 and nothing outside it, for a buffer whose box holds stale pixels and the rest the previous
   // frame (an Android window buffer, ZN-743). Null: render() the whole rows.
   void (*render_box)(uint32_t* rows, int32_t y0, int32_t y1, int32_t x0, int32_t x1);
+  const HalMove* move;   // null: nothing moved
 };
 
 // Pen / stylus: HALs and display drivers push every sample they read (in hal_poll_input / HalDisplay.poll); the
