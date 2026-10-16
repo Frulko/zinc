@@ -6,7 +6,7 @@ mkdir -p "$tmp/home" "$tmp/proj"
 echo '{"tiers": ["official", "verified"], "mirrors": ["https://a.example", "https://b.example"]}' > "$tmp/system.json"
 echo '{"tiers": ["official", "verified", "community"], "rebuilds": 3, "mirrors": ["https://b.example", "https://c.example"]}' > "$tmp/home/policy.json"
 echo '{"name": "p", "policy": {"tiers": ["verified"], "rebuilds": 1, "prebuilt": true, "transparency": "required"}}' > "$tmp/proj/zinc.json"
-out=$(cd "$tmp/proj" && ZINC_SYSTEM_POLICY="$tmp/system.json" ZINC_HOME="$tmp/home" ZINC_PREBUILT=0 "$Z" doctor 2>&1)
+out=$(cd "$tmp/proj" && ZINC_SYSTEM_POLICY="$tmp/system.json" ZINC_HOME="$tmp/home" ZINC_PREBUILT=0 "$Z" doctor --details 2>&1)
 fail=0
 echo "$out" | grep -q "tiers *verified  (project " || { echo "policy: tiers"; fail=1; }
 echo "$out" | grep -q "prebuilt *source only  (environment ZINC_PREBUILT)" || { echo "policy: prebuilt"; fail=1; }

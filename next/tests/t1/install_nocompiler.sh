@@ -89,7 +89,7 @@ clean "$Z" plugin-build system "$tmp/work/p-desktop-app" >"$tmp/out" 2>&1
 grep -q "^system prebuilt " "$tmp/out" || { echo "zinc:system is not loaded from its prebuilt library: $(head -c 300 "$tmp/out")"; fail=1; }
 
 # zinc doctor: what has a prebuilt library and what has not
-clean "$Z" doctor >"$tmp/doctor" 2>&1
+clean "$Z" doctor --details >"$tmp/doctor" 2>&1
 grep -Eq "^plugin libraries for (macos|linux) \(this machine\): [1-9][0-9]* prebuilt" "$tmp/doctor" || { echo "zinc doctor does not count the prebuilt plugin libraries"; fail=1; }
 grep -q "^    video: needs the system libraries libavformat" "$tmp/doctor" || { echo "zinc doctor does not name a plugin without a prebuilt library"; fail=1; }
 grep -q "(by the manifests)" "$tmp/doctor" && grep -q "^plugin libraries for windows: none" "$tmp/doctor" || { echo "zinc doctor does not report the other platforms"; fail=1; }

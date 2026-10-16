@@ -20,7 +20,7 @@ for c in run build check; do "$Z" $c >/dev/null 2>&1; [ $? -eq 2 ] || { echo "ba
 "$Z" help run | grep -q '^usage: zinc run' || { echo "help run has no usage line"; fail=1; }
 "$Z" run --help | grep -q '^usage: zinc run' || { echo "run --help has no usage line"; fail=1; }
 "$Z" help nope >/dev/null 2>&1; [ $? -eq 2 ] || { echo "help of an unknown command must exit 2"; fail=1; }
-out=$("$Z" doctor) || { echo "doctor failed"; fail=1; }
+out=$("$Z" doctor --details) || { echo "doctor failed"; fail=1; }
 echo "$out" | grep -q '^pinned tools' && echo "$out" | grep -Eq 'sha256 [0-9a-f]{64}' && echo "$out" | grep -Eq 'installed|will be downloaded' || { echo "doctor lists no pinned tools"; fail=1; }
 echo "$out" | grep -q '^tier T[0-4]$\|  tier T[0-4]$' || { echo "doctor prints no tier"; fail=1; }
 [ $fail -eq 0 ] && echo "cli_core: ok"

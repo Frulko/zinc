@@ -130,7 +130,7 @@
     {"paths": ["src/gl/"], "tests": ["webgl_conformance"]},
     {"paths": ["tools/webgl-conformance", "tests/golden/webgl/"], "tests": ["webgl_conformance"]},
     {"paths": ["src/res/"], "tests": ["webp", "res_aot"]},
-    {"paths": ["src/cli_core", "src/main.cpp"], "tests": ["cli_core", "run_js_engine", "cli_tools", "verbose_log", "security_guide", "plugin_add", "plugin_sign", "templates_remote", "install_offline", "plugin_tiers", "plugin_community", "plugin_lock", "revocation", "trust_policy", "policy", "plugin_cli", "templates_index"]},
+    {"paths": ["src/cli_core", "src/main.cpp"], "tests": ["cli_core", "doctor_friendly", "run_js_engine", "cli_tools", "verbose_log", "security_guide", "plugin_add", "plugin_sign", "templates_remote", "install_offline", "plugin_tiers", "plugin_community", "plugin_lock", "revocation", "trust_policy", "policy", "plugin_cli", "templates_index"]},
     {"paths": ["tools/plugin-split"], "tests": ["plugin_split"]},
     {"paths": ["include/zn/log.h", "src/host/ui_log.cpp"], "tests": ["verbose_log"]},
     {"paths": ["../docs/guide/08-security.md"], "tests": ["security_guide"]},

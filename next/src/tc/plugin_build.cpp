@@ -152,7 +152,12 @@ bool run(const std::string& cmd, std::string& err, const std::string& what) {
   char buf[512];
   std::size_t n;
   while ((n = std::fread(buf, 1, sizeof buf, f)) > 0) out.append(buf, n);
-  if (pclose(f) != 0) { err = what + " failed:\n" + out.substr(0, 3000); return false; }
+  if (pclose(f) != 0) {
+    err = what + " failed:\n" + out.substr(0, 3000);
+    if ((out.find("framework") != std::string::npos || out.find("SDK") != std::string::npos) && !xcodeToolsInstalled())
+      err += "\nthis plugin links macOS frameworks, which come from the SDK of the Xcode command line tools, not installed on this Mac: run `xcode-select --install`, then this command again";
+    return false;
+  }
   return true;
 }
 

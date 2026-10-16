@@ -65,6 +65,6 @@ echo '{"tiers": ["official"], "prebuilt": false, "rebuilds": 4}' > "$tmp/system-
 export ZINC_SYSTEM_POLICY="$tmp/system-policy.json"
 ZINC_HOME="$tmp/h-sys" "$Z" add "file://$tmp/greet" "$tmp/sys" > "$tmp/out" 2>&1 && { echo "trust_policy: the project loosened the system's tiers"; fail=1; }
 grep -q "accepts only official (system $tmp/system-policy.json)" "$tmp/out" || { echo "trust_policy: the refusal does not name the system policy: $(cat "$tmp/out")"; fail=1; }
-out=$(cd "$tmp/sys" && ZINC_HOME="$tmp/h-sys" "$Z" doctor 2>&1)
+out=$(cd "$tmp/sys" && ZINC_HOME="$tmp/h-sys" "$Z" doctor --details 2>&1)
 echo "$out" | grep -q "tiers *official  (system $tmp/system-policy.json)" && echo "$out" | grep -q "prebuilt *source only  (system" && echo "$out" | grep -q "rebuilds *4  (system" && echo "$out" | grep -q "mirrors *any (ZINC_MIRRORS)  (default)" || { echo "trust_policy: doctor does not print the effective policy: $(echo "$out" | tail -7)"; fail=1; }
 exit $fail

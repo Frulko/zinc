@@ -25,7 +25,8 @@ int unknownCommand(const std::string& name);
 int init(const std::vector<std::string>& args, const std::string& engineRoot);
 
 /** `zinc doctor`: the engine, this machine's renderer, the pinned tools it downloads on first use, the host tools and the plugins. `renderer` is the lines main() already prints. */
-int doctor(const std::string& engineRoot, const std::string& rendererLines);
+// `details`: the full report (every pinned tool with its hash, every plugin without a prebuilt library: tests and scripts read it); else the short, coloured check-up.
+int doctor(const std::string& engineRoot, const std::string& rendererLines, bool details, const std::string& version);
 
 /** `zinc capture <entry|dir> [--frames 1,60] [--every n] [--out dir]`: the program headless and deterministic, its frames as PNG files. (`capture --scene` is the scene replay.) */
 int capture(const std::vector<std::string>& args);

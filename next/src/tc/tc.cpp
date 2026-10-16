@@ -322,6 +322,41 @@ static bool fetchTool(const char* what, const Pin& pin, const std::string& url, 
   return true;
 }
 
+bool xcodeToolsInstalled() {
+#if defined(__APPLE__)
+  FILE* f = popen("xcode-select -p 2>/dev/null", "r");
+  if (!f) return false;
+  char buf[1024];
+  std::string dev;
+  if (std::fgets(buf, sizeof buf, f)) dev = buf;
+  const int rc = pclose(f);
+  while (!dev.empty() && (dev.back() == '\n' || dev.back() == '\r')) dev.pop_back();
+  if (rc != 0 || dev.empty()) return false;
+  std::error_code ec;
+  return fs::exists(fs::path(dev) / "SDKs", ec) || fs::exists(fs::path(dev) / "Platforms" / "MacOSX.platform" / "Developer" / "SDKs", ec);
+#else
+  return true;
+#endif
+}
+
+void offerXcodeTools(const char* why) {
+#if defined(__APPLE__)
+  std::fprintf(stderr, "zinc: %s\n", why);
+  std::fprintf(stderr, "      The Xcode command line tools are not installed on this Mac. Install them with:\n\n        xcode-select --install\n\n"
+                       "      (a system window asks, about 1.5 GB, a few minutes), then run this command again.\n");
+  if (isatty(0) && isatty(2)) {
+    std::fprintf(stderr, "\nInstall them now? [Y/n] ");
+    std::fflush(stderr);
+    char answer[16] = {0};
+    if (std::fgets(answer, sizeof answer, stdin) && (answer[0] == 'n' || answer[0] == 'N')) return;
+    if (std::system("xcode-select --install") != 0) std::fprintf(stderr, "zinc: xcode-select --install did not start; run it yourself from a terminal\n");
+    else std::fprintf(stderr, "zinc: the installer is open: when it has finished, run this command again\n");
+  }
+#else
+  (void)why;
+#endif
+}
+
 bool ensureZig(std::string& zigPath, std::string& err) {
   if (const char* z = std::getenv("ZINC_ZIG")) {
     if (!fs::exists(z)) { err = std::string("ZINC_ZIG points to a missing file: ") + z; return false; }

@@ -42,6 +42,13 @@ bool runCommands(const std::vector<std::string>& commands, unsigned limit, const
 // The path of a usable zig: $ZINC_ZIG, or the pinned one (downloaded and verified when missing). False with `err` set when that fails.
 bool ensureZig(std::string& zigPath, std::string& err);
 
+// macOS: whether the Xcode command line tools (a C++ compiler and the SDK that the frameworks come from) are installed: `xcode-select -p` names a directory that
+// holds an SDK. True elsewhere. It never opens the system's install window (xcrun would).
+bool xcodeToolsInstalled();
+// What a command prints when it needs them (`why`: what needs them, what still works without), and, in a terminal, the offer to run `xcode-select --install` (a
+// system window downloads and installs them) as Homebrew does. Prints nothing off macOS.
+void offerXcodeTools(const char* why);
+
 // The path of esptool (Espressif's flashing tool, a standalone binary), downloaded and verified like the zig. $ZINC_ESPTOOL names your own.
 bool ensureEsptool(std::string& path, std::string& err);
 // itch.io's butler (ZN-325): ZINC_BUTLER, or the pinned release fetched once into ~/.zinc/toolchains, its SHA-256 checked. butlerPath() is

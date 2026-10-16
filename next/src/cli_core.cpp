@@ -75,7 +75,7 @@ const Command kCommands[] = {
   {"publish", "zinc publish [dir] --key <seed-hex> [--channel stable|beta] [--notes text] [-o dir] | [--itch user/game[:suffix]] [--site dir] [--dry-run]", "publish an app update, to itch.io or a download page", "Packs the app (zinc pack) and writes <channel>.manifest beside it, signed with the app's Ed25519 key (zinc update-keygen; its public key is zinc.json update.publicKey). Serve the directory at zinc.json update.url. --itch pushes every export directory of dist/ with itch.io's butler (pinned, fetched and checked once; channels mac, linux-arm64, linux-rpi..., html5, plus -suffix); --dry-run prints the butler commands and uploads nothing. --site writes a static download page: one button per artifact of dist/ (export directories as .tar.gz, .dmg, .deb, .zapp) with its size and SHA-256, and SHA256SUMS."},
   {"update-app", "zinc update-app [dir] [--check] [--channel C] [--url U]", "update an app from its channel", "Fetches the channel manifest of zinc.json update (or of --url), verifies its signature with the app's key, refuses an older version, downloads the .zapp and checks its SHA-256 (into ~/.zinc/apps/<id>/updates). --check exits 10 when an update exists."},
   {"init", "zinc init <dir> [--template name]", "create a project (zinc new)", "zinc new with the template given by --template (default game)."},
-  {"doctor", "zinc doctor", "check the machine", "Prints the engine, this machine's renderer tier, the pinned tools zinc downloads on first use (with their SHA-256 and whether they are installed), the host tools and the plugins."},
+  {"doctor", "zinc doctor [--details]", "check the machine", "A short, coloured check-up (colours for a terminal only; NO_COLOR turns them off): is the engine ready, the window, the native build tools (macOS: the Xcode command line tools, with the `xcode-select --install` offer), the plugins, and what to do. --details prints the full report. Prints the engine, this machine's renderer tier, the pinned tools zinc downloads on first use (with their SHA-256 and whether they are installed), the host tools and the plugins."},
   {"toolchain", "zinc toolchain install|path|esptool|basisu|gltfpack|targets|sha256 <file>", "the pinned cross toolchain", "install: download and verify zig into ~/.zinc; basisu and gltfpack: the texture encoder and the model processor of the asset build (their pinned sources built once with that zig); targets: the cross targets."},
   {"explain", "zinc explain <code>", "describe a diagnostic", "Prints the text of a diagnostic code such as Z0101."},
   {"flash", "zinc flash --target esp32 [--port P]", "flash the ESP32 core firmware", "Uses the pinned esptool."},
@@ -480,8 +480,9 @@ int init(const std::vector<std::string>& args, const std::string& engineRoot) {
   return 0;
 }
 
-int doctor(const std::string& engineRoot, const std::string& rendererLines) {
-  std::printf("zinc-next 0.0.1\nengine files: %s\n\nthis machine\n", engineRoot.c_str());
+namespace {
+int doctorDetails(const std::string& engineRoot, const std::string& rendererLines, const std::string& version) {
+  std::printf("zinc-next %s\nengine files: %s\n\nthis machine\n", version.c_str(), engineRoot.c_str());
   std::istringstream is(rendererLines);
   std::string line;
   while (std::getline(is, line)) std::printf("  %s\n", line.c_str());
@@ -490,6 +491,10 @@ int doctor(const std::string& engineRoot, const std::string& rendererLines) {
   if (tools.empty()) std::printf("  none pinned for %s: set ZINC_ZIG / ZINC_ESPTOOL / ZINC_QEMU to your own\n", zn::tc::hostName().c_str());
   for (const zn::tc::PinnedTool& t : tools)
     std::printf("  %-20s %-28s %s  %s\n    sha256 %s\n", t.name.c_str(), t.version.c_str(), t.present ? "installed" : "will be downloaded", t.archive.c_str(), t.sha256.c_str());
+#if defined(__APPLE__)
+  std::printf("\nXcode command line tools: %s\n", zn::tc::xcodeToolsInstalled() ? "installed" : "not installed: run `xcode-select --install`");
+  std::printf("  needed for `zinc build` (a native program that draws) and for plugins that link macOS frameworks; `zinc run`, `zinc dev`, `zinc pack` and `zinc fuse` need nothing\n");
+#endif
   std::printf("\nhost tools (only needed to build the engine itself, not to use it)\n");
   for (const char* tool : {"cmake", "c++", "python3", "git", "node"}) {
     std::string cmd = std::string("command -v ") + tool + " >/dev/null 2>&1";
@@ -537,6 +542,76 @@ int doctor(const std::string& engineRoot, const std::string& rendererLines) {
     const zn::tc::Policy& p = zn::tc::loadPolicy(fs::exists("zinc.json", ec) ? fs::current_path(ec).string() : "");
     std::printf("\ntrust policy (system $ZINC_SYSTEM_POLICY or /etc/zinc/policy.json, user ~/.zinc/policy.json, project zinc.json \"policy\")\n%s", zn::tc::describePolicy(p).c_str());
   }
+  return 0;
+}
+}  // namespace
+
+namespace {
+struct Paint {   // colours only for a person at a terminal (NO_COLOR off, ZINC_COLOR=always forces)
+  bool on;
+  Paint() { const char* f = std::getenv("ZINC_COLOR"); on = (f && !std::strcmp(f, "always")) || (!std::getenv("NO_COLOR") && isatty(1)); }
+  std::string c(const char* code, const std::string& s) const { return on ? std::string("\033[") + code + "m" + s + "\033[0m" : s; }
+  std::string ok(const std::string& s) const { return c("32", s); }
+  std::string warn(const std::string& s) const { return c("33", s); }
+  std::string bad(const std::string& s) const { return c("31", s); }
+  std::string dim(const std::string& s) const { return c("2", s); }
+  std::string bold(const std::string& s) const { return c("1", s); }
+  std::string cmd(const std::string& s) const { return c("36", s); }
+};
+}  // namespace
+
+int doctor(const std::string& engineRoot, const std::string& rendererLines, bool details, const std::string& version) {
+  if (details) return doctorDetails(engineRoot, rendererLines, version);
+  const Paint P;
+  std::vector<std::string> todo;   // what the person can do, in the order of the lines above
+  auto line = [&](const char* mark, const std::string& what, const std::string& note) {
+    const std::string m = std::string(mark) == "ok" ? P.ok("[\xE2\x9C\x93]") : std::string(mark) == "warn" ? P.warn("[!]") : std::string(mark) == "bad" ? P.bad("[\xE2\x9C\x97]") : P.dim("[\xE2\x80\xA2]");
+    std::printf(" %s %s%s\n", m.c_str(), P.bold(what).c_str(), note.empty() ? "" : ("  " + P.dim(note)).c_str());
+  };
+  std::string profile = "this machine", tier, gpu, renderer;
+  { std::istringstream is(rendererLines); std::string l; while (std::getline(is, l)) {
+      if (l.rfind("profile ", 0) == 0) profile = l.substr(8); else if (l.rfind("tier ", 0) == 0) tier = l.substr(5);
+      else if (l.rfind("gpu ", 0) == 0) gpu = l.substr(4); else if (l.rfind("renderer ", 0) == 0) renderer = l.substr(9); } }
+  std::printf("\n  %s  %s\n  %s\n\n", P.bold("Zinc doctor").c_str(), P.dim("v" + version + " on " + profile).c_str(), P.dim("a quick look at this machine, so your first program runs").c_str());
+  line("ok", "Zinc " + version, engineRoot);
+  line("ok", "Window and graphics", "built in: nothing to install" + (gpu.empty() ? std::string() : "; GPU " + gpu) + (tier.empty() ? std::string() : ", tier " + tier) + (renderer.empty() ? std::string() : ", renderer " + renderer));
+  const std::vector<zn::tc::PinnedTool> tools = zn::tc::pinnedTools();
+  for (const zn::tc::PinnedTool& t : tools) {
+    if (t.name == "zig") line(t.present ? "ok" : "info", "Native builds (" + t.name + " " + t.version + ")", t.present ? "ready" : "downloaded the first time you build natively (checked against its hash)");
+  }
+#if defined(__APPLE__)
+  if (zn::tc::xcodeToolsInstalled()) line("ok", "Xcode command line tools", "installed: native apps and every plugin can be built");
+  else { line("warn", "Xcode command line tools", "not installed (only `zinc build` and some plugins need them)"); todo.push_back("To build native apps, run  " + P.cmd("xcode-select --install") + "  (a system window installs them; `zinc run`, `zinc dev` and `zinc fuse` work without)"); }
+#endif
+  {   // the plugins with native code that this machine has a prebuilt library for
+    std::vector<std::string> problems; std::error_code ec;
+    const std::vector<zn::frontend::FoundPlugin> found = zn::frontend::discoverPlugins(engineRoot + "/..", ".", problems);
+    const std::string here = zn::tc::pluginTarget();
+    int total = 0, ready = 0; std::string missing;
+    for (const zn::frontend::FoundPlugin& p : found) {
+      bool native = p.manifest.kind == "display";
+      for (const auto& e : fs::directory_iterator(fs::path(p.dir) / "native", ec)) native = native || (e.path().filename().string().ends_with(".spec.ts") && e.path().filename().string()[0] != '.');
+      const auto ts = p.manifest.targetSettings.find(here);
+      if (!native || ts == p.manifest.targetSettings.end()) continue;
+      ++total;
+      if (fs::exists(fs::path(p.dir) / "prebuilt" / here, ec)) ++ready; else missing += (missing.empty() ? "" : ", ") + p.manifest.name;
+    }
+    const std::string n = std::to_string(ready) + " of " + std::to_string(total) + " plugins with native code are ready";
+    if (total == 0 || ready == total) line("ok", "Plugins", total == 0 ? "no native plugin here" : n);
+    else {
+      std::string shown; int count = 0, extra = 0;
+      std::istringstream ms(missing); std::string name;
+      while (std::getline(ms, name, ',')) { if (!name.empty() && name[0] == ' ') name.erase(0, 1); if (count < 4) { shown += (shown.empty() ? "" : ", ") + name; ++count; } else ++extra; }
+      line("info", "Plugins", n + "; " + shown + (extra ? " and " + std::to_string(extra) + " more" : std::string()) + " are built the first time a program uses them"); todo.push_back("A plugin without a ready library is built the first time a program uses it (see " + P.cmd("zinc doctor --details") + " for which, and why)"); }
+  }
+  std::printf("\n");
+  if (todo.empty()) std::printf("  %s  Everything is ready. Try %s\n\n", P.ok("\xE2\x9C\x93").c_str(), P.cmd("zinc new game hello && cd hello && zinc run").c_str());
+  else {
+    std::printf("  %s\n", P.bold("Worth doing:").c_str());
+    for (const std::string& t : todo) std::printf("   \xE2\x80\xA2 %s\n", t.c_str());
+    std::printf("\n  %s %s\n\n", P.dim("Nothing blocks you: start with").c_str(), P.cmd("zinc new game hello && cd hello && zinc run").c_str());
+  }
+  std::printf("  %s\n\n", P.dim("The full report, with every hash and every plugin: zinc doctor --details").c_str());
   return 0;
 }
 

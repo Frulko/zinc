@@ -711,7 +711,13 @@ static int buildNative(const char* argv0, const char* entry, const char* out, zn
   }
   if (zn::aot::usesHost(zm)) injectPermissions(cpp.string(), entry, zn::tc::hostName().find("macos") != std::string::npos ? "macos" : "linux");   // ZN-322.03
   if (!haveLibs || !haveCxx) {  // a packaged zinc on a machine without a compiler: the pinned zig builds the program for this machine (no graphics host in that path)
-    if (zn::aot::usesHost(zm)) { std::fprintf(stderr, "zinc: a program that draws needs a C++ compiler on this machine (install one, or set CXX)\n"); fs::remove(cpp); return 1; }
+    if (zn::aot::usesHost(zm)) {
+      fs::remove(cpp);
+      const char* why = "a native build of a program that draws needs a C++ compiler and the SDK (`zinc run` and `zinc fuse` need neither; or set CXX)";
+      if (!zn::tc::xcodeToolsInstalled()) zn::tc::offerXcodeTools(why);
+      else std::fprintf(stderr, "zinc: a program that draws needs a C++ compiler on this machine (install one, or set CXX); `zinc run` and `zinc fuse` need none\n");
+      return 1;
+    }
     std::string zig, err;
     if (!zn::tc::ensureZig(zig, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); fs::remove(cpp); return 1; }
     bool ok = zn::tc::crossBuild(zig, gRoot, cpp.string(), zn::tc::hostName(), out, err);
@@ -1416,7 +1422,9 @@ int main(int argc, char** argv) {
       if (!egl || !gles) { gpu = "none"; tier = "T0"; note = " (libEGL/libGLESv2 not found: software raster)"; }
     }
 #endif
-    return zn::cli::doctor(gRoot, std::string("profile ") + hp->name + "\ngpu " + gpu + note + "\ntier " + tier + "\nrenderer " + (gpu == "none" ? "cpu" : "auto") + "\n");
+    bool details = false;
+    for (int k = 2; k < argc; ++k) details = details || !std::strcmp(argv[k], "--details") || !std::strcmp(argv[k], "--full");
+    return zn::cli::doctor(gRoot, std::string("profile ") + hp->name + "\ngpu " + gpu + note + "\ntier " + tier + "\nrenderer " + (gpu == "none" ? "cpu" : "auto") + "\n", details, kVersionText);
   }
   if (argc >= 2 && !std::strcmp(argv[1], "test")) {   // zinc test [--profile P] [dir]: the conformance programs against the goldens of the profile (ZN-122)
     const zn::frontend::Profile* tp = gProfile ? gProfile : zn::frontend::findProfile(
