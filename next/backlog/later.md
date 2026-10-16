@@ -301,6 +301,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-744: draw overlays (perf panel, touch marks) into the window after the frame, so a scroll does not damage the panel twice.
 - ZN-746: the GPU-layer path renders the damage twice even where there is no shader: render the rest once and upload only the changed rectangles (music carousel swipe frames 160-250 ms on the Nexus 7).
 - ZN-746: drawShader with an alpha, and a turned shader, if a program needs to fade or rotate one.
+- ZN-745: on the TouchPad platform() / Platform.OS still say linux at run time (builtPlatform); a ZN_WEBOS define in the armv7-webos flags would make it webos.
+- ZN-745: an import written with its extension ('./Screen.tsx') takes the file as written, while tsc applies moduleSuffixes to it too.
+- ZN-745: zinc tsconfig --platform <p> to write another platform's moduleSuffixes for the editor (today: this machine's).
+- ZN-747: Platform.Version on a real iPhone (sysctl kern.osproductversion) not checked: no Apple team.
 
 ## Demos
 
@@ -577,3 +581,4 @@ The next backlog review turns lines into tasks or deletes them.
 - Mobile feel: `rotate` in a style is applied to hit testing only (no matrix in the raster yet, ZN-361.01): a rotated view draws unrotated.
 - ZN-741: ZINC_GL_INFO on the Pi 3 (KMS) and the TouchPad (webOS): check the family and the tuning row; move webOS's ZINC_GL_DIRECT=1 and ZINC_GL_CORNERS=0 into the Adreno 2xx row, measured there first.
 - ZN-744: the GPU scroll on the Pi 3 (display-gl does not call glr::scroll yet) and the TouchPad.
+- ZN-745: zinc build --target armv7-webos and --target aarch64-linux pick x.webos.ts / x.linux.ts (ZINC_PLATFORM from the target): implemented, not run.
