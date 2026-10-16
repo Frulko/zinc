@@ -2,12 +2,12 @@
 import { dump } from './helpers';
 
 function Badge(props: { label: string; children: () => i32 }): i32 {
-  return <View class="rounded"><Text>{props.label}</Text>{props.children()}</View>;
+  return <View className="rounded"><Text>{props.label}</Text>{props.children()}</View>;
 }
 
 const items: string[] = ['a', 'b'];
 const on = true;
-const root = <View class="flex-col p-3" gap={8} onClick={() => console.log('clicked')}>
+const root = <View className="flex-col p-3" gap={8} onClick={() => console.log('clicked')}>
   <Text>Hello {items.length} items</Text>
   <Badge label="x"><Text>child</Text></Badge>
   {on && <Text>shown</Text>}

@@ -5,7 +5,7 @@ import { width, height } from 'zinc:gfx';
 import * as system from 'zinc:system';
 import * as window from 'zinc:system/window';
 
-function App(): i32 { return <view class="w-full h-full bg-slate-900"><text class="text-white">resize me</text></view>; }
+function App(): i32 { return <View className="w-full h-full bg-slate-900"><Text className="text-white">resize me</Text></View>; }
 render(App, 0x0f172a, null);
 let frame = 0;
 addStepper((): void => {

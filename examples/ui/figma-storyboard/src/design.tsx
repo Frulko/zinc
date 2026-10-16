@@ -33,17 +33,17 @@ export interface TemperatureCardProps {
 }
 export function TemperatureCard(props: TemperatureCardProps): i32 {
   return (
-    <view style={[__shared.card]}>
-      <text style={[__shared.title]}>
+    <View style={[__shared.card]}>
+      <Text style={[__shared.title]}>
         {"Temperature"}
-      </text>
-      <text style={[{ "fontSize": 32, "color": "#2563eb" }]}>
+      </Text>
+      <Text style={[{ "fontSize": 32, "color": "#2563eb" }]}>
         {'' + (props.temperature !== undefined ? props.temperature() : 21)}
-      </text>
-      <button style={[__shared.action]} onClick={() => { if (props.targetChanged !== undefined) props.targetChanged(22); }}>
+      </Text>
+      <Button style={[__shared.action]} onClick={() => { if (props.targetChanged !== undefined) props.targetChanged(22); }}>
         {"Set to 22"}
-      </button>
-    </view>
+      </Button>
+    </View>
   );
 }
 
@@ -54,24 +54,24 @@ export interface ThermostatAppProps {
 export function ThermostatApp(props: ThermostatAppProps): i32 {
   const [screen, setScreen] = createSignal<string>("home");
   const history: string[] = [];
-  return <view style={{ width: "100%", height: "100%" }}>
+  return <View style={{ width: "100%", height: "100%" }}>
     <Show when={screen() === "home"}>
-      <view style={[__shared.screen]}>
+      <View style={[__shared.screen]}>
         <TemperatureCard temperature={() => (props.temperature !== undefined ? props.temperature() : 21)} targetChanged={(value: number) => { if (props.targetChanged !== undefined) props.targetChanged(value); }} />
-        <button style={[__shared.action]} onClick={() => { if (screen() !== "details") { history.push(screen()); setScreen("details"); } }}>
+        <Button style={[__shared.action]} onClick={() => { if (screen() !== "details") { history.push(screen()); setScreen("details"); } }}>
           {"Details"}
-        </button>
-      </view>
+        </Button>
+      </View>
     </Show>
     <Show when={screen() === "details"}>
-      <view style={[__shared.screen]}>
-        <text style={[__shared.title]}>
+      <View style={[__shared.screen]}>
+        <Text style={[__shared.title]}>
           {"Connected component"}
-        </text>
-        <button style={[__shared.action]} onClick={() => { if (history.length > 0) setScreen(history.pop()); }}>
+        </Text>
+        <Button style={[__shared.action]} onClick={() => { if (history.length > 0) setScreen(history.pop()); }}>
           {"Back"}
-        </button>
-      </view>
+        </Button>
+      </View>
     </Show>
-  </view>;
+  </View>;
 }

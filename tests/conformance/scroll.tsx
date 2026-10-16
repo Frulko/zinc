@@ -9,14 +9,14 @@ let clicked = -1;
 const lines: i32[] = [];
 for (let i = 0; i < 30; i++) lines.push(i);
 const root = ui.createNode(ui.VIEW);
-ui.insert(root, <view class="flex-col h-full p-2 gap-2">
-  <scroll class="h-[60] bg-slate-800">
-    {lines.map((i: i32) => <text class="text-sm">line {i}</text>)}
-  </scroll>
-  <VirtualList count={count()} itemHeight={20} class="grow bg-slate-900">
-    {(i: i32) => <view onClick={() => { clicked = i; }}><text class="text-sm">row {i}</text></view>}
+ui.insert(root, <View className="flex-col h-full p-2 gap-2">
+  <ScrollView className="h-[60] bg-slate-800">
+    {lines.map((i: i32) => <Text className="text-sm">line {i}</Text>)}
+  </ScrollView>
+  <VirtualList count={count()} itemHeight={20} className="grow bg-slate-900">
+    {(i: i32) => <View onClick={() => { clicked = i; }}><Text className="text-sm">row {i}</Text></View>}
   </VirtualList>
-</view>, -1);
+</View>, -1);
 
 function built(): string {
   const rows = ui.dump().split('\n').filter((l: string) => l.indexOf('"row ') >= 0).map((l: string) => l.trim());

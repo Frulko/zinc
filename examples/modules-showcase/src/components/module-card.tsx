@@ -8,8 +8,8 @@ export interface ModuleCardProps {
 }
 
 export function ModuleCard(props: ModuleCardProps): i32 {
-  return <Card class="w-[360px]">
-    <View class="flex-row items-center justify-between gap-2 px-5">
+  return <Card className="w-[360px]">
+    <View className="flex-row items-center justify-between gap-2 px-5">
       <CardTitle text={props.title} />
       <Badge label={props.module} variant="secondary" />
     </View>

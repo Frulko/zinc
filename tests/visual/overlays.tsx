@@ -10,12 +10,12 @@ ui.bindKeys('mod-s', 'save');
 ui.bindKeys('mod-d', 'duplicate');
 
 function App(): i32 {
-  return <View class="flex-col p-3 gap-2">
-    <View class="flex-row gap-2 p-2 h-[52px] overflow-hidden rounded-lg border border-zinc-200 bg-white">
+  return <View className="flex-col p-3 gap-2">
+    <View className="flex-row gap-2 p-2 h-[52px] overflow-hidden rounded-lg border border-zinc-200 bg-white">
       <Tooltip label="Save" action="save" delay={0} placement="bottom"><Button label="Save" size="sm" /></Tooltip>
-      <DropdownMenu label="Edit" class="w-40" items={[{ label: 'Save', action: 'save' }, { label: 'Duplicate', action: 'duplicate' }, { label: 'Delete', onSelect: () => setOpen(true) }]} />
+      <DropdownMenu label="Edit" className="w-40" items={[{ label: 'Save', action: 'save' }, { label: 'Duplicate', action: 'duplicate' }, { label: 'Delete', onSelect: () => setOpen(true) }]} />
     </View>
-    <Dialog open={open} onOpenChange={setOpen} title="Delete?" description="It cannot be undone." class="w-[260px]"
+    <Dialog open={open} onOpenChange={setOpen} title="Delete?" description="It cannot be undone." className="w-[260px]"
       footer={() => <Button label="Cancel" variant="outline" size="sm" onClick={() => setOpen(false)} />} />
   </View>;
 }

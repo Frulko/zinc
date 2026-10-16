@@ -275,27 +275,27 @@ async function screen(on: boolean): Promise<void> {   // the screencast: frames 
 
 // ---- the views
 function Btn(p: { label: string; onClick: () => void }): i32 {
-  return <Button class="flex-row items-center justify-center h-7 px-3 rounded-md bg-slate-900" onClick={p.onClick}>
-    <Text class="text-xs font-medium text-white">{p.label}</Text>
+  return <Button className="flex-row items-center justify-center h-7 px-3 rounded-md bg-slate-900" onClick={p.onClick}>
+    <Text className="text-xs font-medium text-white">{p.label}</Text>
   </Button>;
 }
 
 function TargetRow(p: { t: Target }): i32 {
-  return <View class="flex-col gap-1 p-2 rounded-md bg-white border">
-    <Text class="text-sm font-medium text-slate-900">{p.t.name()}</Text>
-    <Text class="text-xs text-slate-500">{p.t.type + ' on port ' + p.t.port}</Text>
+  return <View className="flex-col gap-1 p-2 rounded-md bg-white border">
+    <Text className="text-sm font-medium text-slate-900">{p.t.name()}</Text>
+    <Text className="text-xs text-slate-500">{p.t.type + ' on port ' + p.t.port}</Text>
     <Btn label="Attach" onClick={() => { attach(p.t); }} />
   </View>;
 }
 
 function TreeRow(p: { r: Row }): i32 {
-  return <Button class={'flex-row items-center justify-start h-6 rounded ' + (selected() === p.r.nodeId ? 'bg-sky-100' : 'bg-white')} style={{ paddingLeft: 8 + p.r.depth * 14 }} onClick={() => { select(p.r.nodeId); }}>
-    <Text class={'text-xs font-mono ' + (p.r.label.startsWith('<') ? 'text-purple-800' : 'text-slate-700')}>{p.r.label}</Text>
+  return <Button className={'flex-row items-center justify-start h-6 rounded ' + (selected() === p.r.nodeId ? 'bg-sky-100' : 'bg-white')} style={{ paddingLeft: 8 + p.r.depth * 14 }} onClick={() => { select(p.r.nodeId); }}>
+    <Text className={'text-xs font-mono ' + (p.r.label.startsWith('<') ? 'text-purple-800' : 'text-slate-700')}>{p.r.label}</Text>
   </Button>;
 }
 
 function ScreenView(): i32 {   // the last frame, fitted into the view with its proportions
-  return <Canvas class="flex-1" onDraw={(x: i32, y: i32, w: i32, h: i32) => {
+  return <Canvas className="flex-1" onDraw={(x: i32, y: i32, w: i32, h: i32) => {
     rect(x, y, w, h, 0xe2e8f0);
     const f = frame();
     if (f < 0) return;
@@ -306,11 +306,11 @@ function ScreenView(): i32 {   // the last frame, fitted into the view with its 
 }
 
 function Styles(): i32 {
-  return <View class="flex-col gap-1 p-2 border-b">
-    <Text class="text-xs font-medium text-slate-600">element.style</Text>
-    <Input class="h-7 px-2 text-xs font-mono border rounded" value={draft()} onInput={(v: string) => { setDraft(v); }} />
+  return <View className="flex-col gap-1 p-2 border-b">
+    <Text className="text-xs font-medium text-slate-600">element.style</Text>
+    <Input className="h-7 px-2 text-xs font-mono border rounded" value={draft()} onInput={(v: string) => { setDraft(v); }} />
     <Btn label="Apply" onClick={() => { applyStyle(draft()); }} />
-    <View class="flex-col">{rules().map((l: string) => <Text class="text-xs font-mono text-slate-700">{l}</Text>)}</View>
+    <View className="flex-col">{rules().map((l: string) => <Text className="text-xs font-mono text-slate-700">{l}</Text>)}</View>
   </View>;
 }
 
@@ -325,43 +325,43 @@ async function pick(r: Req): Promise<void> {   // a request's response body
 function SourceLine(p: { n: i32; text: string }): i32 {
   const here = (): boolean => paused() && frames().length > 0 && frames()[frameIx()].line === p.n && frames()[frameIx()].script === script();
   const bp = (): boolean => bps().some((b: Bp) => b.line === p.n);
-  return <Button class={'flex-row items-center justify-start h-5 ' + (here() ? 'bg-amber-100' : 'bg-white')} onClick={() => { toggleBp(p.n); }}>
-    <Text class={'w-5 text-xs ' + (bp() ? 'text-red-600' : 'text-white')}>●</Text>
-    <Text class="w-8 text-xs font-mono text-slate-400">{'' + p.n}</Text>
-    <Text class="text-xs font-mono text-slate-800">{p.text}</Text>
+  return <Button className={'flex-row items-center justify-start h-5 ' + (here() ? 'bg-amber-100' : 'bg-white')} onClick={() => { toggleBp(p.n); }}>
+    <Text className={'w-5 text-xs ' + (bp() ? 'text-red-600' : 'text-white')}>●</Text>
+    <Text className="w-8 text-xs font-mono text-slate-400">{'' + p.n}</Text>
+    <Text className="text-xs font-mono text-slate-800">{p.text}</Text>
   </Button>;
 }
 
 function SourcesView(): i32 {
-  return <View class="flex-col flex-1">
-    <View class="flex-row items-center gap-1 p-1 border-b">
+  return <View className="flex-col flex-1">
+    <View className="flex-row items-center gap-1 p-1 border-b">
       {waiting() ? <Btn label="Run" onClick={() => { run(); }} /> : <View />}
       <Btn label="Resume" onClick={() => { command('Debugger.resume'); }} />
       <Btn label="Over" onClick={() => { command('Debugger.stepOver'); }} />
       <Btn label="Into" onClick={() => { command('Debugger.stepInto'); }} />
       <Btn label="Out" onClick={() => { command('Debugger.stepOut'); }} />
       <Btn label="Pause" onClick={() => { command('Debugger.pause'); }} />
-      <Input class="w-40 h-7 px-2 text-xs font-mono border rounded" value={cond()} onInput={(v: string) => { setCond(v); }} />
-      <Text class="text-xs text-slate-500">{ended() ? 'ended' : paused() ? 'paused' : waiting() ? 'waiting' : 'running'}</Text>
+      <Input className="w-40 h-7 px-2 text-xs font-mono border rounded" value={cond()} onInput={(v: string) => { setCond(v); }} />
+      <Text className="text-xs text-slate-500">{ended() ? 'ended' : paused() ? 'paused' : waiting() ? 'waiting' : 'running'}</Text>
     </View>
-    <View class="flex-row gap-1 px-1 border-b">{scripts().map((s: Script) => <Button class={'h-6 px-2 rounded ' + (script() === s.id ? 'bg-slate-300' : 'bg-slate-50')} onClick={() => { openScript(s.id); }}><Text class="text-xs text-slate-800">{s.name()}</Text></Button>)}</View>
-    <ScrollView class="flex-1">
-      <View class="flex-col">{source().map((t: string, i: i32) => <SourceLine n={i + 1} text={t} />)}</View>
+    <View className="flex-row gap-1 px-1 border-b">{scripts().map((s: Script) => <Button className={'h-6 px-2 rounded ' + (script() === s.id ? 'bg-slate-300' : 'bg-slate-50')} onClick={() => { openScript(s.id); }}><Text className="text-xs text-slate-800">{s.name()}</Text></Button>)}</View>
+    <ScrollView className="flex-1">
+      <View className="flex-col">{source().map((t: string, i: i32) => <SourceLine n={i + 1} text={t} />)}</View>
     </ScrollView>
   </View>;
 }
 
 function DebugPane(): i32 {   // the right column of a debugger target: the stack, the scopes, the watches
-  return <View class="flex-col gap-1 p-2">
-    <Text class="text-xs font-medium text-slate-600">Call stack</Text>
-    {frames().map((f: Frame, i: i32) => <Button class={'flex-row justify-start h-6 px-1 rounded ' + (frameIx() === i ? 'bg-sky-100' : 'bg-white')} onClick={() => { showFrame(i); }}>
-      <Text class="text-xs font-mono text-slate-800">{f.name + ' ' + nameOf(f.script) + ':' + f.line}</Text></Button>)}
-    <Text class="text-xs font-medium text-slate-600">Scope</Text>
-    {scope().map((s: ScopeLine, i: i32) => <Button class="flex-row justify-start h-5 rounded bg-white" style={{ paddingLeft: s.depth * 12 }} onClick={() => { unfold(i); }}>
-      <Text class={'text-xs font-mono ' + (s.depth === 0 ? 'font-medium text-slate-600' : 'text-slate-800')}>{s.depth === 0 ? s.name : (s.objectId !== '' ? (s.open ? '▾ ' : '▸ ') : '') + s.name + ': ' + s.value}</Text></Button>)}
-    <Text class="text-xs font-medium text-slate-600">Watch</Text>
-    {watches().map((w: string, i: i32) => <Text class="text-xs font-mono text-slate-800">{w + ' = ' + (i < watchVals().length ? watchVals()[i] : '')}</Text>)}
-    <Input class="h-7 px-2 text-xs font-mono border rounded" value={watchDraft()} onInput={(v: string) => { setWatchDraft(v); }} />
+  return <View className="flex-col gap-1 p-2">
+    <Text className="text-xs font-medium text-slate-600">Call stack</Text>
+    {frames().map((f: Frame, i: i32) => <Button className={'flex-row justify-start h-6 px-1 rounded ' + (frameIx() === i ? 'bg-sky-100' : 'bg-white')} onClick={() => { showFrame(i); }}>
+      <Text className="text-xs font-mono text-slate-800">{f.name + ' ' + nameOf(f.script) + ':' + f.line}</Text></Button>)}
+    <Text className="text-xs font-medium text-slate-600">Scope</Text>
+    {scope().map((s: ScopeLine, i: i32) => <Button className="flex-row justify-start h-5 rounded bg-white" style={{ paddingLeft: s.depth * 12 }} onClick={() => { unfold(i); }}>
+      <Text className={'text-xs font-mono ' + (s.depth === 0 ? 'font-medium text-slate-600' : 'text-slate-800')}>{s.depth === 0 ? s.name : (s.objectId !== '' ? (s.open ? '▾ ' : '▸ ') : '') + s.name + ': ' + s.value}</Text></Button>)}
+    <Text className="text-xs font-medium text-slate-600">Watch</Text>
+    {watches().map((w: string, i: i32) => <Text className="text-xs font-mono text-slate-800">{w + ' = ' + (i < watchVals().length ? watchVals()[i] : '')}</Text>)}
+    <Input className="h-7 px-2 text-xs font-mono border rounded" value={watchDraft()} onInput={(v: string) => { setWatchDraft(v); }} />
     <Btn label="Add watch" onClick={() => { const l = watches().slice(0); l.push(watchDraft()); setWatches(l); setWatchDraft(''); evalWatches(); }} />
   </View>;
 }
@@ -380,23 +380,23 @@ function phaseColor(name: string): string {
 }
 function slowest(): number { let m = 1; for (const f of traced()) if (f.dur > m) m = f.dur; return m; }
 function FrameRow(p: { f: TraceFrame; i: i32 }): i32 {   // a frame of the timeline: its length, then its phases to scale (the slowest frame is 400 px)
-  return <Button class={'flex-row items-center justify-start h-5 px-1 ' + (frameAt() === p.i ? 'bg-sky-100' : 'bg-white')} onClick={() => { setFrameAt(p.i); }}>
-    <Text class="w-20 text-xs font-mono text-slate-500">{msText(p.f.dur)}</Text>
-    <View class="flex-row h-3">{p.f.durs.map((d: number, k: i32) => <View class={'h-3 ' + phaseColor(p.f.phases[k])} style={{ width: Math.max(1, Math.round(d * 400 / slowest())) }} />)}</View>
+  return <Button className={'flex-row items-center justify-start h-5 px-1 ' + (frameAt() === p.i ? 'bg-sky-100' : 'bg-white')} onClick={() => { setFrameAt(p.i); }}>
+    <Text className="w-20 text-xs font-mono text-slate-500">{msText(p.f.dur)}</Text>
+    <View className="flex-row h-3">{p.f.durs.map((d: number, k: i32) => <View className={'h-3 ' + phaseColor(p.f.phases[k])} style={{ width: Math.max(1, Math.round(d * 400 / slowest())) }} />)}</View>
   </Button>;
 }
 function PerformanceView(): i32 {
-  return <View class="flex-col flex-1">
-    <View class="flex-row items-center gap-2 p-1 border-b">
+  return <View className="flex-col flex-1">
+    <View className="flex-row items-center gap-2 p-1 border-b">
       {recording() ? <Btn label="Stop" onClick={() => { stopRecording(); }} /> : <Btn label="Record" onClick={() => { record(); }} />}
-      <Text class="text-xs text-slate-500">{recording() ? 'recording…' : traced().length > 0 ? traced().length + ' frames, the slowest ' + msText(slowest()) : 'Record, use the program, then Stop'}</Text>
+      <Text className="text-xs text-slate-500">{recording() ? 'recording…' : traced().length > 0 ? traced().length + ' frames, the slowest ' + msText(slowest()) : 'Record, use the program, then Stop'}</Text>
     </View>
-    <View class="flex-col gap-1 p-2 border-b">{totals().map((t: PhaseTotal) => <View class="flex-row items-center gap-2">
-      <View class={'w-3 h-3 rounded ' + phaseColor(t.name)} />
-      <Text class="w-16 text-xs text-slate-800">{t.name}</Text>
-      <Text class="text-xs font-mono text-slate-600">{msText(t.total) + ' in ' + t.count + ' frames'}</Text>
+    <View className="flex-col gap-1 p-2 border-b">{totals().map((t: PhaseTotal) => <View className="flex-row items-center gap-2">
+      <View className={'w-3 h-3 rounded ' + phaseColor(t.name)} />
+      <Text className="w-16 text-xs text-slate-800">{t.name}</Text>
+      <Text className="text-xs font-mono text-slate-600">{msText(t.total) + ' in ' + t.count + ' frames'}</Text>
     </View>)}</View>
-    <VirtualList count={traced().length} itemHeight={20} class="flex-1">
+    <VirtualList count={traced().length} itemHeight={20} className="flex-1">
       {(i: i32) => <FrameRow f={traced()[i]} i={i} />}
     </VirtualList>
   </View>;
@@ -411,68 +411,68 @@ function frameLines(): string[] {   // the picked frame, phase by phase
 }
 
 function NetRow(p: { r: Req }): i32 {
-  return <Button class={'flex-row items-center justify-start h-6 px-2 rounded ' + (picked() === p.r.id ? 'bg-sky-100' : 'bg-white')} onClick={() => { pick(p.r); }}>
-    <Text class={'text-xs font-mono ' + (p.r.error.length > 0 || p.r.status >= 400 ? 'text-red-700' : 'text-slate-800')}>{p.r.line()}</Text>
+  return <Button className={'flex-row items-center justify-start h-6 px-2 rounded ' + (picked() === p.r.id ? 'bg-sky-100' : 'bg-white')} onClick={() => { pick(p.r); }}>
+    <Text className={'text-xs font-mono ' + (p.r.error.length > 0 || p.r.status >= 400 ? 'text-red-700' : 'text-slate-800')}>{p.r.line()}</Text>
   </Button>;
 }
 
 function NetworkView(): i32 {
-  return <View class="flex-col flex-1">
-    <ScrollView class="flex-1">
-      <View class="flex-col">{reqs().map((r: Req) => <NetRow r={r} />)}</View>
+  return <View className="flex-col flex-1">
+    <ScrollView className="flex-1">
+      <View className="flex-col">{reqs().map((r: Req) => <NetRow r={r} />)}</View>
     </ScrollView>
-    <ScrollView class="h-32 border-t bg-slate-50">
-      <Text class="p-2 text-xs font-mono text-slate-800">{body()}</Text>
+    <ScrollView className="h-32 border-t bg-slate-50">
+      <Text className="p-2 text-xs font-mono text-slate-800">{body()}</Text>
     </ScrollView>
   </View>;
 }
 
 function Tab(p: { id: string; label: string }): i32 {
-  return <Button class={'flex-row items-center h-7 px-3 rounded-md ' + (view() === p.id ? 'bg-slate-300' : 'bg-slate-50')} onClick={() => { setView(p.id); screen(p.id === 'screen'); }}>
-    <Text class="text-xs font-medium text-slate-900">{p.label}</Text>
+  return <Button className={'flex-row items-center h-7 px-3 rounded-md ' + (view() === p.id ? 'bg-slate-300' : 'bg-slate-50')} onClick={() => { setView(p.id); screen(p.id === 'screen'); }}>
+    <Text className="text-xs font-medium text-slate-900">{p.label}</Text>
   </Button>;
 }
 
 function App(): i32 {
-  return <View class="flex-col w-full h-full bg-white">
-    <View class="flex-row flex-1">
-      <View class="flex-col w-60 gap-2 p-2 bg-slate-100 border-r">
-        <Text class="text-lg font-bold text-slate-900">Zinc Inspector</Text>
+  return <View className="flex-col w-full h-full bg-white">
+    <View className="flex-row flex-1">
+      <View className="flex-col w-60 gap-2 p-2 bg-slate-100 border-r">
+        <Text className="text-lg font-bold text-slate-900">Zinc Inspector</Text>
         <Btn label="Find programs" onClick={() => { refresh(); }} />
-        <ScrollView class="flex-1">
-          <View class="flex-col gap-2">{targets().map((t: Target) => <TargetRow t={t} />)}</View>
+        <ScrollView className="flex-1">
+          <View className="flex-col gap-2">{targets().map((t: Target) => <TargetRow t={t} />)}</View>
         </ScrollView>
-        <Text class="text-xs text-slate-500">{status()}</Text>
+        <Text className="text-xs text-slate-500">{status()}</Text>
       </View>
-      <View class="flex-col flex-1 w-0 overflow-hidden">
-        <View class="flex-row items-center gap-1 px-2 py-1 border-b">
+      <View className="flex-col flex-1 w-0 overflow-hidden">
+        <View className="flex-row items-center gap-1 px-2 py-1 border-b">
           <Tab id="elements" label="Elements" />
           <Tab id="screen" label="Screen" />
           <Tab id="network" label="Network" />
           <Tab id="sources" label="Sources" />
           <Tab id="performance" label="Performance" />
-          <Text class="flex-1 text-xs text-slate-600">{attached()}</Text>
+          <Text className="flex-1 text-xs text-slate-600">{attached()}</Text>
         </View>
         {view() === 'sources' ? <SourcesView /> : view() === 'performance' ? <PerformanceView /> : view() === 'network' ? <NetworkView /> : view() === 'screen' ? <ScreenView /> :
-        <ScrollView class="flex-1">
-          <View class="flex-col">{tree().map((r: Row) => <TreeRow r={r} />)}</View>
+        <ScrollView className="flex-1">
+          <View className="flex-col">{tree().map((r: Row) => <TreeRow r={r} />)}</View>
         </ScrollView>}
       </View>
-      <View class="flex-col w-72 border-l">
-        {view() === 'sources' ? <ScrollView class="flex-1"><DebugPane /></ScrollView> :
-        view() === 'performance' ? <View class="flex-col gap-1 p-2">{frameLines().map((l: string) => <Text class="text-xs font-mono text-slate-800">{l}</Text>)}</View> : <View class="flex-col flex-1">
+      <View className="flex-col w-72 border-l">
+        {view() === 'sources' ? <ScrollView className="flex-1"><DebugPane /></ScrollView> :
+        view() === 'performance' ? <View className="flex-col gap-1 p-2">{frameLines().map((l: string) => <Text className="text-xs font-mono text-slate-800">{l}</Text>)}</View> : <View className="flex-col flex-1">
           <Styles />
-          <Text class="px-2 py-1 text-xs font-medium text-slate-600 border-b">{box() === '' ? 'Computed' : 'Computed · ' + box()}</Text>
-          <ScrollView class="flex-1">
-            <View class="flex-col p-2">{styles().map((s: string) => <Text class="text-xs font-mono text-slate-800">{s}</Text>)}</View>
+          <Text className="px-2 py-1 text-xs font-medium text-slate-600 border-b">{box() === '' ? 'Computed' : 'Computed · ' + box()}</Text>
+          <ScrollView className="flex-1">
+            <View className="flex-col p-2">{styles().map((s: string) => <Text className="text-xs font-mono text-slate-800">{s}</Text>)}</View>
           </ScrollView>
         </View>}
       </View>
     </View>
-    <View class="flex-col h-40 border-t bg-slate-50">
-      <Text class="px-2 py-1 text-xs font-medium text-slate-600">Console</Text>
-      <ScrollView class="flex-1">
-        <View class="flex-col px-2">{logs().map((l: string) => <Text class={'text-xs font-mono ' + (l.startsWith('error') ? 'text-red-700' : 'text-slate-800')}>{l}</Text>)}</View>
+    <View className="flex-col h-40 border-t bg-slate-50">
+      <Text className="px-2 py-1 text-xs font-medium text-slate-600">Console</Text>
+      <ScrollView className="flex-1">
+        <View className="flex-col px-2">{logs().map((l: string) => <Text className={'text-xs font-mono ' + (l.startsWith('error') ? 'text-red-700' : 'text-slate-800')}>{l}</Text>)}</View>
       </ScrollView>
     </View>
   </View>;

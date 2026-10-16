@@ -35,9 +35,9 @@ import { ProjectCard } from './components/Project';
 import { projectOpen, setProjectOpen, projectText, togglePermission } from './app/project';
 
 function App(): i32 {
-  return <View class={`flex-col h-full ${bg(theme().chrome)}`}>
+  return <View className={`flex-col h-full ${bg(theme().chrome)}`}>
     <Header />
-    <View class="grow flex-col px-2.5 pb-2.5 gap-2">
+    <View className="grow flex-col px-2.5 pb-2.5 gap-2">
       <EditorCard />
       <ConsoleCard />
       <StartView />

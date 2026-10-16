@@ -42,8 +42,8 @@ function lanes(): string[] {
 
 function LaneStrip(): i32 {
   const LANE: i32 = 34;
-  return <View class="flex-row justify-center py-1.5 bg-[#0a4fa0]">
-    <Canvas class={`h-[30px] w-[${lanes().length * LANE}px]`} onDraw={(x: i32, y: i32, w: i32, h: i32) => {
+  return <View className="flex-row justify-center py-1.5 bg-[#0a4fa0]">
+    <Canvas className={`h-[30px] w-[${lanes().length * LANE}px]`} onDraw={(x: i32, y: i32, w: i32, h: i32) => {
       const s = steps[shown()], ls = lanes();
       for (let i: i32 = 0; i < ls.length; i++) {
         if (i > 0) drawSeparator(x + i * LANE, y + 4, h - 8);
@@ -59,28 +59,28 @@ function drawSeparator(x: number, y: number, h: number): void {
 
 function ThenChip(): i32 {
   const next = (): i32 => Math.min(shown() + 1, steps.length - 1);
-  return <View class="flex-row">
-    <View class="flex-row items-center gap-2 px-3 py-1.5 rounded-xl bg-[#0b3f80] shadow-md">
-      <Text class="text-sm font-semibold text-sky-100">Then</Text>
-      <Canvas class="w-[20px] h-[20px]" onDraw={(x: i32, y: i32, w: i32, h: i32) => drawManeuver(steps[next()], x, y, w, 0xffffff)} />
+  return <View className="flex-row">
+    <View className="flex-row items-center gap-2 px-3 py-1.5 rounded-xl bg-[#0b3f80] shadow-md">
+      <Text className="text-sm font-semibold text-sky-100">Then</Text>
+      <Canvas className="w-[20px] h-[20px]" onDraw={(x: i32, y: i32, w: i32, h: i32) => drawManeuver(steps[next()], x, y, w, 0xffffff)} />
     </View>
   </View>;
 }
 
 export function Banner(): i32 {
   const soon = (): boolean => { const i = shown(); return i + 1 < steps.length && steps[i + 1].at - steps[i].at < 160 && steps[i + 1].type !== 'arrive'; };
-  return <View class="flex-col gap-2" style={{ opacity: phase() === PREVIEW ? 0 : 1 }}>
-    <View class="rounded-2xl overflow-hidden shadow-xl bg-gradient-to-b from-[#1a8cf0] to-[#0b62c9]" onPointerDown={() => {}}>
-      <View class="flex-row items-center gap-4 pl-4 pr-5 py-3" style={{ opacity: swap.get(), translateY: (1 - swap.get()) * 18 }}>
-        <Canvas class="w-[58px] h-[58px]" onDraw={(x: i32, y: i32, w: i32, h: i32) => drawManeuver(steps[shown()], x, y, w, 0xffffff)} />
-        <View class="flex-col w-[178px] lg:w-[228px]">
-          <View class="flex-row items-center gap-2">
-            <Text class="text-3xl font-bold text-white tracking-tight">{distance()}</Text>
+  return <View className="flex-col gap-2" style={{ opacity: phase() === PREVIEW ? 0 : 1 }}>
+    <View className="rounded-2xl overflow-hidden shadow-xl bg-gradient-to-b from-[#1a8cf0] to-[#0b62c9]" onPointerDown={() => {}}>
+      <View className="flex-row items-center gap-4 pl-4 pr-5 py-3" style={{ opacity: swap.get(), translateY: (1 - swap.get()) * 18 }}>
+        <Canvas className="w-[58px] h-[58px]" onDraw={(x: i32, y: i32, w: i32, h: i32) => drawManeuver(steps[shown()], x, y, w, 0xffffff)} />
+        <View className="flex-col w-[178px] lg:w-[228px]">
+          <View className="flex-row items-center gap-2">
+            <Text className="text-3xl font-bold text-white tracking-tight">{distance()}</Text>
             <Show when={steps[shown()].type === 'roundabout'}>
-              <View class="px-2 py-0.5 rounded-md bg-white/20"><Text class="text-sm font-bold text-white">{`Exit ${steps[shown()].exit}`}</Text></View>
+              <View className="px-2 py-0.5 rounded-md bg-white/20"><Text className="text-sm font-bold text-white">{`Exit ${steps[shown()].exit}`}</Text></View>
             </Show>
           </View>
-          <Text class="text-lg font-semibold text-sky-50">{title()}</Text>
+          <Text className="text-lg font-semibold text-sky-50">{title()}</Text>
         </View>
       </View>
       <Show when={lanes().length > 0}><LaneStrip /></Show>

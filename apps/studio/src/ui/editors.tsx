@@ -25,49 +25,49 @@ function templateOf(b: Box): string {
 
 function ScriptEditor(b: Box): i32 {
   const editable = b.type === 'script';
-  return <view class="flex-col grow">
-    <view class="flex-row items-center gap-2 h-[36] px-4 bg-white">
-      <text class="text-[13] font-semibold text-zinc-900">{b.title()}</text>
+  return <View className="flex-col grow">
+    <View className="flex-row items-center gap-2 h-[36] px-4 bg-white">
+      <Text className="text-[13] font-semibold text-zinc-900">{b.title()}</Text>
       <Badge label={b.id} />
-      <view class="grow" />
-      <text class="text-[12] text-zinc-500">{editable ? 'Runs when onStart fires · onDone() continues the flow' : 'Read only: add a Script box to write your own code'}</text>
-    </view>
+      <View className="grow" />
+      <Text className="text-[12] text-zinc-500">{editable ? 'Runs when onStart fires · onDone() continues the flow' : 'Read only: add a Script box to write your own code'}</Text>
+    </View>
     <HSep />
-    <textarea class={CODE} lineNumbers wrap={false} readOnly={!editable} value={editable ? (b.rev() >= 0 ? b.script : '') : templateOf(b)}
+    <TextArea className={CODE} lineNumbers wrap={false} readOnly={!editable} value={editable ? (b.rev() >= 0 ? b.script : '') : templateOf(b)}
       onInput={(v: string) => { if (editable) model.setScript(b, v); }} highlight={(l: string) => ui.tsHighlight(l)} />
-  </view>;
+  </View>;
 }
 function selected(): Box[] { const b = model.selectedBox(); if (b === null) return []; return [b as Box]; }
 
 export function ScriptTab(): i32 {
-  return <view class="flex-col grow bg-white">
+  return <View className="flex-col grow bg-white">
     <For each={selected()}>{(b: Box, _i: i32) => ScriptEditor(b)}</For>
     <Show when={selected().length === 0}>
-      <view class="grow items-center justify-center flex-col gap-1">
-        <text class="text-sm font-medium text-zinc-500">No box selected</text>
-        <text class="text-[12] text-zinc-400">Select a Script box to edit its code, or any box to read its template</text>
-      </view>
+      <View className="grow items-center justify-center flex-col gap-1">
+        <Text className="text-sm font-medium text-zinc-500">No box selected</Text>
+        <Text className="text-[12] text-zinc-400">Select a Script box to edit its code, or any box to read its template</Text>
+      </View>
     </Show>
-  </view>;
+  </View>;
 }
 
 /** The whole generated program (regenerated when the diagram changes while this tab is shown). */
 function code(): string { model.revision(); return generate(model.toFile(), 'project.json').code; }
 export function CodeTab(): i32 {
-  return <view class="flex-col grow bg-white">
-    <view class="flex-row items-center gap-2 h-[36] px-4">
-      <text class="text-[13] font-semibold text-zinc-900">build/src/main.ts</text>
+  return <View className="flex-col grow bg-white">
+    <View className="flex-row items-center gap-2 h-[36] px-4">
+      <Text className="text-[13] font-semibold text-zinc-900">build/src/main.ts</Text>
       <Badge label="generated" color="blue" />
-      <view class="grow" />
-      <text class="text-[12] text-zinc-500">Written on every run; edit the diagram, not this file</text>
-    </view>
+      <View className="grow" />
+      <Text className="text-[12] text-zinc-500">Written on every run; edit the diagram, not this file</Text>
+    </View>
     <HSep />
-    <textarea class={CODE} lineNumbers wrap={false} readOnly value={code()} highlight={(l: string) => ui.tsHighlight(l)} />
-  </view>;
+    <TextArea className={CODE} lineNumbers wrap={false} readOnly value={code()} highlight={(l: string) => ui.tsHighlight(l)} />
+  </View>;
 }
 
 export function DocsTab(): i32 {
-  return <view class="flex-col grow bg-white">
-    <canvas class="grow" onDraw={(x: i32, y: i32, w: i32, h: i32) => docs.follow(x, y, w, h)} />
-  </view>;
+  return <View className="flex-col grow bg-white">
+    <Canvas className="grow" onDraw={(x: i32, y: i32, w: i32, h: i32) => docs.follow(x, y, w, h)} />
+  </View>;
 }

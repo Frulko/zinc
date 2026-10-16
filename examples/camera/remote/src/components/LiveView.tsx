@@ -46,7 +46,7 @@ function clickToFocus(e: ui.PointerEvent): void {
 }
 
 export function LiveView(): i32 {
-  return <Canvas class="grow items-center justify-center" onDraw={drawLiveView} onPointerDown={clickToFocus}>
-    {!live() && <Text class="text-sm text-zinc-400">{model() === '' ? 'No camera connected' : 'Live view is off'}</Text>}
+  return <Canvas className="grow items-center justify-center" onDraw={drawLiveView} onPointerDown={clickToFocus}>
+    {!live() && <Text className="text-sm text-zinc-400">{model() === '' ? 'No camera connected' : 'Live view is off'}</Text>}
   </Canvas>;
 }

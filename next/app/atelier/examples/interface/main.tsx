@@ -10,14 +10,14 @@ function change(by: i32): void {
 }
 
 function App(): i32 {
-  return <View class="flex-col w-full h-full items-center justify-center gap-6 bg-[#f3f1ec]">
-    <Text class="text-6xl font-bold text-[#1d1b18]">{`${count()}`}</Text>
-    <View class="flex-row gap-3">
-      <Button class="h-11 px-5 rounded-full bg-[#e9e6df]" onClick={() => change(-1)}>
-        <Text class="text-base font-medium text-[#1d1b18]">Less</Text>
+  return <View className="flex-col w-full h-full items-center justify-center gap-6 bg-[#f3f1ec]">
+    <Text className="text-6xl font-bold text-[#1d1b18]">{`${count()}`}</Text>
+    <View className="flex-row gap-3">
+      <Button className="h-11 px-5 rounded-full bg-[#e9e6df]" onClick={() => change(-1)}>
+        <Text className="text-base font-medium text-[#1d1b18]">Less</Text>
       </Button>
-      <Button class="h-11 px-5 rounded-full bg-[#5746e0]" onClick={() => change(1)}>
-        <Text class="text-base font-medium text-white">More</Text>
+      <Button className="h-11 px-5 rounded-full bg-[#5746e0]" onClick={() => change(1)}>
+        <Text className="text-base font-medium text-white">More</Text>
       </Button>
     </View>
   </View>;

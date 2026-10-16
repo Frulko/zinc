@@ -20,34 +20,34 @@ const TAGS = ['All', 'Travel', 'Food', 'Design'];
 const [tag, setTag] = createSignal<string>('All');
 
 function Card(s: Story, open: (s: Story) => void): i32 {
-  return <view style={[styles.card, { backgroundColor: t().surface }, tag() !== 'All' && tag() !== s.tag && styles.hidden]} onClick={() => open(s)}>
-    <canvas style={{ height: 180 }} onDraw={(x: i32, y: i32, w: i32, h: i32) => cover(x, y, w, h, s.seed, s.c1, s.c2, t())} />
-    <view style={styles.cardBody}>
-      <text style={[styles.tiny, styles.bold, { color: t().accent }]}>{s.tag.toUpperCase()}</text>
-      <text style={[styles.title, { color: t().ink }]}>{s.title}</text>
-      <view style={styles.between}>
-        <view style={styles.row}>
+  return <View style={[styles.card, { backgroundColor: t().surface }, tag() !== 'All' && tag() !== s.tag && styles.hidden]} onClick={() => open(s)}>
+    <Canvas style={{ height: 180 }} onDraw={(x: i32, y: i32, w: i32, h: i32) => cover(x, y, w, h, s.seed, s.c1, s.c2, t())} />
+    <View style={styles.cardBody}>
+      <Text style={[styles.tiny, styles.bold, { color: t().accent }]}>{s.tag.toUpperCase()}</Text>
+      <Text style={[styles.title, { color: t().ink }]}>{s.title}</Text>
+      <View style={styles.between}>
+        <View style={styles.row}>
           <Avatar initials={s.initials} bg={() => s.c2} />
-          <text style={[styles.small, { color: t().muted }]}>{`${s.author} · ${s.minutes} min`}</text>
-        </view>
-        <view style={[styles.row, { gap: 4 }]}>
+          <Text style={[styles.small, { color: t().muted }]}>{`${s.author} · ${s.minutes} min`}</Text>
+        </View>
+        <View style={[styles.row, { gap: 4 }]}>
           <Icon name="heart" size={16} color={() => t().accent} />
-          <text style={[styles.small, { color: t().muted }]}>{`${s.likes}`}</text>
-        </view>
-      </view>
-    </view>
-  </view>;
+          <Text style={[styles.small, { color: t().muted }]}>{`${s.likes}`}</Text>
+        </View>
+      </View>
+    </View>
+  </View>;
 }
 
 export function Discover(open: (s: Story) => void): i32 {
-  return <view style={styles.screen}>
-    <view style={{ flexDirection: 'column', gap: 4 }}>
-      <text style={[styles.tiny, { color: t().muted }]}>THURSDAY, OCTOBER 8</text>
-      <text style={[styles.display, { color: t().ink }]}>Discover</text>
-    </view>
-    <view style={styles.row}>
+  return <View style={styles.screen}>
+    <View style={{ flexDirection: 'column', gap: 4 }}>
+      <Text style={[styles.tiny, { color: t().muted }]}>THURSDAY, OCTOBER 8</Text>
+      <Text style={[styles.display, { color: t().ink }]}>Discover</Text>
+    </View>
+    <View style={styles.row}>
       <For each={TAGS}>{(g: string, i: i32) => <Chip label={g} on={() => tag() === g} press={() => setTag(g)} />}</For>
-    </view>
+    </View>
     <For each={STORIES}>{(s: Story, i: i32) => Card(s, open)}</For>
-  </view>;
+  </View>;
 }

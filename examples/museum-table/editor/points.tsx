@@ -205,23 +205,23 @@ export function PointsEditor(): i32 {
   createEffect(() => { project(); pointing(); selectedPoint(); failed(); ui.repaint(); });
   const kind = (): i32 => Math.max(0, kindIndex(pointing()));
   const title = (): string => { const m = pointing(); return m === null ? '' : project().say(m.title, lang()); };
-  return <view class="grow basis-0 min-w-0 flex-col">
-    <view class="flex-row items-center gap-2 h-11 px-3 shrink-0 bg-zinc-900 border-b border-zinc-800">
+  return <View className="grow basis-0 min-w-0 flex-col">
+    <View className="flex-row items-center gap-2 h-11 px-3 shrink-0 bg-zinc-900 border-b border-zinc-800">
       <Tool icon="chevron-left" label={t(L.BACK_TO_TABLE)} look="plain" off={() => false} onClick={closePoints} />
-      <view class="w-px h-5 mx-1 bg-zinc-800" />
+      <View className="w-px h-5 mx-1 bg-zinc-800" />
       <Ico name={KIND_ICON[kind()]} size={15} color={KIND_COLOUR[kind()]} />
-      <text class="truncate text-sm font-bold text-zinc-100" style={{ maxWidth: 560 }}>{title()}</text>
-    </view>
-    <view class="grow basis-0 min-h-0 relative overflow-hidden bg-zinc-950 cursor-crosshair" onPointerDown={down} onPointerMove={move} onPointerUp={up} onWheel={wheel}
+      <Text className="truncate text-sm font-bold text-zinc-100" style={{ maxWidth: 560 }}>{title()}</Text>
+    </View>
+    <View className="grow basis-0 min-h-0 relative overflow-hidden bg-zinc-950 cursor-crosshair" onPointerDown={down} onPointerMove={move} onPointerUp={up} onWheel={wheel}
       onDoubleClick={(e: ui.PointerEvent) => {}}>
-      <canvas class="absolute inset-0" style={{ lazy: 1 }} onDraw={draw} />
+      <Canvas className="absolute inset-0" style={{ lazy: 1 }} onDraw={draw} />
       <Show when={failed().length > 0}>
-        <view class="absolute inset-0 items-center justify-center"><text class="text-sm text-center text-orange-300" style={{ width: 420 }}>{f(L.CANNOT_SHOW, failed())}</text></view>
+        <View className="absolute inset-0 items-center justify-center"><Text className="text-sm text-center text-orange-300" style={{ width: 420 }}>{f(L.CANNOT_SHOW, failed())}</Text></View>
       </Show>
-      <view class="absolute left-[8] bottom-[8] px-2 py-1 rounded bg-zinc-950"><text class="text-[11px] text-zinc-500">{t(kind() === 2 ? L.POINTS_HINT_PANORAMA : L.POINTS_HINT_MODEL)}</text></view>
-      <view class="absolute right-[10] top-[10] flex-row items-center gap-1 p-1 rounded-lg bg-zinc-900 border border-zinc-800" onPointerDown={(e: ui.PointerEvent) => {}}>
+      <View className="absolute left-[8] bottom-[8] px-2 py-1 rounded bg-zinc-950"><Text className="text-[11px] text-zinc-500">{t(kind() === 2 ? L.POINTS_HINT_PANORAMA : L.POINTS_HINT_MODEL)}</Text></View>
+      <View className="absolute right-[10] top-[10] flex-row items-center gap-1 p-1 rounded-lg bg-zinc-900 border border-zinc-800" onPointerDown={(e: ui.PointerEvent) => {}}>
         <Tool icon="rotate-ccw" label={t(L.RESET_VIEW)} look="quiet" off={() => false} onClick={resetView} />
-      </view>
-    </view>
-  </view>;
+      </View>
+    </View>
+  </View>;
 }

@@ -11,9 +11,9 @@ const rows: i32[] = [];
 for (let i = 0; i < 60; i++) rows.push(i);
 
 function App(): i32 {
-  return <View class="flex-col h-full">
-    <ScrollView ref={list} class="h-[200]">
-      {rows.map((i: i32) => <View class="h-[40] px-2 justify-center"><Text>{`row ${i}`}</Text></View>)}
+  return <View className="flex-col h-full">
+    <ScrollView ref={list} className="h-[200]">
+      {rows.map((i: i32) => <View className="h-[40] px-2 justify-center"><Text>{`row ${i}`}</Text></View>)}
     </ScrollView>
   </View>;
 }

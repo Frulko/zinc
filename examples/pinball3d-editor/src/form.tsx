@@ -110,33 +110,33 @@ function label(fd: Field): string { return advanced() ? fd.name : fieldName(fd.n
 export function unitName(unit: string): string {
   return unit.replaceAll('degrees', '°').replaceAll('per second', '/s').replaceAll('seconds', 's').replaceAll('grams', 'g').replaceAll('s2', 's²');
 }
-function Unit(p: { of: Field }): i32 { return <text class="text-[11px] text-zinc-500">{unitName(p.of.unit)}</text>; }
+function Unit(p: { of: Field }): i32 { return <Text className="text-[11px] text-zinc-500">{unitName(p.of.unit)}</Text>; }
 
 /** One line of the form: the label, the control, and the way back to the default when the field holds something else. */
 function Row(p: { src: Source; field: Field; path: string; children: () => i32 }): i32 {
   const changed = (): boolean => !p.field.required && p.src.get(p.path) !== undefined && !p.src.isDefault(p.path);
-  return <view class="flex-row items-center gap-2 px-4 hover:bg-zinc-800" style={{ minHeight: 32 }} onPointerEnter={(e: ui.PointerEvent) => setHelped(p.path)}>
-    <text class={`w-[112] shrink-0 truncate text-xs ${advanced() ? 'font-mono text-zinc-300' : 'text-zinc-400'}`}>{label(p.field)}</text>
-    <view class="grow basis-0 min-w-0 flex-row items-center gap-[6]">{p.children()}</view>
-    <button class={`w-[20] h-[20] items-center justify-center rounded cursor-pointer bg-transparent hover:bg-zinc-700 ${changed() ? '' : 'opacity-0'}`} tabIndex={-1}
+  return <View className="flex-row items-center gap-2 px-4 hover:bg-zinc-800" style={{ minHeight: 32 }} onPointerEnter={(e: ui.PointerEvent) => setHelped(p.path)}>
+    <Text className={`w-[112] shrink-0 truncate text-xs ${advanced() ? 'font-mono text-zinc-300' : 'text-zinc-400'}`}>{label(p.field)}</Text>
+    <View className="grow basis-0 min-w-0 flex-row items-center gap-[6]">{p.children()}</View>
+    <Button className={`w-[20] h-[20] items-center justify-center rounded cursor-pointer bg-transparent hover:bg-zinc-700 ${changed() ? '' : 'opacity-0'}`} tabIndex={-1}
       onClick={() => { if (changed()) p.src.set(p.path, p.field.def); }}>
       <Ico name="rotate-ccw" size={11} color={MUTED} />
-    </button>
-  </view>;
+    </Button>
+  </View>;
 }
 /** A row of numbers: a point, a size, a box. Each number is set alone; the row is written whole. */
 function TupleBoxes(p: { src: Source; field: Field; path: string }): i32 {
   const cells: i32[] = [];
   for (let i = 0; i < p.field.cols; i++) cells.push(i);
-  return <view class="flex-row items-center gap-1">
-    {cells.map((i: i32, k: i32) => <input class={FIELD} style={{ width: p.field.cols > 3 ? 38 : p.field.cols > 2 ? 46 : 56 }} value={shown(p.src.get(`${p.path}[${i}]`))}
+  return <View className="flex-row items-center gap-1">
+    {cells.map((i: i32, k: i32) => <Input className={FIELD} style={{ width: p.field.cols > 3 ? 38 : p.field.cols > 2 ? 46 : 56 }} value={shown(p.src.get(`${p.path}[${i}]`))}
       onChange={(v: string) => {
         const n = typed(v), row: any = p.src.get(p.path), next: number[] = [];
         if (!isNumber(n)) { refresh(); return; }
         for (let c = 0; c < row.length; c++) { const old: number = row[c]; next.push(c === i ? n : old); }
         p.src.set(p.path, next);
       }} />)}
-  </view>;
+  </View>;
 }
 /** A reference: one of the names the table has for it, or none. */
 function Names(p: { src: Source; field: Field; path: string }): i32 {
@@ -188,36 +188,36 @@ function ColorField(p: { src: Source; path: string }): i32 {
     src.drag(path, hexOf(shade(h, now[1] < 0.05 ? 0.8 : now[1], now[2] < 0.05 ? 0.8 : now[2])));
   };
   createEffect(() => { text(); hue(); open(); ui.repaint(); });
-  const node = <view class="flex-row items-center gap-2">
-    <button ref={swatch} class="w-[24] h-[24] rounded border border-zinc-600 cursor-pointer" style={{ bg: text().length === 7 ? rgb(text()) : 0 }} tabIndex={-1} onClick={toggle} />
-    <input class={`font-mono ${FIELD}`} style={{ width: 84 }} value={text()} onChange={(v: string) => { src.set(path, v.trim().toLowerCase()); }} />
-    <view ref={pop} hidden={1} class="flex-col gap-2 p-2 rounded-md bg-zinc-900 border border-zinc-600 shadow-lg" style={{ width: W + 18 }}>
-      <view class="relative rounded overflow-hidden cursor-crosshair" style={{ width: W, height: H }}
+  const node = <View className="flex-row items-center gap-2">
+    <Button ref={swatch} className="w-[24] h-[24] rounded border border-zinc-600 cursor-pointer" style={{ bg: text().length === 7 ? rgb(text()) : 0 }} tabIndex={-1} onClick={toggle} />
+    <Input className={`font-mono ${FIELD}`} style={{ width: 84 }} value={text()} onChange={(v: string) => { src.set(path, v.trim().toLowerCase()); }} />
+    <View ref={pop} hidden={1} className="flex-col gap-2 p-2 rounded-md bg-zinc-900 border border-zinc-600 shadow-lg" style={{ width: W + 18 }}>
+      <View className="relative rounded overflow-hidden cursor-crosshair" style={{ width: W, height: H }}
         onPointerDown={(e: ui.PointerEvent) => { grab = 1; src.seal(); shadeAt(e); }} onPointerMove={(e: ui.PointerEvent) => { if (grab === 1) shadeAt(e); }} onPointerUp={(e: ui.PointerEvent) => { grab = 0; src.seal(); }}>
-        <canvas class="absolute inset-0" style={{ lazy: 1 }} onDraw={(x: i32, y: i32, w: i32, h: i32) => {
+        <Canvas className="absolute inset-0" style={{ lazy: 1 }} onDraw={(x: i32, y: i32, w: i32, h: i32) => {
           for (let c = 0; c < W; c += 4) gradient(x + c, y, 4, H, 0, shade(hue(), (c + 2) / W, 1), 0x000000, true, 255);
           const now = hsvOf(text()), mx = Math.round(x + now[1] * W), my = Math.round(y + (1 - now[2]) * H);
           border(mx - 5, my - 5, 10, 10, 5, 2, 0xffffff, 255);
           border(mx - 6, my - 6, 12, 12, 6, 1, 0x000000, 255);
         }} />
-      </view>
-      <view class="relative rounded overflow-hidden cursor-crosshair" style={{ width: W, height: STRIP }}
+      </View>
+      <View className="relative rounded overflow-hidden cursor-crosshair" style={{ width: W, height: STRIP }}
         onPointerDown={(e: ui.PointerEvent) => { grab = 2; src.seal(); hueAt(e); }} onPointerMove={(e: ui.PointerEvent) => { if (grab === 2) hueAt(e); }} onPointerUp={(e: ui.PointerEvent) => { grab = 0; src.seal(); }}>
-        <canvas class="absolute inset-0" style={{ lazy: 1 }} onDraw={(x: i32, y: i32, w: i32, h: i32) => {
+        <Canvas className="absolute inset-0" style={{ lazy: 1 }} onDraw={(x: i32, y: i32, w: i32, h: i32) => {
           const part = W / 6;
           for (let k = 0; k < 6; k++) gradient(Math.round(x + k * part), y, Math.ceil(part), STRIP, 0, shade(k * 60, 1, 1), shade(k * 60 + 60, 1, 1), false, 255);
           const mx = Math.round(x + hue() / 359 * W);
           rect(mx - 2, y, 4, STRIP, 0x000000);
           rect(mx - 1, y, 2, STRIP, 0xffffff);
         }} />
-      </view>
+      </View>
       <Heading label={t(L.COLOURS_IN_USE)} />
-      <view class="flex-row flex-wrap gap-1" style={{ width: W }}>
-        <For each={src.colors().slice(0, 40)}>{(c: string, i: i32) => <button class="w-[18] h-[18] rounded border border-zinc-700 cursor-pointer" style={{ bg: rgb(c) }} tabIndex={-1}
+      <View className="flex-row flex-wrap gap-1" style={{ width: W }}>
+        <For each={src.colors().slice(0, 40)}>{(c: string, i: i32) => <Button className="w-[18] h-[18] rounded border border-zinc-700 cursor-pointer" style={{ bg: rgb(c) }} tabIndex={-1}
           onClick={() => { src.seal(); src.set(path, c); setHue(hsvOf(c)[0]); }} />}</For>
-      </view>
-    </view>
-  </view>;
+      </View>
+    </View>
+  </View>;
   ui.openLayer(pop.node, { priority: 100 });
   ui.anchor(pop.node, swatch.node, 'bottom-start', 2);
   ui.onDismiss(pop.node, close);
@@ -239,27 +239,27 @@ function FileField(p: { src: Source; field: Field; path: string }): i32 {
     out.push(IMPORT);
     return out;
   };
-  return <view class="flex-col gap-1 py-1" style={{ width: WIDE }}>
-    <view class="flex-row items-center gap-1">
-      <view style={{ width: kind === 'sound' ? WIDE - 30 : WIDE }}>
+  return <View className="flex-col gap-1 py-1" style={{ width: WIDE }}>
+    <View className="flex-row items-center gap-1">
+      <View style={{ width: kind === 'sound' ? WIDE - 30 : WIDE }}>
         <Picker value={text} options={options} label={(v: string) => v === '' ? t(L.NONE) : v === IMPORT ? t(L.IMPORT) : v} picture={(v: string) => real(v) ? src.filePicture(v) : -1}
           note={(v: string) => real(v) ? src.fileNote(v) : ''} search={true} width={300} look="field" title="" onPick={(v: string) => { if (v === IMPORT) src.importFor(path, kind); else src.set(path, v); }} />
-      </view>
+      </View>
       <Show when={kind === 'sound'}>
-        <button class={`w-[26] h-[26] items-center justify-center rounded-md cursor-pointer bg-zinc-800 hover:bg-zinc-700 ${text() === '' ? 'opacity-40' : ''}`} tabIndex={-1} onClick={() => { if (text() !== '') src.hearFile(text()); }}>
+        <Button className={`w-[26] h-[26] items-center justify-center rounded-md cursor-pointer bg-zinc-800 hover:bg-zinc-700 ${text() === '' ? 'opacity-40' : ''}`} tabIndex={-1} onClick={() => { if (text() !== '') src.hearFile(text()); }}>
           <Ico name="play" size={12} color={ACCENT} />
-        </button>
+        </Button>
       </Show>
-    </view>
+    </View>
     <Show when={text() !== ''}>
-      <view class="flex-row items-center gap-2">
+      <View className="flex-row items-center gap-2">
         <Show when={src.filePicture(text()) >= 0}>
-          <canvas class="shrink-0 rounded border border-zinc-700" style={{ width: 44, height: 44, lazy: 1 }} onDraw={(x: i32, y: i32, w: i32, h: i32) => drawFitted(src.filePicture(text()), x, y, w, h)} />
+          <Canvas className="shrink-0 rounded border border-zinc-700" style={{ width: 44, height: 44, lazy: 1 }} onDraw={(x: i32, y: i32, w: i32, h: i32) => drawFitted(src.filePicture(text()), x, y, w, h)} />
         </Show>
-        <text class="text-[10px] text-zinc-500">{src.fileNote(text())}</text>
-      </view>
+        <Text className="text-[10px] text-zinc-500">{src.fileNote(text())}</Text>
+      </View>
     </Show>
-  </view>;
+  </View>;
 }
 // ---------------------------------------------------------------- objects that are of a kind: conditions, actions
 // The format says what each kind reads (the variants of the schema). A part of such an object is then never typed as the file has
@@ -279,42 +279,42 @@ function variantsFor(src: Source, path: string): Variants | null {
  *  the control of a line of a form. */
 function Part(p: { src: Source; schema: Schema; item: string; slot: string; said: string; inline: boolean }): i32 {
   const src = p.src, s = p.schema, item = p.item, vs = s.variants as Variants;
-  if (p.slot === '') return <text class="text-xs text-zinc-300">{p.said}</text>;
+  if (p.slot === '') return <Text className="text-xs text-zinc-300">{p.said}</Text>;
   const kind = (): string => `${src.get(`${item}.${vs.kind}`)}`;
   if (p.slot === vs.kind) {
     const kinds = (): string[] => vs.all.map((v: Variant) => v.word), said = (w: string): string => kindSaid(s.name, w), pick = (w: string): void => { src.setKind(item, w); };
-    return p.inline ? <Word value={kind} options={kinds} label={said} onPick={pick} /> : <view style={{ width: WIDE }}><Chooser value={kind} options={kinds} label={said} onPick={pick} /></view>;
+    return p.inline ? <Word value={kind} options={kinds} label={said} onPick={pick} /> : <View style={{ width: WIDE }}><Chooser value={kind} options={kinds} label={said} onPick={pick} /></View>;
   }
   const aims = p.slot === 'target' || p.slot === vs.target, ways = p.slot === 'way' || p.slot === vs.way;
   if (!aims && !ways) {
     const at = `${item}.${p.slot}`;
-    return <input class={FIELD} style={{ width: p.inline ? 62 : 84 }} value={shown(src.get(at))} onChange={(x: string) => { const n = typed(x); if (isNumber(n)) src.set(at, n); else refresh(); }} />;
+    return <Input className={FIELD} style={{ width: p.inline ? 62 : 84 }} value={shown(src.get(at))} onChange={(x: string) => { const n = typed(x); if (isNumber(n)) src.set(at, n); else refresh(); }} />;
   }
   const path = `${item}.${aims ? vs.target : vs.way}`;
   const text = (): string => { const x: any = src.get(path); return typeof x === 'string' ? `${x}` : ''; };
   const pick = (x: string): void => { src.set(path, x); };
   // what a target or a way offers depends on the kind: the control is made again when the kind changes
-  return <view class="flex-row items-center">
+  return <View className="flex-row items-center">
     <For each={[kind()]}>{(word: string, i: i32) => {
       const v = vs.of(word);
-      if (v === null || (aims ? !v.aimed : v.ways.length === 0)) return <text class="text-xs text-zinc-600">{t(L.NOT_READ)}</text>;
+      if (v === null || (aims ? !v.aimed : v.ways.length === 0)) return <Text className="text-xs text-zinc-600">{t(L.NOT_READ)}</Text>;
       const kindOf: Variant = v;
       if (ways) {
         const options = (): string[] => kindOf.ways, label = (x: string): string => wordSaid(s.name, word, x);
-        return p.inline ? <Word value={text} options={options} label={label} onPick={pick} /> : <view style={{ width: WIDE }}><Chooser value={text} options={options} label={label} onPick={pick} /></view>;
+        return p.inline ? <Word value={text} options={options} label={label} onPick={pick} /> : <View style={{ width: WIDE }}><Chooser value={text} options={options} label={label} onPick={pick} /></View>;
       }
-      if (kindOf.names === '' && kindOf.words.length === 0) return <input class={FIELD} style={{ width: p.inline ? 168 : WIDE }} value={text()} onChange={(x: string) => { src.set(path, x); }} />;
+      if (kindOf.names === '' && kindOf.words.length === 0) return <Input className={FIELD} style={{ width: p.inline ? 168 : WIDE }} value={text()} onChange={(x: string) => { src.set(path, x); }} />;
       const options = (): string[] => kindOf.words.concat(kindOf.among !== '' ? src.among(kindOf.among) : kindOf.names === '' ? [] : src.names(kindOf.names));
       const label = (x: string): string => kindOf.words.indexOf(x) >= 0 ? wordSaid(s.name, word, x) : x;
       const heard = kindOf.names === 'sounds';
-      return <view class="flex-row items-center gap-1">
-        {p.inline ? <Word value={text} options={options} label={label} onPick={pick} /> : <view style={{ width: heard ? WIDE - 30 : WIDE }}><Chooser value={text} options={options} label={label} onPick={pick} /></view>}
-        {heard ? <button class="w-[24] h-[24] items-center justify-center rounded-md cursor-pointer bg-zinc-800 hover:bg-zinc-700" tabIndex={-1} onClick={() => { if (text() !== '') src.hear(text()); }}>
+      return <View className="flex-row items-center gap-1">
+        {p.inline ? <Word value={text} options={options} label={label} onPick={pick} /> : <View style={{ width: heard ? WIDE - 30 : WIDE }}><Chooser value={text} options={options} label={label} onPick={pick} /></View>}
+        {heard ? <Button className="w-[24] h-[24] items-center justify-center rounded-md cursor-pointer bg-zinc-800 hover:bg-zinc-700" tabIndex={-1} onClick={() => { if (text() !== '') src.hear(text()); }}>
           <Ico name="play" size={11} color={ACCENT} />
-        </button> : <view />}
-      </view>;
+        </Button> : <View />}
+      </View>;
     }}</For>
-  </view>;
+  </View>;
 }
 /** An object that is of a kind, as the sentence a person would say: its words, and each part at the place the language puts it,
  *  as a choice or a number. */
@@ -327,7 +327,7 @@ function Sentence(p: { src: Source; schema: Schema; item: string; width: number 
   };
   // what every kind reads (the text and the light of a step) is a line each under the sentence
   const extras = extrasOf(s).map((name: string) => s.field(name) as Field);
-  return <view class="flex-col" style={{ width: p.width }}>
+  return <View className="flex-col" style={{ width: p.width }}>
     <For each={[shape()]}>{(key: string, i: i32) => {
       // one node per word, so that a long sentence goes on to the next line between two words
       const parts: Piece[] = [];
@@ -335,15 +335,15 @@ function Sentence(p: { src: Source; schema: Schema; item: string; width: number 
         if (piece.slot !== '') { parts.push(piece); continue; }
         for (const w of piece.text.split(' ')) if (w.length > 0) parts.push(new Piece(w, ''));
       }
-      return <view class="flex-row flex-wrap items-center gap-1" style={{ width: p.width, minHeight: 24 }}>
+      return <View className="flex-row flex-wrap items-center gap-1" style={{ width: p.width, minHeight: 24 }}>
         {parts.map((piece: Piece, k: i32) => <Part src={src} schema={s} item={item} slot={piece.slot} said={piece.text} inline={true} />)}
-      </view>;
+      </View>;
     }}</For>
-    {extras.map((fd: Field, k: i32) => <view class="flex-row items-center gap-2" style={{ minHeight: 30 }} onPointerEnter={(e: ui.PointerEvent) => setHelped(`${item}.${fd.name}`)}>
-      <text class="shrink-0 truncate text-[11px] text-zinc-500" style={{ width: p.width - WIDE - 8 }}>{label(fd)}</text>
+    {extras.map((fd: Field, k: i32) => <View className="flex-row items-center gap-2" style={{ minHeight: 30 }} onPointerEnter={(e: ui.PointerEvent) => setHelped(`${item}.${fd.name}`)}>
+      <Text className="shrink-0 truncate text-[11px] text-zinc-500" style={{ width: p.width - WIDE - 8 }}>{label(fd)}</Text>
       <Control src={src} field={fd} path={`${item}.${fd.name}`} />
-    </view>)}
-  </view>;
+    </View>)}
+  </View>;
 }
 /** A list of objects that are of a kind (the conditions and the actions of a rule): each as its sentence, with the ways to make it
  *  another kind, to move it and to take it away; the button at the top adds one, of the kind chosen in its list. */
@@ -353,28 +353,28 @@ function Guided(p: { src: Source; field: Field; path: string }): i32 {
   const places = (): string[] => { const out: string[] = []; for (let i = 0; i < count(); i++) out.push(`${i}`); return out; };
   const kinds = (): string[] => vs.all.map((v: Variant) => v.word), kindSays = (w: string): string => kindSaid(of.name, w);
   const none = (): string => { const own = phrase(`empty.${p.field.name}`); return own === '' ? t(L.NONE) : own; };
-  return <view class="flex-col mt-2" onPointerEnter={(e: ui.PointerEvent) => setHelped(p.path)}>
-    <view class="flex-row items-center gap-2 px-4 h-7">
+  return <View className="flex-col mt-2" onPointerEnter={(e: ui.PointerEvent) => setHelped(p.path)}>
+    <View className="flex-row items-center gap-2 px-4 h-7">
       <Heading label={label(p.field)} />
-      <text class="text-[11px] text-zinc-600">{`${count()}`}</text>
-      <view class="grow" />
+      <Text className="text-[11px] text-zinc-600">{`${count()}`}</Text>
+      <View className="grow" />
       <Menu icon="plus" title={t(L.ADD)} options={kinds} label={kindSays} onPick={(w: string) => { src.addKind(p.path, w); }} />
-    </view>
-    <Show when={count() === 0}><text class="px-4 py-1 text-[11px] text-zinc-500" style={{ width: 340 }}>{none()}</text></Show>
-    <view class="flex-col gap-1 px-4 pt-1">
+    </View>
+    <Show when={count() === 0}><Text className="px-4 py-1 text-[11px] text-zinc-500" style={{ width: 340 }}>{none()}</Text></Show>
+    <View className="flex-col gap-1 px-4 pt-1">
       <For each={places()}>{(at: string, i: i32) => {
         const item = `${p.path}[${at}]`;
-        return <view class="flex-row items-start gap-1 pl-2 pr-1 py-1 rounded-md bg-zinc-950 border border-zinc-800">
+        return <View className="flex-row items-start gap-1 pl-2 pr-1 py-1 rounded-md bg-zinc-950 border border-zinc-800">
           <Sentence src={src} schema={of} item={item} width={226} />
-          <view class="flex-row items-center shrink-0" style={{ height: 24 }}>
+          <View className="flex-row items-center shrink-0" style={{ height: 24 }}>
             <Menu icon="repeat" title="" options={kinds} label={kindSays} onPick={(w: string) => { src.setKind(item, w); }} />
-            <button class={small} tabIndex={-1} onClick={() => { src.move(item, -1); }}><Ico name="arrow-up" size={11} color={MUTED} /></button>
-            <button class={small} tabIndex={-1} onClick={() => { src.remove(item); }}><Ico name="x" size={11} color={MUTED} /></button>
-          </view>
-        </view>;
+            <Button className={small} tabIndex={-1} onClick={() => { src.move(item, -1); }}><Ico name="arrow-up" size={11} color={MUTED} /></Button>
+            <Button className={small} tabIndex={-1} onClick={() => { src.remove(item); }}><Ico name="x" size={11} color={MUTED} /></Button>
+          </View>
+        </View>;
       }}</For>
-    </view>
-  </view>;
+    </View>
+  </View>;
 }
 /** The object at a path of the open table as a sentence: an object that is of a kind, or one that holds lists of such objects (a
  *  rule); '' for anything else, and in the advanced mode. */
@@ -394,37 +394,37 @@ function Control(p: { src: Source; field: Field; path: string }): i32 {
   if (vs !== null && (fd.name === vs.kind || fd.name === vs.target || fd.name === vs.way)) return <Part src={src} schema={src.schemaOf(ownerOf(path)) as Schema} item={ownerOf(path)} slot={fd.name} said="" inline={false} />;
   const text = (): string => { const v: any = src.get(path); return typeof v === 'string' ? `${v}` : ''; };
   const count = (): string => { const v: any = src.get(path); return v === undefined ? '0' : `${v.length}`; };
-  if (fd.kind === Kind.Num || fd.kind === Kind.Int) return <view class="flex-row items-center gap-[6]">
-    <input class={FIELD} style={{ width: 84 }} value={shown(src.get(path))} onChange={(v: string) => { const n = typed(v); if (isNumber(n)) src.set(path, n); else refresh(); }} />
+  if (fd.kind === Kind.Num || fd.kind === Kind.Int) return <View className="flex-row items-center gap-[6]">
+    <Input className={FIELD} style={{ width: 84 }} value={shown(src.get(path))} onChange={(v: string) => { const n = typed(v); if (isNumber(n)) src.set(path, n); else refresh(); }} />
     <Unit of={fd} />
-  </view>;
+  </View>;
   if (fd.kind === Kind.Bool) return <Switch value={() => src.get(path) === true} yes={t(L.YES)} no={t(L.NO)} onPick={(v: boolean) => { src.set(path, v); }} />;
   if (fd.kind === Kind.Color) return <ColorField src={src} path={path} />;
   if (fd.kind === Kind.Choice) {
     const said = (c: string): string => c === '' ? t(L.NONE) : c;
-    if (fd.choices.length <= 3 && fd.choices.join('').length < 22) return <view style={{ width: WIDE }}><Segmented options={fd.choices} labels={fd.choices.map((c: string) => said(c))} value={text} onPick={(v: string) => { src.set(path, v); }} /></view>;
-    return <view style={{ width: WIDE }}><Chooser value={text} options={() => fd.choices} label={said} onPick={(v: string) => { src.set(path, v); }} /></view>;
+    if (fd.choices.length <= 3 && fd.choices.join('').length < 22) return <View style={{ width: WIDE }}><Segmented options={fd.choices} labels={fd.choices.map((c: string) => said(c))} value={text} onPick={(v: string) => { src.set(path, v); }} /></View>;
+    return <View style={{ width: WIDE }}><Chooser value={text} options={() => fd.choices} label={said} onPick={(v: string) => { src.set(path, v); }} /></View>;
   }
   if (fd.kind === Kind.Ref) {
-    if (fd.to !== 'sounds') return <view style={{ width: WIDE }}><Names src={src} field={fd} path={path} /></view>;
+    if (fd.to !== 'sounds') return <View style={{ width: WIDE }}><Names src={src} field={fd} path={path} /></View>;
     // the name of a sound: it can be heard
-    return <view class="flex-row items-center gap-1" style={{ width: WIDE }}>
-      <view style={{ width: WIDE - 30 }}><Names src={src} field={fd} path={path} /></view>
-      <button class={`w-[26] h-[26] items-center justify-center rounded-md cursor-pointer bg-zinc-800 hover:bg-zinc-700 ${text() === '' ? 'opacity-40' : ''}`} tabIndex={-1} onClick={() => { if (text() !== '') src.hear(text()); }}>
+    return <View className="flex-row items-center gap-1" style={{ width: WIDE }}>
+      <View style={{ width: WIDE - 30 }}><Names src={src} field={fd} path={path} /></View>
+      <Button className={`w-[26] h-[26] items-center justify-center rounded-md cursor-pointer bg-zinc-800 hover:bg-zinc-700 ${text() === '' ? 'opacity-40' : ''}`} tabIndex={-1} onClick={() => { if (text() !== '') src.hear(text()); }}>
         <Ico name="play" size={12} color={ACCENT} />
-      </button>
-    </view>;
+      </Button>
+    </View>;
   }
   if (fd.kind === Kind.Asset) return <FileField src={src} field={fd} path={path} />;
-  if (fd.kind === Kind.Tuple) return <view class="flex-row items-center gap-[6]"><TupleBoxes src={src} field={fd} path={path} /><Unit of={fd} /></view>;
-  if (fd.kind === Kind.Rows) return <text class="text-xs text-zinc-500">{f(isPath(fd) ? L.POINTS : L.ROWS, count())}</text>;
-  if (fd.kind === Kind.List) return <text class="text-xs text-zinc-500">{f(L.ITEMS, count())}</text>;
+  if (fd.kind === Kind.Tuple) return <View className="flex-row items-center gap-[6]"><TupleBoxes src={src} field={fd} path={path} /><Unit of={fd} /></View>;
+  if (fd.kind === Kind.Rows) return <Text className="text-xs text-zinc-500">{f(isPath(fd) ? L.POINTS : L.ROWS, count())}</Text>;
+  if (fd.kind === Kind.List) return <Text className="text-xs text-zinc-500">{f(L.ITEMS, count())}</Text>;
   if (fd.kind === Kind.Texts) {
     const lines = (): string => { const v: any = src.get(path); const out: string[] = []; if (v !== undefined) for (let i = 0; i < v.length; i++) out.push(`${v[i]}`); return out.join('\n'); };
-    return <textarea class="p-2 rounded-md bg-zinc-950 border border-zinc-700 text-xs text-zinc-100 focus:border-amber-400" style={{ width: WIDE }} rows={4} placeholder={t(L.ONE_PER_LINE)} value={lines()}
+    return <TextArea className="p-2 rounded-md bg-zinc-950 border border-zinc-700 text-xs text-zinc-100 focus:border-amber-400" style={{ width: WIDE }} rows={4} placeholder={t(L.ONE_PER_LINE)} value={lines()}
       onChange={(v: string) => { src.set(path, v.split('\n').map((s: string) => s.trim()).filter((s: string) => s.length > 0)); }} />;
   }
-  return <input class={FIELD} style={{ width: WIDE }} value={text()} onChange={(v: string) => { src.set(path, v); }} />;
+  return <Input className={FIELD} style={{ width: WIDE }} value={text()} onChange={(v: string) => { src.set(path, v); }} />;
 }
 /** A list of objects inside a form (the rules, the steps of a mission, the actions of a rule): a line per item, which says what the
  *  item is and opens its own form, and a way to add one. */
@@ -435,27 +435,27 @@ function Items(p: { src: Source; field: Field; path: string }): i32 {
     if (v !== undefined) for (let i = 0; i < v.length; i++) out.push(`${i} ${p.src.summary(`${p.path}[${i}]`)}`);
     return out;
   };
-  return <view class="flex-col mt-2" onPointerEnter={(e: ui.PointerEvent) => setHelped(p.path)}>
-    <view class="flex-row items-center gap-2 px-4 h-7">
+  return <View className="flex-col mt-2" onPointerEnter={(e: ui.PointerEvent) => setHelped(p.path)}>
+    <View className="flex-row items-center gap-2 px-4 h-7">
       <Heading label={label(p.field)} />
-      <text class="text-[11px] text-zinc-600">{`${rows().length}`}</text>
-    </view>
-    <view class="flex-col gap-[2] px-4">
+      <Text className="text-[11px] text-zinc-600">{`${rows().length}`}</Text>
+    </View>
+    <View className="flex-col gap-[2] px-4">
       <For each={rows()}>{(row: string, i: i32) => {
         const cut = row.indexOf(' '), at = row.slice(0, cut);
         // a line that is a sentence (a rule) is shown whole, on as many lines as it takes
-        return <button class="flex-row items-center justify-start gap-2 px-2 py-[6] rounded-md cursor-pointer bg-zinc-950 border border-zinc-800 hover:border-zinc-600" onClick={() => p.src.open(`${p.path}[${at}]`)}>
-          <text class="w-[18] shrink-0 text-right text-[11px] text-zinc-600">{`${parseInt(at, 10) + 1}`}</text>
-          <text class="grow basis-0 text-left text-xs text-zinc-200" style={{ width: 236 }}>{row.slice(cut + 1)}</text>
+        return <Button className="flex-row items-center justify-start gap-2 px-2 py-[6] rounded-md cursor-pointer bg-zinc-950 border border-zinc-800 hover:border-zinc-600" onClick={() => p.src.open(`${p.path}[${at}]`)}>
+          <Text className="w-[18] shrink-0 text-right text-[11px] text-zinc-600">{`${parseInt(at, 10) + 1}`}</Text>
+          <Text className="grow basis-0 text-left text-xs text-zinc-200" style={{ width: 236 }}>{row.slice(cut + 1)}</Text>
           <Ico name="chevron-right" size={12} color={MUTED} />
-        </button>;
+        </Button>;
       }}</For>
-      <button class="flex-row items-center justify-center gap-[6] h-7 px-2 rounded-md cursor-pointer bg-zinc-900 border border-zinc-700 hover:bg-zinc-800" onClick={() => p.src.add(p.path)}>
+      <Button className="flex-row items-center justify-center gap-[6] h-7 px-2 rounded-md cursor-pointer bg-zinc-900 border border-zinc-700 hover:bg-zinc-800" onClick={() => p.src.add(p.path)}>
         <Ico name="plus" size={12} color={MUTED} />
-        <text class="text-xs font-bold text-zinc-300">{t(L.ADD)}</text>
-      </button>
-    </view>
-  </view>;
+        <Text className="text-xs font-bold text-zinc-300">{t(L.ADD)}</Text>
+      </Button>
+    </View>
+  </View>;
 }
 /** A height profile of the table as a curve to shape: the height (up) along the path (from its start at the left to its end at the right). A
  *  point is dragged; a double click adds one; the first and the last stay at the two ends of the path. */
@@ -470,8 +470,8 @@ function ProfileChart(p: { path: string }): i32 {
   const fractionAt = (x: number): number => Math.round(Math.max(0, Math.min(1, (x - PAD) / (W - 2 * PAD))) * 100) / 100;
   const heightAt = (y: number): number => Math.round(Math.max(0, Math.min(glass(), (H - PAD - y) / (H - 2 * PAD) * glass())) * 10) / 10;
   createEffect(() => { doc(); activeRow(); ui.repaint(); });
-  return <view class="flex-col gap-1 px-4 py-2" onPointerEnter={(e: ui.PointerEvent) => setHelped(p.path)}>
-    <view class="relative rounded-md bg-zinc-950 border border-zinc-700 overflow-hidden cursor-crosshair" style={{ width: W, height: H }}
+  return <View className="flex-col gap-1 px-4 py-2" onPointerEnter={(e: ui.PointerEvent) => setHelped(p.path)}>
+    <View className="relative rounded-md bg-zinc-950 border border-zinc-700 overflow-hidden cursor-crosshair" style={{ width: W, height: H }}
       onPointerDown={(e: ui.PointerEvent) => {
         grabbed = -1;
         for (let i = 0; i < count(); i++) if (Math.abs(px(at(i, 0)) - e.x) < 8 && Math.abs(py(at(i, 1)) - e.y) < 8) grabbed = i;
@@ -492,7 +492,7 @@ function ProfileChart(p: { path: string }): i32 {
         grabbed = -1;
         if (place > 0 && changeRows(p.path, place, [fraction, heightAt(e.y)])) setActiveRow(`${p.path}[${place}]`);
       }}>
-      <canvas class="absolute inset-0" style={{ lazy: 1 }} onDraw={(x: i32, y: i32, w: i32, h: i32) => {
+      <Canvas className="absolute inset-0" style={{ lazy: 1 }} onDraw={(x: i32, y: i32, w: i32, h: i32) => {
         const n = count(), pts: number[] = [], top = glass();
         for (let g = 0; g <= top; g += 5) rect(x + PAD, Math.round(y + py(g)), W - 2 * PAD, 1, g === 0 ? 0x52525b : 0x27272a);
         for (let i = 0; i < n; i++) { pts.push(x + px(at(i, 0))); pts.push(y + py(at(i, 1))); }
@@ -503,34 +503,34 @@ function ProfileChart(p: { path: string }): i32 {
           rect(cx - 4, cy - 4, 8, 8, activeRow() === `${p.path}[${i}]` ? ACCENT : 0xfafafa);
         }
       }} />
-    </view>
-    <view class="flex-row" style={{ width: W }}>
-      <text class="text-[10px] text-zinc-500">{t(L.START)}</text>
-      <view class="grow" />
-      <text class="text-[10px] text-zinc-500">{`0 – ${glass()} ${t(L.CM)}`}</text>
-      <view class="grow" />
-      <text class="text-[10px] text-zinc-500">{t(L.END)}</text>
-    </view>
-    <text class="text-[11px] text-zinc-500" style={{ width: W }}>{t(L.PROFILE_HOW)}</text>
-  </view>;
+    </View>
+    <View className="flex-row" style={{ width: W }}>
+      <Text className="text-[10px] text-zinc-500">{t(L.START)}</Text>
+      <View className="grow" />
+      <Text className="text-[10px] text-zinc-500">{`0 – ${glass()} ${t(L.CM)}`}</Text>
+      <View className="grow" />
+      <Text className="text-[10px] text-zinc-500">{t(L.END)}</Text>
+    </View>
+    <Text className="text-[11px] text-zinc-500" style={{ width: W }}>{t(L.PROFILE_HOW)}</Text>
+  </View>;
 }
 /** One field of a form: an object of the format is a heading and its own fields under it, a height profile a curve, anything else a
  *  line. */
 function Entry(p: { src: Source; field: Field; path: string }): i32 {
   const fd = p.field;
-  if (isProfile(fd)) return <view class="flex-col"><Row src={p.src} field={fd} path={p.path}><Control src={p.src} field={fd} path={p.path} /></Row><ProfileChart path={p.path} /></view>;
-  if (isPath(fd)) return <view class="flex-col">
+  if (isProfile(fd)) return <View className="flex-col"><Row src={p.src} field={fd} path={p.path}><Control src={p.src} field={fd} path={p.path} /></Row><ProfileChart path={p.path} /></View>;
+  if (isPath(fd)) return <View className="flex-col">
     <Row src={p.src} field={fd} path={p.path}><Control src={p.src} field={fd} path={p.path} /></Row>
-    <text class="px-4 pb-2 text-[11px] text-zinc-500" style={{ width: 340 }}>{t(L.PATH_HINT)}</text>
-  </view>;
+    <Text className="px-4 pb-2 text-[11px] text-zinc-500" style={{ width: 340 }}>{t(L.PATH_HINT)}</Text>
+  </View>;
   // a list of objects that are of a kind is its sentences (the advanced mode keeps the lines that open each object's fields)
   if (fd.kind === Kind.List && !advanced() && fd.of !== null && (fd.of as Schema).variants !== null) return <Guided src={p.src} field={fd} path={p.path} />;
   if (fd.kind === Kind.List) return <Items src={p.src} field={fd} path={p.path} />;
   if (fd.kind !== Kind.Obj) return <Row src={p.src} field={fd} path={p.path}><Control src={p.src} field={fd} path={p.path} /></Row>;
-  return <view class="flex-col mt-2">
-    <view class="flex-row items-center px-4 h-7" onPointerEnter={(e: ui.PointerEvent) => setHelped(p.path)}><Heading label={label(fd)} /></view>
-    <view class="flex-col ml-4 border-l border-zinc-800"><Fields src={p.src} schema={fd.of as Schema} path={p.path} whole={true} /></view>
-  </view>;
+  return <View className="flex-col mt-2">
+    <View className="flex-row items-center px-4 h-7" onPointerEnter={(e: ui.PointerEvent) => setHelped(p.path)}><Heading label={label(fd)} /></View>
+    <View className="flex-col ml-4 border-l border-zinc-800"><Fields src={p.src} schema={fd.of as Schema} path={p.path} whole={true} /></View>
+  </View>;
 }
 /** What a form leaves out: what the file fixes for every table (a choice of one word), the version outside the advanced mode. */
 function offered(fd: Field, path: string): boolean { return !(fd.kind === Kind.Choice && fd.choices.length === 1) && (advanced() || fd.name !== 'version' || path !== ''); }
@@ -539,7 +539,7 @@ function offered(fd: Field, path: string): boolean { return !(fd.kind === Kind.C
 export function Fields(p: { src: Source; schema: Schema; path: string; whole: boolean }): i32 {
   const at = (fd: Field): string => p.path === '' ? fd.name : `${p.path}.${fd.name}`;
   const fields = p.schema.fields.filter((fd: Field) => offered(fd, p.path) && (p.whole || (fd.kind !== Kind.Obj && fd.kind !== Kind.List)));
-  return <view class="flex-col">{fields.map((fd: Field, i: i32) => <Entry src={p.src} field={fd} path={at(fd)} />)}</view>;
+  return <View className="flex-col">{fields.map((fd: Field, i: i32) => <Entry src={p.src} field={fd} path={at(fd)} />)}</View>;
 }
 
 // ---------------------------------------------------------------- finding a field
@@ -550,11 +550,11 @@ const finder = createNodeRef();
 /** Puts the caret in the box that finds a field (Cmd+F). */
 export function findField(): void { if (finder.node >= 0) { ui.focusNode(finder.node); ui.select(finder.node, 0, ui.getValue(finder.node).length); } }
 function Finder(): i32 {
-  return <view class="flex-row items-center gap-2 h-10 px-3 shrink-0 border-b border-zinc-800">
+  return <View className="flex-row items-center gap-2 h-10 px-3 shrink-0 border-b border-zinc-800">
     <Ico name="search" size={13} color={MUTED} />
-    <input ref={finder} style={{ width: 288 }} class="h-7 px-2 rounded-md bg-zinc-950 border border-zinc-800 text-xs text-zinc-100 focus:border-amber-400" placeholder={f(L.FIND_FIELD, chord('F'))} value={wanted()}
+    <Input ref={finder} style={{ width: 288 }} className="h-7 px-2 rounded-md bg-zinc-950 border border-zinc-800 text-xs text-zinc-100 focus:border-amber-400" placeholder={f(L.FIND_FIELD, chord('F'))} value={wanted()}
       onInput={(v: string) => setWanted(v)} onKeyDown={(e: ui.KeyEvent) => { if (e.key === 'Escape') setWanted(''); }} />
-  </view>;
+  </View>;
 }
 
 /** What the format says of the field the pointer is over: its line of help, its limits, its default, and its key in the file. */
@@ -576,16 +576,16 @@ export function Help(p: { src: Source }): i32 {
     return f(L.DEFAULT, d === '' ? t(L.NONE) : d);
   };
   const facts = (): string => [limits(), usual()].filter((s: string) => s.length > 0).join('   ·   ');
-  return <view class="flex-col gap-1 px-4 py-3 shrink-0 bg-zinc-950 border-t border-zinc-800" style={{ height: 132 }}>
-    <view class="flex-row items-center gap-2">
+  return <View className="flex-col gap-1 px-4 py-3 shrink-0 bg-zinc-950 border-t border-zinc-800" style={{ height: 132 }}>
+    <View className="flex-row items-center gap-2">
       <Ico name="info" size={13} color={fd() === null ? MUTED : ACCENT} />
-      <text class="text-xs font-bold text-zinc-200">{fd() === null ? t(L.HELP) : fieldName((fd() as Field).name)}</text>
-      <view class="grow" />
-      <text class="font-mono text-[10px] text-zinc-600">{fd() === null ? '' : helped()}</text>
-    </view>
-    <text class="text-[11px] text-zinc-400" style={{ width: 308 }}>{fd() === null ? t(L.HELP_HINT) : help((fd() as Field).doc)}</text>
-    <text class="text-[11px] text-zinc-500">{facts()}</text>
-  </view>;
+      <Text className="text-xs font-bold text-zinc-200">{fd() === null ? t(L.HELP) : fieldName((fd() as Field).name)}</Text>
+      <View className="grow" />
+      <Text className="font-mono text-[10px] text-zinc-600">{fd() === null ? '' : helped()}</Text>
+    </View>
+    <Text className="text-[11px] text-zinc-400" style={{ width: 308 }}>{fd() === null ? t(L.HELP_HINT) : help((fd() as Field).doc)}</Text>
+    <Text className="text-[11px] text-zinc-500">{facts()}</Text>
+  </View>;
 }
 
 // ---------------------------------------------------------------- the selection
@@ -603,12 +603,12 @@ export function editAsFile(): void {
 /** The selection as the file has it. Leaving the field after an edit checks the text as a file is checked, and takes it. */
 function Written(): i32 {
   if (toWrite) { toWrite = false; queueMicrotask(() => { if (written.node >= 0) ui.focusNode(written.node); }); }
-  return <view class="flex-col gap-1 px-4 mt-4">
+  return <View className="flex-col gap-1 px-4 mt-4">
     <Heading label={t(L.IN_FILE)} />
-    <text class="text-[11px] text-zinc-500" style={{ width: 308 }}>{t(L.IN_FILE_HINT)}</text>
-    <textarea ref={written} class="font-mono text-[11px] text-zinc-300 bg-zinc-950 border border-zinc-800 rounded-md p-2 focus:border-amber-400" style={{ height: 150 }}
+    <Text className="text-[11px] text-zinc-500" style={{ width: 308 }}>{t(L.IN_FILE_HINT)}</Text>
+    <TextArea ref={written} className="font-mono text-[11px] text-zinc-300 bg-zinc-950 border border-zinc-800 rounded-md p-2 focus:border-amber-400" style={{ height: 150 }}
       value={doc().jsonOf(selected())} onChange={(v: string) => { if (!replaceSelected(v)) refresh(); }} />
-  </view>;
+  </View>;
 }
 
 /** The form of one selection. It is built again when another thing is selected. */
@@ -633,67 +633,67 @@ function Panel(p: { path: string }): i32 {
     if (s !== '' && v !== undefined && !sentence) return typeof v.event === 'string' ? whenSaid(`${v.on}`, `${v.event}`) : doc().summaryOf(path);
     return s !== '' ? s : parts.length > 2 ? doc().summaryOf(path) : doc().nameOf(path);
   };
-  return <view class="flex-col pb-4">
+  return <View className="flex-col pb-4">
     <Show when={wanted().trim() === ''}>
-      <view class="flex-col">
+      <View className="flex-col">
         <Show when={above.length > 0}>
-          <view class="flex-row items-center gap-1 px-3 pt-3">
-            {above.map((up: string, i: i32) => <button class="flex-row items-center gap-1 h-6 px-1 rounded cursor-pointer bg-transparent hover:bg-zinc-800" onClick={() => select(up)}>
-              <text class="truncate text-[11px] text-zinc-400" style={{ maxWidth: 120 }}>{steps(up).length === 1 ? listName(up, false) : doc().nameOf(up)}</text>
+          <View className="flex-row items-center gap-1 px-3 pt-3">
+            {above.map((up: string, i: i32) => <Button className="flex-row items-center gap-1 h-6 px-1 rounded cursor-pointer bg-transparent hover:bg-zinc-800" onClick={() => select(up)}>
+              <Text className="truncate text-[11px] text-zinc-400" style={{ maxWidth: 120 }}>{steps(up).length === 1 ? listName(up, false) : doc().nameOf(up)}</Text>
               <Ico name="chevron-right" size={11} color={MUTED} />
-            </button>)}
-          </view>
+            </Button>)}
+          </View>
         </Show>
-        <view class="flex-col gap-1 px-4 pt-4 pb-3">
+        <View className="flex-col gap-1 px-4 pt-4 pb-3">
           <Heading label={kind} />
-          {sentenceAt(path) === '' ? <text class="text-lg font-bold text-zinc-100 truncate" style={{ maxWidth: 308 }}>{title()}</text>
-            : <text class="text-sm font-bold text-zinc-100" style={{ width: 308 }}>{title()}</text>}
-          <text class="text-[11px] text-zinc-500" style={{ width: 308 }}>{help(schemaAt(path).doc)}</text>
-        </view>
-        <Show when={path === ''}><text class="px-4 pb-3 text-xs text-zinc-400" style={{ width: 340 }}>{t(L.NOTHING_SELECTED)}</text></Show>
+          {sentenceAt(path) === '' ? <Text className="text-lg font-bold text-zinc-100 truncate" style={{ maxWidth: 308 }}>{title()}</Text>
+            : <Text className="text-sm font-bold text-zinc-100" style={{ width: 308 }}>{title()}</Text>}
+          <Text className="text-[11px] text-zinc-500" style={{ width: 308 }}>{help(schemaAt(path).doc)}</Text>
+        </View>
+        <Show when={path === ''}><Text className="px-4 pb-3 text-xs text-zinc-400" style={{ width: 340 }}>{t(L.NOTHING_SELECTED)}</Text></Show>
         <Show when={list !== ''}>
-          <view class="flex-col gap-2 px-4 pb-3">
-            <view class="flex-row gap-2">
+          <View className="flex-col gap-2 px-4 pb-3">
+            <View className="flex-row gap-2">
               <Action icon="copy" label={t(L.DUPLICATE)} look="plain" onClick={duplicateSelected} />
               <Show when={selectionPlaced()}><Action icon="square-split-horizontal" label={t(L.MIRROR)} look="plain" onClick={mirrorSelected} /></Show>
               <Action icon="trash" label={t(L.DELETE)} look="danger" onClick={deleteSelected} />
-            </view>
-            <view class="flex-row gap-2">
+            </View>
+            <View className="flex-row gap-2">
               <Show when={sound() !== ''}><Action icon="play" label={t(L.LISTEN)} look="primary" onClick={() => { previewSound(sound()); }} /></Show>
               <Action icon="arrow-up" label="" look="plain" onClick={() => reorderSelected(-1)} />
               <Action icon="arrow-down" label="" look="plain" onClick={() => reorderSelected(1)} />
-            </view>
+            </View>
             <Show when={selectionTurns()}>
-              <view class="flex-row gap-2">
+              <View className="flex-row gap-2">
                 <Action icon="rotate-ccw" label="15°" look="plain" onClick={() => turnSelected(-15)} />
                 <Action icon="rotate-cw" label="15°" look="plain" onClick={() => turnSelected(15)} />
-              </view>
+              </View>
             </Show>
-          </view>
+          </View>
         </Show>
-        {sentence ? <view class="px-4"><view class="flex-row pl-2 pr-1 py-1 rounded-md bg-zinc-950 border border-zinc-800"><Sentence src={TABLE} schema={schemaAt(path)} item={path} width={290} /></view></view>
+        {sentence ? <View className="px-4"><View className="flex-row pl-2 pr-1 py-1 rounded-md bg-zinc-950 border border-zinc-800"><Sentence src={TABLE} schema={schemaAt(path)} item={path} width={290} /></View></View>
           : <Fields src={TABLE} schema={schemaAt(path)} path={path} whole={path !== ''} />}
         <Show when={advanced() && path !== ''}><Written /></Show>
-      </view>
+      </View>
     </Show>
     {/* the fields that answer to the box, alone and from the top: the first is always at the same place */}
     <Show when={wanted().trim() !== ''}>
-      <view class="flex-col pt-2">
+      <View className="flex-col pt-2">
         <For each={hits()}>{(at: string, i: i32) => <Entry src={TABLE} field={fieldAt(at) as Field} path={at} />}</For>
-        <Show when={hits().length === 0}><text class="px-4 py-3 text-xs text-zinc-500" style={{ width: 340 }}>{f(L.NO_FIELD, wanted().trim())}</text></Show>
-      </view>
+        <Show when={hits().length === 0}><Text className="px-4 py-3 text-xs text-zinc-500" style={{ width: 340 }}>{f(L.NO_FIELD, wanted().trim())}</Text></Show>
+      </View>
     </Show>
-  </view>;
+  </View>;
 }
 export function Properties(): i32 {
   // another selection starts with all its fields
   createEffect(() => { selected(); setWanted(''); });
   // one key per selection and per mode: the form is made again for another thing, and its fields follow the table by themselves
-  return <view class="w-[340] shrink-0 flex-col bg-zinc-900 border-l border-zinc-800" onPointerLeave={(e: ui.PointerEvent) => setHelped('')}>
+  return <View className="w-[340] shrink-0 flex-col bg-zinc-900 border-l border-zinc-800" onPointerLeave={(e: ui.PointerEvent) => setHelped('')}>
     <Finder />
-    <scroll class="grow basis-0 min-h-0 flex-col">
+    <ScrollView className="grow basis-0 min-h-0 flex-col">
       <For each={[`${selected()}|${advanced() ? 'a' : 'g'}`]}>{(key: string, i: i32) => <Panel path={key.slice(0, key.lastIndexOf('|'))} />}</For>
-    </scroll>
+    </ScrollView>
     <Help src={TABLE} />
-  </view>;
+  </View>;
 }

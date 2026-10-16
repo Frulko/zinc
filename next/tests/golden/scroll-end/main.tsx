@@ -12,22 +12,22 @@ import { createNodeRef, render } from 'zinc:ui/solid';
 const page = createNodeRef(), last = createNodeRef(), inner = createNodeRef(), innerLast = createNodeRef();
 const tiles: i32[] = [0, 1, 2, 3, 4];
 function App(): i32 {
-  return <View class="flex-row h-full bg-white">
-    <View class="w-[100] bg-zinc-200" />
-    <View class="flex-col grow">
-      <View class="grow overflow-hidden"><View class="absolute inset-0 flex-col">
-      <ScrollView ref={page} class="grow">
-        <View class="flex-col gap-[6] p-[10]">
-          <Text class="text-sm">a title long enough to take two lines beside the bar</Text>
-          <ScrollView ref={inner} class="h-[50] border">
-            <View class="flex-row flex-wrap gap-[4] p-[3] max-w-[150]">
-              {tiles.map((i: i32) => <View class="w-[90] h-[30] bg-rose-500" />)}
-              <View ref={innerLast} class="w-[90] h-[30] mb-[5] bg-rose-700" />
+  return <View className="flex-row h-full bg-white">
+    <View className="w-[100] bg-zinc-200" />
+    <View className="flex-col grow">
+      <View className="grow overflow-hidden"><View className="absolute inset-0 flex-col">
+      <ScrollView ref={page} className="grow">
+        <View className="flex-col gap-[6] p-[10]">
+          <Text className="text-sm">a title long enough to take two lines beside the bar</Text>
+          <ScrollView ref={inner} className="h-[50] border">
+            <View className="flex-row flex-wrap gap-[4] p-[3] max-w-[150]">
+              {tiles.map((i: i32) => <View className="w-[90] h-[30] bg-rose-500" />)}
+              <View ref={innerLast} className="w-[90] h-[30] mb-[5] bg-rose-700" />
             </View>
           </ScrollView>
-          <View class="flex-row flex-wrap gap-[10] mb-[14]">
-            {tiles.map((i: i32) => <View class="w-[90] h-[60] bg-sky-500" />)}
-            <Button ref={last} class="w-[90] h-[60] bg-zinc-800">end</Button>
+          <View className="flex-row flex-wrap gap-[10] mb-[14]">
+            {tiles.map((i: i32) => <View className="w-[90] h-[60] bg-sky-500" />)}
+            <Button ref={last} className="w-[90] h-[60] bg-zinc-800">end</Button>
           </View>
         </View>
       </ScrollView>

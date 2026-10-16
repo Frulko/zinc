@@ -64,11 +64,11 @@ mistake unknown-module "$g" run
 # 4. a plugin that is not installed
 { echo "import { burst } from 'zinc:confetti';"; cat "$tmp/main.ts"; } > "$g/src/main.ts"
 mistake plugin-missing "$g" run
-# 5. a JSX tag left open (the title of the remarkable template loses its </text>)
+# 5. a JSX tag left open (the title of the remarkable template loses its </Text>)
 r="$tmp/remarkable"
 cp "$r/src/main.tsx" "$tmp/main.tsx"
-sed 's|My app</text>|My app|' "$tmp/main.tsx" > "$r/src/main.tsx"
-cmp -s "$tmp/main.tsx" "$r/src/main.tsx" && { echo "the remarkable template has no 'My app</text>' to break"; fail=1; }
+sed 's|My app</Text>|My app|' "$tmp/main.tsx" > "$r/src/main.tsx"
+cmp -s "$tmp/main.tsx" "$r/src/main.tsx" && { echo "the remarkable template has no 'My app</Text>' to break"; fail=1; }
 mistake jsx-open "$r" run
 # 6. a file that is not there
 cp "$tmp/main.ts" "$g/src/main.ts"

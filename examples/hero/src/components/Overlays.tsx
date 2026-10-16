@@ -12,19 +12,19 @@ function toneDot(tone: string): string { return tone === 'success' ? 'bg-emerald
 
 function ToastCard(props: { t: Toast }): i32 {
   const t = props.t;
-  return <View class={`flex-row gap-3 p-4 rounded-xl border shadow-lg cursor-pointer bg-${theme().card} border-${theme().border}`}
+  return <View className={`flex-row gap-3 p-4 rounded-xl border shadow-lg cursor-pointer bg-${theme().card} border-${theme().border}`}
     style={{ translateX: t.enter.get() * 380, opacity: t.fade.get() }}
     onClick={() => dismiss(t)}>
-    <View class={`w-2 h-2 mt-1.5 rounded-full ${toneDot(t.tone)}`} />
-    <View class="flex-col gap-0.5 grow">
-      <Text class={`text-sm font-semibold text-${theme().foreground}`}>{t.title}</Text>
-      {t.body !== '' ? <Text class={`text-sm text-${theme().mutedForeground}`}>{t.body}</Text> : <View />}
+    <View className={`w-2 h-2 mt-1.5 rounded-full ${toneDot(t.tone)}`} />
+    <View className="flex-col gap-0.5 grow">
+      <Text className={`text-sm font-semibold text-${theme().foreground}`}>{t.title}</Text>
+      {t.body !== '' ? <Text className={`text-sm text-${theme().mutedForeground}`}>{t.body}</Text> : <View />}
     </View>
   </View>;
 }
 
 function Toasts(): i32 {
-  return <View class="absolute right-6 bottom-6 w-[340] flex-col gap-2">
+  return <View className="absolute right-6 bottom-6 w-[340] flex-col gap-2">
     {toasts().map((t: Toast) => <ToastCard t={t} />)}
   </View>;
 }
@@ -32,12 +32,12 @@ function Toasts(): i32 {
 // ---- modal dialog
 function DialogPanel(props: { d: Dialog }): i32 {
   const d = props.d;
-  return <View class={`flex-col gap-4 w-[440] p-6 rounded-2xl border shadow-xl bg-${theme().card} border-${theme().border}`}
+  return <View className={`flex-col gap-4 w-[440] p-6 rounded-2xl border shadow-xl bg-${theme().card} border-${theme().border}`}
     style={{ opacity: dialogT.get(), translateY: (1 - dialogT.get()) * 18 }}
     onClick={() => {}}>
-    <Text class={`text-lg font-bold text-${theme().foreground}`}>{d.title}</Text>
-    <Text class={`text-sm text-${theme().mutedForeground}`}>{d.body}</Text>
-    <View class="flex-row justify-end gap-2 pt-2">
+    <Text className={`text-lg font-bold text-${theme().foreground}`}>{d.title}</Text>
+    <Text className={`text-sm text-${theme().mutedForeground}`}>{d.body}</Text>
+    <View className="flex-row justify-end gap-2 pt-2">
       <Button label="Cancel" variant="outline" onClick={() => closeDialog()} />
       <Button label={d.confirm} variant={d.destructive ? 'destructive' : 'default'} onClick={() => { d.onConfirm(); closeDialog(); }} />
     </View>
@@ -45,9 +45,9 @@ function DialogPanel(props: { d: Dialog }): i32 {
 }
 
 function Modal(): i32 {
-  return <View class="absolute inset-0 items-center justify-center" style={{ hidden: dialog() === null ? 1 : 0 }}>
-    <Show when={dialog() !== null}><View class="absolute inset-0 items-center justify-center">
-      <View class="absolute inset-0 bg-black" style={{ opacity: dialogT.get() * 0.45 }} onClick={() => closeDialog()} />
+  return <View className="absolute inset-0 items-center justify-center" style={{ hidden: dialog() === null ? 1 : 0 }}>
+    <Show when={dialog() !== null}><View className="absolute inset-0 items-center justify-center">
+      <View className="absolute inset-0 bg-black" style={{ opacity: dialogT.get() * 0.45 }} onClick={() => closeDialog()} />
       {dialog() !== null ? <DialogPanel d={dialog() as Dialog} /> : <View />}
     </View></Show>
   </View>;
@@ -82,44 +82,44 @@ function CommandRow(props: { c: Command }): i32 {
   const c = props.c;
   // rows are keyed by command, so the position is looked up (it changes as the query filters the list)
   const on = (): boolean => matches().indexOf(c) === cursor();
-  return <View class={`flex-row items-center gap-3 h-10 px-3 rounded-lg cursor-pointer ${on() ? `bg-${theme().accentSoft}` : ''}`}
+  return <View className={`flex-row items-center gap-3 h-10 px-3 rounded-lg cursor-pointer ${on() ? `bg-${theme().accentSoft}` : ''}`}
     onClick={() => run(c)} onPointerEnter={(e: ui.PointerEvent) => setCursor(matches().indexOf(c))}>
-    <Text class={`text-xs font-semibold w-[76] text-${theme().mutedForeground}`}>{c.group}</Text>
-    <Text class={`text-sm grow ${on() ? `text-${theme().accentSoftForeground}` : `text-${theme().foreground}`}`}>{c.label}</Text>
+    <Text className={`text-xs font-semibold w-[76] text-${theme().mutedForeground}`}>{c.group}</Text>
+    <Text className={`text-sm grow ${on() ? `text-${theme().accentSoftForeground}` : `text-${theme().foreground}`}`}>{c.label}</Text>
     {c.keys !== '' ? <Kbd label={c.keys} /> : <View />}
   </View>;
 }
 
 function Palette(): i32 {
-  return <View class="absolute inset-0 items-center pt-24" style={{ hidden: paletteOpen() ? 0 : 1 }}>
+  return <View className="absolute inset-0 items-center pt-24" style={{ hidden: paletteOpen() ? 0 : 1 }}>
     <Show when={paletteOpen()}><PaletteBody /></Show>
   </View>;
 }
 function PaletteBody(): i32 {
   onMount(() => ui.focusNode(paletteInput.node));
-  return <View class="absolute inset-0 items-center pt-24">
-    <View class="absolute inset-0 bg-black" style={{ opacity: paletteT.get() * 0.35 }} onClick={() => closePalette()} />
-    <View class={`flex-col w-[560] rounded-2xl border shadow-xl bg-${theme().card} border-${theme().border}`}
+  return <View className="absolute inset-0 items-center pt-24">
+    <View className="absolute inset-0 bg-black" style={{ opacity: paletteT.get() * 0.35 }} onClick={() => closePalette()} />
+    <View className={`flex-col w-[560] rounded-2xl border shadow-xl bg-${theme().card} border-${theme().border}`}
       style={{ opacity: paletteT.get(), translateY: (1 - paletteT.get()) * -12 }} onClick={() => {}}>
-      <View class={`flex-row items-center px-4 h-14 border-b border-${theme().border}`}>
-        <Input ref={paletteInput} class={`grow text-base bg-transparent border-0 text-${theme().foreground}`} placeholder="Type a command or search…"
+      <View className={`flex-row items-center px-4 h-14 border-b border-${theme().border}`}>
+        <Input ref={paletteInput} className={`grow text-base bg-transparent border-0 text-${theme().foreground}`} placeholder="Type a command or search…"
           value={query()} onInput={(v: string) => { setQuery(v); setCursor(0); }} onKeyDown={paletteKey} />
         <Kbd label="Esc" />
       </View>
-      <ScrollView class="flex-col p-2 gap-0.5 h-[320]">
+      <ScrollView className="flex-col p-2 gap-0.5 h-[320]">
         {matches().map((c: Command) => <CommandRow c={c} />)}
       </ScrollView>
-      <View class={`flex-row items-center gap-4 px-4 h-10 border-t border-${theme().border}`}>
-        <Text class={`text-xs text-${theme().mutedForeground}`}>{`${matches().length} result${matches().length === 1 ? '' : 's'}`}</Text>
-        <View class="grow" />
-        <Text class={`text-xs text-${theme().mutedForeground}`}>↑↓ to choose · Enter to run</Text>
+      <View className={`flex-row items-center gap-4 px-4 h-10 border-t border-${theme().border}`}>
+        <Text className={`text-xs text-${theme().mutedForeground}`}>{`${matches().length} result${matches().length === 1 ? '' : 's'}`}</Text>
+        <View className="grow" />
+        <Text className={`text-xs text-${theme().mutedForeground}`}>↑↓ to choose · Enter to run</Text>
       </View>
     </View>
   </View>;
 }
 
 export function Overlays(): i32 {
-  return <View class="absolute inset-0">
+  return <View className="absolute inset-0">
     <Toasts />
     <Modal />
     <Palette />

@@ -88,8 +88,8 @@ export function stopPreview(): void {
 }
 /** The pane the player draws in: the table as large as fits. */
 export function PreviewPane(): i32 {
-  return <view class="grow basis-0 min-w-0 relative bg-zinc-950">
-    <canvas class="absolute inset-0" onDraw={(x: i32, y: i32, w: i32, h: i32) => {
+  return <View className="grow basis-0 min-w-0 relative bg-zinc-950">
+    <Canvas className="absolute inset-0" onDraw={(x: i32, y: i32, w: i32, h: i32) => {
       boxX = x; boxY = y; boxW = w; boxH = h;
       const p = player;
       if (p === null) return;
@@ -98,7 +98,7 @@ export function PreviewPane(): i32 {
       p.draw(x, y, w, h);
       unclip();
     }} />
-  </view>;
+  </View>;
 }
 
 // ---- in a window of its own
@@ -150,8 +150,8 @@ const [sampleHigh, setSampleHigh] = createSignal<number>(360);
 
 /** The pane of the sample: as wide as its column, with the shape of the table. */
 export function SamplePane(): i32 {
-  return <view class="relative rounded-md overflow-hidden border border-zinc-800" style={{ height: sampleHigh() }}>
-    <canvas class="absolute inset-0" onDraw={(x: i32, y: i32, w: i32, h: i32) => {
+  return <View className="relative rounded-md overflow-hidden border border-zinc-800" style={{ height: sampleHigh() }}>
+    <Canvas className="absolute inset-0" onDraw={(x: i32, y: i32, w: i32, h: i32) => {
       sampleX = x; sampleY = y; sampleW = w; sampleH = h;
       const table = project().table, high = Math.round(w * table.height / table.width), p = sample;
       if (high !== sampleHigh()) setSampleHigh(high);
@@ -160,7 +160,7 @@ export function SamplePane(): i32 {
       if (p !== null) p.draw(x, y, w, h);
       unclip();
     }} />
-  </view>;
+  </View>;
 }
 /** Makes the sample again on the document as it is now; beside the accessibility settings it wears the high-contrast colours. */
 function makeSample(key: string): void {
@@ -194,12 +194,12 @@ function sampleTick(dt: number): void {
 /** The two ways to see the project as visitors will, at the corner of the view being edited: in this window from the sequence at hand, or
  *  in a window beside it. */
 export function PreviewTools(): i32 {
-  return <view class="absolute left-[10] top-[10] flex-row items-center gap-1 p-1 rounded-lg bg-zinc-900 border border-zinc-800"
+  return <View className="absolute left-[10] top-[10] flex-row items-center gap-1 p-1 rounded-lg bg-zinc-900 border border-zinc-800"
     onPointerDown={(e: ui.PointerEvent) => {}} onDoubleClick={(e: ui.PointerEvent) => {}}>
     <Tool icon="play" label={t(L.PLAY_FROM_HERE)} look="plain" off={() => project().sequences.length === 0} onClick={playFromHere} />
     <Show when={!windowShown()}><Tool icon="app-window" label={t(L.IN_WINDOW)} look="quiet" off={() => false} onClick={togglePreviewWindow} /></Show>
     <Show when={windowShown()}><Tool icon="app-window" label={t(L.IN_WINDOW)} look="on" off={() => false} onClick={togglePreviewWindow} /></Show>
-  </view>;
+  </View>;
 }
 
 /** Once per frame, before the window is drawn (main.tsx): the time of the player in the pane, and whether the preview window is behind

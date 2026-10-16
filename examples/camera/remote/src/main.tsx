@@ -10,12 +10,12 @@ import { ChoicesPopover } from './components/ChoicesPopover';
 import { captionText } from 'zinc:ui/kit';
 
 function App(): i32 {
-  return <View class="flex-col h-full bg-zinc-50">
+  return <View className="flex-col h-full bg-zinc-50">
     <TopBar />
-    <View class="flex-row grow">
-      <View class="flex-col grow p-4 gap-3">
+    <View className="flex-row grow">
+      <View className="flex-col grow p-4 gap-3">
         <LiveView />
-        <Text class={captionText()}>{status()}</Text>
+        <Text className={captionText()}>{status()}</Text>
       </View>
       <SettingsPanel />
     </View>

@@ -253,35 +253,35 @@ function drawOverlay(x: i32, y: i32, w: i32, h: i32): void {
 // ---------------------------------------------------------------- cards
 function Port(b: Box, p: PortDef, i: i32, output: boolean): i32 {
   const top = HEAD + i * ROW + ROW / 2 - PORT / 2;
-  return <view class={portClass(p)}
+  return <View className={portClass(p)}
     style={{ left: output ? BOX_W - PORT / 2 : -PORT / 2, top: top, width: PORT, height: PORT }}
     onPointerDown={(e: ui.PointerEvent) => portDown(b.id, p.name, output, e)}
     onPointerMove={(e: ui.PointerEvent) => dragMove(e)} onPointerUp={(e: ui.PointerEvent) => dragEnd(e)} />;
 }
 function PortLabel(p: PortDef, i: i32, output: boolean): i32 {
   const left = output ? BOX_W / 2 - 2 : 12;
-  return <view class="absolute flex-row items-center" style={{ left: left, top: HEAD + i * ROW + 2, width: BOX_W / 2 - 12, height: ROW - 4 }}>
-    <Show when={output}><view class="grow" /></Show>
-    <text class={p.isSignal ? 'text-[11] text-zinc-600' : 'text-[11] text-zinc-500'}>{p.isSignal ? p.name : `${p.name}: ${p.type === 'number' ? 'num' : 'str'}`}</text>
-  </view>;
+  return <View className="absolute flex-row items-center" style={{ left: left, top: HEAD + i * ROW + 2, width: BOX_W / 2 - 12, height: ROW - 4 }}>
+    <Show when={output}><View className="grow" /></Show>
+    <Text className={p.isSignal ? 'text-[11] text-zinc-600' : 'text-[11] text-zinc-500'}>{p.isSignal ? p.name : `${p.name}: ${p.type === 'number' ? 'num' : 'str'}`}</Text>
+  </View>;
 }
 /** The card of a box. */
 function Card(b: Box): i32 {
   const def = b.def;
-  const card = <view class={model.isSelected(b.id) ? 'absolute rounded-lg bg-white border-2 border-sky-500 shadow-md cursor-grab'
+  const card = <View className={model.isSelected(b.id) ? 'absolute rounded-lg bg-white border-2 border-sky-500 shadow-md cursor-grab'
       : 'absolute rounded-lg bg-white border border-zinc-200 shadow-sm hover:border-zinc-400 cursor-grab'}
     style={{ left: b.x(), top: b.y(), width: BOX_W, height: boxHeight(b) }}
     onPointerDown={(e: ui.PointerEvent) => startMove(b, e)} onPointerMove={(e: ui.PointerEvent) => dragMove(e)}
     onPointerUp={(e: ui.PointerEvent) => dragEnd(e)}
     onDoubleClick={(e: ui.PointerEvent) => { model.select([b.id]); if (b.type === 'script') setCenterTab('Script'); }}>
-    <view class="absolute left-0 w-full h-[1] bg-zinc-100" style={{ top: HEAD - 2 }} />
-    <view class="flex-row items-center gap-2 px-3" style={{ height: HEAD - 2 }}>
-      <view class="w-[8] h-[8] rounded-full" style={{ bg: categoryColor(def.category) }} />
-      <text class="text-[13] font-semibold text-zinc-900">{b.title()}</text>
-      <view class="grow" />
-      <text class="text-[10] text-zinc-400">{b.id}</text>
-    </view>
-  </view>;
+    <View className="absolute left-0 w-full h-[1] bg-zinc-100" style={{ top: HEAD - 2 }} />
+    <View className="flex-row items-center gap-2 px-3" style={{ height: HEAD - 2 }}>
+      <View className="w-[8] h-[8] rounded-full" style={{ bg: categoryColor(def.category) }} />
+      <Text className="text-[13] font-semibold text-zinc-900">{b.title()}</Text>
+      <View className="grow" />
+      <Text className="text-[10] text-zinc-400">{b.id}</Text>
+    </View>
+  </View>;
   for (let i = 0; i < def.inputs.length; i++) { ui.insert(card, PortLabel(def.inputs[i], i, false), -1); ui.insert(card, Port(b, def.inputs[i], i, false), -1); }
   for (let i = 0; i < def.outputs.length; i++) { ui.insert(card, PortLabel(def.outputs[i], i, true), -1); ui.insert(card, Port(b, def.outputs[i], i, true), -1); }
   return card;
@@ -291,34 +291,34 @@ function Card(b: Box): i32 {
 interface BarProps { start: boolean }
 function Bar(props: BarProps): i32 {
   const start = props.start;
-  return <view class={start ? 'absolute left-0 top-0 bottom-0 w-[24] bg-zinc-100' : 'absolute right-0 top-0 bottom-0 w-[24] bg-zinc-100'}>
-    <view class={start ? 'absolute right-0 top-0 bottom-0 w-[1] bg-zinc-200' : 'absolute left-0 top-0 bottom-0 w-[1] bg-zinc-200'} />
-    <view class="absolute rounded-full border-2 border-zinc-500 bg-white cursor-crosshair hover:bg-sky-100"
+  return <View className={start ? 'absolute left-0 top-0 bottom-0 w-[24] bg-zinc-100' : 'absolute right-0 top-0 bottom-0 w-[24] bg-zinc-100'}>
+    <View className={start ? 'absolute right-0 top-0 bottom-0 w-[1] bg-zinc-200' : 'absolute left-0 top-0 bottom-0 w-[1] bg-zinc-200'} />
+    <View className="absolute rounded-full border-2 border-zinc-500 bg-white cursor-crosshair hover:bg-sky-100"
       style={{ left: start ? BAR_W - PORT / 2 : -PORT / 2, top: BAR_PORT_Y - PORT / 2, width: PORT, height: PORT }}
       onPointerDown={(e: ui.PointerEvent) => portDown(start ? '@start' : '@end', start ? 'onStart' : 'onStopped', start, e)}
       onPointerMove={(e: ui.PointerEvent) => dragMove(e)} onPointerUp={(e: ui.PointerEvent) => dragEnd(e)} />
-  </view>;
+  </View>;
 }
 
 export function FlowEditor(): i32 {
-  return <view ref={viewport} class="grow overflow-hidden bg-zinc-50 cursor-default"
+  return <View ref={viewport} className="grow overflow-hidden bg-zinc-50 cursor-default"
     onPointerDown={(e: ui.PointerEvent) => backgroundDown(e)} onPointerMove={(e: ui.PointerEvent) => dragMove(e)}
     onPointerUp={(e: ui.PointerEvent) => dragEnd(e)} onWheel={(e: ui.PointerEvent) => zoomAt(e)}>
-    <canvas class="absolute inset-0" onDraw={drawBackground} />
-    <view ref={world} class="absolute left-0 top-0 w-[1] h-[1]" style={{ scale: zoom(), translateX: panX(), translateY: panY() }}>
+    <Canvas className="absolute inset-0" onDraw={drawBackground} />
+    <View ref={world} className="absolute left-0 top-0 w-[1] h-[1]" style={{ scale: zoom(), translateX: panX(), translateY: panY() }}>
       <For each={model.boxes()}>{(b: Box, _i: i32) => Card(b)}</For>
-    </view>
-    <canvas class="absolute inset-0" onDraw={drawOverlay} />
+    </View>
+    <Canvas className="absolute inset-0" onDraw={drawOverlay} />
     <Bar start={true} />
     <Bar start={false} />
-    <text class="absolute left-[34] top-[64] text-[11] font-medium text-zinc-500">onStart</text>
-    <view class="absolute right-[34] top-[64] w-[80] flex-row"><view class="grow" /><text class="text-[11] font-medium text-zinc-500">onStopped</text></view>
+    <Text className="absolute left-[34] top-[64] text-[11] font-medium text-zinc-500">onStart</Text>
+    <View className="absolute right-[34] top-[64] w-[80] flex-row"><View className="grow" /><Text className="text-[11] font-medium text-zinc-500">onStopped</Text></View>
     <Show when={model.boxes().length === 0}>
-      <view class="absolute inset-0 flex-col items-center justify-center gap-1">
-        <text class="text-sm font-medium text-zinc-500">Empty diagram</text>
-        <text class="text-[12] text-zinc-400">Drag boxes from the library, or double-click one</text>
-      </view>
+      <View className="absolute inset-0 flex-col items-center justify-center gap-1">
+        <Text className="text-sm font-medium text-zinc-500">Empty diagram</Text>
+        <Text className="text-[12] text-zinc-400">Drag boxes from the library, or double-click one</Text>
+      </View>
     </Show>
-    <text class="absolute left-[34] bottom-[10] text-[11] text-zinc-400">Drag ports to link · Shift+drag to select · Wheel to zoom · Del removes</text>
-  </view>;
+    <Text className="absolute left-[34] bottom-[10] text-[11] text-zinc-400">Drag ports to link · Shift+drag to select · Wheel to zoom · Del removes</Text>
+  </View>;
 }

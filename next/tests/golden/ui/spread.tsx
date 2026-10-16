@@ -5,6 +5,6 @@ import * as ui from 'zinc:ui';
 
 function wheel(e: ui.PointerEvent): void { console.log(`wheel ${e.wheel} pinch ${e.pinch.toFixed(3)} at ${Math.round(e.x)} ${Math.round(e.y)}`); }
 function App(): i32 {
-  return <View class="h-full bg-white" onWheel={wheel}><Text class="text-base text-slate-900">map</Text></View>;
+  return <View className="h-full bg-white" onWheel={wheel}><Text className="text-base text-slate-900">map</Text></View>;
 }
 render(App, 0xffffff, (dt: number) => {});

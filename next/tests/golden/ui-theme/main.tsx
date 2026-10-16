@@ -6,10 +6,10 @@ import { quit } from 'zinc:gfx';
 let renders = 0;
 function Probe(): i32 {
   renders++;
-  return <View class="w-8 h-8 bg-[var(--card)] dark:bg-red-500 border" />;
+  return <View className="w-8 h-8 bg-[var(--card)] dark:bg-red-500 border" />;
 }
 function App(): i32 {
-  return <View class="flex-col gap-2 p-2 w-full">
+  return <View className="flex-col gap-2 p-2 w-full">
     <Probe />
     <Card><CardContent><Badge label="x" /><Button label="Go" onClick={() => {}} /></CardContent></Card>
   </View>;

@@ -4,11 +4,11 @@ import { render } from 'zinc:ui/react';
 import { quit } from 'zinc:gfx';
 let n = 0;
 function Screen(): i32 {
-  return <View class="relative w-full h-full bg-white">
-    <View onPress={() => {}} class="absolute left-0 top-0 w-24 h-24 bg-red-500 z-10"><Text>red</Text></View>
-    <View onPress={() => {}} class="absolute left-12 top-12 w-24 h-24 bg-green-500"><Text>green</Text></View>
-    <View onPress={() => {}} class="absolute left-24 top-0 w-24 h-24 bg-blue-500 z-20 pointer-events-none"><Text>blue</Text></View>
-    <View onPress={() => {}} class="absolute left-0 top-24 w-24 h-12 bg-yellow-500 invisible"><Text>yellow</Text></View>
+  return <View className="relative w-full h-full bg-white">
+    <View onPress={() => {}} className="absolute left-0 top-0 w-24 h-24 bg-red-500 z-10"><Text>red</Text></View>
+    <View onPress={() => {}} className="absolute left-12 top-12 w-24 h-24 bg-green-500"><Text>green</Text></View>
+    <View onPress={() => {}} className="absolute left-24 top-0 w-24 h-24 bg-blue-500 z-20 pointer-events-none"><Text>blue</Text></View>
+    <View onPress={() => {}} className="absolute left-0 top-24 w-24 h-12 bg-yellow-500 invisible"><Text>yellow</Text></View>
   </View>;
 }
 function who(x: number, y: number): string {

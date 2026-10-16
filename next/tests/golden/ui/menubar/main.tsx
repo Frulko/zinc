@@ -18,12 +18,12 @@ const template: MenuEntry[] = [
   { label: 'Edit', submenu: [{ id: 'undo', label: 'Undo', accelerator: 'mod-z' }, { id: 'copy', label: 'Copy', accelerator: 'mod-c', disabled: true }] },
 ];
 function App(): i32 {
-  return <view class={light ? "flex-col h-full bg-white" : "flex-col h-full bg-slate-950"}>
+  return <View className={light ? "flex-col h-full bg-white" : "flex-col h-full bg-slate-950"}>
     <MenuBar items={template} native={env('MENUBAR_NATIVE') === '1'} onSelect={(id: string) => { setLog('chose ' + id); console.log('menu', id); }} />
     <ContextMenu items={[{ id: 'ctx-copy', label: 'Copy' }, { id: 'ctx-paste', label: 'Paste' }]} onSelect={(id: string) => { console.log('context', id); }}>
-      <view class="p-6"><text class="text-sm text-slate-500">{log()}</text></view>
+      <View className="p-6"><Text className="text-sm text-slate-500">{log()}</Text></View>
     </ContextMenu>
-  </view>;
+  </View>;
 }
 // the same template the native menu takes, converted for the kit (compile check of menu.toKit)
 const fromSystem = menu.toKit([menu.submenu('Demo', [menu.item('x', 'Do it', 'CmdOrCtrl+D'), menu.separator(), menu.role('quit')]), menu.role('editMenu')]);

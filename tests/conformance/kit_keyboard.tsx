@@ -13,12 +13,12 @@ const [digits, setDigits] = createSignal<string>('');
 const field = createNodeRef(), pinField = createNodeRef();
 
 function App(): i32 {
-  return <View class="flex-col h-full">
-    <View class="flex-row gap-2 p-2">
-      <Input ref={field} class="grow" value={text()} onInput={(v: string) => setText(v)} />
-      <Input ref={pinField} class="w-[80]" inputMode="numeric" value={digits()} onInput={(v: string) => setDigits(v)} />
+  return <View className="flex-col h-full">
+    <View className="flex-row gap-2 p-2">
+      <Input ref={field} className="grow" value={text()} onInput={(v: string) => setText(v)} />
+      <Input ref={pinField} className="w-[80]" inputMode="numeric" value={digits()} onInput={(v: string) => setDigits(v)} />
     </View>
-    <View class="grow" />
+    <View className="grow" />
     <Keyboard layouts={['fr', 'en']} keyHeight={30} gap={3} />
   </View>;
 }

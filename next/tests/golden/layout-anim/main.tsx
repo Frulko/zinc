@@ -10,12 +10,12 @@ const [extra, setExtra] = createSignal<boolean>(false);
 const [third, setThird] = createSignal<boolean>(true);
 const a = createNodeRef(), b = createNodeRef(), col = createNodeRef();
 function App(): i32 {
-  return <view ref={col} style={{ flexDirection: 'column', gap: 10, padding: 10 }}>
-    <view ref={a} style={{ width: wide() ? 200 : 100, height: 30 }} />
-    <Show when={extra()}><view style={{ width: 50, height: 20 }} /></Show>
-    <view ref={b} style={{ width: 80, height: wide() ? 60 : 30 }} />
-    <Show when={third()}><view style={{ width: 40, height: 20 }} /></Show>
-  </view>;
+  return <View ref={col} style={{ flexDirection: 'column', gap: 10, padding: 10 }}>
+    <View ref={a} style={{ width: wide() ? 200 : 100, height: 30 }} />
+    <Show when={extra()}><View style={{ width: 50, height: 20 }} /></Show>
+    <View ref={b} style={{ width: 80, height: wide() ? 60 : 30 }} />
+    <Show when={third()}><View style={{ width: 40, height: 20 }} /></Show>
+  </View>;
 }
 const r = (v: number): number => Math.round(v);
 const box = (n: NodeRef): string => { const q = ui.screenBox(n.node); return `${r(q[0])},${r(q[1])} ${r(q[2])}x${r(q[3])}`; };

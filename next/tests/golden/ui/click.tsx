@@ -6,7 +6,7 @@ const [on, setOn] = createSignal<boolean>(false);
 const [level, setLevel] = createSignal<number>(30);
 
 function App(): i32 {
-  return <View class="flex-col p-3 gap-2">
+  return <View className="flex-col p-3 gap-2">
     <Card>
       <CardHeader title="Pointer input" description="Events come from the HAL" />
       <CardContent>

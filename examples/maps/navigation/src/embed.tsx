@@ -17,12 +17,12 @@ export const mapRef = createNodeRef();
 
 export function Navigation(): i32 {
   // the canvas draws the map under its children; the panels float over it
-  return <Canvas ref={mapRef} class="h-full" onDraw={(x: i32, y: i32, w: i32, h: i32) => drawScene(x, y, w, h, nightT.get())}
+  return <Canvas ref={mapRef} className="h-full" onDraw={(x: i32, y: i32, w: i32, h: i32) => drawScene(x, y, w, h, nightT.get())}
     onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onWheel={wheel}>
-    <View class="absolute top-4 bottom-4 left-4 w-[284px] lg:w-[336px] flex-col gap-3">
+    <View className="absolute top-4 bottom-4 left-4 w-[284px] lg:w-[336px] flex-col gap-3">
       <Banner />
       <Show when={cardIndex() >= 0 || cardIn.get() > 0.01}><AlertCard /></Show>
-      <View class="grow" />
+      <View className="grow" />
       <SpeedBubble />
       <Sheet />
     </View>

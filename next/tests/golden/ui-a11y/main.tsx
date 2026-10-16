@@ -3,13 +3,13 @@ import * as ui from 'zinc:ui';
 import { render } from 'zinc:ui/react';
 import { quit } from 'zinc:gfx';
 function Form(): i32 {
-  return <View role="form" aria-label="Sign in" class="flex-col gap-2 p-2 w-full">
-    <Text class="text-lg">Welcome back</Text>
-    <Input aria-label="Email" placeholder="you@example.com" value="a@b.c" class="h-8 border" />
-    <Button role="button" aria-label="Submit" class="h-8 bg-indigo-600" onClick={() => {}}><Text>Go</Text></Button>
-    <View aria-hidden class="h-4"><Text>decor</Text></View>
-    <Text class="sr-only">Required fields are marked</Text>
-    <Button disabled class="h-8"><Text>Cancel</Text></Button>
+  return <View role="form" aria-label="Sign in" className="flex-col gap-2 p-2 w-full">
+    <Text className="text-lg">Welcome back</Text>
+    <Input aria-label="Email" placeholder="you@example.com" value="a@b.c" className="h-8 border" />
+    <Button role="button" aria-label="Submit" className="h-8 bg-indigo-600" onClick={() => {}}><Text>Go</Text></Button>
+    <View aria-hidden className="h-4"><Text>decor</Text></View>
+    <Text className="sr-only">Required fields are marked</Text>
+    <Button disabled className="h-8"><Text>Cancel</Text></Button>
   </View>;
 }
 function formPad(): number {

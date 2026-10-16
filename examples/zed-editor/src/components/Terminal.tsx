@@ -18,8 +18,8 @@ function spanColor(s: Span): i32 {
 }
 
 function Line(props: { l: TermLine }): i32 {
-  return <View class="flex-row h-[18]">
-    {props.l.spans.map((s: Span) => <Text class={`font-mono text-[12px] ${s.bold ? 'font-bold' : ''} ${fg(spanColor(s))}`}>{s.text}</Text>)}
+  return <View className="flex-row h-[18]">
+    {props.l.spans.map((s: Span) => <Text className={`font-mono text-[12px] ${s.bold ? 'font-bold' : ''} ${fg(spanColor(s))}`}>{s.text}</Text>)}
   </View>;
 }
 
@@ -27,20 +27,20 @@ function Line(props: { l: TermLine }): i32 {
 export function stepTerminal(): void { if (takeFollow() && logRef.node >= 0) ui.scrollTo(logRef.node, 0, 1000000); }
 
 export function TerminalPanel(): i32 {
-  return <View class={`flex-col overflow-hidden border-t ${bg(theme().bg)} ${bd(theme().borderSoft)}`}
+  return <View className={`flex-col overflow-hidden border-t ${bg(theme().bg)} ${bd(theme().borderSoft)}`}
     style={{ height: terminalH.get(), hidden: terminalH.get() < 1 ? 1 : 0 }}>
-    <View class={`flex-row items-center h-[32] pl-3 pr-2 gap-2 ${bg(theme().surface)}`}>
+    <View className={`flex-row items-center h-[32] pl-3 pr-2 gap-2 ${bg(theme().surface)}`}>
       <Glyph kind={I_TERMINAL} size={14} color={() => theme().muted} />
-      <Text class={`text-[12px] font-semibold ${fg(theme().text)}`}>zinc run</Text>
-      <Text class={`text-[12px] ${fg(theme().faint)}`}>{running() ? 'running…' : '--target sim'}</Text>
-      <View class="grow" />
+      <Text className={`text-[12px] font-semibold ${fg(theme().text)}`}>zinc run</Text>
+      <Text className={`text-[12px] ${fg(theme().faint)}`}>{running() ? 'running…' : '--target sim'}</Text>
+      <View className="grow" />
       {running() ? <IconButton kind={I_STOP} size={14} onPress={stopProject} /> : <IconButton kind={I_PLAY} size={14} onPress={runProject} />}
-      <View class={`h-[22] px-2 rounded items-center justify-center cursor-pointer hover:${bg(theme().hover)}`} onPointerDown={() => clearTerminal()}>
-        <Text class={`text-[12px] ${fg(theme().muted)}`}>Clear</Text>
+      <View className={`h-[22] px-2 rounded items-center justify-center cursor-pointer hover:${bg(theme().hover)}`} onPointerDown={() => clearTerminal()}>
+        <Text className={`text-[12px] ${fg(theme().muted)}`}>Clear</Text>
       </View>
       <IconButton kind={I_CLOSE} size={14} onPress={() => showTerminal(false)} />
     </View>
-    <ScrollView ref={logRef} class="grow flex-col px-3 py-2">
+    <ScrollView ref={logRef} className="grow flex-col px-3 py-2">
       {termLines().map((l: TermLine) => <Line l={l} />)}
     </ScrollView>
   </View>;

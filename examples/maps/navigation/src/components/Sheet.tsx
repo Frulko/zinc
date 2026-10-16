@@ -20,24 +20,24 @@ function StepRow(props: { index: i32 }): i32 {
   const i = props.index, s: Step = steps[i];
   const current = (): boolean => stepIndex() === i;
   const gap = s.at - steps[i - 1].at;
-  return <View class={`flex-row items-center gap-3 px-3 py-2.5 rounded-xl ${current() ? `bg-${theme().accentSoft}` : ''}`}>
-    <Canvas class="w-[26px] h-[26px]" onDraw={(x: i32, y: i32, w: i32, h: i32) => drawManeuver(s, x, y, w, rgb(current() ? theme().accentSoftForeground : theme().foreground))} />
-    <View class="flex-col w-[200px] lg:w-[252px]">
-      <Text class={`text-sm font-semibold text-${theme().foreground}`}>{s.type === 'arrive' ? `Arrive at ${s.street}` : s.text}</Text>
-      <Text class={`text-xs text-${theme().mutedForeground}`}>{`in ${formatDistance(gap)}`}</Text>
+  return <View className={`flex-row items-center gap-3 px-3 py-2.5 rounded-xl ${current() ? `bg-${theme().accentSoft}` : ''}`}>
+    <Canvas className="w-[26px] h-[26px]" onDraw={(x: i32, y: i32, w: i32, h: i32) => drawManeuver(s, x, y, w, rgb(current() ? theme().accentSoftForeground : theme().foreground))} />
+    <View className="flex-col w-[200px] lg:w-[252px]">
+      <Text className={`text-sm font-semibold text-${theme().foreground}`}>{s.type === 'arrive' ? `Arrive at ${s.street}` : s.text}</Text>
+      <Text className={`text-xs text-${theme().mutedForeground}`}>{`in ${formatDistance(gap)}`}</Text>
     </View>
   </View>;
 }
 
 function Preview(): i32 {
-  return <View class="flex-col gap-3 p-4">
-    <View class="flex-row items-end gap-3">
-      <Text class="text-3xl font-bold text-emerald-600 tracking-tight">{`${Math.round(totalTime / 60)} min`}</Text>
-      <Text class={`text-lg text-${theme().mutedForeground} pb-0.5`}>{formatDistance(routeLength)}</Text>
+  return <View className="flex-col gap-3 p-4">
+    <View className="flex-row items-end gap-3">
+      <Text className="text-3xl font-bold text-emerald-600 tracking-tight">{`${Math.round(totalTime / 60)} min`}</Text>
+      <Text className={`text-lg text-${theme().mutedForeground} pb-0.5`}>{formatDistance(routeLength)}</Text>
     </View>
-    <Text class={`text-sm text-${theme().mutedForeground}`}>Fastest route now · via Champs-Élysées and the Seine</Text>
-    <View class="flex-row items-center justify-center h-12 rounded-xl bg-gradient-to-b from-[#29a5f5] to-[#0b6fd6] shadow-md cursor-pointer focus:bg-sky-600" onClick={go}>
-      <Text class="text-lg font-bold text-white">{countdown() <= AUTO_GO ? `Go  ·  ${countdown()}` : 'Go'}</Text>
+    <Text className={`text-sm text-${theme().mutedForeground}`}>Fastest route now · via Champs-Élysées and the Seine</Text>
+    <View className="flex-row items-center justify-center h-12 rounded-xl bg-gradient-to-b from-[#29a5f5] to-[#0b6fd6] shadow-md cursor-pointer focus:bg-sky-600" onClick={go}>
+      <Text className="text-lg font-bold text-white">{countdown() <= AUTO_GO ? `Go  ·  ${countdown()}` : 'Go'}</Text>
     </View>
   </View>;
 }
@@ -49,23 +49,23 @@ function Driving(): i32 {
     for (let i: i32 = stepIndex(); i < steps.length; i++) out.push(i);
     return out;
   }, NONE);
-  return <View class="flex-col">
-    <View class="flex-row items-center gap-4 pl-5 pr-3 py-3 cursor-pointer" onClick={toggleSheet}>
-      <View class="flex-col">
-        <Text class="text-3xl font-bold text-emerald-600 tracking-tight">{etaClock()}</Text>
-        <Text class={`text-xs text-${theme().mutedForeground}`}>arrival</Text>
+  return <View className="flex-col">
+    <View className="flex-row items-center gap-4 pl-5 pr-3 py-3 cursor-pointer" onClick={toggleSheet}>
+      <View className="flex-col">
+        <Text className="text-3xl font-bold text-emerald-600 tracking-tight">{etaClock()}</Text>
+        <Text className={`text-xs text-${theme().mutedForeground}`}>arrival</Text>
       </View>
-      <View class="flex-col grow">
-        <Text class={`text-lg font-semibold text-${theme().foreground}`}>{phase() === ARRIVED ? "Arrived" : `${etaMinutes()} min`}</Text>
-        <Text class={`text-sm text-${theme().mutedForeground}`}>{distanceLeft()}</Text>
+      <View className="flex-col grow">
+        <Text className={`text-lg font-semibold text-${theme().foreground}`}>{phase() === ARRIVED ? "Arrived" : `${etaMinutes()} min`}</Text>
+        <Text className={`text-sm text-${theme().mutedForeground}`}>{distanceLeft()}</Text>
       </View>
-      <View class={`w-10 h-10 rounded-full items-center justify-center bg-${theme().muted}`}>
-        <Canvas class="w-[22px] h-[22px]" onDraw={(x: i32, y: i32, w: i32, h: i32) => drawIcon(sheetOpen() ? DOWN_ICON : UP_ICON, x, y, w, rgb(theme().foreground))} />
+      <View className={`w-10 h-10 rounded-full items-center justify-center bg-${theme().muted}`}>
+        <Canvas className="w-[22px] h-[22px]" onDraw={(x: i32, y: i32, w: i32, h: i32) => drawIcon(sheetOpen() ? DOWN_ICON : UP_ICON, x, y, w, rgb(theme().foreground))} />
       </View>
     </View>
-    <View class={`overflow-hidden h-[${Math.round(Math.max(0, sheetT.get()) * listHeight())}px]`}>
-      <View class={`border-t border-${theme().border}`} />
-      <ScrollView class={`h-[${Math.round(listHeight())}px] p-2`}>
+    <View className={`overflow-hidden h-[${Math.round(Math.max(0, sheetT.get()) * listHeight())}px]`}>
+      <View className={`border-t border-${theme().border}`} />
+      <ScrollView className={`h-[${Math.round(listHeight())}px] p-2`}>
         <For each={ahead()}>{(i: i32) => <StepRow index={i} />}</For>
       </ScrollView>
     </View>
@@ -73,7 +73,7 @@ function Driving(): i32 {
 }
 
 export function Sheet(): i32 {
-  return <View class={`rounded-2xl shadow-xl border bg-${theme().card} border-${theme().border}`} onPointerDown={() => {}}>
+  return <View className={`rounded-2xl shadow-xl border bg-${theme().card} border-${theme().border}`} onPointerDown={() => {}}>
     <Show when={phase() === PREVIEW} fallback={<Driving />}><Preview /></Show>
   </View>;
 }

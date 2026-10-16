@@ -7,15 +7,15 @@ for (let i = 1; i <= 200; i++) ROWS.push(`Row ${i}`);
 const [query, setQuery] = createSignal<string>('');
 
 function App(): i32 {
-  return <View class={`w-full h-full flex-col gap-3 p-4 bg-${hex(theme().bg)}`}>
-    <View class="flex-row items-center gap-3">
-      <Image class="w-12 h-12" src="image.png" />
-      <Text class={`text-xl font-semibold text-${hex(theme().textHighlighted)}`}>Bench List</Text>
+  return <View className={`w-full h-full flex-col gap-3 p-4 bg-${hex(theme().bg)}`}>
+    <View className="flex-row items-center gap-3">
+      <Image className="w-12 h-12" src="image.png" />
+      <Text className={`text-xl font-semibold text-${hex(theme().textHighlighted)}`}>Bench List</Text>
     </View>
     <Input placeholder="Filter" modelValue={query} onUpdate={setQuery} />
-    <ScrollView class="grow">
+    <ScrollView className="grow">
       <For each={ROWS.filter((r: string) => r.toLowerCase().includes(query().toLowerCase()))}>{(r: string) =>
-        <Text class={`py-2 text-${hex(theme().text)}`}>{r}</Text>}</For>
+        <Text className={`py-2 text-${hex(theme().text)}`}>{r}</Text>}</For>
     </ScrollView>
   </View>;
 }

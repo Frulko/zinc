@@ -8,13 +8,13 @@ function label(n: number): string {
 
 function App(): i32 {
   const n = 3;
-  return <view class="p-2">
-    <text>{label(n)}</text>
-    <text>{(() => {
+  return <View className="p-2">
+    <Text>{label(n)}</Text>
+    <Text>{(() => {
       const k = n * 2;
       return label(k);
-    })()}</text>
-  </view>;
+    })()}</Text>
+  </View>;
 }
 
 render(App, 0xffffff, (dt: number) => {});

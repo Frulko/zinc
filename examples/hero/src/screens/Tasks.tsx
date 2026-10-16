@@ -31,10 +31,10 @@ function submit(): void {
 // The box is 20 px, what a finger presses is the 44 px square around it.
 function Checkbox(props: { task: Task }): i32 {
   const t = props.task;
-  return <View class="w-11 h-11 -ml-3 items-center justify-center cursor-pointer" onClick={() => { toggleTask(t); syncProgress(); }}>
-    <View class={`w-5 h-5 rounded-md border-2 items-center justify-center ${t.done() ? `bg-${theme().accent} border-${theme().accent}` : `border-${theme().input} bg-${theme().card}`}`}
+  return <View className="w-11 h-11 -ml-3 items-center justify-center cursor-pointer" onClick={() => { toggleTask(t); syncProgress(); }}>
+    <View className={`w-5 h-5 rounded-md border-2 items-center justify-center ${t.done() ? `bg-${theme().accent} border-${theme().accent}` : `border-${theme().input} bg-${theme().card}`}`}
       style={{ scale: t.check.get() }}>
-      {t.done() ? <Text class="text-xs font-bold text-white">✓</Text> : <View />}
+      {t.done() ? <Text className="text-xs font-bold text-white">✓</Text> : <View />}
     </View>
   </View>;
 }
@@ -57,25 +57,25 @@ const renaming = (): boolean => compact() && editing() >= 0;
 function TitleEditor(props: { task: Task }): i32 {
   const t = props.task;
   onMount(() => ui.focusNode(titleInput.node));
-  return <Input ref={titleInput} class={`grow h-9 rounded-lg bg-${theme().card} border-${theme().border} text-${theme().foreground} focus:border-${theme().accent}`}
+  return <Input ref={titleInput} className={`grow h-9 rounded-lg bg-${theme().card} border-${theme().border} text-${theme().foreground} focus:border-${theme().accent}`}
     value={edited()} onInput={(v: string) => setEdited(v)}
     onKeyDown={(e: ui.KeyEvent) => { if (e.key === 'Enter') { keep(t); e.preventDefault(); } else if (e.key === 'Escape') { setEditing(-1); editorHadFocus = false; e.preventDefault(); } }} />;
 }
 
 function TaskRow(props: { task: Task }): i32 {
   const t = props.task;
-  return <View class="flex-col overflow-hidden" style={{ height: Math.round(ROW_H * t.life.get()), opacity: t.life.get() }}>
-    <View class={`flex-row items-center gap-3 h-[52] px-4 rounded-xl border bg-${theme().card} border-${theme().border}`}
+  return <View className="flex-col overflow-hidden" style={{ height: Math.round(ROW_H * t.life.get()), opacity: t.life.get() }}>
+    <View className={`flex-row items-center gap-3 h-[52] px-4 rounded-xl border bg-${theme().card} border-${theme().border}`}
       style={{ translateX: (1 - t.life.get()) * -30 }}>
       <Checkbox task={t} />
       {editing() === t.id ? <TitleEditor task={t} />
-        : <View class="grow h-11 justify-center cursor-text" onClick={() => { setEdited(t.title()); setEditing(t.id); }}>
-          <Text class={`text-sm ${t.done() ? `text-${theme().mutedForeground}` : `text-${theme().foreground}`}`}>{t.title()}</Text>
+        : <View className="grow h-11 justify-center cursor-text" onClick={() => { setEdited(t.title()); setEditing(t.id); }}>
+          <Text className={`text-sm ${t.done() ? `text-${theme().mutedForeground}` : `text-${theme().foreground}`}`}>{t.title()}</Text>
         </View>}
       <Badge label={t.tag} variant={t.done() ? 'outline' : 'secondary'} />
-      <View class={`w-11 h-11 -mr-2 rounded-lg items-center justify-center cursor-pointer hover:bg-${theme().muted}`}
+      <View className={`w-11 h-11 -mr-2 rounded-lg items-center justify-center cursor-pointer hover:bg-${theme().muted}`}
         onClick={() => { removeTask(t); syncProgress(); }}>
-        <Text class={`text-base text-${theme().mutedForeground}`}>×</Text>
+        <Text className={`text-base text-${theme().mutedForeground}`}>×</Text>
       </View>
     </View>
   </View>;
@@ -83,30 +83,30 @@ function TaskRow(props: { task: Task }): i32 {
 
 export function Tasks(): i32 {
   syncProgress();
-  return <View class="grow flex-col gap-5 p-4 lg:p-8">
-    <Show when={!renaming()}><View class="flex-row items-end justify-between" style={{ opacity: enter.at(0) }}>
-      <View class="flex-col gap-1">
-        <Text class={heading(2)}>Tasks</Text>
-        <Text class={mutedText()}>{`${doneCount()} of ${totalCount()} done`}</Text>
+  return <View className="grow flex-col gap-5 p-4 lg:p-8">
+    <Show when={!renaming()}><View className="flex-row items-end justify-between" style={{ opacity: enter.at(0) }}>
+      <View className="flex-col gap-1">
+        <Text className={heading(2)}>Tasks</Text>
+        <Text className={mutedText()}>{`${doneCount()} of ${totalCount()} done`}</Text>
       </View>
       <Tabs items={['All', 'Active', 'Done']} selected={filter} onSelect={(i: i32) => setFilter(i)} />
     </View>
     </Show>
     <Show when={!renaming()}><Progress value={() => progress.get()} /></Show>
-    <Show when={!renaming()}><View class="flex-row gap-2" style={{ opacity: enter.at(0.08), translateY: (1 - enter.at(0.08)) * 12 }}>
-      <Input ref={taskInput} class={`grow h-10 rounded-lg bg-${theme().card} border-${theme().border} text-${theme().foreground} focus:border-${theme().accent}`}
+    <Show when={!renaming()}><View className="flex-row gap-2" style={{ opacity: enter.at(0.08), translateY: (1 - enter.at(0.08)) * 12 }}>
+      <Input ref={taskInput} className={`grow h-10 rounded-lg bg-${theme().card} border-${theme().border} text-${theme().foreground} focus:border-${theme().accent}`}
         placeholder="What needs doing? (Enter to add)" value={draft()} onInput={(v: string) => setDraft(v)}
         onKeyDown={(e: ui.KeyEvent) => { if (e.key === 'Enter') { submit(); syncProgress(); e.preventDefault(); } }} />
       <Button label={TAGS[tag()]} variant="outline" onClick={() => setTag((tag() + 1) % TAGS.length)} />
       <Button label="Add" onClick={() => { submit(); syncProgress(); }} />
     </View></Show>
-    <ScrollView class="grow">
-      <View class="flex-col gap-1 pb-2">
+    <ScrollView className="grow">
+      <View className="flex-col gap-1 pb-2">
         {visibleTasks().map((t: Task) => <TaskRow task={t} />)}
       </View>
     </ScrollView>
-    <Show when={!renaming()}><View class="flex-row items-center">
-      <Text class={`text-xs grow text-${theme().mutedForeground}`}>Click the tag button to cycle it. Checked tasks can be cleared at once.</Text>
+    <Show when={!renaming()}><View className="flex-row items-center">
+      <Text className={`text-xs grow text-${theme().mutedForeground}`}>Click the tag button to cycle it. Checked tasks can be cleared at once.</Text>
       <Button label="Clear completed" variant="ghost" onClick={() => { const n = clearDone(); syncProgress(); toast(n > 0 ? `Cleared ${n} task${n > 1 ? 's' : ''}` : 'Nothing to clear'); }} />
     </View></Show>
   </View>;

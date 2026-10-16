@@ -8,8 +8,8 @@ const s = StyleSheet.create({
   words: { fontSize: 32, lineHeight: 44, color: '#000000' },
 });
 function App(): i32 {
-  return <view style={s.page}><view style={s.box}>
-    <text style={s.words}>A paragraph in a scaled view keeps the line breaks it has at its own size, and its letters are those of the size on screen.</text>
-  </view></view>;
+  return <View style={s.page}><View style={s.box}>
+    <Text style={s.words}>A paragraph in a scaled view keeps the line breaks it has at its own size, and its letters are those of the size on screen.</Text>
+  </View></View>;
 }
 render(App, 0xffffff, (dt: number) => {});

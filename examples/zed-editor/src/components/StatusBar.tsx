@@ -27,27 +27,27 @@ function lineMessage(): string {
 }
 
 function Item(props: { label: () => string; onPress: () => void }): i32 {
-  return <View class={`h-[22] px-2 rounded items-center justify-center cursor-pointer hover:${bg(theme().hover)}`}
+  return <View className={`h-[22] px-2 rounded items-center justify-center cursor-pointer hover:${bg(theme().hover)}`}
     onPointerDown={(e: ui.PointerEvent) => props.onPress()}>
-    <Text class={`text-[12px] ${fg(theme().muted)}`}>{props.label()}</Text>
+    <Text className={`text-[12px] ${fg(theme().muted)}`}>{props.label()}</Text>
   </View>;
 }
 
 export function StatusBar(): i32 {
   const b = (): Buffer | null => active();
-  return <View class={`flex-row items-center h-[28] px-1.5 gap-0.5 border-t ${bg(theme().surface)} ${bd(theme().borderSoft)}`}>
+  return <View className={`flex-row items-center h-[28] px-1.5 gap-0.5 border-t ${bg(theme().surface)} ${bd(theme().borderSoft)}`}>
     <IconButton kind={I_SIDEBAR} size={14} on={panelOpen} onPress={togglePanel} />
     <IconButton kind={I_TERMINAL} size={14} on={terminalOpen} onPress={toggleTerminal} />
-    <View class={`flex-row items-center h-[22] px-2 gap-1 rounded cursor-pointer hover:${bg(theme().hover)}`}
+    <View className={`flex-row items-center h-[22] px-2 gap-1 rounded cursor-pointer hover:${bg(theme().hover)}`}
       onPointerDown={(e: ui.PointerEvent) => openPalette(PAL_COMMANDS)}>
       <Glyph kind={I_ERROR} size={13} color={() => count(1) > 0 ? theme().error : theme().faint} />
-      <Text class={`text-[12px] pr-1 ${fg(theme().muted)}`}>{`${count(1)}`}</Text>
+      <Text className={`text-[12px] pr-1 ${fg(theme().muted)}`}>{`${count(1)}`}</Text>
       <Glyph kind={I_WARNING} size={13} color={() => count(2) > 0 ? theme().warning : theme().faint} />
-      <Text class={`text-[12px] ${fg(theme().muted)}`}>{`${count(2)}`}</Text>
+      <Text className={`text-[12px] ${fg(theme().muted)}`}>{`${count(2)}`}</Text>
     </View>
-    <Text class={`text-[12px] pl-2 ${fg(lineMessage() !== '' ? theme().error : theme().faint)}`}>{lineMessage() !== '' ? lineMessage() : notice()}</Text>
-    <View class="grow" />
-    {b() !== null && <View class="flex-row items-center gap-0.5">
+    <Text className={`text-[12px] pl-2 ${fg(lineMessage() !== '' ? theme().error : theme().faint)}`}>{lineMessage() !== '' ? lineMessage() : notice()}</Text>
+    <View className="grow" />
+    {b() !== null && <View className="flex-row items-center gap-0.5">
       <Item label={() => { const c = caretInfo(); return c[2] > 0 ? `${c[0]}:${c[1]} (${c[2]} selected)` : `${c[0]}:${c[1]}`; }} onPress={() => {}} />
       <Item label={() => fontIndex() === DEFAULT_FONT ? `${fontSize()} px` : `${fontSize()} px (⌘0)`} onPress={() => setFontIndex(DEFAULT_FONT)} />
       <Item label={() => softWrap() ? 'Wrap' : 'No wrap'} onPress={() => setSoftWrap(!softWrap())} />

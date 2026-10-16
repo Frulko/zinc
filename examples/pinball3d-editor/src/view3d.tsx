@@ -11,7 +11,7 @@ import * as ui from 'zinc:ui';
 import { rect, closeWindow, windowOpen } from 'zinc:gfx';
 import { Camera } from 'zinc:3d';
 import { Phase } from '../../pinball3d/src/game';
-import { View } from '../../pinball3d/src/view';
+import { View as TableView } from '../../pinball3d/src/view';
 import { drawPanel, grouped } from '../../pinball3d/src/panel';
 import { rgb } from './shapes';
 import { doc, table, advanced, setCamera, say } from './state';
@@ -93,7 +93,7 @@ function score(): string {
 function lastEvents(): string[] { moved(); return events.slice(Math.max(0, events.length - 7)); }
 /** The switch between the two things the pane beside the top view can show. */
 export function PaneSwitch(): i32 {
-  return <view class="w-[112]"><Segmented options={['heights', '3d']} labels={[t(L.PROFILE), '3D']} value={() => view3d() ? '3d' : 'heights'} onPick={(v: string) => setView3d(v === '3d')} /></view>;
+  return <View className="w-[112]"><Segmented options={['heights', '3d']} labels={[t(L.PROFILE), '3D']} value={() => view3d() ? '3d' : 'heights'} onPick={(v: string) => setView3d(v === '3d')} /></View>;
 }
 const never = (): boolean => false;
 function key(k: string): () => string { return (): string => advanced() ? k : ''; }
@@ -103,10 +103,10 @@ export function Pane3D(): i32 {
   createEffect(() => { doc(); moved(); playing(); paused(); eye3d(); paneLayout(); tall(); ui.repaint(); });
   // the pointer plays the game while one runs (a touch is a flipper button); otherwise it sets the eye
   const free = (): boolean => !playing() || paused();
-  return <view class="grow basis-0 min-w-0 flex-col bg-zinc-950 border-l border-zinc-800">
-    <view class="flex-row items-center gap-1 h-9 px-2 shrink-0 bg-zinc-900 border-b border-zinc-800">
+  return <View className="grow basis-0 min-w-0 flex-col bg-zinc-950 border-l border-zinc-800">
+    <View className="flex-row items-center gap-1 h-9 px-2 shrink-0 bg-zinc-900 border-b border-zinc-800">
       <PaneSwitch />
-      <view class="grow" />
+      <View className="grow" />
       <Show when={!playing() || paused()}><Tool icon="play" label="" look="primary" keys={key('P')} off={never} onClick={play} /></Show>
       <Show when={playing() && !paused()}><Tool icon="pause" label="" look="plain" keys={key('P')} off={never} onClick={pause} /></Show>
       <Tool icon="step-forward" label="" look="quiet" keys={key('O')} off={() => !playing() || !paused()} onClick={stepFrame} />
@@ -114,46 +114,46 @@ export function Pane3D(): i32 {
       <Show when={!dropping()}><Tool icon="circle-arrow-down" label="" look="quiet" keys={key('B')} off={never} onClick={() => setDropping(true)} /></Show>
       <Show when={dropping()}><Tool icon="circle-arrow-down" label="" look="primary" keys={key('B')} off={never} onClick={() => setDropping(false)} /></Show>
       <Tool icon="app-window" label="" look="quiet" keys={key('W')} off={never} onClick={toggleWindow} />
-    </view>
-    <view class="grow basis-0 min-h-0 relative overflow-hidden cursor-default"
+    </View>
+    <View className="grow basis-0 min-h-0 relative overflow-hidden cursor-default"
       onPointerDown={(e: ui.PointerEvent) => { turning = free() && e.button === 0; lastX = e.x; lastY = e.y; }}
       onPointerMove={(e: ui.PointerEvent) => { if (turning) { turnEye(e.x - lastX, e.y - lastY, e.shift, 1); lastX = e.x; lastY = e.y; } }}
       onPointerUp={(e: ui.PointerEvent) => { turning = false; }}
       onWheel={(e: ui.PointerEvent) => { if (free() && e.wheel !== 0) turnEye(0, 0, false, e.wheel > 0 ? 1 / 1.1 : 1.1); }}>
-      <canvas class="absolute inset-0" style={{ lazy: 1 }} onDraw={draw} />
+      <Canvas className="absolute inset-0" style={{ lazy: 1 }} onDraw={draw} />
       {/* the eye: which layout the pane looks through, the whole board again, and what to do with a view set by hand */}
       <Show when={free() && problem() === ''}>
-        <view class="absolute left-[10] top-[10] flex-col gap-1 p-1 rounded-md bg-zinc-900 border border-zinc-700">
-          <view class="flex-row items-center gap-1">
-            <view class="w-[170]"><Segmented options={['landscape', 'portrait']} labels={[t(L.LANDSCAPE_LAYOUT), t(L.PORTRAIT_LAYOUT)]} value={shown} onPick={(v: string) => { setPaneLayout(v); setEye3d([]); }} /></view>
+        <View className="absolute left-[10] top-[10] flex-col gap-1 p-1 rounded-md bg-zinc-900 border border-zinc-700">
+          <View className="flex-row items-center gap-1">
+            <View className="w-[170]"><Segmented options={['landscape', 'portrait']} labels={[t(L.LANDSCAPE_LAYOUT), t(L.PORTRAIT_LAYOUT)]} value={shown} onPick={(v: string) => { setPaneLayout(v); setEye3d([]); }} /></View>
             <Tool icon="scan" label="" look="quiet" keys={key('')} off={never} onClick={frameEye} />
-          </view>
+          </View>
           <Show when={eye3d().length === 6}>
-            <view class="flex-row items-center gap-1">
+            <View className="flex-row items-center gap-1">
               <Tool icon="camera" label={t(L.USE_VIEW)} look="primary" keys={key('C')} off={never} onClick={useView} />
               <Tool icon="rotate-ccw" label="" look="quiet" keys={key('')} off={never} onClick={() => setEye3d([])} />
-            </view>
+            </View>
           </Show>
-        </view>
+        </View>
       </Show>
       <Show when={score() !== ''}>
-        <view class="absolute left-[10] top-[10] right-[10] flex-row px-2 py-1 rounded bg-zinc-900 border border-zinc-700"><text class="grow basis-0 text-xs font-bold text-amber-300">{score()}</text></view>
+        <View className="absolute left-[10] top-[10] right-[10] flex-row px-2 py-1 rounded bg-zinc-900 border border-zinc-700"><Text className="grow basis-0 text-xs font-bold text-amber-300">{score()}</Text></View>
       </Show>
       <Show when={problem() !== ''}>
-        <view class="absolute left-[10] right-[10] top-[10] flex-row px-3 py-2 rounded-md bg-zinc-900 border border-red-900"><text class="grow basis-0 text-xs text-red-300">{f(L.NO_3D, problem())}</text></view>
+        <View className="absolute left-[10] right-[10] top-[10] flex-row px-3 py-2 rounded-md bg-zinc-900 border border-red-900"><Text className="grow basis-0 text-xs text-red-300">{f(L.NO_3D, problem())}</Text></View>
       </Show>
       <Show when={!playing()}>
-        <view class="absolute left-[10] right-[10] bottom-[10] flex-row px-3 py-2 rounded-md bg-zinc-900 border border-zinc-700">
-          <text class="grow basis-0 text-[11px] text-zinc-400">{dropping() ? t(L.DROP_HOW) : eye3d().length === 6 ? t(L.EYE_HOW) : t(L.PLAY_HOW)}</text>
-        </view>
+        <View className="absolute left-[10] right-[10] bottom-[10] flex-row px-3 py-2 rounded-md bg-zinc-900 border border-zinc-700">
+          <Text className="grow basis-0 text-[11px] text-zinc-400">{dropping() ? t(L.DROP_HOW) : eye3d().length === 6 ? t(L.EYE_HOW) : t(L.PLAY_HOW)}</Text>
+        </View>
       </Show>
       <Show when={playing() && lastEvents().length > 0}>
-        <view class="absolute left-[10] right-[10] bottom-[10] flex-col px-2 py-1 rounded bg-zinc-900 border border-zinc-700">
-          <For each={lastEvents()}>{(line: string, i: i32) => <text class="truncate font-mono text-[10px] text-zinc-300" style={{ maxWidth: 320 }}>{line}</text>}</For>
-        </view>
+        <View className="absolute left-[10] right-[10] bottom-[10] flex-col px-2 py-1 rounded bg-zinc-900 border border-zinc-700">
+          <For each={lastEvents()}>{(line: string, i: i32) => <Text className="truncate font-mono text-[10px] text-zinc-300" style={{ maxWidth: 320 }}>{line}</Text>}</For>
+        </View>
       </Show>
-    </view>
-  </view>;
+    </View>
+  </View>;
 }
 
 // ---------------------------------------------------------------- the game in a window of its own
@@ -162,12 +162,12 @@ let win: i32 = -1;
 const eye = new Camera();
 /** The window as the game itself draws one: the layout that fits its shape, the table and the score panel. */
 function PlayWindow(): i32 {
-  return <view class="relative w-full h-full">
-    <canvas class="absolute inset-0" onDraw={(x: i32, y: i32, w: i32, h: i32) => {
+  return <View className="relative w-full h-full">
+    <Canvas className="absolute inset-0" onDraw={(x: i32, y: i32, w: i32, h: i32) => {
       const tb = table();
       rect(x, y, w, h, rgb(tb.lighting.background));
       try {
-        const g = gameNow(), s = sceneNow(), v = new View(tb, w, h, ''), l = v.layout;
+        const g = gameNow(), s = sceneNow(), v = new TableView(tb, w, h, ''), l = v.layout;
         aim(eye, l, v.w(l.view), v.h(l.view));
         eye.render(s.scene, x + v.x(l.view), y + v.y(l.view), v.w(l.view), v.h(l.view));
         drawPanel(v, g, t(L.KEYS_OF_GAME));
@@ -175,7 +175,7 @@ function PlayWindow(): i32 {
         setWindowControls(x + v.x(l.view), y + v.y(l.view), v.w(l.view), v.h(l.view));
       } catch (e) { }   // the pane beside the top view says why
     }} />
-  </view>;
+  </View>;
 }
 /** Opens the window of the game, or closes it. */
 export function toggleWindow(): void {

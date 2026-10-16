@@ -8,13 +8,13 @@ import { rrect } from 'zinc:gfx';
 /** "ISO   [‹] [ Auto ] [›]": the middle button opens the choice list. */
 function SettingRow(props: { setting: Setting; index: i32 }): i32 {
   const s = props.setting;
-  return <View class="flex-row items-center gap-2 h-9">
-    <Text class="w-16 text-sm text-zinc-500">{s.title}</Text>
-    <Button label="‹" variant="outline" size="icon" class="w-8 h-8" onClick={() => step(s, -1)} />
-    <Button variant="secondary" size="sm" class="grow w-0" onClick={() => setOpenMenu(openMenu() === props.index ? -1 : props.index)}>
-      <Text class="text-sm font-medium text-zinc-900">{s.value()}</Text>
+  return <View className="flex-row items-center gap-2 h-9">
+    <Text className="w-16 text-sm text-zinc-500">{s.title}</Text>
+    <Button label="‹" variant="outline" size="icon" className="w-8 h-8" onClick={() => step(s, -1)} />
+    <Button variant="secondary" size="sm" className="grow w-0" onClick={() => setOpenMenu(openMenu() === props.index ? -1 : props.index)}>
+      <Text className="text-sm font-medium text-zinc-900">{s.value()}</Text>
     </Button>
-    <Button label="›" variant="outline" size="icon" class="w-8 h-8" onClick={() => step(s, 1)} />
+    <Button label="›" variant="outline" size="icon" className="w-8 h-8" onClick={() => step(s, 1)} />
   </View>;
 }
 
@@ -25,19 +25,19 @@ function drawThumbnail(x: i32, y: i32, w: i32, h: i32): void {
 }
 
 export function SettingsPanel(): i32 {
-  return <View class="flex-col w-80 p-4 gap-3 bg-white border border-zinc-200">
-    <Text class={overline()}>SETTINGS</Text>
-    <View class="flex-col gap-1">
+  return <View className="flex-col w-80 p-4 gap-3 bg-white border border-zinc-200">
+    <Text className={overline()}>SETTINGS</Text>
+    <View className="flex-col gap-1">
       {settings().map((s: Setting, i: i32) => <SettingRow setting={s} index={i} />)}
     </View>
     <Separator />
-    <Button variant="outline" size="lg" class="w-full" onClick={() => { focus(); }}>
-      <Text class="text-sm font-medium text-zinc-900">Focus</Text>
+    <Button variant="outline" size="lg" className="w-full" onClick={() => { focus(); }}>
+      <Text className="text-sm font-medium text-zinc-900">Focus</Text>
     </Button>
-    <Button size="lg" class="w-full" onClick={() => { capture(); }}>
-      <Text class="text-sm font-medium text-zinc-50">{busy() ? 'Capturing…' : 'Capture'}</Text>
+    <Button size="lg" className="w-full" onClick={() => { capture(); }}>
+      <Text className="text-sm font-medium text-zinc-50">{busy() ? 'Capturing…' : 'Capture'}</Text>
     </Button>
-    <Canvas class="grow" onDraw={drawThumbnail} />
-    <Text class={captionText()}>{lastFile() === '' ? 'No capture yet' : lastFile()}</Text>
+    <Canvas className="grow" onDraw={drawThumbnail} />
+    <Text className={captionText()}>{lastFile() === '' ? 'No capture yet' : lastFile()}</Text>
   </View>;
 }

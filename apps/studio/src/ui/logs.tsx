@@ -29,17 +29,17 @@ function levelClass(level: string): string {
   return 'text-zinc-500';
 }
 function Row(l: LogLine): i32 {
-  return <view class={l.level === 'error' ? 'flex-row gap-3 px-3 py-[1] bg-red-50' : l.level === 'warn' ? 'flex-row gap-3 px-3 py-[1] bg-amber-50' : 'flex-row gap-3 px-3 py-[1]'}>
-    <text class="text-[11] font-mono text-zinc-400">{l.time}</text>
-    <text class={`w-[44] text-[11] font-mono ${levelClass(l.level)}`}>{l.level.toUpperCase()}</text>
-    <text class={l.level === 'build' ? 'text-[12] font-mono text-zinc-500' : 'text-[12] font-mono text-zinc-800'}>{l.text}</text>
-  </view>;
+  return <View className={l.level === 'error' ? 'flex-row gap-3 px-3 py-[1] bg-red-50' : l.level === 'warn' ? 'flex-row gap-3 px-3 py-[1] bg-amber-50' : 'flex-row gap-3 px-3 py-[1]'}>
+    <Text className="text-[11] font-mono text-zinc-400">{l.time}</Text>
+    <Text className={`w-[44] text-[11] font-mono ${levelClass(l.level)}`}>{l.level.toUpperCase()}</Text>
+    <Text className={l.level === 'build' ? 'text-[12] font-mono text-zinc-500' : 'text-[12] font-mono text-zinc-800'}>{l.text}</Text>
+  </View>;
 }
 function Chip(level: string): i32 {
-  return <button class={hidden().indexOf(level) < 0 ? 'h-[22] px-2 rounded-md bg-zinc-900 cursor-pointer' : 'h-[22] px-2 rounded-md border border-zinc-200 bg-white hover:bg-zinc-50 cursor-pointer'}
+  return <Button className={hidden().indexOf(level) < 0 ? 'h-[22] px-2 rounded-md bg-zinc-900 cursor-pointer' : 'h-[22] px-2 rounded-md border border-zinc-200 bg-white hover:bg-zinc-50 cursor-pointer'}
     onClick={() => toggle(level)}>
-    <text class={hidden().indexOf(level) < 0 ? 'text-[11] font-medium text-white' : 'text-[11] font-medium text-zinc-500'}>{level}</text>
-  </button>;
+    <Text className={hidden().indexOf(level) < 0 ? 'text-[11] font-medium text-white' : 'text-[11] font-medium text-zinc-500'}>{level}</Text>
+  </Button>;
 }
 
 /** Keeps the newest line in view (call every frame). */
@@ -50,20 +50,20 @@ export function tickLogs(): void {
 }
 
 export function LogPanel(): i32 {
-  return <view class="flex-col h-[200] bg-white">
+  return <View className="flex-col h-[200] bg-white">
     <HSep />
     <PanelHeader title="Log" icon="terminal">
-      <view class="flex-row items-center gap-1">
+      <View className="flex-row items-center gap-1">
         <For each={LEVELS}>{(l: string, _i: i32) => Chip(l)}</For>
-        <view class="flex-row items-center gap-1 ml-2 px-2 h-[24] w-[180] rounded-md border border-zinc-200">
+        <View className="flex-row items-center gap-1 ml-2 px-2 h-[24] w-[180] rounded-md border border-zinc-200">
           <Icon name="search" color={C_SOFT} size={12} />
-          <input class="grow h-[22] text-[12] text-zinc-900 bg-white border-0" placeholder="Filter" value={filter()} onInput={(v: string) => setFilter(v)} />
-        </view>
+          <Input className="grow h-[22] text-[12] text-zinc-900 bg-white border-0" placeholder="Filter" value={filter()} onInput={(v: string) => setFilter(v)} />
+        </View>
         <IconButton icon="clear" onClick={() => clearLog()} />
-      </view>
+      </View>
     </PanelHeader>
-    <scroll ref={scroller} class="grow py-1 bg-white">
+    <ScrollView ref={scroller} className="grow py-1 bg-white">
       <For each={visible()}>{(l: LogLine, _i: i32) => Row(l)}</For>
-    </scroll>
-  </view>;
+    </ScrollView>
+  </View>;
 }

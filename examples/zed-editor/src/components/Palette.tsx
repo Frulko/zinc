@@ -99,21 +99,21 @@ function paletteKey(e: ui.KeyEvent): void {
 /** Text with its matched characters highlighted: alternating plain / matched segments. */
 function Highlighted(props: { text: string; hits: i32[]; color: i32; size: string }): i32 {
   const segs = segments(props.text, props.hits);
-  return <View class="flex-row">
-    {segs.map((s: string, i: i32) => <Text class={`${props.size} ${i % 2 === 1 ? `font-semibold ${fg(theme().accent)}` : fg(props.color)}`}>{s}</Text>)}
+  return <View className="flex-row">
+    {segs.map((s: string, i: i32) => <Text className={`${props.size} ${i % 2 === 1 ? `font-semibold ${fg(theme().accent)}` : fg(props.color)}`}>{s}</Text>)}
   </View>;
 }
 
 function Row(props: { it: Item }): i32 {
   const it = props.it;
   const on = (): boolean => items().indexOf(it) === cursor();
-  return <View class={`flex-row items-center h-[30] px-2.5 gap-2 rounded-md cursor-pointer ${on() ? bg(theme().selected) : ''}`}
+  return <View className={`flex-row items-center h-[30] px-2.5 gap-2 rounded-md cursor-pointer ${on() ? bg(theme().selected) : ''}`}
     onPointerDown={(e: ui.PointerEvent) => run(it)} onPointerEnter={(e: ui.PointerEvent) => setCursor(items().indexOf(it))}>
     {it.path !== '' && <Canvas style={{ width: 16, height: 16, lazy: 1 }}
       onDraw={(x: i32, y: i32, w: i32, h: i32) => drawFileIcon(it.label, false, false, x, y, w, theme())} />}
     <Highlighted text={it.label} hits={it.labelHits} color={theme().text} size="text-[13px]" />
     <Highlighted text={it.detail} hits={it.detailHits} color={theme().faint} size="text-[12px]" />
-    <View class="grow" />
+    <View className="grow" />
     {it.keys !== '' && <Kbd keys={it.keys} />}
   </View>;
 }
@@ -129,22 +129,22 @@ createEffect(() => {
 export function Palette(): i32 {
   const t = (): number => paletteT.get();
   const n = (): i32 => Math.min(items().length, MAX_ROWS);
-  return <View class="absolute inset-0 items-center pt-[64]" style={{ hidden: paletteMode() === PAL_CLOSED ? 1 : 0 }}>
-    <View class="absolute inset-0" onPointerDown={() => closePalette()} />
-    <View class={`flex-col w-[580] rounded-xl border shadow-xl overflow-hidden ${bg(theme().elevated)} ${bd(theme().border)}`}
+  return <View className="absolute inset-0 items-center pt-[64]" style={{ hidden: paletteMode() === PAL_CLOSED ? 1 : 0 }}>
+    <View className="absolute inset-0" onPointerDown={() => closePalette()} />
+    <View className={`flex-col w-[580] rounded-xl border shadow-xl overflow-hidden ${bg(theme().elevated)} ${bd(theme().border)}`}
       style={{ opacity: t(), scale: 0.96 + 0.04 * t(), translateX: (1 - (0.96 + 0.04 * t())) * 290, translateY: (1 - t()) * -8 }}
       onPointerDown={() => {}}>
-      <View class={`flex-row items-center h-[42] px-3 border-b ${bd(theme().borderSoft)}`}>
-        <Input ref={inputRef} class={`grow text-[14px] border-0 rounded-none bg-transparent p-0 ${fg(theme().text)} focus:${bd(theme().elevated)}`}
+      <View className={`flex-row items-center h-[42] px-3 border-b ${bd(theme().borderSoft)}`}>
+        <Input ref={inputRef} className={`grow text-[14px] border-0 rounded-none bg-transparent p-0 ${fg(theme().text)} focus:${bd(theme().elevated)}`}
           placeholder={paletteMode() === PAL_FILES ? 'Search project files…' : 'Execute a command…'}
           value={query()} onInput={(v: string) => { setQuery(v); setCursor(0); if (listRef.node >= 0) ui.scrollTo(listRef.node, 0, 0); }}
           onKeyDown={paletteKey} />
       </View>
-      <ScrollView ref={listRef} class="flex-col p-1" style={{ height: n() * ROW + 8 }}>
+      <ScrollView ref={listRef} className="flex-col p-1" style={{ height: n() * ROW + 8 }}>
         {items().map((it: Item) => <Row it={it} />)}
       </ScrollView>
-      {items().length === 0 && <View class="h-[40] px-4 justify-center">
-        <Text class={`text-[13px] ${fg(theme().faint)}`}>No matches</Text>
+      {items().length === 0 && <View className="h-[40] px-4 justify-center">
+        <Text className={`text-[13px] ${fg(theme().faint)}`}>No matches</Text>
       </View>}
     </View>
   </View>;

@@ -27,20 +27,20 @@ const EVENTS = scoreEvents();
  *  caret while its number is typed. */
 function Row(p: { line: string }): i32 {
   const parts = p.line.split('|'), name = parts[0], sends = parts[3].split(' ');
-  return <view class="flex-row items-center h-7 px-3 shrink-0 border-b border-zinc-900">
-    <text class="shrink-0 truncate text-xs text-zinc-100" style={{ width: NAME }}>{name}</text>
-    <text class="shrink-0 truncate text-[11px] text-zinc-500" style={{ width: KIND }}>{listName(parts[2], parts[1] === 'e')}</text>
+  return <View className="flex-row items-center h-7 px-3 shrink-0 border-b border-zinc-900">
+    <Text className="shrink-0 truncate text-xs text-zinc-100" style={{ width: NAME }}>{name}</Text>
+    <Text className="shrink-0 truncate text-[11px] text-zinc-500" style={{ width: KIND }}>{listName(parts[2], parts[1] === 'e')}</Text>
     {EVENTS.map((e: string, k: i32) => <Cell name={name} event={e} sent={sends.indexOf(e) >= 0} />)}
-  </view>;
+  </View>;
 }
 /** The points of a thing at an event; an empty place when the thing does not send the event. */
 function Cell(p: { name: string; event: string; sent: boolean }): i32 {
-  if (!p.sent) return <view class="shrink-0" style={{ width: COL }} />;
+  if (!p.sent) return <View className="shrink-0" style={{ width: COL }} />;
   const points = (): number => scoreOf(doc().data, p.name, p.event);
-  return <view class="shrink-0" style={{ width: COL }}>
-    <input class="h-6 px-1 rounded bg-zinc-950 border border-zinc-800 text-xs text-zinc-100 focus:border-amber-400" style={{ width: COL - 6 }} value={points() === 0 ? '' : `${points()}`}
+  return <View className="shrink-0" style={{ width: COL }}>
+    <Input className="h-6 px-1 rounded bg-zinc-950 border border-zinc-800 text-xs text-zinc-100 focus:border-amber-400" style={{ width: COL - 6 }} value={points() === 0 ? '' : `${points()}`}
       onChange={(v: string) => { const n = v.trim() === '' ? 0 : typed(v); if (isNumber(n)) setScore(p.name, p.event, n); else refresh(); }} />
-  </view>;
+  </View>;
 }
 export function ScoreGrid(): i32 {
   const lines = (): string[] => {
@@ -52,22 +52,22 @@ export function ScoreGrid(): i32 {
     }
     return out;
   };
-  return <view class="grow basis-0 min-w-0 flex-col bg-zinc-950">
-    <view class="flex-row items-center gap-3 h-9 px-3 shrink-0 bg-zinc-900 border-b border-zinc-800">
+  return <View className="grow basis-0 min-w-0 flex-col bg-zinc-950">
+    <View className="flex-row items-center gap-3 h-9 px-3 shrink-0 bg-zinc-900 border-b border-zinc-800">
       <Heading label={t(L.SCORES)} />
-      <text class="grow basis-0 truncate text-[11px] text-zinc-500">{t(L.SCORES_HOW)}</text>
-    </view>
-    <view class="flex-row items-center h-9 px-3 shrink-0 border-b border-zinc-800">
-      <view class="flex-row items-center gap-2 shrink-0" style={{ width: NAME + KIND }}>
+      <Text className="grow basis-0 truncate text-[11px] text-zinc-500">{t(L.SCORES_HOW)}</Text>
+    </View>
+    <View className="flex-row items-center h-9 px-3 shrink-0 border-b border-zinc-800">
+      <View className="flex-row items-center gap-2 shrink-0" style={{ width: NAME + KIND }}>
         <Ico name="search" size={13} color={MUTED} />
-        <input ref={finder} style={{ width: NAME + KIND - 34 }} class="h-7 px-2 rounded-md bg-zinc-950 border border-zinc-800 text-xs text-zinc-100 focus:border-amber-400" placeholder={f(L.FIND_SCORE, chord('K'))}
+        <Input ref={finder} style={{ width: NAME + KIND - 34 }} className="h-7 px-2 rounded-md bg-zinc-950 border border-zinc-800 text-xs text-zinc-100 focus:border-amber-400" placeholder={f(L.FIND_SCORE, chord('K'))}
           value={wanted()} onInput={(v: string) => setWanted(v)} onKeyDown={(e: ui.KeyEvent) => { if (e.key === 'Escape') setWanted(''); }} />
-      </view>
-      {EVENTS.map((e: string, k: i32) => <text class="shrink-0 truncate text-[10px] font-bold text-zinc-400" style={{ width: COL }}>{(phrase(`event.${e}`) === '' ? e : phrase(`event.${e}`)).toUpperCase()}</text>)}
-    </view>
-    <scroll class="grow basis-0 min-h-0 flex-col">
+      </View>
+      {EVENTS.map((e: string, k: i32) => <Text className="shrink-0 truncate text-[10px] font-bold text-zinc-400" style={{ width: COL }}>{(phrase(`event.${e}`) === '' ? e : phrase(`event.${e}`)).toUpperCase()}</Text>)}
+    </View>
+    <ScrollView className="grow basis-0 min-h-0 flex-col">
       <For each={lines()}>{(line: string, i: i32) => <Row line={line} />}</For>
-      <Show when={lines().length === 0}><text class="px-3 py-3 text-xs text-zinc-500">{t(L.NO_SCORES)}</text></Show>
-    </scroll>
-  </view>;
+      <Show when={lines().length === 0}><Text className="px-3 py-3 text-xs text-zinc-500">{t(L.NO_SCORES)}</Text></Show>
+    </ScrollView>
+  </View>;
 }

@@ -23,16 +23,16 @@ for (let i = 0; i < 8; i++) refs.push(createNodeRef());
 const box = (k: i32): string => { const b = ui.screenBox(refs[k].node); return `${Math.round(b[2])}x${Math.round(b[3])}`; };
 
 function App(): i32 {
-  return <view style={s.col}>
-    <view ref={refs[0]} style={s.minW} />
-    <view ref={refs[1]} style={s.maxW} />
-    <view ref={refs[2]} style={s.minH} />
-    <view ref={refs[3]} style={s.maxH} />
-    <view ref={refs[4]} style={s.ratio} />
-    <view ref={refs[5]} style={s.ratioNum} />
-    <view ref={refs[6]} style={{ width: 250, maxWidth: lim(), height: 10, minHeight: lim() / 4 }} />
-    <view style={s.track}><view ref={refs[7]} style={{ width: pct(done()), height: 8 }} /></view>
-  </view>;
+  return <View style={s.col}>
+    <View ref={refs[0]} style={s.minW} />
+    <View ref={refs[1]} style={s.maxW} />
+    <View ref={refs[2]} style={s.minH} />
+    <View ref={refs[3]} style={s.maxH} />
+    <View ref={refs[4]} style={s.ratio} />
+    <View ref={refs[5]} style={s.ratioNum} />
+    <View ref={refs[6]} style={{ width: 250, maxWidth: lim(), height: 10, minHeight: lim() / 4 }} />
+    <View style={s.track}><View ref={refs[7]} style={{ width: pct(done()), height: 8 }} /></View>
+  </View>;
 }
 let frames = 0;
 render(App, 0xffffff, (dt: number) => {

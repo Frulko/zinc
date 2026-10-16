@@ -71,16 +71,16 @@ function markColor(t: Theme, kind: i32): i32 {
 function Row(props: { it: Item }): i32 {
   const it = props.it, on = (): boolean => popup().indexOf(it) === popupRow();
   const segs = segments(it.label, it.hits);
-  return <View class={`flex-row items-center h-[26] px-1.5 gap-2 rounded-lg cursor-pointer ${on() ? bg(theme().selected) : ''}`}
+  return <View className={`flex-row items-center h-[26] px-1.5 gap-2 rounded-lg cursor-pointer ${on() ? bg(theme().selected) : ''}`}
     onPointerDown={(e: ui.PointerEvent) => { setPopupRow(popup().indexOf(it)); acceptCompletion(); }}>
-    <View class={`w-[18] h-[18] rounded-md items-center justify-center ${bg(on() ? theme().elevated : theme().hover)}`}>
-      <Text class={`text-[11px] font-semibold ${fg(markColor(theme(), it.kind))}`}>{kindMark(it.kind)}</Text>
+    <View className={`w-[18] h-[18] rounded-md items-center justify-center ${bg(on() ? theme().elevated : theme().hover)}`}>
+      <Text className={`text-[11px] font-semibold ${fg(markColor(theme(), it.kind))}`}>{kindMark(it.kind)}</Text>
     </View>
-    <View class="flex-row">
-      {segs.map((s: string, k: i32) => <Text class={`font-mono text-[13px] ${k % 2 === 1 ? `font-semibold ${fg(theme().accent)}` : fg(theme().text)}`}>{s}</Text>)}
+    <View className="flex-row">
+      {segs.map((s: string, k: i32) => <Text className={`font-mono text-[13px] ${k % 2 === 1 ? `font-semibold ${fg(theme().accent)}` : fg(theme().text)}`}>{s}</Text>)}
     </View>
-    <View class="grow shrink overflow-hidden h-[16] flex-row justify-end">
-      <Text class={`font-mono text-[11px] ${fg(theme().faint)}`}>{it.detail.length > 30 ? '' : it.detail}</Text>
+    <View className="grow shrink overflow-hidden h-[16] flex-row justify-end">
+      <Text className={`font-mono text-[11px] ${fg(theme().faint)}`}>{it.detail.length > 30 ? '' : it.detail}</Text>
     </View>
   </View>;
 }
@@ -88,35 +88,35 @@ const CARD = 'absolute flex-col rounded-xl border shadow-lg overflow-hidden';
 
 export function Popup(): i32 {
   const info = (): Item => { const it = chosen(); return it === null ? new Item('', 0, '', '') : it as Item; };
-  return <View class={`${CARD} w-[380] p-1 ${bg(theme().elevated)} ${bd(theme().border)}`}
+  return <View className={`${CARD} w-[380] p-1 ${bg(theme().elevated)} ${bd(theme().border)}`}
     style={{ left: popXY()[0], top: popXY()[1], hidden: popup().length === 0 ? 1 : 0 }} onPointerDown={() => {}}>
     {popup().slice(firstRow(), firstRow() + ROWS).map((it: Item) => <Row it={it} />)}
-    {(info().detail !== '' || info().doc !== '') && <View class={`flex-col mt-1 pt-1.5 px-2 pb-1 border-t ${bd(theme().borderSoft)}`}>
-      {info().detail !== '' && <View class="h-[20] overflow-hidden"><Text class={`font-mono text-[12px] ${fg(theme().text)}`}>{info().detail}</Text></View>}
-      {info().doc !== '' && <View class="overflow-hidden" style={{ height: docLines(info().doc, 56) * 17 }}><Text class={`text-[12px] leading-[17] ${fg(theme().muted)}`}>{info().doc}</Text></View>}
+    {(info().detail !== '' || info().doc !== '') && <View className={`flex-col mt-1 pt-1.5 px-2 pb-1 border-t ${bd(theme().borderSoft)}`}>
+      {info().detail !== '' && <View className="h-[20] overflow-hidden"><Text className={`font-mono text-[12px] ${fg(theme().text)}`}>{info().detail}</Text></View>}
+      {info().doc !== '' && <View className="overflow-hidden" style={{ height: docLines(info().doc, 56) * 17 }}><Text className={`text-[12px] leading-[17] ${fg(theme().muted)}`}>{info().doc}</Text></View>}
     </View>}
   </View>;
 }
 
 export function Signature(): i32 {
   const s = (): Sig => { const v = sig(); return v === null ? new Sig() : v as Sig; };
-  return <View class={`${CARD} pointer-events-none px-3 py-1.5 ${bg(theme().elevated)} ${bd(theme().border)}`}
+  return <View className={`${CARD} pointer-events-none px-3 py-1.5 ${bg(theme().elevated)} ${bd(theme().border)}`}
     style={{ left: sigXY()[0], top: sigXY()[1], width: sigXY()[2], hidden: sig() === null ? 1 : 0 }}>
-    <View class="flex-row h-[18] overflow-hidden">
-      <Text class={`font-mono text-[12px] ${fg(theme().muted)}`}>{s().label.slice(0, s().from)}</Text>
-      <Text class={`font-mono text-[12px] font-semibold ${fg(theme().accent)}`}>{s().label.slice(s().from, s().to)}</Text>
-      <Text class={`font-mono text-[12px] ${fg(theme().muted)}`}>{s().label.slice(s().to)}</Text>
+    <View className="flex-row h-[18] overflow-hidden">
+      <Text className={`font-mono text-[12px] ${fg(theme().muted)}`}>{s().label.slice(0, s().from)}</Text>
+      <Text className={`font-mono text-[12px] font-semibold ${fg(theme().accent)}`}>{s().label.slice(s().from, s().to)}</Text>
+      <Text className={`font-mono text-[12px] ${fg(theme().muted)}`}>{s().label.slice(s().to)}</Text>
     </View>
-    {sigDoc(s()) !== '' && <View class="overflow-hidden" style={{ height: docLines(sigDoc(s()), 60) * 17 }}><Text class={`text-[12px] leading-[17] ${fg(theme().muted)}`}>{sigDoc(s())}</Text></View>}
+    {sigDoc(s()) !== '' && <View className="overflow-hidden" style={{ height: docLines(sigDoc(s()), 60) * 17 }}><Text className={`text-[12px] leading-[17] ${fg(theme().muted)}`}>{sigDoc(s())}</Text></View>}
   </View>;
 }
 
 export function Hover(): i32 {
   const code = (): string => hover().length > 0 ? hover()[0] : '';
   const text = (): string => hover().length > 1 ? hover()[1] : '';
-  return <View class={`${CARD} pointer-events-none px-3 py-1.5 ${bg(theme().elevated)} ${bd(theme().border)}`}
+  return <View className={`${CARD} pointer-events-none px-3 py-1.5 ${bg(theme().elevated)} ${bd(theme().border)}`}
     style={{ left: hovXY()[0], top: hovXY()[1], width: hovXY()[2], hidden: hover().length === 0 || popup().length > 0 ? 1 : 0 }}>
-    <View class="h-[18] overflow-hidden"><Text class={`font-mono text-[12px] ${fg(theme().text)}`}>{code()}</Text></View>
-    {text() !== '' && <View class="overflow-hidden" style={{ height: docLines(text(), 60) * 17 }}><Text class={`text-[12px] leading-[17] ${fg(theme().muted)}`}>{text()}</Text></View>}
+    <View className="h-[18] overflow-hidden"><Text className={`font-mono text-[12px] ${fg(theme().text)}`}>{code()}</Text></View>
+    {text() !== '' && <View className="overflow-hidden" style={{ height: docLines(text(), 60) * 17 }}><Text className={`text-[12px] leading-[17] ${fg(theme().muted)}`}>{text()}</Text></View>}
   </View>;
 }

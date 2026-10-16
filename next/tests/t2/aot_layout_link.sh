@@ -3,7 +3,7 @@
 # ZINC_UI_LAYOUT=rn has them (examples/hero: 20,161,056 bytes in classic, 20,297,208 in rn, 2026-10-08). About 50 s: a milestone test.
 cd "$(dirname "$0")/../.." || exit 2
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
-printf "import { render } from 'zinc:ui/solid';\nfunction App(): i32 { return <view style={{ padding: 8 }}><text>hi</text></view>; }\nrender(App, 0xffffff, null);\n" > "$tmp/small.tsx"
+printf "import { render } from 'zinc:ui/solid';\nfunction App(): i32 { return <View style={{ padding: 8 }}><Text>hi</Text></View>; }\nrender(App, 0xffffff, null);\n" > "$tmp/small.tsx"
 fail=0
 "$ZINC" build "$tmp/small.tsx" -o "$tmp/classic" >/dev/null 2>&1 || { echo "classic build failed"; exit 1; }
 ZINC_UI_LAYOUT=rn "$ZINC" build "$tmp/small.tsx" -o "$tmp/rn" >/dev/null 2>&1 || { echo "rn build failed"; exit 1; }

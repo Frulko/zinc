@@ -9,7 +9,7 @@ function App(): i32 {
   const [active, setActive] = useState(true);
   change = setActive;
   const ref = useRef<i32>(-1);
-  const tree = <view ref={ref} style={[styles.base, active ? styles.active : null]} />;
+  const tree = <View ref={ref} style={[styles.base, active ? styles.active : null]} />;
   handle = ref.current;
   return tree;
 }

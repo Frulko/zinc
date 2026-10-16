@@ -89,7 +89,7 @@ export function isUnlocked(): boolean { return unlocked(); }
 function Keypad(): i32 {
   // the release position comes from onPointerUp (it fires just before onClick); a handler for pointer-up only
   // keeps drag-to-scroll working over the keypad, and onClick is not sent after a drag
-  return <Canvas ref={keypad} class={`h-[176] focus:bg-${tk().card}`}
+  return <Canvas ref={keypad} className={`h-[176] focus:bg-${tk().card}`}
     onPointerUp={(e: ui.PointerEvent) => { upX = e.gx; upY = e.gy; }}
     onClick={() => {
       const k = keyAt(upX, upY);
@@ -101,60 +101,60 @@ function Keypad(): i32 {
 }
 
 export function Controls(): i32 {
-  return <ScrollView class="grow">
-    <View class="flex-col gap-3 p-2 pb-4">
-      <Panel class="p-3 gap-2">
-        <View class="flex-row items-center justify-between">
+  return <ScrollView className="grow">
+    <View className="flex-col gap-3 p-2 pb-4">
+      <Panel className="p-3 gap-2">
+        <View className="flex-row items-center justify-between">
           <Caption text="BUTTONS" />
-          <View class={`px-2 py-0.5 rounded-md bg-${tk().accentSoft}`}>
-            <Text class={`text-xs font-semibold text-${tk().accentSoftForeground}`}>{`${taps()} taps`}</Text>
+          <View className={`px-2 py-0.5 rounded-md bg-${tk().accentSoft}`}>
+            <Text className={`text-xs font-semibold text-${tk().accentSoftForeground}`}>{`${taps()} taps`}</Text>
           </View>
         </View>
-        <View class="flex-row gap-2">
-          <Button label="Tap me" size="sm" class="grow" onClick={() => setTaps(taps() + 1)} />
+        <View className="flex-row gap-2">
+          <Button label="Tap me" size="sm" className="grow" onClick={() => setTaps(taps() + 1)} />
           <Button label="Reset" size="sm" variant="outline" onClick={() => setTaps(0)} />
           <Button label="Del" size="sm" variant="destructive" onClick={() => setTaps(Math.max(0, taps() - 1))} />
         </View>
       </Panel>
 
-      <Panel class="p-3 gap-2">
+      <Panel className="p-3 gap-2">
         <Caption text="SLIDERS" />
-        <View class="flex-row items-center justify-between">
-          <Text class={`text-xs text-${tk().foreground}`}>Volume</Text>
-          <Text class={`text-xs font-semibold text-${tk().mutedForeground}`}>{`${Math.round(volume())} %`}</Text>
+        <View className="flex-row items-center justify-between">
+          <Text className={`text-xs text-${tk().foreground}`}>Volume</Text>
+          <Text className={`text-xs font-semibold text-${tk().mutedForeground}`}>{`${Math.round(volume())} %`}</Text>
         </View>
         <Slider value={volume} onChange={setVolume} min={0} max={100} step={1} />
-        <View class="flex-row items-center justify-between">
-          <Text class={`text-xs text-${tk().foreground}`}>Warmth (steps of 10)</Text>
-          <Text class={`text-xs font-semibold text-${tk().mutedForeground}`}>{`${Math.round(warmth())}`}</Text>
+        <View className="flex-row items-center justify-between">
+          <Text className={`text-xs text-${tk().foreground}`}>Warmth (steps of 10)</Text>
+          <Text className={`text-xs font-semibold text-${tk().mutedForeground}`}>{`${Math.round(warmth())}`}</Text>
         </View>
         <Slider value={warmth} onChange={setWarmth} min={0} max={100} step={10} />
       </Panel>
 
-      <Panel class="p-3 gap-2">
+      <Panel className="p-3 gap-2">
         <Caption text="TOGGLES" />
-        <View class="flex-row justify-between">
+        <View className="flex-row justify-between">
           <Switch checked={wifi} onChange={setWifi} label="Wi-Fi" />
           <Switch checked={bluetooth} onChange={setBluetooth} label="Bluetooth" />
         </View>
         <Checkbox checked={notify} onChange={setNotify} label="Notifications" />
         <Checkbox checked={autoUpdate} onChange={setAutoUpdate} label="Automatic updates" />
         <Caption text="QUALITY" />
-        <View class="flex-row justify-between">
+        <View className="flex-row justify-between">
           {QUALITY.map((q: string, i: i32) => <Radio selected={() => quality() === i} onSelect={() => setQuality(i)} label={q} />)}
         </View>
       </Panel>
 
-      <Panel class="p-3 gap-2">
+      <Panel className="p-3 gap-2">
         <Caption text="ACTIVITY" />
-        <Canvas class="h-9" onDraw={(x: i32, y: i32, w: i32, h: i32) =>
+        <Canvas className="h-9" onDraw={(x: i32, y: i32, w: i32, h: i32) =>
           drawSync(x, y, w, h, sync, rgb(tk().accent), rgb(tk().muted), rgb(tk().foreground), rgb(tk().mutedForeground))} />
       </Panel>
 
-      <Panel class="p-3 gap-2">
-        <View class="flex-row items-center justify-between">
+      <Panel className="p-3 gap-2">
+        <View className="flex-row items-center justify-between">
           <Caption text="KEYPAD" />
-          <Text class={`text-[10px] text-${unlocked() ? 'emerald-500' : tk().mutedForeground}`}>{unlocked() ? 'Unlocked' : 'Code: 2432'}</Text>
+          <Text className={`text-[10px] text-${unlocked() ? 'emerald-500' : tk().mutedForeground}`}>{unlocked() ? 'Unlocked' : 'Code: 2432'}</Text>
         </View>
         <Keypad />
       </Panel>

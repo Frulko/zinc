@@ -19,7 +19,7 @@ import { LogPanel, tickLogs } from './logs';
 import { RobotView, setRunHook } from './robot';
 import { ScriptTab, CodeTab, DocsTab } from './editors';
 import { Dialogs, setOpenHook } from './dialogs';
-import { Button, IconButton, Tabs, VSep, HSep, VLine } from './kit';
+import { Button as KitButton, IconButton, Tabs, VSep, HSep, VLine } from './kit';
 import { centerTab, setCenterTab, dialog, openDialog, closeDialog, toast, notify } from './state';
 
 let fitPending = 0;   // frames before fitting the view (the viewport size is known after a layout)
@@ -48,9 +48,9 @@ export function run(): void {
 
 function targetLabel(): string { for (const t of TARGETS) if (t.id === model.target()) return t.label; return ''; }
 function Toolbar(): i32 {
-  return <view class="flex-row items-center gap-1 h-[48] px-3 bg-white">
-    <view class="w-[26] h-[26] rounded-md bg-zinc-900 items-center justify-center"><text class="text-[14] font-bold text-white">Z</text></view>
-    <text class="text-[14] font-semibold text-zinc-900 ml-1 mr-2">ZincStudio</text>
+  return <View className="flex-row items-center gap-1 h-[48] px-3 bg-white">
+    <View className="w-[26] h-[26] rounded-md bg-zinc-900 items-center justify-center"><Text className="text-[14] font-bold text-white">Z</Text></View>
+    <Text className="text-[14] font-semibold text-zinc-900 ml-1 mr-2">ZincStudio</Text>
     <VSep />
     <IconButton icon="new" onClick={() => openDialog('new')} />
     <IconButton icon="open" onClick={() => openDialog('open')} />
@@ -59,83 +59,83 @@ function Toolbar(): i32 {
     <IconButton icon="undo" onClick={() => model.undo()} disabled={() => !model.canUndo()} />
     <IconButton icon="redo" onClick={() => model.redo()} disabled={() => !model.canRedo()} />
     <VSep />
-    <text class="text-[13] font-medium text-zinc-800 ml-1">{model.projectName()}</text>
-    <Show when={model.dirty()}><view class="w-[6] h-[6] rounded-full bg-amber-500 ml-1" /></Show>
-    <view class="grow" />
+    <Text className="text-[13] font-medium text-zinc-800 ml-1">{model.projectName()}</Text>
+    <Show when={model.dirty()}><View className="w-[6] h-[6] rounded-full bg-amber-500 ml-1" /></Show>
+    <View className="grow" />
     <Tabs tabs={TARGETS.map((t: TargetInfo) => t.label)} current={targetLabel} onSelect={(l: string) => { for (const t of TARGETS) if (t.label === l) model.setTarget(t.id); }} />
-    <view class="w-[8]" />
-    <Show when={!runner.busy()} fallback={<Button label="Stop" icon="stop" variant="danger" onClick={() => runner.stop()} />}>
-      <Button label="Run" icon="play" variant="primary" onClick={() => run()} />
+    <View className="w-[8]" />
+    <Show when={!runner.busy()} fallback={<KitButton label="Stop" icon="stop" variant="danger" onClick={() => runner.stop()} />}>
+      <KitButton label="Run" icon="play" variant="primary" onClick={() => run()} />
     </Show>
     <VSep />
     <IconButton icon="devices" onClick={() => openDialog('devices')} />
     <IconButton icon="book" onClick={() => setCenterTab(centerTab() === 'Docs' ? 'Flow' : 'Docs')} active={() => centerTab() === 'Docs'} />
-  </view>;
+  </View>;
 }
 
 function ZoomControls(): i32 {
-  return <view class="flex-row items-center gap-1">
+  return <View className="flex-row items-center gap-1">
     <IconButton icon="minus" onClick={() => graph.zoomBy(1 / 1.2)} />
-    <button class="h-[28] w-[52] items-center justify-center rounded-md bg-transparent hover:bg-zinc-100 cursor-pointer" onClick={() => graph.resetView()}>
-      <text class="text-[12] font-medium text-zinc-600">{`${Math.round(graph.zoomLevel() * 100)}%`}</text>
-    </button>
+    <Button className="h-[28] w-[52] items-center justify-center rounded-md bg-transparent hover:bg-zinc-100 cursor-pointer" onClick={() => graph.resetView()}>
+      <Text className="text-[12] font-medium text-zinc-600">{`${Math.round(graph.zoomLevel() * 100)}%`}</Text>
+    </Button>
     <IconButton icon="plus" onClick={() => graph.zoomBy(1.2)} />
     <IconButton icon="fit" onClick={() => graph.fitView()} />
-  </view>;
+  </View>;
 }
 
 function Center(): i32 {
   // w-[1] + grow: the column takes the remaining width whatever its content (long log lines)
-  return <view class="flex-col grow w-[1] overflow-hidden">
-    <view class="flex-row items-center gap-2 h-[44] px-3 bg-white">
+  return <View className="flex-col grow w-[1] overflow-hidden">
+    <View className="flex-row items-center gap-2 h-[44] px-3 bg-white">
       <Tabs tabs={['Flow', 'Script', 'Generated code', 'Docs']} current={centerTab} onSelect={(t: string) => setCenterTab(t)} />
-      <view class="grow" />
+      <View className="grow" />
       <Show when={centerTab() === 'Flow'}><ZoomControls /></Show>
-    </view>
+    </View>
     <HSep />
-    <view class={centerTab() === 'Flow' ? 'grow flex-col' : 'hidden'}><FlowEditor /></view>
+    <View className={centerTab() === 'Flow' ? 'grow flex-col' : 'hidden'}><FlowEditor /></View>
     <Show when={centerTab() === 'Script'}><ScriptTab /></Show>
     <Show when={centerTab() === 'Generated code'}><CodeTab /></Show>
     <Show when={centerTab() === 'Docs'}><DocsTab /></Show>
     <LogPanel />
-  </view>;
+  </View>;
 }
 
 function StatusBar(): i32 {
-  return <view class="flex-row items-center gap-3 h-[26] px-3 bg-zinc-50">
-    <view class={runner.phase() === 'idle' ? 'w-[7] h-[7] rounded-full bg-zinc-300' : runner.phase() === 'running' ? 'w-[7] h-[7] rounded-full bg-emerald-500' : 'w-[7] h-[7] rounded-full bg-amber-500'} />
-    <text class="text-[12] text-zinc-600">{runner.status()}</text>
-    <text class="text-[12] font-medium text-sky-700">{toast()}</text>
-    <view class="grow" />
-    <text class="text-[12] text-zinc-500">{`${model.boxes().length} boxes · ${model.links().length} links · ${targetLabel()}`}</text>
-    <text class="text-[12] text-zinc-400">{model.projectDir() === '' ? 'unsaved' : model.projectDir()}</text>
-  </view>;
+  return <View className="flex-row items-center gap-3 h-[26] px-3 bg-zinc-50">
+    <View className={runner.phase() === 'idle' ? 'w-[7] h-[7] rounded-full bg-zinc-300' : runner.phase() === 'running' ? 'w-[7] h-[7] rounded-full bg-emerald-500' : 'w-[7] h-[7] rounded-full bg-amber-500'} />
+    <Text className="text-[12] text-zinc-600">{runner.status()}</Text>
+    <Text className="text-[12] font-medium text-sky-700">{toast()}</Text>
+    <View className="grow" />
+    <Text className="text-[12] text-zinc-500">{`${model.boxes().length} boxes · ${model.links().length} links · ${targetLabel()}`}</Text>
+    <Text className="text-[12] text-zinc-400">{model.projectDir() === '' ? 'unsaved' : model.projectDir()}</Text>
+  </View>;
 }
 
 function Ghost(): i32 {
   return <Show when={ghostTitle() !== ''}>
-    <view class="absolute flex-row items-center gap-2 h-[30] px-3 rounded-lg border border-sky-400 bg-white shadow-lg" style={{ left: ghostAt()[0] + 8, top: ghostAt()[1] + 8 }}>
-      <text class="text-[13] font-medium text-zinc-900">{`+ ${ghostTitle()}`}</text>
-    </view>
+    <View className="absolute flex-row items-center gap-2 h-[30] px-3 rounded-lg border border-sky-400 bg-white shadow-lg" style={{ left: ghostAt()[0] + 8, top: ghostAt()[1] + 8 }}>
+      <Text className="text-[13] font-medium text-zinc-900">{`+ ${ghostTitle()}`}</Text>
+    </View>
   </Show>;
 }
 
 export function App(): i32 {
-  return <view class="flex-col h-full w-full bg-zinc-50">
+  return <View className="flex-col h-full w-full bg-zinc-50">
     <Toolbar />
     <HSep />
-    <view class="flex-row grow">
-      <view class="w-[264] flex-col"><ProjectPanel /><LibraryPanel /></view>
+    <View className="flex-row grow">
+      <View className="w-[264] flex-col"><ProjectPanel /><LibraryPanel /></View>
       <VLine />
       <Center />
       <VLine />
-      <view class="w-[340] flex-col"><RobotView /><Inspector /></view>
-    </view>
+      <View className="w-[340] flex-col"><RobotView /><Inspector /></View>
+    </View>
     <HSep />
     <StatusBar />
     <Ghost />
     <Dialogs />
-  </view>;
+  </View>;
 }
 
 // ---------------------------------------------------------------- start

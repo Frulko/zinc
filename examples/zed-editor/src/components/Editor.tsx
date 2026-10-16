@@ -24,7 +24,7 @@ function editorKey(e: ui.KeyEvent): void {
 function BufferEditor(props: { b: Buffer }): i32 {
   const b = props.b;
   const node = <TextArea ref={b.ref}
-    class={`absolute inset-0 font-mono ${FONT_CLASSES[fontIndex()]} rounded-none border-0 pl-[16] pr-[8] pt-[6] pb-0 ${bg(theme().bg)} ${fg(theme().text)} focus:${bd(theme().bg)}`}
+    className={`absolute inset-0 font-mono ${FONT_CLASSES[fontIndex()]} rounded-none border-0 pl-[16] pr-[8] pt-[6] pb-0 ${bg(theme().bg)} ${fg(theme().text)} focus:${bd(theme().bg)}`}
     style={{ hidden: active() === b ? 0 : 1 }}
     lineNumbers wrap={softWrap()} value={b.text()} onInput={(v: string) => edited(b, v)} onKeyDown={editorKey} />;
   ui.setHighlightAt(node, (line: string, start: i32) => b.doc.rowColors(line, start, theme()));
@@ -151,7 +151,7 @@ function miniScroll(b: Buffer, py: number, h: number): void {
 }
 const miniRef = createNodeRef();
 function Minimap(): i32 {
-  return <Canvas ref={miniRef} class="h-full cursor-default" style={{ width: minimapOn() ? 130 : 0, hidden: minimapOn() ? 0 : 1, lazy: 1 }}
+  return <Canvas ref={miniRef} className="h-full cursor-default" style={{ width: minimapOn() ? 130 : 0, hidden: minimapOn() ? 0 : 1, lazy: 1 }}
     onDraw={drawMinimap}
     onPointerDown={(e: ui.PointerEvent) => {
       const b = active();
@@ -173,12 +173,12 @@ function Breadcrumbs(): i32 {
     const p = (b as Buffer).path;
     return (p.startsWith(root.path + '/') ? p.slice(root.path.length + 1) : p).split('/');
   };
-  return <View class={`flex-row items-center h-[28] px-4 gap-1.5 border-b ${bg(theme().bg)} ${bd(theme().borderSoft)}`}>
+  return <View className={`flex-row items-center h-[28] px-4 gap-1.5 border-b ${bg(theme().bg)} ${bd(theme().borderSoft)}`}>
     <Canvas style={{ width: 14, height: 14, lazy: 1 }} onDraw={(x: i32, y: i32, w: i32, h: i32) => {
       const b = active();
       if (b !== null) drawFileIcon((b as Buffer).name, false, false, x, y, w, theme());
     }} />
-    <Text class={`text-[12px] ${fg(theme().muted)}`}>{parts().join('  ›  ')}</Text>
+    <Text className={`text-[12px] ${fg(theme().muted)}`}>{parts().join('  ›  ')}</Text>
   </View>;
 }
 
@@ -193,22 +193,22 @@ function FindBar(): i32 {
     const n = matches().length;
     return query() === '' ? '' : n === 0 ? 'No results' : `${current() + 1} of ${n}`;
   };
-  return <View class={`flex-row items-center overflow-hidden px-3 gap-2 border-b ${bg(theme().surface)} ${bd(theme().borderSoft)}`}
+  return <View className={`flex-row items-center overflow-hidden px-3 gap-2 border-b ${bg(theme().surface)} ${bd(theme().borderSoft)}`}
     style={{ height: findT.get() * 38, hidden: findOpen() ? 0 : 1 }}>
-    <View class={`flex-row items-center h-[26] w-[320] pl-2 pr-1 gap-1.5 rounded-md border ${bg(theme().bg)} ${bd(theme().border)}`}>
+    <View className={`flex-row items-center h-[26] w-[320] pl-2 pr-1 gap-1.5 rounded-md border ${bg(theme().bg)} ${bd(theme().border)}`}>
       <Glyph kind={I_SEARCH} size={14} color={() => theme().faint} />
-      <Input ref={findRef} class={`grow h-[24] text-[13px] p-0 pl-1 rounded-none border-0 bg-transparent ${fg(theme().text)} focus:${bd(theme().bg)}`}
+      <Input ref={findRef} className={`grow h-[24] text-[13px] p-0 pl-1 rounded-none border-0 bg-transparent ${fg(theme().text)} focus:${bd(theme().bg)}`}
         placeholder="Search…" value={query()} onInput={(v: string) => { setQuery(v); findFromCaret(); }} onKeyDown={findKey} />
     </View>
-    <Text class={`text-[12px] w-[80] ${fg(matches().length === 0 && query() !== '' ? theme().error : theme().muted)}`}>{count()}</Text>
-    <View class={`h-[24] px-2 rounded-md items-center justify-center cursor-pointer hover:${bg(theme().hover)}`} onPointerDown={() => next(-1)}>
-      <Text class={`text-[13px] ${fg(theme().muted)}`}>↑</Text>
+    <Text className={`text-[12px] w-[80] ${fg(matches().length === 0 && query() !== '' ? theme().error : theme().muted)}`}>{count()}</Text>
+    <View className={`h-[24] px-2 rounded-md items-center justify-center cursor-pointer hover:${bg(theme().hover)}`} onPointerDown={() => next(-1)}>
+      <Text className={`text-[13px] ${fg(theme().muted)}`}>↑</Text>
     </View>
-    <View class={`h-[24] px-2 rounded-md items-center justify-center cursor-pointer hover:${bg(theme().hover)}`} onPointerDown={() => next(1)}>
-      <Text class={`text-[13px] ${fg(theme().muted)}`}>↓</Text>
+    <View className={`h-[24] px-2 rounded-md items-center justify-center cursor-pointer hover:${bg(theme().hover)}`} onPointerDown={() => next(1)}>
+      <Text className={`text-[13px] ${fg(theme().muted)}`}>↓</Text>
     </View>
-    <View class="grow" />
-    <View class={`w-[24] h-[24] rounded-md items-center justify-center cursor-pointer hover:${bg(theme().hover)}`} onPointerDown={() => closeFind()}>
+    <View className="grow" />
+    <View className={`w-[24] h-[24] rounded-md items-center justify-center cursor-pointer hover:${bg(theme().hover)}`} onPointerDown={() => closeFind()}>
       <Glyph kind={I_CLOSE} size={14} color={() => theme().muted} />
     </View>
   </View>;
@@ -216,15 +216,15 @@ function FindBar(): i32 {
 
 // ---- empty pane
 function Hint(props: { label: string; keys: string }): i32 {
-  return <View class="flex-row items-center justify-between w-[260] h-[28]">
-    <Text class={`text-[13px] ${fg(theme().muted)}`}>{props.label}</Text>
+  return <View className="flex-row items-center justify-between w-[260] h-[28]">
+    <Text className={`text-[13px] ${fg(theme().muted)}`}>{props.label}</Text>
     <Kbd keys={props.keys} />
   </View>;
 }
 function EmptyPane(): i32 {
-  return <View class={`absolute inset-0 items-center justify-center ${bg(theme().bg)}`} style={{ hidden: buffers().length === 0 ? 0 : 1 }}>
-    <View class="flex-col items-center gap-1">
-      <Text class={`text-[15px] font-semibold pb-3 ${fg(theme().faint)}`}>No file open</Text>
+  return <View className={`absolute inset-0 items-center justify-center ${bg(theme().bg)}`} style={{ hidden: buffers().length === 0 ? 0 : 1 }}>
+    <View className="flex-col items-center gap-1">
+      <Text className={`text-[15px] font-semibold pb-3 ${fg(theme().faint)}`}>No file open</Text>
       <Hint label="Go to file" keys="⌘P" />
       <Hint label="Command palette" keys="⌘⇧P" />
       <Hint label="Toggle project panel" keys="⌘B" />
@@ -234,12 +234,12 @@ function EmptyPane(): i32 {
 }
 
 export function EditorPane(): i32 {
-  return <View class={`grow flex-col ${bg(theme().bg)}`}>
+  return <View className={`grow flex-col ${bg(theme().bg)}`}>
     <Tabs />
     <Breadcrumbs />
     <FindBar />
-    <View class="grow flex-row">
-      <View class="grow">
+    <View className="grow flex-row">
+      <View className="grow">
         <For each={buffers()}>{(b: Buffer, i: i32) => <BufferEditor b={b} />}</For>
         <EmptyPane />
       </View>

@@ -4,8 +4,8 @@
 import { dump } from './helpers';
 
 function pick(view: string): i32 {
-  return <View class="flex-col">
-    {view === 'a' ? <Text>a</Text> : view === 'b' ? <Text>b</Text> : view === 'c' ? <Text>c</Text> : <View class="p-2" />}
+  return <View className="flex-col">
+    {view === 'a' ? <Text>a</Text> : view === 'b' ? <Text>b</Text> : view === 'c' ? <Text>c</Text> : <View className="p-2" />}
     {view === 'a' ? (view.length > 0 ? <Text>a1</Text> : <Text>a2</Text>) : null}
   </View>;
 }

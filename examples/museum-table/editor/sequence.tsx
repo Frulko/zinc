@@ -181,20 +181,20 @@ function drawItem(it: Item, x: i32, y: i32, w: i32, h: i32): void {
 /** An item on the table. Its box has the item's turn, so the pointer meets it where it is drawn; the canvas inside paints it turned. A
  *  double click on a 3D model or a panorama opens it to place its points of interest. */
 function OnTable(it: Item): i32 {
-  return <view class="absolute cursor-move"
+  return <View className="absolute cursor-move"
     style={{ left: (xOf(it) - wOf(it) / 2) * k(), top: (yOf(it) - hOf(it) / 2) * k(), width: wOf(it) * k(), height: hOf(it) * k(), transform: [{ rotate: turnOf(it) }] }}
     onPointerDown={(e: ui.PointerEvent) => itemDown(it, e)} onPointerMove={(e: ui.PointerEvent) => itemMove(it, e)} onPointerUp={(e: ui.PointerEvent) => itemUp(it, e)}
     onPointerEnter={(e: ui.PointerEvent) => setHoveredItem(it)} onPointerLeave={(e: ui.PointerEvent) => { if (hoveredItem() === it) setHoveredItem(null); }}
     onDoubleClick={(e: ui.PointerEvent) => { const m = mediaOf(it); grabbed = null; if (m !== null) openPoints(m); }}>
-    <canvas class="absolute inset-0" style={{ lazy: 1 }} onDraw={(x: i32, y: i32, w: i32, h: i32) => drawItem(it, x, y, w, h)} />
-  </view>;
+    <Canvas className="absolute inset-0" style={{ lazy: 1 }} onDraw={(x: i32, y: i32, w: i32, h: i32) => drawItem(it, x, y, w, h)} />
+  </View>;
 }
 /** The corner of the selected item: drag it to size the item. */
 function Grip(): i32 {
   const it = (): Item | null => selectedItem();
   const left = (): number => { const i = it(); return i === null ? 0 : (xOf(i) + wOf(i) / 2 * cosOf(i) - hOf(i) / 2 * sinOf(i)) * k() - 7; };
   const top = (): number => { const i = it(); return i === null ? 0 : (yOf(i) + wOf(i) / 2 * sinOf(i) + hOf(i) / 2 * cosOf(i)) * k() - 7; };
-  return <view class="absolute w-[14] h-[14] rounded-sm bg-amber-400 border border-zinc-900 cursor-ew-resize" style={{ left: left(), top: top() }}
+  return <View className="absolute w-[14] h-[14] rounded-sm bg-amber-400 border border-zinc-900 cursor-ew-resize" style={{ left: left(), top: top() }}
     onPointerDown={(e: ui.PointerEvent) => { const i = it(); if (i !== null && e.button === 0) { grabbed = i; dragging = false; } }}
     onPointerMove={(e: ui.PointerEvent) => { const i = it(); if (i !== null) gripMove(i, e); }}
     onPointerUp={(e: ui.PointerEvent) => { const i = it(); if (i !== null) gripUp(i, e); }} />;
@@ -205,7 +205,7 @@ function Turner(): i32 {
   const away = (i: Item): number => hOf(i) / 2 * k() + 20;   // pixels from the item's centre, along its own upward axis
   const left = (): number => { const i = it(); return i === null ? 0 : xOf(i) * k() + sinOf(i) * away(i) - 8; };
   const top = (): number => { const i = it(); return i === null ? 0 : yOf(i) * k() - cosOf(i) * away(i) - 8; };
-  return <view class="absolute w-[16] h-[16] rounded-full bg-zinc-900 border-2 border-amber-400 cursor-grab" style={{ left: left(), top: top() }}
+  return <View className="absolute w-[16] h-[16] rounded-full bg-zinc-900 border-2 border-amber-400 cursor-grab" style={{ left: left(), top: top() }}
     onPointerDown={(e: ui.PointerEvent) => { const i = it(); if (i !== null && e.button === 0) { grabbed = i; dragging = false; } }}
     onPointerMove={(e: ui.PointerEvent) => { const i = it(); if (i !== null) turnMove(i, e); }}
     onPointerUp={(e: ui.PointerEvent) => { const i = it(); if (i !== null) turnUp(i, e); }} />;
@@ -214,14 +214,14 @@ function Turner(): i32 {
 function LinkOnTable(l: Link): i32 {
   const chosen = (): boolean => selectedLink() === l;
   const spot = (): boolean => { project(); return l.on.length > 0; };
-  return <view class="absolute items-center justify-center" style={{ left: linkX(l) * k() - 110, top: linkY(l) * k() - 13, width: 220, height: 26 }}>
-    <view class={`flex-row items-center justify-center gap-1 rounded-full border-2 cursor-move ${spot() ? 'w-[26] h-[26]' : 'h-[26] px-3'} ${chosen() ? 'bg-amber-400 border-amber-200' : spot() ? 'bg-zinc-900 border-amber-400' : 'bg-zinc-100 border-zinc-400'}`}
+  return <View className="absolute items-center justify-center" style={{ left: linkX(l) * k() - 110, top: linkY(l) * k() - 13, width: 220, height: 26 }}>
+    <View className={`flex-row items-center justify-center gap-1 rounded-full border-2 cursor-move ${spot() ? 'w-[26] h-[26]' : 'h-[26] px-3'} ${chosen() ? 'bg-amber-400 border-amber-200' : spot() ? 'bg-zinc-900 border-amber-400' : 'bg-zinc-100 border-zinc-400'}`}
       onPointerDown={(e: ui.PointerEvent) => linkDown(l, e)} onPointerMove={(e: ui.PointerEvent) => linkMove(l, e)} onPointerUp={(e: ui.PointerEvent) => linkUp(l, e)}
       onDoubleClick={(e: ui.PointerEvent) => {}}>
       <Show when={spot()}><Ico name="mouse-pointer-click" size={13} color={ACCENT} /></Show>
-      <Show when={!spot()}><text class="truncate text-[11px] font-bold text-zinc-900" style={{ maxWidth: 180 }}>{project().say(l.label, lang())}</text></Show>
-    </view>
-  </view>;
+      <Show when={!spot()}><Text className="truncate text-[11px] font-bold text-zinc-900" style={{ maxWidth: 180 }}>{project().say(l.label, lang())}</Text></Show>
+    </View>
+  </View>;
 }
 /** While a button is dragged: the middle of the table, which no seated visitor reaches, where a button cannot stay. */
 function drawReach(x: i32, y: i32, w: i32, h: i32): void {
@@ -233,20 +233,20 @@ function drawReach(x: i32, y: i32, w: i32, h: i32): void {
 function Stage(): i32 {
   const items = (): Item[] => { const s = opened(); project(); return s === null ? [] : s.items; };
   const links = (): Link[] => { const s = opened(); project(); return s === null ? [] : s.links.filter((l: Link) => l.on.length === 0 || hostOf(l) !== null); };
-  return <view class="grow relative overflow-hidden bg-zinc-950" onPointerDown={(e: ui.PointerEvent) => { if (e.button === 0) pick(null, null, null); else if (e.button === 2) contextMenu('table', e.gx, e.gy); }}>
-    <canvas class="absolute inset-0" style={{ lazy: 1 }} onDraw={(x: i32, y: i32, w: i32, h: i32) => { if (w !== areaW() || h !== areaH()) batch(() => { setAreaW(w); setAreaH(h); }); }} />
-    <view ref={stageRef} class="absolute rounded border border-zinc-700" style={{ left: (areaW() - tableW() * k()) / 2, top: (areaH() - tableH() * k()) / 2, width: tableW() * k(), height: tableH() * k(), bg: project().theme.background }}>
-      <canvas class="absolute inset-0" style={{ lazy: 1 }} onDraw={drawReach} />
+  return <View className="grow relative overflow-hidden bg-zinc-950" onPointerDown={(e: ui.PointerEvent) => { if (e.button === 0) pick(null, null, null); else if (e.button === 2) contextMenu('table', e.gx, e.gy); }}>
+    <Canvas className="absolute inset-0" style={{ lazy: 1 }} onDraw={(x: i32, y: i32, w: i32, h: i32) => { if (w !== areaW() || h !== areaH()) batch(() => { setAreaW(w); setAreaH(h); }); }} />
+    <View ref={stageRef} className="absolute rounded border border-zinc-700" style={{ left: (areaW() - tableW() * k()) / 2, top: (areaH() - tableH() * k()) / 2, width: tableW() * k(), height: tableH() * k(), bg: project().theme.background }}>
+      <Canvas className="absolute inset-0" style={{ lazy: 1 }} onDraw={drawReach} />
       <For each={items()}>{(it: Item, i: i32) => OnTable(it)}</For>
       <For each={links()}>{(l: Link, i: i32) => LinkOnTable(l)}</For>
       <Show when={selectedItem() !== null}><Grip /></Show>
       <Show when={selectedItem() !== null}><Turner /></Show>
       <Show when={items().length === 0}>
-        <view class="absolute inset-0 items-center justify-center"><text class="text-sm text-center text-zinc-500" style={{ width: 340 }}>{t(L.STAGE_EMPTY)}</text></view>
+        <View className="absolute inset-0 items-center justify-center"><Text className="text-sm text-center text-zinc-500" style={{ width: 340 }}>{t(L.STAGE_EMPTY)}</Text></View>
       </Show>
-    </view>
+    </View>
     <PreviewTools />
-  </view>;
+  </View>;
 }
 
 // ---------------------------------------------------------------- the library
@@ -272,39 +272,39 @@ function rowUp(m: Media, e: ui.PointerEvent): void {
 function LibraryRow(m: Media): i32 {
   const kind = kindIndex(m);
   const used = (): string => { const n = usesOf(m); return n === 0 ? t(L.UNUSED) : n === 1 ? t(L.USED_ONCE) : f(L.USED_N, `${n}`); };
-  return <view class={`flex-row items-center gap-2 h-11 px-2 rounded-md border cursor-grab ${shownMedia() === m ? 'bg-zinc-800 border-amber-400' : 'bg-zinc-950 border-zinc-800 hover:border-zinc-600'}`}
+  return <View className={`flex-row items-center gap-2 h-11 px-2 rounded-md border cursor-grab ${shownMedia() === m ? 'bg-zinc-800 border-amber-400' : 'bg-zinc-950 border-zinc-800 hover:border-zinc-600'}`}
     onPointerDown={(e: ui.PointerEvent) => { if (e.button === 0) { pick(null, null, m); lifted = m; liftX = e.gx; liftY = e.gy; } }}
     onPointerMove={(e: ui.PointerEvent) => {
       if (lifted !== m || (carried() === null && Math.abs(e.gx - liftX) + Math.abs(e.gy - liftY) < 6)) return;
       batch(() => { setCarried(m); setCarryX(e.gx); setCarryY(e.gy); });
     }}
     onPointerUp={(e: ui.PointerEvent) => rowUp(m, e)} onDoubleClick={(e: ui.PointerEvent) => { lifted = null; placeInMiddle(m); }}>
-    <canvas class="shrink-0" style={{ width: 30, height: 30, lazy: 1 }} onDraw={(x: i32, y: i32, w: i32, h: i32) => drawMedia(m, x, y, w, h)} />
-    <view class="flex-col" style={{ width: 172 }}>
-      <text class="truncate text-xs font-bold text-zinc-100">{titleOf(m)}</text>
-      <text class="truncate text-[10px] text-zinc-500">{`${t(L.KIND_NAMES[kind >= 0 ? kind : 0])} · ${used()}`}</text>
-    </view>
-  </view>;
+    <Canvas className="shrink-0" style={{ width: 30, height: 30, lazy: 1 }} onDraw={(x: i32, y: i32, w: i32, h: i32) => drawMedia(m, x, y, w, h)} />
+    <View className="flex-col" style={{ width: 172 }}>
+      <Text className="truncate text-xs font-bold text-zinc-100">{titleOf(m)}</Text>
+      <Text className="truncate text-[10px] text-zinc-500">{`${t(L.KIND_NAMES[kind >= 0 ? kind : 0])} · ${used()}`}</Text>
+    </View>
+  </View>;
 }
 function Library(): i32 {
-  return <view class="w-[250] shrink-0 flex-col gap-2 p-3 bg-zinc-900 border-r border-zinc-800">
+  return <View className="w-[250] shrink-0 flex-col gap-2 p-3 bg-zinc-900 border-r border-zinc-800">
     <Heading label={t(L.LIBRARY)} />
-    <view class="flex-row"><Action icon="plus" label={t(L.ADD_FILE)} look="plain" onClick={addFileCommand} /></view>
-    <view class="flex-row"><Action icon="type" label={t(L.ADD_TEXT)} look="plain" onClick={() => setAdding('text')} /></view>
-    <Show when={project().media.length === 0}><text class="text-xs text-zinc-500" style={{ width: 222 }}>{t(L.LIBRARY_EMPTY)}</text></Show>
-    <Show when={project().media.length > 0}><text class="text-[11px] text-zinc-500" style={{ width: 222 }}>{t(L.LIBRARY_HINT)}</text></Show>
-    <scroll class="grow flex-col gap-1">
+    <View className="flex-row"><Action icon="plus" label={t(L.ADD_FILE)} look="plain" onClick={addFileCommand} /></View>
+    <View className="flex-row"><Action icon="type" label={t(L.ADD_TEXT)} look="plain" onClick={() => setAdding('text')} /></View>
+    <Show when={project().media.length === 0}><Text className="text-xs text-zinc-500" style={{ width: 222 }}>{t(L.LIBRARY_EMPTY)}</Text></Show>
+    <Show when={project().media.length > 0}><Text className="text-[11px] text-zinc-500" style={{ width: 222 }}>{t(L.LIBRARY_HINT)}</Text></Show>
+    <ScrollView className="grow flex-col gap-1">
       <For each={project().media}>{(m: Media, i: i32) => LibraryRow(m)}</For>
-    </scroll>
-  </view>;
+    </ScrollView>
+  </View>;
 }
 /** The medium under the pointer while it is carried to the table. */
 function Carried(): i32 {
   const at = (): number[] => ui.toLocal(rootRef.node, carryX(), carryY());
-  return <view class="absolute flex-row items-center gap-2 h-8 px-2 rounded-md bg-zinc-800 border border-amber-400 shadow-lg" style={{ left: at()[0] + 10, top: at()[1] + 6 }}>
+  return <View className="absolute flex-row items-center gap-2 h-8 px-2 rounded-md bg-zinc-800 border border-amber-400 shadow-lg" style={{ left: at()[0] + 10, top: at()[1] + 6 }}>
     <Ico name="plus" size={13} color={ACCENT} />
-    <text class="truncate text-xs font-bold text-zinc-100" style={{ maxWidth: 200 }}>{titleOf(carried())}</text>
-  </view>;
+    <Text className="truncate text-xs font-bold text-zinc-100" style={{ maxWidth: 200 }}>{titleOf(carried())}</Text>
+  </View>;
 }
 
 // ---------------------------------------------------------------- when each appears
@@ -341,13 +341,13 @@ function Row(p: { icon: string; colour: i32; label: () => string; chosen: () => 
   const to = (): number => { const v = live() ? u() : p.until(); return v > 0 ? v : open(); };
   let zone = '', x0: number = 0, a0: number = 0, u0: number = 0;
   const half = (v: number): number => Math.round(v * 2) / 2;
-  return <view class="flex-row items-center gap-2 h-7">
-    <button class={`flex-row items-center justify-start gap-2 h-6 px-2 rounded cursor-pointer ${p.chosen() ? 'bg-zinc-700' : 'bg-zinc-900 hover:bg-zinc-800'}`} style={{ width: NAME_W }} onClick={p.onPick}>
+  return <View className="flex-row items-center gap-2 h-7">
+    <Button className={`flex-row items-center justify-start gap-2 h-6 px-2 rounded cursor-pointer ${p.chosen() ? 'bg-zinc-700' : 'bg-zinc-900 hover:bg-zinc-800'}`} style={{ width: NAME_W }} onClick={p.onPick}>
       <Ico name={p.icon} size={12} color={p.colour} />
-      <text class="truncate text-[11px] text-zinc-200" style={{ width: NAME_W - 40 }}>{p.label()}</text>
-    </button>
-    <view class="relative h-5 rounded bg-zinc-950 border border-zinc-800" style={{ width: trackW() }}>
-      <view class={`absolute top-[2] bottom-[2] rounded-sm cursor-ew-resize ${p.chosen() ? 'bg-amber-400' : 'bg-zinc-500 hover:bg-zinc-400'}`}
+      <Text className="truncate text-[11px] text-zinc-200" style={{ width: NAME_W - 40 }}>{p.label()}</Text>
+    </Button>
+    <View className="relative h-5 rounded bg-zinc-950 border border-zinc-800" style={{ width: trackW() }}>
+      <View className={`absolute top-[2] bottom-[2] rounded-sm cursor-ew-resize ${p.chosen() ? 'bg-amber-400' : 'bg-zinc-500 hover:bg-zinc-400'}`}
         style={{ left: from() / span() * trackW(), width: Math.max(6, (to() - from()) / span() * trackW()) }}
         onPointerDown={(e: ui.PointerEvent) => {
           if (e.button !== 0) return;
@@ -372,24 +372,24 @@ function Row(p: { icon: string; colour: i32; label: () => string; chosen: () => 
           const na = a(), nu = u();
           batch(() => { setLive(false); p.onTimes(na, nu); });
         }} />
-    </view>
-    <text class="w-[70] text-[10px] text-zinc-500">{`${from()} – ${live() ? (u() > 0 ? `${u()}` : '∞') : p.until() > 0 ? `${p.until()}` : '∞'}${p.length() > 0 ? ` · ${f(L.SECONDS, `${p.length()}`)}` : ''}`}</text>
-  </view>;
+    </View>
+    <Text className="w-[70] text-[10px] text-zinc-500">{`${from()} – ${live() ? (u() > 0 ? `${u()}` : '∞') : p.until() > 0 ? `${p.until()}` : '∞'}${p.length() > 0 ? ` · ${f(L.SECONDS, `${p.length()}`)}` : ''}`}</Text>
+  </View>;
 }
 function Timeline(): i32 {
   const items = (): Item[] => { const s = opened(); project(); return s === null ? [] : s.items; };
   const links = (): Link[] => { const s = opened(); project(); return s === null ? [] : s.links; };
   const ticks = (): number[] => { const out: number[] = []; for (let v = 0; v <= span(); v += 10) out.push(v); return out; };
   const target = (l: Link): string => { const s = project().sequence(l.to); return s === null ? '' : project().say(s.title, lang()); };
-  return <view class="h-[214] shrink-0 flex-col gap-1 px-3 py-2 bg-zinc-900 border-t border-zinc-800">
-    <view class="flex-row items-center gap-3">
+  return <View className="h-[214] shrink-0 flex-col gap-1 px-3 py-2 bg-zinc-900 border-t border-zinc-800">
+    <View className="flex-row items-center gap-3">
       <Heading label={t(L.TIMELINE)} />
-      <text class="truncate text-[11px] text-zinc-500" style={{ width: Math.max(100, areaW() - 200) }}>{t(L.TIMELINE_HINT)}</text>
-    </view>
-    <view class="relative h-4" style={{ marginLeft: NAME_W + 8, width: trackW() }}>
-      <For each={ticks()}>{(v: number, i: i32) => <text class="absolute top-0 text-[10px] text-zinc-500" style={{ left: v / span() * trackW() }}>{f(L.SECONDS, `${v}`)}</text>}</For>
-    </view>
-    <scroll class="grow flex-col">
+      <Text className="truncate text-[11px] text-zinc-500" style={{ width: Math.max(100, areaW() - 200) }}>{t(L.TIMELINE_HINT)}</Text>
+    </View>
+    <View className="relative h-4" style={{ marginLeft: NAME_W + 8, width: trackW() }}>
+      <For each={ticks()}>{(v: number, i: i32) => <Text className="absolute top-0 text-[10px] text-zinc-500" style={{ left: v / span() * trackW() }}>{f(L.SECONDS, `${v}`)}</Text>}</For>
+    </View>
+    <ScrollView className="grow flex-col">
       <Show when={narrationOf() !== null}>
         <Row icon="volume-2" colour={KIND_COLOUR[4]} label={() => `${t(L.NARRATION)}: ${titleOf(narrationOf())}`} chosen={() => selectedItem() === null && shownMedia() !== null && shownMedia() === narrationOf()}
           at={() => 0} until={() => { const m = narrationOf(); return m === null ? 0 : lengthOf(m); }} length={() => 0} fixed={true} onPick={() => pick(null, null, narrationOf())} onTimes={(at: number, until: number) => {}} />
@@ -401,20 +401,20 @@ function Timeline(): i32 {
       }}</For>
       <For each={links()}>{(l: Link, i: i32) => <Row icon="arrow-right" colour={ACCENT} label={() => `${project().say(l.label, lang())} → ${target(l)}`} chosen={() => selectedLink() === l}
         at={() => { project(); return l.at; }} until={() => { project(); return l.until; }} length={() => 0} fixed={false} onPick={() => pick(null, l, null)} onTimes={(at: number, until: number) => timeLink(l, at, until)} />}</For>
-    </scroll>
-  </view>;
+    </ScrollView>
+  </View>;
 }
 
 /** The editor of one sequence: library, table, times. */
 export function SequenceEditor(): i32 {
   // the reach zone and the items are drawn by hand: repaint when what they show changes
   createEffect(() => { project(); lang(); selectedItem(); hoveredItem(); turning(); newTurn(); held(); heldLink(); dx(); dy(); newW(); ui.repaint(); });
-  return <view ref={rootRef} class="grow relative flex-row">
+  return <View ref={rootRef} className="grow relative flex-row">
     <Library />
-    <view class="grow basis-0 min-w-0 flex-col">
+    <View className="grow basis-0 min-w-0 flex-col">
       <Stage />
       <Timeline />
-    </view>
+    </View>
     <Show when={carried() !== null}><Carried /></Show>
-  </view>;
+  </View>;
 }

@@ -8,7 +8,7 @@ import * as sys from 'zinc:sys';
 import { quit } from 'zinc:gfx';
 
 function App(): i32 {
-  return <View class="flex-col p-3 gap-2"><Text class="text-lg">Hello devtools</Text></View>;
+  return <View className="flex-col p-3 gap-2"><Text className="text-lg">Hello devtools</Text></View>;
 }
 render(App, 0xf1f5f9, (dt: number) => {});
 

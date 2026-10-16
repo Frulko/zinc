@@ -10,12 +10,12 @@ function Form(): i32 {
   const [pin, setPin] = useState<string>('');
   const a = useRef<i32>(-1), b = useRef<i32>(-1), c = useRef<i32>(-1);
   refs = [a, b, c];
-  return <view class="flex-col p-2 gap-2">
-    <input ref={a} value={name} onChange={(v: string) => setName(v.toUpperCase())} placeholder="Name" />
-    <input ref={b} type="password" value={pin} onChange={(v: string) => setPin(v)} />
-    <input ref={c} value="read only" readOnly={true} />
-    <text onPointerEnter={(e: ui.PointerEvent) => { hovered++; }}>{name} / {pin.length}</text>
-  </view>;
+  return <View className="flex-col p-2 gap-2">
+    <Input ref={a} value={name} onChange={(v: string) => setName(v.toUpperCase())} placeholder="Name" />
+    <Input ref={b} type="password" value={pin} onChange={(v: string) => setPin(v)} />
+    <Input ref={c} value="read only" readOnly={true} />
+    <Text onPointerEnter={(e: ui.PointerEvent) => { hovered++; }}>{name} / {pin.length}</Text>
+  </View>;
 }
 const root = ui.createNode(ui.VIEW);
 const host = ui.createNode(ui.FRAGMENT);

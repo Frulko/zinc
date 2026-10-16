@@ -26,11 +26,11 @@ function Nav(p: { collapsed: boolean }): i32 {
 }
 
 export function Navigation(): i32 {
-  return <View class="flex-row flex-wrap gap-6 p-6 items-start">
-    <View class="flex-col gap-6 w-[480px]">
+  return <View className="flex-row flex-wrap gap-6 p-6 items-start">
+    <View className="flex-col gap-6 w-[480px]">
       <Card title="Tabs">
         <Tabs items={[{ label: 'Account', icon: 'user' }, { label: 'Password' }, { label: 'Billing', badge: '2' }]} modelValue={tab} onUpdate={setTab}
-          content={(i: i32) => <Text class={`text-sm text-${hex(theme().textMuted)}`}>{`The ${['account', 'password', 'billing'][i]} panel.`}</Text>} />
+          content={(i: i32) => <Text className={`text-sm text-${hex(theme().textMuted)}`}>{`The ${['account', 'password', 'billing'][i]} panel.`}</Text>} />
         <Tabs items={[{ label: 'Overview' }, { label: 'Activity' }, { label: 'Members' }]} modelValue={linkTab} onUpdate={setLinkTab} variant="link" color="neutral" />
       </Card>
       <Card title="Accordion">
@@ -44,24 +44,24 @@ export function Navigation(): i32 {
         <Pagination page={page} onUpdate={setPage} total={120} />
       </Card>
     </View>
-    <View class="flex-col gap-6 w-[540px]">
+    <View className="flex-col gap-6 w-[540px]">
       <Card title="Table" description="Sort by name or count; select rows.">
         <Table columns={[{ key: 'name', label: 'Name', sortable: true, width: 170 }, { key: 'email', label: 'Email' }, { key: 'role', label: 'Role', width: 90 }, { key: 'count', label: 'Count', sortable: true, width: 90 }]}
           rows={PEOPLE} sort={sort} descending={desc} onSort={sortBy} selected={selected} onSelect={setSelected} />
-        <Text class={`text-sm text-${hex(theme().textMuted)}`}>{`${selected().length} of ${PEOPLE.length} selected`}</Text>
+        <Text className={`text-sm text-${hex(theme().textMuted)}`}>{`${selected().length} of ${PEOPLE.length} selected`}</Text>
       </Card>
       <Card title="Dashboard layout">
-        <View class={`h-[260px] border border-${hex(theme().border)} rounded-[8px] overflow-hidden`}>
+        <View className={`h-[260px] border border-${hex(theme().border)} rounded-[8px] overflow-hidden`}>
           <DashboardGroup>
             <DashboardSidebar collapsed={narrow} width={180} header={() => <Avatar alt="Zinc Labs" size="sm" />}
               footer={() => <Button icon={narrow() ? 'chevron-right' : 'chevron-left'} color="neutral" variant="ghost" onClick={() => setNarrow(!narrow())} />}>
               <Nav collapsed={narrow()} />
             </DashboardSidebar>
-            <DashboardPanel header={() => <View class="flex-col">
+            <DashboardPanel header={() => <View className="flex-col">
               <DashboardNavbar title={section()} right={() => <Badge label="4 new" variant="subtle" />} />
-              <DashboardToolbar><Text class={`text-sm text-${hex(theme().textMuted)}`}>Toolbar</Text></DashboardToolbar>
+              <DashboardToolbar><Text className={`text-sm text-${hex(theme().textMuted)}`}>Toolbar</Text></DashboardToolbar>
             </View>}>
-              <Text class={`text-sm text-${hex(theme().text)}`}>{`${section()} content.`}</Text>
+              <Text className={`text-sm text-${hex(theme().text)}`}>{`${section()} content.`}</Text>
             </DashboardPanel>
           </DashboardGroup>
         </View>

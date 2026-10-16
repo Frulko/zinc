@@ -11,18 +11,18 @@ import { DrawingBar, PageBar, DisplayBar } from './components/toolbar';
 
 /** A 3 px black rule between the bars and the page. */
 function Rule(): i32 {
-  return <View class="h-[3px] bg-black" />;
+  return <View className="h-[3px] bg-black" />;
 }
 
 function App(): i32 {
-  return <View class="flex-col h-full bg-white">
+  return <View className="flex-col h-full bg-white">
     <RemarkableBar title="Notes" onQuit={() => { if (savePage()) quit(); }} />
     <DrawingBar />
     <Rule />
     <PageBar />
     <DisplayBar />
     <Rule />
-    <InkCanvas ink={ink} class="grow" />
+    <InkCanvas ink={ink} className="grow" />
   </View>;
 }
 

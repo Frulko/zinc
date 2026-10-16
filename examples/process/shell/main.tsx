@@ -59,28 +59,28 @@ function cannotStart(c: Cmd, e: Error): void {
 }
 
 function App(): i32 {
-  return <view class="flex-col h-full bg-slate-950">
-    <view class="flex-row items-center gap-2 px-3 h-12 bg-slate-900">
+  return <View className="flex-col h-full bg-slate-950">
+    <View className="flex-row items-center gap-2 px-3 h-12 bg-slate-900">
       <For each={CMDS}>{(c: Cmd, _i: i32) =>
-        <button class="px-3 h-8 rounded bg-slate-700 active:bg-slate-500" onClick={() => { start(c); }}>
-          <text class="text-sm text-white">{c.label}</text>
-        </button>}
+        <Button className="px-3 h-8 rounded bg-slate-700 active:bg-slate-500" onClick={() => { start(c); }}>
+          <Text className="text-sm text-white">{c.label}</Text>
+        </Button>}
       </For>
-      <view class="grow"></view>
-      <button class={running() ? 'px-3 h-8 rounded bg-red-600 active:bg-red-400' : 'px-3 h-8 rounded bg-slate-800'}
+      <View className="grow"></View>
+      <Button className={running() ? 'px-3 h-8 rounded bg-red-600 active:bg-red-400' : 'px-3 h-8 rounded bg-slate-800'}
         onClick={() => { if (current !== null) current.kill(); }}>
-        <text class="text-sm">Kill</text>
-      </button>
-    </view>
-    <scroll ref={log} class="grow p-3 bg-slate-950">
+        <Text className="text-sm">Kill</Text>
+      </Button>
+    </View>
+    <ScrollView ref={log} className="grow p-3 bg-slate-950">
       <For each={lines()}>{(l: Line, _i: i32) =>
-        <text class={l.err ? 'text-xs text-red-400' : 'text-xs text-slate-200'}>{l.text}</text>}
+        <Text className={l.err ? 'text-xs text-red-400' : 'text-xs text-slate-200'}>{l.text}</Text>}
       </For>
-    </scroll>
-    <view class="flex-row items-center px-3 h-7 bg-slate-900">
-      <text class="text-xs text-emerald-400">{status()}</text>
-    </view>
-  </view>;
+    </ScrollView>
+    <View className="flex-row items-center px-3 h-7 bg-slate-900">
+      <Text className="text-xs text-emerald-400">{status()}</Text>
+    </View>
+  </View>;
 }
 
 render(App, 0x020617, (_dt: number) => {

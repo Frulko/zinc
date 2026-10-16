@@ -33,19 +33,19 @@ function resultText(): string {
 }
 
 export function Bench(): i32 {
-  return <View class="flex-col grow p-2 gap-2">
-    <Panel class="grow overflow-hidden">
-      <Canvas class="grow" onDraw={(x: i32, y: i32, w: i32, h: i32) => drawScene(x, y, w, h, rgb(tk().foreground), rgb(tk().muted))} />
+  return <View className="flex-col grow p-2 gap-2">
+    <Panel className="grow overflow-hidden">
+      <Canvas className="grow" onDraw={(x: i32, y: i32, w: i32, h: i32) => drawScene(x, y, w, h, rgb(tk().foreground), rgb(tk().muted))} />
     </Panel>
     <Segmented items={SCENES} selected={scene} onSelect={setScene} />
-    <View class="flex-row items-center gap-2 px-1">
-      <Text class={`w-[48] text-xs text-${tk().mutedForeground}`}>Objects</Text>
-      <Slider value={count} onChange={setCount} min={4} max={MAX_OBJECTS} step={4} class="w-[128]" />
-      <Text class={`w-5 text-xs font-semibold text-${tk().foreground}`}>{`${Math.round(count())}`}</Text>
+    <View className="flex-row items-center gap-2 px-1">
+      <Text className={`w-[48] text-xs text-${tk().mutedForeground}`}>Objects</Text>
+      <Slider value={count} onChange={setCount} min={4} max={MAX_OBJECTS} step={4} className="w-[128]" />
+      <Text className={`w-5 text-xs font-semibold text-${tk().foreground}`}>{`${Math.round(count())}`}</Text>
     </View>
-    <View class="flex-row items-center gap-2">
+    <View className="flex-row items-center gap-2">
       <Button label="Run" size="sm" onClick={() => { if (runningScene() < 0) startRun(); }} />
-      <Text class={`grow text-[10px] text-${tk().mutedForeground}`}>{resultText()}</Text>
+      <Text className={`grow text-[10px] text-${tk().mutedForeground}`}>{resultText()}</Text>
     </View>
   </View>;
 }

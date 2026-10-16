@@ -21,14 +21,14 @@ for (let i = 0; i < 13; i++) refs.push(createNodeRef());
 const box = (k: i32): string => { const b = ui.screenBox(refs[k].node); return `${Math.round(b[0])},${Math.round(b[1])} ${Math.round(b[2])}x${Math.round(b[3])}`; };
 
 function App(): i32 {
-  return <view style={{ flexDirection: 'column', gap: 10 }}>
-    <view style={s.row}><view ref={refs[0]} style={s.one} /><view ref={refs[1]} style={{ flex: 1, height: 20 }} /><view ref={refs[2]} style={{ width: 120, height: 20 }} /></view>
-    <view style={s.row}><view ref={refs[3]} style={s.shrinkMe} /><view ref={refs[4]} style={s.rigid} /></view>
-    <view style={s.row}><view ref={refs[5]} style={s.basis} /><view ref={refs[6]} style={s.basisPct} /><view ref={refs[7]} style={s.basisAuto} /></view>
-    <view style={[s.row, { alignItems: 'flex-start' }]}><view ref={refs[8]} style={{ width: 40, height: 20, alignSelf: 'flex-end' }} /></view>
-    <view style={s.row}><view ref={refs[11]} style={s.one}><view style={{ width: 100, height: 10 }} /></view><view ref={refs[12]} style={{ flex: 1 }}><view style={{ width: 20, height: 10 }} /></view></view>
-    <view style={s.wrap}><view ref={refs[9]} style={s.tile} /><view style={s.tile} /><view ref={refs[10]} style={s.tile} /></view>
-  </view>;
+  return <View style={{ flexDirection: 'column', gap: 10 }}>
+    <View style={s.row}><View ref={refs[0]} style={s.one} /><View ref={refs[1]} style={{ flex: 1, height: 20 }} /><View ref={refs[2]} style={{ width: 120, height: 20 }} /></View>
+    <View style={s.row}><View ref={refs[3]} style={s.shrinkMe} /><View ref={refs[4]} style={s.rigid} /></View>
+    <View style={s.row}><View ref={refs[5]} style={s.basis} /><View ref={refs[6]} style={s.basisPct} /><View ref={refs[7]} style={s.basisAuto} /></View>
+    <View style={[s.row, { alignItems: 'flex-start' }]}><View ref={refs[8]} style={{ width: 40, height: 20, alignSelf: 'flex-end' }} /></View>
+    <View style={s.row}><View ref={refs[11]} style={s.one}><View style={{ width: 100, height: 10 }} /></View><View ref={refs[12]} style={{ flex: 1 }}><View style={{ width: 20, height: 10 }} /></View></View>
+    <View style={s.wrap}><View ref={refs[9]} style={s.tile} /><View style={s.tile} /><View ref={refs[10]} style={s.tile} /></View>
+  </View>;
 }
 let frames = 0;
 render(App, 0xffffff, (dt: number) => {

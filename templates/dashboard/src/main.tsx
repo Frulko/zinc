@@ -21,14 +21,14 @@ function take(s: Sample): void {
 }
 
 function renderStat(label: string, value: () => string, change: () => number, icon: string): i32 {   // read again on every tick; change NaN: none
-  return <Card class="grow basis-0">
-    <View class="flex-row items-center gap-3">
+  return <Card className="grow basis-0">
+    <View className="flex-row items-center gap-3">
       <Badge icon={icon} variant="soft" size="lg" />
-      <View class="flex-col">
-        <Text class={`text-xs text-${hex(theme().textMuted)}`}>{label}</Text>
-        <View class="flex-row items-center gap-2">
-          <Text class={`text-2xl font-semibold text-${hex(theme().textHighlighted)}`}>{tick() >= 0 ? value() : ''}</Text>
-          <Text class={`text-sm text-${hex(theme().textMuted)}`}>{tick() >= 0 && !isNaN(change()) ? `${change() >= 0 ? '+' : ''}${Math.round(change())}% in 30 s` : ''}</Text>
+      <View className="flex-col">
+        <Text className={`text-xs text-${hex(theme().textMuted)}`}>{label}</Text>
+        <View className="flex-row items-center gap-2">
+          <Text className={`text-2xl font-semibold text-${hex(theme().textHighlighted)}`}>{tick() >= 0 ? value() : ''}</Text>
+          <Text className={`text-sm text-${hex(theme().textMuted)}`}>{tick() >= 0 && !isNaN(change()) ? `${change() >= 0 ? '+' : ''}${Math.round(change())}% in 30 s` : ''}</Text>
         </View>
       </View>
     </View>
@@ -36,32 +36,32 @@ function renderStat(label: string, value: () => string, change: () => number, ic
 }
 
 function App(): i32 {
-  return <View class={`flex-col gap-6 p-6 w-full h-full bg-${hex(theme().bg)}`}>
-    <View class="flex-row items-center justify-between">
-      <View class="flex-col">
-        <Text class={`text-2xl font-semibold text-${hex(theme().textHighlighted)}`}>{'{{name}}'}</Text>
-        <Text class={`text-sm text-${hex(theme().textMuted)}`}>{tick() >= 0 ? `${requests.values.length} samples, mock source` : ''}</Text>
+  return <View className={`flex-col gap-6 p-6 w-full h-full bg-${hex(theme().bg)}`}>
+    <View className="flex-row items-center justify-between">
+      <View className="flex-col">
+        <Text className={`text-2xl font-semibold text-${hex(theme().textHighlighted)}`}>{'{{name}}'}</Text>
+        <Text className={`text-sm text-${hex(theme().textMuted)}`}>{tick() >= 0 ? `${requests.values.length} samples, mock source` : ''}</Text>
       </View>
       <Button label={paused() ? 'Resume' : 'Pause'} icon={paused() ? 'play' : 'pause'} color="neutral" variant="outline" onClick={() => setPaused(!paused())} />
     </View>
-    <View class="flex-row gap-4">
+    <View className="flex-row gap-4">
       {renderStat('CPU', () => `${Math.round(cpu.last())} %`, () => cpu.trend(), 'cpu')}
       {renderStat('Memory', () => `${Math.round(memory.last())} %`, () => memory.trend(), 'memory-stick')}
       {renderStat('Requests', () => `${Math.round(requests.last())}/s`, () => requests.trend(), 'activity')}
       {renderStat('Errors', () => `${errors.values.reduce((a: number, b: number): number => a + b, 0)}`, () => NaN, 'triangle-alert')}
     </View>
-    <View class="flex-row gap-4 grow">
-      <Card class="grow basis-0" title="Requests per second" description="The last 30 seconds.">
-        <Canvas class="h-[220px]" onDraw={(x: i32, y: i32, w: i32, h: i32) => drawLine(requests.values, 400, x, y, w, h, rgb(theme().primary), rgb(theme().border))} />
+    <View className="flex-row gap-4 grow">
+      <Card className="grow basis-0" title="Requests per second" description="The last 30 seconds.">
+        <Canvas className="h-[220px]" onDraw={(x: i32, y: i32, w: i32, h: i32) => drawLine(requests.values, 400, x, y, w, h, rgb(theme().primary), rgb(theme().border))} />
       </Card>
-      <Card class="w-[320px]" title="Errors" description="Per sample, the last 10 seconds.">
-        <Canvas class="h-[220px]" onDraw={(x: i32, y: i32, w: i32, h: i32) => drawBars(errors.values, 4, x, y, w, h, rgb(theme().error), rgb(theme().border))} />
+      <Card className="w-[320px]" title="Errors" description="Per sample, the last 10 seconds.">
+        <Canvas className="h-[220px]" onDraw={(x: i32, y: i32, w: i32, h: i32) => drawBars(errors.values, 4, x, y, w, h, rgb(theme().error), rgb(theme().border))} />
       </Card>
     </View>
     <Card title="Alerts" description="CPU above 85 %.">
-      <View class="flex-col gap-1">
-        <Text class={`text-sm text-${hex(theme().textMuted)} ${alerts().length === 0 ? '' : 'hidden'}`}>Nothing to report.</Text>
-        <For each={alerts()}>{(a: string, i: i32) => <Text class={`text-sm text-${hex(theme().text)}`}>{a}</Text>}</For>
+      <View className="flex-col gap-1">
+        <Text className={`text-sm text-${hex(theme().textMuted)} ${alerts().length === 0 ? '' : 'hidden'}`}>Nothing to report.</Text>
+        <For each={alerts()}>{(a: string, i: i32) => <Text className={`text-sm text-${hex(theme().text)}`}>{a}</Text>}</For>
       </View>
     </Card>
   </View>;

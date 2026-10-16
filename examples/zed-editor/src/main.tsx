@@ -26,11 +26,11 @@ import { stepDemo } from './demo';
 import * as fs from 'zinc:fs';
 
 function App(): i32 {
-  return <View class="flex-col h-full" bg={theme().bg}>
+  return <View className="flex-col h-full" bg={theme().bg}>
     <TitleBar />
-    <View class="grow flex-row">
+    <View className="grow flex-row">
       <ProjectPanel />
-      <View class="grow flex-col">
+      <View className="grow flex-col">
         <EditorPane />
         <TerminalPanel />
       </View>

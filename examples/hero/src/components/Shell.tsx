@@ -30,11 +30,11 @@ createEffect(() => indicator.to(tab() * (rowH() + rowGap())));
 function NavItem(props: { index: i32 }): i32 {
   const i = props.index;
   const current = (): boolean => tab() === i;
-  return <View class={`flex-row items-center gap-3 h-[${rowH()}] ${compact() ? 'justify-center' : 'px-3'} rounded-lg cursor-pointer ${current() ? `text-${theme().foreground}` : `text-${theme().mutedForeground} hover:text-${theme().foreground}`}`}
+  return <View className={`flex-row items-center gap-3 h-[${rowH()}] ${compact() ? 'justify-center' : 'px-3'} rounded-lg cursor-pointer ${current() ? `text-${theme().foreground}` : `text-${theme().mutedForeground} hover:text-${theme().foreground}`}`}
     onClick={() => go(i)}>
     <Icon kind={TABS[i].icon} color={() => rgb(current() ? theme().accent : theme().mutedForeground)} />
     <Show when={!compact()}>
-      <Text class="text-sm font-semibold grow">{TABS[i].label}</Text>
+      <Text className="text-sm font-semibold grow">{TABS[i].label}</Text>
       <Kbd label={TABS[i].key} />
     </Show>
   </View>;
@@ -48,35 +48,35 @@ function initialsOf(s: string): string {
 }
 
 function Sidebar(): i32 {
-  return <View class={`flex-col ${compact() ? 'w-[72] p-2' : 'w-[232] p-4'} gap-6 border-r bg-${theme().card} border-${theme().border}`}>
-    <Show when={!compact()}><View class="flex-row items-center gap-3 px-2 pt-1">
-      <View class="w-8 h-8 rounded-lg bg-gradient-to-r from-indigo-500 to-fuchsia-500 items-center justify-center">
-        <Text class="text-sm font-bold text-white">Z</Text>
+  return <View className={`flex-col ${compact() ? 'w-[72] p-2' : 'w-[232] p-4'} gap-6 border-r bg-${theme().card} border-${theme().border}`}>
+    <Show when={!compact()}><View className="flex-row items-center gap-3 px-2 pt-1">
+      <View className="w-8 h-8 rounded-lg bg-gradient-to-r from-indigo-500 to-fuchsia-500 items-center justify-center">
+        <Text className="text-sm font-bold text-white">Z</Text>
       </View>
       <Show when={!compact()}>
-        <View class="flex-col">
-          <Text class={`text-sm font-bold text-${theme().foreground}`}>Zinc Hero</Text>
-          <Text class={`text-xs text-${theme().mutedForeground}`}>native UI showcase</Text>
+        <View className="flex-col">
+          <Text className={`text-sm font-bold text-${theme().foreground}`}>Zinc Hero</Text>
+          <Text className={`text-xs text-${theme().mutedForeground}`}>native UI showcase</Text>
         </View>
       </Show>
     </View></Show>
-    <View class="flex-col gap-1">
-      <Show when={!compact()}><Text class={`text-xs font-semibold px-3 pb-1 text-${theme().mutedForeground}`}>NAVIGATION</Text></Show>
-      <View class={`flex-col ${compact() ? 'gap-0' : 'gap-1'}`}>
-        <View class={`absolute left-0 right-0 top-0 h-[${rowH()}] rounded-lg bg-${theme().accentSoft}`} style={{ translateY: indicator.get() }} />
+    <View className="flex-col gap-1">
+      <Show when={!compact()}><Text className={`text-xs font-semibold px-3 pb-1 text-${theme().mutedForeground}`}>NAVIGATION</Text></Show>
+      <View className={`flex-col ${compact() ? 'gap-0' : 'gap-1'}`}>
+        <View className={`absolute left-0 right-0 top-0 h-[${rowH()}] rounded-lg bg-${theme().accentSoft}`} style={{ translateY: indicator.get() }} />
         {TABS.map((t: TabInfo, i: i32) => <NavItem index={i} />)}
       </View>
     </View>
-    <View class="grow" />
-    <Show when={!compact()}><View class={`flex-col gap-3 p-3 border rounded-xl border-${theme().border}`}>
-      <View class="flex-row items-center gap-3">
-        <View class={`w-9 h-9 rounded-full items-center justify-center bg-${theme().accent}`}>
-          <Text class="text-xs font-bold text-white">{initialsOf(name())}</Text>
+    <View className="grow" />
+    <Show when={!compact()}><View className={`flex-col gap-3 p-3 border rounded-xl border-${theme().border}`}>
+      <View className="flex-row items-center gap-3">
+        <View className={`w-9 h-9 rounded-full items-center justify-center bg-${theme().accent}`}>
+          <Text className="text-xs font-bold text-white">{initialsOf(name())}</Text>
         </View>
         <Show when={!compact()}>
-          <View class="flex-col grow">
-            <Text class={`text-sm font-semibold text-${theme().foreground}`}>{name()}</Text>
-            <Text class={`text-xs text-${theme().mutedForeground}`}>Pro plan</Text>
+          <View className="flex-col grow">
+            <Text className={`text-sm font-semibold text-${theme().foreground}`}>{name()}</Text>
+            <Text className={`text-xs text-${theme().mutedForeground}`}>Pro plan</Text>
           </View>
         </Show>
       </View>
@@ -87,26 +87,26 @@ function Sidebar(): i32 {
 
 let unread: i32 = 0;
 function TopBar(): i32 {
-  return <View class={`flex-row items-center h-16 ${compact() ? 'px-4' : 'px-6'} gap-4 border-b border-${theme().border} bg-${theme().card}`}>
-    <View class="flex-col grow" style={{ opacity: 0.35 + 0.65 * slide.get() }}>
-      <Text class={`text-lg font-bold text-${theme().foreground}`}>{TABS[tab()].label}</Text>
-      <Text class={`text-xs text-${theme().mutedForeground}`}>{TABS[tab()].hint}</Text>
+  return <View className={`flex-row items-center h-16 ${compact() ? 'px-4' : 'px-6'} gap-4 border-b border-${theme().border} bg-${theme().card}`}>
+    <View className="flex-col grow" style={{ opacity: 0.35 + 0.65 * slide.get() }}>
+      <Text className={`text-lg font-bold text-${theme().foreground}`}>{TABS[tab()].label}</Text>
+      <Text className={`text-xs text-${theme().mutedForeground}`}>{TABS[tab()].hint}</Text>
     </View>
-    <View class={`flex-row items-center gap-2 ${compact() ? 'w-11 justify-center' : 'w-[260] px-3'} h-11 rounded-lg border cursor-pointer border-${theme().border} bg-${theme().background} hover:border-${theme().mutedForeground}`}
+    <View className={`flex-row items-center gap-2 ${compact() ? 'w-11 justify-center' : 'w-[260] px-3'} h-11 rounded-lg border cursor-pointer border-${theme().border} bg-${theme().background} hover:border-${theme().mutedForeground}`}
       onClick={() => openPalette()}>
       <Icon kind={SEARCH_ICON} size={16} color={() => rgb(theme().mutedForeground)} />
       <Show when={!compact()}>
-        <Text class={`text-sm grow text-${theme().mutedForeground}`}>Search or jump to…</Text>
+        <Text className={`text-sm grow text-${theme().mutedForeground}`}>Search or jump to…</Text>
         <Kbd label="⌘K" />
       </Show>
     </View>
-    <View class={`px-2 h-7 rounded-md items-center justify-center bg-${theme().muted}`}>
-      <Text class={`text-xs font-semibold text-${theme().mutedForeground}`}>{`${fps()} fps`}</Text>
+    <View className={`px-2 h-7 rounded-md items-center justify-center bg-${theme().muted}`}>
+      <Text className={`text-xs font-semibold text-${theme().mutedForeground}`}>{`${fps()} fps`}</Text>
     </View>
-    <View class={`w-11 h-11 rounded-lg items-center justify-center cursor-pointer hover:bg-${theme().muted}`}
+    <View className={`w-11 h-11 rounded-lg items-center justify-center cursor-pointer hover:bg-${theme().muted}`}
       onClick={() => { unread++; toast('You are all caught up', `Checked ${unread} time${unread > 1 ? 's' : ''} this session.`, 'success'); }}>
       <Icon kind={BELL_ICON} color={() => rgb(theme().foreground)} />
-      <View class="absolute right-[7] top-[7] w-2 h-2 rounded-full bg-rose-500" />
+      <View className="absolute right-[7] top-[7] w-2 h-2 rounded-full bg-rose-500" />
     </View>
   </View>;
 }
@@ -115,7 +115,7 @@ function TopBar(): i32 {
 /** A screen's content is mounted only while it is on screen (its components, effects and nodes go away after). */
 export function Screen(props: { index: i32; children: () => i32 }): i32 {
   const i = props.index;
-  return <View class="absolute inset-0 flex-col"
+  return <View className="absolute inset-0 flex-col"
     style={{ hidden: screenHidden(i), translateX: screenX(i), opacity: screenOpacity(i) }}>
     <Show when={screenHidden(i) === 0}>{props.children()}</Show>
   </View>;
@@ -139,11 +139,11 @@ export function syncStage(): void {
 // The shell is as high as the window, not as its content (`absolute inset-0`, not `h-full`): the full sidebar needs 724 px, and in a lower window
 // (hero's own is 700 px high) `h-full` grew the shell to 724 px, which put the bottom of every page under the window's edge, out of the scroll's reach.
 export function Shell(props: { children: () => i32 }): i32 {
-  return <View ref={rootRef} class={`absolute inset-0 flex-row bg-${theme().background}`}>
+  return <View ref={rootRef} className={`absolute inset-0 flex-row bg-${theme().background}`}>
     <Sidebar />
-    <View class="flex-col grow">
+    <View className="flex-col grow">
       <TopBar />
-      <View ref={stageRef} class="grow overflow-hidden">
+      <View ref={stageRef} className="grow overflow-hidden">
         {props.children()}
       </View>
       <Show when={keyboardOn()}><Keyboard layouts={['fr', 'en']} /></Show>

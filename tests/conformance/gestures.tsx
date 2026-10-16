@@ -13,34 +13,34 @@ const r2 = (v: number): number => Math.round(v * 100) / 100;
 const log = (s: string): void => { console.log(s); };
 
 function Rows(): i32 {
-  return <view class="flex-col gap-1 p-1">
-    <view ref={swipe} class="h-5 bg-sky-500" dragAxis="x"
+  return <View className="flex-col gap-1 p-1">
+    <View ref={swipe} className="h-5 bg-sky-500" dragAxis="x"
       onDrag={(e: ui.PointerEvent) => log(`swipe drag phase=${e.phase} dx=${r(e.dx)} dy=${r(e.dy)} x=${r(e.x)}`)} />
-    <view ref={raw} class="h-5 bg-rose-500"
+    <View ref={raw} className="h-5 bg-rose-500"
       onPointerDown={(e: ui.PointerEvent) => log(`raw down ${r(e.x)},${r(e.y)}`)}
       onPointerMove={(e: ui.PointerEvent) => log(`raw move ${r(e.x)},${r(e.y)}`)}
       onPointerUp={(e: ui.PointerEvent) => log(`raw up`)}
       onPointerCancel={(e: ui.PointerEvent) => log(`raw cancel ${r(e.x)},${r(e.y)}`)} />
-    <view ref={keep} class="h-5 bg-amber-500" grab="keep"
+    <View ref={keep} className="h-5 bg-amber-500" grab="keep"
       onPointerDown={(e: ui.PointerEvent) => log(`keep down`)}
       onPointerMove={(e: ui.PointerEvent) => log(`keep move ${r(e.y)}`)}
       onPointerUp={(e: ui.PointerEvent) => log(`keep up`)}
       onPointerCancel={(e: ui.PointerEvent) => log(`keep cancel`)} />
-    <view ref={tap} class="h-5 bg-emerald-500"
+    <View ref={tap} className="h-5 bg-emerald-500"
       onTap={(e: ui.PointerEvent) => log(`tap ${r(e.x)},${r(e.y)}`)}
       onLongPress={(e: ui.PointerEvent) => log(`long press ${r(e.x)},${r(e.y)}`)} />
-    <button ref={btn} class="h-5" onClick={() => log('click')}><text>Button</text></button>
-    <view class="h-[600px] bg-slate-700" />
-  </view>;
+    <Button ref={btn} className="h-5" onClick={() => log('click')}><Text>Button</Text></Button>
+    <View className="h-[600px] bg-slate-700" />
+  </View>;
 }
 
 function App(): i32 {
-  return <view class="flex-col h-full">
-    <scroll ref={scroll} class="h-[140px]"><Rows /></scroll>
-    <view ref={pinch} class="grow bg-violet-500"
+  return <View className="flex-col h-full">
+    <ScrollView ref={scroll} className="h-[140px]"><Rows /></ScrollView>
+    <View ref={pinch} className="grow bg-violet-500"
       onPinch={(e: ui.PointerEvent) => log(`pinch phase=${e.phase} scale=${r2(e.scale)} rot=${r2(e.rotation)} at ${r(e.x)},${r(e.y)}`)}
       onTap={(e: ui.PointerEvent) => log('pinch area tap')} />
-  </view>;
+  </View>;
 }
 
 /** Centre of a node on the surface. */

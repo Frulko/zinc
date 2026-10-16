@@ -6,10 +6,10 @@ import { sendFader, sendToggle, go, stop } from '../link';
 
 function Strip(props: { channel: Channel }): i32 {
   const c = props.channel;
-  return <View class="flex-col gap-1.5">
-    <View class="flex-row items-center justify-between">
-      <Text class={smallText()}>{`Fader ${c.index}`}</Text>
-      <Text class={mutedText()}>{`${Math.round(c.fader() * 100)} %`}</Text>
+  return <View className="flex-col gap-1.5">
+    <View className="flex-row items-center justify-between">
+      <Text className={smallText()}>{`Fader ${c.index}`}</Text>
+      <Text className={mutedText()}>{`${Math.round(c.fader() * 100)} %`}</Text>
     </View>
     <Slider value={c.fader} onChange={(v: number) => sendFader(c, v)} min={0} max={1} step={0.01} />
     <Progress value={() => c.meter() * 100} accent={true} />
@@ -19,7 +19,7 @@ function Strip(props: { channel: Channel }): i32 {
 export function FadersCard(): i32 {
   return <Card>
     <CardHeader title="Faders" description="/zinc/fader/1..4 out; the meters come back from Chataigne." />
-    <CardContent class="gap-4">
+    <CardContent className="gap-4">
       {channels.map((c: Channel) => <Strip channel={c} />)}
     </CardContent>
   </Card>;
@@ -29,13 +29,13 @@ export function CueCard(): i32 {
   return <Card>
     <CardHeader title="Cue" description="GO and Stop out, the cue name back." />
     <CardContent>
-      <View class="flex-row items-center gap-2">
-        <Text class={captionText()}>NOW PLAYING</Text>
+      <View className="flex-row items-center gap-2">
+        <Text className={captionText()}>NOW PLAYING</Text>
         {cueRunning() ? <Badge label="Running" variant="success" /> : <Badge label="Idle" variant="secondary" />}
       </View>
-      <Text class={heading(3)}>{cueName()}</Text>
-      <View class="flex-row gap-2">
-        <Button label="GO" size="lg" class="grow" onClick={go} />
+      <Text className={heading(3)}>{cueName()}</Text>
+      <View className="flex-row gap-2">
+        <Button label="GO" size="lg" className="grow" onClick={go} />
         <Button label="Stop" size="lg" variant="outline" onClick={stop} />
       </View>
     </CardContent>

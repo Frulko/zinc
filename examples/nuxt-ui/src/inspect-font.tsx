@@ -6,12 +6,12 @@ import { quit, font } from 'zinc:gfx';
 
 ui.setFontSans('PublicSans');
 function App(): i32 {
-  return <View class="flex-col">
-    <Text class="text-sm font-normal">Regular</Text>
-    <Text class="text-sm font-medium">Medium</Text>
-    <Text class="text-sm font-semibold">SemiBold</Text>
-    <Text class="text-sm font-bold">Bold</Text>
-    <Text class="text-sm font-mono">Mono</Text>
+  return <View className="flex-col">
+    <Text className="text-sm font-normal">Regular</Text>
+    <Text className="text-sm font-medium">Medium</Text>
+    <Text className="text-sm font-semibold">SemiBold</Text>
+    <Text className="text-sm font-bold">Bold</Text>
+    <Text className="text-sm font-mono">Mono</Text>
   </View>;
 }
 const FACES = ['PublicSans', 'PublicSans-Medium', 'PublicSans-SemiBold', 'PublicSans-Bold', 'mono'];

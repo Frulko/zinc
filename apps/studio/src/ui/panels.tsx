@@ -22,14 +22,14 @@ function TreeRow(props: RowProps): i32 {
   const act = props.active;
   const pad = props.indent ?? 0;
   const detail = props.detail;
-  return <button class={act !== undefined && act() ? 'flex-row items-center gap-2 h-[26] pr-2 rounded-md bg-zinc-100 cursor-pointer' : 'flex-row items-center gap-2 h-[26] pr-2 rounded-md bg-transparent hover:bg-zinc-50 cursor-pointer'}
+  return <Button className={act !== undefined && act() ? 'flex-row items-center gap-2 h-[26] pr-2 rounded-md bg-zinc-100 cursor-pointer' : 'flex-row items-center gap-2 h-[26] pr-2 rounded-md bg-transparent hover:bg-zinc-50 cursor-pointer'}
     onClick={props.onClick}>
-    <view style={{ width: 8 + pad * 14 }} />
+    <View style={{ width: 8 + pad * 14 }} />
     <Icon name={props.icon} color={C_MUTED} size={14} />
-    <text class="text-[13] text-zinc-800">{props.label()}</text>
-    <view class="grow" />
-    <text class="text-[11] text-zinc-400">{detail !== undefined ? detail() : ''}</text>
-  </button>;
+    <Text className="text-[13] text-zinc-800">{props.label()}</Text>
+    <View className="grow" />
+    <Text className="text-[11] text-zinc-400">{detail !== undefined ? detail() : ''}</Text>
+  </Button>;
 }
 
 const [importPath, setImportPath] = createSignal<string>('');
@@ -44,11 +44,11 @@ async function doImport(): Promise<void> {
 }
 
 export function ProjectPanel(): i32 {
-  return <view class="flex-col h-[300] bg-white">
+  return <View className="flex-col h-[300] bg-white">
     <PanelHeader title="Project" icon="folder">
       <IconButton icon="import" onClick={() => { doImport(); }} disabled={() => importPath() === ''} />
     </PanelHeader>
-    <scroll class="grow px-2 py-2">
+    <ScrollView className="grow px-2 py-2">
       <TreeRow icon="folder" label={() => model.projectDir() === '' ? 'unsaved project' : basename(model.projectDir())} onClick={() => { model.select([]); setCenterTab('Flow'); }} />
       <TreeRow icon="file" label={() => 'project.json'} indent={1} onClick={() => { model.select([]); setCenterTab('Flow'); }} />
       <TreeRow icon="code" label={() => 'build/src/main.ts'} indent={1} onClick={() => setCenterTab('Generated code')} />
@@ -57,14 +57,14 @@ export function ProjectPanel(): i32 {
         <TreeRow icon={kindIcon(a.kind)} label={() => a.name} detail={() => a.size} indent={2} active={() => model.selectedAsset() === a.name}
           onClick={() => model.selectAsset(a.name)} />}
       </For>
-    </scroll>
+    </ScrollView>
     <HSep />
-    <view class="flex-row items-center gap-2 px-2 py-2">
-      <input class={inputClass(false)} placeholder="/path/to/file.png to import" value={importPath()}
+    <View className="flex-row items-center gap-2 px-2 py-2">
+      <Input className={inputClass(false)} placeholder="/path/to/file.png to import" value={importPath()}
         onInput={(v: string) => setImportPath(v)} onChange={(v: string) => { if (v !== '') doImport(); }} />
-    </view>
+    </View>
     <HSep />
-  </view>;
+  </View>;
 }
 
 // ---------------------------------------------------------------- box library
@@ -101,44 +101,44 @@ function itemUp(e: ui.PointerEvent): void {
 }
 
 function LibraryItem(d: BoxDef): i32 {
-  return <view class="flex-row items-center gap-2 h-[28] pl-6 pr-2 rounded-md hover:bg-zinc-100 cursor-grab" grab="keep"
+  return <View className="flex-row items-center gap-2 h-[28] pl-6 pr-2 rounded-md hover:bg-zinc-100 cursor-grab" grab="keep"
     onPointerDown={(e: ui.PointerEvent) => itemDown(d, e)} onPointerMove={(e: ui.PointerEvent) => itemMove(d, e)}
     onPointerUp={(e: ui.PointerEvent) => itemUp(e)} onDoubleClick={(e: ui.PointerEvent) => { graph.addAtCenter(d.type); setCenterTab('Flow'); }}>
-    <view class="w-[8] h-[8] rounded-sm" style={{ bg: categoryColor(d.category) }} />
-    <text class={boxAvailable(d, model.target()) ? 'text-[13] text-zinc-800' : 'text-[13] text-zinc-400'}>{d.title}</text>
-    <view class="grow" />
-    <Show when={!boxAvailable(d, model.target())}><text class="text-[10] text-zinc-400">n/a</text></Show>
-  </view>;
+    <View className="w-[8] h-[8] rounded-sm" style={{ bg: categoryColor(d.category) }} />
+    <Text className={boxAvailable(d, model.target()) ? 'text-[13] text-zinc-800' : 'text-[13] text-zinc-400'}>{d.title}</Text>
+    <View className="grow" />
+    <Show when={!boxAvailable(d, model.target())}><Text className="text-[10] text-zinc-400">n/a</Text></Show>
+  </View>;
 }
 function Category(cat: string): i32 {
-  return <view class="flex-col">
-    <button class="flex-row items-center gap-1 h-[26] px-1 rounded-md bg-transparent hover:bg-zinc-50 cursor-pointer" onClick={() => toggle(cat)}>
+  return <View className="flex-col">
+    <Button className="flex-row items-center gap-1 h-[26] px-1 rounded-md bg-transparent hover:bg-zinc-50 cursor-pointer" onClick={() => toggle(cat)}>
       <Icon name="right" color={C_SOFT} size={14} />
-      <text class="text-[12] font-semibold text-zinc-700">{cat}</text>
-      <view class="grow" />
-      <text class="text-[11] text-zinc-400">{`${BOXES.filter((d: BoxDef) => d.category === cat && matches(d, query())).length}`}</text>
-    </button>
+      <Text className="text-[12] font-semibold text-zinc-700">{cat}</Text>
+      <View className="grow" />
+      <Text className="text-[11] text-zinc-400">{`${BOXES.filter((d: BoxDef) => d.category === cat && matches(d, query())).length}`}</Text>
+    </Button>
     <Show when={collapsed().indexOf(cat) < 0}>
-      <view class="flex-col">
+      <View className="flex-col">
         <For each={BOXES.filter((d: BoxDef) => d.category === cat && matches(d, query()))}>{(d: BoxDef, _i: i32) => LibraryItem(d)}</For>
-      </view>
+      </View>
     </Show>
-  </view>;
+  </View>;
 }
 
 export function LibraryPanel(): i32 {
-  return <view class="flex-col grow bg-white">
+  return <View className="flex-col grow bg-white">
     <PanelHeader title="Box library" icon="box" />
-    <view class="flex-row items-center gap-2 mx-2 mt-2 px-2 h-[30] rounded-md border border-zinc-200 bg-white">
+    <View className="flex-row items-center gap-2 mx-2 mt-2 px-2 h-[30] rounded-md border border-zinc-200 bg-white">
       <Icon name="search" color={C_SOFT} size={14} />
-      <input class="grow h-[28] text-[13] text-zinc-900 bg-white border-0" placeholder="Search boxes" value={query()} onInput={(v: string) => setQuery(v)} />
-    </view>
-    <scroll class="grow px-2 py-2">
+      <Input className="grow h-[28] text-[13] text-zinc-900 bg-white border-0" placeholder="Search boxes" value={query()} onInput={(v: string) => setQuery(v)} />
+    </View>
+    <ScrollView className="grow px-2 py-2">
       <For each={CATEGORIES.filter((c: string) => BOXES.some((d: BoxDef) => d.category === c && matches(d, query())))}>{(c: string, _i: i32) => Category(c)}</For>
-    </scroll>
+    </ScrollView>
     <HSep />
-    <view class="px-3 py-2">
-      <text class="text-[11] text-zinc-400">{`${BOXES.filter((d: BoxDef) => boxAvailable(d, model.target())).length} of ${BOXES.length} boxes run on this target`}</text>
-    </view>
-  </view>;
+    <View className="px-3 py-2">
+      <Text className="text-[11] text-zinc-400">{`${BOXES.filter((d: BoxDef) => boxAvailable(d, model.target())).length} of ${BOXES.length} boxes run on this target`}</Text>
+    </View>
+  </View>;
 }

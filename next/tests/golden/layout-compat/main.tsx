@@ -18,52 +18,52 @@ const v1 = r('row-reverse a'), v2 = r('row-reverse b'), v3 = r('column-reverse')
 const w1 = r('wrap-reverse a'), w2 = r('wrap-reverse b'), w3 = r('wrap-reverse c');
 const u1 = r('margin auto'), u2 = r('marginLeft auto'), u3 = r('marginVertical auto');
 function App(): i32 {
-  return <view style={{ width: 300, padding: 0 }}>
-    <view style={{ flexDirection: 'row', width: 300, height: 30 }}>
-      <view ref={a1} style={{ flex: 1 }}><text>a</text></view>
-      <view ref={a2} style={{ flex: 1 }}><text>a longer label</text></view>
-      <view ref={a3} style={{ flex: 1 }}><text>mid</text></view>
-    </view>
-    <view style={{ flexDirection: 'row', width: 200, height: 20 }}>
-      <view ref={s1} style={{ width: 150, flexShrink: 1 }} />
-      <view ref={s2} style={{ width: 150, flexShrink: 1 }} />
-    </view>
-    <view style={{ flexDirection: 'row', width: 300, height: 20 }}>
-      <view ref={m1} style={{ flex: 1, maxWidth: 80 }} />
-      <view ref={m2} style={{ flex: 1 }} />
-    </view>
-    <view style={{ flexDirection: 'row', width: 300, height: 20 }}>
-      <view ref={m3} style={{ flex: 1, minWidth: 250 }} />
-      <view ref={m4} style={{ flex: 1 }} />
-    </view>
-    <view style={{ alignItems: 'flex-start', width: 300 }}>
-      <view ref={l1} style={{ alignSelf: 'stretch', height: 10 }} />
-      <view ref={l2} style={{ alignSelf: 'center', width: 40, height: 10 }} />
-      <view ref={l3} style={{ alignSelf: 'flex-end', width: 40, height: 10 }} />
-    </view>
-    <view style={{ flexDirection: 'row', width: 300, alignItems: 'flex-start' }}>
-      <view ref={p1} style={{ width: 120, aspectRatio: 2 }} />
-      <view ref={p2} style={{ height: 50, aspectRatio: 2 }} />
-    </view>
-    <view style={{ flexDirection: 'row', flexWrap: 'wrap', width: 300, height: 100, alignContent: 'center' }}>
-      <view ref={c1} style={{ width: 200, height: 20 }} />
-      <view ref={c2} style={{ width: 200, height: 20 }} />
-      <view ref={c3} style={{ width: 80, height: 20 }} />
-    </view>
-    <view style={{ flexDirection: 'row-reverse', width: 100, height: 20 }}>
-      <view ref={v1} style={{ width: 10, height: 10 }} />
-      <view ref={v2} style={{ width: 10, height: 10 }} />
-    </view>
-    <view style={{ flexDirection: 'column-reverse', width: 20, height: 60 }}><view ref={v3} style={{ width: 10, height: 10 }} /></view>
-    <view style={{ flexDirection: 'row', flexWrap: 'wrap-reverse', width: 50, height: 60, alignContent: 'flex-start', rowGap: 4, columnGap: 6 }}>
-      <view ref={w1} style={{ width: 20, height: 10 }} />
-      <view ref={w2} style={{ width: 20, height: 10 }} />
-      <view ref={w3} style={{ width: 20, height: 10 }} />
-    </view>
-    <view style={{ flexDirection: 'row', width: 100, height: 40 }}><view ref={u1} style={{ width: 20, height: 10, margin: 'auto' }} /></view>
-    <view style={{ flexDirection: 'row', width: 100, height: 20 }}><view ref={u2} style={{ width: 20, height: 10, marginLeft: 'auto' }} /></view>
-    <view style={{ width: 100, height: 40 }}><view ref={u3} style={{ width: 20, height: 10, marginVertical: 'auto' }} /></view>
-  </view>;
+  return <View style={{ width: 300, padding: 0 }}>
+    <View style={{ flexDirection: 'row', width: 300, height: 30 }}>
+      <View ref={a1} style={{ flex: 1 }}><Text>a</Text></View>
+      <View ref={a2} style={{ flex: 1 }}><Text>a longer label</Text></View>
+      <View ref={a3} style={{ flex: 1 }}><Text>mid</Text></View>
+    </View>
+    <View style={{ flexDirection: 'row', width: 200, height: 20 }}>
+      <View ref={s1} style={{ width: 150, flexShrink: 1 }} />
+      <View ref={s2} style={{ width: 150, flexShrink: 1 }} />
+    </View>
+    <View style={{ flexDirection: 'row', width: 300, height: 20 }}>
+      <View ref={m1} style={{ flex: 1, maxWidth: 80 }} />
+      <View ref={m2} style={{ flex: 1 }} />
+    </View>
+    <View style={{ flexDirection: 'row', width: 300, height: 20 }}>
+      <View ref={m3} style={{ flex: 1, minWidth: 250 }} />
+      <View ref={m4} style={{ flex: 1 }} />
+    </View>
+    <View style={{ alignItems: 'flex-start', width: 300 }}>
+      <View ref={l1} style={{ alignSelf: 'stretch', height: 10 }} />
+      <View ref={l2} style={{ alignSelf: 'center', width: 40, height: 10 }} />
+      <View ref={l3} style={{ alignSelf: 'flex-end', width: 40, height: 10 }} />
+    </View>
+    <View style={{ flexDirection: 'row', width: 300, alignItems: 'flex-start' }}>
+      <View ref={p1} style={{ width: 120, aspectRatio: 2 }} />
+      <View ref={p2} style={{ height: 50, aspectRatio: 2 }} />
+    </View>
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', width: 300, height: 100, alignContent: 'center' }}>
+      <View ref={c1} style={{ width: 200, height: 20 }} />
+      <View ref={c2} style={{ width: 200, height: 20 }} />
+      <View ref={c3} style={{ width: 80, height: 20 }} />
+    </View>
+    <View style={{ flexDirection: 'row-reverse', width: 100, height: 20 }}>
+      <View ref={v1} style={{ width: 10, height: 10 }} />
+      <View ref={v2} style={{ width: 10, height: 10 }} />
+    </View>
+    <View style={{ flexDirection: 'column-reverse', width: 20, height: 60 }}><View ref={v3} style={{ width: 10, height: 10 }} /></View>
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap-reverse', width: 50, height: 60, alignContent: 'flex-start', rowGap: 4, columnGap: 6 }}>
+      <View ref={w1} style={{ width: 20, height: 10 }} />
+      <View ref={w2} style={{ width: 20, height: 10 }} />
+      <View ref={w3} style={{ width: 20, height: 10 }} />
+    </View>
+    <View style={{ flexDirection: 'row', width: 100, height: 40 }}><View ref={u1} style={{ width: 20, height: 10, margin: 'auto' }} /></View>
+    <View style={{ flexDirection: 'row', width: 100, height: 20 }}><View ref={u2} style={{ width: 20, height: 10, marginLeft: 'auto' }} /></View>
+    <View style={{ width: 100, height: 40 }}><View ref={u3} style={{ width: 20, height: 10, marginVertical: 'auto' }} /></View>
+  </View>;
 }
 render(App, 0xffffff, (dt: number) => {
   for (let i = 0; i < refs.length; i++) {

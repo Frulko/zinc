@@ -10,7 +10,7 @@ import * as sys from 'zinc:sys';
 import { quit } from 'zinc:gfx';
 
 function App(): i32 {
-  return <View class="p-3"><Text>network</Text></View>;
+  return <View className="p-3"><Text>network</Text></View>;
 }
 render(App, 0xf1f5f9, (dt: number) => {});
 

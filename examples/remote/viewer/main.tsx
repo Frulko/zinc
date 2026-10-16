@@ -43,34 +43,34 @@ function Screen(x: i32, y: i32, w: i32, h: i32): void {
 }
 
 function AppRow(a: remote.App, _i: i32): i32 {
-  return <button class={current() === a.key ? 'flex-col p-2 rounded bg-sky-800' : 'flex-col p-2 rounded bg-slate-800 active:bg-slate-600'}
+  return <Button className={current() === a.key ? 'flex-col p-2 rounded bg-sky-800' : 'flex-col p-2 rounded bg-slate-800 active:bg-slate-600'}
     onClick={() => { open(a.host, a.port, a.name); }}>
-    <text class="text-sm text-white">{a.name}</text>
-    <text class="text-xs text-slate-400">{`${a.target} · ${a.width}x${a.height} · pid ${a.pid}`}</text>
-    <text class="text-xs text-slate-500">{a.key}</text>
-  </button>;
+    <Text className="text-sm text-white">{a.name}</Text>
+    <Text className="text-xs text-slate-400">{`${a.target} · ${a.width}x${a.height} · pid ${a.pid}`}</Text>
+    <Text className="text-xs text-slate-500">{a.key}</Text>
+  </Button>;
 }
 
 function App(): i32 {
-  return <view class="flex-row h-full bg-slate-950">
-    <view class="flex-col w-60 p-3 gap-2 bg-slate-900">
-      <text class="text-xs text-slate-500 tracking-wider">APPS</text>
+  return <View className="flex-row h-full bg-slate-950">
+    <View className="flex-col w-60 p-3 gap-2 bg-slate-900">
+      <Text className="text-xs text-slate-500 tracking-wider">APPS</Text>
       <For each={apps()}>{(a: remote.App, i: i32) => AppRow(a, i)}</For>
-      <Show when={apps().length === 0}><text class="text-xs text-slate-500">none yet</text></Show>
-      <view class="grow"></view>
-      <button class="h-8 rounded bg-slate-700 active:bg-slate-500" onClick={() => { open('127.0.0.1', 7700, 'localhost:7700'); }}>
-        <text class="text-sm">localhost:7700</text>
-      </button>
-    </view>
-    <view class="flex-col grow">
-      <canvas class="grow" onDraw={Screen}></canvas>
-      <view class="flex-row items-center gap-3 px-3 h-7 bg-slate-900">
-        <text class="text-xs text-slate-400">{status()}</text>
-        <view class="grow"></view>
-        <text class="text-xs text-emerald-400">{stats()}</text>
-      </view>
-    </view>
-  </view>;
+      <Show when={apps().length === 0}><Text className="text-xs text-slate-500">none yet</Text></Show>
+      <View className="grow"></View>
+      <Button className="h-8 rounded bg-slate-700 active:bg-slate-500" onClick={() => { open('127.0.0.1', 7700, 'localhost:7700'); }}>
+        <Text className="text-sm">localhost:7700</Text>
+      </Button>
+    </View>
+    <View className="flex-col grow">
+      <Canvas className="grow" onDraw={Screen}></Canvas>
+      <View className="flex-row items-center gap-3 px-3 h-7 bg-slate-900">
+        <Text className="text-xs text-slate-400">{status()}</Text>
+        <View className="grow"></View>
+        <Text className="text-xs text-emerald-400">{stats()}</Text>
+      </View>
+    </View>
+  </View>;
 }
 
 let acc = 0;

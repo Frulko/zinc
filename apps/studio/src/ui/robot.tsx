@@ -21,27 +21,27 @@ function drawScreen(x: i32, y: i32, w: i32, h: i32): void {
   drawText(hintFont, sx + (sw - textWidth(hintFont, msg, 0)) / 2, sy + sh / 2 - 6, msg, 0xa1a1aa, 255, 0);
 }
 export function RobotView(): i32 {
-  return <view class="flex-col h-[330] bg-white">
+  return <View className="flex-col h-[330] bg-white">
     <PanelHeader title="Robot view" icon="monitor">
-      <view class="flex-row items-center gap-1">
+      <View className="flex-row items-center gap-1">
         <Show when={devices.previewConnected()}>
-          <view class="w-[8] h-[8] rounded-full bg-emerald-500 mr-1" />
+          <View className="w-[8] h-[8] rounded-full bg-emerald-500 mr-1" />
         </Show>
         <IconButton icon="play" color={C_GREEN} onClick={() => { model.setTarget('preview'); runPreview(); }} disabled={() => runner.busy()} />
         <IconButton icon="stop" color={C_RED} onClick={() => { runner.stop(); devices.disconnectPreview(); }} disabled={() => !runner.busy() && !devices.previewConnected()} />
         <IconButton icon="plug" onClick={() => openDialog('devices')} />
-      </view>
+      </View>
     </PanelHeader>
-    <view class="grow m-2 rounded-lg bg-zinc-900 overflow-hidden">
-      <canvas class="grow" onDraw={drawScreen} />
-    </view>
-    <view class="flex-row items-center gap-2 h-[26] px-3">
-      <text class="text-[11] text-zinc-500">{devices.previewStatus()}</text>
-      <view class="grow" />
-      <text class="text-[11] font-mono text-emerald-600">{devices.previewStats()}</text>
-    </view>
+    <View className="grow m-2 rounded-lg bg-zinc-900 overflow-hidden">
+      <Canvas className="grow" onDraw={drawScreen} />
+    </View>
+    <View className="flex-row items-center gap-2 h-[26] px-3">
+      <Text className="text-[11] text-zinc-500">{devices.previewStatus()}</Text>
+      <View className="grow" />
+      <Text className="text-[11] font-mono text-emerald-600">{devices.previewStats()}</Text>
+    </View>
     <HSep />
-  </view>;
+  </View>;
 }
 
 let runHook: (() => void) | null = null;

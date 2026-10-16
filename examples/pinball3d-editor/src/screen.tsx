@@ -9,7 +9,7 @@ import * as ui from 'zinc:ui';
 import { rect, border, clip, unclip, font, drawText, textWidth } from 'zinc:gfx';
 import { Camera } from 'zinc:3d';
 import { Game } from '../../pinball3d/src/game';
-import { View } from '../../pinball3d/src/view';
+import { View as TableView } from '../../pinball3d/src/view';
 import { drawPanel } from '../../pinball3d/src/panel';
 import { rgb } from './shapes';
 import { doc, table, selected, select, dragRow } from './state';
@@ -51,8 +51,8 @@ function gameFor(): Game {
   return waiting as Game;
 }
 /** The layout placed in a pane of this size: its window whole, with a margin. */
-function placed(w: number, h: number): View {
-  const v = new View(table(), w - 2 * MARGIN, h - 2 * MARGIN, layoutName());
+function placed(w: number, h: number): TableView {
+  const v = new TableView(table(), w - 2 * MARGIN, h - 2 * MARGIN, layoutName());
   v.ox += MARGIN; v.oy += MARGIN;
   return v;
 }
@@ -129,14 +129,14 @@ function wheel(e: ui.PointerEvent): void {
 
 export function ScreenView(): i32 {
   createEffect(() => { doc(); selected(); ui.repaint(); });
-  return <view class="grow basis-0 min-w-0 flex-col">
-    <view class="flex-row items-center gap-3 h-9 px-3 shrink-0 bg-zinc-900 border-b border-zinc-800">
+  return <View className="grow basis-0 min-w-0 flex-col">
+    <View className="flex-row items-center gap-3 h-9 px-3 shrink-0 bg-zinc-900 border-b border-zinc-800">
       <Heading label={t(L.SCREEN_VIEW)} />
-      <view class="w-[190]"><Segmented options={['landscape', 'portrait']} labels={[t(L.LANDSCAPE_LAYOUT), t(L.PORTRAIT_LAYOUT)]} value={layoutName} onPick={(v: string) => select(`layouts.${v}`)} /></view>
-      <text class="grow basis-0 truncate text-[11px] text-zinc-500">{t(L.SCREEN_HOW)}</text>
-    </view>
-    <view class="grow basis-0 min-h-0 relative overflow-hidden bg-zinc-950 cursor-default" onPointerDown={down} onPointerMove={move} onPointerUp={up} onWheel={wheel}>
-      <canvas class="absolute inset-0" style={{ lazy: 1 }} onDraw={draw} />
-    </view>
-  </view>;
+      <View className="w-[190]"><Segmented options={['landscape', 'portrait']} labels={[t(L.LANDSCAPE_LAYOUT), t(L.PORTRAIT_LAYOUT)]} value={layoutName} onPick={(v: string) => select(`layouts.${v}`)} /></View>
+      <Text className="grow basis-0 truncate text-[11px] text-zinc-500">{t(L.SCREEN_HOW)}</Text>
+    </View>
+    <View className="grow basis-0 min-h-0 relative overflow-hidden bg-zinc-950 cursor-default" onPointerDown={down} onPointerMove={move} onPointerUp={up} onWheel={wheel}>
+      <Canvas className="absolute inset-0" style={{ lazy: 1 }} onDraw={draw} />
+    </View>
+  </View>;
 }

@@ -34,17 +34,17 @@ const card = createNodeRef(), header = createNodeRef(), list = createNodeRef();
 const rows: i32[] = [];
 for (let i = 0; i < 20; i++) rows.push(i);
 function App(): i32 {
-  return <view style={s.page}>
-    <view style={s.stage}>
-      <view ref={card} {...responder.panHandlers} style={[s.card, { transform: [{ translateX: pan.x.get() }, { translateY: pan.y.get() }] }]} />
-    </view>
-    <view style={s.side}>
-      <view ref={header} style={[s.header, { opacity: fade.get() }]} />
-      <view ref={list} style={[s.list, { overflow: 'scroll' }]} onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true })}>
-        <For each={rows}>{(r: i32, i: i32) => <view style={s.row}><text>{`row ${r}`}</text></view>}</For>
-      </view>
-    </view>
-  </view>;
+  return <View style={s.page}>
+    <View style={s.stage}>
+      <View ref={card} {...responder.panHandlers} style={[s.card, { transform: [{ translateX: pan.x.get() }, { translateY: pan.y.get() }] }]} />
+    </View>
+    <View style={s.side}>
+      <View ref={header} style={[s.header, { opacity: fade.get() }]} />
+      <View ref={list} style={[s.list, { overflow: 'scroll' }]} onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true })}>
+        <For each={rows}>{(r: i32, i: i32) => <View style={s.row}><Text>{`row ${r}`}</Text></View>}</For>
+      </View>
+    </View>
+  </View>;
 }
 let f = 0;
 const x = (): number => Math.round(ui.screenBox(card.node)[0]);

@@ -16,24 +16,24 @@ const nameOf = (h: i32): string => h < 0 ? 'none' : names.get(h) ?? `#${h}`;
 const log = (s: string): void => { console.log(s); };
 
 function App(): i32 {
-  return <view class="flex-col gap-1 p-1 h-full">
-  <view ref={toolbar} class="flex-row gap-1 focus-within:bg-sky-900">
-    <button ref={a} class="w-10 h-5" onClick={() => log('A')}><text>A</text></button>
-    <button ref={b} class="w-10 h-5" onClick={() => setOpen(true)}><text>Open</text></button>
-    <button ref={c} class="w-10 h-5" tabIndex={1} onClick={() => log('C')}><text>C</text></button>
-    <button ref={off} class="w-10 h-5" disabled={dimmed()} onClick={() => log('disabled clicked')}><text>Off</text></button>
-  </view>
-  <input ref={field} class="w-24" value="" />
-  <view ref={editor} class="flex-col gap-1" keyContext="Editor">
-    <button ref={inEditor} class="w-10 h-5"><text>E</text></button>
-    <view ref={pane} keyContext="Pane"><button ref={inPane} class="w-10 h-5"><text>P</text></button></view>
-  </view>
-  <view ref={dialog} class="flex-col gap-1 p-1 bg-slate-700" hidden={open() ? 0 : 1}>
-    <input ref={note} class="w-24" value="" />
-    <button ref={ok} class="w-10 h-5" onClick={() => { log('ok'); setOpen(false); }}><text>OK</text></button>
-    <button ref={cancel} class="w-10 h-5" onClick={() => setOpen(false)}><text>Cancel</text></button>
-  </view>
-  </view>;
+  return <View className="flex-col gap-1 p-1 h-full">
+  <View ref={toolbar} className="flex-row gap-1 focus-within:bg-sky-900">
+    <Button ref={a} className="w-10 h-5" onClick={() => log('A')}><Text>A</Text></Button>
+    <Button ref={b} className="w-10 h-5" onClick={() => setOpen(true)}><Text>Open</Text></Button>
+    <Button ref={c} className="w-10 h-5" tabIndex={1} onClick={() => log('C')}><Text>C</Text></Button>
+    <Button ref={off} className="w-10 h-5" disabled={dimmed()} onClick={() => log('disabled clicked')}><Text>Off</Text></Button>
+  </View>
+  <Input ref={field} className="w-24" value="" />
+  <View ref={editor} className="flex-col gap-1" keyContext="Editor">
+    <Button ref={inEditor} className="w-10 h-5"><Text>E</Text></Button>
+    <View ref={pane} keyContext="Pane"><Button ref={inPane} className="w-10 h-5"><Text>P</Text></Button></View>
+  </View>
+  <View ref={dialog} className="flex-col gap-1 p-1 bg-slate-700" hidden={open() ? 0 : 1}>
+    <Input ref={note} className="w-24" value="" />
+    <Button ref={ok} className="w-10 h-5" onClick={() => { log('ok'); setOpen(false); }}><Text>OK</Text></Button>
+    <Button ref={cancel} className="w-10 h-5" onClick={() => setOpen(false)}><Text>Cancel</Text></Button>
+  </View>
+  </View>;
 }
 
 let frame = 0, changes = 0;

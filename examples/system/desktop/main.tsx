@@ -72,16 +72,16 @@ dock.setMenu([menu.item('notify', 'Send a notification'), menu.item('badge', 'Ad
 dock.onClick('notify', () => { notify(); });
 
 function App(): i32 {
-  return <view class="flex-col gap-3 p-6 h-full bg-slate-950">
-    <text class="text-xl font-bold text-white">Desktop integration</text>
-    <text class="text-sm text-slate-300">{status()}</text>
-    <view class="flex-row gap-2">
-      <button class="bg-sky-600 hover:bg-sky-500 rounded-md px-3 py-1 cursor-pointer" onClick={() => { notify(); }}><text class="text-sm text-white">Notify</text></button>
-      <button class="bg-slate-700 hover:bg-slate-600 rounded-md px-3 py-1 cursor-pointer" onClick={() => bump()}><text class="text-sm text-white">Badge +1</text></button>
-      <button class="bg-slate-700 hover:bg-slate-600 rounded-md px-3 py-1 cursor-pointer" onClick={() => bounceLater()}><text class="text-sm text-white">Bounce</text></button>
-      <button class="bg-slate-700 hover:bg-slate-600 rounded-md px-3 py-1 cursor-pointer" onClick={() => { context(); }}><text class="text-sm text-white">Context menu</text></button>
-    </view>
-    <text class="text-xs text-slate-500">Cmd+N notify, Cmd+B badge, Cmd+J bounce, Cmd+P progress. Right-click the dock icon for its menu.</text>
-  </view>;
+  return <View className="flex-col gap-3 p-6 h-full bg-slate-950">
+    <Text className="text-xl font-bold text-white">Desktop integration</Text>
+    <Text className="text-sm text-slate-300">{status()}</Text>
+    <View className="flex-row gap-2">
+      <Button className="bg-sky-600 hover:bg-sky-500 rounded-md px-3 py-1 cursor-pointer" onClick={() => { notify(); }}><Text className="text-sm text-white">Notify</Text></Button>
+      <Button className="bg-slate-700 hover:bg-slate-600 rounded-md px-3 py-1 cursor-pointer" onClick={() => bump()}><Text className="text-sm text-white">Badge +1</Text></Button>
+      <Button className="bg-slate-700 hover:bg-slate-600 rounded-md px-3 py-1 cursor-pointer" onClick={() => bounceLater()}><Text className="text-sm text-white">Bounce</Text></Button>
+      <Button className="bg-slate-700 hover:bg-slate-600 rounded-md px-3 py-1 cursor-pointer" onClick={() => { context(); }}><Text className="text-sm text-white">Context menu</Text></Button>
+    </View>
+    <Text className="text-xs text-slate-500">Cmd+N notify, Cmd+B badge, Cmd+J bounce, Cmd+P progress. Right-click the dock icon for its menu.</Text>
+  </View>;
 }
 render(App, 0x020617, null);

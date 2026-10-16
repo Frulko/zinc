@@ -6,14 +6,14 @@ import { SampleCard } from './components/SampleCard';
 import { ZoomCard, tickZoom } from './components/ZoomCard';
 
 function App(): i32 {
-  return <View class="flex-col h-full gap-5 p-6 bg-zinc-50">
-    <View class="flex-col gap-1">
-      <Text class={heading(2)}>zinc:svg</Text>
-      <Text class={leadText()}>Runtime vector rendering: paths, gradients, CSS, transforms, dashes.</Text>
+  return <View className="flex-col h-full gap-5 p-6 bg-zinc-50">
+    <View className="flex-col gap-1">
+      <Text className={heading(2)}>zinc:svg</Text>
+      <Text className={leadText()}>Runtime vector rendering: paths, gradients, CSS, transforms, dashes.</Text>
     </View>
-    <View class="flex-row grow gap-5">
-      <ScrollView class="grow">
-        <View class="flex-col gap-3 pb-1">
+    <View className="flex-row grow gap-5">
+      <ScrollView className="grow">
+        <View className="flex-col gap-3 pb-1">
           {DOCUMENTS.map((doc: Document) => <SampleCard doc={doc} />)}
         </View>
       </ScrollView>

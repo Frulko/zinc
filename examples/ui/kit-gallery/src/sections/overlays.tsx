@@ -13,10 +13,10 @@ ui.onAction(-1, 'duplicate', () => toast('Duplicated', 'A copy was added to the 
 ui.onAction(-1, 'delete', () => setConfirming(true));
 
 export function OverlaysCard(): i32 {
-  return <Card class="w-[500px]">
+  return <Card className="w-[500px]">
     <CardHeader title="Overlays" description="Tooltip, menu, popover, dialog and toasts. Escape closes the latest one." />
     <CardContent>
-      <View class="flex-row flex-wrap gap-2">
+      <View className="flex-row flex-wrap gap-2">
         <Tooltip label="Save changes" action="save"><Button label="Save" onClick={() => ui.dispatchAction('save')} /></Tooltip>
         <DropdownMenu label="Actions" items={[
           { label: 'Save', action: 'save' },
@@ -25,7 +25,7 @@ export function OverlaysCard(): i32 {
           { label: 'Delete…', action: 'delete' },
         ]} />
         <Popover label="Notifications">
-          <Text class={mutedText()}>Choose what reaches you.</Text>
+          <Text className={mutedText()}>Choose what reaches you.</Text>
           <Switch checked={notifications} onChange={setNotifications} label="Push notifications" />
         </Popover>
         <Button label="Toast" variant="secondary" onClick={() => toast('Hello', 'Toasts stack in the corner and go away.')} />
@@ -33,7 +33,7 @@ export function OverlaysCard(): i32 {
     </CardContent>
     <Dialog open={confirming} onOpenChange={setConfirming} title="Delete the project?"
       description="This removes the project and its files. It cannot be undone."
-      footer={() => <View class="flex-row gap-2">
+      footer={() => <View className="flex-row gap-2">
         <Button label="Cancel" variant="outline" onClick={() => setConfirming(false)} />
         <Button label="Delete" variant="destructive" onClick={() => { setConfirming(false); toast('Deleted', 'The project is gone.'); }} />
       </View>} />

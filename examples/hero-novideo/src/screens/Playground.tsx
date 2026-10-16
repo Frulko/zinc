@@ -31,18 +31,18 @@ function drawScene(x: i32, y: i32, w: i32, h: i32): void {
 }
 
 export function Playground(): i32 {
-  return <View class="grow flex-col gap-4 p-4 lg:p-8">
-    <View class="flex-row items-center gap-3" style={{ opacity: enter.at(0), translateY: (1 - enter.at(0)) * 12 }}>
+  return <View className="grow flex-col gap-4 p-4 lg:p-8">
+    <View className="flex-row items-center gap-3" style={{ opacity: enter.at(0), translateY: (1 - enter.at(0)) * 12 }}>
       <Tabs items={['Gravity ↓', 'Zero-g', 'Gravity ↑']} selected={() => 1 - gravity()} onSelect={(i: i32) => setGravity(1 - i)} />
       <Button label="Shake" variant="secondary" onClick={() => shake()} />
       <Button label="Reset" variant="outline" onClick={() => { resetBalls(); toast('Playground reset', '12 fresh balls.'); }} />
-      <View class="grow" />
+      <View className="grow" />
       <Badge label="drag · throw · click" variant="outline" />
-      <Text class={`text-sm font-semibold text-${theme().mutedForeground}`}>{`${ballCount()} balls`}</Text>
+      <Text className={`text-sm font-semibold text-${theme().mutedForeground}`}>{`${ballCount()} balls`}</Text>
     </View>
-    <View class={`grow rounded-2xl border overflow-hidden border-${theme().border}`}
+    <View className={`grow rounded-2xl border overflow-hidden border-${theme().border}`}
       style={{ opacity: enter.at(0.1), translateY: (1 - enter.at(0.1)) * 20 }}>
-      <Canvas class="grow cursor-grab" grab="keep" onDraw={drawScene}
+      <Canvas className="grow cursor-grab" grab="keep" onDraw={drawScene}
         onPointerDown={(e: ui.PointerEvent) => press(e.x, e.y)}
         onPointerMove={(e: ui.PointerEvent) => drag(e.x, e.y)}
         onPointerUp={(e: ui.PointerEvent) => release()} />

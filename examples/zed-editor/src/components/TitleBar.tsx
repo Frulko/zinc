@@ -17,21 +17,21 @@ function activePath(): string {
 }
 
 export function TitleBar(): i32 {
-  return <View class={`flex-row items-center h-[38] pl-2 pr-2 gap-1 border-b ${bg(theme().surface)} ${bd(theme().borderSoft)}`}>
+  return <View className={`flex-row items-center h-[38] pl-2 pr-2 gap-1 border-b ${bg(theme().surface)} ${bd(theme().borderSoft)}`}>
     <IconButton kind={I_SIDEBAR} on={panelOpen} onPress={togglePanel} />
-    <View class={`flex-row items-center h-[26] px-2 rounded-md cursor-pointer hover:${bg(theme().hover)}`}
+    <View className={`flex-row items-center h-[26] px-2 rounded-md cursor-pointer hover:${bg(theme().hover)}`}
       onPointerDown={() => openPalette(1)}>
-      <Text class={`text-[13px] font-semibold ${fg(theme().text)}`}>{root.name}</Text>
+      <Text className={`text-[13px] font-semibold ${fg(theme().text)}`}>{root.name}</Text>
     </View>
-    <Text class={`text-[13px] ${fg(theme().faint)}`}>{activePath()}</Text>
-    <View class="grow" />
+    <Text className={`text-[13px] ${fg(theme().faint)}`}>{activePath()}</Text>
+    <View className="grow" />
     <IconButton kind={I_SEARCH} on={findOpen} onPress={() => findOpen() ? closeFind() : openFind()} />
     <IconButton kind={I_WRAP} on={softWrap} onPress={() => setSoftWrap(!softWrap())} />
     <IconButton kind={I_MINIMAP} on={minimapOn} onPress={() => setMinimapOn(!minimapOn())} />
     <IconButton kind={I_TERMINAL} on={terminalOpen} onPress={toggleTerminal} />
     {running() ? <IconButton kind={I_STOP} onPress={stopProject} />
       : <IconButton kind={I_PLAY} onPress={() => { showTerminal(true); runProject(); }} />}
-    <View class={`w-px h-[16] mx-1 ${bg(theme().border)}`} />
+    <View className={`w-px h-[16] mx-1 ${bg(theme().border)}`} />
     {theme().dark ? <IconButton kind={I_MOON} onPress={toggleTheme} /> : <IconButton kind={I_SUN} onPress={toggleTheme} />}
     <IconButton kind={I_COMMAND} onPress={() => openPalette(PAL_COMMANDS)} />
   </View>;

@@ -14,13 +14,13 @@ function Clock(): i32 {
   const [secondsOfDay, setSeconds] = useState<i32>(0);
   useEffect(() => { setSecondsOfDay = setSeconds; }, []);
   const time = split(secondsOfDay);
-  return <View class="flex-col h-full p-1 gap-1 bg-black">
-    <View class="flex-row justify-between">
-      <Text class="text-xs text-white">ZINC</Text>
-      <Text class="text-xs text-white">{twoDigits(time.seconds)} s</Text>
+  return <View className="flex-col h-full p-1 gap-1 bg-black">
+    <View className="flex-row justify-between">
+      <Text className="text-xs text-white">ZINC</Text>
+      <Text className="text-xs text-white">{twoDigits(time.seconds)} s</Text>
     </View>
-    <Text class="text-2xl text-white text-center">{twoDigits(time.hours)}:{twoDigits(time.minutes)}</Text>
-    <View class="h-1 bg-white" style={{ width: Math.floor(time.seconds * BAR_WIDTH / 59) }} />
+    <Text className="text-2xl text-white text-center">{twoDigits(time.hours)}:{twoDigits(time.minutes)}</Text>
+    <View className="h-1 bg-white" style={{ width: Math.floor(time.seconds * BAR_WIDTH / 59) }} />
   </View>;
 }
 

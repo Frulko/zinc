@@ -7,7 +7,7 @@ const styles = StyleSheet.create({
 });
 const [selected, setSelected] = createSignal(true);
 const ref = createNodeRef();
-const root = <view ref={ref} class="w-[40] p-1 bg-red-500" style={[styles.base, selected() && styles.selected, { height: 32 }]} />;
+const root = <View ref={ref} className="w-[40] p-1 bg-red-500" style={[styles.base, selected() && styles.selected, { height: 32 }]} />;
 function verify(on: boolean): void {
   const n = ui.inspectNode(ref.node);
   if (n === null) throw new Error('missing node');

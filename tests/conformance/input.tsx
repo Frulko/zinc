@@ -15,22 +15,22 @@ const r = (v: number): number => Math.round(v);
 ui.onKey((e: ui.KeyEvent) => { if (e.primary && e.key === 's') { saved++; e.preventDefault(); } });
 
 const root = ui.createNode(ui.VIEW);
-ui.insert(root, <view class="flex-col p-2 gap-2 h-full">
-  <input ref={nameRef} class="w-full focus:border-amber-400" placeholder="Name" value={name()}
+ui.insert(root, <View className="flex-col p-2 gap-2 h-full">
+  <Input ref={nameRef} className="w-full focus:border-amber-400" placeholder="Name" value={name()}
     onInput={(v: string) => setName(v)} onChange={(v: string) => { changes++; console.log('change', v); }} />
-  <textarea ref={codeRef} class="font-mono text-sm" lineNumbers rows={3} value={code()} onInput={(v: string) => setCode(v)} highlight={(l: string) => ui.tsHighlight(l)} />
-  <view class="grow bg-slate-800 overflow-hidden" onWheel={(e: ui.PointerEvent) => { setZoom(zoom() * (e.wheel > 0 ? 2 : 0.5)); }}>
-    <view ref={worldRef} class="absolute left-0 top-0 w-[400] h-[400]" style={{ scale: zoom() }}>
-      <view ref={cardRef} class="absolute top-[10] w-[40] h-[20] bg-sky-500 cursor-grab hover:bg-sky-400" style={{ left: x() }}
+  <TextArea ref={codeRef} className="font-mono text-sm" lineNumbers rows={3} value={code()} onInput={(v: string) => setCode(v)} highlight={(l: string) => ui.tsHighlight(l)} />
+  <View className="grow bg-slate-800 overflow-hidden" onWheel={(e: ui.PointerEvent) => { setZoom(zoom() * (e.wheel > 0 ? 2 : 0.5)); }}>
+    <View ref={worldRef} className="absolute left-0 top-0 w-[400] h-[400]" style={{ scale: zoom() }}>
+      <View ref={cardRef} className="absolute top-[10] w-[40] h-[20] bg-sky-500 cursor-grab hover:bg-sky-400" style={{ left: x() }}
         onPointerDown={(e: ui.PointerEvent) => { grab = ui.toLocal(worldRef.node, e.gx, e.gy)[0] - x(); console.log('down', r(e.x), r(e.y), e.button); }}
         onPointerMove={(e: ui.PointerEvent) => { if (grab > -1000) setX(r(ui.toLocal(worldRef.node, e.gx, e.gy)[0] - grab)); }}
         onPointerUp={(e: ui.PointerEvent) => { grab = -1000; console.log('up', r(e.x), r(e.y)); }}
         onDoubleClick={(e: ui.PointerEvent) => { dbl++; }}
         onContextMenu={(e: ui.PointerEvent) => { menus++; console.log('menu at', r(e.x), r(e.y)); }}
         onPointerEnter={(e: ui.PointerEvent) => { enters++; }} onPointerLeave={(e: ui.PointerEvent) => { leaves++; }} />
-    </view>
-  </view>
-</view>, -1);
+    </View>
+  </View>
+</View>, -1);
 grab = -1000;
 ui.pointerAt(0, 0, false);  // test hooks drive the input from now on
 

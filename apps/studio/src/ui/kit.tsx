@@ -89,15 +89,15 @@ export function Button(props: ButtonProps): i32 {
     : v === 'danger' ? 'bg-red-600 hover:bg-red-500 active:bg-red-700'
     : v === 'ghost' ? 'bg-transparent hover:bg-zinc-100 active:bg-zinc-200'
     : 'bg-white border border-zinc-200 hover:bg-zinc-100 active:bg-zinc-200';
-  // text colour goes on the <text> itself: zinc:ui text inherits colours from <text> ancestors only
+  // text colour goes on the <Text> itself: zinc:ui text inherits colours from <Text> ancestors only
   const label = v === 'primary' || v === 'danger' ? 'text-[13] font-medium text-white' : 'text-[13] font-medium text-zinc-800';
   const fg = v === 'primary' || v === 'danger' ? C_WHITE : C_TEXT;
   const ic = props.icon ?? '';
-  return <button class={dis !== undefined && dis() ? base + 'bg-zinc-100 cursor-not-allowed' : base + style}
+  return <Button className={dis !== undefined && dis() ? base + 'bg-zinc-100 cursor-not-allowed' : base + style}
     onClick={() => { if (dis === undefined || !dis()) props.onClick(); }}>
     <Show when={ic !== ''}><Icon name={ic} tint={() => dis !== undefined && dis() ? C_SOFT : fg} size={14} /></Show>
-    <text class={dis !== undefined && dis() ? 'text-[13] font-medium text-zinc-400' : label}>{props.label}</text>
-  </button>;
+    <Text className={dis !== undefined && dis() ? 'text-[13] font-medium text-zinc-400' : label}>{props.label}</Text>
+  </Button>;
 }
 
 export interface IconButtonProps { icon: string; onClick: () => void; active?: () => boolean; disabled?: () => boolean; color?: i32 }
@@ -105,12 +105,12 @@ export interface IconButtonProps { icon: string; onClick: () => void; active?: (
 export function IconButton(props: IconButtonProps): i32 {
   const act = props.active, dis = props.disabled;
   const col = props.color ?? 0x3f3f46;
-  return <button class={dis !== undefined && dis() ? 'w-[28] h-[28] items-center justify-center rounded-md bg-transparent cursor-not-allowed'
+  return <Button className={dis !== undefined && dis() ? 'w-[28] h-[28] items-center justify-center rounded-md bg-transparent cursor-not-allowed'
       : act !== undefined && act() ? 'w-[28] h-[28] items-center justify-center rounded-md bg-zinc-200 cursor-pointer'
       : 'w-[28] h-[28] items-center justify-center rounded-md bg-transparent hover:bg-zinc-100 active:bg-zinc-200 cursor-pointer transition-colors'}
     onClick={() => { if (dis === undefined || !dis()) props.onClick(); }}>
     <Icon name={props.icon} tint={() => dis !== undefined && dis() ? 0xd4d4d8 : col} />
-  </button>;
+  </Button>;
 }
 
 // ---------------------------------------------------------------- layout pieces
@@ -120,15 +120,15 @@ export function PanelHeader(props: HeaderProps): i32 {
   const ic = props.icon ?? '';
   const kids = props.children;
   const renderActions = (): i32 => kids !== undefined ? kids() : ui.createNode(ui.FRAGMENT);
-  return <view class="flex-col">
-    <view class="flex-row items-center gap-2 h-[36] px-3 bg-white">
+  return <View className="flex-col">
+    <View className="flex-row items-center gap-2 h-[36] px-3 bg-white">
       <Show when={ic !== ''}><Icon name={ic} color={C_MUTED} size={14} /></Show>
-      <text class="text-[11] font-semibold text-zinc-500 tracking-wider">{props.title.toUpperCase()}</text>
-      <view class="grow" />
+      <Text className="text-[11] font-semibold text-zinc-500 tracking-wider">{props.title.toUpperCase()}</Text>
+      <View className="grow" />
       {renderActions()}
-    </view>
+    </View>
     <HSep />
-  </view>;
+  </View>;
 }
 
 export interface TabsProps { tabs: string[]; current: () => string; onSelect: (t: string) => void }
@@ -138,10 +138,10 @@ export function Tabs(props: TabsProps): i32 {
   ui.setClass(row, 'flex-row items-center gap-1 p-[3] rounded-lg bg-zinc-100');
   for (const t of props.tabs) {
     const name = t;
-    const n = <button class={props.current() === name ? 'h-[26] px-3 items-center justify-center rounded-md bg-white shadow-sm cursor-pointer' : 'h-[26] px-3 items-center justify-center rounded-md bg-transparent hover:bg-zinc-50 cursor-pointer'}
+    const n = <Button className={props.current() === name ? 'h-[26] px-3 items-center justify-center rounded-md bg-white shadow-sm cursor-pointer' : 'h-[26] px-3 items-center justify-center rounded-md bg-transparent hover:bg-zinc-50 cursor-pointer'}
       onClick={() => props.onSelect(name)}>
-      <text class={props.current() === name ? 'text-[13] font-medium text-zinc-900' : 'text-[13] font-medium text-zinc-500'}>{name}</text>
-    </button>;
+      <Text className={props.current() === name ? 'text-[13] font-medium text-zinc-900' : 'text-[13] font-medium text-zinc-500'}>{name}</Text>
+    </Button>;
     ui.insert(row, n, -1);
   }
   return row;
@@ -152,13 +152,13 @@ export interface FieldProps { label: string; error?: () => string; hint?: string
 export function Field(props: FieldProps): i32 {
   const err = props.error;
   const hint = props.hint ?? '';
-  return <view class="flex-col gap-1">
-    <text class="text-[12] font-medium text-zinc-700">{props.label}</text>
+  return <View className="flex-col gap-1">
+    <Text className="text-[12] font-medium text-zinc-700">{props.label}</Text>
     {props.children()}
     <Show when={(err !== undefined && err() !== '') || hint !== ''}>
-      <text class={err !== undefined && err() !== '' ? 'text-[11] text-red-600' : 'text-[11] text-zinc-400'}>{err !== undefined && err() !== '' ? err() : hint}</text>
+      <Text className={err !== undefined && err() !== '' ? 'text-[11] text-red-600' : 'text-[11] text-zinc-400'}>{err !== undefined && err() !== '' ? err() : hint}</Text>
     </Show>
-  </view>;
+  </View>;
 }
 
 /** Class of a text input, red border when invalid. */
@@ -173,13 +173,13 @@ export function Badge(props: BadgeProps): i32 {
   const cls = c === 'green' ? 'bg-emerald-50 border-emerald-200' : c === 'amber' ? 'bg-amber-50 border-amber-200'
     : c === 'red' ? 'bg-red-50 border-red-200' : c === 'blue' ? 'bg-sky-50 border-sky-200' : 'bg-zinc-50 border-zinc-200';
   const fg = c === 'green' ? 'text-emerald-700' : c === 'amber' ? 'text-amber-700' : c === 'red' ? 'text-red-700' : c === 'blue' ? 'text-sky-700' : 'text-zinc-600';
-  return <view class={`flex-row items-center h-[20] px-2 rounded-full border ${cls}`}><text class={`text-[11] font-medium ${fg}`}>{props.label}</text></view>;
+  return <View className={`flex-row items-center h-[20] px-2 rounded-full border ${cls}`}><Text className={`text-[11] font-medium ${fg}`}>{props.label}</Text></View>;
 }
 
 /** A short vertical separator between toolbar groups. */
-export function VSep(): i32 { return <view class="w-[1] h-[20] bg-zinc-200 mx-1" />; }
+export function VSep(): i32 { return <View className="w-[1] h-[20] bg-zinc-200 mx-1" />; }
 // zinc:ui borders are all-sides only: one-sided rules are 1 px views
 /** Horizontal 1 px rule (in a column). */
-export function HSep(): i32 { return <view class="h-[1] w-full bg-zinc-200" />; }
+export function HSep(): i32 { return <View className="h-[1] w-full bg-zinc-200" />; }
 /** Vertical 1 px rule (in a row), full height. */
-export function VLine(): i32 { return <view class="w-[1] h-full bg-zinc-200" />; }
+export function VLine(): i32 { return <View className="w-[1] h-full bg-zinc-200" />; }

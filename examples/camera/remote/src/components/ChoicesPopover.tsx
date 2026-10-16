@@ -12,12 +12,12 @@ function openSetting(): Setting[] {
 
 function Choices(props: { setting: Setting }): i32 {
   const s = props.setting;
-  return <View class="flex-col absolute top-16 right-84 w-96 p-4 gap-3 rounded-xl bg-white border border-zinc-200 shadow-lg">
-    <View class="flex-col gap-1">
-      <Text class={heading(4)}>{s.widget.label}</Text>
-      <Text class={captionText()}>{s.widget.choices.length} choices</Text>
+  return <View className="flex-col absolute top-16 right-84 w-96 p-4 gap-3 rounded-xl bg-white border border-zinc-200 shadow-lg">
+    <View className="flex-col gap-1">
+      <Text className={heading(4)}>{s.widget.label}</Text>
+      <Text className={captionText()}>{s.widget.choices.length} choices</Text>
     </View>
-    <View class="flex-row flex-wrap gap-1.5">
+    <View className="flex-row flex-wrap gap-1.5">
       {s.widget.choices.map((choice: string) =>
         <Button label={choice} size="sm" variant={choice === s.value() ? 'default' : 'outline'}
           onClick={() => { setOpenMenu(-1); apply(s, choice); }} />)}

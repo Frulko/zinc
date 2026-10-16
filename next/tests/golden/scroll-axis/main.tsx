@@ -9,17 +9,17 @@ const list = createNodeRef(), wide = createNodeRef(), both = createNodeRef();
 const rows: i32[] = [];
 for (let i = 0; i < 30; i++) rows.push(i);
 function App(): i32 {
-  return <view style={{ flexDirection: 'row', gap: 10 }}>
-    <view ref={list} style={{ width: 150, height: 200, overflow: 'scroll' }}>
-      <For each={rows}>{(r: i32, i: i32) => <view style={{ height: 30 }}><text>{`row ${r}`}</text></view>}</For>
-    </view>
-    <view ref={wide} style={{ width: 120, height: 200, overflow: 'scroll' }}>
-      <view style={{ width: 400, height: 100 }} />
-    </view>
-    <view ref={both} style={{ width: 120, height: 200, overflow: 'scroll' }}>
-      <view style={{ width: 400, height: 600 }} />
-    </view>
-  </view>;
+  return <View style={{ flexDirection: 'row', gap: 10 }}>
+    <View ref={list} style={{ width: 150, height: 200, overflow: 'scroll' }}>
+      <For each={rows}>{(r: i32, i: i32) => <View style={{ height: 30 }}><Text>{`row ${r}`}</Text></View>}</For>
+    </View>
+    <View ref={wide} style={{ width: 120, height: 200, overflow: 'scroll' }}>
+      <View style={{ width: 400, height: 100 }} />
+    </View>
+    <View ref={both} style={{ width: 120, height: 200, overflow: 'scroll' }}>
+      <View style={{ width: 400, height: 600 }} />
+    </View>
+  </View>;
 }
 let frames = 0;
 const r = (v: number): number => Math.round(v);

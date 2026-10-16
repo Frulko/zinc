@@ -28,7 +28,7 @@ function emulated(): boolean { return !device.hasBacklight(); }
 const BOARD: boolean = device.cpuMhz() > 0;
 
 function App(): i32 {
-  return <View class="h-full">
+  return <View className="h-full">
     <Show when={live()}><Shell>
       <Page index={HOME}><Home /></Page>
       <Page index={CONTROLS}><Controls /></Page>
@@ -37,7 +37,7 @@ function App(): i32 {
       <Page index={SYSTEM}><System /></Page>
     </Shell></Show>
     <Show when={emulated() && brightness() < 0.99}>
-      <View class="absolute inset-0 bg-black" style={{ opacity: (1 - brightness()) * 0.85 }} />
+      <View className="absolute inset-0 bg-black" style={{ opacity: (1 - brightness()) * 0.85 }} />
     </Show>
   </View>;
 }

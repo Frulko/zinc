@@ -10,14 +10,14 @@ function cameraLabel(): string {
 }
 
 export function TopBar(): i32 {
-  return <View class="flex-row items-center gap-3 h-14 px-4 bg-white border border-zinc-200">
-    <Text class={heading(4)}>Camera</Text>
+  return <View className="flex-row items-center gap-3 h-14 px-4 bg-white border border-zinc-200">
+    <Text className={heading(4)}>Camera</Text>
     <Button variant="outline" size="sm" onClick={nextCamera}>
-      <Text class={smallText()}>{cameraLabel()}</Text>
+      <Text className={smallText()}>{cameraLabel()}</Text>
     </Button>
     <Button label="Rescan" variant="ghost" size="sm" onClick={() => { scan(); }} />
-    <View class="grow" />
-    <Text class={captionText()}>{stats()}</Text>
+    <View className="grow" />
+    <Text className={captionText()}>{stats()}</Text>
     <Switch checked={live} onChange={setLiveView} label="Live view" />
   </View>;
 }

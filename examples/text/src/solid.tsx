@@ -6,14 +6,14 @@ import { TITLE, SUBTITLE, BODY, PAGE, CARD } from './content';
 const [frames, setFrames] = createSignal<i32>(0);
 
 export function Screen(): i32 {
-  return <View class={PAGE}>
-    <Text class={`${heading(3)} text-center`}>{TITLE}</Text>
-    <Text class={`${mutedText()} text-center`}>{SUBTITLE}</Text>
-    <View class={CARD}>
-      <Text class={smallText()}>{BODY}</Text>
-      <Text class={`${captionText()} text-right`}>right aligned</Text>
+  return <View className={PAGE}>
+    <Text className={`${heading(3)} text-center`}>{TITLE}</Text>
+    <Text className={`${mutedText()} text-center`}>{SUBTITLE}</Text>
+    <View className={CARD}>
+      <Text className={smallText()}>{BODY}</Text>
+      <Text className={`${captionText()} text-right`}>right aligned</Text>
     </View>
-    <Text class={`${captionText()} text-center`}>frame {frames()}</Text>
+    <Text className={`${captionText()} text-center`}>frame {frames()}</Text>
   </View>;
 }
 

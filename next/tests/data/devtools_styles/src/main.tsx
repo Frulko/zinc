@@ -6,9 +6,9 @@ import { render } from 'zinc:ui/solid';
 
 const s = StyleSheet.create({ card: { padding: 8, backgroundColor: '#2563eb', borderRadius: 6 } });
 
-function Tagged(): i32 { return <view class="p-2 bg-rose-600 rounded"><view class="w-4 h-4 bg-white" /></view>; }
-function Sheet(): i32 { return <view style={s.card}><view class="w-4 h-4 bg-white" /></view>; }
+function Tagged(): i32 { return <View className="p-2 bg-rose-600 rounded"><View className="w-4 h-4 bg-white" /></View>; }
+function Sheet(): i32 { return <View style={s.card}><View className="w-4 h-4 bg-white" /></View>; }
 function App(): i32 {
-  return <view class="flex-row items-start gap-4 p-4"><Tagged /><Sheet /></view>;
+  return <View className="flex-row items-start gap-4 p-4"><Tagged /><Sheet /></View>;
 }
 render(App, 0xffffff, (dt: number) => {});

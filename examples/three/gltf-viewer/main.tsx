@@ -10,7 +10,7 @@ import * as THREE from 'three';
 import { window } from 'three';
 import { GLTFLoader, GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { Canvas } from 'zinc:canvas';
+import { Canvas as Canvas2D } from 'zinc:canvas';
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x1b2230);
@@ -32,7 +32,7 @@ fill.position.set(-6, 2, -5);
 scene.add(fill);
 
 // floor: a checker painted with zinc:canvas, used as a texture
-const checker = new Canvas(128, 128);
+const checker = new Canvas2D(128, 128);
 const ctx = checker.getContext('2d');
 ctx.begin();
 for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) {
@@ -127,7 +127,7 @@ let downX = 0, downY = 0, wasDown = false;
 let frames: i32 = 0, msSum = 0, fps = 0, acc = 0, fpsFrames: i32 = 0, span = 0;
 const script = env('THREE_DEMO_SCRIPT').length > 0;
 
-function View(x: i32, y: i32, w: i32, h: i32): void {
+function drawView(x: i32, y: i32, w: i32, h: i32): void {
   renderer.setViewport(x, y, w, h);
   orbitBox.x = x; orbitBox.y = y + 44; orbitBox.width = w; orbitBox.height = h - 44 - 52;
   if (camera.aspect !== w / h) { camera.aspect = w / h; camera.updateProjectionMatrix(); }
@@ -151,23 +151,23 @@ function View(x: i32, y: i32, w: i32, h: i32): void {
 }
 
 function App(): i32 {
-  return <view class="flex-col h-full">
-    <canvas class="grow" onDraw={View}>
-      <view class="flex-col h-full justify-between">
-        <view class="flex-row p-2 gap-3 items-center bg-slate-900/70">
-          <text class="text-amber-400 font-bold">three + glTF</text>
-          <text class="text-slate-300 text-sm grow">{info()}</text>
-          <text class="text-emerald-400 text-sm">{stats()}</text>
-        </view>
-        <view class="flex-row p-2 gap-2 items-center bg-slate-900/70">
+  return <View className="flex-col h-full">
+    <Canvas className="grow" onDraw={drawView}>
+      <View className="flex-col h-full justify-between">
+        <View className="flex-row p-2 gap-3 items-center bg-slate-900/70">
+          <Text className="text-amber-400 font-bold">three + glTF</Text>
+          <Text className="text-slate-300 text-sm grow">{info()}</Text>
+          <Text className="text-emerald-400 text-sm">{stats()}</Text>
+        </View>
+        <View className="flex-row p-2 gap-2 items-center bg-slate-900/70">
           <For each={models}>{(m: string, i: i32) =>
-            <button class="px-3 py-1 rounded bg-slate-700 active:bg-amber-600" onClick={() => load(i)}><text class="text-sm text-white">{m}</text></button>}
+            <Button className="px-3 py-1 rounded bg-slate-700 active:bg-amber-600" onClick={() => load(i)}><Text className="text-sm text-white">{m}</Text></Button>}
           </For>
-          <text class="text-slate-300 text-sm grow">{picked()}</text>
-        </view>
-      </view>
-    </canvas>
-  </view>;
+          <Text className="text-slate-300 text-sm grow">{picked()}</Text>
+        </View>
+      </View>
+    </Canvas>
+  </View>;
 }
 
 load(0);

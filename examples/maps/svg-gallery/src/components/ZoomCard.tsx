@@ -17,10 +17,10 @@ function drawCompass(x: i32, y: i32, w: i32, h: i32): void {
 }
 
 export function ZoomCard(): i32 {
-  return <Card class="w-80">
+  return <Card className="w-80">
     <CardHeader title="Live zoom" description="Re-rendered at every frame's size." />
-    <CardContent class="grow">
-      <Canvas class="grow" onDraw={drawCompass} />
+    <CardContent className="grow">
+      <Canvas className="grow" onDraw={drawCompass} />
     </CardContent>
   </Card>;
 }

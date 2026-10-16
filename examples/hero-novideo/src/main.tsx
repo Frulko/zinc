@@ -31,8 +31,8 @@ import { advanceUpload } from '../../ui/kit-gallery/src/state';
 import { Intro } from './screens/Intro';
 
 function App(): i32 {
-  return <View class="h-full">
-    <View class="absolute inset-0" style={{ translateY: (1 - introOut.get()) * 24 }}>
+  return <View className="h-full">
+    <View className="absolute inset-0" style={{ translateY: (1 - introOut.get()) * 24 }}>
       <Shell>
         <Screen index={0}><Home /></Screen>
         <Screen index={1}><Gallery /></Screen>

@@ -30,14 +30,14 @@ function moveTo(e: ui.PointerEvent): void {
 }
 
 export function PadCard(): i32 {
-  return <Card class="grow">
+  return <Card className="grow">
     <CardHeader title="XY pad" description="Drag to send /zinc/xy x y." />
-    <CardContent class="grow">
-      <Canvas class="w-full h-[190px] cursor-crosshair" onDraw={drawPad}
+    <CardContent className="grow">
+      <Canvas className="w-full h-[190px] cursor-crosshair" onDraw={drawPad}
         onPointerDown={(e: ui.PointerEvent) => { dragging = true; moveTo(e); }}
         onPointerMove={(e: ui.PointerEvent) => { if (dragging) moveTo(e); }}
         onPointerUp={(e: ui.PointerEvent) => { dragging = false; }} />
-      <Text class={captionText()}>{`x ${padX().toFixed(2)} · y ${padY().toFixed(2)}`}</Text>
+      <Text className={captionText()}>{`x ${padX().toFixed(2)} · y ${padY().toFixed(2)}`}</Text>
     </CardContent>
   </Card>;
 }
@@ -45,19 +45,19 @@ export function PadCard(): i32 {
 const SWATCHES: u32[] = [0xef4444, 0xf97316, 0xfacc15, 0x22c55e, 0x06b6d4, 0x6366f1, 0xd946ef, 0xffffff];
 
 export function ColorCard(): i32 {
-  return <Card class="w-[240px]">
+  return <Card className="w-[240px]">
     <CardHeader title="Colour" description="/zinc/color r g b, 0..1 each." />
     <CardContent>
-      <View class="flex-row flex-wrap gap-2">
+      <View className="flex-row flex-wrap gap-2">
         {SWATCHES.map((c: u32) =>
-          <View class={`w-8 h-8 rounded-md border-2 ${color() === c ? `border-${theme().foreground}` : `border-${theme().border}`}`}
+          <View className={`w-8 h-8 rounded-md border-2 ${color() === c ? `border-${theme().foreground}` : `border-${theme().border}`}`}
             bg={c} onClick={() => sendColor(c)} />)}
       </View>
-      <View class="flex-row items-center gap-3">
-        <View class={`w-12 h-12 rounded-lg border border-${theme().border}`} bg={color()} />
-        <View class="flex-col gap-0.5">
-          <Text class={smallText()}>{hex(color())}</Text>
-          <Text class={captionText()}>{`r ${(color() >> 16) & 255} g ${(color() >> 8) & 255} b ${color() & 255}`}</Text>
+      <View className="flex-row items-center gap-3">
+        <View className={`w-12 h-12 rounded-lg border border-${theme().border}`} bg={color()} />
+        <View className="flex-col gap-0.5">
+          <Text className={smallText()}>{hex(color())}</Text>
+          <Text className={captionText()}>{`r ${(color() >> 16) & 255} g ${(color() >> 8) & 255} b ${color() & 255}`}</Text>
         </View>
       </View>
     </CardContent>

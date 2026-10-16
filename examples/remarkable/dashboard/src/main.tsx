@@ -13,18 +13,18 @@ const scratch = new Ink();
 scratch.width = 5;
 
 function Scratchpad(): i32 {
-  return <View class="flex-col grow gap-2">
-    <Text class={LABEL}>Scratchpad (pen)</Text>
-    <View class="grow p-[3px] rounded-lg bg-black">
-      <InkCanvas ink={scratch} class="grow" />
+  return <View className="flex-col grow gap-2">
+    <Text className={LABEL}>Scratchpad (pen)</Text>
+    <View className="grow p-[3px] rounded-lg bg-black">
+      <InkCanvas ink={scratch} className="grow" />
     </View>
   </View>;
 }
 
 function App(): i32 {
-  return <View class={PAGE}>
+  return <View className={PAGE}>
     <RemarkableBar title="Dashboard" />
-    <View class="flex-row justify-between items-center">
+    <View className="flex-row justify-between items-center">
       <ClockPanel />
       <TimerPanel />
     </View>

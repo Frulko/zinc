@@ -5,7 +5,7 @@ import { Keyboard } from 'zinc:ui/kit';
 import { quit } from 'zinc:gfx';
 const a = createNodeRef();
 function App(): i32 {
-  return <View class="flex-col w-full h-full bg-white"><Input class="h-8 border px-2" value="" ref={a} /><View class="absolute bottom-0 left-0 right-0"><Keyboard layouts={['en']} mode="touch" /></View></View>;
+  return <View className="flex-col w-full h-full bg-white"><Input className="h-8 border px-2" value="" ref={a} /><View className="absolute bottom-0 left-0 right-0"><Keyboard layouts={['en']} mode="touch" /></View></View>;
 }
 let f = 0;
 render(App, 0xffffff, (dt: number) => {

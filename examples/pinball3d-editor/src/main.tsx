@@ -32,20 +32,20 @@ import * as L from './strings';
 import { t, f, uiLang, setUiLang } from './strings';
 
 const never = (): boolean => false;
-function Divider(): i32 { return <view class="w-px h-5 mx-1 bg-zinc-800" />; }
+function Divider(): i32 { return <View className="w-px h-5 mx-1 bg-zinc-800" />; }
 /** The shortcut of a command, shown beside it in the advanced mode. */
 function keys(k: string, shift: boolean = false): () => string { return (): string => advanced() ? chord(k, shift) : ''; }
 
 function TopBar(): i32 {
   const where = (): string => folder().length > 0 ? `${folder().slice(folder().lastIndexOf('/') + 1)}/${TABLE_FILE}` : t(L.NO_FOLDER_YET);
-  return <view class="flex-row items-center gap-1 h-12 px-3 shrink-0 bg-zinc-900 border-b border-zinc-800">
+  return <View className="flex-row items-center gap-1 h-12 px-3 shrink-0 bg-zinc-900 border-b border-zinc-800">
     <Ico name="circle-dot" size={18} color={ACCENT} />
-    <view class="flex-col ml-2 mr-3" style={{ width: 196 }}>
-      <text class="truncate text-sm font-bold text-zinc-100" style={{ maxWidth: 196 }}>{`${doc().get('name')}`}</text>
-      <view class="flex-row items-center gap-2">
-        <text class="truncate text-[11px] text-zinc-500" style={{ maxWidth: 196 }}>{where()}</text>
-      </view>
-    </view>
+    <View className="flex-col ml-2 mr-3" style={{ width: 196 }}>
+      <Text className="truncate text-sm font-bold text-zinc-100" style={{ maxWidth: 196 }}>{`${doc().get('name')}`}</Text>
+      <View className="flex-row items-center gap-2">
+        <Text className="truncate text-[11px] text-zinc-500" style={{ maxWidth: 196 }}>{where()}</Text>
+      </View>
+    </View>
     <Divider />
     <Tool icon="file-plus" label={t(L.NEW)} look="quiet" keys={keys('N')} off={never} onClick={newCommand} />
     <Tool icon="folder-open" label={t(L.OPEN)} look="quiet" keys={keys('O')} off={never} onClick={openCommand} />
@@ -55,90 +55,90 @@ function TopBar(): i32 {
     <Tool icon="undo-2" label={t(L.UNDO)} look="quiet" keys={keys('Z')} off={() => !doc().canUndo} onClick={undo} />
     <Tool icon="redo-2" label={t(L.REDO)} look="quiet" keys={keys('Z', true)} off={() => !doc().canRedo} onClick={redo} />
     <Show when={doc().dirty}>
-      <view class="flex-row items-center gap-[6] ml-3">
-        <view class="w-[6] h-[6] rounded-full bg-amber-400" />
-        <text class="text-[11px] text-amber-300">{t(L.UNSAVED)}</text>
-      </view>
+      <View className="flex-row items-center gap-[6] ml-3">
+        <View className="w-[6] h-[6] rounded-full bg-amber-400" />
+        <Text className="text-[11px] text-amber-300">{t(L.UNSAVED)}</Text>
+      </View>
     </Show>
-    <view class="grow" />
-    <text class="text-[11px] text-zinc-500">{t(L.APP)}</text>
-  </view>;
+    <View className="grow" />
+    <Text className="text-[11px] text-zinc-500">{t(L.APP)}</Text>
+  </View>;
 }
 /** The last thing done or refused, what Undo would take back, the advanced mode and the language of the interface. */
 function StatusBar(): i32 {
-  return <view class="flex-row items-center gap-3 h-8 px-3 shrink-0 bg-zinc-950 border-t border-zinc-800">
+  return <View className="flex-row items-center gap-3 h-8 px-3 shrink-0 bg-zinc-950 border-t border-zinc-800">
     <Show when={failed()}><Ico name="circle-alert" size={13} color={0xf87171} /></Show>
-    <text class={`grow basis-0 truncate text-[11px] ${failed() ? 'text-red-300' : 'text-zinc-400'}`}>{status()}</text>
-    <text class="text-[11px] text-zinc-600">{doc().canUndo ? f(L.UNDO_NEXT, L.step(doc().undoLabel)) : ''}</text>
-    <button class={`flex-row items-center gap-1 h-6 px-2 rounded cursor-pointer ${advanced() ? 'bg-zinc-700' : 'bg-zinc-950 border border-zinc-800 hover:bg-zinc-800'}`} onClick={() => setAdvanced(!advanced())}>
-      <text class={`text-[11px] font-bold ${advanced() ? 'text-white' : 'text-zinc-400'}`}>{t(L.ADVANCED)}</text>
-      <text class="text-[10px] text-zinc-400">{advanced() ? chord('E') : ''}</text>
-    </button>
-    <text class="text-[11px] text-zinc-500">{t(L.INTERFACE)}</text>
-    <view class="w-[150]"><Segmented options={['en', 'fr']} labels={['English', 'Français']} value={uiLang} onPick={setUiLang} /></view>
-  </view>;
+    <Text className={`grow basis-0 truncate text-[11px] ${failed() ? 'text-red-300' : 'text-zinc-400'}`}>{status()}</Text>
+    <Text className="text-[11px] text-zinc-600">{doc().canUndo ? f(L.UNDO_NEXT, L.step(doc().undoLabel)) : ''}</Text>
+    <Button className={`flex-row items-center gap-1 h-6 px-2 rounded cursor-pointer ${advanced() ? 'bg-zinc-700' : 'bg-zinc-950 border border-zinc-800 hover:bg-zinc-800'}`} onClick={() => setAdvanced(!advanced())}>
+      <Text className={`text-[11px] font-bold ${advanced() ? 'text-white' : 'text-zinc-400'}`}>{t(L.ADVANCED)}</Text>
+      <Text className="text-[10px] text-zinc-400">{advanced() ? chord('E') : ''}</Text>
+    </Button>
+    <Text className="text-[11px] text-zinc-500">{t(L.INTERFACE)}</Text>
+    <View className="w-[150]"><Segmented options={['en', 'fr']} labels={['English', 'Français']} value={uiLang} onPick={setUiLang} /></View>
+  </View>;
 }
 
 /** A button of a question. `look`: 'plain' or 'primary'. */
 function Choice(p: { label: string; look: string; onClick: () => void }): i32 {
   const fill = p.look === 'primary' ? 'bg-amber-400 hover:bg-amber-300' : 'bg-zinc-900 border border-zinc-700 hover:bg-zinc-800';
-  return <button class={`flex-row items-center justify-center h-9 px-4 rounded-md cursor-pointer ${fill}`} onClick={p.onClick}>
-    <text class={`text-sm font-bold ${p.look === 'plain' ? 'text-zinc-100' : 'text-zinc-900'}`}>{p.label}</text>
-  </button>;
+  return <Button className={`flex-row items-center justify-center h-9 px-4 rounded-md cursor-pointer ${fill}`} onClick={p.onClick}>
+    <Text className={`text-sm font-bold ${p.look === 'plain' ? 'text-zinc-100' : 'text-zinc-900'}`}>{p.label}</Text>
+  </Button>;
 }
 /** Unsaved work is never dropped without this question. Nothing under it answers until it is closed. */
 function Unsaved(): i32 {
-  return <view class="absolute inset-0 items-center justify-center bg-black/60" onPointerDown={(e: ui.PointerEvent) => {}} onWheel={(e: ui.PointerEvent) => {}}>
-    <view class="w-[460] flex-col gap-2 p-6 rounded-xl bg-zinc-900 border border-zinc-700 shadow-lg">
-      <text class="text-lg font-bold text-zinc-100">{t(L.ASK_SAVE)}</text>
-      <text class="text-sm text-zinc-400">{t(L.ASK_SAVE_WHY)}</text>
-      <view class="flex-row justify-end gap-2 mt-4">
+  return <View className="absolute inset-0 items-center justify-center bg-black/60" onPointerDown={(e: ui.PointerEvent) => {}} onWheel={(e: ui.PointerEvent) => {}}>
+    <View className="w-[460] flex-col gap-2 p-6 rounded-xl bg-zinc-900 border border-zinc-700 shadow-lg">
+      <Text className="text-lg font-bold text-zinc-100">{t(L.ASK_SAVE)}</Text>
+      <Text className="text-sm text-zinc-400">{t(L.ASK_SAVE_WHY)}</Text>
+      <View className="flex-row justify-end gap-2 mt-4">
         <Choice label={t(L.CANCEL)} look="plain" onClick={() => { answer('stay'); }} />
         <Choice label={t(L.DO_NOT_SAVE)} look="plain" onClick={() => { answer('drop'); }} />
         <Choice label={t(L.SAVE)} look="primary" onClick={() => { answer('save'); }} />
-      </view>
-    </view>
-  </view>;
+      </View>
+    </View>
+  </View>;
 }
 
 /** A deletion that would take rules or missions with it says which, and waits for an answer. Nothing under it answers. */
 function Doomed(): i32 {
   const lines = doomed(), shown = lines.slice(0, 8);
-  return <view class="absolute inset-0 items-center justify-center bg-black/60" onPointerDown={(e: ui.PointerEvent) => {}} onWheel={(e: ui.PointerEvent) => {}}>
-    <view class="w-[600] flex-col gap-2 p-6 rounded-xl bg-zinc-900 border border-zinc-700 shadow-lg">
-      <text class="text-lg font-bold text-zinc-100">{f(L.ASK_DELETE, doc().nameOf(selected()))}</text>
-      <text class="text-sm text-zinc-400" style={{ width: 552 }}>{t(L.ASK_DELETE_WHY)}</text>
-      <view class="flex-col gap-2 mt-2">
-        {shown.map((line: string, i: i32) => <text class="text-xs text-zinc-200" style={{ width: 552 }}>{line}</text>)}
-        {lines.length > shown.length ? <text class="text-xs text-zinc-500">{f(L.AND_MORE, `${lines.length - shown.length}`)}</text> : <view />}
-      </view>
-      <view class="flex-row justify-end gap-2 mt-4">
+  return <View className="absolute inset-0 items-center justify-center bg-black/60" onPointerDown={(e: ui.PointerEvent) => {}} onWheel={(e: ui.PointerEvent) => {}}>
+    <View className="w-[600] flex-col gap-2 p-6 rounded-xl bg-zinc-900 border border-zinc-700 shadow-lg">
+      <Text className="text-lg font-bold text-zinc-100">{f(L.ASK_DELETE, doc().nameOf(selected()))}</Text>
+      <Text className="text-sm text-zinc-400" style={{ width: 552 }}>{t(L.ASK_DELETE_WHY)}</Text>
+      <View className="flex-col gap-2 mt-2">
+        {shown.map((line: string, i: i32) => <Text className="text-xs text-zinc-200" style={{ width: 552 }}>{line}</Text>)}
+        {lines.length > shown.length ? <Text className="text-xs text-zinc-500">{f(L.AND_MORE, `${lines.length - shown.length}`)}</Text> : <View />}
+      </View>
+      <View className="flex-row justify-end gap-2 mt-4">
         <Choice label={t(L.CANCEL)} look="plain" onClick={() => { answerDelete(false); }} />
         <Choice label={t(L.DELETE)} look="primary" onClick={() => { answerDelete(true); }} />
-      </view>
-    </view>
-  </view>;
+      </View>
+    </View>
+  </View>;
 }
 
 /** The whole window. It is built again when the interface language changes: every view reads its texts once. */
 function Shell(): i32 {
-  return <view class="relative flex-col w-full h-full bg-zinc-950">
+  return <View className="relative flex-col w-full h-full bg-zinc-950">
     <TopBar />
-    <view class="grow basis-0 min-h-0 flex-row">
+    <View className="grow basis-0 min-h-0 flex-row">
       <Outline />
       <Palette />
       <Show when={!screenShown() && !scoresShown()}><TopView /></Show>
       <Show when={screenShown()}><ScreenView /></Show>
       <Show when={scoresShown()}><ScoreGrid /></Show>
       <Properties />
-    </view>
+    </View>
     <StatusBar />
     <Show when={waiting() !== null}><Unsaved /></Show>
     <Show when={doomed().length > 0}><Doomed /></Show>
-  </view>;
+  </View>;
 }
 function App(): i32 {
-  return <view class="w-full h-full"><For each={[uiLang()]}>{(language: string, i: i32) => <Shell />}</For></view>;
+  return <View className="w-full h-full"><For each={[uiLang()]}>{(language: string, i: i32) => <Shell />}</For></View>;
 }
 
 // keys reach here when no text field used them: Cmd+Z in a field undoes its typing, elsewhere the last step of the table

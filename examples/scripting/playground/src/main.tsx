@@ -36,7 +36,7 @@ function lineStart(s: string, n: i32): i32 {
 }
 
 function Editor(): i32 {
-  const ed = <TextArea class="grow font-mono text-sm rounded-none border-0 pl-[14] pt-[10] bg-zinc-950 text-zinc-100 focus:border-zinc-950"
+  const ed = <TextArea className="grow font-mono text-sm rounded-none border-0 pl-[14] pt-[10] bg-zinc-950 text-zinc-100 focus:border-zinc-950"
     lineNumbers wrap={false} value={code()} onInput={edited} highlight={(line: string) => ui.tsHighlight(line)} />;
   ui.setEditColors(ed, [0x52525b, 0xd4d4d8, -2, 0x3730a3, 0xa5b4fc, 0x27272a]);
   // the failing line: red background, a dot in the gutter, a squiggle under the code
@@ -52,34 +52,34 @@ function Editor(): i32 {
 }
 
 function Console(): i32 {
-  return <View class="h-[190px] flex-col bg-zinc-950 border-t border-zinc-800">
-    <View class="flex-row items-center gap-2 px-4 h-9 border-b border-zinc-800">
-      <Text class="text-xs font-semibold tracking-wider text-zinc-400">CONSOLE</Text>
-      <View class="grow" />
-      <Text class={captionText()}>{stats()}</Text>
+  return <View className="h-[190px] flex-col bg-zinc-950 border-t border-zinc-800">
+    <View className="flex-row items-center gap-2 px-4 h-9 border-b border-zinc-800">
+      <Text className="text-xs font-semibold tracking-wider text-zinc-400">CONSOLE</Text>
+      <View className="grow" />
+      <Text className={captionText()}>{stats()}</Text>
     </View>
-    <View class="flex-col px-4 py-2 gap-1 grow overflow-hidden justify-end">
+    <View className="flex-col px-4 py-2 gap-1 grow overflow-hidden justify-end">
       <For each={logs().slice(Math.max(0, logs().length - 8))}>{(l: LogLine) =>
-        <Text class={`font-mono text-xs ${l.error ? 'text-red-400' : 'text-zinc-300'}`}>{(l.error ? '✕ ' : '› ') + l.text}</Text>}
+        <Text className={`font-mono text-xs ${l.error ? 'text-red-400' : 'text-zinc-300'}`}>{(l.error ? '✕ ' : '› ') + l.text}</Text>}
       </For>
     </View>
   </View>;
 }
 
 function App(): i32 {
-  return <View class="h-full flex-col bg-zinc-950">
-    <View class="flex-row items-center gap-4 px-5 h-14 border-b border-zinc-800 bg-zinc-900">
-      <Text class={heading(4)}>Script playground</Text>
+  return <View className="h-full flex-col bg-zinc-950">
+    <View className="flex-row items-center gap-4 px-5 h-14 border-b border-zinc-800 bg-zinc-900">
+      <Text className={heading(4)}>Script playground</Text>
       <Badge label="QuickJS" variant="accent" />
-      <Tabs items={NAMES} selected={sample} onSelect={pick} class="w-[360px]" />
-      <View class="grow" />
+      <Tabs items={NAMES} selected={sample} onSelect={pick} className="w-[360px]" />
+      <View className="grow" />
       <Switch checked={auto} onChange={setAuto} label="Auto-run" />
       <Button label="Run  ⌘↵" onClick={runNow} />
     </View>
-    <View class="grow flex-row">
-      <View class="w-[540px] flex-col border-r border-zinc-800"><Editor /></View>
-      <View class="grow flex-col">
-        <Canvas class="grow" onDraw={drawFrame} />
+    <View className="grow flex-row">
+      <View className="w-[540px] flex-col border-r border-zinc-800"><Editor /></View>
+      <View className="grow flex-col">
+        <Canvas className="grow" onDraw={drawFrame} />
         <Console />
       </View>
     </View>

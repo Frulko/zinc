@@ -7,14 +7,14 @@ import { PlacesPanel } from './components/PlacesPanel';
 
 /** OpenStreetMap data needs its attribution on screen. */
 function Attribution(): i32 {
-  return <View class="absolute bottom-3 right-3 px-2 py-0.5 rounded-md bg-white border border-zinc-200">
-    <Text class="text-xs text-zinc-600">© OpenStreetMap contributors · OpenFreeMap</Text>
+  return <View className="absolute bottom-3 right-3 px-2 py-0.5 rounded-md bg-white border border-zinc-200">
+    <Text className="text-xs text-zinc-600">© OpenStreetMap contributors · OpenFreeMap</Text>
   </View>;
 }
 
 function App(): i32 {
   // the canvas draws the map under its children; the panel and the attribution float over it
-  return <Canvas class="h-full" onDraw={drawMap}>
+  return <Canvas className="h-full" onDraw={drawMap}>
     <PlacesPanel />
     <Attribution />
   </Canvas>;

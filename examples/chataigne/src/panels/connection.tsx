@@ -6,10 +6,10 @@ import { lastRx, received } from '../incoming';
 import { host, setHost, sendPort, setSendPort, listenPort, changeListenPort, simulated, setSimulated, sent, linkStatus, statusColor } from '../link';
 
 /** A labelled text field. */
-function Field(props: { label: string; value: () => string; onCommit: (v: string) => void; class?: string }): i32 {
-  return <View class={`flex-col gap-1 ${props.class ?? ''}`}>
-    <Text class={captionText()}>{props.label}</Text>
-    <Input class={`w-full h-9 px-3 rounded-md border border-${theme().border} bg-${theme().card} text-sm text-${theme().foreground} focus:border-indigo-500`}
+function Field(props: { label: string; value: () => string; onCommit: (v: string) => void; className?: string }): i32 {
+  return <View className={`flex-col gap-1 ${props.className ?? ''}`}>
+    <Text className={captionText()}>{props.label}</Text>
+    <Input className={`w-full h-9 px-3 rounded-md border border-${theme().border} bg-${theme().card} text-sm text-${theme().foreground} focus:border-indigo-500`}
       value={props.value()} onChange={props.onCommit} />
   </View>;
 }
@@ -31,18 +31,18 @@ export function ConnectionCard(): i32 {
   return <Card>
     <CardHeader title="Connection" />
     <CardContent>
-      <View class="flex-row items-center gap-2">
-        <View class={`w-2.5 h-2.5 rounded-full bg-${statusColor(linkStatus())}`} />
-        <Text class={smallText()}>{linkStatus()}</Text>
-        <View class="grow" />
-        <Text class={captionText()}>{`${sent()} out · ${received()} in`}</Text>
+      <View className="flex-row items-center gap-2">
+        <View className={`w-2.5 h-2.5 rounded-full bg-${statusColor(linkStatus())}`} />
+        <Text className={smallText()}>{linkStatus()}</Text>
+        <View className="grow" />
+        <Text className={captionText()}>{`${sent()} out · ${received()} in`}</Text>
       </View>
-      <Text class={mutedText()}>{lastMessage()}</Text>
+      <Text className={mutedText()}>{lastMessage()}</Text>
       <Separator />
       <Field label="Chataigne host" value={host} onCommit={(v: string) => setHost(v.trim().length > 0 ? v.trim() : host())} />
-      <View class="flex-row gap-3">
-        <Field class="grow" label="Send to port" value={() => `${sendPort()}`} onCommit={(v: string) => setSendPort(port(v, sendPort()))} />
-        <Field class="grow" label="Listen on port" value={() => `${listenPort()}`} onCommit={(v: string) => changeListenPort(port(v, listenPort()))} />
+      <View className="flex-row gap-3">
+        <Field className="grow" label="Send to port" value={() => `${sendPort()}`} onCommit={(v: string) => setSendPort(port(v, sendPort()))} />
+        <Field className="grow" label="Listen on port" value={() => `${listenPort()}`} onCommit={(v: string) => changeListenPort(port(v, listenPort()))} />
       </View>
       <Separator />
       <Switch checked={simulated} onChange={setSimulated} label="Simulator (no Chataigne needed)" />

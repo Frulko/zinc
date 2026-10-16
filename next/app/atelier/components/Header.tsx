@@ -31,18 +31,18 @@ function Pulse(): i32 {
 function RunControl(): i32 {
   const idle = (): boolean => phase() === IDLE;
   const label = (): string => phase() === BUILDING ? (stage() === '' ? 'Building' : `Building · ${stage()}`) : debugging() ? 'Debugging' : 'Running';
-  return <View class="flex-row items-center gap-1">
+  return <View className="flex-row items-center gap-1">
     {idle()
-      ? <View class={`flex-row items-center h-[34] pl-3 pr-4 gap-1.5 rounded-full cursor-pointer active:opacity-80 ${bg(theme().accent)}`}
+      ? <View className={`flex-row items-center h-[34] pl-3 pr-4 gap-1.5 rounded-full cursor-pointer active:opacity-80 ${bg(theme().accent)}`}
           onPointerDown={(e: ui.PointerEvent) => { if (e.button === 0) run(false); }}>
           <Glyph kind={I_PLAY} size={15} color={() => theme().onAccent} back={() => theme().accent} />
-          <Text class={`text-[13px] font-semibold ${fg(theme().onAccent)}`}>Run</Text>
+          <Text className={`text-[13px] font-semibold ${fg(theme().onAccent)}`}>Run</Text>
         </View>
-      : <View class={`flex-row items-center h-[34] pl-3.5 pr-1 gap-2 rounded-full border ${bg(theme().bg)} ${bd(theme().border)}`}>
+      : <View className={`flex-row items-center h-[34] pl-3.5 pr-1 gap-2 rounded-full border ${bg(theme().bg)} ${bd(theme().border)}`}>
           <Pulse />
-          <Text class={`text-[13px] font-medium ${fg(theme().text)}`}>{label()}</Text>
-          {phase() !== BUILDING && <Text class={`text-[12px] font-mono ${fg(theme().muted)}`}>{clock(seconds())}</Text>}
-          <View class={`w-[26] h-[26] rounded-full items-center justify-center cursor-pointer ${bg(theme().surface)} hover:${bg(theme().active)}`}
+          <Text className={`text-[13px] font-medium ${fg(theme().text)}`}>{label()}</Text>
+          {phase() !== BUILDING && <Text className={`text-[12px] font-mono ${fg(theme().muted)}`}>{clock(seconds())}</Text>}
+          <View className={`w-[26] h-[26] rounded-full items-center justify-center cursor-pointer ${bg(theme().surface)} hover:${bg(theme().active)}`}
             onPointerDown={(e: ui.PointerEvent) => { if (e.button === 0) stop(); }}>
             <Glyph kind={I_STOP} size={14} color={() => theme().error} back={() => theme().surface} />
           </View>
@@ -58,16 +58,16 @@ function Tab(props: { b: Buffer }): i32 {
   const b = props.b;
   const [hover, setHover] = createSignal<boolean>(false);
   const on = (): boolean => active() === b;
-  const tab = <View class={`flex-row items-center h-[30] pl-3 pr-1.5 gap-1.5 rounded-[9] cursor-pointer ${on() ? `shadow-sm ${bg(theme().dark ? theme().surface : theme().bg)}` : `hover:${bg(theme().hover)}`}`}
+  const tab = <View className={`flex-row items-center h-[30] pl-3 pr-1.5 gap-1.5 rounded-[9] cursor-pointer ${on() ? `shadow-sm ${bg(theme().dark ? theme().surface : theme().bg)}` : `hover:${bg(theme().hover)}`}`}
     onPointerDown={(e: ui.PointerEvent) => {
       if (e.button === 1) closeBuffer(b);
       else if (e.button === 0) { activate(b); if (e.clicks >= 2) command('rename-file'); }
     }}
     onPointerEnter={(e: ui.PointerEvent) => setHover(true)} onPointerLeave={(e: ui.PointerEvent) => setHover(false)}>
-    <Text class={`text-[13px] ${on() ? `font-medium ${fg(theme().text)}` : fg(theme().muted)}`}>{b.name}</Text>
-    <View class={`w-[18] h-[18] rounded-full items-center justify-center hover:${bg(theme().active)}`}
+    <Text className={`text-[13px] ${on() ? `font-medium ${fg(theme().text)}` : fg(theme().muted)}`}>{b.name}</Text>
+    <View className={`w-[18] h-[18] rounded-full items-center justify-center hover:${bg(theme().active)}`}
       onPointerDown={(e: ui.PointerEvent) => { if (e.button === 0) closeBuffer(b); }}>
-      {b.modified() && !hover() && <View class={`w-[7] h-[7] rounded-full ${bg(theme().accent)}`} />}
+      {b.modified() && !hover() && <View className={`w-[7] h-[7] rounded-full ${bg(theme().accent)}`} />}
       {hover() && <Glyph kind={I_CLOSE} size={12} color={() => theme().muted} back={() => on() ? (theme().dark ? theme().surface : theme().bg) : theme().hover} />}
     </View>
   </View>;
@@ -88,8 +88,8 @@ export function revealActiveTab(): void {
   else if (x + tb[2] > left + box[2]) ui.scrollTo(bar, x + tb[2] - box[2], 0);
 }
 function Tabs(): i32 {
-  return <View class="flex-row items-center grow shrink gap-0.5 overflow-hidden">
-    <View ref={tabsRef} class="flex-row items-center shrink h-[38] gap-0.5 overflow-x-auto"
+  return <View className="flex-row items-center grow shrink gap-0.5 overflow-hidden">
+    <View ref={tabsRef} className="flex-row items-center shrink h-[38] gap-0.5 overflow-x-auto"
       onWheel={(e: ui.PointerEvent) => {
         // vertical wheels scroll the strip sideways; trackpads send fractional steps (1/10 px on macOS)
         const frac = e.wheel !== Math.round(e.wheel) || e.wheelX !== Math.round(e.wheelX);
@@ -107,22 +107,22 @@ const CHOICE = (): string => `flex-row items-center h-[30] px-2.5 gap-2 rounded-
 /** The list under the engine pill; drawn by the app over everything else. Where the sketch runs: this machine, one way or
  *  another, or a paired device (the devices panel finds and pairs them). */
 export function EngineMenu(): i32 {
-  return <View class="absolute inset-0" style={{ hidden: engineOpen() ? 0 : 1 }}>
-    <View class="absolute inset-0" onPointerDown={() => setEngineOpen(false)} />
-    <View class={`absolute top-[50] right-[92] w-[190] flex-col p-1 rounded-xl border shadow-lg ${bg(theme().elevated)} ${bd(theme().border)}`}>
-      {ENGINES.map((name: string, i: i32) => <View class={CHOICE()}
+  return <View className="absolute inset-0" style={{ hidden: engineOpen() ? 0 : 1 }}>
+    <View className="absolute inset-0" onPointerDown={() => setEngineOpen(false)} />
+    <View className={`absolute top-[50] right-[92] w-[190] flex-col p-1 rounded-xl border shadow-lg ${bg(theme().elevated)} ${bd(theme().border)}`}>
+      {ENGINES.map((name: string, i: i32) => <View className={CHOICE()}
         onPointerDown={(e: ui.PointerEvent) => { setEngine(i); setDevice(''); setEngineOpen(false); }}>
-        <Text class={`grow text-[13px] ${fg(theme().text)}`}>{name}</Text>
+        <Text className={`grow text-[13px] ${fg(theme().text)}`}>{name}</Text>
         {engine() === i && device() === '' && <Glyph kind={I_CHECK} size={13} color={() => theme().accent} back={() => theme().elevated} />}
       </View>)}
-      <View class={`h-px my-1 ${bg(theme().borderSoft)}`} />
-      {devices().filter(isPaired).map((d: Device) => <View class={CHOICE()}
+      <View className={`h-px my-1 ${bg(theme().borderSoft)}`} />
+      {devices().filter(isPaired).map((d: Device) => <View className={CHOICE()}
         onPointerDown={(e: ui.PointerEvent) => { if (device() !== d.name) choose(d.name); setEngineOpen(false); }}>
-        <Text class={`grow text-[13px] ${fg(theme().text)}`}>{d.name}</Text>
+        <Text className={`grow text-[13px] ${fg(theme().text)}`}>{d.name}</Text>
         {device() === d.name && <Glyph kind={I_CHECK} size={13} color={() => theme().accent} back={() => theme().elevated} />}
       </View>)}
-      <View class={CHOICE()} onPointerDown={(e: ui.PointerEvent) => { setEngineOpen(false); openDevices(); }}>
-        <Text class={`grow text-[13px] ${fg(theme().text)}`}>Devices…</Text>
+      <View className={CHOICE()} onPointerDown={(e: ui.PointerEvent) => { setEngineOpen(false); openDevices(); }}>
+        <Text className={`grow text-[13px] ${fg(theme().text)}`}>Devices…</Text>
       </View>
     </View>
   </View>;
@@ -133,21 +133,21 @@ function appName(): string { const p = project(); return p !== null && (p as Pro
 function appVersion(): string { const p = project(); return p === null ? '' : (p as Project).version; }
 
 export function Header(): i32 {
-  return <View class="flex-row items-center h-[54] pl-3 pr-2.5 gap-3">
+  return <View className="flex-row items-center h-[54] pl-3 pr-2.5 gap-3">
     <RunControl />
-    <View class={`w-px h-[18] ${bg(theme().border)}`} />
+    <View className={`w-px h-[18] ${bg(theme().border)}`} />
     <Tabs />
-    <View class={`${PILL} ${startOpen() || projectOpen() ? bg(theme().active) : ''} hover:${bg(theme().hover)}`}
+    <View className={`${PILL} ${startOpen() || projectOpen() ? bg(theme().active) : ''} hover:${bg(theme().hover)}`}
       onPointerDown={(e: ui.PointerEvent) => { if (sketchDir() === '') setStartOpen(!startOpen()); else if (projectOpen()) setProjectOpen(false); else openProject(); }}>
       {iconPath() !== '' ? <ProjectIcon size={18} /> : <Glyph kind={I_GRID} size={14} color={() => theme().muted} />}
-      <Text class={`text-[13px] font-medium ${fg(theme().text)}`}>{appName()}</Text>
-      {appVersion() !== '' && <Text class={`text-[12px] ${fg(theme().muted)}`}>{appVersion()}</Text>}
+      <Text className={`text-[13px] font-medium ${fg(theme().text)}`}>{appName()}</Text>
+      {appVersion() !== '' && <Text className={`text-[12px] ${fg(theme().muted)}`}>{appVersion()}</Text>}
     </View>
-    <View class={`${PILL} ${engineOpen() ? bg(theme().active) : ''} hover:${bg(theme().hover)}`} onPointerDown={(e: ui.PointerEvent) => setEngineOpen(!engineOpen())}>
-      <Text class={`text-[13px] ${fg(theme().muted)}`}>{device() !== '' ? device() : ENGINES[engine()]}</Text>
+    <View className={`${PILL} ${engineOpen() ? bg(theme().active) : ''} hover:${bg(theme().hover)}`} onPointerDown={(e: ui.PointerEvent) => setEngineOpen(!engineOpen())}>
+      <Text className={`text-[13px] ${fg(theme().muted)}`}>{device() !== '' ? device() : ENGINES[engine()]}</Text>
       <Glyph kind={I_DOWN} size={12} color={() => theme().faint} />
     </View>
-    <View class="flex-row items-center">
+    <View className="flex-row items-center">
       <IconButton kind={I_COMMAND} size={15} onPress={() => openPalette(PAL_COMMANDS)} />
       {theme().dark ? <IconButton kind={I_SUN} size={15} onPress={() => toggleTheme()} /> : <IconButton kind={I_MOON} size={15} onPress={() => toggleTheme()} />}
     </View>

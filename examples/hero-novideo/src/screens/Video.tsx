@@ -6,8 +6,8 @@ export function Video() {
   return (
     <Card>
       <CardContent>
-        <Text class={heading(2)}>Video</Text>
-        <Text class={mutedText()}>Not on this device yet: zinc:video needs FFmpeg built for webOS.</Text>
+        <Text className={heading(2)}>Video</Text>
+        <Text className={mutedText()}>Not on this device yet: zinc:video needs FFmpeg built for webOS.</Text>
       </CardContent>
     </Card>
   );

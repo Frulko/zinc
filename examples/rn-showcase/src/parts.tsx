@@ -25,28 +25,28 @@ export const styles = StyleSheet.create({
 
 /** A chip that can be selected. */
 export function Chip(p: { label: string; on: () => boolean; press: () => void }): i32 {
-  return <view style={[styles.pill, { backgroundColor: p.on() ? t().ink : t().surface, borderWidth: 1, borderColor: p.on() ? t().ink : t().line }]} onClick={p.press}>
-    <text style={[styles.small, { color: p.on() ? t().bg : t().ink }]}>{p.label}</text>
-  </view>;
+  return <View style={[styles.pill, { backgroundColor: p.on() ? t().ink : t().surface, borderWidth: 1, borderColor: p.on() ? t().ink : t().line }]} onClick={p.press}>
+    <Text style={[styles.small, { color: p.on() ? t().bg : t().ink }]}>{p.label}</Text>
+  </View>;
 }
 
 /** A round avatar with initials. */
 export function Avatar(p: { initials: string; bg: () => i32 }): i32 {
-  return <view style={[styles.avatar, { backgroundColor: p.bg() }]}>
-    <text style={[styles.tiny, styles.bold, { color: 0xFFFFFF }]}>{p.initials}</text>
-  </view>;
+  return <View style={[styles.avatar, { backgroundColor: p.bg() }]}>
+    <Text style={[styles.tiny, styles.bold, { color: 0xFFFFFF }]}>{p.initials}</Text>
+  </View>;
 }
 
 /** A switch made of two views; the knob slides with `pos` (0..1, animated by the app). */
 export function Switch(p: { pos: () => number; press: () => void }): i32 {
-  return <view style={{ width: 50, height: 30, borderRadius: 15, backgroundColor: p.pos() > 0.5 ? t().accent : t().raised }} onClick={p.press}>
-    <view style={{ position: 'absolute', top: 3, left: 3, width: 24, height: 24, borderRadius: 12, backgroundColor: 0xFFFFFF, translateX: p.pos() * 20 }} />
-  </view>;
+  return <View style={{ width: 50, height: 30, borderRadius: 15, backgroundColor: p.pos() > 0.5 ? t().accent : t().raised }} onClick={p.press}>
+    <View style={{ position: 'absolute', top: 3, left: 3, width: 24, height: 24, borderRadius: 12, backgroundColor: 0xFFFFFF, translateX: p.pos() * 20 }} />
+  </View>;
 }
 
 /** A primary or a quiet button. */
 export function Button(p: { label: string; primary: boolean; press: () => void }): i32 {
-  return <view style={[styles.button, { backgroundColor: p.primary ? t().accent : t().raised }]} onClick={p.press}>
-    <text style={[styles.body, styles.bold, { color: p.primary ? t().accentInk : t().ink }]}>{p.label}</text>
-  </view>;
+  return <View style={[styles.button, { backgroundColor: p.primary ? t().accent : t().raised }]} onClick={p.press}>
+    <Text style={[styles.body, styles.bold, { color: p.primary ? t().accentInk : t().ink }]}>{p.label}</Text>
+  </View>;
 }

@@ -197,7 +197,7 @@ b.params = [asset('file', 'orbit.json', 'Lottie JSON asset'), bool('loop', 'true
 b.modules = ['zinc:ui', 'zinc:lottie'];
 b.screen = true;
 b.setup = 'let {id}_node = -1;';
-b.handlers = [new Handler('onStart', 'if ({id}_node >= 0) return;\nlet seconds = 0;\n{id}_node = lottie.Lottie({ src: {p:file}, loop: {p:loop}, autoplay: true, class: \'w-[{raw:size}] h-[{raw:size}]\',\n  player: (pl: lottie.Player) => { seconds = lottie.duration(pl.anim); } });\nshow({id}_node);\nif ({p:loop}) {emit:onDone}();\nelse setTimeout(() => { {emit:onDone}(); }, seconds * 1000);')];
+b.handlers = [new Handler('onStart', 'if ({id}_node >= 0) return;\nlet seconds = 0;\n{id}_node = lottie.Lottie({ src: {p:file}, loop: {p:loop}, autoplay: true, className: \'w-[{raw:size}] h-[{raw:size}]\',\n  player: (pl: lottie.Player) => { seconds = lottie.duration(pl.anim); } });\nshow({id}_node);\nif ({p:loop}) {emit:onDone}();\nelse setTimeout(() => { {emit:onDone}(); }, seconds * 1000);')];
 
 // ---------------------------------------------------------------- Network
 b = box('http_get', 'HTTP Get', 'Network', 'Fetches a URL; emits the body text, or fires onError.', 'onStart', 'body:s onError');

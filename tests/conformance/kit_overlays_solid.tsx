@@ -10,15 +10,15 @@ const [confirming, setConfirming] = createSignal<boolean>(false);
 const log = (s: string): void => { console.log(s); };
 
 function App(): i32 {
-  return <View class="flex-col p-4 gap-3 h-full">
-    <View class="flex-row gap-2">
+  return <View className="flex-col p-4 gap-3 h-full">
+    <View className="flex-row gap-2">
       <Tooltip label="Save file" action="save" delay={50}><Button label="Save" onClick={() => log('save clicked')} /></Tooltip>
       <DropdownMenu label="Edit" items={[{ label: 'Undo', action: 'undo' }, { label: 'Copy', action: 'copy' }, { label: 'Paste', disabled: true }, { label: 'Delete', onSelect: () => setConfirming(true) }]} />
-      <Popover label="Info"><Text class="text-sm">Zinc overlays</Text><Button label="Got it" size="sm" /></Popover>
+      <Popover label="Info"><Text className="text-sm">Zinc overlays</Text><Button label="Got it" size="sm" /></Popover>
     </View>
     <Button label="Notify" variant="secondary" onClick={() => toast('Saved', 'All changes are on disk.', 100)} />
     <Dialog open={confirming} onOpenChange={(v: boolean) => { log(`dialog open -> ${v}`); setConfirming(v); }} title="Delete file?" description="This cannot be undone."
-      footer={() => <View class="flex-row gap-2"><Button label="Cancel" variant="outline" onClick={() => setConfirming(false)} /><Button label="Delete" variant="destructive" onClick={() => { log('deleted'); setConfirming(false); }} /></View>} />
+      footer={() => <View className="flex-row gap-2"><Button label="Cancel" variant="outline" onClick={() => setConfirming(false)} /><Button label="Delete" variant="destructive" onClick={() => { log('deleted'); setConfirming(false); }} /></View>} />
   </View>;
 }
 

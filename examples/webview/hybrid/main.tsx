@@ -52,33 +52,33 @@ function open(name: string): void {
 }
 
 function Sidebar(): i32 {
-  return <view class="flex-col w-64 p-3 gap-2 bg-slate-900">
-    <text class="text-xs text-slate-500 tracking-wider">NATIVE (zinc:ui)</text>
-    <button class="h-9 rounded bg-sky-700 active:bg-sky-500" onClick={() => { pings++; web.postMessage(`{"type":"ping","n":${pings}}`); }}>
-      <text class="text-sm">Ping the page</text>
-    </button>
-    <view class="flex-row gap-2">
-      <button class="grow h-9 rounded bg-slate-700 active:bg-slate-500" onClick={() => { web.navigate('zinc://index.html'); }}><text class="text-sm">Reload</text></button>
-      <button class="grow h-9 rounded bg-slate-700 active:bg-slate-500" onClick={() => { if (visible()) web.hide(); else web.show(); setVisible(!visible()); }}>
-        <text class="text-sm">{visible() ? 'Hide web' : 'Show web'}</text>
-      </button>
-    </view>
-    <text class="text-xs text-slate-500 tracking-wider">FILES IN {DIR}</text>
+  return <View className="flex-col w-64 p-3 gap-2 bg-slate-900">
+    <Text className="text-xs text-slate-500 tracking-wider">NATIVE (zinc:ui)</Text>
+    <Button className="h-9 rounded bg-sky-700 active:bg-sky-500" onClick={() => { pings++; web.postMessage(`{"type":"ping","n":${pings}}`); }}>
+      <Text className="text-sm">Ping the page</Text>
+    </Button>
+    <View className="flex-row gap-2">
+      <Button className="grow h-9 rounded bg-slate-700 active:bg-slate-500" onClick={() => { web.navigate('zinc://index.html'); }}><Text className="text-sm">Reload</Text></Button>
+      <Button className="grow h-9 rounded bg-slate-700 active:bg-slate-500" onClick={() => { if (visible()) web.hide(); else web.show(); setVisible(!visible()); }}>
+        <Text className="text-sm">{visible() ? 'Hide web' : 'Show web'}</Text>
+      </Button>
+    </View>
+    <Text className="text-xs text-slate-500 tracking-wider">FILES IN {DIR}</Text>
     <For each={files()}>{(f: string, _i: i32) =>
-      <button class={f === selected() ? 'h-7 px-2 rounded bg-amber-600 items-start' : 'h-7 px-2 rounded bg-slate-800 active:bg-slate-600 items-start'} onClick={() => { open(f); }}>
-        <text class="text-sm">{f}</text>
-      </button>}
+      <Button className={f === selected() ? 'h-7 px-2 rounded bg-amber-600 items-start' : 'h-7 px-2 rounded bg-slate-800 active:bg-slate-600 items-start'} onClick={() => { open(f); }}>
+        <Text className="text-sm">{f}</Text>
+      </Button>}
     </For>
-    <view class="grow"></view>
-    <text class="text-xs text-emerald-400">{status()}</text>
-  </view>;
+    <View className="grow"></View>
+    <Text className="text-xs text-emerald-400">{status()}</Text>
+  </View>;
 }
 
 function App(): i32 {
-  return <view class="flex-row h-full bg-slate-950">
+  return <View className="flex-row h-full bg-slate-950">
     <Sidebar />
-    <canvas class="grow" onDraw={web.follow()}></canvas>
-  </view>;
+    <Canvas className="grow" onDraw={web.follow()}></Canvas>
+  </View>;
 }
 
 // live data pushed into the page twice a second

@@ -13,9 +13,9 @@ setInterval(() => {
 }, 200);
 
 function App(): i32 {
-  return <View class="flex-col gap-2 p-4">
-    <Text class="text-lg">Hello inspector</Text>
-    <View class="flex-row gap-1"><View class="w-4 h-4 bg-rose-600" /><View class="w-4 h-4 bg-sky-600" /></View>
+  return <View className="flex-col gap-2 p-4">
+    <Text className="text-lg">Hello inspector</Text>
+    <View className="flex-row gap-1"><View className="w-4 h-4 bg-rose-600" /><View className="w-4 h-4 bg-sky-600" /></View>
   </View>;
 }
 render(App, 0xffffff, (dt: number) => {});

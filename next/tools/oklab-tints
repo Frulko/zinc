@@ -24,8 +24,8 @@ d = tempfile.mkdtemp()
 src = os.path.join(d, 'main.tsx')
 # zinc:ui/nuxt's tint: mix() of the colour over the background, as the kit's variants paint it
 def under(c, bg, u): return f"\'#{bg}\'" if u == '0' else f"mix(\'#{c}\', {u}, \'#{bg}\')"
-rows = ''.join(f'<view class="w-[{W}px] h-[{H}px] bg-[#{bg}]"><view class={{`w-[{W}px] h-[{H}px] bg-[${{mix(\'#{c}\', {a}, {under(c, bg, u)})}}]`}} /></view>' for c, a, bg, u in cases)
-open(src, 'w').write("import { render } from 'zinc:ui/solid';\nimport { mix } from 'zinc:ui/nuxt';\nfunction App(): i32 { return <view class=\"flex-col\">" + rows + "</view>; }\nrender(App, 0xffffff, null);\n")
+rows = ''.join(f'<View className="w-[{W}px] h-[{H}px] bg-[#{bg}]"><View className={{`w-[{W}px] h-[{H}px] bg-[${{mix(\'#{c}\', {a}, {under(c, bg, u)})}}]`}} /></View>' for c, a, bg, u in cases)
+open(src, 'w').write("import { render } from 'zinc:ui/solid';\nimport { mix } from 'zinc:ui/nuxt';\nfunction App(): i32 { return <View className=\"flex-col\">" + rows + "</View>; }\nrender(App, 0xffffff, null);\n")
 png = os.path.join(d, 'z.png')
 env = dict(os.environ, ZINC_HEADLESS='1', ZINC_DETERMINISTIC='1', ZINC_FRAMES='2', ZINC_SIZE='%dx%d' % (W, H * len(cases)), ZINC_SCALE='1', ZINC_SHOT=png)
 subprocess.run([zinc, 'run', src], env=env, check=True, capture_output=True)

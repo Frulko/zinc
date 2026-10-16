@@ -3,11 +3,11 @@ import { Icon, iconNames, icon } from 'zinc:icons';
 import { render } from 'zinc:ui/solid';
 
 function App(): i32 {
-  return <view style={{ flexDirection: 'row', gap: 12, padding: 12 }}>
+  return <View style={{ flexDirection: 'row', gap: 12, padding: 12 }}>
     <Icon name="heart" size={48} color={() => 0xff5a36} />
     <Icon name="settings" size={48} color={() => 0x1c1917} strokeWidth={1.5} />
     <Icon name="search" size={48} color={() => 0x0f766e} strokeWidth={3} />
-  </view>;
+  </View>;
 }
 let frames = 0;
 render(App, 0xffffff, (dt: number) => {

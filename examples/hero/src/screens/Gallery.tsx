@@ -25,7 +25,7 @@ function ArtCard(props: { art: Artwork }): i32 {
     openDetail(i, b[0] - s[0], b[1] - s[1], b[2], b[3]);
   };
   const d = 0.03 + i * 0.03;
-  return <View class={`flex-col rounded-xl border overflow-hidden cursor-pointer bg-${theme().card} border-${theme().border} hover:border-${theme().mutedForeground}`}
+  return <View className={`flex-col rounded-xl border overflow-hidden cursor-pointer bg-${theme().card} border-${theme().border} hover:border-${theme().mutedForeground}`}
     style={{ width: CARD_W, translateY: lift.get() + (1 - enter.at(d)) * 20, opacity: enter.at(d) }}
     onPointerEnter={(e: ui.PointerEvent) => lift.to(-8)}
     onPointerLeave={(e: ui.PointerEvent) => { lift.to(0); px = -1; py = -1; }}
@@ -33,30 +33,30 @@ function ArtCard(props: { art: Artwork }): i32 {
     <Canvas ref={canvas} style={{ height: ART_H }}
       onDraw={(x: i32, y: i32, w: i32, h: i32) => drawArt(i, x, y, w, h, seconds(), px, py)}
       onPointerMove={(e: ui.PointerEvent) => { px = e.x / CARD_W; py = e.y / ART_H; }} />
-    <View class="flex-row items-center p-3 gap-2">
-      <View class="flex-col grow gap-0.5">
-        <Text class={`text-sm font-semibold text-${theme().foreground}`}>{a.title}</Text>
-        <Text class={`text-xs text-${theme().mutedForeground}`}>{`${a.artist} · ${a.year}`}</Text>
+    <View className="flex-row items-center p-3 gap-2">
+      <View className="flex-col grow gap-0.5">
+        <Text className={`text-sm font-semibold text-${theme().foreground}`}>{a.title}</Text>
+        <Text className={`text-xs text-${theme().mutedForeground}`}>{`${a.artist} · ${a.year}`}</Text>
       </View>
-      <Text class={`text-lg ${a.liked() ? 'text-rose-500' : `text-${theme().border}`}`}>♥</Text>
+      <Text className={`text-lg ${a.liked() ? 'text-rose-500' : `text-${theme().border}`}`}>♥</Text>
     </View>
   </View>;
 }
 
 export function Gallery(): i32 {
-  return <ScrollView class="grow">
-    <View class="flex-col gap-6 p-4 lg:p-8">
-      <View class="flex-row items-end justify-between" style={{ opacity: enter.at(0) }}>
-        <View class="flex-col gap-1">
-          <Text class={heading(2)}>Gallery</Text>
-          <Text class={mutedText()}>Generative pieces drawn every frame. Hover to play with them, click to open.</Text>
+  return <ScrollView className="grow">
+    <View className="flex-col gap-6 p-4 lg:p-8">
+      <View className="flex-row items-end justify-between" style={{ opacity: enter.at(0) }}>
+        <View className="flex-col gap-1">
+          <Text className={heading(2)}>Gallery</Text>
+          <Text className={mutedText()}>Generative pieces drawn every frame. Hover to play with them, click to open.</Text>
         </View>
         <Tabs items={['All', 'Liked']} selected={onlyLiked} onSelect={(i: i32) => setOnlyLiked(i)} />
       </View>
-      <View class="flex-row flex-wrap gap-5">
+      <View className="flex-row flex-wrap gap-5">
         {shown().map((a: Artwork) => <ArtCard art={a} />)}
       </View>
-      {shown().length === 0 ? <Text class={mutedText()}>No liked artwork yet: open one and press the heart.</Text> : <View />}
+      {shown().length === 0 ? <Text className={mutedText()}>No liked artwork yet: open one and press the heart.</Text> : <View />}
     </View>
   </ScrollView>;
 }

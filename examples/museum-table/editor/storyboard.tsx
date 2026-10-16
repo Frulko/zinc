@@ -192,10 +192,10 @@ function Miniature(p: { of: Sequence }): i32 {
   const s = p.of;
   const W = (): number => project().table.width, H = (): number => project().table.height;
   const k = (): number => STAGE_H * zoom() / H();   // table units to pixels
-  return <view class="relative self-center overflow-hidden rounded-sm" style={{ width: STAGE_H * zoom() * W() / H(), height: STAGE_H * zoom(), bg: project().theme.background }}>
+  return <View className="relative self-center overflow-hidden rounded-sm" style={{ width: STAGE_H * zoom() * W() / H(), height: STAGE_H * zoom(), bg: project().theme.background }}>
     <For each={(project(), s.items)}>{(it: Item, i: i32) => {
       const h = (): number => { project(); return it.height > 0 ? it.height : it.width * shapeOf(project().medium(it.media)); };
-      return <canvas class="absolute" style={{ left: (it.x - it.width / 2) * k(), top: (it.y - h() / 2) * k(), width: Math.max(2, it.width * k()), height: Math.max(2, h() * k()), lazy: 1 }}
+      return <Canvas className="absolute" style={{ left: (it.x - it.width / 2) * k(), top: (it.y - h() / 2) * k(), width: Math.max(2, it.width * k()), height: Math.max(2, h() * k()), lazy: 1 }}
         onDraw={(x: i32, y: i32, w: i32, h: i32) => {
           if (it.rotation === 0) { drawMedia(project().medium(it.media), x, y, w, h); return; }
           const a = it.rotation * Math.PI / 180;
@@ -205,9 +205,9 @@ function Miniature(p: { of: Sequence }): i32 {
         }} />;
     }}</For>
     <Show when={(project(), s.items.length === 0) && zoomStep() > 0}>
-      <view class="absolute inset-0 items-center justify-center"><text class={`text-zinc-500 ${SMALL[zoomStep()]}`}>{t(L.NO_MEDIA_YET)}</text></view>
+      <View className="absolute inset-0 items-center justify-center"><Text className={`text-zinc-500 ${SMALL[zoomStep()]}`}>{t(L.NO_MEDIA_YET)}</Text></View>
     </Show>
-  </view>;
+  </View>;
 }
 /** The size of the link handle under a node, in pixels. */
 function knob(): number { return Math.max(12, Math.round(20 * zoom())); }
@@ -216,57 +216,57 @@ function Node(s: Sequence): i32 {
   const frame = (): string => target() === s ? 'border-amber-300 bg-zinc-800'
     : (selected() === s && selectedLink() === null) || isChosen(s) ? 'border-amber-400 bg-zinc-800'
     : lost().indexOf(s.id) >= 0 ? 'border-orange-500 border-dashed bg-zinc-900' : 'border-zinc-700 hover:border-zinc-500 bg-zinc-900';
-  return <view class="absolute" style={{ left: vx(cx(s) - CARD_W / 2), top: vy(cy(s) - CARD_H / 2), width: CARD_W * z(), height: CARD_H * z() }}>
-    <view class={`absolute inset-0 flex-col rounded-lg border-2 shadow-lg overflow-hidden cursor-grab ${frame()}`}
+  return <View className="absolute" style={{ left: vx(cx(s) - CARD_W / 2), top: vy(cy(s) - CARD_H / 2), width: CARD_W * z(), height: CARD_H * z() }}>
+    <View className={`absolute inset-0 flex-col rounded-lg border-2 shadow-lg overflow-hidden cursor-grab ${frame()}`}
       onPointerDown={(e: ui.PointerEvent) => nodeDown(s, e)} onPointerMove={(e: ui.PointerEvent) => nodeMove(s, e)} onPointerUp={(e: ui.PointerEvent) => nodeUp(s, e)}
       onDoubleClick={(e: ui.PointerEvent) => { pressed = null; openSequence(s); }}>
-      <view class="flex-row items-center" style={{ height: 28 * z(), paddingLeft: 8 * z(), paddingRight: 8 * z(), gap: 5 * z() }}>
+      <View className="flex-row items-center" style={{ height: 28 * z(), paddingLeft: 8 * z(), paddingRight: 8 * z(), gap: 5 * z() }}>
         <Show when={project().start === s.id}><IcoAt name="flag" size={() => 13 * z()} color={ACCENT} /></Show>
-        <text class={`grow truncate font-bold text-zinc-100 ${TITLE[zoomStep()]}`}>{project().say(s.title, lang())}</text>
+        <Text className={`grow truncate font-bold text-zinc-100 ${TITLE[zoomStep()]}`}>{project().say(s.title, lang())}</Text>
         <Show when={lost().indexOf(s.id) >= 0}><IcoAt name="triangle-alert" size={() => 13 * z()} color={WARN} /></Show>
-      </view>
-      <view class="flex-row justify-center bg-zinc-950" style={{ height: STAGE_H * z() }}><Miniature of={s} /></view>
-      <view class="flex-row items-center" style={{ height: 26 * z(), paddingLeft: 8 * z(), paddingRight: 8 * z(), gap: 8 * z() }}>
+      </View>
+      <View className="flex-row justify-center bg-zinc-950" style={{ height: STAGE_H * z() }}><Miniature of={s} /></View>
+      <View className="flex-row items-center" style={{ height: 26 * z(), paddingLeft: 8 * z(), paddingRight: 8 * z(), gap: 8 * z() }}>
         <For each={kindsOf(s)}>{(entry: string, i: i32) => {
           const kind: i32 = parseInt(entry.slice(0, 1), 10);
-          return <view class="flex-row items-center" style={{ gap: 3 * z() }}>
+          return <View className="flex-row items-center" style={{ gap: 3 * z() }}>
             <IcoAt name={KIND_ICON[kind]} size={() => 12 * z()} color={KIND_COLOUR[kind]} />
-            <text class={`text-zinc-300 ${SMALL[zoomStep()]}`}>{entry.slice(2)}</text>
-          </view>;
+            <Text className={`text-zinc-300 ${SMALL[zoomStep()]}`}>{entry.slice(2)}</Text>
+          </View>;
         }}</For>
-        <view class="grow" />
+        <View className="grow" />
         <Show when={(project(), s.links.length > 0)}>
-          <view class="flex-row items-center" style={{ gap: 3 * z() }}>
+          <View className="flex-row items-center" style={{ gap: 3 * z() }}>
             <IcoAt name="arrow-right" size={() => 12 * z()} color={MUTED} />
-            <text class={`text-zinc-400 ${SMALL[zoomStep()]}`}>{(project(), `${s.links.length}`)}</text>
-          </view>
+            <Text className={`text-zinc-400 ${SMALL[zoomStep()]}`}>{(project(), `${s.links.length}`)}</Text>
+          </View>
         </Show>
-      </view>
-    </view>
-    <view class={`absolute items-center justify-center rounded-full border cursor-crosshair ${linking() === s ? 'bg-amber-400 border-amber-300' : 'bg-zinc-700 border-zinc-500 hover:bg-amber-400 hover:border-amber-300'}`}
+      </View>
+    </View>
+    <View className={`absolute items-center justify-center rounded-full border cursor-crosshair ${linking() === s ? 'bg-amber-400 border-amber-300' : 'bg-zinc-700 border-zinc-500 hover:bg-amber-400 hover:border-amber-300'}`}
       style={{ left: CARD_W * z() / 2 - knob() / 2, top: CARD_H * z() - knob() / 2, width: knob(), height: knob() }}
       onPointerDown={(e: ui.PointerEvent) => handleDown(s, e)} onPointerMove={(e: ui.PointerEvent) => handleMove(e)} onPointerUp={(e: ui.PointerEvent) => handleUp(e)}
       onDoubleClick={(e: ui.PointerEvent) => {}}>
       <IcoAt name="link" size={() => knob() * 0.55} color={INK} />
-    </view>
-  </view>;
+    </View>
+  </View>;
 }
 /** The handle of a link in the middle of its arrow: a click selects the link. It is a dot until the link matters (selected, under the pointer,
  *  or one of the selected sequence's), then it shows the label, so that a storyboard with many links stays readable. */
 function Handle(l: Link): i32 {
   const chosen = (): boolean => selectedLink() === l;
   const open = (): boolean => chosen() || hovered() === l || (selectedLink() === null && selected() !== null && selected() === sourceOf(l));
-  return <view class="absolute items-center justify-center" style={{ left: handleAt(l)[0] - 90, top: handleAt(l)[1] - 11, width: 180, height: 22 }}>
-    <button class={`flex-row items-center justify-center gap-1 rounded-full border cursor-pointer ${open() ? 'h-[22] px-2' : zoomStep() > 1 ? 'w-[14] h-[14] p-0' : 'w-[10] h-[10] p-0'} ${chosen() ? 'bg-amber-400 border-amber-300' : 'bg-zinc-800 border-zinc-500 hover:border-zinc-300'}`}
+  return <View className="absolute items-center justify-center" style={{ left: handleAt(l)[0] - 90, top: handleAt(l)[1] - 11, width: 180, height: 22 }}>
+    <Button className={`flex-row items-center justify-center gap-1 rounded-full border cursor-pointer ${open() ? 'h-[22] px-2' : zoomStep() > 1 ? 'w-[14] h-[14] p-0' : 'w-[10] h-[10] p-0'} ${chosen() ? 'bg-amber-400 border-amber-300' : 'bg-zinc-800 border-zinc-500 hover:border-zinc-300'}`}
       onClick={() => { const a = sourceOf(l); if (a !== null) select(a, l); }}
       onPointerEnter={(e: ui.PointerEvent) => setHovered(l)} onPointerLeave={(e: ui.PointerEvent) => { if (hovered() === l) setHovered(null); }}>
       <Show when={open() && !chosen() && (project(), l.overlay)}><Ico name="layers" size={11} color={MUTED} /></Show>
       <Show when={chosen() && (project(), l.overlay)}><Ico name="layers" size={11} color={DARK} /></Show>
       <Show when={open()}>
-        <text class={`truncate text-[11px] ${chosen() ? 'font-bold text-zinc-900' : 'text-zinc-200'}`} style={{ maxWidth: 140 }}>{project().say(l.label, lang())}</text>
+        <Text className={`truncate text-[11px] ${chosen() ? 'font-bold text-zinc-900' : 'text-zinc-200'}`} style={{ maxWidth: 140 }}>{project().say(l.label, lang())}</Text>
       </Show>
-    </button>
-  </view>;
+    </Button>
+  </View>;
 }
 
 // ---------------------------------------------------------------- the view
@@ -284,23 +284,23 @@ function viewWheel(e: ui.PointerEvent): void {
   zoomBy(steps, e.x, e.y);
 }
 function Empty(): i32 {
-  return <view class="absolute inset-0 items-center justify-center">
-    <view class="w-[420] flex-col items-center gap-3 p-8 rounded-xl bg-zinc-900 border border-zinc-800">
+  return <View className="absolute inset-0 items-center justify-center">
+    <View className="w-[420] flex-col items-center gap-3 p-8 rounded-xl bg-zinc-900 border border-zinc-800">
       <Ico name="mouse-pointer-click" size={36} color={ACCENT} />
-      <text class="text-xl font-bold text-zinc-100">{t(L.EMPTY_TITLE)}</text>
-      <text class="text-sm text-center text-zinc-400">{t(L.EMPTY_WHAT)}</text>
-      <text class="text-sm text-center text-zinc-400">{t(L.EMPTY_HOW)}</text>
-      <button class="flex-row items-center gap-2 h-9 px-4 mt-2 rounded-md cursor-pointer bg-amber-400 hover:bg-amber-300" onClick={() => addSequenceInView()}>
+      <Text className="text-xl font-bold text-zinc-100">{t(L.EMPTY_TITLE)}</Text>
+      <Text className="text-sm text-center text-zinc-400">{t(L.EMPTY_WHAT)}</Text>
+      <Text className="text-sm text-center text-zinc-400">{t(L.EMPTY_HOW)}</Text>
+      <Button className="flex-row items-center gap-2 h-9 px-4 mt-2 rounded-md cursor-pointer bg-amber-400 hover:bg-amber-300" onClick={() => addSequenceInView()}>
         <Ico name="plus" size={15} color={DARK} />
-        <text class="text-sm font-bold text-zinc-900">{t(L.NEW_SEQUENCE)}</text>
-      </button>
-    </view>
-  </view>;
+        <Text className="text-sm font-bold text-zinc-900">{t(L.NEW_SEQUENCE)}</Text>
+      </Button>
+    </View>
+  </View>;
 }
 export function Storyboard(): i32 {
   // the arrows are drawn by hand: ask for a repaint when what they show changes without any node moving
   createEffect(() => { project(); linking(); linkX(); linkY(); target(); selectedLink(); hovered(); dragDX(); dragDY(); panX(); panY(); zoomStep(); ui.repaint(); });
-  return <view ref={viewRef} class="grow relative overflow-hidden bg-zinc-950 cursor-default"
+  return <View ref={viewRef} className="grow relative overflow-hidden bg-zinc-950 cursor-default"
     onPointerDown={(e: ui.PointerEvent) => {
       if (e.button === 0) { panning = true; panned = false; panFromX = e.x - panX(); panFromY = e.y - panY(); }
       else if (e.button === 2) { const p = pointOf(e); contextMenu('storyboard', e.gx, e.gy, Math.round(p[0]), Math.round(p[1])); }
@@ -314,19 +314,19 @@ export function Storyboard(): i32 {
     onPointerUp={(e: ui.PointerEvent) => { if (panning && !panned) select(null, null); panning = false; }}
     onWheel={(e: ui.PointerEvent) => viewWheel(e)}
     onDoubleClick={(e: ui.PointerEvent) => { panning = false; const p = pointOf(e); addSequence(p[0], p[1]); }}>   {/* not panning: the release must not deselect the new sequence */}
-    <canvas class="absolute inset-0" style={{ lazy: 1 }} onDraw={drawArrows} />
+    <Canvas className="absolute inset-0" style={{ lazy: 1 }} onDraw={drawArrows} />
     <For each={project().sequences}>{(s: Sequence, i: i32) => Node(s)}</For>
     <For each={arrows()}>{(l: Link, i: i32) => Handle(l)}</For>
     <Show when={project().sequences.length === 0}><Empty /></Show>
     <Show when={project().sequences.length > 0}>
-      <view class="absolute left-[8] bottom-[8] px-2 py-1 rounded bg-zinc-950"><text class="text-[11px] text-zinc-500">{t(L.BOARD_HINT)}</text></view>
+      <View className="absolute left-[8] bottom-[8] px-2 py-1 rounded bg-zinc-950"><Text className="text-[11px] text-zinc-500">{t(L.BOARD_HINT)}</Text></View>
     </Show>
     <PreviewTools />
-    <view class="absolute right-[10] top-[10] flex-row items-center gap-1 p-1 rounded-lg bg-zinc-900 border border-zinc-800">
+    <View className="absolute right-[10] top-[10] flex-row items-center gap-1 p-1 rounded-lg bg-zinc-900 border border-zinc-800">
       <Tool icon="minus" label="" look="quiet" off={() => zoomStep() === 0} onClick={() => zoomBy(-1, viewW / 2, viewH / 2)} />
-      <text class="w-[40] text-center text-xs text-zinc-300">{`${Math.round(zoom() * 100)}%`}</text>
+      <Text className="w-[40] text-center text-xs text-zinc-300">{`${Math.round(zoom() * 100)}%`}</Text>
       <Tool icon="plus" label="" look="quiet" off={() => zoomStep() === ZOOMS.length - 1} onClick={() => zoomBy(1, viewW / 2, viewH / 2)} />
       <Tool icon="maximize" label={t(L.FIT)} look="quiet" off={() => false} onClick={fit} />
-    </view>
-  </view>;
+    </View>
+  </View>;
 }

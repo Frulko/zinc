@@ -20,10 +20,10 @@ const PLANS: string[] = ['Free', 'Pro', 'Team'];
 const fieldClass = (): string => `h-11 w-full rounded-lg bg-${theme().card} border-${theme().border} text-${theme().foreground} focus:border-${theme().accent}`;
 
 function Field(props: { label: string; hint: string; children: () => i32 }): i32 {
-  return <View class="flex-col gap-1 grow w-[240]">
-    <View class="flex-row items-center justify-between">
-      <Text class={`text-xs font-semibold text-${theme().foreground}`}>{props.label}</Text>
-      <Text class={`text-xs text-${theme().mutedForeground}`}>{props.hint}</Text>
+  return <View className="flex-col gap-1 grow w-[240]">
+    <View className="flex-row items-center justify-between">
+      <Text className={`text-xs font-semibold text-${theme().foreground}`}>{props.label}</Text>
+      <Text className={`text-xs text-${theme().mutedForeground}`}>{props.hint}</Text>
     </View>
     {props.children()}
   </View>;
@@ -39,32 +39,32 @@ function submit(): void {
 }
 
 export function Forms(): i32 {
-  return <ScrollView class="grow">
-    <View class="flex-col gap-4 p-4 lg:p-8">
-      <View class="flex-col gap-1">
-        <Text class={heading(2)}>Forms</Text>
-        <Text class={mutedText()}>Tap a field: the on-screen keyboard opens with the layout it asks for.</Text>
+  return <ScrollView className="grow">
+    <View className="flex-col gap-4 p-4 lg:p-8">
+      <View className="flex-col gap-1">
+        <Text className={heading(2)}>Forms</Text>
+        <Text className={mutedText()}>Tap a field: the on-screen keyboard opens with the layout it asks for.</Text>
       </View>
       <Card>
         <CardHeader title="Contact" description="Text layouts">
-          <View class="flex-row"><Badge label="inputMode" variant="outline" /></View>
+          <View className="flex-row"><Badge label="inputMode" variant="outline" /></View>
         </CardHeader>
         <CardContent>
-          <View class="flex-row flex-wrap gap-4">
-            <Field label="Name" hint="text"><Input class={fieldClass()} placeholder="Ada Lovelace" value={name()} onInput={(v: string) => setName(v)} /></Field>
-            <Field label="Email" hint="email"><Input class={fieldClass()} inputMode="email" placeholder="ada@example.org" value={email()} onInput={(v: string) => setEmail(v)} /></Field>
-            <Field label="Phone" hint="tel"><Input class={fieldClass()} inputMode="tel" placeholder="+33 6 12 34 56 78" value={phone()} onInput={(v: string) => setPhone(v)} /></Field>
-            <Field label="Website" hint="url"><Input class={fieldClass()} inputMode="url" placeholder="https://" value={site()} onInput={(v: string) => setSite(v)} /></Field>
+          <View className="flex-row flex-wrap gap-4">
+            <Field label="Name" hint="text"><Input className={fieldClass()} placeholder="Ada Lovelace" value={name()} onInput={(v: string) => setName(v)} /></Field>
+            <Field label="Email" hint="email"><Input className={fieldClass()} inputMode="email" placeholder="ada@example.org" value={email()} onInput={(v: string) => setEmail(v)} /></Field>
+            <Field label="Phone" hint="tel"><Input className={fieldClass()} inputMode="tel" placeholder="+33 6 12 34 56 78" value={phone()} onInput={(v: string) => setPhone(v)} /></Field>
+            <Field label="Website" hint="url"><Input className={fieldClass()} inputMode="url" placeholder="https://" value={site()} onInput={(v: string) => setSite(v)} /></Field>
           </View>
         </CardContent>
       </Card>
       <Card>
         <CardHeader title="Numbers and search" description="Digit pads" />
         <CardContent>
-          <View class="flex-row flex-wrap gap-4">
-            <Field label="PIN" hint="numeric, hidden"><Input class={fieldClass()} inputMode="numeric" password placeholder="••••" value={pin()} onInput={(v: string) => setPin(v)} /></Field>
-            <Field label="Amount" hint="decimal"><Input class={fieldClass()} inputMode="decimal" placeholder="0.00" value={amount()} onInput={(v: string) => setAmount(v)} /></Field>
-            <Field label="Search" hint="search"><Input class={fieldClass()} inputMode="search" placeholder="Find…" value={query()} onInput={(v: string) => setQuery(v)} /></Field>
+          <View className="flex-row flex-wrap gap-4">
+            <Field label="PIN" hint="numeric, hidden"><Input className={fieldClass()} inputMode="numeric" password placeholder="••••" value={pin()} onInput={(v: string) => setPin(v)} /></Field>
+            <Field label="Amount" hint="decimal"><Input className={fieldClass()} inputMode="decimal" placeholder="0.00" value={amount()} onInput={(v: string) => setAmount(v)} /></Field>
+            <Field label="Search" hint="search"><Input className={fieldClass()} inputMode="search" placeholder="Find…" value={query()} onInput={(v: string) => setQuery(v)} /></Field>
           </View>
         </CardContent>
       </Card>
@@ -73,18 +73,18 @@ export function Forms(): i32 {
         <CardContent>
           <Tabs items={PLANS} selected={plan} onSelect={(i: i32) => setPlan(i)} />
           <Switch checked={news} onChange={(on: boolean) => setNews(on)} label="Send me the newsletter" />
-          <View class="flex-row items-center gap-3">
-            <Text class={`text-sm text-${theme().foreground}`}>Volume</Text>
-            <Slider class="grow" value={volume} onChange={(v: number) => setVolume(v)} />
-            <Text class={`text-sm font-semibold w-[36] text-${theme().foreground}`}>{`${Math.round(volume())}`}</Text>
+          <View className="flex-row items-center gap-3">
+            <Text className={`text-sm text-${theme().foreground}`}>Volume</Text>
+            <Slider className="grow" value={volume} onChange={(v: number) => setVolume(v)} />
+            <Text className={`text-sm font-semibold w-[36] text-${theme().foreground}`}>{`${Math.round(volume())}`}</Text>
           </View>
           <Field label="Notes" hint="multiline: Enter is a new line">
-            <TextArea class={`w-full rounded-lg bg-${theme().card} border-${theme().border} text-${theme().foreground} focus:border-${theme().accent}`} rows={3}
+            <TextArea className={`w-full rounded-lg bg-${theme().card} border-${theme().border} text-${theme().foreground} focus:border-${theme().accent}`} rows={3}
               value={notes()} onInput={(v: string) => setNotes(v)} />
           </Field>
         </CardContent>
       </Card>
-      <View class="flex-row gap-2">
+      <View className="flex-row gap-2">
         <Button label="Submit" onClick={() => submit()} />
         <Button label="Clear" variant="outline" onClick={() => clear()} />
       </View>

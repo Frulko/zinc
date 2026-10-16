@@ -24,7 +24,7 @@ function drawingOf(i: i32): Outline[] {
 export function entryName(p: Preset): string { return p.en === '' ? listName(p.list, true) : uiLang() === 'fr' ? p.fr : p.en; }
 
 function Mini(p: { at: i32 }): i32 {
-  return <canvas class="shrink-0" style={{ width: 30, height: 22, lazy: 1 }} onDraw={(x: i32, y: i32, w: i32, h: i32) => {
+  return <Canvas className="shrink-0" style={{ width: 30, height: 22, lazy: 1 }} onDraw={(x: i32, y: i32, w: i32, h: i32) => {
     const all = drawingOf(p.at);
     if (all.length === 0) return;
     let x0 = all[0].x0, x1 = all[0].x1, y0 = all[0].y0, y1 = all[0].y1;
@@ -35,20 +35,20 @@ function Mini(p: { at: i32 }): i32 {
 }
 function Entry(p: { at: i32 }): i32 {
   const e = ENTRIES[p.at], on = (): boolean => tool() === e;
-  return <button class={`flex-row items-center justify-start gap-2 h-7 px-2 rounded cursor-pointer ${on() ? 'bg-amber-400' : 'bg-zinc-900 hover:bg-zinc-800'}`}
+  return <Button className={`flex-row items-center justify-start gap-2 h-7 px-2 rounded cursor-pointer ${on() ? 'bg-amber-400' : 'bg-zinc-900 hover:bg-zinc-800'}`}
     onClick={() => { if (e === LANE) addLane(); else pickTool(on() ? null : e); }}>
     <Mini at={p.at} />
-    <text class={`grow truncate text-xs ${on() ? 'font-bold text-zinc-900' : 'text-zinc-200'}`} style={{ maxWidth: 96 }}>{advanced() ? `+${e.key}` : entryName(e)}</text>
-  </button>;
+    <Text className={`grow truncate text-xs ${on() ? 'font-bold text-zinc-900' : 'text-zinc-200'}`} style={{ maxWidth: 96 }}>{advanced() ? `+${e.key}` : entryName(e)}</Text>
+  </Button>;
 }
 export function Palette(): i32 {
   createEffect(() => { tool(); ui.repaint(); });
   const places: i32[] = [];
   for (let i = 0; i < ENTRIES.length; i++) places.push(i);
-  return <view class="w-[150] shrink-0 flex-col bg-zinc-900 border-r border-zinc-800">
-    <view class="flex-row items-center h-9 px-3 shrink-0 border-b border-zinc-800"><Heading label={t(L.ADD)} /></view>
-    <scroll class="grow basis-0 min-h-0 flex-col gap-[1] p-1">
+  return <View className="w-[150] shrink-0 flex-col bg-zinc-900 border-r border-zinc-800">
+    <View className="flex-row items-center h-9 px-3 shrink-0 border-b border-zinc-800"><Heading label={t(L.ADD)} /></View>
+    <ScrollView className="grow basis-0 min-h-0 flex-col gap-[1] p-1">
       {places.map((i: i32, k: i32) => <Entry at={i} />)}
-    </scroll>
-  </view>;
+    </ScrollView>
+  </View>;
 }

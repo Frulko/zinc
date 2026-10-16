@@ -47,32 +47,32 @@ function tilde(p: string): string { const h = sys.env('HOME'); return h !== '' &
 const CARD = 'flex-col w-[224] p-2 pb-3 gap-2.5 rounded-[16] border cursor-pointer';
 function Card(props: { e: Example }): i32 {
   const e = props.e;
-  return <View class={`${CARD} ${bg(theme().bg)} ${bd(theme().borderSoft)} hover:${bd(theme().accent)}`} onPointerDown={(p: ui.PointerEvent) => { if (p.button === 0) openExample(e.dir); }}>
-    <Canvas class="w-full h-[130]" style={{ lazy: 1 }} onDraw={(x: i32, y: i32, w: i32, h: i32) => {
+  return <View className={`${CARD} ${bg(theme().bg)} ${bd(theme().borderSoft)} hover:${bd(theme().accent)}`} onPointerDown={(p: ui.PointerEvent) => { if (p.button === 0) openExample(e.dir); }}>
+    <Canvas className="w-full h-[130]" style={{ lazy: 1 }} onDraw={(x: i32, y: i32, w: i32, h: i32) => {
       const img = picture(e), r = 10 * w / 208;
       if (img >= 0) drawImage(img, x, y, w, h, 255, r); else rrect(x, y, w, h, r, theme().chrome, 255);
       border(x, y, w, h, r, w / 208, theme().borderSoft, 255);
     }} />
-    <View class="flex-col px-1.5 gap-0.5">
-      <Text class={`text-[14px] font-semibold ${fg(theme().text)}`}>{e.title}</Text>
-      <Text class={`text-[12px] ${fg(theme().muted)}`}>{e.text}</Text>
+    <View className="flex-col px-1.5 gap-0.5">
+      <Text className={`text-[14px] font-semibold ${fg(theme().text)}`}>{e.title}</Text>
+      <Text className={`text-[12px] ${fg(theme().muted)}`}>{e.text}</Text>
     </View>
   </View>;
 }
 
 export function StartView(): i32 {
-  return <View class={`absolute inset-0 ${bg(theme().chrome)}`} style={{ hidden: startOpen() ? 0 : 1 }}>
-    <ScrollView class="grow flex-col px-[44] pt-[28] pb-[40]">
-      <Text class={`text-[26px] font-bold ${fg(theme().text)}`}>Start a sketch</Text>
-      <Text class={`text-[13px] pt-1 pb-6 ${fg(theme().muted)}`}>{`An example opens as a copy in ${tilde(sketchbook())}: change anything.`}</Text>
-      <View class="flex-row flex-wrap gap-4">
-        <View class={`${CARD} ${bg(theme().bg)} ${bd(theme().borderSoft)} hover:${bd(theme().accent)}`} onPointerDown={(p: ui.PointerEvent) => { if (p.button === 0) { setStartOpen(false); newSketch(); } }}>
-          <View class={`w-full h-[130] rounded-[10] items-center justify-center ${bg(theme().accentSoft)}`}>
+  return <View className={`absolute inset-0 ${bg(theme().chrome)}`} style={{ hidden: startOpen() ? 0 : 1 }}>
+    <ScrollView className="grow flex-col px-[44] pt-[28] pb-[40]">
+      <Text className={`text-[26px] font-bold ${fg(theme().text)}`}>Start a sketch</Text>
+      <Text className={`text-[13px] pt-1 pb-6 ${fg(theme().muted)}`}>{`An example opens as a copy in ${tilde(sketchbook())}: change anything.`}</Text>
+      <View className="flex-row flex-wrap gap-4">
+        <View className={`${CARD} ${bg(theme().bg)} ${bd(theme().borderSoft)} hover:${bd(theme().accent)}`} onPointerDown={(p: ui.PointerEvent) => { if (p.button === 0) { setStartOpen(false); newSketch(); } }}>
+          <View className={`w-full h-[130] rounded-[10] items-center justify-center ${bg(theme().accentSoft)}`}>
             <Glyph kind={I_PLUS} size={30} color={() => theme().accent} back={() => theme().accentSoft} />
           </View>
-          <View class="flex-col px-1.5 gap-0.5">
-            <Text class={`text-[14px] font-semibold ${fg(theme().text)}`}>Empty sketch</Text>
-            <Text class={`text-[12px] ${fg(theme().muted)}`}>A few lines to begin from.</Text>
+          <View className="flex-col px-1.5 gap-0.5">
+            <Text className={`text-[14px] font-semibold ${fg(theme().text)}`}>Empty sketch</Text>
+            <Text className={`text-[12px] ${fg(theme().muted)}`}>A few lines to begin from.</Text>
           </View>
         </View>
         {EXAMPLES.map((e: Example) => <Card e={e} />)}

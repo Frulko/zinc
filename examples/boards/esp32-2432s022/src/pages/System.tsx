@@ -28,39 +28,39 @@ const MHZ: i32 = device.cpuMhz();
 
 export function System(): i32 {
   const live = (f: () => string): (() => string) => (): string => { refresh(); return f(); };
-  return <ScrollView class="grow">
-    <View class="flex-col gap-3 p-2 pb-4">
-      <Panel class="p-3 gap-2">
+  return <ScrollView className="grow">
+    <View className="flex-col gap-3 p-2 pb-4">
+      <Panel className="p-3 gap-2">
         <Caption text="DISPLAY" />
-        <View class="flex-row items-center gap-2">
-          <Image src="sun.svg" class="w-4 h-4" />
-          <Slider value={() => brightness() * 100} onChange={(v: number) => setBrightness(v / 100)} min={5} max={100} step={5} class="w-[134]" />
-          <Text class={`w-8 text-xs font-semibold text-${tk().foreground}`}>{`${Math.round(brightness() * 100)}%`}</Text>
+        <View className="flex-row items-center gap-2">
+          <Image src="sun.svg" className="w-4 h-4" />
+          <Slider value={() => brightness() * 100} onChange={(v: number) => setBrightness(v / 100)} min={5} max={100} step={5} className="w-[134]" />
+          <Text className={`w-8 text-xs font-semibold text-${tk().foreground}`}>{`${Math.round(brightness() * 100)}%`}</Text>
         </View>
         <Switch checked={dark} onChange={setDark} label="Dark theme" />
         <Switch checked={tour} onChange={setTour} label="Auto tour" />
         <Switch checked={reduceMotion} onChange={setReduceMotion} label="Reduce motion" />
       </Panel>
 
-      <Panel class="py-2">
-        <View class="px-3 pb-1"><Caption text="ZINC HEAP" /></View>
-        <View class="px-3 gap-1">
+      <Panel className="py-2">
+        <View className="px-3 pb-1"><Caption text="ZINC HEAP" /></View>
+        <View className="px-3 gap-1">
           <Progress value={() => { refresh(); return mem.zincSize > 0 ? mem.zincUsed * 100 / mem.zincSize : 0; }} accent={true} />
         </View>
         <InfoRow label="In use" value={live(() => `${kib(mem.zincUsed)} of ${kib(mem.zincSize)}`)} />
         <InfoRow label="Chip RAM free (min)" value={live(() => mem.chipFree < 0 ? 'n/a' : `${kib(mem.chipFree)} (${kib(mem.chipMinFree)})`)} />
       </Panel>
 
-      <Panel class="py-2">
-        <View class="px-3 pb-1"><Caption text="RUNTIME" /></View>
+      <Panel className="py-2">
+        <View className="px-3 pb-1"><Caption text="RUNTIME" /></View>
         <InfoRow label="Frame rate" value={() => `${fps()} fps`} />
         <InfoRow label="Slowest frame (0.5 s)" value={() => `${frameMs().toFixed(1)} ms`} />
         <InfoRow label="Draw commands" value={live(() => `${device.drawCmds()} / 256`)} />
         <InfoRow label="Uptime" value={() => clockText(uptime())} />
       </Panel>
 
-      <Panel class="py-2">
-        <View class="px-3 pb-1"><Caption text="HARDWARE" /></View>
+      <Panel className="py-2">
+        <View className="px-3 pb-1"><Caption text="HARDWARE" /></View>
         <InfoRow label="Chip" value={() => CHIP} />
         <InfoRow label="CPU" value={() => MHZ > 0 ? `${MHZ} MHz` : 'host'} />
         <InfoRow label="Display" value={() => 'ST7789 240×320 i80'} />

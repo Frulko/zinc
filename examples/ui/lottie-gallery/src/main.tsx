@@ -9,18 +9,18 @@ import { AnimationCard } from './components/AnimationCard';
 const [stats, setStats] = createSignal<string>('measuring…');
 
 function App(): i32 {
-  return <View class="flex-col h-full p-4 gap-4 bg-zinc-50">
-    <View class="flex-row items-center justify-between">
-      <View class="flex-row items-end gap-3">
-        <Text class={heading(3)}>zinc:lottie</Text>
-        <Text class={mutedText()}>click a card to pause it</Text>
+  return <View className="flex-col h-full p-4 gap-4 bg-zinc-50">
+    <View className="flex-row items-center justify-between">
+      <View className="flex-row items-end gap-3">
+        <Text className={heading(3)}>zinc:lottie</Text>
+        <Text className={mutedText()}>click a card to pause it</Text>
       </View>
       {/* a Badge's label is fixed at creation: a live readout needs its own Text */}
-      <View class="px-2 py-0.5 rounded-md bg-white border border-zinc-200">
-        <Text class="text-xs font-semibold text-zinc-700">{stats()}</Text>
+      <View className="px-2 py-0.5 rounded-md bg-white border border-zinc-200">
+        <Text className="text-xs font-semibold text-zinc-700">{stats()}</Text>
       </View>
     </View>
-    <View class="flex-row flex-wrap gap-3 justify-center">
+    <View className="flex-row flex-wrap gap-3 justify-center">
       {FILES.map((file: string) => <AnimationCard file={file} />)}
     </View>
   </View>;

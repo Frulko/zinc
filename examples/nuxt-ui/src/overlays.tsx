@@ -12,25 +12,25 @@ export const menuRef = createNodeRef(), tipRef = createNodeRef();
 
 export function Overlays(): i32 {
   return <Card title="Overlays" description="Modal, Slideover, DropdownMenu, Tooltip, toasts.">
-    <View class="flex-row gap-2 flex-wrap items-start">
+    <View className="flex-row gap-2 flex-wrap items-start">
       <Button label="Open modal" onClick={() => setModal(true)} />
       <Button label="Open slideover" icon="panel-right" color="neutral" variant="outline" onClick={() => setDrawer(true)} />
-      <View ref={menuRef} class="flex-col"><DropdownMenu label="Actions" items={[
+      <View ref={menuRef} className="flex-col"><DropdownMenu label="Actions" items={[
         [{ label: 'My account', type: 'label' }, { label: 'Edit', icon: 'pencil', kbds: ['E'], onSelect: () => setChosen('edit') }, { label: 'Duplicate', icon: 'copy', onSelect: () => setChosen('duplicate') }],
         [{ label: 'Compact', type: 'checkbox', checked: compact, onSelect: () => setCompact(!compact()) }],
         [{ label: 'Delete', icon: 'trash-2', color: 'error', onSelect: () => setChosen('delete') }]]} /></View>
-      <View ref={tipRef} class="flex-col"><Tooltip text="Copy to clipboard" kbds={['⌘', 'C']}><Button icon="copy" color="neutral" variant="ghost" /></Tooltip></View>
+      <View ref={tipRef} className="flex-col"><Tooltip text="Copy to clipboard" kbds={['⌘', 'C']}><Button icon="copy" color="neutral" variant="ghost" /></Tooltip></View>
       <Button label="Toast" color="success" variant="soft" icon="circle-check" onClick={() => addToast({ title: 'Saved', description: 'Your changes are stored.', icon: 'circle-check', color: 'success', actions: ['Undo'] })} />
     </View>
-    <Text class={`text-sm text-${hex(theme().textMuted)}`}>{`menu choice: ${chosen()} · compact ${compact()}`}</Text>
-    <Modal open={modal} onUpdate={setModal} title="Invite a member" description="They will get an email with a link." footer={() => <View class="flex-row gap-1.5">
+    <Text className={`text-sm text-${hex(theme().textMuted)}`}>{`menu choice: ${chosen()} · compact ${compact()}`}</Text>
+    <Modal open={modal} onUpdate={setModal} title="Invite a member" description="They will get an email with a link." footer={() => <View className="flex-row gap-1.5">
       <Button label="Cancel" color="neutral" variant="outline" onClick={() => setModal(false)} /><Button label="Send invite" onClick={() => setModal(false)} />
     </View>}>
       <Input placeholder="name@example.com" icon="mail" />
     </Modal>
     <Slideover open={drawer} onUpdate={setDrawer} title="Notifications" description="The last ones.">
-      <Text class={`text-sm text-${hex(theme().text)}`}>Ada commented on your pull request.</Text>
-      <Text class={`text-sm text-${hex(theme().text)}`}>Grace merged “compiler: COBOL”.</Text>
+      <Text className={`text-sm text-${hex(theme().text)}`}>Ada commented on your pull request.</Text>
+      <Text className={`text-sm text-${hex(theme().text)}`}>Grace merged “compiler: COBOL”.</Text>
     </Slideover>
   </Card>;
 }

@@ -14,9 +14,9 @@ if (env('NUXT_SCHEME') === 'dark') setColorMode('dark');
 if (env('NUXT_SECTION') !== '') setSection(env('NUXT_SECTION'));
 const page = env('NUXT_PAGE');
 function App(): i32 {
-  if (page === 'gallery') return <View class={`w-full h-full overflow-auto bg-${hex(theme().bg)}`}><Gallery /></View>;
-  if (page === 'navigation') return <View class={`w-full h-full overflow-auto bg-${hex(theme().bg)}`}><Navigation /></View>;
-  return <View class={`w-full h-full bg-${hex(theme().bg)}`}><Dashboard /></View>;
+  if (page === 'gallery') return <View className={`w-full h-full overflow-auto bg-${hex(theme().bg)}`}><Gallery /></View>;
+  if (page === 'navigation') return <View className={`w-full h-full overflow-auto bg-${hex(theme().bg)}`}><Navigation /></View>;
+  return <View className={`w-full h-full bg-${hex(theme().bg)}`}><Dashboard /></View>;
 }
 let frames = 0;
 render(App, 0xffffff, (dt: number) => { if (++frames === 2) openAtStart(env('NUXT_OPEN')); });

@@ -18,25 +18,25 @@ const names = new Map<i32, string>();
 const nameOf = (h: i32): string => h < 0 ? 'none' : names.get(h) ?? `#${h}`;
 
 function App(): i32 {
-  return <view class="flex-col h-full p-2 gap-2">
-    <view class="flex-row gap-2">
-      <view class="w-[80px] h-[30px] overflow-hidden bg-slate-700 p-1">
-        <button ref={trigger} class="w-[60px] h-5" onClick={() => setMenuOpen(!menuOpen())}><text>Menu</text></button>
-        <view ref={menu} class="flex-col w-[100px] bg-slate-800 p-1 gap-1" hidden={menuOpen() ? 0 : 1}>
-          <button class="h-5" onClick={() => log('one')}><text>One</text></button>
-          <button ref={two} class="h-5" onClick={() => { log('two'); setMenuOpen(false); }}><text>Two</text></button>
-        </view>
-      </view>
-      <button ref={plain} class="w-[60px] h-5" onClick={() => log('plain')}><text>Plain</text></button>
-    </view>
-    <view class="grow" />
-    <button ref={low} class="w-[60px] h-5" onClick={() => setModalOpen(true)}><text>Low</text></button>
-    <view ref={tip} class="w-[120px] h-[40px] bg-amber-500" />
-    <view ref={point} class="w-[90px] h-[30px] bg-emerald-500" />
-    <view ref={modal} class="w-[160px] h-[80px] bg-slate-600 items-center justify-center" hidden={modalOpen() ? 0 : 1}>
-      <button ref={modalBtn} class="w-[60px] h-5" onClick={() => setModalOpen(false)}><text>Close</text></button>
-    </view>
-  </view>;
+  return <View className="flex-col h-full p-2 gap-2">
+    <View className="flex-row gap-2">
+      <View className="w-[80px] h-[30px] overflow-hidden bg-slate-700 p-1">
+        <Button ref={trigger} className="w-[60px] h-5" onClick={() => setMenuOpen(!menuOpen())}><Text>Menu</Text></Button>
+        <View ref={menu} className="flex-col w-[100px] bg-slate-800 p-1 gap-1" hidden={menuOpen() ? 0 : 1}>
+          <Button className="h-5" onClick={() => log('one')}><Text>One</Text></Button>
+          <Button ref={two} className="h-5" onClick={() => { log('two'); setMenuOpen(false); }}><Text>Two</Text></Button>
+        </View>
+      </View>
+      <Button ref={plain} className="w-[60px] h-5" onClick={() => log('plain')}><Text>Plain</Text></Button>
+    </View>
+    <View className="grow" />
+    <Button ref={low} className="w-[60px] h-5" onClick={() => setModalOpen(true)}><Text>Low</Text></Button>
+    <View ref={tip} className="w-[120px] h-[40px] bg-amber-500" />
+    <View ref={point} className="w-[90px] h-[30px] bg-emerald-500" />
+    <View ref={modal} className="w-[160px] h-[80px] bg-slate-600 items-center justify-center" hidden={modalOpen() ? 0 : 1}>
+      <Button ref={modalBtn} className="w-[60px] h-5" onClick={() => setModalOpen(false)}><Text>Close</Text></Button>
+    </View>
+  </View>;
 }
 
 function click(x: number, y: number): void { ui.pointerAt(x, y, true); ui.pointerAt(x, y, false); }

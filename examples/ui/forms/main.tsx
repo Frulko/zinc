@@ -96,67 +96,67 @@ ui.onKey((e: ui.KeyEvent) => {
 
 interface FieldProps { label: string; children: () => i32 }
 function Field(props: FieldProps): i32 {
-  return <view class="flex-col gap-1">
-    <text class="text-xs text-slate-400">{props.label}</text>
+  return <View className="flex-col gap-1">
+    <Text className="text-xs text-slate-400">{props.label}</Text>
     {props.children()}
-  </view>;
+  </View>;
 }
 function Card(n: GNode): i32 {
-  return <view class={`absolute rounded-lg border shadow-lg cursor-grab ${selected() === n ? 'bg-slate-700 border-sky-400' : 'bg-slate-800 border-slate-600 hover:border-slate-400'}`}
+  return <View className={`absolute rounded-lg border shadow-lg cursor-grab ${selected() === n ? 'bg-slate-700 border-sky-400' : 'bg-slate-800 border-slate-600 hover:border-slate-400'}`}
     style={{ left: n.x(), top: n.y(), width: CARD_W, height: CARD_H }}
     onPointerDown={(e: ui.PointerEvent) => cardDown(n, e)} onPointerMove={(e: ui.PointerEvent) => cardMove(e)}
     onPointerUp={(e: ui.PointerEvent) => { dragged = null; }}
     onContextMenu={(e: ui.PointerEvent) => duplicate(n)}>
-    <view class="px-3 py-2 flex-col gap-1">
-      <view class="flex-row items-center gap-2">
-        <view class="w-[8] h-[8] rounded-full bg-sky-400" />
-        <text class="text-sm font-bold text-white">{n.name()}</text>
-      </view>
-      <text class="text-xs text-slate-400">box #{n.id}</text>
-    </view>
-  </view>;
+    <View className="px-3 py-2 flex-col gap-1">
+      <View className="flex-row items-center gap-2">
+        <View className="w-[8] h-[8] rounded-full bg-sky-400" />
+        <Text className="text-sm font-bold text-white">{n.name()}</Text>
+      </View>
+      <Text className="text-xs text-slate-400">box #{n.id}</Text>
+    </View>
+  </View>;
 }
 function App(): i32 {
-  return <view class="flex-row h-full bg-slate-950">
-    <view class="w-[300] flex-col gap-3 p-4 bg-slate-900">
-      <text class="text-lg font-bold text-white">Box properties</text>
+  return <View className="flex-row h-full bg-slate-950">
+    <View className="w-[300] flex-col gap-3 p-4 bg-slate-900">
+      <Text className="text-lg font-bold text-white">Box properties</Text>
       <Field label="Name">
-        <input ref={nameRef} class="w-full focus:border-sky-400" placeholder="Select a box" value={selected() !== null ? (selected() as GNode).name() : ''}
+        <Input ref={nameRef} className="w-full focus:border-sky-400" placeholder="Select a box" value={selected() !== null ? (selected() as GNode).name() : ''}
           onInput={(v: string) => { const s = selected(); if (s !== null) s.setName(v); }}
           onChange={(v: string) => setStatus(`Renamed to "${v}"`)} />
       </Field>
       <Field label="Robot PIN">
-        <input class="w-full" password placeholder="4 digits" value={pin()} onInput={(v: string) => setPin(v)} />
+        <Input className="w-full" password placeholder="4 digits" value={pin()} onInput={(v: string) => setPin(v)} />
       </Field>
       <Field label="Notes">
-        <textarea class="w-full text-sm" rows={4} value={notes()} onInput={(v: string) => setNotes(v)} />
+        <TextArea className="w-full text-sm" rows={4} value={notes()} onInput={(v: string) => setNotes(v)} />
       </Field>
-      <view class="flex-row gap-2">
-        <button class="bg-sky-600 hover:bg-sky-500 active:bg-sky-700 rounded-md px-3 py-1 cursor-pointer" onClick={() => setStatus('Saved')}><text class="text-sm text-white">Save</text></button>
-        <button class="bg-slate-700 hover:bg-slate-600 rounded-md px-3 py-1 cursor-pointer" onClick={() => { setZoom(1); setPanX(0); setPanY(0); setStatus('View reset'); }}><text class="text-sm text-white">Reset view</text></button>
-      </view>
-      <text class="text-xs text-slate-400">{status()}</text>
-    </view>
-    <view class="grow flex-col">
-      <view class="h-[200] flex-col p-3 gap-1 bg-slate-900 border-slate-800">
-        <text class="text-xs text-slate-400">onStart.ts</text>
-        <textarea ref={scriptRef} class="grow w-full font-mono text-sm bg-slate-950" lineNumbers wrap={false} value={script()}
+      <View className="flex-row gap-2">
+        <Button className="bg-sky-600 hover:bg-sky-500 active:bg-sky-700 rounded-md px-3 py-1 cursor-pointer" onClick={() => setStatus('Saved')}><Text className="text-sm text-white">Save</Text></Button>
+        <Button className="bg-slate-700 hover:bg-slate-600 rounded-md px-3 py-1 cursor-pointer" onClick={() => { setZoom(1); setPanX(0); setPanY(0); setStatus('View reset'); }}><Text className="text-sm text-white">Reset view</Text></Button>
+      </View>
+      <Text className="text-xs text-slate-400">{status()}</Text>
+    </View>
+    <View className="grow flex-col">
+      <View className="h-[200] flex-col p-3 gap-1 bg-slate-900 border-slate-800">
+        <Text className="text-xs text-slate-400">onStart.ts</Text>
+        <TextArea ref={scriptRef} className="grow w-full font-mono text-sm bg-slate-950" lineNumbers wrap={false} value={script()}
           onInput={(v: string) => setScript(v)} highlight={(l: string) => ui.tsHighlight(l)} />
-      </view>
-      <view ref={canvasRef} class="grow overflow-hidden bg-slate-950 cursor-move"
+      </View>
+      <View ref={canvasRef} className="grow overflow-hidden bg-slate-950 cursor-move"
         onPointerDown={(e: ui.PointerEvent) => { panning = true; panFromX = e.x - panX(); panFromY = e.y - panY(); setSelected(null); }}
         onPointerMove={(e: ui.PointerEvent) => { if (panning) { setPanX(e.x - panFromX); setPanY(e.y - panFromY); } }}
         onPointerUp={(e: ui.PointerEvent) => { panning = false; }}
         onWheel={(e: ui.PointerEvent) => zoomAt(e)}
         onDoubleClick={(e: ui.PointerEvent) => { const p = toWorld(e.gx, e.gy); add(new GNode(nextId++, "New box", p[0], p[1])); }}>
-        <canvas class="absolute inset-0" onDraw={drawLinks} />
-        <view ref={worldRef} class="absolute left-0 top-0 w-[2000] h-[2000]" style={{ scale: zoom(), translateX: panX(), translateY: panY() }}>
+        <Canvas className="absolute inset-0" onDraw={drawLinks} />
+        <View ref={worldRef} className="absolute left-0 top-0 w-[2000] h-[2000]" style={{ scale: zoom(), translateX: panX(), translateY: panY() }}>
           <For each={nodes()}>{(n: GNode, i: i32) => Card(n)}</For>
-        </view>
-        <text class="absolute right-[8] bottom-[6] text-xs text-slate-500">{`${Math.round(zoom() * 100)}%`}</text>
-      </view>
-    </view>
-  </view>;
+        </View>
+        <Text className="absolute right-[8] bottom-[6] text-xs text-slate-500">{`${Math.round(zoom() * 100)}%`}</Text>
+      </View>
+    </View>
+  </View>;
 }
 
 const root = ui.createNode(ui.VIEW);

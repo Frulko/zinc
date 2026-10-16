@@ -46,27 +46,27 @@ const sheetPan = PanResponder.create({
 
 function Tab(p: { label: string; id: i32; icon: string }): i32 {
   const on = (): boolean => screen() === p.id || (p.id === DISCOVER && screen() === DETAIL);
-  return <view style={[tabStyles.tab, { backgroundColor: on() ? t().accentSoft : t().surface }]} onClick={() => setScreen(p.id)}>
+  return <View style={[tabStyles.tab, { backgroundColor: on() ? t().accentSoft : t().surface }]} onClick={() => setScreen(p.id)}>
     <Icon name={p.icon} size={22} color={() => on() ? t().accent : t().muted} strokeWidth={on() ? 2.2 : 1.8} />
-    <text style={[styles.tiny, { color: on() ? t().accent : t().muted }, on() && styles.bold]}>{p.label}</text>
-  </view>;
+    <Text style={[styles.tiny, { color: on() ? t().accent : t().muted }, on() && styles.bold]}>{p.label}</Text>
+  </View>;
 }
 
 function App(): i32 {
-  return <view style={{ flexDirection: 'column', width: '100%', height: '100%', backgroundColor: t().bg }}>
-    <view ref={scroller} style={{ flexDirection: 'column', flex: 1, overflow: 'scroll', paddingBottom: 100 }}>
+  return <View style={{ flexDirection: 'column', width: '100%', height: '100%', backgroundColor: t().bg }}>
+    <View ref={scroller} style={{ flexDirection: 'column', flex: 1, overflow: 'scroll', paddingBottom: 100 }}>
       <Show when={screen() === DISCOVER}>{Discover((s: Story) => { setStory(s); setScreen(DETAIL); })}</Show>
       <Show when={screen() === DETAIL}>{Detail(story, () => setScreen(DISCOVER))}</Show>
       <Show when={screen() === STATS}>{Stats()}</Show>
       <Show when={screen() === SETTINGS}>{Settings(toggles, (i: i32) => toggles[i].pos.get(), (i: i32) => { toggles[i].on = !toggles[i].on; springTo(toggles[i].pos, toggles[i].on ? 1 : 0); }, openSheet, () => darkPos.get(), () => { setDark(!isDark()); springTo(darkPos, isDark() ? 1 : 0); })}</Show>
-    </view>
-    <view style={[tabStyles.bar, { backgroundColor: t().surface, borderWidth: 1, borderColor: t().line }]}>
+    </View>
+    <View style={[tabStyles.bar, { backgroundColor: t().surface, borderWidth: 1, borderColor: t().line }]}>
       <Tab label="Discover" id={DISCOVER} icon="compass" />
       <Tab label="Stats" id={STATS} icon="chart-column" />
       <Tab label="Settings" id={SETTINGS} icon="settings" />
-    </view>
+    </View>
     <Sheet at={() => sheetAt.get()} pan={sheetPan.panHandlers} close={closeSheet} choose={(s: string) => { setTextSize(s); closeSheet(); }} current={textSize} />
-  </view>;
+  </View>;
 }
 
 

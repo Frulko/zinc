@@ -22,7 +22,7 @@ export function chord(k: string, shift: boolean = false): string { return MAC ? 
 
 /** A Lucide icon that is drawn only when the window repaints (zinc:icons' own Icon keeps the window repainting every frame). */
 export function Ico(p: { name: string; size: number; color: i32 }): i32 {
-  return <canvas class="shrink-0" style={{ width: p.size, height: p.size, lazy: 1 }} onDraw={(x: i32, y: i32, w: i32, h: i32) => {
+  return <Canvas className="shrink-0" style={{ width: p.size, height: p.size, lazy: 1 }} onDraw={(x: i32, y: i32, w: i32, h: i32) => {
     const s = icon(p.name, p.color, 2);
     if (s !== null) (s as Svg).draw(x, y, w, h, 255);
   }} />;
@@ -31,31 +31,31 @@ export function Ico(p: { name: string; size: number; color: i32 }): i32 {
  *  or 'quiet'; `keys`: its shortcut, shown in the advanced mode ('' for none). */
 export function Tool(p: { icon: string; label: string; look: string; keys: () => string; off: () => boolean; onClick: () => void }): i32 {
   const fill = p.look === 'primary' ? 'bg-amber-400 hover:bg-amber-300 active:bg-amber-500' : p.look === 'quiet' ? 'bg-zinc-900 hover:bg-zinc-800 active:bg-zinc-700' : 'bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-600';
-  return <button class={`flex-row items-center gap-[6] h-8 px-[10] rounded-md cursor-pointer ${fill} ${p.off() ? 'opacity-40' : ''}`} onClick={p.onClick}>
+  return <Button className={`flex-row items-center gap-[6] h-8 px-[10] rounded-md cursor-pointer ${fill} ${p.off() ? 'opacity-40' : ''}`} onClick={p.onClick}>
     <Ico name={p.icon} size={15} color={p.look === 'primary' ? DARK : INK} />
-    {p.label.length > 0 ? <text class={`text-xs font-bold ${p.look === 'primary' ? 'text-zinc-900' : 'text-zinc-100'}`}>{p.label}</text> : <view />}
-    <text class="text-[10px] text-zinc-500">{p.keys()}</text>
-  </button>;
+    {p.label.length > 0 ? <Text className={`text-xs font-bold ${p.look === 'primary' ? 'text-zinc-900' : 'text-zinc-100'}`}>{p.label}</Text> : <View />}
+    <Text className="text-[10px] text-zinc-500">{p.keys()}</Text>
+  </Button>;
 }
 /** A button of a panel, as wide as its row. `look`: 'plain', 'primary' or 'danger'. */
 export function Action(p: { icon: string; label: string; look: string; onClick: () => void }): i32 {
   const fill = p.look === 'danger' ? 'bg-zinc-900 border-red-900 hover:bg-red-950' : p.look === 'primary' ? 'bg-amber-400 border-amber-400 hover:bg-amber-300' : 'bg-zinc-900 border-zinc-700 hover:bg-zinc-800';
-  return <button class={`grow flex-row items-center justify-center gap-[6] h-8 px-3 rounded-md cursor-pointer border ${fill}`} onClick={p.onClick}>
+  return <Button className={`grow flex-row items-center justify-center gap-[6] h-8 px-3 rounded-md cursor-pointer border ${fill}`} onClick={p.onClick}>
     <Ico name={p.icon} size={14} color={p.look === 'danger' ? DANGER : p.look === 'primary' ? DARK : INK} />
-    <text class={`text-xs font-bold ${p.look === 'danger' ? 'text-red-400' : p.look === 'primary' ? 'text-zinc-900' : 'text-zinc-100'}`}>{p.label}</text>
-  </button>;
+    <Text className={`text-xs font-bold ${p.look === 'danger' ? 'text-red-400' : p.look === 'primary' ? 'text-zinc-900' : 'text-zinc-100'}`}>{p.label}</Text>
+  </Button>;
 }
 /** One of a few choices, all visible. */
 export function Segmented(p: { options: string[]; labels: string[]; value: () => string; onPick: (v: string) => void }): i32 {
-  return <view class="flex-row gap-[2] p-[2] rounded-md bg-zinc-950 border border-zinc-800">
-    {p.options.map((o: string, i: i32) => <button class={`grow flex-row items-center justify-center h-6 px-2 rounded cursor-pointer ${p.value() === o ? 'bg-zinc-700' : 'bg-zinc-950 hover:bg-zinc-800'}`} onClick={() => p.onPick(o)}>
-      <text class={`text-xs ${p.value() === o ? 'font-bold text-white' : 'text-zinc-400'}`}>{p.labels[i]}</text>
-    </button>)}
-  </view>;
+  return <View className="flex-row gap-[2] p-[2] rounded-md bg-zinc-950 border border-zinc-800">
+    {p.options.map((o: string, i: i32) => <Button className={`grow flex-row items-center justify-center h-6 px-2 rounded cursor-pointer ${p.value() === o ? 'bg-zinc-700' : 'bg-zinc-950 hover:bg-zinc-800'}`} onClick={() => p.onPick(o)}>
+      <Text className={`text-xs ${p.value() === o ? 'font-bold text-white' : 'text-zinc-400'}`}>{p.labels[i]}</Text>
+    </Button>)}
+  </View>;
 }
 /** The small capital heading of a group of a panel. */
 export function Heading(p: { label: string }): i32 {
-  return <text class="text-[11px] font-bold text-zinc-500" style={{ letterSpacing: 0.6 }}>{p.label.toUpperCase()}</text>;
+  return <Text className="text-[11px] font-bold text-zinc-500" style={{ letterSpacing: 0.6 }}>{p.label.toUpperCase()}</Text>;
 }
 
 /** One of many choices: a field that opens a list under it. `options` is read when the list opens (the names of the table change);
@@ -104,23 +104,23 @@ export function Picker(p: { value: () => string; options: () => string[]; label:
     return want === '' ? p.options() : p.options().filter((o: string) => o.toLowerCase().indexOf(want) >= 0 || p.label(o).toLowerCase().indexOf(want) >= 0);
   };
   // what opens the list: the field of a form, a word of a sentence, or a button with an icon (`look` is then the icon's name)
-  const Face = (): i32 => p.look === 'field' ? <button ref={field} class="w-full flex-row items-center justify-start gap-2 h-7 px-2 rounded-md cursor-pointer bg-zinc-950 border border-zinc-700 hover:border-zinc-500" onClick={toggle}>
-      <text class="grow truncate text-xs text-zinc-100" style={{ maxWidth: 122 }}>{p.label(p.value())}</text>
+  const Face = (): i32 => p.look === 'field' ? <Button ref={field} className="w-full flex-row items-center justify-start gap-2 h-7 px-2 rounded-md cursor-pointer bg-zinc-950 border border-zinc-700 hover:border-zinc-500" onClick={toggle}>
+      <Text className="grow truncate text-xs text-zinc-100" style={{ maxWidth: 122 }}>{p.label(p.value())}</Text>
       <Ico name="chevron-down" size={12} color={MUTED} />
-    </button>
-    : p.look === 'word' ? <button ref={field} class="flex-row items-center gap-1 h-6 px-[6] rounded cursor-pointer bg-zinc-800 border border-zinc-600 hover:border-amber-400" onClick={toggle}>
-      <text class="truncate text-xs font-bold text-amber-200" style={{ maxWidth: 168 }}>{p.label(p.value())}</text>
+    </Button>
+    : p.look === 'word' ? <Button ref={field} className="flex-row items-center gap-1 h-6 px-[6] rounded cursor-pointer bg-zinc-800 border border-zinc-600 hover:border-amber-400" onClick={toggle}>
+      <Text className="truncate text-xs font-bold text-amber-200" style={{ maxWidth: 168 }}>{p.label(p.value())}</Text>
       <Ico name="chevron-down" size={10} color={ACCENT} />
-    </button>
-    : <button ref={field} class={`flex-row items-center justify-center gap-[6] rounded-md cursor-pointer ${p.title === '' ? 'w-[20] h-[20] bg-transparent hover:bg-zinc-700' : 'h-7 px-2 bg-zinc-900 border border-zinc-700 hover:bg-zinc-800'}`} tabIndex={-1} onClick={toggle}>
+    </Button>
+    : <Button ref={field} className={`flex-row items-center justify-center gap-[6] rounded-md cursor-pointer ${p.title === '' ? 'w-[20] h-[20] bg-transparent hover:bg-zinc-700' : 'h-7 px-2 bg-zinc-900 border border-zinc-700 hover:bg-zinc-800'}`} tabIndex={-1} onClick={toggle}>
       <Ico name={p.look} size={p.title === '' ? 11 : 12} color={MUTED} />
-      {p.title === '' ? <view /> : <text class="text-xs font-bold text-zinc-300">{p.title}</text>}
-    </button>;
-  const node = <view class={p.look === 'field' ? 'w-full flex-col' : 'flex-col'}>
+      {p.title === '' ? <View /> : <Text className="text-xs font-bold text-zinc-300">{p.title}</Text>}
+    </Button>;
+  const node = <View className={p.look === 'field' ? 'w-full flex-col' : 'flex-col'}>
     {Face()}
-    <view ref={list} hidden={1} class="flex-col gap-1 p-1 rounded-md bg-zinc-900 border border-zinc-600 shadow-lg" style={{ width: p.width }}>
+    <View ref={list} hidden={1} className="flex-col gap-1 p-1 rounded-md bg-zinc-900 border border-zinc-600 shadow-lg" style={{ width: p.width }}>
       <Show when={long()}>
-        <input ref={search} class="h-7 px-2 rounded bg-zinc-950 border border-zinc-700 text-xs text-zinc-100 focus:border-amber-400" style={{ width: p.width - 10 }}
+        <Input ref={search} className="h-7 px-2 rounded bg-zinc-950 border border-zinc-700 text-xs text-zinc-100 focus:border-amber-400" style={{ width: p.width - 10 }}
           onInput={(v: string) => setTyped(v)} onKeyDown={(e: ui.KeyEvent) => {
             // Enter takes the first line left; leaving the box (a click on a line) takes nothing by itself
             if (e.key !== 'Enter') return;
@@ -129,18 +129,18 @@ export function Picker(p: { value: () => string; options: () => string[]; label:
             e.preventDefault();
           }} />
       </Show>
-      <scroll class="flex-col" style={{ maxHeight: 264 }}>
-        <For each={shown()}>{(o: string, i: i32) => <button
-          class={`flex-row items-center justify-start gap-2 h-6 px-2 rounded cursor-pointer ${p.value() === o ? 'bg-zinc-700' : 'bg-zinc-900 hover:bg-zinc-800'}`} onClick={() => { close(); p.onPick(o); }}>
+      <ScrollView className="flex-col" style={{ maxHeight: 264 }}>
+        <For each={shown()}>{(o: string, i: i32) => <Button
+          className={`flex-row items-center justify-start gap-2 h-6 px-2 rounded cursor-pointer ${p.value() === o ? 'bg-zinc-700' : 'bg-zinc-900 hover:bg-zinc-800'}`} onClick={() => { close(); p.onPick(o); }}>
           <Show when={p.picture(o) >= 0}>
-            <canvas class="shrink-0" style={{ width: 20, height: 20, lazy: 1 }} onDraw={(x: i32, y: i32, w: i32, h: i32) => drawFitted(p.picture(o), x, y, w, h)} />
+            <Canvas className="shrink-0" style={{ width: 20, height: 20, lazy: 1 }} onDraw={(x: i32, y: i32, w: i32, h: i32) => drawFitted(p.picture(o), x, y, w, h)} />
           </Show>
-          <text class={`grow truncate text-xs ${p.value() === o ? 'font-bold text-white' : 'text-zinc-200'}`} style={{ maxWidth: p.width - (p.note(o) === '' ? 24 : 104) - (p.picture(o) >= 0 ? 28 : 0) }}>{p.label(o)}</text>
-          <text class="shrink-0 text-[10px] text-zinc-500">{p.note(o)}</text>
-        </button>}</For>
-      </scroll>
-    </view>
-  </view>;
+          <Text className={`grow truncate text-xs ${p.value() === o ? 'font-bold text-white' : 'text-zinc-200'}`} style={{ maxWidth: p.width - (p.note(o) === '' ? 24 : 104) - (p.picture(o) >= 0 ? 28 : 0) }}>{p.label(o)}</Text>
+          <Text className="shrink-0 text-[10px] text-zinc-500">{p.note(o)}</Text>
+        </Button>}</For>
+      </ScrollView>
+    </View>
+  </View>;
   ui.openLayer(list.node, { priority: 100 });
   // the list of a button, which is at the right of its line, opens towards the left
   ui.anchor(list.node, field.node, p.look === 'field' || p.look === 'word' ? 'bottom-start' : 'bottom-end', 2);
@@ -150,10 +150,10 @@ export function Picker(p: { value: () => string; options: () => string[]; label:
 }
 /** Yes or no. */
 export function Switch(p: { value: () => boolean; yes: string; no: string; onPick: (v: boolean) => void }): i32 {
-  return <button class="flex-row items-center justify-start gap-2 h-7 px-0 cursor-pointer bg-transparent" onClick={() => p.onPick(!p.value())}>
-    <view class={`w-[30] h-[16] rounded-full flex-row items-center px-[2] ${p.value() ? 'bg-amber-400 justify-end' : 'bg-zinc-700 justify-start'}`}>
-      <view class={`w-[12] h-[12] rounded-full ${p.value() ? 'bg-zinc-900' : 'bg-zinc-300'}`} />
-    </view>
-    <text class="text-xs text-zinc-300">{p.value() ? p.yes : p.no}</text>
-  </button>;
+  return <Button className="flex-row items-center justify-start gap-2 h-7 px-0 cursor-pointer bg-transparent" onClick={() => p.onPick(!p.value())}>
+    <View className={`w-[30] h-[16] rounded-full flex-row items-center px-[2] ${p.value() ? 'bg-amber-400 justify-end' : 'bg-zinc-700 justify-start'}`}>
+      <View className={`w-[12] h-[12] rounded-full ${p.value() ? 'bg-zinc-900' : 'bg-zinc-300'}`} />
+    </View>
+    <Text className="text-xs text-zinc-300">{p.value() ? p.yes : p.no}</Text>
+  </Button>;
 }

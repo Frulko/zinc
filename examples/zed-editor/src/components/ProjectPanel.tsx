@@ -72,7 +72,7 @@ function TreeRow(props: { e: Entry }): i32 {
   const isActive = (): boolean => { const b = active(); return b !== null && (b as Buffer).path === e.path; };
   const lead = e.depth * INDENT + 44;
   const color = (): i32 => isOpenModified(e) ? theme().modified : isActive() || isSel() ? theme().text : theme().muted;
-  return <View class={`flex-row items-center h-[24] pr-3 cursor-pointer ${isSel() ? bg(theme().selected) : ''} hover:${bg(theme().hover)}`}
+  return <View className={`flex-row items-center h-[24] pr-3 cursor-pointer ${isSel() ? bg(theme().selected) : ''} hover:${bg(theme().hover)}`}
     onPointerDown={(ev: ui.PointerEvent) => rowDown(e, ev)}>
     <Canvas style={{ width: lead, height: 24, lazy: 1 }} onDraw={(x: i32, y: i32, w: i32, h: i32) => {
       const t = theme();
@@ -82,7 +82,7 @@ function TreeRow(props: { e: Entry }): i32 {
       if (e.dir) drawChevron(cx, y + 4, 16, e.chevron.get(), t.faint);
       drawFileIcon(e.name, e.dir, e.open, cx + 15, y + 4, 16, t);
     }} />
-    <Text class={`text-[13px] ${fg(color())}`}>{e.name}</Text>
+    <Text className={`text-[13px] ${fg(color())}`}>{e.name}</Text>
   </View>;
 }
 
@@ -90,15 +90,15 @@ const scrollRef = createNodeRef();
 let dragFrom: number = -1, dragW: number = 0;
 
 export function ProjectPanel(): i32 {
-  return <View ref={panelRef} focusable class={`flex-col h-full overflow-hidden border-r ${bg(theme().surface)} ${bd(theme().borderSoft)} focus:${bd(theme().borderSoft)}`}
+  return <View ref={panelRef} focusable className={`flex-col h-full overflow-hidden border-r ${bg(theme().surface)} ${bd(theme().borderSoft)} focus:${bd(theme().borderSoft)}`}
     style={{ width: panelW.get(), hidden: panelW.get() < 1 ? 1 : 0 }} onKeyDown={treeKey}>
-    <View class="flex-row items-center h-[30] px-3">
-      <Text class={`text-[11px] font-semibold tracking-wider ${fg(theme().faint)}`}>{root.name.toUpperCase()}</Text>
+    <View className="flex-row items-center h-[30] px-3">
+      <Text className={`text-[11px] font-semibold tracking-wider ${fg(theme().faint)}`}>{root.name.toUpperCase()}</Text>
     </View>
-    <ScrollView ref={scrollRef} class="grow pb-2" style={{ width: panelWidth() }}>
+    <ScrollView ref={scrollRef} className="grow pb-2" style={{ width: panelWidth() }}>
       <For each={rows()}>{(e: Entry, i: i32) => <TreeRow e={e} />}</For>
     </ScrollView>
-    <View class={`absolute top-0 bottom-0 right-0 w-[5] cursor-col-resize hover:${bg(theme().accent)}`}
+    <View className={`absolute top-0 bottom-0 right-0 w-[5] cursor-col-resize hover:${bg(theme().accent)}`}
       onPointerDown={(ev: ui.PointerEvent) => { dragFrom = ev.gx; dragW = panelWidth(); }}
       onPointerMove={(ev: ui.PointerEvent) => { if (dragFrom >= 0) setPanelWidth(dragW + ev.gx - dragFrom); }}
       onPointerUp={(ev: ui.PointerEvent) => { dragFrom = -1; }} />

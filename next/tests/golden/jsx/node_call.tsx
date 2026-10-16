@@ -3,11 +3,11 @@
 // and a component in a fragment are mounted; a number and String(x) stay text.
 import { dump } from './helpers';
 
-function Part(): i32 { return <View class="p-2"><Text>part</Text></View>; }
-const row = (label: string): i32 => <View class="flex-row"><Text>{label}</Text></View>;
+function Part(): i32 { return <View className="p-2"><Text>part</Text></View>; }
+const row = (label: string): i32 => <View className="flex-row"><Text>{label}</Text></View>;
 function count(): number { return 3; }
 
-const root = <View class="flex-col">
+const root = <View className="flex-col">
   {Part()}
   {row('a')}
   <>{Part()}</>

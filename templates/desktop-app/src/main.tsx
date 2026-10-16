@@ -17,17 +17,17 @@ function renderNav(): i32 {
 }
 
 function App(): i32 {
-  return <View class={`w-full h-full bg-${hex(theme().bg)}`}><DashboardGroup>
+  return <View className={`w-full h-full bg-${hex(theme().bg)}`}><DashboardGroup>
     <DashboardSidebar collapsed={collapsed}
-      header={() => <View class="flex-row items-center gap-2"><Avatar text={APP_NAME.slice(0, 1).toUpperCase()} size="sm" color="primary" />
-        <Show when={!collapsed()}><Text class={`font-semibold text-${hex(theme().textHighlighted)}`}>{APP_NAME}</Text></Show></View>}
-      footer={() => <View class={`flex-row items-center gap-1 ${collapsed() ? 'flex-col' : ''}`}>
+      header={() => <View className="flex-row items-center gap-2"><Avatar text={APP_NAME.slice(0, 1).toUpperCase()} size="sm" color="primary" />
+        <Show when={!collapsed()}><Text className={`font-semibold text-${hex(theme().textHighlighted)}`}>{APP_NAME}</Text></Show></View>}
+      footer={() => <View className={`flex-row items-center gap-1 ${collapsed() ? 'flex-col' : ''}`}>
         <Button icon={dark() ? 'sun' : 'moon'} color="neutral" variant="ghost" onClick={() => setDark(!dark())} />
         <Button icon={collapsed() ? 'chevron-right' : 'chevron-left'} color="neutral" variant="ghost" onClick={() => setCollapsed(!collapsed())} />
       </View>}>
       {renderNav()}
     </DashboardSidebar>
-    <DashboardPanel header={() => <DashboardNavbar title={page()} icon={ICONS[PAGES.indexOf(page())]} right={() => <View class="flex-row items-center gap-1.5">
+    <DashboardPanel header={() => <DashboardNavbar title={page()} icon={ICONS[PAGES.indexOf(page())]} right={() => <View className="flex-row items-center gap-1.5">
       <Button icon="chevron-left" color="neutral" variant="ghost" onClick={() => back()} />
       <DropdownMenu label="File" icon="menu" color="neutral" variant="outline" placement="bottom-end" items={[
         [{ label: 'New note', icon: 'plus', onSelect: () => { addNote(`Note ${new Date().toLocaleTimeString()}`); go('Notes'); } }],

@@ -51,9 +51,9 @@ class Fixture extends Source {
 const fixture = new Fixture();
 
 function App(): i32 {
-  return <view class="w-full h-full flex-col bg-zinc-900">
-    <scroll class="grow basis-0 min-h-0 flex-col py-2"><Fields src={fixture} schema={gadget} path="" whole={true} /></scroll>
+  return <View className="w-full h-full flex-col bg-zinc-900">
+    <ScrollView className="grow basis-0 min-h-0 flex-col py-2"><Fields src={fixture} schema={gadget} path="" whole={true} /></ScrollView>
     <Help src={fixture} />
-  </view>;
+  </View>;
 }
 render(App, 0x18181b, null);

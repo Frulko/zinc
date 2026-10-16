@@ -53,44 +53,44 @@ export function browseDetail(dir: i32): void { stepDetail(dir, ARTWORKS.length);
 export function Detail(): i32 {
   createEffect(() => { if (detail() >= 0) syncHeart(); });   // the heart shows the state of the artwork on display
   const info = (): number => easeOut(clamp01((detailT.get() - 0.35) / 0.65));
-  return <View class="absolute inset-0" style={{ hidden: detail() < 0 ? 1 : 0 }}>
-    <Show when={detail() >= 0}><View class="absolute inset-0">
-    <View class={`absolute inset-0 bg-${theme().background}`} style={{ opacity: detailT.get() }} onClick={() => {}} />
-    <View class="absolute overflow-hidden rounded-2xl shadow-xl"
+  return <View className="absolute inset-0" style={{ hidden: detail() < 0 ? 1 : 0 }}>
+    <Show when={detail() >= 0}><View className="absolute inset-0">
+    <View className={`absolute inset-0 bg-${theme().background}`} style={{ opacity: detailT.get() }} onClick={() => {}} />
+    <View className="absolute overflow-hidden rounded-2xl shadow-xl"
       style={{ left: box(0), top: box(1), width: box(2), height: box(3) }}>
-      <Canvas class="absolute inset-0"
+      <Canvas className="absolute inset-0"
         onDraw={(x: i32, y: i32, w: i32, h: i32) => drawArt(Math.max(0, detail()), x, y, w, h, seconds(), px, py)}
         onPointerMove={(e: ui.PointerEvent) => { px = e.x / Math.max(1, box(2)); py = e.y / Math.max(1, box(3)); }}
         onPointerLeave={(e: ui.PointerEvent) => { px = -1; py = -1; }} />
     </View>
-    <View class="absolute flex-col gap-5"
+    <View className="absolute flex-col gap-5"
       style={{ left: target()[2] + PAD * 2, top: PAD, width: Math.max(200, target()[4] - target()[2] - PAD * 3), opacity: info(), translateX: (1 - info()) * 40 }}>
-      <View class={`flex-row items-center gap-2 h-9 px-2 rounded-lg cursor-pointer hover:bg-${theme().muted}`} onClick={() => closeDetail()}>
+      <View className={`flex-row items-center gap-2 h-9 px-2 rounded-lg cursor-pointer hover:bg-${theme().muted}`} onClick={() => closeDetail()}>
         <Icon kind={BACK_ICON} size={16} color={() => rgb(theme().mutedForeground)} />
-        <Text class={`text-sm font-semibold text-${theme().mutedForeground}`}>Back to gallery</Text>
-        <View class="grow" />
-        <Text class={`text-xs text-${theme().mutedForeground}`}>{`${detail() + 1} / ${ARTWORKS.length}`}</Text>
+        <Text className={`text-sm font-semibold text-${theme().mutedForeground}`}>Back to gallery</Text>
+        <View className="grow" />
+        <Text className={`text-xs text-${theme().mutedForeground}`}>{`${detail() + 1} / ${ARTWORKS.length}`}</Text>
       </View>
-      <View class="flex-col gap-1">
-        <Text class={heading(1)}>{art().title}</Text>
-        <Text class={mutedText()}>{`${art().artist}, ${art().year}`}</Text>
+      <View className="flex-col gap-1">
+        <Text className={heading(1)}>{art().title}</Text>
+        <Text className={mutedText()}>{`${art().artist}, ${art().year}`}</Text>
       </View>
-      {shownArt().map((a: Artwork) => <View class="flex-row gap-2">
+      {shownArt().map((a: Artwork) => <View className="flex-row gap-2">
         {a.tags.map((t: string) => <Badge label={t} variant="secondary" />)}
         <Badge label="live" variant="accent" />
       </View>)}
-      <Text class={`text-base text-${theme().foreground}`}>{art().about}</Text>
-      <View class="flex-row items-center gap-2">
-        <View class={`flex-row items-center gap-1 pr-4 h-12 rounded-xl border cursor-pointer border-${theme().border} hover:bg-${theme().muted}`}
+      <Text className={`text-base text-${theme().foreground}`}>{art().about}</Text>
+      <View className="flex-row items-center gap-2">
+        <View className={`flex-row items-center gap-1 pr-4 h-12 rounded-xl border cursor-pointer border-${theme().border} hover:bg-${theme().muted}`}
           onClick={() => toggleLike()}>
-          <Lottie src="heart.json" class="w-14 h-14" player={(p: Player) => { p.loop = false; heart = p; syncHeart(); }} />
-          <Text class={`text-sm font-semibold text-${theme().foreground}`}>{art().liked() ? 'Liked' : 'Like'}</Text>
+          <Lottie src="heart.json" className="w-14 h-14" player={(p: Player) => { p.loop = false; heart = p; syncHeart(); }} />
+          <Text className={`text-sm font-semibold text-${theme().foreground}`}>{art().liked() ? 'Liked' : 'Like'}</Text>
         </View>
-        <View class="grow" />
+        <View className="grow" />
         <Button label="← Previous" variant="outline" onClick={() => browseDetail(-1)} />
         <Button label="Next →" variant="outline" onClick={() => browseDetail(1)} />
       </View>
-      <Text class={`text-xs text-${theme().mutedForeground}`}>Move the pointer over the artwork to change it. ← → browse, Esc goes back.</Text>
+      <Text className={`text-xs text-${theme().mutedForeground}`}>Move the pointer over the artwork to change it. ← → browse, Esc goes back.</Text>
     </View>
     </View></Show>
   </View>;

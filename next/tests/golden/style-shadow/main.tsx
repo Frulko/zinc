@@ -13,15 +13,15 @@ const s = StyleSheet.create({
 });
 const [lift, setLift] = createSignal<number>(0.3);
 function App(): i32 {
-  return <view style={s.page}>
-    <view style={[s.card, s.ios]} />
-    <view style={[s.card, s.coloured]} />
-    <view style={[s.card, s.noOpacity]} />
-    <view style={[s.card, s.e2]} />
-    <view style={[s.card, s.e8]} />
-    <view style={[s.card, s.e16]} />
-    <view style={[s.card, { shadowColor: 0x0f766e, shadowOffset: { width: 0, height: lift() * 20 }, shadowOpacity: lift(), shadowRadius: 10 }]} />
-  </view>;
+  return <View style={s.page}>
+    <View style={[s.card, s.ios]} />
+    <View style={[s.card, s.coloured]} />
+    <View style={[s.card, s.noOpacity]} />
+    <View style={[s.card, s.e2]} />
+    <View style={[s.card, s.e8]} />
+    <View style={[s.card, s.e16]} />
+    <View style={[s.card, { shadowColor: 0x0f766e, shadowOffset: { width: 0, height: lift() * 20 }, shadowOpacity: lift(), shadowRadius: 10 }]} />
+  </View>;
 }
 let frames = 0;
 render(App, 0xf4f1ec, (dt: number) => { if (++frames === 2) setLift(0.5); });

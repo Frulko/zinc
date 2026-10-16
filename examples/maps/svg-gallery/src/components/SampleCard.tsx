@@ -28,11 +28,11 @@ export function SampleCard(props: { doc: Document }): i32 {
   const doc = props.doc;
   return <Card>
     <CardContent>
-      <View class="flex-row items-center justify-between">
-        <Text class={heading(4)}>{doc.name}</Text>
+      <View className="flex-row items-center justify-between">
+        <Text className={heading(4)}>{doc.name}</Text>
         <Badge label={`${doc.svg.items()} shapes`} variant="secondary" />
       </View>
-      <Canvas class="h-24" onDraw={(x: i32, y: i32, w: i32, h: i32) => drawSizes(doc, x, y, w, h)} />
+      <Canvas className="h-24" onDraw={(x: i32, y: i32, w: i32, h: i32) => drawSizes(doc, x, y, w, h)} />
     </CardContent>
   </Card>;
 }

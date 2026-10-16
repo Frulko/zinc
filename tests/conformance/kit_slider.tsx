@@ -10,8 +10,8 @@ const [level, setLevel] = createSignal<number>(40);
 const holder = createNodeRef();
 
 function App(): i32 {
-  return <View class="flex-col p-4">
-    <View ref={holder} class="w-[216px]">
+  return <View className="flex-col p-4">
+    <View ref={holder} className="w-[216px]">
       <Slider value={level} onChange={setLevel} step={5} />
     </View>
   </View>;

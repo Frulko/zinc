@@ -14,11 +14,11 @@ const starts: i32[] = [];
 const r = (v: number): number => Math.round(v);
 
 const root = ui.createNode(ui.VIEW);
-ui.insert(root, <view class="flex-col p-2 gap-2 h-full">
-  <textarea ref={codeRef} class="w-[300] h-[200] font-mono text-sm" lineNumbers wrap={false} value={text} />
-  <textarea ref={wrapRef} class="w-[160] h-[80] font-mono text-sm" value={'short\n' + 'word '.repeat(20) + '\nüber ende'} />
-  <canvas class="w-[10] h-[10]" style={{ lazy: 1 }} onDraw={(x: i32, y: i32, w: i32, h: i32) => { lazyDraws++; }} />
-</view>, -1);
+ui.insert(root, <View className="flex-col p-2 gap-2 h-full">
+  <TextArea ref={codeRef} className="w-[300] h-[200] font-mono text-sm" lineNumbers wrap={false} value={text} />
+  <TextArea ref={wrapRef} className="w-[160] h-[80] font-mono text-sm" value={'short\n' + 'word '.repeat(20) + '\nüber ende'} />
+  <Canvas className="w-[10] h-[10]" style={{ lazy: 1 }} onDraw={(x: i32, y: i32, w: i32, h: i32) => { lazyDraws++; }} />
+</View>, -1);
 ui.pointerAt(0, 0, false);  // test hooks drive the input from now on
 
 function view(h: i32): string { return ui.editView(h).map((v: number) => `${r(v)}`).join(','); }

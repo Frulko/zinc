@@ -11,64 +11,64 @@ export class Toggle {
 }
 
 function Row(p: { label: string; icon: string; last: boolean; children: () => i32 }): i32 {
-  return <view style={[styles.listRow, { borderBottomWidth: p.last ? 0 : 1, borderColor: t().line }]}>
-    <view style={styles.row}>
+  return <View style={[styles.listRow, { borderBottomWidth: p.last ? 0 : 1, borderColor: t().line }]}>
+    <View style={styles.row}>
       <Icon name={p.icon} size={20} color={() => t().muted} />
-      <text style={[styles.body, { color: t().ink }]}>{p.label}</text>
-    </view>
+      <Text style={[styles.body, { color: t().ink }]}>{p.label}</Text>
+    </View>
     {p.children()}
-  </view>;
+  </View>;
 }
 
 export function Settings(toggles: Toggle[], pos: (i: i32) => number, flip: (i: i32) => void, openSheet: () => void, dark: () => number, flipDark: () => void): i32 {
-  return <view style={styles.screen}>
-    <text style={[styles.display, { color: t().ink }]}>Settings</text>
-    <view style={{ flexDirection: 'column', gap: 8 }}>
-      <text style={[styles.tiny, { color: t().muted }]}>READING</text>
-      <view style={[styles.group, { backgroundColor: t().surface }]}>
+  return <View style={styles.screen}>
+    <Text style={[styles.display, { color: t().ink }]}>Settings</Text>
+    <View style={{ flexDirection: 'column', gap: 8 }}>
+      <Text style={[styles.tiny, { color: t().muted }]}>READING</Text>
+      <View style={[styles.group, { backgroundColor: t().surface }]}>
         <Row label={toggles[0].label} icon="download" last={false}><Switch pos={() => pos(0)} press={() => flip(0)} /></Row>
         <Row label={toggles[1].label} icon="newspaper" last={false}><Switch pos={() => pos(1)} press={() => flip(1)} /></Row>
         <Row label={toggles[2].label} icon="volume-2" last={true}><Switch pos={() => pos(2)} press={() => flip(2)} /></Row>
-      </view>
-    </view>
-    <view style={{ flexDirection: 'column', gap: 8 }}>
-      <text style={[styles.tiny, { color: t().muted }]}>APPEARANCE</text>
-      <view style={[styles.group, { backgroundColor: t().surface }]}>
+      </View>
+    </View>
+    <View style={{ flexDirection: 'column', gap: 8 }}>
+      <Text style={[styles.tiny, { color: t().muted }]}>APPEARANCE</Text>
+      <View style={[styles.group, { backgroundColor: t().surface }]}>
         <Row label="Dark mode" icon="moon" last={false}><Switch pos={dark} press={flipDark} /></Row>
-        <view style={styles.listRow} onClick={openSheet}>
-          <view style={styles.row}>
+        <View style={styles.listRow} onClick={openSheet}>
+          <View style={styles.row}>
             <Icon name="type" size={20} color={() => t().muted} />
-            <text style={[styles.body, { color: t().ink }]}>Text size</text>
-          </view>
-          <view style={[styles.row, { gap: 2 }]}>
-            <text style={[styles.body, { color: t().muted }]}>Comfortable</text>
+            <Text style={[styles.body, { color: t().ink }]}>Text size</Text>
+          </View>
+          <View style={[styles.row, { gap: 2 }]}>
+            <Text style={[styles.body, { color: t().muted }]}>Comfortable</Text>
             <Icon name="chevron-right" size={18} color={() => t().faint} />
-          </view>
-        </view>
-      </view>
-    </view>
-    <text style={[styles.small, { color: t().faint }]}>{isDark() ? 'Dark scheme: warm blacks, softer accent.' : 'Light scheme: warm paper, coral accent.'}</text>
-  </view>;
+          </View>
+        </View>
+      </View>
+    </View>
+    <Text style={[styles.small, { color: t().faint }]}>{isDark() ? 'Dark scheme: warm blacks, softer accent.' : 'Light scheme: warm paper, coral accent.'}</Text>
+  </View>;
 }
 
 /** The bottom sheet: a backdrop and a panel; `at` is 0 (hidden) .. 1 (open), eased by the app. */
 export function Sheet(p: { at: () => number; pan: ui.PanHandlers; close: () => void; choose: (s: string) => void; current: () => string }): i32 {
   const at = p.at, current = p.current, choose = p.choose;
-  return <view style={[{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }, at() < 0.01 && styles.hidden]}>
-    <view style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 0x000000, opacity: at() * 0.45 }} onClick={p.close} />
-    <view style={{ position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'column', gap: 6, padding: 20, paddingBottom: 34, borderRadius: 26, backgroundColor: t().surface, translateY: (1 - at()) * 320 }} {...p.pan}>
-      <view style={{ alignItems: 'center' }}><view style={{ width: 40, height: 5, borderRadius: 3, backgroundColor: t().line }} /></view>
-      <text style={[styles.title, { color: t().ink }]}>Text size</text>
+  return <View style={[{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }, at() < 0.01 && styles.hidden]}>
+    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 0x000000, opacity: at() * 0.45 }} onClick={p.close} />
+    <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'column', gap: 6, padding: 20, paddingBottom: 34, borderRadius: 26, backgroundColor: t().surface, translateY: (1 - at()) * 320 }} {...p.pan}>
+      <View style={{ alignItems: 'center' }}><View style={{ width: 40, height: 5, borderRadius: 3, backgroundColor: t().line }} /></View>
+      <Text style={[styles.title, { color: t().ink }]}>Text size</Text>
       <Option name="Compact" current={current} choose={choose} />
       <Option name="Comfortable" current={current} choose={choose} />
       <Option name="Large" current={current} choose={choose} />
-    </view>
-  </view>;
+    </View>
+  </View>;
 }
 function Option(p: { name: string; current: () => string; choose: (s: string) => void }): i32 {
   const on = (): boolean => p.current() === p.name;
-  return <view style={[styles.listRow, { borderRadius: 14, backgroundColor: on() ? t().accentSoft : t().surface }]} onClick={() => p.choose(p.name)}>
-    <text style={[styles.body, { color: on() ? t().accent : t().ink }, on() && styles.bold]}>{p.name}</text>
-    <view style={[{ width: 10, height: 10, borderRadius: 5, backgroundColor: t().accent }, !on() && styles.hidden]} />
-  </view>;
+  return <View style={[styles.listRow, { borderRadius: 14, backgroundColor: on() ? t().accentSoft : t().surface }]} onClick={() => p.choose(p.name)}>
+    <Text style={[styles.body, { color: on() ? t().accent : t().ink }, on() && styles.bold]}>{p.name}</Text>
+    <View style={[{ width: 10, height: 10, borderRadius: 5, backgroundColor: t().accent }, !on() && styles.hidden]} />
+  </View>;
 }

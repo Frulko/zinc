@@ -40,23 +40,23 @@ export function Video(): i32 {
   setPaused(false);
   player = p;
   onCleanup(() => { player = null; p.close(); });
-  return <ScrollView class="grow">
-    <View class="flex-col gap-4 p-4 lg:p-8">
-      <View class="flex-col gap-1">
-        <Text class={heading(2)}>Video</Text>
-        <Text class={mutedText()}>Big Buck Bunny (Blender Foundation, CC BY 3.0), 640x360 H.264.</Text>
+  return <ScrollView className="grow">
+    <View className="flex-col gap-4 p-4 lg:p-8">
+      <View className="flex-col gap-1">
+        <Text className={heading(2)}>Video</Text>
+        <Text className={mutedText()}>Big Buck Bunny (Blender Foundation, CC BY 3.0), 640x360 H.264.</Text>
       </View>
       <Show when={found}>
         <Card>
           <CardContent>
-            <View class="h-[300] rounded-xl overflow-hidden bg-black">
-              <Canvas class="grow" onDraw={(x: i32, y: i32, w: i32, h: i32) => drawVideo(p, x, y, w, h)} />
+            <View className="h-[300] rounded-xl overflow-hidden bg-black">
+              <Canvas className="grow" onDraw={(x: i32, y: i32, w: i32, h: i32) => drawVideo(p, x, y, w, h)} />
             </View>
             <Progress value={pos} />
-            <View class="flex-row items-center gap-3">
+            <View className="flex-row items-center gap-3">
               <Button label={paused() ? 'Play' : 'Pause'} onClick={() => { setPaused(!paused()); p.pause(paused()); }} />
               <Button label="Restart" variant="outline" onClick={() => p.jump(0)} />
-              <Text class={`text-sm grow text-${theme().mutedForeground}`}>{clockText()}</Text>
+              <Text className={`text-sm grow text-${theme().mutedForeground}`}>{clockText()}</Text>
               <Badge label={p.decoder} variant="outline" />
             </View>
           </CardContent>
@@ -65,8 +65,8 @@ export function Video(): i32 {
       <Show when={!found}>
         <Card>
           <CardContent>
-            <Text class={`text-sm text-${theme().foreground}`}>media/bbb.mp4 not found next to the program.</Text>
-            <Text class={mutedText()}>See examples/hero/README.md to fetch it.</Text>
+            <Text className={`text-sm text-${theme().foreground}`}>media/bbb.mp4 not found next to the program.</Text>
+            <Text className={mutedText()}>See examples/hero/README.md to fetch it.</Text>
           </CardContent>
         </Card>
       </Show>

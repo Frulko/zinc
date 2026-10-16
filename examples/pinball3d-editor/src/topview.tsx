@@ -515,43 +515,43 @@ export function TopView(): i32 {
   createEffect(() => { view3d(); fitSoon(); });
   // where the pointer is on the table, and how large the table is shown
   const where = (): string => `${inside() ? `x ${pointX().toFixed(1)}  y ${pointY().toFixed(1)} ${t(L.CM)}   ` : ''}${zoom().toFixed(1)} px/cm`;
-  return <view class="grow basis-0 min-w-0 flex-row">
-    <view class="grow basis-0 min-w-0 flex-col">
-      <view class="flex-row items-center gap-1 h-9 px-3 shrink-0 bg-zinc-900 border-b border-zinc-800">
+  return <View className="grow basis-0 min-w-0 flex-row">
+    <View className="grow basis-0 min-w-0 flex-col">
+      <View className="flex-row items-center gap-1 h-9 px-3 shrink-0 bg-zinc-900 border-b border-zinc-800">
         <Heading label={t(L.TOP_VIEW)} />
-        <view class="grow" />
+        <View className="grow" />
         <Show when={levels().length > 1}>
-          <button class={`flex-row items-center gap-1 h-7 px-2 rounded-md cursor-pointer ${level() < 0 ? 'bg-zinc-900 hover:bg-zinc-800' : 'bg-zinc-700'}`} onClick={nextLevel}>
-            <text class="text-[11px] text-zinc-500">{t(L.LEVEL)}</text>
-            <text class="text-xs font-bold text-zinc-200">{level() < 0 ? t(L.ALL_LEVELS) : `${level()} cm`}</text>
-          </button>
+          <Button className={`flex-row items-center gap-1 h-7 px-2 rounded-md cursor-pointer ${level() < 0 ? 'bg-zinc-900 hover:bg-zinc-800' : 'bg-zinc-700'}`} onClick={nextLevel}>
+            <Text className="text-[11px] text-zinc-500">{t(L.LEVEL)}</Text>
+            <Text className="text-xs font-bold text-zinc-200">{level() < 0 ? t(L.ALL_LEVELS) : `${level()} cm`}</Text>
+          </Button>
         </Show>
-        <button class="flex-row items-center gap-1 h-7 px-2 rounded-md cursor-pointer bg-zinc-900 hover:bg-zinc-800" onClick={() => setGrid(GRIDS[(GRIDS.indexOf(grid()) + 1) % GRIDS.length])}>
-          <text class="text-[11px] text-zinc-500">{t(L.SNAP)}</text>
-          <text class="text-xs font-bold text-zinc-200">{gridName(grid())}</text>
-        </button>
+        <Button className="flex-row items-center gap-1 h-7 px-2 rounded-md cursor-pointer bg-zinc-900 hover:bg-zinc-800" onClick={() => setGrid(GRIDS[(GRIDS.indexOf(grid()) + 1) % GRIDS.length])}>
+          <Text className="text-[11px] text-zinc-500">{t(L.SNAP)}</Text>
+          <Text className="text-xs font-bold text-zinc-200">{gridName(grid())}</Text>
+        </Button>
         <Tool icon="minus" label="" look="quiet" keys={() => ''} off={() => false} onClick={() => zoomBy(1 / 1.2, viewW / 2, viewH / 2)} />
         <Tool icon="plus" label="" look="quiet" keys={() => ''} off={() => false} onClick={() => zoomBy(1.2, viewW / 2, viewH / 2)} />
         <Tool icon="maximize" label="" look="quiet" keys={() => advanced() ? chord('0') : ''} off={() => false} onClick={fit} />
-      </view>
-      <view class={`grow basis-0 min-h-0 relative overflow-hidden bg-zinc-950 ${tool() !== null || dropping() ? 'cursor-crosshair' : 'cursor-default'}`}
+      </View>
+      <View className={`grow basis-0 min-h-0 relative overflow-hidden bg-zinc-950 ${tool() !== null || dropping() ? 'cursor-crosshair' : 'cursor-default'}`}
         onPointerDown={down} onPointerMove={move} onPointerUp={up} onWheel={wheel} onDoubleClick={twice}
         onPointerLeave={(e: ui.PointerEvent) => { batch(() => { setInside(false); setHovered(''); }); }}>
-        <canvas class="absolute inset-0" style={{ lazy: 1 }} onDraw={drawTop} />
-        <view class="absolute left-[8] top-[8] px-2 py-1 rounded bg-zinc-900 border border-zinc-800"><text class="font-mono text-[10px] text-zinc-400">{where()}</text></view>
+        <Canvas className="absolute inset-0" style={{ lazy: 1 }} onDraw={drawTop} />
+        <View className="absolute left-[8] top-[8] px-2 py-1 rounded bg-zinc-900 border border-zinc-800"><Text className="font-mono text-[10px] text-zinc-400">{where()}</Text></View>
         <Show when={placingHint() !== ''}>
-          <view class="absolute left-[12] right-[12] bottom-[12] flex-row px-3 py-2 rounded-md bg-zinc-900 border border-amber-400">
-            <text class="grow basis-0 text-xs text-amber-200">{placingHint()}</text>
-          </view>
+          <View className="absolute left-[12] right-[12] bottom-[12] flex-row px-3 py-2 rounded-md bg-zinc-900 border border-amber-400">
+            <Text className="grow basis-0 text-xs text-amber-200">{placingHint()}</Text>
+          </View>
         </Show>
-      </view>
-    </view>
+      </View>
+    </View>
     <Show when={!view3d()}>
-      <view class="w-[148] shrink-0 flex-col bg-zinc-900 border-l border-zinc-800">
-        <view class="flex-row items-center h-9 px-2 shrink-0 border-b border-zinc-800"><PaneSwitch /></view>
-        <view class="grow basis-0 min-h-0 relative overflow-hidden"><canvas class="absolute inset-0" style={{ lazy: 1 }} onDraw={drawProfile} /></view>
-      </view>
+      <View className="w-[148] shrink-0 flex-col bg-zinc-900 border-l border-zinc-800">
+        <View className="flex-row items-center h-9 px-2 shrink-0 border-b border-zinc-800"><PaneSwitch /></View>
+        <View className="grow basis-0 min-h-0 relative overflow-hidden"><Canvas className="absolute inset-0" style={{ lazy: 1 }} onDraw={drawProfile} /></View>
+      </View>
     </Show>
     <Show when={view3d()}><Pane3D /></Show>
-  </view>;
+  </View>;
 }

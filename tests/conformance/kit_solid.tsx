@@ -11,7 +11,7 @@ const [wifi, setWifi] = createSignal<boolean>(true);
 const [level, setLevel] = createSignal<number>(40);
 
 function App(): i32 {
-  return <View class="flex-col p-2 gap-2">
+  return <View className="flex-col p-2 gap-2">
     <Card>
       <CardHeader title="Device" description="Kit conformance" />
       <CardContent>

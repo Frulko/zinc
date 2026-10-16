@@ -6,7 +6,7 @@
 import { render, createSignal } from 'zinc:ui/solid';
 import { pointerDown, pointerX, pointerY } from 'zinc:gfx';
 import { clock } from 'zinc:sys';
-import { CanvasRenderingContext2D, Canvas } from 'zinc:canvas';
+import { CanvasRenderingContext2D, Canvas as Canvas2D } from 'zinc:canvas';
 
 const [fps, setFps] = createSignal<string>('');
 let time = 0;
@@ -92,7 +92,7 @@ class Particle {
 }
 const particles: Particle[] = [];
 const rockets: Particle[] = [];
-const trails = new Canvas(320, 360);  // offscreen: pixels persist, so fading trails work like on the web
+const trails = new Canvas2D(320, 360);  // offscreen: pixels persist, so fading trails work like on the web
 const tctx = trails.getContext('2d');
 const fx = new CanvasRenderingContext2D();
 let launchIn = 0, wasDown = false;
@@ -222,17 +222,17 @@ function Shapes(x: i32, y: i32, w: i32, h: i32): void {
 }
 
 function App(): i32 {
-  return <view class="flex-col h-full bg-slate-900">
-    <view class="flex-row p-2 justify-between bg-slate-800">
-      <text class="text-amber-400">Canvas 2D sketch</text>
-      <text class="text-slate-400">{fps()}</text>
-    </view>
-    <canvas class="h-20" onDraw={timed(Shapes)}></canvas>
-    <view class="flex-row grow">
-      <canvas class="grow bg-slate-700" onDraw={timed((x: i32, y: i32, w: i32, h: i32) => drawClock(clockCtx, x, y, w, h))}></canvas>
-      <canvas class="grow" onDraw={timed(Fireworks)}></canvas>
-    </view>
-  </view>;
+  return <View className="flex-col h-full bg-slate-900">
+    <View className="flex-row p-2 justify-between bg-slate-800">
+      <Text className="text-amber-400">Canvas 2D sketch</Text>
+      <Text className="text-slate-400">{fps()}</Text>
+    </View>
+    <Canvas className="h-20" onDraw={timed(Shapes)}></Canvas>
+    <View className="flex-row grow">
+      <Canvas className="grow bg-slate-700" onDraw={timed((x: i32, y: i32, w: i32, h: i32) => drawClock(clockCtx, x, y, w, h))}></Canvas>
+      <Canvas className="grow" onDraw={timed(Fireworks)}></Canvas>
+    </View>
+  </View>;
 }
 
 let acc = 0, frames: i32 = 0, total: i32 = 0, span = 0;

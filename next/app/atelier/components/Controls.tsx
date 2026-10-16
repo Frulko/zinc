@@ -13,7 +13,7 @@ export function Glyph(props: { kind: i32; color: () => i32; size?: i32; back?: (
 /** Round ghost button: transparent until hovered, tinted while `on`. Acts on press. */
 export function IconButton(props: { kind: i32; onPress: () => void; on?: () => boolean; size?: i32 }): i32 {
   const on = (): boolean => props.on !== undefined ? (props.on as () => boolean)() : false;
-  return <View class={`w-[30] h-[30] rounded-full items-center justify-center cursor-pointer ${on() ? bg(theme().active) : ''} hover:${bg(theme().hover)}`}
+  return <View className={`w-[30] h-[30] rounded-full items-center justify-center cursor-pointer ${on() ? bg(theme().active) : ''} hover:${bg(theme().hover)}`}
     onPointerDown={(e: ui.PointerEvent) => { if (e.button === 0) props.onPress(); }}>
     <Glyph kind={props.kind} size={props.size ?? 16} color={() => on() ? theme().text : theme().muted} />
   </View>;
@@ -21,7 +21,7 @@ export function IconButton(props: { kind: i32; onPress: () => void; on?: () => b
 
 /** Key hint ('⌘R') in a list row. */
 export function Kbd(props: { keys: string }): i32 {
-  return <View class={`px-1.5 h-[20] rounded-md items-center justify-center border ${bd(theme().borderSoft)} ${bg(theme().chrome)}`}>
-    <Text class={`text-[11px] ${fg(theme().muted)}`}>{props.keys}</Text>
+  return <View className={`px-1.5 h-[20] rounded-md items-center justify-center border ${bd(theme().borderSoft)} ${bg(theme().chrome)}`}>
+    <Text className={`text-[11px] ${fg(theme().muted)}`}>{props.keys}</Text>
   </View>;
 }

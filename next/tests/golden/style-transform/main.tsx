@@ -16,13 +16,13 @@ const s = StyleSheet.create({
 });
 const [turn, setTurn] = createSignal<number>(0);
 function App(): i32 {
-  return <view style={s.page}>
-    <view style={[s.card, s.r45]} onPress={() => {}}><text>r45</text></view>
-    <view style={[s.card, s.big]} onPress={() => {}}><text>big</text></view>
-    <view style={[s.card, s.skew]} onPress={() => {}}><text>skew</text></view>
-    <view style={[s.card, s.moved]} onPress={() => {}}><text>moved</text></view>
-    <view style={[s.card, { left: 260, top: 200, backgroundColor: '#ca8a04', transform: [{ rotate: turn() }, { scale: 1 + turn() / 180 }] }]} onPress={() => {}}><text>dyn</text></view>
-  </view>;
+  return <View style={s.page}>
+    <View style={[s.card, s.r45]} onPress={() => {}}><Text>r45</Text></View>
+    <View style={[s.card, s.big]} onPress={() => {}}><Text>big</Text></View>
+    <View style={[s.card, s.skew]} onPress={() => {}}><Text>skew</Text></View>
+    <View style={[s.card, s.moved]} onPress={() => {}}><Text>moved</Text></View>
+    <View style={[s.card, { left: 260, top: 200, backgroundColor: '#ca8a04', transform: [{ rotate: turn() }, { scale: 1 + turn() / 180 }] }]} onPress={() => {}}><Text>dyn</Text></View>
+  </View>;
 }
 function who(x: number, y: number): string {
   const h = ui.hitAt(x, y);

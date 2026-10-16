@@ -11,16 +11,16 @@ let moves = 0;
 const field = createNodeRef();
 ui.onFocusChange((h: i32) => console.log(h === field.node ? 'focus: the field' : h >= 0 ? 'focus: the box' : 'focus: none'));
 function App(): i32 {
-  return <View class="h-full bg-white">
-    <ScrollView class="h-full">
-      <View class="flex-col gap-4 p-4">
-        <View class="w-5 h-5 border" onClick={() => console.log('check')} />
-        <Input ref={field} class="h-10 w-60 border rounded" placeholder="name" />
-        {['1', '2', '3', '4', '5', '6', '7', '8'].map((t: string) => <View class="h-16 border"><Text class="text-base">{t}</Text></View>)}
+  return <View className="h-full bg-white">
+    <ScrollView className="h-full">
+      <View className="flex-col gap-4 p-4">
+        <View className="w-5 h-5 border" onClick={() => console.log('check')} />
+        <Input ref={field} className="h-10 w-60 border rounded" placeholder="name" />
+        {['1', '2', '3', '4', '5', '6', '7', '8'].map((t: string) => <View className="h-16 border"><Text className="text-base">{t}</Text></View>)}
       </View>
     </ScrollView>
-    {cover ? <View class="absolute inset-0 bg-white" onPointerMove={(e: ui.PointerEvent) => { moves++; console.log(`move ${moves} at ${Math.round(e.x)} ${Math.round(e.y)}`); }} />
-      : <View class="absolute inset-0 opacity-0" />}
+    {cover ? <View className="absolute inset-0 bg-white" onPointerMove={(e: ui.PointerEvent) => { moves++; console.log(`move ${moves} at ${Math.round(e.x)} ${Math.round(e.y)}`); }} />
+      : <View className="absolute inset-0 opacity-0" />}
   </View>;
 }
 render(App, 0xffffff, (dt: number) => {});

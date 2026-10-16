@@ -10,10 +10,10 @@ import { createSignal } from 'zinc:ui/solid'
 const s = StyleSheet.create({ box: { width: '50%', height: 'auto', backgroundColor: '#f00', padding: '4px 8px', border: '1px solid blue', marginTop: -3 }, row: { flexDirection: 'row', fontWeight: 'bold' } })
 export function App(): i32 {
   const [n] = createSignal<i32>(3)
-  return <view style={[s.box, { gap: n(), opacity: 0.5 }]}>
-    <VirtualList count={n()} itemHeight={20} class="flex-col">{(i: i32) => <text>{i}</text>}</VirtualList>
-    <text style={{ fontSize: 14, color: 'white', height: '100%' }}>x</text>
-  </view>
+  return <View style={[s.box, { gap: n(), opacity: 0.5 }]}>
+    <VirtualList count={n()} itemHeight={20} className="flex-col">{(i: i32) => <Text>{i}</Text>}</VirtualList>
+    <Text style={{ fontSize: 14, color: 'white', height: '100%' }}>x</Text>
+  </View>
 }
 TSX
 out=$(ZN_DUMP_JSX=s.tsx "$ZINC" check --check "$tmp/s.tsx" 2>&1)

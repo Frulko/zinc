@@ -9,7 +9,7 @@ function App(): i32 {
   const [tab, setTab] = useState<i32>(0);
   const [wifi, setWifi] = useState<boolean>(true);
   const [level, setLevel] = useState<number>(40);
-  return <View class="flex-col p-2 gap-2">
+  return <View className="flex-col p-2 gap-2">
     <Card>
       <CardHeader title="Device" description="Kit conformance" />
       <CardContent>
