@@ -294,6 +294,13 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-624: iOS safe areas: content and the perf panel scroll under the status bar and the Dynamic Island (ZN-625).
 - ZN-624: a present that uploads only the damaged area on iOS (CAMetalLayer or IOSurface, or the GPU replay: the Metal decision ZN-627); uploading the whole 1206x2622 frame costs 5.6-6.8 ms p50.
 - ZN-624: HTTPS root certificates on an iOS device (SecTrust, or a cacert.pem in the bundle).
+- ZN-741: the replay as its own CMake target (D119, its AC6): reach fonts, glyphs and images through the command-list header instead of the zrt_raster.h globals.
+- ZN-741: fp16-only GPUs (Mali-400 on the CHIP): positions relative to the nearest corner (ZINC_GL_MEDIUMP=10 shows the loss).
+- ZN-741: program binaries (GL_OES_get_program_binary): image programs take 60-70 ms each on the first run after an install.
+- ZN-744: profile a replay pass on the Nexus 7 (simpleperf needs security.perf_harden 0, set as root before a run, not during it).
+- ZN-744: draw overlays (perf panel, touch marks) into the window after the frame, so a scroll does not damage the panel twice.
+- ZN-746: the GPU-layer path renders the damage twice even where there is no shader: render the rest once and upload only the changed rectangles (music carousel swipe frames 160-250 ms on the Nexus 7).
+- ZN-746: drawShader with an alpha, and a turned shader, if a program needs to fade or rotate one.
 
 ## Demos
 
@@ -568,3 +575,5 @@ The next backlog review turns lines into tasks or deletes them.
 - Mobile feel: a canvas (`onDraw`, `<Icon>`) draws at full alpha inside a fading or scaled view; the navigation stack works around it for its back arrow (`Navigation.alphaOf`), the icons do not.
 - Mobile feel: React Native's `Modal` positions its host with the object style `position: 'absolute'`, which the classic layout ignores: in a classic-layout app the host has no size and its outside-press dismissal fires on any press (the navigation test runs in the rn layout for it).
 - Mobile feel: `rotate` in a style is applied to hit testing only (no matrix in the raster yet, ZN-361.01): a rotated view draws unrotated.
+- ZN-741: ZINC_GL_INFO on the Pi 3 (KMS) and the TouchPad (webOS): check the family and the tuning row; move webOS's ZINC_GL_DIRECT=1 and ZINC_GL_CORNERS=0 into the Adreno 2xx row, measured there first.
+- ZN-744: the GPU scroll on the Pi 3 (display-gl does not call glr::scroll yet) and the TouchPad.

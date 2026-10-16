@@ -805,3 +805,16 @@ Nexus 7 2012, debug APKs for armeabi-v7a, `ZINC_PRESENT_STATS=1`, scripted fling
 | Lava face, Nexus 7 GPU layer (SHADER, scale 4) | – | 61 fps (24 fps at full resolution) |
 | Lava face, desktop software raster | raster p50 25.2 ms (36 fps) | 3.3 ms (60 fps) |
 | rn-showcase, GLES 2 replay on Android (`ZINC_RENDERER=gl`) | 13.7 fps (whole frame replayed) | 60 fps at rest; tab switch p99 17.4 ms (software 18.6); first switch 147 ms (programs built then); fling p99 127 ms (software 76): not the default yet |
+
+## The GLES 2 replay on the Nexus 7: warm programs, GPU scroll, shader under a transform (ZN-741, ZN-744, ZN-746, D126, 2026-10-16)
+
+| Measure | Before | After |
+|---|---|---|
+| Worst tab-switch present, GLES 2 (programs built in idle frames, `glr::warm`) | 146.6 ms | 37.8 ms |
+| rn-showcase fling, GLES 2, interval p99 (late frames of 720) | 56.8 ms (96, fewer frames drawn) | 31.6-32.5 ms (225-285); panel off 29.5 ms (221) |
+| rn-showcase fling, software raster, interval p99 (late of 720) | – | 26.8-29.4 ms (222-263); panel off 31.5 ms (270) |
+| Window quad / pixel move / rectangle replay (`ZINC_GL_FINISH=1`) | – / 3.9-5.2 / – | 4.2 ms / gone (rotated rows) / 10-13 ms |
+| Lava face at rest, late of 290 (p99) | 76 (35.7 ms) | 67 (33.2 ms) |
+| Music carousel swipe, late of 290 (p99) | 94 (172.5 ms) | 85 (205.3 ms): the GPU-layer path renders the damage twice and uploads 3.6 MB a frame at ~100 MB/s |
+| Desktop GL window | – | interval p50 16.66 ms, p99 23.2 ms |
+| shader_gl, a shader moved, rounded-clipped and faded | 43.9% of pixels off | 0% |
