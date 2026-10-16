@@ -5,7 +5,7 @@ status: Backlog
 assignee:
   - '@parallel'
 created_date: '2026-10-16 15:11'
-updated_date: '2026-10-16 16:21'
+updated_date: '2026-10-16 21:39'
 labels:
   - perf
   - gl
@@ -63,4 +63,11 @@ Lines for backlog/later.md:
 - ZN-746: the decision to switch the Android window to GL needs the program's first shader before its first frame: a program that makes one later keeps the CPU path (shaderAvailable false); a window that can change kind at run time would need the surface disconnected from the CPU producer.
 
 Handover: open are AC3's software-raster half (30 fps on the Nexus 7 CPU path) and AC4's record (text above). Next: tests/run --tier t1 --only shader_gl; on the device ZINC_GPU_LAYERS=0 for the CPU path.
+
+2026-10-16 (ZN-741/744 worktree agent, owner's request): a SHADER follows setTransform. Cause: drawShader recorded its box with the translation only (box()), never through the matrix of gfx.setTransform, so music's lava field stayed at the slide's resting place and showed whole while the carousel moved (on the Android GPU layer and in any GL replay alike). Fix (runtime/gfx.cpp drawShader): the box goes through the matrix (a turn or a skew: its upright bounding box, the field drawn unturned there; ponytail comment). The hole in the software frame and the GPU layer's quad both read that box, so they move together; what is drawn over the shader (a fade, the clock) composites over the hole as before, and clips around it (rounded ones too: the raster restores the corners over the hole) shape it. No alpha argument for drawShader: a fade is a layer drawn over it (later.md).
+Proof: tests/data/shader/main.ts draws the field as a card on a slide (setTransform by (15%, 10%), a rounded clip of 18 px, a box drawn over it, a translucent black layer over everything); tests/t1/shader_gl.sh compares the GL frame with the CPU path: 0.000% of pixels over 24, mae 0.388 (without the fix: 43.9%, mae 24.2). On the Nexus 7: a screen recording of a scripted swipe from the player to the clock slide, before and after (docs/reports/zinc-next-android/music-lava-slide-before.png, -after.png): before, the field covers the screen at once while the time slides in; after, it comes in with its slide.
+Measured on the Nexus 7 (examples/music, lava face, palette 0, perf panel on; before = the APK built from ZN-746's tree at 18:16): at rest 76 late frames of 290, interval p99 35.7 ms before; 67 late, p99 33.2 after. The swipe: 94 late of 290, p99 172.5 ms before; 85 late, p99 205.3 after (frames of 160 to 250 ms while the carousel moves, on both: the GPU layer path renders the whole damaged screen twice for the holes, converts and uploads it, 3.6 MB at about 100 MB/s).
+Lines for backlog/later.md:
+- ZN-746: the GPU layer path renders the damage twice (holes black and white) even where no SHADER is: render the rest once, and upload only the changed rectangles into a staging texture; a carousel swipe costs 160 to 250 ms a frame on the Nexus 7.
+- ZN-746: drawShader with an alpha (and an XFORM of SHADER for turned shaders) if a program needs to fade or turn one itself.
 <!-- SECTION:NOTES:END -->

@@ -1,7 +1,10 @@
 // zinc:gfx runtime shaders (ZN-746): three metaballs as a fragment program where the display draws shaders on the GPU, else the same field
 // computed by the program at a quarter of the resolution and drawn with ImageFlag.Smooth (the CPU path a program keeps). A box of text over
-// it shows what is drawn after a SHADER lands over it. tests/t1/shader_gl.sh compares the GPU frame with the software one.
-import { onFrame, clear, rrect, drawShader, shaderProgram, shaderAvailable, imageFromPixels, updateImage, drawImageRect, ImageFlag, width, height } from 'zinc:gfx';
+// it shows what is drawn after a SHADER lands over it. The field is a card on a slide: moved by setTransform (a carousel), clipped with
+// rounded corners, and faded by a translucent layer over everything (the owner's report: on Android the shader stayed in place and appeared
+// whole while its slide came in). tests/t1/shader_gl.sh compares the GPU frame with the software one.
+import { onFrame, clear, rrect, drawShader, shaderProgram, shaderAvailable, imageFromPixels, updateImage, drawImageRect, ImageFlag, width, height,
+  setTransform, resetTransform, clip, unclip } from 'zinc:gfx';
 
 const BALLS: number[] = [0.3, 0.4, 0.04, 0, 0.62, 0.55, 0.05, 0, 0.45, 0.75, 0.03, 0];   // x, y (0..1 of the box), r^2, unused
 const COLS: number[] = [0.9, 0.2, 0.3, 0, 0.2, 0.6, 0.9, 0, 0.95, 0.75, 0.2, 0];
@@ -44,8 +47,13 @@ function cpu(W: number, H: number): void {
 }
 
 onFrame(() => {
-  const W = width(), H = height();
+  const W = width(), H = height(), cw = Math.round(W * 0.8), ch = Math.round(H * 0.8);
   clear(0x000000);
-  if (shaderAvailable()) drawShader(prog, 0, 0, W, H, u); else cpu(W, H);
-  rrect(W * 0.35, H * 0.42, W * 0.3, H * 0.16, 12, 0xffffff, 140);   // over the shader: drawn after it
+  setTransform(1, 0, 0, 1, Math.round(W * 0.15), Math.round(H * 0.1));   // the slide, a fifth of its way in
+  clip(0, 0, cw, ch, 18);
+  if (shaderAvailable()) drawShader(prog, 0, 0, cw, ch, u); else cpu(cw, ch);
+  rrect(cw * 0.35, ch * 0.42, cw * 0.3, ch * 0.16, 12, 0xffffff, 140);   // over the shader: drawn after it
+  unclip();
+  resetTransform();
+  rrect(0, 0, W, H, 0, 0x000000, 90);   // the fade of the slide
 });

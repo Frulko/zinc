@@ -1414,6 +1414,17 @@ void drawShader(int32_t program, double x, double y, double w, double h, const d
   Cmd* c = push(raster::SHADER, 0, 255);
   if (!c) return;
   box(c, x, y, w, h);
+  if (xf_on) {   // under setTransform the box lands where the matrix puts it (a carousel's slide moves its shader with it, music's lava face)
+    // ponytail: a turn or a skew gives the box's upright bounding box, the field drawn unturned there; an XFORM of SHADER if one needs it
+    const float k = rec_k(), m[6] = {(float)xf_m[0], (float)xf_m[1], (float)xf_m[2], (float)xf_m[3], (float)xf_m[4] * k, (float)xf_m[5] * k};
+    const float xs[2] = {c->x, c->x + c->w}, ys[2] = {c->y, c->y + c->h};
+    float x0 = 1e30f, y0 = 1e30f, x1 = -1e30f, y1 = -1e30f;
+    for (float px : xs) for (float py : ys) {
+      const float X = m[0] * px + m[2] * py + m[4], Y = m[1] * px + m[3] * py + m[5];
+      x0 = X < x0 ? X : x0; x1 = X > x1 ? X : x1; y0 = Y < y0 ? Y : y0; y1 = Y > y1 ? Y : y1;
+    }
+    c->x = x0; c->y = y0; c->w = x1 - x0; c->h = y1 - y0;
+  }
   c->res = program; c->off = b.npts; c->n = n;
   for (uint32_t i = 0; i < n; i++) b.pts[b.npts + i] = (float)u[i];
   b.npts += n;

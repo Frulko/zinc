@@ -115,6 +115,14 @@ its PNG round trip and four taps, 22 fps with one smooth stretch of a raw pictur
 resolution (24 fps at full resolution: Tegra 3 needs about 40 ms to shade and blend 1280 x 704). ZINC_GPU_LAYERS=0 keeps the CPU window,
 ZINC_SHADER_SCALE overrides the scale.
 
+A shader follows `setTransform` (owner's report, 2026-10-16: the lava face appeared whole while its slide came in): drawShader records the
+box where the matrix puts it (a turn or a skew: its upright bounding box), so the hole in the software frame and the GPU layer's quad move
+with the carousel, and what is drawn over the shader (the slide's fade, the clock) and the clips around it shape the hole as before.
+Recorded on the Nexus 7, a swipe from the player to the clock slide, before (`music-lava-slide-before.png`: the field already covers the
+screen while the time slides in) and after (`music-lava-slide-after.png`). The lava face at rest, perf panel on: 76 late frames of 290
+before, 67 after (interval p99 35.7 and 33.2 ms); the swipe itself costs 160 to 250 ms a frame on both (the whole screen rendered twice
+for the holes and uploaded: 3.6 MB a frame at about 100 MB/s).
+
 ### The GLES 2 replay: a scroll on the GPU, one capability record (ZN-741, ZN-744)
 
 `ZINC_RENDERER=gl` (not the default yet). rn-showcase (the shell of 2026-10-16 19:09), its Components screen flung ten times by `ZINC_INPUT`,
