@@ -1697,7 +1697,7 @@ int main(int argc, char** argv) {
           fs::create_directories(dir, ec);
           if (fs::read_symlink(link, ec) != fs::path(self)) { fs::remove(link, ec); fs::create_symlink(self, link, ec); }
           if (!self.empty() && fs::read_symlink(link, ec) == fs::path(self)) {
-            std::vector<std::string> args = gOriginalArgs;
+            std::vector<std::string> args = gFusedApp ? gLaunchArgs : gOriginalArgs;   // a fused app starts again as the user started it: it wraps its arguments itself
             args[0] = link.string();
             std::vector<char*> av;
             for (std::string& a : args) av.push_back(a.data());

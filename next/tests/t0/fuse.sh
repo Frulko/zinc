@@ -9,7 +9,7 @@ fail=0
 mkdir -p "$tmp/home" "$tmp/elsewhere"
 "$Z" new cli "$tmp/hello" >/dev/null && "$Z" new game-2d "$tmp/game" >/dev/null || exit 2
 "$Z" pack "$tmp/hello" -o "$tmp/hello.zapp" >/dev/null && "$Z" fuse "$tmp/hello.zapp" -o "$tmp/hello-app" >/dev/null || { echo "pack / fuse failed"; exit 1; }
-clean() { (cd "$tmp/elsewhere" && env -i HOME="$tmp/home" PATH=/usr/bin:/bin "$@"); }
+clean() { (cd "$tmp/elsewhere" && env -i HOME="$tmp/home" PATH=/usr/bin:/bin ZINC_STEPS=0 "$@"); }
 want=$(cd "$tmp/hello" && "$Z" run . -- one two 2>&1)
 got=$(clean "$tmp/hello-app" one two 2>&1)
 [ "$got" = "$want" ] || { echo "the fused hello prints '$got', zinc run prints '$want'"; fail=1; }
@@ -23,7 +23,7 @@ frame='ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_SIZE=640x400 ZINC_
 want=$(cd "$tmp/game" && env $frame ZINC_STORAGE="$tmp/s1" "$Z" run . 2>&1 | grep framehash)
 got=$(clean env $frame ZINC_STORAGE="$tmp/s2" "$tmp/game-app" 2>&1 | grep framehash)
 [ -n "$want" ] && [ "$got" = "$want" ] || { echo "the fused game draws '$got', zinc run '$want'"; fail=1; }
-[ "$(ls "$tmp/home/.zinc")" = cache ] && [ "$(ls "$tmp/home/.zinc/cache")" = zapp ] || { echo "the fused game fetched or built something (only its unpacked archive belongs there): $(ls -R "$tmp/home/.zinc" 2>&1 | head -12 | tr '\n' ' ')"; fail=1; }
+[ "$(ls "$tmp/home/.zinc")" = cache ] && [ "$(ls "$tmp/home/.zinc/cache" | grep -v '^run$')" = zapp ] || { echo "the fused game fetched or built something (only its unpacked archive belongs there): $(ls -R "$tmp/home/.zinc" 2>&1 | head -12 | tr '\n' ' ')"; fail=1; }
 # the window host travels inside the fused executable (ZN-592.01): a windowed run writes it into the cache of the home it runs with and loads it
 if [ "$(uname)" = Darwin ] && [ -f "$(dirname "$Z")/libzn_window.dylib" ]; then
   out=$(clean env ZINC_FRAMES=3 "$tmp/game-app" 2>&1)
