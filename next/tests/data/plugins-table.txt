@@ -49,4 +49,5 @@ plugin (import / display)  targets                             description
   zinc:video               macos,linux,rpi1,webos             Video playback (FFmpeg with VideoToolbox / V4L2 M2M decode; GStreamer with the hardware decoder on webOS), gapless playlists as runtime images
   zinc:wasm                macos,linux,rpi1,rmpp              WebAssembly (the JS API's shape) on the wasm3 interpreter 0.5.0 (MIT): validate, compile, instantiate with host function imports, exported functions, memory and globals
   zinc:webos               macos,linux                        HP webOS 3 (HP TouchPad): calls to the system's services (the Luna bus, through the PDK's libpdl), launching an installed application
+  zinc:webrtc              macos,linux,rpi1                   WebRTC data channels (RTCPeerConnection, RTCDataChannel) on libdatachannel 0.24+ (MPL-2.0) with libjuice, usrsctp and the engine's mbedTLS: peer-to-peer text and bytes, STUN/TURN, an in-process loopback
   zinc:webview             macos                              Web views embedded in the app window (WKWebView), zinc:// assets, postMessage and invoke RPC (Tauri-like)

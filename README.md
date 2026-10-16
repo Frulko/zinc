@@ -33,7 +33,7 @@ UI, games, 3D, video and hardware, from one strict, typed subset of TypeScript a
   drawn by a GPU renderer that also runs on a Pi's VideoCore IV.
 - 🔌 **Web APIs on real devices.** `fetch`, WebSocket, `crypto.subtle`, `localStorage`, and the battery, sensors, vibration, orientation and
   notifications of the device the program runs on.
-- 📦 **51 plugins.** three.js, video, webcams, microphones, sound, MIDI, maps, physics, SQLite, Sonos, Spotify, AsyncStorage, and drivers for LED matrices,
+- 📦 **52 plugins.** three.js, video, webcams, microphones, WebRTC, sound, MIDI, maps, physics, SQLite, Sonos, Spotify, AsyncStorage, and drivers for LED matrices,
   e-ink and OLED screens.
 
 ## 🏗️ Architecture
@@ -171,6 +171,7 @@ the guides are in [docs/plugins/](docs/plugins/). Abbreviations: Pi = Raspberry 
 | `gsap` | GSAP's core API in typed Zinc (tweens, timelines, eases, staggers), compiled by `zinc build`; the whole library runs on the QuickJS engine | Zinc | macOS, Linux, Windows, Pi, rM, webOS, Web, ESP32 |
 | `zinc:async-storage` | React Native's AsyncStorage on `zinc:storage` | Zinc | macOS, Linux, Windows, Pi, rM, webOS, ESP32 |
 | `zinc:socket` | TCP, UDP and Unix sockets, DNS, WebSocket client and server | Native | macOS, Linux, Pi, rM |
+| `zinc:webrtc` | WebRTC data channels (`RTCPeerConnection`, `RTCDataChannel`): peer-to-peer text and bytes, STUN/TURN (libdatachannel) | Native | macOS, Linux, Pi |
 | `zinc:process` | Child processes (args, streams, kill) | Native | macOS, Linux, Pi |
 | `zinc:ffi` | C functions of shared libraries (libffi) | Native | macOS, Linux |
 | `zinc:script` | Sandboxed JavaScript at run time (QuickJS-ng) | Native | macOS, Linux, Pi, rM |

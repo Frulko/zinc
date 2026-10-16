@@ -543,7 +543,7 @@
  *
  * Uncomment this to enable support for use_srtp extension.
  */
-//#define MBEDTLS_SSL_DTLS_SRTP
+#define MBEDTLS_SSL_DTLS_SRTP   /* zinc: libdatachannel (zinc:webrtc) configures the SRTP profiles of DTLS */
 
 /**
  * \def MBEDTLS_SSL_EARLY_DATA

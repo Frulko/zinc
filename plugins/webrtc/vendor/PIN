@@ -1,0 +1,24 @@
+The WebRTC stack of zinc:webrtc, compiled by the plugin build (plugin.json lists the sources) with the pinned zig, against the engine's
+mbedTLS 4.0.0 (next/third_party/mbedtls, MBEDTLS_THREADING_C, MBEDTLS_THREADING_PTHREAD and MBEDTLS_SSL_DTLS_SRTP turned on for it).
+
+libdatachannel, commit bdc5ff28e9d3b863144c94a677ecf5bf043aaf15 of paullouisageneau/libdatachannel (master, 2026-10-07: v0.24.6 and later,
+with PR #1599 "Add support for mbedTLS 4.1, use PSA Crypto API", which no release carries yet), MPL-2.0
+  https://github.com/paullouisageneau/libdatachannel/archive/bdc5ff28e9d3b863144c94a677ecf5bf043aaf15.tar.gz
+  archive sha256 a3b7a4070d6c552e74258842962f2acbeabd36104db04f7f956dcb2f8972ae30
+  kept: include/, src/ and LICENSE, unmodified, without the src/ files that compile to nothing with RTC_ENABLE_MEDIA=0 and
+  RTC_ENABLE_WEBSOCKET=0 (the RTP packetizers and handlers, the WebSocket, TCP and TLS transports, dtlssrtptransport.cpp, sha.cpp)
+libjuice 1.7.4 (tag v1.7.4 of paullouisageneau/libjuice; the submodule of that libdatachannel commit is b89c792e, an older one), MPL-2.0
+  https://github.com/paullouisageneau/libjuice/archive/refs/tags/v1.7.4.tar.gz
+  archive sha256 95c088862aa1b88b73d62aa99577135010eb768fcafb252d13aa85a8515ef798
+  kept: include/, src/ and LICENSE, unmodified; built with JUICE_ENABLE_LOCALHOST_ADDRESS=1 (127.0.0.1 is a host candidate: the loopback
+  works on a machine with no network)
+usrsctp, commit fec583d54493f879d2ae44a743423bf8a04371ab of sctplab/usrsctp (the submodule of that libdatachannel commit), BSD-3-Clause
+  https://github.com/sctplab/usrsctp/archive/fec583d54493f879d2ae44a743423bf8a04371ab.tar.gz
+  archive sha256 e5c114afe73c9a0ec419fab5f5b3f63f3ce57b09b90d06ea85e63dca8aed3e7c
+  kept: usrsctplib/ (without its CMakeLists.txt, Makefile.am, Makefile.nmake and meson.build) and LICENSE.md, unmodified; built without INET
+  and INET6 (libdatachannel carries SCTP over DTLS, never on raw sockets), so netinet6/sctp6_usrreq.c is not compiled
+plog, commit 94899e0b926ac1b0f4750bfbd495167b4a6ae9ef of SergiusTheBest/plog (the submodule of that libdatachannel commit), MIT
+  https://github.com/SergiusTheBest/plog/archive/94899e0b926ac1b0f4750bfbd495167b4a6ae9ef.tar.gz
+  archive sha256 92a08bce559b5f28aa88d3fd9071567414b9f43a83fe2a05a6dd14f1da536072
+  kept: include/ and LICENSE, unmodified (header-only: libdatachannel's logging)
+Not vendored: libsrtp (media tracks only), nlohmann/json (WebSocket and media), libnice.

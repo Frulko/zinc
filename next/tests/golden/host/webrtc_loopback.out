@@ -1,0 +1,30 @@
+created chat connecting ordered true | fast ordered false maxRetransmits 0
+offer offer with m=application
+a have-local-offer
+b have-remote-offer
+a stable b stable
+connected: connecting > connected; ice up
+b got chat open protocol zinc-chat | fast ordered false maxRetransmits 0
+b received tm0 é✓,tm1 é✓,tm2 é✓,tm3 é✓,b4.255.0,tm5 é✓,tm6 é✓,tm7 é✓,tm8 é✓,b9.255.0,tm10 é✓,tm11 é✓,tm12 é✓,tm13 é✓,b14.255.0,tm15 é✓,tm16 é✓,tm17 é✓,tm18 é✓,b19.255.0
+a received re:m0 é✓,re:m1 é✓,re:m2 é✓,re:m3 é✓,re:m5 é✓,re:m6 é✓,re:m7 é✓,re:m8 é✓,re:m10 é✓,re:m11 é✓,re:m12 é✓,re:m13 é✓,re:m15 é✓,re:m16 é✓,re:m17 é✓,re:m18 é✓
+a received bytes b1.2.3
+unordered u0,u1,u2,u3,u4,u5,u6,u7,u8,u9
+a got back from b: from b
+maxMessageSize true
+large 204800 bytes, same true
+too large TypeError
+stats sent true received true pair true opened 3
+closing closing
+closed a:closed b:closed
+send after close InvalidStateError
+closed pcs closed closed fast closing
+closed pc InvalidStateError
+garbage OperationError true
+answer without offer InvalidStateError
+candidate first InvalidStateError
+both limits TypeError
+bad url SyntaxError
+candidate udp 192.0.2.7 46154 srflx 1677729535
+offer has candidates true
+whole no trickle
+done

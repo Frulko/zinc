@@ -169,6 +169,7 @@
     {"paths": ["../plugins/audio/", "tests/golden/audio/"], "tests": ["audio", "webenv_audio"]},
     {"paths": ["../plugins/midi/", "../examples/midi/", "tests/data/midi/"], "tests": ["midi"]},
     {"paths": ["../plugins/camera/", "tests/golden/host/webcam_session.ts", "tests/golden/host/webcam_session.out", "tests/golden/host/webcam_draw.ts", "tests/data/bmp_pixel.py"], "tests": ["webcam_sim", "webcam"]},
+    {"paths": ["../plugins/webrtc/", "tests/golden/host/webrtc_loopback.ts", "tests/golden/host/webrtc_loopback.out", "tests/data/webrtc_globals.ts", "../examples/webrtc-chat/"], "tests": ["webrtc", "webrtc_chat"]},
     {"paths": ["../plugins/microphone/", "tests/golden/host/microphone_session.ts", "tests/golden/host/microphone_session.out"], "tests": ["microphone_sim", "microphone", "webcam"]},
     {"paths": ["../plugins/serial/", "../examples/serial/", "tests/data/serial/"], "tests": ["serial"]},
     {"paths": ["../plugins/osc/", "../plugins/socket/", "../examples/osc/", "tests/data/osc/"], "tests": ["osc_full"]},

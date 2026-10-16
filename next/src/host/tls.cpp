@@ -275,4 +275,12 @@ void close(Conn* c) { if (c->done && !c->failed && !c->closed) mbedtls_ssl_close
 
 }  // namespace zn::tls
 
+// Plugins link against this binary's mbedTLS (zinc:webrtc's DTLS, plugins/webrtc): the certificate writer, which nothing here calls, would
+// be left out of the link; these references keep it, exported like the rest of the library.
+extern "C" __attribute__((used, visibility("default"))) void* const zn_tls_plugin_symbols[] = {
+    (void*)&mbedtls_x509write_crt_init, (void*)&mbedtls_x509write_crt_free, (void*)&mbedtls_x509write_crt_der,
+    (void*)&mbedtls_x509write_crt_set_version, (void*)&mbedtls_x509write_crt_set_serial_raw, (void*)&mbedtls_x509write_crt_set_validity,
+    (void*)&mbedtls_x509write_crt_set_issuer_name, (void*)&mbedtls_x509write_crt_set_subject_name, (void*)&mbedtls_x509write_crt_set_issuer_key,
+    (void*)&mbedtls_x509write_crt_set_subject_key, (void*)&mbedtls_x509write_crt_set_md_alg};
+
 #endif  // ZN_NO_TLS

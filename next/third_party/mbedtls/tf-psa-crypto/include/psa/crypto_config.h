@@ -444,7 +444,7 @@
  *
  * Uncomment this to enable pthread mutexes.
  */
-//#define MBEDTLS_THREADING_PTHREAD
+#define MBEDTLS_THREADING_PTHREAD   /* zinc: libdatachannel (zinc:webrtc) calls PSA from its own threads */
 
 /**
  * \def MBEDTLS_THREADING_C
@@ -467,7 +467,7 @@
  *
  * Enable this layer to allow use of mutexes within Mbed TLS
  */
-//#define MBEDTLS_THREADING_C
+#define MBEDTLS_THREADING_C   /* zinc: libdatachannel (zinc:webrtc) calls PSA from its own threads */
 
 /* Memory buffer allocator options */
 //#define MBEDTLS_MEMORY_ALIGN_MULTIPLE      4 /**< Align on multiples of this value */

@@ -1212,7 +1212,8 @@ const std::pair<const char*, const char*> kWebGlobals[] = {
     {"DeviceOrientationEvent", "zinc:web"}, {"BatteryManager", "zinc:web"}, {"Notification", "zinc:web"}, {"MediaMetadata", "zinc:web"}, {"KeyboardEvent", "zinc:web"},
     {"SensorErrorEvent", "zinc:web"}, {"Sensor", "zinc:web"}, {"WakeLockSentinel", "zinc:web"}, {"MediaStream", "zinc:web"}, {"MediaStreamTrack", "zinc:web"}, {"NetworkInformation", "zinc:web"}, {"MediaSession", "zinc:web"},
     {"ScreenOrientation", "zinc:web"}, {"MediaDeviceInfo", "zinc:web"},
-    {"WebAssembly", "zinc:wasm"}, {"fetch", "zinc:web/fetch"}, {"Request", "zinc:web/fetch"}, {"Response", "zinc:web/fetch"}, {"Headers", "zinc:web/fetch"}};
+    {"WebAssembly", "zinc:wasm"}, {"RTCPeerConnection", "zinc:webrtc"}, {"RTCDataChannel", "zinc:webrtc"}, {"RTCSessionDescription", "zinc:webrtc"},
+    {"RTCIceCandidate", "zinc:webrtc"}, {"RTCPeerConnectionIceEvent", "zinc:webrtc"}, {"RTCDataChannelEvent", "zinc:webrtc"}, {"fetch", "zinc:web/fetch"}, {"Request", "zinc:web/fetch"}, {"Response", "zinc:web/fetch"}, {"Headers", "zinc:web/fetch"}};
 bool isWebFile(const std::string& path) {
   for (const char* f : {"lib/std/web.ts", "lib/std/fetch.ts", "lib/std/subtle.ts"}) { std::size_t n = std::strlen(f); if (path.size() >= n && path.compare(path.size() - n, n, f) == 0) return true; }
   return false;
