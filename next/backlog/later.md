@@ -423,3 +423,5 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-718: `zinc update` (src/main.cpp ~2429) still prints "the macOS app: drag it over the old one; Linux: unpack...": say to unpack the tar.gz or run install.sh again.
 - ZN-718: AGENTS.md describes the development Mac as an Intel one; it is an Apple M1 Pro (arm64): correct "The development machine" and the Intel-specific numbers.
 - ZN-622: build arm64-v8a and x86_64 and do an emulator smoke run; only armeabi-v7a was built and run (Nexus 7).
+- ZN-718: `zinc device update` (the agent's engine update on a device) still only downloads and verifies; it could reuse `updateCommand` of src/tc/selfupdate.cpp to install and roll back.
+
