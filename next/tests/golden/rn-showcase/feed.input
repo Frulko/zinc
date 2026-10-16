@@ -1,0 +1,11 @@
+30 move 305 83
+30 down
+32 up
+40 move 327 150
+40 down
+42 up
+100 move 185 758
+100 down
+102 up
+105 text "hello zinc"
+110 key Enter

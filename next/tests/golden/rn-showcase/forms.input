@@ -1,0 +1,29 @@
+30 move 210 202
+30 down
+32 up
+35 text "Ada Lovelace"
+40 move 210 282
+40 down
+42 up
+45 text ada@example.com
+50 move 210 362
+50 down
+52 up
+55 text "correct horse"
+60 move 210 562
+60 down
+62 up
+80 move 253 426
+80 down
+82 up
+100 move 210 600
+100 wheel 0 -60
+150 move 210 719
+150 down
+152 up
+170 move 44 666
+170 down
+172 up
+190 move 210 719
+190 down
+192 up

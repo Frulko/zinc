@@ -1,11 +1,12 @@
-discover light 3f8638f736da921a
-detail light 23664e08f12d2adf
-stats light 065145dc904219e8
-settings light b0b7d8f17ad5eb25
-sheet light e5fb1a63db66964d
-discover dark 33b58ca4a6682e98
-detail dark e8983940a12d9159
-stats dark 23e9f837b0744df4
-settings dark 3aa0b603af3c909f
-sheet dark c7a531b5f47f59f0
-discover light e175967b104632fc 600
+components light 8d0f6db84a710770 20
+components dark 5104385d07f3cda0 20
+home light d7dd61ebc230de74 20
+home dark aa4a3d54b79fb1ee 20
+forms light 3e75076a6f7a657c 20
+network light fd7708e498c3a113 40
+more light 5bbddf8151a4a2ed 20
+more/media light 902eca1e9decf3af 20
+more/motion light cbdc09c567a028cd 20
+more/data light 6501be08b7eaa541 20
+more/data dark 95702d7027e8a802 20
+more/camera light 7c56d863b7dc30b6 40

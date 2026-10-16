@@ -1,0 +1,5 @@
+30 move 200 86
+30 down
+32 up
+35 text "Buy oat milk"
+40 key Enter

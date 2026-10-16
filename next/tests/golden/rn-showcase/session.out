@@ -1,0 +1,15 @@
+forms: signup invalid: terms
+forms: signup ok: Account #1085 created for ada@example.com (mock server).
+feed: posts 20
+feed: leave
+feed: feed connecting
+feed: feed open
+feed: feed server: Welcome to the mock feed: a tick every 1.5 s, and what you send comes back.
+feed: feed me: hello zinc
+feed: feed server: echo: hello zinc
+feed: feed ticker: ZNC 40.00 ▼ 2.0%
+feed: feed ticker: YOGA 43.70 ▼ 0.8%
+notes: notes saved: 5
+restart: notes loaded: 5, first "Buy oat milk"
+camera: camera live: Simulated front camera
+camera: photo at frame 30
