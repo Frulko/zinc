@@ -9,3 +9,4 @@
 - Long commands (builds of the whole tree, full tiers, conformance, benchmarks) run in the background; keep working while they run.
 - Never stop to ask the owner a question during the loop (see "Decide alone" above): research, decide, record, continue.
 - Never take the focus: every app or window you start while the owner works runs with `ZINC_BACKGROUND=1` (or `zinc --background ...`), and nothing you start is left running ("Never take the focus" in AGENTS.md).
+- Changelog: a change a user can see adds one plain line to `## [Unreleased]` of `CHANGELOG.md` in the same commit ("The changelog" in AGENTS.md); `make release` publishes it.

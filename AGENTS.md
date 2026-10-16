@@ -120,6 +120,15 @@ The engine enforces both (a diagnostic with the fix, `zinc explain` entry, a tes
 
 A program the engine starts while someone is working (a test, a demo, a capture, an app run by an agent or a loop, `zinc dev`) must not come to the front of the computer. Set `ZINC_BACKGROUND=1` or pass `--background` (`zinc --background run <dir>`): the window opens without being activated (SDL's `WINDOW_ACTIVATE_WHEN_SHOWN`/`WHEN_RAISED` off, no Dock icon, no raise), and the frontmost application stays the one the person uses. `tests/run` sets it for every test (`ZINC_BACKGROUND=0` to watch one). Every command an agent starts by hand that can open a window (`zinc run`, `zinc dev`, a built app, `zinc device`, the window tests of `tools/`) carries it too. A headless run (`ZINC_HEADLESS=1`) opens no window and needs nothing. Leave no process behind: kill what a command started (apps, servers, QEMU) before it ends.
 
+## The changelog: `CHANGELOG.md` is kept as the work goes (owner, 2026-10-16)
+
+A release has real notes, written for the people who use Zinc, not a list of commit subjects. `CHANGELOG.md` (Keep a Changelog: *Added*, *Changed*, *Deprecated*, *Removed*, *Fixed*, *Security*) has an `## [Unreleased]` section that every change visible to a user, a plugin author or a maintainer of an app adds a line to, **in the same commit as the change** (as the task file is):
+
+- Write what changes for them, in plain words and one or two lines: the command, the option, the error code, what they do now. Not the file, not the task number, not how it is built.
+- A breaking change goes under *Changed (breaking)* with the way out (the `zinc migrate` codemod, the new spelling).
+- No line for what nobody sees: tests, CI, backlog files, refactors, documents. A fix is a line only if someone could have met the bug.
+- `make release` turns *Unreleased* into the new version and the GitHub release notes: it shows the draft, lets you edit it, and when *Unreleased* is empty it drafts from the commits (feat, fix, perf) as a starting point. Read it before saying yes.
+
 ## Tests
 
 - `next/tests/<tier>/<name>.sh`, given `$ZINC`: T0 (seconds, the stage touched), T1 (end of a task, the feature's demo), T2 (milestone: whole corpus, interpreter vs AOT vs frozen output, benchmarks). Runner: `next/tests/run [--tier t0|t1|t2] [--only name] [--changed | --changed-from ref]`, one line per test, details in `next/.logs/`.

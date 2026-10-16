@@ -451,7 +451,9 @@ jobs:
         run: |
           ls -la release
           nl=$'\n'
-          notes="Zinc ${GITHUB_REF_NAME}.${nl}${nl}Install the zinc CLI: \`curl -fsSL https://github.com/${GH_REPO}/releases/latest/download/install.sh | sh\` (add \`-s -- --atelier\` for the app too).${nl}${nl}"
+          # the changelog `make release` wrote as the tag message (its first line is the title)
+          changelog=$(git for-each-ref "refs/tags/$GITHUB_REF_NAME" --format='%(contents)' | sed '1{/^Zinc /d;}' | sed '1{/^$/d;}')
+          notes="Zinc ${GITHUB_REF_NAME}${nl}${nl}${changelog:+$changelog$nl$nl}## Downloads${nl}${nl}Install the zinc CLI: \`curl -fsSL https://github.com/${GH_REPO}/releases/latest/download/install.sh | sh\` (add \`-s -- --atelier\` for the app too).${nl}${nl}"
           notes="$notes- \`zinc-<version>-macos-<arch>.tar.gz\`: the zinc CLI (bin/zinc, the standard library, templates, plugins with their native libraries); unpack anywhere and link bin/zinc onto your PATH.${nl}"
           notes="$notes- \`Zinc-Atelier-<version>-macos-<arch>.zip\`: the Zinc Atelier app, the engine inside; unzip and drag it to Applications.${nl}"
           notes="$notes- \`install.sh\`, \`SHA256SUMS\`: the installer and the checksums it checks; \`zinc-<os>-<arch>[-beta].manifest\`: what \`zinc update\` reads (stable and beta channels); \`plugins.lock\`: the plugin mirrors.${nl}"

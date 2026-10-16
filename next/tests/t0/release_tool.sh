@@ -22,6 +22,7 @@ git init -q --bare "$tmp/origin.git"
 cd "$tmp/work" || exit 2   # the tool works on the repository of the current directory: never on this one
 git init -q -b main . && git config user.email t@t && git config user.name t && git remote add origin "$tmp/origin.git"
 mkdir -p next && printf '%064d\n' 1 | tr 0 a > next/update.pub
+printf '# Changelog\n\n## [Unreleased]\n\n## [0.1.0] - 2026-01-01\n\n- first\n\n[Unreleased]: https://example.test/compare/v0.1.0...HEAD\n[0.1.0]: https://example.test/releases/tag/v0.1.0\n' > CHANGELOG.md
 echo a > a && git add -A && git commit -q -m "feat: first" && git tag -a v0.1.0 -m "Zinc 0.1.0" && git push -q origin main --tags
 echo b > b && git add b && git commit -q -m "fix(core): a bug"
 echo c > c && git add c && git commit -q -m "feat(ui): a thing"
@@ -32,8 +33,20 @@ echo "$out" | grep -q "Changelog of v0.2.0" || { echo "feat since the last tag m
 run --yes --bump patch --no-watch > "$tmp/out" || { echo "release failed: $(head -c 500 "$tmp/out")"; fail=1; }
 git tag -l v0.1.1 | grep -q . || { echo "no tag v0.1.1"; fail=1; }
 git -C "$tmp/origin.git" tag -l v0.1.1 | grep -q . || { echo "the tag was not pushed"; fail=1; }
-git tag -l --format='%(contents)' v0.1.1 | grep -q "a thing" || { echo "the changelog is not the tag message"; fail=1; }
-run --undo v0.1.1 --yes >/dev/null; git tag -l v0.1.1 | grep -q . && { echo "--undo kept the tag"; fail=1; }
+git tag -l --format='%(contents)' v0.1.1 | grep -q "a thing" || { echo "the draft from the commits is not the tag message"; fail=1; }
+grep -q '^## \[0.1.1\] - ' CHANGELOG.md && grep -q '^## \[Unreleased\]' CHANGELOG.md || { echo "CHANGELOG.md has no 0.1.1 section and a fresh Unreleased"; fail=1; }
+[ "$(git log -1 --format=%s v0.1.1)" = "docs(changelog): 0.1.1" ] || { echo "the tag does not point at the changelog commit"; fail=1; }
+grep -q 'compare/v0.1.0...v0.1.1' CHANGELOG.md && grep -q 'compare/v0.1.1...HEAD' CHANGELOG.md || { echo "the compare links are not updated"; fail=1; }
+# a written Unreleased wins over the commits
+python3 - <<'PY'
+t = open('CHANGELOG.md').read().replace('## [Unreleased]\n', '## [Unreleased]\n\n### Added\n- A line written by a person.\n', 1)
+open('CHANGELOG.md', 'w').write(t)
+PY
+git add CHANGELOG.md && git commit -q -m "docs: a note" && echo d > d && git add d && git commit -q -m "feat: d"
+run --yes --bump patch --no-watch > "$tmp/out2" || { echo "second release failed: $(head -c 400 "$tmp/out2")"; fail=1; }
+git tag -l --format='%(contents)' v0.1.2 | grep -q "A line written by a person" || { echo "the written Unreleased is not the tag message"; fail=1; }
+git tag -l --format='%(contents)' v0.1.2 | grep -q "d$" && { echo "the commits leaked into a written changelog"; fail=1; }
+run --undo v0.1.2 --yes >/dev/null; git tag -l v0.1.2 | grep -q . && { echo "--undo kept the tag"; fail=1; }
 run --bump nonsense --yes --dry-run | grep -q "not a version" || { echo "a wrong version is not refused"; fail=1; }
 [ $fail -eq 0 ] && echo "release_tool: ok"
 exit $fail

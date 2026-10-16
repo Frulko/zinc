@@ -4,7 +4,8 @@
 #
 #   tools/release [--bump patch|minor|major|X.Y.Z] [--yes] [--dry-run] [--no-watch]
 #   tools/release --undo vX.Y.Z      delete a tag (local and remote) and its release, after a question
-# The version is the tag: nothing is edited in the tree. The tag message holds the changelog.
+# The version is the tag. CHANGELOG.md (the Unreleased section, or a draft from the commits) becomes the section of the version, in a commit the tag points at, and the tag message: the
+# workflow publishes it as the release notes.
 set -u
 # the repository is the one of the current directory (never the one the script sits in: a test or a copy must not touch it)
 top=$(git rev-parse --show-toplevel 2>/dev/null) || { echo "tools/release: run it inside a git repository" >&2; exit 2; }
@@ -91,18 +92,57 @@ printf '%s' "$new" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+([-+.][0-9A-Za-z.-]+)?$' |
 tag="v$new"
 git rev-parse -q --verify "refs/tags/$tag" >/dev/null && die "the tag $tag already exists"
 
-notes=$(mktemp); trap 'rm -f "$notes"' EXIT
-{
-  printf 'Zinc %s\n\n' "$new"
-  for sect in 'feat:Features' 'fix:Fixes' 'perf:Performance' 'refactor:Refactoring' 'docs:Documentation' 'test:Tests' 'ci:CI' 'build:Build' 'chore:Chores'; do
+notes=$(mktemp); body=$(mktemp); trap 'rm -f "$notes" "$body"' EXIT
+today=$(date +%Y-%m-%d)
+hasfile=; [ -f CHANGELOG.md ] && hasfile=1
+# the Unreleased section of CHANGELOG.md (everything between its heading and the next version heading), or a draft from the commits when it is empty
+unreleased() { awk '/^## \[Unreleased\]/{f=1;next} /^## \[/{f=0} /^\[Unreleased\]:/{f=0} f' CHANGELOG.md; }
+draft() {   # Keep a Changelog sections from the user-visible conventional commits: feat -> Added, fix -> Fixed, perf and refactor stay out unless they say "faster"
+  for sect in 'feat:Added' 'fix:Fixed' 'perf:Changed'; do
     t=${sect%%:*}; title=${sect#*:}
-    body=$(git log --format='%s' "$range" | grep -E "^$t(\(|!|:)" | sed -E "s/^$t(\(([^)]*)\))?!?: ?/\2|/" | sed -E 's/^\|//; s/^([^|]+)\|/\1: /' | sed 's/^/- /')
-    [ -n "$body" ] && printf '## %s\n%s\n\n' "$title" "$body"
+    lines=$(git log --format='%s' "$range" | grep -E "^$t(\(|!|:)" | sed -E "s/^$t(\(([^)]*)\))?!?: ?/\2|/" | sed -E 's/^\|//; s/^([^|]+)\|/\1: /' | sed 's/^/- /')
+    [ -n "$lines" ] && printf '### %s\n%s\n\n' "$title" "$lines"
   done
-} > "$notes"
-printf '  %sChangelog of %s%s\n\n' "$b" "$tag" "$z"; sed 's/^/    /' "$notes" | head -60; echo
+}
+if [ -n "$hasfile" ]; then
+  unreleased | sed '/./,$!d' > "$body"
+  if ! grep -q '^- ' "$body"; then
+    warn "the Unreleased section of CHANGELOG.md is empty: a draft from the commits follows (only what a user can see belongs there)"
+    draft > "$body"
+  fi
+else
+  warn "no CHANGELOG.md: the notes come from the commits"; draft > "$body"
+fi
+printf '  %sChangelog of %s%s  %s(from CHANGELOG.md; edit it before saying yes)%s\n\n' "$b" "$tag" "$z" "$d" "$z"; sed 's/^/    /' "$body" | head -70; echo
+if [ -z "$dry" ] && [ -z "$yes" ] && [ -n "$hasfile" ] && [ -n "${EDITOR:-}" ]; then
+  if ask "  Edit these notes in $EDITOR?" n; then
+    { printf '# Notes of %s: edit, save and close. Lines starting with "# " are dropped.\n' "$tag"; cat "$body"; } > "$body.edit"
+    $EDITOR "$body.edit" && grep -v '^# ' "$body.edit" | sed '/./,$!d' > "$body"; rm -f "$body.edit"
+    printf '\n  %sEdited notes%s\n\n' "$b" "$z"; sed 's/^/    /' "$body" | head -70; echo
+  fi
+fi
+{ printf 'Zinc %s\n\n' "$new"; cat "$body"; } > "$notes"
 if [ -n "$dry" ]; then echo "  dry run: would tag $tag on $short and push (the workflow then builds and publishes)"; exit 0; fi
 ask "  Tag $tag on $short and push it? The release is public." n || { echo "cancelled: nothing was tagged"; exit 0; }
+if [ -n "$hasfile" ]; then   # the file gets its version section and a fresh Unreleased, in a commit the tag points at
+  python3 - "$new" "$today" "${last:-}" "$body" "https://github.com/$repo" <<'PY' || die "could not write CHANGELOG.md"
+import re, sys
+new, today, last, bodyfile, base = sys.argv[1:6]
+body = open(bodyfile).read().strip('\n')
+text = open('CHANGELOG.md').read()
+m = re.search(r'^## \[Unreleased\][^\n]*\n', text, re.M)
+if not m: sys.exit("no '## [Unreleased]' heading")
+nxt = re.search(r'^(## \[|\[Unreleased\]:)', text[m.end():], re.M)
+end = m.end() + (nxt.start() if nxt else len(text) - m.end())
+text = text[:m.start()] + '## [Unreleased]\n\n## [%s] - %s\n\n%s\n\n' % (new, today, body) + text[end:]
+prev = last or ''
+links = '[Unreleased]: %s/compare/v%s...HEAD\n[%s]: %s\n' % (base, new, new, ('%s/compare/%s...v%s' % (base, prev, new)) if prev else ('%s/releases/tag/v%s' % (base, new)))
+text = re.sub(r'^\[Unreleased\]:[^\n]*\n', links, text, flags=re.M) if re.search(r'^\[Unreleased\]:', text, re.M) else text.rstrip('\n') + '\n\n' + links
+open('CHANGELOG.md', 'w').write(text)
+PY
+  git add CHANGELOG.md && git commit -q -m "docs(changelog): $new" || die "could not commit CHANGELOG.md"
+  sha=$(git rev-parse HEAD); short=$(git rev-parse --short HEAD); ahead=$((ahead + 1))
+fi
 git tag -a "$tag" -F "$notes" "$sha" || die "could not tag"
 if [ "$ahead" != 0 ]; then git push origin "$branch" || { git tag -d "$tag" >/dev/null; die "could not push $branch (the tag is removed)"; }; fi
 git push origin "$tag" || { git tag -d "$tag" >/dev/null; die "could not push the tag (removed here)"; }
