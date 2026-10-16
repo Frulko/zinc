@@ -600,6 +600,43 @@ bool readStamp(const std::string& path, PluginLib& out) {
 }
 }  // namespace
 
+// The choices of buildPluginSlow for a target, without compiling: the implementation (the manifest's, <x>.<target>.cpp, <x>.host.cpp), the
+// manifest's sources split as there, its defines and flags. ponytail: system libraries (pkg) are not resolved; a plugin that needs one is refused.
+bool pluginSource(const frontend::FoundPlugin& p, const std::string& engineRoot, const std::string& projectDir, const std::string& target, const std::string& genDir, PluginSource& out, std::string& err) {
+  const frontend::PluginManifest& m = p.manifest;
+  out = PluginSource{};
+  out.plugin = m.name;
+  auto ts = m.targetSettings.find(target);
+  if (m.kind == "display" || ts == m.targetSettings.end()) { err = "plugin '" + m.name + "' has no native build for " + target; return false; }
+  if (!ts->second.pkg.empty()) { err = "plugin '" + m.name + "' needs the system library '" + ts->second.pkg[0] + "', which an app cannot link yet"; return false; }
+  const fs::path nativeDir = fs::path(p.dir) / "native";
+  std::string specPath, specText, base, impl;
+  std::error_code ec;
+  for (const auto& e : fs::directory_iterator(nativeDir, ec)) if (isSpec(e.path())) { specPath = e.path().string(); base = e.path().filename().string(); base.resize(base.size() - 8); }
+  frontend::NativeGen gen;
+  if (specPath.empty() || !readAll(specPath, specText)) { err = "plugin '" + m.name + "' has no native/*.spec.ts"; return false; }
+  if (!frontend::generateNative(specPath, specText, gen, err)) return false;
+  out.module = gen.name;
+  auto it = m.nativeImpl.find(target);
+  if (it != m.nativeImpl.end()) impl = (fs::path(p.dir) / it->second).string();
+  else for (std::string cand : {base + "." + target + ".cpp", base + ".host.cpp"}) if (impl.empty() && fs::exists(nativeDir / cand)) impl = (nativeDir / cand).string();
+  if (impl.empty()) { err = "plugin '" + m.name + "' has no native source for " + target; return false; }
+  out.own.push_back(impl);
+  for (const std::string& s : ts->second.sources) (endsWith(s, ".c") || s.rfind("vendor/", 0) == 0 ? out.vendored : out.own).push_back((fs::path(p.dir) / s).string());
+  out.defines = buildDefines(p, ts->second, engineRoot, projectDir, target);
+  for (const std::string& f : ts->second.flags) {
+    const size_t at = f.rfind("-I", 0) == 0 ? 2 : 0;
+    out.flags.push_back(f.compare(at, 2, "./") != 0 && f.compare(at, 3, "../") != 0 ? f : f.substr(0, at) + (fs::path(p.dir) / f.substr(at)).lexically_normal().string());
+  }
+  std::string lower = gen.name;
+  for (char& c : lower) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+  fs::create_directories(genDir, ec);
+  std::ofstream(genDir + "/zinc_native_" + lower + ".h") << gen.cppHeader;
+  std::ofstream(genDir + "/zinc_native_" + lower + "_thunk.cpp") << gen.thunk;
+  out.own.push_back(genDir + "/zinc_native_" + lower + "_thunk.cpp");
+  return true;
+}
+
 bool buildPlugin(const frontend::FoundPlugin& p, const std::string& engineRoot, const std::string& projectDir, const std::string& target, PluginLib& out, std::string& err) {
   const auto t0 = std::chrono::steady_clock::now();
   const frontend::PluginManifest& m = p.manifest;

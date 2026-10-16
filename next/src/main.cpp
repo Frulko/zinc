@@ -746,9 +746,10 @@ static int buildNative(const char* argv0, const char* entry, const char* out, zn
     for (const std::string& a : pl.linkArgs) nativeLibs += " " + a;
   }
   if (cppOnly) {   // out.cpp (and out.partN.cpp) kept, out.libs: what the program links beside the engine library (its plugins)
-    std::ofstream l(std::string(out) + ".libs");
+    std::ofstream l(std::string(out) + ".libs"), pn(std::string(out) + ".plugins");   // .plugins: their names, one per line (an app project compiles their sources)
     l << nativeLibs << "\n";
-    return l ? 0 : 2;
+    for (const zn::tc::PluginLib& pl : gPlugins) pn << pl.plugin << "\n";
+    return l && pn ? 0 : 2;
   }
 #if defined(__APPLE__) && defined(__aarch64__)
   // Apple clang outlines repeated code into calls even at -O2: 40% of the frame loop of bouncing-ball (ZN-397); its load/store pairing turns

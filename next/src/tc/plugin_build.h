@@ -47,6 +47,14 @@ bool pluginExports(const PluginLib& lib, std::vector<std::pair<std::string, std:
 void setCrossTarget(const std::string& name, const std::string& zigTarget, const std::string& zig);
 void clearCrossTarget();
 
+// What another build system compiles of a module plugin (zinc export --target android, ZN-621): its implementation and sources, the vendored C
+// libraries, the defines and flags (the manifest's paths made absolute), and the generated header and thunk written into `genDir`.
+struct PluginSource {
+  std::string plugin, module;          // "svg", "SvgEngine"
+  std::vector<std::string> own, vendored, defines, flags;
+};
+bool pluginSource(const frontend::FoundPlugin& p, const std::string& engineRoot, const std::string& projectDir, const std::string& target, const std::string& genDir, PluginSource& out, std::string& err);
+
 // "macos" or "linux": the plugin target of this machine.
 std::string pluginTarget();
 

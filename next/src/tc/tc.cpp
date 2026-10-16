@@ -158,7 +158,7 @@ const std::vector<Target>& targets() {
 const std::vector<Target>& appTargets() {
   static const std::vector<Target> t = {
       // armeabi-v7a for the 32-bit devices still in use (the Nexus 7 2012, Android 7.1); x86_64 for the emulator
-      {"android", "", "", "Android 7.1 (API 25) and later, armeabi-v7a, arm64-v8a and x86_64 (needs the Android NDK: zinc export --target android)"},
+      {"android", "", "", "Android 7.0 (API 24) and later, armeabi-v7a, arm64-v8a and x86_64 (needs the Android NDK: zinc export --target android)"},
       {"ios", "", "", "iPhone and iPad, arm64 (needs Xcode: zinc export --target ios)"},
       {"ios-sim", "", "", "the iOS simulator, arm64 and x86_64 (needs Xcode)"},
   };

@@ -27,6 +27,7 @@
 #include "assets/assets.h"
 #include "frontend/diagnostics.h"
 #include "frontend/plugin_manifest.h"
+#include "frontend/profile.h"
 #include "frontend/project.h"
 #include "zn/devproto.h"
 #include "zapp.h"
@@ -83,7 +84,7 @@ const Command kCommands[] = {
   {"plugins", "zinc plugins [project-dir] [--defines <plugin> [target]] | zinc plugins search [word] | zinc plugins update [plugin...]", "the plugin table, the index", "Lists the plugins visible to a project and where they run. search: the plugins and templates of the signed index whose name or description has the word, one line each (kind, name and version, targets, description). update: each dependency added by name moves to the highest version its range (name@^1.2, ~1.2, >=1.2, 1.2) allows, checked like zinc add; one line per plugin that moved."},
   {"capture", "zinc capture <entry|dir> [--frames 1,60] [--every n] [--out dir] [--size WxH]", "a program's frames as PNG", "Runs the program headless and deterministic and writes ZINC_SHOT frames (frame-<n>.png) into --out (default shots/). zinc capture --scene replays a scene dump instead."},
   {"bench", "zinc bench [entry|dir] [--frames n]", "frame timings of a program", "Runs headless for n frames (default 120) and prints p50 / p99 / max per phase (app, layout, paint, raster...)."},
-  {"export", "zinc export [entry|dir] [--target linux|rpi|rpi1|rpi2|chip|pocketchip|rmpp|macos|wasm|esp32] [-o dir] [--deb] [--dmg] [--key <seed-hex>]", "package a program", "dist/<name>-<target>/: the executable (cross built with the pinned zig for another target), run.sh, README.txt, assets/, a .desktop file (Linux) or the .app (macOS); wasm: a static site (index.html, app.js, app.wasm, app.zbc, serve.py); esp32: core.bin, app.bin and flash.sh. --deb also writes dist/<name>_<version>_<arch>.deb (Linux targets; reproducible, written without dpkg); --dmg dist/<name>-<version>.dmg with the .app and an Applications link (macos; the .app needs zinc.json app.id). The .app is signed ad hoc, or by zinc.json \"signing\": { \"identity\", \"keychain\", \"notaryProfile\" } with the hardened runtime and the entitlements of \"permissions\"; the notarization commands are printed. --key (or ZINC_UPDATE_SEED) writes <file>.sig, an Ed25519 signature, beside the executable and the .deb or .dmg: zinc verify checks them."},
+  {"export", "zinc export [entry|dir] [--target linux|rpi|rpi1|rpi2|chip|pocketchip|rmpp|macos|wasm|esp32|android] [-o dir] [--print] [--deb] [--dmg] [--key <seed-hex>]", "package a program", "dist/<name>-<target>/: the executable (cross built with the pinned zig for another target), run.sh, README.txt, assets/, a .desktop file (Linux) or the .app (macOS); wasm: a static site (index.html, app.js, app.wasm, app.zbc, serve.py); esp32: core.bin, app.bin and flash.sh; android: a Gradle project whose CMake builds the engine and the program with the NDK (--print lists ./gradlew assembleDebug and bundleRelease). --deb also writes dist/<name>_<version>_<arch>.deb (Linux targets; reproducible, written without dpkg); --dmg dist/<name>-<version>.dmg with the .app and an Applications link (macos; the .app needs zinc.json app.id). The .app is signed ad hoc, or by zinc.json \"signing\": { \"identity\", \"keychain\", \"notaryProfile\" } with the hardened runtime and the entitlements of \"permissions\"; the notarization commands are printed. --key (or ZINC_UPDATE_SEED) writes <file>.sig, an Ed25519 signature, beside the executable and the .deb or .dmg: zinc verify checks them."},
   {"add", "zinc add <name | git-url[@ref] | gh:user/repo[@ref] | archive URL> [dir]", "add a plugin from the index, git or an archive", "A name (name@range: ^1.2, ~1.2, >=1.2, 1.2) is looked up in the signed index, the highest version the range allows: its tier (official, or verified for a publisher the index delegates to) and publisher are printed first. Fetches the plugin (git: at its default branch or @ref; an archive: file:// or https://, .tar.gz, .tgz or .tar) into plugins/<name>, records it in zinc.json \"dependencies\" and pins it in zinc.lock: the commit or the archive's sha256, the version and the capabilities plugin.json \"permissions\" asks for (an update asking for a new one is refused until --accept). --key <public key>: the archive's <url>.sig must verify with it, and the key is locked too. Nothing of the plugin is run; links and special files are refused. What each tier guarantees, and what a mirror can and cannot do: docs/guide/08-security.md, \"Plugin distribution: threat model and guarantees\"."},
   {"sign", "zinc sign <file> <seed-hex>", "sign a plugin archive", "Writes <file>.sig: the detached Ed25519 signature (128 hex digits) that zinc add --key <public key> checks. zinc update-keygen makes a key pair."},
   {"plugin-build", "zinc plugin-build <plugin> [project] [--target T] [--pack file.tar | --prebuild]", "build a plugin's native part", "Compiles the plugin's native code with the pinned zig into ~/.zinc/cache/<target>/plugins/<name>-<key> (or finds it there) and prints where; the key is the one every client computes for the same sources, options and target. --pack writes it as a deterministic archive: the binaries/<target>/<name>-<key>.tar a plugin index serves (next/tools/plugin-pack names it). --prebuild copies it into the plugin's prebuilt/<target>/. --target cross-builds it for a Linux target (aarch64-linux, armhf-linux, armv7-linux, x86_64-linux)."},
@@ -910,6 +911,183 @@ static std::string splashStyle(const zn::assets::Splash& s) {
   return css + "\"";
 }
 
+// zinc export --target android (ZN-621, D59, docs/reports/zinc-next-mobile-core.md): SDL's own Android project (third_party/SDL3/android-project,
+// the template of SDL 3.4.16) changed as SDL's generator (third_party/SDL3/build-scripts/create-android-project.py) changes it: the package id, the
+// activity subclass, the sources of libmain.so. Zinc changes little more, all listed in exportAndroid: the app's name, version, orientation and
+// permissions, the ABIs (armeabi-v7a included), API 36, the Gradle and AGP pins, and the CMake entry that adds the engine (next/, the target
+// zn_app, which builds SDL3) instead of SDL alone. So an SDL upgrade is a re-copy of the template. The engine's sources are referenced
+// (gradle.properties zinc.engine), not copied. Nothing of Android runs here: ./gradlew assembleDebug does, with the SDK and the NDK.
+namespace android {
+constexpr const char* kAgp = "8.13.2";            // the Android Gradle Plugin of compileSdk 36 (the template's 8.7.3 stops at 35)
+constexpr const char* kNdk = "29.0.14206865";     // NDK r29, named by its version as AGP wants it
+constexpr const char* kGradle = "8.14.3";         // the wrapper's distribution, pinned by its sha256 (the template names 8.12, unpinned)
+constexpr const char* kGradleSha = "bd71102213493060956ec229d946beee57158dbd89d0e62b91bca0fa2c5f3531";
+constexpr int kMinSdk = 24;   // libuv calls pthread_barrier_*, in bionic since API 24 (SDL3 alone needs 21); Android 7.0, the Nexus 7 2012 runs 7.1 (25)
+std::string javaId(const std::string& s) {        // a Java package or applicationId: letters, digits and '_' in dot-separated parts
+  std::string r;
+  for (char c : s) r += std::isalnum(static_cast<unsigned char>(c)) || c == '.' ? c : '_';
+  return r;
+}
+std::string xml(const std::string& s) {
+  std::string r;
+  for (char c : s) r += c == '&' ? "&amp;" : c == '<' ? "&lt;" : c == '>' ? "&gt;" : c == '"' ? "&quot;" : std::string(1, c);
+  return r;
+}
+// replace_in_file of create-android-project.py: every `what` in the file becomes `with`; it must be there (a template that moved is an error, not a silent skip)
+bool replaceIn(const fs::path& f, const std::string& what, const std::string& with, std::string& err) {
+  std::ifstream in(f);
+  std::stringstream ss; ss << in.rdbuf();
+  std::string s = ss.str();
+  std::size_t n = 0;
+  for (std::size_t at = s.find(what); at != std::string::npos; at = s.find(what, at + with.size()), ++n) s.replace(at, what.size(), with);
+  if (!n) { err = "the SDL template changed: \"" + what + "\" is not in " + f.string(); return false; }
+  return writeFile(f, s);
+}
+}  // namespace android
+
+static int exportAndroid(const ProjectInfo& p, const fs::path& out, const std::string& engineRoot, bool print) {
+  using namespace android;
+  std::error_code ec;
+  std::string err;
+  const fs::path engine = fs::absolute(engineRoot).lexically_normal(), tpl = engine / "third_party/SDL3/android-project", src = out / "app/jni/src";
+  if (!fs::exists(engine / "src/app/shell_sdl.cpp") || !fs::exists(tpl / "app/build.gradle")) { std::fprintf(stderr, "zinc export: --target android needs the engine's sources (%s)\n", engine.string().c_str()); return 1; }
+  zn::frontend::Project proj;
+  { std::ifstream pf(fs::path(p.dir) / "zinc.json"); std::stringstream ps; ps << pf.rdbuf(); std::string perr; if (pf) zn::frontend::parseProject(ps.str(), proj, perr); }
+  fs::copy(tpl, out, fs::copy_options::recursive | fs::copy_options::overwrite_existing, ec);   // shutil.copytree(SDL_ROOT / "android-project", build_path)
+  if (ec) { std::fprintf(stderr, "zinc export: copying the SDL template: %s\n", ec.message().c_str()); return 1; }
+  fs::remove(src / "YourSourceHere.c", ec);
+  // the program's C++ for the android profile (number, heap, requires) in app/jni/src, where the script copies the sources, and the plugins it calls
+  const std::string build = "ZN_AOT_CPP_ONLY=1 " + q(self()) + " build --profile android " + q(p.entry) + " -o " + q((src / "program").string());
+  if (status(std::system(build.c_str())) != 0) { std::fprintf(stderr, "zinc export: the build failed\n"); return 1; }
+  fs::remove(src / "program.libs", ec);   // the desktop's archives: the plugins are compiled from their sources below
+  std::vector<std::string> units{"program.cpp"};
+  for (int k = 1; fs::exists(src / ("program.part" + std::to_string(k) + ".cpp")); ++k) units.push_back("program.part" + std::to_string(k) + ".cpp");
+  std::vector<std::string> names;
+  { std::ifstream pn(src / "program.plugins"); for (std::string l; std::getline(pn, l);) if (!l.empty()) names.push_back(l); }
+  fs::remove(src / "program.plugins", ec);
+  std::string pluginCmake, pluginLibs;
+  if (!names.empty()) {
+    std::vector<std::string> problems;
+    const auto found = zn::frontend::discoverPlugins(engine.parent_path().string(), p.dir, problems);
+    for (const std::string& nm : names) {
+      const zn::frontend::FoundPlugin* hit = nullptr;
+      for (const auto& f : found) if (f.manifest.name == nm) hit = &f;
+      if (!hit) { std::fprintf(stderr, "zinc export: plugin '%s' not found\n", nm.c_str()); return 1; }
+      // ponytail: the plugin's linux build stands for android until the manifests have android entries (ZN-628)
+      const std::string tgt = hit->manifest.targetSettings.count("android") ? "android" : "linux";
+      zn::tc::PluginSource ps;
+      if (!zn::tc::pluginSource(*hit, engine.string(), p.dir, tgt, (src / "plugins" / nm).string(), ps, err)) { std::fprintf(stderr, "zinc export: %s\n", err.c_str()); return 1; }
+      const std::string lib = "zn_plugin_" + nm, pdir = fs::path(hit->dir).lexically_normal().string();
+      auto path = [&](const std::string& s) { return s.rfind(pdir, 0) == 0 ? "${ZINC_PLUGINS}/" + nm + s.substr(pdir.size()) : fs::path(s).lexically_relative(src).generic_string(); };
+      pluginCmake += "add_library(" + lib + " STATIC";
+      for (const std::string& s : ps.own) pluginCmake += " " + path(s);
+      for (const std::string& s : ps.vendored) pluginCmake += " " + path(s);
+      pluginCmake += ")\ntarget_include_directories(" + lib + " PRIVATE plugins/" + nm + " ${ZINC_PLUGINS}/" + nm + " ${ZINC_ENGINE}/src ${ZINC_ENGINE}/include ${ZINC_ENGINE}/../runtime ${ZINC_ENGINE}/../runtime/include ${ZINC_ENGINE}/third_party)\n"
+                     "target_compile_options(" + lib + " PRIVATE -O2 -fno-exceptions -fno-rtti -fwrapv -ffp-contract=off -fno-threadsafe-statics -w";
+      for (const std::string& f : ps.flags) pluginCmake += " " + path(f);
+      pluginCmake += ")\nset_target_properties(" + lib + " PROPERTIES CXX_STANDARD 17)\ntarget_compile_definitions(" + lib + " PRIVATE";
+      for (std::string d : ps.defines) {
+        if (d.rfind("ZRT_PLATFORM=", 0) == 0) d = "ZRT_PLATFORM=\"android\"";
+        if (d.rfind("ZRT_HEAP_BYTES=", 0) == 0) continue;   // the runtime's region is sized at start (shell_sdl.cpp)
+        std::string e;
+        for (char c : d) e += c == '"' ? "\\\"" : std::string(1, c);
+        pluginCmake += " \"" + e + "\"";
+      }
+      pluginCmake += ")\n";
+      pluginLibs += " " + lib;
+    }
+  }
+  const zn::frontend::Profile* prof = zn::frontend::findProfile("android");
+  const std::string heapMb = std::to_string(prof ? prof->heapBytes >> 20 : 128);
+  const std::string id = javaId(proj.app.id.empty() ? "dev.zinc." + p.name : proj.app.id);
+  const std::string version = !proj.app.version.empty() ? proj.app.version : !p.version.empty() ? p.version : "1.0";
+  int code = proj.app.versionCode;
+  if (code <= 0) {   // 1.2.3 -> 10203
+    int parts[3] = {0, 0, 0}, k = 0;
+    for (std::size_t i = 0; i < version.size() && k < 3; ++i) { if (std::isdigit(static_cast<unsigned char>(version[i]))) parts[k] = parts[k] * 10 + (version[i] - '0'); else if (version[i] == '.') ++k; else break; }
+    code = parts[0] * 10000 + parts[1] * 100 + parts[2];
+    if (code < 1) code = 1;
+  }
+  const std::string activity = [&] { std::string last = id.substr(id.rfind('.') + 1); if (!last.empty()) last[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(last[0]))); return last + "Activity"; }();   // the script's name
+  std::string units1;
+  for (const std::string& u : units) { units1 += u + "\n    "; }
+  std::string perms;
+  auto perm = [&](const char* name) { if (perms.find(name) == std::string::npos) perms += std::string("    <uses-permission android:name=\"android.permission.") + name + "\" />\n"; };
+  if (!proj.permissionsDeclared) perm("INTERNET");   // not declared: the app is not restricted (as on the desktop), and the network is the common need
+  for (const std::string& f : zn::frontend::permissionsFor(proj, "android")) {
+    if (f == "net") perm("INTERNET");
+    else if (f == "camera") perm("CAMERA");
+    else if (f == "microphone") perm("RECORD_AUDIO");
+    else if (f == "location") perm("ACCESS_FINE_LOCATION");
+  }
+  const std::string orient = proj.app.orientation == "portrait" ? "sensorPortrait" : proj.app.orientation == "landscape" ? "sensorLandscape" : "unspecified";
+  std::string pkgPath = id;
+  std::replace(pkgPath.begin(), pkgPath.end(), '.', '/');
+  const bool ok =
+      // what create-android-project.py changes: the sources of libmain.so, the package name, the activity
+      replaceIn(src / "CMakeLists.txt", "YourSourceHere.c\n", units1 + "${ZINC_ENGINE}/src/app/shell_sdl.cpp\n", err) &&
+      replaceIn(out / "app/build.gradle", "org.libsdl.app", id, err) &&
+      replaceIn(out / "app/src/main/AndroidManifest.xml", "name=\"SDLActivity\"", "name=\"" + activity + "\"\n            android:screenOrientation=\"" + orient + "\"", err) &&
+      // Zinc: the engine and the program in libmain.so (SDL3 is built inside the engine), linked with zn_app and the program's plugins
+      replaceIn(out / "app/jni/CMakeLists.txt", "add_subdirectory(SDL)\n", "set(ZN_WEBGL OFF CACHE BOOL \"\" FORCE)\nadd_subdirectory(${ZINC_ENGINE} zinc EXCLUDE_FROM_ALL)   # Zinc: the engine (zn_app), SDL3 inside it\n", err) &&
+      replaceIn(src / "CMakeLists.txt", "target_link_libraries(main PRIVATE SDL3::SDL3)\n",
+                "# Zinc (zinc export --target android): the program's plugins, then libmain.so = the program, the shell, the engine\nset(ZINC_PLUGINS ${ZINC_ENGINE}/../plugins)\n" + pluginCmake +
+                "set_target_properties(main PROPERTIES CXX_STANDARD 20)\ntarget_compile_definitions(main PRIVATE ZN_APP_LIBRARY ZN_APP_HEAP_MB=" + heapMb + ")\n"
+                "target_compile_options(main PRIVATE -O2 -w -ffp-contract=off -fno-stack-protector)\n"
+                "target_include_directories(main PRIVATE ${ZINC_ENGINE}/include ${ZINC_ENGINE}/src ${ZINC_ENGINE}/third_party/mimalloc/include)\n"
+                "target_link_libraries(main PRIVATE SDL3::SDL3" + pluginLibs + " zn_app log android)\n"
+                "# SDL's JNI entry (SDL_android.c) is in a static archive nothing else refers to; 16 KB pages (Play, since 2025-11-01)\n"
+                "target_link_options(main PRIVATE \"-Wl,-u,JNI_OnLoad\" \"-Wl,-z,max-page-size=16384\" \"-Wl,--gc-sections\")\n", err) &&
+      // Zinc: API 36, the NDK of the pins, the ABIs, the version, the engine's path for the CMake
+      replaceIn(out / "app/build.gradle", "compileSdkVersion 35", "compileSdkVersion 36", err) &&
+      replaceIn(out / "app/build.gradle", "targetSdkVersion 35", "targetSdkVersion 36", err) &&
+      replaceIn(out / "app/build.gradle", "ndkVersion = \"28.2.13676358\"", std::string("ndkVersion = \"") + kNdk + "\"", err) &&
+      replaceIn(out / "app/build.gradle", "versionCode 1\n", "versionCode " + std::to_string(code) + "\n", err) &&
+      replaceIn(out / "app/build.gradle", "versionName \"1.0\"", "versionName \"" + version + "\"", err) &&
+      replaceIn(out / "app/build.gradle", "abiFilters 'arm64-v8a'", "abiFilters(*project.property('zinc.abis').split(','))", err) &&
+      replaceIn(out / "app/build.gradle", "arguments \"-DANDROID_PLATFORM=android-21\", \"-DANDROID_STL=c++_static\"",
+                std::string("arguments \"-DANDROID_PLATFORM=android-") + std::to_string(kMinSdk) + "\", \"-DANDROID_STL=c++_static\", \"-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON\", \"-DZINC_ENGINE=${project.property('zinc.engine')}\"\n                targets \"main\"   // Zinc: AGP builds every library of the CMake project otherwise, the engine's CLI and tools among them", err) &&
+      replaceIn(out / "app/build.gradle", "minSdkVersion 21", "minSdkVersion " + std::to_string(kMinSdk), err) &&
+      replaceIn(out / "app/build.gradle", "APP_PLATFORM=android-21", "APP_PLATFORM=android-" + std::to_string(kMinSdk), err) &&
+      replaceIn(out / "build.gradle", "com.android.tools.build:gradle:8.7.3", std::string("com.android.tools.build:gradle:") + kAgp, err) &&
+      replaceIn(out / "gradle/wrapper/gradle-wrapper.properties", "distributionUrl=https\\://services.gradle.org/distributions/gradle-8.12-bin.zip",
+                std::string("distributionUrl=https\\://services.gradle.org/distributions/gradle-") + kGradle + "-bin.zip\ndistributionSha256Sum=" + kGradleSha, err) &&
+      // Zinc: the app's name, its permissions
+      replaceIn(out / "app/src/main/res/values/strings.xml", "<string name=\"app_name\">Game</string>", "<string name=\"app_name\">" + xml(!proj.app.name.empty() ? proj.app.name : p.name) + "</string>", err) &&
+      replaceIn(out / "app/src/main/AndroidManifest.xml", "    <uses-feature android:glEsVersion=\"0x00020000\" />\n", "    <uses-feature android:glEsVersion=\"0x00020000\" />\n" + perms, err);
+  if (!ok) { std::fprintf(stderr, "zinc export: %s\n", err.c_str()); return 1; }
+  {   // gradle.properties: the CMake build of the template (BUILD_WITH_CMAKE), the engine, the ABIs
+    std::ifstream in(out / "gradle.properties"); std::stringstream ss; ss << in.rdbuf();
+    writeFile(out / "gradle.properties", ss.str() + "\n# Zinc (zinc export --target android): the CMake build, the engine whose sources it compiles (next/ of a checkout), the ABIs\n"
+              "# (-Pzinc.abis=armeabi-v7a builds one)\nBUILD_WITH_CMAKE=1\nzinc.engine=" + engine.string() + "\nzinc.abis=armeabi-v7a,arm64-v8a,x86_64\n");
+  }
+  fs::create_directories(out / "app/src/main/java" / pkgPath, ec);
+  // the script's activity, with SDL3 linked into libmain.so rather than a libSDL3.so of its own
+  writeFile(out / "app/src/main/java" / pkgPath / (activity + ".java"),
+            "package " + id + ";\n\nimport org.libsdl.app.SDLActivity;\n\npublic class " + activity + " extends SDLActivity\n{\n    @Override\n    protected String[] getLibraries() { return new String[] { \"main\" }; }   // Zinc: SDL3 is inside libmain.so\n}\n");
+  if (!proj.app.icon.empty() && fs::exists(fs::path(p.dir) / proj.app.icon))   // zinc.json app.icon, a PNG, for every density
+    for (const char* d : {"mdpi", "hdpi", "xhdpi", "xxhdpi", "xxxhdpi"}) fs::copy_file(fs::path(p.dir) / proj.app.icon, out / "app/src/main/res" / (std::string("mipmap-") + d) / "ic_launcher.png", fs::copy_options::overwrite_existing, ec);
+  // assets/ of the project: in the APK under zinc/assets, listed for the shell, which copies them once per version (src/app/shell_sdl.cpp)
+  if (fs::is_directory(fs::path(p.dir) / "assets", ec)) {
+    const fs::path dst = out / "app/src/main/assets/zinc/assets";
+    fs::create_directories(dst, ec);
+    fs::copy(fs::path(p.dir) / "assets", dst, fs::copy_options::recursive | fs::copy_options::overwrite_existing, ec);
+    std::vector<std::string> files;
+    for (auto it = fs::recursive_directory_iterator(dst, ec); it != fs::recursive_directory_iterator(); it.increment(ec)) if (it->is_regular_file()) files.push_back(it->path().lexically_relative(dst).generic_string());
+    std::sort(files.begin(), files.end());
+    std::string list, all;
+    for (const std::string& f : files) { list += f + "\n"; all += f + " " + zn::tc::sha256File((dst / f).string()) + "\n"; }
+    writeFile(out / "app/src/main/assets/zinc/assets.txt", version + "-" + std::to_string(code) + "-" + zn::tc::sha256Hex(all).substr(0, 16) + "\n" + list);   // the stamp first: other assets, another copy
+  }
+  const std::string cmds = "  cd " + q(out.string()) + "\n  ./gradlew assembleDebug        # app/build/outputs/apk/debug/app-debug.apk (-Pzinc.abis=armeabi-v7a for one ABI)\n"
+                           "  adb install -r app/build/outputs/apk/debug/app-debug.apk\n  ./gradlew bundleRelease        # app/build/outputs/bundle/release/app-release.aab, to sign with your upload key\n";
+  writeFile(out / "README-zinc.txt", p.name + " " + version + " (android) exported by Zinc from SDL's Android project: a Gradle project. It needs the Android SDK (ANDROID_HOME or local.properties sdk.dir),\n"
+            "the NDK " + kNdk + " and a JDK 17 to 21. The native build compiles the Zinc engine from " + engine.string() + " (gradle.properties zinc.engine).\n\n" + cmds);
+  if (print) std::printf("%s", cmds.c_str());
+  std::printf("%s\n", out.string().c_str());
+  return 0;
+}
+
 // zinc export --target wasm (ZN-326.01): a static site, the program as ZBC (app.zbc) for the interpreter built for the browser (app.wasm, tools/build-wasm) and the
 // page's glue (targets/wasm/glue: app.js, its worker and WASI). The SharedArrayBuffer of the frame loop needs COOP/COEP headers: serve.py serves the folder with them.
 static int exportWasm(const ProjectInfo& p, const fs::path& out, const std::string& engineRoot) {
@@ -986,8 +1164,8 @@ static void notarizeHint(const ProjectInfo& p, const fs::path& out, const std::v
 }
 
 int exportApp(const std::vector<std::string>& args, const std::string& engineRoot) {
-  Opts o = parseOpts(args, {"--target", "-o", "--key"}, {"--deb", "--dmg", "--inspect"});
-  if (o.bad) { std::fprintf(stderr, "zinc export: unknown option %s\nusage: zinc export [entry|dir] [--target linux|rpi|rpi1|rpi2|chip|pocketchip|rmpp|macos|wasm|esp32] [-o dir] [--deb] [--dmg] [--inspect] [--key <seed-hex>]\n", o.badArg.c_str()); return 2; }
+  Opts o = parseOpts(args, {"--target", "-o", "--key"}, {"--deb", "--dmg", "--inspect", "--print"});
+  if (o.bad) { std::fprintf(stderr, "zinc export: unknown option %s\nusage: zinc export [entry|dir] [--target linux|rpi|rpi1|rpi2|chip|pocketchip|rmpp|macos|wasm|esp32|android] [-o dir] [--print] [--deb] [--dmg] [--inspect] [--key <seed-hex>]\n", o.badArg.c_str()); return 2; }
   const std::string seed = o.v.count("--key") ? o.v["--key"] : std::getenv("ZINC_UPDATE_SEED") ? std::getenv("ZINC_UPDATE_SEED") : "";   // the artifacts' signatures (ZN-321)
   std::vector<fs::path> artifacts;
   ProjectInfo p; std::string err;
@@ -1010,6 +1188,7 @@ int exportApp(const std::vector<std::string>& args, const std::string& engineRoo
   if (!buildAssets(p.dir, target, true, err)) { std::fprintf(stderr, "zinc export: %s\n", err.c_str()); return 1; }   // the release packs, build/assets/<target> (ZN-434)
   if (target == "wasm") return exportWasm(p, out, engineRoot);
   if (target == "esp32") return exportEsp32(p, out, engineRoot);
+  if (target == "android") return exportAndroid(p, out, engineRoot, has(o, "--print"));
   // the argument orders of the two build commands: `build <file> -o <out>` for this machine, `build --target <t> <file> -o <out>` for another
   const std::string cmd = zt.empty() ? "ZINC_COMPONENTS=1 " + q(self()) + " build " + q(p.entry) + " -o " + q((out / p.name).string())   // ZINC_COMPONENTS: what it links, for the SBOM
                                      : "ZINC_COMPONENTS=1 " + q(self()) + " build --target " + q(zt) + " " + q(p.entry) + " -o " + q((out / p.name).string());
