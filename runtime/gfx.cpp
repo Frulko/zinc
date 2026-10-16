@@ -38,12 +38,15 @@ namespace zrt {
 namespace gfx {
 // The program draws in logical pixels; frames are rasterized at pw x ph physical pixels (pxk per logical pixel).
 static int32_t pxk = 0, pw = 0, ph = 0;
+// panels get logical pixels unless the driver says otherwise (display-gl's desktop window); a driver drawing through the host window
+// (host_window) gets the host's pixel scale (Retina)
+static int32_t scale_now() {
+  const int32_t k = !display_driver || hal_display->host_window ? hal_pixel_scale() : hal_display->pixel_scale ? hal_display->pixel_scale() : 1;
+  return k < 1 ? 1 : k;
+}
 static void init_scale() {
   if (pxk) return;
-  // panels get logical pixels unless the driver says otherwise (display-gl's desktop window); a driver drawing through the host window
-  // (host_window) gets the host's pixel scale (Retina)
-  pxk = !display_driver || hal_display->host_window ? hal_pixel_scale() : hal_display->pixel_scale ? hal_display->pixel_scale() : 1;
-  if (pxk < 1) pxk = 1;
+  pxk = scale_now();
   pw = surf_w * pxk; ph = surf_h * pxk;
 }
 static bool first_frame();
@@ -52,7 +55,9 @@ void sync_surface() {
   if (display_driver && !hal_display->surface_size) return;
   int w = surf_w, h = surf_h;
   if (display_driver) hal_display->surface_size(&w, &h); else hal_surface_size(&w, &h);
-  int32_t k = hal_pixel_scale(); if (k < 1) k = 1;
+  // the scale init_scale() uses: the host's would differ from display-gl's every frame, and each frame would be a first one (a kept
+  // frame then presented the empty buffer: a black window)
+  const int32_t k = scale_now();
   if (w == surf_w && h == surf_h && k == pxk) return;
   surf_w = w; surf_h = h; pxk = 0;
   init_scale();
