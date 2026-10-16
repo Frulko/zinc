@@ -40,7 +40,7 @@ def main(a):
     A = load(a[0]); B = load(a[1])
     (aw, ah, _), (bw, bh, _) = A, B
     big, small = (A, B) if aw >= bw else (B, A)
-    if big[0] % small[0] or big[1] % small[1] or big[0] // small[0] != big[1] // small[1]: print("size mismatch: %dx%d and %dx%d" % (aw, ah, bw, bh)); return 1
+    if big[0] % small[0] or big[1] % small[1] or big[0] // small[0] != big[1] // small[1]: print("size mismatch: %dx%d and %dx%d [no-display: a window larger than the screen is scaled down to fit it]" % (aw, ah, bw, bh)); return 1
     k = big[0] // small[0]; big = down(big, k)
     sw, sh, g = small; d2 = big[2]; n = sw * sh; over = 0; tot = 0; mx = 0
     for i in range(n):

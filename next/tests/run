@@ -53,6 +53,8 @@ for t in $tiers; do
     [ -n "$results" ] && echo "$([ $rc -eq 0 ] && echo PASS || { [ $rc -eq 77 ] && echo SKIP || echo FAIL; }) $name ${took}s" >> "$results"
     if [ $rc -eq 0 ]; then
       echo "PASS $name"; pass=$((pass + 1))
+    elif [ $rc -eq 1 ] && grep -q '\[no-display:' "$log.tmp" && ! grep -v '\[no-display:' "$log.tmp" | grep -q .; then
+      echo "SKIP $name (the screen is smaller than the GL window: no frame to compare)"; skip=$((skip + 1))   # tools/glcompare says so on every line of the failure (a CI runner's virtual display)
     elif [ $rc -eq 77 ]; then
       echo "SKIP $name ($(head -c 80 "$log.tmp"))"; skip=$((skip + 1))   # exit 77: a prerequisite of the machine is missing, said in the first line
     else
