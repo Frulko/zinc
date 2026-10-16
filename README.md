@@ -33,7 +33,7 @@ UI, games, 3D, video and hardware, from one strict, typed subset of TypeScript a
   drawn by a GPU renderer that also runs on a Pi's VideoCore IV.
 - 🔌 **Web APIs on real devices.** `fetch`, WebSocket, `crypto.subtle`, `localStorage`, and the battery, sensors, vibration, orientation and
   notifications of the device the program runs on.
-- 📦 **50 plugins.** three.js, video, webcams, sound, MIDI, maps, physics, SQLite, Sonos, Spotify, AsyncStorage, and drivers for LED matrices,
+- 📦 **51 plugins.** three.js, video, webcams, microphones, sound, MIDI, maps, physics, SQLite, Sonos, Spotify, AsyncStorage, and drivers for LED matrices,
   e-ink and OLED screens.
 
 ## 🏗️ Architecture
@@ -180,6 +180,7 @@ the guides are in [docs/plugins/](docs/plugins/). Abbreviations: Pi = Raspberry 
 | `zinc:devtools` | UI inspector for Chrome DevTools | Native | macOS, Linux, Pi |
 | `zinc:serial` | Serial ports (Arduino and other boards) | Native | macOS, Linux |
 | `zinc:camera` | Webcams and built-in cameras: frames as an image, snapshots, a fake camera (AVFoundation, V4L2) | Native | macOS, Linux, Pi |
+| `zinc:microphone` | Microphones: samples in blocks, a level meter, a fake microphone (miniaudio: Core Audio, ALSA) | Native | macOS, Linux, Pi |
 | `zinc:gphoto2` | Camera remote control over USB (libgphoto2) | Native | macOS, Linux, Pi |
 | `zinc:leapmotion` | Ultraleap hand tracking (LeapC) | Native | macOS |
 | `zinc:imu` | QMI8658 motion sensor | Native | ESP32, macOS, Linux |

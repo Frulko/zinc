@@ -89,8 +89,8 @@ track.stop();
 
 `getUserMedia({ video: true | { width, height, frameRate, facingMode, deviceId } })` resolves with a `MediaStream` of one video track
 (`kind`, `label`, `getSettings()`, `stop()`, `readyState`, plus `image` and `camera`); `enumerateDevices()` lists the cameras as
-`videoinput`. Left out: constraint objects (`{ ideal, exact, min, max }`: numbers only), audio (`{ audio: true }` alone is
-`NotSupportedError`; with video the stream has no audio track), `<video>` elements, `applyConstraints`, track events and `devicechange`.
+`videoinput`. Left out: constraint objects (`{ ideal, exact, min, max }`: numbers only), audio unless the program
+also imports [`zinc:microphone`](microphone.md) (then `{ video, audio }` gives both tracks), `<video>` elements, `applyConstraints`, track events and `devicechange`.
 Without the import, `getUserMedia` is `NotFoundError` with the line to add.
 
 ## Verified here

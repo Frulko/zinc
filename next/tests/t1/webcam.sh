@@ -25,7 +25,7 @@ got=$(ZINC_DETERMINISTIC=1 ZINC_FRAMES=30 ZINC_SHOT="$tmp/draw.bmp" timeout 60 "
 [ "$got" = "enumerate videoinput:Zinc Fake Camera
 stream true video Zinc Fake Camera 32x24 30 image audio 0
 stopped false ended
-audio NotSupportedError
+audio NotFoundError
 deviceId NotFoundError" ] || { echo "navigator.mediaDevices over zinc:camera differs: $got"; fail=1; }
 px=$(python3 tests/data/bmp_pixel.py "$tmp/draw.bmp" 10,100 100,100 2>&1 | tr '\n' ' ')
 [ "$px" = "255,255,255 0,255,255 " ] || { echo "the camera image is not on screen (pixels $px)"; fail=1; }

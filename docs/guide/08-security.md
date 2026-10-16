@@ -96,7 +96,8 @@ the `macos` list, on Linux and for the Linux targets the `linux` list.
 | `net:unix:<path>` | the Unix socket at that path |
 | `process` | starting child processes |
 | `camera` | cameras; on macOS the camera entitlement and `NSCameraUsageDescription` |
-| `microphone`, `location` | accepted, and on macOS their entitlement and usage strings; no module of the engine checks them yet |
+| `microphone` | microphones; on macOS the audio-input entitlement and `NSMicrophoneUsageDescription` |
+| `location` | accepted, and on macOS its entitlement and usage strings; no module of the engine checks it yet |
 | `serial` | accepted; no module of the engine checks it yet |
 | `notification`, `menu`, `tray`, `dialog`, `window`, `shortcut`, `instance`, `deep-link`, `autostart`, `dock`, `power`, `clipboard`, `opener`, `update` | the module `zinc:system/<id>` (`zinc:system/deeplink` for `deep-link`): every op of it |
 | `window:state`, `notification:notify`, `notification:permission`, `clipboard:rich` | the ops of a module that need that id only (`window:state`: saving and restoring the window's frame; `notification:notify`: notify, cancel, delivered; `clipboard:rich`: html, images and files) |
@@ -121,6 +122,7 @@ the `macos` list, on Linux and for the Linux targets the `linux` list.
 | `zinc:process` (plugin) | starting a process (`spawn`, `run`) | `process` |
 | `zinc:gphoto2` (plugin) | detecting and opening a camera | `camera` |
 | `zinc:camera` (plugin), `navigator.mediaDevices` | listing and opening a webcam (`devices`, `open`, `getUserMedia`) | `camera` |
+| `zinc:microphone` (plugin), `navigator.mediaDevices` | listing and opening a microphone (`devices`, `open`, `getUserMedia({ audio })`) | `microphone` |
 | `zinc:system/<id>` | importing the module (else compile error `Z5006`), then each op (else a `SystemError` with the code `denied`) | its id |
 | `zinc:sys`, `zinc:gfx`, `zinc:ui`, `zinc:audio`, the other modules | | nothing |
 

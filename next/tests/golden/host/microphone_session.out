@@ -1,0 +1,14 @@
+permission granted
+device zinc:fake-microphone | Zinc Fake Microphone
+open 16000 Hz 1 ch, level 0
+block 3 1333986888 level 0.0894
+block 12 4265384911 level 0.0565
+blocks 0:320,320:320,640:320,960:320,1280:320,1600:320,1920:320,2240:320,2560:320,2880:320,3200:320,3520:320
+closed false 0
+stereo 0 320 true 2157896149
+error microphone: no microphone 'no-such-microphone'
+enumerate audioinput:Zinc Fake Microphone
+stream true audio Zinc Fake Microphone 16000 1 video 0 image -1
+track 0 309661216
+stopped false ended false
+deviceId NotFoundError

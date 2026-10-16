@@ -26,6 +26,7 @@ plugin (import / display)  targets                             description
   zinc:lottie              macos,linux,rpi1,rmpp,wasm,ps2,esp32 Lottie (Bodymovin JSON) animations rendered natively: shapes, trims, precomps, Player, <Lottie/> UI node
   zinc:map                 macos,linux,rpi1                   Interactive vector maps: Mapbox Vector Tiles, MapLibre style subset, tile cache, labels
   zinc:mapping             macos,rpi1                         GPU video-mapping compositor (corner pin, mesh warp, masks, edge blend, colour) driven by OSC; needs display gl
+  zinc:microphone          macos,linux,rpi1                   Microphones (Core Audio, PulseAudio, ALSA through miniaudio): list, open at a rate and channel count, samples in blocks, a level for a meter; a generated fake microphone when there is none
   zinc:midi                macos,linux                        MIDI in and out on RtMidi 6.0.0 (MIT): list and open ports, virtual ports, notes, control changes, clock, any message, ports plugged and unplugged; in-memory ports when simulated
   zinc:osc/full            macos,linux,rpi1,rmpp              Open Sound Control 1.0 over UDP: typed messages (int, float, double, string, blob, time tag, booleans, nil), bundles, address patterns, several endpoints, any port; written in Zinc on zinc:socket
   zinc:physics2d           macos,linux                        2D rigid bodies on Box2D 3.1.1 (MIT): worlds stepped at a fixed rate with sub-steps, shapes and chains, continuous collision, revolute and prismatic joints, contact and sensor events, ray casts
