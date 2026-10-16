@@ -1,0 +1,5 @@
+./Assets.xcassets/Contents.json 0fd49ba3c3585c70
+./CMakeLists.txt 38e075a30abc2c78
+./Info.plist 9e6a64d65753d69f
+./README-zinc.txt 639220ebfdff9605
+./src/program.cpp (the program's C++)
