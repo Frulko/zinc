@@ -1,2 +1,0 @@
-=== run_js_engine
-run_js_engine: examples/js-p5 opens at its size: got '', expected '800x500'

@@ -1,9 +1,0 @@
-=== agent_ota
-FAIL: the good update is not running after its trial: otaapp                   zapp    stopped
-=== compat
-REGRESSION next-qjs quickjs/test_queue_microtask.js#test_arguments: fail Uncaught (in promise) Error: assertion failed: got |false|, expected |true|
-REGRESSION next-qjs test262/built-ins/Promise/all/iter-next-val-err-no-close.js: fail Uncaught (in promise) Test262Error:
-REGRESSION next-qjs test262/built-ins/Promise/race/invoke-resolve-error-close.js: fail Uncaught (in promise) ReferenceError: err is not defined
-REGRESSION next-qjs test262/built-ins/Promise/race/iter-step-err-no-close.js: fail Uncaught (in promise) Test262Error:
-REGRESSION next-qjs test262/language/statements/async-function/evaluation-body.js: fail Uncaught (in promise) TypeError: not a function
-compat check: 5 regression(s), 1713 new pass(es) (zinc compat --update-baseline to record them)

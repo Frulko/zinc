@@ -1,3 +1,0 @@
-=== run_js_engine
-run_js_engine: examples/js-p5 opens at its size: got '', expected '800x500'
-  (its output: js-p5: cannot load /Users/runner/.zinc/cache/test-libs/p5-1.11.13/p5.min.js: run next/tools/test-lib p5-1.11.13 once, it downloads p5.js )

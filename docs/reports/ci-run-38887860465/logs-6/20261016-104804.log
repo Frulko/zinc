@@ -1,4 +1,0 @@
-=== run_js_engine
-run_js_engine: examples/js-p5 opens at its size: got '', expected '800x500'
-=== museum_update
-museum_update: no local server

@@ -1,4 +1,0 @@
-=== netlog_kill
-SIGTERM left no valid HAR with the request: {"log":{"version":"1.2","creator":{"name":"zinc","version":"0.1"},"pages":[],"entries":[{"startedDateTime":"2026-10-16T14:37:21.173Z","time":0.577,"request":{"method":"GET","url":"http://127.0.0.1:49208/hello","httpVersion":"HTTP/1.1","cookies":[],"headers":[{"name":"Host","value":"127.0.0.1:49208"} | 
-SIGKILL left no valid HAR with the request: {"log":{"version":"1.2","creator":{"name":"zinc","version":"0.1"},"pages":[],"entries":[{"startedDateTime":"2026-10-16T14:37:38.802Z","time":0.358,"request":{"method":"GET","url":"http://127.0.0.1:49208/hello","httpVersion":"HTTP/1.1","cookies":[],"headers":[{"name":"Host","value":"127.0.0.1:49208"} | 
-/Users/runner/work/zinc/zinc/next/tests/t0/netlog_kill.sh: line 39:  2613 Terminated: 15          python3 tests/netlog_servers.py "$port"

@@ -1,4 +1,0 @@
-=== lexer
-golden differs: ui.tsx
-=== agent_ota
-FAIL: the good update is not running after its trial: otaapp                   zapp    stopped

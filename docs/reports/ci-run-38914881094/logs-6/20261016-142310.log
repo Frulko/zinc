@@ -1,3 +1,0 @@
-=== shared_headers
-constant defined outside include/zn:
-src/app/shell_sdl.cpp:22:#define ZN_APP_HEAP_MB 128   // zinc export writes the project's need (zinc.json targets.android.heapMB)
