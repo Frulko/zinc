@@ -113,6 +113,7 @@ bool parsePluginManifest(std::string_view text, PluginManifest& out, std::string
           else if (key == "linkFlags") pt.linkFlags = strings(tv);
           else if (key == "defines") pt.defines = strings(tv);
           else if (key == "flags") pt.flags = strings(tv);
+          else if (key == "vendorFlags") pt.vendorFlags = strings(tv);
           else if (key == "packages") pt.packages = strings(tv);
           else if (key == "idf") pt.idf = strings(tv);
           else if (key == "nodeFlags") pt.nodeFlags = strings(tv);

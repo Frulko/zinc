@@ -17,6 +17,7 @@ struct PluginOption {
 // What `targets.<id>` of a plugin.json says about building the native part for one target (docs/plugins.md).
 struct PluginTarget {
   std::vector<std::string> sources, pkg, frameworks, libs, linkFlags, defines, flags, packages, idf;
+  std::vector<std::string> vendorFlags;               // flags of the vendored sources only (libdatachannel's -frtti, which the plugin's own code, built against zrt, cannot take)
   std::map<std::string, std::string> idfComponents;   // ESP Component Registry dependencies
   std::vector<std::string> nodeFlags;                 // the old simulator's: read, never used
 };

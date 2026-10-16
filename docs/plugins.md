@@ -40,6 +40,7 @@ uses them. The core stays small (`runtime/`, `lib/`); the toolbox grows in `plug
 | `sources` | extra C++ files compiled into the program; `.c` files (vendored C libraries) go into a separate static library built with C flags and the manifest's `flags` but a `-std=` (Box2D's `-I` and `-ffp-contract=off`), warnings off, and so do C++ files under `vendor/` (a vendored C++ library such as Jolt), built with the plugin's C++ flags and defines: that library is compiled once and an edit of the plugin does not rebuild it |
 | `pkg` / `frameworks` / `libs` / `linkFlags` | pkg-config modules, Apple frameworks, `-l` libraries, raw link flags |
 | `defines` / `flags` | compile definitions and flags for the program sources |
+| `vendorFlags` | flags for the vendored sources only (`.c` files and C++ under `vendor/`): a library that needs RTTI or exceptions (`-frtti`, `-fexceptions`, libdatachannel in `zinc:webrtc`) gets them without the plugin's own code, which is built against the engine's runtime without RTTI |
 | `packages` | system packages added to the target's SDK image (apk for rpi1, apt for linux); a derived image is built once per package set |
 | `idf` / `idfComponents` | ESP-IDF `REQUIRES` and Component Registry dependencies |
 | `nodeFlags` | under `targets.sim`: flags for the node process that runs the sim program (`zinc:script` asks for `--experimental-vm-modules`) |

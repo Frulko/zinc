@@ -389,6 +389,7 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
   Hash h, vh;
   for (const std::string& d : defines) { h.add(d); vh.add(d); }
   h.add(keyFlags); vh.add(keyFlags);
+  for (const std::string& f : ts.vendorFlags) vh.add(f);
   h.add(ccId); vh.add(ccId);
   h.add(gen.cppHeader); h.add(gen.thunk);
   h.add(display ? "display" : "module");
@@ -430,6 +431,7 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
       const bool isC = endsWith(s, ".c");   // a vendored C++ library takes the plugin's C++ flags (its -I among them), not the engine's include paths
       std::string cflagsC = isC ? cc + " -O2 -fPIC -w" : cxx + " " + flags;
       if (isC) for (const std::string& f : ts.flags) if (f.rfind("-std=", 0) != 0) cflagsC += " " + rel(f);   // ZN-583.01: Box2D's include/ and -ffp-contract=off
+      for (const std::string& f : ts.vendorFlags) if (!isC || f.rfind("-std=", 0) != 0) cflagsC += " " + rel(f);
       for (const std::string& d : defines) if (d.rfind("ZP_", 0) != 0 && d.rfind("ZRT_", 0) != 0) cflagsC += " -D" + q(d);
       if (!run(cflagsC + remap + " -c " + q(s) + " -o " + q(o), err, std::string(isC ? "the C compiler on " : "the C++ compiler on ") + s)) return false;
       objs += " " + q(o);
