@@ -44,7 +44,8 @@ fi
 for xf in 0 1; do
   ZINC_XF=$xf ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=4 ZINC_SHOT_FRAMES=2,3,4 ZINC_SHOT="$t/d$xf.png" ZINC_SCENE_DUMP="$t/d$xf.scn" "$ZINC" run $d/damage.ts >/dev/null 2>&1
   a=$("$ZINC" capture --scene "$t/d$xf-2.scn" --damage "$t/d$xf-3.scn" 2>&1); b=$("$ZINC" capture --scene "$t/d$xf-3.scn" --damage "$t/d$xf-4.scn" 2>&1)
-  [ "$a" = "damage 1 rects equal" ] && [ "$b" = "damage 0 rects equal" ] || { echo "image_rect: damage of a changed source rectangle (matrix $xf): '$a' then '$b', want 1 rect then 0"; fail=1; }
+  case "$a" in "damage 1 rects equal"*) a=1 ;; esac; case "$b" in "damage 0 rects equal"*) b=0 ;; esac   # then the union box
+  [ "$a" = 1 ] && [ "$b" = 0 ] || { echo "image_rect: damage of a changed source rectangle (matrix $xf): '$a' then '$b', want 1 rect then 0"; fail=1; }
 done
 ZINC_NATIVE=real ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_FRAMES=2 ZINC_SHOT="$t/canvas.png" "$ZINC" run $d/canvas.ts >"$t/canvas.log" 2>&1
 out=$(python3 tools/pngdiff "$t/canvas.png" $d/canvas-golden.png 2>&1) || { echo "image_rect: zinc:canvas drawImage with a source rectangle differs from its golden: $out $(head -c 200 "$t/canvas.log")"; fail=1; }
