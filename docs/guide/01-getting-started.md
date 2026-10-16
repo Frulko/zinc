@@ -280,7 +280,7 @@ version compiles, the next ones start at once; `--interp` interprets instead and
 the program on every save, with a red box on a compile error and, for UI programs, a Chrome DevTools inspector on port 9229
 (see [dev mode](../dev-mode.md)). Pass program arguments after `--`; read them with `sys.args()`.
 
-Useful environment variables: `ZINC_HEADLESS=1` runs without a window, `ZINC_FRAMES=n` stops a frame loop after n frames,
+Useful environment variables: `ZINC_HEADLESS=1` runs without a window, `ZINC_BACKGROUND=1` (or `zinc --background run`) opens it without taking the focus, `ZINC_FRAMES=n` stops a frame loop after n frames,
 `ZINC_SHOT=out.png` saves the last frame (`zinc capture` saves any frames), `ZINC_DETERMINISTIC=1` puts the run on
 a virtual clock.
 

@@ -18,6 +18,18 @@ static int unfit = 1;    // the same before the window was scaled down to fit th
 static int lw, lh;       // logical size
 
 bool zgl_backend_init(const HalConfig* cfg) {
+  // ZINC_BACKGROUND=1 (zinc --background): a program started by a script, a test or an agent opens its window without taking the focus from what the person is doing
+  if ((getenv("ZINC_BACKGROUND") && getenv("ZINC_BACKGROUND")[0] != '0')) {
+#ifdef SDL_HINT_WINDOW_ACTIVATE_WHEN_SHOWN
+    SDL_SetHint(SDL_HINT_WINDOW_ACTIVATE_WHEN_SHOWN, "0");
+#endif
+#ifdef SDL_HINT_WINDOW_ACTIVATE_WHEN_RAISED
+    SDL_SetHint(SDL_HINT_WINDOW_ACTIVATE_WHEN_RAISED, "0");
+#endif
+#ifdef SDL_HINT_MAC_BACKGROUND_APP
+    SDL_SetHint(SDL_HINT_MAC_BACKGROUND_APP, "1");   // no Dock icon, never the active application
+#endif
+  }
   if (!SDL_Init(SDL_INIT_VIDEO)) { fprintf(stderr, "display-gl: %s\n", SDL_GetError()); return false; }
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);

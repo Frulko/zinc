@@ -283,7 +283,7 @@ extern "C" void hal_set_resize(int32_t on) {
 // app (Zinc Atelier) would open behind it. Not in a deterministic run (tests) nor in a kiosk (it is already above everything).
 static void show_main() {
   SDL_ShowWindow(win);
-  if (!det && !kiosk && !getenv("ZINC_NO_RAISE")) SDL_RaiseWindow(win);
+  if (!det && !kiosk && !getenv("ZINC_NO_RAISE") && !(getenv("ZINC_BACKGROUND") && getenv("ZINC_BACKGROUND")[0] != '0')) SDL_RaiseWindow(win);
 }
 
 extern "C" {
@@ -306,6 +306,18 @@ void hal_init(const HalConfig* cfg) {
   // the app's name for SDL (the items of the app menu it builds: About, Hide, Quit). The title the menu bar prints is the executable's
   // file name: `zinc run` starts the program through a link that carries it (ZN-733; NSProcessInfo's processName changes nothing there)
   if (cfg->title && cfg->title[0] && strcmp(cfg->title, "zinc")) SDL_SetAppMetadata(cfg->title, nullptr, nullptr);
+  // ZINC_BACKGROUND=1 (zinc --background): a program started by a script, a test or an agent opens its window without taking the focus from what the person is doing
+  if ((getenv("ZINC_BACKGROUND") && getenv("ZINC_BACKGROUND")[0] != '0')) {
+#ifdef SDL_HINT_WINDOW_ACTIVATE_WHEN_SHOWN
+    SDL_SetHint(SDL_HINT_WINDOW_ACTIVATE_WHEN_SHOWN, "0");
+#endif
+#ifdef SDL_HINT_WINDOW_ACTIVATE_WHEN_RAISED
+    SDL_SetHint(SDL_HINT_WINDOW_ACTIVATE_WHEN_RAISED, "0");
+#endif
+#ifdef SDL_HINT_MAC_BACKGROUND_APP
+    SDL_SetHint(SDL_HINT_MAC_BACKGROUND_APP, "1");   // no Dock icon, never the active application
+#endif
+  }
   if (!SDL_Init(SDL_INIT_VIDEO)) hal_panic(SDL_GetError(), "hal_sdl", __LINE__);
   // window size in points: zinc.json targets.<id>.zoom (ZINC_ZOOM overrides); auto only enlarges tiny surfaces
 #ifdef ZINC_ZOOM

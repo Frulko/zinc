@@ -116,6 +116,10 @@ Zinc supports JSX/TSX as the language defines it, so two spellings are banned ev
 
 The engine enforces both (a diagnostic with the fix, `zinc explain` entry, a test); never add a back door that accepts the old spelling, and never write the old spelling in a new file, a doc or an example. Existing uses are migrated, not tolerated.
 
+## Never take the focus: run windows in the background (owner, 2026-10-16)
+
+A program the engine starts while someone is working (a test, a demo, a capture, an app run by an agent or a loop, `zinc dev`) must not come to the front of the computer. Set `ZINC_BACKGROUND=1` or pass `--background` (`zinc --background run <dir>`): the window opens without being activated (SDL's `WINDOW_ACTIVATE_WHEN_SHOWN`/`WHEN_RAISED` off, no Dock icon, no raise), and the frontmost application stays the one the person uses. `tests/run` sets it for every test (`ZINC_BACKGROUND=0` to watch one). Every command an agent starts by hand that can open a window (`zinc run`, `zinc dev`, a built app, `zinc device`, the window tests of `tools/`) carries it too. A headless run (`ZINC_HEADLESS=1`) opens no window and needs nothing. Leave no process behind: kill what a command started (apps, servers, QEMU) before it ends.
+
 ## Tests
 
 - `next/tests/<tier>/<name>.sh`, given `$ZINC`: T0 (seconds, the stage touched), T1 (end of a task, the feature's demo), T2 (milestone: whole corpus, interpreter vs AOT vs frozen output, benchmarks). Runner: `next/tests/run [--tier t0|t1|t2] [--only name] [--changed | --changed-from ref]`, one line per test, details in `next/.logs/`.

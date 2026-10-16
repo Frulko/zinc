@@ -1264,6 +1264,7 @@ int main(int argc, char** argv) {
     int drop = 0;
     if (!std::strcmp(argv[k], "-v") || !std::strcmp(argv[k], "--verbose")) { setenv("ZINC_LOG", "info", 0); drop = 1; }
     else if (!std::strcmp(argv[k], "-vv")) { setenv("ZINC_LOG", "debug", 0); drop = 1; }
+    else if (!std::strcmp(argv[k], "--background")) { setenv("ZINC_BACKGROUND", "1", 1); drop = 1; }   // windows open without taking the focus (docs/guide/01-getting-started.md, AGENTS.md)
     else if (!std::strcmp(argv[k], "-q") || !std::strcmp(argv[k], "--quiet")) { setenv("ZINC_STEPS", "0", 1); drop = 1; }   // no step lines
     else if (!std::strcmp(argv[k], "--log-format") && k + 1 < argc) { setenv("ZINC_LOG_FORMAT", argv[k + 1], 1); drop = 2; }
     if (!drop) continue;
