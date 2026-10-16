@@ -979,10 +979,12 @@ bool loop_once() {
 }
 static int loop_step() { return loop_once() ? 1 : 0; }
 }  // namespace zrt
+extern "C" void (*zrt_redraw_hook)(void) = nullptr;
 extern "C" void zrt_redraw(void) {
   using namespace zrt;
   // deterministic runs: the window system must not run extra frames (the last one stays on screen)
-  if (in_frame || !frame_cb || quit_requested || det_mode) return;
+  if (in_frame || quit_requested || det_mode) return;
+  if (!frame_cb) { if (zrt_redraw_hook) zrt_redraw_hook(); return; }
   in_frame = true;
   gfx::sync_surface();
   gfx::begin_frame();

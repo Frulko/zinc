@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <array>
+#include <functional>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -349,9 +350,19 @@ bool frameLoop(Engine& e) {
   double clock = 0;   // goes on from where the timers before the first frame left the virtual clock (onFrame after an awaited timer, ZN-566)
   { JSValue c = JS_Call(e.ctx, clockFn, JS_UNDEFINED, 0, nullptr); JS_ToFloat64(e.ctx, &clock, c); JS_FreeValue(e.ctx, c); }
   bool ok = true;
-  for (long f = 0; f < frames && ok; ++f) {
+  long drawn = 0;
+  // one frame; false when it failed or the program asks to quit. The window HAL may draw frames from inside the poll while macOS holds the
+  // loop in a live resize (zn::host::redraw, armed for the poll only): they are this same step, one level down.
+  static std::function<bool()>* redrawStep = nullptr;
+  std::function<bool()> step = [&]() -> bool {
+    HostArg r;
     std::fflush(stdout);   // what the program printed reaches a file or a pipe at each turn, as on the typed engine (ZN-638)
+    std::function<bool()>* saved = redrawStep;
+    redrawStep = &step;
+    zn::host::redraw = [] { if (std::function<bool()>* s = redrawStep) { redrawStep = nullptr; (*s)(); redrawStep = s; } };
     hostCall(zn::Rt::HostGfxPoll, &r);
+    redrawStep = saved;
+    if (!ok) return false;
     double dt = r.d;
     clock += dt * 1000;
     JSValue cv = JS_NewFloat64(e.ctx, clock);
@@ -364,18 +375,19 @@ bool frameLoop(Engine& e) {
       if (JS_IsNull(fn) || JS_IsException(fn)) { JS_FreeValue(e.ctx, fn); break; }
       ok = callFn(e, fn, JS_UNDEFINED, false);
       JS_FreeValue(e.ctx, fn);
-      if (!ok) break;
+      if (!ok) return false;
     }
-    if (!ok) break;
     hostCall(zn::Rt::HostGfxBegin, &r);
     if (JS_IsFunction(e.ctx, cb)) { JSValue dv = JS_NewFloat64(e.ctx, dt); ok = callFn(e, cb, dv, true); JS_FreeValue(e.ctx, dv); }
     hostCall(zn::Rt::HostGfxEnd, &r);
     JSValue g = JS_GetGlobalObject(e.ctx);
-    JS_SetPropertyStr(e.ctx, g, "__zincFrameNo", JS_NewInt32(e.ctx, static_cast<int32_t>(f + 1)));
+    JS_SetPropertyStr(e.ctx, g, "__zincFrameNo", JS_NewInt32(e.ctx, static_cast<int32_t>(++drawn)));
     JS_FreeValue(e.ctx, g);
     hostCall(zn::Rt::HostGfxShouldQuit, &r);
-    if (r.i) break;
-  }
+    return ok && !r.i;
+  };
+  for (long f = 0; f < frames && step(); ++f) {}
+  zn::host::redraw = nullptr;
   hostCall(zn::Rt::HostGfxFinish, &r);
   JS_FreeValue(e.ctx, setClock); JS_FreeValue(e.ctx, due); JS_FreeValue(e.ctx, cb); JS_FreeValue(e.ctx, clockFn);
   return ok;

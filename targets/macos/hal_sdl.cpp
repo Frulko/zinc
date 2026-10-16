@@ -38,10 +38,18 @@ extern "C" void hal_set_drop_handler(void (*h)(const char*, int)) { drop_handler
 
 #ifdef __APPLE__
 extern "C" __attribute__((weak)) void hal_sdl_transparent_layers(void*) {}   // the real one is targets/macos/hal_cocoa.mm; this weak no-op keeps the prototype's CMake build (which does not link it) working
+extern "C" __attribute__((weak)) void hal_sdl_window_background(void*, uint32_t) {}   // the same: the window's own colour, behind the frame
 #endif
 static HalWindowConfig wcfg;   // ZN-233 / ZN-249: window properties from zinc.json app.window
 static bool wcfg_set = false;
 extern "C" void hal_set_window_config(const HalWindowConfig* c) { wcfg = *c; wcfg_set = true; }
+// zinc.json app.window minWidth / minHeight / maxWidth / maxHeight / aspectRatio: the window manager holds the size there while it is dragged
+static void window_limits(SDL_Window* w) {
+  if (!wcfg_set) return;
+  if (wcfg.min_w > 0 || wcfg.min_h > 0) SDL_SetWindowMinimumSize(w, wcfg.min_w, wcfg.min_h);
+  if (wcfg.max_w > 0 || wcfg.max_h > 0) SDL_SetWindowMaximumSize(w, wcfg.max_w, wcfg.max_h);
+  if (wcfg.aspect > 0) SDL_SetWindowAspectRatio(w, wcfg.aspect, wcfg.aspect);
+}
 static uint32_t* tbuf;         // transparent windows: the rows being uploaded with their alpha
 static size_t tbuf_n;
 static bool surface_ok;        // the surface of the current size is allocated
@@ -193,7 +201,7 @@ static bool gl_window(const char* title, int ww, int wh) {
   glBindTexture(GL_TEXTURE_2D, gl_upload);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR); glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE); glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-  if (wcfg_set && (wcfg.min_w > 0 || wcfg.min_h > 0)) SDL_SetWindowMinimumSize(win, wcfg.min_w, wcfg.min_h);
+  window_limits(win);
   SDL_GL_SetSwapInterval(getenv("ZINC_VSYNC") && atoi(getenv("ZINC_VSYNC")) == 0 ? 0 : 1);   // shown by its first present (hal_present)
   if (getenv("ZINC_GL_STATS")) fprintf(stderr, "zinc: window renderer gl (%s, %s)\n", r, (const char*)glGetString(GL_VERSION));   // macOS: "4.1 Metal - ...", Apple's GL on Metal
   return true;
@@ -290,12 +298,26 @@ static void apply_size() {
   W = nw; H = nh; K = k; PW = W * K; PH = H * K;
   alloc_surface();
 }
-// macOS blocks the event loop during a live resize: redraw from the event watcher so the layout follows the mouse
+// macOS blocks the event loop while the window's edge is dragged (AppKit's tracking loop runs inside SDL_PollEvent), and the zoom button and
+// window tiling animate the same way: SDL calls this watcher from inside that loop, at each size change and at 60 Hz (the live-resize expose of
+// SDL_OnWindowLiveResizeUpdate). The program draws a whole frame here (zrt_redraw: the engine runs its frame step), at the new size, so the
+// layout follows the mouse and animations, timers and video keep going; the window server never has to stretch an old frame.
+static bool in_watch;                     // a frame drawn from the watcher: its poll takes what is queued without pumping (no tracking loop inside one)
+static int live_frames, live_w, live_h;   // frames presented from the watcher and the size of the last (ZINC_LIVE_RESIZE, tests)
 static bool SDLCALL watch(void*, SDL_Event* e) {
   // only on the thread that draws: Android sends the size changes from its UI thread, where a redraw makes the GL context current on a second
   // thread (eglMakeCurrent crashed the Tegra 3 driver, ZN-622); the poll of the next frame applies them there
-  if (!SDL_IsMainThread()) return true;
-  if (e->type == SDL_EVENT_WINDOW_EXPOSED || e->type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED) { apply_size(); zrt_redraw(); }
+  if (!SDL_IsMainThread() || in_watch) return true;
+  // the expose of SDL's 60 Hz timer keeps animations going while the mouse holds still; after a size change it has nothing new to show
+  static bool sized;   // a frame was drawn for a size change since the timer's last expose
+  const bool size = e->type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED;
+  if (size || (e->type == SDL_EVENT_WINDOW_EXPOSED && !sized)) {
+    in_watch = true;
+    apply_size();
+    zrt_redraw();
+    in_watch = false;
+  }
+  if (e->type == SDL_EVENT_WINDOW_EXPOSED || size) sized = size;
   return true;
 }
 static void set_fullscreen(bool on) { SDL_SetWindowFullscreen(win, on); }
@@ -338,6 +360,7 @@ static bool next_event(SDL_Event* e) {
     std::lock_guard<std::mutex> g(app_ev_mu);
     if (app_ev_n > 0) { *e = app_ev[app_ev_head]; app_ev_head = (app_ev_head + 1) % 256; app_ev_n--; return true; }
   }
+  if (in_watch) return SDL_PeepEvents(e, 1, SDL_GETEVENT, SDL_EVENT_FIRST, SDL_EVENT_LAST) > 0;   // inside AppKit's loop: what it queued, no pump
   return SDL_PollEvent(e);
 }
 
@@ -448,7 +471,7 @@ void hal_init(const HalConfig* cfg) {
     win = SDL_CreateWindowWithProperties(props);
     SDL_DestroyProperties(props);
     if (!win || !(ren = SDL_CreateRenderer(win, nullptr))) hal_panic(SDL_GetError(), "hal_sdl", __LINE__);
-    if (wcfg.min_w > 0 || wcfg.min_h > 0) SDL_SetWindowMinimumSize(win, wcfg.min_w, wcfg.min_h);
+    window_limits(win);
 #ifdef __APPLE__
     if (wcfg.transparent) hal_sdl_transparent_layers(SDL_GetPointerProperty(SDL_GetWindowProperties(win), SDL_PROP_WINDOW_COCOA_WINDOW_POINTER, nullptr));
 #endif
@@ -763,10 +786,45 @@ static void sim_turned() {
   zrt_redraw();
 }
 
+// ZINC_LIVE_RESIZE=n (tests/t1/window_live_resize.sh): a drag of the window's corner as AppKit runs it, without a mouse. Inside one poll, n size
+// steps (out and back), each followed by the live-resize expose SDL's timer sends; each step must present a frame of the new size from the watcher.
+static void live_resize_sim(int n) {
+  int w0 = 0, h0 = 0, drawn = 0;
+  SDL_GetWindowSize(win, &w0, &h0);
+  uint64_t worst = 0, total = 0;
+  const bool log = getenv("ZINC_LIVE_RESIZE_LOG") != nullptr;
+  for (int i = 1; i <= n; i++) {
+    const int d = i <= n / 2 ? i : n - i, w = w0 + 3 * d, h = h0 + 2 * d;
+    const int before = live_frames;
+    const uint64_t t0 = SDL_GetTicksNS();
+    SDL_SetWindowSize(win, w, h);   // AppKit's setFrame: windowDidResize sends the size events to the watcher
+    SDL_Event ev;
+    SDL_zero(ev);
+    ev.type = SDL_EVENT_WINDOW_EXPOSED; ev.window.windowID = SDL_GetWindowID(win); ev.window.data1 = 1;
+    SDL_PushEvent(&ev);             // the 60 Hz expose of SDL_OnWindowLiveResizeUpdate
+    const uint64_t dt = SDL_GetTicksNS() - t0;
+    total += dt; if (dt > worst) worst = dt;
+    int ww = 0, wh = 0;
+    SDL_GetWindowSize(win, &ww, &wh);
+    const bool ok = live_frames > before && live_w == PW && live_h == PH && (!fill || (W == ww / zoom && H == wh / zoom));
+    drawn += ok;
+    if (log) fprintf(stderr, "zinc: live resize step %d: window %dx%d, %d frames, last %dx%d%s\n", i, ww, wh, live_frames - before, live_w, live_h, ok ? "" : " (stale)");
+  }
+  fprintf(stderr, "zinc: live resize: %d of %d steps drawn at the new size, %.1f ms per step (worst %.1f)\n", drawn, n, total / 1e6 / (n ? n : 1), worst / 1e6);
+  int lw = 0, lh = 0, hw = 0, hh = 0;   // the size limits of zinc.json hold: a drag far in and far out stops at them
+  SDL_SetWindowSize(win, 1, 1); SDL_GetWindowSize(win, &lw, &lh);
+  SDL_SetWindowSize(win, 100000, 100000); SDL_GetWindowSize(win, &hw, &hh);
+  SDL_SetWindowSize(win, w0, h0);
+  fprintf(stderr, "zinc: live resize: limits %dx%d to %dx%d\n", lw, lh, hw, hh);
+}
+
 void hal_poll_input(HalInput* in) {
   in->nkeys = 0; in->ntext = 0; in->nbtn = 0; in->wheel_x = 0;
   if (resize_pending) { resize_pending = false; apply_size(); }
   sim_turned();
+  static const int live_steps = getenv("ZINC_LIVE_RESIZE") ? atoi(getenv("ZINC_LIVE_RESIZE")) : 0;
+  static int polls;
+  if (live_steps > 0 && gfx_on && !in_watch && ++polls == 10) live_resize_sim(live_steps);
   // A display plugin with its own window (LED / OLED / e-ink emulators) still needs this HAL to pump the OS events,
   // unless it reads them itself (display-gl).
   if (!gfx_on && (!hal_display || hal_display->owns_input || !SDL_WasInit(SDL_INIT_VIDEO))) {
@@ -1273,6 +1331,21 @@ extern "C" void zn_hal_sdl_gpu_layers(void) {
   if (getenv("ZINC_GL_STATS")) fprintf(stderr, "zinc: window renderer cpu with GPU layers\n");
 }
 #endif
+#ifdef __APPLE__
+// The window's own colour follows the frame's background (its first command: a CLEAR, or an opaque rectangle over the whole surface): AppKit
+// shows it at a growing edge before the frame of the new size is in, instead of white or black (Electron's backgroundColor)
+static void window_background(const HalFrame* f) {
+  static uint32_t bg = 0xFFFFFFFFu;
+  if (!f->frames || (wcfg_set && wcfg.transparent)) return;
+  const HalCmdList* l[1];
+  if (f->frames(l, 1) < 1 || !l[0]->count) return;
+  const zrt::raster::Cmd& c = *(const zrt::raster::Cmd*)l[0]->cmds;
+  const bool whole = c.kind == zrt::raster::CLEAR || (c.kind == zrt::raster::RECT && c.alpha == 255 && !c.grad && c.x <= 0 && c.y <= 0 && c.x + c.w >= W && c.y + c.h >= H);
+  if (!whole || (c.c1 & 0xFFFFFFu) == bg) return;
+  bg = c.c1 & 0xFFFFFFu;
+  hal_sdl_window_background(SDL_GetPointerProperty(SDL_GetWindowProperties(win), SDL_PROP_WINDOW_COCOA_WINDOW_POINTER, nullptr), bg);
+}
+#endif
 // The shared rasterizer renders only the damaged rows; the texture is updated for those rows.
 void hal_present(const HalFrame* f) {
   if (!gfx_on) return;
@@ -1291,8 +1364,12 @@ void hal_present(const HalFrame* f) {
     }
     return;
   }
+#ifdef __APPLE__
+  window_background(f);
+#endif
   present_frame(f);
   presented = true;
+  if (in_watch) { live_frames++; live_w = f->w; live_h = f->h; }
   if (shown) return;
   shown = true;
   show_main();

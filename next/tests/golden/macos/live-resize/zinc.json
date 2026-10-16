@@ -1,0 +1,1 @@
+{"name":"live-resize","entry":"main.ts","app":{"id":"dev.zinc.test.liveresize","name":"Live Resize Test","window":{"minWidth":360,"minHeight":240,"maxWidth":900,"maxHeight":700}},"targets":{"macos":{"width":480,"height":320}}}

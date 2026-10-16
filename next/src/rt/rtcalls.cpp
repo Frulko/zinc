@@ -642,8 +642,33 @@ struct JsonBuild {
   }
 };
 
+// ---- a frame drawn from inside the poll: macOS holds the loop while the window's edge is dragged (AppKit's tracking loop in SDL_PollEvent), and
+// the window HAL asks for frames from there (zrt_redraw, zn::host::redraw). The prelude's __gfxRedraw runs one frame step, its frame above the
+// poll's own (the scratch of the call); the poll of that step takes the queued events without pumping, so it does not come back here.
+namespace {
+struct Redraw { Machine* m = nullptr; Slot* scratch = nullptr; };
+Redraw gRedraw;                                // armed for the duration of a Rt::HostGfxPoll only: anywhere else the program is mid-frame
+const zbc::Module* gRedrawMod = nullptr;       // the module the index was found in (zinc dev replaces it)
+std::uint32_t gRedrawFn = 0;                   // __gfxRedraw, 0: the program has no frame loop
+std::string gRedrawError;                      // a frame drawn there threw or trapped: the poll reports it
+void redrawFrame() {
+  Redraw r = gRedraw;
+  if (!r.m) return;
+  Machine& m = *r.m;
+  if (gRedrawMod != m.mod) {
+    gRedrawMod = m.mod; gRedrawFn = 0;
+    for (std::uint32_t i = 1; i < m.mod->functions.size(); ++i) if (m.mod->functions[i].name == kRedrawFunction) { gRedrawFn = i; break; }
+  }
+  if (!gRedrawFn || !gRedrawError.empty()) return;
+  gRedraw = Redraw{};   // a window resized by the program during this frame draws nothing more from here
+  const std::size_t depth = m.depth;
+  if (!m.exec(&m.funcs[gRedrawFn], r.scratch)) { gRedrawError = m.error.empty() ? "a frame drawn during a window resize failed" : m.error; m.error.clear(); m.depth = depth; }
+  gRedraw = r;
+}
+}  // namespace
+
 // ---- the host (zinc:gfx, zinc:sys, zinc:fs...): arguments decoded by their letters, the work done through the installed call (zn/host.h)
-static const char* hostRt(Machine& m, Rt id, Slot* a) {
+static const char* hostRt(Machine& m, Rt id, Slot* a, Slot* scratch) {
   const RtInfo& ri = rtInfo(id);
   bool sys = isSysRow(id);
   zn::host::HostCall call = isLayoutRow(id) ? zn::host::hostLayout : isGlRow(id) ? zn::host::hostGl : sys ? zn::host::hostSys : zn::host::hostGfx;
@@ -668,7 +693,19 @@ static const char* hostRt(Machine& m, Rt id, Slot* a) {
       default: h.i = static_cast<std::int64_t>(a[k]); break;  // i (sign-extended), b
     }
   }
-  call(static_cast<int>(id), args, &res);
+  if (id == Rt::HostGfxPoll) {
+    const Redraw saved = gRedraw;
+    gRedraw = Redraw{&m, scratch};
+    zn::host::redraw = redrawFrame;   // does nothing once the poll is over (gRedraw unarmed)
+    call(static_cast<int>(id), args, &res);
+    gRedraw = saved;
+    if (!gRedrawError.empty()) {
+      static std::string msg;
+      msg = gRedrawError.rfind("panic: ", 0) == 0 ? gRedrawError.substr(7) : gRedrawError;
+      gRedrawError.clear();
+      return msg.c_str();
+    }
+  } else call(static_cast<int>(id), args, &res);
   switch (rtRet(ri)) {
     case 'd': a[0] = std::bit_cast<Slot>(res.d); break;
     case 'i': case 'b': a[0] = static_cast<Slot>(res.i); break;
@@ -969,7 +1006,7 @@ const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
   if (zn::host::HostFast f = zn::host::hostFast[static_cast<unsigned>(id)]) { f(a); return nullptr; }   // a hot scalar host row (ZN-397)
   if (id == Rt::HostNativePoll) { a[0] = static_cast<Slot>(nativePoll(m, scratch, a[0] != 0)); return nullptr; }
 #define NN(x) do { if (!(x)) return kNull; } while (0)
-  if ((id >= Rt::HostGfxFrames && id <= Rt::HostHostLast) || id >= Rt::HostLoopWait) return hostRt(m, id, a);
+  if ((id >= Rt::HostGfxFrames && id <= Rt::HostHostLast) || id >= Rt::HostLoopWait) return hostRt(m, id, a, scratch);
   switch (id) {
     // ---- internal string operations
     case Rt::StrConcat: case Rt::StrConcatM: {

@@ -167,6 +167,8 @@ void* hal_window_handle(void);
 // Implemented by the runtime: draws one frame now with the current surface size (HALs call it while the OS blocks
 // the event loop, e.g. during a live window resize on macOS). Ignored when called re-entrantly.
 void zrt_redraw(void);
+// An engine that runs the frame loop itself (Zinc Next: the program's own loop, not a runtime frame callback) draws that frame here; null: none.
+extern void (*zrt_redraw_hook)(void);
 // Fixed timestep used by headless HALs (virtual clock, TST-10). 0 = real time.
 double hal_fixed_dt(void);
 // Drives the main loop: native HALs loop until step() returns 0; the web HAL hands it to requestAnimationFrame.

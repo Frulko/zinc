@@ -38,6 +38,9 @@ void installSys();
 void installLayout();  // the rn layout engine (Yoga, ZN-284.01): zinc installs it; an AOT program does when it calls the layout rows
 void installGl();      // zinc:gl in an AOT program (ZN-562): its rows go to zn_webgl_host, linked from zn_gl (src/gl/webgl_host.cpp)
 const void* glPresentHooks();   // the zn::gl::PresentHooks (src/gl/webgl_js.h) that write a WebGL canvas into a zinc:gfx image (src/host/gfx_host.cpp)
+// Draws one frame of the program now, from inside Rt::HostGfxPoll (the window HAL's zrt_redraw while macOS holds the loop in a live resize): the
+// engine running the poll sets it for the call's duration (src/rt/rtcalls.cpp, src/qjs/qjs.cpp); null outside a poll, where the program is mid-frame.
+inline void (*redraw)() = nullptr;
 inline bool gfxStarted = false;  // the surface exists (the first graphics call starts it): AOT code calls startGfx before it reads surf_w / surf_h inline
 void startGfx();
 // The engine splash (ZN-446, src/host/splash.cpp): opens the window and presents the splash entry of ZINC_SPLASH (a file) or of the base packs'

@@ -90,6 +90,8 @@ function __gfxStep(): boolean {
   __frameNo++;
   return !__host_gfxShouldQuit();
 }
+// A frame the host draws from inside the poll while the window system holds the loop (a live resize on macOS): called by name (kRedrawFunction)
+function __gfxRedraw(): void { if (__frameCb !== null || __winIds.length > 0) __gfxStep(); }
 function __gfxLoop(): void {
   const n = __host_gfxFrames();
   for (let f: i32 = 0; f < n; f++) if (!__gfxStep()) break;

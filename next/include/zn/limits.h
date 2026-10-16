@@ -20,6 +20,9 @@ inline constexpr std::uint32_t kMaxFields = 255;           // GetField/SetField 
 inline constexpr std::int64_t kMaxImagePixels = std::int64_t{1} << 26;
 // The prelude function an app shell calls by name once per tick (zn_app_iterate, ZN-620): a root of the program, kept by removeUnreachable.
 inline constexpr const char* kAppStepFunction = "__appStep";
+// The prelude function the host calls by name to draw a frame from inside the poll, while the window system holds the loop (a live resize on
+// macOS: src/rt/rtcalls.cpp redrawFrame); kept by removeUnreachable as well.
+inline constexpr const char* kRedrawFunction = "__gfxRedraw";
 // The largest data alignment of a ZPK pack (src/zpk, docs/zpk.md): a power of two up to 1 MiB (4 KiB and 2 KiB sectors fit well under it).
 inline constexpr std::uint32_t kMaxPackAlignment = 1u << 20;
 // The longest frame of the device agent's protocol (src/agent/wire.h, docs/reports/zinc-next-agent.md): a longer one ends the session; nothing we send comes close.

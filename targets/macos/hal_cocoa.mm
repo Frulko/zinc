@@ -10,3 +10,12 @@ extern "C" void hal_sdl_transparent_layers(void* nswindow) {
   content.layer.opaque = NO;
   for (NSView* v in content.subviews) { v.wantsLayer = YES; v.layer.opaque = NO; }
 }
+// The colour behind the frame (hal_sdl.cpp window_background): the window's and its content layer's, so an edge that grows during a live resize
+// shows the app's background until the frame of the new size covers it
+extern "C" void hal_sdl_window_background(void* nswindow, uint32_t rgb) {
+  NSWindow* w = (__bridge NSWindow*)nswindow;
+  if (!w) return;
+  NSColor* c = [NSColor colorWithSRGBRed:((rgb >> 16) & 255) / 255.0 green:((rgb >> 8) & 255) / 255.0 blue:(rgb & 255) / 255.0 alpha:1];
+  w.backgroundColor = c;
+  if (w.contentView.layer) w.contentView.layer.backgroundColor = c.CGColor;
+}

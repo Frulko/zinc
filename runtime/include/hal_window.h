@@ -14,6 +14,8 @@ typedef struct HalWindowConfig {
   int not_resizable;            // 1: fixed size
   unsigned transparent_key;     // with `transparent`: the 0xRRGGBB colour that becomes see-through (default 0 = black); the rasterizer has no alpha channel, so a key colour stands for it
   char title[96];               // "" = the program's title
+  int max_w, max_h;             // maximum size in logical pixels, 0 = none
+  float aspect;                 // > 0: the window keeps this width / height ratio when resized (`aspectRatio`)
 } HalWindowConfig;
 /** Stores the configuration (copied) for the next window creation. */
 void hal_set_window_config(const HalWindowConfig* c);

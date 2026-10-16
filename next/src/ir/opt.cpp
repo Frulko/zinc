@@ -521,7 +521,7 @@ void removeUnreachable(Module& m) {
   std::vector<std::uint32_t> work{0};
   live[0] = 1;
   auto reach = [&](std::uint32_t fn) { if (fn < nf && !live[fn]) { live[fn] = 1; work.push_back(fn); } };
-  for (std::uint32_t k = 1; k < nf; ++k) if (m.functions[k].name == kAppStepFunction) reach(k);   // called by name by an app shell (ZN-620)
+  for (std::uint32_t k = 1; k < nf; ++k) if (m.functions[k].name == kAppStepFunction || m.functions[k].name == kRedrawFunction) reach(k);   // called by name by an app shell (ZN-620), by the host (a live resize)
   for (std::uint32_t fn = 1; fn < nf; ++fn) if (m.functions[fn].entry) reach(fn);   // hot mode: what the host calls
   auto build = [&](std::uint32_t c) {
     if (c >= built.size() || built[c]) return;

@@ -268,11 +268,12 @@ static void installDisplayDriver(const std::string& projectDir, const char* entr
 #ifdef ZN_HOST_GFX
 #include "hal_window.h"
 #include "yyjson.h"
-extern "C" void hal_set_window_config(const HalWindowConfig*) __attribute__((weak));   // the SDL HAL has it; the headless HAL does not
-// zinc.json app.window (ZN-233): the properties the window needs before it exists. A size given here is used when the target does not give one.
-static void applyAppWindow(const std::string& json, zn::frontend::TargetOptions& target) {
+// zinc.json app.window (ZN-233): the properties the window needs before it exists, as the text of ZINC_WINDOW_CONFIG that the graphics host
+// reads where the surface starts (src/host/gfx_host.cpp windowConfig): in this process, in the native program `zinc run` starts and in a program
+// `zinc build` writes (baked). A size given here is used when the target does not give one.
+static std::string appWindowConfig(const std::string& json, zn::frontend::TargetOptions& target) {
   yyjson_doc* doc = yyjson_read(json.c_str(), json.size(), 0);
-  if (!doc) return;
+  if (!doc) return "";
   yyjson_val* w = yyjson_doc_get_root(doc);
   auto num = [&](const char* k, double& d) { yyjson_val* v = yyjson_obj_get(w, k); if (v && yyjson_is_num(v)) { d = yyjson_get_num(v); return true; } return false; };
   auto flag = [&](const char* k, bool& b) { yyjson_val* v = yyjson_obj_get(w, k); if (v && yyjson_is_bool(v)) { b = yyjson_get_bool(v); return true; } return false; };
@@ -282,6 +283,9 @@ static void applyAppWindow(const std::string& json, zn::frontend::TargetOptions&
   if (num("height", n) && target.height == 0) target.height = static_cast<int>(n);
   if (num("minWidth", n)) c.min_w = static_cast<int>(n);
   if (num("minHeight", n)) c.min_h = static_cast<int>(n);
+  if (num("maxWidth", n)) c.max_w = static_cast<int>(n);
+  if (num("maxHeight", n)) c.max_h = static_cast<int>(n);
+  if (num("aspectRatio", n) && n > 0) c.aspect = static_cast<float>(n);
   if (num("x", x) && num("y", y)) { c.has_position = 1; c.x = static_cast<int>(x); c.y = static_cast<int>(y); }
   bool b = false, frame = true;
   if (yyjson_val* tc = yyjson_obj_get(w, "transparentColor"); tc && yyjson_is_str(tc)) c.transparent_key = static_cast<unsigned>(std::strtoul(yyjson_get_str(tc) + (yyjson_get_str(tc)[0] == '#' ? 1 : 0), nullptr, 16));   // "#rrggbb": the colour that is see-through
@@ -292,7 +296,10 @@ static void applyAppWindow(const std::string& json, zn::frontend::TargetOptions&
   if (yyjson_val* tb = yyjson_obj_get(w, "titleBar"); tb && yyjson_is_str(tb) && !std::strcmp(yyjson_get_str(tb), "none")) c.borderless = 1;
   if (yyjson_val* t = yyjson_obj_get(w, "title"); t && yyjson_is_str(t)) std::snprintf(c.title, sizeof c.title, "%s", yyjson_get_str(t));
   yyjson_doc_free(doc);
-  if (hal_set_window_config) hal_set_window_config(&c);
+  char text[256];
+  std::snprintf(text, sizeof text, "%d %d %d %d %d %d %d %d %d %d %d %u %g|%s", c.has_position, c.x, c.y, c.min_w, c.min_h, c.max_w, c.max_h, c.borderless,
+                c.always_on_top, c.transparent, c.not_resizable, c.transparent_key, static_cast<double>(c.aspect), c.title);
+  return text;
 }
 #endif
 
@@ -307,7 +314,8 @@ static zn::frontend::TargetOptions hostWindow(const zn::frontend::Project& proje
   zn::frontend::TargetOptions window;
   for (const char* t : order) { auto it = project.targets.find(t); if (it != project.targets.end()) { window = it->second; break; } }
 #ifdef ZN_HOST_GFX
-  if (!project.app.window.empty()) applyAppWindow(project.app.window, window);   // window properties for the HAL
+  // window properties for the HAL; "" when this project has none, so a program started by another zinc program does not take its parent's
+  setenv("ZINC_WINDOW_CONFIG", project.app.window.empty() ? "" : appWindowConfig(project.app.window, window).c_str(), 1);
 #endif
   return window;
 }
@@ -742,6 +750,16 @@ static int buildNative(const char* argv0, const char* entry, const char* out, zn
         if (at != std::string::npos) { text.insert(at + 2, "  setenv(\"ZINC_RESIZE\", \"" + t->second.resize + "\", 0);   // zinc.json resize\n"); std::ofstream o(cpp); o << text; }
       }
     }
+#ifdef ZN_HOST_GFX
+    if (!proj.app.window.empty()) {   // zinc.json app.window (size limits, frame, title...): the built program's window keeps them
+      zn::frontend::TargetOptions sized;
+      const std::string c = appWindowConfig(proj.app.window, sized);
+      std::string text;
+      { std::ifstream in(cpp); std::stringstream ss; ss << in.rdbuf(); text = ss.str(); }
+      std::size_t at = text.find("{\n", text.find("int main("));
+      if (at != std::string::npos && c.find(")ZNW") == std::string::npos) { text.insert(at + 2, "  setenv(\"ZINC_WINDOW_CONFIG\", R\"ZNW(" + c + ")ZNW\", 1);   // zinc.json app.window\n"); std::ofstream o(cpp); o << text; }
+    }
+#endif
     if (proj.text == "shaped") {
       std::string text;
       { std::ifstream in(cpp); std::stringstream ss; ss << in.rdbuf(); text = ss.str(); }

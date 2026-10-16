@@ -52,6 +52,10 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Plugin manifests take `vendorFlags`: flags for the vendored sources only (a C++ library that needs `-frtti` or `-fexceptions`).
 
 ### Fixed
+- Resizing a window on macOS by dragging its edge re-lays out the app at each size instead of stretching the last frame; animations,
+  timers and video keep running during the drag, and the growing edge shows the app's background colour.
+- `zinc.json` `app.window` (title, `minWidth`, `minHeight`, frame...) now applies to the native program `zinc run` starts and to the programs
+  `zinc build` writes, not only to the interpreter; `maxWidth`, `maxHeight` and `aspectRatio` are new.
 - The macOS camera no longer aborts the app on cameras that accept only fixed frame rates (an iPhone as webcam, some USB webcams): the rate asked is matched to one the camera offers.
 - Modals, dialogs, sheets and alerts no longer slide their dimmed background in with them: the dim fades in and out in place while the
   content fades, grows or slides (React Native's Modal `animationType`, the kit's Dialog, Nuxt UI's Modal and Slideover, `Alert.alert`), and
