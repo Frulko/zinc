@@ -21,10 +21,5 @@ msg lowercase_tag "zinc explain Z0007"
 "$ZINC" explain Z0006 | grep -q "className" || { echo "zinc explain Z0006 does not name className"; fail=1; }
 "$ZINC" explain Z0007 | grep -q "<View>" || { echo "zinc explain Z0007 does not name <View>"; fail=1; }
 "$ZINC" run $d/lowercase_tag.tsx --engine quickjs >/dev/null 2>&1 && { echo "--engine quickjs ran a lowercase tag"; fail=1; }
-# tools/jsx-migrate (needs Node and the checkout's TypeScript) turns the fixtures it can fix into programs that check
-tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
-cp $d/class_attr.tsx $d/class_prop.tsx $d/lowercase_tag.tsx "$tmp/"
-if command -v node >/dev/null 2>&1 && node tools/jsx-migrate "$tmp" >/dev/null 2>&1; then
-  for f in "$tmp"/*.tsx; do "$ZINC" check --check "$f" >/dev/null 2>&1 || { echo "jsx-migrate left $(basename "$f") wrong: $("$ZINC" check --check "$f" 2>&1 | head -1)"; fail=1; }; done
-fi
+# the codemods that fix these (zinc migrate, src/lint) are tested by tests/t0/migrate.sh
 exit $fail
