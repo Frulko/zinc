@@ -385,4 +385,8 @@ The next backlog review turns lines into tasks or deletes them.
 - zinc:gl (libzn_webgl) is not in the armv7-webos build: a real fragment shader on the TouchPad needs the GLES2 display to expose a shader pass (Musique's lava lamp computes its field on the CPU at 96x72 meanwhile).
 - Fonts: an engine-level tabular-figures feature (OpenType tnum through HarfBuzz in src/text/layout.cpp, chosen per font like the size) so any text can ask for fixed-width digits; Musique draws its clock digit by digit meanwhile (examples/music/src/ui.ts tabular).
 - ZN-718: display-gl: verify the ZINC_SHOT offscreen target on KMS (Pi) and webOS, GLES 2: screenshots are now surface-sized and unplaced, and the window is not refreshed during the run.
+- ZN-718: JSX: let a declaration of the same name in the file shadow the host element as React does (today only an import does: studio kit.tsx declares a `Button` component and still uses the host `<Button>` inside it).
+- ZN-718: JSX: `import { Canvas } from 'zinc:canvas'` plus `<Canvas onDraw>` gives a type error: say that the name is the host Canvas and name the alias to use.
+- ZN-718: DevTools: the DOM view still shows `<view class="...">` as node names; show `<View className>` as React DevTools does (the inspector tests expect the old names).
+
 
