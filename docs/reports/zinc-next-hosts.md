@@ -4,7 +4,7 @@
 |---|---|---|
 | macOS arm64 | built and tested every task (T0, T1, T2) | local, and `.github/workflows/zinc-next.yml` (macos-14) |
 | Linux aarch64 and x86_64 | builds warning-free with gcc 13; T0 and T1 pass (the 2 tests that need Node's `tsc` skip themselves); T2 run in an `ubuntu:24.04` container (see below) | Docker here, the workflow (ubuntu-24.04, ubuntu-24.04-arm) |
-| Windows x86_64 | **console programs only, cross-built** (ZN-714): `zinc build --target x86_64-windows prog.ts -o prog.exe` from a Mac or Linux; `zinc` itself is not ported | `tests/t2/cross_windows.sh` (a PE32+ executable links); the CI jobs `windows-cross` and `windows-console` run five programs on a Windows runner (written, never run) |
+| Windows x86_64 | **console programs only, cross-built** (ZN-714): `zinc build --target x86_64-windows prog.ts -o prog.exe` from a Mac or Linux; `zinc.exe` itself cross-links headless (no window, no event loop) and runs under Wine: [zinc-windows-port.md](zinc-windows-port.md) | `tests/t2/cross_windows.sh` (a PE32+ executable links); the CI jobs `windows-cross` and `windows-console` run five programs on a Windows runner (written, never run) |
 
 Tests that need a tool the machine lacks exit 77 and the runner prints `SKIP name (reason)` instead of failing (`tests/run`): today the oracle tests (`tools/oracle --available` is
 false without Node and the repository's `node_modules`).
