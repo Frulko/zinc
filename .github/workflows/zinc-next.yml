@@ -230,6 +230,21 @@ jobs:
           else
             tests/run --changed-from "$BASE" --tier t1 --shard ${{ matrix.shard }}/6
           fi
+      - name: Snapshot of the runner
+        # what the runner is, for the failures that pass on a developer's Mac: system, loopback, firewall, limits, display, free ports, running processes
+        if: always()
+        run: |
+          mkdir -p "$RUNNER_TEMP/out"
+          {
+            echo "## system"; sw_vers; uname -a; sysctl -n machdep.cpu.brand_string hw.ncpu hw.memsize; xcodebuild -version 2>&1 | head -2; clang --version | head -1
+            echo "## load"; uptime; vm_stat | head -4
+            echo "## limits"; ulimit -a
+            echo "## loopback"; ifconfig lo0 | head -6; netstat -an -p tcp | grep -c LISTEN; python3 -c "import socket;s=socket.socket();s.bind(('127.0.0.1',0));print('can bind 127.0.0.1:',s.getsockname()[1])"
+            echo "## firewall"; /usr/libexec/ApplicationFirewall/socketfilterfw --getglobalstate 2>&1 | head -2
+            echo "## display"; system_profiler SPDisplaysDataType 2>&1 | head -12
+            echo "## python"; python3 --version; which python3
+            echo "## disk"; df -h . | tail -1
+          } > "$RUNNER_TEMP/out/env-${{ matrix.shard }}.txt" 2>&1 || true
       - name: Rerun the failures with a trace
         # the quiet runner keeps only a test's own messages: a failure that passes on a developer's Mac needs the shell trace of the same run on the runner
         if: always()
@@ -280,7 +295,7 @@ jobs:
             echo "Logs of the failures: artifact \`test-report\` (logs-*/*.log)."
           } > report/REPORT.md
           cp -R parts/logs-* report/ 2>/dev/null || true
-          cp parts/trace-*.log report/ 2>/dev/null || true   # the shell trace of each failure, rerun on the runner
+          cp parts/trace-*.log parts/env-*.txt report/ 2>/dev/null || true   # the shell trace of each failure rerun on the runner, and a snapshot of the runner
           cat report/REPORT.md >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
