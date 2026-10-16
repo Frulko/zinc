@@ -31,6 +31,12 @@ const c = new NuxtColors(); c.primary = 'blue'; setColors(c);   // app.config ui
 | `--font-sans` (the docs site: Public Sans) | zinc:ui's `setFontSans(family)`: an app's `assets/<Family>*.ttf` (`-Medium`, `-SemiBold`, `-Bold`), Inter otherwise; `examples/nuxt-ui` ships Public Sans 400 to 700 | done (ZN-379) |
 | logical properties (`ms-`, `ps-`, `start-`), `rtl:` | zinc:ui's direction and logical classes; the Switch thumb mirrors | done (ZN-377) |
 
+## Platform look
+
+Nuxt UI is a brand kit: its colours, sizes and variants stay the same on every platform. It takes the platform's behaviour (scroll
+physics, transitions, haptics), the platform's switch shape (iOS, Material 3, macOS) and the UI font from `zinc:ui/platform`; `"ui":
+{"platformLook": "neutral"}` in `zinc.json` keeps Nuxt UI's own switch too ([docs/ui.md](ui.md), "Platform look").
+
 ## Components
 
 The props keep Nuxt UI's names and defaults (`color`, `variant`, `size`, `label`, `icon`, `trailing-icon` as `trailingIcon`, `loading`, `disabled`,

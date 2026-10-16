@@ -381,7 +381,7 @@ catches a running inertia.
 `platform()` (zinc:sys) answers `android` and `ios` on the phones, `macos` and `linux` on desktops; `ZINC_PLATFORM=android|ios|macos|linux`
 forces it, at run time and for the compiler (zinc:platform `TARGET`, the `x.android.ts` / `x.ios.ts` files next to `x.ts`), so a phone's
 behaviour runs and is tested on the desktop. `ui.platformStyle()` is `android`, `ios` or `desktop`: the scroll physics, the navigation
-transitions and the selection handles follow it.
+transitions and the selection handles follow it; the kits' look follows "Platform look" below.
 
 What a phone's OS tells an app reaches zinc:ui as **signals**, one line each, `kind args`, taken at the start of a frame
 (`gfx.signalCount` / `signalNext`, queued by `src/host/hal_dispatch.cpp`):
@@ -453,6 +453,57 @@ function Page(r: Route, nav: Navigation): i32 { /* r.name, r.title, r.params */ 
 With reduce motion (`ui.prefersReducedMotion()`) both become a 200 ms cross-fade. The motion runs in a stepper on the screens' own nodes:
 a transition re-renders nothing. `tests/t1/navigation.sh` drives a push and a pop, the swipe completed and cancelled, the back key, predictive
 back and both modal styles under `ZINC_PLATFORM=ios|android`, and keeps the hashes of the frames at the start, middle and end of each.
+
+## Platform look
+
+A program feels native in two layers, as Flutter splits them (`docs/reports/native-fidelity-and-plugins.md` 4.2):
+
+- **Behaviour** follows the platform the program runs on (`ui.platformStyle()`, `ZINC_PLATFORM`) and is not themeable: the scroll physics
+  (iOS's rubber band and deceleration on iOS, macOS and the desktop; Android's spline fling and stretch), the page transitions of
+  `zinc:ui/navigation`, the selection handles and edit menu, a long press that opens the kit's `ContextMenu` on a touch screen (a right click
+  on a desktop), and the haptics the OS's own controls give: a light impact when a switch flips and a selection tick when a segmented
+  control moves on iOS, the long-press feedback on Android and iOS (`toggleFeedback`, `selectionFeedback`, `longPressFeedback` of
+  `zinc:ui/platform`).
+- **Look** is data, the token tables of `lib/std/platform/tokens.ts` (`zinc:ui/platform`): control heights and radii, the switch, slider and
+  segmented-control shapes, the type scale, the UI font and the control colours (light and dark), which the kits read.
+
+| | iOS | Android (Material 3) | macOS | neutral |
+| --- | --- | --- | --- | --- |
+| buttons | 44 px, radius 12, 17 px semibold | 40 px, fully rounded, 14 px medium | 24 px, radius 6, 13 px | the kit's own (h-9, rounded-md, text-sm) |
+| switch | 51 x 31, thumb 27, green | 52 x 32, 2 px outline, thumb 16 off and 24 on, primary | 38 x 22, thumb 20, accent | 36 x 20 |
+| slider | 4 px track, white 28 px thumb | 4 px track, 20 px thumb in the primary | 4 px track, white 20 px thumb | 6 px track, ringed 16 px thumb |
+| segmented (kit `Tabs`) | grey track, raised white segment | outlined, the selected one filled | 22 px, raised segment | the kit's own |
+| type (body, title 1) | 17, 28 | 16, 28 | 13, 22 | 16, 24 |
+| tint | systemBlue 007aff / 0a84ff | 6750a4 / d0bcff | the user's accent (System Settings) | the kit theme's |
+| `ActivityIndicator` | 12 bars | a turning arc | 12 bars | 12 bars |
+| font | SF Pro Text | Roboto | SF Pro Text | Inter |
+
+Who reads what:
+
+- **zinc:ui/kit** takes the sizes, shapes, type scale and font, and, while the app keeps the kit's own theme, the platform's colours for the
+  filled button, the switch and the slider. An app that sets a theme of its own (`setTheme(myTheme)`) keeps its colours on the platform's shapes.
+- **zinc:ui/nuxt** keeps Nuxt UI's colours, sizes and variants (a brand kit) and takes the platform's switch shape, the behaviour and the font.
+- **zinc:react-native** draws `Switch`, `Button` and `ActivityIndicator` as each platform does (React Native's own `Button.js`: a tinted title on
+  iOS, a raised `#2196f3` rectangle with an upper-case title on Android, a push button on macOS); props (`trackColor`, `color`...) still win.
+  Under the neutral look they draw iOS's, as they always did.
+
+**Choosing.** "auto" is the platform's look: iOS on iOS, Android on Android, macOS on a Mac, neutral on Linux, the web and the boards.
+One switch forces one look for every kit:
+
+```json
+{ "ui": { "platformLook": "auto" } }      // "ios" | "android" | "macos" | "neutral"
+```
+
+`ZINC_PLATFORM_LOOK=ios` does the same for one run; in code, `setPlatformLook('android')` before the first render, or
+`<ThemeProvider look="neutral">` from `zinc:ui/platform` at the root of the app. The look does not change the behaviour: `ZINC_PLATFORM=android`
+runs Android's look and behaviour on the desktop, `platformLook` only its look. A deterministic run (tests, `zinc test`, the pixel goldens) on a
+Mac without `ZINC_PLATFORM` takes the neutral look, so it draws the frames a Linux machine draws.
+
+The look's colours are scheme variables (`bg-[var(--pfTint)]`, `pfSwitchOn`, `pfFill`, `pfBorder`...): they follow `setScheme` and a new accent
+(`setAccent(0xff2d55)`) without a render; `look()`, `tint()` and `color([light, dark])` give them to code. The fonts are the families the app
+ships (`assets/Roboto-Regular.ttf`): the OS's own font files (SF Pro, Android's Roboto) are variable fonts the rasterizer cannot read yet, so
+without them the text stays in Inter. `tests/t1/platform_look.sh` keeps a frame per profile of the kit gallery and of rn-showcase (its
+components, and a finger pulling the page past its top: rubber band or stretch), and checks the switch, the haptics and the long press.
 
 ## Tests
 

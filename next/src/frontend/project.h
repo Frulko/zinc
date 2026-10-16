@@ -72,6 +72,7 @@ struct Project {
   std::string text;                 // "text": "shaped" lays out zinc:gfx / zinc:ui text with HarfBuzz and SheenBidi (ZN-224); "" or "simple": the codepoint tables
   std::string uiLayout;             // "ui": {"layout": "classic" | "rn" | "auto"} (ZN-285); "" = not set; "preset": "react-native" sets "rn"
   std::string uiPreset;             // "ui": {"preset"}: "react-native" or ""
+  std::string uiPlatformLook;       // "ui": {"platformLook": "auto" | "ios" | "android" | "macos" | "neutral"}: the kits' look (ZN-748); "" = auto
   AppInfo app;
   std::vector<std::string> permissions;            // "permissions": `feature` or `feature:operation`; none = no system module usable
   bool permissionsDeclared = false;
@@ -122,6 +123,9 @@ const std::string& uiLayout();
 // "react-native" when zinc.json has "ui": {"preset": "react-native"}: React Native's style semantics (flex: n, black text) in either layout engine (ZN-288).
 void setUiPreset(const std::string& preset);
 const std::string& uiPreset();
+// zinc.json "ui": {"platformLook"}: the look the kits take (lib/std/platform), exported by zinc:platform as UI_PLATFORM_LOOK ("auto" when unset).
+void setUiPlatformLook(const std::string& look);
+const std::string& uiPlatformLook();
 // Whether a module other than zinc:ui imports zinc:__layout: the AOT then installs and links the engine in classic too (ZN-355).
 void noteDirectLayoutUse();
 bool directLayoutUse();

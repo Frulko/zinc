@@ -11,6 +11,12 @@ native code like the rest of the program and adds nothing at runtime beyond its 
 zinc run examples/ui/kit-gallery   # every component on one page, with a light / dark switch
 ```
 
+**Adaptive by default.** On a phone or a Mac the kit takes the platform's look from `zinc:ui/platform`: iOS's 44 px buttons, 51 x 31 green
+switches and type scale on iOS, Material 3's rounded buttons and outlined switches on Android, macOS's 24 px controls and the user's accent
+colour on a Mac; Linux, the web and the boards keep the look described here (neutral). An app with a theme of its own keeps its colours on the
+platform's shapes. `"ui": {"platformLook": "neutral"}` in `zinc.json` (or `"ios"`, `"android"`, `"macos"`) forces one look everywhere;
+`ZINC_PLATFORM=ios zinc run examples/ui/kit-gallery` shows another platform's on the desktop ([docs/ui.md](ui.md), "Platform look").
+
 ## Using it
 
 ```tsx

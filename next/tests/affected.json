@@ -56,6 +56,7 @@
     {"paths": ["tests/golden/ui-press/"], "tests": ["ui_press"]},
     {"paths": ["src/frontend/jsx.cpp", "tests/golden/style-flex/", "tests/golden/style-size/", "tests/golden/style-shadow/", "tests/golden/style-transform/", "tests/golden/pan-responder/", "tests/golden/react-native/", "tests/golden/style-dynamic/", "tests/golden/style-border/", "tests/golden/layout-compat/", "tests/golden/rtl/"], "tests": ["style_flex", "style_size", "style_shadow", "style_transform", "pan_responder", "react_native", "style_dynamic", "style_border", "layout_compat", "react_native_imports", "rtl", "jsx_style"]},
     {"paths": ["../examples/rn-showcase/", "tests/golden/rn-showcase/"], "tests": ["rn_showcase"]},
+    {"paths": ["../lib/std/platform/", "../lib/std/kit/", "../lib/std/nuxt/controls.tsx", "../lib/std/react-native.tsx", "../examples/ui/kit-gallery/", "../examples/rn-showcase/", "src/frontend/project.cpp", "tests/golden/platform-look/", "tests/t1/platform_look.sh"], "tests": ["platform_look", "ui_kit_sections", "rn_showcase", "kit_menubar", "nuxt_ui", "react_native"]},
     {"paths": ["../examples/webcam/", "tests/golden/webcam-demo/", "../plugins/camera/"], "tests": ["webcam_demo"]},
     {"paths": ["../lib/std/react-native.tsx", "../lib/std/icons.tsx", "../lib/std/ui.ts", "tests/golden/rn-idle/"], "tests": ["rn_idle"]},
     {"paths": ["../examples/rn-port/", "tests/golden/rn-port/"], "tests": ["rn_port"]},

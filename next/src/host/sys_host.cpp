@@ -298,8 +298,38 @@ bool mobileCommand(const std::string& q, const std::string& a, std::string& out)
   out = r ? r : "0";
   return true;
 }
+// The accent colour the user picked in System Settings (lib/std/platform, ZN-748): AppleAccentColor of the global domain, -1 graphite, 0 red ... 6 pink,
+// absent = blue, as Apple's system colours (light) RRGGBB; "" where there is none (iOS: the app's own tint; Android's dynamic colour: the activity's).
+// CoreFoundation is opened, not linked, as src/tc/bundle.cpp does (ZN-592.01).
+std::string systemAccent() {
+#if defined(__APPLE__) && !TARGET_OS_IPHONE
+  if (zn::runPlatform() != std::string("macos")) return "";   // a phone run on the Mac (ZINC_PLATFORM)
+  void* cf = dlopen("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation", RTLD_LAZY | RTLD_LOCAL);
+  if (!cf) return "";
+  using Str = const void*;
+  auto make = reinterpret_cast<Str (*)(const void*, const char*, uint32_t)>(dlsym(cf, "CFStringCreateWithCString"));
+  auto copy = reinterpret_cast<const void* (*)(Str, Str)>(dlsym(cf, "CFPreferencesCopyAppValue"));
+  auto number = reinterpret_cast<unsigned char (*)(const void*, long, void*)>(dlsym(cf, "CFNumberGetValue"));
+  auto typeOf = reinterpret_cast<unsigned long (*)(const void*)>(dlsym(cf, "CFGetTypeID"));
+  auto numberType = reinterpret_cast<unsigned long (*)()>(dlsym(cf, "CFNumberGetTypeID"));
+  auto release = reinterpret_cast<void (*)(const void*)>(dlsym(cf, "CFRelease"));
+  auto anyApp = reinterpret_cast<const Str*>(dlsym(cf, "kCFPreferencesAnyApplication"));
+  if (!make || !copy || !number || !typeOf || !numberType || !release || !anyApp) return "";
+  Str key = make(nullptr, "AppleAccentColor", 0x08000100);   // kCFStringEncodingUTF8
+  const void* v = key ? copy(key, *anyApp) : nullptr;
+  int k = 4;   // blue
+  if (v && typeOf(v) == numberType()) number(v, 9, &k);   // kCFNumberIntType
+  if (v) release(v);
+  if (key) release(key);
+  static const char* const kColors[] = {"8e8e93", "ff3b30", "ff9500", "ffcc00", "34c759", "007aff", "af52de", "ff2d55"};   // graphite, red .. pink
+  return k >= -1 && k <= 6 ? kColors[k + 1] : "007aff";
+#else
+  return "";
+#endif
+}
 std::string desktopDevice(const std::string& q, const std::string& a) {
   if (q == "language") return systemLocale();
+  if (q == "accent") return systemAccent();
   if (q == "osversion") return osVersion();
   if (std::string out; mobileCommand(q, a, out)) return out;
   if (q == "osversion") return osVersion();

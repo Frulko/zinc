@@ -1762,6 +1762,8 @@ function applyScheme(name: string): void {
 /** Switches the colour scheme ('light', 'dark', or 'auto' to follow the system's). zinc.json: "scheme". */
 export function setScheme(name: string): void { schemeMode = name; applyScheme(name === 'auto' ? systemScheme : name); }
 export function currentScheme(): string { return scheme; }
+/** Restyles the nodes that read scheme variables, after defineScheme changed the current scheme's values (a new accent colour). */
+export function refreshScheme(): void { schemeCount = restyleMedia(16); paintDirty = true; }
 /** The nodes the last scheme switch restyled. */
 export function schemeRestyled(): i32 { return schemeCount; }
 /** Called by the host when the operating system's preference changes. */

@@ -10,6 +10,7 @@ import * as ui from 'zinc:ui';
 import { theme } from './theme';
 import { keyLabel } from './overlays';
 import { renderSlot } from './host';
+import { longPressFeedback } from '../platform/index';
 
 export interface MenuEntry {
   id?: string;
@@ -132,7 +133,7 @@ export function MenuBar(props: MenuBarProps): i32 {
   </View>;
 }
 
-/** A right press (or a long press) on the children opens the menu under the pointer. */
+/** A right press opens the menu under the pointer; on a touch screen a finger's long press does (with the platform's haptic), as on iOS and Android. */
 export function ContextMenu(props: ContextMenuProps): i32 {
   const area = createNodeRef(), menu = createNodeRef();
   const run = runner(props.onSelect);
@@ -149,5 +150,7 @@ export function ContextMenu(props: ContextMenuProps): i32 {
   ui.onDismiss(menu.node, close);
   ui.onOutsidePointer(menu.node, (e: ui.PointerEvent) => close());
   ui.onPointer(area.node, ui.PCONTEXT, (e: ui.PointerEvent) => { ui.anchorPoint(menu.node, e.x, e.y); show(menu.node, true); });
+  // a touch screen (a phone; the pointer is coarse from the start there): a long press, which would drop a mouse's slow clicks on a desktop
+  if (ui.pointerIsCoarse()) ui.onPointer(area.node, ui.PLONG, (e: ui.PointerEvent) => { longPressFeedback(); ui.anchorPoint(menu.node, e.x, e.y); show(menu.node, true); });
   return node;
 }

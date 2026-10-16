@@ -367,6 +367,7 @@ static bool loadManifestPermissions(const char* path) {
   }
   zn::frontend::setUiLayout(uiLayout);
   zn::frontend::setUiPreset(p.uiPreset);
+  zn::frontend::setUiPlatformLook(p.uiPlatformLook);
   zn::frontend::setSystemPermissions(&granted);
   zn::frontend::setSystemAppJson(appJson);
   zn::frontend::setSystemScopesJson(scopesJson);

@@ -7,6 +7,7 @@ import { platform, env, device } from 'zinc:sys';
 import { width, height, pixelScale, stroke, quit } from 'zinc:gfx';
 import { createEffect } from 'zinc:ui/solid';
 import * as A from 'zinc:ui/animated';
+import * as P from 'zinc:ui/platform';   // the platform look (ZN-748): Button, Switch and ActivityIndicator draw as the platform's own
 
 export { StyleSheet, PanResponder, LayoutAnimation } from 'zinc:ui';
 
@@ -52,11 +53,25 @@ function Press(p: PressableProps, pressedStyle: ui.Style | null, feedback: boole
     onPointerUp={up} onPointerCancel={up} aria-label={p.accessibilityLabel ?? ''}>{renderChildren(p.children)}</View>;
 }
 export function Pressable(p: PressableProps): i32 { return Press(p, null); }
-/** React Native's Button: iOS's look (a blue title; `color` tints it), dims while pressed and when disabled. */
+/** React Native's Button, as its Button.js draws it per platform (zinc:ui/platform's look): iOS a tinted title (18 px; `color` tints it), Android a
+ *  raised filled rectangle with an upper-case white title (`color` fills it, #2196f3 by default), macOS a push button (a white bezel, 13 px). It dims
+ *  while pressed; disabled greys it. The neutral look keeps iOS's. */
 export function Button(p: { title: string; onPress?: () => void; color?: string; disabled?: boolean; accessibilityLabel?: string; testID?: string }): i32 {
-  const c = processColor(p.color ?? '#007aff'), off = p.disabled ?? false;
+  const L = P.look(), off = p.disabled ?? false, given = p.color !== undefined ? processColor(p.color as string) : -1;
+  if (L.name === 'android') {
+    const bg = off ? 0xdfdfdf : given >= 0 ? given : 0x2196f3;
+    return <Pressable onPress={p.onPress} disabled={off} accessibilityLabel={p.accessibilityLabel ?? p.title} style={new ui.Style(['backgroundColor', 'borderRadius', 'elevation', 'alignItems'], [bg, 2, off ? 0 : 4, 1])}>
+      <Text style={{ fontSize: 14, fontWeight: '500', padding: 8, color: off ? 0xa1a1a1 : 0xffffff }}>{p.title.toUpperCase()}</Text>
+    </Pressable>;
+  }
+  if (L.name === 'macos') {
+    return <Pressable onPress={p.onPress} disabled={off} accessibilityLabel={p.accessibilityLabel ?? p.title} style={new ui.Style(['backgroundColor', 'borderRadius', 'borderWidth', 'borderColor', 'height', 'paddingLeft', 'paddingRight', 'alignItems', 'justifyContent', 'shadowColor', 'shadowOpacity', 'shadowRadius', 'shadowOffsetY'],
+      [P.color(L.raised), 6, 1, P.color(L.border), 22, 12, 12, 1, 1, 0x000000, 0.1, 1, 1])}>
+      <Text style={{ fontSize: 13, color: off ? 0xa0a0a0 : given >= 0 ? given : P.color(L.label) }}>{p.title}</Text>
+    </Pressable>;
+  }
   return <Pressable onPress={p.onPress} disabled={off} accessibilityLabel={p.accessibilityLabel ?? p.title} style={new ui.Style(['paddingTop', 'paddingBottom', 'alignItems'], [8, 8, 1])}>
-    <Text style={{ fontSize: 18, color: off ? 0x999999 : (c < 0 ? 0x007aff : c) }}>{p.title}</Text>
+    <Text style={{ fontSize: 18, color: off ? 0x999999 : (given < 0 ? P.tint() : given) }}>{p.title}</Text>
   </Pressable>;
 }
 export function TouchableWithoutFeedback(p: PressableProps): i32 { return Press(p, null, false); }
@@ -73,29 +88,42 @@ export function TouchableHighlight(p: PressableProps): i32 {
 export type TrackColor = { false?: string; true?: string };
 export type SwitchProps = { value?: boolean; onValueChange?: (v: boolean) => void; disabled?: boolean; trackColor?: TrackColor; thumbColor?: string;
   ios_backgroundColor?: string; style?: ui.Style; testID?: string };
-/** iOS proportions (51 x 31, thumb 27). Controlled like React Native's: it reports the new value and shows `value`. */
+/** The platform's switch (zinc:ui/platform's look): iOS 51 x 31 with a 27 px thumb and the green track, Material 3 52 x 32 with an outlined track whose
+ *  thumb grows from 16 to 24 on the primary colour, macOS 38 x 22 on the accent. The neutral look keeps iOS's. Controlled like React Native's: it reports
+ *  the new value and shows `value`. iOS gives a light haptic when it flips. */
 export function Switch(p: SwitchProps): i32 {
-  const on = p.value ?? false, off = p.disabled ?? false;
+  const on = p.value ?? false, off = p.disabled ?? false, L = P.look(), S = L.name === 'neutral' ? P.IOS : L;
   const tc = p.trackColor;
-  const tf = tc !== undefined && tc.false !== undefined ? processColor(tc.false as string) : processColor(p.ios_backgroundColor ?? '#e9e9ea');
-  const tt = tc !== undefined && tc.true !== undefined ? processColor(tc.true as string) : 0x34c759;
-  const th = p.thumbColor !== undefined ? processColor(p.thumbColor as string) : 0xffffff;
-  const flip = (): void => { const f = p.onValueChange; if (!off && f !== undefined) f(!on); };
-  return <View style={[{ width: 51, height: 31, borderRadius: 16, padding: 2, backgroundColor: on ? tt : tf, opacity: off ? 0.5 : 1 }, p.style ?? NONE]} onPress={flip} role="switch"
-    aria-checked={on}>
-    <View style={{ width: 27, height: 27, borderRadius: 14, backgroundColor: th, translateX: on ? 20 : 0, shadowColor: 0x000000, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 3 }} />
+  const tf = tc !== undefined && tc.false !== undefined ? processColor(tc.false as string) : p.ios_backgroundColor !== undefined ? processColor(p.ios_backgroundColor as string) : P.color(S.switchOff);
+  const tt = tc !== undefined && tc.true !== undefined ? processColor(tc.true as string) : L.name === 'macos' ? P.tint() : P.color(S.switchOn);
+  const th = p.thumbColor !== undefined ? processColor(p.thumbColor as string) : P.color(on ? S.thumb : S.thumbDim);
+  const flip = (): void => { const f = p.onValueChange; if (!off && f !== undefined) { P.toggleFeedback(); f(!on); } };
+  const o = S.outline, inner = S.switchW - 2 * o, innerH = S.switchH - 2 * o, k = on ? S.thumbOn : S.thumbOff;
+  const x = on ? inner - (innerH - k) / 2 - k : (innerH - k) / 2;
+  return <View style={[{ width: S.switchW, height: S.switchH, borderRadius: S.switchH / 2, borderWidth: o, borderColor: on ? tt : P.color(S.border), backgroundColor: on ? tt : tf, opacity: off ? 0.5 : 1,
+    flexDirection: 'row', alignItems: 'center' }, p.style ?? NONE]} onPress={flip} role="switch" aria-checked={on}>
+    <View style={{ width: k, height: k, borderRadius: k / 2, backgroundColor: th, translateX: x, shadowColor: 0x000000, shadowOffset: { width: 0, height: o > 0 ? 0 : 2 }, shadowOpacity: o > 0 ? 0 : 0.2, shadowRadius: 3 }} />
   </View>;
 }
 
 // ---------------------------------------------------------------- ActivityIndicator, SafeAreaView, StatusBar
 export type ActivityIndicatorProps = { animating?: boolean; color?: string; size?: string; hidesWhenStopped?: boolean; style?: ui.Style };
-/** iOS's spinner: 12 bars, the bright one turning once a second; size 'small' (20) or 'large' (36). */
+/** The platform's spinner (zinc:ui/platform's look): iOS and macOS 12 bars, the bright one turning once a second (grey by default); Material a turning arc
+ *  that grows and shrinks, in the primary colour. Size 'small' (20) or 'large' (36). */
 export function ActivityIndicator(p: ActivityIndicatorProps): i32 {
-  const n = p.size === 'large' ? 36 : 20, run = p.animating ?? true, col = processColor(p.color ?? '#999999');
+  const n = p.size === 'large' ? 36 : 20, run = p.animating ?? true, L = P.look(), arc = L.spinner === 'arc';
+  const col = p.color !== undefined ? processColor(p.color as string) : arc ? P.tint() : 0x999999;
   if (!run && (p.hidesWhenStopped ?? true)) return <View style={[{ width: n, height: n }, p.style ?? NONE]} />;
   return <View style={[{ alignItems: 'center', justifyContent: 'center' }, p.style ?? NONE]} role="progressbar">
     <Canvas style={{ width: n, height: n, lazy: run ? 0 : 1 }} onDraw={(x: i32, y: i32, w: i32, h: i32) => {   // stopped: a lazy canvas, the frame stays idle
       const cx = x + w / 2, cy = y + h / 2, r1 = w * 0.22, r2 = w * 0.46, lead = run ? Math.floor(ui.now() / 83) % 12 : 0;
+      if (arc) {   // Material's indeterminate circle: the arc turns once in 1.57 s while its sweep breathes between 20 and 270 degrees every 1.33 s
+        const t = run ? ui.now() : 0, r = w * 0.4, start = t / 1568 * Math.PI * 2, sweep = (20 + 250 * (0.5 - 0.5 * Math.cos(t / 1333 * Math.PI * 2))) * Math.PI / 180;
+        const pts: number[] = [];
+        for (let i = 0; i <= 24; i++) { const a = start + sweep * i / 24; pts.push(cx + Math.sin(a) * r); pts.push(cy - Math.cos(a) * r); }
+        stroke(pts, w * 0.1, col as u32, 255, false);
+        return;
+      }
       for (let i = 0; i < 12; i++) {
         const a = i * Math.PI / 6, age = (lead - i + 12) % 12;
         stroke([cx + Math.sin(a) * r1, cy - Math.cos(a) * r1, cx + Math.sin(a) * r2, cy - Math.cos(a) * r2], w * 0.09, col as u32, Math.round(255 * (1 - age / 14)), false);

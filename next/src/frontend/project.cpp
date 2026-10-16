@@ -323,6 +323,9 @@ const std::string& uiLayout() { return gUiLayout; }
 namespace { std::string gUiPreset; }
 void setUiPreset(const std::string& preset) { gUiPreset = preset; }
 const std::string& uiPreset() { return gUiPreset; }
+namespace { std::string gUiPlatformLook = "auto"; }
+void setUiPlatformLook(const std::string& look) { gUiPlatformLook = look.empty() ? "auto" : look; }
+const std::string& uiPlatformLook() { return gUiPlatformLook; }
 namespace { bool gDirectLayout = false; }
 void noteDirectLayoutUse() { gDirectLayout = true; }
 bool directLayoutUse() { return gDirectLayout; }
@@ -456,6 +459,10 @@ bool parseProject(const std::string& text, Project& out, std::string& err) {
     if (yyjson_val* pr = yyjson_obj_get(u, "preset")) {
       out.uiPreset = yyjson_is_str(pr) ? yyjson_get_str(pr) : "";
       if (out.uiPreset != "react-native") { err = "\"ui.preset\" must be \"react-native\""; out.fatal = true; return false; }
+    }
+    if (yyjson_val* pl = yyjson_obj_get(u, "platformLook")) {   // ZN-748
+      out.uiPlatformLook = yyjson_is_str(pl) ? yyjson_get_str(pl) : "";
+      if (out.uiPlatformLook != "auto" && out.uiPlatformLook != "ios" && out.uiPlatformLook != "android" && out.uiPlatformLook != "macos" && out.uiPlatformLook != "neutral") { err = "\"ui.platformLook\" must be \"auto\", \"ios\", \"android\", \"macos\" or \"neutral\""; out.fatal = true; return false; }
     }
   }
   if (yyjson_val* r = yyjson_obj_get(root, "requires")) {

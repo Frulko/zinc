@@ -4,6 +4,7 @@
 //
 //   <Tabs items={['Overview', 'Settings']} selected={tab} onSelect={setTab} />
 import { theme } from './theme';
+import { look, selectionFeedback } from '../platform/index';
 
 export interface TabsProps {
   items: string[];
@@ -13,21 +14,23 @@ export interface TabsProps {
 }
 
 function triggerClass(active: boolean): string {
-  const t = theme();
+  const t = theme(), L = look();
+  if (L.name !== 'neutral') return active ? `${L.segOn} focus:${L.segOn.split(' ')[0]}` : 'bg-transparent';
   if (active) return `bg-${t.card} shadow-sm focus:bg-${t.card}`;
   return `bg-transparent focus:bg-${t.muted}`;
 }
 
 function labelClass(active: boolean): string {
   const t = theme();
-  return `text-sm font-medium text-${active ? t.foreground : t.mutedForeground}`;
+  return `${look().segLabel} text-${active ? t.foreground : t.mutedForeground}`;
 }
 
 export function Tabs(props: TabsProps): i32 {
-  return <View className={`flex-row p-1 gap-1 rounded-lg bg-${theme().muted} ${props.className ?? ''}`}>
+  const L = look();
+  return <View className={`flex-row ${L.segTrack} ${L.name === 'neutral' ? 'bg-' + theme().muted : ''} ${props.className ?? ''}`}>
     {props.items.map((label: string, i: i32) =>
-      <View className={`grow flex-row items-center justify-center h-7 px-3 rounded-md transition-colors ${triggerClass(props.selected() === i)}`}
-        onClick={() => props.onSelect(i)}>
+      <View className={`grow flex-row items-center justify-center ${L.segItem} transition-colors ${triggerClass(props.selected() === i)}`}
+        onClick={() => { if (props.selected() !== i) selectionFeedback(); props.onSelect(i); }}>
         <Text className={labelClass(props.selected() === i)}>{label}</Text>
       </View>)}
   </View>;

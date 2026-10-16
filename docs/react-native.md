@@ -31,9 +31,9 @@ component (`View as Box`) is not supported: View, Text, Image and ScrollView mus
 | ScrollView | partial | host element; `onScroll` with `nativeEvent.contentOffset`; `contentContainerStyle`, `horizontal`, `refreshControl` missing |
 | Pressable | supported | onPress, onLongPress (500 ms), onPressIn / onPressOut, disabled, accessibilityLabel; dims to 0.6 while pressed (zinc:ui's pressed feedback; React Native shows nothing); `style` as a function of `{ pressed }` and `hitSlop` missing |
 | TouchableOpacity, TouchableHighlight, TouchableWithoutFeedback | supported | activeOpacity, underlayColor (replaces the background); their own feedback replaces the default dim, TouchableWithoutFeedback shows none |
-| Button | supported | title, onPress, color, disabled (iOS's look) |
-| Switch | supported | value, onValueChange, trackColor, thumbColor, ios_backgroundColor, disabled (iOS 51 x 31) |
-| ActivityIndicator | supported | size small / large, color, animating, hidesWhenStopped |
+| Button | supported | title, onPress, color, disabled; drawn as React Native's Button.js draws it on the platform (iOS a tinted title, Android a raised #2196f3 rectangle with an upper-case title, macOS a push button; docs/ui.md "Platform look") |
+| Switch | supported | value, onValueChange, trackColor, thumbColor, ios_backgroundColor, disabled; the platform's switch (iOS 51 x 31 green, Material 3 52 x 32 with an outline and a growing thumb, macOS 38 x 22 on the accent), a light haptic on iOS |
+| ActivityIndicator | supported | size small / large, color, animating, hidesWhenStopped; 12 bars on iOS and macOS, Material's turning arc on Android |
 | TextInput | partial | value, defaultValue, onChangeText, onSubmitEditing, placeholder, keyboardType, secureTextEntry, multiline, editable, maxLength, autoFocus; autoCapitalize, autoCorrect, returnKeyType, textContentType, autoComplete reach the phone's keyboard; onFocus / onBlur, placeholderTextColor, selection missing |
 | KeyboardAvoidingView | supported | behavior padding / height (both pad) / position, keyboardVerticalOffset, enabled |
 | FlatList | partial | virtualised: data, renderItem, keyExtractor (item, index), ItemSeparatorComponent, ListHeader / Footer / EmptyComponent, numColumns, columnWrapperStyle, getItemLayout, onEndReached + threshold, refreshing / onRefresh; horizontal, inverted, scrollToIndex, onViewableItemsChanged missing |

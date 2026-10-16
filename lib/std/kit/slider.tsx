@@ -9,6 +9,7 @@
 import { NodeRef, createNodeRef } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import { theme } from './theme';
+import { look } from '../platform/index';
 
 export interface SliderProps {
   value: () => number;
@@ -19,7 +20,8 @@ export interface SliderProps {
   className?: string;
 }
 
-const THUMB: number = 16;   // thumb diameter in px (w-4)
+/** Thumb diameter in px: the platform look's (iOS 28, Material 20, macOS 20, neutral 16 = w-4). */
+function thumbSize(): number { return look().sliderThumb; }
 
 /** Position of `value` in [min, max] as 0..100. */
 function percent(value: number, min: number, max: number): number {
@@ -30,8 +32,9 @@ function percent(value: number, min: number, max: number): number {
 /** Value at x (local to the rail): the thumb centre travels from THUMB/2 to width - THUMB/2. */
 function valueAt(rail: NodeRef, x: number, min: number, max: number, step: number): number {
   const n = ui.inspectNode(rail.node);
-  if (n === null || n.lw <= THUMB) return min;
-  const t = Math.max(0, Math.min(1, (x - THUMB / 2) / (n.lw - THUMB)));
+  const k = thumbSize();
+  if (n === null || n.lw <= k) return min;
+  const t = Math.max(0, Math.min(1, (x - k / 2) / (n.lw - k)));
   const raw = min + t * (max - min);
   return step > 0 ? Math.round(raw / step) * step : raw;
 }
@@ -43,7 +46,14 @@ export function Slider(props: SliderProps): i32 {
   let down = false;       // between the press and the release / cancel (moves without a press are hovers)
   let downX: number = 0;
   const setAt = (x: number): void => props.onChange(valueAt(rail, x, min, max, step));
-  return <View ref={rail} className={`flex-row items-center h-5 pr-4 rounded-full cursor-pointer focus:bg-${theme().card} ${props.className ?? ''}`}
+  const L = look(), t = theme(), k = L.sliderThumb, h = Math.max(20, k), own = L.name === 'neutral' || t.name !== 'vars';
+  const rest = L.name === 'neutral' ? 'h-5 pr-4' : `h-[${h}px] pr-[${k}px]`;
+  const railCls = L.name === 'neutral' ? `absolute left-0 right-0 top-[7px] h-1.5 rounded-full bg-${t.muted}` : `absolute left-0 right-0 top-[${(h - L.sliderTrack) / 2}px] h-[${L.sliderTrack}px] rounded-full bg-${own ? t.muted : '[var(--pfSwitchOff)]'}`;
+  const fill = `${L.name === 'neutral' ? 'h-1.5' : `h-[${L.sliderTrack}px]`} rounded-full bg-${own ? t.primary : '[var(--pfTint)]'}`;
+  const knob = L.name === 'neutral' ? `w-4 h-4 rounded-full border-2 border-${t.primary} bg-${t.card} shadow-sm`
+    : L.sliderThumbTint ? `w-[${k}px] h-[${k}px] rounded-full bg-${own ? t.primary : '[var(--pfTint)]'}`
+    : `w-[${k}px] h-[${k}px] rounded-full bg-white shadow-md${L.name === 'macos' ? ' border border-[var(--pfBorder)]' : ''}`;
+  return <View ref={rail} className={`flex-row items-center ${rest} rounded-full cursor-pointer focus:bg-${theme().card} ${props.className ?? ''}`}
     focusable grab="keep-x" onKeyDown={(e: ui.KeyEvent) => {
       // arrows nudge the focused slider by one step (1 % of the range without a step)
       const d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
@@ -56,8 +66,8 @@ export function Slider(props: SliderProps): i32 {
     onPointerMove={(e: ui.PointerEvent) => { if (!down) return; if (!dragging && Math.abs(e.x - downX) > 4) dragging = true; if (dragging) setAt(e.x); }}
     onPointerUp={(e: ui.PointerEvent) => { if (down && !dragging) setAt(e.x); down = false; dragging = false; }}
     onPointerCancel={(e: ui.PointerEvent) => { down = false; dragging = false; }}>
-    <View className={`absolute left-0 right-0 top-[7px] h-1.5 rounded-full bg-${theme().muted}`} />
-    <View className={`h-1.5 rounded-full bg-${theme().primary} w-${Math.round(percent(props.value(), min, max))}/100`} />
-    <View className={`w-4 h-4 rounded-full border-2 border-${theme().primary} bg-${theme().card} shadow-sm`} />
+    <View className={railCls} />
+    <View className={`${fill} w-${Math.round(percent(props.value(), min, max))}/100`} />
+    <View className={knob} />
   </View>;
 }

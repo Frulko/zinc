@@ -9,6 +9,7 @@ import { buttonSize, buttonIconSize, buttonVariant, contentColor, badgeSize, bad
   choiceText, checkboxBox, switchThumb, radioDot, checkedFill, choiceCard, rgb } from './variants';
 import { renderSlot } from './host';
 import { Icon } from 'zinc:icons';
+import { look, toggleFeedback } from '../platform/index';
 
 export type ButtonProps = {
   label?: string; color?: string; variant?: string; size?: string; icon?: string; trailingIcon?: string; square?: boolean; block?: boolean;
@@ -154,14 +155,19 @@ export function Checkbox(p: CheckboxProps): i32 {
 }
 
 export type SwitchProps = { modelValue?: () => boolean; onUpdate?: (v: boolean) => void; label?: string; description?: string; color?: string; size?: string; disabled?: boolean; className?: string };
-/** Nuxt UI's USwitch: the thumb inside a 2 px transparent border (md: 36 x 20, thumb 16), checked fill of the colour. */
+/** Nuxt UI's USwitch: the thumb inside a 2 px transparent border (md: 36 x 20, thumb 16), checked fill of the colour. Under a platform look (zinc:ui/platform)
+ *  the shape is the platform's (iOS 51 x 31, Material 3 52 x 32 with an outline and a growing thumb, macOS 38 x 22) and the colours stay Nuxt UI's. */
 export function Switch(p: SwitchProps): i32 {
-  const color = p.color ?? 'primary', size = p.size ?? 'md', k = switchThumb(size);
+  const color = p.color ?? 'primary', size = p.size ?? 'md', L = look(), own = L.name === 'neutral';
   const on = (): boolean => p.modelValue !== undefined && (p.modelValue as () => boolean)();
-  const flip = (): void => { const f = p.onUpdate; if (!(p.disabled ?? false) && f !== undefined) f(!on()); };
+  const flip = (): void => { const f = p.onUpdate; if (!(p.disabled ?? false) && f !== undefined) { toggleFeedback(); f(!on()); } };
+  // the track and thumb: Nuxt UI's sizes, or the platform's with the thumb centred on the left when off and on the right when on
+  const k = (o: boolean): number => own ? switchThumb(size) : o ? L.thumbOn : L.thumbOff, w = own ? switchThumb(size) * 2 + 4 : L.switchW, h = own ? switchThumb(size) + 4 : L.switchH;
+  const edge = own ? 0 : L.outline, inner = w - 2 * edge, innerH = h - 2 * edge, rtl = ui.isRtl() ? -1 : 1;
+  const x = (o: boolean): number => own ? (o ? k(o) * rtl : 0) : rtl * (o ? inner - (innerH - k(o)) / 2 - k(o) : (innerH - k(o)) / 2);
   return <View className={`flex-row items-center gap-2 ${p.disabled === true ? 'opacity-75' : ''} ${p.className ?? ''}`} onClick={flip} role="switch" aria-checked={on()}>
-    <View className={`flex-row items-center rounded-full p-[2px] w-[${k * 2 + 4}px] h-[${k + 4}px] transition-colors bg-${hex(on() ? checkedFill(theme(), color) : theme().bgAccented)}`}>
-      <View className={`rounded-full shadow-lg w-[${k}px] h-[${k}px] bg-${hex(theme().bg)}`} style={{ translateX: on() ? (ui.isRtl() ? -k : k) : 0 }} />
+    <View className={`flex-row items-center rounded-full ${own ? 'p-[2px]' : edge > 0 ? `border-[${edge}px] border-${hex(on() ? checkedFill(theme(), color) : theme().borderAccented)}` : ''} w-[${w}px] h-[${h}px] transition-colors bg-${hex(on() ? checkedFill(theme(), color) : theme().bgAccented)}`}>
+      <View className={`rounded-full ${edge > 0 ? '' : 'shadow-lg'} w-[${k(on())}px] h-[${k(on())}px] bg-${hex(edge > 0 && !on() ? theme().textMuted : theme().bg)}`} style={{ translateX: x(on()) }} />
     </View>
     <View className="flex-col">
       <Show when={p.label !== undefined}><Text className={`${choiceText(size)} font-medium text-${hex(theme().text)}`}>{p.label ?? ''}</Text></Show>

@@ -1150,6 +1150,7 @@ std::string platformModuleSource(const std::string& capsFile) {
   src += "export const HEAP_BYTES: i32 = " + std::to_string(heap) + ";\nexport const NUMBERS: string = \"" + numbers + "\";\n";
   src += "export const SCREEN_W: i32 = " + std::to_string(w) + ";\nexport const SCREEN_H: i32 = " + std::to_string(h) + ";\nexport const FPU: boolean = " + (cp && cp->noFpu ? "false" : "true") + ";\n";
   src += "export const UI_LAYOUT: string = \"" + uiLayout() + "\";\n";
+  src += "export const UI_PLATFORM_LOOK: string = \"" + uiPlatformLook() + "\";\n";   // zinc.json ui.platformLook (ZN-748)
   src += "export const UI_PRESET: string = \"" + uiPreset() + "\";\n";   // \"react-native\": RN style semantics in either engine (ZN-288)   // the layout engine zinc.json and the target chose (ZN-285)
   std::ifstream in(capsFile);
   std::stringstream ss;
@@ -1637,7 +1638,7 @@ struct Loader {
       if (spec == "zinc:platform") return load(spec, platformModuleSource((std::filesystem::path(stdRoot.empty() ? "." : stdRoot).parent_path().parent_path() / "targets" / "capabilities.json").string()));
       if (const char* src = hostModuleSource(spec)) return load(spec, src);
       static const std::map<std::string, std::string> kStd = {{"zinc:ui", "ui.ts"}, {"zinc:gl", "gl.ts"}, {"zinc:web", "web.ts"}, {"zinc:web/fetch", "fetch.ts"}, {"zinc:subtle", "subtle.ts"}, {"zinc:ui/solid", "solid.ts"}, {"zinc:ui/react", "react.ts"}, {"zinc:ui/kit", "kit/index.ts"}, {"zinc:icons", "icons.tsx"}, {"zinc:ui/animated", "animated.ts"}, {"zinc:react-native", "react-native.tsx"}, {"zinc:react-native/linking", "react-native-linking.ts"}, {"zinc:ui/nuxt", "nuxt/index.ts"},
-                                                              {"zinc:signals", "signals.ts"}, {"zinc:haptics", "haptics.ts"}, {"zinc:ui/navigation", "navigation.tsx"}, {"zinc:path", "path.ts"}, {"zinc:assert", "assert.ts"}, {"zinc:hot", "hot.ts"}, {"zinc:system", "system/index.ts"},
+                                                              {"zinc:signals", "signals.ts"}, {"zinc:haptics", "haptics.ts"}, {"zinc:ui/navigation", "navigation.tsx"}, {"zinc:ui/platform", "platform/index.ts"}, {"zinc:path", "path.ts"}, {"zinc:assert", "assert.ts"}, {"zinc:hot", "hot.ts"}, {"zinc:system", "system/index.ts"},
                                                               {"zinc:system/notification", "system/notification.ts"}, {"zinc:system/menu", "system/menu.ts"}, {"zinc:system/tray", "system/tray.ts"}, {"zinc:system/dialog", "system/dialog.ts"}, {"zinc:system/window", "system/window.ts"},
                                                               {"zinc:system/shortcut", "system/shortcut.ts"}, {"zinc:system/instance", "system/instance.ts"}, {"zinc:system/deeplink", "system/deeplink.ts"}, {"zinc:system/autostart", "system/autostart.ts"},
                                                               {"zinc:system/dock", "system/dock.ts"}, {"zinc:system/power", "system/power.ts"}, {"zinc:system/clipboard", "system/clipboard.ts"}, {"zinc:system/opener", "system/opener.ts"}, {"zinc:system/share", "system/share.ts"}, {"zinc:system/update", "system/update.ts"}};
@@ -3476,6 +3477,7 @@ std::string_view stdModuleFile(std::string_view spec) {
   if (spec == "zinc:react-native") return "react-native.tsx";
   if (spec == "zinc:react-native/linking") return "react-native-linking.ts";
   if (spec == "zinc:ui/nuxt") return "nuxt/index.ts";
+  if (spec == "zinc:ui/platform") return "platform/index.ts";
   if (spec == "zinc:signals") return "signals.ts";
   if (spec == "zinc:path") return "path.ts";
   if (spec == "zinc:assert") return "assert.ts";
