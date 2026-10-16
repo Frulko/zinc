@@ -86,6 +86,7 @@ webcam/src/web.tsx | OK |  |
 webgl-cube/src/main.tsx | OK |  | 
 webgl-studio/src/main.tsx | OK |  | 
 webos-shell/src/main.ts | OK |  | 
+webrtc-chat/src/main.tsx | OK |  | 
 webview/hybrid/main.tsx | OK |  | 
 zed-editor/sample/src/main.ts | OK |  | 
 zed-editor/src/main.tsx | OK |  | 

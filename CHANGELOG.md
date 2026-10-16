@@ -47,6 +47,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc:webrtc`: WebRTC data channels with the Web's API (`RTCPeerConnection`, `RTCDataChannel`, `createOffer`, `onicecandidate`,
   `ondatachannel`...): text and bytes peer to peer, on a LAN with no server, or through STUN and TURN; two peers in one program connect
   with no network. The RTC names are globals. Audio and video tracks are not there yet.
+- `examples/webrtc-chat`: a chat and a file sent peer to peer, two peers in one window, by copy and paste, or by room name through a small
+  signalling server (`signal-server.ts`), with the connection state, round-trip time and a microphone level meter.
 - Plugin manifests take `vendorFlags`: flags for the vendored sources only (a C++ library that needs `-frtti` or `-fexceptions`).
 
 ### Fixed

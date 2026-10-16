@@ -1,0 +1,11 @@
+{
+  "name": "webrtc-chat",
+  "entry": "src/main.tsx",
+  "permissions": ["net", "microphone"],
+  "targets": {
+    "macos": { "width": 960, "height": 640, "resize": "fill" },
+    "linux": { "width": 960, "height": 640 },
+    "rpi1": { "width": 800, "height": 480 },
+    "sim": { "width": 960, "height": 640 }
+  }
+}

@@ -1,0 +1,13 @@
+A chat closed
+A chat open
+A connected
+A connecting
+A got "hello from B"
+B chat closed
+B chat open
+B connected
+B connecting
+B got "hello from A"
+B received sample.bin 65536 bytes ok
+done
+rtt measured true, mic level moving
