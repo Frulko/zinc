@@ -230,6 +230,19 @@ jobs:
           else
             tests/run --changed-from "$BASE" --tier t1 --shard ${{ matrix.shard }}/6
           fi
+      - name: Rerun the failures with a trace
+        # the quiet runner keeps only a test's own messages: a failure that passes on a developer's Mac needs the shell trace of the same run on the runner
+        if: always()
+        env:
+          ZINC_TEST_HOME: ${{ runner.temp }}/zinc-home
+          ZINC_CI: '1'
+        run: |
+          mkdir -p "$RUNNER_TEMP/out"
+          export ZINC="$PWD/build/zinc" ZINC_DETERMINISTIC=1 ZINC_STEPS=0
+          for name in $(grep '^FAIL' "$RUNNER_TEMP/results-${{ matrix.shard }}.txt" 2>/dev/null | awk '{print $2}' | head -8); do
+            f=$(ls tests/t*/$name.sh 2>/dev/null | head -1); [ -n "$f" ] || continue
+            timeout 300 sh -x "$f" > "$RUNNER_TEMP/out/trace-$name.log" 2>&1 || true
+          done
       - name: Keep results and logs
         if: always()
         run: |
@@ -267,6 +280,7 @@ jobs:
             echo "Logs of the failures: artifact \`test-report\` (logs-*/*.log)."
           } > report/REPORT.md
           cp -R parts/logs-* report/ 2>/dev/null || true
+          cp parts/trace-*.log report/ 2>/dev/null || true   # the shell trace of each failure, rerun on the runner
           cat report/REPORT.md >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:

@@ -1,0 +1,117 @@
+=== shared_headers
+constant defined outside include/zn:
+src/host/sys_host.cpp:10:#define ZN_RESOURCE_STATS_HOST
+=== gl_occlusion
+gl_occlusion: the GL frame changes with the occlusion pass and the culling
+=== inspector
+missing in the inspector's views: POST 200 /echo N ms 28 B
+missing in the inspector's views: body: {"echo":{"ask":"inspector"}}
+programs: 1
+program: Zinc app (next) (page)
+elements:
+  <view>
+    <view class="flex-col gap-2 p-4">
+      <text class="text-lg">
+        "Hello inspector"
+      <view class="flex-row gap-1">
+        <view class="w-4 h-4 bg-rose-600">
+        <view class="w-4 h-4 bg-sky-600">
+selected: 2 320 × 84
+  display: flex
+  flex-direction: column
+  position: relative
+  left: 0px
+  top: 0px
+  width: 320px
+  height: 84px
+  padding: 16px 16px 16px 16px
+  margin: 0px 0px 0px 0px
+  gap: 8px
+  padding-top: 16px
+  padding-right: 16px
+  padding-bottom: 16px
+  padding-left: 16px
+  margin-top: 0px
+  margin-right: 0px
+  margin-bottom: 0px
+  margin-left: 0px
+  box-sizing: border-box
+  border-top-width: 0px
+  border-right-width: 0px
+  border-bottom-width: 0px
+  border-left-width: 0px
+  flex-grow: 0
+  background-color: transparent
+  color: transparent
+  font-size: 16px
+  font-weight: normal
+  border-radius: 0px
+  border-width: 0px
+  opacity: 1
+rules:
+  .flex-col.gap-2.p-4 {
+    padding-top: 16px;
+    padding-right: 16px;
+    padding-bottom: 16px;
+    padding-left: 16px;
+    gap: 8px;
+  }
+element.style: padding-left: 40px; | box 320 × 84 -> 320 × 84 | frame changed: true
+screen: 320 x 240
+console:
+  error: zinc devtools: chrome://inspect (Discover network targets: localhost:49298) or ws://127.0.0.1:49298/zinc
+  log: tick 1
+  log: tick 2
+  error: oops 2
+  log: tick 3
+  log: tick 4
+  log: tick 5
+  log: tick 6
+  log: tick 7
+  log: tick 8
+  log: tick 9
+  log: tick 10
+  log: tick 11
+  log: tick 12
+  info: zinc:devtools: style patch, paste it into the source:
+  view #2: class="flex-col gap-2 p-4 pl-[40px]"
+  log: tick 13
+  log: tick 14
+  log: tick 15
+  log: tick 16
+network:
+  POST … /echo pending 0 B
+body: 
+performance:
+  frames recorded: true, each with its phases up to present: true
+  phase input
+  phase anim
+  phase app
+  phase layout
+  phase effects
+  phase present
+  slowest: app anim layout input layout input effects present
+/Users/runner/work/zinc/zinc/next/tests/t1/inspector.sh: line 69: 12782 Terminated: 15          python3 tests/netlog_servers.py $http > /dev/null 2>&1
+/Users/runner/work/zinc/zinc/next/tests/t1/inspector.sh: line 69: 12787 Terminated: 15          INSPECTOR_FETCH=http://127.0.0.1:$http/echo ZINC_REALTIME=1 ZINC_HEADLESS=1 ZINC_FRAMES=100000000 ZINC_DEVTOOLS_PORT=$port timeout 90 "$ZINC" run tests/data/inspector > "$tmp/target.log" 2>&1
+=== webgl_conformance
+webgl-conformance: 683 of 787 pages pass
+REGRESSION misc/uninitialized-test.html Found 1044463 non-zero bytes
+REGRESSION reading/read-pixels-test.html timeout
+REGRESSION renderbuffers/renderbuffer-initialization.html internal buffers have been initialized to 0 at (0, 0) expected: 0,0,0,0 was 32,32,32,32
+REGRESSION rendering/gl-scissor-test.html should be green at (2, 2) expected: 0,255,0,255 was 0,0,0,0
+REGRESSION conformance2/attribs/gl-vertexattribipointer-offsets.html should be green at (26, 40) expected: 0,255,0,255 was 0,0,0,0
+REGRESSION conformance2/reading/read-pixels-from-fbo-test.html getError expected: NO_ERROR. Was INVALID_OPERATION : readPixels should generate no error
+REGRESSION conformance2/renderbuffers/invalidate-framebuffer.html should be blue at (0, 0) expected: 0,0,255,255 was 0,0,0,255
+REGRESSION conformance2/renderbuffers/multisampled-renderbuffer-initialization.html internal buffers have been initialized to 0 at (2, 0) expected: 0,0,0,0 was 0,0,6,0
+REGRESSION conformance2/rendering/instanced-arrays.html Nothing should be drawn on the framebuffer when all attributes have non-zero divisors (not enough vertices per instance to form a trian
+REGRESSION extensions/angle-instanced-arrays.html should be 255,255,0,255 at (13, 25) expected: 255,255,0,255 was 255,0,0,255
+REGRESSION extensions/ext-color-buffer-half-float.html floating-point gl.RGBA render target not supported
+REGRESSION extensions/oes-texture-half-float.html EXT_color_buffer_half_float is exposed but RGBA/HALF_FLOAT_OES is not color renderable
+REGRESSION textures/misc/copytexsubimage2d-large-partial-copy-corruption.html should be transparent black at (0, 128) expected: 0,0,0,0 was 58,38,88,20
+REGRESSION textures/misc/copytexsubimage2d-subrects.html Mismatch at (0, 3): Should be 0x0, was 0xa3a3a3a3
+REGRESSION textures/misc/texture-attachment-formats.html should be 0,0,0,0 at (1, 1) expected: 0,0,0,0 was 246,0,0,214
+REGRESSION textures/misc/texture-mips.html texture created with null that has all mips should draw with blank at (0, 0) expected: 0,0,0,0 was 48,56,43,37
+REGRESSION conformance2/extensions/ext-color-buffer-float.html the maximum value in SAMPLES should be at least 16
+REGRESSION conformance2/extensions/ext-color-buffer-half-float.html floating-point gl.R16F render target not supported
+REGRESSION conformance2/glsl3/texture-bias.html should be: 2,2,2,2 at (1, 2) expected: 2,2,2,2 was 1,1,1,1
+REGRESSION conformance2/textures/misc/tex-srgb-mipmap.html Pixel 31: expected (127,6,27,255), got (54,3,13,255)
