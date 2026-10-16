@@ -4,6 +4,7 @@
 // text, keeping line breaks so diagnostics keep their line numbers.
 // Not ported yet: class components in React mode (ZN-163), the hook-rule checks.
 #include "frontend/jsx.h"
+#include "frontend/diagnostics.h"
 #include "frontend/project.h"
 
 #include <cctype>
@@ -21,8 +22,11 @@
 namespace zn::frontend {
 namespace {
 
-const std::map<std::string, int> kTags = {{"view", 0}, {"text", 1}, {"button", 2}, {"image", 3}, {"scroll", 4}, {"canvas", 5}, {"input", 7}, {"textarea", 8},
-                                          {"View", 0}, {"Text", 1}, {"Button", 2}, {"Image", 3}, {"ScrollView", 4}, {"Canvas", 5}, {"Input", 7}, {"TextArea", 8}};
+const std::map<std::string, int> kTags = {{"View", 0}, {"Text", 1}, {"Button", 2}, {"Image", 3}, {"ScrollView", 4}, {"Canvas", 5}, {"Input", 7}, {"TextArea", 8}};
+// A lowercase tag is refused (Z0007, owner 2026-10-16): the component to write instead, for the old host tags and the HTML ones people reach for.
+const std::map<std::string, std::string> kLowerTags = {{"view", "View"}, {"text", "Text"}, {"button", "Button"}, {"image", "Image"}, {"scroll", "ScrollView"},
+                                                       {"canvas", "Canvas"}, {"input", "Input"}, {"textarea", "TextArea"}, {"div", "View"}, {"span", "Text"},
+                                                       {"p", "Text"}, {"img", "Image"}, {"scrollview", "ScrollView"}};
 const std::set<std::string> kNumAttrs = {"width", "height", "grow", "gap", "bg", "color", "scale", "hidden", "x", "y", "opacity", "translateX", "translateY", "rows", "tabIndex", "dragThreshold", "numberOfLines"};
 const std::map<std::string, int> kPointerAttrs = {{"onPointerDown", 0}, {"onPointerMove", 1}, {"onPointerUp", 2}, {"onDoubleClick", 3}, {"onContextMenu", 4}, {"onWheel", 5}, {"onPointerEnter", 6},
                                                   {"onPointerLeave", 7}, {"onTap", 8}, {"onLongPress", 9}, {"onDrag", 10}, {"onPinch", 11}, {"onPointerCancel", 12}};
@@ -432,7 +436,19 @@ struct Lowering {
     ++i;
     if (isP(i, ">")) { e->frag = true; ++i; }
     else {
-      e->tag = tx(i); ++i;
+      e->tag = tx(i);
+      if (std::islower(static_cast<unsigned char>(e->tag[0]))) {   // Z0007: components start with a capital letter, as in React
+        auto it = kLowerTags.find(e->tag);
+        std::string want = it != kLowerTags.end() ? it->second : "";
+        if (want.empty()) {
+          std::vector<std::string> names;
+          for (auto& [low, cap] : kLowerTags) names.push_back(low);
+          if (std::string near = nearest(e->tag, names); !near.empty()) want = kLowerTags.at(near);
+        }
+        throw Failure{t[i].start, want.empty() ? "<" + e->tag + "> is not a component: components start with a capital letter (<View>, <Text>, <Button>, <Image>, <ScrollView>, <Canvas>, <Input>, <TextArea>, or one of yours)"
+                                               : "<" + e->tag + "> is not a component: write <" + want + ">", "Z0007"};
+      }
+      ++i;
       for (;;) {
         if (isP(i, "/>")) { e->selfClosing = true; ++i; e->end = i; return e; }
         if (isP(i, ">")) { ++i; break; }
@@ -445,7 +461,9 @@ struct Lowering {
         }
         if (t[i].kind != Tok::Ident) fail(i, "unexpected token in a JSX tag");
         Attr a;
-        a.name = tx(i); a.tok = i; ++i;
+        a.name = tx(i); a.tok = i;
+        if (a.name == "class") throw Failure{t[i].start, "write className, not class, on <" + e->tag + ">", "Z0006"};
+        ++i;
         if (isP(i, "=")) {
           ++i;
           if (t[i].kind == Tok::String) { a.kind = 1; std::string q = tx(i); a.lit = q.substr(1, q.size() - 2); ++i; }
@@ -873,16 +891,16 @@ struct Lowering {
       if (!(kTags.count(tag) && hostImport)) return component(e, out);
     }
     auto tagIt = kTags.find(tag);
-    if (tagIt == kTags.end()) fail(e.begin + 1, "unknown host component <" + tag + "> (view, text, button, image, scroll, canvas, input, textarea)");
+    if (tagIt == kTags.end()) fail(e.begin + 1, "unknown host component <" + tag + "> (View, Text, Button, Image, ScrollView, Canvas, Input, TextArea)");
     int tagNo = tagIt->second;
     out.push_back("const " + v + ": i32 = _el(" + num(tagNo) + ");");
     for (const Attr& a : e.attrs) {
-      std::string name = a.name == "className" ? "class" : a.name;
+      const std::string& name = a.name;
       std::string expr = a.kind == 2 ? valueOf(a) : "true";
       const std::string plainExpr = bare(expr);   // what the tests below read: the text the user wrote
       bool lit = a.kind == 1;
       auto push = [&](const std::string& l) { out.push_back(l); };
-      if (name == "class") {
+      if (name == "className") {
         if (lit) {
           std::size_t at = 0;
           while (at < a.lit.size()) {
@@ -958,7 +976,7 @@ struct Lowering {
         for (char ch : jsxText(c.text)) { if (ch == '`' || ch == '\\' || ch == '$') tpl += '\\'; tpl += ch; }
       } else if (c.kind == 1 && c.ee > c.eb) { tpl += "${" + rw(c.eb, c.ee) + "}"; dynamic = true; }
       else if (c.kind == 1) {}
-      else fail(c.tok, "<text> can only contain text and {expressions}");
+      else fail(c.tok, "<Text> can only contain text and {expressions}");
     }
     if (tpl.empty()) return;
     out.push_back(dynamic && !react ? "_dynTextOf(" + v + ", () => `" + tpl + "`);" : "_textOf(" + v + ", `" + tpl + "`);");
@@ -1019,15 +1037,14 @@ struct Lowering {
       }
       return lower(*c->el);
     };
-    if (tag == "VirtualList") {  // <VirtualList count={n} itemHeight={h} class="...">{(i) => <row/>}</VirtualList>
+    if (tag == "VirtualList") {  // <VirtualList count={n} itemHeight={h} className="...">{(i) => <Row/>}</VirtualList>
       const Attr* count = find("count");
       const Attr* ih = find("itemHeight");
       const Attr* est = find("estimatedItemHeight");   // rows of different heights: the estimate (a negative itemHeight for zinc:ui virtualize)
       const Child* c = kids.size() == 1 ? kids[0] : nullptr;
       if (!count || (!ih && !est) || !c || c->kind != 1 || c->ee <= c->eb) fail(e.begin, "<VirtualList> needs count, itemHeight and a function child: {(i) => <...>}");
       out.push_back("const " + v + ": i32 = _el(4);");
-      const Attr* cls = find("class");
-      if (!cls) cls = find("className");
+      const Attr* cls = find("className");
       if (cls && cls->kind == 1) out.push_back("_class(" + v + ", " + quote(cls->lit) + ");");
       else if (cls) out.push_back(react ? "_class(" + v + ", " + valueOf(*cls) + ");" : "_dynClass(" + v + ", () => (" + valueOf(*cls) + "));");
       const std::string height = ih ? valueOf(*ih) : "-(" + valueOf(*est) + ")";

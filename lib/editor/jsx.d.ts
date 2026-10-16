@@ -2,7 +2,7 @@
 // lowers JSX itself and never reads this file). Host tags are components returning node handles; component
 // attributes are checked against their props; the zinc-ts-plugin drops the children diagnostics that do not apply
 // (Zinc passes children as one thunk).
-type ZincHostProps = { [attr: string]: any };
+type ZincHostProps = { [attr: string]: any; class?: never };   // className, never class (Z0006)
 declare function View(props: ZincHostProps): i32;
 declare function Text(props: ZincHostProps): i32;
 declare function Button(props: ZincHostProps): i32;
@@ -13,8 +13,8 @@ declare function Input(props: ZincHostProps): i32;
 declare function TextArea(props: ZincHostProps): i32;
 declare namespace JSX {
   type Element = any;   // a node handle, or a thunk when passed as children
-  interface IntrinsicElements { [tag: string]: ZincHostProps }
-  interface IntrinsicAttributes { key?: any; ref?: any }
+  interface IntrinsicElements { }   // no lowercase tag: components start with a capital letter (Z0007)
+  interface IntrinsicAttributes { key?: any; ref?: any; class?: never }
   interface ElementChildrenAttribute { children: {} }
 }
 // control-flow tags the JSX compiler lowers itself (usable without an import)

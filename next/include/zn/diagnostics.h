@@ -21,6 +21,16 @@
   X(Unsupported, "Z0005", "Syntax not supported yet",                                                                  \
     "The syntax is valid TypeScript but this engine does not implement it yet.",                                      \
     "Rewrite it with supported syntax, or wait for the task that adds it.", "function* g() { }") \
+  X(JsxClass, "Z0006", "`class` in JSX: write `className`",                                                            \
+    "JSX is the language React defines: `class` is a keyword of JavaScript and TypeScript, so the attribute that "     \
+    "carries the style classes, and the prop of a component that takes them, are named `className`.",                 \
+    "Rename the attribute to className (<View className=\"p-4\">) and declare the prop of your components as className.", \
+    "function App(): i32 {\n  return <View class=\"p-4\" />;\n}")                                                     \
+  X(JsxLowercaseTag, "Z0007", "JSX components start with a capital letter",                                          \
+    "As in React and React Native, a JSX tag names a component and components start with a capital letter: <View>, "   \
+    "<Text>, <Button>, <Image>, <ScrollView>, <Canvas>, <Input>, <TextArea> or one of yours. A lowercase tag is not "  \
+    "a component of Zinc.", "Write the capitalised component the message names: <view> is <View>, <scroll> is <ScrollView>.", \
+    "function App(): i32 {\n  return <view />;\n}")                                                                    \
   X(CannotFindName, "Z0101", "Cannot find name",                                                                      \
     "The identifier is not declared in this scope, or is declared later in the same scope.",                          \
     "Declare it before use, or fix the spelling.", "let a = b;")                                                       \

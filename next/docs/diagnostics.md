@@ -53,6 +53,30 @@ Fix: Rewrite it with supported syntax, or wait for the task that adds it.
 function* g() { }
 ```
 
+## Z0006: `class` in JSX: write `className`
+
+JSX is the language React defines: `class` is a keyword of JavaScript and TypeScript, so the attribute that carries the style classes, and the prop of a component that takes them, are named `className`.
+
+Fix: Rename the attribute to className (<View className="p-4">) and declare the prop of your components as className.
+
+```ts
+function App(): i32 {
+  return <View class="p-4" />;
+}
+```
+
+## Z0007: JSX components start with a capital letter
+
+As in React and React Native, a JSX tag names a component and components start with a capital letter: <View>, <Text>, <Button>, <Image>, <ScrollView>, <Canvas>, <Input>, <TextArea> or one of yours. A lowercase tag is not a component of Zinc.
+
+Fix: Write the capitalised component the message names: <view> is <View>, <scroll> is <ScrollView>.
+
+```ts
+function App(): i32 {
+  return <view />;
+}
+```
+
 ## Z0101: Cannot find name
 
 The identifier is not declared in this scope, or is declared later in the same scope.
