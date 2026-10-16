@@ -199,6 +199,13 @@ The next backlog review turns lines into tasks or deletes them.
 - display-gl webOS (2026-10-15): the Matériel page full frame is 38 ms on the TouchPad (115 draw calls, 1716 quads, 14 ms of CPU to submit, the rest GPU; ZINC_GL_TIME and ZINC_GL_STATS through /tmp/zinc/env): 24 frames a second at best whatever the CPU clock. Occlusion, fringes and split change nothing; the gain is fewer draw calls (one program for the box kinds) and redrawing only the cards that change.
 - zinc:storage: one file for every program on a desktop (~/.zinc/storage.kv): localStorage and AsyncStorage of two apps share it (the
   async-storage plugin prefixes its keys so its clear() stays its own); a store per program (by the project's name or bundle id) is the fix.
+- ZN-742: Fast Refresh on QuickJS, through a module transform with Vite-style bindings, so JS programs keep their state too.
+- ZN-742: Fast Refresh over `zinc dev --device`, sending the ZBC instead of `reload`, so devices keep their state as the Mac does.
+- ZN-742: `import.meta.hot.data` and `invalidate`, for modules that must hand state to their next version.
+- ZN-742: re-install baked fonts and images live instead of restarting, since a text change re-bakes fonts.
+- ZN-742: a parse cache for unchanged files and compiling on a thread, to bring a save under 200 ms.
+- ZN-742: Fast Refresh for React-mode components (`_rc`) beyond the root re-mount.
+- zinc dev: the `compile error:` line prints the first stderr line (`plugin svg: cached native library`) instead of the diagnostic; print the diagnostic.
 
 ## Demos
 
