@@ -332,6 +332,18 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
     // the device's libraries name symbols of its own glibc, newer than the one zig targets (pthread_once@GLIBC_2.34): they resolve on the device, not at this link
     if (gCross.on) libs.push_back("-Wl,--allow-shlib-undefined");
   }
+  // a cross build: what the device's compiler searches by itself in the sysroot, after zig's own headers: Debian's multiarch include directory
+  // (ffi.h), usr/include for a plugin that names its library in `libs` without a pkg-config module (zinc:midi's ALSA), and the multiarch
+  // library directory (libffi.pc says /usr/lib)
+  if (gCross.on && fs::exists(sysroot + "/usr/include")) {
+    cflags.push_back("-idirafter " + q(sysroot + "/usr/include"));
+    auto multiarch = [&](const std::string& dir, const std::string& flag, std::vector<std::string>& to) {
+      for (const auto& e : fs::directory_iterator(sysroot + dir, ec))
+        if (e.path().filename().string().find("-linux-gnu") != std::string::npos) to.push_back(flag + q(e.path().string()));
+    };
+    multiarch("/usr/include", "-idirafter ", cflags);
+    multiarch("/usr/lib", "-L", libs);
+  }
   // a path in `flags`, `libs` or `linkFlags` that starts with ./ or ../ (or follows -I / -L) is relative to the plugin, not to wherever zinc runs
   auto rel = [&](const std::string& t) {
     size_t at = t.rfind("-I", 0) == 0 || t.rfind("-L", 0) == 0 ? 2 : 0;
