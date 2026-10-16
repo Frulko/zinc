@@ -266,6 +266,8 @@ The next backlog review turns lines into tasks or deletes them.
 - zinc:microphone: it compiles plugins/audio/vendor/miniaudio_impl.c by a relative path; a mirror repository of the plugin (tools/plugin-split, zinc add) needs its own copy or a vendor package both plugins share.
 - zinc:microphone: `zinc doctor --details` could list the microphones and the macOS microphone access of the terminal (permissionStatus).
 - zinc:microphone: hand the samples to zinc:audio (a monitor, a recorder to WAV) and an FFT helper for a spectrum, an artist's first use of a microphone.
+- Native fidelity: the kit ContextMenu uses menu.popup when menu.native, as MenuBar does (lib/std/kit/menubar.tsx:136) (docs/reports/native-fidelity-and-plugins.md §5).
+- Native fidelity: one table of pinned versions (NDK, AGP, Gradle, SDK levels, Xcode, minimum iOS) shown by zinc doctor, bumped once a year after WWDC and the Android release, with goldens of the generated projects (docs/reports/native-fidelity-and-plugins.md §4.4).
 
 ## Demos
 

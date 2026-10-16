@@ -6,6 +6,7 @@ title: >-
 status: Backlog
 assignee: []
 created_date: '2026-10-10 14:06'
+updated_date: '2026-10-16 20:30'
 labels:
   - mobile
   - size-M
@@ -27,3 +28,9 @@ Background and foreground events in the event watch (stop drawing, save state th
 - [ ] #1 a headless test on the desktop drives the new events through `ZINC_INPUT` (`background`, `foreground`, `safe-area t r b l`, `rotate`) with a golden
 - [ ] #2 on the emulator and simulator rn-showcase survives home and return, and rotation
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-10-16 (owner, native fidelity, ../docs/reports/native-fidelity-and-plugins.md §5 step 2): the host feeds the system's signals on Android, iOS and macOS: theme with "auto" by default (dark mode follows the OS), accent colour, safe area insets and their changes, font scale (Dynamic Type / Android font size), the back button and the iOS back gesture.
+<!-- SECTION:NOTES:END -->
