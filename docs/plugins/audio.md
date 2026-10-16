@@ -60,6 +60,7 @@ setVolume(0.8);                       // the whole mix
 | `time()` | Seconds of mix rendered so far, the clock `delay` counts on: a device moves it; on the `null` backend, `mix()` does. Never waits. |
 | `SAMPLE_RATE` | Frames per second of the mix: 48000. |
 | `mix(frames): number[]` | `null` backend only: the next `frames` frames of the mix, stereo and interleaved, 1 being full scale. `[]` when a device plays the mix. |
+| `stream(channels = 1, rate = 48000): AudioStream` | Samples played as they are written: the peer's audio of a call (zinc:webrtc's `RemoteAudio.onData`), a synthesizer, an emulator. `write(samples)` appends (channels interleaved); it starts once 60 ms are buffered, plays silence and waits for 60 ms again when it runs dry (`underruns`), and drops what is beyond 180 ms when the writer runs ahead of the device (`dropped`), so the delay stays short when two clocks drift. `buffered` (seconds), `volume`, `close()`. A second at most is kept. |
 
 ## In the web environment
 

@@ -1,11 +1,12 @@
 # webrtc plugin (`zinc:webrtc`)
 
-WebRTC data channels, with the Web's API: `RTCPeerConnection`, `RTCDataChannel`, `RTCSessionDescription`, `RTCIceCandidate`,
-`RTCPeerConnectionIceEvent`, `RTCDataChannelEvent`. Two programs (or a program and a browser) open a peer-to-peer connection and send text
-and bytes to each other, on a LAN with no server at all, or across the Internet through STUN and TURN. The stack is
-[libdatachannel](https://github.com/paullouisageneau/libdatachannel) (ICE by libjuice, SCTP by usrsctp, DTLS by the engine's mbedTLS),
-vendored in `plugins/webrtc/vendor/` (versions and checksums in `PIN`) and built by the plugin build with the pinned zig. Why this stack:
-[the scoring](../reports/zinc-webrtc.md). Audio and video tracks are not there yet (below).
+WebRTC with the Web's API: `RTCPeerConnection`, `RTCDataChannel`, `RTCRtpSender`, `RTCRtpReceiver`, `RTCRtpTransceiver`,
+`RTCSessionDescription`, `RTCIceCandidate` and their events. Two programs (or a program and a browser) open a peer-to-peer connection and
+send text, bytes, audio and video to each other, on a LAN with no server at all, or across the Internet through STUN and TURN. The stack is
+[libdatachannel](https://github.com/paullouisageneau/libdatachannel) (ICE by libjuice, SCTP by usrsctp, DTLS by the engine's mbedTLS, SRTP
+by libsrtp, the RTP packetizers and RTCP handlers), Opus (libopus) and VP8 (libvpx) for the codecs, H.264 through VideoToolbox on macOS,
+vendored in `plugins/webrtc/vendor/` (versions and checksums in `PIN`) and built by the plugin build with the pinned zig. Why this stack and
+these codecs: [the scoring](../reports/zinc-webrtc.md).
 
 ```ts
 // On the Zinc engines the RTC names are globals (the compiler adds the import); on QuickJS: import { RTCPeerConnection } from 'zinc:webrtc'
@@ -22,27 +23,78 @@ signal.send(JSON.stringify((pc.localDescription as RTCSessionDescription).toJSON
 Signalling (carrying the offer, the answer and the candidates from one peer to the other) is the program's job, as on the Web: a WebSocket
 (`zinc:socket` has a client and a server), a QR code, copy and paste. `examples/webrtc-chat` shows three ways.
 
+```ts
+// a call: the camera and the microphone to the peer, the peer's tracks drawn and heard
+import 'zinc:camera'; import 'zinc:microphone';
+import { RemoteVideo, RemoteAudio } from 'zinc:webrtc';
+import { stream } from 'zinc:audio';
+const local = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: true });
+for (const t of local.getTracks()) pc.addTrack(t, local);
+const speaker = stream(1, 48000);
+pc.ontrack = (e: RTCTrackEvent) => {
+  if (e.track.kind === 'video') video = e.track.camera as RemoteVideo;       // <Image source={video.image}> or gfx.drawImage(video.image, ...)
+  else (e.track.microphone as RemoteAudio).onData((s: number[]) => speaker.write(s));
+};
+```
+
+`examples/webrtc-call` is a whole call: preview, mute, camera picker, speaker, stats overlay.
+
 ## What is supported
 
 | | |
 |---|---|
 | `new RTCPeerConnection({ iceServers, iceTransportPolicy })` | `iceServers`: `{ urls, username, credential }`, urls `stun:`, `turn:` (`?transport=udp` or `tcp`), `turns:`. Without servers (the default) only host candidates are gathered: enough on a LAN and for two peers in one process. `iceTransportPolicy: 'relay'`: TURN only. A URL libdatachannel cannot read: `SyntaxError` |
-| `createOffer()`, `createAnswer()`, `setLocalDescription(desc?)`, `setRemoteDescription(desc)`, `addIceCandidate(c?)` | promises, as on the Web. `setLocalDescription` applies the description `createOffer`/`createAnswer` made (its `sdp` is not read: SDP munging is not supported) or, with no argument, the one the state calls for. A description that cannot be read or applied rejects with `OperationError`; a call in the wrong state with `InvalidStateError` |
+| `createOffer()`, `createAnswer()`, `setLocalDescription(desc?)`, `setRemoteDescription(desc)`, `addIceCandidate(c?)` | promises, as on the Web. `setLocalDescription` applies the description `createOffer`/`createAnswer` made (libdatachannel writes it again; what an edit changes in a media section is kept, below) or, with no argument, the one the state calls for. A description that cannot be read or applied rejects with `OperationError`; a call in the wrong state with `InvalidStateError` |
 | trickle ICE | `onicecandidate` gives each candidate as it is found (`event.candidate`, `null` at the end); the peer adds them with `addIceCandidate` once it has the remote description |
 | without trickle | wait for `iceGatheringState === 'complete'` (or the `null` candidate), then send `pc.localDescription`: it carries every candidate |
-| states and events | `connectionState`, `iceConnectionState`, `iceGatheringState`, `signalingState` and their `on...change` events; `ondatachannel`; `onnegotiationneeded` once, for the first channel. `addEventListener` works for all of them |
+| states and events | `connectionState`, `iceConnectionState`, `iceGatheringState`, `signalingState` and their `on...change` events; `ondatachannel`; `ontrack`; `onnegotiationneeded` for the first channel and for each change of tracks or directions (once per turn, when stable, unless an offer made since holds it). `addEventListener` works for all of them |
 | `createDataChannel(label, init)` | `ordered` (true), `maxRetransmits` or `maxPacketLifeTime` (a partially reliable channel; both: `TypeError`), `protocol`, `negotiated` with an `id`. A channel opened after the connection is up reaches the peer through `ondatachannel` (either side may open one) |
 | `RTCDataChannel` | `send(string \| u8[] \| Blob)`, `label`, `id`, `ordered`, `maxRetransmits`, `maxPacketLifeTime`, `protocol`, `negotiated`, `readyState`, `bufferedAmount`, `bufferedAmountLowThreshold`, `binaryType`, `maxMessageSize` (Zinc's, not the Web's: 256 KiB between two Zinc peers), `close()`; events `open`, `message`, `close`, `error`, `bufferedamountlow` |
 | binary messages | `event.data` is a `u8[]` (Zinc has no ArrayBuffer; a real `Uint8Array` on QuickJS), or a `Blob` with `binaryType = 'blob'`. A message is delivered whole: 200 KB in one `send` arrives as one message. A message larger than `maxMessageSize` is a `TypeError` |
 | `getStats()` | a `Map` of three `RTCStats`: `peer-connection` (`dataChannelsOpened`, `dataChannelsClosed`), `transport` (`bytesSent`, `bytesReceived`, `messagesSent`, `messagesReceived` of the channels), `candidate-pair` (`localAddress`, `remoteAddress` in use) |
-| `close()` | closes the connection and its channels: each channel fires `close`, the connection fires nothing more |
+| `close()` | closes the connection and its channels: each channel fires `close`, the receivers' tracks end, the connection fires nothing more |
+
+## Audio and video
+
+| | |
+|---|---|
+| `addTrack(track, ...streams)` | sends a track of `getUserMedia` (zinc:camera, zinc:microphone), or a track received from another peer. A transceiver of its kind made by the peer's offer and not sending yet takes it, else a new `sendrecv` one. The same track twice: `InvalidAccessError`. Calls for a negotiation (`negotiationneeded`) |
+| `addTransceiver(kind \| track, { direction, streams, sendEncodings })` | a media section: `direction` `sendrecv` (default), `sendonly`, `recvonly`, `inactive`; one encoding at most (no simulcast: `RangeError`) |
+| `removeTrack(sender)` | stops sending (the transceiver turns `recvonly` or `inactive`); the next negotiation tells the peer |
+| `getTransceivers()`, `getSenders()`, `getReceivers()` | |
+| `ontrack` | an `RTCTrackEvent` (`track`, `streams` with the peer's stream ids, `receiver`, `transceiver`) when a negotiation makes a transceiver receive |
+| `RTCRtpSender` | `track`, `replaceTrack(track \| null)` (another camera, no negotiation; the other kind: `TypeError`), `getParameters()` / `setParameters()` with one encoding: `maxBitrate` (bit/s), `maxFramerate`, `scaleResolutionDownBy`, `active`; `setStreams()`, `getStats()`, `RTCRtpSender.getCapabilities(kind)` |
+| `RTCRtpReceiver` | `track` (from the start; frames once the peer sends), `getParameters()`, `getStats()`, `RTCRtpReceiver.getCapabilities(kind)`; Zinc's `requestKeyFrame()` asks the peer for a key frame (a PLI) |
+| `RTCRtpTransceiver` | `mid`, `direction` (setting it calls for a negotiation), `currentDirection`, `stop()`, `setCodecPreferences(codecs)` (an unknown codec: `InvalidModificationError`) |
+| a muted track | `track.enabled = false` sends black frames or silence, as browsers do |
+| the peer's video | `receiver.track.camera` is a `RemoteVideo`: `image` (a zinc:gfx runtime image: `<Image source={...}>`, `gfx.drawImage`), `width`, `height`, `frameIndex`, `onFrame(cb)`, `snapshot()` (RGBA) |
+| the peer's audio | `receiver.track.microphone` is a `RemoteAudio`: `onData(cb)` gets 48 kHz mono blocks, `level()` their loudness; play them with `zinc:audio`'s `stream(1, 48000).write(samples)` (a 60 ms buffer that stays short when the clocks drift) |
+| SDP | the media sections are written by this plugin; an edited offer or answer given to `setLocalDescription` keeps what it changes in a section: the codecs kept and their order, the direction, a `b=AS` / `b=TIAS` bandwidth |
+| `getStats()` | adds `outbound-rtp` (`bytesSent`, `packetsSent` counted in 1200-byte fragments, `framesEncoded`, `keyFramesEncoded`, `framesPerSecond`, `frameWidth`, `frameHeight`, `pliCount`, `totalEncodeTime`, `targetBitrate`), `remote-inbound-rtp` (`roundTripTime`, `fractionLost`, `packetsLost`, `jitter` as the peer reports them), `inbound-rtp` (`bytesReceived`, `packetsReceived`, `packetsLost`, `jitter`, `framesDecoded`, `keyFramesDecoded`, `framesPerSecond`, `frameWidth`, `frameHeight`, `totalSamplesReceived`, `concealedSamples`, `pliCount`), `codec` (`mimeType`, `payloadType`, `clockRate`, `sdpFmtpLine`); the `candidate-pair` gets `currentRoundTripTime` and the `transport` the media bytes |
+
+**Codecs.** Opus (48 kHz, 20 ms frames, 32 kbit/s, in-band FEC) everywhere. VP8 everywhere (libvpx, generic C: real time at 640x480 on
+a desktop; a Pi 3 wants 320x240). H.264 constrained baseline (`profile-level-id=42e01f`, `packetization-mode=1`) where the machine has it
+in hardware: VideoToolbox on macOS, negotiated first there; elsewhere it is not offered (no software H.264 is shipped: see the report).
+`ZINC_WEBRTC_H264=0` leaves it out on a Mac too. Browsers (Chrome, Firefox, Safari) all take VP8, H.264 and Opus.
+
+**What happens on the network.** Each transceiver has a worker thread: the camera's newest frame (taken from its runtime image on the
+program's thread, no copy in Zinc) is converted to I420 (BT.601), encoded and handed to libdatachannel's packetizer, with sender reports,
+answers to NACKs, and a key frame when the peer sends a PLI; the bit rate follows the size (about 900 kbit/s at 640x480, 30 fps), a REMB
+from the peer and `maxBitrate`. Received packets are put back in order and into frames (a gap waits 100 ms for video, 60 ms for audio, then
+counts as lost: video asks for a key frame, audio is concealed by Opus), decoded, and wait for the program's thread (the newest frame, a
+second of audio at most). A peer's `packetsLost` in `remote-inbound-rtp` is what it reports: libdatachannel peers' count is approximate.
+
+**Browsers.** `tools/webrtc-interop` (the T2 test `webrtc_interop`) runs a Zinc program against headless Chrome with the fake devices on
+both sides: audio and video both ways, Zinc offering and Chrome offering, VP8 first and H.264 first. Zinc's offers ask for the DTLS client
+role (`a=setup:active`): mbedTLS cannot be the server for Chrome, whose ClientHello arrives in several fragments.
 
 ## Not supported (yet)
 
-- **Audio and video tracks**: `addTrack`, `ontrack`, transceivers, `getUserMedia` streams sent to a peer. The plan (Opus through libopus,
-  VP8 through libvpx, H.264 in hardware on macOS and the Pi) is in `next/backlog/later.md`. `zinc:microphone` captures audio already.
-- Simulcast, SVC, `restartIce`, `setConfiguration`, `RTCCertificate` (the certificate is a fresh ECDSA one per connection), `getStats`
-  beyond the counters above (no round-trip time: the demo measures it with a ping), DTMF, `RTCError.errorDetail`.
+- Simulcast and SVC (one encoding per sender), echo cancellation and noise suppression (use a headset), screen sharing
+  (`getDisplayMedia`), insertable streams and encoded transforms, DTMF, transport-cc and send-side bandwidth estimation (the bit rate
+  follows REMB and `maxBitrate`), RTX and FEC for video (a loss costs a key frame), header extensions (abs-send-time, MID).
+- H.264 on Linux and the Pi (V4L2 M2M), Windows (Media Foundation) and Android (MediaCodec), AV1 and VP9: see `next/backlog/later.md`.
+- `restartIce`, `setConfiguration`, `RTCCertificate` (the certificate is a fresh ECDSA one per connection), `RTCError.errorDetail`.
 - The browser target (wasm): the page's own `RTCPeerConnection` would be the way, not this plugin.
 - Windows, Android and iOS: no build yet (Android export: libdatachannel's `vendorFlags` are not passed to the app's CMake).
 
@@ -74,12 +126,17 @@ On QuickJS a program that never draws runs its timers on a virtual clock: the qu
 
 ## Size
 
-The plugin adds about 2.2 MB to the CLI archive (compressed: the library 1.0 MB, the archive for compiled programs 1.1 MB) and about
-3.5 MB to a program compiled with it. The first build from source takes about a minute (74 files); prebuilt libraries skip it.
+The plugin's prebuilt libraries add about 3.7 MB to the CLI archive (compressed; 2.2 MB before the media: the codecs and SRTP add 1.5 MB)
+and about 5 MB to a program compiled with it (3.5 MB before). The first build from source takes about two minutes (335 files, measured
+2026-10-16 on the development Mac); prebuilt libraries skip it.
 
 ## Tests
 
 `next/tests/t1/webrtc.sh`: two connections in one process with no ICE server (no network, no server, nothing left listening) on the
 interpreter, QuickJS and a compiled program, against `next/tests/golden/host/webrtc_loopback.out`: trickle and whole descriptions, text
 and bytes both ways in order, an unordered channel, a channel the answerer opens, 200 KB in one message, close events on both sides, the
-errors; and the RTC names as globals. `next/tests/t1/webrtc_chat.sh` runs the demo.
+errors; and the RTC names as globals. `next/tests/t1/webrtc_media.sh`: audio and video between two connections in one process with the
+fake camera and microphone, on the interpreter (H.264 first on a Mac), with VP8 only, on QuickJS and compiled
+(`next/tests/golden/host/webrtc_media.ts`: the picture by PSNR, the rate, a PLI, the tone by Goertzel, disabled tracks, replaceTrack,
+setParameters, the stats, removeTrack and directions, setCodecPreferences, an edited SDP, close). `next/tests/t1/webrtc_chat.sh` and
+`webrtc_call.sh` run the demos; `next/tests/t2/webrtc_interop.sh` runs against headless Chrome.

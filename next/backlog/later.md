@@ -257,7 +257,17 @@ The next backlog review turns lines into tasks or deletes them.
 - zinc:camera: getUserMedia could load the plugin by itself (a web global entry in modules.cpp kWebGlobals for MediaStream, or the frontend adding `import 'zinc:camera'` when navigator.mediaDevices is used) instead of asking the program to import it.
 - zinc:camera: `zinc doctor --details` could list the cameras and the macOS camera access of the terminal (permissionStatus), the first thing a beginner checks when the picture stays black.
 - zinc:camera: export could add NSCameraUseContinuityCameraDeviceType to the Info.plist with "camera", so an iPhone as Continuity Camera is listed (left out: without the key macOS logs a warning at each listing).
-- zinc:webrtc: audio and video tracks: RTC_ENABLE_MEDIA=1 with libsrtp (BSD; its mbedTLS 4 port is cisco/libsrtp#813), Opus through libopus for audio (zinc:microphone captures, miniaudio plays), VP8 through libvpx as the software fallback every browser takes, H.264 in hardware (VideoToolbox on macOS, V4L2 M2M on a Pi); addTrack/ontrack and getUserMedia's tracks sent as they are.
+- zinc:webrtc: echo cancellation and noise suppression for calls without a headset (WebRTC's AEC3 is part of libwebrtc; speexdsp's AEC is BSD and small): today the call demo keeps the speaker off in its echo mode.
+- zinc:webrtc: simulcast and SVC (several encodings per sender, VP8 temporal layers): one encoding per sender today, setParameters refuses more.
+- zinc:webrtc: screen sharing (getDisplayMedia): ScreenCaptureKit on macOS, PipeWire on Linux, as a track like the camera's.
+- zinc:webrtc: transport-cc and a send-side bandwidth estimator (GCC), RTX and NACK requests on the receive side, ULPFEC/RED: today the bit rate follows REMB and maxBitrate, and a lost video packet costs a key frame (PLI).
+- zinc:webrtc: AV1 (dav1d to decode, SVT-AV1 or libaom to encode) and VP9: libdatachannel packetizes both already; too heavy for the targets now.
+- zinc:webrtc: outbound packetsSent is counted as 1200-byte fragments of each frame; RtcpSrReporter knows the exact count (C++ API only): expose it through libdatachannel's C API upstream.
+- zinc:webrtc: report upstream (libdatachannel) that MediaInterceptor::incoming moves messages out of its list without swapping the result back (the plugin returns a copy to work around it), and that the C API cannot chain a depacketizer after a packetizer.
+- zinc:webrtc: mbedTLS refuses a fragmented DTLS ClientHello (Chrome's, with its post-quantum key share), so Zinc must be the DTLS client (its offers say setup:active); report upstream (Mbed-TLS) and drop the workaround when it reads fragments.
+- zinc:webrtc: a null/test video encoder (raw frames in RTP) for pipelines without a codec; not done: the loopback tests run the real codecs in seconds.
+- zinc:webrtc: the H.264 decoder takes SPS and PPS only in band; read sprop-parameter-sets from the fmtp too, for peers that send them only in the SDP.
+- zinc:webrtc: the remote video is copied into a runtime image once per frame on the program's thread; a GPU upload of the decoded NV12/I420 planes (a YUV texture) would spare the conversion at 720p and above.
 - zinc:webrtc: TURN for a classroom or a workshop: a guide page for coturn (static auth secret, time-limited TURN REST credentials in iceServers), and a test against a local coturn in a container, no Internet.
 - zinc:webrtc: move the libdatachannel pin from master commit bdc5ff28 to the first release with mbedTLS 4 support (0.25), and libjuice with it.
 - zinc:webrtc: getStats: the SCTP round-trip time (rtt() of the C++ API, not in the C API), one entry per candidate and per channel, as browsers report them.
@@ -546,7 +556,11 @@ The next backlog review turns lines into tasks or deletes them.
 - zinc:microphone: build and run on Linux and a Pi with a USB microphone (PulseAudio, then plain ALSA), the `audio` group, 16 kHz mono on a Pi 1.
 - zinc:microphone: Windows (WASAPI through the same miniaudio), Android (AAudio through miniaudio, RECORD_AUDIO asked at run time), iOS (an AVAudioSession category for recording).
 - zinc:webrtc: build the plugin for Linux and armhf (rpi1) with the pinned zig: usrsctp's Linux defines (HAVE_LINUX_IF_ADDR_H, _GNU_SOURCE), -pthread, the order of vendor.a and zn_mbedtls on the GNU link line (ld64 does not care); the loopback test on a Pi 1: time to connect, rate of a 1 MB file.
-- zinc:webrtc: two machines on a LAN (the Mac and a Pi) through the room server of examples/webrtc-chat, and a Zinc peer with Chrome and Firefox (DTLS 1.2 of mbedTLS, SCTP, max-message-size): never tried, only the in-process loopback is.
+- zinc:webrtc: two machines on a LAN (the Mac and a Pi) through the room server of examples/webrtc-chat (chat and webrtc-call); Firefox and Safari as peers (headless Chrome is tested: tests/t2/webrtc_interop.sh, audio and video both ways).
+- zinc:webrtc: build the media sources (libsrtp, opus, libvpx generic, the libdatachannel packetizers) for Linux and armhf with the pinned zig, and run tests/t1/webrtc_media.sh there (VP8 only: no H.264 offered off macOS).
+- zinc:webrtc: VP8 on a Pi 3 and a Pi 1: frames per second and CPU at 320x240 and 640x480 with libvpx generic C (measured 3.1 ms per 640x480 frame on an M1 Pro); Opus floating point on a Pi 1 (fixed point if it does not keep 20 ms frames).
+- zinc:webrtc: H.264 in hardware on the Pi (V4L2 M2M, /dev/video11 encoder and /dev/video10 decoder) behind media::VideoEncoder/VideoDecoder, negotiated first there as on macOS.
+- zinc:webrtc: Windows (Media Foundation H.264, NVENC/QSV where present) and Android (MediaCodec) video backends; iOS reuses videotoolbox.cpp.
 - zinc:webrtc: Windows (libjuice and usrsctp build there; Winsock defines), the Android export (the app's CMake must pass vendorFlags: -frtti -fexceptions -fthreadsafe-statics), iOS.
 - zinc:webrtc: the browser target (wasm): map RTCPeerConnection to the page's own through an import shim, not this plugin.
 - ZN-624: run on a real iPhone, signed with the owner's team (`cmake -DZINC_TEAM=<team>`, xcodebuild archive and -exportArchive), and on an Intel Mac's simulator.
