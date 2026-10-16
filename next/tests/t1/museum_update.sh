@@ -28,6 +28,7 @@ done
 
 table() {  # directory, version, start sequence, address ("" for none): the sample table with its project changed
   mkdir "$tmp/$1"; cp -R "$src/src" "$src/assets" "$src/zinc.json" "$tmp/$1/"
+  sed "s#'\.\./\.\./\.\./plugins/#'$(python3 -c "import os,sys; print(os.path.relpath(sys.argv[1], sys.argv[2]))" "$(cd .. && pwd)/plugins" "$tmp/$1/src")/#" "$src/src/probe.ts" > "$tmp/$1/src/probe.ts"   # probe.ts imports the DevTools spec relative to the checkout: the copy sits in a temporary directory
   rm "$tmp/$1"/assets/photos/* "$tmp/$1"/assets/panoramas/*   # the pictures make a package of 100 MB: without them the download is short
   python3 - "$tmp/$1" "$2" "$3" "$4" "$id" "$k_public" <<'PY'
 import json, sys
