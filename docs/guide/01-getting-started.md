@@ -12,7 +12,7 @@ One command, and nothing to compile: no compiler, no CMake, no Xcode, no adminis
 curl -fsSL https://github.com/zinc-engine/zinc/releases/latest/download/install.sh | sh
 ```
 
-It downloads the Zinc made for your machine (a Mac, Apple silicon or Intel; Linux, x86_64 or aarch64; about 27 MB), checks its
+It downloads the `zinc` CLI made for your machine (a Mac, Apple silicon or Intel; Linux, x86_64 or aarch64; about 27 MB), checks its
 SHA-256 against the release's `SHA256SUMS`, unpacks it into `~/.zinc/engine` and links `zinc` into `/usr/local/bin` when you
 can write there, else into `~/.local/bin`, which it adds to your `PATH` (`~/.zprofile` or `~/.profile`). Run the same command
 again to update. Open a new terminal, then ask zinc what it sees:
@@ -28,10 +28,22 @@ others): a program that imports them starts at once. `zinc doctor` ends with the
 sources, and they are compiled the first time a program imports them, on a machine that has those libraries and, on a Mac,
 the Xcode command line tools.
 
-By hand instead: download `Zinc-<version>-macos-<arch>.zip` or `zinc-<version>-linux-<arch>.tar.gz` from the
-[releases](https://github.com/zinc-engine/zinc/releases), unpack it anywhere, and link `Zinc Atelier.app/Contents/MacOS/zinc`
-(macOS) or `bin/zinc` (Linux) into a directory of your `PATH`. A Mac asks you to confirm an app that came through a browser
-and is not notarized: right-click > Open on "Zinc Atelier" once.
+On a Mac, add `--atelier` to get Zinc Atelier too, the app that edits and runs projects with no terminal (it goes into
+`/Applications`, or `~/Applications` when you cannot write there):
+
+```sh
+curl -fsSL https://github.com/zinc-engine/zinc/releases/latest/download/install.sh | sh -s -- --atelier
+```
+
+By hand instead, each release has two downloads per machine on its
+[releases page](https://github.com/zinc-engine/zinc/releases):
+
+- `zinc-<version>-macos-<arch>.tar.gz` (or `-linux-<arch>.tar.gz`): the CLI. Unpack it anywhere and link its `bin/zinc`
+  into a directory of your `PATH` (`ln -s "$PWD/zinc-<version>-macos-arm64/bin/zinc" ~/.local/bin/zinc`); it finds the
+  rest of its files beside it.
+- `Zinc-Atelier-<version>-macos-<arch>.zip`: the app, with its own copy of the engine. Unzip it and drag "Zinc Atelier" to
+  Applications. A Mac asks you to confirm an app that came through a browser and is not notarized: right-click > Open on
+  "Zinc Atelier" once.
 
 ### From the sources
 

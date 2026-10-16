@@ -58,7 +58,14 @@ build/zinc new desktop-app ../my-app && cd ../my-app
 ../next/build/zinc run                        # a window opens; edit, save, it reloads
 ```
 
-A prebuilt one-line installer comes with the first release.
+Or, from a release, nothing to compile: the `zinc` CLI on your `PATH` with one command (`-s -- --atelier` adds the Zinc Atelier app on a Mac):
+
+```sh
+curl -fsSL https://github.com/zinc-engine/zinc/releases/latest/download/install.sh | sh
+```
+
+Each release has two downloads per Mac (arm64, Intel): `zinc-<version>-macos-<arch>.tar.gz`, the CLI, and
+`Zinc-Atelier-<version>-macos-<arch>.zip`, the app ([docs/guide/07-distribution.md](docs/guide/07-distribution.md#the-two-downloads-of-a-release)).
 
 A first app, step by step: [docs/guide/01-getting-started.md](docs/guide/01-getting-started.md).
 

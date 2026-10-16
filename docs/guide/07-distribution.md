@@ -347,14 +347,50 @@ into `main` when it is worth releasing; a `v*` tag on `main` releases. What CI d
 
 Set `develop` as the default branch of the repository so that the nightly run, which GitHub runs on the default branch, tests it.
 
+### The two downloads of a release
+
+Each release has two downloads per Mac (arm64 and x86_64), each with its own line in `SHA256SUMS` (decision, 2026-10-16):
+
+| file | what it is | for whom |
+| --- | --- | --- |
+| `zinc-<version>-macos-<arch>.tar.gz` | the CLI: `bin/zinc` with its window and WebGL modules, and `share/zinc` (lib/std, lib/fonts, templates, the plugins with their native libraries, `targets/capabilities.json`, the runtime headers and sources for cross builds, the core firmware, the sources of Atelier and the inspector). No `.app`. | a terminal: `curl ... install.sh \| sh`, or unpacked anywhere with `bin/zinc` linked onto the `PATH` |
+| `Zinc-Atelier-<version>-macos-<arch>.zip` | `Zinc Atelier.app`: the same engine in `Contents/MacOS`, the same `share/zinc` in `Contents/Resources/zinc`, a launcher (`zinc-atelier`) that opens Atelier on `~/Zinc` | the Finder: unzip, drag to Applications, double-click; or `install.sh --atelier` |
+
+Linux keeps its one archive, `zinc-<version>-linux-<arch>.tar.gz`, with the same layout as the macOS CLI (the Linux and Windows
+jobs are off for now). The CLI finds its files beside the binary: `zinc` resolves its own path through symlinks and reads
+`<bin>/../share/zinc/next` (`tc::sourceRoot`), so the archive works wherever it is unpacked and through a link on the `PATH`.
+
+Why the app embeds the engine rather than calling the CLI of the same release: an app started from the Finder gets a bare
+`PATH` (`/usr/bin:/bin:/usr/sbin:/sbin`) and no shell profile, so it cannot count on a `zinc` installed elsewhere, and a
+notarized bundle must hold every file it runs. The cost is one copy of the payload in each download (27.1 MB for the CLI,
+28.0 MB for the app on arm64, 2026-10-16); the work is not doubled: `tools/package` stages the payload once, builds each
+plugin's library once, and copies the staged `share/zinc` into the app. Each archive has its own size budget (`BUDGET_MB`
+in `tools/package`, 35 MB each), so one cannot grow without the check seeing it. A `.dmg` (as `zinc export --dmg` makes for
+apps) is left out: a zip is enough to drag the app, and it is what the notarization service takes.
+
+`zinc update` reads `zinc-<os>-<arch>.manifest`, which points at the CLI archive; the app is updated by downloading it again
+(or `install.sh --atelier`).
+
+Signing (`tools/sign-macos`, on a tag with the secrets below): every Mach-O file of both downloads is signed with the
+Developer ID and the hardened runtime, `zinc` with the `disable-library-validation` entitlement (it loads the plugin
+libraries a user compiles on their own machine, signed ad hoc). The app is notarized and its ticket stapled to the bundle.
+The CLI is notarized as a zip of its tree, but a ticket cannot be stapled to a bare executable or to a tar.gz, so it is
+packed again as signed: Gatekeeper checks a quarantined file (one a browser downloaded) online the first time it runs and
+finds the ticket there. Files fetched by `curl` (what `install.sh` does) carry no quarantine attribute, so Gatekeeper does
+not look at them at all.
+
+### The release job
+
 The `zinc-next` workflow (`.github/workflows/zinc-next.yml`) makes a GitHub Release when a `v*` tag is pushed. Each OS job
-builds, tests and packages (`tools/package`, the version taken from the tag); the macOS job signs and notarizes its package
-with `tools/sign-macos`; each job writes `zinc-<os>-<arch>.manifest`, an update manifest signed with the release key; then
-the `release` job attaches every package and manifest to the release, with `install.sh` (`next/tools/install.sh`, the one
-command of [Getting started](01-getting-started.md)) and the `SHA256SUMS` it checks its download against. Each package holds
+builds and packages (`tools/package`, the version taken from the tag), smoke-tests both downloads
+(`tests/t1/install_nocompiler.sh`: installed with no compiler, the app opened headless), signs and notarizes them with
+`tools/sign-macos`, and writes `zinc-<os>-<arch>.manifest`, an update manifest signed with the release key; then the
+`release` job attaches the downloads and the manifests to the release, with `install.sh` (`next/tools/install.sh`, the one
+command of [Getting started](01-getting-started.md)), the `SHA256SUMS` it checks its downloads against and `plugins.lock`,
+and release notes that say what each file is. Each download holds
 the native libraries of the plugins, built in that job with the pinned zig (the log of `tools/package` names the plugins left
 without one, and `zinc doctor` lists them on the user's machine). Without the signing secrets the release still
-happens with an unsigned macOS package, and both the job log (a warning) and the release notes say so; without the update
+happens with unsigned macOS downloads, and both the job log (a warning) and the release notes say so; without the update
 key the manifests are left out and the notes say that too.
 
 The owner's steps, once (Settings > Secrets and variables > Actions):
@@ -369,7 +405,8 @@ The owner's steps, once (Settings > Secrets and variables > Actions):
 
 Then, for each release, `git tag -a v0.1.0 -m "Zinc 0.1.0"` and `git push origin v0.1.0`.
 `zinc update https://github.com/<owner>/<repo>/releases/latest/download/zinc-macos-arm64.manifest` then finds it (the manifest's package URL
-is relative, so it resolves to the asset next to it). `next/tests/t0/release_workflow.sh` runs the manifest and release steps of the workflow
-locally (a stand-in for `gh`) and lints the workflow with actionlint.
+is relative, so it resolves to the CLI archive next to it). `next/tests/t0/release_workflow.sh` runs the manifest, checksum and release steps of
+the workflow locally (a stand-in for `gh`) and lints the workflow with actionlint. The packaging steps run on a Mac as the job runs them:
+`cd next && ZINC_VERSION=0.0.0 python3 tools/package --out /tmp/zd`, then `ZINC_DIST=/tmp/zd tests/run --only install_nocompiler`.
 
 Next: [security](08-security.md).
