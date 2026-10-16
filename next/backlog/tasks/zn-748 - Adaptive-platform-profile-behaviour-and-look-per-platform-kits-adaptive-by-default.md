@@ -4,7 +4,8 @@ title: >-
   Adaptive platform profile: behaviour and look per platform, kits adaptive by
   default
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-16 20:29'
 labels:
   - mobile

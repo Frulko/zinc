@@ -2,7 +2,8 @@
 id: ZN-747
 title: 'Platform identity: platform() says ios or android, Platform.select branches'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-16 20:29'
 updated_date: '2026-10-16 21:04'
 labels:

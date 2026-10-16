@@ -2,7 +2,8 @@
 id: ZN-745
 title: 'Platform files: name.android.tsx, name.ios.tsx, name.native.tsx, as Metro'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-16 14:28'
 updated_date: '2026-10-16 21:04'
 labels:
