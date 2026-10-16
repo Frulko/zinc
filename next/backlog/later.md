@@ -317,6 +317,11 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-748: the OS's own UI font at run time (CoreText on iOS and macOS, /system/fonts through fonts.xml on Android), after variable-font support in runtime/ttf.cpp.
 - ZN-748: Android 12+ dynamic colour as the android tint; re-read the macOS accent when the user changes it; a test of the accent paths.
 - ZN-748: more controls per look: checkbox, radio, RefreshControl, Alert, the nuxt Checkbox shape; iOS's context-menu preview.
+- ZN-751: zinc:video audio on phones (AAudio / AVAudioEngine) with the video clock slaved to it.
+- ZN-751: zinc:video seek(seconds) on every backend (av_seek_frame, AMediaExtractor_seekTo, AVAssetReader timeRange, GStreamer seek); today jump(i) restarts an entry.
+- ZN-751: pause zinc:video players on the Android lifecycle pause (hero kept decoding behind another app).
+- ZN-751: a zinc export run with ZINC_DETERMINISTIC=1 silently compiles a plugin's fake (video.next.ts) instead of its native code: the export should ignore it.
+- ZN-751: hero on a phone is laid out wider than the screen (the Video card is cut at the right on the Pixel 10 emulator and the iPhone 17 simulator).
 
 ## Demos
 
@@ -608,3 +613,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-748: the platform looks on the Nexus 7 and the iOS simulator, screenshots in docs/reports/zinc-next-android and zinc-next-ios.
 
 - ZN-n: agent_ota flakes once in CI ("session ended early"); passes alone, check the session teardown race
+- ZN-751: zinc:video on the Nexus 7 (Tegra 3 MediaCodec: which path, which colour format) and on an iPhone.
