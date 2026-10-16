@@ -1,7 +1,6 @@
 #include "zn/native.h"
 #include <chrono>
 #include <cstdio>
-#include <dlfcn.h>
 #include <cstdlib>
 #include <filesystem>
 #include <cstring>
@@ -59,6 +58,10 @@ int runTestCommand(const std::string& self, const zn::frontend::Profile& p, cons
 #include "dev/hot.h"
 #include <sys/stat.h>
 #include <unistd.h>
+#include "platform/platform.h"
+#ifndef _WIN32
+#include <dlfcn.h>   // the EGL probe of zinc doctor on Linux
+#endif
 #include "vm/vm.h"
 #include "zbc/zbc.h"
 #include "zapp.h"
@@ -729,8 +732,8 @@ static int buildNative(const char* argv0, const char* entry, const char* out, zn
   bool haveLibs = fs::exists(libs / "libzn_rt.a");
   bool haveCxx = cxx || std::system("command -v c++ >/dev/null 2>&1") == 0;
   std::vector<fs::path> moreUnits;   // the other translation units of a large program, compiled at once with the first (ZN-604)
-  { zn::log::Phase ph("build", "AOT C++", "C++", "generated"); std::ofstream o(cpp); std::vector<std::string> parts = zn::aot::emitCppParts(zm, blob.empty() ? nullptr : &blob, (zn::frontend::uiLayout() == "rn" || zn::frontend::directLayoutUse()), haveLibs && haveCxx ? 3 : 1); std::string text = std::move(parts[0]); if (!gBakedSize.empty()) { std::size_t at = text.find("{\n", text.find("int main(")); if (at != std::string::npos) text.insert(at + 2, "  setenv(\"ZINC_SIZE\", \"" + gBakedSize + "\", 0);   // the board's surface\n"); } if (!assetLines.empty()) { std::size_t at = text.find("{\n", text.find("int main(")); if (at != std::string::npos) text.insert(at + 2, assetLines); } o << text; if (!o) { std::fprintf(stderr, "cannot write %s\n", cpp.c_str()); return 2; }
-    for (std::size_t k = 1; k < parts.size(); ++k) { moreUnits.push_back(fs::path(out).string() + ".part" + std::to_string(k) + ".cpp"); std::ofstream u(moreUnits.back()); u << parts[k]; if (!u) { std::fprintf(stderr, "cannot write %s\n", moreUnits.back().c_str()); return 2; } } }
+  { zn::log::Phase ph("build", "AOT C++", "C++", "generated"); std::ofstream o(cpp); std::vector<std::string> parts = zn::aot::emitCppParts(zm, blob.empty() ? nullptr : &blob, (zn::frontend::uiLayout() == "rn" || zn::frontend::directLayoutUse()), haveLibs && haveCxx ? 3 : 1); std::string text = std::move(parts[0]); if (!gBakedSize.empty()) { std::size_t at = text.find("{\n", text.find("int main(")); if (at != std::string::npos) text.insert(at + 2, "  setenv(\"ZINC_SIZE\", \"" + gBakedSize + "\", 0);   // the board's surface\n"); } if (!assetLines.empty()) { std::size_t at = text.find("{\n", text.find("int main(")); if (at != std::string::npos) text.insert(at + 2, assetLines); } o << text; if (!o) { std::fprintf(stderr, "cannot write %s\n", cpp.string().c_str()); return 2; }
+    for (std::size_t k = 1; k < parts.size(); ++k) { moreUnits.push_back(fs::path(out).string() + ".part" + std::to_string(k) + ".cpp"); std::ofstream u(moreUnits.back()); u << parts[k]; if (!u) { std::fprintf(stderr, "cannot write %s\n", moreUnits.back().string().c_str()); return 2; } } }
   std::string shapedLibs;   // "text": "shaped" (ZN-224): the shaping tier is linked into this program only
   if (zn::aot::usesHost(zm)) {
     std::string pf = zn::frontend::findProjectFile(entry);
@@ -903,6 +906,11 @@ static int buildNative(const char* argv0, const char* entry, const char* out, zn
 namespace inputs {
 namespace fs = std::filesystem;
 static std::string stampOf(const fs::path& f) {   // one stat (a cached run checks ~80 inputs): the modification time in ns, as fs::last_write_time counts it, and the size
+#ifdef _WIN32
+  long long size = 0, ns = 0;
+  if (!zn::plat::fileStamp(f.string(), size, ns)) return "-";
+  return std::to_string(ns) + " " + std::to_string(fs::is_regular_file(f) ? size : 0LL);
+#else
   struct stat st;
   if (::stat(f.c_str(), &st) != 0) return "-";
 #ifdef __APPLE__
@@ -911,6 +919,7 @@ static std::string stampOf(const fs::path& f) {   // one stat (a cached run chec
   const long long ns = static_cast<long long>(st.st_mtim.tv_sec) * 1000000000LL + st.st_mtim.tv_nsec;
 #endif
   return std::to_string(ns) + " " + std::to_string(S_ISREG(st.st_mode) ? static_cast<unsigned long long>(st.st_size) : 0ULL);
+#endif
 }
 /** The entry, the stamps of the engine and of `extra` files, and the environment variables that change what the compiler writes. */
 static std::string signature(const std::string& entry, const std::vector<fs::path>& extra) {
@@ -1065,11 +1074,8 @@ static int exec(const fs::path& app, bool built, const std::string& entry, const
   }
   std::vector<std::string> av = {named.string()};
   av.insert(av.end(), progArgs.begin(), progArgs.end());
-  std::vector<char*> cav;
-  for (std::string& a : av) cav.push_back(a.data());
-  cav.push_back(nullptr);
   std::fflush(nullptr);
-  execv(named.c_str(), cav.data());
+  zn::plat::replaceProcess(named.string(), av);
   std::fprintf(stderr, "zinc: cannot start %s: %s; interpreting\n", app.c_str(), std::strerror(errno));
   return -1;
 }
@@ -1223,12 +1229,9 @@ extern "C" int zn_host_update(const char* op, const char* args, char* out, int c
   if (what == "update.restart") {
     if (gRunOut) { std::fwrite(gRunOut->data(), 1, gRunOut->size(), stdout); gRunOut->clear(); }
     std::fflush(stdout); std::fflush(stderr);
-    std::vector<char*> av;
     std::string exe = zn::tc::executablePath();
-    for (std::string& a : gLaunchArgs) av.push_back(a.data());
-    av.push_back(nullptr);
     for (const std::string& name : gOwnEnv) unsetenv(name.c_str());   // the new version's assets and packs, not this one's
-    execv(exe.c_str(), av.data());
+    zn::plat::replaceProcess(exe, gLaunchArgs);
     return failed(std::string("cannot restart: ") + std::strerror(errno));
   }
   if (p.updateKey.empty() || p.updateUrl.empty()) return failed("zinc.json has no \"update\": { \"url\", \"publicKey\" }");
@@ -1270,9 +1273,9 @@ static void* webglLib(bool quiet) {
 #ifdef ZN_WINDOW_MODULE
     if (!zn_window_load()) return nullptr;   // the module resolves SDL3 from the window host module
 #endif
-    return dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
+    return zn::plat::libOpen(path, false);
   }();
-  if (!h && !quiet) std::fprintf(stderr, "zinc: WebGL is not available: %s\n", dlerror());
+  if (!h && !quiet) std::fprintf(stderr, "zinc: WebGL is not available: %s\n", zn::plat::libError().c_str());
   return h;
 }
 static const zn::gl::PresentHooks* glHooks() {
@@ -1286,7 +1289,7 @@ static void webglHook(JSContext* ctx) {
   static const zn::gl::ContextInstall install = []() -> zn::gl::ContextInstall {
     const char* wanted = std::getenv("ZINC_WEBGL");
     void* h = webglLib(!(wanted && *wanted && *wanted != '0'));
-    auto open = h ? reinterpret_cast<zn::gl::ContextInstall (*)(const zn::gl::PresentHooks*)>(dlsym(h, "zn_webgl_open")) : nullptr;
+    auto open = h ? reinterpret_cast<zn::gl::ContextInstall (*)(const zn::gl::PresentHooks*)>(zn::plat::libSymbol(h, "zn_webgl_open")) : nullptr;
     return open ? open(glHooks()) : nullptr;
   }();
   if (install) install(ctx);
@@ -1296,10 +1299,10 @@ static void glRows(int id, const zn::host::HostArg* a, zn::host::HostArg* r) {
   static const zn::host::HostCall call = []() -> zn::host::HostCall {
     void* h = webglLib(false);
     if (!h) return nullptr;
-    if (auto hooks = reinterpret_cast<void (*)(const zn::gl::PresentHooks*)>(dlsym(h, "zn_webgl_host_hooks"))) hooks(glHooks());
-    if (auto fast = reinterpret_cast<zn::host::HostFast (*)(int)>(dlsym(h, "zn_webgl_fast")))   // the direct entries of the hot scalar rows (ZN-562.03)
+    if (auto hooks = reinterpret_cast<void (*)(const zn::gl::PresentHooks*)>(zn::plat::libSymbol(h, "zn_webgl_host_hooks"))) hooks(glHooks());
+    if (auto fast = reinterpret_cast<zn::host::HostFast (*)(int)>(zn::plat::libSymbol(h, "zn_webgl_fast")))   // the direct entries of the hot scalar rows (ZN-562.03)
       for (int r = static_cast<int>(zn::Rt::HostGlCreate); r <= static_cast<int>(zn::Rt::HostGlPresent); ++r) zn::host::hostFast[r] = fast(r);
-    return reinterpret_cast<zn::host::HostCall>(dlsym(h, "zn_webgl_host"));
+    return reinterpret_cast<zn::host::HostCall>(zn::plat::libSymbol(h, "zn_webgl_host"));
   }();
   if (call) call(id, a, r);
   else r->i = 0;
@@ -1480,7 +1483,7 @@ int main(int argc, char** argv) {
     );
     zn::frontend::Caps caps = zn::frontend::capsFor(*hp, gRoot);
     std::string gpu = caps["gpu"], tier = caps["tier"], note;
-#if !defined(__APPLE__)
+#if !defined(__APPLE__) && !defined(_WIN32)
     if (!gProfile) {   // probe: no EGL/GLES library means the software raster draws
       void* egl = dlopen("libEGL.so.1", RTLD_LAZY);
       if (egl) dlclose(egl);
@@ -1736,7 +1739,7 @@ int main(int argc, char** argv) {
       const fs::path so(lib.shared), ex = so.parent_path() / "exports";
       std::ifstream lf(so, std::ios::binary), ef(ex);
       std::stringstream ls, es; ls << lf.rdbuf(); es << ef.rdbuf();
-      if (!lf || !ef) { std::fprintf(stderr, "zinc pack: cannot read the library of plugin %s (%s)\n", lib.plugin.c_str(), so.c_str()); return 1; }
+      if (!lf || !ef) { std::fprintf(stderr, "zinc pack: cannot read the library of plugin %s (%s)\n", lib.plugin.c_str(), so.string().c_str()); return 1; }
       const std::string base = "native/" + packedTarget() + "/" + lib.plugin + "/";
       files[base + so.filename().string()] = ls.str();
       files[base + "exports"] = es.str();
@@ -1992,7 +1995,7 @@ int main(int argc, char** argv) {
     std::string absPath = std::filesystem::absolute(path).string();
     if (!projectDir.empty()) {   // the program's relative file names (media/...) are the project's; sys.launchDir is where the user was (ZN-687)
       std::error_code ec;
-      setenv("ZINC_LAUNCH_DIR", std::filesystem::current_path(ec).c_str(), 0);
+      setenv("ZINC_LAUNCH_DIR", std::filesystem::current_path(ec).string().c_str(), 0);
       std::filesystem::current_path(projectDir, ec);
     }
 #ifdef ZN_HOST_GFX
@@ -2321,7 +2324,7 @@ int main(int argc, char** argv) {
     }
     { std::ofstream o(cpp); std::string text = zn::aot::emitCpp(zm, blob.empty() ? nullptr : &blob, (zn::frontend::uiLayout() == "rn" || zn::frontend::directLayoutUse()));
       if (draws && !gBakedSize.empty()) { std::size_t at = text.find("{\n", text.find("int main(")); if (at != std::string::npos) text.insert(at + 2, "  setenv(\"ZINC_SIZE\", \"" + gBakedSize + "\", 0);   // the project's surface\n"); }
-      o << text; if (!o) { std::fprintf(stderr, "cannot write %s\n", cpp.c_str()); return 2; } }
+      o << text; if (!o) { std::fprintf(stderr, "cannot write %s\n", cpp.string().c_str()); return 2; } }
     if (draws) injectPermissions(cpp.string(), argv[4], std::string(argv[3]).find("macos") != std::string::npos ? "macos" : "linux");   // ZN-322.03
     bool ok;
     if (draws) {

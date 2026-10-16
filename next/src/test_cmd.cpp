@@ -9,8 +9,13 @@
 #include <filesystem>
 #include <fstream>
 #include <sstream>
-#include <sys/wait.h>
+#include <thread>
 #include <unistd.h>
+#ifndef _WIN32
+#include <sys/wait.h>
+#endif
+
+#include "platform/platform.h"
 
 #include "frontend/capabilities.h"
 #include "frontend/profile.h"
@@ -71,6 +76,22 @@ struct Runner {
 
 /** Runs `cmd` through sh with a deadline, as GNU timeout did without needing it on the PATH (ZN-609): the exit code, 124 when it ran
  *  out of time (its process group gets SIGTERM, then SIGKILL a second later). */
+#ifdef _WIN32
+// The commands are POSIX shell lines: the sh of Git for Windows runs them (the tests run in Git Bash there); no process groups, the child alone is ended.
+int runWithDeadline(const std::string& cmd, int ms) {
+  zn::plat::SpawnOptions o;
+  o.newGroup = true;
+  const zn::plat::Pid pid = zn::plat::spawn({"sh", "-c", cmd}, o);
+  if (pid == -1) return 127;
+  const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(ms);
+  int code = 0;
+  while (!zn::plat::wait(pid, code, false)) {
+    if (std::chrono::steady_clock::now() >= deadline) { zn::plat::stop(pid); return 124; }
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  }
+  return code;
+}
+#else
 int runWithDeadline(const std::string& cmd, int ms) {
   pid_t pid = fork();
   if (pid < 0) return 127;
@@ -89,6 +110,7 @@ int runWithDeadline(const std::string& cmd, int ms) {
   if (sig) return 124;
   return WIFEXITED(st) ? WEXITSTATUS(st) : 128 + WTERMSIG(st);
 }
+#endif
 
 }  // namespace
 
@@ -162,7 +184,11 @@ int runTestCommand(const std::string& self, const Profile& p, const std::string&
       std::size_t n;
       while ((n = std::fread(buf, 1, sizeof buf, pipe)) > 0) out.append(buf, n);
       int st = pclose(pipe);
+#ifdef _WIN32
+      code = st;   // the C runtime's pclose returns the exit code itself
+#else
       code = WIFEXITED(st) ? WEXITSTATUS(st) : 128 + WTERMSIG(st);
+#endif
     }
     if (code != 0) {   // a failing program: the exit code and what it said on stderr (the engine's own `zinc:` notes left out), like the golden of the old runner
       std::string err = readFile(errFile), kept;

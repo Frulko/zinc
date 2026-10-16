@@ -109,6 +109,7 @@
     {"paths": ["src/frontend/check.cpp", "src/frontend/check.h", "src/frontend/desugar.cpp", "src/frontend/snippet.cpp"], "tests": ["checker", "lang", "tdz"]},
     {"paths": ["src/frontend/modules.cpp", "src/frontend/modules.h"], "tests": ["modules", "checker", "lang", "plugin_manifest"]},
     {"paths": ["src/frontend/lexer.cpp", "src/frontend/parser.cpp"], "tests": ["parser", "lexer", "checker"]},
+    {"paths": ["src/platform/", "tests/unit/platform_test.cpp", "tests/t0/platform.sh"], "tests": ["platform"]},
     {"paths": ["src/ir/"], "tests": ["ir", "zbc", "rc_refcast", "rc_lend", "rc_borrow", "rc", "virtual_default"]},
     {"paths": ["src/ir/lower.cpp", "src/ir/opt.cpp", "src/ir/ir.h", "src/frontend/modules.cpp", "src/frontend/parser.cpp", "src/frontend/ast.h", "../lib/std/hot.ts", "../templates/desktop-app/", "tests/t0/hot_off.sh"], "tests": ["hot_off"]},
     {"paths": ["src/dev/hot.cpp", "src/dev/hot.h", "src/cli_core.cpp", "src/host/gfx_host.cpp", "../lib/std/hot.ts", "tests/t1/hot_swap.sh"], "tests": ["hot_swap", "dev_mode"]},

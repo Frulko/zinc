@@ -1,7 +1,8 @@
 #include "tc/bundle.h"
 
-#include <sys/stat.h>
 #include <unistd.h>
+
+#include "platform/platform.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -81,23 +82,17 @@ bool ensureDevBundle(const BundleSpec& spec, const std::string& engine, const st
   refreshed = false;
   appPath = cacheDir + "/" + spec.id + ".app";
   fs::path exe = fs::path(appPath) / "Contents/MacOS" / spec.exeName, plist = fs::path(appPath) / "Contents/Info.plist", stamp = fs::path(cacheDir) / (spec.id + ".stamp");   // beside the bundle, not in it: the signature seals what is inside
-  struct stat st;
-  if (stat(engine.c_str(), &st) != 0) { err = "cannot read the engine " + engine; return false; }
-  std::string want = std::to_string(static_cast<long long>(st.st_size)) + " " + std::to_string(static_cast<long long>(st.st_mtime)) + " " + std::to_string(static_cast<long long>(
-#ifdef __APPLE__
-      st.st_mtimespec.tv_nsec
-#else
-      st.st_mtim.tv_nsec   // the same nanoseconds under POSIX's name (the bundle itself is macOS-only; this compiles on Linux)
-#endif
-      ));
+  long long size = 0, mtime = 0;
+  if (!zn::plat::fileStamp(engine, size, mtime)) { err = "cannot read the engine " + engine; return false; }
+  std::string want = std::to_string(size) + " " + std::to_string(mtime / 1000000000LL) + " " + std::to_string(mtime % 1000000000LL);
   // the modules zinc loads from beside it (libzn_window, libzn_webgl: ZN-592.01, ZN-330) go into the bundle with it
   std::vector<fs::path> modules;
   std::error_code ec;
   for (const auto& e : fs::directory_iterator(fs::path(engine).parent_path(), ec)) {
     const std::string n = e.path().filename().string();
-    if (n.rfind("libzn_", 0) == 0 && e.path().extension() == ".dylib" && stat(e.path().c_str(), &st) == 0) {
+    if (n.rfind("libzn_", 0) == 0 && e.path().extension() == ".dylib" && zn::plat::fileStamp(e.path().string(), size, mtime)) {
       modules.push_back(e.path());
-      want += " " + n + " " + std::to_string(static_cast<long long>(st.st_size)) + " " + std::to_string(static_cast<long long>(st.st_mtime));
+      want += " " + n + " " + std::to_string(size) + " " + std::to_string(mtime / 1000000000LL);
     }
   }
   std::string plistText = infoPlist(spec, false);

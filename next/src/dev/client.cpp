@@ -5,12 +5,14 @@
 #include <cstdio>
 #include <cstring>
 #include <fcntl.h>
-#include <poll.h>
 #include <signal.h>
 #include <sstream>
+#include <unistd.h>
+#ifndef _WIN32   // serial ports and piped commands are POSIX here; on Windows (COMn, CreateProcess) they report that they are not there yet
+#include <poll.h>
 #include <sys/wait.h>
 #include <termios.h>
-#include <unistd.h>
+#endif
 
 #include <dirent.h>
 
@@ -40,6 +42,9 @@ struct Reader {
   std::string* log;
 
   // Waits up to `ms` for more bytes; false on timeout or end of stream.
+#ifdef _WIN32
+  bool fill(int) { return false; }   // no link opens on Windows yet
+#else
   bool fill(int ms) {
     pollfd p{link.in, POLLIN, 0};
     int r = ::poll(&p, 1, ms);
@@ -50,6 +55,7 @@ struct Reader {
     pending.append(buf, static_cast<std::size_t>(n));
     return true;
   }
+#endif
   // The next protocol line (without the mark and the newline); other bytes go to the log. False on timeout.
   bool nextLine(std::string& l, int ms) {
     auto t0 = Clock::now();
@@ -79,6 +85,16 @@ struct Reader {
 
 }  // namespace
 
+#ifdef _WIN32
+bool openSerial(const std::string& path, int, Link&, std::string& err) {
+  err = "cannot open " + path + ": serial ports are not supported on Windows yet";
+  return false;
+}
+bool spawnCommand(const std::string&, Link&, std::string& err) {
+  err = "a device command is not supported on Windows yet";
+  return false;
+}
+#else
 bool openSerial(const std::string& path, int baud, Link& link, std::string& err) {
   int fd = ::open(path.c_str(), O_RDWR | O_NOCTTY | O_NONBLOCK);
   if (fd < 0) { err = "cannot open " + path + ": " + std::strerror(errno); return false; }
@@ -114,11 +130,14 @@ bool spawnCommand(const std::string& cmd, Link& link, std::string& err) {
   signal(SIGPIPE, SIG_IGN);
   return true;
 }
+#endif
 
 void closeLink(Link& link) {
   if (link.out >= 0) ::close(link.out);
   if (link.in >= 0 && link.in != link.out) ::close(link.in);
+#ifndef _WIN32
   if (link.pid > 0) { kill(link.pid, SIGTERM); int st; waitpid(link.pid, &st, 0); }
+#endif
   link = Link{};
 }
 

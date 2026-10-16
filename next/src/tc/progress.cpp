@@ -2,14 +2,23 @@
 #include "zn/log.h"
 #include <algorithm>
 #include <cerrno>
+#include <thread>
+#ifdef _WIN32
+#include <io.h>
+#include "platform/platform.h"
+#else
 #include <spawn.h>
 #include <sys/wait.h>
-#include <thread>
+#include <unistd.h>
 
 extern char** environ;
+#endif
 
 namespace zn::tc {
 bool runCommands(const std::vector<std::string>& commands, unsigned limit, const char* stage) {
+#ifdef _WIN32
+  using pid_t = zn::plat::Pid;
+#endif
   std::vector<pid_t> live;
   std::size_t next = 0, completed = 0;
   bool ok = true, painted = false;
@@ -19,17 +28,29 @@ bool runCommands(const std::vector<std::string>& commands, unsigned limit, const
   limit = std::max(1u, limit);
   while ((ok && next < commands.size()) || !live.empty()) {
     while (ok && live.size() < limit && next < commands.size()) {
+#ifdef _WIN32
+      // ponytail: the commands are POSIX shell lines (quoted for sh); the sh of Git for Windows runs them until they become argument lists
+      const pid_t pid = zn::plat::spawn({"sh", "-c", commands[next++]});
+      if (pid == -1) { ok = false; break; }
+#else
       const char* argv[] = {"/bin/sh", "-c", commands[next++].c_str(), nullptr};
       pid_t pid;
       if (posix_spawn(&pid, "/bin/sh", nullptr, nullptr, const_cast<char**>(argv), environ) != 0) { ok = false; break; }
+#endif
       live.push_back(pid);
     }
     const auto before = completed;
     for (auto it = live.begin(); it != live.end();) {
+#ifdef _WIN32
+      int code = -1;
+      if (zn::plat::wait(*it, code, false)) {
+        ok = ok && code == 0;
+#else
       int status = 0;
       const pid_t done = waitpid(*it, &status, WNOHANG);
       if (done > 0 || (done < 0 && errno != EINTR)) {
         ok = ok && done > 0 && WIFEXITED(status) && WEXITSTATUS(status) == 0;
+#endif
         it = live.erase(it);
         ++completed;
       } else ++it;

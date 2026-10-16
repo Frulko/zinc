@@ -12,6 +12,13 @@
 #include <map>
 #include <thread>
 #include <unistd.h>
+#ifdef _WIN32   // the C runtime's pipes and null device: the pumps below read file descriptors, as on POSIX
+#include <io.h>
+#define pipe(fds) _pipe(fds, 65536, _O_BINARY)
+#define ZN_NULL_DEVICE "NUL"
+#else
+#define ZN_NULL_DEVICE "/dev/null"
+#endif
 
 #include "dbg/dbg.h"
 #include "yyjson.h"
@@ -194,7 +201,7 @@ void pump(int fd, const char* category) {
 void finish() {
   std::fflush(stdout);
   std::fflush(stderr);
-  const int dn = ::open("/dev/null", O_WRONLY);   // the last writers of the pipes go: the pumps read their end
+  const int dn = ::open(ZN_NULL_DEVICE, O_WRONLY);   // the last writers of the pipes go: the pumps read their end
   ::dup2(dn, 1);
   ::dup2(dn, 2);
   for (std::thread& t : gPumps) if (t.joinable()) t.join();

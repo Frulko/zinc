@@ -21,7 +21,10 @@
 #include <regex>
 #include <set>
 #include <fcntl.h>
+#include <iterator>
+#ifndef _WIN32
 #include <sys/mman.h>
+#endif
 #include <unistd.h>
 
 namespace fs = std::filesystem;
@@ -538,11 +541,18 @@ bool build(const Options& opt, Report& report, std::string& err) {
       if (!writeAtomic(path, bytes)) { err = "cannot write " + path.string(); return false; }
       size = bytes.size();
       storedSizes(bytes.data(), bytes.size(), group, outputs, report);
+#ifdef _WIN32
+    } else if (std::ifstream in(path, std::ios::binary); in) {   // unchanged: its TOC read (no mmap on Windows)
+      const std::string all((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+      if (!all.empty()) storedSizes(all.data(), all.size(), group, outputs, report);
+    }
+#else
     } else if (const int fd = ::open(path.c_str(), O_RDONLY); fd >= 0) {   // unchanged: its TOC read in place
       void* m = size ? ::mmap(nullptr, size, PROT_READ, MAP_PRIVATE, fd, 0) : MAP_FAILED;   // ponytail: POSIX mmap, as the CLI's other file code
       ::close(fd);
       if (m != MAP_FAILED) { storedSizes(m, size, group, outputs, report); ::munmap(m, size); }
     }
+#endif
     after[file] = key;
     report.packs.push_back({file, group, entries.size() + withSplash, size});
   }

@@ -1,7 +1,8 @@
 #include "zapp.h"
 
-#include <sys/stat.h>
 #include <unistd.h>
+
+#include "platform/platform.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -199,15 +200,9 @@ bool unpackTo(const std::string& path, std::uint64_t offset, std::uint64_t size,
   for (const auto& [name, s] : sums) if (!byName.count(name)) { err = missing(name); return false; }
   if (sums.size() + 1 != byName.size()) { err = kUnlisted; return false; }
   dir = (fs::path(cacheRoot) / zn::tc::sha256Hex(manifest).substr(0, 24)).string();   // the manifest names every file's hash: the content
-  struct stat st;
-  if (stat(path.c_str(), &st) != 0) { err = "cannot read it"; return false; }
-  const std::string stamp = path + "\t" + std::to_string(static_cast<long long>(st.st_size)) + "\t" + std::to_string(static_cast<long long>(st.st_mtime)) + "." +
-#ifdef __APPLE__
-                            std::to_string(static_cast<long long>(st.st_mtimespec.tv_nsec))
-#else
-                            std::to_string(static_cast<long long>(st.st_mtim.tv_nsec))
-#endif
-                            + "\t" + std::to_string(offset);
+  long long fileSize = 0, mtime = 0;
+  if (!zn::plat::fileStamp(path, fileSize, mtime)) { err = "cannot read it"; return false; }
+  const std::string stamp = path + "\t" + std::to_string(fileSize) + "\t" + std::to_string(mtime / 1000000000LL) + "." + std::to_string(mtime % 1000000000LL) + "\t" + std::to_string(offset);
   std::error_code ec;
   const fs::path stamps = fs::path(dir) / ".checked";   // the files (path, size, time, offset) found whole: they are not read again
   const bool have = fs::exists(fs::path(dir) / "manifest.json", ec);

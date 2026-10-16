@@ -1,6 +1,10 @@
 #include "tc/tuf.h"
 
+#ifdef _WIN32
+#include "platform/platform.h"
+#else
 #include <fnmatch.h>
+#endif
 
 #include <algorithm>
 #include <ctime>
@@ -16,6 +20,14 @@ namespace fs = std::filesystem;
 
 namespace zn::tc::tuf {
 namespace {
+
+bool pathMatch(const std::string& pattern, const std::string& path) {   // the spec's fnmatch with FNM_PATHNAME
+#ifdef _WIN32
+  return zn::plat::globMatch(pattern, path);
+#else
+  return fnmatch(pattern.c_str(), path.c_str(), FNM_PATHNAME) == 0;
+#endif
+}
 
 struct Doc {
   yyjson_doc* d = nullptr;
@@ -167,7 +179,11 @@ long long parseTime(const std::string& iso) {
   if (iso.size() != 20 || iso[19] != 'Z' || std::sscanf(iso.c_str(), "%4d-%2d-%2dT%2d:%2d:%2dZ", &t.tm_year, &t.tm_mon, &t.tm_mday, &t.tm_hour, &t.tm_min, &t.tm_sec) != 6) return -1;
   t.tm_year -= 1900;
   t.tm_mon -= 1;
+#ifdef _WIN32
+  return static_cast<long long>(_mkgmtime(&t));   // the C runtime's timegm
+#else
   return static_cast<long long>(timegm(&t));
+#endif
 }
 
 bool Client::readCache(const std::string& name, std::string& text) const {
@@ -318,7 +334,7 @@ bool Client::walk(const std::string& path, const std::string& role, const Target
   if (depth >= 32) return true;   // the spec's bound on delegation depth
   for (const Delegation& d : t.delegations) {
     bool match = all != nullptr;
-    for (const std::string& pat : d.paths) match = match || fnmatch(pat.c_str(), path.c_str(), FNM_PATHNAME) == 0;
+    for (const std::string& pat : d.paths) match = match || pathMatch(pat, path);
     if (!match) continue;
     Targets child;
     if (!loadTargets(d.name, t.keys, Role{d.keyids, d.threshold}, child, err)) {
@@ -330,7 +346,7 @@ bool Client::walk(const std::string& path, const std::string& role, const Target
       if (!walk(path, d.name, child, depth + 1, &mine, nullptr, stop, err)) return false;
       for (const Target& x : mine) {
         bool allowed = false;
-        for (const std::string& pat : d.paths) allowed = allowed || fnmatch(pat.c_str(), x.path.c_str(), FNM_PATHNAME) == 0;
+        for (const std::string& pat : d.paths) allowed = allowed || pathMatch(pat, x.path);
         if (allowed) all->push_back(x);
       }
       continue;

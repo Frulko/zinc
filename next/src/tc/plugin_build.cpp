@@ -6,9 +6,9 @@
 #include "zapp.h"
 #include "yyjson.h"
 
-#include <dlfcn.h>
 #include <sys/stat.h>
-#include <sys/wait.h>
+
+#include "platform/platform.h"
 
 #include <algorithm>
 #include <chrono>
@@ -498,6 +498,14 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
 // digest). The stamp's name holds what is not a file: the plugin's directory, the target, the defines (options from zinc.json), the
 // compiler choice and the pkg-config environment.
 namespace {
+#if defined(_WIN32)
+// no inode and no change time that a program cannot set: size and modification time (ZN-333's guarantee is weaker there, see zinc-windows-port.md)
+std::string statLine(const std::string& path, bool) {
+  long long size = 0, mtime = 0;
+  if (!zn::plat::fileStamp(path, size, mtime)) return "";
+  return "0 " + std::to_string(size) + " " + std::to_string(mtime);
+}
+#else
 #ifdef __APPLE__
 long long mtimeNs(const struct stat& st) { return static_cast<long long>(st.st_mtimespec.tv_sec) * 1000000000LL + st.st_mtimespec.tv_nsec; }
 long long ctimeNs(const struct stat& st) { return static_cast<long long>(st.st_ctimespec.tv_sec) * 1000000000LL + st.st_ctimespec.tv_nsec; }
@@ -511,6 +519,7 @@ std::string statLine(const std::string& path, bool library) {
   if (::stat(path.c_str(), &st) != 0) return "";
   return std::to_string(static_cast<unsigned long long>(st.st_ino)) + " " + std::to_string(static_cast<long long>(st.st_size)) + " " + std::to_string(library ? ctimeNs(st) : mtimeNs(st));
 }
+#endif
 std::string stampPath(const frontend::FoundPlugin& p, const std::string& engineRoot, const std::string& projectDir, const std::string& target) {
   const frontend::PluginTarget& ts = p.manifest.targetSettings.at(target);
   Hash h;
@@ -664,20 +673,24 @@ bool buildPlugin(const frontend::FoundPlugin& p, const std::string& engineRoot, 
 
 // zinc keeps SDL3 in its window module (src/host/window_module.cpp, ZN-592.01): the display drivers, and the plugins whose load stops on an
 // SDL function (zinc:3d's GL context, webview), get it loaded first; compiled programs link SDL3 and have no such function.
+#ifdef _WIN32
+static int (*const zn_window_load)(void) = nullptr;   // no window module on Windows yet: SDL3 is linked into zinc.exe there
+#else
 extern "C" int zn_window_load(void) __attribute__((weak));
+#endif
 
 bool loadPlugin(const PluginLib& lib, std::string& err) {
-  const int mode = RTLD_NOW | (lib.display ? RTLD_GLOBAL : RTLD_LOCAL);   // a driver's zgl_* functions are what GPU plugins (zinc:mapping) bind to
+  const bool global = lib.display;   // a driver's zgl_* functions are what GPU plugins (zinc:mapping) bind to
   if (lib.display && zn_window_load) zn_window_load();
-  void* h = dlopen(lib.shared.c_str(), mode);
+  void* h = zn::plat::libOpen(lib.shared, global);
   if (!h) {
-    std::string why = dlerror();
-    if (zn_window_load && why.find("'_SDL_") != std::string::npos && zn_window_load()) { h = dlopen(lib.shared.c_str(), mode); if (!h) why = dlerror(); }
+    std::string why = zn::plat::libError();
+    if (zn_window_load && why.find("'_SDL_") != std::string::npos && zn_window_load()) { h = zn::plat::libOpen(lib.shared, global); if (!h) why = zn::plat::libError(); }
     if (!h) { err = std::string("cannot load ") + lib.shared + ": " + why; return false; }
   }
   if (lib.display) return true;   // its static constructor has registered it with the HAL
   using Open = const ZnModule* (*)();
-  auto open = reinterpret_cast<Open>(dlsym(h, ("zn_module_" + lib.module).c_str()));
+  auto open = reinterpret_cast<Open>(zn::plat::libSymbol(h, ("zn_module_" + lib.module).c_str()));
   if (!open) { err = "plugin '" + lib.plugin + "' does not export zn_module_" + lib.module; return false; }
   char e[256] = "";
   const ZnModule* mod = open();

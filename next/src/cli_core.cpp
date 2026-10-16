@@ -10,19 +10,22 @@
 #include <fstream>
 #include <map>
 #include <sstream>
-#include <arpa/inet.h>
 #include <csignal>
 #include <chrono>
 #include <fcntl.h>
-#include <netinet/in.h>
-#include <poll.h>
-#include <sys/socket.h>
 #include <sys/stat.h>
-#include <sys/wait.h>
-#include <termios.h>
 #include <thread>
 #include <tuple>
-#include <unistd.h>
+#ifndef _WIN32   // serial ports (zinc monitor --port) and the dev and hot sockets of zinc dev: POSIX only for now (docs/reports/zinc-windows-port.md)
+#include <sys/wait.h>
+#include <termios.h>
+#endif
+
+#include "platform/platform.h"
+#include "platform/socket.h"
+#ifdef _WIN32
+#include <process.h>   // getpid
+#endif
 
 #include "assets/assets.h"
 #include "frontend/diagnostics.h"
@@ -158,19 +161,9 @@ std::string readTemplateInfo(const fs::path& dir, TemplateInfo& t) {
 }
 // Runs a program with its arguments, no shell (a URL cannot inject a command); 0 on success.
 int runArgv(const std::vector<std::string>& argv, bool quiet) {
-  pid_t pid = fork();
-  if (pid < 0) return -1;
-  if (pid == 0) {
-    if (quiet) { int fd = open("/dev/null", O_WRONLY); if (fd >= 0) { dup2(fd, 1); dup2(fd, 2); } }
-    std::vector<char*> a;
-    for (const std::string& x : argv) a.push_back(const_cast<char*>(x.c_str()));
-    a.push_back(nullptr);
-    execvp(a[0], a.data());
-    _exit(127);
-  }
-  int st = 0;
-  while (waitpid(pid, &st, 0) < 0 && errno == EINTR) {}
-  return WIFEXITED(st) ? WEXITSTATUS(st) : -1;
+  zn::plat::SpawnOptions o;
+  o.quiet = quiet;
+  return zn::plat::run(argv, o);
 }
 // A template given by a git URL (https, ssh, file://, gh:user/repo[@ref]) is cloned into `into` (no hooks of the template run: git copies none,
 // and hooks are pointed at nothing); its commit is returned in `commit`. A local directory is used as it is. Empty: done.
@@ -190,14 +183,8 @@ std::string fetchTemplate(const std::string& spec, const fs::path& into, fs::pat
   if (runArgv({"git", "-c", "core.hooksPath=/dev/null", "-c", "protocol.file.allow=always", "clone", "--quiet", "--no-recurse-submodules", "--", url, into.string()}, true) != 0)
     return "cannot clone " + url;
   if (!ref.empty() && runArgv({"git", "-C", into.string(), "-c", "core.hooksPath=/dev/null", "checkout", "--quiet", "--detach", ref}, true) != 0) return "no ref '" + ref + "' in " + url;
-  int fd[2];
-  if (pipe(fd) != 0) return "cannot read the commit";
-  pid_t pid = fork();
-  if (pid == 0) { dup2(fd[1], 1); close(fd[0]); execlp("git", "git", "-C", into.c_str(), "rev-parse", "HEAD", static_cast<char*>(nullptr)); _exit(127); }
-  close(fd[1]);
-  char buf[128]; ssize_t k = read(fd[0], buf, sizeof buf - 1); close(fd[0]);
-  int st = 0; waitpid(pid, &st, 0);
-  commit = k > 0 ? std::string(buf, static_cast<std::size_t>(k)) : "";
+  commit.clear();
+  if (zn::plat::capture({"git", "-C", into.string(), "rev-parse", "HEAD"}, commit) != 0) commit.clear();
   while (!commit.empty() && (commit.back() == '\n' || commit.back() == '\r')) commit.pop_back();
   if (commit.size() != 40) return "cannot read the commit of " + url;
   dir = into;
@@ -292,15 +279,12 @@ bool simulate(std::vector<std::string>& args, const std::string& engineRoot, std
   for (const char* x : {"", ".keys", ".app"}) fs::remove(state + x, ec);
   setenv("ZINC_SIM_DEVICE", def.string().c_str(), 1);
   setenv("ZINC_SIM_STATE", state.c_str(), 1);
-  pid_t panel = fork();
-  if (panel == 0) {   // the panel: this engine running app/devicesim, which reads the two variables
-    const std::string self = zn::tc::executablePath(), app = (fs::path(engineRoot) / "app" / "devicesim").string();
-    unsetenv("ZINC_SIZE");
-    setenv("ZINC_SIM_DOCK", state.c_str(), 1);   // its window docks under the program's (targets/macos/hal_sdl.cpp sim_dock)
-    setenv("ZINC_RESIZE", "fill", 1);            // and lays out for the width it gets
-    execl(self.c_str(), self.c_str(), "run", app.c_str(), static_cast<char*>(nullptr));
-    _exit(127);
-  }
+  // the panel: this engine running app/devicesim, which reads the two variables; its window docks under the program's (targets/macos/hal_sdl.cpp
+  // sim_dock) and lays out for the width it gets
+  zn::plat::SpawnOptions po;
+  po.env = {{"ZINC_SIM_DOCK", state}, {"ZINC_RESIZE", "fill"}};
+  po.unset = {"ZINC_SIZE"};
+  const zn::plat::Pid panel = zn::plat::spawn({zn::tc::executablePath(), "run", (fs::path(engineRoot) / "app" / "devicesim").string()}, po);
   if (panel > 0) setenv("ZINC_SIM_PANEL", std::to_string(panel).c_str(), 1);
   // the device's screen, unless the run names a size
   if (!getenv("ZINC_SIZE"))
@@ -310,7 +294,7 @@ bool simulate(std::vector<std::string>& args, const std::string& engineRoot, std
       if (w > 0 && h > 0) setenv("ZINC_SIZE", (std::to_string(w) + "x" + std::to_string(h)).c_str(), 1);
       yyjson_doc_free(doc);
     }
-  for (int i = 0; i < 50 && !fs::exists(state, ec); ++i) usleep(100000);   // the panel's first state, up to 5 s (its first run compiles it)
+  for (int i = 0; i < 50 && !fs::exists(state, ec); ++i) std::this_thread::sleep_for(std::chrono::milliseconds(100));   // the panel's first state, up to 5 s (its first run compiles it)
   return true;
 }
 
@@ -377,8 +361,8 @@ int unknownCommand(const std::string& name) {
   if (const Command* c = findCommand(name)) { std::fprintf(stderr, "usage: %s\n(zinc help %s says more)\n", c->usage, c->name); return 2; }
   std::vector<std::string> names;
   for (const Command& c : kCommands) names.push_back(c.name);
-  std::string near = zn::frontend::nearest(name, names);
-  std::fprintf(stderr, "zinc: unknown command '%s'%s (zinc help lists the commands)\n", name.c_str(), near.empty() ? "" : (": did you mean 'zinc " + near + "'?").c_str());
+  std::string guess = zn::frontend::nearest(name, names);   // not `near`: windows.h defines it away
+  std::fprintf(stderr, "zinc: unknown command '%s'%s (zinc help lists the commands)\n", name.c_str(), guess.empty() ? "" : (": did you mean 'zinc " + guess + "'?").c_str());
   return 2;
 }
 
@@ -640,7 +624,7 @@ std::string q(const std::string& s) {   // shell quoting
   return o + "'";
 }
 std::string self() { std::string e = zn::tc::executablePath(); return e.empty() ? "zinc" : e; }
-int status(int rc) { return rc == -1 ? 1 : WIFEXITED(rc) ? WEXITSTATUS(rc) : 1; }
+int status(int rc) { const int code = zn::plat::exitStatus(rc); return code < 0 ? 1 : code; }
 
 /** Splits `args` (after the command) into the positional entry and the named options listed in `valued`. */
 struct Opts { std::string entry; std::map<std::string, std::string> v; std::vector<std::string> flags; bool bad = false; std::string badArg; };
@@ -800,8 +784,8 @@ static bool writeSbom(const fs::path& out, const ProjectInfo& p, const std::stri
       const std::string nm = it->path().filename().string();
       if (it->is_directory() && (nm == "dist" || nm == "build" || nm == "node_modules" || nm[0] == '.')) { it.disable_recursion_pending(); continue; }
       if (!it->is_regular_file()) continue;
-      struct stat st;
-      if (stat(it->path().c_str(), &st) == 0 && st.st_mtime > t) t = st.st_mtime;
+      long long size = 0, mtime = 0;
+      if (zn::plat::fileStamp(it->path().string(), size, mtime) && mtime / 1000000000LL > t) t = mtime / 1000000000LL;
     }
   }
   char when[32]; std::strftime(when, sizeof when, "%Y-%m-%dT%H:%M:%SZ", std::gmtime(&t));
@@ -2250,25 +2234,17 @@ void onSignal(int) { gStop = 1; }
 using Clock = std::chrono::steady_clock;
 long msSince(Clock::time_point t) { return static_cast<long>(std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - t).count()); }
 
-pid_t spawnSelf(const std::vector<std::string>& args, const std::vector<std::pair<std::string, std::string>>& env, const std::string& cwd) {
-  pid_t pid = fork();
-  if (pid != 0) return pid;
-  setpgid(0, 0);
-  for (const auto& kv : env) setenv(kv.first.c_str(), kv.second.c_str(), 1);
-  if (!cwd.empty() && chdir(cwd.c_str()) != 0) _exit(127);
-  std::vector<std::string> a = args;
-  std::vector<char*> av;
-  for (std::string& x : a) av.push_back(x.data());
-  av.push_back(nullptr);
-  execv(av[0], av.data());
-  _exit(127);
+zn::plat::Pid spawnSelf(const std::vector<std::string>& args, const std::vector<std::pair<std::string, std::string>>& env, const std::string& cwd) {
+  zn::plat::SpawnOptions o;
+  o.newGroup = true;
+  o.cwd = cwd;
+  o.env = env;
+  const zn::plat::Pid pid = zn::plat::spawn(args, o);
+  return pid == -1 ? 0 : pid;
 }
-void killChild(pid_t& pid) {
+void killChild(zn::plat::Pid& pid) {
   if (pid <= 0) return;
-  kill(-pid, SIGTERM);
-  for (int i = 0; i < 25; ++i) { int st; if (waitpid(pid, &st, WNOHANG) == pid) { pid = 0; return; } usleep(10000); }
-  kill(-pid, SIGKILL);
-  int st; waitpid(pid, &st, 0);
+  zn::plat::stop(pid);
   pid = 0;
 }
 
@@ -2280,14 +2256,9 @@ Stamps snapshot(const fs::path& dir) {
     if (ec) break;
     const std::string name = it->path().filename().string();
     if (it->is_directory(ec)) { if (name == "build" || name == "dist" || name == "node_modules" || name == ".git" || name == "shots") it.disable_recursion_pending(); continue; }
-    struct stat st;
-    if (stat(it->path().c_str(), &st) != 0) continue;
-#if defined(__APPLE__)
-    const long long mt = static_cast<long long>(st.st_mtimespec.tv_sec) * 1000000000LL + st.st_mtimespec.tv_nsec;
-#else
-    const long long mt = static_cast<long long>(st.st_mtim.tv_sec) * 1000000000LL + st.st_mtim.tv_nsec;
-#endif
-    s[it->path().string()] = {mt, static_cast<long long>(st.st_size)};
+    long long size = 0, mt = 0;
+    if (!zn::plat::fileStamp(it->path().string(), size, mt)) continue;
+    s[it->path().string()] = {mt, size};
   }
   return s;
 }
@@ -2351,7 +2322,7 @@ bool reloadAssets(const std::string& dir, const Stamps& was, const Stamps& is, i
   msg += "end\n";
   if (remote && !remote->assets(msg)) return false;   // on a device: the same messages through the agent's session (ZN-729.03)
   for (std::size_t at = 0; !remote && at < msg.size();) {
-    const ssize_t n = write(fd, msg.data() + at, msg.size() - at);
+    const long n = zn::plat::sockWrite(fd, msg.data() + at, msg.size() - at);
     if (n < 0 && errno != EINTR) return false;
     if (n > 0) at += static_cast<std::size_t>(n);
   }
@@ -2365,10 +2336,12 @@ bool hotLine(int fd, std::string& buf, std::string& line, int ms) {
   for (;;) {
     if (const std::size_t nl = buf.find('\n'); nl != std::string::npos) { line = buf.substr(0, nl); buf.erase(0, nl + 1); return true; }
     const int left = static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(end - Clock::now()).count());
-    pollfd pf{fd, POLLIN, 0};
-    if (poll(&pf, 1, left > 0 ? left : 0) <= 0) return false;
+    pollfd pf{};
+    pf.fd = fd;
+    pf.events = POLLIN;
+    if (zn::plat::sockPoll(&pf, 1, left > 0 ? left : 0) <= 0) return false;
     char b[4096];
-    const ssize_t n = read(fd, b, sizeof b);
+    const long n = zn::plat::sockRead(fd, b, sizeof b);
     if (n <= 0) return false;
     buf.append(b, static_cast<std::size_t>(n));
   }
@@ -2427,11 +2400,13 @@ int dev(const std::vector<std::string>& args, const DevRemote* remote) {
   const bool tools = runEntry != p.entry;
   std::signal(SIGINT, onSignal);
   std::signal(SIGTERM, onSignal);
+#ifdef SIGPIPE
   std::signal(SIGPIPE, SIG_IGN);   // a version that exited closed its dev socket: the write fails and the save restarts it
+#endif
   const std::string exe = self();
   std::vector<std::pair<std::string, std::string>> env = {{"ZINC_SHOT_DIR", (fs::path(p.dir) / "build" / "shots").string()}, {"ZINC_DEV", "1"}};
   fs::create_directories(fs::path(p.dir) / "build" / "shots", ec);
-  pid_t child = 0;
+  zn::plat::Pid child = 0;
   int version = 0, devFd = -1;   // devFd: our end of the running version's dev socket (asset hot reload)
   int hotFd = -1;                // our end of its hot channel (Fast Refresh, ZN-742): it swaps the code of a save in place
   bool hotReady = false;         // it said `hot ready`: its frame loop runs
@@ -2439,8 +2414,8 @@ int dev(const std::vector<std::string>& args, const DevRemote* remote) {
   std::string hotBuf;
   auto startProgram = [&](long sinceSave, bool redbox, const std::vector<std::string>& msg) {
     killChild(child);
-    if (devFd >= 0) { close(devFd); devFd = -1; }
-    if (hotFd >= 0) { close(hotFd); hotFd = -1; }
+    if (devFd >= 0) { zn::plat::sockClose(devFd); devFd = -1; }
+    if (hotFd >= 0) { zn::plat::sockClose(hotFd); hotFd = -1; }
     hotReady = false;
     hotOff.clear();
     hotBuf.clear();
@@ -2449,6 +2424,8 @@ int dev(const std::vector<std::string>& args, const DevRemote* remote) {
     if (redbox) writeFile(devDir / "redbox.ts", redBoxSource(msg));
     auto childEnv = env;
     int sv[2] = {-1, -1};
+    int hv[2] = {-1, -1};   // the hot channel: hot mode on the child only, never on zinc run, build, export or pack
+#ifndef _WIN32   // no socketpair on Windows yet: a save restarts the program there (no asset reload, no Fast Refresh)
     if (!redbox && socketpair(AF_UNIX, SOCK_STREAM, 0, sv) == 0) {
       fcntl(sv[0], F_SETFD, FD_CLOEXEC);
       const timeval wait{2, 0};   // a version that stopped reading costs a save 2 s, then a restart
@@ -2458,15 +2435,15 @@ int dev(const std::vector<std::string>& args, const DevRemote* remote) {
       setsockopt(sv[1], SOL_SOCKET, SO_RCVBUF, &room, sizeof room);
       childEnv.push_back({"ZINC_DEV_FD", std::to_string(sv[1])});
     }
-    int hv[2] = {-1, -1};   // the hot channel: hot mode on the child only, never on zinc run, build, export or pack
     if (!redbox && socketpair(AF_UNIX, SOCK_STREAM, 0, hv) == 0) {
       fcntl(hv[0], F_SETFD, FD_CLOEXEC);
       childEnv.push_back({"ZINC_HOT", "1"});
       childEnv.push_back({"ZINC_HOT_FD", std::to_string(hv[1])});
     }
+#endif
     child = spawnSelf(cmd, childEnv, p.dir);
-    if (sv[1] >= 0) { close(sv[1]); devFd = sv[0]; }
-    if (hv[1] >= 0) { close(hv[1]); hotFd = hv[0]; }
+    if (sv[1] >= 0) { zn::plat::sockClose(sv[1]); devFd = sv[0]; }
+    if (hv[1] >= 0) { zn::plat::sockClose(hv[1]); hotFd = hv[0]; }
     if (!redbox) ++version;
     if (redbox) std::fprintf(stderr, "zinc dev: red box on screen (%ld ms after the save)\n", sinceSave);
     else {
@@ -2496,14 +2473,14 @@ int dev(const std::vector<std::string>& args, const DevRemote* remote) {
   Stamps seen = snapshot(p.dir);
   if (remote) startRemote(Clock::now()); else startProgram(0, false, {});
   while (!gStop) {
-    usleep(40000);
+    std::this_thread::sleep_for(std::chrono::milliseconds(40));
     if (remote && !remote->poll()) { std::fprintf(stderr, "zinc dev: the session with the device ended\n"); return 1; }
     int st;
-    if (child > 0 && waitpid(child, &st, WNOHANG) == child) { std::fprintf(stderr, "zinc dev: program exited (%d), waiting for changes...\n", WIFEXITED(st) ? WEXITSTATUS(st) : -1); child = 0; }
+    if (child > 0 && zn::plat::wait(child, st, false)) { std::fprintf(stderr, "zinc dev: program exited (%d), waiting for changes...\n", st); child = 0; }
     Stamps now = snapshot(p.dir);
     if (now == seen) continue;
     const auto t0 = Clock::now();
-    usleep(30000);   // an editor writes a file in several steps: take the settled state
+    std::this_thread::sleep_for(std::chrono::milliseconds(30));   // an editor writes a file in several steps: take the settled state
     now = snapshot(p.dir);
     const Stamps was = seen;
     seen = now;
@@ -2602,6 +2579,13 @@ int monitor(const std::vector<std::string>& args) {
   }
   std::signal(SIGINT, onSignal);
   int fd = 0;
+#ifdef _WIN32
+  if (!udp.empty() || !port.empty()) { std::fprintf(stderr, "zinc monitor: --port and --udp are not supported on Windows yet; a file is\n"); return 2; }
+  if (!file.empty()) {
+    fd = open(file.c_str(), O_RDONLY | O_BINARY);
+    if (fd < 0) { std::fprintf(stderr, "zinc monitor: cannot open %s\n", file.c_str()); return 1; }
+  }
+#else
   if (!udp.empty()) {
     fd = socket(AF_INET, SOCK_DGRAM, 0);
     sockaddr_in a{};
@@ -2622,18 +2606,23 @@ int monitor(const std::vector<std::string>& args) {
       tcsetattr(fd, TCSANOW, &tio);
     }
   }
+#endif
   std::string buf;
   char chunk[4096];
   bool regular = false;
   { struct stat st; regular = fstat(fd, &st) == 0 && S_ISREG(st.st_mode); }
   while (!gStop) {
+#ifdef _WIN32
+    int n = 1;   // a file or a pipe: a blocking read
+#else
     pollfd pfd{fd, POLLIN, 0};
     int n = regular ? 1 : poll(&pfd, 1, 200);
+#endif
     if (n < 0) { if (errno == EINTR) continue; break; }
     if (n == 0) continue;
     ssize_t r = read(fd, chunk, sizeof chunk);
-    if (r == 0) { if (regular || file.empty()) { if (regular) break; if (!port.empty()) { usleep(100000); continue; } break; } }
-    if (r < 0) { if (errno == EAGAIN || errno == EINTR) { usleep(20000); continue; } break; }
+    if (r == 0) { if (regular || file.empty()) { if (regular) break; if (!port.empty()) { std::this_thread::sleep_for(std::chrono::milliseconds(100)); continue; } break; } }
+    if (r < 0) { if (errno == EAGAIN || errno == EINTR) { std::this_thread::sleep_for(std::chrono::milliseconds(20)); continue; } break; }
     buf.append(chunk, static_cast<std::size_t>(r));
     std::size_t nl;
     while ((nl = buf.find('\n')) != std::string::npos) {
@@ -2852,7 +2841,7 @@ int assetsInfo(const fs::path& project, const std::string& only, const std::stri
   zn::frontend::Project proj;
   std::string err;
   if (!readProject(project, proj, err)) { std::fprintf(stderr, "zinc assets: %s\n", err.c_str()); return 2; }
-  for (const std::string& w : proj.warnings) std::fprintf(stderr, "zinc assets: %s: %s\n", (project / "zinc.json").c_str(), w.c_str());
+  for (const std::string& w : proj.warnings) std::fprintf(stderr, "zinc assets: %s: %s\n", (project / "zinc.json").string().c_str(), w.c_str());
   std::vector<zn::frontend::TargetAssets> rows;
   if (!zn::frontend::assetProfiles(proj, readAll(fs::path(engineRoot) / ".." / "targets" / "capabilities.json"), rows, err)) { std::fprintf(stderr, "zinc assets: %s\n", err.c_str()); return 1; }
   std::string groups;
@@ -2890,7 +2879,7 @@ int assets(const std::vector<std::string>& args, const std::string& engineRoot) 
   std::string err, line;
   if (!readProject(project, proj, err)) { std::fprintf(stderr, "zinc assets: %s\n", err.c_str()); return 2; }
   std::error_code ec;
-  if (!fs::is_directory(project / proj.assets.dir, ec) && !splashFor(proj, project.string(), target).on) { std::fprintf(stderr, "zinc assets: %s has no %s directory\n", project.c_str(), proj.assets.dir.c_str()); return 2; }
+  if (!fs::is_directory(project / proj.assets.dir, ec) && !splashFor(proj, project.string(), target).on) { std::fprintf(stderr, "zinc assets: %s has no %s directory\n", project.string().c_str(), proj.assets.dir.c_str()); return 2; }
   if (!buildAssets(project.string(), target, has(o, "--release"), err, &line)) { std::fprintf(stderr, "zinc assets: %s\n", err.c_str()); return 1; }
   std::printf("%s\n", line.c_str());
   return 0;

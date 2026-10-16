@@ -4,10 +4,9 @@
 // The version and the release key are build constants (CMakeLists.txt: ZN_VERSION, ZN_UPDATE_PUBKEY from next/update.pub); only this file sees them.
 #include "tc/tc.h"
 
-#include <fcntl.h>
-#include <sys/utsname.h>
-#include <sys/wait.h>
 #include <unistd.h>
+
+#include "platform/platform.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -75,14 +74,7 @@ std::string manifestUrl(const Install& in, const std::string& channel, const std
   if (const char* u = std::getenv("ZINC_UPDATE_URL"); u && *u) return u;
   std::string base = releases() + "/download";
   if (const auto u = in.conf.find("url"); u != in.conf.end() && !u->second.empty() && !std::getenv("ZINC_UPDATE_REPO")) base = u->second;
-  struct utsname un {};
-  ::uname(&un);
-#ifdef __APPLE__
-  const char* os = "macos";
-#else
-  const char* os = "linux";
-#endif
-  return base + "/zinc-" + os + "-" + un.machine + (channel == "beta" ? "-beta" : "") + ".manifest";
+  return base + "/zinc-" + zn::plat::osName() + "-" + zn::plat::machine() + (channel == "beta" ? "-beta" : "") + ".manifest";
 }
 bool haveKey() { return !trustedUpdateKeys().empty(); }
 
@@ -133,8 +125,8 @@ void saveConf(const Install& in, const fs::path& engine, const std::string& chan
 int install(const Install& in, const UpdateInfo& info, const std::string& channel) {
   const fs::path engine = in.engine, parent = engine.parent_path(), stage = parent / (engine.filename().string() + ".incoming");
   const fs::path prev = parent / (engine.filename().string() + ".prev");
-  if (::access(parent.c_str(), W_OK) != 0 || ::access(engine.c_str(), W_OK) != 0) {
-    std::fprintf(stderr, "zinc update: cannot write %s: run the update as the user who installed zinc, or install again with  curl -fsSL %s/download/install.sh | sh\n", parent.c_str(), releases().c_str());
+  if (::access(parent.string().c_str(), W_OK) != 0 || ::access(engine.string().c_str(), W_OK) != 0) {
+    std::fprintf(stderr, "zinc update: cannot write %s: run the update as the user who installed zinc, or install again with  curl -fsSL %s/download/install.sh | sh\n", parent.string().c_str(), releases().c_str());
     return 1;
   }
   std::error_code ec;
@@ -147,7 +139,7 @@ int install(const Install& in, const UpdateInfo& info, const std::string& channe
   fs::path inner;
   int dirs = 0;
   for (const auto& e : fs::directory_iterator(stage / "x", ec)) if (e.is_directory()) { inner = e.path(); ++dirs; }
-  if (dirs != 1 || ::access((inner / "bin" / "zinc").c_str(), X_OK) != 0) return fail("the archive holds no zinc program (one directory with bin/zinc)");
+  if (dirs != 1 || ::access((inner / "bin" / "zinc").string().c_str(), X_OK) != 0) return fail("the archive holds no zinc program (one directory with bin/zinc)");
   const std::string says = firstLine(sh((inner / "bin" / "zinc").string()) + " --version");
   if (says.empty()) return fail("the new zinc does not start on this machine");
   if (says.find(info.version) == std::string::npos) return fail("the archive holds " + says + ", the manifest says " + info.version);
@@ -160,42 +152,29 @@ int install(const Install& in, const UpdateInfo& info, const std::string& channe
   fs::remove_all(stage, ec);
   writeCache(info.version);
   if (!info.notes.empty()) std::printf("What changed: %s\n", info.notes.c_str());
-  std::printf("zinc %s is installed in %s (zinc %s is kept in %s: zinc update --rollback goes back to it)\n", info.version.c_str(), engine.c_str(), version(), prev.c_str());
+  std::printf("zinc %s is installed in %s (zinc %s is kept in %s: zinc update --rollback goes back to it)\n", info.version.c_str(), engine.string().c_str(), version(), prev.string().c_str());
   return 0;
 }
 
 int rollback(const Install& in) {
   if (!in.why.empty()) { std::fprintf(stderr, "zinc update --rollback: %s\n", in.why.c_str()); return 1; }
   const fs::path engine = in.engine, parent = engine.parent_path(), prev = parent / (engine.filename().string() + ".prev"), aside = parent / (engine.filename().string() + ".rollback");
-  if (::access((prev / "bin" / "zinc").c_str(), X_OK) != 0) { std::fprintf(stderr, "zinc update --rollback: no previous version in %s (one is kept by each zinc update)\n", prev.c_str()); return 1; }
-  if (::access(parent.c_str(), W_OK) != 0) { std::fprintf(stderr, "zinc update --rollback: cannot write %s\n", parent.c_str()); return 1; }
+  if (::access((prev / "bin" / "zinc").string().c_str(), X_OK) != 0) { std::fprintf(stderr, "zinc update --rollback: no previous version in %s (one is kept by each zinc update)\n", prev.string().c_str()); return 1; }
+  if (::access(parent.string().c_str(), W_OK) != 0) { std::fprintf(stderr, "zinc update --rollback: cannot write %s\n", parent.string().c_str()); return 1; }
   std::error_code ec;
   fs::remove_all(aside, ec);
   fs::rename(engine, aside, ec);
-  if (ec) { std::fprintf(stderr, "zinc update --rollback: cannot move %s aside: %s\n", engine.c_str(), ec.message().c_str()); return 1; }
+  if (ec) { std::fprintf(stderr, "zinc update --rollback: cannot move %s aside: %s\n", engine.string().c_str(), ec.message().c_str()); return 1; }
   fs::rename(prev, engine, ec);
   if (ec) { std::error_code e2; fs::rename(aside, engine, e2); std::fprintf(stderr, "zinc update --rollback: %s; nothing was changed\n", ec.message().c_str()); return 1; }
   fs::rename(aside, prev, ec);   // the two swap: --rollback again returns to the newer one
   writeCache("");
-  std::printf("%s is back in %s (zinc %s is kept in %s)\n", versionIn(engine).c_str(), engine.c_str(), version(), prev.c_str());
+  std::printf("%s is back in %s (zinc %s is kept in %s)\n", versionIn(engine).c_str(), engine.string().c_str(), version(), prev.string().c_str());
   return 0;
 }
 
 /** The daily check, in a detached grandchild so no command waits for the network: `zinc update --notice-check`. */
-void spawnCheck() {
-  const std::string exe = executablePath();
-  const pid_t p = ::fork();
-  if (p == 0) {
-    if (::fork() == 0) {
-      ::setsid();
-      const int fd = ::open("/dev/null", O_RDWR);
-      for (int k = 0; k < 3; ++k) ::dup2(fd, k);
-      ::execl(exe.c_str(), exe.c_str(), "update", "--notice-check", static_cast<char*>(nullptr));
-    }
-    ::_exit(0);
-  }
-  if (p > 0) ::waitpid(p, nullptr, 0);
-}
+void spawnCheck() { zn::plat::spawnDetached({executablePath(), "update", "--notice-check"}); }
 bool checksOff() { return envOn("ZINC_NO_UPDATE_CHECK") || envOn("ZINC_CI") || envOn("CI"); }
 }  // namespace
 

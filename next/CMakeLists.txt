@@ -19,6 +19,9 @@ option(ZN_SANITIZE "Build with ASan and UBSan" OFF)
 option(ZN_FUZZ "Build the libFuzzer targets of tests/fuzz (needs a clang with libFuzzer: Homebrew llvm; see docs/reports/zinc-next-fuzzing.md)" OFF)
 
 add_compile_options(-Wall -Wextra -ffp-contract=off)  # no fused multiply-add: the interpreter, the AOT programs and every host must round the same way
+if(WIN32)   # mingw-w64 through the pinned zig (cmake/zig-windows.cmake, docs/reports/zinc-windows-port.md): M_PI under -std=c++20, no min/max macros (zig targets Windows 10 itself: _WIN32_WINNT)
+  add_compile_definitions(_USE_MATH_DEFINES NOMINMAX)
+endif()
 if(ZN_SANITIZE)
   add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer)
   add_link_options(-fsanitize=address,undefined)
@@ -61,6 +64,9 @@ target_include_directories(zn_mbedtls PUBLIC third_party/mbedtls/include third_p
   PRIVATE third_party/mbedtls/library third_party/mbedtls/tf-psa-crypto/core third_party/mbedtls/tf-psa-crypto/drivers/builtin/src)
 set_target_properties(zn_mbedtls PROPERTIES C_STANDARD 99 POSITION_INDEPENDENT_CODE ON)
 target_compile_options(zn_mbedtls PRIVATE -w -O2)
+if(WIN32)
+  target_link_libraries(zn_mbedtls PUBLIC bcrypt)   # the PSA entropy source: BCryptGenRandom
+endif()
 
 add_library(zn_uv STATIC ${ZN_UV_SOURCES})
 target_include_directories(zn_uv PUBLIC third_party/libuv/include PRIVATE third_party/libuv/src)
@@ -88,6 +94,13 @@ add_library(zn_native STATIC src/rt/native.cpp)
 target_include_directories(zn_native PUBLIC include)
 find_package(Threads REQUIRED)
 target_link_libraries(zn_native PUBLIC Threads::Threads)
+
+# The operating-system calls of the command line and its tools (processes, shared libraries, file stamps, sockets), POSIX or Win32: src/platform/platform.h
+add_library(zn_platform STATIC src/platform/platform.cpp)
+target_include_directories(zn_platform PUBLIC src)
+if(WIN32)
+  target_link_libraries(zn_platform PUBLIC ws2_32 psapi)
+endif()
 
 add_library(zn_frontend STATIC src/frontend/plugin_manifest.cpp src/frontend/tsconfig.cpp src/frontend/project.cpp src/frontend/lexer.cpp src/frontend/parser.cpp src/frontend/diagnostics.cpp src/frontend/check.cpp src/frontend/modules.cpp src/frontend/inspect.cpp src/frontend/snippet.cpp src/frontend/desugar.cpp src/frontend/dyn.cpp src/frontend/jsx.cpp src/frontend/native_gen.cpp src/frontend/profile.cpp src/frontend/capabilities.cpp)
 target_include_directories(zn_frontend PUBLIC include src)
@@ -287,7 +300,7 @@ target_link_libraries(zn_res PUBLIC zn_webp zn_rt zn_hb_subset)   # zn::uni (cas
 
 add_library(zn_dev STATIC src/dev/core.cpp src/dev/client.cpp)
 target_include_directories(zn_dev PUBLIC include src)
-target_link_libraries(zn_dev PUBLIC zn_vm)
+target_link_libraries(zn_dev PUBLIC zn_platform zn_vm)
 
 # SHA-256 (third_party/sha256, public domain): toolchain downloads, .zapp members, ZPK entries
 add_library(zn_sha256 STATIC third_party/sha256/sha256.c)
@@ -318,7 +331,7 @@ target_link_libraries(zpk_test PRIVATE zn_zpk)
 # reads its output for the .zmesh of zinc:3d
 add_library(zn_assets STATIC src/assets/assets.cpp src/assets/sprite.cpp src/assets/tilemap.cpp src/assets/texture.cpp src/assets/model.cpp)
 target_include_directories(zn_assets PUBLIC src PRIVATE third_party/xxhash third_party/stb third_party/cute_aseprite third_party/cgltf)
-target_link_libraries(zn_assets PUBLIC zn_zpk zn_res PRIVATE zn_yyjson zn_codec)   # zn_codec: the PNG levels basisu reads (ZN-439)
+target_link_libraries(zn_assets PUBLIC zn_platform zn_zpk zn_res PRIVATE zn_yyjson zn_codec)   # zn_codec: the PNG levels basisu reads (ZN-439)
 add_executable(assets_test tests/unit/assets_test.cpp)
 target_link_libraries(assets_test PRIVATE zn_assets)
 add_executable(project_test tests/unit/project_test.cpp)   # zinc.json's game keys (ZN-435)
@@ -357,7 +370,7 @@ set_source_files_properties(src/tc/selfupdate.cpp PROPERTIES COMPILE_DEFINITIONS
 add_library(zn_tc STATIC src/tc/tc.cpp src/tc/selfupdate.cpp src/tc/plugin_build.cpp src/tc/bundle.cpp src/tc/tuf.cpp src/tc/tlog.cpp src/tc/policy.cpp src/zapp.cpp third_party/monocypher/monocypher.c third_party/monocypher/monocypher-ed25519.c)   # monocypher: Ed25519 for signed update manifests (ZN-149)
 target_include_directories(zn_tc PUBLIC src PRIVATE third_party/monocypher)
 target_sources(zn_tc PRIVATE src/tc/progress.cpp)
-target_link_libraries(zn_tc PUBLIC zn_frontend zn_sha256 ${CMAKE_DL_LIBS})
+target_link_libraries(zn_tc PUBLIC zn_platform zn_frontend zn_sha256 ${CMAKE_DL_LIBS})
 if(APPLE)
   # src/tc/bundle.cpp opens CoreFoundation at its call (not linked: ~400 framework initializers at each launch, ZN-592.01)
 endif()
@@ -375,9 +388,9 @@ endif()
 set_source_files_properties(third_party/monocypher/monocypher.c third_party/monocypher/monocypher-ed25519.c PROPERTIES COMPILE_OPTIONS "-w")
 
 add_library(zn_prof STATIC src/prof/prof.cpp)
-target_link_libraries(zn_prof PUBLIC zn_vm)
+target_link_libraries(zn_prof PUBLIC zn_platform zn_vm)
 add_library(zn_dbg STATIC src/dbg/dbg.cpp src/dbg/eval.cpp src/dbg/dap.cpp src/dbg/cdp.cpp)   # zinc debug (ZN-371.01), --dap (ZN-371.02), --cdp (ZN-371.04)
-target_link_libraries(zn_dbg PUBLIC zn_vm)
+target_link_libraries(zn_dbg PUBLIC zn_platform zn_vm)
 if(ZN_TLS)   # the CDP server's WebSocket handshake takes SHA-1 and base64 from mbedTLS
   target_compile_definitions(zn_dbg PRIVATE ZN_DBG_CDP=1)
   target_link_libraries(zn_dbg PRIVATE zn_mbedtls)
@@ -504,7 +517,12 @@ if(TARGET zn_host_gfx)
       target_link_options(zinc PRIVATE "LINKER:--whole-archive,${ZN_SDL_LIB},--no-whole-archive")
     endif()
   endif()
+else()   # no graphics host (-DZN_HOST_GFX=OFF, the first Windows build): its entries that main.cpp and zinc:canvas2d call answer "no host"
+  target_sources(zinc PRIVATE src/host/no_host.cpp)
 endif()
+
+add_executable(platform_test tests/unit/platform_test.cpp)   # tests/t0/platform.sh
+target_link_libraries(platform_test PRIVATE zn_platform)
 
 add_executable(ir_test tests/unit/ir_test.cpp)
 target_link_libraries(ir_test PRIVATE zn_ir)

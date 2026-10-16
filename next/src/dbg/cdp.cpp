@@ -5,18 +5,15 @@
 // it is paused, sends Debugger.paused and answers Runtime.getProperties, Debugger.evaluateOnCallFrame and resume / stepOver / stepInto /
 // stepOut. The program starts when a client sends Runtime.runIfWaitingForDebugger, paused at its first statement (as node --inspect-brk).
 #include <algorithm>
-#include <arpa/inet.h>
 #include <csignal>
 #include <condition_variable>
 #include <cstdio>
 #include <cstring>
 #include <deque>
 #include <map>
-#include <netinet/in.h>
-#include <poll.h>
-#include <sys/socket.h>
 #include <thread>
-#include <unistd.h>
+
+#include "platform/socket.h"
 
 #include "dbg/dbg.h"
 #include "yyjson.h"
@@ -56,7 +53,7 @@ std::string q(const std::string& s) {
 
 bool writeAll(int fd, const char* p, std::size_t n) {
   while (n) {
-    const ssize_t w = ::write(fd, p, n);
+    const long w = zn::plat::sockWrite(fd, p, n);
     if (w <= 0) return false;
     p += w; n -= static_cast<std::size_t>(w);
   }
@@ -227,7 +224,7 @@ void serveSocket(int fd) {
   std::string buf, msg;
   char tmp[65536];
   for (;;) {
-    const ssize_t n = ::read(fd, tmp, sizeof tmp);
+    const long n = zn::plat::sockRead(fd, tmp, sizeof tmp);
     if (n <= 0) break;
     buf.append(tmp, static_cast<std::size_t>(n));
     for (;;) {
@@ -257,21 +254,21 @@ void serveSocket(int fd) {
 
 void serve(int listener) {
   for (;;) {
-    const int fd = ::accept(listener, nullptr, nullptr);
+    const int fd = static_cast<int>(::accept(listener, nullptr, nullptr));
     if (fd < 0) continue;
     std::string req;
     char tmp[4096];
     while (req.find("\r\n\r\n") == std::string::npos) {
-      const ssize_t n = ::read(fd, tmp, sizeof tmp);
+      const long n = zn::plat::sockRead(fd, tmp, sizeof tmp);
       if (n <= 0) break;
       req.append(tmp, static_cast<std::size_t>(n));
     }
     const std::string key = header(req, "Sec-WebSocket-Key");
-    if (key.empty() || req.rfind("GET /zinc-debug", 0) != 0) { serveHttp(fd, req); ::close(fd); continue; }
+    if (key.empty() || req.rfind("GET /zinc-debug", 0) != 0) { serveHttp(fd, req); zn::plat::sockClose(fd); continue; }
     const std::string acc = acceptKey(key);
     const std::string resp = "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: " + acc + "\r\n\r\n";
     writeAll(fd, resp.data(), resp.size());
-    { std::lock_guard<std::mutex> lock(gWrite); if (gClient >= 0) ::close(gClient); gClient = fd; }
+    { std::lock_guard<std::mutex> lock(gWrite); if (gClient >= 0) zn::plat::sockClose(gClient); gClient = fd; }
     std::thread(serveSocket, fd).detach();   // one reader per connection; the last connection is the client
   }
 }
@@ -320,10 +317,13 @@ bool cdpStart(int port, const std::string& program) {
   return false;
 #else
   gProgram = program;
+#ifdef SIGPIPE
   std::signal(SIGPIPE, SIG_IGN);   // a client that goes away mid-write: an error, not the end of the process
-  const int listener = ::socket(AF_INET, SOCK_STREAM, 0);
+#endif
+  zn::plat::netInit();
+  const int listener = static_cast<int>(::socket(AF_INET, SOCK_STREAM, 0));
   int one = 1;
-  ::setsockopt(listener, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one);
+  ::setsockopt(listener, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char*>(&one), sizeof one);
   sockaddr_in a{};
   a.sin_family = AF_INET;
   a.sin_port = htons(static_cast<std::uint16_t>(port));

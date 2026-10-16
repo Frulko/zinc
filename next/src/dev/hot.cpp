@@ -9,8 +9,7 @@
 #include <set>
 #include <unordered_map>
 
-#include <sys/socket.h>
-#include <unistd.h>
+#include "platform/socket.h"
 
 #include "frontend/lexer.h"
 #include "frontend/modules.h"
@@ -314,18 +313,18 @@ Clock::time_point gAsked;
 
 void send(const std::string& s) {
   for (std::size_t at = 0; at < s.size();) {
-    const ssize_t n = write(gFd, s.data() + at, s.size() - at);
+    const long n = zn::plat::sockWrite(gFd, s.data() + at, s.size() - at);
     if (n <= 0) return;   // zinc dev is gone: it restarts or ends the program itself
     at += static_cast<std::size_t>(n);
   }
 }
 
-void frameEnd() {
+[[maybe_unused]] void frameEnd() {   // unused without the graphics host (ZN_HOST_GFX off: the headless Windows build)
   if (!gReady) { gReady = true; send("hot ready\n"); }
   if (!gReply.empty()) { send(gReply); gReply.clear(); }
   if (gNext) return;
   char buf[256];
-  for (ssize_t n; (n = recv(gFd, buf, sizeof buf, MSG_DONTWAIT)) > 0;) gIn.append(buf, static_cast<std::size_t>(n));
+  for (long n; (n = zn::plat::sockReadNow(gFd, buf, sizeof buf)) > 0;) gIn.append(buf, static_cast<std::size_t>(n));
   const std::size_t nl = gIn.find('\n');
   if (nl == std::string::npos) return;
   const std::string line = gIn.substr(0, nl);

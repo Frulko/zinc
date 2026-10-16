@@ -5,8 +5,10 @@
 #include <cstdio>
 #include <fstream>
 #include <map>
-#include <sys/resource.h>
+#ifndef _WIN32
 #include <sys/time.h>
+#endif
+#include "platform/platform.h"
 
 #include "vm/vm.h"
 #include "zn/host.h"
@@ -28,7 +30,7 @@ struct Sampler {
 };
 Sampler g;
 
-void onProf(int) {
+[[maybe_unused]] void onProf(int) {   // no SIGPROF on Windows
   Machine* m = g.m;
   if (!m || !m->curFn) return;
   if (g.used + 66 > g.buf.size()) { ++g.dropped; return; }
@@ -50,6 +52,10 @@ void startTimer(Machine& m, const void* data) {
   g.m = &m;
   m.trackFn = true;
   g.hz = o->hz > 0 ? o->hz : 1000;
+#ifdef _WIN32
+  std::fprintf(stderr, "zinc profile: no sampling on Windows yet (no SIGPROF): the report has no samples\n");
+  // ponytail: a sampler thread that suspends the main thread (SuspendThread, GetThreadContext) when zinc profile is ported
+#else
   struct sigaction sa;
   sa.sa_handler = onProf;
   sigemptyset(&sa.sa_mask);
@@ -59,12 +65,15 @@ void startTimer(Machine& m, const void* data) {
   it.it_interval.tv_sec = 0; it.it_interval.tv_usec = 1000000 / g.hz;
   it.it_value = it.it_interval;
   setitimer(ITIMER_PROF, &it, nullptr);
+#endif
 }
 
 void stopTimer(Machine&, const void*) {
+#ifndef _WIN32
   itimerval off{};
   setitimer(ITIMER_PROF, &off, nullptr);
   signal(SIGPROF, SIG_IGN);
+#endif
   g.m = nullptr;
 }
 
@@ -152,13 +161,7 @@ void finishMem(Machine& m, const void* data) {
     ++leaked;
     s.perClass[o->cls->id].payloadBytes += m.payloadBytes(o);  // survivors count their storage too
   }
-  rusage ru{};
-  getrusage(RUSAGE_SELF, &ru);
-#ifdef __APPLE__
-  double peakRssMb = static_cast<double>(ru.ru_maxrss) / (1024.0 * 1024.0);
-#else
-  double peakRssMb = static_cast<double>(ru.ru_maxrss) / 1024.0;
-#endif
+  double peakRssMb = static_cast<double>(zn::plat::maxRssBytes()) / (1024.0 * 1024.0);
   // what the loaded groups of zinc:assets hold (ZN-436): data outside the objects counted here, freed by unloadGroup
   double assetsPeak = 0, assetsLeft = 0;
   if (zn::host::hostSys) {
