@@ -360,10 +360,13 @@ static bool loadManifestPermissions(const char* path) {
   return true;
 }
 
+// zinc dev's hot mode (Fast Refresh, ZN-742): asked for with ZINC_HOT=1, never on by itself in zinc run, build, export or pack.
+static bool hotMode() { const char* h = std::getenv("ZINC_HOT"); return h && std::strcmp(h, "1") == 0; }
+
 static bool loadChecked(const char* path, zn::frontend::Program& prog, zn::frontend::Checked& checked) {
   if (!loadManifestPermissions(path)) return false;
   installNativeProvider(path);
-  { zn::log::Phase ph("build", "read and parse"); prog = zn::frontend::loadProgram(path, readFile, gStrict, gRoot + "/../lib/std"); }
+  { zn::log::Phase ph("build", "read and parse"); prog = zn::frontend::loadProgram(path, readFile, gStrict, gRoot + "/../lib/std", hotMode()); }
   gNativeFallbacks = prog.nativeFallbacks;
   if (zn::log::on("build", zn::log::Info)) zn::log::write("build", zn::log::Info, std::to_string(prog.files.size()) + " files; target " + (gBuildTarget.empty() ? zn::tc::pluginTarget() : gBuildTarget) + ", profile " + (gProfile ? gProfile->name : std::string("host")) + ", layout " + (zn::frontend::uiLayout().empty() ? std::string("classic") : zn::frontend::uiLayout()));
   auto diags = prog.diags;
@@ -459,6 +462,13 @@ static int compileToZbc(const char* path, zn::zbc::Module& out) {
       { zn::log::Phase ph("build", "reference counting"); zn::ir::insertRc(low.module); }
       std::string badIr = zn::ir::verify(low.module);
       if (!badIr.empty()) { std::fprintf(stderr, "internal error: invalid IR after reference counting: %s\n", badIr.c_str()); return 3; }
+      if (const char* keys = std::getenv("ZN_DUMP_HOT_KEYS"); keys && low.module.hot)   // hot mode's stable keys (ZN-742), by index as the ZBC has them
+        if (FILE* kf = std::fopen(keys, "w")) {
+          for (const auto& f : low.module.functions) std::fprintf(kf, "function %s\n", f.key.c_str());
+          for (const auto& c : low.module.classes) std::fprintf(kf, "class %s\n", c.key.c_str());
+          for (const auto& g : low.module.globals) std::fprintf(kf, "global %s\n", g.key.c_str());
+          std::fclose(kf);
+        }
       zn::log::Phase emitPhase("build", "emit ZBC");
       auto em = zn::zbc::emit(low.module);
       for (const auto& e : em.errors) std::fprintf(stderr, "%s: %s\n", path, e.c_str());
@@ -861,7 +871,7 @@ static std::string stampOf(const fs::path& f) {   // one stat (a cached run chec
 static std::string signature(const std::string& entry, const std::vector<fs::path>& extra) {
   std::string s = entry + " " + kVersionText + " " + stampOf(zn::tc::executablePath());
   for (const fs::path& f : extra) s += " " + stampOf(f);
-  for (const char* v : {"CC", "CXX", "ZINC_DISPLAY", "ZINC_NATIVE", "ZINC_PLUGIN_CC", "ZINC_SIZE", "ZINC_TEXT", "ZINC_UI_LAYOUT", "ZINC_WEBGL", "ZINC_VERIFY_FIXED",
+  for (const char* v : {"CC", "CXX", "ZINC_DISPLAY", "ZINC_HOT", "ZINC_NATIVE", "ZINC_PLUGIN_CC", "ZINC_SIZE", "ZINC_TEXT", "ZINC_UI_LAYOUT", "ZINC_WEBGL", "ZINC_VERIFY_FIXED",
                         "ZN_AOT_PART_BYTES", "ZN_DEBUG_CLOSURES", "ZN_KEEP_SYMBOLS", "ZN_KEEP_UNREACHABLE", "ZN_NO_BORROW", "ZN_NO_LEND", "ZN_NO_OPT", "ZN_NO_UNROLL"})
     if (const char* e = std::getenv(v)) s += std::string(" ") + v + "=" + e;
   return s;

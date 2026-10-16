@@ -50,6 +50,13 @@ interface StringIterator<T> extends IteratorObject<T, BuiltinIteratorReturn, unk
 /** The strings of a tagged template, cooked: an array of strings (`raw` is not supported on the typed engines). */
 interface TemplateStringsArray extends Array<string> {}
 interface Disposable { [Symbol.dispose](): void; }
+/** import.meta: the module's own path, and `hot`, zinc dev's Fast Refresh (zinc:hot): set in hot mode only, `if (import.meta.hot) { ... }` is removed from every other build. */
+interface ImportMetaHot {
+  accept(cb?: () => void): void;
+  dispose(cb: () => void): void;
+  on(event: 'beforeUpdate' | 'afterUpdate', cb: (modules: string[]) => void): void;
+}
+interface ImportMeta { readonly url: string; readonly dirname: string; readonly filename: string; readonly hot?: ImportMetaHot; }
 type Partial<T> = { [P in keyof T]?: T[P] };
 type Readonly<T> = { readonly [P in keyof T]: T[P] };
 type Record<K extends keyof any, T> = { [P in K]: T };

@@ -1399,6 +1399,58 @@ std::string nearestFile(const std::string& path, bool ext) {
   return nearest(p.filename().string(), names);
 }
 
+// import.meta.hot (ZN-742, Vite's spelling) in the nodes of one file from `from` on; the parser left the marker __meta_hot. Outside hot mode
+// a statement that only runs with it (`if (import.meta.hot) ...`, `import.meta.hot?.accept()`, `import.meta.hot && ...`) goes with everything
+// in it, as Vite drops it from a build: the file compiles to the bytes it had without it, since the scans for the preludes see none of it either.
+// Any other use is null. In hot mode the test of such an `if` is true and every other use is the module's record, `__zinc_hot('<path>')`
+// (zinc:hot's hotModule). Returns the first such call, kNone when there is none.
+std::uint32_t hotMeta(Ast& A, std::uint32_t from, std::uint32_t file, const std::string& path, bool hot) {
+  auto marker = [&](std::uint32_t i) { return i != kNone && A.nodes[i].kind == N::Ident && A.nodes[i].text == "__meta_hot"; };
+  auto hotOnly = [&](auto&& self, std::uint32_t i) -> bool {   // the value is import.meta.hot, or needs it to be computed
+    if (marker(i)) return true;
+    const Node& x = A.nodes[i];
+    bool lead = x.kind == N::Member || x.kind == N::Call || x.kind == N::NonNull || (x.kind == N::Binary && x.text == "&&");
+    return lead && !x.kids.empty() && x.kids[0] != kNone && self(self, x.kids[0]);
+  };
+  auto drop = [&](auto&& self, std::uint32_t i) -> void {
+    if (i == kNone) return;
+    for (std::uint32_t k : A.nodes[i].kids) self(self, k);
+    A.nodes[i].kind = N::Empty; A.nodes[i].kids.clear(); A.nodes[i].text = {};
+  };
+  const auto end = static_cast<std::uint32_t>(A.nodes.size());
+  if (!hot)
+    for (std::uint32_t k = from; k < end; ++k) {
+      Node& x = A.nodes[k];
+      if (x.kind == N::ExprStmt && hotOnly(hotOnly, x.kids[0])) drop(drop, k);
+      else if (x.kind == N::If && hotOnly(hotOnly, x.kids[0])) {
+        const std::uint32_t alt = x.kids.size() > 2 ? x.kids[2] : kNone;
+        drop(drop, x.kids[0]); drop(drop, x.kids[1]);
+        if (alt == kNone) { drop(drop, k); continue; }
+        A.nodes[k] = A.nodes[alt];   // the else branch takes the statement's place
+        A.nodes[alt].kind = N::Empty; A.nodes[alt].kids.clear();
+      }
+    }
+  else
+    for (std::uint32_t k = from; k < end; ++k)
+      if (A.nodes[k].kind == N::If && marker(A.nodes[k].kids[0])) { A.nodes[A.nodes[k].kids[0]].kind = N::Literal; A.nodes[A.nodes[k].kids[0]].text = "true"; }
+  std::uint32_t used = kNone;
+  for (std::uint32_t k = from; k < end; ++k) {
+    if (!marker(k)) continue;
+    if (!hot) { A.nodes[k].kind = N::Literal; A.nodes[k].text = "null"; continue; }
+    std::string q = "'";
+    for (char c : path) { if (c == '\\' || c == '\'') q += '\\'; q += c; }
+    A.generated.push_back(q + "'");
+    const Node at = A.nodes[k];
+    A.nodes.push_back({N::Ident, at.start, at.end, "__zinc_hot", {}, 0, file});
+    A.nodes.push_back({N::String, at.start, at.end, A.generated.back(), {}, 0, file});
+    Node& call = A.nodes[k];
+    call.kind = N::Call; call.text = {};
+    call.kids = {static_cast<std::uint32_t>(A.nodes.size() - 2), static_cast<std::uint32_t>(A.nodes.size() - 1)};
+    if (used == kNone) used = k;
+  }
+  return used;
+}
+
 struct Loader {
   Program& prog;
   const ReadFile& read;
@@ -1407,6 +1459,8 @@ struct Loader {
   std::vector<std::uint32_t> flat;             // the program's statements in module order
   std::map<std::string, std::string> dirSpelling;   // canonical directory -> the first spelling that reached it
   std::string stdRoot;                         // lib/std: where 'zinc:ui' and the other standard modules live
+  bool hot = false;                            // hot mode (zinc dev's Fast Refresh, ZN-742)
+  std::uint32_t hotModule = kNone;             // then zinc:hot, loaded before every other module
   std::map<std::string, std::string> plugins;  // 'zinc:lottie' -> plugins/lottie/index.ts (read from plugin.json files)
   std::set<std::string> pluginDirsRead;
   std::map<std::string, std::pair<std::string, std::vector<std::string>>> pluginNeeds;   // entry path -> (plugin name, plugin.json "requires")
@@ -1540,7 +1594,7 @@ struct Loader {
       if (spec == "zinc:platform") return load(spec, platformModuleSource((std::filesystem::path(stdRoot.empty() ? "." : stdRoot).parent_path().parent_path() / "targets" / "capabilities.json").string()));
       if (const char* src = hostModuleSource(spec)) return load(spec, src);
       static const std::map<std::string, std::string> kStd = {{"zinc:ui", "ui.ts"}, {"zinc:gl", "gl.ts"}, {"zinc:web", "web.ts"}, {"zinc:web/fetch", "fetch.ts"}, {"zinc:subtle", "subtle.ts"}, {"zinc:ui/solid", "solid.ts"}, {"zinc:ui/react", "react.ts"}, {"zinc:ui/kit", "kit/index.ts"}, {"zinc:icons", "icons.tsx"}, {"zinc:ui/animated", "animated.ts"}, {"zinc:react-native", "react-native.tsx"}, {"zinc:react-native/linking", "react-native-linking.ts"}, {"zinc:ui/nuxt", "nuxt/index.ts"},
-                                                              {"zinc:signals", "signals.ts"}, {"zinc:path", "path.ts"}, {"zinc:assert", "assert.ts"}, {"zinc:system", "system/index.ts"},
+                                                              {"zinc:signals", "signals.ts"}, {"zinc:path", "path.ts"}, {"zinc:assert", "assert.ts"}, {"zinc:hot", "hot.ts"}, {"zinc:system", "system/index.ts"},
                                                               {"zinc:system/notification", "system/notification.ts"}, {"zinc:system/menu", "system/menu.ts"}, {"zinc:system/tray", "system/tray.ts"}, {"zinc:system/dialog", "system/dialog.ts"}, {"zinc:system/window", "system/window.ts"},
                                                               {"zinc:system/shortcut", "system/shortcut.ts"}, {"zinc:system/instance", "system/instance.ts"}, {"zinc:system/deeplink", "system/deeplink.ts"}, {"zinc:system/autostart", "system/autostart.ts"},
                                                               {"zinc:system/dock", "system/dock.ts"}, {"zinc:system/power", "system/power.ts"}, {"zinc:system/clipboard", "system/clipboard.ts"}, {"zinc:system/opener", "system/opener.ts"}, {"zinc:system/update", "system/update.ts"}};
@@ -1816,11 +1870,14 @@ struct Loader {
       for (auto& [k, v] : pr.ast.tparams) { auto& d = A.tparams[k + off]; for (std::uint32_t x : v) d.push_back(x + off); }
       for (auto& [k, v] : pr.ast.targs) { auto& d = A.targs[k + off]; for (std::uint32_t x : v) d.push_back(x + off); }
       if (auto sp = specOf.find(path); sp != specOf.end()) padToSpec(A, pr.ast.root + off, sp->second);
+      const std::uint32_t hotUse = hotMeta(A, off, fi, path, hot);
+      if (fi == 0 && hot) hotModule = resolve(0, kNone, "'zinc:hot'");
       if (fi == 0 && !loaderStage().source.empty()) load(loaderStage().path, loaderStage().source);   // zinc.json "loading" (ZN-447): before any module of the entry
       ModuleInfo mod;
       std::vector<std::pair<std::string, std::uint32_t>> namespaces;  // `import * as ns` of this module: alias, module
       mod.path = path;
       mod.file = fi;
+      if (hotUse != kNone && hotModule != kNone) mod.imports.push_back({hotModule, "hotModule", "__zinc_hot", hotUse});
       for (std::uint32_t st : std::vector<std::uint32_t>(A.nodes[pr.ast.root + off].kids)) {
         const Node& x = A.nodes[st];
         switch (x.kind) {
@@ -3206,7 +3263,7 @@ bool needsTdz(const Ast& A) {
 
 }  // namespace
 
-Program loadProgram(const std::string& entry, const ReadFile& read, bool strict, const std::string& stdRoot) {
+Program loadProgram(const std::string& entry, const ReadFile& read, bool strict, const std::string& stdRoot, bool hot) {
   Program p;
   std::string text;
   if (!read(entry, text)) {   // the file and the closest one beside it (ZN-711)
@@ -3227,7 +3284,9 @@ Program loadProgram(const std::string& entry, const ReadFile& read, bool strict,
   }
   Loader L(p, read);
   L.stdRoot = stdRoot;
+  L.hot = hot;
   L.load(entry, std::move(text));
+  p.ast.hotModule = L.hotModule;
   bool usesGfx = false;
   for (const SourceFile& f : p.files) if (f.path == "zinc:gfx" || f.path == "zinc:sys") usesGfx = true;  // (the frame loop is only entered by onFrame; zinc:sys needs the clock of the async prelude)
   if (p.diags.empty()) {  // in a file without any/unknown/JSON.parse nothing tells undefined from null: it is null (`T | undefined`, `x !== undefined`, `m.get(k)`); a file that uses Dyn keeps the Dyn undefined
@@ -3303,6 +3362,7 @@ Program loadProgram(const std::string& entry, const ReadFile& read, bool strict,
       }
       std::uint32_t call = p.ast.nodes[pr.ast.root + off].kids[0];
       L.flat.push_back(call);
+      p.ast.runLoop = call;
       if (!p.ast.modules.empty()) p.ast.modules.back().stmts.push_back(call);
     }
   }
@@ -3341,6 +3401,7 @@ std::string_view stdModuleFile(std::string_view spec) {
   if (spec == "zinc:signals") return "signals.ts";
   if (spec == "zinc:path") return "path.ts";
   if (spec == "zinc:assert") return "assert.ts";
+  if (spec == "zinc:hot") return "hot.ts";
   return "";
 }
 

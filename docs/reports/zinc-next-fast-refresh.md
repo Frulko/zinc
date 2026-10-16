@@ -1,6 +1,7 @@
 # Fast Refresh for `zinc dev` (ZN-742): research and design
 
-Status: research, 2026-10-16. Nothing built. Recommends the design below and a split of ZN-742 into three subtasks.
+Status: research, 2026-10-16. Recommends the design below and a split of ZN-742 into three subtasks. Built so far: step 1
+(ZN-742.01), see §9.
 
 Owner request: on a save, recompile only what changed and swap it into the running program (same process, window and
 DevTools); components re-render while the state of the modules that did not change is kept; React Native's rules for
@@ -306,3 +307,37 @@ Lines for `next/backlog/later.md`:
 - ZN-742: re-install baked fonts and images live instead of restarting.
 - ZN-742: a parse cache for unchanged files and compiling on a thread, to bring a save under 200 ms.
 - ZN-742: Fast Refresh for React-mode components (`_rc`) beyond the root re-mount.
+
+## 9. Built: the hot compile mode (ZN-742.01)
+
+- **The switch.** `ZINC_HOT=1` (read by `loadChecked` in `next/src/main.cpp`, part of the build-cache signature) turns on hot mode.
+  Nothing sets it yet: `zinc dev` will set it on its child in ZN-742.02, together with the swap. `zinc run`, `build`, `export` and
+  `pack` never set it.
+- **`import.meta.hot`.** The parser accepts it and leaves the marker `__meta_hot`. `hotMeta` in `frontend/modules.cpp` handles it
+  per file, right after parsing:
+  - outside hot mode, a statement that only runs with it (`if (import.meta.hot) ...`, `import.meta.hot?.x()`, `import.meta.hot && ...`)
+    is turned into empty nodes with everything in it, so the prelude scans do not see its timers or promises; another use is `null`;
+  - in hot mode the `if` test is `true` and every other use is `__zinc_hot('<path>')`, bound by an import the loader adds to the module.
+- **`zinc:hot`.** `lib/std/hot.ts` is loaded first in hot mode only. It holds the `HotModule` records (`accept`, `dispose`, `on`) and
+  `beforeUpdate(modules)` and `afterUpdate(modules)` for the swap. `lib/zinc.d.ts` types `ImportMeta.hot` for editors and the oracle.
+- **The lowering** (`ir/lower.cpp`, when `Ast::hotModule` is set):
+  - every module's statements become `@init:<path>`;
+  - main runs the prelude, then calls the inits in order, then `__runLoop()`; the loader still appends that call to the last module
+    for the checker (`Ast::runLoop`), and the lowering moves it into main;
+  - every top-level variable is a global, so the state outlives the init and has a key;
+  - the inits and zinc:hot's functions are `Function::entry`, so they are never inlined or dropped.
+- **Keys** (`ir.h`, `Module::hot`): `Function::key`, `Class::key` and `Global::key` move with their entries through the optimiser, so
+  index `i` of the optimised module is index `i` of the ZBC. `ZN_DUMP_HOT_KEYS=<file>` writes them in that order. On the desktop-app
+  (2755 keys), no class or global key is shared, and a lambda added to one file moves no key of another file.
+  - Lambdas are `<path>#<offset>`, plus ` in <instance>` for a lambda cloned into a generic instance (its name and signature, without
+    the type id of a generated helper), plus `.n` when a desugaring made several at one offset (an async method).
+  - Records and interfaces take the file of the declaration that names them.
+- **Proof** (`tests/t0/hot_off.sh`, 6 s):
+  - the non-hot ZBC of a program with hot blocks equals the ZBC of the program without them;
+  - the non-hot ZBC of the desktop-app has no `@init:` and no zinc:hot function, and the hot one has both;
+  - the hot keys are unique and stable;
+  - a hot run prints the same as a non-hot one;
+  - a `zinc build` binary has no HMR string or symbol.
+- **Non-hot output is unchanged.** 48 programs (the conformance corpus, hero, breakout, nuxt-ui, lang, modules-showcase,
+  rn-showcase and the desktop-app) compile to byte-identical ZBC before and after. The hot desktop-app renders the same frame 10 as
+  the non-hot one.

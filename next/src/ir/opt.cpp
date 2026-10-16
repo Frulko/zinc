@@ -111,7 +111,7 @@ void inlineAt(Function& f, std::size_t bi, std::size_t k, const Function& g, Typ
 bool inlineRound(Module& m) {
   std::vector<Function> snap = m.functions;  // callees as they were at the start of the round
   std::vector<bool> ok(snap.size());
-  for (std::size_t g = 1; g < snap.size(); ++g) ok[g] = size(snap[g]) <= kInlineMaxInsts && returns(snap[g]) && !callsItself(snap[g], static_cast<std::uint32_t>(g));
+  for (std::size_t g = 1; g < snap.size(); ++g) ok[g] = !snap[g].entry && size(snap[g]) <= kInlineMaxInsts && returns(snap[g]) && !callsItself(snap[g], static_cast<std::uint32_t>(g));
   bool changed = false;
   const TypeId voidT = m.voidT();
   for (std::size_t fi = 0; fi < m.functions.size(); ++fi) {
@@ -522,6 +522,7 @@ void removeUnreachable(Module& m) {
   live[0] = 1;
   auto reach = [&](std::uint32_t fn) { if (fn < nf && !live[fn]) { live[fn] = 1; work.push_back(fn); } };
   for (std::uint32_t k = 1; k < nf; ++k) if (m.functions[k].name == kAppStepFunction) reach(k);   // called by name by an app shell (ZN-620)
+  for (std::uint32_t fn = 1; fn < nf; ++fn) if (m.functions[fn].entry) reach(fn);   // hot mode: what the host calls
   auto build = [&](std::uint32_t c) {
     if (c >= built.size() || built[c]) return;
     built[c] = 1;

@@ -95,6 +95,8 @@ struct Function {
   std::vector<Block> blocks;     // blocks[0] is the entry
   std::vector<TypeId> valueTypes;
   bool library = false;          // code of the engine's own modules (<prelude>, zinc:*): exempt from the fixed-point check, it counts in f64
+  bool entry = false;            // hot mode: called by the host (a module's init, zinc:hot's hooks), so never inlined nor dropped
+  std::string key;               // hot mode (ZN-742): the stable key, see `Module::hot`
 };
 
 struct Field { std::string name; TypeId type; };
@@ -119,8 +121,9 @@ struct Class {
   std::vector<std::uint32_t> implements;
   std::vector<std::uint32_t> selectors;
   std::vector<std::uint32_t> vtable;
+  std::string key;   // hot mode: the stable key
 };
-struct Global { std::string name; TypeId type; bool own = false; };   // own: a top-level variable of the program's code (a debug build shows it)
+struct Global { std::string name; TypeId type; bool own = false; std::string key = {}; };   // own: a top-level variable of the program's code (a debug build shows it); key: hot mode
 
 struct Native { std::string module, name, sig; };  // an export of a native module the program calls (include/zn/native_sig.h)
 
@@ -134,6 +137,13 @@ struct Module {
   std::vector<Function> functions;  // functions[0] is @main, the top-level code
   bool fixedPoint = false;          // compiled for a fixed-point profile: verify() refuses f64 arithmetic and comparisons in the program's own functions (ZN-121)
   bool debug = false;               // zinc debug (ZN-371.01): DbgLine and DbgVar in the functions, no inlining
+  // Hot mode (zinc dev's Fast Refresh, ZN-742, docs/reports/zinc-next-fast-refresh.md): main calls one `@init:<path>` function per module, then
+  // the event loop, and every function, class and global has a `key` that the next compile gives it again when it did not change (indices do
+  // not stay: one added lambda renumbers the rest): `<path>::<name>` for what a file declares (classes with their type arguments, top-level
+  // variables, functions and methods, `<path>::thunk:<name>` for a function used as a value), `<path>#<offset>[ in <generic instance>]` for
+  // a lambda, and `::<name>` for the structural classes (boxes, cells, function interfaces, unions). Never encoded: the swap reads it from
+  // this module, and refuses to map a key that two entries share.
+  bool hot = false;
   std::vector<std::string> dbgNames;  // the names of the locals DbgVar writes
 
   TypeId intern(const Type& t);

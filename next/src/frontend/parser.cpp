@@ -649,11 +649,11 @@ struct Parser {
         return mk(N::Template, st, prevEnd(), {}, std::move(parts));
       }
       case Tok::Keyword:
-        if (isKw("import") && isP(".", 1) && isId("meta", 2) && isP(".", 3) && at(4).kind == Tok::Ident) {  // import.meta.url, .dirname, .filename: the loader turns the marker into the module's string
+        if (isKw("import") && isP(".", 1) && isId("meta", 2) && isP(".", 3) && at(4).kind == Tok::Ident) {  // import.meta.url, .dirname, .filename: the loader turns the marker into the module's string; .hot: see hotMeta in modules.cpp
           std::string_view prop = txt(at(4));
-          if (prop != "url" && prop != "dirname" && prop != "filename") unsupported("import.meta members other than url, dirname and filename");
+          if (prop != "url" && prop != "dirname" && prop != "filename" && prop != "hot") unsupported("import.meta members other than url, dirname, filename and hot");
           i += 5;
-          return mk(N::Ident, st, prevEnd(), prop == "url" ? "__meta_url" : prop == "dirname" ? "__meta_dirname" : "__meta_filename");
+          return mk(N::Ident, st, prevEnd(), prop == "url" ? "__meta_url" : prop == "dirname" ? "__meta_dirname" : prop == "hot" ? "__meta_hot" : "__meta_filename");
         }
         if (isKw("import") && isP("(", 1)) fail(kZDynamicImport, st, "");
         if (isKw("this")) { ++i; return mk(N::This, st, prevEnd()); }

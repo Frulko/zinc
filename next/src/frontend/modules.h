@@ -45,7 +45,9 @@ extern std::function<bool(const std::string& module)> gNativePreferred;
 // Whether the module's native code wins even over an x.next.ts stand-in in "auto" mode: outside deterministic runs, for a plugin whose manifest says `"live": true` (a real video decoder).
 extern std::function<bool(const std::string& module)> gNativeLive;
 
-Program loadProgram(const std::string& entry, const ReadFile& read, bool strict = false, const std::string& stdRoot = "");
+// `hot`: zinc dev's hot mode (ZINC_HOT=1, ZN-742): zinc:hot is loaded first and import.meta.hot is each module's record; in any other build
+// the statements that only run with import.meta.hot are removed.
+Program loadProgram(const std::string& entry, const ReadFile& read, bool strict = false, const std::string& stdRoot = "", bool hot = false);
 
 // The source (Zinc, over the __host_* calls) of a module the host provides ('zinc:gfx', 'zinc:sys', 'zinc:fs'...); null for any other spec.
 const char* builtinModuleSource(std::string_view spec);

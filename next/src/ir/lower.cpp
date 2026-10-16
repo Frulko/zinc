@@ -121,8 +121,24 @@ struct Lowering {
   std::vector<std::uint32_t> globalIndex;                         // per symbol
   std::unordered_map<std::string, std::uint32_t> stringIds;
 
-  struct Job { std::uint32_t fn; std::uint32_t node; std::uint32_t cls; bool ctor; std::uint32_t classNode; bool lambda = false; };
+  struct Job { std::uint32_t fn; std::uint32_t node; std::uint32_t cls; bool ctor; std::uint32_t classNode; bool lambda = false; std::uint32_t module = kNil; };   // module: a module's init (hot mode)
   std::vector<Job> jobs;
+  // Hot mode (ZN-742): each module's top-level code is its init function, which main calls in order after the prelude's statements
+  std::vector<std::vector<std::uint32_t>> initBody;   // per module: its statements (without the event loop's start)
+  std::vector<std::uint32_t> initFn, mainBody;
+  void hotInits() {
+    std::unordered_set<std::uint32_t> inModule;
+    for (std::uint32_t mi = 0; mi < a.modules.size(); ++mi) {
+      std::vector<std::uint32_t> body;
+      for (std::uint32_t st : a.modules[mi].stmts) { inModule.insert(st); if (st != a.runLoop) body.push_back(st); }
+      initBody.push_back(std::move(body));
+      std::uint32_t fi = addFunction("@init:" + a.modules[mi].path, {}, m.voidT());
+      m.functions[fi].entry = true;
+      initFn.push_back(fi);
+      jobs.push_back({fi, kNil, kNil, false, kNil, false, mi});
+    }
+    for (std::uint32_t st : n(a.root).kids) if (!inModule.count(st)) mainBody.push_back(st);   // the prelude
+  }
 
   Lowering(const frontend::Ast& ast, const frontend::Checked& ch) : a(ast), c(ch) {}
 
@@ -391,6 +407,7 @@ struct Lowering {
     std::uint32_t node = 0, fn = 0, cls = 0;
     std::vector<std::uint32_t> caps;   // captured symbols, in field order
     std::int32_t thisField = -1;       // field holding the captured `this`, if any
+    std::string scope;                 // the generic instance it was cloned into (`Box<i32>`), empty outside one: its hot key
   };
   std::unordered_map<std::uint32_t, LambdaInfo> lambdas;                          // FuncExpr (or closure-needing nested Function) node -> info
   std::unordered_set<std::uint32_t> closureFns;  // nested function declarations that use variables of the code around them: closures, like lambdas
@@ -488,6 +505,20 @@ struct Lowering {
     return cellOfType[t] = static_cast<std::uint32_t>(m.classes.size() - 1);
   }
 
+  std::string lambdaScope;   // collectLambdas: the generic instance being walked
+  // `Box<i32>`, or a function's name and signature: a helper the checker generates per type is named with a type id (`__dynTo1476`),
+  // which the next compile may give another type, so the id is left out and the signature tells the helpers apart
+  std::string instanceName(std::uint32_t inst) const {
+    if (n(inst).kind == N::Class) return c.objs[c.types[c.nodeType[inst]].obj].name;
+    auto f = funcOfNode.find(inst);
+    if (f == funcOfNode.end()) return std::string(n(inst).text);
+    const Function& fn = m.functions[f->second];
+    std::string s = fn.name;
+    if (s.rfind("__", 0) == 0) while (!s.empty() && std::isdigit(static_cast<unsigned char>(s.back()))) s.pop_back();
+    s += "(";
+    for (ValueId p : fn.params) s += typeName(m, fn.valueTypes[p]) + (p == fn.params.back() ? "" : ", ");
+    return s + "): " + typeName(m, fn.ret);
+  }
   void collectLambdas(std::uint32_t i, std::uint32_t curObj) {
     if (i == kNil) return;
     const Node& x = n(i);
@@ -498,6 +529,7 @@ struct Lowering {
       LambdaInfo li;
       li.node = i;
       li.caps = capsOf(i);
+      li.scope = lambdaScope;
       Class cl;
       cl.name = "lambda" + std::to_string(lambdas.size());
       if (auto ln = c.lambdaNames.find(i); ln != c.lambdaNames.end()) cl.name += ":" + ln->second;  // the runtime name of the function
@@ -745,6 +777,7 @@ struct Lowering {
       for (std::uint32_t inst : c.instances) walk(inst, 0, false);
     }
     for (std::uint32_t s = 0; s < c.syms.size(); ++s) {
+      if (m.hot && topLevel[s]) global[s] = 1;   // hot mode: a module's state outlives its init, and the swap keeps it by key
       if (!global[s]) continue;
       m.globals.push_back({std::string(c.syms[s].name), irType(c.syms[s].type)});
       globalIndex[s] = static_cast<std::uint32_t>(m.globals.size() - 1);
@@ -760,12 +793,16 @@ struct Lowering {
     collectClassNodes(a.root);
     for (std::uint32_t inst : c.instances) collectClassNodes(inst);
     addFunction("main", {}, m.voidT());  // function 0
+    if (m.hot) hotInits();
     collectTopVars();
     computeClosureFns();
     collectFunctions(n(a.root).kids, "");
     collectFunctions(c.instances, "");  // monomorphised generic functions and classes
+    if (m.hot)   // zinc:hot's functions: the swap calls them
+      for (std::uint32_t st : a.modules[a.hotModule].stmts)
+        if (auto f = funcOfNode.find(st); f != funcOfNode.end()) m.functions[f->second].entry = true;
     collectLambdas(a.root, kNil);
-    for (std::uint32_t inst : c.instances) collectLambdas(inst, kNil);
+    for (std::uint32_t inst : c.instances) { lambdaScope = instanceName(inst); collectLambdas(inst, kNil); }
     buildThunks();
     jobs.insert(jobs.begin(), Job{0, kNil, kNil, false, kNil});
     analyze();
@@ -774,6 +811,55 @@ struct Lowering {
     lowerAll();
     for (Class& cl : m.classes)  // selectors may have appeared since a vtable was filled
       if (!cl.isInterface && !cl.isAbstract) cl.vtable.resize(m.selectors.size(), kNil);
+    if (m.hot) assignKeys();
+  }
+
+  // Hot mode: the stable keys (ir.h, Module::hot)
+  void assignKeys() {
+    std::unordered_map<std::uint32_t, std::string> pathOfFile;
+    for (const frontend::ModuleInfo& mi : a.modules) pathOfFile[mi.file] = mi.path;
+    auto where = [&](std::uint32_t node) -> std::string {
+      auto it = node == kNil ? pathOfFile.end() : pathOfFile.find(n(node).file);
+      return it == pathOfFile.end() ? "<prelude>" : it->second;
+    };
+    std::unordered_map<std::uint32_t, std::uint32_t> declOfObj;   // interfaces and records: the declaration that names them
+    for (const frontend::Symbol& sy : c.syms)
+      if (sy.kind != SymKind::Var && sy.kind != SymKind::Param && sy.kind != SymKind::Func && sy.decl != kNil && sy.type != frontend::kNoType && c.types[sy.type].k == frontend::TK::Object)
+        declOfObj.emplace(c.types[sy.type].obj, sy.decl);
+    auto whereObj = [&](std::uint32_t o) {
+      if (auto cn = classNodeOfObj.find(o); cn != classNodeOfObj.end()) return where(cn->second);
+      if (c.objs[o].genericSym != kNil) return where(c.syms[c.objs[o].genericSym].decl);
+      auto d = declOfObj.find(o);
+      return d == declOfObj.end() ? std::string() : where(d->second);
+    };
+    for (std::uint32_t o = 0; o < c.objs.size(); ++o)
+      if (classOfObj[o] != kNil) m.classes[classOfObj[o]].key = whereObj(o) + "::" + m.classes[classOfObj[o]].name;
+    std::map<std::uint32_t, const LambdaInfo*> byNode;   // the lambdas a desugaring made at one offset (an async method's) are told apart by their order
+    for (auto& [node, li] : lambdas) byNode[node] = &li;
+    std::unordered_map<std::string, int> seen;
+    for (auto& [node, li] : byNode) {
+      std::string k = where(node) + "#" + std::to_string(n(node).start) + (li->scope.empty() ? "" : " in " + li->scope);
+      if (int nth = seen[k]++) k += "." + std::to_string(nth);
+      m.classes[li->cls].key = k;
+    }
+    auto thunk = [&](std::pair<std::uint32_t, std::uint32_t> th, const std::string& key) { m.classes[th.first].key = key; m.functions[th.second].key = key + "$call"; };
+    for (auto& [sym, th] : thunkOfSym) thunk(th, where(c.syms[sym].decl) + "::thunk:" + std::string(c.syms[sym].name));
+    for (auto& [k, th] : thunkOfStatic) {   // k is "<object>:<method>"
+      const auto o = static_cast<std::uint32_t>(std::stoul(k));
+      thunk(th, whereObj(o) + "::thunk:" + c.objs[o].name + "." + k.substr(k.find(':') + 1));
+    }
+    for (Class& cl : m.classes) if (cl.key.empty()) cl.key = "::" + cl.name;
+    for (std::uint32_t s = 0; s < c.syms.size(); ++s) if (globalIndex[s] != kNil) m.globals[globalIndex[s]].key = where(c.syms[s].decl) + "::" + std::string(c.syms[s].name);
+    for (auto& [k, g] : staticGlobal) m.globals[g].key = whereObj(static_cast<std::uint32_t>(std::stoul(k))) + "::" + m.globals[g].name;   // "Class.field"
+    for (Global& g : m.globals) if (g.key.empty()) g.key = "::" + g.name;
+    for (std::uint32_t fi = 0; fi < m.functions.size(); ++fi) {
+      Function& f = m.functions[fi];
+      if (!f.key.empty()) continue;
+      auto nd = nodeOfFunc.find(fi);
+      if (nd == nodeOfFunc.end()) f.key = f.name;   // main, the inits (`@init:<path>`), getters
+      else if (auto li = lambdas.find(nd->second); li != lambdas.end()) f.key = m.classes[li->second.cls].key;
+      else f.key = where(nd->second) + "::" + f.name;
+    }
   }
 };
 
@@ -2416,7 +2502,7 @@ struct Lowering::FnLower {
       }
     }
     const std::vector<std::uint32_t>* body = nullptr;
-    if (job.node == kNil) body = &n(a.root).kids;
+    if (job.node == kNil) body = job.module != kNil ? &L.initBody[job.module] : m.hot ? &L.mainBody : &n(a.root).kids;
     else if (fn->kind != N::Class && fn->kids[1] != kNil) body = &n(fn->kids[1]).kids;
     std::size_t idx = 0;
     if (job.ctor) {  // [super(...)] [parameter properties] field initialisers, then the rest of the body
@@ -2448,6 +2534,10 @@ struct Lowering::FnLower {
       }
     }
     if (body) stmtsFrom(*body, idx);
+    if (m.hot && job.fn == 0) {   // hot mode: main runs the prelude, then each module's init, then the event loop
+      for (std::uint32_t init : L.initFn) emit(IrOp::Call, m.voidT(), {}, 0, 0, init);
+      if (a.runLoop != kNil) stmt(a.runLoop);
+    }
     if (open()) {
       if (ty(f.ret).k == Type::K::Void) terminate(IrOp::Ret, {}, {});
       else terminate(IrOp::Unreachable, {}, {});
@@ -2460,12 +2550,12 @@ struct Lowering::FnLower {
 
 void Lowering::lowerAll() {
   m.fixedPoint = (frontend::numberAlias() == NumK::fx12 || frontend::numberAlias() == NumK::fx16) && std::getenv("ZINC_VERIFY_FIXED") != nullptr;   // opt-in audit (tests/t1/fixed_verify.sh): some programs legitimately count in f64 (Date, Number.isNaN, native doubles)
-  auto libraryNode = [&](std::uint32_t node) { return libraryFile(node == kNil ? kNil : a.nodes[node].file); };
   for (const Job& j : jobs) {
     FnLower fl(*this, j);
-    fl.dbg = m.debug && (j.node == kNil || !notProgram(a.nodes[j.node].file)) && m.functions[j.fn].name.rfind("__", 0) != 0;   // the engine's own code runs without stops
+    const std::uint32_t file = j.module != kNil ? a.modules[j.module].file : j.node != kNil ? a.nodes[j.node].file : kNil;   // kNil: main
+    fl.dbg = m.debug && (file == kNil || !notProgram(file)) && m.functions[j.fn].name.rfind("__", 0) != 0;   // the engine's own code runs without stops
     fl.run();
-    m.functions[j.fn].library = libraryNode(j.node) || m.functions[j.fn].name.rfind("__", 0) == 0;   // the checker's generated helpers (__group, __jsonNum...) are named __*
+    m.functions[j.fn].library = libraryFile(file) || m.functions[j.fn].name.rfind("__", 0) == 0;   // the checker's generated helpers (__group, __jsonNum...) are named __*
   }
 }
 
@@ -2474,6 +2564,7 @@ void Lowering::lowerAll() {
 LowerResult lower(const frontend::Ast& ast, const frontend::Checked& checked, std::string_view, bool debug) {
   Lowering l(ast, checked);
   l.m.debug = debug;
+  l.m.hot = ast.hotModule != kNil;
   for (const frontend::NativeDecl& n : ast.natives) l.m.natives.push_back({n.module, n.name, n.sig});
   l.run();
   return {std::move(l.m), std::move(l.diags)};
