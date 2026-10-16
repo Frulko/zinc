@@ -1,13 +1,16 @@
-live - - light 130 c4235795912e12e2
-dark - - dark 60 9b4e175aa28c4571
-cover cover - light 60 9950cc4fa8ca9179
-mirror mirror - light 60 fd7164ddfddc4795
-bright bright - light 60 a18e0453c2836fea
-contrast contrast - light 60 3b333a1c73f2309d
-format format - light 270 056332a243dd0962
-viewer viewer - light 80 fad928d0c0e15689
-delete delete - light 90 bb4cbd15c6867dbf
-denied - denied light 20 445950e7a82d5949
-retry retry denied light 60 c0395b779b1d044b
-allow - undetermined light 20 b6395b29d57522a4
-asked allow undetermined dark 60 f3a805e60e666892
+live - - light 130 1040x680 7b3350fd89287c96
+dark - - dark 60 1040x680 1607d12eed1d4dc9
+cover cover - light 60 1040x680 5feda26fbf373079
+mirror mirror - light 60 1040x680 747c71adb84cfbcd
+bright bright - light 60 1040x680 a13bde4533d6dd32
+contrast contrast - light 60 1040x680 597a86a062d43961
+format format - light 270 1040x680 cdcf0e49e2afb946
+viewer viewer - light 80 1040x680 595fb03e9d0b90e5
+delete delete - light 90 1040x680 ca562faefd7f128f
+denied - denied light 20 1040x680 445950e7a82d5949
+retry retry denied light 60 1040x680 7f565e505822780f
+allow - undetermined light 20 1040x680 b6395b29d57522a4
+asked allow undetermined dark 60 1040x680 791de07ba4c09a8a
+wide - - light 130 1440x900 e9f54b567312893a
+medium - - dark 130 800x600 cdb72bd075c65d74
+phone - - light 130 390x844 a7e65b5c7fc21d83

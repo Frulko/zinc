@@ -79,6 +79,10 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - The web export of programs that use asset groups, storage or device features no longer stops at start.
 - Opening, switching or closing a camera on macOS no longer freezes the window: the camera starts and stops off the main thread, and a new size
   or rate reuses the running camera instead of stopping and starting it.
+- `examples/webcam` fits any window: the bottom bar and the settings were cut off when the window was short or several cameras were listed;
+  the settings now scroll, long camera names end with "…", the HUD stays on the picture, and a phone in portrait gets the picture on top, the
+  settings under it and the shutter at the bottom. It no longer lags: it draws only when the camera sends a frame, lists the cameras after the
+  window shows, and a photo appears at once while its PNG is saved in the background.
 - A `truncate` text in a row that shrinks it (a long name beside a badge) ends with "…" at its final width instead of running over its neighbours.
 
 [Unreleased]: https://github.com/Frulko/zinc/compare/v0.1.1...HEAD

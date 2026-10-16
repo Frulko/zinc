@@ -5,7 +5,7 @@
 // happens (tests/t1/webcam_demo.sh), ZINC_SCHEME=dark the dark scheme.
 import { render } from 'zinc:ui/react';
 import * as ui from 'zinc:ui';
-import { quit } from 'zinc:gfx';
+import { quit, width, height } from 'zinc:gfx';
 import App, { shoot } from './App';
 import { session } from './session';
 
@@ -23,4 +23,10 @@ ui.onKey((e: ui.KeyEvent): void => {
   e.preventDefault();
 });
 
-render(App, 0x09090B, null);
+// the layout follows the window's shape (side column in landscape, sheet in portrait): a new size re-renders once
+let shownW = -1, shownH = -1;
+render(App, 0x09090B, (dt: number): void => {
+  if (width() === shownW && height() === shownH) return;
+  shownW = width(); shownH = height();
+  session.changed();
+});

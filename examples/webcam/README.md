@@ -10,6 +10,7 @@ last shots with a viewer, adjustments, the capture format, and the screens for t
 |---|---|
 | ![Dark scheme, mirrored, brightness raised](screenshots/dark.png) | ![The photo viewer](screenshots/viewer.png) |
 | ![The "Allow the camera" screen](screenshots/allow.png) | ![Camera access is off](screenshots/denied.png) |
+| ![A phone in portrait, dark: the settings under the picture, the shutter at the bottom](screenshots/phone.png) | |
 
 ## Run it
 
@@ -26,8 +27,32 @@ Security > Camera**; if you said no, the app shows that path and a **Retry** but
 first). An exported app (`zinc export --target macos`) asks in its own name: `"permissions": ["camera"]` in `zinc.json` puts the usage
 string and the entitlement into the `.app`.
 
-On Linux and the Raspberry Pi there is no question; your user needs the `video` group (`sudo usermod -aG video $USER`). Without any
-camera, or on another platform, the app opens the fake camera and says "this is a simulated camera".
+On Linux and the Raspberry Pi there is no question; your user needs the `video` group (`sudo usermod -aG video $USER`, then log out and
+in again): without it the app shows that command. On Android and iOS the system asks when you press **Allow camera**; the text of the
+question is `"permissionStrings"` in `zinc.json`. Without any camera, the app opens the fake camera and says "this is a simulated camera".
+
+`zinc.json` has an `app` id, so `zinc run` on a Mac starts it from a small app bundle whose Info.plist asks for the camera properly: an
+iPhone used as a webcam (Continuity Camera) is listed without AVFoundation's warning.
+
+## The layout
+
+The window decides the layout, at any size and as it is resized:
+
+| | |
+|---|---|
+| Landscape (a desktop window, a tablet or a phone on its side) | the picture with the shutter bar under it, the settings in a column on the right that scrolls when the window is short |
+| Portrait (a phone) | the picture on top, the settings in a scrolling sheet under it, the shutter at the bottom where a thumb reaches it, inside the safe areas |
+| Touch screen | larger buttons, steps and rows; no keyboard hints |
+
+Long camera names end with "…" and keep their position (front, back, external) visible; the HUD stays on the picture, never on the bars.
+
+## Speed
+
+Nothing slow runs where it would freeze the window. The window shows first, then the camera list and the saved photos load (one photo a
+frame). On macOS a camera starts and stops off the main thread, and a new size or rate reuses the running camera instead of stopping and
+starting it; clicking through sizes or cameras quickly ends on the last one asked. The preview is drawn only when the camera delivers a
+frame, so the app sleeps in between (30 previews a second at 30 fps, none of them re-rendering the React tree). A photo appears in the
+strip at once (a copy of the frame) and its PNG is encoded on another thread, then written.
 
 ## What it does
 
@@ -51,8 +76,8 @@ The photos go to `webcam/Photos/` next to the app's storage: `~/.zinc/webcam/Pho
 
 | File | Role |
 |---|---|
-| `src/main.tsx` | the keyboard shortcuts and `render` |
-| `src/App.tsx` | the screens: permission cards, the preview canvas and the HUD, the side panel, the viewer |
+| `src/main.tsx` | the keyboard shortcuts, `render`, a new layout when the window changes size |
+| `src/App.tsx` | the screens: permission cards, the preview canvas and the HUD, the settings (side column or sheet), the viewer |
 | `src/session.ts` | everything that talks to the camera and the disk: permission, camera list, open/close, options, fps, photos |
 | `src/web.tsx` | the getUserMedia page: `import 'zinc:camera'` then `navigator.mediaDevices.getUserMedia({ video: true })` |
 
@@ -62,6 +87,9 @@ The photos go to `webcam/Photos/` next to the app's storage: `~/.zinc/webcam/Pho
 input and checks a frame hash per state and the log of each session (`WEBCAM_LOG=1`). A test never asks the system for the camera:
 the permission screens are shown with `WEBCAM_DEMO_PERMISSION=undetermined|denied|granted`, which only replaces the first reading of
 the status (tests and screenshots; pressing **Allow camera** or **Retry** still asks the plugin, which grants the fake camera).
+The size classes have their own frames: 1440×900, 800×600 with four fake cameras (`ZINC_FAKE_CAMERA=4`) and a 390×844 phone with touch
+targets (`ZINC_POINTER=touch`). Each second of the log says how many previews were drawn and how many renders ran, and the test fails
+when the app draws faster than the camera or re-renders for a frame.
 The screenshots were taken the same way, at 1040×680 (`ZINC_SHOT=…png`, `ZINC_SCHEME=dark` for the dark one).
 
 `getUserMedia` does not ask for the camera the way a browser would: on a Mac where access was never given, `src/web.tsx` fails with

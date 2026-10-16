@@ -2,6 +2,10 @@
   "name": "webcam",
   "entry": "src/main.tsx",
   "scheme": "auto",
+  "app": {
+    "id": "dev.zinc.webcam",
+    "name": "Webcam"
+  },
   "requires": [
     "display",
     "pointer|touch",
@@ -11,6 +15,9 @@
     "camera",
     "fs"
   ],
+  "permissionStrings": {
+    "camera": "Webcam shows your camera live and saves the photos you take."
+  },
   "targets": {
     "macos": {
       "width": 1040,

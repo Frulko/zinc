@@ -1,8 +1,8 @@
 live: permission granted
 live: cameras: Zinc Fake Camera (unknown)
 live: open Zinc Fake Camera 640x480 at 30 fps
-live: fps 29
-live: fps 30
+live: fps 29, 31 previews drawn, 4 renders
+live: fps 30, 30 previews drawn, 0 renders
 dark: permission granted
 dark: cameras: Zinc Fake Camera (unknown)
 dark: open Zinc Fake Camera 640x480 at 30 fps
@@ -30,24 +30,24 @@ format: permission granted
 format: cameras: Zinc Fake Camera (unknown)
 format: open Zinc Fake Camera 640x480 at 30 fps
 format: open Zinc Fake Camera 1280x720 at 30 fps
-format: fps 13
+format: fps 13, 46 previews drawn, 6 renders
 format: open Zinc Fake Camera 1280x720 at 15 fps
-format: fps 14
-format: fps 15
-format: fps 15
+format: fps 14, 59 previews drawn, 2 renders
+format: fps 15, 26 previews drawn, 0 renders
+format: fps 15, 15 previews drawn, 0 renders
 format: open Zinc Fake Camera 1280x720 at 15 fps
 viewer: permission granted
 viewer: cameras: Zinc Fake Camera (unknown)
 viewer: open Zinc Fake Camera 640x480 at 30 fps
 viewer: photo photo-1970-01-01-000000.png 640x480 at frame 18
-viewer: fps 29
+viewer: fps 29, 39 previews drawn, 5 renders
 viewer: viewer photo-1970-01-01-000000
 delete: permission granted
 delete: cameras: Zinc Fake Camera (unknown)
 delete: open Zinc Fake Camera 640x480 at 30 fps
 delete: photo photo-1970-01-01-000000.png 640x480 at frame 18
 delete: photo photo-1970-01-01-000000-2.png 640x480 at frame 21
-delete: fps 29
+delete: fps 29, 41 previews drawn, 6 renders
 delete: viewer photo-1970-01-01-000000-2
 delete: deleted photo-1970-01-01-000000-2.png
 delete: viewer closed
@@ -61,3 +61,18 @@ asked: permission undetermined
 asked: asked: granted
 asked: cameras: Zinc Fake Camera (unknown)
 asked: open Zinc Fake Camera 640x480 at 30 fps
+wide: permission granted
+wide: cameras: Zinc Fake Camera (unknown)
+wide: open Zinc Fake Camera 640x480 at 30 fps
+wide: fps 29, 31 previews drawn, 4 renders
+wide: fps 30, 30 previews drawn, 0 renders
+medium: permission granted
+medium: cameras: Zinc Fake Camera (front), Zinc Fake Camera 2 with a rather long device name (back), Zinc Fake Camera 3 (external), Zinc Fake Camera 4 (front)
+medium: open Zinc Fake Camera 640x480 at 30 fps
+medium: fps 29, 31 previews drawn, 4 renders
+medium: fps 30, 30 previews drawn, 0 renders
+phone: permission granted
+phone: cameras: Zinc Fake Camera (front), Zinc Fake Camera 2 with a rather long device name (back), Zinc Fake Camera 3 (external), Zinc Fake Camera 4 (front)
+phone: open Zinc Fake Camera 640x480 at 30 fps
+phone: fps 29, 31 previews drawn, 4 renders
+phone: fps 30, 30 previews drawn, 0 renders
