@@ -78,6 +78,7 @@ export class Handlers {
   keep: boolean = false;        // grab="keep": an ancestor's drag or scroll never steals the pointer
   keepX: boolean = false;       // grab="keep-x": only horizontal-ish gestures stay (a mostly vertical drag still scrolls)
   tabIndex: i32 = 0;            // > 0 first in the Tab order, < 0 out of it (still focusable by click)
+  noPress: boolean = false;     // pressFeedback={0}: no default dim while it is pressed (it shows its pressed state itself)
   disabled: boolean = false;    // no events, no focus, for the node and its subtree
   keyCtx: string = '';          // keyContext
   acts: string[] = [];          // onAction(h, action, f)
@@ -549,6 +550,7 @@ function release(h: i32): void {
   n.ed = null;
   if (focus === h) focus = -1;
   if (pressed === h) pressed = -1;
+  if (dimNode === h) dimNode = -1;
   if (capture === h) capture = -1;
   if (selecting === h) selecting = -1;
   if (tsNode === h) tsNode = -1;
@@ -3595,7 +3597,7 @@ function paintTiles(h: i32, n: UiNode, zp: i32[] | null, x: number, y: number, a
 function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
   const n = node(h);
   if (n.hidden || n.invisible || (n.layer && h !== layerPass)) return;
-  const a = alpha * n.opacity * n.fade;
+  const a = alpha * n.opacity * n.fade * (h === dimNode ? 1 - (1 - PRESS_OPACITY) * dimT : 1);
   if (a <= 0.004) return;
   let x = (n.x + n.tx) * k + ox, y = (n.y + n.ty + (n.sticky ? stickyDy(n) : 0)) * k + oy, kk = k * n.k;
   if (n.tf !== null) { const s = tfK(n); x += n.lw * kk * (1 - s) / 2; y += n.lh * kk * (1 - s) / 2; kk *= s; }
@@ -4675,6 +4677,7 @@ function pointerMove(px: number, py: number): void {
   if (px === ptrX && py === ptrY) return;
   ptrX = px; ptrY = py;
   hoverDirty = true;
+  if (pressed >= 0 && pressed === dimNode) { const over = hit(px, py, HIT_CLICK) === pressed; if (over !== pressOver) { pressOver = over; paintDirty = true; } }   // dragged off: the dim lifts
   if (selecting >= 0) {
     const n = nodes[selecting], e = n.ed as Edit, lh = lineHeightOf(n);
     boxOf(selecting);
@@ -4747,7 +4750,7 @@ function pressAt(px: number, py: number, button: i32): void {
   if (keepsFocus(t)) {
     // a virtual keyboard key: it activates on release like a button, but the focused field keeps the focus
     const h = hit(px, py, HIT_CLICK);
-    if (h >= 0) { pressed = h; paintDirty = true; }
+    if (h >= 0) { pressed = h; pressOn(h, PRESS_MIN_MS); paintDirty = true; }
   } else if (t >= 0 && nodes[t].ed !== null && byFinger && focus !== t) {
     // a finger on a field that does not have the focus: it may be the start of a scroll. The field takes the focus (and the on-screen
     // keyboard opens) when the finger lifts without having dragged; a drag that starts on a field scrolls the page like any other.
@@ -4760,7 +4763,7 @@ function pressAt(px: number, py: number, button: i32): void {
     selecting = t;
   } else {
     const h = hit(px, py, HIT_CLICK);
-    if (h >= 0 && !isDisabled(h)) { setFocusTo(h); pressed = h; paintDirty = true; }
+    if (h >= 0 && !isDisabled(h)) { setFocusTo(h); pressed = h; pressOn(h, PRESS_MIN_MS); paintDirty = true; }
     else if (h < 0) {
       // the nearest focusable node takes the focus; a click elsewhere blurs a text field
       let fz = t;
@@ -4987,6 +4990,35 @@ function activate(h: i32): void {
   if (f !== null) f();
   paintDirty = true;
 }
+// ---- pressed feedback: what a pointer, a finger or the keyboard presses dims while it is held, as React Native's TouchableOpacity does
+// (activeOpacity), quickly in and slower out. Not a node that sets its own pressed opacity (active:opacity-*, pressFeedback={0}), a disabled one
+// (never pressed), a container of other pressables (a panel that swallows clicks) or a full-screen catcher. Idle frames stay free: frames
+// run only while the dim moves.
+const PRESS_OPACITY: number = 0.6, PRESS_IN_MS: number = 80, PRESS_OUT_MS: number = 150, PRESS_MIN_MS: number = 100, PRESS_KEY_MS: number = 120;
+let pressFx = true, dimNode: i32 = -1, dimT: number = 0, dimAt: number = 0, dimUntil: number = 0, pressOver = false;
+/** Turns the default pressed dim on or off for the whole app (a node opts out alone with pressFeedback={0}). */
+export function setPressFeedback(on: boolean): void { pressFx = on; if (!on) dimNode = -1; paintDirty = true; }
+/** The opacity factor the pressed feedback gives h now (1: none); for tests. */
+export function pressDim(h: i32): number { return h === dimNode ? 1 - (1 - PRESS_OPACITY) * dimT : 1; }
+function clickableIn(h: i32): boolean { for (const c of nodes[h].children) if (nodes[c].onClick !== null || clickableIn(c)) return true; return false; }
+function pressOn(h: i32, hold: number): void {
+  const n = nodes[h], s = n.hs, o = n.ov;
+  const act = o !== null ? (o as StateOverlay).s[2] : null;   // active: colours add to the dim; an active: opacity replaces it
+  if (!pressFx || (s !== null && (s as Handlers).noPress) || (act !== null && ((act as StateStyle).mask & 1) !== 0) || clickableIn(h)) return;
+  boxOf(h);
+  if (n.lw * boxK >= width() && n.lh * boxK >= height()) return;   // a backdrop that closes a dialog is not a button
+  if (dimNode !== h) dimT = 0;
+  dimNode = h; dimAt = clock; dimUntil = clock + hold; pressOver = true; paintDirty = true;
+}
+function stepPress(): void {
+  const n = nodes[dimNode];
+  const want = n.alive && ((pressed === dimNode && pressOver) || clock < dimUntil);
+  const dt = clock - dimAt;
+  dimAt = clock;
+  dimT = want ? Math.min(1, dimT + dt / PRESS_IN_MS) : Math.max(0, dimT - dt / PRESS_OUT_MS);
+  if (!want && dimT <= 0) { dimNode = -1; return; }
+  if (!want || dimT < 1 || clock < dimUntil) animating = true;
+}
 /** One UI frame: engine clock, animations, input, layout when needed, paint (or keep the previous frame). */
 export function frame(dt: number, background: i32): void {
   if (root < 0) return;
@@ -5014,7 +5046,7 @@ export function frame(dt: number, background: i32): void {
   if (first) stepEdits(dt);
   if (!typing && (navPressed(Btn.Down) || navPressed(Btn.Right) || navPressed(Btn.Up) || navPressed(Btn.Left) || navPressed(Btn.Select))) focusStep(navPressed(Btn.Up) || navPressed(Btn.Left) || navBack);
   if (focus >= 0 && focus !== focusShown) { focusShown = focus; revealFocus(focus); }
-  if (!typing && (navPressed(Btn.A) || navPressed(Btn.Start)) && focus >= 0) { pressed = focus; activate(focus); }
+  if (!typing && (navPressed(Btn.A) || navPressed(Btn.Start)) && focus >= 0) { pressed = focus; pressOn(focus, PRESS_KEY_MS); activate(focus); }
   else if (pressed >= 0 && (held & 1) === 0) { pressed = -1; paintDirty = true; }
   navKeys = 0; navBack = false;
   if (grabber === -1 && longNode >= 0) stepGestures();
@@ -5042,6 +5074,7 @@ export function frame(dt: number, background: i32): void {
   if ((paintDirty || scrollDirty) && surfaces.length > 0) othersDirty(false);
   paintDirty = false; scrollDirty = false; extPaint = false;
   if (background >= 0) clear(background);
+  if (dimNode >= 0) stepPress();
   paint(root, 0, 0, 1, 1);
   if (layers.length > 0) paintLayers();
   lastCommands = commandCount();
@@ -5372,6 +5405,7 @@ function applyInteraction(n: UiNode, key: string, iv: i32, v: number): boolean {
   if (key === 'tabIndex') { hsOf(n).tabIndex = iv; n.focusable = true; return true; }
   if (key === 'disabled') { hsOf(n).disabled = iv !== 0; paintDirty = true; return true; }
   if (key === 'ariaHidden') { n.ariaHidden = iv !== 0; return true; }
+  if (key === 'pressFeedback') { hsOf(n).noPress = iv === 0; return true; }
   return false;
 }
 /** The node or an ancestor has `disabled`: no pointer events, no activation, no focus. */

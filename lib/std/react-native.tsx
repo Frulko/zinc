@@ -36,15 +36,19 @@ export type PressableProps = {
   disabled?: boolean; style?: ui.Style; testID?: string; accessibilityLabel?: string; children?: () => i32;
   activeOpacity?: number; underlayColor?: string;   // TouchableOpacity, TouchableHighlight (one props type: no intersection types here)
 };
-/** The press machinery the Touchables share: pressed while the pointer is down on it, onPress on a click, onLongPress after 500 ms (no onPress then). */
-function Press(p: PressableProps, pressedStyle: ui.Style | null): i32 {
+/** The press machinery the Touchables share: pressed while the pointer is down on it, onPress on a click, onLongPress after 500 ms (no onPress then).
+ *  Without a pressed style of its own it dims while pressed (zinc:ui's default pressed feedback); with one, or `feedback` false, only that shows. */
+// disabled: the engine neither presses nor focuses it. Both keys are always written: a key a style drops keeps its last value.
+const FEEDBACK = new ui.Style(['pressFeedback'], [1]), NO_FEEDBACK = new ui.Style(['pressFeedback'], [0]);
+const ENABLED = new ui.Style(['disabled'], [0]), DISABLED = new ui.Style(['disabled'], [1]);
+function Press(p: PressableProps, pressedStyle: ui.Style | null, feedback: boolean = true): i32 {
   const [pressed, setPressed] = useState<boolean>(false);
   const off = p.disabled ?? false;
   const press = (): void => { const f = p.onPress; if (!off && f !== undefined) f(); };
   const long = (e: ui.PointerEvent): void => { const f = p.onLongPress; if (!off && f !== undefined) f(); };
   const down = (e: ui.PointerEvent): void => { if (off) return; setPressed(true); const f = p.onPressIn; if (f !== undefined) f(); };
   const up = (e: ui.PointerEvent): void => { if (!pressed) return; setPressed(false); const f = p.onPressOut; if (f !== undefined) f(); };
-  return <View style={[p.style ?? NONE, pressed && pressedStyle !== null && (pressedStyle as ui.Style)]} onPress={press} onLongPress={long} onPointerDown={down}
+  return <View style={[p.style ?? NONE, pressedStyle !== null || !feedback ? NO_FEEDBACK : FEEDBACK, off ? DISABLED : ENABLED, pressed && pressedStyle !== null && (pressedStyle as ui.Style)]} onPress={press} onLongPress={long} onPointerDown={down}
     onPointerUp={up} onPointerCancel={up} aria-label={p.accessibilityLabel ?? ''}>{renderChildren(p.children)}</View>;
 }
 export function Pressable(p: PressableProps): i32 { return Press(p, null); }
@@ -55,7 +59,7 @@ export function Button(p: { title: string; onPress?: () => void; color?: string;
     <Text style={{ fontSize: 18, color: off ? 0x999999 : (c < 0 ? 0x007aff : c) }}>{p.title}</Text>
   </Pressable>;
 }
-export function TouchableWithoutFeedback(p: PressableProps): i32 { return Press(p, null); }
+export function TouchableWithoutFeedback(p: PressableProps): i32 { return Press(p, null, false); }
 /** Dims to activeOpacity (0.2) while pressed. */
 export function TouchableOpacity(p: PressableProps): i32 { return Press(p, new ui.Style(['opacity'], [p.activeOpacity ?? 0.2])); }
 /** Shows underlayColor (black) behind the content while pressed. ponytail: the underlay replaces the background instead of showing through a dimmed

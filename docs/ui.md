@@ -208,6 +208,16 @@ grabbing while its node has the pointer captured. SDL has no hand cursors: grab 
 
 A program can use at most 20 distinct attribute conditions; the golden is `tests/golden/ui-state`.
 
+### Pressed feedback
+
+What a mouse, a finger or the keyboard (Space, Enter) presses dims while it is held, as React Native's TouchableOpacity does: the opacity
+goes to 0.6 in 80 ms and back in 150 ms after the release, at least 100 ms for a quick tap (120 ms for a key), without a relayout. Every node with
+`onClick` (a button, a Pressable, a link-like text, a list row, a tab, a chip) gets it, through every kit. Dragging off the node lifts the dim (the
+release there presses nothing), a scroll that starts on it cancels it, and a disabled node is never pressed. The focus ring is separate.
+Not dimmed: a node with an `active:opacity-*` class (its own pressed opacity; `active:` colours add to the dim), a node with `pressFeedback={0}`
+(a style key too: TouchableOpacity, TouchableHighlight and TouchableWithoutFeedback use it), a node that holds other pressables (a panel that
+swallows clicks) and a full-screen catcher (a backdrop). `ui.setPressFeedback(false)` turns it off for the whole app; `ui.pressDim(h)` tells
+the factor applied now (tests: `tests/golden/ui-press`).
 
 ## Transitions
 

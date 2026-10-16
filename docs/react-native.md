@@ -29,8 +29,8 @@ component (`View as Box`) is not supported: View, Text, Image and ScrollView mus
 | Text | supported | host element; `numberOfLines` (ellipsis); black by default, 14 px under the preset (16 px without it); the face is Inter, or the app's own: an `assets/Roboto*.ttf` (Apache-2.0) and `ui.setFontSans('Roboto')` come closer to Android's, San Francisco cannot be shipped |
 | Image | partial | host element with `src`; `resizeMode` (attribute or style: cover, contain, stretch, center, repeat) and `tintColor` (a multiply: exact on white and grey pixels); `source={{ uri }}` and `ImageBackground` missing (a View takes `backgroundImage: 'url(..)'`) |
 | ScrollView | partial | host element; `onScroll` with `nativeEvent.contentOffset`; `contentContainerStyle`, `horizontal`, `refreshControl` missing |
-| Pressable | supported | onPress, onLongPress (500 ms), onPressIn / onPressOut, disabled, accessibilityLabel; `style` as a function of `{ pressed }` and `hitSlop` missing |
-| TouchableOpacity, TouchableHighlight, TouchableWithoutFeedback | supported | activeOpacity, underlayColor (replaces the background) |
+| Pressable | supported | onPress, onLongPress (500 ms), onPressIn / onPressOut, disabled, accessibilityLabel; dims to 0.6 while pressed (zinc:ui's pressed feedback; React Native shows nothing); `style` as a function of `{ pressed }` and `hitSlop` missing |
+| TouchableOpacity, TouchableHighlight, TouchableWithoutFeedback | supported | activeOpacity, underlayColor (replaces the background); their own feedback replaces the default dim, TouchableWithoutFeedback shows none |
 | Button | supported | title, onPress, color, disabled (iOS's look) |
 | Switch | supported | value, onValueChange, trackColor, thumbColor, ios_backgroundColor, disabled (iOS 51 x 31) |
 | ActivityIndicator | supported | size small / large, color, animating, hidesWhenStopped |

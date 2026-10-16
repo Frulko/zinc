@@ -1,0 +1,17 @@
+A held: dimmed, presses ''
+A released: dimming, presses 'A'
+A later: full
+A held again: dimmed
+A dragged off, still held: full
+A released off it: full, presses 'A'
+B held: default full, its opacity 0.5
+B released: opacity 1, presses 'AB'
+C (disabled) held: full, presses 'AB'
+D held: default full, its opacity 0.7
+D released: opacity 1, presses 'ABD'
+A by Enter: dimmed, presses 'ABDA'
+A after Enter: full
+A under a finger: dimmed
+A after the finger: full, presses 'ABDAA'
+feedback off, A held: full
+presses 'ABDAAA'

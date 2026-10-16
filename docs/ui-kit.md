@@ -155,7 +155,8 @@ the same screen in both models and must print the same layout (on the sim and on
 
 ## Limits
 
-- No hover (touch screens and pads have none): pressed and focused states use `active:` and `focus:` fills.
+- No hover (touch screens and pads have none): pressed and focused states use `active:` and `focus:` fills, and every pressable also dims
+  while it is held (zinc:ui's pressed feedback, docs/ui.md; `active:opacity-*` or `pressFeedback={0}` replaces it).
   Focusable kit nodes always set a `focus:` fill, which also replaces the yellow keyboard-focus ring of `zinc:ui`.
 - Two weights are baked (Inter Regular and Bold): `font-medium` renders regular, `font-semibold` bold.
 - The kit's text sizes are baked into every program that imports it (seven sizes, regular and bold).

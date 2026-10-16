@@ -1,0 +1,22 @@
+5 move 100 45
+6 down
+14 up
+45 move 100 45
+46 down
+53 move 260 380
+70 up
+75 move 100 115
+76 down
+85 up
+95 move 100 185
+96 down
+103 up
+110 move 100 255
+111 down
+118 up
+130 key Enter
+155 touch 1 100 45
+162 touchup 1
+187 move 100 45
+188 down
+195 up

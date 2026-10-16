@@ -1,0 +1,1 @@
+{ "name": "ui-press", "entry": "main.tsx", "ui": { "preset": "react-native" } }
