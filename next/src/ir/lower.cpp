@@ -2090,9 +2090,13 @@ struct Lowering::FnLower {
   }
   void jump(std::uint32_t s, bool isBreak) {
     const Node& x = n(s);
-    BlockId to = isBreak ? loopTargets.back().first : loopTargets.back().second;
-    std::size_t depth = loopCleanups.back();
-    if (!x.text.empty()) {
+    BlockId to = kNoBlock;   // a label may name a block with no loop around it: loopTargets is read only when there is none (or no label)
+    std::size_t depth = 0;
+    if (x.text.empty()) {
+      if (loopTargets.empty() || loopCleanups.empty()) { unsupported(s, isBreak ? "break outside a loop or switch" : "continue outside a loop"); return; }
+      to = isBreak ? loopTargets.back().first : loopTargets.back().second;
+      depth = loopCleanups.back();
+    } else {
       auto l = std::find_if(labels.rbegin(), labels.rend(), [&](const LabelTarget& t) { return t.name == x.text; });
       if (l == labels.rend() || (!isBreak && l->cont == kNoBlock)) { unsupported(s, "a jump to label '" + std::string(x.text) + "'"); return; }
       to = isBreak ? l->brk : l->cont;

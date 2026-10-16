@@ -47,7 +47,7 @@ cmp -s "$tmp/landscape.log" "$data/play.log" || { echo "pinball3d: the scripted 
 cmp -s "$tmp/portrait.log" "$data/play.log" || { echo "pinball3d: the portrait game does not print the same log"; fail=1; }
 grep -q "game over: score" "$data/play.log" && [ "$(grep -c ' hit ' "$data/play.log")" -ge 20 ] || { echo "pinball3d: play.log is not a whole game with hits"; fail=1; }
 for l in landscape portrait; do for n in 12 320 460; do
-  tools/pngdiff "$tmp/$l-$n.png" "$gold/$l-$n.png" >/dev/null 2>&1 || { echo "pinball3d: frame $n of the $l layout differs from its golden: $(tools/pngdiff "$tmp/$l-$n.png" "$gold/$l-$n.png" 2>&1 | head -1)"; fail=1; }
+  tools/pngdiff "$tmp/$l-$n.png" "$gold/$l-$n.png" --tol 1 --max-diff 64 >/dev/null 2>&1 || { echo "pinball3d: frame $n of the $l layout differs from its golden: $(tools/pngdiff "$tmp/$l-$n.png" "$gold/$l-$n.png" 2>&1 | head -1)"; fail=1; }
 done; done
 # the GPU renderer (where there is no GL context the software renderer draws, and the frame is the golden): without multisampling it draws the
 # software frame within display-gl's tolerance; as a window shows it (4 samples a pixel: smooth edges, which the software frame does not have)

@@ -30,6 +30,15 @@ void call(int id, const zn::host::HostArg* a, zn::host::HostArg* r) {
     case Rt::HostEvReady: r->i = 0; break;
     case Rt::HostEvActive: r->i = 0; break;
     case Rt::HostNativePoll: r->i = 0; break;
+    // asset groups (zinc:assets): the web export bakes what a program draws into app.res, so a group is there from the start: loading one succeeds at once
+    case Rt::HostAssetsLoadGroup: r->i = 1; break;
+    case Rt::HostAssetsGroupState: r->i = 2; break;
+    case Rt::HostAssetsReqState: r->i = 1; break;
+    case Rt::HostAssetsReqDone: case Rt::HostAssetsReqTotal: r->d = 1; break;
+    case Rt::HostAssetsUnloadGroup: case Rt::HostAssetsTurn: case Rt::HostAssetsReqForget: break;
+    case Rt::HostFsFailed: r->i = 0; break;
+    case Rt::HostFsError: ret(r, ""); break;
+    case Rt::HostSysDevice: ret(r, ""); break;                // no device feature in a browser page here: the web APIs answer as a browser without them
     case Rt::HostSysAllocations: case Rt::HostSysLiveBlocks: r->d = 0; break;
     default: {
       static std::set<int> seen;

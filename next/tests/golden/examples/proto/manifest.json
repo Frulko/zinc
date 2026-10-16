@@ -174,8 +174,8 @@
    "ZINC_CHATAIGNE_DEMO": "1"
   },
   "known": {
-   "over": 6255,
-   "reason": "max-w-[240px] on the chat bubbles is honoured now (ZN-252 arbitrary values: the bubble is 240 wide); the prototype ignored the value and drew them wider"
+   "over": 26328,
+   "reason": "max-w-[240px] on the chat bubbles is honoured (ZN-252 arbitrary values: the bubble is 240 wide, its text wraps to more lines and the bubbles below move down); the prototype ignored the value and drew them wider"
   }
  },
  {
