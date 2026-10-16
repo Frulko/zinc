@@ -79,7 +79,7 @@ dev run otaapp > /dev/null 2>&1; until_grep "this is 1.0.0" "$log" || bad "the r
 dev install "$tmp/v11.zapp" > /dev/null 2>&1 || bad "a signed newer .zapp is refused"
 [ -f "$app/previous.zapp" ] && [ -f "$app/trial" ] || bad "the version replaced was not kept: $(ls "$app")"
 out=$(dev run otaapp 2>&1) || bad "the run of a good update: $out"
-dev apps | grep -q "^otaapp .*running" || bad "the good update is not running after its trial: $(dev apps)"
+dev apps | grep -q "^otaapp .*running" || bad "the good update is not running after its trial: $(dev apps) | the app log: $(tail -c 500 "$log" 2>/dev/null | tr '\n' ' ') | the agent log: $(tail -c 700 "$tmp/agent.log" 2>/dev/null | tr '\n' ' ')"
 [ ! -e "$app/previous.zapp" ] && [ ! -e "$app/trial" ] || bad "an update that held is still on trial: $(ls "$app")"
 until_grep "this is 1.1.0" "$log" || bad "the signed update does not run: $(cat "$log")"
 
