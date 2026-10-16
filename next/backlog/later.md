@@ -235,6 +235,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-742: a component imported through tsconfig paths or `import * as` gets no proxy, so editing its file restarts.
 - ZN-742: a save before the child said `hot ready` restarts with the misleading reason "the program has no frame loop" (seen 3 s after start on hotdemo); say it is still starting, or queue the save.
 - ZN-742: one save by `sed -i` (and some editors: temp file + rename) gives two `refreshed` lines; settle the change once.
+- D123: zinc:video should hold the screen wake lock while it plays, as a browser does: Android apps no longer keep the screen on by default.
+- D123: SDL also keeps the display awake for every Zinc app on macOS and Linux (SDL's default); apply the same rule there (a kiosk or navigator.wakeLock keeps it on).
+- D123: a real Android kiosk needs lock task mode (screen pinning or a device owner): Home and Recents still leave a kiosk app.
+- D123: the plugins webos, gsap, async-storage and svg run on Android but their plugin.json targets do not list it, so `zinc lint` warns "not made for this target" (examples/music: 7 warnings).
 
 ## Demos
 
