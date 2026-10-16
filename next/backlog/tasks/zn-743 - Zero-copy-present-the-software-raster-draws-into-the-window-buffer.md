@@ -2,7 +2,8 @@
 id: ZN-743
 title: 'Zero-copy present: the software raster draws into the window buffer'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-16 14:00'
 labels:
   - mobile

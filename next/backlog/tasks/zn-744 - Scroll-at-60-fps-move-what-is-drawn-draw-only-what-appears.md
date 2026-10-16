@@ -2,7 +2,8 @@
 id: ZN-744
 title: 'Scroll at 60 fps: move what is drawn, draw only what appears'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-16 14:06'
 labels:
   - perf

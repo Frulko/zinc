@@ -2,7 +2,8 @@
 id: ZN-741
 title: 'GLES 2 base: one capability record, context providers, GPU tuning'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-16 12:41'
 updated_date: '2026-10-16 14:07'
 labels:
