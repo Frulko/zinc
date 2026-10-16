@@ -543,6 +543,25 @@ bool parseProject(const std::string& text, Project& out, std::string& err) {
     if (const char* v = yyjson_get_str(yyjson_obj_get(sg, "identity"))) out.signIdentity = v;
     if (const char* v = yyjson_get_str(yyjson_obj_get(sg, "keychain"))) out.signKeychain = v;
     if (const char* v = yyjson_get_str(yyjson_obj_get(sg, "notaryProfile"))) out.notaryProfile = v;
+    if (yyjson_val* a = yyjson_obj_get(sg, "android")) {   // the upload key of zinc export --aab (ZN-629): a path and an alias, never a password
+      if (!yyjson_is_obj(a)) return fatal(lineOf(text, "android"), "\"signing.android\" must be an object: { \"keystore\", \"alias\" }");
+      for (const char* k : {"password", "storePassword", "keyPassword"})
+        if (yyjson_obj_get(a, k)) return fatal(lineOf(text, k), std::string("\"signing.android.") + k + "\": a password is not kept in zinc.json; set ZINC_ANDROID_STORE_PASSWORD and ZINC_ANDROID_KEY_PASSWORD in the environment");
+      if (const char* v = yyjson_get_str(yyjson_obj_get(a, "keystore"))) out.androidKeystore = v;
+      if (const char* v = yyjson_get_str(yyjson_obj_get(a, "alias"))) out.androidKeyAlias = v;
+    }
+    if (yyjson_val* i = yyjson_obj_get(sg, "ios")) {   // the export of zinc export --ipa (ZN-629)
+      if (!yyjson_is_obj(i)) return fatal(lineOf(text, "ios"), "\"signing.ios\" must be an object: { \"team\", \"method\", \"profile\" }");
+      if (const char* v = yyjson_get_str(yyjson_obj_get(i, "team"))) out.iosTeam = v;
+      if (const char* v = yyjson_get_str(yyjson_obj_get(i, "profile"))) out.iosProfile = v;
+      if (const char* v = yyjson_get_str(yyjson_obj_get(i, "method"))) {
+        // Xcode 15.3 renamed the methods; the old names (development, ad-hoc, app-store) still work and map to the new ones
+        const std::string m = v;
+        out.iosMethod = m == "development" ? "debugging" : m == "ad-hoc" ? "release-testing" : m == "app-store" ? "app-store-connect" : m;
+        if (out.iosMethod != "debugging" && out.iosMethod != "release-testing" && out.iosMethod != "app-store-connect" && out.iosMethod != "enterprise")
+          return fatal(lineOf(text, "method"), "\"signing.ios.method\" is \"" + m + "\": one of app-store-connect (app-store), release-testing (ad-hoc), debugging (development), enterprise");
+      }
+    }
   }
   if (yyjson_val* pm = yyjson_obj_get(root, "permissions")) { out.permissionsDeclared = true; if (!permissionList(pm, out.permissions, "permissions")) return false; }
   if (yyjson_val* ps = yyjson_obj_get(root, "permissionStrings")) {   // the texts of the system's questions (iOS, macOS)

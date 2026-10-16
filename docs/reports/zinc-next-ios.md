@@ -115,7 +115,7 @@ iOS 26.0 universal runtime with x86_64, and forum reports say the later iOS 26 r
 ## Not done here
 
 Safe areas (the content and the panel scroll under the status bar and the Dynamic Island; ZN-625), lifecycle events to the program, the
-keyboard and IME (ZN-626), signing and the device build (the commands above), HTTPS certificates on a device
+keyboard and IME (ZN-626), the device build and its upload (they need the owner's Apple team; ZN-629 below), HTTPS certificates on a device
 (`src/host/tls.cpp` reads root stores from Linux and macOS files such as `/etc/ssl/cert.pem`; a phone has none; not tried on the simulator), a launch screen from zinc.json's splash, the Metal decision.
 
 ## Plugins on iOS (ZN-628, 2026-10-17)
@@ -129,3 +129,27 @@ has an iOS backend (notifications, the share sheet, opening URLs, the document a
 Proven on the iPhone 17 simulator: zinc:sqlite, the Swift fixture (`tests/data/mobile-plugin`: calls, callbacks from another queue, the
 lifecycle subscriber), the share sheet, the photo picker and the notification prompt (`tests/data/mobile-services`). Not verified: a deep
 link's delivery (the simulator asks "Open in ...?", which needs a tap), a notification's tap, a picked document's copy.
+
+## Packages and signing (ZN-629, 2026-10-17)
+
+```sh
+zinc export examples/hello --target ios -o /tmp/hello-ios --ipa --simulator     # the Debug .app for the simulator, zipped: hello-simulator.zip
+zinc export examples/hello --target ios --ipa                                   # archive + exportArchive: build-device/ipa/hello.ipa (needs the team)
+zinc export examples/hello --target ios --ipa --dry-run                         # every command, none run
+```
+
+- `ExportOptions.plist` comes from zinc.json `signing.ios`: `method` (`app-store-connect` by default, `release-testing`, `debugging`,
+  `enterprise`; Xcode 15.3 renamed `app-store`, `ad-hoc` and `development`, which are mapped), `teamID` (`team` or `ZINC_IOS_TEAM`),
+  `signingStyle` automatic, or manual with `provisioningProfiles` when `profile` names one (the archive is then signed with it too:
+  `-DZINC_PROFILE`, set on the app target only, with "Apple Distribution", or "Apple Development" for `debugging`). The key names are those
+  of `xcodebuild -help` in Xcode 26.3. A device IPA without a team stops before any tool, with what to set.
+- `PrivacyInfo.xcprivacy` is in every iOS project and bundle: no tracking, no collected data, and the required-reason APIs. The engine's,
+  from `nm -u` of the simulator build: the hello executable calls `stat`, `fstat` and `mach_absolute_time`; the engine's archives before
+  dead stripping add `lstat` and `statfs` (libuv's `uv_fs_statfs`). So: file timestamps C617.1 (files of the app's container), system boot
+  time 35F9.1 (elapsed time in the app), disk space E174.1 (the space before a write). `NSUserDefaults` appears only in SDL code compiled out
+  (`#if 0`, SDL_uikitevents.m). A plugin adds its own with `targets.ios.privacy` (docs/plugins.md).
+
+Proven on an iOS 26.3 simulator (an iPhone 17 Pro created for the run and deleted after, no Simulator.app): `--ipa --simulator` for hello
+in 259 s (most of it the first configure of the Xcode generator); the zip unpacked with `ditto -x -k`, installed, launched with
+`--console-pty`: its output equals `zinc run` (29 lines); `PrivacyInfo.xcprivacy` is in the bundle and passes `plutil -lint`. The device
+archive, the export and the upload need the owner's Apple Developer account (the commands are in the ZN-629 notes).

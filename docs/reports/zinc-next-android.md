@@ -234,7 +234,7 @@ before, 184 and 184 after. The cost: no core ever sleeps nor the low-power compa
 ## Not done here
 
 Lifecycle events to the program, context loss, safe areas, the back button and IME (ZN-625, ZN-626),
-signing (ZN-629), arm64-v8a and x86_64 builds (the export lists them; only armeabi-v7a was built), an emulator run.
+signing on the Nexus 7 (ZN-629 proved it on the emulator, below), x86_64 builds (the export lists them; armeabi-v7a and arm64-v8a were built).
 
 ## Music remote on Android (examples/music, 2026-10-16)
 
@@ -297,3 +297,27 @@ between starts), `tests/data/mobile-plugin` (a Kotlin class, callbacks from anot
 intent, the document picker, deep links warm and cold). Not run on the Nexus 7: another agent's app was in front during the session. Seen
 on the emulator: the software frame's red and blue are swapped (sky-600 buttons draw brown; iOS draws them blue), the window buffer's
 format there is not the Nexus 7's BGRA (`hal_sdl.cpp` `anw_present`, later.md).
+
+## Packages and signing (ZN-629, 2026-10-17)
+
+```sh
+zinc export examples/hello --target android -o /tmp/hello-apk --apk --abis arm64-v8a      # assembleDebug, zipalign -c -P 16, the ELF check
+ZINC_ANDROID_KEYSTORE=upload.jks ZINC_ANDROID_KEY_ALIAS=upload ZINC_ANDROID_STORE_PASSWORD=... \
+  zinc export examples/hello --target android -o /tmp/hello-aab --aab                      # bundleRelease signed with the upload key, the ELF check
+zinc export examples/hello --target android --aab --dry-run                                 # every command, none run
+```
+
+- The upload key is named at build time: `app/build.gradle` has `signingConfigs.upload` reading `-Pzinc.keystore`, `-Pzinc.keyAlias` (or
+  `ZINC_ANDROID_KEYSTORE`, `ZINC_ANDROID_KEY_ALIAS`) and the passwords from `ZINC_ANDROID_STORE_PASSWORD`, `ZINC_ANDROID_KEY_PASSWORD`; the
+  release build type takes it when a keystore is named, else the debug keystore (Play refuses a debug-signed bundle; the export says so).
+  zinc.json `signing.android` holds a path and an alias, and refuses a password. Play App Signing re-signs what users install.
+- The 16 KB check: zinc unzips `lib/*.so` (`base/lib/*.so` of a bundle) and reads each ELF's program headers; a 64-bit library with a LOAD
+  segment aligned below 16 KB fails the export, a 32-bit one is reported (Play's rule is for 64-bit ABIs). An APK also goes through
+  `zipalign -c -P 16 4` of the newest build-tools (the libraries stored at 16 KB boundaries, mapped from the APK).
+- When `JAVA_HOME` is not set, Android Studio's JDK is used (Gradle 8.14 does not run on the JDK 26 of Homebrew).
+
+Proven on the API 37 arm64 emulator (AVD `Pixel_10`, headless): `--apk --abis arm64-v8a` for hello in 58 s (warm ccache), libmain.so LOAD
+aligned to 0x4000 (zinc's check and `llvm-readelf -lW` agree), zipalign passed; installed and started, its logcat equals `zinc run` (29 lines).
+`--aab` with a throwaway upload key in /tmp in 55 s: `keytool -printcert -jarfile app-release.aab` names that key; bundletool 1.18.3
+`build-apks --connected-device` then `install-apks` put the release (not debuggable) on the emulator, and its logcat equals `zinc run` too. No
+password reached the project or the output. `tests/t0/export_packages.sh` checks the dry-run outputs with every Android and Apple tool a trap.

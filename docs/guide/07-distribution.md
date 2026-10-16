@@ -166,6 +166,8 @@ and the project's `assets/`, plus `sbom.spdx.json` and `THIRD-PARTY-LICENSES.txt
 | `rpi2`, `chip`, `pocketchip` | an ARMv7 Linux executable (a 32-bit OS with NEON) and a `.desktop` file | `--deb`, `--key` |
 | `wasm` | a static site: `index.html`, `app.js` and its worker, `app.wasm`, `app.zbc`, `app.res`, `serve.py` | |
 | `esp32` | `core.bin`, `app.bin` and `flash.sh` | |
+| `android` | a Gradle project (SDL's, with the engine compiled from its sources by the NDK) | `--aab`, `--apk`, `--abis`, `--dry-run`, `--print` |
+| `ios` | a CMake project for CMake's Xcode generator, with `Info.plist`, `PrivacyInfo.xcprivacy` and `ExportOptions.plist` | `--ipa`, `--simulator`, `--dry-run`, `--print` |
 
 Cross builds need no SDK: `zinc toolchain install` fetches the pinned zig once and checks its SHA-256.
 
@@ -238,6 +240,44 @@ then waits for `zinc run --target esp32` uploads as usual. The bytecode must fit
 `dist/<name>-esp32/flash.sh /dev/ttyUSB0` flashes both with the pinned esptool (`zinc toolchain esptool`), else esptool from the PATH. The
 program's output arrives on the UART at 115200 baud, framed by the upload protocol (`include/zn/devproto.h`).
 `next/tests/t1/export_esp32.sh` boots the two images in the pinned QEMU, with no host attached.
+
+### Phones: Google Play and the App Store
+
+`zinc export --target android` and `--target ios` write the projects; three options also build the package in them, and `--dry-run` with any
+of them prints every command and runs none:
+
+| Option | What it runs | What it gives |
+| --- | --- | --- |
+| `--aab` | `./gradlew bundleRelease`, then the 16 KB check | `app/build/outputs/bundle/release/app-release.aab`, signed with your upload key |
+| `--apk` | `./gradlew assembleDebug`, `zipalign -c -P 16`, the 16 KB check | `app/build/outputs/apk/debug/app-debug.apk`, for `adb install -r` |
+| `--ipa` | `cmake -G Xcode`, `xcodebuild archive`, `xcodebuild -exportArchive` | `build-device/ipa/<name>.ipa` |
+| `--ipa --simulator` | the simulator build (Debug, unsigned), `ditto` | `<name>-simulator.zip`, the zipped `.app` that simulator test services take |
+
+`--abis armeabi-v7a,arm64-v8a,x86_64` picks the Android ABIs (all three by default). The 16 KB check reads every `lib/<abi>/*.so` of the
+package: a 64-bit library whose LOAD segments are not aligned to 16 KB is an error (Google Play requires it since 2025-11-01; Android 15
+phones with 16 KB pages refuse it). The engine and the plugins compiled from source are linked so; a plugin's prebuilt library may not be.
+
+```json
+{ "signing": { "android": { "keystore": "../keys/upload.jks", "alias": "upload" },
+               "ios": { "team": "ABCDE12345", "method": "app-store-connect" } } }
+```
+
+- **Android.** Google Play signs what users install with the app signing key it keeps (Play App Signing); you sign the bundle with your
+  upload key. Make one once (`keytool -genkeypair -v -keystore upload.jks -alias upload -keyalg RSA -keysize 4096 -validity 10000`) and keep it
+  outside the project. Its path and alias come from `ZINC_ANDROID_KEYSTORE` and `ZINC_ANDROID_KEY_ALIAS` or `signing.android`, its passwords
+  only from `ZINC_ANDROID_STORE_PASSWORD` and `ZINC_ANDROID_KEY_PASSWORD` (zinc.json refuses a password); Gradle reads them at build time and
+  nothing of the key is written in the project. Without a key the bundle is signed with the debug keystore, which Play refuses. Try a bundle
+  as Play would split it with `bundletool build-apks --connected-device` then `bundletool install-apks` (the export prints both).
+- **iOS.** A device build is signed by your Apple team (`signing.ios.team` or `ZINC_IOS_TEAM`); Xcode makes the certificates and profiles
+  (`-allowProvisioningUpdates`, automatic signing) once Xcode knows your account. `method` is `app-store-connect` (the default: App Store
+  and TestFlight), `release-testing` (ad hoc), `debugging` (development) or `enterprise`; the old names `app-store`, `ad-hoc` and
+  `development` work too. `profile` names a provisioning profile for manual signing instead. `ExportOptions.plist` is written from these.
+  Upload with `xcrun altool --upload-app -f <name>.ipa -t ios --api-key <key id> --api-issuer <issuer id>` (an App Store Connect API key) or
+  Transporter.
+- **The privacy manifest.** Apple refuses an upload whose code calls a required-reason API that `PrivacyInfo.xcprivacy` does not declare.
+  The export declares the engine's (file timestamps of the app's own files, the system boot time for elapsed time, the disk space before a
+  write) and those of the program's plugins (`plugin.json` `targets.ios.privacy`, [plugins](../plugins.md)); it declares no tracking and no
+  collected data.
 
 ### `zinc deploy`
 

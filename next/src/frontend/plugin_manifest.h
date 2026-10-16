@@ -27,6 +27,7 @@ struct PluginTarget {
   std::string manifestXml, applicationXml;            // android: manifest.manifest (inside <manifest>: <queries>...) and manifest.application (inside <application>)
   int minSdk = 0;                                     // android: the lowest API level the plugin needs (the export takes the highest of all)
   std::string plistJson, entitlementsJson;            // ios: Info.plist keys and entitlements, as JSON objects (strings, booleans, numbers, arrays, objects)
+  std::string privacyJson;                            // ios: required-reason API categories the plugin's native code calls, with their reasons ({"NSPrivacyAccessedAPICategoryUserDefaults": ["CA92.1"]}; ZN-629)
   std::string lifecycle;                              // android: a Java class implementing dev.zinc.app.ZincLifecycle; ios: an ObjC class conforming to ZincLifecycle
   std::string nativeClass;                            // android and ios: the Java or ObjC/Swift class behind the spec (zinc native-gen --android/--ios), in place of a C++ implementation
 };

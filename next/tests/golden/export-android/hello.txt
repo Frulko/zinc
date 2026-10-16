@@ -1,5 +1,5 @@
-./README-zinc.txt 3db20f0f53f599d8
-./app/build.gradle d208359918138e44
+./README-zinc.txt 370dcbde6a564e10
+./app/build.gradle 419c3f2db151b4e5
 ./app/jni/Android.mk b944a6752c2da4ce
 ./app/jni/Application.mk f118def06e042f72
 ./app/jni/CMakeLists.txt 61c6fed859bdacd3

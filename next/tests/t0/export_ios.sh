@@ -7,6 +7,7 @@
 cd "$(dirname "$0")/../.." || exit 2
 Z=$(cd "$(dirname "${ZINC:-build/zinc}")" && pwd)/$(basename "${ZINC:-build/zinc}")
 golden=tests/golden/export-ios/hello.txt
+unset ZINC_IOS_TEAM   # it would write a teamID into ExportOptions.plist
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fail=0
 mkdir -p "$tmp/bin"

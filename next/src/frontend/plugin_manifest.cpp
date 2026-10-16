@@ -83,6 +83,7 @@ bool phoneKey(const std::string& target, const std::string& key, yyjson_val* v, 
   if (key == "gradle") return strArr(v, pt.gradle);
   if (key == "plist") return obj(pt.plistJson);
   if (key == "entitlements") return obj(pt.entitlementsJson);
+  if (key == "privacy") return obj(pt.privacyJson);
   if (key == "lifecycle") return text(pt.lifecycle);
   if (key == "class") return text(pt.nativeClass);
   if (key == "minSdk") { if (!yyjson_is_int(v)) { err = at + " must be an integer"; return false; } pt.minSdk = static_cast<int>(yyjson_get_int(v)); return true; }
@@ -147,7 +148,7 @@ bool parsePluginManifest(std::string_view text, PluginManifest& out, std::string
           else if (key == "idf") pt.idf = strings(tv);
           else if (key == "nodeFlags") pt.nodeFlags = strings(tv);
           else if (key == "idfComponents" && yyjson_is_obj(tv)) { size_t a, b; yyjson_val *ck, *cv; yyjson_obj_foreach(tv, a, b, ck, cv) if (yyjson_is_str(cv)) pt.idfComponents[yyjson_get_str(ck)] = yyjson_get_str(cv); }
-          else if (key == "gradle" || key == "manifest" || key == "minSdk" || key == "plist" || key == "entitlements" || key == "lifecycle" || key == "class") {
+          else if (key == "gradle" || key == "manifest" || key == "minSdk" || key == "plist" || key == "entitlements" || key == "privacy" || key == "lifecycle" || key == "class") {
             if (!phoneKey(yyjson_get_str(k), key, tv, pt, err)) return false;
           }
           else warnings.push_back("unknown key \"" + std::string(yyjson_get_str(k)) + "." + key + "\"");

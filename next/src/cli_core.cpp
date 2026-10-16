@@ -98,7 +98,7 @@ const Command kCommands[] = {
   {"plugins", "zinc plugins [project-dir] [--defines <plugin> [target]] | zinc plugins search [word] | zinc plugins update [plugin...]", "the plugin table, the index", "Lists the plugins visible to a project and where they run. search: the plugins and templates of the signed index whose name or description has the word, one line each (kind, name and version, targets, description). update: each dependency added by name moves to the highest version its range (name@^1.2, ~1.2, >=1.2, 1.2) allows, checked like zinc add; one line per plugin that moved."},
   {"capture", "zinc capture <entry|dir> [--frames 1,60] [--every n] [--out dir] [--size WxH]", "a program's frames as PNG", "Runs the program headless and deterministic and writes ZINC_SHOT frames (frame-<n>.png) into --out (default shots/). zinc capture --scene replays a scene dump instead."},
   {"bench", "zinc bench [entry|dir] [--frames n]", "frame timings of a program", "Runs headless for n frames (default 120) and prints p50 / p99 / max per phase (app, layout, paint, raster...)."},
-  {"export", "zinc export [entry|dir] [--target linux|rpi|rpi1|rpi2|chip|pocketchip|rmpp|macos|wasm|esp32|android|ios] [-o dir] [--print] [--deb] [--dmg] [--key <seed-hex>]", "package a program", "dist/<name>-<target>/: the executable (cross built with the pinned zig for another target), run.sh, README.txt, assets/, a .desktop file (Linux) or the .app (macOS); wasm: a static site (index.html, app.js, app.wasm, app.zbc, serve.py); esp32: core.bin, app.bin and flash.sh; android: a Gradle project whose CMake builds the engine and the program with the NDK (--print lists ./gradlew assembleDebug and bundleRelease); ios: a CMake project for CMake's Xcode generator (--print lists the cmake, xcodebuild and simctl commands). --deb also writes dist/<name>_<version>_<arch>.deb (Linux targets; reproducible, written without dpkg); --dmg dist/<name>-<version>.dmg with the .app and an Applications link (macos; the .app needs zinc.json app.id). The .app is signed ad hoc, or by zinc.json \"signing\": { \"identity\", \"keychain\", \"notaryProfile\" } with the hardened runtime and the entitlements of \"permissions\"; the notarization commands are printed. --key (or ZINC_UPDATE_SEED) writes <file>.sig, an Ed25519 signature, beside the executable and the .deb or .dmg: zinc verify checks them."},
+  {"export", "zinc export [entry|dir] [--target linux|rpi|rpi1|rpi2|chip|pocketchip|rmpp|macos|wasm|esp32|android|ios] [-o dir] [--print] [--deb] [--dmg] [--key <seed-hex>] [--aab | --apk [--abis list] | --ipa [--simulator]] [--dry-run]", "package a program", "dist/<name>-<target>/: the executable (cross built with the pinned zig for another target), run.sh, README.txt, assets/, a .desktop file (Linux) or the .app (macOS); wasm: a static site (index.html, app.js, app.wasm, app.zbc, serve.py); esp32: core.bin, app.bin and flash.sh; android: a Gradle project whose CMake builds the engine and the program with the NDK (--print lists ./gradlew assembleDebug and bundleRelease); ios: a CMake project for CMake's Xcode generator (--print lists the cmake, xcodebuild and simctl commands). --aab builds a release bundle for Google Play (Gradle bundleRelease, signed with the upload key of ZINC_ANDROID_KEYSTORE or zinc.json signing.android, its passwords from ZINC_ANDROID_STORE_PASSWORD and ZINC_ANDROID_KEY_PASSWORD, else the debug keystore) and checks that its 64-bit libraries are aligned to 16 KB; --apk a debug APK (zipalign -c -P 16 too; --abis armeabi-v7a,arm64-v8a,x86_64 picks the ABIs); --ipa archives and exports an IPA with ExportOptions.plist from zinc.json signing.ios (team or ZINC_IOS_TEAM, method app-store-connect, release-testing, debugging or enterprise, profile), --ipa --simulator a zipped Debug .app for the simulator; --dry-run prints their commands and runs none. An iOS project carries PrivacyInfo.xcprivacy (the required-reason APIs of the engine and the plugins). --deb also writes dist/<name>_<version>_<arch>.deb (Linux targets; reproducible, written without dpkg); --dmg dist/<name>-<version>.dmg with the .app and an Applications link (macos; the .app needs zinc.json app.id). The .app is signed ad hoc, or by zinc.json \"signing\": { \"identity\", \"keychain\", \"notaryProfile\" } with the hardened runtime and the entitlements of \"permissions\"; the notarization commands are printed. --key (or ZINC_UPDATE_SEED) writes <file>.sig, an Ed25519 signature, beside the executable and the .deb or .dmg: zinc verify checks them."},
   {"add", "zinc add <name | git-url[@ref] | gh:user/repo[@ref] | archive URL> [dir]", "add a plugin from the index, git or an archive", "A name (name@range: ^1.2, ~1.2, >=1.2, 1.2) is looked up in the signed index, the highest version the range allows: its tier (official, or verified for a publisher the index delegates to) and publisher are printed first. Fetches the plugin (git: at its default branch or @ref; an archive: file:// or https://, .tar.gz, .tgz or .tar) into plugins/<name>, records it in zinc.json \"dependencies\" and pins it in zinc.lock: the commit or the archive's sha256, the version and the capabilities plugin.json \"permissions\" asks for (an update asking for a new one is refused until --accept). --key <public key>: the archive's <url>.sig must verify with it, and the key is locked too. Nothing of the plugin is run; links and special files are refused. What each tier guarantees, and what a mirror can and cannot do: docs/guide/08-security.md, \"Plugin distribution: threat model and guarantees\"."},
   {"sign", "zinc sign <file> <seed-hex>", "sign a plugin archive", "Writes <file>.sig: the detached Ed25519 signature (128 hex digits) that zinc add --key <public key> checks. zinc update-keygen makes a key pair."},
   {"plugin-build", "zinc plugin-build <plugin> [project] [--target T] [--pack file.tar | --prebuild]", "build a plugin's native part", "Compiles the plugin's native code with the pinned zig into ~/.zinc/cache/<target>/plugins/<name>-<key> (or finds it there) and prints where; the key is the one every client computes for the same sources, options and target. --pack writes it as a deterministic archive: the binaries/<target>/<name>-<key>.tar a plugin index serves (next/tools/plugin-pack names it). --prebuild copies it into the plugin's prebuilt/<target>/. --target cross-builds it for a Linux target (aarch64-linux, armhf-linux, armv7-linux, x86_64-linux)."},
@@ -959,7 +959,7 @@ bool replaceIn(const fs::path& f, const std::string& what, const std::string& wi
 // desktop build is not a phone's.
 struct AppPlugins {
   std::string cmake, libs;
-  std::vector<std::string> java, gradle, permissions, manifestXml, applicationXml, lifecycle, plist, entitlements;   // plist, entitlements: JSON objects
+  std::vector<std::string> java, gradle, permissions, manifestXml, applicationXml, lifecycle, plist, entitlements, privacy;   // plist, entitlements, privacy: JSON objects
   int minSdk = 0;
   bool swift = false, objc = false;   // objc: an Objective-C or Swift class found by name at run time (class, lifecycle), which -ObjC keeps in the link
 };
@@ -1023,6 +1023,7 @@ static bool appPluginsCmake(const std::vector<std::string>& names, const fs::pat
     out.objc = out.objc || !ts.lifecycle.empty() || !ts.nativeClass.empty();
     if (!ts.plistJson.empty()) out.plist.push_back(ts.plistJson);
     if (!ts.entitlementsJson.empty()) out.entitlements.push_back(ts.entitlementsJson);
+    if (!ts.privacyJson.empty()) out.privacy.push_back(ts.privacyJson);
     out.minSdk = std::max(out.minSdk, ts.minSdk);
   }
   return true;
@@ -1078,7 +1079,110 @@ static bool appProgram(const ProjectInfo& p, const char* profile, const fs::path
   return true;
 }
 
-static int exportAndroid(const ProjectInfo& p, const fs::path& out, const std::string& engineRoot, bool print) {
+// The packages of a phone export (ZN-629): --aab (a release bundle for Google Play), --apk (a debug APK), --ipa (an App Store, TestFlight, ad hoc
+// or development IPA; with --simulator a zipped debug .app). --dry-run prints every command and runs none, as tools/sign-macos does.
+struct Pack { bool aab = false, apk = false, ipa = false, simulator = false, dry = false; std::string abis; };
+static int versionCmp(const std::string& a, const std::string& b);
+
+// One packaging command, run in `dir` (printed as `+ cmd` first; only printed with --dry-run)
+static bool step(const fs::path& dir, const std::string& cmd, bool dry) {
+  std::printf("+ %s\n", cmd.c_str());
+  std::fflush(stdout);
+  if (dry || status(std::system(("cd " + q(dir.string()) + " && " + cmd).c_str())) == 0) return true;
+  std::fprintf(stderr, "zinc export: this step failed: %s\n", cmd.c_str());
+  return false;
+}
+
+// The smallest alignment of an ELF file's LOAD segments (0: not a little-endian ELF file), and whether it is 64-bit. Android 15 devices with
+// 16 KB pages load only libraries whose segments are aligned to 16 KB; Google Play requires it of 64-bit libraries since 2025-11-01.
+static std::uint64_t elfLoadAlign(const fs::path& f, bool& is64) {
+  std::ifstream in(f, std::ios::binary);
+  unsigned char h[64] = {};
+  if (!in.read(reinterpret_cast<char*>(h), 64) || std::memcmp(h, "\x7f" "ELF", 4) != 0 || h[5] != 1) return 0;   // every Android ABI is little-endian
+  is64 = h[4] == 2;
+  auto rd = [](const unsigned char* p, int n) { std::uint64_t v = 0; for (int i = n - 1; i >= 0; --i) v = v << 8 | p[i]; return v; };
+  const std::uint64_t phoff = is64 ? rd(h + 32, 8) : rd(h + 28, 4), phentsize = rd(h + (is64 ? 54 : 42), 2), phnum = rd(h + (is64 ? 56 : 44), 2);
+  std::uint64_t least = 0;
+  for (std::uint64_t k = 0; k < phnum; ++k) {
+    unsigned char ph[56] = {};
+    in.seekg(static_cast<std::streamoff>(phoff + k * phentsize));
+    if (!in.read(reinterpret_cast<char*>(ph), is64 ? 56 : 32)) return 0;
+    if (rd(ph, 4) != 1) continue;   // PT_LOAD
+    const std::uint64_t a = is64 ? rd(ph + 48, 8) : rd(ph + 28, 4);
+    if (least == 0 || a < least) least = a;
+  }
+  return least;
+}
+
+// The 16 KB check of the native libraries of an AAB or an APK: the LOAD segments of each lib/<abi>/*.so (read here) and, in an APK, their place
+// in the zip (zipalign -c -P 16: stored at 16 KB boundaries, so the system maps them from the package)
+static bool checkPages(const fs::path& dir, const fs::path& pkg, bool apk, bool dry) {
+  const fs::path libs = dir / "build-pages";
+  std::error_code ec;
+  fs::remove_all(libs, ec);
+  if (!step(dir, "unzip -qq -o " + q(pkg.string()) + (apk ? " 'lib/*.so'" : " 'base/lib/*.so'") + " -d " + q(libs.string()), dry)) return false;
+  std::string zipalign = "zipalign";   // the newest build-tools of the SDK (-P needs 35 or later), else the PATH's
+  const char* sdk = std::getenv("ANDROID_HOME") && *std::getenv("ANDROID_HOME") ? std::getenv("ANDROID_HOME") : std::getenv("ANDROID_SDK_ROOT");
+  if (sdk && *sdk && fs::is_directory(fs::path(sdk) / "build-tools", ec)) {
+    std::vector<fs::path> bt;
+    for (const auto& e : fs::directory_iterator(fs::path(sdk) / "build-tools", ec)) if (fs::exists(e.path() / "zipalign")) bt.push_back(e.path() / "zipalign");
+    std::sort(bt.begin(), bt.end(), [](const fs::path& a, const fs::path& b) { return versionCmp(a.parent_path().filename().string(), b.parent_path().filename().string()) < 0; });
+    if (!bt.empty()) zipalign = bt.back().string();
+  }
+  if (apk && !step(dir, q(zipalign) + " -c -P 16 4 " + q(pkg.string()), dry)) { std::fprintf(stderr, "zinc export: the APK's native libraries are not stored at 16 KB boundaries (zipalign -c -P 16)\n"); return false; }
+  if (dry) { std::printf("  (then zinc reads each lib/<abi>/*.so: every LOAD segment of a 64-bit library must be aligned to 16 KB)\n"); return true; }
+  bool ok = true;
+  int n = 0;
+  for (auto it = fs::recursive_directory_iterator(libs, ec); it != fs::recursive_directory_iterator(); it.increment(ec)) {
+    if (it->path().extension() != ".so") continue;
+    bool is64 = false;
+    const std::uint64_t a = elfLoadAlign(it->path(), is64);
+    const std::string name = it->path().parent_path().filename().string() + "/" + it->path().filename().string();
+    const bool good = a >= 16384 || !is64;
+    std::printf("  16 KB pages: %s %s (LOAD aligned to %llu bytes%s)\n", good ? "ok  " : "FAIL", name.c_str(), static_cast<unsigned long long>(a), !is64 && a < 16384 ? "; a 32-bit library, not required" : "");
+    ok = ok && good;
+    ++n;
+  }
+  fs::remove_all(libs, ec);
+  if (!n) std::printf("  16 KB pages: no native library in %s\n", pkg.filename().string().c_str());
+  if (!ok) std::fprintf(stderr, "zinc export: a 64-bit library is not aligned to 16 KB: link it with -Wl,-z,max-page-size=16384 (a plugin's prebuilt library: rebuild it so)\n");
+  return ok;
+}
+
+// zinc export --target android --aab | --apk (ZN-629): Gradle builds the package in the exported project, then the 16 KB check. The upload key:
+// its path and alias from ZINC_ANDROID_KEYSTORE and ZINC_ANDROID_KEY_ALIAS or zinc.json signing.android, its passwords only from
+// ZINC_ANDROID_STORE_PASSWORD and ZINC_ANDROID_KEY_PASSWORD, read by Gradle (app/build.gradle signingConfigs.upload): nothing of it is written in
+// the project. Without one the debug keystore signs (local tests; Play refuses it). Play App Signing re-signs with the app signing key.
+static bool packAndroid(const zn::frontend::Project& proj, const ProjectInfo& p, const fs::path& out, const Pack& pk) {
+  auto env = [](const char* k) { const char* v = std::getenv(k); return std::string(v ? v : ""); };
+  std::string ks = env("ZINC_ANDROID_KEYSTORE");
+  if (ks.empty() && !proj.androidKeystore.empty()) ks = fs::absolute(fs::path(p.dir) / proj.androidKeystore).lexically_normal().string();
+  const std::string alias = !env("ZINC_ANDROID_KEY_ALIAS").empty() ? env("ZINC_ANDROID_KEY_ALIAS") : !proj.androidKeyAlias.empty() ? proj.androidKeyAlias : "upload";
+  std::string gradle = std::string("./gradlew ") + (pk.aab ? "bundleRelease" : "assembleDebug");
+  if (!pk.abis.empty()) gradle += " -Pzinc.abis=" + q(pk.abis);
+  if (pk.aab && !ks.empty()) {
+    if (!pk.dry && !fs::exists(ks)) { std::fprintf(stderr, "zinc export: the upload keystore %s does not exist (keytool -genkeypair -v -keystore %s -alias %s -keyalg RSA -keysize 4096 -validity 10000 makes one)\n", ks.c_str(), q(ks).c_str(), alias.c_str()); return false; }
+    if (!pk.dry && env("ZINC_ANDROID_STORE_PASSWORD").empty()) { std::fprintf(stderr, "zinc export: set ZINC_ANDROID_STORE_PASSWORD (and ZINC_ANDROID_KEY_PASSWORD when the key's differs): the passwords of the upload key are read from the environment, never written in the project\n"); return false; }
+    gradle += " -Pzinc.keystore=" + q(ks) + " -Pzinc.keyAlias=" + q(alias);
+    std::printf("upload key: %s, alias %s (passwords from ZINC_ANDROID_STORE_PASSWORD and ZINC_ANDROID_KEY_PASSWORD)\n", ks.c_str(), alias.c_str());
+  } else if (pk.aab) {
+    std::printf("no upload key (zinc.json signing.android.keystore or ZINC_ANDROID_KEYSTORE): the bundle is signed with the debug keystore, for local tests; Google Play refuses it\n");
+  }
+  if (env("JAVA_HOME").empty())   // Gradle 8.14 runs on a JDK 17 to 24: Android Studio's own when no other is named (the first run of a maker)
+    for (const char* jbr : {"/Applications/Android Studio.app/Contents/jbr/Contents/Home", "/opt/android-studio/jbr"})
+      if (fs::exists(fs::path(jbr) / "bin/java")) { std::printf("+ export JAVA_HOME=%s   # Android Studio's JDK\n", q(jbr).c_str()); setenv("JAVA_HOME", jbr, 1); break; }
+  if (!step(out, gradle, pk.dry)) return false;
+  const fs::path pkg = out / (pk.aab ? "app/build/outputs/bundle/release/app-release.aab" : "app/build/outputs/apk/debug/app-debug.apk");
+  if (!checkPages(out, pkg, pk.apk, pk.dry)) return false;
+  std::printf("%s: %s\n", pk.aab ? "bundle" : "apk", pkg.string().c_str());
+  if (pk.apk) std::printf("next: adb install -r %s\n", q(pkg.string()).c_str());
+  else std::printf("next: upload it in the Play Console (Test and release > Production or a testing track > Create a release); to try it first:\n"
+                   "  bundletool build-apks --bundle=%s --output=app.apks --connected-device%s && bundletool install-apks --apks=app.apks\n",
+                   q(pkg.string()).c_str(), ks.empty() ? "" : (" --ks=" + q(ks) + " --ks-key-alias=" + q(alias) + " --ks-pass=pass:\"$ZINC_ANDROID_STORE_PASSWORD\"").c_str());
+  return true;
+}
+
+static int exportAndroid(const ProjectInfo& p, const fs::path& out, const std::string& engineRoot, bool print, const Pack& pk) {
   using namespace android;
   std::error_code ec;
   std::string err;
@@ -1153,6 +1257,21 @@ static int exportAndroid(const ProjectInfo& p, const fs::path& out, const std::s
       replaceIn(out / "app/build.gradle", "arguments \"-DANDROID_PLATFORM=android-21\", \"-DANDROID_STL=c++_static\"",
                 std::string("arguments \"-DANDROID_PLATFORM=android-") + std::to_string(minSdk) + "\", \"-DANDROID_STL=c++_static\", \"-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON\", \"-DZINC_ENGINE=${project.property('zinc.engine')}\"\n                targets \"main\"   // Zinc: AGP builds every library of the CMake project otherwise, the engine's CLI and tools among them", err) &&
       replaceIn(out / "app/build.gradle", "minSdkVersion 21", "minSdkVersion " + std::to_string(minSdk), err) &&
+      // Zinc: the upload key of a release (zinc export --aab, ZN-629), named at build time and never kept in the project; else the debug keystore
+      replaceIn(out / "app/build.gradle", "    buildTypes {\n        release {\n",
+                "    signingConfigs {   // Zinc: the upload key: path and alias from -Pzinc.keystore and -Pzinc.keyAlias (or ZINC_ANDROID_KEYSTORE, ZINC_ANDROID_KEY_ALIAS), passwords from the environment\n"
+                "        upload {\n"
+                "            def ks = project.findProperty('zinc.keystore') ?: System.getenv('ZINC_ANDROID_KEYSTORE')\n"
+                "            if (ks) {\n"
+                "                storeFile file(ks)\n"
+                "                storePassword System.getenv('ZINC_ANDROID_STORE_PASSWORD')\n"
+                "                keyAlias project.findProperty('zinc.keyAlias') ?: System.getenv('ZINC_ANDROID_KEY_ALIAS') ?: 'upload'\n"
+                "                keyPassword System.getenv('ZINC_ANDROID_KEY_PASSWORD') ?: System.getenv('ZINC_ANDROID_STORE_PASSWORD')\n"
+                "            }\n"
+                "        }\n"
+                "    }\n"
+                "    buildTypes {\n        release {\n"
+                "            signingConfig signingConfigs.upload.storeFile ? signingConfigs.upload : signingConfigs.debug   // Zinc: without an upload key, the debug keystore (local tests; Play refuses it)\n", err) &&
       replaceIn(out / "app/build.gradle", "APP_PLATFORM=android-21", "APP_PLATFORM=android-" + std::to_string(minSdk), err) &&
       replaceIn(out / "build.gradle", "com.android.tools.build:gradle:8.7.3", std::string("com.android.tools.build:gradle:") + kAgp, err) &&
       replaceIn(out / "gradle/wrapper/gradle-wrapper.properties", "distributionUrl=https\\://services.gradle.org/distributions/gradle-8.12-bin.zip",
@@ -1219,11 +1338,14 @@ static int exportAndroid(const ProjectInfo& p, const fs::path& out, const std::s
     writeFile(out / "app/src/main/assets/zinc/assets.txt", version + "-" + std::to_string(code) + "-" + zn::tc::sha256Hex(all).substr(0, 16) + "\n" + list);   // the stamp first: other assets, another copy
   }
   const std::string cmds = "  cd " + q(out.string()) + "\n  ./gradlew assembleDebug        # app/build/outputs/apk/debug/app-debug.apk (-Pzinc.abis=armeabi-v7a for one ABI)\n"
-                           "  adb install -r app/build/outputs/apk/debug/app-debug.apk\n  ./gradlew bundleRelease        # app/build/outputs/bundle/release/app-release.aab, to sign with your upload key\n";
+                           "  adb install -r app/build/outputs/apk/debug/app-debug.apk\n"
+                           "  ZINC_ANDROID_KEYSTORE=<upload.jks> ZINC_ANDROID_KEY_ALIAS=upload ZINC_ANDROID_STORE_PASSWORD=... ./gradlew bundleRelease   # app/build/outputs/bundle/release/app-release.aab (zinc export --aab also checks it)\n";
   writeFile(out / "README-zinc.txt", p.name + " " + version + " (android) exported by Zinc from SDL's Android project: a Gradle project. It needs the Android SDK (ANDROID_HOME or local.properties sdk.dir),\n"
-            "the NDK " + kNdk + " and a JDK 17 to 21. The native build compiles the Zinc engine from " + engine.string() + " (gradle.properties zinc.engine).\n\n" + cmds);
+            "the NDK " + kNdk + " and a JDK 17 to 21. The native build compiles the Zinc engine from " + engine.string() + " (gradle.properties zinc.engine).\n"
+            "A release is signed with your upload key, named by the environment (never kept here); without one, with the debug keystore.\n\n" + cmds);
   if (print) std::printf("%s", cmds.c_str());
   std::printf("%s\n", out.string().c_str());
+  if (pk.aab || pk.apk) return packAndroid(proj, p, out, pk) ? 0 : 1;
   return 0;
 }
 
@@ -1235,9 +1357,51 @@ static int exportAndroid(const ProjectInfo& p, const fs::path& out, const std::s
 // them. Nothing of Xcode runs here: cmake -G Xcode and xcodebuild do (--print lists them).
 namespace ios {
 constexpr const char* kMinIos = "16.3";   // the system libc++ has std::to_chars for doubles (the engine formats numbers with it) from 16.3: iPhone 8 and later
+#if defined(__aarch64__) || defined(__arm64__)
+constexpr const char* kSimArch = "arm64";   // the simulator runs this Mac's architecture
+#else
+constexpr const char* kSimArch = "x86_64";
+#endif
+// The required-reason APIs the engine calls (PrivacyInfo.xcprivacy, ZN-629), found with `nm -u` on the iOS build of hello and rn-showcase:
+// stat, fstat, lstat (file timestamps: zinc:fs stat, the asset cache, sqlite) for files of the app's container; mach_absolute_time (SDL's ticks,
+// performance.now) for elapsed time; statfs (libuv's uv_fs_statfs) to check the space before writing. App Store Connect refuses an upload
+// whose binary calls one that the manifest does not declare. A plugin adds its own (plugin.json targets.ios.privacy).
+const std::vector<std::pair<std::string, std::string>> kEnginePrivacy = {
+    {"NSPrivacyAccessedAPICategoryFileTimestamp", "C617.1"},
+    {"NSPrivacyAccessedAPICategorySystemBootTime", "35F9.1"},
+    {"NSPrivacyAccessedAPICategoryDiskSpace", "E174.1"},
+};
 }  // namespace ios
 
-static int exportIos(const ProjectInfo& p, const fs::path& out, const std::string& engineRoot, bool print) {
+// zinc export --target ios --ipa (ZN-629): the device build archived and exported with ExportOptions.plist (zinc.json signing.ios: the team,
+// the method, a provisioning profile for manual signing), or with --simulator a Debug .app for the simulator zipped (what simulator test
+// farms take). Signing identities and profiles are the developer's: Xcode makes them with -allowProvisioningUpdates for an automatic team.
+static bool packIos(const ProjectInfo& p, const fs::path& out, const std::string& team, const std::string& profile, const Pack& pk) {
+  const std::string& n = p.name;
+  if (pk.simulator) {
+    const std::string arch = ios::kSimArch, app = "build/Debug-iphonesimulator/" + n + ".app", zip = n + "-simulator.zip";
+    if (!step(out, "cmake -S . -B build -G Xcode -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_ARCHITECTURES=" + arch + " -DCMAKE_OSX_SYSROOT=iphonesimulator", pk.dry) ||
+        !step(out, "xcodebuild -quiet -project build/" + n + ".xcodeproj -scheme " + n + " -configuration Debug -sdk iphonesimulator -arch " + arch + " -derivedDataPath build/dd CODE_SIGNING_ALLOWED=NO build", pk.dry) ||
+        !step(out, "ditto -c -k --keepParent " + app + " " + zip, pk.dry))
+      return false;
+    std::printf("simulator app: %s\nnext: xcrun simctl install booted %s\n", (out / zip).string().c_str(), q((out / app).string()).c_str());
+    return true;
+  }
+  if (team.empty() && !pk.dry) { std::fprintf(stderr, "zinc export: a device build is signed by your Apple team: set zinc.json signing.ios.team or ZINC_IOS_TEAM (the team id of developer.apple.com, Membership); --simulator builds for the simulator without one\n"); return false; }
+  const std::string t = team.empty() ? "<team id>" : team, archive = "build-device/" + n + ".xcarchive";
+  if (!step(out, "cmake -S . -B build-device -G Xcode -DCMAKE_SYSTEM_NAME=iOS -DZINC_TEAM=" + q(t) + (profile.empty() ? "" : " -DZINC_PROFILE=" + q(profile)), pk.dry) ||
+      !step(out, "xcodebuild -quiet -project build-device/" + n + ".xcodeproj -scheme " + n + " -configuration Release -sdk iphoneos -derivedDataPath build-device/dd -allowProvisioningUpdates archive -archivePath " + archive, pk.dry) ||
+      !step(out, "xcodebuild -quiet -exportArchive -archivePath " + archive + " -exportPath build-device/ipa -exportOptionsPlist ExportOptions.plist -allowProvisioningUpdates", pk.dry))
+    return false;
+  const fs::path ipa = out / "build-device/ipa" / (n + ".ipa");
+  std::printf("ipa: %s\nnext (App Store Connect, TestFlight; an App Store Connect API key in ~/.appstoreconnect/private_keys):\n"
+              "  xcrun altool --validate-app -f %s -t ios --api-key <key id> --api-issuer <issuer id>\n"
+              "  xcrun altool --upload-app -f %s -t ios --api-key <key id> --api-issuer <issuer id>   # or drop the .ipa on Transporter.app\n",
+              ipa.string().c_str(), q(ipa.string()).c_str(), q(ipa.string()).c_str());
+  return true;
+}
+
+static int exportIos(const ProjectInfo& p, const fs::path& out, const std::string& engineRoot, bool print, const Pack& pk) {
   std::error_code ec;
   const fs::path engine = fs::absolute(engineRoot).lexically_normal(), src = out / "src";
   if (!fs::exists(engine / "src/app/shell_sdl.cpp") || !fs::exists(engine / "third_party/SDL3/src/video/uikit")) { std::fprintf(stderr, "zinc export: --target ios needs the engine's sources (%s)\n", engine.string().c_str()); return 1; }
@@ -1309,6 +1473,34 @@ static int exportIos(const ProjectInfo& p, const fs::path& out, const std::strin
     writeFile(out / (p.name + ".entitlements"), "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\">\n<dict>\n" +
               plistEntries(plugs.entitlements, none) + "</dict>\n</plist>\n");
   }
+  {   // PrivacyInfo.xcprivacy: the engine's required-reason APIs and the plugins' (targets.ios.privacy); no tracking, no data collected
+    std::map<std::string, std::set<std::string>> reasons;
+    for (const auto& [cat, why] : ios::kEnginePrivacy) reasons[cat].insert(why);
+    for (const std::string& o : plugs.privacy) {
+      yyjson_doc* d = yyjson_read(o.data(), o.size(), 0);
+      size_t i, n2;
+      yyjson_val *k, *v;
+      if (d) yyjson_obj_foreach(yyjson_doc_get_root(d), i, n2, k, v) for (const std::string& r : jsonStrings(v)) reasons[yyjson_get_str(k)].insert(r);
+      yyjson_doc_free(d);
+    }
+    std::string types;
+    for (const auto& [cat, rs] : reasons) {
+      types += "\t\t<dict>\n\t\t\t<key>NSPrivacyAccessedAPIType</key>\n\t\t\t<string>" + android::xml(cat) + "</string>\n\t\t\t<key>NSPrivacyAccessedAPITypeReasons</key>\n\t\t\t<array>\n";
+      for (const std::string& r : rs) types += "\t\t\t\t<string>" + android::xml(r) + "</string>\n";
+      types += "\t\t\t</array>\n\t\t</dict>\n";
+    }
+    writeFile(out / "PrivacyInfo.xcprivacy", "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\">\n<dict>\n"
+              "\t<key>NSPrivacyTracking</key>\n\t<false/>\n\t<key>NSPrivacyTrackingDomains</key>\n\t<array/>\n\t<key>NSPrivacyCollectedDataTypes</key>\n\t<array/>\n"
+              "\t<key>NSPrivacyAccessedAPITypes</key>\n\t<array>\n" + types + "\t</array>\n</dict>\n</plist>\n");
+  }
+  // ExportOptions.plist for xcodebuild -exportArchive (zinc export --ipa): zinc.json signing.ios, the team also from ZINC_IOS_TEAM; automatic
+  // signing unless a provisioning profile is named (then the archive is signed manually with it too: ZINC_PROFILE in CMakeLists.txt)
+  const char* envTeam = std::getenv("ZINC_IOS_TEAM");
+  const std::string team = envTeam && *envTeam ? envTeam : proj.iosTeam, method = proj.iosMethod.empty() ? "app-store-connect" : proj.iosMethod;
+  writeFile(out / "ExportOptions.plist", "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\">\n<dict>\n" +
+            key("method", method) + (team.empty() ? "" : key("teamID", android::xml(team))) + key("signingStyle", proj.iosProfile.empty() ? "automatic" : "manual") +
+            (proj.iosProfile.empty() ? "" : "\t<key>provisioningProfiles</key>\n\t<dict>\n\t\t<key>" + android::xml(id) + "</key>\n\t\t<string>" + android::xml(proj.iosProfile) + "</string>\n\t</dict>\n") +
+            key("destination", "export") + "</dict>\n</plist>\n");
   std::string unitList;
   for (const std::string& u : units) unitList += " src/" + u;
   if (plugs.swift) {   // a plugin's Swift in a static library: the app needs a Swift file of its own for Xcode to link the Swift runtime's libraries
@@ -1323,14 +1515,15 @@ static int exportIos(const ProjectInfo& p, const fs::path& out, const std::strin
             "project(" + n + " C CXX OBJC OBJCXX" + (plugs.swift ? " Swift" : "") + ")   # Objective-C for the plugins' .m and .mm sources, Swift for their .swift ones\n"
             "set(ZINC_ENGINE \"" + engine.generic_string() + "\" CACHE PATH \"the engine whose sources this project compiles (next/ of a checkout)\")\n"
             "set(ZINC_TEAM \"\" CACHE STRING \"the Apple team that signs a device build (DEVELOPMENT_TEAM)\")\n"
+            "set(ZINC_PROFILE \"\" CACHE STRING \"a provisioning profile that signs a device build manually (zinc.json signing.ios.profile; empty: automatic signing)\")\n"
             "add_compile_options(" + std::string(plugs.swift ? "\"$<$<NOT:$<COMPILE_LANGUAGE:Swift>>:-O2>\"" : "-O2") + ")   # the engine and SDL optimized in a Debug build too\n"
             "set(ZN_WEBGL OFF CACHE BOOL \"\" FORCE)\n"
             "add_subdirectory(${ZINC_ENGINE} zinc EXCLUDE_FROM_ALL)   # the engine (zn_app), SDL3 inside it\n"
             "set(ZINC_PLUGINS ${ZINC_ENGINE}/../plugins)\n" + pluginCmake +
             "# the app: the program, the shell (SDL3's main callbacks over include/zn/app.h), the asset catalog and assets/ in the bundle\n"
             "file(GLOB_RECURSE ZINC_ASSET_FILES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/assets/*)\n"
-            "add_executable(" + n + " MACOSX_BUNDLE" + unitList + " ${ZINC_ENGINE}/src/app/shell_sdl.cpp Assets.xcassets ${ZINC_ASSET_FILES})\n"
-            "set_source_files_properties(Assets.xcassets PROPERTIES MACOSX_PACKAGE_LOCATION Resources)\n"
+            "add_executable(" + n + " MACOSX_BUNDLE" + unitList + " ${ZINC_ENGINE}/src/app/shell_sdl.cpp Assets.xcassets PrivacyInfo.xcprivacy ${ZINC_ASSET_FILES})\n"
+            "set_source_files_properties(Assets.xcassets PrivacyInfo.xcprivacy PROPERTIES MACOSX_PACKAGE_LOCATION Resources)\n"
             "foreach(f ${ZINC_ASSET_FILES})\n"
             "  file(RELATIVE_PATH r ${CMAKE_CURRENT_SOURCE_DIR} ${f})\n"
             "  get_filename_component(d ${r} DIRECTORY)\n"
@@ -1341,6 +1534,7 @@ static int exportIos(const ProjectInfo& p, const fs::path& out, const std::strin
             "  XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER " + id + " XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY \"1,2\"\n" +
             (icon ? "  XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME AppIcon\n" : "") +
             "  XCODE_ATTRIBUTE_CODE_SIGN_STYLE Automatic XCODE_ATTRIBUTE_DEVELOPMENT_TEAM \"${ZINC_TEAM}\")\n"
+            "if(ZINC_PROFILE)   # manual signing: this profile and its certificate, for the app only (the static libraries are not signed)\n  set_target_properties(" + n + " PROPERTIES XCODE_ATTRIBUTE_CODE_SIGN_STYLE Manual XCODE_ATTRIBUTE_PROVISIONING_PROFILE_SPECIFIER \"${ZINC_PROFILE}\" XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY \"" + (method == "debugging" ? "Apple Development" : "Apple Distribution") + "\")\nendif()\n"
             "target_compile_definitions(" + n + " PRIVATE ZN_APP_LIBRARY ZN_APP_HEAP_MB=" + heapMb + (proj.perfHud ? " \"ZN_APP_DEV_ENV=\\\"ZINC_PERF_HUD=1\\\"\"" : "") +
             (appEnv.empty() ? "" : " \"ZN_APP_ENV=\\\"" + appEnv.substr(1) + "\\\"\"") +
             (plugs.lifecycle.empty() ? "" : " \"ZN_APP_LIFECYCLE=\\\"" + [&] { std::string l; for (const std::string& c : plugs.lifecycle) l += (l.empty() ? "" : ",") + android::javaId(c); return l; }() + "\\\"\"") + ")\n"   // zinc.json "dev": {"perfHud": true}, for Debug builds; the plugins' lifecycle classes (shell_sdl.cpp)
@@ -1353,12 +1547,14 @@ static int exportIos(const ProjectInfo& p, const fs::path& out, const std::strin
                            "  xcodebuild -project build/" + n + ".xcodeproj -scheme " + n + " -configuration Debug -sdk iphonesimulator -arch arm64 -derivedDataPath build/dd CODE_SIGNING_ALLOWED=NO build\n"
                            "  xcrun simctl install booted build/Debug-iphonesimulator/" + n + ".app\n"
                            "  xcrun simctl launch --console-pty booted " + id + "\n"
-                           "  cmake -S . -B build-device -G Xcode -DCMAKE_SYSTEM_NAME=iOS -DZINC_TEAM=<your team id> && xcodebuild -project build-device/" + n + ".xcodeproj -scheme " + n + " -configuration Release -sdk iphoneos -derivedDataPath build-device/dd -allowProvisioningUpdates archive -archivePath build-device/" + n + ".xcarchive\n";
+                           "  cmake -S . -B build-device -G Xcode -DCMAKE_SYSTEM_NAME=iOS -DZINC_TEAM=<your team id> && xcodebuild -project build-device/" + n + ".xcodeproj -scheme " + n + " -configuration Release -sdk iphoneos -derivedDataPath build-device/dd -allowProvisioningUpdates archive -archivePath build-device/" + n + ".xcarchive\n"
+                           "  xcodebuild -exportArchive -archivePath build-device/" + n + ".xcarchive -exportPath build-device/ipa -exportOptionsPlist ExportOptions.plist -allowProvisioningUpdates   # build-device/ipa/" + n + ".ipa (zinc export --ipa does these steps)\n";
   writeFile(out / "README-zinc.txt", n + " " + version + " (ios) exported by Zinc: a CMake project for CMake's Xcode generator (CMake 3.24 or later, Xcode 26). It compiles the\n"
             "Zinc engine from " + engine.string() + " (CMakeLists.txt ZINC_ENGINE). The simulator build needs no signing; a device build is signed by\n"
             "your Apple team (-DZINC_TEAM=, or in Xcode: Signing & Capabilities). An Intel Mac builds the simulator with -arch x86_64.\n\n" + cmds);
   if (print) std::printf("%s", cmds.c_str());
   std::printf("%s\n", out.string().c_str());
+  if (pk.ipa) return packIos(p, out, team, proj.iosProfile, pk) ? 0 : 1;
   return 0;
 }
 
@@ -1438,8 +1634,9 @@ static void notarizeHint(const ProjectInfo& p, const fs::path& out, const std::v
 }
 
 int exportApp(const std::vector<std::string>& args, const std::string& engineRoot) {
-  Opts o = parseOpts(args, {"--target", "-o", "--key"}, {"--deb", "--dmg", "--inspect", "--print"});
-  if (o.bad) { std::fprintf(stderr, "zinc export: unknown option %s\nusage: zinc export [entry|dir] [--target linux|rpi|rpi1|rpi2|chip|pocketchip|rmpp|macos|wasm|esp32|android|ios] [-o dir] [--print] [--deb] [--dmg] [--inspect] [--key <seed-hex>]\n", o.badArg.c_str()); return 2; }
+  Opts o = parseOpts(args, {"--target", "-o", "--key", "--abis"}, {"--deb", "--dmg", "--inspect", "--print", "--aab", "--apk", "--ipa", "--simulator", "--dry-run"});
+  if (o.bad) { std::fprintf(stderr, "zinc export: unknown option %s\nusage: zinc export [entry|dir] [--target linux|rpi|rpi1|rpi2|chip|pocketchip|rmpp|macos|wasm|esp32|android|ios] [-o dir] [--print] [--deb] [--dmg] [--inspect] [--key <seed-hex>] [--aab | --apk [--abis list]] [--ipa [--simulator]] [--dry-run]\n", o.badArg.c_str()); return 2; }
+  Pack pack{has(o, "--aab"), has(o, "--apk"), has(o, "--ipa"), has(o, "--simulator"), has(o, "--dry-run"), o.v.count("--abis") ? o.v["--abis"] : ""};
   const std::string seed = o.v.count("--key") ? o.v["--key"] : std::getenv("ZINC_UPDATE_SEED") ? std::getenv("ZINC_UPDATE_SEED") : "";   // the artifacts' signatures (ZN-321)
   std::vector<fs::path> artifacts;
   ProjectInfo p; std::string err;
@@ -1455,6 +1652,11 @@ int exportApp(const std::vector<std::string>& args, const std::string& engineRoo
   const std::string arch = zt == "aarch64-linux" ? "arm64" : (zt == "armhf-linux" || zt == "armv7-linux") ? "armhf" : zt == "x86_64-linux" ? "amd64" : "";   // Debian's names
   if (has(o, "--deb") && arch.empty()) { std::fprintf(stderr, "zinc export: --deb is for the Linux targets (linux, rpi, rpi1, rpi2, chip, pocketchip, rmpp)\n"); return 2; }
   if (has(o, "--dmg") && target != "macos") { std::fprintf(stderr, "zinc export: --dmg is for the macos target\n"); return 2; }
+  if ((pack.aab || pack.apk || !pack.abis.empty()) && target != "android") { std::fprintf(stderr, "zinc export: --aab, --apk and --abis are for the android target\n"); return 2; }
+  if (pack.aab && pack.apk) { std::fprintf(stderr, "zinc export: --aab or --apk, not both\n"); return 2; }
+  if ((pack.ipa || pack.simulator) && target != "ios") { std::fprintf(stderr, "zinc export: --ipa and --simulator are for the ios target\n"); return 2; }
+  if (pack.simulator && !pack.ipa) { std::fprintf(stderr, "zinc export: --simulator goes with --ipa\n"); return 2; }
+  if (pack.dry && !pack.aab && !pack.apk && !pack.ipa) { std::fprintf(stderr, "zinc export: --dry-run goes with --aab, --apk or --ipa (--print lists the commands of a plain export)\n"); return 2; }
   fs::path out = o.v.count("-o") ? fs::path(o.v["-o"]) : fs::path(p.dir) / "dist" / (p.name + "-" + target);
   std::error_code ec;
   fs::remove_all(out, ec);
@@ -1462,8 +1664,8 @@ int exportApp(const std::vector<std::string>& args, const std::string& engineRoo
   if (!buildAssets(p.dir, target, true, err)) { std::fprintf(stderr, "zinc export: %s\n", err.c_str()); return 1; }   // the release packs, build/assets/<target> (ZN-434)
   if (target == "wasm") return exportWasm(p, out, engineRoot);
   if (target == "esp32") return exportEsp32(p, out, engineRoot);
-  if (target == "android") return exportAndroid(p, out, engineRoot, has(o, "--print"));
-  if (target == "ios") return exportIos(p, out, engineRoot, has(o, "--print"));
+  if (target == "android") return exportAndroid(p, out, engineRoot, has(o, "--print"), pack);
+  if (target == "ios") return exportIos(p, out, engineRoot, has(o, "--print"), pack);
   // the argument orders of the two build commands: `build <file> -o <out>` for this machine, `build --target <t> <file> -o <out>` for another
   const std::string cmd = zt.empty() ? "ZINC_COMPONENTS=1 " + q(self()) + " build " + q(p.entry) + " -o " + q((out / p.name).string())   // ZINC_COMPONENTS: what it links, for the SBOM
                                      : "ZINC_COMPONENTS=1 " + q(self()) + " build --target " + q(zt) + " " + q(p.entry) + " -o " + q((out / p.name).string());

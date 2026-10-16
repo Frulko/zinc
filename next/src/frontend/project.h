@@ -77,6 +77,8 @@ struct Project {
   bool permissionsDeclared = false;
   std::map<std::string, std::string> permissionStrings;   // "permissionStrings": {"camera": "..."}: what the system's question says (iOS, macOS), per permission
   std::string signIdentity, signKeychain, notaryProfile;   // "signing" (ZN-321): the codesign identity ("-" or none: ad hoc), its keychain, the notarytool profile
+  std::string androidKeystore, androidKeyAlias;     // "signing.android" (ZN-629): the upload keystore's path (relative to the project) and alias; its passwords come only from the environment
+  std::string iosTeam, iosMethod, iosProfile;       // "signing.ios" (ZN-629): the Apple team id, the export method (app-store-connect, release-testing, debugging, enterprise), a provisioning profile (manual signing)
   std::string updateUrl, updateChannel = "stable", updateKey;   // "update": where the channel manifests are, the channel, the app's Ed25519 public key (ZN-324)                // the "permissions" key is there: the host modules check it at run time (ZN-322)
   std::string scopes;                              // "scopes" as JSON text ({"opener": {"allow": [...]}})
   std::map<std::string, std::vector<std::string>> targetPermissions;   // targets.<name>.permissions: additions, and `-id` removals for that target
