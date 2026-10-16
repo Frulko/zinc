@@ -62,5 +62,6 @@ export default {
       }
     return out;
   },
+  png: (_h: i32): u8[] => [],   // ponytail: no encoder without native code; the native plugin has stb_image_write
   close: (h: i32): void => { const c = at(h); if (c !== null) { destroyImage(c.img); cams[h] = null; } },
 };

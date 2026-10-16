@@ -47,7 +47,7 @@ static void hold() {
 }
 
 // Scripted input for headless runs (ZINC_INPUT=file): one event per line, `<frame> <event>`, frames counted from 0 at each poll.
-//   move X Y | down | up | right-down | right-up | key NAME [shift|ctrl|alt|meta]... | text WORD | text "several words" (\" and \\ inside) | wheel DX DY | pad NAME | padup NAME (the gamepad buttons Up Down Left Right A B X Y L R Start Select, held until padup)
+//   move X Y | down | up | right-down | right-up | key NAME (a character, Space, Enter, Escape, Arrow*...) [shift|ctrl|alt|meta]... | text WORD | text "several words" (\" and \\ inside) | wheel DX DY | pad NAME | padup NAME (the gamepad buttons Up Down Left Right A B X Y L R Start Select, held until padup)
 //   gamepad I [NAME...] (a gamepad is plugged in slot I, 0 to 3) | gamepadoff I | gbutton I B [VALUE] (button B of the W3C standard order,
 //   0 to 16, held until gbuttonup; VALUE 0..1 for the triggers 6 and 7) | gbuttonup I B | gaxis I A VALUE (axis 0 to 3, -1..1, kept)
 //   touch ID X Y (a finger lands or moves; up to HAL_MAX_TOUCH at once, held until its touchup) | touchup ID
@@ -99,7 +99,7 @@ int keyCode(const std::string& n) {
   if (n.size() == 1) return static_cast<unsigned char>(n[0]);
   static const struct { const char* n; int code; } named[] = {{"Backspace", HAL_KEY_BACKSPACE}, {"Delete", HAL_KEY_DELETE}, {"Enter", HAL_KEY_ENTER}, {"Tab", HAL_KEY_TAB},
     {"Escape", HAL_KEY_ESCAPE}, {"ArrowLeft", HAL_KEY_ARROW_LEFT}, {"ArrowRight", HAL_KEY_ARROW_RIGHT}, {"ArrowUp", HAL_KEY_ARROW_UP}, {"ArrowDown", HAL_KEY_ARROW_DOWN},
-    {"Home", HAL_KEY_HOME}, {"End", HAL_KEY_END}, {"PageUp", HAL_KEY_PAGEUP}, {"PageDown", HAL_KEY_PAGEDOWN}};
+    {"Home", HAL_KEY_HOME}, {"End", HAL_KEY_END}, {"PageUp", HAL_KEY_PAGEUP}, {"PageDown", HAL_KEY_PAGEDOWN}, {"Space", ' '}};
   for (auto& k : named) if (n == k.n) return k.code;
   return 0;
 }

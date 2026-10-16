@@ -15,6 +15,10 @@
 #include <string.h>
 #include <string>
 #include <vector>
+#define STB_IMAGE_WRITE_STATIC
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#define STBI_WRITE_NO_STDIO
+#include "stb/stb_image_write.h"
 extern "C" int zn_host_permission(const char* feature, const char* detail, char* why, int n) __attribute__((weak));   // zinc.json "permissions" (src/host/permissions.cpp)
 
 #ifndef ZP_CAMERA_FAKE
@@ -203,6 +207,20 @@ struct HostCamera : NativeCamera {
       o[i * 4] = (uint8_t)(p >> 16); o[i * 4 + 1] = (uint8_t)(p >> 8); o[i * 4 + 2] = (uint8_t)p; o[i * 4 + 3] = 255;
     }
     r.a->len = n * 4;
+    return r;
+  }
+  zrt::Array<uint8_t> png(int32_t h) override {
+    Cam* c = at(h);
+    std::vector<uint8_t> rgb, out;
+    if (c) {
+      rgb.resize((size_t)c->w * c->h * 3);
+      for (size_t i = 0; i < c->shown.size(); i++) { uint32_t p = c->shown[i]; rgb[i * 3] = (uint8_t)(p >> 16); rgb[i * 3 + 1] = (uint8_t)(p >> 8); rgb[i * 3 + 2] = (uint8_t)p; }
+      stbi_write_png_to_func([](void* ctx, void* d, int n) { auto* o = (std::vector<uint8_t>*)ctx; o->insert(o->end(), (uint8_t*)d, (uint8_t*)d + n); },
+                             &out, c->w, c->h, 3, rgb.data(), c->w * 3);
+    }
+    zrt::Array<uint8_t> r = zrt::Array<uint8_t>::with_cap((int32_t)out.size());
+    if (!out.empty()) memcpy(r.a->data, out.data(), out.size());
+    r.a->len = (int32_t)out.size();
     return r;
   }
   void close(int32_t h) override {

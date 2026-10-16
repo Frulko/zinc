@@ -94,6 +94,9 @@ export class Camera {
   setOption(name: 'mirror' | 'brightness' | 'contrast', value: number): void { if (this.h >= 0) S.setOption(this.h, name, value); }
   /** The newest frame as RGBA bytes (width * height * 4), options applied; black before the first frame. */
   snapshot(): Uint8Array { return this.h < 0 ? [] : S.snapshot(this.h); }
+  /** The newest frame as the bytes of a PNG file, options applied (fs.writeBytes them to save a photo, gfx.imageFromBytes for a thumbnail);
+   *  [] once closed and without native code (the sim stand-in). */
+  toPng(): Uint8Array { return this.h < 0 ? [] : S.png(this.h); }
   /** Stops the camera; its image is destroyed. */
   close(): void {
     if (this.h < 0) return;

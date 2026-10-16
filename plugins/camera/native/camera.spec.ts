@@ -24,6 +24,8 @@ export interface Spec extends NativeModule {
   setOption(h: i32, name: string, value: f64): void;
   /** The newest frame as RGBA bytes, width * height * 4. */
   snapshot(h: i32): u8[];
+  /** The newest frame as the bytes of a PNG file (options applied, deflate-compressed); [] when it cannot be encoded. */
+  png(h: i32): u8[];
   close(h: i32): void;
 }
 export default requireNative<Spec>('Camera');
