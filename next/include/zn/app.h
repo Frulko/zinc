@@ -5,6 +5,10 @@
 // The shell owns the run loop and calls the engine once per tick: SDL3's main callbacks map one to one (src/app/shell_sdl.cpp).
 #pragma once
 
+// The SDL_SendAndroidMessage command the activity of `zinc export --target android` answers on its UI thread: the window's brightness,
+// 0 (darkest) to 255, -1 the system's (device('backlight'), src/host/sys_host.cpp)
+#define ZN_APP_ANDROID_BRIGHTNESS 0x8001
+
 extern "C" {
 int zn_app_init(int argc, char** argv);    // the program's top level, up to where its loop would start: 0 running, 1 done, <0 error
 int zn_app_iterate(void);                  // one tick: a frame when the program draws, else the due timers and a look at the host's loop; the same codes

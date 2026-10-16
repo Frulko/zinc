@@ -10,6 +10,7 @@
 #define HOST_DEFINES_RESOURCE_STATS
 #include "zn/resource_stats.h"
 #include "zn/zim.h"
+#include "zn/app.h"
 #include "hal.h"
 // the CPU decoders of the GPU block formats (ZN-439): the software raster draws a compressed texture from its decoded texels
 #define BCDEC_STATIC
@@ -249,8 +250,14 @@ bool simAnswer(const std::string& q, const std::string& a, std::string& out) {
   return false;
 }
 
+#ifdef __ANDROID__   // SDL3's (SDL_video.h, SDL_system.h), without its headers in the host library
+extern "C" bool SDL_DisableScreenSaver(void);
+extern "C" bool SDL_EnableScreenSaver(void);
+extern "C" bool SDL_SendAndroidMessage(unsigned command, int param);
+#endif
 // A desktop's device features for the web APIs (HalDisplay::device answers first on a device): the network, the battery of a Mac (IOKit,
 // opened when asked), the language, the machine; '' for what a desktop has not (sensors, wake lock: zinc:system/power has a sleep blocker).
+// An Android app: the screen kept on and its brightness.
 std::string desktopDevice(const std::string& q, const std::string& a) {
   if (q == "language") return systemLocale();
   if (q == "visibility") return "visible";   // ponytail: a desktop window is taken as visible; its minimised state when a program needs it
@@ -265,6 +272,11 @@ std::string desktopDevice(const std::string& q, const std::string& a) {
     }
     return std::string("{\"online\":") + (up ? "true" : "false") + ",\"type\":\"" + (up ? "unknown" : "none") + "\"}";
   }
+#ifdef __ANDROID__   // SDL3 is linked in the app (src/app/shell_sdl.cpp): the screen kept on is its screen saver off (FLAG_KEEP_SCREEN_ON)
+  if (q == "wakelock") return (a == "1" ? SDL_DisableScreenSaver() : SDL_EnableScreenSaver()) ? "1" : "0";
+  // the screen dark, or back at the system's brightness (zinc:webos setBacklight): the window's own brightness, set on the UI thread
+  if (q == "backlight") return SDL_SendAndroidMessage(ZN_APP_ANDROID_BRIGHTNESS, a == "1" ? -1 : 0) ? "1" : "0";
+#endif
 #if defined(__APPLE__) && !defined(ZN_APP_LIBRARY)   // an app library loads nothing at run time (ZN-620): no wake lock nor battery from IOKit
   if (q == "wakelock") {   // the display kept awake (IOPMAssertion), as navigator.wakeLock.request('screen') on a Mac
     static void* io = dlopen("/System/Library/Frameworks/IOKit.framework/IOKit", RTLD_LAZY | RTLD_LOCAL);

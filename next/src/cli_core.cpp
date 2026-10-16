@@ -29,6 +29,7 @@
 #include "frontend/plugin_manifest.h"
 #include "frontend/profile.h"
 #include "frontend/project.h"
+#include "zn/app.h"
 #include "zn/devproto.h"
 #include "zapp.h"
 #include "yyjson.h"
@@ -1068,7 +1069,12 @@ static int exportAndroid(const ProjectInfo& p, const fs::path& out, const std::s
   fs::create_directories(out / "app/src/main/java" / pkgPath, ec);
   // the script's activity, with SDL3 linked into libmain.so rather than a libSDL3.so of its own
   writeFile(out / "app/src/main/java" / pkgPath / (activity + ".java"),
-            "package " + id + ";\n\nimport org.libsdl.app.SDLActivity;\n\npublic class " + activity + " extends SDLActivity\n{\n    @Override\n    protected String[] getLibraries() { return new String[] { \"main\" }; }   // Zinc: SDL3 is inside libmain.so\n}\n");
+            "package " + id + ";\n\nimport org.libsdl.app.SDLActivity;\n\npublic class " + activity + " extends SDLActivity\n{\n    @Override\n    protected String[] getLibraries() { return new String[] { \"main\" }; }   // Zinc: SDL3 is inside libmain.so\n\n"
+            "    @Override\n    protected boolean onUnhandledMessage(int command, Object param) {   // Zinc: the window's brightness, on the UI thread (zn/app.h)\n"
+            "        if (command != " + std::to_string(ZN_APP_ANDROID_BRIGHTNESS) + " || !(param instanceof Integer)) return super.onUnhandledMessage(command, param);\n"
+            "        android.view.WindowManager.LayoutParams lp = getWindow().getAttributes();\n"
+            "        lp.screenBrightness = (Integer) param < 0 ? -1f : (Integer) param / 255f;   // -1: the system's\n"
+            "        getWindow().setAttributes(lp);\n        return true;\n    }\n}\n");
   if (!proj.app.icon.empty() && fs::exists(fs::path(p.dir) / proj.app.icon))   // zinc.json app.icon, a PNG, for every density
     for (const char* d : {"mdpi", "hdpi", "xhdpi", "xxhdpi", "xxxhdpi"}) fs::copy_file(fs::path(p.dir) / proj.app.icon, out / "app/src/main/res" / (std::string("mipmap-") + d) / "ic_launcher.png", fs::copy_options::overwrite_existing, ec);
   // assets/ of the project: in the APK under zinc/assets, listed for the shell, which copies them once per version (src/app/shell_sdl.cpp)

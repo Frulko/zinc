@@ -8,7 +8,7 @@
 ./app/jni/src/program.cpp (the program's C++)
 ./app/proguard-rules.pro a0d17050053f5ffa
 ./app/src/main/AndroidManifest.xml 8e81982bd8627bdf
-./app/src/main/java/dev/zinc/hello/HelloActivity.java 77ff75198bf1ea09
+./app/src/main/java/dev/zinc/hello/HelloActivity.java 04928f8d4fe2d2c1
 ./app/src/main/java/org/libsdl/app/HIDDevice.java afdeaf583f051583
 ./app/src/main/java/org/libsdl/app/HIDDeviceBLESteamController.java 2f88711d2c5bb211
 ./app/src/main/java/org/libsdl/app/HIDDeviceManager.java 5bff9432726930a1
