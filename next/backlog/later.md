@@ -390,3 +390,5 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-718: DevTools: the DOM view still shows `<view class="...">` as node names; show `<View className>` as React DevTools does (the inspector tests expect the old names).
 
 
+- ZN-741: once the GLES 2 base exists, measure it on the Pi 3 (VideoCore IV) and the HP TouchPad (Adreno 220) against the Nexus 7 (Tegra 3): same capability record, same programs, frame times in `docs/reports/zinc-next-perf.md`, and whether one tuning table fits the three.
+- D119: back ends of the GPU layer for the connected platforms the owner named (CHIP Mali-400 on the GLES 2 base; PS Vita GXM; 3DS citro3d; Wii GX; Wii U GX2; Switch deko3d or NVN), one small back end per GPU as PocketJS does; and the extraction of the layer as a project of its own once a second back end exists.
