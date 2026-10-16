@@ -703,14 +703,12 @@ static void before_present(const raster::Rect& dmg_box) {
 }
 }  // namespace hud
 // The fingers of a touch screen, shown where they press (owner 2026-10-12): a soft disc and a ring each, over everything the program and
-// the panels draw, like the "show taps" of a phone. On wherever fingers arrive; ZINC_TOUCHES=0 hides them, and a deterministic or headless
-// run (the goldens, the captures) shows them only with ZINC_TOUCHES=1. Their damage is their own boxes, now and at the last frame.
+// the panels draw, like the "show taps" of a phone. A debugging aid, off by default (owner 2026-10-16): ZINC_TOUCHES=1 shows them (also
+// through `--es zinc.env` on Android). Their damage is their own boxes, now and at the last frame.
 static void taps_update() {
   static const bool on = [] {
     const char* e = hal_env("ZINC_TOUCHES");
-    if (e && *e) return *e != '0';
-    const char *d = hal_env("ZINC_DETERMINISTIC"), *h = hal_env("ZINC_HEADLESS");
-    return !(d && *d && *d != '0') && !(h && *h && *h != '0');
+    return e && *e && *e != '0';
   }();
   static raster::Rect was = {0, 0, 0, 0};
   if (!on || (input.ntouch <= 0 && !taps.ncmd)) return;
