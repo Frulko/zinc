@@ -26,6 +26,7 @@ zinc doctor        # checks cmake, a C++17 compiler, SDL3, docker, emscripten
 7. [Distribution](07-distribution.md) — from `zinc new game-2d` to an itch.io page and a download page, worked through and run by a test; then `zinc pack`, `fuse`, `export` per target, signing and notarization, `.dmg` and `.deb`, SBOM, `zinc publish` (itch.io, a download page, signed updates), `zinc update-app`, mirrors.
 8. [Security](08-security.md) — threat model per deployment, memory-safety guarantees and limits, the permission keys of zinc.json and what each host module checks, network exposure defaults, systemd units, build flags, secrets, supply chain and plugin distribution, fuzzing, and what a native build hides (and does not).
 9. [Web platform APIs](09-web-apis.md) — the WinterTC minimum common Web API as globals: `fetch` / `Request` / `Response` / `Headers`, `URL`, `TextEncoder` / `TextDecoder`, events, `AbortController`, `Blob` / `FormData`, `crypto`, `WebAssembly`; deviations and WPT results.
+10. [Lint and migrate](10-lint-migrate.md) — `zinc lint`: what cannot work or weighs too much on each target (requires, plugins, UI tiers, screen, asset budgets), the matrix of `--all-targets`; `zinc migrate`: the codemods that come with a language or API change.
 
 ## The one-minute tour
 

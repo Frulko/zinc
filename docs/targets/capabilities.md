@@ -52,6 +52,12 @@ Where requirements are declared:
 - **A conformance test**: `// zinc-test: requires heap>=512K touch|pointer`. The runner skips the program on
   incompatible profiles and prints the reason. The older `// zinc-test: skip <profile>` still works.
 
+## Checking a program before a build: zinc lint
+
+`zinc lint --target <profile>` (or `--all-targets`, a matrix of every profile) checks a project against this table without compiling
+it: `zinc.json` `requires`, the `requires` and `targets` of the plugins it imports, `@requires` comments, the UI tier (`tier`), the screen
+(`width`, `height`) and the asset budgets (`assets`). The rules and their fixes: [the guide](../guide/10-lint-migrate.md).
+
 ## Platform-specific files
 
 Next to `keyboard.tsx`, a `keyboard.<profile>.tsx` (e.g. `keyboard.esp32.tsx`, `keyboard.ps1.tsx`) replaces it when
