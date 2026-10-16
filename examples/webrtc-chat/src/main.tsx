@@ -2,7 +2,7 @@
 //   - "This window": both peers in this program, the offer, the answer and the candidates passed in memory (no network needed);
 //   - "Copy and paste": one peer here, the other in another copy of the app (another machine): copy the offer, paste the answer;
 //   - "Room": both join a room of the signalling server (signal-server.ts, `zinc run examples/webrtc-chat/signal-server.ts`) on a LAN.
-// The bar at the bottom shows the microphone's level (zinc:microphone; audio is not sent yet: tracks come later).
+// The bar at the bottom shows the microphone's level (zinc:microphone; examples/webrtc-call sends the audio and the video).
 //   zinc run examples/webrtc-chat
 // WEBRTC_MODE=paste|room starts on another tab, WEBRTC_SCHEME=dark in the dark theme, WEBRTC_AUTOCONNECT=0 leaves "This window" idle,
 // WEBRTC_DEMO=1 runs the scripted session (connect, chat, a file, then quit), WEBRTC_DEMO=room joins the room, says hello and quits once

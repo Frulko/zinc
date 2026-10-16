@@ -1,0 +1,46 @@
+{
+  "name": "webrtc-call",
+  "entry": "src/main.tsx",
+  "scheme": "auto",
+  "requires": [
+    "display",
+    "pointer|touch",
+    "camera",
+    "microphone"
+  ],
+  "permissions": [
+    "net",
+    "camera",
+    "microphone"
+  ],
+  "targets": {
+    "macos": {
+      "width": 1040,
+      "height": 680,
+      "resize": "fill"
+    },
+    "linux": {
+      "width": 1040,
+      "height": 680
+    },
+    "rpi1": {
+      "width": 800,
+      "height": 480
+    }
+  },
+  "icons": [
+    "activity",
+    "mic",
+    "mic-off",
+    "moon",
+    "phone",
+    "phone-off",
+    "shield-alert",
+    "sun",
+    "switch-camera",
+    "video",
+    "video-off",
+    "volume-2",
+    "volume-x"
+  ]
+}

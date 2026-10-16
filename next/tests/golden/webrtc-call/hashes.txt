@@ -1,0 +1,4 @@
+local light 1040x680 20ff9501ed397c61
+local dark 1040x680 3f3ca409e52da276
+room light 1040x680 42b5cf2affcf8881
+local dark 390x760 872b2ffca18b55c1

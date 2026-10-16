@@ -171,7 +171,7 @@ the guides are in [docs/plugins/](docs/plugins/). Abbreviations: Pi = Raspberry 
 | `gsap` | GSAP's core API in typed Zinc (tweens, timelines, eases, staggers), compiled by `zinc build`; the whole library runs on the QuickJS engine | Zinc | macOS, Linux, Windows, Pi, rM, webOS, Web, ESP32 |
 | `zinc:async-storage` | React Native's AsyncStorage on `zinc:storage` | Zinc | macOS, Linux, Windows, Pi, rM, webOS, ESP32 |
 | `zinc:socket` | TCP, UDP and Unix sockets, DNS, WebSocket client and server | Native | macOS, Linux, Pi, rM |
-| `zinc:webrtc` | WebRTC data channels (`RTCPeerConnection`, `RTCDataChannel`): peer-to-peer text and bytes, STUN/TURN (libdatachannel) | Native | macOS, Linux, Pi |
+| `zinc:webrtc` | WebRTC (`RTCPeerConnection`): data channels, audio and video tracks (Opus, VP8, H.264 in hardware on macOS), stats, STUN/TURN (libdatachannel) | Native | macOS, Linux, Pi |
 | `zinc:process` | Child processes (args, streams, kill) | Native | macOS, Linux, Pi |
 | `zinc:ffi` | C functions of shared libraries (libffi) | Native | macOS, Linux |
 | `zinc:script` | Sandboxed JavaScript at run time (QuickJS-ng) | Native | macOS, Linux, Pi, rM |

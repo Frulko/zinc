@@ -1,0 +1,19 @@
+camera off
+camera on
+camera Zinc Fake Camera
+devices: video Zinc Fake Camera, audio Zinc Fake Microphone
+echo connected
+echo connecting
+ended: ended
+hung up
+hung up
+microphone off
+microphone on
+picture back: image, frames flowing
+speaker off
+speaker on
+stats 640x480 codec audio opus bit rates
+you connected
+you connecting
+you receive audio
+you receive video
