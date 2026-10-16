@@ -37,6 +37,10 @@ constexpr Pin kZigPins[] = {
     {"x86_64-macos", "zig-x86_64-macos-0.15.2.tar.xz", "375b6909fc1495d16fc2c7db9538f707456bfc3373b14ee83fdd3e22b3d43f7f"},
     {"x86_64-linux", "zig-x86_64-linux-0.15.2.tar.xz", "02aa270f183da276e5b5920b1dac44a63f1a49e55050ebde3aecc9eb82f93239"},
     {"aarch64-linux", "zig-aarch64-linux-0.15.2.tar.xz", "958ed7d1e00d0ea76590d27666efbf7a932281b3d7ba0c6b01b0ff26498f667f"},
+    // the 32-bit Linux builds of zinc (docs/targets/linux.md): zig compiles plugins and programs on the device. zig's ARM build needs ARMv7:
+    // a Pi 2 or later on a 32-bit OS runs it, a Pi 1 or Zero does not (measured: qemu -cpu arm1176 stops on an illegal instruction)
+    {"arm-linux", "zig-arm-linux-0.15.2.tar.xz", "7d8401495065dae45d6249c68d5faf10508f8203c86362ccb698aeaafc66b7cd"},
+    {"x86-linux", "zig-x86-linux-0.15.2.tar.xz", "4c6e23f39daa305e274197bfdff0d56ffd1750fc1de226ae10505c0eff52d7a5"},
 };
 constexpr const char* kEsptoolVersion = "v5.4.0";  // checksums: the digests GitHub lists for the release assets
 constexpr Pin kEsptoolPins[] = {
@@ -189,7 +193,7 @@ const Target* findTarget(const std::string& name) {
   static const std::map<std::string, std::string> alias = {   // the names people type
       {"windows-x86_64", "x86_64-windows"}, {"windows", "x86_64-windows"},
       {"linux-arm64", "aarch64-linux"}, {"linux-aarch64", "aarch64-linux"}, {"arm64-linux", "aarch64-linux"}, {"linux-armhf", "armhf-linux"},
-      {"linux-armv7", "armv7-linux"}, {"linux-x86_64", "x86_64-linux"}, {"linux-amd64", "x86_64-linux"}, {"amd64-linux", "x86_64-linux"},
+      {"linux-armv7", "armv7-linux"}, {"arm-linux", "armhf-linux"}, {"linux-x86_64", "x86_64-linux"}, {"linux-amd64", "x86_64-linux"}, {"amd64-linux", "x86_64-linux"},
       {"linux-x86", "x86-linux"}, {"linux-i686", "x86-linux"}, {"i686-linux", "x86-linux"}};
   const auto a = alias.find(name);
   const std::string n = a == alias.end() ? name : a->second;
@@ -236,6 +240,10 @@ std::string hostName() {
   return std::string("aarch64-") + os;
 #elif defined(__x86_64__)
   return std::string("x86_64-") + os;
+#elif defined(__arm__)
+  return std::string("arm-") + os;   // zig's names for its 32-bit builds
+#elif defined(__i386__)
+  return std::string("x86-") + os;
 #else
   return std::string("unknown-") + os;
 #endif
