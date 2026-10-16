@@ -302,7 +302,7 @@ bool mobileCommand(const std::string& q, const std::string& a, std::string& out)
 // absent = blue, as Apple's system colours (light) RRGGBB; "" where there is none (iOS: the app's own tint; Android's dynamic colour: the activity's).
 // CoreFoundation is opened, not linked, as src/tc/bundle.cpp does (ZN-592.01).
 std::string systemAccent() {
-#if defined(__APPLE__) && !TARGET_OS_IPHONE
+#if defined(__APPLE__) && !TARGET_OS_IPHONE && !defined(ZN_APP_LIBRARY)   // an app library opens nothing (D120): no system accent there
   if (zn::runPlatform() != std::string("macos")) return "";   // a phone run on the Mac (ZINC_PLATFORM)
   void* cf = dlopen("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation", RTLD_LAZY | RTLD_LOCAL);
   if (!cf) return "";
