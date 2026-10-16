@@ -305,6 +305,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-745: an import written with its extension ('./Screen.tsx') takes the file as written, while tsc applies moduleSuffixes to it too.
 - ZN-745: zinc tsconfig --platform <p> to write another platform's moduleSuffixes for the editor (today: this machine's).
 - ZN-747: Platform.Version on a real iPhone (sysctl kern.osproductversion) not checked: no Apple team.
+- ZN-628: the generated glue carries no Promise, array or record; add them when a plugin needs one.
+- ZN-628: on iOS a deep link at launch arrives as an open-url event, not through deep-link.getCurrent; set the notification delegate before launch ends, for a tap that starts the app.
+- ZN-628: zinc:video on phones (Android AMediaExtractor + AMediaCodec, NV12 converted as the webOS backend does; iOS AVAssetReader in 32BGRA; both behind player.h, about one session each): then examples/hero exports to Android and iOS (plan in the task notes).
+- ZN-628: zinc:webview on WKWebView and the Android WebView through the NativeView overlay (ZN-749).
 
 ## Demos
 
@@ -582,3 +586,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-741: ZINC_GL_INFO on the Pi 3 (KMS) and the TouchPad (webOS): check the family and the tuning row; move webOS's ZINC_GL_DIRECT=1 and ZINC_GL_CORNERS=0 into the Adreno 2xx row, measured there first.
 - ZN-744: the GPU scroll on the Pi 3 (display-gl does not call glr::scroll yet) and the TouchPad.
 - ZN-745: zinc build --target armv7-webos and --target aarch64-linux pick x.webos.ts / x.linux.ts (ZINC_PLATFORM from the target): implemented, not run.
+- ZN-628: the services and Swift/Kotlin fixtures on the Nexus 7 (armeabi-v7a Kotlin build) and a real iPhone; zinc.json targets.android/targets.ios raw manifest and plist fragments for apps.
