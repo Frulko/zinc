@@ -4,13 +4,15 @@
   "deterministic": true,
   "module": "zinc:camera",
   "entry": "index.ts",
-  "description": "Webcams and built-in cameras (AVFoundation, V4L2): list, open at a size and rate, frames as a runtime image, RGBA snapshots; a generated test pattern camera when there is none",
+  "description": "Webcams, phone and built-in cameras (AVFoundation on macOS and iOS, V4L2 on Linux, camera2 on Android): list, open at a size and rate, frames as a runtime image, stills, PNG photos encoded off the main thread; a generated test pattern camera when there is none",
   "options": { "fake": false },
   "requires": ["camera"],
-  "native": { "impl": { "macos": "native/camera.macos.mm" } },
+  "native": { "impl": { "macos": "native/camera.macos.mm", "ios": "native/camera.ios.mm" } },
   "targets": {
     "macos": { "frameworks": ["AVFoundation", "CoreMedia", "CoreVideo", "Foundation"] },
     "linux": { "linkFlags": ["-pthread"] },
-    "rpi1": { "linkFlags": ["-pthread"] }
+    "rpi1": { "linkFlags": ["-pthread"] },
+    "android": { "libs": ["camera2ndk", "mediandk", "android", "log"] },
+    "ios": { "frameworks": ["AVFoundation", "CoreMedia", "CoreVideo", "Foundation"] }
   }
 }

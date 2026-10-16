@@ -38,6 +38,7 @@ export default {
     cams.push(new Cam(clampSize(w), clampSize(h), fps <= 0 ? 30 : fps));
     return cams.length - 1;
   },
+  state: (h: i32): i32 => at(h) === null ? -1 : 1,
   format: (h: i32): number[] => { const c = at(h); return c === null ? [0, 0, 0, 0] : [c.w, c.h, c.fps, 1000 / c.fps]; },
   frame: (h: i32): i32 => { const c = at(h); if (c === null) return -1; c.index++; return c.index; },
   image: (h: i32): i32 => { const c = at(h); return c === null ? -1 : c.img; },
@@ -63,5 +64,9 @@ export default {
     return out;
   },
   png: (_h: i32): u8[] => [],   // ponytail: no encoder without native code; the native plugin has stb_image_write
+  copyFrame: (h: i32, _image: i32): boolean => at(h) !== null,   // the sim's images stay black
+  encodePng: (_h: i32): i32 => 0,
+  pngReady: (_job: i32): i32 => 1,
+  takePng: (_job: i32): u8[] => [],
   close: (h: i32): void => { const c = at(h); if (c !== null) { destroyImage(c.img); cams[h] = null; } },
 };

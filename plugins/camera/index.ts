@@ -5,6 +5,7 @@
 // navigator.mediaDevices.getUserMedia (zinc:web) opens cameras through this module once a program imports it.
 import S from './native/camera.spec';
 import { MediaStreamTrack, MediaTrackSettings, setCameraBridge } from 'zinc:web';
+import { createImage, destroyImage } from 'zinc:gfx';
 
 const RS = '\u001e', FS = '\u001f';
 
@@ -68,7 +69,20 @@ export class Camera {
   static open(id: string, o: CameraOptions = {}): Promise<Camera> {
     const h = S.open(id, o.width ?? 0, o.height ?? 0, o.fps ?? 0);
     if (h < 0) return Promise.reject(new Error(S.error()));
-    return Promise.resolve(new Camera(h, id));
+    const now = S.state(h);
+    if (now > 0) return Promise.resolve(new Camera(h, id));
+    if (now < 0) { const e = S.error(); S.close(h); return Promise.reject(new Error(e)); }
+    // macOS starts the camera off the program's thread (0.3 to 1.5 s for a USB webcam): the program keeps drawing, and this resolves once it runs
+    return new Promise<Camera>((resolve: (c: Camera) => void, reject: (e: Error) => void) => {
+      let t: i32 = -1;
+      t = setInterval(() => {
+        const s = S.state(h);
+        if (s === 0) return;
+        clearInterval(t);
+        if (s > 0) resolve(new Camera(h, id));
+        else { const e = S.error(); S.close(h); reject(new Error(e)); }
+      }, 10);
+    });
   }
   private constructor(h: i32, id: string) {
     const f = S.format(h);
@@ -97,6 +111,25 @@ export class Camera {
   /** The newest frame as the bytes of a PNG file, options applied (fs.writeBytes them to save a photo, gfx.imageFromBytes for a thumbnail);
    *  [] once closed and without native code (the sim stand-in). */
   toPng(): Uint8Array { return this.h < 0 ? [] : S.png(this.h); }
+  /** A still of the frame on screen (options applied) as a new runtime image of the camera's size, in a millisecond: a photo's thumbnail
+   *  without encoding and decoding a PNG. -1 once closed. Free it with gfx.destroyImage. */
+  still(): number {
+    if (this.h < 0) return -1;
+    const img = createImage(this.width, this.height);
+    if (img >= 0 && !S.copyFrame(this.h, img)) { destroyImage(img); return -1; }
+    return img;
+  }
+  /** toPng() off the program's thread: the frame on screen now, encoded on a thread of its own (a 1280x720 picture takes 100 ms or more),
+   *  so the program keeps drawing. Resolves with the PNG's bytes, [] once closed and without native code. */
+  encodePng(): Promise<Uint8Array> {
+    const job = this.h < 0 ? -1 : S.encodePng(this.h);
+    if (job < 0) { const none: Uint8Array = []; return Promise.resolve(none); }
+    return new Promise<Uint8Array>((resolve: (b: Uint8Array) => void) => {
+      if (S.pngReady(job) !== 0) { resolve(S.takePng(job)); return; }
+      let t: i32 = -1;
+      t = setInterval(() => { if (S.pngReady(job) !== 0) { clearInterval(t); resolve(S.takePng(job)); } }, 10);
+    });
+  }
   /** Stops the camera; its image is destroyed. */
   close(): void {
     if (this.h < 0) return;

@@ -1,7 +1,7 @@
 // zinc:camera native side: cameras are handles and nothing blocks. index.ts calls frame() on a timer, which takes the newest frame into the
 // camera's runtime image. Records use \u001e between items and \u001f between fields.
-// camera.host.cpp is the shared part (the fake camera, the options, the image) over a backend: src/avfoundation.mm (macOS), src/v4l2.cpp
-// (Linux, Raspberry Pi). camera.sim.ts is the fake camera alone, in Zinc.
+// camera.host.cpp is the shared part (the fake camera, the options, the image) over a backend: camera.macos.mm (macOS, iOS), camera.linux.cpp
+// (Linux, Raspberry Pi), camera.android.cpp (Android). camera.sim.ts is the fake camera alone, in Zinc.
 import { NativeModule, requireNative } from 'zinc:native';
 
 export interface Spec extends NativeModule {
@@ -14,6 +14,8 @@ export interface Spec extends NativeModule {
   error(): string;
   /** Opens a camera near w x h at fps (0: 640x480, 30); a handle, or -1 (see error()). */
   open(id: string, w: i32, h: i32, fps: i32): i32;
+  /** 1 running, 0 still starting (macOS starts a camera off the program's thread), -1 failed (see error()). */
+  state(h: i32): i32;
   /** [width, height, fps, how often to call frame() in ms] of an open camera. */
   format(h: i32): f64[];
   /** Takes the newest frame into the image (options applied) and returns its index, -1 before the first frame. */
@@ -26,6 +28,14 @@ export interface Spec extends NativeModule {
   snapshot(h: i32): u8[];
   /** The newest frame as the bytes of a PNG file (options applied, deflate-compressed); [] when it cannot be encoded. */
   png(h: i32): u8[];
+  /** Copies the newest frame (options applied) into `image`, a zinc:gfx createImage of the camera's size; false when it cannot. */
+  copyFrame(h: i32, image: i32): boolean;
+  /** Starts encoding the newest frame as a PNG on a thread of its own: a job id (-1 when the camera is closed). */
+  encodePng(h: i32): i32;
+  /** 1 when the job's PNG is ready, 0 while it is encoded, -1 for no such job. */
+  pngReady(job: i32): i32;
+  /** The bytes of a ready job's PNG (then the job is gone); [] otherwise. */
+  takePng(job: i32): u8[];
   close(h: i32): void;
 }
 export default requireNative<Spec>('Camera');

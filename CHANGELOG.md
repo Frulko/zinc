@@ -50,6 +50,11 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `examples/webrtc-chat`: a chat and a file sent peer to peer, two peers in one window, by copy and paste, or by room name through a small
   signalling server (`signal-server.ts`), with the connection state, round-trip time and a microphone level meter.
 - Plugin manifests take `vendorFlags`: flags for the vendored sources only (a C++ library that needs `-frtti` or `-fexceptions`).
+- `zinc:camera` on Android (the NDK's camera2, the CAMERA permission asked through the system dialog) and iOS (AVFoundation, shared with macOS);
+  on Linux, MJPEG is chosen when a webcam gives YUYV too slowly, and `permissionStatus()` is `denied` with the `sudo usermod -aG video $USER` hint
+  when your user may not open the cameras. Not yet tried on those devices.
+- `Camera.still()` copies the frame on screen into a new image in about a millisecond, and `Camera.encodePng()` encodes a PNG on another thread;
+  `ZINC_FAKE_CAMERA=4` lists four fake cameras to try a camera picker.
 
 ### Fixed
 - Resizing a window on macOS by dragging its edge re-lays out the app at each size instead of stretching the last frame; animations,
@@ -69,6 +74,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - The camera simulator did not compile on a machine without libgphoto2, so the camera examples failed there.
 - Solid component props that read signals now follow them; the touch marks are off by default (`ZINC_TOUCHES=1` shows them).
 - The web export of programs that use asset groups, storage or device features no longer stops at start.
+- Opening, switching or closing a camera on macOS no longer freezes the window: the camera starts and stops off the main thread, and a new size
+  or rate reuses the running camera instead of stopping and starting it.
 - A `truncate` text in a row that shrinks it (a long name beside a badge) ends with "…" at its final width instead of running over its neighbours.
 
 [Unreleased]: https://github.com/Frulko/zinc/compare/v0.1.1...HEAD

@@ -1,7 +1,8 @@
 // zinc:camera on Linux and the Raspberry Pi: V4L2 (/dev/video*, mmap streaming), then the shared part (camera.host.cpp). A worker thread
 // per camera waits on the device, converts each buffer to the runtime image's pixels (YUYV directly, MJPEG through stb_image) and keeps the
-// newest frame under a mutex. YUYV is asked first: it costs no decode, which matters on a Pi 1; MJPEG when the camera only offers that at
-// the asked size. Cameras behind libcamera only (the Pi's CSI camera modules on Bookworm) have no V4L2 capture node and are not listed.
+// newest frame under a mutex. YUYV is asked first: it costs no decode, which matters on a Pi 1; MJPEG when the camera only offers that, or
+// offers YUYV too slowly at the asked size (VIDIOC_ENUM_FMT, VIDIOC_ENUM_FRAMEINTERVALS). Cameras behind libcamera only (the Pi's CSI camera
+// modules on Bookworm) have no V4L2 capture node and are not listed: `libcamerify zinc run ...` (libcamera's V4L2 compatibility layer) shows them.
 #define CAM_BACKEND 1
 #include "backend.h"
 #include <errno.h>
@@ -41,6 +42,23 @@ bool capture_node(int fd, v4l2_capability& cap) {
   if (xioctl(fd, VIDIOC_QUERYCAP, &cap) < 0) return false;
   const uint32_t c = cap.capabilities & V4L2_CAP_DEVICE_CAPS ? cap.device_caps : cap.capabilities;
   return (c & V4L2_CAP_VIDEO_CAPTURE) && (c & V4L2_CAP_STREAMING);
+}
+// The pixel formats the camera lists (VIDIOC_ENUM_FMT); a driver that lists none is tried anyway
+bool offers(int fd, uint32_t fmt) {
+  v4l2_fmtdesc fd2 = {};
+  fd2.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+  for (fd2.index = 0; xioctl(fd, VIDIOC_ENUM_FMT, &fd2) == 0; fd2.index++) if (fd2.pixelformat == fmt) return true;
+  return fd2.index == 0;
+}
+// The camera delivers `fps` at w x h in this format (VIDIOC_ENUM_FRAMEINTERVALS); unknown counts as yes
+bool fast_enough(int fd, uint32_t fmt, int w, int h, int fps) {
+  v4l2_frmivalenum fi = {};
+  fi.pixel_format = fmt; fi.width = (uint32_t)w; fi.height = (uint32_t)h;
+  for (fi.index = 0; xioctl(fd, VIDIOC_ENUM_FRAMEINTERVALS, &fi) == 0; fi.index++) {
+    if (fi.type != V4L2_FRMIVAL_TYPE_DISCRETE) return true;   // a range: the rate is asked with S_PARM
+    if (fi.discrete.numerator && (double)fi.discrete.denominator / fi.discrete.numerator >= fps - 0.5) return true;
+  }
+  return fi.index == 0;
 }
 inline uint8_t clamp8(int v) { return (uint8_t)(v < 0 ? 0 : v > 255 ? 255 : v); }
 inline uint32_t rgb(int y, int u, int v) {   // BT.601, integers
@@ -93,7 +111,19 @@ void release(V4l& d) {
 }
 }  // namespace
 
-int cam_backend_permission(bool) { return 1; }   // device access is the file mode of /dev/video* (the video group)
+// Device access is the file mode of /dev/video* (group video): denied when there are capture nodes and this user may open none of them
+// (`sudo usermod -aG video $USER`, then a new login). Nothing to ask: `ask` changes nothing.
+int cam_backend_permission(bool) {
+  bool seen = false;
+  for (int i = 0; i < 64; i++) {
+    char path[32];
+    snprintf(path, sizeof path, "/dev/video%d", i);
+    if (access(path, F_OK) != 0) continue;
+    seen = true;
+    if (access(path, R_OK | W_OK) == 0) return 1;
+  }
+  return seen ? 2 : 1;
+}
 
 int cam_backend_list(CamDevice* out, int max) {
   int n = 0;
@@ -120,16 +150,21 @@ int cam_backend_open(const char* id, int w, int h, int fps, int* ow, int* oh, do
   if (slot == MAXS) { snprintf(err, n, "too many cameras open"); return -1; }
   V4l& d = devs[slot];
   d.fd = open(id, O_RDWR | O_NONBLOCK);
-  if (d.fd < 0) { snprintf(err, n, "%s: %s%s", id, strerror(errno), errno == EACCES ? " (add the user to the video group)" : ""); d.fd = -1; return -1; }
+  if (d.fd < 0) { snprintf(err, n, "%s: %s%s", id, strerror(errno), errno == EACCES ? " (your user is not in the video group: sudo usermod -aG video $USER, then log out and in again)" : ""); d.fd = -1; return -1; }
   v4l2_capability cap = {};
   if (!capture_node(d.fd, cap)) { snprintf(err, n, "%s is not a video capture device", id); release(d); return -1; }
+  // YUYV when the camera offers it at this size and rate (no decode), else MJPEG: USB 2 webcams send 720p YUYV at 10 fps at most, and
+  // MJPEG at 30 (a stb_image decode per frame, 5 to 15 ms at 720p on a desktop, several times that on a Pi)
   v4l2_format f = {};
   const uint32_t wants[2] = {V4L2_PIX_FMT_YUYV, V4L2_PIX_FMT_MJPEG};
-  for (uint32_t want : wants) {
+  for (int k = 0; k < 2; k++) {
+    const uint32_t want = wants[k];
+    if (!offers(d.fd, want)) continue;
     f = {};
     f.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     f.fmt.pix.width = w; f.fmt.pix.height = h; f.fmt.pix.pixelformat = want; f.fmt.pix.field = V4L2_FIELD_NONE;
-    if (xioctl(d.fd, VIDIOC_S_FMT, &f) == 0 && f.fmt.pix.pixelformat == want) break;
+    if (xioctl(d.fd, VIDIOC_S_FMT, &f) == 0 && f.fmt.pix.pixelformat == want &&
+        (k == 1 || !offers(d.fd, V4L2_PIX_FMT_MJPEG) || fast_enough(d.fd, want, (int)f.fmt.pix.width, (int)f.fmt.pix.height, fps))) break;
     f.fmt.pix.pixelformat = 0;
   }
   if (f.fmt.pix.pixelformat == 0) { snprintf(err, n, "%s offers neither YUYV nor MJPEG", id); release(d); return -1; }
@@ -160,6 +195,8 @@ int cam_backend_open(const char* id, int w, int h, int fps, int* ow, int* oh, do
   *ow = d.w; *oh = d.h;
   return slot;
 }
+
+int cam_backend_state(int, char*, int) { return 1; }   // open() returns once the camera streams
 
 bool cam_backend_take(int b, uint32_t* px, int w, int h, uint32_t* seq) {
   if (b < 0 || b >= MAXS || devs[b].fd < 0) return false;
