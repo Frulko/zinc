@@ -4,7 +4,7 @@ title: 'GLES 2 base: one capability record, context providers, GPU tuning'
 status: Backlog
 assignee: []
 created_date: '2026-10-16 12:41'
-updated_date: '2026-10-16 14:04'
+updated_date: '2026-10-16 14:07'
 labels:
   - mobile
   - gl
@@ -30,6 +30,7 @@ Owner 2026-10-16: the Pi 3 (VideoCore IV), the HP TouchPad (Adreno 220) and the 
 - [ ] #4 the Pi 3 and TouchPad runs are one line each under Cross-platform pass in backlog/later.md, or measured if the device is on the bench
 - [ ] #5 a T0 test of the record and the tuning table (fake GL strings of VC4, Adreno 220, Tegra 3, desktop)
 - [ ] #6 the layer builds as its own CMake target that links nothing of the runtime (checked by the T0 test)
+- [ ] #7 the GLES 2 replay is damage-aware: a frame without damage is not replayed, a partial change replays only the damaged rectangles over a preserved back buffer (buffer age / partial update / swap-preserved, else an FBO of the frame); on the Nexus 7 it is at least as fast as the software raster at rest and in a tab switch, then becomes Android's default
 <!-- AC:END -->
 
 ## Implementation Notes
