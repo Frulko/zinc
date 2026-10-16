@@ -28,6 +28,10 @@ mkdir -p examples/hero/media
 ffmpeg -i BigBuckBunny_640x360.m4v -an -vf scale=640:360 -c:v libx264 -profile:v main -crf 27 -pix_fmt yuv420p -movflags +faststart examples/hero/media/bbb.mp4
 ```
 
+On a phone (`zinc export --target android|ios`) the file goes into the app's files directory, `media/bbb.mp4` there: on Android
+`adb push` it and copy it with `run-as dev.zinc.hero` into `files/media/`, on the iOS simulator into the `Library/Application Support/zinc/media/`
+of `xcrun simctl get_app_container booted dev.zinc.hero data` (`docs/reports/zinc-next-android.md`, `zinc-next-ios.md`, "Video").
+
 `zinc:video` is not available on `wasm`, so hero has no wasm target any more. The `linux` target is 800x480 on the
 framebuffer (`"display": "fbdev"`); the navigation tab needs `assets/city.bin` (a link to the navigation example's map)
 and its `citymap` plugin (`pluginDirs` in `zinc.json`).
@@ -45,7 +49,7 @@ and its `citymap` plugin (`pluginDirs` in `zinc.json`).
 | Settings | dark mode (or D), accent colour, **animation speed** (slow motion for every transition), reduce motion, name, reset (confirmation dialog) |
 | Kit | every `zinc:ui/kit` component (the sections of `examples/ui/kit-gallery`) |
 | Forms | text, email, tel, url, numeric PIN, decimal, search, multiline, switch, slider, tabs; the on-screen keyboard opens with each field's layout (Settings turns it and the auto-scroll off) |
-| Video | Big Buck Bunny through `zinc:video` (FFmpeg, V4L2 hardware decode on the Pi); the file is an asset read at runtime from `media/bbb.mp4`, not embedded |
+| Video | Big Buck Bunny through `zinc:video` (FFmpeg, V4L2 hardware decode on the Pi; MediaCodec on Android, AVFoundation on iOS); the file is an asset read at runtime from `media/bbb.mp4`, not embedded |
 | Navigation | the turn-by-turn GPS demo of `examples/maps/navigation` (Space pause, S speed, L steps, C recenter, P report; D or the moon button switches the app to dark and the map to night) |
 | Anywhere | ⌘K or `/` command palette (type to filter, ↑↓, Enter), `?` shortcuts, bell for a toast |
 

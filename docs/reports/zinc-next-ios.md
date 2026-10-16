@@ -153,3 +153,22 @@ Proven on an iOS 26.3 simulator (an iPhone 17 Pro created for the run and delete
 in 259 s (most of it the first configure of the Xcode generator); the zip unpacked with `ditto -x -k`, installed, launched with
 `--console-pty`: its output equals `zinc run` (29 lines); `PrivacyInfo.xcprivacy` is in the bundle and passes `plutil -lint`. The device
 archive, the export and the upload need the owner's Apple Developer account (the commands are in the ZN-629 notes).
+
+## Video (ZN-751, 2026-10-17)
+
+zinc:video has an iOS backend (`plugins/video/native/video.ios.mm`, docs/plugins/video.md "Phones"): `AVAssetReader` with a track output
+in `32BGRA` (VideoToolbox decodes and converts), each picture scaled to the player's box. `examples/hero` exports unchanged; its clip goes
+into the app's data container:
+
+```sh
+zinc export examples/hero --target ios -o /tmp/hero-ios --ipa --simulator
+xcrun simctl install booted /tmp/hero-ios/build/Debug-iphonesimulator/hero.app
+d="$(xcrun simctl get_app_container booted dev.zinc.hero data)/Library/Application Support/zinc/media"
+mkdir -p "$d" && cp examples/hero/media/bbb.mp4 "$d/"
+SIMCTL_CHILD_ZINC_DEMO=video SIMCTL_CHILD_ZINC_VIDEO_LOG=1 xcrun simctl launch --console-pty booted dev.zinc.hero
+```
+
+On an iPhone 17 simulator (iOS 26.3, created for the run and deleted after): `player.decoder` reads `avc1 (avfoundation)`, a 640 x 360
+picture is copied into the player's image in 0.1 to 0.4 ms; 231 pictures in 9.5 s (24 a second), none dropped; the program's 600 frames:
+work p50 0.27 / p99 7.2 ms, raster p99 6.7 ms (`zinc-next-ios/hero-video.png`). `tests/data/mobile-video` (two clips of `assets/` as a
+playlist, a jump and a step back) prints the same lines as on the Mac and on Android.

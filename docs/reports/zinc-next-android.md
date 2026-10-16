@@ -321,3 +321,24 @@ aligned to 0x4000 (zinc's check and `llvm-readelf -lW` agree), zipalign passed; 
 `--aab` with a throwaway upload key in /tmp in 55 s: `keytool -printcert -jarfile app-release.aab` names that key; bundletool 1.18.3
 `build-apks --connected-device` then `install-apks` put the release (not debuggable) on the emulator, and its logcat equals `zinc run` too. No
 password reached the project or the output. `tests/t0/export_packages.sh` checks the dry-run outputs with every Android and Apple tool a trap.
+
+## Video (ZN-751, 2026-10-17)
+
+zinc:video has an Android backend (`plugins/video/native/video.android.cpp`, docs/plugins/video.md "Phones"): AMediaExtractor and the
+device's MediaCodec decoder rendering into an `AImageReader` of `YUV_420_888` (the strides and crop the image gives; ByteBuffers of planar
+or semi-planar YUV when a decoder refuses the reader), converted to the player's image on its decode thread. `examples/hero` exports
+unchanged; its clip is not in the repository, so it goes into the app's files directory of a debuggable build:
+
+```sh
+zinc export examples/hero --target android -o /tmp/hero-apk --apk --abis arm64-v8a
+adb install -r /tmp/hero-apk/app/build/outputs/apk/debug/app-debug.apk
+adb push examples/hero/media/bbb.mp4 /data/local/tmp/ && adb shell "run-as dev.zinc.hero mkdir -p files/media && run-as dev.zinc.hero cp /data/local/tmp/bbb.mp4 files/media/"
+adb shell am start -n dev.zinc.hero/.HeroActivity --es zinc.env "'ZINC_DEMO=video ZINC_VIDEO_LOG=1'"
+```
+
+On the API 37 arm64 emulator (AVD `Pixel_10`): the decoder is `c2.goldfish.h264.decoder`, the reader's picture 640 x 360 is converted in
+0.8 to 5.4 ms; 224 pictures in 9.2 s (the clip's 24 a second), 1 dropped at the start; the program's 600 frames: work p50 0.26 / p99 11.8 ms,
+present p50 16.4 ms (60 Hz) (`zinc-next-android/hero-video.png`). With `ZINC_VIDEO_BYTEBUFFER=1` the same decoder gives I420 (colour
+format 0x13, stride 640, slice height 360) and plays the same. `tests/data/mobile-video` (two clips of `assets/` as a playlist, a jump and
+a step back) prints the same lines as on the Mac: entries 0, 1, 0 (loop 1), "jumped to 1", "back to 0", "video ok: 260 pictures shown, 1
+dropped".

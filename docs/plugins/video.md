@@ -1,7 +1,7 @@
 # zinc:video
 
-Video playback for hosts with an OS and some memory: a `Player` decodes a playlist on its own thread with FFmpeg and
-is shown as a runtime image. Plugin: `plugins/video/` (module `zinc:video`).
+Video playback for hosts with an OS and some memory: a `Player` decodes a playlist on its own thread (FFmpeg on the
+desktop and the Pi, the platform's decoders on phones and webOS) and is shown as a runtime image. Plugin: `plugins/video/` (module `zinc:video`).
 
 ```ts
 import * as gfx from 'zinc:gfx';
@@ -25,6 +25,8 @@ gfx.onFrame(() => p.draw(0, 0, gfx.width(), gfx.height()));
 | macos | supported, verified | VideoToolbox (hwaccel), software fallback | `brew install ffmpeg` (pkg-config finds it) |
 | rpi1 (Pi 1, Zero, 2, 3, 4 on a 32-bit OS) | builds (docker, Alpine 3.20 ffmpeg 6.1) and runs under QEMU arm1176: V4L2 absent → software fallback, 3-file playlist looped gaplessly, 0 dropped frames; not run on hardware | `<codec>_v4l2m2m` (bcm2835-codec: H.264, also MPEG-2/4 when licensed), software fallback | screen through `display-fbdev`; see performance below |
 | linux (x86_64/arm64) | builds like rpi1 (Debian ffmpeg); not run here | V4L2 M2M when the kernel has one, else software | VAAPI/NVDEC not wired |
+| android | supported, verified on the API 37 arm64 emulator | MediaCodec (the device's decoder, hardware when it has one) through AMediaExtractor | NDK `mediandk`, API 24; `player.decoder` names the codec, e.g. `c2.goldfish.h264.decoder (mediacodec)` |
+| ios | supported, verified on the iOS 26 simulator | AVFoundation (`AVAssetReader`, VideoToolbox) | frameworks AVFoundation, CoreMedia, CoreVideo; `player.decoder` is the codec's FourCC, e.g. `avc1 (avfoundation)` |
 | sim | deterministic fake | none | every file lasts 5 s, image = requested size (320x180 by default), time follows gfx frames at 60 fps, order always sequential |
 | esp32 | not supported | | 520 KiB SRAM (+ a few MiB PSRAM) and no H.264 decoder or FFmpeg; MJPEG from flash is a different, much smaller plugin |
 | ps1 / ps2 | not supported | | 2 MiB / 32 MiB RAM, no OS threads or FFmpeg port; PS1 MDEC/PS2 IPU need their own streaming formats (STR/PSS) |
@@ -69,6 +71,25 @@ Using `zinc:video` on an unlisted target is error Z5003 at build time.
   no frame dropped at any loop point (one dropped at startup).
 - `stop()` shows the background colour; `repeat = ONE_SHOT` stops after each file (then `play()` starts the next
   one), `STOP` after the whole playlist.
+
+## Phones
+
+`zinc export --target android|ios` compiles the plugin's phone backend into the app (`plugin.json` `targets.android`, `targets.ios`, see
+docs/plugins.md "Phones"); the shared part (`player.h`: playlists, gapless loops, the ring, the pacing) is the desktop's. Paths are relative
+to the app's working directory: the project's `assets/` travel in the app (`assets/clip.mp4`), and a file the app did not ship goes in its
+files directory (Android `files/`, iOS `Library/Application Support/zinc/`; `examples/hero` reads `media/bbb.mp4` there).
+
+- **Android** (`video.android.cpp`): AMediaExtractor over the file's descriptor, AMediaCodec for the first video track. The decoder renders
+  into an `AImageReader` of `YUV_420_888`, the layout every decoder must give there (CTS checks it), with each plane's row and pixel
+  strides and the crop: no vendor colour format, stride or slice height is guessed. A decoder that refuses the reader's window hands its
+  pictures in ByteBuffers instead (`player.decoder` ends in `mediacodec, buffers`): planar or semi-planar YUV 4:2:0 with the stride and
+  slice height of the output format (a slice height of 0, seen on old devices, is the height); a tiled vendor format is refused in the
+  log. `ZINC_VIDEO_BYTEBUFFER=1` takes that path on any device. Either way the picture is scaled to the player's box (nearest sample) and
+  converted to `0x00RRGGBB` (BT.601, BT.709 from 720 lines up, the range the format names) on the decode thread, as on webOS.
+- **iOS** (`video.ios.mm`): `AVAssetReader` with an `AVAssetReaderTrackOutput` in `32BGRA`: the system decodes (VideoToolbox) and converts,
+  and the picture is only scaled to the box (a row copy at 1:1).
+- No audio on phones either (the follow-up below). Seeking inside a file is not in the API on any target: `jump(i)` and `previous()` restart
+  an entry (hero's Restart button).
 
 ## Options (zinc.json `plugins.video`)
 
