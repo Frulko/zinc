@@ -28,6 +28,10 @@ How to add a line: see "Changelog" in `AGENTS.md`.
   that component again in place, with the page you are on and what you typed kept; a module that exports only functions and classes
   (the game-2d template's `scenes.ts`) no longer sends the game back to its title screen. `import.meta.hot.off` removes a listener.
   A program on QuickJS still restarts at each save, and `zinc dev` now says so.
+- `zinc:camera`: webcams and built-in cameras on macOS and Linux (`devices()`, `requestPermission()`, `Camera.open(id, { width, height, fps })`),
+  frames in an image you draw, `snapshot()` as RGBA, mirror, brightness and contrast; "Zinc Fake Camera" stands in when there is none or with
+  `ZINC_FAKE_CAMERA=1`. `navigator.mediaDevices.getUserMedia({ video })` and `enumerateDevices()` work once the program imports `zinc:camera`.
+  It needs `"camera"` in zinc.json `permissions` when the project declares them.
 
 ### Fixed
 - A method with a default parameter that a subclass overrides received `null` for it (`new EventTarget().addEventListener('x', fn)` crashed).

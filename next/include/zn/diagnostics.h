@@ -130,7 +130,8 @@
     "// zinc-profile: rmpp\nimport 'zinc:ffi';")                                                                                          \
   X(SystemPermission, "Z5006", "A system module needs a permission",                                                       \
     "The modules zinc:system/<feature> (notification, menu, tray, dialog, window, shortcut, instance, deeplink, autostart, dock, power, clipboard, opener) are denied unless zinc.json lists the "  \
-    "permission \"<feature>\" (or \"<feature>:<operation>\"); a project without \"permissions\" can use none.", "Add the id to \"permissions\" in zinc.json.",     \
+    "permission \"<feature>\" (or \"<feature>:<operation>\"); a project without \"permissions\" can use none. "  \
+    "The host features (net, fs, process, serial, camera, microphone, location) are checked at run time by their modules once zinc.json has \"permissions\": zinc:camera's devices() and open() fail naming \"camera\" in an exported app.", "Add the id to \"permissions\" in zinc.json.",     \
     "import { isSupported } from 'zinc:system/tray';\nconsole.log(isSupported());")                                                                 \
   X(NativeTypeNotExpressible, "Z5010", "A native member uses a type the native ABI cannot carry yet",                      \
     "A native module is called with scalars (i32, u32, boolean, f64), strings, and arrays of u8, i32 and f64; its Spec lists the members. "  \

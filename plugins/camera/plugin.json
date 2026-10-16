@@ -1,0 +1,16 @@
+{
+  "name": "camera",
+  "kind": "module",
+  "deterministic": true,
+  "module": "zinc:camera",
+  "entry": "index.ts",
+  "description": "Webcams and built-in cameras (AVFoundation, V4L2): list, open at a size and rate, frames as a runtime image, RGBA snapshots; a generated test pattern camera when there is none",
+  "options": { "fake": false },
+  "requires": ["camera"],
+  "native": { "impl": { "macos": "native/camera.macos.mm" } },
+  "targets": {
+    "macos": { "frameworks": ["AVFoundation", "CoreMedia", "CoreVideo", "Foundation"] },
+    "linux": { "linkFlags": ["-pthread"] },
+    "rpi1": { "linkFlags": ["-pthread"] }
+  }
+}

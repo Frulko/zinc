@@ -120,6 +120,7 @@ the `macos` list, on Linux and for the Linux targets the `linux` list.
 | `zinc:osc` | listening | `net` or `net:*` |
 | `zinc:process` (plugin) | starting a process (`spawn`, `run`) | `process` |
 | `zinc:gphoto2` (plugin) | detecting and opening a camera | `camera` |
+| `zinc:camera` (plugin), `navigator.mediaDevices` | listing and opening a webcam (`devices`, `open`, `getUserMedia`) | `camera` |
 | `zinc:system/<id>` | importing the module (else compile error `Z5006`), then each op (else a `SystemError` with the code `denied`) | its id |
 | `zinc:sys`, `zinc:gfx`, `zinc:ui`, `zinc:audio`, the other modules | | nothing |
 
@@ -174,7 +175,7 @@ then `systemctl enable --now <id>`.
   `Environment=ZINC_STORAGE=/var/lib/<id>/storage` (the file `zinc:storage` writes).
 - **Devices** are reached through groups: `SupplementaryGroups=` with the groups the device has (systemd refuses a unit naming a missing
   group). Raspberry Pi OS gives `/dev/fb0` and `/dev/dri` to `video`/`render`, `/dev/input` to `input`, `/dev/gpiochip*` to `gpio`, SPI and
-  I2C to `spi`/`i2c`, USB cameras (gphoto2) to `plugdev`. No udev rules are needed there; on another distribution, give the device nodes you
+  I2C to `spi`/`i2c`, USB cameras (gphoto2) to `plugdev`, webcams (`/dev/video*`, zinc:camera) to `video`. No udev rules are needed there; on another distribution, give the device nodes you
   use to a group (e.g. `SUBSYSTEM=="gpio", GROUP="gpio", MODE="0660"` in `/etc/udev/rules.d/99-zinc.rules`) and add the group to the unit.
 - **Relaxing it** (in a drop-in, `systemctl edit <id>`): a port below 1024 needs `AmbientCapabilities=CAP_NET_BIND_SERVICE` and the same
   in `CapabilityBoundingSet=`; writing under `/sys` (backlight) needs `ReadWritePaths=/sys/class/backlight/...` and

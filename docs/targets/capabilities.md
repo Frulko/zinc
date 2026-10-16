@@ -25,6 +25,8 @@ modules and tests declare what they need.
 
 - **`process`**: an OS with processes, signals, environment and a terminal. It covers `zinc:process`, `zinc:os`,
   `zinc:socket` and `sys.onSignal`.
+- **`camera`**: a camera `zinc:camera` can open (its plugin.json `requires` it): true on macos and sim (the fake camera), optional on
+  linux and rpi1 (a USB webcam), false elsewhere until a backend exists ([camera plugin](../plugins/camera.md)).
 - **`dynlib`**: loading shared libraries at run time with `dlopen`. It is used by `zinc:ffi`, and it is off for static
   binaries (rmpp) and for 32-bit ARM (rpi1). The sim emulates a few libc functions for it.
 - **Phones and tablets** (`android`, `ios`, `ios-sim`, ZN-618): an app starts no child process and loads no library (D59, `docs/reports/zinc-next-mobile-core.md`), and has none of the desktop keys (tray, menubar, dialogs, windows, autostart...). The plugins whose `requires` say `process` for "an OS" (socket, osc, sonos, spotify) are refused there until their manifests name what they use.

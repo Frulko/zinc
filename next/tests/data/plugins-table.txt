@@ -2,6 +2,7 @@ plugin (import / display)  targets                             description
   zinc:3d                  macos,linux,rpi1,esp32,wasm        3D: meshes (primitives, OBJ), materials, textures, lights, camera, scene graph; a z-buffered software rasterizer, and the GPU where the target has it
   zinc:async-storage       macos,linux,windows,rpi1,rmpp,webos,esp32 React Native's AsyncStorage (@react-native-async-storage/async-storage) on zinc:storage: a key/value store kept between runs, on every target
   zinc:audio               macos,linux                        Sound effects and music: WAV, FLAC, MP3 and Ogg Vorbis sounds mixed by miniaudio 0.11.25 (public domain), generated tones, volume, loops; silent when headless
+  zinc:camera              macos,linux,rpi1                   Webcams and built-in cameras (AVFoundation, V4L2): list, open at a size and rate, frames as a runtime image, RGBA snapshots; a generated test pattern camera when there is none
   zinc:canvas              macos,linux,rpi1,rmpp,wasm,esp32   HTML Canvas 2D-style context (paths, strokes, gradients, text, images, transforms) on the shared rasterizer
   zinc:device              esp32,macos,linux                  Device services for board demos: backlight level (display-st7789 PWM), chip and heap figures, frame statistics
   zinc:devtools            macos,linux,rpi1                   UI inspector for Chrome DevTools (subset of the DevTools protocol on port 9229); zinc dev adds it

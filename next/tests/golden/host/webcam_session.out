@@ -1,0 +1,12 @@
+permission granted
+device zinc:fake-camera | Zinc Fake Camera | unknown
+open 64x48 30 fps, image yes
+before 12288 3143204293
+frame 2 4276674565
+frame 5 1580714085
+frames 0,1,2,3,4,5
+pixel 0 32,32,32,255 pixel bar2 0,255,255
+mirror 3818664741
+graded 3597330373
+closed false 0
+error camera: no camera 'no-such-camera'
