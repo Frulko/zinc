@@ -62,6 +62,11 @@ mbedtls_x509_crt* roots() {
     auto* c = new mbedtls_x509_crt;
     mbedtls_x509_crt_init(c);
     if (const char* f = std::getenv("ZINC_CA_FILE")) { mbedtls_x509_crt_parse_file(c, f); return c; }
+#ifdef __ANDROID__
+    // an app has no /etc/ssl and its executable is app_process: the system's store is a directory of PEM files, one per root, and the
+    // roots the user added are beside it (unreadable to apps on some versions: then only the system's)
+    if (mbedtls_x509_crt_parse_path(c, "/system/etc/security/cacerts") >= 0) { mbedtls_x509_crt_parse_path(c, "/data/misc/user/0/cacerts-added"); return c; }
+#endif
 #ifdef __linux__
     {  // a cacert.pem shipped beside the program replaces the store of a device that no longer updates its own (webOS 3 has one root, of 2011)
       char exe[4096];
