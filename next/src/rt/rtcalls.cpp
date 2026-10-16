@@ -739,7 +739,7 @@ bool toSlot(Machine& m, char letter, const ZnVal& v, Slot& out) {
 // Runs closure `h` with the arguments of the module; false when it traps (the message is in the machine's error).
 std::int32_t runClosure(void*, std::uint64_t h, const ZnVal* args, std::uint32_t n, ZnVal* ret) {
   auto it = gCbs.find(h);
-  if (it == gCbs.end() || !gMachine || !gScratch) return -1;
+  if (it == gCbs.end() || !gMachine || !gScratch || !it->second.call) return -1;
   CbEntry e = it->second;   // a copy: the table may change while the closure runs
   Machine& m = *gMachine;
   m.retain(e.fn);
@@ -820,6 +820,15 @@ std::uint64_t cbRegister(Machine& m, Obj* fn, const std::string& inner) {
 }
 
 }  // namespace
+
+void rebindCallbacks(Machine& m) {
+  for (auto& [h, e] : gCbs) {
+    const ClassRT& c = *e.fn->cls;
+    e.call = nullptr;
+    for (std::uint32_t sel : m.mod->classes[c.id].selectors)
+      if (m.mod->selectors[sel].name == "call" && m.mod->selectors[sel].params.size() == e.params.size() && sel < c.vtable.size() && c.vtable[sel]) e.call = c.vtable[sel];
+  }
+}
 
 void nativeEnd(Machine& m) {
   if (gMachine != &m) return;

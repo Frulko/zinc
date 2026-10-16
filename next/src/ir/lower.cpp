@@ -798,9 +798,11 @@ struct Lowering {
     computeClosureFns();
     collectFunctions(n(a.root).kids, "");
     collectFunctions(c.instances, "");  // monomorphised generic functions and classes
-    if (m.hot)   // zinc:hot's functions: the swap calls them
+    if (m.hot) {   // zinc:hot's functions and the event loop: the swap calls them
       for (std::uint32_t st : a.modules[a.hotModule].stmts)
         if (auto f = funcOfNode.find(st); f != funcOfNode.end()) m.functions[f->second].entry = true;
+      for (Function& f : m.functions) if (f.name == "__runLoop") f.entry = true;
+    }
     collectLambdas(a.root, kNil);
     for (std::uint32_t inst : c.instances) { lambdaScope = instanceName(inst); collectLambdas(inst, kNil); }
     buildThunks();

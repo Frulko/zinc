@@ -1,7 +1,7 @@
 #!/bin/sh
 # Asset hot reload in zinc dev (ZN-450): game-2d runs under zinc dev and scores, then its player sprite is redrawn bigger and in another colour:
 # within 1 s the running program draws the new sprite (the atlas rebuilt, its page and frame table swapped in) with the score kept and no
-# restart; a code change still restarts it. Headless frames run as fast as they can: shots every 20000 frames, a round longer than the test.
+# restart; a code change is swapped in (ZN-742) or restarts it. Headless frames run as fast as they can: shots every 20000 frames, a round longer than the test.
 cd "$(dirname "$0")/../.." || exit 2
 Z="$ZINC"; case "$Z" in /*) ;; *) Z="$PWD/$Z" ;; esac
 root=$PWD
@@ -61,9 +61,9 @@ new=$(pix count "$a" e040fb); stale=$(pix count "$a" 4fc3f7)
 [ "$new" -gt "$old" ] && [ "$stale" -eq 0 ] || { echo "frame $after: $new pixels of the new sprite (want > $old), $stale of the old one (want 0)"; fail=1; }
 [ "$(pix hud "$a")" = "$(pix hud "$b")" ] || { echo "the score changed between frames $before and $after"; fail=1; }
 grep -q "v2 started" "$t/dev.log" && { echo "the asset change restarted the program: $(cat "$t/dev.log")"; fail=1; }
-# 2. a code change still restarts
+# 2. a code change goes the code's way: swapped in place (Fast Refresh, ZN-742) or, when it cannot be, a restart
 echo "// a change" >> src/scenes.ts
-waitfor "$t/dev.log" "v2 started" 5 || { echo "the code change did not restart the program: $(cat "$t/dev.log")"; fail=1; }
+waitfor "$t/dev.log" "v1 refreshed src/scenes.ts\|v2 started" 5 || { echo "the code change was not taken: $(cat "$t/dev.log")"; fail=1; }
 kill $dev; wait $dev 2>/dev/null
 [ $fail -eq 0 ] && echo "asset_reload: ok (swapped in $ms ms after the save; $(sed -n 's/.*rebuilt and sent (\(.*\) after the save).*/sent \1/p' "$t/dev.log"))"
 exit $fail

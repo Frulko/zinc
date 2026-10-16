@@ -40,6 +40,7 @@ using zn::Rt;
 zrt::String str(const HostArg& a) { return zrt::String::from(static_cast<const char*>(a.p), a.n); }
 
 bool quitFlag = false;
+bool pauseFlag = false;   // zn::host::pauseLoop: the frame loop ends once, the window stays (zinc dev's Fast Refresh, ZN-742)
 uint64_t lastFrameUs = 0, frameStartUs = 0;
 char* sbuf = nullptr;  // the string a call returns lives here until the next call
 size_t scap = 0;
@@ -214,7 +215,7 @@ void call(int id, const HostArg* a, HostArg* r) {
       r->d = dt;
       break;
     }
-    case Rt::HostGfxShouldQuit: r->i = (quitFlag || zrt::quit_requested) ? 1 : 0; break;
+    case Rt::HostGfxShouldQuit: r->i = (quitFlag || zrt::quit_requested || pauseFlag) ? 1 : 0; break;
     case Rt::HostGfxQuit: g::quit(); break;
     case Rt::HostGfxKeyName: { zrt::String k = g::keyName(n(0)); answer(r, k.ptr(), k.bytes()); break; }
     case Rt::HostGfxClipboardText: { zrt::String k = g::clipboardText(); answer(r, k.ptr(), k.bytes()); break; }
@@ -293,6 +294,7 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostGfxCommandsFree: r->i = g::commandsFree(); break;
     case Rt::HostGfxProfMark: if (g::profiling()) g::profMark(n(0)); zn_ui_log_mark(n(0)); break;
     case Rt::HostGfxFinish:
+      if (pauseFlag) { pauseFlag = false; break; }   // paused, not finished: the next loop draws in the same window
       zrt::finish_run();
       if (zrt::display_driver && hal_display && hal_display->shutdown) { zrt::display_driver = false; hal_display->shutdown(); }   // a display driver closes its device or window (and writes ZINC_SHOT)
       break;  // the profile summary, the trace file and the last-frame capture
@@ -313,6 +315,7 @@ const char* traceEvents(bool on, std::size_t* n) {
 }
 void setGrowDrawCommands(bool on) { zrt::gfx::grow_enabled = on; }
 void onFrameEnd(void (*fn)()) { if (nFrameEnd < 4) frameEnd[nFrameEnd++] = fn; }
+void pauseLoop() { pauseFlag = true; }
 
 // screenshots: a deflate-compressed PNG instead of the runtime's stored blocks (ZN-115)
 uint8_t* encodePngHook(const uint32_t* px, int32_t w, int32_t h, size_t* n, void* (*alloc)(size_t)) {

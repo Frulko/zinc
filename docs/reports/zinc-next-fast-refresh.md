@@ -1,7 +1,7 @@
 # Fast Refresh for `zinc dev` (ZN-742): research and design
 
-Status: research, 2026-10-16. Recommends the design below and a split of ZN-742 into three subtasks. Built so far: step 1
-(ZN-742.01), see §9.
+Status: research, 2026-10-16. Recommends the design below and a split of ZN-742 into three subtasks. Built so far: steps 1
+and 2 (ZN-742.01, ZN-742.02), see §9 and §10.
 
 Owner request: on a save, recompile only what changed and swap it into the running program (same process, window and
 DevTools); components re-render while the state of the modules that did not change is kept; React Native's rules for
@@ -341,3 +341,50 @@ Lines for `next/backlog/later.md`:
 - **Non-hot output is unchanged.** 48 programs (the conformance corpus, hero, breakout, nuxt-ui, lang, modules-showcase,
   rn-showcase and the desktop-app) compile to byte-identical ZBC before and after. The hot desktop-app renders the same frame 10 as
   the non-hot one.
+
+## 10. Built: the swap on the interpreter (ZN-742.02)
+
+- **The channel.** `zinc dev` gives its child `ZINC_HOT=1` and `ZINC_HOT_FD` (a second socketpair beside the asset one of D97). The child
+  runs through `next/src/dev/hot.cpp` (linked into the `zinc` command line only). At the end of its first frame it says `hot ready`; a
+  program without a frame loop never does, and a save restarts it as before.
+- **A save.** `zinc dev` sends `reload` when only modules changed (`.ts`, `.tsx`, `.js`...); any other file (`zinc.json`, a plugin's native
+  code, an image under a non-packed `assets/`) restarts with `zinc dev: restart: <file> changed (not a module)`. At the end of the next frame
+  the child compiles the program again in-process, with stderr captured, and answers one line:
+  - `ok <ms> <modules>`, sent at the end of the first frame of the new code: `zinc dev: v1 refreshed src/labels.ts (126 ms after the save)`;
+  - `restart <reason>`: `zinc dev: restart: <reason>`, then a new version without `zinc check` (the child compiled it);
+  - `error` + the diagnostics + `end`: the red box, as a failed check gives it (the in-process overlay is ZN-742.03).
+  No answer within 5 s restarts. The separate `zinc check` process only runs when no hot version is running (after a red box or an exit).
+- **The plan** (React Native's rules). The changed modules are the project modules whose text hash differs. Each changed module runs again;
+  one that exports anything but components (capitalised functions) and does not call `import.meta.hot.accept` also re-runs its importers, up
+  to such a boundary or the entry. Restart reasons, decided before anything moves: other native exports; a library module (`zinc:*`, `lib/`,
+  `plugins/`) or the engine's prelude added, removed or different; other baked fonts and images; a re-run module with a top-level
+  expression statement (other than `render`, `renderWindow`, `onFrame`, which replace what the previous run set up, and `import.meta.hot`
+  calls) and no `import.meta.hot.dispose`, named by file, line and text.
+- **The safe point.** The child calls `zn::host::pauseLoop()`: the frame ends, `__gfxStep` reports a quit, `__host_gfxFinish` keeps the
+  window, `__runLoop` and main return. `__runLoop` is a hot-mode entry (never inlined), so the new one can be called by key.
+- **The swap**, with the VM stack empty:
+  1. zinc:hot's `beforeUpdate(modules)` in the old code (the dispose hooks);
+  2. the globals of the re-run modules, and those the new code does not have, are released;
+  3. each live object's class must have a class with the same key and shape in the new code (kind, field names and types, element types,
+     references compared through the key map); a key two classes share is never mapped. Objects of a closure of a changed file (its key is
+     an offset in the file) become *zombies*: a class appended to the new ZBC with the old fields and every method a trap;
+  4. the other globals keep their values by key; a global outside the re-run modules that the old code did not have restarts;
+  5. a fresh `Machine` loads the new ZBC; its code, classes, string constants and globals move into the running machine, every object takes
+     its new class, and the callbacks native modules hold find their `call` again (`rt::rebindCallbacks`);
+  6. the inits of the re-run modules run in order, then `afterUpdate(modules)`; a zombie still alive then (or called) restarts:
+     `a callback of src/x.ts from before the change is still alive (a timer or a listener? undo it in import.meta.hot.dispose)`;
+  7. the new `__runLoop` starts the frame loop again in the same window.
+  Past step 1 the old program cannot go on, so a failure there answers `restart` and the child exits.
+- **Off elsewhere.** `zinc run`, `build`, `export` and `pack` never set `ZINC_HOT_FD`; without it a `ZINC_HOT=1` run is an ordinary run
+  (`hot_off`). The hot child skips the ZBC cache: the keys come from a compile.
+- **Proof** (`tests/t1/hot_swap.sh`, headless, 6 s): a gfx program refreshes a non-component module edit with the same pid, re-runs its
+  importer and keeps the frame counter of the module it did not touch; a top-level `console.log` without dispose and a `zinc.json` edit
+  restart with their reason; a type error shows the red box and the fix starts a new version; a Solid program whose entry re-runs mounts its
+  root again with its store's count kept. `dev_mode` and `asset_reload` pass (the latter accepts a refresh for its code edit).
+- **Measured** (this Mac, other builds running): save to the first frame of the new code 114-126 ms on the two-file gfx fixture, 330-400 ms
+  on the Solid fixture (zinc:ui compiled again), 180-300 ms on the game-2d template (each of its files refreshes in place).
+- **What the desktop-app template does today**, and what ZN-742.03 has to change: an edit to `src/pages/home.tsx` (a boundary) restarts
+  because the mounted tree still holds closures of the old file (`_hotC` proxies will dispose them in `beforeUpdate`); `src/state.ts`
+  (`setColorMode(...)` at the top level) and `src/main.tsx` (`installMenus(APP_NAME)`) restart for their top-level effects, and
+  `src/router.ts` restarts through its importer `state.ts`. A second `render()` mounts a new root and leaves the old tree's nodes and
+  computations alive (harmless, a leak per refresh): the `render()` root of §7.6 replaces it.

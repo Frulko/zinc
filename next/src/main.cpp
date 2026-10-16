@@ -56,6 +56,7 @@ int runTestCommand(const std::string& self, const zn::frontend::Profile& p, cons
 #include "sim/replay.h"
 #include "dev/client.h"
 #include "dev/core.h"
+#include "dev/hot.h"
 #include <sys/stat.h>
 #include <unistd.h>
 #include "vm/vm.h"
@@ -436,6 +437,7 @@ static bool gDap = false;                      // zinc debug --dap (ZN-371.02): 
 static bool gCdp = false;                      // zinc debug --cdp[=port] (ZN-371.04): Chrome DevTools' Sources panel
 static bool gDebugNative = false;              // zinc build --debug (ZN-371.06): -g -O0, local symbols kept
 static std::vector<std::string> gDebugSources;  // the text of each file of the debug build (Module::files)
+static zn::dev::hot::Unit* gHotUnit = nullptr;   // zinc dev's child (ZN-742): the compile also fills the keys and modules of this unit
 static int compileToZbc(const char* path, zn::zbc::Module& out) {
   const auto t0 = std::chrono::steady_clock::now();
   zn::log::step("compile", "read, check and lower sources...");
@@ -469,6 +471,7 @@ static int compileToZbc(const char* path, zn::zbc::Module& out) {
           for (const auto& g : low.module.globals) std::fprintf(kf, "global %s\n", g.key.c_str());
           std::fclose(kf);
         }
+      if (gHotUnit && low.module.hot) zn::dev::hot::describe(prog, low.module, *gHotUnit);
       zn::log::Phase emitPhase("build", "emit ZBC");
       auto em = zn::zbc::emit(low.module);
       for (const auto& e : em.errors) std::fprintf(stderr, "%s: %s\n", path, e.c_str());
@@ -499,6 +502,34 @@ static int compileToZbc(const char* path, zn::zbc::Module& out) {
   for (const auto& d : diags) std::fprintf(stderr, "%s\n", zn::frontend::formatDiag(prog, d).c_str());
   if (gHint && !diags.empty()) std::fprintf(stderr, "%s\n", zn::frontend::hint(diags).c_str());
   return 1;
+}
+
+// zinc dev's child (ZN-742): runs the program through dev/hot.cpp, which compiles it again on zinc dev's `reload` and swaps the new code in
+static zn::rt::Result runHot(std::unique_ptr<zn::dev::hot::Unit> unit, zn::zbc::Module& zm, const std::vector<std::uint8_t>& blob, const std::string& entry, std::string& out, bool trace, int fd) {
+  unit->zbc = std::move(zm);
+  zn::dev::hot::finish(*unit);
+  unit->resources = blob;
+  auto compile = [entry](zn::dev::hot::Unit& u, std::string& errors) {
+    std::fflush(stderr);   // the diagnostics go to zinc dev, for its red box
+    FILE* tf = std::tmpfile();
+    const int saved = dup(2);
+    if (tf) dup2(fileno(tf), 2);
+    gHotUnit = &u;
+    const int rc = compileToZbc(entry.c_str(), u.zbc);
+    gHotUnit = nullptr;
+    std::fflush(stderr);
+    dup2(saved, 2);
+    close(saved);
+    if (tf) { std::rewind(tf); char b[4096]; for (std::size_t n; (n = std::fread(b, 1, sizeof b, tf)) > 0;) errors.append(b, n); std::fclose(tf); }
+    if (rc) return false;
+    zn::dev::hot::finish(u);
+#ifdef ZN_HOST_GFX
+    std::string err;
+    if (drawsOf(u.zbc) && !bakeResources(entry.c_str(), u.resources, err)) { errors = err; return false; }
+#endif
+    return true;
+  };
+  return zn::dev::hot::run(std::move(unit), out, trace, compile, fd);
 }
 
 extern "C" const ZnModule* zn_module_QuickJS(void);   // src/qjs/script_native.cpp: zinc:script on the engine's QuickJS-ng
@@ -1837,6 +1868,10 @@ int main(int argc, char** argv) {
 #endif
     zn::zbc::Module zm;
     bool fromCache = false, compiled = false;
+    // zinc dev's child (Fast Refresh, ZN-742): hot mode and zinc dev's channel; the program runs through dev/hot.cpp, which swaps its code on a save
+    const char* hotFd = std::getenv("ZINC_HOT_FD");
+    const bool hotRun = hotMode() && hotFd && !gDebug && (path.size() <= 4 || path.substr(path.size() - 4) != ".zbc");
+    std::unique_ptr<zn::dev::hot::Unit> hotUnit = hotRun ? std::make_unique<zn::dev::hot::Unit>() : nullptr;
     if (path.size() > 4 && path.substr(path.size() - 4) == ".zbc") {
       std::ifstream in(path, std::ios::binary);
       if (!in) { std::fprintf(stderr, "cannot read %s\n", argv[2]); return 2; }
@@ -1863,9 +1898,14 @@ int main(int argc, char** argv) {
 #ifdef ZN_HOST_GFX
       interpreted = !runcache::wanted();
 #endif
-      if (!gDebug && zbccache::load(entry, zm) && (interpreted || !drawsOf(zm))) fromCache = true;
-      else if (int rc = compileToZbc(path.c_str(), zm)) return rc;
-      else compiled = true;
+      if (!gDebug && !hotRun && zbccache::load(entry, zm) && (interpreted || !drawsOf(zm))) fromCache = true;   // a hot run needs the keys of a compile
+      else {
+        gHotUnit = hotUnit.get();
+        const int rc = compileToZbc(hotRun ? entry.c_str() : path.c_str(), zm);   // a hot run compiles the same absolute path each time: its keys name the files
+        gHotUnit = nullptr;
+        if (rc) return rc;
+        compiled = true;
+      }
     }
     std::string out;
     bool trace = std::getenv("ZN_TRACE_FREE") != nullptr;
@@ -1912,6 +1952,7 @@ int main(int argc, char** argv) {
     zn::log::step("run", "interpreter");
     auto res = [&] {
       zn::log::Phase ph("run", "program");
+      if (hotRun) return runHot(std::move(hotUnit), zm, blob, absPath, out, trace, std::atoi(hotFd));
       if (!gDebug) return zn::vm::run(zm, out, trace);
       zn::dbg::Debugger d(zm, gDebugSources);
       d.paused = gDap ? zn::dbg::dapPaused : gCdp ? zn::dbg::cdpPaused : zn::dbg::commandLine;

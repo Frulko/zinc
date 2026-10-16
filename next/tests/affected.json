@@ -95,6 +95,7 @@
     {"paths": ["src/frontend/lexer.cpp", "src/frontend/parser.cpp"], "tests": ["parser", "lexer", "checker"]},
     {"paths": ["src/ir/"], "tests": ["ir", "zbc", "rc_refcast", "rc_lend", "rc_borrow", "rc", "virtual_default"]},
     {"paths": ["src/ir/lower.cpp", "src/ir/opt.cpp", "src/ir/ir.h", "src/frontend/modules.cpp", "src/frontend/parser.cpp", "src/frontend/ast.h", "../lib/std/hot.ts", "../templates/desktop-app/", "tests/t0/hot_off.sh"], "tests": ["hot_off"]},
+    {"paths": ["src/dev/hot.cpp", "src/dev/hot.h", "src/cli_core.cpp", "src/host/gfx_host.cpp", "../lib/std/hot.ts", "tests/t1/hot_swap.sh"], "tests": ["hot_swap", "dev_mode"]},
     {"paths": ["src/zbc/"], "tests": ["zbc", "irformat", "aot"]},
     {"paths": ["src/main.cpp", "tests/t1/zbc_cache.sh"], "tests": ["zbc_cache", "run_cache"]},
     {"paths": ["src/main.cpp", "tests/t0/plugins_line.sh", "tests/data/plugins_line/"], "tests": ["plugins_line"]},

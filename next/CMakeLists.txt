@@ -435,7 +435,7 @@ target_include_directories(zn_qjs PUBLIC include src)
 # zinc lint and zinc migrate (docs/reports/zinc-lint-migrate.md): rules and codemods on the frontend's lexer and loader
 add_library(zn_lint STATIC src/lint/lint.cpp src/lint/migrate.cpp)
 target_link_libraries(zn_lint PUBLIC zn_frontend)
-add_executable(zinc src/main.cpp src/test_cmd.cpp src/cli_core.cpp src/lsp/lsp.cpp)
+add_executable(zinc src/main.cpp src/test_cmd.cpp src/cli_core.cpp src/lsp/lsp.cpp src/dev/hot.cpp)   # dev/hot.cpp: zinc dev's Fast Refresh, in the command line only (ZN-742)
 option(ZN_NATIVE_FIXTURE "register the C test module 'Fixture' (tests/native/fixture.c) in zinc, for the native-call tests" ON)
 if(ZN_NATIVE_FIXTURE)
   add_library(zn_native_fixture STATIC tests/native/fixture.c)   # also linked into the programs zinc build writes when they call the module

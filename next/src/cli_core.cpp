@@ -2212,6 +2212,35 @@ bool reloadAssets(const std::string& dir, const Stamps& was, const Stamps& is, i
   return true;
 }
 
+// Fast Refresh (ZN-742): the running version's hot channel (ZINC_HOT_FD). One line from it, waiting at most `ms` (0: only what is there).
+bool hotLine(int fd, std::string& buf, std::string& line, int ms) {
+  const auto end = Clock::now() + std::chrono::milliseconds(ms);
+  for (;;) {
+    if (const std::size_t nl = buf.find('\n'); nl != std::string::npos) { line = buf.substr(0, nl); buf.erase(0, nl + 1); return true; }
+    const int left = static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(end - Clock::now()).count());
+    pollfd pf{fd, POLLIN, 0};
+    if (poll(&pf, 1, left > 0 ? left : 0) <= 0) return false;
+    char b[4096];
+    const ssize_t n = read(fd, b, sizeof b);
+    if (n <= 0) return false;
+    buf.append(b, static_cast<std::size_t>(n));
+  }
+}
+// The files a save changed, relative to the project, and why the running version cannot take them in place (empty when it can: modules only).
+std::string savedFiles(const std::string& dir, const Stamps& was, const Stamps& is, std::string& why) {
+  std::string names;
+  auto add = [&](const std::string& f) {
+    std::error_code ec;
+    const std::string rel = fs::relative(f, dir, ec).generic_string();
+    names += (names.empty() ? "" : ", ") + rel;
+    const std::string ext = fs::path(f).extension().string();
+    if (why.empty() && ext != ".ts" && ext != ".tsx" && ext != ".js" && ext != ".jsx" && ext != ".mts" && ext != ".mjs") why = rel + " changed (not a module)";
+  };
+  for (const auto& [f, st] : is) if (!was.count(f) || was.at(f) != st) add(f);
+  for (const auto& [f, st] : was) if (!is.count(f)) add(f);
+  return names;
+}
+
 std::string redBoxSource(const std::vector<std::string>& lines) {
   std::string arr = "[";
   for (std::size_t i = 0; i < lines.size() && i < 16; ++i) arr += (i ? "," : "") + jsonString(lines[i].substr(0, 90));
@@ -2257,9 +2286,15 @@ int dev(const std::vector<std::string>& args, const DevRemote* remote) {
   fs::create_directories(fs::path(p.dir) / "build" / "shots", ec);
   pid_t child = 0;
   int version = 0, devFd = -1;   // devFd: our end of the running version's dev socket (asset hot reload)
+  int hotFd = -1;                // our end of its hot channel (Fast Refresh, ZN-742): it swaps the code of a save in place
+  bool hotReady = false;         // it said `hot ready`: its frame loop runs
+  std::string hotBuf;
   auto startProgram = [&](long sinceSave, bool redbox, const std::vector<std::string>& msg) {
     killChild(child);
     if (devFd >= 0) { close(devFd); devFd = -1; }
+    if (hotFd >= 0) { close(hotFd); hotFd = -1; }
+    hotReady = false;
+    hotBuf.clear();
     std::vector<std::string> cmd = {exe, "run", redbox ? (devDir / "redbox.ts").string() : runEntry};
     if (!redbox) cmd.insert(cmd.end(), rest.begin(), rest.end());
     if (redbox) writeFile(devDir / "redbox.ts", redBoxSource(msg));
@@ -2274,8 +2309,15 @@ int dev(const std::vector<std::string>& args, const DevRemote* remote) {
       setsockopt(sv[1], SOL_SOCKET, SO_RCVBUF, &room, sizeof room);
       childEnv.push_back({"ZINC_DEV_FD", std::to_string(sv[1])});
     }
+    int hv[2] = {-1, -1};   // the hot channel: hot mode on the child only, never on zinc run, build, export or pack
+    if (!redbox && socketpair(AF_UNIX, SOCK_STREAM, 0, hv) == 0) {
+      fcntl(hv[0], F_SETFD, FD_CLOEXEC);
+      childEnv.push_back({"ZINC_HOT", "1"});
+      childEnv.push_back({"ZINC_HOT_FD", std::to_string(hv[1])});
+    }
     child = spawnSelf(cmd, childEnv, p.dir);
     if (sv[1] >= 0) { close(sv[1]); devFd = sv[0]; }
+    if (hv[1] >= 0) { close(hv[1]); hotFd = hv[0]; }
     if (!redbox) ++version;
     if (redbox) std::fprintf(stderr, "zinc dev: red box on screen (%ld ms after the save)\n", sinceSave);
     else {
@@ -2318,6 +2360,38 @@ int dev(const std::vector<std::string>& args, const DevRemote* remote) {
     seen = now;
     if ((remote ? !boxed : child > 0 && devFd >= 0) && reloadAssets(p.dir, was, now, devFd, remote, t0)) continue;
     if (remote) { startRemote(t0); continue; }
+    // Fast Refresh (ZN-742): the running version compiles the save itself and swaps it in, keeping its process, window and state; it answers
+    // why not when it cannot, and the save restarts it as before
+    std::string why;
+    const std::string saved = savedFiles(p.dir, was, now, why);
+    if (child > 0 && hotFd >= 0) {
+      std::string line;
+      while (!hotReady && hotLine(hotFd, hotBuf, line, 0)) hotReady = line == "hot ready";
+      if (why.empty() && !hotReady) why = "the program has no frame loop";
+      if (why.empty()) {
+        const bool sent = write(hotFd, "reload\n", 7) == 7;
+        if (!sent || !hotLine(hotFd, hotBuf, line, 5000)) why = "the program did not answer";
+        else if (line.rfind("ok", 0) == 0) {
+          std::fprintf(stderr, "zinc dev: v%d refreshed %s (%ld ms after the save)\n", version, saved.c_str(), msSince(t0));
+          std::fflush(stderr);
+          continue;
+        } else if (line.rfind("restart ", 0) == 0) {   // it compiled: no check needed
+          std::fprintf(stderr, "zinc dev: restart: %s\n", line.c_str() + 8);
+          startProgram(msSince(t0), false, {});
+          continue;
+        } else if (line == "error") {   // the red box, as a check failure gives it
+          std::vector<std::string> lines;
+          std::error_code hec;
+          const std::string here = fs::weakly_canonical(p.dir, hec).string() + "/";   // it compiles the absolute path from its real directory: the box is 90 characters wide
+          while (hotLine(hotFd, hotBuf, line, 2000) && line != "end")
+            if (!line.empty() && line.rfind("  ", 0) != 0) lines.push_back(line.rfind(here, 0) == 0 ? line.substr(here.size()) : line);   // not the steps zinc run prints (indented)
+          std::fprintf(stderr, "zinc dev: compile error: %s\n", lines.empty() ? "the build failed" : lines[0].c_str());
+          startProgram(msSince(t0), true, lines);
+          continue;
+        } else why = "the program answered " + line;
+      }
+    }
+    if (!why.empty() && child > 0) std::fprintf(stderr, "zinc dev: restart: %s\n", why.c_str());
     const fs::path out = devDir / "check.txt";
     const std::string cmd = q(exe) + " check --check " + q(p.entry) + " > " + q(out.string()) + " 2>&1";
     const int rc = status(std::system(cmd.c_str()));
@@ -2331,6 +2405,7 @@ int dev(const std::vector<std::string>& args, const DevRemote* remote) {
     } else startProgram(msSince(t0), false, {});
   }
   killChild(child);
+  if (hotFd >= 0) close(hotFd);
   return 0;
 }
 

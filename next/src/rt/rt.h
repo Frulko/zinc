@@ -289,6 +289,8 @@ const char* nativeCall(Machine& m, std::uint32_t idx, Slot* a, Slot* scratch);
 std::int32_t nativePoll(Machine& m, Slot* scratch, bool run);
 // The program ended: pending promises and the callbacks that modules still hold are released, so that nothing of the program outlives it.
 void nativeEnd(Machine& m);
+// The machine's code was replaced (zinc dev's Fast Refresh, ZN-742): the callbacks native modules hold find their `call` method again in it.
+void rebindCallbacks(Machine& m);
 
 // The outcome of running a module.
 struct Result {
