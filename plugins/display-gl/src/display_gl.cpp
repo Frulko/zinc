@@ -138,6 +138,51 @@ static int init(const HalConfig* cfg) {
   return 1;
 }
 
+// ZINC_SHOT (a test, a capture): every frame is composed into this framebuffer of the surface's own pixels (PW x PH) in place of the
+// window, and the screenshot reads it, so its size depends neither on the window nor on the screen (a small screen scales the window down
+// to fit; macOS clamps a window to the screen). The window only lends its context; the frame is blitted to it to be seen. Colour only:
+// the replay's depth and stencil passes run in glr's own framebuffer (no direct replay while shooting), and no layer uses depth.
+// 0 when not shooting, or when the GPU cannot allocate the target (said once): the window is read, as before.
+static GLuint shot_fb, shot_tex;
+static int32_t shot_w, shot_h;
+static GLuint shot_target() {
+  static bool failed;
+  if (!shot_path || failed) return 0;
+  if (shot_fb && shot_w == PW && shot_h == PH) return shot_fb;
+  GLint max = 0;
+  glGetIntegerv(GL_MAX_TEXTURE_SIZE, &max);
+  if (!shot_fb) { glGenTextures(1, &shot_tex); glGenFramebuffers(1, &shot_fb); }
+  bool ok = PW <= max && PH <= max;
+  if (ok) {
+    glBindTexture(GL_TEXTURE_2D, shot_tex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, PW, PH, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);   // never sampled; NEAREST keeps it complete without mipmaps
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glBindFramebuffer(GL_FRAMEBUFFER, shot_fb);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, shot_tex, 0);
+    ok = glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  }
+  if (!ok) {
+    fprintf(stderr, "display-gl: no %dx%d offscreen target for the screenshot (GL limit %d): it reads the window, whose size may differ\n", PW, PH, max);
+    failed = true;
+    return 0;
+  }
+  shot_w = PW; shot_h = PH;
+  return shot_fb;
+}
+static void show_shot(GLuint screen, int32_t ww, int32_t wh) {
+#if GLR_CORE   // GL 3.2 has the blit; on GLES 2 the window stays black during a screenshot run
+  if (!screen) return;
+  glBindFramebuffer(GL_READ_FRAMEBUFFER, screen);
+  glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+  glBlitFramebuffer(0, 0, PW, PH, 0, 0, ww, wh, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+#else
+  (void)screen; (void)ww; (void)wh;
+#endif
+}
+
 // glReadPixels rows are bottom-up, like BMP.
 static void save_bmp(const char* path, int32_t w, int32_t h) {
   uint8_t* px = (uint8_t*)malloc((size_t)w * h * 4);
@@ -218,13 +263,15 @@ static void present(const HalFrame* f) {
   first_mark("");
   if (!glr_state) choose_renderer(f);
   first_mark("renderer setup");
+  const GLuint screen = shot_target();   // the window (0), or the screenshot's own target, upright and unplaced (before the bind below: it binds its texture)
   glBindTexture(GL_TEXTURE_2D, overlay);
   bool damaged = f->y1 > f->y0 && f->x1 > f->x0;
   bool direct = false;
-  int32_t dw, dh;
-  zgl_backend_size(&dw, &dh);
+  int32_t ww, wh, dw, dh;
+  zgl_backend_size(&ww, &wh);
+  dw = screen ? PW : ww; dh = screen ? PH : wh;
   int32_t px = 0, py = 0, pw = dw, ph = dh, turn = 0;
-  const bool placed = zgl_backend_place(&px, &py, &pw, &ph, &turn) != 0;
+  const bool placed = !screen && zgl_backend_place(&px, &py, &pw, &ph, &turn) != 0;
   {   // each new size or placement, while /tmp/zinc/glinfo exists (the tablet's diagnosis)
     static int last[9] = {0};
     const int now[9] = {PW, PH, f->w, f->h, px, py, pw, ph, turn};
@@ -242,7 +289,7 @@ static void present(const HalFrame* f) {
     // the intermediate texture and the copy pass are skipped), or into the surface texture, then copied to the window.
     static const int mode = getenv("ZINC_GL_DIRECT") ? atoi(getenv("ZINC_GL_DIRECT")) : 2;   // 0 texture, 1 direct, 2 adaptive
     static bool tex_ok = false;   // the texture holds the last frame
-    bool can = dw == PW && dh == PH && !zgl_layers && !placed;
+    bool can = !screen && dw == PW && dh == PH && !zgl_layers && !placed;
     int64_t area = damaged ? (int64_t)(f->x1 - f->x0) * (f->y1 - f->y0) : 0;
     direct = can && damaged && (mode == 1 || (mode == 2 && area * 2 >= (int64_t)PW * PH));
     if (direct) { glr::frame(f, true, glr::Rect{0, 0, PW, PH}); tex_ok = false; }
@@ -261,7 +308,7 @@ static void present(const HalFrame* f) {
     glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
     glTexSubImage2D(GL_TEXTURE_2D, 0, 0, f->y0, PW, f->y1 - f->y0, GL_RGBA, GL_UNSIGNED_BYTE, fb + (size_t)f->y0 * PW);
   }
-  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  glBindFramebuffer(GL_FRAMEBUFFER, screen);
   glViewport(0, 0, dw, dh);
   glDisable(GL_SCISSOR_TEST);
   if (direct) {   // already in the window
@@ -279,7 +326,7 @@ static void present(const HalFrame* f) {
   glClearColor(0, 0, 0, 1);
   glClear(GL_COLOR_BUFFER_BIT);
   if (zgl_layers) zgl_layers(dw, dh);
-  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  glBindFramebuffer(GL_FRAMEBUFFER, screen);
   if (placed) glViewport(px, dh - py - ph, pw, ph); else glViewport(0, 0, dw, dh);
   glUseProgram(prog);
   static const float kCos[] = {1, 0, -1, 0}, kSin[] = {0, -1, 0, 1};   // clockwise on the screen: minus a quarter turn each
@@ -311,12 +358,13 @@ static void present(const HalFrame* f) {
         GLuint fb2 = 0; glGenFramebuffers(1, &fb2); glBindFramebuffer(GL_FRAMEBUFFER, fb2);
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, glr_tex, 0);
         glReadPixels(PW / 2, PH / 2, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, t);   // the frame's centre (it fills the first PW x PH)
-        glBindFramebuffer(GL_FRAMEBUFFER, 0); glDeleteFramebuffers(1, &fb2);
+        glBindFramebuffer(GL_FRAMEBUFFER, screen); glDeleteFramebuffers(1, &fb2);
       }
       if (FILE* lf = fopen("/tmp/zinc/glinfo.log", "a")) { fprintf(lf, "pixels: screen centre %d,%d,%d texture centre %d,%d,%d, GL error 0x%x\n", s[0], s[1], s[2], t[0], t[1], t[2], glGetError()); fclose(lf); }
     }
   }
   if (shot_path && frames_left == 0) save_bmp(shot_path, dw, dh);
+  show_shot(screen, ww, wh);
   double tc = 0;
   if (tm) { glFinish(); tc = glr::now_us(); t_pas += tc - tb; }
   gpu_time(tm);

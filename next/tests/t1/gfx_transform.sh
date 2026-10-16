@@ -2,6 +2,7 @@
 # zinc:gfx setTransform (ZN-263.01): rect, rounded rect, border, shadow, gradient, image and text at 0, 15, 45 and 90 degrees, a scaled-then-
 # rotated group, a transformed polygon and stroke (tests/data/gfx_transform). The software frame of the interpreter and of the compiled program
 # is the golden (tests/golden/gfx-transform/frame.png); the GL replay draws it within the tolerance policy (5% of the pixels over 24, mae 3).
+# The GL run pretends a screen smaller than the window (ZINC_TEST_SCREEN, display-gl's sdl.cpp): its screenshot keeps the surface's size.
 cd "$(dirname "$0")/../.." || exit 2
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fail=0
@@ -14,7 +15,7 @@ shot() {   # name [env...]
 shot interpreter ZINC_RUN=interp
 shot compiled ZINC_RUN=native
 command -v python3 >/dev/null || { echo "skipped the GL replay: no python3"; exit $fail; }
-ZINC_RENDERER=gl ZINC_DETERMINISTIC=1 ZINC_DISPLAY=gl ZINC_FRAMES=3 ZINC_SHOT="$tmp/gl.bmp" ZINC_RUN=interp timeout 90 "$ZINC" run tests/data/gfx_transform >"$tmp/gl.log" 2>&1
+ZINC_TEST_SCREEN=640x480 ZINC_RENDERER=gl ZINC_DETERMINISTIC=1 ZINC_DISPLAY=gl ZINC_FRAMES=3 ZINC_SHOT="$tmp/gl.bmp" ZINC_RUN=interp timeout 90 "$ZINC" run tests/data/gfx_transform >"$tmp/gl.log" 2>&1
 if [ -s "$tmp/gl.bmp" ]; then
   out=$(python3 tools/glcompare "$tmp/gl.bmp" tests/golden/gfx-transform/frame.png) || { echo "GL: $out"; fail=1; }
   python3 - "$out" <<'PY' || fail=1

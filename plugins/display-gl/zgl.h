@@ -10,7 +10,8 @@
 #include <stdint.h>
 
 extern "C" {
-/** Drawn every frame into the default framebuffer (w x h pixels, cleared to black), before the UI overlay. */
+/** Drawn every frame into the bound framebuffer (w x h pixels, cleared to black), before the UI overlay: the window's, or the
+ *  screenshot's offscreen target under ZINC_SHOT (display_gl.cpp shot_target), so a layer that binds another restores this one. */
 extern void (*zgl_layers)(int32_t w, int32_t h);
 /** Links a program; attribute 0 is `a_pos`, 1 is `a_uv`. `defines` is inserted after the preamble. 0 on error (logged). */
 GLuint zgl_program(const char* defines, const char* vs, const char* fs);

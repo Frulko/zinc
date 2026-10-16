@@ -45,8 +45,10 @@ libraries ship with the OS).
   GLES. Attribute 0 is `a_pos`, 1 is `a_uv`. Textures from runtime images are B,G,R,0 bytes: sample `.bgr`.
 - Input: SDL events on macOS (keyboard, mouse, trackpad pinch/wheel, touch); on the Pi every `/dev/input/event*`
   device: keys, relative mouse, absolute touchscreen (single pointer). Esc quits.
-- `ZINC_FRAMES=n` stops after n frames and `ZINC_SHOT=out.bmp` saves the last frame from the GL back buffer, so
-  screenshots contain the GPU layers too.
+- `ZINC_FRAMES=n` stops after n frames and `ZINC_SHOT=out.bmp` saves the last frame, GPU layers included. While it is
+  set, each frame is composed into an offscreen framebuffer of the surface's pixels (the zoom before any fit to the screen,
+  times the density) and the screenshot reads it: its size does not depend on the window or the screen (a small screen
+  scales the window down; macOS clamps it). `ZINC_TEST_SCREEN=WxH` (a test hook) stands for the screen's usable bounds.
 
 ## Raspberry Pi 64-bit (`linux` target), verified on a Pi 3B+
 

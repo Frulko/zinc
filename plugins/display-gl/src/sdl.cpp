@@ -14,6 +14,7 @@ static SDL_Window* win;
 static SDL_GLContext ctx;
 static bool quit;
 static float zoom = 1;   // window points per logical pixel
+static int unfit = 1;    // the same before the window was scaled down to fit the screen
 static int lw, lh;       // logical size
 
 bool zgl_backend_init(const HalConfig* cfg) {
@@ -28,10 +29,12 @@ bool zgl_backend_init(const HalConfig* cfg) {
   // window size in points as in hal_sdl: tiny surfaces doubled (ZINC_ZOOM overrides), a surface larger than the screen scaled down to fit
   int scale = cfg->width <= 400 ? 2 : 1;
   if (const char* z = getenv("ZINC_ZOOM")) scale = atoi(z) > 0 ? atoi(z) : scale;
-  zoom = scale; lw = cfg->width; lh = cfg->height;
+  zoom = unfit = scale; lw = cfg->width; lh = cfg->height;
   float ww = (float)cfg->width * scale, wh = (float)cfg->height * scale;
   SDL_Rect usable;
-  if (SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay(), &usable) && usable.w > 0 && usable.h > 0) {
+  // ZINC_TEST_SCREEN=WxH (a test hook): the usable bounds of a small screen, e.g. a CI runner's, to prove screenshots do not depend on it
+  const char* ts = getenv("ZINC_TEST_SCREEN");
+  if ((ts && sscanf(ts, "%dx%d", &usable.w, &usable.h) == 2) || (!ts && SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay(), &usable) && usable.w > 0 && usable.h > 0)) {
     const float fit = SDL_min(usable.w * 0.9f / ww, usable.h * 0.9f / wh);
     if (fit < 1) { ww *= fit; wh *= fit; zoom *= fit; }
   }
@@ -43,10 +46,11 @@ bool zgl_backend_init(const HalConfig* cfg) {
   return true;
 }
 
-// zoom x the screen's density (2 on Retina), so the surface has the window's own pixels and is not stretched; ZINC_SCALE overrides, capped at 4K like hal_sdl
+// zoom x the screen's density (2 on Retina), so the surface has the window's own pixels and is not stretched; ZINC_SCALE overrides, capped at 4K like hal_sdl.
+// A screenshot (ZINC_SHOT) takes the zoom before the fit: display_gl.cpp draws it offscreen at the size a window large enough would have had.
 int32_t zgl_backend_scale() {
   const float density = SDL_GetWindowPixelDensity(win);
-  int32_t k = (int32_t)(zoom * (density > 0 ? density : 1) + 0.5f);
+  int32_t k = (int32_t)((getenv("ZINC_SHOT") ? unfit : zoom) * (density > 0 ? density : 1) + 0.5f);
   if (const char* ks = getenv("ZINC_SCALE")) k = atoi(ks);
   if (k < 1) k = 1;
   while (k > 1 && (long)lw * k * lh * k > 3840L * 2400L) k--;

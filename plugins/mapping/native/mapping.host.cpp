@@ -363,7 +363,11 @@ void draw(int32_t w, int32_t h) {
     if (l.visible < 0.5f || l.opacity <= 0) continue;
     if (!l.vbo || l.geom_dirty) tessellate(l);
     if (l.maskimage >= 0 && sync_tex(l.mimg, l.maskimage) > 0) l.mask_dirty = true;
-    if (!l.mfbo || l.mask_dirty) { build_mask(l); glBindFramebuffer(GL_FRAMEBUFFER, 0); glViewport(0, 0, w, h); }
+    if (!l.mfbo || l.mask_dirty) {   // back to the framebuffer display-gl bound: the window, or a screenshot's target (zgl.h)
+      GLint to = 0;
+      glGetIntegerv(GL_FRAMEBUFFER_BINDING, &to);
+      build_mask(l); glBindFramebuffer(GL_FRAMEBUFFER, (GLuint)to); glViewport(0, 0, w, h);
+    }
     int src = l.source;
     if (src == IMAGE) src = sync_tex(l.tex, l.image) < 0 ? PATTERN : l.tex.rgba ? BAKED : IMAGE;  // missing image: test pattern
     GLuint p = layer_prog(src);
