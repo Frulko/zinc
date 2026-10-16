@@ -10,6 +10,7 @@ labels:
   - size-M
 milestone: m-26
 dependencies:
+  - ZN-625
   - ZN-628
   - ZN-742
 ordinal: 200000
