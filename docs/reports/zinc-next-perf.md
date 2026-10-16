@@ -788,3 +788,20 @@ Tegra 3 T30L, 1 GB, Android 7.1.2 (LineageOS 14.1, API 25), debug APKs for armea
 - First interaction (owner report): worst frame of the first tap 41.8-42.4 ms against 51.4-55.8 ms for the second, warm, cold page cache, or all four cores at the performance governor: no first-time cost and no CPU wake-up effect; each tab switch costs ~11 ms of input and ~10 ms of layout. A Magisk `su` during a run made every other present ~105 ms for the whole run.
 - Follow-ups: ZN-744 (scroll at 60 fps), ZN-741 (damage-aware GLES 2 replay), ZN-743 (zero-copy present).
 - ZN-742.03 Fast Refresh (2026-10-16, other trees building): save -> first frame of the new code, state kept: desktop-app page 523-565 ms in the test, 603-738 ms with a real window and the inspector (a restart takes ~570 ms and loses the state); game-2d template 96 ms (189-234 ms with a real window); hot_swap fixtures 60-300 ms.
+
+## Zero copy, scroll moves, raw images and shaders on the Nexus 7 (ZN-743, ZN-744, ZN-746, ZN-741, D124, 2026-10-16)
+
+Nexus 7 2012, debug APKs for armeabi-v7a, `ZINC_PRESENT_STATS=1`, scripted flings (`ZINC_INPUT`, ten 400 px flings) and taps; the tablet to the measuring agent alone (runs with another app in front discarded). Desktop numbers on a loaded machine.
+
+| Measure | Before | After |
+|---|---|---|
+| rn-showcase fling, present without the raster, p50 | 12.8 ms (SDL texture: `SDL_UpdateTexture` 9.4-9.8 ms) | 4.2 ms (the raster draws into the window buffer, ZN-743) |
+| rn-showcase fling, frame interval p50 | 40.6 ms (24.6 fps) | 31.3 ms (31.9 fps) |
+| rn-showcase at rest, breakout | 60 fps | 60 fps |
+| A tap on rn-showcase's tab bar, damage | the whole 420x860 screen, twice | nothing (ZN-744, `tests/t0/damage_tap.sh`) |
+| Scroll, desktop window, raster p50 / p99 | 1.05 / 12.7 ms | 0.23 / 5.2 ms (pixels moved, `tests/t0/scroll_move.sh`) |
+| Scroll, Nexus 7 | interval p50 21.6-33 ms | 17.9-24.5 ms with `ZINC_PRESENT=shadow` (p99 worse: 88 ms); 60 fps not reached: Tegra 3 moves memory at ~0.5 GB/s (a full-screen memmove 5.5-6.8 ms), reading the window buffer is slower still |
+| Lava face, Nexus 7 software raster | 4.0 fps (raster p50 200-203 ms: a PNG per frame, four full-screen draws) | 21.9 fps (raster p50 28-32 ms: raw pixels, one smooth draw) |
+| Lava face, Nexus 7 GPU layer (SHADER, scale 4) | – | 61 fps (24 fps at full resolution) |
+| Lava face, desktop software raster | raster p50 25.2 ms (36 fps) | 3.3 ms (60 fps) |
+| rn-showcase, GLES 2 replay on Android (`ZINC_RENDERER=gl`) | 13.7 fps (whole frame replayed) | 60 fps at rest; tab switch p99 17.4 ms (software 18.6); first switch 147 ms (programs built then); fling p99 127 ms (software 76): not the default yet |

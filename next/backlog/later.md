@@ -239,6 +239,15 @@ The next backlog review turns lines into tasks or deletes them.
 - D123: SDL also keeps the display awake for every Zinc app on macOS and Linux (SDL's default); apply the same rule there (a kiosk or navigator.wakeLock keeps it on).
 - D123: a real Android kiosk needs lock task mode (screen pinning or a device owner): Home and Recents still leave a kiosk app.
 - D123: the plugins webos, gsap, async-storage and svg run on Android but their plugin.json targets do not list it, so `zinc lint` warns "not made for this target" (examples/music: 7 warnings).
+- ZN-743: the KMS dumb buffer and fbdev could take HalFrame.render_box and draw the damage straight into the scanout buffer, as the Android window buffer does now.
+- ZN-743: macOS and iOS could write an IOSurface (CALayer contents) in place of SDL_UpdateTexture.
+- ZN-743: Android: buffer age instead of copy-back (ANativeWindow_lock copies the region outside the box from the previous buffer at each post).
+- ZN-744: exact moves of fractional content (float32 rounding when crossing 64, 128, 256... redraws large areas after a move).
+- ZN-744: no test yet for horizontal and two-axis moves, nor for nested scroll views.
+- ZN-746: the software raster at 30 fps on the lava face of a Nexus 7 (11 to 22 fps): the CPU path at a lower resolution, or the smooth stretch on NEON.
+- ZN-746: a SHADER under a matrix (setTransform) or inside a rounded clip on the Android GPU layer (the hole is square there); several shader programs per frame at different scales.
+- ZN-746: an Android window cannot switch to GL after its first frame: a program that makes its first shader later keeps the CPU path.
+- ZN-741: build the GLES 2 programs at start (the first tab switch takes 147 ms on the Nexus 7).
 
 ## Demos
 
@@ -441,4 +450,6 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-718: AGENTS.md describes the development Mac as an Intel one; it is an Apple M1 Pro (arm64): correct "The development machine" and the Intel-specific numbers.
 - ZN-622: build arm64-v8a and x86_64 and do an emulator smoke run; only armeabi-v7a was built and run (Nexus 7).
 - ZN-718: `zinc device update` (the agent's engine update on a device) still only downloads and verifies; it could reuse `updateCommand` of src/tc/selfupdate.cpp to install and roll back.
-
+- ZN-744: rn-showcase fling on a Pi 3 (display-gl overlay and fbdev do not take HalFrame.move yet) and on the HP TouchPad, frame times before and after.
+- ZN-746: the GPU layer under the CPU frame for the Pi's KMS/EGL and webOS windows (display-gl's overlay), and the lava face on a Pi 3 and the TouchPad.
+- ZN-741: the damage-aware GLES 2 replay on the Pi 3 (ZINC_GL_DMG, the GPU-reset suspect) and the TouchPad.
