@@ -222,6 +222,11 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-742: `if (import.meta.hot)` blocks are not type-checked by `zinc check` or the LSP (removed before checking outside hot mode); check them in hot mode too, or warn.
 - ZN-742: the ZBC cache has one directory per entry, so alternating `zinc dev` (hot) and `zinc run` recompiles each time; add hot mode to `zbccache::key` once `zinc dev` sets `ZINC_HOT`.
 - tools/diff-matrix: on `conf:async errors modules features generic_static` gives interp=DIFF (aot ok) on main, seen by ZN-742.01.
+- ZN-742.02: compile a save on a thread while frames continue (frames pause 100-450 ms during the in-process compile today).
+- ZN-742.02: let a hot child start from the ZBC cache by caching its hot keys (it always compiles first, ~0.4 s on the desktop-app).
+- ZN-742.02: side-effect-only imports (`import './x'`) are not in the importer graph, so editing such a module does not re-run its importer.
+- ZN-742.02: hot-swap a newly imported std module instead of restarting (any library-module change restarts today).
+- ZN-742.02: test that a native plugin callback still works across a swap (`rebindCallbacks`).
 
 ## Demos
 
