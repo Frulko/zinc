@@ -71,6 +71,14 @@ Tests passed: install_nocompiler, plugin_prebuilt, plugin_build, plugin_key, plu
 
 Walked the macOS archive as a stranger (empty HOME and ZINC_HOME, PATH /usr/bin:/bin): Zinc Atelier.app stopped at Z5006 (zinc.json, icon, thumbs, examples/index.txt were not packaged): fixed in `tools/package`, checked by `install_nocompiler` (`zinc check` of the installed Atelier). The 8 examples and the 13 templates run headless from the .app. The binary and the plugin libraries were stamped minos 15 (the build Mac's): the plist now says what the engine asks for, plugin libraries are re-stamped to it (`vtool`), and the CI cmake lines pass `-DCMAKE_OSX_DEPLOYMENT_TARGET=12.0`. Not proven: an older macOS, an Intel Mac, a notarized download (Gatekeeper), the CI run.
 
+## CI and test report (2026-10-16)
+
+- `.github/workflows/zinc-next.yml`: macOS only (macos-15 arm64 + macos-15-intel, deployment target 13.3: `std::to_chars` needs it); Linux and Windows jobs are off. One `build` job per architecture, shared as `build.tgz`; `package` (smoke test `install_nocompiler`, sign, upload) and `test` (6 shards, `tests/run --shard i/6`, results in `ZINC_TEST_RESULTS`) start from it; `report` gathers `test-report` (results.txt, REPORT.md, logs of the FAILs) and attaches `test-report.zip` to the release; the release needs `package` only, a FAIL never blocks it. v0.1.0 was released this way.
+- The runner's Xcode 15.4 (macos-14) built a `zinc` that segfaulted on recursion (`run`, `rc`, `diff`, `bench-gate`): moved to macos-15 (Xcode 16.x).
+- Engine fixes found by the report: a default parameter of a method that a subclass overrides was passed as null (virtual call; `EventTarget.addEventListener(type, cb)` crashed), a labeled/bare `break` with no loop read an empty vector (fuzz crash, regression file in tests/fuzz/regress), `TIER` missing from `zinc:platform` for profiles with no capabilities row (psp), the wasm host had no asset-group, fs or device rows (game-2d on the web panicked).
+- Goldens refreshed after reading the frames: museum details/editor (Narration section), nuxt-ui and rn-tester overlays/shadows, ui-style ring-mouse, chataigne known difference, plugins table, native_gen headers, ui-alloc-text, examples.lst (10 new). `proto_devtools` is skipped (the prototype lacks what ui.ts needs).
+- `firmware/esp32/prebuilt/esp32-core-flash.bin` rebuilt with `tools/build-esp32-core` (the 2026-10-09 image rejected current bytecode): `esp32_qemu`, `export_esp32`, `atelier_esp32` pass.
+
 ## The owner's steps
 
 - A release (the workflow builds, packages, and attaches the archives, the manifests, `install.sh` and `SHA256SUMS`): `git push origin main && git tag -a v0.1.0 -m "Zinc 0.1.0" && git push origin v0.1.0`

@@ -301,7 +301,6 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-713: profile launch to first frame of the exported app (about 0.5 s under load); retake every time and memory figure alone on the machine (`ZINC=<main>/next/build/zinc ./measure.sh build measure` in `next/bench/vs-electron`); report physical footprint beside the RSS sum.
 - music (2026-10-15): check on the TouchPad by hand: the screen off after the delay and the first touch waking it at LED 0 (the open source warns a panel at level 0 may misbehave: write 3 instead), the SSDP search through openPort, UDP 7777 from another machine, a radio and a Spotify playlist started through the speakers (the account number tried 1..4).
 - ZN-718: tests/t1/proto_devtools is skipped: lib/std/ui.ts needs `TIER` as i32 in the prototype's zinc:platform (compiler/src/capabilities.ts types every capability as boolean), `gradientPaint` and `overlaid` in sim/gfx.mjs and runtime/gfx.*; give the prototype stubs for them, or retire the test with the prototype.
-- ZN-718: tests/t2/esp32_qemu fails: the prebuilt core firmware (firmware/esp32/prebuilt, built 2026-10-09) rejects a module the current compiler emits (`invalid ZBC: @main pc 1012: array r1 holds f64, expected a reference` on tests/golden/run/library.ts under --target esp32); rebuild it with tools/build-esp32-core and recheck (cross-target, done in the cross-platform pass).
 
 ## Cross-platform pass
 
