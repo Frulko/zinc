@@ -158,10 +158,10 @@ static constexpr bool kAppShell = false;
 #endif
 // zinc.json app.window for the window HAL, before the window exists: ZINC_WINDOW_CONFIG, written by zinc run and baked by zinc build
 // (src/main.cpp appWindowConfig): has_position x y min_w min_h max_w max_h borderless always_on_top transparent not_resizable key aspect|title
-extern "C" void hal_set_window_config(const HalWindowConfig*) __attribute__((weak));   // the SDL HAL has it; the headless HAL does not
+extern "C" __attribute__((weak)) void hal_set_window_config(const HalWindowConfig*) {}   // the SDL HAL overrides it; the headless HAL has none (a bare weak reference does not link on Mach-O)
 static void windowConfig() {
   const char* t = getenv("ZINC_WINDOW_CONFIG");
-  if (!t || !*t || !hal_set_window_config) return;
+  if (!t || !*t) return;
   HalWindowConfig c = {};
   if (sscanf(t, "%d %d %d %d %d %d %d %d %d %d %d %u %f", &c.has_position, &c.x, &c.y, &c.min_w, &c.min_h, &c.max_w, &c.max_h, &c.borderless,
              &c.always_on_top, &c.transparent, &c.not_resizable, &c.transparent_key, &c.aspect) != 13) return;
