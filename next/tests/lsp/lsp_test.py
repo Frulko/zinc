@@ -162,6 +162,20 @@ check(h and "twice(n: number): number" in h["contents"]["value"] and "Twice a nu
 d = request("textDocument/definition", {"textDocument": {"uri": uri2}, "position": pos_of(docs, "b.step(1, 2)", 0, 3)})
 check(d and d["uri"] == uri2 and d["range"]["start"]["line"] == docs[:docs.index("  step(")].count("\n"), "definition of a member: %r" % d)
 
+# 9. platform files (ZN-745): the definition is in the file the tsconfig's moduleSuffixes name first, as tsc and the editor resolve it
+plat = os.path.join(tmp, "plat")
+os.mkdir(plat)
+open(os.path.join(plat, "tsconfig.json"), "w").write('{ "compilerOptions": { "moduleSuffixes": [".android", ".native", ""] } }\n')
+for f in ("Screen.tsx", "Screen.native.tsx", "Screen.android.tsx"):
+    open(os.path.join(plat, f), "w").write("export function screen(): string { return '%s'; }\n" % f)
+main = "import { screen } from './Screen';\nconsole.log(screen());\n"
+uri3 = "file://" + os.path.join(plat, "main.ts")
+open(os.path.join(plat, "main.ts"), "w").write(main)
+notify("textDocument/didOpen", {"textDocument": {"uri": uri3, "languageId": "typescript", "version": 1, "text": main}})
+check(diagnostics(uri3) == [], "platform files: diagnostics")
+d = request("textDocument/definition", {"textDocument": {"uri": uri3}, "position": pos_of(main, "screen()", 0, 1)})
+check(d and d["uri"].endswith("/plat/Screen.android.tsx"), "definition through moduleSuffixes: %r" % d)
+
 request("shutdown", None)
 notify("exit", None)
 check(proc.wait(timeout=5) == 0, "exit code")

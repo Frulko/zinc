@@ -37,6 +37,7 @@
 #include "res/res.h"
 #include "assets/assets.h"
 #include "zn/hostsys.h"
+#include "zn/platform.h"
 #include "qjs/qjs.h"
 #ifdef ZN_HOST_LIBS
 #define HOSTLIBS + (window ? std::string(" ") + hostLibs() : std::string())   // the window library the host links (@bin@: the directory of this zinc, ZN-333)
@@ -2278,6 +2279,7 @@ int main(int argc, char** argv) {
     if (!target && zn::tc::findAppTarget(argv[3])) { std::fprintf(stderr, "zinc build: %s apps are built by zinc export --target %s (%s)\n", argv[3], argv[3], zn::tc::findAppTarget(argv[3])->note); return 2; }
     if (!target) { std::fprintf(stderr, "unknown target '%s' (zinc toolchain targets)\n", argv[3]); return 2; }
     gBuildTarget = std::string(argv[3]) == "rpi" ? "rpi1" : argv[3];
+    if (const char* os = std::strrchr(target->name, '-'); os && zn::knownPlatform(os + 1)) setenv("ZINC_PLATFORM", os + 1, 0);   // the target's platform files (x.webos.ts), not this machine's
     zn::zbc::Module zm;
     if (int rc = compileToZbc(argv[4], zm)) return rc;
     std::string zig, err;

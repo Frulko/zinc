@@ -64,7 +64,7 @@
     {"paths": ["../lib/std/nuxt/", "tests/golden/nuxt-theme/", "../examples/nuxt-ui/", "tests/golden/nuxt-ui/", "tests/golden/oklab-tints/", "tools/oklab-tints"], "tests": ["nuxt_theme", "nuxt_ui", "oklab_tints", "rtl"]},
     {"paths": ["../lib/std/animated.ts", "tests/golden/animated/"], "tests": ["animated", "rn_showcase", "pan_responder"]},
     {"paths": ["../lib/std/icons.tsx", "third_party/lucide/", "tests/golden/icons/", "tests/golden/icons-all/"], "tests": ["icons", "rn_showcase"]},
-    {"paths": ["src/frontend/modules.cpp", "tests/golden/platform-files/"], "tests": ["platform_files"]},
+    {"paths": ["src/frontend/modules.cpp", "src/frontend/tsconfig.cpp", "include/zn/platform.h", "tests/t0/platform_files.sh", "tests/golden/platform-files/"], "tests": ["platform_files"]},
     {"paths": ["include/zn/platform.h", "src/host/sys_host.cpp", "tests/golden/platform-identity/"], "tests": ["platform_identity"]},
     {"paths": ["src/host/hal_dispatch.cpp", "../lib/std/haptics.ts", "../lib/std/react-native.tsx", "tests/golden/system-signals/", "../targets/macos/hal_sdl.cpp"], "tests": ["system_signals"]},
     {"paths": ["src/app/android/", "src/app/android_glue.cpp", "src/cli_core.cpp"], "tests": ["export_android"]},

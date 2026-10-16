@@ -49,6 +49,11 @@ extern std::function<bool(const std::string& module)> gNativeLive;
 // `hot`: zinc dev's hot mode (ZINC_HOT=1, ZN-742): zinc:hot is loaded first and import.meta.hot is each module's record; in any other build
 // the statements that only run with import.meta.hot are removed.
 Program loadProgram(const std::string& entry, const ReadFile& read, bool strict = false, const std::string& stdRoot = "", bool hot = false);
+// The suffixes a module's files take for the platform being built, in the order they are tried ({".android", ".native", ""}): Metro's platform
+// extensions, the moduleSuffixes zinc new and zinc tsconfig write for editors and tsc (docs/react-native.md, "Platform-specific files").
+std::vector<std::string> platformSuffixes();
+// zinc lsp: imports follow the moduleSuffixes of the nearest tsconfig.json (the platform the editor shows) instead of the build's.
+void followModuleSuffixes(bool on);
 // A module of the engine (zinc:*, a prelude, lib/std, lib/compat, plugins/), not of the project: Fast Refresh never runs one again, and hot
 // mode wraps only the project's components in their refresh proxies.
 bool libraryModule(const std::string& path);

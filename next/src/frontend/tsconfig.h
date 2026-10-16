@@ -11,6 +11,7 @@ namespace zn::frontend {
 struct TsConfig {
   std::string baseUrl;  // as written ("" when absent); the targets of `paths` are relative to it, else to the directory of the tsconfig
   std::vector<std::pair<std::string, std::vector<std::string>>> paths;  // pattern (exact, or with one `*`) -> targets, in file order
+  std::vector<std::string> moduleSuffixes;  // [".android", ".native", ""] as written; empty when absent (the editor's platform files, zinc lsp)
 };
 
 // False with `err` set when the text is not JSON. A tsconfig without `paths` is fine (empty).

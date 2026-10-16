@@ -688,6 +688,7 @@ bool readMessage(std::string& body) {
 }
 
 int Server::run() {
+  zn::frontend::followModuleSuffixes(true);   // go to definition lands where tsc's moduleSuffixes do (Screen.android.tsx), as the editor shows it
   std::string body;
   while (readMessage(body)) {
     yyjson_doc* doc = yyjson_read(body.c_str(), body.size(), 0);

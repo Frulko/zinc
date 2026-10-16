@@ -1123,6 +1123,18 @@ std::string platformName() {
   if (const Profile* p = currentProfile()) { const std::string n = p->name; if (n == "android" || n == "ios") return n; if (n == "ios-sim") return "ios"; }
   return zn::builtPlatform();
 }
+// Metro's order: the platform (ZINC_PLATFORM, else the profile: ios-sim also .ios, wasm also .web, else this machine), then .native on every
+// platform but the web, then none
+std::vector<std::string> suffixesOfPlatform() {
+  const Profile* p = zn::knownPlatform(std::getenv("ZINC_PLATFORM")) ? nullptr : currentProfile();
+  const std::string tag = p ? std::string(p->name) : platformName(), os = tag == "ios-sim" ? "ios" : tag == "wasm" ? "web" : tag;
+  std::vector<std::string> out = {"." + tag};
+  if (os != tag) out.push_back("." + os);
+  if (os != "web") out.push_back(".native");
+  out.push_back("");
+  return out;
+}
+bool gFollowSuffixes = false;   // zinc lsp: followModuleSuffixes
 std::string platformModuleSource(const std::string& capsFile) {
   std::string target = platformName(), text;
   // `--profile esp32` on the host: the profile's name, heap, numbers and capability row, as the prototype's platformModule gives them (budgets
@@ -1553,17 +1565,35 @@ struct Loader {
     }
     return tsconfigs[dir] = std::move(e);
   }
-  // Loads the file a path candidate names (as written or with an extension or /index); kNone when no such file.
-  std::uint32_t loadCandidate(const std::string& base, bool& found) {
+  // The platform's suffixes for the files of `dir`: platformSuffixes(), or under zinc lsp the moduleSuffixes of its tsconfig.json
+  std::vector<std::string> suffixesFor(const std::string& dir) {
+    if (gFollowSuffixes) { const TsEntry& ts = tsconfigFor(dir); if (!ts.cfg.moduleSuffixes.empty()) return ts.cfg.moduleSuffixes; }
+    return suffixesOfPlatform();
+  }
+  // Loads the file a path candidate names: as written, else <stem><suffix>.ts, .tsx, /index.ts, /index.tsx for each of the platform's suffixes
+  // (Screen.android.tsx, Screen.native.tsx, Screen.tsx: Metro's order and TypeScript's moduleSuffixes, the extension outside the suffix), else
+  // .js, .mjs, or the .ts/.tsx of an import written x.js. kNone with `found` false when no such file, with `cycle` when the file is being
+  // loaded; a platform file being loaded is passed over, so Screen.native.tsx may import './Screen' and wrap it.
+  std::uint32_t loadCandidate(const std::string& base, bool& found, bool& cycle) {
     found = true;
+    cycle = false;
     std::string text;
+    auto exact = [&](const std::string& cand, std::uint32_t& m) {
+      if (done.count(cand)) { m = done[cand]; return true; }
+      if (visiting.count(cand)) { cycle = true; m = kNone; return true; }
+      if (read(cand, text)) { m = load(cand, std::move(text)); return true; }
+      return false;
+    };
+    const std::vector<std::string> sfx = suffixesFor(dirOf(base));
+    auto suffixed = [&](const std::string& stem, const char* ext, std::uint32_t& m) {
+      for (const std::string& s : sfx) if ((s.empty() || !visiting.count(stem + s + ext)) && exact(stem + s + ext, m)) return true;
+      return false;
+    };
     std::string stem = base;
     for (const char* js : {".js", ".mjs"}) if (stem.size() > std::strlen(js) && stem.compare(stem.size() - std::strlen(js), std::strlen(js), js) == 0) { stem.resize(stem.size() - std::strlen(js)); break; }
-    for (const std::string& cand : {base, base + ".ts", base + ".tsx", base + "/index.ts", base + "/index.tsx", base + ".js", base + ".mjs", stem + ".ts", stem + ".tsx"}) {
-      if (done.count(cand)) return done[cand];
-      if (visiting.count(cand)) return kNone;
-      if (read(cand, text)) return load(cand, std::move(text));
-    }
+    std::uint32_t m = kNone;
+    if (exact(base, m) || suffixed(base, ".ts", m) || suffixed(base, ".tsx", m) || suffixed(base + "/index", ".ts", m) || suffixed(base + "/index", ".tsx", m) ||
+        exact(base + ".js", m) || exact(base + ".mjs", m) || suffixed(stem, ".ts", m) || suffixed(stem, ".tsx", m)) return m;
     found = false;
     return kNone;
   }
@@ -1580,8 +1610,8 @@ struct Loader {
     std::string tried;
     for (const std::string& t : targets) {
       std::string path = normalize(root + (root.empty() ? "" : "/") + t);
-      bool found;
-      std::uint32_t m = loadCandidate(path, found);
+      bool found, cycle;
+      std::uint32_t m = loadCandidate(path, found, cycle);
       if (found) { result = m; return true; }
       tried += (tried.empty() ? "" : ", ") + path;
     }
@@ -1707,21 +1737,11 @@ struct Loader {
         }
       }
     }
-    // platform-specific files (docs/targets/capabilities.md): `keyboard.<profile>.tsx` next to `keyboard.tsx` replaces it for that profile (the host's
-    // own name, macos or linux, when no --profile is given), as React Native's `.ios.tsx`; imports keep writing './keyboard'
-    const Profile* vp = currentProfile();
-    const std::string vtag = vp ? std::string(vp->name) : platformName();
-    for (const char* ext : {"", ".ts", ".tsx", "/index.ts"}) {
-      std::string cand = base + ext;
-      if (ext[0] == '.') {
-        std::string v = base + "." + vtag + ext;
-        if (done.count(v)) return done[v];
-        if (!visiting.count(v) && read(v, text)) return load(v, std::move(text));
-      }
-      if (done.count(cand)) return done[cand];
-      if (visiting.count(cand)) { diag(kZUnsupported, fromFile, node, "circular imports ('" + spec + "')"); return kNone; }
-      if (read(cand, text)) return load(cand, std::move(text));
-    }
+    // platform-specific files (docs/react-native.md): './Screen' is Screen.android.tsx, else Screen.native.tsx, else Screen.tsx for an Android build
+    bool found, cycle;
+    const std::uint32_t m = loadCandidate(base, found, cycle);
+    if (cycle) { diag(kZUnsupported, fromFile, node, "circular imports ('" + spec + "')"); return kNone; }
+    if (found) return m;
     std::string near = nearestFile(base, false);
     diag(kZModuleNotFound, fromFile, node, "'" + spec + "' (no file " + base + ".ts or .tsx" + (near.empty() ? "" : "; did you mean '" + spec.substr(0, spec.rfind('/') + 1) + near + "'?") + ")");
     return kNone;
@@ -3245,6 +3265,9 @@ bool needsTdz(const Ast& A) {
 }
 
 }  // namespace
+
+std::vector<std::string> platformSuffixes() { return suffixesOfPlatform(); }
+void followModuleSuffixes(bool on) { gFollowSuffixes = on; }
 
 bool libraryModule(const std::string& p) {
   return p.rfind("zinc:", 0) == 0 || (!p.empty() && p[0] == '<') || p.find("/lib/std/") != std::string::npos || p.find("/lib/compat/") != std::string::npos ||

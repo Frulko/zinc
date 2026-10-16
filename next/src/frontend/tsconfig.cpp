@@ -14,6 +14,11 @@ bool parseTsConfig(std::string_view text, TsConfig& out, std::string& err) {
   yyjson_val* opts = yyjson_is_obj(root) ? yyjson_obj_get(root, "compilerOptions") : nullptr;
   if (!yyjson_is_obj(opts)) return true;
   if (yyjson_val* b = yyjson_obj_get(opts, "baseUrl"); yyjson_is_str(b)) out.baseUrl = yyjson_get_str(b);
+  if (yyjson_val* ms = yyjson_obj_get(opts, "moduleSuffixes"); yyjson_is_arr(ms)) {
+    size_t j, m;
+    yyjson_val* s;
+    yyjson_arr_foreach(ms, j, m, s) if (yyjson_is_str(s)) out.moduleSuffixes.push_back(yyjson_get_str(s));
+  }
   yyjson_val* paths = yyjson_obj_get(opts, "paths");
   if (!yyjson_is_obj(paths)) return true;
   size_t i, n;

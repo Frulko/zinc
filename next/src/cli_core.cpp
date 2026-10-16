@@ -29,6 +29,7 @@
 
 #include "assets/assets.h"
 #include "frontend/diagnostics.h"
+#include "frontend/modules.h"
 #include "frontend/plugin_manifest.h"
 #include "frontend/profile.h"
 #include "frontend/project.h"
@@ -384,6 +385,12 @@ int help(const std::vector<std::string>& args) {
 static std::string templateFromIndex(const std::string& name, const std::string& engineRoot, std::string& spec, std::string& path, std::string& tier);
 static void printIndexTemplates(const std::string& engineRoot);
 static std::string policyRefusal(const std::string& tier);
+// tsc's and the editor's platform files: this machine's, as `zinc run` takes them ("moduleSuffixes": [".macos", ".native", ""]; docs/react-native.md)
+static std::string moduleSuffixesJson() {
+  std::string s;
+  for (const std::string& x : zn::frontend::platformSuffixes()) s += (s.empty() ? "" : ", ") + jsonString(x);
+  return "\"moduleSuffixes\": [" + s + "]";
+}
 
 int init(const std::vector<std::string>& args, const std::string& engineRoot) {
   const std::string cmd = args.size() > 1 ? args[1] : "new";   // `zinc init <dir> --template t` is `zinc new [t] <dir>`
@@ -459,7 +466,7 @@ int init(const std::vector<std::string>& args, const std::string& engineRoot) {
     if (e.path().extension() == ".ts" && e.path().filename().string().size() > 5 && e.path().filename().string().rfind(".d.ts") == e.path().filename().string().size() - 5)
       libFiles += (libFiles.empty() ? "" : ",\n    ") + jsonString(fs::weakly_canonical(e.path()).string());
   // the editor configuration names this machine's engine files, so it is written here rather than kept in the template
-  ok = ok && writeFile(root / "tsconfig.json", "{\n  \"compilerOptions\": {\n    \"target\": \"ES2022\", \"module\": \"ESNext\", \"moduleResolution\": \"Bundler\", \"strict\": true, \"noLib\": true, \"types\": [],\n    \"useUnknownInCatchVariables\": false, \"allowImportingTsExtensions\": true, \"noEmit\": true, \"jsx\": \"preserve\"\n  },\n  \"files\": [\n    " + libFiles + "\n  ],\n  \"include\": [\"src/**/*\", \"*.ts\", \"*.tsx\"]\n}\n");
+  ok = ok && writeFile(root / "tsconfig.json", "{\n  \"compilerOptions\": {\n    \"target\": \"ES2022\", \"module\": \"ESNext\", \"moduleResolution\": \"Bundler\", \"strict\": true, \"noLib\": true, \"types\": [],\n    \"useUnknownInCatchVariables\": false, \"allowImportingTsExtensions\": true, \"noEmit\": true, \"jsx\": \"preserve\",\n    " + moduleSuffixesJson() + "\n  },\n  \"files\": [\n    " + libFiles + "\n  ],\n  \"include\": [\"src/**/*\", \"*.ts\", \"*.tsx\"]\n}\n");
   if (ok && external) {   // where the project came from: the source and, for git, the pinned commit
     std::ifstream zf(root / "zinc.json");
     std::stringstream zs; zs << zf.rdbuf();
@@ -2198,7 +2205,7 @@ int tsconfig(const std::vector<std::string>& args, const std::string& engineRoot
     const std::string f = e.path().filename().string();
     if (f.size() > 5 && f.compare(f.size() - 5, 5, ".d.ts") == 0) libFiles += (libFiles.empty() ? "" : ",\n    ") + jsonString(fs::weakly_canonical(e.path()).string());
   }
-  if (!writeFile(fs::path(dir) / "tsconfig.json", "{\n  \"compilerOptions\": {\n    \"target\": \"ES2022\", \"module\": \"ESNext\", \"moduleResolution\": \"Bundler\", \"strict\": true, \"noLib\": true, \"types\": [],\n    \"useUnknownInCatchVariables\": false, \"allowImportingTsExtensions\": true, \"noEmit\": true, \"jsx\": \"preserve\"\n  },\n  \"files\": [\n    " + libFiles + "\n  ],\n  \"include\": [\"src/**/*\", \"*.ts\", \"*.tsx\"]\n}\n")) { std::fprintf(stderr, "zinc tsconfig: cannot write %s/tsconfig.json\n", dir.c_str()); return 1; }
+  if (!writeFile(fs::path(dir) / "tsconfig.json", "{\n  \"compilerOptions\": {\n    \"target\": \"ES2022\", \"module\": \"ESNext\", \"moduleResolution\": \"Bundler\", \"strict\": true, \"noLib\": true, \"types\": [],\n    \"useUnknownInCatchVariables\": false, \"allowImportingTsExtensions\": true, \"noEmit\": true, \"jsx\": \"preserve\",\n    " + moduleSuffixesJson() + "\n  },\n  \"files\": [\n    " + libFiles + "\n  ],\n  \"include\": [\"src/**/*\", \"*.ts\", \"*.tsx\"]\n}\n")) { std::fprintf(stderr, "zinc tsconfig: cannot write %s/tsconfig.json\n", dir.c_str()); return 1; }
   std::printf("wrote %s/tsconfig.json\n", dir.c_str());
   return 0;
 }

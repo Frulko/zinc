@@ -68,6 +68,33 @@ component (`View as Box`) is not supported: View, Text, Image and ScrollView mus
 | Vibration | partial | vibrate(ms), cancel; a pattern plays its first pulse. Touch feedback: `Haptics.impact / selection / notification` of zinc:haptics |
 | AccessibilityInfo, AppState, InteractionManager, PlatformColor, Share, ToastAndroid | missing | |
 
+## Platform-specific files
+
+As Metro does, an import of `./Screen` picks the file of the platform being built, so a program carries code for one platform without an `if`:
+the other platforms' files are not compiled in.
+
+| Built for | `./Screen` is the first that exists |
+|---|---|
+| Android (`--profile android`, `zinc export --target android`) | `Screen.android.ts`, `Screen.native.ts`, `Screen.ts`, then the same with `.tsx` |
+| iOS (`--profile ios`, `ios-sim`, `zinc export --target ios`) | `Screen.ios.*`, `Screen.native.*`, `Screen.*` |
+| webOS (`zinc build --target webos`), macOS, Linux, Windows, a board (`--profile esp32`) | `Screen.<platform>.*`, `Screen.native.*`, `Screen.*` (with no profile, `zinc run` takes this machine's: `Screen.macos.tsx`) |
+| the web (`--profile wasm`) | `Screen.wasm.*`, `Screen.web.*`, `Screen.*` (no `.native`) |
+
+The suffix sits before the extension and each extension is tried in turn (`.ts` before `.tsx`), the rule of Metro and of TypeScript's
+`moduleSuffixes`; index files (`./screens` is `screens/index.android.tsx`) and `tsconfig.json` `paths` follow it too. `ZINC_PLATFORM=android|ios|webos|...`
+picks a platform's files on the desktop. A platform file can wrap the plain one: `Screen.native.tsx` may import `./Screen`, which then is `Screen.tsx`.
+
+```text
+src/Screen.tsx          export const Screen = () => <Text>web</Text>;
+src/Screen.native.tsx   export const Screen = () => <Text>phones and desktops</Text>;
+src/Screen.android.tsx  export const Screen = () => <Text>Android</Text>;
+src/App.tsx             import { Screen } from './Screen';
+```
+
+`zinc new`, `zinc init` and `zinc tsconfig` write `"moduleSuffixes": [".macos", ".native", ""]` (this machine's platform) in `tsconfig.json`, so tsc
+and the editor resolve the file `zinc run` takes; `zinc lsp` follows the `moduleSuffixes` it finds there (set `[".android", ".native", ""]` to
+browse the Android files). `Platform.OS` and `Platform.select` choose at run time inside one file.
+
 ## Styles
 
 React Native's object style keys: flex (grow, shrink 1, basis 0 under the preset), flexGrow / Shrink / Basis, flexDirection (reverse too), flexWrap (wrap-reverse too), justifyContent,

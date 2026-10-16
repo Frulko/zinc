@@ -69,8 +69,9 @@ it: `zinc.json` `requires`, the `requires` and `targets` of the plugins it impor
 ## Platform-specific files
 
 Next to `keyboard.tsx`, a `keyboard.<profile>.tsx` (e.g. `keyboard.esp32.tsx`, `keyboard.ps1.tsx`) replaces it when
-building for that profile, else a `keyboard.<target>.tsx` for the target, like React Native's `.ios.tsx`. Imports keep writing `./keyboard`. Use it for
-a leaner version on small devices rather than a slower general one.
+building for that profile (a `zinc build --target` for the target's OS: `keyboard.webos.tsx`, `keyboard.linux.tsx`), else `keyboard.native.tsx` on
+every profile but `wasm`, like React Native's `.ios.tsx` and `.native.tsx` ([the rule](../react-native.md#platform-specific-files)). Imports keep
+writing `./keyboard`. Use it for a leaner version on small devices rather than a slower general one.
 
 ## Capabilities in code
 

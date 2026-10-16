@@ -327,6 +327,12 @@ const preview = openWindow('Preview', 640, 360, (dt) => {
 | LED matrices / OLED | tiny surface (e.g. 32×8); use `zinc:pixelfont` for text, expect only a handful of draw commands per frame |
 | `wasm` | canvas HAL at 1× density |
 
+**Platform-specific files.** Next to `Keyboard.tsx`, a `Keyboard.android.tsx`, `Keyboard.ios.tsx`, `Keyboard.esp32.tsx` (any platform or profile
+name) replaces it when building for that platform, and `Keyboard.native.tsx` for every platform but the web; imports keep writing `./Keyboard`.
+The order is React Native's (Metro): `Keyboard.<platform>`, then `Keyboard.native`, then `Keyboard`. The files of the other platforms are not
+compiled in. The `moduleSuffixes` that `zinc new` writes in `tsconfig.json` let the editor follow the same rule; the table and an example are in
+[React Native on Zinc](../react-native.md#platform-specific-files).
+
 Screens that aren't the default window are **display plugins** — pick one in `zinc.json` (`"display": "ssd1306"`); the
 program still draws with `zinc:ui`/`zinc:gfx` and the driver converts the damaged rows. See [plugins](05-plugins.md)
 and [docs/plugins/displays.md](../plugins/displays.md). Next: [headless services](04-headless-services.md).
