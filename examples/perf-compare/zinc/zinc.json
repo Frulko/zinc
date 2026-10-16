@@ -1,0 +1,5 @@
+{
+  "name": "perf-compare",
+  "entry": "src/main.tsx",
+  "targets": { "macos": { "width": 800, "height": 600 } }
+}
