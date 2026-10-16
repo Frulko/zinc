@@ -90,7 +90,7 @@ export function ActivityIndicator(p: ActivityIndicatorProps): i32 {
   const n = p.size === 'large' ? 36 : 20, run = p.animating ?? true, col = processColor(p.color ?? '#999999');
   if (!run && (p.hidesWhenStopped ?? true)) return <View style={[{ width: n, height: n }, p.style ?? NONE]} />;
   return <View style={[{ alignItems: 'center', justifyContent: 'center' }, p.style ?? NONE]} role="progressbar">
-    <canvas style={{ width: n, height: n }} onDraw={(x: i32, y: i32, w: i32, h: i32) => {
+    <Canvas style={{ width: n, height: n }} onDraw={(x: i32, y: i32, w: i32, h: i32) => {
       const cx = x + w / 2, cy = y + h / 2, r1 = w * 0.22, r2 = w * 0.46, lead = run ? Math.floor(ui.now() / 83) % 12 : 0;
       for (let i = 0; i < 12; i++) {
         const a = i * Math.PI / 6, age = (lead - i + 12) % 12;

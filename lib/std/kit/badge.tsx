@@ -8,7 +8,7 @@ import { theme, Theme } from './theme';
 export interface BadgeProps {
   label: string;
   variant?: string;   // 'default' | 'secondary' | 'outline' | 'destructive' | 'success' | 'warning' | 'accent'
-  class?: string;
+  className?: string;
 }
 
 /** Fill (and border) of a variant. */
@@ -35,7 +35,7 @@ function textColor(variant: string, t: Theme): string {
 
 export function Badge(props: BadgeProps): i32 {
   const variant = props.variant ?? 'default';
-  return <View class={`flex-row items-center px-2 py-0.5 rounded-md ${fillClass(variant, theme())} ${props.class ?? ''}`}>
-    <Text class={`text-xs font-semibold text-${textColor(variant, theme())}`}>{props.label}</Text>
+  return <View className={`flex-row items-center px-2 py-0.5 rounded-md ${fillClass(variant, theme())} ${props.className ?? ''}`}>
+    <Text className={`text-xs font-semibold text-${textColor(variant, theme())}`}>{props.label}</Text>
   </View>;
 }

@@ -27,13 +27,13 @@ export interface MenuBarProps {
   /** true when the system draws the menu (menu.native): nothing is rendered. */
   native?: boolean;
   onSelect?: (id: string) => void;
-  class?: string;
+  className?: string;
 }
 export interface ContextMenuProps {
   items: MenuEntry[];
   onSelect?: (id: string) => void;
   children?: () => i32;
-  class?: string;
+  className?: string;
 }
 
 function shown(h: i32): boolean { const n = ui.inspectNode(h); return n !== null && !n.hidden; }
@@ -59,34 +59,34 @@ function bindAll(items: MenuEntry[], run: (e: MenuEntry) => void): void {
 
 function Row(props: { entry: MenuEntry; panel: i32; close: () => void; run: (e: MenuEntry) => void; depth: i32 }): i32 {
   const t = theme(), e = props.entry;
-  if (e.separator === true) return <View class={`h-px my-1 bg-${t.border}`} />;
+  if (e.separator === true) return <View className={`h-px my-1 bg-${t.border}`} />;
   const hint = e.accelerator !== undefined ? keyLabel(e.accelerator) : '';
   const sub = e.submenu;
   const subRef = createNodeRef();
-  const row = <View class="flex-col">
-    <button class={`flex-row items-center justify-between gap-6 h-8 px-2 rounded-sm bg-transparent focus:bg-${t.subtle} active:bg-${t.subtle} ${e.disabled === true ? 'opacity-50' : ''}`}
+  const row = <View className="flex-col">
+    <Button className={`flex-row items-center justify-between gap-6 h-8 px-2 rounded-sm bg-transparent focus:bg-${t.subtle} active:bg-${t.subtle} ${e.disabled === true ? 'opacity-50' : ''}`}
       disabled={e.disabled === true}
       onClick={() => {
         if (sub !== undefined) { show(subRef.node, !shown(subRef.node)); return; }
         props.close();
         props.run(e);
       }}>
-      <View class="flex-row items-center gap-2">
-        <Text class={`text-sm w-4 text-${t.foreground}`}>{e.checked === true ? '✓' : ''}</Text>
-        <Text class={`text-sm text-${t.foreground}`}>{e.label ?? ''}</Text>
+      <View className="flex-row items-center gap-2">
+        <Text className={`text-sm w-4 text-${t.foreground}`}>{e.checked === true ? '✓' : ''}</Text>
+        <Text className={`text-sm text-${t.foreground}`}>{e.label ?? ''}</Text>
       </View>
-      <Text class={`text-xs tracking-widest text-${t.mutedForeground}`}>{sub !== undefined ? '›' : hint}</Text>
-    </button>
-    <View ref={subRef} hidden={1} class={`flex-col p-1 ml-4 rounded-md border border-${t.border} bg-${t.card}`}>
+      <Text className={`text-xs tracking-widest text-${t.mutedForeground}`}>{sub !== undefined ? '›' : hint}</Text>
+    </Button>
+    <View ref={subRef} hidden={1} className={`flex-col p-1 ml-4 rounded-md border border-${t.border} bg-${t.card}`}>
       {sub !== undefined ? sub.map((s: MenuEntry) => <Row entry={s} panel={props.panel} close={props.close} run={props.run} depth={props.depth + 1} />) : NO_ROWS}
     </View>
   </View>;
   return row;
 }
 
-function Panel(props: { items: MenuEntry[]; menu: i32; close: () => void; run: (e: MenuEntry) => void; class?: string }): i32 {
+function Panel(props: { items: MenuEntry[]; menu: i32; close: () => void; run: (e: MenuEntry) => void; className?: string }): i32 {
   const t = theme();
-  return <View class={`flex-col p-1 w-56 rounded-md border border-${t.border} bg-${t.card} shadow-md ${props.class ?? ''}`}>
+  return <View className={`flex-col p-1 w-56 rounded-md border border-${t.border} bg-${t.card} shadow-md ${props.className ?? ''}`}>
     {props.items.map((e: MenuEntry) => <Row entry={e} panel={props.menu} close={props.close} run={props.run} depth={0} />)}
   </View>;
 }
@@ -103,11 +103,11 @@ function TopMenu(props: { top: MenuEntry; run: (e: MenuEntry) => void }): i32 {
   const t = theme();
   const trig = createNodeRef(), menu = createNodeRef();
   const close = (): void => show(menu.node, false);
-  const node = <View class="flex-col">
-    <View ref={trig} class="flex-col">
-      <button class={`h-7 px-3 rounded-sm bg-transparent focus:bg-${t.subtle} active:bg-${t.subtle}`} onClick={() => show(menu.node, !shown(menu.node))}>
-        <Text class={`text-sm text-${t.foreground}`}>{props.top.label ?? ''}</Text>
-      </button>
+  const node = <View className="flex-col">
+    <View ref={trig} className="flex-col">
+      <Button className={`h-7 px-3 rounded-sm bg-transparent focus:bg-${t.subtle} active:bg-${t.subtle}`} onClick={() => show(menu.node, !shown(menu.node))}>
+        <Text className={`text-sm text-${t.foreground}`}>{props.top.label ?? ''}</Text>
+      </Button>
     </View>
     <View ref={menu} hidden={1}>
       <Panel items={props.top.submenu !== undefined ? props.top.submenu : NO_ENTRIES} menu={menu.node} close={close} run={props.run} />
@@ -123,11 +123,11 @@ function TopMenu(props: { top: MenuEntry; run: (e: MenuEntry) => void }): i32 {
 
 /** The menu bar: one button per top-level entry, each opening its menu as a layer (arrows move, Enter picks, Escape closes). */
 export function MenuBar(props: MenuBarProps): i32 {
-  if (props.native === true) return <View class="hidden" hidden={1} />;   // the system draws it: no double menu
+  if (props.native === true) return <View className="hidden" hidden={1} />;   // the system draws it: no double menu
   const t = theme();
   const run = runner(props.onSelect);
   bindAll(props.items, run);
-  return <View class={`flex-row items-center gap-1 px-2 h-9 border-b border-${t.border} bg-${t.background} ${props.class ?? ''}`}>
+  return <View className={`flex-row items-center gap-1 px-2 h-9 border-b border-${t.border} bg-${t.background} ${props.className ?? ''}`}>
     {props.items.map((top: MenuEntry) => <TopMenu top={top} run={run} />)}
   </View>;
 }
@@ -138,10 +138,10 @@ export function ContextMenu(props: ContextMenuProps): i32 {
   const run = runner(props.onSelect);
   const close = (): void => show(menu.node, false);
   bindAll(props.items, run);
-  const node = <View ref={area} class="flex-col grow">
+  const node = <View ref={area} className="flex-col grow">
     {renderSlot(props.children)}
     <View ref={menu} hidden={1}>
-      <Panel items={props.items} menu={menu.node} close={close} run={run} class={props.class} />
+      <Panel items={props.items} menu={menu.node} close={close} run={run} className={props.className} />
     </View>
   </View>;
   ui.openLayer(menu.node, { priority: 100 });

@@ -58,7 +58,7 @@ export class WebView {
     this.bx = x; this.by = y; this.bw = w; this.bh = h;
     W.setBounds(this.id, x, y, w, h);
   }
-  /** An onDraw callback for a zinc:ui `<canvas>`: the view follows the layout node every frame. */
+  /** An onDraw callback for a zinc:ui `<Canvas>`: the view follows the layout node every frame. */
   follow(): (x: i32, y: i32, w: i32, h: i32) => void {
     return (x: i32, y: i32, w: i32, h: i32) => { this.setBounds(x, y, w, h); };
   }

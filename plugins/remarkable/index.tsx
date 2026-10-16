@@ -16,12 +16,12 @@ export interface RemarkableBarProps {
 }
 /** Platform-specific shell component, explicitly imported by reMarkable apps. Hosts preview an unknown battery. */
 export function RemarkableBar(props: RemarkableBarProps): i32 {
-  return <View class="flex-row items-center justify-between gap-6 px-6 py-3 bg-white border-b-2 border-black">
-    <Text class="text-[30px] text-black">{props.title}</Text>
-    <Text class="text-[30px] text-black">{Math.floor(minutes() / 60).toString().padStart(2, '0')}:{(minutes() % 60).toString().padStart(2, '0')}</Text>
-    <Text class="text-[28px] text-black">{battery() < 0 ? 'Battery —' : `Battery ${battery()}%`}{charging() ? ' · Charging' : ''}</Text>
-    <Button class="px-8 py-3 border-2 border-black rounded-lg bg-white focus:bg-white" onClick={() => { if (props.onQuit) props.onQuit(); else quit(); }}>
-      <Text class="text-[30px] text-black">Quitter</Text>
+  return <View className="flex-row items-center justify-between gap-6 px-6 py-3 bg-white border-b-2 border-black">
+    <Text className="text-[30px] text-black">{props.title}</Text>
+    <Text className="text-[30px] text-black">{Math.floor(minutes() / 60).toString().padStart(2, '0')}:{(minutes() % 60).toString().padStart(2, '0')}</Text>
+    <Text className="text-[28px] text-black">{battery() < 0 ? 'Battery —' : `Battery ${battery()}%`}{charging() ? ' · Charging' : ''}</Text>
+    <Button className="px-8 py-3 border-2 border-black rounded-lg bg-white focus:bg-white" onClick={() => { if (props.onQuit) props.onQuit(); else quit(); }}>
+      <Text className="text-[30px] text-black">Quitter</Text>
     </Button>
   </View>;
 }

@@ -206,11 +206,11 @@ export function parseStrokes(json: string): Stroke[] {
   return out;
 }
 
-export interface InkProps { ink: Ink; class?: string }
-/** <InkCanvas ink={doc} class="grow" />: a canvas node that captures and renders `ink`. */
+export interface InkProps { ink: Ink; className?: string }
+/** <InkCanvas ink={doc} className="grow" />: a canvas node that captures and renders `ink`. */
 export function InkCanvas(props: InkProps): i32 {
   const n = ui.createNode(ui.CANVAS);
-  const c = props.class ?? '';
+  const c = props.className ?? '';
   if (c.length > 0) ui.setClass(n, c);
   const ink = props.ink;
   ui.draw(n, (x: i32, y: i32, w: i32, h: i32) => { ink.draw(x, y, w, h); });

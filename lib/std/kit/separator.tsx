@@ -6,10 +6,10 @@ import { theme } from './theme';
 
 export interface SeparatorProps {
   vertical?: boolean;
-  class?: string;
+  className?: string;
 }
 
 export function Separator(props?: SeparatorProps): i32 {
   const shape = (props?.vertical ?? false) ? 'w-px h-full' : 'h-px w-full';
-  return <View class={`${shape} bg-${theme().border} ${props?.class ?? ''}`} />;
+  return <View className={`${shape} bg-${theme().border} ${props?.className ?? ''}`} />;
 }

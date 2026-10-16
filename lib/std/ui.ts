@@ -83,7 +83,7 @@ export class Handlers {
   acts: string[] = [];          // onAction(h, action, f)
   actFns: (() => void)[] = [];
 }
-/** Text field state (<input>, <textarea>); offsets are UTF-16 indices into `value`. */
+/** Text field state (<Input>, <TextArea>); offsets are UTF-16 indices into `value`. */
 export class Edit {
   value: string = '';
   multi: boolean;
@@ -227,7 +227,7 @@ export class GradX {
   cols: i32[] = NO_IDS; alphas: i32[] = NO_IDS; pos: number[] = NO_LINEW; unit: i32[] = NO_IDS;   // a CSS gradient's stops (unit 0 auto, 1 fraction, 2 px)
 }
 const DEF_GRADX = new GradX();
-/** Images in a box (ZN-262): how an <image> fills its box (object-fit, object-position, React Native's resizeMode), the tint of the node's
+/** Images in a box (ZN-262): how an <Image> fills its box (object-fit, object-position, React Native's resizeMode), the tint of the node's
  *  images, and a background image on any node (bg-[url(..)], background-size, -position and -repeat). Positions are a fraction of the free
  *  space (CSS percentages) or px. */
 export class ImgX {
@@ -753,7 +753,7 @@ const keyHandlers: ((e: KeyEvent) => void)[] = [];
 export function onKey(f: (e: KeyEvent) => void): void { keyHandlers.push(f); }
 function editOf(h: i32): Edit {
   const e = node(h).ed;
-  if (e === null) throw new Error('not a text field (<input> or <textarea>)');
+  if (e === null) throw new Error('not a text field (<Input> or <TextArea>)');
   return e as Edit;
 }
 /** Text field value (controlled: setting the current value is a no-op, the caret is kept when possible). */
@@ -3503,7 +3503,7 @@ function paintBgImage(n: UiNode, x: number, y: number, w: number, hh: number, r:
   else if (m.ry !== 0) rep = rep | 2;
   drawTiles(m.bg, x, y, w, hh, r, tw, th, px, py, sx, sy, rep, m.tint, ai);
 }
-/** An <image> in its box: CSS object-fit and object-position, React Native's repeat; without any, the prototype's stretch. */
+/** An <Image> in its box: CSS object-fit and object-position, React Native's repeat; without any, the prototype's stretch. */
 function paintImage(n: UiNode, x: number, y: number, w: number, hh: number, r: number, kk: number, ai: i32): void {
   const m = n.im;
   if (m === DEF_IMGX) { drawImage(n.img, x, y, w, hh, ai, r); return; }
@@ -3785,7 +3785,7 @@ function clampScroll(n: UiNode): void {
   if (n.sx < 0) { n.sx = 0; n.vx = 0; }
 }
 
-// ---------------------------------------------------------------- text fields (<input>, <textarea>)
+// ---------------------------------------------------------------- text fields (<Input>, <TextArea>)
 // colors as i32 constants: a ternary of two literals is a `number`, which overflows in fixed-point profiles
 const SEL_FOCUSED: i32 = 0x3b82f6, SEL_BLURRED: i32 = 0x64748b, HL_KEYWORD: i32 = 0xc084fc, HL_TYPE: i32 = 0x67e8f9;
 const GUTTER_NUM: i32 = 0x64748b, GUTTER_LINE: i32 = 0x334155, HL_COMMENT: i32 = 0x64748b;

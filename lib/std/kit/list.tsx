@@ -11,7 +11,7 @@ import { theme } from './theme';
 import { renderSlot } from './host';
 
 export interface ListProps {
-  class?: string;
+  className?: string;
   children?: () => i32;
 }
 export interface ListItemProps {
@@ -25,7 +25,7 @@ export interface ListItemProps {
 }
 
 export function List(props?: ListProps): i32 {
-  return <View class={`flex-col gap-0.5 p-1 rounded-lg border border-${theme().border} bg-${theme().card} ${props?.class ?? ''}`}>
+  return <View className={`flex-col gap-0.5 p-1 rounded-lg border border-${theme().border} bg-${theme().card} ${props?.className ?? ''}`}>
     {renderSlot(props?.children)}
   </View>;
 }
@@ -39,16 +39,16 @@ function rowClass(selected: boolean, clickable: boolean): string {
 export function ListItem(props: ListItemProps): i32 {
   const clickable = props.onClick !== undefined;
   const isSelected = (): boolean => { const s = props.selected; return s !== undefined ? s() : false; };
-  const row = <View class={`flex-row items-center gap-3 px-3 py-2 rounded-md transition-colors ${rowClass(isSelected(), clickable)}`}>
+  const row = <View className={`flex-row items-center gap-3 px-3 py-2 rounded-md transition-colors ${rowClass(isSelected(), clickable)}`}>
     {renderSlot(props.leading)}
-    <View class="flex-col grow gap-0.5">
-      <Text class={`text-sm font-medium text-${theme().foreground}`}>{props.title}</Text>
+    <View className="flex-col grow gap-0.5">
+      <Text className={`text-sm font-medium text-${theme().foreground}`}>{props.title}</Text>
       <Show when={props.description !== undefined}>
-        <Text class={`text-xs text-${theme().mutedForeground}`}>{props.description ?? ''}</Text>
+        <Text className={`text-xs text-${theme().mutedForeground}`}>{props.description ?? ''}</Text>
       </Show>
     </View>
     <Show when={props.trailing !== undefined}>
-      <Text class={`text-sm text-${theme().mutedForeground}`}>{props.trailing ?? ''}</Text>
+      <Text className={`text-sm text-${theme().mutedForeground}`}>{props.trailing ?? ''}</Text>
     </Show>
     {renderSlot(props.children)}
   </View>;

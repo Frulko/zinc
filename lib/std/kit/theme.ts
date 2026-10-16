@@ -4,7 +4,7 @@
 // colour names such as 'zinc-900'). Components build their classes from the current theme, so:
 //   - Solid model: `setTheme(DARK)` restyles every mounted kit component (the theme is a signal);
 //   - React model: the new theme applies on the next render.
-// App code can use the same tokens for its own nodes: `<View class={`bg-${theme().muted}`}>`.
+// App code can use the same tokens for its own nodes: `<View className={`bg-${theme().muted}`}>`.
 import { createSignal } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 

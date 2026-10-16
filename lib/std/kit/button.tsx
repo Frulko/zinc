@@ -12,7 +12,7 @@ export interface ButtonProps {
   variant?: string;       // 'default' | 'secondary' | 'outline' | 'ghost' | 'destructive'
   size?: string;          // 'sm' | 'default' | 'lg' | 'icon'
   onClick?: () => void;
-  class?: string;         // extra layout classes ('grow', 'w-full'...)
+  className?: string;         // extra layout classes ('grow', 'w-full'...)
   children?: () => i32;
 }
 
@@ -45,10 +45,10 @@ export function Button(props?: ButtonProps): i32 {
   const size = props?.size ?? 'default';
   const textSize = size === 'sm' ? 'text-xs' : 'text-sm';
   return <Button
-    class={`flex-row items-center justify-center transition-colors ${sizeClass(size)} ${surfaceClass(variant, theme())} ${props?.class ?? ''}`}
+    className={`flex-row items-center justify-center transition-colors ${sizeClass(size)} ${surfaceClass(variant, theme())} ${props?.className ?? ''}`}
     onClick={() => { const handler = props?.onClick; if (handler !== undefined) handler(); }}>
     <Show when={props?.label !== undefined}>
-      <Text class={`${textSize} font-medium text-${labelColor(variant, theme())}`}>{props?.label ?? ''}</Text>
+      <Text className={`${textSize} font-medium text-${labelColor(variant, theme())}`}>{props?.label ?? ''}</Text>
     </Show>
     {renderSlot(props?.children)}
   </Button>;

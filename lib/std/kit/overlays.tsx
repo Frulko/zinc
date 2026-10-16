@@ -16,7 +16,7 @@
 import { createNodeRef } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import { theme } from './theme';
-import { Button } from './button';
+import { Button as KitButton } from './button';
 import { renderSlot } from './host';
 
 /** 'mod-shift-s' -> '⌘⇧S' (hints in menus and tooltips). */
@@ -50,7 +50,7 @@ export interface TooltipProps {
   action?: string;
   placement?: string;     // 'top' (default), 'bottom', 'left', 'right', with '-start' / '-end'
   delay?: number;         // ms before it shows (default 500)
-  class?: string;
+  className?: string;
   children: () => i32;
 }
 /** A hint that shows while the pointer rests on its children. */
@@ -58,13 +58,13 @@ export function Tooltip(props: TooltipProps): i32 {
   const wrap = createNodeRef(), tip = createNodeRef();
   const t = theme(), keys = shortcutOf(props.action);
   let timer: i32 = -1;
-  const node = <View ref={wrap} class={`flex-col ${props.class ?? ''}`}
+  const node = <View ref={wrap} className={`flex-col ${props.className ?? ''}`}
     onPointerEnter={(e: ui.PointerEvent) => { if (timer >= 0) clearTimeout(timer); timer = setTimeout(() => { timer = -1; show(tip.node, true); }, props.delay ?? 500); }}
     onPointerLeave={(e: ui.PointerEvent) => { if (timer >= 0) clearTimeout(timer); timer = -1; show(tip.node, false); }}>
     {props.children()}
-    <View ref={tip} class={`flex-row items-center gap-2 px-2 py-1 rounded-md bg-${t.primary}`} hidden={1}>
-      <Text class={`text-xs text-${t.primaryForeground}`}>{props.label}</Text>
-      <Text class={`text-xs text-${t.mutedForeground}`} hidden={keys.length > 0 ? 0 : 1}>{keys}</Text>
+    <View ref={tip} className={`flex-row items-center gap-2 px-2 py-1 rounded-md bg-${t.primary}`} hidden={1}>
+      <Text className={`text-xs text-${t.primaryForeground}`}>{props.label}</Text>
+      <Text className={`text-xs text-${t.mutedForeground}`} hidden={keys.length > 0 ? 0 : 1}>{keys}</Text>
     </View>
   </View>;
   ui.openLayer(tip.node, { priority: 300 });
@@ -86,16 +86,16 @@ export interface PopoverProps {
   label: string;            // the trigger button
   variant?: string;         // of the trigger button (Button variants; default 'outline')
   placement?: string;       // default 'bottom-start'
-  class?: string;           // classes of the panel ('w-72', 'p-2'...)
+  className?: string;           // classes of the panel ('w-72', 'p-2'...)
   children: () => i32;
 }
 /** A button that opens a floating panel with any content. */
 export function Popover(props: PopoverProps): i32 {
   const trig = createNodeRef(), panel = createNodeRef();
   const t = theme();
-  const node = <View class="flex-col">
-    <View ref={trig} class="flex-col"><Button label={props.label} variant={props.variant ?? 'outline'} onClick={() => show(panel.node, !shown(panel.node))} /></View>
-    <View ref={panel} hidden={1} class={`flex-col gap-3 p-4 w-72 rounded-md border border-${t.border} bg-${t.card} shadow-md ${props.class ?? ''}`}>
+  const node = <View className="flex-col">
+    <View ref={trig} className="flex-col"><KitButton label={props.label} variant={props.variant ?? 'outline'} onClick={() => show(panel.node, !shown(panel.node))} /></View>
+    <View ref={panel} hidden={1} className={`flex-col gap-3 p-4 w-72 rounded-md border border-${t.border} bg-${t.card} shadow-md ${props.className ?? ''}`}>
       {props.children()}
     </View>
   </View>;
@@ -115,11 +115,11 @@ export interface DropdownMenuProps {
   items: MenuItem[];
   variant?: string;         // of the trigger button (default 'outline')
   placement?: string;       // default 'bottom-start'
-  class?: string;           // classes of the menu ('w-56'...)
+  className?: string;           // classes of the menu ('w-56'...)
 }
 function MenuRow(props: { item: MenuItem; menu: i32 }): i32 {
   const t = theme(), it = props.item, keys = shortcutOf(it.action);
-  return <button class={`flex-row items-center justify-between gap-6 h-8 px-2 rounded-sm bg-transparent focus:bg-${t.subtle} active:bg-${t.subtle} ${it.disabled === true ? 'opacity-50' : ''}`}
+  return <Button className={`flex-row items-center justify-between gap-6 h-8 px-2 rounded-sm bg-transparent focus:bg-${t.subtle} active:bg-${t.subtle} ${it.disabled === true ? 'opacity-50' : ''}`}
     disabled={it.disabled === true}
     onClick={() => {
       show(props.menu, false);
@@ -128,17 +128,17 @@ function MenuRow(props: { item: MenuItem; menu: i32 }): i32 {
       const a = it.action;
       if (a !== undefined) ui.dispatchAction(a);
     }}>
-    <Text class={`text-sm text-${t.foreground}`}>{it.label}</Text>
-    <Text class={`text-xs tracking-widest text-${t.mutedForeground}`}>{keys}</Text>
-  </button>;
+    <Text className={`text-sm text-${t.foreground}`}>{it.label}</Text>
+    <Text className={`text-xs tracking-widest text-${t.mutedForeground}`}>{keys}</Text>
+  </Button>;
 }
 /** A button that opens a list of actions: arrows move, Enter picks, Escape or a press outside closes. */
 export function DropdownMenu(props: DropdownMenuProps): i32 {
   const trig = createNodeRef(), menu = createNodeRef();
   const t = theme();
-  const node = <View class="flex-col">
-    <View ref={trig} class="flex-col"><Button label={props.label} variant={props.variant ?? 'outline'} onClick={() => show(menu.node, !shown(menu.node))} /></View>
-    <View ref={menu} hidden={1} class={`flex-col p-1 w-56 rounded-md border border-${t.border} bg-${t.card} shadow-md ${props.class ?? ''}`}>
+  const node = <View className="flex-col">
+    <View ref={trig} className="flex-col"><KitButton label={props.label} variant={props.variant ?? 'outline'} onClick={() => show(menu.node, !shown(menu.node))} /></View>
+    <View ref={menu} hidden={1} className={`flex-col p-1 w-56 rounded-md border border-${t.border} bg-${t.card} shadow-md ${props.className ?? ''}`}>
       {props.items.map((it: MenuItem) => <MenuRow item={it} menu={menu.node} />)}
     </View>
   </View>;
@@ -152,7 +152,7 @@ export interface DialogProps {
   onOpenChange: (open: boolean) => void;
   title?: string;
   description?: string;
-  class?: string;           // classes of the panel ('w-[480px]'...)
+  className?: string;           // classes of the panel ('w-[480px]'...)
   children?: () => i32;
   footer?: () => i32;       // buttons, right-aligned
 }
@@ -161,14 +161,14 @@ export function Dialog(props: DialogProps): i32 {
   const screen = createNodeRef(), panel = createNodeRef();
   const t = theme();
   const close = (): void => props.onOpenChange(false);
-  const node = <View ref={screen} class="absolute inset-0 items-center justify-center" hidden={props.open() ? 0 : 1}>
-    <View ref={panel} class={`flex-col gap-4 p-6 w-[420px] rounded-lg border border-${t.border} bg-${t.card} shadow-lg ${props.class ?? ''}`}>
-      <View class="flex-col gap-1.5">
-        <Text class={`text-lg font-semibold tracking-tight text-${t.foreground}`} hidden={props.title !== undefined ? 0 : 1}>{props.title ?? ''}</Text>
-        <Text class={`text-sm text-${t.mutedForeground}`} hidden={props.description !== undefined ? 0 : 1}>{props.description ?? ''}</Text>
+  const node = <View ref={screen} className="absolute inset-0 items-center justify-center" hidden={props.open() ? 0 : 1}>
+    <View ref={panel} className={`flex-col gap-4 p-6 w-[420px] rounded-lg border border-${t.border} bg-${t.card} shadow-lg ${props.className ?? ''}`}>
+      <View className="flex-col gap-1.5">
+        <Text className={`text-lg font-semibold tracking-tight text-${t.foreground}`} hidden={props.title !== undefined ? 0 : 1}>{props.title ?? ''}</Text>
+        <Text className={`text-sm text-${t.mutedForeground}`} hidden={props.description !== undefined ? 0 : 1}>{props.description ?? ''}</Text>
       </View>
       {renderSlot(props.children)}
-      <View class="flex-row justify-end gap-2">{renderSlot(props.footer)}</View>
+      <View className="flex-row justify-end gap-2">{renderSlot(props.footer)}</View>
     </View>
   </View>;
   ui.openLayer(screen.node, { priority: 200, modal: true, backdrop: 0x000000, backdropAlpha: 128 });
@@ -188,9 +188,9 @@ export function toast(title: string, description: string = '', ms: number = 4000
     ui.openLayer(toaster, { priority: 400 });
   }
   const t = theme();
-  const n = <View class={`flex-col gap-1 p-4 rounded-lg border border-${t.border} bg-${t.card} shadow-lg`}>
-    <Text class={`text-sm font-semibold text-${t.foreground}`}>{title}</Text>
-    <Text class={`text-sm text-${t.mutedForeground}`} hidden={description.length > 0 ? 0 : 1}>{description}</Text>
+  const n = <View className={`flex-col gap-1 p-4 rounded-lg border border-${t.border} bg-${t.card} shadow-lg`}>
+    <Text className={`text-sm font-semibold text-${t.foreground}`}>{title}</Text>
+    <Text className={`text-sm text-${t.mutedForeground}`} hidden={description.length > 0 ? 0 : 1}>{description}</Text>
   </View>;
   ui.insert(toaster, n, -1);
   setTimeout(() => { ui.remove(toaster, n); }, ms);

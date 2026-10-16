@@ -1,7 +1,7 @@
 // zinc:ui/kit — typography: class strings for host <Text> nodes, in the current theme.
 //
-//   <Text class={heading(2)}>Settings</Text>
-//   <Text class={mutedText()}>{status()}</Text>
+//   <Text className={heading(2)}>Settings</Text>
+//   <Text className={mutedText()}>{status()}</Text>
 //
 // Text does not inherit colour from a parent View, so every helper sets one.
 import { theme } from './theme';

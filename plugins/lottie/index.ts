@@ -115,7 +115,7 @@ export interface LottieProps {
   loop?: boolean;
   autoplay?: boolean;
   speed?: number;
-  class?: string;
+  className?: string;
   /** Interpolated frames (see Player.subframe). */
   subframe?: boolean;
   /** Render-to-image mode (Player.cache) on this background colour, for small looping icons. */
@@ -123,11 +123,11 @@ export interface LottieProps {
   /** Receives the Player (play/pause/seek from the app). */
   player?: (p: Player) => void;
 }
-/** <Lottie src="spinner.json" loop autoplay class="w-24 h-24"/>: a canvas node that plays an animation on the UI
+/** <Lottie src="spinner.json" loop autoplay className="w-24 h-24"/>: a canvas node that plays an animation on the UI
  *  engine clock. Paused or finished, it redraws the same commands and the frame diff rasterizes nothing. */
 export function Lottie(props: LottieProps): i32 {
   const node = ui.createNode(ui.CANVAS);
-  const cls = props.class ?? '';
+  const cls = props.className ?? '';
   if (cls !== '') ui.setClass(node, cls);
   const p = new Player(load(props.src));
   p.loop = props.loop ?? false;

@@ -1,0 +1,92 @@
+#!/usr/bin/env node
+// jsx-migrate [--check] <file or directory>...: rewrites JSX to the spelling Zinc accepts (AGENTS.md, owner 2026-10-16):
+// `className`, never `class` (the attribute, and the `class` prop of components: declarations, reads, object keys,
+// destructuring), and capitalised components (<view> is <View>, <scroll> <ScrollView>, <textarea> <TextArea>...).
+// .tsx and .jsx files are parsed with TypeScript (code and comments); .md files get the same rewrite in their code
+// fences and inline code. --check rewrites nothing and exits 1 when a file would change. Prints one line per file changed.
+// TypeScript comes from the checkout's node_modules (@typescript/typescript6, the prototype's dependency).
+import fs from 'node:fs';
+import path from 'node:path';
+import { createRequire } from 'node:module';
+
+const ts = createRequire(import.meta.url)('@typescript/typescript6');
+const TAGS = { view: 'View', text: 'Text', button: 'Button', image: 'Image', scroll: 'ScrollView', canvas: 'Canvas', input: 'Input', textarea: 'TextArea' };
+// not a placeholder: `pad:<button>`, `[:<scroll px>]`, `<image>#x,y,w,h` stay
+const tagRe = new RegExp(`(?<!:)<(/?)(${Object.keys(TAGS).join('|')})(?=[\\s>/]|$)(?!>#)`, 'gm');
+const warnings = [];
+
+// comments and code that does not parse: the tags, and `class=` / `class?:` / `.class` of props
+function regexMigrate(s) {
+  return s.replace(tagRe, (_, slash, t) => `<${slash}${TAGS[t]}`)
+    .replace(/(^|[\s{(,])class(=["'{])/gm, '$1className$2')
+    .replace(/\bclass(\??:\s*string)/g, 'className$1')
+    .replace(/(\b(?:props|p)\??)\.class\b/g, '$1.className');
+}
+
+function migrateCode(text, file) {
+  const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  if (sf.parseDiagnostics.length) return null;
+  const edits = new Map();
+  const edit = (a, b, s) => edits.set(a, [b, s]);
+  const comments = new Map();
+  const noteComments = (ranges) => { for (const r of ranges ?? []) comments.set(r.pos, r.end); };
+  const visit = (n) => {
+    noteComments(ts.getLeadingCommentRanges(text, n.getFullStart()));
+    noteComments(ts.getTrailingCommentRanges(text, n.end));
+    if (ts.isJsxOpeningElement(n) || ts.isJsxSelfClosingElement(n) || ts.isJsxClosingElement(n)) {
+      const tn = n.tagName;
+      if (ts.isIdentifier(tn) && /^[a-z]/.test(tn.text)) {
+        if (TAGS[tn.text]) edit(tn.getStart(), tn.end, TAGS[tn.text]);
+        else if (!ts.isJsxClosingElement(n)) warnings.push(`${file}: <${tn.text}> has no capitalised component, fix it by hand`);
+      }
+    } else if (ts.isJsxAttribute(n) && n.name.getText() === 'class') edit(n.name.getStart(), n.name.end, 'className');
+    else if ((ts.isPropertySignature(n) || ts.isPropertyAssignment(n) || ts.isPropertyDeclaration(n)) && n.name && (ts.isIdentifier(n.name) || ts.isStringLiteral(n.name)) && n.name.text === 'class')
+      edit(n.name.getStart(), n.name.end, 'className');
+    else if (ts.isPropertyAccessExpression(n) && n.name.text === 'class') edit(n.name.getStart(), n.name.end, 'className');
+    else if (ts.isBindingElement(n) && n.propertyName && ts.isIdentifier(n.propertyName) && n.propertyName.text === 'class') edit(n.propertyName.getStart(), n.propertyName.end, 'className');
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  for (const [a, b] of comments) {
+    const c = text.slice(a, b), m = regexMigrate(c);
+    if (m !== c) edit(a, b, m);
+  }
+  let out = text;
+  for (const a of [...edits.keys()].sort((x, y) => y - x)) { const [b, s] = edits.get(a); out = out.slice(0, a) + s + out.slice(b); }
+  return out;
+}
+
+function migrateMarkdown(text, file) {
+  // fences of code (any language but html, xml, svg, css, sh), then inline code outside fences
+  return text.replace(/(^|\n)([ \t]*)(```|~~~)([\w-]*)[^\n]*\n([\s\S]*?)\n\2\3/g, (all, nl, ind, fence, lang, body) => {
+    if (/^(html|xml|svg|css|sh|bash|shell|console|text|json|cpp|c|py|python)$/i.test(lang)) return all;
+    const code = regexMigrate(migrateCode(body, file) ?? body);   // the pattern pass too: a fence of sibling elements parses, but not as JSX
+    return all.replace(body, () => code);
+  }).split(/(```[\s\S]*?```)/).map((part, i) => i % 2 ? part : part.replace(/`[^`\n]+`/g, (span) => /<[a-z]|class[=?:]|\.class\b/.test(span) ? regexMigrate(span) : span)).join('');
+}
+
+function walk(p, out) {
+  const st = fs.lstatSync(p);   // symbolic links are not followed (the corpus has a loop)
+  if (st.isDirectory()) {
+    for (const e of fs.readdirSync(p)) if (!['node_modules', 'third_party', 'vendor', 'build', '.git'].includes(e)) walk(path.join(p, e), out);
+  } else if (/\.(tsx|jsx|md)$/.test(p)) out.push(p);
+}
+
+const args = process.argv.slice(2);
+const check = args[0] === '--check';
+if (check) args.shift();
+if (!args.length) { console.error('usage: jsx-migrate [--check] <file or directory>...'); process.exit(2); }
+const files = [];
+for (const a of args) walk(a, files);
+let changed = 0;
+for (const f of files) {
+  const text = fs.readFileSync(f, 'utf8');
+  let out = f.endsWith('.md') ? migrateMarkdown(text, f) : migrateCode(text, f);
+  if (out === null) { warnings.push(`${f}: does not parse, rewritten by pattern`); out = regexMigrate(text); }
+  if (out === text) continue;
+  changed++;
+  console.log(f);
+  if (!check) fs.writeFileSync(f, out);
+}
+for (const w of warnings) console.error('jsx-migrate: ' + w);
+process.exit(check && changed ? 1 : 0);

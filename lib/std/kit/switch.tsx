@@ -25,13 +25,13 @@ function thumbColor(on: boolean): string {
 }
 
 export function Switch(props: SwitchProps): i32 {
-  return <View class="flex-row items-center gap-2">
-    <View class={`flex-row w-9 h-5 p-0.5 rounded-full transition-colors ${trackClass(props.checked())}`}
+  return <View className="flex-row items-center gap-2">
+    <View className={`flex-row w-9 h-5 p-0.5 rounded-full transition-colors ${trackClass(props.checked())}`}
       onClick={() => props.onChange(!props.checked())}>
-      <View class={`w-4 h-4 rounded-full shadow-sm bg-${thumbColor(props.checked())}`} style={{ translateX: props.checked() ? 16 : 0 }} />
+      <View className={`w-4 h-4 rounded-full shadow-sm bg-${thumbColor(props.checked())}`} style={{ translateX: props.checked() ? 16 : 0 }} />
     </View>
     <Show when={props.label !== undefined}>
-      <Text class={`text-sm font-medium text-${theme().foreground}`}>{props.label ?? ''}</Text>
+      <Text className={`text-sm font-medium text-${theme().foreground}`}>{props.label ?? ''}</Text>
     </Show>
   </View>;
 }

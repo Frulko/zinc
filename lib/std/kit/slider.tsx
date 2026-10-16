@@ -16,7 +16,7 @@ export interface SliderProps {
   min?: number;
   max?: number;
   step?: number;
-  class?: string;
+  className?: string;
 }
 
 const THUMB: number = 16;   // thumb diameter in px (w-4)
@@ -43,7 +43,7 @@ export function Slider(props: SliderProps): i32 {
   let down = false;       // between the press and the release / cancel (moves without a press are hovers)
   let downX: number = 0;
   const setAt = (x: number): void => props.onChange(valueAt(rail, x, min, max, step));
-  return <View ref={rail} class={`flex-row items-center h-5 pr-4 rounded-full cursor-pointer focus:bg-${theme().card} ${props.class ?? ''}`}
+  return <View ref={rail} className={`flex-row items-center h-5 pr-4 rounded-full cursor-pointer focus:bg-${theme().card} ${props.className ?? ''}`}
     focusable grab="keep-x" onKeyDown={(e: ui.KeyEvent) => {
       // arrows nudge the focused slider by one step (1 % of the range without a step)
       const d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
@@ -56,8 +56,8 @@ export function Slider(props: SliderProps): i32 {
     onPointerMove={(e: ui.PointerEvent) => { if (!down) return; if (!dragging && Math.abs(e.x - downX) > 4) dragging = true; if (dragging) setAt(e.x); }}
     onPointerUp={(e: ui.PointerEvent) => { if (down && !dragging) setAt(e.x); down = false; dragging = false; }}
     onPointerCancel={(e: ui.PointerEvent) => { down = false; dragging = false; }}>
-    <View class={`absolute left-0 right-0 top-[7px] h-1.5 rounded-full bg-${theme().muted}`} />
-    <View class={`h-1.5 rounded-full bg-${theme().primary} w-${Math.round(percent(props.value(), min, max))}/100`} />
-    <View class={`w-4 h-4 rounded-full border-2 border-${theme().primary} bg-${theme().card} shadow-sm`} />
+    <View className={`absolute left-0 right-0 top-[7px] h-1.5 rounded-full bg-${theme().muted}`} />
+    <View className={`h-1.5 rounded-full bg-${theme().primary} w-${Math.round(percent(props.value(), min, max))}/100`} />
+    <View className={`w-4 h-4 rounded-full border-2 border-${theme().primary} bg-${theme().card} shadow-sm`} />
   </View>;
 }

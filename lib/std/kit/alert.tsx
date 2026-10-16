@@ -9,7 +9,7 @@ export interface AlertProps {
   description?: string;
   variant?: string;   // 'default' | 'destructive' | 'success'
   icon?: string;      // one glyph shown on the left ('!', 'i', '✓')
-  class?: string;
+  className?: string;
 }
 
 function accentColor(variant: string, t: Theme): string {
@@ -26,14 +26,14 @@ function defaultIcon(variant: string): string {
 
 export function Alert(props: AlertProps): i32 {
   const variant = props.variant ?? 'default';
-  return <View class={`flex-row gap-3 p-4 rounded-lg border border-${theme().border} bg-${theme().card} ${props.class ?? ''}`}>
-    <View class={`w-5 h-5 rounded-full items-center justify-center border border-${accentColor(variant, theme())}`}>
-      <Text class={`text-xs font-bold text-${accentColor(variant, theme())}`}>{props.icon ?? defaultIcon(variant)}</Text>
+  return <View className={`flex-row gap-3 p-4 rounded-lg border border-${theme().border} bg-${theme().card} ${props.className ?? ''}`}>
+    <View className={`w-5 h-5 rounded-full items-center justify-center border border-${accentColor(variant, theme())}`}>
+      <Text className={`text-xs font-bold text-${accentColor(variant, theme())}`}>{props.icon ?? defaultIcon(variant)}</Text>
     </View>
-    <View class="flex-col gap-1 grow">
-      <Text class={`text-sm font-medium text-${accentColor(variant, theme())}`}>{props.title}</Text>
+    <View className="flex-col gap-1 grow">
+      <Text className={`text-sm font-medium text-${accentColor(variant, theme())}`}>{props.title}</Text>
       <Show when={props.description !== undefined}>
-        <Text class={`text-sm text-${theme().mutedForeground}`}>{props.description ?? ''}</Text>
+        <Text className={`text-sm text-${theme().mutedForeground}`}>{props.description ?? ''}</Text>
       </Show>
     </View>
   </View>;

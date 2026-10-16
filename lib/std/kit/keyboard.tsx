@@ -28,7 +28,7 @@ export interface KeyboardProps {
   onKey?: (key: string) => void;
   keyHeight?: number;
   gap?: number;
-  class?: string;
+  className?: string;
   keyClass?: string;
   specialKeyClass?: string;
   /** Classes of the long-press accent popup. */
@@ -235,35 +235,35 @@ export function Keyboard(props: KeyboardProps): i32 {
   function KeyView(p: { k: Key }): i32 {
     const k = p.k, ref = createNodeRef();
     const size = k.special ? (k.token === 'space' || k.token === 'enter' ? 'text-sm' : 'text-base') : 'text-xl';
-    return <View ref={ref} class={`${baseKey()} ${k.special ? specialClass(k) : letterClass()}`}
+    return <View ref={ref} className={`${baseKey()} ${k.special ? specialClass(k) : letterClass()}`}
       style={{ height: keyH, width: 1, grow: Math.round(k.width * 10) }}
       onPointerDown={(e: ui.PointerEvent) => down(k, ref)}
       onPointerMove={(e: ui.PointerEvent) => move(e)}
       onPointerUp={(e: ui.PointerEvent) => up(k)}>
-      <Text class={size}>{k.special ? specialLabel(k.token, layout()) : k.label}</Text>
+      <Text className={size}>{k.special ? specialLabel(k.token, layout()) : k.label}</Text>
     </View>;
   }
   function AccentView(p: { ch: string; index: i32 }): i32 {
-    return <View class={`items-center justify-center rounded-md ${accentIx() === p.index ? `bg-${theme().accent} text-${theme().accentForeground}` : `text-${theme().foreground}`}`}
+    return <View className={`items-center justify-center rounded-md ${accentIx() === p.index ? `bg-${theme().accent} text-${theme().accentForeground}` : `text-${theme().foreground}`}`}
       style={{ width: cellW, height: keyH }}>
-      <Text class="text-xl">{p.ch}</Text>
+      <Text className="text-xl">{p.ch}</Text>
     </View>;
   }
 
-  return <View ref={root} keepFocus class={`flex-col p-2 bg-${theme().muted} border-t border-${theme().border} ${props.class ?? ''}`}
+  return <View ref={root} keepFocus className={`flex-col p-2 bg-${theme().muted} border-t border-${theme().border} ${props.className ?? ''}`}
     style={{ gap: gap, hidden: always ? 0 : 1 }}>
-    <View class="flex-row justify-center" style={{ hidden: (props.retractable ?? true) ? 0 : 1, height: (props.retractable ?? true) ? 20 : 0 }}>
-      <View class={`flex-row items-center justify-center rounded-full px-6 bg-${theme().secondaryPressed} text-${theme().mutedForeground}`} style={{ height: 18 }}
-        onPointerUp={(e: ui.PointerEvent) => { ui.focusNode(-1); emit('Hide'); }}><Text class="text-xs">⌄</Text></View>
+    <View className="flex-row justify-center" style={{ hidden: (props.retractable ?? true) ? 0 : 1, height: (props.retractable ?? true) ? 20 : 0 }}>
+      <View className={`flex-row items-center justify-center rounded-full px-6 bg-${theme().secondaryPressed} text-${theme().mutedForeground}`} style={{ height: 18 }}
+        onPointerUp={(e: ui.PointerEvent) => { ui.focusNode(-1); emit('Hide'); }}><Text className="text-xs">⌄</Text></View>
     </View>
-    {rows().map((r: Row) => <View class="flex-row justify-center" style={{ gap: gap }}>
+    {rows().map((r: Row) => <View className="flex-row justify-center" style={{ gap: gap }}>
       {r.keys.map((k: Key) => <KeyView k={k} />)}
     </View>)}
-    <View class={`absolute items-center justify-center rounded-xl shadow-lg bg-${theme().card} text-${theme().foreground}`}
+    <View className={`absolute items-center justify-center rounded-xl shadow-lg bg-${theme().card} text-${theme().foreground}`}
       style={{ hidden: bubble() === '' ? 1 : 0, left: bubbleX() - bubbleW() / 2, top: bubbleY() - keyH - 12, width: bubbleW(), height: keyH + 8 }}>
-      <Text class="text-3xl">{bubble()}</Text>
+      <Text className="text-3xl">{bubble()}</Text>
     </View>
-    <View class={`absolute flex-row p-1 gap-1 rounded-xl shadow-lg border ${props.accentClass ?? `bg-${theme().card} border-${theme().border}`}`}
+    <View className={`absolute flex-row p-1 gap-1 rounded-xl shadow-lg border ${props.accentClass ?? `bg-${theme().card} border-${theme().border}`}`}
       style={{ hidden: accents().length === 0 ? 1 : 0, left: accX(), top: accY() }}>
       {accents().map((ch: string, i: i32) => <AccentView ch={ch} index={i} />)}
     </View>

@@ -27,7 +27,7 @@ export function iconNames(): string[] { return NAMES; }
 
 export function Icon(p: { name: string; size?: number; color?: () => i32; strokeWidth?: number }): i32 {
   const size = p.size ?? 24;
-  return <canvas style={{ width: size, height: size }} onDraw={(x: i32, y: i32, w: i32, h: i32) => {
+  return <Canvas style={{ width: size, height: size }} onDraw={(x: i32, y: i32, w: i32, h: i32) => {
     const s = icon(p.name, p.color !== undefined ? (p.color as () => i32)() : 0x000000, p.strokeWidth ?? 2);
     if (s !== null) (s as Svg).draw(x, y, w, h, 255);
   }} />;

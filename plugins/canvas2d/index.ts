@@ -151,7 +151,7 @@ class State {
 // ---------------------------------------------------------------- the context
 /**
  * HTML CanvasRenderingContext2D subset. Draws into the current frame (begin(x, y, w, h) ... end(), inside onFrame or a
- * `<canvas onDraw>` callback) or into a Canvas's runtime image (canvas.getContext('2d'), begin() ... end()), whose pixels
+ * `<Canvas onDraw>` callback) or into a Canvas's runtime image (canvas.getContext('2d'), begin() ... end()), whose pixels
  * persist between frames like a web canvas. `fillStyle = gradient` is spelled `fillGradient = gradient` (Zinc has no
  * string | object unions); setting a colour string clears the gradient.
  */

@@ -25,7 +25,7 @@ function sizeClass(size: string): string {
 
 export function Avatar(props: AvatarProps): i32 {
   const size = props.size ?? 'default';
-  return <View class={`items-center justify-center rounded-full ${sizeClass(size)} bg-${theme().muted}`}>
-    <Text class={`${size === 'lg' ? 'text-base' : 'text-sm'} font-medium text-${theme().mutedForeground}`}>{initials(props.name)}</Text>
+  return <View className={`items-center justify-center rounded-full ${sizeClass(size)} bg-${theme().muted}`}>
+    <Text className={`${size === 'lg' ? 'text-base' : 'text-sm'} font-medium text-${theme().mutedForeground}`}>{initials(props.name)}</Text>
   </View>;
 }

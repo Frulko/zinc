@@ -6,13 +6,13 @@ import { Progress, theme } from 'zinc:ui/kit';
 
 export interface LoaderProps {
   progress: () => number;   // 0..1: a signal, or the latest render
-  class?: string;
+  className?: string;
 }
 
 /** A progress bar in the middle of its box, on the theme's background. */
 export function Loader(props: LoaderProps): i32 {
-  return <View class={`w-full h-full items-center justify-center bg-${theme().background} ${props.class ?? ''}`}>
-    <View class="w-3/5 max-w-[480px]"><Progress value={() => props.progress() * 100} /></View>
+  return <View className={`w-full h-full items-center justify-center bg-${theme().background} ${props.className ?? ''}`}>
+    <View className="w-3/5 max-w-[480px]"><Progress value={() => props.progress() * 100} /></View>
   </View>;
 }
 

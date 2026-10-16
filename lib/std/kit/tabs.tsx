@@ -9,7 +9,7 @@ export interface TabsProps {
   items: string[];
   selected: () => i32;
   onSelect: (index: i32) => void;
-  class?: string;      // 'w-full' stretches the triggers
+  className?: string;      // 'w-full' stretches the triggers
 }
 
 function triggerClass(active: boolean): string {
@@ -24,11 +24,11 @@ function labelClass(active: boolean): string {
 }
 
 export function Tabs(props: TabsProps): i32 {
-  return <View class={`flex-row p-1 gap-1 rounded-lg bg-${theme().muted} ${props.class ?? ''}`}>
+  return <View className={`flex-row p-1 gap-1 rounded-lg bg-${theme().muted} ${props.className ?? ''}`}>
     {props.items.map((label: string, i: i32) =>
-      <View class={`grow flex-row items-center justify-center h-7 px-3 rounded-md transition-colors ${triggerClass(props.selected() === i)}`}
+      <View className={`grow flex-row items-center justify-center h-7 px-3 rounded-md transition-colors ${triggerClass(props.selected() === i)}`}
         onClick={() => props.onSelect(i)}>
-        <Text class={labelClass(props.selected() === i)}>{label}</Text>
+        <Text className={labelClass(props.selected() === i)}>{label}</Text>
       </View>)}
   </View>;
 }
