@@ -5,8 +5,8 @@ libdatachannel, commit bdc5ff28e9d3b863144c94a677ecf5bf043aaf15 of paullouisagen
 with PR #1599 "Add support for mbedTLS 4.1, use PSA Crypto API", which no release carries yet), MPL-2.0
   https://github.com/paullouisageneau/libdatachannel/archive/bdc5ff28e9d3b863144c94a677ecf5bf043aaf15.tar.gz
   archive sha256 a3b7a4070d6c552e74258842962f2acbeabd36104db04f7f956dcb2f8972ae30
-  kept: include/, src/ and LICENSE, unmodified, without the src/ files that compile to nothing with RTC_ENABLE_MEDIA=0 and
-  RTC_ENABLE_WEBSOCKET=0 (the RTP packetizers and handlers, the WebSocket, TCP and TLS transports, dtlssrtptransport.cpp, sha.cpp)
+  kept: include/, src/ and LICENSE, unmodified, without the src/ files that compile to nothing with RTC_ENABLE_WEBSOCKET=0 (the
+  WebSocket, TCP and TLS transports, sha.cpp); built with RTC_ENABLE_MEDIA=1 (the RTP packetizers and handlers, dtlssrtptransport.cpp)
 libjuice 1.7.4 (tag v1.7.4 of paullouisageneau/libjuice; the submodule of that libdatachannel commit is b89c792e, an older one), MPL-2.0
   https://github.com/paullouisageneau/libjuice/archive/refs/tags/v1.7.4.tar.gz
   archive sha256 95c088862aa1b88b73d62aa99577135010eb768fcafb252d13aa85a8515ef798
@@ -21,4 +21,26 @@ plog, commit 94899e0b926ac1b0f4750bfbd495167b4a6ae9ef of SergiusTheBest/plog (th
   https://github.com/SergiusTheBest/plog/archive/94899e0b926ac1b0f4750bfbd495167b4a6ae9ef.tar.gz
   archive sha256 92a08bce559b5f28aa88d3fd9071567414b9f43a83fe2a05a6dd14f1da536072
   kept: include/ and LICENSE, unmodified (header-only: libdatachannel's logging)
-Not vendored: libsrtp (media tracks only), nlohmann/json (WebSocket and media), libnice.
+libsrtp 2.8.1 (tag v2.8.1 of cisco/libsrtp, 2026-09-21), BSD-3-Clause
+  https://github.com/cisco/libsrtp/archive/refs/tags/v2.8.1.tar.gz
+  archive sha256 ef5569220749529d778013aae1178391d972570a2b4f7288dda22effa875b07c
+  kept: srtp/srtp.c, the crypto/ sources of its built-in crypto (aes.c, aes_icm.c, hmac.c, sha1.c and the kernel), include/,
+  crypto/include/ and LICENSE, unmodified; native/srtp/config.h stands for the config.h its CMake writes (no OpenSSL or mbedTLS
+  engine: libdatachannel with mbedTLS only negotiates SRTP_AES128_CM_HMAC_SHA1_80, which the built-in crypto has)
+opus 1.6.1 (downloads.xiph.org release tarball), BSD-3-Clause
+  https://downloads.xiph.org/releases/opus/opus-1.6.1.tar.gz
+  archive sha256 6ffcb593207be92584df15b32466ed64bbec99109f007c82205f0194572411a1
+  kept: the sources of OPUS_SOURCES, OPUS_SOURCES_FLOAT, CELT_SOURCES, SILK_SOURCES and SILK_SOURCES_FLOAT (opus_sources.mk,
+  celt_sources.mk, silk_sources.mk), the headers of include/, src/, celt/, silk/ and silk/float/, COPYING, unmodified: floating point,
+  no SIMD (no x86/ or arm/ code), no DNN (deep PLC, DRED, OSCE are off by default)
+libvpx 1.17.0 (tag v1.17.0 of webmproject/libvpx), BSD-3-Clause with the WebM patent grant (PATENTS)
+  https://github.com/webmproject/libvpx/archive/refs/tags/v1.17.0.tar.gz
+  archive sha256 1020f184046187baa2985dbde38e0691f49c44088bca7a1842b0236c6081dc0a
+  kept: the 81 C files a VP8-only generic build compiles and the headers of their directories, LICENSE, PATENTS, AUTHORS, unmodified;
+  libvpx-generic/ holds what its configure writes for that build (vpx_config.h, vpx_config.c, vp8_rtcd.h, vpx_dsp_rtcd.h,
+  vpx_scale_rtcd.h, vpx_version.h), made with:
+  configure --target=generic-gnu --disable-vp9 --enable-vp8 --disable-examples --disable-tools --disable-docs --disable-unit-tests
+  --disable-install-docs --disable-install-bins --disable-install-libs --enable-realtime-only --enable-multithread --disable-webm-io
+  --disable-libyuv --enable-pic --disable-debug --size-limit=4096x4096
+  (generic C, no SIMD: the same files on every target; real-time VP8 at 640x480 on a desktop, a smaller size on a Pi)
+Not vendored: nlohmann/json (WebSocket), libnice, OpenH264 (H.264 is VideoToolbox's on macOS; see docs/reports/zinc-webrtc.md).
