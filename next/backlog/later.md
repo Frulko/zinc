@@ -408,5 +408,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-718: zinc lint: JPEG and WebP pixel sizes in the asset estimate (only PNG reads its size from the header).
 - ZN-718: zinc lint: target rules in the LSP (`--json` is the hook), and a `boot` budget estimate from assets.groups.
 - ZN-701: webgl_conformance on a GPU that does not zero new memory (the AMD driver of an Intel Mac, a hosted runner's virtual GPU): our WebGL layer leaves new textures, renderbuffers and the area outside a copyTexImage2D source to the driver; WebGL says zeros. 61 pages differ on the hosted runner (list: docs/reports/ci-run-38901269935/trace-webgl_conformance.log): zero-initialise explicitly; the hosted runner then proves it (ZINC_CI skip to remove).
+- ZN-718: `zinc update` (src/main.cpp ~2429) still prints "the macOS app: drag it over the old one; Linux: unpack...": say to unpack the tar.gz or run install.sh again.
+- ZN-718: AGENTS.md describes the development Mac as an Intel one; it is an Apple M1 Pro (arm64): correct "The development machine" and the Intel-specific numbers.
+
 
 
