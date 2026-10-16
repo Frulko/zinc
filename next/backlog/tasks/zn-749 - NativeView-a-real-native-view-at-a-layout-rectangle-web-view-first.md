@@ -2,7 +2,8 @@
 id: ZN-749
 title: 'NativeView: a real native view at a layout rectangle (web view first)'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-16 20:29'
 labels:
   - mobile
