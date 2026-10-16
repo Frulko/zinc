@@ -1210,7 +1210,7 @@ const std::pair<const char*, const char*> kWebGlobals[] = {
     {"document", "zinc:web"}, {"screen", "zinc:web"}, {"addEventListener", "zinc:web"}, {"removeEventListener", "zinc:web"}, {"dispatchEvent", "zinc:web"},
     {"Accelerometer", "zinc:web"}, {"Gyroscope", "zinc:web"}, {"AbsoluteOrientationSensor", "zinc:web"}, {"AmbientLightSensor", "zinc:web"}, {"DeviceMotionEvent", "zinc:web"},
     {"DeviceOrientationEvent", "zinc:web"}, {"BatteryManager", "zinc:web"}, {"Notification", "zinc:web"}, {"MediaMetadata", "zinc:web"}, {"KeyboardEvent", "zinc:web"},
-    {"SensorErrorEvent", "zinc:web"}, {"Sensor", "zinc:web"}, {"WakeLockSentinel", "zinc:web"}, {"NetworkInformation", "zinc:web"}, {"MediaSession", "zinc:web"},
+    {"SensorErrorEvent", "zinc:web"}, {"Sensor", "zinc:web"}, {"WakeLockSentinel", "zinc:web"}, {"MediaStream", "zinc:web"}, {"MediaStreamTrack", "zinc:web"}, {"NetworkInformation", "zinc:web"}, {"MediaSession", "zinc:web"},
     {"ScreenOrientation", "zinc:web"}, {"MediaDeviceInfo", "zinc:web"},
     {"WebAssembly", "zinc:wasm"}, {"fetch", "zinc:web/fetch"}, {"Request", "zinc:web/fetch"}, {"Response", "zinc:web/fetch"}, {"Headers", "zinc:web/fetch"}};
 bool isWebFile(const std::string& path) {
