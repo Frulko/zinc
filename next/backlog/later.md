@@ -357,6 +357,10 @@ The next backlog review turns lines into tasks or deletes them.
 - music (2026-10-15): check on the TouchPad by hand: the screen off after the delay and the first touch waking it at LED 0 (the open source warns a panel at level 0 may misbehave: write 3 instead), the SSDP search through openPort, UDP 7777 from another machine, a radio and a Spotify playlist started through the speakers (the account number tried 1..4).
 - ZN-718: tests/t1/proto_devtools is skipped: lib/std/ui.ts needs `TIER` as i32 in the prototype's zinc:platform (compiler/src/capabilities.ts types every capability as boolean), `gradientPaint` and `overlaid` in sim/gfx.mjs and runtime/gfx.*; give the prototype stubs for them, or retire the test with the prototype.
 - ZN-203: webgl_conformance: glsl/bugs/sampler-struct-function-arg.html and sampler-array-struct-function-arg.html report PASS, then zinc aborts (SIGABRT, exit 134) while the QuickJS run ends; reproduce with `WGC_BUNDLE=/tmp/w.js python3 tools/webgl-conformance <page>`, then `zinc run /tmp/w.js --engine quickjs`; on the runner misc/uninitialized-test.html also fails (non-zero bytes in an uninitialised buffer).
+- ZN-: getUserMedia never asks for the camera (unlike a browser): on a Mac where access was never given it fails with NotAllowedError; it should call requestPermission first.
+- ZN-: zinc:ui layout: a `w-full max-w-[440px]` child of an `items-center` parent is placed left, not centred (CSS and Yoga centre it).
+- ZN-: JSX lowering prints `{helper(p.children)}` as text unless the helper is named `render*` or returns JSX directly; content silently disappears.
+- ZN-: webcam demo: photos taken in the same second get a `-2` suffix that sorts before the first name, so the strip order is off after a restart.
 
 ## Cross-platform pass
 
