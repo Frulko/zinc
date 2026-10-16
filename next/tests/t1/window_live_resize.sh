@@ -11,17 +11,19 @@ export ZINC_HOME="$tmp/home"; mkdir -p "$ZINC_HOME" "$tmp/qjs"
 fail=0
 check() {   # check <label> <steps> <dir> <entry> [run flags]: the size steps, then the three sizes of the limits probe (far in, far out, back)
   label=$1 steps=$2 dir=$3; shift 3
-  out=$(cd "$dir" && env -u ZINC_DETERMINISTIC -u ZINC_HEADLESS ZINC_BACKGROUND=1 ZINC_LIVE_RESIZE=$steps "$ZINC" run "$@" 2>&1)
+  out=$(cd "$dir" && env -u ZINC_DETERMINISTIC -u ZINC_HEADLESS ZINC_BACKGROUND=1 ZINC_LIVE_RESIZE=$steps ${zoom:+ZINC_LIVE_RESIZE_ZOOM=1} "$ZINC" run "$@" 2>&1)
   echo "$out" | grep -q "^zinc: live resize: $steps of $steps steps drawn at the new size" || { echo "window_live_resize: $label: $(echo "$out" | grep 'steps drawn' || echo "$out" | tail -3)"; fail=1; }
   echo "$out" | grep -q '^zinc: live resize: limits 360x240 to 900x700$' || { echo "window_live_resize: $label: size limits: $(echo "$out" | grep limits)"; fail=1; }
   line=$(echo "$out" | grep '^sizes ')
   set -- $line   # sizes N stale S timers ran|stopped layouts L
-  [ "$2" = $((steps + 3)) ] && [ "$4" = 0 ] && [ "$6" = ran ] && [ "$8" -le "$2" ] || { echo "window_live_resize: $label: $line"; fail=1; }
+  [ "$2" -ge $((steps + 3)) ] && [ "$4" = 0 ] && [ "$6" = ran ] && [ "$8" -le "$2" ] || { echo "window_live_resize: $label: $line"; fail=1; }
 }
-check native 120 "$d" main.ts
-allocs=$(echo "$out" | sed -n 's/^allocations //p')
-# measured 8300 to 8800 for 123 sizes (2026-10-16): the timer's re-arms, the layout and the text wrapped again; 100 per size is the bound
-[ -n "$allocs" ] && [ "$allocs" -le 12300 ] || { echo "window_live_resize: allocations during the drag: $allocs (bound 12300)"; fail=1; }
+zoom=1; check native 120 "$d" main.ts
+echo "$out" | grep -Eq "^zinc: live resize: zoom to [0-9]+x[0-9]+, [1-9][0-9]* frames" || { echo "window_live_resize: zoom button: $(echo "$out" | grep zoom)"; fail=1; }
+zoom=
+allocs=$(echo "$out" | sed -n 's/^allocations //p'); sizes=$(echo "$out" | sed -n "s/^sizes \([0-9]*\).*/\1/p")
+# measured about 70 per size (2026-10-16): the timer's re-arms, the layout and the text wrapped again; 100 per size is the bound
+[ -n "$allocs" ] && [ -n "$sizes" ] && [ "$allocs" -le $((sizes * 100)) ] || { echo "window_live_resize: allocations during the drag: $allocs for $sizes sizes (bound 100 each)"; fail=1; }
 check interp 10 "$d" main.ts --interp
 # QuickJS has no zinc:sys allocations (the typed engines' counter)
 sed "s/import { allocations } from 'zinc:sys';/const allocations = (): number => 0;/" "$d/main.ts" > "$tmp/qjs/main.ts" && cp "$d/zinc.json" "$tmp/qjs/"

@@ -816,6 +816,14 @@ static void live_resize_sim(int n) {
   SDL_SetWindowSize(win, 100000, 100000); SDL_GetWindowSize(win, &hw, &hh);
   SDL_SetWindowSize(win, w0, h0);
   fprintf(stderr, "zinc: live resize: limits %dx%d to %dx%d\n", lw, lh, hw, hh);
+  if (getenv("ZINC_LIVE_RESIZE_ZOOM")) {   // the green button: [NSWindow zoom:] animates the frame inside AppKit too
+    const int before = live_frames;
+    SDL_MaximizeWindow(win); SDL_SyncWindow(win);
+    int zw = 0, zh = 0;
+    SDL_GetWindowSize(win, &zw, &zh);
+    fprintf(stderr, "zinc: live resize: zoom to %dx%d, %d frames from the watcher, last %dx%d\n", zw, zh, live_frames - before, live_w, live_h);
+    SDL_RestoreWindow(win); SDL_SyncWindow(win);
+  }
 }
 
 void hal_poll_input(HalInput* in) {
