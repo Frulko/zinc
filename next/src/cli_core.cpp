@@ -987,7 +987,7 @@ static int exportAndroid(const ProjectInfo& p, const fs::path& out, const std::s
       pluginCmake += "add_library(" + lib + " STATIC";
       for (const std::string& s : ps.own) pluginCmake += " " + path(s);
       for (const std::string& s : ps.vendored) pluginCmake += " " + path(s);
-      pluginCmake += ")\ntarget_include_directories(" + lib + " PRIVATE plugins/" + nm + " ${ZINC_PLUGINS}/" + nm + " ${ZINC_ENGINE}/src ${ZINC_ENGINE}/include ${ZINC_ENGINE}/../runtime ${ZINC_ENGINE}/../runtime/include ${ZINC_ENGINE}/third_party)\n"
+      pluginCmake += ")\ntarget_include_directories(" + lib + " PRIVATE plugins/" + nm + " ${ZINC_PLUGINS}/" + nm + " ${ZINC_ENGINE}/src ${ZINC_ENGINE}/include ${ZINC_ENGINE}/../runtime ${ZINC_ENGINE}/../runtime/include ${ZINC_ENGINE}/third_party ${ZINC_ENGINE}/third_party/SDL3/include)\n"
                      "target_compile_options(" + lib + " PRIVATE -O2 -fno-exceptions -fno-rtti -fwrapv -ffp-contract=off -fno-threadsafe-statics -w";
       for (const std::string& f : ps.flags) pluginCmake += " " + path(f);
       pluginCmake += ")\nset_target_properties(" + lib + " PROPERTIES CXX_STANDARD 17)\ntarget_compile_definitions(" + lib + " PRIVATE";
@@ -999,6 +999,11 @@ static int exportAndroid(const ProjectInfo& p, const fs::path& out, const std::s
         pluginCmake += " \"" + e + "\"";
       }
       pluginCmake += ")\n";
+      if (!ps.libs.empty()) {   // the NDK libraries of plugin.json targets.android.libs (camera2ndk, mediandk...)
+        pluginCmake += "target_link_libraries(" + lib + " PUBLIC";
+        for (const std::string& l : ps.libs) pluginCmake += " " + l;
+        pluginCmake += ")\n";
+      }
       pluginLibs += " " + lib;
     }
   }
@@ -1016,15 +1021,7 @@ static int exportAndroid(const ProjectInfo& p, const fs::path& out, const std::s
   const std::string activity = [&] { std::string last = id.substr(id.rfind('.') + 1); if (!last.empty()) last[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(last[0]))); return last + "Activity"; }();   // the script's name
   std::string units1;
   for (const std::string& u : units) { units1 += u + "\n    "; }
-  std::string perms;
-  auto perm = [&](const char* name) { if (perms.find(name) == std::string::npos) perms += std::string("    <uses-permission android:name=\"android.permission.") + name + "\" />\n"; };
-  if (!proj.permissionsDeclared) perm("INTERNET");   // not declared: the app is not restricted (as on the desktop), and the network is the common need
-  for (const std::string& f : zn::frontend::permissionsFor(proj, "android")) {
-    if (f == "net") perm("INTERNET");
-    else if (f == "camera") perm("CAMERA");
-    else if (f == "microphone") perm("RECORD_AUDIO");
-    else if (f == "location") perm("ACCESS_FINE_LOCATION");
-  }
+  const std::string perms = zn::frontend::androidManifestPermissions(proj);   // <uses-permission> and <uses-feature> from zinc.json "permissions"
   std::string appEnv;   // zinc.json targets.android, for every build (shell_sdl.cpp): the HAL's variables that zinc run sets on a desktop
   if (auto t = proj.targets.find("android"); t != proj.targets.end()) {
     if (t->second.fullscreen) appEnv += " ZINC_FULLSCREEN=1";

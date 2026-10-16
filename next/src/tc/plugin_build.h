@@ -51,7 +51,7 @@ void clearCrossTarget();
 // libraries, the defines and flags (the manifest's paths made absolute), and the generated header and thunk written into `genDir`.
 struct PluginSource {
   std::string plugin, module;          // "svg", "SvgEngine"
-  std::vector<std::string> own, vendored, defines, flags;
+  std::vector<std::string> own, vendored, defines, flags, libs;   // libs: the system libraries the target's settings link ("camera2ndk")
 };
 bool pluginSource(const frontend::FoundPlugin& p, const std::string& engineRoot, const std::string& projectDir, const std::string& target, const std::string& genDir, PluginSource& out, std::string& err);
 

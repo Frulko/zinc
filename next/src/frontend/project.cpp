@@ -359,6 +359,69 @@ std::vector<std::string> permissionsFor(const Project& p, const std::string& tar
   return out;
 }
 
+std::vector<std::pair<std::string, std::string>> usageStrings(const Project& p, const std::string& target, const std::string& who) {
+  std::vector<std::pair<std::string, std::string>> out;
+  auto say = [&](const char* perm, const std::string& fallback) { auto it = p.permissionStrings.find(perm); return it != p.permissionStrings.end() ? it->second : fallback; };
+  for (const std::string& e : permissionsFor(p, target)) {
+    if (e == "camera") out.push_back({"NSCameraUsageDescription", say("camera", who + " uses the camera.")});
+    else if (e == "microphone") out.push_back({"NSMicrophoneUsageDescription", say("microphone", who + " uses the microphone.")});
+    else if (e == "location") {
+      out.push_back({"NSLocationWhenInUseUsageDescription", say("location", who + " uses your location.")});
+      if (target == "macos") out.push_back({"NSLocationUsageDescription", say("location", who + " uses your location.")});
+    }
+  }
+  return out;
+}
+
+namespace {
+std::string xmlEsc(const std::string& s) {
+  std::string o;
+  for (char c : s) o += c == '&' ? "&amp;" : c == '<' ? "&lt;" : c == '>' ? "&gt;" : c == '"' ? "&quot;" : std::string(1, c);
+  return o;
+}
+}  // namespace
+
+std::string iosInfoPlist(const Project& p) {
+  const std::string name = !p.app.name.empty() ? p.app.name : p.name, id = !p.app.id.empty() ? p.app.id : "dev.zinc." + p.name;
+  const std::string version = !p.app.version.empty() ? p.app.version : "1.0";
+  std::string o = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\"><dict>\n";
+  auto kv = [&](const std::string& k, const std::string& v) { o += "<key>" + k + "</key><string>" + xmlEsc(v) + "</string>\n"; };
+  kv("CFBundleIdentifier", id);
+  kv("CFBundleName", name);
+  kv("CFBundleDisplayName", name);
+  kv("CFBundleExecutable", "zinc");
+  kv("CFBundlePackageType", "APPL");
+  kv("CFBundleShortVersionString", version);
+  kv("CFBundleVersion", p.app.versionCode > 0 ? std::to_string(p.app.versionCode) : version);
+  kv("MinimumOSVersion", "15.0");
+  o += "<key>UIDeviceFamily</key><array><integer>1</integer><integer>2</integer></array>\n";
+  o += "<key>UILaunchScreen</key><dict/>\n";   // a blank launch screen: no storyboard to ship
+  o += "<key>UIRequiresFullScreen</key><true/>\n";
+  const std::string& r = p.app.orientation;
+  o += "<key>UISupportedInterfaceOrientations</key><array>";
+  if (r != "landscape") o += "<string>UIInterfaceOrientationPortrait</string>";
+  if (r != "portrait") o += "<string>UIInterfaceOrientationLandscapeLeft</string><string>UIInterfaceOrientationLandscapeRight</string>";
+  o += "</array>\n";
+  for (const auto& [k, v] : usageStrings(p, "ios", name)) kv(k, v);
+  return o + "</dict></plist>\n";
+}
+
+std::string androidManifestPermissions(const Project& p) {
+  std::string perms;
+  auto perm = [&](const char* name) { if (perms.find(std::string(name) + "\"") == std::string::npos) perms += std::string("    <uses-permission android:name=\"android.permission.") + name + "\" />\n"; };
+  if (!p.permissionsDeclared) perm("INTERNET");   // not declared: the app is not restricted (as on the desktop), and the network is the common need
+  bool camera = false;
+  for (const std::string& f : permissionsFor(p, "android")) {
+    if (f == "net") perm("INTERNET");
+    else if (f == "camera") { perm("CAMERA"); camera = true; }
+    else if (f == "microphone") perm("RECORD_AUDIO");
+    else if (f == "location") perm("ACCESS_FINE_LOCATION");
+  }
+  // without it, CAMERA would make the Play Store hide the app from the devices that have no camera
+  if (camera) perms += "    <uses-feature android:name=\"android.hardware.camera\" android:required=\"false\" />\n";
+  return perms;
+}
+
 bool parseProject(const std::string& text, Project& out, std::string& err) {
   yyjson_read_err re;
   yyjson_doc* doc = yyjson_read_opts(const_cast<char*>(text.data()), text.size(), YYJSON_READ_ALLOW_COMMENTS | YYJSON_READ_ALLOW_TRAILING_COMMAS, nullptr, &re);
@@ -482,6 +545,14 @@ bool parseProject(const std::string& text, Project& out, std::string& err) {
     if (const char* v = yyjson_get_str(yyjson_obj_get(sg, "notaryProfile"))) out.notaryProfile = v;
   }
   if (yyjson_val* pm = yyjson_obj_get(root, "permissions")) { out.permissionsDeclared = true; if (!permissionList(pm, out.permissions, "permissions")) return false; }
+  if (yyjson_val* ps = yyjson_obj_get(root, "permissionStrings")) {   // the texts of the system's questions (iOS, macOS)
+    if (!yyjson_is_obj(ps)) return fatal(lineOf(text, "permissionStrings"), "\"permissionStrings\" must be an object: { \"camera\": \"Webcam shows your camera and saves your photos.\" }");
+    size_t i2, n2; yyjson_val *k2, *v2;
+    yyjson_obj_foreach(ps, i2, n2, k2, v2) {
+      if (!yyjson_is_str(v2)) return fatal(lineOf(text, "permissionStrings"), std::string("permissionStrings.") + yyjson_get_str(k2) + " must be a string");
+      out.permissionStrings[yyjson_get_str(k2)] = yyjson_get_str(v2);
+    }
+  }
   if (yyjson_val* sc = yyjson_obj_get(root, "scopes")) {
     if (!yyjson_is_obj(sc)) return fatal(lineOf(text, "scopes"), "\"scopes\" must be an object");
     char* js = yyjson_val_write(sc, 0, nullptr); if (js) { out.scopes = js; std::free(js); }
@@ -490,7 +561,7 @@ bool parseProject(const std::string& text, Project& out, std::string& err) {
     size_t i, n; yyjson_val *k, *v;
     yyjson_obj_foreach(t, i, n, k, v) if (yyjson_val* pm = yyjson_obj_get(v, "permissions")) if (!permissionList(pm, out.targetPermissions[yyjson_get_str(k)], "targets.<name>.permissions")) return false;
   }
-  static const char* known[] = {"app", "permissions", "scopes", "name", "entry", "main", "assets", "version", "id", "icon", "crash", "display", "plugins", "pluginDirs", "targets", "board", "requires", "text", "scheme", "webgl", "web", "engine", "keyboard", "bench", "description", "profile", "ui", "icons", "template", "update", "signing", "lock", "pluginCompiler", "dependencies", "policy", "dev", "splash", "loading", "launcher"};
+  static const char* known[] = {"app", "permissions", "permissionStrings", "scopes", "name", "entry", "main", "assets", "version", "id", "icon", "crash", "display", "plugins", "pluginDirs", "targets", "board", "requires", "text", "scheme", "webgl", "web", "engine", "keyboard", "bench", "description", "profile", "ui", "icons", "template", "update", "signing", "lock", "pluginCompiler", "dependencies", "policy", "dev", "splash", "loading", "launcher"};
   size_t i, n;
   yyjson_val *k, *v;
   yyjson_obj_foreach(root, i, n, k, v) {

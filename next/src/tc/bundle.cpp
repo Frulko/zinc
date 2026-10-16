@@ -51,7 +51,11 @@ std::string infoPlist(const BundleSpec& s, bool hasIcon) {
   if (!s.copyright.empty()) kv("NSHumanReadableCopyright", s.copyright);
   if (hasIcon) kv("CFBundleIconFile", "icon");
   o << "<key>NSHighResolutionCapable</key><true/>\n";
-  for (const auto& [k, v] : s.usage) kv(k.c_str(), v);
+  for (const auto& [k, v] : s.usage) {
+    kv(k.c_str(), v);
+    // an iPhone as a webcam (Continuity Camera, macOS 14+) is listed under its own device type, without AVFoundation's deprecation warning
+    if (k == "NSCameraUsageDescription") o << "<key>NSCameraUseContinuityCameraDeviceType</key><true/>\n";
+  }
   if (!s.dock) o << "<key>LSUIElement</key><true/>\n";
   if (!s.urlSchemes.empty()) {
     o << "<key>CFBundleURLTypes</key><array><dict><key>CFBundleURLName</key><string>" << esc(s.id) << "</string><key>CFBundleURLSchemes</key><array>";

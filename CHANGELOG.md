@@ -53,6 +53,9 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc:camera` on Android (the NDK's camera2, the CAMERA permission asked through the system dialog) and iOS (AVFoundation, shared with macOS);
   on Linux, MJPEG is chosen when a webcam gives YUYV too slowly, and `permissionStatus()` is `denied` with the `sudo usermod -aG video $USER` hint
   when your user may not open the cameras. Not yet tried on those devices.
+- zinc.json `"permissionStrings": {"camera": "..."}` sets the text of the system's question on macOS and iOS. With `"camera"` in the permissions,
+  an Android export asks for CAMERA without hiding the app from devices that have no camera, and a macOS app lists an iPhone (Continuity Camera)
+  without a warning. The android and ios profiles now offer the camera.
 - `Camera.still()` copies the frame on screen into a new image in about a millisecond, and `Camera.encodePng()` encodes a PNG on another thread;
   `ZINC_FAKE_CAMERA=4` lists four fake cameras to try a camera picker.
 

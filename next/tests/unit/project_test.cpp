@@ -220,8 +220,40 @@ void profiles() {
 
 }  // namespace
 
+// zinc.json "permissions" and "permissionStrings" into the platforms' manifests: the iOS Info.plist (usage strings, orientations), the
+// AndroidManifest.xml lines (CAMERA with the camera feature optional), the macOS usage strings with their defaults.
+void permissions() {
+  Project p;
+  std::string err;
+  CHECK(parseProject(R"({ "name": "webcam", "app": { "id": "dev.zinc.webcam", "name": "Webcam", "version": "1.2", "orientation": "portrait" },
+    "permissions": ["camera", "fs"], "permissionStrings": { "camera": "Webcam shows your camera & saves photos." },
+    "targets": { "android": { "permissions": ["microphone"] } } })", p, err), "parse: %s", err.c_str());
+  const std::string ios = iosInfoPlist(p);
+  for (const char* want : {"<key>CFBundleIdentifier</key><string>dev.zinc.webcam</string>", "<key>CFBundleShortVersionString</key><string>1.2</string>",
+                           "<key>NSCameraUsageDescription</key><string>Webcam shows your camera &amp; saves photos.</string>",
+                           "<array><string>UIInterfaceOrientationPortrait</string></array>", "<key>UILaunchScreen</key><dict/>"})
+    CHECK(ios.find(want) != std::string::npos, "iOS Info.plist lacks %s:\n%s", want, ios.c_str());
+  CHECK(ios.find("NSMicrophoneUsageDescription") == std::string::npos, "the microphone is Android's only");
+  const std::string android = androidManifestPermissions(p);
+  CHECK(android == "    <uses-permission android:name=\"android.permission.CAMERA\" />\n"
+                   "    <uses-permission android:name=\"android.permission.RECORD_AUDIO\" />\n"
+                   "    <uses-feature android:name=\"android.hardware.camera\" android:required=\"false\" />\n", "AndroidManifest lines:\n%s", android.c_str());
+  auto mac = usageStrings(p, "macos", "Webcam");
+  CHECK(mac.size() == 1 && mac[0].first == "NSCameraUsageDescription" && mac[0].second == "Webcam shows your camera & saves photos.", "macOS usage strings");
+  Project q;
+  CHECK(parseProject(R"({ "name": "q", "permissions": ["camera", "location"] })", q, err), "parse q");
+  auto d = usageStrings(q, "macos", "Q");
+  CHECK(d.size() == 3 && d[0].second == "Q uses the camera." && d[2].first == "NSLocationUsageDescription", "macOS defaults");
+  Project open;
+  CHECK(parseProject(R"({ "name": "o" })", open, err), "parse o");
+  CHECK(androidManifestPermissions(open) == "    <uses-permission android:name=\"android.permission.INTERNET\" />\n", "no permissions declared: INTERNET only");
+  Project bad;
+  CHECK(!parseProject(R"({ "name": "b", "permissionStrings": ["camera"] })", bad, err) && err.find("permissionStrings") != std::string::npos, "a list is refused: %s", err.c_str());
+}
+
 int main() {
   example();
+  permissions();
   defaults();
   errors();
   sizes();

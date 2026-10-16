@@ -30,8 +30,12 @@ grep -q "ZN_APP_ENV" "$tmp/hello/app/jni/src/CMakeLists.txt" && { echo "hello ha
 # zinc.json targets.android fullscreen and kiosk are baked for every build (ZN_APP_ENV, read by src/app/shell_sdl.cpp)
 mkdir -p "$tmp/kiosk"
 echo 'console.log("kiosk");' > "$tmp/kiosk/main.ts"
-echo '{ "name": "kiosk", "entry": "main.ts", "targets": { "android": { "fullscreen": true, "kiosk": true } } }' > "$tmp/kiosk/zinc.json"
+echo '{ "name": "kiosk", "entry": "main.ts", "permissions": ["camera"], "targets": { "android": { "fullscreen": true, "kiosk": true } } }' > "$tmp/kiosk/zinc.json"
 PATH="$tmp/bin:$PATH" ANDROID_HOME= ANDROID_SDK_ROOT= "$Z" export "$tmp/kiosk" --target android -o "$tmp/kiosk-android" >/dev/null 2>&1 || { echo "export of a kiosk project failed"; fail=1; }
 grep -q '"ZN_APP_ENV=\\"ZINC_FULLSCREEN=1 ZINC_KIOSK=1\\""' "$tmp/kiosk-android/app/jni/src/CMakeLists.txt" || { echo "targets.android fullscreen and kiosk are not baked as ZN_APP_ENV"; fail=1; }
+# zinc.json "permissions": ["camera"] asks for CAMERA and keeps the app installable on devices without a camera
+m="$tmp/kiosk-android/app/src/main/AndroidManifest.xml"
+[ "$(grep -c '<uses-permission android:name="android.permission.CAMERA" />' "$m")" = 2 ] &&   # the template has a commented one
+  grep -q '<uses-feature android:name="android.hardware.camera" android:required="false" />' "$m" || { echo "the camera permission is not in the manifest as zinc.json declares it"; fail=1; }
 [ $fail -eq 0 ] && echo "export android: ok"
 exit $fail

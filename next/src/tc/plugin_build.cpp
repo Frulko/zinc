@@ -626,6 +626,7 @@ bool pluginSource(const frontend::FoundPlugin& p, const std::string& engineRoot,
   out.own.push_back(impl);
   for (const std::string& s : ts->second.sources) (endsWith(s, ".c") || s.rfind("vendor/", 0) == 0 ? out.vendored : out.own).push_back((fs::path(p.dir) / s).string());
   out.defines = buildDefines(p, ts->second, engineRoot, projectDir, target);
+  out.libs = ts->second.libs;
   for (const std::string& f : ts->second.flags) {
     const size_t at = f.rfind("-I", 0) == 0 ? 2 : 0;
     out.flags.push_back(f.compare(at, 2, "./") != 0 && f.compare(at, 3, "../") != 0 ? f : f.substr(0, at) + (fs::path(p.dir) / f.substr(at)).lexically_normal().string());

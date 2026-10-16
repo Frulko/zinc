@@ -75,6 +75,7 @@ struct Project {
   AppInfo app;
   std::vector<std::string> permissions;            // "permissions": `feature` or `feature:operation`; none = no system module usable
   bool permissionsDeclared = false;
+  std::map<std::string, std::string> permissionStrings;   // "permissionStrings": {"camera": "..."}: what the system's question says (iOS, macOS), per permission
   std::string signIdentity, signKeychain, notaryProfile;   // "signing" (ZN-321): the codesign identity ("-" or none: ad hoc), its keychain, the notarytool profile
   std::string updateUrl, updateChannel = "stable", updateKey;   // "update": where the channel manifests are, the channel, the app's Ed25519 public key (ZN-324)                // the "permissions" key is there: the host modules check it at run time (ZN-322)
   std::string scopes;                              // "scopes" as JSON text ({"opener": {"allow": [...]}})
@@ -90,6 +91,13 @@ struct Project {
 
 // The permissions in force on `target` ("macos", "linux", "esp32"...): the base list plus the target's additions minus its `-id` entries.
 std::vector<std::string> permissionsFor(const Project& p, const std::string& target);
+// What the system shows when the app asks for a permission (Apple's Info.plist keys): NSCameraUsageDescription and the others the permissions
+// of `target` ("macos", "ios") need, with zinc.json "permissionStrings" or a default naming the app `who`.
+std::vector<std::pair<std::string, std::string>> usageStrings(const Project& p, const std::string& target, const std::string& who);
+// The Info.plist of an iOS app (for the iOS export): identity, version, orientations, the launch screen, the usage strings.
+std::string iosInfoPlist(const Project& p);
+// The <uses-permission> and <uses-feature> lines of the AndroidManifest.xml for the project's Android permissions (INTERNET when none are declared).
+std::string androidManifestPermissions(const Project& p);
 // The features a `permissions` entry may name (`notification`, `tray`, `window:state`...): the system modules of lib/std/system.
 const std::vector<std::string>& systemFeatures();
 // The `app` object of the project being compiled as JSON text ("" when there is none): baked as the constant of the synthetic module zinc:system/app.

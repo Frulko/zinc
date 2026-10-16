@@ -272,6 +272,9 @@ The next backlog review turns lines into tasks or deletes them.
 - zinc:microphone: hand the samples to zinc:audio (a monitor, a recorder to WAV) and an FFT helper for a spectrum, an artist's first use of a microphone.
 - Native fidelity: the kit ContextMenu uses menu.popup when menu.native, as MenuBar does (lib/std/kit/menubar.tsx:136) (docs/reports/native-fidelity-and-plugins.md §5).
 - Native fidelity: one table of pinned versions (NDK, AGP, Gradle, SDK levels, Xcode, minimum iOS) shown by zinc doctor, bumped once a year after WWDC and the Android release, with goldens of the generated projects (docs/reports/native-fidelity-and-plugins.md §4.4).
+- zinc:camera: iOS follows a portrait screen only (camera.macos.mm sets AVCaptureVideoOrientationPortrait): turn the frames with the device (videoRotationAngle on iOS 17) for apps that rotate.
+- zinc:camera: the format change in place (a parked session taken back) could also cover a switch between two cameras (swap the session's input instead of a new session); measure the switch on the owner's C920 and iPhone first.
+- webcam demo: keep the last frame on screen while a camera switches (today the preview goes dark under "Starting <camera>…"): a still() of the old camera drawn until the new one's first frame.
 
 ## Demos
 
@@ -387,6 +390,10 @@ The next backlog review turns lines into tasks or deletes them.
 - Live resize (owner, 2026-10-16): Android and iOS send no live resize; the watcher stays off the UI thread (ZN-622): rotate a phone with a zinc:ui app and check one frame at the new size, no frame drawn from the UI thread.
 
 - zinc:camera: on a Mac with the camera access granted to the terminal (a person clicks once), `Camera.open` on the FaceTime HD camera and a USB webcam (C920): frames arrive, the image shows them, `snapshot()` is the picture, close stops the green light; never tried (the access was undetermined and a test must not wait on the dialog).
+- zinc:camera (macOS, the owner's Mac): open, switch camera, change size and rate, take photos on the C920, OBS, an iPhone (Continuity) and the FaceTime HD camera: the window must not freeze (open and close run on the control queue), a size change reuses the session (no green-light blink), the iPhone lists without the AVFoundation warning when run from the dev bundle (webcam has an app id now).
+- zinc:camera: build and run the Android backend (plugins/camera/native/camera.android.cpp, camera2 NDK + SDL_RequestAndroidPermission) on the Nexus 7 and a recent phone: the permission dialog, front/back/USB cameras, frames upright by ACAMERA_SENSOR_ORIENTATION, the export's manifest (CAMERA, camera feature optional), the webcam demo in portrait.
+- zinc:camera: build the iOS backend (camera.ios.mm, the macOS file under TARGET_OS_IPHONE) once the iOS export exists, with iosInfoPlist's NSCameraUsageDescription; check the portrait orientation and the mirrored front camera.
+- zinc:camera: on Linux, the YUYV/MJPEG choice by VIDIOC_ENUM_FMT and VIDIOC_ENUM_FRAMEINTERVALS (a C920 at 1280x720: MJPEG at 30 fps instead of YUYV at 10), the "denied" status without the video group, and a Pi CSI camera through `libcamerify`.
 - zinc:camera: build and run the V4L2 backend (plugins/camera/native/camera.linux.cpp) on Linux and a Pi 1 with a UVC webcam: YUYV and MJPEG (stb_image) paths, a camera unplugged while streaming, the frame rate a Pi 1 keeps at 320x240 and 640x480.
 - zinc:camera: Windows backend on Media Foundation (IMFSourceReader, RGB32 output), opening the Windows part of the pass.
 - zinc:camera: Android backend on Camera2 (an ImageReader in YUV_420_888 through the NDK's ACameraManager) with android.permission.CAMERA asked at run time; iOS shares camera.macos.mm but has no output scaling (pick the format, scale ourselves) and needs the usage string in its Info.plist.

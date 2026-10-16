@@ -562,12 +562,8 @@ static zn::tc::BundleSpec bundleSpecOf(const zn::frontend::Project& p, const std
     else if (f == "location") add("com.apple.security.personal-information.location");
     else if (f == "net") { add("com.apple.security.network.client"); if (e == "net" || e == "net:*") add("com.apple.security.network.server"); }   // listening needs "net" or "net:*"
   }
-  const std::string who = b.name.empty() ? "This app" : b.name;   // macOS asks the user with these strings; without them the request fails (ZN-322.03)
-  for (const std::string& e : p.permissions) {
-    if (e == "camera") b.usage.push_back({"NSCameraUsageDescription", who + " uses the camera."});
-    else if (e == "microphone") b.usage.push_back({"NSMicrophoneUsageDescription", who + " uses the microphone."});
-    else if (e == "location") { b.usage.push_back({"NSLocationWhenInUseUsageDescription", who + " uses your location."}); b.usage.push_back({"NSLocationUsageDescription", who + " uses your location."}); }
-  }
+  // macOS asks the user with these strings (zinc.json "permissionStrings", else a default); without them the request fails (ZN-322.03)
+  b.usage = zn::frontend::usageStrings(p, "macos", b.name.empty() ? "This app" : b.name);
   return b;
 }
 // zinc.json "permissions" (ZN-322.03): the generated main of a program that calls the host enforces them from its first instruction.
