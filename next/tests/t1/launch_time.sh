@@ -4,6 +4,7 @@
 # nothing else: the window host (SDL3, AppKit, Metal...) is the module libzn_window, CoreFoundation is opened when asked (linking it runs ~400
 # framework initializers), and zinc exports no weak definition dyld would coalesce (tools/zinc-unexported.txt). Intel Mac: 21 -> 10 ms.
 cd "$(dirname "$0")/../.." || exit 2
+[ -z "$ZINC_CI" ] || { echo "skipped: a time measured on a shared 3-core runner under load proves nothing"; exit 77; }
 [ "$(uname)" = Darwin ] || { echo "skipped: the budget is measured on macOS"; exit 77; }
 command -v python3 >/dev/null && command -v cc >/dev/null || { echo "skipped: no python3 or cc"; exit 77; }
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT

@@ -20,7 +20,7 @@ const value = (w: [string, string, string, string, number]) => w[3].split('|')[w
 
 let open = false, live = false, shots = 0, img = -1, iw = 0, ih = 0;
 let cb: ((kind: string, data: string) => void) | null = null;
-const fail = (m: string) => Promise.reject(new Error('gphoto2: ' + m));
+const fail = (m: string): Promise<string> => Promise.reject(new Error('gphoto2: ' + m));
 const shot = () => `/store_00020001/DCIM/100ZINC/IMG_${String(++shots).padStart(4, '0')}.JPG`;
 const local = (dir: string, p: string) => dir + '/' + p.slice(p.lastIndexOf('/') + 1);
 
@@ -29,7 +29,7 @@ export default {
   open: (_m: string, _p: string) => { open = true; return Promise.resolve('Zinc Fake Camera'); },
   close: () => { open = false; live = false; return Promise.resolve(''); },
   summary: () => open ? Promise.resolve('Manufacturer: Zinc\nModel: Zinc Fake Camera\nVersion: 1.0\nSerial Number: 0000000001\nVendor Extension: generated frames (ZINC_FAKE_CAMERA)\n') : fail('no camera open'),
-  config: () => open ? Promise.resolve(W.map(w => [w[0], w[1], w[2], w[2] === 'text' ? '1' : '0', value(w), '0', '0', '0', ...(w[2] === 'text' ? [] : w[3].split('|'))].join(FS)).join(RS)) : fail('no camera open'),
+  config: () => open ? Promise.resolve(W.map(w => [w[0], w[1], w[2], w[2] === 'text' ? '1' : '0', value(w), '0', '0', '0', ...(w[2] === 'text' ? ([] as string[]) : w[3].split('|'))].join(FS)).join(RS)) : fail('no camera open'),
   get: (name: string) => { const w = find(name); return !open ? fail('no camera open') : w ? Promise.resolve(value(w)) : fail('unknown widget ' + name); },
   set: (name: string, v: string) => {
     const w = find(name);
@@ -41,7 +41,7 @@ export default {
     w[4] = i;
     return Promise.resolve('');
   },
-  capture: (dir: string) => open ? Promise.resolve(dir ? local(dir, shot()) : shot()) : fail('no camera open'),
+  capture: (dir: string) => open ? Promise.resolve(dir !== '' ? local(dir, shot()) : shot()) : fail('no camera open'),
   trigger: () => { if (!open) return fail('no camera open'); cb?.('file', shot()); return Promise.resolve(''); },
   download: (p: string, dir: string) => open ? Promise.resolve(local(dir, p)) : fail('no camera open'),
   thumbnail: (_p: string, w: number, h: number) => Promise.resolve(String(createImage(Math.min(w, Math.floor(h * 1.5)), Math.min(h, Math.floor(w / 1.5))))),

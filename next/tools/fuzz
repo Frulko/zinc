@@ -33,7 +33,13 @@ rc=0
 for t in $list; do
   seed $t
   echo "== fuzz_$t ($secs s)"
-  build-fuzz/fuzz_$t -max_total_time=$secs -rss_limit_mb=4096 -timeout=20 -artifact_prefix=tests/fuzz/crashes/$t- $extra build-fuzz/corpus/$t 2>&1 | tail -4
+  build-fuzz/fuzz_$t -max_total_time=$secs -rss_limit_mb=4096 -timeout=20 -artifact_prefix=tests/fuzz/crashes/$t- $extra build-fuzz/corpus/$t >build-fuzz/log-$t.txt 2>&1
+  tail -4 build-fuzz/log-$t.txt
+  # a crash: the sanitizer's report and the first frames of its stack (the tail alone shows only the shadow-memory legend), and the input in text
+  if ls tests/fuzz/crashes/$t-* >/dev/null 2>&1; then
+    grep -m1 -A16 "ERROR: \(Address\|Undefined\|Leak\)Sanitizer\|runtime error:" build-fuzz/log-$t.txt | cut -c1-220
+    for c in tests/fuzz/crashes/$t-*; do echo "input $c ($(wc -c < "$c") bytes):"; head -c 400 "$c"; echo; done
+  fi
   ls tests/fuzz/crashes/$t-* >/dev/null 2>&1 && { echo "CRASH: $(ls tests/fuzz/crashes/$t-*)"; rc=1; }
 done
 exit $rc

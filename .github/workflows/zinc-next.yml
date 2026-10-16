@@ -209,7 +209,7 @@ jobs:
       - name: Unpack the build
         run: tar xzf build.tgz && rm build.tgz && ls build/zinc
       - name: Dependencies (macOS)
-        run: brew install cmake sdl3 coreutils quickjs pixman libgcrypt sdl2
+        run: brew install cmake sdl3 coreutils quickjs pixman libgcrypt sdl2 ccache   # the build tree names ccache as its compiler launcher: tests that run cmake --build on it need it
       - name: Cache pinned toolchains
         uses: actions/cache@v4
         with:
