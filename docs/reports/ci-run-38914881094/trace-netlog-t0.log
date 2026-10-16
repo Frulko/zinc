@@ -1,0 +1,78 @@
+++ dirname tests/t0/netlog.sh
++ cd tests/t0/../..
++ command -v python3
+++ mktemp -d
++ tmp=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.fEuWroCOHk
++ trap 'kill $servers $broker $app 2>/dev/null; rm -rf "$tmp"' EXIT
+++ python3 tests/free_ports.py 5
++ set -- 49315 49316 49317 49318 49319
++ http=49315
++ https=49316
++ mqtt=49317
++ quit=49318
++ inspector=49319
++ tls=0
++ command -v openssl
++ openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -keyout /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.fEuWroCOHk/ca.key -out /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.fEuWroCOHk/ca.pem -days 2 -subj /CN=ca
++ openssl req -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -keyout /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.fEuWroCOHk/good.key -out /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.fEuWroCOHk/good.csr -subj /CN=good
++ printf 'subjectAltName=DNS:localhost,IP:127.0.0.1\nbasicConstraints=CA:FALSE\n'
++ openssl x509 -req -in /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.fEuWroCOHk/good.csr -CA /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.fEuWroCOHk/ca.pem -CAkey /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.fEuWroCOHk/ca.key -CAcreateserial -out /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.fEuWroCOHk/good.pem -extfile /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.fEuWroCOHk/good.ext -days 2
++ tls=1
++ '[' 1 = 1 ']'
++ servers=7587
++ python3 tests/netlog_servers.py 49315 49316 /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.fEuWroCOHk/good.pem /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.fEuWroCOHk/good.key
++ broker=7588
++ sleep 1
++ python3 tests/mqtt_broker.py 49317
++ app=7606
++ n=0
++ ZINC_NET_SENSITIVE=pin,API_KEY
++ ZINC_DEVTOOLS_PORT=49319
++ '[' 0 -lt 200 ']'
++ ZINC_CA_FILE=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.fEuWroCOHk/ca.pem
++ ZINC_REALTIME=1
++ ZINC_HEADLESS=1
++ ZINC_FRAMES=100000000
++ grep -q 'zinc devtools:' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.fEuWroCOHk/app.log
++ timeout 60 /Users/runner/work/zinc/zinc/next/build/zinc run --har /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.fEuWroCOHk/out.har tests/golden/host/netlog.tsx -- 49315 49316 49317 49318
++ sleep 0.05
++ n=1
++ '[' 1 -lt 200 ']'
++ grep -q 'zinc devtools:' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.fEuWroCOHk/app.log
++ sleep 0.05
++ n=2
++ '[' 2 -lt 200 ']'
++ grep -q 'zinc devtools:' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.fEuWroCOHk/app.log
++ sleep 0.05
++ n=3
++ '[' 3 -lt 200 ']'
++ grep -q 'zinc devtools:' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.fEuWroCOHk/app.log
++ sleep 0.05
++ n=4
++ '[' 4 -lt 200 ']'
++ grep -q 'zinc devtools:' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.fEuWroCOHk/app.log
++ python3 tests/netlog_check.py 49318 /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.fEuWroCOHk/out.har 1 49319
++ cat /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.fEuWroCOHk/check.log
+Traceback (most recent call last):
+  File "/Users/runner/work/zinc/zinc/next/tests/netlog_check.py", line 25, in <module>
+    probe.ws(inspector, "/zinc", [{"id": 1, "method": "Network.enable", "params": {}}], events, closed)
+  File "/Users/runner/work/zinc/zinc/next/tests/../tools/cdp-probe", line 41, in ws
+    while until and not until(events): events.append(json.loads(recv()))
+                                                                ^^^^^^
+  File "/Users/runner/work/zinc/zinc/next/tests/../tools/cdp-probe", line 29, in recv
+    need(2); b1 = buf[1] & 0x7f; off = 2
+    ^^^^^^^
+  File "/Users/runner/work/zinc/zinc/next/tests/../tools/cdp-probe", line 26, in need
+    chunk = s.recv(65536)
+            ^^^^^^^^^^^^^
+TimeoutError: timed out
++ echo 'the program:'
+the program:
++ cat /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.fEuWroCOHk/app.log
+zinc devtools: chrome://inspect (Discover network targets: localhost:49319) or ws://127.0.0.1:49319/zinc
++ exit 1
++ kill 7587 7588 7606
++ rm -rf /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.fEuWroCOHk
+tests/t0/netlog.sh: line 22:  7587 Terminated: 15          python3 tests/netlog_servers.py $http $https "$tmp/good.pem" "$tmp/good.key"
+tests/t0/netlog.sh: line 22:  7588 Terminated: 15          python3 tests/mqtt_broker.py $mqtt > /dev/null 2>&1
+tests/t0/netlog.sh: line 22:  7606 Terminated: 15          ZINC_NET_SENSITIVE=pin,API_KEY ZINC_DEVTOOLS_PORT=$inspector ZINC_CA_FILE="$tmp/ca.pem" ZINC_REALTIME=1 ZINC_HEADLESS=1 ZINC_FRAMES=100000000 timeout 60 "$ZINC" run --har "$tmp/out.har" tests/golden/host/netlog.tsx -- $http $https $mqtt $quit > "$tmp/app.log" 2>&1

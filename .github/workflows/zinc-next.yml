@@ -240,6 +240,9 @@ jobs:
             ~/.zinc/toolchains
             ${{ runner.temp }}/zinc-home/toolchains
           key: toolchains-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('next/src/tc/tc.cpp', 'next/src/tc/tc.h') }}
+      - name: Test libraries
+        # third-party files some tests load and the repository does not carry (LGPL, licences): taken once from their official release, checked against a pinned SHA-256
+        run: tools/test-lib p5-1.11.13 >/dev/null && tools/test-lib gsap-3.15.0 >/dev/null
       - name: Quiet the runner
         # Spotlight indexes the fresh checkout and the build tree on a 3-core runner: the tests run under it
         run: sudo mdutil -a -i off >/dev/null 2>&1 || true

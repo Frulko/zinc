@@ -1,0 +1,13 @@
+=== lint
+hero.matrix differs:
+10a11,13
+> android  T3   warns    plugin-targets: plugin video is not made for this target (its plugin.json targets: macos, linux, rpi1, webos) (+3)
+> ios      T3   warns    plugin-targets: plugin video is not made for this target (its plugin.json targets: macos, linux, rpi1, webos) (+3)
+> ios-sim  T3   warns    plugin-targets: plugin video is not made for this target (its plugin.json targets: macos, linux, rpi1, webos) (+3)
+esp32-app.matrix differs:
+10a11,13
+> android  T3   refuses  project-requires: requires gpio (android has gpio no)
+> ios      T3   refuses  project-requires: requires gpio (ios has gpio no)
+> ios-sim  T3   refuses  project-requires: requires gpio (ios-sim has gpio no)
+=== agent_ota
+FAIL: the good update is not running after its trial: otaapp                   zapp    stopped

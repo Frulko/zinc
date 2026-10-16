@@ -1,0 +1,58 @@
+++ dirname tests/t0/package.sh
++ cd tests/t0/../..
++ fail=0
+++ mktemp -d
++ tmp=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.5ulkGanPBj
++ trap 'rm -rf "$tmp"' EXIT
++ export ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.5ulkGanPBj/home
++ ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.5ulkGanPBj/home
++ echo package
+++ /Users/runner/work/zinc/zinc/next/build/zinc toolchain sha256 /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.5ulkGanPBj/Zinc-9.9.9.zip
+++ cut '-d ' -f1
++ sum=4e9416efcf77b84013f263e1f9008c656861298be5aabc82f458e6e47c60d9ff
+++ /Users/runner/work/zinc/zinc/next/build/zinc update-keygen
++ k='seed=f99c277589f99d70cd83344ace4ab108a49c810ef02fe8110616bb32e6b03fb5
+public=73cfed476e10e0dce7fba3525bf66a8451fd563a6e10f3bdde0200e082e38ca2'
+++ echo 'seed=f99c277589f99d70cd83344ace4ab108a49c810ef02fe8110616bb32e6b03fb5
+public=73cfed476e10e0dce7fba3525bf66a8451fd563a6e10f3bdde0200e082e38ca2'
+++ sed -n 's/^seed=//p'
++ seed=f99c277589f99d70cd83344ace4ab108a49c810ef02fe8110616bb32e6b03fb5
+++ sed -n 's/^public=//p'
+++ echo 'seed=f99c277589f99d70cd83344ace4ab108a49c810ef02fe8110616bb32e6b03fb5
+public=73cfed476e10e0dce7fba3525bf66a8451fd563a6e10f3bdde0200e082e38ca2'
++ export ZINC_UPDATE_PUBKEY=73cfed476e10e0dce7fba3525bf66a8451fd563a6e10f3bdde0200e082e38ca2
++ ZINC_UPDATE_PUBKEY=73cfed476e10e0dce7fba3525bf66a8451fd563a6e10f3bdde0200e082e38ca2
++ printf 'version=9.9.9\nurl=file://%s/Zinc-9.9.9.zip\nsha256=%s\nnotes=a test release\n' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.5ulkGanPBj 4e9416efcf77b84013f263e1f9008c656861298be5aabc82f458e6e47c60d9ff
++ sign /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.5ulkGanPBj/manifest
++ /Users/runner/work/zinc/zinc/next/build/zinc update-sign /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.5ulkGanPBj/manifest f99c277589f99d70cd83344ace4ab108a49c810ef02fe8110616bb32e6b03fb5
++ mv /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.5ulkGanPBj/manifest.s /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.5ulkGanPBj/manifest
++ /Users/runner/work/zinc/zinc/next/build/zinc update --check file:///var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.5ulkGanPBj/manifest
++ '[' 10 -eq 10 ']'
++ grep -q '9.9.9 is available' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.5ulkGanPBj/out
++ /Users/runner/work/zinc/zinc/next/build/zinc update file:///var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.5ulkGanPBj/manifest
++ cmp -s /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.5ulkGanPBj/home/updates/Zinc-9.9.9.zip /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.5ulkGanPBj/Zinc-9.9.9.zip
++ printf 'version=9.9.9\nurl=file://%s/Zinc-9.9.9.zip\nsha256=%064d\n' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.5ulkGanPBj 0
++ sign /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.5ulkGanPBj/bad
++ /Users/runner/work/zinc/zinc/next/build/zinc update-sign /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.5ulkGanPBj/bad f99c277589f99d70cd83344ace4ab108a49c810ef02fe8110616bb32e6b03fb5
++ mv /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.5ulkGanPBj/bad.s /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.5ulkGanPBj/bad
++ rm -rf /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.5ulkGanPBj/home/updates
++ /Users/runner/work/zinc/zinc/next/build/zinc update file:///var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.5ulkGanPBj/bad
++ '[' 1 -eq 1 ']'
++ grep -q 'checksum mismatch' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.5ulkGanPBj/out
++ '[' '!' -e /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.5ulkGanPBj/home/updates/Zinc-9.9.9.zip ']'
++ printf 'version=0.0.1\nurl=file://%s/Zinc-9.9.9.zip\nsha256=%s\n' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.5ulkGanPBj 4e9416efcf77b84013f263e1f9008c656861298be5aabc82f458e6e47c60d9ff
++ sign /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.5ulkGanPBj/same
++ /Users/runner/work/zinc/zinc/next/build/zinc update-sign /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.5ulkGanPBj/same f99c277589f99d70cd83344ace4ab108a49c810ef02fe8110616bb32e6b03fb5
++ mv /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.5ulkGanPBj/same.s /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.5ulkGanPBj/same
++ /Users/runner/work/zinc/zinc/next/build/zinc update --check file:///var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.5ulkGanPBj/same
++ grep -q 'up to date'
+++ ZINC_ROOT=/somewhere/else
+++ /Users/runner/work/zinc/zinc/next/build/zinc --root
++ '[' /somewhere/else = /somewhere/else ']'
++ tools/sign-macos --dry-run Zinc-0.0.1-macos-arm64.zip
++ grep -q 'notarytool submit'
++ tools/sign-macos --dry-run Zinc-0.0.1-macos-arm64.zip
++ grep -q 'stapler staple'
++ grep -q '^BUDGET_MB' tools/package
++ exit 0
++ rm -rf /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.5ulkGanPBj

@@ -1,0 +1,64 @@
+## system
+ProductName:		macOS
+ProductVersion:		15.7.9
+BuildVersion:		24G830
+Darwin sjc20-bb710-f3db93b4-8a2b-4dc5-bc1b-f254fed95fc6-AA280B89B5E4.local 24.6.0 Darwin Kernel Version 24.6.0: Tue Jul 21 20:51:34 PDT 2026; root:xnu-11417.140.69.711.44~1/RELEASE_ARM64_VMAPPLE arm64
+Apple M1 (Virtual)
+3
+7516192768
+Xcode 16.4
+Build version 16F6
+Apple clang version 17.0.0 (clang-1700.0.13.5)
+## load
+15:24  up 17 mins, 1 user, load averages: 5.45 5.04 6.03
+Mach Virtual Memory Statistics: (page size of 16384 bytes)
+Pages free:                              142401.
+Pages active:                            102429.
+Pages inactive:                           97582.
+## busiest processes
+  PID  %CPU ELAPSED COMM
+ 1381  34.6   15:02 /Users/runner/actions-runner/extracted/bin/Runner.Worker
+ 1378   6.6   15:04 /Users/runner/actions-runner/extracted/bin/Runner.Listener
+  958   3.0   16:01 /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/provjobd1211132479
+25822   2.3   00:41 /Users/runner/work/_temp/zinc-home/toolchains/qemu-xtensa-aarch64-macos-esp_develop_9.2.2_20260417/bin/qemu-system-xtensa
+  323   2.3   17:08 /usr/libexec/trustd
+25814   1.8   00:47 /Users/runner/work/_temp/zinc-home/toolchains/qemu-xtensa-aarch64-macos-esp_develop_9.2.2_20260417/bin/qemu-system-xtensa
+25809   1.8   00:48 /Users/runner/work/_temp/zinc-home/toolchains/qemu-xtensa-aarch64-macos-esp_develop_9.2.2_20260417/bin/qemu-system-xtensa
+  207   1.3   17:12 /usr/sbin/mDNSResponder
+27084   0.6   00:01 /bin/bash
+   82   0.6   17:14 /usr/libexec/logd
+   86   0.3   17:14 /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/FSEvents.framework/Versions/A/Support/fseventsd
+ps: stdout: Broken pipe
+## limits
+core file size          (blocks, -c) 0
+data seg size           (kbytes, -d) unlimited
+file size               (blocks, -f) unlimited
+max locked memory       (kbytes, -l) unlimited
+max memory size         (kbytes, -m) unlimited
+open files                      (-n) 10240
+pipe size            (512 bytes, -p) 1
+stack size              (kbytes, -s) 8176
+cpu time               (seconds, -t) unlimited
+max user processes              (-u) 1333
+virtual memory          (kbytes, -v) unlimited
+## loopback
+lo0: flags=8049<UP,LOOPBACK,RUNNING,MULTICAST> mtu 16384
+	options=1203<RXCSUM,TXCSUM,TXSTATUS,SW_TIMESTAMP>
+	inet 127.0.0.1 netmask 0xff000000
+	inet6 ::1 prefixlen 128 
+	inet6 fe80::1%lo0 prefixlen 64 scopeid 0x1 
+	nd6 options=201<PERFORMNUD,DAD>
+2
+can bind 127.0.0.1: 49429
+## firewall
+Firewall is disabled. (State = 0)
+## display
+## python
+Python 3.12.10
+/Users/runner/hostedtoolcache/Python/3.12.10/arm64/bin/python3
+## a local http server (what several tests start)
+stdout: 
+stderr: 
+## disk
+/dev/disk2s5   320Gi   260Gi    41Gi    87%    2.2M  431M    1%   /System/Volumes/Data
+/Users/runner/work/_temp/f14bda74-989e-4b74-be26-0ead073cef35.sh: line 13: 27113 Terminated: 15          ( cd "$d" && exec python3 -u -m http.server 0 --bind 127.0.0.1 > "$d/o" 2> "$d/e" )

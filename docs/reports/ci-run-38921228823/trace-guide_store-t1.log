@@ -1,0 +1,42 @@
+++ dirname tests/t1/guide_store.sh
++ cd tests/t1/../..
+++ uname
++ '[' Darwin = Darwin ']'
++++ dirname /Users/runner/work/zinc/zinc/next/build/zinc
+++ cd /Users/runner/work/zinc/zinc/next/build
+++ pwd
+++ basename /Users/runner/work/zinc/zinc/next/build/zinc
++ Z=/Users/runner/work/zinc/zinc/next/build/zinc
+++ mktemp -d
++ tmp=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.8x4r0FUr7A
++ trap 'rm -rf "$tmp"' EXIT
++ fail=0
++ mkdir -p /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.8x4r0FUr7A/bin /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.8x4r0FUr7A/work
++ ln -s /Users/runner/work/zinc/zinc/next/build/zinc /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.8x4r0FUr7A/bin/zinc
++ pages='../docs/guide/07-distribution.md ../docs/guide/08-security.md'
++ cat
++ python3 - /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.8x4r0FUr7A ../docs/guide/07-distribution.md ../docs/guide/08-security.md
++ grep -q '^zinc new game-2d' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.8x4r0FUr7A/guide.sh
++ echo 'guide_store: a command of the guide failed:'
+guide_store: a command of the guide failed:
++ grep '^+ ' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.8x4r0FUr7A/log
++ tail -1
++ zinc update --check
++ tail -15 /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.8x4r0FUr7A/log
+packed dist/my-game.zapp (8 files, 763904 bytes)
++ zinc publish --site site
+site: site/index.html (3 downloads)
++ cd site
++ shasum -a 256 -c SHA256SUMS
+my-game-macos.tar.gz: OK
+my-game-0.1.0.dmg: OK
+my-game.zapp: OK
++ zinc publish --key fd991288895179e32fc5e610d416e49913483b115508f83dd33967d39e886b2d --notes 'First release'
+published my-game 0.1.0 on stable: ./dist/updates/my-game-0.1.0.zapp, ./dist/updates/stable.manifest
++ zinc update-app --check
+my-game 0.1.0 is up to date
++ zinc update --check
+curl: (56) The requested URL returned error: 404
+zinc update: fetching the update manifest failed: curl -fL -sS --retry 2 -o '/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/zinc-manifest-27784-16807' 'https://github.com/zinc-engine/zinc/releases/latest/download/zinc-macos-arm64.manifest' (https://github.com/zinc-engine/zinc/releases/latest/download/zinc-macos-arm64.manifest)
++ exit 1
++ rm -rf /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.8x4r0FUr7A

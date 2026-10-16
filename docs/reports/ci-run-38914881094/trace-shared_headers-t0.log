@@ -1,0 +1,10 @@
+++ dirname tests/t0/shared_headers.sh
++ cd tests/t0/../..
+++ grep -rnE 'constexpr[^=;]*kMax|^[[:space:]]*#[[:space:]]*define +ZN_|enum +(class +)?Op\b' src
++ bad='src/app/shell_sdl.cpp:22:#define ZN_APP_HEAP_MB 128   // zinc export writes the project'\''s need (zinc.json targets.android.heapMB)'
++ '[' -z 'src/app/shell_sdl.cpp:22:#define ZN_APP_HEAP_MB 128   // zinc export writes the project'\''s need (zinc.json targets.android.heapMB)' ']'
++ echo 'constant defined outside include/zn:'
+constant defined outside include/zn:
++ echo 'src/app/shell_sdl.cpp:22:#define ZN_APP_HEAP_MB 128   // zinc export writes the project'\''s need (zinc.json targets.android.heapMB)'
+src/app/shell_sdl.cpp:22:#define ZN_APP_HEAP_MB 128   // zinc export writes the project's need (zinc.json targets.android.heapMB)
++ exit 1

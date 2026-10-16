@@ -1,0 +1,1146 @@
+++ dirname tests/t1/install_nocompiler.sh
++ cd tests/t1/../..
++ next=/Users/runner/work/zinc/zinc/next
++ fail=0
+++ mktemp -d
++ tmp=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU
++ trap 'kill $dev 2>/dev/null; rm -rf "$tmp"' EXIT
++ dev=
++ dist=
++ '[' -z '' ']'
++ dist=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dist
++++ dirname /Users/runner/work/zinc/zinc/next/build/zinc
+++ cd /Users/runner/work/zinc/zinc/next/build
+++ pwd
++ tools/package --build /Users/runner/work/zinc/zinc/next/build --out /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dist
++ mac=0
++ case "$(uname -s)" in
+++ uname -s
++ mac=1
++ pat='zinc-*-macos-*.tar.gz Zinc-Atelier-*-macos-*.zip'
++ mkdir -p /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/release /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/bin /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/shims /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/work
++ for p in '$pat'
++ cp /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dist/zinc-0.0.0-dev-macos-arm64.tar.gz /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/release/
++ for p in '$pat'
++ cp /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dist/Zinc-Atelier-0.0.0-dev-macos-arm64.zip /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/release/
++ cp /Users/runner/work/zinc/zinc/next/tools/install.sh /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/release/
++ cd /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/release
++ shasum -a 256 zinc-0.0.0-dev-macos-arm64.tar.gz Zinc-Atelier-0.0.0-dev-macos-arm64.zip
++ for t in cc c++ clang clang++ gcc g++ cmake zig make ninja xcrun xcodebuild ld ar ranlib pkg-config git node python3 brew
++ printf '#!/bin/sh\necho "%s $*" >> "%s/shim.log"\nexit 127\n' cc /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU
++ chmod +x /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/shims/cc
++ for t in cc c++ clang clang++ gcc g++ cmake zig make ninja xcrun xcodebuild ld ar ranlib pkg-config git node python3 brew
++ printf '#!/bin/sh\necho "%s $*" >> "%s/shim.log"\nexit 127\n' c++ /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU
++ chmod +x /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/shims/c++
++ for t in cc c++ clang clang++ gcc g++ cmake zig make ninja xcrun xcodebuild ld ar ranlib pkg-config git node python3 brew
++ printf '#!/bin/sh\necho "%s $*" >> "%s/shim.log"\nexit 127\n' clang /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU
++ chmod +x /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/shims/clang
++ for t in cc c++ clang clang++ gcc g++ cmake zig make ninja xcrun xcodebuild ld ar ranlib pkg-config git node python3 brew
++ printf '#!/bin/sh\necho "%s $*" >> "%s/shim.log"\nexit 127\n' clang++ /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU
++ chmod +x /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/shims/clang++
++ for t in cc c++ clang clang++ gcc g++ cmake zig make ninja xcrun xcodebuild ld ar ranlib pkg-config git node python3 brew
++ printf '#!/bin/sh\necho "%s $*" >> "%s/shim.log"\nexit 127\n' gcc /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU
++ chmod +x /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/shims/gcc
++ for t in cc c++ clang clang++ gcc g++ cmake zig make ninja xcrun xcodebuild ld ar ranlib pkg-config git node python3 brew
++ printf '#!/bin/sh\necho "%s $*" >> "%s/shim.log"\nexit 127\n' g++ /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU
++ chmod +x /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/shims/g++
++ for t in cc c++ clang clang++ gcc g++ cmake zig make ninja xcrun xcodebuild ld ar ranlib pkg-config git node python3 brew
++ printf '#!/bin/sh\necho "%s $*" >> "%s/shim.log"\nexit 127\n' cmake /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU
++ chmod +x /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/shims/cmake
++ for t in cc c++ clang clang++ gcc g++ cmake zig make ninja xcrun xcodebuild ld ar ranlib pkg-config git node python3 brew
++ printf '#!/bin/sh\necho "%s $*" >> "%s/shim.log"\nexit 127\n' zig /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU
++ chmod +x /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/shims/zig
++ for t in cc c++ clang clang++ gcc g++ cmake zig make ninja xcrun xcodebuild ld ar ranlib pkg-config git node python3 brew
++ printf '#!/bin/sh\necho "%s $*" >> "%s/shim.log"\nexit 127\n' make /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU
++ chmod +x /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/shims/make
++ for t in cc c++ clang clang++ gcc g++ cmake zig make ninja xcrun xcodebuild ld ar ranlib pkg-config git node python3 brew
++ printf '#!/bin/sh\necho "%s $*" >> "%s/shim.log"\nexit 127\n' ninja /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU
++ chmod +x /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/shims/ninja
++ for t in cc c++ clang clang++ gcc g++ cmake zig make ninja xcrun xcodebuild ld ar ranlib pkg-config git node python3 brew
++ printf '#!/bin/sh\necho "%s $*" >> "%s/shim.log"\nexit 127\n' xcrun /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU
++ chmod +x /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/shims/xcrun
++ for t in cc c++ clang clang++ gcc g++ cmake zig make ninja xcrun xcodebuild ld ar ranlib pkg-config git node python3 brew
++ printf '#!/bin/sh\necho "%s $*" >> "%s/shim.log"\nexit 127\n' xcodebuild /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU
++ chmod +x /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/shims/xcodebuild
++ for t in cc c++ clang clang++ gcc g++ cmake zig make ninja xcrun xcodebuild ld ar ranlib pkg-config git node python3 brew
++ printf '#!/bin/sh\necho "%s $*" >> "%s/shim.log"\nexit 127\n' ld /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU
++ chmod +x /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/shims/ld
++ for t in cc c++ clang clang++ gcc g++ cmake zig make ninja xcrun xcodebuild ld ar ranlib pkg-config git node python3 brew
++ printf '#!/bin/sh\necho "%s $*" >> "%s/shim.log"\nexit 127\n' ar /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU
++ chmod +x /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/shims/ar
++ for t in cc c++ clang clang++ gcc g++ cmake zig make ninja xcrun xcodebuild ld ar ranlib pkg-config git node python3 brew
++ printf '#!/bin/sh\necho "%s $*" >> "%s/shim.log"\nexit 127\n' ranlib /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU
++ chmod +x /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/shims/ranlib
++ for t in cc c++ clang clang++ gcc g++ cmake zig make ninja xcrun xcodebuild ld ar ranlib pkg-config git node python3 brew
++ printf '#!/bin/sh\necho "%s $*" >> "%s/shim.log"\nexit 127\n' pkg-config /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU
++ chmod +x /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/shims/pkg-config
++ for t in cc c++ clang clang++ gcc g++ cmake zig make ninja xcrun xcodebuild ld ar ranlib pkg-config git node python3 brew
++ printf '#!/bin/sh\necho "%s $*" >> "%s/shim.log"\nexit 127\n' git /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU
++ chmod +x /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/shims/git
++ for t in cc c++ clang clang++ gcc g++ cmake zig make ninja xcrun xcodebuild ld ar ranlib pkg-config git node python3 brew
++ printf '#!/bin/sh\necho "%s $*" >> "%s/shim.log"\nexit 127\n' node /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU
++ chmod +x /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/shims/node
++ for t in cc c++ clang clang++ gcc g++ cmake zig make ninja xcrun xcodebuild ld ar ranlib pkg-config git node python3 brew
++ printf '#!/bin/sh\necho "%s $*" >> "%s/shim.log"\nexit 127\n' python3 /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU
++ chmod +x /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/shims/python3
++ for t in cc c++ clang clang++ gcc g++ cmake zig make ninja xcrun xcodebuild ld ar ranlib pkg-config git node python3 brew
++ printf '#!/bin/sh\necho "%s $*" >> "%s/shim.log"\nexit 127\n' brew /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU
++ chmod +x /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/shims/brew
++ for t in curl shasum perl ditto unzip tar gzip uname grep sed head dirname basename mktemp tr cut env awk
+++ PATH=/usr/bin:/bin
+++ command -v curl
++ p=/usr/bin/curl
++ ln -s /usr/bin/curl /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/bin/curl
++ for t in curl shasum perl ditto unzip tar gzip uname grep sed head dirname basename mktemp tr cut env awk
+++ PATH=/usr/bin:/bin
+++ command -v shasum
++ p=/usr/bin/shasum
++ ln -s /usr/bin/shasum /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/bin/shasum
++ for t in curl shasum perl ditto unzip tar gzip uname grep sed head dirname basename mktemp tr cut env awk
+++ PATH=/usr/bin:/bin
+++ command -v perl
++ p=/usr/bin/perl
++ ln -s /usr/bin/perl /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/bin/perl
++ for t in curl shasum perl ditto unzip tar gzip uname grep sed head dirname basename mktemp tr cut env awk
+++ PATH=/usr/bin:/bin
+++ command -v ditto
++ p=/usr/bin/ditto
++ ln -s /usr/bin/ditto /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/bin/ditto
++ for t in curl shasum perl ditto unzip tar gzip uname grep sed head dirname basename mktemp tr cut env awk
+++ PATH=/usr/bin:/bin
+++ command -v unzip
++ p=/usr/bin/unzip
++ ln -s /usr/bin/unzip /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/bin/unzip
++ for t in curl shasum perl ditto unzip tar gzip uname grep sed head dirname basename mktemp tr cut env awk
+++ PATH=/usr/bin:/bin
+++ command -v tar
++ p=/usr/bin/tar
++ ln -s /usr/bin/tar /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/bin/tar
++ for t in curl shasum perl ditto unzip tar gzip uname grep sed head dirname basename mktemp tr cut env awk
+++ PATH=/usr/bin:/bin
+++ command -v gzip
++ p=/usr/bin/gzip
++ ln -s /usr/bin/gzip /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/bin/gzip
++ for t in curl shasum perl ditto unzip tar gzip uname grep sed head dirname basename mktemp tr cut env awk
+++ PATH=/usr/bin:/bin
+++ command -v uname
++ p=/usr/bin/uname
++ ln -s /usr/bin/uname /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/bin/uname
++ for t in curl shasum perl ditto unzip tar gzip uname grep sed head dirname basename mktemp tr cut env awk
+++ PATH=/usr/bin:/bin
+++ command -v grep
++ p=/usr/bin/grep
++ ln -s /usr/bin/grep /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/bin/grep
++ for t in curl shasum perl ditto unzip tar gzip uname grep sed head dirname basename mktemp tr cut env awk
+++ PATH=/usr/bin:/bin
+++ command -v sed
++ p=/usr/bin/sed
++ ln -s /usr/bin/sed /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/bin/sed
++ for t in curl shasum perl ditto unzip tar gzip uname grep sed head dirname basename mktemp tr cut env awk
+++ PATH=/usr/bin:/bin
+++ command -v head
++ p=/usr/bin/head
++ ln -s /usr/bin/head /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/bin/head
++ for t in curl shasum perl ditto unzip tar gzip uname grep sed head dirname basename mktemp tr cut env awk
+++ PATH=/usr/bin:/bin
+++ command -v dirname
++ p=/usr/bin/dirname
++ ln -s /usr/bin/dirname /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/bin/dirname
++ for t in curl shasum perl ditto unzip tar gzip uname grep sed head dirname basename mktemp tr cut env awk
+++ PATH=/usr/bin:/bin
+++ command -v basename
++ p=/usr/bin/basename
++ ln -s /usr/bin/basename /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/bin/basename
++ for t in curl shasum perl ditto unzip tar gzip uname grep sed head dirname basename mktemp tr cut env awk
+++ PATH=/usr/bin:/bin
+++ command -v mktemp
++ p=/usr/bin/mktemp
++ ln -s /usr/bin/mktemp /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/bin/mktemp
++ for t in curl shasum perl ditto unzip tar gzip uname grep sed head dirname basename mktemp tr cut env awk
+++ PATH=/usr/bin:/bin
+++ command -v tr
++ p=/usr/bin/tr
++ ln -s /usr/bin/tr /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/bin/tr
++ for t in curl shasum perl ditto unzip tar gzip uname grep sed head dirname basename mktemp tr cut env awk
+++ PATH=/usr/bin:/bin
+++ command -v cut
++ p=/usr/bin/cut
++ ln -s /usr/bin/cut /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/bin/cut
++ for t in curl shasum perl ditto unzip tar gzip uname grep sed head dirname basename mktemp tr cut env awk
+++ PATH=/usr/bin:/bin
+++ command -v env
++ p=/usr/bin/env
++ ln -s /usr/bin/env /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/bin/env
++ for t in curl shasum perl ditto unzip tar gzip uname grep sed head dirname basename mktemp tr cut env awk
+++ PATH=/usr/bin:/bin
+++ command -v awk
++ p=/usr/bin/awk
++ ln -s /usr/bin/awk /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/bin/awk
++ mkdir /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/bad
++ cp /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/release/install.sh /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/release/SHA256SUMS /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/release/zinc-0.0.0-dev-macos-arm64.tar.gz /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/release/Zinc-Atelier-0.0.0-dev-macos-arm64.zip /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/bad/
++ sed 's/^..../0000/' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/release/SHA256SUMS
++ clean ZINC_INSTALL_URL=file:///var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/bad ZINC_NO_MODIFY_PATH=1 sh /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/release/install.sh
++ '[' 1 -ne 0 ']'
++ grep -q 'checksum mismatch' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/out
++ '[' '!' -e /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/.zinc ']'
++ '[' '!' -e /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/.local ']'
++ clean ZINC_INSTALL_URL=file:///var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/release ZINC_BIN_DIR=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/.local/bin ZINC_INSTALL_ATELIER=1 ZINC_APP_DIR=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/Applications SHELL=/bin/zsh sh /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/release/install.sh
++ Z=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/.local/bin/zinc
++ '[' -x /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/.local/bin/zinc ']'
++ grep -q '\.local/bin' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/.zprofile
+++ cd /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU
+++ pwd -P
++ real=/private/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU
+++ clean /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/.local/bin/zinc --root
+++ env -i HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/zinc-home PATH=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/shims:/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/bin:/bin /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/.local/bin/zinc --root
++ '[' /private/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/.zinc/engine/share/zinc/next = /private/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/.zinc/engine/share/zinc/next ']'
++ '[' '!' -e '/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/.zinc/engine/Zinc Atelier.app' ']'
++ mkdir -p /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/elsewhere/x /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/elsewhere/links /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/elsewhere/home
++ tar -xzf /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/release/zinc-0.0.0-dev-macos-arm64.tar.gz -C /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/elsewhere/x
+++ echo /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/elsewhere/x/zinc-0.0.0-dev-macos-arm64/bin/zinc
++ ln -s /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/elsewhere/x/zinc-0.0.0-dev-macos-arm64/bin/zinc /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/elsewhere/links/zinc
++ printf 'console.log("hello", 6 * 7);\n'
+++ env -i HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/elsewhere/home PATH=/usr/bin:/bin ZINC_STEPS=0 /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/elsewhere/links/zinc run /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/elsewhere/hello.ts
++ out='hello 42'
++ '[' 'hello 42' = 'hello 42' ']'
++ cd /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/work
+++ clean /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/.local/bin/zinc new game my-game
++ '[' '++ env -i HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/zinc-home PATH=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/shims:/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/bin:/bin /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/.local/bin/zinc new game my-game
+created my-game (game); next: cd my-game && zinc run' = 'created my-game (game); next: cd my-game && zinc run' ']'
++ echo 'zinc new game fails from the install'
+zinc new game fails from the install
++ fail=1
++ cd my-game
++ run ZINC_SHOT=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/shot.png /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/.local/bin/zinc run
++ '[' 0 -eq 0 ']'
++ '[' -s /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/shot.png ']'
++ '[' '!' -s /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/err ']'
+++ head -c 400 /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/err
++ echo 'zinc run of the game template: + clean ZINC_STEPS=0 ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=3 ZINC_SIZE=160x120 ZINC_SHOT=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/shot.png /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/.local/bin/zinc run
++ env -i HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000g'
+zinc run of the game template: + clean ZINC_STEPS=0 ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=3 ZINC_SIZE=160x120 ZINC_SHOT=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/shot.png /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/.local/bin/zinc run
++ env -i HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000g
++ fail=1
++ cp src/main.ts /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/main.ts
++ echo 'const lives: number = "three";'
++ run /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/.local/bin/zinc run
++ '[' 1 -eq 1 ']'
++ grep -q 'src/main.ts:[0-9]*:[0-9]*: error Z0103: Type is not assignable: '\''string'\'' to '\''f64'\''' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/out
++ cp /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/main.ts src/main.ts
++ clean /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/.local/bin/zinc lint
++ dev=26357
++ waitfor /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log 'v1 started' 10
++ n=0
++ '[' 0 -lt 200 ']'
++ grep -q 'v1 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ env -i HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/zinc-home PATH=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/shims:/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/bin:/bin ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=200000 ZINC_SIZE=64x48 /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/.local/bin/zinc dev
++ sleep 0.05
++ n=1
++ '[' 1 -lt 200 ']'
++ grep -q 'v1 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ return 0
++ sed s/0x101820/0x204010/ /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/main.ts
++ waitfor /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log 'v2 started' 10
++ n=0
++ '[' 0 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=1
++ '[' 1 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=2
++ '[' 2 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=3
++ '[' 3 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=4
++ '[' 4 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=5
++ '[' 5 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=6
++ '[' 6 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=7
++ '[' 7 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=8
++ '[' 8 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=9
++ '[' 9 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=10
++ '[' 10 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=11
++ '[' 11 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=12
++ '[' 12 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=13
++ '[' 13 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=14
++ '[' 14 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=15
++ '[' 15 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=16
++ '[' 16 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=17
++ '[' 17 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=18
++ '[' 18 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=19
++ '[' 19 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=20
++ '[' 20 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=21
++ '[' 21 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=22
++ '[' 22 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=23
++ '[' 23 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=24
++ '[' 24 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=25
++ '[' 25 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=26
++ '[' 26 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=27
++ '[' 27 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=28
++ '[' 28 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=29
++ '[' 29 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=30
++ '[' 30 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=31
++ '[' 31 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=32
++ '[' 32 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=33
++ '[' 33 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=34
++ '[' 34 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=35
++ '[' 35 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=36
++ '[' 36 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=37
++ '[' 37 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=38
++ '[' 38 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=39
++ '[' 39 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=40
++ '[' 40 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=41
++ '[' 41 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=42
++ '[' 42 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=43
++ '[' 43 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=44
++ '[' 44 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=45
++ '[' 45 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=46
++ '[' 46 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=47
++ '[' 47 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=48
++ '[' 48 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=49
++ '[' 49 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=50
++ '[' 50 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=51
++ '[' 51 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=52
++ '[' 52 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=53
++ '[' 53 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=54
++ '[' 54 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=55
++ '[' 55 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=56
++ '[' 56 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=57
++ '[' 57 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=58
++ '[' 58 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=59
++ '[' 59 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=60
++ '[' 60 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=61
++ '[' 61 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=62
++ '[' 62 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=63
++ '[' 63 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=64
++ '[' 64 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=65
++ '[' 65 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=66
++ '[' 66 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=67
++ '[' 67 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=68
++ '[' 68 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=69
++ '[' 69 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=70
++ '[' 70 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=71
++ '[' 71 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=72
++ '[' 72 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=73
++ '[' 73 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=74
++ '[' 74 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=75
++ '[' 75 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=76
++ '[' 76 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=77
++ '[' 77 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=78
++ '[' 78 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=79
++ '[' 79 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=80
++ '[' 80 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=81
++ '[' 81 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=82
++ '[' 82 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=83
++ '[' 83 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=84
++ '[' 84 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=85
++ '[' 85 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=86
++ '[' 86 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=87
++ '[' 87 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=88
++ '[' 88 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=89
++ '[' 89 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=90
++ '[' 90 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=91
++ '[' 91 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=92
++ '[' 92 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=93
++ '[' 93 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=94
++ '[' 94 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=95
++ '[' 95 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=96
++ '[' 96 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=97
++ '[' 97 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=98
++ '[' 98 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=99
++ '[' 99 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=100
++ '[' 100 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=101
++ '[' 101 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=102
++ '[' 102 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=103
++ '[' 103 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=104
++ '[' 104 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=105
++ '[' 105 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=106
++ '[' 106 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=107
++ '[' 107 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=108
++ '[' 108 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=109
++ '[' 109 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=110
++ '[' 110 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=111
++ '[' 111 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=112
++ '[' 112 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=113
++ '[' 113 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=114
++ '[' 114 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=115
++ '[' 115 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=116
++ '[' 116 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=117
++ '[' 117 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=118
++ '[' 118 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=119
++ '[' 119 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=120
++ '[' 120 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=121
++ '[' 121 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=122
++ '[' 122 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=123
++ '[' 123 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=124
++ '[' 124 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=125
++ '[' 125 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=126
++ '[' 126 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=127
++ '[' 127 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=128
++ '[' 128 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=129
++ '[' 129 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=130
++ '[' 130 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=131
++ '[' 131 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=132
++ '[' 132 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=133
++ '[' 133 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=134
++ '[' 134 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=135
++ '[' 135 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=136
++ '[' 136 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=137
++ '[' 137 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=138
++ '[' 138 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=139
++ '[' 139 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=140
++ '[' 140 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=141
++ '[' 141 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=142
++ '[' 142 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=143
++ '[' 143 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=144
++ '[' 144 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=145
++ '[' 145 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=146
++ '[' 146 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=147
++ '[' 147 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=148
++ '[' 148 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=149
++ '[' 149 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=150
++ '[' 150 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=151
++ '[' 151 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=152
++ '[' 152 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=153
++ '[' 153 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=154
++ '[' 154 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=155
++ '[' 155 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=156
++ '[' 156 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=157
++ '[' 157 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=158
++ '[' 158 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=159
++ '[' 159 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=160
++ '[' 160 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=161
++ '[' 161 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=162
++ '[' 162 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=163
++ '[' 163 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=164
++ '[' 164 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=165
++ '[' 165 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=166
++ '[' 166 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=167
++ '[' 167 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=168
++ '[' 168 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=169
++ '[' 169 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=170
++ '[' 170 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=171
++ '[' 171 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=172
++ '[' 172 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=173
++ '[' 173 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=174
++ '[' 174 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=175
++ '[' 175 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=176
++ '[' 176 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=177
++ '[' 177 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=178
++ '[' 178 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=179
++ '[' 179 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=180
++ '[' 180 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=181
++ '[' 181 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=182
++ '[' 182 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=183
++ '[' 183 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=184
++ '[' 184 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=185
++ '[' 185 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=186
++ '[' 186 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=187
++ '[' 187 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=188
++ '[' 188 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=189
++ '[' 189 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=190
++ '[' 190 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=191
++ '[' 191 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=192
++ '[' 192 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=193
++ '[' 193 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=194
++ '[' 194 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=195
++ '[' 195 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=196
++ '[' 196 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=197
++ '[' 197 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=198
++ '[' 198 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=199
++ '[' 199 -lt 200 ']'
++ grep -q 'v2 started' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ sleep 0.05
++ n=200
++ '[' 200 -lt 200 ']'
++ return 1
+++ head -c 400 /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dev.log
++ echo 'zinc dev does not reload an edit: zinc dev: v1 started (0 ms after the save)
+zinc run src/main.ts
+  engine     Zinc interpreter
+  compile    read, check and lower sources...
+  compile    4 files, 25 functions                        20 ms
+  run        interpreter
+zinc dev: v1 refreshed src/main.ts (71 ms after the save)
+zinc dev: program exited (0), waiting for changes...'
+zinc dev does not reload an edit: zinc dev: v1 started (0 ms after the save)
+zinc run src/main.ts
+  engine     Zinc interpreter
+  compile    read, check and lower sources...
+  compile    4 files, 25 functions                        20 ms
+  run        interpreter
+zinc dev: v1 refreshed src/main.ts (71 ms after the save)
+zinc dev: program exited (0), waiting for changes...
++ fail=1
++ kill 26357
++ wait 26357
++ dev=
++ for t in desktop-app 3d game-2d dashboard
++ cd /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/work
++ clean /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/.local/bin/zinc new desktop-app p-desktop-app
++ cd p-desktop-app
++ run ZINC_SHOT=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/desktop-app.png /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/.local/bin/zinc run
++ '[' 0 -eq 0 ']'
++ '[' -s /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/desktop-app.png ']'
++ '[' '!' -s /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/err ']'
+++ head -c 400 /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/err
++ echo 'the desktop-app template does not run from the install: + clean ZINC_STEPS=0 ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=3 ZINC_SIZE=160x120 ZINC_SHOT=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/desktop-app.png /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/.local/bin/zinc run
++ env -i HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4'
+the desktop-app template does not run from the install: + clean ZINC_STEPS=0 ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=3 ZINC_SIZE=160x120 ZINC_SHOT=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/desktop-app.png /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/.local/bin/zinc run
++ env -i HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4
++ fail=1
++ for t in desktop-app 3d game-2d dashboard
++ cd /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/work
++ clean /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/.local/bin/zinc new 3d p-3d
++ cd p-3d
++ run ZINC_SHOT=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/3d.png /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/.local/bin/zinc run
++ '[' 0 -eq 0 ']'
++ '[' -s /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/3d.png ']'
++ '[' '!' -s /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/err ']'
+++ head -c 400 /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/err
++ echo 'the 3d template does not run from the install: + clean ZINC_STEPS=0 ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=3 ZINC_SIZE=160x120 ZINC_SHOT=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/3d.png /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/.local/bin/zinc run
++ env -i HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/'
+the 3d template does not run from the install: + clean ZINC_STEPS=0 ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=3 ZINC_SIZE=160x120 ZINC_SHOT=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/3d.png /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/.local/bin/zinc run
++ env -i HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/
++ fail=1
++ for t in desktop-app 3d game-2d dashboard
++ cd /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/work
++ clean /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/.local/bin/zinc new game-2d p-game-2d
++ cd p-game-2d
++ run ZINC_SHOT=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/game-2d.png /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/.local/bin/zinc run
++ '[' 0 -eq 0 ']'
++ '[' -s /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/game-2d.png ']'
++ '[' '!' -s /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/err ']'
+++ head -c 400 /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/err
++ echo 'the game-2d template does not run from the install: + clean ZINC_STEPS=0 ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=3 ZINC_SIZE=160x120 ZINC_SHOT=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/game-2d.png /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/.local/bin/zinc run
++ env -i HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y46000'
+the game-2d template does not run from the install: + clean ZINC_STEPS=0 ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=3 ZINC_SIZE=160x120 ZINC_SHOT=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/game-2d.png /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/.local/bin/zinc run
++ env -i HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y46000
++ fail=1
++ for t in desktop-app 3d game-2d dashboard
++ cd /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/work
++ clean /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/.local/bin/zinc new dashboard p-dashboard
++ cd p-dashboard
++ run ZINC_SHOT=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dashboard.png /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/.local/bin/zinc run
++ '[' 0 -eq 0 ']'
++ '[' -s /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dashboard.png ']'
++ '[' '!' -s /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/err ']'
+++ head -c 400 /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/err
++ echo 'the dashboard template does not run from the install: + clean ZINC_STEPS=0 ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=3 ZINC_SIZE=160x120 ZINC_SHOT=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dashboard.png /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/.local/bin/zinc run
++ env -i HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y460'
+the dashboard template does not run from the install: + clean ZINC_STEPS=0 ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=3 ZINC_SIZE=160x120 ZINC_SHOT=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/dashboard.png /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/.local/bin/zinc run
++ env -i HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y460
++ fail=1
++ clean /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/.local/bin/zinc plugin-build system /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/work/p-desktop-app
++ grep -q '^system prebuilt ' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/out
++ clean /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/.local/bin/zinc doctor --details
++ grep -Eq '^plugin libraries for (macos|linux) \(this machine\): [1-9][0-9]* prebuilt' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/doctor
++ grep -q '^    video: needs the system libraries libavformat' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/doctor
++ grep -q '(by the manifests)' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/doctor
++ grep -q '^plugin libraries for windows: none' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/doctor
+++ clean /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/.local/bin/zinc --root
+++ env -i HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/zinc-home PATH=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/shims:/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/bin:/bin /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/.local/bin/zinc --root
++ clean /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/.local/bin/zinc check /private/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/.zinc/engine/share/zinc/next/app/atelier
++ '[' 1 = 1 ']'
++ A='/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/Applications/Zinc Atelier.app'
+++ clean '/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/Applications/Zinc Atelier.app/Contents/MacOS/zinc' --root
+++ env -i HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/zinc-home PATH=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/shims:/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/bin:/bin '/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/Applications/Zinc Atelier.app/Contents/MacOS/zinc' --root
++ '[' '/private/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/Applications/Zinc Atelier.app/Contents/Resources/zinc/next' = '/private/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/Applications/Zinc Atelier.app/Contents/Resources/zinc/next' ']'
++ clean ZINC_BACKGROUND=1 ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=2 ZINC_SIZE=800x500 ZINC_SHOT=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/atelier.png ZINC_SHOT_FRAMES=2 ZINC_PROJECT=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/work/atelier '/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/Applications/Zinc Atelier.app/Contents/MacOS/zinc-atelier'
++ '[' -s /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/atelier-2.png ']'
++ '[' -e /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/work/atelier/hello.ts ']'
++ '[' '!' -s /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/shim.log ']'
++ '[' '!' -e /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU/home/zinc-home/toolchains ']'
++ exit 1
++ kill
++ rm -rf /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.qJe4lpgccU

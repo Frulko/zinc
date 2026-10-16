@@ -1,0 +1,35 @@
+=== netlog
+Traceback (most recent call last):
+  File "/Users/runner/work/zinc/zinc/next/tests/netlog_check.py", line 25, in <module>
+    probe.ws(inspector, "/zinc", [{"id": 1, "method": "Network.enable", "params": {}}], events, closed)
+  File "/Users/runner/work/zinc/zinc/next/tests/../tools/cdp-probe", line 41, in ws
+    while until and not until(events): events.append(json.loads(recv()))
+                                                                ^^^^^^
+  File "/Users/runner/work/zinc/zinc/next/tests/../tools/cdp-probe", line 29, in recv
+    need(2); b1 = buf[1] & 0x7f; off = 2
+    ^^^^^^^
+  File "/Users/runner/work/zinc/zinc/next/tests/../tools/cdp-probe", line 26, in need
+    chunk = s.recv(65536)
+            ^^^^^^^^^^^^^
+TimeoutError: timed out
+the program:
+zinc devtools: chrome://inspect (Discover network targets: localhost:49216) or ws://127.0.0.1:49216/zinc
+/Users/runner/work/zinc/zinc/next/tests/t0/netlog.sh: line 22:  5942 Terminated: 15          python3 tests/netlog_servers.py $http $https "$tmp/good.pem" "$tmp/good.key"
+/Users/runner/work/zinc/zinc/next/tests/t0/netlog.sh: line 22:  5943 Terminated: 15          python3 tests/mqtt_broker.py $mqtt > /dev/null 2>&1
+/Users/runner/work/zinc/zinc/next/tests/t0/netlog.sh: line 22:  5949 Terminated: 15          ZINC_NET_SENSITIVE=pin,API_KEY ZINC_DEVTOOLS_PORT=$inspector ZINC_CA_FILE="$tmp/ca.pem" ZINC_REALTIME=1 ZINC_HEADLESS=1 ZINC_FRAMES=100000000 timeout 60 "$ZINC" run --har "$tmp/out.har" tests/golden/host/netlog.tsx -- $http $https $mqtt $quit > "$tmp/app.log" 2>&1
+=== museum_probe
+Traceback (most recent call last):
+  File "<stdin>", line 7, in <module>
+  File "tools/resource-probe", line 19, in request
+    reply = ws(port, '/zinc', [{'id': 1, 'method': method, 'params': params}])[0]
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/runner/work/zinc/zinc/next/tools/cdp-probe", line 6, in ws
+    with socket.create_connection(("127.0.0.1", port), 5 * float(os.environ.get("ZN_WAIT_SCALE", "1"))) as s:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/socket.py", line 865, in create_connection
+    raise exceptions[0]
+  File "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/socket.py", line 850, in create_connection
+    sock.connect(sa)
+ConnectionRefusedError: [Errno 61] Connection refused
+/Users/runner/work/zinc/zinc/plugins/video/index.ts:6:1: error Z5011: The native module is not linked into this engine: 'Video': plugin 'video' needs the system library 'libavformat': install its development package (for example with brew), then run the command again
+zinc: 1 error. Link the module, add a stand-in, or fix the Spec to match the module. `zinc explain Z5011` shows an example.

@@ -1,0 +1,92 @@
+++ dirname tests/t0/lint.sh
++ cd tests/t0/../..
++ fail=0
++ g=tests/golden/lint
+++ pwd
++ here=/Users/runner/work/zinc/zinc/next
+++ mktemp -d
++ tmp=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.H3BwjkTAk4
++ trap 'rm -rf "$tmp"' EXIT
++ cd tests/golden/lint/rules
++ /Users/runner/work/zinc/zinc/next/build/zinc lint
++ echo 1
+++ cat /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.H3BwjkTAk4/rules.code
++ '[' 1 = 1 ']'
++ check rules.expect /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.H3BwjkTAk4/rules.out
++ '[' -n '' ']'
++ cmp -s /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.H3BwjkTAk4/rules.out tests/golden/lint/rules.expect
++ grep -q '^zinc lint: 7 errors, 7 warnings (esp32)' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.H3BwjkTAk4/rules.err
+++ /Users/runner/work/zinc/zinc/next/build/zinc lint --rules
+++ cut '-d ' -f1
++ for r in '$("$ZINC" lint --rules | cut -d'\'' '\'' -f1)'
++ grep -q ' jsx-classname[ :]' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.H3BwjkTAk4/rules.out
++ for r in '$("$ZINC" lint --rules | cut -d'\'' '\'' -f1)'
++ grep -q ' jsx-capitalised-tag[ :]' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.H3BwjkTAk4/rules.out
++ for r in '$("$ZINC" lint --rules | cut -d'\'' '\'' -f1)'
++ grep -q ' compile[ :]' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.H3BwjkTAk4/rules.out
++ for r in '$("$ZINC" lint --rules | cut -d'\'' '\'' -f1)'
++ grep -q ' plugin-requires[ :]' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.H3BwjkTAk4/rules.out
++ for r in '$("$ZINC" lint --rules | cut -d'\'' '\'' -f1)'
++ grep -q ' project-requires[ :]' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.H3BwjkTAk4/rules.out
++ for r in '$("$ZINC" lint --rules | cut -d'\'' '\'' -f1)'
++ grep -q ' ui-layout[ :]' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.H3BwjkTAk4/rules.out
++ for r in '$("$ZINC" lint --rules | cut -d'\'' '\'' -f1)'
++ grep -q ' assets-flash[ :]' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.H3BwjkTAk4/rules.out
++ for r in '$("$ZINC" lint --rules | cut -d'\'' '\'' -f1)'
++ grep -q ' plugin-targets[ :]' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.H3BwjkTAk4/rules.out
++ for r in '$("$ZINC" lint --rules | cut -d'\'' '\'' -f1)'
++ grep -q ' module-requires[ :]' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.H3BwjkTAk4/rules.out
++ for r in '$("$ZINC" lint --rules | cut -d'\'' '\'' -f1)'
++ grep -q ' ui-tier[ :]' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.H3BwjkTAk4/rules.out
++ for r in '$("$ZINC" lint --rules | cut -d'\'' '\'' -f1)'
++ grep -q ' screen-size[ :]' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.H3BwjkTAk4/rules.out
++ for r in '$("$ZINC" lint --rules | cut -d'\'' '\'' -f1)'
++ grep -q ' assets-memory[ :]' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.H3BwjkTAk4/rules.out
++ for r in '$("$ZINC" lint --rules | cut -d'\'' '\'' -f1)'
++ grep -q ' texture-size[ :]' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.H3BwjkTAk4/rules.out
+++ /Users/runner/work/zinc/zinc/next/build/zinc lint --rules
+++ tr -d ' '
+++ wc -l
++ '[' 13 = 13 ']'
++ python3 -c 'import json,sys; d=json.load(sys.stdin); assert d['\''targets'\'']==['\''esp32'\''] and len(d['\''diagnostics'\''])==14, d'
++ cd tests/golden/lint/rules
++ /Users/runner/work/zinc/zinc/next/build/zinc lint --json
++ /Users/runner/work/zinc/zinc/next/build/zinc lint --all-targets ../examples/hero
++ sed -n '/^target /,$p' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.H3BwjkTAk4/hero.out
++ check hero.matrix /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.H3BwjkTAk4/hero.matrix
++ '[' -n '' ']'
++ cmp -s /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.H3BwjkTAk4/hero.matrix tests/golden/lint/hero.matrix
++ echo 'hero.matrix differs:'
+hero.matrix differs:
++ diff tests/golden/lint/hero.matrix /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.H3BwjkTAk4/hero.matrix
++ head -20
+10a11,13
+> android  T3   warns    plugin-targets: plugin video is not made for this target (its plugin.json targets: macos, linux, rpi1, webos) (+3)
+> ios      T3   warns    plugin-targets: plugin video is not made for this target (its plugin.json targets: macos, linux, rpi1, webos) (+3)
+> ios-sim  T3   warns    plugin-targets: plugin video is not made for this target (its plugin.json targets: macos, linux, rpi1, webos) (+3)
++ fail=1
++ cd tests/golden/lint/esp32-app
++ /Users/runner/work/zinc/zinc/next/build/zinc lint --all-targets
++ sed -n '/^target /,$p' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.H3BwjkTAk4/esp.out
++ check esp32-app.matrix /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.H3BwjkTAk4/esp.matrix
++ '[' -n '' ']'
++ cmp -s /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.H3BwjkTAk4/esp.matrix tests/golden/lint/esp32-app.matrix
++ echo 'esp32-app.matrix differs:'
+esp32-app.matrix differs:
++ diff tests/golden/lint/esp32-app.matrix /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.H3BwjkTAk4/esp.matrix
++ head -20
+10a11,13
+> android  T3   refuses  project-requires: requires gpio (android has gpio no)
+> ios      T3   refuses  project-requires: requires gpio (ios has gpio no)
+> ios-sim  T3   refuses  project-requires: requires gpio (ios-sim has gpio no)
++ fail=1
++ cp -R tests/golden/lint/rules /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.H3BwjkTAk4/r
++ /Users/runner/work/zinc/zinc/next/build/zinc migrate --apply /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.H3BwjkTAk4/r
++ cd /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.H3BwjkTAk4/r
++ /Users/runner/work/zinc/zinc/next/build/zinc lint
++ grep -q ' jsx-'
++ /Users/runner/work/zinc/zinc/next/build/zinc lint --target nowhere .
++ '[' 2 = 2 ']'
++ cd /Users/runner/work/zinc/zinc/next
++ exit 1
++ rm -rf /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.H3BwjkTAk4

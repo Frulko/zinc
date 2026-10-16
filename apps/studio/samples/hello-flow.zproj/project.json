@@ -1,7 +1,7 @@
 {
   "format": "zincstudio/1",
   "name": "Hello flow",
-  "target": "preview", "width": 480, "height": 320, "device": "",
+  "target": "sim", "width": 480, "height": 320, "device": "",
   "boxes": [
     {"id":"b1","type":"show_text","title":"Greeting","x":40,"y":60,"params":[{"name":"text","value":"Hello, Zinc!"},{"name":"size","value":"4xl"},{"name":"color","value":"zinc-900"}],"script":""},
     {"id":"b2","type":"delay","title":"Wait 1 s","x":280,"y":60,"params":[{"name":"seconds","value":"1"}],"script":""},

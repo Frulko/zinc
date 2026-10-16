@@ -1,0 +1,860 @@
+++ dirname tests/t0/netlog_kill.sh
++ cd tests/t0/../..
++ command -v python3
+++ mktemp -d
++ tmp=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4
++ trap 'kill $server $app 2>/dev/null; rm -rf "$tmp"' EXIT
+++ python3 tests/free_ports.py
++ port=49273
++ server=24215
++ cat
++ python3 tests/netlog_servers.py 49273
++ sleep 1
++ fail=0
++ for sig in TERM KILL
++ har=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ app=24222
++ n=0
++ '[' 0 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ ZINC_REALTIME=1
++ /Users/runner/work/zinc/zinc/next/build/zinc run --har /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/prog.ts -- 49273
++ sleep 0.1
++ n=1
++ '[' 1 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=2
++ '[' 2 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=3
++ '[' 3 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=4
++ '[' 4 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=5
++ '[' 5 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=6
++ '[' 6 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=7
++ '[' 7 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=8
++ '[' 8 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=9
++ '[' 9 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=10
++ '[' 10 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=11
++ '[' 11 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=12
++ '[' 12 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=13
++ '[' 13 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=14
++ '[' 14 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=15
++ '[' 15 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=16
++ '[' 16 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=17
++ '[' 17 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=18
++ '[' 18 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=19
++ '[' 19 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=20
++ '[' 20 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=21
++ '[' 21 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=22
++ '[' 22 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=23
++ '[' 23 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=24
++ '[' 24 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=25
++ '[' 25 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=26
++ '[' 26 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=27
++ '[' 27 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=28
++ '[' 28 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=29
++ '[' 29 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=30
++ '[' 30 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=31
++ '[' 31 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=32
++ '[' 32 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=33
++ '[' 33 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=34
++ '[' 34 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=35
++ '[' 35 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=36
++ '[' 36 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=37
++ '[' 37 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=38
++ '[' 38 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=39
++ '[' 39 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=40
++ '[' 40 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=41
++ '[' 41 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=42
++ '[' 42 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=43
++ '[' 43 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=44
++ '[' 44 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=45
++ '[' 45 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=46
++ '[' 46 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=47
++ '[' 47 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=48
++ '[' 48 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=49
++ '[' 49 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=50
++ '[' 50 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=51
++ '[' 51 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=52
++ '[' 52 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=53
++ '[' 53 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=54
++ '[' 54 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=55
++ '[' 55 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=56
++ '[' 56 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=57
++ '[' 57 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=58
++ '[' 58 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=59
++ '[' 59 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=60
++ '[' 60 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=61
++ '[' 61 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=62
++ '[' 62 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=63
++ '[' 63 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=64
++ '[' 64 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=65
++ '[' 65 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=66
++ '[' 66 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=67
++ '[' 67 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=68
++ '[' 68 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=69
++ '[' 69 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=70
++ '[' 70 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=71
++ '[' 71 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=72
++ '[' 72 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=73
++ '[' 73 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=74
++ '[' 74 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=75
++ '[' 75 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=76
++ '[' 76 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=77
++ '[' 77 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=78
++ '[' 78 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=79
++ '[' 79 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=80
++ '[' 80 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=81
++ '[' 81 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=82
++ '[' 82 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=83
++ '[' 83 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=84
++ '[' 84 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=85
++ '[' 85 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=86
++ '[' 86 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=87
++ '[' 87 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=88
++ '[' 88 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=89
++ '[' 89 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=90
++ '[' 90 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=91
++ '[' 91 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=92
++ '[' 92 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=93
++ '[' 93 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=94
++ '[' 94 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=95
++ '[' 95 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=96
++ '[' 96 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=97
++ '[' 97 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=98
++ '[' 98 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=99
++ '[' 99 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
++ sleep 0.1
++ n=100
++ '[' 100 -lt 100 ']'
++ kill -0 24222
+++ cat /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.log
++ echo 'the program did not keep running: panic: Uncaught TypeError: fetch failed: timeout'
+the program did not keep running: panic: Uncaught TypeError: fetch failed: timeout
++ fail=1
++ kill -TERM 24222
+tests/t0/netlog_kill.sh: line 35: kill: (24222) - No such process
++ wait 24222
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
+++ head -c 300 /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.har
+++ cat /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/TERM.log
++ echo 'SIGTERM left no valid HAR with the request: {"log":{"version":"1.2","creator":{"name":"zinc","version":"0.1"},"pages":[],"entries":[{"startedDateTime":"2026-10-16T15:39:13.614Z","time":7871.772,"request":{"method":"GET","url":"http://127.0.0.1:49273/hello","httpVersion":"HTTP/1.1","cookies":[],"headers":[{"name":"Host","value":"127.0.0.1:4927 | panic: Uncaught TypeError: fetch failed: timeout'
+SIGTERM left no valid HAR with the request: {"log":{"version":"1.2","creator":{"name":"zinc","version":"0.1"},"pages":[],"entries":[{"startedDateTime":"2026-10-16T15:39:13.614Z","time":7871.772,"request":{"method":"GET","url":"http://127.0.0.1:49273/hello","httpVersion":"HTTP/1.1","cookies":[],"headers":[{"name":"Host","value":"127.0.0.1:4927 | panic: Uncaught TypeError: fetch failed: timeout
++ fail=1
++ for sig in TERM KILL
++ har=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ app=24963
++ n=0
++ '[' 0 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ ZINC_REALTIME=1
++ /Users/runner/work/zinc/zinc/next/build/zinc run --har /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/prog.ts -- 49273
++ sleep 0.1
++ n=1
++ '[' 1 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=2
++ '[' 2 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=3
++ '[' 3 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=4
++ '[' 4 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=5
++ '[' 5 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=6
++ '[' 6 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=7
++ '[' 7 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=8
++ '[' 8 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=9
++ '[' 9 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=10
++ '[' 10 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=11
++ '[' 11 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=12
++ '[' 12 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=13
++ '[' 13 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=14
++ '[' 14 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=15
++ '[' 15 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=16
++ '[' 16 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=17
++ '[' 17 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=18
++ '[' 18 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=19
++ '[' 19 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=20
++ '[' 20 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=21
++ '[' 21 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=22
++ '[' 22 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=23
++ '[' 23 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=24
++ '[' 24 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=25
++ '[' 25 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=26
++ '[' 26 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=27
++ '[' 27 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=28
++ '[' 28 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=29
++ '[' 29 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=30
++ '[' 30 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=31
++ '[' 31 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=32
++ '[' 32 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=33
++ '[' 33 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=34
++ '[' 34 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=35
++ '[' 35 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=36
++ '[' 36 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=37
++ '[' 37 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=38
++ '[' 38 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=39
++ '[' 39 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=40
++ '[' 40 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=41
++ '[' 41 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=42
++ '[' 42 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=43
++ '[' 43 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=44
++ '[' 44 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=45
++ '[' 45 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=46
++ '[' 46 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=47
++ '[' 47 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=48
++ '[' 48 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=49
++ '[' 49 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=50
++ '[' 50 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=51
++ '[' 51 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=52
++ '[' 52 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=53
++ '[' 53 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=54
++ '[' 54 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=55
++ '[' 55 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=56
++ '[' 56 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=57
++ '[' 57 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=58
++ '[' 58 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=59
++ '[' 59 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=60
++ '[' 60 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=61
++ '[' 61 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=62
++ '[' 62 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=63
++ '[' 63 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=64
++ '[' 64 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=65
++ '[' 65 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=66
++ '[' 66 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=67
++ '[' 67 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=68
++ '[' 68 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=69
++ '[' 69 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=70
++ '[' 70 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=71
++ '[' 71 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=72
++ '[' 72 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=73
++ '[' 73 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=74
++ '[' 74 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=75
++ '[' 75 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=76
++ '[' 76 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=77
++ '[' 77 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=78
++ '[' 78 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=79
++ '[' 79 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=80
++ '[' 80 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=81
++ '[' 81 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=82
++ '[' 82 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=83
++ '[' 83 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=84
++ '[' 84 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=85
++ '[' 85 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=86
++ '[' 86 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=87
++ '[' 87 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=88
++ '[' 88 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=89
++ '[' 89 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=90
++ '[' 90 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=91
++ '[' 91 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=92
++ '[' 92 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=93
++ '[' 93 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=94
++ '[' 94 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=95
++ '[' 95 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=96
++ '[' 96 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=97
++ '[' 97 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=98
++ '[' 98 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=99
++ '[' 99 -lt 100 ']'
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
++ sleep 0.1
++ n=100
++ '[' 100 -lt 100 ']'
++ kill -0 24963
+++ cat /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.log
++ echo 'the program did not keep running: panic: Uncaught TypeError: fetch failed: timeout'
+the program did not keep running: panic: Uncaught TypeError: fetch failed: timeout
++ fail=1
++ kill -KILL 24963
+tests/t0/netlog_kill.sh: line 35: kill: (24963) - No such process
++ wait 24963
++ check /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
+++ head -c 300 /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.har
+++ cat /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4/KILL.log
++ echo 'SIGKILL left no valid HAR with the request: {"log":{"version":"1.2","creator":{"name":"zinc","version":"0.1"},"pages":[],"entries":[{"startedDateTime":"2026-10-16T15:39:34.950Z","time":7819.663,"request":{"method":"GET","url":"http://127.0.0.1:49273/hello","httpVersion":"HTTP/1.1","cookies":[],"headers":[{"name":"Host","value":"127.0.0.1:4927 | panic: Uncaught TypeError: fetch failed: timeout'
+SIGKILL left no valid HAR with the request: {"log":{"version":"1.2","creator":{"name":"zinc","version":"0.1"},"pages":[],"entries":[{"startedDateTime":"2026-10-16T15:39:34.950Z","time":7819.663,"request":{"method":"GET","url":"http://127.0.0.1:49273/hello","httpVersion":"HTTP/1.1","cookies":[],"headers":[{"name":"Host","value":"127.0.0.1:4927 | panic: Uncaught TypeError: fetch failed: timeout
++ fail=1
++ '[' 1 -eq 0 ']'
++ exit 1
++ kill 24215 24963
++ rm -rf /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.W29cdeJUK4
+tests/t0/netlog_kill.sh: line 39: 24215 Terminated: 15          python3 tests/netlog_servers.py "$port"

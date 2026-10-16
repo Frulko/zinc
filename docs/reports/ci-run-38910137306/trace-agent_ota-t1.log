@@ -1,0 +1,584 @@
+++ dirname tests/t1/agent_ota.sh
++ cd tests/t1/../..
++++ dirname /Users/runner/work/zinc/zinc/next/build/zinc
+++ cd /Users/runner/work/zinc/zinc/next/build
+++ pwd
+++ basename /Users/runner/work/zinc/zinc/next/build/zinc
++ Z=/Users/runner/work/zinc/zinc/next/build/zinc
+++ mktemp -d
++ tmp=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz
++ D=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device
++ W=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/work
++ www=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/www
++ name=zn-o28247
++ fail=0
++ trap cleanup EXIT
++ mkdir -p /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/www /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/fakehome
+++ HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/fakehome
+++ XDG_CONFIG_HOME=
+++ ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device
+++ /Users/runner/work/zinc/zinc/next/build/zinc agent install --print --os linux --port 7000 --name 'my board' --no-shell
++ unit='# writes /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/fakehome/.config/systemd/user/zinc-agent.service
+[Unit]
+Description=Zinc device agent
+
+[Service]
+ExecStart="/Users/runner/work/zinc/zinc/next/build/zinc" "agent" "--port" "7000" "--name" "my board" "--no-shell"
+Environment="ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device"
+Restart=always
+RestartSec=5
+KillMode=process
+
+[Install]
+WantedBy=default.target
+# then: systemctl --user daemon-reload
+# then: systemctl --user enable --now zinc-agent.service
+# then: loginctl enable-linger runner'
++ echo '# writes /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/fakehome/.config/systemd/user/zinc-agent.service
+[Unit]
+Description=Zinc device agent
+
+[Service]
+ExecStart="/Users/runner/work/zinc/zinc/next/build/zinc" "agent" "--port" "7000" "--name" "my board" "--no-shell"
+Environment="ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device"
+Restart=always
+RestartSec=5
+KillMode=process
+
+[Install]
+WantedBy=default.target
+# then: systemctl --user daemon-reload
+# then: systemctl --user enable --now zinc-agent.service
+# then: loginctl enable-linger runner'
++ grep -q '^# writes /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/fakehome/.config/systemd/user/zinc-agent.service$'
++ echo '# writes /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/fakehome/.config/systemd/user/zinc-agent.service
+[Unit]
+Description=Zinc device agent
+
+[Service]
+ExecStart="/Users/runner/work/zinc/zinc/next/build/zinc" "agent" "--port" "7000" "--name" "my board" "--no-shell"
+Environment="ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device"
+Restart=always
+RestartSec=5
+KillMode=process
+
+[Install]
+WantedBy=default.target
+# then: systemctl --user daemon-reload
+# then: systemctl --user enable --now zinc-agent.service
+# then: loginctl enable-linger runner'
++ grep -q '^ExecStart="/.*/zinc" "agent" "--port" "7000" "--name" "my board" "--no-shell"$'
++ for line in ''\''^\[Service\]$'\''' ''\''^Restart=always$'\''' ''\''^KillMode=process$'\''' ''\''^WantedBy=default.target$'\''' '"^Environment=\"ZINC_HOME=$D\"$"' ''\''^# then: systemctl --user enable --now zinc-agent.service$'\''' ''\''^# then: loginctl enable-linger '\'''
++ echo '# writes /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/fakehome/.config/systemd/user/zinc-agent.service
+[Unit]
+Description=Zinc device agent
+
+[Service]
+ExecStart="/Users/runner/work/zinc/zinc/next/build/zinc" "agent" "--port" "7000" "--name" "my board" "--no-shell"
+Environment="ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device"
+Restart=always
+RestartSec=5
+KillMode=process
+
+[Install]
+WantedBy=default.target
+# then: systemctl --user daemon-reload
+# then: systemctl --user enable --now zinc-agent.service
+# then: loginctl enable-linger runner'
++ grep -q '^\[Service\]$'
++ for line in ''\''^\[Service\]$'\''' ''\''^Restart=always$'\''' ''\''^KillMode=process$'\''' ''\''^WantedBy=default.target$'\''' '"^Environment=\"ZINC_HOME=$D\"$"' ''\''^# then: systemctl --user enable --now zinc-agent.service$'\''' ''\''^# then: loginctl enable-linger '\'''
++ echo '# writes /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/fakehome/.config/systemd/user/zinc-agent.service
+[Unit]
+Description=Zinc device agent
+
+[Service]
+ExecStart="/Users/runner/work/zinc/zinc/next/build/zinc" "agent" "--port" "7000" "--name" "my board" "--no-shell"
+Environment="ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device"
+Restart=always
+RestartSec=5
+KillMode=process
+
+[Install]
+WantedBy=default.target
+# then: systemctl --user daemon-reload
+# then: systemctl --user enable --now zinc-agent.service
+# then: loginctl enable-linger runner'
++ grep -q '^Restart=always$'
++ for line in ''\''^\[Service\]$'\''' ''\''^Restart=always$'\''' ''\''^KillMode=process$'\''' ''\''^WantedBy=default.target$'\''' '"^Environment=\"ZINC_HOME=$D\"$"' ''\''^# then: systemctl --user enable --now zinc-agent.service$'\''' ''\''^# then: loginctl enable-linger '\'''
++ echo '# writes /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/fakehome/.config/systemd/user/zinc-agent.service
+[Unit]
+Description=Zinc device agent
+
+[Service]
+ExecStart="/Users/runner/work/zinc/zinc/next/build/zinc" "agent" "--port" "7000" "--name" "my board" "--no-shell"
+Environment="ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device"
+Restart=always
+RestartSec=5
+KillMode=process
+
+[Install]
+WantedBy=default.target
+# then: systemctl --user daemon-reload
+# then: systemctl --user enable --now zinc-agent.service
+# then: loginctl enable-linger runner'
++ grep -q '^KillMode=process$'
++ for line in ''\''^\[Service\]$'\''' ''\''^Restart=always$'\''' ''\''^KillMode=process$'\''' ''\''^WantedBy=default.target$'\''' '"^Environment=\"ZINC_HOME=$D\"$"' ''\''^# then: systemctl --user enable --now zinc-agent.service$'\''' ''\''^# then: loginctl enable-linger '\'''
++ echo '# writes /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/fakehome/.config/systemd/user/zinc-agent.service
+[Unit]
+Description=Zinc device agent
+
+[Service]
+ExecStart="/Users/runner/work/zinc/zinc/next/build/zinc" "agent" "--port" "7000" "--name" "my board" "--no-shell"
+Environment="ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device"
+Restart=always
+RestartSec=5
+KillMode=process
+
+[Install]
+WantedBy=default.target
+# then: systemctl --user daemon-reload
+# then: systemctl --user enable --now zinc-agent.service
+# then: loginctl enable-linger runner'
++ grep -q '^WantedBy=default.target$'
++ for line in ''\''^\[Service\]$'\''' ''\''^Restart=always$'\''' ''\''^KillMode=process$'\''' ''\''^WantedBy=default.target$'\''' '"^Environment=\"ZINC_HOME=$D\"$"' ''\''^# then: systemctl --user enable --now zinc-agent.service$'\''' ''\''^# then: loginctl enable-linger '\'''
++ echo '# writes /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/fakehome/.config/systemd/user/zinc-agent.service
+[Unit]
+Description=Zinc device agent
+
+[Service]
+ExecStart="/Users/runner/work/zinc/zinc/next/build/zinc" "agent" "--port" "7000" "--name" "my board" "--no-shell"
+Environment="ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device"
+Restart=always
+RestartSec=5
+KillMode=process
+
+[Install]
+WantedBy=default.target
+# then: systemctl --user daemon-reload
+# then: systemctl --user enable --now zinc-agent.service
+# then: loginctl enable-linger runner'
++ grep -q '^Environment="ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device"$'
++ for line in ''\''^\[Service\]$'\''' ''\''^Restart=always$'\''' ''\''^KillMode=process$'\''' ''\''^WantedBy=default.target$'\''' '"^Environment=\"ZINC_HOME=$D\"$"' ''\''^# then: systemctl --user enable --now zinc-agent.service$'\''' ''\''^# then: loginctl enable-linger '\'''
++ echo '# writes /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/fakehome/.config/systemd/user/zinc-agent.service
+[Unit]
+Description=Zinc device agent
+
+[Service]
+ExecStart="/Users/runner/work/zinc/zinc/next/build/zinc" "agent" "--port" "7000" "--name" "my board" "--no-shell"
+Environment="ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device"
+Restart=always
+RestartSec=5
+KillMode=process
+
+[Install]
+WantedBy=default.target
+# then: systemctl --user daemon-reload
+# then: systemctl --user enable --now zinc-agent.service
+# then: loginctl enable-linger runner'
++ grep -q '^# then: systemctl --user enable --now zinc-agent.service$'
++ for line in ''\''^\[Service\]$'\''' ''\''^Restart=always$'\''' ''\''^KillMode=process$'\''' ''\''^WantedBy=default.target$'\''' '"^Environment=\"ZINC_HOME=$D\"$"' ''\''^# then: systemctl --user enable --now zinc-agent.service$'\''' ''\''^# then: loginctl enable-linger '\'''
++ echo '# writes /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/fakehome/.config/systemd/user/zinc-agent.service
+[Unit]
+Description=Zinc device agent
+
+[Service]
+ExecStart="/Users/runner/work/zinc/zinc/next/build/zinc" "agent" "--port" "7000" "--name" "my board" "--no-shell"
+Environment="ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device"
+Restart=always
+RestartSec=5
+KillMode=process
+
+[Install]
+WantedBy=default.target
+# then: systemctl --user daemon-reload
+# then: systemctl --user enable --now zinc-agent.service
+# then: loginctl enable-linger runner'
++ grep -q '^# then: loginctl enable-linger '
+++ HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/fakehome
+++ ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device
+++ /Users/runner/work/zinc/zinc/next/build/zinc agent install --print --os macos --name 'a<b'
++ plist='# writes /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/fakehome/Library/LaunchAgents/dev.zinc.agent.plist
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>dev.zinc.agent</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/runner/work/zinc/zinc/next/build/zinc</string>
+    <string>agent</string>
+    <string>--name</string>
+    <string>a&lt;b</string>
+  </array>
+  <key>EnvironmentVariables</key><dict><key>ZINC_HOME</key><string>/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device</string></dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device/agent/logs/.agent.log</string>
+  <key>StandardErrorPath</key><string>/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device/agent/logs/.agent.log</string>
+</dict>
+</plist>
+# then: launchctl bootout gui/501/dev.zinc.agent
+# then: launchctl bootstrap gui/501 /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/fakehome/Library/LaunchAgents/dev.zinc.agent.plist'
++ echo '# writes /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/fakehome/Library/LaunchAgents/dev.zinc.agent.plist
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>dev.zinc.agent</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/runner/work/zinc/zinc/next/build/zinc</string>
+    <string>agent</string>
+    <string>--name</string>
+    <string>a&lt;b</string>
+  </array>
+  <key>EnvironmentVariables</key><dict><key>ZINC_HOME</key><string>/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device</string></dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device/agent/logs/.agent.log</string>
+  <key>StandardErrorPath</key><string>/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device/agent/logs/.agent.log</string>
+</dict>
+</plist>
+# then: launchctl bootout gui/501/dev.zinc.agent
+# then: launchctl bootstrap gui/501 /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/fakehome/Library/LaunchAgents/dev.zinc.agent.plist'
++ grep -q '^# writes /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/fakehome/Library/LaunchAgents/dev.zinc.agent.plist$'
++ grep -q '<key>RunAtLoad</key><true/>'
++ echo '# writes /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/fakehome/Library/LaunchAgents/dev.zinc.agent.plist
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>dev.zinc.agent</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/runner/work/zinc/zinc/next/build/zinc</string>
+    <string>agent</string>
+    <string>--name</string>
+    <string>a&lt;b</string>
+  </array>
+  <key>EnvironmentVariables</key><dict><key>ZINC_HOME</key><string>/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device</string></dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device/agent/logs/.agent.log</string>
+  <key>StandardErrorPath</key><string>/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device/agent/logs/.agent.log</string>
+</dict>
+</plist>
+# then: launchctl bootout gui/501/dev.zinc.agent
+# then: launchctl bootstrap gui/501 /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/fakehome/Library/LaunchAgents/dev.zinc.agent.plist'
++ echo '# writes /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/fakehome/Library/LaunchAgents/dev.zinc.agent.plist
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>dev.zinc.agent</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/runner/work/zinc/zinc/next/build/zinc</string>
+    <string>agent</string>
+    <string>--name</string>
+    <string>a&lt;b</string>
+  </array>
+  <key>EnvironmentVariables</key><dict><key>ZINC_HOME</key><string>/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device</string></dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device/agent/logs/.agent.log</string>
++ grep -q '<string>a&lt;b</string>'
+  <key>StandardErrorPath</key><string>/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device/agent/logs/.agent.log</string>
+</dict>
+</plist>
+# then: launchctl bootout gui/501/dev.zinc.agent
+# then: launchctl bootstrap gui/501 /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/fakehome/Library/LaunchAgents/dev.zinc.agent.plist'
++ echo '# writes /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/fakehome/Library/LaunchAgents/dev.zinc.agent.plist
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>dev.zinc.agent</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/runner/work/zinc/zinc/next/build/zinc</string>
+    <string>agent</string>
+    <string>--name</string>
+    <string>a&lt;b</string>
+  </array>
+  <key>EnvironmentVariables</key><dict><key>ZINC_HOME</key><string>/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device</string></dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device/agent/logs/.agent.log</string>
+  <key>StandardErrorPath</key><string>/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device/agent/logs/.agent.log</string>
+</dict>
+</plist>
+# then: launchctl bootout gui/501/dev.zinc.agent
+# then: launchctl bootstrap gui/501 /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/fakehome/Library/LaunchAgents/dev.zinc.agent.plist'
+++ id -u
++ grep -q '^# then: launchctl bootstrap gui/501 /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/fakehome/Library'
++ command -v plutil
++ echo '# writes /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/fakehome/Library/LaunchAgents/dev.zinc.agent.plist
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>dev.zinc.agent</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/runner/work/zinc/zinc/next/build/zinc</string>
+    <string>agent</string>
+    <string>--name</string>
+    <string>a&lt;b</string>
+  </array>
+  <key>EnvironmentVariables</key><dict><key>ZINC_HOME</key><string>/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device</string></dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device/agent/logs/.agent.log</string>
+  <key>StandardErrorPath</key><string>/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device/agent/logs/.agent.log</string>
+</dict>
+</plist>
+# then: launchctl bootout gui/501/dev.zinc.agent
+# then: launchctl bootstrap gui/501 /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/fakehome/Library/LaunchAgents/dev.zinc.agent.plist'
++ plutil -lint -
++ grep -v '^#'
++ grep -q '^# removes /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/fakehome/'
++ HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/fakehome
++ XDG_CONFIG_HOME=
++ ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device
++ /Users/runner/work/zinc/zinc/next/build/zinc agent uninstall --print
++ ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device
++ /Users/runner/work/zinc/zinc/next/build/zinc agent install --port
++ '[' 2 -eq 2 ']'
+++ ls -A /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/fakehome
++ '[' -z '' ']'
++ '[' '!' -e /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device ']'
+++ /Users/runner/work/zinc/zinc/next/build/zinc update-keygen
+++ sed 's/^/k_/'
++ eval 'k_seed=756854b826b0de82dbd745356d5eeac304d732298e8a8fc4bbf9b36c9d6a56c6
+k_public=465bba3c94573a94af4a7887a4133f590dd63983d8e8c97c001d546fde9497ff'
+++ k_seed=756854b826b0de82dbd745356d5eeac304d732298e8a8fc4bbf9b36c9d6a56c6
+++ k_public=465bba3c94573a94af4a7887a4133f590dd63983d8e8c97c001d546fde9497ff
+++ /Users/runner/work/zinc/zinc/next/build/zinc update-keygen
+++ sed 's/^/e_/'
++ eval 'e_seed=80b0e6aff5ba79eb5351599db22eb107d300a8f57bf835f28543c3b48f6fdf5c
+e_public=523d28c2698d412e2953306cee770906eb986e3274fed78d62ff34f11ba4c739'
+++ e_seed=80b0e6aff5ba79eb5351599db22eb107d300a8f57bf835f28543c3b48f6fdf5c
+++ e_public=523d28c2698d412e2953306cee770906eb986e3274fed78d62ff34f11ba4c739
++ project v09 0.9.0 'console.log("this is 0.9.0");'
++ mkdir -p /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/v09/src
++ printf '%s\n' 'console.log("this is 0.9.0");'
++ printf '{"name":"otaapp","entry":"src/main.ts","app":{"id":"com.example.ota","version":"%s"},"update":{"url":"file://%s/","channel":"stable","publicKey":"%s"}}\n' 0.9.0 /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/www 465bba3c94573a94af4a7887a4133f590dd63983d8e8c97c001d546fde9497ff
++ ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/work
++ /Users/runner/work/zinc/zinc/next/build/zinc pack /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/v09 -o /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/v09.zapp
++ project v10 1.0.0 'console.log("this is 1.0.0");'
++ mkdir -p /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/v10/src
++ printf '%s\n' 'console.log("this is 1.0.0");'
++ printf '{"name":"otaapp","entry":"src/main.ts","app":{"id":"com.example.ota","version":"%s"},"update":{"url":"file://%s/","channel":"stable","publicKey":"%s"}}\n' 1.0.0 /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/www 465bba3c94573a94af4a7887a4133f590dd63983d8e8c97c001d546fde9497ff
++ ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/work
++ /Users/runner/work/zinc/zinc/next/build/zinc pack /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/v10 -o /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/v10.zapp
++ project v11 1.1.0 'console.log("this is 1.1.0"); setTimeout(() => { console.log("still there"); }, 6000);'
++ mkdir -p /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/v11/src
++ printf '%s\n' 'console.log("this is 1.1.0"); setTimeout(() => { console.log("still there"); }, 6000);'
++ printf '{"name":"otaapp","entry":"src/main.ts","app":{"id":"com.example.ota","version":"%s"},"update":{"url":"file://%s/","channel":"stable","publicKey":"%s"}}\n' 1.1.0 /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/www 465bba3c94573a94af4a7887a4133f590dd63983d8e8c97c001d546fde9497ff
++ ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/work
++ /Users/runner/work/zinc/zinc/next/build/zinc pack /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/v11 -o /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/v11.zapp
++ project v12 1.2.0 'console.log("this is 1.2.0"); throw new Error("a broken build");'
++ mkdir -p /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/v12/src
++ printf '%s\n' 'console.log("this is 1.2.0"); throw new Error("a broken build");'
++ printf '{"name":"otaapp","entry":"src/main.ts","app":{"id":"com.example.ota","version":"%s"},"update":{"url":"file://%s/","channel":"stable","publicKey":"%s"}}\n' 1.2.0 /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/www 465bba3c94573a94af4a7887a4133f590dd63983d8e8c97c001d546fde9497ff
++ ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/work
++ /Users/runner/work/zinc/zinc/next/build/zinc pack /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/v12 -o /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/v12.zapp
++ project v13 1.3.0 'console.log("this is 1.3.0");'
++ mkdir -p /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/v13/src
++ printf '%s\n' 'console.log("this is 1.3.0");'
++ printf '{"name":"otaapp","entry":"src/main.ts","app":{"id":"com.example.ota","version":"%s"},"update":{"url":"file://%s/","channel":"stable","publicKey":"%s"}}\n' 1.3.0 /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/www 465bba3c94573a94af4a7887a4133f590dd63983d8e8c97c001d546fde9497ff
++ ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/work
++ /Users/runner/work/zinc/zinc/next/build/zinc pack /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/v13 -o /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/v13.zapp
++ apid=28307
++ until_grep 'pairing code' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/agent.log
++ n=0
++ '[' 0 -lt 100 ']'
++ grep -q 'pairing code' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/agent.log
++ ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device
++ SHELL=/bin/sh
++ ZINC_REALTIME=1
++ ZINC_AGENT_TRIAL_MS=4000
++ ZINC_UPDATE_PUBKEY=523d28c2698d412e2953306cee770906eb986e3274fed78d62ff34f11ba4c739
++ /Users/runner/work/zinc/zinc/next/build/zinc agent --bind 127.0.0.1 --port 0 --no-mdns --name zn-o28247
++ sleep 0.1
++ n=1
++ '[' 1 -lt 100 ']'
++ grep -q 'pairing code' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/agent.log
++ grep -q 'pairing code' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/agent.log
+++ sed -n 's/.*listening on 127.0.0.1:\([0-9]*\).*/\1/p' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/agent.log
++ port=49298
+++ sed -n 's/.*pairing code: \([0-9]*\).*/\1/p' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/agent.log
++ dev pair 127.0.0.1:49298 412664
++ ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/work
++ timeout 60 /Users/runner/work/zinc/zinc/next/build/zinc device pair 127.0.0.1:49298 412664
++ app=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device/agent/apps/otaapp
++ log=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device/agent/logs/otaapp.log
++ dev install /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/v10.zapp
+++ dev install /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/v11.zapp
++ out='++ ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/work
+++ timeout 60 /Users/runner/work/zinc/zinc/next/build/zinc device install /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/v11.zapp
+zinc device: otaapp is a signed app (update.publicKey): this .zapp is unsigned, refused (zinc sign <app.zapp> <seed> writes the .sig that install sends with it)'
++ echo '++ ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/work
+++ timeout 60 /Users/runner/work/zinc/zinc/next/build/zinc device install /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/v11.zapp
+zinc device: otaapp is a signed app (update.publicKey): this .zapp is unsigned, refused (zinc sign <app.zapp> <seed> writes the .sig that install sends with it)'
++ grep -q 'unsigned, refused'
++ /Users/runner/work/zinc/zinc/next/build/zinc sign /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/v09.zapp 756854b826b0de82dbd745356d5eeac304d732298e8a8fc4bbf9b36c9d6a56c6
+++ dev install /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/v09.zapp
++ out='++ ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/work
+++ timeout 60 /Users/runner/work/zinc/zinc/next/build/zinc device install /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/v09.zapp
+zinc device: otaapp 1.0.0 is installed: 0.9.0 is not newer, refused'
++ echo '++ ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/work
+++ timeout 60 /Users/runner/work/zinc/zinc/next/build/zinc device install /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/v09.zapp
+zinc device: otaapp 1.0.0 is installed: 0.9.0 is not newer, refused'
++ grep -q 'otaapp 1.0.0 is installed: 0.9.0 is not newer, refused'
++ /Users/runner/work/zinc/zinc/next/build/zinc sign /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/v11.zapp 80b0e6aff5ba79eb5351599db22eb107d300a8f57bf835f28543c3b48f6fdf5c
+++ dev install /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/v11.zapp
++ out='++ ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/work
+++ timeout 60 /Users/runner/work/zinc/zinc/next/build/zinc device install /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/v11.zapp
+zinc device: the signature does not verify with the key of otaapp (465bba3c94573a94...): refused, nothing was installed'
++ echo '++ ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/work
+++ timeout 60 /Users/runner/work/zinc/zinc/next/build/zinc device install /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/v11.zapp
+zinc device: the signature does not verify with the key of otaapp (465bba3c94573a94...): refused, nothing was installed'
++ grep -q 'signature does not verify'
++ mkdir -p /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/dir
++ printf '#!/bin/sh\necho intruder\n'
+++ dev install /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/dir --name otaapp
++ out='++ ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/work
+++ timeout 60 /Users/runner/work/zinc/zinc/next/build/zinc device install /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/dir --name otaapp
+zinc device: otaapp is a signed app (update.publicKey): only a .zapp signed with its key replaces it, not a directory'
++ echo '++ ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/work
+++ timeout 60 /Users/runner/work/zinc/zinc/next/build/zinc device install /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/dir --name otaapp
+zinc device: otaapp is a signed app (update.publicKey): only a .zapp signed with its key replaces it, not a directory'
++ grep -q 'not a directory'
++ dev run otaapp
++ until_grep 'this is 1.0.0' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device/agent/logs/otaapp.log
++ n=0
++ '[' 0 -lt 100 ']'
++ grep -q 'this is 1.0.0' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device/agent/logs/otaapp.log
++ sleep 0.1
++ n=1
++ '[' 1 -lt 100 ']'
++ grep -q 'this is 1.0.0' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device/agent/logs/otaapp.log
++ grep -q 'this is 1.0.0' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device/agent/logs/otaapp.log
++ '[' '!' -e /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device/agent/apps/otaapp/previous.zapp ']'
++ /Users/runner/work/zinc/zinc/next/build/zinc sign /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/v11.zapp 756854b826b0de82dbd745356d5eeac304d732298e8a8fc4bbf9b36c9d6a56c6
++ dev install /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/v11.zapp
++ '[' -f /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device/agent/apps/otaapp/previous.zapp ']'
++ '[' -f /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device/agent/apps/otaapp/trial ']'
+++ dev run otaapp
++ out='++ ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/work
+++ timeout 60 /Users/runner/work/zinc/zinc/next/build/zinc device run otaapp
+started otaapp on zn-o28247 (pid 28354)'
++ dev apps
++ ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/work
++ timeout 60 /Users/runner/work/zinc/zinc/next/build/zinc device apps
++ grep -q '^otaapp .*running'
+++ dev apps
+++ ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/work
+++ timeout 60 /Users/runner/work/zinc/zinc/next/build/zinc device apps
++ bad 'the good update is not running after its trial: otaapp                   zapp    stopped'
++ echo 'FAIL: the good update is not running after its trial: otaapp                   zapp    stopped'
+FAIL: the good update is not running after its trial: otaapp                   zapp    stopped
++ fail=1
++ '[' '!' -e /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device/agent/apps/otaapp/previous.zapp ']'
++ '[' '!' -e /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device/agent/apps/otaapp/trial ']'
++ until_grep 'this is 1.1.0' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device/agent/logs/otaapp.log
++ n=0
++ '[' 0 -lt 100 ']'
++ grep -q 'this is 1.1.0' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device/agent/logs/otaapp.log
++ grep -q 'this is 1.1.0' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device/agent/logs/otaapp.log
++ /Users/runner/work/zinc/zinc/next/build/zinc sign /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/v12.zapp 756854b826b0de82dbd745356d5eeac304d732298e8a8fc4bbf9b36c9d6a56c6
++ dev install /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/v12.zapp
+++ dev run otaapp
++ out='++ ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/work
+++ timeout 60 /Users/runner/work/zinc/zinc/next/build/zinc device run otaapp
+zinc device: the update of otaapp exited at once (status 101): it was rolled back, version 1.1.0 is back and started. What the update printed:
+this is 1.2.0
+panic: Uncaught Error: a broken build
+[exited 101]'
++ grep -q 'exited at once (status 101): it was rolled back, version 1.1.0 is back'
++ echo '++ ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/work
+++ timeout 60 /Users/runner/work/zinc/zinc/next/build/zinc device run otaapp
+zinc device: the update of otaapp exited at once (status 101): it was rolled back, version 1.1.0 is back and started. What the update printed:
+this is 1.2.0
+panic: Uncaught Error: a broken build
+[exited 101]'
++ echo '++ ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/work
+++ timeout 60 /Users/runner/work/zinc/zinc/next/build/zinc device run otaapp
+zinc device: the update of otaapp exited at once (status 101): it was rolled back, version 1.1.0 is back and started. What the update printed:
+this is 1.2.0
+panic: Uncaught Error: a broken build
+[exited 101]'
++ grep -q 'a broken build'
++ cmp -s /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device/agent/apps/otaapp/app.zapp /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/v11.zapp
++ '[' '!' -e /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device/agent/apps/otaapp/previous.zapp ']'
++ '[' '!' -e /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device/agent/apps/otaapp/trial ']'
++ until_grep 'this is 1.1.0' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device/agent/logs/otaapp.log
++ n=0
++ '[' 0 -lt 100 ']'
++ grep -q 'this is 1.1.0' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device/agent/logs/otaapp.log
++ grep -q 'this is 1.1.0' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device/agent/logs/otaapp.log
++ ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/work
++ /Users/runner/work/zinc/zinc/next/build/zinc publish /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/v13 --key 756854b826b0de82dbd745356d5eeac304d732298e8a8fc4bbf9b36c9d6a56c6 -o /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/www
+++ dev update otaapp
++ out='++ ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/work
+++ timeout 60 /Users/runner/work/zinc/zinc/next/build/zinc device update otaapp
+otaapp 1.3.0 is installed (it was 1.1.0): zinc device run otaapp starts it; the previous version comes back if it exits at once'
++ grep -q 'otaapp 1.3.0 is installed (it was 1.1.0)'
++ echo '++ ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/work
+++ timeout 60 /Users/runner/work/zinc/zinc/next/build/zinc device update otaapp
+otaapp 1.3.0 is installed (it was 1.1.0): zinc device run otaapp starts it; the previous version comes back if it exits at once'
++ dev run otaapp
++ '[' '!' -e /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device/agent/apps/otaapp/previous.zapp ']'
++ '[' '!' -e /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device/agent/apps/otaapp/trial ']'
++ until_grep 'this is 1.3.0' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device/agent/logs/otaapp.log
++ n=0
++ '[' 0 -lt 100 ']'
++ grep -q 'this is 1.3.0' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device/agent/logs/otaapp.log
++ grep -q 'this is 1.3.0' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device/agent/logs/otaapp.log
++ dev update otaapp
++ grep -q 'otaapp 1.3.0 is up to date'
++ sed -i.bak 's/^version=1.3.0$/version=9.9.9/' /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/www/stable.manifest
+++ dev update otaapp
++ out='++ ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/work
+++ timeout 60 /Users/runner/work/zinc/zinc/next/build/zinc device update otaapp
+zinc device: the signature of the update manifest does not verify with a trusted key: refused'
++ echo '++ ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/work
+++ timeout 60 /Users/runner/work/zinc/zinc/next/build/zinc device update otaapp
+zinc device: the signature of the update manifest does not verify with a trusted key: refused'
++ grep -qi signature
+++ dev update nothere
++ out='++ ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/work
+++ timeout 60 /Users/runner/work/zinc/zinc/next/build/zinc device update nothere
+zinc device: no app named nothere was installed from a .zapp on this device'
++ grep -q 'no app named nothere'
++ echo '++ ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/work
+++ timeout 60 /Users/runner/work/zinc/zinc/next/build/zinc device update nothere
+zinc device: no app named nothere was installed from a .zapp on this device'
++ echo 'a newer engine'
+++ shasum -a 256 /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/www/zinc-99.0.0.pkg
+++ cut '-d ' -f1
++ printf 'version=99.0.0\nurl=zinc-99.0.0.pkg\nsha256=%s\n' 6f16ad61b7fd4f64e38870300c9aa55beedb84284f0d0af5a06d2a3629b79c07
++ /Users/runner/work/zinc/zinc/next/build/zinc update-sign /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/engine.txt 80b0e6aff5ba79eb5351599db22eb107d300a8f57bf835f28543c3b48f6fdf5c
+++ dev update --url file:///var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/www/engine.manifest
++ out='++ ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/work
+++ timeout 60 /Users/runner/work/zinc/zinc/next/build/zinc device update --url file:///var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/www/engine.manifest
+zinc 99.0.0 downloaded and verified on the device (it runs 0.0.1): /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device/updates/zinc-99.0.0.pkg
+install it there, then restart the agent'
++ echo '++ ZINC_HOME=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/work
+++ timeout 60 /Users/runner/work/zinc/zinc/next/build/zinc device update --url file:///var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/www/engine.manifest
+zinc 99.0.0 downloaded and verified on the device (it runs 0.0.1): /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device/updates/zinc-99.0.0.pkg
+install it there, then restart the agent'
++ grep -q 'zinc 99.0.0 downloaded and verified on the device'
++ cmp -s /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device/updates/zinc-99.0.0.pkg /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/www/zinc-99.0.0.pkg
++ /Users/runner/work/zinc/zinc/next/build/zinc update-sign /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/engine.txt 756854b826b0de82dbd745356d5eeac304d732298e8a8fc4bbf9b36c9d6a56c6
++ dev update --url file:///var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/www/engine.manifest
++ '[' 1 -eq 0 ']'
++ exit 1
++ cleanup
++ for f in '"$D"/agent/run/*.pid'
++ '[' -e '/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz/device/agent/run/*.pid' ']'
++ kill 28307
++ wait 28307
++ rm -rf /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.VacsIsBeJz
