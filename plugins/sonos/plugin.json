@@ -4,7 +4,7 @@
   "module": "zinc:sonos",
   "entry": "index.ts",
   "description": "Sonos speakers on the local network (UPnP, port 1400): discovery, rooms and groups, what plays, transport, volume, grouping, favorites, radio streams; written in Zinc on zinc:socket and fetch",
-  "requires": ["net", "process"],
+  "requires": ["net"],
   "targets": {
     "macos": {},
     "linux": {},

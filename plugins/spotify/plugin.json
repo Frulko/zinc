@@ -4,7 +4,7 @@
   "module": "zinc:spotify",
   "entry": "index.ts",
   "description": "The Spotify Web API for a remote: playlists, liked songs, recent plays, search, playback on a Spotify Connect device; one login on a computer (login.py), token refresh and rotation here",
-  "requires": ["net", "process"],
+  "requires": ["net", "fs"],
   "targets": {
     "macos": {},
     "linux": {},
