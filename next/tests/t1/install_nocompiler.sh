@@ -1,7 +1,10 @@
 #!/bin/sh
-# Nothing to compile for a beginner (ZN-718): tools/install.sh installs the archive of tools/package from a local directory (file://, with SHA256SUMS)
-# into an empty HOME, and from that install, with an empty ZINC_HOME and a PATH that holds no compiler:
-# - zinc new, zinc run (headless, a frame written), a type error with its file and line, zinc dev (start, an edit, the reload);
+# Nothing to compile for a beginner (ZN-718): tools/install.sh installs the CLI archive of tools/package (and, on macOS, the Zinc Atelier app) from a
+# local directory (file://, with SHA256SUMS) into an empty HOME, and from that install, through the `zinc` link, with an empty ZINC_HOME and a PATH that
+# holds no compiler:
+# - zinc new, zinc run (headless, a frame written), a type error with its file and line, zinc lint, zinc dev (start, an edit, the reload);
+# - the CLI archive unpacked by hand anywhere else runs from a symlink with HOME empty and PATH=/usr/bin:/bin;
+# - Atelier's sources check (zinc check), and the installed app opens headless from its launcher with the engine of its own bundle;
 # - templates that import plugins with native code (system, svg, three) run: their libraries are the prebuilt ones of the archive;
 # - zinc doctor counts the prebuilt plugin libraries and names the plugins without one;
 # - nothing was compiled or fetched: the PATH holds shims of cc, c++, clang, gcc, cmake, zig, make, xcrun, ld, ar, pkg-config, git, node and python3
@@ -19,9 +22,10 @@ if [ -z "$dist" ]; then
   dist="$tmp/dist"
   tools/package --build "$(cd "$(dirname "$ZINC")" && pwd)" --out "$dist" >"$tmp/package.log" 2>&1 || { echo "tools/package failed: $(tail -c 400 "$tmp/package.log")"; exit 1; }
 fi
-case "$(uname -s)" in Darwin) pat='Zinc-*-macos-*.zip' ;; *) pat='zinc-*-linux-*.tar.gz' ;; esac
+mac=0; case "$(uname -s)" in Darwin) mac=1; pat='zinc-*-macos-*.tar.gz Zinc-Atelier-*-macos-*.zip' ;; *) pat='zinc-*-linux-*.tar.gz' ;; esac
 mkdir -p "$tmp/release" "$tmp/bin" "$tmp/shims" "$tmp/home" "$tmp/work"
-cp "$dist"/$pat "$next/tools/install.sh" "$tmp/release/" || { echo "no archive ($pat) in $dist"; exit 1; }
+for p in $pat; do cp "$dist"/$p "$tmp/release/" || { echo "no archive ($p) in $dist"; exit 1; }; done
+cp "$next/tools/install.sh" "$tmp/release/" || exit 2
 (cd "$tmp/release" && shasum -a 256 $pat > SHA256SUMS) || exit 2
 
 for t in cc c++ clang clang++ gcc g++ cmake zig make ninja xcrun xcodebuild ld ar ranlib pkg-config git node python3 brew; do
@@ -37,12 +41,20 @@ mkdir "$tmp/bad" && cp "$tmp/release/"* "$tmp/bad/" && sed 's/^..../0000/' "$tmp
 clean ZINC_INSTALL_URL="file://$tmp/bad" ZINC_NO_MODIFY_PATH=1 sh "$tmp/release/install.sh" >"$tmp/out" 2>&1
 [ $? -ne 0 ] && grep -q "checksum mismatch" "$tmp/out" && [ ! -e "$tmp/home/.zinc" ] && [ ! -e "$tmp/home/.local" ] || { echo "a wrong checksum is not refused: $(cat "$tmp/out")"; fail=1; }
 
-# the install: one command
-clean ZINC_INSTALL_URL="file://$tmp/release" ZINC_BIN_DIR="$tmp/home/.local/bin" SHELL=/bin/zsh sh "$tmp/release/install.sh" >"$tmp/out" 2>&1 || { echo "install.sh failed: $(cat "$tmp/out")"; exit 1; }
+# the install: one command (and the app on macOS, into the test's HOME rather than /Applications)
+clean ZINC_INSTALL_URL="file://$tmp/release" ZINC_BIN_DIR="$tmp/home/.local/bin" ZINC_INSTALL_ATELIER=$mac ZINC_APP_DIR="$tmp/home/Applications" SHELL=/bin/zsh \
+  sh "$tmp/release/install.sh" >"$tmp/out" 2>&1 || { echo "install.sh failed: $(cat "$tmp/out")"; exit 1; }
 Z="$tmp/home/.local/bin/zinc"
 [ -x "$Z" ] && grep -q '\.local/bin' "$tmp/home/.zprofile" || { echo "no zinc link or no PATH line: $(cat "$tmp/out")"; fail=1; }
 real=$(cd "$tmp" && pwd -P)
-case "$(clean "$Z" --root)" in "$real"/home/.zinc/engine/*) ;; *) echo "the engine files are not read from the install: $(clean "$Z" --root)"; fail=1 ;; esac
+[ "$(clean "$Z" --root)" = "$real/home/.zinc/engine/share/zinc/next" ] || { echo "the engine files are not read from the install: $(clean "$Z" --root)"; fail=1; }
+[ ! -e "$tmp/home/.zinc/engine/Zinc Atelier.app" ] || { echo "the CLI archive holds the app"; fail=1; }
+
+# the CLI archive unpacked by hand anywhere, run through a symlink with HOME empty and PATH=/usr/bin:/bin
+mkdir -p "$tmp/elsewhere/x" "$tmp/elsewhere/links" "$tmp/elsewhere/home" && tar -xzf "$tmp/release/"zinc-*.tar.gz -C "$tmp/elsewhere/x" && ln -s "$(echo "$tmp"/elsewhere/x/zinc-*/bin/zinc)" "$tmp/elsewhere/links/zinc"
+printf 'console.log("hello", 6 * 7);\n' > "$tmp/elsewhere/hello.ts"
+out=$(env -i HOME="$tmp/elsewhere/home" PATH=/usr/bin:/bin ZINC_STEPS=0 "$tmp/elsewhere/links/zinc" run "$tmp/elsewhere/hello.ts" 2>&1)
+[ "$out" = "hello 42" ] || { echo "the CLI archive unpacked elsewhere does not run from a symlink: $(printf '%s' "$out" | head -c 300)"; fail=1; }
 
 run() { clean ZINC_STEPS=0 ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=3 ZINC_SIZE=160x120 "$@"; }
 cd "$tmp/work" || exit 2
@@ -55,10 +67,12 @@ echo 'const lives: number = "three";' >> src/main.ts
 run "$Z" run >"$tmp/out" 2>&1
 [ $? -eq 1 ] && grep -q "src/main.ts:[0-9]*:[0-9]*: error Z0103: Type is not assignable: 'string' to 'f64'" "$tmp/out" || { echo "no type error with file and line: $(head -c 400 "$tmp/out")"; fail=1; }
 cp "$tmp/main.ts" src/main.ts
+clean "$Z" lint >"$tmp/out" 2>&1 || { echo "zinc lint fails from the install: $(head -c 400 "$tmp/out")"; fail=1; }
 
 # zinc dev: the program starts, an edit reloads it
 waitfor() { n=0; while [ $n -lt $(( $3 * 20 )) ]; do grep -q "$2" "$1" 2>/dev/null && return 0; sleep 0.05; n=$((n+1)); done; return 1; }
-clean ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=200000 ZINC_SIZE=64x48 "$Z" dev >"$tmp/dev.log" 2>&1 &
+env -i HOME="$tmp/home" ZINC_HOME="$tmp/home/zinc-home" PATH="$tmp/shims:$tmp/bin:/bin" ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=200000 ZINC_SIZE=64x48 \
+  "$Z" dev >"$tmp/dev.log" 2>&1 &   # not through clean(): $! must be zinc itself (env execs it), or the kill below leaves zinc dev running
 dev=$!
 waitfor "$tmp/dev.log" "v1 started" 10 || { echo "zinc dev does not start: $(head -c 400 "$tmp/dev.log")"; fail=1; }
 sed 's/0x101820/0x204010/' "$tmp/main.ts" > src/main.ts
@@ -81,9 +95,13 @@ grep -q "^    video: needs the system libraries libavformat" "$tmp/doctor" || { 
 grep -q "(by the manifests)" "$tmp/doctor" && grep -q "^plugin libraries for windows: none" "$tmp/doctor" || { echo "zinc doctor does not report the other platforms"; fail=1; }
 
 # Atelier from the install: its zinc.json (permissions, icon) travels with it, or it stops at Z5006 on a machine that is not this checkout
-at="$(clean "$Z" --root)/next/app/atelier"
-if [ -d "$at" ]; then
-  clean "$Z" check "$at" >"$tmp/atelier" 2>&1 || { echo "Atelier does not check from the install: $(head -c 300 "$tmp/atelier")"; fail=1; }
+clean "$Z" check "$(clean "$Z" --root)/app/atelier" >"$tmp/atelier" 2>&1 || { echo "Atelier does not check from the install: $(head -c 300 "$tmp/atelier")"; fail=1; }
+# the app as the Finder starts it (its launcher, a bare PATH): it opens on ZINC_PROJECT with the engine of its own bundle
+if [ $mac = 1 ]; then
+  A="$tmp/home/Applications/Zinc Atelier.app"
+  [ "$(clean "$A/Contents/MacOS/zinc" --root)" = "$real/home/Applications/Zinc Atelier.app/Contents/Resources/zinc/next" ] || { echo "the app does not read its own engine files: $(clean "$A/Contents/MacOS/zinc" --root)"; fail=1; }
+  clean ZINC_BACKGROUND=1 ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=2 ZINC_SIZE=800x500 ZINC_SHOT="$tmp/atelier.png" ZINC_SHOT_FRAMES=2 ZINC_PROJECT="$tmp/work/atelier" \
+    "$A/Contents/MacOS/zinc-atelier" >/dev/null 2>"$tmp/err" && [ -s "$tmp/atelier-2.png" ] && [ -e "$tmp/work/atelier/hello.ts" ] || { echo "the app does not open from its launcher: $(head -c 300 "$tmp/err")"; fail=1; }
 fi
 
 # nothing was compiled, nothing was fetched

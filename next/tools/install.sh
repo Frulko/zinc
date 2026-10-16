@@ -1,45 +1,59 @@
 #!/bin/sh
 # Installs zinc with nothing to compile (ZN-718): the engine, its libraries, the templates and the plugins' native libraries, as released for this machine.
 #
-#   curl -fsSL https://github.com/zinc-engine/zinc/releases/latest/download/install.sh | sh
+#   curl -fsSL https://github.com/zinc-engine/zinc/releases/latest/download/install.sh | sh                  # the zinc CLI
+#   curl -fsSL https://github.com/zinc-engine/zinc/releases/latest/download/install.sh | sh -s -- --atelier  # and the Zinc Atelier app (macOS)
 #
-# It reads SHA256SUMS beside it, downloads the archive of this system (macOS arm64 / x86_64, Linux x86_64 / aarch64), checks its SHA-256, unpacks it into
-# ~/.zinc/engine and links `zinc` into /usr/local/bin when you can write there, else into ~/.local/bin (added to your PATH in ~/.zprofile or ~/.profile).
+# It reads SHA256SUMS beside it, downloads the CLI archive of this system (zinc-<version>-<os>-<arch>.tar.gz: macOS arm64 / x86_64, Linux x86_64 / aarch64),
+# checks its SHA-256, unpacks it into ~/.zinc/engine and links `zinc` into /usr/local/bin when you can write there, else into ~/.local/bin (added to your PATH
+# in ~/.zprofile or ~/.profile). With --atelier (or ZINC_INSTALL_ATELIER=1) on a Mac it also installs Zinc-Atelier-<version>-macos-<arch>.zip, checked the same
+# way, as "Zinc Atelier.app" in /Applications when you can write there, else in ~/Applications.
 # Needs curl and what every Mac and Linux has (shasum or sha256sum, tar, ditto on a Mac); no compiler, no CMake, no Xcode, no administrator password.
-# Run it again to update; `rm -rf ~/.zinc/engine` and the link to uninstall.
+# Run it again to update; `rm -rf ~/.zinc/engine` and the link (and the app) to uninstall.
 #   ZINC_INSTALL_URL   where SHA256SUMS and the archives are (default: the latest release of $ZINC_REPO, default zinc-engine/zinc; file:// works)
 #   ZINC_INSTALL_DIR   where the engine goes (default ~/.zinc/engine)
 #   ZINC_BIN_DIR       where the `zinc` link goes
+#   ZINC_APP_DIR       where the app goes (default /Applications, else ~/Applications)
 #   ZINC_NO_MODIFY_PATH=1   never write to a shell profile: the line to add is printed instead
 set -eu
 url=${ZINC_INSTALL_URL:-https://github.com/${ZINC_REPO:-zinc-engine/zinc}/releases/latest/download}
 dir=${ZINC_INSTALL_DIR:-$HOME/.zinc/engine}
+atelier=${ZINC_INSTALL_ATELIER:-0}
+for a in "$@"; do case "$a" in --atelier) atelier=1 ;; *) echo "zinc install: unknown option $a (--atelier also installs the app)" >&2; exit 2 ;; esac; done
 die() { echo "zinc install: $*" >&2; exit 1; }
 command -v curl >/dev/null 2>&1 || die "curl is needed to download zinc (Linux: install the curl package)"
 case "$(uname -s)" in
-  Darwin) suffix="-macos-$(uname -m).zip" ;;
-  Linux) suffix="-linux-$(uname -m).tar.gz" ;;
+  Darwin) os=macos ;;
+  Linux) os=linux; [ "$atelier" = 0 ] || die "Zinc Atelier is a macOS app for now: on Linux, zinc run \"\$(zinc --root)/app/atelier/main.tsx\"" ;;
   *) die "no prebuilt zinc for $(uname -s) yet: macOS and Linux only (Windows: build from the sources, docs/guide/01-getting-started.md)" ;;
 esac
+arch=$(uname -m)
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 curl -fsSL -o "$tmp/SHA256SUMS" "$url/SHA256SUMS" || die "cannot read $url/SHA256SUMS: no network, or no release yet"
-line=$(grep -- "$suffix\$" "$tmp/SHA256SUMS" | head -1)
-[ -n "$line" ] || die "this release has no archive for this machine (*$suffix)"
-want=${line%% *}
-file=${line##* }; file=${file#\*}
-case "$file" in */*|"") die "SHA256SUMS names an unexpected file: $file" ;; esac
-echo "zinc install: downloading $file"
-curl -fL --retry 2 -sS -o "$tmp/$file" "$url/$file" || die "the download of $url/$file failed"
-if command -v shasum >/dev/null 2>&1; then got=$(shasum -a 256 "$tmp/$file"); else got=$(sha256sum "$tmp/$file"); fi
-got=${got%% *}
-[ "$got" = "$want" ] || die "checksum mismatch for $file: got $got, SHA256SUMS says $want; nothing was installed"
+
+# fetch <prefix> <suffix>: downloads the file of SHA256SUMS whose name has that prefix and suffix, checks its SHA-256, prints its path
+fetch() {
+  line=$(grep -- " [*]\{0,1\}$1[^ /]*$2\$" "$tmp/SHA256SUMS" | head -1)
+  [ -n "$line" ] || die "this release has no archive for this machine ($1*$2)"
+  want=${line%% *}
+  file=${line##* }; file=${file#\*}
+  case "$file" in */*|"") die "SHA256SUMS names an unexpected file: $file" ;; esac
+  echo "zinc install: downloading $file" >&2
+  curl -fL --retry 2 -sS -o "$tmp/$file" "$url/$file" || die "the download of $url/$file failed"
+  if command -v shasum >/dev/null 2>&1; then got=$(shasum -a 256 "$tmp/$file"); else got=$(sha256sum "$tmp/$file"); fi
+  got=${got%% *}
+  [ "$got" = "$want" ] || die "checksum mismatch for $file: got $got, SHA256SUMS says $want; nothing was installed"
+  echo "$tmp/$file"
+}
+
+# both downloads are checked before anything is installed
+pkg=$(fetch zinc- "-$os-$arch.tar.gz")
+[ "$atelier" = 0 ] || appzip=$(fetch Zinc-Atelier- "-$os-$arch.zip")
 mkdir -p "$tmp/new"
-case "$file" in
-  *.zip) if command -v ditto >/dev/null 2>&1; then ditto -x -k "$tmp/$file" "$tmp/new"; else unzip -q "$tmp/$file" -d "$tmp/new"; fi
-         bin="$dir/Zinc Atelier.app/Contents/MacOS/zinc"; inner="$tmp/new" ;;
-  *) tar -xzf "$tmp/$file" -C "$tmp/new"; bin="$dir/bin/zinc"; inner=$(echo "$tmp"/new/*) ;;
-esac
+tar -xzf "$pkg" -C "$tmp/new"
+inner=$(echo "$tmp"/new/*)
+bin="$dir/bin/zinc"
 mkdir -p "$(dirname "$dir")"
 rm -rf "$dir.old"
 [ ! -e "$dir" ] || mv "$dir" "$dir.old"   # the old engine is put back if the new one cannot take its place
@@ -55,6 +69,20 @@ fi
 mkdir -p "$bindir"
 ln -sf "$bin" "$bindir/zinc"
 echo "zinc install: $version in $dir, linked as $bindir/zinc"
+
+if [ "$atelier" != 0 ]; then
+  appdir=${ZINC_APP_DIR:-}
+  if [ -z "$appdir" ]; then
+    if [ -d /Applications ] && [ -w /Applications ]; then appdir=/Applications; else appdir=$HOME/Applications; fi
+  fi
+  mkdir -p "$tmp/app" "$appdir"
+  ditto -x -k "$appzip" "$tmp/app"
+  [ -x "$tmp/app/Zinc Atelier.app/Contents/MacOS/zinc-atelier" ] || die "the app archive holds no Zinc Atelier.app"
+  rm -rf "$appdir/Zinc Atelier.app"
+  mv "$tmp/app/Zinc Atelier.app" "$appdir/" || die "cannot write $appdir"
+  echo "zinc install: Zinc Atelier in $appdir (open \"$appdir/Zinc Atelier.app\")"
+fi
+
 case ":$PATH:" in
   *":$bindir:"*) echo "next: zinc new game my-game && cd my-game && zinc run" ;;
   *)

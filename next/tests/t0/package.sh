@@ -18,6 +18,11 @@ rm -rf "$tmp/home/updates"
 printf 'version=0.0.1\nurl=file://%s/Zinc-9.9.9.zip\nsha256=%s\n' "$tmp" "$sum" > "$tmp/same"; sign "$tmp/same"
 "$ZINC" update --check "file://$tmp/same" 2>&1 | grep -q "up to date" || { echo "the current version is not reported as up to date"; fail=1; }
 [ "$(ZINC_ROOT=/somewhere/else "$ZINC" --root)" = /somewhere/else ] || { echo "ZINC_ROOT does not move the engine files"; fail=1; }
-tools/sign-macos --dry-run Zinc-0.0.1-macos-arm64.zip 2>&1 | grep -q "notarytool submit" && tools/sign-macos --dry-run Zinc-0.0.1-macos-arm64.zip 2>&1 | grep -q "stapler staple" || { echo "tools/sign-macos --dry-run does not list the notarization steps"; fail=1; }
+tools/sign-macos --dry-run Zinc-Atelier-0.0.1-macos-arm64.zip > "$tmp/app.sign" 2>&1
+grep -q "notarytool submit" "$tmp/app.sign" && grep -q "stapler staple" "$tmp/app.sign" && grep -q "entitlements .* <unpacked>/Zinc Atelier.app/Contents/MacOS/zinc$" "$tmp/app.sign" || { echo "tools/sign-macos --dry-run does not list the notarization steps of the app"; fail=1; }
+# the CLI archive: its Mach-O files signed (zinc with its entitlements), notarized, and no staple (a ticket cannot be stapled to a bare executable)
+tools/sign-macos --dry-run zinc-0.0.1-macos-arm64.tar.gz > "$tmp/cli.sign" 2>&1
+grep -q "share/zinc/plugins/\*/prebuilt/macos/\*.dylib$" "$tmp/cli.sign" && grep -q "entitlements .* <unpacked>/zinc-0.0.1-macos-arm64/bin/zinc$" "$tmp/cli.sign" && grep -q "notarytool submit" "$tmp/cli.sign" \
+  && ! grep -q "stapler" "$tmp/cli.sign" && grep -q "zinc-0.0.1-macos-arm64-notarized.tar.gz" "$tmp/cli.sign" || { echo "tools/sign-macos --dry-run does not list the steps of the CLI archive: $(cat "$tmp/cli.sign")"; fail=1; }
 grep -q "^BUDGET_MB" tools/package || { echo "tools/package has no size budget"; fail=1; }
 exit $fail

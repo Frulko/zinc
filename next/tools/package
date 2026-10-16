@@ -4,9 +4,11 @@
   tools/package [--build build] [--out dist] [--budget-only]
   tools/package --app path/to/App.app   # bundle non-system dylibs and make App.app.zip
 
-macOS: dist/Zinc-<version>-macos-<arch>.zip holding "Zinc Atelier.app" (the engine, lib/std, the runtime sources for cross builds, the core
-firmware, the app, SDL3 in Frameworks, the plugins' native libraries built with the pinned zig: ZN-718). Linux: dist/zinc-<version>-linux-<arch>.tar.gz (bin, lib, share/zinc) and, when appimagetool is
-installed, the AppImage (tools/appimage). Windows follows the Windows host (ZN-054).
+macOS: two downloads from one staged payload (docs/guide/07-distribution.md, "Zinc itself"): the CLI, dist/zinc-<version>-macos-<arch>.tar.gz
+(bin/zinc and its window and WebGL modules, share/zinc: lib/std, lib/fonts, templates, the plugins with their native libraries built with the pinned zig: ZN-718,
+targets/capabilities.json, the runtime headers and sources for cross builds, the core firmware), and the app, dist/Zinc-Atelier-<version>-macos-<arch>.zip
+("Zinc Atelier.app": the same engine in Contents/MacOS, the same share/zinc in Contents/Resources/zinc, a launcher). Linux: dist/zinc-<version>-linux-<arch>.tar.gz
+(bin, lib, share/zinc) and, when appimagetool is installed, the AppImage (tools/appimage). Windows follows the Windows host (ZN-054).
 Then the size of each package is checked against its budget (tools/package-budget in this file); over budget exits 3.
 Signing and notarization are separate (tools/sign-macos).
 """
@@ -17,7 +19,7 @@ NEXT = os.path.dirname(HERE)
 REPO = os.path.dirname(NEXT)
 VERSION = os.environ.get("ZINC_VERSION", "0.0.1")   # the release job sets it from the tag (v1.2.0 -> 1.2.0)
 # size budgets in MB of the download (the archive); a package over its budget fails the script
-BUDGET_MB = {"macos": 40, "linux": 40, "windows": 40}
+BUDGET_MB = {"macos-cli": 35, "macos-app": 35, "linux": 40, "windows": 40}   # 2026-10-16, arm64: the CLI 27.1 MB, the app 28.0 MB
 
 def arg(name, default):
     return sys.argv[sys.argv.index(name) + 1] if name in sys.argv else default
@@ -111,8 +113,8 @@ def lower_minos(share, floor):
                 else:
                     print("could not lower the macOS minimum of " + os.path.relpath(p, share), file=sys.stderr)   # left as built
 
-def bundle_libs_macos(binary, libdir):
-    """Copy the non-system dylibs the binary needs next to it and point the binary at them."""
+def bundle_libs_macos(binary, libdir, prefix="@executable_path/../Frameworks/"):
+    """Copy the non-system dylibs the binary needs into libdir and point the binary at them (prefix: libdir as the binary sees it)."""
     os.makedirs(libdir, exist_ok=True)
     pending, copied = [(binary, binary)], {}
     while pending:
@@ -146,11 +148,11 @@ def bundle_libs_macos(binary, libdir):
                 os.chmod(target, 0o755)
                 run("install_name_tool", "-id", "@rpath/" + name, target)
                 pending.append((original, target))
-            prefix = "@executable_path/../Frameworks/" if dest == binary else "@loader_path/"
-            run("install_name_tool", "-change", path, prefix + name, dest)
+            run("install_name_tool", "-change", path, (prefix if dest == binary else "@loader_path/") + name, dest)
     for f in os.listdir(libdir):  # arm64 refuses to load code whose signature broke: ad hoc sign (tools/sign-macos signs for distribution)
         run("codesign", "--force", "--sign", "-", os.path.join(libdir, f))
     run("codesign", "--force", "--sign", "-", binary)
+    if not os.listdir(libdir): os.rmdir(libdir)   # zinc links SDL3 into its window module: usually nothing to bundle
 
 def zip_dir(src, out, root):
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
@@ -189,30 +191,46 @@ PLIST = """<?xml version="1.0" encoding="UTF-8"?>
 </dict></plist>
 """
 
-def package_macos(build, out):
-    arch = platform.machine()
-    app = os.path.join(out, "stage", "Zinc Atelier.app")
-    shutil.rmtree(os.path.join(out, "stage"), ignore_errors=True)
-    macos, res = os.path.join(app, "Contents", "MacOS"), os.path.join(app, "Contents", "Resources")
-    os.makedirs(macos); os.makedirs(res)
-    binary = os.path.join(macos, "zinc")
+def engine_macos(build, bindir, libdir, prefix):
+    """zinc and its modules in bindir (WebGL ZN-330.01 and the window host ZN-592.01, loaded by zinc from its own directory), the dylibs it needs in libdir."""
+    os.makedirs(bindir, exist_ok=True)
+    binary = os.path.join(bindir, "zinc")
     shutil.copy2(os.path.join(build, "zinc"), binary)
-    for mod in ("libzn_webgl.dylib", "libzn_window.dylib"):  # WebGL (ZN-330.01) and the window host (ZN-592.01), loaded by zinc from its own directory
+    for mod in ("libzn_webgl.dylib", "libzn_window.dylib"):
         if os.path.exists(os.path.join(build, mod)):
-            shutil.copy2(os.path.join(build, mod), os.path.join(macos, mod))
-    bundle_libs_macos(binary, os.path.join(app, "Contents", "Frameworks"))
-    payload(os.path.join(res, "zinc"))
-    without = prebuild_plugins(os.path.join(build, "zinc"), os.path.join(res, "zinc"), "macos")
-    floor = minos(binary) or "12.0"   # what the engine really asks for: the plist and the plugins say the same
-    lower_minos(os.path.join(res, "zinc"), floor)
+            shutil.copy2(os.path.join(build, mod), os.path.join(bindir, mod))
+    bundle_libs_macos(binary, libdir, prefix)
+
+def package_macos(build, out):
+    """The CLI archive and the Atelier app from one payload: the plugins are built once, the app gets a copy of the CLI's share/zinc."""
+    arch = platform.machine()
+    stage = os.path.join(out, "stage")
+    shutil.rmtree(stage, ignore_errors=True)
+    floor = minos(os.path.join(build, "zinc")) or "12.0"   # what the engine really asks for: the plist and the plugins say the same
+    # the CLI: the layout of the Linux archive; zinc resolves its symlinks and reads <exe>/../share/zinc/next (tc::sourceRoot)
+    name = "zinc-%s-macos-%s" % (VERSION, arch)
+    root = os.path.join(stage, name)
+    engine_macos(build, os.path.join(root, "bin"), os.path.join(root, "lib"), "@executable_path/../lib/")
+    share = os.path.join(root, "share", "zinc")
+    payload(share)
+    without = prebuild_plugins(os.path.join(build, "zinc"), share, "macos")
+    lower_minos(share, floor)
+    cli = os.path.join(out, name + ".tar.gz")
+    with tarfile.open(cli, "w:gz", compresslevel=9) as t:
+        t.add(root, arcname=name)
+    # the app: self-contained, so it opens from the Finder on a Mac that has no CLI
+    app = os.path.join(stage, "Zinc Atelier.app")
+    macos, res = os.path.join(app, "Contents", "MacOS"), os.path.join(app, "Contents", "Resources")
+    engine_macos(build, macos, os.path.join(app, "Contents", "Frameworks"), "@executable_path/../Frameworks/")
+    shutil.copytree(share, os.path.join(res, "zinc"), symlinks=True)
     with open(os.path.join(macos, "zinc-atelier"), "w") as f: f.write(LAUNCHER)
     os.chmod(os.path.join(macos, "zinc-atelier"), 0o755)
     open(os.path.join(app, "Contents", "Info.plist"), "w").write((PLIST % (VERSION, VERSION)).replace("<string>12.0</string>", "<string>%s</string>" % floor))
     run("codesign", "--force", "--sign", "-", "--deep", app)
-    archive = os.path.join(out, "Zinc-%s-macos-%s.zip" % (VERSION, arch))
-    if os.path.exists(archive): os.remove(archive)
-    run("ditto", "-c", "-k", "--keepParent", app, archive)  # ditto keeps the bundle's metadata and symlinks
-    return "macos", archive, without
+    zipped = os.path.join(out, "Zinc-Atelier-%s-macos-%s.zip" % (VERSION, arch))
+    if os.path.exists(zipped): os.remove(zipped)
+    run("ditto", "-c", "-k", "--keepParent", app, zipped)  # ditto keeps the bundle's metadata and symlinks
+    return [("macos-cli", cli), ("macos-app", zipped)], without
 
 def package_linux(build, out):
     arch = platform.machine()
@@ -235,7 +253,7 @@ def package_linux(build, out):
     archive = os.path.join(out, name + ".tar.gz")
     with tarfile.open(archive, "w:gz", compresslevel=9) as t:
         t.add(root, arcname=name)
-    return "linux", archive, without
+    return [("linux", archive)], without
 
 def package_windows(build, out):
     """ZN-718: zinc-<version>-windows-<arch>.zip (bin\\zinc.exe and the DLLs built beside it, share\\zinc). Never run: the Windows host does not build yet
@@ -251,7 +269,7 @@ def package_windows(build, out):
     without = prebuild_plugins(os.path.join(build, "zinc.exe"), os.path.join(root, "share", "zinc"), "windows")
     archive = os.path.join(out, name + ".zip")
     zip_dir(root, archive, name)
-    return "windows", archive, without
+    return [("windows", archive)], without
 
 def main():
     if "--app" in sys.argv:
@@ -275,17 +293,20 @@ def main():
     if system == "Windows" and not os.path.exists(os.path.join(build, "zinc.exe")): build = os.path.join(build, "Release")   # the Visual Studio generator
     if not os.path.exists(os.path.join(build, "zinc.exe" if system == "Windows" else "zinc")):
         sys.exit("no %s/zinc: build first (cmake --build build)" % build)
-    if system == "Darwin": kind, archive, without = package_macos(build, out)
-    elif system == "Linux": kind, archive, without = package_linux(build, out)
-    elif system == "Windows": kind, archive, without = package_windows(build, out)
+    if system == "Darwin": archives, without = package_macos(build, out)
+    elif system == "Linux": archives, without = package_linux(build, out)
+    elif system == "Windows": archives, without = package_windows(build, out)
     else: sys.exit("no package for %s" % system)
     shutil.rmtree(os.path.join(out, "stage"), ignore_errors=True)
-    mb = os.path.getsize(archive) / 1e6
-    report = {"package": os.path.basename(archive), "megabytes": round(mb, 2), "budget_megabytes": BUDGET_MB[kind], "within_budget": mb <= BUDGET_MB[kind], "plugins_without_prebuilt": without}
-    json.dump(report, open(os.path.join(out, "sizes-%s.json" % kind), "w"), indent=1)
-    print("%s: %.1f MB (budget %d MB)" % (os.path.basename(archive), mb, BUDGET_MB[kind]))
+    over = False
+    for kind, archive in archives:   # each download against its own budget
+        mb = os.path.getsize(archive) / 1e6
+        report = {"package": os.path.basename(archive), "megabytes": round(mb, 2), "budget_megabytes": BUDGET_MB[kind], "within_budget": mb <= BUDGET_MB[kind], "plugins_without_prebuilt": without}
+        json.dump(report, open(os.path.join(out, "sizes-%s.json" % kind), "w"), indent=1)
+        print("%s: %.1f MB (budget %d MB)" % (os.path.basename(archive), mb, BUDGET_MB[kind]))
+        over = over or mb > BUDGET_MB[kind]
     for name, why in sorted(without.items()): print("no prebuilt library for plugin %s: %s" % (name, why))
-    if mb > BUDGET_MB[kind]:
+    if over:
         sys.exit(3)
 
 main()
