@@ -465,3 +465,13 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-744: rn-showcase fling on a Pi 3 (display-gl overlay and fbdev do not take HalFrame.move yet) and on the HP TouchPad, frame times before and after.
 - ZN-746: the GPU layer under the CPU frame for the Pi's KMS/EGL and webOS windows (display-gl's overlay), and the lava face on a Pi 3 and the TouchPad.
 - ZN-741: the damage-aware GLES 2 replay on the Pi 3 (ZINC_GL_DMG, the GPU-reset suspect) and the TouchPad.
+- ZN-718: rn-showcase Camera screen: wire the real cameras (camera.macos.ts and camera.linux.ts, one line each: `export { devices, requestPermission, Camera, CameraDevice } from 'zinc:camera';`): tried, the screen then names 'Zinc Fake Camera' and the scripted `photo at frame 30` step does not happen (the plugin's frames come from a timer, not from the frame count): make the session test frame-driven for the plugin, re-record camera hashes, then add the files.
+- ZN-718: FlatList / `ui.virtualize` at rest still allocates 2 objects per frame on the interpreter (not the for-of loops of ui.ts); the Data, Network and Media screens of rn-showcase are left out of the idle check because of it.
+- ZN-718: `useEffect` cleanup (a returned function) is ignored in zinc:ui/react (`EffectHook.cleanup` is never set): the listeners of useColorScheme, useAnimated and Dimensions outlive their component (rn-showcase works around it with `onLeave`).
+- ZN-718: `<ActivityIndicator />` with no attributes is error Z0104: a component whose props are all optional should accept zero attributes.
+- ZN-718: `transform: [{ rotate }]` takes only a literal string; a run-time angle is error Z0103.
+- ZN-718: a local function named like a host tag (`Button`) is lowered as the host tag and fails with "unknown attribute" (see the JSX shadowing line).
+- ZN-718: zinc:react-native: View lacks `pointerEvents` and `accessibilityLabel` (only `aria-label` works); TextInput has no `placeholderTextColor` (low-contrast placeholders in dark mode).
+- ZN-718: zinc:socket speaks ws:// only: no public wss echo for the live feed of rn-showcase (TLS WebSocket).
+- ZN-718: `ui.onScroll` never drops the watchers of dead nodes: FlatLists that mount and unmount leak entries.
+
