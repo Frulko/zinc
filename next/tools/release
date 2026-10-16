@@ -1,0 +1,127 @@
+#!/bin/sh
+# Releases Zinc from main: checks the repository, proposes the next version from the commits since the last tag, shows the changelog, asks, tags, pushes the tag
+# (the workflow does the rest: build, both macOS downloads, signed manifests, the GitHub release) and watches it. `make release` runs it.
+#
+#   tools/release [--bump patch|minor|major|X.Y.Z] [--yes] [--dry-run] [--no-watch]
+#   tools/release --undo vX.Y.Z      delete a tag (local and remote) and its release, after a question
+# The version is the tag: nothing is edited in the tree. The tag message holds the changelog.
+set -u
+# the repository is the one of the current directory (never the one the script sits in: a test or a copy must not touch it)
+top=$(git rev-parse --show-toplevel 2>/dev/null) || { echo "tools/release: run it inside a git repository" >&2; exit 2; }
+cd "$top" || exit 2
+if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then g=$(printf '\033[32m'); y=$(printf '\033[33m'); r=$(printf '\033[31m'); b=$(printf '\033[1m'); d=$(printf '\033[2m'); c=$(printf '\033[36m'); z=$(printf '\033[0m'); else g=; y=; r=; b=; d=; c=; z=; fi
+ok() { printf ' %s[ok]%s %s\n' "$g" "$z" "$1"; }
+warn() { printf ' %s[!]%s  %s\n' "$y" "$z" "$1"; }
+bad() { printf ' %s[x]%s  %s\n' "$r" "$z" "$1"; }
+die() { bad "$1"; exit 1; }
+ask() {   # ask "question" default(y|n): 0 for yes
+  if [ -n "$yes" ]; then return 0; fi
+  def=${2:-n}; [ "$def" = y ] && hint='[Y/n]' || hint='[y/N]'
+  printf '%s %s ' "$1" "$hint"; read -r a || a=
+  case ${a:-$def} in y|Y|yes) return 0 ;; *) return 1 ;; esac
+}
+bump=; yes=; dry=; watch=1; undo=
+while [ $# -gt 0 ]; do
+  case $1 in
+    --bump) bump=${2:?--bump needs patch, minor, major or X.Y.Z}; shift 2 ;;
+    --yes|-y) yes=1; shift ;;
+    --dry-run) dry=1; shift ;;
+    --no-watch) watch=; shift ;;
+    --undo) undo=${2:?--undo needs a tag}; shift 2 ;;
+    -h|--help) sed -n 2,9p "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) die "unknown option $1 (--help)" ;;
+  esac
+done
+command -v git >/dev/null && command -v gh >/dev/null || die "git and gh (GitHub CLI) are needed"
+repo=${ZINC_RELEASE_REPO:-$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null)}
+[ -n "$repo" ] || die "no GitHub repository (gh auth login, or ZINC_RELEASE_REPO=owner/name)"
+
+if [ -n "$undo" ]; then
+  printf '\n  %sUndo the release %s%s\n\n' "$b" "$undo" "$z"
+  ask "Delete the tag $undo (here and on GitHub) and its GitHub release?" n || { echo "nothing changed"; exit 0; }
+  [ -n "$dry" ] && { echo "dry run: would delete $undo"; exit 0; }
+  gh release delete "$undo" --repo "$repo" --yes --cleanup-tag 2>/dev/null || git push origin ":refs/tags/$undo" 2>/dev/null
+  git tag -d "$undo" 2>/dev/null
+  ok "deleted $undo"; exit 0
+fi
+
+printf '\n  %sZinc release%s  %s%s%s\n\n' "$b" "$z" "$d" "$repo" "$z"
+fail=0
+branch=${RELEASE_BRANCH:-main}
+cur=$(git rev-parse --abbrev-ref HEAD)
+if [ "$cur" = "$branch" ]; then ok "on $branch"; else bad "on $cur: a release is made from $branch (git switch $branch)"; fail=1; fi
+if [ -z "$(git status --porcelain --untracked-files=no)" ]; then ok "working tree clean"; else warn "uncommitted changes in the working tree: they are not in the release (a tag is a commit)"; fi
+git fetch --quiet origin "$branch" --tags 2>/dev/null || warn "could not reach origin: the checks below use what is already fetched"
+ahead=$(git rev-list --count "origin/$branch..HEAD" 2>/dev/null || echo 0); behind=$(git rev-list --count "HEAD..origin/$branch" 2>/dev/null || echo 0)
+if [ "$behind" != 0 ]; then bad "$behind commit(s) on origin/$branch are not here: git pull"; fail=1
+elif [ "$ahead" != 0 ]; then warn "$ahead commit(s) not pushed yet: they are pushed with the tag"; else ok "in step with origin/$branch"; fi
+gh auth status >/dev/null 2>&1 && ok "gh is signed in" || { bad "gh is not signed in: gh auth login"; fail=1; }
+if gh secret list --repo "$repo" 2>/dev/null | grep -q '^ZINC_UPDATE_SEED'; then ok "secret ZINC_UPDATE_SEED is set (the update manifests are signed)"; else warn "no ZINC_UPDATE_SEED secret: the manifests would be unsigned (zinc update refuses them)"; fi
+if [ -f next/update.pub ] && grep -Eq '^[0-9a-f]{64}$' next/update.pub && ! grep -Eq '^0{64}$' next/update.pub; then ok "next/update.pub holds the update public key"; else warn "next/update.pub is missing or a placeholder: builds could not verify updates"; fi
+sha=$(git rev-parse HEAD); short=$(git rev-parse --short HEAD)
+ci=$(gh run list --repo "$repo" --workflow zinc-next --commit "$sha" --json status,conclusion -q '.[0] | if .status=="completed" then .conclusion else .status end' 2>/dev/null)
+case ${ci:-none} in
+  success) ok "CI of $short: all green" ;;
+  none) warn "no CI run of $short yet" ;;
+  in_progress|queued|pending) warn "CI of $short is still running" ;;
+  *) warn "CI of $short ended '$ci': the release does not wait for the tests (the report is attached), but look at them" ;;
+esac
+[ $fail = 0 ] || { echo; die "fix the red points above, then run it again"; }
+
+last=$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null || echo)
+range=${last:+$last..}HEAD
+n=$(git rev-list --count "$range")
+[ "$n" != 0 ] || die "no commit since ${last:-the start}: nothing to release"
+ver=${last#v}; ver=${ver:-0.0.0}
+maj=${ver%%.*}; rest=${ver#*.}; min=${rest%%.*}; pat=${rest#*.}; pat=${pat%%[!0-9]*}
+subjects=$(git log --format='%s' "$range")
+feat=$(printf '%s\n' "$subjects" | grep -c -E '^feat(\(|!|:)'); breaking=$(git log --format='%s%n%b' "$range" | grep -c -E '^[a-z]+(\([^)]*\))?!:|^BREAKING CHANGE')
+if [ "$breaking" != 0 ] && [ "$maj" != 0 ]; then rec=major; elif [ "$feat" != 0 ]; then rec=minor; else rec=patch; fi
+next_of() { case $1 in patch) echo "$maj.$min.$((pat + 1))" ;; minor) echo "$maj.$((min + 1)).0" ;; major) echo "$((maj + 1)).0.0" ;; *) echo "$1" ;; esac; }
+printf '\n  %s%s commit(s) since %s%s: %s feature(s)%s\n\n' "$b" "$n" "${last:-the start}" "$z" "$feat" "$([ "$breaking" != 0 ] && echo ", $breaking breaking" || true)"
+if [ -z "$bump" ]; then
+  if [ -n "$yes" ]; then bump=$rec; else
+    printf '  1) patch  %s -> %s%s\n  2) minor  %s -> %s%s\n  3) major  %s -> %s\n  4) another number\n  5) cancel\n\n' "$([ $rec = patch ] && printf '*' || printf ' ')" "$(next_of patch)" "" "$([ $rec = minor ] && printf '*' || printf ' ')" "$(next_of minor)" "" "$([ $rec = major ] && printf '*' || printf ' ')" "$(next_of major)"
+    printf '  Which version? (* is the advice from the commits) [%s] ' "$rec"; read -r pick || pick=
+    case ${pick:-$rec} in 1|patch) bump=patch ;; 2|minor) bump=minor ;; 3|major) bump=major ;; 4) printf '  version (X.Y.Z): '; read -r bump ;; 5|c|cancel|q) echo "cancelled"; exit 0 ;; [0-9]*.[0-9]*.[0-9]*) bump=${pick} ;; *) bump=$rec ;; esac
+  fi
+fi
+new=$(next_of "$bump"); new=${new#v}
+printf '%s' "$new" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+([-+.][0-9A-Za-z.-]+)?$' || die "'$new' is not a version (X.Y.Z)"
+tag="v$new"
+git rev-parse -q --verify "refs/tags/$tag" >/dev/null && die "the tag $tag already exists"
+
+notes=$(mktemp); trap 'rm -f "$notes"' EXIT
+{
+  printf 'Zinc %s\n\n' "$new"
+  for sect in 'feat:Features' 'fix:Fixes' 'perf:Performance' 'refactor:Refactoring' 'docs:Documentation' 'test:Tests' 'ci:CI' 'build:Build' 'chore:Chores'; do
+    t=${sect%%:*}; title=${sect#*:}
+    body=$(git log --format='%s' "$range" | grep -E "^$t(\(|!|:)" | sed -E "s/^$t(\(([^)]*)\))?!?: ?/\2|/" | sed -E 's/^\|//; s/^([^|]+)\|/\1: /' | sed 's/^/- /')
+    [ -n "$body" ] && printf '## %s\n%s\n\n' "$title" "$body"
+  done
+} > "$notes"
+printf '  %sChangelog of %s%s\n\n' "$b" "$tag" "$z"; sed 's/^/    /' "$notes" | head -60; echo
+if [ -n "$dry" ]; then echo "  dry run: would tag $tag on $short and push (the workflow then builds and publishes)"; exit 0; fi
+ask "  Tag $tag on $short and push it? The release is public." n || { echo "cancelled: nothing was tagged"; exit 0; }
+git tag -a "$tag" -F "$notes" "$sha" || die "could not tag"
+if [ "$ahead" != 0 ]; then git push origin "$branch" || { git tag -d "$tag" >/dev/null; die "could not push $branch (the tag is removed)"; }; fi
+git push origin "$tag" || { git tag -d "$tag" >/dev/null; die "could not push the tag (removed here)"; }
+ok "pushed $tag"
+[ -n "$watch" ] || { echo "  watch it: gh run watch -R $repo"; exit 0; }
+printf '  waiting for the workflow'
+id=; i=0
+while [ -z "$id" ] && [ $i -lt 30 ]; do
+  id=$(gh run list --repo "$repo" --workflow zinc-next --branch "$tag" --limit 1 --json databaseId -q '.[0].databaseId' 2>/dev/null); [ -n "$id" ] || { printf '.'; sleep 2; i=$((i + 1)); }
+done; echo
+[ -n "$id" ] || { warn "no run found yet: gh run list -R $repo"; exit 0; }
+printf '  %s%s%s\n\n' "$c" "https://github.com/$repo/actions/runs/$id" "$z"
+gh run watch "$id" --repo "$repo" --interval 20 --exit-status >/dev/null 2>&1 && res=success || res=failed
+if gh release view "$tag" --repo "$repo" >/dev/null 2>&1; then
+  ok "release $tag is published: https://github.com/$repo/releases/tag/$tag"
+  gh release view "$tag" --repo "$repo" --json assets -q '.assets[].name' | sed 's/^/        /'
+  printf '\n  Try it:  %scurl -fsSL https://github.com/%s/releases/latest/download/install.sh | ZINC_REPO=%s sh%s\n\n' "$c" "$repo" "$repo" "$z"
+else
+  bad "no release was published (workflow $res): https://github.com/$repo/actions/runs/$id"
+  echo "  fix it, then: tools/release --undo $tag   and release again"; exit 1
+fi
+[ "$res" = success ] || warn "the workflow ended with failures (the tests?): the release is out, the report is attached"
