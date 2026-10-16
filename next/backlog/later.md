@@ -403,4 +403,6 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-718: zinc lint: a rule for zinc.json dependencies that nothing imports (the knip idea).
 - ZN-718: zinc lint: JPEG and WebP pixel sizes in the asset estimate (only PNG reads its size from the header).
 - ZN-718: zinc lint: target rules in the LSP (`--json` is the hook), and a `boot` budget estimate from assets.groups.
+- ZN-701: webgl_conformance on a GPU that does not zero new memory (the AMD driver of an Intel Mac, a hosted runner's virtual GPU): our WebGL layer leaves new textures, renderbuffers and the area outside a copyTexImage2D source to the driver; WebGL says zeros. 61 pages differ on the hosted runner (list: docs/reports/ci-run-38901269935/trace-webgl_conformance.log): zero-initialise explicitly; the hosted runner then proves it (ZINC_CI skip to remove).
+
 

@@ -1,0 +1,3 @@
+# Pages of conformance-pass.txt that fail when the WebGL context runs on the Apple GL driver of macOS: its GLSL compiler (libGLProgrammability, glpLLVMCG*) aborts the whole process on a sampler declared in a struct that is passed to a function. tools/webgl-conformance reports them KNOWN instead of REGRESSION when the context vendor is Apple. Page, tab, why.
+glsl/bugs/sampler-struct-function-arg.html	the driver aborts compiling it (glpLLVMLoadVector, glpPrimitiveTypeGetScalarType): not our translation
+glsl/bugs/sampler-array-struct-function-arg.html	the same driver abort
