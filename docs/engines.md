@@ -4,6 +4,10 @@ The intended product is the **same application** running in native Zinc, Zinc VM
 native services, UI renderer, assets, input, headless replay and benchmark protocol. The current implementation
 is an initial executable slice, **not that complete product**.
 
+Zinc Next: `zinc run --engine quickjs` runs TS, TSX and JS programs (the whole UI stack included) through the transform stage of the
+QuickJS bundler, and `zinc bundle` makes one optimised file of them: [guide/11-quickjs-bundle.md](guide/11-quickjs-bundle.md),
+[reports/zinc-quickjs-bundler.md](reports/zinc-quickjs-bundler.md). The rest of this page describes the prototype's engines.
+
 ## What runs today
 
 ```sh

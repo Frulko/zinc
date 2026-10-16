@@ -275,6 +275,10 @@ The next backlog review turns lines into tasks or deletes them.
 - zinc:camera: iOS follows a portrait screen only (camera.macos.mm sets AVCaptureVideoOrientationPortrait): turn the frames with the device (videoRotationAngle on iOS 17) for apps that rotate.
 - zinc:camera: the format change in place (a parked session taken back) could also cover a switch between two cameras (swap the session's input instead of a new session); measure the switch on the owner's C920 and iPhone first.
 - webcam demo: keep the last frame on screen while a camera switches (today the preview goes dark under "Starting <camera>…"): a still() of the old camera drawn until the new one's first frame.
+- zinc bundle: native callbacks and promises on QuickJS (src/qjs/native_js.cpp refuses them: `Process.onEvent`, `System.onEvent`, `Gphoto2.detect`...), `__addEvHandler` (host events), `__host_oscClose` and `__host_glCreate`: 19 of the 25 programs of examples.lst that stop on QuickJS (docs/reports/zinc-quickjs-bundler.md section 4).
+- zinc bundle: Q0001 as a `zinc lint` rule (quickjs-api) for projects whose zinc.json says "engine": "quickjs", and oxlint's built-in rules as an optional pass on plain JavaScript files, so the editor shows them.
+- zinc bundle: follow dynamic `import()` with a literal specifier, load JSON modules (`with { type: 'json' }`), set `import.meta.resolve`; prune ~/.zinc/cache/qjs by age.
+- zinc bundle: `zinc pack` / `export` of a QuickJS project could ship the minified bundle (or its .qbc, same engine build) instead of the sources, and `zinc dev` on QuickJS could swap modules instead of restarting.
 
 ## Demos
 
@@ -389,6 +393,7 @@ The next backlog review turns lines into tasks or deletes them.
 - Live resize (owner, 2026-10-16): Linux X11 and Wayland have no modal loop: check that the watcher's frames inside the poll (an expose, a size change) do not double the frame rate or flicker, and what `aspectRatio` and `maxWidth` do under Wayland (SDL_SetWindowAspectRatio is not supported by every compositor).
 - Live resize (owner, 2026-10-16): Android and iOS send no live resize; the watcher stays off the UI thread (ZN-622): rotate a phone with a zinc:ui app and check one frame at the new size, no frame drawn from the UI thread.
 
+- zinc bundle: download the pinned esbuild 0.28.2 on linux-x64, linux-arm64 (a Pi) and win32-x64 (package/esbuild.exe), run `zinc bundle --minify --sourcemap --bytecode` on hero there and compare its frame with the interpreter's; on Windows check `NODE_PATH` with `;` and the paths esbuild prints back.
 - zinc:camera: on a Mac with the camera access granted to the terminal (a person clicks once), `Camera.open` on the FaceTime HD camera and a USB webcam (C920): frames arrive, the image shows them, `snapshot()` is the picture, close stops the green light; never tried (the access was undetermined and a test must not wait on the dialog).
 - zinc:camera (macOS, the owner's Mac): open, switch camera, change size and rate, take photos on the C920, OBS, an iPhone (Continuity) and the FaceTime HD camera: the window must not freeze (open and close run on the control queue), a size change reuses the session (no green-light blink), the iPhone lists without the AVFoundation warning when run from the dev bundle (webcam has an app id now).
 - zinc:camera: build and run the Android backend (plugins/camera/native/camera.android.cpp, camera2 NDK + SDL_RequestAndroidPermission) on the Nexus 7 and a recent phone: the permission dialog, front/back/USB cameras, frames upright by ACAMERA_SENSOR_ORIENTATION, the export's manifest (CAMERA, camera feature optional), the webcam demo in portrait.
