@@ -1192,6 +1192,21 @@ static void gl_present(const HalFrame* f) {
   GLuint src = glr::texture();
   float bgr = 0;
   if (glr_ok && f->frames) {
+#ifdef ZGL_ES
+    // GLES 2 (Android, ZN-741): only the damage is replayed, into the texture that keeps the frame (glr::dmg_default); a frame without damage
+    // draws and posts nothing (the window keeps the last one), a sleep paces it
+    glr::dmg_default = true;
+    if (!damaged && gl_tex_ok) {
+      static uint64_t idle_at;
+      const uint64_t now = SDL_GetTicksNS();
+      if (idle_at && now - idle_at < 16666666) SDL_DelayPrecise(16666666 - (now - idle_at));
+      idle_at = SDL_GetTicksNS();
+      glr::idle();
+      return;
+    }
+    glr::frame(f, false, gl_tex_ok ? glr::Rect{f->x0, f->y0, f->x1, f->y1} : glr::Rect{0, 0, PW, PH});
+    gl_tex_ok = true;
+#else
     const int64_t area = damaged ? (int64_t)(f->x1 - f->x0) * (f->y1 - f->y0) : 0;
     if (dw == PW && dh == PH && !sim_turn && damaged && area * 2 >= (int64_t)PW * PH) {   // straight into the window: no texture, no copy
       glr::frame(f, true, glr::Rect{0, 0, PW, PH});
@@ -1201,6 +1216,7 @@ static void gl_present(const HalFrame* f) {
     }
     if (damaged || !gl_tex_ok) { glr::frame(f, false, glr::Rect{0, 0, PW, PH}); gl_tex_ok = true; }
     else glr::idle();
+#endif
   } else {
     if (damaged) {
       render_rows_parallel(f->render_damage ? f->render_damage : f->render, f->y0, f->y1);   // fb keeps the previous frame

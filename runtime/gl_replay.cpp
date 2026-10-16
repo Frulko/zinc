@@ -1619,8 +1619,9 @@ static void run(const Frame& f, bool first) {
  *  a swap, so the whole surface is drawn); else into the surface texture, the whole surface too unless ZINC_GL_DMG=1
  *  limits it to `dmg`. ponytail: off by default, that scissored replay is the prime suspect of GPU hangs seen on the
  *  Pi 3B+ (Kit / Forms: partial damage, "Resetting GPU"); see docs/plugins/display-gl.md. */
+static bool dmg_default = false;   // the includer's choice when ZINC_GL_DMG is not set (the Android window, ZN-741)
 static void frame(const HalFrame* f, bool direct, Rect dmg) {
-  static const bool dmg_on = getenv("ZINC_GL_DMG") && atoi(getenv("ZINC_GL_DMG")) != 0;
+  static const bool dmg_on = getenv("ZINC_GL_DMG") ? atoi(getenv("ZINC_GL_DMG")) != 0 : dmg_default;
   double t0 = now_us();
   gpu_begin();
   const HalCmdList* lists[8];
