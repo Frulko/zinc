@@ -252,6 +252,25 @@ new size (zinc:ui does it for every app). `resize` in `zinc.json` wins over that
 { "targets": { "macos": { "width": 1024, "height": 600, "resize": "fill", "kiosk": true } } }
 ```
 
+**Live resize.** While you drag the window's edge, the app re-lays out and redraws at each new size, as a native app or a browser
+does: the frame is never an old one stretched, and animations, timers, video and camera pictures keep going during the drag. On
+macOS the system holds the app's loop while the edge is held (and while the green button zooms or a window is tiled); Zinc runs
+the program's frames from inside that loop, one per size change and at the display's rate while the mouse holds still. The
+window's own colour follows the app's background, so a growing edge shows that colour, not white or black, until the next frame.
+
+Size limits and the proportions of the window go in `zinc.json` `app.window`: the edge stops at them, in `zinc run` and in the
+programs `zinc build` writes.
+
+| `app.window` key | meaning |
+| --- | --- |
+| `minWidth`, `minHeight` | the smallest size, in points |
+| `maxWidth`, `maxHeight` | the largest size, in points |
+| `aspectRatio` | width / height the window keeps while resized (`1.7778` for 16:9) |
+
+```json
+{ "app": { "window": { "width": 900, "height": 600, "minWidth": 480, "minHeight": 320, "maxWidth": 1600 } } }
+```
+
 On Android (`zinc export --target android`) the window always fills the screen; `targets.android` is baked into the app for
 every build. `fullscreen` hides the status bar and the navigation buttons (immersive mode: a swipe from the edge shows them for
 a moment, and the program then gets the whole screen). `kiosk` does that, keeps the screen on while the app is in front, and

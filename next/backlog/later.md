@@ -6,6 +6,10 @@ The next backlog review turns lines into tasks or deletes them.
 
 ## Engine and tools
 
+- Live resize (owner, 2026-10-16): the frame drawn from the watcher resets the HAL's per-frame input (keys, clicks) that the outer poll had read before AppKit's loop began: a key pressed in the same 8 ms as the mouse-down on the edge is lost. Keep the outer poll's events for the nested frame.
+- Live resize (owner, 2026-10-16): present the frame inside AppKit's resize transaction (a CAMetalLayer with presentsWithTransaction, or the GL layer's display synced to the window's frame) if the hand check shows a one-frame lag or flicker at the moving edge; today the frame is swapped in windowDidResize before AppKit commits.
+- Live resize (owner, 2026-10-16): a resize frame allocates about 70 objects (timer re-arms, the layout, wrapped text; tests/t1/window_live_resize.sh bounds 100): find which come from the layout and make a relayout allocate nothing, as an idle frame does.
+
 - ZN-731: a picture with rounded corners of its own or an alpha on a hardware layer too (the two renders already give each pixel's alpha), so a film that fades in stays off the CPU; a part of a picture (drawImageRect) on a layer, through the plane's source rectangle.
 - ZN-731: zero-copy on macOS: VideoToolbox's CVPixelBuffer (an IOSurface) to the window behind `HalDisplay.layers`; today the frame is copied back and converted by swscale.
 - ZN-731: the frame on a KMS plane with page flips for every fbdev program, not only while a film plays: a true vertical blank and no tearing (it costs holding the DRM master and a second buffer).
@@ -377,6 +381,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-: webcam demo: photos taken in the same second get a `-2` suffix that sorts before the first name, so the strip order is off after a restart.
 
 ## Cross-platform pass
+
+- Live resize (owner, 2026-10-16): Windows: dragging the edge runs Win32's modal size loop; check that SDL's watcher gets the size changes and its live-resize expose there so the frames come from `zrt_redraw` (`ZINC_LIVE_RESIZE=40` with tests/t1/window_live_resize.sh), and that min/max/aspectRatio hold.
+- Live resize (owner, 2026-10-16): Linux X11 and Wayland have no modal loop: check that the watcher's frames inside the poll (an expose, a size change) do not double the frame rate or flicker, and what `aspectRatio` and `maxWidth` do under Wayland (SDL_SetWindowAspectRatio is not supported by every compositor).
+- Live resize (owner, 2026-10-16): Android and iOS send no live resize; the watcher stays off the UI thread (ZN-622): rotate a phone with a zinc:ui app and check one frame at the new size, no frame drawn from the UI thread.
 
 - zinc:camera: on a Mac with the camera access granted to the terminal (a person clicks once), `Camera.open` on the FaceTime HD camera and a USB webcam (C920): frames arrive, the image shows them, `snapshot()` is the picture, close stops the green light; never tried (the access was undetermined and a test must not wait on the dialog).
 - zinc:camera: build and run the V4L2 backend (plugins/camera/native/camera.linux.cpp) on Linux and a Pi 1 with a UVC webcam: YUYV and MJPEG (stb_image) paths, a camera unplugged while streaming, the frame rate a Pi 1 keeps at 320x240 and 640x480.
