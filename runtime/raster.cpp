@@ -749,12 +749,68 @@ static inline uint32_t texel(const Tex& t, int32_t x, int32_t y) {
   const uint8_t* p = t.rgba + ((size_t)y * t.w + x) * 4;
   return (uint32_t)p[3] << 24 | (uint32_t)p[0] << 16 | (uint32_t)p[1] << 8 | p[2];
 }
+// ImageFlag.Smooth (IMAGE grad 2, ZN-746): a cubic B-spline instead of the linear blend, for a small picture stretched far (a field a program
+// computes at low resolution): the linear blend leaves a grid of kinks there, the spline none. Separable: per row the four source rows are
+// blended once into a row of texels, then four of those per pixel. The GL replay samples the same spline with four linear taps. Opaque
+// pictures only: an image with alpha keeps the linear blend.
+static inline void bspline(float f, float w[4]) {
+  const float f2 = f * f, f3 = f2 * f;
+  w[0] = (1 - 3 * f + 3 * f2 - f3) / 6; w[1] = (4 - 6 * f2 + 3 * f3) / 6; w[2] = (1 + 3 * f + 3 * f2 - 3 * f3) / 6; w[3] = f3 / 6;
+}
+constexpr int32_t kSmoothMax = 1024;   // texels a row: wider pictures take the linear blend
+static void draw_smooth(const Target& t, const Cmd& c, const Tex& im, const Box& m) {
+  static ZRT_TLS float row[3][kSmoothMax + 4];   // the four source rows blended, per channel; texel j at j + 2, the edges repeated twice
+  const Rect b = intersect(bounds(c.x, c.y, c.w, c.h, t.clip), bounds(m.w < 0 ? m.x + m.w : m.x, m.h < 0 ? m.y + m.h : m.y, fabsf_(m.w), fabsf_(m.h), t.clip));
+  if (b.x0 >= b.x1 || b.y0 >= b.y1) return;
+  const int32_t n = b.x1 - b.x0;
+  // the columns' taps and weights, the same for every row: computed once
+  struct Col { int32_t i; float w[4]; };
+  Col* col = (Col*)hal_alloc((size_t)n * sizeof(Col));
+  if (!col) return;
+  const float kx = (float)im.w / m.w, ky = (float)im.h / m.h;
+  for (int32_t x = b.x0; x < b.x1; x++) {
+    const float fx = (x + 0.5f - m.x) * kx - 0.5f;
+    const int32_t ix = ifloor_fast(fx);
+    Col& k = col[x - b.x0];
+    bspline(fx - ix, k.w);
+    k.i = (ix < -1 ? -1 : ix > im.w - 1 ? im.w - 1 : ix) + 1;   // row[] index of its first tap, texel ix - 1
+  }
+  auto clampi = [](int32_t v, int32_t n) { return v < 0 ? 0 : v >= n ? n - 1 : v; };
+  for (int32_t y = b.y0; y < b.y1; y++) {
+    const float fy = (y + 0.5f - m.y) * ky - 0.5f;
+    const int32_t iy = ifloor_fast(fy);
+    float wy[4];
+    bspline(fy - iy, wy);
+    const int32_t r0 = clampi(iy - 1, im.h), r1 = clampi(iy, im.h), r2 = clampi(iy + 1, im.h), r3 = clampi(iy + 2, im.h);
+    for (int32_t x = 0; x < im.w; x++) {
+      const uint32_t p0 = texel(im, x, r0), p1 = texel(im, x, r1), p2 = texel(im, x, r2), p3 = texel(im, x, r3);
+      for (int32_t ch = 0; ch < 3; ch++) {
+        const int32_t s = 16 - 8 * ch;
+        row[ch][x + 2] = wy[0] * ((p0 >> s) & 255) + wy[1] * ((p1 >> s) & 255) + wy[2] * ((p2 >> s) & 255) + wy[3] * ((p3 >> s) & 255);
+      }
+    }
+    for (int32_t ch = 0; ch < 3; ch++) { row[ch][0] = row[ch][1] = row[ch][2]; row[ch][im.w + 2] = row[ch][im.w + 3] = row[ch][im.w + 1]; }
+    uint32_t* dst = &at(t, 0, y);
+    for (int32_t x = b.x0; x < b.x1; x++) {
+      const Col& k = col[x - b.x0];
+      uint32_t out = 0;
+      for (int32_t ch = 0; ch < 3; ch++) {
+        const float* q = row[ch] + k.i;
+        const float v = k.w[0] * q[0] + k.w[1] * q[1] + k.w[2] * q[2] + k.w[3] * q[3];
+        out |= (uint32_t)clampf(v + 0.5f, 0, 255) << (16 - 8 * ch);
+      }
+      if (c.alpha >= 255) dst[x] = out; else if (c.alpha) blend(dst[x], out, c.alpha);
+    }
+  }
+  hal_free(col);
+}
 __attribute__((noinline))   // kept out of draw_image: inlined, it changed the code of the whole-image loops beside it (measured, ZN-432)
 static void draw_boxed(const Target& t, const Cmd& c, const Tex& im) {
   const Box m = image_box(c);
   // finite, and at most 1e6 texels per pixel: the sample positions stay in int range (nothing is painted outside the box)
   if (!(m.w != 0 && m.h != 0 && m.w - m.w == 0 && m.h - m.h == 0 && m.x - m.x == 0 && m.y - m.y == 0)) return;
   if (!(fabsf_((float)im.w / m.w) < 1e6f && fabsf_((float)im.h / m.h) < 1e6f)) return;
+  if (c.grad == 2 && im.w <= kSmoothMax && !im.alpha) { draw_smooth(t, c, im, m); return; }   // opaque pictures (an image with alpha: the linear blend)
   const Rect b = intersect(bounds(c.x, c.y, c.w, c.h, t.clip), bounds(m.w < 0 ? m.x + m.w : m.x, m.h < 0 ? m.y + m.h : m.y, fabsf_(m.w), fabsf_(m.h), t.clip));
   if (b.x0 >= b.x1 || b.y0 >= b.y1) return;
   const float hw = c.w * 0.5f, hh = c.h * 0.5f, cx = c.x + hw, cy = c.y + hh;   // rounded corners are those of the painted rectangle
@@ -811,7 +867,7 @@ static void draw_image(const Target& t, const Cmd& c) {
       return;
     }
     if (!d->px) return;
-    if (d->alpha || (c.pad & kImageBox)) draw_boxed(t, c, Tex{nullptr, d->px, d->w, d->h, d->stride, d->alpha});
+    if (d->alpha || (c.pad & kImageBox) || c.grad == 2) draw_boxed(t, c, Tex{nullptr, d->px, d->w, d->h, d->stride, d->alpha});
     else if ((float)d->w / c.w < 1e6f && (float)d->h / c.h < 1e6f) draw_dyn(t, c, *d);
     return;
   }

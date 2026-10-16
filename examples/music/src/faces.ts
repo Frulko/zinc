@@ -1,6 +1,6 @@
 // The drawings of the home's other slides (main.ts): a watch face in the spirit of iOS StandBy and the Apple Watch, and activity rings.
 // Strokes and polygons of zinc:gfx, nothing cached: a frame of either costs less than the player's.
-import { stroke, rrect, rect, gradient, gradientPaint, imageFromBytes, destroyImage, drawImageRect, clip, unclip, font, fontAscent } from 'zinc:gfx';
+import { stroke, rrect, rect, gradient, gradientPaint, imageFromPixels, updateImage, drawImageRect, ImageFlag, clip, unclip, font, fontAscent } from 'zinc:gfx';
 import { ui, F, TEXT, TEXT3, centered } from './ui';
 import gsap from 'gsap';
 
@@ -102,37 +102,8 @@ export const LAMP_NAMES: string[] = ['Lave', 'Magma', 'Océan', 'Acide', 'Bonbon
 let lampPal: i32 = 0;
 export function lampPalette(): i32 { return lampPal; }
 export function setLampPalette(i: i32): void { lampPal = i % LAMPS.length; }
-const CRC: number[] = [];
-for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = (c & 1) !== 0 ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1); CRC.push(c >>> 0); }
-function be32(o: u8[], v: number): void { o.push((v >>> 24) & 255); o.push((v >>> 16) & 255); o.push((v >>> 8) & 255); o.push(v & 255); }
-/** A PNG chunk: length, type, data, CRC of type and data. */
-function chunk(o: u8[], type: string, data: u8[]): void {
-  be32(o, data.length);
-  let c = 0xffffffff;
-  const body: u8[] = [];
-  for (let i = 0; i < 4; i++) body.push(type.charCodeAt(i) as u8);
-  for (const d of data) body.push(d);
-  for (const b of body) { c = CRC[(c ^ b) & 255] ^ (c >>> 8); o.push(b); }
-  be32(o, (c ^ 0xffffffff) >>> 0);
-}
-/** An RGB PNG whose pixels are stored uncompressed (zlib stored block): the decoder is the engine's own, no encoder needed. */
-function pngOf(rgb: u8[], w: i32, h: i32): u8[] {
-  const raw: u8[] = [];
-  let a1 = 1, a2 = 0;
-  const z: u8[] = [0x78, 0x01];
-  for (let y = 0; y < h; y++) { raw.push(0); for (let x = 0; x < w * 3; x++) raw.push(rgb[y * w * 3 + x]); }
-  for (const b of raw) { a1 = (a1 + b) % 65521; a2 = (a2 + a1) % 65521; }
-  z.push(1); z.push(raw.length & 255); z.push((raw.length >> 8) & 255); z.push(~raw.length & 255); z.push((~raw.length >> 8) & 255);
-  for (const b of raw) z.push(b);
-  be32(z, (a2 * 65536 + a1) >>> 0);
-  const o: u8[] = [137, 80, 78, 71, 13, 10, 26, 10];
-  const ihdr: u8[] = [];
-  be32(ihdr, w); be32(ihdr, h); ihdr.push(8); ihdr.push(2); ihdr.push(0); ihdr.push(0); ihdr.push(0);
-  chunk(o, 'IHDR', ihdr); chunk(o, 'IDAT', z); chunk(o, 'IEND', []);
-  return o;
-}
-const lampRgb: u8[] = [];
-let lampPrev: i32 = -1;
+const lampRgba: u8[] = [];
+let lampImg: i32 = -1;   // the field's picture: made once, its pixels replaced every frame (a GPU display uploads only them)
 /** A lava lamp behind the time: four metaballs of the ring colours that rise, stretch and melt into each other. Always moving: the caller
  *  keeps the frames coming (ui.animating). */
 export function lava(W: number, H: number): void {
@@ -146,7 +117,7 @@ export function lava(W: number, H: number): void {
     r2.push(r * r);
     st.push(0.8 + 0.25 * Math.sin(t * 0.13 * sp + i * 2.1 + 1));   // stretches while it moves
   }
-  lampRgb.length = 0;
+  lampRgba.length = 0;
   for (let y = 0; y < LAMP_H; y++) {
     const v = 1 - y / (LAMP_H - 1);   // top row first; v = 0 at the bottom
     for (let x = 0; x < LAMP_W; x++) {
@@ -166,21 +137,12 @@ export function lava(W: number, H: number): void {
       const rr = (br + cr * glow * 0.22) * (1 - gr) + cr * lit * gr;
       const gg = (bgc + cg * glow * 0.22) * (1 - gr) + cg * lit * gr;
       const bl = (bb + cb * glow * 0.22) * (1 - gr) + cb * lit * gr;
-      lampRgb.push(Math.min(255, rr) as u8); lampRgb.push(Math.min(255, gg) as u8); lampRgb.push(Math.min(255, bl) as u8);
+      lampRgba.push(Math.min(255, rr) as u8); lampRgba.push(Math.min(255, gg) as u8); lampRgba.push(Math.min(255, bl) as u8); lampRgba.push(255);
     }
   }
-  const img = imageFromBytes(pngOf(lampRgb, LAMP_W, LAMP_H));
-  if (img >= 0) {
-    // the picture is small: four taps of it, half a texel apart and averaged (alphas 1, 1/2, 1/3, 1/4 stack to equal weights), melt the
-    // grid that one bilinear stretch leaves visible
-    const dx = W / LAMP_W * 0.5, dy = H / LAMP_H * 0.5;
-    drawImageRect(img, 0, 0, LAMP_W, LAMP_H, -dx * 2, -dy * 2, W + dx * 4, H + dy * 4, 255, 0, 0, 0xffffff);
-    drawImageRect(img, 0, 0, LAMP_W, LAMP_H, -dx, -dy, W + dx * 4, H + dy * 4, 128, 0, 0, 0xffffff);
-    drawImageRect(img, 0, 0, LAMP_W, LAMP_H, -dx * 2, -dy, W + dx * 4, H + dy * 4, 85, 0, 0, 0xffffff);
-    drawImageRect(img, 0, 0, LAMP_W, LAMP_H, -dx, -dy * 2, W + dx * 4, H + dy * 4, 64, 0, 0, 0xffffff);
-  }
-  if (lampPrev >= 0) destroyImage(lampPrev);   // drawing is recorded: the picture of this frame must outlive it
-  lampPrev = img;
+  if (lampImg < 0) lampImg = imageFromPixels(lampRgba, LAMP_W, LAMP_H); else updateImage(lampImg, lampRgba);
+  // the field is small: stretched with the smooth filter (a cubic spline), which leaves no grid where a linear stretch would
+  if (lampImg >= 0) drawImageRect(lampImg, 0, 0, LAMP_W, LAMP_H, 0, 0, W, H, 255, ImageFlag.Smooth);
   ui.animating = true;
 }
 

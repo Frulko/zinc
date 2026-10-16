@@ -1599,7 +1599,7 @@ void drawImageRect(int32_t i, double sx, double sy, double sw, double sh, double
   Cmd* c = push(raster::IMAGE, 0, alpha);
   if (!c) return;
   box(c, dx, dy, dw, dh);
-  c->res = i; c->c2 = raster::image_version(i); c->grad = flags & 4 ? 1 : 0;
+  c->res = i; c->c2 = raster::image_version(i); c->grad = flags & 4 ? 1 : flags & 8 ? 2 : 0;   // nearest, smooth (ZN-746)
   if ((tint & 0xFFFFFF) != 0xFFFFFF) { c->pad |= raster::kImageTint; c->r = (float)(tint & 0xFFFFFF); }
   if (blend > 0 && blend <= raster::BLEND_SCREEN) c->pad |= (uint8_t)(blend << raster::kBlendShift);
   // where the whole image would lie for the source rectangle to land on the destination (zrt_raster.h image_box); mirrored: from the far side, a negative size

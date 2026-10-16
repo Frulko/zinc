@@ -385,7 +385,7 @@ static void quad(const Q& q) {
     if (m15 == FILL) lean = q.grad <= 2 ? LEAN_FILL : q.grad == 3 ? LEAN_RADIAL : -1;
     else if (m15 == BORDER_M) lean = LEAN_BORDER;
     else if (m15 == SHADOW_M) lean = LEAN_SHADOW;
-    else if (q.r <= 0) lean = m15 == SOLID ? LEAN_SOLID : m15 == TEXT_M ? LEAN_TEXT : (m15 == IMAGE_RGBA || m15 == IMAGE_BGR) && q.grad != 2 ? LEAN_IMAGE : -1;
+    else if (q.r <= 0) lean = m15 == SOLID ? LEAN_SOLID : m15 == TEXT_M ? LEAN_TEXT : (m15 == IMAGE_RGBA || m15 == IMAGE_BGR) && q.grad != 2 && q.p1 == 0 ? LEAN_IMAGE : -1;
   }
   run_of(mode, lean);
   nq++;
@@ -650,6 +650,8 @@ static void draw_image(const Cmd& c) {
     nearest = c.grad == 1 || copy;
     b = isect(b, bounds(mx0, my0, mw, mh, HUGE_R));   // nothing is painted outside the image
   }
+  const bool smooth = c.grad == 2 && !copy && !alpha && c.res >= DYN_BASE;   // ImageFlag.Smooth: the spline of the image shader on linear taps (opaque pictures, as the CPU)
+  if (smooth) nearest = false;
   if (b.x0 >= b.x1 || b.y0 >= b.y1) return;
   // a copy samples texel centres, where both filters give the texel: the texture keeps its filter, so the frames of an atlas page drawn
   // at their size and scaled stay in one batch (ZN-438)
@@ -666,6 +668,7 @@ static void draw_image(const Cmd& c) {
   q.c1 = image_tint(c);
   q.grad = t->cmp == 2 ? 2 : alpha;   // the coverage is the texture's alpha; 2: its texels are premultiplied
   q.u0 = (q.x0 - m.x) / m.w; q.u1 = (q.x1 - m.x) / m.w; q.v0 = (q.y0 - m.y) / m.h; q.v1 = (q.y1 - m.y) / m.h;
+  if (smooth) { q.p1 = 1; q.r = 0; q.bw = (float)t->w; q.bh = (float)t->h; }   // the shader's spline reads the texture's size there
   quad(q);
 }
 

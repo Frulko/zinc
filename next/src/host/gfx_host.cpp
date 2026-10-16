@@ -118,6 +118,31 @@ int32_t imageFromBytes(const uint64_t* slots, uint32_t n) {
   return id;
 }
 
+// zinc:gfx imageFromPixels / updateImage (ZN-746): RGBA bytes (one slot per byte, four a pixel, rows top first) into a runtime image, with
+// alpha when a pixel is not opaque; no file format between the program and the pixels. A new version of the image: a GPU display uploads it again.
+static bool putRgba(int32_t id, const uint64_t* slots, uint32_t n) {
+  const uint32_t* cur; int32_t w = 0, h = 0, stride = 0;
+  uint32_t* px = zrt::raster::dyn_pixels(id);
+  if (!px || !zrt::raster::dyn_view(id, &cur, &w, &h, &stride) || static_cast<uint64_t>(w) * h * 4 > n) return false;
+  bool alpha = false;
+  for (int32_t y = 0; y < h; y++)
+    for (int32_t x = 0; x < w; x++) {
+      const uint64_t* p = slots + (static_cast<size_t>(y) * w + x) * 4;
+      const uint32_t a = static_cast<uint32_t>(p[3]) & 255;
+      px[static_cast<size_t>(y) * stride + x] = a << 24 | (static_cast<uint32_t>(p[0]) & 255) << 16 | (static_cast<uint32_t>(p[1]) & 255) << 8 | (static_cast<uint32_t>(p[2]) & 255);
+      alpha |= a != 255;
+    }
+  zrt::raster::dyn_set_alpha(id, alpha);
+  zrt::raster::dyn_update(id, nullptr, 0);
+  return true;
+}
+int32_t imageFromPixels(const uint64_t* slots, uint32_t n, int32_t w, int32_t h) {
+  if (w <= 0 || h <= 0 || w > 16384 || h > 16384 || static_cast<uint64_t>(w) * h * 4 > n) return -1;
+  const int32_t id = zrt::raster::dyn_create(w, h);
+  if (id >= 0 && !putRgba(id, slots, n)) { zrt::gfx::destroyImage(id); return -1; }
+  return id;
+}
+
 static void (*frameEnd[4])();   // zn::host::onFrameEnd
 static int nFrameEnd = 0;
 #ifdef ZN_APP_LIBRARY
@@ -192,6 +217,8 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostGfxDrawImage: g::drawImage(n(0), a[1].d, a[2].d, a[3].d, a[4].d, n(5), a[6].d); break;
     case Rt::HostGfxDrawImageRect: g::drawImageRect(n(0), a[1].d, a[2].d, a[3].d, a[4].d, a[5].d, a[6].d, a[7].d, a[8].d, n(9), n(10), a[11].d, u(12), n(13)); break;
     case Rt::HostGfxImageFromBytes: r->i = imageFromBytes(static_cast<const uint64_t*>(a[0].p), a[0].n); break;
+    case Rt::HostGfxImageFromPixels: r->i = imageFromPixels(static_cast<const uint64_t*>(a[0].p), a[0].n, n(1), n(2)); break;
+    case Rt::HostGfxUpdateImage: putRgba(n(0), static_cast<const uint64_t*>(a[1].p), a[1].n); break;
     case Rt::HostGfxClip: g::clip(a[0].d, a[1].d, a[2].d, a[3].d, a[4].d); break;
     case Rt::HostGfxUnclip: g::unclip(); break;
     case Rt::HostGfxTranslate: g::translate(a[0].d, a[1].d); break;

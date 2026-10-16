@@ -345,7 +345,10 @@
   X(HostResourceStats, "host.resourceStats", ">s", 2) \
   /* the device's features behind the web APIs (navigator.getBattery, wakeLock, onLine, visibility, sensors): a query and its argument to the */ \
   /* display driver's HalDisplay::device, else the host's own answer for a desktop; system row, appended */ \
-  X(HostSysDevice, "host.sysDevice", "ss>s", 2)
+  X(HostSysDevice, "host.sysDevice", "ss>s", 2) \
+  /* zinc:gfx imageFromPixels / updateImage (ZN-746): a runtime image from RGBA bytes (four a pixel, rows top first), and new pixels for one; */ \
+  /* graphics rows, appended */ \
+  X(HostGfxImageFromPixels, "host.gfxImageFromPixels", "Bii>i", 2) X(HostGfxUpdateImage, "host.gfxUpdateImage", "iB>n", 2)
 
 namespace zn {
 
@@ -375,7 +378,8 @@ inline constexpr bool isGlRow(Rt r) { return r >= Rt::HostGlCreate && r <= Rt::H
 // The zinc:gfx rows appended after the host block (the block's ids are the device cores'): served by `hostGfx` like the block's own. One list for isSysRow and for the engines that install the host rows.
 inline constexpr bool isGfxTailRow(Rt r) {
   return r == Rt::HostGfxCommands || r == Rt::HostGfxCommandsFree || r == Rt::HostGfxSetResize || r == Rt::HostGfxSetTransform || r == Rt::HostGfxResetTransform || r == Rt::HostGfxDrawImageRect || r == Rt::HostGfxImageFromBytes ||
-         (r >= Rt::HostGfxOpenWindow && r <= Rt::HostGfxEndWindow) || r == Rt::HostGfxLoadFont || r == Rt::HostGfxGradientPaint;
+         (r >= Rt::HostGfxOpenWindow && r <= Rt::HostGfxEndWindow) || r == Rt::HostGfxLoadFont || r == Rt::HostGfxGradientPaint || r == Rt::HostGfxImageFromPixels ||
+         r == Rt::HostGfxUpdateImage;
 }
 // The system rows appended after the gfx ones: the engines that install the host rows (QuickJS) add them too.
 inline constexpr bool isSysTailRow(Rt r) { return r == Rt::HostSysLaunchDir || r == Rt::HostSysLocale || r == Rt::HostSysDevice || (r >= Rt::HostAssetsMount && r <= Rt::HostAssetsStat); }
@@ -419,7 +423,7 @@ inline bool rtResultBorrowed(Rt id) { return id == Rt::MapGet; }
 // retained across them (ZN-413). The others only read their arguments: the string rows, the read-only Array, Map and Set members, the
 // graphics host (numbers, borrowed strings and arrays, no callbacks).
 inline bool rtMayRelease(Rt id) {
-  if ((id >= Rt::HostGfxFrames && id < Rt::HostSysFirst) || isGlRow(id) || id == Rt::HostGfxDrawImageRect || id == Rt::HostGfxImageFromBytes || (id >= Rt::HostGfxOpenWindow && id <= Rt::HostGfxEndWindow) || id == Rt::HostGfxLoadFont || id == Rt::HostGfxGradientPaint) return false;
+  if ((id >= Rt::HostGfxFrames && id < Rt::HostSysFirst) || isGlRow(id) || id == Rt::HostGfxDrawImageRect || id == Rt::HostGfxImageFromBytes || (id >= Rt::HostGfxOpenWindow && id <= Rt::HostGfxEndWindow) || id == Rt::HostGfxLoadFont || id == Rt::HostGfxGradientPaint || id == Rt::HostGfxImageFromPixels || id == Rt::HostGfxUpdateImage) return false;
   if (id >= Rt::StrConcat && id <= Rt::FromCharCode) return id == Rt::JsonParse || id == Rt::DynGetFast || id == Rt::DynAddFast;
   switch (id) {
     case Rt::ArrSlice: case Rt::ArrIndexOf: case Rt::ArrIncludes: case Rt::MapGet: case Rt::MapHas: case Rt::MapKeys: case Rt::MapValues: case Rt::MapSize:

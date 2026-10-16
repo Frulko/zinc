@@ -28,8 +28,15 @@ static const char* const FS_HEAD =
   "  vec3 col = v_c1.rgb; float cov = 1.0, a = v_c1.a;\n";
 // IMAGE: baked RGBA / runtime 0x00RRGGBB (grad 1: 0xAARRGGBB), times the sprite's tint in c1 (white: none, ZN-581); grad 2: premultiplied
 // texels (a compressed texture, ZN-439)
+// ImageFlag.Smooth (v_par.y 1, ZN-746): the cubic B-spline of raster.cpp draw_smooth in four linear taps; v_box.zw is then the texture's size
 static const char* const FS_IMAGE =
-  "    vec4 t = texture2D(u_tex, v_pos.zw);\n"
+  "    vec4 t;\n"
+  "    if (v_par.y > 0.5) {\n"
+  "      vec2 ts = v_box.zw, st = v_pos.zw * ts - 0.5, i = floor(st), f = st - i, f2 = f * f, f3 = f2 * f;\n"
+  "      vec2 w0 = (1.0 - 3.0 * f + 3.0 * f2 - f3) / 6.0, w1 = (4.0 - 6.0 * f2 + 3.0 * f3) / 6.0, w2 = (1.0 + 3.0 * f + 3.0 * f2 - 3.0 * f3) / 6.0, w3 = f3 / 6.0;\n"
+  "      vec2 g0 = w0 + w1, g1 = w2 + w3, h0 = (i - 0.5 + w1 / g0) / ts, h1 = (i + 1.5 + w3 / g1) / ts;\n"
+  "      t = g0.y * (g0.x * texture2D(u_tex, h0) + g1.x * texture2D(u_tex, vec2(h1.x, h0.y))) + g1.y * (g0.x * texture2D(u_tex, vec2(h0.x, h1.y)) + g1.x * texture2D(u_tex, h1));\n"
+  "    } else t = texture2D(u_tex, v_pos.zw);\n"
   "    if (grad > 1.5 && t.a > 0.0) t.rgb /= t.a;\n"
   "    col = (mode < 3.5 ? t.rgb : t.bgr) * v_c1.rgb; cov = mode < 3.5 || grad > 0.5 ? t.a : 1.0;\n"
   "    if (r > 0.0) cov *= cover(p, c, h, r);\n";

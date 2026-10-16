@@ -1,11 +1,11 @@
 ---
 id: ZN-746
 title: 'Runtime shaders: a SHADER fill on the GPU, the same effect on the CPU'
-status: Backlog
+status: In Progress
 assignee:
   - '@parallel'
 created_date: '2026-10-16 15:11'
-updated_date: '2026-10-16 15:12'
+updated_date: '2026-10-16 15:56'
 labels:
   - perf
   - gl
@@ -33,4 +33,14 @@ Owner 2026-10-16: the lava lamp face of examples/music (src/faces.ts lava()) lag
 
 <!-- SECTION:NOTES:BEGIN -->
 2026-10-16 (owner, "on est sur android là"): do not wait for ZN-741 on Android: step (a) raw pixel images and one smooth draw first, then the SHADER as a GPU layer under the software-rastered UI in the SDL window (display-gl's overlay-with-GPU-layers model), the full GPU replay path joining when ZN-741 lands.
+2026-10-16, step (a) (worktree agent): raw pixel images and one smooth draw.
+- zinc:gfx imageFromPixels(rgba, w, h) and updateImage(img, rgba) (lib/gfx.d.ts, src/frontend/modules.cpp, two appended graphics rows in include/zn/runtime.h, src/host/gfx_host.cpp): RGBA bytes into a runtime image, alpha found from the bytes, a new version per update (the GL replay uploads only that texture again; the frame diff sees the version). Too few bytes: -1, or no change.
+- ImageFlag.Smooth = 8 (IMAGE grad 2): a cubic B-spline instead of the linear blend for a small picture stretched far. Software raster: raster.cpp draw_smooth, separable (the four source rows blended once per row, the columns' taps and weights computed once per call, four taps a pixel); GL replay: the same spline in the image shader with four linear taps (the texture's size in v_box.zw). Opaque runtime pictures only; an image with alpha keeps the linear blend on both.
+- examples/music lava(): the field into an RGBA array, imageFromPixels once then updateImage, one drawImageRect with ImageFlag.Smooth over the screen; the PNG encoder (CRC, Adler, chunks) and the four half-texel taps are gone. Same look (screenshot /tmp/zn743/out/lava-after2.png: no grid).
+- Test: tests/t0/image_pixels.sh (headless, interpreter; QuickJS the same frame hash; AOT checked by hand, same hash 5280fa742c372763): the image from bytes and the refusals, updateImage shows the mirror, a short update changes nothing, the smooth stretch of a step is a rising ramp without the linear one's kinks (4-pixel second difference: linear at least 12, smooth at most 6).
+
+Measured (AC1, numbers for docs/reports/zinc-next-perf.md, written by the coordinator):
+- Nexus 7, software raster (ZINC_PRESENT direct, lava face 1280x704, ZINC_PRESENT_STATS per 120 drawn frames): before 4.0 fps, interval p50 242-245 ms, raster p50 200-203 ms; after 21.9 fps in the panel, interval p50 44-48 ms (later windows 109 ms), raster p50 28-32 ms (76 later). The rest of a frame: the field in Zinc and the clock over it.
+- Desktop window 1280x704 (loaded machine): software raster before raster p50 25.2 p99 38.4 ms, interval p50 28.1 (36 fps); after raster p50 3.3 p99 6.9 ms, interval p50 16.2 (60 fps). GL replay: work p50 2.02 -> 1.03 ms, 60 fps both.
+Not yet: step (b), the SHADER command on the GPU under the software-rastered UI in the Android window, and AC2-AC4.
 <!-- SECTION:NOTES:END -->

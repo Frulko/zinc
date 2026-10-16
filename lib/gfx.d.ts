@@ -56,7 +56,8 @@ declare module 'zinc:gfx' {
   export function imageWidth(image: i32): i32;
   export function imageHeight(image: i32): i32;
   export function drawImage(image: i32, x: number, y: number, w: number, h: number, alpha: i32, radius: number): void;
-  export const enum ImageFlag { FlipX = 1, FlipY = 2, Nearest = 4 }
+  /** Smooth: a cubic B-spline instead of the linear blend, for a small picture stretched far (a field computed at low resolution): no grid. */
+  export const enum ImageFlag { FlipX = 1, FlipY = 2, Nearest = 4, Smooth = 8 }
   /** How a sprite's colour meets what is under it: Normal paints over it, Add adds (glows, sparks), Multiply darkens (shadows, stains), Screen
    *  lightens (light, fog). */
   export const enum Blend { Normal = 0, Add = 1, Multiply = 2, Screen = 3 }
@@ -71,6 +72,12 @@ declare module 'zinc:gfx' {
   /** Runtime image decoded from the bytes of a PNG or JPEG file (zinc:assets readBytes, a download), with its transparency. -1 when the
    *  bytes are not such an image. Free it with destroyImage. */
   export function imageFromBytes(bytes: u8[]): i32;
+  /** Runtime image of w x h pixels from RGBA bytes (four a pixel, rows top first), with its transparency: no file format between a picture a
+   *  program computes and the screen. -1 when the bytes are too few. Free it with destroyImage. */
+  export function imageFromPixels(rgba: u8[], w: i32, h: i32): i32;
+  /** New RGBA pixels for a runtime image of imageFromPixels (as many bytes as it has pixels times four; fewer: nothing changes). The frames
+   *  drawn after it show them; a GPU display uploads only this image again. */
+  export function updateImage(image: i32, rgba: u8[]): void;
   /** Clips the following draws to the box until unclip(); radius > 0 also clips to its rounded corners (anti-aliased). */
   export function clip(x: number, y: number, w: number, h: number, radius?: number): void;
   export function unclip(): void;
