@@ -219,6 +219,9 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-622: measure touch-to-frame latency and page faults of the mapped library on the Nexus 7 (simpleperf).
 - ZN-622: the window section of `next/CMakeLists.txt` tests `APPLE`; scope it to Darwin when the iOS export comes.
 - ZN-622: Android shows the status and navigation bars; immersive full screen for games belongs with ZN-625.
+- ZN-742: `if (import.meta.hot)` blocks are not type-checked by `zinc check` or the LSP (removed before checking outside hot mode); check them in hot mode too, or warn.
+- ZN-742: the ZBC cache has one directory per entry, so alternating `zinc dev` (hot) and `zinc run` recompiles each time; add hot mode to `zbccache::key` once `zinc dev` sets `ZINC_HOT`.
+- tools/diff-matrix: on `conf:async errors modules features generic_static` gives interp=DIFF (aot ok) on main, seen by ZN-742.01.
 
 ## Demos
 
