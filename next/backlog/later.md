@@ -606,3 +606,5 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-750: check BGRA_8888 against RGBX on a real API 26-36 device and move the API line if it honours format 5.
 - ZN-629: --aab and --apk on Linux (unzip, the JDK at /opt/android-studio/jbr) and an IPA archive on a device with the owner's team.
 - ZN-748: the platform looks on the Nexus 7 and the iOS simulator, screenshots in docs/reports/zinc-next-android and zinc-next-ios.
+
+- ZN-n: agent_ota flakes once in CI ("session ended early"); passes alone, check the session teardown race
