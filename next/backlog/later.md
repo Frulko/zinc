@@ -206,6 +206,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-742: a parse cache for unchanged files and compiling on a thread, to bring a save under 200 ms.
 - ZN-742: Fast Refresh for React-mode components (`_rc`) beyond the root re-mount.
 - zinc dev: the `compile error:` line prints the first stderr line (`plugin svg: cached native library`) instead of the diagnostic; print the diagnostic.
+- JSX (aabbf0fb): a prop that calls a function but reads no signal (`size={buttonIconSize(size)}`) keeps its `_comp` effect alive, one Computation per instance; re-parent the owned effects when nothing was tracked, for ESP32 heaps.
+- JSX (aabbf0fb): when every prop reads and the last one holds JSX, the component body stays tracked (a top-level read remounts it); calls with explicit type arguments (`f<T>(x)`) are not seen as reads.
+- JSX (aabbf0fb): a prop that reads a signal remounts the component and loses its local state, where Solid updates in place; real getter props need typed records to accept getter objects (Z0103 today).
+- Prototype: `compiler/src/jsx.ts:305` evaluates Solid component props once, like Zinc Next did before aabbf0fb.
 
 ## Demos
 
