@@ -2,15 +2,16 @@
 id: ZN-746
 title: 'Runtime shaders: a SHADER fill on the GPU, the same effect on the CPU'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-16 15:11'
+updated_date: '2026-10-16 15:12'
 labels:
   - perf
   - gl
   - size-L
 milestone: m-21
-dependencies:
-  - ZN-741
+dependencies: []
 ordinal: 196700
 ---
 
@@ -27,3 +28,9 @@ Owner 2026-10-16: the lava lamp face of examples/music (src/faces.ts lava()) lag
 - [ ] #3 the lava face at 60 fps on the Nexus 7 with the GPU replay and at least 30 fps with the software raster, in docs/reports/zinc-next-perf.md
 - [ ] #4 a decision record: the shader language (GLSL ES 1.00 subset vs SkSL-like), the CPU path, and what WebGL (zinc:gl) and three.js keep doing
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-10-16 (owner, "on est sur android là"): do not wait for ZN-741 on Android: step (a) raw pixel images and one smooth draw first, then the SHADER as a GPU layer under the software-rastered UI in the SDL window (display-gl's overlay-with-GPU-layers model), the full GPU replay path joining when ZN-741 lands.
+<!-- SECTION:NOTES:END -->
