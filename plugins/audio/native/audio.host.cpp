@@ -48,6 +48,56 @@ bool env_on(const char* n) { const char* v = getenv(n); return v && *v && *v != 
 float rate_of(double r) { return r > 0 ? (float)(r < 1.0 / 64 ? 1.0 / 64 : r > 64 ? 64 : r) : 1.0f; }
 float pan_of(double p) { return p == p ? (float)(p < -1 ? -1 : p > 1 ? 1 : p) : 0.0f; }
 
+// Streams: samples a program writes as they come (the peer's audio of a call, a synthesizer), played through a miniaudio data source
+// that reads a buffer on the mixer's thread. It starts once PRIME seconds are buffered; when it runs dry it plays silence and waits for
+// PRIME again (an underrun); when the writer runs ahead of the device (two clocks that drift, a burst after a network stall), what is
+// buffered beyond PRIME + SLACK is dropped, so the delay stays under 200 ms.
+const int MAXSTREAM = 16;
+const double PRIME = 0.06, SLACK = 0.12;
+struct Stream {
+  ma_data_source_base base;   // first: miniaudio sees the stream as a data source
+  ma_sound sound;
+  bool used, primed;
+  ma_uint32 channels, rate;
+  pthread_mutex_t mu;
+  float* buf;                 // a ring of cap samples
+  size_t cap, head, count;
+  uint64_t underruns, dropped;
+};
+Stream streams[MAXSTREAM];
+ma_result ds_read(ma_data_source* ds, void* out, ma_uint64 frames, ma_uint64* read) {
+  Stream* s = (Stream*)ds;
+  float* o = (float*)out;
+  const size_t want = (size_t)frames * s->channels, prime = (size_t)(PRIME * s->rate) * s->channels, most = prime + (size_t)(SLACK * s->rate) * s->channels;
+  size_t n = 0;
+  pthread_mutex_lock(&s->mu);
+  if (!s->primed && s->count >= prime) s->primed = true;
+  if (s->primed) {
+    if (s->count > most) { const size_t drop = s->count - prime; s->head = (s->head + drop) % s->cap; s->count -= drop; s->dropped += drop / s->channels; }
+    n = want < s->count ? want : s->count;
+    for (size_t i = 0; i < n; i++) o[i] = s->buf[(s->head + i) % s->cap];
+    s->head = (s->head + n) % s->cap; s->count -= n;
+    if (n < want) { s->primed = false; s->underruns++; }
+  }
+  pthread_mutex_unlock(&s->mu);
+  memset(o + n, 0, (want - n) * sizeof(float));
+  if (read) *read = frames;   // a stream never ends: silence while it waits
+  return MA_SUCCESS;
+}
+ma_result ds_seek(ma_data_source*, ma_uint64) { return MA_SUCCESS; }
+ma_result ds_format(ma_data_source* ds, ma_format* f, ma_uint32* ch, ma_uint32* rate, ma_channel* map, size_t cap) {
+  Stream* s = (Stream*)ds;
+  if (f) *f = ma_format_f32;
+  if (ch) *ch = s->channels;
+  if (rate) *rate = s->rate;
+  if (map) ma_channel_map_init_standard(ma_standard_channel_map_default, map, cap, s->channels);
+  return MA_SUCCESS;
+}
+ma_result ds_cursor(ma_data_source*, ma_uint64* c) { if (c) *c = 0; return MA_SUCCESS; }
+ma_result ds_length(ma_data_source*, ma_uint64* l) { if (l) *l = 0; return MA_NOT_IMPLEMENTED; }
+ma_data_source_vtable stream_vtable = {ds_read, ds_seek, ds_format, ds_cursor, ds_length, nullptr, 0};
+Stream* stream_at(int32_t h) { return h >= 0 && h < MAXSTREAM && streams[h].used ? &streams[h] : nullptr; }
+
 // The next frames of the mix. The engine's clock, which time() and the delays count on, stands still while no sound is in
 // the graph: it is moved by hand over that silence.
 void render(void* out, ma_uint32 frames) {
@@ -78,6 +128,7 @@ void shutdown() {   // the device stops with the program instead of being cut by
   if (!opened) return;
   if (output()) ma_device_uninit(&dev);
   for (Voice& v : voices) release(v);
+  for (Stream& s : streams) if (s.used) { ma_sound_uninit(&s.sound); s.used = false; }
   ma_engine_uninit(&eng);
   opened = false;
 }
@@ -238,6 +289,62 @@ struct HostAudio : NativeAudio {
     for (int32_t i = 0; i < n; i++) r.a->data[i] = p[(size_t)i * c->channels];
     r.a->len = n;
     return r;
+  }
+  int32_t streamOpen(int32_t channels, int32_t rate) override {
+    if (channels < 1 || channels > 2 || rate < 8000 || rate > 192000) return fail("a stream of 1 or 2 channels, at 8000 to 192000 frames per second");
+    ma_engine* e = engine();
+    if (!e) return fail("no mixer");
+    int32_t h = 0;
+    while (h < MAXSTREAM && streams[h].used) h++;
+    if (h == MAXSTREAM) return fail("too many streams open (16)");
+    Stream& s = streams[h];
+    s.channels = (ma_uint32)channels; s.rate = (ma_uint32)rate;
+    s.cap = (size_t)rate * channels;   // one second
+    s.buf = (float*)ma_malloc(s.cap * sizeof(float), nullptr);
+    if (!s.buf) return fail("out of memory");
+    s.head = s.count = 0; s.primed = false; s.underruns = s.dropped = 0;
+    pthread_mutex_init(&s.mu, nullptr);
+    ma_data_source_config dc = ma_data_source_config_init();
+    dc.vtable = &stream_vtable;
+    if (ma_data_source_init(&dc, &s.base) != MA_SUCCESS) { ma_free(s.buf, nullptr); return fail("the stream cannot start"); }
+    const ma_uint32 flags = MA_SOUND_FLAG_NO_SPATIALIZATION | (s.rate == RATE ? MA_SOUND_FLAG_NO_PITCH : 0);   // no resampler at the mixer's rate
+    if (ma_sound_init_from_data_source(e, &s.base, flags, nullptr, &s.sound) != MA_SUCCESS) { ma_data_source_uninit(&s.base); ma_free(s.buf, nullptr); return fail("the stream cannot start"); }
+    s.used = true;
+    ma_sound_start(&s.sound);
+    return h;
+  }
+  int32_t streamWrite(int32_t h, zrt::Array<double> samples) override {
+    Stream* s = stream_at(h);
+    if (!s) return 0;
+    const size_t n = samples.a ? (size_t)samples.a->len - (size_t)samples.a->len % s->channels : 0;
+    pthread_mutex_lock(&s->mu);
+    for (size_t i = 0; i < n; i++) {
+      if (s->count == s->cap) { s->head = (s->head + 1) % s->cap; s->count--; s->dropped++; }   // a full second: the oldest goes
+      s->buf[(s->head + s->count) % s->cap] = (float)samples.a->data[i];
+      s->count++;
+    }
+    const int32_t frames = (int32_t)(s->count / s->channels);
+    pthread_mutex_unlock(&s->mu);
+    return frames;
+  }
+  zrt::Array<double> streamInfo(int32_t h) override {
+    Stream* s = stream_at(h);
+    zrt::Array<double> r = zrt::Array<double>::with_cap(3);
+    double v[3] = {0, 0, 0};
+    if (s) { pthread_mutex_lock(&s->mu); v[0] = (double)(s->count / s->channels) / s->rate; v[1] = (double)s->underruns; v[2] = (double)s->dropped; pthread_mutex_unlock(&s->mu); }
+    memcpy(r.a->data, v, sizeof v);
+    r.a->len = 3;
+    return r;
+  }
+  void streamSetVolume(int32_t h, double volume) override { if (Stream* s = stream_at(h)) ma_sound_set_volume(&s->sound, (float)volume); }
+  void streamClose(int32_t h) override {
+    Stream* s = stream_at(h);
+    if (!s) return;
+    ma_sound_uninit(&s->sound);   // leaves the mix before its buffer goes
+    ma_data_source_uninit(&s->base);
+    ma_free(s->buf, nullptr);
+    pthread_mutex_destroy(&s->mu);
+    s->used = false;
   }
   double time() override { return opened ? (double)ma_engine_get_time_in_pcm_frames(&eng) / RATE : 0; }
   void setMasterVolume(double volume) override { if (ma_engine* e = engine()) ma_engine_set_volume(e, (float)volume); }

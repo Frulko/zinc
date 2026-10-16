@@ -6,6 +6,7 @@ const active: boolean[] = [];
 let err: string = '';
 const ends: f64[] = [];        // per voice started by start(), at index voice - 1: the time it ends at (mix() moves the time)
 let clock: f64 = 0;
+const buffered: i32[] = [], rates: i32[] = [], chans: i32[] = [];   // per stream: frames buffered, frames per second, channels
 const known = (s: i32): boolean => s >= 0 && s < lengths.length && lengths[s] >= 0;
 function add(seconds: f64): i32 { lengths.push(seconds); active.push(false); return lengths.length - 1; }
 
@@ -61,6 +62,20 @@ export default {
   rate(sound: i32): i32 { return known(sound) ? 48000 : 0; },
   samples(sound: i32, channel: i32): f64[] { return []; },
   setMasterVolume(volume: f64): void {},
+  // streams keep only how much is buffered (one second at most); nothing plays them
+  streamOpen(channels: i32, rate: i32): i32 {
+    if ((channels == 1 || channels == 2) && rate >= 8000 && rate <= 192000) { buffered.push(0); rates.push(rate); chans.push(channels); return buffered.length - 1; }
+    err = 'a stream of 1 or 2 channels, at 8000 to 192000 frames per second';
+    return -1;
+  },
+  streamWrite(stream: i32, samples: f64[]): i32 {
+    if (stream < 0 || stream >= buffered.length) return 0;
+    buffered[stream] = Math.min(rates[stream], buffered[stream] + Math.floor(samples.length / chans[stream]));
+    return buffered[stream];
+  },
+  streamInfo(stream: i32): f64[] { return stream >= 0 && stream < buffered.length ? [buffered[stream] / rates[stream], 0, 0] : [0, 0, 0]; },
+  streamSetVolume(stream: i32, volume: f64): void {},
+  streamClose(stream: i32): void { if (stream >= 0 && stream < buffered.length) buffered[stream] = 0; },
   mix(frames: i32): f64[] {
     const r: f64[] = [];
     if (frames > 0) clock += frames / 48000;

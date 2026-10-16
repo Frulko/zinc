@@ -25,3 +25,7 @@ blip.mp3: ok true 0.16 s heard true 440 Hz true playing false
 missing: ok false playing false (missing.wav: no such asset)
 broken: ok false 0 s (broken.wav: not a WAV, FLAC, MP3 or Ogg Vorbis file)
 unloaded: ok false playing false 0 0
+stream: before 60 ms 0, then left 0.25 right 0.25, buffered 69 ms
+stream: dry after 3392 frames, underruns 1
+stream: a 500 ms burst keeps 49 ms, dropped 21120 frames
+stream closed: ok false buffered 0, bad stream ok false

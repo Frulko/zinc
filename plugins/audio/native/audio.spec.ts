@@ -53,6 +53,16 @@ export interface Spec extends NativeModule {
   samples(sound: i32, channel: i32): f64[];
   /** Seconds of mix rendered so far: by the device, or by mix() on the null backend. Never waits. */
   time(): f64;
+  /** A stream: samples written as they come (a call's audio), 1 or 2 channels at `rate`, played from when 60 ms are buffered; an
+   *  underrun plays silence until 60 ms are there again, and more than 180 ms buffered is cut back to 60 (the writer's clock drifts from
+   *  the device's). A stream handle, or -1 (see error()). */
+  streamOpen(channels: i32, rate: i32): i32;
+  /** Appends samples (channels interleaved, 1 = full scale; a second at most is kept); the frames buffered. */
+  streamWrite(stream: i32, samples: f64[]): i32;
+  /** [seconds buffered, underruns, frames dropped] of a stream. */
+  streamInfo(stream: i32): f64[];
+  streamSetVolume(stream: i32, volume: f64): void;
+  streamClose(stream: i32): void;
   /** Volume of the whole mix. */
   setMasterVolume(volume: f64): void;
   /** Null backend only: renders the next `frames` frames of the mix (stereo, interleaved, 1 = full scale) and moves

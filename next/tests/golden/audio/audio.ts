@@ -1,7 +1,7 @@
 // zinc:audio on the null backend (ZN-390): the mixer runs without a device and mix() hands its samples back, so
 // what plays, at which level and for how long is checked exactly. The WAV files are written here, sample by sample;
 // the Vorbis, FLAC and MP3 ones are assets/blip.* (0.1 s of a 440 Hz sine).
-import { decode, load, tone, mix, backend, SAMPLE_RATE, setVolume, volume, stopAll, Sound } from 'zinc:audio';
+import { decode, load, tone, mix, backend, SAMPLE_RATE, setVolume, volume, stopAll, Sound, stream } from 'zinc:audio';
 
 /** A 16-bit PCM WAV file: `frames` frames of the same value per channel (32768 is full scale). */
 function wav(rate: i32, frames: i32, values: i32[]): u8[] {
@@ -119,3 +119,21 @@ console.log(`broken: ok ${broken.ok} ${broken.duration} s (${broken.error})`);
 a.unload();
 a.play();
 console.log(`unloaded: ok ${a.ok} playing ${a.playing} ${after(1)}`);
+
+// a stream (zinc:webrtc's remote audio plays through one): silent until 60 ms are written, then the samples as written (mono on both
+// channels), silence and an underrun once it runs dry, and a burst cut back to 60 ms
+const st = stream(1, 48000);
+const fill = (n: i32, v: number): number[] => { const s: number[] = []; for (let i = 0; i < n; i++) s.push(v); return s; };
+st.write(fill(1440, 0.25));
+const quietStart = peak(mix(480));
+st.write(fill(2400, 0.25));
+const m1 = mix(480);
+console.log(`stream: before 60 ms ${quietStart}, then left ${m1[m1.length - 2]} right ${m1[m1.length - 1]}, buffered ${Math.round(st.buffered * 1000)} ms`);
+const m2 = mix(4800);
+console.log(`stream: dry after ${m2.indexOf(0) / 2} frames, underruns ${st.underruns}`);
+st.write(fill(24000, 0.5));
+mix(480);
+console.log(`stream: a 500 ms burst keeps ${Math.round(st.buffered * 1000)} ms, dropped ${st.dropped} frames`);
+st.close();
+st.write(fill(10, 1));
+console.log(`stream closed: ok ${st.ok} buffered ${st.buffered}, bad stream ok ${stream(3, 48000).ok}`);

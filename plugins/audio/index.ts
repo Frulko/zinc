@@ -91,6 +91,35 @@ export function tone(hz: number, seconds: number, wave: Wave = 'sine'): Sound {
   return made(A.tone(WAVES.indexOf(wave), hz, seconds), `tone(${hz}, ${seconds})`);
 }
 
+/** Samples played as they are written: the peer's audio of a call (zinc:webrtc's RemoteAudio), a synthesizer, an emulator. It starts
+ *  once 60 ms are buffered; when the writer falls behind it plays silence and waits for 60 ms again; when it runs ahead (two clocks
+ *  drift apart) what is beyond 180 ms is dropped, so the delay stays short. */
+export class AudioStream {
+  private h: i32;
+  private vol: number = 1;
+  readonly channels: i32;
+  readonly sampleRate: i32;
+  constructor(h: i32, channels: i32, rate: i32) { this.h = h; this.channels = channels; this.sampleRate = rate; }
+  /** False when the stream could not open (see console): write() does nothing. */
+  get ok(): boolean { return this.h >= 0; }
+  /** Appends samples (channels interleaved, 1 = full scale). */
+  write(samples: number[]): void { if (this.h >= 0 && samples.length > 0) A.streamWrite(this.h, samples); }
+  /** Seconds buffered and not played yet. */
+  get buffered(): number { return this.h < 0 ? 0 : A.streamInfo(this.h)[0]; }
+  /** Times it ran dry, and frames dropped to stay short. */
+  get underruns(): number { return this.h < 0 ? 0 : A.streamInfo(this.h)[1]; }
+  get dropped(): number { return this.h < 0 ? 0 : A.streamInfo(this.h)[2]; }
+  get volume(): number { return this.vol; }
+  set volume(v: number) { this.vol = level(v); if (this.h >= 0) A.streamSetVolume(this.h, this.vol); }
+  close(): void { if (this.h >= 0) { A.streamClose(this.h); this.h = -1; } }
+}
+/** A stream of `channels` (1 or 2) at `rate` frames per second, playing at once (silent until samples come). */
+export function stream(channels: i32 = 1, rate: i32 = 48000): AudioStream {
+  const h = A.streamOpen(channels, rate);
+  if (h < 0) console.warn(`zinc:audio: stream(${channels}, ${rate}): ${A.error()}`);
+  return new AudioStream(h, channels, rate);
+}
+
 let master: number = 1;
 /** Volume of everything that plays: 1 by default, 0 mutes. */
 export function setVolume(v: number): void { master = level(v); A.setMasterVolume(master); }
