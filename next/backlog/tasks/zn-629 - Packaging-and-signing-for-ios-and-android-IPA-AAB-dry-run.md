@@ -2,7 +2,8 @@
 id: ZN-629
 title: 'Packaging and signing for ios and android: IPA, AAB, dry-run'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-10 14:08'
 labels:
   - mobile
