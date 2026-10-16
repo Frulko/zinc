@@ -614,3 +614,9 @@ The next backlog review turns lines into tasks or deletes them.
 
 - ZN-n: agent_ota flakes once in CI ("session ended early"); passes alone, check the session teardown race
 - ZN-751: zinc:video on the Nexus 7 (Tegra 3 MediaCodec: which path, which colour format) and on an iPhone.
+
+- ZN-?: an app with no animation or input should not redraw; idle `hello` is 4.4% CPU against Flutter's 0.2% (perf-comparison-2026-10); confirm without a per-frame callback, sleep until an event or timer
+- ZN-?: find what the ~90 MB RSS of a hello screen is (GL context, font atlas, allocator arenas) with `zinc mem` and `resmon`; PocketJS publishes 83 MB idle
+- ZN-?: list frame p99 is 5.65 ms against a 0.56 ms median; pre-shape the rows just outside the viewport in idle time
+- ZN-?: rerun `examples/perf-compare` on a quiet machine (Flutter list CPU and frame times gated), then add PocketJS desktop and react-native-macos to complete the table
+- ZN-?: add a 100000-row virtualised list to the perf screen, Flutter's `ListView.builder` as reference
