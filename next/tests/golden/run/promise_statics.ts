@@ -33,3 +33,5 @@ const never = (m: string) => Promise.reject(new Error('x ' + m))
 let open = false
 const g = (): Promise<string> => open ? Promise.resolve('ok') : never('closed')
 g().catch((e) => { console.log(e.message); return '' })
+const v = (): Promise<void> => Promise.reject(new Error('void rejected'))
+v().catch((e) => { console.log(e.message) })

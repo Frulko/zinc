@@ -7,6 +7,7 @@ p rej
 micro
 then 2
 x closed
+void rejected
 all 2 3
 2 fulfilled rejected x
 race 1

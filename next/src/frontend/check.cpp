@@ -300,6 +300,11 @@ struct Checker {
       wrapNode(node, sym);
       return true;
     }
+    if (node != kNone && !bad(from) && !bad(to) && name(from) == "NeverPromise" && promiseKind(to) == 2) {  // and Promise<void> (PromiseV)
+      std::uint32_t sym = helper("neverPromiseV", "function $F(p: NeverPromise): PromiseV {\n  const r = __newPromiseV();\n  p.handled = true;\n  const e = p.error;\n  if (e !== null) r.rejectWith(e);\n  return r;\n}\n", {from, to}, node);
+      wrapNode(node, sym);
+      return true;
+    }
     if (node != kNone && thunkable(from, to)) {
       const Type f = ty(from), t = ty(to);
       std::string ps, call;
@@ -2191,7 +2196,7 @@ struct Checker {
         }
         if (assignable(q, p, x.kids[2])) { convertDyn(q, p, x.kids[2]); return p; }   // (a class in the branch of an `unknown` becomes a Dyn)
         if (assignable(p, q, x.kids[1])) { convertDyn(p, q, x.kids[1]); return q; }
-        if (name(p) == "NeverPromise" && promiseKind(q) == 1) { require(p, q, x.kids[1]); return q; }  // a branch that only rejects takes the other branch's promise type
+        if (name(p) == "NeverPromise" && promiseKind(q) != 0) { require(p, q, x.kids[1]); return q; }  // a branch that only rejects takes the other branch's promise type
         require(q, p, x.kids[2]);  // conversions (a thunk, a promise that only rejects) or the error
         return p;
       }
