@@ -1,0 +1,26 @@
+== ios
+f6 value "hello wide worldn" composing 16,17
+f9 value "hello wide worldni" composing 16,18
+f14 value "hello wide world你" composing -1,-1
+f56 selected "wide" menu Cut,Copy,Select All
+f70 selected "wide world你" menu Cut,Copy,Select All
+f75 clipboard "wide world你" handles
+keyboard-traits type=text secure=0 multiline=0
+haptic selection
+textinput mirrors: 8
+frame 7 4921ed9a64aadb27
+frame 56 931d8d1d641275ae
+frame 64 435db6aa1a8562f4
+== android
+f6 value "hello wide worldn" composing 16,17
+f9 value "hello wide worldni" composing 16,18
+f14 value "hello wide world你" composing -1,-1
+f56 selected "wide" menu Cut,Copy,Select All
+f70 selected "wide world你" menu Cut,Copy,Select All
+f75 clipboard "wide world你" handles
+keyboard-traits type=text secure=0 multiline=0
+haptic impact heavy
+textinput mirrors: 8
+frame 7 4921ed9a64aadb27
+frame 56 fabde89001018771
+frame 64 408a0239d6871058

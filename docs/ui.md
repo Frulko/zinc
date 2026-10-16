@@ -406,6 +406,30 @@ The other way, the program asks the OS through zinc:sys `device()`: `haptic` (zi
 (the text input connection). The Android activity (`src/app/android/java`) and the iOS glue (`src/app/ios_glue.mm`) do them; a desktop
 does nothing, and `ZINC_DEVICE_LOG=file` writes each call to the file.
 
+## Text input on phones
+
+A phone's keyboard reads the field it types into: the text around the caret, the selection, the run it is composing. zinc:ui keeps that
+**input connection** with a platform-neutral seam:
+
+- **To the OS**, through zinc:sys `device()`: `keyboard-traits` when a field takes the focus (`type=text|number|decimal|phone|email|url|search
+  secure=0|1 multiline=0|1`, and what `ui.setInputTraits(h, ...)` adds: `cap=none|sentences|words|characters autocorrect=0|1
+  return=done|go|next|search|send autofill=<hint> maxlength=N`; React Native's `TextInput` sets them from `keyboardType`, `secureTextEntry`,
+  `multiline`, `autoCapitalize`, `autoCorrect`, `returnKeyType`, `textContentType` / `autoComplete`, `maxLength`), and on a phone `textinput`
+  after each change: `caret anchor compA compB` and the value on the next line. The desktop's window HAL starts SDL's text input with the traits.
+- **From the OS**, as signals: `compose TEXT` (the composing run, in the value, underlined, replaced by the next one), `commit TEXT` (replaces
+  it), `imedelete BEFORE AFTER`, `imeselect START END`, `imeaction NAME` (the return key: Enter). SDL's `SDL_EVENT_TEXT_EDITING` is a
+  `compose`, so a desktop IME composes in the field too (`SDL_HINT_IME_IMPLEMENTED_UI`).
+- **The clients**: on Android `ZincEdit` (`src/app/android/java/org/libsdl/app`) replaces SDL's hidden editor with an `InputConnection` over a
+  mirror of the field; on iOS `ZincTextInput` (`src/app/ios_glue.mm`) is a `UITextInput` view in SDL's text field's place. **Both are
+  unproven on a device**: written and compiled (javac against android-36, clang against the iOS simulator SDK) without one; Gboard, swipe
+  typing, a Japanese IME, dictation and a password manager are checked in the cross-platform pass.
+
+Touch selection, drawn by zinc:ui in the platform's style: a finger's long press (500 ms) on a field selects the word under it and shows the
+**handles** (iOS: a bar with a knob; Android: teardrops) and the **edit menu** (Cut, Copy, Paste, Select All; iOS: a dark capsule, Android: a
+white card). Dragging a handle moves that end under a **magnifier** (the line at 1.25x above the finger). A mouse keeps the desktop's selection.
+`ui.touchSelection()`, `ui.selectionHandles()` and `ui.editMenuRects()` tell tests where they are (`tests/t1/text_touch.sh`). With the
+on-screen keyboard's height (the `keyboard` signal) the focused field is scrolled above it.
+
 ## Navigation stack
 
 `zinc:ui/navigation` is a stack navigator in the React model, shaped like React Navigation's native stack:

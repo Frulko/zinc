@@ -20,6 +20,9 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Buttons, links, rows, tabs, chips and every pressable dim while a mouse, a finger or Space / Enter presses them (in every kit, React Native's
   Pressable included), and come back after the release; dragging off cancels. `active:opacity-*`, `activeOpacity` or `pressFeedback={0}` set
   your own; `ui.setPressFeedback(false)` turns it off.
+- Typing on phones: a long press on a text field selects a word with handles and a Cut, Copy, Paste, Select All menu in the phone's style, a
+  dragged handle shows a magnifier, and IME composition is underlined in the field (desktop IMEs too). `TextInput`'s `autoCapitalize`,
+  `autoCorrect`, `returnKeyType` and `textContentType` reach the phone's keyboard.
 - Lists scroll like Android on Android: the fling of Android's own scroller, no rubber band, the stretch at the edges (Android 12 and later) or the
   glow (before), and Android's scrollbar fade. iOS and the desktop keep iOS's deceleration and rubber band.
 - `zinc:ui/navigation`: a stack navigator (`<Stack renderScreen={...}>`, `nav.push`, `pop`, `present`) that moves like the phone it runs on:

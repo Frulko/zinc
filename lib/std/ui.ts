@@ -4802,6 +4802,7 @@ function pointerMove(px: number, py: number): void {
   ptrX = px; ptrY = py;
   hoverDirty = true;
   if (pressed >= 0 && pressed === dimNode) { const over = hit(px, py, HIT_CLICK) === pressed; if (over !== pressOver) { pressOver = over; paintDirty = true; } }   // dragged off: the dim lifts
+  if (handleDrag !== 0) { touchSelDrag(px, py); return; }
   if (selecting >= 0) {
     const n = nodes[selecting], e = n.ed as Edit, lh = lineHeightOf(n);
     boxOf(selecting);
@@ -4847,6 +4848,152 @@ function tsSelected(): string {
 }
 /** The selected text of a static node, for tests and for programs that copy it. */
 export function selectedStaticText(): string { return tsSelected(); }
+// ---- touch selection in text fields (ZN-626, docs/ui.md "Text input on phones"): a long press of a finger selects the word under it and shows
+// the selection handles and the edit menu (Cut, Copy, Paste, Select All) drawn by zinc:ui in the platform's style (platformStyle(): iOS's
+// bar handles with a knob and a dark capsule menu, Android's teardrops and a white card); dragging a handle moves that end of the selection
+// under a magnifier. A mouse keeps the desktop's selection (drag, double click).
+let fingerField: i32 = -1, touchSel: i32 = -1, handleDrag: i32 = 0, menuOpen = false, longDone = false;
+const menuLabels: string[] = [], menuXs: number[] = [], menuWs: number[] = [];
+let menuX0: number = 0, menuY0: number = 0, menuH: number = 0;
+const IOS_TINT: i32 = 0x007aff, ANDROID_TINT: i32 = 0x1a73e8, LONG_SELECT_MS: number = 500;
+let caretX: number = 0, caretY: number = 0, caretH: number = 0;
+/** Where offset `off` of field h is on the surface: caretX, caretY (the top of its line), caretH (the line's height). */
+function caretAt(h: i32, off: i32): void {
+  const n = nodes[h], e = n.ed as Edit;
+  ensureRows(n, e);
+  boxOf(h);
+  const lh = lineHeightOf(n), r = rowOf(e, off);
+  caretX = boxX + (n.pl + e.gutter + xIn(n, e, r, off) - e.sx) * boxK;
+  caretY = boxY + (editTop(n, e) + r * lh - e.sy) * boxK;
+  caretH = lh * boxK;
+}
+/** The selected text of field h. */
+function editSelected(e: Edit): string { return e.value.slice(imin(e.caret, e.anchor), imax(e.caret, e.anchor)); }
+/** A finger pressed: a handle to drag or an item of the edit menu takes it (true); anything else closes the menu. */
+function touchSelPress(px: number, py: number): boolean {
+  if (touchSel >= 0 && (!nodes[touchSel].alive || focus !== touchSel)) { touchSel = -1; menuOpen = false; }
+  if (touchSel < 0) return false;
+  const e = nodes[touchSel].ed as Edit;
+  if (menuOpen) {
+    for (let i = 0; i < menuLabels.length; i++)
+      if (px >= menuX0 + menuXs[i] && px < menuX0 + menuXs[i] + menuWs[i] && py >= menuY0 && py < menuY0 + menuH) { editAction(touchSel, e, menuLabels[i]); return true; }
+  }
+  if (e.caret !== e.anchor) {
+    for (let end = 1; end <= 2; end++) {
+      const off = end === 1 ? imin(e.caret, e.anchor) : imax(e.caret, e.anchor);
+      caretAt(touchSel, off);
+      const hx = caretX, hy = end === 1 ? caretY : caretY + caretH;
+      if (Math.abs(px - hx) < 24 && py > hy - 24 && py < hy + 32) { handleDrag = end; menuOpen = false; paintDirty = true; return true; }
+    }
+  }
+  if (menuOpen) { menuOpen = false; paintDirty = true; }
+  return false;
+}
+/** A handle follows the finger: that end of the selection moves to the text under it (the other end stays). */
+function touchSelDrag(px: number, py: number): void {
+  const n = nodes[touchSel], e = n.ed as Edit;
+  boxOf(touchSel);
+  const lh = lineHeightOf(n), lx = (px - boxX) / boxK, ly = (py - boxY) / boxK - (handleDrag === 2 ? lh / 2 : -lh / 2);
+  const off = offAt(n, e, lx, ly), lo = imin(e.caret, e.anchor), hi = imax(e.caret, e.anchor);
+  if (handleDrag === 1) { e.anchor = hi; e.caret = imin(off, hi); } else { e.anchor = lo; e.caret = imax(off, lo); }
+  e.blinkAt = clock; paintDirty = true;
+}
+/** Cut, Copy, Paste, Select All of the edit menu. */
+function editAction(h: i32, e: Edit, label: string): void {
+  if (label === 'Copy' || label === 'Cut') setClipboardText(editSelected(e));
+  if (label === 'Cut') replaceSel(e, '', false);
+  if (label === 'Paste') replaceSel(e, clipboardText(), false);
+  if (label === 'Select All') { e.anchor = 0; e.caret = e.value.length; menuOpen = true; paintDirty = true; return; }
+  menuOpen = false; paintDirty = true;
+}
+/** Each frame while a finger is down on a field: held long enough without moving, it selects the word under it and opens the menu. */
+function touchSelStep(): void {
+  if ((held & 1) === 0) { fingerField = -1; longDone = false; return; }
+  if (longDone || dragging || handleDrag !== 0 || clock - lastDownAt < LONG_SELECT_MS) return;
+  const h = fingerField;
+  if (!nodes[h].alive || nodes[h].ed === null) { fingerField = -1; return; }
+  longDone = true; tapEdit = -1; selecting = -1;
+  setFocusTo(h);
+  boxOf(h);
+  editPress(h, nodes[h], nodes[h].ed as Edit, (lastDownX - boxX) / boxK, (lastDownY - boxY) / boxK, 2, false);   // the word, as a double click
+  touchSel = h; menuOpen = true; paintDirty = true;
+  device('haptic', platformStyle() === 'android' ? 'impact heavy' : 'selection');   // Android's long-press feedback, iOS's selection tick
+}
+/** The handles, the magnifier while a handle moves, and the edit menu, over everything. */
+function paintTouchSelection(): void {
+  if (touchSel < 0 || !nodes[touchSel].alive || focus !== touchSel) { touchSel = -1; return; }
+  const n = nodes[touchSel], e = n.ed as Edit, android = platformStyle() === 'android', tint = android ? ANDROID_TINT : IOS_TINT;
+  const lo = imin(e.caret, e.anchor), hi = imax(e.caret, e.anchor);
+  caretAt(touchSel, lo);
+  const sx = caretX, sy = caretY, lineH = caretH;
+  caretAt(touchSel, hi);
+  const ex = caretX, ey = caretY;
+  if (hi > lo) {
+    if (android) {   // teardrops under the text: the start one leans left, the end one right
+      rrect(sx - 22, sy + lineH, 22, 22, 11, tint, 255); rrect(sx - 11, sy + lineH, 11, 11, 0, tint, 255);
+      rrect(ex, ey + lineH, 22, 22, 11, tint, 255); rrect(ex, ey + lineH, 11, 11, 0, tint, 255);
+    } else {   // a bar along the line, a knob above the start and below the end
+      rrect(sx - 1, sy, 2, lineH, 0, tint, 255); rrect(sx - 5, sy - 9, 10, 10, 5, tint, 255);
+      rrect(ex - 1, ey, 2, lineH, 0, tint, 255); rrect(ex - 5, ey + lineH - 1, 10, 10, 5, tint, 255);
+    }
+  }
+  if (handleDrag !== 0) {   // the magnifier: the line at the moving end, 1.25 times larger, above the finger
+    caretAt(touchSel, e.caret);
+    const mw = 120, mh = caretH * 1.25 + 8, mx = caretX - mw / 2, my = caretY - mh - 28;
+    shadow(mx, my + 2, mw, mh, android ? 8 : mh / 2, 8, 0x000000, 60);
+    const lbg = effectiveBg(touchSel, n);   // the field's own background, so its text reads as in the field
+    rrect(mx, my, mw, mh, android ? 8 : mh / 2, lbg >= 0 ? lbg : 0xffffff, 255);
+    clip(mx, my, mw, mh, android ? 8 : mh / 2);
+    const r = rowOf(e, e.caret), line = sub(shown(e), e.rs[r], e.re[r]), z = 1.25;
+    const lx = caretX - (n.pl + e.gutter + xIn(n, e, r, e.caret) - e.sx) * boxK;   // where the line starts on the surface
+    setTransform(z, 0, 0, z, caretX - (caretX - lx) * z, my + 4);
+    drawText(n.fontId, 0, Math.round((lineHeightOf(n) - n.size * 1.21) / 2), line, n.fg, 255, 0);
+    resetTransform();
+    rrect(mx + mw / 2 - 1, my + 4, 2, mh - 8, 0, tint, 255);
+    unclip();
+  }
+  if (!menuOpen || handleDrag !== 0) return;
+  menuLabels.length = 0; menuXs.length = 0; menuWs.length = 0;
+  const hasSel = hi > lo, clip0 = clipboardText();
+  if (hasSel && !e.password && !e.readOnly) menuLabels.push('Cut');
+  if (hasSel && !e.password) menuLabels.push('Copy');
+  if (clip0.length > 0 && !e.readOnly) menuLabels.push('Paste');
+  if (e.value.length > 0 && (hi - lo) < e.value.length) menuLabels.push('Select All');
+  if (menuLabels.length === 0) return;
+  const mf = n.fontId, pad = android ? 14 : 12;   // the field's own face: a size named here would be baked into every program
+  let w: number = 0;
+  for (const l of menuLabels) { menuXs.push(w); const lw = textWidth(mf, l, 0) + 2 * pad; menuWs.push(lw); w += lw; }
+  menuH = android ? 44 : 36;
+  menuX0 = Math.max(4, Math.min(width() - w - 4, (sx + ex) / 2 - w / 2));
+  menuY0 = sy - menuH - (android ? 12 : 16);
+  if (menuY0 < 4) menuY0 = ey + lineH + 30;   // no room above: below the selection and its handles
+  const bg: i32 = android ? 0xffffff : 0x2c2c2e, fg: i32 = android ? 0x1f1f1f : 0xffffff;
+  shadow(menuX0, menuY0 + 2, w, menuH, android ? 4 : 8, android ? 6 : 10, 0x000000, android ? 70 : 40);
+  rrect(menuX0, menuY0, w, menuH, android ? 4 : 8, bg, 255);
+  for (let i = 0; i < menuLabels.length; i++) {
+    drawText(mf, menuX0 + menuXs[i] + pad, menuY0 + Math.round((menuH - n.size * 1.21) / 2), menuLabels[i], fg, 255, 0);
+    if (!android && i > 0) rrect(menuX0 + menuXs[i], menuY0 + 8, 1, menuH - 16, 0, 0x5a5a5e, 255);
+  }
+}
+/** The selection handles on the surface: [startX, startBottom, endX, endBottom] ([] without a touch selection). */
+export function selectionHandles(): number[] {
+  if (touchSel < 0) return [];
+  const e = nodes[touchSel].ed as Edit;
+  caretAt(touchSel, imin(e.caret, e.anchor));
+  const a = [caretX, caretY + caretH];
+  caretAt(touchSel, imax(e.caret, e.anchor));
+  a.push(caretX); a.push(caretY + caretH);
+  return a;
+}
+/** The edit menu's items as drawn at the last frame: x, y, w, h for each ([] when it does not show). */
+export function editMenuRects(): number[] {
+  const out: number[] = [];
+  if (touchSel < 0 || !menuOpen) return out;
+  for (let i = 0; i < menuLabels.length; i++) { out.push(menuX0 + menuXs[i]); out.push(menuY0); out.push(menuWs[i]); out.push(menuH); }
+  return out;
+}
+/** Touch selection for tests and inspectors: '' none, 'handles', or 'menu Cut,Copy,...' with the edit menu's items. */
+export function touchSelection(): string { return touchSel < 0 ? '' : (menuOpen ? 'menu ' + menuLabels.join(',') : 'handles'); }
 let tapEdit: i32 = -1;   // the text field a finger pressed without giving it the focus yet (pressAt)
 // The press under way is a finger's (a touch screen, or a test's touch), not a mouse's: what is made for fingers alone (their reach in
 // hit(), the focus of a field at the lift) does not change what a mouse does, in a deterministic run either.
@@ -4854,12 +5001,14 @@ let byFinger = false;
 function pressAt(px: number, py: number, button: i32): void {
   byFinger = touchCount() > 0 || primaryId >= 0;
   keyboardFocus = false;
+  if (button === 0 && byFinger && touchSelPress(px, py)) { held = held | bitOf(button); lastDownAt = clock; return; }   // a selection handle or the edit menu
   held = held | bitOf(button);
   if (button === lastBtn && clock - lastDownAt < 400 && Math.abs(px - lastDownX) + Math.abs(py - lastDownY) < 6) clicks++; else clicks = 1;
   lastBtn = button; lastDownAt = clock; lastDownX = px; lastDownY = py;
   if (overlays.length > 0) outsidePress(px, py, button);
   const t = hit(px, py, HIT_ANY);
   if (t >= 0 && isDisabled(t)) { hoverDirty = true; return; }   // a disabled subtree swallows the press
+  fingerField = byFinger && button === 0 && t >= 0 && nodes[t].ed !== null ? t : -1; longDone = false;
   const d = bubble(t, PDOWN, true);
   if (d >= 0 && capture < 0) { capture = d; captureBtn = button; }
   if (d >= 0) fire(d, PDOWN, px, py, button);
@@ -4909,6 +5058,8 @@ function pressAt(px: number, py: number, button: i32): void {
 }
 function releaseAt(px: number, py: number, button: i32): void {
   held = held & ~bitOf(button);
+  if (handleDrag !== 0 && button === 0) { handleDrag = 0; menuOpen = true; paintDirty = true; return; }   // a handle let go: the menu again
+  if (longDone && button === 0) { longDone = false; fingerField = -1; selecting = -1; tapEdit = -1; gestureEnd(px, py); dragScroller = -1; dragging = false; return; }
   if (capture >= 0 && button === captureBtn) { const c = capture; capture = -1; fire(c, PUP, px, py, button); }
   else if (capture < 0 && grabKind === 0) { const u = bubble(hit(px, py, HIT_ANY), PUP, false); if (u >= 0) fire(u, PUP, px, py, button); }
   hoverDirty = true;
@@ -5111,7 +5262,6 @@ let dropText = false;   // the text event of a key down that a handler consumed 
 function navPressed(b: i32): boolean { return wasPressed(b) || (navKeys & (1 << b)) !== 0; }
 function inputFrame(): void {
   curMods = modifiers();
-  if (signalCount() > 0) systemSignals();
   const px = pointerX(), py = pointerY();
   if (pick !== null) { pickInput(px, py); return; }
   const wy = wheel(), wx = wheelX(), pz = pinch();
@@ -5194,6 +5344,7 @@ export function frame(dt: number, background: i32): void {
   }
   if (layoutDirty || extLayout) layout();
   if (prof) profMark(PROF_LAYOUT);
+  if (signalCount() > 0) systemSignals();   // what the OS says (safe area, theme, back...), test hooks or not
   const typing = focus >= 0 && nodes[focus].ed !== null;  // gamepad-style navigation is off while typing
   if (!synthetic) inputFrame();
   if (first) stepScroll(dt);
@@ -5205,6 +5356,7 @@ export function frame(dt: number, background: i32): void {
   else if (pressed >= 0 && (held & 1) === 0) { pressed = -1; paintDirty = true; }
   navKeys = 0; navBack = false;
   if (grabber === -1 && longNode >= 0) stepGestures();
+  if (fingerField >= 0) touchSelStep();
   if (overlays.length > 0 || restoreTo >= 0) flushOverlays();
   // text input (IME, on-screen keyboard) follows the focused field; the caret blinks
   const ed = focus >= 0 ? nodes[focus].ed : null;
@@ -5232,6 +5384,7 @@ export function frame(dt: number, background: i32): void {
   if (dimNode >= 0) stepPress();
   paint(root, 0, 0, 1, 1);
   if (layers.length > 0) paintLayers();
+  if (touchSel >= 0) paintTouchSelection();
   lastCommands = commandCount();
   if (highlight >= 0 && nodes[highlight].alive) {
     const n = nodes[highlight];
