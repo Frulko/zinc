@@ -64,6 +64,38 @@ int  zn_app_main(int argc, char** argv);  // desktop and tests: init, then itera
 - **Heap**: one region sized at start from the program's need (`zinc.json`) capped by a share of `SDL_GetSystemRAM()`, not the
   512 MiB desktop default. Low memory empties caches first (glyphs, decoded images), then tells the program.
 
+### 4.1 One GLES 2 base for the Pi 3, webOS and old Android, tuned by what the GPU says (owner, 2026-10-16)
+
+The Pi 3 (VideoCore IV), the HP TouchPad (Adreno 220) and the Nexus 7 (Tegra 3) share the problem: GLES 2 only, little memory,
+low fill rate. Most Android devices do not (GLES 3, Vulkan), so the split is **by capability, not by platform**:
+
+- **Base**: the GLES 2 replay (`runtime/gl_replay.cpp`, `GLR_CORE 0`, used by `plugins/display-gl`): one code path for every GLES 2
+  context, whoever made it.
+- **Context provider per platform**, and nothing else: KMS/GBM/EGL (Pi, `kms.cpp`), Palm's SDL 1.2 (`webos.cpp`), SDL3 (desktop,
+  Android, iOS). It makes the context, gives the surface size and density, presents, and reports a lost context.
+- **A capability record filled once per context** by the base (version, fragment `highp`, depth and stencil bits of the surface and of
+  an FBO, max texture size, NPOT, VAO, instancing, 32-bit indices, framebuffer fetch, discard, compressed formats, renderer string),
+  read by the replay instead of probes spread over `kms.cpp`, `display_gl.cpp` and `gl_replay.cpp` as today. Flutter's Impeller
+  `Capabilities` and ANGLE's per-driver feature flags (with Chrome's GPU driver bug list keyed by the renderer string) are the model.
+- **A small tuning table keyed by GPU family** for what capabilities do not say: tiler or immediate (VC4 and Adreno are tilers,
+  Tegra 3 is not: clears and FBO switches cost differently), atlas size, render scale, frame cap.
+- **A device class** from the record plus `SDL_GetSystemRAM()` (heap budget, glyph cache, image cache, render scale), the same rule on
+  the Pi, the TouchPad and the Nexus 7.
+
+Measured on the Nexus 7 (2026-10-16, NDK probe over an EGL pbuffer, as root; as the shell user the driver falls back to Tegra 2
+limits because it cannot read the chip id):
+
+| Capability | Tegra 3 (Nexus 7) | Consequence in the replay |
+|---|---|---|
+| Fragment `highp` | none; `mediump` 13-bit mantissa | distances and coordinates in the fragment shaders relative to the primitive, not in screen pixels (1280 px at 13 bits: about 0.15 px) |
+| Window surface | depth 16, stencil 8 | POLY stencil fills possible on the window, not in an FBO |
+| FBO depth/stencil | no `OES_packed_depth_stencil`, no `OES_depth24` | FBO depth 16 (65k commands told apart), POLY on the CPU tiles inside an FBO (already the fallback, D62) |
+| Max texture | 2048 | atlases and image tiles at most 2048 |
+| VAO, instancing, 32-bit indices | none | the GLES 2 path already avoids them; indices stay 16-bit |
+| Vertex texture fetch | 0 units | no texture reads in vertex shaders |
+| NPOT | no `OES_texture_npot` (only `NV_texture_npot_2D_mipmap`) | NPOT textures clamp-to-edge without mipmaps, or padded |
+| Extras | `NV_shader_framebuffer_fetch`, `OES_standard_derivatives`, S3TC/DXT, ETC1, LATC, half-float textures | framebuffer fetch could replace some blending passes; S3TC for packs |
+
 ## 5. Files, resources, native code
 
 - **Resources** go through one host call that returns a mapped range: on Android an `AAsset` file descriptor and offset (packs stored
@@ -90,7 +122,8 @@ int  zn_app_main(int argc, char** argv);  // desktop and tests: init, then itera
 
 1. ZN-620 with the callback contract; desktop goldens unchanged (`zn_app_main`).
 2. Android shell on SDL3, software raster: hello in logcat, rn-showcase on the Nexus 7 (ZN-621, ZN-622).
-3. GLES 2 replay in the SDL window on Android (reuse `display-gl`), frame times against the software raster on the Nexus 7.
+3. The GLES 2 base of §4.1: the capability record, the context providers (KMS, webOS, SDL3), the Nexus 7 as the third GLES 2
+   device; frame times against the software raster on the Pi 3, the TouchPad and the Nexus 7.
 4. Lifecycle, density, safe areas, back button, IME (ZN-625, ZN-626); resources from the APK.
 5. Static plugins (ZN-628), the player and `zinc dev` (ZN-631), packaging (ZN-629).
 6. iOS: the same shell with SDL3's UIKit backend, `zinc export --target ios` (Xcode project), then the Metal decision.
