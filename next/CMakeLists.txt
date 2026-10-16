@@ -182,6 +182,9 @@ if(ZN_HOST_GFX AND EXISTS ${ZN_RUNTIME_DIR}/gfx.cpp)
     add_subdirectory(third_party/SDL3 EXCLUDE_FROM_ALL)
     target_compile_options(SDL3-static PRIVATE -w)   # vendored code: its warnings are not ours
     target_compile_definitions(SDL3-static PRIVATE ZN_SDL_NO_DYNAPI)   # no dynamic API table (src/dynapi/SDL_dynapi.h, patched): unused SDL code is dead-stripped (ZN-604)
+    if(ZN_LINUX_GLIBC AND ZN_LINUX_GLIBC VERSION_LESS 2.34 AND CMAKE_SIZEOF_VOID_P EQUAL 4)   # cmake/zig-linux.cmake on 32 bits: the 64-bit time
+      target_compile_options(SDL3-static PRIVATE -U_TIME_BITS)   # functions SDL asks for came with glibc 2.34; its clocks are monotonic, 2038 does not concern them
+    endif()
     set(SDL3_FOUND TRUE)
     set(ZN_SDL_VENDORED_BUILD TRUE)
   else()
@@ -517,7 +520,8 @@ if(TARGET zn_host_gfx)
     if(APPLE)
       target_link_options(zinc PRIVATE "LINKER:-force_load,${ZN_SDL_LIB}")
     else()
-      target_link_options(zinc PRIVATE "LINKER:--whole-archive,${ZN_SDL_LIB},--no-whole-archive")
+      # three words, not LINKER:a,b,c: zig's linker (cmake/zig-linux.cmake) takes neither -Xlinker nor an archive inside -Wl
+      target_link_libraries(zinc PRIVATE -Wl,--whole-archive ${ZN_SDL_LIB} -Wl,--no-whole-archive)
     endif()
   endif()
 else()   # no graphics host (-DZN_HOST_GFX=OFF, the first Windows build): its entries that main.cpp and zinc:canvas2d call answer "no host"

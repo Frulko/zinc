@@ -1,0 +1,71 @@
+#!/bin/sh
+# zinc for Linux, cross-built on this machine with the pinned zig: no Docker, no Linux machine (docs/targets/linux.md).
+#   tools/build-linux [--arch aarch64|armhf|armv7|x86_64|i686] [--musl] [--headless] [--no-package]     (default: aarch64)
+# aarch64 (arm64), armhf (ARMv6 + VFP: every 32-bit Raspberry Pi OS), armv7 (NEON: Pi 2 and later, not released), x86_64 (amd64), i686 (x86).
+# glibc 2.28 and newer (cmake/zig-linux.cmake); --musl: one static file for servers and containers, which cannot load a plugin or open a window.
+# The window build needs the target's X11, DRM and GBM headers: tools/linux-sysroot fetches them first (pinned Debian packages, ~18 MB per arch).
+# --headless (and --musl) skip them: SDL3 keeps its offscreen and dummy video drivers, enough for zinc run, check, build, tests and ZINC_HEADLESS.
+# Builds in next/build-linux-<arch>[-musl] through tools/build (one build at a time beside other work), prints the size, the libraries the binary
+# needs and the newest glibc symbol it uses, then tools/package writes next/dist/linux-<arch>/zinc-<version>-linux-<arch>.tar.gz.
+# tools/linux-build is the other way: a native build in a Debian container (Docker), which can also run the tests.
+here=$(cd "$(dirname "$0")" && pwd -P)
+next=$(dirname "$here")
+arch=aarch64 libc=gnu headless= package=1
+while [ $# -gt 0 ]; do
+  case $1 in
+    --arch) arch=${2:?--arch aarch64|armhf|armv7|x86_64|i686}; shift 2 ;;
+    --musl) libc=musl; headless=1; shift ;;
+    --headless) headless=1; shift ;;
+    --no-package) package=; shift ;;
+    *) sed -n '2,10p' "$0" >&2; exit 2 ;;
+  esac
+done
+case $arch in
+  aarch64|arm64) arch=aarch64 cm=aarch64 sys=aarch64 ;;
+  armhf|armv6) arch=armhf cm=armhf sys=armhf ;;
+  armv7) cm=armv7 sys=armhf ;;
+  x86_64|amd64) arch=x86_64 cm=x86_64 sys=x86_64 ;;
+  i686|i386|x86) arch=i686 cm=x86 sys=x86 ;;
+  *) echo "build-linux: --arch is aarch64, armhf, armv7, x86_64 or i686, not '$arch'" >&2; exit 2 ;;
+esac
+dir=$next/build-linux-$arch; [ $libc = gnu ] || dir=$dir-musl
+if [ ! -f "$dir/CMakeCache.txt" ]; then
+  if [ -z "$headless" ]; then "$here/linux-sysroot" --arch $sys || exit 1; fi
+  console=OFF; [ -z "$headless" ] || console=ON; mkdir -p "$dir"
+  cmake -S "$next" -B "$dir" -DCMAKE_TOOLCHAIN_FILE="$next/cmake/zig-linux.cmake" -DZN_LINUX_ARCH=$cm -DZN_LINUX_LIBC=$libc \
+    -DCMAKE_BUILD_TYPE=Release -DSDL_UNIX_CONSOLE_BUILD=$console >"$dir/configure.log" 2>&1 || { tail -20 "$dir/configure.log"; exit 1; }
+  grep "Video drivers" "$dir/configure.log"
+fi
+BUILD_DIR=$dir "$here/build" zinc || exit 1
+# what the binary asks of the system: its loader, DT_NEEDED and the newest GLIBC_ version (readelf is not on a Mac: a few lines of Python)
+python3 - "$dir/zinc" <<'EOF'
+import os, re, struct, sys
+p = sys.argv[1]; b = open(p, "rb").read()
+bits = 64 if b[4] == 2 else 32
+E = "<"
+if bits == 64: shoff, shentsize, shnum = struct.unpack_from(E + "Q", b, 0x28)[0], *struct.unpack_from(E + "HH", b, 0x3A)
+else: shoff, shentsize, shnum = struct.unpack_from(E + "I", b, 0x20)[0], *struct.unpack_from(E + "HH", b, 0x2E)
+secs = []
+for i in range(shnum):
+    o = shoff + i * shentsize
+    if bits == 64: _, typ, _, _, off, size, link = struct.unpack_from(E + "IIQQQQI", b, o)
+    else: _, typ, _, _, off, size, link = struct.unpack_from(E + "IIIIIII", b, o)
+    secs.append((typ, off, size, link))
+needed = []
+for typ, off, size, link in secs:
+    if typ != 6: continue   # SHT_DYNAMIC
+    stroff = secs[link][1]; step = 16 if bits == 64 else 8
+    for o in range(off, off + size, step):
+        tag, val = struct.unpack_from(E + ("qQ" if bits == 64 else "iI"), b, o)
+        if tag == 0: break
+        if tag == 1: needed.append(b[stroff + val:b.index(b"\0", stroff + val)].decode())
+interp = re.search(rb"/lib[^\0]*ld-[^\0]+\.so[^\0]*", b)
+glibc = sorted({tuple(map(int, v.split(b"."))) for v in re.findall(rb"GLIBC_(\d+\.\d+(?:\.\d+)?)\0", b)})
+print("build-linux: %s: %.1f MB, %d-bit, loader %s" % (p, os.path.getsize(p) / 1e6, bits, interp.group().decode() if interp else "none (static)"))
+print("build-linux: needs %s; newest glibc symbol %s" % (" ".join(needed) or "nothing", ".".join(map(str, glibc[-1])) if glibc else "none"))
+EOF
+command -v file >/dev/null && file -b "$dir/zinc"
+[ -n "$package" ] || exit 0
+python3 "$here/package" --build "$dir" --out "$next/dist/linux-$arch" --linux-arch $arch
+case $? in 0|3) ;; *) exit 1 ;; esac
+echo "build-linux: $(ls -t "$next/dist/linux-$arch"/zinc-*.tar.gz | head -1)"

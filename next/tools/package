@@ -232,8 +232,10 @@ def package_macos(build, out):
     run("ditto", "-c", "-k", "--keepParent", app, zipped)  # ditto keeps the bundle's metadata and symlinks
     return [("macos-cli", cli), ("macos-app", zipped)], without
 
-def package_linux(build, out):
-    arch = platform.machine()
+def package_linux(build, out, arch=None):
+    """arch: a cross build from another machine (tools/build-linux): nothing of it runs here, so no ldd and no prebuilt plugin library."""
+    cross = arch is not None
+    arch = arch or platform.machine()
     name = "zinc-%s-linux-%s" % (VERSION, arch)
     root = os.path.join(out, "stage", name)
     shutil.rmtree(os.path.join(out, "stage"), ignore_errors=True)
@@ -241,15 +243,22 @@ def package_linux(build, out):
     shutil.copy2(os.path.join(build, "zinc"), os.path.join(root, "bin", "zinc"))
     if os.path.exists(os.path.join(build, "libzn_webgl.so")):  # WebGL, loaded by zinc from its own directory (ZN-330.01)
         shutil.copy2(os.path.join(build, "libzn_webgl.so"), os.path.join(root, "bin", "libzn_webgl.so"))
-    ldd = run("ldd", os.path.join(root, "bin", "zinc"), check=False).stdout
+    ldd = "" if cross else run("ldd", os.path.join(root, "bin", "zinc"), check=False).stdout   # cross: SDL3 is linked in, the rest is the system's
     for m in re.finditer(r"(\S+) => (/\S+)", ldd):  # the libraries that are not part of every system (SDL3...), not libc and friends
         if re.match(r"lib(c|m|dl|pthread|rt|stdc\+\+|gcc_s|ld-linux.*|util|resolv)\.so", m.group(1)) or m.group(1).startswith("linux-vdso"):
             continue
         shutil.copy2(m.group(2), os.path.join(root, "lib", m.group(1)))
-    if shutil.which("patchelf"):
+    if shutil.which("patchelf") and not cross:
         run("patchelf", "--set-rpath", "$ORIGIN/../lib", os.path.join(root, "bin", "zinc"))
     payload(os.path.join(root, "share", "zinc"))
-    without = prebuild_plugins(os.path.join(build, "zinc"), os.path.join(root, "share", "zinc"), "linux")
+    if cross:   # the plugins' native sources: zinc compiles them on the device at first use, with the zig it fetches there
+        without = {}
+        native = [p for p in sorted(os.listdir(os.path.join(REPO, "plugins"))) if os.path.isdir(os.path.join(REPO, "plugins", p, "native"))]
+        for p in native:
+            shutil.copytree(os.path.join(REPO, "plugins", p), os.path.join(root, "share", "zinc", "plugins", p), dirs_exist_ok=True, ignore=shutil.ignore_patterns("prebuilt", "build", "node_modules", ".*"))
+        print("%d plugins with native code, as sources: compiled on the device at first use" % len(native))
+    else:
+        without = prebuild_plugins(os.path.join(build, "zinc"), os.path.join(root, "share", "zinc"), "linux")
     archive = os.path.join(out, name + ".tar.gz")
     with tarfile.open(archive, "w:gz", compresslevel=9) as t:
         t.add(root, arcname=name)
@@ -272,6 +281,7 @@ def package_windows(build, out):
     return [("windows", archive)], without
 
 def main():
+    global VERSION
     if "--app" in sys.argv:
         if platform.system() != "Darwin": sys.exit("--app packages a macOS .app on macOS")
         app = os.path.abspath(arg("--app", ""))
@@ -290,14 +300,20 @@ def main():
     out = os.path.abspath(arg("--out", os.path.join(NEXT, "dist")))
     os.makedirs(out, exist_ok=True)
     system = platform.system()
+    cross = arg("--linux-arch", None)   # tools/build-linux: a Linux zinc cross-built on this machine
+    if cross:
+        system = "Linux"
+        if not VERSION:   # the binary cannot run here: the version CMake compiled into it
+            for f in ("flags.make", "build.make"):
+                m = re.search(r'ZN_VERSION=\\?"([^"\\]+)', open(os.path.join(build, "CMakeFiles", "zn_tc.dir", f)).read())   # src/tc/selfupdate.cpp
+                if m: VERSION = m.group(1); break
     if system == "Windows" and not os.path.exists(os.path.join(build, "zinc.exe")): build = os.path.join(build, "Release")   # the Visual Studio generator
     if not os.path.exists(os.path.join(build, "zinc.exe" if system == "Windows" else "zinc")):
         sys.exit("no %s/zinc: build first (cmake --build build)" % build)
-    global VERSION
     if not VERSION:
         VERSION = run(os.path.join(build, "zinc.exe" if system == "Windows" else "zinc"), "--version").stdout.split()[-1]
     if system == "Darwin": archives, without = package_macos(build, out)
-    elif system == "Linux": archives, without = package_linux(build, out)
+    elif system == "Linux": archives, without = package_linux(build, out, cross)
     elif system == "Windows": archives, without = package_windows(build, out)
     else: sys.exit("no package for %s" % system)
     shutil.rmtree(os.path.join(out, "stage"), ignore_errors=True)
