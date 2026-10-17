@@ -63,6 +63,16 @@ static int anw_mode;          // present into the window's buffer (ZN-743, anw_p
 static bool anw_bgra;         // ask for HAL format 5 (BGRA_8888, the raster's byte order): below API 26, or ZINC_PRESENT_BGRA=1 (0: RGBX_8888)
 static ANativeWindow* anw;    // our reference to the window's surface (SDL releases its own when the surface goes away)
 #endif
+#ifdef SDL_PLATFORM_IOS
+// The software raster draws into memory the GPU reads, shown through the window's CAMetalLayer (ZN-627, hal_metal.mm): no SDL_Renderer, no
+// texture upload. ZINC_PRESENT=texture keeps SDL_Renderer.
+extern "C" bool hal_mtl_open(SDL_Window* w);
+extern "C" uint32_t* hal_mtl_pixels(int w, int h);
+extern "C" void hal_mtl_wait(void);
+extern "C" void hal_mtl_present(void);
+extern "C" void hal_mtl_close(void);
+static bool mtl_on;
+#endif
 
 #ifdef ZN_HAL_GL
 // The window presents with OpenGL and replays the frame's command lists on the GPU (ZN-412.02, runtime/gl_replay.cpp): no software raster
@@ -240,8 +250,11 @@ static void from_window(float wx, float wy, float* sx, float* sy) {
   else if (sim_turn == 2) { *sx = PW - dx; *sy = PH - dy; }
   else if (sim_turn == 3) { *sx = PW - dy; *sy = dx; }
   else { *sx = dx; *sy = dy; }
-#else
-  *sx = wx; *sy = wy;
+#else   // no renderer and no GL (iOS's Metal present): the surface is shown aspect-fit in the window
+  int ww = 1, wh = 1;
+  SDL_GetWindowSize(win, &ww, &wh);
+  const float s = SDL_min((float)ww / PW, (float)wh / PH);
+  *sx = (wx - (ww - PW * s) * 0.5f) / s; *sy = (wy - (wh - PH * s) * 0.5f) / s;
 #endif
 }
 static void to_window(float sx, float sy, float* wx, float* wy) {
@@ -251,7 +264,10 @@ static void to_window(float sx, float sy, float* wx, float* wy) {
   letterbox(&ox, &oy, &sc);
   *wx = sx * sc + ox; *wy = sy * sc + oy;
 #else
-  *wx = sx; *wy = sy;
+  int ww = 1, wh = 1;
+  SDL_GetWindowSize(win, &ww, &wh);
+  const float s = SDL_min((float)ww / PW, (float)wh / PH);
+  *wx = sx * s + (ww - PW * s) * 0.5f; *wy = sy * s + (wh - PH * s) * 0.5f;
 #endif
 }
 
@@ -282,6 +298,9 @@ static void alloc_surface() {
 #endif
 #ifdef __ANDROID__
   if (anw_mode) { free(fb); fb = nullptr; return; }   // made by the first present at this size (anw_present)
+#endif
+#ifdef SDL_PLATFORM_IOS
+  if (mtl_on) { fb = hal_mtl_pixels(PW, PH); return; }   // the buffer the GPU reads (hal_metal.mm); not freed here
 #endif
   if (tex) SDL_DestroyTexture(tex);
   free(fb);
@@ -496,6 +515,12 @@ void hal_init(const HalConfig* cfg) {
     if (!(win = SDL_CreateWindow(cfg->title, ww, wh, SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_HIDDEN))) hal_panic(SDL_GetError(), "hal_sdl", __LINE__);
   } else
 #endif
+#ifdef SDL_PLATFORM_IOS
+  if (!(getenv("ZINC_PRESENT") && !strcmp(getenv("ZINC_PRESENT"), "texture"))) {
+    if (!(win = SDL_CreateWindow(cfg->title, ww, wh, SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_HIDDEN | SDL_WINDOW_METAL))) hal_panic(SDL_GetError(), "hal_sdl", __LINE__);
+    if (!(mtl_on = hal_mtl_open(win)) && !(ren = SDL_CreateRenderer(win, nullptr))) hal_panic(SDL_GetError(), "hal_sdl", __LINE__);
+  } else
+#endif
   if (!wcfg_set) {
     if (!SDL_CreateWindowAndRenderer(cfg->title, ww, wh, SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_HIDDEN, &win, &ren))
       hal_panic(SDL_GetError(), "hal_sdl", __LINE__);
@@ -548,6 +573,9 @@ void hal_shutdown(void) {
 #endif
 #ifdef __ANDROID__
   if (anw) ANativeWindow_release(anw);
+#endif
+#ifdef SDL_PLATFORM_IOS
+  if (mtl_on) hal_mtl_close();
 #endif
   if (ren) SDL_DestroyRenderer(ren);
   SDL_DestroyWindow(win);
@@ -1589,6 +1617,20 @@ static void present_frame(const HalFrame* f) {
 #endif
 #ifdef __ANDROID__
   if (anw_mode) { anw_present(f); ps_end(); return; }
+#endif
+#ifdef SDL_PLATFORM_IOS
+  if (mtl_on) {   // a frame without damage presents nothing: the layer keeps the last one and the display link paces the loop
+    if (f->y1 <= f->y0 || f->x1 <= f->x0) return;
+    hal_mtl_wait();   // the GPU is still copying the previous frame out of fb: almost never, a blit takes a fraction of a frame
+    ps_mark(PS_SWAP);
+    if (f->move && f->render_box) apply_move(f, fb);
+    else render_rows_parallel(f->render_damage ? f->render_damage : f->render, f->y0, f->y1);
+    ps_mark(PS_RASTER);
+    hal_mtl_present();
+    ps_mark(PS_DRAW);
+    ps_end();
+    return;
+  }
 #endif
   if (f->y1 > f->y0 && f->x1 > f->x0) {
     if (f->move && f->render_box) apply_move(f, fb);   // fb keeps the previous frame: its pixels move

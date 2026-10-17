@@ -57,8 +57,9 @@ xcodebuild -exportArchive -archivePath build/rn-showcase.xcarchive -exportPath b
 | The window is the screen on iOS as on Android (`fill`, `SDL_PLATFORM_IOS`) | The program follows the screen and its rotation |
 | The zoom is the display scale divided by the window's pixel density | iOS gives sizes in points (density 3, display scale 3: zoom 1, the raster at the pixel size); Android gives pixels (density 1: the zoom is the display scale, as before). Without the division rn-showcase was laid out on a third of the screen, three times too big |
 
-Nothing else: on iOS the HAL is the desktop's SDL_Renderer path (no `ZN_HAL_GL`: no OpenGL.framework, OpenGL ES is deprecated there), the
-software raster uploaded to a texture each frame; SDL picks its Metal render driver (the first of its list that the iOS build has).
+Nothing else: on iOS the HAL was the desktop's SDL_Renderer path (no `ZN_HAL_GL`: no OpenGL.framework, OpenGL ES is deprecated there), the
+software raster uploaded to a texture each frame; SDL picks its Metal render driver (the first of its list that the iOS build has). Since
+ZN-627 the raster draws into memory the GPU reads ("The present" below); `ZINC_PRESENT=texture` keeps SDL_Renderer.
 
 Outside the HAL:
 
@@ -97,7 +98,7 @@ Android; `ZINC_HEAP` from the launch overrides it. iOS ends an app that grows pa
 
 - The simulator runs on the Mac's CPU and GPU: these numbers say the chain works and where the time goes, not what an iPhone does. The
   upload of the whole 1206 x 2622 frame (12.6 MB) to a texture is the largest cost; the damage-aware present of Android (`anw_present`,
-  ZN-743) has no iOS counterpart yet (a `CAMetalLayer` or `IOSurface` path, or the GPU replay: the Metal decision of D59).
+  ZN-743) had no iOS counterpart then; it has one now ("The present", ZN-627).
 - Start time includes `simctl`'s own launch (a tap on the icon goes through the same SpringBoard path).
 
 Screenshots: `zinc-next-ios/rn-showcase-home.png` (the first screen), `zinc-next-ios/rn-showcase-perf-panel.png` (after the flings, with
@@ -116,7 +117,47 @@ iOS 26.0 universal runtime with x86_64, and forum reports say the later iOS 26 r
 
 Safe areas (the content and the panel scroll under the status bar and the Dynamic Island; ZN-625), lifecycle events to the program, the
 keyboard and IME (ZN-626), the device build and its upload (they need the owner's Apple team; ZN-629 below), HTTPS certificates on a device
-(`src/host/tls.cpp` reads root stores from Linux and macOS files such as `/etc/ssl/cert.pem`; a phone has none; not tried on the simulator), a launch screen from zinc.json's splash, the Metal decision.
+(`src/host/tls.cpp` reads root stores from Linux and macOS files such as `/etc/ssl/cert.pem`; a phone has none; not tried on the simulator), a launch screen from zinc.json's splash.
+
+## The present (ZN-627, 2026-10-17)
+
+The software raster draws the damaged rows straight into a shared `MTLBuffer` (Apple GPUs have one memory for the CPU and the GPU), and
+each frame that changed is one GPU blit of that buffer into the `CAMetalLayer`'s drawable (`targets/macos/hal_metal.mm`, 70 lines; the
+window is made with `SDL_WINDOW_METAL` and no SDL_Renderer). A drawable's content is undefined when it is taken, so the blit copies the
+whole frame, on the GPU. Before writing, the raster waits for the previous blit (it never waited more than 0.12 ms here). A frame without
+damage presents nothing: the layer keeps the last drawable and SDL's `CADisplayLink` paces the loop. Before, `SDL_UpdateTexture` made a
+staging texture, filled it on the CPU and blitted it at every frame, and an idle frame still drew the whole texture.
+`ZINC_PRESENT=texture` keeps that path. A fixed surface (a deterministic run) is letterboxed by the layer (`kCAGravityResizeAspect`), and
+touches map to it with the same aspect-fit (`from_window`).
+
+iPhone 17 simulator, iOS 26.3, Release builds, `ZINC_PRESENT_STATS=1` (p50 / p99 over each 120 drawn frames). The session is 2 s at rest,
+ten 400-point flings, then five tab switches (a `ZINC_INPUT` script, 1,200 frames). The machine was shared with other agents' builds
+(load 8 to 19), so the CPU numbers are noisy:
+
+| rn-showcase | texture (before), 2 runs | Metal (now), 4 runs |
+|---|---|---|
+| raster of the damaged rows, p50 | 0.73 to 1.08 ms | 1.04 to 2.74 ms |
+| scroll move (ZN-744), p50 | 0.78 to 1.07 ms | 0.98 to 1.63 ms |
+| upload, p50 / p99 | 6.61 to 7.47 / 9.96 to 13.90 ms | none |
+| draw + swap (blit, `nextDrawable`, commit; wait for the previous blit), p50 | 0.25 to 0.28 ms | 0.07 to 0.08 + 0.01 to 0.04 ms |
+| main thread per drawn frame, sum of the p50s | about 9.3 ms | about 3.5 ms |
+| frame interval, p50 / p99 | 16.63 to 16.72 / 18.26 to 20.73 ms | 16.64 to 16.71 / 17.22 to 18.66 ms |
+| CPU time of the app over the 22 s session | 5.34, 5.52 s | 3.82 to 4.54 s |
+| CPU time at rest, 10 s | 0.61, 0.74 s | 0.16, 0.17 s |
+
+| hero (its title screen, which animates all the time; 15 s, 1,080 drawn frames) | texture, 2 runs | Metal, 2 runs |
+|---|---|---|
+| raster p50 | 1.75 to 3.92 ms | 2.52 to 5.37 ms |
+| upload p50 / p99 | 5.94 to 7.26 / 8.89 to 11.14 ms | none |
+| draw + swap p50 | 0.23 to 0.28 ms | 0.06 to 0.09 + 0.02 to 0.03 ms |
+| interval p99 (without the first window, which includes the start) | 18.27 to 18.80 ms | 17.40 to 18.86 ms |
+
+- Pixels: `simctl io screenshot` of the first screen, and of the last screen after the whole scripted session, are byte-identical on both
+  paths. A screenshot in the middle of the session shows the More tab, so the tab taps went through.
+- On the Metal path the raster's own time goes up by about 1 ms. It is not the buffer's memory: drawing into a malloc'd frame and copying
+  the damaged rows into the buffer (tried, not kept) gave raster 1.16 to 1.80 ms plus a 0.38 to 0.48 ms copy. The likely cause is the
+  host's scheduler: with 7 ms less work per frame the raster's threads run on slower cores or clocks. These are the Mac's CPU and GPU
+  behind the simulator, not an iPhone; a device measure is a later.md line.
 
 ## Plugins on iOS (ZN-628, 2026-10-17)
 
