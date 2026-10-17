@@ -2,7 +2,8 @@
 id: ZN-754
 title: 'Two small console games: one 2D, one 3D, on desktop, PSP, Vita and PS2'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-17 08:07'
 labels:
   - handheld
