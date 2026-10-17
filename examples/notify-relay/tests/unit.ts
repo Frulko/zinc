@@ -37,8 +37,8 @@ eq(n.url, 'whatsapp://chat?jid=1', 'the default action url');
 check(n.date === 800000000 + 978307200, 'the date from 2001 to 1970');
 const plain = fromRecord('cd', 'com.apple.mail', plistOf('<dict><key>req</key><dict><key>titl</key><string>Lunch</string><key>icon</key><data>' + pngB64 + '</data></dict></dict>'), 1, false);
 eq(plain.kind, 'other', 'an app icon alone does not make a message');
-{ const disc = avatarSources({ $keys: ['req'], req: { $keys: ['uncc'], uncc: { $plist: { $keys: ['$objects'], $objects: ['$null', '/tmp/zinc-avatar-without-extension', 'file:///tmp/a'] } } } });
-  check(disc.length === 2 && disc[0] === '0:/tmp/zinc-avatar-without-extension', 'a communication context names its image by a file without an extension: ' + disc.join(',')); }
+{ const disc = avatarSources({ $keys: ['req'], req: { $keys: ['uncc'], uncc: { $plist: { $keys: ['$objects'], $objects: ['$null', '/tmp/zinc-avatar-without-extension', 'file:///tmp/a', 'intents-remote-image-proxy:?proxyIdentifier=X.png'] } } } });
+  check(disc.length === 3 && disc[0] === '0:/tmp/zinc-avatar-without-extension' && disc[2].startsWith('0:intents-remote-image-proxy:'), 'a communication context names its image by a file without an extension: ' + disc.join(',')); }
 { const U = (n: number): string => '"<CFKeyedArchiverUID 0x600003>{value = ' + n + '}"';
   const uncc: any = JSON.parse('{"$plist":{"$keys":["$objects","$top"],"$top":{"$keys":["root"],"root":' + U(1) + '},"$objects":["$null",' +
     '{"$keys":["sender","displayName"],"sender":' + U(2) + ',"displayName":' + U(0) + '},' +

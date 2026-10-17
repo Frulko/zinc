@@ -11,6 +11,8 @@
 #import <ServiceManagement/ServiceManagement.h>
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import <UserNotifications/UserNotifications.h>
+#import <objc/message.h>
+#import <dlfcn.h>
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -42,6 +44,27 @@ NSString* jsonText(id o) {
 }
 // a property list's values as JSON's: a dictionary with its keys in "$keys", dates in seconds since 1970, data as {"$data": base64}, or {"$plist": ...} when the data is itself a
 // property list (a keyed archive of the record's communication context, for one), so the relay can look inside without knowing its classes
+// A communication notification's sender image (Discord, WhatsApp...): an `intents-remote-image-proxy:` URL served by the Intents image
+// service (INImageServiceConnection). Private API, allowed for Zinc Relay (owner 2026-10-17); checked on macOS 15.7: an unentitled process
+// retrieves it. Every call is guarded, so a change of macOS gives nil and the next avatar source.
+static NSImage* intentsProxyImage(NSString* s) {
+  static void* h = dlopen("/System/Library/Frameworks/Intents.framework/Intents", RTLD_LAZY);
+  Class proxy = NSClassFromString(@"INRemoteImageProxy");
+  SEL init = NSSelectorFromString(@"_initWithURLRepresentation:"), get = NSSelectorFromString(@"_retrieveImageDataWithReply:"), raw = NSSelectorFromString(@"_imageData");
+  NSURL* u = [NSURL URLWithString:s];
+  if (!h || !proxy || !u || ![proxy instancesRespondToSelector:init] || ![proxy instancesRespondToSelector:get]) return nil;
+  id p = ((id (*)(id, SEL, NSURL*))objc_msgSend)([proxy alloc], init, u);
+  if (!p) return nil;
+  __block NSData* d = nil;
+  dispatch_semaphore_t sem = dispatch_semaphore_create(0);
+  ((void (*)(id, SEL, void (^)(id, NSError*)))objc_msgSend)(p, get, ^(id img, NSError*) {
+    if ([img isKindOfClass:[NSData class]]) d = img;
+    else if ([img respondsToSelector:raw]) d = ((NSData* (*)(id, SEL))objc_msgSend)(img, raw);
+    dispatch_semaphore_signal(sem);
+  });
+  if (dispatch_semaphore_wait(sem, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC)) != 0) return nil;
+  return [d isKindOfClass:[NSData class]] ? [[NSImage alloc] initWithData:d] : nil;
+}
 id jsonable(id v, int depth) {
   if (depth > 24) return @"";
   if ([v isKindOfClass:[NSDictionary class]]) {
@@ -140,6 +163,7 @@ struct MacNotify : NativeNotifyMac {
       NSImage* img = nil;
       if ([s hasPrefix:@"file://"]) img = [[NSImage alloc] initWithContentsOfURL:[NSURL URLWithString:s]];
       else if ([s hasPrefix:@"/"]) img = [[NSImage alloc] initWithContentsOfFile:s];
+      else if ([s hasPrefix:@"intents-remote-image-proxy:"]) img = intentsProxyImage(s);
       else { NSData* d = [[NSData alloc] initWithBase64EncodedString:s options:0]; if (d) img = [[NSImage alloc] initWithData:d]; }
       return bytes(squarePng(img, px));
     }

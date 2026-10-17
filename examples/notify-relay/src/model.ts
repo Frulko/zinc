@@ -143,8 +143,9 @@ function scan(v: any, path: string, out: string[]): void {
     const s = v as string;
     const low = s.toLowerCase();
     for (const e of IMAGE_EXT) if ((s.startsWith('/') || s.startsWith('file://')) && low.endsWith(e)) { out.push(rank(path) + ':' + s); return; }
-    // a communication context (`uncc`, Discord, Messages...) names its sender's image by a file or a file URL without an extension: tried first
-    if ((s.startsWith('/') || s.startsWith('file://')) && path.indexOf('/uncc/') >= 0) { out.push('0:' + s); return; }
+    // a communication context (`uncc`, Discord, Messages...) names its sender's image by a file, a file URL without an extension, or a proxy
+    // URL of the Intents image service (Discord, macOS 15.7): tried first
+    if ((s.startsWith('/') || s.startsWith('file://') || s.startsWith('intents-remote-image-proxy:')) && path.indexOf('/uncc/') >= 0) { out.push('0:' + s); return; }
     if (isUuid(s) && path.indexOf('/uncc/') >= 0) { out.push('1:uuid:' + s.toUpperCase()); return; }
     if (isUuid(s) && path.toLowerCase().indexOf('atta') >= 0) out.push('1:uuid:' + s.toUpperCase());
     return;
