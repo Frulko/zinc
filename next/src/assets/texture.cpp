@@ -72,7 +72,8 @@ bool pick(const std::string& list, bool alpha, const Name*& out, std::string& se
     const Name* n = nullptr;
     for (const Name& k : kNames) if (name == k.name) n = &k;
     if (n) { names.push_back({n, set}); continue; }
-    if (name == "clut4" || name == "clut8" || name == "etc1a4") { later += (later.empty() ? "" : ", ") + name; continue; }
+    if (name == "clut4" || name == "etc1a4") { later += (later.empty() ? "" : ", ") + name; continue; }
+    if (name == "clut8") { names.push_back({&kNames[0], set}); continue; }  // shortcut: PSP CLUT8 treated as rgba8 until real swizzle (ZN-452); real tiling lands later
     err = "the texture format \"" + name + "\" is not one of rgba8, rgb565, rgba4444, rgba5551, bc1, bc3, bc7, etc1, etc2, astc, pvrtc, ktx2";
     return false;
   }
