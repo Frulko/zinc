@@ -717,3 +717,15 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-753: run the four breakout builds on real PSP, Vita, PS2 and 3DS hardware.
 - ZN-758: examples/music imports zinc:link (plugin.json: macos, linux, android); it builds for armv7-webos (checked 2026-10-17) but discovery and pairing on the TouchPad are not run.
 - ZN-759: on the owner's four consoles: PS2 and PS TV vibration, pressure, Vita rear touch, the motion axis signs (guessed from the SDK docs on Vita and 3DS), the microphone scale, the battery percent, the 3DS ndsp path with a real `dspfirm.cdc`; the platformer on PSP runs at 30 fps in PPSSPP (work 11.8 ms).
+
+- ZN-?: QuickJS bundle: packages that read Web globals (crypto, TextEncoder, fetch, URL) get undefined because zinc:web imports are added per project file only; install them as globals when linking packages (uuid fails)
+- ZN-?: QuickJS bundle: try the `browser` field and `--conditions=browser` after module/main (nanoid picks its Node build; papaparse and qs stop on Node built-ins)
+- ZN-?: `zinc run x.ts --engine quickjs` cannot load CommonJS/UMD packages (dayjs); auto-bundle packages or tell the user to run zinc bundle
+- ZN-?: Date on QuickJS: src/qjs/prelude.cpp makes local getters UTC while the constructor and getTimezoneOffset keep the machine zone, so date-fns/dayjs/moment are off by the offset outside UTC
+- ZN-?: the TS stripper rejects a type annotation on a catch variable (`catch (e: any)`)
+- ZN-?: `three` from npm in a web project resolves to the zinc:three plugin; the web backend of zinc:three (plugins agent) decides, or npm three wins on the web target
+- ZN-?: Rspack and webpack recipe (a loader calling `zinc dev --prepare`) is documented, not run
+- ZN-?: Cross-platform pass: `zinc add npm:` on Windows (.cmd shims, quoting in cli_pm.cpp), yarn classic and berry, esbuild download on Linux and Windows
+- ZN-?: the dev pre-bundle does not watch workspace packages; reload on a workspace package edit
+- ZN-?: publish @zinc/vite to npm (owner step; the package is ready)
+- ZN-?: semantic DOM on Firefox and Safari (macOS, iOS), phone measurement before choosing the web default render, screen reader and IME pass, code-editor TextArea extensions in the page, lottie cacheBg on the web, deep links for Stack path, prerender at several widths
