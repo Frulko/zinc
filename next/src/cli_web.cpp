@@ -296,6 +296,22 @@ std::set<std::string> implementedRows(const std::string& runtime) {
   for (auto m = std::sregex_iterator(t.begin(), t.end(), name); m != std::sregex_iterator(); ++m) out.insert((*m)[1]);
   return out;
 }
+// targets/web/rows-*.js: host rows answered by their own file (zinc:gl, runtime shaders), loaded into native.js only when the program calls one of them
+struct RowFile { std::string text; std::set<std::string> names; };
+std::vector<RowFile> rowFiles(const std::string& dir) {
+  std::vector<RowFile> out;
+  std::error_code ec;
+  std::vector<fs::path> paths;
+  for (const auto& e : fs::directory_iterator(dir, ec)) { const std::string n = e.path().filename().string(); if (n.rfind("rows-", 0) == 0 && e.path().extension() == ".js") paths.push_back(e.path()); }
+  std::sort(paths.begin(), paths.end());
+  static const std::regex key("\n  ([a-z][A-Za-z0-9]*): ");
+  for (const fs::path& p : paths) {
+    RowFile f; f.text = readAll(p);
+    for (auto m = std::sregex_iterator(f.text.begin(), f.text.end(), key); m != std::sregex_iterator(); ++m) f.names.insert((*m)[1]);
+    out.push_back(std::move(f));
+  }
+  return out;
+}
 // what a missing row stands for, for the report
 std::string rowWhy(const std::string& r) {
   auto starts = [&](const char* p) { return r.rfind(p, 0) == 0; };
@@ -355,7 +371,7 @@ int run(const std::string& cmd) {
 std::string runtimeDir(const WebArgs& a) { return (fs::path(a.engineRoot) / "targets" / "web").string(); }
 
 // native.js: the module `zinc:native` resolves to in the page, and the browser backends of the plugins the program uses
-std::string nativeJs(const std::vector<WebPlugin>& used) {
+std::string nativeJs(const std::vector<WebPlugin>& used, const std::vector<std::string>& rowJs = {}) {
   std::string js =
       "const Z = globalThis.__zincWeb;\n"
       "export const NativeModule = undefined;\n"
@@ -367,6 +383,7 @@ std::string nativeJs(const std::vector<WebPlugin>& used) {
       "    return t[k] = typeof f === 'function' ? f.bind(e.impl) : () => { throw new Z.ZnUnsupported('plugin ' + name + '.' + k, e ? 'its browser backend does not have it' : 'the plugin has no browser backend'); };\n"
       "  } });\n"
       "}\n";
+  for (const std::string& r : rowJs) js += "// ---- host rows\n(() => {\n" + r + "\n})();\n";
   for (const WebPlugin& p : used) if (!p.impl.empty()) js += "// ---- plugin " + p.name + "\n(() => {\n" + readAll(fs::path(p.dir) / p.impl) + "\n})();\n";
   return js;
 }
@@ -402,6 +419,7 @@ struct Common {
   std::string browsersJson, runtime;
   std::vector<std::pair<std::string, std::string>> wasmOut;   // the native code of plugins built for the page: module name, url
   std::vector<std::pair<std::string, std::string>> scriptOut;   // the libraries plugins load on first use: name, url
+  std::vector<std::string> rowJs;   // the rows-*.js files the program needs (loaded into native.js)
 };
 // `bundle`: the minified bundle, whose reachable code names the host rows the program really calls ("" in dev: the staged modules hold unused code too, so every row they name gets a stub and nothing is reported)
 Common analyse(const WebArgs& a, const fs::path& stage, const std::string& bundle = "") {
@@ -435,10 +453,13 @@ Common analyse(const WebArgs& a, const fs::path& stage, const std::string& bundl
   std::string warnings = webCheckReport(c.browsersJson, browsers, std::vector<std::string>(needs.begin(), needs.end()), "the web host");
   for (const WebPlugin& p : c.used) warnings += webCheckReport(c.browsersJson, browsers, p.needs, "plugin " + p.name);
   for (const std::string& nm : sc.natives) if (!claimed.count(nm)) warnings += "warning W0602: the native side '" + nm + "' has no browser backend (a plugin's web entry): its calls throw ZnUnsupported\n";
-  const std::set<std::string> have = implementedRows(c.runtime);
+  std::set<std::string> have = implementedRows(c.runtime);
+  const std::vector<RowFile> rf = rowFiles(runtimeDir(a));
+  for (const RowFile& f : rf) have.insert(f.names.begin(), f.names.end());
   std::set<std::string> why;
   std::set<std::string> rows = sc.rows;
   if (!bundle.empty()) { rows.clear(); static const std::regex rr("__host_([A-Za-z0-9]+)"); for (auto m = std::sregex_iterator(bundle.begin(), bundle.end(), rr); m != std::sregex_iterator(); ++m) rows.insert((*m)[1]); }
+  for (const RowFile& f : rf) { bool uses = false; for (const std::string& n : f.names) if (rows.count(n)) { uses = true; break; } if (uses) c.rowJs.push_back(f.text); }
   for (const std::string& r : rows) {
     if (have.count(r)) continue;
     c.unsupported.push_back(r);
@@ -529,6 +550,7 @@ std::string configJson(const WebArgs& a, const Cfg& c, const Common& cm, const s
       if (txt) { j += ",\"browsers\":{\"features\":" + std::string(txt) + "}"; std::free(txt); }
     }
   }
+  if (!cm.rowJs.empty()) j += ",\"rows\":true";
   j += ",\"unsupported\":[";
   for (std::size_t i = 0; i < cm.unsupported.size(); ++i) j += (i ? "," : "") + jstr(cm.unsupported[i]);
   j += "],\"wasm\":[";
@@ -637,7 +659,7 @@ int exportSite(const WebArgs& a, const std::string& tmpName) {
   if (!zn::tc::ensureEsbuild(esbuild, err)) { std::fprintf(stderr, "zinc export: %s\n", err.c_str()); return 1; }
   // 3. the runtime, the native glue and (DOM mode) the DOM painter, minified
   fs::create_directories(tmp / "rt", ec);
-  writeAll(tmp / "rt" / "native.js", nativeJs(cm.used));
+  writeAll(tmp / "rt" / "native.js", nativeJs(cm.used, cm.rowJs));
   for (const char* f : {"runtime.js", "dom.js"}) fs::copy_file(fs::path(runtimeDir(a)) / f, tmp / "rt" / f, fs::copy_options::overwrite_existing, ec);
   std::map<std::string, std::string> out;   // published name -> bytes
   auto publish = [&](const std::string& base, const std::string& ext, const std::string& bytes) {
@@ -1150,7 +1172,7 @@ int devWeb(const WebArgs& a) {
   // the page and the runtime files, as they are (no hashes, no minify: the browser's devtools read them)
   const bool dom = d.cm.cfg.render == "dom";
   for (const char* f : {"runtime.js", "dom.js", "hmr.js"}) writeAll(d.site / f, readAll(fs::path(runtimeDir(a)) / f));
-  writeAll(d.site / "native.js", nativeJs(d.cm.used));
+  writeAll(d.site / "native.js", nativeJs(d.cm.used, d.cm.rowJs));
   for (const WebPlugin& p : d.cm.used) {
     if (p.wasmSources.empty()) continue;
     std::string werr;

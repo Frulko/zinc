@@ -178,6 +178,8 @@ function newImage(w, h) {
 Z.images = {
   canvas: (id) => (images[id] ? images[id].canvas : null),
   touch: (id) => { if (images[id]) images[id].rev = (images[id].rev || 0) + 1; },
+  /** Gives the image another size (zinc:gl present, drawShader): its canvas is cleared. */
+  resize: (id, w, h) => { const im = images[id]; if (!im) return; im.canvas.width = Math.max(1, w); im.canvas.height = Math.max(1, h); im.w = w; im.h = h; im.k = 1; },
 };
 
 // ---------------------------------------------------------------- the canvas painter
@@ -821,6 +823,7 @@ async function boot() {
     await preload();
     installInput();
     if (CFG.dev) await import(/* @vite-ignore */ CFG.hmrModule || './hmr.js').catch((e) => console.warn('zinc: no hot reload', e));
+    if (CFG.rows) await import(/* @vite-ignore */ 'zinc:native');   // the host rows of rows-*.js (zinc:gl, runtime shaders) live in native.js and must be there before the app runs
     await (globalThis.__zincLoadEntry ? globalThis.__zincLoadEntry() : import(/* @vite-ignore */ CFG.entry));   // a bundler (the Vite plugin) sets __zincLoadEntry to its own import() of the app, so it can split and hash it
     document.getElementById('zinc-splash')?.remove();
     root.focus && root.focus();

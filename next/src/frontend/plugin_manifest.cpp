@@ -127,6 +127,14 @@ bool parsePluginManifest(std::string_view text, PluginManifest& out, std::string
     yyjson_val *k, *v;
     yyjson_obj_foreach(m, i, n, k, v) if (yyjson_is_str(v)) out.aliases[yyjson_get_str(k)] = yyjson_get_str(v);
   }
+  if (const Profile* cur = currentProfile(); cur && std::string_view(cur->name) == "web")   // the web target: "web": { "modules": ... } replaces the aliases (three's addons are the real ones there)
+    if (yyjson_val* w = yyjson_obj_get(root, "web"); yyjson_is_obj(w))
+      if (yyjson_val* m = yyjson_obj_get(w, "modules"); yyjson_is_obj(m)) {
+        out.aliases.clear();
+        size_t i, n;
+        yyjson_val *k, *v;
+        yyjson_obj_foreach(m, i, n, k, v) if (yyjson_is_str(v)) out.aliases[yyjson_get_str(k)] = yyjson_get_str(v);
+      }
   if (yyjson_val* t = yyjson_obj_get(root, "targets")) {
     if (!yyjson_is_obj(t)) { err = "\"targets\" must be an object"; return false; }
     size_t i, n;

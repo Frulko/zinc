@@ -19,6 +19,9 @@ How to add a line: see "Changelog" in `AGENTS.md`.
   lockfile's hash; saving your own code never bundles them again, an install reloads the page), and `zinc export --target web` resolves them the same way (`exports` conditions, the `browser`
   field, CommonJS, pnpm links). `zinc add npm:<package>` and `zinc install` call the project's own package manager (npm, pnpm, yarn or bun, found from `packageManager` or the lockfile);
   `zinc doctor` lists the ones it finds and Zinc never installs one (P0001, P0002, W0605: `zinc explain`).
+- Web target: `zinc:gl` (WebGL 1 and 2), `drawShader` runtime shaders and `three` run on the browser's own WebGL. `examples/gl-cube` draws the same frame as on the desktop,
+  `examples/three/cubes` and the glTF viewer run on the real three.js (the pinned r186 copy), and `zinc:canvas` is the browser's Canvas2D. Pictures show in canvas and DOM mode alike,
+  under whatever the app draws after them.
 - zinc:spotify: a program without its own login file uses the computer's shared one, `~/.zinc/spotify.json`, which `plugins/spotify/login.py CLIENT_ID` now writes by default.
 - Android: `navigator.getBattery()` and `device('battery')` of zinc:sys give the battery's level and whether it charges.
 - The music example shows a Mac's notifications on its tablet: it pairs once with the Mac over zinc:link (a 6-digit code on the tablet),

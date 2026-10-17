@@ -1,0 +1,5 @@
+{
+  "name": "web-three",
+  "entry": "src/main.ts",
+  "targets": { "web": { "title": "three fixture" } }
+}

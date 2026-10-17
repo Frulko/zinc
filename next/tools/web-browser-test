@@ -11,7 +11,7 @@ from cdp import Chrome, find_chrome
 args = sys.argv[1:]
 if not args: sys.exit("usage: web-browser-test <dir> [options]")
 root = args.pop(0)
-opt = {"--wait": "3", "--shot": "", "--eval": "", "--size": "900x600", "--path": "/", "--click": "", "--expect-text": "", "--after": "1", "--click-text": "", "--init": ""}
+opt = {"--wait": "3", "--shot": "", "--eval": "", "--size": "900x600", "--path": "/", "--click": "", "--expect-text": "", "--after": "1", "--click-text": "", "--init": "", "--frame-pause": ""}
 while args:
     k = args.pop(0)
     if k not in opt: sys.exit("unknown option " + k)
@@ -59,6 +59,10 @@ with Chrome(["--window-size=%d,%d" % (w, h), "--use-fake-ui-for-media-stream", "
         click(x, y)
         t0 = time.time()
         while time.time() - t0 < float(opt["--after"]): c._recv(-1, 0.2)
+    if opt["--frame-pause"]:   # stop the page's frame loop after N frames so a screenshot shows a known frame
+        c.eval("(() => { const f = window.requestAnimationFrame.bind(window); const n = %s; const t = () => { if ((globalThis.__zincFrames || 0) >= n) { window.requestAnimationFrame = () => 0; } }; window.requestAnimationFrame = (cb) => f((x) => { cb(x); t(); }); })()" % int(opt["--frame-pause"]))
+        t0 = time.time()
+        while time.time() - t0 < 1.0: c._recv(-1, 0.2)
     if opt["--eval"]: out["eval"] = c.eval(opt["--eval"])
     out["text"] = (c.eval("document.body.innerText") or "")[:2000]
     shot = c.call("Page.captureScreenshot", {"format": "png"})
