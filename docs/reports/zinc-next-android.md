@@ -117,9 +117,8 @@ the two devices measured (API 25 honours the format, API 37 does not): a device 
 
 ### A GPU layer under the software frame (ZN-746)
 
-zinc:gfx runtime shaders (shaderProgram, drawShader, shaderAvailable) are drawn by the GPU without the GL replay of the whole frame: a
-program that makes a shader before its first frame gets a GL window (its buffer was never locked by the CPU, so EGL can still take it); each
-frame GL draws the frame's SHADER commands (at 1 / scale of the screen when the program allows it), then the software frame over them, its
+zinc:gfx runtime shaders (shaderProgram, drawShader, shaderAvailable) are drawn by the GPU without the GL replay of the whole frame: while
+frames draw a shader the window is a GL window (since 2026-10-17 only then: "The music remote's lag" below); each frame GL draws the frame's SHADER commands (at 1 / scale of the screen when the program allows it), then the software frame over them, its
 damaged rows rendered with holes where the shaders are (twice, holes black and white: alpha and premultiplied colour) and uploaded. A change of
 the shaders' uniforms alone is no damage: an animated shader under a still UI costs the CPU nothing. The music app's lava face: 4.0 fps with
 its PNG round trip and four taps, 22 fps with one smooth stretch of a raw picture on the CPU, 61 fps as a shader at a quarter of the
@@ -284,6 +283,62 @@ spotify.json` on the Mac, then the commands above).
 
 Seen on the way: `adb shell input tap` (the press and the release within a few milliseconds) did not reach the program's buttons, while a press
 held 120 ms (`input swipe x y x y 120`) did; a finger works.
+
+## The music remote's lag (2026-10-17)
+
+The owner, on the Nexus 7 (tuned: four cores online): "the app is laggy". Measured with SurfaceFlinger's present times of the app's surface
+(`dumpsys SurfaceFlinger --latency`, any build, no root), release APKs of the same program and zinc.json, scripted swipes (`input swipe`):
+
+| Frame interval while it moves (p50, max) | Before (main of 2026-10-17) | After |
+|---|---|---|
+| Carousel, weather and rings slides (no shader) | 183 ms, 233 (5.5 fps) | 50 ms, 83 (20 to 30 fps); vsyncs dropped 254 in 12 s, now 128 in 10 s |
+| Carousel into and out of the lava face | 183 ms, 317 | 67 to 83 ms, 100 |
+| Carousel, lava face and player | 183 ms, 217 | 67 ms, 100 |
+| Radios grid scrolled | 67 ms, 133, hitches of 467 to 650 | 33 ms, 33 (no hitch) |
+| Lava face at rest | 60 fps | 60 fps |
+
+Why it lagged:
+
+- **The whole app ran on the GL window.** The lava face makes its shader at load, and a shader made before the first frame gave the window
+  to GL for the whole run (ZN-746), so every damaged frame of every page was rendered twice (holes black, then white), converted and uploaded
+  (1280 x 800 x 4 bytes: 30 ms for the conversion to RGBA on one core, 11 ms for `glTexSubImage2D`): the zero-copy path of ZN-743 was
+  never taken. `ZINC_PRESENT_STATS` printed nothing there (the GL steps were not marked).
+- **A stretched picture cost 200 ms of CPU a frame.** The player's backdrop is the cover drawn into a 12 x 12 picture and stretched over
+  the screen with a tint: bilinear sampling per pixel, with a division, a floor and twelve conversions between VFP and core registers per
+  pixel, about 107 ns a pixel on an A9 (77% of the raster's CPU time in a swipe, `-DZRT_RASTER_PROFILE` by command kind).
+
+What changed (engine only; the program is unchanged):
+
+- **The GPU layer only while a shader is drawn** (`hal_sdl.cpp` `layers_follow`, `window_kind`). The window is the CPU's (the raster in the
+  window's buffer) and becomes a GL window at the first frame that draws a SHADER, then the CPU's again once frames without one rest (no
+  damage), or after 60 of them: the change back shows nothing new for about 380 ms (the switch 30 ms, the first CPU frame 70 to 110 ms, the
+  compositor the rest), which a still screen hides. The GL context, its programs and textures are kept (SDL's EGL library held with
+  `SDL_GL_LoadLibrary`); EGL cannot connect to a buffer queue the CPU holds and no public API lets it go, so the window calls the
+  ANativeWindow's own `perform(NATIVE_WINDOW_API_DISCONNECT, NATIVE_WINDOW_API_CPU)` (AOSP `system/window.h`, the interface the GPU drivers
+  are built against; if it fails, the program keeps its CPU picture: `shaderAvailable()` turns false). A window made again keeps the
+  fullscreen flag: one made without it takes the immersive mode away, and asking again waits 500 ms (`SDLActivity.sendCommand`).
+- **The GPU layer renders once.** The damaged rows are rendered with holes of alpha byte 255 (the raster's own pixels leave it at 0); only
+  the rectangles that commands paint over a shader (the time, the card, the status bar: about a fifth of the screen, up to 16 rectangles,
+  close ones joined) are rendered again with white holes for their alpha; the rows go to the texture as they are (the present shader takes
+  B, G, R and 1 - A: no conversion; the upload of the screen takes 11 to 12 ms, into one texture or two in turn alike). GL steps are
+  marked for `ZINC_PRESENT_STATS` (raster, upload, draw, swap).
+- **Bilinear images, separated** (`raster.cpp` `LinRows`): the horizontal blend of a source row is computed once per row and kept while the
+  pixel rows below sample the same two source rows, and the columns' taps once per command; the same floats in the same order, so no pixel
+  changes (the desktop frames are byte-identical, `image_*` tests). On ARM an opaque picture painted whole takes NEON, one channel of four
+  pixels per register (bit-exact against the scalar form, 80,000 random pixels on the device): 107 ns a pixel became 53; the raster of a swipe
+  frame 66 ms (p50) became 32.
+- **A release APK for one's own device:** `zinc export <dir> --target android --apk --release [--abis armeabi-v7a]` runs `assembleRelease`
+  (not debuggable, the engine built RelWithDebInfo and stripped), signed with the upload key when one is named, else with the debug keystore,
+  so `adb install -r` replaces a debug build and keeps the app's data. A release build reads only `ZINC_PRESENT_STATS` and `ZINC_GL_STATS`,
+  from `zinc.env` in the app's external files directory (`adb push zinc.env /sdcard/Android/data/<id>/files/`; a release refuses `run-as`).
+
+```sh
+zinc export examples/music --target android -o dist/music-android --apk --release --abis armeabi-v7a   # 16.2 MB
+adb install -r dist/music-android/app/build/outputs/apk/release/app-release.apk
+```
+
+Left (backlog/later.md): the carousel at 20 to 30 fps is the raster of the whole screen each frame (32 ms p50 on four A9 cores: rounded
+rectangles blended over the screen, the glyph sweep); a slide kept as a layer and moved by the compositor would make it 60.
 
 ## Plugins on Android (ZN-628, 2026-10-17)
 
