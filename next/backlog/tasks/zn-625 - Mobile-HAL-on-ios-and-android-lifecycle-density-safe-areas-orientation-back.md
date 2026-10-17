@@ -4,7 +4,8 @@ title: >-
   Mobile HAL on ios and android: lifecycle, density, safe areas, orientation,
   back
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-10 14:06'
 updated_date: '2026-10-16 20:30'
 labels:

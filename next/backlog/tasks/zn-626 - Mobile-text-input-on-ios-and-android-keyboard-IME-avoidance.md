@@ -2,7 +2,8 @@
 id: ZN-626
 title: 'Mobile text input on ios and android: keyboard, IME, avoidance'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-10 14:06'
 labels:
   - mobile
