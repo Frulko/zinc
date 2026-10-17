@@ -4,7 +4,8 @@ title: >-
   Cooker v1 geometry: glTF to quantized, chunked, LOD meshes with baked vertex
   light
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-09 07:39'
 labels:
   - handheld
