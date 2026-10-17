@@ -1,0 +1,72 @@
+# Consoles: PSP, PS Vita, PS2 and 3DS
+
+Zinc Next runs a program on a console through a **console core**: the interpreter, the runtime, the graphics host (software raster) and a small
+HAL per console, built once with the console's SDK (`next/targets/console`). The program is the `.zbc` that `zinc pack` writes, either linked into
+the core or read beside it. Profiles: `--profile psp` (f32 numbers, 480x272), `vita` (960x544), `ps2` (f32, 640x448), `n3ds` (400x240 top screen).
+Decision and plan: `docs/reports/hardware/handhelds-psp-vita-3ds-iphone4s.md`; tasks ZN-453 to ZN-457, ZN-753.
+
+## Build and run
+
+```sh
+cd next
+zinc pack --profile psp ../examples/breakout -o /tmp/b.zapp && tar -xf /tmp/b.zapp -C /tmp program.zbc resources.bin
+tools/build-console-core psp --embed /tmp/program.zbc /tmp/resources.bin [--frames 600]   # -> build/console-psp/EBOOT.PBP
+tools/console-run psp build/console-psp/EBOOT.PBP [--timeout 60] [--shot frame.png]      # prints the program's lines, exits with its status
+```
+
+| Console | SDK (`zinc toolchain install <id>`) | Core | Runner (`tools/console-run`) |
+|---|---|---|---|
+| `psp` | pspdev v20261001, GCC 15.2.0 (`$PSPDEV` wins) | `EBOOT.PBP` (PRX), `targets/psp/hal_psp.cpp` | PPSSPPHeadless 1.20.4, built once from the pinned sources; `--window`: PPSSPPSDL.app |
+| `vita` | VitaSDK sdk-snapshot-20261015, GCC 15.2.0 (`$VITASDK`) | `zinc.vpk` (title ZINC00001), `targets/vita/hal_vita.cpp` | Vita3K (build 4189 pinned; `/Applications/Vita3K.app` first), SDL frontend |
+| `ps2` | ps2dev v2.0.0, EE GCC 15.2.0 (`$PS2DEV`) | `zinc-core` (ELF), `targets/ps2/hal_ps2.cpp` (the prototype's) | PCSX2 with your BIOS when installed, else Play! 0.72 (no BIOS); `--emu play` forces it |
+| `n3ds` | devkitARM in devkitPro's image pinned by digest (`$DEVKITPRO` for a local install) | `zinc-core.3dsx`, `targets/n3ds/hal_n3ds.cpp` | Azahar (2126.2 pinned; an installed `Azahar.app` first) |
+
+`zinc toolchain install ppsspp-headless|ppsspp|vita3k|play|pcsx2|azahar` prints where each emulator is: an app in `/Applications` (or unpacked
+in `~/Downloads`) first, with its own settings, firmware and BIOS; else the pinned release in `~/.zinc/toolchains` (SHA-256 checked). PCSX2 is
+never downloaded: it needs the user's own BIOS. `ZINC_EMU_PINNED=1` takes the pinned ones only.
+
+## The contract between a core and its runner
+
+- The core prints `zinc:start`, the program's lines, then `zinc:exit <status>` (0, 1 runtime error, 101 uncaught exception, 2 no or bad program).
+  The runner prints the lines between and exits with the status; 124 when no `zinc:exit` came in time (the emulator is stopped); 77 when the
+  emulator is missing, with the reason.
+- A core built with `--frames N` stops after N frames and leaves its last frame for `--shot`: the PSP through PPSSPP's screenshot device
+  (the emulator's own display), the others as a PPM the HAL writes (the frame it presented): Vita `ux0:data/zinc-shot.ppm`, PS2 `host:zinc-shot.ppm`,
+  3DS `sdmc:/zinc-shot.ppm`.
+- Windowed emulators start with `open -g`: they never take the focus. Play! is the exception (its emulation does not start under `open -g`), so
+  on a desktop with a BIOS PCSX2 is used.
+
+## What each emulator needs and does
+
+- **PPSSPPHeadless**: prints only what reaches PPSSPP's `kemulator:` device (devctl 2): the PSP HAL sends its lines there as well as to stdout.
+  Fast-forwards (30 frames in 0.1 s). The macOS build needs an empty MoltenVK stand-in and `_DARWIN_C_SOURCE` (src/tc/consoles.cpp).
+- **Vita3K**: runs Zinc's homebrew without firmware; with the user's install it uses a copy of their config (`-c <copy> -w`), so their settings and
+  firmware (pref-path) are used and never changed. newlib's stdout goes to `tty0:`, which Vita3K does not show: the HAL's lines go through
+  `sceClibPrintf`. Vita3K drops repeated identical lines ("Skipped N duplicate messages"): a test that prints the same line twice in a row sees one.
+- **PCSX2** (the owner's, with their BIOS): run with its own data directory `~/.zinc/emulators/pcsx2` whose ini points at the user's BIOS folder
+  (never copied), with the EE and IOP consoles logged and the host filesystem on (`host:` is the ELF's directory). Never start it with an empty
+  data directory: its first-run migration copies the BIOS there.
+- **Play!**: keeps its data in `~/Documents/Play Data Files` (it cannot be moved); the runner turns on `iop.fileio.stdlogging` (the EE's stdout in
+  `ps2_stdout.txt`) and off `ui.pausewhenfocuslost`. `host:` is its `vfs/host` directory.
+- **Azahar**: logs debug strings only at its Debug level (the default filter is `*:Info`), so the 3DS HAL also writes its lines to `sdmc:/zinc.log`
+  (`~/Library/Application Support/Azahar/sdmc`). `-d file` records a video of the session; `-p` replays a TAS movie (scripted pad input).
+
+## devkitPro natively on macOS
+
+`pkg.devkitpro.org` answers scripts with a Cloudflare challenge (HTTP 403), and devkitPro's macOS installer puts pacman in `/opt/devkitpro` with
+sudo, so zinc uses the pinned docker image. For a native toolchain (faster builds, no docker), once, by hand:
+
+```sh
+curl -LO https://github.com/devkitPro/pacman/releases/download/v6.0.2/devkitpro-pacman-installer.pkg   # sha256 da74156211cd3d8664ba7fb95544fbc0a2fbef1dd87b1a6bfafb30d2d446cd30
+sudo installer -pkg devkitpro-pacman-installer.pkg -target /
+sudo dkp-pacman -Sy && sudo dkp-pacman -S 3ds-dev        # devkitARM, libctru, citro3d, citro2d, 3dstools, picasso, tex3ds
+export DEVKITPRO=/opt/devkitpro DEVKITARM=/opt/devkitpro/devkitARM   # zinc toolchain install n3ds then names it
+```
+
+## Limits
+
+- Software raster only (the GE, GXM and PICA replays are later tasks); one thread; no audio; no `zinc:fs` directories or stat (the console host
+  serves files through stdio, storage, the clock, args and env: `next/targets/console/host_console.cpp`).
+- A program that calls `exit()` ends without `zinc:exit`: the runner reports a timeout.
+- The PS2 and 3DS shots are the HAL's frame, not the emulator's display: a display bug of the HAL (the 3DS framebuffer is rotated) shows only in
+  the emulator's window or its video (`azahar -d`).

@@ -1,7 +1,7 @@
 // The machine the engines share: loading a module into classes and functions, allocation, reference counting and
 // destruction order, comparator and exception callbacks. The interpreter (vm) and the compiled programs (aot) both link it.
 #include <pthread.h>
-#if !defined(ESP_PLATFORM) && !defined(_WIN32)   // neither has mmap: the stack comes from calloc there (Windows: VirtualAlloc when startup time asks for it)
+#if !defined(ESP_PLATFORM) && !defined(_WIN32) && !defined(ZN_NO_MMAP)   // none has mmap: the stack comes from calloc there (Windows: VirtualAlloc when startup time asks for it; ZN_NO_MMAP: the console cores)
 #include <sys/mman.h>
 #endif
 #include "rt/rt.h"
@@ -54,8 +54,12 @@ std::string numberToString(double v) {
   v = std::fabs(v);
   if (v < 9007199254740992.0 && v == std::floor(v)) return sign + std::to_string(static_cast<std::uint64_t>(v));  // an integer: its digits
   char buf[48];
+#if !defined(_GLIBCXX_RELEASE) || defined(__cpp_lib_to_chars)   // libc++ has it without the macro; libstdc++ says when it lacks it
   auto tc = std::to_chars(buf, buf + sizeof buf - 1, v, std::chars_format::scientific);  // the shortest digits that round-trip (the standard library's Ryu)
   *tc.ptr = 0;
+#else   // a C++ library without the floating to_chars (ps2dev's): the fewest correctly rounded digits that read back the same value
+  for (int p = 0; p < 17; ++p) { std::snprintf(buf, sizeof buf, "%.*e", p, v); if (std::strtod(buf, nullptr) == v) break; }
+#endif
   std::string s = buf;  // d.ddde[+-]XX
   std::size_t e = s.find('e');
   int exp10 = std::atoi(s.c_str() + e + 1);
@@ -207,7 +211,7 @@ Machine::~Machine() {
       default: freeRaw(o); break;
     }
   }
-#if !defined(ESP_PLATFORM) && !defined(_WIN32)
+#if !defined(ESP_PLATFORM) && !defined(_WIN32) && !defined(ZN_NO_MMAP)
   if (stackMapped) munmap(stack, stackMapped); else
 #endif
   std::free(stack);
@@ -230,7 +234,7 @@ bool Machine::load(const zbc::Module& m, std::string& err) {
   // lazily zeroed pages, so the 20 MB is not touched until used.
   std::size_t slots = stackSlots ? stackSlots : kStackSlots;
   // A large stack comes from mmap: the system's calloc zeroes blocks of this size itself (a 20 MB memset, 90% of the start-up of a small program, ZN-146), mapped pages are zero and untouched until used.
-#if !defined(ESP_PLATFORM) && !defined(_WIN32)   // ESP-IDF has no mmap; its stacks are small
+#if !defined(ESP_PLATFORM) && !defined(_WIN32) && !defined(ZN_NO_MMAP)   // ESP-IDF and the consoles have no mmap; their stacks are small
   if (slots * sizeof(Slot) >= (1u << 20)) {
     void* p = mmap(nullptr, slots * sizeof(Slot), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
     if (p != MAP_FAILED) { stack = static_cast<Slot*>(p); stackMapped = slots * sizeof(Slot); }

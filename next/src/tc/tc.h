@@ -101,6 +101,11 @@ const std::vector<ConsoleSdk>& consoleSdks();
 const ConsoleSdk* findConsoleSdk(const std::string& target);
 // The SDK of `target`: its directory (n3ds: the pinned image, docker.io/devkitpro/devkitarm@sha256:..., or $DEVKITPRO), installed when missing.
 bool ensureConsoleSdk(const std::string& target, std::string& where, std::string& err);
+// The console emulators (ZN-457): ppsspp-headless (built once from the pinned PPSSPP sources), ppsspp (PPSSPPSDL.app), vita3k, play (PS2 without a
+// BIOS), pcsx2 (never downloaded: it needs the user's BIOS), azahar (3DS). An app the user installed (/Applications, an unpacked ~/Downloads folder)
+// is taken first, with its settings, firmware and BIOS (ZINC_EMU_PINNED=1: the pinned one only); `path` is the .app bundle or the executable.
+std::vector<std::string> emulatorNames();
+bool ensureEmulator(const std::string& name, std::string& path, std::string& err);
 // Where it is or would be, and whether it is there, without installing (zinc doctor); `why` says what is missing.
 bool consoleSdkPresent(const ConsoleSdk& s, std::string& where, std::string& why);
 

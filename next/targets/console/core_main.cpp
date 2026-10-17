@@ -4,6 +4,7 @@
 // Its output is framed on the HAL log by `zinc:start` and `zinc:exit <status>`, as the PS1 and ESP32 runners frame theirs: an emulator runner prints
 // the lines between them and exits with the status. Status: the program's (0, 1 runtime error, 101 uncaught exception), 2 no or invalid program.
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -17,6 +18,15 @@
 extern "C" void zn_console_set_args(int argc, const char* const* argv);   // host_console.cpp
 extern "C" void zn_console_install_host(void);
 extern "C" const char* zn_console_data_dir(void);
+
+#ifndef ZN_CONSOLE_STACK_SLOTS
+#define ZN_CONSOLE_STACK_SLOTS 0   // 0: the engine's (kMaxCallDepth x kMaxRegisters slots, 20 MiB)
+#endif
+#ifndef ZN_CONSOLE_MAX_DEPTH
+#define ZN_CONSOLE_MAX_DEPTH 0     // 0: the engine's kMaxCallDepth
+#endif
+
+extern "C" __attribute__((weak)) void zn_console_echo(const char*, std::size_t) {}   // the console's HAL may define it
 
 // A program linked into the core (embed.cmake writes the strong definitions); none by default
 extern "C" {
@@ -43,9 +53,15 @@ std::string dirOf(const std::string& p) {
 }
 bool endsWith(const char* s, const char* tail) { const std::size_t a = std::strlen(s), b = std::strlen(tail); return a >= b && !std::strcmp(s + a - b, tail); }
 int finish(int status) { log("zinc:exit " + std::to_string(status) + "\n"); return status; }
+// The program's lines also go to the HAL's second output when it has one (PPSSPP prints only what reaches its kemulator: device): Machine::flushOut
+// writes them on stdout and hands each to this tap.
+void tap(const char* p, std::size_t n, bool) { std::string line(p, n); line += '\n'; zn_console_echo(line.data(), line.size()); }
 }  // namespace
 
 int main(int argc, char** argv) {
+#ifdef ZN_CONSOLE_SIZE
+  setenv("ZINC_SIZE", ZN_CONSOLE_SIZE, 0);   // the surface is the console's screen (the graphics host reads ZINC_SIZE)
+#endif
   log("zinc:start\n");
   // the program: an argument ending in .zbc, else program.zbc beside the executable (EBOOT.PBP, eboot.bin, the ELF), else in the data directory
   int first = 1;
@@ -75,6 +91,13 @@ int main(int argc, char** argv) {
   zn_console_install_host();
 #endif
   std::string out;
-  const zn::rt::Result r = zn::vm::run(m, out, false);
-  return finish(zn::rt::report(r, out, false));
+  // the register stack and call depth of the console (its <console>.cmake): the desktop's 20 MiB stack is most of a PSP; output goes out live
+  zn::rt::gConsoleTap = tap;
+  const zn::rt::Result r = zn::rt::runModuleHooked(m, out, false, nullptr, nullptr, nullptr, nullptr, ZN_CONSOLE_STACK_SLOTS, ZN_CONSOLE_MAX_DEPTH, true);
+  std::fwrite(out.data(), 1, out.size(), stdout);   // what the program printed last, then its error (zn::rt::report, through the HAL)
+  zn_console_echo(out.data(), out.size());
+  if (r.ok) return finish(0);
+  const bool panic = r.error.rfind("panic: ", 0) == 0;   // an uncaught exception
+  logErr((panic ? "" : "runtime error: ") + r.error + "\n");
+  return finish(panic ? 101 : 1);
 }

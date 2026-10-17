@@ -15,10 +15,15 @@ set(ZN_CONSOLE_HAL "" CACHE FILEPATH "the HAL of the console (runtime/include/ha
 option(ZN_CONSOLE_GFX "link the graphics host (zinc:gfx)" ON)
 set(ZN_CONSOLE_EMBED "" CACHE FILEPATH "a program.zbc to link into the core")
 set(ZN_CONSOLE_EMBED_RES "" CACHE FILEPATH "the resources.bin that goes with it")
+set(ZN_CONSOLE_SIZE "" CACHE STRING "the surface, WxH (the screen of the console: psp 480x272, vita 960x544, ps2 640x448); ZINC_SIZE at run time wins")
+set(ZN_CONSOLE_FRAMES "0" CACHE STRING "a frame budget built into the HAL (ZINC_FRAMES of the emulator tests); 0: until the program ends")
 
 get_filename_component(ZN_NEXT ${CMAKE_CURRENT_SOURCE_DIR}/../.. ABSOLUTE)
 get_filename_component(ZN_RUNTIME ${ZN_NEXT}/../runtime ABSOLUTE)
 get_filename_component(ZN_TARGETS ${ZN_NEXT}/../targets ABSOLUTE)
+if(NOT ZN_CONSOLE_HAL AND EXISTS ${ZN_TARGETS}/${ZN_CONSOLE}/hal_${ZN_CONSOLE}.cpp)   # targets/<console>/hal_<console>.cpp, shared with the prototype
+  set(ZN_CONSOLE_HAL ${ZN_TARGETS}/${ZN_CONSOLE}/hal_${ZN_CONSOLE}.cpp)
+endif()
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
@@ -28,7 +33,7 @@ add_library(zn_console_engine STATIC ${ZN_NEXT}/src/rt/alloc.cpp ${ZN_NEXT}/src/
   ${ZN_NEXT}/src/rt/unicode.cpp ${ZN_NEXT}/src/zbc/zbc.cpp ${ZN_NEXT}/src/vm/vm.cpp ${ZN_NEXT}/third_party/quickjs-ng/libunicode.c)
 set_target_properties(zn_console_engine PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON CXX_EXTENSIONS OFF)
 target_include_directories(zn_console_engine PUBLIC ${ZN_NEXT}/include ${ZN_NEXT}/src ${ZN_NEXT}/third_party/quickjs-ng)
-target_compile_definitions(zn_console_engine PUBLIC ZN_NO_MIMALLOC)
+target_compile_definitions(zn_console_engine PUBLIC ZN_NO_MIMALLOC $<$<BOOL:${CMAKE_CROSSCOMPILING}>:ZN_NO_MMAP>)   # a console has no mmap
 target_compile_options(zn_console_engine PRIVATE -fwrapv -ffp-contract=off $<$<COMPILE_LANGUAGE:C>:-w>)
 
 set(ZN_CORE_SRC ${CMAKE_CURRENT_SOURCE_DIR}/core_main.cpp ${CMAKE_CURRENT_SOURCE_DIR}/host_console.cpp ${CMAKE_CURRENT_SOURCE_DIR}/stubs.cpp)
@@ -48,7 +53,7 @@ target_link_libraries(zinc-core PRIVATE zn_console_engine)
 target_include_directories(zinc-core PRIVATE ${ZN_RUNTIME}/include)
 target_compile_definitions(zinc-core PRIVATE ZN_CONSOLE_PLATFORM="${ZN_CONSOLE}")
 target_compile_options(zinc-core PRIVATE -Wall -Wextra)
-set_target_properties(zinc-core PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON CXX_EXTENSIONS OFF)
+set_target_properties(zinc-core PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON CXX_EXTENSIONS ON)   # gnu++20: newlib shows setenv and gettimeofday only then
 
 if(ZN_CONSOLE_GFX)
   # the graphics host over the old runtime (zrt, raster, gfx), compiled with the runtime's own flags as in next/CMakeLists.txt
@@ -58,6 +63,20 @@ if(ZN_CONSOLE_GFX)
   target_include_directories(zn_console_gfx PRIVATE ${ZN_NEXT}/include ${ZN_NEXT}/src ${ZN_RUNTIME} ${ZN_RUNTIME}/include)
   target_compile_options(zn_console_gfx PRIVATE -fno-exceptions -fno-rtti -fwrapv -ffp-contract=off -fno-threadsafe-statics -w)
   target_compile_definitions(zn_console_gfx PRIVATE ZRT_PLATFORM="${ZN_CONSOLE}" $<$<BOOL:${ZN_CONSOLE_HAL}>:ZN_CONSOLE_LIVE=1>)
+  if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")   # newlib of the PSP, PS2 and 3DS makes int32_t a long: the runtime mixes int* and int32_t* (the same 32 bits)
+    target_compile_options(zn_console_gfx PRIVATE -fpermissive)
+  endif()
   target_link_libraries(zinc-core PRIVATE zn_console_gfx)
   target_compile_definitions(zinc-core PRIVATE ZN_CONSOLE_WITH_GFX)
+endif()
+if(ZN_CONSOLE_SIZE)
+  target_compile_definitions(zinc-core PRIVATE ZN_CONSOLE_SIZE="${ZN_CONSOLE_SIZE}")
+endif()
+if(ZN_CONSOLE_HAL)
+  set_source_files_properties(${ZN_CONSOLE_HAL} PROPERTIES COMPILE_DEFINITIONS "ZINC_FRAMES=${ZN_CONSOLE_FRAMES}" COMPILE_OPTIONS "-w")   # a console SDK's headers are not warning-free
+endif()
+
+# the console's own part (<console>.cmake here): its SDK libraries and the packing of the binary (EBOOT.PBP, VPK, ELF)
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${ZN_CONSOLE}.cmake)
+  include(${CMAKE_CURRENT_SOURCE_DIR}/${ZN_CONSOLE}.cmake)
 endif()

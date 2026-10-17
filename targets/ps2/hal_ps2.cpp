@@ -82,6 +82,13 @@ void hal_poll_input(HalInput* in) {
     for (auto& m : map) if (!(b.btns & m[0])) in->buttons |= m[1];  // active low
   in->px = in->py = 0; in->pdown = 0;
   in->quit = ZINC_FRAMES && frames++ >= ZINC_FRAMES;
+  if (in->quit && frames == ZINC_FRAMES + 1 && gs) {   // the last frame of a budget as host:zinc-shot.ppm (Play!: its vfs/host directory): no emulator screenshot option
+    if (FILE* f = fopen("host:zinc-shot.ppm", "wb")) {
+      fprintf(f, "P6\n%d %d\n255\n", (int)W, (int)H);
+      for (int32_t i = 0; i < W * H; i++) { const u32 c = tex.Mem[i]; const unsigned char p[3] = {(unsigned char)c, (unsigned char)(c >> 8), (unsigned char)(c >> 16)}; fwrite(p, 1, 3, f); }
+      fclose(f);
+    }
+  }
 }
 void hal_present(const HalFrame* f) {
   if (!gs || f->y1 <= f->y0) return;

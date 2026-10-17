@@ -118,6 +118,141 @@ bool consoleSdkPresent(const ConsoleSdk& s, std::string& where, std::string& why
   return false;
 }
 
+// ---- the emulators (ZN-457): an app the owner installed in /Applications first (its settings, firmware or BIOS are the user's), else the pinned
+// release in ~/.zinc/toolchains. PPSSPPHeadless has no release: its pinned source archive is built once with CMake (3 minutes on an M1 Pro).
+namespace {
+struct EmuPin { const char* host; const char* file; const char* sha256; };
+struct Emulator {
+  const char* name, *version, *base, *app;   // app: the bundle in /Applications (or a prefix of it, PCSX2-v2.8.2.app), and in the archive
+  std::vector<EmuPin> pins;                     // none: never downloaded (PCSX2 needs the user's BIOS)
+};
+const std::vector<Emulator>& emulators() {
+  // PPSSPP 1.20.4 (2026-05-16, GPL-2.0-or-later), Vita3K build 4189 (2026-10-17, GPL-2.0), Play! 0.72 (2026-01-23, BSD-2-Clause, boots homebrew
+  // without a BIOS), PCSX2 (GPL-3.0, the user's own install and BIOS): digests from GitHub; Play!'s computed here from purei.org's stable/0.72
+  static const std::vector<Emulator> e = {
+      {"ppsspp-headless", "1.20.4", "https://github.com/hrydgard/ppsspp/releases/download/v1.20.4", "",
+       {{"any", "ppsspp-1.20.4.tar.xz", "4de21db3105d9d81a465a8a7e78c68ee3c0e0bf6597d1c1d530f7555f3ad8b31"}}},
+      {"ppsspp", "1.20.4", "https://github.com/hrydgard/ppsspp/releases/download/v1.20.4", "PPSSPPSDL.app",
+       {{"aarch64-macos", "PPSSPPSDL-macOS-v1.20.4.zip", "fb32a215861a293c28f641bf47f3164766ba512214025f4457796c8d14242665"},
+        {"x86_64-macos", "PPSSPPSDL-macOS-v1.20.4.zip", "fb32a215861a293c28f641bf47f3164766ba512214025f4457796c8d14242665"}}},
+      {"vita3k", "4189", "https://github.com/Vita3K/Vita3K-builds/releases/download/4189", "Vita3K.app",
+       {{"aarch64-macos", "vita3k-4189-e31d85ce-macos-arm64.dmg", "41221277a93d335f2fdaacfb9c116a5e8715521e0c8d3553d74e4ea9752c990c"},
+        {"x86_64-macos", "vita3k-4189-e31d85ce-macos-intel.dmg", "458f8021f8e340f59796c219f1b53a73ce50685c65cbdf42c9e4bb84871a484e"}}},
+      {"play", "0.72", "https://purei.org/downloads/play/stable/0.72", "Play.app",
+       {{"aarch64-macos", "Play.dmg", "ad9e03164a5bfe79c99e6d9d8c04db7b706a749eba29b33bef39bb7db2a36f36"},
+        {"x86_64-macos", "Play.dmg", "ad9e03164a5bfe79c99e6d9d8c04db7b706a749eba29b33bef39bb7db2a36f36"}}},
+      {"pcsx2", "", "", "PCSX2", {}},
+      // Azahar 2126.2 (GPL-2.0), the 3DS: the universal zip holds azahar-macos-universal-2126.2/Azahar.app
+      {"azahar", "2126.2", "https://github.com/azahar-emu/azahar/releases/download/2126.2", "Azahar.app",
+       {{"aarch64-macos", "azahar-macos-universal-2126.2.zip", "582ff52594807fc11438a8ed1596bd6db8622b0e07a856372f6bd709dc9995e7"},
+        {"x86_64-macos", "azahar-macos-universal-2126.2.zip", "582ff52594807fc11438a8ed1596bd6db8622b0e07a856372f6bd709dc9995e7"}}},
+  };
+  return e;
+}
+// /Applications/<app>, or the first bundle whose name starts with it (PCSX2-v2.8.2.app), or an unpacked download (~/Downloads/<folder>/<app>)
+std::string installedApp(const std::string& app) {
+  if (app.empty() || std::getenv("ZINC_EMU_PINNED")) return "";
+  std::error_code ec;
+  if (fs::exists(fs::path("/Applications") / app, ec)) return (fs::path("/Applications") / app).string();
+  if (const char* h = std::getenv("HOME"))
+    for (auto it = fs::directory_iterator(fs::path(h) / "Downloads", ec); !ec && it != fs::directory_iterator(); it.increment(ec))
+      if (fs::exists(it->path() / app / "Contents/MacOS")) return (it->path() / app).string();
+  for (auto it = fs::directory_iterator("/Applications", ec); !ec && it != fs::directory_iterator(); it.increment(ec)) {
+    const std::string n = it->path().filename().string();
+    if (n.rfind(app, 0) == 0 && n.size() > 4 && n.compare(n.size() - 4, 4, ".app") == 0) return it->path().string();
+  }
+  return "";
+}
+bool sh(const std::string& cmd, std::string& err, const std::string& what) {
+  if (std::system(cmd.c_str()) == 0) return true;
+  err = what + " failed: " + cmd;
+  return false;
+}
+// a pinned .dmg: checked, mounted read-only out of sight, the bundle copied out
+bool fetchDmg(const Emulator& e, const EmuPin& p, const fs::path& dir, std::string& err) {
+  std::error_code ec;
+  fs::create_directories(dir, ec);
+  const fs::path dmg = dir.parent_path() / (std::string(p.file) + ".part"), mnt = dir.parent_path() / ("mount-" + dir.filename().string());
+  std::string got;
+  std::fprintf(stderr, "zinc: downloading %s %s (once)...\n", e.name, p.file);
+  if (!downloadTo(std::string(e.base) + "/" + p.file, p.file, dmg.string(), [&](const std::string& path, std::string& why) {
+        got = sha256File(path);
+        if (got == p.sha256) return true;
+        why = "SHA-256 " + (got.empty() ? std::string("of nothing") : got) + ", the pin is " + p.sha256;
+        return false;
+      }, err)) return false;
+  std::fprintf(stderr, "zinc: checksum verified (%s)\n", got.c_str());
+  fs::create_directories(mnt, ec);
+  const bool ok = sh("hdiutil attach -quiet -nobrowse -readonly -mountpoint " + quoted(mnt.string()) + " " + quoted(dmg.string()), err, "mounting " + std::string(p.file)) &&
+                  sh("cp -R " + quoted((mnt / e.app).string()) + " " + quoted((dir / e.app).string()), err, "copying " + std::string(e.app));
+  std::system(("hdiutil detach -quiet " + quoted(mnt.string())).c_str());
+  fs::remove(mnt, ec);
+  fs::remove(dmg, ec);
+  return ok;
+}
+// PPSSPPHeadless from the pinned source: the macOS bundle's MoltenVK is not in the source archive (an empty stand-in lets CMake configure; only the
+// headless target is built), and strict POSIX headers hide fseeko from FileUtil.cpp on macOS (_DARWIN_C_SOURCE)
+bool buildPpssppHeadless(const Emulator& e, const EmuPin& p, const fs::path& dir, std::string& err) {
+  const fs::path src = fs::path(home()) / "toolchains" / ("ppsspp-src-" + std::string(e.version)), build = fs::path(home()) / "cache" / ("ppsspp-headless-" + hostName());
+  if (!fetchArchive("the PPSSPP sources", p.file, p.sha256, std::string(e.base) + "/" + p.file, src.string(), "CMakeLists.txt", err)) return false;
+  std::error_code ec;
+#ifdef __APPLE__
+  fs::create_directories(src / "ext/vulkan/macOS/Frameworks", ec);
+  std::FILE* f = std::fopen((src / "ext/vulkan/macOS/Frameworks/libMoltenVK.dylib").string().c_str(), "ab");
+  if (f) std::fclose(f);
+  const std::string flags = " -DCMAKE_C_FLAGS=-D_DARWIN_C_SOURCE -DCMAKE_CXX_FLAGS=-D_DARWIN_C_SOURCE";
+#else
+  const std::string flags;
+#endif
+  std::fprintf(stderr, "zinc: building PPSSPPHeadless %s (once, a few minutes)...\n", e.version);
+  if (!sh("cmake -S " + quoted(src.string()) + " -B " + quoted(build.string()) + " -DCMAKE_BUILD_TYPE=Release -DHEADLESS=ON -DUSE_FFMPEG=OFF -DUSE_DISCORD=OFF"
+          " -DUSE_MINIUPNPC=OFF -DUSE_SYSTEM_LIBPNG=OFF -DUSE_CCACHE=OFF -DUNITTEST=OFF -DATLAS_TOOL=OFF" + flags + " >/dev/null", err, "configuring PPSSPP") ||
+      !sh("cmake --build " + quoted(build.string()) + " --target PPSSPPHeadless -j 6 >/dev/null", err, "building PPSSPPHeadless")) return false;
+  fs::create_directories(dir, ec);
+  if (!sh("cp " + quoted((build / "PPSSPPHeadless").string()) + " " + quoted(dir.string()) + " && cp -R " + quoted((build / "assets").string()) + " " + quoted(dir.string()), err, "installing PPSSPPHeadless"))
+    return false;
+#ifdef __APPLE__   // its SDL2 framework beside it, found through @executable_path
+  if (!sh("cp -R " + quoted((src / "SDL/macOS/SDL2.framework").string()) + " " + quoted(dir.string()) + " && install_name_tool -add_rpath @executable_path " +
+          quoted((dir / "PPSSPPHeadless").string()), err, "installing SDL2.framework")) return false;
+#endif
+  return true;
+}
+}  // namespace
+
+std::vector<std::string> emulatorNames() {
+  std::vector<std::string> out;
+  for (const Emulator& e : emulators()) out.push_back(e.name);
+  return out;
+}
+
+bool ensureEmulator(const std::string& name, std::string& path, std::string& err) {
+  const Emulator* e = nullptr;
+  for (const Emulator& x : emulators()) if (name == x.name) e = &x;
+  if (!e) { err = "no emulator '" + name + "'"; return false; }
+  if (std::string(e->name) == "ppsspp-headless" && std::getenv("ZINC_PPSSPP_HEADLESS")) { path = std::getenv("ZINC_PPSSPP_HEADLESS"); return true; }
+  path = installedApp(e->app);
+  if (!path.empty()) return true;
+  const EmuPin* p = nullptr;
+  for (const EmuPin& x : e->pins) if (hostName() == x.host || std::string(x.host) == "any") p = &x;
+  if (!p) {
+    err = std::string(e->name) == "pcsx2" ? "PCSX2 is not installed: it needs your own BIOS (install PCSX2 and set its BIOS); Play! runs PS2 homebrew without one"
+                                          : "no pinned " + std::string(e->name) + " for this machine (" + hostName() + ")";
+    return false;
+  }
+  const fs::path dir = fs::path(home()) / "toolchains" / (std::string(e->name) + "-" + hostName() + "-" + e->version);
+  if (std::string(e->name) == "ppsspp-headless") {
+    path = (dir / "PPSSPPHeadless").string();
+    return fs::exists(path) || buildPpssppHeadless(*e, *p, dir, err);
+  }
+  const std::string file = p->file;
+  path = (dir / e->app).string();   // the bundle keeps its .app name: `open -a` needs it
+  if (fs::exists(fs::path(path) / "Contents/MacOS")) return true;
+  if (file.size() > 4 && file.substr(file.size() - 4) == ".dmg") return fetchDmg(*e, *p, dir, err);
+  // a zip of the bundle (PPSSPPSDL.app at its top: unpacked as dir/<app>) or of a folder that holds it (Azahar: unpacked as dir)
+  const bool inFolder = std::string(e->name) == "azahar";
+  return fetchArchive(e->name, p->file, p->sha256, std::string(e->base) + "/" + p->file, inFolder ? dir.string() : path, inFolder ? (std::string(e->app) + "/Contents/MacOS").c_str() : "Contents/MacOS", err);
+}
+
 bool ensureConsoleSdk(const std::string& target, std::string& where, std::string& err) {
   const ConsoleSdk* s = findConsoleSdk(target);
   if (!s) { err = "no console target '" + target + "' (zinc toolchain targets)"; return false; }

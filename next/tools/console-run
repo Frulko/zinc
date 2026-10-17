@@ -1,0 +1,122 @@
+#!/bin/sh
+# Runs a console core in its emulator and prints what the program printed (ZN-457):
+#   tools/console-run <psp|vita|ps2|n3ds> <EBOOT.PBP|zinc.vpk|ELF|.3dsx> [--timeout S] [--shot out.png] [--emu NAME] [--window]
+# The lines between `zinc:start` and `zinc:exit N` (targets/console/core_main.cpp) go to stdout and N is the exit status; 124 when the program does
+# not finish in time (the emulator is stopped), 77 when the emulator is missing (and why). --shot: the last frame of a core built with a frame
+# budget (tools/build-console-core --frames N), as PNG. Emulators (zinc toolchain install <name>; an app in /Applications is taken first):
+#   psp   ppsspp-headless (no window; --window: PPSSPPSDL.app, for a person)
+#   vita  vita3k, its SDL frontend, with a copy of the user's config (-c, -w: the settings stay as they are) and the user's firmware if any
+#   ps2   pcsx2 when it is installed with a BIOS (-batch -nogui -fastboot), else play (no BIOS; --emu play forces it)
+#   n3ds  azahar
+# The windowed emulators start with `open -g`: they never take the focus from what the person is doing.
+here=$(cd "$(dirname "$0")/.." && pwd -P)
+console=$1; bin=$2
+[ -n "$console" ] && [ -f "$bin" ] || { echo "usage: tools/console-run <psp|vita|ps2|n3ds> <binary> [--timeout S] [--shot out.png] [--emu NAME] [--window]" >&2; exit 2; }
+shift 2
+timeout=60; shot=; emu=; window=
+while [ $# -gt 0 ]; do
+  case $1 in
+    --timeout) timeout=$2; shift ;; --shot) shot=$2; shift ;; --emu) emu=$2; shift ;; --window) window=1 ;;
+    *) echo "console-run: unknown option $1" >&2; exit 2 ;;
+  esac
+  shift
+done
+Z=${ZINC:-$here/build/zinc}
+bin=$(cd "$(dirname "$bin")" && pwd -P)/$(basename "$bin")
+tmp=$(mktemp -d "${TMPDIR:-/tmp}/zinc-console-run.XXXXXX")
+if [ -n "$ZINC_CONSOLE_KEEP" ]; then echo "console-run: logs in $tmp" >&2; else trap 'rm -rf "$tmp"' EXIT; fi   # the emulator's log, for a failing run
+find_emu() { "$Z" toolchain install "$1" 2>"$tmp/why" || { echo "console-run: no $1: $(cat "$tmp/why")" >&2; exit 77; }; }
+# the program's lines from an emulator's log: $1 the log, $2 a sed expression that leaves the program's text of a log line
+# (without the emulator's own lines that match $3), and sets `status` from zinc:exit
+frame() {
+  sed -n "$2" "$1" | awk '/^zinc:exit/{print; exit} f{print} /^zinc:start$/{f=1}' > "$tmp/out"
+  status=$(sed -n 's/^zinc:exit \([0-9]*\)$/\1/p' "$tmp/out")
+  sed '/^zinc:exit/d' "$tmp/out" | grep -v "${3:-^zinc:never-matched$}"
+}
+# waits until the log has zinc:exit or the time is over; then stops the emulator started with `marker` in its arguments
+wait_exit() {   # $1 log, $2 marker
+  n=0
+  while [ $n -lt $((timeout * 4)) ]; do grep -q "zinc:exit" "$1" 2>/dev/null && break; sleep 0.25; n=$((n + 1)); done
+  sleep 0.3
+  pkill -f "$2" 2>/dev/null
+  grep -q "zinc:exit" "$1" 2>/dev/null
+}
+finish() {   # the status of the program, or 124
+  [ -n "$status" ] && exit "$status"
+  echo "console-run: the program did not finish in ${timeout} s (no zinc:exit)" >&2
+  exit 124
+}
+png() { [ -n "$shot" ] || return 0; [ -f "$1" ] && sips -s format png "$1" --out "$shot" >/dev/null 2>&1 || echo "console-run: no frame captured ($1)" >&2; }
+case $console in
+  psp)
+    if [ -n "$window" ]; then app=$(find_emu ppsspp) || exit 77; open -g -n -a "$app" --args "$bin"; exit 0; fi
+    emu=$(find_emu ppsspp-headless) || exit 77
+    ref=; [ -n "$shot" ] && { python3 -I -c "
+import struct,zlib,sys
+w,h=480,272; raw=b''.join(b'\x00'+b'\x00\x00\x00'*w for _ in range(h))
+c=lambda t,d: struct.pack('>I',len(d))+t+d+struct.pack('>I',zlib.crc32(t+d)&0xffffffff)
+open(sys.argv[1],'wb').write(b'\x89PNG\r\n\x1a\n'+c(b'IHDR',struct.pack('>IIBBBBB',w,h,8,2,0,0,0))+c(b'IDAT',zlib.compress(raw))+c(b'IEND',b''))" "$tmp/black.png"; ref=--screenshot=$tmp/black.png; }
+    # the HAL emits the screenshot at the end of its frame budget; against a black reference PPSSPPHeadless writes the real frame as __testfailure.bmp
+    (cd "$tmp" && timeout $((timeout + 5)) "$emu" --graphics=software --timeout="$timeout" $ref "$bin" > "$tmp/log" 2>&1)
+    frame "$tmp/log" 'p' '^Screenshot MSE\|^Actual output written to'
+    png "$tmp/__testfailure.bmp"
+    grep -q "^TIMEOUT" "$tmp/log" && status=
+    finish ;;
+  vita)
+    app=$(find_emu vita3k) || exit 77
+    user="$HOME/Library/Application Support/Vita3K/Vita3K/config.yml"
+    if [ -f "$user" ]; then cp "$user" "$tmp/config.yml"; else printf 'initial-setup: true\ndiscord-rich-presence: false\n' > "$tmp/config.yml"; fi
+    pref=$(sed -n 's/^pref-path: *"\{0,1\}\([^"]*\)"\{0,1\}$/\1/p' "$tmp/config.yml"); [ -n "$pref" ] || pref="$HOME/Library/Application Support/Vita3K/Vita3K/fs"
+    rm -f "$pref/ux0/data/zinc-shot.ppm"
+    open -g -n --stdout "$tmp/log" --stderr "$tmp/log" -a "$app" --args -c "$tmp/config.yml" -w --frontend sdl "$bin"
+    wait_exit "$tmp/log" "$tmp/config.yml"
+    frame "$tmp/log" 's/^.*\[export_sceClibPrintf\]: \(.*\)$/\1/p'
+    png "$pref/ux0/data/zinc-shot.ppm"
+    finish ;;
+  ps2)
+    [ -n "$emu" ] || { "$Z" toolchain install pcsx2 >/dev/null 2>&1 && [ -f "$HOME/Library/Application Support/PCSX2/inis/PCSX2.ini" ] && emu=pcsx2 || emu=play; }
+    case $emu in pcsx2|play) ;; *) find_emu "$emu" >/dev/null || exit 77; echo "console-run: $emu does not run PS2 programs (pcsx2, play)" >&2; exit 2 ;; esac
+    rm -f "$(dirname "$bin")/zinc-shot.ppm"
+    if [ "$emu" = pcsx2 ]; then
+      app=$(find_emu pcsx2) || exit 77
+      # its own data directory with the user's BIOS folder (never copied) and the EE console in the log; host: is the ELF's directory
+      user="$HOME/Library/Application Support/PCSX2"
+      bios=$(sed -n 's/^BIOS = \(.*\)$/\1/p' "$user/inis/PCSX2.ini" | head -1)
+      [ -n "$bios" ] || { echo "console-run: PCSX2 has no BIOS set (run it once and choose yours), or use --emu play" >&2; exit 77; }
+      data=${ZINC_HOME:-$HOME/.zinc}/emulators/pcsx2; mkdir -p "$data/PCSX2/inis"
+      printf '[UI]\nSettingsVersion = 1\nSetupWizardIncomplete = false\nConfirmShutdown = false\n\n[Folders]\nBios = %s/bios\n\n[Filenames]\nBIOS = %s\n\n[EmuCore]\nEnableFastBoot = true\nHostFs = true\n\n[Logging]\nEnableFileLogging = true\nEnableEEConsole = true\nEnableIOPConsole = true\n' "$user" "$bios" > "$data/PCSX2/inis/PCSX2.ini"
+      open -g -n -a "$app" --args -datapath "$data" -batch -nogui -fastboot -logfile "$tmp/log" -elf "$bin"
+      wait_exit "$tmp/log" "$tmp/log"
+      frame "$tmp/log" 's/^\[ *[0-9.]*\] \(.*\)$/\1/p'
+      png "$(dirname "$bin")/zinc-shot.ppm"
+    else
+      app=$(find_emu play) || exit 77
+      # Play! keeps its data in ~/Documents/Play Data Files: the EE's stdout goes to ps2_stdout.txt once iop.fileio.stdlogging is on, and the
+      # emulation must not pause when its window is not in front
+      d="$HOME/Documents/Play Data Files"; mkdir -p "$d"
+      [ -f "$d/config.xml" ] || printf '<Config>\n</Config>\n' > "$d/config.xml"
+      for kv in iop.fileio.stdlogging:true ui.pausewhenfocuslost:false ui.showexitconfirmation:false; do
+        k=${kv%%:*}; v=${kv#*:}
+        if grep -q "Name=\"$k\"" "$d/config.xml"; then sed -i '' "s|Name=\"$k\" Type=\"boolean\" Value=\"[a-z]*\"|Name=\"$k\" Type=\"boolean\" Value=\"$v\"|" "$d/config.xml"
+        else sed -i '' "s|</Config>|	<Preference Name=\"$k\" Type=\"boolean\" Value=\"$v\" />\n</Config>|" "$d/config.xml"; fi
+      done
+      rm -f "$d/ps2_stdout.txt" "$d/vfs/host/zinc-shot.ppm"
+      # started directly: under `open -g` its emulation never starts (no window exposed), so this fallback may take the focus on macOS
+      "$app/Contents/MacOS/Play" --elf "$bin" >/dev/null 2>&1 &
+      wait_exit "$d/ps2_stdout.txt" "$bin"
+      frame "$d/ps2_stdout.txt" 'p'
+      png "$d/vfs/host/zinc-shot.ppm"
+    fi
+    finish ;;
+  n3ds)
+    app=$(find_emu azahar) || exit 77
+    # the user's Azahar (its settings untouched); the HAL writes its lines to sdmc:/zinc.log, Azahar's default log filter hiding debug strings
+    sd="$HOME/Library/Application Support/Azahar/sdmc"; mkdir -p "$sd"
+    rm -f "$sd/zinc.log" "$sd/zinc-shot.ppm"
+    open -g -n --stdout "$tmp/emu.log" --stderr "$tmp/emu.log" -a "$app" --args "$bin"
+    wait_exit "$sd/zinc.log" "$bin"
+    frame "$sd/zinc.log" 'p'
+    png "$sd/zinc-shot.ppm"
+    finish ;;
+  *) echo "console-run: no runner for '$console' (psp, vita, ps2, n3ds)" >&2; exit 2 ;;
+esac
