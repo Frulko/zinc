@@ -4,7 +4,8 @@ title: >-
   zinc:link: discovery, short-code pairing and an encrypted channel between two
   Zinc programs
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-17 08:46'
 labels:
   - mobile
