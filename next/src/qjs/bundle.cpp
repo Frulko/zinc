@@ -237,6 +237,40 @@ std::string relink(const std::string& js, const std::map<std::string, std::strin
   return out + js.substr(at);
 }
 
+// zinc dev --target web: the module graph as the browser loads it, one ES module per file with relative imports and stage.json
+// ({"entry": file, "modules": [{"file", "name", "deps": [file...]}]}), so a save re-serves one file instead of linking the program again.
+// Packages from node_modules cannot be served this way (esbuild finds them): 3 says so and the caller bundles instead.
+int stageForBrowser(const BundleOptions& o, const std::vector<Collected>& mods) {
+  const std::string stage = fs::path(o.stageDir).lexically_normal().string();
+  std::error_code ec;
+  fs::remove_all(stage, ec);
+  std::map<std::string, std::size_t> at;
+  for (std::size_t i = 0; i < mods.size(); ++i) at[mods[i].name] = i;
+  auto rel = [&](const Collected& c) { return stagedPath("", c).substr(1); };
+  for (const Collected& c : mods) if (c.bare) { std::fprintf(stderr, "zinc dev: %s is a package of node_modules: zinc dev --target web cannot serve it module by module yet (zinc export --target web bundles it)\n", c.name.c_str()); return 3; }
+  std::string json = "{\"entry\":" + jsonString(rel(mods[0])) + ",\"modules\":[";
+  bool first = true;
+  for (const Collected& c : mods) {
+    if (c.host) continue;
+    const fs::path self = fs::path(rel(c)).parent_path();
+    std::map<std::string, std::string> to;
+    std::string deps;
+    for (const auto& [spec, resolved] : c.deps) {
+      auto it = at.find(resolved);
+      if (it == at.end() || mods[it->second].host) continue;
+      std::string target = fs::path(rel(mods[it->second])).lexically_relative(self.empty() ? fs::path(".") : self).generic_string();
+      if (target.rfind("../", 0) != 0) target = "./" + target;
+      to[spec] = target;
+      deps += (deps.empty() ? "" : ",") + jsonString(rel(mods[it->second]));
+    }
+    if (!writeText(stage + "/" + rel(c), relink(c.js, to))) { std::fprintf(stderr, "zinc dev: cannot write %s\n", rel(c).c_str()); return 2; }
+    json += std::string(first ? "" : ",") + "{\"file\":" + jsonString(rel(c)) + ",\"name\":" + jsonString(c.name) + ",\"deps\":[" + deps + "]}";
+    first = false;
+  }
+  json += "]}";
+  return writeText(stage + "/stage.json", json) ? 0 : 2;
+}
+
 int bundleOnce(const BundleOptions& o, std::vector<std::string>& watched) {
   const auto t0 = std::chrono::steady_clock::now();
   std::vector<Collected> mods;
@@ -256,6 +290,7 @@ int bundleOnce(const BundleOptions& o, std::vector<std::string>& watched) {
     std::printf("%zu modules, %zu warning(s) for QuickJS\n", mods.size(), warnings);
     return warnings ? 1 : 0;
   }
+  if (!o.stageDir.empty()) return stageForBrowser(o, mods);
   // stage
   const std::string stage = fs::path(o.work).lexically_normal().string() + "/stage";
   std::error_code ec;

@@ -1120,14 +1120,14 @@ std::string lucideModuleSource(const std::string& entry, const std::string& node
 // The OS the program is built for: ZINC_PLATFORM, else a phone profile's (--profile android, ios, ios-sim), else this machine's (zn/platform.h)
 std::string platformName() {
   if (zn::knownPlatform(std::getenv("ZINC_PLATFORM"))) return std::getenv("ZINC_PLATFORM");
-  if (const Profile* p = currentProfile()) { const std::string n = p->name; if (n == "android" || n == "ios") return n; if (n == "ios-sim") return "ios"; }
+  if (const Profile* p = currentProfile()) { const std::string n = p->name; if (n == "android" || n == "ios" || n == "web") return n; if (n == "ios-sim") return "ios"; }
   return zn::builtPlatform();
 }
 // Metro's order: the platform (ZINC_PLATFORM, else the profile: ios-sim also .ios, wasm also .web, else this machine), then .native on every
 // platform but the web, then none
 std::vector<std::string> suffixesOfPlatform() {
   const Profile* p = zn::knownPlatform(std::getenv("ZINC_PLATFORM")) ? nullptr : currentProfile();
-  const std::string tag = p ? std::string(p->name) : platformName(), os = tag == "ios-sim" ? "ios" : tag == "wasm" ? "web" : tag;
+  const std::string tag = p ? std::string(p->name) : platformName(), os = tag == "ios-sim" ? "ios" : tag == "wasm" || tag == "web" ? "web" : tag;
   std::vector<std::string> out = {"." + tag};
   if (os != tag) out.push_back("." + os);
   if (os != "web") out.push_back(".native");
@@ -3466,9 +3466,11 @@ std::string_view compatModuleFile(std::string_view spec) {
 std::string_view stdModuleFile(std::string_view spec) {
   if (spec == "zinc:ui") return "ui.ts";
   if (spec == "zinc:gl") return "gl.ts";
-  if (spec == "zinc:web") return "web.ts";
-  if (spec == "zinc:web/fetch") return "fetch.ts";
-  if (spec == "zinc:subtle") return "subtle.ts";
+  const Profile* browser = currentProfile();   // the web target (docs/targets/web.md): the page has these APIs, so zinc:web re-exports its own
+  const bool onWeb = browser && std::string_view(browser->name) == "web";
+  if (spec == "zinc:web") return onWeb ? "web.browser.ts" : "web.ts";
+  if (spec == "zinc:web/fetch") return onWeb ? "fetch.browser.ts" : "fetch.ts";
+  if (spec == "zinc:subtle") return onWeb ? "subtle.browser.ts" : "subtle.ts";
   if (spec == "zinc:ui/solid") return "solid.ts";
   if (spec == "zinc:ui/react") return "react.ts";
   if (spec == "zinc:ui/kit") return "kit/index.ts";

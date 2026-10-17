@@ -13,6 +13,7 @@
 #include "frontend/jsx.h"
 #include "frontend/modules.h"
 #include "frontend/parser.h"
+#include "frontend/profile.h"
 #include "frontend/project.h"
 
 namespace zn::qjs {
@@ -284,7 +285,10 @@ bool toJavaScript(std::string_view src, const std::string& file, std::string& ou
       std::stringstream ss; ss << in.rdbuf(); out = ss.str();
       return true;
     });
-    text = lowerJsx(text, diags, 0, &classTags, &map);
+    // zinc dev --target web (ZINC_WEB_HOT=1): a project component gets its Fast Refresh proxy, as in the typed engine's hot mode
+    const char* hotWeb = std::getenv("ZINC_WEB_HOT");
+    const bool hot = hotWeb && hotWeb[0] == '1' && file.rfind("zinc:", 0) != 0 && file.find("/lib/std/") == std::string::npos;
+    text = lowerJsx(text, diags, 0, &classTags, &map, hot);
   }
   if (!diags.empty()) {   // the lowering's own positions are in the source the user wrote
     err.clear();
@@ -293,7 +297,9 @@ bool toJavaScript(std::string_view src, const std::string& file, std::string& ou
   }
   if (!ends("lib/std/web.ts") && !ends("lib/std/fetch.ts") && !ends("lib/std/subtle.ts")) {   // the web globals the typed loader imports for a file (navigator, fetch...)
     ParseResult pr = parse(text);
-    if (pr.diags.empty() && pr.ast.root != kNone) text += webImportsOf(pr.ast);
+    const zn::frontend::Profile* cur = zn::frontend::currentProfile();
+    const bool onWeb = cur && std::string_view(cur->name) == "web";   // the browser has fetch, URL, TextEncoder...: no import makes them the polyfills
+    if (!onWeb && pr.diags.empty() && pr.ast.root != kNone) text += webImportsOf(pr.ast);
   }
   return stripTypes(text, file, out, err);
 }

@@ -35,6 +35,7 @@ struct BundleOptions {
   std::string work;                  // a scratch directory for the staged modules
   std::string cacheDir;              // as Options::cacheDir
   std::string capsFile;              // targets/capabilities.json: the profile's row folded in as __ZINC_CAPS__
+  std::string stageDir;              // zinc dev --target web: the modules unbundled into this directory with relative imports (stage.json lists them), esbuild does not run
   bool minify = false, sourcemap = false, bytecode = false, check = false, watch = false, quiet = false;
 };
 // zinc bundle: the exit code (0, 1 when the program has errors, 2 for a usage or tool problem).

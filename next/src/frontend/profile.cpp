@@ -8,6 +8,8 @@ constexpr Profile kProfiles[] = {
     {"linux", Num::f64, 320, 240, false, 512ull << 20, false},
     {"sim", Num::f64, 320, 240, false, 512ull << 20, false},
     {"wasm", Num::f64, 320, 240, false, 64ull << 20, false},
+    // the browser (docs/targets/web.md): the app runs on the page's own JavaScript engine; the surface follows the window
+    {"web", Num::f64, 1280, 800, false, 512ull << 20, false},
     {"rpi1", Num::f64, 1280, 720, false, 64ull << 20, false},
     {"esp32", Num::f32, 320, 240, true, 160ull << 10, false},
     {"ps2", Num::f32, 640, 448, false, 16ull << 20, false},

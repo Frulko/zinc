@@ -1,0 +1,975 @@
+// zinc export --target web and zinc dev --target web (docs/targets/web.md, docs/reports/zinc-web-export.md).
+// The program is the JavaScript `zinc bundle --profile web` writes (the QuickJS bundler's transform: TypeScript, TSX and the React Native imports lowered,
+// esbuild only to link and minify) and it runs on the page's own engine; targets/web/runtime.js answers the host rows (`__host_*`) with the canvas (or
+// the DOM), the input, storage and the frame loop, and each plugin's `web` entry in plugin.json brings the browser backend of its native side.
+#include "cli_web.h"
+
+#include <algorithm>
+#include <atomic>
+#include <chrono>
+#include <csignal>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <filesystem>
+#include <fstream>
+#include <map>
+#include <mutex>
+#include <regex>
+#include <set>
+#include <sstream>
+#include <thread>
+
+#ifndef _WIN32
+#include <sys/wait.h>
+#endif
+
+#include "platform/socket.h"
+#include "tc/tc.h"
+#include "yyjson.h"
+
+namespace fs = std::filesystem;
+
+namespace zn::cli {
+namespace {
+
+std::string q(const std::string& s) { std::string r = "'"; for (char c : s) { if (c == '\'') r += "'\\''"; else r += c; } return r + "'"; }
+std::string readAll(const fs::path& p) { std::ifstream in(p, std::ios::binary); std::stringstream ss; ss << in.rdbuf(); return ss.str(); }
+bool writeAll(const fs::path& p, const std::string& s) {
+  std::error_code ec;
+  fs::create_directories(p.parent_path(), ec);
+  std::ofstream out(p, std::ios::binary);
+  out << s;
+  return static_cast<bool>(out);
+}
+std::string jstr(const std::string& s) {
+  std::string r = "\"";
+  for (unsigned char c : s) {
+    if (c == '"' || c == '\\') { r += '\\'; r += static_cast<char>(c); }
+    else if (c == '\n') r += "\\n";
+    else if (c == '<') r += "\\u003c";   // never a </script> inside the page
+    else if (c < 0x20) { char b[8]; std::snprintf(b, sizeof b, "\\u%04x", c); r += b; }
+    else r += static_cast<char>(c);
+  }
+  return r + "\"";
+}
+std::string hash10(const std::string& bytes) { return zn::tc::sha256Hex(bytes).substr(0, 10); }
+std::string selfExe() { std::string e = zn::tc::executablePath(); return e.empty() ? "zinc" : e; }
+std::string lower(std::string s) { for (char& c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); return s; }
+bool endsWith(const std::string& s, const std::string& x) { return s.size() >= x.size() && s.compare(s.size() - x.size(), x.size(), x) == 0; }
+std::string humanKb(std::size_t n) { char b[32]; std::snprintf(b, sizeof b, "%.1f KB", static_cast<double>(n) / 1024.0); return b; }
+
+// ---- json
+struct Json {
+  yyjson_doc* doc = nullptr;
+  yyjson_val* root = nullptr;
+  explicit Json(const std::string& text) { doc = yyjson_read(text.data(), text.size(), 0); root = doc ? yyjson_doc_get_root(doc) : nullptr; }
+  ~Json() { yyjson_doc_free(doc); }
+  Json(const Json&) = delete;
+  Json& operator=(const Json&) = delete;
+};
+std::string str(yyjson_val* o, const char* k, const std::string& dflt = "") { yyjson_val* v = o ? yyjson_obj_get(o, k) : nullptr; return yyjson_is_str(v) ? yyjson_get_str(v) : dflt; }
+bool flag(yyjson_val* o, const char* k, bool dflt) { yyjson_val* v = o ? yyjson_obj_get(o, k) : nullptr; return yyjson_is_bool(v) ? yyjson_get_bool(v) : dflt; }
+
+// ---- the project's settings: zinc.json "web"
+struct Cfg {
+  std::string render = "canvas", browsers, title, description, theme = "#111111", bg = "#ffffff", lang = "en", icon, id;
+  bool pwa = true, strict = false, rnLayout = false;
+  int w = 0, h = 0;   // a fixed surface (web.width, web.height); 0: the page's size
+  std::vector<std::string> pluginDirs;
+};
+std::string kBaseline = "chrome >= 111, edge >= 111, firefox >= 115, safari >= 16.4";
+Cfg readCfg(const WebArgs& a) {
+  Cfg c;
+  c.title = a.name;
+  Json j(readAll(fs::path(a.dir) / "zinc.json"));
+  if (j.root) {
+    yyjson_val* w = yyjson_obj_get(yyjson_obj_get(j.root, "targets"), "web");   // zinc.json targets.web (the key "web" turns on the QuickJS web environment of ZN-568)
+    if (yyjson_val* u = yyjson_obj_get(j.root, "ui")) c.rnLayout = str(u, "layout") == "rn";
+    if (yyjson_is_obj(w)) {
+      c.render = str(w, "render", c.render);
+      c.browsers = str(w, "browsers");
+      c.title = str(w, "title", c.title);
+      c.description = str(w, "description");
+      c.theme = str(w, "themeColor", c.theme);
+      c.bg = str(w, "backgroundColor", c.bg);
+      c.lang = str(w, "lang", c.lang);
+      c.icon = str(w, "icon");
+      c.pwa = flag(w, "pwa", true);
+      c.strict = flag(w, "strict", false);
+      if (yyjson_val* v = yyjson_obj_get(w, "width")) c.w = static_cast<int>(yyjson_get_num(v));
+      if (yyjson_val* v = yyjson_obj_get(w, "height")) c.h = static_cast<int>(yyjson_get_num(v));
+    }
+    yyjson_val* app = yyjson_obj_get(j.root, "app");
+    if (c.icon.empty()) c.icon = str(app, "icon");
+    c.id = str(app, "id");
+    yyjson_val* pd = yyjson_obj_get(j.root, "pluginDirs");
+    size_t i, n;
+    yyjson_val* v;
+    if (yyjson_is_arr(pd)) yyjson_arr_foreach(pd, i, n, v) if (yyjson_is_str(v)) c.pluginDirs.push_back(yyjson_get_str(v));
+  }
+  return c;
+}
+
+// ---- browsers: "chrome >= 111, firefox 115" against the feature table of browsers.json
+struct Want { std::string browser; double version; };
+double vnum(const std::string& s) {   // "16.4.1" -> 16.4: the first two components, as a decimal
+  int major = 0, minor = 0;
+  std::sscanf(s.c_str(), "%d.%d", &major, &minor);
+  return major + minor / 100.0;   // 16.4 -> 16.04, 16.10 -> 16.10: ordered, never mixed up with 16.4
+}
+double tableNum(double v) { const int major = static_cast<int>(v); return major + (v - major) * 10.0 / 100.0; }   // 16.4 in the table (tenths) -> 16.04
+std::vector<Want> parseBrowsers(std::string spec) {
+  if (spec.empty() || spec == "defaults") spec = kBaseline;
+  std::vector<Want> out;
+  std::stringstream ss(spec);
+  std::string part;
+  while (std::getline(ss, part, ',')) {
+    std::stringstream ps(part);
+    std::string name, tok, version;
+    ps >> name;
+    while (ps >> tok) if (tok != ">=" && tok != ">" && tok != "=") version = tok;
+    name = lower(name);
+    if (name == "ios" || name == "ios_saf" || name == "safari_ios") name = "safari";
+    else if (name == "chromium" || name == "opera" || name == "samsung" || name == "android" || name == "brave") name = "chrome";
+    else if (name == "ff") name = "firefox";
+    if (name.empty() || (name != "chrome" && name != "edge" && name != "firefox" && name != "safari")) continue;
+    out.push_back({name, version.empty() ? 0 : vnum(version)});
+  }
+  return out;
+}
+}  // namespace
+
+// One line per feature the browsers cannot give, "" when all of them can.
+std::string webCheckReport(const std::string& browsersJson, const std::string& browsers, const std::vector<std::string>& features, const std::string& who) {
+  Json j(browsersJson);
+  if (!j.root) return "";
+  yyjson_val* table = yyjson_obj_get(j.root, "features");
+  const std::vector<Want> want = parseBrowsers(browsers);
+  std::string out;
+  for (const std::string& f : features) {
+    yyjson_val* row = yyjson_obj_get(table, f.c_str());
+    if (!row) continue;
+    std::string bad;
+    for (const Want& w : want) {
+      yyjson_val* v = yyjson_obj_get(row, w.browser.c_str());
+      if (!v) continue;
+      if (yyjson_is_null(v)) { bad += (bad.empty() ? "" : ", ") + w.browser + " (never shipped)"; continue; }
+      if (w.version < tableNum(yyjson_get_num(v))) { char b[48]; std::snprintf(b, sizeof b, "%g", yyjson_get_num(v)); bad += (bad.empty() ? "" : ", ") + w.browser + " before " + b; }
+    }
+    if (bad.empty()) continue;
+    out += "warning W0601: " + f + (who.empty() ? "" : " (" + who + ")") + " is not available in " + bad;
+    const std::string note = str(row, "note");
+    if (!note.empty()) out += "; " + note;
+    out += "\n";
+  }
+  return out;
+}
+
+std::string webExplain(const std::string& code) {
+  struct E { const char *code, *title, *why, *fix, *example; };
+  static const E table[] = {
+    {"W0601", "A browser of the target set lacks a feature the app uses",
+     "`zinc export --target web` knows what each plugin and each part of the web host needs from the browser (WebUSB, getUserMedia, Web Audio, WebRTC, import maps...) and when each browser shipped it "
+     "(targets/web/browsers.json). A browser of zinc.json targets.web.browsers (or --browsers) that is older than that, or never shipped it, runs the app but not that part: the call throws "
+     "ZnUnsupported at run time instead of crashing.",
+     "Raise the minimum version in targets.web.browsers, drop the browser from it, or guard the call with supports() of zinc:browser and catch ZnUnsupported to offer another way. --werror turns the warning into a failed export.",
+     "// zinc.json: { \"targets\": { \"web\": { \"browsers\": \"chrome >= 111, firefox >= 115\" } } }\nimport 'zinc:fakeusb';   // W0601: webusb is not in firefox"},
+    {"W0602", "The program uses a native side that has no browser backend",
+     "A plugin brings its browser version with a \"web\" entry of its plugin.json: either \"entry\" (a module written for the page) or \"native\" and \"impl\" (the functions of its native spec, in JavaScript). "
+     "A native side with neither still loads, and each call of it throws ZnUnsupported.",
+     "Use a plugin that has a web entry, add one (docs/targets/web.md, \"Plugins\"), or keep the calls behind supports() of zinc:browser.",
+     "import { Process } from 'zinc:process';   // W0602: the native side 'Process' has no browser backend"},
+    {"W0603", "The program calls a native service the web target does not have",
+     "The bundle calls a host service with no equivalent on a page: raw sockets and TLS, processes and signals, the native layout engine (Yoga), asset packs, the native event loop. "
+     "The call throws ZnUnsupported at run time.",
+     "Use fetch or WebSocket instead of sockets, keep process and signal code behind a platform check, or use the classic layout (zinc.json ui.layout).",
+     "import { spawn } from 'zinc:process';   // W0603: processes and signals"},
+  };
+  for (const E& e : table)
+    if (code == e.code) return std::string(e.code) + ": " + e.title + "\n\nWhy: " + e.why + "\nFix: " + e.fix + "\n\nExample:\n" + e.example + "\n";
+  return "";
+}
+
+namespace {
+
+// ---- plugins with a browser backend
+struct WebPlugin { std::string name, dir, native, impl, module, entry; std::vector<std::string> needs, wasmSources, wasmFlags, wasmExports; std::string wasmName; };   // native + impl: a browser backend of the native side; entry: the plugin's module written for the browser
+std::vector<WebPlugin> findPlugins(const WebArgs& a, const Cfg& c) {
+  std::vector<fs::path> roots = {fs::path(a.engineRoot) / ".." / "plugins", fs::path(a.dir) / "plugins"};
+  for (const std::string& d : c.pluginDirs) roots.push_back(fs::path(a.dir) / d);
+  std::vector<WebPlugin> out;
+  std::error_code ec;
+  for (const fs::path& r : roots) {
+    if (!fs::is_directory(r, ec)) continue;
+    for (const auto& e : fs::directory_iterator(r, ec)) {
+      const fs::path pj = e.path() / "plugin.json";
+      if (!fs::exists(pj, ec)) continue;
+      Json j(readAll(pj));
+      if (!j.root) continue;
+      WebPlugin p;
+      p.name = str(j.root, "name", e.path().filename().string());
+      p.dir = e.path().string();
+      yyjson_val* w = yyjson_obj_get(j.root, "web");
+      if (yyjson_is_obj(w)) {
+        p.native = str(w, "native");
+        p.impl = str(w, "impl");
+        p.entry = str(w, "entry");
+        p.module = str(j.root, "module");
+        yyjson_val* nd = yyjson_obj_get(w, "needs");
+        size_t i, n;
+        yyjson_val* v;
+        if (yyjson_is_arr(nd)) yyjson_arr_foreach(nd, i, n, v) if (yyjson_is_str(v)) p.needs.push_back(yyjson_get_str(v));
+        if (yyjson_val* wa = yyjson_obj_get(w, "wasm"); yyjson_is_obj(wa)) {   // native code compiled to WebAssembly: name, sources, flags, exports
+          p.wasmName = str(wa, "name", p.name);
+          for (const char* k : {"sources", "flags", "exports"}) {
+            std::vector<std::string>& to = k[0] == 's' ? p.wasmSources : k[0] == 'f' ? p.wasmFlags : p.wasmExports;
+            yyjson_val* arr = yyjson_obj_get(wa, k);
+            if (yyjson_is_arr(arr)) yyjson_arr_foreach(arr, i, n, v) if (yyjson_is_str(v)) to.push_back(yyjson_get_str(v));
+          }
+        }
+      }
+      out.push_back(p);
+    }
+  }
+  return out;
+}
+
+// ---- what the program uses: the staged (unminified) modules
+struct Scan {
+  std::set<std::string> rows, natives, modules;   // __host_<row>; requireNative('<Name>'); the files and zinc: modules of the program (stage.json)
+  std::string text;
+};
+Scan scanStage(const fs::path& stage) {
+  Scan s;
+  std::error_code ec;
+  {
+    Json j(readAll(stage / "stage.json"));
+    yyjson_val* arr = j.root ? yyjson_obj_get(j.root, "modules") : nullptr;
+    size_t i, n;
+    yyjson_val* v;
+    if (yyjson_is_arr(arr)) yyjson_arr_foreach(arr, i, n, v) s.modules.insert(str(v, "name"));
+  }
+  static const std::regex row("__host_([A-Za-z0-9]+)"), nat("requireNative\\d*\\s*\\(\\s*[\"']([A-Za-z0-9_]+)[\"']");   // (the type arguments are blanks after stripping: requireNative      ('Name'))
+  for (auto it = fs::recursive_directory_iterator(stage, ec); it != fs::recursive_directory_iterator(); it.increment(ec)) {
+    if (!it->is_regular_file() || it->path().extension() != ".js") continue;
+    const std::string t = readAll(it->path());
+    for (auto m = std::sregex_iterator(t.begin(), t.end(), row); m != std::sregex_iterator(); ++m) s.rows.insert((*m)[1]);
+    for (auto m = std::sregex_iterator(t.begin(), t.end(), nat); m != std::sregex_iterator(); ++m) s.natives.insert((*m)[1]);
+  }
+  return s;
+}
+// the rows targets/web/runtime.js answers: its `rows` table, names with the prefixes of the host rows
+std::set<std::string> implementedRows(const std::string& runtime) {
+  std::set<std::string> out;
+  const std::size_t a = runtime.find("const rows = {"), b = runtime.find("const frameSignals");
+  if (a == std::string::npos || b == std::string::npos) return out;
+  const std::string t = runtime.substr(a, b - a);
+  static const std::regex name("\\b((?:gfx|sys|fs|assets|storage)[A-Z][A-Za-z0-9]*):");
+  for (auto m = std::sregex_iterator(t.begin(), t.end(), name); m != std::sregex_iterator(); ++m) out.insert((*m)[1]);
+  return out;
+}
+// what a missing row stands for, for the report
+std::string rowWhy(const std::string& r) {
+  auto starts = [&](const char* p) { return r.rfind(p, 0) == 0; };
+  if (starts("sock") || starts("net") || starts("http") || starts("tls") || starts("mqtt") || starts("osc") || starts("dns") || starts("crypto")) return "raw sockets, TLS or crypto services (use fetch, WebSocket or crypto.subtle)";
+  if (starts("proc") || starts("sig") || starts("stdin")) return "processes and signals";
+  if (starts("layout")) return "the React Native layout engine (Yoga): use the classic layout in the browser";
+  if (starts("ev") || starts("loop")) return "the native event loop";
+  if (starts("assets")) return "asset groups and packs";
+  return "a native service";
+}
+
+int run(const std::string& cmd) {
+  const int rc = std::system(cmd.c_str());
+#ifdef _WIN32
+  return rc;
+#else
+  return rc == -1 ? 1 : (WIFEXITED(rc) ? WEXITSTATUS(rc) : 1);
+#endif
+}
+
+// ---- the files every export (and the dev server) shares
+std::string runtimeDir(const WebArgs& a) { return (fs::path(a.engineRoot) / "targets" / "web").string(); }
+
+// native.js: the module `zinc:native` resolves to in the page, and the browser backends of the plugins the program uses
+std::string nativeJs(const std::vector<WebPlugin>& used) {
+  std::string js =
+      "const Z = globalThis.__zincWeb;\n"
+      "export const NativeModule = undefined;\n"
+      "export function requireNative(name) {\n"
+      "  return new Proxy({}, { get(t, k) {\n"
+      "    if (typeof k !== 'string') return undefined;\n"
+      "    if (k in t) return t[k];\n"
+      "    const e = Z.nativeOf(name), f = e && e.impl[k];\n"
+      "    return t[k] = typeof f === 'function' ? f.bind(e.impl) : () => { throw new Z.ZnUnsupported('plugin ' + name + '.' + k, e ? 'its browser backend does not have it' : 'the plugin has no browser backend'); };\n"
+      "  } });\n"
+      "}\n";
+  for (const WebPlugin& p : used) if (!p.impl.empty()) js += "// ---- plugin " + p.name + "\n(() => {\n" + readAll(fs::path(p.dir) / p.impl) + "\n})();\n";
+  return js;
+}
+
+// A plugin's native code as one WebAssembly module (zig cc -target wasm32-wasi, a reactor): built once and kept by the hash of its sources, flags and exports.
+// Returns the path of the .wasm, "" with `err` set when the pinned zig or the build fails.
+std::string buildWasm(const WebPlugin& p, std::string& err) {
+  std::string zig;
+  if (!zn::tc::ensureZig(zig, err)) return "";
+  std::string key = zig + "\n";
+  for (const std::string& f : p.wasmFlags) key += f + "\n";
+  for (const std::string& f : p.wasmExports) key += f + "\n";
+  for (const std::string& s : p.wasmSources) key += s + zn::tc::sha256File((fs::path(p.dir) / s).string()) + "\n";
+  const fs::path dir = fs::path(zn::tc::home()) / "cache" / "web-wasm" / hash10(key), out = dir / (p.wasmName + ".wasm");
+  std::error_code ec;
+  if (fs::exists(out, ec)) return out.string();
+  fs::create_directories(dir, ec);
+  std::string cmd = q(zig) + " cc -target wasm32-wasi -w -mexec-model=reactor -Wl,--no-entry -Wl,--strip-all";
+  for (const std::string& f : p.wasmFlags) cmd += " " + q(f);
+  for (const std::string& e : p.wasmExports) cmd += " -Wl,--export=" + e;
+  for (const std::string& s : p.wasmSources) cmd += " " + q((fs::path(p.dir) / s).string());
+  cmd += " -o " + q(out.string());
+  const std::string logf = (dir / "build.log").string();
+  if (run("cd " + q(p.dir) + " && " + cmd + " > " + q(logf) + " 2>&1") != 0) { err = "the WebAssembly build of plugin " + p.name + " failed:\n" + readAll(logf); fs::remove(out, ec); return ""; }
+  return out.string();
+}
+
+struct Common {
+  Cfg cfg;
+  std::vector<WebPlugin> used;
+  std::vector<std::string> needs, unsupported;   // features of browsers.json; rows without an answer
+  std::string report;                            // the warnings, one per line
+  std::string browsersJson, runtime;
+  std::vector<std::pair<std::string, std::string>> wasmOut;   // the native code of plugins built for the page: module name, url
+};
+// `bundle`: the minified bundle, whose reachable code names the host rows the program really calls ("" in dev: the staged modules hold unused code too, so every row they name gets a stub and nothing is reported)
+Common analyse(const WebArgs& a, const fs::path& stage, const std::string& bundle = "") {
+  Common c;
+  c.cfg = readCfg(a);
+  if (!a.render.empty()) c.cfg.render = a.render;
+  c.browsersJson = readAll(fs::path(runtimeDir(a)) / "browsers.json");
+  c.runtime = readAll(fs::path(runtimeDir(a)) / "runtime.js");
+  const Scan sc = scanStage(stage);
+  const std::vector<WebPlugin> all = findPlugins(a, c.cfg);
+  std::set<std::string> claimed;
+  for (const WebPlugin& p : all) {
+    const std::string under = fs::path(p.dir).lexically_normal().string() + "/";   // a module of this plugin is in the program (stage.json names the files)
+    bool inside = false;
+    for (const std::string& m : sc.modules) if (m.rfind(under, 0) == 0) { inside = true; break; }
+    const bool viaNative = !p.native.empty() && !p.impl.empty() && sc.natives.count(p.native), viaEntry = !p.entry.empty() && inside;
+    if (!viaNative && !viaEntry) continue;
+    c.used.push_back(p);
+    if (viaNative) claimed.insert(p.native);
+  }
+  std::set<std::string> needs;
+  {
+    Json j(c.browsersJson);
+    yyjson_val* core = j.root ? yyjson_obj_get(j.root, "core") : nullptr;
+    size_t i, n;
+    yyjson_val* v;
+    if (yyjson_is_arr(core)) yyjson_arr_foreach(core, i, n, v) if (yyjson_is_str(v)) needs.insert(yyjson_get_str(v));
+    if (c.cfg.render == "dom") { needs.erase("canvas2d"); needs.erase("roundRect"); }
+  }
+  const std::string browsers = !a.browsers.empty() ? a.browsers : c.cfg.browsers;
+  std::string warnings = webCheckReport(c.browsersJson, browsers, std::vector<std::string>(needs.begin(), needs.end()), "the web host");
+  for (const WebPlugin& p : c.used) warnings += webCheckReport(c.browsersJson, browsers, p.needs, "plugin " + p.name);
+  for (const std::string& nm : sc.natives) if (!claimed.count(nm)) warnings += "warning W0602: the native side '" + nm + "' has no browser backend (a plugin's web entry): its calls throw ZnUnsupported\n";
+  const std::set<std::string> have = implementedRows(c.runtime);
+  std::set<std::string> why;
+  std::set<std::string> rows = sc.rows;
+  if (!bundle.empty()) { rows.clear(); static const std::regex rr("__host_([A-Za-z0-9]+)"); for (auto m = std::sregex_iterator(bundle.begin(), bundle.end(), rr); m != std::sregex_iterator(); ++m) rows.insert((*m)[1]); }
+  for (const std::string& r : rows) {
+    if (have.count(r)) continue;
+    c.unsupported.push_back(r);
+    if (r.rfind("layout", 0) != 0 || c.cfg.rnLayout) why.insert(rowWhy(r));   // the layout rows are in zinc:ui whatever the layout: reported only when zinc.json asks for rn
+  }
+  if (!bundle.empty()) for (const std::string& w : why) warnings += "warning W0603: the program calls " + w + ": it throws ZnUnsupported in the browser\n";
+  for (const WebPlugin& p : c.used) for (const std::string& n : p.needs) needs.insert(n);
+  c.needs.assign(needs.begin(), needs.end());
+  c.report = warnings;
+  return c;
+}
+
+std::string minify(const std::string& esbuild, const std::string& in, const std::string& out) {
+  const std::string cmd = q(esbuild) + " " + q(in) + " --minify --format=esm --target=es2022 --legal-comments=none --log-level=error --outfile=" + q(out);
+  return run(cmd) == 0 ? "" : "esbuild failed on " + in;
+}
+std::string mime(const std::string& path) {
+  const std::string e = lower(fs::path(path).extension().string());
+  static const std::map<std::string, std::string> m = {{".html", "text/html; charset=utf-8"}, {".js", "text/javascript; charset=utf-8"}, {".mjs", "text/javascript; charset=utf-8"}, {".json", "application/json"},
+    {".css", "text/css"}, {".png", "image/png"}, {".jpg", "image/jpeg"}, {".jpeg", "image/jpeg"}, {".webp", "image/webp"}, {".gif", "image/gif"}, {".svg", "image/svg+xml"}, {".wasm", "application/wasm"},
+    {".webmanifest", "application/manifest+json"}, {".ttf", "font/ttf"}, {".otf", "font/otf"}, {".woff", "font/woff"}, {".woff2", "font/woff2"}, {".mp3", "audio/mpeg"}, {".ogg", "audio/ogg"},
+    {".wav", "audio/wav"}, {".map", "application/json"}, {".txt", "text/plain; charset=utf-8"}, {".bin", "application/octet-stream"}};
+  auto it = m.find(e);
+  return it == m.end() ? "application/octet-stream" : it->second;
+}
+
+struct Asset { std::string name, file, url; std::size_t size = 0; bool image = false; std::string font; };
+std::vector<Asset> listAssets(const std::string& dir) {
+  std::vector<Asset> out;
+  const fs::path root = fs::path(dir) / "assets";
+  std::error_code ec;
+  if (!fs::is_directory(root, ec)) return out;
+  static const std::set<std::string> images = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".avif"}, fonts = {".ttf", ".otf", ".woff", ".woff2"};
+  std::vector<fs::path> files;
+  for (auto it = fs::recursive_directory_iterator(root, ec); it != fs::recursive_directory_iterator(); it.increment(ec)) if (it->is_regular_file()) files.push_back(it->path());
+  std::sort(files.begin(), files.end());
+  for (const fs::path& f : files) {
+    Asset a;
+    a.name = "assets/" + f.lexically_relative(root).generic_string();   // lexically: a symlinked asset keeps its own name
+    a.file = f.string();
+    a.size = static_cast<std::size_t>(fs::file_size(f, ec));
+    const std::string e = lower(f.extension().string());
+    a.image = images.count(e) > 0;
+    if (fonts.count(e)) a.font = f.stem().string();
+    out.push_back(a);
+  }
+  return out;
+}
+
+std::string pageFor(const Cfg& c, const std::string& config, const std::string& preloads, bool dev, bool pwa, bool hasIcon, const std::string& iconUrl, const std::string& nativeUrl) {
+  std::string h = "<!doctype html>\n<html lang=\"" + c.lang + "\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width,initial-scale=1,viewport-fit=cover\">\n";
+  auto esc = [](const std::string& s) { std::string r; for (char ch : s) { if (ch == '<') r += "&lt;"; else if (ch == '&') r += "&amp;"; else if (ch == '"') r += "&quot;"; else r += ch; } return r; };
+  h += "<title>" + esc(c.title) + "</title>\n";
+  if (!c.description.empty()) h += "<meta name=\"description\" content=\"" + esc(c.description) + "\">\n";
+  h += "<meta name=\"theme-color\" content=\"" + esc(c.theme) + "\">\n";
+  if (hasIcon) h += "<link rel=\"icon\" href=\"" + iconUrl + "\">\n<link rel=\"apple-touch-icon\" href=\"" + iconUrl + "\">\n";
+  if (pwa) h += "<link rel=\"manifest\" href=\"manifest.webmanifest\">\n<meta name=\"mobile-web-app-capable\" content=\"yes\">\n<meta name=\"apple-mobile-web-app-capable\" content=\"yes\">\n";
+  h += preloads;
+  h += "<style>html,body{margin:0;height:100%;background:" + esc(c.bg) + ";overscroll-behavior:none}#zinc-root{position:fixed;inset:0;overflow:hidden;outline:none}"
+       "#zinc-splash{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;font:16px system-ui,sans-serif;color:#888;pointer-events:none}"
+       "#zinc-progress{width:min(240px,50vw);height:4px;accent-color:" + esc(c.theme) + "}</style>\n";
+  h += "<script type=\"importmap\">{\"imports\":{\"zinc:native\":\"" + nativeUrl + "\"}}</script>\n</head>\n<body>\n";
+  h += "<div id=\"zinc-root\" tabindex=\"-1\"></div>\n<div id=\"zinc-splash\"><progress id=\"zinc-progress\" max=\"100\" value=\"0\" aria-label=\"loading\"></progress></div>\n";
+  h += "<noscript>This app needs JavaScript.</noscript>\n<script nomodule>document.body.textContent='This browser is too old for this app (it needs ES modules and import maps).'</script>\n";
+  h += "<script id=\"zinc-config\" type=\"application/json\">" + config + "</script>\n";
+  (void)dev;
+  return h;
+}
+
+// the config the runtime reads
+std::string configJson(const WebArgs& a, const Cfg& c, const Common& cm, const std::vector<Asset>& assets, const std::string& entry, bool dev, const std::string& domModule, const std::string& hmrModule) {
+  std::string j = "{\"name\":" + jstr(a.name) + ",\"id\":" + jstr(c.id.empty() ? a.name : c.id) + ",\"title\":" + jstr(c.title) + ",\"version\":" + jstr(a.version) + ",\"render\":" + jstr(c.render) + ",\"entry\":" + jstr(entry);
+  if (c.w > 0 && c.h > 0) j += ",\"fixed\":[" + std::to_string(c.w) + "," + std::to_string(c.h) + "]";
+  if (dev) j += ",\"dev\":true,\"hmrModule\":" + jstr(hmrModule);
+  if (!domModule.empty()) j += ",\"domModule\":" + jstr(domModule);
+  for (const WebPlugin& p : cm.used) if (p.name == "browser") {   // zinc:browser answers shippedBy() from the table
+    Json t(cm.browsersJson);
+    if (t.root) if (yyjson_val* f = yyjson_obj_get(t.root, "features")) {
+      char* txt = yyjson_val_write(f, 0, nullptr);
+      if (txt) { j += ",\"browsers\":{\"features\":" + std::string(txt) + "}"; std::free(txt); }
+    }
+  }
+  j += ",\"unsupported\":[";
+  for (std::size_t i = 0; i < cm.unsupported.size(); ++i) j += (i ? "," : "") + jstr(cm.unsupported[i]);
+  j += "],\"wasm\":[";
+  for (std::size_t i = 0; i < cm.wasmOut.size(); ++i) j += std::string(i ? "," : "") + "{\"name\":" + jstr(cm.wasmOut[i].first) + ",\"url\":" + jstr(cm.wasmOut[i].second) + "}";
+  j += "],\"fonts\":[";
+  bool first = true;
+  for (const Asset& as : assets) if (!as.font.empty()) { j += (first ? "" : ",") + jstr(as.font); first = false; }
+  j += "],\"assets\":[";
+  for (std::size_t i = 0; i < assets.size(); ++i) {
+    const Asset& as = assets[i];
+    j += std::string(i ? "," : "") + "{\"name\":" + jstr(as.name) + ",\"url\":" + jstr(as.url) + ",\"size\":" + std::to_string(as.size) + (as.image ? ",\"image\":true" : "") + (as.font.empty() ? "" : ",\"font\":" + jstr(as.font)) + "}";
+  }
+  return j + "]}";
+}
+
+// ====================================================================== export
+int exportSite(const WebArgs& a, const std::string& tmpName) {
+  std::string err;
+  const fs::path tmp = fs::path(a.dir) / "build" / tmpName;
+  std::error_code ec;
+  fs::remove_all(tmp, ec);
+  fs::create_directories(tmp, ec);
+  // 1. what the program uses, from the staged modules (unminified)
+  if (run("ZINC_BACKGROUND=1 " + q(selfExe()) + " --profile web bundle " + q(a.dir) + " --stage " + q((tmp / "stage").string()) + " > " + q((tmp / "stage.log").string()) + " 2>&1") == 3) {
+    // a package of node_modules: the scan reads the bundle instead (its names are minified there, so the plugin report is thinner)
+    fs::create_directories(tmp / "stage", ec);
+  }
+  // 2. the bundle: its reachable code names the host rows the program calls
+  const std::string appJs = (tmp / "app.js").string();
+  if (run("ZINC_BACKGROUND=1 " + q(selfExe()) + " --profile web bundle " + q(a.dir) + " --minify" + (a.sourcemap ? " --sourcemap" : "") + " -o " + q(appJs)) != 0) { std::fprintf(stderr, "zinc export: the bundle failed\n"); return 1; }
+  Common cm = analyse(a, tmp / "stage", readAll(appJs));
+  std::fputs(cm.report.c_str(), stderr);
+  std::set<std::string> warned;
+  const bool warns = !cm.report.empty();
+  if (a.check) {
+    std::printf("web: %s render, browsers %s, %zu plugin backend(s)%s\n", cm.cfg.render.c_str(), (!a.browsers.empty() ? a.browsers : !cm.cfg.browsers.empty() ? cm.cfg.browsers : kBaseline).c_str(), cm.used.size(), warns ? "" : ", nothing to warn about");
+    return warns && (a.strict || cm.cfg.strict) ? 1 : 0;
+  }
+  if (warns && (a.strict || cm.cfg.strict)) { std::fprintf(stderr, "zinc export: --werror: the warnings above fail the export\n"); return 1; }
+  std::string esbuild;
+  if (!zn::tc::ensureEsbuild(esbuild, err)) { std::fprintf(stderr, "zinc export: %s\n", err.c_str()); return 1; }
+  // 3. the runtime, the native glue and (DOM mode) the DOM painter, minified
+  fs::create_directories(tmp / "rt", ec);
+  writeAll(tmp / "rt" / "native.js", nativeJs(cm.used));
+  for (const char* f : {"runtime.js", "dom.js"}) fs::copy_file(fs::path(runtimeDir(a)) / f, tmp / "rt" / f, fs::copy_options::overwrite_existing, ec);
+  std::map<std::string, std::string> out;   // published name -> bytes
+  auto publish = [&](const std::string& base, const std::string& ext, const std::string& bytes) {
+    const std::string name = base + "." + hash10(bytes) + ext;
+    out[name] = bytes;
+    return name;
+  };
+  for (const WebPlugin& p : cm.used) {   // native code of a plugin, built for the page
+    if (p.wasmSources.empty()) continue;
+    const std::string built = buildWasm(p, err);
+    if (built.empty()) { std::fprintf(stderr, "zinc export: %s\n", err.c_str()); return 1; }
+    cm.wasmOut.push_back({p.wasmName, publish(p.wasmName, ".wasm", readAll(built))});
+  }
+  const std::string appName = publish("app", ".js", readAll(appJs));
+  if (a.sourcemap && fs::exists(appJs + ".map")) out[appName + ".map"] = readAll(appJs + ".map");
+  const bool dom = cm.cfg.render == "dom";
+  std::string runtimeName, domName, nativeName;
+  for (const char* f : {"native.js", "runtime.js", "dom.js"}) {
+    if (!dom && std::strcmp(f, "dom.js") == 0) continue;
+    const std::string mini = (tmp / "rt" / (std::string("min-") + f)).string();
+    if (const std::string e = minify(esbuild, (tmp / "rt" / f).string(), mini); !e.empty()) { std::fprintf(stderr, "zinc export: %s\n", e.c_str()); return 1; }
+    const std::string base = std::string(f).substr(0, std::strlen(f) - 3);
+    const std::string n = publish(base == "runtime" ? "zinc" : base, ".js", readAll(mini));
+    (base == "runtime" ? runtimeName : base == "dom" ? domName : nativeName) = n;
+  }
+  // 4. the assets, named by their content
+  std::vector<Asset> assets = listAssets(a.dir);
+  std::size_t assetBytes = 0;
+  for (Asset& as : assets) {
+    const std::string bytes = readAll(as.file);
+    const fs::path p(as.name);
+    const std::string rel = (p.parent_path() / p.stem()).generic_string(), ext = p.extension().string();
+    as.url = publish(rel, ext, bytes);
+    assetBytes += bytes.size();
+  }
+  if (assetBytes > (40u << 20)) std::fprintf(stderr, "warning: the assets are %s; the web profile budgets 40 MB of download (they are all fetched before the app starts)\n", humanKb(assetBytes).c_str());
+  // 5. the icon, the manifest, the service worker
+  std::string iconUrl, iconSizes;
+  if (!cm.cfg.icon.empty() && fs::exists(fs::path(a.dir) / cm.cfg.icon, ec)) {
+    const std::string bytes = readAll(fs::path(a.dir) / cm.cfg.icon);
+    iconUrl = publish("icon", fs::path(cm.cfg.icon).extension().string(), bytes);
+    if (bytes.size() > 24 && bytes.compare(1, 3, "PNG") == 0) {
+      auto be = [&](int o) { return (static_cast<unsigned char>(bytes[o]) << 24) | (static_cast<unsigned char>(bytes[o + 1]) << 16) | (static_cast<unsigned char>(bytes[o + 2]) << 8) | static_cast<unsigned char>(bytes[o + 3]); };
+      iconSizes = std::to_string(be(16)) + "x" + std::to_string(be(20));
+    }
+  }
+  const std::string entryUrl = "./" + appName;
+  std::string preloads = "<link rel=\"modulepreload\" href=\"" + runtimeName + "\">\n<link rel=\"modulepreload\" href=\"" + appName + "\">\n<link rel=\"modulepreload\" href=\"" + nativeName + "\">\n";
+  if (dom) preloads += "<link rel=\"modulepreload\" href=\"" + domName + "\">\n";
+  std::string page = pageFor(cm.cfg, configJson(a, cm.cfg, cm, assets, entryUrl, false, dom ? "./" + domName : "", ""), preloads, false, cm.cfg.pwa && !a.noPwa, !iconUrl.empty(), iconUrl, "./" + nativeName);
+  const bool pwa = cm.cfg.pwa && !a.noPwa;
+  const bool isolate = std::find(cm.needs.begin(), cm.needs.end(), "crossOriginIsolated") != cm.needs.end();
+  page += "<script type=\"module\" src=\"" + runtimeName + "\"></script>\n";
+  if (pwa) page += "<script>if('serviceWorker' in navigator&&isSecureContext)addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}))</script>\n";
+  page += "</body>\n</html>\n";
+  out["index.html"] = page;
+  if (pwa) {
+    std::string man = "{\"name\":" + jstr(cm.cfg.title) + ",\"short_name\":" + jstr(cm.cfg.title.substr(0, 12)) + ",\"start_url\":\".\",\"scope\":\".\",\"display\":\"standalone\",\"background_color\":" + jstr(cm.cfg.bg) + ",\"theme_color\":" + jstr(cm.cfg.theme);
+    if (!iconUrl.empty()) man += ",\"icons\":[{\"src\":" + jstr(iconUrl) + ",\"sizes\":" + jstr(iconSizes.empty() ? "512x512" : iconSizes) + ",\"type\":" + jstr(mime(iconUrl)) + ",\"purpose\":\"any\"}]";
+    out["manifest.webmanifest"] = man + "}\n";
+    std::string files = "[\"./\"";
+    for (const auto& [n, b] : out) if (!endsWith(n, ".map")) files += "," + jstr(n);
+    files += "]";
+    std::string sw = "// Generated by zinc export --target web: the app works offline after the first visit. Hashed files are cached for good; the page is fetched fresh when online.\n"
+                     "const V = " + jstr("zinc-" + hash10(files)) + ", FILES = " + files + ", ISOLATE = " + (isolate ? "true" : "false") + ";\n"
+                     "self.addEventListener('install', (e) => { e.waitUntil(caches.open(V).then((c) => c.addAll(FILES)).then(() => self.skipWaiting())); });\n"
+                     "self.addEventListener('activate', (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== V).map((k) => caches.delete(k)))).then(() => self.clients.claim())); });\n"
+                     "const iso = (r) => { if (!ISOLATE || !r || r.status === 0) return r; const h = new Headers(r.headers); h.set('Cross-Origin-Opener-Policy', 'same-origin'); h.set('Cross-Origin-Embedder-Policy', 'require-corp'); return new Response(r.body, { status: r.status, statusText: r.statusText, headers: h }); };\n"
+                     "self.addEventListener('fetch', (e) => {\n"
+                     "  const req = e.request;\n"
+                     "  if (req.method !== 'GET' || !req.url.startsWith(self.location.origin)) return;\n"
+                     "  if (req.mode === 'navigate') { e.respondWith(fetch(req).then(iso).catch(() => caches.match('./').then(iso))); return; }\n"
+                     "  e.respondWith(caches.match(req).then((r) => r || fetch(req)).then(iso));\n"
+                     "});\n";
+    out["sw.js"] = sw;
+  }
+  std::string headers = "/*\n  X-Content-Type-Options: nosniff\n  Referrer-Policy: strict-origin-when-cross-origin\n";
+  if (isolate) headers += "  Cross-Origin-Opener-Policy: same-origin\n  Cross-Origin-Embedder-Policy: require-corp\n";
+  headers += "\n/index.html\n  Cache-Control: no-cache\n\n/sw.js\n  Cache-Control: no-cache\n\n/*.js\n  Cache-Control: public, max-age=31536000, immutable\n\n/assets/*\n  Cache-Control: public, max-age=31536000, immutable\n";
+  out["_headers"] = headers;
+  out["serve.py"] = "#!/usr/bin/env python3\n# Serves this folder on http://127.0.0.1:8000, preferring the precompressed .br and .gz files. Any static host works the same; this is only for a look.\n"
+                    "import http.server, os, sys\nclass H(http.server.SimpleHTTPRequestHandler):\n    extensions_map = dict(http.server.SimpleHTTPRequestHandler.extensions_map, **{'.js': 'text/javascript', '.webmanifest': 'application/manifest+json', '.wasm': 'application/wasm'})\n"
+                    "    def send_head(self):\n        p = self.translate_path(self.path)\n        enc = self.headers.get('Accept-Encoding', '')\n        for ext, name in (('.br', 'br'), ('.gz', 'gzip')):\n            if name in enc and os.path.isfile(p + ext) and os.path.isfile(p):\n                f = open(p + ext, 'rb'); self.send_response(200)\n                self.send_header('Content-Type', self.guess_type(p)); self.send_header('Content-Encoding', name)\n"
+                    "                self.send_header('Content-Length', str(os.fstat(f.fileno()).st_size)); self.end_headers(); return f\n        return super().send_head()\n"
+                    "os.chdir(os.path.dirname(os.path.abspath(__file__)))\nhttp.server.ThreadingHTTPServer(('127.0.0.1', int(sys.argv[1]) if len(sys.argv) > 1 else 8000), H).serve_forever()\n";
+  // 6. write, then the precompressed copies
+  fs::path outDir = a.out.empty() ? fs::path(a.dir) / "dist" / (a.name + "-web") : fs::path(a.out);
+  fs::remove_all(outDir, ec);
+  std::size_t total = 0, gz = 0, br = 0;
+  const bool haveGzip = run("command -v gzip >/dev/null 2>&1") == 0, haveBrotli = run("command -v brotli >/dev/null 2>&1") == 0;
+  static const std::set<std::string> squeeze = {".js", ".json", ".html", ".css", ".svg", ".txt", ".webmanifest", ".bin", ".wasm", ".ttf", ".otf", ".map"};
+  std::vector<std::string> compressed;
+  for (const auto& [n, b] : out) {
+    if (!writeAll(outDir / n, b)) { std::fprintf(stderr, "zinc export: cannot write %s\n", n.c_str()); return 1; }
+    total += b.size();
+    if (n == "serve.py") fs::permissions(outDir / n, fs::perms::owner_all | fs::perms::group_read | fs::perms::group_exec | fs::perms::others_read | fs::perms::others_exec, ec);
+    if (b.size() < 1000 || !squeeze.count(lower(fs::path(n).extension().string()))) continue;
+    const std::string f = q((outDir / n).string());
+    if (haveGzip && run("gzip -9 -c " + f + " > " + f.substr(0, f.size() - 1) + ".gz'") == 0) { if (endsWith(n, ".js") && n != "sw.js") gz += fs::file_size(outDir / (n + ".gz"), ec); compressed.push_back(n); }
+    if (haveBrotli && run("brotli -q 11 -c " + f + " > " + f.substr(0, f.size() - 1) + ".br'") == 0) { if (endsWith(n, ".js") && n != "sw.js") br += fs::file_size(outDir / (n + ".br"), ec); }
+  }
+  std::size_t js = 0;
+  for (const auto& [n, b] : out) if (endsWith(n, ".js") && n != "sw.js") js += b.size();
+  writeAll(outDir / "README.txt", a.name + " " + a.version + " (web) built with Zinc.\nA static site: copy this folder to any static host (GitHub Pages, Netlify, S3, nginx...). index.html and sw.js must not be cached for long; the hashed files may be (_headers has it for Netlify and Cloudflare Pages).\n"
+            "./serve.py serves it locally. " + (isolate ? "This app needs cross-origin isolation: _headers sets COOP and COEP, and sw.js adds them on hosts that cannot.\n" : "No COOP/COEP headers are needed.\n"));
+  std::printf("web: %s render, %zu file(s), %s (javascript %s, gzip %s%s)%s\n", cm.cfg.render.c_str(), out.size(), humanKb(total).c_str(), humanKb(js).c_str(), gz ? humanKb(gz).c_str() : "-",
+              br ? (", brotli " + humanKb(br)).c_str() : "", pwa ? ", offline cache" : "");
+  std::printf("%s\n", outDir.string().c_str());
+  return 0;
+}
+
+// ====================================================================== dev server
+std::atomic<bool> gStop{false};
+void onSignal(int) { gStop = true; }
+
+std::string sha1b64(const std::string& in) {   // Sec-WebSocket-Accept: base64(SHA-1(key + GUID))
+  const std::string msg = in + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+  std::uint32_t h[5] = {0x67452301u, 0xEFCDAB89u, 0x98BADCFEu, 0x10325476u, 0xC3D2E1F0u};
+  std::string m = msg;
+  const std::uint64_t bits = static_cast<std::uint64_t>(msg.size()) * 8;
+  m += static_cast<char>(0x80);
+  while (m.size() % 64 != 56) m += static_cast<char>(0);
+  for (int i = 7; i >= 0; --i) m += static_cast<char>((bits >> (i * 8)) & 0xff);
+  auto rol = [](std::uint32_t v, int s) { return (v << s) | (v >> (32 - s)); };
+  for (std::size_t o = 0; o < m.size(); o += 64) {
+    std::uint32_t w[80];
+    for (int i = 0; i < 16; ++i) w[i] = (static_cast<std::uint32_t>(static_cast<unsigned char>(m[o + i * 4])) << 24) | (static_cast<std::uint32_t>(static_cast<unsigned char>(m[o + i * 4 + 1])) << 16) | (static_cast<std::uint32_t>(static_cast<unsigned char>(m[o + i * 4 + 2])) << 8) | static_cast<unsigned char>(m[o + i * 4 + 3]);
+    for (int i = 16; i < 80; ++i) w[i] = rol(w[i - 3] ^ w[i - 8] ^ w[i - 14] ^ w[i - 16], 1);
+    std::uint32_t a = h[0], b = h[1], c = h[2], d = h[3], e = h[4];
+    for (int i = 0; i < 80; ++i) {
+      std::uint32_t f, k;
+      if (i < 20) { f = (b & c) | (~b & d); k = 0x5A827999u; }
+      else if (i < 40) { f = b ^ c ^ d; k = 0x6ED9EBA1u; }
+      else if (i < 60) { f = (b & c) | (b & d) | (c & d); k = 0x8F1BBCDCu; }
+      else { f = b ^ c ^ d; k = 0xCA62C1D6u; }
+      const std::uint32_t t = rol(a, 5) + f + e + k + w[i];
+      e = d; d = c; c = rol(b, 30); b = a; a = t;
+    }
+    h[0] += a; h[1] += b; h[2] += c; h[3] += d; h[4] += e;
+  }
+  unsigned char d[20];
+  for (int i = 0; i < 5; ++i) for (int j = 0; j < 4; ++j) d[i * 4 + j] = static_cast<unsigned char>(h[i] >> (24 - j * 8));
+  static const char* t = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  std::string out;
+  for (int i = 0; i < 20; i += 3) {
+    const std::uint32_t v = (d[i] << 16) | ((i + 1 < 20 ? d[i + 1] : 0) << 8) | (i + 2 < 20 ? d[i + 2] : 0);
+    out += t[(v >> 18) & 63]; out += t[(v >> 12) & 63]; out += i + 1 < 20 ? t[(v >> 6) & 63] : '='; out += i + 2 < 20 ? t[v & 63] : '=';
+  }
+  return out;
+}
+std::string wsFrame(const std::string& payload) {
+  std::string f(1, static_cast<char>(0x81));
+  if (payload.size() < 126) f += static_cast<char>(payload.size());
+  else if (payload.size() < 65536) { f += static_cast<char>(126); f += static_cast<char>(payload.size() >> 8); f += static_cast<char>(payload.size() & 255); }
+  else { f += static_cast<char>(127); for (int i = 7; i >= 0; --i) f += static_cast<char>((static_cast<std::uint64_t>(payload.size()) >> (i * 8)) & 255); }
+  return f + payload;
+}
+bool sendAll(int fd, const std::string& s) {
+  for (std::size_t at = 0; at < s.size();) {
+    const long n = zn::plat::sockWrite(fd, s.data() + at, s.size() - at);
+    if (n < 0 && errno == EINTR) continue;
+    if (n <= 0) return false;
+    at += static_cast<std::size_t>(n);
+  }
+  return true;
+}
+std::string urlDecode(const std::string& s) {
+  std::string r;
+  for (std::size_t i = 0; i < s.size(); ++i) {
+    if (s[i] == '%' && i + 2 < s.size() && std::isxdigit(static_cast<unsigned char>(s[i + 1])) && std::isxdigit(static_cast<unsigned char>(s[i + 2]))) { r += static_cast<char>(std::stoi(s.substr(i + 1, 2), nullptr, 16)); i += 2; }
+    else r += s[i];
+  }
+  return r;
+}
+
+struct DevModule { std::string name; std::vector<std::string> deps; bool user = false; bool refreshable = true; };
+struct Dev {
+  WebArgs a;
+  Common cm;
+  fs::path root, stage, site;
+  std::mutex m;                                   // the stage and its tables
+  std::map<std::string, DevModule> mods;          // staged file -> its record (stage.json)
+  std::map<std::string, std::string> hashes;      // staged file -> hash of its text
+  std::map<std::string, int> versions;            // staged file -> times it changed since the page loaded
+  std::string entry;
+  std::mutex wsm;
+  std::vector<int> sockets;
+  std::map<std::string, std::string> cache;       // "file?v" -> served text
+  std::string lastError;
+};
+
+// the module as the page gets it: its imports carry the version of what changed, `import.meta.hot` is its record, and the functions a user module
+// exports are forwarded to their latest definition, so the modules that imported the old ones call the new ones (Fast Refresh)
+std::string serveModule(Dev& d, const std::string& file, int version) {
+  const std::string key = file + "?" + std::to_string(version);
+  if (auto it = d.cache.find(key); it != d.cache.end()) return it->second;
+  std::string t = readAll(d.stage / file);
+  const DevModule* mod = d.mods.count(file) ? &d.mods[file] : nullptr;
+  // imports: "./x.js" -> "./x.js?v=N" when x changed
+  static const std::regex imp("((?:from\\s*|import\\s*\\(?\\s*)\")(\\.{1,2}/[^\"]+)\"");
+  std::string out;
+  std::size_t last = 0;
+  const fs::path dir = fs::path(file).parent_path();
+  for (auto m = std::sregex_iterator(t.begin(), t.end(), imp); m != std::sregex_iterator(); ++m) {
+    const std::string target = (dir / (*m)[2].str()).lexically_normal().generic_string();
+    auto v = d.versions.find(target);
+    out += t.substr(last, static_cast<std::size_t>(m->position()) - last) + (*m)[1].str() + (*m)[2].str() + (v != d.versions.end() && v->second > 0 ? "?v=" + std::to_string(v->second) : "") + "\"";
+    last = static_cast<std::size_t>(m->position() + m->length());
+  }
+  out += t.substr(last);
+  std::string tail;
+  if (mod && mod->user) {
+    std::set<std::string> names;
+    static const std::regex ex("(?:^|\\n)export\\s+(?:async\\s+)?function\\*?\\s+([A-Za-z_$][\\w$]*)|(?:^|\\n)export\\s+(?:const|let|var)\\s+([A-Za-z_$][\\w$]*)\\s*=\\s*(?:async\\s*)?(?:function|\\(|[A-Za-z_$][\\w$]*\\s*=>)");
+    for (auto m = std::sregex_iterator(out.begin(), out.end(), ex); m != std::sregex_iterator(); ++m) names.insert((*m)[1].matched ? (*m)[1].str() : (*m)[2].str());
+    static const std::regex cst("(\\nexport\\s+)const(\\s+)");
+    out = std::regex_replace(out, cst, "$1let$2");
+    for (const std::string& n : names) tail += n + " = globalThis.__zincRefresh(" + jstr(file) + ", " + jstr(n) + ", " + n + ");\n";
+  }
+  out = "import.meta.hot = globalThis.__zincHot(" + jstr(file) + ");\n" + out + "\n" + tail;
+  if (d.cache.size() > 4000) d.cache.clear();
+  return d.cache[key] = out;
+}
+
+// a module may be swapped alone when everything it exports is a function (forwarded to its newest definition) and it exports no state
+bool refreshableModule(const std::string& text) {
+  static const std::regex stateExport("(?:^|\\n)export\\s+(?:const|let|var)\\s+[A-Za-z_$][\\w$]*\\s*=\\s*(?!\\s*(?:async\\s*)?(?:function|\\(|[A-Za-z_$][\\w$]*\\s*=>))"), cls("(?:^|\\n)export\\s+(?:default\\s+)?class\\s"), def("(?:^|\\n)export\\s+default\\s+(?!function)");
+  return !std::regex_search(text, stateExport) && !std::regex_search(text, cls) && !std::regex_search(text, def);
+}
+
+struct Snapshot { std::map<std::string, std::pair<std::int64_t, std::uintmax_t>> f; bool operator==(const Snapshot& o) const { return f == o.f; } };
+Snapshot snapshotOf(const fs::path& dir) {
+  Snapshot s;
+  std::error_code ec;
+  for (auto it = fs::recursive_directory_iterator(dir, fs::directory_options::skip_permission_denied, ec); it != fs::recursive_directory_iterator(); it.increment(ec)) {
+    const std::string n = it->path().filename().string();
+    if (it->is_directory() && (n == "build" || n == "dist" || n == "node_modules" || n == ".git" || n[0] == '.')) { it.disable_recursion_pending(); continue; }
+    if (!it->is_regular_file()) continue;
+    s.f[it->path().string()] = {static_cast<std::int64_t>(fs::last_write_time(*it, ec).time_since_epoch().count()), fs::file_size(*it, ec)};
+  }
+  return s;
+}
+
+void broadcast(Dev& d, const std::string& json) {
+  std::lock_guard<std::mutex> lock(d.wsm);
+  const std::string f = wsFrame(json);
+  d.sockets.erase(std::remove_if(d.sockets.begin(), d.sockets.end(), [&](int fd) { if (sendAll(fd, f)) return false; zn::plat::sockClose(fd); return true; }), d.sockets.end());
+}
+
+// builds the stage; the files that changed since the last build and whether they can be swapped one by one
+bool restage(Dev& d, std::string& log, std::vector<std::string>& changed, bool& refreshable, bool first) {
+  std::lock_guard<std::mutex> lock(d.m);
+  const fs::path logFile = d.root / "stage.log";
+  const int rc = run("ZINC_WEB_HOT=1 ZINC_BACKGROUND=1 " + q(selfExe()) + " --profile web bundle " + q(d.a.dir) + " --stage " + q(d.stage.string()) + " > " + q(logFile.string()) + " 2>&1");
+  log = readAll(logFile);
+  if (rc != 0) return false;
+  Json j(readAll(d.stage / "stage.json"));
+  if (!j.root) { log = "stage.json is missing"; return false; }
+  std::map<std::string, DevModule> next;
+  d.entry = str(j.root, "entry");
+  yyjson_val* arr = yyjson_obj_get(j.root, "modules");
+  size_t i, n;
+  yyjson_val* v;
+  yyjson_arr_foreach(arr, i, n, v) {
+    DevModule m;
+    const std::string file = str(v, "file");
+    m.name = str(v, "name");
+    m.user = m.name.rfind("/", 0) == 0 && m.name.find("/lib/std/") == std::string::npos && m.name.find("/node_modules/") == std::string::npos;
+    size_t k, kn;
+    yyjson_val* dv;
+    yyjson_arr_foreach(yyjson_obj_get(v, "deps"), k, kn, dv) m.deps.push_back(yyjson_get_str(dv));
+    next[file] = m;
+  }
+  changed.clear();
+  refreshable = !first;
+  for (auto& [file, m] : next) {
+    const std::string text = readAll(d.stage / file), h = zn::tc::sha256Hex(text);
+    m.refreshable = refreshableModule(text);
+    auto old = d.hashes.find(file);
+    if (!first && (old == d.hashes.end() || old->second != h)) {
+      changed.push_back(file);
+      d.versions[file]++;
+      if (!m.user || !m.refreshable || file == d.entry || old == d.hashes.end()) refreshable = false;
+    }
+    d.hashes[file] = h;
+  }
+  d.mods = next;
+  d.cache.clear();
+  return true;
+}
+
+void connection(Dev* d, int fd) {
+  std::string req;
+  char buf[4096];
+  while (req.find("\r\n\r\n") == std::string::npos) {
+    const long n = zn::plat::sockRead(fd, buf, sizeof buf);
+    if (n <= 0) { zn::plat::sockClose(fd); return; }
+    req.append(buf, static_cast<std::size_t>(n));
+    if (req.size() > 65536) { zn::plat::sockClose(fd); return; }
+  }
+  std::istringstream rs(req);
+  std::string method, target, ver;
+  rs >> method >> target >> ver;
+  std::string path = target, query;
+  if (const std::size_t qm = target.find('?'); qm != std::string::npos) { path = target.substr(0, qm); query = target.substr(qm + 1); }
+  path = urlDecode(path);
+  auto header = [&](const std::string& name) {
+    const std::string lw = lower(req), key = "\r\n" + lower(name) + ":";
+    const std::size_t at = lw.find(key);
+    if (at == std::string::npos) return std::string();
+    std::size_t b = at + key.size(), e = req.find("\r\n", b);
+    while (b < e && req[b] == ' ') ++b;
+    return req.substr(b, e - b);
+  };
+  auto reply = [&](int code, const std::string& type, const std::string& body) {
+    const char* text = code == 200 ? "OK" : code == 404 ? "Not Found" : "Bad Request";
+    sendAll(fd, "HTTP/1.1 " + std::to_string(code) + " " + text + "\r\nContent-Type: " + type + "\r\nContent-Length: " + std::to_string(body.size()) + "\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n" + body);
+    zn::plat::sockClose(fd);
+  };
+  if (path == "/__zinc/ws" && lower(header("Upgrade")) == "websocket") {
+    sendAll(fd, "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: " + sha1b64(header("Sec-WebSocket-Key")) + "\r\n\r\n");
+    std::string graph;
+    {
+      std::lock_guard<std::mutex> lock(d->m);
+      graph = "{\"type\":\"hello\",\"error\":" + jstr(d->lastError) + "}";
+    }
+    { std::lock_guard<std::mutex> lock(d->wsm); sendAll(fd, wsFrame(graph)); d->sockets.push_back(fd); }
+    for (;;) {   // the page says nothing we need; read until it goes (a close frame, or the socket)
+      char b[512];
+      const long n = zn::plat::sockRead(fd, b, sizeof b);
+      if (n <= 0 || (static_cast<unsigned char>(b[0]) & 0x0f) == 8) break;
+    }
+    std::lock_guard<std::mutex> lock(d->wsm);
+    d->sockets.erase(std::remove(d->sockets.begin(), d->sockets.end(), fd), d->sockets.end());
+    zn::plat::sockClose(fd);
+    return;
+  }
+  if (method != "GET" && method != "HEAD") { reply(400, "text/plain", "bad request"); return; }
+  if (path.find("..") != std::string::npos) { reply(400, "text/plain", "bad path"); return; }
+  if (path == "/") path = "/index.html";
+  if (path.rfind("/stage/", 0) == 0) {
+    const std::string file = path.substr(7);
+    std::lock_guard<std::mutex> lock(d->m);
+    if (!d->mods.count(file) && file != "stage.json") { reply(404, "text/plain", "no such module"); return; }
+    if (file == "stage.json") { reply(200, "application/json", readAll(d->stage / file)); return; }
+    int v = 0;
+    if (query.rfind("v=", 0) == 0) v = std::atoi(query.c_str() + 2);
+    reply(200, "text/javascript; charset=utf-8", serveModule(*d, file, v));
+    return;
+  }
+  fs::path f;
+  if (path.rfind("/assets/", 0) == 0) f = fs::path(d->a.dir) / path.substr(1);
+  else f = d->site / path.substr(1);
+  std::error_code ec;
+  if (!fs::is_regular_file(f, ec)) { reply(404, "text/plain", "not found: " + path); return; }
+  reply(200, mime(f.string()), readAll(f));
+}
+
+int serve(Dev& d, int port, bool lan) {
+  const int lfd = ::socket(AF_INET, SOCK_STREAM, 0);
+  const int one = 1;
+  setsockopt(lfd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one);
+  sockaddr_in addr{};
+  addr.sin_family = AF_INET;
+  addr.sin_addr.s_addr = htonl(lan ? INADDR_ANY : INADDR_LOOPBACK);
+  int bound = 0;
+  for (int k = 0; k < 20 && !bound; ++k) {
+    addr.sin_port = htons(static_cast<std::uint16_t>(port + k));
+    if (::bind(lfd, reinterpret_cast<sockaddr*>(&addr), sizeof addr) == 0) bound = port + k;
+  }
+  if (!bound || ::listen(lfd, 16) != 0) { std::fprintf(stderr, "zinc dev: cannot listen on port %d\n", port); return 1; }
+  std::fprintf(stderr, "zinc dev: %s on http://%s:%d/ (%s render; saves reload the page, or swap modules in place where they can)\n", d.a.name.c_str(), lan ? "0.0.0.0" : "127.0.0.1", bound, d.cm.cfg.render.c_str());
+  std::thread([&d, lfd] {
+    for (;;) {
+      const int c = static_cast<int>(::accept(lfd, nullptr, nullptr));
+      if (c < 0) { if (gStop) return; continue; }
+      const timeval wait{5, 0};
+      setsockopt(c, SOL_SOCKET, SO_SNDTIMEO, &wait, sizeof wait);
+      std::thread(connection, &d, c).detach();
+    }
+  }).detach();
+  Snapshot seen = snapshotOf(d.a.dir);
+  while (!gStop) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(120));
+    Snapshot now = snapshotOf(d.a.dir);
+    if (now == seen) continue;
+    std::this_thread::sleep_for(std::chrono::milliseconds(40));   // an editor writes in steps
+    now = snapshotOf(d.a.dir);
+    std::set<std::string> files;
+    for (const auto& [f, st] : now.f) if (!seen.f.count(f) || seen.f[f] != st) files.insert(f);
+    for (const auto& [f, st] : seen.f) if (!now.f.count(f)) files.insert(f);
+    seen = now;
+    const auto t0 = std::chrono::steady_clock::now();
+    bool codeOnly = true;
+    for (const std::string& f : files) { const std::string e = fs::path(f).extension().string(); if (e != ".ts" && e != ".tsx" && e != ".js" && e != ".jsx" && e != ".mts" && e != ".mjs") codeOnly = false; }
+    std::string log;
+    std::vector<std::string> changed;
+    bool refreshable = false;
+    const bool ok = restage(d, log, changed, refreshable, false);
+    const long ms = static_cast<long>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0).count());
+    if (!ok) {
+      d.lastError = log;
+      std::fprintf(stderr, "zinc dev: compile error (%ld ms)\n%s", ms, log.c_str());
+      broadcast(d, "{\"type\":\"error\",\"message\":" + jstr(log) + "}");
+      continue;
+    }
+    const bool wasBroken = !d.lastError.empty();
+    d.lastError.clear();
+    if (codeOnly && changed.empty() && !wasBroken) { std::fprintf(stderr, "zinc dev: saved, nothing in the program changed (%ld ms)\n", ms); continue; }
+    if (!codeOnly || changed.empty() || !refreshable) {
+      std::fprintf(stderr, "zinc dev: %s: reloading the page (%ld ms)\n", !codeOnly ? "a file that is not a module changed" : changed.empty() ? "the error is fixed" : "a changed module exports state, is new or is the entry", ms);
+      broadcast(d, "{\"type\":\"reload\"}");
+      continue;
+    }
+    std::string list;
+    {
+      std::lock_guard<std::mutex> lock(d.m);
+      for (const std::string& f : changed) list += (list.empty() ? "" : ",") + std::string("{\"file\":") + jstr(f) + ",\"v\":" + std::to_string(d.versions[f]) + "}";
+    }
+    std::fprintf(stderr, "zinc dev: %zu module(s) swapped in place (%ld ms)\n", changed.size(), ms);
+    broadcast(d, "{\"type\":\"update\",\"changed\":[" + list + "]}");
+  }
+  zn::plat::sockClose(lfd);
+  return 0;
+}
+
+}  // namespace
+
+int exportWeb(const WebArgs& a) { return exportSite(a, "web-export"); }
+
+int devWeb(const WebArgs& a) {
+  std::signal(SIGINT, onSignal);
+  std::signal(SIGTERM, onSignal);
+#ifdef SIGPIPE
+  std::signal(SIGPIPE, SIG_IGN);
+#endif
+  Dev d;
+  d.a = a;
+  d.root = fs::path(a.dir) / "build" / ".zinc-web-dev";
+  d.stage = d.root / "stage";
+  d.site = d.root / "site";
+  std::error_code ec;
+  fs::create_directories(d.site, ec);
+  std::string log;
+  std::vector<std::string> changed;
+  bool refreshable = false;
+  if (!restage(d, log, changed, refreshable, true)) { std::fprintf(stderr, "zinc dev: %s", log.c_str()); d.lastError = log; }
+  d.cm = analyse(a, d.stage);
+  std::fputs(d.cm.report.c_str(), stderr);
+  // the page and the runtime files, as they are (no hashes, no minify: the browser's devtools read them)
+  const bool dom = d.cm.cfg.render == "dom";
+  for (const char* f : {"runtime.js", "dom.js", "hmr.js"}) fs::copy_file(fs::path(runtimeDir(a)) / f, d.site / f, fs::copy_options::overwrite_existing, ec);
+  writeAll(d.site / "native.js", nativeJs(d.cm.used));
+  for (const WebPlugin& p : d.cm.used) {
+    if (p.wasmSources.empty()) continue;
+    std::string werr;
+    const std::string built = buildWasm(p, werr);
+    if (built.empty()) { std::fprintf(stderr, "zinc dev: %s\n", werr.c_str()); continue; }
+    fs::copy_file(built, d.site / (p.wasmName + ".wasm"), fs::copy_options::overwrite_existing, ec);
+    d.cm.wasmOut.push_back({p.wasmName, p.wasmName + ".wasm"});
+  }
+  std::vector<Asset> assets = listAssets(a.dir);
+  for (Asset& as : assets) as.url = as.name;
+  const std::string cfg = configJson(a, d.cm.cfg, d.cm, assets, "./stage/" + d.entry, true, dom ? "./dom.js" : "", "./hmr.js");
+  std::string page = pageFor(d.cm.cfg, cfg, "", true, false, false, "", "./native.js");
+  page += "<script type=\"module\" src=\"./runtime.js\"></script>\n</body>\n</html>\n";
+  writeAll(d.site / "index.html", page);
+  return serve(d, a.port, a.lan);
+}
+
+}  // namespace zn::cli

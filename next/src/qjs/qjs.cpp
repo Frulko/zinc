@@ -27,6 +27,7 @@ bool qjs_lre_check_stack_overflow(void*, size_t);
 
 #include "frontend/modules.h"
 #include "frontend/plugin_manifest.h"
+#include "frontend/profile.h"
 #include "frontend/project.h"
 #include "frontend/tsconfig.h"
 #include "qjs/strip.h"
@@ -217,7 +218,7 @@ bool moduleText(Engine& e, const std::string& name, std::string& js, std::string
   std::string cached;
   if (!e.cacheDir.empty()) {
     std::uint64_t h = 1469598103934665603ull;
-    for (const std::string& part : {src, file, zn::frontend::uiPreset(), zn::frontend::uiLayout(), std::string(__DATE__ __TIME__)})
+    for (const std::string& part : {src, file, zn::frontend::uiPreset(), zn::frontend::uiLayout(), std::string(__DATE__ __TIME__), std::string(std::getenv("ZINC_WEB_HOT") ? "hot" : ""), std::string(zn::frontend::currentProfile() ? zn::frontend::currentProfile()->name : "")})
       for (unsigned char c : part + '\0') { h ^= c; h *= 1099511628211ull; }
     char key[40];
     std::snprintf(key, sizeof key, "/%016llx-%zx.js", static_cast<unsigned long long>(h), src.size());

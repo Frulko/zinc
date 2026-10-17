@@ -20,6 +20,7 @@
 #include "frontend/plugin_manifest.h"
 #include "frontend/project.h"
 #include "cli_core.h"
+#include "cli_web.h"
 #ifdef ZN_AGENT
 #include "agent/agent.h"
 #endif
@@ -1670,6 +1671,7 @@ int main(int argc, char** argv) {
       else if (a == "--bytecode") bo.bytecode = true;
       else if (a == "--check") bo.check = true;
       else if (a == "--watch") bo.watch = true;
+      else if (a == "--stage" && k + 1 < argc) bo.stageDir = fs::absolute(argv[++k]).lexically_normal().string();   // zinc dev --target web: the modules unbundled
       else if (a == "--target" && k + 1 < argc) { if (std::strcmp(argv[++k], "quickjs")) { std::fprintf(stderr, "zinc bundle: the only target is quickjs\n"); return 2; } }
       else if (a[0] != '-') target = a;
       else { std::fprintf(stderr, "zinc bundle: unknown option %s\nusage: zinc bundle [entry|dir] [-o out.js] [--minify] [--sourcemap] [--bytecode] [--check] [--watch]\n", a.c_str()); return 2; }
@@ -1695,7 +1697,7 @@ int main(int argc, char** argv) {
     bo.out = fs::absolute(bo.out).lexically_normal().string();
     bo.work = zn::tc::home() + "/cache/bundle/" + std::to_string(std::hash<std::string>{}(bo.out));
     bo.cacheDir = zn::tc::home() + "/cache/qjs";
-    if (!bo.check) {
+    if (!bo.check && bo.stageDir.empty()) {
       std::string err;
       if (!zn::tc::ensureEsbuild(bo.esbuild, err)) {
         std::fprintf(stderr, "zinc bundle: %s\n  zinc bundle links with esbuild %s (downloaded and verified once); offline, `zinc run --engine quickjs` runs the program without it.\n",
@@ -2753,6 +2755,7 @@ int main(int argc, char** argv) {
     std::string out = !std::strcmp(argv[2], "--markdown") ? zn::frontend::markdown()
                     : !std::strcmp(argv[2], "--codes")    ? zn::frontend::codes()
                                                           : zn::frontend::explain(argv[2]);
+    if (out.empty()) out = zn::cli::webExplain(argv[2]);   // W0601 to W0603: the web export's warnings
     if (out.empty()) { std::fprintf(stderr, "unknown diagnostic code: %s\n", argv[2]); return 1; }
     std::fputs(out.c_str(), stdout);
     return 0;

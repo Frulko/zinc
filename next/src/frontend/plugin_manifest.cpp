@@ -9,6 +9,7 @@
 #include <set>
 #include <sstream>
 
+#include "frontend/profile.h"
 #include "yyjson.h"
 
 namespace zn::frontend {
@@ -111,6 +112,8 @@ bool parsePluginManifest(std::string_view text, PluginManifest& out, std::string
   out = PluginManifest{};
   if (!str(root, "name", out.name, err) || !str(root, "kind", out.kind, err) || !str(root, "module", out.module, err) || !str(root, "entry", out.entry, err) || !str(root, "description", out.description, err)) return false;
   if (out.entry.empty()) out.entry = "index.ts";
+  if (const Profile* cur = currentProfile(); cur && std::string_view(cur->name) == "web")   // the web target: "web": { "entry": ... } is the browser's version of the module (docs/targets/web.md, "Plugins")
+    if (yyjson_val* w = yyjson_obj_get(root, "web"); yyjson_is_obj(w)) { std::string we; if (str(w, "entry", we, err) && !we.empty()) out.entry = we; }
   if (out.kind != "module" && out.kind != "display") { err = "\"kind\" must be \"module\" or \"display\""; return false; }
   if (yyjson_val* r = yyjson_obj_get(root, "requires")) {
     if (!yyjson_is_arr(r)) { err = "\"requires\" must be an array"; return false; }
@@ -169,7 +172,7 @@ bool parsePluginManifest(std::string_view text, PluginManifest& out, std::string
   if (yyjson_val* x = yyjson_obj_get(root, "deterministic")) out.deterministic = yyjson_get_bool(x);
   if (yyjson_val* x = yyjson_obj_get(root, "live")) out.live = yyjson_get_bool(x);
   if (yyjson_val* x = yyjson_obj_get(root, "threads")) out.threads = yyjson_get_bool(x);
-  static const std::set<std::string> known = {"name", "kind", "module", "entry", "description", "requires", "modules", "targets", "options", "abi", "native", "sim", "deterministic", "live", "threads", "license", "link", "publisher", "permissions", "version"};   // publisher {name, publicKey}: a community plugin's key, pinned on first use (ZN-340.02)
+  static const std::set<std::string> known = {"name", "kind", "module", "entry", "description", "requires", "modules", "targets", "options", "abi", "native", "sim", "deterministic", "live", "threads", "license", "link", "publisher", "permissions", "version", "web"};   // publisher {name, publicKey}: a community plugin's key, pinned on first use (ZN-340.02)
   size_t i, n;
   yyjson_val *k, *v;
   yyjson_obj_foreach(root, i, n, k, v) if (!known.count(yyjson_get_str(k))) warnings.push_back(std::string("unknown key \"") + yyjson_get_str(k) + "\"");

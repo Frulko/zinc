@@ -259,7 +259,7 @@ struct Linter {
       if (!userFile(f.path) || !(ends(f.path, ".tsx") || ends(f.path, ".jsx"))) continue;
       auto hit = classCache.find(f.path);
       if (hit == classCache.end()) hit = classCache.emplace(f.path, classNames(text)).first;
-      const bool fixedScreen = caps["desktop"] != "true" && t != "wasm";
+      const bool fixedScreen = caps["desktop"] != "true" && t != "wasm" && t != "web";
       const int sw = std::atoi(caps["width"].c_str()), sh = std::atoi(caps["height"].c_str());
       for (const ClassUse& u : hit->second) {
         if (std::string why = tierCost(u.cls, tier); !why.empty()) addAt(f.path, text, u.at, "ui-tier", u.cls + ": " + why + " on tier T" + std::to_string(tier), t);
