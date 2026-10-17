@@ -2,10 +2,10 @@
 // `new`/`delete` stay the system's in zinc (ZN-592: replacing them cost 8 ms of dyld patching at every launch) and in compiled programs,
 // except those with a heap budget, which link alloc_new.cpp (ZN-146).
 #include <cstddef>
-#if !defined(__wasi__) && !defined(ESP_PLATFORM)
+#if !defined(__wasi__) && !defined(ESP_PLATFORM) && !defined(ZN_NO_MIMALLOC)
 #include <mimalloc.h>
 #else
-inline std::size_t mi_usable_size(const void*) { return 0; }   // WASI and ESP-IDF: the plain allocator, no heap budget (a browser tab, the device's heap have their own limit)
+inline std::size_t mi_usable_size(const void*) { return 0; }   // WASI, ESP-IDF and the console cores: the plain allocator, no heap budget (a browser tab, the device's heap have their own limit)
 #endif
 #include <cstdio>
 #include <cstdlib>
