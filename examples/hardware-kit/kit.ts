@@ -180,13 +180,14 @@ export class App {
 
 // ---------------------------------------------------------------- widgets
 /** A stick: its ring, the dot where it points and its two values. */
-export function stick(x: number, y: number, r: number, ax: number, ay: number, label: string, iconName: string): void {
+export function stick(x: number, y: number, r: number, ax: number, ay: number, label: string, iconName: string, labelLeft: boolean = false): void {
   const s = k();
   rrect(x - r, y - r, 2 * r, 2 * r, r, CARD, 255);
   rect(x - r + 4 * s, y, 2 * r - 8 * s, 1, RULE); rect(x, y - r + 4 * s, 1, 2 * r - 8 * s, RULE);
   const d = 12 * s;
   icon(iconName, x + ax * (r - d) - d, y + ay * (r - d) - d, 2 * d, true);
-  say(0, x + r + 6 * s, y - 6 * s, `${label}  x ${ax.toFixed(2)}  y ${ay.toFixed(2)}`, DIM);
+  const t = `${label}  x ${ax.toFixed(2)}  y ${ay.toFixed(2)}`;
+  say(0, labelLeft ? x - r - 6 * s - sayWidth(0, t) : x + r + 6 * s, y - 6 * s, t, DIM);
 }
 /** A horizontal meter of `v` (0..1). */
 export function meter(x: number, y: number, w: number, h: number, v: number, color: u32): void {

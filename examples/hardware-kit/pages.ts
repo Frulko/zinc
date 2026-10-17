@@ -54,7 +54,7 @@ export function sticksPage(count: i32, icons: string[] = ['playstation_stick_l',
         got++; beep(scale(7 + (got % 7)), 'triangle');
         sx = 30 + ((got * 97) % Math.floor(w - 60)); sy = fieldTop + 20 + ((got * 53) % (fieldBottom - fieldTop - 40));
       }
-      stick((count === 1 ? w / 2 : 70 + i * (w - 140)) * s, 198 * s, 16 * s, ax, ay, i === 0 ? 'left' : 'right', icons[i]);
+      stick((count === 1 ? w / 2 : 70 + i * (w - 140)) * s, 198 * s, 16 * s, ax, ay, i === 0 ? 'left' : 'right', icons[i], i === 1);
     }
     say(1, 16 * s, 34 * s, `stars ${got}`, ACCENT);
   };

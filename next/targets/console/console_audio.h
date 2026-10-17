@@ -11,6 +11,7 @@
 
 extern "C" {
 int zn_console_audio_output(void);                    // the HAL's: 1 when it plays the mix
+const char* zn_console_audio_backend(void);           // the HAL's (optional): the name zinc:audio backend() gives
 int zn_console_audio_rate(void);                      // the mixer's frames per second once a program made a sound, else 0 (the HAL opens its output then)
 void zn_console_audio_render(int16_t* lr, int frames);   // the next frames of the mix, stereo interleaved
 }

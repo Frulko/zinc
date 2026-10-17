@@ -176,7 +176,7 @@ int loadWav(const uint8_t* d, size_t n) {
 ZnStr zs(const char* s) { return ZnStr{s, static_cast<uint32_t>(std::strlen(s))}; }
 ZnView dview() { return ZnView{outD.data(), static_cast<uint32_t>(outD.size())}; }
 #define FN(name) int32_t name(void*, ZnCtx*, const ZnVal* a, ZnVal* r)
-FN(fBackend) { (void)a; r->s = zs(zn_console_audio_rate() ? ZN_CONSOLE_AUDIO_NAME : "null"); return ZN_OK; }
+FN(fBackend) { (void)a; r->s = zs(zn_console_audio_rate() ? zn_console_audio_backend() : "null"); return ZN_OK; }
 FN(fLoad) { r->i = a[0].v.n ? loadWav(static_cast<const uint8_t*>(a[0].v.p), a[0].v.n) : fail("the file is empty"); return ZN_OK; }
 FN(fTone) { r->i = tone(a[0].i, a[1].d, a[2].d); return ZN_OK; }
 FN(fError) { (void)a; r->s = zs(errMsg); return ZN_OK; }
@@ -291,7 +291,8 @@ const ZnExport kExports[] = {
 extern "C" const ZnModule zn_console_audio_module;
 extern "C" {
 const ZnModule zn_console_audio_module = {ZN_ABI_VERSION, sizeof(ZnModule), "Audio", kExports, sizeof kExports / sizeof kExports[0], nullptr, 0, 0, nullptr, nullptr, nullptr};
-__attribute__((weak)) int zn_console_audio_output(void) { return 0; }   // the HAL: 1 when it plays the mix (it then calls zn_console_audio_render)
+__attribute__((weak)) int zn_console_audio_output(void) { return 0; }
+__attribute__((weak)) const char* zn_console_audio_backend(void) { return ZN_CONSOLE_AUDIO_NAME; }   // the HAL's output, when it picks one at run time   // the HAL: 1 when it plays the mix (it then calls zn_console_audio_render)
 int zn_console_audio_rate(void) { return started && zn_console_audio_output() ? kRate : 0; }
 void zn_console_audio_render(int16_t* lr, int frames) {
   mixInto(frames);

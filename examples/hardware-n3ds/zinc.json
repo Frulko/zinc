@@ -1,0 +1,9 @@
+{
+  "name": "hardware-n3ds",
+  "entry": "src/main.ts",
+  "assets": "assets",
+  "targets": {
+    "macos": { "width": 400, "height": 240 },
+    "linux": { "width": 400, "height": 240 }
+  }
+}

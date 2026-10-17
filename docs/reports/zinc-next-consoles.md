@@ -116,3 +116,28 @@ Buttons (LEFT, CROSS and R held), the analog nub, the sound (sceAudio at 44.1 kH
 | Vibration, touch, motion, microphone | none on a PSP: said on screen | |
 
 Controls in PPSSPP: its own keyboard or gamepad mapping (Settings, Controls); the nub is a gamepad's left stick there.
+
+### Nintendo 3DS (Azahar 2126.2, New 3DS)
+
+Top screen: buttons (B, UP and L held), the circle pad and the C-stick, the 3D screen's left and right eyes (the 3D slider at 80 %: the ball
+comes out of the screen, the stars go in), motion, the microphone, the sound (CSND), the screen (30 sprites at 59.8 fps), the system:
+
+![the 3DS hardware demo, top screen](../img/consoles/n3ds-hardware.png)
+
+The bottom screen is the program's zinc:gfx window: the screens' names to tap and a pad to draw on with the stylus:
+
+![the 3DS hardware demo, bottom screen](../img/consoles/n3ds-hardware-bottom.png)
+
+| Part | Live | Note |
+|---|---|---|
+| A B X Y, d-pad, L R, START SELECT; ZL ZR | yes; ZL and ZR as the triggers (New 3DS) | an Old 3DS says it has none |
+| Circle pad, C-stick | the left and right sticks; the C-stick through ir:rst on a New 3DS | |
+| Bottom screen, touch | the first `openWindow` (320x240) is the bottom screen; the stylus is its pointer and touch point | |
+| Stereoscopic 3D | `setStereo(true)`: with the slider up the frames alternate, the left eye to GFX_LEFT with no swap, the right to GFX_RIGHT, both shown at the vblank (gfxSet3D) | Azahar's slider is its own setting (left at 0 here); the shots force it with `--env ZINC_3D_SLIDER=0.8` and the HAL's right-eye shot |
+| Accelerometer, gyroscope | HID's sensors, about 512 a g, the gyro through its raw-to-°/s coefficient | Azahar: gravity on z at rest; its motion comes from a right-mouse drag or a gamepad |
+| Microphone | MIC service, 16 kHz PCM, the RMS of the last 1/30 s | Azahar's input was off (exact silence): said on screen |
+| Sound | zinc:audio at 22050 Hz: ndsp with the DSP firmware (`sdmc:/3ds/dspfirm.cdc`), else one looping CSND buffer written ahead by the clock | Azahar's SD card has no firmware: CSND, shown as the output's name |
+| Screen | 400x240 at 59.8 fps with 30 sprites: work 2.4 ms, present 5.9 ms (p50, Azahar's estimate of an Old 3DS's 268 MHz) | |
+| Battery, Wi-Fi, clock | ptm (five steps; mcu::HWC's percentage when it agrees), the adapter; ac:u's Wi-Fi status and SSID | Azahar: 100 %, charging, connected |
+| Saving | zinc:storage in the working directory (`sdmc:/`) | |
+| Vibration | none in a 3DS: said on screen | |

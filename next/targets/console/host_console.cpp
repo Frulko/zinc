@@ -181,7 +181,7 @@ void call(int id, const HostArg* a, HostArg* r) {
       const char* d = hal_device(q.c_str(), str(a[1]).c_str());
       std::string where = d ? d : q == "storage" ? storagePath() : "";
       char cwd[256];   // a relative place is the working directory's (the PSP's game folder)
-      if (!d && q == "storage" && where.find(':') == std::string::npos && where[0] != '/' && getcwd(cwd, sizeof cwd)) where = std::string(cwd) + "/" + where;
+      if (!d && q == "storage" && where.find(':') == std::string::npos && where[0] != '/' && getcwd(cwd, sizeof cwd)) where = std::string(cwd) + (cwd[0] && cwd[std::strlen(cwd) - 1] == '/' ? "" : "/") + where;
       ret(r, where);
       break;
     }
