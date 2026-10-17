@@ -384,12 +384,15 @@ extern "C" void zn_hal_sdl_event(const void* e) {
   std::lock_guard<std::mutex> g(app_ev_mu);
   if (app_ev_n < 256) app_ev[(app_ev_head + app_ev_n++) % 256] = *(const SDL_Event*)e;
 }
+// an app shell on SDL's main callbacks pumps between frames, never inside one (src/app/shell_sdl.cpp: Android's pump blocks once it has paused the app)
+static bool no_pump;
+extern "C" void zn_hal_sdl_no_pump(int on) { no_pump = on != 0; }
 static bool next_event(SDL_Event* e) {
   {
     std::lock_guard<std::mutex> g(app_ev_mu);
     if (app_ev_n > 0) { *e = app_ev[app_ev_head]; app_ev_head = (app_ev_head + 1) % 256; app_ev_n--; return true; }
   }
-  if (in_watch) return SDL_PeepEvents(e, 1, SDL_GETEVENT, SDL_EVENT_FIRST, SDL_EVENT_LAST) > 0;   // inside AppKit's loop: what it queued, no pump
+  if (in_watch || no_pump) return SDL_PeepEvents(e, 1, SDL_GETEVENT, SDL_EVENT_FIRST, SDL_EVENT_LAST) > 0;   // inside AppKit's loop: what it queued, no pump
   return SDL_PollEvent(e);
 }
 

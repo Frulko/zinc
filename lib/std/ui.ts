@@ -1882,7 +1882,9 @@ export function safeArea(): number[] { return [safeT, safeR, safeB, safeL]; }
 // predictive back) and a ZINC_INPUT script (`safearea 47 0 34 0`, `theme dark`, `fontscale 1.3`, `back`, `keyboard 336`...)
 /** The OS's look: 'android', 'ios' or 'desktop', from platform() (ZINC_PLATFORM forces it): scroll physics, transitions, selection handles. */
 export function platformStyle(): string { const p = platform(); return p === 'android' ? 'android' : p === 'ios' ? 'ios' : 'desktop'; }
-let fontScale: number = 1, reduceMotion = false;
+let fontScale: number = 1, reduceMotion = false, appActive = true;
+/** 'active', or 'background' between the OS's `background` and `foreground` signals (home, another app, the screen locked): nothing is drawn then. */
+export function appState(): string { return appActive ? 'active' : 'background'; }
 const signalFns: ((kind: string, arg: string) => void)[] = [];
 const backFns: (() => boolean)[] = [];
 /** The OS's text size setting (Dynamic Type, Android's font size): 1 by default. rem lengths, text classes and fontSize scale with it. */
@@ -1897,7 +1899,7 @@ export function setFontScale(k: number): void {
   setRootFontSize(base * k);
 }
 /** f(kind, args) after zinc:ui applied each signal: 'safearea', 'theme', 'fontscale', 'reducemotion', 'keyboard', 'back', 'backstart', 'backprogress',
- *  'backcancel', 'orientation', the input connection's 'compose', 'commit', 'imedelete', 'imeselect', 'imeaction', and the screen reader's 'a11y'
+ *  'backcancel', 'orientation', 'background', 'foreground', the input connection's 'compose', 'commit', 'imedelete', 'imeselect', 'imeaction', and the screen reader's 'a11y'
  *  (0 or 1: one listens), 'a11yactivate' and 'a11yfocus' (a node id), 'a11yscroll' (a node id and 1 or -1). */
 export function addSignalListener(f: (kind: string, arg: string) => void): void { signalFns.push(f); }
 export function removeSignalListener(f: (kind: string, arg: string) => void): void { const i = signalFns.indexOf(f); if (i >= 0) signalFns.splice(i, 1); }
@@ -1917,6 +1919,7 @@ export function systemSignal(line: string): void {
   else if (kind === 'theme') setSystemScheme(arg === 'dark' ? 'dark' : 'light');
   else if (kind === 'fontscale') setFontScale(parseFloat(arg));
   else if (kind === 'reducemotion') reduceMotion = arg === '1' || arg === 'true';
+  else if (kind === 'background' || kind === 'foreground') appActive = kind === 'foreground';
   else if (kind === 'keyboard') setKeyboardInset(Math.max(0, parseFloat(arg)));
   else if (kind === 'compose') composeText(arg);
   else if (kind === 'commit') { if (focus >= 0) typeInto(focus, arg); }
@@ -5456,6 +5459,7 @@ export function frame(dt: number, background: i32): void {
   if (prof) profMark(PROF_LAYOUT);
   if (signalCount() > 0) systemSignals();   // what the OS says (safe area, theme, back...), test hooks or not
   if (inspectAt >= 0 && gfxFrame() === inspectAt) console.log(inspect());
+  if (!appActive) { keep(); return; }   // in the background: the listeners heard it (state saved), nothing is drawn until the foreground
   const typing = focus >= 0 && nodes[focus].ed !== null;  // gamepad-style navigation is off while typing
   if (!synthetic) inputFrame();
   if (first) stepScroll(dt);

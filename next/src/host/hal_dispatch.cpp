@@ -58,7 +58,9 @@ static void hold() {
 //   keyboard HEIGHT (0 hidden) | back | backstart EDGE | backprogress P | backcancel | orientation portrait|landscape | compose "TEXT" | commit "TEXT" |
 //   imedelete BEFORE AFTER | imeselect START END | imeaction NAME (an input connection's calls on the focused field) |
 //   a11y 0|1 (a screen reader listens) | a11yactivate ID | a11yfocus ID | a11yscroll ID 1|-1 (it pressed, moved to or scrolled a node of
-//   zinc:ui's tree, ZN-630)
+//   zinc:ui's tree, ZN-630) | background | foreground (home and return: zinc:ui stops drawing between them) | safe-area T R B L (safearea's other
+//   spelling) | rotate (the headless surface turns a quarter: its width and height swap, a resize, and the orientation signal follows; the safe
+//   area of the new side is the script's next safe-area line, as the OS sends it)
 // The events reach zinc:gfx exactly as a window's would (pointer position and buttons, button events, keys, typed text, wheel, touch points:
 // the first finger is also the pointer, as on a touch screen).
 // The system's signals (docs/ui.md, "System signals"): one line each, `kind args`, queued by the window HAL (SDL events: theme, safe area, the
@@ -84,7 +86,7 @@ extern "C" const char* zn_hal_text_traits(void) { return textTraits.c_str(); }
 // the phone's glue sets it when the app starts (src/app/android_glue.cpp, src/app/ios_glue.mm); null on a desktop
 extern "C" { const char* (*zn_mobile_command)(const char* q, const char* a) = nullptr; }
 static bool isSignal(const std::string& k) {
-  static const char* kinds[] = {"safearea", "theme", "fontscale", "reducemotion", "keyboard", "back", "backstart", "backprogress", "backcancel", "orientation", "compose", "commit", "imedelete", "imeselect", "imeaction", "a11y", "a11yactivate", "a11yfocus", "a11yscroll"};
+  static const char* kinds[] = {"safearea", "theme", "fontscale", "reducemotion", "keyboard", "back", "backstart", "backprogress", "backcancel", "orientation", "background", "foreground", "compose", "commit", "imedelete", "imeselect", "imeaction", "a11y", "a11yactivate", "a11yfocus", "a11yscroll"};
   for (const char* x : kinds) if (k == x) return true;
   return false;
 }
@@ -94,6 +96,8 @@ struct Event { int frame; std::string kind, a, b, c; };
 std::vector<Event> script;
 bool scriptRead = false;
 int pollNo = 0;
+bool turned = false;   // a script's rotate: the headless surface's width and height are swapped
+void nullSize(int* w, int* h) { null_hal_surface_size(w, h); if (turned) { const int t = *w; *w = *h; *h = t; } }
 float curX = 0, curY = 0;
 uint32_t heldButtons = 0, heldPad = 0;
 HalGamepad heldGamepad[HAL_MAX_GAMEPADS];   // the scripted gamepads (ZN-574)
@@ -110,7 +114,7 @@ void readScript() {
     int frame = 0, used = 0;
     char kind[32] = {0};
     if (sscanf(line, "%d %31s%n", &frame, kind, &used) < 2) continue;
-    Event e{frame, kind, "", "", ""};
+    Event e{frame, strcmp(kind, "safe-area") == 0 ? "safearea" : kind, "", "", ""};
     const char* rest = line + used;
     while (*rest == ' ' || *rest == '\t') rest++;
     if ((e.kind == "text" || e.kind == "compose" || e.kind == "commit") && *rest == '"') {   // text "two words": the whole string, with \" and \\ (ZN-688)
@@ -199,6 +203,12 @@ void applyScript(HalInput* in) {
     if (e.kind == "window") { target = atoi(e.a.c_str()); continue; }
     if (isSignal(e.kind)) { zn_hal_signal((e.kind + (e.a.empty() ? "" : " " + e.a)).c_str()); continue; }
     if (e.kind == "close") { nullClose(target); continue; }
+    if (e.kind == "rotate" && live) {   // a phone: the app asks the OS to turn the screen (zinc:sys orientation, the glue of src/app)
+      int w, h; hal_surface_size(&w, &h);
+      if (zn_mobile_command) zn_mobile_command("orientation", w > h ? "portrait" : "landscape");
+      continue;
+    }
+    if (e.kind == "rotate") { turned = !turned; int w, h; nullSize(&w, &h); zn_hal_signal(w > h ? "orientation landscape" : "orientation portrait"); continue; }
     if (target != 0) { if (NullWin* w = nullWin(target)) applyEvent(e, &w->in, w->x, w->y, w->held); continue; }
     if (e.kind == "pad" || e.kind == "padup") {
       static const char* names[] = {"Up", "Down", "Left", "Right", "A", "B", "X", "Y", "L", "R", "Start", "Select"};
@@ -291,7 +301,7 @@ void hal_frame_end(void) { if (live) sdl_hal_frame_end(); else null_hal_frame_en
 static bool windowScript() { static const bool on = [] { const char* p = getenv("ZINC_INPUT"); return p && *p; }(); return on; }
 void hal_poll_input(HalInput* in) { if (live) { sdl_hal_poll_input(in); if (windowScript()) applyScript(in); } else { null_hal_poll_input(in); applyScript(in); } }
 void hal_present(const HalFrame* f) { if (holdUntil) hold(); if (live) sdl_hal_present(f); else null_hal_present(f); }
-void hal_surface_size(int* w, int* h) { if (live) sdl_hal_surface_size(w, h); else null_hal_surface_size(w, h); }
+void hal_surface_size(int* w, int* h) { if (live) sdl_hal_surface_size(w, h); else nullSize(w, h); }
 double hal_fixed_dt(void) { return live ? sdl_hal_fixed_dt() : driven() ? 0 : null_hal_fixed_dt(); }
 void hal_text_input(int32_t on, float x, float y, float w, float h) { if (live) sdl_hal_text_input(on, x, y, w, h); }
 static std::string privateClipboard;
@@ -316,7 +326,7 @@ void hal_frame_begin(void) { null_hal_frame_begin(); }
 void hal_frame_end(void) { null_hal_frame_end(); }
 void hal_poll_input(HalInput* in) { null_hal_poll_input(in); applyScript(in); }
 void hal_present(const HalFrame* f) { null_hal_present(f); }
-void hal_surface_size(int* w, int* h) { null_hal_surface_size(w, h); }
+void hal_surface_size(int* w, int* h) { nullSize(w, h); }
 double hal_fixed_dt(void) { return driven() ? 0 : null_hal_fixed_dt(); }
 void hal_text_input(int32_t, float, float, float, float) {}
 static std::string privateClipboard;

@@ -222,7 +222,10 @@ static void phone_setup() {
 }
 #endif
 
-static bool paused;
+static bool paused, flush;
+extern "C" void zn_hal_signal(const char* line);   // src/host/hal_dispatch.cpp
+extern "C" void zn_hal_sdl_no_pump(int on);         // targets/macos/hal_sdl.cpp
+extern "C" int zn_hal_signal_count(void);
 
 #if defined(__ANDROID__) || (defined(__APPLE__) && TARGET_OS_IPHONE)
 extern "C" void zn_mobile_glue_init(void);   // src/app/android_glue.cpp, src/app/ios_glue.mm: the system signals and commands of a phone
@@ -239,6 +242,7 @@ SDL_AppResult SDL_AppInit(void**, int argc, char** argv) {
 #if defined(__ANDROID__) || (defined(__APPLE__) && TARGET_OS_IPHONE)
   zn_mobile_glue_init();
 #endif
+  zn_hal_sdl_no_pump(1);   // SDL's loop pumps the events before each frame (the lifecycle above)
 #if defined(__APPLE__) && TARGET_OS_IPHONE
 #ifdef ZN_APP_LIFECYCLE
   zn_mobile_lifecycle(ZN_APP_LIFECYCLE);
@@ -250,16 +254,36 @@ SDL_AppResult SDL_AppInit(void**, int argc, char** argv) {
   return rc == 0 ? SDL_APP_CONTINUE : rc == 1 ? SDL_APP_SUCCESS : SDL_APP_FAILURE;
 }
 
+// The program hears the background signal before the app stops (zinc:ui appState, React Native's AppState: the moment to save), in frames that
+// draw nothing (zinc:ui keeps the last one). SDL's Android pump blocks as soon as it has handled the pause, inside the pump that delivered it
+// (SDL_androidevents.c GetLifecycleEventTimeout): only code run from the event itself runs before the foreground. So the frames run from the
+// event, and only SDL's loop pumps (between frames, SDL_IterateMainCallbacks): the window HAL takes what is queued (zn_hal_sdl_no_pump, set at
+// start) and the event never comes from inside a frame, which could not be entered again. iOS gives an app seconds.
+static bool in_iterate;
+static int iterate() { in_iterate = true; const int rc = zn_app_iterate(); in_iterate = false; return rc; }
+static int flush_background() {
+  int rc = 0;
+  for (int k = 0; flush && rc == 0 && k < 8 && zn_hal_signal_count() > 0; k++) rc = iterate();
+  flush = false;
+  return rc;
+}
 SDL_AppResult SDL_AppIterate(void*) {
-  if (paused) { SDL_Delay(50); return SDL_APP_CONTINUE; }
-  const int rc = zn_app_iterate();
+  if (paused && !flush) { SDL_Delay(50); return SDL_APP_CONTINUE; }
+  int rc = iterate();
+  if (flush && rc == 0) rc = flush_background();
   return rc == 0 ? SDL_APP_CONTINUE : rc == 1 ? SDL_APP_SUCCESS : SDL_APP_FAILURE;
 }
 
 SDL_AppResult SDL_AppEvent(void*, SDL_Event* e) {
-  // ponytail: lifecycle stops the stepping only; zinc:app onPause/onResume and the GPU rebuild after a lost surface are ZN-625
-  if (e->type == SDL_EVENT_WILL_ENTER_BACKGROUND || e->type == SDL_EVENT_DID_ENTER_BACKGROUND) paused = true;
-  if (e->type == SDL_EVENT_DID_ENTER_FOREGROUND) paused = false;
+  // the lifecycle (SDL dispatches it at once, on the main thread): the program hears background and foreground as signals (src/host/hal_dispatch.cpp)
+  // and stops drawing between them; the surface comes back with the foreground (Android: SDL restores the EGL context, the window buffer is set
+  // up again by its first present)
+  if (e->type == SDL_EVENT_WILL_ENTER_BACKGROUND && !paused) {
+    paused = flush = true;
+    zn_hal_signal("background");
+    if (!in_iterate && flush_background() != 0) return SDL_APP_SUCCESS;
+  }
+  if (e->type == SDL_EVENT_DID_ENTER_FOREGROUND && paused) { paused = false; zn_hal_signal("foreground"); }
   if (e->type == SDL_EVENT_TERMINATING) return SDL_APP_SUCCESS;
 #if defined(__APPLE__) && TARGET_OS_IPHONE
   // UIKit's openURL reaches SDL's delegate, which sends the URL as a dropped file: the plugins' subscribers hear it as a deep link (the program

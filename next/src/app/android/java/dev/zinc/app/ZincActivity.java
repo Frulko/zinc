@@ -30,7 +30,7 @@ import org.libsdl.app.ZincEdit;
  * scale, reduce motion, the keyboard's height, the predictive back gesture, the screen reader's actions; from it: zincCommand(query, arg) (zinc:sys
  * device(), through src/app/android_glue.cpp): haptics, the status bar, the system's back, the text input connection's state and the keyboard's
  * traits, zinc:ui's accessibility tree (ZincAccessibility).
- * Unproven on a device (written 2026-10-16 without one in the loop): the cross-platform pass checks it (next/backlog/later.md).
+ * Run on the API 37 emulator (ZN-625: docs/reports/zinc-next-android.md); a real phone is the cross-platform pass (next/backlog/later.md).
  */
 public class ZincActivity extends SDLActivity {
     /** The SDL_SendAndroidMessage command of the window's brightness (include/zn/app.h ZN_APP_ANDROID_BRIGHTNESS). */
@@ -55,6 +55,12 @@ public class ZincActivity extends SDLActivity {
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         self = this;
+        // the program draws under the status and navigation bars (Android 15 makes every app edge-to-edge) and pads by the safe area; SDL's
+        // legacy theme would paint them black over it (ZN-625)
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
+        getWindow().setStatusBarColor(Color.TRANSPARENT);
+        getWindow().setNavigationBarColor(Color.TRANSPARENT);
+        if (Build.VERSION.SDK_INT >= 29) getWindow().setNavigationBarContrastEnforced(false);
         nativeInit();
         sendConfiguration(getResources().getConfiguration());
         ZincEdit.install(this);
@@ -138,6 +144,7 @@ public class ZincActivity extends SDLActivity {
     }
 
     void sendConfiguration(Configuration c) {
+        if (!barStyled) barIcons(c);
         nativeSignal("fontscale " + c.fontScale);
         sendReduceMotion();
     }
@@ -222,6 +229,10 @@ public class ZincActivity extends SDLActivity {
             case "keyboard-traits": ZincEdit.traits(a); break;
             case "a11y": ZincAccessibility.apply(a); break;
             case "performance": programFast = a.equals("1"); sustain(); break;
+            case "orientation":   // screen.orientation.lock, a script's rotate
+                setRequestedOrientation(a.startsWith("portrait") ? android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                    : a.startsWith("landscape") ? android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE : android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
+                break;
             default: break;
         }
     }
@@ -252,17 +263,28 @@ public class ZincActivity extends SDLActivity {
         v.performHapticFeedback(k);
     }
 
+    private boolean barStyled;   // the program chose the bar's icons (StatusBar barStyle): the theme no longer does
+    /** The bars' icons dark on a light theme, light on a dark one, as a DayNight app's (the program draws under the bars, edge-to-edge). */
+    void barIcons(Configuration c) {
+        if (Build.VERSION.SDK_INT < 30 || getWindow().getInsetsController() == null) return;
+        boolean night = (c.uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+        int light = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS;
+        getWindow().getInsetsController().setSystemBarsAppearance(night ? 0 : light, light);
+    }
+
     /** STYLE HIDDEN COLOR TRANSLUCENT, as zinc:react-native StatusBar sends it. ponytail: translucent is the edge-to-edge window's own state. */
     void statusBar(String[] p) {
         Window w = getWindow();
         View d = w.getDecorView();
         boolean hidden = p.length > 1 && p[1].equals("1");
         boolean darkIcons = p.length > 0 && p[0].equals("dark-content");
+        barStyled = p.length > 0 && !p[0].equals("default");
+        if (!barStyled) barIcons(getResources().getConfiguration());
         if (Build.VERSION.SDK_INT >= 30) {
             WindowInsetsController c = w.getInsetsController();
             if (c != null) {
                 if (hidden) c.hide(WindowInsets.Type.statusBars()); else c.show(WindowInsets.Type.statusBars());
-                c.setSystemBarsAppearance(darkIcons ? WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS : 0, WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS);
+                if (barStyled) c.setSystemBarsAppearance(darkIcons ? WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS : 0, WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS);
             }
         } else {
             int f = d.getSystemUiVisibility();

@@ -286,12 +286,12 @@ std::string osVersion() {
 }
 // What a program asks of a phone's system UI: haptics (zinc:ui/haptics), the status bar (StatusBar), the system's back (BackHandler.exitApp),
 // the text input connection (zinc:ui's fields, ZN-626), steady clocks (zinc:webos setPerformance: Android's sustained performance mode, "0"
-// where the device has none, ZN-750), the screen reader's tree (zinc:ui's changes, ZN-630). The Android activity (src/app/android, through JNI) or the iOS glue (src/app/ios_glue.mm) does it; a
+// where the device has none, ZN-750), the screen reader's tree (zinc:ui's changes, ZN-630), the screen's orientation (screen.orientation.lock, a script's rotate on a phone). The Android activity (src/app/android, through JNI) or the iOS glue (src/app/ios_glue.mm) does it; a
 // desktop does nothing and answers "0". ZINC_DEVICE_LOG=file appends each call as `query arg` (the tests read it).
 extern "C" const char* (*zn_mobile_command)(const char* q, const char* a);   // hal_dispatch.cpp, set by the phone's glue
 extern "C" void zn_hal_set_text_traits(const char* t);
 bool mobileCommand(const std::string& q, const std::string& a, std::string& out) {
-  if (q != "haptic" && q != "statusbar" && q != "exitapp" && q != "textinput" && q != "keyboard-traits" && q != "performance" && q != "a11y") return false;
+  if (q != "haptic" && q != "statusbar" && q != "exitapp" && q != "textinput" && q != "keyboard-traits" && q != "performance" && q != "a11y" && q != "orientation") return false;
   if (const char* log = getenv("ZINC_DEVICE_LOG"); log && *log) if (FILE* f = fopen(log, "a")) { fprintf(f, "%s %s\n", q.c_str(), a.c_str()); fclose(f); }
   if (q == "keyboard-traits") zn_hal_set_text_traits(a.c_str());   // the window HAL starts the text input with them (hal_dispatch.cpp)
   const char* r = zn_mobile_command ? zn_mobile_command(q.c_str(), a.c_str()) : nullptr;

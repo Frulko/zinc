@@ -84,6 +84,7 @@ extern "C" int zn_app_iterate(void) {
   if (!gApp || gApp->over) return 1;
   zn::rt::Machine& m = *gApp->m;
   if (!m.exec(&m.funcs[gApp->step], m.stack)) { gApp->res.ok = false; gApp->res.error = m.error; return zn::rt::appFinish() ? -1 : 1; }
+  if (m.outLive && !m.out->empty()) m.flushOut();   // the frame's lines reach the log now (a frame before the background has no next one soon)
   if (m.stack[0] != 0) return 0;   // __appStep returned true: more to run
   return zn::rt::appFinish() ? -1 : 1;
 }

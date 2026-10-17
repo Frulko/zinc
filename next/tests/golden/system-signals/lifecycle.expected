@@ -1,0 +1,12 @@
+safearea 24 0 20 0 -> safe 24,0,20,0
+AppState background (now background)
+AppState active (now active)
+Dimensions 240x180
+orientation landscape -> safe 24,0,20,0
+safearea 0 24 12 24 -> safe 0,24,12,24
+frame 2 180x240 9de16ebbdc0a4ab0
+frame 3 180x240 29b695d471d2768b
+frame 4 180x240 29b695d471d2768b
+frame 5 180x240 29b695d471d2768b
+frame 6 180x240 bcf88ce0cbf55156
+frame 8 240x180 aa199f50e39dd411

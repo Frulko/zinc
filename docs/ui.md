@@ -396,11 +396,15 @@ What a phone's OS tells an app reaches zinc:ui as **signals**, one line each, `k
 | `back` | Android back key (SDL, trapped) and `OnBackInvokedCallback` | the back handlers (`ui.addBackHandler`, React Native's `BackHandler`), newest first; none takes it: the app goes back to the system |
 | `backstart left\|right`, `backprogress P`, `backcancel` | Android 14 predictive back (`OnBackAnimationCallback`) | the navigation stack's predictive back |
 | `orientation portrait\|landscape` | SDL | listeners only (rotation is a resize) |
+| `background`, `foreground` | SDL's lifecycle (home, another app, the screen locked; the return) | `ui.appState()`: nothing is drawn in between; listeners hear `background` before the app stops (the moment to save; React Native's `AppState`) |
 | `compose TEXT`, `commit TEXT`, `imedelete B A`, `imeselect S E`, `imeaction NAME` | SDL `SDL_EVENT_TEXT_EDITING`, the text input connection | see "Text input on phones" |
 | `a11y 0\|1`, `a11yactivate ID`, `a11yfocus ID`, `a11yscroll ID 1\|-1` | VoiceOver, TalkBack and the other accessibility clients | see "Screen readers" |
 
 `ui.addSignalListener((kind, args) => ...)` sees each one after zinc:ui applied it; `ui.systemSignal(line)` sends one. A test sends them
-with a `ZINC_INPUT` script, `<frame> safearea 47 0 34 0`, `<frame> theme dark`, `<frame> back` (`tests/t0/system_signals.sh`).
+with a `ZINC_INPUT` script, `<frame> safearea 47 0 34 0` (or `safe-area`), `<frame> theme dark`, `<frame> back`, `<frame> background`, and `<frame> rotate`,
+which turns a headless surface a quarter (a resize and the orientation signal) and asks a phone's OS to turn the screen (`tests/t0/system_signals.sh`).
+On a phone the program draws under the status and navigation bars (edge-to-edge): it pads by the safe area (`SafeAreaView`, `useSafeAreaInsets`,
+`env(safe-area-inset-*)`); the safe area is what the bars, the notch and the cutout cover, not the gesture zones.
 
 The other way, the program asks the OS through zinc:sys `device()`: `haptic` (zinc:haptics `Haptics.impact('light')`, `selection()`,
 `notification('error')`; React Native's `Vibration`), `statusbar` (React Native's `StatusBar`), `exitapp`, `keyboard-traits` and `textinput`

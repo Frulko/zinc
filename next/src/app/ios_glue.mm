@@ -3,7 +3,7 @@
 // (UIFeedbackGenerator), the status bar, and the text input connection: ZincTextInput, a UITextInput client that mirrors the focused zinc:ui field
 // (text, selection, marked text) so the keyboard's suggestions, autocorrect, dictation and the Japanese and Chinese IMEs see the field. The theme
 // and the safe area come from SDL (targets/macos/hal_sdl.cpp). Compiled into zn_app on iOS only; the shell calls zn_mobile_glue_init.
-// Unproven on a device or the simulator (written 2026-10-16 without either): next/backlog/later.md, cross-platform pass.
+// Run on the iOS 26 simulator (ZN-625: docs/reports/zinc-next-ios.md); a phone and a real IME are the cross-platform pass.
 #include <TargetConditionals.h>
 #if TARGET_OS_IPHONE
 #import <UIKit/UIKit.h>
@@ -224,6 +224,14 @@ static void run(const std::string& q, const std::string& a) {
     if (nl == std::string::npos || sscanf(a.c_str(), "%ld %ld %ld %ld", &c, &an, &ca, &cb) != 4) return;
     [input syncText:[NSString stringWithUTF8String:a.c_str() + nl + 1] ?: @"" caret:c anchor:an compA:ca compB:cb];
   } else if (q == "a11y") zn_ios_a11y_apply(a.c_str());
+  else if (q == "orientation") {   // screen.orientation.lock, a script's rotate: the scene turns (iOS 16), within the orientations of Info.plist
+    UIWindow* w = keyWindow();
+    const UIInterfaceOrientationMask m = a.rfind("portrait", 0) == 0 ? UIInterfaceOrientationMaskPortrait : a.rfind("landscape", 0) == 0 ? UIInterfaceOrientationMaskLandscape : UIInterfaceOrientationMaskAll;
+    if (@available(iOS 16.0, *)) {
+      [w.rootViewController setNeedsUpdateOfSupportedInterfaceOrientations];
+      [w.windowScene requestGeometryUpdateWithPreferences:[[UIWindowSceneGeometryPreferencesIOS alloc] initWithInterfaceOrientations:m] errorHandler:^(NSError* e) { NSLog(@"zinc: orientation: %@", e.localizedDescription); }];
+    }
+  }
   // exitapp: an iOS app does not leave by itself (Apple's guidelines); nothing to do
 }
 

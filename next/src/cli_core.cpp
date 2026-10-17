@@ -1281,6 +1281,10 @@ static int exportAndroid(const ProjectInfo& p, const fs::path& out, const std::s
       replaceIn(out / "app/src/main/AndroidManifest.xml", "    <uses-feature android:glEsVersion=\"0x00020000\" />\n", "    <uses-feature android:glEsVersion=\"0x00020000\" />\n" + perms, err) &&
       // Zinc: back goes to the program's back handlers, the predictive gesture's progress too (Android 13+, ZincActivity.registerBack)
       replaceIn(out / "app/src/main/AndroidManifest.xml", "android:enableOnBackInvokedCallback=\"false\"", "android:enableOnBackInvokedCallback=\"true\"", err) &&
+      // Zinc: the safe area is what the bars and the cutout cover (react-native-safe-area-context's); SDL adds the gesture zones, which padded
+      // a portrait page by the back gesture's edges (ZN-625)
+      replaceIn(out / "app/src/main/java/org/libsdl/app/SDLSurface.java", "WindowInsets.Type.systemBars() |\n                                               WindowInsets.Type.systemGestures() |\n                                               WindowInsets.Type.mandatorySystemGestures() |\n                                               WindowInsets.Type.tappableElement() |\n",
+                "WindowInsets.Type.systemBars() |\n", err) &&
       // Zinc: the plugins' manifest fragments and Gradle dependencies (plugin.json targets.android)
       (topXml.empty() || replaceIn(out / "app/src/main/AndroidManifest.xml", "    <application android:label", topXml + "    <application android:label", err)) &&
       (appXml.empty() || replaceIn(out / "app/src/main/AndroidManifest.xml", "    </application>", appXml + "    </application>", err)) &&

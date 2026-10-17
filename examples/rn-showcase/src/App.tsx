@@ -1,7 +1,7 @@
 // The shell: a header (title, back button), the current screen, a bottom tab bar and the toast host. Only the top of the stack is mounted: a screen
 // starts fresh when it is opened again, and its timers and sockets stop when it is left (nav.ts onLeave).
 import { useState } from 'zinc:ui/react';
-import { View, Text, Pressable, StyleSheet, useColorScheme, BackHandler } from 'zinc:react-native';
+import { View, Text, Pressable, StyleSheet, useColorScheme, useSafeAreaInsets, BackHandler } from 'zinc:react-native';
 import { Icon } from 'zinc:icons';
 import { theme, SP, T_HEADING, T_TINY } from './theme';
 import { tr, language } from './i18n';
@@ -52,6 +52,7 @@ BackHandler.addEventListener('hardwareBackPress', (): boolean => { if (depth ===
 export default function App() {
   useColorScheme();   // the whole tree renders again when the scheme changes: screens read theme()
   const c = theme();
+  const inset = useSafeAreaInsets();   // a phone's status bar, notch and home indicator: the header and the tab bar reach under them, their content does not
   const [tab, setTab] = useState(startTab);
   const [stack, setStack] = useState<string[]>(startStack);
   const [, setLang] = useState(language());
@@ -63,15 +64,15 @@ export default function App() {
   const top = stack.length > 0 ? stack[stack.length - 1] : tab;
   const si = SCREENS.indexOf(top);
   const title = si >= 0 ? SCREEN_TITLES[si] : TAB_TITLES[TABS.indexOf(top)];
-  return <View style={{ flex: 1, backgroundColor: c.bg }}>
-    <View style={[s.header, { borderColor: c.line, backgroundColor: c.bg }]}>
-      {stack.length > 0 && <Pressable style={s.back} onPress={() => nav.pop()} accessibilityLabel={tr('Back')}>
+  return <View style={{ flex: 1, backgroundColor: c.bg, paddingLeft: inset.left, paddingRight: inset.right }}>
+    <View style={[s.header, { borderColor: c.line, backgroundColor: c.bg, height: 52 + inset.top, paddingTop: inset.top }]}>
+      {stack.length > 0 && <Pressable style={[s.back, { top: 10 + inset.top }]} onPress={() => nav.pop()} accessibilityLabel={tr('Back')}>
         <Icon name="chevron-left" size={22} color={() => theme().accent} /><Text style={{ color: c.accent, fontSize: 16 }}>{tr('Back')}</Text>
       </Pressable>}
       <Text style={[s.title, { color: c.ink }]}>{tr(title)}</Text>
     </View>
     <View style={{ flex: 1 }}>{renderScreen(top)}</View>
-    <View style={[s.bar, { backgroundColor: c.surface, borderColor: c.line }]} role="tablist">
+    <View style={[s.bar, { backgroundColor: c.surface, borderColor: c.line, height: 68 + inset.bottom, paddingBottom: inset.bottom }]} role="tablist">
       {TABS.map((id: string, i: number) => <Tab id={id} index={i} on={tab === id} press={(t: string) => nav.goTab(t)} />)}
     </View>
     <ToastHost />

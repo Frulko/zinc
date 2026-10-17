@@ -261,6 +261,29 @@ export class Appearance {
     return new Subscription((): void => { const i = schemeFns.indexOf(f); if (i >= 0) schemeFns.splice(i, 1); });
   }
 }
+/** react-native-safe-area-context's insets: what the status bar, a notch, the home indicator or the navigation bar cover (zinc:ui safeArea). */
+export class EdgeInsets { top: number = 0; right: number = 0; bottom: number = 0; left: number = 0; }
+function insetsNow(): EdgeInsets { const a = ui.safeArea(), e = new EdgeInsets(); e.top = a[0]; e.right = a[1]; e.bottom = a[2]; e.left = a[3]; return e; }
+/** The safe area's insets; the component renders again when they change (a rotation). ponytail: the subscription lives as long as the program, as useColorScheme's. */
+export function useSafeAreaInsets(): EdgeInsets {
+  const [e, setE] = useState<EdgeInsets>(insetsNow());
+  const subscribed = useRef<boolean>(false);
+  useEffect((): void => {
+    if (subscribed.current) return;
+    subscribed.current = true;
+    ui.addSignalListener((kind: string, arg: string): void => { if (kind === 'safearea') setE(insetsNow()); });
+  }, []);
+  return e;
+}
+/** 'active' or 'background' (zinc:ui appState: the OS's background and foreground signals); 'change' is the moment to save what must survive. */
+export class AppState {
+  static get currentState(): string { return ui.appState(); }
+  static addEventListener(type: string, f: (state: string) => void): Subscription {
+    const g = (kind: string, arg: string): void => { if (kind === 'background' || kind === 'foreground') f(ui.appState()); };
+    ui.addSignalListener(g);
+    return new Subscription((): void => ui.removeSignalListener(g));
+  }
+}
 /** 'light' or 'dark'; the component renders again when Appearance changes. */
 export function useColorScheme(): string {
   const [s, setS] = useState<string>(scheme);
