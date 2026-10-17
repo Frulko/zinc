@@ -1,6 +1,7 @@
-// PS Vita HAL (VitaSDK + newlib; the console core of next/targets/console, ZN-455/ZN-457): text through sceClibPrintf (Vita3K logs it), the process
-// clock, the pad, and the shared software rasterizer shown in one 32-bit framebuffer in CDRAM (960x544), flipped at vblank. The first, simple path:
-// band threads on the three user cores and the GXM replay come later (docs/reports/hardware/handhelds-psp-vita-3ds-iphone4s.md section 3.4).
+// PS Vita HAL (VitaSDK + newlib; the console core of next/targets/console, ZN-455/ZN-457): text through sceClibPrintf (Vita3K logs it) and into
+// ux0:data/<title id>/zinc.log (a console prints nowhere: the log is fetched over FTP), the process clock, the pad, and the frames drawn by the GPU
+// (gxm_vita.cpp: the command lists replayed with GXM at 960x544, ZN-471). ZINC_VITA_GPU=0, or a GXM that does not start, keeps the first path: the
+// shared software rasterizer copied (doubled when the surface is 480x272) into one framebuffer in CDRAM, flipped at vblank.
 #include "hal.h"
 #include "console_pad.h"
 #include "console_audio.h"
@@ -23,6 +24,7 @@
 #include <psp2/sysmodule.h>
 #include <psp2/touch.h>
 #include <psp2/appmgr.h>
+#include <psp2/io/fcntl.h>
 #include <psp2/io/stat.h>
 
 #ifndef ZINC_FRAMES
@@ -39,7 +41,57 @@ static int32_t W = kScreenW, H = kScreenH, frames = 0;
 static uint32_t* rows = nullptr;   // the software frame, 0x00RRGGBB
 static uint32_t* fb = nullptr;     // the displayed framebuffer (CDRAM), 0xAABBGGRR
 
-static void out(const char* s, size_t n) { sceClibPrintf("%.*s", (int)n, s); }
+extern "C" const char* zn_console_data_dir(void);
+// weak: the pure core (no zinc:gfx) links neither gxm_vita.cpp nor runtime/gfx.cpp
+extern "C" __attribute__((weak)) bool zn_gxm_init(int32_t w, int32_t h);   // gxm_vita.cpp
+extern "C" __attribute__((weak)) bool zn_gxm_present(const HalFrame* f);
+extern "C" __attribute__((weak)) uint64_t zn_gxm_cpu_us;
+extern "C" __attribute__((weak)) void zrt_prof_band(int32_t band, uint64_t t0, uint64_t t1);   // runtime/gfx.cpp: the raster phase of ZINC_PROFILE
+static void out(const char* s, size_t n) {
+  sceClibPrintf("%.*s", (int)n, s);
+  static FILE* log = nullptr;   // the same lines in the app's data folder, written through at once: a run that crashes keeps them
+  static bool tried = false;
+  if (!tried) {
+    tried = true;
+    char path[96];
+    snprintf(path, sizeof path, "%szinc.log", zn_console_data_dir());
+    log = fopen(path, "w");
+  }
+  if (log) { fwrite(s, 1, n, log); fflush(log); }
+}
+extern "C" void zn_vita_log(const char* line) { out(line, strlen(line)); }
+
+// The frame times the HAL sees, printed every 600 frames and at the end of a frame budget: work from the poll to the present, the present, the
+// raster (or the GPU replay's CPU time) inside it, and the whole frame (poll to poll), for the software frames and the GPU's apart
+// (ZINC_VITA_SOFT_FRAMES=N: the first N frames in software, as without GXM).
+struct Times { uint32_t work[600], present[600], raster[600], frame[600]; uint32_t n; uint64_t t0, t1; };
+static Times* times[2];   // 0 software, 1 GPU
+static uint64_t tPoll, tPresent0, tPresent1, tRaster;
+static int gpuOn = 0, softFrames = 0, lastPath = -1;
+static bool queued = false;
+static void pct(char*& at, char* end, const char* name, uint32_t* v, uint32_t n) {
+  for (uint32_t gap = n / 2; gap > 0; gap /= 2)
+    for (uint32_t i = gap; i < n; i++) for (uint32_t j = i; j >= gap && v[j - gap] > v[j]; j -= gap) { const uint32_t t = v[j]; v[j] = v[j - gap]; v[j - gap] = t; }
+  at += snprintf(at, end - at, " %s %.2f/%.2f/%.2f", name, v[(n - 1) / 2] / 1000.0, v[(n - 1) * 99 / 100] / 1000.0, v[n - 1] / 1000.0);
+}
+static void report(int k) {
+  {
+    Times* t = times[k];
+    if (!t || t->n < 2) return;
+    uint32_t late = 0;
+    for (uint32_t i = 0; i < t->n; i++) late += t->frame[i] > 17500;
+    char line[512], *at = line, *end = line + sizeof line;
+    at += snprintf(at, end - at, "vita frames (%s): %u frames, %.1f fps, %u over 17.5 ms; ms p50/p99/max:", k ? "gpu" : "software", (unsigned)t->n,
+                   t->n * 1e6 / (double)(t->t1 - t->t0), (unsigned)late);
+    pct(at, end, "work", t->work, t->n); pct(at, end, "present", t->present, t->n); pct(at, end, "raster", t->raster, t->n); pct(at, end, "frame", t->frame, t->n);
+    snprintf(at, end - at, "\n");
+    out(line, strlen(line));
+    t->n = 0; t->t0 = t->t1;
+  }
+}
+// ZINC_VITA_ONCE=1 (a measuring build for a console a person launches): the frame budget, the built-in pad session and the software frames only
+// when ux0:data/<title id>/measure exists, and that file is removed at once: the next launch plays as usual.
+static bool measuring = true;
 // The last frame of a frame budget as ux0:data/zinc-shot.ppm (Vita3K: <pref-path>/ux0/data/): Vita3K has no screenshot option to call, so the
 // shot is read back from the display: the buffer, pitch and format sceDisplay scans out (what the emulator shows), not the HAL's own frame
 static void shot() {
@@ -179,6 +231,17 @@ void hal_init(const HalConfig* cfg) {
   // the clocks a game asks for (the default ARM clock is 333 MHz): the software raster runs on the ARM (Pocket3D's Vita profile)
   scePowerSetArmClockFrequency(444); scePowerSetBusClockFrequency(222); scePowerSetGpuClockFrequency(222); scePowerSetGpuXbarClockFrequency(166);
   if (!cfg->gfx) return;
+  const char* g = getenv("ZINC_VITA_GPU");
+  const char* sf = getenv("ZINC_VITA_SOFT_FRAMES");
+  const char* once = getenv("ZINC_VITA_ONCE");
+  if (once && *once == '1') {
+    char flag[96];
+    snprintf(flag, sizeof flag, "%smeasure", zn_console_data_dir());
+    measuring = sceIoRemove(flag) >= 0;
+    zn_vita_log(measuring ? "vita: measuring run (the frame budget and the pad session are on)\n" : "vita: playing (no measure file)\n");
+  }
+  softFrames = sf && measuring ? atoi(sf) : 0;
+  gpuOn = !(g && *g == '0') && zn_gxm_init && zn_gxm_init(W, H);
   rows = (uint32_t*)memalign(64, (size_t)W * H * 4);
   const SceSize size = (kScreenW * kScreenH * 4 + 0x3FFFF) & ~0x3FFFFu;   // CDRAM blocks are 256 KiB aligned
   const SceUID block = sceKernelAllocMemBlock("zinc framebuffer", SCE_KERNEL_MEMBLOCK_TYPE_USER_CDRAM_RW, size, nullptr);
@@ -205,7 +268,7 @@ void hal_panic(const char* msg, const char* file, int line) {
   for (;;) {}
 }
 void hal_frame_begin(void) {}
-void hal_frame_end(void) { audioPump(); sceDisplayWaitVblankStart(); }
+void hal_frame_end(void) { audioPump(); if (!queued) sceDisplayWaitVblankStart(); }   // a GPU frame waits for its vblank in the display queue
 void hal_poll_input(HalInput* in) {
   static const uint32_t map[][2] = {{SCE_CTRL_UP, HAL_UP}, {SCE_CTRL_DOWN, HAL_DOWN}, {SCE_CTRL_LEFT, HAL_LEFT}, {SCE_CTRL_RIGHT, HAL_RIGHT},
     {SCE_CTRL_CROSS, HAL_A}, {SCE_CTRL_CIRCLE, HAL_B}, {SCE_CTRL_SQUARE, HAL_X}, {SCE_CTRL_TRIANGLE, HAL_Y}, {SCE_CTRL_LTRIGGER, HAL_L},
@@ -236,7 +299,7 @@ void hal_poll_input(HalInput* in) {
   for (auto& m : w3c) if (pad.buttons & m[0]) g.buttons |= 1u << m[1];
   g.axes[0] = (pad.lx - 128) / 127.0f; g.axes[1] = (pad.ly - 128) / 127.0f; g.axes[2] = (pad.rx - 128) / 127.0f; g.axes[3] = (pad.ry - 128) / 127.0f;
   g.rumble_ms = 0;
-  const uint32_t scripted = zn_console_script(frames);
+  const uint32_t scripted = measuring ? zn_console_script(frames) : 0;
   in->buttons |= scripted;
   g.buttons |= zn_console_w3c(scripted);
   // the front panel: touch points, the first one the pointer; the rear one: zinc:hardware's fingers
@@ -262,12 +325,42 @@ void hal_poll_input(HalInput* in) {
     }
   snprintf(rearJson + at, sizeof rearJson - at, "]");
   const int32_t frame = frames++;
-  in->quit = ZINC_FRAMES && frame >= ZINC_FRAMES;
-  if (in->quit && frame == ZINC_FRAMES) shot();
+  in->quit = measuring && ZINC_FRAMES && frame >= ZINC_FRAMES;
+  const uint64_t tNow = (uint64_t)sceKernelGetProcessTimeWide();
+  if (tPoll && lastPath >= 0 && tPresent1 >= tPoll) {   // the frame that ended: its path's times
+    Times*& t = times[lastPath];
+    if (!t) { t = (Times*)calloc(1, sizeof(Times)); if (t) t->t0 = tPoll; }
+    if (t && t->n < 4096) {
+      t->work[t->n] = (uint32_t)(tPresent0 - tPoll); t->present[t->n] = (uint32_t)(tPresent1 - tPresent0);
+      t->raster[t->n] = (uint32_t)tRaster; t->frame[t->n] = (uint32_t)(tNow - tPoll); t->n++; t->t1 = tNow;
+      if (t->n == 600) report(lastPath);
+    }
+  }
+  tPoll = tNow; lastPath = -1;
+  if (in->quit && frame == ZINC_FRAMES) { shot(); report(0); report(1); }
 }
 void hal_present(const HalFrame* f) {
-  if (!rows || !fb || f->y1 <= f->y0) return;
+  tPresent0 = (uint64_t)sceKernelGetProcessTimeWide();
+  queued = false; tRaster = 0;
+  if (gpuOn && frames > softFrames) {
+    queued = zn_gxm_present(f);
+    tPresent1 = (uint64_t)sceKernelGetProcessTimeWide();
+    tRaster = queued ? zn_gxm_cpu_us : 0;
+    lastPath = 1;
+    return;
+  }
+  lastPath = 0;
+  if (!rows || !fb || f->y1 <= f->y0) { tPresent1 = tPresent0; return; }
+  if (gpuOn) {   // the software frames of ZINC_VITA_SOFT_FRAMES: shown from the HAL's own buffer, as without GXM
+    SceDisplayFrameBuf d;
+    memset(&d, 0, sizeof d);
+    d.size = sizeof d; d.base = fb; d.pitch = kScreenW; d.pixelformat = SCE_DISPLAY_PIXELFORMAT_A8B8G8R8; d.width = kScreenW; d.height = kScreenH;
+    sceDisplaySetFrameBuf(&d, SCE_DISPLAY_SETBUF_NEXTFRAME);
+  }
   f->render(rows + (size_t)f->y0 * W, f->y0, f->y1);
+  const uint64_t r1 = (uint64_t)sceKernelGetProcessTimeWide();
+  tRaster = r1 - tPresent0;
+  zrt_prof_band(0, tPresent0, r1);
   // a smaller surface (zinc.json targets.vita, 480x272: the PSP's) is shown scaled by a whole factor, in the middle of the screen
   const int32_t k = kScreenW / W < kScreenH / H ? kScreenW / W : kScreenH / H, ox = (kScreenW - W * k) / 2, oy = (kScreenH - H * k) / 2;
   for (int32_t y = f->y0; y < f->y1; y++) {   // 0x00RRGGBB -> A8B8G8R8
@@ -279,6 +372,7 @@ void hal_present(const HalFrame* f) {
     }
     for (int32_t j = 1; j < k; j++) memcpy(d + (size_t)j * kScreenW, d, (size_t)W * k * 4);
   }
+  tPresent1 = (uint64_t)sceKernelGetProcessTimeWide();
 }
 void hal_surface_size(int* w, int* h) { *w = W; *h = H; }
 double hal_fixed_dt(void) { return 1.0 / 60.0; }

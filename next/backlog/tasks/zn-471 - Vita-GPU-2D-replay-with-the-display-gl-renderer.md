@@ -1,10 +1,10 @@
 ---
 id: ZN-471
 title: 'Vita: GPU 2D replay with the display-gl renderer'
-status: Backlog
+status: In Progress
 assignee: []
 created_date: '2026-10-09 07:38'
-updated_date: '2026-10-17 09:37'
+updated_date: '2026-10-17 13:35'
 labels:
   - gpu
   - handheld
@@ -34,4 +34,6 @@ Run plugins/display-gl/src/gl_renderer.cpp on the path chosen by vita-gpu-spike,
 
 <!-- SECTION:NOTES:BEGIN -->
 2026-10-17 (owner: "prends bonnes notes sur comment Pocket3D s'adapte aux hardware"): read ../docs/reports/games/pocket3d-hardware-adaptation.md before starting. Vita lessons in ZN-470's note.
+
+2026-10-17: the replay is not display-gl's gl_renderer (GLSL on vitaGL) but an own GXM replay of the command lists (ZN-470's choice, owner's request): targets/vita/gxm_vita.cpp draws CLEAR, square one-colour RECTs, IMAGEs (atlas boxes, flips, tint, alpha, nearest/linear), TEXT (baked and runtime glyph tables through a 512x512 coverage atlas, U8 as alpha over white) and rectangular CLIPs cut on the CPU; any other command makes the frame a software one (the shared rasterizer into a CDRAM texture the GPU shows, no CPU doubling). Criterion 3 (gl_renderer.cpp stays shared): untouched.
 <!-- SECTION:NOTES:END -->
