@@ -1,0 +1,27 @@
+{
+  "name": "link",
+  "kind": "module",
+  "module": "zinc:link",
+  "entry": "index.ts",
+  "description": "Two Zinc programs find each other (DNS-SD), pair once with a 6-digit code (TLS EC J-PAKE) and talk over an encrypted channel (TLS 1.3 with the paired key): JSON and bytes, reconnecting while paired; the protocol of zinc agent",
+  "requires": ["net"],
+  "targets": {
+    "macos": {
+      "sources": ["../../next/src/net/dnssd.cpp", "../../next/src/host/tls.cpp"],
+      "defines": ["ZN_TLS_NS=linktls"],
+      "flags": ["-I../../next/third_party/mbedtls/include", "-I../../next/third_party/mbedtls/tf-psa-crypto/include", "-I../../next/third_party/mbedtls/tf-psa-crypto/drivers/builtin/include"]
+    },
+    "linux": {
+      "sources": ["../../next/src/net/dnssd.cpp", "../../next/src/host/tls.cpp"],
+      "defines": ["ZN_TLS_NS=linktls"],
+      "flags": ["-I../../next/third_party/mbedtls/include", "-I../../next/third_party/mbedtls/tf-psa-crypto/include", "-I../../next/third_party/mbedtls/tf-psa-crypto/drivers/builtin/include"]
+    },
+    "android": {
+      "sources": ["../../next/src/net/dnssd.cpp", "../../next/src/host/tls.cpp", "native/android/LinkLife.java"],
+      "defines": ["ZN_TLS_NS=linktls"],
+      "flags": ["-I../../next/third_party/mbedtls/include", "-I../../next/third_party/mbedtls/tf-psa-crypto/include", "-I../../next/third_party/mbedtls/tf-psa-crypto/drivers/builtin/include"],
+      "lifecycle": "dev.zinc.plugins.link.LinkLife",
+      "manifest": { "permissions": ["INTERNET", "CHANGE_WIFI_MULTICAST_STATE"] }
+    }
+  }
+}

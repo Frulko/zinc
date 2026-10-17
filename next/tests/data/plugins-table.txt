@@ -22,6 +22,7 @@ plugin (import / display)  targets                             description
   zinc:imu                 esp32,macos,linux                  QMI8658 6-axis IMU: accel, gyro, temperature, tilt and shake (ESP32 I2C; emulated from keys/mouse elsewhere)
   zinc:ink                 macos,linux,rpi1,wasm,rmpp         Handwriting surface: pressure strokes, eraser, undo, JSON/SVG export
   zinc:leapmotion          macos                              Ultraleap hand tracking: hands, finger joints and pinch strength through LeapC, with an explicit simulator
+  zinc:link                macos,linux,android                Two Zinc programs find each other (DNS-SD), pair once with a 6-digit code (TLS EC J-PAKE) and talk over an encrypted channel (TLS 1.3 with the paired key): JSON and bytes, reconnecting while paired; the protocol of zinc agent
   zinc:loader              macos,linux,rpi1,wasm,esp32,ps2    The screens of the loader stage (zinc.json "loading"): a progress bar, the splash with a thin bar, and a zinc:ui <Loader> component
   zinc:lottie              macos,linux,android,ios,rpi1,rmpp,wasm,ps2,esp32 Lottie (Bodymovin JSON) animations rendered natively: shapes, trims, precomps, Player, <Lottie/> UI node
   zinc:map                 macos,linux,rpi1                   Interactive vector maps: Mapbox Vector Tiles, MapLibre style subset, tile cache, labels

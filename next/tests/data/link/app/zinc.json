@@ -1,0 +1,5 @@
+{
+  "name": "linktest",
+  "entry": "src/main.ts",
+  "targets": { "macos": {}, "android": {} }
+}

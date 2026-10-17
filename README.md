@@ -172,6 +172,7 @@ the guides are in [docs/plugins/](docs/plugins/). Abbreviations: Pi = Raspberry 
 | `zinc:async-storage` | React Native's AsyncStorage on `zinc:storage` | Zinc | macOS, Linux, Windows, Pi, rM, webOS, ESP32 |
 | `zinc:socket` | TCP, UDP and Unix sockets, DNS, WebSocket client and server | Native | macOS, Linux, Pi, rM |
 | `zinc:webrtc` | WebRTC (`RTCPeerConnection`): data channels, audio and video tracks (Opus, VP8, H.264 in hardware on macOS), stats, STUN/TURN (libdatachannel) | Native | macOS, Linux, Pi |
+| `zinc:link` | Two programs find each other (DNS-SD), pair once with a 6-digit code and talk over an encrypted channel (JSON and bytes, reconnecting): zinc agent's protocol | Native | macOS, Linux, Android |
 | `zinc:process` | Child processes (args, streams, kill) | Native | macOS, Linux, Pi |
 | `zinc:ffi` | C functions of shared libraries (libffi) | Native | macOS, Linux |
 | `zinc:script` | Sandboxed JavaScript at run time (QuickJS-ng) | Native | macOS, Linux, Pi, rM |
