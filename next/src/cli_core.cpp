@@ -3557,10 +3557,13 @@ int assets(const std::vector<std::string>& args, const std::string& engineRoot) 
   const char* usage = "usage: zinc assets build [dir] [--target T] [--release]\n       zinc assets info [dir] [--target T]\n       zinc assets cook <gltf> --profile <name> [-o dir]\n";
   if (args.size() < 3 || (args[2] != "build" && args[2] != "info" && args[2] != "cook")) { std::fprintf(stderr, "%s", usage); return 2; }
   if (args[2] == "cook") {
-    std::vector<std::string> rest(args.begin() + 3, args.end());
-    Opts o = parseOpts(rest, {"--profile", "-o"}, {});
-    std::string profile = o.v.count("--profile") ? o.v["--profile"] : "psp30";
-    std::string outdir = o.v.count("-o") ? o.v["-o"] : "build/cooked";
+    std::string gltf = args.size() > 3 ? args[3] : "";
+    std::string profile = (args.size() > 4 && (args[4] == "psp30" || args[4] == "vita60" || args[4] == "n3ds30" || args[4] == "ios60")) ? args[4] : "psp30";
+    (void)0;
+    std::string outdir = "build/cooked";
+    for (std::size_t i = 4; i < args.size(); ++i) {
+      if (args[i] == "-o" && i + 1 < args.size()) { outdir = args[i + 1]; ++i; }
+    }
     zn::assets::CookProfile p; p.name = profile;
     if (profile == "psp30") p.triBudget = 200000;
     else if (profile == "vita60") p.triBudget = 1000000;
@@ -3568,8 +3571,8 @@ int assets(const std::vector<std::string>& args, const std::string& engineRoot) 
     else if (profile == "ios60") p.triBudget = 500000;
     zn::assets::CookReceipt rc;
     std::string err;
-    if (!zn::assets::cook(args[3], p, outdir, rc, err)) { std::fprintf(stderr, "zinc assets cook: %s\n", err.c_str()); return 1; }
-    std::printf("cooked %s -> %s (%llu tris)\n", args[3].c_str(), outdir.c_str(), (unsigned long long)rc.triangles);
+    if (!zn::assets::cook(gltf, p, outdir, rc, err)) { std::fprintf(stderr, "zinc assets cook: %s\n", err.c_str()); return 1; }
+    std::printf("cooked %s -> %s (%llu tris)\n", gltf.c_str(), outdir.c_str(), (unsigned long long)rc.triangles);
     return 0;
   }
   std::vector<std::string> rest(args.begin() + 1, args.end());   // parseOpts reads from the third word: the one after the subcommand
