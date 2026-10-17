@@ -105,7 +105,7 @@ export function soundPage(rateLine: string): (dt: number) => void {
 /** The screen: its size, the frame rate it holds, colour bars and sprites to load it (CROSS adds 10, SQUARE takes 10 away). */
 export function screenPage(about: string): (dt: number) => void {
   const xs: number[] = [], ys: number[] = [], vx: number[] = [], vy: number[] = [];
-  let acc = 0, n = 0, fps = 0, worst = 0, worstShown = 0;
+  let acc: f64 = 0, n = 0, fps: f64 = 0, worst: f64 = 0, worstShown: f64 = 0;   // f64: the time sums of a 32-bit number went wrong on the PS2
   let last: f64 = performance.now();   // f64: a 32-bit number (the PSP's) cannot hold a time in ms
   const add = (count: i32): void => {
     for (let i = 0; i < count; i++) { const j = xs.length; xs.push(40 + (j * 37) % 400); ys.push(60 + (j * 23) % 120); vx.push(60 + (j * 13) % 90); vy.push(50 + (j * 29) % 80); }

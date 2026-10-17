@@ -161,3 +161,21 @@ Buttons (RIGHT, CROSS and R held), both sticks, front touch, rear touch, motion,
 | Cameras | `device('cameras')` opens each one | Vita3K opens none: said on screen; the picture is not shown (a later step) |
 | Battery, Wi-Fi, clock | scePower (percent, charging, the cable); SceNetCtl's state and SSID | Vita3K: 100 %, connected |
 | Saving | zinc:storage in `ux0:data/<title id>/` (app0: is read-only) | |
+
+### PlayStation 2 (PCSX2 2.8.2, the owner's BIOS, the runner's own data folder)
+
+Buttons with their pressure bars (UP, CROSS and R1 held), both sticks, the motors, the sound (audsrv on the SPU2), the memory card (saved,
+then read back from `mc0:/ZINC/storage.kv`), the screen, the system:
+
+![the PS2 hardware demo](../img/consoles/ps2-hardware.png)
+
+| Part | Live | Note |
+|---|---|---|
+| Buttons, both sticks, L3 R3, L2 R2 | gamepad 0 in W3C order (L2 R2 the triggers), the sticks once the pad is in analog mode | PCSX2's runner folder has no pad bindings: the session is scripted |
+| Pressure | libpad's pressure mode (padEnterPressMode): every button's 0 to 255 in `gamepadButtonValue` | a scripted press reads 1; PCSX2 gives pressure from an analog binding |
+| Vibration | gamepadRumble: the big motor's strength (low) and the small one (high), padSetActAlign then padSetActDirect; stopped after the asked time | PCSX2 forwards it to a host gamepad's motors |
+| Sound | zinc:audio at 48 kHz through audsrv (FREESD and audsrv linked in as IOP modules, loaded from EE memory after sbv_patch_enable_lmb) | |
+| Memory card | zinc:storage in `mc0:/ZINC/` (rom0:MCMAN and MCSERV, libmc to see the card): save, load, erase; kept across runs | the runner's fresh card was unformatted: the test build formats it (`--env ZINC_FORMAT_CARD=1`); a person's card is formatted in the PS2's browser and the demo never formats one |
+| Screen | 640x448 in a PAL 640x512 picture: 48 fps with 10 sprites, 25 fps with 30 (a full redraw each frame: work 3.6 ms, present 22.5 ms, p50; PAL is 50 Hz) | the shot's last frame shows the 1.4 s the test spends writing its picture through `host:` |
+| Clock | the console's clock (`Date`): PCSX2's reads 8 hours ahead of UTC | |
+| Battery, Wi-Fi, touch, motion | none on a PS2: said on screen | |

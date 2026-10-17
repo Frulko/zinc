@@ -20,6 +20,7 @@ chataigne/src/main.tsx | OK |  |
 flipctl/src/main.ts | OK |  | 
 gl-cube/src/main.ts | OK |  | 
 hardware-n3ds/src/main.ts | OK |  | 
+hardware-ps2/src/main.ts | OK |  | 
 hardware-psp/src/main.ts | OK |  | 
 hardware-vita/src/main.ts | OK |  | 
 hardware/src/main.ts | OK |  | 

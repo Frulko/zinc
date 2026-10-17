@@ -4,6 +4,12 @@
 #include "hal.h"
 #ifdef ZN_CONSOLE_PLATFORM
 #include "console_pad.h"   // Zinc Next's console core: the built-in pad session, the stick as the d-pad
+#include "console_audio.h"  // zinc:audio's mix (ZN-759)
+#include <string.h>
+#include <libmc.h>
+#include <sys/stat.h>
+#include <audsrv.h>
+#include <sbv_patches.h>
 #endif
 #include <stdio.h>
 #include <stdlib.h>
@@ -30,12 +36,103 @@ static bool dirty = false;
 static bool pad_ok = false;
 static char pad_buf[256] __attribute__((aligned(64)));
 
+#ifdef ZN_CONSOLE_PLATFORM
+// ZN-759: the DualShock 2 as zinc:gfx gamepad 0 (both sticks, the pressure of each button, both motors), zinc:audio through audsrv (SPU2) and
+// zinc:storage on the memory card in slot 1.
+extern "C" { extern unsigned char libsd_irx[], audsrv_irx[]; extern unsigned int size_libsd_irx, size_audsrv_irx; }   // ps2.cmake: bin2c of ps2sdk's IRX
+static int padSetup = 0;          // 0 analog mode asked next, 1 pressure mode, 2 the motors, 3 ready
+static bool motors = false, pressure = false;
+static int rumbleLeft = 0;        // frames until the motors stop
+static bool cardOk = false;
+static int cardState = 0;   // libmc: 0 no card, 1 a card not formatted, 2 formatted
+static void consolePad(int st, const padButtonStatus& b, HalInput* in) {
+  if (st == PAD_STATE_STABLE) {   // each request of libpad waits for the pad to be stable again
+    if (padSetup == 0) { if (padSetMainMode(0, 0, PAD_MMODE_DUALSHOCK, PAD_MMODE_LOCK) == 1) padSetup = 1; }
+    else if (padSetup == 1) { pressure = padInfoPressMode(0, 0) == 1 && padEnterPressMode(0, 0) == 1; padSetup = 2; }
+    else if (padSetup == 2) {
+      if (padInfoAct(0, 0, -1, 0) > 0) { const char align[6] = {0, 1, (char)0xff, (char)0xff, (char)0xff, (char)0xff}; motors = padSetActAlign(0, 0, align) == 1; }
+      padSetup = 3;
+    }
+  }
+  const bool analog = (b.mode >> 4) == 0x7;
+  if (analog) in->buttons |= zn_console_stick(b.ljoy_h, b.ljoy_v);
+  // W3C order: CROSS CIRCLE SQUARE TRIANGLE, L1 R1, L2 R2 (the triggers), SELECT START, L3 R3, the d-pad
+  static const uint16_t w3c[][2] = {{PAD_CROSS, 0}, {PAD_CIRCLE, 1}, {PAD_SQUARE, 2}, {PAD_TRIANGLE, 3}, {PAD_L1, 4}, {PAD_R1, 5}, {PAD_L2, 6}, {PAD_R2, 7},
+    {PAD_SELECT, 8}, {PAD_START, 9}, {PAD_L3, 10}, {PAD_R3, 11}, {PAD_UP, 12}, {PAD_DOWN, 13}, {PAD_LEFT, 14}, {PAD_RIGHT, 15}};
+  HalGamepad& g = in->pad[0];
+  if (g.rumble_ms > 0 && motors) {   // low: the big motor's strength, high: the small one (on or off)
+    const char act[6] = {(char)(g.rumble_high > 0.5f ? 1 : 0), (char)(g.rumble_low * 255), 0, 0, 0, 0};
+    padSetActDirect(0, 0, act);
+    rumbleLeft = g.rumble_ms * 60 / 1000 + 1;
+  } else if (rumbleLeft > 0 && --rumbleLeft == 0 && motors) { const char off[6] = {0, 0, 0, 0, 0, 0}; padSetActDirect(0, 0, off); }
+  g.connected = 1;
+  strcpy(g.name, analog ? "DualShock 2" : "PS2 pad (digital)");
+  g.buttons = 0;
+  for (auto& m : w3c) if (!(b.btns & m[0])) g.buttons |= 1u << m[1];
+  g.axes[0] = analog ? (b.ljoy_h - 128) / 127.0f : 0; g.axes[1] = analog ? (b.ljoy_v - 128) / 127.0f : 0;
+  g.axes[2] = analog ? (b.rjoy_h - 128) / 127.0f : 0; g.axes[3] = analog ? (b.rjoy_v - 128) / 127.0f : 0;
+  for (float& v : g.value) v = 0;
+  if (pressure && analog) {   // how hard each button is pressed, 0..255
+    const unsigned char p[][2] = {{b.cross_p, 0}, {b.circle_p, 1}, {b.square_p, 2}, {b.triangle_p, 3}, {b.l1_p, 4}, {b.r1_p, 5}, {b.l2_p, 6}, {b.r2_p, 7},
+      {b.up_p, 12}, {b.down_p, 13}, {b.left_p, 14}, {b.right_p, 15}};
+    for (auto& x : p) g.value[x[1]] = x[0] / 255.0f;
+  }
+  g.trigger[0] = pressure && analog ? b.l2_p / 255.0f : (g.buttons >> 6 & 1); g.trigger[1] = pressure && analog ? b.r2_p / 255.0f : (g.buttons >> 7 & 1);
+  g.rumble_ms = 0;
+}
+// sound: audsrv on the IOP (the SPU2), 48 kHz stereo, kept three blocks ahead from the end of each frame
+static void audioPump() {
+  static int state = 0;   // 0 not opened, 1 playing, -1 failed
+  static int16_t block[1024 * 2] __attribute__((aligned(64)));
+  if (!zn_console_audio_rate() || state < 0) return;
+  if (state == 0) {
+    int r = 0;
+    state = -1;
+    sbv_patch_enable_lmb();   // a retail BIOS loads IOP modules from EE memory only once patched
+    if (SifExecModuleBuffer(libsd_irx, size_libsd_irx, 0, nullptr, &r) < 0 || SifExecModuleBuffer(audsrv_irx, size_audsrv_irx, 0, nullptr, &r) < 0) return;
+    if (audsrv_init() != 0) return;
+    audsrv_fmt_t fmt = {48000, 16, 2};
+    if (audsrv_set_format(&fmt) != 0) return;
+    audsrv_set_volume(MAX_VOLUME);
+    state = 1;
+  }
+  while (audsrv_queued() < (int)sizeof block * 3 && audsrv_available() >= (int)sizeof block) {
+    zn_console_audio_render(block, 1024);
+    audsrv_play_audio((const char*)block, sizeof block);
+  }
+}
+extern "C" {
+int zn_console_audio_output(void) { return 1; }
+// the memory card in slot 1: mc0:/ZINC/, where zinc:storage keeps storage.kv (rom0:MCMAN and MCSERV, through the IOP's file system)
+const char* zn_console_data_dir(void) { return cardOk ? "mc0:/ZINC/" : ""; }
+const char* hal_device(const char* q, const char*) {
+  if (!strcmp(q, "storage")) return cardOk ? "mc0:/ZINC/storage.kv (memory card, slot 1)" : cardState == 1 ? "the memory card in slot 1 is not formatted (the PS2's browser formats it): storage.kv where the ELF runs" : "no memory card in slot 1: storage.kv where the ELF runs";
+  return nullptr;
+}
+}
+#endif
+
 extern "C" {
 void hal_init(const HalConfig* cfg) {
   W = cfg->width; H = cfg->height;
   SifInitRpc(0);
   pad_ok = SifLoadModule("rom0:SIO2MAN", 0, nullptr) >= 0 && SifLoadModule("rom0:PADMAN", 0, nullptr) >= 0 &&
            padInit(0) == 1 && padPortOpen(0, 0, pad_buf) != 0;
+#ifdef ZN_CONSOLE_PLATFORM
+  if (SifLoadModule("rom0:MCMAN", 0, nullptr) >= 0 && SifLoadModule("rom0:MCSERV", 0, nullptr) >= 0) {
+    // the card in slot 1: present, formatted? An unformatted card holds nothing: ZINC_FORMAT_CARD=1 (an emulator test's fresh card) formats it,
+    // a person formats theirs in the PS2's browser
+    int type = 0, free = 0, format = 0, r = -1;
+    if (mcInit(MC_TYPE_MC) >= 0 && mcGetInfo(0, 0, &type, &free, &format) == 0) { mcSync(0, nullptr, &r); cardState = r >= -2 && type == 2 ? (format ? 2 : 1) : 0; }
+    const char* fmt = getenv("ZINC_FORMAT_CARD");
+    if (cardState == 1 && fmt && *fmt == '1' && mcFormat(0, 0) == 0) { mcSync(0, nullptr, &r); if (r == 0) cardState = 2; }
+    mkdir("mc0:/ZINC", 0777);   // a card answers when its folder holds the store, or a new one can be made there (never truncating one)
+    FILE* f = fopen("mc0:/ZINC/storage.kv", "rb");
+    if (!f) f = fopen("mc0:/ZINC/storage.kv", "wb");
+    cardOk = f != nullptr;
+    if (f) fclose(f);
+  }
+#endif
   if (!cfg->gfx) return;
   gs = gsKit_init_global();  // NTSC/PAL from the ROM, 640x448 interlaced, double-buffered
   gs->PSM = GS_PSM_CT24;
@@ -67,6 +164,9 @@ void hal_panic(const char* msg, const char* file, int line) {
 }
 void hal_frame_begin(void) {}
 void hal_frame_end(void) {
+#ifdef ZN_CONSOLE_PLATFORM
+  audioPump();
+#endif
   if (!gs) return;
   if (dirty) { gsKit_TexManager_invalidate(gs, &tex); dirty = false; }
   gsKit_TexManager_bind(gs, &tex);
@@ -85,17 +185,21 @@ void hal_poll_input(HalInput* in) {
   in->buttons = 0;
   struct padButtonStatus b;
   int st = pad_ok ? padGetState(0, 0) : PAD_STATE_DISCONN;
+#ifdef ZN_CONSOLE_PLATFORM
+  in->pad[0].buttons = 0;   // a frame the pad does not answer (while it starts) holds nothing, scripted buttons included
+#endif
   if ((st == PAD_STATE_STABLE || st == PAD_STATE_FINDCTP1) && padRead(0, 0, &b)) {
     for (auto& m : map) if (!(b.btns & m[0])) in->buttons |= m[1];  // active low
 #ifdef ZN_CONSOLE_PLATFORM
-    static bool analog = false;   // a DualShock 2 in analog mode reports its sticks (once asked, the mode stays)
-    if (!analog && st == PAD_STATE_STABLE) analog = padSetMainMode(0, 0, PAD_MMODE_DUALSHOCK, PAD_MMODE_LOCK) == 1;
-    if ((b.mode >> 4) == 0x7) in->buttons |= zn_console_stick(b.ljoy_h, b.ljoy_v);
+    consolePad(st, b, in);   // analog mode, pressure, motors, gamepad 0
 #endif
   }
   const int32_t frame = frames++;
 #ifdef ZN_CONSOLE_PLATFORM
-  in->buttons |= zn_console_script(frame);
+  const uint32_t scripted = zn_console_script(frame);
+  in->buttons |= scripted;
+  in->pad[0].buttons |= zn_console_w3c(scripted);
+  if (scripted) in->pad[0].connected = 1;
 #endif
   in->px = in->py = 0; in->pdown = 0;
   in->quit = ZINC_FRAMES && frame >= ZINC_FRAMES;

@@ -1,0 +1,9 @@
+{
+  "name": "hardware-ps2",
+  "entry": "src/main.ts",
+  "assets": "assets",
+  "targets": {
+    "macos": { "width": 640, "height": 448 },
+    "linux": { "width": 640, "height": 448 }
+  }
+}
