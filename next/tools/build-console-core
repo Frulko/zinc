@@ -1,6 +1,6 @@
 #!/bin/sh
 # Builds the console core (next/targets/console, ZN-455) for a console with its pinned SDK (zinc toolchain install <console>, ZN-456):
-#   tools/build-console-core <psp|vita|ps2|n3ds> [--pure] [--embed program.zbc [resources.bin] [default.zpk]] [--frames N] [--input script] [--env NAME=VALUE]... [--title NAME] [--id ABCD12345] [--size WxH] [-B dir]
+#   tools/build-console-core <psp|vita|ps2|n3ds> [--pure] [--gxp3d] [--embed program.zbc [resources.bin] [default.zpk]] [--frames N] [--input script] [--env NAME=VALUE]... [--title NAME] [--id ABCD12345] [--size WxH] [-B dir]
 # --pure: without the graphics host (text programs); --embed: the program linked into the binary (the emulators that give it no file system),
 # with its fonts and images (resources.bin) and its asset pack (zinc pack's packs/default.zpk: zinc:assets, sprite atlases, tile maps);
 # --frames N: the HAL stops after N frames (the emulator tests; never for a copy a person plays); --input: the `pad` and `padup` lines of a
@@ -12,11 +12,12 @@
 # docker image unless $DEVKITPRO names a local install.
 set -e
 here=$(cd "$(dirname "$0")/.." && pwd -P)
-console=$1; [ -n "$console" ] && shift || { echo "usage: tools/build-console-core <psp|vita|ps2|n3ds> [--pure] [--embed program.zbc [resources.bin] [default.zpk]] [--frames N] [--input script] [--env NAME=VALUE]... [--title NAME] [--id ABCD12345] [--size WxH] [-B dir]" >&2; exit 2; }
-gfx=ON; embed=; res=; pack=; frames=0; dir=; input=; env=; title=Zinc; id=ZINC00001; want_size=
+console=$1; [ -n "$console" ] && shift || { echo "usage: tools/build-console-core <psp|vita|ps2|n3ds> [--pure] [--gxp3d] [--embed program.zbc [resources.bin] [default.zpk]] [--frames N] [--input script] [--env NAME=VALUE]... [--title NAME] [--id ABCD12345] [--size WxH] [-B dir]" >&2; exit 2; }
+gfx=${gfx:-ON}; embed=; res=; pack=; frames=0; dir=; input=; env=; title=Zinc; id=ZINC00001; want_size=; gxp3d=OFF
 while [ $# -gt 0 ]; do
   case $1 in
     --pure) gfx=OFF ;;
+    --gxp3d) gxp3d=ON ;;
     --embed) embed=$(cd "$(dirname "$2")" && pwd -P)/$(basename "$2"); shift
              case ${2:-} in *.bin) res=$(cd "$(dirname "$2")" && pwd -P)/$(basename "$2"); shift ;; esac
              case ${2:-} in *.zpk) pack=$(cd "$(dirname "$2")" && pwd -P)/$(basename "$2"); shift ;; esac ;;
@@ -53,7 +54,7 @@ if [ -n "$embed" ]; then   # inside the build directory: the 3DS container sees 
   [ -z "$pack" ] || { cp "$pack" "$dir/embed-default.zpk"; pack=$dir/embed-default.zpk; }
 fi
 cores=$(sysctl -n hw.physicalcpu 2>/dev/null || nproc 2>/dev/null || echo 4)
-configure="cmake -S '$here/targets/console' -B '$dir' -DCMAKE_TOOLCHAIN_FILE='$tc' -DCMAKE_BUILD_TYPE=Release -DZN_CONSOLE=$console -DZN_CONSOLE_GFX=$gfx -DZN_CONSOLE_SIZE=$size -DZN_CONSOLE_FRAMES=$frames -DZN_CONSOLE_INPUT='$input' -DZN_CONSOLE_ENV='$env' -DZN_CONSOLE_TITLE='$title' -DZN_CONSOLE_ID='$id' -DZN_CONSOLE_EMBED='$embed' -DZN_CONSOLE_EMBED_RES='$res' -DZN_CONSOLE_EMBED_PACK='$pack'"
+configure="cmake -S '$here/targets/console' -B '$dir' -DCMAKE_TOOLCHAIN_FILE='$tc' -DCMAKE_BUILD_TYPE=Release -DZN_CONSOLE=$console -DZN_CONSOLE_GFX=$gfx -DZN_CONSOLE_SIZE=$size -DZN_CONSOLE_FRAMES=$frames -DZN_CONSOLE_INPUT='$input' -DZN_CONSOLE_ENV='$env' -DZN_CONSOLE_TITLE='$title' -DZN_CONSOLE_ID='$id' -DZN_CONSOLE_EMBED='$embed' -DZN_CONSOLE_EMBED_RES='$res' -DZN_CONSOLE_EMBED_PACK='$pack' -DZN_VITA_GXP_3D=$gxp3d"
 build="cmake --build '$dir' -j $cores -- -l $cores"
 if [ -n "$docker" ]; then
   root=$(dirname "$here")

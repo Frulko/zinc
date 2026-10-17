@@ -17,6 +17,9 @@ extern "C" SceGxmContext* zn_gxm_3d_context(SceGxmRenderTarget** target, SceGxmS
 
 #include "zn_gxp_3d.h"   // generated from color3d_v.gxp and color3d_f.gxp (shaders/README.md)
 
+using zn::vita::gxp3d::colorVertexProgramGxp;
+using zn::vita::gxp3d::colorFragmentProgramGxp;
+
 namespace {
 struct V3 { float x, y, z, r, g, b, a; };   // the interleaved vertex: 7 floats, 28 bytes
 
@@ -39,8 +42,8 @@ bool zn_gxm_3d_init(void) {
   SceGxmDepthStencilSurface depth;
   ctx3 = zn_gxm_3d_context(&target, &patcher, &depth);
   if (!ctx3) return false;
-  const SceGxmProgram* vp = reinterpret_cast<const SceGxmProgram*>(zn_color3d_v);
-  const SceGxmProgram* fp = reinterpret_cast<const SceGxmProgram*>(zn_color3d_f);
+  const SceGxmProgram* vp = reinterpret_cast<const SceGxmProgram*>(zn::vita::gxp3d::colorVertexProgramGxp);
+  const SceGxmProgram* fp = reinterpret_cast<const SceGxmProgram*>(zn::vita::gxp3d::colorFragmentProgramGxp);
   if (sceGxmProgramCheck(vp) < 0 || sceGxmProgramCheck(fp) < 0) { say("sceGxmProgramCheck", 0); return false; }
   SceGxmShaderPatcherId idv, idf;
   if (sceGxmShaderPatcherRegisterProgram(patcher, vp, &idv) < 0 || sceGxmShaderPatcherRegisterProgram(patcher, fp, &idf) < 0) { say("the 3d program registration", 0); return false; }
@@ -60,7 +63,7 @@ bool zn_gxm_3d_init(void) {
     SCE_GXM_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA, SCE_GXM_BLEND_FACTOR_ONE, SCE_GXM_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA};
   err = sceGxmShaderPatcherCreateFragmentProgram(patcher, idf, SCE_GXM_OUTPUT_REGISTER_FORMAT_UCHAR4, SCE_GXM_MULTISAMPLE_NONE, &blend, vp, &frag3);
   if (err < 0) { say("3d fragment program", err); return false; }
-  wvp3 = sceGxmProgramFindParameterByName(vp, "wvp");
+  wvp3 = sceGxmProgramFindParameterByName(vp, "Wvp");   // psp2spvc names the wvp block's parameter by its block name
   ready3 = wvp3 != nullptr;
   if (!ready3) say("the wvp uniform", 0);
   return ready3;
