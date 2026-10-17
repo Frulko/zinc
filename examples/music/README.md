@@ -17,6 +17,15 @@ examples/music/install.sh                # on the TouchPad (novacom), in the web
   slide and the face are remembered (AsyncStorage, plugins/async-storage). The weather's place is `lat`, `lon` and `city` in config.json,
   chosen in Réglages, else found once from the connection's address (ip-api.com). On the clock the screen goes off after 2 minutes
   whatever the settings' delay (unless "Jamais"), then lights for 10 seconds every 5 minutes, as iOS's StandBy does; a touch wakes it.
+- **The Mac's notifications**: Zinc Relay on the Mac (examples/notify-relay) pairs once with the tablet over zinc:link and sends the
+  notifications it lets through. On the clock, or when it wakes the screen, a notification plays over a black veil as iOS's StandBy does
+  (the sender's picture or the app's icon, centred, then aside with who and what), several 10 seconds apart; elsewhere it comes as a grey
+  card at the top over a dimmed page, several stack. A touch opens it on the Mac. The carousel's last slide lists the last 50, grouped by
+  app, newest first: a touch opens one on the Mac, swipe one to the left to delete it, "Tout effacer" for all (kept in
+  `notifications.json`, icons and pictures in `notif-icons/`). Before the first pairing that slide is the
+  assistant: install Zinc Relay, then the 6-digit code and the tablet's address to type on the Mac (and what to do when the network blocks
+  discovery). Protocol: docs/reports/notification-relay-design.md; `next/tests/data/music/relay.ts` stands in for the Mac with made-up
+  notifications.
 - **Context**: the room button (top of the player, or the sidebar) lists every group with what it plays and a play button; a touch makes it
   the group every command goes to. "Regrouper" opens the rooms.
 - **Radios**: my radios (`radios.json` beside the program; nine French stations to start), the most voted of radio-browser.info, and a search
@@ -42,4 +51,4 @@ examples/music/install.sh                # on the TouchPad (novacom), in the web
   docs/reports/hardware/webos-screen-power.md, hp-touchpad-webos.md section 14.
 - Buttons on the network (an ESP32, a phone): UDP text commands on port 7777: `toggle`, `play`, `pause`, `next`, `prev`, `vol+`, `vol-`,
   `radio <n>` (the n-th of my radios), `wake`. `echo toggle | nc -u -w0 <tablet> 7777`.
-- Files beside the program, never committed: `config.json`, `radios.json`, `spotify.json`.
+- Files beside the program, never committed: `config.json`, `radios.json`, `spotify.json`, `notifications.json`, `notif-icons/`.

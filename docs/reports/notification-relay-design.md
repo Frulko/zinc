@@ -59,6 +59,27 @@ tablet -> mac  { "t": "mute", "app": "com.example" } | { "t": "mute", "domain": 
 mac -> tablet  { "t": "clear" }                                                      # optional
 ```
 
+Additions of 2026-10-17 (owner, agreed between ZN-757 and ZN-758; the tablet's side is examples/music/src/notify.ts):
+
+```text
+mac -> tablet  notif gains  "kind": "message" | "other"     # the Mac decides; a message plays with the sender's avatar
+                            "sender": "..."                 # who wrote, for a message (absent otherwise)
+                            "avatar": "<sha256>" | null     # an image like the icons: {t:"icon",hash,png} and {t:"need-icon",hash}
+tablet -> mac  { "t": "ack", "id": "<notif id>" }           # sent once the notif is stored (the Mac's assistant proves the path with it)
+tablet -> mac  { "t": "open", "id": "<notif id>" }          # the notification was touched (overlay or list): open it on the Mac
+```
+
+What the tablet does with them (ZN-758):
+
+- Every field may be missing or null: missing strings are empty, `kind` other than `"message"` is `"other"`, a missing `date` is the time
+  of arrival. `id` identifies a notification: the same id again replaces it in the list. Hashes are hex (8 to 128 characters; anything
+  else is ignored, since they name files); a PNG is at most about 300 kB of base64.
+- `need-icon` is sent once per hash and session for `app.icon` and for `avatar`, after the `ack`. An icon is shown as a rounded square, an
+  avatar as a circle: 128 px is enough for an icon, an avatar is drawn up to 210 px wide on the StandBy overlay (256 px recommended).
+- A message shows the sender and the avatar (initials on a tint when there is none) with the app's icon as a badge; another notification
+  shows its title and the app's icon. `subtitle` is joined to `body` with " · " for those; a message shows `body` alone.
+- The tablet sends nothing else: no hello, no `mute` yet (later.md).
+
 Filtering happens on the Mac (the source of truth: the app list and the domain list live in the relay app's settings); a mute from the
 tablet is a shortcut that adds to the Mac's list.
 
@@ -74,9 +95,16 @@ rendered to a 128 px PNG.
 
 ## The tablet (ZN-758, ZN-755)
 
-- A notification arrives: if the screen is off, wake it (window brightness back, D122), then a card slides in at the top over the
-  current view (icon, app, title, body, time), stays a few seconds (longer if it arrived while the screen was off), slides out; several
-  stack. On the clock slide in StandBy mode the card is larger, StandBy's way.
+- A notification arrives (owner 2026-10-17, two looks, no setting):
+  - On the clock slide, or when the screen was off (it wakes, window brightness back, D122): StandBy's overlay. The view is dimmed by a
+    black veil and the notification plays as one zinc:gsap timeline: centred, the round image (the sender's avatar with the app's badge,
+    or the app's icon) with the name and the app below; at 2.2 s it shrinks to the left while the time, who it is from and the excerpt
+    (two lines) come in, staggered; it holds, fades at 9.4 s, and the next of the queue plays at 10 s; the overlay closes when the queue
+    is empty.
+  - Elsewhere, the screen on (player, settings, the list): iOS's grey cards slide in at the top over a strong dim, several stack, each
+    leaves after 6 s; a touch beside them sends them away.
+  - A touch on a notification (overlay, card or row of the list) opens it on the Mac (`open`). A white card was tried and dropped ("c'est
+    moche en blanc").
 - The notification slide of the carousel: the last N (50) notifications grouped by app, newest first, relative times, swipe to delete
   one, a button to clear all; when not paired, the pairing assistant in its place: step 1 "Install Zinc Relay on your Mac" (how), step 2
   the code and the tablet's address in large type, step 3 waiting, then done; a link "No discovery on your network?" shows the address to

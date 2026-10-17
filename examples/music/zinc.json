@@ -67,6 +67,10 @@
     "cloud-drizzle",
     "cloud-rain",
     "cloud-snow",
-    "cloud-lightning"
+    "cloud-lightning",
+    "bell",
+    "laptop",
+    "wifi",
+    "trash"
   ]
 }

@@ -132,16 +132,16 @@ export function centered(f: i32, cx: number, y: number, s: string, color: u32, a
   drawText(f, cx - textWidth(f, s, 0) / 2, y, s, color, alpha, 0);
 }
 /** Up to `lines` lines broken at spaces, the last one cut; the height used. */
-export function wrap(f: i32, x: number, y: number, s: string, color: u32, w: number, lines: i32, lh: number): number {
+export function wrap(f: i32, x: number, y: number, s: string, color: u32, w: number, lines: i32, lh: number, alpha: i32 = 255): number {
   const words = s.split(' ');
   let line = '', n: i32 = 0;
   for (let i = 0; i < words.length; i++) {
     const t = line === '' ? words[i] : line + ' ' + words[i];
     if (textWidth(f, t, 0) <= w || line === '') { line = t; continue; }
     if (n === lines - 1) { line = words.slice(i - (line.split(' ').length)).join(' '); break; }
-    drawText(f, x, y + n * lh, line, color, 255, 0); n++; line = words[i];
+    drawText(f, x, y + n * lh, line, color, alpha, 0); n++; line = words[i];
   }
-  if (line !== '') { drawText(f, x, y + n * lh, fit(f, line, w), color, 255, 0); n++; }
+  if (line !== '') { drawText(f, x, y + n * lh, fit(f, line, w), color, alpha, 0); n++; }
   return n * lh;
 }
 export function clock(s: number): string {

@@ -16,6 +16,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import gsap, { Timeline } from 'gsap';
 import { setPlace, placeName, weatherTick, weatherSlide, Place, foundPlaces, searchState, searchPlaces } from './weather';
 import { openPort } from 'zinc:webos';
+import { startRelay, notifyTick, overlay, overlayStill, notifSlide, rowWantsCarousel, Notif } from './notify';
 
 // ---------------------------------------------------------------- settings beside the program
 class Config { sleep: number = 120; group: string = ''; seed: string = ''; spotifySn: i32 = 0; full: boolean = false; lat: number = 0; lon: number = 0; city: string = ''; battery: boolean = true; batteryPct: boolean = true; }
@@ -45,9 +46,9 @@ const SSDP_PORT: i32 = 37451, REMOTE_PORT: i32 = 7777;   // webOS drops what not
 openPort(SSDP_PORT); openPort(REMOTE_PORT);
 const NOW = 0, RADIOS = 1, SPOTIFY = 2, ROOMS = 3, SETTINGS = 4;
 let page: i32 = NOW;
-// The home's carousel (owner, 2026-10-15): the player, a StandBy clock, the weather, the rooms' volumes as rings. `slide` is where it goes, `slideX`
+// The home's carousel (owner, 2026-10-15): the player, a StandBy clock, the weather, the rooms' volumes as rings, the Mac's notifications (ZN-758). `slide` is where it goes, `slideX`
 // where it is (in slides, between two while it moves); a horizontal swipe on the home drags it.
-const PLAYER = 0, CLOCK = 1, WEATHER = 2, RINGS_SLIDE = 3, SLIDES = 4;
+const PLAYER = 0, CLOCK = 1, WEATHER = 2, RINGS_SLIDE = 3, NOTIFS = 4, SLIDES = 5;
 let slide: i32 = PLAYER, slideX = 0;
 // The motion of the app is gsap's (typed port, plugins/gsap), one clock ticked per frame in onFrame: the carousel and the clock's faces settle
 // with a power3.out, the sheets arrive with a rise, the lamp's hint fades in and out. A page changes at once (a fade made every change cost frames).
@@ -455,7 +456,8 @@ function input(dt: number): void {
       downX = x; downY = y; lastY = y; moved = false;
       const z = zoneAt(x, y, true);
       dragZone = z !== null && (z as Zone).drag !== null ? z : null;
-      swipeOk = page === NOW && dragZone === null && !volumeOpen && !contextOpen; swiping = false; swipeFrom = slideX; swipeVel = 0; lastX = x;
+      // a notification's row (a drag zone): a swipe to the right on it still moves the carousel
+      swipeOk = page === NOW && (dragZone === null || (dragZone as Zone).id.startsWith('nrow/')) && !volumeOpen && !contextOpen; swiping = false; swipeFrom = slideX; swipeVel = 0; lastX = x;
       faceSwipe = false; faceFrom = faceY; faceVel = 0;
       tapZone = dragZone === null ? z : null;
       ui.pressed = z !== null ? (z as Zone).id : '';
@@ -467,6 +469,7 @@ function input(dt: number): void {
     ui.dirty = true;
   } else if (down && !swallow) {
     screen.idle = 0;
+    if (dragZone !== null && swipeOk && rowWantsCarousel(x - downX, y - downY)) { const d = (dragZone as Zone).drag as (x: number, y: number, p: i32) => void; d(x, y, 3); dragZone = null; }
     if (dragZone !== null) { const d = (dragZone as Zone).drag as (x: number, y: number, p: i32) => void; d(x, y, 1); ui.dirty = true; }
     else {
       if (!moved && (Math.abs(y - downY) > 12 || Math.abs(x - downX) > 12)) { moved = true; ui.pressed = ''; ui.dirty = true; swiping = swipeOk && Math.abs(x - downX) > Math.abs(y - downY); faceSwipe = swipeOk && !swiping && slide === CLOCK && slideX === CLOCK; }
@@ -1197,7 +1200,8 @@ function draw(W: number, H0: number): void {
       if (i === PLAYER) { nowPlaying(W, H); sidebar(W, H); }
       else if (i === CLOCK) clockSlide(W, H);
       else if (i === WEATHER) weatherSlide(W, H);
-      else ringsSlide(W, H);
+      else if (i === RINGS_SLIDE) ringsSlide(W, H);
+      else notifSlide(W, H);
     }
     setTransform(1, 0, 0, 1, 0, TOP); ui.ox = 0;
   } else {
@@ -1215,6 +1219,7 @@ function draw(W: number, H0: number): void {
   toastLayer(W, H);
   resetTransform(); ui.oy = 0;
   statusBar(W);
+  overlay(W, H0, TOP);   // over every view, the status bar too
 }
 
 // The battery (owner, 2026-10-17: the app is full screen on Android and webOS, the system's bar is hidden): the device's level and whether it
@@ -1291,7 +1296,7 @@ async function preload(): Promise<void> {
     await sleep(300);
   }
   while (popularState === 'loading') await sleep(200);
-  for (const k of [NOW * 10 + CLOCK, NOW * 10 + WEATHER, NOW * 10 + RINGS_SLIDE, RADIOS * 10, RADIOS * 10 + 1, SPOTIFY * 10, SPOTIFY * 10 + 1, SPOTIFY * 10 + 2, SPOTIFY * 10 + 3, ROOMS * 10, SETTINGS * 10]) warmQueue.push(k);
+  for (const k of [NOW * 10 + CLOCK, NOW * 10 + WEATHER, NOW * 10 + RINGS_SLIDE, NOW * 10 + NOTIFS, RADIOS * 10, RADIOS * 10 + 1, SPOTIFY * 10, SPOTIFY * 10 + 1, SPOTIFY * 10 + 2, SPOTIFY * 10 + 3, ROOMS * 10, SETTINGS * 10]) warmQueue.push(k);
 }
 const warmQueue: i32[] = [];   // page * 10 + tab
 let warmImg: i32 = -1;
@@ -1343,6 +1348,7 @@ onFrame((dt: number) => {
   if (volumeHeld > 0) volumeHeld -= dt;
   weatherTick(dt, !screen.asleep);
   if (!screen.asleep) batteryTick(dt);
+  notifyTick(dt);
   // animations
   if (toastFor > 0) { toastFor -= dt; if (toastFor <= 0) ui.dirty = true; }
   if (volumeOpen && dragZone === null) { volumeFor -= dt; if (volumeFor <= 0) { volumeOpen = false; ui.dirty = true; } }
@@ -1350,7 +1356,7 @@ onFrame((dt: number) => {
   for (const s of scrolls) if (s.step(dt)) { ui.dirty = true; moving = true; }
   // gsap's clock first, then what it moved is read back
   gsap.tick(Math.min(dt, 0.1));
-  if (gsap.active()) { ui.dirty = true; moving = true; }
+  if (gsap.active() && !overlayStill()) { ui.dirty = true; moving = true; }   // ponytail: a notification's timeline holding still draws no frame (other tweens wait for it to move)
   if (swiping) { if (settleX) { gsap.killTweensOf(anim); settleX = false; } }
   else {
     if (settleX && slideTo !== slide) { gsap.killTweensOf(anim); settleX = false; }
@@ -1415,3 +1421,6 @@ recall();
 find();
 listenRemote();
 preload();
+// a notification from the Mac: the screen wakes as each one shows (on for its 10 s and a little after); StandBy's overlay on the clock slide and
+// on a sleeping screen, grey cards elsewhere (owner 2026-10-17)
+startRelay((n: Notif) => { volumeOpen = false; contextOpen = false; wakeScreen(12); }, () => screen.asleep || (page === NOW && slide === CLOCK));

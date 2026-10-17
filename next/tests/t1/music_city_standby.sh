@@ -30,7 +30,7 @@ http.server.HTTPServer(('127.0.0.1', port), H).serve_forever()
 PY
 for i in 1 2 3 4 5 6 7 8 9 10; do curl -s "http://127.0.0.1:$port/" >/dev/null && break; sleep 0.3; done
 shots=150,190,310,440,460,700,760,940
-env ZINC_HEADLESS=1 ZINC_SCALE=1 ZINC_FRAMES=945 ZINC_STORAGE="$tmp/storage" ZINC_MUSIC_METEO="http://127.0.0.1:$port" ZINC_MUSIC_STANDBY=2,4,1 \
+env ZINC_HEADLESS=1 ZINC_SCALE=1 ZINC_FRAMES=945 ZINC_STORAGE="$tmp/storage" ZINC_MUSIC_METEO="http://127.0.0.1:$port" ZINC_MUSIC_STANDBY=2,4,1 ZINC_MUSIC_RELAY=/dev/null \
   ZINC_INPUT="$data/city.input" ZINC_SHOT="$tmp/f.png" ZINC_SHOT_FRAMES=$shots timeout 120 "$Z" run "$tmp/music" > "$tmp/out" 2>&1 || { echo "music: the run failed: $(tail -5 "$tmp/out")"; exit 1; }
 [ -n "$KEEP" ] && mkdir -p "$KEEP" && cp "$tmp"/f-*.png "$tmp/requests" "$tmp/music/config.json" "$KEEP/"
 fail=0
