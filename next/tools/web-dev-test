@@ -1,0 +1,96 @@
+#!/usr/bin/env python3
+"""zinc dev --target web in headless Chrome (docs/targets/web.md, "Hot reload"; tests/t1/web_dev.sh).
+Copies a project, starts `zinc dev --target web`, opens the page, clicks to make state, edits a component (Fast Refresh: the text changes, the state and the page stay),
+breaks it (an overlay with the diagnostics), fixes it, then edits the state module (a full reload: the state starts over). Prints one JSON line; exit 1 on a failed step.
+usage: web-dev-test <zinc> <project-dir> [--render dom|canvas]   Exit 77 (skip) without Chrome. Chrome only: Firefox and Safari are not tested here."""
+import json, os, re, shutil, socket, subprocess, sys, tempfile, time
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from cdp import Chrome, find_chrome
+
+zinc, project = sys.argv[1], sys.argv[2]
+if not find_chrome():
+    print("SKIP no Chrome"); sys.exit(77)
+work = tempfile.mkdtemp(prefix="zinc-web-dev-")
+proj = os.path.join(work, "app")
+shutil.copytree(project, proj)
+s = socket.socket(); s.bind(("127.0.0.1", 0)); port = s.getsockname()[1]; s.close()
+env = dict(os.environ, ZINC_BACKGROUND="1")
+dev = subprocess.Popen([zinc, "dev", proj, "--target", "web", "--port", str(port)], stderr=subprocess.PIPE, stdout=subprocess.DEVNULL, env=env, text=True)
+log = []
+steps = {}
+page = []
+def fail(why):
+    steps["failed"] = why
+    print(json.dumps({"steps": steps, "devlog": log[-12:], "console": [m[:300] for m in page[:10]]})); cleanup(); sys.exit(1)
+def cleanup():
+    dev.terminate()
+    try: dev.wait(5)
+    except Exception: dev.kill()
+    shutil.rmtree(work, ignore_errors=True)
+import threading
+def pump():
+    for line in dev.stderr: log.append(line.rstrip())
+threading.Thread(target=pump, daemon=True).start()
+t0 = time.time()
+while time.time() - t0 < 40 and not any("http://127.0.0.1:%d" % port in l for l in log): time.sleep(0.1)
+if not any("http://127.0.0.1:%d" % port in l for l in log): fail("the dev server did not start")
+
+def wait_for(c, js, timeout=15):
+    end = time.time() + timeout
+    while time.time() < end:
+        try:
+            v = c.eval(js, 10)
+        except Exception:
+            v = None
+        if v: return v
+        c._recv(-1, 0.15)
+    return None
+def text(c): return c.eval("document.body.innerText") or ""
+def click_text(c, label):
+    r = c.eval("(() => { const w = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT); let n; while ((n = w.nextNode())) if (n.children.length === 0 && n.textContent === %s) { const b = n.getBoundingClientRect(); return [b.x + b.width / 2, b.y + b.height / 2]; } return null; })()" % json.dumps(label))
+    if not r: return False
+    for ty in ("mousePressed", "mouseReleased"):
+        c.call("Input.dispatchMouseEvent", {"type": ty, "x": r[0], "y": r[1], "button": "left", "buttons": 1 if ty == "mousePressed" else 0, "clickCount": 1}); c._recv(-1, 0.2)
+    return True
+def edit(path, fn):
+    p = os.path.join(proj, path)
+    text_ = fn(open(p).read())   # (read first: open(p, "w") empties the file before the argument is evaluated)
+    open(p, "w").write(text_)
+    time.sleep(0.05)
+
+with Chrome(["--window-size=800,500"]) as c:
+    c.call("Emulation.setDeviceMetricsOverride", {"width": 800, "height": 500, "deviceScaleFactor": 1, "mobile": False})
+    page = c.console
+    c.open("http://127.0.0.1:%d/" % port)
+    if not wait_for(c, "document.body.innerText.includes('Label A: 0') && globalThis.__zincHotReady"): fail("the page did not show Label A: 0 (%r)" % text(c)[:200])
+    steps["loaded"] = True
+    c.eval("window.__marker = 42")
+    tries = 0
+    while "Label A: 2" not in text(c) and tries < 8:
+        if not click_text(c, "Add one"): fail("no Add one button in the page")
+        time.sleep(0.5); tries += 1
+    steps["clicks"] = tries
+    if "Label A: 2" not in text(c): fail("the counter did not reach 2 (%r)" % text(c)[:200])
+    steps["state"] = "Label A: 2"
+    # 1. a component changes: swapped in place
+    edit("src/Label.tsx", lambda t: t.replace("Label A", "Label B"))
+    if not wait_for(c, "document.body.innerText.includes('Label B: 2')"): fail("Fast Refresh did not show Label B: 2 (%r) %s" % (text(c)[:200], log[-3:]))
+    steps["refresh"] = {"text": "Label B: 2", "samePage": c.eval("window.__marker") == 42, "updates": c.eval("globalThis.__zincUpdates || 0")}
+    if not steps["refresh"]["samePage"] or not steps["refresh"]["updates"]: fail("the page reloaded instead of swapping the module")
+    if not click_text(c, "Add one"): fail("no Add one button after the refresh")
+    if not wait_for(c, "document.body.innerText.includes('Label B: 3')"): fail("the counter did not go on after the refresh (%r)" % text(c)[:200])
+    steps["stateAfter"] = "Label B: 3"
+    # 2. a compile error: the overlay
+    edit("src/Label.tsx", lambda t: t.replace("Label B", "Label B' +"))
+    ov = wait_for(c, "(() => { const e = document.querySelector('[role=alert]'); return e ? e.innerText : ''; })()")
+    if not ov: fail("no error overlay for a broken file")
+    steps["overlay"] = ov[:120].replace("\n", " | ")
+    edit("src/Label.tsx", lambda t: t.replace("Label B' +", "Label C"))
+    if not wait_for(c, "document.body.innerText.includes('Label C: 3') && !document.querySelector('[role=alert]')"): fail("the overlay did not clear after the fix (%r)" % text(c)[:200])
+    steps["fixed"] = "Label C: 3"
+    # 3. the state module changes: a full reload (its exports are values), the counter starts over
+    edit("src/state.ts", lambda t: t + "\nexport const touched = 1;\n")
+    if not wait_for(c, "document.body.innerText.includes('Label C: 0') && window.__marker !== 42", 20): fail("the state module did not reload the page (%r)" % text(c)[:200])
+    steps["reload"] = True
+print(json.dumps({"steps": steps, "devlog": [l for l in log if "zinc dev" in l][-8:]}))
+cleanup()

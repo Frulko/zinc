@@ -1,0 +1,53 @@
+#!/usr/bin/env python3
+"""The numbers of docs/reports/zinc-web-export.md: an exported site in headless Chrome, canvas or DOM mode (tools/cdp.py).
+usage: web-measure <site-dir> [--click X,Y] [--seconds N] [--label name]
+Prints one JSON line: time to the first frame of the app (ms since navigation start), the cost of the app's own frame (ms: mean, p50, p95, max, over the frames after the first
+second), the DOM elements in the page, the JS heap, and the bytes the page fetched (as served, uncompressed by this server). The machine and Chrome are the caller's to note.
+Headless Chrome paints without a GPU window: compare the two modes with each other, not with a desktop's frame rate."""
+import json, os, sys, time, functools, http.server, threading
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from cdp import Chrome, find_chrome
+
+args = sys.argv[1:]
+root = args.pop(0)
+opt = {"--click": "", "--seconds": "6", "--label": ""}
+while args:
+    k = args.pop(0); opt[k] = args.pop(0)
+if not find_chrome(): print("SKIP no Chrome"); sys.exit(77)
+sizes = {}
+class H(http.server.SimpleHTTPRequestHandler):
+    def log_message(self, *a): pass
+    def end_headers(self): self.send_header("Cache-Control", "no-store"); super().end_headers()
+class S(http.server.ThreadingHTTPServer):
+    def handle_error(self, *a): pass
+srv = S(("127.0.0.1", 0), functools.partial(H, directory=root))
+threading.Thread(target=srv.serve_forever, daemon=True).start()
+with Chrome(["--window-size=1100,700"]) as c:
+    c.call("Emulation.setDeviceMetricsOverride", {"width": 1100, "height": 700, "deviceScaleFactor": 1, "mobile": False})
+    c.call("Performance.enable")
+    c.open("http://127.0.0.1:%d/" % srv.server_address[1])
+    t0 = time.time()
+    while time.time() - t0 < 3: c._recv(-1, 0.2)
+    first = c.eval("(globalThis.__zincStats || {}).first || 0")
+    if opt["--click"]:
+        x, y = (float(v) for v in opt["--click"].split(","))
+        for ty in ("mouseMoved", "mousePressed", "mouseReleased"):
+            c.call("Input.dispatchMouseEvent", {"type": ty, "x": x, "y": y, "button": "left", "buttons": 1 if ty == "mousePressed" else 0, "clickCount": 1}); c._recv(-1, 0.2)
+        t0 = time.time()
+        while time.time() - t0 < 1.5: c._recv(-1, 0.2)
+    c.eval("globalThis.__zincStats.ms.length = 0")
+    def metrics():
+        return {m["name"]: m["value"] for m in c.call("Performance.getMetrics").get("metrics", [])}
+    m0 = metrics()
+    t0 = time.time()
+    while time.time() - t0 < float(opt["--seconds"]): c._recv(-1, 0.2)
+    m1 = metrics()
+    ms = sorted(c.eval("globalThis.__zincStats.ms") or [])
+    n = len(ms)
+    pick = lambda q: round(ms[min(n - 1, int(n * q))], 2) if n else None
+    res = {"label": opt["--label"] or os.path.basename(root.rstrip("/")), "firstFrameMs": round(first), "frames": n, "frameMs": {"mean": round(sum(ms) / n, 2) if n else None, "p50": pick(0.5), "p95": pick(0.95), "max": round(ms[-1], 2) if n else None},
+           "mainThreadMsPerFrame": {k: round((m1.get(k, 0) - m0.get(k, 0)) * 1000 / max(1, len(ms)), 2) for k in ("TaskDuration", "ScriptDuration", "LayoutDuration", "RecalcStyleDuration")},
+           "domElements": c.eval("document.getElementsByTagName('*').length"), "heapMB": round((c.eval("performance.memory ? performance.memory.usedJSHeapSize : 0") or 0) / 1048576, 1),
+           "fetchedKB": round((c.eval("performance.getEntriesByType('resource').reduce((s, e) => s + (e.decodedBodySize || 0), 0)") or 0) / 1024)}
+print(json.dumps(res))
+srv.shutdown()

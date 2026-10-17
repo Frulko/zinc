@@ -1,0 +1,9 @@
+{
+  "name": "fakeusb",
+  "kind": "module",
+  "module": "zinc:fakeusb",
+  "entry": "index.ts",
+  "description": "A test plugin: its browser version needs WebUSB and Web Serial (tests/t1/web_caps.sh)",
+  "targets": { "macos": {}, "linux": {} },
+  "web": { "entry": "web/index.ts", "needs": ["webusb", "webserial"] }
+}

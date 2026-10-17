@@ -102,6 +102,14 @@ Swift); a spec with other types is refused with the member's name. The class's m
 so UI work goes through `runOnUiThread`; iOS: the main thread). A callback may be called from any thread: the call is queued and made on the
 program's thread. Promises, arrays and records are not carried yet: use a callback, or JSON text in a string (as `zinc:system` does).
 
+## The web
+
+`zinc export --target web` runs the app as JavaScript in a browser, so a plugin's native code is not there. A plugin brings its browser version with a `"web"` entry in `plugin.json`:
+`{ "entry": "web/index.ts" }` (a module written for the page, used instead of `entry`), `{ "native": "Audio", "impl": "web/audio.js" }` (JavaScript that answers the calls of the native spec
+with browser APIs; `index.ts` runs unchanged), or a `"wasm"` block (C or C++ sources, flags and exports, built to WebAssembly by the pinned zig). `"needs"` lists the browser features it cannot run
+without (names of `next/targets/web/browsers.json`), which the export checks against the browsers of the project. A plugin with a native spec and no `web` entry loads, and each call of its native side
+throws `ZnUnsupported` (warning W0602). The guide is [targets/web.md](targets/web.md), "Plugins".
+
 ## Native views
 
 A plugin that shows a real OS view (a web view, a map, an ad) lets zinc:ui place it: its TypeScript object implements

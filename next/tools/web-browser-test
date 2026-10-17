@@ -1,0 +1,77 @@
+#!/usr/bin/env python3
+"""A web export in headless Chrome (docs/targets/web.md; tests/t1/web_export.sh): serves a folder over HTTP, opens it, waits for frames, prints one JSON line.
+usage: web-browser-test <dir> [--wait SECONDS] [--shot out.png] [--eval EXPR] [--size WxH] [--path /index.html] [--click X,Y] [--expect-text TEXT]
+The JSON: {"console": [...], "errors": [...], "frames": N, "eval": value, "nonblank": fraction of pixels not equal to the first, "text": document text}
+Exit 77 (skip) without Chrome. Chrome only: Firefox and Safari are not tested here."""
+import base64, functools, http.server, json, os, sys, threading, time
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from cdp import Chrome, find_chrome
+
+args = sys.argv[1:]
+if not args: sys.exit("usage: web-browser-test <dir> [options]")
+root = args.pop(0)
+opt = {"--wait": "3", "--shot": "", "--eval": "", "--size": "900x600", "--path": "/", "--click": "", "--expect-text": "", "--after": "1", "--click-text": ""}
+while args:
+    k = args.pop(0)
+    if k not in opt: sys.exit("unknown option " + k)
+    opt[k] = args.pop(0)
+if not find_chrome():
+    print("SKIP no Chrome"); sys.exit(77)
+
+class Quiet(http.server.SimpleHTTPRequestHandler):
+    extensions_map = dict(http.server.SimpleHTTPRequestHandler.extensions_map, **{".js": "text/javascript", ".mjs": "text/javascript", ".wasm": "application/wasm", ".webmanifest": "application/manifest+json"})
+    def log_message(self, *a): pass
+
+    def end_headers(self):
+        self.send_header("Cache-Control", "no-store"); super().end_headers()
+class Srv(http.server.ThreadingHTTPServer):
+    def handle_error(self, *a): pass   # a page that closes a connection mid-file is not news
+srv = Srv(("127.0.0.1", 0), functools.partial(Quiet, directory=root))
+threading.Thread(target=srv.serve_forever, daemon=True).start()
+url = "http://127.0.0.1:%d%s" % (srv.server_address[1], opt["--path"])
+w, h = (int(v) for v in opt["--size"].split("x"))
+out = {}
+with Chrome(["--window-size=%d,%d" % (w, h), "--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream", "--autoplay-policy=no-user-gesture-required", "--allow-file-access-from-files", "--enable-unsafe-swiftshader"]) as c:
+    c.call("Emulation.setDeviceMetricsOverride", {"width": w, "height": h, "deviceScaleFactor": 1, "mobile": False})
+    c.open(url)
+    t0 = time.time()
+    while time.time() - t0 < float(opt["--wait"]):
+        c._recv(-1, 0.2)
+    def click(x, y):
+        c.call("Input.dispatchMouseEvent", {"type": "mouseMoved", "x": x, "y": y})
+        c._recv(-1, 0.15)
+        for ty in ("mousePressed", "mouseReleased"):
+            c.call("Input.dispatchMouseEvent", {"type": ty, "x": x, "y": y, "button": "left", "buttons": 1 if ty == "mousePressed" else 0, "clickCount": 1})
+            c._recv(-1, 0.15)
+    clicks = []
+    if opt["--click"]:   # X,Y[;X,Y...]
+        clicks += [("xy", p) for p in opt["--click"].split(";")]
+    if opt["--click-text"]:   # a DOM-mode element by its text (a;b: several)
+        clicks += [("text", p) for p in opt["--click-text"].split(";")]
+    for kind, p in clicks:
+        if kind == "xy": x, y = (float(v) for v in p.split(","))
+        else:
+            r = c.eval("(() => { const w = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT); let n, r = null; while ((n = w.nextNode())) if (n.children.length === 0 && n.textContent === %s) { const b = n.getBoundingClientRect(); r = [b.x + b.width / 2, b.y + b.height / 2]; } return r; })()" % json.dumps(p))
+            if not r: sys.exit("no element with the text " + p)
+            x, y = r
+        click(x, y)
+        t0 = time.time()
+        while time.time() - t0 < float(opt["--after"]): c._recv(-1, 0.2)
+    if opt["--eval"]: out["eval"] = c.eval(opt["--eval"])
+    out["text"] = (c.eval("document.body.innerText") or "")[:2000]
+    shot = c.call("Page.captureScreenshot", {"format": "png"})
+    png = base64.b64decode(shot.get("data", ""))
+    if opt["--shot"]: open(opt["--shot"], "wb").write(png)
+    out["shotBytes"] = len(png)
+    out["nonblank"] = c.eval("""(() => { const cv = document.querySelector('canvas'); if (!cv) return -1; const t = document.createElement('canvas'); t.width = cv.width; t.height = cv.height; const g = t.getContext('2d'); g.drawImage(cv, 0, 0); const d = g.getImageData(0, 0, t.width, t.height).data; let n = 0; for (let i = 4; i < d.length; i += 4) if (d[i] !== d[0] || d[i+1] !== d[1] || d[i+2] !== d[2]) n++; return n / (d.length / 4); })()""")
+    out["frames"] = c.eval("globalThis.__zincFrames || 0")
+    seen = []
+    for m in c.console:
+        m = m[:300]
+        if m not in seen: seen.append(m)
+    out["console"] = [m for m in seen if not m.startswith("EXCEPTION")][:15]
+    out["errors"] = [m for m in seen if m.startswith("EXCEPTION") or m.startswith("error ")][:10]
+srv.shutdown()
+print(json.dumps(out))
+if opt["--expect-text"] and opt["--expect-text"] not in out["text"]:
+    sys.exit("text not found: " + opt["--expect-text"])

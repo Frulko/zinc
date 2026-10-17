@@ -18,6 +18,7 @@ modules and tests declare what they need.
 | ps1 | 256K | fx12, no FPU | – | – | – | – | yes | – | – | – | – | – | – |
 | ps2 | 16M | f32 | – | – | – | – | yes | – | – | – | – | – | – |
 | wasm | 64M | f64 | optional | yes | yes | optional | optional | – | – | – | – | – | – |
+| web | 512M | f64 | optional | yes | yes | optional | optional | – | yes | – | – | – | – |
 | android | 128M | f64 | yes | optional | optional | optional | optional | – | yes | yes | yes | – | – |
 | ios, ios-sim | 256M | f64 | yes | optional | optional | optional | optional | – | yes | yes | yes | – | – |
 

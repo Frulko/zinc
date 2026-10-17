@@ -1,5 +1,8 @@
 # wasm: the interpreter on WebAssembly (ZN-135)
 
+> To put a Zinc app in a browser as a normal web page (the app's JavaScript on the browser's own engine, canvas or DOM, hot reload, the plugins that have a web version), use
+> `zinc export --target web` ([web.md](web.md)). This page is the other way: the bytecode interpreter of the engine in WebAssembly, for small console-style programs.
+
 `next/tools/build-wasm` builds the ZBC interpreter with the pinned zig (`zig c++ -target wasm32-wasi`, no emscripten) into `build-wasm/`:
 
 | file | what |
