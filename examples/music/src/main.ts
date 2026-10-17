@@ -256,17 +256,33 @@ function togglePlay(): void {
 }
 function setGroupVolume(v: number): void {
   const g = g0();
-  if (sys === null || g === null) return;
-  const vol = Math.round(v * 100) as i32, s = sys as System, gg = g as Group;
+  if (g !== null) groupVolumeTo(g as Group, v);
+}
+// The rooms follow the group's slider at once, as Sonos moves them (each in proportion to where it was when the gesture began), and the
+// group's slider follows a room's (Sonos's group volume is the rooms' mean); the speakers' own numbers replace these once the polls resume.
+let snapGroup: Group | null = null, snapVolume: i32 = -1, snapRooms: i32[] = [];
+function groupVolumeTo(gg: Group, v: number): void {
+  if (sys === null) return;
+  const vol = Math.round(v * 100) as i32, s = sys as System;
   if (vol === gg.volume) return;
-  gg.volume = vol; volumeHeld = 1.5;
+  if (volumeHeld <= 0 || snapGroup !== gg) { snapGroup = gg; snapVolume = gg.volume; snapRooms = []; for (const m of gg.members) snapRooms.push(m.volume); }
+  for (let i = 0; i < gg.members.length && i < snapRooms.length; i++) {
+    const m = gg.members[i], was = snapRooms[i];
+    if (was >= 0) m.volume = (snapVolume > 0 ? Math.max(0, Math.min(100, Math.round(was * vol / snapVolume))) : vol) as i32;
+  }
+  gg.volume = vol; volumeHeld = 1.5; ui.dirty = true;
   volumeSender.push(async (): Promise<void> => { await s.setGroupVolume(gg, vol); });
 }
 function setRoomVolume(sp: Speaker, v: number): void {
   if (sys === null) return;
   const vol = Math.round(v * 100) as i32, s = sys as System;
   if (vol === sp.volume) return;
-  sp.volume = vol; volumeHeld = 1.5;
+  sp.volume = vol; volumeHeld = 1.5; snapGroup = null; ui.dirty = true;
+  for (const g of s.groups) for (const m of g.members) if (m === sp) {
+    let sum = 0, n = 0;
+    for (const o of g.members) if (o.volume >= 0) { sum += o.volume; n++; }
+    if (n > 0) g.volume = Math.round(sum / n) as i32;
+  }
   volumeSender.push(async (): Promise<void> => { await s.setVolume(sp, vol); });
 }
 function nudgeVolume(d: i32): void {
@@ -1028,10 +1044,7 @@ function roomsPage(W: number, H: number): void {
     if (g.members.length > 1) {
       separator(x0 + 18, ry, w - 36);
       drawText(F.smallB, x0 + 18, ry + 20, 'Groupe', TEXT, 255, 0);
-      slider('room/gv/' + g.id, x0 + 200, ry + 30, w - 290, g.volume >= 0 ? g.volume / 100 : 0, ACCENT, (v: number, done: boolean) => {
-        const vol = Math.round(v * 100) as i32;
-        if (vol !== gg.volume) { gg.volume = vol; volumeHeld = 1.5; volumeSender.push(async (): Promise<void> => { await s.setGroupVolume(gg, vol); }); }
-      });
+      slider('room/gv/' + g.id, x0 + 200, ry + 30, w - 290, g.volume >= 0 ? g.volume / 100 : 0, ACCENT, (v: number, done: boolean) => groupVolumeTo(gg, v));
       drawText(F.smallB, x0 + w - 60, ry + 20, g.volume >= 0 ? '' + g.volume : '–', TEXT2, 255, 0);
       ry += 60;
     }
