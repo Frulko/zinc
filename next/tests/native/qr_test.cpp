@@ -7,6 +7,8 @@
 
 #include "qrcodegen.h"
 #include "quirc.h"
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb/stb_image_write.h"
 
 static bool roundTrip(const std::string& text, int scale, int ox, int oy, std::string& got) {
   std::vector<std::uint8_t> qr(qrcodegen_BUFFER_LEN_MAX), tmp(qrcodegen_BUFFER_LEN_MAX);
@@ -36,7 +38,23 @@ static bool roundTrip(const std::string& text, int scale, int ox, int oy, std::s
   return ok;
 }
 
-int main() {
+// qr_test --png <text> <out.png>: the code as a picture (8 pixels a module, the quiet zone), for the fake camera to hold up
+// (ZINC_FAKE_CAMERA_IMAGE, tests/t1/zinc_go_home.sh)
+static int png(const char* text, const char* out) {
+  std::vector<std::uint8_t> qr(qrcodegen_BUFFER_LEN_MAX), tmp(qrcodegen_BUFFER_LEN_MAX);
+  if (!qrcodegen_encodeText(text, tmp.data(), qr.data(), qrcodegen_Ecc_LOW, qrcodegen_VERSION_MIN, qrcodegen_VERSION_MAX, qrcodegen_Mask_AUTO, true)) return 1;
+  const int size = qrcodegen_getSize(qr.data()), k = 8, side = (size + 8) * k;
+  std::vector<std::uint8_t> px(static_cast<std::size_t>(side) * side);
+  for (int y = 0; y < side; ++y)
+    for (int x = 0; x < side; ++x) {
+      const int mx = x / k - 4, my = y / k - 4;
+      px[static_cast<std::size_t>(y) * side + x] = mx >= 0 && my >= 0 && mx < size && my < size && qrcodegen_getModule(qr.data(), mx, my) ? 0 : 255;
+    }
+  return stbi_write_png(out, side, side, 1, px.data(), side) ? 0 : 1;
+}
+
+int main(int argc, char** argv) {
+  if (argc == 4 && !std::strcmp(argv[1], "--png")) return png(argv[2], argv[3]);
   const char* links[] = {"zinc://192.168.1.23:8090/3fa9c2d1", "zinc://10.0.2.2:8091/00ff00ff", "zinc://my-laptop.local:8090/abcdef12"};
   const int scales[][3] = {{4, 40, 30}, {6, 100, 20}, {3, 300, 200}};
   for (const char* l : links)

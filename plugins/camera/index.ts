@@ -111,6 +111,8 @@ export class Camera {
   /** The newest frame as the bytes of a PNG file, options applied (fs.writeBytes them to save a photo, gfx.imageFromBytes for a thumbnail);
    *  [] once closed and without native code (the sim stand-in). */
   toPng(): Uint8Array { return this.h < 0 ? [] : S.png(this.h); }
+  /** The text of a QR code in the frame on screen (call it after frames arrive, a few times a second is plenty), '' when it holds none. */
+  scanQr(): string { return this.h < 0 ? '' : S.scanQr(this.h); }
   /** A still of the frame on screen (options applied) as a new runtime image of the camera's size, in a millisecond: a photo's thumbnail
    *  without encoding and decoding a PNG. -1 once closed. Free it with gfx.destroyImage. */
   still(): number {

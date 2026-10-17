@@ -64,6 +64,7 @@ struct Project {
   std::string profile;              // "profile": the target profile (esp32, ps1...) that sets `number`, the heap budget and typing; "" = the host's
   std::vector<std::string> requires_;
   std::string keyboard;             // "keyboard": "auto" | "touch" | "always" | "never": the default mode of the kit's on-screen keyboard (ZN-227), passed as ZINC_KEYBOARD
+  bool player = false;              // "player": true: zinc export makes a player of the phone (Zinc Go, ZN-631): the program is its home screen, in bytecode, with the interpreter and every plugin made for the platform
   bool webgl = false;               // "webgl": true lets zinc:script contexts create WebGL canvases (ZN-205), passed as ZINC_WEBGL
   bool web = false;                 // "web": true (or an object, its keys kept for later): QuickJS programs start with the web environment (ZN-568), as ZINC_WEB=1
   std::string engine;               // "engine": "quickjs" runs the project on QuickJS-ng, "zinc" on the typed engines; "" = QuickJS for a .js or .mjs entry (ZN-719)

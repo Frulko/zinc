@@ -62,6 +62,13 @@ cp -R tests/data/mobile-plugin "$tmp/noentry"
 perl -0pi -e 's/"android": \{.*?\n    \},\n//s' "$tmp/noentry/plugins/beep/plugin.json"
 PATH="$tmp/bin:$PATH" "$Z" export "$tmp/noentry" --target android -o "$tmp/noentry-android" >/dev/null 2>"$tmp/noentry.err" && { echo "a plugin without an android entry was exported"; fail=1; }
 grep -q "plugin 'beep' is not made for android: its plugin.json has no \"targets\".\"android\" entry" "$tmp/noentry.err" || { echo "the refusal does not say why: $(tail -1 "$tmp/noentry.err")"; fail=1; }
+# a player (zinc.json "player": true, Zinc Go, ZN-631): the home screen as a hot unit in the assets, every phone plugin registered, the
+# interpreter linked; a user's app links none of it
+PATH="$tmp/bin:$PATH" ANDROID_HOME= ANDROID_SDK_ROOT= "$Z" export ../examples/zinc-go --target android -o "$tmp/go" >/dev/null 2>"$tmp/go.err" || { echo "export of zinc-go failed: $(tail -2 "$tmp/go.err")"; fail=1; }
+head -c 8 "$tmp/go/app/src/main/assets/zinc/home.unit" 2>/dev/null | grep -q "ZNHOTU1" || { echo "no home screen unit in the player's assets"; fail=1; }
+grep -q "zn_register_module(zn_module_Camera()" "$tmp/go/app/jni/src/player_modules.cpp" && grep -q "zn_register_module(zn_module_Sqlite()" "$tmp/go/app/jni/src/player_modules.cpp" || { echo "the player does not register its plugins"; fail=1; }
+grep -q " zn_app_player zn_app log android)" "$tmp/go/app/jni/src/CMakeLists.txt" || { echo "the player does not link zn_app_player"; fail=1; }
+grep -q "zn_app_player" "$tmp/hello/app/jni/src/CMakeLists.txt" "$tmp/kiosk-android/app/jni/src/CMakeLists.txt" && { echo "a user's app links the player"; fail=1; }
 [ -f "$tmp/ran" ] && { echo "an Android tool ran: $(cat "$tmp/ran")"; fail=1; }
 [ $fail -eq 0 ] && echo "export android: ok"
 exit $fail

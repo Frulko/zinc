@@ -68,5 +68,6 @@ export default {
   encodePng: (_h: i32): i32 => 0,
   pngReady: (_job: i32): i32 => 1,
   takePng: (_job: i32): u8[] => [],
+  scanQr: (_h: i32): string => '',   // ponytail: the test pattern holds no QR code; the native plugin reads them with quirc
   close: (h: i32): void => { const c = at(h); if (c !== null) { destroyImage(c.img); cams[h] = null; } },
 };

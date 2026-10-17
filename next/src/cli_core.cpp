@@ -970,6 +970,7 @@ struct AppPlugins {
   std::vector<std::string> java, gradle, permissions, manifestXml, applicationXml, lifecycle, plist, entitlements, privacy;   // plist, entitlements, privacy: JSON objects
   int minSdk = 0;
   bool swift = false, objc = false;   // objc: an Objective-C or Swift class found by name at run time (class, lifecycle), which -ObjC keeps in the link
+  std::vector<std::string> modules;   // the native modules of the plugins ("Sqlite"): what a player registers (ZN-631)
 };
 static bool appPluginsCmake(const std::vector<std::string>& names, const fs::path& engine, const ProjectInfo& p, const std::string& platform,
                             const fs::path& cmakeDir, const fs::path& copyDir, AppPlugins& out) {
@@ -1022,6 +1023,7 @@ static bool appPluginsCmake(const std::vector<std::string>& names, const fs::pat
     }
     if (!swift.empty()) out.cmake += "target_link_libraries(" + lib + " PUBLIC " + lib + "_swift)\n";
     out.libs += " " + lib;
+    if (!ps.module.empty() && hit->manifest.kind != "display") out.modules.push_back(ps.module);
     out.java.insert(out.java.end(), ps.java.begin(), ps.java.end());
     out.gradle.insert(out.gradle.end(), ts.gradle.begin(), ts.gradle.end());
     out.permissions.insert(out.permissions.end(), ts.permissions.begin(), ts.permissions.end());
@@ -1085,6 +1087,33 @@ static bool appProgram(const ProjectInfo& p, const char* profile, const fs::path
   { std::ifstream pn(src / "program.plugins"); for (std::string l; std::getline(pn, l);) if (!l.empty()) plugins.push_back(l); }
   fs::remove(src / "program.plugins", ec);
   return true;
+}
+
+// A player (zinc.json "player": true, Zinc Go, ZN-631): the program is its home screen, compiled in hot mode as zinc dev --lan sends programs
+// (`unit`: zinc/home.unit in the package, read by src/app/player.cpp), and the plugins are every one made for the platform (the engine's and the
+// project's), so that the projects it runs find theirs. The C++ unit is the table that registers their native modules (playerModules).
+static bool playerProgram(const ProjectInfo& p, const fs::path& engine, const char* profile, const fs::path& unit, std::vector<std::string>& units, std::vector<std::string>& plugins) {
+  std::error_code ec;
+  fs::create_directories(unit.parent_path(), ec);
+  const std::string build = q(self()) + " --emit=hot " + q(fs::absolute(p.entry).string()) + " " + q(unit.string()) + " --profile " + profile;
+  if (status(std::system(build.c_str())) != 0) { std::fprintf(stderr, "zinc export: the build of the home screen failed\n"); return false; }
+  std::vector<std::string> problems;
+  for (const auto& f : zn::frontend::discoverPlugins(engine.parent_path().string(), p.dir, problems)) {
+    bool native = false;   // a plugin of Zinc code only (async-storage, gsap) travels in the programs zinc dev sends
+    for (const auto& e : fs::directory_iterator(fs::path(f.dir) / "native", ec)) native = native || e.path().filename().string().find(".spec.ts") != std::string::npos;
+    if (native && f.manifest.kind != "display" && f.manifest.targetSettings.count(profile) && std::find(plugins.begin(), plugins.end(), f.manifest.name) == plugins.end()) plugins.push_back(f.manifest.name);
+  }
+  units = {"player_modules.cpp"};
+  return true;
+}
+static std::string playerModules(const std::vector<std::string>& modules) {
+  std::string decl, reg;
+  for (const std::string& m : modules) {
+    decl += "extern \"C\" const ZnModule* zn_module_" + m + "(void);\n";
+    reg += "  if (zn_register_module(zn_module_" + m + "(), e, sizeof e) < 0) std::fprintf(stderr, \"zinc go: %s\\n\", e);\n";
+  }
+  return "// Written by zinc export for a player (zinc.json \"player\": true, ZN-631): the native modules of its plugins, registered at start (src/app/player.cpp).\n"
+         "#include <cstdio>\n#include \"zn/native.h\"\n\n" + decl + "\nextern \"C\" void zn_player_modules(void) {\n  char e[256];\n" + reg + "}\n";
 }
 
 // The packages of a phone export (ZN-629): --aab (a release bundle for Google Play), --apk (a debug APK), --ipa (an App Store, TestFlight, ad hoc
@@ -1203,11 +1232,12 @@ static int exportAndroid(const ProjectInfo& p, const fs::path& out, const std::s
   fs::remove(src / "YourSourceHere.c", ec);
   // the program's C++ for the android profile (number, heap, requires) in app/jni/src, where the script copies the sources, and the plugins it calls
   std::vector<std::string> units, names;
-  if (!appProgram(p, "android", src, units, names)) return 1;
+  if (proj.player ? !playerProgram(p, engine, "android", out / "app/src/main/assets/zinc/home.unit", units, names) : !appProgram(p, "android", src, units, names)) return 1;
   AppPlugins plugs;
   if (!appPluginsCmake(names, engine, p, "android", src, src / "plugins", plugs)) return 1;
+  if (proj.player) writeFile(src / "player_modules.cpp", playerModules(plugs.modules));
   const std::string& pluginCmake = plugs.cmake;
-  const std::string& pluginLibs = plugs.libs;
+  const std::string pluginLibs = plugs.libs + (proj.player ? " zn_app_player" : "");   // the interpreter and the link to zinc dev (src/app/player.cpp)
   const int minSdk = std::max(kMinSdk, plugs.minSdk);
   const zn::frontend::Profile* prof = zn::frontend::findProfile("android");
   const std::string heapMb = std::to_string(prof ? prof->heapBytes >> 20 : 128);
@@ -1421,11 +1451,12 @@ static int exportIos(const ProjectInfo& p, const fs::path& out, const std::strin
   { std::ifstream pf(fs::path(p.dir) / "zinc.json"); std::stringstream ps; ps << pf.rdbuf(); std::string perr; if (pf) zn::frontend::parseProject(ps.str(), proj, perr); }
   fs::create_directories(src, ec);
   std::vector<std::string> units, names;
-  if (!appProgram(p, "ios", src, units, names)) return 1;
+  if (proj.player ? !playerProgram(p, engine, "ios", out / "zinc/home.unit", units, names) : !appProgram(p, "ios", src, units, names)) return 1;
   AppPlugins plugs;
   if (!appPluginsCmake(names, engine, p, "ios", out, src / "plugins", plugs)) return 1;
+  if (proj.player) writeFile(src / "player_modules.cpp", playerModules(plugs.modules));
   const std::string& pluginCmake = plugs.cmake;
-  const std::string& pluginLibs = plugs.libs;
+  const std::string pluginLibs = plugs.libs + (proj.player ? " zn_app_player" : "");   // the interpreter and the link to zinc dev (src/app/player.cpp)
   const zn::frontend::Profile* prof = zn::frontend::findProfile("ios");
   const std::string heapMb = std::to_string(prof ? prof->heapBytes >> 20 : 256);
   const std::string id = proj.app.id.empty() ? "dev.zinc." + p.name : proj.app.id;   // zinc check took it as reverse DNS: a valid CFBundleIdentifier
@@ -1534,8 +1565,9 @@ static int exportIos(const ProjectInfo& p, const fs::path& out, const std::strin
             "set(ZINC_PLUGINS ${ZINC_ENGINE}/../plugins)\n" + pluginCmake +
             "# the app: the program, the shell (SDL3's main callbacks over include/zn/app.h), the asset catalog and assets/ in the bundle\n"
             "file(GLOB_RECURSE ZINC_ASSET_FILES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/assets/*)\n"
-            "add_executable(" + n + " MACOSX_BUNDLE" + unitList + " ${ZINC_ENGINE}/src/app/shell_sdl.cpp Assets.xcassets PrivacyInfo.xcprivacy ${ZINC_ASSET_FILES})\n"
-            "set_source_files_properties(Assets.xcassets PrivacyInfo.xcprivacy PROPERTIES MACOSX_PACKAGE_LOCATION Resources)\n"
+            "add_executable(" + n + " MACOSX_BUNDLE" + unitList + " ${ZINC_ENGINE}/src/app/shell_sdl.cpp Assets.xcassets PrivacyInfo.xcprivacy ${ZINC_ASSET_FILES}" + (proj.player ? " zinc/home.unit" : "") + ")\n"
+            "set_source_files_properties(Assets.xcassets PrivacyInfo.xcprivacy PROPERTIES MACOSX_PACKAGE_LOCATION Resources)\n" +
+            (proj.player ? "set_source_files_properties(zinc/home.unit PROPERTIES MACOSX_PACKAGE_LOCATION Resources/zinc)   # a player's home screen (src/app/player.cpp)\n" : "") +
             "foreach(f ${ZINC_ASSET_FILES})\n"
             "  file(RELATIVE_PATH r ${CMAKE_CURRENT_SOURCE_DIR} ${f})\n"
             "  get_filename_component(d ${r} DIRECTORY)\n"
@@ -2794,7 +2826,8 @@ bool sendAll(int fd, const std::string& s) {
 // The project compiled in hot mode for a player's profile (zinc --emit=hot): the unit's bytes, or false with the diagnostics
 bool hotUnit(const ProjectInfo& p, const std::string& profile, const fs::path& devDir, std::string& bytes, std::vector<std::string>& errors) {
   const fs::path out = devDir / ("player-" + profile + ".unit"), log = devDir / ("player-" + profile + ".txt");
-  const std::string cmd = "cd " + q(p.dir) + " && " + q(self()) + " --emit=hot " + q(fs::absolute(p.entry).string()) + " " + q(out.string()) + " --profile " + q(profile) + " > " + q(log.string()) + " 2>&1";
+  // without the optimiser, as Metro serves development bundles unminified: 200 ms less per save on rn-showcase (770 -> 570 ms), the keys the same
+  const std::string cmd = "cd " + q(p.dir) + " && ZN_NO_OPT=1 " + q(self()) + " --emit=hot " + q(fs::absolute(p.entry).string()) + " " + q(out.string()) + " --profile " + q(profile) + " > " + q(log.string()) + " 2>&1";
   const int rc = status(std::system(cmd.c_str()));
   errors.clear();
   if (rc != 0) {
@@ -2832,7 +2865,7 @@ int devLan(const ProjectInfo& p, const fs::path& devDir, int port) {
   }
   const std::string host = lanAddress(), url = "zinc://" + host + ":" + std::to_string(bound) + "/" + token;
   std::fprintf(stderr, "\n%s\n  Scan it with Zinc Go, or open %s\n  Android emulator: adb shell am start -a android.intent.action.VIEW -d zinc://10.0.2.2:%d/%s\n"
-               "  iOS simulator:    xcrun simctl openurl booted zinc://127.0.0.1:%d/%s\n\n",
+               "  iOS simulator:    xcrun simctl launch booted dev.zinc.go zinc://127.0.0.1:%d/%s   (openurl works too, after a tap on Open)\n\n",
                qrTerminal(url).c_str(), url.c_str(), bound, token.c_str(), bound, token.c_str());
   std::fflush(stderr);
   std::vector<Player> players;
@@ -2840,6 +2873,7 @@ int devLan(const ProjectInfo& p, const fs::path& devDir, int port) {
   Stamps seen = snapshot(p.dir);
   Clock::time_point saved = Clock::now();
   std::string savedNames;
+  long compileMs = 0;
   auto drop = [&](Player& pl, const char* why) {
     if (pl.hello) std::fprintf(stderr, "zinc dev: %s %s\n", pl.device.c_str(), why);
     zn::plat::sockClose(pl.fd);
@@ -2850,7 +2884,10 @@ int devLan(const ProjectInfo& p, const fs::path& devDir, int port) {
     std::string& bytes = units[pl.profile];
     if (compile || bytes.empty()) {
       std::string fresh;
-      if (!hotUnit(p, pl.profile, devDir, fresh, errors)) {
+      const auto c0 = Clock::now();
+      const bool ok = hotUnit(p, pl.profile, devDir, fresh, errors);
+      compileMs = msSince(c0);
+      if (!ok) {
         std::string text;
         for (const std::string& e : errors) text += e + "\n";
         std::fprintf(stderr, "zinc dev: compile error: %s\n", errors[0].c_str());
@@ -2923,7 +2960,7 @@ int devLan(const ProjectInfo& p, const fs::path& devDir, int port) {
           std::istringstream rs(rest);
           long ms = 0;
           rs >> ms;
-          std::fprintf(stderr, "zinc dev: v%d refreshed %s on %s (%ld ms after the save, %ld ms on the device)\n", pl.version, savedNames.c_str(), pl.device.c_str(), msSince(saved), ms);
+          std::fprintf(stderr, "zinc dev: v%d refreshed %s on %s (%ld ms after the save: compile %ld, the device %ld)\n", pl.version, savedNames.c_str(), pl.device.c_str(), msSince(saved), compileMs, ms);
         } else if (verb == "started") std::fprintf(stderr, "zinc dev: v%d started on %s (%ld ms after the %s)\n", ++pl.version, pl.device.c_str(), msSince(saved), savedNames.empty() ? "connection" : "save");
         else if (verb == "restart") std::fprintf(stderr, "zinc dev: restart on %s: %s\n", pl.device.c_str(), rest.c_str());
         else if (verb == "missing") std::fprintf(stderr, "zinc dev: %s has no plugin '%s': this program cannot run in this Zinc Go (a player exported with the plugin can)\n", pl.device.c_str(), rest.c_str());

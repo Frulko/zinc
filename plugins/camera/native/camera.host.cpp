@@ -23,6 +23,12 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #define STBI_WRITE_NO_STDIO
 #include "stb/stb_image_write.h"
+#define STB_IMAGE_STATIC   // the fake camera's picture (ZINC_FAKE_CAMERA_IMAGE): PNG only, a copy of its own beside the engine's
+#define STB_IMAGE_IMPLEMENTATION
+#define STBI_ONLY_PNG
+#include "stb/stb_image.h"
+#include "../vendor/quirc/quirc.h"
+#include <algorithm>
 extern "C" int zn_host_permission(const char* feature, const char* detail, char* why, int n) __attribute__((weak));   // zinc.json "permissions" (src/host/permissions.cpp)
 
 #ifndef ZP_CAMERA_FAKE
@@ -83,6 +89,9 @@ bool refused() {
 // the program polls pngReady and takes the bytes (and writes them with zinc:fs, under the app's permissions)
 struct PngJob { std::atomic<int> state{0}; std::vector<uint8_t> out; };   // 0 encoding, 1 done
 std::vector<std::shared_ptr<PngJob>> jobs;
+// QR codes (scanQr, the Zinc Go scanner): quirc's decoder, made again when the frame size changes
+quirc* qr = nullptr;
+int qrW = 0, qrH = 0;
 void encode(std::vector<uint8_t>& out, const uint8_t* rgb, int w, int h) {
   stbi_write_png_to_func([](void* ctx, void* d, int n) { auto* o = (std::vector<uint8_t>*)ctx; o->insert(o->end(), (uint8_t*)d, (uint8_t*)d + n); }, &out, w, h, 3, rgb, w * 3);
 }
@@ -116,6 +125,31 @@ void pattern(uint32_t* px, int w, int h, int idx) {
       if (x >= sx && x < sx + s && y >= sy && y < sy + s) c = 0xFF8000;
       px[y * w + x] = c;
     }
+}
+// ZINC_FAKE_CAMERA_IMAGE=<file.png>: the fake camera holds this picture up instead of the pattern (fitted, on grey): a QR code for a scanner's
+// test (Zinc Go's home screen, ZN-631), a document, a face. False when it is not set or cannot be read.
+bool picture(uint32_t* px, int w, int h) {
+  static std::vector<uint32_t> pic;
+  static int pw = 0, ph = 0;
+  static bool tried = false;
+  if (!tried) {
+    tried = true;
+    int n = 0;
+    if (uint8_t* d = *env("ZINC_FAKE_CAMERA_IMAGE") ? stbi_load(env("ZINC_FAKE_CAMERA_IMAGE"), &pw, &ph, &n, 3) : nullptr) {
+      pic.resize((size_t)pw * ph);
+      for (size_t i = 0; i < pic.size(); i++) pic[i] = (uint32_t)d[i * 3] << 16 | (uint32_t)d[i * 3 + 1] << 8 | d[i * 3 + 2];
+      stbi_image_free(d);
+    }
+  }
+  if (pic.empty()) return false;
+  const double s = std::min((double)w / pw, (double)h / ph);
+  const int dw = (int)(pw * s), dh = (int)(ph * s), ox = (w - dw) / 2, oy = (h - dh) / 2;
+  for (int y = 0; y < h; y++)
+    for (int x = 0; x < w; x++) {
+      const int sx = (int)((x - ox) / s), sy = (int)((y - oy) / s);
+      px[y * w + x] = x >= ox && y >= oy && x < ox + dw && y < oy + dh && sx < pw && sy < ph ? pic[(size_t)sy * pw + sx] : 0x808080;
+    }
+  return true;
 }
 void make_lut(Cam& c) {
   for (int v = 0; v < 256; v++) {
@@ -215,7 +249,7 @@ struct HostCamera : NativeCamera {
   int32_t frame(int32_t h) override {
     Cam* c = at(h);
     if (!c) return -1;
-    if (c->fake) { pattern(c->src.data(), c->w, c->h, ++c->index); present(*c); }
+    if (c->fake) { ++c->index; if (!picture(c->src.data(), c->w, c->h)) pattern(c->src.data(), c->w, c->h, c->index); present(*c); }
     else if (cam_backend_take(c->be, c->src.data(), c->w, c->h, &c->seq)) { c->index++; present(*c); }
     return c->index;
   }
@@ -287,6 +321,29 @@ struct HostCamera : NativeCamera {
     zrt::Array<uint8_t> r = bytes(jobs[job]->out);
     jobs[job].reset();
     return r;
+  }
+  zrt::String scanQr(int32_t h) override {   // the frame in grey, as quirc reads it; one decoder kept per size
+    Cam* c = at(h);
+    if (!c || c->index < 0) return str("");
+    if (!qr || qrW != c->w || qrH != c->h) {
+      if (qr) quirc_destroy(qr);
+      qr = quirc_new();
+      if (!qr || quirc_resize(qr, c->w, c->h) < 0) { if (qr) quirc_destroy(qr); qr = nullptr; return str(""); }
+      qrW = c->w; qrH = c->h;
+    }
+    uint8_t* grey = quirc_begin(qr, nullptr, nullptr);
+    const uint32_t* px = view(*c);
+    for (size_t i = 0, n = c->shown.size(); i < n; i++) { const uint32_t p = px[i]; grey[i] = (uint8_t)(((p >> 16 & 255) * 77 + (p >> 8 & 255) * 150 + (p & 255) * 29) >> 8); }
+    quirc_end(qr);
+    for (int i = 0; i < quirc_count(qr); i++) {
+      quirc_code code;
+      quirc_data data;
+      quirc_extract(qr, i, &code);
+      if (quirc_decode(&code, &data) == QUIRC_SUCCESS) return str(std::string((const char*)data.payload, (size_t)data.payload_len));
+      quirc_flip(&code);   // a mirrored code (a front camera's picture)
+      if (quirc_decode(&code, &data) == QUIRC_SUCCESS) return str(std::string((const char*)data.payload, (size_t)data.payload_len));
+    }
+    return str("");
   }
   void close(int32_t h) override {
     Cam* c = at(h);

@@ -207,6 +207,7 @@ void goHome(const std::string& why) {
 
 // A program from zinc dev: the first one starts; the next ones are swapped in place when Fast Refresh can, else started again
 void takeUnit(const std::uint8_t* p, std::size_t n) {
+  gGot = Clock::now();   // what the device spends: reading the unit (zstd, decode, verify), the swap, the first frame
   auto u = std::make_unique<hot::Unit>();
   std::string err;
   if (!hot::load(p, n, *u, err)) { goHome("zinc dev sent a program this player cannot read: " + err); return; }
@@ -217,7 +218,6 @@ void takeUnit(const std::uint8_t* p, std::size_t n) {
     startHome();
     return;
   }
-  gGot = Clock::now();
   zn::rt::Machine* m = zn::rt::appMachine();
   if (gRemote && m && !gLink.fresh) {
     std::vector<std::string> reeval, changed;

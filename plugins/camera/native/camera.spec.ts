@@ -36,6 +36,8 @@ export interface Spec extends NativeModule {
   pngReady(job: i32): i32;
   /** The bytes of a ready job's PNG (then the job is gone); [] otherwise. */
   takePng(job: i32): u8[];
+  /** The text of the first QR code in the newest frame (quirc), '' when it holds none it can read. */
+  scanQr(h: i32): string;
   close(h: i32): void;
 }
 export default requireNative<Spec>('Camera');

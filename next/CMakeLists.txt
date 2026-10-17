@@ -313,12 +313,15 @@ add_library(zn_qrcodegen STATIC third_party/qrcodegen/qrcodegen.c)
 target_include_directories(zn_qrcodegen PUBLIC third_party/qrcodegen)
 set_target_properties(zn_qrcodegen PROPERTIES C_STANDARD 99 POSITION_INDEPENDENT_CODE ON)
 target_compile_options(zn_qrcodegen PRIVATE -w -O2)
-add_library(zn_quirc STATIC third_party/quirc/quirc.c third_party/quirc/decode.c third_party/quirc/identify.c third_party/quirc/version_db.c)
-target_include_directories(zn_quirc PUBLIC third_party/quirc)
+set(ZN_QUIRC ${CMAKE_CURRENT_SOURCE_DIR}/../plugins/camera/vendor/quirc)   # vendored by the camera plugin, which compiles it for every target
+add_library(zn_quirc STATIC ${ZN_QUIRC}/quirc.c ${ZN_QUIRC}/decode.c ${ZN_QUIRC}/identify.c ${ZN_QUIRC}/version_db.c)
+target_include_directories(zn_quirc PUBLIC ${ZN_QUIRC})
 set_target_properties(zn_quirc PROPERTIES C_STANDARD 99 POSITION_INDEPENDENT_CODE ON)
 target_compile_options(zn_quirc PRIVATE -w -O2)
 add_executable(qr_test tests/native/qr_test.cpp)   # the encoder's codes, drawn at several scales, read back by the decoder (tests/t0/qr_code.sh)
 target_link_libraries(qr_test PRIVATE zn_qrcodegen zn_quirc)
+target_include_directories(qr_test PRIVATE third_party)
+target_compile_options(qr_test PRIVATE -w)   # stb_image_write.h
 
 # SHA-256 (third_party/sha256, public domain): toolchain downloads, .zapp members, ZPK entries
 add_library(zn_sha256 STATIC third_party/sha256/sha256.c)

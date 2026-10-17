@@ -9,10 +9,10 @@
   "requires": ["camera"],
   "native": { "impl": { "macos": "native/camera.macos.mm", "ios": "native/camera.ios.mm" } },
   "targets": {
-    "macos": { "frameworks": ["AVFoundation", "CoreMedia", "CoreVideo", "Foundation"] },
-    "linux": { "linkFlags": ["-pthread"] },
-    "rpi1": { "linkFlags": ["-pthread"] },
-    "android": { "libs": ["camera2ndk", "mediandk", "android", "log"] },
-    "ios": { "frameworks": ["AVFoundation", "CoreMedia", "CoreVideo", "Foundation"] }
+    "macos": { "sources": ["vendor/quirc/quirc.c", "vendor/quirc/decode.c", "vendor/quirc/identify.c", "vendor/quirc/version_db.c"], "frameworks": ["AVFoundation", "CoreMedia", "CoreVideo", "Foundation"] },
+    "linux": { "sources": ["vendor/quirc/quirc.c", "vendor/quirc/decode.c", "vendor/quirc/identify.c", "vendor/quirc/version_db.c"], "linkFlags": ["-pthread"] },
+    "rpi1": { "sources": ["vendor/quirc/quirc.c", "vendor/quirc/decode.c", "vendor/quirc/identify.c", "vendor/quirc/version_db.c"], "linkFlags": ["-pthread"] },
+    "android": { "sources": ["vendor/quirc/quirc.c", "vendor/quirc/decode.c", "vendor/quirc/identify.c", "vendor/quirc/version_db.c"], "libs": ["camera2ndk", "mediandk", "android", "log"] },
+    "ios": { "sources": ["vendor/quirc/quirc.c", "vendor/quirc/decode.c", "vendor/quirc/identify.c", "vendor/quirc/version_db.c"], "frameworks": ["AVFoundation", "CoreMedia", "CoreVideo", "Foundation"] }
   }
 }

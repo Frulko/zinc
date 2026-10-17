@@ -1,0 +1,46 @@
+{
+  "name": "zinc-go",
+  "entry": "src/main.tsx",
+  "player": true,
+  "app": {
+    "id": "dev.zinc.go",
+    "name": "Zinc Go",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "urlSchemes": ["zinc"]
+  },
+  "ui": {
+    "preset": "react-native"
+  },
+  "requires": [
+    "display",
+    "pointer|touch"
+  ],
+  "permissions": [
+    "net",
+    "camera",
+    "opener",
+    "deep-link"
+  ],
+  "permissionStrings": {
+    "camera": "Zinc Go reads the QR code zinc dev --lan prints to open your project."
+  },
+  "scopes": {
+    "opener": {
+      "allow": ["zinc://*"]
+    }
+  },
+  "targets": {
+    "macos": {
+      "width": 390,
+      "height": 760
+    }
+  },
+  "icons": [
+    "camera",
+    "circle-alert",
+    "link",
+    "refresh-cw",
+    "x"
+  ]
+}

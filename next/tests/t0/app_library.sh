@@ -38,6 +38,17 @@ if app "$tmp/timers.ts" timers src/app/shell_sdl.cpp; then
   out=$("$tmp/timers" 2>&1 | tr '\n' ' ')
   [ "$out" = "top then 1 tick 1 tick 2 tick 3 late " ] || { echo "timers on the callbacks shell: $out"; fail=1; }
 else fail=1; fi
+# a user's app has no player in it (ZN-631, D59: a store build runs only reviewed code): no Fast Refresh swap, no link to zinc dev, no
+# interpreter, in the archives an app links nor in rn-showcase's binary; the player's own archive has them (the check is not vacuous)
+if [ -f "$BUILD/libzn_app_player.a" ]; then
+  nm "$BUILD/libzn_app_player.a" 2>/dev/null | grep -q "zn_player_modules" && nm "$BUILD/libzn_app_player.a" 2>/dev/null | grep -q "dev3hot4swap" && nm "$BUILD/libzn_app_player.a" 2>/dev/null | grep -q "Machine5execT" || { echo "the player's archive lacks its own symbols"; fail=1; }
+fi
+for f in $(head -2 "$BUILD/zn_app.link") "$tmp/rn"; do
+  [ -f "$f" ] || continue
+  bad=$(nm "$f" 2>/dev/null | grep -E 'dev3hot|zn_player|Machine5execT' | head -3)
+  [ -z "$bad" ] || { echo "$(basename "$f") has player code: $bad"; fail=1; }
+  strings "$f" | grep -q "zinc-go 1 " && { echo "$(basename "$f") has the player's protocol"; fail=1; }
+done
 # the engine's own archives (the first two lines of zn_app.link): no loader, no child process
 for a in $(head -2 "$BUILD/zn_app.link"); do
   bad=$(nm -u "$a" 2>/dev/null | grep -E '^ *U? *_?(dlopen|fork|vfork|execv|execvp|execve|posix_spawn|posix_spawnp)$')
