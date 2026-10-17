@@ -1,5 +1,6 @@
 #include "assets/console_tex.h"
 #include "rg_etc1.h"
+#include <map>
 
 namespace zn::assets {
 
@@ -56,6 +57,32 @@ void encodeEtc1a4(const std::vector<std::uint8_t>& rgba, int width, int height, 
           if (idx % 2 == 0) block[8 + idx / 2] = (block[8 + idx / 2] & 0x0F) | (a << 4);
           else block[8 + idx / 2] = (block[8 + idx / 2] & 0xF0) | (a & 0x0F);
         }
+    }
+}
+
+void encodeClut8(const std::vector<std::uint8_t>& rgba, int width, int height, std::vector<std::uint8_t>& indices, std::vector<std::uint8_t>& palette) {
+  // Build a palette of up to 256 unique colors (first-seen order), padded with black.
+  std::vector<std::uint32_t> pal;
+  std::map<std::uint32_t, int> idx;
+  auto key = [](const std::uint8_t* p) { return (p[0]) | (p[1] << 8) | (p[2] << 16) | (p[3] << 24); };
+  for (std::size_t i = 0; i + 3 < rgba.size(); i += 4) {
+    std::uint32_t k = key(&rgba[i]);
+    if (idx.find(k) == idx.end()) { idx[k] = pal.size(); pal.push_back(k); if (pal.size() >= 256) break; }
+  }
+  palette.assign(256 * 4, 0);
+  for (std::size_t i = 0; i < pal.size(); ++i) {
+    palette[i * 4 + 0] = pal[i] & 0xFF;
+    palette[i * 4 + 1] = (pal[i] >> 8) & 0xFF;
+    palette[i * 4 + 2] = (pal[i] >> 16) & 0xFF;
+    palette[i * 4 + 3] = (pal[i] >> 24) & 0xFF;
+  }
+  indices.assign(width * height, 0);
+  for (int y = 0; y < height; ++y)
+    for (int x = 0; x < width; ++x) {
+      int i = (y * width + x) * 4;
+      std::uint32_t k = key(&rgba[i]);
+      auto it = idx.find(k);
+      indices[y * width + x] = (it != idx.end()) ? (std::uint8_t)it->second : 0;
     }
 }
 

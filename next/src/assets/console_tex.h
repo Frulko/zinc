@@ -11,4 +11,7 @@ void pspUnswizzle8(std::vector<std::uint8_t>& buf, int width, int height);
 /** ETC1A4: encode a width*height RGBA buffer to ETC1 (RGB) + 4-bit alpha (16 bytes per 4x4 block). */
 void encodeEtc1a4(const std::vector<std::uint8_t>& rgba, int width, int height, std::vector<std::uint8_t>& out);
 
+/** CLUT8: quantize a width*height RGBA buffer to 8-bit palette indices. Palette is written to `palette` (256*4 bytes). */
+void encodeClut8(const std::vector<std::uint8_t>& rgba, int width, int height, std::vector<std::uint8_t>& indices, std::vector<std::uint8_t>& palette);
+
 }  // namespace zn::assets
