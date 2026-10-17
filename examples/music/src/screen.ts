@@ -18,6 +18,8 @@ export class Screen {
   delay: number = 120;
   /** The clock slide is shown: off after STANDBY_OFF_S whatever the delay (unless never), and a glance every GLANCE_EVERY_S while off. */
   standby: boolean = false;
+  /** Lit for notifications only (owner 2026-10-17): the backlight on over a black screen while they play, off again after; still asleep for the rest. */
+  peeking: boolean = false;
   private awakeFor: number = 0;
   private t: number = 0;
   private nextGlance: number = 0;   // on t's clock; 0 until the screen goes off after a touch
@@ -31,6 +33,7 @@ export class Screen {
   touched(): boolean {
     this.idle = 0;
     this.nextGlance = 0;
+    if (this.peeking && this.asleep) { this.peeking = false; this.asleep = false; return false; }   // awake for good; the touch goes on to the notification
     if (!this.asleep) return false;
     this.asleep = false;
     this.light(true);
@@ -44,6 +47,18 @@ export class Screen {
     this.light(true);
     return true;
   }
+  /** A notification on a sleeping screen: the backlight only, the program draws black and the notification; true when it was off. */
+  peek(): boolean {
+    if (!this.asleep) return false;
+    if (!this.peeking) { this.peeking = true; this.light(true); }
+    return true;
+  }
+  /** The notifications are over: back off at once if nobody touched. */
+  endPeek(): void {
+    if (!this.peeking) return;
+    this.peeking = false;
+    if (this.asleep) this.light(false);
+  }
   private limit(): number { return this.standby ? STANDBY_OFF_S : this.delay; }
   /** Time passes; true when the screen just went off. Only while the program is in front: hidden, it wakes the screen and waits. */
   tick(dt: number): boolean {
@@ -52,7 +67,7 @@ export class Screen {
     if (document.hidden) { this.idle = 0; if (this.asleep) { this.asleep = false; this.light(true); } return false; }
     if (this.delay <= 0) return false;
     if (this.asleep) {   // a glance every GLANCE_EVERY_S from the first off, whatever the glances in between lasted
-      if (this.standby && this.t >= this.nextGlance) { this.nextGlance += GLANCE_EVERY_S; this.wake(GLANCE_S); }
+      if (this.standby && !this.peeking && this.t >= this.nextGlance) { this.nextGlance += GLANCE_EVERY_S; this.wake(GLANCE_S); }
       return false;
     }
     this.idle += dt;

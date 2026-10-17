@@ -16,7 +16,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import gsap, { Timeline } from 'gsap';
 import { setPlace, placeName, weatherTick, weatherSlide, Place, foundPlaces, searchState, searchPlaces } from './weather';
 import { openPort } from 'zinc:webos';
-import { startRelay, notifyTick, overlay, overlayStill, notifSlide, rowWantsCarousel, Notif } from './notify';
+import { startRelay, notifyTick, overlay, overlayActive, overlayStill, notifSlide, rowWantsCarousel, Notif } from './notify';
 
 // ---------------------------------------------------------------- settings beside the program
 class Config { sleep: number = 120; group: string = ''; seed: string = ''; spotifySn: i32 = 0; full: boolean = false; lat: number = 0; lon: number = 0; city: string = ''; battery: boolean = true; batteryPct: boolean = true; }
@@ -1349,6 +1349,7 @@ onFrame((dt: number) => {
   weatherTick(dt, !screen.asleep);
   if (!screen.asleep) batteryTick(dt);
   notifyTick(dt);
+  if (screen.peeking && !overlayActive()) { screen.endPeek(); ui.dirty = true; }   // the last one is over: back to sleep at once
   // animations
   if (toastFor > 0) { toastFor -= dt; if (toastFor <= 0) ui.dirty = true; }
   if (volumeOpen && dragZone === null) { volumeFor -= dt; if (volumeFor <= 0) { volumeOpen = false; ui.dirty = true; } }
@@ -1399,7 +1400,7 @@ onFrame((dt: number) => {
   if (!ui.dirty) { keep(); return; }
   ui.dirty = false; ui.animating = false;
   resetZones();
-  if (screen.asleep) { clear(0x000000); return; }
+  if (screen.asleep) { clear(0x000000); if (screen.peeking) overlay(W, H, TOP); return; }   // lit for notifications only: them on black
   const t0 = performance.now();
   draw(W, H);
   perf(dt, performance.now() - t0);
@@ -1421,6 +1422,6 @@ recall();
 find();
 listenRemote();
 preload();
-// a notification from the Mac: the screen wakes as each one shows (on for its 10 s and a little after); StandBy's overlay on the clock slide and
-// on a sleeping screen, grey cards elsewhere (owner 2026-10-17)
-startRelay((n: Notif) => { volumeOpen = false; contextOpen = false; wakeScreen(12); }, () => screen.asleep || (page === NOW && slide === CLOCK));
+// a notification from the Mac (owner 2026-10-17): on a sleeping screen only the backlight comes on, StandBy's overlay plays on black and the
+// screen goes off again when the queue is over (a touch wakes it for good); awake, it stays on 12 s more; StandBy's overlay on the clock slide, grey cards elsewhere
+startRelay((n: Notif) => { volumeOpen = false; contextOpen = false; if (!screen.peek()) wakeScreen(12); }, () => screen.asleep || (page === NOW && slide === CLOCK));

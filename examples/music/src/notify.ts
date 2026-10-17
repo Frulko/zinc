@@ -207,6 +207,8 @@ function tapped(): void {
   next();
 }
 /** While the overlay holds still, its timeline needs no frame (the view under it is still too: the touches are the overlay's). */
+/** A notification plays or waits (StandBy's overlay). */
+export function overlayActive(): boolean { return cur !== null; }
 export function overlayStill(): boolean {
   if (cur === null) return false;
   const p = cur as Play, sum = p.p1 + p.p2 * 3 + p.a * 5 + p.b * 7 + p.c * 11 + p.out * 13 + ov.dim * 17;

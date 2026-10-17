@@ -2,7 +2,7 @@
 # examples/music (ZN-758): the Mac's notifications on the tablet, on the desktop, headless. ZINC_MUSIC_RELAY feeds the app the relay's
 # messages (hello, icon, notif: tests/data/music/feed.py, made up) as zinc:link would hand them over (the link itself: tests/t1/link.sh; the
 # pairing on the Nexus 7: the task's screenshots). The scripts swipe to the notification slide first (a view that needs no network).
-# Run a: the screen goes off (a delay of 4 s); a message from Claire wakes it and plays as StandBy does (phase 1 centred, frame 480; phase 2,
+# Run a: the screen goes off (a delay of 4 s); a message from Claire lights it (the backlight only, on black) and plays as StandBy does (phase 1 centred, frame 480; phase 2,
 # frame 620: goldens); three more arrive at once and wait; the second plays 10 s after the first (frame 1220: a mail); a touch opens it on
 # the Mac ("open n2") and the next starts, a touch again ("open n3"), the last (Julie, no avatar: initials, frame 1451) plays, a touch
 # ("open n4") and the overlay closes; the list (frame 1520, golden), a swipe to the left deletes a row (notifications.json: 3 left).
