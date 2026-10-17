@@ -59,6 +59,20 @@ printf "export const label = 'three';\nconsole.log('labels ran');\n" > src/label
 waitfor "$t/dev.log" "restart on .*: src/labels.ts:2 .*no import.meta.hot.dispose" 10 || { echo "no restart with a reason: $(tail -5 "$t/dev.log")"; fail=1; }
 waitfor "$t/dev.log" "v2 started on " 5 || { echo "the restart did not start v2: $(tail -5 "$t/dev.log")"; fail=1; }
 waitfor "$t/dev.log" "| three! " 10 || { echo "v2 did not run: $(tail -5 "$t/dev.log")"; fail=1; }
+# 3b. the React model: a save of a component's file renders the whole tree again with the new code (its handlers are the old file's closures),
+#     the store of a module it did not touch keeps its count
+mkdir -p src
+printf 'export let ticks: i32 = 0;\nexport function tick(): void { ticks++; }\n' > src/store.ts
+printf "import { View, Text, Pressable } from 'zinc:react-native';\nimport { ticks } from './store';\nexport function App() {\n  console.log('alpha', ticks);\n  return <View><Pressable onPress={() => console.log('pressed')}><Text>alpha</Text></Pressable></View>;\n}\n" > src/app.tsx
+printf "import { render } from 'zinc:ui/react';\nimport { App } from './app';\nimport { tick } from './store';\nrender(App, 0, (dt: number): void => { tick(); });\n" > src/main.ts
+waitfor "$t/dev.log" "v3 started on " 30 || { echo "the React program did not start: $(tail -5 "$t/dev.log")"; fail=1; }
+waitfor "$t/dev.log" "| alpha " 10 || { echo "the React program did not render: $(tail -5 "$t/dev.log")"; fail=1; }
+sleep 0.5
+sed -i '' 's/alpha/beta/g' src/app.tsx
+waitfor "$t/dev.log" "v3 refreshed src/app.tsx on " 10 || { echo "the React component was not refreshed: $(grep -a 'zinc dev:' "$t/dev.log" | tail -2)"; fail=1; }
+waitfor "$t/dev.log" "| beta " 5 || { echo "the tree did not render again with the new code: $(tail -3 "$t/dev.log")"; fail=1; }
+n=$(grep -a "| beta " "$t/dev.log" | head -1 | awk '{print $NF}')
+[ -n "$n" ] && [ "$n" -gt 10 ] || { echo "the store lost its count: beta $n"; fail=1; }
 # 4. a plugin the player lacks (this one links none): named, and the player goes on
 printf "import { devices } from 'zinc:camera';\nimport { onFrame, clear } from 'zinc:gfx';\ndevices().then((d) => console.log('cameras', d.length));\nonFrame((dt: number) => { clear(0); });\n" > src/main.ts
 waitfor "$t/dev.log" "has no plugin 'camera'" 30 || { echo "the missing plugin was not named: $(tail -5 "$t/dev.log"; tail -3 "$t/player.log")"; fail=1; }

@@ -36,6 +36,11 @@ export function __dispose(): void {
   for (const i of instances) { i.hooks = []; i.effects = []; i.render = () => -1; i.kids = []; i.nextKids = []; i.comp = null; }
 }
 let cur: Instance | null = null;
+// zinc dev's Fast Refresh (ZN-631; hot mode only): after an update the whole tree renders again with the new code, as React Fast Refresh does:
+// hook state is kept, memos and callbacks run again (their old functions are the old code's), every handler is the new code's
+let hotPass = false;
+let hotRoot: Instance | null = null;
+let hotNode: i32 = -1;
 /** True once the React engine rendered a component: model-neutral libraries (zinc:ui/kit) then build plain nodes. */
 export function _active(): boolean { return instances.length > 0; }
 
@@ -113,7 +118,7 @@ export function useEffect(fn: () => void, deps: number[] | null): void {
   if (i >= inst.hooks.length) inst.hooks.push(new EffectHook());
   const h = inst.hooks[i] as EffectHook;
   const key = depsKey(deps);
-  if (key === h.deps) return;
+  if (key === h.deps) return;   // not again in a Fast Refresh pass: effects have no cleanup here, a second run would stack subscriptions
   h.deps = key;
   inst.effects.push(fn);
 }
@@ -124,7 +129,7 @@ export function useMemo<T>(fn: () => T, deps: number[]): T {
   if (i >= inst.hooks.length) inst.hooks.push(new MemoHook<T>(fn()));
   const h = inst.hooks[i] as MemoHook<T>;
   const key = depsKey(deps);
-  if (key !== h.deps) { h.deps = key; h.value = fn(); }
+  if (key !== h.deps || hotPass) { h.deps = key; h.value = fn(); }
   return h.value;
 }
 export function useCallback<T>(fn: T, deps: number[]): T { return useMemo<T>(() => fn, deps); }
@@ -229,7 +234,21 @@ export function render(app: () => i32, background: i32, onTick: ((dt: number) =>
   const root = ui.createNode(ui.VIEW);
   const host = ui.createNode(ui.FRAGMENT);
   ui.insert(root, host, -1);
+  const first = instances.length;   // the root instance comes first, its children after it
   _rc(host, app, 'App', '');
+  if (import.meta.hot) {   // zinc dev: the entry running again replaces the tree it mounted; an update renders the tree again
+    const last = hotRoot;
+    if (last !== null) { unmount(last); ui.destroy(hotNode); }
+    else import.meta.hot.on('afterUpdate', (_modules: string[]): void => {
+      const r = hotRoot;
+      if (r === null) return;
+      hotPass = true;
+      rerender(r);
+      hotPass = false;
+    });
+    hotRoot = instances[first];
+    hotNode = root;
+  }
   ui.mount(root, background, onTick);
 }
 
