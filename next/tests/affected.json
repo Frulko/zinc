@@ -14,6 +14,7 @@
     {"paths": ["../targets/macos/hal_sdl.cpp", "../targets/macos/hal_metal.mm", "tests/t0/ios_present.sh"], "tests": ["ios_present"]},
     {"paths": ["src/cli_core.cpp", "src/frontend/project.cpp", "src/frontend/plugin_manifest.cpp", "tests/t0/export_packages.sh"], "tests": ["export_packages"]},
     {"paths": ["../targets/capabilities.json", "src/frontend/profile.cpp", "src/frontend/project.cpp", "src/tc/tc.cpp", "tests/t0/mobile_profiles.sh"], "tests": ["mobile_profiles"]},
+    {"paths": ["../targets/capabilities.json", "src/frontend/profile.cpp", "src/frontend/capabilities.cpp", "tests/t0/handheld_profiles.sh"], "tests": ["handheld_profiles"]},
     {"paths": ["src/app/", "include/zn/app.h", "tests/t0/app_library.sh", "src/aot/aot.cpp", "../targets/macos/hal_sdl.cpp", "src/host/loop.cpp"], "tests": ["app_library"]},
     {"paths": ["src/agent/", "third_party/mdns/", "tests/t0/agent.sh", "tests/t1/agent_apps.sh"], "tests": ["agent", "agent_apps"]},
     {"paths": ["src/agent/inspect.cpp", "src/agent/server.cpp", "src/agent/client.cpp", "app/inspector/", "tests/t1/agent_inspect.sh"], "tests": ["agent_inspect"]},

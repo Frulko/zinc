@@ -17,6 +17,7 @@ constexpr Profile kProfiles[] = {
     {"psp", Num::f32, 480, 272, false, 16ull << 20, false},
     {"vita", Num::f64, 960, 544, false, 192ull << 20, false},
     {"n3ds", Num::f64, 400, 240, false, 16ull << 20, false},
+    {"ios-legacy", Num::f64, 480, 320, false, 96ull << 20, false},   // the iPhone 4S on iOS 9: 480x320 points at scale 2, under Apple's ~200 MiB advice for the A5
     {"chip", Num::f64, 720, 576, false, 128ull << 20, false},
     {"pocketchip", Num::f64, 480, 272, false, 128ull << 20, false},
     // phones and tablets (ZN-618, D59): the default surface of a phone in logical pixels; the heap fits a 1 GB Android device (the Nexus 7 2012:
