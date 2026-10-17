@@ -1,5 +1,6 @@
 #include "cli_web.h"
 #include "cli_core.h"
+#include "cli_pm.h"
 
 #include <cstdio>
 #include <cstring>
@@ -605,6 +606,16 @@ int doctor(const std::string& engineRoot, const std::string& rendererLines, bool
   if (zn::tc::xcodeToolsInstalled()) line("ok", "Xcode command line tools", "installed: native apps and every plugin can be built");
   else { line("warn", "Xcode command line tools", "not installed (only `zinc build` and some plugins need them)"); todo.push_back("To build native apps, run  " + P.cmd("xcode-select --install") + "  (a system window installs them; `zinc run`, `zinc dev` and `zinc fuse` work without)"); }
 #endif
+  {   // npm packages (zinc add npm:..., the web target's node_modules): the managers this machine has, Node being only what they run on
+    std::string have, none;
+    bool node = false;
+    for (const auto& [name, found] : zn::cli::packageManagersFound()) {
+      if (name == "node") node = !found.empty();
+      else if (!found.empty()) have += (have.empty() ? "" : ", ") + name + " " + found.substr(0, found.find(' '));
+      else none += (none.empty() ? "" : ", ") + name;
+    }
+    line(have.empty() ? "info" : "ok", "npm packages", (have.empty() ? std::string("no package manager found") : have) + (node ? "; Node found" : "; Node not found (npm, pnpm and yarn need it, to install packages)") + (none.empty() ? "" : " (not found: " + none + "; zinc never installs one)"));
+  }
   {   // the console SDKs (ZN-456): only a core rebuild or an AOT build needs them, so a missing one is information, never a warning
     std::string ready, iosWhy;
     for (const zn::tc::ConsoleSdk& s : zn::tc::consoleSdks()) {

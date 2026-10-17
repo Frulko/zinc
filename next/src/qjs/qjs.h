@@ -29,6 +29,11 @@ struct Collected { std::string name, js; std::vector<std::pair<std::string, std:
 // static imports only. False with `err` set (a transform diagnostic, a syntax error, a missing file).
 bool collect(const std::string& entry, const std::string& stdRoot, const std::string& cacheDir, std::vector<Collected>& mods, std::string& err);
 
+// The link flags a web build shares: `zinc export --target web` (zinc bundle --profile web) and the dependency pre-bundling of `zinc dev --target web`
+// (src/cli_web_deps.cpp) resolve packages the same way, esbuild's own resolver for a browser (package.json "exports" with the browser / import /
+// default conditions, "browser", "module", "main", the browser field's file replacements, symlinked workspaces) and fold the same defines.
+std::string webResolveFlags(bool production);
+
 struct BundleOptions {
   std::string entry, stdRoot, out;   // out: the bundle (.js), its source map out + ".map", its bytecode with the extension .qbc
   std::string esbuild;               // the pinned esbuild (src/tc), "" for --check

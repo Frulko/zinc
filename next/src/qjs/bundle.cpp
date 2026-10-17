@@ -18,6 +18,8 @@
 #include <filesystem>
 #include <fstream>
 #include <map>
+#include <regex>
+#include <set>
 #include <sstream>
 #include <thread>
 
@@ -146,6 +148,10 @@ std::vector<std::string> quickjsLint(const std::string& js, const std::string& f
   return out;
 }
 
+std::string webResolveFlags(bool production) {
+  return std::string(" --platform=browser --target=es2023 --define:process.env.NODE_ENV=") + quote(production ? "\"production\"" : "\"development\"") + " --define:global=globalThis";
+}
+
 std::string mapStack(const std::string& stack, const std::string& file, const std::string& mapJson) {
   yyjson_doc* doc = yyjson_read(mapJson.data(), mapJson.size(), 0);
   if (!doc) return stack;
@@ -237,9 +243,34 @@ std::string relink(const std::string& js, const std::map<std::string, std::strin
   return out + js.substr(at);
 }
 
+// What a staged module imports from one package: `import d, {a as b} from 'x'` -> default + a; `import * as n` / `export * from` / `import('x')` -> all.
+struct PkgUse { std::set<std::string> names; bool def = false, all = false; };
+void scanPackageUse(const std::string& js, const std::string& spec, PkgUse& u) {
+  std::string e;
+  for (char ch : spec) { if (std::strchr("\\^$.|?*+()[]{}/", ch)) e += '\\'; e += ch; }
+  const std::regex from("(?:import|export)\\s*([^'\";]*?)\\s*from\\s*['\"]" + e + "['\"]"), dyn("import\\s*\\(\\s*['\"]" + e + "['\"]");
+  for (auto m = std::sregex_iterator(js.begin(), js.end(), from); m != std::sregex_iterator(); ++m) {
+    const std::string clause = (*m)[1].str();
+    if (clause.find('*') != std::string::npos) u.all = true;
+    const std::size_t ob = clause.find('{'), cb = clause.find('}');
+    const std::string head = clause.substr(0, ob), list = ob == std::string::npos ? "" : clause.substr(ob + 1, cb == std::string::npos ? std::string::npos : cb - ob - 1);
+    if (head.find_first_not_of(" \t\r\n,") != std::string::npos && head.find('*') == std::string::npos) u.def = true;
+    std::stringstream ss(list);
+    for (std::string item; std::getline(ss, item, ',');) {
+      std::stringstream is(item);
+      std::string name;
+      is >> name;
+      if (name == "default") u.def = true;
+      else if (!name.empty()) u.names.insert(name);
+    }
+  }
+  if (std::regex_search(js, dyn)) u.all = true;
+}
+
 // zinc dev --target web: the module graph as the browser loads it, one ES module per file with relative imports and stage.json
-// ({"entry": file, "modules": [{"file", "name", "deps": [file...]}]}), so a save re-serves one file instead of linking the program again.
-// Packages from node_modules cannot be served this way (esbuild finds them): 3 says so and the caller bundles instead.
+// ({"entry": file, "modules": [{"file", "name", "deps": [file...]}], "packages": [{"spec", "id", "names", "default", "all"}]}), so a save re-serves one file
+// instead of linking the program again. A package of node_modules is not a module of the graph: the staged imports of it point at /__deps/<id>.js
+// and the dev server pre-bundles the packages once with esbuild (src/cli_web_deps.cpp), what Vite's dependency pre-bundling does.
 int stageForBrowser(const BundleOptions& o, const std::vector<Collected>& mods) {
   const std::string stage = fs::path(o.stageDir).lexically_normal().string();
   std::error_code ec;
@@ -247,17 +278,28 @@ int stageForBrowser(const BundleOptions& o, const std::vector<Collected>& mods) 
   std::map<std::string, std::size_t> at;
   for (std::size_t i = 0; i < mods.size(); ++i) at[mods[i].name] = i;
   auto rel = [&](const Collected& c) { return stagedPath("", c).substr(1); };
-  for (const Collected& c : mods) if (c.bare) { std::fprintf(stderr, "zinc dev: %s is a package of node_modules: zinc dev --target web cannot serve it module by module yet (zinc export --target web bundles it)\n", c.name.c_str()); return 3; }
+  std::map<std::string, PkgUse> packages;   // the specifier esbuild resolves (the package's name, or the file a relative import reached)
+  auto packageId = [](const std::string& key) {
+    std::string id;
+    for (char ch : key) id += std::isalnum(static_cast<unsigned char>(ch)) ? ch : '_';
+    return id.substr(id.size() > 60 ? id.size() - 60 : 0) + "-" + std::to_string(std::hash<std::string>{}(key) % 100000);
+  };
   std::string json = "{\"entry\":" + jsonString(rel(mods[0])) + ",\"modules\":[";
   bool first = true;
   for (const Collected& c : mods) {
-    if (c.host) continue;
+    if (c.host || c.bare) continue;
     const fs::path self = fs::path(rel(c)).parent_path();
     std::map<std::string, std::string> to;
     std::string deps;
     for (const auto& [spec, resolved] : c.deps) {
       auto it = at.find(resolved);
       if (it == at.end() || mods[it->second].host) continue;
+      if (mods[it->second].bare) {
+        const std::string key = spec[0] == '.' || spec[0] == '/' ? resolved : spec;
+        scanPackageUse(c.js, spec, packages[key]);
+        to[spec] = "/__deps/" + packageId(key) + ".js";
+        continue;
+      }
       std::string target = fs::path(rel(mods[it->second])).lexically_relative(self.empty() ? fs::path(".") : self).generic_string();
       if (target.rfind("../", 0) != 0) target = "./" + target;
       to[spec] = target;
@@ -265,6 +307,15 @@ int stageForBrowser(const BundleOptions& o, const std::vector<Collected>& mods) 
     }
     if (!writeText(stage + "/" + rel(c), relink(c.js, to))) { std::fprintf(stderr, "zinc dev: cannot write %s\n", rel(c).c_str()); return 2; }
     json += std::string(first ? "" : ",") + "{\"file\":" + jsonString(rel(c)) + ",\"name\":" + jsonString(c.name) + ",\"deps\":[" + deps + "]}";
+    first = false;
+  }
+  json += "],\"packages\":[";
+  first = true;
+  for (const auto& [key, u] : packages) {
+    json += std::string(first ? "" : ",") + "{\"spec\":" + jsonString(key) + ",\"id\":" + jsonString(packageId(key)) + ",\"default\":" + (u.def ? "true" : "false") + ",\"all\":" + (u.all ? "true" : "false") + ",\"names\":[";
+    bool f2 = true;
+    for (const std::string& n : u.names) { json += std::string(f2 ? "" : ",") + jsonString(n); f2 = false; }
+    json += "]}";
     first = false;
   }
   json += "]}";
@@ -301,7 +352,7 @@ int bundleOnce(const BundleOptions& o, std::vector<std::string>& watched) {
     std::map<std::string, std::string> to;
     for (const auto& [spec, resolved] : c.deps) {
       auto it = at.find(resolved);
-      if (it == at.end() || mods[it->second].host || (mods[it->second].bare && resolved[0] != '/')) continue;   // zinc:native, a package esbuild finds
+      if (it == at.end() || mods[it->second].host || (mods[it->second].bare && spec[0] != '.' && spec[0] != '/')) continue;   // zinc:native; a package name stays for esbuild, the one resolver of every link (the loader's own guess ignored exports conditions and the browser field)
       to[spec] = stagedPath(stage, mods[it->second]);
     }
     const std::string text = relink(c.js, to);
@@ -310,6 +361,7 @@ int bundleOnce(const BundleOptions& o, std::vector<std::string>& watched) {
   }
   // link
   const std::string caps = capsJson(o.capsFile);
+  const bool web = capsField(caps, "TARGET") == "web";   // --profile web: the browser's resolution, shared with zinc dev (webResolveFlags)
   std::string nodePath;
   for (fs::path d = fs::path(o.entry).parent_path(); !d.empty(); d = d.parent_path()) {
 #ifdef _WIN32
@@ -321,12 +373,12 @@ int bundleOnce(const BundleOptions& o, std::vector<std::string>& watched) {
     if (d == d.root_path()) break;
   }
   std::string cmd = (nodePath.empty() ? "" : "NODE_PATH=" + quote(nodePath) + " ") + quote(o.esbuild) + " " + quote(stagedPath(stage, mods[0])) +
-      " --bundle --format=esm --platform=neutral --target=es2023 --main-fields=module,main --charset=utf8 --legal-comments=none --log-level=warning --color=false"
+      " --bundle --format=esm" + (web ? webResolveFlags(o.minify) : std::string(" --platform=neutral --target=es2023 --main-fields=module,main") + " --define:process.env.NODE_ENV=" + quote(o.minify ? "\"production\"" : "\"development\"")) + " --charset=utf8 --legal-comments=none --log-level=warning --color=false"
       " --external:zinc:native --outfile=" + quote(o.out) +
       " --banner:js=" + quote("// zinc-bundle-entry: " + fs::path(o.entry).lexically_relative(fs::path(o.out).parent_path()).generic_string()) +   // zinc run bakes the fonts from its files
       " --define:__ZINC_ENGINE__=" + quote("\"quickjs\"") + " --define:__ZINC_TARGET__=" + quote("\"" + capsField(caps, "TARGET") + "\"") +
       " --define:__ZINC_PROFILE__=" + quote("\"" + capsField(caps, "PROFILE") + "\"") + " --define:__ZINC_CAPS__=" + quote(caps) +
-      " --define:process.env.NODE_ENV=" + quote(o.minify ? "\"production\"" : "\"development\"") + (o.minify ? " --minify --keep-names" : "") + (o.sourcemap ? " --sourcemap --sources-content=false" : "");
+      (o.minify ? " --minify --keep-names" : "") + (o.sourcemap ? " --sourcemap --sources-content=false" : "");
   // the content-hash cache: the same staged modules and the same command give the same bundle, so esbuild does not run again
   const std::string key = std::to_string(std::hash<std::string>{}(hashInput + cmd)), keyFile = o.work + "/last-bundle";
   std::string lastKey;

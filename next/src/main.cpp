@@ -20,6 +20,7 @@
 #include "frontend/plugin_manifest.h"
 #include "frontend/project.h"
 #include "cli_core.h"
+#include "cli_pm.h"
 #include "cli_web.h"
 #ifdef ZN_AGENT
 #include "agent/agent.h"
@@ -1449,12 +1450,16 @@ int main(int argc, char** argv) {
     if (argc >= 2 && !std::strcmp(argv[1], "compat")) return zn::cli::compat(cl, gRoot);
     if (argc >= 2 && !std::strcmp(argv[1], "ui")) return zn::cli::ui(cl, gRoot);
     if (argc >= 2 && !std::strcmp(argv[1], "deploy")) return zn::cli::deploy(cl);
-    if (argc >= 2 && !std::strcmp(argv[1], "add")) return zn::cli::addPlugin(cl, gRoot);
+    if (argc >= 2 && !std::strcmp(argv[1], "add")) return zn::cli::isNpmCommand(cl) ? zn::cli::npmAdd(cl, false) : zn::cli::addPlugin(cl, gRoot);   // npm:<package>: the project's package manager (cli_pm.h)
     if (argc >= 2 && !std::strcmp(argv[1], "index-sign")) return zn::cli::indexSign(cl);
     if (argc >= 2 && !std::strcmp(argv[1], "index-get")) return zn::cli::indexGet(cl);
-    if (argc >= 2 && !std::strcmp(argv[1], "install")) return zn::cli::installPlugins(cl, gRoot);
+    if (argc >= 2 && !std::strcmp(argv[1], "install")) {   // a package.json: its manager installs the npm packages first, then the plugins of zinc.json
+      const int npm = zn::cli::npmInstall(cl);
+      if (npm > 0 || (npm == 0 && !std::filesystem::exists("zinc.json"))) return npm;
+      return zn::cli::installPlugins(cl, gRoot);
+    }
     if (argc >= 2 && !std::strcmp(argv[1], "trust")) return zn::cli::trustPlugin(cl);
-    if (argc >= 2 && !std::strcmp(argv[1], "remove")) return zn::cli::removePlugin(cl);
+    if (argc >= 2 && !std::strcmp(argv[1], "remove")) return zn::cli::isNpmCommand(cl) ? zn::cli::npmAdd(cl, true) : zn::cli::removePlugin(cl);
     if (argc >= 3 && !std::strcmp(argv[1], "plugins") && !std::strcmp(argv[2], "update")) return zn::cli::updatePlugins(cl, gRoot);
     if (argc >= 2 && !std::strcmp(argv[1], "tsconfig")) return zn::cli::tsconfig(cl, gRoot);
     if (argc >= 2 && !std::strcmp(argv[1], "infer")) return zn::cli::infer(cl);
@@ -2755,7 +2760,8 @@ int main(int argc, char** argv) {
     std::string out = !std::strcmp(argv[2], "--markdown") ? zn::frontend::markdown()
                     : !std::strcmp(argv[2], "--codes")    ? zn::frontend::codes()
                                                           : zn::frontend::explain(argv[2]);
-    if (out.empty()) out = zn::cli::webExplain(argv[2]);   // W0601 to W0603: the web export's warnings
+    if (out.empty()) out = zn::cli::webExplain(argv[2]);   // W0601 to W0604: the web export's warnings
+    if (out.empty()) out = zn::cli::pmExplain(argv[2]);    // P0001, P0002: the package manager of npm packages
     if (out.empty()) { std::fprintf(stderr, "unknown diagnostic code: %s\n", argv[2]); return 1; }
     std::fputs(out.c_str(), stdout);
     return 0;

@@ -1,0 +1,8 @@
+{
+  "name": "map-pkg",
+  "version": "1.0.0",
+  "main": "./node.js",
+  "browser": {
+    "./node.js": "./web.js"
+  }
+}

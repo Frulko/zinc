@@ -1,0 +1,9 @@
+{
+  "name": "web-npm",
+  "entry": "src/main.ts",
+  "targets": {
+    "web": {
+      "title": "npm packages fixture"
+    }
+  }
+}

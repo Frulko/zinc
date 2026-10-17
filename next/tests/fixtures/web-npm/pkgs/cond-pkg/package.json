@@ -1,0 +1,19 @@
+{
+  "name": "cond-pkg",
+  "version": "1.0.0",
+  "main": "./main.cjs",
+  "module": "./module.mjs",
+  "exports": {
+    ".": {
+      "browser": "./browser.mjs",
+      "import": "./import.mjs",
+      "require": "./require.cjs",
+      "default": "./default.cjs"
+    },
+    "./sub/path": {
+      "import": "./sub.mjs",
+      "default": "./sub.cjs"
+    },
+    "./package.json": "./package.json"
+  }
+}

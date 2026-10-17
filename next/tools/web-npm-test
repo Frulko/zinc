@@ -1,0 +1,110 @@
+#!/usr/bin/env python3
+"""npm packages on the web target, dev and export in headless Chrome (docs/targets/web.md, "npm packages"; tests/t1/web_npm.sh).
+Lays tests/fixtures/web-npm out as a project (pkgs/ becomes node_modules, esm-pkg a pnpm-style symlink into .store/), then:
+  1. `zinc export --target web` is served and its __npmResult read;
+  2. `zinc dev --target web` pre-bundles the packages, the page reads the same result (one resolver: only process.env.NODE_ENV differs);
+  3. a save of the app's code reloads without bundling the packages again;
+  4. an install (a package changes, its lockfile is written) pre-bundles again and the page shows the new package;
+  5. an import of a package that is not installed shows an overlay that names W0605.
+usage: web-npm-test <zinc> <fixture-dir>    Exit 77 (skip) without Chrome. Chrome only: Firefox and Safari are not tested here."""
+import functools, http.server, json, os, shutil, socket, subprocess, sys, tempfile, threading, time
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from cdp import Chrome, find_chrome
+
+zinc, fixture = sys.argv[1], sys.argv[2]
+if not find_chrome():
+    print("SKIP no Chrome"); sys.exit(77)
+work = tempfile.mkdtemp(prefix="zinc-web-npm-")
+proj = os.path.join(work, "app")
+shutil.copytree(fixture, proj)
+os.makedirs(os.path.join(proj, "node_modules")); os.makedirs(os.path.join(proj, ".store"))
+shutil.move(os.path.join(proj, "pkgs", "esm-pkg"), os.path.join(proj, ".store", "esm-pkg"))
+os.symlink("../.store/esm-pkg", os.path.join(proj, "node_modules", "esm-pkg"))
+for p in os.listdir(os.path.join(proj, "pkgs")): shutil.move(os.path.join(proj, "pkgs", p), os.path.join(proj, "node_modules", p))
+os.rmdir(os.path.join(proj, "pkgs"))
+env = dict(os.environ, ZINC_BACKGROUND="1")
+steps, log, dev, srv = {}, [], None, None
+
+def cleanup():
+    if dev:
+        dev.terminate()
+        try: dev.wait(5)
+        except Exception: dev.kill()
+    if srv: srv.shutdown()
+    shutil.rmtree(work, ignore_errors=True)
+def fail(why):
+    steps["failed"] = why
+    print(json.dumps({"steps": steps, "devlog": log[-12:]})); cleanup(); sys.exit(1)
+
+def wait_for(c, js, timeout=20):
+    end = time.time() + timeout
+    while time.time() < end:
+        try: v = c.eval(js, 10)
+        except Exception: v = None
+        if v: return v
+        c._recv(-1, 0.15)
+    return None
+def result(c, timeout=20):
+    r = wait_for(c, "globalThis.__npmResult", timeout)
+    return json.loads(r) if r else None
+def edit(path, fn):
+    p = os.path.join(proj, path)
+    t = fn(open(p).read())
+    open(p, "w").write(t)
+
+# 1. export
+out = os.path.join(work, "out")
+r = subprocess.run([zinc, "export", proj, "--target", "web", "-o", out], env=env, capture_output=True, text=True, timeout=120)
+if r.returncode != 0: fail("export failed: " + r.stderr[-400:])
+class Quiet(http.server.SimpleHTTPRequestHandler):
+    extensions_map = dict(http.server.SimpleHTTPRequestHandler.extensions_map, **{".js": "text/javascript", ".mjs": "text/javascript", ".wasm": "application/wasm"})
+    def log_message(self, *a): pass
+srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(Quiet, directory=out))
+threading.Thread(target=srv.serve_forever, daemon=True).start()
+with Chrome(["--window-size=800,500"]) as c:
+    c.open("http://127.0.0.1:%d/" % srv.server_address[1])
+    exported = result(c)
+    if not exported: fail("export: no result in the page %s" % c.console[:3])
+steps["export"] = exported
+want = {"cond": "browser", "sub": "sub-import", "add": 5, "helper": "helped", "name": "esm-pkg", "twice": 42, "secretLen": 6, "util": "util:object", "mapped": "web", "mode": "production"}
+for k, v in want.items():
+    if exported.get(k) != v: fail("export: %s is %r, wanted %r" % (k, exported.get(k), v))
+
+# 2. dev
+s = socket.socket(); s.bind(("127.0.0.1", 0)); port = s.getsockname()[1]; s.close()
+dev = subprocess.Popen([zinc, "dev", proj, "--target", "web", "--port", str(port)], stderr=subprocess.PIPE, stdout=subprocess.DEVNULL, env=env, text=True)
+threading.Thread(target=lambda: [log.append(l.rstrip()) for l in dev.stderr], daemon=True).start()
+t0 = time.time()
+while time.time() - t0 < 60 and not any("http://127.0.0.1:%d" % port in l for l in log): time.sleep(0.1)
+if not any("http://127.0.0.1:%d" % port in l for l in log): fail("the dev server did not start")
+prebundles = lambda: sum("pre-bundled" in l for l in log)
+with Chrome(["--window-size=800,500"]) as c:
+    c.open("http://127.0.0.1:%d/" % port)
+    got = result(c)
+    if not got: fail("dev: no result in the page %s" % c.console[:4])
+    steps["dev"] = got
+    for k, v in exported.items():
+        if k != "mode" and got.get(k) != v: fail("dev and export disagree on %s: %r against %r" % (k, got.get(k), v))
+    if got["mode"] != "development": fail("dev: process.env.NODE_ENV is %r" % got["mode"])
+    if prebundles() != 1: fail("dev: %d pre-bundles at start" % prebundles())
+    if not os.path.isdir(os.path.join(proj, ".zinc", "web-deps")): fail("no .zinc/web-deps cache")
+    c.eval("window.__marker = 1")
+    # 3. the app's code changes: the packages are not bundled again
+    edit("src/main.ts", lambda t: t.replace("v: 1", "v: 2"))
+    if not wait_for(c, "globalThis.__npmResult && JSON.parse(globalThis.__npmResult).v === 2"): fail("a save of the app did not reach the page %s" % log[-3:])
+    steps["save"] = "v2"
+    if prebundles() != 1: fail("a save of the app bundled the packages again")
+    # 4. an install: a package changes, the lockfile is written last
+    edit("node_modules/map-pkg/web.js", lambda t: t.replace('"web"', '"web-2"'))
+    edit("node_modules/map-pkg/package.json", lambda t: t.replace("1.0.0", "1.0.1"))
+    open(os.path.join(proj, "package-lock.json"), "w").write('{"name":"web-npm","lockfileVersion":3,"packages":{"node_modules/map-pkg":{"version":"1.0.1"}}}\n')
+    if not wait_for(c, "globalThis.__npmResult && JSON.parse(globalThis.__npmResult).mapped === 'web-2'", 25): fail("an install did not reload the page %s" % log[-4:])
+    steps["install"] = "web-2"
+    if prebundles() != 2: fail("an install pre-bundled %d times" % prebundles())
+    # 5. a package that is not installed
+    edit("src/main.ts", lambda t: "import missing from 'not-installed-pkg';\nconsole.log(missing);\n" + t)
+    ov = wait_for(c, "(() => { const e = document.querySelector('[role=alert]'); return e ? e.innerText : ''; })()")
+    if not ov or "W0605" not in ov: fail("no overlay naming W0605 for a missing package: %r" % ov)
+    steps["missing"] = ov[:140].replace("\n", " | ")
+print(json.dumps({"steps": steps, "devlog": [l for l in log if "zinc dev" in l][-6:]}))
+cleanup()

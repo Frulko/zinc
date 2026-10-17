@@ -24,6 +24,8 @@
 #include <sys/wait.h>
 #endif
 
+#include "cli_pm.h"
+#include "cli_web_deps.h"
 #include "platform/socket.h"
 #include "tc/tc.h"
 #include "yyjson.h"
@@ -195,6 +197,12 @@ std::string webExplain(const std::string& code) {
      "Encode the video again for the web (ffmpeg -i in.mov -c:v libx264 -pix_fmt yuv420p -movflags +faststart out.mp4, or -c:v libvpx-vp9 out.webm), ship both (a second Player entry, or the one the browser can play: canPlay() of zinc:video), "
      "or drop the browser from targets.web.browsers. --werror turns the warning into a failed export.",
      "player.add('trailer.mp4');   // W0604: clip.mp4 is H.265: not in firefox before 134"},
+    {"W0605", "A package of node_modules could not be pre-bundled for the dev server",
+     "`zinc dev --target web` bundles the packages the program imports once with esbuild (the way Vite pre-bundles dependencies) and serves them as ES modules; `zinc export --target web` links them into the app. "
+     "esbuild refused one: it needs a Node.js built-in (fs, path, net...) a page does not have, it is not installed in node_modules, or a name the program imports from it is not exported.",
+     "Run `zinc install` (or `zinc add npm:<package>`) when the package is missing; for a Node built-in use a browser build of the package (its `browser` field or `exports`), or another package. "
+     "`import * as ns from` a CommonJS package has no static names in dev: use the default import.",
+     "import { readFileSync } from 'some-node-only-package';   // W0605: Could not resolve \"fs\""},
   };
   for (const E& e : table)
     if (code == e.code) return std::string(e.code) + ": " + e.title + "\n\nWhy: " + e.why + "\nFix: " + e.fix + "\n\nExample:\n" + e.example + "\n";
@@ -858,6 +866,7 @@ struct Dev {
   std::vector<int> sockets;
   std::map<std::string, std::string> cache;       // "file?v" -> served text
   std::string lastError;
+  std::string depsDir, depsKey;                   // the pre-bundled packages of node_modules (cli_web_deps.h), served at /__deps/
 };
 
 // the module as the page gets it: its imports carry the version of what changed, `import.meta.hot` is its record, and the functions a user module
@@ -903,6 +912,8 @@ struct Snapshot { std::map<std::string, std::pair<std::int64_t, std::uintmax_t>>
 Snapshot snapshotOf(const fs::path& dir) {
   Snapshot s;
   std::error_code ec;
+  if (const std::string lock = lockfileOf(dir.string()); !lock.empty())   // a workspace keeps its lockfile above the project: an install there reloads the page
+    s.f[lock] = {static_cast<std::int64_t>(fs::last_write_time(lock, ec).time_since_epoch().count()), fs::file_size(lock, ec)};
   for (auto it = fs::recursive_directory_iterator(dir, fs::directory_options::skip_permission_denied, ec); it != fs::recursive_directory_iterator(); it.increment(ec)) {
     const std::string n = it->path().filename().string();
     if (it->is_directory() && (n == "build" || n == "dist" || n == "node_modules" || n == ".git" || n[0] == '.')) { it.disable_recursion_pending(); continue; }
@@ -957,6 +968,14 @@ bool restage(Dev& d, std::string& log, std::vector<std::string>& changed, bool& 
   }
   d.mods = next;
   d.cache.clear();
+  {   // the packages of node_modules: pre-bundled once, again only when the lockfile, a package or the set of imports changes
+    const DepsResult dr = prebundleDeps(d.a.dir, readAll(d.stage / "stage.json"));
+    if (!dr.error.empty()) { log = dr.error; return false; }
+    if (dr.built) std::fprintf(stderr, "zinc dev: packages of node_modules pre-bundled into %s\n", fs::path(dr.dir).lexically_relative(d.a.dir).string().c_str());
+    if (!first && dr.key != d.depsKey) { changed.push_back("(packages)"); refreshable = false; }
+    d.depsDir = dr.dir;
+    d.depsKey = dr.key;
+  }
   return true;
 }
 
@@ -1020,7 +1039,12 @@ void connection(Dev* d, int fd) {
     return;
   }
   fs::path f;
-  if (path.rfind("/assets/", 0) == 0) f = fs::path(d->a.dir) / path.substr(1);
+  if (path.rfind("/__deps/", 0) == 0) {
+    std::string dir;
+    { std::lock_guard<std::mutex> lock(d->m); dir = d->depsDir; }
+    if (dir.empty()) { reply(404, "text/plain", "no packages"); return; }
+    f = fs::path(dir) / path.substr(8);
+  } else if (path.rfind("/assets/", 0) == 0) f = fs::path(d->a.dir) / path.substr(1);
   else f = d->site / path.substr(1);
   std::error_code ec;
   if (!fs::is_regular_file(f, ec)) { reply(404, "text/plain", "not found: " + path); return; }
@@ -1079,7 +1103,7 @@ int serve(Dev& d, int port, bool lan) {
     d.lastError.clear();
     if (codeOnly && changed.empty() && !wasBroken) { std::fprintf(stderr, "zinc dev: saved, nothing in the program changed (%ld ms)\n", ms); continue; }
     if (!codeOnly || changed.empty() || !refreshable) {
-      std::fprintf(stderr, "zinc dev: %s: reloading the page (%ld ms)\n", !codeOnly ? "a file that is not a module changed" : changed.empty() ? "the error is fixed" : "a changed module exports state, is new or is the entry", ms);
+      std::fprintf(stderr, "zinc dev: %s: reloading the page (%ld ms)\n", !codeOnly ? "a file that is not a module changed" : changed.empty() ? "the error is fixed" : "a package or the lockfile changed, a module exports state, is new or is the entry", ms);
       broadcast(d, "{\"type\":\"reload\"}");
       continue;
     }
