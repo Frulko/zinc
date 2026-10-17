@@ -322,6 +322,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-751: pause zinc:video players on the Android lifecycle pause (hero kept decoding behind another app).
 - ZN-751: a zinc export run with ZINC_DETERMINISTIC=1 silently compiles a plugin's fake (video.next.ts) instead of its native code: the export should ignore it.
 - ZN-751: hero on a phone is laid out wider than the screen (the Video card is cut at the right on the Pixel 10 emulator and the iPhone 17 simulator).
+- ZN-749: a snapshot of a native view under modal sheets instead of an empty hole (WKWebView takeSnapshot, Android PixelCopy), refreshed while the content moves.
+- ZN-749: the cover test uses the layer node's box: a full-surface layer holding a small panel hides the view everywhere; use the painted children's bounds.
+- ZN-749: native views in a second window (ui.mountWindow) share one registry; key it per surface.
+- ZN-749: a dev-server page's bridge on Android through androidx.webkit addDocumentStartJavaScript (today injected when the page starts loading, after its first scripts).
 
 ## Demos
 
@@ -620,3 +624,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-?: list frame p99 is 5.65 ms against a 0.56 ms median; pre-shape the rows just outside the viewport in idle time
 - ZN-?: rerun `examples/perf-compare` on a quiet machine (Flutter list CPU and frame times gated), then add PocketJS desktop and react-native-macos to complete the table
 - ZN-?: add a 100000-row virtualised list to the perf screen, Flutter's `ListView.builder` as reference
+- ZN-749: the hybrid web view on the Nexus 7 (API 25 WebView) and a real iPhone; how far a native view trails a fling there.
