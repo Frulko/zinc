@@ -2,6 +2,7 @@
 // the pad, and the shared software rasterizer shown in one 32-bit framebuffer in VRAM (480x272, stride 512), flipped at vblank. The first, simple
 // path: the GE replay of the command lists comes later (docs/reports/hardware/handhelds-psp-vita-3ds-iphone4s.md section 2.4).
 #include "hal.h"
+#include "console_pad.h"
 #include <malloc.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -79,11 +80,15 @@ void hal_poll_input(HalInput* in) {
     {PSP_CTRL_RTRIGGER, HAL_R}, {PSP_CTRL_START, HAL_START}, {PSP_CTRL_SELECT, HAL_SELECT}};
   SceCtrlData pad;
   in->buttons = 0;
-  if (sceCtrlPeekBufferPositive(&pad, 1) > 0)
+  if (sceCtrlPeekBufferPositive(&pad, 1) > 0) {
     for (auto& m : map) if (pad.Buttons & m[0]) in->buttons |= m[1];
+    in->buttons |= zn_console_stick(pad.Lx, pad.Ly);
+  }
+  in->buttons |= zn_console_script(frames);
   in->px = in->py = 0; in->pdown = 0;
-  const bool budgetOver = ZINC_FRAMES && frames++ >= ZINC_FRAMES;
-  if (budgetOver && frames == ZINC_FRAMES + 1) sceIoDevctl("kemulator:", 0x20, nullptr, 0, nullptr, 0);   // EMIT_SCREENSHOT: PPSSPPHeadless --screenshot gets the last frame
+  const int32_t frame = frames++;
+  const bool budgetOver = ZINC_FRAMES && frame >= ZINC_FRAMES;
+  if (budgetOver && frame == ZINC_FRAMES) sceIoDevctl("kemulator:", 0x20, nullptr, 0, nullptr, 0);   // EMIT_SCREENSHOT: PPSSPPHeadless --screenshot gets the last frame
   in->quit = quitting || budgetOver;
 }
 void hal_present(const HalFrame* f) {

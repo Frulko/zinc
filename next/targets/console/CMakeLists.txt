@@ -17,6 +17,10 @@ set(ZN_CONSOLE_EMBED "" CACHE FILEPATH "a program.zbc to link into the core")
 set(ZN_CONSOLE_EMBED_RES "" CACHE FILEPATH "the resources.bin that goes with it")
 set(ZN_CONSOLE_SIZE "" CACHE STRING "the surface, WxH (the screen of the console: psp 480x272, vita 960x544, ps2 640x448); ZINC_SIZE at run time wins")
 set(ZN_CONSOLE_FRAMES "0" CACHE STRING "a frame budget built into the HAL (ZINC_FRAMES of the emulator tests); 0: until the program ends")
+set(ZN_CONSOLE_TITLE "Zinc" CACHE STRING "the name the console's menu shows (PSP, Vita)")
+set(ZN_CONSOLE_ID "ZINC00001" CACHE STRING "the Vita title id (four letters, five digits): one per program, or they replace each other")
+set(ZN_CONSOLE_INPUT "" CACHE STRING "a pad session built into the HAL (console_pad.h: frame+Name,frame-Name,...)")
+set(ZN_CONSOLE_ENV "" CACHE STRING "environment of the program, NAME=VALUE,... (ZINC_PROFILE=1: the frame times at exit)")
 
 get_filename_component(ZN_NEXT ${CMAKE_CURRENT_SOURCE_DIR}/../.. ABSOLUTE)
 get_filename_component(ZN_RUNTIME ${ZN_NEXT}/../runtime ABSOLUTE)
@@ -50,7 +54,7 @@ if(ZN_CONSOLE_EMBED)   # program.zbc (and resources.bin) as arrays in a generate
 endif()
 add_executable(zinc-core ${ZN_CORE_SRC})
 target_link_libraries(zinc-core PRIVATE zn_console_engine)
-target_include_directories(zinc-core PRIVATE ${ZN_RUNTIME}/include)
+target_include_directories(zinc-core PRIVATE ${ZN_RUNTIME}/include ${CMAKE_CURRENT_SOURCE_DIR})   # console_pad.h for the HALs
 target_compile_definitions(zinc-core PRIVATE ZN_CONSOLE_PLATFORM="${ZN_CONSOLE}")
 target_compile_options(zinc-core PRIVATE -Wall -Wextra)
 set_target_properties(zinc-core PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON CXX_EXTENSIONS ON)   # gnu++20: newlib shows setenv and gettimeofday only then
@@ -72,8 +76,11 @@ endif()
 if(ZN_CONSOLE_SIZE)
   target_compile_definitions(zinc-core PRIVATE ZN_CONSOLE_SIZE="${ZN_CONSOLE_SIZE}")
 endif()
+if(ZN_CONSOLE_ENV)
+  target_compile_definitions(zinc-core PRIVATE ZN_CONSOLE_ENV="${ZN_CONSOLE_ENV}")
+endif()
 if(ZN_CONSOLE_HAL)
-  set_source_files_properties(${ZN_CONSOLE_HAL} PROPERTIES COMPILE_DEFINITIONS "ZINC_FRAMES=${ZN_CONSOLE_FRAMES}" COMPILE_OPTIONS "-w")   # a console SDK's headers are not warning-free
+  set_source_files_properties(${ZN_CONSOLE_HAL} PROPERTIES COMPILE_DEFINITIONS "ZINC_FRAMES=${ZN_CONSOLE_FRAMES};ZN_CONSOLE_INPUT=\"${ZN_CONSOLE_INPUT}\"" COMPILE_OPTIONS "-w")   # a console SDK's headers are not warning-free
 endif()
 
 # the console's own part (<console>.cmake here): its SDK libraries and the packing of the binary (EBOOT.PBP, VPK, ELF)

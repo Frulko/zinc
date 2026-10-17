@@ -12,7 +12,15 @@ cd next
 zinc pack --profile psp ../examples/breakout -o /tmp/b.zapp && tar -xf /tmp/b.zapp -C /tmp program.zbc resources.bin
 tools/build-console-core psp --embed /tmp/program.zbc /tmp/resources.bin [--frames 600]   # -> build/console-psp/EBOOT.PBP
 tools/console-run psp build/console-psp/EBOOT.PBP [--timeout 60] [--shot frame.png]      # prints the program's lines, exits with its status
+tools/console-demos ../examples/breakout breakout --title Breakout --id ZINC00002          # the four consoles, no frame budget, copied to ~/Documents/<console>
 ```
+
+`tools/console-demos` builds what a person plays: no `--frames` (the program runs until the console quits it), one Vita title id per demo (two
+demos with the same id replace each other in Vita3K), and copies `psp/<name>/EBOOT.PBP`, `vita/<name>.vpk`, `ps2/<name>.elf` and `3ds/<name>.3dsx`
+into `$ZINC_DEMOS` (default `~/Documents`), the folders the emulators' game lists show. `targets/console/hello` is the console hello (text and a
+moving square). `--input script` builds a pad session into a core (the `pad`/`padup` lines of a `ZINC_INPUT` script, held on top of the real pad)
+and `--env NAME=VALUE` its environment (`ZINC_PROFILE=1` prints the frame times at exit, `ZINC_FRAMEHASH=last` the last frame's hash, which matches
+`zinc run --interp` with the same profile, size and script).
 
 | Console | SDK (`zinc toolchain install <id>`) | Core | Runner (`tools/console-run`) |
 |---|---|---|---|
@@ -30,9 +38,13 @@ never downloaded: it needs the user's own BIOS. `ZINC_EMU_PINNED=1` takes the pi
 - The core prints `zinc:start`, the program's lines, then `zinc:exit <status>` (0, 1 runtime error, 101 uncaught exception, 2 no or bad program).
   The runner prints the lines between and exits with the status; 124 when no `zinc:exit` came in time (the emulator is stopped); 77 when the
   emulator is missing, with the reason.
-- A core built with `--frames N` stops after N frames and leaves its last frame for `--shot`: the PSP through PPSSPP's screenshot device
-  (the emulator's own display), the others as a PPM the HAL writes (the frame it presented): Vita `ux0:data/zinc-shot.ppm`, PS2 `host:zinc-shot.ppm`,
-  3DS `sdmc:/zinc-shot.ppm`.
+- A core built with `--frames N` stops after N frames and leaves its last frame for `--shot`, taken from what the screen shows: the PSP through
+  PPSSPP's screenshot device, the PS2 from PCSX2's own save state (written when the runner stops it; it holds a screenshot of the GS output, and the
+  core keeps its last frame on the screen after `zinc:exit`), the Vita and the 3DS read back from the framebuffer the display scans out
+  (`sceDisplayGetFrameBuf`, the 3DS buffer shown since the last swap, rotated back): Vita3K and Azahar have no screenshot a program or a script can
+  ask for (a key in their window; Azahar's `-d` video dump needs an encoder its bundled FFmpeg lacks with the default settings).
+- A program that ends with nothing drawn, or with an error, leaves its last lines on the screen (the text screen of `core_main.cpp`) until START,
+  HOME or the frame budget: a console has no terminal. `zinc:exit` comes after it.
 - Windowed emulators start with `open -g`: they never take the focus. Play! is the exception (its emulation does not start under `open -g`), so
   on a desktop with a BIOS PCSX2 is used.
 
@@ -68,5 +80,7 @@ export DEVKITPRO=/opt/devkitpro DEVKITARM=/opt/devkitpro/devkitARM   # zinc tool
 - Software raster only (the GE, GXM and PICA replays are later tasks); one thread; no audio; no `zinc:fs` directories or stat (the console host
   serves files through stdio, storage, the clock, args and env: `next/targets/console/host_console.cpp`).
 - A program that calls `exit()` ends without `zinc:exit`: the runner reports a timeout.
-- The PS2 and 3DS shots are the HAL's frame, not the emulator's display: a display bug of the HAL (the 3DS framebuffer is rotated) shows only in
-  the emulator's window or its video (`azahar -d`).
+- The Vita and 3DS shots are the displayed framebuffer read back, not the emulator's window: a bug in how the emulator draws it shows only in
+  its window. A window capture (`screencapture -l`) needs the Screen Recording permission for the terminal.
+- Pads: the PSP and Vita left stick, the PS2 left stick (DualShock 2 in analog mode) and the 3DS circle pad also drive the d-pad buttons. PCSX2's
+  runner data directory has no pad bindings: the tests drive the pad with `--input`; the owner's PCSX2 uses its own bindings.

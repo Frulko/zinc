@@ -39,6 +39,8 @@ wait_exit() {   # $1 log, $2 marker
   while [ $n -lt $((timeout * 4)) ]; do grep -q "zinc:exit" "$1" 2>/dev/null && break; sleep 0.25; n=$((n + 1)); done
   sleep 0.3
   pkill -f "$2" 2>/dev/null
+  n=0; while pgrep -f "$2" >/dev/null && [ $n -lt 40 ]; do sleep 0.25; n=$((n + 1)); done
+  pkill -9 -f "$2" 2>/dev/null   # Azahar asks before it stops a running app (a dialog nobody answers): it would stay behind
   grep -q "zinc:exit" "$1" 2>/dev/null
 }
 finish() {   # the status of the program, or 124
@@ -59,6 +61,14 @@ open(sys.argv[1],'wb').write(b'\x89PNG\r\n\x1a\n'+c(b'IHDR',struct.pack('>IIBBBB
     # the HAL emits the screenshot at the end of its frame budget; against a black reference PPSSPPHeadless writes the real frame as __testfailure.bmp
     (cd "$tmp" && timeout $((timeout + 5)) "$emu" --graphics=software --timeout="$timeout" $ref "$bin" > "$tmp/log" 2>&1)
     frame "$tmp/log" 'p' '^Screenshot MSE\|^Actual output written to'
+    # the screen: the left 480 of the 512 columns of the VRAM stride (sips crops around the centre)
+    [ -z "$shot" ] || [ ! -f "$tmp/__testfailure.bmp" ] || python3 -I -c "
+import struct,sys
+d=bytearray(open(sys.argv[1],'rb').read()); off,=struct.unpack_from('<I',d,10); w,h=struct.unpack_from('<ii',d,18); n=struct.unpack_from('<H',d,28)[0]//8
+row=(w*n+3)//4*4; nrow=(480*n+3)//4*4
+px=b''.join(bytes(d[off+y*row:off+y*row+480*n]).ljust(nrow,b'\\0') for y in range(abs(h)))
+struct.pack_into('<i',d,18,480); struct.pack_into('<I',d,34,len(px)); struct.pack_into('<I',d,2,off+len(px))
+open(sys.argv[1],'wb').write(bytes(d[:off])+px)" "$tmp/__testfailure.bmp"
     png "$tmp/__testfailure.bmp"
     grep -q "^TIMEOUT" "$tmp/log" && status=
     finish ;;
@@ -84,11 +94,19 @@ open(sys.argv[1],'wb').write(b'\x89PNG\r\n\x1a\n'+c(b'IHDR',struct.pack('>IIBBBB
       bios=$(sed -n 's/^BIOS = \(.*\)$/\1/p' "$user/inis/PCSX2.ini" | head -1)
       [ -n "$bios" ] || { echo "console-run: PCSX2 has no BIOS set (run it once and choose yours), or use --emu play" >&2; exit 77; }
       data=${ZINC_HOME:-$HOME/.zinc}/emulators/pcsx2; mkdir -p "$data/PCSX2/inis"
-      printf '[UI]\nSettingsVersion = 1\nSetupWizardIncomplete = false\nConfirmShutdown = false\n\n[Folders]\nBios = %s/bios\n\n[Filenames]\nBIOS = %s\n\n[EmuCore]\nEnableFastBoot = true\nHostFs = true\n\n[Logging]\nEnableFileLogging = true\nEnableEEConsole = true\nEnableIOPConsole = true\n' "$user" "$bios" > "$data/PCSX2/inis/PCSX2.ini"
+      # --shot: what the GS displays, from PCSX2 itself: a save state holds a screenshot of its display (Screenshot.png), and one is written when
+      # the emulator is stopped (the core holds its last frame on the screen after zinc:exit)
+      onstop=false; [ -z "$shot" ] || { onstop=true; rm -f "$data/PCSX2/sstates/"*.resume.p2s; }
+      printf '[UI]\nSettingsVersion = 1\nSetupWizardIncomplete = false\nConfirmShutdown = false\n\n[Folders]\nBios = %s/bios\n\n[Filenames]\nBIOS = %s\n\n[EmuCore]\nEnableFastBoot = true\nHostFs = true\nSaveStateOnShutdown = %s\n\n[Logging]\nEnableFileLogging = true\nEnableEEConsole = true\nEnableIOPConsole = true\n' "$user" "$bios" "$onstop" > "$data/PCSX2/inis/PCSX2.ini"
       open -g -n -a "$app" --args -datapath "$data" -batch -nogui -fastboot -logfile "$tmp/log" -elf "$bin"
       wait_exit "$tmp/log" "$tmp/log"
       frame "$tmp/log" 's/^\[ *[0-9.]*\] \(.*\)$/\1/p'
-      png "$(dirname "$bin")/zinc-shot.ppm"
+      if [ -n "$shot" ]; then
+        n=0; while pgrep -f "$tmp/log" >/dev/null && [ $n -lt 40 ]; do sleep 0.25; n=$((n + 1)); done
+        state=$(ls -t "$data/PCSX2/sstates/"*.resume.p2s 2>/dev/null | head -1)
+        [ -n "$state" ] && unzip -p "$state" Screenshot.png > "$shot" 2>/dev/null && [ -s "$shot" ] || echo "console-run: PCSX2 wrote no save state screenshot" >&2
+        rm -f "$data/PCSX2/sstates/"*.resume.p2s   # never resumed by the next run
+      fi
     else
       app=$(find_emu play) || exit 77
       # Play! keeps its data in ~/Documents/Play Data Files: the EE's stdout goes to ps2_stdout.txt once iop.fileio.stdlogging is on, and the

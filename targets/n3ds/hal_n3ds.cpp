@@ -3,9 +3,11 @@
 // framebuffer is rotated: columns of 240 pixels, bottom to top), swapped at vblank. The PICA200 replay comes later
 // (docs/reports/hardware/handhelds-psp-vita-3ds-iphone4s.md section 4.4).
 #include "hal.h"
+#include "console_pad.h"
 #include <malloc.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <3ds.h>
 
 #ifndef ZINC_FRAMES
@@ -19,6 +21,9 @@ static const int32_t kScreenW = 400, kScreenH = 240;
 static int32_t W = kScreenW, H = kScreenH, frames = 0;
 static uint32_t* rows = nullptr;   // the software frame, 0x00RRGGBB
 static bool gfxOn = false;
+static int32_t stale[2][2] = {{0, 0}, {0, 0}};   // per framebuffer, the rows [first, end) it has not got yet
+static int back = 0;                              // the framebuffer drawn this frame
+static const uint32_t* shown = nullptr;           // the framebuffer on the screen since the last swap
 
 // also sdmc:/zinc.log: Azahar logs debug strings only at its Debug level, which its default log filter (*:Info) hides; the runner reads the file
 // (<Azahar's user directory>/sdmc/zinc.log)
@@ -41,6 +46,7 @@ void hal_init(const HalConfig* cfg) {
   gfxSetScreenFormat(GFX_TOP, GSP_RGBA8_OES);
   gfxSetDoubleBuffering(GFX_TOP, true);
   rows = (uint32_t*)memalign(64, (size_t)W * H * 4);
+  memset(rows, 0, (size_t)W * H * 4);
   gfxOn = true;
 }
 void hal_shutdown(void) { if (gfxOn) gfxExit(); }
@@ -60,20 +66,39 @@ void hal_panic(const char* msg, const char* file, int line) {
   svcExitProcess();
 }
 void hal_frame_begin(void) {}
-void hal_frame_end(void) { if (gfxOn) { gfxFlushBuffers(); gfxSwapBuffers(); gspWaitForVBlank(); } }
+void hal_frame_end(void) {
+  if (!gfxOn) return;
+  // the top screen is double-buffered: the buffer drawn now last got the rows of two frames ago, so it takes every row changed since
+  const int b = back;
+  back ^= 1;
+  u32* fb = (u32*)gfxGetFramebuffer(GFX_TOP, GFX_LEFT, nullptr, nullptr);
+  for (int32_t x = 0; x < W && stale[b][1] > stale[b][0]; x++)   // the panel is portrait: a column of the image is a row of the framebuffer, from the bottom
+    for (int32_t y = stale[b][0]; y < stale[b][1]; y++) { const uint32_t c = rows[(size_t)y * W + x]; fb[x * kScreenH + (kScreenH - 1 - y)] = (c & 0xFFFFFF) << 8 | 0xFF; }
+  stale[b][0] = H; stale[b][1] = 0;
+  gfxFlushBuffers(); gfxSwapBuffers(); gspWaitForVBlank();
+  shown = fb;
+}
 void hal_poll_input(HalInput* in) {
-  static const uint32_t map[][2] = {{KEY_DUP, HAL_UP}, {KEY_DDOWN, HAL_DOWN}, {KEY_DLEFT, HAL_LEFT}, {KEY_DRIGHT, HAL_RIGHT}, {KEY_A, HAL_A},
+  static const uint32_t map[][2] = {{KEY_DUP, HAL_UP}, {KEY_DDOWN, HAL_DOWN}, {KEY_DLEFT, HAL_LEFT}, {KEY_DRIGHT, HAL_RIGHT}, {KEY_CPAD_UP, HAL_UP},
+    {KEY_CPAD_DOWN, HAL_DOWN}, {KEY_CPAD_LEFT, HAL_LEFT}, {KEY_CPAD_RIGHT, HAL_RIGHT}, {KEY_A, HAL_A},
     {KEY_B, HAL_B}, {KEY_X, HAL_X}, {KEY_Y, HAL_Y}, {KEY_L, HAL_L}, {KEY_R, HAL_R}, {KEY_START, HAL_START}, {KEY_SELECT, HAL_SELECT}};
   hidScanInput();
   const u32 held = hidKeysHeld();
   in->buttons = 0;
-  for (auto& m : map) if (held & m[0]) in->buttons |= m[1];
+  for (auto& m : map) if (held & m[0]) in->buttons |= m[1];   // the circle pad is the d-pad too
+  in->buttons |= zn_console_script(frames);
   in->px = in->py = 0; in->pdown = 0;
-  const bool budgetOver = ZINC_FRAMES && frames++ >= ZINC_FRAMES;
-  if (budgetOver && frames == ZINC_FRAMES + 1 && rows)   // the last frame of a budget as sdmc:/zinc-shot.ppm (the emulator tests)
-    if (FILE* f = fopen("sdmc:/zinc-shot.ppm", "wb")) {
+  const int32_t frame = frames++;
+  const bool budgetOver = ZINC_FRAMES && frame >= ZINC_FRAMES;
+  if (budgetOver && frame == ZINC_FRAMES && shown)   // the last frame of a budget as sdmc:/zinc-shot.ppm (the emulator tests), read back from
+    if (FILE* f = fopen("sdmc:/zinc-shot.ppm", "wb")) {   // the framebuffer the screen shows (rotated, RGBA8), not from the HAL's own frame
       fprintf(f, "P6\n%d %d\n255\n", (int)W, (int)H);
-      for (int32_t i = 0; i < W * H; i++) { const uint32_t c = rows[i]; const unsigned char p[3] = {(unsigned char)(c >> 16), (unsigned char)(c >> 8), (unsigned char)c}; fwrite(p, 1, 3, f); }
+      for (int32_t y = 0; y < H; y++)
+        for (int32_t x = 0; x < W; x++) {
+          const uint32_t c = shown[x * kScreenH + (kScreenH - 1 - y)];
+          const unsigned char p[3] = {(unsigned char)(c >> 24), (unsigned char)(c >> 16), (unsigned char)(c >> 8)};
+          fwrite(p, 1, 3, f);
+        }
       fclose(f);
     }
   in->quit = !aptMainLoop() || budgetOver;
@@ -81,9 +106,7 @@ void hal_poll_input(HalInput* in) {
 void hal_present(const HalFrame* f) {
   if (!rows || f->y1 <= f->y0) return;
   f->render(rows + (size_t)f->y0 * W, f->y0, f->y1);
-  u32* fb = (u32*)gfxGetFramebuffer(GFX_TOP, GFX_LEFT, nullptr, nullptr);
-  for (int32_t x = 0; x < W; x++)   // the panel is portrait: a column of the image is a row of the framebuffer, from the bottom
-    for (int32_t y = f->y0; y < f->y1; y++) { const uint32_t c = rows[(size_t)y * W + x]; fb[x * kScreenH + (kScreenH - 1 - y)] = (c & 0xFFFFFF) << 8 | 0xFF; }
+  for (auto& r : stale) { if (f->y0 < r[0]) r[0] = f->y0; if (f->y1 > r[1]) r[1] = f->y1; }   // both buffers miss these rows
 }
 void hal_surface_size(int* w, int* h) { *w = W; *h = H; }
 double hal_fixed_dt(void) { return 1.0 / 60.0; }
