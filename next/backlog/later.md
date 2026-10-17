@@ -372,6 +372,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-756: the QuickJS engine's timerLoop (src/qjs/qjs.cpp) jumps its virtual clock to the next timer without waiting or polling native modules, and refuses native callbacks: network plugins cannot wait for an answer on --engine quickjs outside a frame loop.
 - ZN-756: zinc:link's outgoing buffer grows without bound when a peer stops reading: a high-water mark and Channel.bufferedAmount.
 - ZN-756: the plugin cache key hashes every file beside a source, so plugins/link rebuilds (~1 s) after any change in next/src/host/.
+- ZN-755: zinc export --apk with a relative -o fails after gradle at the 16 KB check (checkPages in cli_core.cpp runs unzip inside the output directory with the relative APK path; the APK is built): use an absolute path; the recipe in zinc-next-android.md uses a relative -o.
+- ZN-755: StandBy glances at low brightness at night: zinc:sys "backlight" is only on/off while Android's screenBrightness takes 0..1; a dim glance needs a level.
+- ZN-755: some geocoding names show "?" (Persian and similar letters): the bundled Inter has no glyph for them; a fallback font.
+- ZN-755: quick adb input taps closer than ~0.5 s can be lost or merged by the once-per-frame pointer poll (fingers are fine): scripted device sessions.
 
 ## Demos
 - Owner 2026-10-17: every game demo uses Kenney's assets (kenney.nl, CC0), adapted per platform: re-skin pinball, pinball3d and pocket-hero with Kenney packs as they are next worked on (breakout in ZN-753, platformer and marble in ZN-754).
