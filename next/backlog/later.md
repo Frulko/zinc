@@ -333,6 +333,13 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-630: a dirty mark per subtree instead of walking the whole tree each painted frame while a reader listens (160 µs a frame for 300 nodes on AOT).
 - ZN-630: iOS text fields read as label/value/hint (no public text field trait): try a UITextInput or hidden UITextField proxy.
 - ZN-630: custom actions (onLongPress, aria actions) as UIAccessibilityCustomAction and AccessibilityAction; increment and decrement for sliders.
+- ZN-625: document.visibilityState and visibilitychange on phones should follow background/foreground (web.ts polls device('visibility') every 500 ms and never sees a background).
+- ZN-625: screen.orientation.type reports landscape-primary on a portrait phone; follow the surface shape or the orientation signal.
+- ZN-625: return from the background with ZINC_RENDERER=gl on Android (the EGL context restore was not tried).
+- ZN-625: the bar icons follow the system theme, not an app-chosen scheme (Appearance.setColorScheme): send the app's scheme to ZincActivity.
+- ZN-626: adb shell input text (and likely a hardware keyboard) gets auto-capitalised by Gboard: decide whether that matches a platform text field.
+- ZN-626: a ZINC_INPUT script on a live window replaces live touches, so scripted and real input cannot be mixed in one device run.
+- ZN-625: an RN <Text> without a colour draws invisibly in a headless run outside the react-native preset (system-signals/rn.tsx).
 
 ## Demos
 
@@ -634,3 +641,5 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-749: the hybrid web view on the Nexus 7 (API 25 WebView) and a real iPhone; how far a native view trails a fling there.
 - ZN-627: the Metal present on a real iPhone (raster p50/p99 at 60 Hz and at ProMotion 120 Hz, an iPhone 8 as the floor).
 - ZN-630: VoiceOver on a real iPhone and TalkBack on a phone: speech, swipe order, double tap, off-screen rows in a scroll area, touch exploration through the surface's hover listener.
+- ZN-625: below API 35, the edge-to-edge bars and the safe area on a real older phone; ZN-626: adjustPan vs adjustNothing plus our own avoidance on an API 25-34 device.
+- ZN-626: a real CJK IME's composition, swipe typing, dictation and password managers on phones.
