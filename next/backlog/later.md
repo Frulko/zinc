@@ -353,6 +353,7 @@ The next backlog review turns lines into tasks or deletes them.
 - Consoles: the PS2 3D path in two stages: zinc:3d's CPU front half plus gsKit triangles, then AthenaEnv's VU1 microprograms (MIT) on ps2sdk packet2 if a measured frame needs it.
 
 ## Demos
+- Owner 2026-10-17: every game demo uses Kenney's assets (kenney.nl, CC0), adapted per platform: re-skin pinball, pinball3d and pocket-hero with Kenney packs as they are next worked on (breakout in ZN-753, platformer and marble in ZN-754).
 
 - ZN-649.14: a rule of a pinball table can listen to the plunger, so a skill shot needs no hidden sensor.
 - ZN-650.10: the museum editor offers `accessibility.descriptions` and plays a description.

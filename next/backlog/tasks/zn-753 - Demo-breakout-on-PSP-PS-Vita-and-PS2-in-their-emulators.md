@@ -4,7 +4,7 @@ title: 'Demo: breakout on PSP, PS Vita, PS2 and Nintendo 3DS, in their emulators
 status: Backlog
 assignee: []
 created_date: '2026-10-17 07:48'
-updated_date: '2026-10-17 08:38'
+updated_date: '2026-10-17 08:47'
 labels:
   - handheld
   - games
@@ -34,4 +34,6 @@ Owner 2026-10-17: "une vraie démo" on PSP, PS Vita and PS2: simpler than the ph
 
 <!-- SECTION:NOTES:BEGIN -->
 2026-10-17 (owner): the Nintendo 3DS joins (devkitARM, libctru/citro3d/citro2d, Azahar).
+
+2026-10-17 (owner): "pour les assets prends sur kenney.nl, c'est plus joli": every 2D and 3D game demo uses Kenney's assets (CC0), adapted per platform. Breakout gets a Kenney skin ("Puzzle Pack": paddles, balls, bricks; a background; Kenney's interface sounds) drawn as sprites, keeping its logic; the prototype's frozen breakout goldens stay what they are (record the divergence as the owner's choice) and Zinc Next's breakout goldens are re-recorded.
 <!-- SECTION:NOTES:END -->
