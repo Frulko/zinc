@@ -1,0 +1,949 @@
+{
+ "units": {
+  "tile": 1.0,
+  "level": 0.5,
+  "up": "+Y",
+  "south": "+Z",
+  "yaw": "degrees about +Y; 0: an edge piece on the cell's +Z edge, 90: +X, 180: -Z, 270: -X"
+ },
+ "materials": "vertex colours only (sRGB bytes), no texture; parts: lit, unlit (sky), blended (the marble's glass, the goal ring)",
+ "zinc_json_rule": {
+  "match": "models/**/*.glb",
+  "as": "model",
+  "format": "zmesh"
+ },
+ "pieces": {
+  "floor": {
+   "tris": {
+    "high": 2,
+    "low": 2
+   },
+   "file": "models/{variant}/floor.glb",
+   "zmesh": "models/{variant}/floor.zmesh",
+   "tiles": [
+    1,
+    1
+   ],
+   "pivot": "cell centre, top at 0",
+   "what": "grass tile top (Kenney grass colour)",
+   "bounds": [
+    [
+     -0.5,
+     0.0,
+     -0.5
+    ],
+    [
+     0.5,
+     0.0,
+     0.5
+    ]
+   ]
+  },
+  "floor_alt": {
+   "tris": {
+    "high": 2,
+    "low": 2
+   },
+   "file": "models/{variant}/floor_alt.glb",
+   "zmesh": "models/{variant}/floor_alt.zmesh",
+   "tiles": [
+    1,
+    1
+   ],
+   "pivot": "cell centre, top at 0",
+   "what": "lighter grass top: alternate with floor for a checker",
+   "bounds": [
+    [
+     -0.5,
+     0.0,
+     -0.5
+    ],
+    [
+     0.5,
+     0.0,
+     0.5
+    ]
+   ]
+  },
+  "floor_start": {
+   "tris": {
+    "high": 2,
+    "low": 2
+   },
+   "file": "models/{variant}/floor_start.glb",
+   "zmesh": "models/{variant}/floor_start.zmesh",
+   "tiles": [
+    1,
+    1
+   ],
+   "pivot": "cell centre, top at 0",
+   "what": "start pad (Kenney snow top colour)",
+   "bounds": [
+    [
+     -0.5,
+     0.0,
+     -0.5
+    ],
+    [
+     0.5,
+     0.0,
+     0.5
+    ]
+   ]
+  },
+  "floor_goal": {
+   "tris": {
+    "high": 2,
+    "low": 2
+   },
+   "file": "models/{variant}/floor_goal.glb",
+   "zmesh": "models/{variant}/floor_goal.zmesh",
+   "tiles": [
+    1,
+    1
+   ],
+   "pivot": "cell centre, top at 0",
+   "what": "goal pad (Kenney moving-block gold)",
+   "bounds": [
+    [
+     -0.5,
+     0.0,
+     -0.5
+    ],
+    [
+     0.5,
+     0.0,
+     0.5
+    ]
+   ]
+  },
+  "side_dirt": {
+   "tris": {
+    "high": 10,
+    "low": 2
+   },
+   "file": "models/{variant}/side_dirt.glb",
+   "zmesh": "models/{variant}/side_dirt.zmesh",
+   "tiles": [
+    1,
+    0
+   ],
+   "pivot": "cell centre; covers y -0.5..0 on the +Z edge",
+   "what": "a level of bare dirt under side (Platformer block-grass-low, stretched)",
+   "bounds": [
+    [
+     -0.5,
+     -0.5,
+     0.226
+    ],
+    [
+     0.5,
+     0.0,
+     0.5
+    ]
+   ]
+  },
+  "side": {
+   "tris": {
+    "high": 30,
+    "low": 4
+   },
+   "file": "models/{variant}/side.glb",
+   "zmesh": "models/{variant}/side.zmesh",
+   "tiles": [
+    1,
+    0
+   ],
+   "pivot": "cell centre; covers y -0.5..0 on the +Z edge",
+   "what": "one level of exposed cell edge: grass drips over dirt (Platformer block-grass-low)",
+   "bounds": [
+    [
+     -0.541,
+     -0.5,
+     0.226
+    ],
+    [
+     0.541,
+     0.0,
+     0.541
+    ]
+   ]
+  },
+  "hole": {
+   "tris": {
+    "high": 64,
+    "low": 32
+   },
+   "file": "models/{variant}/hole.glb",
+   "zmesh": "models/{variant}/hole.zmesh",
+   "tiles": [
+    1,
+    1
+   ],
+   "pivot": "cell centre, top at 0",
+   "what": "tile with a round hole r 0.3, one level deep",
+   "bounds": [
+    [
+     -0.5,
+     -0.5,
+     -0.5
+    ],
+    [
+     0.5,
+     0.0,
+     0.5
+    ]
+   ]
+  },
+  "ramp": {
+   "tris": {
+    "high": 102,
+    "low": 24
+   },
+   "file": "models/{variant}/ramp.glb",
+   "zmesh": "models/{variant}/ramp.zmesh",
+   "tiles": [
+    1,
+    2
+   ],
+   "pivot": "centre of the low cell at its floor; rises 0.5 to the cell at -Z",
+   "what": "grass slope (Platformer block-grass-large-slope-narrow)",
+   "bounds": [
+    [
+     -0.541,
+     -0.218,
+     -1.506
+    ],
+    [
+     0.541,
+     0.528,
+     0.506
+    ]
+   ]
+  },
+  "ramp_short": {
+   "tris": {
+    "high": 84,
+    "low": 24
+   },
+   "file": "models/{variant}/ramp_short.glb",
+   "zmesh": "models/{variant}/ramp_short.zmesh",
+   "tiles": [
+    1,
+    1
+   ],
+   "pivot": "cell centre at its floor",
+   "what": "wooden ramp, one level over one cell (Platformer platform-ramp)",
+   "bounds": [
+    [
+     -0.5,
+     -0.212,
+     -0.5
+    ],
+    [
+     0.5,
+     0.546,
+     0.527
+    ]
+   ]
+  },
+  "fence": {
+   "tris": {
+    "high": 72,
+    "low": 20
+   },
+   "file": "models/{variant}/fence.glb",
+   "zmesh": "models/{variant}/fence.zmesh",
+   "tiles": [
+    1,
+    0
+   ],
+   "pivot": "cell centre; on the +Z edge",
+   "what": "low wooden rail (Platformer fence-low-straight)",
+   "bounds": [
+    [
+     -0.5,
+     0.0,
+     0.3
+    ],
+    [
+     0.5,
+     0.3,
+     0.5
+    ]
+   ]
+  },
+  "fence_corner": {
+   "tris": {
+    "high": 116,
+    "low": 29
+   },
+   "file": "models/{variant}/fence_corner.glb",
+   "zmesh": "models/{variant}/fence_corner.zmesh",
+   "tiles": [
+    1,
+    1
+   ],
+   "pivot": "cell centre; on the +Z and -X edges",
+   "what": "rail corner (Platformer fence-low-corner)",
+   "bounds": [
+    [
+     -0.5,
+     0.0,
+     -0.5
+    ],
+    [
+     0.5,
+     0.3,
+     0.5
+    ]
+   ]
+  },
+  "hedge": {
+   "tris": {
+    "high": 72,
+    "low": 20
+   },
+   "file": "models/{variant}/hedge.glb",
+   "zmesh": "models/{variant}/hedge.zmesh",
+   "tiles": [
+    1,
+    0
+   ],
+   "pivot": "cell centre; on the +Z edge",
+   "what": "hedge wall (Platformer hedge)",
+   "bounds": [
+    [
+     -0.5,
+     0.0,
+     0.2
+    ],
+    [
+     0.5,
+     0.4,
+     0.5
+    ]
+   ]
+  },
+  "hedge_corner": {
+   "tris": {
+    "high": 104,
+    "low": 30
+   },
+   "file": "models/{variant}/hedge_corner.glb",
+   "zmesh": "models/{variant}/hedge_corner.zmesh",
+   "tiles": [
+    1,
+    1
+   ],
+   "pivot": "cell centre; on the +Z and -X edges",
+   "what": "hedge corner (Platformer hedge-corner)",
+   "bounds": [
+    [
+     -0.5,
+     0.0,
+     -0.5
+    ],
+    [
+     0.5,
+     0.4,
+     0.5
+    ]
+   ]
+  },
+  "bumper": {
+   "tris": {
+    "high": 356,
+    "low": 60
+   },
+   "file": "models/{variant}/bumper.glb",
+   "zmesh": "models/{variant}/bumper.zmesh",
+   "tiles": [
+    1,
+    1
+   ],
+   "pivot": "cell centre at its floor",
+   "what": "spring bumper (Platformer spring)",
+   "bounds": [
+    [
+     -0.375,
+     0.0,
+     -0.375
+    ],
+    [
+     0.375,
+     0.468,
+     0.375
+    ]
+   ]
+  },
+  "platform": {
+   "tris": {
+    "high": 136,
+    "low": 24
+   },
+   "file": "models/{variant}/platform.glb",
+   "zmesh": "models/{variant}/platform.zmesh",
+   "tiles": [
+    1,
+    1
+   ],
+   "pivot": "cell centre, top at 0",
+   "what": "moving platform, rigid (Platformer block-moving)",
+   "bounds": [
+    [
+     -0.5,
+     -0.3,
+     -0.5
+    ],
+    [
+     0.5,
+     0.0,
+     0.5
+    ]
+   ]
+  },
+  "marble": {
+   "tris": {
+    "high": 304,
+    "low": 88
+   },
+   "file": "models/{variant}/marble.glb",
+   "zmesh": "models/{variant}/marble.zmesh",
+   "tiles": [
+    0.4,
+    0.4
+   ],
+   "pivot": "sphere centre, radius 0.2",
+   "what": "the marble: glass shell (blended) over a coloured core (Marble Kit marble-center-butterfly-high / -low)",
+   "bounds": [
+    [
+     -0.197,
+     -0.2,
+     -0.197
+    ],
+    [
+     0.197,
+     0.2,
+     0.197
+    ]
+   ]
+  },
+  "gem": {
+   "tris": {
+    "high": 12,
+    "low": 12
+   },
+   "file": "models/{variant}/gem.glb",
+   "zmesh": "models/{variant}/gem.zmesh",
+   "tiles": [
+    0.34,
+    0.28
+   ],
+   "pivot": "base centre (y 0..0.37)",
+   "what": "collectible (Platformer jewel)",
+   "bounds": [
+    [
+     -0.166,
+     0.0,
+     -0.144
+    ],
+    [
+     0.166,
+     0.37,
+     0.144
+    ]
+   ]
+  },
+  "goal_gate": {
+   "tris": {
+    "high": 64,
+    "low": 40
+   },
+   "file": "models/{variant}/goal_gate.glb",
+   "zmesh": "models/{variant}/goal_gate.zmesh",
+   "tiles": [
+    1,
+    0
+   ],
+   "pivot": "cell centre at its floor; spans x, faces z",
+   "what": "finish banner (Marble Kit banner-high)",
+   "bounds": [
+    [
+     -0.463,
+     0.0,
+     -0.038
+    ],
+    [
+     0.463,
+     1.0,
+     0.038
+    ]
+   ]
+  },
+  "goal_flag": {
+   "tris": {
+    "high": 110,
+    "low": 40
+   },
+   "file": "models/{variant}/goal_flag.glb",
+   "zmesh": "models/{variant}/goal_flag.zmesh",
+   "tiles": [
+    0.4,
+    0.1
+   ],
+   "pivot": "pole base",
+   "what": "flag (Platformer flag)",
+   "bounds": [
+    [
+     -0.056,
+     0.0,
+     -0.056
+    ],
+    [
+     0.367,
+     0.9,
+     0.056
+    ]
+   ]
+  },
+  "goal_ring": {
+   "tris": {
+    "high": 512,
+    "low": 128
+   },
+   "file": "models/{variant}/goal_ring.glb",
+   "zmesh": "models/{variant}/goal_ring.zmesh",
+   "tiles": [
+    1,
+    0
+   ],
+   "pivot": "cell centre at its floor; ring centre at y 0.6",
+   "what": "translucent gold ring, blended",
+   "bounds": [
+    [
+     -0.47,
+     0.13,
+     -0.05
+    ],
+    [
+     0.47,
+     1.07,
+     0.05
+    ]
+   ]
+  },
+  "tree": {
+   "tris": {
+    "high": 408,
+    "low": 160
+   },
+   "file": "models/{variant}/tree.glb",
+   "zmesh": "models/{variant}/tree.zmesh",
+   "tiles": [
+    1,
+    1
+   ],
+   "pivot": "trunk base",
+   "what": "round tree (Platformer tree)",
+   "bounds": [
+    [
+     -0.539,
+     0.0,
+     -0.551
+    ],
+    [
+     0.55,
+     1.931,
+     0.558
+    ]
+   ]
+  },
+  "tree_pine": {
+   "tris": {
+    "high": 204,
+    "low": 120
+   },
+   "file": "models/{variant}/tree_pine.glb",
+   "zmesh": "models/{variant}/tree_pine.zmesh",
+   "tiles": [
+    1,
+    1
+   ],
+   "pivot": "trunk base",
+   "what": "pine (Platformer tree-pine)",
+   "bounds": [
+    [
+     -0.474,
+     0.0,
+     -0.474
+    ],
+    [
+     0.474,
+     1.997,
+     0.474
+    ]
+   ]
+  },
+  "tree_small": {
+   "tris": {
+    "high": 204,
+    "low": 100
+   },
+   "file": "models/{variant}/tree_small.glb",
+   "zmesh": "models/{variant}/tree_small.zmesh",
+   "tiles": [
+    0.7,
+    0.7
+   ],
+   "pivot": "trunk base",
+   "what": "small pine (Platformer tree-pine-small)",
+   "bounds": [
+    [
+     -0.332,
+     -0.0,
+     -0.332
+    ],
+    [
+     0.332,
+     1.398,
+     0.332
+    ]
+   ]
+  },
+  "flowers": {
+   "tris": {
+    "high": 264,
+    "low": 40
+   },
+   "file": "models/{variant}/flowers.glb",
+   "zmesh": "models/{variant}/flowers.zmesh",
+   "tiles": [
+    0.8,
+    0.8
+   ],
+   "pivot": "base centre",
+   "what": "flower patch (Platformer flowers)",
+   "bounds": [
+    [
+     -0.379,
+     0.0,
+     -0.402
+    ],
+    [
+     0.398,
+     0.137,
+     0.384
+    ]
+   ]
+  },
+  "grass_tuft": {
+   "tris": {
+    "high": 72,
+    "low": 24
+   },
+   "file": "models/{variant}/grass_tuft.glb",
+   "zmesh": "models/{variant}/grass_tuft.zmesh",
+   "tiles": [
+    0.5,
+    0.5
+   ],
+   "pivot": "base centre",
+   "what": "grass tuft (Platformer grass)",
+   "bounds": [
+    [
+     -0.259,
+     0.0,
+     -0.272
+    ],
+    [
+     0.259,
+     0.314,
+     0.272
+    ]
+   ]
+  },
+  "rocks": {
+   "tris": {
+    "high": 100,
+    "low": 30
+   },
+   "file": "models/{variant}/rocks.glb",
+   "zmesh": "models/{variant}/rocks.zmesh",
+   "tiles": [
+    0.7,
+    0.7
+   ],
+   "pivot": "base centre",
+   "what": "rocks (Platformer rocks)",
+   "bounds": [
+    [
+     -0.327,
+     0.0,
+     -0.331
+    ],
+    [
+     0.327,
+     0.4,
+     0.331
+    ]
+   ]
+  },
+  "mushrooms": {
+   "tris": {
+    "high": 126,
+    "low": 36
+   },
+   "file": "models/{variant}/mushrooms.glb",
+   "zmesh": "models/{variant}/mushrooms.zmesh",
+   "tiles": [
+    0.5,
+    0.5
+   ],
+   "pivot": "base centre",
+   "what": "mushrooms (Platformer mushrooms)",
+   "bounds": [
+    [
+     -0.262,
+     0.0,
+     -0.256
+    ],
+    [
+     0.26,
+     0.289,
+     0.256
+    ]
+   ]
+  },
+  "crate": {
+   "tris": {
+    "high": 156,
+    "low": 24
+   },
+   "file": "models/{variant}/crate.glb",
+   "zmesh": "models/{variant}/crate.zmesh",
+   "tiles": [
+    0.5,
+    0.5
+   ],
+   "pivot": "base centre",
+   "what": "crate (Platformer crate)",
+   "bounds": [
+    [
+     -0.25,
+     0.0,
+     -0.25
+    ],
+    [
+     0.25,
+     0.5,
+     0.25
+    ]
+   ]
+  },
+  "barrel": {
+   "tris": {
+    "high": 148,
+    "low": 40
+   },
+   "file": "models/{variant}/barrel.glb",
+   "zmesh": "models/{variant}/barrel.zmesh",
+   "tiles": [
+    0.5,
+    0.5
+   ],
+   "pivot": "base centre",
+   "what": "barrel (Platformer barrel)",
+   "bounds": [
+    [
+     -0.259,
+     0.0,
+     -0.259
+    ],
+    [
+     0.259,
+     0.476,
+     0.259
+    ]
+   ]
+  },
+  "sign": {
+   "tris": {
+    "high": 64,
+    "low": 30
+   },
+   "file": "models/{variant}/sign.glb",
+   "zmesh": "models/{variant}/sign.zmesh",
+   "tiles": [
+    0.5,
+    0.2
+   ],
+   "pivot": "post base; arrow points +X",
+   "what": "arrow sign (Platformer arrow)",
+   "bounds": [
+    [
+     -0.203,
+     0.0,
+     -0.056
+    ],
+    [
+     0.253,
+     0.6,
+     0.086
+    ]
+   ]
+  },
+  "pillar": {
+   "tris": {
+    "high": 122,
+    "low": 40
+   },
+   "file": "models/{variant}/pillar.glb",
+   "zmesh": "models/{variant}/pillar.zmesh",
+   "tiles": [
+    0.5,
+    0.5
+   ],
+   "pivot": "base centre",
+   "what": "stone column (Nature Kit statue_column)",
+   "bounds": [
+    [
+     -0.24,
+     -0.0,
+     -0.24
+    ],
+    [
+     0.24,
+     1.6,
+     0.24
+    ]
+   ]
+  },
+  "potted_plant": {
+   "tris": {
+    "high": 128,
+    "low": 50
+   },
+   "file": "models/{variant}/potted_plant.glb",
+   "zmesh": "models/{variant}/potted_plant.zmesh",
+   "tiles": [
+    0.8,
+    0.7
+   ],
+   "pivot": "base centre",
+   "what": "potted bush (Nature Kit pot_large + plant_bushLarge)",
+   "bounds": [
+    [
+     -0.395,
+     0.0,
+     -0.342
+    ],
+    [
+     0.395,
+     0.607,
+     0.342
+    ]
+   ]
+  },
+  "rock_tall": {
+   "tris": {
+    "high": 136,
+    "low": 50
+   },
+   "file": "models/{variant}/rock_tall.glb",
+   "zmesh": "models/{variant}/rock_tall.zmesh",
+   "tiles": [
+    1.2,
+    0.8
+   ],
+   "pivot": "base centre",
+   "what": "tall rock (Nature Kit rock_tallA)",
+   "bounds": [
+    [
+     -0.59,
+     -0.0,
+     -0.41
+    ],
+    [
+     0.59,
+     1.195,
+     0.41
+    ]
+   ]
+  },
+  "sky": {
+   "tris": {
+    "high": 528,
+    "low": 120
+   },
+   "file": "models/{variant}/sky.glb",
+   "zmesh": "models/{variant}/sky.zmesh",
+   "tiles": [
+    120,
+    120
+   ],
+   "pivot": "centre: keep it on the camera",
+   "what": "sky sphere, unlit vertex colours, radius 60",
+   "bounds": [
+    [
+     -60.0,
+     -60.0,
+     -60.0
+    ],
+    [
+     60.0,
+     60.0,
+     60.0
+    ]
+   ]
+  },
+  "backdrop": {
+   "tris": {
+    "high": 3684,
+    "low": 552
+   },
+   "file": "models/{variant}/backdrop.glb",
+   "zmesh": "models/{variant}/backdrop.zmesh",
+   "tiles": [
+    80,
+    80
+   ],
+   "pivot": "course centre",
+   "what": "floating grass islands around and below the course (Platformer block-grass-large-tall; high: with trees), one mesh",
+   "bounds": [
+    [
+     -43.133,
+     -17.458,
+     -44.413
+    ],
+    [
+     47.595,
+     -3.659,
+     40.807
+    ]
+   ]
+  }
+ },
+ "sample_course": {
+  "high": 17218,
+  "low": 4216,
+  "placements": 327
+ },
+ "sources": {
+  "platformer": {
+   "url": "https://kenney.nl/assets/platformer-kit",
+   "licence": "CC0 1.0",
+   "licence_file": "models/licences/platformer-kit.txt"
+  },
+  "marble": {
+   "url": "https://kenney.nl/assets/marble-kit",
+   "licence": "CC0 1.0",
+   "licence_file": "models/licences/marble-kit.txt"
+  },
+  "nature": {
+   "url": "https://kenney.nl/assets/nature-kit",
+   "licence": "CC0 1.0",
+   "licence_file": "models/licences/nature-kit.txt"
+  }
+ }
+}
