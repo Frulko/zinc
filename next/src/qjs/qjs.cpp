@@ -287,7 +287,35 @@ std::string byNodeModules(const std::string& dir, const std::string& spec) {
     const std::string root = d + "/node_modules/" + pkg;
     std::error_code ec;
     if (!std::filesystem::is_directory(root, ec)) continue;
-    if (!sub.empty()) return probe(root + "/" + sub);
+    if (!sub.empty()) {   // pkg/sub/path: package.json "exports" ("./sub/path", or a "./*" pattern) first, else the file
+      std::string text0;
+      if (readFile(root + "/package.json", text0)) {
+        yyjson_doc* doc = yyjson_read(text0.data(), text0.size(), 0);
+        yyjson_val* ex = doc ? yyjson_obj_get(yyjson_doc_get_root(doc), "exports") : nullptr;
+        yyjson_val* hit = yyjson_is_obj(ex) ? yyjson_obj_get(ex, ("./" + sub).c_str()) : nullptr;
+        std::string rep;
+        size_t i, n; yyjson_val *k, *v;
+        if (!hit && yyjson_is_obj(ex)) yyjson_obj_foreach(ex, i, n, k, v) {
+          const std::string key = yyjson_get_str(k);
+          const std::size_t star = key.find('*');
+          const std::string want = "./" + sub;
+          if (star == std::string::npos || want.size() < key.size() - 1 || want.compare(0, star, key, 0, star) != 0 || want.compare(want.size() - (key.size() - star - 1), std::string::npos, key, star + 1, std::string::npos) != 0) continue;
+          hit = v;
+          rep = want.substr(star, want.size() - (key.size() - 1));
+          break;
+        }
+        for (int depth = 0; depth < 4 && yyjson_is_obj(hit); ++depth) {
+          yyjson_val* c = nullptr;
+          for (const char* kk : {"import", "module", "default"}) if ((c = yyjson_obj_get(hit, kk))) break;
+          hit = c;
+        }
+        std::string target = yyjson_is_str(hit) ? yyjson_get_str(hit) : "";
+        yyjson_doc_free(doc);
+        for (std::size_t at; !rep.empty() && (at = target.find('*')) != std::string::npos;) target.replace(at, 1, rep);
+        if (!target.empty()) if (std::string f = probe(normalize(root + "/" + target)); !f.empty()) return f;
+      }
+      return probe(root + "/" + sub);
+    }
     std::string text, main;
     if (readFile(root + "/package.json", text)) {
       yyjson_doc* doc = yyjson_read(text.data(), text.size(), 0);

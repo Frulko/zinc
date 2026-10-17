@@ -274,7 +274,14 @@ void scanPackageUse(const std::string& js, const std::string& spec, PkgUse& u) {
 int stageForBrowser(const BundleOptions& o, const std::vector<Collected>& mods) {
   const std::string stage = fs::path(o.stageDir).lexically_normal().string();
   std::error_code ec;
-  fs::remove_all(stage, ec);
+  // only the files whose text changed are written (a file watcher on the stage sees real changes), and the ones the program no longer has are removed
+  std::set<std::string> written;
+  auto put = [&](const std::string& file, const std::string& text) {
+    written.insert(file);
+    std::string old;
+    if (readText(stage + "/" + file, old) && old == text) return true;
+    return writeText(stage + "/" + file, text);
+  };
   std::map<std::string, std::size_t> at;
   for (std::size_t i = 0; i < mods.size(); ++i) at[mods[i].name] = i;
   auto rel = [&](const Collected& c) { return stagedPath("", c).substr(1); };
@@ -295,6 +302,7 @@ int stageForBrowser(const BundleOptions& o, const std::vector<Collected>& mods) 
       auto it = at.find(resolved);
       if (it == at.end() || mods[it->second].host) continue;
       if (mods[it->second].bare) {
+        if (o.keepPackages) continue;
         const std::string key = spec[0] == '.' || spec[0] == '/' ? resolved : spec;
         scanPackageUse(c.js, spec, packages[key]);
         to[spec] = "/__deps/" + packageId(key) + ".js";
@@ -305,7 +313,7 @@ int stageForBrowser(const BundleOptions& o, const std::vector<Collected>& mods) 
       to[spec] = target;
       deps += (deps.empty() ? "" : ",") + jsonString(rel(mods[it->second]));
     }
-    if (!writeText(stage + "/" + rel(c), relink(c.js, to))) { std::fprintf(stderr, "zinc dev: cannot write %s\n", rel(c).c_str()); return 2; }
+    if (!put(rel(c), relink(c.js, to))) { std::fprintf(stderr, "zinc dev: cannot write %s\n", rel(c).c_str()); return 2; }
     json += std::string(first ? "" : ",") + "{\"file\":" + jsonString(rel(c)) + ",\"name\":" + jsonString(c.name) + ",\"deps\":[" + deps + "]}";
     first = false;
   }
@@ -319,7 +327,11 @@ int stageForBrowser(const BundleOptions& o, const std::vector<Collected>& mods) 
     first = false;
   }
   json += "]}";
-  return writeText(stage + "/stage.json", json) ? 0 : 2;
+  if (!put("stage.json", json)) return 2;
+  if (fs::is_directory(stage, ec))
+    for (auto it = fs::recursive_directory_iterator(stage, ec); it != fs::recursive_directory_iterator(); it.increment(ec))
+      if (it->is_regular_file() && !written.count(fs::relative(it->path(), stage, ec).generic_string())) fs::remove(it->path(), ec);
+  return 0;
 }
 
 int bundleOnce(const BundleOptions& o, std::vector<std::string>& watched) {
@@ -333,9 +345,12 @@ int bundleOnce(const BundleOptions& o, std::vector<std::string>& watched) {
   // lint: the project's own modules (the engine's lib/std and the packages are not the user's to fix)
   const std::string libRoot = fs::path(o.stdRoot).parent_path().lexically_normal().string();
   std::size_t warnings = 0;
+  std::set<std::string> ownWhat;   // what the project's own modules were told, so the packages' lint below does not repeat it
+  bool hasPackages = false;
   for (const Collected& c : mods) {
+    hasPackages = hasPackages || (c.bare && !c.host);
     if (c.bare || c.host || c.name.rfind("zinc:", 0) == 0 || c.name.rfind(libRoot + "/", 0) == 0) continue;
-    for (const std::string& w : quickjsLint(c.js, c.name)) { std::fprintf(stderr, "%s\n", w.c_str()); warnings++; }
+    for (const std::string& w : quickjsLint(c.js, c.name)) { std::fprintf(stderr, "%s\n", w.c_str()); warnings++; ownWhat.insert(w.substr(w.find("warning Q0001: "))); }
   }
   if (o.check) {
     std::printf("%zu modules, %zu warning(s) for QuickJS\n", mods.size(), warnings);
@@ -425,6 +440,15 @@ int bundleOnce(const BundleOptions& o, std::vector<std::string>& watched) {
   }
   std::string bundled;
   readText(o.out, bundled);
+  if (!web && hasPackages) {   // the packages are linked by esbuild, never walked: lint the linked text for what QuickJS-ng lacks (a package may guard its use with typeof)
+    std::set<std::string> seen = ownWhat;
+    for (const std::string& w : quickjsLint(bundled, o.out)) {
+      const std::string what = w.substr(w.find("warning Q0001: "));
+      if (!seen.insert(what).second) continue;
+      std::fprintf(stderr, "%s: %s (in the bundled packages; a package may guard it)\n", zn::log::shortPath(o.out).c_str(), what.c_str());
+      warnings++;
+    }
+  }
   std::string line = "zinc bundle: " + zn::log::shortPath(o.out) + " " + std::to_string((bundled.size() + 512) / 1024) + " KB, " + std::to_string(mods.size()) + " modules" +
                      (cached ? " (unchanged)" : "");
   if (o.bytecode) {   // emit: QuickJS bytecode beside it, for a start without parsing

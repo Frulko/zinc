@@ -1676,6 +1676,7 @@ int main(int argc, char** argv) {
       else if (a == "--bytecode") bo.bytecode = true;
       else if (a == "--check") bo.check = true;
       else if (a == "--watch") bo.watch = true;
+      else if (a == "--keep-packages") bo.keepPackages = true;   // --stage: the imports of node_modules stay as written (a bundler resolves them)
       else if (a == "--stage" && k + 1 < argc) bo.stageDir = fs::absolute(argv[++k]).lexically_normal().string();   // zinc dev --target web: the modules unbundled
       else if (a == "--target" && k + 1 < argc) { if (std::strcmp(argv[++k], "quickjs")) { std::fprintf(stderr, "zinc bundle: the only target is quickjs\n"); return 2; } }
       else if (a[0] != '-') target = a;

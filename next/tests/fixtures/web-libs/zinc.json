@@ -1,0 +1,9 @@
+{
+  "name": "web-libs",
+  "entry": "src/main.ts",
+  "targets": {
+    "web": {
+      "title": "npm libraries fixture"
+    }
+  }
+}

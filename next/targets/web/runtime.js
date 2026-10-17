@@ -408,7 +408,7 @@ Z.imageUrl = (id) => {
   return url;
 };
 if (dom) {
-  const mod = await import(CFG.domModule || './dom.js');
+  const mod = await import(/* @vite-ignore */ CFG.domModule || './dom.js');
   const host = mod.makeDomHost({ root, CFG, Z, fonts, images, hex6, canvasPainter, drawInto, assetUrl, dpr });
   B = host.painter;
   G.__zincDom = host;   // zinc:ui/dom (lib/std/ui-dom.browser.ts) finds the host here: its frames are committed as elements
@@ -820,8 +820,8 @@ async function boot() {
   try {
     await preload();
     installInput();
-    if (CFG.dev) await import(CFG.hmrModule || './hmr.js').catch((e) => console.warn('zinc: no hot reload', e));
-    await import(CFG.entry);
+    if (CFG.dev) await import(/* @vite-ignore */ CFG.hmrModule || './hmr.js').catch((e) => console.warn('zinc: no hot reload', e));
+    await (globalThis.__zincLoadEntry ? globalThis.__zincLoadEntry() : import(/* @vite-ignore */ CFG.entry));   // a bundler (the Vite plugin) sets __zincLoadEntry to its own import() of the app, so it can split and hash it
     document.getElementById('zinc-splash')?.remove();
     root.focus && root.focus();
     requestAnimationFrame(frame);

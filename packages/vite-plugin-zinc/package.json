@@ -1,0 +1,12 @@
+{
+  "name": "@zinc/vite",
+  "version": "0.1.0",
+  "description": "Build and develop a Zinc app for the web with Vite: Zinc's transform and web host, Vite's resolver, HMR and bundling",
+  "type": "module",
+  "main": "index.js",
+  "exports": { ".": "./index.js", "./package.json": "./package.json" },
+  "files": ["index.js"],
+  "keywords": ["vite-plugin", "zinc"],
+  "license": "MIT",
+  "peerDependencies": { "vite": ">=5" }
+}

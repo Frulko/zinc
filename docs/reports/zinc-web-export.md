@@ -131,8 +131,9 @@ The wasm target for comparison was not measured: its `vm-web.wasm` needs the pin
 - `zinc:gl` / three.js, Yoga (`ui.layout: "rn"`), `drawShader`, `imageFromBytes` of a remote image (it decodes asynchronously and shows at the next repaint
   of the app, which an idle app may not make: use `createImage` or `Image`), `zinc:fs` on the real disk (the page has an in-memory file system for the program's own writes and `localStorage` for `zinc:storage`).
 - `zinc:system` menus, tray and window geometry are accepted and do nothing (so a desktop template runs); a program that wants to adapt asks `supports('menu')`.
-- The dev server writes `build/.zinc-web-dev/` in the project. A project that imports a package from `node_modules` cannot be served module by module yet (esbuild resolves packages, and the dev
-  server serves no esbuild output): `zinc dev --target web` says so; `zinc export --target web` bundles it fine. A bundled dev mode with full reload is the way out.
+- The dev server writes `build/.zinc-web-dev/` in the project. A package of `node_modules` is not served module by module: the dev server bundles the bare imports once with esbuild (Vite's pre-bundling model) into
+  `<project>/.zinc/web-deps/<key>/` and serves them at `/__deps/`; export and dev resolve packages with the same flags (`webResolveFlags`). See [web.md](../targets/web.md#npm-packages) and [the libraries run](../targets/web-libraries.md).
+- `zinc dev --target web --prepare <dir> [--build]` writes the staged modules and the host files and stops, for `@zinc/vite` (`packages/vite-plugin-zinc`).
 
 ## Next, in this order
 

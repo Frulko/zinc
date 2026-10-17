@@ -42,6 +42,7 @@ struct BundleOptions {
   std::string capsFile;              // targets/capabilities.json: the profile's row folded in as __ZINC_CAPS__
   std::string stageDir;              // zinc dev --target web: the modules unbundled into this directory with relative imports (stage.json lists them), esbuild does not run
   bool minify = false, sourcemap = false, bytecode = false, check = false, watch = false, quiet = false;
+  bool keepPackages = false;         // with stageDir: leave the imports of node_modules packages as written, for a bundler that resolves them (the Vite plugin)
 };
 // zinc bundle: the exit code (0, 1 when the program has errors, 2 for a usage or tool problem).
 int bundle(const BundleOptions& o);

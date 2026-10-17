@@ -39,6 +39,7 @@ std::string q(const std::string& s) { std::string r = "'"; for (char c : s) { if
 std::string readAll(const fs::path& p) { std::ifstream in(p, std::ios::binary); std::stringstream ss; ss << in.rdbuf(); return ss.str(); }
 bool writeAll(const fs::path& p, const std::string& s) {
   std::error_code ec;
+  if (fs::is_regular_file(p, ec) && readAll(p) == s) return true;   // unchanged: the file keeps its time, so a watcher (Vite on the prepared folder) sees nothing
   fs::create_directories(p.parent_path(), ec);
   std::ofstream out(p, std::ios::binary);
   out << s;
@@ -201,7 +202,7 @@ std::string webExplain(const std::string& code) {
      "`zinc dev --target web` bundles the packages the program imports once with esbuild (the way Vite pre-bundles dependencies) and serves them as ES modules; `zinc export --target web` links them into the app. "
      "esbuild refused one: it needs a Node.js built-in (fs, path, net...) a page does not have, it is not installed in node_modules, or a name the program imports from it is not exported.",
      "Run `zinc install` (or `zinc add npm:<package>`) when the package is missing; for a Node built-in use a browser build of the package (its `browser` field or `exports`), or another package. "
-     "`import * as ns from` a CommonJS package has no static names in dev: use the default import.",
+     "A package that needs a server (fs, net, child_process) has no place on a page: look for its browser build or use fetch and WebSocket.",
      "import { readFileSync } from 'some-node-only-package';   // W0605: Could not resolve \"fs\""},
   };
   for (const E& e : table)
@@ -897,6 +898,10 @@ std::string serveModule(Dev& d, const std::string& file, int version) {
     out = std::regex_replace(out, cst, "$1let$2");
     for (const std::string& n : names) tail += n + " = globalThis.__zincRefresh(" + jstr(file) + ", " + jstr(n) + ", " + n + ");\n";
   }
+  {   // `import * as ns from 'pkg'`: the pre-bundled package's namespace, whatever it is (a CommonJS package has no static names; esbuild's interop object has them all)
+    static const std::regex nsImport("import\\s*\\*\\s*as\\s+([A-Za-z_$][\\w$]*)\\s+from\\s*(\"/__deps/[^\"]+\")");
+    out = std::regex_replace(out, nsImport, "import { __zincNs as $1 } from $2");
+  }
   out = "import.meta.hot = globalThis.__zincHot(" + jstr(file) + ");\n" + out + "\n" + tail;
   if (d.cache.size() > 4000) d.cache.clear();
   return d.cache[key] = out;
@@ -933,7 +938,7 @@ void broadcast(Dev& d, const std::string& json) {
 bool restage(Dev& d, std::string& log, std::vector<std::string>& changed, bool& refreshable, bool first) {
   std::lock_guard<std::mutex> lock(d.m);
   const fs::path logFile = d.root / "stage.log";
-  const int rc = run("ZINC_WEB_HOT=1 ZINC_BACKGROUND=1 " + q(selfExe()) + " --profile web bundle " + q(d.a.dir) + " --stage " + q(d.stage.string()) + " > " + q(logFile.string()) + " 2>&1");
+  const int rc = run(std::string(d.a.build ? "" : "ZINC_WEB_HOT=1 ") + "ZINC_BACKGROUND=1 " + q(selfExe()) + " --profile web bundle " + q(d.a.dir) + " --stage " + q(d.stage.string()) + (d.a.prepare.empty() ? "" : " --keep-packages") + " > " + q(logFile.string()) + " 2>&1");
   log = readAll(logFile);
   if (rc != 0) return false;
   Json j(readAll(d.stage / "stage.json"));
@@ -968,7 +973,7 @@ bool restage(Dev& d, std::string& log, std::vector<std::string>& changed, bool& 
   }
   d.mods = next;
   d.cache.clear();
-  {   // the packages of node_modules: pre-bundled once, again only when the lockfile, a package or the set of imports changes
+  if (d.a.prepare.empty()) {   // the packages of node_modules: pre-bundled once, again only when the lockfile, a package or the set of imports changes (a bundler that prepares the files has its own way)
     const DepsResult dr = prebundleDeps(d.a.dir, readAll(d.stage / "stage.json"));
     if (!dr.error.empty()) { log = dr.error; return false; }
     if (dr.built) std::fprintf(stderr, "zinc dev: packages of node_modules pre-bundled into %s\n", fs::path(dr.dir).lexically_relative(d.a.dir).string().c_str());
@@ -1131,7 +1136,7 @@ int devWeb(const WebArgs& a) {
 #endif
   Dev d;
   d.a = a;
-  d.root = fs::path(a.dir) / "build" / ".zinc-web-dev";
+  d.root = a.prepare.empty() ? fs::path(a.dir) / "build" / ".zinc-web-dev" : fs::absolute(a.prepare);
   d.stage = d.root / "stage";
   d.site = d.root / "site";
   std::error_code ec;
@@ -1139,19 +1144,19 @@ int devWeb(const WebArgs& a) {
   std::string log;
   std::vector<std::string> changed;
   bool refreshable = false;
-  if (!restage(d, log, changed, refreshable, true)) { std::fprintf(stderr, "zinc dev: %s", log.c_str()); d.lastError = log; }
+  if (!restage(d, log, changed, refreshable, true)) { std::fprintf(stderr, "zinc dev: %s", log.c_str()); d.lastError = log; if (!a.prepare.empty()) return 1; }
   d.cm = analyse(a, d.stage);
   std::fputs(d.cm.report.c_str(), stderr);
   // the page and the runtime files, as they are (no hashes, no minify: the browser's devtools read them)
   const bool dom = d.cm.cfg.render == "dom";
-  for (const char* f : {"runtime.js", "dom.js", "hmr.js"}) fs::copy_file(fs::path(runtimeDir(a)) / f, d.site / f, fs::copy_options::overwrite_existing, ec);
+  for (const char* f : {"runtime.js", "dom.js", "hmr.js"}) writeAll(d.site / f, readAll(fs::path(runtimeDir(a)) / f));
   writeAll(d.site / "native.js", nativeJs(d.cm.used));
   for (const WebPlugin& p : d.cm.used) {
     if (p.wasmSources.empty()) continue;
     std::string werr;
     const std::string built = buildWasm(p, werr);
     if (built.empty()) { std::fprintf(stderr, "zinc dev: %s\n", werr.c_str()); continue; }
-    fs::copy_file(built, d.site / (p.wasmName + ".wasm"), fs::copy_options::overwrite_existing, ec);
+    writeAll(d.site / (p.wasmName + ".wasm"), readAll(built));
     d.cm.wasmOut.push_back({p.wasmName, p.wasmName + ".wasm"});
   }
   for (const WebPlugin& p : d.cm.used) for (const auto& [name, spec] : p.scripts) {
@@ -1162,10 +1167,11 @@ int devWeb(const WebArgs& a) {
   }
   std::vector<Asset> assets = listAssets(a.dir);
   for (Asset& as : assets) as.url = as.name;
-  const std::string cfg = configJson(a, d.cm.cfg, d.cm, assets, "./stage/" + d.entry, true, dom ? "./dom.js" : "", "./hmr.js");
+  const std::string cfg = configJson(a, d.cm.cfg, d.cm, assets, "./stage/" + d.entry, a.prepare.empty(), dom ? "./dom.js" : "", "./hmr.js");
   std::string page = pageFor(d.cm.cfg, cfg, "", true, false, false, "", "./native.js");
   page += "<script type=\"module\" src=\"./runtime.js\"></script>\n</body>\n</html>\n";
   writeAll(d.site / "index.html", page);
+  if (!a.prepare.empty()) return 0;
   return serve(d, a.port, a.lan);
 }
 

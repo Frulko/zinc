@@ -1,0 +1,16 @@
+{
+  "name": "web-vite",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "cjs-pkg": "1.0.0"
+  },
+  "devDependencies": {
+    "@zinc/vite": "0.1.0",
+    "vite": "8.3.4"
+  }
+}

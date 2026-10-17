@@ -1,0 +1,10 @@
+{
+  "name": "web-vite",
+  "entry": "src/main.tsx",
+  "targets": {
+    "web": {
+      "render": "dom",
+      "title": "Vite fixture"
+    }
+  }
+}

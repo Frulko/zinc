@@ -67,7 +67,7 @@ runs them without linking.
   transform stage, cached in `~/.zinc/cache/qjs` by content (source, name, UI preset and layout, engine build). Resolution as the typed
   loader's: relative files, `zinc:` std, generated (`zinc:telemetry`, `zinc:system/permissions`, `zinc:system/app`) and plugin modules,
   plugin `modules` aliases (`three/addons/...`, `zinc:3d/gltf`), `tsconfig.json` paths, the compat packages (inferno, pocketjs),
-  `importmap.json`, `node_modules` (package.json `exports` / `module` / `main`). Class components (Inferno) lower as on the typed engine.
+  `importmap.json`, `node_modules` (package.json `exports` with sub-paths and `*` patterns, `module`, `main`; for a program run unbundled: ES-module packages only). `zinc bundle` leaves a package name to esbuild, the one resolver of every link (2026-10-17: it used to rewrite names the loader had resolved, which ignored `exports` conditions and the `browser` field), and lints the linked text for what QuickJS-ng lacks (Q0001, "in the bundled packages"). Class components (Inferno) lower as on the typed engine.
   The web globals a file reads are imported from zinc:web as the typed loader does. `__ZINC_ENGINE__`, `__ZINC_TARGET__`,
   `__ZINC_PROFILE__`, `__ZINC_CAPS__` are globals.
 - `zinc bundle [entry|dir] [-o out.js] [--minify] [--sourcemap] [--bytecode] [--check] [--watch]` (`--target quickjs` accepted): default

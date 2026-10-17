@@ -25,7 +25,7 @@ struct Pkg { std::string spec, id; std::vector<std::string> names; bool def = fa
 // the stub esbuild bundles for one package: it exports what the program imports from it, so a CommonJS package gets real named exports
 std::string stubOf(const Pkg& p) {
   std::string t;
-  if (p.all) t += "export * from " + js(p.spec) + ";\n";
+  if (p.all) t += "export * from " + js(p.spec) + ";\nimport * as __ns from " + js(p.spec) + ";\nexport { __ns as __zincNs };\n";   // the dev server turns `import * as x` into `import { __zincNs as x }`: esbuild's namespace, with a CommonJS package's names too
   std::string list;
   for (const std::string& n : p.names) list += (list.empty() ? "" : ", ") + n;
   if (!list.empty()) t += "export { " + list + " } from " + js(p.spec) + ";\n";

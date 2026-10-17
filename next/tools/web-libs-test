@@ -1,0 +1,85 @@
+#!/usr/bin/env python3
+"""Real npm libraries on the web target, dev and export in headless Chrome (docs/targets/web-libraries.md; tests/t1/web_libs.sh).
+Copies tests/fixtures/web-libs, installs its packages with `zinc install` (the project's own package manager; the node_modules folder is kept in $ZINC_HOME/cache/web-libs by the hash of
+package.json), exports it and serves it with `zinc dev`; the page runs every library and sets __libs. Prints one JSON line with both results; exit 1 when a library fails in either
+(or the two disagree), 77 (skip) without Chrome, python3 or a network for the first install.
+usage: web-libs-test <zinc> <fixture-dir> [--table]    Chrome only: Firefox and Safari are not tested here."""
+import functools, hashlib, http.server, json, os, shutil, socket, subprocess, sys, tempfile, threading, time
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from cdp import Chrome, find_chrome
+
+zinc, fixture = sys.argv[1], sys.argv[2]
+table = "--table" in sys.argv
+if not find_chrome():
+    print("SKIP no Chrome"); sys.exit(77)
+work = tempfile.mkdtemp(prefix="zinc-web-libs-")
+proj = os.path.join(work, "app")
+shutil.copytree(fixture, proj)
+env = dict(os.environ, ZINC_BACKGROUND="1")
+home = os.environ.get("ZINC_HOME") or os.path.expanduser("~/.zinc")
+key = hashlib.sha256(open(os.path.join(proj, "package.json"), "rb").read()).hexdigest()[:12]
+cache = os.path.join(home, "cache", "web-libs", key)
+dev = srv = None
+def cleanup():
+    if dev:
+        dev.terminate()
+        try: dev.wait(5)
+        except Exception: dev.kill()
+    if srv: srv.shutdown()
+    shutil.rmtree(work, ignore_errors=True)
+def fail(why, extra=None):
+    print(json.dumps({"failed": why, "extra": extra})); cleanup(); sys.exit(1)
+
+if os.path.isdir(os.path.join(proj, "node_modules")):   # a fixture that brings its own (a scratch project)
+    pass
+elif os.path.isdir(os.path.join(cache, "node_modules")):
+    os.symlink(os.path.join(cache, "node_modules"), os.path.join(proj, "node_modules"))
+else:
+    r = subprocess.run([zinc, "install", proj], env=env, capture_output=True, text=True, timeout=300)
+    if r.returncode != 0 or not os.path.isdir(os.path.join(proj, "node_modules")):
+        print("SKIP zinc install failed (offline?): " + r.stderr[-300:]); cleanup(); sys.exit(77)
+    os.makedirs(cache, exist_ok=True)
+    shutil.move(os.path.join(proj, "node_modules"), os.path.join(cache, "node_modules"))
+    os.symlink(os.path.join(cache, "node_modules"), os.path.join(proj, "node_modules"))
+
+def libs(c):
+    end = time.time() + 40
+    while time.time() < end:
+        try: v = c.eval("globalThis.__libs", 10)
+        except Exception: v = None
+        if v: return json.loads(v)
+        c._recv(-1, 0.2)
+    return None
+args = ["--window-size=800,500", "--enable-unsafe-swiftshader", "--use-gl=angle", "--use-angle=swiftshader", "--ignore-gpu-blocklist"]
+
+r = subprocess.run([zinc, "export", proj, "--target", "web", "-o", os.path.join(work, "out")], env=env, capture_output=True, text=True, timeout=300)
+if r.returncode != 0: fail("export failed", r.stderr[-600:])
+class Quiet(http.server.SimpleHTTPRequestHandler):
+    extensions_map = dict(http.server.SimpleHTTPRequestHandler.extensions_map, **{".js": "text/javascript", ".mjs": "text/javascript", ".wasm": "application/wasm"})
+    def log_message(self, *a): pass
+srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(Quiet, directory=os.path.join(work, "out")))
+threading.Thread(target=srv.serve_forever, daemon=True).start()
+with Chrome(args) as c:
+    c.open("http://127.0.0.1:%d/" % srv.server_address[1])
+    exported = libs(c)
+    if exported is None: fail("export: the page set no __libs", c.console[:5])
+size = sum(os.path.getsize(os.path.join(work, "out", f)) for f in os.listdir(os.path.join(work, "out")) if f.startswith("app.") and f.endswith(".js"))
+
+s = socket.socket(); s.bind(("127.0.0.1", 0)); port = s.getsockname()[1]; s.close()
+log = []
+dev = subprocess.Popen([zinc, "dev", proj, "--target", "web", "--port", str(port)], stderr=subprocess.PIPE, stdout=subprocess.DEVNULL, env=env, text=True)
+threading.Thread(target=lambda: [log.append(l.rstrip()) for l in dev.stderr], daemon=True).start()
+t0 = time.time()
+while time.time() - t0 < 90 and not any("http://127.0.0.1:%d" % port in l for l in log): time.sleep(0.1)
+with Chrome(args) as c:
+    c.open("http://127.0.0.1:%d/" % port)
+    dev_ = libs(c)
+    if dev_ is None: fail("dev: the page set no __libs", {"console": c.console[:5], "log": log[-6:]})
+# 'three' resolves to the Zinc three plugin (plugins/three, whose Render3D has no browser backend yet): recorded in docs/targets/web-libraries.md, not a failure of the npm path
+KNOWN = {"three.js": "Render3D"}
+bad = {k: v for k, v in list(exported.items()) + list(dev_.items()) if v.startswith("FAIL") and KNOWN.get(k, "\0") not in v}
+diff = {k: [exported.get(k), dev_.get(k)] for k in exported if exported.get(k) != dev_.get(k)}
+print(json.dumps({"export": exported, "dev": dev_, "appBytes": size}) if not table else "\n".join("%-22s %s" % (k, exported[k][:70]) for k in exported))
+cleanup()
+if bad or diff:
+    print(json.dumps({"failed": bad, "differ": diff})); sys.exit(1)

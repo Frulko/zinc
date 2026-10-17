@@ -3045,6 +3045,8 @@ int dev(const std::vector<std::string>& args, const DevRemote* remote) {
       else if (args[k] == "--browsers" && k + 1 < args.size()) w.browsers = args[++k];
       else if (args[k] == "--port" && k + 1 < args.size()) w.port = std::atoi(args[++k].c_str());
       else if (args[k] == "--lan") w.lan = true;
+      else if (args[k] == "--prepare" && k + 1 < args.size()) w.prepare = args[++k];   // the Vite plugin's step (packages/vite-plugin-zinc)
+      else if (args[k] == "--build") w.build = true;
       else if (args[k][0] != '-') entryArg = args[k];
       else { std::fprintf(stderr, "zinc dev: unknown option %s\nusage: zinc dev [entry|dir] --target web [--render canvas|dom] [--port n] [--lan]\n", args[k].c_str()); return 2; }
     }

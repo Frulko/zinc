@@ -4,7 +4,7 @@
   "type": "module",
   "dependencies": {
     "cond-pkg": "1.0.0",
-    "cjs-pkg": "1.0.0",
+    "cjs-pkg": "1.0.0", "intl-pkg": "1.0.0",
     "esm-pkg": "1.0.0",
     "map-pkg": "1.0.0"
   }

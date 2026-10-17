@@ -10,6 +10,8 @@ struct WebArgs {
   std::string dir, entry, name, version, engineRoot, out;   // the project; out: the folder to write (export)
   std::string render, browsers;                              // "" : zinc.json web.render / web.browsers, else the defaults
   bool strict = false, noPwa = false, sourcemap = false, check = false, lan = false, prerender = false;
+  std::string prepare;   // zinc dev --prepare <dir>: write the staged modules and the host files there and stop (the Vite plugin, packages/vite-plugin-zinc); packages stay bare imports
+  bool build = false;    // with --prepare: for a production build (no hot reload hooks)
   int port = 8000;
 };
 

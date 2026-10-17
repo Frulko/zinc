@@ -30,7 +30,7 @@ zinc bundle --watch                   # again at each save
 
 `zinc bundle` walks the program as `--engine quickjs` loads it, transforms each module, and links them into one ES module with
 [esbuild](https://esbuild.github.io): unused code is dropped (the parts of `zinc:ui` the app does not use too), CommonJS packages of
-`node_modules` are linked, and these names are folded in so per-target branches disappear:
+`node_modules` are linked (esbuild resolves package names: `exports`, sub-paths, `module`, `main`; a Node built-in or a CommonJS-only need stops the link and names the package), and these names are folded in so per-target branches disappear:
 
 | Name | Value |
 |---|---|

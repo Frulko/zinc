@@ -315,6 +315,70 @@ A plugin declares its browser version in `plugin.json`:
 | `zinc:map`, `zinc:mapping`, `zinc:osc`, `zinc:sonos`, `zinc:spotify` | not yet | fetch and WebSocket over a proxy where the service has no CORS; the map engine's native code as WebAssembly | – |
 | `zinc:process`, `zinc:ffi`, `zinc:script`, `zinc:wasm`, displays, boards, `zinc:remote`, `zinc:webos`... | no | no equivalent on a page (the browser runs WebAssembly and `eval` itself) | – |
 
+## npm packages
+
+A Zinc app for the web imports packages from `node_modules` as any web app does (`import { createStore } from 'zustand/vanilla'`, `import dayjs from 'dayjs'`). Zinc stays the UI layer: React, Preact and
+`react-dom` are not needed (state, utility, data, format, validation and canvas libraries are what this is for; what was run is listed in [web-libraries.md](web-libraries.md)).
+
+```sh
+zinc add npm:zustand npm:dayjs     # the project's package manager adds them (package.json, its lockfile, node_modules)
+zinc install                       # all of package.json; the plugins of zinc.json after it
+zinc dev . --target web            # the packages are bundled once, the app's own code is served module by module
+zinc export . --target web         # the packages are linked into app.<hash>.js, tree-shaken and minified
+```
+
+**One resolver.** Dev and export resolve packages with the same esbuild flags (`webResolveFlags` in `src/qjs/bundle.cpp`): platform `browser`, so package.json `exports` with the `browser`, `import` and
+`default` conditions, sub-paths (`pkg/sub`), `imports` (`#internal`), the `browser` field (and its file replacements), then `module` and `main`; symlinks (pnpm's store, workspaces) are followed to the real
+file. CommonJS packages work with default, named and `import * as ns` imports; `process.env.NODE_ENV` is `"development"` in dev and `"production"` in the export; `global` is `globalThis`.
+`tests/t1/web_npm.sh` runs one fixture (conditions, a browser-field map, CommonJS, a pnpm-style link) through both and requires the same answers.
+
+**Dev pre-bundles, as Vite does.** The bare imports of the app are bundled once with the pinned esbuild into ES modules (`/__deps/<id>.js`), kept in `<project>/.zinc/web-deps/<key>/`, where the key is the hash of
+the lockfile (searched upward, so a workspace root counts), the project's `package.json`, the `package.json` of each imported package and the names imported from it. A save of your own code never bundles them
+again (the dev log says `pre-bundled` only when it did); an install (the lockfile or a package changes) or a new import bundles again and reloads the page. `import { a } from 'cjs-package'` works because the
+pre-bundle exports exactly the names your code imports. The first start takes one esbuild run (tens of milliseconds for a few small packages).
+
+**Package managers.** `zinc add npm:<pkg>[@version]... [-D] [dir]`, `zinc remove npm:<pkg>` and `zinc install [--frozen] [--offline] [dir]` run the manager the project already uses. It is found from the `packageManager`
+field of the nearest package.json (`pnpm@10.0.0`), else from the lockfile found upward from the project (`pnpm-lock.yaml`, `bun.lock` / `bun.lockb`, `yarn.lock` (classic or berry), `package-lock.json`), else it is npm. `--frozen`
+becomes `npm ci`, `--frozen-lockfile` or, for yarn berry, `--immutable`. Zinc never installs a manager and never ships one: when it is missing, `error P0001` says which one the project uses and why, and prints the command to run
+(`corepack enable pnpm`...). npm, pnpm and yarn are Node programs, so Node is needed to install packages (`error P0002`) and for nothing else: `zinc run`, `dev`, `export` and `bundle` read `node_modules` themselves. bun
+brings its own runtime. `zinc doctor` lists the managers and Node it finds. The plugin commands are unchanged: `zinc add <name>` is a plugin, `zinc add npm:<name>` is a package, and `zinc install` installs the packages of a
+package.json first, then the plugins of zinc.json. (Tried here: npm 11, pnpm 10 and bun 1.3 add and install; yarn was not on the machine, so only its detection and the error were tested.)
+
+What does not apply: a package that needs Node built-ins (`fs`, `net`, `child_process`) fails with `warning W0605` (esbuild's message names the built-in): use its browser build, or fetch and WebSocket. Packages are read
+as written: a workspace package that ships TypeScript or JSX sources is compiled by esbuild's plain loaders, without Zinc's JSX lowering (`className`, `StyleSheet`), so publish built JavaScript. The types of packages are not
+read (the program is not type-checked against `.d.ts` on this path). A bare `three` resolves to Zinc's own three plugin when the plugins folder is present, not to the npm package.
+
+## Vite and other bundlers
+
+`@zinc/vite` (`packages/vite-plugin-zinc/`, one ESM file, no build step) lets a Vite project build and develop a Zinc app: Zinc's transform and web host, Vite's resolver, dev server, HMR, splitting, hashing and minifying.
+
+```sh
+npm add -D vite @zinc/vite          # until it is published: "@zinc/vite": "file:/path/to/zinc/packages/vite-plugin-zinc"
+```
+```js
+// vite.config.js
+import { defineConfig } from 'vite';
+import zinc from '@zinc/vite';
+export default defineConfig({ plugins: [zinc({ render: 'dom' /* or 'canvas'; browsers: 'chrome >= 111' */ })] });
+```
+```html
+<!-- index.html: the plugin adds the host's markup, the import map, the config and the script -->
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>My app</title></head><body></body></html>
+```
+
+`vite` and `vite build` need `zinc` on PATH (or `ZINC=/path`, or `zinc({ zinc })`) and a `zinc.json` with the entry. The plugin calls `zinc dev <root> --target web --prepare .zinc/vite [--build]`, which does Zinc's part
+and stops: the transformed program as plain ES modules (`stage/`, the imports of npm packages left as written) and the host files (`site/`: `runtime.js`, `native.js`, `dom.js`, the WebAssembly of plugins), with the
+W0601 to W0603 warnings of the browsers check printed. Vite does the rest: it resolves the packages with its own resolver and pre-bundler (so a Vite project's `resolve`, `optimizeDeps` and `define` settings apply to them;
+this is the one place where the packages are resolved by Vite's rules and not by Zinc's flags), serves the modules, and in `vite build` bundles the app, emits the host, `zinc:native` and the assets with content hashes and
+writes the page's import map and config. `zinc:native` stays an import that the page's import map answers, as in `zinc export`.
+
+Hot reload is Vite's. A save runs the transform again (about 100 ms) and rewrites only the staged files that changed; Vite hot-updates the modules that export only functions (they accept themselves, their exports are
+forwarded to the new definitions and the components that ran them render again, by the rules of `zinc dev`); the page reloads when a module exports state, classes or is the entry; a Zinc compile error shows in Vite's
+overlay. `tests/t1/web_vite.sh` builds and develops `tests/fixtures/web-vite` (Vite 8.3) in headless Chrome and checks all of it, with a CommonJS package inside.
+
+**Rspack and webpack** are not implemented. The same two steps would apply (`zinc dev --target web --prepare dir`, then an entry that sets `globalThis.__zincLoadEntry = () => import('<dir>/stage/<entry>')` before importing
+`<dir>/site/runtime.js`, `zinc:native` as an external answered by an import map, the config script of `site/index.html`); that recipe was not run. For a project without a bundler, `zinc export --target web` is the build.
+
 ## Hot reload
 
 `zinc dev --target web` serves the project as unbundled modules (no esbuild run per save) on `http://127.0.0.1:8000/` (the next free port when taken; `--port n`, `--lan` to open it to the network, `--render` as above) and
@@ -342,5 +406,5 @@ precompressed files (`gzip_static`, `brotli_static`); others compress by themsel
 ## Tests
 
 `tests/t1/web_export.sh` (the export of the hero demo, canvas and DOM, in headless Chrome), `web_dev.sh` (Fast Refresh, overlay, reload, through the DevTools pipe), `web_caps.sh` (the capability warnings and `zinc explain`),
-`web_plugins.sh` (the webrtc call demo, camera, microphone, audio and sqlite), `web_dom.sh` (the semantic DOM in headless Chrome by `tools/web-dom-test`: elements, accessibility tree, Tab order, typing and caret, Enter submits a form, Page Down, a resize, the dialog, a 10 000 row list, history, prerendering), `web_dom_visual.sh` (the DOM render against the canvas render pixel by pixel, `tools/web-compare`), `web_video.sh` (video and lottie, `tools/web-video-test`). `tools/web-browser-test` and `tools/web-dev-test` drive Chrome; `tools/web-measure` prints the numbers of
+`web_plugins.sh` (the webrtc call demo, camera, microphone, audio and sqlite), `web_dom.sh` (the semantic DOM in headless Chrome by `tools/web-dom-test`: elements, accessibility tree, Tab order, typing and caret, Enter submits a form, Page Down, a resize, the dialog, a 10 000 row list, history, prerendering), `web_dom_visual.sh` (the DOM render against the canvas render pixel by pixel, `tools/web-compare`), `web_video.sh` (video and lottie, `tools/web-video-test`). `web_npm.sh` (packages through dev and export, the package managers' detection and errors), `web_libs.sh` (thirteen real libraries, installed on the first run: it needs a network once), `web_vite.sh` (`@zinc/vite`; installs Vite once). `tools/web-browser-test`, `tools/web-dev-test`, `tools/web-npm-test`, `tools/web-libs-test` and `tools/web-vite-test` drive Chrome; `tools/web-measure` prints the numbers of
 [the report](../reports/zinc-web-export.md). Without Chrome they skip.

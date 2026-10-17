@@ -56,6 +56,10 @@ def edit(path, fn):
 out = os.path.join(work, "out")
 r = subprocess.run([zinc, "export", proj, "--target", "web", "-o", out], env=env, capture_output=True, text=True, timeout=120)
 if r.returncode != 0: fail("export failed: " + r.stderr[-400:])
+# the same packages for the native QuickJS engine: `zinc bundle` links them and reports what QuickJS-ng lacks that a package uses (Q0001)
+r = subprocess.run([zinc, "bundle", proj, "-o", os.path.join(work, "native.js")], env=env, capture_output=True, text=True, timeout=120)
+if r.returncode != 0 or "Q0001: Intl.NumberFormat" not in r.stderr or "bundled packages" not in r.stderr: fail("zinc bundle with packages: %s" % r.stderr[-500:])
+steps["bundle"] = [l for l in r.stderr.splitlines() if "Q0001" in l][0][-110:]
 class Quiet(http.server.SimpleHTTPRequestHandler):
     extensions_map = dict(http.server.SimpleHTTPRequestHandler.extensions_map, **{".js": "text/javascript", ".mjs": "text/javascript", ".wasm": "application/wasm"})
     def log_message(self, *a): pass
@@ -66,7 +70,7 @@ with Chrome(["--window-size=800,500"]) as c:
     exported = result(c)
     if not exported: fail("export: no result in the page %s" % c.console[:3])
 steps["export"] = exported
-want = {"cond": "browser", "sub": "sub-import", "add": 5, "helper": "helped", "name": "esm-pkg", "twice": 42, "secretLen": 6, "util": "util:object", "mapped": "web", "mode": "production"}
+want = {"cond": "browser", "sub": "sub-import", "add": 5, "nsAdd": 2, "helper": "helped", "name": "esm-pkg", "twice": 42, "secretLen": 6, "util": "util:object", "mapped": "web", "fmt": "1,234.5", "mode": "production"}
 for k, v in want.items():
     if exported.get(k) != v: fail("export: %s is %r, wanted %r" % (k, exported.get(k), v))
 

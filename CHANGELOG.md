@@ -13,6 +13,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
   The engine refuses the old spelling with errors Z0006 and Z0007. Migrate a project with `zinc migrate --apply`.
 
 ### Added
+- `@zinc/vite` (`packages/vite-plugin-zinc`): a Vite plugin that builds and develops a Zinc app for the web with Vite's own resolver, hot module replacement and bundling; `zinc dev --target web --prepare <dir>` is the step
+  it calls. `zinc bundle` now warns (Q0001) about `Intl`, `Temporal` and `WebAssembly` used inside the packages it links, and resolves package names with esbuild (`exports` conditions and the `browser` field).
 - npm packages on the web target: `zinc dev --target web` serves a project that imports packages from `node_modules` (bundled once by esbuild, Vite's way, and kept in `.zinc/web-deps` by the
   lockfile's hash; saving your own code never bundles them again, an install reloads the page), and `zinc export --target web` resolves them the same way (`exports` conditions, the `browser`
   field, CommonJS, pnpm links). `zinc add npm:<package>` and `zinc install` call the project's own package manager (npm, pnpm, yarn or bun, found from `packageManager` or the lockfile);
