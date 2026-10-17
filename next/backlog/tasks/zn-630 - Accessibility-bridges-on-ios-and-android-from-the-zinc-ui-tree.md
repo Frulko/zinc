@@ -2,7 +2,8 @@
 id: ZN-630
 title: 'Accessibility bridges on ios and android from the zinc:ui tree'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-10 14:08'
 labels:
   - mobile
