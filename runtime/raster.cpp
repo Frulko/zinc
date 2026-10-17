@@ -12,6 +12,10 @@
 static uint32_t prof_us[13], prof_n[13];
 #endif
 
+#if defined(__ARM_NEON)
+#include <arm_neon.h>
+#endif
+
 namespace zrt { namespace raster {
 
 static inline float fabsf_(float v) { return v < 0 ? -v : v; }
@@ -698,6 +702,51 @@ uint32_t image_version(int32_t id) { Dyn* d = dyn_at(id); return d ? d->version 
 void dyn_set_alpha(int32_t id, bool on) { if (Dyn* d = dyn_at(id)) d->alpha = on; }
 bool dyn_alpha(int32_t id) { Dyn* d = dyn_at(id); return d && d->alpha; }
 
+// Bilinear sampling, separated: a pixel's value is (h(ya) * (1 - ty) + h(yb) * ty) per channel, where h(y) is the horizontal blend of source
+// row y at the pixel's column. h depends on the column and the source row only, so the rows of a picture stretched up (the music remote's
+// backdrop: 12 texels across 1280 pixels, 96 rows of pixels per source row) share it: it is computed once per source row and kept, and the
+// columns' taps once per command. The floats and their order are those of blending the four texels at each pixel, so no pixel changes.
+// On the Nexus 7 the per-pixel form took 200 ms of CPU (four cores) of a frame of the remote's carousel, this one 65.
+struct LinCol { int32_t xa, xb; float tx; };
+static ZRT_TLS LinCol* lin_cols; static ZRT_TLS uint32_t lin_cols_cap;
+static ZRT_TLS float* lin_h; static ZRT_TLS uint32_t lin_h_cap;
+template<class Texel> struct LinRows {   // four planes of n floats (B, G, R, A): four pixels' channel is one vector operation
+  const LinCol* col; int32_t n; Texel texel;
+  float *h0 = nullptr, *h1 = nullptr;
+  int32_t r0 = -1, r1 = -1;
+  bool init() {
+    if (!scratch(lin_h, lin_h_cap, (uint32_t)(n * 8))) return false;
+    h0 = lin_h; h1 = lin_h + n * 4;
+    return true;
+  }
+  void fill(float* h, int32_t sy) {
+    for (int32_t i = 0; i < n; i++) {
+      const LinCol& k = col[i];
+      const uint32_t p0 = texel(k.xa, sy), p1 = texel(k.xb, sy);
+      for (int32_t ch = 0; ch < 4; ch++) h[ch * n + i] = ((p0 >> (8 * ch)) & 255) * (1 - k.tx) + ((p1 >> (8 * ch)) & 255) * k.tx;
+    }
+  }
+  /** h0 holds source row ya blended, h1 row yb. */
+  void rows(int32_t ya, int32_t yb) {
+    if (ya != r0) {
+      if (ya == r1) { float* s = h0; h0 = h1; h1 = s; r1 = r0; r0 = ya; }
+      else { fill(h0, ya); r0 = ya; }
+    }
+    if (yb != r1) { fill(h1, yb); r1 = yb; }
+  }
+};
+/** The taps of the columns x0 .. x0 + n: fx(x) is the source position of pixel x, as the per-pixel expression computes it. */
+template<class Fx> static LinCol* lin_columns(int32_t x0, int32_t n, int32_t w, Fx fx) {
+  LinCol* col = scratch(lin_cols, lin_cols_cap, (uint32_t)n);
+  if (!col) return nullptr;
+  for (int32_t i = 0; i < n; i++) {
+    const float f = fx(x0 + i);
+    const int32_t x0i = ifloor_fast(f);
+    col[i] = LinCol{x0i < 0 ? 0 : x0i >= w ? w - 1 : x0i, x0i + 1 >= w ? w - 1 : x0i + 1 < 0 ? 0 : x0i + 1, f - x0i};
+  }
+  return col;
+}
+
 static void draw_dyn(const Target& t, const Cmd& c, const Dyn& im) {
   Rect b = bounds(c.x, c.y, c.w, c.h, t.clip);
   if (b.x0 >= b.x1 || b.y0 >= b.y1) return;
@@ -706,6 +755,9 @@ static void draw_dyn(const Target& t, const Cmd& c, const Dyn& im) {
   int32_t sx = f2i((float)im.w / c.w * 65536), sy = f2i((float)im.h / c.h * 65536);
   bool nearest = c.grad == 1 || (sx == 65536 && sy == 65536);
   float hw = c.w * 0.5f, hh = c.h * 0.5f, cx = c.x + hw, cy = c.y + hh;
+  auto px = [&im](int32_t x, int32_t y) { return im.px[y * im.stride + x]; };
+  LinRows<decltype(px)> lr{nullptr, b.x1 - b.x0, px};
+  if (!nearest && (!(lr.col = lin_columns(b.x0, lr.n, im.w, [&](int32_t x) { return (x + 0.5f - c.x) * im.w / c.w - 0.5f; })) || !lr.init())) return;
   for (int32_t y = b.y0; y < b.y1; y++) {
     if (nearest) {
       int32_t iy = (int32_t)(((int64_t)((y - c.y) * 65536)) * sy >> 32); if (iy < 0) iy = 0; if (iy >= im.h) iy = im.h - 1;
@@ -723,16 +775,13 @@ static void draw_dyn(const Target& t, const Cmd& c, const Dyn& im) {
     float fy = (y + 0.5f - c.y) * im.h / c.h - 0.5f;
     int32_t y0i = ifloor_fast(fy); float ty = fy - y0i;
     int32_t ya = y0i < 0 ? 0 : y0i >= im.h ? im.h - 1 : y0i, yb = y0i + 1 >= im.h ? im.h - 1 : y0i + 1 < 0 ? 0 : y0i + 1;
+    lr.rows(ya, yb);
+    const float uy = 1 - ty;
     for (int32_t x = b.x0; x < b.x1; x++) {
-      float fx = (x + 0.5f - c.x) * im.w / c.w - 0.5f;
-      int32_t x0i = ifloor_fast(fx); float tx = fx - x0i;
-      int32_t xa = x0i < 0 ? 0 : x0i >= im.w ? im.w - 1 : x0i, xb = x0i + 1 >= im.w ? im.w - 1 : x0i + 1 < 0 ? 0 : x0i + 1;
-      uint32_t p00 = im.px[ya * im.stride + xa], p01 = im.px[ya * im.stride + xb], p10 = im.px[yb * im.stride + xa], p11 = im.px[yb * im.stride + xb];
-      uint32_t out = 0;
-      for (int k = 0; k < 24; k += 8) {
-        float v = (((p00 >> k) & 255) * (1 - tx) + ((p01 >> k) & 255) * tx) * (1 - ty) + (((p10 >> k) & 255) * (1 - tx) + ((p11 >> k) & 255) * tx) * ty;
-        out |= (uint32_t)v << k;
-      }
+      const float *h0 = lr.h0 + (x - b.x0), *h1 = lr.h1 + (x - b.x0);
+      float v[3];
+      for (int k = 0; k < 3; k++) v[k] = h0[k * lr.n] * uy + h1[k * lr.n] * ty;
+      const uint32_t out = (uint32_t)v[0] | (uint32_t)v[1] << 8 | (uint32_t)v[2] << 16;
       float a = c.alpha;
       if (c.r > 0) a *= clampf(0.5f - rr_sdf(x + 0.5f, y + 0.5f, cx, cy, hw, hh, c.r), 0, 1);
       if (a >= 255) at(t, x, y) = out; else if (a >= 1) blend(at(t, x, y), out, (uint32_t)a);
@@ -821,6 +870,9 @@ static void draw_boxed(const Target& t, const Cmd& c, const Tex& im) {
   const uint32_t tint = image_tint(c), mode = image_blend(c);   // a sprite's (ZN-581)
   const bool plain = c.alpha == 255 && rad <= 0 && !im.alpha && tint == 0xFFFFFF && mode == BLEND_NORMAL;
   const float kx = (float)im.w / m.w, ky = (float)im.h / m.h;
+  auto px = [&im](int32_t x, int32_t y) { return texel(im, x, y); };
+  LinRows<decltype(px)> lr{nullptr, b.x1 - b.x0, px};
+  if (!nearest && (!(lr.col = lin_columns(b.x0, lr.n, im.w, [&](int32_t x) { return (x + 0.5f - m.x) * im.w / m.w - 0.5f; })) || !lr.init())) return;
   for (int32_t y = b.y0; y < b.y1; y++) {
     uint32_t* dst = &at(t, 0, y);
     if (nearest) {
@@ -839,18 +891,41 @@ static void draw_boxed(const Target& t, const Cmd& c, const Tex& im) {
     const float fy = (y + 0.5f - m.y) * im.h / m.h - 0.5f;
     const int32_t y0i = ifloor_fast(fy); const float ty = fy - y0i;
     const int32_t ya = y0i < 0 ? 0 : y0i >= im.h ? im.h - 1 : y0i, yb = y0i + 1 >= im.h ? im.h - 1 : y0i + 1 < 0 ? 0 : y0i + 1;
-    for (int32_t x = b.x0; x < b.x1; x++) {
-      const float fx = (x + 0.5f - m.x) * im.w / m.w - 0.5f;
-      const int32_t x0i = ifloor_fast(fx); const float tx = fx - x0i;
-      const int32_t xa = x0i < 0 ? 0 : x0i >= im.w ? im.w - 1 : x0i, xb = x0i + 1 >= im.w ? im.w - 1 : x0i + 1 < 0 ? 0 : x0i + 1;
-      const uint32_t p00 = texel(im, xa, ya), p01 = texel(im, xb, ya), p10 = texel(im, xa, yb), p11 = texel(im, xb, yb);
-      uint32_t out = 0;
-      float a = c.alpha;
-      for (int k = 0; k < 32; k += 8) {
-        if (k == 24 && !im.alpha) break;
-        const float ch = (((p00 >> k) & 255) * (1 - tx) + ((p01 >> k) & 255) * tx) * (1 - ty) + (((p10 >> k) & 255) * (1 - tx) + ((p11 >> k) & 255) * tx) * ty;
-        if (k == 24) a = ch / 255 * c.alpha; else out |= (uint32_t)ch << k;
+    lr.rows(ya, yb);
+    const float uy = 1 - ty;
+#if defined(__ARM_NEON)
+    // An opaque picture painted whole (a backdrop, a cover): one channel of four pixels in a NEON register, the same products and sums as
+    // below (NEON's multiply-accumulate rounds the product, as VFP's does), the tint's (c t + 127) / 255 exact for c t + 127 < 65535; the
+    // values never go through a core register (each move from VFP to the core stalls a Cortex-A9). The music remote's backdrop on the
+    // Nexus 7: 107 ns a pixel with the loop below, 53 with this (both bit-exact, tested on the device)
+    if (!im.alpha && rad <= 0 && c.alpha >= 255 && mode == BLEND_NORMAL) {
+      const float32x4_t vu = vdupq_n_f32(uy), vt = vdupq_n_f32(ty);
+      const uint32x4_t v127 = vdupq_n_u32(127), v1 = vdupq_n_u32(1);
+      const bool tinting = tint != 0xFFFFFF;
+      const uint32x4_t tb = vdupq_n_u32(tint & 255), tg = vdupq_n_u32((tint >> 8) & 255), tr = vdupq_n_u32((tint >> 16) & 255);
+      auto chan = [&](int32_t k, int32_t i, uint32x4_t t) {   // channel k of four pixels from column i
+        const uint32x4_t u = vcvtq_u32_f32(vmlaq_f32(vmulq_f32(vld1q_f32(lr.h0 + k * lr.n + i), vu), vld1q_f32(lr.h1 + k * lr.n + i), vt));
+        if (!tinting) return u;
+        const uint32x4_t m = vmlaq_u32(v127, u, t);
+        return vshrq_n_u32(vaddq_u32(vaddq_u32(m, v1), vshrq_n_u32(m, 8)), 8);
+      };
+      int32_t i = 0;
+      for (; i + 4 <= lr.n; i += 4)
+        vst1q_u32(dst + b.x0 + i, vorrq_u32(vorrq_u32(chan(0, i, tb), vshlq_n_u32(chan(1, i, tg), 8)), vshlq_n_u32(chan(2, i, tr), 16)));
+      for (; i < lr.n; i++) {
+        uint32_t out = 0;
+        for (int k = 0; k < 3; k++) out |= (uint32_t)(lr.h0[k * lr.n + i] * uy + lr.h1[k * lr.n + i] * ty) << (8 * k);
+        dst[b.x0 + i] = tinted(out, tint);
       }
+      continue;
+    }
+#endif
+    for (int32_t x = b.x0; x < b.x1; x++) {
+      const float *h0 = lr.h0 + (x - b.x0), *h1 = lr.h1 + (x - b.x0);
+      float v[4];
+      for (int k = 0; k < 4; k++) v[k] = h0[k * lr.n] * uy + h1[k * lr.n] * ty;
+      const uint32_t out = (uint32_t)v[0] | (uint32_t)v[1] << 8 | (uint32_t)v[2] << 16;
+      float a = im.alpha ? v[3] / 255 * c.alpha : c.alpha;
       if (rad > 0) a *= clampf(0.5f - rr_sdf(x + 0.5f, y + 0.5f, cx, cy, hw, hh, rad), 0, 1);
       if (a >= 1) blend_as(dst[x], tinted(out, tint), (uint32_t)a, mode);
     }
