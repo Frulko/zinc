@@ -24,6 +24,7 @@
 #include <unistd.h>
 #ifdef __ANDROID__
 #include <android/log.h>
+#include <sstream>
 #include <jni.h>
 #else
 #include <os/log.h>
@@ -164,6 +165,18 @@ static void android_setup() {
     set_env_words(ZN_APP_DEV_ENV);
 #endif
     set_env_words(intent_extra("zinc.env").c_str());
+  } else if (const char* ext = SDL_GetAndroidExternalStoragePath()) {
+    // A release build's timings: the switches that only print (ZINC_PRESENT_STATS, ZINC_GL_STATS) from zinc.env in the app's external files
+    // directory, which `adb push` reaches without run-as (a release build refuses it); `adb shell rm` the file to stop. Nothing else is
+    // taken from there: any app with storage access can write that directory.
+    size_t n = 0;
+    if (char* text = (char*)SDL_LoadFile((std::string(ext) + "/zinc.env").c_str(), &n)) {
+      std::istringstream in(std::string(text, n));
+      SDL_free(text);
+      std::string kept;
+      for (std::string w; in >> w;) if (!w.rfind("ZINC_PRESENT_STATS=", 0) || !w.rfind("ZINC_GL_STATS=", 0)) kept += w + " ";
+      set_env_words(kept.c_str());
+    }
   }
 }
 #elif defined(ZN_PHONE)

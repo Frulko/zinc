@@ -47,6 +47,13 @@ want "$out" "^+ ./gradlew assembleDebug -Pzinc.abis='arm64-v8a'$" "--apk"
 want "$out" "^+ 'zipalign' -c -P 16 4 '$tmp/a5/app/build/outputs/apk/debug/app-debug.apk'$" "--apk"
 want "$out" "'lib/\*.so'" "--apk"
 want "$out" 'every LOAD segment of a 64-bit library must be aligned to 16 KB' "--apk"
+# --apk --release: assembleRelease, the release APK; without an upload key the debug keystore signs it (adb installs it)
+out=$(run ../examples/hello --target android -o "$tmp/a6" --apk --release --abis armeabi-v7a --dry-run)
+want "$out" "^+ ./gradlew assembleRelease -Pzinc.abis='armeabi-v7a'$" "--apk --release"
+want "$out" "^+ 'zipalign' -c -P 16 4 '$tmp/a6/app/build/outputs/apk/release/app-release.apk'$" "--apk --release"
+want "$out" 'the release APK is signed with the debug keystore, for an install with adb' "--apk --release"
+out=$(run ../examples/hello --target android -o "$tmp/a7" --release --dry-run) && { echo "--release without --apk was accepted"; fail=1; }
+want "$out" '--release goes with --apk' "--release alone"
 
 # ios --ipa: archive and export; without a team the placeholder, and a real run stops before any tool
 out=$(run ../examples/hello --target ios -o "$tmp/i1" --ipa --dry-run)

@@ -166,7 +166,7 @@ and the project's `assets/`, plus `sbom.spdx.json` and `THIRD-PARTY-LICENSES.txt
 | `rpi2`, `chip`, `pocketchip` | an ARMv7 Linux executable (a 32-bit OS with NEON) and a `.desktop` file | `--deb`, `--key` |
 | `wasm` | a static site: `index.html`, `app.js` and its worker, `app.wasm`, `app.zbc`, `app.res`, `serve.py` | |
 | `esp32` | `core.bin`, `app.bin` and `flash.sh` | |
-| `android` | a Gradle project (SDL's, with the engine compiled from its sources by the NDK) | `--aab`, `--apk`, `--abis`, `--dry-run`, `--print` |
+| `android` | a Gradle project (SDL's, with the engine compiled from its sources by the NDK) | `--aab`, `--apk`, `--release`, `--abis`, `--dry-run`, `--print` |
 | `ios` | a CMake project for CMake's Xcode generator, with `Info.plist`, `PrivacyInfo.xcprivacy` and `ExportOptions.plist` | `--ipa`, `--simulator`, `--dry-run`, `--print` |
 
 Cross builds need no SDK: `zinc toolchain install` fetches the pinned zig once and checks its SHA-256.
@@ -250,6 +250,7 @@ of them prints every command and runs none:
 | --- | --- | --- |
 | `--aab` | `./gradlew bundleRelease`, then the 16 KB check | `app/build/outputs/bundle/release/app-release.aab`, signed with your upload key |
 | `--apk` | `./gradlew assembleDebug`, `zipalign -c -P 16`, the 16 KB check | `app/build/outputs/apk/debug/app-debug.apk`, for `adb install -r` |
+| `--apk --release` | `./gradlew assembleRelease`, `zipalign -c -P 16`, the 16 KB check | `app/build/outputs/apk/release/app-release.apk`: the app as users get it (not debuggable), signed with your upload key, or the debug keystore without one, for `adb install -r` |
 | `--ipa` | `cmake -G Xcode`, `xcodebuild archive`, `xcodebuild -exportArchive` | `build-device/ipa/<name>.ipa` |
 | `--ipa --simulator` | the simulator build (Debug, unsigned), `ditto` | `<name>-simulator.zip`, the zipped `.app` that simulator test services take |
 
@@ -288,6 +289,7 @@ phones with 16 KB pages refuse it). The engine and the plugins compiled from sou
   | --- | --- | --- | --- |
   | Your app (`zinc export --target android\|ios`, release) | AOT: the program compiled to native code | only your program and its plugins; no interpreter, no Fast Refresh, no link to `zinc dev` (`tests/t0/app_library.sh` checks it with `nm`) | Google Play, the App Store |
   | Your app, debug (`--apk`, `--ipa --simulator`) | the same | the same; `zinc.env` launch variables are read | your devices and simulators |
+  | Your app, release APK (`--apk --release`) | the same | the same; only the timing switches `ZINC_PRESENT_STATS` and `ZINC_GL_STATS` are read, from `zinc.env` in the app's external files directory (`adb push zinc.env /sdcard/Android/data/<id>/files/`) | your devices |
   | A player (`"player": true`, Zinc Go: `examples/zinc-go`) | the home screen as bytecode, the interpreter, every plugin made for the platform | runs projects sent by `zinc dev --lan` | a development tool: install it yourself (`adb install`, Xcode, TestFlight internal testing), as Expo Go's own builds; not for the stores |
 
   `zinc dev --lan` sends code only to a player that knows the code in its link, and only on your network. Over-the-air `.zapp` updates stay off
