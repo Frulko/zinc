@@ -14,4 +14,7 @@ void encodeEtc1a4(const std::vector<std::uint8_t>& rgba, int width, int height, 
 /** CLUT8: quantize a width*height RGBA buffer to 8-bit palette indices. Palette is written to `palette` (256*4 bytes). */
 void encodeClut8(const std::vector<std::uint8_t>& rgba, int width, int height, std::vector<std::uint8_t>& indices, std::vector<std::uint8_t>& palette);
 
+/** CLUT4: quantize to 16-color palette, indices packed two per byte (high nibble first). */
+void encodeClut4(const std::vector<std::uint8_t>& rgba, int width, int height, std::vector<std::uint8_t>& packed, std::vector<std::uint8_t>& palette);
+
 }  // namespace zn::assets

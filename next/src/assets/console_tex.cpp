@@ -86,4 +86,31 @@ void encodeClut8(const std::vector<std::uint8_t>& rgba, int width, int height, s
     }
 }
 
+void encodeClut4(const std::vector<std::uint8_t>& rgba, int width, int height, std::vector<std::uint8_t>& packed, std::vector<std::uint8_t>& palette) {
+  std::vector<std::uint32_t> pal;
+  std::map<std::uint32_t, int> idx;
+  auto key = [](const std::uint8_t* p) { return (p[0]) | (p[1] << 8) | (p[2] << 16) | (p[3] << 24); };
+  for (std::size_t i = 0; i + 3 < rgba.size(); i += 4) {
+    std::uint32_t k = key(&rgba[i]);
+    if (idx.find(k) == idx.end()) { idx[k] = pal.size(); pal.push_back(k); if (pal.size() >= 16) break; }
+  }
+  while (pal.size() < 16) pal.push_back(0);
+  palette.assign(16 * 4, 0);
+  for (std::size_t i = 0; i < 16; ++i) {
+    palette[i * 4 + 0] = pal[i] & 0xFF;
+    palette[i * 4 + 1] = (pal[i] >> 8) & 0xFF;
+    palette[i * 4 + 2] = (pal[i] >> 16) & 0xFF;
+    palette[i * 4 + 3] = (pal[i] >> 24) & 0xFF;
+  }
+  int n = width * height;
+  packed.assign((n + 1) / 2, 0);
+  for (int i = 0; i < n; ++i) {
+    std::uint32_t k = key(&rgba[i * 4]);
+    auto it = idx.find(k);
+    int pi = (it != idx.end()) ? it->second : 0;
+    if (i % 2 == 0) packed[i / 2] = (packed[i / 2] & 0x0F) | (pi << 4);
+    else packed[i / 2] = (packed[i / 2] & 0xF0) | (pi & 0x0F);
+  }
+}
+
 }  // namespace zn::assets
