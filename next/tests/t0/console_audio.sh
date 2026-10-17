@@ -1,7 +1,8 @@
 #!/bin/sh
 # zinc:audio on a console core (ZN-759, targets/console/audio_console.cpp): the core links the 'Audio' module of plugins/audio, so a program that makes
 # sounds runs there unchanged. Built here with this machine's compiler and the headless HAL (no output: the 'null' backend), a tone and a PCM WAV
-# play into mix(), a stopped voice goes silent, and a file it cannot decode says what a console plays.
+# play into mix(), a stopped voice goes silent, and a file it cannot decode says what a console plays. Compiled without ZINC_DETERMINISTIC: a
+# deterministic compile takes zinc:audio's simulation (audio.sim.ts), not the native module.
 cd "$(dirname "$0")/../.." || exit 2
 Z=${ZINC:-build/zinc}; case $Z in /*) ;; *) Z=$PWD/$Z ;; esac
 command -v cmake >/dev/null 2>&1 || { echo "console audio: no cmake"; exit 77; }
@@ -31,10 +32,10 @@ console.log(`wav ${peak(mix(100))}`);
 const bad = decode([79, 103, 103, 83, 0, 0, 0, 0, 0, 0, 0, 0] as u8[], 'song.ogg');
 console.log(`ogg ${bad.ok} ${bad.error}`);
 EOF
-"$Z" --emit=zbc-bin "$tmp/main.ts" "$tmp/main.zbc" >"$tmp/compile.log" 2>&1 || { echo "console audio: the program does not compile"; cat "$tmp/compile.log" | head; exit 1; }
+env -u ZINC_DETERMINISTIC "$Z" --emit=zbc-bin "$tmp/main.ts" "$tmp/main.zbc" >"$tmp/compile.log" 2>&1 || { echo "console audio: the program does not compile"; cat "$tmp/compile.log" | head; exit 1; }
 # the PSP's and the PS2's profile (f32 numbers): samples() gives f64[] where the program's number[] is f32[], a converted copy (it named an alias it
 # did not declare, '__T7')
-"$Z" --profile psp --emit=zbc-bin "$tmp/main.ts" "$tmp/f32.zbc" >"$tmp/compile.log" 2>&1 || { echo "console audio: the program does not compile for the psp profile"; grep error "$tmp/compile.log" | head -3; exit 1; }
+env -u ZINC_DETERMINISTIC "$Z" --profile psp --emit=zbc-bin "$tmp/main.ts" "$tmp/f32.zbc" >"$tmp/compile.log" 2>&1 || { echo "console audio: the program does not compile for the psp profile"; grep error "$tmp/compile.log" | head -3; exit 1; }
 got=$(cd "$tmp" && "$core" main.zbc 2>&1 | sed '1d;$d')
 want='backend null duration 100 ms
 square 0.5

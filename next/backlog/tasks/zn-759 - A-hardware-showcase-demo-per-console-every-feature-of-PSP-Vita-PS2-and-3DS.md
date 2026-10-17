@@ -1,11 +1,11 @@
 ---
 id: ZN-759
 title: 'A hardware showcase demo per console: every feature of PSP, Vita, PS2 and 3DS'
-status: In Progress
+status: Done
 assignee:
   - '@parallel'
 created_date: '2026-10-17 09:39'
-updated_date: '2026-10-17 12:35'
+updated_date: '2026-10-17 12:37'
 labels:
   - handheld
   - games
@@ -24,9 +24,9 @@ Owner 2026-10-17: "une démo complète de toutes les features de chaque hardware
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 examples/hardware-<console> for psp, vita, ps2 and n3ds: every feature listed above shown live (or a clear line where the hardware or the emulator lacks it), copied to ~/Documents/<console>/ for the owner
-- [ ] #2 the new inputs and outputs (rear touch, motion, pressure buttons, vibration, second screen, stereo 3D, microphone level, memory card) are zinc APIs with a desktop simulation and a T0 test each
-- [ ] #3 a video or screenshot series per console in docs/reports/zinc-next-consoles.md
+- [x] #1 examples/hardware-<console> for psp, vita, ps2 and n3ds: every feature listed above shown live (or a clear line where the hardware or the emulator lacks it), copied to ~/Documents/<console>/ for the owner
+- [x] #2 the new inputs and outputs (rear touch, motion, pressure buttons, vibration, second screen, stereo 3D, microphone level, memory card) are zinc APIs with a desktop simulation and a T0 test each
+- [x] #3 a video or screenshot series per console in docs/reports/zinc-next-consoles.md
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -48,4 +48,6 @@ Vita done (commit feat(vita): ...): examples/hardware-vita (Buttons, Sticks, Fro
 Side step (coordinator, owner request): Meadow Run (examples/platformer) on the consoles. It stopped at once (console host: host.assetsExists not available; zinc:sprite: no animation hero_idle): the console cores served no asset pack. Now (commit feat(console): asset packs...): tools/build-console-core --embed program.zbc resources.bin default.zpk links zinc pack's packs/default.zpk (embed.cmake), the core links the ZPK reader (src/zpk/zpk.cpp, lz4, zstd decompress, sha256), host_console serves HostAssetsExists/ReadText/Load/Count/Name from it, gfx_stubs' zn_asset_image decodes its ZIM1 images (zn::zim::argb, now shared in include/zn/zim.h with the desktop's packImage), and the console mixer decodes Ogg Vorbis with plugins/audio's vendored stb_vorbis. tools/console-demos extracts the pack. Test: tests/t0/console_assets.sh (the platformer 120 frames on the host core, sounds decoded); sprite_atlas T1, console_core, console_host, console_audio pass. Emulators, play session (Start, hold Right, jumps): Vita3K plays (hero, coins, critters, pits; work p50 0.77 ms on the host clock), PPSSPP plays at about 30 fps (work p50 11.8 ms, present p50 20.8 ms: the game steps twice per frame at 30 fps), Azahar plays (work 4.2 ms, present 19.0 ms). Copied: ~/Documents/vita/platformer.vpk (ZINC00011, 'Meadow Run'), ~/Documents/psp/platformer/EBOOT.PBP, ~/Documents/3ds/platformer.3dsx. Not served yet: asset groups (<group>.zpk, loadGroup), assets.stat (logged once), block-compressed images. PS2 not built for the platformer (not asked).
 
 PS2 done (commit feat(ps2): ...): examples/hardware-ps2 (Buttons and pressure, Sticks, Vibration, Sound, Memory card, Screen, System). HAL (all under ZN_CONSOLE_PLATFORM, the prototype's build unchanged): a pad setup state machine (analog mode, then padEnterPressMode, then padSetActAlign, each once the pad is stable), gamepad 0 W3C with both sticks, L3/R3, L2/R2 triggers, every button's pressure in HalGamepad.value, rumble via padSetActDirect stopped after the asked frames; audsrv at 48 kHz with libsd.irx and audsrv.irx linked in (bin2c in ps2.cmake) and loaded with SifExecModuleBuffer after sbv_patch_enable_lmb (without it audsrv_init spun forever); the memory card through rom0:MCMAN/MCSERV + libmc (present/formatted), data dir mc0:/ZINC/ (zinc:storage), ZINC_FORMAT_CARD=1 test hook formats only an unformatted card (the runner's fresh PCSX2 card was all 0xFF). Fixed on the way: a frame the pad does not answer kept the scripted buttons held (pad[0].buttons never cleared). PCSX2: all pages live; screen 48 fps with 10 sprites, 25 fps with 30 (PAL, work p50 3.6 ms, present p50 22.5 ms); the clock reads PCSX2's RTC (8 h ahead of UTC). Copied to ~/Documents/ps2/hardware.elf. Shots: docs/img/consoles/ps2-hardware.png. Fixed in the frontend for this console: Date was NaN on the PS2 (EE FPU has no NaN, f32 month test) and lost minutes under f32 (commit fix(frontend): Date ...; tests/t0/date_f32.sh).
+
+Closing (all four consoles): #1 the four demos run in PPSSPPHeadless, Vita3K, PCSX2 and Azahar, each part live or said on screen, copied to ~/Documents/psp/hardware/EBOOT.PBP, vita/hardware.vpk (ZINC00010), ps2/hardware.elf, 3ds/hardware.3dsx; #2 zinc:hardware + zinc:gfx gamepad/window + zinc:storage + zinc:audio, simulated with zinc run --simulate psp|vita|ps2|n3ds, T0 tests hardware_motion, hardware_reartouch, hardware_microphone, hardware_stereo, hardware_vibration, hardware_pressure, hardware_screen2, hardware_memcard, console_audio, console_assets, date_f32 (all PASS under tests/run); #3 shots in docs/reports/zinc-next-consoles.md and docs/img/consoles/{psp,vita,ps2,n3ds}-hardware.png, n3ds-hardware-bottom.png. Real-hardware checks (vibration, pressure, rear touch, motion signs, microphone scale, ndsp with dspfirm.cdc) belong to the cross-platform pass: lines for later.md in the final report. Test fix: console_audio and console_assets compile without ZINC_DETERMINISTIC (a deterministic compile takes audio.sim.ts, not the native module).
 <!-- SECTION:NOTES:END -->
