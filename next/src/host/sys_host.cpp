@@ -1101,19 +1101,15 @@ static int32_t packImage(const std::string& key, int32_t id) {
   }
   bool alpha = false;
   for (size_t i = 0, k = static_cast<size_t>(w) * h; i < k; i++) {
-    unsigned r, g, b, a = 255;
-    if (blocks) { const uint32_t v = px[i]; a = v >> 24; r = (v >> 16) & 255; g = (v >> 8) & 255; b = v & 255; }
-    else if (f->id == 1) { const unsigned char* s = data + i * 4; r = s[0]; g = s[1]; b = s[2]; a = s[3]; }
-    else {
-      const unsigned char* s = data + i * 2;
-      const unsigned v = s[0] | s[1] << 8;
-      if (f->id == 2) { r = ((v >> 11) * 255 + 15) / 31; g = (((v >> 5) & 63) * 255 + 31) / 63; b = ((v & 31) * 255 + 15) / 31; }
-      else if (f->id == 3) { r = (v >> 12) * 17; g = ((v >> 8) & 15) * 17; b = ((v >> 4) & 15) * 17; a = (v & 15) * 17; }
-      else { r = ((v >> 11) * 255 + 15) / 31; g = (((v >> 6) & 31) * 255 + 15) / 31; b = (((v >> 1) & 31) * 255 + 15) / 31; a = (v & 1) * 255; }
+    if (!blocks) px[i] = zn::zim::argb(*f, data, i, premultiplied);   // include/zn/zim.h: the console cores decode the same way
+    else if (premultiplied) {
+      const uint32_t v = px[i];
+      unsigned r = (v >> 16) & 255, g = (v >> 8) & 255, b = v & 255;
+      const unsigned a = v >> 24;
+      if (a && a < 255) { r = std::min(255u, (r * 255 + a / 2) / a); g = std::min(255u, (g * 255 + a / 2) / a); b = std::min(255u, (b * 255 + a / 2) / a); }
+      px[i] = a << 24 | r << 16 | g << 8 | b;
     }
-    if (premultiplied && a && a < 255) { r = std::min(255u, (r * 255 + a / 2) / a); g = std::min(255u, (g * 255 + a / 2) / a); b = std::min(255u, (b * 255 + a / 2) / a); }
-    px[i] = a << 24 | r << 16 | g << 8 | b;
-    alpha |= a != 255;
+    alpha |= (px[i] >> 24) != 255;
   }
   zrt::raster::dyn_set_alpha(id, alpha);
   zrt::raster::dyn_update(id, nullptr, 0);

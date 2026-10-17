@@ -23,7 +23,10 @@ How to add a line: see "Changelog" in `AGENTS.md`.
   `docs/targets/handhelds.md`.
 - `zinc run --simulate psp|vita|ps2|n3ds` runs a program as on that console: its screen size, and a panel for its battery, Wi-Fi, tilt, rear
   touch pad, microphone level and 3D slider.
-- zinc:audio plays on the PSP, PS Vita, PS2 and 3DS: tones, samples, PCM WAV files, voices and streams, unchanged from the desktop.
+- zinc:audio plays on the PSP, PS Vita, PS2 and 3DS: tones, samples, WAV and Ogg Vorbis files, voices and streams, unchanged from the desktop.
+- Consoles: a project's assets go with it (the asset pack of `zinc pack`, linked into the core by `tools/console-demos`): zinc:assets,
+  sprite atlases (zinc:sprite) and tile maps (zinc:tilemap) work on the PSP, Vita, PS2 and 3DS, and Meadow Run (`examples/platformer`)
+  plays there.
 - `gamepadButtonValue` gives how hard a pressure-sensitive button is pressed (the DualShock 2's); a test script presses with `gbutton I B VALUE`.
 - Consoles: a hardware demo shows every part of the console live, one screen each with Kenney's button icons: `examples/hardware-psp`
   (buttons, analog nub, sound at 44.1 kHz, the screen at 60 fps, battery, clock, the Wi-Fi switch, saving) and `examples/hardware-n3ds`

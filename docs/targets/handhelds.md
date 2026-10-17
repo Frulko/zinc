@@ -92,7 +92,7 @@ consoles, and says so on its screen where a machine has none. The demos `example
 | Motion | zinc:hardware `accelerometer()` (m/s²), `gyroscope()` (°/s) | Vita, 3DS | null; `--simulate`: the panel's tilt |
 | Microphone level | zinc:hardware `microphoneLevel()`: 0..1, -1 without one | 3DS | -1; `--simulate n3ds`: the panel's level |
 | Stereoscopic 3D | zinc:hardware `stereoDepth()` (the 3D slider), `setStereo(true)`, `stereoEye()`: the frames alternate between the eyes, both shown at each refresh | 3DS | -1 (flat); `--simulate n3ds`: the slider, one eye shown |
-| Sound | zinc:audio (tones, samples, PCM WAV files, voices, streams) | all: PSP 44.1 kHz (sceAudio), Vita 48 kHz, PS2 48 kHz (audsrv), 3DS 22.05 kHz (ndsp, else CSND) | miniaudio |
+| Sound | zinc:audio (tones, samples, WAV and Ogg Vorbis files, voices, streams) | all: PSP 44.1 kHz (sceAudio), Vita 48 kHz, PS2 48 kHz (audsrv), 3DS 22.05 kHz (ndsp, else CSND) | miniaudio |
 | Saving | zinc:storage; zinc:hardware `saveLocation()` | the PS2's memory card (`mc0:`), the PSP's memory stick, the Vita's `ux0:data`, the 3DS's SD card | a file (`~/.zinc/storage.kv`) |
 | Battery, clock, network | zinc:hardware `battery()`, `network()`; `Date` | PSP, Vita, 3DS (the PS2 has neither) | the machine's own; `--simulate` |
 
@@ -100,8 +100,14 @@ zinc:hardware (`lib/std/hardware.ts`) is a set of queries of zinc:sys `device()`
 `targets/<console>/hal_*.cpp`), a simulated device answers them on a desktop: `zinc run --simulate psp|vita|ps2|n3ds <project>` opens the device's
 control panel (`devices/<console>.json`) beside the program, with its battery, network, tilt, microphone level, 3D slider and rear pad.
 zinc:audio is a plugin on a desktop; a console core links its mixer instead (`next/targets/console/audio_console.cpp`, the same native
-module and contract), rendered on the program's thread at the end of each frame. It decodes PCM WAV files only: FLAC, MP3 and Ogg Vorbis play
-on a desktop.
+module and contract), rendered on the program's thread at the end of each frame. It decodes PCM WAV and Ogg Vorbis (stb_vorbis, the
+decoder plugins/audio vendors); FLAC and MP3 play on a desktop.
+
+The assets: `zinc pack` writes the project's asset pack (`packs/default.zpk`: data files, sprite atlases, tile maps, sounds) and
+`tools/build-console-core --embed program.zbc resources.bin default.zpk` (and `tools/console-demos`) links it into the core, which serves
+zinc:assets (`exists`, `readText`, `readBytes`, `list`) from it and makes its images zinc:gfx images (uncompressed ZIM formats; a
+block-compressed one is a GPU's and draws transparent). zinc:sprite and zinc:tilemap work unchanged: `examples/platformer` plays on the PSP, the
+Vita and the 3DS. Only the default pack: the groups of zinc:assets (`<group>.zpk`, loadGroup) are not served on a console yet.
 
 ## Limits
 

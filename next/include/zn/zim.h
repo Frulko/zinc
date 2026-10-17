@@ -36,4 +36,20 @@ inline std::size_t dataBytes(const Format& f, std::uint32_t w, std::uint32_t h, 
   return n;
 }
 
+/** Pixel `i` of an uncompressed level (rgba8, rgb565, rgba4444, rgba5551) as 0xAARRGGBB, straight alpha: what the software raster draws. */
+inline std::uint32_t argb(const Format& f, const unsigned char* data, std::size_t i, bool premultiplied) {
+  unsigned r, g, b, a = 255;
+  if (f.id == 1) { const unsigned char* s = data + i * 4; r = s[0]; g = s[1]; b = s[2]; a = s[3]; }
+  else {
+    const unsigned char* s = data + i * 2;
+    const unsigned v = s[0] | s[1] << 8;
+    if (f.id == 2) { r = ((v >> 11) * 255 + 15) / 31; g = (((v >> 5) & 63) * 255 + 31) / 63; b = ((v & 31) * 255 + 15) / 31; }
+    else if (f.id == 3) { r = (v >> 12) * 17; g = ((v >> 8) & 15) * 17; b = ((v >> 4) & 15) * 17; a = (v & 15) * 17; }
+    else { r = ((v >> 11) * 255 + 15) / 31; g = (((v >> 6) & 31) * 255 + 15) / 31; b = (((v >> 1) & 31) * 255 + 15) / 31; a = (v & 1) * 255; }
+  }
+  auto up = [a](unsigned c) { const unsigned u = (c * 255 + a / 2) / a; return u > 255 ? 255u : u; };
+  if (premultiplied && a && a < 255) { r = up(r); g = up(g); b = up(b); }
+  return a << 24 | r << 16 | g << 8 | b;
+}
+
 }  // namespace zn::zim

@@ -15,6 +15,7 @@ set(ZN_CONSOLE_HAL "" CACHE FILEPATH "the HAL of the console (runtime/include/ha
 option(ZN_CONSOLE_GFX "link the graphics host (zinc:gfx)" ON)
 set(ZN_CONSOLE_EMBED "" CACHE FILEPATH "a program.zbc to link into the core")
 set(ZN_CONSOLE_EMBED_RES "" CACHE FILEPATH "the resources.bin that goes with it")
+set(ZN_CONSOLE_EMBED_PACK "" CACHE FILEPATH "the asset pack (zinc pack's packs/default.zpk) that goes with it")
 set(ZN_CONSOLE_SIZE "" CACHE STRING "the surface, WxH (the screen of the console: psp 480x272, vita 960x544, ps2 640x448); ZINC_SIZE at run time wins")
 set(ZN_CONSOLE_FRAMES "0" CACHE STRING "a frame budget built into the HAL (ZINC_FRAMES of the emulator tests); 0: until the program ends")
 set(ZN_CONSOLE_TITLE "Zinc" CACHE STRING "the name the console's menu shows (PSP, Vita)")
@@ -41,7 +42,9 @@ target_compile_definitions(zn_console_engine PUBLIC ZN_NO_MIMALLOC $<$<BOOL:${CM
 target_compile_options(zn_console_engine PRIVATE -fwrapv -ffp-contract=off $<$<COMPILE_LANGUAGE:C>:-w>)
 
 set(ZN_CORE_SRC ${CMAKE_CURRENT_SOURCE_DIR}/core_main.cpp ${CMAKE_CURRENT_SOURCE_DIR}/host_console.cpp ${CMAKE_CURRENT_SOURCE_DIR}/stubs.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/audio_console.cpp)   # zinc:audio's mixer (ZN-759): the one native module a core links
+  ${CMAKE_CURRENT_SOURCE_DIR}/audio_console.cpp   # zinc:audio's mixer (ZN-759): the one native module a core links
+  ${ZN_NEXT}/../plugins/audio/vendor/stb_vorbis.c)   # its Ogg Vorbis decoder, the one plugins/audio vendors (stb_vorbis 1.22, public domain)
+set_source_files_properties(${ZN_NEXT}/../plugins/audio/vendor/stb_vorbis.c PROPERTIES COMPILE_OPTIONS "-w")
 if(ZN_CONSOLE_HAL)
   list(APPEND ZN_CORE_SRC ${ZN_CONSOLE_HAL})
 else()
@@ -49,12 +52,20 @@ else()
 endif()
 if(ZN_CONSOLE_EMBED)   # program.zbc (and resources.bin) as arrays in a generated C file
   set(ZN_EMBED_C ${CMAKE_CURRENT_BINARY_DIR}/embedded_program.c)
-  add_custom_command(OUTPUT ${ZN_EMBED_C} COMMAND ${CMAKE_COMMAND} -DZBC=${ZN_CONSOLE_EMBED} -DRES=${ZN_CONSOLE_EMBED_RES} -DOUT=${ZN_EMBED_C}
-    -P ${CMAKE_CURRENT_SOURCE_DIR}/embed.cmake DEPENDS ${ZN_CONSOLE_EMBED} ${CMAKE_CURRENT_SOURCE_DIR}/embed.cmake)
+  add_custom_command(OUTPUT ${ZN_EMBED_C} COMMAND ${CMAKE_COMMAND} -DZBC=${ZN_CONSOLE_EMBED} -DRES=${ZN_CONSOLE_EMBED_RES} -DPACK=${ZN_CONSOLE_EMBED_PACK} -DOUT=${ZN_EMBED_C}
+    -P ${CMAKE_CURRENT_SOURCE_DIR}/embed.cmake DEPENDS ${ZN_CONSOLE_EMBED} ${ZN_CONSOLE_EMBED_RES} ${ZN_CONSOLE_EMBED_PACK} ${CMAKE_CURRENT_SOURCE_DIR}/embed.cmake)
   list(APPEND ZN_CORE_SRC ${ZN_EMBED_C})
 endif()
 add_executable(zinc-core ${ZN_CORE_SRC})
 target_link_libraries(zinc-core PRIVATE zn_console_engine)
+# the reader of ZPK packs (zinc:assets, ZN-759) with its decoders: lz4, zstd's decompressor, SHA-256 (the entries' checksums)
+file(GLOB ZN_CONSOLE_ZSTD ${ZN_NEXT}/third_party/zstd/common/*.c ${ZN_NEXT}/third_party/zstd/decompress/*.c)
+add_library(zn_console_zpk STATIC ${ZN_NEXT}/src/zpk/zpk.cpp ${ZN_NEXT}/third_party/lz4/lz4.c ${ZN_NEXT}/third_party/sha256/sha256.c ${ZN_CONSOLE_ZSTD})
+set_target_properties(zn_console_zpk PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON C_STANDARD 99)
+target_include_directories(zn_console_zpk PUBLIC ${ZN_NEXT}/src ${ZN_NEXT}/include PRIVATE ${ZN_NEXT}/third_party/lz4 ${ZN_NEXT}/third_party/zstd ${ZN_NEXT}/third_party/sha256)
+target_compile_definitions(zn_console_zpk PRIVATE ZSTD_DISABLE_ASM)
+target_compile_options(zn_console_zpk PRIVATE -w -O2)
+target_link_libraries(zinc-core PRIVATE zn_console_zpk)
 target_include_directories(zinc-core PRIVATE ${ZN_RUNTIME}/include ${CMAKE_CURRENT_SOURCE_DIR})   # console_pad.h for the HALs
 target_compile_definitions(zinc-core PRIVATE ZN_CONSOLE_PLATFORM="${ZN_CONSOLE}")
 target_compile_options(zinc-core PRIVATE -Wall -Wextra)

@@ -20,9 +20,10 @@ for c in "$@"; do
   mkdir -p "$tmp/$c"
   "$Z" pack --profile "$c" "$project" -o "$tmp/$c.zapp" >"$tmp/$c.log" 2>&1 || { cat "$tmp/$c.log" >&2; exit 1; }
   tar -xf "$tmp/$c.zapp" -C "$tmp/$c" program.zbc resources.bin
+  tar -xf "$tmp/$c.zapp" -C "$tmp/$c" packs/default.zpk 2>/dev/null || true   # the asset pack, when the project's zinc.json has asset rules
   # zinc.json targets.<console>.width / height: the program's surface when it is not the screen's
   size=$(python3 -I -c "import json,sys; t=json.load(open(sys.argv[1])).get('targets',{}).get(sys.argv[2],{}); print('%dx%d' % (t['width'],t['height']) if 'width' in t and 'height' in t else '')" "$project/zinc.json" "$c")
-  bin=$("$here/tools/build-console-core" "$c" --embed "$tmp/$c/program.zbc" "$tmp/$c/resources.bin" --title "$title" --id "$id" ${size:+--size "$size"} -B "$here/build/console-demo-$c" | tail -1)
+  bin=$("$here/tools/build-console-core" "$c" --embed "$tmp/$c/program.zbc" "$tmp/$c/resources.bin" $( [ -f "$tmp/$c/packs/default.zpk" ] && echo "$tmp/$c/packs/default.zpk") --title "$title" --id "$id" ${size:+--size "$size"} -B "$here/build/console-demo-$c" | tail -1)
   case $c in
     psp)  mkdir -p "$out/psp/$name"; cp "$bin" "$out/psp/$name/EBOOT.PBP"; echo "$out/psp/$name/EBOOT.PBP" ;;
     vita) mkdir -p "$out/vita"; cp "$bin" "$out/vita/$name.vpk"; echo "$out/vita/$name.vpk" ;;

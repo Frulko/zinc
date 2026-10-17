@@ -6,7 +6,8 @@
 // The mix is rendered on the program's thread, when the HAL asks at the end of a frame (zn_console_audio_render), never on an audio thread: the
 // program's calls and the mix never race, and the HAL's own thread (if it has one) only copies finished samples. Without an output (the headless
 // core of the T0 tests) nothing pulls the mix but mix(), as on the desktop's null backend.
-// FLAC, MP3 and Ogg Vorbis are not decoded here: load() takes PCM WAV (8 or 16 bits, mono or stereo).
+// load() takes PCM WAV (8 or 16 bits, mono or stereo) and Ogg Vorbis (stb_vorbis, the decoder plugins/audio vendors); FLAC and MP3 play on a
+// desktop.
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
@@ -15,6 +16,8 @@
 
 #include "console_audio.h"
 #include "zn/native.h"
+
+extern "C" int stb_vorbis_decode_memory(const unsigned char* mem, int len, int* channels, int* sample_rate, short** output);   // stb_vorbis.c
 
 #ifndef ZN_CONSOLE_AUDIO_RATE
 #define ZN_CONSOLE_AUDIO_RATE 48000
@@ -150,7 +153,17 @@ int tone(int64_t wave, double hz, double seconds) {
 uint32_t le(const uint8_t* p, int n) { uint32_t v = 0; for (int i = n - 1; i >= 0; i--) v = v << 8 | p[i]; return v; }
 // A RIFF WAVE file of PCM samples (format 1, 8 or 16 bits); anything else says what a console core plays.
 int loadWav(const uint8_t* d, size_t n) {
-  if (n < 12 || std::memcmp(d, "RIFF", 4) || std::memcmp(d + 8, "WAVE", 4)) return fail("a console core plays WAV files (PCM, 8 or 16 bits); FLAC, MP3 and Ogg Vorbis play on a desktop");
+  if (n >= 4 && !std::memcmp(d, "OggS", 4)) {   // Ogg Vorbis, decoded whole (a sound effect, a jingle)
+    int ch = 0, rate = 0;
+    short* pcm = nullptr;
+    const int frames = stb_vorbis_decode_memory(d, static_cast<int>(n), &ch, &rate, &pcm);
+    if (frames <= 0 || !pcm || ch < 1 || ch > 2 || rate < 8000 || rate > 192000) { std::free(pcm); return fail("not an Ogg Vorbis file this decoder reads"); }
+    const int h = newClip(ch, rate, static_cast<size_t>(frames));
+    if (h >= 0) for (size_t i = 0; i < static_cast<size_t>(frames) * static_cast<size_t>(ch); i++) clips[h].pcm[i] = pcm[i] / 32768.0f;
+    std::free(pcm);
+    return h;
+  }
+  if (n < 12 || std::memcmp(d, "RIFF", 4) || std::memcmp(d + 8, "WAVE", 4)) return fail("a console core plays WAV (PCM, 8 or 16 bits) and Ogg Vorbis files; FLAC and MP3 play on a desktop");
   int ch = 0, rate = 0, bits = 0, fmt = 0;
   for (size_t at = 12; at + 8 <= n;) {
     const uint32_t len = le(d + at + 4, 4);

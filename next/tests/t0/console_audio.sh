@@ -45,6 +45,6 @@ ogg=$(echo "$got" | grep '^ogg')
 got=$(echo "$got" | grep -v '^ogg\|^zinc:audio: ')
 fail=0
 [ "$got" = "$want" ] || { echo "console audio: the mix differs:"; echo "$got"; fail=1; }
-echo "$ogg" | grep -q '^ogg false .*WAV' || { echo "console audio: an Ogg file: $ogg"; fail=1; }
+echo "$ogg" | grep -q '^ogg false .*Ogg' || { echo "console audio: an Ogg file: $ogg"; fail=1; }
 [ $fail -eq 0 ] && echo "console audio: ok"
 exit $fail

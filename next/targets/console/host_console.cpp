@@ -12,6 +12,8 @@
 //   zinc:fs    failed, error, readText, writeText, appendText, exists, load and byte, writeBytes, remove (a file), rename, copyFile: stdio only, relative
 //              paths under the data directory
 //   storage    get, set, remove, keys: the desktop's `key TAB value` file (src/host/sys_host.cpp), storage.kv in the data directory
+//   zinc:assets exists, readText, readBytes (load), list (count, name): the data entries of the asset pack linked into the core (zinc pack's
+//              packs/default.zpk, tools/build-console-core --embed; ZN-759), whose image entries are zinc:gfx images (gfx_stubs.cpp)
 //   time zone  UTC (offset 0, name "UTC")
 // Any other row (processes, sockets, HTTP, directories, stat, regex, crypto...) is reported once on the HAL's error log and answers 0 / "".
 #include <sys/time.h>
@@ -30,6 +32,7 @@
 #include "rt/rt.h"
 #include "zn/host.h"
 #include "zn/runtime.h"
+#include "zpk/zpk.h"
 
 #ifndef ZN_CONSOLE_PLATFORM
 #define ZN_CONSOLE_PLATFORM "console"
@@ -37,6 +40,10 @@
 
 extern "C" __attribute__((weak)) const char* zn_console_data_dir(void) { return ""; }   // the console's HAL gives its own
 extern "C" __attribute__((weak)) const char* hal_device(const char*, const char*) { return nullptr; }   // the hardware the HAL answers for (ZN-759)
+extern "C" {
+__attribute__((weak)) const unsigned char* zn_console_pack = nullptr;   // the asset pack linked in (embed.cmake), none by default
+__attribute__((weak)) unsigned long zn_console_pack_size = 0;
+}
 
 namespace {
 using zn::host::HostArg;
@@ -144,6 +151,29 @@ void storageSave(const std::map<std::string, std::string>& m) {
   if (std::FILE* f = std::fopen(storagePath().c_str(), "wb")) { std::fwrite(text.data(), 1, text.size(), f); std::fclose(f); }
 }
 
+// the asset pack: opened on first use; kind 0 data entries for zinc:assets, kind 1 images for zinc:gfx
+zn::zpk::Reader* pack() {
+  static zn::zpk::Reader reader;
+  static int state = 0;   // 0 not opened, 1 open, -1 none or invalid
+  if (state == 0) {
+    std::string err;
+    state = zn_console_pack && zn_console_pack_size && reader.open(zn_console_pack, zn_console_pack_size, err) ? 1 : -1;
+    if (state < 0 && !err.empty()) { const std::string line = "zinc: the asset pack: " + err + "\n"; hal_log_err(line.data(), line.size()); }
+  }
+  return state > 0 ? &reader : nullptr;
+}
+long packFind(const std::string& name, int kind) {
+  zn::zpk::Reader* r = pack();
+  const long i = r ? r->find(name) : -1;
+  return i >= 0 && r->entry(static_cast<std::size_t>(i)).kind == kind ? i : -1;
+}
+bool packRead(const std::string& name, int kind, std::string& out) {
+  const long i = packFind(name, kind);
+  std::string err;
+  if (i < 0 || !pack()->read(static_cast<std::size_t>(i), out, err)) { if (!err.empty()) { gFailed = true; gError = err; } return false; }
+  return true;
+}
+
 double nowMs() { return gVirtual ? gVirtualNow : static_cast<double>(hal_time_us() - gStartUs) / 1000.0; }
 void waitMs(double ms) {
   if (!(ms > 0)) return;
@@ -208,6 +238,22 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostStorageRemove: { auto m = storageLoad(); m.erase(str(a[0])); storageSave(m); break; }
     case Rt::HostStorageKeysCount: { gKeys.clear(); for (auto& kv : storageLoad()) gKeys.push_back(kv.first); r->i = static_cast<std::int64_t>(gKeys.size()); break; }
     case Rt::HostStorageKey: ret(r, n(0) >= 0 && static_cast<std::size_t>(n(0)) < gKeys.size() ? gKeys[static_cast<std::size_t>(n(0))] : ""); break;
+    case Rt::HostAssetsExists: r->i = packFind(str(a[0]), 0) >= 0; break;
+    case Rt::HostAssetsReadText: { std::string d; if (packRead(str(a[0]), 0, d)) ret(r, std::move(d)); else { if (!gFailed) { errno = ENOENT; fail("open", str(a[0])); } ret(r, ""); } break; }
+    case Rt::HostAssetsLoad: {
+      std::string d;
+      if (packRead(str(a[0]), 0, d)) gBytes.assign(d.begin(), d.end()); else { gBytes.clear(); if (!gFailed) { errno = ENOENT; fail("open", str(a[0])); } }
+      r->i = static_cast<std::int64_t>(gBytes.size());
+      break;
+    }
+    case Rt::HostAssetsCount: {
+      gKeys.clear();
+      if (zn::zpk::Reader* p = pack())
+        for (std::size_t i = 0; i < p->count(); i++) if (p->entry(i).kind == 0) gKeys.emplace_back(p->entry(i).name);
+      r->i = static_cast<std::int64_t>(gKeys.size());
+      break;
+    }
+    case Rt::HostAssetsName: ret(r, n(0) >= 0 && static_cast<std::size_t>(n(0)) < gKeys.size() ? gKeys[static_cast<std::size_t>(n(0))] : ""); break;
     case Rt::HostTzOffset: case Rt::HostTzOffsetIn: r->d = 0; break;
     case Rt::HostTzName: ret(r, "UTC"); break;
     default: {
@@ -222,6 +268,8 @@ void call(int id, const HostArg* a, HostArg* r) {
   }
 }
 }  // namespace
+
+bool zn_console_pack_read(const std::string& name, int kind, std::string& out) { return packRead(name, kind, out); }   // gfx_stubs.cpp's images
 
 // The core's entry gives the program's arguments (argv after the program) and installs the host before the program starts.
 extern "C" void zn_console_set_args(int argc, const char* const* argv) { gArgs.assign(argv, argv + (argc > 0 ? argc : 0)); }
