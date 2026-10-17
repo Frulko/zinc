@@ -1,0 +1,5 @@
+{
+  "name": "web-canvas",
+  "entry": "src/main.tsx",
+  "targets": { "web": { "title": "WebGL in a UI fixture" } }
+}

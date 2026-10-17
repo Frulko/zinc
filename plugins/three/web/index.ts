@@ -57,12 +57,23 @@ export class WebGLRenderer extends TT.WebGLRenderer {
   _iw: number = 0;
   _ih: number = 0;
   _loop: ((time: number) => void) | null = null;
+  _box: number[] | null = null;   // the screen box setViewport named (top left origin, logical pixels), else the whole surface
   constructor(p: any = {}) {
     const canvas = document.createElement('canvas');
     super({ ...p, canvas });
     this.setSize(width(), height(), false);
     // render and setAnimationLoop are instance functions of three's renderer (set by its constructor), so they are replaced here, not overridden
-    const draw = this.render;
+    const draw = this.render, baseViewport = this.setViewport, baseSize = this.setSize;
+    // as on the desktop, setViewport(x, y, w, h) is the box of the screen the picture goes to (top left origin): the canvas takes its size and the picture is drawn there
+    let sizing = false;   // three's setSize calls setViewport itself
+    const resize = (w: number, h: number): void => { sizing = true; try { baseSize.call(this, w, h, false); } finally { sizing = false; } };
+    this.setViewport = (x: any, y?: any, w?: any, h?: any): void => {
+      if (typeof x !== 'number' || sizing) { baseViewport.call(this, x, y, w, h); return; }
+      if (this._box === null || this._box[2] !== w || this._box[3] !== h) resize(w, h);
+      this._box = [x, y, w, h];
+      baseViewport.call(this, 0, 0, w, h);
+    };
+    this.setSize = (w: number, h: number, updateStyle?: boolean): void => { this._box = null; resize(w, h); };
     this.render = (scene: any, camera: any): void => { draw.call(this, scene, camera); this._present(); };   // in the same task, so the drawing buffer is still valid
     this.setAnimationLoop = (cb: ((time: number) => void) | null): void => {
       this._loop = cb;
@@ -85,8 +96,8 @@ export class WebGLRenderer extends TT.WebGLRenderer {
     g.clearRect(0, 0, c.width, c.height);
     g.drawImage(cv, 0, 0);
     Z.images.touch(this._img);
-    const sz = this.getSize(new T.Vector2());
-    drawImage(this._img, 0, 0, sz.x, sz.y, 255);
+    const sz = this.getSize(new T.Vector2()), b = this._box;
+    drawImage(this._img, b ? b[0] : 0, b ? b[1] : 0, b ? b[2] : sz.x, b ? b[3] : sz.y, 255);
   }
   _tick(): void { if (this._loop !== null) this._loop(performance.now()); }
 }

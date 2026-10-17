@@ -420,7 +420,6 @@ struct Common {
   std::vector<std::pair<std::string, std::string>> wasmOut;   // the native code of plugins built for the page: module name, url
   std::vector<std::pair<std::string, std::string>> scriptOut;   // the libraries plugins load on first use: name, url
   std::vector<std::string> rowJs;   // the rows-*.js files the program needs (loaded into native.js)
-  std::vector<std::string> scriptUrls;   // plugin "web.scripts" as published: classic scripts the page loads before the app
 };
 // `bundle`: the minified bundle, whose reachable code names the host rows the program really calls ("" in dev: the staged modules hold unused code too, so every row they name gets a stub and nothing is reported)
 Common analyse(const WebArgs& a, const fs::path& stage, const std::string& bundle = "") {
@@ -555,8 +554,6 @@ std::string configJson(const WebArgs& a, const Cfg& c, const Common& cm, const s
   if (!cm.rowJs.empty()) j += ",\"rows\":true";
   j += ",\"unsupported\":[";
   for (std::size_t i = 0; i < cm.unsupported.size(); ++i) j += (i ? "," : "") + jstr(cm.unsupported[i]);
-  j += "],\"scripts\":[";
-  for (std::size_t i = 0; i < cm.scriptUrls.size(); ++i) j += (i ? "," : "") + jstr(cm.scriptUrls[i]);
   j += "],\"wasm\":[";
   for (std::size_t i = 0; i < cm.wasmOut.size(); ++i) j += std::string(i ? "," : "") + "{\"name\":" + jstr(cm.wasmOut[i].first) + ",\"url\":" + jstr(cm.wasmOut[i].second) + "}";
   j += "],\"scripts\":{";

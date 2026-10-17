@@ -218,7 +218,8 @@ composition, a touch device, a high-density display, and right-to-left text beyo
 ## WebGL, shaders and three.js
 
 No part of this is WebAssembly: the browser's own WebGL does the drawing, and the result reaches the Zinc surface as an image, so it keeps its place in the paint order (what the app draws
-after it lands over it, a clip, a transform and a fade apply) and works the same in canvas and DOM mode (in DOM mode the image is a `<canvas>` element where the component sits).
+after it lands over it, a clip, a transform and a fade apply) and works the same in canvas and DOM mode: in DOM mode, drawn by a `Canvas` node or its `onDraw`, it is a `<canvas>` element where the node sits (tests/fixtures/web-canvas: a zinc:gl node and a three.js node in one
+zinc:ui app). A program that draws with `zinc:gfx` alone, without a `zinc:ui` tree, has no node and so no elements in DOM mode; export it in canvas mode.
 
 - **`zinc:gl`** (WebGL 1 and 2 for Zinc code): `examples/gl-cube` runs unchanged. The host rows `__host_gl*` are answered by `targets/web/rows-gl.js`, generated from the table of `tools/gen-zinc-gl`
   by `tools/gen-web-gl` (`--check` in the test): a context is a canvas the page makes, objects keep the engine's ids, a GLArray becomes a typed array, `present(image)` draws the canvas into the
@@ -228,7 +229,7 @@ after it lands over it, a clip, a transform and a fade apply) and works the same
 - **`drawShader`** (D124): the fragment `main()` is compiled behind the same head (`v_uv`, `u_size`, `u_p[8]`) on one shared WebGL context at 1 / `scale` of the physical resolution and drawn as an
   image of the box. `shaderAvailable()` is true where the browser has WebGL. The shader fixture's frame differs from the CPU path of the native engine by at most 16 levels.
 - **three.js**: the real library (r186, `next/third_party/three`, unmodified) runs on a WebGL2 canvas created by the page. `plugins/three/web/index.ts` re-exports it and replaces three things: `WebGLRenderer`
-  (its `render` copies the canvas into the surface at the end of each call; `setAnimationLoop` runs in Zinc's frame, before the app's own `onFrame`), `window` / `CanvasElement` (the Zinc surface size and pixel
+  (its `render` copies the canvas into the surface at the end of each call; `setAnimationLoop` runs in Zinc's frame, before the app's own `onFrame`; `setViewport(x, y, w, h)` is the screen box the picture is drawn at, as on the desktop), `window` / `CanvasElement` (the Zinc surface size and pixel
   ratio) and `TextureLoader`, `CanvasTexture`, `GLTFLoader`, `OrbitControls` (assets of the app and zinc:canvas images work; the controls listen on the page). `examples/three/cubes` and
   `examples/three/gltf-viewer` (model, orbit, picking, a zinc:ui overlay) run unchanged. The subset of `index.ts` is not used on the web: the whole of three.js is.
   Not done: the frame of `cubes` is not compared with the desktop (the desktop draws with the Zinc subset, a different renderer; the real library on the desktop's WebGL is `--engine quickjs`,

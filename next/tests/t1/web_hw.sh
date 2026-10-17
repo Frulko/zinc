@@ -14,7 +14,7 @@ tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fail=0
 "$Z" export tests/fixtures/web-hw --target web -o "$tmp/hw" >"$tmp/hw.log" 2>&1 || { echo "web_hw: the export failed: $(cut -c1-400 "$tmp/hw.log")"; exit 1; }
 for w in "webserial (plugin serial)" "webmidi (plugin midi)" "webusb (plugin gphoto2)"; do grep -q "W0601: $w" "$tmp/hw.log" || { echo "web_hw: no W0601 for $w"; fail=1; }; done
-python3 -I tools/web-browser-test "$tmp/hw" --wait 2 --after 6 --size 900x500 --init tests/fixtures/web-hw/mocks.js --click-text Run --eval 'JSON.stringify({codes: __usb.sent, set: __usb.setValue, sent: __midi.sent})' >"$tmp/hw.out" 2>&1 || { echo "web_hw: the page did not run: $(cut -c1-400 "$tmp/hw.out")"; exit 1; }
+python3 -I tools/web-browser-test "$tmp/hw" --wait 2 --after 6 --size 900x500 --init "$(cat tests/fixtures/web-hw/mocks.js)" --click-text Run --eval 'JSON.stringify({codes: __usb.sent, set: __usb.setValue, sent: __midi.sent})' >"$tmp/hw.out" 2>&1 || { echo "web_hw: the page did not run: $(cut -c1-400 "$tmp/hw.out")"; exit 1; }
 python3 -I - "$tmp/hw.out" <<'EOF' || fail=1
 import json, sys
 o = json.loads(open(sys.argv[1]).read().splitlines()[-1])
@@ -31,7 +31,7 @@ if o["errors"]: bad.append("web_hw: errors: %s" % o["errors"])
 if bad: print("\n".join(bad) + "\n" + t); sys.exit(1)
 EOF
 "$Z" export tests/fixtures/web-map --target web -o "$tmp/map" >"$tmp/map.log" 2>&1 || { echo "web_hw: the map export failed: $(cut -c1-400 "$tmp/map.log")"; exit 1; }
-ls "$tmp"/map/maplibre-gl.*.js >/dev/null 2>&1 || { echo "web_hw: the map export has no maplibre-gl script (web.scripts)"; fail=1; }
+ls "$tmp"/map/maplibre.*.js >/dev/null 2>&1 || { echo "web_hw: the map export has no maplibre-gl script (web.scripts)"; fail=1; }
 python3 -I tools/web-browser-test "$tmp/map" --wait 5 --size 960x600 --shot "$tmp/map.png" --eval '(() => { const c = document.getElementById("zinc-canvas"), d = c.getContext("2d").getImageData(0, 0, c.width, c.height).data; let water = 0, park = 0, road = 0, bg = 0; for (let i = 0; i < d.length; i += 4) { const r = d[i], g = d[i+1], b = d[i+2]; if (Math.abs(r - 170) < 8 && Math.abs(g - 211) < 8 && Math.abs(b - 223) < 8) water++; else if (Math.abs(r - 200) < 10 && Math.abs(g - 250) < 8 && Math.abs(b - 204) < 10) park++; else if (r > 240 && g > 150 && g < 200 && b < 140) road++; else if (r === 242 && g === 239 && b === 233) bg++; } return JSON.stringify({ water, park, road, bg }); })()' >"$tmp/map.out" 2>&1 || { echo "web_hw: map: $(cut -c1-300 "$tmp/map.out")"; fail=1; }
 python3 -I - "$tmp/map.out" <<'EOF' || fail=1
 import json, sys

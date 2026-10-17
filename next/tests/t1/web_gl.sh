@@ -14,7 +14,7 @@ export ZINC_BACKGROUND=1
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fail=0
 python3 -I tools/gen-web-gl --check >/dev/null || { echo "web_gl: targets/web/rows-gl.js is out of date: run tools/gen-web-gl"; fail=1; }
-for p in "gl-cube:../examples/gl-cube:canvas" "gl-cube-dom:../examples/gl-cube:dom" "shader:tests/fixtures/web-shader:canvas" "three:tests/fixtures/web-three:canvas" "three-dom:tests/fixtures/web-three:dom" "cubes:../examples/three/cubes:canvas"; do
+for p in "gl-cube:../examples/gl-cube:canvas" "wcanvas:tests/fixtures/web-canvas:canvas" "wcanvas-dom:tests/fixtures/web-canvas:dom" "shader:tests/fixtures/web-shader:canvas" "three:tests/fixtures/web-three:canvas" "cubes:../examples/three/cubes:canvas"; do
   n=${p%%:*}; r=${p#*:}; d=${r%%:*}; m=${r#*:}
   "$Z" export "$d" --target web --render "$m" -o "$tmp/$n" >/dev/null 2>"$tmp/$n.err" || { echo "web_gl: the $n export failed: $(cut -c1-400 "$tmp/$n.err")"; exit 1; }
 done
@@ -26,9 +26,31 @@ frames=$(echo "$out" | python3 -I -c 'import json,sys; print(json.load(sys.stdin
 echo "$out" | grep -q '"errors": \[\]' || { echo "web_gl: errors in the gl-cube page: $(echo "$out" | cut -c1-400)"; fail=1; }
 ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES="$frames" ZINC_SHOT="$tmp/gl-cube-native.png" "$Z" run ../examples/gl-cube >/dev/null 2>&1 || { echo "web_gl: the native gl-cube run failed"; exit 1; }
 python3 -I tools/pngdiff "$tmp/gl-cube-native.png" "$tmp/gl-cube.png" --ssim 0.98 --tol 8 --max-diff 600 >"$tmp/cmp.out" 2>&1 || { echo "web_gl: gl-cube at frame $frames differs from the native frame: $(cat "$tmp/cmp.out")"; fail=1; }
-# DOM mode: the picture is a canvas element, not blank
-python3 -I tools/web-browser-test "$tmp/gl-cube-dom" --wait 2 --size 480x360 --eval 'document.querySelectorAll("canvas").length + " " + (() => { for (const c of document.querySelectorAll("canvas")) { const d = c.getContext("2d").getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 0; i < d.length; i += 4) if (d[i] > 100 || d[i+2] > 100) n++; if (n > 2000) return "lit"; } return "dark"; })()' >"$tmp/dom.out" 2>&1 || { echo "web_gl: gl-cube in DOM mode: $(cut -c1-400 "$tmp/dom.out")"; fail=1; }
-grep -q '"eval": "[1-9][0-9]* lit"' "$tmp/dom.out" || { echo "web_gl: DOM mode shows no lit canvas element: $(cut -c1-300 "$tmp/dom.out")"; fail=1; }
+# zinc:gl and three.js inside a zinc:ui app (two Canvas nodes), canvas mode: pixels of the green clear and the red cube; DOM mode: each node is a <canvas> element with the same pixels
+out=$(python3 -I tools/web-browser-test "$tmp/wcanvas" --wait 2 --size 700x300 --eval '(async () => { const p = '"$pix"'; return JSON.stringify([p(116, 91), p(382, 116), p(240, 24)]); })()') || { echo "web_gl: web-canvas: $out"; exit 1; }
+echo "$out" | python3 -I -c '
+import json, sys
+o = json.load(sys.stdin); green, cube, sky = json.loads(o["eval"])
+near = lambda a, b: all(abs(x - y) <= 8 for x, y in zip(a, b))
+bad = []
+if not near(green, [26, 179, 51]): bad.append("the zinc:gl node is %s, not green" % green)
+if not near(cube, [0xe6, 0x39, 0x46]): bad.append("the three.js cube is %s, not e63946" % cube)
+if not near(sky, [0x20, 0x30, 0x60]): bad.append("the three.js background is %s, not 203060" % sky)
+if o["errors"]: bad.append("errors: %s" % o["errors"])
+if bad: print("web_gl: web-canvas: " + "; ".join(bad)); sys.exit(1)' || fail=1
+python3 -I tools/web-browser-test "$tmp/wcanvas-dom" --wait 2 --size 700x300 --eval '(() => { const cs = [...document.querySelectorAll("canvas")]; const at = (c, fx, fy) => Array.from(c.getContext("2d").getImageData(Math.floor(c.width * fx), Math.floor(c.height * fy), 1, 1).data).slice(0, 3); return JSON.stringify({ n: cs.length, a: cs[0] && at(cs[0], 0.5, 0.5), b: cs[1] && at(cs[1], 0.5, 0.5) }); })()' >"$tmp/wcdom.out" 2>&1
+python3 -I - "$tmp/wcdom.out" <<'EOF' || fail=1
+import json, sys
+o = json.loads(open(sys.argv[1]).read().splitlines()[-1])
+e = json.loads(o["eval"])
+near = lambda a, b: a is not None and all(abs(x - y) <= 8 for x, y in zip(a, b))
+bad = []
+if e["n"] != 2: bad.append("%s canvas elements, not 2" % e["n"])
+if not near(e["a"], [26, 179, 51]): bad.append("the zinc:gl element is %s, not green" % e["a"])
+if not near(e["b"], [0xe6, 0x39, 0x46]): bad.append("the three.js element is %s, not the red cube" % e["b"])
+if o["errors"]: bad.append("errors: %s" % o["errors"])
+if bad: print("web_gl: web-canvas in DOM mode: " + "; ".join(bad)); sys.exit(1)
+EOF
 # a lost and restored context: the page keeps running, the context comes back
 python3 -I tools/web-browser-test "$tmp/gl-cube" --wait 2 --size 480x360 --eval '(async () => { const c = __zincWeb.gl.canvasOf(1), g = c.getContext("webgl2") || c.getContext("webgl"), e = g.getExtension("WEBGL_lose_context"); e.loseContext(); await new Promise(r => setTimeout(r, 200)); const lost = g.isContextLost(); e.restoreContext(); await new Promise(r => setTimeout(r, 300)); return lost + " " + g.isContextLost() + " " + (globalThis.__zincFrames > 10); })()' >"$tmp/lost.out" 2>&1
 grep -q '"eval": "true false true"' "$tmp/lost.out" && grep -q '"errors": \[\]' "$tmp/lost.out" || { echo "web_gl: context loss and restore: $(cut -c1-400 "$tmp/lost.out")"; fail=1; }
@@ -52,16 +74,13 @@ if not near(bg, [0x10, 0x18, 0x30]): bad.append("the background is %s, not 10183
 if not near(box, [255, 255, 255]): bad.append("the box over it is %s, not white" % box)
 if o["errors"]: bad.append("errors: %s" % o["errors"])
 if bad: print("web_gl: three: " + "; ".join(bad)); sys.exit(1)' || fail=1
-# DOM mode: three.js shows in a canvas element
-python3 -I tools/web-browser-test "$tmp/three-dom" --wait 2 --size 640x400 --eval '(() => { for (const c of document.querySelectorAll("canvas")) { const d = c.getContext("2d").getImageData(c.width / 2, c.height / 2, 1, 1).data; if (d[0] > 200 && d[1] < 100) return "cube"; } return "none"; })()' >"$tmp/three-dom.out" 2>&1
-grep -q '"eval": "cube"' "$tmp/three-dom.out" || { echo "web_gl: three in DOM mode shows no cube canvas: $(cut -c1-300 "$tmp/three-dom.out")"; fail=1; }
 # three.js's own context loss handling: lose, restore, and the cube is back
 # the renderer's canvas is detached: a script before the page keeps the WebGL2 contexts so the test can lose one
 cat > "$tmp/init.js" <<'EOF'
 (() => { const f = HTMLCanvasElement.prototype.getContext; window.__gls = []; HTMLCanvasElement.prototype.getContext = function (k, ...a) { const c = f.call(this, k, ...a); if (c && k === 'webgl2') window.__gls.push(c); return c; }; })();
 EOF
 lose='(async () => { const p = '"$pix"'; const g = window.__gls[window.__gls.length - 1], e = g.getExtension("WEBGL_lose_context"); e.loseContext(); await new Promise(r => setTimeout(r, 300)); const lost = g.isContextLost(); e.restoreContext(); await new Promise(r => setTimeout(r, 700)); return lost + " " + g.isContextLost() + " " + JSON.stringify(p(320, 200)); })()'
-python3 -I tools/web-browser-test "$tmp/three" --wait 2 --size 640x400 --init "$tmp/init.js" --eval "$lose" >"$tmp/three-lost.out" 2>&1
+python3 -I tools/web-browser-test "$tmp/three" --wait 2 --size 640x400 --init "$(cat "$tmp/init.js")" --eval "$lose" >"$tmp/three-lost.out" 2>&1
 grep -q '"eval": "true false \[230,57,70\]"' "$tmp/three-lost.out" || { echo "web_gl: three after a lost and restored context: $(cut -c1-500 "$tmp/three-lost.out")"; fail=1; }
 # examples/three/cubes, written for the Zinc subset, on the real three.js: the five cubes and the ring are drawn
 python3 -I tools/web-browser-test "$tmp/cubes" --wait 3 --size 800x500 >"$tmp/cubes.out" 2>&1 || { echo "web_gl: examples/three/cubes: $(cut -c1-400 "$tmp/cubes.out")"; fail=1; }
