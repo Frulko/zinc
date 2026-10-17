@@ -4,7 +4,7 @@
 # so no request leaves the machine for the weather. The script (tests/data/music/city.input) opens Réglages, "Choisir", types l-y-o-n on the
 # app's own keyboard, picks the first town, then swipes the home to the weather slide and back to the clock. Proved: one geocoding request
 # for the four keys (the 300 ms debounce), the town list (frame 150), config.json holding Lyon's place, the forecast read again for it and
-# the slide naming it (frame 310); on the clock, with ZINC_MUSIC_STANDBY=2,4,1 (off after 2 s, a glance of 1 s every 4 s), the screen lit
+# the slide naming it (frame 310); on the clock, with ZINC_MUSIC_STANDBY=2,4,1,0 (off after 2 s, a glance of 1 s every 4 s), the screen lit
 # at frame 440, black at 460, lit again at 700 (the glance), black at 760, lit at 940 (the next glance).
 # KEEP=dir keeps the frames there.
 cd "$(dirname "$0")/../.." || exit 2
@@ -30,7 +30,7 @@ http.server.HTTPServer(('127.0.0.1', port), H).serve_forever()
 PY
 for i in 1 2 3 4 5 6 7 8 9 10; do curl -s "http://127.0.0.1:$port/" >/dev/null && break; sleep 0.3; done
 shots=150,190,310,440,460,700,760,940
-env ZINC_HEADLESS=1 ZINC_SCALE=1 ZINC_FRAMES=945 ZINC_STORAGE="$tmp/storage" ZINC_MUSIC_METEO="http://127.0.0.1:$port" ZINC_MUSIC_STANDBY=2,4,1 ZINC_MUSIC_RELAY=/dev/null \
+env ZINC_HEADLESS=1 ZINC_SCALE=1 ZINC_FRAMES=945 ZINC_STORAGE="$tmp/storage" ZINC_MUSIC_METEO="http://127.0.0.1:$port" ZINC_MUSIC_STANDBY=2,4,1,0 ZINC_MUSIC_RELAY=/dev/null \
   ZINC_INPUT="$data/city.input" ZINC_SHOT="$tmp/f.png" ZINC_SHOT_FRAMES=$shots timeout 120 "$Z" run "$tmp/music" > "$tmp/out" 2>&1 || { echo "music: the run failed: $(tail -5 "$tmp/out")"; exit 1; }
 [ -n "$KEEP" ] && mkdir -p "$KEEP" && cp "$tmp"/f-*.png "$tmp/requests" "$tmp/music/config.json" "$KEEP/"
 fail=0

@@ -1322,6 +1322,7 @@ function prefetchSome(): void {
 }
 
 // ---------------------------------------------------------------- the loop
+let veilDrawn = 0;   // the fade's step on the screen
 let tGroup = 0, tTopo = 0, tRooms = 0, tSpotify = 0, tSecond = 0;
 /** Lights the screen for `seconds` at least, as a touch would but without one: what a notification calls (ZN-758). */
 function wakeScreen(seconds: number): void { if (screen.wake(seconds)) { tGroup = 99; tTopo = 99; } ui.dirty = true; }
@@ -1396,6 +1397,7 @@ onFrame((dt: number) => {
     else if (idleFor > 1.5) prefetchSome();
   }
 
+  if (screen.veil !== veilDrawn && !screen.asleep) ui.dirty = true;   // the fade out or in moves every frame, to its last step
   if (ui.animating && !screen.asleep) ui.dirty = true;   // a spinner or a picture fading in was drawn last frame
   if (!ui.dirty) { keep(); return; }
   ui.dirty = false; ui.animating = false;
@@ -1403,6 +1405,8 @@ onFrame((dt: number) => {
   if (screen.asleep) { clear(0x000000); if (screen.peeking) overlay(W, H, TOP); return; }   // lit for notifications only: them on black
   const t0 = performance.now();
   draw(W, H);
+  veilDrawn = screen.veil;
+  if (screen.veil > 0) rrect(0, 0, W, H, 0, 0x000000, Math.round(screen.veil * 255) as i32);   // fading to black before sleep, or in after it
   perf(dt, performance.now() - t0);
 });
 
