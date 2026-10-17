@@ -259,6 +259,7 @@ bool simAnswer(const std::string& q, const std::string& a, std::string& out) {
 extern "C" bool SDL_DisableScreenSaver(void);
 extern "C" bool SDL_EnableScreenSaver(void);
 extern "C" bool SDL_SendAndroidMessage(unsigned command, int param);
+extern "C" int SDL_GetPowerInfo(int* seconds, int* percent);   // SDL_PowerState: -1 error, 0 unknown, 1 on battery, 2 none, 3 charging, 4 charged
 #endif
 // A desktop's device features for the web APIs (HalDisplay::device answers first on a device): the network, the battery of a Mac (IOKit,
 // opened when asked), the language, the machine; '' for what a desktop has not (sensors, wake lock: zinc:system/power has a sleep blocker).
@@ -351,9 +352,9 @@ std::string desktopDevice(const std::string& q, const std::string& a) {
   if (q == "backlight") return SDL_SendAndroidMessage(ZN_APP_ANDROID_BRIGHTNESS, a == "1" ? -1 : 0) ? "1" : "0";
   if (q == "battery") {   // SDL reads Android's sticky ACTION_BATTERY_CHANGED intent: the level and whether a charger is plugged
     int secs = -1, pct = -1;
-    const SDL_PowerState st = SDL_GetPowerInfo(&secs, &pct);
-    if (pct < 0 || st == SDL_POWERSTATE_NO_BATTERY || st == SDL_POWERSTATE_ERROR || st == SDL_POWERSTATE_UNKNOWN) return "";
-    const bool on = st == SDL_POWERSTATE_CHARGING || st == SDL_POWERSTATE_CHARGED;
+    const int st = SDL_GetPowerInfo(&secs, &pct);
+    if (pct < 0 || st <= 0 || st == 2) return "";
+    const bool on = st == 3 || st == 4;
     return "{\"level\":" + std::to_string(pct / 100.0) + ",\"charging\":" + (on ? "true" : "false") + ",\"source\":\"" + (on ? "ac" : "none") +
            "\",\"chargingTime\":-1,\"dischargingTime\":" + std::to_string(on || secs < 0 ? -1 : secs) + "}";
   }
