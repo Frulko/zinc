@@ -836,3 +836,16 @@ iPhone 17 simulator, iOS 26.3, Release, `ZINC_PRESENT_STATS`; the machine was lo
 ## Zinc Go: save to screen (ZN-631, D140, 2026-10-17)
 
 rn-showcase, a scripted save of `Forms.tsx` served by `zinc dev --lan`: Android emulator (API 37) 854 ms, iOS simulator (26.3) 725 ms, desktop player 61-87 ms. Of it: the compile on the Mac (`--emit=hot`, no optimiser) 570-640 ms (770 ms with the optimiser), the device 41-51 ms. Under a load average of 58 one Android refresh took 1338 ms (optimiser on).
+
+## 2026-10-17: console hardware demos and the platformer (ZN-759, emulators, ZINC_PROFILE p50)
+
+| Console | Scene | Work | Present |
+|---|---|---|---|
+| PSP (PPSSPPHeadless, 333 MHz emulated) | 40 sprites | 2.82 ms | 11.23 ms |
+| 3DS (Azahar) | 30 sprites | 2.43 ms | 5.85 ms |
+| PS2 (PCSX2) | 30 sprites | 3.57 ms | 22.54 ms |
+| PSP | platformer | 11.8 ms | 20.8 ms (30 fps) |
+| 3DS | platformer | 4.2 ms | 19.0 ms |
+| Vita (Vita3K, the Mac's clock) | platformer | 0.77 ms | - |
+
+Emulators only; no number from real hardware yet.

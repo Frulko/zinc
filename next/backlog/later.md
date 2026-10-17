@@ -385,6 +385,12 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-758: `Map<K,V>.get()` of a missing key returns null, not undefined, once a program uses `any` (`const m = new Map<string, boolean>(); function s(v: any): string { return '' + v; } console.log('' + (m.get('a') === undefined) + s(1));` prints `false1`); JS gives undefined; examples/music/src/ui.ts relies on `=== undefined`.
 - ZN-757: IR verifier "const of a non-scalar type" (also "arrpush value type differs"): `props.options.map((o: string, i: number) => <P on={props.value === o} v={o} />)` inside a component; the relay inserts in a loop instead.
 - ZN-757: the run-name links in `~/.zinc/cache/run/names` are shared by every worktree and some point at deleted worktree binaries; a worktree binary reads the main checkout's `plugins/` in system_sim (cause not found).
+- ZN-759: serve asset groups (`<group>.zpk`, `loadGroup`) and `assets.stat` on the console cores.
+- ZN-759: `Math.*` take `number`, so under the psp/ps2 profiles any f64 above 2^24 rounds; a per-kind Math overload would fix every caller.
+- ZN-759: the PS2's EE FPU has no NaN or Inf: audit the prelude's f32 NaN tests under the ps2 profile.
+- ZN-759: the PS2 HAL could convert the CDVD clock to UTC (PCSX2 reads 8 hours ahead).
+- ZN-759: `zinc pack` bakes only font sizes written literally in `font()` calls; a computed size gets 16.
+- ZN-759: zinc:ui has no API for a second screen (the 3DS bottom screen is only an `openWindow`).
 
 
 ## Demos
@@ -503,6 +509,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-757: avatars from WhatsApp's own cache (group.net.whatsapp.WhatsApp.shared/Media/Profile + ChatStorage) are not built.
 - ZN-757: the banner-capture avatar source (Accessibility + ScreenCaptureKit, off by default) and its assistant step are not built.
 - ZN-757: check real Chrome, Firefox, Safari web notifications and real Messages/WhatsApp records with `zinc run examples/notify-relay -- --inspect 30` once Full Disk Access is granted; whether a scheduled Focus writes an assertion is unverified.
+- ZN-759: show the Vita camera picture; the hardware demo only says whether the cameras open.
+- ZN-759: PS2 memory-card saves have no `icon.sys`.
 
 
 ## Cross-platform pass
@@ -708,3 +716,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-756: zinc:link on Linux (never compiled there: dnssd beside avahi on port 5353, then two Linux machines pairing) and on iOS (raw multicast needs Apple's multicast entitlement: dns_sd.h DNSServiceRegister/Browse behind dnssd.h, NSLocalNetworkUsageDescription and NSBonjourServices in Info.plist).
 - ZN-753: run the four breakout builds on real PSP, Vita, PS2 and 3DS hardware.
 - ZN-758: examples/music imports zinc:link (plugin.json: macos, linux, android); it builds for armv7-webos (checked 2026-10-17) but discovery and pairing on the TouchPad are not run.
+- ZN-759: on the owner's four consoles: PS2 and PS TV vibration, pressure, Vita rear touch, the motion axis signs (guessed from the SDK docs on Vita and 3DS), the microphone scale, the battery percent, the 3DS ndsp path with a real `dspfirm.cdc`; the platformer on PSP runs at 30 fps in PPSSPP (work 11.8 ms).
