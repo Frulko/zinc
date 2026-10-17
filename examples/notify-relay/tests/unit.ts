@@ -37,6 +37,8 @@ eq(n.url, 'whatsapp://chat?jid=1', 'the default action url');
 check(n.date === 800000000 + 978307200, 'the date from 2001 to 1970');
 const plain = fromRecord('cd', 'com.apple.mail', plistOf('<dict><key>req</key><dict><key>titl</key><string>Lunch</string><key>icon</key><data>' + pngB64 + '</data></dict></dict>'), 1, false);
 eq(plain.kind, 'other', 'an app icon alone does not make a message');
+{ const disc = avatarSources({ $keys: ['req'], req: { $keys: ['uncc'], uncc: { $plist: { $keys: ['$objects'], $objects: ['$null', '/tmp/zinc-avatar-without-extension', 'file:///tmp/a'] } } } });
+  check(disc.length === 2 && disc[0] === '0:/tmp/zinc-avatar-without-extension', 'a communication context names its image by a file without an extension: ' + disc.join(',')); }
 eq(fromRecord('ef', 'com.apple.mobilesms', plistOf('<dict><key>req</key><dict><key>titl</key><string>Léa</string></dict></dict>'), 1, true).kind, 'message', 'Messages as Notification Center records it (lower case)');
 check(!plain.presented, 'presented comes from the row');
 eq(keysOf({ a: 1, b: { c: 2 }, d: 'x' }).join(','), 'a,b,d', 'keysOf');

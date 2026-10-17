@@ -97,10 +97,19 @@ export class Capture {
   }
 }
 
+/** What a string is, never what it says: a keyed archive's reference, a file (and whether it is a readable image), a URL's scheme, a UUID. */
+function kindOf(s: string): string {
+  if (s.startsWith('<CFKeyedArchiverUID')) { const i = s.indexOf('value = '); return ' uid ' + (i >= 0 ? s.slice(i + 8, s.indexOf('}', i)) : '?'); }
+  if (s.startsWith('/') || s.startsWith('file://')) return (s.startsWith('/') ? ' path' : ' file-url') + (mac.imagePng(s, 8).length > 0 ? ' image' : ' not-an-image');
+  const c = s.indexOf('://');
+  if (c > 0 && c < 24 && s.slice(0, c).indexOf(' ') < 0) return ' url ' + s.slice(0, c);
+  if (s.length === 36 && s.charAt(8) === '-' && s.charAt(13) === '-') return ' uuid';
+  return '';
+}
 function shape(v: any, path: string, out: string[]): void {
   if (out.length > 4000) return;
   if (v === null || v === undefined) { out.push('  ' + path + ' null'); return; }
-  if (typeof v === 'string') { out.push('  ' + path + ' string ' + (v as string).length); return; }
+  if (typeof v === 'string') { out.push('  ' + path + ' string ' + (v as string).length + kindOf(v as string)); return; }
   if (typeof v === 'number' || typeof v === 'boolean') { out.push('  ' + path + ' ' + typeof v); return; }
   if (Array.isArray(v)) { const a = v as any[]; out.push('  ' + path + ' array ' + a.length); for (let i = 0; i < a.length; i++) shape(a[i], path + '/' + i, out); return; }
   if (typeof v['$data'] === 'string') {
