@@ -366,6 +366,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-746: swipes into and out of the lava face at 12-15 fps on the GL window (render, white pass over ~a fifth of the screen, 11 ms upload).
 - raster: NEON for draw_dyn (covers with rounded corners compute rr_sdf per pixel: 13 ms of CPU a frame for 57 kpx) and a 16-bit tint path (8 pixels a vector).
 - ZN-629: --apk --release signed with a real upload key on a device (only the debug keystore was tried).
+- music (2026-10-17): the release APK is 15.4 MB, almost all libmain.so (4.9 MB of code, 9.5 MB of embedded data in .rodata: fonts, icons, resources, Unicode tables), stored uncompressed for mmap (3.9 MB gzipped): subset the fonts to the glyphs a program uses and keep only the icons it names, to halve phone APKs.
+- music (2026-10-17): at rest on the clock slide the app uses ~8% CPU on the Nexus 7 (and SurfaceFlinger ~11%), PSS ~62 MB: draw one frame a second when only the clock changes (a program-declared frame rate or damage-driven idle).
 
 ## Demos
 - Owner 2026-10-17: every game demo uses Kenney's assets (kenney.nl, CC0), adapted per platform: re-skin pinball, pinball3d and pocket-hero with Kenney packs as they are next worked on (breakout in ZN-753, platformer and marble in ZN-754).
