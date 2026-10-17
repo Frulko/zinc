@@ -49,6 +49,7 @@ are not cycle-exact); Vita3K runs the ARM code on the host and its clock is the 
 | 3DS (Azahar, old 3DS 268 MHz) | 400x240 | 0.53 / 0.60 / 1.01 | 0.00 / 3.27 / 16.15 | yes |
 | Vita (Vita3K, host clock) | 480x272 x2 | 0.13 / 0.62 / 11.90 | not printed (Vita3K drops lines) | yes on the Mac; unmeasured on a Vita |
 | Vita (Vita3K, host clock) | 960x544 | 0.36 / 4.83 / 9.56 | | |
+| Vita (the owner's PS Vita, ARM 444 MHz), Meadow Run on GXM | 960x544 | 3.2-3.7 / 3.9 / 8.8 | replay 0.3-0.44 / 0.5 / 2.3, then the vblank wait | yes: 4,200 frames, none missed a vblank (frame max 17.9 ms) |
 
 In play only the rows that change are rastered (the ball, the paddle, a brick): the p50 of *present* is under a millisecond everywhere. The
 p99 is the frames that redraw everything (the title, the wall of a new level): 320,000 pixels on the PS2 through one EE core and a texture

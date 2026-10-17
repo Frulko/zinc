@@ -109,9 +109,20 @@ zinc:assets (`exists`, `readText`, `readBytes`, `list`) from it and makes its im
 block-compressed one is a GPU's and draws transparent). zinc:sprite and zinc:tilemap work unchanged: `examples/platformer` plays on the PSP, the
 Vita and the 3DS. Only the default pack: the groups of zinc:assets (`<group>.zpk`, loadGroup) are not served on a console yet.
 
+## The Vita's GPU
+
+The Vita core draws zinc:gfx frames with GXM (`targets/vita/gxm_vita.cpp`): the command lists are replayed at 960x544 with SDL3's precompiled
+GXP programs (zlib; nothing for the user to install), three display buffers in CDRAM flipped at vblank, images and glyphs in CDRAM. It draws
+CLEAR, one-colour square RECTs, IMAGEs (atlas boxes, flips, tint, alpha), TEXT and rectangular clips; a frame with anything else (rounded
+corners, gradients, borders, shadows, paths, turned matrices) is rasterized in software and shown by the GPU. `ZINC_VITA_GPU=0` keeps the
+software path. On a console the HAL also writes its log to `ux0:data/<title id>/zinc.log` (sceClibPrintf goes nowhere there), with the frame
+times every 600 frames. A build made with `--env ZINC_VITA_ONCE=1 --frames N --input script` plays as usual, and runs its scripted measuring
+session once when `ux0:data/<title id>/measure` exists (it deletes the file); `--env ZINC_VITA_SOFT_FRAMES=N` draws its first N frames in software,
+so one launch measures both paths. Meadow Run on the owner's PS Vita: 60 fps, work 3.5 ms a frame, replay 0.4 ms (`docs/reports/zinc-next-consoles.md`).
+
 ## Limits
 
-- Software raster only (the GE, GXM and PICA replays are later tasks); one thread (and the HAL's audio thread); no `zinc:fs` directories or stat (the console host
+- The PSP, PS2 and 3DS draw with the software raster (their GE, GS and PICA replays are later tasks); the Vita draws with its GPU (below); one thread (and the HAL's audio thread); no `zinc:fs` directories or stat (the console host
   serves files through stdio, storage, the clock, args and env: `next/targets/console/host_console.cpp`).
 - A program that calls `exit()` ends without `zinc:exit`: the runner reports a timeout.
 - The Vita and 3DS shots are the displayed framebuffer read back, not the emulator's window: a bug in how the emulator draws it shows only in

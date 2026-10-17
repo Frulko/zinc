@@ -64,7 +64,7 @@ extern "C" void zn_vita_log(const char* line) { out(line, strlen(line)); }
 // The frame times the HAL sees, printed every 600 frames and at the end of a frame budget: work from the poll to the present, the present, the
 // raster (or the GPU replay's CPU time) inside it, and the whole frame (poll to poll), for the software frames and the GPU's apart
 // (ZINC_VITA_SOFT_FRAMES=N: the first N frames in software, as without GXM).
-struct Times { uint32_t work[600], present[600], raster[600], frame[600]; uint32_t n; uint64_t t0, t1; };
+struct Times { uint32_t work[600], present[600], raster[600], frame[600]; uint32_t n; };
 static Times* times[2];   // 0 software, 1 GPU
 static uint64_t tPoll, tPresent0, tPresent1, tRaster;
 static int gpuOn = 0, softFrames = 0, lastPath = -1;
@@ -78,15 +78,16 @@ static void report(int k) {
   {
     Times* t = times[k];
     if (!t || t->n < 2) return;
-    uint32_t late = 0;
-    for (uint32_t i = 0; i < t->n; i++) late += t->frame[i] > 17500;
+    uint32_t late = 0;   // frames that missed a vblank (the display's 16.68 ms, two of them past 25 ms)
+    uint64_t sum = 0;
+    for (uint32_t i = 0; i < t->n; i++) { late += t->frame[i] > 25000; sum += t->frame[i]; }
     char line[512], *at = line, *end = line + sizeof line;
-    at += snprintf(at, end - at, "vita frames (%s): %u frames, %.1f fps, %u over 17.5 ms; ms p50/p99/max:", k ? "gpu" : "software", (unsigned)t->n,
-                   t->n * 1e6 / (double)(t->t1 - t->t0), (unsigned)late);
+    at += snprintf(at, end - at, "vita frames (%s): %u frames, %.1f fps, %u missed a vblank; ms p50/p99/max:", k ? "gpu" : "software", (unsigned)t->n,
+                   t->n * 1e6 / (double)sum, (unsigned)late);
     pct(at, end, "work", t->work, t->n); pct(at, end, "present", t->present, t->n); pct(at, end, "raster", t->raster, t->n); pct(at, end, "frame", t->frame, t->n);
     snprintf(at, end - at, "\n");
     out(line, strlen(line));
-    t->n = 0; t->t0 = t->t1;
+    t->n = 0;
   }
 }
 // ZINC_VITA_ONCE=1 (a measuring build for a console a person launches): the frame budget, the built-in pad session and the software frames only
@@ -329,10 +330,10 @@ void hal_poll_input(HalInput* in) {
   const uint64_t tNow = (uint64_t)sceKernelGetProcessTimeWide();
   if (tPoll && lastPath >= 0 && tPresent1 >= tPoll) {   // the frame that ended: its path's times
     Times*& t = times[lastPath];
-    if (!t) { t = (Times*)calloc(1, sizeof(Times)); if (t) t->t0 = tPoll; }
+    if (!t) t = (Times*)calloc(1, sizeof(Times));
     if (t && t->n < 4096) {
       t->work[t->n] = (uint32_t)(tPresent0 - tPoll); t->present[t->n] = (uint32_t)(tPresent1 - tPresent0);
-      t->raster[t->n] = (uint32_t)tRaster; t->frame[t->n] = (uint32_t)(tNow - tPoll); t->n++; t->t1 = tNow;
+      t->raster[t->n] = (uint32_t)tRaster; t->frame[t->n] = (uint32_t)(tNow - tPoll); t->n++;
       if (t->n == 600) report(lastPath);
     }
   }
