@@ -13,5 +13,71 @@
     "ios": {"sources": ["vendor/sqlite3.c"], "defines": ["SQLITE_THREADSAFE=0", "SQLITE_OMIT_LOAD_EXTENSION", "SQLITE_DEFAULT_MEMSTATUS=0", "SQLITE_OMIT_DEPRECATED", "SQLITE_DEFAULT_FOREIGN_KEYS=0"]},
     "rpi1": { "sources": ["vendor/sqlite3.c"], "defines": ["SQLITE_THREADSAFE=0", "SQLITE_OMIT_LOAD_EXTENSION", "SQLITE_DEFAULT_MEMSTATUS=0", "SQLITE_OMIT_DEPRECATED", "SQLITE_DEFAULT_FOREIGN_KEYS=0"] },
     "rmpp": { "sources": ["vendor/sqlite3.c"], "defines": ["SQLITE_THREADSAFE=0", "SQLITE_OMIT_LOAD_EXTENSION", "SQLITE_DEFAULT_MEMSTATUS=0", "SQLITE_OMIT_DEPRECATED", "SQLITE_DEFAULT_FOREIGN_KEYS=0"] }
+  },
+  "web": {
+      "native": "Sqlite",
+      "impl": "web/sqlite.js",
+      "needs": [
+          "wasm"
+      ],
+      "wasm": {
+          "name": "sqlite",
+          "sources": [
+              "vendor/sqlite3.c",
+              "web/sqlite_web.c"
+          ],
+          "flags": [
+              "-Os",
+              "-Ivendor",
+              "-DSQLITE_THREADSAFE=0",
+              "-DSQLITE_OMIT_LOAD_EXTENSION",
+              "-DSQLITE_DEFAULT_MEMSTATUS=0",
+              "-DSQLITE_OMIT_DEPRECATED",
+              "-DSQLITE_OS_OTHER=1",
+              "-DSQLITE_OMIT_SHARED_CACHE",
+              "-DSQLITE_OMIT_WAL",
+              "-DSQLITE_TEMP_STORE=3",
+              "-DSQLITE_OMIT_PROGRESS_CALLBACK",
+              "-DSQLITE_OMIT_AUTHORIZATION",
+              "-DSQLITE_OMIT_TRACE",
+              "-DSQLITE_DQS=0"
+          ],
+          "exports": [
+              "malloc",
+              "free",
+              "sqlite3_malloc64",
+              "sqlite3_free",
+              "sqlite3_open_v2",
+              "sqlite3_close",
+              "sqlite3_exec",
+              "sqlite3_errmsg",
+              "sqlite3_changes",
+              "sqlite3_last_insert_rowid",
+              "sqlite3_get_autocommit",
+              "sqlite3_prepare_v2",
+              "sqlite3_bind_parameter_count",
+              "sqlite3_bind_parameter_index",
+              "sqlite3_bind_null",
+              "sqlite3_bind_double",
+              "sqlite3_bind_int64",
+              "sqlite3_bind_text",
+              "sqlite3_bind_blob",
+              "sqlite3_clear_bindings",
+              "sqlite3_step",
+              "sqlite3_stmt_readonly",
+              "sqlite3_reset",
+              "sqlite3_finalize",
+              "sqlite3_column_count",
+              "sqlite3_column_name",
+              "sqlite3_column_type",
+              "sqlite3_column_double",
+              "sqlite3_column_text",
+              "sqlite3_column_bytes",
+              "sqlite3_column_blob",
+              "sqlite3_libversion",
+              "sqlite3_serialize",
+              "sqlite3_deserialize"
+          ]
+      }
   }
 }

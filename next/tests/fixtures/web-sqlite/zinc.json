@@ -1,0 +1,5 @@
+{
+  "name": "web-sqlite",
+  "entry": "src/main.tsx",
+  "targets": { "web": { "render": "dom", "title": "SQLite fixture" } }
+}

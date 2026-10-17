@@ -1,0 +1,5 @@
+{
+  "name": "web-audio",
+  "entry": "src/main.tsx",
+  "targets": { "web": { "render": "dom", "title": "Audio fixture" } }
+}

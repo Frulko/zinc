@@ -53,5 +53,6 @@
     "zinc:system/power": "power.ts",
     "zinc:system/clipboard": "clipboard.ts",
     "zinc:system/update": "update.ts"
-  }
+  },
+  "web": { "native": "System", "impl": "web/system.js", "needs": [], "optional": ["notifications", "clipboard", "wakeLock", "share"] }
 }

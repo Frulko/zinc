@@ -12,5 +12,6 @@
     "macos": { "sources": ["../audio/vendor/miniaudio_impl.c"], "flags": ["-g0"], "defines": ["MA_NO_ENCODING", "MA_NO_RESOURCE_MANAGER"], "frameworks": ["AVFoundation", "Foundation"] },
     "linux": { "sources": ["../audio/vendor/miniaudio_impl.c"], "flags": ["-g0"], "defines": ["MA_NO_ENCODING", "MA_NO_RESOURCE_MANAGER"], "libs": ["m", "dl"], "linkFlags": ["-pthread"] },
     "rpi1": { "sources": ["../audio/vendor/miniaudio_impl.c"], "flags": ["-g0"], "defines": ["MA_NO_ENCODING", "MA_NO_RESOURCE_MANAGER"], "libs": ["m", "dl"], "linkFlags": ["-pthread"] }
-  }
+  },
+  "web": { "entry": "web/index.ts", "needs": ["getUserMedia", "audio"] }
 }

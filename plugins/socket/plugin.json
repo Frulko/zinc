@@ -13,5 +13,6 @@
     "ios": {},
     "rpi1": {},
     "rmpp": {}
-  }
+  },
+  "web": { "entry": "web/index.ts", "needs": ["websocket"] }
 }
