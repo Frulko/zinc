@@ -1,6 +1,13 @@
 {
   "name": "music",
   "entry": "src/main.ts",
+  "app": {
+    "name": "Musique",
+    "id": "dev.zinc.music",
+    "version": "1.0.0",
+    "icon": "icon-512.png",
+    "orientation": "landscape"
+  },
   "targets": {
     "macos": {
       "width": 1024,
