@@ -92,6 +92,9 @@ export class Avatars {
       const kept = this.bySender.get(key);
       if (kept !== undefined) { png = kept; source = 'cache'; }
     }
+    if (png.length === 0 && (n.senderContact !== '' || n.senderHandle !== '')) {   // the communication context names the person: their Contacts photo
+      png = mac.contactImage(n.senderContact !== '' ? 'cn:' + n.senderContact : n.senderHandle, '', AVATAR_PX); source = 'contacts';
+    }
     if (png.length === 0 && n.app.toLowerCase() === 'com.apple.mobilesms') {
       const h = this.messagesHandle(n);
       if (h !== '') { png = mac.contactImage(h, '', AVATAR_PX); source = 'messages'; }

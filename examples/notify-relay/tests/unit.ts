@@ -3,7 +3,7 @@
 // the Focus policies, the Focus files' parsing. Made-up data only. Prints one line per failure and "unit ok" at the end.
 import * as mac from 'zinc:notifymac';
 import { utf8Encode, exit } from 'zinc:sys';
-import { avatarSources, initials, gradientOf, GRADIENTS, hostIn, domainOf, fromRecord, isImage, Notif, Settings, FocusState, keysOf, FOCUS_HOLD, FOCUS_FOLLOW } from '../src/model';
+import { avatarSources, communicationSender, initials, gradientOf, GRADIENTS, hostIn, domainOf, fromRecord, isImage, Notif, Settings, FocusState, keysOf, FOCUS_HOLD, FOCUS_FOLLOW } from '../src/model';
 import { modesOf, activeOf } from '../src/focus';
 import { base64Decode, base64Encode } from 'zinc:web';
 
@@ -39,6 +39,14 @@ const plain = fromRecord('cd', 'com.apple.mail', plistOf('<dict><key>req</key><d
 eq(plain.kind, 'other', 'an app icon alone does not make a message');
 { const disc = avatarSources({ $keys: ['req'], req: { $keys: ['uncc'], uncc: { $plist: { $keys: ['$objects'], $objects: ['$null', '/tmp/zinc-avatar-without-extension', 'file:///tmp/a'] } } } });
   check(disc.length === 2 && disc[0] === '0:/tmp/zinc-avatar-without-extension', 'a communication context names its image by a file without an extension: ' + disc.join(',')); }
+{ const U = (n: number): string => '"<CFKeyedArchiverUID 0x600003>{value = ' + n + '}"';
+  const uncc: any = JSON.parse('{"$plist":{"$keys":["$objects","$top"],"$top":{"$keys":["root"],"root":' + U(1) + '},"$objects":["$null",' +
+    '{"$keys":["sender","displayName"],"sender":' + U(2) + ',"displayName":' + U(0) + '},' +
+    '{"$keys":["displayName","handle","serviceName","cnContactIdentifier"],"displayName":' + U(3) + ',"handle":' + U(4) + ',"serviceName":' + U(5) + ',"cnContactIdentifier":' + U(6) + '},' +
+    '"Léa Martin","+33600000000","SMS","ABCD-1234:ABPerson"]}}');
+  const cs = communicationSender(uncc);
+  check(cs[0] === 'Léa Martin' && cs[1] === '+33600000000' && cs[2] === 'ABCD-1234:ABPerson', 'the communication context names the sender: ' + cs.join('|'));
+  check(communicationSender(null)[0] === '', 'no context, no sender'); }
 eq(fromRecord('ef', 'com.apple.mobilesms', plistOf('<dict><key>req</key><dict><key>titl</key><string>Léa</string></dict></dict>'), 1, true).kind, 'message', 'Messages as Notification Center records it (lower case)');
 check(!plain.presented, 'presented comes from the row');
 eq(keysOf({ a: 1, b: { c: 2 }, d: 'x' }).join(','), 'a,b,d', 'keysOf');

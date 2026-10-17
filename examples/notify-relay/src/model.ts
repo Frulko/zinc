@@ -21,6 +21,9 @@ export class Notif {
   sender: string = '';
   /** Where the sender's image may be, best first (avatarSources). */
   avatars: string[] = [];
+  /** From the communication context (`uncc`): the sender's handle (a phone or an address, '' when the app has no service), Contacts identifier. */
+  senderHandle: string = '';
+  senderContact: string = '';
   constructor(id: string, app: string) { this.id = id; this.app = app; }
 }
 
@@ -70,10 +73,36 @@ export function fromRecord(id: string, bundleId: string, plist: any, delivered: 
     if (u.indexOf(':') > 0) n.url = u;
   }
   n.avatars = avatarSources(plist);
+  const cs = req !== undefined && req !== null && typeof req === 'object' ? communicationSender(req.uncc) : ['', '', ''];
+  if (cs[0] !== '') { n.kind = 'message'; n.sender = cs[0]; n.senderHandle = cs[1]; n.senderContact = cs[2]; }
   const imageOfSomeone = n.avatars.length > 0 && !n.avatars[0].startsWith('3:');
-  if (isMessaging(n.app) || imageOfSomeone) { n.kind = 'message'; n.sender = n.title; }
+  if (n.sender === '' && (isMessaging(n.app) || imageOfSomeone)) { n.kind = 'message'; n.sender = n.title; }
   for (let i = 0; i < n.avatars.length; i++) n.avatars[i] = n.avatars[i].slice(2);
   return n;
+}
+
+/** A keyed archive's reference ("<CFKeyedArchiverUID 0x...>{value = 6}", as the plist reaches us) as its index, -1 when not one. */
+function uidOf(v: any): i32 {
+  if (typeof v !== 'string') return -1;
+  const s = v as string, i = s.indexOf('value = ');
+  return s.startsWith('<CFKeyedArchiverUID') && i >= 0 ? parseInt(s.slice(i + 8)) as i32 : -1;
+}
+/** The sender of a communication notification (UNNotificationCommunicationContext, `req.uncc`: Messages, Discord, WhatsApp...): its name,
+ *  handle (only with a service: a phone or an address) and Contacts identifier, each '' when absent. */
+export function communicationSender(uncc: any): string[] {
+  const none = ['', '', ''];
+  if (uncc === null || uncc === undefined || typeof uncc !== 'object' || uncc['$plist'] === undefined) return none;
+  const p = uncc['$plist'];
+  if (p === null || typeof p !== 'object' || !Array.isArray(p['$objects']) || p['$top'] === undefined) return none;
+  const objs = p['$objects'] as any[];
+  const at = (v: any): any => { const i = uidOf(v); return i > 0 && i < objs.length ? objs[i] : null; };
+  const str = (v: any): string => { const o = at(v); return typeof o === 'string' ? o as string : ''; };
+  const root = at(p['$top']['root']);
+  if (root === null || typeof root !== 'object') return none;
+  const who = at(root['sender']);
+  if (who === null || typeof who !== 'object') return none;
+  const name = str(who['displayName']) !== '' ? str(who['displayName']) : str(root['displayName']);
+  return [name, str(who['serviceName']) !== '' ? str(who['handle']) : '', str(who['cnContactIdentifier'])];
 }
 
 // ---------------------------------------------------------------- the sender's image in a record

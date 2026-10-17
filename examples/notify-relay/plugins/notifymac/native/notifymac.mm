@@ -200,7 +200,8 @@ struct MacNotify : NativeNotifyMac {
       NSArray* keys = @[CNContactThumbnailImageDataKey, CNContactImageDataKey, CNContactImageDataAvailableKey, [CNContactFormatter descriptorForRequiredKeysForStyle:CNContactFormatterStyleFullName]];
       NSString* h = ns(handle), *n = ns(name);
       NSArray<CNContact*>* found = nil;
-      if (h.length && [h containsString:@"@"]) found = [store unifiedContactsMatchingPredicate:[CNContact predicateForContactsMatchingEmailAddress:h] keysToFetch:keys error:nil];
+      if ([h hasPrefix:@"cn:"]) { CNContact* c = [store unifiedContactWithIdentifier:[h substringFromIndex:3] keysToFetch:keys error:nil]; found = c ? @[c] : nil; }
+      else if (h.length && [h containsString:@"@"]) found = [store unifiedContactsMatchingPredicate:[CNContact predicateForContactsMatchingEmailAddress:h] keysToFetch:keys error:nil];
       else if (h.length) found = [store unifiedContactsMatchingPredicate:[CNContact predicateForContactsMatchingPhoneNumber:[CNPhoneNumber phoneNumberWithStringValue:h]] keysToFetch:keys error:nil];
       if (found.count == 0 && n.length) {
         NSArray<CNContact*>* named = [store unifiedContactsMatchingPredicate:[CNContact predicateForContactsMatchingName:n] keysToFetch:keys error:nil];

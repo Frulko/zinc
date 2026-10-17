@@ -101,8 +101,9 @@ export class Capture {
 function kindOf(s: string): string {
   if (s.startsWith('<CFKeyedArchiverUID')) { const i = s.indexOf('value = '); return ' uid ' + (i >= 0 ? s.slice(i + 8, s.indexOf('}', i)) : '?'); }
   if (s.startsWith('/') || s.startsWith('file://')) return (s.startsWith('/') ? ' path' : ' file-url') + (mac.imagePng(s, 8).length > 0 ? ' image' : ' not-an-image');
-  const c = s.indexOf('://');
-  if (c > 0 && c < 24 && s.slice(0, c).indexOf(' ') < 0) return ' url ' + s.slice(0, c);
+  const c = s.indexOf(':');
+  if (c > 0 && c < 64 && /^[A-Za-z][A-Za-z0-9+.-]*$/.test(s.slice(0, c))) return ' url ' + s.slice(0, c) + (s.slice(c, c + 3) === '://' ? '://' : ':');
+  if (s.indexOf('/') > 0) return ' relative-path';
   if (s.length === 36 && s.charAt(8) === '-' && s.charAt(13) === '-') return ' uuid';
   return '';
 }
