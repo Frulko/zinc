@@ -1,4 +1,5 @@
-// Drawing: the HUD line, the wall, the paddle and the ball, and the centred messages of each phase.
+// Drawing: the HUD line, the wall, the paddle and the ball, and the centred messages of each phase. The original look, the prototype's
+// frames and examples/scripting/breakout-mods; src/skin.ts draws the Kenney sprites over the same texts.
 // Text uses the built-in 8x8 pixel font (`text`), which exists on every target down to the PS1.
 import { clear, rect, text, width, height } from 'zinc:gfx';
 import { Game, Phase, BALL_SIZE, PADDLE_HEIGHT, PADDLE_Y } from './game/game';
@@ -16,7 +17,7 @@ const WHITE: u32 = 0xffffff;
 let hudText = '';
 let hudKey = '';
 
-function hud(game: Game): string {
+export function hud(game: Game): string {
   const key = `${game.score}/${game.lives}/${game.level}`;
   if (key !== hudKey) {
     hudKey = key;
@@ -26,7 +27,7 @@ function hud(game: Game): string {
 }
 
 /** Text centred horizontally; `scale` multiplies the 8 px glyphs. */
-function centered(y: number, s: string, color: u32, scale: i32): void {
+export function centered(y: number, s: string, color: u32, scale: i32): void {
   text((width() - s.length * 8 * scale) / 2, y, s, color, scale);
 }
 
@@ -36,7 +37,7 @@ function drawField(game: Game): void {
   rect(game.ballX, game.ballY, BALL_SIZE, BALL_SIZE, WHITE);
 }
 
-function drawTitle(game: Game): void {
+export function drawTitle(game: Game): void {
   centered(70, 'BREAKOUT', YELLOW, 3);
   centered(110, 'TypeScript -> C++ with Zinc', DIM, 1);
   centered(150, 'SPACE / ENTER / CLICK to start', WHITE, 1);
@@ -44,7 +45,7 @@ function drawTitle(game: Game): void {
   if (game.best > 0) centered(190, `best ${game.best}`, GREEN, 1);
 }
 
-function drawMessage(game: Game): void {
+export function drawMessage(game: Game): void {
   if (game.attract) centered(height() / 2, 'DEMO - press SPACE to play', YELLOW, 1);
   else if (game.phase === Phase.Serve) centered(150, 'press SPACE to serve', WHITE, 1);
   else if (game.phase === Phase.Over) {

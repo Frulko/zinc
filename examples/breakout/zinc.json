@@ -1,4 +1,8 @@
 {
   "name": "breakout",
-  "entry": "src/main.ts"
+  "entry": "src/main.ts",
+  "assets": "assets",
+  "targets": {
+    "vita": { "width": 480, "height": 272 }
+  }
 }

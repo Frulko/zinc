@@ -6,7 +6,8 @@
 # missing is skipped and named. Then what each emulator shows (ZN-753): the graphical hello (targets/console/hello) for 120 frames gives its line
 # and the emulator's own picture of the screen (PPSSPP's screenshot, PCSX2's save state; Vita3K and Azahar have no screenshot to call: the
 # framebuffer the display scans out), the hello's blue on most of it and its yellow square; the text program on the graphics core keeps its
-# line on the screen (the text screen) instead of a black screen or an app that closes.
+# line on the screen (the text screen) instead of a black screen or an app that closes; breakout's pad session built into the core ends on the
+# interpreter's frame (tests/golden/breakout/pad.hashes) and prints its frame times.
 cd "$(dirname "$0")/../.." || exit 2
 Z=${ZINC:-build/zinc}; case $Z in /*) ;; *) Z=$PWD/$Z ;; esac
 export ZINC="$Z"
@@ -55,6 +56,16 @@ for c in psp vita ps2 n3ds; do
   got=$(tools/console-run "$c" "$(echo "$out" | tail -1)" --timeout 90 --shot "$tmp/$c-text.png" 2>&1 | grep "^hello from zinc"); rc=$?
   set -- $(colors "$tmp/$c-text.png" 101828 e0e6ff)
   [ "$got" = "hello from zinc on $c" ] && [ "$1" -gt 500 ] && [ "$2" -gt 20 ] || { echo "console emulators: $c: the text program's line is not on the screen ($got; $1/1000 background, $2 text pixels)"; fail=1; }
+  # breakout's pad session built into the core (ZN-753): the console's last frame is the interpreter's (tests/golden/breakout/pad.hashes)
+  "$Z" pack --profile "$c" ../examples/breakout -o "$tmp/breakout-$c.zapp" >/dev/null 2>&1 && mkdir -p "$tmp/b-$c" && tar -xf "$tmp/breakout-$c.zapp" -C "$tmp/b-$c" program.zbc resources.bin || { echo "console emulators: zinc pack breakout for $c failed"; fail=1; continue; }
+  size=$(awk -v c="$c" '$1 == c { print $2 }' tests/golden/breakout/pad.hashes)   # zinc.json targets.<console> (the Vita: 480x272, doubled)
+  out=$(tools/build-console-core "$c" --embed "$tmp/b-$c/program.zbc" "$tmp/b-$c/resources.bin" --frames 900 --size "$size" --input tests/golden/breakout/pad.input \
+    --env ZINC_DETERMINISTIC=1 --env ZINC_FRAMEHASH=last --env ZINC_PROFILE=1 -B "build/console-test-$c-gfx" 2>&1) || { echo "console emulators: $c: breakout does not build"; fail=1; continue; }
+  got=$(tools/console-run "$c" "$(echo "$out" | tail -1)" --timeout 180 2>&1)
+  # the fourth column: the console's own frame where its FPU rounds otherwise (the PS2's EE rounds toward zero: colours one or two steps off)
+  want=$(awk -v c="$c" '$1 == c { print ($4 != "" ? $4 : $3) }' tests/golden/breakout/pad.hashes)
+  echo "$got" | grep -q "^zinc: framehash [0-9]* [0-9x]* $want$" || { echo "console emulators: $c: breakout's pad session does not end on the golden frame $want: $(echo "$got" | grep 'framehash\|error\|panic')"; fail=1; }
+  echo "console emulators: $c breakout $(echo "$got" | sed -n 's/^zinc profile: \(frames=.*work.*\)$/\1/p')"
 done
 # a hung program on the PSP: stopped at the timeout, with a clear message
 if out=$(tools/build-console-core psp --pure --embed "$tmp/hang.zbc" -B build/console-test-psp-hang 2>&1); then

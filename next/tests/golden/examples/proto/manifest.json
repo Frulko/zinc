@@ -112,7 +112,8 @@
    30
   ],
   "tol": 0,
-  "max_diff": 0
+  "max_diff": 0,
+  "skip": "owner 2026-10-17 (ZN-753): Kenney sprites (src/skin.ts); the prototype's look stays in src/render.ts, compared through scripting/breakout-mods"
  },
  {
   "entry": "camera/bench/src/main.ts",
