@@ -1,0 +1,45 @@
+{
+  "$comment": "A New Nintendo 3DS for zinc run --simulate n3ds (ZN-759): the 400x240 top screen (the bottom screen is the program's second window), the 3D slider, the microphone, the motion sensors, the battery and Wi-Fi, set in the panel.",
+  "name": "New Nintendo 3DS",
+  "icon": "gamepad-2",
+  "model": "New 3DS XL",
+  "os": "3DS 11.17",
+  "language": "en-US",
+  "screen": {
+    "width": 400,
+    "height": 240
+  },
+  "battery": {
+    "level": 0.7,
+    "source": "none",
+    "sources": [
+      "none",
+      "ac"
+    ],
+    "temperature": 30,
+    "drainPerHour": 0.25,
+    "chargePerHour": {
+      "ac": 0.6
+    }
+  },
+  "network": {
+    "online": true,
+    "type": "wifi",
+    "ssid": "zinc",
+    "types": [
+      "wifi"
+    ]
+  },
+  "sensors": {
+    "motion": true,
+    "gyro": true,
+    "microphone": {
+      "level": 0.2
+    },
+    "stereo": {
+      "depth": 0.5
+    }
+  },
+  "keys": [],
+  "outputs": {}
+}

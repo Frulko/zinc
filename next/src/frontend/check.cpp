@@ -282,7 +282,8 @@ struct Checker {
       if (!up && !down) continue;
       std::string a = inspectAliasName(from), b = inspectAliasName(to), e = down ? inspectAliasName(ty(to).elem) : "f64";
       std::uint32_t sym = helper(std::string("arrconv,") + (up ? "u" : "d") + "," + std::to_string(from) + "," + std::to_string(to),
-          "function $F(a: " + a + "): " + b + " {\n  const r: " + b + " = [];\n  for (let i: i32 = 0; i < a.length; i++) r.push(a[i] as " + e + ");\n  return r;\n}\n", {from, to}, node);
+          "function $F(a: " + a + "): " + b + " {\n  const r: " + b + " = [];\n  for (let i: i32 = 0; i < a.length; i++) r.push(a[i] as " + e + ");\n  return r;\n}\n",
+          down ? std::vector<TypeId>{from, to, ty(to).elem} : std::vector<TypeId>{from, to}, node);   // the element's alias too: `as` names it (ZN-759)
       wrapNode(node, sym);
       return true;
     }

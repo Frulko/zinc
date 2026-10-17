@@ -36,6 +36,10 @@ class State {
   fastTime: boolean = false;
   rotation: i32 = 0;   // the device turned clockwise: 0, 90, 180, 270
   gx: number = 0; gy: number = 0; gz: number = 0;   // rotation rate, °/s, from how fast the tilt and the heading change
+  // a console's own inputs (ZN-759, zinc:hardware): the microphone's level, the 3DS's 3D slider, a finger on the Vita's rear pad (-1: none)
+  mic: number = has(sensors, 'microphone') && has(sensors.microphone, 'level') ? sensors.microphone.level as number : 0.2;
+  depth: number = has(sensors, 'stereo') && has(sensors.stereo, 'depth') ? sensors.stereo.depth as number : 0.5;
+  rearX: number = -1; rearY: number = -1;
 }
 const st = new State();
 let dirty = true, saveFor = 0;
@@ -60,6 +64,8 @@ function save(): void {
     `can.light=${flag(has(sensors, 'light'))}`, `light.lux=${Math.round(st.lux)}`, `visible=${flag(st.visible)}`,
     `can.gyro=${flag(has(sensors, 'gyro'))}`, `gyro.x=${st.gx.toFixed(1)}`, `gyro.y=${st.gy.toFixed(1)}`, `gyro.z=${st.gz.toFixed(1)}`, `rotation=${st.rotation}`,
   ];
+  for (const l of [`can.microphone=${flag(has(sensors, 'microphone'))}`, `microphone.level=${st.mic.toFixed(3)}`, `can.stereo=${flag(has(sensors, 'stereo'))}`,
+    `stereo.depth=${st.depth.toFixed(3)}`, `can.reartouch=${flag(has(sensors, 'reartouch'))}`, `reartouch=${st.rearX < 0 ? '[]' : `[[${Math.round(st.rearX)},${Math.round(st.rearY)},0]]`}`]) lines.push(l);
   for (const k of ['wakelock', 'keyboard', 'indicator', 'backlight', 'performance', 'vibrate', 'notifications']) lines.push(`can.${k}=${flag(has(outputs, k))}`);
   try { writeText(STATE + '.new', lines.join('\n') + '\n'); rename(STATE + '.new', STATE); } catch (e) { console.error(`devicesim: ${e.message}`); }
 }
@@ -80,7 +86,7 @@ class Zone { x: number = 0; y: number = 0; w: number = 0; h: number = 0; tap: ((
 let zones: Zone[] = [];
 function onTap(x: number, y: number, w: number, h: number, f: () => void): void { const z = new Zone(); z.x = x; z.y = y; z.w = w; z.h = h; z.tap = f; zones.push(z); }
 function onDrag(x: number, y: number, w: number, h: number, f: (x: number, y: number) => void): void { const z = new Zone(); z.x = x; z.y = y; z.w = w; z.h = h; z.drag = f; zones.push(z); }
-let wasDown = false, held: Zone | null = null, flash = '', flashFor = 0;
+let wasDown = false, held: Zone | null = null, flash = '', flashFor = 0, rearHeld = false;
 function input(): void {
   const d = pointerDown(), x = pointerX(), y = pointerY();
   if (d && !wasDown) {
@@ -89,7 +95,7 @@ function input(): void {
     if (held !== null && (held as Zone).tap !== null) { const f = (held as Zone).tap as () => void; f(); dirty = true; }
   }
   if (d && held !== null && (held as Zone).drag !== null) { const f = (held as Zone).drag as (x: number, y: number) => void; f(x, y); dirty = true; saveFor = 0.05; }
-  if (!d && wasDown) held = null;
+  if (!d && wasDown) { held = null; if (rearHeld) { rearHeld = false; st.rearX = st.rearY = -1; dirty = true; saveFor = 0.01; } }   // the finger leaves the rear pad
   wasDown = d;
 }
 
@@ -200,6 +206,19 @@ function compact(W: number, H: number): void {
   }
   if (has(sensors, 'compass')) { p = place(96); item(p[0], p[1], 96, 'compass', `${Math.round(st.heading)}°`, 'compass', ORANGE, null, (d: number) => { st.heading = (st.heading + d + 360) % 360; }); }
   if (has(sensors, 'light')) { p = place(110); item(p[0], p[1], 110, 'sun', `${Math.round(st.lux)} lx`, 'light', 0xffd60a, null, (d: number) => { st.lux = Math.max(0, Math.min(10000, (st.lux + 1) * Math.pow(1.02, d) - 1)); }); }
+  if (has(sensors, 'microphone')) { p = place(116); item(p[0], p[1], 116, 'mic', `${Math.round(st.mic * 100)} %`, 'microphone', GREEN, null, (d: number) => { st.mic = Math.max(0, Math.min(1, st.mic + d / 150)); }); }
+  if (has(sensors, 'stereo')) { p = place(116); item(p[0], p[1], 116, 'glasses', st.depth > 0 ? `${Math.round(st.depth * 100)} %` : 'Off', '3D slider', ACCENT, null, (d: number) => { st.depth = Math.max(0, Math.min(1, st.depth + d / 150)); }); }
+  if (has(sensors, 'reartouch')) {   // the rear pad: hold the mouse in the box, a finger at that place of the screen
+    p = place(150);
+    rrect(p[0], p[1], 150, 64, 12, CARD, 255);
+    const bx = p[0] + 8, by = p[1] + 8, bw = 82, bh = 48;
+    rrect(bx, by, bw, bh, 6, FILL, 255);
+    const sw = def.screen !== undefined ? def.screen.width as number : 960, sh = def.screen !== undefined ? def.screen.height as number : 544;
+    if (st.rearX >= 0) rrect(bx + st.rearX / sw * bw - 5, by + st.rearY / sh * bh - 5, 10, 10, 5, ACCENT, 255);
+    label(F.bodyB, p[0] + 98, p[1] + 14, st.rearX >= 0 ? 'Touch' : 'Free', TEXT);
+    label(F.small, p[0] + 98, p[1] + 36, 'rear pad', TEXT2);
+    onDrag(bx, by, bw, bh, (mx: number, my: number) => { st.rearX = Math.max(0, Math.min(1, (mx - bx) / bw)) * sw; st.rearY = Math.max(0, Math.min(1, (my - by) / bh)) * sh; rearHeld = true; });
+  }
   p = place(116);
   item(p[0], p[1], 116, st.visible ? 'eye' : 'eye-off', st.visible ? 'Shown' : 'Hidden', 'program', st.visible ? TEXT : TEXT2, () => { st.visible = !st.visible; saveFor = 0.01; });
   // the keys: one button each, the word under the icon

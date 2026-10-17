@@ -41,8 +41,10 @@ struct HalButtonEvent { float x, y; int32_t button; int32_t down; };  // button:
 // (-1..1, down and right positive).
 // rumble_ms is written by the program and taken (zeroed) by the HAL at its next poll.   ponytail: a field instead of a HAL call; a call when
 // an effect must start before the next frame
+// value: how far each button is pressed (0..1) on a pad that measures it (the DualShock 2's pressure-sensitive buttons, ZN-759); 0 where it does
+// not, and then a held bit counts as 1.
 #define HAL_MAX_GAMEPADS 4
-struct HalGamepad { int32_t connected; uint32_t buttons; float trigger[2]; float axes[4]; float rumble_low, rumble_high; int32_t rumble_ms; char name[64]; };
+struct HalGamepad { int32_t connected; uint32_t buttons; float trigger[2]; float axes[4]; float rumble_low, rumble_high; int32_t rumble_ms; char name[64]; float value[17]; };
 /** The zinc:gfx buttons (HalButton bits) a gamepad holds: d-pad or left stick, A B X Y by position (south east west north), shoulders, start, back. */
 static inline uint32_t hal_gamepad_buttons(const HalGamepad* p) {
   if (!p->connected) return 0;
@@ -90,6 +92,9 @@ void hal_clipboard_set(const char* s, size_t n);
 enum HalCursor : int32_t { HAL_CURSOR_DEFAULT = 0, HAL_CURSOR_TEXT, HAL_CURSOR_POINTER, HAL_CURSOR_MOVE, HAL_CURSOR_EW_RESIZE,
   HAL_CURSOR_NS_RESIZE, HAL_CURSOR_CROSSHAIR, HAL_CURSOR_GRAB, HAL_CURSOR_GRABBING, HAL_CURSOR_NOT_ALLOWED };
 void hal_set_cursor(int32_t shape);
+// A device feature of the machine (zinc:sys device(query, arg), ZN-759; optional): the console HALs answer the queries their hardware has (battery,
+// network, motion, gyro, vibrate, reartouch, microphone, stereo, eye, storage) and null for the others, which then answer "" (none here).
+const char* hal_device(const char* query, const char* arg);
 // Escape (optional, weak no-ops): by_app = 1 stops the HAL from acting on Escape itself; hal_escape() is its default
 // action (leave fullscreen, else quit; nothing in kiosk mode), called by the app for an unhandled Escape.
 void hal_escape_by_app(int32_t on);

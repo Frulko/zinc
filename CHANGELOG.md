@@ -17,6 +17,14 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Android: `navigator.getBattery()` and `device('battery')` of zinc:sys give the battery's level and whether it charges.
 - The music example shows a Mac's notifications on its tablet: it pairs once with the Mac over zinc:link (a 6-digit code on the tablet),
   plays each one as iOS's StandBy does on the clock or a sleeping screen (grey cards elsewhere), and keeps the last 50 on a slide of its own.
+- `zinc:hardware`: the parts of a machine beyond its screen and pad, one call each: `battery()`, `network()`, `accelerometer()`, `gyroscope()`,
+  `rearTouches()` (the Vita's rear pad; the right mouse button on a desktop), `microphoneLevel()`, `stereoDepth()` / `setStereo()` /
+  `stereoEye()` (the 3DS's 3D screen), `vibrate()` and `saveLocation()`; null, -1 or [] where the machine has none. See "Hardware" in
+  `docs/targets/handhelds.md`.
+- `zinc run --simulate psp|vita|ps2|n3ds` runs a program as on that console: its screen size, and a panel for its battery, Wi-Fi, tilt, rear
+  touch pad, microphone level and 3D slider.
+- zinc:audio plays on the PSP, PS Vita, PS2 and 3DS: tones, samples, PCM WAV files, voices and streams, unchanged from the desktop.
+- `gamepadButtonValue` gives how hard a pressure-sensitive button is pressed (the DualShock 2's); a test script presses with `gbutton I B VALUE`.
 - Consoles: breakout plays on the PSP, PS Vita, PS2 and 3DS with Kenney's sprites, the d-pad or the stick moving the paddle; a console
   program that ends with nothing drawn or with an error keeps its last lines on screen until START instead of a black screen.
 - `zinc export --target web` makes a Zinc app a normal web page: a static folder (hashed JavaScript and assets, an offline cache, an installable manifest, `.br` and `.gz` copies, `_headers`) that any host
@@ -137,6 +145,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - A program that starts drawing after it started (`render()` or `onFrame` from a timer or a menu click, as a menu bar app opening its
   window) now draws: before, nothing ran but its timers.
 - A program that imports `zinc:ui` without drawing yet (a menu bar app) no longer opens an empty window at start, and quits on SIGTERM.
+- A program for the PSP or PS2 profile (`--profile psp`, `ps2`: 32-bit numbers) that read an `f64[]` from a native module into a `number[]`,
+  zinc:audio's `samples()` among them, failed to compile with "Cannot find name: '__T7'".
 - Programs built for 32-bit Raspberry Pi OS (`zinc build --target armhf-linux` or `armv7-linux`, `zinc export --target rpi1` or `rpi2`) start
   on Bullseye and Buster: they asked for glibc 2.34. Every Linux target now runs on glibc 2.28 and newer.
 - Resizing a window on macOS by dragging its edge re-lays out the app at each size instead of stretching the last frame; animations,

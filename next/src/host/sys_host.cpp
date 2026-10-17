@@ -228,6 +228,11 @@ bool simAnswer(const std::string& q, const std::string& a, std::string& out) {
     return true;
   }   // the program turns with the device ('any') or not: the window follows
   if (q == "light") { out = cap("light") ? "{\"lux\":" + s->get("light.lux", "300") + "}" : ""; return true; }
+  // a console's own inputs (ZN-759, zinc:hardware): the microphone's level, the 3D slider (the program asks for left and right renders with
+  // arg 1; a desktop shows one eye), the rear touch pad's fingers ([[x, y, id], ...] in the screen's pixels)
+  if (q == "microphone") { out = cap("microphone") ? "{\"level\":" + s->get("microphone.level", "0") + "}" : ""; return true; }
+  if (q == "stereo") { if (!a.empty()) s->tell("stereo", a); out = cap("stereo") ? s->get("stereo.depth", "0") : ""; return true; }
+  if (q == "reartouch") { out = cap("reartouch") ? s->get("reartouch", "[]") : ""; return true; }
   if (q == "visibility") { out = s->get("visible", "1") == "1" ? "visible" : "hidden"; return true; }
   if (q == "keys") { out = s->keys(); return true; }
   if (q == "language") { out = s->get("language"); if (out.empty()) return false; return true; }
@@ -815,7 +820,7 @@ void call(int id, const HostArg* a, HostArg* r) {
       std::string sim;
       if (simAnswer(q, a, sim)) { ret(r, sim); break; }   // zinc run --simulate: the simulated device first
       const char* d = hal_display && hal_display->device ? hal_display->device(q.c_str(), a.c_str()) : nullptr;
-      ret(r, d ? std::string(d) : desktopDevice(q, a));
+      ret(r, d ? std::string(d) : q == "storage" ? storagePath() : desktopDevice(q, a));   // storage: where zinc:storage keeps its keys
       break;
     }
     case Rt::HostAssetsStat: r->d = zn::host::assets::stat(n(0)); break;

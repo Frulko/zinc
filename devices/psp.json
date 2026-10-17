@@ -1,0 +1,37 @@
+{
+  "$comment": "A Sony PSP for zinc run --simulate psp (ZN-759): the 480x272 screen, the battery and its mains adapter, the Wi-Fi switch; no motion, touch, microphone or motor. Its pad is the keyboard (or a gamepad).",
+  "name": "PSP",
+  "icon": "gamepad-2",
+  "model": "PSP-3000",
+  "os": "PSP 6.61",
+  "language": "en-US",
+  "screen": {
+    "width": 480,
+    "height": 272
+  },
+  "battery": {
+    "level": 0.8,
+    "source": "none",
+    "sources": [
+      "none",
+      "ac"
+    ],
+    "temperature": 30,
+    "drainPerHour": 0.25,
+    "chargePerHour": {
+      "ac": 0.6
+    }
+  },
+  "network": {
+    "online": false,
+    "type": "wifi",
+    "ssid": "",
+    "types": [
+      "wifi",
+      "none"
+    ]
+  },
+  "sensors": {},
+  "keys": [],
+  "outputs": {}
+}

@@ -1,10 +1,11 @@
 ---
 id: ZN-759
 title: 'A hardware showcase demo per console: every feature of PSP, Vita, PS2 and 3DS'
-status: Backlog
+status: In Progress
 assignee:
   - '@parallel'
 created_date: '2026-10-17 09:39'
+updated_date: '2026-10-17 11:17'
 labels:
   - handheld
   - games
@@ -27,3 +28,14 @@ Owner 2026-10-17: "une démo complète de toutes les features de chaque hardware
 - [ ] #2 the new inputs and outputs (rear touch, motion, pressure buttons, vibration, second screen, stereo 3D, microphone level, memory card) are zinc APIs with a desktop simulation and a T0 test each
 - [ ] #3 a video or screenshot series per console in docs/reports/zinc-next-consoles.md
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Session 1 (worktree agent, 2026-10-17). Shared APIs (commit feat(console): hardware APIs...):
+- Decision (to record): console hardware features are queries of zinc:sys device() (the D122 pattern), answered by the console HAL's hal_device() on a console core (weak in targets/console/host_console.cpp), by a simulated device on a desktop (zinc run --simulate psp|vita|ps2|n3ds, devices/<console>.json, app/devicesim panel: microphone level, 3D slider, rear pad), else the desktop's own answer. New queries: reartouch, microphone, stereo (arg 1/0 asks for a picture per eye), eye, storage. A std module zinc:hardware (lib/std/hardware.ts) wraps them: battery, network, accelerometer, gyroscope, rearTouches/hasRearTouch, microphoneLevel, stereoDepth/setStereo/stereoEye, vibrate, saveLocation.
+- Decision: the pad's own features stay zinc:gfx gamepad rows (D101): a console's pad is gamepad 0 (W3C order, both sticks), pressure is gamepadButtonValue through a new HalGamepad.value[17] (0 = no pressure: the bit counts), the motors gamepadRumble (low = big motor, high = small). Second screen = zinc:gfx openWindow (the 3DS HAL maps window 1 to the bottom screen). Memory card = zinc:storage (saveLocation names the file).
+- Decision: zinc:audio on consoles = a small mixer linked into the core as the native module 'Audio' (targets/console/audio_console.cpp), same exports and signatures as plugins/audio; mixed on the program's thread at frame end into a ring (console_audio.h) that the HAL's audio thread drains. miniaudio rejected: its engine needs atomics that the PSP's and PS2's MIPS cores lack, no backends for these consoles. WAV (PCM 8/16) only on consoles. Rates: PSP 44100 (Pocket3D's rule: the hardware resampler is broken), Vita 48000, PS2 48000, 3DS 22050.
+- Fix: check.cpp arrayConversion did not declare the element alias of a down conversion (f64[] to f32[]): zinc:audio failed to compile for the psp/ps2 profiles ('__T7'); regression in tests/t0/console_audio.sh.
+- Tests (T0, all pass): hardware_motion, hardware_reartouch, hardware_microphone, hardware_stereo, hardware_vibration (rumble recorded in ZINC_DEVICE_LOG headless), hardware_pressure, hardware_screen2, hardware_memcard (console core), console_audio (console core). console_core and console_host still pass. host and webenv_gamepad print the main checkout's plugin.json warnings (unknown key web: the worktree lies inside the main repo, whose plugins/ the module loader also reads): environmental, not this change.
+<!-- SECTION:NOTES:END -->

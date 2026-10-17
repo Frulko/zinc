@@ -44,7 +44,10 @@
     "keyboard",
     "bell",
     "vibrate",
-    "minimize-2"
+    "minimize-2",
+    "mic",
+    "glasses",
+    "gamepad-2"
   ],
   "permissions": [
     "window",

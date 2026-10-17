@@ -40,7 +40,8 @@ target_include_directories(zn_console_engine PUBLIC ${ZN_NEXT}/include ${ZN_NEXT
 target_compile_definitions(zn_console_engine PUBLIC ZN_NO_MIMALLOC $<$<BOOL:${CMAKE_CROSSCOMPILING}>:ZN_NO_MMAP>)   # a console has no mmap
 target_compile_options(zn_console_engine PRIVATE -fwrapv -ffp-contract=off $<$<COMPILE_LANGUAGE:C>:-w>)
 
-set(ZN_CORE_SRC ${CMAKE_CURRENT_SOURCE_DIR}/core_main.cpp ${CMAKE_CURRENT_SOURCE_DIR}/host_console.cpp ${CMAKE_CURRENT_SOURCE_DIR}/stubs.cpp)
+set(ZN_CORE_SRC ${CMAKE_CURRENT_SOURCE_DIR}/core_main.cpp ${CMAKE_CURRENT_SOURCE_DIR}/host_console.cpp ${CMAKE_CURRENT_SOURCE_DIR}/stubs.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/audio_console.cpp)   # zinc:audio's mixer (ZN-759): the one native module a core links
 if(ZN_CONSOLE_HAL)
   list(APPEND ZN_CORE_SRC ${ZN_CONSOLE_HAL})
 else()

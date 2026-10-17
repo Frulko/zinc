@@ -303,7 +303,8 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostGfxGamepadButtons: { const HalGamepad* p = pad(n(0)); r->i = p ? static_cast<int32_t>(p->buttons) : 0; break; }
     case Rt::HostGfxGamepadButtonValue: {
       const HalGamepad* p = pad(n(0)); const int32_t b = n(1);
-      r->d = !p || b < 0 || b > 16 ? 0 : (b == 6 || b == 7) ? p->trigger[b - 6] : (p->buttons >> b & 1u);
+      // a pressure-sensitive button's own value (ZN-759), else the trigger's travel or the held bit
+      r->d = !p || b < 0 || b > 16 ? 0 : p->value[b] > 0 ? p->value[b] : (b == 6 || b == 7) ? p->trigger[b - 6] : (p->buttons >> b & 1u);
       break;
     }
     case Rt::HostGfxGamepadAxis: { const HalGamepad* p = pad(n(0)); const int32_t k = n(1); r->d = p && k >= 0 && k < 4 ? p->axes[k] : 0; break; }

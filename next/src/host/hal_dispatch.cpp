@@ -51,7 +51,7 @@ static void hold() {
 // Scripted input for headless runs (ZINC_INPUT=file): one event per line, `<frame> <event>`, frames counted from 0 at each poll.
 //   move X Y | down | up | right-down | right-up | key NAME (a character, Space, Enter, Escape, Arrow*...) [shift|ctrl|alt|meta]... | text WORD | text "several words" (\" and \\ inside) | wheel DX DY | pad NAME | padup NAME (the gamepad buttons Up Down Left Right A B X Y L R Start Select, held until padup)
 //   gamepad I [NAME...] (a gamepad is plugged in slot I, 0 to 3) | gamepadoff I | gbutton I B [VALUE] (button B of the W3C standard order,
-//   0 to 16, held until gbuttonup; VALUE 0..1 for the triggers 6 and 7) | gbuttonup I B | gaxis I A VALUE (axis 0 to 3, -1..1, kept)
+//   0 to 16, held until gbuttonup; VALUE 0..1: a trigger's travel or a pressure-sensitive button's press) | gbuttonup I B | gaxis I A VALUE (axis 0 to 3, -1..1, kept)
 //   touch ID X Y (a finger lands or moves; up to HAL_MAX_TOUCH at once, held until its touchup) | touchup ID
 //   window ID: the events after it in the same frame go to that window (ZN-663; 0 the main one) | close: the user closes the window the events go to
 //   the system's signals, as a phone's OS sends them (zn_hal_signal below): safearea T R B L | theme dark|light | fontscale K | reducemotion 0|1 |
@@ -226,6 +226,7 @@ void applyScript(HalInput* in) {
         const float v = e.kind == "gbuttonup" ? 0 : e.c.empty() ? 1 : static_cast<float>(atof(e.c.c_str()));
         p.buttons = v > 0 ? (p.buttons | (1u << k)) : (p.buttons & ~(1u << k));
         if (k == 6 || k == 7) p.trigger[k - 6] = v;
+        else p.value[k] = e.c.empty() ? 0 : v;   // a VALUE is how hard the button is pressed (a DualShock 2's pressure, ZN-759)
       }
       continue;
     }
@@ -240,7 +241,12 @@ void applyScript(HalInput* in) {
     applyEvent(e, in, curX, curY, heldButtons);
   }
   in->buttons |= heldPad;
-  for (int k = 0; k < HAL_MAX_GAMEPADS; k++) in->pad[k] = heldGamepad[k];   // a rumble asked by the program ends here: nothing shakes
+  for (int k = 0; k < HAL_MAX_GAMEPADS; k++) {   // a rumble asked by the program ends here: nothing shakes, ZINC_DEVICE_LOG records it (ZN-759)
+    if (in->pad[k].connected && in->pad[k].rumble_ms > 0)
+      if (const char* log = getenv("ZINC_DEVICE_LOG"); log && *log)
+        if (FILE* f = fopen(log, "a")) { fprintf(f, "rumble %d %.2f %.2f %d\n", k, in->pad[k].rumble_low, in->pad[k].rumble_high, static_cast<int>(in->pad[k].rumble_ms)); fclose(f); }
+    in->pad[k] = heldGamepad[k];
+  }
   in->ntouch = nHeldTouch;
   for (int k = 0; k < nHeldTouch; k++) in->touch[k] = heldTouch[k];
   if (nHeldTouch > 0) { curX = heldTouch[0].x; curY = heldTouch[0].y; in->px = curX; in->py = curY; in->pdown = 1; in->pbuttons |= 1; }

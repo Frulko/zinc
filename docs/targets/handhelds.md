@@ -75,9 +75,37 @@ sudo dkp-pacman -Sy && sudo dkp-pacman -S 3ds-dev        # devkitARM, libctru, c
 export DEVKITPRO=/opt/devkitpro DEVKITARM=/opt/devkitpro/devkitARM   # zinc toolchain install n3ds then names it
 ```
 
+## Hardware: every part of the console as a zinc API (ZN-759)
+
+A program reaches a console's parts through the APIs it already uses on every target, so the same code runs on a desktop, a phone and the four
+consoles, and says so on its screen where a machine has none. The demos `examples/hardware-psp`, `hardware-vita`, `hardware-ps2` and
+`hardware-n3ds` show each part live, one screen each (screenshots: `docs/reports/zinc-next-consoles.md`).
+
+| Part | API | Consoles | On a desktop |
+|---|---|---|---|
+| Buttons, d-pad, sticks, shoulders | zinc:gfx gamepad 0 (`gamepadButton`, `gamepadAxis`, W3C order) and the `Btn` buttons | all; the 3DS's C-stick and ZL / ZR on a New 3DS | a gamepad, else the keyboard |
+| Pressure-sensitive buttons | `gamepadButtonValue(0, b)`: 0..1 | PS2 (DualShock 2 pressure mode) | 1 when held; a script: `gbutton I B VALUE` |
+| Vibration of a pad | `gamepadRumble(0, low, high, ms)`: low the big motor, high the small one | PS2 (both motors); Vita only on a PS TV with a DualShock 3 | an SDL gamepad's motors; `ZINC_DEVICE_LOG` records it headless |
+| Touch screen | zinc:gfx touch points (`touchCount`, `touchX`...) and the pointer | Vita (front, multitouch), 3DS (bottom screen) | the mouse |
+| Second screen | zinc:gfx `openWindow(title, 320, 240, draw)`: the window is the 3DS's bottom screen, its stylus the window's pointer | 3DS | a second window |
+| Rear touch pad | zinc:hardware `rearTouches()`, `hasRearTouch()` | Vita | the right mouse button; `--simulate vita`: the panel's rear pad |
+| Motion | zinc:hardware `accelerometer()` (m/s²), `gyroscope()` (°/s) | Vita, 3DS | null; `--simulate`: the panel's tilt |
+| Microphone level | zinc:hardware `microphoneLevel()`: 0..1, -1 without one | 3DS | -1; `--simulate n3ds`: the panel's level |
+| Stereoscopic 3D | zinc:hardware `stereoDepth()` (the 3D slider), `setStereo(true)`, `stereoEye()`: the frames alternate between the eyes, both shown at each refresh | 3DS | -1 (flat); `--simulate n3ds`: the slider, one eye shown |
+| Sound | zinc:audio (tones, samples, PCM WAV files, voices, streams) | all: PSP 44.1 kHz (sceAudio), Vita 48 kHz, PS2 48 kHz (audsrv), 3DS 22.05 kHz (ndsp, else CSND) | miniaudio |
+| Saving | zinc:storage; zinc:hardware `saveLocation()` | the PS2's memory card (`mc0:`), the PSP's memory stick, the Vita's `ux0:data`, the 3DS's SD card | a file (`~/.zinc/storage.kv`) |
+| Battery, clock, network | zinc:hardware `battery()`, `network()`; `Date` | PSP, Vita, 3DS (the PS2 has neither) | the machine's own; `--simulate` |
+
+zinc:hardware (`lib/std/hardware.ts`) is a set of queries of zinc:sys `device()`: a console core's HAL answers them (`hal_device` in
+`targets/<console>/hal_*.cpp`), a simulated device answers them on a desktop: `zinc run --simulate psp|vita|ps2|n3ds <project>` opens the device's
+control panel (`devices/<console>.json`) beside the program, with its battery, network, tilt, microphone level, 3D slider and rear pad.
+zinc:audio is a plugin on a desktop; a console core links its mixer instead (`next/targets/console/audio_console.cpp`, the same native
+module and contract), rendered on the program's thread at the end of each frame. It decodes PCM WAV files only: FLAC, MP3 and Ogg Vorbis play
+on a desktop.
+
 ## Limits
 
-- Software raster only (the GE, GXM and PICA replays are later tasks); one thread; no audio; no `zinc:fs` directories or stat (the console host
+- Software raster only (the GE, GXM and PICA replays are later tasks); one thread (and the HAL's audio thread); no `zinc:fs` directories or stat (the console host
   serves files through stdio, storage, the clock, args and env: `next/targets/console/host_console.cpp`).
 - A program that calls `exit()` ends without `zinc:exit`: the runner reports a timeout.
 - The Vita and 3DS shots are the displayed framebuffer read back, not the emulator's window: a bug in how the emulator draws it shows only in

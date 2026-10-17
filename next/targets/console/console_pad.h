@@ -28,6 +28,14 @@ static inline uint32_t zn_console_script(int32_t frame) {
   return held;
 }
 
+/** The W3C gamepad bits (zinc:gfx GamepadButton) of zinc:gfx buttons (HalButton bits): the built-in session also holds the console's gamepad 0. */
+static inline uint32_t zn_console_w3c(uint32_t hal) {
+  static const uint8_t to[12] = {12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 9, 8};   // Up Down Left Right A B X Y L R Start Select
+  uint32_t w = 0;
+  for (int i = 0; i < 12; i++) if (hal & 1u << i) w |= 1u << to[i];
+  return w;
+}
+
 /** A stick at (x, y), 0..255 with 128 at rest (PSP, Vita, PS2), as the d-pad past a third of its travel. */
 static inline uint32_t zn_console_stick(int x, int y) {
   uint32_t b = 0;

@@ -1,0 +1,20 @@
+{
+  "$comment": "A PlayStation 2 for zinc run --simulate ps2 (ZN-759): the 640x448 picture; no battery and no network. Its DualShock 2 is a gamepad (pressure, both motors) and its memory card is zinc:storage.",
+  "name": "PlayStation 2",
+  "icon": "gamepad-2",
+  "model": "SCPH-90004",
+  "os": "PS2",
+  "language": "en-US",
+  "screen": {
+    "width": 640,
+    "height": 448
+  },
+  "network": {
+    "online": false,
+    "type": "none",
+    "ssid": ""
+  },
+  "sensors": {},
+  "keys": [],
+  "outputs": {}
+}

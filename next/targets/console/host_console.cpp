@@ -5,7 +5,8 @@
 //
 // Rows served:
 //   zinc:sys   args (zn_console_set_args), env (hal_env), platform (ZN_CONSOLE_PLATFORM), pid (1), cwd and launchDir (the data directory), locale (en-US),
-//              isatty (0), writeErr, randomByte, utf8 length / byte / decode, bytesToString, allocations and live blocks, device ("")
+//              isatty (0), writeErr, randomByte, utf8 length / byte / decode, bytesToString, allocations and live blocks, device (the HAL's hal_device: battery,
+//              network, motion, gyro, vibrate, reartouch, microphone, stereo, eye, storage; "" for what it lacks)
 //   loop       real (1 unless ZINC_DETERMINISTIC or ZINC_CLOCK=virtual: then waits advance a virtual clock), now, wait (hal_sleep_us), epoch
 //              (gettimeofday); no events (evNext "", evReady 0, evActive 0, nativePoll 0)
 //   zinc:fs    failed, error, readText, writeText, appendText, exists, load and byte, writeBytes, remove (a file), rename, copyFile: stdio only, relative
@@ -14,6 +15,7 @@
 //   time zone  UTC (offset 0, name "UTC")
 // Any other row (processes, sockets, HTTP, directories, stat, regex, crypto...) is reported once on the HAL's error log and answers 0 / "".
 #include <sys/time.h>
+#include <unistd.h>
 
 #include <cerrno>
 #include <cstdio>
@@ -34,6 +36,7 @@
 #endif
 
 extern "C" __attribute__((weak)) const char* zn_console_data_dir(void) { return ""; }   // the console's HAL gives its own
+extern "C" __attribute__((weak)) const char* hal_device(const char*, const char*) { return nullptr; }   // the hardware the HAL answers for (ZN-759)
 
 namespace {
 using zn::host::HostArg;
@@ -173,7 +176,15 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostSysBytesToString: ret(r, bytesOf(a[0])); break;
     case Rt::HostSysAllocations: r->d = static_cast<double>(zn::rt::gAllocs); break;
     case Rt::HostSysLiveBlocks: r->d = static_cast<double>(zn::rt::gAllocs - zn::rt::gFrees); break;
-    case Rt::HostSysDevice: ret(r, ""); break;
+    case Rt::HostSysDevice: {   // storage: where zinc:storage keeps its keys (the PS2's memory card)
+      const std::string q = str(a[0]);
+      const char* d = hal_device(q.c_str(), str(a[1]).c_str());
+      std::string where = d ? d : q == "storage" ? storagePath() : "";
+      char cwd[256];   // a relative place is the working directory's (the PSP's game folder)
+      if (!d && q == "storage" && where.find(':') == std::string::npos && where[0] != '/' && getcwd(cwd, sizeof cwd)) where = std::string(cwd) + "/" + where;
+      ret(r, where);
+      break;
+    }
     case Rt::HostLoopReal: r->i = gVirtual ? 0 : 1; break;
     case Rt::HostLoopNow: r->d = nowMs(); break;
     case Rt::HostLoopWait: waitMs(a[0].d); break;

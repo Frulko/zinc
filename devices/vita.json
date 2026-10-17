@@ -1,0 +1,40 @@
+{
+  "$comment": "A PS Vita for zinc run --simulate vita (ZN-759): the 960x544 screen, front touch (the mouse), the rear touch pad and the motion sensors set in the panel, the battery, Wi-Fi; no motor (vibration needs a PS TV and a DualShock 3).",
+  "name": "PS Vita",
+  "icon": "gamepad-2",
+  "model": "PCH-2000",
+  "os": "PS Vita 3.65",
+  "language": "en-US",
+  "screen": {
+    "width": 960,
+    "height": 544
+  },
+  "battery": {
+    "level": 0.65,
+    "source": "none",
+    "sources": [
+      "none",
+      "usb"
+    ],
+    "temperature": 30,
+    "drainPerHour": 0.25,
+    "chargePerHour": {
+      "usb": 0.6
+    }
+  },
+  "network": {
+    "online": true,
+    "type": "wifi",
+    "ssid": "zinc",
+    "types": [
+      "wifi"
+    ]
+  },
+  "sensors": {
+    "motion": true,
+    "gyro": true,
+    "reartouch": true
+  },
+  "keys": [],
+  "outputs": {}
+}
