@@ -259,7 +259,6 @@ bool simAnswer(const std::string& q, const std::string& a, std::string& out) {
 extern "C" bool SDL_DisableScreenSaver(void);
 extern "C" bool SDL_EnableScreenSaver(void);
 extern "C" bool SDL_SendAndroidMessage(unsigned command, int param);
-extern "C" int SDL_GetPowerInfo(int* seconds, int* percent);   // SDL_PowerState: -1 error, 0 unknown, 1 on battery, 2 none, 3 charging, 4 charged
 #endif
 // A desktop's device features for the web APIs (HalDisplay::device answers first on a device): the network, the battery of a Mac (IOKit,
 // opened when asked), the language, the machine; '' for what a desktop has not (sensors, wake lock: zinc:system/power has a sleep blocker).
@@ -350,13 +349,9 @@ std::string desktopDevice(const std::string& q, const std::string& a) {
   if (q == "wakelock") return (a == "1" ? SDL_DisableScreenSaver() : SDL_EnableScreenSaver()) ? "1" : "0";
   // the screen dark, or back at the system's brightness (zinc:webos setBacklight): the window's own brightness, set on the UI thread
   if (q == "backlight") return SDL_SendAndroidMessage(ZN_APP_ANDROID_BRIGHTNESS, a == "1" ? -1 : 0) ? "1" : "0";
-  if (q == "battery") {   // SDL reads Android's sticky ACTION_BATTERY_CHANGED intent: the level and whether a charger is plugged
-    int secs = -1, pct = -1;
-    const int st = SDL_GetPowerInfo(&secs, &pct);
-    if (pct < 0 || st <= 0 || st == 2) return "";
-    const bool on = st == 3 || st == 4;
-    return "{\"level\":" + std::to_string(pct / 100.0) + ",\"charging\":" + (on ? "true" : "false") + ",\"source\":\"" + (on ? "ac" : "none") +
-           "\",\"chargingTime\":-1,\"dischargingTime\":" + std::to_string(on || secs < 0 ? -1 : secs) + "}";
+  if (q == "battery") {   // Android's sticky ACTION_BATTERY_CHANGED, read by the activity (ZincActivity.battery); SDL's own reading says "unknown" on the Nexus 7
+    const char* r = zn_mobile_command ? zn_mobile_command("battery", "") : nullptr;
+    return r && std::strcmp(r, "0") != 0 ? r : "";   // "0": no activity yet
   }
 #endif
 #if defined(__APPLE__) && !defined(ZN_APP_LIBRARY)   // an app library loads nothing at run time (ZN-620): no wake lock nor battery from IOKit

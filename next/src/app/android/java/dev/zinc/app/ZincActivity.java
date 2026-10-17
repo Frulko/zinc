@@ -219,8 +219,21 @@ public class ZincActivity extends SDLActivity {
     static String zincCommand(final String q, final String a) {
         final ZincActivity act = self;
         if (act == null) return "0";
+        if (q.equals("battery")) return battery(act);   // a query: answered here, on the program's thread
         act.runOnUiThread(new Runnable() { @Override public void run() { act.command(q, a); } });
         return q.equals("performance") && !sustainedSupported(act) ? "0" : "1";
+    }
+
+    /** navigator.getBattery()'s answer from the sticky ACTION_BATTERY_CHANGED intent: "" without a battery. */
+    static String battery(android.content.Context c) {
+        android.content.Intent i = c.registerReceiver(null, new android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED));
+        if (i == null || !i.getBooleanExtra(android.os.BatteryManager.EXTRA_PRESENT, true)) return "";
+        int level = i.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1), scale = i.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, -1);
+        if (level < 0 || scale <= 0) return "";
+        int plugged = i.getIntExtra(android.os.BatteryManager.EXTRA_PLUGGED, 0), t = i.getIntExtra(android.os.BatteryManager.EXTRA_TEMPERATURE, Integer.MIN_VALUE);
+        String src = plugged == android.os.BatteryManager.BATTERY_PLUGGED_USB ? "usb" : plugged == android.os.BatteryManager.BATTERY_PLUGGED_WIRELESS ? "wireless" : plugged != 0 ? "ac" : "none";
+        return String.format(java.util.Locale.ROOT, "{\"level\":%.3f,\"charging\":%b,\"source\":\"%s\",\"chargingTime\":-1,\"dischargingTime\":-1%s}",
+            level / (double) scale, plugged != 0, src, t == Integer.MIN_VALUE ? "" : String.format(java.util.Locale.ROOT, ",\"temperature\":%.1f", t / 10.0));
     }
 
     void command(String q, String a) {
