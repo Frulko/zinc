@@ -1,0 +1,16 @@
+{
+  "name": "marble",
+  "app": { "id": "dev.zinc.examples.marble", "name": "Marble Terraces", "version": "0.1.0" },
+  "entry": "src/main.ts",
+  "assets": {
+    "dir": "assets",
+    "rules": [
+      { "match": "level.ldtk", "as": "tilemap" },
+      { "match": "models/**/*.glb", "as": "model", "format": "zmesh" }
+    ]
+  },
+  "targets": {
+    "macos": { "width": 960, "height": 544 },
+    "linux": { "width": 960, "height": 544 }
+  }
+}
