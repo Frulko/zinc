@@ -4,7 +4,7 @@
 import { onFrame, width, height, keep, clear, rect, rrect, gradient, setTransform, resetTransform, createImage, destroyImage, beginImage, endImage, drawText, textWidth, fontAscent, pointerX, pointerY, pointerDown, keyCount, keyKind, keyName, KeyKind } from 'zinc:gfx';
 import { exists, readText, writeText, appendText, stat } from 'zinc:fs';
 import { udp } from 'zinc:socket';
-import { utf8Decode } from 'zinc:sys';
+import { utf8Decode, device } from 'zinc:sys';
 import { discover, System, Group, Speaker, serviceId, accountOf, playSpotify as sonosSpotify } from 'zinc:sonos';
 import { Spotify, Item, Playback } from 'zinc:spotify';
 import { spinner, tabular, tabularWidth, decodeStats, decodeOne, picturesTick, prefetch, ui, F, BG, CARD, CARD2, FILL, TEXT, TEXT2, TEXT3, ACCENT, GREEN, Scroll, Zone, zoneAt, resetZones, onTap, beginScroll, endScroll, label, centered, wrap, clock, glyph, transport, cover, backdrop, iconButton, pill, segmented, slider, card, separator, cardShadow, isPressed } from './ui';
@@ -18,7 +18,7 @@ import { setPlace, placeName, weatherTick, weatherSlide, Place, foundPlaces, sea
 import { openPort } from 'zinc:webos';
 
 // ---------------------------------------------------------------- settings beside the program
-class Config { sleep: number = 120; group: string = ''; seed: string = ''; spotifySn: i32 = 0; full: boolean = false; lat: number = 0; lon: number = 0; city: string = ''; }
+class Config { sleep: number = 120; group: string = ''; seed: string = ''; spotifySn: i32 = 0; full: boolean = false; lat: number = 0; lon: number = 0; city: string = ''; battery: boolean = true; batteryPct: boolean = true; }
 function loadConfig(): Config {
   const c = new Config();
   if (!exists('config.json')) return c;
@@ -29,13 +29,15 @@ function loadConfig(): Config {
     if (j.seed !== undefined) c.seed = '' + j.seed;
     if (j.spotifySn !== undefined) c.spotifySn = j.spotifySn as i32;
     if (j.full !== undefined) c.full = j.full === true;
+    if (j.battery !== undefined) c.battery = j.battery === true;
+    if (j.batteryPct !== undefined) c.batteryPct = j.batteryPct === true;
     if (j.lat !== undefined && j.lon !== undefined) { c.lat = j.lat as number; c.lon = j.lon as number; c.city = j.city !== undefined ? '' + j.city : ''; }
   } catch (e) { console.error('music: config.json unreadable, defaults used'); }
   return c;
 }
 const cfg = loadConfig();
 function saveConfig(): void {
-  try { writeText('config.json', JSON.stringify({ sleep: cfg.sleep, group: cfg.group, seed: cfg.seed, spotifySn: cfg.spotifySn, full: cfg.full, lat: cfg.lat, lon: cfg.lon, city: cfg.city }) + '\n'); } catch (e) { console.error(`music: config.json: ${e.message}`); }
+  try { writeText('config.json', JSON.stringify({ sleep: cfg.sleep, group: cfg.group, seed: cfg.seed, spotifySn: cfg.spotifySn, full: cfg.full, lat: cfg.lat, lon: cfg.lon, city: cfg.city, battery: cfg.battery, batteryPct: cfg.batteryPct }) + '\n'); } catch (e) { console.error(`music: config.json: ${e.message}`); }
 }
 
 // ---------------------------------------------------------------- state
@@ -1135,6 +1137,12 @@ function settingsPage(W: number, H: number): void {
     cfg.sleep = delays[i]; screen.delay = cfg.sleep; saveConfig();
   }, (w - 44) / 6);
   y += 144;
+  drawText(F.tinyB, x0 + 4, y, 'BATTERIE', TEXT2, 255, 0); y += 24;
+  card(x0, y, w, 64);
+  glyph(batteryCharging ? 'battery-charging' : 'battery', x0 + 20, y + 20, 24, batteryLevel < 0 ? TEXT3 : TEXT2);
+  segmented('set/bat', x0 + 58, y + 14, ['Affichée', 'Masquée'], cfg.battery ? 0 : 1, (i: i32) => { cfg.battery = i === 0; saveConfig(); });
+  segmented('set/batpct', x0 + 330, y + 14, ['Avec le pourcentage', 'Sans'], cfg.batteryPct ? 0 : 1, (i: i32) => { cfg.batteryPct = i === 0; saveConfig(); });
+  y += 88;
   drawText(F.tinyB, x0 + 4, y, 'MÉTÉO', TEXT2, 255, 0); y += 24;
   card(x0, y, w, 64);
   glyph('cloud-sun', x0 + 20, y + 20, 24, TEXT2);
@@ -1206,6 +1214,36 @@ function draw(W: number, H0: number): void {
   statusBar(W);
 }
 
+// The battery (owner, 2026-10-17: the app is full screen on Android and webOS, the system's bar is hidden): the device's level and whether it
+// charges, read every 10 s through zinc:sys device('battery') (navigator.getBattery's source); nothing drawn on a machine without one.
+let batteryLevel = -1, batteryCharging = false, tBattery = 99;
+function batteryTick(dt: number): void {
+  tBattery += dt;
+  if (tBattery < 10) return;
+  tBattery = 0;
+  let level = -1, charging = false;
+  try {
+    const t = device('battery', '');
+    if (t !== '') { const j = JSON.parse(t); level = Math.round((j.level as number) * 100); charging = j.charging === true; }
+  } catch (e) { /* none */ }
+  if (level !== batteryLevel || charging !== batteryCharging) { batteryLevel = level; batteryCharging = charging; ui.dirty = true; }
+}
+/** iOS's battery at the right end of the status bar: an outline filled to the level (green while charging, red under 20 %), a bolt while
+ *  it charges, the percentage beside it when chosen. Returns the x where the rest of the bar ends. */
+function batteryIndicator(right: number, ty: number): number {
+  if (!cfg.battery || batteryLevel < 0) return right;
+  const bw = 26, bh = 13, x = right - bw - 3, y = (TOP - bh) / 2;
+  const fillC = batteryCharging ? GREEN : batteryLevel < 20 ? 0xff453a : TEXT;
+  rrect(x, y, bw, bh, 4, TEXT, 110);
+  rrect(x + 1.5, y + 1.5, bw - 3, bh - 3, 3, BG, 255);
+  rrect(x + 2.5, y + 2.5, Math.max(2, (bw - 5) * batteryLevel / 100), bh - 5, 2, fillC, 255);
+  rrect(x + bw + 1, y + 4, 2, bh - 8, 1, TEXT, 110);
+  let left = x;
+  if (batteryCharging) { glyph('zap', x - 16, y - 1, 14, GREEN); left -= 18; }
+  if (cfg.batteryPct) { const t = `${batteryLevel} %`; left -= tabularWidth(F.small, t) + 6; tabular(F.small, left, ty, t, TEXT2); }
+  return left - 18;
+}
+
 const DAYS = ['dim.', 'lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.'];
 const MONTHS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
 /** The time and the date on the left, the group under control on the right (a touch opens the choice of the group). */
@@ -1221,9 +1259,10 @@ function statusBar(W: number): void {
     const on = Math.max(0, 1 - Math.abs(slideX - i));
     rrect(W / 2 + (i - (SLIDES - 1) / 2) * 18 - 4, TOP / 2 - 4, 8, 8, 4, TEXT, Math.round(70 + 185 * on) as i32);
   }
+  const bx = batteryIndicator(W - 20, ty);
   if (group === null) return;
   const g = group as Group, name = g.name(), nw = Math.min(360, textWidth(F.small, name, 0));
-  const nx = W - 20 - nw;
+  const nx = bx - nw;
   label(F.small, nx, ty, name, TEXT2, nw);
   glyph(g.playing() ? 'audio-lines' : 'speaker', nx - 24, (TOP - 16) / 2, 16, g.playing() ? GREEN : TEXT2);
   onTap('status/group', nx - 32, 0, nw + 52, TOP, () => { contextOpen = true; });
@@ -1300,6 +1339,7 @@ onFrame((dt: number) => {
   if (page === NOW && group !== null && (group as Group).track.source === 'spotify' && tSpotify >= 5 && !screen.asleep) { tSpotify = 0; pollSpotify(); }
   if (volumeHeld > 0) volumeHeld -= dt;
   weatherTick(dt, !screen.asleep);
+  if (!screen.asleep) batteryTick(dt);
   // animations
   if (toastFor > 0) { toastFor -= dt; if (toastFor <= 0) ui.dirty = true; }
   if (volumeOpen && dragZone === null) { volumeFor -= dt; if (volumeFor <= 0) { volumeOpen = false; ui.dirty = true; } }

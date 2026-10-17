@@ -13,6 +13,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
   The engine refuses the old spelling with errors Z0006 and Z0007. Migrate a project with `zinc migrate --apply`.
 
 ### Added
+- Android: `navigator.getBattery()` and `device('battery')` of zinc:sys give the battery's level and whether it charges.
 - Consoles: breakout plays on the PSP, PS Vita, PS2 and 3DS with Kenney's sprites, the d-pad or the stick moving the paddle; a console
   program that ends with nothing drawn or with an error keeps its last lines on screen until START instead of a black screen.
 - `zinc export --target web` makes a Zinc app a normal web page: a static folder (hashed JavaScript and assets, an offline cache, an installable manifest, `.br` and `.gz` copies, `_headers`) that any host

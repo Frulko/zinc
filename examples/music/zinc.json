@@ -31,6 +31,9 @@
   ],
   "icons": [
     "audio-lines",
+    "battery",
+    "battery-charging",
+    "zap",
     "radio",
     "library",
     "speaker",

@@ -349,6 +349,14 @@ std::string desktopDevice(const std::string& q, const std::string& a) {
   if (q == "wakelock") return (a == "1" ? SDL_DisableScreenSaver() : SDL_EnableScreenSaver()) ? "1" : "0";
   // the screen dark, or back at the system's brightness (zinc:webos setBacklight): the window's own brightness, set on the UI thread
   if (q == "backlight") return SDL_SendAndroidMessage(ZN_APP_ANDROID_BRIGHTNESS, a == "1" ? -1 : 0) ? "1" : "0";
+  if (q == "battery") {   // SDL reads Android's sticky ACTION_BATTERY_CHANGED intent: the level and whether a charger is plugged
+    int secs = -1, pct = -1;
+    const SDL_PowerState st = SDL_GetPowerInfo(&secs, &pct);
+    if (pct < 0 || st == SDL_POWERSTATE_NO_BATTERY || st == SDL_POWERSTATE_ERROR || st == SDL_POWERSTATE_UNKNOWN) return "";
+    const bool on = st == SDL_POWERSTATE_CHARGING || st == SDL_POWERSTATE_CHARGED;
+    return "{\"level\":" + std::to_string(pct / 100.0) + ",\"charging\":" + (on ? "true" : "false") + ",\"source\":\"" + (on ? "ac" : "none") +
+           "\",\"chargingTime\":-1,\"dischargingTime\":" + std::to_string(on || secs < 0 ? -1 : secs) + "}";
+  }
 #endif
 #if defined(__APPLE__) && !defined(ZN_APP_LIBRARY)   // an app library loads nothing at run time (ZN-620): no wake lock nor battery from IOKit
   if (q == "wakelock") {   // the display kept awake (IOPMAssertion), as navigator.wakeLock.request('screen') on a Mac
