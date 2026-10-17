@@ -347,6 +347,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-631: the shake and the three-finger press of the dev menu were not driven on the emulator (only the Menu key was).
 - ZN-631: a parse cache for unchanged lib/std files would bring a save of rn-showcase under 0.5 s.
 - ZN-631: a custom component taking several children through children?: () => i32 rendered a stray "18" in the first Zinc Go home screen: look at the JSX lowering.
+- ZN-477: re-aim the Vita's zinc:3d from GLES 2 to our own GXM back end (docs/reports/games/console-2d-3d-frameworks.md: vitaGL is LGPL-3 and needs the user to extract libshacccg; PVR_PSP2 has no licence).
+- Consoles: a maintainer step to compile our Cg programs to GXP once on a Vita (SceShaccCg), committed as PocketJS does; check first whether Vita3K runs SceShaccCg.
+- ZN-197: the PS2 GS sprite back end (parked) is the PS2 2D back end of the console games (gsKit); unpark it when the PS2 demo needs more than the software raster.
+- Consoles: the PS2 3D path in two stages: zinc:3d's CPU front half plus gsKit triangles, then AthenaEnv's VU1 microprograms (MIT) on ps2sdk packet2 if a measured frame needs it.
 
 ## Demos
 
