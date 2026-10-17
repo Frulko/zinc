@@ -152,6 +152,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
   `import.meta.url` is set.
 
 ### Fixed
+- Text no longer shows `?` for invisible characters (bidi marks, zero-width spaces, variation selectors) a font has no glyph for: they draw as nothing.
 - A program that starts drawing after it started (`render()` or `onFrame` from a timer or a menu click, as a menu bar app opening its
   window) now draws: before, nothing ran but its timers.
 - A program that imports `zinc:ui` without drawing yet (a menu bar app) no longer opens an empty window at start, and quits on SIGTERM.
