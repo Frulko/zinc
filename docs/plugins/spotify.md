@@ -17,9 +17,12 @@ Spotify Connect device. One login on a computer, then the plugin refreshes the a
 ## One-time login
 
 1. Create an app on `developer.spotify.com/dashboard` with the redirect URI `http://127.0.0.1:8765/callback`.
-2. On a computer with a browser: `python3 plugins/spotify/login.py <CLIENT_ID> spotify.json`. It opens the Spotify
-   consent page, receives the answer on port 8765, and writes `{ client_id, refresh_token }` to `spotify.json` (mode 0600).
-3. Give that file's path to `new Spotify(file)`. The device that runs the program needs no browser.
+2. On a computer with a browser: `python3 plugins/spotify/login.py <CLIENT_ID>`. It opens the Spotify consent page,
+   receives the answer on port 8765, and writes `{ client_id, refresh_token }` to `$ZINC_HOME/spotify.json` (`~/.zinc`,
+   mode 0600), the machine's shared login; a second argument writes another file instead.
+3. `new Spotify(file)` reads `file`, or the shared login when `file` does not exist, so every Zinc app of the computer uses
+   the one login. A device gets the file beside the app when it is installed (examples/music/install.sh copies it to a
+   TouchPad). The device that runs the program needs no browser.
 
 Things to know: since 2026-07-20 a refresh token expires six months after the login, and refreshing does not extend it.
 When it does, `problem` becomes `'login expired'`: run the script again. Spotify may rotate the refresh token; the plugin

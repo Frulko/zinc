@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Spotify PKCE login, once. Usage: plugins/spotify/login.py CLIENT_ID OUT.json (docs/plugins/spotify.md)"""
+"""Spotify PKCE login, once. Usage: plugins/spotify/login.py CLIENT_ID [OUT.json], default $ZINC_HOME/spotify.json (docs/plugins/spotify.md)"""
 import base64, hashlib, json, os, secrets, sys, threading, webbrowser
 import urllib.parse, urllib.request
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -9,9 +9,12 @@ SCOPES = ("user-read-playback-state user-modify-playback-state user-read-current
           "user-library-modify user-read-recently-played user-read-playback-position")
 REDIRECT = "http://127.0.0.1:8765/callback"
 
-if len(sys.argv) != 3:
+if len(sys.argv) not in (2, 3):
     sys.exit(__doc__)
-client_id, out = sys.argv[1], sys.argv[2]
+client_id = sys.argv[1]
+# no file named: the machine's shared login, $ZINC_HOME/spotify.json (~/.zinc), which every Zinc app of the machine and the installers use
+out = sys.argv[2] if len(sys.argv) == 3 else os.path.join(os.environ.get("ZINC_HOME") or os.path.expanduser("~/.zinc"), "spotify.json")
+os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
 
 verifier = secrets.token_urlsafe(64)[:96]  # 43-128 chars of [A-Za-z0-9_-]
 challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()

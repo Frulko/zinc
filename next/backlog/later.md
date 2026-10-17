@@ -492,7 +492,7 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-: JSX lowering prints `{helper(p.children)}` as text unless the helper is named `render*` or returns JSX directly; content silently disappears.
 - ZN-: webcam demo: photos taken in the same second get a `-2` suffix that sorts before the first name, so the strip order is off after a restart.
 - ZN-753: breakout gets Kenney's Interface Sounds once the console cores have audio (PSP pinned to 44.1/22.05/11.025 kHz; 3DS ndsp needs the DSP firmware, else CSND).
-
+- music: deliver the Spotify login to an Android device without root (adb push to Android/data/<id>/files, read by zinc:spotify as a fallback, or an in-app PKCE login with the device's browser and the 127.0.0.1:8765 redirect): today the Nexus 7 got it through su.
 
 ## Cross-platform pass
 

@@ -3,6 +3,7 @@
 // The login is done once on a computer (plugins/spotify/login.py, PKCE): it writes { client_id, refresh_token }; this module
 // refreshes the access token, saves the refresh token Spotify rotates, and calls the API over HTTPS.
 import { exists, readText, writeText } from 'zinc:fs';
+import { env } from 'zinc:sys';
 
 const API = 'https://api.spotify.com/v1';
 const TIMEOUT_MS = 10000;
@@ -93,10 +94,13 @@ export class Spotify {
   problem: string = '';
 
   constructor(file: string) {
-    this.file = file;
-    if (!exists(file)) { this.problem = 'not logged in'; return; }
+    // a program without its own login file takes the machine's shared one, $ZINC_HOME/spotify.json (~/.zinc), so every app of a desktop
+    // uses one login (login.py writes it there); a device (Android, webOS) gets that file beside the app when it is installed
+    const home = env('ZINC_HOME') !== '' ? env('ZINC_HOME') : env('HOME') !== '' ? env('HOME') + '/.zinc' : '';
+    this.file = !exists(file) && home !== '' && exists(home + '/spotify.json') ? home + '/spotify.json' : file;
+    if (!exists(this.file)) { this.problem = 'not logged in'; return; }
     try {
-      const j = JSON.parse(readText(file));
+      const j = JSON.parse(readText(this.file));
       this.clientId = '' + j.client_id; this.refreshToken = '' + j.refresh_token;
     } catch (e) { this.problem = 'unreadable login file'; }
   }

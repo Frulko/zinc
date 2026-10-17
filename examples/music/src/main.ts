@@ -990,8 +990,8 @@ function spotifyPage(W: number, H: number): void {
     const lines = [
       spotify.problem === 'login expired' ? 'Spotify demande de se reconnecter tous les six mois.' : 'Une seule connexion, faite depuis un ordinateur :',
       '1. developer.spotify.com/dashboard : une app, redirect http://127.0.0.1:8765/callback',
-      '2. python3 plugins/spotify/login.py <CLIENT_ID> spotify.json',
-      '3. Copier spotify.json à côté de l\'app (examples/music/install.sh le fait).',
+      '2. python3 plugins/spotify/login.py <CLIENT_ID> (écrit ~/.zinc/spotify.json, partagé)',
+      '3. Les apps du Mac le lisent ; install.sh le copie sur la tablette.',
     ];
     for (let i = 0; i < lines.length; i++) label(F.small, x + 24, 196 + i * 34, lines[i], i === 0 ? TEXT : TEXT2, w - 48);
     return;
@@ -1125,8 +1125,9 @@ function chooseCity(pl: Place): void {
 function settingsPage(W: number, H: number): void {
   if (citySearch) { cityPage(W, H); return; }
   header('Réglages');
-  const x0 = SIDE + P, w = W - SIDE - P * 2;
-  let y = 104;
+  const x0 = SIDE + P, w = W - SIDE - P * 2, sc = scrolls[SETTINGS];
+  beginScroll(sc, SIDE, 96, W - SIDE, H - 96);
+  let y = 104 - sc.y;
   drawText(F.tinyB, x0 + 4, y, 'ÉCRAN', TEXT2, 255, 0); y += 24;
   card(x0, y, w, 120);
   drawText(F.label, x0 + 20, y + 18, 'Éteindre l\'écran sans contact après', TEXT, 255, 0);
@@ -1166,6 +1167,8 @@ function settingsPage(W: number, H: number): void {
   card(x0, y, w, 64);
   label(F.small, x0 + 20, y + 12, 'Commandes UDP sur le port 7777 : toggle, play, pause, next, prev,', TEXT2, w - 40);
   label(F.small, x0 + 20, y + 34, 'vol+, vol-, radio <n>, wake (un ESP32 ou un téléphone sur le Wi-Fi).', TEXT2, w - 40);
+  sc.content = y + 88 + sc.y - 96;
+  endScroll();
 }
 
 function toastLayer(W: number, H: number): void {

@@ -13,6 +13,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
   The engine refuses the old spelling with errors Z0006 and Z0007. Migrate a project with `zinc migrate --apply`.
 
 ### Added
+- zinc:spotify: a program without its own login file uses the computer's shared one, `~/.zinc/spotify.json`, which `plugins/spotify/login.py CLIENT_ID` now writes by default.
 - Android: `navigator.getBattery()` and `device('battery')` of zinc:sys give the battery's level and whether it charges.
 - Consoles: breakout plays on the PSP, PS Vita, PS2 and 3DS with Kenney's sprites, the d-pad or the stick moving the paddle; a console
   program that ends with nothing drawn or with an error keeps its last lines on screen until START instead of a black screen.

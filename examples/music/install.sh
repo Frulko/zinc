@@ -27,8 +27,9 @@ remote "killall music 2>/dev/null; sleep 1; killall -9 music 2>/dev/null; mkdir 
 put "$work/appinfo.json" appinfo.json
 put "$work/icon64.png" icon64.png
 put /etc/ssl/cert.pem cacert.pem
-if [ -f "$here/spotify.json" ]; then
-  if [ "$1" = --spotify ] || ! remote "test -f $APP/spotify.json && echo yes" | grep -q yes; then put "$here/spotify.json" spotify.json; echo "install: Spotify login copied" >&2; fi
+login="$here/spotify.json"; [ -f "$login" ] || login="${ZINC_HOME:-$HOME/.zinc}/spotify.json"   # the app's own login, else the machine's shared one
+if [ -f "$login" ]; then
+  if [ "$1" = --spotify ] || ! remote "test -f $APP/spotify.json && echo yes" | grep -q yes; then put "$login" spotify.json; echo "install: Spotify login copied" >&2; fi
 fi
 seed=$(python3 -c "import json; print(json.load(open('$here/config.json')).get('seed', ''))" 2>/dev/null || true)
 if [ -n "$seed" ] && ! remote "test -f $APP/config.json && echo yes" | grep -q yes; then   # a speaker this machine found: the first start needs no search
