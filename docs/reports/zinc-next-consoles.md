@@ -141,3 +141,23 @@ The bottom screen is the program's zinc:gfx window: the screens' names to tap an
 | Battery, Wi-Fi, clock | ptm (five steps; mcu::HWC's percentage when it agrees), the adapter; ac:u's Wi-Fi status and SSID | Azahar: 100 %, charging, connected |
 | Saving | zinc:storage in the working directory (`sdmc:/`) | |
 | Vibration | none in a 3DS: said on screen | |
+
+### PS Vita (Vita3K, the owner's firmware and settings by copy)
+
+Buttons (RIGHT, CROSS and R held), both sticks, front touch, rear touch, motion, the sound (sceAudioOut at 48 kHz), the screen (30 sprites at
+59.9 fps on the Mac's clock), vibration, the system (battery, Wi-Fi, clock, a counter saved in `ux0:data/<title id>/`):
+
+![the PS Vita hardware demo](../img/consoles/vita-hardware.png)
+
+| Part | Live | Note |
+|---|---|---|
+| Buttons, both sticks | gamepad 0, W3C order, the two sticks as axes 0 to 3 | |
+| Front touch | sceTouch's front port mapped from its active area onto the screen: zinc:gfx touch points, the first one the pointer | the session above has no touch (a script drives the pad only); Vita3K: the mouse |
+| Rear touch | sceTouch's back port: zinc:hardware `rearTouches()` | Vita3K gives the rear pad through its touch toggle |
+| Motion | sceMotion: the accelerometer (g, turned to the web's m/s² and sign) and the gyro (rad/s to °/s) | Vita3K: gravity on z at rest, its motion from a gamepad's sensors |
+| Sound | zinc:audio at 48 kHz on a BGM port, its own thread | |
+| Screen | 960x544 at 59.9 fps | Vita3K runs on the Mac's clock: not a Vita's time |
+| Vibration | gamepadRumble asks `sceCtrlSetActuator(1, ...)`: a PS TV's DualShock 3 | a Vita has no motor: said on screen |
+| Cameras | `device('cameras')` opens each one | Vita3K opens none: said on screen; the picture is not shown (a later step) |
+| Battery, Wi-Fi, clock | scePower (percent, charging, the cable); SceNetCtl's state and SSID | Vita3K: 100 %, connected |
+| Saving | zinc:storage in `ux0:data/<title id>/` (app0: is read-only) | |

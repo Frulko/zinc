@@ -1,0 +1,9 @@
+{
+  "name": "hardware-vita",
+  "entry": "src/main.ts",
+  "assets": "assets",
+  "targets": {
+    "macos": { "width": 960, "height": 544 },
+    "linux": { "width": 960, "height": 544 }
+  }
+}

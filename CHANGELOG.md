@@ -28,7 +28,9 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Consoles: a hardware demo shows every part of the console live, one screen each with Kenney's button icons: `examples/hardware-psp`
   (buttons, analog nub, sound at 44.1 kHz, the screen at 60 fps, battery, clock, the Wi-Fi switch, saving) and `examples/hardware-n3ds`
   (both screens, the stylus, stereoscopic 3D following the slider, circle pad and C-stick, ZL / ZR, motion, the microphone, sound through
-  ndsp or CSND, battery, Wi-Fi). A console's pad is gamepad 0 with its sticks; the 3DS's bottom screen is the program's `openWindow`.
+  ndsp or CSND, battery, Wi-Fi) and `examples/hardware-vita` (both sticks, front and rear touch, motion, sound at 48 kHz, battery, Wi-Fi,
+  the cameras). A console's pad is gamepad 0 with its sticks; the 3DS's bottom screen is the program's `openWindow`; a Vita program saves
+  in `ux0:data/<title id>/`.
 - Consoles: breakout plays on the PSP, PS Vita, PS2 and 3DS with Kenney's sprites, the d-pad or the stick moving the paddle; a console
   program that ends with nothing drawn or with an error keeps its last lines on screen until START instead of a black screen.
 - `zinc export --target web` makes a Zinc app a normal web page: a static folder (hashed JavaScript and assets, an offline cache, an installable manifest, `.br` and `.gz` copies, `_headers`) that any host

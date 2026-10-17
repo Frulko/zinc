@@ -1,0 +1,3 @@
+Kenney Input Prompts 1.5 (https://kenney.nl/assets/input-prompts, kenney_input-prompts_1.5.zip, sha256 ac2fcf599080b0f3ba2d174c9474db6df1a0e96ff0662580e2da79a122ab78a1): the button, stick, battery and touch icons (64x64, Default).
+Kenney Puzzle Pack 1.1 (https://kenney.nl/assets/puzzle-pack-1, as examples/breakout): the ball, star, paddle and bricks.
+Both CC0 (License-input-prompts.txt, License-puzzle-pack.txt).
