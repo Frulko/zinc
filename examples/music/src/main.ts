@@ -1247,7 +1247,7 @@ function batteryIndicator(right: number, ty: number): number {
   rrect(x + 2.5, y + 2.5, Math.max(2, (bw - 5) * batteryLevel / 100), bh - 5, 2, fillC, 255);
   rrect(x + bw + 1, y + 4, 2, bh - 8, 1, TEXT, 110);
   let left = x;
-  if (batteryCharging) { glyph('zap', x - 16, y - 1, 14, GREEN); left -= 18; }
+  if (batteryCharging) { glyph('zap', x - 16, (TOP - 14) / 2, 14, GREEN); left -= 18; }
   if (cfg.batteryPct) { const t = `${batteryLevel} %`; left -= tabularWidth(F.small, t) + 6; tabular(F.small, left, ty, t, TEXT2); }
   return left - 18;
 }
@@ -1260,7 +1260,7 @@ function statusBar(W: number): void {
   else if (Math.abs(slideX - CLOCK) < 1) rrect(0, 0, W, TOP, 0, BG, Math.round((1 - Math.abs(slideX - CLOCK)) * 255) as i32);   // over the clock's faces as they slide
   const c = clockParts(), m = c[1];
   const time = `${c[0]}:${m < 10 ? '0' : ''}${m}`;
-  const ty = (TOP - fontAscent(F.smallB)) / 2;
+  const ty = Math.round(TOP / 2 - fontAscent(F.smallB) * 0.625);   // the capitals' middle on the bar's (Inter: caps are 3/4 of the ascent), as the icons are
   tabular(F.smallB, 20, ty, time, TEXT);
   drawText(F.small, 28 + tabularWidth(F.smallB, time), ty, `${DAYS[c[2]]} ${c[3]} ${MONTHS[c[4]]}`, TEXT2, 255, 0);
   if (page === NOW) for (let i: i32 = 0; i < SLIDES; i++) {   // where the carousel is
