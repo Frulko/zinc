@@ -10,8 +10,16 @@ labels:
   - games
   - size-L
 milestone: m-23
-dependencies: []
-ordinal: 214600
+dependencies:
+  - ZN-759
+  - ZN-476
+  - ZN-477
+  - ZN-478
+  - ZN-760
+  - ZN-482
+  - ZN-452
+  - ZN-489
+ordinal: 214602
 ---
 
 ## Description
@@ -25,6 +33,7 @@ Owner 2026-10-17: "un petit jeu 3D et un petit jeu 2D" for the consoles (with ZN
 - [x] #1 examples/<2d-game> and examples/<3d-game> play on the desktop (scripted session with ZINC_INPUT: frame hashes, a screenshot each; interpreter, AOT and QuickJS agree)
 - [x] #2 both stay inside the per-console budgets of the report (triangles, sprites, textures, memory), measured with the perf panel on the desktop at the consoles' resolutions
 - [ ] #3 each runs in the emulators of the consoles whose back end exists (screenshots and frame times in docs/reports/zinc-next-consoles.md)
+- [ ] #4 marble and the platformer run on the owner's real PSP, PS Vita, PS2 and Nintendo 3DS (the owner's check, noted in the task; packs baked by zinc build for each console)
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -42,4 +51,6 @@ Owner 2026-10-17: "un petit jeu 3D et un petit jeu 2D" for the consoles (with ZN
 - later.md lines (coordinator): see the agent report.
 
 - Memory: peak RSS of the whole macOS process (native build, headless 480x272, 600 frames): platformer 17 MB, marble 35 MB; a desktop process, not the consoles' heap (the PSP-1000 budget is ~8 MiB of assets, 24 MiB user RAM); marble's pack also carries the Blender previews (2 MB) and the high pieces (see later lines).
+
+2026-10-17 (owner, D144): the 3D runs on each console's GPU through the existing SDKs and code (PSP sceGu/sceGum + VFPU, Vita GXM with precompiled GXP, 3DS citro3d + picasso, PS2 gsKit then AthenaEnv's VU1), with Pocket3D's methods: `zinc build --target <console>` cooks and bakes what each console needs (meshes ZN-489, textures ZN-452) from one source. Marble comes last, after ZN-759's hardware demos and the GPU back ends (dependencies set); then the owner runs everything on the real consoles (AC4).
 <!-- SECTION:NOTES:END -->

@@ -14,13 +14,16 @@ labels:
 milestone: m-23
 dependencies:
   - ZN-471
-ordinal: 253000
+  - ZN-493
+ordinal: 214592
 ---
 
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
 render3d.vita.cpp on GLES2; libzn_webgl linked statically with Api::Gles2 on the Vita context for zinc:script (WebGL1); document that real three.js needs r162 or older (r163 removed WebGL1).
+
+2026-10-17 (D144): zinc:3d on the Vita sits on ZN-493's GXM renderer (precompiled GXP, no vitaGL: LGPL and libshacccg on the user's console); the GLES2/WebGL1 part for zinc:script is measured against it and kept only if PVR_PSP2 or vitaGL is the path ZN-470 chose.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
