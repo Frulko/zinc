@@ -1,7 +1,7 @@
 #include "tls.h"
 
 #ifdef ZN_NO_TLS   // a build without mbedTLS (cmake -DZN_TLS=OFF): https, TLS brokers and crypto.subtle report that they are missing
-namespace zn::tls {
+namespace zn::ZN_TLS_NS {
 Conn* openClient(const std::string&, std::string& err, bool) { err = "this build has no TLS (ZN_TLS=OFF)"; return nullptr; }
 bool isTls13(Conn*) { return false; }
 Conn* openServer(const std::string&, const std::string&, std::string& err) { err = "this build has no TLS (ZN_TLS=OFF)"; return nullptr; }
@@ -18,7 +18,7 @@ bool write(Conn*, const std::string&) { return false; }
 State read(Conn*, std::string&) { return State::Failed; }
 void close(Conn*) {}
 const std::string& error(Conn*) { static const std::string e = "this build has no TLS (ZN_TLS=OFF)"; return e; }
-}  // namespace zn::tls
+}  // namespace zn::ZN_TLS_NS
 #else
 
 #include <mbedtls/error.h>
@@ -36,7 +36,7 @@ const std::string& error(Conn*) { static const std::string e = "this build has n
 #include <cstring>
 #include <memory>
 
-namespace zn::tls {
+namespace zn::ZN_TLS_NS {
 
 struct Conn {
   mbedtls_ssl_context ssl;
@@ -273,14 +273,16 @@ bool isTls13(Conn* c) { return c->done && mbedtls_ssl_get_version_number(&c->ssl
 
 void close(Conn* c) { if (c->done && !c->failed && !c->closed) mbedtls_ssl_close_notify(&c->ssl); }
 
-}  // namespace zn::tls
+}  // namespace zn::ZN_TLS_NS
 
 // Plugins link against this binary's mbedTLS (zinc:webrtc's DTLS, plugins/webrtc): the certificate writer, which nothing here calls, would
 // be left out of the link; these references keep it, exported like the rest of the library.
+#ifdef ZN_TLS_ENGINE
 extern "C" __attribute__((used, visibility("default"))) void* const zn_tls_plugin_symbols[] = {
     (void*)&mbedtls_x509write_crt_init, (void*)&mbedtls_x509write_crt_free, (void*)&mbedtls_x509write_crt_der,
     (void*)&mbedtls_x509write_crt_set_version, (void*)&mbedtls_x509write_crt_set_serial_raw, (void*)&mbedtls_x509write_crt_set_validity,
     (void*)&mbedtls_x509write_crt_set_issuer_name, (void*)&mbedtls_x509write_crt_set_subject_name, (void*)&mbedtls_x509write_crt_set_issuer_key,
     (void*)&mbedtls_x509write_crt_set_subject_key, (void*)&mbedtls_x509write_crt_set_md_alg};
+#endif
 
 #endif  // ZN_NO_TLS

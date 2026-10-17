@@ -2,6 +2,7 @@
 #include "wire.h"
 
 #include "../host/tls.h"
+#include "../net/frame.h"
 #include "yyjson.h"
 
 #include <arpa/inet.h>
@@ -194,11 +195,7 @@ bool handshake(Chan& c, int timeoutMs, std::string& err) {
 }
 
 bool send(Chan& c, char type, std::string_view payload) {
-  std::string f;
-  f.reserve(5 + payload.size());
-  f.push_back(type);
-  for (int shift = 24; shift >= 0; shift -= 8) f.push_back(static_cast<char>((payload.size() >> shift) & 0xff));
-  f.append(payload);
+  const std::string f = net::frame(type, payload);
   { Locked l(crypto()); if (!tls::write(c.tls, f)) return false; }
   return flush(c);
 }
@@ -210,17 +207,7 @@ bool fill(Chan& c) {
   return open && st == tls::State::Ready;
 }
 
-bool next(Chan& c, char& type, std::string& payload, bool* bad) {
-  if (c.in.size() < 5) return false;
-  const auto* p = reinterpret_cast<const unsigned char*>(c.in.data());
-  const std::size_t n = (static_cast<std::size_t>(p[1]) << 24) | (static_cast<std::size_t>(p[2]) << 16) | (static_cast<std::size_t>(p[3]) << 8) | p[4];
-  if (n > kMaxAgentFrame) { if (bad) *bad = true; return false; }
-  if (c.in.size() < 5 + n) return false;
-  type = c.in[0];
-  payload.assign(c.in, 5, n);
-  c.in.erase(0, 5 + n);
-  return true;
-}
+bool next(Chan& c, char& type, std::string& payload, bool* bad) { return net::takeFrame(c.in, kMaxAgentFrame, type, payload, bad); }
 
 bool recv(Chan& c, char& type, std::string& payload, int timeoutMs) {
   for (;;) {

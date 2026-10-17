@@ -21,6 +21,8 @@ next/
   src/dbg/        the interpreter's debugger (zinc debug, ZN-371.01): breakpoints, stepping, stack and locals of a debug build; includes rt, vm and zbc, only main includes it
   src/tc/         the toolchain manager (ZN-029): the pinned `zig c++`, its checksum-verified download, cross builds; depends on nothing of the engine
   src/platform/   the OS calls of the command line and its tools, POSIX or Win32 (processes, shared libraries, file stamps, sockets in socket.h; docs/reports/zinc-windows-port.md); depends on nothing
+  src/net/        DNS-SD over mDNS (dnssd: mjansson/mdns) and the frames of the paired sessions (frame.h), shared by src/agent and plugins/link, which
+                  compiles dnssd.cpp into its own library (ZN-756); depends on nothing of the engine
   src/zpk/        ZPK packs (ZN-433, docs/zpk.md): the writer (build side) and the reader in place over a mapping, lz4 and zstd per entry; depends on nothing of the engine
   src/assets/     the asset build (ZN-434, docs/reports/zinc-next-assets.md): rules, importers, the content-addressed cache, groups to ZPK packs, report.json; the font baker behind the cache; CLI only, includes zpk and res
   src/res/        the baker of fonts and images (ZN-048): TrueType and SVG rasterizers ported exactly from compiler/src/resources.ts, PNG through stb_image; its blob is installed by src/host/resources.cpp

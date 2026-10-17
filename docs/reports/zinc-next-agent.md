@@ -2,7 +2,7 @@
 
 What adb is to Android, for a machine that runs Zinc, over the network (ZN-729, owner 2026-10-12). `zinc agent` is a daemon without a
 UI on a Linux or macOS machine: the device. `zinc device` is the client on the workstation; Atelier will drive the same client
-(ZN-729.06). Code: `next/src/agent/` (`agent.h` is the public header). Tests: `next/tests/t0/agent.sh` and, in `next/tests/t1/`,
+(ZN-729.06). Code: `next/src/agent/` (`agent.h` is the public header); its discovery (`next/src/net/dnssd.cpp`) and frames (`next/src/net/frame.h`) are shared with `zinc:link` ([docs/plugins/link.md](../plugins/link.md)), which speaks the same protocol between two programs. Tests: `next/tests/t0/agent.sh` and, in `next/tests/t1/`,
 `agent_apps.sh`, `agent_dev.sh`, `agent_inspect.sh`, `agent_ota.sh`, all on the loopback interface. Decision record: D116.
 
 ## Use

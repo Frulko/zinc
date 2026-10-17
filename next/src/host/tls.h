@@ -4,7 +4,13 @@
 #include <functional>
 #include <string>
 
-namespace zn::tls {
+// ZN_TLS_NS renames the namespace for a plugin that compiles its own copy of tls.cpp (plugins/link): zinc does not export its C++ to the
+// libraries it loads, and the copy must not collide with this one where both are linked into one program.
+#ifndef ZN_TLS_NS
+#define ZN_TLS_NS tls
+#define ZN_TLS_ENGINE 1   // the engine's own copy
+#endif
+namespace zn::ZN_TLS_NS {
 
 struct Conn;
 enum class State { Handshaking, Ready, Closed, Failed };
@@ -37,4 +43,4 @@ void close(Conn* c);                                // queues close_notify
 // The reason of a failure, in Node's words for certificate problems (CERT_HAS_EXPIRED, UNABLE_TO_VERIFY_LEAF_SIGNATURE, ERR_TLS_CERT_ALTNAME_INVALID, ...).
 const std::string& error(Conn* c);
 
-}  // namespace zn::tls
+}  // namespace zn::ZN_TLS_NS

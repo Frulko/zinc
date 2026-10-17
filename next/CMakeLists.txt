@@ -523,7 +523,8 @@ if(TARGET zn_host_gfx)
   # src/host/tls.cpp (zn_host_gfx); discovery is mjansson/mdns (third_party/mdns, one header)
   target_sources(zinc PRIVATE src/agent/wire.cpp src/agent/mdns.cpp src/agent/server.cpp src/agent/client.cpp src/agent/inspect.cpp)
   target_sources(zinc PRIVATE src/agent/dev.cpp)   # zinc dev --device (ZN-729.03)
-  target_include_directories(zinc SYSTEM PRIVATE third_party/mdns)
+  target_sources(zinc PRIVATE src/net/dnssd.cpp)   # DNS-SD, shared with plugins/link (ZN-756), which compiles it into its own library
+  target_include_directories(zinc SYSTEM PRIVATE third_party)   # "mdns/mdns.h"
   target_compile_definitions(zinc PRIVATE ZN_AGENT)
   target_sources(zinc PRIVATE src/agent/ota.cpp)   # the agent as a service, signed app updates with rollback (ZN-729.04)
   if(NOT APPLE)
