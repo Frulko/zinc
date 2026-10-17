@@ -2,7 +2,8 @@
 id: ZN-755
 title: 'Music remote: weather city search, and a StandBy screen schedule'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-17 08:46'
 labels:
   - mobile
