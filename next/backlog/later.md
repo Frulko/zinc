@@ -326,6 +326,9 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-749: the cover test uses the layer node's box: a full-surface layer holding a small panel hides the view everywhere; use the painted children's bounds.
 - ZN-749: native views in a second window (ui.mountWindow) share one registry; key it per surface.
 - ZN-749: a dev-server page's bridge on Android through androidx.webkit addDocumentStartJavaScript (today injected when the page starts loading, after its first scripts).
+- ZN-627: the same Metal present for macOS's software windows (ZINC_RENDERER=cpu, transparent windows), which still upload through a staging texture in SDL_Renderer; hal_metal.mm works on Cocoa through SDL_Metal_CreateView.
+- ZN-627: build the Metal back end of the command lists (D119) from the plan in the ZN-627 notes, when a device misses frames or SHADER is needed on iOS; it would also replace the deprecated OpenGL replay on macOS.
+- ZN-627: 120 Hz on ProMotion iPhones needs CADisableMinimumFrameDurationOnPhone in the exported Info.plist.
 
 ## Demos
 
@@ -625,3 +628,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-?: rerun `examples/perf-compare` on a quiet machine (Flutter list CPU and frame times gated), then add PocketJS desktop and react-native-macos to complete the table
 - ZN-?: add a 100000-row virtualised list to the perf screen, Flutter's `ListView.builder` as reference
 - ZN-749: the hybrid web view on the Nexus 7 (API 25 WebView) and a real iPhone; how far a native view trails a fling there.
+- ZN-627: the Metal present on a real iPhone (raster p50/p99 at 60 Hz and at ProMotion 120 Hz, an iPhone 8 as the floor).

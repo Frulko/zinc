@@ -818,3 +818,17 @@ Nexus 7 2012, debug APKs for armeabi-v7a, `ZINC_PRESENT_STATS=1`, scripted fling
 | Music carousel swipe, late of 290 (p99) | 94 (172.5 ms) | 85 (205.3 ms): the GPU-layer path renders the damage twice and uploads 3.6 MB a frame at ~100 MB/s |
 | Desktop GL window | – | interval p50 16.66 ms, p99 23.2 ms |
 | shader_gl, a shader moved, rounded-clipped and faded | 43.9% of pixels off | 0% |
+
+## iOS: the raster presented through Metal without an upload (ZN-627, D137, 2026-10-17)
+
+iPhone 17 simulator, iOS 26.3, Release, `ZINC_PRESENT_STATS`; the machine was loaded by other builds (8 to 19), so CPU figures are noisy.
+
+| rn-showcase (rest, ten flings, five tab switches; 1,200 frames) | SDL texture (before) | Metal, shared buffer (after) |
+|---|---|---|
+| raster p50 | 0.73-1.08 ms | 1.04-2.74 ms |
+| upload p50 / p99 | 6.61-7.47 / 9.96-13.90 ms | none |
+| draw + swap p50 | 0.25-0.28 ms | 0.07-0.08 + 0.01-0.04 ms |
+| main thread per drawn frame | ~9.3 ms | ~3.5 ms |
+| frame interval p50 / p99 | 16.63-16.72 / 18.26-20.73 ms | 16.64-16.71 / 17.22-18.66 ms |
+| app CPU, 22 s session / 10 s at rest | 5.34-5.52 s / 0.61-0.74 s | 3.82-4.54 s / 0.16-0.17 s |
+| hero (15 s): upload p50 / interval p99 | 5.94-7.26 / 18.27-18.80 ms | none / 17.40-18.86 ms |
