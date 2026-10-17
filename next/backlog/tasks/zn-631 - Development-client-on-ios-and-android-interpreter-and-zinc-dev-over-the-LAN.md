@@ -2,7 +2,8 @@
 id: ZN-631
 title: 'Zinc Go: a player app on Android and iOS, QR code from zinc dev, Fast Refresh'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-10 14:08'
 updated_date: '2026-10-16 20:14'
 labels:
