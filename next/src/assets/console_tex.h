@@ -17,4 +17,8 @@ void encodeClut8(const std::vector<std::uint8_t>& rgba, int width, int height, s
 /** CLUT4: quantize to 16-color palette, indices packed two per byte (high nibble first). */
 void encodeClut4(const std::vector<std::uint8_t>& rgba, int width, int height, std::vector<std::uint8_t>& packed, std::vector<std::uint8_t>& palette);
 
+/** 3DS Morton (Z-order) tiling for 8-bit buffers: reorder linear -> tiled and back. */
+void n3dsTile8(std::vector<std::uint8_t>& buf, int width, int height);
+void n3dsUntile8(std::vector<std::uint8_t>& buf, int width, int height);
+
 }  // namespace zn::assets

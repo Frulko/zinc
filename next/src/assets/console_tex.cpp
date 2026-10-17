@@ -113,4 +113,39 @@ void encodeClut4(const std::vector<std::uint8_t>& rgba, int width, int height, s
   }
 }
 
+static int morton2(int x, int y) {
+  int z = 0;
+  for (int i = 0; i < 8; ++i) {
+    z |= ((x >> i) & 1) << (2 * i);
+    z |= ((y >> i) & 1) << (2 * i + 1);
+  }
+  return z;
+}
+
+void n3dsTile8(std::vector<std::uint8_t>& buf, int width, int height) {
+  std::vector<std::uint8_t> out(buf.size());
+  for (int y = 0; y < height; ++y)
+    for (int x = 0; x < width; ++x) {
+      int bx = x >> 3, by = y >> 3;
+      int withinX = x & 7, withinY = y & 7;
+      int blockIndex = by * (width >> 3) + bx;
+      int off = blockIndex * 64 + morton2(withinX, withinY);
+      if (off < (int)out.size()) out[off] = buf[y * width + x];
+    }
+  buf.swap(out);
+}
+
+void n3dsUntile8(std::vector<std::uint8_t>& buf, int width, int height) {
+  std::vector<std::uint8_t> out(buf.size());
+  for (int y = 0; y < height; ++y)
+    for (int x = 0; x < width; ++x) {
+      int bx = x >> 3, by = y >> 3;
+      int withinX = x & 7, withinY = y & 7;
+      int blockIndex = by * (width >> 3) + bx;
+      int off = blockIndex * 64 + morton2(withinX, withinY);
+      if (off < (int)buf.size()) out[y * width + x] = buf[off];
+    }
+  buf.swap(out);
+}
+
 }  // namespace zn::assets
