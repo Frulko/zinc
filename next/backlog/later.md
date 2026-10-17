@@ -361,6 +361,11 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-754: the "grid" font of text() draws narrower than textWidth reports from about 96 physical px, so centred titles drift left (both games cap title text at scale 5).
 - ZN-754: the asset build packs every file under assets/ (marble's Blender previews and scripts) and has no per-target pick of low/high model variants: consoles need an exclude rule and a variant choice to stay within ~8 MiB.
 - ZN-754: no typed float view of bytes (DataView/Float32Array): examples/marble/src/pieces.ts decodes IEEE singles by hand to merge .zmesh pieces; a zinc:3d call to merge meshes would remove that.
+- ZN-746: the music carousel at 20-30 fps on the Nexus 7 is a full-screen raster every frame (32 ms p50 on four A9 cores: rounded rectangles blended over the screen, glyph sweep); a slide kept as a layer and moved by the compositor or GL would reach 60.
+- ZN-746: switching back from the GL window to the CPU window shows nothing new for ~380 ms (engine ~100 ms, SurfaceFlinger the rest, maybe the BGRA/RGBA format change): measure with systrace; a CPU window in RGBA_8888 might shorten it.
+- ZN-746: swipes into and out of the lava face at 12-15 fps on the GL window (render, white pass over ~a fifth of the screen, 11 ms upload).
+- raster: NEON for draw_dyn (covers with rounded corners compute rr_sdf per pixel: 13 ms of CPU a frame for 57 kpx) and a 16-bit tint path (8 pixels a vector).
+- ZN-629: --apk --release signed with a real upload key on a device (only the debug keystore was tried).
 
 ## Demos
 - Owner 2026-10-17: every game demo uses Kenney's assets (kenney.nl, CC0), adapted per platform: re-skin pinball, pinball3d and pocket-hero with Kenney packs as they are next worked on (breakout in ZN-753, platformer and marble in ZN-754).
@@ -669,3 +674,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-754: marble's low variant (vertex colours, 4,216 triangles) checked by eye on the PSP, PS2 and 3DS.
 - ZN-457: Linux CI for the console runners (PPSSPPHeadless on Linux, Vita3K and Azahar AppImages under Xvfb, Play! for the PS2 without BIOS); zig c++ and Linux builds of next/targets/console and the new HALs.
 - ZN-754: run Meadow Run and Marble Terraces in PPSSPP, Vita3K, PCSX2 and Azahar; per-console frame times; the platformer atlas in CLUT8 on PSP/PS2.
+- D142: the GPU-layer switching and the ANativeWindow disconnect on API 26+ and API 29+ devices and other GPUs (Mali, Adreno).
