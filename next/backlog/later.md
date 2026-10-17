@@ -382,6 +382,9 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-753: PSP 5650 framebuffer with dither and a vcount guard (the Pocket3D lessons).
 - ZN-753: the PCSX2 runner's data directory has no pad bindings; copy the owner's bindings read-only so a test build is playable by hand.
 - ZN-753: a real window capture of Vita3K and Azahar (Screen Recording permission, or an Azahar user directory whose dump settings use an encoder its FFmpeg has).
+- ZN-758: `Map<K,V>.get()` of a missing key returns null, not undefined, once a program uses `any` (`const m = new Map<string, boolean>(); function s(v: any): string { return '' + v; } console.log('' + (m.get('a') === undefined) + s(1));` prints `false1`); JS gives undefined; examples/music/src/ui.ts relies on `=== undefined`.
+- ZN-757: IR verifier "const of a non-scalar type" (also "arrpush value type differs"): `props.options.map((o: string, i: number) => <P on={props.value === o} v={o} />)` inside a component; the relay inserts in a loop instead.
+- ZN-757: the run-name links in `~/.zinc/cache/run/names` are shared by every worktree and some point at deleted worktree binaries; a worktree binary reads the main checkout's `plugins/` in system_sim (cause not found).
 
 
 ## Demos
@@ -493,6 +496,14 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-: webcam demo: photos taken in the same second get a `-2` suffix that sorts before the first name, so the strip order is off after a restart.
 - ZN-753: breakout gets Kenney's Interface Sounds once the console cores have audio (PSP pinned to 44.1/22.05/11.025 kHz; 3DS ndsp needs the DSP firmware, else CSND).
 - music: deliver the Spotify login to an Android device without root (adb push to Android/data/<id>/files, read by zinc:spotify as a fallback, or an in-app PKCE login with the device's browser and the 127.0.0.1:8765 redirect): today the Nexus 7 got it through su.
+- ZN-758: mute from the tablet (`{t:"mute", app|domain}` on a long press) is not built; the Mac side applies it already.
+- ZN-758: no way to forget a paired Mac on the tablet (`link.forget`); the header names only the last Mac that said hello.
+- ZN-758: StandBy over the lava face has 183-226 ms p99 frame intervals on the Nexus 7 (first use of the large glyph sizes plus the full-screen veil blend): pre-warm the fonts or a cheaper veil.
+- ZN-758: the notification list rows could show the sender's avatar for messages.
+- ZN-757: avatars from WhatsApp's own cache (group.net.whatsapp.WhatsApp.shared/Media/Profile + ChatStorage) are not built.
+- ZN-757: the banner-capture avatar source (Accessibility + ScreenCaptureKit, off by default) and its assistant step are not built.
+- ZN-757: check real Chrome, Firefox, Safari web notifications and real Messages/WhatsApp records with `zinc run examples/notify-relay -- --inspect 30` once Full Disk Access is granted; whether a scheduled Focus writes an assertion is unverified.
+
 
 ## Cross-platform pass
 
@@ -696,3 +707,4 @@ The next backlog review turns lines into tasks or deletes them.
 - D142: the GPU-layer switching and the ANativeWindow disconnect on API 26+ and API 29+ devices and other GPUs (Mali, Adreno).
 - ZN-756: zinc:link on Linux (never compiled there: dnssd beside avahi on port 5353, then two Linux machines pairing) and on iOS (raw multicast needs Apple's multicast entitlement: dns_sd.h DNSServiceRegister/Browse behind dnssd.h, NSLocalNetworkUsageDescription and NSBonjourServices in Info.plist).
 - ZN-753: run the four breakout builds on real PSP, Vita, PS2 and 3DS hardware.
+- ZN-758: examples/music imports zinc:link (plugin.json: macos, linux, android); it builds for armv7-webos (checked 2026-10-17) but discovery and pairing on the TouchPad are not run.
