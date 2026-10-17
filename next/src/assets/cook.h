@@ -28,4 +28,7 @@ struct CookReceipt {
  *  Returns false with `err` on budget overrun or io failure. */
 bool cook(const std::string& gltfPath, const CookProfile& profile, const std::string& outDir, CookReceipt& receipt, std::string& err);
 
+/** Read a cooked pack's header stats. Returns false with err on io/parse failure. */
+bool readCook(const std::string& path, CookReceipt& receipt, std::string& err);
+
 }  // namespace zn::assets

@@ -159,4 +159,23 @@ bool cook(const std::string& gltfPath, const CookProfile& profile, const std::st
   return true;
 }
 
+bool readCook(const std::string& path, CookReceipt& receipt, std::string& err) {
+  std::ifstream in(path, std::ios::binary);
+  if (!in) { err = "cannot open " + path; return false; }
+  char magic[4]; in.read(magic, 4);
+  if (std::string(magic, 4) != "ZCK1") { err = "bad magic"; return false; }
+  std::uint32_t pn; in.read(reinterpret_cast<char*>(&pn), 4);
+  std::string profile(pn, '\0'); in.read(profile.data(), pn);
+  float mn[3], ext[3]; in.read(reinterpret_cast<char*>(mn), 12); in.read(reinterpret_cast<char*>(ext), 12);
+  std::uint32_t vc; in.read(reinterpret_cast<char*>(&vc), 4);
+  // skip vertices (6 bytes + 3 bytes each)
+  in.seekg(vc * 9, std::ios::cur);
+  std::uint32_t ic; in.read(reinterpret_cast<char*>(&ic), 4);
+  receipt.profile = profile;
+  receipt.vertices = vc;
+  receipt.triangles = ic / 3;
+  receipt.ok = true;
+  return true;
+}
+
 }  // namespace zn::assets

@@ -3554,8 +3554,15 @@ int assetsInfo(const fs::path& project, const std::string& only, const std::stri
 }
 
 int assets(const std::vector<std::string>& args, const std::string& engineRoot) {
-  const char* usage = "usage: zinc assets build [dir] [--target T] [--release]\n       zinc assets info [dir] [--target T]\n       zinc assets cook <gltf> --profile <name> [-o dir]\n";
-  if (args.size() < 3 || (args[2] != "build" && args[2] != "info" && args[2] != "cook")) { std::fprintf(stderr, "%s", usage); return 2; }
+  const char* usage = "usage: zinc assets build [dir] [--target T] [--release]\n       zinc assets info [dir] [--target T]\n       zinc assets cook <gltf> [profile] [-o dir]\n       zinc assets view <file.zcook>\n";
+  if (args.size() < 3 || (args[2] != "build" && args[2] != "info" && args[2] != "cook" && args[2] != "view")) { std::fprintf(stderr, "%s", usage); return 2; }
+  if (args[2] == "view") {
+    zn::assets::CookReceipt rc;
+    std::string err;
+    if (!zn::assets::readCook(args[3], rc, err)) { std::fprintf(stderr, "zinc assets view: %s\n", err.c_str()); return 1; }
+    std::printf("profile=%s vertices=%llu triangles=%llu\n", rc.profile.c_str(), (unsigned long long)rc.vertices, (unsigned long long)rc.triangles);
+    return 0;
+  }
   if (args[2] == "cook") {
     std::string gltf = args.size() > 3 ? args[3] : "";
     std::string profile = (args.size() > 4 && (args[4] == "psp30" || args[4] == "vita60" || args[4] == "n3ds30" || args[4] == "ios60")) ? args[4] : "psp30";
