@@ -832,3 +832,7 @@ iPhone 17 simulator, iOS 26.3, Release, `ZINC_PRESENT_STATS`; the machine was lo
 | frame interval p50 / p99 | 16.63-16.72 / 18.26-20.73 ms | 16.64-16.71 / 17.22-18.66 ms |
 | app CPU, 22 s session / 10 s at rest | 5.34-5.52 s / 0.61-0.74 s | 3.82-4.54 s / 0.16-0.17 s |
 | hero (15 s): upload p50 / interval p99 | 5.94-7.26 / 18.27-18.80 ms | none / 17.40-18.86 ms |
+
+## Zinc Go: save to screen (ZN-631, D140, 2026-10-17)
+
+rn-showcase, a scripted save of `Forms.tsx` served by `zinc dev --lan`: Android emulator (API 37) 854 ms, iOS simulator (26.3) 725 ms, desktop player 61-87 ms. Of it: the compile on the Mac (`--emit=hot`, no optimiser) 570-640 ms (770 ms with the optimiser), the device 41-51 ms. Under a load average of 58 one Android refresh took 1338 ms (optimiser on).

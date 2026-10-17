@@ -340,6 +340,13 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-626: adb shell input text (and likely a hardware keyboard) gets auto-capitalised by Gboard: decide whether that matches a platform text field.
 - ZN-626: a ZINC_INPUT script on a live window replaces live touches, so scripted and real input cannot be mixed in one device run.
 - ZN-625: an RN <Text> without a colour draws invisibly in a headless run outside the react-native preset (system-signals/rn.tsx).
+- ZN-631: Zinc Go has no QuickJS and no zinc:gl/three (ZN_WEBGL is off in phone exports): .js projects are not served.
+- ZN-631: an on-device red box for compile errors (today the program keeps running and the error goes to the terminal and the device log).
+- ZN-631: host state of a program the player ends (images, Yoga nodes, host sockets) is not freed, so long sessions with many switches grow.
+- ZN-631: React-model effects have no cleanup, so Fast Refresh does not re-run them; add cleanups, then re-run effects as React Fast Refresh does.
+- ZN-631: the shake and the three-finger press of the dev menu were not driven on the emulator (only the Menu key was).
+- ZN-631: a parse cache for unchanged lib/std files would bring a save of rn-showcase under 0.5 s.
+- ZN-631: a custom component taking several children through children?: () => i32 rendered a stray "18" in the first Zinc Go home screen: look at the JSX lowering.
 
 ## Demos
 
@@ -643,3 +650,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-630: VoiceOver on a real iPhone and TalkBack on a phone: speech, swipe order, double tap, off-screen rows in a scroll area, touch exploration through the surface's hover listener.
 - ZN-625: below API 35, the edge-to-edge bars and the safe area on a real older phone; ZN-626: adjustPan vs adjustNothing plus our own avoidance on an API 25-34 device.
 - ZN-626: a real CJK IME's composition, swipe typing, dictation and password managers on phones.
+- ZN-631: scan the QR code with Zinc Go on a real phone or tablet over Wi-Fi (the Nexus 7: zinc export ../examples/zinc-go --target android --apk --abis armeabi-v7a, adb install -r, zinc dev ../examples/rn-showcase --lan, scan, save a .tsx); the iOS player export needs NSLocalNetworkUsageDescription on a real iPhone.
