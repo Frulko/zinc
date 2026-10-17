@@ -53,7 +53,7 @@ def click(c, x, y):
     for ty in ("mousePressed", "mouseReleased"):
         c.call("Input.dispatchMouseEvent", {"type": ty, "x": x, "y": y, "button": "left", "buttons": 1 if ty == "mousePressed" else 0, "clickCount": 1}); pump(c, 0.15)
 
-FIND = """(t) => { const w = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT); let n, r = null; while ((n = w.nextNode())) if (n.children.length === 0 && n.textContent.trim().startsWith(t)) { const b = n.getBoundingClientRect(); r = [b.x + b.width / 2, b.y + b.height / 2]; } return r; }"""
+FIND = """(t) => { const w = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT); let n, r = null; while ((n = w.nextNode())) if (n.children.length === 0 && n.textContent.trim().startsWith(t) && getComputedStyle(n).visibility !== 'hidden') { const b = n.getBoundingClientRect(); r = [b.x + b.width / 2, b.y + b.height / 2]; } return r; }"""
 
 def run(d, steps, clicks):
     """-> [(step, image)]; clicks: the coordinates to use (None: find them in the DOM)."""

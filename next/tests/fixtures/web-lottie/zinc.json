@@ -1,0 +1,6 @@
+{
+  "name": "web-lottie",
+  "entry": "src/main.tsx",
+  "assets": "assets",
+  "targets": { "web": { "render": "dom", "title": "Lottie fixture" } }
+}

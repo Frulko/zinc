@@ -187,6 +187,14 @@ std::string webExplain(const std::string& code) {
      "The call throws ZnUnsupported at run time.",
      "Use fetch or WebSocket instead of sockets, keep process and signal code behind a platform check, or use the classic layout (zinc.json ui.layout).",
      "import { spawn } from 'zinc:process';   // W0603: processes and signals"},
+    {"W0604", "A video of the app uses a codec some browsers of the target set cannot play",
+     "A video asset is played by the browser's own <video> element, so it plays where the browser has the codec: H.264 in MP4 everywhere, VP9 and AV1 in WebM or MP4 in current browsers, "
+     "H.265/HEVC only where the machine's decoder does (Safari, Chrome and Edge on supported hardware, Firefox from 134 on hardware that decodes it), AV1 in Safari only on hardware that decodes it. "
+     "Containers no browser plays (AVI, MPEG-PS) are reported too. The export reads the codec from the file and compares it with targets/web/browsers.json for the browsers of targets.web.browsers. "
+     "A file the browser cannot decode shows a message with a link to download it (player.error says why); nothing crashes.",
+     "Encode the video again for the web (ffmpeg -i in.mov -c:v libx264 -pix_fmt yuv420p -movflags +faststart out.mp4, or -c:v libvpx-vp9 out.webm), ship both (a second Player entry, or the one the browser can play: canPlay() of zinc:video), "
+     "or drop the browser from targets.web.browsers. --werror turns the warning into a failed export.",
+     "player.add('trailer.mp4');   // W0604: clip.mp4 is H.265: not in firefox before 134"},
   };
   for (const E& e : table)
     if (code == e.code) return std::string(e.code) + ": " + e.title + "\n\nWhy: " + e.why + "\nFix: " + e.fix + "\n\nExample:\n" + e.example + "\n";
@@ -196,7 +204,7 @@ std::string webExplain(const std::string& code) {
 namespace {
 
 // ---- plugins with a browser backend
-struct WebPlugin { std::string name, dir, native, impl, module, entry; std::vector<std::string> needs, wasmSources, wasmFlags, wasmExports; std::string wasmName; };   // native + impl: a browser backend of the native side; entry: the plugin's module written for the browser
+struct WebPlugin { std::string name, dir, native, impl, module, entry; std::vector<std::string> needs, wasmSources, wasmFlags, wasmExports; std::string wasmName; std::vector<std::pair<std::string, std::string>> scripts; };   // scripts: libraries the plugin loads when it first needs them (name, file): Z.loadScript(name)   // native + impl: a browser backend of the native side; entry: the plugin's module written for the browser
 std::vector<WebPlugin> findPlugins(const WebArgs& a, const Cfg& c) {
   std::vector<fs::path> roots = {fs::path(a.engineRoot) / ".." / "plugins", fs::path(a.dir) / "plugins"};
   for (const std::string& d : c.pluginDirs) roots.push_back(fs::path(a.dir) / d);
@@ -222,6 +230,14 @@ std::vector<WebPlugin> findPlugins(const WebArgs& a, const Cfg& c) {
         size_t i, n;
         yyjson_val* v;
         if (yyjson_is_arr(nd)) yyjson_arr_foreach(nd, i, n, v) if (yyjson_is_str(v)) p.needs.push_back(yyjson_get_str(v));
+        if (yyjson_val* sc = yyjson_obj_get(w, "scripts"); yyjson_is_obj(sc)) {   // {"name": "web/vendor/lib.js"}: published beside the app, loaded by the plugin on first use
+          size_t si, sn;
+          yyjson_val *sk, *sv;
+          yyjson_obj_foreach(sc, si, sn, sk, sv) {   // "file", or {"file": ..., "render": "dom"|"canvas"}: only for that render mode
+            if (yyjson_is_str(sv)) p.scripts.push_back({yyjson_get_str(sk), yyjson_get_str(sv)});
+            else if (yyjson_is_obj(sv)) p.scripts.push_back({yyjson_get_str(sk), str(sv, "file") + (str(sv, "render").empty() ? "" : "|" + str(sv, "render"))});
+          }
+        }
         if (yyjson_val* wa = yyjson_obj_get(w, "wasm"); yyjson_is_obj(wa)) {   // native code compiled to WebAssembly: name, sources, flags, exports
           p.wasmName = str(wa, "name", p.name);
           for (const char* k : {"sources", "flags", "exports"}) {
@@ -280,6 +296,41 @@ std::string rowWhy(const std::string& r) {
   if (starts("ev") || starts("loop")) return "the native event loop";
   if (starts("assets")) return "asset groups and packs";
   return "a native service";
+}
+
+// The codec and the container of a video file, read from its bytes (the head and the tail: an MP4 may keep its index at the end): "hevc", "av1", "vp9", "vp8", "h264" or "".
+std::string sniffVideoCodec(const fs::path& f) {
+  std::ifstream in(f, std::ios::binary);
+  if (!in) return "";
+  std::error_code ec;
+  const std::size_t size = static_cast<std::size_t>(fs::file_size(f, ec)), part = 6u << 20;
+  std::string b(std::min(size, part), '\0');
+  in.read(&b[0], static_cast<std::streamsize>(b.size()));
+  if (size > part) { std::string t(std::min(size - part, part), '\0'); in.seekg(static_cast<std::streamoff>(size - t.size())); in.read(&t[0], static_cast<std::streamsize>(t.size())); b += t; }
+  auto has = [&](const char* k) { return b.find(k) != std::string::npos; };
+  if (has("hvc1") || has("hev1") || has("V_MPEGH/ISO/HEVC")) return "hevc";
+  if (has("av01") || has("V_AV1")) return "av1";
+  if (has("vp09") || has("V_VP9")) return "vp9";
+  if (has("V_VP8") || has("vp08")) return "vp8";
+  if (has("avc1") || has("avc3") || has("V_MPEG4/ISO/AVC")) return "h264";
+  return "";
+}
+std::vector<std::pair<std::string, std::string>> videoAssets(const WebArgs& a);
+
+// W0604: each video asset against the browsers of the target set
+std::string videoReport(const WebArgs& a, const std::string& browsersJson, const std::string& browsers) {
+  std::string out;
+  for (const auto& [name, file] : videoAssets(a)) {
+    const std::string ext = lower(fs::path(name).extension().string());
+    if (ext == ".avi" || ext == ".mpg" || ext == ".ts") { out += "warning W0604: " + name + " is in a container no browser plays (" + ext.substr(1) + "): convert it to MP4 (H.264) or WebM (VP9); the page shows a download link instead\n"; continue; }
+    const std::string codec = sniffVideoCodec(file);
+    const char* feat = codec == "hevc" ? "codecHEVC" : codec == "av1" ? "codecAV1" : codec == "vp9" ? "codecVP9" : "";
+    std::string r = feat[0] ? webCheckReport(browsersJson, browsers, {feat}, "video " + name) : "";
+    if (ext == ".webm" || codec == "vp9" || codec == "vp8") r += webCheckReport(browsersJson, browsers, {"containerWebM"}, "video " + name);
+    for (std::size_t at; (at = r.find("W0601")) != std::string::npos;) r.replace(at, 5, "W0604");
+    out += r;
+  }
+  return out;
 }
 
 int run(const std::string& cmd) {
@@ -341,6 +392,7 @@ struct Common {
   std::string report;                            // the warnings, one per line
   std::string browsersJson, runtime;
   std::vector<std::pair<std::string, std::string>> wasmOut;   // the native code of plugins built for the page: module name, url
+  std::vector<std::pair<std::string, std::string>> scriptOut;   // the libraries plugins load on first use: name, url
 };
 // `bundle`: the minified bundle, whose reachable code names the host rows the program really calls ("" in dev: the staged modules hold unused code too, so every row they name gets a stub and nothing is reported)
 Common analyse(const WebArgs& a, const fs::path& stage, const std::string& bundle = "") {
@@ -404,13 +456,13 @@ std::string mime(const std::string& path) {
   return it == m.end() ? "application/octet-stream" : it->second;
 }
 
-struct Asset { std::string name, file, url; std::size_t size = 0; bool image = false; std::string font; };
+struct Asset { std::string name, file, url; std::size_t size = 0; bool image = false, stream = false; std::string font; };   // stream: a video, fetched by its <video> element from its url, not before the app starts
 std::vector<Asset> listAssets(const std::string& dir) {
   std::vector<Asset> out;
   const fs::path root = fs::path(dir) / "assets";
   std::error_code ec;
   if (!fs::is_directory(root, ec)) return out;
-  static const std::set<std::string> images = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".avif"}, fonts = {".ttf", ".otf", ".woff", ".woff2"};
+  static const std::set<std::string> images = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".avif"}, fonts = {".ttf", ".otf", ".woff", ".woff2"}, videos = {".mp4", ".m4v", ".mov", ".webm", ".ogv", ".mkv", ".avi", ".ts"};
   std::vector<fs::path> files;
   for (auto it = fs::recursive_directory_iterator(root, ec); it != fs::recursive_directory_iterator(); it.increment(ec)) if (it->is_regular_file()) files.push_back(it->path());
   std::sort(files.begin(), files.end());
@@ -421,10 +473,17 @@ std::vector<Asset> listAssets(const std::string& dir) {
     a.size = static_cast<std::size_t>(fs::file_size(f, ec));
     const std::string e = lower(f.extension().string());
     a.image = images.count(e) > 0;
+    a.stream = videos.count(e) > 0;
     if (fonts.count(e)) a.font = f.stem().string();
     out.push_back(a);
   }
   return out;
+}
+
+std::vector<std::pair<std::string, std::string>> videoAssets(const WebArgs& a) {
+  std::vector<std::pair<std::string, std::string>> v;
+  for (const Asset& as : listAssets(a.dir)) if (as.stream) v.push_back({as.name, as.file});
+  return v;
 }
 
 std::string pageFor(const Cfg& c, const std::string& config, const std::string& preloads, bool dev, bool pwa, bool hasIcon, const std::string& iconUrl, const std::string& nativeUrl) {
@@ -465,13 +524,15 @@ std::string configJson(const WebArgs& a, const Cfg& c, const Common& cm, const s
   for (std::size_t i = 0; i < cm.unsupported.size(); ++i) j += (i ? "," : "") + jstr(cm.unsupported[i]);
   j += "],\"wasm\":[";
   for (std::size_t i = 0; i < cm.wasmOut.size(); ++i) j += std::string(i ? "," : "") + "{\"name\":" + jstr(cm.wasmOut[i].first) + ",\"url\":" + jstr(cm.wasmOut[i].second) + "}";
-  j += "],\"fonts\":[";
+  j += "],\"scripts\":{";
+  for (std::size_t i = 0; i < cm.scriptOut.size(); ++i) j += std::string(i ? "," : "") + jstr(cm.scriptOut[i].first) + ":" + jstr(cm.scriptOut[i].second);
+  j += "},\"fonts\":[";
   bool first = true;
   for (const Asset& as : assets) if (!as.font.empty()) { j += (first ? "" : ",") + jstr(as.font); first = false; }
   j += "],\"assets\":[";
   for (std::size_t i = 0; i < assets.size(); ++i) {
     const Asset& as = assets[i];
-    j += std::string(i ? "," : "") + "{\"name\":" + jstr(as.name) + ",\"url\":" + jstr(as.url) + ",\"size\":" + std::to_string(as.size) + (as.image ? ",\"image\":true" : "") + (as.font.empty() ? "" : ",\"font\":" + jstr(as.font)) + "}";
+    j += std::string(i ? "," : "") + "{\"name\":" + jstr(as.name) + ",\"url\":" + jstr(as.url) + ",\"size\":" + std::to_string(as.size) + (as.image ? ",\"image\":true" : "") + (as.stream ? ",\"stream\":true" : "") + (as.font.empty() ? "" : ",\"font\":" + jstr(as.font)) + "}";
   }
   return j + "]}";
 }
@@ -554,6 +615,7 @@ int exportSite(const WebArgs& a, const std::string& tmpName) {
   const std::string appJs = (tmp / "app.js").string();
   if (run("ZINC_BACKGROUND=1 " + q(selfExe()) + " --profile web bundle " + q(a.dir) + " --minify" + (a.sourcemap ? " --sourcemap" : "") + " -o " + q(appJs)) != 0) { std::fprintf(stderr, "zinc export: the bundle failed\n"); return 1; }
   Common cm = analyse(a, tmp / "stage", readAll(appJs));
+  cm.report += videoReport(a, cm.browsersJson, !a.browsers.empty() ? a.browsers : cm.cfg.browsers);
   std::fputs(cm.report.c_str(), stderr);
   std::set<std::string> warned;
   const bool warns = !cm.report.empty();
@@ -579,6 +641,11 @@ int exportSite(const WebArgs& a, const std::string& tmpName) {
     const std::string built = buildWasm(p, err);
     if (built.empty()) { std::fprintf(stderr, "zinc export: %s\n", err.c_str()); return 1; }
     cm.wasmOut.push_back({p.wasmName, publish(p.wasmName, ".wasm", readAll(built))});
+  }
+  for (const WebPlugin& p : cm.used) for (const auto& [name, spec] : p.scripts) {
+    const std::size_t bar = spec.find('|');
+    if (bar != std::string::npos && spec.substr(bar + 1) != cm.cfg.render) continue;
+    cm.scriptOut.push_back({name, publish(name, ".js", readAll(fs::path(p.dir) / spec.substr(0, bar)))});
   }
   const std::string appName = publish("app", ".js", readAll(appJs));
   if (a.sourcemap && fs::exists(appJs + ".map")) out[appName + ".map"] = readAll(appJs + ".map");
@@ -647,11 +714,42 @@ int exportSite(const WebArgs& a, const std::string& tmpName) {
   if (isolate) headers += "  Cross-Origin-Opener-Policy: same-origin\n  Cross-Origin-Embedder-Policy: require-corp\n";
   headers += "\n/index.html\n  Cache-Control: no-cache\n\n/sw.js\n  Cache-Control: no-cache\n\n/*.js\n  Cache-Control: public, max-age=31536000, immutable\n\n/assets/*\n  Cache-Control: public, max-age=31536000, immutable\n";
   out["_headers"] = headers;
-  out["serve.py"] = "#!/usr/bin/env python3\n# Serves this folder on http://127.0.0.1:8000, preferring the precompressed .br and .gz files. Any static host works the same; this is only for a look.\n"
-                    "import http.server, os, sys\nclass H(http.server.SimpleHTTPRequestHandler):\n    extensions_map = dict(http.server.SimpleHTTPRequestHandler.extensions_map, **{'.js': 'text/javascript', '.webmanifest': 'application/manifest+json', '.wasm': 'application/wasm'})\n"
-                    "    def send_head(self):\n        p = self.translate_path(self.path)\n        enc = self.headers.get('Accept-Encoding', '')\n        for ext, name in (('.br', 'br'), ('.gz', 'gzip')):\n            if name in enc and os.path.isfile(p + ext) and os.path.isfile(p):\n                f = open(p + ext, 'rb'); self.send_response(200)\n                self.send_header('Content-Type', self.guess_type(p)); self.send_header('Content-Encoding', name)\n"
-                    "                self.send_header('Content-Length', str(os.fstat(f.fileno()).st_size)); self.end_headers(); return f\n        return super().send_head()\n"
-                    "os.chdir(os.path.dirname(os.path.abspath(__file__)))\nhttp.server.ThreadingHTTPServer(('127.0.0.1', int(sys.argv[1]) if len(sys.argv) > 1 else 8000), H).serve_forever()\n";
+  out["serve.py"] = R"PY(#!/usr/bin/env python3
+# Serves this folder on http://127.0.0.1:8000, preferring the precompressed .br and .gz files and answering Range requests (a <video> needs them to seek).
+# Any static host works the same; this is only for a look.
+import http.server, os, sys
+class H(http.server.SimpleHTTPRequestHandler):
+    extensions_map = dict(http.server.SimpleHTTPRequestHandler.extensions_map, **{'.js': 'text/javascript', '.webmanifest': 'application/manifest+json', '.wasm': 'application/wasm', '.webm': 'video/webm', '.mp4': 'video/mp4'})
+    left = None
+    def send_head(self):
+        p = self.translate_path(self.path)
+        enc = self.headers.get('Accept-Encoding', '')
+        rng = self.headers.get('Range', '')
+        self.left = None
+        if rng.startswith('bytes=') and os.path.isfile(p):
+            size = os.path.getsize(p)
+            a, _, b = rng[6:].partition('-')
+            start = int(a) if a else max(0, size - int(b or 0))
+            end = min(int(b), size - 1) if a and b else size - 1
+            if start >= size:
+                self.send_error(416); return None
+            f = open(p, 'rb'); f.seek(start); self.send_response(206)
+            self.send_header('Content-Type', self.guess_type(p)); self.send_header('Content-Range', 'bytes %d-%d/%d' % (start, end, size))
+            self.send_header('Content-Length', str(end - start + 1)); self.send_header('Accept-Ranges', 'bytes'); self.end_headers()
+            self.left = end - start + 1
+            return f
+        for ext, name in (('.br', 'br'), ('.gz', 'gzip')):
+            if name in enc and os.path.isfile(p + ext) and os.path.isfile(p):
+                f = open(p + ext, 'rb'); self.send_response(200)
+                self.send_header('Content-Type', self.guess_type(p)); self.send_header('Content-Encoding', name)
+                self.send_header('Content-Length', str(os.fstat(f.fileno()).st_size)); self.end_headers(); return f
+        return super().send_head()
+    def copyfile(self, src, out):
+        if self.left is None: return super().copyfile(src, out)
+        out.write(src.read(self.left))
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
+http.server.ThreadingHTTPServer(('127.0.0.1', int(sys.argv[1]) if len(sys.argv) > 1 else 8000), H).serve_forever()
+)PY";
   // 6. write, then the precompressed copies
   fs::path outDir = a.out.empty() ? fs::path(a.dir) / "dist" / (a.name + "-web") : fs::path(a.out);
   fs::remove_all(outDir, ec);
@@ -1031,6 +1129,12 @@ int devWeb(const WebArgs& a) {
     if (built.empty()) { std::fprintf(stderr, "zinc dev: %s\n", werr.c_str()); continue; }
     fs::copy_file(built, d.site / (p.wasmName + ".wasm"), fs::copy_options::overwrite_existing, ec);
     d.cm.wasmOut.push_back({p.wasmName, p.wasmName + ".wasm"});
+  }
+  for (const WebPlugin& p : d.cm.used) for (const auto& [name, spec] : p.scripts) {
+    const std::size_t bar = spec.find('|');
+    if (bar != std::string::npos && spec.substr(bar + 1) != d.cm.cfg.render) continue;
+    fs::copy_file(fs::path(p.dir) / spec.substr(0, bar), d.site / (name + ".js"), fs::copy_options::overwrite_existing, ec);
+    d.cm.scriptOut.push_back({name, name + ".js"});
   }
   std::vector<Asset> assets = listAssets(a.dir);
   for (Asset& as : assets) as.url = as.name;

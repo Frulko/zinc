@@ -9,7 +9,8 @@ COOP/COEP headers). The web target is faster (the browser's JIT), smaller (a das
 
 ```sh
 zinc export examples/hero --target web            # dist/hero-web/
-zinc export . --target web --render dom           # real HTML elements instead of a canvas
+zinc export . --target web --render dom           # semantic HTML and CSS instead of a canvas
+zinc export . --target web --render dom --prerender   # and the first screen already in index.html
 zinc dev    . --target web                        # a dev server on http://127.0.0.1:8000/ with hot reload
 python3 dist/hero-web/serve.py                    # look at an export (any static host works the same)
 zinc export . --target web --check                # only what these browsers cannot run
@@ -20,10 +21,11 @@ zinc export . --target web --check                # only what these browsers can
 ```
 dist/hero-web/
   index.html            the page: title, theme colour, import map, config, a splash with a progress bar
-  zinc.<hash>.js        the web host (targets/web/runtime.js): canvas or DOM painter, input, storage, assets, the frame loop (about 28 KB, 10 KB Brotli)
+  zinc.<hash>.js        the web host (targets/web/runtime.js): canvas painter, input, storage, assets, the frame loop (about 30 KB, 10 KB Brotli)
   app.<hash>.js         the app: its TypeScript and TSX, zinc:ui, the kits and the plugins it imports, linked, tree-shaken and minified by esbuild
   native.<hash>.js      the browser backends of the plugins the app uses (a few hundred bytes without any)
-  dom.<hash>.js         only with --render dom: the DOM painter (8 KB)
+  dom.<hash>.js         only with --render dom: the semantic DOM host (40 KB, 13 KB Brotli)
+  lottie-*.<hash>.js    only for an app that imports zinc:lottie: lottie-web, loaded when the first animation is drawn
   assets/...<hash>.ext  the project's assets, named by their content
   <plugin>.<hash>.wasm  only for a plugin whose native code is C or C++ (sqlite: 690 KB, 240 KB Brotli)
   sw.js, manifest.webmanifest   offline cache and installable web app (--no-pwa leaves them out)
@@ -46,37 +48,155 @@ dist/hero-web/
     "browsers": "chrome >= 111, firefox >= 115, safari >= 16.4",
     "title": "My app", "description": "For the search results and the share card",
     "themeColor": "#111827", "backgroundColor": "#ffffff", "lang": "en",
-    "icon": "assets/icon.png", "pwa": true,
+    "icon": "assets/icon.png", "pwa": true,   "comment2": "scroll: \"app\" (a window-sized stage) or \"page\" (the document scrolls, dom render)",
     "width": 960, "height": 600,                         "comment": "a fixed surface; without them the app fills the window and follows its size",
     "strict": false } } }
 ```
 
-`--render canvas|dom`, `--browsers '<set>'`, `--check`, `--werror`, `--no-pwa`, `--sourcemap` and `-o dir` override or add to it. (The key `web` of `zinc.json` itself is something else: it turns on the window / document
+`--render canvas|dom`, `--prerender`, `--browsers '<set>'`, `--check`, `--werror`, `--no-pwa`, `--sourcemap` and `-o dir` override or add to it. (The key `web` of `zinc.json` itself is something else: it turns on the window / document
 environment of the QuickJS engine for JavaScript game libraries.)
 
 ## Two ways to draw
 
-The app's UI (`zinc:ui`, its classic layout engine, the UI kits, React Native components) is JavaScript in both modes. Zinc lays everything out, the same way as on a desktop; the modes differ in what
-happens to the boxes, the text and the images.
+The app's UI (`zinc:ui`, its classic layout engine, the UI kits, React Native components) is JavaScript in both modes. They differ in who lays out and who draws.
 
-| | `canvas` (default) | `dom` |
+| | `canvas` (default) | `dom` ("the semantic DOM") |
 |---|---|---|
-| What the page holds | one `<canvas>` | the app as elements: a `div` per box, a `span` per line of text, `canvas` for images, `svg` for shapes and icons |
-| Look | what the desktop engine draws, as Canvas2D draws it (the same layout, the browser's fonts) | the same layout; fonts, radii and shadows are CSS's |
-| Text | pixels | **real text**: selectable, copied, found with Ctrl+F, read by screen readers, translated by the browser |
-| Window size and zoom | the surface follows the window and the pixel ratio; the app lays out again | the same |
-| Input | pointer, wheel, keys, gamepad, a hidden `<textarea>` while a field is edited (IME, soft keyboard) | the same, and the browser's own text selection where the app shows a text cursor |
-| Cost per frame (hero dashboard, 1200 boxes, headless Chrome) | 1.2 ms of the main thread | 2.6 ms; 1200 elements |
-| First frame (hero, headless Chrome, localhost) | about 130 ms | about 130 ms |
-| Needs | Canvas2D with `roundRect` (Chrome 99, Firefox 112, Safari 16) | nothing beyond DOM and CSS |
+| What the page holds | one `<canvas>` | the app as semantic HTML: `nav`, `main`, `h1`..`h6`, `ul`/`li`, `a`, `button`, `form`, `input`, `textarea`, `img`, `dialog`... |
+| Layout | Zinc's classic engine, as on a desktop | **the browser's CSS** (flexbox): Zinc's styles become CSS classes; Zinc's own layout only keeps answering the program's geometry calls underneath |
+| Look | what the desktop engine draws, as Canvas2D draws it | the same design in CSS; within about 1% of the pixels of the canvas picture on the demos (see "Differences") |
+| Text | pixels | real text: selectable, found with Ctrl+F, translated, read by screen readers |
+| Scrolling | Zinc's physics (rubber band, inertia) on the canvas | the browser's: `overflow: auto` containers, momentum, scrollbars, scroll anchoring, Page Up/Down, focus into view |
+| Keyboard and focus | Zinc's focus walk, a hidden `<textarea>` while a field is edited | the browser's: Tab order, focus rings (`:focus-visible`), Enter and Space on buttons and links, real `<input>`s, IME, soft keyboards, autofill, spellcheck |
+| Forms | none | a real `<form>` when the app has a `<Form>` (docs/ui.md, "Semantic hints and Form") |
+| Window size | the canvas follows the window and the pixel ratio; Zinc lays out again | CSS lays out at the resize event; zinc:ui follows a frame later (breakpoints, `useWindowDimensions`) |
+| Cost per frame (hero home, headless Chrome) | 1.2 ms of the main thread, 22 elements | 1.1 ms, 331 elements; a list of 10 000 rows and 1 200 boxes: 1.6 ms either way, 1 338 elements ([report](../reports/zinc-web-export.md)) |
+| Needs | Canvas2D with `roundRect` (Chrome 99, Firefox 112, Safari 16) | DOM and CSS (flexbox, custom properties, `:focus-visible`, `<dialog>`: Chrome 102, Firefox 111, Safari 15.4) |
 | Fits | games, drawing, charts, anything pixel-exact | forms, content, dashboards, tools: apps that should behave like a page |
 
-Everything a program draws with `zinc:gfx` works in both: rectangles, rounded boxes, gradients (linear, radial, conic, repeating), borders, shadows, polygons, paths, strokes, text, images, clips,
-transforms, blend modes and tints. Off-screen images (`createImage`, `beginImage`) are drawn on a canvas in both modes; in DOM mode an image is a `canvas` element redrawn when its pixels change.
-A part with no element equivalent stays on a canvas, which is why `drawShader` (runtime GLSL) answers `shaderAvailable() === false` on the web and the program takes its own fallback.
+Everything a program draws with `zinc:gfx` works in both. In DOM mode what Zinc draws itself is a real canvas placed where its node sits (see "What Zinc still draws").
 
-What is not done in DOM mode, and why: roles. A button is a box with a pointer cursor to Zinc, not a `<button>`, so a screen reader reads the text of the page but does not announce controls, and the
-keyboard moves through Zinc's own focus, not the browser's tab order. Search engines that run JavaScript see the text; there is no prerendering. These are the first things to add (`docs/reports/zinc-web-export.md`, "Next").
+## The semantic DOM
+
+`--render dom` (or `targets.web.render: "dom"`) turns the tree of `zinc:ui` into real elements and keeps them in step with it.
+
+```html
+<div id="zinc-root">
+  <div class="z _0 _1">                                   <!-- the root: width and height 100% of the window -->
+    <header class="z _a _b _c _d">
+      <h1 class="zt _e _f _g">Orders</h1>
+      <nav class="z _a _h" aria-label="Main"><a class="zt _i" href="/orders">All</a></nav>
+    </header>
+    <main class="z zs _j _k" tabindex="0" aria-label="Content">
+      <form class="z _l" name="login">
+        <input class="zr zi _m _n" name="email" type="email" autocomplete="email" required placeholder="Email" aria-label="Email">
+        <button class="z zk _o _p" type="submit"><span class="zt _q">Sign in</span></button>
+```
+
+**Elements.** A node becomes the element its hints and roles name (docs/ui.md, "Semantic hints and Form"), else `button` when it takes clicks, `img` for an `Image`, `input` and `textarea` for fields, `span` for text, `div`
+otherwise. ARIA comes from the same tree as the desktop's screen reader bridges (`ui.inspect()`): `role`, `aria-label`, `aria-hidden`, `aria-disabled`, every `aria-*` and `data-*` attribute, `alt`, `disabled`,
+`tabindex`. A node with `opacity` 0 (a tab bar keeps its other screens mounted) is `visibility: hidden`: neither Tab nor a screen reader reaches it. Chrome builds the accessibility tree from this; `tests/t1/web_dom.sh`
+reads it (a heading, a navigation, links and buttons with names, textboxes labelled).
+
+**Styles are CSS classes.** `className` tokens, `style` objects and `StyleSheet.create` all end as numbers on the node (that is how Zinc resolves them); the host writes each node's numbers as CSS declarations
+into **one generated, deduplicated and minified style sheet** (`<style id="zinc-css">`): one rule per distinct `property: value` (`._a{flex-direction:row}`), named by a counter in base 36, so a screen of 330 elements
+uses about 170 classes and 200 rules, and a page of 10 000 rows the same. A fixed set of base rules (`.z`, `.zt`, `.zr`...) makes CSS flexbox behave like React Native's: every box is `display:flex;
+flex-direction:column; flex-shrink:0; position:relative; box-sizing:border-box`, text is `display:block`, and so on. Hover, focus, active, disabled, `group-hover:`, `peer-focus:` and `aria-checked:` variants are CSS
+pseudo-class and attribute selectors (`._x:hover{...}`), so the browser does them without a frame of Zinc; `transition-*` classes are CSS `transition`.
+**A value that changes after its element exists** (an animation, a computed width, a drag) is not a new class per step: from its first change on, the property is a **CSS custom property of the element**
+(`style="--width:84px"`) read by one shared class (`._w{width:var(--width)}`), and each frame writes one number. Inline `style` is only that, the two spacers of a virtual list and the page's own viewport probe:
+the test of `tests/t1/web_dom.sh` allows 6 elements with one in its fixture (in the 10 000 row list with 20 moving bars: those 20 and the 2 spacers, of 1 338 elements).
+
+**Layout is the browser's.** Zinc's classic engine has its own rules (children never shrink, borders take no room, centres are floored...); the host translates the style so CSS gives the same picture, and lists
+what it cannot ("Differences"). The most visible translations:
+
+| Zinc | CSS |
+|---|---|
+| a box: column, align stretch, children never shrink | `.z{display:flex;flex-direction:column;align-items:stretch;flex:0 0 auto;min-width:auto}` plus `flex-direction:row`, `justify-content`, `align-items`, `gap`, `flex-wrap`... where the node says so |
+| `w-full` in a row / in a column | `flex-grow:1; flex-basis:0` / `align-self:stretch` |
+| `flex-1`, `grow`, `basis`, `shrink`, `order`, margins, `ml-auto` | the same properties; an item that starts from nothing (`flex-basis: 0`) also gets `min-width: 0` |
+| a row item with no size of its own (zinc:ui measures it for the room it is offered, so text wraps) | `flex-shrink: 1`; an item with `w-*` or a basis keeps `flex-shrink: 0` |
+| a border (drawn inside the padding, no room of its own) | a real `border` with the padding that is left, so the content stays where zinc:ui puts it; where the padding is smaller than the border, an inset `box-shadow` band |
+| `absolute` + `top`/`left`/`right`/`bottom` | `position:absolute` with the offsets corrected by the parent's border (CSS measures from the padding edge) |
+| `scroll`, `overflow-y-auto`, `ScrollView` | `overflow-y:auto` (native scroller, `flex-shrink: 1` so it takes the room left), `scroll-snap-type`, `scroll-padding` |
+| a plain box over other boxes | `pointer-events:none` (zinc:ui hits only nodes with a handler); a box with one, a button, a scroller or a field gets `pointer-events:auto` |
+| gradients, shadows, rings, outlines, radii per corner, opacity, `translate`/`rotate`/`scale`/`skew` | `linear-gradient`/`radial-gradient`/`conic-gradient`, `box-shadow`, `outline`, `border-*-radius`, `opacity`, `transform` |
+| text: size, weight, family, leading, tracking, alignment, transform, decoration, `truncate`, `line-clamp-n`, `whitespace-*`, `break-*` | `font-size`, `font-weight`, `font-family`, `line-height`, `letter-spacing`, `text-align`, `text-transform`, `text-decoration`, `text-overflow`, `-webkit-line-clamp`, `white-space`, `overflow-wrap` |
+
+**Updates are a retained, keyed diff.** Zinc commits a frame only when the tree changed (an idle app costs nothing). A commit walks the tree once and, per node (keyed by its handle, which is stable while the
+node lives), compares its declarations with the last ones: only a changed class list, attribute or text is written; children are reconciled in place (an insertion before a focused sibling does not move it). A
+list that grows by one row adds one `li`; typing in a field patches nothing of the field (the browser owns the value; the host writes it only when the program changed it, and keeps the caret).
+`tests/t1/web_dom.sh` marks every element, runs a form submit and a list update, and checks that no element that was there was replaced, that the focused input stayed focused and its caret stayed where it was.
+
+**Scrolling.** A `ScrollView` is a native scroller; the host tells zinc:ui its offsets on `scroll` (`onScroll`, `scrollTop`, virtual lists, the RefreshControl, `onEndReached`) and applies the offsets the program sets
+(`scrollTo`, scroll into view) to the element. `VirtualList` and `FlatList` keep their contract (only the rows in view exist, 12 spare above and below since the browser scrolls a frame before zinc:ui sees it): the
+rows are ordinary children of the scroller between two spacer elements that stand for the rows above and below, so the scrollbar, `scrollHeight`, Page Down, End and find-in-page-less selection behave. A list of
+10 000 rows of 32 px is a scroller 320 000 px tall with about 35 rows. `targets.web.scroll: "page"` makes the document scroll instead of a window-sized stage (an app whose root is a column that grows with its content).
+
+**Keyboard and focus are the browser's.** Tab, Shift+Tab, the focus ring (`:focus-visible`), Enter and Space on `<button>` and `<a>`, Escape on a `<dialog>`, arrows in fields, Page Up/Down on a scroller, all
+native. A box that takes clicks and is not a button (a `ListItem`) is focusable (`tabindex`) and answers Enter and Space. The page forwards **only the keys the app registered**: a key reaches `onKeyDown` of
+the focused node, the `bindKeys` keymap and the global `onKey` handlers only when the program has some, and `preventDefault` is called only for a key one of them took, so the browser's shortcuts (reload,
+find, copy, zoom, dev tools) are never stolen. Pointer events (`onPointerDown`, `onDrag`, `onLongPress`, `onWheel`, `onPointerEnter`...) are handed to the nodes' handlers from the page's own events, with
+coordinates local to the node; a drag keeps the pointer (`setPointerCapture`) and the element gets `touch-action: none`.
+
+**Fields are real.** `Input` and `TextArea` are `<input>` and `<textarea>`; `value`, `placeholder`, `readOnly`, `password` (`type=password`), `inputMode`, `maxLength`, `autoComplete`, `autoCapitalize`,
+`enterKeyHint`, `name`, `required`, `pattern`, `min`, `max`, `step` reach the element, so the browser's selection, copy and paste, undo, IME, dead keys, spellcheck, autofill and password manager, soft keyboard
+and validation all work. `onInput` is the `input` event, `onChange` fires when the field loses the focus or Enter is pressed. Not in the page: the code-editor extensions of `TextArea` (`highlight`,
+`lineNumbers`, `setMarks`, `setEditColors`): the page shows a plain textarea.
+
+**Viewport.** `<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">`, `<meta name="color-scheme">`, `lang` and `dir` on `<html>`. The stage fills the window (`position: fixed;
+inset: 0; height: 100dvh`: no fixed 1200 x 900 box). The app learns of the browser as zinc:ui learns of a phone: the window size (a resize observer), `safearea` (CSS `env(safe-area-inset-*)`), `keyboard`
+(the `visualViewport` the soft keyboard covers), `theme` (`prefers-color-scheme`, and the page's `color-scheme` follows the scheme zinc:ui is in, so scrollbars and form controls match), `reducemotion`, and
+`fontscale` (the browser's text size setting: text sizes and `rem` follow it, as the desktop's text size setting does). A rotation or a resize is laid out by CSS at once; zinc:ui sees the new size at its next frame.
+
+**Layers.** A modal layer (`ui.openLayer(..., { modal: true })`: the kit's `Dialog`, React Native's `Modal`) is a real `<dialog>` opened with `showModal()`: the rest of the page is inert, focus is trapped, Escape asks the
+layer to close (`onDismiss`), the scrim is `::backdrop`. A non-modal layer (a menu, a popover, a toast) is a `div` in a fixed portal above the page. Layers keep the positions zinc:ui's floating placement gives them
+(`ui.anchor`: flip, margin); pressing outside them still reaches `onOutsidePointer`.
+
+**What Zinc still draws.** Anything a program paints itself with `zinc:gfx` in a `Canvas` node (or `onDraw`) is a **real `<canvas>`** placed where the node sits, sized by CSS, drawn at the device pixel ratio,
+redrawn when the tree is committed and only while it is on screen (`IntersectionObserver`; a `lazy` canvas, such as an icon, only when its size changed or something else did). A node that draws exactly one SVG
+document, which is what an icon is, becomes an inline `<svg>` instead (no canvas, scalable, themeable). A `zinc:video` player in such a node is the browser's `<video>`, a `zinc:lottie` animation an `<svg>` of lottie-web
+(see "Video" and "Lottie"); an `Image` is an `<img>` with `object-fit` and `object-position` (or a canvas for an image the program fills: a camera, a WebGL present).
+
+**Prerendering.** `zinc export --target web --render dom --prerender` runs the app once in headless Chrome (Chrome must be installed; `CHROME=...` names it), takes the elements and the style sheet of its first
+screen (at 1280 x 800) and writes them into `index.html`: the page is readable by a crawler, a reader and a slow phone, and painted before any script runs. When the script starts it **adopts** those elements
+(each carries the number of its node) instead of building them again, and drops the prerendered style sheet once its own is in place. An app whose first screen waits for data prerenders its loading state. A
+screen laid out differently at another width (breakpoints: `md:`) is restyled by the first commit, which may show as a jump.
+
+**Addresses.** A real link is `<Text as="a" href="/orders">` (or `role="link"`). A `Stack` of `zinc:ui/navigation` with a `path` prop (`path={(r) => '/' + r.name}`) keeps the address bar and the history in step with its
+screens: a push is a history entry, `replace` replaces the address, and the browser's Back button pops the screen (it arrives as the app's back key). The address is output only: a reload starts at `initial`,
+and a deep link needs the app to read `location` itself.
+
+### Differences from the canvas picture
+
+Measured with `tools/web-compare` (`tests/t1/web_dom_visual.sh`: the same app exported both ways, the same clicks, headless Chrome, pixel by pixel; mean difference of the biggest channel, and the share of
+pixels that differ by more than 16 of 255):
+
+| Screen | Mean | Pixels over 16 |
+|---|---|---|
+| hero: the intro | 0.9 | 1.1% |
+| hero: home (live numbers and charts masked) | 1.3 | 1.7% |
+| desktop-app template: home, notes, settings | 0.3 to 1.3 | 0.4% to 1.2% |
+| nuxt-ui example: the dashboard | 4.5 | 3.0% |
+
+What differs, and cannot be made not to:
+
+- **Text.** Both modes use the system fonts for `sans`, so widths agree with themselves; glyph placement inside the line box differs by a pixel in places, and CSS wraps with the browser's rules (balanced, hyphen and word
+  break rules, `text-wrap: balance`) where Zinc's wrapper is greedy.
+- **Half pixels.** Zinc floors a centre and rounds every box to a whole pixel; CSS keeps halves and snaps when it paints. A centred box 15 px freer than its container is 7 px from the edge in Zinc and 7.5 in CSS.
+- **Shadows and blurs** are CSS's (`box-shadow` blur is a Gaussian with a different radius than Zinc's box blur); the Tailwind levels use Zinc's offsets and radii.
+- **Overflow that Zinc clips.** Items that do not fit overflow a row in both; the DOM shows them (`overflow: visible`) wherever the node did not say `overflow-hidden`.
+- **`scale` zooms around the centre** (Tailwind, CSS); Zinc's style scale zooms around the top-left corner.
+- **Percentages** are CSS's: of the parent's content box; Zinc's of the room the parent offers.
+- **Hairlines and transitions.** A one-pixel border is a real border (browsers snap it); `transition-*` runs in CSS on hover and focus, and Zinc's animators (`animate`, `Animated`) run per frame as they do on a desktop (their values are written to custom properties).
+- **Selection.** Text is selectable everywhere (Zinc: only `select-text` nodes); buttons are not.
+- **Scroll physics.** The browser's (momentum, overscroll, scrollbars) replace Zinc's; `scrollTo` is instant, scrollbars are the platform's.
+- **Press feedback.** `:active` dims a pressed clickable box to 60% as Zinc does; the in-and-out easing is CSS's.
+- **The classic layout still runs** under the page (about 0.5 ms a frame on the hero demo) because `screenBox`, `onLayout`-style calls and virtual lists read it; its numbers are not what the page shows. A virtual list
+  takes its viewport from the browser, and a scroller is never clamped by Zinc's own content size.
+
+Not proven here: Firefox and Safari (including iOS Safari's dynamic toolbar and the soft keyboard), a screen reader (the accessibility tree was checked in Chrome through the DevTools protocol, not heard), an IME
+composition, a touch device, a high-density display, and right-to-left text beyond `dir`.
 
 ### Which parts work in which mode
 
@@ -85,10 +205,11 @@ keyboard moves through Zinc's own focus, not the browser's tab order. Search eng
 | `zinc:ui` (View, Text, Button, Image, ScrollView, Input, TextArea, Canvas): the hero demo, the call demo, the desktop-app template | yes | yes |
 | UI kits: nuxt-ui and the icons (Lucide through `zinc:svg`) run in the desktop-app template; the shadcn-style kit and the React Native components are not tried yet | yes | yes |
 | `zinc:ui/solid`, `zinc:ui/react`, state, effects, animations, transitions | yes | yes |
-| Text selection and copy | the app's own (fields, `selectable` text) | the app's own, and the browser's on any text |
-| Find in page, translation, screen readers read the text | no | yes |
+| Text selection and copy | the app's own (fields, `selectable` text) | the browser's, on any text and in fields |
+| Find in page, translation, screen readers, Tab order, forms and autofill | no | yes |
 | IME and the soft keyboard in fields | yes (a `<textarea>` follows the field) | yes |
-| `zinc:gfx` drawing, `drawImageRect` (sprites), off-screen images | yes | yes |
+| `zinc:gfx` drawing, `drawImageRect` (sprites), off-screen images | yes | yes (in a canvas element where the node sits) |
+| `zinc:video` (the browser's `<video>`), `zinc:lottie` (lottie-web) | yes | yes |
 | `drawShader` (runtime shaders) | no (`shaderAvailable()` is false) | no |
 | `zinc:gl`, three.js, WebGL | not yet (planned: a WebGL2 canvas beside the Zinc one) | not yet |
 | Layout `rn` (Yoga) | not yet (a WebAssembly build of Yoga would do it); the classic layout is the default and works | not yet |
@@ -146,6 +267,11 @@ are research from MDN, not a run, and Safari in particular deserves a pass on a 
 | Web Share | 89 | – | 12.1 | `zinc:system/share` |
 | Service worker | 45 | 44 | 11.1 | the offline cache (the app runs without it) |
 | Gamepad | 21 | 29 | 10.1 | `zinc:gfx` gamepads |
+| `<dialog>`, `:focus-visible`, `dvh` | 102 | 111 | 15.4 | the DOM render |
+| WebM / VP9 | 6 / 29 | 4 / 28 | 14.1 | `zinc:video` |
+| AV1 | 70 (Edge 121) | 67 | 17, on hardware that decodes it | `zinc:video`, W0604 |
+| H.265 / HEVC | 107, where the machine decodes it | 134, on hardware | 11 | `zinc:video`, W0604 |
+| `MediaCapabilities` | 66 | 63 | 13 | `canDecode`-style checks of `zinc:video` |
 
 Known differences of fonts: the web host uses the system fonts (`system-ui`, `ui-monospace`, `ui-serif`) for the families Zinc ships (`sans`, `mono`), so widths differ a little from a desktop build and
 Zinc's layout measures with them (it measures with the same canvas metrics the text is then drawn with). Fonts in `assets/` are loaded and used by file name.
@@ -183,8 +309,9 @@ A plugin declares its browser version in `plugin.json`:
 | `zinc:physics2d` | not yet | Box2D to WebAssembly like sqlite; its host is written against the Zinc runtime types, so it needs a small C shim | – |
 | `zinc:gphoto2` | not yet | WebUSB (Chromium only) and libgphoto2 or its PTP part as WebAssembly | – |
 | `zinc:serial`, `zinc:midi` | not yet | Web Serial (Chromium), Web MIDI (Chromium, Firefox) | – |
-| `zinc:3d`, `zinc:three`, `zinc:physics3d`, `zinc:canvas2d`, `zinc:lottie` | not yet | the browser's WebGL2 and Canvas2D directly (three.js already runs there); `zinc:gl` needs a `web` entry that hands out a WebGL2 context | – |
-| `zinc:video` | not yet | an `HTMLVideoElement` drawn into a gfx image, as the camera is | – |
+| `zinc:3d`, `zinc:three`, `zinc:physics3d`, `zinc:canvas2d` | not yet | the browser's WebGL2 and Canvas2D directly (three.js already runs there); `zinc:gl` needs a `web` entry that hands out a WebGL2 context | – |
+| `zinc:video` | yes | `entry`: the browser's `<video>` (streamed from its url, never preloaded), the whole `Player` API, plus `controls`, `volume`, `rate`, `seek`, `poster`, `fit`, `fullscreen()`, `pictureInPicture()`, `on(event)`; `player.draw` in a node is the element itself in the DOM render, its current frame on a canvas render; `player.image` follows the frames; a file the browser cannot decode shows a message and a download link (`player.error`); W0604 at export | Chrome (VP9 and AV1 WebM, the API, the fallback; HEVC and H.264 depend on the build) |
+| `zinc:lottie` | yes | `native` + `impl` over lottie-web 5.13 (MIT, vendored in `plugins/lottie/web/vendor` with its licence), loaded the first time an animation is drawn: the SVG build in the DOM render (an `<svg>` in the node's box), the canvas build on a canvas render; `Player` and `<Lottie/>` unchanged. `cacheBg` (render to an image) is not supported | Chrome |
 | `zinc:map`, `zinc:mapping`, `zinc:osc`, `zinc:sonos`, `zinc:spotify` | not yet | fetch and WebSocket over a proxy where the service has no CORS; the map engine's native code as WebAssembly | – |
 | `zinc:process`, `zinc:ffi`, `zinc:script`, `zinc:wasm`, displays, boards, `zinc:remote`, `zinc:webos`... | no | no equivalent on a page (the browser runs WebAssembly and `eval` itself) | – |
 
@@ -215,5 +342,5 @@ precompressed files (`gzip_static`, `brotli_static`); others compress by themsel
 ## Tests
 
 `tests/t1/web_export.sh` (the export of the hero demo, canvas and DOM, in headless Chrome), `web_dev.sh` (Fast Refresh, overlay, reload, through the DevTools pipe), `web_caps.sh` (the capability warnings and `zinc explain`),
-`web_plugins.sh` (the webrtc call demo, camera, microphone, audio and sqlite). `tools/web-browser-test` and `tools/web-dev-test` drive Chrome; `tools/web-measure` prints the numbers of
+`web_plugins.sh` (the webrtc call demo, camera, microphone, audio and sqlite), `web_dom.sh` (the semantic DOM in headless Chrome by `tools/web-dom-test`: elements, accessibility tree, Tab order, typing and caret, Enter submits a form, Page Down, a resize, the dialog, a 10 000 row list, history, prerendering), `web_dom_visual.sh` (the DOM render against the canvas render pixel by pixel, `tools/web-compare`), `web_video.sh` (video and lottie, `tools/web-video-test`). `tools/web-browser-test` and `tools/web-dev-test` drive Chrome; `tools/web-measure` prints the numbers of
 [the report](../reports/zinc-web-export.md). Without Chrome they skip.

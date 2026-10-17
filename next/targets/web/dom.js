@@ -66,8 +66,15 @@ export function makeDomHost(env) {
     'dialog.zd::backdrop{background:var(--zn-backdrop,transparent)}',
     '.zl{position:fixed;inset:0;pointer-events:none}',
     '.zdrag{touch-action:none}',
+    '.zpf{transition:opacity 150ms}',
+    '.zpf:active{opacity:.6;transition-duration:80ms}',   // zinc:ui's pressed feedback: a pressed box that takes clicks dims
     '.zdb{position:absolute;inset:0;pointer-events:none;display:block}',
     '.zdb>canvas,.zdb>svg{display:block;width:100%;height:100%}',
+    '.zdb>video,.zdb>.zn-media{display:block;width:100%;height:100%;object-fit:contain;background:var(--zn-media-bg,#000);pointer-events:auto}',
+    '.zdb>.zn-cover{object-fit:cover}',
+    '.zdb>.zn-fallback{box-sizing:border-box;width:100%;height:100%;pointer-events:auto}',
+    '.zn-fallback{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:16px;text-align:center;font:14px/1.4 var(--zn-sans);color:#e5e7eb;background:#1f2937}',
+    '.zn-fallback a{color:#93c5fd}',
     '@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}',
   ];
   for (const r of BASE) addRule(r);
@@ -294,6 +301,7 @@ export function makeDomHost(env) {
     if (n.rg.outNone) d('outline', 'none');
     const op = n.opacity * (n.fade === undefined ? 1 : n.fade);
     if (op < 1) d('opacity', String(r3(op)));
+    if (n.invisible || op <= 0.004) d('visibility', 'hidden');   // zinc:ui paints nothing at that opacity: neither the keyboard nor a screen reader reaches it (a tab bar keeps its other screens mounted at opacity 0)
     if (n.tx || n.ty || n.k !== 1 || n.tf !== null) {
       let t = '';
       if (n.tx || n.ty) t += 'translate(' + px(n.tx) + ',' + px(n.ty) + ')';
@@ -313,7 +321,6 @@ export function makeDomHost(env) {
       if (s.spt || s.spb || s.spl || s.spr) d('scroll-padding', px(s.spt) + ' ' + px(s.spr) + ' ' + px(s.spb) + ' ' + px(s.spl));
     } else if (n.overflow) d('overflow', 'hidden');
     if (par !== null && par.sn.snap && n.sn.snapAlign) d('scroll-snap-align', ['', 'start', 'center', 'end'][n.sn.snapAlign]);
-    if (n.invisible) d('visibility', 'hidden');
     // zinc:ui hits only nodes that take events: a plain box over others (an overlay root, a decoration) lets the pointer through. CSS would stop it at every box.
     if (n.noPointer) d('pointer-events', 'none');
     if (n.selectable) { d('user-select', 'text'); d('-webkit-user-select', 'text'); }
@@ -469,7 +476,7 @@ export function makeDomHost(env) {
         if (dyn.has(k)) {
           list.push(dynCls(k));
           if (st.vars === null) st.vars = {};
-          if (st.vars[k] !== v) { st.vars[k] = v; el.style.setProperty('--' + k, v); }
+          if (st.vars[k] !== v) { st.vars[k] = v; el.style.setProperty('--' + k, v); changed++; }
         } else list.push(cls(k, v));
       }
       if (st.vars !== null) for (const k of Object.keys(st.vars)) if (st.vars[k] !== undefined && !K.slice(0, cnt).includes(k)) { st.vars[k] = undefined; el.style.removeProperty('--' + k); }
@@ -480,7 +487,7 @@ export function makeDomHost(env) {
     }
     const list = st.list || [];
     const base = tag === 'canvas' || tag === 'img' || tag === 'input' || tag === 'textarea' ? (n.tag === INPUT || n.tag === TEXTAREA ? 'zr zi' : 'zr') : n.tag === TEXT ? 'zt' : 'z';
-    let c = base + (n.tag === SCROLL || n.scroll ? ' zs' : '') + (base === 'z' && interactive(n) ? ' zk' : '') + (n.group ? ' zg' : '') + (n.peer ? ' zp' : '') + (n.rg.outNone ? ' zn-ring-none' : '') + (n.hs !== null && (n.hs.drag !== null || n.hs.down !== null || n.hs.pinch !== null) ? ' zdrag' : '');
+    let c = base + (n.tag === SCROLL || n.scroll ? ' zs' : '') + (base === 'z' && interactive(n) ? ' zk' : '') + (n.onClick !== null && !(n.hs !== null && n.hs.noPress) ? ' zpf' : '') + (n.group ? ' zg' : '') + (n.peer ? ' zp' : '') + (n.rg.outNone ? ' zn-ring-none' : '') + (n.hs !== null && (n.hs.drag !== null || n.hs.down !== null || n.hs.pinch !== null) ? ' zdrag' : '');
     if (list.length) c += ' ' + list.join(' ');
     if (c !== st.cls) { st.cls = c; el.className = c; changed++; }
     if (n.scroll !== 0 && !st.scrolls) { st.scrolls = true; liveScrollers.add(h); st.sx = n.sx; st.sy = n.sy; if (n.sx || n.sy) pendingScroll.push(h); }
@@ -638,7 +645,7 @@ export function makeDomHost(env) {
     if (!n || !n.onDraw) return;
     const box = st.drawBox;
     if (!st.vis) return;
-    if (!st.redraw && n.lazy) return;
+    if (!st.redraw && n.lazy && changed === 0) return;   // a lazy canvas (an icon) is drawn again with the rest of the tree, not every frame
     if (st.cw < 0) { st.cw = box.clientWidth; st.ch = box.clientHeight; }
     const w = Math.round(st.cw), hh = Math.round(st.ch);
     if (w <= 0 || hh <= 0) return;
@@ -648,6 +655,13 @@ export function makeDomHost(env) {
       mode = 'record';
       try { n.onDraw(0, 0, w, hh); } finally { mode = 'off'; }
       const r = rec; rec = null;
+      if (r.length === 1 && r[0][0] === 'element') {   // a media element (a <video>, a player's canvas or svg container): the element itself sits in the box
+        const el = r[0][1];
+        if (st.mode !== 'element') { box.textContent = ''; st.cv = null; st.mode = 'element'; st.doc = null; }
+        if (box.firstChild !== el) { box.textContent = ''; box.appendChild(el); }
+        st.redraw = false;
+        return;
+      }
       if (r.length === 1 && r[0][0] === 'svg') {
         const [, doc, , , , , a] = r[0];
         if (st.mode !== 'svg') { box.textContent = ''; st.cv = null; st.mode = 'svg'; st.doc = null; }
@@ -949,6 +963,7 @@ export function makeDomHost(env) {
     }
     return out.sort((a, b) => a.depth - b.depth);
   }
+  Z.repaint = () => { if (ui) ui.repaint(); };   // for the plugins that finish something later (lottie-web arriving): the tree is committed again
   Z.dom = { E, classes, ruleText, diff, stats: () => ({ rules: ruleText.length, classes: classes.size, elements: root.getElementsByTagName('*').length, frames }) };
   return { painter, commit, ui: () => ui };
 }

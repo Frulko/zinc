@@ -53,7 +53,7 @@ with Chrome(["--window-size=%d,%d" % (w, h), "--use-fake-ui-for-media-stream", "
     for kind, p in clicks:
         if kind == "xy": x, y = (float(v) for v in p.split(","))
         else:
-            r = c.eval("(() => { const w = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT); let n, r = null; while ((n = w.nextNode())) if (n.children.length === 0 && n.textContent === %s) { const b = n.getBoundingClientRect(); r = [b.x + b.width / 2, b.y + b.height / 2]; } return r; })()" % json.dumps(p))
+            r = c.eval("(() => { const w = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT); let n, r = null; while ((n = w.nextNode())) if (n.children.length === 0 && n.textContent === %s && getComputedStyle(n).visibility !== 'hidden') { const b = n.getBoundingClientRect(); r = [b.x + b.width / 2, b.y + b.height / 2]; } return r; })()" % json.dumps(p))
             if not r: sys.exit("no element with the text " + p)
             x, y = r
         click(x, y)

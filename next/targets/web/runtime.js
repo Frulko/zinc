@@ -348,6 +348,17 @@ const canvasPainter = {
     }
     ctx.restore();
   },
+  /** A DOM element that shows itself in the page's DOM render (a <video>, a player's <canvas>); on a canvas its current picture, fitted into the box (o.fit 'contain' or 'cover', o.bg a colour). */
+  element(el, x, y, w, h, o) {
+    const sw = el.videoWidth || el.naturalWidth || el.width || 0, sh = el.videoHeight || el.naturalHeight || el.height || 0;
+    if (!(sw > 0 && sh > 0 && w > 0 && h > 0)) return;
+    applyTransform(); ctx.globalAlpha = 1;
+    const cover = o && o.fit === 'cover', k = cover ? Math.max(w / sw, h / sh) : Math.min(w / sw, h / sh), dw = sw * k, dh = sh * k;
+    if (o && o.bg !== undefined && o.bg >= 0) { ctx.fillStyle = hex6(o.bg); ctx.fillRect(x, y, w, h); }
+    ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+    try { ctx.drawImage(el, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh); } catch { /* not decoded yet */ }
+    ctx.restore();
+  },
   clip(x, y, w, h, r) { applyTransform(); ctx.save(); rr(ctx, x, y, w, h, r); ctx.clip(); },
   unclip() { ctx.restore(); },
   beginImage(id) { const im = images[id]; if (!im) return; targets.push([ctx, target, tx, ty, xf]); target = im; ctx = im.canvas.getContext('2d'); tx = ty = 0; xf = null; },
@@ -368,6 +379,22 @@ function assetUrl(name) {
   for (const a of CFG.assets || []) if (a.name === n || a.name === 'assets/' + n || a.name === name) return a.url;
   return '';
 }
+Z.assetNames = () => (CFG.assets || []).map((a) => a.name);
+/** Loads a library a plugin brought (plugin.json web.scripts) the first time it is wanted: a script tag, resolved when it ran. */
+const scriptsLoaded = new Map();
+Z.loadScript = (name) => {
+  if (scriptsLoaded.has(name)) return scriptsLoaded.get(name);
+  const url = (CFG.scripts || {})[name];
+  const p = new Promise((res, rej) => {
+    if (!url) return rej(new Error('the export has no script ' + name));
+    const s = document.createElement('script');
+    s.src = url; s.onload = () => res(); s.onerror = () => rej(new Error('cannot load ' + url));
+    document.head.appendChild(s);
+  });
+  scriptsLoaded.set(name, p);
+  return p;
+};
+Z.assetUrl = assetUrl;   // the url of an asset by its name, for the plugins that hand it to a browser element (<video>)
 Z.imageSize = (id) => (images[id] ? [images[id].w, images[id].h] : [0, 0]);
 Z.imageUrl = (id) => {
   if (imageUrls[id]) return imageUrls[id];
@@ -386,7 +413,7 @@ if (dom) {
   B = host.painter;
   G.__zincDom = host;   // zinc:ui/dom (lib/std/ui-dom.browser.ts) finds the host here: its frames are committed as elements
 }
-Z.paint = { svg: (...a) => B.svg(...a) };   // for the browser backends of plugins that draw (plugins/svg/web)
+Z.paint = { svg: (...a) => B.svg(...a), element: (...a) => B.element(...a) };   // for the browser backends of plugins that draw (plugins/svg/web)
 Z.invalidate = () => { /* the page asks for another frame (images that finished loading): nothing to do, frames always run */ };
 
 // ---------------------------------------------------------------- input
@@ -763,7 +790,7 @@ Z.frame = frame;
 // ---------------------------------------------------------------- boot
 const bar = document.getElementById('zinc-progress');
 async function preload() {
-  const list = CFG.assets || [];
+  const list = (CFG.assets || []).filter((a) => !a.stream);   // (a video is streamed by its <video> element from its url)
   let done = 0, total = list.reduce((s, a) => s + (a.size || 0), 0) || 1, got = 0;
   const jobs = list.map(async (a) => {
     const r = await fetch(a.url);

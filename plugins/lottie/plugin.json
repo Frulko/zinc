@@ -15,5 +15,6 @@
     "wasm": { "defines": ["ZRT_POINT_POOL=131072"] },
     "ps2": {},
     "esp32": { "defines": ["ZRT_POINT_POOL=4096"], "flags": ["-Wno-error=misleading-indentation", "-Wno-missing-field-initializers"] }
-  }
+  },
+  "web": { "native": "Lottie", "impl": "web/lottie.js", "scripts": { "lottie-svg": { "file": "web/vendor/lottie-svg.min.js", "render": "dom" }, "lottie-canvas": { "file": "web/vendor/lottie-canvas.min.js", "render": "canvas" } } }
 }

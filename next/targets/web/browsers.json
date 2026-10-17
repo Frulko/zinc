@@ -40,6 +40,11 @@
     "compressionStreams": {"chrome": 80, "edge": 80, "firefox": 113, "safari": 16.4},
     "speechRecognition": {"chrome": 33, "edge": 79, "firefox": null, "safari": 14.1, "note": "prefixed in Chrome and Safari"},
     "speechSynthesis":   {"chrome": 33, "edge": 14, "firefox": 49, "safari": 7},
-    "batteryStatus":     {"chrome": 38, "edge": 79, "firefox": null, "safari": null}
+    "batteryStatus":     {"chrome": 38, "edge": 79, "firefox": null, "safari": null},
+    "mediaCapabilities": {"chrome": 66, "edge": 79, "firefox": 63, "safari": 13, "note": "decodingInfo(): whether a codec plays smoothly and power efficiently"},
+    "containerWebM":     {"chrome": 6, "edge": 79, "firefox": 4, "safari": 14.1, "note": "WebM; Safari on iPhone from 17.4 (VP9 inside it from 14.1 on a Mac)"},
+    "codecVP9":          {"chrome": 29, "edge": 79, "firefox": 28, "safari": 14.1, "note": "VP9; Safari on iPhone from 17.4"},
+    "codecAV1":          {"chrome": 70, "edge": 121, "firefox": 67, "safari": 17, "note": "AV1; Safari plays it only on hardware that decodes it (M3, A17 Pro and later); Edge needs the AV1 extension before 121"},
+    "codecHEVC":         {"chrome": 107, "edge": 107, "firefox": 134, "safari": 11, "note": "H.265/HEVC; Chrome and Edge play it only where the machine's decoder does, Firefox only on hardware that decodes it (Windows, Android, later macOS)"}
   }
 }

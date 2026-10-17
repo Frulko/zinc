@@ -1,0 +1,91 @@
+#!/usr/bin/env python3
+"""zinc:video and zinc:lottie on the web target in headless Chrome (docs/targets/web.md, "Video", "Lottie"; tests/t1/web_video.sh).
+usage: web-video-test video <dir of an export of tests/fixtures/web-video made with --render dom>
+       web-video-test lottie <dir of an export of tests/fixtures/web-lottie made with --render dom>
+video: the page holds the browser's own <video> (VP9 and AV1 WebM, which Chrome without proprietary codecs plays), the API drives it (play, pause, seek, volume, rate, controls,
+next), a file no browser plays shows its message and a download link. lottie: lottie-web is loaded when the animation is first drawn, an svg is in the box, the frame follows the player.
+Prints one JSON line {"checks": [[name, ok, detail]...]}; exit 1 when one failed, 77 without Chrome."""
+import functools, http.server, json, os, sys, threading, time
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from cdp import Chrome, find_chrome
+
+if len(sys.argv) < 3: sys.exit(__doc__)
+if not find_chrome():
+    print("SKIP no Chrome"); sys.exit(77)
+what, root = sys.argv[1], sys.argv[2]
+
+from rangehttp import RangeHandler, Srv
+srv = Srv(("127.0.0.1", 0), functools.partial(RangeHandler, directory=root))
+threading.Thread(target=srv.serve_forever, daemon=True).start()
+checks = []
+def check(name, ok, detail=""):
+    checks.append([name, bool(ok), "" if ok else str(detail)[:300]])
+
+with Chrome(["--window-size=900,600", "--enable-unsafe-swiftshader", "--autoplay-policy=no-user-gesture-required"]) as c:
+    c.call("Emulation.setDeviceMetricsOverride", {"width": 900, "height": 600, "deviceScaleFactor": 1, "mobile": False})
+    c.open("http://127.0.0.1:%d/" % srv.server_address[1])
+    def pump(s):
+        t0 = time.time()
+        while time.time() - t0 < s: c._recv(-1, 0.1)
+    def ev(js): return c.eval(js)
+    def click_text(t):
+        r = ev("(() => { const e = [...document.querySelectorAll('button')].find(b => b.textContent === %s); if (!e) return null; const b = e.getBoundingClientRect(); return [b.x + b.width / 2, b.y + b.height / 2]; })()" % json.dumps(t))
+        if not r: return False
+        for ty in ("mouseMoved", "mousePressed", "mouseReleased"):
+            c.call("Input.dispatchMouseEvent", {"type": ty, "x": r[0], "y": r[1], "button": "left", "buttons": 1 if ty == "mousePressed" else 0, "clickCount": 1}); pump(0.12)
+        return True
+    for _ in range(60):   # the page boots, the app builds its first frame
+        pump(0.25)
+        if ev("document.querySelector('.zdb') !== null"): break
+    pump(0.5)
+    if what == "video":
+        v = "document.querySelector('video')"
+        check("a <video> is in the page", ev("%s !== null" % v), ev("document.body.innerHTML.length"))
+        check("it is the browser's element, in the box of the Canvas node", ev("%s && %s.parentNode.classList.contains('zdb')" % (v, v)))
+        check("a file was loaded from its address (streamed, not downloaded first)", ev("%s.currentSrc.endsWith('.webm') && !%s.currentSrc.startsWith('blob:')" % (v, v)), ev("%s.currentSrc" % v))
+        check("the browser decoded the VP9 stream", ev("%s.videoWidth" % v) == 160, ev("%s.videoWidth + ' ' + (%s.error && %s.error.code)" % (v, v, v)))
+        check("not playing before play()", ev("%s.paused" % v))
+        click_text("Play"); pump(1.0)
+        check("Play plays", ev("!%s.paused && %s.currentTime > 0.1" % (v, v)), ev("%s.currentTime + ' ' + %s.paused" % (v, v)))
+        click_text("Pause"); pump(0.3)
+        check("Pause pauses", ev("%s.paused" % v))
+        click_text("Seek"); pump(0.5)
+        check("Seek moves the playhead", ev("%s.currentTime" % v) >= 0.9, ev("%s.currentTime" % v))
+        click_text("Half volume"); pump(0.3)
+        check("volume reaches the element", abs(ev("%s.volume" % v) - 0.5) < 0.01 and ev("!%s.muted" % v), ev("%s.volume" % v))
+        click_text("Rate 2"); pump(0.3)
+        check("rate reaches the element", ev("%s.playbackRate" % v) == 2, ev("%s.playbackRate" % v))
+        click_text("Controls"); pump(0.3)
+        check("the browser's controls come on", ev("%s.controls" % v) is True)
+        check("controls are the browser's (a control bar is part of the element)", ev("getComputedStyle(%s).display" % v) != "none")
+        click_text("Next"); pump(1.5)
+        check("Next loads the AV1 file", ev("%s.currentSrc.includes('av1')" % v), ev("%s.currentSrc" % v))
+        check("the browser decodes AV1 (or says it cannot, with a message)", ev("%s.videoWidth > 0" % v) or ev("document.querySelector('.zn-fallback') !== null"), ev("%s.videoWidth + ' ' + (%s.error && %s.error.code)" % (v, v, v)))
+        fb = "document.querySelector('.zn-fallback')"
+        check("a file no browser plays shows a message", ev("%s !== null && %s.textContent.includes('cannot play AVI')" % (fb, fb)), ev("document.body.innerText"))
+        check("with a link to download it", ev("(() => { const a = %s && %s.querySelector('a[download]'); return !!a && a.href.endsWith('.avi'); })()" % (fb, fb)))
+        check("the message is announced (role alert)", ev("%s && %s.getAttribute('role') === 'alert'" % (fb, fb)))
+        check("the page itself has no error", not [m for m in c.console if m.startswith("EXCEPTION")], c.console[:3])
+    else:
+        sv = "document.querySelector('.zdb svg')"
+        for _ in range(40):
+            if ev("%s !== null" % sv): break
+            pump(0.25)
+        check("lottie-web was loaded by the app, not by the page", ev("typeof window.lottie") == "object")
+        check("an svg animation sits in the box of the node", ev("%s !== null" % sv), ev("document.body.innerHTML.length"))
+        check("it has the animation's shapes", ev("%s.querySelectorAll('path').length" % sv) >= 1, ev("%s && %s.innerHTML.length" % (sv, sv)))
+        check("the page itself has no error", not [m for m in c.console if m.startswith("EXCEPTION")], c.console[:3])
+        a = ev("%s.getAttribute('viewBox')" % sv)
+        check("the animation keeps its composition's size", a is not None and a.split()[2:] == ["100", "100"], a)
+        click_text("Play"); pump(1.0)
+        before = ev("%s.innerHTML" % sv)
+        pump(0.6)
+        check("the frame follows the player (the picture changes while it plays)", ev("%s.innerHTML" % sv) != before)
+        click_text("Pause"); pump(0.3)
+        frozen = ev("%s.innerHTML" % sv)
+        pump(0.5)
+        check("a paused player holds its frame", ev("%s.innerHTML" % sv) == frozen)
+    out = {"checks": checks}
+srv.shutdown()
+print(json.dumps(out))
+sys.exit(1 if [x for x in checks if not x[1]] else 0)

@@ -454,6 +454,57 @@ one does (`a11y 1`: VoiceOver or Switch Control running, `AccessibilityManager.i
   itself. `ZINC_INSPECT=N` prints `ui.inspect()` at frame N; `next/tools/a11y-tree` puts the tree, the log of what was sent and the platform
   dumps in one form to diff them. Details and proofs: docs/reports/zinc-next-a11y-bridges.md; `tests/t0/ui_a11y_bridge.sh`.
 
+## Semantic hints and Form (the web page)
+
+On the web target with `--render dom` (docs/targets/web.md, "The semantic DOM") the tree becomes real HTML: the tag, the roles and the attributes of an element come from the node, and a few
+optional attributes tell the page more than a desktop needs. They are stored with the node (`ui.setAttr`) and every other target ignores them, so one source runs everywhere.
+
+```tsx
+<View as="header" className="flex-row items-center gap-4 px-6 py-3">
+  <Text as="h1" className="text-xl font-bold">Orders</Text>
+  <View as="nav" aria-label="Main" className="flex-row gap-3">
+    <Text as="a" href="/orders" className="text-sm">All</Text>
+  </View>
+</View>
+<ScrollView as="main" aria-label="Content">
+  <View as="ul">{rows.map((r) => <View as="li" key={r.id}>...</View>)}</View>
+  <Form onSubmit={save} name="login">
+    <Input name="email" type="email" autoComplete="email" required value={email()} onInput={setEmail} />
+    <Input name="password" type="password" autoComplete="current-password" minLength={8} value={pw()} onInput={setPw} />
+    <Button label="Sign in" type="submit" />
+  </Form>
+</ScrollView>
+```
+
+| Hint | What it does in the page |
+| --- | --- |
+| `as="nav"`, `"main"`, `"header"`, `"footer"`, `"aside"`, `"section"`, `"article"`, `"ul"`, `"ol"`, `"li"`, `"p"`, `"h1"` to `"h6"`, `"a"`, `"button"`, `"label"`, `"form"`, `"fieldset"`, `"table"`, `"tr"`, `"td"`, `"details"`, ... | the element the node is (any tag of the list in `targets/web/dom.js`; it wins over the default) |
+| `role="navigation"`, `"main"`, `"banner"`, `"contentinfo"`, `"complementary"`, `"region"`, `"form"`, `"list"`, `"listitem"`, `"article"`, `"link"`, `"button"`, `"heading"` (with `aria-level`) | the element with that meaning (`nav`, `main`, `header`, `footer`, `aside`, `section`, `form`, `ul`, `li`, `article`, `a`, `button`, `h1` to `h6`); any other role is a `role` attribute. `accessibilityRole` is `role` (React Native's name) |
+| `aria-label`, `accessibilityLabel`, `aria-*`, `data-*` | attributes of the element; `aria-checked`, `aria-selected`, `aria-expanded`... also drive the `aria-checked:` and `data-[state=open]:` variants |
+| `href`, `target`, `rel`, `download` | a real link (`<a>`); its `onClick` still runs, and a link with an `onClick` does not navigate by itself |
+| `name`, `type` (`email`, `number`, `tel`, `url`, `search`, `date`, ...), `autoComplete`, `required`, `pattern`, `minLength`, `maxLength`, `min`, `max`, `step`, `enterKeyHint`, `inputMode`, `spellCheck`, `autoCapitalize`, `autoCorrect`, `multiple`, `accept`, `form` | the attributes of the `<input>` or `<textarea>`: the browser's validation, autofill, password managers and soft keyboards read them |
+| `title`, `alt`, `lang`, `dir` | the attributes of the same names (an `Image`'s `alt` is its `aria-label`) |
+| `tabIndex`, `focusable`, `disabled`, `aria-hidden` | `tabindex`, focusability, `disabled` / `aria-disabled`, `aria-hidden` |
+
+Without a hint the page picks by what the node is: `Text` is a `span`; `Button` and a `View` or `ScrollView` with `onClick` that holds no other control is a `<button type="button">`;
+`Image` is an `<img>`; `Input` and `TextArea` are `<input>` (its `type` from `password`, `inputMode` or `type`) and `<textarea>`; a `ScrollView` is a keyboard-focusable scroller; a modal layer is a
+`<dialog>`; a `Canvas` is a box that holds a `<canvas>` (or an inline `<svg>` when all it draws is one SVG, as an icon does). The kit's components carry their roles: `Switch` (`switch`,
+`aria-checked`), `Slider` (`slider`, `aria-valuenow`), `Tabs` (`tablist`, `tab`, `aria-selected`), `List` and `ListItem` (`ul`, `li`), `Alert` (`alert`), `Progress` (`progressbar`), `Separator`,
+`Avatar` (`img`), `CardTitle` (`h3`), `Dialog` (`dialog`, named by its title, with an `h2`).
+
+### Form
+
+`Form` (`zinc:ui/kit`, and React Native's `Form` in `zinc:react-native`) is a column of fields submitted as one. `<Form onSubmit>` is a node with an `onSubmit` handler (`ui.onSubmit(h, f)`, the JSX attribute
+`onSubmit` on any host element):
+
+- **On a desktop, a phone or a canvas render**: Enter in a single-line field runs the nearest `onSubmit` above it (the field still commits its value first); a `type="submit"` button is a plain button
+  with its own `onClick`.
+- **On the page**: it is a real `<form>`. Enter in a field asks the browser to submit it, which first checks `required`, `pattern`, `minLength`, `type="email"`..., shows its own messages and
+  focuses the first bad field, and only then runs `onSubmit` (`submit` event, default prevented: the page does not navigate). A `type="submit"` button submits it too. Password managers and autofill see
+  the form, the fields' `name` and `autoComplete`.
+
+`TextInput` (React Native) takes `name`, `required`, `pattern`, `minLength`, `maxLength`, `autoComplete`, `enterKeyHint`, `keyboardType` and `secureTextEntry` (a `type="password"` field).
+
 ## Navigation stack
 
 `zinc:ui/navigation` is a stack navigator in the React model, shaped like React Navigation's native stack:
@@ -473,6 +524,8 @@ function Page(r: Route, nav: Navigation): i32 { /* r.name, r.title, r.params */ 
 | back gesture | an edge swipe (the left 24 px) moves the screen with the finger; past the middle, or thrown right faster than 500 px/s, it completes, otherwise it returns | the back key and gesture pop (the back handlers); Android 14's predictive back shrinks the screen toward 90 % and leans it the gesture's way while the finger moves (`backstart`, `backprogress`, `backcancel`), then commits or returns |
 | header | a chevron with the previous title in the tint, the title centred, a large title (34 px bold) on the first screen with `largeTitle` | an arrow, the title on the left (22 px) |
 | present | a sheet over a scrim (React Native's `Modal`), dismissed by dragging its grabber down a quarter of the screen | a full-screen dialog with a back arrow |
+
+On the web target a `path` prop (`path={(r) => '/' + r.name}`) keeps the address bar and history in step with the screens, and the browser's Back button pops the screen (docs/targets/web.md, "The semantic DOM").
 
 With reduce motion (`ui.prefersReducedMotion()`) both become a 200 ms cross-fade. The motion runs in a stepper on the screens' own nodes:
 a transition re-renders nothing. `tests/t1/navigation.sh` drives a push and a pop, the swipe completed and cancelled, the back key, predictive

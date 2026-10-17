@@ -13,5 +13,6 @@
     "webos": { "linkFlags": ["-ldl", "-pthread"] },
     "android": { "libs": ["mediandk", "android", "log"] },
     "ios": { "frameworks": ["AVFoundation", "CoreMedia", "CoreVideo", "Foundation"] }
-  }
+  },
+  "web": { "entry": "web/index.ts" }
 }

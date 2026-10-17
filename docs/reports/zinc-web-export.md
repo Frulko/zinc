@@ -36,15 +36,25 @@ QuickJS in wasm is an interpreter inside an interpreter. Wasm is used only where
 | DOM with CSS layout (flex/grid do the layout, Zinc's engine off) | 5 | 3 | 4 | 1 | 5 | 3 | 1 | 49 |
 
 Both of the first two ship, behind `--render` / `targets.web.render`; **canvas is the default** by three points: it implements every `zinc:gfx` feature one to one (clip, transform, blend, tint, off-screen images),
-and it is the pixel-exact base the DOM painter is compared with. DOM is recommended for forms, content and tools.
-WebGL2 is not built: Canvas2D is GPU-accelerated in current browsers, and a replay would re-implement the raster (gradients, shadows, text) in shaders for no measurable win at these frame costs.
+and it is the pixel-exact base the DOM mode is compared with.
 
-**Which engine lays out in DOM mode: Zinc's** (the classic engine, in `lib/std/ui.ts`). Reasons, in order: hit testing, scrolling, virtual lists, animations and the focus all read the laid-out
-boxes, so a second layout (CSS) would have to be read back every frame or kept equal; the classic engine's results are what the desktop builds show, so DOM and canvas match; text is measured with the
-canvas metrics of the font it is then set in, so the browser does not wrap a line differently from the layout. What DOM mode gives for it: the page the browser sees is real text and shapes, absolutely
-positioned. CSS flex/grid for the *app's* layout (the last row) is the better product for web-first apps, and the worst for compatibility with the 40 existing demos: it is a possible third mode, not now.
+**Decision 2b (2026-10-17, the same day): DOM mode is a real DOM, laid out by CSS.** The first DOM mode painted Zinc's layout as absolutely positioned elements with inline styles: the canvas made of divs. The
+owner called it wrong, rightly: the page had no structure, and the browser's scrolling, focus, forms and keyboard were all replaced by Zinc's. It is deleted (it covered nothing the canvas mode does not).
 
-Painters are pooled and diffed: an element is reused by its position in the paint order and its style string is written only when it changes, so a frame that draws the same thing touches no DOM.
+| Option | Fit x3 | Perf x3 | Size x2 | Maint x2 | Licence x2 | Port x1 | Effort x1 | Total |
+|---|---|---|---|---|---|---|---|---|
+| **Semantic DOM: Zinc's styles to CSS classes, the browser lays out, scrolls and focuses; Zinc's classic layout runs underneath for the program's geometry** | 5 | 4 | 4 | 3 | 5 | 4 | 2 | **70** |
+| Absolute painter (the first DOM mode) | 2 | 3 | 5 | 3 | 5 | 4 | 4 | 56 |
+| A second UI written for the DOM (React DOM components) | 5 | 5 | 3 | 1 | 5 | 3 | 1 | 63, and every demo would be rewritten: it breaks RULES.md section 1 |
+| Zinc's layout switched off, geometry read back from the DOM | 5 | 4 | 4 | 1 | 5 | 4 | 1 | 62: virtual lists, `screenBox` and gestures read the layout every frame |
+
+Why the classic layout still runs: `onScroll` limits, `screenBox`, `toLocal`, virtual lists, RefreshControl and the animators read the laid-out boxes (about half a millisecond a frame on the hero demo). Where it disagrees
+with CSS the host takes the browser's number for what matters (a virtual list's viewport) and stops zinc:ui from clamping a scroll offset with its own content size.
+How the style is written: each node's numbers become declarations, each declaration a class of one generated sheet (`property:value`, deduplicated, base-36 names, about 200 rules for a screen); a value that
+changes once becomes a custom property of its element. The alternatives were a class per `className` token (the tokens are resolved to numbers at build time, so a build-time sheet could not know `style`
+objects computed at run time) and inline style on every element (the first DOM mode: 1 200 style strings). The user-facing description, the translation table and the differences are in
+[docs/targets/web.md](../targets/web.md), "The semantic DOM". Bugs found on the way, and fixed: the web runtime never advanced `frame()`, so zinc:ui's clock, steppers and tweens stood still in both modes;
+a recycled node handle kept the style state of the node it replaced; Zinc's own scroll clamp used the shadow layout's size.
 
 ## Decision 3: hot reload
 
@@ -80,31 +90,33 @@ One more finding: `zinc:web` and `zinc:web/fetch` (lib/std) are Zinc's own polyf
 
 ## Measurements
 
-Apple M1 Pro, Chrome 155 headless (`--headless=new`, software compositing: compare the two modes with each other, not with a desktop's frame rate), localhost, `tools/web-measure`; 6 s of the hero demo's dashboard
-(live charts, 1200 boxes) after the first screen was left, 60 frames a second.
+Apple M1 Pro, Chrome 155 headless (`--headless=new`, software compositing: compare the modes with each other, not with a desktop's frame rate), localhost, `tools/web-measure`; 6 s of the hero demo's home screen
+(live charts) after the intro, and of `tests/fixtures/web-dom-list` (a list of 10 000 rows, 1 200 small boxes and 20 moving bars), run on a quiet machine after the semantic DOM was in. The old absolute painter is
+gone; its numbers are those of the first version of this report (same machine and Chrome) and are given for comparison.
 
-| | canvas | DOM |
-|---|---|---|
-| time to the first frame of the app (from navigation start) | 131 ms | 133 ms |
-| the app's own frame (layout, paint calls, canvas or DOM writes), mean / p95 / max | 0.87 / 2.4 / 5.3 ms | 0.60 / 0.7 / 2.6 ms |
-| the main thread per frame (tasks: script, layout, style, paint) | 1.2 ms | 2.6 ms (script 0.64, layout 0.48, style 0.10) |
-| DOM elements in the page | 22 | 1200 |
-| JS heap | 18 MB | 13 MB |
-| bytes fetched (uncompressed) | 907 KB | 915 KB |
+| | hero canvas | hero DOM (semantic) | hero DOM (old absolute painter) | list canvas | list DOM (semantic) |
+|---|---|---|---|---|---|
+| time to the first frame of the app | 150 ms | 146 ms | 133 ms | 109 ms | 122 ms |
+| the app's own frame, mean / p95 / max | 0.82 / 1.1 / 2.5 ms | 0.75 / 0.9 / 1.3 ms | 0.60 / 0.7 / 2.6 ms | 1.34 / 1.5 / 3.0 ms | 1.07 / 1.2 / 3.7 ms |
+| the main thread per frame (script, layout, style) | 1.17 ms (0.86, 0, 0) | 1.11 ms (0.78, 0.01, 0) | 2.6 ms (0.64, 0.48, 0.10) | 1.64 ms | 1.58 ms (1.10, 0.06, 0.12) |
+| DOM elements | 22 | 331 | 1 200 | 22 | 1 338 (about 35 rows of the list) |
+| JS heap | 19.8 MB | 13.4 MB | 13 MB | 6.5 MB | 8.4 MB |
+| bytes fetched | 942 KB | 979 KB | 915 KB | 224 KB | 262 KB |
 
-Both are far inside a 16.7 ms frame. DOM costs 1.4 ms more on the main thread and nothing is drawn by Zinc: the browser's compositor does the pixels. What a phone does with 1200 elements is
-not measured here (no device in this session): the case for canvas on low-end phones, and a thing to measure before changing the default.
+The semantic DOM costs what the canvas does per frame on these two apps and a quarter of the elements of the absolute painter (a flexbox box is one element however many things it draws: text, background, border and
+shadow are not separate elements). An idle frame costs nothing in both (zinc:ui commits only when the tree changed). The list moves 20 widths a frame through custom properties: 0.12 ms of style recalculation.
+What a phone does with 1 300 elements is not measured here (no device in this session): the case for the canvas mode on low-end phones stays, and the number to take before changing the default.
 
 Download size of an export, Brotli (the JavaScript the page runs; `zinc` + `app` + `native` [+ `dom`]):
 
 | app | canvas | DOM | notes |
 |---|---|---|---|
-| examples/hero (88 modules, charts, icons, Lottie stubs) | 380 KB, 118 KB br | 387 KB, 121 KB br | 354 KB minified app |
+| examples/hero (88 modules, charts, icons, video and lottie plugins) | 380 KB, 118 KB br | 395 KB, 125 KB br | 361 KB minified app; lottie-web (168 KB svg build or 203 KB canvas build) is loaded only when an animation is first drawn |
 | examples/webrtc-call (camera, microphone, webrtc, audio, svg) | 234 KB, 77 KB br | | |
 | desktop-app template (nuxt kit) | 253 KB, 82 KB br | 261 KB, 85 KB br | |
 | sqlite fixture | 206 KB, 70 KB br | | plus `sqlite.wasm` 690 KB, 240 KB br |
 
-The web host is 28 KB (10 KB br), the DOM painter 8 KB, the dev client (`hmr.js`) is not in an export.
+The web host is 30 KB (10 KB br), the semantic DOM host 40 KB (13 KB br), the dev client (`hmr.js`) is not in an export.
 
 The wasm target for comparison was not measured: its `vm-web.wasm` needs the pinned zig and the build of the runtime, and it cannot run these apps (no kits, no plugins).
 
@@ -116,7 +128,7 @@ The wasm target for comparison was not measured: its `vm-web.wasm` needs the pin
 - No screen reader, no IME composition and no touch device was tried; the `<textarea>` that follows an edited field is the design, untested with a soft keyboard.
 - **Fonts**: Zinc ships Inter as `sans`; the web host uses the system sans (`system-ui`). Widths differ by a few percent from a desktop build. Shipping Inter as a web font (OFL) would make the two identical
   and costs a 300 KB file: a choice for the owner, not made.
-- Roles and focus (DOM mode), prerendering for search, `zinc:gl` / three.js, Yoga (`ui.layout: "rn"`), `drawShader`, `imageFromBytes` of a remote image (it decodes asynchronously and shows at the next repaint
+- `zinc:gl` / three.js, Yoga (`ui.layout: "rn"`), `drawShader`, `imageFromBytes` of a remote image (it decodes asynchronously and shows at the next repaint
   of the app, which an idle app may not make: use `createImage` or `Image`), `zinc:fs` on the real disk (the page has an in-memory file system for the program's own writes and `localStorage` for `zinc:storage`).
 - `zinc:system` menus, tray and window geometry are accepted and do nothing (so a desktop template runs); a program that wants to adapt asks `supports('menu')`.
 - The dev server writes `build/.zinc-web-dev/` in the project. A project that imports a package from `node_modules` cannot be served module by module yet (esbuild resolves packages, and the dev
@@ -124,9 +136,9 @@ The wasm target for comparison was not measured: its `vm-web.wasm` needs the pin
 
 ## Next, in this order
 
-1. Roles for DOM mode: `zinc:ui` knows which nodes are buttons, links and inputs; one optional host call would let the DOM painter emit `<button>`, `role`, `aria-label` and `tabindex`.
+1. Done: roles, forms, native scroll and focus, prerendering and addresses (the semantic DOM). Next there: a phone measurement, Firefox and Safari runs, a screen reader and an IME pass.
 2. `zinc:gl` and three.js on a WebGL2 canvas next to (or under) the Zinc one; `zinc:video` and `zinc:lottie` over the browser's elements.
 3. Box2D (`zinc:physics2d`) to WebAssembly; gphoto2 over WebUSB; serial over Web Serial; MIDI over Web MIDI.
 4. Yoga to WebAssembly for the `rn` layout; the shadcn-style and React Native kits on the page.
-5. A prerendered `index.html` for DOM mode (the first frame's text in the HTML), and Inter as a web font.
+5. Inter as a web font.
 6. Safari and Firefox runs, a phone measurement, and the numbers of this table in `docs/reports/zinc-next-perf.md` once the coordinator takes them.

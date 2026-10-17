@@ -1,0 +1,6 @@
+{
+  "name": "web-video",
+  "entry": "src/main.tsx",
+  "assets": "assets",
+  "targets": { "web": { "render": "dom", "title": "Video fixture" } }
+}
