@@ -1,0 +1,244 @@
+{
+ "frames": {
+  "hero_0": {
+   "frame": {
+    "x": 0,
+    "y": 0,
+    "w": 24,
+    "h": 24
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 24,
+    "h": 24
+   },
+   "sourceSize": {
+    "w": 24,
+    "h": 24
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 1
+   },
+   "duration": 120
+  },
+  "hero_1": {
+   "frame": {
+    "x": 24,
+    "y": 0,
+    "w": 24,
+    "h": 24
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 24,
+    "h": 24
+   },
+   "sourceSize": {
+    "w": 24,
+    "h": 24
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 1
+   },
+   "duration": 120
+  },
+  "walker_0": {
+   "frame": {
+    "x": 0,
+    "y": 48,
+    "w": 24,
+    "h": 24
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 24,
+    "h": 24
+   },
+   "sourceSize": {
+    "w": 24,
+    "h": 24
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 1
+   },
+   "duration": 160
+  },
+  "walker_1": {
+   "frame": {
+    "x": 24,
+    "y": 48,
+    "w": 24,
+    "h": 24
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 24,
+    "h": 24
+   },
+   "sourceSize": {
+    "w": 24,
+    "h": 24
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 1
+   },
+   "duration": 160
+  },
+  "walker_flat": {
+   "frame": {
+    "x": 48,
+    "y": 48,
+    "w": 24,
+    "h": 24
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 24,
+    "h": 24
+   },
+   "sourceSize": {
+    "w": 24,
+    "h": 24
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 1
+   },
+   "duration": 100
+  },
+  "flyer_0": {
+   "frame": {
+    "x": 144,
+    "y": 48,
+    "w": 24,
+    "h": 24
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 24,
+    "h": 24
+   },
+   "sourceSize": {
+    "w": 24,
+    "h": 24
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 1
+   },
+   "duration": 90
+  },
+  "flyer_1": {
+   "frame": {
+    "x": 168,
+    "y": 48,
+    "w": 24,
+    "h": 24
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 24,
+    "h": 24
+   },
+   "sourceSize": {
+    "w": 24,
+    "h": 24
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 1
+   },
+   "duration": 90
+  },
+  "flyer_2": {
+   "frame": {
+    "x": 192,
+    "y": 48,
+    "w": 24,
+    "h": 24
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 24,
+    "h": 24
+   },
+   "sourceSize": {
+    "w": 24,
+    "h": 24
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 1
+   },
+   "duration": 90
+  }
+ },
+ "meta": {
+  "app": "examples/platformer/tools/make_assets.py",
+  "image": "kenney/pixel-platformer/tilemap-characters_packed.png",
+  "size": {
+   "w": 216,
+   "h": 72
+  },
+  "frameTags": [
+   {
+    "name": "hero_idle",
+    "from": 0,
+    "to": 0,
+    "direction": "forward"
+   },
+   {
+    "name": "hero_run",
+    "from": 0,
+    "to": 1,
+    "direction": "forward"
+   },
+   {
+    "name": "hero_jump",
+    "from": 1,
+    "to": 1,
+    "direction": "forward"
+   },
+   {
+    "name": "walker",
+    "from": 2,
+    "to": 3,
+    "direction": "forward"
+   },
+   {
+    "name": "flyer",
+    "from": 5,
+    "to": 7,
+    "direction": "forward"
+   }
+  ]
+ }
+}

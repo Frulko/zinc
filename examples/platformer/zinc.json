@@ -1,0 +1,16 @@
+{
+  "name": "platformer",
+  "app": { "id": "dev.zinc.examples.platformer", "name": "Meadow Run", "version": "0.1.0" },
+  "entry": "src/main.ts",
+  "assets": {
+    "dir": "assets",
+    "rules": [
+      { "match": "level.ldtk", "as": "tilemap", "atlas": "game", "extrude": 1, "padding": 1, "maxSize": 256, "pot": true },
+      { "match": "{characters,items}.json", "as": "sprite", "atlas": "game", "extrude": 1, "padding": 1, "maxSize": 256, "pot": true }
+    ]
+  },
+  "targets": {
+    "macos": { "width": 960, "height": 544 },
+    "linux": { "width": 960, "height": 544 }
+  }
+}

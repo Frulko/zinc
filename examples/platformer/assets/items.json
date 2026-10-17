@@ -1,0 +1,201 @@
+{
+ "frames": {
+  "coin_0": {
+   "frame": {
+    "x": 198,
+    "y": 126,
+    "w": 18,
+    "h": 18
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 18,
+    "h": 18
+   },
+   "sourceSize": {
+    "w": 18,
+    "h": 18
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 1
+   },
+   "duration": 160
+  },
+  "coin_1": {
+   "frame": {
+    "x": 216,
+    "y": 126,
+    "w": 18,
+    "h": 18
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 18,
+    "h": 18
+   },
+   "sourceSize": {
+    "w": 18,
+    "h": 18
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 1
+   },
+   "duration": 160
+  },
+  "flag_0": {
+   "frame": {
+    "x": 198,
+    "y": 90,
+    "w": 18,
+    "h": 18
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 18,
+    "h": 18
+   },
+   "sourceSize": {
+    "w": 18,
+    "h": 18
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 1
+   },
+   "duration": 260
+  },
+  "flag_1": {
+   "frame": {
+    "x": 216,
+    "y": 90,
+    "w": 18,
+    "h": 18
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 18,
+    "h": 18
+   },
+   "sourceSize": {
+    "w": 18,
+    "h": 18
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 1
+   },
+   "duration": 260
+  },
+  "pole": {
+   "frame": {
+    "x": 198,
+    "y": 108,
+    "w": 18,
+    "h": 18
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 18,
+    "h": 18
+   },
+   "sourceSize": {
+    "w": 18,
+    "h": 18
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 1
+   },
+   "duration": 100
+  },
+  "heart": {
+   "frame": {
+    "x": 72,
+    "y": 36,
+    "w": 18,
+    "h": 18
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 18,
+    "h": 18
+   },
+   "sourceSize": {
+    "w": 18,
+    "h": 18
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 1
+   },
+   "duration": 100
+  },
+  "heart_empty": {
+   "frame": {
+    "x": 108,
+    "y": 36,
+    "w": 18,
+    "h": 18
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 18,
+    "h": 18
+   },
+   "sourceSize": {
+    "w": 18,
+    "h": 18
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 1
+   },
+   "duration": 100
+  }
+ },
+ "meta": {
+  "app": "examples/platformer/tools/make_assets.py",
+  "image": "kenney/pixel-platformer/tilemap_packed.png",
+  "size": {
+   "w": 360,
+   "h": 162
+  },
+  "frameTags": [
+   {
+    "name": "coin",
+    "from": 0,
+    "to": 1,
+    "direction": "forward"
+   },
+   {
+    "name": "flag",
+    "from": 2,
+    "to": 3,
+    "direction": "forward"
+   }
+  ]
+ }
+}
