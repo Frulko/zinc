@@ -1,9 +1,10 @@
 ---
 id: ZN-753
-title: 'Demo: breakout on PSP, PS Vita and PS2, in their emulators'
+title: 'Demo: breakout on PSP, PS Vita, PS2 and Nintendo 3DS, in their emulators'
 status: Backlog
 assignee: []
 created_date: '2026-10-17 07:48'
+updated_date: '2026-10-17 08:38'
 labels:
   - handheld
   - games
@@ -26,4 +27,11 @@ Owner 2026-10-17: "une vraie démo" on PSP, PS Vita and PS2: simpler than the ph
 - [ ] #2 the same in Vita3K with the Vita's pad
 - [ ] #3 the same in Play! for the PS2 with its pad
 - [ ] #4 a short video or screenshot series per console in docs/reports/zinc-next-consoles.md, with the frame times and what each port needed
+- [ ] #5 the same in Azahar for the Nintendo 3DS (top screen 400x240, the circle pad and buttons)
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-10-17 (owner): the Nintendo 3DS joins (devkitARM, libctru/citro3d/citro2d, Azahar).
+<!-- SECTION:NOTES:END -->

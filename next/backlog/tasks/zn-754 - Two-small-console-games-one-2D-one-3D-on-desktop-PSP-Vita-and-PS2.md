@@ -5,6 +5,7 @@ status: Backlog
 assignee:
   - '@parallel'
 created_date: '2026-10-17 08:07'
+updated_date: '2026-10-17 08:38'
 labels:
   - handheld
   - games
@@ -26,3 +27,9 @@ Owner 2026-10-17: "un petit jeu 3D et un petit jeu 2D" for the consoles (with ZN
 - [ ] #2 both stay inside the per-console budgets of the report (triangles, sprites, textures, memory), measured with the perf panel on the desktop at the consoles' resolutions
 - [ ] #3 each runs in the emulators of the consoles whose back end exists (screenshots and frame times in docs/reports/zinc-next-consoles.md)
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-10-17 (owner): the Nintendo 3DS joins (top screen 400x240, PICA200 fixed fragment pipeline, Old 3DS 268 MHz: keep marble's triangles and textures inside the 3DS budget too); the 3D scene and textures are modelled in Blender (5.2.1 LTS, /Applications/Blender.app) by a separate asset agent: source scripts in examples/marble/assets/blender/, outputs (GLB/zmesh and PNG textures) in examples/marble/assets/models and textures.
+<!-- SECTION:NOTES:END -->
