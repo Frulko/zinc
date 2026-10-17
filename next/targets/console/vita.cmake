@@ -8,6 +8,17 @@ if(ZN_CONSOLE_GFX)
   target_sources(zinc-core PRIVATE ${ZN_TARGETS}/vita/gxm_vita.cpp)
   set_source_files_properties(${ZN_TARGETS}/vita/gxm_vita.cpp PROPERTIES COMPILE_OPTIONS "-w" INCLUDE_DIRECTORIES "${ZN_RUNTIME};${ZN_NEXT}/third_party/SDL3/src/render/vitagxm")
 endif()
+# the 3D path (ZN-493, first milestone): gxm_3d.cpp's draw entrypoint, only with the compiled colour pair;
+# default off, the 2D replay above builds and behaves unchanged (targets/vita/shaders/README.md).
+set(ZN_VITA_GXP_3D OFF CACHE BOOL "compile the GXM 3D path (needs targets/vita/shaders/zn_gxp_3d.h, the generated GXP blob header)")
+if(ZN_VITA_GXP_3D)
+  if(NOT EXISTS "${ZN_TARGETS}/vita/shaders/zn_gxp_3d.h")
+    message(FATAL_ERROR "ZN_VITA_GXP_3D=1 without targets/vita/shaders/zn_gxp_3d.h: compile the 3D colour pair with the Vita shader compiler (targets/vita/shaders/README.md)")
+  endif()
+  target_sources(zinc-core PRIVATE ${ZN_TARGETS}/vita/gxm_3d.cpp)
+  set_source_files_properties(${ZN_TARGETS}/vita/gxm_3d.cpp PROPERTIES COMPILE_OPTIONS "-w" INCLUDE_DIRECTORIES "${ZN_TARGETS}/vita/shaders")
+  target_compile_definitions(zinc-core PRIVATE ZN_VITA_GXP_3D=1)
+endif()
 target_compile_definitions(zinc-core PRIVATE ZN_CONSOLE_STACK_SLOTS=1048576 ZN_CONSOLE_MAX_DEPTH=4000)   # 8 MiB of registers, 4000 calls deep
 set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/audio_console.cpp PROPERTIES COMPILE_DEFINITIONS "ZN_CONSOLE_AUDIO_RATE=48000;ZN_CONSOLE_AUDIO_NAME=\"sceAudioOut\"")
 vita_create_self(eboot.bin zinc-core UNSAFE)

@@ -27,6 +27,7 @@
     {"paths": ["src/tc/consoles.cpp", "src/tc/tc.cpp", "src/tc/tc.h", "tests/t0/console_sdks.sh"], "tests": ["console_sdks"]},
     {"paths": ["../examples/breakout/", "tests/golden/breakout/", "tests/t1/breakout_pad.sh"], "tests": ["breakout_pad"]},
     {"paths": ["tools/console-run", "tools/build-console-core", "tools/console-demos", "targets/console/hello/", "targets/console/console_pad.h", "../targets/psp/", "../targets/vita/", "../targets/ps2/hal_ps2.cpp", "../targets/n3ds/", "targets/console/psp.cmake", "targets/console/vita.cmake", "targets/console/ps2.cmake", "targets/console/n3ds.cmake", "tests/t2/console_emulators.sh"], "tests": ["console_emulators"]},
+    {"paths": ["../targets/vita/gxm_3d.cpp", "../targets/vita/gxm_vita.cpp", "../targets/vita/shaders/", "tests/t0/vita_gxp_3d.sh"], "tests": ["vita_gxp_3d"]},
     {"paths": ["src/app/", "include/zn/app.h", "tests/t0/app_library.sh", "src/aot/aot.cpp", "../targets/macos/hal_sdl.cpp", "src/host/loop.cpp"], "tests": ["app_library"]},
     {"paths": ["src/agent/", "src/net/", "third_party/mdns/", "tests/t0/agent.sh", "tests/t1/agent_apps.sh"], "tests": ["agent", "agent_apps"]},
     {"paths": ["../plugins/link/", "src/net/", "src/host/tls.cpp", "src/host/tls.h", "tests/data/link/", "tests/t1/link.sh"], "tests": ["link"]},

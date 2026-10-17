@@ -304,6 +304,17 @@ void draw() {
 
 extern "C" {
 uint64_t zn_gxm_cpu_us;   // the CPU time of the last frame's replay (or software raster), for the HAL's frame times
+#ifdef ZN_VITA_GXP_3D
+// the 3D path (gxm_3d.cpp, ZN_VITA_GXP_3D) draws on this context: no second GXM context, no
+// second display queue. Null when the 2D replay did not come up; the caller keeps its path.
+extern "C" SceGxmContext* zn_gxm_3d_context(SceGxmRenderTarget** targetOut, SceGxmShaderPatcher** patcherOut, SceGxmDepthStencilSurface* depthOut) {
+  if (!ready) return nullptr;
+  if (targetOut) *targetOut = target;
+  if (patcherOut) *patcherOut = patcher;
+  if (depthOut) *depthOut = depth;
+  return ctx;
+}
+#endif
 // Starts GXM: false (with the reason on the log) when the console refuses something; the HAL then keeps its software path.
 bool zn_gxm_init(int32_t w, int32_t h) {
   SceGxmInitializeParams ip;
