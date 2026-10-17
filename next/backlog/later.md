@@ -329,6 +329,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-627: the same Metal present for macOS's software windows (ZINC_RENDERER=cpu, transparent windows), which still upload through a staging texture in SDL_Renderer; hal_metal.mm works on Cocoa through SDL_Metal_CreateView.
 - ZN-627: build the Metal back end of the command lists (D119) from the plan in the ZN-627 notes, when a device misses frames or SHADER is needed on iOS; it would also replace the deprecated OpenGL replay on macOS.
 - ZN-627: 120 Hz on ProMotion iPhones needs CADisableMinimumFrameDurationOnPhone in the exported Info.plist.
+- ZN-630: a macOS NSAccessibility bridge over the same device('a11y') lines (or AccessKit for macOS, Windows, Linux).
+- ZN-630: a dirty mark per subtree instead of walking the whole tree each painted frame while a reader listens (160 µs a frame for 300 nodes on AOT).
+- ZN-630: iOS text fields read as label/value/hint (no public text field trait): try a UITextInput or hidden UITextField proxy.
+- ZN-630: custom actions (onLongPress, aria actions) as UIAccessibilityCustomAction and AccessibilityAction; increment and decrement for sliders.
 
 ## Demos
 
@@ -629,3 +633,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-?: add a 100000-row virtualised list to the perf screen, Flutter's `ListView.builder` as reference
 - ZN-749: the hybrid web view on the Nexus 7 (API 25 WebView) and a real iPhone; how far a native view trails a fling there.
 - ZN-627: the Metal present on a real iPhone (raster p50/p99 at 60 Hz and at ProMotion 120 Hz, an iPhone 8 as the floor).
+- ZN-630: VoiceOver on a real iPhone and TalkBack on a phone: speech, swipe order, double tap, off-screen rows in a scroll area, touch exploration through the surface's hover listener.
