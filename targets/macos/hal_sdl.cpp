@@ -416,6 +416,9 @@ static void signal_safe_area() {   // window points into the surface's units
   snprintf(b, sizeof b, "safearea %d %d %d %d", (int)(r.y * ky + 0.5f), (int)((ww - r.x - r.w) * kx + 0.5f), (int)((wh - r.y - r.h) * ky + 0.5f), (int)(r.x * kx + 0.5f));
   sys_signal(b);
 }
+// A player started another program in the same window (Zinc Go, src/app/player.cpp): it hears the theme and the safe area again, as a
+// program does when the window opens
+extern "C" void zn_hal_sdl_resignal(void) { signal_theme(); signal_safe_area(); }
 static void signal_event(const SDL_Event& e) {
   if (e.type == SDL_EVENT_SYSTEM_THEME_CHANGED) signal_theme();
   else if (e.type == SDL_EVENT_WINDOW_SAFE_AREA_CHANGED || e.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED) signal_safe_area();

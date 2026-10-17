@@ -43,6 +43,7 @@
 #include <jni.h>
 #endif
 
+extern "C" void zn_hal_sdl_resignal(void);   // targets/macos/hal_sdl.cpp
 // The package's plugins, registered: zinc export writes the strong definition beside the player; a player without plugins (tests) keeps this one
 extern "C" __attribute__((weak)) void zn_player_modules(void) {}
 
@@ -177,6 +178,7 @@ int run(std::unique_ptr<hot::Unit> u, bool remote, const std::vector<std::string
   gRemote = remote;
   installUnit(*gCur);
   zn::host::setProgramArgs(args);
+  zn_hal_sdl_resignal();   // the window is the last program's: the new one hears its theme and safe area
   return zn::rt::appStart({}, &gCur->zbc, nullptr, 0);
 }
 
