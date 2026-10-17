@@ -22,7 +22,7 @@
 namespace {
 const int MAXS = 8;
 const char* const PERM = "android.permission.CAMERA";
-struct Cam {
+struct Stream {
   bool used = false;
   volatile bool lost = false;          // disconnected or failed: the frames stop, the program keeps its last one
   int sw = 0, sh = 0, w = 0, h = 0;    // the stream's size (the sensor's way up), the delivered size (turned upright)
@@ -43,7 +43,7 @@ struct Cam {
   ACameraCaptureSession_stateCallbacks sescb = {};
   AImageReader_ImageListener listener = {};
 };
-Cam cams[MAXS];
+Stream streams[MAXS];
 std::atomic<int> asked{0};   // what SDL's request answered: 0 nothing, 1 granted, 2 denied, 3 waiting for the person
 
 ACameraManager* manager() {   // one for the process, made on first use
@@ -91,7 +91,7 @@ long dst(int x, int y, int sw, int sh, int rot, bool mirror) {
 }
 
 // YUV_420_888 is planar (I420) or semi-planar (NV12/NV21) depending on the device: the row and pixel strides of each plane cover all of them.
-bool convert(Cam& d, AImage* img) {
+bool convert(Stream& d, AImage* img) {
   int32_t iw = 0, ih = 0;
   AImage_getWidth(img, &iw); AImage_getHeight(img, &ih);
   if (iw != d.sw || ih != d.sh) return false;
@@ -113,7 +113,7 @@ bool convert(Cam& d, AImage* img) {
 }
 
 void on_image(void* ctx, AImageReader* r) {   // the reader's thread
-  Cam& d = *(Cam*)ctx;
+  Stream& d = *(Stream*)ctx;
   pthread_mutex_lock(&d.rmu);
   if (d.reader != r) { pthread_mutex_unlock(&d.rmu); return; }   // closed meanwhile
   AImage* img = nullptr;
@@ -128,11 +128,11 @@ void on_image(void* ctx, AImageReader* r) {   // the reader's thread
   }
   pthread_mutex_unlock(&d.rmu);
 }
-void on_lost(void* ctx, ACameraDevice*) { ((Cam*)ctx)->lost = true; }   // another app took it, or it was unplugged
-void on_error(void* ctx, ACameraDevice*, int) { ((Cam*)ctx)->lost = true; }
+void on_lost(void* ctx, ACameraDevice*) { ((Stream*)ctx)->lost = true; }   // another app took it, or it was unplugged
+void on_error(void* ctx, ACameraDevice*, int) { ((Stream*)ctx)->lost = true; }
 void on_session(void*, ACameraCaptureSession*) {}
 
-void release(Cam& d) {
+void release(Stream& d) {
   if (d.session) { ACameraCaptureSession_stopRepeating(d.session); ACameraCaptureSession_close(d.session); }
   if (d.req) ACaptureRequest_free(d.req);
   if (d.target) ACameraOutputTarget_free(d.target);
@@ -149,7 +149,7 @@ void release(Cam& d) {
   d.session = nullptr; d.req = nullptr; d.target = nullptr; d.outs = nullptr; d.out = nullptr; d.dev = nullptr;
   d.used = false; d.lost = false; d.sw = d.sh = d.w = d.h = 0;
 }
-int fail(Cam& d, char* err, int n, const char* msg, const char* id) { snprintf(err, n, msg, id); release(d); return -1; }
+int fail(Stream& d, char* err, int n, const char* msg, const char* id) { snprintf(err, n, msg, id); release(d); return -1; }
 }  // namespace
 
 int cam_backend_permission(bool ask) {
@@ -195,9 +195,9 @@ int cam_backend_open(const char* id, int w, int h, int fps, int* ow, int* oh, do
   ACameraManager* m = manager();
   if (!m) { snprintf(err, n, "the camera service is not available"); return -1; }
   int slot = 0;
-  while (slot < MAXS && cams[slot].used) slot++;
+  while (slot < MAXS && streams[slot].used) slot++;
   if (slot == MAXS) { snprintf(err, n, "too many cameras open"); return -1; }
-  Cam& d = cams[slot];
+  Stream& d = streams[slot];
   ACameraMetadata* md = nullptr;
   if (ACameraManager_getCameraCharacteristics(m, id, &md) != ACAMERA_OK || !md) { snprintf(err, n, "no camera '%s' (devices() lists them)", id); return -1; }
   // the smallest YUV output that covers the asked size (else the largest), so the frame is never scaled up
@@ -273,8 +273,8 @@ int cam_backend_open(const char* id, int w, int h, int fps, int* ow, int* oh, do
 int cam_backend_state(int, char*, int) { return 1; }   // open() returns once the camera streams
 
 bool cam_backend_take(int b, uint32_t* px, int w, int h, uint32_t* seq) {
-  if (b < 0 || b >= MAXS || !cams[b].used) return false;
-  Cam& d = cams[b];
+  if (b < 0 || b >= MAXS || !streams[b].used) return false;
+  Stream& d = streams[b];
   pthread_mutex_lock(&d.mu);
   const bool fresh = d.px && d.seq != *seq && d.w == w && d.h == h;
   if (fresh) { memcpy(px, d.px, (size_t)w * h * 4); *seq = d.seq; }
@@ -283,8 +283,8 @@ bool cam_backend_take(int b, uint32_t* px, int w, int h, uint32_t* seq) {
 }
 
 void cam_backend_close(int b) {
-  if (b < 0 || b >= MAXS || !cams[b].used) return;
-  release(cams[b]);
+  if (b < 0 || b >= MAXS || !streams[b].used) return;
+  release(streams[b]);
 }
 
 #include "camera.host.cpp"
