@@ -4,7 +4,8 @@ title: >-
   Music remote: notifications over any view, a notification slide and the
   pairing assistant
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-17 08:46'
 labels:
   - mobile
