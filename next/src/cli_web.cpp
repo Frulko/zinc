@@ -73,7 +73,7 @@ bool flag(yyjson_val* o, const char* k, bool dflt) { yyjson_val* v = o ? yyjson_
 
 // ---- the project's settings: zinc.json "web"
 struct Cfg {
-  std::string render = "canvas", browsers, title, description, theme = "#111111", bg = "#ffffff", lang = "en", icon, id;
+  std::string render = "canvas", browsers, title, description, theme = "#111111", bg = "#ffffff", lang = "en", dir, scroll = "app", icon, id;   // dir: "ltr" or "rtl" for <html dir>; scroll: "app" (the page is fixed to the window, containers scroll) or "page" (the page scrolls, DOM render)
   bool pwa = true, strict = false, rnLayout = false;
   int w = 0, h = 0;   // a fixed surface (web.width, web.height); 0: the page's size
   std::vector<std::string> pluginDirs;
@@ -94,6 +94,8 @@ Cfg readCfg(const WebArgs& a) {
       c.theme = str(w, "themeColor", c.theme);
       c.bg = str(w, "backgroundColor", c.bg);
       c.lang = str(w, "lang", c.lang);
+      c.dir = str(w, "dir");
+      c.scroll = str(w, "scroll", c.scroll);
       c.icon = str(w, "icon");
       c.pwa = flag(w, "pwa", true);
       c.strict = flag(w, "strict", false);
@@ -426,7 +428,8 @@ std::vector<Asset> listAssets(const std::string& dir) {
 }
 
 std::string pageFor(const Cfg& c, const std::string& config, const std::string& preloads, bool dev, bool pwa, bool hasIcon, const std::string& iconUrl, const std::string& nativeUrl) {
-  std::string h = "<!doctype html>\n<html lang=\"" + c.lang + "\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width,initial-scale=1,viewport-fit=cover\">\n";
+  std::string h = "<!doctype html>\n<html lang=\"" + c.lang + "\"" + (c.dir.empty() ? "" : " dir=\"" + c.dir + "\"") + ">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width,initial-scale=1,viewport-fit=cover\">\n";
+  if (c.render == "dom") h += "<meta name=\"color-scheme\" content=\"light dark\">\n";   // form controls and scrollbars follow the scheme the app is in (the page sets colorScheme as zinc:ui's scheme changes)
   auto esc = [](const std::string& s) { std::string r; for (char ch : s) { if (ch == '<') r += "&lt;"; else if (ch == '&') r += "&amp;"; else if (ch == '"') r += "&quot;"; else r += ch; } return r; };
   h += "<title>" + esc(c.title) + "</title>\n";
   if (!c.description.empty()) h += "<meta name=\"description\" content=\"" + esc(c.description) + "\">\n";
@@ -447,7 +450,7 @@ std::string pageFor(const Cfg& c, const std::string& config, const std::string& 
 
 // the config the runtime reads
 std::string configJson(const WebArgs& a, const Cfg& c, const Common& cm, const std::vector<Asset>& assets, const std::string& entry, bool dev, const std::string& domModule, const std::string& hmrModule) {
-  std::string j = "{\"name\":" + jstr(a.name) + ",\"id\":" + jstr(c.id.empty() ? a.name : c.id) + ",\"title\":" + jstr(c.title) + ",\"version\":" + jstr(a.version) + ",\"render\":" + jstr(c.render) + ",\"entry\":" + jstr(entry);
+  std::string j = "{\"name\":" + jstr(a.name) + ",\"id\":" + jstr(c.id.empty() ? a.name : c.id) + ",\"title\":" + jstr(c.title) + ",\"version\":" + jstr(a.version) + ",\"render\":" + jstr(c.render) + ",\"scroll\":" + jstr(c.scroll) + ",\"entry\":" + jstr(entry);
   if (c.w > 0 && c.h > 0) j += ",\"fixed\":[" + std::to_string(c.w) + "," + std::to_string(c.h) + "]";
   if (dev) j += ",\"dev\":true,\"hmrModule\":" + jstr(hmrModule);
   if (!domModule.empty()) j += ",\"domModule\":" + jstr(domModule);
@@ -471,6 +474,68 @@ std::string configJson(const WebArgs& a, const Cfg& c, const Common& cm, const s
     j += std::string(i ? "," : "") + "{\"name\":" + jstr(as.name) + ",\"url\":" + jstr(as.url) + ",\"size\":" + std::to_string(as.size) + (as.image ? ",\"image\":true" : "") + (as.font.empty() ? "" : ",\"font\":" + jstr(as.font)) + "}";
   }
   return j + "]}";
+}
+
+// ---- --prerender: the first screen of a DOM-mode app as HTML in index.html
+std::string findChromeBinary() {
+  if (const char* e = std::getenv("CHROME")) { std::error_code ec; if (fs::exists(e, ec)) return e; }
+  for (const char* c : {"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "/Applications/Chromium.app/Contents/MacOS/Chromium", "/usr/bin/google-chrome", "/usr/bin/chromium", "/usr/bin/chromium-browser"}) {
+    std::error_code ec;
+    if (fs::exists(c, ec)) return c;
+  }
+  return "";
+}
+// where the element that opens at `open` ends, counting <div> and </div> (the text and the attributes of a serialised DOM never hold a raw '<')
+std::size_t divEnd(const std::string& h, std::size_t open) {
+  int depth = 0;
+  for (std::size_t i = open; i < h.size();) {
+    const std::size_t lt = h.find('<', i);
+    if (lt == std::string::npos) break;
+    if (h.compare(lt, 4, "<div") == 0 && lt + 4 < h.size() && (h[lt + 4] == ' ' || h[lt + 4] == '>')) ++depth;
+    else if (h.compare(lt, 6, "</div>") == 0 && --depth == 0) return lt + 6;
+    i = lt + 1;
+  }
+  return std::string::npos;
+}
+// Opens the exported folder in headless Chrome, takes the elements and the style sheet the app made for its first screen (the page runs in capture mode: ?zn-capture, which marks the
+// elements with the number of their node and writes the rules into the <style>), and puts them into index.html. The runtime adopts those elements instead of building them again.
+bool prerenderSite(const fs::path& outDir, std::string& err) {
+  const std::string chrome = findChromeBinary();
+  if (chrome.empty()) { err = "no Chrome or Chromium found (set CHROME to its path): the page is exported without a prerendered first screen"; return false; }
+  const int port = 20000 + static_cast<int>(std::chrono::steady_clock::now().time_since_epoch().count() % 20000);
+  const fs::path prof = outDir.parent_path() / ".zinc-prerender", dump = prof / "dump.html";
+  std::error_code ec;
+  fs::remove_all(prof, ec);
+  fs::create_directories(prof, ec);
+  const std::string url = "http://127.0.0.1:" + std::to_string(port) + "/?zn-capture";
+  run("cd " + q(outDir.string()) + " && { python3 serve.py " + std::to_string(port) + " >/dev/null 2>&1 & srv=$!; sleep 1; " + q(chrome) + " --headless=new --disable-gpu --no-first-run --disable-extensions --user-data-dir=" + q((prof / "profile").string()) +
+      " --window-size=1280,800 --virtual-time-budget=6000 --dump-dom " + q(url) + " > " + q(dump.string()) + " 2>/dev/null; kill $srv 2>/dev/null; }");
+  const std::string d = readAll(dump);
+  fs::remove_all(prof, ec);
+  const std::size_t r0 = d.find("<div id=\"zinc-root\"");
+  if (r0 == std::string::npos) { err = "Chrome did not return the page"; return false; }
+  const std::size_t r1 = divEnd(d, r0);
+  if (r1 == std::string::npos) { err = "the page's elements could not be read"; return false; }
+  std::string root = d.substr(r0, r1 - r0);
+  if (root.find("data-z=") == std::string::npos) { err = "the app drew nothing in six seconds: nothing to prerender"; return false; }
+  root.insert(std::string("<div id=\"zinc-root\"").size(), " data-prerendered");
+  std::string css;
+  const std::size_t s0 = d.find("<style id=\"zinc-css\">");
+  if (s0 != std::string::npos) { const std::size_t s1 = d.find("</style>", s0); if (s1 != std::string::npos) css = d.substr(s0 + std::string("<style id=\"zinc-css\">").size(), s1 - s0 - std::string("<style id=\"zinc-css\">").size()); }
+  std::string page = readAll(outDir / "index.html");
+  const std::size_t p0 = page.find("<div id=\"zinc-root\"");
+  if (p0 == std::string::npos) { err = "index.html has no #zinc-root"; return false; }
+  const std::size_t p1 = divEnd(page, p0);
+  if (p1 == std::string::npos) { err = "index.html is not as expected"; return false; }
+  page = page.substr(0, p0) + root + page.substr(p1);
+  const std::size_t h0 = page.find("<script type=\"importmap\">");
+  if (!css.empty() && h0 != std::string::npos) page.insert(h0, "<style id=\"zinc-css-pre\">" + css + "</style>\n");
+  writeAll(outDir / "index.html", page);
+  for (const char* ext : {".gz", ".br"}) fs::remove(outDir / (std::string("index.html") + ext), ec);
+  const std::string f = q((outDir / "index.html").string());
+  if (run("command -v gzip >/dev/null 2>&1") == 0) run("gzip -9 -c " + f + " > " + f.substr(0, f.size() - 1) + ".gz'");
+  if (run("command -v brotli >/dev/null 2>&1") == 0) run("brotli -q 11 -c " + f + " > " + f.substr(0, f.size() - 1) + ".br'");
+  return true;
 }
 
 // ====================================================================== export
@@ -607,6 +672,10 @@ int exportSite(const WebArgs& a, const std::string& tmpName) {
   for (const auto& [n, b] : out) if (endsWith(n, ".js") && n != "sw.js") js += b.size();
   writeAll(outDir / "README.txt", a.name + " " + a.version + " (web) built with Zinc.\nA static site: copy this folder to any static host (GitHub Pages, Netlify, S3, nginx...). index.html and sw.js must not be cached for long; the hashed files may be (_headers has it for Netlify and Cloudflare Pages).\n"
             "./serve.py serves it locally. " + (isolate ? "This app needs cross-origin isolation: _headers sets COOP and COEP, and sw.js adds them on hosts that cannot.\n" : "No COOP/COEP headers are needed.\n"));
+  if (a.prerender) {
+    if (cm.cfg.render != "dom") std::fprintf(stderr, "warning: --prerender is for --render dom: the canvas has no elements to prerender\n");
+    else { std::string perr; if (!prerenderSite(outDir, perr)) std::fprintf(stderr, "warning: --prerender: %s\n", perr.c_str()); else std::printf("web: the first screen is in index.html (prerendered at 1280x800)\n"); }
+  }
   std::printf("web: %s render, %zu file(s), %s (javascript %s, gzip %s%s)%s\n", cm.cfg.render.c_str(), out.size(), humanKb(total).c_str(), humanKb(js).c_str(), gz ? humanKb(gz).c_str() : "-",
               br ? (", brotli " + humanKb(br)).c_str() : "", pwa ? ", offline cache" : "");
   std::printf("%s\n", outDir.string().c_str());

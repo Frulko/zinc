@@ -1700,7 +1700,7 @@ static void notarizeHint(const ProjectInfo& p, const fs::path& out, const std::v
 }
 
 int exportApp(const std::vector<std::string>& args, const std::string& engineRoot) {
-  Opts o = parseOpts(args, {"--target", "-o", "--key", "--abis", "--render", "--browsers"}, {"--deb", "--dmg", "--inspect", "--print", "--aab", "--apk", "--release", "--ipa", "--simulator", "--dry-run", "--werror", "--no-pwa", "--sourcemap", "--check"});
+  Opts o = parseOpts(args, {"--target", "-o", "--key", "--abis", "--render", "--browsers"}, {"--deb", "--dmg", "--inspect", "--print", "--aab", "--apk", "--release", "--ipa", "--simulator", "--dry-run", "--werror", "--no-pwa", "--sourcemap", "--check", "--prerender"});
   if (o.bad) { std::fprintf(stderr, "zinc export: unknown option %s\nusage: zinc export [entry|dir] [--target linux|rpi|rpi1|rpi2|chip|pocketchip|rmpp|macos|wasm|web|esp32|android|ios] [-o dir] [--print] [--deb] [--dmg] [--inspect] [--key <seed-hex>] [--aab | --apk [--release] [--abis list]] [--ipa [--simulator]] [--dry-run]\n", o.badArg.c_str()); return 2; }
   Pack pack{has(o, "--aab"), has(o, "--apk"), has(o, "--ipa"), has(o, "--simulator"), has(o, "--dry-run"), o.v.count("--abis") ? o.v["--abis"] : "", has(o, "--release")};
   if (pack.release && !pack.apk) { std::fprintf(stderr, "zinc export: --release goes with --apk (--aab is always a release build)\n"); return 2; }
@@ -1721,7 +1721,7 @@ int exportApp(const std::vector<std::string>& args, const std::string& engineRoo
     w.out = o.v.count("-o") ? o.v["-o"] : "";
     w.render = o.v.count("--render") ? o.v["--render"] : "";
     w.browsers = o.v.count("--browsers") ? o.v["--browsers"] : "";
-    w.strict = has(o, "--werror"); w.noPwa = has(o, "--no-pwa"); w.sourcemap = has(o, "--sourcemap"); w.check = has(o, "--check");
+    w.strict = has(o, "--werror"); w.noPwa = has(o, "--no-pwa"); w.sourcemap = has(o, "--sourcemap"); w.check = has(o, "--check"); w.prerender = has(o, "--prerender");
     if (!w.render.empty() && w.render != "canvas" && w.render != "dom") { std::fprintf(stderr, "zinc export: --render is canvas or dom\n"); return 2; }
     return exportWeb(w);
   }

@@ -26,6 +26,9 @@ How to add a line: see "Changelog" in `AGENTS.md`.
   to support. See `docs/targets/web.md`.
 - `<Form onSubmit>` (zinc:ui/kit and React Native): fields submitted as one. In the page it is a real `<form>`: Enter submits it after the browser checks `required`, `pattern` and `minLength`, and
   password managers and autofill see it; elsewhere it routes Enter in a text field to `onSubmit`. Inputs take `name`, `type`, `autoComplete`, `required`, `pattern`, `minLength`, `enterKeyHint`.
+- `zinc export --target web --render dom --prerender` puts the first screen's elements and style sheet into `index.html` (taken in headless Chrome, so Chrome must be installed): the page is readable and painted before any script runs, and the app adopts
+  those elements instead of building them again. `targets.web.scroll: "page"` lets the document scroll instead of a window-sized stage, and `targets.web.dir` sets `<html dir>`.
+- A `<Stack path={(route) => '/' + route.name}>` (zinc:ui/navigation) keeps the page's address and history in step with its screens on the web: a push is a history entry, the browser's Back button pops the screen.
 - Semantic hints for the page: `as="nav"`, `as="h1"`, `as="ul"`, `href` and `role` on any View or Text choose the HTML element (see "Semantic hints" in `docs/ui.md`); other targets ignore them.
 - `zinc dev --target web` serves the app with hot reload: saving a component swaps it in place and keeps the state of everything you did not touch (a module that exports state reloads the page), and a
   compile error shows over the page until the next good save.

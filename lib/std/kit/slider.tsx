@@ -54,7 +54,7 @@ export function Slider(props: SliderProps): i32 {
     : L.sliderThumbTint ? `w-[${k}px] h-[${k}px] rounded-full bg-${own ? t.primary : '[var(--pfTint)]'}`
     : `w-[${k}px] h-[${k}px] rounded-full bg-white shadow-md${L.name === 'macos' ? ' border border-[var(--pfBorder)]' : ''}`;
   return <View ref={rail} className={`flex-row items-center ${rest} rounded-full cursor-pointer focus:bg-${theme().card} ${props.className ?? ''}`}
-    focusable grab="keep-x" onKeyDown={(e: ui.KeyEvent) => {
+    focusable grab="keep-x" role="slider" aria-valuenow={String(props.value())} aria-valuemin={String(min)} aria-valuemax={String(max)} onKeyDown={(e: ui.KeyEvent) => {
       // arrows nudge the focused slider by one step (1 % of the range without a step)
       const d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
       if (d === 0) return;

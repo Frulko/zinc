@@ -26,7 +26,7 @@ function defaultIcon(variant: string): string {
 
 export function Alert(props: AlertProps): i32 {
   const variant = props.variant ?? 'default';
-  return <View className={`flex-row gap-3 p-4 rounded-lg border border-${theme().border} bg-${theme().card} ${props.className ?? ''}`}>
+  return <View className={`flex-row gap-3 p-4 rounded-lg border border-${theme().border} bg-${theme().card} ${props.className ?? ''}`} role="alert">
     <View className={`w-5 h-5 rounded-full items-center justify-center border border-${accentColor(variant, theme())}`}>
       <Text className={`text-xs font-bold text-${accentColor(variant, theme())}`}>{props.icon ?? defaultIcon(variant)}</Text>
     </View>

@@ -9,7 +9,7 @@ namespace zn::cli {
 struct WebArgs {
   std::string dir, entry, name, version, engineRoot, out;   // the project; out: the folder to write (export)
   std::string render, browsers;                              // "" : zinc.json web.render / web.browsers, else the defaults
-  bool strict = false, noPwa = false, sourcemap = false, check = false, lan = false;
+  bool strict = false, noPwa = false, sourcemap = false, check = false, lan = false, prerender = false;
   int port = 8000;
 };
 

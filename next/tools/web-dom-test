@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """The semantic DOM of the web target in headless Chrome (docs/targets/web.md "The semantic DOM"; tests/t1/web_dom.sh).
-usage: web-dom-test <dir of an export of tests/fixtures/web-dom made with --render dom> [<dir of tests/fixtures/web-dom-list>]
+usage: web-dom-test <dir of an export of tests/fixtures/web-dom made with --render dom> [<dir of tests/fixtures/web-dom-list> [<dir of tests/fixtures/web-dom-nav>]]
 Checks what the page is: its elements (header, nav, main, headings, links, a list, a form with real inputs), how few inline styles it has, the accessibility tree Chrome builds from
 it, that the browser does the keyboard (Tab order, Enter submits the form, Page Down scrolls), the viewport (a resize is laid out before zinc:ui looks at it), the dialog and
 its Escape, and that an update keeps the elements, the focus and the caret. Prints one JSON line {"checks": [[name, ok, detail]...]} and exits 1 when one failed.
@@ -14,6 +14,7 @@ if not find_chrome():
     print("SKIP no Chrome"); sys.exit(77)
 root = sys.argv[1]
 list_root = sys.argv[2] if len(sys.argv) > 2 else ""
+nav_root = sys.argv[3] if len(sys.argv) > 3 else ""
 
 class Quiet(http.server.SimpleHTTPRequestHandler):
     extensions_map = dict(http.server.SimpleHTTPRequestHandler.extensions_map, **{".js": "text/javascript", ".wasm": "application/wasm"})
@@ -24,6 +25,10 @@ class Srv(http.server.ThreadingHTTPServer):
 srv = Srv(("127.0.0.1", 0), functools.partial(Quiet, directory=root))
 threading.Thread(target=srv.serve_forever, daemon=True).start()
 lsrv = None
+nsrv = None
+if nav_root:
+    nsrv = Srv(("127.0.0.1", 0), functools.partial(Quiet, directory=nav_root))
+    threading.Thread(target=nsrv.serve_forever, daemon=True).start()
 if list_root:
     lsrv = Srv(("127.0.0.1", 0), functools.partial(Quiet, directory=list_root))
     threading.Thread(target=lsrv.serve_forever, daemon=True).start()
@@ -179,6 +184,20 @@ with Chrome(["--window-size=%d,%d" % (W, H), "--enable-unsafe-swiftshader"]) as 
         check("an animated width is a custom property of the element", wd >= 10, wd)
         sty = ev("document.getElementById('zinc-root').querySelectorAll('[style]').length")
         check("inline styles are only the animated ones and the spacers", sty <= 40, sty)
+
+    # ---- history: a Stack with addresses pushes entries, and the browser's Back pops the screen
+    if nsrv:
+        c.open("http://127.0.0.1:%d/" % nsrv.server_address[1])
+        c.call("Page.bringToFront")
+        for _ in range(40):
+            pump(0.25)
+            if ev("document.body.innerText.includes('Screen home')"): break
+        check("a Stack shows its first screen at its address", ev("location.pathname") == "/home", ev("location.pathname"))
+        check("a link is a real anchor", ev("document.querySelector('a[href=\"#top\"]') !== null"))
+        click_el("[...document.querySelectorAll('button')].find(b => b.textContent === 'Open detail')"); pump(1.2)
+        check("pushing a screen changes the address", ev("location.pathname") == "/detail", ev("location.pathname"))
+        ev("history.back()"); pump(1.2)
+        check("the browser's Back pops the screen", ev("location.pathname") == "/home" and 'Screen home' in (ev("document.body.innerText") or ""), [ev("location.pathname"), ev("document.body.innerText")])
 
     out = {"checks": checks, "errors": [m[:200] for m in c.console if m.startswith("EXCEPTION") or m.startswith("error ")][:5]}
 srv.shutdown()

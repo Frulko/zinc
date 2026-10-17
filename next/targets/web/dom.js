@@ -16,6 +16,12 @@ export function makeDomHost(env) {
   const VIEW = 0, TEXT = 1, BUTTON = 2, IMAGE = 3, SCROLL = 4, CANVAS = 5, FRAGMENT = 6, INPUT = 7, TEXTAREA = 8;
   const UNSET = -100000;   // zinc:ui's "not set" for left, top, right, bottom and letter spacing
   let ui = null;   // zinc:ui's exports, given by the first commit
+  // prerendering (zinc export --prerender): the page may arrive with the elements of its first screen (marked data-z with the number of their node) and their style sheet; they are adopted
+  // instead of built again. In capture mode (?zn-capture, how the export takes them) the elements are marked and the rules are written as text, which a serialised page keeps.
+  const capture = /[?&]zn-capture/.test(location.search);
+  const pre = root.hasAttribute('data-prerendered');
+  const adopt = new Map();
+  if (pre) for (const e of root.querySelectorAll('[data-z]')) adopt.set(parseInt(e.getAttribute('data-z')), e);
 
   // ---------------------------------------------------------------- the generated stylesheet
   const styleEl = document.createElement('style');
@@ -28,6 +34,7 @@ export function makeDomHost(env) {
   const cname = () => '_' + (nextClass++).toString(36);   // (the fixed classes of the base rules start with z)
   function addRule(text) {
     ruleText.push(text);
+    if (capture) { styleEl.appendChild(document.createTextNode(text + '\n')); return; }
     try { sheet.insertRule(text, sheet.cssRules.length); } catch (e) { /* a value the browser refuses: the rule is dropped, the element keeps the others */ }
   }
   // base rules: the reset that makes CSS flexbox behave as the classic engine of zinc:ui (React Native's defaults)
@@ -439,7 +446,9 @@ export function makeDomHost(env) {
     const tag = tagFor(n, h);
     if (!st || st.tag !== tag || st.node !== n) {   // (a handle is reused for another node after the first is released: the object tells them apart)
       if (st && st.el.parentNode) st.el.remove();
-      const el = document.createElement(tag);
+      let el = pre ? adopt.get(h) : undefined;
+      if (el && el.tagName.toLowerCase() === tag) { adopt.delete(h); el.removeAttribute('data-z'); } else el = document.createElement(tag);
+      if (capture) el.setAttribute('data-z', h);
       el._h = h;
       st = E[h] = { el, tag, node: n, dyn: new Set(), vars: null, cls: '', attrs: {}, text: undefined, sx: 0, sy: 0, K: [], V: [], n: -1, scrolls: false };
       changed++;
@@ -719,7 +728,8 @@ export function makeDomHost(env) {
       st.style.setProperty('--zn-backdrop', bd >= 0 ? color(bd, alpha) : 'transparent');
       if (!modal && bd >= 0) st.style.background = color(bd, alpha); else if (!modal) st.style.background = '';
       const e = sync(h, null, false, true);
-      if (e) { if (e.parentNode !== st) st.appendChild(e); e.style.pointerEvents = 'auto'; }
+      const ln = ui.inspectNode(h);
+      if (e) { if (e.parentNode !== st) st.appendChild(e); if (modal && ln && ln.label) st.setAttribute('aria-label', ln.label); if (modal && ln && ln.role === 'dialog') e.removeAttribute('role'); }
       if (modal && !w.open) { try { st.showModal(); w.open = true; } catch { st.setAttribute('open', ''); w.open = true; } }
       if (i / 4 === info.length / 4 - 1 && modal) { /* the top modal keeps the focus */ }
     }
@@ -744,8 +754,9 @@ export function makeDomHost(env) {
     if (rh < 0) return;
     changed = 0; pending.length = 0;
     const e = sync(rh, null, false, false);
-    if (e && rootEl !== e) { rootEl = e; root.textContent = ''; root.appendChild(e); }
+    if (e && rootEl !== e) { rootEl = e; if (e.parentNode !== root) { root.textContent = ''; root.appendChild(e); } }
     layers();
+    if (pre && frames === 1) { root.removeAttribute('data-prerendered'); const old = document.getElementById('zinc-css-pre'); if (old) old.remove(); adopt.clear(); }   // the page took over: the prerendered sheet is replaced by the runtime's own
     // scroll offsets the program set (scrollTo, scroll into view) go to the browser
     for (const h of liveScrollers) {
       const st = E[h], n = ui.inspectNode(h);
@@ -813,7 +824,10 @@ export function makeDomHost(env) {
         if (e.pointerType === 'touch') { Z.input.touches = [{ id: 0, x: 0, y: 0 }]; setTimeout(() => { Z.input.touches = []; }, 50); }
         ui.domOutside(hOf(e.target), e.clientX, e.clientY, e.button === 1 ? 1 : e.button === 2 ? 2 : 0);
         const hd = find(e.target, H.down);
-        if (hd && !ui.isDisabled(hd[0])) hd[1](pointerEvent(e, hd[2]));
+        if (hd && !ui.isDisabled(hd[0])) {
+          hd[1](pointerEvent(e, hd[2]));
+          if (node(hd[0]).onClick === null) { try { hd[2].setPointerCapture(e.pointerId); } catch { /* gone */ } }   // a slider keeps its drag when the pointer leaves it
+        }
         press = { x: e.clientX, y: e.clientY, id: e.pointerId, t: performance.now(), target: e.target };
         const lg = find(e.target, H.long);
         clearTimeout(longTimer);
@@ -896,6 +910,10 @@ export function makeDomHost(env) {
       host.addEventListener('keydown', (e) => {
         if (e.isComposing || e.keyCode === 229) return;
         const el = e.target, field = el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA');
+        if ((e.key === 'Enter' || e.key === ' ') && el && el._h !== undefined && el.tagName !== 'BUTTON' && el.tagName !== 'A' && !field) {   // a box that takes clicks and is not a button: Enter and Space press it, as for a button
+          const n = node(el._h);
+          if (n && n.onClick !== null && !ui.isDisabled(el._h)) { e.preventDefault(); ui.click(el._h); return; }
+        }
         if (e.key === 'Enter' && el && el.tagName === 'INPUT' && el._h !== undefined) {   // Enter in a single-line field: its change, then the form's submit (the browser does it only with a submit button)
           ui.domChanged(el._h);
           const form = el.closest('form');

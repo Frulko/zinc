@@ -11,5 +11,5 @@ export interface SeparatorProps {
 
 export function Separator(props?: SeparatorProps): i32 {
   const shape = (props?.vertical ?? false) ? 'w-px h-full' : 'h-px w-full';
-  return <View className={`${shape} bg-${theme().border} ${props?.className ?? ''}`} />;
+  return <View className={`${shape} bg-${theme().border} ${props?.className ?? ''}`} role="separator" aria-orientation={(props?.vertical ?? false) ? 'vertical' : 'horizontal'} />;
 }

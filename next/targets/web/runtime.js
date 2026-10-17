@@ -82,12 +82,13 @@ G.process = G.process || { env: {}, argv: ['zinc'], platform: 'browser', exit() 
 // ---------------------------------------------------------------- the surface
 const root = document.getElementById('zinc-root');
 const dom = CFG.render === 'dom';
+if (dom && CFG.scroll === 'page') root.classList.add('zinc-page');   // the document scrolls (scroll anchoring, find in page, the browser's scrollbar) instead of a fixed stage
 const dpr = () => Math.max(1, Math.min(3, G.devicePixelRatio || 1));
 let W = 0, H = 0;   // logical pixels
 function measureSurface() {
   const fixed = CFG.fixed;
   W = Math.max(1, Math.round(fixed ? fixed[0] : root.clientWidth || innerWidth));
-  H = Math.max(1, Math.round(fixed ? fixed[1] : root.clientHeight || innerHeight));
+  H = Math.max(1, Math.round(fixed ? fixed[1] : CFG.scroll === 'page' ? innerHeight : root.clientHeight || innerHeight));   // (a page that scrolls is as tall as its content: its surface is the window)
 }
 measureSurface();
 const canvas = dom ? null : document.createElement('canvas');
@@ -653,8 +654,27 @@ const rows = {
   storageGet: (k) => store.get(k), storageSet: (k, v) => store.set(k, v), storageRemove: (k) => store.remove(k), storageKeysCount: () => (storeKeys = store.keys()).length, storageKey: (i) => storeKeys[i] || '',
 };
 const frameSignals = [];
+// the address bar and history follow a Stack's routes (lib/std/navigation.tsx, Stack path): `route DEPTH PATH`. A deeper stack pushes an entry, a shallower one goes back, the same depth
+// replaces the address; the browser's own Back or Forward arrives as a popstate, which becomes the app's back key (the Stack pops, and its new route replaces the address).
+let routeDepth = 0, routeIgnore = 0, routePopping = false, routeFirst = true;
+if (typeof history !== 'undefined' && history.state && typeof history.state.d === 'number') routeDepth = history.state.d;
+addEventListener('popstate', () => {
+  if (routeIgnore > 0) { routeIgnore--; return; }
+  const d = history.state && typeof history.state.d === 'number' ? history.state.d : 0;
+  if (d < routeDepth) { routePopping = true; input.signals.push('back'); }
+});
+function routeTo(depth, path) {
+  try {
+    if (routeFirst) { routeFirst = false; routeDepth = depth; history.replaceState({ d: depth }, '', path); }   // the first screen is the entry the page was opened at
+    else if (routePopping) { routePopping = false; routeDepth = depth; history.replaceState({ d: depth }, '', path); }
+    else if (depth > routeDepth) { history.pushState({ d: depth }, '', path); routeDepth = depth; }
+    else if (depth < routeDepth) { routeIgnore = 1; const back = routeDepth - depth; routeDepth = depth; history.go(-back); setTimeout(() => history.replaceState({ d: depth }, '', path), 50); }
+    else history.replaceState({ d: depth }, '', path);
+  } catch { /* a page that may not change its address (a sandboxed frame) */ }
+}
 function deviceQuery(q, a) {   // the backend of zinc:web's navigator: what a browser knows by itself
   switch (q) {
+    case 'route': { const sp = String(a).indexOf(' '); routeTo(parseInt(a), String(a).slice(sp + 1)); return ''; }
     case 'cores': return String(navigator.hardwareConcurrency || 1);
     case 'online': return navigator.onLine ? '1' : '0';
     case 'language': return navigator.language || 'en-US';

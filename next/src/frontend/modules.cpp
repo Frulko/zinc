@@ -3482,6 +3482,8 @@ std::string_view stdModuleFile(std::string_view spec) {
   if (spec == "zinc:react-native/linking") return "react-native-linking.ts";
   if (spec == "zinc:ui/nuxt") return "nuxt/index.ts";
   if (spec == "zinc:ui/platform") return "platform/index.ts";
+  if (spec == "zinc:ui/navigation") return "navigation.tsx";
+  if (spec == "zinc:haptics") return "haptics.ts";
   if (spec == "zinc:signals") return "signals.ts";
   if (spec == "zinc:path") return "path.ts";
   if (spec == "zinc:assert") return "assert.ts";

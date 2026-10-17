@@ -25,7 +25,7 @@ export interface ListItemProps {
 }
 
 export function List(props?: ListProps): i32 {
-  return <View className={`flex-col gap-0.5 p-1 rounded-lg border border-${theme().border} bg-${theme().card} ${props?.className ?? ''}`}>
+  return <View className={`flex-col gap-0.5 p-1 rounded-lg border border-${theme().border} bg-${theme().card} ${props?.className ?? ''}`} as="ul">
     {renderSlot(props?.children)}
   </View>;
 }
@@ -39,7 +39,7 @@ function rowClass(selected: boolean, clickable: boolean): string {
 export function ListItem(props: ListItemProps): i32 {
   const clickable = props.onClick !== undefined;
   const isSelected = (): boolean => { const s = props.selected; return s !== undefined ? s() : false; };
-  const row = <View className={`flex-row items-center gap-3 px-3 py-2 rounded-md transition-colors ${rowClass(isSelected(), clickable)}`}>
+  const row = <View as="li" className={`flex-row items-center gap-3 px-3 py-2 rounded-md transition-colors ${rowClass(isSelected(), clickable)}`} aria-selected={String(isSelected())}>
     {renderSlot(props.leading)}
     <View className="flex-col grow gap-0.5">
       <Text className={`text-sm font-medium text-${theme().foreground}`}>{props.title}</Text>

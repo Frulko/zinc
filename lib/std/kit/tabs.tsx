@@ -27,9 +27,9 @@ function labelClass(active: boolean): string {
 
 export function Tabs(props: TabsProps): i32 {
   const L = look();
-  return <View className={`flex-row ${L.segTrack} ${L.name === 'neutral' ? 'bg-' + theme().muted : ''} ${props.className ?? ''}`}>
+  return <View role="tablist" className={`flex-row ${L.segTrack} ${L.name === 'neutral' ? 'bg-' + theme().muted : ''} ${props.className ?? ''}`}>
     {props.items.map((label: string, i: i32) =>
-      <View className={`grow flex-row items-center justify-center ${L.segItem} transition-colors ${triggerClass(props.selected() === i)}`}
+      <View role="tab" aria-selected={String(props.selected() === i)} className={`grow flex-row items-center justify-center ${L.segItem} transition-colors ${triggerClass(props.selected() === i)}`}
         onClick={() => { if (props.selected() !== i) selectionFeedback(); props.onSelect(i); }}>
         <Text className={labelClass(props.selected() === i)}>{label}</Text>
       </View>)}

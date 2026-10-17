@@ -32,7 +32,7 @@ export function Card(props?: CardProps): i32 {
 }
 
 export function CardTitle(props: CardTextProps): i32 {
-  return <Text className={`text-base font-semibold tracking-tight text-${theme().foreground}`}>{props.text}</Text>;
+  return <Text as="h3" className={`text-base font-semibold tracking-tight text-${theme().foreground}`}>{props.text}</Text>;
 }
 
 export function CardDescription(props: CardTextProps): i32 {

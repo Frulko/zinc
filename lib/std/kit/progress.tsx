@@ -18,7 +18,7 @@ function widthClass(value: number): string {
 
 export function Progress(props: ProgressProps): i32 {
   const fill = (): string => (props.accent ?? false) ? theme().accent : theme().primary;
-  return <View className={`flex-row h-2 w-full rounded-full overflow-hidden bg-${theme().muted} ${props.className ?? ''}`}>
+  return <View className={`flex-row h-2 w-full rounded-full overflow-hidden bg-${theme().muted} ${props.className ?? ''}`} role="progressbar" aria-valuenow={String(Math.round(props.value()))} aria-valuemin="0" aria-valuemax="100">
     <View className={`rounded-full bg-${fill()} ${widthClass(props.value())}`} />
   </View>;
 }

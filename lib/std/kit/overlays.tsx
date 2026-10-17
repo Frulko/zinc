@@ -162,10 +162,10 @@ export function Dialog(props: DialogProps): i32 {
   const screen = createNodeRef(), panel = createNodeRef();
   const t = theme();
   const close = (): void => props.onOpenChange(false);
-  const node = <View ref={screen} className="absolute inset-0 items-center justify-center" hidden={props.open() ? 0 : 1}>
+  const node = <View ref={screen} className="absolute inset-0 items-center justify-center" hidden={props.open() ? 0 : 1} role="dialog" aria-label={props.title ?? ''}>
     <View ref={panel} className={`flex-col gap-4 p-6 w-[420px] rounded-lg border border-${t.border} bg-${t.card} shadow-lg ${props.className ?? ''}`}>
       <View className="flex-col gap-1.5">
-        <Text className={`text-lg font-semibold tracking-tight text-${t.foreground}`} hidden={props.title !== undefined ? 0 : 1}>{props.title ?? ''}</Text>
+        <Text as="h2" className={`text-lg font-semibold tracking-tight text-${t.foreground}`} hidden={props.title !== undefined ? 0 : 1}>{props.title ?? ''}</Text>
         <Text className={`text-sm text-${t.mutedForeground}`} hidden={props.description !== undefined ? 0 : 1}>{props.description ?? ''}</Text>
       </View>
       {renderSlot(props.children)}

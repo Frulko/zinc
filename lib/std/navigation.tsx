@@ -9,6 +9,7 @@
 import * as ui from 'zinc:ui';
 import { useState, useRef, useEffect } from 'zinc:ui/react';
 import { width, height, stroke } from 'zinc:gfx';
+import { device } from 'zinc:sys';
 import { Modal } from 'zinc:react-native';
 
 export class Route { key: i32 = 0; name: string = ''; title: string = ''; params: number = 0; modal: boolean = false; }
@@ -23,6 +24,7 @@ const IOS_MS: number = 350, ANDROID_MS: number = 300, FADE_MS: number = 200;   /
 export class Navigation {
   routes: Route[] = [];
   keys: i32 = 0;
+  sentRoute: string = '';        // the last `depth path` told to the page's history (Stack's path prop)
   style: string = 'ios';         // 'ios' | 'android' (the desktop takes iOS's)
   // the transition: kind 0 none, 1 push, 2 pop, 3 swipe (finger), 4 predictive back (progress), 5 settle back to rest after a cancel
   kind: i32 = 0;
@@ -164,6 +166,8 @@ export type StackProps = {
   initial: string; initialTitle?: string; initialParams?: number;
   renderScreen: (r: Route, nav: Navigation) => i32;
   headerShown?: boolean; largeTitle?: boolean; tint?: i32; style?: string;
+  /** The address of a screen (web target): the page's URL follows the top route and the browser's Back button pops it. Other targets ignore it. */
+  path?: (r: Route) => string;
 };
 
 const INK: i32 = 0x0f172a;
@@ -263,6 +267,11 @@ export function Stack(p: StackProps): i32 {
   }
   const nav = st.current as Navigation;
   nav.rerender = (): void => setVersion(version + 1);
+  const pathOf = p.path;
+  if (pathOf !== undefined) {   // the address bar and the history of the page follow the routes (zinc:web's `route` device query: pushState, replaceState, popstate as Back)
+    const line = nav.routes.length + ' ' + pathOf(nav.top());
+    if (line !== nav.sentRoute) { nav.sentRoute = line; device('route', line); }
+  }
   const stack = nav.routes.filter((r: Route): boolean => !r.modal);
   return <View className="flex-1 overflow-hidden">
     {stack.map((r: Route, i: number) => <Screen key={'' + r.key} nav={nav} route={r} index={i} prev={i > 0 ? stack[i - 1].title : ''} p={p} />)}
