@@ -2800,7 +2800,8 @@ function __runLoop(): void {
   if (__appMode) { if (hook === null) __drainJobs(); return; }   // the shell runs the turns from here, calling __appStep by name (ZN-620, kAppStepFunction)
   if (hook !== null) { hook(); return; }
   __drainJobs();
-  while (__loopStep()) {}
+  // a program that starts drawing later (a menu bar app opening its window from the menu) enters the frame loop then
+  while (__loopStep()) { const late = __frameHook; if (late !== null) { late(); return; } }
 }
 
 // A promise rejected with nobody waiting for it when the microtasks have drained is an uncaught error, as in Node (exit code 101 and the message).

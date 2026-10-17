@@ -120,6 +120,9 @@ How to add a line: see "Changelog" in `AGENTS.md`.
   `import.meta.url` is set.
 
 ### Fixed
+- A program that starts drawing after it started (`render()` or `onFrame` from a timer or a menu click, as a menu bar app opening its
+  window) now draws: before, nothing ran but its timers.
+- A program that imports `zinc:ui` without drawing yet (a menu bar app) no longer opens an empty window at start, and quits on SIGTERM.
 - Programs built for 32-bit Raspberry Pi OS (`zinc build --target armhf-linux` or `armv7-linux`, `zinc export --target rpi1` or `rpi2`) start
   on Bullseye and Buster: they asked for glibc 2.34. Every Linux target now runs on glibc 2.28 and newer.
 - Resizing a window on macOS by dragging its edge re-lays out the app at each size instead of stretching the last frame; animations,

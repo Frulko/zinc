@@ -134,7 +134,9 @@ export class Style {
 /** create() is lowered by Zinc: CSS literals become numeric style operations at build time. */
 export class StyleSheet {
   /** React Native's thinnest line: 0.4 rounded to the nearest device pixel, else one device pixel (0.5 at pixel scale 2, 1 at scale 1; ZN-385). */
-  static hairlineWidth: number = Math.round(0.4 * pixelScale()) > 0 ? Math.round(0.4 * pixelScale()) / pixelScale() : 1 / pixelScale();
+  // a getter, not a static field: a field asks the pixel scale when the module starts, which opens the window of a program that has none yet
+  // (a menu bar app with zinc:ui, ZN-757)
+  static get hairlineWidth(): number { const s = pixelScale(); return Math.round(0.4 * s) > 0 ? Math.round(0.4 * s) / s : 1 / s; }
   static create<T>(styles: T): T { return styles; }
   static flatten(styles: Style[]): Style {
     const keys: string[] = [], values: number[] = [];
