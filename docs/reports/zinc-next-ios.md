@@ -159,6 +159,12 @@ ten 400-point flings, then five tab switches (a `ZINC_INPUT` script, 1,200 frame
   host's scheduler: with 7 ms less work per frame the raster's threads run on slower cores or clocks. These are the Mac's CPU and GPU
   behind the simulator, not an iPhone; a device measure is a later.md line.
 
+The renderer decision (ZN-627; the record's text is in the task notes until the coordinator numbers it). iOS ships this path, the software
+raster with the zero-copy present, as its default (scored 62 of 70). Its GPU path is our own Metal back end of the command lists, as D119
+asks (59). It is chosen over the GLES 2 replay through EAGL (47: OpenGL ES deprecated since iOS 12) and ANGLE on Metal (41: several MB). The
+Metal back end reuses `hal_metal.mm`'s layer and queue. It gets built when a device misses frames (60 Hz on an A11, 120 Hz on ProMotion)
+or when programs need SHADER commands drawn on the GPU there; its plan is in the ZN-627 notes.
+
 ## Plugins on iOS (ZN-628, 2026-10-17)
 
 A plugin reaches an app through its `targets.ios` entry of plugin.json (docs/plugins.md "Phones"): C++, Objective-C and Swift sources
