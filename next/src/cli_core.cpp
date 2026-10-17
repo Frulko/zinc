@@ -39,6 +39,7 @@
 #endif
 
 #include "assets/assets.h"
+#include "assets/cook.h"
 #include "frontend/diagnostics.h"
 #include "frontend/modules.h"
 #include "frontend/plugin_manifest.h"
@@ -3553,8 +3554,24 @@ int assetsInfo(const fs::path& project, const std::string& only, const std::stri
 }
 
 int assets(const std::vector<std::string>& args, const std::string& engineRoot) {
-  const char* usage = "usage: zinc assets build [dir] [--target T] [--release]\n       zinc assets info [dir] [--target T]\n";
-  if (args.size() < 3 || (args[2] != "build" && args[2] != "info")) { std::fprintf(stderr, "%s", usage); return 2; }
+  const char* usage = "usage: zinc assets build [dir] [--target T] [--release]\n       zinc assets info [dir] [--target T]\n       zinc assets cook <gltf> --profile <name> [-o dir]\n";
+  if (args.size() < 3 || (args[2] != "build" && args[2] != "info" && args[2] != "cook")) { std::fprintf(stderr, "%s", usage); return 2; }
+  if (args[2] == "cook") {
+    std::vector<std::string> rest(args.begin() + 3, args.end());
+    Opts o = parseOpts(rest, {"--profile", "-o"}, {});
+    std::string profile = o.v.count("--profile") ? o.v["--profile"] : "psp30";
+    std::string outdir = o.v.count("-o") ? o.v["-o"] : "build/cooked";
+    zn::assets::CookProfile p; p.name = profile;
+    if (profile == "psp30") p.triBudget = 200000;
+    else if (profile == "vita60") p.triBudget = 1000000;
+    else if (profile == "n3ds30") p.triBudget = 100000;
+    else if (profile == "ios60") p.triBudget = 500000;
+    zn::assets::CookReceipt rc;
+    std::string err;
+    if (!zn::assets::cook(args[3], p, outdir, rc, err)) { std::fprintf(stderr, "zinc assets cook: %s\n", err.c_str()); return 1; }
+    std::printf("cooked %s -> %s (%llu tris)\n", args[3].c_str(), outdir.c_str(), (unsigned long long)rc.triangles);
+    return 0;
+  }
   std::vector<std::string> rest(args.begin() + 1, args.end());   // parseOpts reads from the third word: the one after the subcommand
   Opts o = parseOpts(rest, {"--target"}, {"--release"});
   if (o.bad) { std::fprintf(stderr, "zinc assets: unknown option %s\n%s", o.badArg.c_str(), usage); return 2; }
