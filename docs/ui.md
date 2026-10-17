@@ -425,9 +425,10 @@ A phone's keyboard reads the field it types into: the text around the caret, the
   it), `imedelete BEFORE AFTER`, `imeselect START END`, `imeaction NAME` (the return key: Enter). SDL's `SDL_EVENT_TEXT_EDITING` is a
   `compose`, so a desktop IME composes in the field too (`SDL_HINT_IME_IMPLEMENTED_UI`).
 - **The clients**: on Android `ZincEdit` (`src/app/android/java/org/libsdl/app`) replaces SDL's hidden editor with an `InputConnection` over a
-  mirror of the field; on iOS `ZincTextInput` (`src/app/ios_glue.mm`) is a `UITextInput` view in SDL's text field's place. **Both are
-  unproven on a device**: written and compiled (javac against android-36, clang against the iOS simulator SDK) without one; Gboard, swipe
-  typing, a Japanese IME, dictation and a password manager are checked in the cross-platform pass.
+  mirror of the field; on iOS `ZincTextInput` (`src/app/ios_glue.mm`) is a `UITextInput` view in SDL's text field's place. Typing on
+  Gboard (API 37 emulator) and on the iOS 26 simulator's keyboard, deleting and the keypads of `keyboardType` are proven
+  (`docs/reports/zinc-next-android.md`, `zinc-next-ios.md`); a field losing the focus hides the keyboard (`keyboard-traits` with nothing). A
+  real IME's composition (Japanese, Chinese), swipe typing, dictation and a password manager are checked in the cross-platform pass.
 
 Touch selection, drawn by zinc:ui in the platform's style: a finger's long press (500 ms) on a field selects the word under it and shows the
 **handles** (iOS: a bar with a knob; Android: teardrops) and the **edit menu** (Cut, Copy, Paste, Select All; iOS: a dark capsule, Android: a

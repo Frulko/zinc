@@ -9,7 +9,7 @@
 ./app/proguard-rules.pro a0d17050053f5ffa
 ./app/src/main/AndroidManifest.xml 0183781a57bfedb8
 ./app/src/main/java/dev/zinc/app/ZincAccessibility.java 4595b979c92dba4a
-./app/src/main/java/dev/zinc/app/ZincActivity.java 10e8f27b69dbeec2
+./app/src/main/java/dev/zinc/app/ZincActivity.java 800cc2e232f40075
 ./app/src/main/java/dev/zinc/app/ZincCallback.java 69ff214bb9014b9c
 ./app/src/main/java/dev/zinc/app/ZincLifecycle.java a708d19bd83e76ac
 ./app/src/main/java/dev/zinc/app/ZincNativeView.java d0407421a424816d
@@ -27,7 +27,7 @@
 ./app/src/main/java/org/libsdl/app/SDLInputConnection.java 7079f65944ce0f6e
 ./app/src/main/java/org/libsdl/app/SDLSensorManager.java 3ffd781744c54e68
 ./app/src/main/java/org/libsdl/app/SDLSurface.java bff39a45586cbd6d
-./app/src/main/java/org/libsdl/app/ZincEdit.java 0c621b9dff80d68d
+./app/src/main/java/org/libsdl/app/ZincEdit.java 2c63237f13e4645e
 ./app/src/main/res/mipmap-hdpi/ic_launcher.png 80851c46d318b0ce
 ./app/src/main/res/mipmap-mdpi/ic_launcher.png f02b616aedaf2116
 ./app/src/main/res/mipmap-xhdpi/ic_launcher.png a435509bb103ea53

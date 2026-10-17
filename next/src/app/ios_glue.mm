@@ -3,7 +3,7 @@
 // (UIFeedbackGenerator), the status bar, and the text input connection: ZincTextInput, a UITextInput client that mirrors the focused zinc:ui field
 // (text, selection, marked text) so the keyboard's suggestions, autocorrect, dictation and the Japanese and Chinese IMEs see the field. The theme
 // and the safe area come from SDL (targets/macos/hal_sdl.cpp). Compiled into zn_app on iOS only; the shell calls zn_mobile_glue_init.
-// Run on the iOS 26 simulator (ZN-625: docs/reports/zinc-next-ios.md); a phone and a real IME are the cross-platform pass.
+// Run on the iOS 26 simulator (ZN-625, ZN-626: docs/reports/zinc-next-ios.md); a phone and a real IME are the cross-platform pass.
 #include <TargetConditionals.h>
 #if TARGET_OS_IPHONE
 #import <UIKit/UIKit.h>
@@ -214,6 +214,7 @@ static void run(const std::string& q, const std::string& a) {
     UIApplication.sharedApplication.statusBarHidden = hidden;
 #pragma clang diagnostic pop
   } else if (q == "keyboard-traits") {
+    if (a.empty()) { [input resignFirstResponder]; return; }   // the field lost the focus: SDL's StopTextInput resigns only its own text field
     if (!input) { input = [[ZincTextInput alloc] initWithFrame:CGRectMake(0, 0, 1, 1)]; [keyWindow() addSubview:input]; }
     [input applyTraits:a];
     if (!input.isFirstResponder) [input becomeFirstResponder];   // in SDL's hidden UITextField's place

@@ -1,0 +1,15 @@
+Dimensions 402x874
+safearea 0 0 0 0 -> safe 0,0,0,0
+orientation portrait -> safe 0,0,0,0
+safearea 0 0 0 0 -> safe 0,0,0,0
+safearea 62 0 34 0 -> safe 62,0,34,0
+Dimensions 874x402
+orientation landscape -> safe 62,0,34,0
+safearea 0 62 20 62 -> safe 0,62,20,62
+safearea 0 62 20 62 -> safe 0,62,20,62
+Dimensions 402x874
+orientation portrait -> safe 0,62,20,62
+safearea 62 0 34 0 -> safe 62,0,34,0
+safearea 62 0 34 0 -> safe 62,0,34,0
+AppState background (now background)
+AppState active (now active)

@@ -77,6 +77,7 @@
     {"paths": ["../lib/std/navigation.tsx", "tests/golden/navigation/"], "tests": ["navigation"]},
     {"paths": ["../lib/std/overscroller.ts", "tests/golden/scroll-platform/"], "tests": ["scroll_platform"]},
     {"paths": ["tests/golden/text-touch/", "src/app/ios_glue.mm"], "tests": ["text_touch"]},
+    {"paths": ["tests/t1/keyboard_avoid.sh", "../lib/std/react-native.tsx", "../examples/rn-showcase/src/App.tsx", "../examples/rn-showcase/src/screens/Forms.tsx"], "tests": ["keyboard_avoid"]},
     {"paths": ["src/frontend/project.cpp", "src/frontend/project.h", "src/frontend/capabilities.cpp", "../targets/capabilities.json"], "tests": ["ui_layout_option", "requires"]},
     {"paths": ["src/host/layout.h", "src/host/layout_yoga.cpp", "src/host/text_wrap.h", "src/host/text_wrap.cpp", "third_party/yoga/", "tests/native/layout_yoga_test.cpp"], "tests": ["layout_iface", "layout_conformance", "layout_yoga", "layout_bridge", "layout_rn"]},
     {"paths": ["src/host/layout_host.cpp", "tests/golden/layout-bridge/", "tests/golden/layout-rn/", "src/qjs/qjs.cpp", "src/aot/aot.cpp", "tests/golden/layout-conformance/", "tools/layout-fixtures"], "tests": ["layout_bridge", "layout_rn", "layout_conformance", "rtl"]},

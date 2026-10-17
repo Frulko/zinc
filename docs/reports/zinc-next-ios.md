@@ -115,8 +115,8 @@ iOS 26.0 universal runtime with x86_64, and forum reports say the later iOS 26 r
 
 ## Not done here
 
-Safe areas (the content and the panel scroll under the status bar and the Dynamic Island; ZN-625), lifecycle events to the program, the
-keyboard and IME (ZN-626), the device build and its upload (they need the owner's Apple team; ZN-629 below), HTTPS certificates on a device
+(Safe areas, lifecycle events and the keyboard: done since, "Lifecycle, safe areas, rotation and the keyboard" below; a real IME's
+composition, Japanese or Chinese, is still unproven.) The device build and its upload (they need the owner's Apple team; ZN-629 below), HTTPS certificates on a device
 (`src/host/tls.cpp` reads root stores from Linux and macOS files such as `/etc/ssl/cert.pem`; a phone has none; not tried on the simulator), a launch screen from zinc.json's splash.
 
 ## The present (ZN-627, 2026-10-17)
@@ -219,3 +219,20 @@ On an iPhone 17 simulator (iOS 26.3, created for the run and deleted after): `pl
 picture is copied into the player's image in 0.1 to 0.4 ms; 231 pictures in 9.5 s (24 a second), none dropped; the program's 600 frames:
 work p50 0.27 / p99 7.2 ms, raster p99 6.7 ms (`zinc-next-ios/hero-video.png`). `tests/data/mobile-video` (two clips of `assets/` as a
 playlist, a jump and a step back) prints the same lines as on the Mac and on Android.
+
+## Lifecycle, safe areas, rotation and the keyboard (ZN-625, ZN-626, 2026-10-17)
+
+On an iPhone 17 simulator (iOS 26.3, created for the run and deleted after), driven by `idb` 1.7.6 (`idb_companion` from Homebrew, the
+`fb-idb` client in a venv in /tmp: taps, the home button, typing) and `simctl`; Simulator.app never opened:
+
+- **Safe areas.** Portrait `safearea 62 0 34 0` (the Dynamic Island, the home indicator), landscape `0 62 20 62`; rn-showcase's header and tab
+  bar pad by them (`zinc-next-ios/rn-showcase-safe-area.png`, `rn-showcase-landscape.png`).
+- **Home and return.** `idb ui button HOME`, then `simctl launch` brings the same process back (same pid, the Phone field's `12` kept);
+  `lifecycle.tsx` prints `AppState background` then `AppState active` (`zinc-next-ios/lifecycle-console.txt`).
+- **Rotation.** simctl has no rotation: a `ZINC_INPUT` script's `rotate` asks the scene to turn (zinc:sys `orientation`,
+  `requestGeometryUpdateWithPreferences`, iOS 16): `Dimensions 874x402`, `orientation landscape`, the new safe area, and back to portrait.
+  A script on a live window replaces the live touches, so the touch runs and the rotation runs are separate.
+- **Keyboard.** A tap on the Phone field opens the phone pad above the field (`rn-showcase-keyboard.png`); keys tapped (1, 2, 1, delete, 3)
+  give `123` through `ZincTextInput`'s `insertText` and `deleteBackward`; a tap outside hides the keyboard (the glue resigns its input view:
+  SDL's `StopTextInput` resigned only SDL's own text field, and the keyboard stayed). `type.tsx` typed on the keyboard's keys (shift off,
+  z, i, n, c, delete, then `!`) shows `zin!`, as its golden (`type-keyboard.png`).

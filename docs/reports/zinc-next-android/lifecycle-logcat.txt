@@ -1,0 +1,14 @@
+10-17 03:02:18.712  9614  9614 V SDL     : onResume()
+10-17 03:02:18.921  9614  9614 I zinc    : sustained performance mode supported: false
+10-17 03:02:18.921  9614  9614 D zinc    : sustained performance mode on (not supported here: nothing asked)
+10-17 03:02:19.388  9614  9683 I zinc    : Dimensions 360x808
+10-17 03:02:19.388  9614  9683 I zinc    : safearea 47 0 21 0 -> safe 47,0,21,0
+10-17 03:02:19.388  9614  9683 I zinc    : safearea 47 0 21 0 -> safe 47,0,21,0
+10-17 03:02:19.388  9614  9683 I zinc    : safearea 47 0 21 0 -> safe 47,0,21,0
+10-17 03:02:21.995  9614  9614 D zinc    : sustained performance mode off (not supported here: nothing asked)
+10-17 03:02:21.995  9614  9614 V SDL     : onPause()
+10-17 03:02:23.107  9614  9614 V SDL     : nativePause()
+10-17 03:02:23.192  9614  9683 I zinc    : AppState background (now background)
+10-17 03:02:25.041  9614  9614 V SDL     : onResume()
+10-17 03:02:25.041  9614  9614 D zinc    : sustained performance mode on (not supported here: nothing asked)
+10-17 03:02:25.078  9614  9683 I zinc    : AppState active (now active)

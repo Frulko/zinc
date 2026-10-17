@@ -30,7 +30,7 @@ import org.libsdl.app.ZincEdit;
  * scale, reduce motion, the keyboard's height, the predictive back gesture, the screen reader's actions; from it: zincCommand(query, arg) (zinc:sys
  * device(), through src/app/android_glue.cpp): haptics, the status bar, the system's back, the text input connection's state and the keyboard's
  * traits, zinc:ui's accessibility tree (ZincAccessibility).
- * Run on the API 37 emulator (ZN-625: docs/reports/zinc-next-android.md); a real phone is the cross-platform pass (next/backlog/later.md).
+ * Run on the API 37 emulator (ZN-625, ZN-626: docs/reports/zinc-next-android.md); a real phone is the cross-platform pass (next/backlog/later.md).
  */
 public class ZincActivity extends SDLActivity {
     /** The SDL_SendAndroidMessage command of the window's brightness (include/zn/app.h ZN_APP_ANDROID_BRIGHTNESS). */
@@ -61,6 +61,9 @@ public class ZincActivity extends SDLActivity {
         getWindow().setStatusBarColor(Color.TRANSPARENT);
         getWindow().setNavigationBarColor(Color.TRANSPARENT);
         if (Build.VERSION.SDK_INT >= 29) getWindow().setNavigationBarContrastEnforced(false);
+        // the keyboard neither pans the window nor resizes it: an edge-to-edge window gets the IME's insets (watchKeyboard) and zinc:ui scrolls
+        // the focused field above the keyboard itself (pan moved the whole window as well: the field went up twice)
+        if (Build.VERSION.SDK_INT >= 35) getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
         nativeInit();
         sendConfiguration(getResources().getConfiguration());
         ZincEdit.install(this);

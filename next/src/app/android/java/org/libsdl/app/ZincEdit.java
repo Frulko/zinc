@@ -17,8 +17,8 @@ import android.widget.RelativeLayout;
  * autocorrect or composition worth the name. This one stands in its place (same view, so SDL still shows and hides it) and mirrors the focused
  * zinc:ui field: the engine sends the field's text, selection and composing run after each change (device('textinput'), ZincActivity.command),
  * and the IME's calls go back as signals (commit, compose, imedelete, imeselect, imeaction: src/host/hal_dispatch.cpp, lib/std/ui.ts).
- * In package org.libsdl.app for SDLDummyEdit's package-private constructor and fields. Unproven on a device (Gboard, a Japanese IME, swipe
- * typing, a password manager): next/backlog/later.md, cross-platform pass.
+ * In package org.libsdl.app for SDLDummyEdit's package-private constructor and fields. Typing on Gboard is proven on the API 37 emulator (ZN-626); a Japanese IME, swipe
+ * typing and a password manager are the cross-platform pass (next/backlog/later.md).
  */
 public class ZincEdit extends SDLDummyEdit {
     static ZincEdit self;

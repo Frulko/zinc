@@ -342,3 +342,25 @@ present p50 16.4 ms (60 Hz) (`zinc-next-android/hero-video.png`). With `ZINC_VID
 format 0x13, stride 640, slice height 360) and plays the same. `tests/data/mobile-video` (two clips of `assets/` as a playlist, a jump and
 a step back) prints the same lines as on the Mac: entries 0, 1, 0 (loop 1), "jumped to 1", "back to 0", "video ok: 260 pictures shown, 1
 dropped".
+
+## Lifecycle, safe areas, rotation and the keyboard (ZN-625, ZN-626, 2026-10-17)
+
+On the API 37 emulator (a private AVD made from Pixel_10's config, deleted after), rn-showcase and two small apps (`tests/golden/system-signals/lifecycle.tsx`,
+`tests/golden/ui/type.tsx` exported as apps):
+
+- **Edge-to-edge.** The window is the screen (1080 x 2424) and the program draws under the bars; SDL's legacy theme painted them black over it
+  (`ZincActivity`: `FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS`, transparent bars, icons dark on a light theme). The safe area is the bars and the cutout:
+  SDL's own counted the gesture zones and padded a portrait page by 26 dp on each side (the export narrows `SDLSurface`'s mask). Portrait
+  `safearea 47 0 21 0`, landscape `46 0 21 47` (the cutout on the left). rn-showcase pads its header and tab bar with `useSafeAreaInsets`
+  (`zinc-next-android/rn-showcase-safe-area.png`, `rn-showcase-landscape.png`).
+- **Home and return.** The process stays (same pid), the field's text and the screen are kept, the picture comes back on a new surface. SDL's
+  pump blocks inside the call that handled the pause (`GetLifecycleEventTimeout` reads the global paused flag): the shell runs the program's
+  frames from the `WILL_ENTER_BACKGROUND` event and lets only SDL's loop pump, so `AppState background` reaches the program before the app
+  stops (`zinc-next-android/lifecycle-logcat.txt`: background at the pause, active 2 s later at the return).
+- **Rotation.** `settings put system user_rotation 1` and back: a resize, `Dimensions 808x360`, `orientation landscape`, the new safe area; and a
+  `ZINC_INPUT` script's `rotate` (zinc:sys `orientation`, `setRequestedOrientation`) turns the screen to landscape and back.
+- **Keyboard.** A finger on the Phone field opens Gboard's phone pad (traits `type=phone`); the window neither pans nor resizes
+  (`adjustResize` on an edge-to-edge window: insets only); KeyboardAvoidingView pads by the part of it the keyboard covers and the field
+  stays 8 px above it (`rn-showcase-keyboard.png`). Keys tapped on Gboard (1, 2, 1, delete, 3) give `123`; back hides the keyboard and the
+  page returns. `type.tsx` typed on Gboard's keys (z, i, n, c, delete, then `!`) shows `zin!` in the field and below it, as its golden
+  (`type-gboard.png`). `adb shell input text zinc` gives `Zin!` instead: the injected keys go through the IME, which capitalises the start.

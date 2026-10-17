@@ -1874,6 +1874,7 @@ export function setSystemScheme(name: string): void { systemScheme = name; if (s
 /** The room an on-screen keyboard takes at the bottom of the surface, readable in classes as `pb-[env(keyboard-inset)]`. */
 export function setKeyboardInset(px: number): void { if (px === kbInset) return; kbInset = px; restyleMedia(8); focusShown = -1; }   // the focused field is revealed again once the room is made
 export function keyboardInset(): number { return kbInset; }
+let revealRuns = -1;   // the layout the focused field was last revealed after, while the keyboard is up
 /** Safe-area insets (notches, rounded corners): `env(safe-area-inset-top|right|bottom|left)`. */
 export function setSafeArea(t: number, r: number, b: number, l: number): void { if (t === safeT && r === safeR && b === safeB && l === safeL) return; safeT = t; safeR = r; safeB = b; safeL = l; restyleMedia(8); }
 export function safeArea(): number[] { return [safeT, safeR, safeB, safeL]; }
@@ -4724,8 +4725,9 @@ function revealFocus(h: i32): void {
     const n = node(p);
     if (n.scroll !== 0) {
       const cover = kbInset > 0 ? Math.max(0, n.y + n.lh - (height() - kbInset)) : 0;   // the on-screen keyboard hides the bottom of a scroll area that reaches it
+      const gap = kbInset > 0 ? 8 : 0;   // above an on-screen keyboard the field keeps a little room, as the platforms' own fields do
       if (f.y < n.y + n.sy) n.sy = f.y - n.y;
-      else if (f.y + f.lh > n.y + n.sy + n.lh - cover) n.sy = f.y + f.lh - n.y - n.lh + cover;
+      else if (f.y + f.lh + gap > n.y + n.sy + n.lh - cover) n.sy = f.y + f.lh + gap - n.y - n.lh + cover;
       clampScroll(n); n.scrolledAt = clock; paintDirty = true;
     }
     if (n.layer) break;   // a layer is placed on the surface, apart from its ancestors: their scrolling cannot reveal it
@@ -5477,13 +5479,15 @@ export function frame(dt: number, background: i32): void {
   const ed = focus >= 0 ? nodes[focus].ed : null;
   const want: i32 = ed !== null && !(ed as Edit).readOnly ? focus : -1;
   if (want !== textOn) {
-    if (want >= 0) { boxOf(want); device('keyboard-traits', keyboardTraits(want)); mirrorIme(nodes[want].ed as Edit); startTextInput(boxX, boxY, nodes[want].lw * boxK, nodes[want].lh * boxK); } else stopTextInput();
+    if (want >= 0) { boxOf(want); device('keyboard-traits', keyboardTraits(want)); mirrorIme(nodes[want].ed as Edit); startTextInput(boxX, boxY, nodes[want].lw * boxK, nodes[want].lh * boxK); } else { device('keyboard-traits', ''); stopTextInput(); }   // no traits: no field (iOS's input view resigns)
     textOn = want;
   }
   if (ed !== null) { const ph = Math.floor((clock - (ed as Edit).blinkAt) / 530); if (ph !== blinkShown) { blinkShown = ph; paintDirty = true; } }
   if (prof) profMark(PROF_INPUT);
   for (const h of virtuals()) syncVirtual(h, node(h));
   if (layoutDirty) layout();
+  // while the on-screen keyboard is up, a new layout (the room made for it: KeyboardAvoidingView, pb-[env(keyboard-inset)]) reveals the focused field again
+  if (focus >= 0 && kbInset > 0 && layoutRuns !== revealRuns) { revealRuns = layoutRuns; revealFocus(focus); }
   if (anchors.length > 0) applyAnchors();
   if (prof) profMark(PROF_LAYOUT);
   if (hoverDirty || paintDirty || scrollDirty) updateHover();

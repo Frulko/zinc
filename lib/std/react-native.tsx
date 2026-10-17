@@ -378,16 +378,25 @@ export type KeyboardAvoidingViewProps = { behavior?: string; keyboardVerticalOff
 export function KeyboardAvoidingView(p: KeyboardAvoidingViewProps): i32 {
   const [inset, setInset] = useState<number>(ui.keyboardInset());
   const subscribed = useRef<boolean>(false);
+  const self = useRef<i32>(-1);
+  // as React Native's: the part of this view the keyboard covers (a tab bar below the view is covered first), not the keyboard's whole height
+  const covered = (kb: number): number => {
+    if (kb <= 0 || self.current < 0) return kb;
+    const b = ui.screenBox(self.current);
+    return Math.max(0, Math.min(kb, b[1] + b[3] - (height() - kb)));
+  };
   useEffect((): void => {
     if (subscribed.current) return;
     subscribed.current = true;
-    Keyboard.addListener('keyboardDidChangeFrame', (e: KeyboardEvent): void => setInset(e.endCoordinates.height));
-    Keyboard.addListener('keyboardDidShow', (e: KeyboardEvent): void => setInset(e.endCoordinates.height));
+    Keyboard.addListener('keyboardDidChangeFrame', (e: KeyboardEvent): void => setInset(covered(e.endCoordinates.height)));
+    Keyboard.addListener('keyboardDidShow', (e: KeyboardEvent): void => setInset(covered(e.endCoordinates.height)));
     Keyboard.addListener('keyboardDidHide', (e: KeyboardEvent): void => setInset(0));
   }, []);
   const room = p.enabled === false ? 0 : Math.max(0, inset - (p.keyboardVerticalOffset ?? 0));
   const lift = p.behavior === 'position' ? new ui.Style(['translateY'], [-room]) : p.behavior !== undefined ? new ui.Style(['paddingBottom'], [room]) : NONE;
-  return <View style={[p.style ?? NONE, lift]}>{renderChildren(p.children)}</View>;
+  const h = <View style={[p.style ?? NONE, lift]}>{renderChildren(p.children)}</View>;
+  self.current = h;
+  return h;
 }
 
 // ---------------------------------------------------------------- FlatList, SectionList, RefreshControl (ZN-367.03)
