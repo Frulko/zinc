@@ -6,6 +6,7 @@ title: >-
 status: Backlog
 assignee: []
 created_date: '2026-10-09 07:39'
+updated_date: '2026-10-17 16:56'
 labels:
   - handheld
   - pocketjs
@@ -28,3 +29,9 @@ zinc cook, a desktop program (Zinc code AOT-compiled plus C++ helpers): read glT
 - [ ] #3 Quantization error and triangle counts per LOD are in the receipt
 - [ ] #4 No float positions are emitted for the psp profile (checked by a test)
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Partial: cook.cpp/cook.h implemented (glTF->quantized mesh, vertex light bake, LOD via meshopt, budget check, deterministic receipt). Wired into zn_assets build. Not yet: CLI  command, profile presets, test, byte-identical verification. Next: add CLI subcommand and a T0 test.
+<!-- SECTION:NOTES:END -->
