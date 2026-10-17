@@ -300,10 +300,18 @@ std::string gPendingUrl;
 
 #ifdef __ANDROID__
 jobject gLastIntent = nullptr;
+// Called every tick: every local reference it makes lives in its own frame, popped at the end (a leaked GetObjectClass a tick filled
+// Android 7's table of 512 local references in about 8 s and aborted the app on a Nexus 7).
+static void pollIntentIn(JNIEnv* env);
 void pollIntent() {
   JNIEnv* env = static_cast<JNIEnv*>(SDL_GetAndroidJNIEnv());
+  if (!env || env->PushLocalFrame(16) != 0) return;
+  pollIntentIn(env);
+  env->PopLocalFrame(nullptr);
+}
+static void pollIntentIn(JNIEnv* env) {
   jobject act = static_cast<jobject>(SDL_GetAndroidActivity());
-  if (!env || !act) return;
+  if (!act) return;
   jobject intent = env->CallObjectMethod(act, env->GetMethodID(env->GetObjectClass(act), "getIntent", "()Landroid/content/Intent;"));
   if (intent && (!gLastIntent || !env->IsSameObject(intent, gLastIntent))) {
     if (gLastIntent) env->DeleteGlobalRef(gLastIntent);
