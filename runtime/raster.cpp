@@ -517,8 +517,9 @@ int32_t text_advance(int32_t font, const char* s, uint32_t n, float tracking) {
   const Font& f = *fp;
   int32_t pen = 0;
   for (uint32_t i = 0; i < n;) {
-    const Glyph* g = glyph_of(font, f, next_cp(s, n, i));
-    if (!g) g = glyph_of(font, f, '?');
+    const uint32_t cp = next_cp(s, n, i);
+    const Glyph* g = glyph_of(font, f, cp);
+    if (!g && !ignorable_cp(cp)) g = glyph_of(font, f, '?');
     if (g) pen += g->adv + f2i(tracking * 64);
   }
   return pen;
@@ -553,8 +554,9 @@ static void draw_text(const Target& t, const Cmd& c, const char* s) {
   const uint32_t col = c.c1, alpha = c.alpha;
   const int32_t track = f2i(c.s * 64);
   for (uint32_t i = 0; i < c.n;) {
-    const Glyph* g = glyph_of(c.res, f, next_cp(s, c.n, i));
-    if (!g) g = glyph_of(c.res, f, '?');
+    const uint32_t cp = next_cp(s, c.n, i);
+    const Glyph* g = glyph_of(c.res, f, cp);
+    if (!g && !ignorable_cp(cp)) g = glyph_of(c.res, f, '?');
     if (!g) continue;
     int32_t gx = ((pen + 32) >> 6) + g->x0, gy = base + g->y0;
     // the glyph box clipped once (ZN-407), then an unchecked loop: the same pixels as clipping each one
@@ -1049,7 +1051,7 @@ static void xf_text(const Target& t, const Cmd& c, const char* s, const Xf& m) {
   for (uint32_t i = 0; i < c.n;) {
     const uint32_t cp = next_cp(s, c.n, i);
     const Glyph* g = glyph_of(c.res, f, cp);
-    if (!g) g = glyph_of(c.res, f, '?');
+    if (!g && !ignorable_cp(cp)) g = glyph_of(c.res, f, '?');
     if (!g) continue;
     const Glyph* b = gp ? glyph_of(gf, *gp, cp) : nullptr;
     if (b) xf_glyph(t, m, pen + b->x0 / q, base + b->y0 / q, b->w, b->h, gp->bitmap + b->off, nullptr, c.c1, c.alpha, q);

@@ -10,6 +10,13 @@ namespace zrt { namespace raster {
 
 struct Glyph { uint32_t cp; int16_t x0, y0; uint16_t w, h; int32_t adv; uint32_t off; };
 struct Font { const char* name; int32_t px, ascent, descent, lineGap, count; const Glyph* glyphs; const uint8_t* bitmap; };
+// Unicode's Default_Ignorable_Code_Point (bidi marks and isolates, zero widths, joiners, variation selectors, tags): drawn as nothing, never
+// as the '?' of a missing glyph (Discord's notifications wrap names in U+2068/U+2069).
+static inline bool ignorable_cp(uint32_t c) {
+  return c == 0xAD || c == 0x34F || c == 0x61C || (c >= 0x115F && c <= 0x1160) || (c >= 0x17B4 && c <= 0x17B5) || (c >= 0x180B && c <= 0x180F) ||
+         (c >= 0x200B && c <= 0x200F) || (c >= 0x202A && c <= 0x202E) || (c >= 0x2060 && c <= 0x206F) || c == 0x3164 || (c >= 0xFE00 && c <= 0xFE0F) ||
+         c == 0xFEFF || c == 0xFFA0 || (c >= 0xFFF0 && c <= 0xFFF8) || (c >= 0x1BCA0 && c <= 0x1BCA3) || (c >= 0x1D173 && c <= 0x1D17A) || (c >= 0xE0000 && c <= 0xE0FFF);
+}
 struct Image { const char* name; int32_t w, h; const uint8_t* rgba; int32_t scale; };  // scale: pixels per logical pixel
 extern const Font fonts[];
 extern const int font_count;

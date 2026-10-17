@@ -551,8 +551,9 @@ static void glyphs_ahead(const Frame& f) {
     if (!fp) continue;
     const char* s = f.text + off;
     for (uint32_t k = 0; k < n;) {
-      const Glyph* g = glyph_of(font, *fp, next_cp(s, n, k));
-      if (!g) g = glyph_of(font, *fp, '?');
+      const uint32_t cp = next_cp(s, n, k);
+      const Glyph* g = glyph_of(font, *fp, cp);
+      if (!g && !ignorable_cp(cp)) g = glyph_of(font, *fp, '?');
       if (g && g->w > 0 && g->h > 0) glyph_slot(font, *fp, g);
     }
   }
@@ -570,7 +571,7 @@ static void draw_text(const Cmd& c, const char* s) {
   for (uint32_t i = 0; i < c.n;) {
     const uint32_t cp = next_cp(s, c.n, i);
     const Glyph* g = glyph_of(c.res, f, cp);
-    if (!g) g = glyph_of(c.res, f, '?');
+    if (!g && !ignorable_cp(cp)) g = glyph_of(c.res, f, '?');
     if (!g) continue;
     int32_t px = ((pen + 32) >> 6) + g->x0, py = base + g->y0;
     const Glyph* b = gp ? glyph_of(gf, *gp, cp) : nullptr;
