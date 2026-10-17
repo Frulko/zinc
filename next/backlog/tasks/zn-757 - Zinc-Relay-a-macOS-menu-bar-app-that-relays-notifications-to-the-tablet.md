@@ -2,7 +2,8 @@
 id: ZN-757
 title: 'Zinc Relay: a macOS menu bar app that relays notifications to the tablet'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-17 08:46'
 labels:
   - desktop
