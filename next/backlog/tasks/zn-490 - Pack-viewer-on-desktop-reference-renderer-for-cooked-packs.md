@@ -2,8 +2,7 @@
 id: ZN-490
 title: 'Pack viewer on desktop: reference renderer for cooked packs'
 status: Backlog
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-09 07:39'
 labels:
   - handheld

@@ -2,8 +2,7 @@
 id: ZN-452
 title: 'Console and legacy texture layouts (PSP, 3DS, Vita, iPhone 4S)'
 status: Backlog
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-09 07:36'
 labels:
   - games
