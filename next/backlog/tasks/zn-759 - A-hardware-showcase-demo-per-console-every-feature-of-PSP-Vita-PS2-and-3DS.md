@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@parallel'
 created_date: '2026-10-17 09:39'
-updated_date: '2026-10-17 11:17'
+updated_date: '2026-10-17 11:21'
 labels:
   - handheld
   - games
@@ -38,4 +38,6 @@ Session 1 (worktree agent, 2026-10-17). Shared APIs (commit feat(console): hardw
 - Decision: zinc:audio on consoles = a small mixer linked into the core as the native module 'Audio' (targets/console/audio_console.cpp), same exports and signatures as plugins/audio; mixed on the program's thread at frame end into a ring (console_audio.h) that the HAL's audio thread drains. miniaudio rejected: its engine needs atomics that the PSP's and PS2's MIPS cores lack, no backends for these consoles. WAV (PCM 8/16) only on consoles. Rates: PSP 44100 (Pocket3D's rule: the hardware resampler is broken), Vita 48000, PS2 48000, 3DS 22050.
 - Fix: check.cpp arrayConversion did not declare the element alias of a down conversion (f64[] to f32[]): zinc:audio failed to compile for the psp/ps2 profiles ('__T7'); regression in tests/t0/console_audio.sh.
 - Tests (T0, all pass): hardware_motion, hardware_reartouch, hardware_microphone, hardware_stereo, hardware_vibration (rumble recorded in ZINC_DEVICE_LOG headless), hardware_pressure, hardware_screen2, hardware_memcard (console core), console_audio (console core). console_core and console_host still pass. host and webenv_gamepad print the main checkout's plugin.json warnings (unknown key web: the worktree lies inside the main repo, whose plugins/ the module loader also reads): environmental, not this change.
+
+PSP done (commit feat(psp): ...): examples/hardware-psp (Buttons, Analog nub, Sound, Screen, System), shared screens in examples/hardware-kit (kit.ts, pages.ts). Live in PPSSPPHeadless: all buttons as gamepad 0, the nub as the left stick, zinc:audio at 44100 Hz (sceAudio channel, ring filled at frame end; backend 'sceAudio'), 480x272 at 59.9 fps with 40 sprites (ZINC_PROFILE: work p50 2.82 ms, present p50 11.23 ms, emulated 333 MHz), battery/mains (PPSSPP: 100 %, ac), Wi-Fi switch (sceWlanGetSwitchState), UTC clock, zinc:storage counter kept across runs. Marked missing on screen: vibration, second stick, touch, motion, microphone. Copied to ~/Documents/psp/hardware/EBOOT.PBP (tools/console-demos ../examples/hardware-psp hardware --title 'Zinc PSP Hardware' psp). Shots: docs/img/consoles/psp-hardware.png. Fonts: zinc pack bakes only the sizes its font() calls name literally, so the kit names one literal set per screen scale.
 <!-- SECTION:NOTES:END -->

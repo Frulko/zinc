@@ -1,0 +1,9 @@
+{
+  "name": "hardware-psp",
+  "entry": "src/main.ts",
+  "assets": "assets",
+  "targets": {
+    "macos": { "width": 480, "height": 272 },
+    "linux": { "width": 480, "height": 272 }
+  }
+}

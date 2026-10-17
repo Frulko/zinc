@@ -25,6 +25,9 @@ How to add a line: see "Changelog" in `AGENTS.md`.
   touch pad, microphone level and 3D slider.
 - zinc:audio plays on the PSP, PS Vita, PS2 and 3DS: tones, samples, PCM WAV files, voices and streams, unchanged from the desktop.
 - `gamepadButtonValue` gives how hard a pressure-sensitive button is pressed (the DualShock 2's); a test script presses with `gbutton I B VALUE`.
+- Consoles: a hardware demo shows every part of the console live, one screen each with Kenney's button icons: `examples/hardware-psp`
+  (buttons, analog nub, sound at 44.1 kHz, the screen at 60 fps, battery, clock, the Wi-Fi switch, saving). The PSP's pad is gamepad 0
+  with its nub as the left stick.
 - Consoles: breakout plays on the PSP, PS Vita, PS2 and 3DS with Kenney's sprites, the d-pad or the stick moving the paddle; a console
   program that ends with nothing drawn or with an error keeps its last lines on screen until START instead of a black screen.
 - `zinc export --target web` makes a Zinc app a normal web page: a static folder (hashed JavaScript and assets, an offline cache, an installable manifest, `.br` and `.gz` copies, `_headers`) that any host

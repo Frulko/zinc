@@ -87,3 +87,32 @@ choice); `breakout-mods` still draws `render.ts` and is compared.
 `~/Documents/3ds/breakout.3dsx`, and the hello beside them (`zinc-hello`, ZINC00001). Controls: the d-pad or the left stick (circle pad) move
 the paddle, Cross (A on the 3DS) or START starts and serves. Rebuild them with `tools/console-demos ../examples/breakout breakout --title
 Breakout --id ZINC00002`.
+
+## Hardware demos: every part of each console (ZN-759)
+
+`examples/hardware-psp`, `hardware-vita`, `hardware-ps2` and `hardware-n3ds` show each part of the console live, one screen each, with Kenney's
+Input Prompts and Puzzle Pack (CC0, each project's `assets/kenney`); START and SELECT move between the screens, and a line in orange says what
+the console (or its emulator) does not give. The parts are zinc APIs every target has (`docs/targets/handhelds.md`, "Hardware"): zinc:gfx's
+gamepad 0, touch points and windows, zinc:audio, zinc:storage and zinc:hardware, so the same screens run on a desktop
+(`zinc run --simulate psp examples/hardware-psp`). The pictures below are the emulators' own (as for breakout), from a pad session built into
+the core (`tools/build-console-core --input`): each shot is the last frame of a session that goes to that screen and presses its buttons.
+
+### PSP (PPSSPPHeadless 1.20.4)
+
+Buttons (LEFT, CROSS and R held), the analog nub, the sound (sceAudio at 44.1 kHz, the samples of the last tone), the screen (40 sprites at
+59.9 fps), the system (battery and mains from PPSSPP, the Wi-Fi switch, the clock, a counter saved with zinc:storage):
+
+![the PSP hardware demo](../img/consoles/psp-hardware.png)
+
+| Part | Live | Note |
+|---|---|---|
+| D-pad, CROSS CIRCLE SQUARE TRIANGLE, L, R, START, SELECT | yes, each with its note | gamepad 0 in W3C order |
+| Analog nub | yes (left stick axes; it also drives the d-pad buttons) | no second stick on a PSP: said on screen |
+| Sound | yes: zinc:audio's mixer at 44100 Hz on a 1024-frame channel | PPSSPPHeadless plays no sound; PPSSPPSDL does |
+| Screen | 480x272 at 60 fps with 40 sprites: work 2.8 ms, present 11.2 ms (p50, emulated 333 MHz) | |
+| Battery, clock | `scePowerGetBatteryLifePercent`, mains, charging; `gettimeofday` (UTC) | PPSSPP reports 100 %, on the mains |
+| Wi-Fi | the WLAN switch (`sceWlanGetSwitchState`): on or off | a PSP joins no network here |
+| Saving | zinc:storage in the game's folder | PPSSPPHeadless runs from `umd0:` |
+| Vibration, touch, motion, microphone | none on a PSP: said on screen | |
+
+Controls in PPSSPP: its own keyboard or gamepad mapping (Settings, Controls); the nub is a gamepad's left stick there.
