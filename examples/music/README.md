@@ -15,14 +15,16 @@ examples/music/install.sh                # on the TouchPad (novacom), in the web
 - **The home's carousel**: swipe sideways between the player, a StandBy clock (three faces: hands, digits, rings; swipe up or down to change
   it; the screen stays on while it shows), the weather (Open-Meteo: now, the next 24 hours, the week) and the rooms' volumes as rings. The
   slide and the face are remembered (AsyncStorage, plugins/async-storage). The weather's place is `lat`, `lon` and `city` in config.json,
-  else found once from the connection's address (ip-api.com).
+  chosen in Réglages, else found once from the connection's address (ip-api.com). On the clock the screen goes off after 2 minutes
+  whatever the settings' delay (unless "Jamais"), then lights for 10 seconds every 5 minutes, as iOS's StandBy does; a touch wakes it.
 - **Context**: the room button (top of the player, or the sidebar) lists every group with what it plays and a play button; a touch makes it
   the group every command goes to. "Regrouper" opens the rooms.
 - **Radios**: my radios (`radios.json` beside the program; nine French stations to start), the most voted of radio-browser.info, and a search
   with an AZERTY keyboard drawn by the app. `+` adds a station to mine, "Modifier" removes.
 - **Spotify**: playlists, albums, liked songs, recent plays, search; a touch plays on the group.
 - **Enceintes**: each group with its rooms, their volume and mute; check a room to make it play with the group under control.
-- **Réglages**: the delay before the screen goes off, the Spotify and Sonos state, the UDP commands.
+- **Réglages**: the delay before the screen goes off, the weather's town (a search as the user types on the app's keyboard: Open-Meteo's
+  geocoding, the towns with their region and country), the Spotify and Sonos state, the UDP commands.
 
 ## How it works
 

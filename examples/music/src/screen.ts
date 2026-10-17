@@ -2,16 +2,25 @@
 // it. webOS turns the touch panel off with its own "display off" (docs/reports/hardware/webos-screen-power.md), so the system keeps
 // the screen on (screenTimeout(false)) and zinc-helper switches the backlight (setBacklight). While the screen is on the CPU runs at full
 // speed (setPerformance): webOS's governor would leave it at 192 MHz between touches. Elsewhere the window just goes black.
+// On the clock slide (StandBy, iOS's manner) the screen goes off after STANDBY_OFF_S, then wakes every GLANCE_EVERY_S for GLANCE_S: the time
+// shows on a wall without lighting the room all night. ZINC_MUSIC_STANDBY="off,every,glance" (seconds) shortens it for the tests.
 import { isWebOS, screenTimeout, serviceCall, setBacklight, setPerformance } from 'zinc:webos';
+import { env } from 'zinc:sys';
 
 const KEEP_AWAKE_S = 600;   // com.palm.power caps an activity at 15 minutes: renewed every 10
+const STANDBY = (env('ZINC_MUSIC_STANDBY') !== '' ? env('ZINC_MUSIC_STANDBY') : '120,300,10').split(',');
+const STANDBY_OFF_S = parseFloat(STANDBY[0]), GLANCE_EVERY_S = parseFloat(STANDBY[1]), GLANCE_S = parseFloat(STANDBY[2]);
 
 export class Screen {
   asleep: boolean = false;
   idle: number = 0;
   /** Seconds without a touch before the screen goes off; 0 never. */
   delay: number = 120;
+  /** The clock slide is shown: off after STANDBY_OFF_S whatever the delay (unless never), and a glance every GLANCE_EVERY_S while off. */
+  standby: boolean = false;
   private awakeFor: number = 0;
+  private t: number = 0;
+  private nextGlance: number = 0;   // on t's clock; 0 until the screen goes off after a touch
 
   constructor(delay: number) {
     this.delay = delay;
@@ -21,20 +30,35 @@ export class Screen {
   /** A touch: true when it woke the screen (the touch is then used up). */
   touched(): boolean {
     this.idle = 0;
+    this.nextGlance = 0;
     if (!this.asleep) return false;
     this.asleep = false;
     this.light(true);
     return true;
   }
+  /** Lights the screen for at least `seconds` without a touch (a notification, a glance); true when it was off. A touch then keeps it on as usual. */
+  wake(seconds: number): boolean {
+    this.idle = Math.min(this.idle, this.limit() - seconds);
+    if (!this.asleep) return false;
+    this.asleep = false;
+    this.light(true);
+    return true;
+  }
+  private limit(): number { return this.standby ? STANDBY_OFF_S : this.delay; }
   /** Time passes; true when the screen just went off. Only while the program is in front: hidden, it wakes the screen and waits. */
   tick(dt: number): boolean {
-    this.awakeFor += dt;
+    this.awakeFor += dt; this.t += dt;
     if (this.awakeFor >= KEEP_AWAKE_S && isWebOS()) { this.awakeFor = 0; this.keepAwake(); }
     if (document.hidden) { this.idle = 0; if (this.asleep) { this.asleep = false; this.light(true); } return false; }
-    if (this.asleep || this.delay <= 0) return false;
+    if (this.delay <= 0) return false;
+    if (this.asleep) {   // a glance every GLANCE_EVERY_S from the first off, whatever the glances in between lasted
+      if (this.standby && this.t >= this.nextGlance) { this.nextGlance += GLANCE_EVERY_S; this.wake(GLANCE_S); }
+      return false;
+    }
     this.idle += dt;
-    if (this.idle < this.delay) return false;
+    if (this.idle < this.limit()) return false;
     this.asleep = true;
+    if (this.nextGlance === 0) this.nextGlance = this.t + GLANCE_EVERY_S;
     this.light(false);
     return true;
   }

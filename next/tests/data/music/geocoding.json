@@ -1,0 +1,6 @@
+{"results":[
+ {"id":2996944,"name":"Lyon","latitude":45.74846,"longitude":4.84671,"elevation":173.0,"feature_code":"PPLA","country_code":"FR","admin1":"Auvergne-Rhône-Alpes","admin2":"Rhône","country":"France","population":522969},
+ {"id":4703384,"name":"Lyon","latitude":31.13711,"longitude":-93.25407,"country_code":"US","admin1":"Louisiane","country":"États-Unis"},
+ {"id":5106834,"name":"Lyons","latitude":43.06396,"longitude":-76.99025,"country_code":"US","admin1":"New York","country":"États-Unis"},
+ {"id":2996943,"name":"Lyon-la-Forêt","latitude":49.39907,"longitude":1.47524,"country_code":"FR","admin1":"Normandie","admin2":"Eure","country":"France"}
+],"generationtime_ms":0.9}

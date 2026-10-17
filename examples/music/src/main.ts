@@ -14,7 +14,7 @@ import { Screen } from './screen';
 import { arc, watchFace, lava, odometer, lampPalette, setLampPalette, LAMP_NAMES, HUGE, RINGS } from './faces';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import gsap, { Timeline } from 'gsap';
-import { setPlace, weatherTick, weatherSlide } from './weather';
+import { setPlace, placeName, weatherTick, weatherSlide, Place, foundPlaces, searchState, searchPlaces } from './weather';
 import { openPort } from 'zinc:webos';
 
 // ---------------------------------------------------------------- settings beside the program
@@ -93,6 +93,7 @@ const SP_PAGE: i32 = 20;
 let spMore: boolean[] = [false, false, false, false, false], spPaging: boolean[] = [false, false, false, false, false];
 
 let query = '', typing = false;
+let citySearch = false, cityQuery = '';   // the settings' search of the weather's city
 let toastText = '', toastFor = 0;
 let volumeOpen = false, volumeFor = 0, volumeHeld = 0;
 let contextOpen = false;
@@ -391,11 +392,14 @@ function skeleton(grid: boolean, top: number, bottom: number, W: number): void {
   spinner(SIDE + (W - SIDE) / 2, top + 120, 18);
 }
 function typed(k: string): void {
-  if (k === 'back') query = query.slice(0, Math.max(0, query.length - 1));
+  const city = page === SETTINGS && citySearch;
+  let q = city ? cityQuery : query;
+  if (k === 'back') q = q.slice(0, Math.max(0, q.length - 1));
   else if (k === 'enter') {
     typing = false;
-    if (query.trim() !== '') { if (page === RADIOS) searchRadios(); else loadSpotify(4, true); }
-  } else query += k;
+    if (!city && q.trim() !== '') { if (page === RADIOS) searchRadios(); else loadSpotify(4, true); }
+  } else q += k;
+  if (city) { if (q !== cityQuery) searchPlaces(q); cityQuery = q; } else query = q;
   ui.dirty = true;
 }
 
@@ -559,7 +563,7 @@ function sidebar(W: number, H: number): void {
 /** The player, at once. */
 function home(): void { page = NOW; slide = PLAYER; slideX = 0; remember(); }
 function go(k: i32): void {
-  page = k; typing = false; volumeOpen = false; contextOpen = false;
+  page = k; typing = false; volumeOpen = false; contextOpen = false; citySearch = false;
   if (k === RADIOS && radioTab === 1) loadPopular();
   if (k === SPOTIFY) loadSpotify(spTab, false);
   if (k === ROOMS) pollRooms();
@@ -893,15 +897,16 @@ function stationGrid(list: Station[], id: string, top: number, bottom: number, W
   endScroll();
 }
 
-function searchField(x: number, y: number, w: number, placeholder: string): void {
+function searchField(x: number, y: number, w: number, placeholder: string, text: string, clear: () => void): void {
   rrect(x, y, w, 46, 12, CARD2, 255);
   glyph('search', x + 14, y + 13, 20, TEXT2);
-  if (query === '') drawText(F.label, x + 46, y + 13, placeholder, TEXT3, 255, 0);
-  else label(F.label, x + 46, y + 13, query, TEXT, w - 100);
-  if (typing) rect(x + 47 + Math.min(w - 100, textWidth(F.label, query, 0)), y + 11, 2, 24, ACCENT);
+  if (text === '') drawText(F.label, x + 46, y + 13, placeholder, TEXT3, 255, 0);
+  else label(F.label, x + 46, y + 13, text, TEXT, w - 100);
+  if (typing) rect(x + 47 + Math.min(w - 100, textWidth(F.label, text, 0)), y + 11, 2, 24, ACCENT);
   onTap('field', x, y, w - 50, 46, () => { typing = true; });
-  if (query !== '') iconButton('field/clear', 'x', x + w - 26, y + 23, 18, TEXT2, () => { query = ''; typing = true; });
+  if (text !== '') iconButton('field/clear', 'x', x + w - 26, y + 23, 18, TEXT2, () => { clear(); typing = true; });
 }
+function clearQuery(): void { query = ''; }
 
 function radiosPage(W: number, H: number): void {
   header('Radios');
@@ -919,7 +924,7 @@ function radiosPage(W: number, H: number): void {
     else if (popularState !== 'ok') centered(F.label, SIDE + (W - SIDE) / 2, 200, popularState, TEXT2);
     else stationGrid(popular, 'pop', 100, bottom, W, scrolls[RADIOS], false, '');
   } else {
-    searchField(SIDE + P, 100, W - SIDE - P * 2, 'Nom d\'une radio, d\'une ville, d\'un style');
+    searchField(SIDE + P, 100, W - SIDE - P * 2, 'Nom d\'une radio, d\'une ville, d\'un style', query, clearQuery);
     if (foundState === 'loading') centered(F.label, SIDE + (W - SIDE) / 2, 230, 'Recherche…', TEXT2);
     else if (foundState !== '' && foundState !== 'ok') centered(F.label, SIDE + (W - SIDE) / 2, 230, foundState, TEXT2);
     else stationGrid(found, 'found', 166, bottom, W, scrolls[RADIOS], false, '');
@@ -977,7 +982,7 @@ function spotifyPage(W: number, H: number): void {
   segmented('sp/tab', W - P - 560, 34, tabs, spTab, (i: i32) => { spTab = i; typing = i === 4 && query === ''; scrolls[SPOTIFY].y = 0; if (i < 4) loadSpotify(i, false); }, 112);
   const bottom = H - (typing ? KEYBOARD_H : 0);
   let top = 100;
-  if (spTab === 4) { searchField(SIDE + P, 100, W - SIDE - P * 2, 'Titres, artistes, albums, playlists'); top = 166; }
+  if (spTab === 4) { searchField(SIDE + P, 100, W - SIDE - P * 2, 'Titres, artistes, albums, playlists', query, clearQuery); top = 166; }
   const st = spState[spTab];
   if (st === 'loading') skeleton(spTab <= 1, top, bottom, W);
   else if (st !== '' && st !== 'ok') centered(F.label, SIDE + (W - SIDE) / 2, top + 100, st, TEXT2);
@@ -1066,7 +1071,44 @@ function roomsPage(W: number, H: number): void {
   endScroll();
 }
 
+/** The weather's place by name, as a combobox: the field, the towns found as it is typed, the keyboard under them. */
+function cityPage(W: number, H: number): void {
+  header('Ville de la météo');
+  pill('city/cancel', W - P - 120, 34, 'Annuler', TEXT, FILL, () => { citySearch = false; typing = false; }, '', 40);
+  const x0 = SIDE + P, w = W - SIDE - P * 2, top = 166, bottom = H - (typing ? KEYBOARD_H : 0), rowH = 66;
+  const places = foundPlaces(), placesState = searchState();
+  searchField(x0, 100, w, 'Nom d\'une ville', cityQuery, () => { cityQuery = ''; searchPlaces(''); });
+  if (placesState === 'loading' && places.length === 0) spinner(SIDE + (W - SIDE) / 2, top + 60, 16);
+  else if (placesState === '' && places.length === 0) centered(F.label, SIDE + (W - SIDE) / 2, top + 50, 'Tape au moins deux lettres', TEXT2);
+  else if (placesState !== 'ok' && placesState !== 'loading') centered(F.label, SIDE + (W - SIDE) / 2, top + 50, placesState, TEXT2);
+  const sc = scrolls[SETTINGS];
+  beginScroll(sc, SIDE, top, W - SIDE, bottom - top);
+  sc.content = places.length * rowH + 24;
+  for (let i = 0; i < places.length; i++) {
+    const pl = places[i], y = top + i * rowH - sc.y, id = 'city/' + i;
+    if (y > bottom || y + rowH < top) continue;
+    if (isPressed(id)) rrect(x0 - 10, y, w + 20, rowH, 10, CARD2, 255);
+    const cw = Math.max(44, textWidth(F.smallB, pl.code, 0) + 20);   // the country's code as a badge: the fonts have no flags on every target
+    rrect(x0, y + 17, cw, 32, 8, FILL, 255);
+    centered(F.smallB, x0 + cw / 2, y + 33 - fontAscent(F.smallB) / 2 - 1, pl.code, TEXT);
+    label(F.label, x0 + 64, y + 11, pl.name, TEXT, w - 120);
+    label(F.small, x0 + 64, y + 37, pl.region !== '' && pl.region !== pl.name ? `${pl.region}, ${pl.country}` : pl.country, TEXT2, w - 120);
+    if (cfg.city === pl.name && Math.abs(cfg.lat - pl.lat) < 0.01 && Math.abs(cfg.lon - pl.lon) < 0.01) glyph('check', x0 + w - 28, y + 21, 24, ACCENT);
+    if (i < places.length - 1) separator(x0 + 64, y + rowH - 1, w - 64);
+    onTap(id, x0, y, w, rowH, () => chooseCity(pl));
+  }
+  endScroll();
+  if (typing) keyboard(SIDE, H - KEYBOARD_H, W - SIDE, typed);
+}
+function chooseCity(pl: Place): void {
+  cfg.lat = pl.lat; cfg.lon = pl.lon; cfg.city = pl.name; saveConfig();
+  setPlace(pl.lat, pl.lon, pl.name);
+  citySearch = false; typing = false;
+  toast(`Météo : ${pl.name}`);
+}
+
 function settingsPage(W: number, H: number): void {
+  if (citySearch) { cityPage(W, H); return; }
   header('Réglages');
   const x0 = SIDE + P, w = W - SIDE - P * 2;
   let y = 104;
@@ -1080,6 +1122,13 @@ function settingsPage(W: number, H: number): void {
     cfg.sleep = delays[i]; screen.delay = cfg.sleep; saveConfig();
   }, (w - 44) / 6);
   y += 144;
+  drawText(F.tinyB, x0 + 4, y, 'MÉTÉO', TEXT2, 255, 0); y += 24;
+  card(x0, y, w, 64);
+  glyph('cloud-sun', x0 + 20, y + 20, 24, TEXT2);
+  const place = placeName();
+  label(F.label, x0 + 58, y + 21, place === '' ? 'Ville : pas encore trouvée' : cfg.lat !== 0 || cfg.lon !== 0 ? `Ville : ${place}` : `Ville : ${place} (d'après la connexion)`, TEXT, w - 260);
+  pill('set/city', x0 + w - 200, y + 12, 'Choisir', TEXT, FILL, () => { citySearch = true; cityQuery = ''; searchPlaces(''); typing = true; scrolls[SETTINGS].y = 0; }, 'search');
+  y += 88;
   drawText(F.tinyB, x0 + 4, y, 'SPOTIFY', TEXT2, 255, 0); y += 24;
   card(x0, y, w, 64);
   glyph('library', x0 + 20, y + 20, 24, spotify.ready() ? GREEN : TEXT3);
@@ -1214,6 +1263,8 @@ function prefetchSome(): void {
 
 // ---------------------------------------------------------------- the loop
 let tGroup = 0, tTopo = 0, tRooms = 0, tSpotify = 0, tSecond = 0;
+/** Lights the screen for `seconds` at least, as a touch would but without one: what a notification calls (ZN-758). */
+function wakeScreen(seconds: number): void { if (screen.wake(seconds)) { tGroup = 99; tTopo = 99; } ui.dirty = true; }
 
 onFrame((dt: number) => {
   const W = width(), H = height();
@@ -1221,9 +1272,9 @@ onFrame((dt: number) => {
   picturesTick();
   const wasAsleep = screen.asleep;
   input(dt);
-  if (wasAsleep && !screen.asleep) { tGroup = 99; tTopo = 99; ui.dirty = true; }   // woken: fresh state at once
-  if (page === NOW && slide === CLOCK) screen.idle = 0;   // StandBy: the clock stays on
+  screen.standby = page === NOW && slide === CLOCK;   // StandBy: off after 2 minutes, a glance every 5 (screen.ts)
   if (screen.tick(dt)) { volumeOpen = false; typing = false; page = NOW; ui.dirty = true; }
+  if (wasAsleep && !screen.asleep) { tGroup = 99; tTopo = 99; ui.dirty = true; }   // woken (a touch, a glance): fresh state at once
   // polling: often while someone looks, rarely while the screen is off
   const slow = screen.asleep ? 10 : 1;
   tGroup += dt; tTopo += dt; tRooms += dt; tSpotify += dt; tSecond += dt;

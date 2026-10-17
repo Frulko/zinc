@@ -1,7 +1,10 @@
 // The weather slide of the home (main.ts): Open-Meteo's forecast (free, no key), in the spirit of iOS Weather: the temperature and the sky now,
 // the next 24 hours as a curve with the chance of rain under it, the week as ranges. The place comes from config.json (lat, lon, city),
 // else once from the address of the connection (ip-api.com), kept with AsyncStorage. Read again every 15 minutes while the screen is on.
+// The settings choose the place by name: Open-Meteo's geocoding (free, no key) asked as the user types, 300 ms after the last key.
+// ZINC_MUSIC_METEO=<base URL> replaces both Open-Meteo hosts (the tests answer from a local server).
 import { rrect, gradient, stroke, polygon, drawText, textWidth, font, fontAscent } from 'zinc:gfx';
+import { env } from 'zinc:sys';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ui, F, TEXT, label, centered, glyph } from './ui';
 
@@ -17,14 +20,56 @@ class Weather {
 }
 let w = new Weather();
 let lat = 0, lon = 0, city = '', placed = false, busy = false, age = 1e9, problem = '';
+const METEO = env('ZINC_MUSIC_METEO');
+const FORECAST = METEO !== '' ? METEO : 'https://api.open-meteo.com', GEOCODING = METEO !== '' ? METEO : 'https://geocoding-api.open-meteo.com';
 
-/** The place of config.json, when it names one. */
-export function setPlace(la: number, lo: number, name: string): void { lat = la; lon = lo; city = name; placed = true; }
+/** The place of config.json, when it names one; the forecast is read again at once. */
+export function setPlace(la: number, lo: number, name: string): void { lat = la; lon = lo; city = name; placed = true; age = 1e9; }
+/** The place's name ('' until it is known). */
+export function placeName(): string { return city; }
 
 /** Time passes; the forecast is read again when it is 15 minutes old (and at once the first time). */
 export function weatherTick(dt: number, awake: boolean): void {
   age += dt;
   if (awake && !busy && age >= 900) { age = 0; refresh(); }
+  if (searchIn > 0) { searchIn -= dt; if (searchIn <= 0) geocode(searchFor); }
+}
+
+// ---------------------------------------------------------------- the place by name (the settings' search)
+export class Place { name: string = ''; region: string = ''; country: string = ''; code: string = ''; lat: number = 0; lon: number = 0; }
+let places: Place[] = [];
+let placesState = '';
+/** What the search found for the last name typed. */
+export function foundPlaces(): Place[] { return places; }
+/** The search's state: '' nothing asked, 'loading', 'ok', or what went wrong. */
+export function searchState(): string { return placesState; }
+let searchFor = '', searchIn = 0, asked = 0;
+
+/** The name typed so far: asked 300 ms after the last key (Open-Meteo answers from two letters). */
+export function searchPlaces(name: string): void {
+  searchFor = name.trim();
+  if (searchFor.length < 2) { searchIn = 0; places = []; placesState = ''; asked++; return; }
+  searchIn = 0.3; placesState = 'loading';
+}
+async function geocode(name: string): Promise<void> {
+  const mine = ++asked;   // an older answer arriving late is dropped
+  try {
+    const r = await fetch(`${GEOCODING}/v1/search?name=${encodeURIComponent(name)}&count=8&language=fr&format=json`, { timeoutMs: 10000, headers: [['User-Agent', 'ZincMusic/1.0']] });
+    if (r.status !== 200) throw new Error(`geocoding ${r.status}`);
+    const j = JSON.parse(await r.text());
+    if (mine !== asked) return;
+    const found: Place[] = [];
+    if (j.results !== undefined) for (let i: i32 = 0; i < (j.results.length as i32); i++) {
+      const o = j.results[i], p = new Place();
+      p.name = '' + o.name; p.lat = o.latitude as number; p.lon = o.longitude as number;
+      p.region = o.admin1 !== undefined ? '' + o.admin1 : '';
+      p.country = o.country !== undefined ? '' + o.country : '';
+      p.code = o.country_code !== undefined ? '' + o.country_code : '';
+      found.push(p);
+    }
+    places = found; placesState = found.length > 0 ? 'ok' : 'Aucune ville de ce nom';
+  } catch (e) { if (mine === asked) { places = []; placesState = 'Recherche indisponible'; } }
+  ui.dirty = true;
 }
 
 async function locate(): Promise<void> {
@@ -43,14 +88,15 @@ async function refresh(): Promise<void> {
   busy = true;
   try {
     if (!placed) await locate();
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&timezone=auto&forecast_days=7` +
+    const at = city;   // a place chosen while this is read is read next
+    const url = `${FORECAST}/v1/forecast?latitude=${lat}&longitude=${lon}&timezone=auto&forecast_days=7` +
       '&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,is_day' +
       '&hourly=temperature_2m,precipitation_probability,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min';
     const r = await fetch(url, { timeoutMs: 12000, headers: [['User-Agent', 'ZincMusic/1.0']] });
     if (r.status !== 200) throw new Error(`Open-Meteo ${r.status}`);
     const j = JSON.parse(await r.text());
     const n = new Weather();
-    n.city = city;
+    n.city = at;
     n.temp = j.current.temperature_2m as number; n.feels = j.current.apparent_temperature as number;
     n.code = j.current.weather_code as i32; n.day = (j.current.is_day as i32) === 1;
     n.wind = j.current.wind_speed_10m as number; n.humidity = j.current.relative_humidity_2m as number;
