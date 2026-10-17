@@ -391,7 +391,11 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-759: the PS2 HAL could convert the CDVD clock to UTC (PCSX2 reads 8 hours ahead).
 - ZN-759: `zinc pack` bakes only font sizes written literally in `font()` calls; a computed size gets 16.
 - ZN-759: zinc:ui has no API for a second screen (the 3DS bottom screen is only an `openWindow`).
-
+- ZN-471: rounded rectangles, borders, shadows and gradients on the Vita's GXM replay (a corner coverage texture, nine quads per rounded rectangle, a ring for borders; gradients as vertex colours), so UI kits stop falling back to the software raster on the Vita.
+- ZN-471: the Vita's glyph atlas is never evicted (512x512, 3,072 glyphs): a reset or LRU when a program needs more.
+- ZN-471: a runtime image that changes is rewritten in place in CDRAM while up to two queued frames may still read it: double-buffer video textures.
+- ZN-470: Meadow Run's work peaks of about 8 ms on the Vita (garbage collection or asset decoding?): profile them with ZINC_TRACE on hardware if a heavier game needs the headroom.
+- console host: `host.assetsStat` is not served (logged once on every Vita run).
 
 ## Demos
 - Owner 2026-10-17: every game demo uses Kenney's assets (kenney.nl, CC0), adapted per platform: re-skin pinball, pinball3d and pocket-hero with Kenney packs as they are next worked on (breakout in ZN-753, platformer and marble in ZN-754).

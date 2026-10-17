@@ -849,3 +849,9 @@ rn-showcase, a scripted save of `Forms.tsx` served by `zinc dev --lan`: Android 
 | Vita (Vita3K, the Mac's clock) | platformer | 0.77 ms | - |
 
 Emulators only; no number from real hardware yet.
+
+## 2026-10-17: Meadow Run on the owner's PS Vita, GPU path (ZN-470/471, D151)
+
+Real hardware (ZINC_PROFILE through ux0:data/ZINC00011/zinc.log, 7 windows of 600 frames): 60 fps, no missed vblank in 4,200 frames,
+frame p50 16.68 ms (max 17.9), work p50 3.2-3.7 ms (max 8.8), GXM replay CPU p50 0.3-0.44 ms, about 12.5 ms waiting for the vblank. The
+software path at 960x544 costs 28 ms a frame in Vita3K on the Mac's clock (30 fps); its hardware number is pending one measuring launch.

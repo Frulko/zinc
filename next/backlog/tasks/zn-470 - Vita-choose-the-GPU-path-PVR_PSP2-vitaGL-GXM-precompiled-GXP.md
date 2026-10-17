@@ -4,7 +4,7 @@ title: 'Vita: choose the GPU path (PVR_PSP2, vitaGL, GXM + precompiled GXP)'
 status: Backlog
 assignee: []
 created_date: '2026-10-09 07:38'
-updated_date: '2026-10-17 16:41'
+updated_date: '2026-10-17 16:43'
 labels:
   - gpu
   - handheld
@@ -26,7 +26,7 @@ Build display-gl's gl_renderer (GLSL ES 1.00) on PVR_PSP2 (GLES2 + EGL) and on v
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 decision record with measurements on hardware (or Vita3K, marked) and the user-side requirements of each path
+- [x] #1 decision record with measurements on hardware (or Vita3K, marked) and the user-side requirements of each path
 - [ ] #2 the chosen path renders examples/ui/gl-check
 - [x] #3 redistribution of any module shipped with the core is checked and documented
 <!-- AC:END -->
@@ -39,4 +39,6 @@ Build display-gl's gl_renderer (GLSL ES 1.00) on PVR_PSP2 (GLES2 + EGL) and on v
 2026-10-17 (owner: "pourquoi la vita utilise pas son gpu… go le faire !", via the coordinator): chosen path, own GXM back end with SDL3's precompiled GXP programs (zlib, the vendored third_party/SDL3/src/render/vitagxm/SDL_render_vita_gxm_shaders.h: colour pair, texture-times-colour pair), as docs/reports/games/console-2d-3d-frameworks.md section 4.3 scores it (59 against vitaGL's 50). Why: no shader compiler and no libshacccg.suprx for the user (vitaGL makes each user extract it from their console), no LGPL, no Sony modules shipped (PVR_PSP2), the replay of zinc:gfx needs only quads (colour, texture x colour), and Vita3K runs it. Not taken: display-gl's gl_renderer on vitaGL or PVR_PSP2 (the GLSL replay of runtime/gl_replay.cpp would need the runtime shader compiler on the console). Code: targets/vita/gxm_vita.cpp (init after SDL's gxm_init: 3 display buffers in CDRAM flipped by the display queue at vblank, 16 MiB parameter buffer, shader patcher; textures and the glyph atlas in a CDRAM heap; one scene a frame at 960x544). Redistribution (criterion 3): nothing is shipped beside the core; the GXP blobs are compiled into it under SDL's zlib licence (vendored, notice kept in the header).
 
 2026-10-17, hardware proof (the owner's PS Vita, Meadow Run, 4,200 frames of play, ux0:data/ZINC00011/zinc.log): GXM on at 960x544, 60 fps, no frame missed a vblank (frame p50 16.68 ms, max 17.9 ms); work p50 3.2-3.7 ms (max 8.8), replay CPU time p50 0.3-0.44 ms, the rest of the frame is the display queue's vblank wait; 133 MiB of main memory and 112 MiB of CDRAM free at start, 64 MiB of CDRAM taken for textures. The software path the owner called unplayable: in Vita3K at 960x544 its raster costs 28 ms a frame on the Mac's clock (30 fps); its hardware number comes from the measuring launch now armed (ux0:data/ZINC00011/measure, ZINC_VITA_SOFT_FRAMES=120). AC#3 checked: nothing ships beside the core, the GXP blobs are compiled in under SDL's zlib licence. Handover: AC#1 is the decision record (the coordinator writes it from this note: chosen GXM + SDL GXP, scores in console-2d-3d-frameworks.md 4.3, user requirements: none for GXM; vitaGL needs libshacccg.suprx extracted by each user; PVR_PSP2 ships Sony modules without a licence), then tick it. AC#2 (examples/ui/gl-check) needs zinc:gl, a 3D/GL path the 2D replay does not give: next step is a GXP pair compiled from our own Cg (console-2d-3d-frameworks.md 4.3: SceShaccCg on a console, committed as GXP).
+
+2026-10-17 (coordinator): AC1 by D151 (docs/reports/zinc-next-decisions.md), measured on the owner's PS Vita: Meadow Run 60 fps on GXM.
 <!-- SECTION:NOTES:END -->
