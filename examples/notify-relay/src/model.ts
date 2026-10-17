@@ -41,15 +41,17 @@ function text(v: any): string {
 
 /** Chrome posts alert-style notifications through a helper app of its own; the person knows it as Chrome. */
 export function appOf(bundleId: string): string {
-  const helper = '.framework.AlertNotificationService';
-  return bundleId.endsWith(helper) ? bundleId.slice(0, bundleId.length - helper.length) : bundleId;
+  const helper = '.framework.alertnotificationservice';
+  return bundleId.toLowerCase().endsWith(helper) ? bundleId.slice(0, bundleId.length - helper.length) : bundleId;
 }
 
 /** Messaging apps: their notifications are messages from someone (the tablet shows the sender and the avatar). */
 const MESSAGING: string[] = ['com.apple.MobileSMS', 'com.apple.iChat', 'net.whatsapp.WhatsApp', 'desktop.WhatsApp', 'ru.keepcoder.Telegram', 'org.telegram.desktop',
   'org.whispersystems.signal-desktop', 'com.tinyspeck.slackmacgap', 'com.hnc.Discord', 'com.facebook.archon', 'com.facebook.archon.developerID',
   'com.microsoft.teams2', 'com.microsoft.teams', 'jp.naver.line.mac', 'com.viber.osx', 'im.riot.app', 'com.skype.skype', 'com.apple.FaceTime'];
-export function isMessaging(bundleId: string): boolean { return MESSAGING.indexOf(bundleId) >= 0; }
+// Bundle ids are case-insensitive: Notification Center records Messages as `com.apple.mobilesms` (macOS 15.7)
+function listed(list: string[], bundleId: string): boolean { const id = bundleId.toLowerCase(); for (const x of list) if (x.toLowerCase() === id) return true; return false; }
+export function isMessaging(bundleId: string): boolean { return listed(MESSAGING, bundleId); }
 
 /** The notification of a record of Notification Center (`record.data`, a property list: {app, date, req: {titl, subt, body, thre, iden,
  *  durl, ...}}, `presented` and `delivered_date` from the row). */
@@ -162,9 +164,9 @@ const BROWSERS: string[] = ['com.google.Chrome', 'com.google.Chrome.beta', 'com.
   'org.mozilla.firefox', 'org.mozilla.firefoxdeveloperedition', 'org.mozilla.nightly', 'com.apple.Safari', 'com.apple.SafariTechnologyPreview'];
 
 /** Safari's web push: each site is an app of its own, an id of `web.` and the reversed host (legacy push), or a push bundle named after the site. */
-function safariSite(bundleId: string): boolean { return bundleId.startsWith('web.') || bundleId.indexOf('PushBundle') >= 0 || bundleId.startsWith('com.apple.Safari.WebApp'); }
+function safariSite(bundleId: string): boolean { const id = bundleId.toLowerCase(); return id.startsWith('web.') || id.indexOf('pushbundle') >= 0 || id.startsWith('com.apple.safari.webapp'); }
 
-export function isBrowser(bundleId: string): boolean { return BROWSERS.indexOf(appOf(bundleId)) >= 0 || safariSite(bundleId); }
+export function isBrowser(bundleId: string): boolean { return listed(BROWSERS, appOf(bundleId)) || safariSite(bundleId); }
 
 function isLabel(s: string): boolean {
   if (s.length === 0 || s.length > 63 || s.startsWith('-') || s.endsWith('-')) return false;

@@ -92,7 +92,7 @@ export class Avatars {
       const kept = this.bySender.get(key);
       if (kept !== undefined) { png = kept; source = 'cache'; }
     }
-    if (png.length === 0 && n.app === 'com.apple.MobileSMS') {
+    if (png.length === 0 && n.app.toLowerCase() === 'com.apple.mobilesms') {
       const h = this.messagesHandle(n);
       if (h !== '') { png = mac.contactImage(h, '', AVATAR_PX); source = 'messages'; }
     }
