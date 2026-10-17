@@ -99,7 +99,7 @@ const Command kCommands[] = {
   {"update-app", "zinc update-app [dir] [--check] [--channel C] [--url U]", "update an app from its channel", "Fetches the channel manifest of zinc.json update (or of --url), verifies its signature with the app's key, refuses an older version, downloads the .zapp and checks its SHA-256 (into ~/.zinc/apps/<id>/updates). --check exits 10 when an update exists."},
   {"init", "zinc init <dir> [--template name]", "create a project (zinc new)", "zinc new with the template given by --template (default game)."},
   {"doctor", "zinc doctor [--details]", "check the machine", "A short, coloured check-up (colours for a terminal only; NO_COLOR turns them off): is the engine ready, the window, the native build tools (macOS: the Xcode command line tools, with the `xcode-select --install` offer), the plugins, and what to do. --details prints the full report. Prints the engine, this machine's renderer tier, the pinned tools zinc downloads on first use (with their SHA-256 and whether they are installed), the host tools and the plugins."},
-  {"toolchain", "zinc toolchain install|path|esptool|esbuild|basisu|gltfpack|targets|sha256 <file>", "the pinned cross toolchain", "install: download and verify zig into ~/.zinc; esbuild: the linker of zinc bundle; basisu and gltfpack: the texture encoder and the model processor of the asset build (their pinned sources built once with that zig); targets: the cross targets."},
+  {"toolchain", "zinc toolchain install [psp|vita|ps2|n3ds|ios-legacy]|path|esptool|esbuild|basisu|gltfpack|targets|sha256 <file>", "the pinned cross toolchain", "install: download and verify zig into ~/.zinc (with a console target: its SDK, pinned the same way); esbuild: the linker of zinc bundle; basisu and gltfpack: the texture encoder and the model processor of the asset build (their pinned sources built once with that zig); targets: the cross targets."},
   {"explain", "zinc explain <code>", "describe a diagnostic", "Prints the text of a diagnostic code such as Z0101."},
   {"flash", "zinc flash --target esp32 [--port P]", "flash the ESP32 core firmware", "Uses the pinned esptool."},
   {"update", "zinc update [--check] [--rollback] [--channel stable|beta] [manifest-url]", "update zinc itself", "Reads the signed manifest of this machine's CLI archive on the channel (default: the latest release, https://github.com/zinc-engine/zinc/releases/latest/download/zinc-<os>-<arch>[-beta].manifest; ZINC_UPDATE_REPO=<owner/repo>, ZINC_UPDATE_URL or the argument choose another), and when it is newer downloads the archive, checks its SHA-256 and the manifest's Ed25519 signature, unpacks it beside the engine and swaps the directories: the old engine is kept as <engine>.prev. --check only says (exit 10 when an update exists). --rollback swaps the previous engine back. --channel beta follows the betas from now on. Only a zinc installed by install.sh updates itself; a source build, a package manager or the Atelier app say how to update them. A manifest with signature=none (a release made without the signing key) is refused unless ZINC_UPDATE_ALLOW_UNSIGNED=1. zinc run and zinc dev print one line when a newer zinc exists, checked once a day in the background (ZINC_NO_UPDATE_CHECK=1 turns it off; never in CI, headless or without a terminal)."},
@@ -506,6 +506,12 @@ int doctorDetails(const std::string& engineRoot, const std::string& rendererLine
   std::printf("\nXcode command line tools: %s\n", zn::tc::xcodeToolsInstalled() ? "installed" : "not installed: run `xcode-select --install`");
   std::printf("  needed for `zinc build` (a native program that draws) and for plugins that link macOS frameworks; `zinc run`, `zinc dev`, `zinc pack` and `zinc fuse` need nothing\n");
 #endif
+  std::printf("\nconsole SDKs (only to rebuild a console core or for an AOT build: zinc toolchain install <target>)\n");
+  for (const zn::tc::ConsoleSdk& s : zn::tc::consoleSdks()) {
+    std::string where, why;
+    const bool there = zn::tc::consoleSdkPresent(s, where, why);
+    std::printf("  %-11s %-10s %s\n", s.target, s.sdk, there ? ("installed: " + where).c_str() : why.c_str());
+  }
   std::printf("\nhost tools (only needed to build the engine itself, not to use it)\n");
   for (const char* tool : {"cmake", "c++", "python3", "git", "node"}) {
     std::string cmd = std::string("command -v ") + tool + " >/dev/null 2>&1";
@@ -598,6 +604,16 @@ int doctor(const std::string& engineRoot, const std::string& rendererLines, bool
   if (zn::tc::xcodeToolsInstalled()) line("ok", "Xcode command line tools", "installed: native apps and every plugin can be built");
   else { line("warn", "Xcode command line tools", "not installed (only `zinc build` and some plugins need them)"); todo.push_back("To build native apps, run  " + P.cmd("xcode-select --install") + "  (a system window installs them; `zinc run`, `zinc dev` and `zinc fuse` work without)"); }
 #endif
+  {   // the console SDKs (ZN-456): only a core rebuild or an AOT build needs them, so a missing one is information, never a warning
+    std::string ready, iosWhy;
+    for (const zn::tc::ConsoleSdk& s : zn::tc::consoleSdks()) {
+      std::string where, why;
+      if (zn::tc::consoleSdkPresent(s, where, why)) ready += (ready.empty() ? "" : ", ") + std::string(s.target);
+      else if (!std::strcmp(s.target, "ios-legacy")) iosWhy = why;
+    }
+    line("info", "Console SDKs", ready.empty() ? "none installed (zinc toolchain install psp|vita|ps2|n3ds)" : "ready: " + ready);
+    if (!iosWhy.empty()) line("info", "iPhone 4S (ios-legacy)", iosWhy);
+  }
   {   // the plugins with native code that this machine has a prebuilt library for
     std::vector<std::string> problems; std::error_code ec;
     const std::vector<zn::frontend::FoundPlugin> found = zn::frontend::discoverPlugins(engineRoot + "/..", ".", problems);

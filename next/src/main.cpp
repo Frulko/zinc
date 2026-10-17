@@ -2248,6 +2248,12 @@ int main(int argc, char** argv) {
   }
   if (argc >= 2 && !std::strcmp(argv[1], "toolchain")) {  // zinc toolchain install|path|targets|sha256 <file>
     std::string sub = argc >= 3 ? argv[2] : "";
+    if (sub == "install" && argc == 4) {   // zinc toolchain install psp|vita|ps2|n3ds|ios-legacy (ZN-456): the console's SDK
+      std::string where, err;
+      if (!zn::tc::ensureConsoleSdk(argv[3], where, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
+      std::puts(where.c_str());
+      return 0;
+    }
     if (sub == "install" || sub == "path") {
       std::string zig, err;
       if (!zn::tc::ensureZig(zig, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
@@ -2263,6 +2269,7 @@ int main(int argc, char** argv) {
     if (sub == "targets") {
       for (const auto& t : zn::tc::targets()) std::printf("%-14s %s\n", t.name, t.note);
       for (const auto& t : zn::tc::appTargets()) std::printf("%-14s %s\n", t.name, t.note);   // phones: the platform's tools build them (ZN-618)
+      for (const auto& s : zn::tc::consoleSdks()) std::printf("%-14s %s\n", s.target, s.needs);   // consoles and the iPhone 4S (ZN-456)
       return 0;
     }
     if (sub == "sha256" && argc == 4) {
@@ -2271,7 +2278,7 @@ int main(int argc, char** argv) {
       std::printf("%s  %s\n", h.c_str(), argv[3]);
       return 0;
     }
-    std::fprintf(stderr, "usage: zinc toolchain install | path | esptool | esbuild | basisu | gltfpack | targets | sha256 <file>\n");
+    std::fprintf(stderr, "usage: zinc toolchain install [psp|vita|ps2|n3ds|ios-legacy] | path | esptool | esbuild | basisu | gltfpack | targets | sha256 <file>\n");
     return 2;
   }
   if (argc == 7 && !std::strcmp(argv[1], "build") && !std::strcmp(argv[2], "--target") && !std::strcmp(argv[5], "-o")) {  // zinc build --target <t> <file> -o <out>: a program for another machine

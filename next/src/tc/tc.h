@@ -80,6 +80,30 @@ std::string gltfpackVersion();
 // pinned QEMU (Espressif's build) on first use, the same way as the zig. $ZINC_QEMU names a qemu-system-xtensa of your own.
 bool qemuCommand(const std::string& chip, const std::string& sourceRoot, std::string& cmd, std::string& err);
 
+// Downloads `file` from `url` (the mirrors of ZINC_MIRRORS first), checks its SHA-256 against `sha256` before anything is unpacked, and unpacks the
+// archive (one top directory, any format tar reads) into `dir`; nothing happens when `dir/marker` is already there.
+bool fetchArchive(const char* what, const std::string& file, const std::string& sha256, const std::string& url, const std::string& dir, const char* marker, std::string& err);
+
+// The consoles and old phones (ZN-456, src/tc/consoles.cpp): their SDKs are needed only to rebuild a console core (next/targets/console) or for an
+// AOT build; users of the prebuilt core need none. psp (pspdev), vita (VitaSDK) and ps2 (ps2dev): a prebuilt archive per host, pinned by SHA-256,
+// unpacked into ~/.zinc/toolchains/<sdk>-<host>-<version> ($PSPDEV, $VITASDK, $PS2DEV name your own); n3ds: devkitARM in devkitPro's docker image
+// pinned by digest ($DEVKITPRO names a local install; devkitPro asks that its packages are not mirrored); ios-legacy: Xcode's clang and ld-classic
+// with an iPhoneOS SDK that still has armv7 stubs ($ZINC_IOS_LEGACY_SDK, e.g. the iPhoneOS 15.5 SDK of Xcode 13.4.1).
+struct ConsoleSdk {
+  const char* target;    // psp, vita, ps2, n3ds, ios-legacy
+  const char* sdk;       // pspdev, vitasdk, ps2dev, devkitarm, xcode
+  const char* version;
+  const char* env;       // the variable that names the user's own install
+  const char* compiler;  // below the SDK's directory: the C++ compiler (n3ds: in the image)
+  const char* needs;     // what `zinc toolchain targets` says it needs
+};
+const std::vector<ConsoleSdk>& consoleSdks();
+const ConsoleSdk* findConsoleSdk(const std::string& target);
+// The SDK of `target`: its directory (n3ds: the pinned image, docker.io/devkitpro/devkitarm@sha256:..., or $DEVKITPRO), installed when missing.
+bool ensureConsoleSdk(const std::string& target, std::string& where, std::string& err);
+// Where it is or would be, and whether it is there, without installing (zinc doctor); `why` says what is missing.
+bool consoleSdkPresent(const ConsoleSdk& s, std::string& where, std::string& why);
+
 // The pinned tools of this machine (zinc doctor): what zinc downloads on first use, where it keeps it, and whether it is there already.
 struct PinnedTool { std::string name, version, archive, sha256, dir; bool present; };
 std::vector<PinnedTool> pinnedTools();

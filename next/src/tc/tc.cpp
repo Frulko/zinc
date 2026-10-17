@@ -369,6 +369,11 @@ static bool fetchTool(const char* what, const Pin& pin, const std::string& url, 
   return true;
 }
 
+bool fetchArchive(const char* what, const std::string& file, const std::string& sha256, const std::string& url, const std::string& dir, const char* marker, std::string& err) {
+  const Pin pin{"", file.c_str(), sha256.c_str()};
+  return fetchTool(what, pin, url, dir, marker, err);
+}
+
 bool xcodeToolsInstalled() {
 #if defined(__APPLE__)
   FILE* f = popen("xcode-select -p 2>/dev/null", "r");

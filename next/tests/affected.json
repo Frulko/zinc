@@ -17,6 +17,7 @@
     {"paths": ["../targets/capabilities.json", "src/frontend/profile.cpp", "src/frontend/capabilities.cpp", "tests/t0/handheld_profiles.sh"], "tests": ["handheld_profiles"]},
     {"paths": ["targets/console/", "src/rt/alloc.cpp", "tests/t0/console_host.sh"], "tests": ["console_host", "console_core"]},
     {"paths": ["src/host/gfx_host.cpp", "src/host/resources.cpp", "tests/t0/console_core.sh"], "tests": ["console_core"]},
+    {"paths": ["src/tc/consoles.cpp", "src/tc/tc.cpp", "src/tc/tc.h", "tests/t0/console_sdks.sh"], "tests": ["console_sdks"]},
     {"paths": ["src/app/", "include/zn/app.h", "tests/t0/app_library.sh", "src/aot/aot.cpp", "../targets/macos/hal_sdl.cpp", "src/host/loop.cpp"], "tests": ["app_library"]},
     {"paths": ["src/agent/", "third_party/mdns/", "tests/t0/agent.sh", "tests/t1/agent_apps.sh"], "tests": ["agent", "agent_apps"]},
     {"paths": ["src/agent/inspect.cpp", "src/agent/server.cpp", "src/agent/client.cpp", "app/inspector/", "tests/t1/agent_inspect.sh"], "tests": ["agent_inspect"]},

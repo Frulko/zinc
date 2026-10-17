@@ -35,5 +35,5 @@ from the repository (`ZN_SOURCE_DIR`); shipping them with a packaged `zinc` belo
 
 ## Not covered yet
 
-Windows hosts and targets, musl (static) programs, ESP-IDF, PS1 and PS2 (their own toolchains), the graphics host for a target (the
+Windows hosts and targets, musl (static) programs, ESP-IDF, PS1 (its own toolchain; the PSP, Vita, PS2 and 3DS SDKs are pinned in src/tc/consoles.cpp, ZN-456), the graphics host for a target (the
 runtime that draws is built for the machine running `zinc`), signing of the pins beyond the checksum, and an offline bundle.
