@@ -279,6 +279,29 @@ phones with 16 KB pages refuse it). The engine and the plugins compiled from sou
   write) and those of the program's plugins (`plugin.json` `targets.ios.privacy`, [plugins](../plugins.md)); it declares no tracking and no
   collected data.
 
+- **What each mode puts in the package (store rules).** The App Store Review Guidelines (2.5.2) forbid an app to download and run code that
+  introduces or changes its features; Google Play's Device and Network Abuse policy forbids an app to update itself outside Play or to download
+  executable code, interpreted code being tolerated only where it does not change what the app does. Both accept the code that ships inside
+  the reviewed package. So:
+
+  | Mode | How it is built | Code in the package | Store |
+  | --- | --- | --- | --- |
+  | Your app (`zinc export --target android\|ios`, release) | AOT: the program compiled to native code | only your program and its plugins; no interpreter, no Fast Refresh, no link to `zinc dev` (`tests/t0/app_library.sh` checks it with `nm`) | Google Play, the App Store |
+  | Your app, debug (`--apk`, `--ipa --simulator`) | the same | the same; `zinc.env` launch variables are read | your devices and simulators |
+  | A player (`"player": true`, Zinc Go: `examples/zinc-go`) | the home screen as bytecode, the interpreter, every plugin made for the platform | runs projects sent by `zinc dev --lan` | a development tool: install it yourself (`adb install`, Xcode, TestFlight internal testing), as Expo Go's own builds; not for the stores |
+
+  `zinc dev --lan` sends code only to a player that knows the code in its link, and only on your network. Over-the-air `.zapp` updates stay off
+  by default on iOS (D59).
+
+### Developing on the phone: Zinc Go
+
+`zinc dev --lan` serves the project to Zinc Go and prints a QR code; Zinc Go scans it (or takes the `zinc://host:port/code` link typed, or as
+a deep link), runs the project with the plugins it has, and swaps each save in place (Fast Refresh) with the state kept. A shake, a press with
+three fingers or the Menu key (`adb shell input keyevent 82`) opens the dev menu: reload, go home. A project that needs a plugin the player
+does not have gets the plugin's name on the home screen; export your own player with it (a project with `"player": true` and the plugin).
+Build Zinc Go: `zinc export ../examples/zinc-go --target android --apk` or `--target ios --ipa --simulator`
+([report](../reports/zinc-next-zinc-go.md)).
+
 ### `zinc deploy`
 
 `zinc deploy --target rpi --device pi@raspberrypi.local` exports, copies the directory to `~/<name>` on the device with scp (`--dir` another

@@ -343,6 +343,16 @@ machine at each save, sends the device's agent what changed and restarts the pro
 terminal, a compile error is the red box on the device's screen, and a saved asset of a project that packs its assets is
 swapped into the running program. Details and limits: `docs/reports/zinc-next-agent.md`.
 
+## Phones and tablets: Zinc Go (`--lan`)
+
+`zinc dev --lan` serves the project to Zinc Go (`examples/zinc-go`, exported with `zinc export --target android|ios`) as `expo start` serves
+Expo Go: it prints a QR code and a `zinc://<ip>:<port>/<code>` link, compiles the project for each connected phone's profile and sends it, and
+each save is swapped into the program running on the phone (Fast Refresh, state kept) or starts it again with the reason. The program's
+console lines come back to this terminal. On the phone: scan the code, type the link or open it as a deep link (`adb shell am start -a
+android.intent.action.VIEW -d zinc://10.0.2.2:<port>/<code>` on the emulator, `xcrun simctl launch booted dev.zinc.go zinc://127.0.0.1:...` on
+the simulator); a shake, three fingers or the Menu key open the dev menu (reload, go home). Details, numbers and limits:
+`docs/reports/zinc-next-zinc-go.md`.
+
 ## Debugger (`zinc debug`)
 
 `zinc debug app.ts` (or a project directory) compiles a debug build and runs it in the interpreter under the debugger, paused at the first

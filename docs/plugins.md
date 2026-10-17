@@ -52,7 +52,10 @@ uses them. The core stays small (`runtime/`, `lib/`); the toolbox grows in `plug
 An app has no `dlopen` (D120): `zinc export --target android|ios` compiles each plugin the program calls into the generated project from the
 sources its `targets.android` or `targets.ios` entry lists, and merges what the entry adds into the project, the way Expo's config plugins do
 (the project is regenerated at each export; nothing is edited by hand). A plugin without an entry for the target is refused at export, with
-the reason; one that has an entry is listed by `zinc lint` for that target. The entry of `tests/data/mobile-plugin/plugins/beep` uses every key:
+the reason; one that has an entry is listed by `zinc lint` for that target. A player (zinc.json `"player": true`, Zinc Go) links every plugin
+with native code that has an entry for the platform, the engine's and the project's: a project it runs from `zinc dev --lan` finds them, and
+one that calls a plugin the player lacks gets that plugin's name on the home screen ([Zinc Go](reports/zinc-next-zinc-go.md)). Plugins of
+Zinc code only travel in the program and need no entry for that. The entry of `tests/data/mobile-plugin/plugins/beep` uses every key:
 
 ```json
 "android": {

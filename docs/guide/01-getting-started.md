@@ -301,13 +301,16 @@ zinc check [entry|dir]                                              # the errors
 zinc test                                                           # every *.test.ts of the project
 zinc build [entry|dir] [-o out] [--target T]                        # an executable in build/
 zinc dev [entry|dir] [--no-devtools] [-- args]                      # run, watch, swap each save in (Fast Refresh)
+zinc dev [entry|dir] --lan                                          # the same on your phone, with Zinc Go (a QR code)
 zinc help [command]
 ```
 
 `zinc run` compiles a program that draws to native code and keeps the executable (`~/.zinc/cache/run`): the first run of a
 version compiles, the next ones start at once; `--interp` interprets instead and starts at once. `zinc dev` swaps every save into the
 running program (or restarts it, and says why), with a red box on a compile error and, for UI programs, a Chrome DevTools inspector on port 9229
-(see [dev mode](../dev-mode.md)). Pass program arguments after `--`; read them with `sys.args()`.
+(see [dev mode](../dev-mode.md)). Pass program arguments after `--`; read them with `sys.args()`. `zinc dev --lan` serves the project to
+Zinc Go, the player app for Android and iOS (`examples/zinc-go`): scan the QR code it prints and each save updates the phone, as Expo Go does
+for `expo start`.
 
 Useful environment variables: `ZINC_HEADLESS=1` runs without a window, `ZINC_BACKGROUND=1` (or `zinc --background run`) opens it without taking the focus, `ZINC_FRAMES=n` stops a frame loop after n frames,
 `ZINC_SHOT=out.png` saves the last frame (`zinc capture` saves any frames), `ZINC_DETERMINISTIC=1` puts the run on
