@@ -1,0 +1,5 @@
+{
+  "name": "web-hw",
+  "entry": "src/main.tsx",
+  "targets": { "web": { "render": "dom", "title": "Hardware fixture" } }
+}

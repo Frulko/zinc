@@ -6,6 +6,7 @@
   "entry": "index.ts",
   "description": "Camera remote control over libgphoto2 (USB PTP): config, capture, events, JPEG live view",
   "options": { "fake": false },
+  "web": { "native": "Gphoto2", "impl": "web/gphoto2.js", "needs": ["webusb"] },
   "targets": {
     "macos": { "pkg": ["libgphoto2", "libturbojpeg"] },
     "linux": { "pkg": ["libgphoto2", "libturbojpeg"], "packages": ["pkgconf", "libgphoto2-dev", "libturbojpeg0-dev"] },

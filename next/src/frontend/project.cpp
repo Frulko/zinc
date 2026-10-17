@@ -333,7 +333,7 @@ bool resolveUiLayout(const Project& p, const std::map<std::string, std::string>&
   auto cap = [&](const char* k) { auto it = caps.find(k); return it == caps.end() ? std::string() : it->second; };
   layout = p.uiLayout.empty() ? (p.uiPreset == "react-native" ? "rn" : "auto") : p.uiLayout;
   if (layout == "auto") layout = cap("ui.layout").empty() ? "classic" : cap("ui.layout");
-  if (layout == "rn" && cap("ui.rn") == "false" && p.uiLayout.empty()) { layout = "classic"; return true; }   // the preset on a target without Yoga: classic with RN styles (ZN-288)
+  if (layout == "rn" && cap("ui.rn") == "false" && (p.uiLayout.empty() || target == "web")) { layout = "classic"; return true; }   // the preset on a target without Yoga: classic with RN styles (ZN-288); on the web an explicit "rn" does the same (the browser has its own layout: docs/targets/web.md)
   if (layout == "rn" && cap("ui.rn") == "false") {
     const std::string why = cap("ui.why");
     err = "the rn layout (Yoga) is not available on " + target + (why.empty() ? "" : ": " + why) + "; use \"ui\": {\"layout\": \"classic\"} or \"auto\"";

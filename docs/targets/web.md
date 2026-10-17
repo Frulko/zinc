@@ -74,7 +74,7 @@ The app's UI (`zinc:ui`, its classic layout engine, the UI kits, React Native co
 | Needs | Canvas2D with `roundRect` (Chrome 99, Firefox 112, Safari 16) | DOM and CSS (flexbox, custom properties, `:focus-visible`, `<dialog>`: Chrome 102, Firefox 111, Safari 15.4) |
 | Fits | games, drawing, charts, anything pixel-exact | forms, content, dashboards, tools: apps that should behave like a page |
 
-Everything a program draws with `zinc:gfx` works in both. In DOM mode what Zinc draws itself is a real canvas placed where its node sits (see "What Zinc still draws").
+Everything a program draws with `zinc:gfx` works in both. In DOM mode what Zinc draws itself is a real canvas placed where its node sits (see "What Zinc still draws"). `drawShader` (runtime GLSL) renders on a WebGL canvas and is drawn as an image in paint order, in both modes (see "WebGL, shaders and three.js").
 
 ## The semantic DOM
 
@@ -210,10 +210,33 @@ composition, a touch device, a high-density display, and right-to-left text beyo
 | IME and the soft keyboard in fields | yes (a `<textarea>` follows the field) | yes |
 | `zinc:gfx` drawing, `drawImageRect` (sprites), off-screen images | yes | yes (in a canvas element where the node sits) |
 | `zinc:video` (the browser's `<video>`), `zinc:lottie` (lottie-web) | yes | yes |
-| `drawShader` (runtime shaders) | no (`shaderAvailable()` is false) | no |
-| `zinc:gl`, three.js, WebGL | not yet (planned: a WebGL2 canvas beside the Zinc one) | not yet |
-| Layout `rn` (Yoga) | not yet (a WebAssembly build of Yoga would do it); the classic layout is the default and works | not yet |
+| `drawShader` (runtime shaders) | yes (WebGL) | yes (the picture is a `<canvas>` element where the box is) |
+| `zinc:gl`, three.js | yes, in the browser's own WebGL | yes (a `<canvas>` element where the component sits) |
+| Layout `rn` (Yoga) | no engine: `"layout": "rn"` and the React Native preset run the classic layout with React Native's style semantics (flex shares, text defaults); the example rn-showcase lays out the same boxes as on the desktop | the same boxes, then CSS paints them (no Yoga either; the browser never lays out the app) |
 | Web fonts: `assets/*.ttf`, `.otf`, `.woff`, `.woff2` | yes (loaded before the app starts, named by file) | yes |
+
+## WebGL, shaders and three.js
+
+No part of this is WebAssembly: the browser's own WebGL does the drawing, and the result reaches the Zinc surface as an image, so it keeps its place in the paint order (what the app draws
+after it lands over it, a clip, a transform and a fade apply) and works the same in canvas and DOM mode (in DOM mode the image is a `<canvas>` element where the component sits).
+
+- **`zinc:gl`** (WebGL 1 and 2 for Zinc code): `examples/gl-cube` runs unchanged. The host rows `__host_gl*` are answered by `targets/web/rows-gl.js`, generated from the table of `tools/gen-zinc-gl`
+  by `tools/gen-web-gl` (`--check` in the test): a context is a canvas the page makes, objects keep the engine's ids, a GLArray becomes a typed array, `present(image)` draws the canvas into the
+  image (resized to it, without alpha as on the desktop). Version 1 asks for a WebGL 1 context and reaches VAOs, instancing and draw buffers through their extensions. A frame of the cube at the
+  same frame number as the native interpreter's: SSIM 1.0000, 9 pixels one level apart in 172 800.
+- **Context loss**: `loseContext` / `restoreContext` and the browser's own events work; a restored context has no objects, as in any browser (the program creates them again). three.js handles it itself.
+- **`drawShader`** (D124): the fragment `main()` is compiled behind the same head (`v_uv`, `u_size`, `u_p[8]`) on one shared WebGL context at 1 / `scale` of the physical resolution and drawn as an
+  image of the box. `shaderAvailable()` is true where the browser has WebGL. The shader fixture's frame differs from the CPU path of the native engine by at most 16 levels.
+- **three.js**: the real library (r186, `next/third_party/three`, unmodified) runs on a WebGL2 canvas created by the page. `plugins/three/web/index.ts` re-exports it and replaces three things: `WebGLRenderer`
+  (its `render` copies the canvas into the surface at the end of each call; `setAnimationLoop` runs in Zinc's frame, before the app's own `onFrame`), `window` / `CanvasElement` (the Zinc surface size and pixel
+  ratio) and `TextureLoader`, `CanvasTexture`, `GLTFLoader`, `OrbitControls` (assets of the app and zinc:canvas images work; the controls listen on the page). `examples/three/cubes` and
+  `examples/three/gltf-viewer` (model, orbit, picking, a zinc:ui overlay) run unchanged. The subset of `index.ts` is not used on the web: the whole of three.js is.
+  Not done: the frame of `cubes` is not compared with the desktop (the desktop draws with the Zinc subset, a different renderer; the real library on the desktop's WebGL is `--engine quickjs`,
+  `docs/reports/three-on-zinc.md`); a worker renderer on `OffscreenCanvas` (the copy needs the canvas on the main thread); pixel ratio above 1 is the renderer's drawing buffer scaled into the box.
+- **`zinc:canvas`** is the browser's Canvas2D: a canvas that draws into an image is the image's own 2D context, a screen context draws into a canvas of its box and shows it at `end()`.
+- **`zinc:map`**: MapLibre GL JS (BSD-3, `next/third_party/maplibre`, 5.24, loaded as a classic script: a minifier breaks its inline worker) behind the plugin's own `MapView`. Tiles come from the app's
+  `assets/tiles/z/x/y.pbf` or from `url` through `fetch` (CORS; gzip is handled); labels use the glyph server `demotiles.maplibre.org` unless the style names one. Not in `zinc dev` (unbundled modules).
+  The desktop engine's `stats()` are zeros.
 
 ## Capabilities and honest limits
 
@@ -254,12 +277,13 @@ are research from MDN, not a run, and Safari in particular deserves a pass on a 
 | WebRTC | 56 | 44 | 11 | `zinc:webrtc` |
 | WebSocket | 4 | 11 | 5 | `zinc:socket` |
 | WebAssembly | 57 | 52 | 11 | `zinc:sqlite` and other native plugins |
-| WebGL2 | 56 | 51 | 15 | not used yet (`zinc:gl`) |
-| WebGPU | 113 | 141 (Windows) | 26 | not used yet |
-| Web Serial | 89 | – | – | `zinc:serial` (planned) |
-| WebUSB | 61 | – | – | `zinc:gphoto2` (planned) |
+| WebGL2 (WebGL1 for GLSL ES 1.00 shaders) | 56 | 51 | 15 | `zinc:gl`, `three`, `zinc:map` |
+| WebGPU | 113 | 141 (Windows) | 26 | not used yet (three.js's WebGPU renderer would need it) |
+| OffscreenCanvas | 69 | 105 | 16.4 | not used yet (a worker renderer is a later step) |
+| Web Serial | 89 | – | – | `zinc:serial` |
+| WebUSB | 61 | – | – | `zinc:gphoto2` |
 | Web Bluetooth | 56 | – | – | planned |
-| Web MIDI | 43 | 108 | – | `zinc:midi` (planned) |
+| Web MIDI | 43 | 108 | – | `zinc:midi` |
 | File System Access | 86 | – | – | planned (`showOpenFilePicker`) |
 | Async clipboard | 66 | 63 | 13.1 | copy and paste |
 | Notifications | 22 | 22 | 16 (iOS: installed web app, 16.4) | `zinc:system/notification` |
@@ -292,7 +316,10 @@ A plugin declares its browser version in `plugin.json`:
   `zinc:system`). It registers with `__zincWeb.registerNative(name, functions, needs)`; the export concatenates the backends of the plugins the app uses into `native.<hash>.js`.
 - **`wasm`**: native code in C or C++ built to WebAssembly by the pinned zig when the app is exported (`zig cc -target wasm32-wasi`, cached under `~/.zinc/cache/web-wasm`), compiled by the page before the
   app starts, and instantiated synchronously by the backend (`__zincWeb.wasmInstance`), so the calls stay synchronous as on a desktop. Only for code that has no browser equivalent.
-- **`needs`**: feature names of `targets/web/browsers.json`; the export reports the browsers of the target set that lack them (W0601).
+- **`needs`**: feature names of `targets/web/browsers.json`; the export reports the browsers of the target set that lack them (W0601). A program that uses `zinc:gl` is checked for `webgl2` too.
+- **`entry` and `native` + `impl` together** (zinc:map): the entry replaces the module and the impl still answers the native spec its code uses. **`modules`** under `web` replaces the plugin's module
+  aliases on the web (three's addons). **`scripts`** lists vendored libraries the export publishes byte for byte and the page loads as classic scripts before the app.
+- **Host rows in their own file**: `targets/web/rows-*.js` answer groups of `__host_*` rows (zinc:gl, shaders); the export loads one only when the program calls one of its rows.
 
 | Plugin | Web | How | Tested |
 |---|---|---|---|
@@ -306,13 +333,20 @@ A plugin declares its browser version in `plugin.json`:
 | `zinc:sqlite` | yes | the amalgamation as WebAssembly, in memory, saved to `localStorage` per path (about 3 MB at most) | Chrome |
 | `zinc:browser` | new | the queries above | Chrome |
 | `zinc:gestures`, `loader`, `pixelfont`, `sprite`, `tilemap`, `gsap`, `ink` | expected | pure Zinc over `zinc:gfx`, no native side | not tried |
-| `zinc:physics2d` | not yet | Box2D to WebAssembly like sqlite; its host is written against the Zinc runtime types, so it needs a small C shim | – |
-| `zinc:gphoto2` | not yet | WebUSB (Chromium only) and libgphoto2 or its PTP part as WebAssembly | – |
-| `zinc:serial`, `zinc:midi` | not yet | Web Serial (Chromium), Web MIDI (Chromium, Firefox) | – |
-| `zinc:3d`, `zinc:three`, `zinc:physics3d`, `zinc:canvas2d` | not yet | the browser's WebGL2 and Canvas2D directly (three.js already runs there); `zinc:gl` needs a `web` entry that hands out a WebGL2 context | – |
+| `zinc:gl` (a module of the standard library, not a plugin) | yes | the browser's WebGL, rows in `targets/web/rows-gl.js` | Chrome (examples/gl-cube against the native frame; DOM mode; context loss) |
+| `zinc:gfx` `drawShader` | yes | WebGL canvas drawn as an image | Chrome (against the native CPU path) |
+| `zinc:three` | yes | the real three.js on a WebGL2 canvas (`web.entry`, `web.modules` for the addons) | Chrome (examples/three/cubes, gltf-viewer, a pixel-checked scene, context loss) |
+| `zinc:canvas` (canvas2d) | yes | the browser's Canvas2D (`web.entry`) | Chrome (gltf-viewer's floor texture) |
+| `zinc:physics2d` | yes | Box2D 3.1 to WebAssembly with a C shim (`web.wasm`, as sqlite) | Chrome (a drop scene: the same line as the native engine) |
+| `zinc:serial` | yes, Chromium | Web Serial (`web.native` + `impl`): list from granted ports, the browser's chooser opens on a click, queued writes | **mock** `navigator.serial` (an echo port); no real device |
+| `zinc:midi` | yes, Chromium and Firefox | Web MIDI (`impl`): ports after the first call (the person is asked), notes, control, sysex; no virtual ports | **mock** `requestMIDIAccess`; no real device |
+| `zinc:gphoto2` | yes, Chromium | WebUSB and PTP written for the page (`impl`): detect, open, summary, standard settings (ISO, white balance, f-number, exposure, battery), capture, trigger, download, thumbnail, file events. No live view and no vendor widgets: those need libgphoto2, which exists for the web as `web-gphoto2` (LGPL, Emscripten + Asyncify, about 5 MB) and is the next step for them | **mock** `navigator.usb` with a PTP responder (real containers); no real camera |
+| `zinc:osc/full` | yes, with a relay | the protocol is unchanged; a browser has no UDP, so `open(port, 'ws://relay')` speaks it over a WebSocket (binary frames, the osc-js bridge format); without a URL it throws ZnUnsupported | **mock** WebSocket that echoes; no relay was run |
+| `zinc:map` | yes | MapLibre GL JS behind `MapView` (see above) | Chrome (six offline tiles of Paris, drawn; labels not checked) |
 | `zinc:video` | yes | `entry`: the browser's `<video>` (streamed from its url, never preloaded), the whole `Player` API, plus `controls`, `volume`, `rate`, `seek`, `poster`, `fit`, `fullscreen()`, `pictureInPicture()`, `on(event)`; `player.draw` in a node is the element itself in the DOM render, its current frame on a canvas render; `player.image` follows the frames; a file the browser cannot decode shows a message and a download link (`player.error`); W0604 at export | Chrome (VP9 and AV1 WebM, the API, the fallback; HEVC and H.264 depend on the build) |
 | `zinc:lottie` | yes | `native` + `impl` over lottie-web 5.13 (MIT, vendored in `plugins/lottie/web/vendor` with its licence), loaded the first time an animation is drawn: the SVG build in the DOM render (an `<svg>` in the node's box), the canvas build on a canvas render; `Player` and `<Lottie/>` unchanged. `cacheBg` (render to an image) is not supported | Chrome |
-| `zinc:map`, `zinc:mapping`, `zinc:osc`, `zinc:sonos`, `zinc:spotify` | not yet | fetch and WebSocket over a proxy where the service has no CORS; the map engine's native code as WebAssembly | – |
+| `zinc:3d`, `zinc:physics3d` | not yet | `zinc:3d` is the Zinc renderer's own scene API (use `three` on the web); physics3d would be a second Box2D-style shim | – |
+| `zinc:mapping`, `zinc:sonos`, `zinc:spotify` | not yet | fetch and WebSocket over a proxy where the service has no CORS | – |
 | `zinc:process`, `zinc:ffi`, `zinc:script`, `zinc:wasm`, displays, boards, `zinc:remote`, `zinc:webos`... | no | no equivalent on a page (the browser runs WebAssembly and `eval` itself) | – |
 
 ## npm packages
@@ -406,5 +440,5 @@ precompressed files (`gzip_static`, `brotli_static`); others compress by themsel
 ## Tests
 
 `tests/t1/web_export.sh` (the export of the hero demo, canvas and DOM, in headless Chrome), `web_dev.sh` (Fast Refresh, overlay, reload, through the DevTools pipe), `web_caps.sh` (the capability warnings and `zinc explain`),
-`web_plugins.sh` (the webrtc call demo, camera, microphone, audio and sqlite), `web_dom.sh` (the semantic DOM in headless Chrome by `tools/web-dom-test`: elements, accessibility tree, Tab order, typing and caret, Enter submits a form, Page Down, a resize, the dialog, a 10 000 row list, history, prerendering), `web_dom_visual.sh` (the DOM render against the canvas render pixel by pixel, `tools/web-compare`), `web_video.sh` (video and lottie, `tools/web-video-test`). `web_npm.sh` (packages through dev and export, the package managers' detection and errors), `web_libs.sh` (thirteen real libraries, installed on the first run: it needs a network once), `web_vite.sh` (`@zinc/vite`; installs Vite once). `tools/web-browser-test`, `tools/web-dev-test`, `tools/web-npm-test`, `tools/web-libs-test` and `tools/web-vite-test` drive Chrome; `tools/web-measure` prints the numbers of
+`web_plugins.sh` (the webrtc call demo, camera, microphone, audio and sqlite), `web_dom.sh` (the semantic DOM in headless Chrome by `tools/web-dom-test`: elements, accessibility tree, Tab order, typing and caret, Enter submits a form, Page Down, a resize, the dialog, a 10 000 row list, history, prerendering), `web_dom_visual.sh` (the DOM render against the canvas render pixel by pixel, `tools/web-compare`), `web_video.sh` (video and lottie, `tools/web-video-test`), `web_gl.sh` (zinc:gl, shaders, three, context loss), `web_hw.sh` (serial, MIDI, gphoto2 and OSC against mocks, and the map) and `web_physics2d.sh` (Box2D against the native engine). `web_npm.sh` (packages through dev and export, the package managers' detection and errors), `web_libs.sh` (thirteen real libraries, installed on the first run: it needs a network once), `web_vite.sh` (`@zinc/vite`; installs Vite once). `tools/web-browser-test`, `tools/web-dev-test`, `tools/web-npm-test`, `tools/web-libs-test` and `tools/web-vite-test` drive Chrome; `tools/web-measure` prints the numbers of
 [the report](../reports/zinc-web-export.md). Without Chrome they skip.

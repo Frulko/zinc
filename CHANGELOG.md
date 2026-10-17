@@ -19,6 +19,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
   lockfile's hash; saving your own code never bundles them again, an install reloads the page), and `zinc export --target web` resolves them the same way (`exports` conditions, the `browser`
   field, CommonJS, pnpm links). `zinc add npm:<package>` and `zinc install` call the project's own package manager (npm, pnpm, yarn or bun, found from `packageManager` or the lockfile);
   `zinc doctor` lists the ones it finds and Zinc never installs one (P0001, P0002, W0605: `zinc explain`).
+- Web target: `zinc:physics2d` (Box2D as WebAssembly), `zinc:serial` (Web Serial), `zinc:midi` (Web MIDI), `zinc:gphoto2` (WebUSB, the basic PTP controls), `zinc:osc/full` (through a WebSocket relay,
+  `open(0, 'ws://relay')`) and `zinc:map` (MapLibre GL JS) work in the browser, each saying which browsers lack its API (W0601). Hardware plugins need Chrome or Edge and ask the person.
 - Web target: `zinc:gl` (WebGL 1 and 2), `drawShader` runtime shaders and `three` run on the browser's own WebGL. `examples/gl-cube` draws the same frame as on the desktop,
   `examples/three/cubes` and the glTF viewer run on the real three.js (the pinned r186 copy), and `zinc:canvas` is the browser's Canvas2D. Pictures show in canvas and DOM mode alike,
   under whatever the app draws after them.

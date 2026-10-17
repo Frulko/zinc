@@ -1,0 +1,2 @@
+maplibre-gl 5.24.0 (BSD-3-Clause), npm tarball maplibre-gl-5.24.0.tgz sha256 5cbf83c328c9d39cb24e3f2cefc9b407d69dd104ba0b41e84c0bfbb31c44e283
+Files: maplibre-gl.js (npm dist/, the UMD build with its worker inlined), LICENSE (unmodified). Used only by the web target (plugins/map/web); the desktop map engine is C++.

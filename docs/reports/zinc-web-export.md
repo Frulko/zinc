@@ -88,6 +88,33 @@ and a C-ABI export layer, a day of work that sqlite (plain C API) did not need. 
 One more finding: `zinc:web` and `zinc:web/fetch` (lib/std) are Zinc's own polyfills of the Web APIs (URL, Event, Blob, fetch over libcurl rows...). A browser must not get them: `web.browser.ts`,
 `fetch.browser.ts` and `subtle.browser.ts` re-export the page's own, and the bundler stops adding the polyfill imports for global names (`strip.cpp`), when the profile is `web`.
 
+## Decision 5: WebGL, shaders, layout and the plugins that wait on hardware (2026-10-17)
+
+Owner's rule: no WebAssembly unless native code is truly required; canvas and 3D go through the browser's own APIs. Scored as `next/RULES.md` section 4 (fit x3, performance x3, size x2,
+maintainability x2, licence x2, portability x1, effort x1; each 1 to 5).
+
+**How a WebGL picture reaches the Zinc surface.** (a) a second canvas layered under or over the Zinc one: 3,5,5,2,5,3,2 = 66, it breaks paint order (an overlay cannot sit between two Zinc draws, a
+clip or a fade cannot apply) and DOM mode needs positioning code; (b) copy the GL canvas into a gfx image each frame and draw that image: 5,4,5,5,5,5,5 = **81**, one `drawImage` of a GPU canvas,
+paint order, clip, transform and fade for free, and DOM mode already turns an image into a `<canvas>` where the component sits; (c) `OffscreenCanvas` in a worker: 3,5,3,2,5,3,1 = 55, no synchronous
+`present` and the main thread has to receive bitmaps. Chosen (b); (c) stays a later option for three.js.
+
+**zinc:gl**: rows generated from the engine's own table (`tools/gen-web-gl` reads `tools/gen-zinc-gl`) rather than a hand-written wrapper: 5,5,5,5,5,5,4 = **84**; the program and `lib/std/gl.ts` do not change.
+**three.js**: the real library with a renderer subclass and four small overrides (96 lines of TypeScript) 5,5,4,5,5,5,5 = **83**, against re-implementing the Zinc subset's extra API on WebGL: 3,4,5,2,5,5,1 = 54.
+
+**Yoga / `ui.layout: "rn"`** (owner, 2026-10-17): none on the web. DOM mode paints with CSS what Zinc's layout placed; canvas mode runs the classic layout in JavaScript (`lib/std/ui.ts`, measure and
+place). `targets/capabilities.json` now says `web.ui.rn: false`, and `resolveUiLayout` turns an explicit `"rn"` into the classic layout with React Native's style semantics on the web (the preset's
+path on esp32). Measured on `examples/rn-showcase` at 420 x 860 against the desktop's Yoga frame: the same boxes in the same places (text and locale differ: the desktop run was in French, the web
+fonts are the system's); luma SSIM 0.67, all of it text. Known limit: behaviours only Yoga has (percent edge cases of `aspectRatio` with `minWidth`, `flexBasis: auto` corner cases) are the
+classic layout's; no warning is issued because none is detected from the program.
+
+**Plugins**: serial, MIDI and gphoto2 keep their `index.ts` and answer their native spec in JavaScript (`web.native` + `impl`), because each spec is a small synchronous API: handles, a queue read by
+the plugin's timer. Web Serial, Web MIDI and WebUSB are asynchronous and ask the person, so the answers are cached (granted ports, the MIDI access) and the chooser (`requestPort`, `requestDevice`)
+opens when the page has a user activation; `open` returns a handle at once and opens in the background. OSC keeps its whole protocol and replaces only `open` with a WebSocket relay (a browser has no
+UDP). gphoto2: libgphoto2 as WebAssembly exists (`web-gphoto2`, LGPL, Emscripten with Asyncify, about 5 MB, wants cross-origin isolation); a 300-line PTP over WebUSB covers the basic controls with no wasm
+(4,4,5,4,4,4,3 = 79 against 3,5,2,3,3,4,4 = 63 for vendoring the wasm now) and the wasm port stays the answer for live view and vendor widgets. Map: MapLibre GL JS (BSD-3) reads the same style language
+the C++ engine implements a subset of: 5,5,3,4,5,5,4 = **81** against a JS vector-tile renderer of our own (2,3,5,1,5,5,1 = 50); it must be loaded unmodified (a minifier breaks its inline worker: found
+the hard way), hence `web.scripts`. Box2D: wasm with a C shim, as the owner asked (native code is needed there).
+
 ## Measurements
 
 Apple M1 Pro, Chrome 155 headless (`--headless=new`, software compositing: compare the modes with each other, not with a desktop's frame rate), localhost, `tools/web-measure`; 6 s of the hero demo's home screen
@@ -128,7 +155,12 @@ The wasm target for comparison was not measured: its `vm-web.wasm` needs the pin
 - No screen reader, no IME composition and no touch device was tried; the `<textarea>` that follows an edited field is the design, untested with a soft keyboard.
 - **Fonts**: Zinc ships Inter as `sans`; the web host uses the system sans (`system-ui`). Widths differ by a few percent from a desktop build. Shipping Inter as a web font (OFL) would make the two identical
   and costs a 300 KB file: a choice for the owner, not made.
-- `zinc:gl` / three.js, Yoga (`ui.layout: "rn"`), `drawShader`, `imageFromBytes` of a remote image (it decodes asynchronously and shows at the next repaint
+- **Hardware plugins were not run on hardware**: `zinc:serial`, `zinc:midi`, `zinc:gphoto2` (WebUSB, PTP) and `zinc:osc` (WebSocket relay) run against mocks of `navigator.serial`, `requestMIDIAccess`,
+  `navigator.usb` (a PTP responder with real containers) and `WebSocket`, injected before the page. No real port, MIDI device, camera or relay was used; no camera's quirks (Canon and Nikon vendor
+  operations, big objects over several transfers, session loss) are known. Chrome only; Firefox has MIDI but neither serial nor USB, Safari none of the three.
+- **WebGL**: Chrome with SwiftShader (software GL), no GPU; WebGL2 only was driven for three.js; `zinc:gl` version 1 contexts use the browser's WebGL 1 (the gl-cube is one) but the WebGL 1 / 2
+  differences beyond that program were not compared with the native engine. No `OffscreenCanvas`, no WebGPU, no iOS or Android browser.
+- `imageFromBytes` of a remote image (it decodes asynchronously and shows at the next repaint
   of the app, which an idle app may not make: use `createImage` or `Image`), `zinc:fs` on the real disk (the page has an in-memory file system for the program's own writes and `localStorage` for `zinc:storage`).
 - `zinc:system` menus, tray and window geometry are accepted and do nothing (so a desktop template runs); a program that wants to adapt asks `supports('menu')`.
 - The dev server writes `build/.zinc-web-dev/` in the project. A package of `node_modules` is not served module by module: the dev server bundles the bare imports once with esbuild (Vite's pre-bundling model) into
@@ -138,8 +170,8 @@ The wasm target for comparison was not measured: its `vm-web.wasm` needs the pin
 ## Next, in this order
 
 1. Done: roles, forms, native scroll and focus, prerendering and addresses (the semantic DOM). Next there: a phone measurement, Firefox and Safari runs, a screen reader and an IME pass.
-2. `zinc:gl` and three.js on a WebGL2 canvas next to (or under) the Zinc one; `zinc:video` and `zinc:lottie` over the browser's elements.
-3. Box2D (`zinc:physics2d`) to WebAssembly; gphoto2 over WebUSB; serial over Web Serial; MIDI over Web MIDI.
-4. Yoga to WebAssembly for the `rn` layout; the shadcn-style and React Native kits on the page.
+2. `zinc:video` and `zinc:lottie` over the browser's elements; `zinc:3d` and `zinc:physics3d` (or tell programs to use three).
+3. Real devices for serial, MIDI and gphoto2 (and libgphoto2's `web-gphoto2` for live view and vendor widgets); an OSC relay shipped with Zinc.
+4. The shadcn-style and React Native kits on the page; `zinc dev --target web` for three.js and the map (unbundled modules cannot load a UMD script or the vendored addons yet).
 5. Inter as a web font.
 6. Safari and Firefox runs, a phone measurement, and the numbers of this table in `docs/reports/zinc-next-perf.md` once the coordinator takes them.

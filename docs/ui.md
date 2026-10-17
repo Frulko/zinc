@@ -660,7 +660,8 @@ variants follow it (switching restyles the nodes that use them). Absolute insets
 layout). `"ui": {"preset": "react-native"}` asks for `rn` and React Native's style semantics: `flex: n` is grow n, shrink 1, basis 0 (equal shares) and text
 is black by default. On a target without Yoga (esp32, ps1) the preset falls back to `classic` with the same semantics, where `flexShrink`, `flexBasis`,
 `minWidth/maxWidth` (a growing item is frozen at its limit and the others share the rest), `alignSelf`, `aspectRatio` and `alignContent` also work; an
-explicit `"layout": "rn"` on such a target is a build error. Programs read the choice as `UI_LAYOUT` and `UI_PRESET` of `zinc:platform`.
+explicit `"layout": "rn"` on such a target is a build error, except on the web, where it means the same as the preset (the browser has its own layout; there is no Yoga there, see
+`docs/targets/web.md`). Programs read the choice as `UI_LAYOUT` and `UI_PRESET` of `zinc:platform`.
 
 ## Gestures: PanResponder and Animated.event
 

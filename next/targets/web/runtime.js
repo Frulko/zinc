@@ -36,6 +36,7 @@ export function detect() {
     websocket: has(() => G.WebSocket),
     webusb: has(() => 'usb' in n),
     webserial: has(() => 'serial' in n),
+    webmidi: has(() => n.requestMIDIAccess),
     webbluetooth: has(() => 'bluetooth' in n),
     webhid: has(() => 'hid' in n),
     fileSystemAccess: has(() => G.showOpenFilePicker),

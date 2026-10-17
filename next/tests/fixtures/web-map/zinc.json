@@ -1,0 +1,5 @@
+{
+  "name": "web-map",
+  "entry": "src/main.ts",
+  "targets": { "web": { "title": "Map fixture" } }
+}

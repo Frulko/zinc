@@ -420,6 +420,7 @@ struct Common {
   std::vector<std::pair<std::string, std::string>> wasmOut;   // the native code of plugins built for the page: module name, url
   std::vector<std::pair<std::string, std::string>> scriptOut;   // the libraries plugins load on first use: name, url
   std::vector<std::string> rowJs;   // the rows-*.js files the program needs (loaded into native.js)
+  std::vector<std::string> scriptUrls;   // plugin "web.scripts" as published: classic scripts the page loads before the app
 };
 // `bundle`: the minified bundle, whose reachable code names the host rows the program really calls ("" in dev: the staged modules hold unused code too, so every row they name gets a stub and nothing is reported)
 Common analyse(const WebArgs& a, const fs::path& stage, const std::string& bundle = "") {
@@ -460,6 +461,7 @@ Common analyse(const WebArgs& a, const fs::path& stage, const std::string& bundl
   std::set<std::string> rows = sc.rows;
   if (!bundle.empty()) { rows.clear(); static const std::regex rr("__host_([A-Za-z0-9]+)"); for (auto m = std::sregex_iterator(bundle.begin(), bundle.end(), rr); m != std::sregex_iterator(); ++m) rows.insert((*m)[1]); }
   for (const RowFile& f : rf) { bool uses = false; for (const std::string& n : f.names) if (rows.count(n)) { uses = true; break; } if (uses) c.rowJs.push_back(f.text); }
+  if (rows.count("glCreate")) warnings += webCheckReport(c.browsersJson, browsers, {"webgl2"}, "zinc:gl");   // a WebGL 1 program runs on a WebGL 1 context, but most programs of the web target want WebGL 2
   for (const std::string& r : rows) {
     if (have.count(r)) continue;
     c.unsupported.push_back(r);
@@ -553,6 +555,8 @@ std::string configJson(const WebArgs& a, const Cfg& c, const Common& cm, const s
   if (!cm.rowJs.empty()) j += ",\"rows\":true";
   j += ",\"unsupported\":[";
   for (std::size_t i = 0; i < cm.unsupported.size(); ++i) j += (i ? "," : "") + jstr(cm.unsupported[i]);
+  j += "],\"scripts\":[";
+  for (std::size_t i = 0; i < cm.scriptUrls.size(); ++i) j += (i ? "," : "") + jstr(cm.scriptUrls[i]);
   j += "],\"wasm\":[";
   for (std::size_t i = 0; i < cm.wasmOut.size(); ++i) j += std::string(i ? "," : "") + "{\"name\":" + jstr(cm.wasmOut[i].first) + ",\"url\":" + jstr(cm.wasmOut[i].second) + "}";
   j += "],\"scripts\":{";

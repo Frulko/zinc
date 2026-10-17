@@ -6,6 +6,7 @@
   "entry": "index.ts",
   "description": "Open Sound Control 1.0 over UDP: typed messages (int, float, double, string, blob, time tag, booleans, nil), bundles, address patterns, several endpoints, any port; written in Zinc on zinc:socket",
   "requires": ["net"],
+  "web": { "entry": "web/index.ts", "needs": ["websocket"] },
   "targets": {
     "macos": {},
     "linux": {},

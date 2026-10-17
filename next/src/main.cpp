@@ -365,6 +365,7 @@ static bool loadManifestPermissions(const char* path) {
     if (const zn::frontend::Profile* tp = zn::frontend::findProfile(target)) caps = zn::frontend::capsFromFile(*tp, gRoot + "/../targets/capabilities.json");
     if (p.uiLayout != "" && p.uiLayout != "classic" && p.uiLayout != "rn" && p.uiLayout != "auto") { std::fprintf(stderr, "zinc: ZINC_UI_LAYOUT must be classic, rn or auto\n"); return false; }
     if (!zn::frontend::resolveUiLayout(p, caps, target, uiLayout, lerr)) { std::fprintf(stderr, "zinc: %s: %s\n", pf.empty() ? "ZINC_UI_LAYOUT" : pf.c_str(), lerr.c_str()); return false; }
+    if (target == "web" && p.uiLayout == "rn" && uiLayout == "classic") p.uiPreset = "react-native";   // no Yoga on the web: the classic layout with React Native's style semantics
     zn::frontend::setLoaderStage(pf.empty() ? zn::frontend::LoaderStage{} : zn::cli::loaderStageFor(p, std::filesystem::path(pf).parent_path().string(), path, target));   // ZN-447
   }
   zn::frontend::setUiLayout(uiLayout);

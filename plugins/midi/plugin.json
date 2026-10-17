@@ -5,6 +5,7 @@
   "entry": "index.ts",
   "description": "MIDI in and out on RtMidi 6.0.0 (MIT): list and open ports, virtual ports, notes, control changes, clock, any message, ports plugged and unplugged; in-memory ports when simulated",
   "license": "MIT",
+  "web": { "native": "Midi", "impl": "web/midi.js", "needs": ["webmidi"] },
   "targets": {
     "macos": { "sources": ["vendor/RtMidi.cpp"], "flags": ["-fexceptions"], "defines": ["__MACOSX_CORE__"], "frameworks": ["CoreMIDI", "CoreAudio", "CoreFoundation"] },
     "linux": { "sources": ["vendor/RtMidi.cpp"], "flags": ["-fexceptions"], "defines": ["__LINUX_ALSA__"], "libs": ["asound"], "linkFlags": ["-pthread"], "packages": ["libasound2-dev"] }

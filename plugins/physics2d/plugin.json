@@ -7,7 +7,84 @@
   "description": "2D rigid bodies on Box2D 3.1.1 (MIT): worlds stepped at a fixed rate with sub-steps, shapes and chains, continuous collision, revolute and prismatic joints, contact and sensor events, ray casts",
   "license": "MIT",
   "targets": {
-    "macos": { "sources": ["vendor/box2d.c"], "flags": ["-I./vendor/box2d/include", "-ffp-contract=off"], "defines": ["NDEBUG"] },
-    "linux": { "sources": ["vendor/box2d.c"], "flags": ["-I./vendor/box2d/include", "-ffp-contract=off"], "defines": ["NDEBUG"] }
+    "macos": {
+      "sources": [
+        "vendor/box2d.c"
+      ],
+      "flags": [
+        "-I./vendor/box2d/include",
+        "-ffp-contract=off"
+      ],
+      "defines": [
+        "NDEBUG"
+      ]
+    },
+    "linux": {
+      "sources": [
+        "vendor/box2d.c"
+      ],
+      "flags": [
+        "-I./vendor/box2d/include",
+        "-ffp-contract=off"
+      ],
+      "defines": [
+        "NDEBUG"
+      ]
+    }
+  },
+  "web": {
+    "native": "Physics2D",
+    "impl": "web/physics2d.js",
+    "needs": [
+      "wasm"
+    ],
+    "wasm": {
+      "name": "physics2d",
+      "sources": [
+        "vendor/box2d.c",
+        "web/physics2d_web.c"
+      ],
+      "flags": [
+        "-Os",
+        "-Ivendor/box2d/include",
+        "-ffp-contract=off",
+        "-DNDEBUG"
+      ],
+      "exports": [
+        "malloc",
+        "free",
+        "p2d_out",
+        "p2d_version",
+        "p2d_error",
+        "p2d_world_create",
+        "p2d_world_destroy",
+        "p2d_world_gravity",
+        "p2d_step",
+        "p2d_moved",
+        "p2d_events",
+        "p2d_awake_count",
+        "p2d_ray_cast",
+        "p2d_body_create",
+        "p2d_body_shape",
+        "p2d_body_destroy",
+        "p2d_body_state",
+        "p2d_body_mass",
+        "p2d_body_set_transform",
+        "p2d_body_set_velocity",
+        "p2d_body_move_to",
+        "p2d_body_push",
+        "p2d_body_set_material",
+        "p2d_body_set_motion",
+        "p2d_body_set_gravity_scale",
+        "p2d_body_awake",
+        "p2d_body_enable",
+        "p2d_revolute",
+        "p2d_prismatic",
+        "p2d_joint_motor",
+        "p2d_joint_limits",
+        "p2d_joint_value",
+        "p2d_joint_destroy"
+      ]
+    }
   }
 }
