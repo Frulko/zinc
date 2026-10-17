@@ -2,7 +2,8 @@
 id: ZN-453
 title: 'Handheld targets: decision record, target ids, profiles and capabilities'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-09 07:37'
 updated_date: '2026-10-10 07:37'
 labels:

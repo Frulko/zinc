@@ -2,7 +2,8 @@
 id: ZN-454
 title: Console system host without libuv
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-09 07:37'
 labels:
   - handheld

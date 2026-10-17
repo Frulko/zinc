@@ -2,7 +2,8 @@
 id: ZN-456
 title: 'Toolchain pins for pspdev, VitaSDK, devkitARM and the iOS armv7 setup'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-09 07:37'
 labels:
   - handheld

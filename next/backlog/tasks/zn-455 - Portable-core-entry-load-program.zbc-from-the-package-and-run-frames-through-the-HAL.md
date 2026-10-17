@@ -4,7 +4,8 @@ title: >-
   Portable core entry: load program.zbc from the package and run frames through
   the HAL
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-09 07:37'
 labels:
   - handheld

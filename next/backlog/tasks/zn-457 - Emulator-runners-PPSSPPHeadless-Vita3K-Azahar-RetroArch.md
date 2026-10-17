@@ -2,7 +2,8 @@
 id: ZN-457
 title: 'Emulator runners: PPSSPPHeadless, Vita3K, Azahar / RetroArch'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-09 07:37'
 labels:
   - handheld
