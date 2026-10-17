@@ -1,0 +1,11 @@
+{
+  "name": "notifymac",
+  "kind": "module",
+  "module": "zinc:notifymac",
+  "entry": "index.ts",
+  "description": "Zinc Relay's macOS side: Notification Center's records decoded (NSPropertyListSerialization), app names and icons (NSWorkspace), avatars (record images, Contacts, monograms), the permissions it asks for, and opening what a notification leads to",
+  "native": { "impl": { "macos": "native/notifymac.mm" } },
+  "targets": {
+    "macos": { "frameworks": ["Foundation", "AppKit", "UniformTypeIdentifiers", "Contacts", "UserNotifications", "ServiceManagement"], "flags": ["-fobjc-arc"] }
+  }
+}

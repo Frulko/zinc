@@ -93,6 +93,15 @@ permission). Browser notifications: Chrome and Safari web push carry the site in
 with the relay app's first-run assistant pointing to the right System Settings pane. Icons: NSWorkspace's icon of the app's bundle,
 rendered to a 128 px PNG.
 
+What ZN-757 found and chose (2026-10-17, macOS 15.7): the database. Its path, its WAL journal and its schema are in usernoted itself
+(`strings /usr/sbin/usernoted`: `group.com.apple.usernoted`, `db2/`, `PRAGMA journal_mode = WAL;`, the `CREATE TABLE` statements of
+`app`, `record`, `dbinfo`, `requests`, `delivered`, `displayed`, `snoozed`, `categories`, and the plist keys `titl`, `subt`, `body`,
+`thre`, `iden`, `cate`, `date`, `req`), which agrees with mac_apt's and Plaso's parsers. Opening it from this machine's agent session
+fails with EPERM: the permission is Full Disk Access. The Accessibility way was dropped: it sees only banners shown on screen, gives no
+bundle id and depends on a private view tree. How it is read, the browsers' sites and the first-run assistant:
+[examples/notify-relay/README.md](../../examples/notify-relay/README.md). Not checked yet: real web-notification records of Chrome,
+Firefox and Safari on this Mac (the relay could not open its database here), see the task's notes.
+
 ## The tablet (ZN-758, ZN-755)
 
 - A notification arrives (owner 2026-10-17, two looks, no setting):

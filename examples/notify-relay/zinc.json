@@ -1,0 +1,13 @@
+{
+  "name": "notify-relay",
+  "entry": "main.tsx",
+  "permissions": ["tray", "menu", "window", "dialog", "autostart", "opener", "fs", "contacts"],
+  "app": {
+    "id": "dev.zinc.notify-relay",
+    "name": "Zinc Relay",
+    "version": "0.1.0",
+    "dock": false,
+    "window": { "title": "Zinc Relay", "width": 640, "height": 560, "minWidth": 520, "minHeight": 420 }
+  },
+  "targets": { "macos": { "width": 640, "height": 560 } }
+}

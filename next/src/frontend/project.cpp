@@ -368,6 +368,7 @@ std::vector<std::pair<std::string, std::string>> usageStrings(const Project& p, 
   for (const std::string& e : permissionsFor(p, target)) {
     if (e == "camera") out.push_back({"NSCameraUsageDescription", say("camera", who + " uses the camera.")});
     else if (e == "microphone") out.push_back({"NSMicrophoneUsageDescription", say("microphone", who + " uses the microphone.")});
+    else if (e == "contacts") out.push_back({"NSContactsUsageDescription", say("contacts", who + " reads your contacts.")});
     else if (e == "location") {
       out.push_back({"NSLocationWhenInUseUsageDescription", say("location", who + " uses your location.")});
       if (target == "macos") out.push_back({"NSLocationUsageDescription", say("location", who + " uses your location.")});
@@ -503,7 +504,7 @@ bool parseProject(const std::string& text, Project& out, std::string& err) {
       if (!yyjson_is_str(e)) return fatal(1, std::string("\"") + where + "\" holds a non-string entry");
       std::string id = yyjson_get_str(e), base = id.size() && id[0] == '-' ? id.substr(1) : id;
       std::string feature = base.substr(0, base.find(':'));
-      static const std::vector<std::string> hostFeatures = {"net", "fs", "process", "serial", "camera", "microphone", "location"};   // checked by the host modules at run time (ZN-322)
+      static const std::vector<std::string> hostFeatures = {"net", "fs", "process", "serial", "camera", "microphone", "location", "contacts"};   // checked by the host modules at run time (ZN-322); contacts: a plugin asks the system (Contacts.framework)
       if (std::find(systemFeatures().begin(), systemFeatures().end(), feature) == systemFeatures().end() && std::find(hostFeatures.begin(), hostFeatures.end(), feature) == hostFeatures.end()) {
         std::string all; for (const std::string& f : systemFeatures()) all += (all.empty() ? "" : ", ") + f;
         for (const std::string& f : hostFeatures) all += ", " + f;

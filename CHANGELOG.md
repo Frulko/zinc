@@ -29,6 +29,11 @@ How to add a line: see "Changelog" in `AGENTS.md`.
   `targets.web.browsers`, `--werror` fails on them, and a call that cannot be served throws `ZnUnsupported` instead of crashing. `import { supports, browserInfo } from 'zinc:browser'` asks the page at run time.
 - Plugins declare their browser version with a `web` entry in `plugin.json`: `zinc:camera`, `zinc:microphone`, `zinc:webrtc`, `zinc:audio`, `zinc:socket` (WebSocket), `zinc:svg`, `zinc:system` and
   `zinc:sqlite` (SQLite as WebAssembly) work in the browser with the API they have on a desktop; the webrtc call demo runs unchanged.
+- Zinc Relay (`examples/notify-relay`): a menu bar app that sends your Mac's notifications to a paired tablet over zinc:link, with the
+  app's icon and, for messages, the sender's picture (or initials), except the apps, websites and Focus modes you hold back. A tap on the
+  tablet opens the app on the Mac. It reads Notification Center's database, so its setup assistant asks once for Full Disk Access (and
+  Contacts, local network, notifications) and opens the right System Settings pane.
+- The `contacts` permission in `zinc.json` writes the Contacts usage text macOS shows when an app asks for the contacts.
 - The kits look like the platform they run on: iOS's buttons, switches, sliders, segmented controls and type scale on iOS, Material 3's on
   Android, macOS's (with the accent colour you chose in System Settings) on a Mac; Linux, the web and the boards keep the kit's own look.
   React Native's `Switch`, `Button` and `ActivityIndicator` draw as each platform does; a switch ticks on iOS; a long press opens a context
