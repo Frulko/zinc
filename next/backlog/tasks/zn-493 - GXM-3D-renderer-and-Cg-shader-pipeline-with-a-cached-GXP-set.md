@@ -4,7 +4,7 @@ title: GXM 3D renderer and Cg shader pipeline with a cached GXP set
 status: Review
 assignee: []
 created_date: '2026-10-09 07:39'
-updated_date: '2026-10-17 18:02'
+updated_date: '2026-10-17 22:35'
 labels:
   - handheld
   - pocketjs
@@ -36,4 +36,8 @@ Ran and seen: arm-vita-eabi-g++ -fsyntax-only of gxm_3d.cpp (SYNTAX-OK, with a d
 Blocked: no vita-shader-compiler anywhere (PATH, ~/VitaSDK/bin absent, pinned toolchain bin has no shader tool); the GXP pair can only come from the maintainer step in targets/vita/shaders/README.md, then build with -DZN_VITA_GXP_3D=ON. Not attempted: the zinc:3d pipeline wiring (ZN-495, ZN-477, later milestone).
 
 ZN-493 first milestone integrated on main via cherry-pick: targets/vita/gxm_3d.cpp draw entry, gxp3d cmake guard, tests/t0/vita_gxp_3d.sh. Second milestone: blobs color3d_v.gxp (504B) and color3d_f.gxp (228B) generated on the build machine by glslang 15.1 (vendored) + psp2spvc 1.1 build, and committed with the shader sources (color3d.vert/.frag rewritten as Vulkan-ES 310 with a Wvp UBO block); C++ updated to look up Wvp; tools/build-console-core gains --gxp3d. Vita core builds with -DZN_VITA_GXP_3D=ON from the real blobs; the shader test passes. Remaining for the full ZN-493: on-device / emulator proof of a drawn 3D triangle and the ZN-495/ZN-477 zinc:3d wiring.
+
+Debug session 2 (Vita3K, ZINC_VITA_GPU_PROBE probes in gxm_vita.cpp): all GXM calls return SCE_OK (begin/end/pad/queue all 0x00000000), the replay builds the command list (27 quads, 4 batches), the display queue fires exactly one entry (displayCallback base 0x60000000, the first CDRAM buffer), sceDisplaySetFrameBuf is called from OUR callback, but the CDRAM colour surface stays black across all 3 buffers over 30 frames and the display queue does not process further entries.
+Vita3K log is the smoking gun: 'Stubbed sceGxmMapVertexUsseMemory' and 'Stubbed sceGxmMapFragmentUsseMemory - always return success'. The patcher path we use therefore does not reach the GPU emulation on this Vita3K build. Software path fully paints (standalone probe: hello with ZINC_VITA_SOFT_FRAMES=10000 shows content, 59.8fps), so the shot path and the display library are fine and the failure is only in the GXM colour surface.
+Next probe: a standalone (bypass the shader patcher, write the SDL 2D vertex/loong pair directly via sceGxmSetVertexProgram with the hardcoded uniform buffer) program to see whether raw draws paint at all on this emulator. Alternative: try the pinned emu's OpenGL backend instead of MoltenVK/Metal, or run the pin's own SDL test app.
 <!-- SECTION:NOTES:END -->

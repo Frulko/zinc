@@ -73,6 +73,9 @@ void displayCallback(const void* data) {
   memset(&fb, 0, sizeof fb);
   fb.size = sizeof fb; fb.base = static_cast<const DisplayData*>(data)->address; fb.pitch = kStride;
   fb.pixelformat = SCE_DISPLAY_PIXELFORMAT_A8B8G8R8; fb.width = kW; fb.height = kH;
+  static unsigned calls;
+  static bool said;
+  if (!said) { said = true; char b[96]; snprintf(b, sizeof b, "vita gxm display callback %u base=%p\n", ++calls, fb.base); zn_vita_log(b); }
   sceDisplaySetFrameBuf(&fb, SCE_DISPLAY_SETBUF_NEXTFRAME);
   sceDisplayWaitVblankStart();
 }
@@ -314,6 +317,24 @@ extern "C" SceGxmContext* zn_gxm_3d_context(SceGxmRenderTarget** targetOut, SceG
   if (depthOut) *depthOut = depth;
   return ctx;
 }
+extern "C" void zn_gxm_3d_draw(const float* mvp, const float* vbo, uint32_t vcount, const uint16_t* ibo, uint32_t icount);
+// ZINC_VITA_3D_TRIS=1: one triangle of the smoketest's own vertex array, drawn after the 2D replay
+// (the proof the pair loads and the draw entrypoint runs on the device; the HAL 2D path is unchanged).
+static void draw3dTris() {
+  static bool on;
+  if (!on) {
+    on = getenv("ZINC_VITA_3D_TRIS") && *getenv("ZINC_VITA_3D_TRIS") != '0';
+    if (!on) return;
+  }
+  static const float mvp[16] = {1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1};
+  static const float vbo[7 * 3] = {
+    -0.5f, -0.5f, 0.0f, 1.0f, 0, 0, 1,
+    0.5f, -0.5f, 0.0f, 0, 1.0f, 0, 1,
+    0.0f, 0.5f, 0.0f, 0, 0, 1.0f, 1,
+  };
+  static const uint16_t ibo[3] = {0, 1, 2};
+  zn_gxm_3d_draw(mvp, vbo, 3, ibo, 3);
+}
 #endif
 // Starts GXM: false (with the reason on the log) when the console refuses something; the HAL then keeps its software path.
 bool zn_gxm_init(int32_t w, int32_t h) {
@@ -466,15 +487,33 @@ bool zn_gxm_present(const HalFrame* f) {
   const uint64_t t1 = sceKernelGetProcessTimeWide();
   zrt_prof_band(0, t0, t1);
   zn_gxm_cpu_us = t1 - t0;
-  sceGxmBeginScene(ctx, 0, target, nullptr, nullptr, sync[back], &surf[back], &depth);
+  static unsigned probe;   // ZINC_VITA_GPU_PROBE=1: two pixels of the buffer GXM drew, in the log (a device debug: 3 lines in 90 frames)
+  if (getenv("ZINC_VITA_GPU_PROBE") && probe++ % 30 == 0) {
+    char b[160];
+    snprintf(b, sizeof b, "vita gxm probe: a %08x, b %08x, c %08x, lists %d, quads %u, batches %u, back %u (frame %u)\n",
+      ((const uint32_t*)fbuf[0])[kH / 2 * kStride + kW / 2], ((const uint32_t*)fbuf[1])[kH / 2 * kStride + kW / 2],
+      ((const uint32_t*)fbuf[2])[kH / 2 * kStride + kW / 2], (int)n, nq, nb, back, probe);
+    zn_vita_log(b);
+  }
+  const int eBegin = sceGxmBeginScene(ctx, 0, target, nullptr, nullptr, sync[back], &surf[back], &depth);
   sceGxmSetViewport(ctx, kW / 2.0f, kW / 2.0f, kH / 2.0f, -(kH / 2.0f), 0.5f, 0.5f);   // SDL's viewport with its matrix: screen pixels in
   draw();
-  sceGxmEndScene(ctx, nullptr, nullptr);
-  sceGxmPadHeartbeat(&surf[back], sync[back]);
+#ifdef ZN_VITA_GXP_3D
+  draw3dTris();   // the smoketest's own proof triangle; other 3D callers drive the same entrypoint inside their begin/end scenes
+#endif
+  const int eEnd = sceGxmEndScene(ctx, nullptr, nullptr);
+  const int ePad = sceGxmPadHeartbeat(&surf[back], sync[back]);
   DisplayData d = {fbuf[back]};
-  sceGxmDisplayQueueAddEntry(sync[front], sync[back], &d);
+  const int eQueue = sceGxmDisplayQueueAddEntry(sync[front], sync[back], &d);
   front = back;
   back = (back + 1) % kBuffers;
+  static bool said;
+  if (getenv("ZINC_VITA_GPU_PROBE") && !said) {
+    said = true;
+    char b[160];
+    snprintf(b, sizeof b, "vita gxm probe: begin %08x end %08x pad %08x queue %08x\n", (unsigned)eBegin, (unsigned)eEnd, (unsigned)ePad, (unsigned)eQueue);
+    zn_vita_log(b);
+  }
   return true;
 }
 }
