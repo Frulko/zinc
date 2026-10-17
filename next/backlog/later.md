@@ -742,3 +742,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-?: OffscreenCanvas worker renderer for three.js on the web; a WebGPU renderer
 - ZN-?: silence W0603 for `zinc:map` on the web (lazy network calls in index.ts or a browser shim for zinc:net)
 - ZN-?: a DOM-mode program that draws with gfx alone and has no zinc:ui tree yields no elements; export it in canvas mode or make DOM mode mount a canvas
+
+- ZN-?: web export does not run the asset build (zinc:assets rules, atlases, tilemaps, textures), so examples/platformer fails at start; run `assets::build` and ship the output as web assets
+- ZN-?: web-real-test: per-demo scripted interactions (rn-showcase, nuxt-ui, webrtc-chat) and a screenshot diff against the desktop render at DPR 2; a headful run on the owner's Mac as a milestone check (Firefox and Safari still untested)
+- ZN-?: `sw.js` is shared by every export served from the same origin and port, so a stale offline fallback can come from another demo; scope the cache or the worker by app name
+- ZN-?: zinc:sprite, zinc:link and zinc:udp should answer "unavailable" quietly on the web instead of apps logging console.error (music)
+- ZN-?: `zinc export` of a raw template folder should say "run `zinc new` first" instead of the reverse-DNS id error
+- ZN-?: `web_dom` prerender waits a fixed six seconds and flakes under a load of 30 ("the app drew nothing"); wait on the first frame instead
