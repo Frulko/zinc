@@ -368,6 +368,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-629: --apk --release signed with a real upload key on a device (only the debug keystore was tried).
 - music (2026-10-17): the release APK is 15.4 MB, almost all libmain.so (4.9 MB of code, 9.5 MB of embedded data in .rodata: fonts, icons, resources, Unicode tables), stored uncompressed for mmap (3.9 MB gzipped): subset the fonts to the glyphs a program uses and keep only the icons it names, to halve phone APKs.
 - music (2026-10-17): at rest on the clock slide the app uses ~8% CPU on the Nexus 7 (and SurfaceFlinger ~11%), PSS ~62 MB: draw one frame a second when only the clock changes (a program-declared frame rate or damage-driven idle).
+- ZN-756: zinc:link across networks through zinc:webrtc, following the plan in docs/plugins/link.md ("Across networks").
+- ZN-756: the QuickJS engine's timerLoop (src/qjs/qjs.cpp) jumps its virtual clock to the next timer without waiting or polling native modules, and refuses native callbacks: network plugins cannot wait for an answer on --engine quickjs outside a frame loop.
+- ZN-756: zinc:link's outgoing buffer grows without bound when a peer stops reading: a high-water mark and Channel.bufferedAmount.
+- ZN-756: the plugin cache key hashes every file beside a source, so plugins/link rebuilds (~1 s) after any change in next/src/host/.
 
 ## Demos
 - Owner 2026-10-17: every game demo uses Kenney's assets (kenney.nl, CC0), adapted per platform: re-skin pinball, pinball3d and pocket-hero with Kenney packs as they are next worked on (breakout in ZN-753, platformer and marble in ZN-754).
@@ -677,3 +681,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-457: Linux CI for the console runners (PPSSPPHeadless on Linux, Vita3K and Azahar AppImages under Xvfb, Play! for the PS2 without BIOS); zig c++ and Linux builds of next/targets/console and the new HALs.
 - ZN-754: run Meadow Run and Marble Terraces in PPSSPP, Vita3K, PCSX2 and Azahar; per-console frame times; the platformer atlas in CLUT8 on PSP/PS2.
 - D142: the GPU-layer switching and the ANativeWindow disconnect on API 26+ and API 29+ devices and other GPUs (Mali, Adreno).
+- ZN-756: zinc:link on Linux (never compiled there: dnssd beside avahi on port 5353, then two Linux machines pairing) and on iOS (raw multicast needs Apple's multicast entitlement: dns_sd.h DNSServiceRegister/Browse behind dnssd.h, NSLocalNetworkUsageDescription and NSBonjourServices in Info.plist).
