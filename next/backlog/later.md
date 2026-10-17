@@ -357,6 +357,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-457: a program that calls exit() gets no zinc:exit marker (the runner reports a timeout): an atexit marker carrying the status.
 - ZN-455: band threads and the GE, GXM and PICA command replays (the console HALs are software raster only); the PS2 and 3DS shots are the HAL's own buffer, so an orientation bug shows only in the emulator's window or video.
 - ZN-456: a native devkitARM once the owner runs devkitPro's installer ($DEVKITPRO is honoured already).
+- ZN-754: zinc:audio and zinc:3d have no psp/ps2 target: importing them under those profiles fails with Z0101 '__T7' instead of a "not available on this target" message; a silent audio backend would let games run before console audio arrives.
+- ZN-754: the "grid" font of text() draws narrower than textWidth reports from about 96 physical px, so centred titles drift left (both games cap title text at scale 5).
+- ZN-754: the asset build packs every file under assets/ (marble's Blender previews and scripts) and has no per-target pick of low/high model variants: consoles need an exclude rule and a variant choice to stay within ~8 MiB.
+- ZN-754: no typed float view of bytes (DataView/Float32Array): examples/marble/src/pieces.ts decodes IEEE singles by hand to merge .zmesh pieces; a zinc:3d call to merge meshes would remove that.
 
 ## Demos
 - Owner 2026-10-17: every game demo uses Kenney's assets (kenney.nl, CC0), adapted per platform: re-skin pinball, pinball3d and pocket-hero with Kenney packs as they are next worked on (breakout in ZN-753, platformer and marble in ZN-754).
@@ -664,3 +668,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-631: scan the QR code with Zinc Go on a real phone or tablet over Wi-Fi (the Nexus 7: zinc export ../examples/zinc-go --target android --apk --abis armeabi-v7a, adb install -r, zinc dev ../examples/rn-showcase --lan, scan, save a .tsx); the iOS player export needs NSLocalNetworkUsageDescription on a real iPhone.
 - ZN-754: marble's low variant (vertex colours, 4,216 triangles) checked by eye on the PSP, PS2 and 3DS.
 - ZN-457: Linux CI for the console runners (PPSSPPHeadless on Linux, Vita3K and Azahar AppImages under Xvfb, Play! for the PS2 without BIOS); zig c++ and Linux builds of next/targets/console and the new HALs.
+- ZN-754: run Meadow Run and Marble Terraces in PPSSPP, Vita3K, PCSX2 and Azahar; per-console frame times; the platformer atlas in CLUT8 on PSP/PS2.
