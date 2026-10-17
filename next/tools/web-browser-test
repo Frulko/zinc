@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """A web export in headless Chrome (docs/targets/web.md; tests/t1/web_export.sh): serves a folder over HTTP, opens it, waits for frames, prints one JSON line.
-usage: web-browser-test <dir> [--wait SECONDS] [--shot out.png] [--eval EXPR] [--size WxH] [--path /index.html] [--click X,Y] [--expect-text TEXT]
+usage: web-browser-test <dir> [--wait SECONDS] [--shot out.png] [--eval EXPR] [--size WxH] [--path /index.html] [--click X,Y] [--expect-text TEXT] [--init JS]
+--init: a script that runs in the page before any of its own (Page.addScriptToEvaluateOnNewDocument).
 The JSON: {"console": [...], "errors": [...], "frames": N, "eval": value, "nonblank": fraction of pixels not equal to the first, "text": document text}
 Exit 77 (skip) without Chrome. Chrome only: Firefox and Safari are not tested here."""
 import base64, functools, http.server, json, os, sys, threading, time
@@ -10,7 +11,7 @@ from cdp import Chrome, find_chrome
 args = sys.argv[1:]
 if not args: sys.exit("usage: web-browser-test <dir> [options]")
 root = args.pop(0)
-opt = {"--wait": "3", "--shot": "", "--eval": "", "--size": "900x600", "--path": "/", "--click": "", "--expect-text": "", "--after": "1", "--click-text": ""}
+opt = {"--wait": "3", "--shot": "", "--eval": "", "--size": "900x600", "--path": "/", "--click": "", "--expect-text": "", "--after": "1", "--click-text": "", "--init": ""}
 while args:
     k = args.pop(0)
     if k not in opt: sys.exit("unknown option " + k)
@@ -33,6 +34,7 @@ w, h = (int(v) for v in opt["--size"].split("x"))
 out = {}
 with Chrome(["--window-size=%d,%d" % (w, h), "--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream", "--autoplay-policy=no-user-gesture-required", "--allow-file-access-from-files", "--enable-unsafe-swiftshader"]) as c:
     c.call("Emulation.setDeviceMetricsOverride", {"width": w, "height": h, "deviceScaleFactor": 1, "mobile": False})
+    if opt["--init"]: c.call("Page.addScriptToEvaluateOnNewDocument", {"source": opt["--init"]})
     c.open(url)
     t0 = time.time()
     while time.time() - t0 < float(opt["--wait"]):

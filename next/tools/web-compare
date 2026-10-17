@@ -1,0 +1,106 @@
+#!/usr/bin/env python3
+"""A DOM-mode web export against the canvas-mode export of the same app, screen by screen (docs/targets/web.md "The semantic DOM"; tests/t1/web_dom_visual.sh).
+usage: web-compare <canvas-dir> <dom-dir> [--size WxH] [--steps "wait:1;click-text:Get started;wait:1"] [--out DIR] [--mask X,Y,W,H;...] [--scale 1]
+Both exports are served over HTTP and opened in headless Chrome at the same size. Each step runs on the DOM page first; a click is found there (by the text of an element,
+or at x,y) and repeated at the same place on the canvas page, so the two see the same input. After every step both pages are screenshot and compared pixel by pixel:
+{"step", "mean" (mean absolute channel difference, 0..255), "gt16" (share of pixels with a channel difference above 16), "files"}.
+Masks (X,Y,W,H;...) leave out regions with live numbers. Exit 77 (skip) without Chrome, python3 with PIL and numpy."""
+import base64, functools, http.server, io, json, os, sys, threading, time
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from cdp import Chrome, find_chrome
+try:
+    from PIL import Image
+    import numpy as np
+except ImportError:
+    print("SKIP no PIL or numpy"); sys.exit(77)
+if not find_chrome():
+    print("SKIP no Chrome"); sys.exit(77)
+
+args = sys.argv[1:]
+if len(args) < 2: sys.exit(__doc__)
+cdir, ddir = args[0], args[1]
+opt = {"--size": "1000x700", "--steps": "wait:1", "--out": "", "--mask": "", "--scale": "1"}
+args = args[2:]
+while args:
+    k = args.pop(0)
+    if k not in opt: sys.exit("unknown option " + k)
+    opt[k] = args.pop(0)
+W, H = (int(v) for v in opt["--size"].split("x"))
+masks = [tuple(int(v) for v in m.split(",")) for m in opt["--mask"].split(";") if m]
+out_dir = opt["--out"]
+if out_dir: os.makedirs(out_dir, exist_ok=True)
+
+class Quiet(http.server.SimpleHTTPRequestHandler):
+    extensions_map = dict(http.server.SimpleHTTPRequestHandler.extensions_map, **{".js": "text/javascript", ".wasm": "application/wasm"})
+    def log_message(self, *a): pass
+    def end_headers(self): self.send_header("Cache-Control", "no-store"); super().end_headers()
+class Srv(http.server.ThreadingHTTPServer):
+    def handle_error(self, *a): pass
+def serve(d):
+    s = Srv(("127.0.0.1", 0), functools.partial(Quiet, directory=d))
+    threading.Thread(target=s.serve_forever, daemon=True).start()
+    return s
+
+def pump(c, secs):
+    t0 = time.time()
+    while time.time() - t0 < secs: c._recv(-1, 0.1)
+
+def shot(c):
+    return Image.open(io.BytesIO(base64.b64decode(c.call("Page.captureScreenshot", {"format": "png"}).get("data", "")))).convert("RGB")
+
+def click(c, x, y):
+    c.call("Input.dispatchMouseEvent", {"type": "mouseMoved", "x": x, "y": y}); pump(c, 0.15)
+    for ty in ("mousePressed", "mouseReleased"):
+        c.call("Input.dispatchMouseEvent", {"type": ty, "x": x, "y": y, "button": "left", "buttons": 1 if ty == "mousePressed" else 0, "clickCount": 1}); pump(c, 0.15)
+
+FIND = """(t) => { const w = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT); let n, r = null; while ((n = w.nextNode())) if (n.children.length === 0 && n.textContent.trim().startsWith(t)) { const b = n.getBoundingClientRect(); r = [b.x + b.width / 2, b.y + b.height / 2]; } return r; }"""
+
+def run(d, steps, clicks):
+    """-> [(step, image)]; clicks: the coordinates to use (None: find them in the DOM)."""
+    srv = serve(d)
+    shots = []
+    found = []
+    with Chrome(["--window-size=%d,%d" % (W, H), "--enable-unsafe-swiftshader", "--force-device-scale-factor=" + opt["--scale"]]) as c:
+        c.call("Emulation.setDeviceMetricsOverride", {"width": W, "height": H, "deviceScaleFactor": float(opt["--scale"]), "mobile": False})
+        c.open("http://127.0.0.1:%d/" % srv.server_address[1]); pump(c, 1.5)
+        ci = 0
+        for st in steps:
+            kind, _, arg = st.partition(":")
+            if kind == "wait": pump(c, float(arg))
+            elif kind == "click-text":
+                if clicks is None:
+                    r = c.eval("(%s)(%s)" % (FIND, json.dumps(arg)))
+                    if not r: sys.exit("no element with the text " + arg)
+                    found.append(r)
+                x, y = (clicks or found)[ci]; ci += 1
+                click(c, x, y); pump(c, 0.4)
+            elif kind == "click":
+                x, y = (float(v) for v in arg.split(","))
+                click(c, x, y); pump(c, 0.4)
+            elif kind == "key":
+                c.call("Input.dispatchKeyEvent", {"type": "keyDown", "key": arg}); c.call("Input.dispatchKeyEvent", {"type": "keyUp", "key": arg}); pump(c, 0.3)
+            elif kind == "eval": c.eval(arg); pump(c, 0.3)
+            else: sys.exit("unknown step " + st)
+            shots.append((st, shot(c)))
+    srv.shutdown()
+    return shots, found
+
+steps = [s for s in opt["--steps"].split(";") if s]
+dom_shots, clicks = run(ddir, steps, None)
+can_shots, _ = run(cdir, steps, clicks)
+res = []
+for i, ((st, a), (_, b)) in enumerate(zip(can_shots, dom_shots)):
+    A = np.asarray(a, dtype=np.int16); B = np.asarray(b, dtype=np.int16)
+    if A.shape != B.shape: res.append({"step": st, "error": "sizes differ %s %s" % (A.shape, B.shape)}); continue
+    D = np.abs(A - B).max(axis=2)
+    keep = np.ones(D.shape, dtype=bool)
+    for (x, y, w, h) in masks: keep[y:y + h, x:x + w] = False
+    Dk = D[keep]
+    r = {"step": st, "mean": round(float(Dk.mean()), 3), "gt16": round(float((Dk > 16).mean()), 4)}
+    if out_dir:
+        base = os.path.join(out_dir, "%02d" % i)
+        a.save(base + "-canvas.png"); b.save(base + "-dom.png")
+        Image.fromarray(np.where(keep, D, 0).clip(0, 255).astype(np.uint8)).save(base + "-diff.png")
+        r["files"] = base + "-{canvas,dom,diff}.png"
+    res.append(r)
+print(json.dumps(res))

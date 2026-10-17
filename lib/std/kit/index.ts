@@ -6,6 +6,7 @@
 export { Theme, LIGHT, DARK, theme, setTheme } from './theme';
 export { heading, leadText, bodyText, smallText, mutedText, captionText, overline } from './typography';
 export { Button, ButtonProps } from './button';
+export { Form, FormProps } from './form';
 export { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from './card';
 export { Badge } from './badge';
 export { Separator } from './separator';

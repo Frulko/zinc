@@ -19,6 +19,7 @@ import { PALETTE, SHADES } from './palette';
 import * as OS from './overscroller';   // Android's fling and stretch overscroll (ANDROID_SCROLL)
 import { UI_LAYOUT, UI_PRESET, HEAP_BYTES, TIER } from 'zinc:platform';
 import * as LY from 'zinc:__layout';
+import { DOM, commit as domCommit } from 'zinc:ui/dom';   // the semantic DOM of the web target (ui-dom.browser.ts); on every other target DOM is false
 const DEFAULT_TEXT: i32 = UI_PRESET === 'react-native' ? 14 : 16;   // the default text size: React Native's Text is 14 px (ZN-385)
 
 export const VIEW: i32 = 0, TEXT: i32 = 1, BUTTON: i32 = 2, IMAGE: i32 = 3, SCROLL: i32 = 4, CANVAS: i32 = 5, FRAGMENT: i32 = 6;
@@ -70,6 +71,7 @@ export class Handlers {
   leave: ((e: PointerEvent) => void) | null = null;
   key: ((e: KeyEvent) => void) | null = null;
   // gesture handlers and their arbitration (see "interaction" below)
+  submit: (() => void) | null = null;   // onSubmit: Enter in a single-line field below this node, or the browser's submit event of its <form>
   tap: ((e: PointerEvent) => void) | null = null;
   long: ((e: PointerEvent) => void) | null = null;
   drag: ((e: PointerEvent) => void) | null = null;
@@ -299,7 +301,8 @@ export class UiNode {
   keepFocus: boolean = false;   // pressing inside this subtree leaves the focus alone (virtual keyboards, toolbars)
   inputMode: i32 = 0;           // text fields: 0 text, 1 numeric, 2 decimal, 3 tel, 4 email, 5 url, 6 search
   virt: Virtual | null = null;
-  group: boolean = false;              // `group`: group-hover: group-focus: group-active: classes of its descendants follow it
+  domH: number = -1;                   // the page's own height of a virtual list's viewport (the DOM host measures it), -1 until it has
+  group: boolean = false;             // `group`: group-hover: group-focus: group-active: classes of its descendants follow it
   peer: boolean = false;               // `peer`: peer-hover: peer-focus: peer-active: classes of the siblings after it follow it
   attrK: string[] = NO_LINES; attrV: string[] = NO_LINES;   // aria-* and data-* attributes (setAttr): aria-checked: and data-[state=open]: variants read them
   selectable: boolean = false;         // select-text: the pointer selects its text (ZN-270)
@@ -328,8 +331,7 @@ export class UiNode {
   family: string = 'sans';
   lines: string[] = NO_LINES; lineW: number[] = NO_LINEW;   // shared empties until the text is laid out
   img: i32 = -1;
-  
-  
+  src: string = '';   // the asset name of an <Image> (the DOM host sets an <img> from it)
   focusable: boolean = false;
   styleKeys: string[] = NO_LINES; styleVals: number[] = NO_LINEW; styleIds: i32[] = NO_IDS;   // shared empties until the first style number
   sheets: Style[] = NO_SHEETS; sheetKeys: string[] = NO_LINES; sheetVals: number[] = NO_LINEW; sheetIds: i32[] = NO_IDS;   // shared empties until the first style sheet (they are replaced, never changed in place when empty)
@@ -638,9 +640,10 @@ function settleVirtuals(): void {
 }
 function syncVirtual(h: i32, n: UiNode): void {
   const v = n.virt as Virtual;
-  const over: i32 = 3;
+  const over: i32 = DOM ? 12 : 3;   // in the page the rows come a frame after the browser scrolled: a few more stay ready
+  const vh: number = DOM && n.domH >= 0 ? n.domH : n.lh;   // in the page the browser's viewport, which CSS may size otherwise than the layout under it
   let first: i32 = v.variable ? fwFind(v, n.sy - n.pt) - over : Math.floor(n.sy / v.itemH) - over;
-  let last: i32 = v.variable ? fwFind(v, n.sy + n.lh - n.pt) + over : Math.ceil((n.sy + n.lh) / v.itemH) + over;
+  let last: i32 = v.variable ? fwFind(v, n.sy + vh - n.pt) + over : Math.ceil((n.sy + vh) / v.itemH) + over;
   if (first < 0) first = 0;
   if (last > v.count - 1) last = v.count - 1;
   if (first === v.first && last === v.last) return;
@@ -670,7 +673,7 @@ export function createSurface(w: i32, h: i32): i32 {
 /** The runtime image behind a surface node (-1 when it could not be created). */
 export function surfaceImage(h: i32): i32 { return node(h).img; }
 export function setFocusable(h: i32, on: boolean): void { node(h).focusable = on; }
-export function setImage(h: i32, name: string): void { node(h).img = image(name); layoutDirty = true; }
+export function setImage(h: i32, name: string): void { node(h).img = image(name); node(h).src = name; layoutDirty = true; }
 
 // ---------------------------------------------------------------- event handlers and text fields (host ABI)
 function handlers(h: i32): Handlers {
@@ -3985,7 +3988,7 @@ function paintScrollbars(n: UiNode, x: number, y: number, k: number, a: number):
   }
 }
 function clampScroll(n: UiNode): void {
-  if (n.live) return;   // rubber band in progress: stepScroll brings it back
+  if (n.live || DOM) return;   // rubber band in progress: stepScroll brings it back; in the page the browser knows the limits (its scroller holds the content as it is, not as the layout under it computed it)
   const maxY = Math.max(0, n.contentH - n.lh), maxX = Math.max(0, n.contentW - n.lw);
   if (n.sy > maxY) { n.sy = maxY; n.vy = 0; }
   if (n.sy < 0) { n.sy = 0; n.vy = 0; }
@@ -5352,6 +5355,7 @@ function dispatchKey(key: string, mods: i32, repeat: boolean): KeyEvent {
   }
   if (!ev.handled && key === 'Escape' && overlays.length > 0 && dismissTop()) ev.handled = true;
   if (!ev.handled && keymap.length > 0 && (mods & (CTRL | META)) !== 0) ev.handled = runKeymap(key, mods);
+  if (!ev.handled && key === 'Enter' && focus >= 0 && nodes[focus].ed !== null && !(nodes[focus].ed as Edit).multi) submitFrom(focus);   // Enter in a field submits its form (the field still commits its value below)
   if (!ev.handled && ev.primary && key === 'c' && !(focus >= 0 && nodes[focus].ed !== null) && tsSelected().length > 0) { setClipboardText(tsSelected()); ev.handled = true; }
   let byApp = ev.handled;
   if (!ev.handled && focus >= 0 && nodes[focus].ed !== null) ev.handled = editKey(focus, nodes[focus], nodes[focus].ed as Edit, ev);
@@ -5503,11 +5507,14 @@ export function frame(dt: number, background: i32): void {
   paintDirty = false; scrollDirty = false; extPaint = false;
   if (background >= 0) clear(background);
   if (dimNode >= 0) stepPress();
-  paint(root, 0, 0, 1, 1);
-  if (layers.length > 0) paintLayers();
-  if (natives.length > 0) syncNatives();
-  if (a11yOn) syncA11y();
-  if (touchSel >= 0) paintTouchSelection();
+  if (DOM) domCommit();   // the page's elements are the picture: the DOM host patches them from the tree (targets/web/dom.js)
+  else {
+    paint(root, 0, 0, 1, 1);
+    if (layers.length > 0) paintLayers();
+    if (natives.length > 0) syncNatives();
+    if (a11yOn) syncA11y();
+    if (touchSel >= 0) paintTouchSelection();
+  }
   lastCommands = commandCount();
   if (highlight >= 0 && nodes[highlight].alive) {
     const n = nodes[highlight];
@@ -6517,5 +6524,111 @@ function applyAnchors(): void {
     boxOf(a.float);
     const dx = x - (boxX - n.tx * boxK), dy = y - (boxY - n.ty * boxK);
     if (dx !== 0 || dy !== 0) { place(n, n.x + dx / boxK, n.y + dy / boxK, n.lw, n.lh); paintDirty = true; hoverDirty = true; }
+  }
+}
+
+// ---------------------------------------------------------------- the DOM host (docs/targets/web.md, "The semantic DOM")
+// With `--render dom` the web page is the picture: targets/web/dom.js patches real elements from this tree (frame() calls domCommit instead of
+// paint), the browser lays them out and scrolls them, and its events come back through the functions below. They cost nothing on other targets.
+/** Enter in a field, or the browser's submit of a <form>: the nearest onSubmit at or above h runs. Returns whether one did. */
+export function submitFrom(h: i32): boolean {
+  for (let p = h; p >= 0; p = nodes[p].parent) {
+    const s = nodes[p].hs;
+    if (s !== null && (s as Handlers).submit !== null) { const f = (s as Handlers).submit; if (f !== null) f(); paintDirty = true; return true; }
+  }
+  return false;
+}
+/** onSubmit: runs when Enter is pressed in a single-line field inside h (a <form> in the browser: its submit event, after the page's own validation). */
+export function onSubmit(h: i32, f: () => void): void { handlers(h).submit = f; }
+/** The layers on screen, bottom first, four numbers each: node, modal (0 or 1), backdrop colour (-1 none), backdrop alpha. */
+export function domLayers(): number[] {
+  const out: number[] = [];
+  for (const l of layers) if (shownNow(l.node)) { out.push(l.node); out.push(l.modal ? 1 : 0); out.push(l.backdrop); out.push(l.alpha); }
+  return out;
+}
+/** The rows a virtual list has built and the room above and below them, [first, last, top, bottom], from the scroller's content box: spacers stand for the rest. */
+export function domVirtual(h: i32): number[] {
+  const n = node(h);
+  if (n.virt === null) return [0, -1, 0, 0];
+  const v = n.virt as Virtual;
+  const above = v.variable ? fwPrefix(v, v.first) : v.first * v.itemH;
+  const total = v.variable ? fwPrefix(v, v.count) : v.count * v.itemH;
+  const upTo = v.variable ? fwPrefix(v, v.last + 1) : (v.last + 1) * v.itemH;
+  return [v.first, v.last, above, Math.max(0, total - upTo)];
+}
+/** The row nodes of a virtual list in order of their index. */
+export function domRows(h: i32): number[] {
+  const n = node(h), out: number[] = [];
+  if (n.virt === null) return out;
+  const v = n.virt as Virtual;
+  for (let i = v.first; i <= v.last; i++) if (v.rows.has(i)) out.push(v.rows.get(i) as i32);
+  return out;
+}
+/** The browser edited a field: the new text and selection. Fires onInput (every edit), as typing does. */
+export function domEdit(h: i32, value: string, a: i32, b: i32): void {
+  const e = editOf(h);
+  e.compA = -1; e.compB = -1;
+  const same = e.value === value;
+  e.value = value; e.anchor = clampI(a, 0, value.length); e.caret = clampI(b, 0, value.length);
+  if (!same) edited(e);
+}
+/** The selection of a field moved in the browser. */
+export function domSelect(h: i32, a: i32, b: i32): void { const e = editOf(h); e.anchor = clampI(a, 0, e.value.length); e.caret = clampI(b, 0, e.value.length); }
+/** A field lost the focus in the browser, or a change event came: onChange for what was edited. */
+export function domChanged(h: i32): void { const e = nodes[h].ed; if (e !== null) commit(e as Edit); }
+/** The browser moved the focus to h (-1: out); `keyboard` is true when a key (Tab) moved it, so focus-visible: styles show. */
+export function domFocus(h: i32, keyboard: boolean): void { keyboardFocus = keyboard; setFocusTo(h); }
+/** The browser scrolled the container h: its offsets, as zinc:ui keeps them (onScroll listeners, virtual lists). */
+export function domScroll(h: i32, x: number, y: number): void {
+  const n = node(h);
+  if (n.sx === x && n.sy === y) return;
+  n.sx = x; n.sy = y; n.vx = 0; n.vy = 0; n.scrolledAt = clock;
+  scrolled(n);
+}
+/** The browser measured the viewport of a virtual list (its clientHeight): the rows to build follow it, not the height the layout under the page computed. */
+export function domViewport(h: i32, hgt: number): void { const n = node(h); if (n.domH !== hgt) { n.domH = hgt; layoutDirty = true; } }
+/** A key the browser did not claim: the focused node's onKeyDown, the keymap and the global onKey handlers, not the text editing nor the focus walk (the page does those). Returns whether the program took it. */
+export function domKey(key: string, mods: i32, repeat: boolean): boolean {
+  const ev = new KeyEvent(key, mods, repeat);
+  for (let p = focus; p >= 0; p = nodes[p].parent) {
+    const s = nodes[p].hs;
+    if (s !== null && (s as Handlers).key !== null) { const f = (s as Handlers).key; if (f !== null) f(ev); break; }
+  }
+  if (!ev.handled && keymap.length > 0) ev.handled = runKeymap(key, mods);
+  for (const f of keyHandlers) { if (ev.handled) break; f(ev); }
+  paintDirty = true;
+  return ev.handled;
+}
+/** Whether the program listens to keys at all (a global onKey, a keymap, the focused node's onKeyDown): the page forwards nothing otherwise. */
+export function domKeys(): boolean {
+  if (keyHandlers.length > 0 || keymap.length > 0) return true;
+  for (let p = focus; p >= 0; p = nodes[p].parent) { const s = nodes[p].hs; if (s !== null && (s as Handlers).key !== null) return true; }
+  return false;
+}
+/** Escape or the browser's cancel of a dialog: closes h through its onDismiss, or the top overlay. */
+export function domDismiss(h: i32): boolean {
+  for (const o of overlays) if (o.node === h && o.dismiss !== null) { const f = o.dismiss; if (f !== null) f(); paintDirty = true; return true; }
+  return overlays.length > 0 && dismissTop();
+}
+/** The opacity a pressed node dims to (the default press feedback; the page applies it with :active). */
+export function domPressOpacity(): number { return PRESS_OPACITY; }
+/** A node's paint-state styles (hover:, focus:, active:, disabled: and the variants), or null: the page writes them as pseudo-class rules. */
+export function domStates(h: i32): StateOverlay | null { return nodes[h].ov; }
+/** The page changed the size of something the layout reads (the viewport): lay out again. */
+export function domRelayout(): void { layoutDirty = true; }
+/** The attribute conditions ("aria-checked=true") the variants of this program use: slot i is the paint state 10 + i of a node's overlay. */
+export function domAttrSlots(): string[] { return attrSlots; }
+/** The colour text has when no ancestor sets one (white; black with the React Native preset). */
+export function domDefaultFg(): i32 { return RN_STYLE ? 0x000000 : 0xffffff; }
+/** A press landed on node t (-1: nothing of the tree): the popovers and dialogs that asked (onOutsidePointer) hear it when it is outside them. */
+export function domOutside(t: i32, gx: number, gy: number, button: i32): void {
+  if (overlays.length > 0 || restoreTo >= 0) flushOverlays();
+  for (const o of overlays.slice()) {
+    const f = o.outside;
+    if (f === null || !o.shown || (t >= 0 && isAncestor(o.node, t)) || (o.except >= 0 && t >= 0 && isAncestor(o.except, t))) continue;
+    const e = new PointerEvent();
+    e.gx = gx; e.gy = gy; e.x = gx; e.y = gy; e.button = button; e.mods = 0;
+    f(e);
+    paintDirty = true;
   }
 }

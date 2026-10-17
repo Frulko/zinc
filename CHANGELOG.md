@@ -21,8 +21,12 @@ How to add a line: see "Changelog" in `AGENTS.md`.
   program that ends with nothing drawn or with an error keeps its last lines on screen until START instead of a black screen.
 - `zinc export --target web` makes a Zinc app a normal web page: a static folder (hashed JavaScript and assets, an offline cache, an installable manifest, `.br` and `.gz` copies, `_headers`) that any host
   serves, with no server, no WebAssembly for ordinary apps and no special headers. The app's TypeScript runs on the browser's own JavaScript engine. `--render canvas` (the default) draws on a canvas;
-  `--render dom` makes real HTML elements, so text is selectable, searchable and read by screen readers. `zinc.json` `targets.web` sets the title, icon, colours, the render mode and the browsers to support.
-  See `docs/targets/web.md`.
+  `--render dom` makes a real web page: semantic HTML (nav, main, headings, lists, links, buttons, a real `<form>` with real inputs), CSS classes and the browser's own layout, scrolling,
+  Tab order, focus rings, text input, selection and form submission, with the accessibility tree built from it. `zinc.json` `targets.web` sets the title, icon, colours, the render mode and the browsers
+  to support. See `docs/targets/web.md`.
+- `<Form onSubmit>` (zinc:ui/kit and React Native): fields submitted as one. In the page it is a real `<form>`: Enter submits it after the browser checks `required`, `pattern` and `minLength`, and
+  password managers and autofill see it; elsewhere it routes Enter in a text field to `onSubmit`. Inputs take `name`, `type`, `autoComplete`, `required`, `pattern`, `minLength`, `enterKeyHint`.
+- Semantic hints for the page: `as="nav"`, `as="h1"`, `as="ul"`, `href` and `role` on any View or Text choose the HTML element (see "Semantic hints" in `docs/ui.md`); other targets ignore them.
 - `zinc dev --target web` serves the app with hot reload: saving a component swaps it in place and keeps the state of everything you did not touch (a module that exports state reloads the page), and a
   compile error shows over the page until the next good save.
 - The web export tells you what a browser cannot run: `--check` and the export itself warn (W0601, W0602, W0603; `zinc explain W0601`) about plugins and features missing in the browsers of

@@ -92,7 +92,6 @@ function measureSurface() {
 measureSurface();
 const canvas = dom ? null : document.createElement('canvas');
 let ctx = null;
-const stageEl = dom ? document.createElement('div') : null;
 if (canvas) {
   canvas.id = 'zinc-canvas';
   canvas.setAttribute('role', 'img');
@@ -186,8 +185,9 @@ let target = null;                // an image being drawn into (beginImage), els
 const targets = [];
 let kept = false;
 const stage = { k: 1 };
+let drawScale = 0;   // the device pixel ratio of the canvas a Canvas node of the semantic DOM draws into (0: the page's)
 function applyTransform() {
-  const c = ctx, k = target ? 1 : dpr();
+  const c = ctx, k = target ? 1 : drawScale || dpr();
   c.setTransform(k, 0, 0, k, 0, 0);
   if (xf) c.transform(xf[0], xf[1], xf[2], xf[3], xf[4], xf[5]);
   if (tx || ty) c.translate(tx, ty);
@@ -354,10 +354,36 @@ const canvasPainter = {
   resize() {},
 };
 let B = canvasPainter;
+// What a Canvas node of the semantic DOM draws goes through the canvas painter into a <canvas> of its own: the DOM host switches the rows to it while the node draws.
+function drawInto(cv, k, cb) {
+  const prevCtx = ctx, prevScale = drawScale;
+  ctx = cv.getContext('2d'); drawScale = k; tx = 0; ty = 0; xf = null; targets.length = 0; target = null; kept = false;
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height);
+  try { cb(); } finally { ctx = prevCtx; drawScale = prevScale; }
+}
+const imageUrls = [], imageDataUrls = new Map();   // id -> the asset's url / a data: url of a runtime image
+function assetUrl(name) {
+  const n = normName(name);
+  for (const a of CFG.assets || []) if (a.name === n || a.name === 'assets/' + n || a.name === name) return a.url;
+  return '';
+}
+Z.imageSize = (id) => (images[id] ? [images[id].w, images[id].h] : [0, 0]);
+Z.imageUrl = (id) => {
+  if (imageUrls[id]) return imageUrls[id];
+  const im = images[id];
+  if (!im) return '';
+  const hit = imageDataUrls.get(id);
+  if (hit && hit.rev === (im.rev || 0)) return hit.url;
+  let url = '';
+  try { url = im.canvas.toDataURL('image/png'); } catch { /* a tainted canvas */ }
+  imageDataUrls.set(id, { rev: im.rev || 0, url });
+  return url;
+};
 if (dom) {
   const mod = await import(CFG.domModule || './dom.js');
-  B = mod.makeDomPainter({ root, stageEl, fonts, images, hex6, rgba, W: () => W, H: () => H, paintStyle, detect: () => FEATURES, title: CFG.title, canvasPainter, xform: () => ({ tx, ty, xf }) });
-  canvasPainter.hasDom = true;
+  const host = mod.makeDomHost({ root, CFG, Z, fonts, images, hex6, canvasPainter, drawInto, assetUrl, dpr });
+  B = host.painter;
+  G.__zincDom = host;   // zinc:ui/dom (lib/std/ui-dom.browser.ts) finds the host here: its frames are committed as elements
 }
 Z.paint = { svg: (...a) => B.svg(...a) };   // for the browser backends of plugins that draw (plugins/svg/web)
 Z.invalidate = () => { /* the page asks for another frame (images that finished loading): nothing to do, frames always run */ };
@@ -385,6 +411,7 @@ function pointerEvent(e, down) {
   }
 }
 function installInput() {
+  if (dom) { installSystem(); return; }   // the page's own events reach the nodes through the DOM host
   const opt = { passive: false };
   el.addEventListener('pointerdown', (e) => {
     pointerEvent(e, true);
@@ -435,10 +462,39 @@ function installInput() {
   });
   addEventListener('copy', () => {}); addEventListener('cut', () => {});
   addEventListener('blur', () => { input.keys.push({ kind: 1, name: 'Shift', mods: 0 }); });
+  installSystem();
+}
+// what the system says: foreground and background, the light or dark theme and, for the semantic DOM, the viewport (safe areas, on-screen keyboard, text size, motion)
+function installSystem() {
   document.addEventListener('visibilitychange', () => input.signals.push(document.hidden ? 'background' : 'foreground'));
   const mq = matchMedia('(prefers-color-scheme: dark)');
   input.signals.push('theme ' + (mq.matches ? 'dark' : 'light'));
   mq.addEventListener && mq.addEventListener('change', (e) => input.signals.push('theme ' + (e.matches ? 'dark' : 'light')));
+  if (!dom) return;
+  const rm = matchMedia('(prefers-reduced-motion: reduce)');
+  input.signals.push('reducemotion ' + (rm.matches ? '1' : '0'));
+  rm.addEventListener && rm.addEventListener('change', (e) => input.signals.push('reducemotion ' + (e.matches ? '1' : '0')));
+  // safe areas: env() read through a probe element, sent when they change (a rotation, a notch)
+  const probe = document.createElement('div');
+  probe.setAttribute('aria-hidden', 'true');
+  probe.style.cssText = 'position:fixed;visibility:hidden;pointer-events:none;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)';
+  document.body.appendChild(probe);
+  let lastSafe = '', lastKb = -1, lastScale = 1;
+  const view = () => {
+    const cs = getComputedStyle(probe);
+    const safe = [cs.paddingTop, cs.paddingRight, cs.paddingBottom, cs.paddingLeft].map((v) => parseFloat(v) || 0).join(' ');
+    if (safe !== lastSafe) { lastSafe = safe; input.signals.push('safearea ' + safe); }
+    const vv = G.visualViewport;
+    const kb = vv ? Math.max(0, Math.round(innerHeight - vv.height - vv.offsetTop)) : 0;   // the on-screen keyboard covers the bottom of the layout viewport
+    const k = kb > 80 ? kb : 0;
+    if (k !== lastKb) { lastKb = k; input.signals.push('keyboard ' + k); }
+    const fs = (parseFloat(getComputedStyle(document.documentElement).fontSize) || 16) / 16;   // the browser's text size setting (and zoom of text only)
+    if (Math.abs(fs - lastScale) > 0.001) { lastScale = fs; input.signals.push('fontscale ' + fs); }
+  };
+  view();
+  addEventListener('resize', view);
+  addEventListener('orientationchange', () => setTimeout(view, 100));
+  if (G.visualViewport) { G.visualViewport.addEventListener('resize', view); G.visualViewport.addEventListener('scroll', view); }
 }
 // the text field: a real <textarea> under the app's own field while it edits, so IME, dead keys and the soft keyboard work
 let textField = null;
@@ -565,9 +621,9 @@ const rows = {
   gfxKeyCount: () => frameKeys.length, gfxKeyKind: (i) => (frameKeys[i] ? frameKeys[i].kind : -1), gfxKeyMods: (i) => (frameKeys[i] ? frameKeys[i].mods : 0), gfxKeyName: (i) => (frameKeys[i] ? frameKeys[i].name : ''),
   gfxButtonEventCount: () => frameBtn.length, gfxButtonEventX: (i) => (frameBtn[i] ? frameBtn[i].x : 0), gfxButtonEventY: (i) => (frameBtn[i] ? frameBtn[i].y : 0),
   gfxButtonEventButton: (i) => (frameBtn[i] ? frameBtn[i].button : 0), gfxButtonEventDown: (i) => !!(frameBtn[i] && frameBtn[i].down),
-  gfxStartTextInput: startTextInput, gfxStopTextInput: stopTextInput,
+  gfxStartTextInput: dom ? () => {} : startTextInput, gfxStopTextInput: dom ? () => {} : stopTextInput,
   gfxClipboardText: () => input.clip, gfxSetClipboardText: (s) => { input.clip = s; if (FEATURES.clipboard) navigator.clipboard.writeText(s).catch(() => {}); },
-  gfxSetCursor: (c) => { input.cursor = c; (canvas || root).style.cursor = CURSORS[c] || 'default'; },
+  gfxSetCursor: (c) => { input.cursor = c; if (!dom) canvas.style.cursor = CURSORS[c] || 'default'; },
   gfxEscapeByApp: () => {}, gfxEscapeDefault: () => {},
   gfxSignalCount: () => frameSignals.length, gfxSignalNext: () => frameSignals.shift() || '',
   gfxOpenWindow: () => -1, gfxCloseWindow: () => {}, gfxWindowOpen: (i) => (i === 0 ? 1 : 0), gfxBeginWindow: () => {}, gfxEndWindow: () => {},
@@ -671,6 +727,7 @@ function frame(now) {
   framePen = input.pen.splice(0);
   while (input.signals.length) frameSignals.push(input.signals.shift());
   G.__zincFrames = (G.__zincFrames || 0) + 1;
+  G.__zincFrameNo = G.__zincFrames;   // zinc:gfx frame(): zinc:ui steps its clock, animations and steppers once per frame number
   const cb = G.__zincFrameCb;
   if (typeof cb === 'function') {
     const t0 = performance.now();
@@ -702,6 +759,7 @@ async function preload() {
         const k = a.scale || 1, id = newImage(Math.round(bm.width / k), Math.round(bm.height / k));
         const im = images[id]; im.canvas.width = bm.width; im.canvas.height = bm.height; im.k = k; im.canvas.getContext('2d').drawImage(bm, 0, 0);
         imageNames.set(a.name, id); if (a.name.startsWith('assets/')) imageNames.set(a.name.slice(7), id);
+        imageUrls[id] = a.url;
       } catch (e) { console.warn('zinc: cannot decode ' + a.name, e); }
     }
     if (a.font) {

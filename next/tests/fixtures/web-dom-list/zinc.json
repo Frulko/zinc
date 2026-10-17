@@ -1,0 +1,5 @@
+{
+  "name": "web-dom-list",
+  "entry": "src/main.tsx",
+  "targets": { "web": { "render": "dom", "title": "Semantic DOM list fixture" } }
+}

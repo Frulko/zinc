@@ -302,6 +302,7 @@ export type TextInputProps = {
   value?: string; defaultValue?: string; onChangeText?: (text: string) => void; onSubmitEditing?: () => void; placeholder?: string;
   keyboardType?: string; secureTextEntry?: boolean; multiline?: boolean; editable?: boolean; maxLength?: number; autoFocus?: boolean;
   autoCapitalize?: string; autoCorrect?: boolean; returnKeyType?: string; textContentType?: string; autoComplete?: string;
+  name?: string; required?: boolean; pattern?: string; minLength?: number; enterKeyHint?: string;   // the page's form attributes (web target); ignored elsewhere
   style?: ui.Style; testID?: string; accessibilityLabel?: string;
 };
 /** The keyboard traits a phone's OS gets for the field (zinc:ui setInputTraits): capitalisation, autocorrect, the return key, the autofill hint. */
@@ -337,8 +338,16 @@ export function TextInput(p: TextInputProps): i32 {
     if (p.autoFocus === true) ui.focusNode(field.current);
   }, null);
   if (p.multiline === true)
-    return <TextArea ref={field} style={[bare, p.style ?? NONE, flags]} value={text} placeholder={p.placeholder ?? ''} onInput={typed} aria-label={p.accessibilityLabel ?? ''} />;
-  return <Input ref={field} style={[bare, p.style ?? NONE, flags]} value={text} placeholder={p.placeholder ?? ''} onInput={typed} onKeyDown={key} aria-label={p.accessibilityLabel ?? ''} />;
+    return <TextArea ref={field} style={[bare, p.style ?? NONE, flags]} value={text} placeholder={p.placeholder ?? ''} onInput={typed} aria-label={p.accessibilityLabel ?? ''}
+      name={p.name ?? ''} required={p.required === true} minLength={p.minLength ?? 0} />;
+  return <Input ref={field} style={[bare, p.style ?? NONE, flags]} value={text} placeholder={p.placeholder ?? ''} onInput={typed} onKeyDown={key} aria-label={p.accessibilityLabel ?? ''}
+    name={p.name ?? ''} required={p.required === true} pattern={p.pattern ?? ''} minLength={p.minLength ?? 0} enterKeyHint={p.enterKeyHint ?? ''} />;
+}
+export type FormProps = { onSubmit?: () => void; name?: string; style?: ui.Style; children?: () => i32 };
+/** A group of fields submitted as one: a real <form> in the page (web target: Enter submits it, the browser validates `required`, `pattern` and `minLength` of its TextInputs,
+ *  password managers and autofill see it), and on a desktop or a phone a View that routes Enter in a single-line TextInput to `onSubmit`. */
+export function Form(p: FormProps): i32 {
+  return <View as="form" role="form" name={p.name ?? ''} style={p.style ?? NONE} onSubmit={() => { const f = p.onSubmit; if (f !== undefined) f(); }}>{renderChildren(p.children)}</View>;
 }
 
 export class KeyboardCoordinates { screenX: number = 0; screenY: number = 0; width: number = 0; height: number = 0; }

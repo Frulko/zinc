@@ -1,0 +1,187 @@
+#!/usr/bin/env python3
+"""The semantic DOM of the web target in headless Chrome (docs/targets/web.md "The semantic DOM"; tests/t1/web_dom.sh).
+usage: web-dom-test <dir of an export of tests/fixtures/web-dom made with --render dom> [<dir of tests/fixtures/web-dom-list>]
+Checks what the page is: its elements (header, nav, main, headings, links, a list, a form with real inputs), how few inline styles it has, the accessibility tree Chrome builds from
+it, that the browser does the keyboard (Tab order, Enter submits the form, Page Down scrolls), the viewport (a resize is laid out before zinc:ui looks at it), the dialog and
+its Escape, and that an update keeps the elements, the focus and the caret. Prints one JSON line {"checks": [[name, ok, detail]...]} and exits 1 when one failed.
+Exit 77 (skip) without Chrome. Chrome only: Firefox and Safari are not tested here."""
+import functools, http.server, json, os, sys, threading, time
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from cdp import Chrome, find_chrome
+
+if len(sys.argv) < 2: sys.exit(__doc__)
+if not find_chrome():
+    print("SKIP no Chrome"); sys.exit(77)
+root = sys.argv[1]
+list_root = sys.argv[2] if len(sys.argv) > 2 else ""
+
+class Quiet(http.server.SimpleHTTPRequestHandler):
+    extensions_map = dict(http.server.SimpleHTTPRequestHandler.extensions_map, **{".js": "text/javascript", ".wasm": "application/wasm"})
+    def log_message(self, *a): pass
+    def end_headers(self): self.send_header("Cache-Control", "no-store"); super().end_headers()
+class Srv(http.server.ThreadingHTTPServer):
+    def handle_error(self, *a): pass
+srv = Srv(("127.0.0.1", 0), functools.partial(Quiet, directory=root))
+threading.Thread(target=srv.serve_forever, daemon=True).start()
+lsrv = None
+if list_root:
+    lsrv = Srv(("127.0.0.1", 0), functools.partial(Quiet, directory=list_root))
+    threading.Thread(target=lsrv.serve_forever, daemon=True).start()
+
+checks = []
+def check(name, ok, detail=""):
+    checks.append([name, bool(ok), "" if ok else str(detail)[:300]])
+
+W, H = 1000, 700
+with Chrome(["--window-size=%d,%d" % (W, H), "--enable-unsafe-swiftshader"]) as c:
+    c.call("Emulation.setDeviceMetricsOverride", {"width": W, "height": H, "deviceScaleFactor": 1, "mobile": False})
+    c.open("http://127.0.0.1:%d/" % srv.server_address[1])
+    def pump(s):
+        t0 = time.time()
+        while time.time() - t0 < s: c._recv(-1, 0.1)
+    def ev(js): return c.eval(js)
+    def key(k, text=None, code=None, vk=None, mods=0):
+        p = {"type": "keyDown", "key": k, "modifiers": mods}
+        if text: p["text"] = text
+        if code: p["code"] = code
+        if vk: p["windowsVirtualKeyCode"] = vk; p["nativeVirtualKeyCode"] = vk
+        c.call("Input.dispatchKeyEvent", p)
+        c.call("Input.dispatchKeyEvent", dict(p, type="keyUp", text=None) if text else dict(p, type="keyUp"))
+        pump(0.15)
+    def type_text(s):
+        c.call("Input.insertText", {"text": s}); pump(0.15)
+    def click_el(js_sel):
+        r = ev("(() => { const e = %s; if (!e) return null; const b = e.getBoundingClientRect(); return [b.x + b.width / 2, b.y + b.height / 2]; })()" % js_sel)
+        if not r: return False
+        for ty in ("mouseMoved", "mousePressed", "mouseReleased"):
+            c.call("Input.dispatchMouseEvent", {"type": ty, "x": r[0], "y": r[1], "button": "left", "buttons": 1 if ty == "mousePressed" else 0, "clickCount": 1}); pump(0.12)
+        return True
+    pump(1.5)
+    app = "document.getElementById('zinc-root')"
+
+    # ---- structure
+    tags = json.loads(ev("JSON.stringify((() => { const h = {}; for (const e of %s.querySelectorAll('*')) h[e.tagName.toLowerCase()] = (h[e.tagName.toLowerCase()] || 0) + 1; return h; })())" % app))
+    for t in ("header", "nav", "main", "h1", "h2", "ul", "li", "a", "form", "input", "textarea", "button", "canvas"):
+        check("element <%s>" % t, tags.get(t, 0) > 0, tags)
+    check("no <dialog> while closed is open", ev("document.querySelectorAll('dialog[open]').length") == 0)
+    check("headings are real", ev("document.querySelector('h1').textContent") == "DOM fixture")
+    check("links are real", ev("document.querySelector('nav a').getAttribute('href')") == "#form")
+    check("nav has its name", ev("document.querySelector('nav').getAttribute('aria-label')") == "Main")
+    check("the list is a ul of li", ev("[...document.querySelectorAll('ul > li')].length") >= 3)
+    check("inputs are real", ev("[...document.querySelectorAll('form input')].map(e => e.type + ':' + e.name).join()") == "text:name,email:email,password:password", ev("[...document.querySelectorAll('form input')].map(e => e.type + ':' + e.name).join()"))
+    check("autocomplete reaches the input", ev("document.querySelector('input[name=email]').autocomplete") == "email")
+    check("required reaches the input", ev("document.querySelector('input[name=name]').required"))
+    check("a submit button", ev("document.querySelector('form button[type=submit]') !== null"))
+    check("no inline style beyond a budget", ev("%s.querySelectorAll('[style]').length" % app) <= 6, ev("%s.querySelectorAll('[style]').length" % app))
+    pos = ev("[...%s.querySelectorAll('*')].filter(e => getComputedStyle(e).position === 'absolute' && !e.classList.contains('zdb')).length" % app)
+    check("no absolute positioning in a flex app", pos == 0, pos)
+    check("a stylesheet of classes", ev("document.getElementById('zinc-css').sheet.cssRules.length") > 20)
+
+    # ---- the accessibility tree Chrome builds from it
+    c.call("Accessibility.enable")
+    nodes = c.call("Accessibility.getFullAXTree").get("nodes", [])
+    names = {}
+    for n in nodes:
+        role = (n.get("role") or {}).get("value", ""); nm = (n.get("name") or {}).get("value", "")
+        names.setdefault(role, []).append(nm)
+    check("a11y: a heading named", "DOM fixture" in names.get("heading", []), names.get("heading"))
+    check("a11y: a navigation named", "Main" in names.get("navigation", []), names.get("navigation"))
+    check("a11y: links named", "Form" in names.get("link", []), names.get("link"))
+    check("a11y: textboxes named", {"Name", "Email"} <= set(names.get("textbox", [])), names.get("textbox"))
+    check("a11y: buttons named", {"Send", "Add one"} <= set(names.get("button", [])), names.get("button"))
+    check("a11y: a main landmark", "main" in names or "Content" in names.get("main", []), list(names))
+
+    # ---- keyboard: Tab order, typing, Enter submits the form, the focus and the caret survive the updates
+    mark = ev("(() => { for (const e of %s.querySelectorAll('*')) e.__mark = 1; return %s.querySelectorAll('*').length; })()" % (app, app))
+    ev("document.querySelector('input[name=name]').focus()"); pump(0.2)
+    type_text("Ada")
+    check("typing: the value is the browser's", ev("document.querySelector('input[name=name]').value") == "Ada")
+    check("typing: the focus stayed on the field", ev("document.activeElement.name") == "name", ev("document.activeElement.tagName"))
+    check("typing: the caret is after the text", ev("document.activeElement.selectionStart") == 3)
+    key("ArrowLeft", code="ArrowLeft", vk=37); key("ArrowLeft", code="ArrowLeft", vk=37)
+    type_text("X")
+    check("typing: the caret kept its place through the update", ev("document.querySelector('input[name=name]').value") == "AXda" and ev("document.activeElement.selectionStart") == 2, ev("document.querySelector('input[name=name]').value + ':' + document.activeElement.selectionStart"))
+    key("Tab", code="Tab", vk=9)
+    check("Tab moves to the next field", ev("document.activeElement.name") == "email", ev("document.activeElement.name"))
+    type_text("ada@example.org")
+    key("Enter", code="Enter", vk=13, text="\r")
+    pump(0.4)
+    check("Enter submits the form (the browser validated it)", "sent AXda|ada@example.org|0" in (ev("document.body.innerText") or ""), ev("document.body.innerText")[:200])
+    check("untouched elements were not remounted", ev("[...%s.querySelectorAll('*')].filter(e => e.__mark !== 1).length" % app) == 0, ev("[...%s.querySelectorAll('*')].filter(e => e.__mark !== 1).length" % app))
+    # a required empty field stops the submit
+    ev("(() => { for (const n of ['name', 'email']) { const e = document.querySelector('input[name=' + n + ']'); e.focus(); e.select(); } })()")
+    ev("document.querySelector('input[name=email]').focus(); document.execCommand('selectAll'); document.execCommand('delete')"); pump(0.3)
+    key("Enter", code="Enter", vk=13, text="\r"); pump(0.4)
+    check("an invalid form is not submitted", ev("document.querySelector('input[name=email]').validity.valid") is False)
+
+    # ---- the list updates in place
+    before = ev("document.querySelector('ul > li').__mark")
+    click_el("[...document.querySelectorAll('button')].find(b => b.textContent === 'Add item')"); pump(0.4)
+    check("a list update appends one li and keeps the others", ev("document.querySelectorAll('ul > li').length") == 4 and ev("document.querySelector('ul > li').__mark") == before, ev("document.querySelectorAll('ul > li').length"))
+    n0 = ev("document.body.innerText.match(/Count: (\\d+)/)[1]")
+    click_el("[...document.querySelectorAll('button')].find(b => b.textContent === 'Add one')"); pump(0.3)
+    check("a click reaches onClick", ev("document.body.innerText.match(/Count: (\\d+)/)[1]") == str(int(n0) + 1))
+
+    # ---- scrolling: the browser's
+    ev("(() => { const m = document.querySelector('main'); m.focus(); m.scrollTop = 0; })()"); pump(0.3)
+    key("PageDown", code="PageDown", vk=34); pump(0.5)
+    st = ev("document.querySelector('main').scrollTop")
+    check("Page Down scrolls the scroller (the browser does it)", st > 100, st)
+    check("main is the scroller, native overflow", ev("getComputedStyle(document.querySelector('main')).overflowY") == "auto")
+    zst = ev("(() => { const z = window.__zincDom.ui(); for (let h = 0; h < 400; h++) { const n = z.inspectNode(h); if (n && n.scroll && n.contentH > 0) return z.scrollTop(h); } return -1; })()")
+    check("zinc:ui knows the offset the browser scrolled to", abs(zst - st) < 2, [zst, st])
+
+    # ---- viewport: the browser lays out before zinc:ui looks
+    ev("window.__rw = []; addEventListener('resize', () => window.__rw.push(Math.round(document.querySelector('main').getBoundingClientRect().width)))")
+    c.call("Emulation.setDeviceMetricsOverride", {"width": 600, "height": 500, "deviceScaleFactor": 1, "mobile": False}); pump(0.5)
+    rw = ev("window.__rw")
+    check("a resize is laid out by the browser at the resize event", rw and rw[0] == 600, rw)
+    check("the app follows (height)", abs(ev("document.querySelector('main').getBoundingClientRect().bottom") - 500) < 2, ev("document.querySelector('main').getBoundingClientRect().bottom"))
+    check("the viewport meta", ev("document.querySelector('meta[name=viewport]').content").startswith("width=device-width"))
+    check("lang is set", ev("document.documentElement.lang") != "")
+    c.call("Emulation.setDeviceMetricsOverride", {"width": W, "height": H, "deviceScaleFactor": 1, "mobile": False}); pump(0.4)
+
+    # ---- the dialog: a real <dialog>, Escape closes it
+    ev("document.querySelector('main').scrollTop = 0"); pump(0.3)
+    click_el("[...document.querySelectorAll('button')].find(b => b.textContent === 'Open dialog')"); pump(0.5)
+    check("a modal layer is a <dialog> that is open", ev("document.querySelectorAll('dialog[open]').length") == 1, ev("document.querySelectorAll('dialog').length"))
+    check("the dialog has its content", "Dialog body" in (ev("(document.querySelector('dialog[open]') || {}).innerText") or ""))
+    key("Escape", code="Escape", vk=27); pump(0.5)
+    check("Escape closes the dialog", ev("document.querySelectorAll('dialog[open]').length") == 0)
+
+    # ---- Canvas: a real canvas, drawn
+    px = ev("(() => { const cv = document.querySelector('canvas'); if (!cv) return -1; const g = cv.getContext('2d'); const d = g.getImageData(0, 0, cv.width, cv.height).data; let n = 0; for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 0) n++; return n; })()")
+    check("a Canvas node is a drawn <canvas>", px > 100, px)
+
+    # ---- a list of 10 000 rows: the rows in view are elements, spacers stand for the rest, the scroller is the browser's
+    if lsrv:
+        c.call("Emulation.setFocusEmulationEnabled", {"enabled": True})
+        c.open("http://127.0.0.1:%d/" % lsrv.server_address[1])
+        c.call("Page.bringToFront")
+        for _ in range(40):
+            pump(0.25)
+            if ev("!!document.querySelector('main > div') && document.querySelectorAll('li').length > 0"): break
+        lst = "document.querySelector('main > div')"
+        n = ev("document.querySelectorAll('li').length")
+        if n == 0: print("list page:", ev("document.body.innerText.slice(0, 200)"), c.console[-5:], file=sys.stderr)
+        check("a virtual list builds only the rows in view", 5 <= n <= 80, n)
+        check("the page stays small with 1 200 boxes and 10 000 rows", ev("document.getElementById('zinc-root').getElementsByTagName('*').length") < 1700, ev("document.getElementById('zinc-root').getElementsByTagName('*').length"))
+        sh = ev("%s ? %s.scrollHeight : -1" % (lst, lst))
+        check("the scroller is as tall as 10 000 rows", sh is not None and abs(sh - 320000) < 40, [sh, ev("location.href"), ev("document.title")])
+        ev("%s.scrollTop = 160000" % lst); pump(0.8)
+        top = ev("(() => { const r = [...document.querySelectorAll('li')].map(e => e.querySelector('span').textContent); return r[0] + '..' + r[r.length - 1]; })()")
+        check("scrolling the scroller builds the rows there", ev("[...document.querySelectorAll('li')].some(e => e.textContent.includes('Row number 5000'))"), top)
+        pos = ev("(() => { const e = [...document.querySelectorAll('li')].find(e => e.textContent.includes('Row number 5000')); const l = %s.getBoundingClientRect(); return e ? Math.round(e.getBoundingClientRect().top - l.top) : null; })()" % lst)
+        check("the row is where 5000 rows of 32 px put it", pos is not None and abs(pos) <= 32, pos)
+        ev("%s.focus()" % lst); key("End", code="End", vk=35); pump(3.0)   # (a long keyboard scroll is animated)
+        check("End scrolls to the last row", ev("[...document.querySelectorAll('li')].some(e => e.textContent.includes('Row number 9999'))"), ev("%s.scrollTop" % lst))
+        wd = ev("[...document.querySelectorAll('nav div')].filter(e => e.style.getPropertyValue('--width')).length")
+        check("an animated width is a custom property of the element", wd >= 10, wd)
+        sty = ev("document.getElementById('zinc-root').querySelectorAll('[style]').length")
+        check("inline styles are only the animated ones and the spacers", sty <= 40, sty)
+
+    out = {"checks": checks, "errors": [m[:200] for m in c.console if m.startswith("EXCEPTION") or m.startswith("error ")][:5]}
+srv.shutdown()
+print(json.dumps(out))
+bad = [x for x in checks if not x[1]]
+sys.exit(1 if bad or out["errors"] else 0)

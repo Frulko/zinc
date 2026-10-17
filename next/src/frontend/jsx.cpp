@@ -27,6 +27,10 @@ const std::map<std::string, std::string>& kLowerTags = jsxLowercaseTags();
 const std::set<std::string> kNumAttrs = {"width", "height", "grow", "gap", "bg", "color", "scale", "hidden", "x", "y", "opacity", "translateX", "translateY", "rows", "tabIndex", "dragThreshold", "numberOfLines"};
 const std::map<std::string, int> kPointerAttrs = {{"onPointerDown", 0}, {"onPointerMove", 1}, {"onPointerUp", 2}, {"onDoubleClick", 3}, {"onContextMenu", 4}, {"onWheel", 5}, {"onPointerEnter", 6},
                                                   {"onPointerLeave", 7}, {"onTap", 8}, {"onLongPress", 9}, {"onDrag", 10}, {"onPinch", 11}, {"onPointerCancel", 12}};
+// Hints for the page (web target, `--render dom`; docs/ui.md "Semantic hints"): kept as attributes of the node (setAttr), read by the DOM host to pick the tag and fill the
+// attributes of a real element. Other targets ignore them. htmlFor is written `for` in HTML.
+const std::set<std::string> kWebAttrs = {"as", "href", "target", "rel", "download", "name", "htmlFor", "autoComplete", "required", "pattern", "minLength", "maxLength", "min", "max", "step",
+                                         "enterKeyHint", "title", "alt", "lang", "dir", "method", "action", "autoCapitalize", "spellCheck", "autoCorrect", "multiple", "accept", "form", "autoFocus"};
 const std::set<std::string> kFlagAttrs = {"password", "readOnly", "lineNumbers", "wrap", "keepFocus", "disabled"};
 const std::map<std::string, int> kInputModes = {{"text", 0}, {"numeric", 1}, {"decimal", 2}, {"tel", 3}, {"email", 4}, {"url", 5}, {"search", 6}};
 const std::map<std::string, int> kDragAxes = {{"x", 1}, {"y", 2}, {"both", 3}};
@@ -956,6 +960,15 @@ struct Lowering {
         else push(react ? "_str(" + v + ", " + key + ", String(" + expr + "));" : "_dynStr(" + v + ", " + key + ", () => String(" + expr + "));");
       }
       else if (name == "onDraw") push("_draw(" + v + ", " + expr + ");");
+      else if (name == "onSubmit") push("_submit(" + v + ", " + expr + ");");
+      else if (name == "accessibilityRole") push("_str(" + v + ", 'role', " + (lit ? quote(a.lit) : expr) + ");");
+      else if (name == "accessibilityLabel") push(lit ? "_str(" + v + ", 'label', " + quote(a.lit) + ");" : react ? "_str(" + v + ", 'label', " + expr + ");" : "_dynStr(" + v + ", 'label', () => (" + expr + "));");
+      else if (kWebAttrs.count(name) || (name == "type" && !(lit && (a.lit == "password" || a.lit == "text")))) {   // a hint for the page
+        const std::string key = quote("attr:" + (name == "htmlFor" ? std::string("for") : name));
+        if (a.kind == 0) push("_str(" + v + ", " + key + ", 'true');");
+        else if (lit) push("_str(" + v + ", " + key + ", " + quote(a.lit) + ");");
+        else push(react ? "_str(" + v + ", " + key + ", String(" + expr + "));" : "_dynStr(" + v + ", " + key + ", () => String(" + expr + "));");
+      }
       else if (kPointerAttrs.count(name)) push("_ptr(" + v + ", " + num(kPointerAttrs.at(name)) + ", " + expr + ");");
       else if (name == "onKeyDown") push("_key(" + v + ", " + expr + ");");
       else if (name == "dragAxis" && lit && kDragAxes.count(a.lit)) push("_num(" + v + ", 'dragAxis', " + num(kDragAxes.at(a.lit)) + ");");
@@ -1397,6 +1410,7 @@ std::string lowerJsx(std::string_view src, std::vector<Diag>& diags, std::uint32
                                   : std::string("_dynStyles, _el, _text, _textOf, _dynTextOf, _append, _class, _on, _draw, _num, _dynText, _dynClass, _dynNum, _show, _for, _img, _dynImg, _ref, _focusable, _virtual, _dynStr, ") + input;
     if (out.find("_spread(") != std::string::npos) helpers += ", _spread";   // only when used: not every JSX library has them
     if (out.find("_scroll(") != std::string::npos) helpers += ", _scroll";
+    if (out.find("_submit(") != std::string::npos) helpers += ", _submit";
     if (out.find("_flat(") != std::string::npos) helpers += ", _flat";
     if (out.find("_comp(") != std::string::npos) helpers += ", _comp, _u";
     if (out.find("_hotC(") != std::string::npos) helpers += ", _hotC";
