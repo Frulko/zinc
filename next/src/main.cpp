@@ -2390,6 +2390,34 @@ int main(int argc, char** argv) {
     std::fputs(zn::zbc::disassemble(zm).c_str(), stdout);
     return 0;
   }
+  if (argc == 4 && !std::strcmp(argv[1], "--emit=hot")) {  // zinc --emit=hot <entry> <out> [--profile p]: the program for a player (zinc dev --lan, Zinc Go, ZN-631)
+    setenv("ZINC_HOT", "1", 1);   // hot mode: the keys and init functions a player's Fast Refresh swaps by
+    zn::dev::hot::Unit u;
+    const std::string entry = std::filesystem::absolute(argv[2]).string();
+    gHotUnit = &u;
+    const int rc = compileToZbc(entry.c_str(), u.zbc);
+    gHotUnit = nullptr;
+    if (rc) return rc;
+    zn::dev::hot::finish(u);
+#ifdef ZN_HOST_GFX
+    std::string err;
+    if (drawsOf(u.zbc) && !bakeResources(entry.c_str(), u.resources, err)) { std::fprintf(stderr, "%s\n", err.c_str()); return 1; }
+#endif
+    {   // the plugin of each native module, which a player that lacks it names
+      std::vector<std::string> problems, seen;
+      const auto found = zn::frontend::discoverPlugins(gRoot + "/..", gProjectDir, problems);
+      for (const auto& nt : u.zbc.natives) {
+        if (std::find(seen.begin(), seen.end(), nt.module) != seen.end()) continue;
+        seen.push_back(nt.module);
+        const zn::frontend::FoundPlugin* fp = zn::tc::pluginForModule(found, nt.module);
+        u.plugins.push_back(nt.module + " " + (fp ? fp->manifest.name : nt.module));
+      }
+    }
+    const auto bytes = zn::dev::hot::save(u);
+    std::ofstream out(argv[3], std::ios::binary);
+    out.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+    return out && !bytes.empty() ? 0 : 2;
+  }
   if (argc == 4 && !std::strcmp(argv[1], "--emit=zbc-bin")) {  // zinc --emit=zbc-bin <file> <out.zbc>
     if (const char* t = std::getenv("ZINC_DEVICE_TARGET")) { gDeviceCore = true; gBuildTarget = t; }   // as `run --target esp32` compiles (zinc export --target esp32)
     zn::zbc::Module zm;

@@ -35,12 +35,28 @@ struct Unit {
   std::vector<Mod> modules;   // in initialisation order
   std::string hotPath;        // zinc:hot's module path
   std::vector<std::uint8_t> resources;   // the baked fonts and images
+  std::vector<std::string> plugins;      // per native module of the ZBC (zbc.natives, by module): "<module> <plugin>", for a player that lacks it
 };
 
 // From a hot compile, before emit: the keys of the IR's functions, classes and globals, and the modules.
 void describe(const frontend::Program& prog, const ir::Module& low, Unit& u);
 // After emit: the keys of the builtin classes the ZBC appended (strings, arrays, Map, Set), by their element types.
 void finish(Unit& u);
+
+// The runtime half (hot_swap.cpp, no compiler: a player links it, src/app/player.cpp):
+// The module path as zinc dev's user reads it: relative to the working directory when under it.
+std::string shown(const std::string& path);
+// The index of `key` in `keys`, UINT32_MAX when it is not there.
+std::uint32_t keyIndex(const std::vector<std::string>& keys, const std::string& key);
+// React Native's rules over the two compiles: the modules to run again (in order) and those whose text changed; empty, or why only a restart can
+// take the new code.
+std::string plan(const Unit& old, const Unit& neu, std::vector<std::string>& reeval, std::vector<std::string>& changed);
+// With the machine's stack empty: moves the program running on `m` from the code of `old` onto that of `neu` (the live objects by key, the
+// globals that stay), runs the inits of `reeval` again: empty, or why it failed. Past its first step the old program cannot go on.
+std::string swap(rt::Machine& m, const Unit& old, Unit& neu, const std::vector<std::string>& reeval, const std::vector<std::string>& changed);
+// The unit as bytes for another machine (zinc dev --lan to Zinc Go), and back; load verifies the ZBC.
+std::vector<std::uint8_t> save(const Unit& u);
+bool load(const std::uint8_t* p, std::size_t n, Unit& u, std::string& err);
 
 // Compiles the program again: true with `u` filled (finish() done), or false with the diagnostics in `errors`.
 using Compile = std::function<bool(Unit& u, std::string& errors)>;

@@ -20,7 +20,15 @@
 #ifndef _WIN32   // serial ports (zinc monitor --port) and the dev and hot sockets of zinc dev: POSIX only for now (docs/reports/zinc-windows-port.md)
 #include <sys/wait.h>
 #include <termios.h>
+#include <arpa/inet.h>   // zinc dev --lan (ZN-631)
+#include <ifaddrs.h>
+#include <net/if.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
+#include <sys/socket.h>
+#include <random>
 #endif
+#include "qrcodegen.h"
 
 #include "platform/platform.h"
 #include "platform/socket.h"
@@ -2726,21 +2734,255 @@ std::string inspectEntry(const std::string& dir, const std::string& entry) {
   return (devDir / "main.ts").string();
 }
 
+// ---- zinc dev --lan (ZN-631): the project for Zinc Go players on the network, as `expo start` serves Expo Go
+#ifndef _WIN32
+namespace {
+
+// The first IPv4 address of an interface that is up and not the loopback, en0 (a Mac's Wi-Fi) first; 127.0.0.1 without one
+std::string lanAddress() {
+  ifaddrs* all = nullptr;
+  std::string best = "127.0.0.1";
+  if (getifaddrs(&all) != 0) return best;
+  int rank = 0;
+  for (ifaddrs* i = all; i; i = i->ifa_next) {
+    if (!i->ifa_addr || i->ifa_addr->sa_family != AF_INET || !(i->ifa_flags & IFF_UP) || (i->ifa_flags & IFF_LOOPBACK)) continue;
+    char b[INET_ADDRSTRLEN];
+    inet_ntop(AF_INET, &reinterpret_cast<sockaddr_in*>(i->ifa_addr)->sin_addr, b, sizeof b);
+    const int r = std::strcmp(i->ifa_name, "en0") == 0 ? 3 : std::strncmp(i->ifa_name, "en", 2) == 0 || std::strncmp(i->ifa_name, "wl", 2) == 0 || std::strncmp(i->ifa_name, "eth", 3) == 0 ? 2 : 1;
+    if (r > rank) { rank = r; best = b; }
+  }
+  freeifaddrs(all);
+  return best;
+}
+
+// `text` as a QR code for the terminal: two modules per character with half blocks, black on white whatever the terminal's colours, the quiet zone
+// of the standard (4 modules) around it
+std::string qrTerminal(const std::string& text) {
+  std::vector<std::uint8_t> qr(qrcodegen_BUFFER_LEN_MAX), tmp(qrcodegen_BUFFER_LEN_MAX);
+  if (!qrcodegen_encodeText(text.c_str(), tmp.data(), qr.data(), qrcodegen_Ecc_LOW, qrcodegen_VERSION_MIN, qrcodegen_VERSION_MAX, qrcodegen_Mask_AUTO, true)) return "";
+  const int size = qrcodegen_getSize(qr.data()), q0 = 4;
+  auto dark = [&](int x, int y) { return x >= 0 && y >= 0 && x < size && y < size && qrcodegen_getModule(qr.data(), x, y); };
+  std::string out;
+  for (int y = -q0; y < size + q0; y += 2) {
+    out += "  \x1b[30;47m";
+    for (int x = -q0; x < size + q0; ++x) {
+      const bool top = dark(x, y), bottom = y + 1 < size + q0 && dark(x, y + 1);
+      out += top && bottom ? "█" : top ? "▀" : bottom ? "▄" : " ";
+    }
+    out += "\x1b[0m\n";
+  }
+  return out;
+}
+
+struct Player {
+  int fd = -1;
+  std::string in, profile, device;
+  bool hello = false;
+  int version = 0;
+};
+
+bool sendAll(int fd, const std::string& s) {
+  for (std::size_t at = 0; at < s.size();) {
+    const long n = zn::plat::sockWrite(fd, s.data() + at, s.size() - at);
+    if (n < 0 && errno == EINTR) continue;
+    if (n <= 0) return false;
+    at += static_cast<std::size_t>(n);
+  }
+  return true;
+}
+
+// The project compiled in hot mode for a player's profile (zinc --emit=hot): the unit's bytes, or false with the diagnostics
+bool hotUnit(const ProjectInfo& p, const std::string& profile, const fs::path& devDir, std::string& bytes, std::vector<std::string>& errors) {
+  const fs::path out = devDir / ("player-" + profile + ".unit"), log = devDir / ("player-" + profile + ".txt");
+  const std::string cmd = "cd " + q(p.dir) + " && " + q(self()) + " --emit=hot " + q(fs::absolute(p.entry).string()) + " " + q(out.string()) + " --profile " + q(profile) + " > " + q(log.string()) + " 2>&1";
+  const int rc = status(std::system(cmd.c_str()));
+  errors.clear();
+  if (rc != 0) {
+    std::istringstream is(readAll(log));
+    std::error_code ec;
+    const std::string here = fs::weakly_canonical(p.dir, ec).string() + "/";
+    for (std::string line; std::getline(is, line);)
+      if (!line.empty() && line.rfind("  ", 0) != 0) errors.push_back(line.rfind(here, 0) == 0 ? line.substr(here.size()) : line);   // not zinc's indented steps
+    if (errors.empty()) errors.push_back("the build failed");
+    return false;
+  }
+  bytes = readAll(out);
+  return !bytes.empty();
+}
+
+int devLan(const ProjectInfo& p, const fs::path& devDir, int port) {
+  const int lfd = ::socket(AF_INET, SOCK_STREAM, 0);
+  const int one = 1;
+  setsockopt(lfd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one);
+  sockaddr_in a{};
+  a.sin_family = AF_INET;
+  a.sin_addr.s_addr = htonl(INADDR_ANY);
+  int bound = 0;
+  for (int k = 0; k < 20 && !bound; ++k) {   // the next free port when this one is taken (another zinc dev)
+    a.sin_port = htons(static_cast<std::uint16_t>(port + k));
+    if (::bind(lfd, reinterpret_cast<sockaddr*>(&a), sizeof a) == 0) bound = port + k;
+  }
+  if (!bound || ::listen(lfd, 8) != 0) { std::fprintf(stderr, "zinc dev: cannot listen on port %d: %s\n", port, std::strerror(errno)); return 1; }
+  fcntl(lfd, F_SETFD, FD_CLOEXEC);
+  std::string token;   // in the link: a phone on the same network without it gets nothing (a school's Wi-Fi)
+  {
+    std::random_device rd;
+    static const char hex[] = "0123456789abcdef";
+    for (int k = 0; k < 8; ++k) token += hex[rd() & 15];
+  }
+  const std::string host = lanAddress(), url = "zinc://" + host + ":" + std::to_string(bound) + "/" + token;
+  std::fprintf(stderr, "\n%s\n  Scan it with Zinc Go, or open %s\n  Android emulator: adb shell am start -a android.intent.action.VIEW -d zinc://10.0.2.2:%d/%s\n"
+               "  iOS simulator:    xcrun simctl openurl booted zinc://127.0.0.1:%d/%s\n\n",
+               qrTerminal(url).c_str(), url.c_str(), bound, token.c_str(), bound, token.c_str());
+  std::fflush(stderr);
+  std::vector<Player> players;
+  std::map<std::string, std::string> units;   // profile -> the bytes of the last unit that compiled
+  Stamps seen = snapshot(p.dir);
+  Clock::time_point saved = Clock::now();
+  std::string savedNames;
+  auto drop = [&](Player& pl, const char* why) {
+    if (pl.hello) std::fprintf(stderr, "zinc dev: %s %s\n", pl.device.c_str(), why);
+    zn::plat::sockClose(pl.fd);
+    pl.fd = -1;
+  };
+  auto sendUnit = [&](Player& pl, bool compile) {
+    std::vector<std::string> errors;
+    std::string& bytes = units[pl.profile];
+    if (compile || bytes.empty()) {
+      std::string fresh;
+      if (!hotUnit(p, pl.profile, devDir, fresh, errors)) {
+        std::string text;
+        for (const std::string& e : errors) text += e + "\n";
+        std::fprintf(stderr, "zinc dev: compile error: %s\n", errors[0].c_str());
+        if (!sendAll(pl.fd, "error " + std::to_string(text.size()) + "\n" + text)) drop(pl, "is gone");
+        return;
+      }
+      bytes = fresh;
+    }
+    if (!sendAll(pl.fd, "unit " + std::to_string(bytes.size()) + "\n" + bytes)) drop(pl, "is gone");
+  };
+  while (!gStop) {
+    std::vector<pollfd> fds{{lfd, POLLIN, 0}};
+    for (const Player& pl : players) fds.push_back({pl.fd, POLLIN, 0});
+    zn::plat::sockPoll(fds.data(), static_cast<unsigned>(fds.size()), 40);
+    if (fds[0].revents & POLLIN) {
+      const int c = ::accept(lfd, nullptr, nullptr);
+      if (c >= 0) {
+        fcntl(c, F_SETFD, FD_CLOEXEC);
+        setsockopt(c, IPPROTO_TCP, TCP_NODELAY, &one, sizeof one);
+        const timeval wait{5, 0};   // a player that stopped reading costs a save 5 s, then it is dropped
+        setsockopt(c, SOL_SOCKET, SO_SNDTIMEO, &wait, sizeof wait);
+#ifdef SO_NOSIGPIPE
+        setsockopt(c, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof one);
+#endif
+        Player pl;
+        pl.fd = c;
+        players.push_back(pl);
+      }
+    }
+    for (Player& pl : players) {   // what the players said: whole lines, and the blobs of `log`
+      char b[16384];
+      const char* gone = nullptr;   // the lines that came before the end are read first
+      for (long n; pl.fd >= 0;) {
+        n = zn::plat::sockReadNow(pl.fd, b, sizeof b);
+        if (n == 0) { gone = "left"; break; }
+        if (n < 0) { if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) gone = "is gone"; break; }
+        pl.in.append(b, static_cast<std::size_t>(n));
+      }
+      for (std::size_t nl; pl.fd >= 0 && (nl = pl.in.find('\n')) != std::string::npos;) {
+        const std::string line = pl.in.substr(0, nl);
+        if (line.rfind("log ", 0) == 0) {   // a console line of the program
+          const std::size_t n = std::strtoull(line.c_str() + 4, nullptr, 10);
+          if (pl.in.size() < nl + 1 + n) break;
+          std::fprintf(stderr, "  %s | %s\n", pl.device.c_str(), pl.in.substr(nl + 1, n).c_str());
+          pl.in.erase(0, nl + 1 + n);
+          continue;
+        }
+        pl.in.erase(0, nl + 1);
+        std::istringstream ws(line);
+        std::string verb;
+        ws >> verb;
+        if (!pl.hello) {
+          std::string ver, tok;
+          ws >> ver >> tok >> pl.profile;
+          std::getline(ws >> std::ws, pl.device);
+          if (verb != "zinc-go" || ver != "1") { sendAll(pl.fd, "no this Zinc Go speaks another protocol than this zinc dev (update one of them)\n"); drop(pl, "speaks another protocol"); break; }
+          if (tok != token) { sendAll(pl.fd, "no wrong code: scan the QR code zinc dev prints again\n"); drop(pl, "had a wrong code"); break; }
+          if (!zn::frontend::findProfile(pl.profile)) { sendAll(pl.fd, "no unknown profile " + pl.profile + "\n"); drop(pl, "has an unknown profile"); break; }
+          if (pl.device.empty()) pl.device = pl.profile;
+          pl.hello = true;
+          std::fprintf(stderr, "zinc dev: %s connected (profile %s)\n", pl.device.c_str(), pl.profile.c_str());
+          saved = Clock::now();
+          savedNames.clear();
+          sendUnit(pl, false);
+          continue;
+        }
+        std::string rest;
+        std::getline(ws >> std::ws, rest);
+        if (verb == "ok") {
+          std::istringstream rs(rest);
+          long ms = 0;
+          rs >> ms;
+          std::fprintf(stderr, "zinc dev: v%d refreshed %s on %s (%ld ms after the save, %ld ms on the device)\n", pl.version, savedNames.c_str(), pl.device.c_str(), msSince(saved), ms);
+        } else if (verb == "started") std::fprintf(stderr, "zinc dev: v%d started on %s (%ld ms after the %s)\n", ++pl.version, pl.device.c_str(), msSince(saved), savedNames.empty() ? "connection" : "save");
+        else if (verb == "restart") std::fprintf(stderr, "zinc dev: restart on %s: %s\n", pl.device.c_str(), rest.c_str());
+        else if (verb == "missing") std::fprintf(stderr, "zinc dev: %s has no plugin '%s': this program cannot run in this Zinc Go (a player exported with the plugin can)\n", pl.device.c_str(), rest.c_str());
+        else if (verb == "ended") std::fprintf(stderr, "zinc dev: the program ended on %s (%s)\n", pl.device.c_str(), rest.c_str());
+        else if (verb == "reload") { saved = Clock::now(); savedNames.clear(); sendUnit(pl, true); }
+      }
+      if (gone && pl.fd >= 0) drop(pl, gone);
+    }
+    players.erase(std::remove_if(players.begin(), players.end(), [](const Player& pl) { return pl.fd < 0; }), players.end());
+    std::fflush(stderr);
+    Stamps now = snapshot(p.dir);
+    if (now == seen) continue;
+    saved = Clock::now();
+    std::this_thread::sleep_for(std::chrono::milliseconds(30));   // an editor writes a file in several steps: take the settled state
+    now = snapshot(p.dir);
+    std::string why;
+    savedNames = savedFiles(p.dir, seen, now, why);
+    seen = now;
+    units.clear();
+    for (Player& pl : players) if (pl.hello) sendUnit(pl, units.find(pl.profile) == units.end());   // one compile per profile
+  }
+  for (Player& pl : players) zn::plat::sockClose(pl.fd);
+  zn::plat::sockClose(lfd);
+  return 0;
+}
+
+}  // namespace
+#endif
+
 int dev(const std::vector<std::string>& args, const DevRemote* remote) {
   setenv("ZINC_RUN", "interp", 1);   // the restarts interpret: a save restarts in 0.2 s, a compiled run would rebuild (ZN-398)
   std::vector<std::string> own, rest;
-  bool noTools = false;
+  bool noTools = false, lan = false;   // --lan: the project for Zinc Go on the network (ZN-631), no desktop window
+  int lanPort = 8090;
   for (std::size_t i = 0; i < args.size(); ++i) {
     if (args[i] == "--") { rest.assign(args.begin() + i, args.end()); break; }
-    if (args[i] == "--no-devtools") noTools = true; else own.push_back(args[i]);
+    if (args[i] == "--no-devtools") noTools = true;
+    else if (args[i] == "--lan") lan = true;
+    else if (args[i] == "--port" && i + 1 < args.size()) lanPort = std::atoi(args[++i].c_str());
+    else own.push_back(args[i]);
   }
   Opts o = parseOpts(own, {}, {});
-  if (o.bad) { std::fprintf(stderr, "zinc dev: unknown option %s\nusage: zinc dev [entry|dir] [--device name] [--no-devtools] [-- args]\n", o.badArg.c_str()); return 2; }
+  if (o.bad) { std::fprintf(stderr, "zinc dev: unknown option %s\nusage: zinc dev [entry|dir] [--device name] [--lan [--port n]] [--no-devtools] [-- args]\n", o.badArg.c_str()); return 2; }
   ProjectInfo p; std::string err;
   if (!resolveProject(o.entry, p, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 2; }
   const fs::path devDir = fs::path(p.dir) / "build" / ".zinc-dev";
   std::error_code ec;
   fs::create_directories(devDir, ec);
+  if (lan) {
+#ifdef _WIN32
+    std::fprintf(stderr, "zinc dev: --lan is not on Windows yet\n");
+    return 2;
+#else
+    std::signal(SIGINT, onSignal);
+    std::signal(SIGTERM, onSignal);
+    std::signal(SIGPIPE, SIG_IGN);
+    return devLan(p, devDir, lanPort);
+#endif
+  }
   // the inspector: the same program with `import 'zinc:devtools'` in front; on a device it is reached through zinc device forward
   const std::string runEntry = !remote && !noTools ? inspectEntry(p.dir, p.entry) : p.entry;
   const bool tools = runEntry != p.entry;
