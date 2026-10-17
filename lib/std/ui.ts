@@ -1710,19 +1710,122 @@ export function setRole(h: i32, role: string): void { node(h).role = role; }
 export function setLabel(h: i32, label: string): void { node(h).label = label; }
 export function setAriaHidden(h: i32, on: boolean): void { node(h).ariaHidden = on; }
 const ROLE_OF_TAG: string[] = ['', 'text', 'button', 'img', 'scrollarea', '', '', 'textbox', 'textbox'];
-/** The accessibility tree as text, one node per line indented by depth: `role "label" (hidden) (disabled)`. Plain boxes without role or label do not show; aria-hidden subtrees are listed once and skipped. */
-export function inspect(): string { return root >= 0 ? inspectFrom(root, 0) : ''; }
+/** A node's role: its own, its tag's, or 'button' for a plain box that takes clicks (a Pressable). */
+function a11yRole(n: UiNode): string { return n.role !== '' ? n.role : ROLE_OF_TAG[n.tag] !== '' ? ROLE_OF_TAG[n.tag] : n.onClick !== null ? 'button' : ''; }
+/** The layers a screen reader sees above the tree: from the last modal one (a dialog hides what is under it), -1 the tree too. */
+function a11yFirstLayer(): i32 {
+  for (let i = layers.length - 1; i >= 0; i--) if ((layers[i].modal || layers[i].backdrop >= 0) && shownNow(layers[i].node)) return i;
+  return -1;
+}
+/** The accessibility tree as text, one node per line indented by depth: `role "label" (hidden) (disabled)`. Plain boxes without role or label do not show; aria-hidden subtrees are listed once and skipped. Open layers (dialogs, menus, toasts) follow the tree; a modal one hides what is under it. */
+export function inspect(): string {
+  if (root < 0) return '';
+  const first = a11yFirstLayer();
+  let out = first < 0 ? inspectFrom(root, 0) : '';
+  for (let i = imax(0, first); i < layers.length; i++) if (shownNow(layers[i].node)) out += inspectFrom(layers[i].node, 0);
+  return out;
+}
 function inspectFrom(h: i32, depth: i32): string {   // a function of the module: the prototype's C++ backend has no closure that calls itself
   const n = nodes[h];
   if (!n.alive) return '';
-  const role = n.role !== '' ? n.role : ROLE_OF_TAG[n.tag];
+  const role = a11yRole(n);
   const label = n.label !== '' ? n.label : n.tag === TEXT ? n.text : n.ed !== null ? (n.ed as Edit).value : '';
   const hidden = n.ariaHidden || n.hidden;
   const shown = role !== '' || n.label !== '' || n.ariaHidden;
   let out = shown ? '  '.repeat(depth) + (role === '' ? 'node' : role) + (label !== '' ? ' "' + label + '"' : '') + (hidden ? ' (hidden)' : '') + (n.hs !== null && (n.hs as Handlers).disabled ? ' (disabled)' : '') + '\n' : '';
   if (hidden) return out;
-  for (const c of n.children) out += inspectFrom(c, shown ? depth + 1 : depth);
+  for (const c of n.children) if (!nodes[c].layer) out += inspectFrom(c, shown ? depth + 1 : depth);   // a layer is listed after the tree
   return out;
+}
+// ---- the screen reader bridges (ZN-630, docs/reports/zinc-next-a11y-bridges.md): while the host says a screen reader (or another accessibility
+// client) listens (signal `a11y 1`), the nodes inspect() lists, less the hidden ones, go to it after each painted frame through zinc:sys
+// device('a11y', lines), only what changed, as native views are told: `n ID PARENT FLAGS X Y W H\tROLE\tLABEL\tVALUE\tHINT` a node new or changed
+// (box on the surface, cut by the scroll areas around it), `d ID` a node gone, `o ID ID...` the reading order when it changed. iOS mirrors them as
+// UIAccessibilityElements, Android through an AccessibilityNodeProvider. Back: `a11yactivate ID` presses the node, `a11yfocus ID` (the reader's
+// cursor) scrolls it into view, `a11yscroll ID 1|-1` scrolls a scroll area by a page; listeners of addSignalListener see them. Nothing runs while
+// no reader listens.
+const A11Y_DISABLED: i32 = 1, A11Y_CLICK: i32 = 2, A11Y_CHECKABLE: i32 = 4, A11Y_CHECKED: i32 = 8, A11Y_EDIT: i32 = 16, A11Y_SELECTED: i32 = 32,
+  A11Y_OFFSCREEN: i32 = 64, A11Y_FOCUSED: i32 = 128, A11Y_SCROLL: i32 = 256;
+const inspectAt: i32 = env('ZINC_INSPECT') === '' ? -1 : parseInt(env('ZINC_INSPECT'));   // ZINC_INSPECT=N prints inspect() at frame N (screen reader checks)
+let a11yOn = false, a11yGen: i32 = 0, a11yOrder = '', a11yOut = '', a11ySyncs: i32 = 0;
+let a11yNums: number[] = [], a11yStrs: string[] = [], a11yMarks: i32[] = [], a11yIds: i32[] = [], a11yNow: i32[] = [];   // per node: parent flags x y w h, role label value hint
+/** A screen reader listens: the bridge sends the whole tree on the next frame, then its changes. */
+function setA11y(on: boolean): void {
+  if (on === a11yOn) return;
+  a11yOn = on; a11yNums = []; a11yStrs = []; a11yMarks = []; a11yIds = []; a11yOrder = '';
+}
+/** Whether the host's screen reader bridge runs, and how many updates it was sent (tests, the cost). */
+export function a11yActive(): boolean { return a11yOn; }
+export function a11yUpdates(): i32 { return a11ySyncs; }
+function a11yText(s: string): string { return s.indexOf('\t') < 0 && s.indexOf('\n') < 0 ? s : s.split('\t').join(' ').split('\n').join(' '); }
+function a11yWalk(h: i32, parent: i32, x0: number, y0: number, x1: number, y1: number): void {
+  const n = nodes[h];
+  if (!n.alive || n.hidden || n.ariaHidden) return;
+  const role = a11yRole(n), clips = n.overflow || n.scroll !== 0;
+  let me = parent;
+  if (role !== '' || n.label !== '' || clips) boxOf(h);
+  const bx: number = boxX, by: number = boxY, bw: number = n.lw * boxK, bh: number = n.lh * boxK;
+  if (role !== '' || n.label !== '') {
+    const e = n.ed;
+    let f: i32 = 0;
+    if (isDisabled(h)) f |= A11Y_DISABLED;
+    if (n.onClick !== null) f |= A11Y_CLICK;
+    const ck = attrOf(n, 'aria-checked');
+    if (ck !== '' || role === 'switch' || role === 'checkbox' || role === 'radio') f |= A11Y_CHECKABLE;
+    if (ck === 'true' || ck === '1') f |= A11Y_CHECKED;
+    if (attrOf(n, 'aria-selected') === 'true') f |= A11Y_SELECTED;
+    if (e !== null && !(e as Edit).readOnly) f |= A11Y_EDIT;
+    if (focus === h) f |= A11Y_FOCUSED;
+    if (n.scroll !== 0 && (n.contentH > n.lh + 0.5 || n.contentW > n.lw + 0.5)) f |= A11Y_SCROLL;
+    const cx0: number = Math.max(x0, bx), cy0: number = Math.max(y0, by), cw: number = Math.min(x1, bx + bw) - cx0, ch: number = Math.min(y1, by + bh) - cy0;
+    if (!(cw > 0 && ch > 0)) f |= A11Y_OFFSCREEN;
+    const label = n.label !== '' ? n.label : n.tag === TEXT ? n.text : '';
+    let value = attrOf(n, 'aria-valuetext'), hint = '';
+    if (value === '') value = attrOf(n, 'aria-valuenow');
+    if (e !== null) { const ee = e as Edit; value = ee.value; hint = ee.placeholder; }
+    const off = (f & A11Y_OFFSCREEN) !== 0;   // off screen: no box (it would change with every scrolled pixel); the reader's cursor scrolls it in
+    const x: number = off ? 0 : Math.round(cx0), y: number = off ? 0 : Math.round(cy0), w: number = off ? 0 : Math.round(cw), hh: number = off ? 0 : Math.round(ch);
+    while (a11yMarks.length <= h) { a11yMarks.push(-1); for (let i = 0; i < 6; i++) a11yNums.push(-1); for (let i = 0; i < 4; i++) a11yStrs.push('\u0000'); }
+    a11yNow.push(h); a11yMarks[h] = a11yGen;
+    const k = h * 6, q = h * 4, v = a11yNums, t = a11yStrs;   // what was sent last: compared before a line is built (most nodes do not change)
+    if (v[k] !== parent || v[k + 1] !== f || v[k + 2] !== x || v[k + 3] !== y || v[k + 4] !== w || v[k + 5] !== hh || t[q] !== role || t[q + 1] !== label || t[q + 2] !== value || t[q + 3] !== hint) {
+      v[k] = parent; v[k + 1] = f; v[k + 2] = x; v[k + 3] = y; v[k + 4] = w; v[k + 5] = hh; t[q] = role; t[q + 1] = label; t[q + 2] = value; t[q + 3] = hint;
+      const shownValue = e !== null && (e as Edit).password ? '*'.repeat(value.length) : value;
+      a11yOut += 'n ' + h + ' ' + parent + ' ' + f + ' ' + x + ' ' + y + ' ' + w + ' ' + hh + '\t' + role + '\t' + a11yText(label) + '\t' + a11yText(shownValue) + '\t' + a11yText(hint) + '\n';
+    }
+    me = h;
+  }
+  if (clips) { x0 = Math.max(x0, bx); y0 = Math.max(y0, by); x1 = Math.min(x1, bx + bw); y1 = Math.min(y1, by + bh); }
+  for (const c of n.children) if (!nodes[c].layer) a11yWalk(c, me, x0, y0, x1, y1);
+}
+/** ponytail: the tree is walked on every painted frame while a reader listens (no dirty bits; a line is built only for a node that changed);
+ *  a dirty mark per subtree when a large list makes the walk cost. */
+function syncA11y(): void {
+  a11yGen++; a11yOut = ''; a11yNow = [];
+  const first = a11yFirstLayer(), W: number = width(), H: number = height();
+  if (first < 0) a11yWalk(root, -1, 0, 0, W, H);
+  for (let i = imax(0, first); i < layers.length; i++) if (shownNow(layers[i].node)) a11yWalk(layers[i].node, -1, 0, 0, W, H);
+  for (const h of a11yIds) if (a11yMarks[h] !== a11yGen) { a11yOut += 'd ' + h + '\n'; a11yNums[h * 6] = -2; }
+  a11yIds = a11yNow;
+  const order = a11yNow.join(' ');
+  if (order !== a11yOrder) { a11yOrder = order; a11yOut += 'o ' + order + '\n'; }
+  if (a11yOut !== '') { a11ySyncs++; device('a11y', a11yOut); }
+}
+/** The screen reader pressed node h (VoiceOver's double tap, TalkBack's ACTION_CLICK): a field takes the focus, a button is pressed. */
+function a11yActivate(h: i32): void {
+  if (h < 0 || h >= nodes.length || !nodes[h].alive || isDisabled(h)) return;
+  const n = nodes[h];
+  if (n.ed !== null || (n.onClick === null && n.focusable)) { setFocusTo(h); return; }
+  pressOn(h, PRESS_KEY_MS);
+  activate(h);
+}
+function a11yFocus(h: i32): void { if (h >= 0 && h < nodes.length && nodes[h].alive) revealFocus(h); }
+/** The reader scrolls a scroll area by a page (TalkBack's ACTION_SCROLL_FORWARD and BACKWARD, VoiceOver's three-finger swipe): dir 1 on, -1 back. */
+function a11yScroll(arg: string): void {
+  const a = arg.split(' '), h = parseInt(a[0]), dir: number = a.length > 1 ? parseFloat(a[1]) : 1;
+  if (!(h >= 0 && h < nodes.length) || !nodes[h].alive || nodes[h].scroll === 0) return;
+  const n = nodes[h];
+  if ((n.scroll & 1) !== 0) scrollTo(h, n.sx, n.sy + dir * n.lh * 0.8); else scrollTo(h, n.sx + dir * n.lw * 0.8, n.sy);
 }
 // ---- media and container queries, env() lengths (ZN-272)
 let envUsed = false, varUsed = false, coarse = platform() !== 'macos' && platform() !== 'linux' && platform() !== 'wasm', cqAny = false, inSettle = false, settlePasses: i32 = 0;
@@ -1794,7 +1897,8 @@ export function setFontScale(k: number): void {
   setRootFontSize(base * k);
 }
 /** f(kind, args) after zinc:ui applied each signal: 'safearea', 'theme', 'fontscale', 'reducemotion', 'keyboard', 'back', 'backstart', 'backprogress',
- *  'backcancel', 'orientation', and the input connection's 'compose', 'commit', 'imedelete', 'imeselect', 'imeaction'. */
+ *  'backcancel', 'orientation', the input connection's 'compose', 'commit', 'imedelete', 'imeselect', 'imeaction', and the screen reader's 'a11y'
+ *  (0 or 1: one listens), 'a11yactivate' and 'a11yfocus' (a node id), 'a11yscroll' (a node id and 1 or -1). */
 export function addSignalListener(f: (kind: string, arg: string) => void): void { signalFns.push(f); }
 export function removeSignalListener(f: (kind: string, arg: string) => void): void { const i = signalFns.indexOf(f); if (i >= 0) signalFns.splice(i, 1); }
 /** The back key or gesture (Android): handlers run newest first until one returns true; when none does, the app goes back to the system. */
@@ -1817,6 +1921,10 @@ export function systemSignal(line: string): void {
   else if (kind === 'compose') composeText(arg);
   else if (kind === 'commit') { if (focus >= 0) typeInto(focus, arg); }
   else if (kind === 'imedelete' || kind === 'imeselect' || kind === 'imeaction') imeEdit(kind, a);
+  else if (kind === 'a11y') setA11y(arg === '1');
+  else if (kind === 'a11yactivate') a11yActivate(parseInt(arg));
+  else if (kind === 'a11yfocus') a11yFocus(parseInt(arg));
+  else if (kind === 'a11yscroll') a11yScroll(arg);
   for (const f of signalFns.slice()) f(kind, arg);
   if (kind === 'back') goBack();
   paintDirty = true;
@@ -5347,6 +5455,7 @@ export function frame(dt: number, background: i32): void {
   if (layoutDirty || extLayout) layout();
   if (prof) profMark(PROF_LAYOUT);
   if (signalCount() > 0) systemSignals();   // what the OS says (safe area, theme, back...), test hooks or not
+  if (inspectAt >= 0 && gfxFrame() === inspectAt) console.log(inspect());
   const typing = focus >= 0 && nodes[focus].ed !== null;  // gamepad-style navigation is off while typing
   if (!synthetic) inputFrame();
   if (first) stepScroll(dt);
@@ -5387,6 +5496,7 @@ export function frame(dt: number, background: i32): void {
   paint(root, 0, 0, 1, 1);
   if (layers.length > 0) paintLayers();
   if (natives.length > 0) syncNatives();
+  if (a11yOn) syncA11y();
   if (touchSel >= 0) paintTouchSelection();
   lastCommands = commandCount();
   if (highlight >= 0 && nodes[highlight].alive) {

@@ -397,13 +397,14 @@ What a phone's OS tells an app reaches zinc:ui as **signals**, one line each, `k
 | `backstart left\|right`, `backprogress P`, `backcancel` | Android 14 predictive back (`OnBackAnimationCallback`) | the navigation stack's predictive back |
 | `orientation portrait\|landscape` | SDL | listeners only (rotation is a resize) |
 | `compose TEXT`, `commit TEXT`, `imedelete B A`, `imeselect S E`, `imeaction NAME` | SDL `SDL_EVENT_TEXT_EDITING`, the text input connection | see "Text input on phones" |
+| `a11y 0\|1`, `a11yactivate ID`, `a11yfocus ID`, `a11yscroll ID 1\|-1` | VoiceOver, TalkBack and the other accessibility clients | see "Screen readers" |
 
 `ui.addSignalListener((kind, args) => ...)` sees each one after zinc:ui applied it; `ui.systemSignal(line)` sends one. A test sends them
 with a `ZINC_INPUT` script, `<frame> safearea 47 0 34 0`, `<frame> theme dark`, `<frame> back` (`tests/t0/system_signals.sh`).
 
 The other way, the program asks the OS through zinc:sys `device()`: `haptic` (zinc:haptics `Haptics.impact('light')`, `selection()`,
 `notification('error')`; React Native's `Vibration`), `statusbar` (React Native's `StatusBar`), `exitapp`, `keyboard-traits` and `textinput`
-(the text input connection). The Android activity (`src/app/android/java`) and the iOS glue (`src/app/ios_glue.mm`) do them; a desktop
+(the text input connection), `a11y` (the screen reader's tree). The Android activity (`src/app/android/java`) and the iOS glue (`src/app/ios_glue.mm`) do them; a desktop
 does nothing, and `ZINC_DEVICE_LOG=file` writes each call to the file.
 
 ## Text input on phones
@@ -429,6 +430,24 @@ Touch selection, drawn by zinc:ui in the platform's style: a finger's long press
 white card). Dragging a handle moves that end under a **magnifier** (the line at 1.25x above the finger). A mouse keeps the desktop's selection.
 `ui.touchSelection()`, `ui.selectionHandles()` and `ui.editMenuRects()` tell tests where they are (`tests/t1/text_touch.sh`). With the
 on-screen keyboard's height (the `keyboard` signal) the focused field is scrolled above it.
+
+## Screen readers
+
+The accessibility tree `ui.inspect()` prints (roles, labels, `aria-hidden`, disabled; a plain box that takes clicks, such as React Native's
+`Pressable`, is a `button`; open layers follow the tree and a modal one hides it) reaches the phone's screen reader: **VoiceOver** (and Switch
+Control, Voice Control, XCUITest) through `UIAccessibilityElement`s of a container over SDL's view, **TalkBack** (and every accessibility
+service, `uiautomator`) through an `AccessibilityNodeProvider` on SDL's surface. Nothing is sent while no reader listens: the host says when
+one does (`a11y 1`: VoiceOver or Switch Control running, `AccessibilityManager.isEnabled()`, or a client reading the tree).
+
+- **To the OS**, after each painted frame, only what changed (zinc:sys `device('a11y', lines)`): `n ID PARENT FLAGS X Y W H\tROLE\tLABEL\tVALUE\tHINT`
+  for a node new or changed (the box on the surface in logical pixels, cut by its scroll areas; flags 1 disabled, 2 takes clicks, 4 checkable,
+  8 checked (`aria-checked`), 16 editable, 32 selected (`aria-selected`), 64 off screen, 128 focused, 256 scrolls; VALUE is a field's text or
+  `aria-valuetext` / `aria-valuenow`, HINT its placeholder), `d ID` for a node gone, `o ID...` for the reading order.
+- **From the OS**, as signals: `a11yactivate ID` (VoiceOver's double tap, TalkBack's ACTION_CLICK: a field takes the focus, a button is
+  pressed), `a11yfocus ID` (the reader's cursor: the node is scrolled into view), `a11yscroll ID 1|-1` (a page on or back).
+- On iOS a node that takes clicks holds its descendants, as a `UIButton` holds its label; on Android TalkBack reads a button's text children
+  itself. `ZINC_INSPECT=N` prints `ui.inspect()` at frame N; `next/tools/a11y-tree` puts the tree, the log of what was sent and the platform
+  dumps in one form to diff them. Details and proofs: docs/reports/zinc-next-a11y-bridges.md; `tests/t0/ui_a11y_bridge.sh`.
 
 ## Navigation stack
 

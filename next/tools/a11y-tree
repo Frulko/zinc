@@ -1,0 +1,152 @@
+#!/usr/bin/env python3
+"""The screen reader tree of zinc:ui (ZN-630) from each place it can be read, in one text form, so they can be diffed:
+one node per line, indented by depth, `ROLE "LABEL"`, ROLE as the Android widget class the bridge gives it (both platforms name a node that way).
+
+  a11y-tree inspect FILE        ui.inspect()'s text (ZINC_INSPECT=N prints it), its hidden nodes left out as the bridge leaves them
+  a11y-tree log FILE [N]        what zinc:ui sent the host (ZINC_DEVICE_LOG), applied up to the Nth update (default: all)
+  a11y-tree uiautomator FILE    `adb shell uiautomator dump`: the virtual views under SDL's SurfaceView
+  a11y-tree inspect --ios FILE  the same as the iOS elements list it: one flat list, the nodes a button holds folded into it, XCUITest's types
+  a11y-tree ios FILE            XCUITest's debugDescription of the app (the last element subtree in FILE): the elements of src/app/ios_a11y.mm
+
+The table below is the one of src/app/android/java/dev/zinc/app/ZincAccessibility.java (classOf)."""
+import re
+import sys
+import xml.etree.ElementTree as ET
+
+CLASS = {"button": "Button", "link": "Button", "tab": "Button", "menuitem": "Button", "text": "TextView", "heading": "TextView", "status": "TextView",
+         "textbox": "EditText", "searchbox": "EditText", "checkbox": "CheckBox", "radio": "RadioButton", "switch": "Switch", "img": "ImageView",
+         "image": "ImageView", "scrollarea": "ScrollView", "list": "ScrollView", "progressbar": "ProgressBar", "slider": "SeekBar"}
+
+
+def cls(role):
+    return CLASS.get(role, "View")
+
+
+def line(depth, c, label):
+    return "  " * depth + c + (' "%s"' % label if label else "")
+
+
+def from_inspect(text):
+    out = []
+    for raw in text.splitlines():
+        if not raw.strip() or "(hidden)" in raw:
+            continue
+        depth = (len(raw) - len(raw.lstrip(" "))) // 2
+        m = re.match(r'(\S+)(?: "(.*)")?', raw.strip())
+        role, label = m.group(1), m.group(2) or ""
+        out.append(line(depth, cls("" if role == "node" else role), label))
+    return out
+
+
+def from_log(text, upto):
+    nodes, order, k = {}, [], 0
+    for entry in re.split(r"^a11y ", text, flags=re.M)[1:]:
+        k += 1
+        if upto and k > upto:
+            break
+        for ln in entry.splitlines():
+            if ln.startswith("n "):
+                f = ln.split("\t")
+                head = f[0].split(" ")
+                nodes[int(head[1])] = (int(head[2]), f[1], f[2], f[3] if len(f) > 3 else "")
+            elif ln.startswith("d "):
+                nodes.pop(int(ln[2:]), None)
+            elif ln.startswith("o"):
+                order = [int(x) for x in ln[1:].split()]
+    out = []
+    for h in order:
+        if h not in nodes:
+            continue
+        depth, p = 0, nodes[h][0]
+        while p in nodes:
+            depth, p = depth + 1, nodes[p][0]
+        parent, role, label, value = nodes[h]
+        out.append(line(depth, cls(role), label or (value if role == "textbox" else "")))
+    return out
+
+
+def from_uiautomator(text):
+    root = ET.fromstring(text)
+    surface = next((n for n in root.iter("node") if n.get("class") == "android.view.SurfaceView"), None)
+    out = []
+
+    def walk(n, depth):
+        for c in n.findall("node"):
+            k = c.get("class", "").split(".")[-1]
+            label = c.get("content-desc") or c.get("text") or ""
+            if k == "EditText":
+                label = c.get("hint") or c.get("text") or ""
+            out.append(line(depth, k, label))
+            walk(c, depth + 1)
+    if surface is not None:
+        walk(surface, 0)
+    return out
+
+
+XCUI = {"button": "Button", "link": "Link", "tab": "Button", "menuitem": "Button", "text": "StaticText", "heading": "StaticText",
+        "status": "StaticText", "img": "Image", "image": "Image", "searchbox": "SearchField", "checkbox": "Switch", "radio": "Switch", "switch": "Switch"}
+
+
+def from_inspect_ios(text):
+    out, held = [], -1   # held: the depth of the button whose nodes are folded into it
+    for raw in text.splitlines():
+        if not raw.strip() or "(hidden)" in raw:
+            continue
+        depth = (len(raw) - len(raw.lstrip(" "))) // 2
+        if held >= 0 and depth > held:
+            continue
+        held = -1
+        m = re.match(r'(\S+)(?: "(.*)")?', raw.strip())
+        role, label = m.group(1), m.group(2) or ""
+        if role in ("button", "link", "tab", "menuitem"):
+            held = depth
+            if not label:   # its title: the labels of the nodes it holds
+                kids, rest = [], text.splitlines()[text.splitlines().index(raw) + 1:]
+                for r in rest:
+                    if not r.strip() or (len(r) - len(r.lstrip(" "))) // 2 <= depth:
+                        break
+                    k = re.match(r'\S+(?: "(.*)")?', r.strip())
+                    if k.group(1) and "(hidden)" not in r:
+                        kids.append(k.group(1))
+                label = ", ".join(kids)
+        out.append(XCUI.get(role, "Other") + (' "%s"' % label if label else ""))
+    return out
+
+
+def from_ios(text):
+    tree = text.split("Element subtree:")[-1].split("Path to element:")[0]
+    out, window = [], None
+    for raw in tree.splitlines():
+        m = re.match(r"\s*(\w+)(?: \(Main\))?, 0x[0-9a-f]+, \{\{([-\d.]+), ([-\d.]+)\}, \{([-\d.]+), ([-\d.]+)\}\}(?:, label: '(.*)')?$", raw)
+        if not m:
+            continue
+        kind, frame, label = m.group(1), m.group(2, 3, 4, 5), m.group(6) or ""
+        if kind == "Window":
+            window = frame
+        elif not (kind == "Other" and frame == window and not label):   # the views that hold the surface and the container
+            out.append(kind + (' "%s"' % label if label else ""))
+    return out
+
+
+def main(argv):
+    if len(argv) < 3:
+        sys.exit(__doc__)
+    text = open(argv[2], encoding="utf-8").read() if argv[2] != "--ios" else ""
+    kind = argv[1]
+    if kind == "inspect" and argv[2] == "--ios":
+        out = from_inspect_ios(open(argv[3], encoding="utf-8").read())
+    elif kind == "inspect":
+        out = from_inspect(text)
+    elif kind == "log":
+        out = from_log(text, int(argv[3]) if len(argv) > 3 else 0)
+    elif kind == "uiautomator":
+        out = from_uiautomator(text)
+    elif kind == "ios":
+        out = from_ios(text)
+    else:
+        sys.exit(__doc__)
+    print("\n".join(out))
+
+
+if __name__ == "__main__":
+    main(sys.argv)

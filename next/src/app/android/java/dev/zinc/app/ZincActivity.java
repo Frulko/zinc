@@ -27,8 +27,9 @@ import org.libsdl.app.ZincEdit;
 /**
  * The activity of a Zinc app (zinc export --target android): SDL's, plus what a phone's OS tells the program and what the program asks of it
  * (docs/ui.md "System signals", docs/targets/android.md). To the engine: nativeSignal("kind args") lines (src/host/hal_dispatch.cpp), the font
- * scale, reduce motion, the keyboard's height, the predictive back gesture; from it: zincCommand(query, arg) (zinc:sys device(), through
- * src/app/android_glue.cpp): haptics, the status bar, the system's back, the text input connection's state and the keyboard's traits.
+ * scale, reduce motion, the keyboard's height, the predictive back gesture, the screen reader's actions; from it: zincCommand(query, arg) (zinc:sys
+ * device(), through src/app/android_glue.cpp): haptics, the status bar, the system's back, the text input connection's state and the keyboard's
+ * traits, zinc:ui's accessibility tree (ZincAccessibility).
  * Unproven on a device (written 2026-10-16 without one in the loop): the cross-platform pass checks it (next/backlog/later.md).
  */
 public class ZincActivity extends SDLActivity {
@@ -57,6 +58,7 @@ public class ZincActivity extends SDLActivity {
         nativeInit();
         sendConfiguration(getResources().getConfiguration());
         ZincEdit.install(this);
+        ZincAccessibility.install(this, mSurface);
         watchKeyboard();
         registerBack();
         for (ZincLifecycle p : plugins) p.onCreate(this, getIntent());
@@ -218,6 +220,7 @@ public class ZincActivity extends SDLActivity {
             case "exitapp": systemBack(); break;
             case "textinput": ZincEdit.sync(a); break;
             case "keyboard-traits": ZincEdit.traits(a); break;
+            case "a11y": ZincAccessibility.apply(a); break;
             case "performance": programFast = a.equals("1"); sustain(); break;
             default: break;
         }

@@ -12,6 +12,8 @@
 extern "C" void zn_hal_signal(const char* line);
 extern "C" const char* (*zn_mobile_command)(const char* q, const char* a);
 extern "C" const char* zn_hal_text_traits(void);
+extern "C" void zn_ios_a11y_apply(const char* lines);   // ios_a11y.mm: zinc:ui's accessibility tree (ZN-630)
+extern "C" void zn_ios_a11y_init(void);
 
 static void signal(NSString* s) { zn_hal_signal(s.UTF8String); }
 
@@ -221,7 +223,7 @@ static void run(const std::string& q, const std::string& a) {
     long c = 0, an = 0, ca = -1, cb = -1;
     if (nl == std::string::npos || sscanf(a.c_str(), "%ld %ld %ld %ld", &c, &an, &ca, &cb) != 4) return;
     [input syncText:[NSString stringWithUTF8String:a.c_str() + nl + 1] ?: @"" caret:c anchor:an compA:ca compB:cb];
-  }
+  } else if (q == "a11y") zn_ios_a11y_apply(a.c_str());
   // exitapp: an iOS app does not leave by itself (Apple's guidelines); nothing to do
 }
 
@@ -262,6 +264,7 @@ extern "C" void zn_mobile_glue_init(void) {
     NSNotificationCenter* nc = NSNotificationCenter.defaultCenter;
     signal([NSString stringWithFormat:@"fontscale %g", fontScale()]);
     signal(UIAccessibilityIsReduceMotionEnabled() ? @"reducemotion 1" : @"reducemotion 0");
+    zn_ios_a11y_init();
     [nc addObserverForName:UIContentSizeCategoryDidChangeNotification object:nil queue:nil usingBlock:^(NSNotification*) { signal([NSString stringWithFormat:@"fontscale %g", fontScale()]); }];
     [nc addObserverForName:UIAccessibilityReduceMotionStatusDidChangeNotification object:nil queue:nil usingBlock:^(NSNotification*) {
       signal(UIAccessibilityIsReduceMotionEnabled() ? @"reducemotion 1" : @"reducemotion 0");

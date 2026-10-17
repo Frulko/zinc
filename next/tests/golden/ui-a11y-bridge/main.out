@@ -1,0 +1,92 @@
+inspect:
+form "Notes"
+  text "Today"
+  textbox "Title"
+  textbox
+  button "Add (0)"
+    text "Add"
+  checkbox "Done"
+  node (hidden)
+  button (disabled)
+    text "Delete"
+  scrollarea
+    text "Milk"
+    text "Bread"
+    text "Eggs"
+    text "Tea"
+
+frame 3: the reader presses Add
+frame 5: the reader moves to Tea
+frame 6: the reader scrolls the list back a page
+frame 7: a dialog opens
+inspect:
+dialog "Saved"
+
+frame 9: the dialog closes
+frame 11: the reader stops
+frame 12: a change nobody hears
+done: 6 updates, active false
+--- sent to the host
+a11y n 2 -1 0 0 0 200 240	form	Notes		
+n 3 2 0 8 8 184 28	text	Today		
+n 4 2 16 8 40 184 24	textbox	Title	Groceries	
+n 5 2 16 8 68 184 24	textbox			Search
+n 6 2 2 8 96 184 24	button	Add (0)		
+n 7 6 0 84 100 31 22	text	Add		
+n 8 2 4 8 124 184 16	checkbox	Done		
+n 11 2 1 8 164 184 24	button			
+n 12 11 1 75 168 49 22	text	Delete		
+n 13 2 256 8 192 184 48	scrollarea			
+n 14 13 0 8 192 184 30	text	Milk		
+n 15 13 0 8 222 184 18	text	Bread		
+n 16 13 64 0 0 0 0	text	Eggs		
+n 17 13 64 0 0 0 0	text	Tea		
+o 2 3 4 5 6 7 8 11 12 13 14 15 16 17
+
+a11y n 6 2 2 8 96 184 24	button	Add (1)		
+n 8 2 12 8 124 184 16	checkbox	Done		
+
+a11y n 14 13 64 0 0 0 0	text	Milk		
+n 15 13 64 0 0 0 0	text	Bread		
+n 16 13 0 8 192 184 30	text	Eggs		
+n 17 13 0 8 222 184 18	text	Tea		
+
+a11y n 14 13 0 8 192 184 18	text	Milk		
+n 15 13 0 8 210 184 30	text	Bread		
+n 16 13 64 0 0 0 0	text	Eggs		
+n 17 13 64 0 0 0 0	text	Tea		
+
+a11y n 0 -1 0 20 20 160 60	dialog	Saved		
+d 2
+d 3
+d 4
+d 5
+d 6
+d 7
+d 8
+d 11
+d 12
+d 13
+d 14
+d 15
+d 16
+d 17
+o 0
+
+a11y n 2 -1 0 0 0 200 240	form	Notes		
+n 3 2 0 8 8 184 28	text	Today		
+n 4 2 16 8 40 184 24	textbox	Title	Groceries	
+n 5 2 16 8 68 184 24	textbox			Search
+n 6 2 2 8 96 184 24	button	Add (1)		
+n 7 6 0 84 100 31 22	text	Add		
+n 8 2 12 8 124 184 16	checkbox	Done		
+n 11 2 1 8 164 184 24	button			
+n 12 11 1 75 168 49 22	text	Delete		
+n 13 2 256 8 192 184 48	scrollarea			
+n 14 13 0 8 192 184 18	text	Milk		
+n 15 13 0 8 210 184 30	text	Bread		
+n 16 13 64 0 0 0 0	text	Eggs		
+n 17 13 64 0 0 0 0	text	Tea		
+d 0
+o 2 3 4 5 6 7 8 11 12 13 14 15 16 17
+
