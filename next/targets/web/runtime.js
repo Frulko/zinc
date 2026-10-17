@@ -18,6 +18,8 @@ export class ZnUnsupported extends Error {
   }
 }
 G.ZnUnsupported = ZnUnsupported;
+/** Thrown by exit(): the program ended, nothing to report. */
+class ZnExit extends Error { constructor(code) { super('exit ' + code); this.name = 'ZnExit'; this.code = code; } }
 
 const has = (f) => { try { return !!f(); } catch { return false; } };
 /** What this browser offers, by the names of docs/targets/web.md (the `web` capability row refined at run time). */
@@ -92,7 +94,7 @@ function measureSurface() {
   H = Math.max(1, Math.round(fixed ? fixed[1] : CFG.scroll === 'page' ? innerHeight : root.clientHeight || innerHeight));   // (a page that scrolls is as tall as its content: its surface is the window)
 }
 measureSurface();
-const canvas = dom ? null : document.createElement('canvas');
+let canvas = dom ? null : document.createElement('canvas');
 let ctx = null;
 if (canvas) {
   canvas.id = 'zinc-canvas';
@@ -410,9 +412,25 @@ Z.imageUrl = (id) => {
   imageDataUrls.set(id, { rev: im.rev || 0, url });
   return url;
 };
+// A program with no zinc:ui tree (zinc:gfx or three.js drawing straight to the screen) has nothing to turn into elements in the semantic DOM: the first draw call
+// that reaches the DOM host without a tree mounts a full-window <canvas> and the program draws and takes input as in the canvas mode.
+function enterRaw() {
+  if (canvas) return true;
+  canvas = document.createElement('canvas');
+  canvas.id = 'zinc-canvas';
+  canvas.setAttribute('role', 'img');
+  canvas.setAttribute('aria-label', CFG.title || 'Zinc app');
+  canvas.style.cssText = 'position:absolute;inset:0;display:block;width:100%;height:100%;touch-action:none;outline:none';
+  canvas.tabIndex = 0;
+  root.appendChild(canvas);
+  measureSurface(); sizeCanvas();
+  installCanvasInput(canvas);
+  return true;
+}
+function leaveRaw() { if (dom && canvas) { canvas.remove(); canvas = null; } }
 if (dom) {
   const mod = await import(/* @vite-ignore */ CFG.domModule || './dom.js');
-  const host = mod.makeDomHost({ root, CFG, Z, fonts, images, hex6, canvasPainter, drawInto, assetUrl, dpr });
+  const host = mod.makeDomHost({ root, CFG, Z, fonts, images, hex6, canvasPainter, drawInto, assetUrl, dpr, enterRaw, leaveRaw });
   B = host.painter;
   G.__zincDom = host;   // zinc:ui/dom (lib/std/ui-dom.browser.ts) finds the host here: its frames are committed as elements
 }
@@ -424,12 +442,10 @@ const input = {
   px: 0, py: 0, down: false, pbuttons: 0, mods: 0, wheel: 0, wheelX: 0, pinch: 1, sdx: 0, sdy: 0, phase: 0,
   keys: [], btn: [], touches: [], pen: [], held: 0, prevHeld: 0, signals: [], cursor: 0, clip: '',
 };
-const el = canvas || root;
 const modsOf = (e) => (e.shiftKey ? 1 : 0) | (e.ctrlKey ? 2 : 0) | (e.altKey ? 4 : 0) | (e.metaKey ? 8 : 0);
 const pos = (e) => { const r = root.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
 const SDLBTN = [1, 2, 3, 4, 5];   // DOM button 0 left, 1 middle, 2 right -> SDL 1, 2, 3
 Z.input = input;
-let selecting = false;
 function pointerEvent(e, down) {
   const [x, y] = pos(e);
   input.px = x; input.py = y; input.mods = modsOf(e);
@@ -442,7 +458,10 @@ function pointerEvent(e, down) {
   }
 }
 function installInput() {
-  if (dom) { installSystem(); return; }   // the page's own events reach the nodes through the DOM host
+  installSystem();
+  if (!dom) installCanvasInput(canvas);   // (the semantic DOM: the page's own events reach the nodes through the DOM host)
+}
+function installCanvasInput(el) {
   const opt = { passive: false };
   el.addEventListener('pointerdown', (e) => {
     pointerEvent(e, true);
@@ -450,8 +469,7 @@ function installInput() {
     input.pbuttons |= 1 << (b - 1); input.down = true;
     input.btn.push({ x: input.px, y: input.py, button: b, down: 1 });
     try { el.setPointerCapture(e.pointerId); } catch {}
-    if (dom) { selecting = input.cursor === 1; root.style.userSelect = selecting ? 'text' : 'none'; if (!selecting) e.preventDefault(); }
-    else { e.preventDefault(); canvas.focus({ preventScroll: true }); }
+    e.preventDefault(); el.focus({ preventScroll: true });
     unlockAudio();
   }, opt);
   el.addEventListener('pointermove', (e) => { pointerEvent(e, null); }, opt);
@@ -464,7 +482,7 @@ function installInput() {
   };
   el.addEventListener('pointerup', up, opt);
   el.addEventListener('pointercancel', up, opt);
-  el.addEventListener('contextmenu', (e) => { if (!dom || !selecting) e.preventDefault(); });
+  el.addEventListener('contextmenu', (e) => { e.preventDefault(); });
   el.addEventListener('wheel', (e) => {
     const k = e.deltaMode === 1 ? 1 / 3 : e.deltaMode === 2 ? 10 : 1 / 40;
     if (e.ctrlKey) { input.pinch *= Math.exp(-e.deltaY * 0.01); } else { input.wheel += -e.deltaY * k; input.wheelX += e.deltaX * k; }
@@ -480,7 +498,7 @@ function installInput() {
     const name = e.key.length === 1 ? e.key.toLowerCase() : e.key === 'Esc' ? 'Escape' : e.key;
     input.keys.push({ kind: e.repeat ? 2 : 0, name, mods: modsOf(e) });
     const claimed = ['Tab', 'Backspace', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', ' ', 'Enter', 'PageUp', 'PageDown', 'Home', 'End'].includes(e.key);
-    if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) input.keys.push({ kind: 3, name: e.key, mods: modsOf(e) });
+    if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey && e.target !== textField) input.keys.push({ kind: 3, name: e.key, mods: modsOf(e) });   // (a field being edited has its <textarea>: its input event brings the text, once)
     const inField = e.target && e.target !== document.body && /^(INPUT|TEXTAREA)$/.test(e.target.tagName) && e.target !== textField;
     if (!inField && (claimed || e.ctrlKey || e.metaKey) && !(e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J')) && e.key !== 'F5' && e.key !== 'F12' && !(e.metaKey && e.key.toLowerCase() === 'r') && !(e.ctrlKey && e.key.toLowerCase() === 'r') && !(e.metaKey && e.key === 'q')) e.preventDefault();
   });
@@ -493,7 +511,6 @@ function installInput() {
   });
   addEventListener('copy', () => {}); addEventListener('cut', () => {});
   addEventListener('blur', () => { input.keys.push({ kind: 1, name: 'Shift', mods: 0 }); });
-  installSystem();
 }
 // what the system says: foreground and background, the light or dark theme and, for the semantic DOM, the viewport (safe areas, on-screen keyboard, text size, motion)
 function installSystem() {
@@ -562,7 +579,9 @@ function pollPads() {
 // ---------------------------------------------------------------- audio unlock (autoplay policy)
 const audioWaiters = [];
 function unlockAudio() { for (const f of audioWaiters.splice(0)) f(); }
-Z.onUserGesture = (f) => audioWaiters.push(f);
+// (the page's first click, tap or key, in canvas and DOM mode alike; a waiter that arrives after one already happened runs at once: the browser's autoplay rule is then met)
+Z.onUserGesture = (f) => { if (navigator.userActivation && navigator.userActivation.hasBeenActive) { try { f(); } catch (e) { console.warn('zinc:', e); } } else audioWaiters.push(f); };
+for (const ev of ['pointerdown', 'keydown', 'touchend']) addEventListener(ev, unlockAudio, { capture: true, passive: true });
 
 // ---------------------------------------------------------------- assets, files, storage
 const assets = new Map();   // 'assets/path' and 'path' -> ArrayBuffer
@@ -659,7 +678,7 @@ const rows = {
   gfxSignalCount: () => frameSignals.length, gfxSignalNext: () => frameSignals.shift() || '',
   gfxOpenWindow: () => -1, gfxCloseWindow: () => {}, gfxWindowOpen: (i) => (i === 0 ? 1 : 0), gfxBeginWindow: () => {}, gfxEndWindow: () => {},
   // system
-  sysFirst: () => {}, sysArgsCount: () => 0, sysArg: () => '', sysEnv: (n) => (CFG.env && CFG.env[n]) || '', sysExit: (c) => { quit = true; if (c) console.error('zinc: exit ' + c); },
+  sysFirst: () => {}, sysArgsCount: () => 0, sysArg: () => '', sysEnv: (n) => (CFG.env && CFG.env[n]) || '', sysExit: (c) => { quit = true; if (c) console.warn('zinc: exit ' + c); throw new ZnExit(c); },   // (stops the program where it stands, as process.exit does)
   sysPlatform: () => 'web', sysPid: () => 1, sysCwd: () => '/', sysChdir: () => true, sysSetEnv: (n, v) => { (CFG.env = CFG.env || {})[n] = v; }, sysUnsetEnv: (n) => { if (CFG.env) delete CFG.env[n]; },
   sysEnvKeysCount: () => Object.keys(CFG.env || {}).length, sysEnvKey: (i) => Object.keys(CFG.env || {})[i] || '', sysIsatty: () => false,
   sysWrite: (s) => writeLine(false, s), sysWriteErr: (s) => writeLine(true, s),
@@ -749,7 +768,12 @@ Z.wasmInstance = (name, extra = {}) => {
 
 // ---------------------------------------------------------------- the loop
 let last = performance.now(), overlayEl = null;
+const errSeen = new Map();   // an error thrown every frame is told once, not sixty times a second: the same message within a second of its last time only counts
 function showError(e, kind) {
+  if (e && e.name === 'ZnExit') return;
+  const key = String((e && (e.stack || e.message)) || e).slice(0, 400), now = performance.now(), seen = errSeen.get(key);
+  errSeen.set(key, { at: now, n: (seen ? seen.n : 0) + 1 });
+  if (seen && now - seen.at < 1000) return;
   console.error(e);
   if (CFG.dev) return Z.onError && Z.onError(e);
   if (!overlayEl) {
@@ -758,7 +782,7 @@ function showError(e, kind) {
     overlayEl.style.cssText = 'position:fixed;left:0;right:0;bottom:0;max-height:50%;overflow:auto;z-index:9;padding:12px 16px;background:#7f1d1d;color:#fff;font:14px/1.4 system-ui,sans-serif;white-space:pre-wrap';
     document.body.appendChild(overlayEl);
   }
-  overlayEl.textContent = (e && e.name === 'ZnUnsupported') ? 'This app needs a feature your browser does not have: ' + e.message : String((e && e.message) || e);
+  overlayEl.textContent = (e && e.name === 'ZnUnsupported') ? 'This app needs a feature your browser does not have: ' + e.message : String((e && e.message) || e) + (e && e.stack ? '\n' + String(e.stack).split('\n').slice(1, 4).join('\n') : '');
 }
 Z.showError = showError;
 function frame(now) {
@@ -834,6 +858,6 @@ async function boot() {
     showError(e);
   }
 }
-addEventListener('error', (e) => { if (e.error) showError(e.error); });
-addEventListener('unhandledrejection', (e) => showError(e.reason));
+addEventListener('error', (e) => { if (e.error) { if (e.error.name === 'ZnExit') e.preventDefault(); showError(e.error); } });
+addEventListener('unhandledrejection', (e) => { if (e.reason && e.reason.name === 'ZnExit') e.preventDefault(); showError(e.reason); });
 boot();

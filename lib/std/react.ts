@@ -16,6 +16,7 @@ class Instance {
   host: i32;
   render: () => i32;
   scheduled: boolean = false;
+  dead: boolean = false;   // unmounted: an update queued before (a window-size listener that was never removed) must not touch its host, whose handle may belong to another node by now
   effects: (() => void)[] = [];
   name: string;
   key: string;
@@ -45,6 +46,7 @@ let hotNode: i32 = -1;
 export function _active(): boolean { return instances.length > 0; }
 
 function rerender(inst: Instance): void {
+  if (inst.dead) return;
   inst.index = 0;
   inst.effects = [];
   inst.cursor = 0; inst.kidCursor = 0;
@@ -67,7 +69,7 @@ function unmount(inst: Instance): void {
   if (c !== null) { c.componentWillUnmount(); c.inst = null; }
   for (const h of inst.hooks) if (h instanceof EffectHook) { const c = h.cleanup; if (c !== null) c(); }
   for (const kid of inst.kids) unmount(kid);
-  inst.hooks = []; inst.kids = []; inst.render = () => -1;
+  inst.hooks = []; inst.kids = []; inst.render = () => -1; inst.dead = true;
 }
 /** Next host node of the component being rendered: reused when the previous render had the same tag there. */
 function hostNode(tag: i32): i32 {

@@ -1,0 +1,6 @@
+{
+  "name": "web-real",
+  "entry": "src/main.tsx",
+  "ui": { "preset": "react-native" },
+  "targets": { "web": { "title": "Real input fixture" } }
+}

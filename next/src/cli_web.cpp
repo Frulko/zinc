@@ -525,6 +525,7 @@ std::string pageFor(const Cfg& c, const std::string& config, const std::string& 
   if (!c.description.empty()) h += "<meta name=\"description\" content=\"" + esc(c.description) + "\">\n";
   h += "<meta name=\"theme-color\" content=\"" + esc(c.theme) + "\">\n";
   if (hasIcon) h += "<link rel=\"icon\" href=\"" + iconUrl + "\">\n<link rel=\"apple-touch-icon\" href=\"" + iconUrl + "\">\n";
+  else h += "<link rel=\"icon\" href=\"data:,\">\n";   // no icon configured: an empty one, so the browser does not ask for /favicon.ico (a 404 in every console)
   if (pwa) h += "<link rel=\"manifest\" href=\"manifest.webmanifest\">\n<meta name=\"mobile-web-app-capable\" content=\"yes\">\n<meta name=\"apple-mobile-web-app-capable\" content=\"yes\">\n";
   h += preloads;
   h += "<style>html,body{margin:0;height:100%;background:" + esc(c.bg) + ";overscroll-behavior:none}#zinc-root{position:fixed;inset:0;overflow:hidden;outline:none}"
@@ -532,6 +533,7 @@ std::string pageFor(const Cfg& c, const std::string& config, const std::string& 
        "#zinc-progress{width:min(240px,50vw);height:4px;accent-color:" + esc(c.theme) + "}</style>\n";
   h += "<script type=\"importmap\">{\"imports\":{\"zinc:native\":\"" + nativeUrl + "\"}}</script>\n</head>\n<body>\n";
   h += "<div id=\"zinc-root\" tabindex=\"-1\"></div>\n<div id=\"zinc-splash\"><progress id=\"zinc-progress\" max=\"100\" value=\"0\" aria-label=\"loading\"></progress></div>\n";
+  h += "<script>if(location.protocol==='file:'){var z=document.getElementById('zinc-splash');z.style.cssText+=';pointer-events:auto;text-align:center;padding:24px;color:#444';z.textContent='This app cannot start from a file: browsers refuse ES modules there. Run python3 serve.py in this folder (or any static web server) and open the address it prints.'}</script>\n";
   h += "<noscript>This app needs JavaScript.</noscript>\n<script nomodule>document.body.textContent='This browser is too old for this app (it needs ES modules and import maps).'</script>\n";
   h += "<script id=\"zinc-config\" type=\"application/json\">" + config + "</script>\n";
   (void)dev;

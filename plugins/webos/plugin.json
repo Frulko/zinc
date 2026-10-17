@@ -9,5 +9,6 @@
     "linux": { "linkFlags": ["-ldl"] },
     "android": {},
     "ios": {}
-  }
+  },
+  "web": { "native": "Webos", "impl": "web/webos.js" }
 }

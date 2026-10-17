@@ -704,15 +704,19 @@ export function makeDomHost(env) {
       if (k === 'endImage') { imageDepth = Math.max(0, imageDepth - 1); return canvasPainter.endImage(...a); }
       if (imageDepth > 0 || mode === 'canvas') return canvasPainter[k](...a);
       if (mode === 'record') { rec.push([k, ...a]); return undefined; }
+      if (!rawOn && frames === 0 && env.enterRaw && k !== 'beginImage') {   // a draw with no zinc:ui tree behind it: the program paints the screen itself (runtime.js enterRaw)
+        rawOn = env.enterRaw(); canvasPainter.begin(); if (lastClear >= 0) canvasPainter.clear(lastClear);
+      }
+      if (rawOn) return canvasPainter[k](...a);
       return undefined;
     };
   }
-  let lastBg = -1;
-  painter.begin = () => {};
+  let lastBg = -1, lastClear = -1, rawOn = false;
+  painter.begin = () => { if (rawOn) canvasPainter.begin(); };
   painter.end = () => {};
   painter.keep = () => {};
   painter.resize = () => {};
-  painter.clear = (c) => { if (c !== lastBg) { lastBg = c; document.documentElement.style.setProperty('--zn-bg', hex6(c)); document.body.style.background = hex6(c); } };
+  painter.clear = (c) => { lastClear = c; if (rawOn) return canvasPainter.clear(c); if (c !== lastBg) { lastBg = c; document.documentElement.style.setProperty('--zn-bg', hex6(c)); document.body.style.background = hex6(c); } };
 
   // ---------------------------------------------------------------- layers (dialogs, menus, toasts): a portal above the page
   const portal = document.createElement('div');
@@ -764,6 +768,7 @@ export function makeDomHost(env) {
   function commit(api) {
     ui = api;
     frames++;
+    if (rawOn) { rawOn = false; env.leaveRaw(); }
     const rh = ui.inspectRoot();
     if (rh < 0) return;
     changed = 0; pending.length = 0;
@@ -824,6 +829,8 @@ export function makeDomHost(env) {
   let press = null, suppressClick = false, longTimer = 0, dragging = null;
   function install() {
     const opt = { passive: true };
+    // (until zinc:ui commits a tree there is nothing for these handlers to talk to: a program that only draws with zinc:gfx gets a canvas of its own, runtime.js enterRaw)
+    for (const t of [root, portal]) { const add = t.addEventListener.bind(t); t.addEventListener = (type, fn, o) => add(type, function (e) { if (ui) return fn.call(this, e); }, o); }
     root.addEventListener('click', (e) => {
       if (suppressClick) { suppressClick = false; e.preventDefault(); e.stopPropagation(); return; }
       const hit = find(e.target, (n) => n.onClick);
@@ -941,7 +948,7 @@ export function makeDomHost(env) {
     }
     // the text the page selected or pasted is the page's own; keys nobody listens to are never taken
     addEventListener('keydown', (e) => {
-      if (e.defaultPrevented || e.isComposing || e.keyCode === 229) return;
+      if (!ui || e.defaultPrevented || e.isComposing || e.keyCode === 229) return;
       if (root.contains(e.target) || portal.contains(e.target)) return;   // handled above
       if (e.target !== document.body && e.target !== document.documentElement) return;
       if (!ui || !ui.domKeys()) return;

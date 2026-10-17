@@ -9,21 +9,22 @@ def find_chrome():
     return None
 
 class Chrome:
-    def __init__(self, args=(), chrome=None):
+    def __init__(self, args=(), chrome=None, headless=True):
         self.chrome = chrome or find_chrome()
         if not self.chrome: raise RuntimeError("no Chrome")
-        self.args = list(args); self.buf = b""; self.id = 0; self.console = []; self.session = None
+        self.args = list(args); self.buf = b""; self.id = 0; self.console = []; self.session = None; self.headless = headless
+        self.problems = []   # (kind, text): every console.error/warn, uncaught exception, rejection and browser log entry (tools/web-real-test)
 
     def __enter__(self):
         spare = [os.dup(0) for _ in range(6)]   # so the pipes do not land on fds 3 and 4
         r_in, self.w_in = os.pipe(); self.r_out, w_out = os.pipe()
         def child(): os.dup2(r_in, 3); os.dup2(w_out, 4); os.set_inheritable(3, True); os.set_inheritable(4, True)
-        self.proc = subprocess.Popen([self.chrome, "--headless=new", "--no-first-run", "--hide-scrollbars", "--remote-debugging-pipe"] + self.args + ["about:blank"], preexec_fn=child, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, close_fds=False)
+        self.proc = subprocess.Popen([self.chrome] + (["--headless=new"] if self.headless else []) + ["--no-first-run", "--hide-scrollbars", "--remote-debugging-pipe"] + self.args + ["about:blank"], preexec_fn=child, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, close_fds=False)
         os.close(r_in); os.close(w_out)
         for f in spare: os.close(f)
         t = self.call("Target.createTarget", {"url": "about:blank"})["targetId"]
         self.session = self.call("Target.attachToTarget", {"targetId": t, "flatten": True})["sessionId"]
-        self.call("Runtime.enable"); self.call("Page.enable")
+        self.call("Runtime.enable"); self.call("Page.enable"); self.call("Log.enable")
         return self
 
     def __exit__(self, *a):
@@ -43,6 +44,12 @@ class Chrome:
             while b"\0" in self.buf:
                 raw, self.buf = self.buf.split(b"\0", 1); m = json.loads(raw)
                 if m.get("method") == "Runtime.consoleAPICalled": self.console.append(" ".join(str(a.get("value", a.get("description", ""))) for a in m["params"]["args"]))
+                if m.get("method") == "Runtime.consoleAPICalled" and m["params"].get("type") in ("error", "warning", "assert"):
+                    self.problems.append((m["params"]["type"], " ".join(str(a.get("value", a.get("description", ""))) for a in m["params"]["args"])[:400]))
+                if m.get("method") == "Runtime.exceptionThrown":
+                    d = m["params"]["exceptionDetails"]; self.problems.append(("exception", (d.get("exception", {}).get("description") or d.get("text", ""))[:400] + " @%s:%s" % (d.get("url", ""), d.get("lineNumber", ""))))
+                if m.get("method") == "Log.entryAdded" and m["params"]["entry"].get("level") in ("error", "warning"):
+                    e = m["params"]["entry"]; self.problems.append(("log-" + e["level"], (e.get("text", "") + " " + e.get("url", ""))[:400]))
                 if m.get("method") == "Runtime.exceptionThrown": self.console.append("EXCEPTION " + str(m["params"]["exceptionDetails"].get("exception", {}).get("description", ""))[:300])
                 if m.get("id") == until_id: return m
             if select.select([self.r_out], [], [], 0.2)[0]:

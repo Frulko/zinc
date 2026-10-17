@@ -208,6 +208,7 @@
     {"paths": ["../plugins/video/web/", "../plugins/video/plugin.json", "../plugins/lottie/web/", "../plugins/lottie/plugin.json", "tests/fixtures/web-video/", "tests/fixtures/web-lottie/", "tools/web-video-test", "tools/rangehttp.py"], "tests": ["web_video"]},
     {"paths": ["../plugins/serial/web/", "../plugins/midi/web/", "../plugins/gphoto2/web/", "../plugins/osc/web/", "../plugins/map/web/", "../plugins/map/plugin.json", "third_party/maplibre/", "tests/fixtures/web-hw/", "tests/fixtures/web-map/", "tests/t1/web_hw.sh"], "tests": ["web_hw"]},
     {"paths": ["targets/web/rows-gl.js", "targets/web/rows-shader.js", "tools/gen-web-gl", "tools/gen-zinc-gl", "../plugins/three/web/", "../plugins/canvas2d/web/", "tests/fixtures/web-three/", "tests/fixtures/web-canvas/", "tests/fixtures/web-shader/", "tests/t1/web_gl.sh"], "tests": ["web_gl"]},
+    {"paths": ["targets/web/runtime.js", "targets/web/dom.js", "tools/web-real-test", "tools/cdp.py", "tests/fixtures/web-real/", "tests/fixtures/web-raw/", "../lib/std/react.ts"], "tests": ["web_real"]},
     {"paths": ["targets/web/hmr.js", "tools/web-dev-test", "tests/fixtures/web-hot/", "src/qjs/bundle.cpp", "src/qjs/strip.cpp"], "tests": ["web_dev", "web_export"]},
     {"paths": ["tests/fixtures/web-caps/", "../plugins/browser/"], "tests": ["web_caps"]},
     {"paths": ["src/cli_pm.cpp", "src/cli_pm.h", "src/cli_web_deps.cpp", "src/cli_web_deps.h", "tools/web-npm-test", "tests/fixtures/web-npm/", "tests/t1/web_npm.sh", "../docs/targets/web-libraries.md"], "tests": ["web_npm", "web_dev"]},

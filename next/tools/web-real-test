@@ -1,0 +1,163 @@
+#!/usr/bin/env python3
+"""A web export driven like a person in a real Chrome (docs/targets/web.md "Tests", tests/t1/web_real.sh): trusted Input.dispatchMouseEvent / dispatchKeyEvent (a move, then a press and a
+release a few frames apart), a device pixel ratio of 2 (--force-device-scale-factor, as on a Retina screen), window resizes, focus lost and regained; every console.error / warning, uncaught
+exception, rejection and browser log entry is collected from the page load and from the interaction. The synthetic tests (web-browser-test) run at ratio 1 with scripted clicks; this is the one
+that finds what a real window does.
+usage: web-real-test <zinc> <project-dir> [--render canvas|dom] [--dev] [--dpr 2] [--size WxH] [--headful] [--expect-react] [--click-text TEXT|x,y] [--shot out.png] [--wait S] [--allow RE]
+  --dev: serve with `zinc dev --target web` instead of exporting.  --expect-react: fail unless a click or a key changed the picture.  --click-text: clicked first (DOM text, or a point x,y).
+  --allow: a regex of problem messages that are expected (repeatable).  Prints one JSON line {problems, frames, reactedAny, canvasDpr, ...}; exit 1 on problems, 77 without Chrome."""
+import base64, functools, hashlib, http.server, json, os, re, shutil, socket, subprocess, sys, tempfile, threading, time
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from cdp import Chrome, find_chrome
+
+def parse(argv):
+    o = {"render": "canvas", "dev": False, "dpr": 2.0, "size": "1280x800", "headful": False, "expect_react": False, "click_text": "", "shot": "", "wait": 4.0, "allow": [], "no_grid": False, "shot0": "", "resize_shot": "", "keys_shot": "", "skip": "", "resize_to": ""}
+    a = list(argv); pos = []
+    while a:
+        k = a.pop(0)
+        if k in ("--dev", "--headful", "--expect-react", "--no-grid"): o[k[2:].replace("-", "_")] = True
+        elif k in ("--render", "--dpr", "--size", "--click-text", "--shot", "--shot0", "--resize-shot", "--keys-shot", "--skip", "--resize-to", "--wait", "--allow"):
+            v = a.pop(0)
+            if k == "--allow": o["allow"].append(v)
+            else: o[k[2:].replace("-", "_")] = float(v) if k in ("--dpr", "--wait") else v
+        else: pos.append(k)
+    return pos, o
+
+class Quiet(http.server.SimpleHTTPRequestHandler):
+    extensions_map = dict(http.server.SimpleHTTPRequestHandler.extensions_map, **{".js": "text/javascript", ".mjs": "text/javascript", ".wasm": "application/wasm", ".webmanifest": "application/manifest+json"})
+    def log_message(self, *a): pass
+    def end_headers(self): self.send_header("Cache-Control", "no-store"); super().end_headers()
+class Srv(http.server.ThreadingHTTPServer):
+    def handle_error(self, *a): pass
+
+def free_port():
+    s = socket.socket(); s.bind(("127.0.0.1", 0)); p = s.getsockname()[1]; s.close(); return p
+
+def run(zinc, project, o):
+    """Returns the result dict; the caller decides what a problem is."""
+    work = tempfile.mkdtemp(prefix="zinc-web-real-"); cleanup = []; own = []
+    env = dict(os.environ, ZINC_BACKGROUND="1")
+    try:
+        if o["dev"]:
+            proj = project   # (in place: a project may name plugins or files beside it, as hero does)
+            port = free_port(); log = []
+            dev = subprocess.Popen([zinc, "dev", proj, "--target", "web", "--render", o["render"], "--port", str(port)], stderr=subprocess.PIPE, stdout=subprocess.DEVNULL, env=env, text=True)
+            cleanup.append(lambda: (dev.terminate(), dev.wait(5)))
+            threading.Thread(target=lambda: [log.append(l.rstrip()) for l in dev.stderr], daemon=True).start()
+            t0 = time.time()
+            while time.time() - t0 < 90 and not any("127.0.0.1:%d" % port in l for l in log): time.sleep(0.2)
+            if not any("127.0.0.1:%d" % port in l for l in log): return {"fatal": "dev server did not start", "devlog": log[-8:]}
+            url = "http://127.0.0.1:%d/" % port
+        else:
+            cache = o.get("cache"); ck = (project, o["render"]); out = cache.get(ck) if cache is not None else None
+            if out is None: out = os.path.join(tempfile.mkdtemp(prefix="zinc-web-site-"), "out")
+            if cache is not None: cache[ck] = out
+            else: own.append(os.path.dirname(out))
+            r = subprocess.CompletedProcess([], 0) if os.path.isdir(out) else subprocess.run([zinc, "export", project, "--target", "web", "--render", o["render"], "-o", out], capture_output=True, text=True, env=env, timeout=300)
+            if r.returncode: return {"fatal": "export failed", "devlog": (r.stderr or r.stdout)[-600:].splitlines()}
+            srv = Srv(("127.0.0.1", 0), functools.partial(Quiet, directory=out)); threading.Thread(target=srv.serve_forever, daemon=True).start()
+            cleanup.append(srv.shutdown); url = "http://127.0.0.1:%d/" % srv.server_address[1]
+        w, h = (int(v) for v in o["size"].split("x")); dpr = o["dpr"]
+        res = {"render": o["render"], "dpr": dpr, "dev": o["dev"]}
+        args = ["--window-size=%d,%d" % (w, h), "--force-device-scale-factor=%g" % dpr, "--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream", "--enable-unsafe-swiftshader", "--disable-background-timer-throttling"]
+        with Chrome(args, headless=not o["headful"]) as c:
+            def pump(t):
+                end = time.time() + t
+                while time.time() < end: c._recv(-1, 0.05)
+            def shot():
+                d = c.call("Page.captureScreenshot", {"format": "png"}).get("data", ""); return hashlib.md5(d.encode()).hexdigest(), d
+            def mouse(ty, x, y):
+                c.call("Input.dispatchMouseEvent", {"type": ty, "x": x, "y": y, "button": "left" if ty != "mouseMoved" else "none", "buttons": 1 if ty == "mousePressed" else 0, "clickCount": 1 if ty != "mouseMoved" else 0})
+            def click(x, y):   # a person: move there, hold the button a moment, let go
+                mouse("mouseMoved", x, y); pump(0.12); mouse("mousePressed", x, y); pump(0.09); mouse("mouseReleased", x, y); pump(0.35)
+            def key(k, code=None, text=None, vk=0):
+                c.call("Input.dispatchKeyEvent", {"type": "keyDown", "key": k, "code": code or k, "windowsVirtualKeyCode": vk, "text": text or ""})
+                c.call("Input.dispatchKeyEvent", {"type": "keyUp", "key": k, "code": code or k, "windowsVirtualKeyCode": vk}); pump(0.15)
+            c.call("Emulation.setFocusEmulationEnabled", {"enabled": True})
+            c.open(url); pump(o["wait"])
+            res["frames"] = c.eval("globalThis.__zincFrames || 0")
+            w, h = c.eval("[innerWidth, innerHeight]") or (w, h)   # (the window size includes the browser's own frame: the page's area is what clicks are placed in)
+            res["title"] = c.eval("document.title")
+            res["loadProblems"] = len(c.problems)
+            res["text"] = (c.eval("document.body.innerText") or "")[:200]
+            res["canvasDpr"] = c.eval("(() => { const v = document.querySelector('canvas'); return v ? { w: v.width, h: v.height, cw: v.clientWidth, ch: v.clientHeight, dpr: devicePixelRatio } : null; })()")
+            h0, d0 = shot(); res["shotBytes"] = len(d0)
+            res["nonblank"] = c.eval("""(() => { const cv = document.querySelector('canvas'); if (!cv) return -1; try { const t = document.createElement('canvas'); t.width = cv.width; t.height = cv.height; const g = t.getContext('2d'); g.drawImage(cv, 0, 0); const d = g.getImageData(0, 0, t.width, t.height).data; let n = 0; for (let i = 4; i < d.length; i += 4) if (d[i] !== d[0] || d[i+1] !== d[1] || d[i+2] !== d[2]) n++; return n / (d.length / 4); } catch (e) { return -2; } })()""")
+            if o['shot0']: open(o['shot0'], 'wb').write(base64.b64decode(d0))
+            pump(0.3); h1, _ = shot(); res["animated"] = h1 != h0
+            if o.get("script"):   # a test's own steps (tests/t1/web_real.sh): script(chrome, click, key, pump, w, h, result) after the load, instead of the generic interaction
+                o["script"](c, click, key, pump, w, h, res)
+                res["console"] = list(c.console); res["problems"] = ["%s: %s" % kv for kv in c.problems if not any(re.search(p, kv[1]) for p in o["allow"])]; return res
+            def state(): return (c.eval("document.body.innerText.length + '|' + location.hash") or "", shot()[0])
+            reacted = []; steps = []
+            if o["click_text"]:
+                t = o["click_text"]
+                if re.fullmatch(r"[\d.]+,[\d.]+", t): x, y = (float(v) for v in t.split(","))
+                else:
+                    r = c.eval("(() => { const w = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT); let n, r = null; while ((n = w.nextNode())) if (n.children.length === 0 && n.textContent.trim() === %s) { const b = n.getBoundingClientRect(); r = [b.x + b.width / 2, b.y + b.height / 2]; } return r; })()" % json.dumps(t))
+                    x, y = r if r else (w / 2, h / 2)
+                b = state(); click(x, y); reacted.append(("click-text", state() != b))
+            if False:   # only load and the one click
+                res["reacted"] = [n for n, v in reacted if v]; res["reactedAny"] = any(v for _, v in reacted); res["problems"] = ["%s: %s" % kv for kv in c.problems]
+                if o["shot"]: open(o["shot"], "wb").write(base64.b64decode(shot()[1]))
+                return res
+            for gy in ((0.2, 0.5, 0.8) if not o["click_text"] else ()):   # a grid of real clicks: one that changes the picture or the text proves the app heard it
+                for gx in (0.25, 0.5, 0.75):
+                    s0 = state(); click(w * gx, h * gy); reacted.append(("click %g,%g" % (gx, gy), state() != s0)); steps.append(("click %g,%g" % (gx, gy), len(c.problems)))
+            s0 = state()
+            if "keys" not in o["skip"]:
+                for k, vk in (("Tab", 9), ("Tab", 9), ("ArrowDown", 40)): key(k, vk=vk)
+                for ch in "hi": key(ch, "Key" + ch.upper(), text=ch, vk=ord(ch.upper()))
+                key("Enter", vk=13)
+            steps.append(("keys", len(c.problems)))
+            if o["keys_shot"]: open(o["keys_shot"], "wb").write(base64.b64decode(shot()[1]))
+            reacted.append(("keys", state() != s0))
+            res["reacted"] = [n for n, v in reacted if v]; res["reactedAny"] = any(v for _, v in reacted)
+            w0 = state(); "wheel" not in o["skip"] and c.call("Input.dispatchMouseEvent", {"type": "mouseWheel", "x": w / 2, "y": h / 2, "deltaX": 0, "deltaY": 240}); pump(0.5); res["wheel"] = state() != w0
+            rw, rh = (int(v) for v in o["resize_to"].split("x")) if o["resize_to"] else (w - 301, h - 203)
+            "resize" not in o["skip"] and c.call("Emulation.setDeviceMetricsOverride", {"width": rw, "height": rh, "deviceScaleFactor": dpr, "mobile": False}); pump(0.8); steps.append(("resize", len(c.problems)))
+            if o["resize_shot"]: open(o["resize_shot"], "wb").write(base64.b64decode(shot()[1]))   # a window drag: the canvas follows at the device ratio
+            res["afterResize"] = c.eval("(() => { const v = document.querySelector('canvas'); return v ? { w: v.width, h: v.height, cw: v.clientWidth, ch: v.clientHeight, iw: innerWidth, ih: innerHeight } : { iw: innerWidth, ih: innerHeight }; })()")
+            c.eval("window.dispatchEvent(new Event('blur')); document.dispatchEvent(new Event('visibilitychange'))"); pump(0.3)   # focus away and back
+            c.call("Emulation.setFocusEmulationEnabled", {"enabled": False}); pump(0.2); c.call("Emulation.setFocusEmulationEnabled", {"enabled": True})
+            steps.append(("blur", len(c.problems))); c.eval("window.dispatchEvent(new Event('focus'))"); pump(0.3); click(w / 2, h / 2); steps.append(("refocus-click", len(c.problems))); key("Tab", vk=9)
+            res["framesEnd"] = c.eval("globalThis.__zincFrames || 0")
+            if o["shot"]: open(o["shot"], "wb").write(base64.b64decode(shot()[1]))
+            allow = [re.compile(p) for p in o["allow"]]
+            seen = []; flood = 0
+            for kind, msg in c.problems:
+                if any(p.search(msg) for p in allow): continue
+                if (kind, msg) in seen: flood += 1; continue
+                seen.append((kind, msg))
+            res["problemSteps"] = steps; res["problems"] = ["%s: %s" % kv for kv in seen][:30]; res["repeats"] = flood
+        return res
+    finally:
+        for f in cleanup:
+            try: f()
+            except Exception: pass
+        shutil.rmtree(work, ignore_errors=True)
+        for d in own: shutil.rmtree(d, ignore_errors=True)
+
+def matrix(zinc, projects, renders=("canvas", "dom"), dprs=(2.0,), dev=False):
+    """One line per project x render x ratio: frames, whether the picture changed on input, the problems."""
+    cache = {}
+    for pr in projects:
+        for rd in renders:
+            for d in dprs:
+                o = parse([])[1]; o.update(render=rd, dpr=d, dev=dev, wait=5.0, cache=None if dev else cache)
+                try: r = run(zinc, pr, o)
+                except Exception as e: r = {"fatal": repr(e)}
+                print(json.dumps({"demo": os.path.relpath(pr), "render": rd, "dpr": d, "dev": dev, "fatal": r.get("fatal"), "frames": r.get("frames"), "nonblank": r.get("nonblank"), "text": len(r.get("text") or ""),
+                                  "reacted": len(r.get("reacted") or []), "animated": r.get("animated"), "canvas": r.get("canvasDpr"), "after": r.get("afterResize"), "problems": r.get("problems")}), flush=True)
+    for out in cache.values(): shutil.rmtree(os.path.dirname(out), ignore_errors=True)
+
+if __name__ == "__main__":
+    if len(sys.argv) > 3 and sys.argv[1] in ("--matrix", "--matrix-dev"):
+        matrix(os.path.abspath(sys.argv[2]), [os.path.abspath(a) for a in sys.argv[3:]], dev=sys.argv[1] == "--matrix-dev"); sys.exit(0)
+    pos, o = parse(sys.argv[1:])
+    if len(pos) != 2: sys.exit(__doc__)
+    if not find_chrome(): print("SKIP no Chrome"); sys.exit(77)
+    r = run(os.path.abspath(pos[0]), os.path.abspath(pos[1]), o)
+    print(json.dumps(r))
+    bad = "fatal" in r or r.get("problems") or r.get("frames", 0) < 2 or (o["expect_react"] and not r.get("reactedAny"))
+    sys.exit(1 if bad else 0)
