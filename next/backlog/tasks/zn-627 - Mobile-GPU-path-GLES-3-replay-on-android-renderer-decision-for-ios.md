@@ -1,11 +1,11 @@
 ---
 id: ZN-627
 title: 'Mobile GPU path: GLES 3 replay on android, renderer decision for ios'
-status: In Progress
+status: Backlog
 assignee:
   - '@parallel'
 created_date: '2026-10-10 14:07'
-updated_date: '2026-10-17 00:15'
+updated_date: '2026-10-17 00:17'
 labels:
   - mobile
   - size-M
@@ -26,7 +26,7 @@ ordinal: 203000
 - [ ] #1 frame times of rn-showcase and hero on both in `docs/reports/zinc-next-perf.md`
 - [ ] #2 pixels equal to the desktop GL goldens within the existing tolerance
 - [ ] #3 a decision record for iOS
-- [ ] #4 the iOS decision follows D119: our own Metal back end of the command lists, scored against GLES through EAGL and ANGLE on Metal for the record
+- [x] #4 the iOS decision follows D119: our own Metal back end of the command lists, scored against GLES through EAGL and ANGLE on Metal for the record
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -55,4 +55,6 @@ The plan for the Metal back end. It is not built: it is an L task of 4 to 5 sess
 2. runtime/mtl_replay.mm, the Metal back end. Pipelines: one MTLRenderPipelineState per mode, as the GLES 2 path has one program per mode (ZN-725), plus the stencil and occlusion pipelines. Vertices: a ring of three shared MTLBuffers behind a dispatch_semaphore, for the frames in flight. Textures: runtime images and the atlas in shared textures updated with replaceRegion, baked images in private textures filled by a blit. Depth and stencil are memoryless (tile memory, no bandwidth). Rectangular clips use scissor rects. The frame is replayed into a persistent BGRA texture, loading it so that only the damaged rectangles are drawn (D126's damage-aware replay), then blitted into the drawable as hal_metal.mm does now; when the whole frame changed it is drawn straight into the drawable. A Metal capability record sits beside runtime/gl_caps.h (GPU family from supportsFamily Apple4 to Apple9, the maximum texture size, memoryless support). Two to three sessions.
 3. Shaders. At build time, gl_replay_shaders.h (GLSL ES 1.00) goes through glslang (vendored) to SPIR-V, then through SPIRV-Cross (to vendor: Apache-2.0, pinned) to MSL. The result is a generated runtime/mtl_replay_shaders.metal kept in the tree, with a T0 test that regenerates and diffs it. Xcode compiles it into the app's default.metallib, so nothing compiles at start. D124's runtime shaders: at run time, the program's GLSL ES fragment goes through glslang and SPIRV-Cross, then newLibraryWithSource, cached by hash in Library/Caches. glslang and SPIRV-Cross are linked only into apps whose program calls shaderProgram (the export knows which); otherwise SHADER keeps its CPU picture. One session.
 4. Tests on the development Mac. The same back end runs on macOS (MTLCreateSystemDefaultDevice, headless into a texture) and is compared with the desktop GL goldens within the existing tolerance. Then a simulator smoke run of rn-showcase and hero: a few frames and one hash.
+
+2026-10-17, step 3 and handover. AC1: the iOS half is in these notes (step 1: rn-showcase and hero frame times on the iPhone 17 simulator); the coordinator copies them to zinc-next-perf.md. The Android half (the GLES 3 replay on a capable Android device) is not done: this agent did no Android device work. AC2: on iOS the frame is the software raster's, and the Metal present shows the same pixels as SDL_Renderer (byte-identical screenshots). Comparing a GPU path with the desktop GL goldens waits for the Android GLES 3 replay and for the Metal back end. AC3: the text is above; it can be ticked once the coordinator writes it as a numbered record. AC4: ticked (the text follows D119: Metal is the GPU back end, scored against EAGL and ANGLE). Next command for the Android half: zinc export examples/rn-showcase --target android with ZINC_RENDERER=gl on a GLES 3 device or emulator, then ZINC_PRESENT_STATS and ZINC_GL_INFO as in ZN-741.
 <!-- SECTION:NOTES:END -->
