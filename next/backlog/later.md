@@ -729,3 +729,12 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-?: the dev pre-bundle does not watch workspace packages; reload on a workspace package edit
 - ZN-?: publish @zinc/vite to npm (owner step; the package is ready)
 - ZN-?: semantic DOM on Firefox and Safari (macOS, iOS), phone measurement before choosing the web default render, screen reader and IME pass, code-editor TextArea extensions in the page, lottie cacheBg on the web, deep links for Stack path, prerender at several widths
+
+- ZN-?: web `zinc dev --target web` for vendored UMD/addon libraries (three addons, MapLibre) once the unbundled dev server can load them
+- ZN-?: an OSC relay shipped with Zinc (WebSocket to UDP) for `zinc:osc/full` on the web
+- ZN-?: real-device pass for web serial, MIDI and gphoto2 (Arduino, MIDI keyboard, PTP camera) and Firefox/Safari runs of the WebGL tests
+- ZN-?: libgphoto2 through `web-gphoto2` for live view and vendor widgets on the web
+- ZN-?: web `zinc:3d` and `zinc:physics3d`, or a documented "use three" answer
+- ZN-?: OffscreenCanvas worker renderer for three.js on the web; a WebGPU renderer
+- ZN-?: silence W0603 for `zinc:map` on the web (lazy network calls in index.ts or a browser shim for zinc:net)
+- ZN-?: a DOM-mode program that draws with gfx alone and has no zinc:ui tree yields no elements; export it in canvas mode or make DOM mode mount a canvas
