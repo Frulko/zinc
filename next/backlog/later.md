@@ -376,6 +376,13 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-755: StandBy glances at low brightness at night: zinc:sys "backlight" is only on/off while Android's screenBrightness takes 0..1; a dim glance needs a level.
 - ZN-755: some geocoding names show "?" (Persian and similar letters): the bundled Inter has no glyph for them; a fallback font.
 - ZN-755: quick adb input taps closer than ~0.5 s can be lost or merged by the once-per-frame pointer poll (fingers are fine): scripted device sessions.
+- ZN-753: the console core should carry the 8x8 font itself, so a program compiled without `zinc pack` (no resources) still shows its text screen.
+- ZN-753: a PS2 full redraw costs 18-44 ms on the EE (raster plus texture upload): a GS replay, or uploading only the changed rows.
+- ZN-753: re-assert the Vita's 444/222/222/166 MHz clocks after resume from suspend (power callback).
+- ZN-753: PSP 5650 framebuffer with dither and a vcount guard (the Pocket3D lessons).
+- ZN-753: the PCSX2 runner's data directory has no pad bindings; copy the owner's bindings read-only so a test build is playable by hand.
+- ZN-753: a real window capture of Vita3K and Azahar (Screen Recording permission, or an Azahar user directory whose dump settings use an encoder its FFmpeg has).
+
 
 ## Demos
 - Owner 2026-10-17: every game demo uses Kenney's assets (kenney.nl, CC0), adapted per platform: re-skin pinball, pinball3d and pocket-hero with Kenney packs as they are next worked on (breakout in ZN-753, platformer and marble in ZN-754).
@@ -484,6 +491,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-: zinc:ui layout: a `w-full max-w-[440px]` child of an `items-center` parent is placed left, not centred (CSS and Yoga centre it).
 - ZN-: JSX lowering prints `{helper(p.children)}` as text unless the helper is named `render*` or returns JSX directly; content silently disappears.
 - ZN-: webcam demo: photos taken in the same second get a `-2` suffix that sorts before the first name, so the strip order is off after a restart.
+- ZN-753: breakout gets Kenney's Interface Sounds once the console cores have audio (PSP pinned to 44.1/22.05/11.025 kHz; 3DS ndsp needs the DSP firmware, else CSND).
+
 
 ## Cross-platform pass
 
@@ -686,3 +695,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-754: run Meadow Run and Marble Terraces in PPSSPP, Vita3K, PCSX2 and Azahar; per-console frame times; the platformer atlas in CLUT8 on PSP/PS2.
 - D142: the GPU-layer switching and the ANativeWindow disconnect on API 26+ and API 29+ devices and other GPUs (Mali, Adreno).
 - ZN-756: zinc:link on Linux (never compiled there: dnssd beside avahi on port 5353, then two Linux machines pairing) and on iOS (raw multicast needs Apple's multicast entitlement: dns_sd.h DNSServiceRegister/Browse behind dnssd.h, NSLocalNetworkUsageDescription and NSBonjourServices in Info.plist).
+- ZN-753: run the four breakout builds on real PSP, Vita, PS2 and 3DS hardware.
