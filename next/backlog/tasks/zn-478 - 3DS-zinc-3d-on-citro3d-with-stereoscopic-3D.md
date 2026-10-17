@@ -4,6 +4,7 @@ title: '3DS: zinc:3d on citro3d with stereoscopic 3D'
 status: Backlog
 assignee: []
 created_date: '2026-10-09 07:38'
+updated_date: '2026-10-17 09:37'
 labels:
   - 3d
   - 3ds
@@ -28,3 +29,9 @@ render3d.n3ds.cpp: picasso vertex shader, fragment lighting LUTs or vertex light
 - [ ] #2 a stereo pair is produced when the slider is above 0
 - [ ] #3 frame rate recorded for Old and New 3DS settings
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-10-17 (owner: "prends bonnes notes sur comment Pocket3D s'adapte aux hardware"): read ../docs/reports/games/pocket3d-hardware-adaptation.md before starting. No Pocket3D game uses stereo 3D (gfxSet3D(false) everywhere): do this task last.
+<!-- SECTION:NOTES:END -->

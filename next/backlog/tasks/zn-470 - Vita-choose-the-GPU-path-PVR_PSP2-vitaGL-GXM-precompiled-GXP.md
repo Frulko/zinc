@@ -4,6 +4,7 @@ title: 'Vita: choose the GPU path (PVR_PSP2, vitaGL, GXM + precompiled GXP)'
 status: Backlog
 assignee: []
 created_date: '2026-10-09 07:38'
+updated_date: '2026-10-17 09:37'
 labels:
   - gpu
   - handheld
@@ -29,3 +30,9 @@ Build display-gl's gl_renderer (GLSL ES 1.00) on PVR_PSP2 (GLES2 + EGL) and on v
 - [ ] #2 the chosen path renders examples/ui/gl-check
 - [ ] #3 redistribution of any module shipped with the core is checked and documented
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-10-17 (owner: "prends bonnes notes sur comment Pocket3D s'adapte aux hardware"): read ../docs/reports/games/pocket3d-hardware-adaptation.md before starting. Vita: Cg compiled on a real console, cached by source hash, shipped as GXP, a release refused without a matching console pass; draw straight into the 4x MSAA display surface (~4.1 ms); parameter buffer 32 MB; re-assert 444/222/222/166 MHz after suspend.
+<!-- SECTION:NOTES:END -->

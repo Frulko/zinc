@@ -4,6 +4,7 @@ title: GE 3D kernel and renderer v1 for cooked packs (PSP)
 status: Backlog
 assignee: []
 created_date: '2026-10-09 07:39'
+updated_date: '2026-10-17 09:37'
 labels:
   - handheld
   - pocketjs
@@ -27,3 +28,9 @@ Native module for the GE (clean-room): display-list ring double-buffered and 64-
 - [ ] #3 Bench on hardware: 30 fps with 0 late frames over the route at <= 40k triangles, or the receipt and the cause recorded
 - [ ] #4 A hardware pitfall checklist (dcache lines, texture flush, CLUT width) is run and recorded
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-10-17 (owner: "prends bonnes notes sur comment Pocket3D s'adapte aux hardware"): read ../docs/reports/games/pocket3d-hardware-adaptation.md before starting. Cooker: one JSON profile per device with budgets that fail the cook, a deterministic receipt without timestamps, check --target rejecting unsupported features before cooking, a failed cook leaving the previous pack intact, every device lowered from one sealed source (never from another device's pack).
+<!-- SECTION:NOTES:END -->
