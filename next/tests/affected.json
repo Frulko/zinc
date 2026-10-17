@@ -1,260 +1,3248 @@
 {
   "comment": "tests/run --changed: the tests that cover what a change touched (path prefix -> test names, T0/T1 only) and the pixel canary entries (tools/proto-capture compare --canary). The 42 demos and examples_all are T2: once per milestone, never at the end of a task unless the shared engine core changed, and then in the background.",
-  "default": ["checker", "lang"],
+  "default": [
+    "checker",
+    "lang"
+  ],
   "map": [
-    {"paths": ["../plugins/gsap/", "tests/t1/gsap.sh", "tests/golden/gsap/", "../docs/plugins/gsap.md"], "tests": ["gsap"]},
-    {"paths": ["../runtime/raster.cpp", "../runtime/gl_replay.cpp", "../runtime/zrt_raster.h", "tests/t0/ignorable_glyphs.sh"], "tests": ["ignorable_glyphs"]},
-    {"paths": ["../examples/js-gsap/", "tests/t1/example_js_gsap.sh", "tools/test-lib"], "tests": ["example_js_gsap"]},
-    {"paths": ["../plugins/async-storage/", "tests/t0/async_storage.sh", "../docs/plugins/async-storage.md"], "tests": ["async_storage"]},
-    {"paths": ["src/frontend/plugin_manifest.cpp", "src/frontend/native_gen.cpp", "src/app/mobile_bridge.h", "src/app/ios/", "src/app/ios_glue.mm", "src/app/ios_a11y.mm", "tests/data/mobile-plugin/", "tests/data/mobile-sqlite/", "tests/golden/native_gen/mobile/"], "tests": ["export_android", "export_ios", "native_gen", "plugin_manifest"]},
-    {"paths": ["../plugins/system/", "../lib/std/system/", "tests/data/mobile-services/", "tests/t0/system_phone.sh"], "tests": ["system_phone", "system_ops"]},
-    {"paths": ["../plugins/leapmotion/", "tests/t0/leapmotion.sh", "tests/data/leapmotion/", "../docs/plugins/leapmotion.md", "../docs/reports/zinc-next-leapmotion.md"], "tests": ["leapmotion", "leapmotion_demo"]},
-    {"paths": ["../examples/leapmotion/", "tests/t1/leapmotion_demo.sh", "tests/golden/leapmotion/"], "tests": ["leapmotion", "leapmotion_demo"]},
-    {"paths": ["../examples/music/", "tests/t1/music_city_standby.sh", "tests/t1/music_notify.sh", "tests/data/music/", "tests/golden/music/"], "tests": ["music_city_standby", "music_notify"]},
-    {"paths": ["src/cli_core.cpp", "third_party/SDL3/android-project/", "src/tc/plugin_build.cpp", "tests/t0/export_android.sh", "tests/golden/export-android/"], "tests": ["export_android"]},
-    {"paths": ["src/cli_core.cpp", "src/app/shell_sdl.cpp", "tests/t0/export_ios.sh", "tests/golden/export-ios/"], "tests": ["export_ios"]},
-    {"paths": ["../targets/macos/hal_sdl.cpp", "../targets/macos/hal_metal.mm", "tests/t0/ios_present.sh"], "tests": ["ios_present"]},
-    {"paths": ["src/cli_core.cpp", "src/frontend/project.cpp", "src/frontend/plugin_manifest.cpp", "tests/t0/export_packages.sh"], "tests": ["export_packages"]},
-    {"paths": ["../targets/capabilities.json", "src/frontend/profile.cpp", "src/frontend/project.cpp", "src/tc/tc.cpp", "tests/t0/mobile_profiles.sh"], "tests": ["mobile_profiles"]},
-    {"paths": ["../targets/capabilities.json", "src/frontend/profile.cpp", "src/frontend/capabilities.cpp", "tests/t0/handheld_profiles.sh"], "tests": ["handheld_profiles"]},
-    {"paths": ["targets/console/", "src/rt/alloc.cpp", "tests/t0/console_host.sh"], "tests": ["console_host", "console_core"]},
-    {"paths": ["targets/console/audio_console.cpp", "targets/console/console_audio.h", "targets/console/stubs.cpp", "../plugins/audio/index.ts", "tests/t0/console_audio.sh"], "tests": ["console_audio"]},
-    {"paths": ["../lib/std/hardware.ts", "src/host/sys_host.cpp", "targets/console/host_console.cpp", "tests/t0/hardware_motion.sh", "tests/t0/hardware_reartouch.sh", "tests/t0/hardware_microphone.sh", "tests/t0/hardware_stereo.sh", "tests/t0/hardware_memcard.sh"], "tests": ["hardware_motion", "hardware_reartouch", "hardware_microphone", "hardware_stereo", "hardware_vibration", "hardware_memcard"]},
-    {"paths": ["src/frontend/modules.cpp", "tests/t0/date_f32.sh"], "tests": ["date_f32"]},
-    {"paths": ["targets/console/host_console.cpp", "targets/console/gfx_stubs.cpp", "targets/console/embed.cmake", "targets/console/CMakeLists.txt", "include/zn/zim.h", "tests/t0/console_assets.sh"], "tests": ["console_assets"]},
-    {"paths": ["src/host/gfx_host.cpp", "src/host/hal_dispatch.cpp", "../runtime/include/hal.h", "tests/t0/hardware_vibration.sh", "tests/t0/hardware_pressure.sh", "tests/t0/hardware_screen2.sh"], "tests": ["hardware_vibration", "hardware_pressure", "hardware_screen2"]},
-    {"paths": ["src/host/gfx_host.cpp", "src/host/resources.cpp", "tests/t0/console_core.sh"], "tests": ["console_core"]},
-    {"paths": ["src/tc/consoles.cpp", "src/tc/tc.cpp", "src/tc/tc.h", "tests/t0/console_sdks.sh"], "tests": ["console_sdks"]},
-    {"paths": ["../examples/breakout/", "tests/golden/breakout/", "tests/t1/breakout_pad.sh"], "tests": ["breakout_pad"]},
-    {"paths": ["tools/console-run", "tools/build-console-core", "tools/console-demos", "targets/console/hello/", "targets/console/console_pad.h", "../targets/psp/", "../targets/vita/", "../targets/ps2/hal_ps2.cpp", "../targets/n3ds/", "targets/console/psp.cmake", "targets/console/vita.cmake", "targets/console/ps2.cmake", "targets/console/n3ds.cmake", "tests/t2/console_emulators.sh"], "tests": ["console_emulators"]},
-    {"paths": ["src/app/", "include/zn/app.h", "tests/t0/app_library.sh", "src/aot/aot.cpp", "../targets/macos/hal_sdl.cpp", "src/host/loop.cpp"], "tests": ["app_library"]},
-    {"paths": ["src/agent/", "src/net/", "third_party/mdns/", "tests/t0/agent.sh", "tests/t1/agent_apps.sh"], "tests": ["agent", "agent_apps"]},
-    {"paths": ["../plugins/link/", "src/net/", "src/host/tls.cpp", "src/host/tls.h", "tests/data/link/", "tests/t1/link.sh"], "tests": ["link"]},
-    {"paths": ["../examples/notify-relay/", "../plugins/link/", "../plugins/sqlite/", "tests/data/notify-relay/", "tests/t1/notify_relay.sh", "tests/t0/notify_relay_unit.sh"], "tests": ["notify_relay", "notify_relay_unit"]},
-    {"paths": ["src/frontend/modules.cpp", "tests/data/late_frame.ts", "tests/t0/late_frame.sh"], "tests": ["late_frame"]},
-    {"paths": ["src/agent/inspect.cpp", "src/agent/server.cpp", "src/agent/client.cpp", "app/inspector/", "tests/t1/agent_inspect.sh"], "tests": ["agent_inspect"]},
-    {"paths": ["src/host/tls.cpp", "src/host/tls.h", "third_party/mbedtls/include/mbedtls/mbedtls_config.h"], "tests": ["agent", "tls"]},
-    {"paths": ["src/agent/", "tests/t1/agent_ota.sh"], "tests": ["agent_ota"]},
-    {"paths": ["src/agent/", "tests/t1/agent_dev.sh"], "tests": ["agent_dev"]},
-    {"paths": ["src/agent/client.cpp", "src/agent/server.cpp", "tests/t1/agent_deploy.sh"], "tests": ["agent_deploy"]},
-    {"paths": ["../lib/std/ui.ts", "tests/golden/ui/spread.tsx", "tests/golden/ui/spread.input", "tests/t1/touch_spread.sh"], "tests": ["touch_spread", "touch_finger", "input_touch", "pointer_kind"]},
-    {"paths": ["../runtime/gfx.cpp", "tests/t1/touch_marks.sh"], "tests": ["touch_marks"]},
-    {"paths": ["../runtime/raster.cpp", "../lib/std/ui.ts", "src/host/render_bench.cpp", "tests/t0/damage_tap.sh"], "tests": ["damage_tap", "damage_sig"]},
-    {"paths": ["../runtime/raster.cpp", "../runtime/gfx.cpp", "../lib/std/ui.ts", "../targets/macos/hal_sdl.cpp", "src/host/render_bench.cpp", "tests/t0/scroll_move.sh", "tests/data/scroll_header/"], "tests": ["scroll_move"]},
-    {"paths": ["../runtime/gl_replay.cpp", "../runtime/gl_replay_shaders.h", "../targets/macos/hal_sdl.cpp", "tests/t1/gl_scroll.sh", "tests/data/scroll_header/"], "tests": ["gl_scroll"]},
-    {"paths": ["../runtime/raster.cpp", "../runtime/gfx.cpp", "src/host/gfx_host.cpp", "src/frontend/modules.cpp", "include/zn/runtime.h", "../lib/gfx.d.ts", "tests/t0/image_pixels.sh", "tests/data/image_pixels/"], "tests": ["image_pixels"]},
-    {"paths": ["../runtime/gl_replay.cpp", "../runtime/gl_replay_shaders.h", "../runtime/gfx.cpp", "../runtime/raster.cpp", "../plugins/display-gl/", "../targets/macos/hal_sdl.cpp", "src/host/gfx_host.cpp", "tests/t1/shader_gl.sh", "tests/data/shader/"], "tests": ["shader_gl", "image_pixels"]},
-    {"paths": ["include/zn/resource_stats.h", "src/host/resources.cpp", "tests/t0/resource_stats.sh", "../plugins/video/native/video.host.cpp", "../plugins/3d/native/render3d.host.cpp", "../plugins/3d/native/render3d.gl.cpp", "../plugins/three/native/three.host.cpp", "../runtime/raster.cpp", "../runtime/gl_replay.cpp"], "tests": ["resource_stats", "museum_probe"]},
-    {"paths": ["tools/museum-probe", "tools/resource-probe", "tools/scenarios/", "tools/cdp-probe", "../examples/museum-table/src/probe.ts"], "tests": ["resource_probe", "museum_probe", "devtools_port"]},
-    {"paths": ["src/rt/rt.h"], "tests": ["cross_linux"]},
-    {"paths": ["tools/windows-cross", "tests/t2/cross_windows.sh", "src/tc/tc.cpp"], "tests": ["cross_windows", "release_workflow"]},
-    {"paths": ["tools/build-linux", "tools/linux-sysroot", "cmake/zig-linux.cmake"], "tests": ["tc", "release_workflow"]},
-    {"paths": ["tests/t1/first_run.sh", "tests/golden/first-run/", "../templates/", "src/frontend/diagnostics", "include/zn/diagnostics.h", "../docs/guide/01-getting-started.md"], "tests": ["first_run"]},
-    {"paths": [".github/workflows/zinc-next.yml"], "tests": ["ci_plan", "release_workflow"]},
-    {"paths": ["tests/golden/examples/proto/manifest.json", "tests/t1/camera_pixels.sh"], "tests": ["camera_pixels"]},
-    {"paths": ["tools/ci-plan", "tests/data/ci_plan.py", "tests/t0/ci_plan.sh", "tests/affected.py", "tests/affected.json"], "tests": ["ci_plan"]},
-    {"paths": ["tests/t1/fixed_verify.sh"], "tests": ["fixed_verify"]},
-    {"paths": ["tests/t1/macos_deeplink.sh"], "tests": ["macos_deeplink"]},
-    {"paths": ["tests/t1/macos_window.sh", "tests/golden/macos/window/"], "tests": ["macos_window"]},
-    {"paths": ["tools/examples-status", "tests/t0/examples_status.sh", "tests/t1/examples_all.sh", "tests/t2/examples_all.sh"], "tests": ["examples_status"]},
-    {"paths": ["tests/run", "tests/t0/runner_cwd.sh"], "tests": ["runner_cwd", "native", "mqtt", "osc", "codec", "fixed", "gltf", "text_layout"]},
-    {"paths": ["src/test_cmd.cpp", "tools/compat/", "tests/t1/zinc_test_runners.sh"], "tests": ["zinc_test_runners", "net", "socket"]},
-    {"paths": ["src/dbg/", "src/vm/", "tests/data/debug_cli/", "tests/golden/debug_cli/", "tests/t1/debug_cli.sh", "tests/dap_check.py", "tests/t1/debug_dap.sh", "../lib/editor/vscode-zinc-debug/", "tests/cdp_debug_check.mjs", "tests/t1/debug_cdp.sh", "tests/t1/debug_lldb.sh"], "tests": ["debug_cli", "debug_dap", "debug_cdp", "debug_lldb"]},
-    {"paths": ["src/aot/aot.cpp"], "tests": ["debug_lldb"]},
-    {"paths": ["app/inspector/", "tests/data/inspector/", "tests/t1/inspector.sh", "../plugins/devtools/", "src/host/netlog.cpp"], "tests": ["inspector"]},
-    {"paths": ["app/atelier/", "tests/t1/atelier_ide.sh", "tests/t0/atelier.sh", "tests/golden/atelier/"], "tests": ["atelier_ide", "atelier"]},
-    {"paths": ["src/lsp/", "tests/lsp/", "tests/t1/lsp.sh"], "tests": ["lsp", "atelier_ide"]},
-    {"paths": ["src/main.cpp", "src/host/gfx_host.cpp", "../targets/macos/hal_sdl.cpp", "tests/t1/run_app_name.sh", "tests/data/app_name/"], "tests": ["run_app_name"]},
-    {"paths": ["app/atelier/", "src/agent/client.cpp", "src/agent/server.cpp", "tests/t1/atelier_devices.sh", "tests/golden/atelier/devices-30.png"], "tests": ["atelier_devices"]},
-    {"paths": ["tools/bench-m4", "tools/bench-gate", "corpus/bench/", "bench/", "../tests/bench/", "tests/data/bench_harness.py", "tests/t2/bench_gate.sh"], "tests": ["bench_harness"]},
-    {"paths": ["lib/std/ui.ts", "lib/std/solid.ts", "lib/std/react.ts", "lib/std/kit/"], "tests": ["ui", "ui_style", "ui_tokens", "jsx_style", "ui_font", "ui_textlayout", "ui_alloc_text", "ui_alloc_layout", "ui_sides", "ui_media", "ui_docs", "ui_virtual", "ui_theme", "ui_state", "ui_transition", "ui_a11y", "ui_alloc", "ui_select", "ui_kbd_inset", "ui_kbd_reveal", "ui_kbd_mode", "ui_kit_sections", "ui_cmds", "ui_modal_motion", "ui_press", "webgl_surface", "layout_iface", "layout_rn", "classic_rewrap", "rn_showcase", "style_flex", "style_size", "scroll_axis", "scroll_end", "layout_anim", "animated", "style_shadow", "style_transform", "pan_responder", "react_native", "style_border", "layout_compat", "layout_conformance", "rn_port", "rtl"], "canary": true},
-    {"paths": ["tests/golden/ui-transition/"], "tests": ["ui_transition"]},
-    {"paths": ["tests/golden/ui-modal-motion/", "../lib/std/nuxt/overlays.tsx"], "tests": ["ui_modal_motion", "nuxt_ui"]},
-    {"paths": ["tests/golden/ui-press/"], "tests": ["ui_press"]},
-    {"paths": ["src/frontend/jsx.cpp", "tests/golden/style-flex/", "tests/golden/style-size/", "tests/golden/style-shadow/", "tests/golden/style-transform/", "tests/golden/pan-responder/", "tests/golden/react-native/", "tests/golden/style-dynamic/", "tests/golden/style-border/", "tests/golden/layout-compat/", "tests/golden/rtl/"], "tests": ["style_flex", "style_size", "style_shadow", "style_transform", "pan_responder", "react_native", "style_dynamic", "style_border", "layout_compat", "react_native_imports", "rtl", "jsx_style"]},
-    {"paths": ["../examples/rn-showcase/", "tests/golden/rn-showcase/"], "tests": ["rn_showcase"]},
-    {"paths": ["../lib/std/platform/", "../lib/std/kit/", "../lib/std/nuxt/controls.tsx", "../lib/std/react-native.tsx", "../examples/ui/kit-gallery/", "../examples/rn-showcase/", "src/frontend/project.cpp", "tests/golden/platform-look/", "tests/t1/platform_look.sh"], "tests": ["platform_look", "ui_kit_sections", "rn_showcase", "kit_menubar", "nuxt_ui", "react_native"]},
-    {"paths": ["../examples/webcam/", "tests/golden/webcam-demo/", "../plugins/camera/"], "tests": ["webcam_demo"]},
-    {"paths": ["../lib/std/react-native.tsx", "../lib/std/icons.tsx", "../lib/std/ui.ts", "tests/golden/rn-idle/"], "tests": ["rn_idle"]},
-    {"paths": ["../examples/rn-port/", "tests/golden/rn-port/"], "tests": ["rn_port"]},
-    {"paths": ["../examples/rn-tester/", "tests/golden/rn-tester/"], "tests": ["rn_tester"]},
-    {"paths": ["../examples/js-three/", "tests/golden/js-examples/three.input", "third_party/three/"], "tests": ["example_js_three"]},
-    {"paths": ["../examples/js-phaser/", "tests/golden/js-examples/phaser.input", "third_party/phaser/"], "tests": ["example_js_phaser"]},
-    {"paths": ["../examples/js-p5/", "tests/golden/js-examples/p5.input", "tools/test-lib"], "tests": ["example_js_p5"]},
-    {"paths": ["../examples/js-pixi/", "tests/golden/js-examples/pixi.input", "third_party/pixi/"], "tests": ["example_js_pixi"]},
-    {"paths": ["../lib/std/react-native.tsx", "../lib/std/react-native-linking.ts", "tests/golden/react-native-input/", "tests/golden/react-native-lists/", "tests/golden/react-native-modal/", "tests/golden/system/linking/", "tests/golden/react-native-imports/"], "tests": ["react_native", "react_native_input", "react_native_lists", "react_native_modal", "ui_modal_motion", "ui_press", "react_native_imports", "rn_port", "rn_tester", "system_sim"]},
-    {"paths": ["../lib/std/nuxt/", "tests/golden/nuxt-theme/", "../examples/nuxt-ui/", "tests/golden/nuxt-ui/", "tests/golden/oklab-tints/", "tools/oklab-tints"], "tests": ["nuxt_theme", "nuxt_ui", "oklab_tints", "rtl"]},
-    {"paths": ["../lib/std/animated.ts", "tests/golden/animated/"], "tests": ["animated", "rn_showcase", "pan_responder"]},
-    {"paths": ["../lib/std/icons.tsx", "third_party/lucide/", "tests/golden/icons/", "tests/golden/icons-all/"], "tests": ["icons", "rn_showcase"]},
-    {"paths": ["src/frontend/modules.cpp", "src/frontend/tsconfig.cpp", "include/zn/platform.h", "tests/t0/platform_files.sh", "tests/golden/platform-files/"], "tests": ["platform_files"]},
-    {"paths": ["include/zn/platform.h", "src/host/sys_host.cpp", "tests/golden/platform-identity/"], "tests": ["platform_identity"]},
-    {"paths": ["src/host/hal_dispatch.cpp", "../lib/std/haptics.ts", "../lib/std/react-native.tsx", "tests/golden/system-signals/", "../targets/macos/hal_sdl.cpp"], "tests": ["system_signals"]},
-    {"paths": ["src/app/android/", "src/app/android_glue.cpp", "src/cli_core.cpp"], "tests": ["export_android"]},
-    {"paths": ["../lib/std/navigation.tsx", "tests/golden/navigation/"], "tests": ["navigation"]},
-    {"paths": ["../lib/std/overscroller.ts", "tests/golden/scroll-platform/"], "tests": ["scroll_platform"]},
-    {"paths": ["tests/golden/text-touch/", "src/app/ios_glue.mm"], "tests": ["text_touch"]},
-    {"paths": ["tests/t1/keyboard_avoid.sh", "../lib/std/react-native.tsx", "../examples/rn-showcase/src/App.tsx", "../examples/rn-showcase/src/screens/Forms.tsx"], "tests": ["keyboard_avoid"]},
-    {"paths": ["src/frontend/project.cpp", "src/frontend/project.h", "src/frontend/capabilities.cpp", "../targets/capabilities.json"], "tests": ["ui_layout_option", "requires"]},
-    {"paths": ["src/host/layout.h", "src/host/layout_yoga.cpp", "src/host/text_wrap.h", "src/host/text_wrap.cpp", "third_party/yoga/", "tests/native/layout_yoga_test.cpp"], "tests": ["layout_iface", "layout_conformance", "layout_yoga", "layout_bridge", "layout_rn"]},
-    {"paths": ["src/host/layout_host.cpp", "tests/golden/layout-bridge/", "tests/golden/layout-rn/", "src/qjs/qjs.cpp", "src/aot/aot.cpp", "tests/golden/layout-conformance/", "tools/layout-fixtures"], "tests": ["layout_bridge", "layout_rn", "layout_conformance", "rtl"]},
-    {"paths": ["src/frontend/jsx.cpp", "src/frontend/jsx"], "tests": ["jsx", "jsx_banned", "jsx_style", "react_class", "ui_tokens"], "canary": true},
-    {"paths": ["tests/golden/jsx/errors/", "tests/t0/jsx_banned.sh", "include/zn/diagnostics.h"], "tests": ["jsx_banned", "migrate"]},
-    {"paths": ["src/frontend/jsx.cpp", "../lib/std/solid.ts", "../lib/std/kit/host.ts", "../lib/std/nuxt/host.ts", "../lib/std/nuxt/navigation.tsx", "tests/data/solid_props/", "tests/t1/solid_props.sh"], "tests": ["solid_props"]},
-    {"paths": ["src/lint/", "tests/t0/lint.sh", "tests/t0/migrate.sh", "tests/golden/lint/", "tests/golden/migrate/", "../targets/capabilities.json", "src/frontend/capabilities.cpp"], "tests": ["lint", "migrate"]},
-    {"paths": ["lib/std/kit/theme.ts", "lib/std/palette.ts", "tools/contrast-check"], "tests": ["contrast", "ui_theme"]},
-    {"paths": ["tests/golden/ui-tokens/"], "tests": ["ui_tokens", "ui_docs"]},
-    {"paths": ["src/gl/", "src/qjs/script_native.cpp", "src/qjs/prelude.cpp", "src/qjs/ext.cpp", "plugins/script/", "../examples/webgl-studio/"], "tests": ["webgl_js", "webgl_surface", "three", "webgl_gizmo", "webgl_studio"]},
-    {"paths": ["src/zpk/", "third_party/lz4/", "third_party/zstd/", "tests/unit/zpk_test.cpp", "tests/t0/zpk.sh", "tests/fuzz/fuzz_zpk.cpp"], "tests": ["zpk", "assets_groups"]},
-    {"paths": ["src/host/assets_host.cpp", "src/host/assets_host.h", "src/prof/", "tests/data/assets_groups/", "tests/t0/assets_groups.sh"], "tests": ["assets_groups"]},
-    {"paths": ["../runtime/include/zrt_assets_dir.h"], "tests": ["aot_assets", "assets_groups"]},
-    {"paths": ["../plugins/webview/", "tests/t1/webview.sh"], "tests": ["webview", "webview_hybrid", "native_gen", "plugin_manifest"]},
-    {"paths": ["../lib/std/ui.ts", "../lib/std/react-native.tsx", "tests/golden/ui-native-view/", "tests/t0/ui_native_view.sh"], "tests": ["ui_native_view"]},
-    {"paths": ["../lib/std/ui.ts", "src/host/hal_dispatch.cpp", "src/host/sys_host.cpp", "tools/a11y-tree", "tests/golden/ui-a11y-bridge/", "tests/t0/ui_a11y_bridge.sh"], "tests": ["ui_a11y_bridge", "ui_a11y"]},
-    {"paths": ["../examples/webview/hybrid/", "tests/t1/webview_hybrid.sh"], "tests": ["webview_hybrid"]},
-    {"paths": ["src/tc/progress.cpp", "include/zn/log.h", "tests/t0/build_progress.sh"], "tests": ["build_progress", "steps", "verbose_log", "plugin_fallback"]},
-    {"paths": ["src/frontend/modules.cpp", "src/frontend/modules.h", "src/main.cpp", "tests/t1/plugin_fallback.sh"], "tests": ["plugin_fallback"]},
-    {"paths": ["src/assets/", "third_party/xxhash/", "src/res/res.cpp", "src/res/res.h", "tests/unit/assets_test.cpp", "tests/t0/assets.sh"], "tests": ["assets"]},
-    {"paths": ["src/assets/tilemap.cpp", "src/assets/tilemap.h", "src/assets/sprite.cpp", "src/assets/assets.cpp", "../plugins/tilemap/", "../plugins/sprite/", "tests/data/tilemap/", "tests/t1/tilemap.sh"], "tests": ["tilemap", "assets"]},
-    {"paths": ["src/assets/sprite.cpp", "src/assets/sprite.h", "third_party/stb/stb_rect_pack.h", "third_party/cute_aseprite/", "../plugins/sprite/", "src/host/gfx_host.cpp", "src/host/sys_host.cpp", "tests/data/sprite_atlas/", "tests/t1/sprite_atlas.sh"], "tests": ["sprite_atlas", "assets"]},
-    {"paths": ["../examples/platformer/", "tests/data/platformer/", "tests/t1/platformer.sh"], "tests": ["platformer"]},
-    {"paths": ["src/frontend/project.cpp", "src/frontend/project.h", "src/assets/", "../targets/capabilities.json", "tests/unit/project_test.cpp", "tests/t0/project_assets.sh"], "tests": ["project_assets"]},
-    {"paths": ["src/host/assets_host.cpp", "src/host/assets_host.h", "src/host/sys_host.cpp", "../plugins/sprite/", "../templates/game-2d/", "src/cli_core.cpp", "tests/t1/asset_reload.sh"], "tests": ["asset_reload"]},
-    {"paths": ["src/host/splash.cpp", "src/assets/", "src/host/hal_dispatch.cpp", "src/aot/aot.cpp", "src/cli_core.cpp", "targets/wasm/glue/index.html", "tests/t1/splash.sh"], "tests": ["splash"]},
-    {"paths": ["../plugins/loader/", "src/cli_core.cpp", "src/frontend/project.cpp", "src/frontend/project.h", "src/qjs/qjs.cpp", "src/host/gfx_host.cpp", "src/host/sys_host.cpp", "../templates/game-2d/", "tests/data/loader/", "tests/golden/loader/", "tests/t1/loader.sh"], "tests": ["loader"]},
-    {"paths": ["src/tc/tc.cpp", "src/tc/tc.h", "third_party/monocypher/"], "tests": ["update_sign", "mirrors", "app_update", "tc"]},
-    {"paths": ["tools/package", "tools/sign-macos"], "tests": ["package", "release_workflow"]},
-    {"paths": ["tools/package", "tests/t0/package_app.sh", "../examples/museum-table/zinc.json"], "tests": ["package_app"]},
-    {"paths": ["tools/install.sh", "tests/t1/install_nocompiler.sh"], "tests": ["install_nocompiler", "release_workflow"]},
-    {"paths": ["src/tc/selfupdate.cpp", "src/tc/tc.cpp", "tools/install.sh", "update.pub", "tests/t1/self_update.sh"], "tests": ["self_update", "version", "package"]},
-    {"paths": ["src/gl/", "src/main.cpp", "CMakeLists.txt"], "tests": ["webgl_module", "webgl_js", "three"]},
-    {"paths": ["src/tc/plugin_build"], "tests": ["plugin_build", "plugin_prebuilt", "plugin_key", "plugin_repro", "plugin_fetch", "plugin_tiers", "native_plugins", "native_lazy", "plugin_stamp"]},
-    {"paths": ["src/host/sys_host.cpp", "src/main.cpp", "tests/golden/clock/"], "tests": ["clock"]},
-    {"paths": ["src/sim/chips/", "tests/native/chip_wave3.cpp", "tests/native/chip_common.h"], "tests": ["chip_models"]},
-    {"paths": ["../plugins/display-fbdev/", "tests/native/chip_fbdev.cpp", "tests/t1/video_layers.sh", "tests/data/video_layers/"], "tests": ["chip_models", "video_layers"]},
-    {"paths": ["../plugins/video/native/video.host.cpp"], "tests": ["video", "museum_video", "video_layers"]},
-    {"paths": ["../plugins/video/plugin.json", "../plugins/video/native/video.android.cpp", "../plugins/video/native/video.ios.mm", "tests/data/mobile-video/", "tests/t0/video_phone.sh"], "tests": ["video_phone"]},
-    {"paths": ["src/sim/", "include/zn/sim.h", "tests/native/sim_test.cpp", "tests/native/board_test.cpp", "tests/native/scenario_test.cpp", "tests/golden/sim/", "third_party/libyaml/", "../examples/boards/s3-matrix/dice/", "src/host/hal_dispatch.cpp", "src/vm/vm.cpp"], "tests": ["sim_core", "sim_board", "sim_scenario", "sim_program", "sim_replay", "sim_compare"]},
-    {"paths": ["tests/three/", "third_party/three/", "tools/three-compare"], "tests": ["three"]},
-    {"paths": ["src/frontend/check.cpp", "src/frontend/check.h", "src/frontend/desugar.cpp", "src/frontend/snippet.cpp"], "tests": ["checker", "lang", "tdz"]},
-    {"paths": ["src/frontend/modules.cpp", "src/frontend/modules.h"], "tests": ["modules", "checker", "lang", "plugin_manifest"]},
-    {"paths": ["src/frontend/lexer.cpp", "src/frontend/parser.cpp"], "tests": ["parser", "lexer", "checker"]},
-    {"paths": ["src/platform/", "tests/unit/platform_test.cpp", "tests/t0/platform.sh"], "tests": ["platform"]},
-    {"paths": ["src/ir/"], "tests": ["ir", "zbc", "rc_refcast", "rc_lend", "rc_borrow", "rc", "virtual_default"]},
-    {"paths": ["src/ir/lower.cpp", "src/ir/opt.cpp", "src/ir/ir.h", "src/frontend/modules.cpp", "src/frontend/parser.cpp", "src/frontend/ast.h", "../lib/std/hot.ts", "../templates/desktop-app/", "tests/t0/hot_off.sh"], "tests": ["hot_off"]},
-    {"paths": ["src/dev/hot.cpp", "src/dev/hot.h", "src/cli_core.cpp", "src/host/gfx_host.cpp", "../lib/std/hot.ts", "tests/t1/hot_swap.sh"], "tests": ["hot_swap", "dev_mode"]},
-    {"paths": ["src/dev/hot.cpp", "src/frontend/jsx.cpp", "src/frontend/modules.cpp", "../lib/std/solid.ts", "../lib/std/hot.ts", "../templates/desktop-app/", "tests/t1/fast_refresh.sh"], "tests": ["fast_refresh"]},
-    {"paths": ["src/dev/hot.cpp", "../templates/game-2d/"], "tests": ["asset_reload"]},
-    {"paths": ["src/dev/hot_swap.cpp", "src/dev/hot.h"], "tests": ["hot_swap", "fast_refresh", "zinc_go"]},
-    {"paths": ["src/app/player.cpp", "src/app/app.cpp", "src/app/app_core.h", "../lib/std/react.ts", "tests/t1/zinc_go.sh"], "tests": ["zinc_go", "app_library"]},
-    {"paths": ["../examples/zinc-go/", "../plugins/camera/", "tests/t1/zinc_go_home.sh"], "tests": ["zinc_go_home"]},
-    {"paths": ["third_party/qrcodegen/", "../plugins/camera/vendor/quirc/", "../plugins/camera/native/camera.host.cpp", "tests/native/qr_test.cpp", "tests/t0/qr_code.sh"], "tests": ["qr_code"]},
-    {"paths": ["src/zbc/"], "tests": ["zbc", "irformat", "aot"]},
-    {"paths": ["src/main.cpp", "tests/t1/zbc_cache.sh"], "tests": ["zbc_cache", "run_cache"]},
-    {"paths": ["src/main.cpp", "tests/t0/plugins_line.sh", "tests/data/plugins_line/"], "tests": ["plugins_line"]},
-    {"paths": ["src/tc/bundle.cpp", "src/tc/bundle.h", "src/frontend/project.cpp", "tests/t1/codesign.sh"], "tests": ["codesign"]},
-    {"paths": ["src/cli_core.cpp", "src/tc/tc.cpp", "tests/t0/publish_store.sh"], "tests": ["publish_store"]},
-    {"paths": ["src/cli_core.cpp", "../compiler/src/ui-tools.ts", "tests/t0/ui_tools.sh"], "tests": ["ui_tools"]},
-    {"paths": ["third_party/quickjs-ng/", "tools/quickjs-patches", "src/qjs/qjs_prof.cpp", "bench/qjs/", "tools/qjs2c", "tests/data/qjs2c-sprite.jsonl"], "tests": ["quickjs_patches", "quickjs", "test262_regexp", "qjs_profile", "qjs2c"]},
-    {"paths": ["../targets/macos/hal_sdl.cpp", "src/frontend/project", "tests/t1/pixel_scale.sh"], "tests": ["pixel_scale"]},
-    {"paths": ["../plugins/3d/", "../plugins/three/", "tests/t1/three_gpu.sh"], "tests": ["three_gpu", "three_3d", "templates_kickstart", "zinc3d_aa", "zinc3d_gltf"]},
-    {"paths": ["src/aot/", "src/rt/"], "tests": ["aot", "rc", "profile", "console_live"]},
-    {"paths": ["src/qjs/qjs.cpp", "src/vm/vm.cpp"], "tests": ["console_live"]},
-    {"paths": ["src/qjs/qjs.cpp"], "tests": ["qjs_robust", "qjs"]},
-    {"paths": ["../lib/std/webenv.js", "src/qjs/webenv.cpp", "tests/golden/webenv/", "tools/test-lib", "third_party/pixi/", "third_party/three/"], "tests": ["webenv", "webenv_canvas", "webenv_p5", "webenv_three", "webenv_pixi", "webenv_image", "webenv_phaser", "webenv_canvas2d", "webenv_canvas2d_libs", "webenv_gamepad", "webenv_audio"]},
-    {"paths": ["../runtime/include/hal.h", "../targets/macos/hal_sdl.cpp", "src/host/hal_dispatch.cpp", "src/host/gfx_host.cpp", "tests/t1/webenv_gamepad.sh"], "tests": ["webenv_gamepad"]},
-    {"paths": ["src/qjs/canvas2d.cpp", "third_party/canvas_ity/", "src/text/layout.cpp", "tools/canvas2d-ref", "third_party/phaser/"], "tests": ["webenv_canvas2d", "webenv_canvas2d_libs", "webenv_canvas2d_full"]},
-    {"paths": ["src/gl/"], "tests": ["webenv_canvas", "webenv_pixi", "webgl_libs", "webenv_image", "webenv_phaser"]},
-    {"paths": ["src/res/"], "tests": ["codec", "webenv_image"]},
-    {"paths": ["src/qjs/strip.cpp"], "tests": ["qjs", "quickjs", "webenv"]},
-    {"paths": ["src/qjs/bundle.cpp", "src/qjs/strip.cpp", "src/qjs/qjs.cpp", "src/qjs/qjs.h", "src/frontend/jsx.cpp", "src/tc/tc.cpp", "../lib/std/", "tests/t0/qjs_bundle.sh", "tests/golden/jsx/"], "tests": ["qjs_bundle"]},
-    {"paths": ["src/qjs/strip.cpp", "src/qjs/qjs.cpp", "src/qjs/bundle.cpp", "../lib/std/react-native.tsx", "../lib/std/nuxt/", "tests/t1/qjs_demos.sh"], "tests": ["qjs_demos"]},
-    {"paths": [".spec.ts", "tests/golden/native_gen/"], "tests": ["native_gen"]},
-    {"paths": ["runtime/raster.cpp", "runtime/gfx.cpp", "runtime/ttf.cpp", "src/host/backend_sw.cpp"], "tests": ["scene_dump", "backend_sw", "damage_sig", "ui_style"], "canary": true},
-    {"paths": ["../runtime/gfx.cpp", "src/host/gfx_host.cpp", "src/host/hal_dispatch.cpp", "tools/pngdiff"], "tests": ["perf_hud"]},
-    {"paths": ["../runtime/gfx.cpp", "tests/data/scale_push/"], "tests": ["scale_push"]},
-    {"paths": ["../runtime/raster.cpp", "tests/data/shadow_mirror/"], "tests": ["shadow_mirror", "style_shadow"]},
-    {"paths": ["../lib/std/ui.ts", "../runtime/raster.cpp", "../runtime/gfx.cpp", "../runtime/gl_replay.cpp", "../runtime/gl_replay_shaders.h", "src/frontend/jsx.cpp", "tests/golden/style-gradient/", "tests/data/style_gradient/", "tests/t1/style_gradient.sh"], "tests": ["style_gradient"]},
-    {"paths": ["../lib/std/ui.ts", "../runtime/raster.cpp", "../runtime/gfx.cpp", "../runtime/gl_replay.cpp", "src/frontend/jsx.cpp", "tests/golden/style-image/", "tests/data/style_image/", "tests/t1/style_image.sh"], "tests": ["style_image"]},
-    {"paths": ["CMakeLists.txt", "src/main.cpp", "src/rt/alloc.cpp", "src/rt/alloc_new.cpp", "tests/t1/launch_time.sh"], "tests": ["launch_time", "profile", "aot"]},
-    {"paths": ["../runtime/gfx.cpp", "../runtime/raster.cpp", "../runtime/gl_replay.cpp", "../runtime/zrt_raster.h", "tests/t1/gfx_transform.sh", "tests/data/gfx_transform/"], "tests": ["gfx_transform"]},
-    {"paths": ["../runtime/gfx.cpp", "../runtime/raster.cpp", "../runtime/gl_replay.cpp", "../runtime/zrt_raster.h", "tests/t1/xform_plain.sh", "tests/data/xform_plain/"], "tests": ["xform_plain"]},
-    {"paths": ["../runtime/gfx.cpp", "../runtime/raster.cpp", "../runtime/gl_replay.cpp", "../runtime/ttf.cpp", "../runtime/zrt_raster.h", "../lib/std/ui.ts", "tests/t1/text_scaled.sh", "tests/data/text_scaled/", "tools/scene-texts"], "tests": ["text_scaled"]},
-    {"paths": ["../examples/museum-table/src/table.ts", "../examples/museum-table/src/type.ts", "tests/t1/museum_zoom.sh", "tests/data/museum_zoom/", "tools/scene-texts"], "tests": ["museum_zoom"]},
-    {"paths": ["../examples/museum-table/", "tests/t1/museum_panorama.sh", "tests/data/museum_panorama/"], "tests": ["museum_panorama", "museum_format"]},
-    {"paths": ["src/host/window_module.cpp", "tools/zinc-unexported.txt", "src/tc/bundle.cpp", "../targets/macos/hal_sdl.cpp", "../targets/macos/hal_cocoa.mm"], "tests": ["launch_time", "window_renderer", "gl_cube", "native_plugins", "fuse"]},
-    {"paths": ["src/rt/rt.h", "src/rt/rtcalls.cpp", "src/aot/aot.cpp", "tests/data/map_rows/"], "tests": ["map_rows", "diffmatrix", "corpus"]},
-    {"paths": ["../runtime/gl_replay.cpp", "../runtime/gfx.cpp", "../runtime/raster.cpp", "../targets/macos/hal_sdl.cpp", "../plugins/display-gl/"], "tests": ["gpu_strokes", "gl_renderer"]},
-    {"paths": ["src/aot/aot.cpp", "include/zn/host.h"], "tests": ["aot_size_inline", "host_direct"]},
-    {"paths": ["../lib/std/gl.ts", "src/gl/webgl_host.cpp", "src/gl/webgl_host_rows.inc", "src/gl/webgl_install.cpp", "tools/gen-zinc-gl", "tests/golden/webgl/api_tour", "../examples/gl-cube/"], "tests": ["gl_cube", "zinc_gl_api", "zinc_gl_api_tour"]},
-    {"paths": ["src/text/"], "tests": ["text_layout", "segment", "text_shaped"]},
-    {"paths": ["src/gl/"], "tests": ["webgl_conformance"]},
-    {"paths": ["tools/webgl-conformance", "tests/golden/webgl/"], "tests": ["webgl_conformance"]},
-    {"paths": ["src/res/"], "tests": ["webp", "res_aot"]},
-    {"paths": ["src/cli_core", "src/main.cpp"], "tests": ["cli_core", "doctor_friendly", "run_js_engine", "cli_tools", "verbose_log", "security_guide", "plugin_add", "plugin_sign", "templates_remote", "install_offline", "plugin_tiers", "plugin_community", "plugin_lock", "revocation", "trust_policy", "policy", "plugin_cli", "templates_index"]},
-    {"paths": ["tools/plugin-split"], "tests": ["plugin_split"]},
-    {"paths": ["include/zn/log.h", "src/host/ui_log.cpp"], "tests": ["verbose_log"]},
-    {"paths": ["../docs/guide/08-security.md"], "tests": ["security_guide"]},
-    {"paths": ["../docs/guide/07-distribution.md", "../docs/guide/08-security.md", "tests/t1/guide_store.sh", "../templates/game-2d/"], "tests": ["guide_store"]},
-    {"paths": ["include/zn/native.h", "src/rt/native.cpp", "src/rt/native_lazy.h", "tools/abi-check", "tests/data/native-abi-v1.txt", "tests/native/native_test.cpp"], "tests": ["native", "native_abi_freeze", "native_call", "plugin_build", "script", "native_lazy"]},
-    {"paths": ["tools/gh-org-setup", "tools/gh-org-protection.json"], "tests": ["gh_org_setup"]},
-    {"paths": ["src/tc/tuf", "tools/index-repo", "tests/data/tuf_interop.py"], "tests": ["tuf_canonical", "tuf_index", "tuf_interop", "index_search", "mirrors", "tlog", "revocation"]},
-    {"paths": ["src/tc/tlog", "tools/tlog"], "tests": ["tlog", "plugin_fetch"]},
-    {"paths": ["src/tc/policy"], "tests": ["policy", "trust_policy", "plugin_tiers", "mirrors"]},
-    {"paths": ["tests/fuzz/", "tools/fuzz"], "tests": ["fuzz_regress"]},
-    {"paths": ["src/host/sys_host.cpp", "src/host/permissions.cpp"], "tests": ["aot_assets", "permissions", "camera", "assets_groups"]},
-    {"paths": ["targets/wasm/", "tools/wasm-export-test"], "tests": ["export_wasm"]},
-    {"paths": ["targets/web/runtime.js", "targets/web/dom.js", "targets/web/browsers.json", "src/cli_web.cpp", "src/cli_web.h", "tools/web-browser-test", "../lib/std/web.browser.ts", "../lib/std/fetch.browser.ts", "../lib/std/subtle.browser.ts", "../docs/targets/web.md", "../docs/reports/zinc-web-export.md"], "tests": ["web_export", "web_caps", "web_plugins", "web_dom"]},
-    {"paths": ["targets/web/dom.js", "targets/web/runtime.js", "tools/web-dom-test", "tools/web-compare", "tests/fixtures/web-dom/", "../lib/std/ui-dom.ts", "../lib/std/ui-dom.browser.ts", "../lib/std/kit/form.tsx"], "tests": ["web_dom", "web_dom_visual"]},
-    {"paths": ["../plugins/video/web/", "../plugins/video/plugin.json", "../plugins/lottie/web/", "../plugins/lottie/plugin.json", "tests/fixtures/web-video/", "tests/fixtures/web-lottie/", "tools/web-video-test", "tools/rangehttp.py"], "tests": ["web_video"]},
-    {"paths": ["../plugins/serial/web/", "../plugins/midi/web/", "../plugins/gphoto2/web/", "../plugins/osc/web/", "../plugins/map/web/", "../plugins/map/plugin.json", "third_party/maplibre/", "tests/fixtures/web-hw/", "tests/fixtures/web-map/", "tests/t1/web_hw.sh"], "tests": ["web_hw"]},
-    {"paths": ["targets/web/rows-gl.js", "targets/web/rows-shader.js", "tools/gen-web-gl", "tools/gen-zinc-gl", "../plugins/three/web/", "../plugins/canvas2d/web/", "tests/fixtures/web-three/", "tests/fixtures/web-canvas/", "tests/fixtures/web-shader/", "tests/t1/web_gl.sh"], "tests": ["web_gl"]},
-    {"paths": ["targets/web/hmr.js", "tools/web-dev-test", "tests/fixtures/web-hot/", "src/qjs/bundle.cpp", "src/qjs/strip.cpp"], "tests": ["web_dev", "web_export"]},
-    {"paths": ["tests/fixtures/web-caps/", "../plugins/browser/"], "tests": ["web_caps"]},
-    {"paths": ["src/cli_pm.cpp", "src/cli_pm.h", "src/cli_web_deps.cpp", "src/cli_web_deps.h", "tools/web-npm-test", "tests/fixtures/web-npm/", "tests/t1/web_npm.sh", "../docs/targets/web-libraries.md"], "tests": ["web_npm", "web_dev"]},
-    {"paths": ["../packages/vite-plugin-zinc/", "tools/web-vite-test", "tests/fixtures/web-vite/", "tests/t1/web_vite.sh"], "tests": ["web_vite"]},
-    {"paths": ["tools/web-libs-test", "tests/fixtures/web-libs/", "tests/t1/web_libs.sh"], "tests": ["web_libs"]},
-    {"paths": ["../plugins/camera/web/", "../plugins/microphone/web/", "../plugins/webrtc/web/", "../plugins/audio/web/", "../plugins/svg/web/", "../plugins/system/web/", "../plugins/socket/web/", "tests/fixtures/web-media/", "tests/fixtures/web-audio/", "tests/fixtures/web-sqlite/", "../plugins/sqlite/web/", "tests/t1/web_plugins.sh"], "tests": ["web_plugins"]},
-    {"paths": ["firmware/esp32/", "tools/esp32-export-test"], "tests": ["export_esp32"]},
-    {"paths": ["src/host/netlog.cpp", "src/host/netlog.h", "src/host/http.cpp", "src/host/mqtt.cpp", "src/host/sock.cpp", "../plugins/devtools/", "tools/cdp-probe", "tools/har-chrome", "tests/netlog_check.py", "tests/netlog_servers.py", "tests/golden/host/netlog.tsx"], "tests": ["netlog", "netlog_kill", "devtools_port", "socket", "net", "mqtt"]},
-    {"paths": ["tests/free_ports.py"], "tests": ["devtools_port", "netlog", "socket", "dev_mode"]},
-    {"paths": ["../plugins/devtools/", "../scripts/cdp-check.mjs", "tests/data/devtools_styles/", "tests/t1/devtools_styles.sh"], "tests": ["devtools_styles", "dev_mode"]},
-    {"paths": ["../plugins/devtools/", "../compiler/", "../sim/", "../lib/std/ui.ts", "../lib/gfx.d.ts", "../lib/compat/proto-layout.ts", "../scripts/cdp-check.mjs", "tests/golden/proto-devtools/"], "tests": ["proto_devtools"]},
-    {"paths": ["tests/affected.py", "tests/affected.json"], "tests": ["affected_paths", "ci_plan"]},
-    {"paths": ["../plugins/audio/", "tests/golden/audio/"], "tests": ["audio", "webenv_audio"]},
-    {"paths": ["../plugins/midi/", "../examples/midi/", "tests/data/midi/"], "tests": ["midi"]},
-    {"paths": ["../plugins/camera/", "tests/golden/host/webcam_session.ts", "tests/golden/host/webcam_session.out", "tests/golden/host/webcam_draw.ts", "tests/data/bmp_pixel.py"], "tests": ["webcam_sim", "webcam"]},
-    {"paths": ["../plugins/webrtc/", "tests/golden/host/webrtc_loopback.ts", "tests/golden/host/webrtc_loopback.out", "tests/data/webrtc_globals.ts", "../examples/webrtc-chat/"], "tests": ["webrtc", "webrtc_chat"]},
-    {"paths": ["../plugins/webrtc/", "tests/golden/host/webrtc_media.ts", "tests/golden/host/webrtc_media.out"], "tests": ["webrtc_media"]},
-    {"paths": ["../plugins/webrtc/", "tests/data/webrtc_interop.ts", "tools/webrtc-interop", "tools/cdp.py"], "tests": ["webrtc_interop"]},
-    {"paths": ["../plugins/webrtc/", "../plugins/audio/", "../examples/webrtc-call/", "tests/golden/webrtc-call/"], "tests": ["webrtc_call"]},
-    {"paths": ["../plugins/microphone/", "tests/golden/host/microphone_session.ts", "tests/golden/host/microphone_session.out"], "tests": ["microphone_sim", "microphone", "webcam"]},
-    {"paths": ["../plugins/serial/", "../examples/serial/", "tests/data/serial/"], "tests": ["serial"]},
-    {"paths": ["../plugins/osc/", "../plugins/socket/", "../examples/osc/", "tests/data/osc/"], "tests": ["osc_full"]},
-    {"paths": ["../templates/game-2d/"], "tests": ["templates_kickstart", "zapp", "fuse", "assets"]},
-    {"paths": ["../templates/plugin/", "tools/plugin-pack", ".github/workflows/plugin.yml"], "tests": ["plugin_starter", "templates", "templates_kickstart"]},
-    {"paths": ["tests/data/plugins-table.txt"], "tests": ["plugin_manifest"]},
-    {"paths": ["../plugins/physics3d/", "src/qjs/native_js.cpp", "src/tc/plugin_build.cpp", "tests/data/physics3d/"], "tests": ["physics3d", "qjs_native", "pinball3d"]},
-    {"paths": ["../plugins/physics2d/", "src/qjs/native_js.cpp", "src/tc/plugin_build.cpp", "tests/data/physics2d/"], "tests": ["physics2d"]},
-    {"paths": ["../plugins/physics2d/web/", "../plugins/physics2d/plugin.json", "tests/fixtures/web-physics2d/"], "tests": ["web_physics2d"]},
-    {"paths": ["../examples/pinball3d/", "../docs/pinball-table-format.md", "tests/data/pinball3d/", "tests/golden/pinball3d/", "../plugins/3d/"], "tests": ["pinball3d_format", "pinball3d", "pinball3d_aot", "pinball3d_sound", "pinball3d_chooser", "pinball3d_controls"]},
-    {"paths": ["../examples/pinball3d-editor/", "../examples/pinball3d/src/format/", "../examples/pinball3d/src/geometry.ts", "tests/golden/pinball3d-editor/", "../examples/pinball3d/src/", "tools/pngdiff"], "tests": ["pinball3d_editor", "pinball3d_editor_table", "pinball3d_editor_looks", "pinball3d_editor_rules", "pinball3d_second_table"]},
-    {"paths": ["src/host/hal_dispatch.cpp", "tests/data/input_touch/"], "tests": ["input_touch", "input", "pointer_kind"]},
-    {"paths": ["../examples/museum-table/", "tests/data/museum_format/", "tests/golden/museum-table/", "tests/golden/museum-viewer/", "tests/golden/museum-editor/", "tests/golden/museum-visit/", "tests/data/museum_visit/", "tests/golden/museum-mode/", "tests/data/museum_mode/", "tests/golden/museum-access/", "tests/data/museum_access/", "tests/golden/museum-video/", "tests/data/museum_video/", "tests/golden/museum-stats/", "tests/data/museum_stats/", "tests/golden/museum-polish/", "tests/data/museum_polish/", "tests/data/museum_theme/", "tests/data/museum_details/", "tests/golden/museum-details/"], "tests": ["museum_theme", "museum_details", "museum_editor_views", "museum_editor_sound", "museum_format", "museum_assets", "museum_table", "museum_viewer", "museum_panorama", "museum_visit", "museum_mode", "museum_editor", "museum_access", "museum_video", "museum_stats", "museum_polish", "museum_update"]},
-    {"paths": ["tools/contrast-check"], "tests": ["museum_access"]},
-    {"paths": ["../runtime/raster.cpp", "../runtime/zrt_raster.h"], "tests": ["image_reuse"]},
-    {"paths": ["../runtime/raster.cpp", "../runtime/gfx.cpp", "../runtime/zrt_raster.h", "src/host/gfx_host.cpp", "src/res/codec.cpp", "../plugins/canvas2d/", "tests/data/image_rect/", "tests/t1/image_rect.sh"], "tests": ["image_rect", "canvas", "gfx_transform"], "canary": true},
-    {"paths": ["../runtime/gl_replay.cpp", "../runtime/gl_replay_shaders.h", "tests/t1/image_rect_gl.sh"], "tests": ["image_rect_gl", "gfx_transform"]},
-    {"paths": ["../runtime/gl_replay_shaders.h", "src/gl/essl_check.cpp", "tests/native/gl_replay_es2.cpp", "tests/t1/gl_replay_es2.sh"], "tests": ["gl_replay_es2", "gl_renderer"]},
-    {"paths": ["../runtime/gl_caps.h", "tests/native/gl_caps.cpp", "tests/t0/gl_caps.sh"], "tests": ["gl_caps"]},
-    {"paths": ["src/assets/texture.cpp", "src/assets/texture.h", "include/zn/zim.h", "third_party/bcdec/", "third_party/etcdec/", "third_party/stb/stb_image_resize2.h", "../runtime/gl_replay.cpp", "../runtime/gl_replay_shaders.h", "../runtime/raster.cpp", "../runtime/zrt_raster.h", "src/host/sys_host.cpp", "src/res/res.cpp", "src/gl/webgl_ext.h", "src/gl/webgl2_tex.cpp", "tests/data/texture/", "tests/t1/texture.sh"], "tests": ["texture", "assets"]},
-    {"paths": ["src/assets/model.cpp", "src/assets/model.h", "include/zn/zmesh.h", "third_party/cgltf/", "third_party/meshoptimizer/", "../plugins/three/native/", "../plugins/3d/", "tests/data/model/", "tests/t1/model.sh"], "tests": ["model", "gltf"]},
-    {"paths": ["../runtime/raster.cpp", "../runtime/gl_replay.cpp", "tests/t1/many_images.sh", "tests/data/many_images/"], "tests": ["many_images"]},
-    {"paths": ["../runtime/gl_replay.cpp", "tests/t1/gl_convex.sh", "tests/data/gl_convex/", "tests/t1/gl_strips.sh"], "tests": ["gl_convex", "gl_renderer", "gpu_strokes", "gl_strips"]},
-    {"paths": ["src/host/sys_host.cpp", "tests/t1/sys_launch.sh", "tests/data/sys_launch/"], "tests": ["sys_launch"]},
-    {"paths": ["../plugins/3d/", "tests/t1/zinc3d_glow.sh", "tests/data/zinc3d_glow/"], "tests": ["zinc3d_glow", "zinc3d_aa", "three_gpu"]},
-    {"paths": ["../runtime/ttf.cpp", "../runtime/gfx.cpp", "../runtime/raster.cpp", "src/res/res.cpp", "src/host/gfx_host.cpp", "src/host/layout_host.cpp", "tests/t1/fonts_runtime.sh", "tests/data/fonts_runtime/", "tests/data/fonts_typed/"], "tests": ["fonts_runtime", "scale_push"]},
-    {"paths": ["../runtime/gfx.cpp", "../runtime/include/hal.h", "../targets/macos/hal_sdl.cpp", "src/host/hal_dispatch.cpp", "src/host/window_module.cpp", "src/frontend/modules.cpp", "../lib/std/ui.ts", "../lib/std/solid.ts", "tests/t1/windows.sh", "tests/data/windows/", "tests/data/ui_windows/"], "tests": ["windows"]},
-    {"paths": ["../targets/macos/hal_sdl.cpp", "../targets/macos/hal_cocoa.mm", "../runtime/zrt.cpp", "../runtime/include/hal_window.h", "src/rt/rtcalls.cpp", "src/qjs/qjs.cpp", "src/host/gfx_host.cpp", "src/frontend/modules.cpp", "src/main.cpp", "tests/t1/window_live_resize.sh", "tests/golden/macos/live-resize/"], "tests": ["window_live_resize", "window_resize"]},
-    {"paths": ["targets/wasm/", "tools/wasm-export-test", "tests/t1/image_rect_wasm.sh"], "tests": ["image_rect_wasm"]}
+    {
+      "paths": [
+        "../plugins/gsap/",
+        "tests/t1/gsap.sh",
+        "tests/golden/gsap/",
+        "../docs/plugins/gsap.md"
+      ],
+      "tests": [
+        "gsap"
+      ]
+    },
+    {
+      "paths": [
+        "../runtime/raster.cpp",
+        "../runtime/gl_replay.cpp",
+        "../runtime/zrt_raster.h",
+        "tests/t0/ignorable_glyphs.sh"
+      ],
+      "tests": [
+        "ignorable_glyphs"
+      ]
+    },
+    {
+      "paths": [
+        "../examples/js-gsap/",
+        "tests/t1/example_js_gsap.sh",
+        "tools/test-lib"
+      ],
+      "tests": [
+        "example_js_gsap"
+      ]
+    },
+    {
+      "paths": [
+        "../plugins/async-storage/",
+        "tests/t0/async_storage.sh",
+        "../docs/plugins/async-storage.md"
+      ],
+      "tests": [
+        "async_storage"
+      ]
+    },
+    {
+      "paths": [
+        "src/frontend/plugin_manifest.cpp",
+        "src/frontend/native_gen.cpp",
+        "src/app/mobile_bridge.h",
+        "src/app/ios/",
+        "src/app/ios_glue.mm",
+        "src/app/ios_a11y.mm",
+        "tests/data/mobile-plugin/",
+        "tests/data/mobile-sqlite/",
+        "tests/golden/native_gen/mobile/"
+      ],
+      "tests": [
+        "export_android",
+        "export_ios",
+        "native_gen",
+        "plugin_manifest"
+      ]
+    },
+    {
+      "paths": [
+        "../plugins/system/",
+        "../lib/std/system/",
+        "tests/data/mobile-services/",
+        "tests/t0/system_phone.sh"
+      ],
+      "tests": [
+        "system_phone",
+        "system_ops"
+      ]
+    },
+    {
+      "paths": [
+        "../plugins/leapmotion/",
+        "tests/t0/leapmotion.sh",
+        "tests/data/leapmotion/",
+        "../docs/plugins/leapmotion.md",
+        "../docs/reports/zinc-next-leapmotion.md"
+      ],
+      "tests": [
+        "leapmotion",
+        "leapmotion_demo"
+      ]
+    },
+    {
+      "paths": [
+        "../examples/leapmotion/",
+        "tests/t1/leapmotion_demo.sh",
+        "tests/golden/leapmotion/"
+      ],
+      "tests": [
+        "leapmotion",
+        "leapmotion_demo"
+      ]
+    },
+    {
+      "paths": [
+        "../examples/music/",
+        "tests/t1/music_city_standby.sh",
+        "tests/t1/music_notify.sh",
+        "tests/data/music/",
+        "tests/golden/music/"
+      ],
+      "tests": [
+        "music_city_standby",
+        "music_notify"
+      ]
+    },
+    {
+      "paths": [
+        "src/cli_core.cpp",
+        "third_party/SDL3/android-project/",
+        "src/tc/plugin_build.cpp",
+        "tests/t0/export_android.sh",
+        "tests/golden/export-android/"
+      ],
+      "tests": [
+        "export_android"
+      ]
+    },
+    {
+      "paths": [
+        "src/cli_core.cpp",
+        "src/app/shell_sdl.cpp",
+        "tests/t0/export_ios.sh",
+        "tests/golden/export-ios/"
+      ],
+      "tests": [
+        "export_ios"
+      ]
+    },
+    {
+      "paths": [
+        "../targets/macos/hal_sdl.cpp",
+        "../targets/macos/hal_metal.mm",
+        "tests/t0/ios_present.sh"
+      ],
+      "tests": [
+        "ios_present"
+      ]
+    },
+    {
+      "paths": [
+        "src/cli_core.cpp",
+        "src/frontend/project.cpp",
+        "src/frontend/plugin_manifest.cpp",
+        "tests/t0/export_packages.sh"
+      ],
+      "tests": [
+        "export_packages"
+      ]
+    },
+    {
+      "paths": [
+        "../targets/capabilities.json",
+        "src/frontend/profile.cpp",
+        "src/frontend/project.cpp",
+        "src/tc/tc.cpp",
+        "tests/t0/mobile_profiles.sh"
+      ],
+      "tests": [
+        "mobile_profiles"
+      ]
+    },
+    {
+      "paths": [
+        "../targets/capabilities.json",
+        "src/frontend/profile.cpp",
+        "src/frontend/capabilities.cpp",
+        "tests/t0/handheld_profiles.sh"
+      ],
+      "tests": [
+        "handheld_profiles"
+      ]
+    },
+    {
+      "paths": [
+        "targets/console/",
+        "src/rt/alloc.cpp",
+        "tests/t0/console_host.sh"
+      ],
+      "tests": [
+        "console_host",
+        "console_core"
+      ]
+    },
+    {
+      "paths": [
+        "targets/console/audio_console.cpp",
+        "targets/console/console_audio.h",
+        "targets/console/stubs.cpp",
+        "../plugins/audio/index.ts",
+        "tests/t0/console_audio.sh"
+      ],
+      "tests": [
+        "console_audio"
+      ]
+    },
+    {
+      "paths": [
+        "../lib/std/hardware.ts",
+        "src/host/sys_host.cpp",
+        "targets/console/host_console.cpp",
+        "tests/t0/hardware_motion.sh",
+        "tests/t0/hardware_reartouch.sh",
+        "tests/t0/hardware_microphone.sh",
+        "tests/t0/hardware_stereo.sh",
+        "tests/t0/hardware_memcard.sh"
+      ],
+      "tests": [
+        "hardware_motion",
+        "hardware_reartouch",
+        "hardware_microphone",
+        "hardware_stereo",
+        "hardware_vibration",
+        "hardware_memcard"
+      ]
+    },
+    {
+      "paths": [
+        "src/frontend/modules.cpp",
+        "tests/t0/date_f32.sh"
+      ],
+      "tests": [
+        "date_f32"
+      ]
+    },
+    {
+      "paths": [
+        "targets/console/host_console.cpp",
+        "targets/console/gfx_stubs.cpp",
+        "targets/console/embed.cmake",
+        "targets/console/CMakeLists.txt",
+        "include/zn/zim.h",
+        "tests/t0/console_assets.sh"
+      ],
+      "tests": [
+        "console_assets"
+      ]
+    },
+    {
+      "paths": [
+        "src/host/gfx_host.cpp",
+        "src/host/hal_dispatch.cpp",
+        "../runtime/include/hal.h",
+        "tests/t0/hardware_vibration.sh",
+        "tests/t0/hardware_pressure.sh",
+        "tests/t0/hardware_screen2.sh"
+      ],
+      "tests": [
+        "hardware_vibration",
+        "hardware_pressure",
+        "hardware_screen2"
+      ]
+    },
+    {
+      "paths": [
+        "src/host/gfx_host.cpp",
+        "src/host/resources.cpp",
+        "tests/t0/console_core.sh"
+      ],
+      "tests": [
+        "console_core"
+      ]
+    },
+    {
+      "paths": [
+        "src/tc/consoles.cpp",
+        "src/tc/tc.cpp",
+        "src/tc/tc.h",
+        "tests/t0/console_sdks.sh"
+      ],
+      "tests": [
+        "console_sdks"
+      ]
+    },
+    {
+      "paths": [
+        "../examples/breakout/",
+        "tests/golden/breakout/",
+        "tests/t1/breakout_pad.sh"
+      ],
+      "tests": [
+        "breakout_pad"
+      ]
+    },
+    {
+      "paths": [
+        "tools/console-run",
+        "tools/build-console-core",
+        "tools/console-demos",
+        "targets/console/hello/",
+        "targets/console/console_pad.h",
+        "../targets/psp/",
+        "../targets/vita/",
+        "../targets/ps2/hal_ps2.cpp",
+        "../targets/n3ds/",
+        "targets/console/psp.cmake",
+        "targets/console/vita.cmake",
+        "targets/console/ps2.cmake",
+        "targets/console/n3ds.cmake",
+        "tests/t2/console_emulators.sh"
+      ],
+      "tests": [
+        "console_emulators"
+      ]
+    },
+    {
+      "paths": [
+        "src/app/",
+        "include/zn/app.h",
+        "tests/t0/app_library.sh",
+        "src/aot/aot.cpp",
+        "../targets/macos/hal_sdl.cpp",
+        "src/host/loop.cpp"
+      ],
+      "tests": [
+        "app_library"
+      ]
+    },
+    {
+      "paths": [
+        "src/agent/",
+        "src/net/",
+        "third_party/mdns/",
+        "tests/t0/agent.sh",
+        "tests/t1/agent_apps.sh"
+      ],
+      "tests": [
+        "agent",
+        "agent_apps"
+      ]
+    },
+    {
+      "paths": [
+        "../plugins/link/",
+        "src/net/",
+        "src/host/tls.cpp",
+        "src/host/tls.h",
+        "tests/data/link/",
+        "tests/t1/link.sh"
+      ],
+      "tests": [
+        "link"
+      ]
+    },
+    {
+      "paths": [
+        "../examples/notify-relay/",
+        "../plugins/link/",
+        "../plugins/sqlite/",
+        "tests/data/notify-relay/",
+        "tests/t1/notify_relay.sh",
+        "tests/t0/notify_relay_unit.sh"
+      ],
+      "tests": [
+        "notify_relay",
+        "notify_relay_unit"
+      ]
+    },
+    {
+      "paths": [
+        "src/frontend/modules.cpp",
+        "tests/data/late_frame.ts",
+        "tests/t0/late_frame.sh"
+      ],
+      "tests": [
+        "late_frame"
+      ]
+    },
+    {
+      "paths": [
+        "src/agent/inspect.cpp",
+        "src/agent/server.cpp",
+        "src/agent/client.cpp",
+        "app/inspector/",
+        "tests/t1/agent_inspect.sh"
+      ],
+      "tests": [
+        "agent_inspect"
+      ]
+    },
+    {
+      "paths": [
+        "src/host/tls.cpp",
+        "src/host/tls.h",
+        "third_party/mbedtls/include/mbedtls/mbedtls_config.h"
+      ],
+      "tests": [
+        "agent",
+        "tls"
+      ]
+    },
+    {
+      "paths": [
+        "src/agent/",
+        "tests/t1/agent_ota.sh"
+      ],
+      "tests": [
+        "agent_ota"
+      ]
+    },
+    {
+      "paths": [
+        "src/agent/",
+        "tests/t1/agent_dev.sh"
+      ],
+      "tests": [
+        "agent_dev"
+      ]
+    },
+    {
+      "paths": [
+        "src/agent/client.cpp",
+        "src/agent/server.cpp",
+        "tests/t1/agent_deploy.sh"
+      ],
+      "tests": [
+        "agent_deploy"
+      ]
+    },
+    {
+      "paths": [
+        "../lib/std/ui.ts",
+        "tests/golden/ui/spread.tsx",
+        "tests/golden/ui/spread.input",
+        "tests/t1/touch_spread.sh"
+      ],
+      "tests": [
+        "touch_spread",
+        "touch_finger",
+        "input_touch",
+        "pointer_kind"
+      ]
+    },
+    {
+      "paths": [
+        "../runtime/gfx.cpp",
+        "tests/t1/touch_marks.sh"
+      ],
+      "tests": [
+        "touch_marks"
+      ]
+    },
+    {
+      "paths": [
+        "../runtime/raster.cpp",
+        "../lib/std/ui.ts",
+        "src/host/render_bench.cpp",
+        "tests/t0/damage_tap.sh"
+      ],
+      "tests": [
+        "damage_tap",
+        "damage_sig"
+      ]
+    },
+    {
+      "paths": [
+        "../runtime/raster.cpp",
+        "../runtime/gfx.cpp",
+        "../lib/std/ui.ts",
+        "../targets/macos/hal_sdl.cpp",
+        "src/host/render_bench.cpp",
+        "tests/t0/scroll_move.sh",
+        "tests/data/scroll_header/"
+      ],
+      "tests": [
+        "scroll_move"
+      ]
+    },
+    {
+      "paths": [
+        "../runtime/gl_replay.cpp",
+        "../runtime/gl_replay_shaders.h",
+        "../targets/macos/hal_sdl.cpp",
+        "tests/t1/gl_scroll.sh",
+        "tests/data/scroll_header/"
+      ],
+      "tests": [
+        "gl_scroll"
+      ]
+    },
+    {
+      "paths": [
+        "../runtime/raster.cpp",
+        "../runtime/gfx.cpp",
+        "src/host/gfx_host.cpp",
+        "src/frontend/modules.cpp",
+        "include/zn/runtime.h",
+        "../lib/gfx.d.ts",
+        "tests/t0/image_pixels.sh",
+        "tests/data/image_pixels/"
+      ],
+      "tests": [
+        "image_pixels"
+      ]
+    },
+    {
+      "paths": [
+        "../runtime/gl_replay.cpp",
+        "../runtime/gl_replay_shaders.h",
+        "../runtime/gfx.cpp",
+        "../runtime/raster.cpp",
+        "../plugins/display-gl/",
+        "../targets/macos/hal_sdl.cpp",
+        "src/host/gfx_host.cpp",
+        "tests/t1/shader_gl.sh",
+        "tests/data/shader/"
+      ],
+      "tests": [
+        "shader_gl",
+        "image_pixels"
+      ]
+    },
+    {
+      "paths": [
+        "include/zn/resource_stats.h",
+        "src/host/resources.cpp",
+        "tests/t0/resource_stats.sh",
+        "../plugins/video/native/video.host.cpp",
+        "../plugins/3d/native/render3d.host.cpp",
+        "../plugins/3d/native/render3d.gl.cpp",
+        "../plugins/three/native/three.host.cpp",
+        "../runtime/raster.cpp",
+        "../runtime/gl_replay.cpp"
+      ],
+      "tests": [
+        "resource_stats",
+        "museum_probe"
+      ]
+    },
+    {
+      "paths": [
+        "tools/museum-probe",
+        "tools/resource-probe",
+        "tools/scenarios/",
+        "tools/cdp-probe",
+        "../examples/museum-table/src/probe.ts"
+      ],
+      "tests": [
+        "resource_probe",
+        "museum_probe",
+        "devtools_port"
+      ]
+    },
+    {
+      "paths": [
+        "src/rt/rt.h"
+      ],
+      "tests": [
+        "cross_linux"
+      ]
+    },
+    {
+      "paths": [
+        "tools/windows-cross",
+        "tests/t2/cross_windows.sh",
+        "src/tc/tc.cpp"
+      ],
+      "tests": [
+        "cross_windows",
+        "release_workflow"
+      ]
+    },
+    {
+      "paths": [
+        "tools/build-linux",
+        "tools/linux-sysroot",
+        "cmake/zig-linux.cmake"
+      ],
+      "tests": [
+        "tc",
+        "release_workflow"
+      ]
+    },
+    {
+      "paths": [
+        "tests/t1/first_run.sh",
+        "tests/golden/first-run/",
+        "../templates/",
+        "src/frontend/diagnostics",
+        "include/zn/diagnostics.h",
+        "../docs/guide/01-getting-started.md"
+      ],
+      "tests": [
+        "first_run"
+      ]
+    },
+    {
+      "paths": [
+        ".github/workflows/zinc-next.yml"
+      ],
+      "tests": [
+        "ci_plan",
+        "release_workflow"
+      ]
+    },
+    {
+      "paths": [
+        "tests/golden/examples/proto/manifest.json",
+        "tests/t1/camera_pixels.sh"
+      ],
+      "tests": [
+        "camera_pixels"
+      ]
+    },
+    {
+      "paths": [
+        "tools/ci-plan",
+        "tests/data/ci_plan.py",
+        "tests/t0/ci_plan.sh",
+        "tests/affected.py",
+        "tests/affected.json"
+      ],
+      "tests": [
+        "ci_plan"
+      ]
+    },
+    {
+      "paths": [
+        "tests/t1/fixed_verify.sh"
+      ],
+      "tests": [
+        "fixed_verify"
+      ]
+    },
+    {
+      "paths": [
+        "tests/t1/macos_deeplink.sh"
+      ],
+      "tests": [
+        "macos_deeplink"
+      ]
+    },
+    {
+      "paths": [
+        "tests/t1/macos_window.sh",
+        "tests/golden/macos/window/"
+      ],
+      "tests": [
+        "macos_window"
+      ]
+    },
+    {
+      "paths": [
+        "tools/examples-status",
+        "tests/t0/examples_status.sh",
+        "tests/t1/examples_all.sh",
+        "tests/t2/examples_all.sh"
+      ],
+      "tests": [
+        "examples_status"
+      ]
+    },
+    {
+      "paths": [
+        "tests/run",
+        "tests/t0/runner_cwd.sh"
+      ],
+      "tests": [
+        "runner_cwd",
+        "native",
+        "mqtt",
+        "osc",
+        "codec",
+        "fixed",
+        "gltf",
+        "text_layout"
+      ]
+    },
+    {
+      "paths": [
+        "src/test_cmd.cpp",
+        "tools/compat/",
+        "tests/t1/zinc_test_runners.sh"
+      ],
+      "tests": [
+        "zinc_test_runners",
+        "net",
+        "socket"
+      ]
+    },
+    {
+      "paths": [
+        "src/dbg/",
+        "src/vm/",
+        "tests/data/debug_cli/",
+        "tests/golden/debug_cli/",
+        "tests/t1/debug_cli.sh",
+        "tests/dap_check.py",
+        "tests/t1/debug_dap.sh",
+        "../lib/editor/vscode-zinc-debug/",
+        "tests/cdp_debug_check.mjs",
+        "tests/t1/debug_cdp.sh",
+        "tests/t1/debug_lldb.sh"
+      ],
+      "tests": [
+        "debug_cli",
+        "debug_dap",
+        "debug_cdp",
+        "debug_lldb"
+      ]
+    },
+    {
+      "paths": [
+        "src/aot/aot.cpp"
+      ],
+      "tests": [
+        "debug_lldb"
+      ]
+    },
+    {
+      "paths": [
+        "app/inspector/",
+        "tests/data/inspector/",
+        "tests/t1/inspector.sh",
+        "../plugins/devtools/",
+        "src/host/netlog.cpp"
+      ],
+      "tests": [
+        "inspector"
+      ]
+    },
+    {
+      "paths": [
+        "app/atelier/",
+        "tests/t1/atelier_ide.sh",
+        "tests/t0/atelier.sh",
+        "tests/golden/atelier/"
+      ],
+      "tests": [
+        "atelier_ide",
+        "atelier"
+      ]
+    },
+    {
+      "paths": [
+        "src/lsp/",
+        "tests/lsp/",
+        "tests/t1/lsp.sh"
+      ],
+      "tests": [
+        "lsp",
+        "atelier_ide"
+      ]
+    },
+    {
+      "paths": [
+        "src/main.cpp",
+        "src/host/gfx_host.cpp",
+        "../targets/macos/hal_sdl.cpp",
+        "tests/t1/run_app_name.sh",
+        "tests/data/app_name/"
+      ],
+      "tests": [
+        "run_app_name"
+      ]
+    },
+    {
+      "paths": [
+        "app/atelier/",
+        "src/agent/client.cpp",
+        "src/agent/server.cpp",
+        "tests/t1/atelier_devices.sh",
+        "tests/golden/atelier/devices-30.png"
+      ],
+      "tests": [
+        "atelier_devices"
+      ]
+    },
+    {
+      "paths": [
+        "tools/bench-m4",
+        "tools/bench-gate",
+        "corpus/bench/",
+        "bench/",
+        "../tests/bench/",
+        "tests/data/bench_harness.py",
+        "tests/t2/bench_gate.sh"
+      ],
+      "tests": [
+        "bench_harness"
+      ]
+    },
+    {
+      "paths": [
+        "lib/std/ui.ts",
+        "lib/std/solid.ts",
+        "lib/std/react.ts",
+        "lib/std/kit/"
+      ],
+      "tests": [
+        "ui",
+        "ui_style",
+        "ui_tokens",
+        "jsx_style",
+        "ui_font",
+        "ui_textlayout",
+        "ui_alloc_text",
+        "ui_alloc_layout",
+        "ui_sides",
+        "ui_media",
+        "ui_docs",
+        "ui_virtual",
+        "ui_theme",
+        "ui_state",
+        "ui_transition",
+        "ui_a11y",
+        "ui_alloc",
+        "ui_select",
+        "ui_kbd_inset",
+        "ui_kbd_reveal",
+        "ui_kbd_mode",
+        "ui_kit_sections",
+        "ui_cmds",
+        "ui_modal_motion",
+        "ui_press",
+        "webgl_surface",
+        "layout_iface",
+        "layout_rn",
+        "classic_rewrap",
+        "rn_showcase",
+        "style_flex",
+        "style_size",
+        "scroll_axis",
+        "scroll_end",
+        "layout_anim",
+        "animated",
+        "style_shadow",
+        "style_transform",
+        "pan_responder",
+        "react_native",
+        "style_border",
+        "layout_compat",
+        "layout_conformance",
+        "rn_port",
+        "rtl"
+      ],
+      "canary": true
+    },
+    {
+      "paths": [
+        "tests/golden/ui-transition/"
+      ],
+      "tests": [
+        "ui_transition"
+      ]
+    },
+    {
+      "paths": [
+        "tests/golden/ui-modal-motion/",
+        "../lib/std/nuxt/overlays.tsx"
+      ],
+      "tests": [
+        "ui_modal_motion",
+        "nuxt_ui"
+      ]
+    },
+    {
+      "paths": [
+        "tests/golden/ui-press/"
+      ],
+      "tests": [
+        "ui_press"
+      ]
+    },
+    {
+      "paths": [
+        "src/frontend/jsx.cpp",
+        "tests/golden/style-flex/",
+        "tests/golden/style-size/",
+        "tests/golden/style-shadow/",
+        "tests/golden/style-transform/",
+        "tests/golden/pan-responder/",
+        "tests/golden/react-native/",
+        "tests/golden/style-dynamic/",
+        "tests/golden/style-border/",
+        "tests/golden/layout-compat/",
+        "tests/golden/rtl/"
+      ],
+      "tests": [
+        "style_flex",
+        "style_size",
+        "style_shadow",
+        "style_transform",
+        "pan_responder",
+        "react_native",
+        "style_dynamic",
+        "style_border",
+        "layout_compat",
+        "react_native_imports",
+        "rtl",
+        "jsx_style"
+      ]
+    },
+    {
+      "paths": [
+        "../examples/rn-showcase/",
+        "tests/golden/rn-showcase/"
+      ],
+      "tests": [
+        "rn_showcase"
+      ]
+    },
+    {
+      "paths": [
+        "../lib/std/platform/",
+        "../lib/std/kit/",
+        "../lib/std/nuxt/controls.tsx",
+        "../lib/std/react-native.tsx",
+        "../examples/ui/kit-gallery/",
+        "../examples/rn-showcase/",
+        "src/frontend/project.cpp",
+        "tests/golden/platform-look/",
+        "tests/t1/platform_look.sh"
+      ],
+      "tests": [
+        "platform_look",
+        "ui_kit_sections",
+        "rn_showcase",
+        "kit_menubar",
+        "nuxt_ui",
+        "react_native"
+      ]
+    },
+    {
+      "paths": [
+        "../examples/webcam/",
+        "tests/golden/webcam-demo/",
+        "../plugins/camera/"
+      ],
+      "tests": [
+        "webcam_demo"
+      ]
+    },
+    {
+      "paths": [
+        "../lib/std/react-native.tsx",
+        "../lib/std/icons.tsx",
+        "../lib/std/ui.ts",
+        "tests/golden/rn-idle/"
+      ],
+      "tests": [
+        "rn_idle"
+      ]
+    },
+    {
+      "paths": [
+        "../examples/rn-port/",
+        "tests/golden/rn-port/"
+      ],
+      "tests": [
+        "rn_port"
+      ]
+    },
+    {
+      "paths": [
+        "../examples/rn-tester/",
+        "tests/golden/rn-tester/"
+      ],
+      "tests": [
+        "rn_tester"
+      ]
+    },
+    {
+      "paths": [
+        "../examples/js-three/",
+        "tests/golden/js-examples/three.input",
+        "third_party/three/"
+      ],
+      "tests": [
+        "example_js_three"
+      ]
+    },
+    {
+      "paths": [
+        "../examples/js-phaser/",
+        "tests/golden/js-examples/phaser.input",
+        "third_party/phaser/"
+      ],
+      "tests": [
+        "example_js_phaser"
+      ]
+    },
+    {
+      "paths": [
+        "../examples/js-p5/",
+        "tests/golden/js-examples/p5.input",
+        "tools/test-lib"
+      ],
+      "tests": [
+        "example_js_p5"
+      ]
+    },
+    {
+      "paths": [
+        "../examples/js-pixi/",
+        "tests/golden/js-examples/pixi.input",
+        "third_party/pixi/"
+      ],
+      "tests": [
+        "example_js_pixi"
+      ]
+    },
+    {
+      "paths": [
+        "../lib/std/react-native.tsx",
+        "../lib/std/react-native-linking.ts",
+        "tests/golden/react-native-input/",
+        "tests/golden/react-native-lists/",
+        "tests/golden/react-native-modal/",
+        "tests/golden/system/linking/",
+        "tests/golden/react-native-imports/"
+      ],
+      "tests": [
+        "react_native",
+        "react_native_input",
+        "react_native_lists",
+        "react_native_modal",
+        "ui_modal_motion",
+        "ui_press",
+        "react_native_imports",
+        "rn_port",
+        "rn_tester",
+        "system_sim"
+      ]
+    },
+    {
+      "paths": [
+        "../lib/std/nuxt/",
+        "tests/golden/nuxt-theme/",
+        "../examples/nuxt-ui/",
+        "tests/golden/nuxt-ui/",
+        "tests/golden/oklab-tints/",
+        "tools/oklab-tints"
+      ],
+      "tests": [
+        "nuxt_theme",
+        "nuxt_ui",
+        "oklab_tints",
+        "rtl"
+      ]
+    },
+    {
+      "paths": [
+        "../lib/std/animated.ts",
+        "tests/golden/animated/"
+      ],
+      "tests": [
+        "animated",
+        "rn_showcase",
+        "pan_responder"
+      ]
+    },
+    {
+      "paths": [
+        "../lib/std/icons.tsx",
+        "third_party/lucide/",
+        "tests/golden/icons/",
+        "tests/golden/icons-all/"
+      ],
+      "tests": [
+        "icons",
+        "rn_showcase"
+      ]
+    },
+    {
+      "paths": [
+        "src/frontend/modules.cpp",
+        "src/frontend/tsconfig.cpp",
+        "include/zn/platform.h",
+        "tests/t0/platform_files.sh",
+        "tests/golden/platform-files/"
+      ],
+      "tests": [
+        "platform_files"
+      ]
+    },
+    {
+      "paths": [
+        "include/zn/platform.h",
+        "src/host/sys_host.cpp",
+        "tests/golden/platform-identity/"
+      ],
+      "tests": [
+        "platform_identity"
+      ]
+    },
+    {
+      "paths": [
+        "src/host/hal_dispatch.cpp",
+        "../lib/std/haptics.ts",
+        "../lib/std/react-native.tsx",
+        "tests/golden/system-signals/",
+        "../targets/macos/hal_sdl.cpp"
+      ],
+      "tests": [
+        "system_signals"
+      ]
+    },
+    {
+      "paths": [
+        "src/app/android/",
+        "src/app/android_glue.cpp",
+        "src/cli_core.cpp"
+      ],
+      "tests": [
+        "export_android"
+      ]
+    },
+    {
+      "paths": [
+        "../lib/std/navigation.tsx",
+        "tests/golden/navigation/"
+      ],
+      "tests": [
+        "navigation"
+      ]
+    },
+    {
+      "paths": [
+        "../lib/std/overscroller.ts",
+        "tests/golden/scroll-platform/"
+      ],
+      "tests": [
+        "scroll_platform"
+      ]
+    },
+    {
+      "paths": [
+        "tests/golden/text-touch/",
+        "src/app/ios_glue.mm"
+      ],
+      "tests": [
+        "text_touch"
+      ]
+    },
+    {
+      "paths": [
+        "tests/t1/keyboard_avoid.sh",
+        "../lib/std/react-native.tsx",
+        "../examples/rn-showcase/src/App.tsx",
+        "../examples/rn-showcase/src/screens/Forms.tsx"
+      ],
+      "tests": [
+        "keyboard_avoid"
+      ]
+    },
+    {
+      "paths": [
+        "src/frontend/project.cpp",
+        "src/frontend/project.h",
+        "src/frontend/capabilities.cpp",
+        "../targets/capabilities.json"
+      ],
+      "tests": [
+        "ui_layout_option",
+        "requires"
+      ]
+    },
+    {
+      "paths": [
+        "src/host/layout.h",
+        "src/host/layout_yoga.cpp",
+        "src/host/text_wrap.h",
+        "src/host/text_wrap.cpp",
+        "third_party/yoga/",
+        "tests/native/layout_yoga_test.cpp"
+      ],
+      "tests": [
+        "layout_iface",
+        "layout_conformance",
+        "layout_yoga",
+        "layout_bridge",
+        "layout_rn"
+      ]
+    },
+    {
+      "paths": [
+        "src/host/layout_host.cpp",
+        "tests/golden/layout-bridge/",
+        "tests/golden/layout-rn/",
+        "src/qjs/qjs.cpp",
+        "src/aot/aot.cpp",
+        "tests/golden/layout-conformance/",
+        "tools/layout-fixtures"
+      ],
+      "tests": [
+        "layout_bridge",
+        "layout_rn",
+        "layout_conformance",
+        "rtl"
+      ]
+    },
+    {
+      "paths": [
+        "src/frontend/jsx.cpp",
+        "src/frontend/jsx"
+      ],
+      "tests": [
+        "jsx",
+        "jsx_banned",
+        "jsx_style",
+        "react_class",
+        "ui_tokens"
+      ],
+      "canary": true
+    },
+    {
+      "paths": [
+        "tests/golden/jsx/errors/",
+        "tests/t0/jsx_banned.sh",
+        "include/zn/diagnostics.h"
+      ],
+      "tests": [
+        "jsx_banned",
+        "migrate"
+      ]
+    },
+    {
+      "paths": [
+        "src/frontend/jsx.cpp",
+        "../lib/std/solid.ts",
+        "../lib/std/kit/host.ts",
+        "../lib/std/nuxt/host.ts",
+        "../lib/std/nuxt/navigation.tsx",
+        "tests/data/solid_props/",
+        "tests/t1/solid_props.sh"
+      ],
+      "tests": [
+        "solid_props"
+      ]
+    },
+    {
+      "paths": [
+        "src/lint/",
+        "tests/t0/lint.sh",
+        "tests/t0/migrate.sh",
+        "tests/golden/lint/",
+        "tests/golden/migrate/",
+        "../targets/capabilities.json",
+        "src/frontend/capabilities.cpp"
+      ],
+      "tests": [
+        "lint",
+        "migrate"
+      ]
+    },
+    {
+      "paths": [
+        "lib/std/kit/theme.ts",
+        "lib/std/palette.ts",
+        "tools/contrast-check"
+      ],
+      "tests": [
+        "contrast",
+        "ui_theme"
+      ]
+    },
+    {
+      "paths": [
+        "tests/golden/ui-tokens/"
+      ],
+      "tests": [
+        "ui_tokens",
+        "ui_docs"
+      ]
+    },
+    {
+      "paths": [
+        "src/gl/",
+        "src/qjs/script_native.cpp",
+        "src/qjs/prelude.cpp",
+        "src/qjs/ext.cpp",
+        "plugins/script/",
+        "../examples/webgl-studio/"
+      ],
+      "tests": [
+        "webgl_js",
+        "webgl_surface",
+        "three",
+        "webgl_gizmo",
+        "webgl_studio"
+      ]
+    },
+    {
+      "paths": [
+        "src/zpk/",
+        "third_party/lz4/",
+        "third_party/zstd/",
+        "tests/unit/zpk_test.cpp",
+        "tests/t0/zpk.sh",
+        "tests/fuzz/fuzz_zpk.cpp"
+      ],
+      "tests": [
+        "zpk",
+        "assets_groups"
+      ]
+    },
+    {
+      "paths": [
+        "src/host/assets_host.cpp",
+        "src/host/assets_host.h",
+        "src/prof/",
+        "tests/data/assets_groups/",
+        "tests/t0/assets_groups.sh"
+      ],
+      "tests": [
+        "assets_groups"
+      ]
+    },
+    {
+      "paths": [
+        "../runtime/include/zrt_assets_dir.h"
+      ],
+      "tests": [
+        "aot_assets",
+        "assets_groups"
+      ]
+    },
+    {
+      "paths": [
+        "../plugins/webview/",
+        "tests/t1/webview.sh"
+      ],
+      "tests": [
+        "webview",
+        "webview_hybrid",
+        "native_gen",
+        "plugin_manifest"
+      ]
+    },
+    {
+      "paths": [
+        "../lib/std/ui.ts",
+        "../lib/std/react-native.tsx",
+        "tests/golden/ui-native-view/",
+        "tests/t0/ui_native_view.sh"
+      ],
+      "tests": [
+        "ui_native_view"
+      ]
+    },
+    {
+      "paths": [
+        "../lib/std/ui.ts",
+        "src/host/hal_dispatch.cpp",
+        "src/host/sys_host.cpp",
+        "tools/a11y-tree",
+        "tests/golden/ui-a11y-bridge/",
+        "tests/t0/ui_a11y_bridge.sh"
+      ],
+      "tests": [
+        "ui_a11y_bridge",
+        "ui_a11y"
+      ]
+    },
+    {
+      "paths": [
+        "../examples/webview/hybrid/",
+        "tests/t1/webview_hybrid.sh"
+      ],
+      "tests": [
+        "webview_hybrid"
+      ]
+    },
+    {
+      "paths": [
+        "src/tc/progress.cpp",
+        "include/zn/log.h",
+        "tests/t0/build_progress.sh"
+      ],
+      "tests": [
+        "build_progress",
+        "steps",
+        "verbose_log",
+        "plugin_fallback"
+      ]
+    },
+    {
+      "paths": [
+        "src/frontend/modules.cpp",
+        "src/frontend/modules.h",
+        "src/main.cpp",
+        "tests/t1/plugin_fallback.sh"
+      ],
+      "tests": [
+        "plugin_fallback"
+      ]
+    },
+    {
+      "paths": [
+        "src/assets/",
+        "third_party/xxhash/",
+        "src/res/res.cpp",
+        "src/res/res.h",
+        "tests/unit/assets_test.cpp",
+        "tests/t0/assets.sh"
+      ],
+      "tests": [
+        "assets"
+      ]
+    },
+    {
+      "paths": [
+        "src/assets/tilemap.cpp",
+        "src/assets/tilemap.h",
+        "src/assets/sprite.cpp",
+        "src/assets/assets.cpp",
+        "../plugins/tilemap/",
+        "../plugins/sprite/",
+        "tests/data/tilemap/",
+        "tests/t1/tilemap.sh"
+      ],
+      "tests": [
+        "tilemap",
+        "assets"
+      ]
+    },
+    {
+      "paths": [
+        "src/assets/sprite.cpp",
+        "src/assets/sprite.h",
+        "third_party/stb/stb_rect_pack.h",
+        "third_party/cute_aseprite/",
+        "../plugins/sprite/",
+        "src/host/gfx_host.cpp",
+        "src/host/sys_host.cpp",
+        "tests/data/sprite_atlas/",
+        "tests/t1/sprite_atlas.sh"
+      ],
+      "tests": [
+        "sprite_atlas",
+        "assets"
+      ]
+    },
+    {
+      "paths": [
+        "../examples/platformer/",
+        "tests/data/platformer/",
+        "tests/t1/platformer.sh"
+      ],
+      "tests": [
+        "platformer"
+      ]
+    },
+    {
+      "paths": [
+        "src/frontend/project.cpp",
+        "src/frontend/project.h",
+        "src/assets/",
+        "../targets/capabilities.json",
+        "tests/unit/project_test.cpp",
+        "tests/t0/project_assets.sh"
+      ],
+      "tests": [
+        "project_assets"
+      ]
+    },
+    {
+      "paths": [
+        "src/host/assets_host.cpp",
+        "src/host/assets_host.h",
+        "src/host/sys_host.cpp",
+        "../plugins/sprite/",
+        "../templates/game-2d/",
+        "src/cli_core.cpp",
+        "tests/t1/asset_reload.sh"
+      ],
+      "tests": [
+        "asset_reload"
+      ]
+    },
+    {
+      "paths": [
+        "src/host/splash.cpp",
+        "src/assets/",
+        "src/host/hal_dispatch.cpp",
+        "src/aot/aot.cpp",
+        "src/cli_core.cpp",
+        "targets/wasm/glue/index.html",
+        "tests/t1/splash.sh"
+      ],
+      "tests": [
+        "splash"
+      ]
+    },
+    {
+      "paths": [
+        "../plugins/loader/",
+        "src/cli_core.cpp",
+        "src/frontend/project.cpp",
+        "src/frontend/project.h",
+        "src/qjs/qjs.cpp",
+        "src/host/gfx_host.cpp",
+        "src/host/sys_host.cpp",
+        "../templates/game-2d/",
+        "tests/data/loader/",
+        "tests/golden/loader/",
+        "tests/t1/loader.sh"
+      ],
+      "tests": [
+        "loader"
+      ]
+    },
+    {
+      "paths": [
+        "src/tc/tc.cpp",
+        "src/tc/tc.h",
+        "third_party/monocypher/"
+      ],
+      "tests": [
+        "update_sign",
+        "mirrors",
+        "app_update",
+        "tc"
+      ]
+    },
+    {
+      "paths": [
+        "tools/package",
+        "tools/sign-macos"
+      ],
+      "tests": [
+        "package",
+        "release_workflow"
+      ]
+    },
+    {
+      "paths": [
+        "tools/package",
+        "tests/t0/package_app.sh",
+        "../examples/museum-table/zinc.json"
+      ],
+      "tests": [
+        "package_app"
+      ]
+    },
+    {
+      "paths": [
+        "tools/install.sh",
+        "tests/t1/install_nocompiler.sh"
+      ],
+      "tests": [
+        "install_nocompiler",
+        "release_workflow"
+      ]
+    },
+    {
+      "paths": [
+        "src/tc/selfupdate.cpp",
+        "src/tc/tc.cpp",
+        "tools/install.sh",
+        "update.pub",
+        "tests/t1/self_update.sh"
+      ],
+      "tests": [
+        "self_update",
+        "version",
+        "package"
+      ]
+    },
+    {
+      "paths": [
+        "src/gl/",
+        "src/main.cpp",
+        "CMakeLists.txt"
+      ],
+      "tests": [
+        "webgl_module",
+        "webgl_js",
+        "three"
+      ]
+    },
+    {
+      "paths": [
+        "src/tc/plugin_build"
+      ],
+      "tests": [
+        "plugin_build",
+        "plugin_prebuilt",
+        "plugin_key",
+        "plugin_repro",
+        "plugin_fetch",
+        "plugin_tiers",
+        "native_plugins",
+        "native_lazy",
+        "plugin_stamp"
+      ]
+    },
+    {
+      "paths": [
+        "src/host/sys_host.cpp",
+        "src/main.cpp",
+        "tests/golden/clock/"
+      ],
+      "tests": [
+        "clock"
+      ]
+    },
+    {
+      "paths": [
+        "src/sim/chips/",
+        "tests/native/chip_wave3.cpp",
+        "tests/native/chip_common.h"
+      ],
+      "tests": [
+        "chip_models"
+      ]
+    },
+    {
+      "paths": [
+        "../plugins/display-fbdev/",
+        "tests/native/chip_fbdev.cpp",
+        "tests/t1/video_layers.sh",
+        "tests/data/video_layers/"
+      ],
+      "tests": [
+        "chip_models",
+        "video_layers"
+      ]
+    },
+    {
+      "paths": [
+        "../plugins/video/native/video.host.cpp"
+      ],
+      "tests": [
+        "video",
+        "museum_video",
+        "video_layers"
+      ]
+    },
+    {
+      "paths": [
+        "../plugins/video/plugin.json",
+        "../plugins/video/native/video.android.cpp",
+        "../plugins/video/native/video.ios.mm",
+        "tests/data/mobile-video/",
+        "tests/t0/video_phone.sh"
+      ],
+      "tests": [
+        "video_phone"
+      ]
+    },
+    {
+      "paths": [
+        "src/sim/",
+        "include/zn/sim.h",
+        "tests/native/sim_test.cpp",
+        "tests/native/board_test.cpp",
+        "tests/native/scenario_test.cpp",
+        "tests/golden/sim/",
+        "third_party/libyaml/",
+        "../examples/boards/s3-matrix/dice/",
+        "src/host/hal_dispatch.cpp",
+        "src/vm/vm.cpp"
+      ],
+      "tests": [
+        "sim_core",
+        "sim_board",
+        "sim_scenario",
+        "sim_program",
+        "sim_replay",
+        "sim_compare"
+      ]
+    },
+    {
+      "paths": [
+        "tests/three/",
+        "third_party/three/",
+        "tools/three-compare"
+      ],
+      "tests": [
+        "three"
+      ]
+    },
+    {
+      "paths": [
+        "src/frontend/check.cpp",
+        "src/frontend/check.h",
+        "src/frontend/desugar.cpp",
+        "src/frontend/snippet.cpp"
+      ],
+      "tests": [
+        "checker",
+        "lang",
+        "tdz"
+      ]
+    },
+    {
+      "paths": [
+        "src/frontend/modules.cpp",
+        "src/frontend/modules.h"
+      ],
+      "tests": [
+        "modules",
+        "checker",
+        "lang",
+        "plugin_manifest"
+      ]
+    },
+    {
+      "paths": [
+        "src/frontend/lexer.cpp",
+        "src/frontend/parser.cpp"
+      ],
+      "tests": [
+        "parser",
+        "lexer",
+        "checker"
+      ]
+    },
+    {
+      "paths": [
+        "src/platform/",
+        "tests/unit/platform_test.cpp",
+        "tests/t0/platform.sh"
+      ],
+      "tests": [
+        "platform"
+      ]
+    },
+    {
+      "paths": [
+        "src/ir/"
+      ],
+      "tests": [
+        "ir",
+        "zbc",
+        "rc_refcast",
+        "rc_lend",
+        "rc_borrow",
+        "rc",
+        "virtual_default"
+      ]
+    },
+    {
+      "paths": [
+        "src/ir/lower.cpp",
+        "src/ir/opt.cpp",
+        "src/ir/ir.h",
+        "src/frontend/modules.cpp",
+        "src/frontend/parser.cpp",
+        "src/frontend/ast.h",
+        "../lib/std/hot.ts",
+        "../templates/desktop-app/",
+        "tests/t0/hot_off.sh"
+      ],
+      "tests": [
+        "hot_off"
+      ]
+    },
+    {
+      "paths": [
+        "src/dev/hot.cpp",
+        "src/dev/hot.h",
+        "src/cli_core.cpp",
+        "src/host/gfx_host.cpp",
+        "../lib/std/hot.ts",
+        "tests/t1/hot_swap.sh"
+      ],
+      "tests": [
+        "hot_swap",
+        "dev_mode"
+      ]
+    },
+    {
+      "paths": [
+        "src/dev/hot.cpp",
+        "src/frontend/jsx.cpp",
+        "src/frontend/modules.cpp",
+        "../lib/std/solid.ts",
+        "../lib/std/hot.ts",
+        "../templates/desktop-app/",
+        "tests/t1/fast_refresh.sh"
+      ],
+      "tests": [
+        "fast_refresh"
+      ]
+    },
+    {
+      "paths": [
+        "src/dev/hot.cpp",
+        "../templates/game-2d/"
+      ],
+      "tests": [
+        "asset_reload"
+      ]
+    },
+    {
+      "paths": [
+        "src/dev/hot_swap.cpp",
+        "src/dev/hot.h"
+      ],
+      "tests": [
+        "hot_swap",
+        "fast_refresh",
+        "zinc_go"
+      ]
+    },
+    {
+      "paths": [
+        "src/app/player.cpp",
+        "src/app/app.cpp",
+        "src/app/app_core.h",
+        "../lib/std/react.ts",
+        "tests/t1/zinc_go.sh"
+      ],
+      "tests": [
+        "zinc_go",
+        "app_library"
+      ]
+    },
+    {
+      "paths": [
+        "../examples/zinc-go/",
+        "../plugins/camera/",
+        "tests/t1/zinc_go_home.sh"
+      ],
+      "tests": [
+        "zinc_go_home"
+      ]
+    },
+    {
+      "paths": [
+        "third_party/qrcodegen/",
+        "../plugins/camera/vendor/quirc/",
+        "../plugins/camera/native/camera.host.cpp",
+        "tests/native/qr_test.cpp",
+        "tests/t0/qr_code.sh"
+      ],
+      "tests": [
+        "qr_code"
+      ]
+    },
+    {
+      "paths": [
+        "src/zbc/"
+      ],
+      "tests": [
+        "zbc",
+        "irformat",
+        "aot"
+      ]
+    },
+    {
+      "paths": [
+        "src/main.cpp",
+        "tests/t1/zbc_cache.sh"
+      ],
+      "tests": [
+        "zbc_cache",
+        "run_cache"
+      ]
+    },
+    {
+      "paths": [
+        "src/main.cpp",
+        "tests/t0/plugins_line.sh",
+        "tests/data/plugins_line/"
+      ],
+      "tests": [
+        "plugins_line"
+      ]
+    },
+    {
+      "paths": [
+        "src/tc/bundle.cpp",
+        "src/tc/bundle.h",
+        "src/frontend/project.cpp",
+        "tests/t1/codesign.sh"
+      ],
+      "tests": [
+        "codesign"
+      ]
+    },
+    {
+      "paths": [
+        "src/cli_core.cpp",
+        "src/tc/tc.cpp",
+        "tests/t0/publish_store.sh"
+      ],
+      "tests": [
+        "publish_store"
+      ]
+    },
+    {
+      "paths": [
+        "src/cli_core.cpp",
+        "../compiler/src/ui-tools.ts",
+        "tests/t0/ui_tools.sh"
+      ],
+      "tests": [
+        "ui_tools"
+      ]
+    },
+    {
+      "paths": [
+        "third_party/quickjs-ng/",
+        "tools/quickjs-patches",
+        "src/qjs/qjs_prof.cpp",
+        "bench/qjs/",
+        "tools/qjs2c",
+        "tests/data/qjs2c-sprite.jsonl"
+      ],
+      "tests": [
+        "quickjs_patches",
+        "quickjs",
+        "test262_regexp",
+        "qjs_profile",
+        "qjs2c"
+      ]
+    },
+    {
+      "paths": [
+        "../targets/macos/hal_sdl.cpp",
+        "src/frontend/project",
+        "tests/t1/pixel_scale.sh"
+      ],
+      "tests": [
+        "pixel_scale"
+      ]
+    },
+    {
+      "paths": [
+        "../plugins/3d/",
+        "../plugins/three/",
+        "tests/t1/three_gpu.sh"
+      ],
+      "tests": [
+        "three_gpu",
+        "three_3d",
+        "templates_kickstart",
+        "zinc3d_aa",
+        "zinc3d_gltf"
+      ]
+    },
+    {
+      "paths": [
+        "src/aot/",
+        "src/rt/"
+      ],
+      "tests": [
+        "aot",
+        "rc",
+        "profile",
+        "console_live"
+      ]
+    },
+    {
+      "paths": [
+        "src/qjs/qjs.cpp",
+        "src/vm/vm.cpp"
+      ],
+      "tests": [
+        "console_live"
+      ]
+    },
+    {
+      "paths": [
+        "src/qjs/qjs.cpp"
+      ],
+      "tests": [
+        "qjs_robust",
+        "qjs"
+      ]
+    },
+    {
+      "paths": [
+        "../lib/std/webenv.js",
+        "src/qjs/webenv.cpp",
+        "tests/golden/webenv/",
+        "tools/test-lib",
+        "third_party/pixi/",
+        "third_party/three/"
+      ],
+      "tests": [
+        "webenv",
+        "webenv_canvas",
+        "webenv_p5",
+        "webenv_three",
+        "webenv_pixi",
+        "webenv_image",
+        "webenv_phaser",
+        "webenv_canvas2d",
+        "webenv_canvas2d_libs",
+        "webenv_gamepad",
+        "webenv_audio"
+      ]
+    },
+    {
+      "paths": [
+        "../runtime/include/hal.h",
+        "../targets/macos/hal_sdl.cpp",
+        "src/host/hal_dispatch.cpp",
+        "src/host/gfx_host.cpp",
+        "tests/t1/webenv_gamepad.sh"
+      ],
+      "tests": [
+        "webenv_gamepad"
+      ]
+    },
+    {
+      "paths": [
+        "src/qjs/canvas2d.cpp",
+        "third_party/canvas_ity/",
+        "src/text/layout.cpp",
+        "tools/canvas2d-ref",
+        "third_party/phaser/"
+      ],
+      "tests": [
+        "webenv_canvas2d",
+        "webenv_canvas2d_libs",
+        "webenv_canvas2d_full"
+      ]
+    },
+    {
+      "paths": [
+        "src/gl/"
+      ],
+      "tests": [
+        "webenv_canvas",
+        "webenv_pixi",
+        "webgl_libs",
+        "webenv_image",
+        "webenv_phaser"
+      ]
+    },
+    {
+      "paths": [
+        "src/res/"
+      ],
+      "tests": [
+        "codec",
+        "webenv_image"
+      ]
+    },
+    {
+      "paths": [
+        "src/qjs/strip.cpp"
+      ],
+      "tests": [
+        "qjs",
+        "quickjs",
+        "webenv"
+      ]
+    },
+    {
+      "paths": [
+        "src/qjs/bundle.cpp",
+        "src/qjs/strip.cpp",
+        "src/qjs/qjs.cpp",
+        "src/qjs/qjs.h",
+        "src/frontend/jsx.cpp",
+        "src/tc/tc.cpp",
+        "../lib/std/",
+        "tests/t0/qjs_bundle.sh",
+        "tests/golden/jsx/"
+      ],
+      "tests": [
+        "qjs_bundle"
+      ]
+    },
+    {
+      "paths": [
+        "src/qjs/strip.cpp",
+        "src/qjs/qjs.cpp",
+        "src/qjs/bundle.cpp",
+        "../lib/std/react-native.tsx",
+        "../lib/std/nuxt/",
+        "tests/t1/qjs_demos.sh"
+      ],
+      "tests": [
+        "qjs_demos"
+      ]
+    },
+    {
+      "paths": [
+        ".spec.ts",
+        "tests/golden/native_gen/"
+      ],
+      "tests": [
+        "native_gen"
+      ]
+    },
+    {
+      "paths": [
+        "runtime/raster.cpp",
+        "runtime/gfx.cpp",
+        "runtime/ttf.cpp",
+        "src/host/backend_sw.cpp"
+      ],
+      "tests": [
+        "scene_dump",
+        "backend_sw",
+        "damage_sig",
+        "ui_style"
+      ],
+      "canary": true
+    },
+    {
+      "paths": [
+        "../runtime/gfx.cpp",
+        "src/host/gfx_host.cpp",
+        "src/host/hal_dispatch.cpp",
+        "tools/pngdiff"
+      ],
+      "tests": [
+        "perf_hud"
+      ]
+    },
+    {
+      "paths": [
+        "../runtime/gfx.cpp",
+        "tests/data/scale_push/"
+      ],
+      "tests": [
+        "scale_push"
+      ]
+    },
+    {
+      "paths": [
+        "../runtime/raster.cpp",
+        "tests/data/shadow_mirror/"
+      ],
+      "tests": [
+        "shadow_mirror",
+        "style_shadow"
+      ]
+    },
+    {
+      "paths": [
+        "../lib/std/ui.ts",
+        "../runtime/raster.cpp",
+        "../runtime/gfx.cpp",
+        "../runtime/gl_replay.cpp",
+        "../runtime/gl_replay_shaders.h",
+        "src/frontend/jsx.cpp",
+        "tests/golden/style-gradient/",
+        "tests/data/style_gradient/",
+        "tests/t1/style_gradient.sh"
+      ],
+      "tests": [
+        "style_gradient"
+      ]
+    },
+    {
+      "paths": [
+        "../lib/std/ui.ts",
+        "../runtime/raster.cpp",
+        "../runtime/gfx.cpp",
+        "../runtime/gl_replay.cpp",
+        "src/frontend/jsx.cpp",
+        "tests/golden/style-image/",
+        "tests/data/style_image/",
+        "tests/t1/style_image.sh"
+      ],
+      "tests": [
+        "style_image"
+      ]
+    },
+    {
+      "paths": [
+        "CMakeLists.txt",
+        "src/main.cpp",
+        "src/rt/alloc.cpp",
+        "src/rt/alloc_new.cpp",
+        "tests/t1/launch_time.sh"
+      ],
+      "tests": [
+        "launch_time",
+        "profile",
+        "aot"
+      ]
+    },
+    {
+      "paths": [
+        "../runtime/gfx.cpp",
+        "../runtime/raster.cpp",
+        "../runtime/gl_replay.cpp",
+        "../runtime/zrt_raster.h",
+        "tests/t1/gfx_transform.sh",
+        "tests/data/gfx_transform/"
+      ],
+      "tests": [
+        "gfx_transform"
+      ]
+    },
+    {
+      "paths": [
+        "../runtime/gfx.cpp",
+        "../runtime/raster.cpp",
+        "../runtime/gl_replay.cpp",
+        "../runtime/zrt_raster.h",
+        "tests/t1/xform_plain.sh",
+        "tests/data/xform_plain/"
+      ],
+      "tests": [
+        "xform_plain"
+      ]
+    },
+    {
+      "paths": [
+        "../runtime/gfx.cpp",
+        "../runtime/raster.cpp",
+        "../runtime/gl_replay.cpp",
+        "../runtime/ttf.cpp",
+        "../runtime/zrt_raster.h",
+        "../lib/std/ui.ts",
+        "tests/t1/text_scaled.sh",
+        "tests/data/text_scaled/",
+        "tools/scene-texts"
+      ],
+      "tests": [
+        "text_scaled"
+      ]
+    },
+    {
+      "paths": [
+        "../examples/museum-table/src/table.ts",
+        "../examples/museum-table/src/type.ts",
+        "tests/t1/museum_zoom.sh",
+        "tests/data/museum_zoom/",
+        "tools/scene-texts"
+      ],
+      "tests": [
+        "museum_zoom"
+      ]
+    },
+    {
+      "paths": [
+        "../examples/museum-table/",
+        "tests/t1/museum_panorama.sh",
+        "tests/data/museum_panorama/"
+      ],
+      "tests": [
+        "museum_panorama",
+        "museum_format"
+      ]
+    },
+    {
+      "paths": [
+        "src/host/window_module.cpp",
+        "tools/zinc-unexported.txt",
+        "src/tc/bundle.cpp",
+        "../targets/macos/hal_sdl.cpp",
+        "../targets/macos/hal_cocoa.mm"
+      ],
+      "tests": [
+        "launch_time",
+        "window_renderer",
+        "gl_cube",
+        "native_plugins",
+        "fuse"
+      ]
+    },
+    {
+      "paths": [
+        "src/rt/rt.h",
+        "src/rt/rtcalls.cpp",
+        "src/aot/aot.cpp",
+        "tests/data/map_rows/"
+      ],
+      "tests": [
+        "map_rows",
+        "diffmatrix",
+        "corpus"
+      ]
+    },
+    {
+      "paths": [
+        "../runtime/gl_replay.cpp",
+        "../runtime/gfx.cpp",
+        "../runtime/raster.cpp",
+        "../targets/macos/hal_sdl.cpp",
+        "../plugins/display-gl/"
+      ],
+      "tests": [
+        "gpu_strokes",
+        "gl_renderer"
+      ]
+    },
+    {
+      "paths": [
+        "src/aot/aot.cpp",
+        "include/zn/host.h"
+      ],
+      "tests": [
+        "aot_size_inline",
+        "host_direct"
+      ]
+    },
+    {
+      "paths": [
+        "../lib/std/gl.ts",
+        "src/gl/webgl_host.cpp",
+        "src/gl/webgl_host_rows.inc",
+        "src/gl/webgl_install.cpp",
+        "tools/gen-zinc-gl",
+        "tests/golden/webgl/api_tour",
+        "../examples/gl-cube/"
+      ],
+      "tests": [
+        "gl_cube",
+        "zinc_gl_api",
+        "zinc_gl_api_tour"
+      ]
+    },
+    {
+      "paths": [
+        "src/text/"
+      ],
+      "tests": [
+        "text_layout",
+        "segment",
+        "text_shaped"
+      ]
+    },
+    {
+      "paths": [
+        "src/gl/"
+      ],
+      "tests": [
+        "webgl_conformance"
+      ]
+    },
+    {
+      "paths": [
+        "tools/webgl-conformance",
+        "tests/golden/webgl/"
+      ],
+      "tests": [
+        "webgl_conformance"
+      ]
+    },
+    {
+      "paths": [
+        "src/res/"
+      ],
+      "tests": [
+        "webp",
+        "res_aot"
+      ]
+    },
+    {
+      "paths": [
+        "src/cli_core",
+        "src/main.cpp"
+      ],
+      "tests": [
+        "cli_core",
+        "doctor_friendly",
+        "run_js_engine",
+        "cli_tools",
+        "verbose_log",
+        "security_guide",
+        "plugin_add",
+        "plugin_sign",
+        "templates_remote",
+        "install_offline",
+        "plugin_tiers",
+        "plugin_community",
+        "plugin_lock",
+        "revocation",
+        "trust_policy",
+        "policy",
+        "plugin_cli",
+        "templates_index"
+      ]
+    },
+    {
+      "paths": [
+        "tools/plugin-split"
+      ],
+      "tests": [
+        "plugin_split"
+      ]
+    },
+    {
+      "paths": [
+        "include/zn/log.h",
+        "src/host/ui_log.cpp"
+      ],
+      "tests": [
+        "verbose_log"
+      ]
+    },
+    {
+      "paths": [
+        "../docs/guide/08-security.md"
+      ],
+      "tests": [
+        "security_guide"
+      ]
+    },
+    {
+      "paths": [
+        "../docs/guide/07-distribution.md",
+        "../docs/guide/08-security.md",
+        "tests/t1/guide_store.sh",
+        "../templates/game-2d/"
+      ],
+      "tests": [
+        "guide_store"
+      ]
+    },
+    {
+      "paths": [
+        "include/zn/native.h",
+        "src/rt/native.cpp",
+        "src/rt/native_lazy.h",
+        "tools/abi-check",
+        "tests/data/native-abi-v1.txt",
+        "tests/native/native_test.cpp"
+      ],
+      "tests": [
+        "native",
+        "native_abi_freeze",
+        "native_call",
+        "plugin_build",
+        "script",
+        "native_lazy"
+      ]
+    },
+    {
+      "paths": [
+        "tools/gh-org-setup",
+        "tools/gh-org-protection.json"
+      ],
+      "tests": [
+        "gh_org_setup"
+      ]
+    },
+    {
+      "paths": [
+        "src/tc/tuf",
+        "tools/index-repo",
+        "tests/data/tuf_interop.py"
+      ],
+      "tests": [
+        "tuf_canonical",
+        "tuf_index",
+        "tuf_interop",
+        "index_search",
+        "mirrors",
+        "tlog",
+        "revocation"
+      ]
+    },
+    {
+      "paths": [
+        "src/tc/tlog",
+        "tools/tlog"
+      ],
+      "tests": [
+        "tlog",
+        "plugin_fetch"
+      ]
+    },
+    {
+      "paths": [
+        "src/tc/policy"
+      ],
+      "tests": [
+        "policy",
+        "trust_policy",
+        "plugin_tiers",
+        "mirrors"
+      ]
+    },
+    {
+      "paths": [
+        "tests/fuzz/",
+        "tools/fuzz"
+      ],
+      "tests": [
+        "fuzz_regress"
+      ]
+    },
+    {
+      "paths": [
+        "src/host/sys_host.cpp",
+        "src/host/permissions.cpp"
+      ],
+      "tests": [
+        "aot_assets",
+        "permissions",
+        "camera",
+        "assets_groups"
+      ]
+    },
+    {
+      "paths": [
+        "targets/wasm/",
+        "tools/wasm-export-test"
+      ],
+      "tests": [
+        "export_wasm"
+      ]
+    },
+    {
+      "paths": [
+        "targets/web/runtime.js",
+        "targets/web/dom.js",
+        "targets/web/browsers.json",
+        "src/cli_web.cpp",
+        "src/cli_web.h",
+        "tools/web-browser-test",
+        "../lib/std/web.browser.ts",
+        "../lib/std/fetch.browser.ts",
+        "../lib/std/subtle.browser.ts",
+        "../docs/targets/web.md",
+        "../docs/reports/zinc-web-export.md"
+      ],
+      "tests": [
+        "web_export",
+        "web_caps",
+        "web_plugins",
+        "web_dom"
+      ]
+    },
+    {
+      "paths": [
+        "targets/web/dom.js",
+        "targets/web/runtime.js",
+        "tools/web-dom-test",
+        "tools/web-compare",
+        "tests/fixtures/web-dom/",
+        "../lib/std/ui-dom.ts",
+        "../lib/std/ui-dom.browser.ts",
+        "../lib/std/kit/form.tsx"
+      ],
+      "tests": [
+        "web_dom",
+        "web_dom_visual"
+      ]
+    },
+    {
+      "paths": [
+        "../plugins/video/web/",
+        "../plugins/video/plugin.json",
+        "../plugins/lottie/web/",
+        "../plugins/lottie/plugin.json",
+        "tests/fixtures/web-video/",
+        "tests/fixtures/web-lottie/",
+        "tools/web-video-test",
+        "tools/rangehttp.py"
+      ],
+      "tests": [
+        "web_video"
+      ]
+    },
+    {
+      "paths": [
+        "../plugins/serial/web/",
+        "../plugins/midi/web/",
+        "../plugins/gphoto2/web/",
+        "../plugins/osc/web/",
+        "../plugins/map/web/",
+        "../plugins/map/plugin.json",
+        "third_party/maplibre/",
+        "tests/fixtures/web-hw/",
+        "tests/fixtures/web-map/",
+        "tests/t1/web_hw.sh"
+      ],
+      "tests": [
+        "web_hw"
+      ]
+    },
+    {
+      "paths": [
+        "targets/web/rows-gl.js",
+        "targets/web/rows-shader.js",
+        "tools/gen-web-gl",
+        "tools/gen-zinc-gl",
+        "../plugins/three/web/",
+        "../plugins/canvas2d/web/",
+        "tests/fixtures/web-three/",
+        "tests/fixtures/web-canvas/",
+        "tests/fixtures/web-shader/",
+        "tests/t1/web_gl.sh"
+      ],
+      "tests": [
+        "web_gl"
+      ]
+    },
+    {
+      "paths": [
+        "targets/web/hmr.js",
+        "tools/web-dev-test",
+        "tests/fixtures/web-hot/",
+        "src/qjs/bundle.cpp",
+        "src/qjs/strip.cpp"
+      ],
+      "tests": [
+        "web_dev",
+        "web_export"
+      ]
+    },
+    {
+      "paths": [
+        "tests/fixtures/web-caps/",
+        "../plugins/browser/"
+      ],
+      "tests": [
+        "web_caps"
+      ]
+    },
+    {
+      "paths": [
+        "src/cli_pm.cpp",
+        "src/cli_pm.h",
+        "src/cli_web_deps.cpp",
+        "src/cli_web_deps.h",
+        "tools/web-npm-test",
+        "tests/fixtures/web-npm/",
+        "tests/t1/web_npm.sh",
+        "../docs/targets/web-libraries.md"
+      ],
+      "tests": [
+        "web_npm",
+        "web_dev"
+      ]
+    },
+    {
+      "paths": [
+        "../packages/vite-plugin-zinc/",
+        "tools/web-vite-test",
+        "tests/fixtures/web-vite/",
+        "tests/t1/web_vite.sh"
+      ],
+      "tests": [
+        "web_vite"
+      ]
+    },
+    {
+      "paths": [
+        "tools/web-libs-test",
+        "tests/fixtures/web-libs/",
+        "tests/t1/web_libs.sh"
+      ],
+      "tests": [
+        "web_libs"
+      ]
+    },
+    {
+      "paths": [
+        "../plugins/camera/web/",
+        "../plugins/microphone/web/",
+        "../plugins/webrtc/web/",
+        "../plugins/audio/web/",
+        "../plugins/svg/web/",
+        "../plugins/system/web/",
+        "../plugins/socket/web/",
+        "tests/fixtures/web-media/",
+        "tests/fixtures/web-audio/",
+        "tests/fixtures/web-sqlite/",
+        "../plugins/sqlite/web/",
+        "tests/t1/web_plugins.sh"
+      ],
+      "tests": [
+        "web_plugins"
+      ]
+    },
+    {
+      "paths": [
+        "firmware/esp32/",
+        "tools/esp32-export-test"
+      ],
+      "tests": [
+        "export_esp32"
+      ]
+    },
+    {
+      "paths": [
+        "src/host/netlog.cpp",
+        "src/host/netlog.h",
+        "src/host/http.cpp",
+        "src/host/mqtt.cpp",
+        "src/host/sock.cpp",
+        "../plugins/devtools/",
+        "tools/cdp-probe",
+        "tools/har-chrome",
+        "tests/netlog_check.py",
+        "tests/netlog_servers.py",
+        "tests/golden/host/netlog.tsx"
+      ],
+      "tests": [
+        "netlog",
+        "netlog_kill",
+        "devtools_port",
+        "socket",
+        "net",
+        "mqtt"
+      ]
+    },
+    {
+      "paths": [
+        "tests/free_ports.py"
+      ],
+      "tests": [
+        "devtools_port",
+        "netlog",
+        "socket",
+        "dev_mode"
+      ]
+    },
+    {
+      "paths": [
+        "../plugins/devtools/",
+        "../scripts/cdp-check.mjs",
+        "tests/data/devtools_styles/",
+        "tests/t1/devtools_styles.sh"
+      ],
+      "tests": [
+        "devtools_styles",
+        "dev_mode"
+      ]
+    },
+    {
+      "paths": [
+        "../plugins/devtools/",
+        "../compiler/",
+        "../sim/",
+        "../lib/std/ui.ts",
+        "../lib/gfx.d.ts",
+        "../lib/compat/proto-layout.ts",
+        "../scripts/cdp-check.mjs",
+        "tests/golden/proto-devtools/"
+      ],
+      "tests": [
+        "proto_devtools"
+      ]
+    },
+    {
+      "paths": [
+        "tests/affected.py",
+        "tests/affected.json"
+      ],
+      "tests": [
+        "affected_paths",
+        "ci_plan"
+      ]
+    },
+    {
+      "paths": [
+        "../plugins/audio/",
+        "tests/golden/audio/"
+      ],
+      "tests": [
+        "audio",
+        "webenv_audio"
+      ]
+    },
+    {
+      "paths": [
+        "../plugins/midi/",
+        "../examples/midi/",
+        "tests/data/midi/"
+      ],
+      "tests": [
+        "midi"
+      ]
+    },
+    {
+      "paths": [
+        "../plugins/camera/",
+        "tests/golden/host/webcam_session.ts",
+        "tests/golden/host/webcam_session.out",
+        "tests/golden/host/webcam_draw.ts",
+        "tests/data/bmp_pixel.py"
+      ],
+      "tests": [
+        "webcam_sim",
+        "webcam"
+      ]
+    },
+    {
+      "paths": [
+        "../plugins/webrtc/",
+        "tests/golden/host/webrtc_loopback.ts",
+        "tests/golden/host/webrtc_loopback.out",
+        "tests/data/webrtc_globals.ts",
+        "../examples/webrtc-chat/"
+      ],
+      "tests": [
+        "webrtc",
+        "webrtc_chat"
+      ]
+    },
+    {
+      "paths": [
+        "../plugins/webrtc/",
+        "tests/golden/host/webrtc_media.ts",
+        "tests/golden/host/webrtc_media.out"
+      ],
+      "tests": [
+        "webrtc_media"
+      ]
+    },
+    {
+      "paths": [
+        "../plugins/webrtc/",
+        "tests/data/webrtc_interop.ts",
+        "tools/webrtc-interop",
+        "tools/cdp.py"
+      ],
+      "tests": [
+        "webrtc_interop"
+      ]
+    },
+    {
+      "paths": [
+        "../plugins/webrtc/",
+        "../plugins/audio/",
+        "../examples/webrtc-call/",
+        "tests/golden/webrtc-call/"
+      ],
+      "tests": [
+        "webrtc_call"
+      ]
+    },
+    {
+      "paths": [
+        "../plugins/microphone/",
+        "tests/golden/host/microphone_session.ts",
+        "tests/golden/host/microphone_session.out"
+      ],
+      "tests": [
+        "microphone_sim",
+        "microphone",
+        "webcam"
+      ]
+    },
+    {
+      "paths": [
+        "../plugins/serial/",
+        "../examples/serial/",
+        "tests/data/serial/"
+      ],
+      "tests": [
+        "serial"
+      ]
+    },
+    {
+      "paths": [
+        "../plugins/osc/",
+        "../plugins/socket/",
+        "../examples/osc/",
+        "tests/data/osc/"
+      ],
+      "tests": [
+        "osc_full"
+      ]
+    },
+    {
+      "paths": [
+        "../templates/game-2d/"
+      ],
+      "tests": [
+        "templates_kickstart",
+        "zapp",
+        "fuse",
+        "assets"
+      ]
+    },
+    {
+      "paths": [
+        "../templates/plugin/",
+        "tools/plugin-pack",
+        ".github/workflows/plugin.yml"
+      ],
+      "tests": [
+        "plugin_starter",
+        "templates",
+        "templates_kickstart"
+      ]
+    },
+    {
+      "paths": [
+        "tests/data/plugins-table.txt"
+      ],
+      "tests": [
+        "plugin_manifest"
+      ]
+    },
+    {
+      "paths": [
+        "../plugins/physics3d/",
+        "src/qjs/native_js.cpp",
+        "src/tc/plugin_build.cpp",
+        "tests/data/physics3d/"
+      ],
+      "tests": [
+        "physics3d",
+        "qjs_native",
+        "pinball3d"
+      ]
+    },
+    {
+      "paths": [
+        "../plugins/physics2d/",
+        "src/qjs/native_js.cpp",
+        "src/tc/plugin_build.cpp",
+        "tests/data/physics2d/"
+      ],
+      "tests": [
+        "physics2d"
+      ]
+    },
+    {
+      "paths": [
+        "../plugins/physics2d/web/",
+        "../plugins/physics2d/plugin.json",
+        "tests/fixtures/web-physics2d/"
+      ],
+      "tests": [
+        "web_physics2d"
+      ]
+    },
+    {
+      "paths": [
+        "../examples/pinball3d/",
+        "../docs/pinball-table-format.md",
+        "tests/data/pinball3d/",
+        "tests/golden/pinball3d/",
+        "../plugins/3d/"
+      ],
+      "tests": [
+        "pinball3d_format",
+        "pinball3d",
+        "pinball3d_aot",
+        "pinball3d_sound",
+        "pinball3d_chooser",
+        "pinball3d_controls"
+      ]
+    },
+    {
+      "paths": [
+        "../examples/pinball3d-editor/",
+        "../examples/pinball3d/src/format/",
+        "../examples/pinball3d/src/geometry.ts",
+        "tests/golden/pinball3d-editor/",
+        "../examples/pinball3d/src/",
+        "tools/pngdiff"
+      ],
+      "tests": [
+        "pinball3d_editor",
+        "pinball3d_editor_table",
+        "pinball3d_editor_looks",
+        "pinball3d_editor_rules",
+        "pinball3d_second_table"
+      ]
+    },
+    {
+      "paths": [
+        "src/host/hal_dispatch.cpp",
+        "tests/data/input_touch/"
+      ],
+      "tests": [
+        "input_touch",
+        "input",
+        "pointer_kind"
+      ]
+    },
+    {
+      "paths": [
+        "../examples/museum-table/",
+        "tests/data/museum_format/",
+        "tests/golden/museum-table/",
+        "tests/golden/museum-viewer/",
+        "tests/golden/museum-editor/",
+        "tests/golden/museum-visit/",
+        "tests/data/museum_visit/",
+        "tests/golden/museum-mode/",
+        "tests/data/museum_mode/",
+        "tests/golden/museum-access/",
+        "tests/data/museum_access/",
+        "tests/golden/museum-video/",
+        "tests/data/museum_video/",
+        "tests/golden/museum-stats/",
+        "tests/data/museum_stats/",
+        "tests/golden/museum-polish/",
+        "tests/data/museum_polish/",
+        "tests/data/museum_theme/",
+        "tests/data/museum_details/",
+        "tests/golden/museum-details/"
+      ],
+      "tests": [
+        "museum_theme",
+        "museum_details",
+        "museum_editor_views",
+        "museum_editor_sound",
+        "museum_format",
+        "museum_assets",
+        "museum_table",
+        "museum_viewer",
+        "museum_panorama",
+        "museum_visit",
+        "museum_mode",
+        "museum_editor",
+        "museum_access",
+        "museum_video",
+        "museum_stats",
+        "museum_polish",
+        "museum_update"
+      ]
+    },
+    {
+      "paths": [
+        "tools/contrast-check"
+      ],
+      "tests": [
+        "museum_access"
+      ]
+    },
+    {
+      "paths": [
+        "../runtime/raster.cpp",
+        "../runtime/zrt_raster.h"
+      ],
+      "tests": [
+        "image_reuse"
+      ]
+    },
+    {
+      "paths": [
+        "../runtime/raster.cpp",
+        "../runtime/gfx.cpp",
+        "../runtime/zrt_raster.h",
+        "src/host/gfx_host.cpp",
+        "src/res/codec.cpp",
+        "../plugins/canvas2d/",
+        "tests/data/image_rect/",
+        "tests/t1/image_rect.sh"
+      ],
+      "tests": [
+        "image_rect",
+        "canvas",
+        "gfx_transform"
+      ],
+      "canary": true
+    },
+    {
+      "paths": [
+        "../runtime/gl_replay.cpp",
+        "../runtime/gl_replay_shaders.h",
+        "tests/t1/image_rect_gl.sh"
+      ],
+      "tests": [
+        "image_rect_gl",
+        "gfx_transform"
+      ]
+    },
+    {
+      "paths": [
+        "../runtime/gl_replay_shaders.h",
+        "src/gl/essl_check.cpp",
+        "tests/native/gl_replay_es2.cpp",
+        "tests/t1/gl_replay_es2.sh"
+      ],
+      "tests": [
+        "gl_replay_es2",
+        "gl_renderer"
+      ]
+    },
+    {
+      "paths": [
+        "../runtime/gl_caps.h",
+        "tests/native/gl_caps.cpp",
+        "tests/t0/gl_caps.sh"
+      ],
+      "tests": [
+        "gl_caps"
+      ]
+    },
+    {
+      "paths": [
+        "src/assets/texture.cpp",
+        "src/assets/texture.h",
+        "include/zn/zim.h",
+        "third_party/bcdec/",
+        "third_party/etcdec/",
+        "third_party/stb/stb_image_resize2.h",
+        "../runtime/gl_replay.cpp",
+        "../runtime/gl_replay_shaders.h",
+        "../runtime/raster.cpp",
+        "../runtime/zrt_raster.h",
+        "src/host/sys_host.cpp",
+        "src/res/res.cpp",
+        "src/gl/webgl_ext.h",
+        "src/gl/webgl2_tex.cpp",
+        "tests/data/texture/",
+        "tests/t1/texture.sh"
+      ],
+      "tests": [
+        "texture",
+        "assets"
+      ]
+    },
+    {
+      "paths": [
+        "src/assets/model.cpp",
+        "src/assets/model.h",
+        "include/zn/zmesh.h",
+        "third_party/cgltf/",
+        "third_party/meshoptimizer/",
+        "../plugins/three/native/",
+        "../plugins/3d/",
+        "tests/data/model/",
+        "tests/t1/model.sh"
+      ],
+      "tests": [
+        "model",
+        "gltf"
+      ]
+    },
+    {
+      "paths": [
+        "../runtime/raster.cpp",
+        "../runtime/gl_replay.cpp",
+        "tests/t1/many_images.sh",
+        "tests/data/many_images/"
+      ],
+      "tests": [
+        "many_images"
+      ]
+    },
+    {
+      "paths": [
+        "../runtime/gl_replay.cpp",
+        "tests/t1/gl_convex.sh",
+        "tests/data/gl_convex/",
+        "tests/t1/gl_strips.sh"
+      ],
+      "tests": [
+        "gl_convex",
+        "gl_renderer",
+        "gpu_strokes",
+        "gl_strips"
+      ]
+    },
+    {
+      "paths": [
+        "src/host/sys_host.cpp",
+        "tests/t1/sys_launch.sh",
+        "tests/data/sys_launch/"
+      ],
+      "tests": [
+        "sys_launch"
+      ]
+    },
+    {
+      "paths": [
+        "../plugins/3d/",
+        "tests/t1/zinc3d_glow.sh",
+        "tests/data/zinc3d_glow/"
+      ],
+      "tests": [
+        "zinc3d_glow",
+        "zinc3d_aa",
+        "three_gpu"
+      ]
+    },
+    {
+      "paths": [
+        "../runtime/ttf.cpp",
+        "../runtime/gfx.cpp",
+        "../runtime/raster.cpp",
+        "src/res/res.cpp",
+        "src/host/gfx_host.cpp",
+        "src/host/layout_host.cpp",
+        "tests/t1/fonts_runtime.sh",
+        "tests/data/fonts_runtime/",
+        "tests/data/fonts_typed/"
+      ],
+      "tests": [
+        "fonts_runtime",
+        "scale_push"
+      ]
+    },
+    {
+      "paths": [
+        "../runtime/gfx.cpp",
+        "../runtime/include/hal.h",
+        "../targets/macos/hal_sdl.cpp",
+        "src/host/hal_dispatch.cpp",
+        "src/host/window_module.cpp",
+        "src/frontend/modules.cpp",
+        "../lib/std/ui.ts",
+        "../lib/std/solid.ts",
+        "tests/t1/windows.sh",
+        "tests/data/windows/",
+        "tests/data/ui_windows/"
+      ],
+      "tests": [
+        "windows"
+      ]
+    },
+    {
+      "paths": [
+        "../targets/macos/hal_sdl.cpp",
+        "../targets/macos/hal_cocoa.mm",
+        "../runtime/zrt.cpp",
+        "../runtime/include/hal_window.h",
+        "src/rt/rtcalls.cpp",
+        "src/qjs/qjs.cpp",
+        "src/host/gfx_host.cpp",
+        "src/frontend/modules.cpp",
+        "src/main.cpp",
+        "tests/t1/window_live_resize.sh",
+        "tests/golden/macos/live-resize/"
+      ],
+      "tests": [
+        "window_live_resize",
+        "window_resize"
+      ]
+    },
+    {
+      "paths": [
+        "targets/wasm/",
+        "tools/wasm-export-test",
+        "tests/t1/image_rect_wasm.sh"
+      ],
+      "tests": [
+        "image_rect_wasm"
+      ]
+    },
+    {
+      "paths": [
+        "src/assets/cook.cpp",
+        "src/assets/cook.h"
+      ],
+      "tests": [
+        "cook"
+      ]
+    }
   ]
 }
