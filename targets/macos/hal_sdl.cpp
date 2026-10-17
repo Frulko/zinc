@@ -62,6 +62,7 @@ static bool shown;             // the main window is created hidden and shown by
 static int anw_mode;          // present into the window's buffer (ZN-743, anw_present): 0 SDL_Renderer; 1 copied from fb; 2 RGB_565 packed from fb; 3 drawn in place (default)
 static bool anw_bgra;         // ask for HAL format 5 (BGRA_8888, the raster's byte order): below API 26, or ZINC_PRESENT_BGRA=1 (0: RGBX_8888)
 static ANativeWindow* anw;    // our reference to the window's surface (SDL releases its own when the surface goes away)
+static bool anw_locked;       // the CPU is connected to the surface's buffer queue (a lock since the surface came or was let go, window_kind)
 #endif
 #ifdef SDL_PLATFORM_IOS
 // The software raster draws into memory the GPU reads, shown through the window's CAMetalLayer (ZN-627, hal_metal.mm): no SDL_Renderer, no
@@ -154,10 +155,11 @@ static GLint gl_u_tex, gl_u_bgr, gl_u_rot, gl_u_alpha, gl_u_src;
 // u_rot: cos and sin of the picture's turn (a simulated device turned while its program keeps its orientation: zinc run --simulate)
 static const char* kPresentVS = "attribute vec2 a_pos; varying vec2 v_uv; uniform vec2 u_rot; uniform vec4 u_src; void main() { v_uv = u_src.xy + vec2(a_pos.x, 1.0 - a_pos.y) * u_src.zw; vec2 p = a_pos * 2.0 - 1.0;\n"
   "  gl_Position = vec4(p.x * u_rot.x - p.y * u_rot.y, p.x * u_rot.y + p.y * u_rot.x, 0.0, 1.0); }\n";
-static const char* kPresentFS = "varying vec2 v_uv; uniform sampler2D u_tex; uniform float u_bgr; uniform float u_alpha;\n"   // u_alpha: the GPU layers' frame (premultiplied)
-  "void main() { vec4 t = texture2D(u_tex, v_uv); gl_FragColor = vec4(u_bgr > 0.5 ? t.bgr : t.rgb, u_alpha > 0.5 ? t.a : 1.0); }\n";
+// u_alpha: the GPU layers' frame (premultiplied), its transparency in the alpha byte (0: opaque, what the raster leaves there; layers_present)
+static const char* kPresentFS = "varying vec2 v_uv; uniform sampler2D u_tex; uniform float u_bgr; uniform float u_alpha;\n"
+  "void main() { vec4 t = texture2D(u_tex, v_uv); gl_FragColor = vec4(u_bgr > 0.5 ? t.bgr : t.rgb, u_alpha > 0.5 ? 1.0 - t.a : 1.0); }\n";
 /** Creates the window with an OpenGL context; false (nothing left behind) without a hardware context, unless ZINC_RENDERER=gl. */
-static bool gl_window(const char* title, int ww, int wh) {
+static bool gl_window(const char* title, int ww, int wh, bool full = false) {
   const char* rr = getenv("ZINC_RENDERER");
   const bool force = rr && !strcmp(rr, "gl");
 #ifdef ZGL_ES
@@ -184,10 +186,17 @@ static bool gl_window(const char* title, int ww, int wh) {
   SDL_SetBooleanProperty(props, SDL_PROP_WINDOW_CREATE_ALWAYS_ON_TOP_BOOLEAN, wcfg_set && wcfg.always_on_top != 0);
   if (wcfg_set && wcfg.has_position) { SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_X_NUMBER, wcfg.x); SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_Y_NUMBER, wcfg.y); }
   SDL_SetBooleanProperty(props, SDL_PROP_WINDOW_CREATE_OPENGL_BOOLEAN, true);
+  if (full) SDL_SetBooleanProperty(props, SDL_PROP_WINDOW_CREATE_FULLSCREEN_BOOLEAN, true);
   SDL_SetBooleanProperty(props, SDL_PROP_WINDOW_CREATE_HIDDEN_BOOLEAN, true);   // shown once a frame is in it: no blank window (ZN-446)
   win = SDL_CreateWindowWithProperties(props);
   SDL_DestroyProperties(props);
   if (!win) return false;
+  if (glctx && gl_prog) {   // a window made again for the context kept, its programs and textures (Android's GPU layers, window_kind)
+    if (SDL_GL_MakeCurrent(win, glctx)) { window_limits(win); SDL_GL_SetSwapInterval(getenv("ZINC_VSYNC") && atoi(getenv("ZINC_VSYNC")) == 0 ? 0 : 1); return true; }
+    SDL_DestroyWindow(win);
+    win = nullptr;
+    return false;
+  }
   glctx = SDL_GL_CreateContext(win);
   const char* r = glctx && SDL_GL_MakeCurrent(win, glctx) && zgl_load() ? (const char*)glGetString(GL_RENDERER) : nullptr;
   const bool soft = r && (strstr(r, "llvmpipe") || strstr(r, "softpipe") || strstr(r, "Software"));
@@ -1197,7 +1206,7 @@ static void anw_present(const HalFrame* f) {
   if (nw != anw) {   // the first frame, or a new surface (back from the background)
     if (anw) ANativeWindow_release(anw);
     if ((anw = nw)) ANativeWindow_acquire(anw);
-    anw_w = anw_h = 0;
+    anw_w = anw_h = 0; anw_locked = false;
   }
   if (!anw) { anw_idle(); return; }
   ARect r = {f->x0, f->y0, f->x1, f->y1};
@@ -1209,6 +1218,7 @@ static void anw_present(const HalFrame* f) {
   ANativeWindow_Buffer b;
   ps_mark(PS_DRAW);
   if (ANativeWindow_lock(anw, &b, &r) != 0) { anw_w = 0; anw_idle(); return; }   // the surface is going away: set it up again next time
+  anw_locked = true;
   ps_mark(PS_SWAP);   // dequeueing a buffer waits for the compositor: part of the swap
   if (b.width != PW || b.height != PH) { ANativeWindow_unlockAndPost(anw); anw_w = 0; return; }   // a resize on its way
   r.left = SDL_max(r.left, 0); r.top = SDL_max(r.top, 0); r.right = SDL_min(r.right, PW); r.bottom = SDL_min(r.bottom, PH);
@@ -1276,25 +1286,119 @@ static void anw_present(const HalFrame* f) {
 // most of the frame changed), else the software rows uploaded; then the texture over the window, letterboxed.
 #ifdef __ANDROID__
 static bool layers_on;   // GPU layers under the frame (ZN-746): GL draws the SHADER commands, the software frame goes over them with its holes
-static uint32_t *lay_w, *lay_rgba;   // the damaged rows rendered with white holes; the frame's RGBA (premultiplied) as it is uploaded
-static void (*holes_fn)(uint32_t*, int32_t, int32_t, uint32_t);
-static void holes_black(uint32_t* rows, int32_t y0, int32_t y1) { holes_fn(rows, y0, y1, 0x000000); }
-static void holes_white(uint32_t* rows, int32_t y0, int32_t y1) { holes_fn(rows, y0, y1, 0xFFFFFF); }
-/** The damaged rows rendered twice, holes black then white: a pixel's alpha is what the white showed through, its colour the black render
- *  (premultiplied); the rows go to the texture, which is drawn over the SHADER commands of the frame. */
-static void layers_present(const HalFrame* f, int dw, int dh) {
-  if (f->y1 > f->y0 && f->x1 > f->x0 && f->render_holes) {
-    if (!lay_w) { lay_w = (uint32_t*)calloc((size_t)PW * PH, 4); lay_rgba = (uint32_t*)calloc((size_t)PW * PH, 4); }
-    holes_fn = f->render_holes;
-    render_rows_parallel(holes_black, f->y0, f->y1);
-    render_rows_parallel(holes_white, f->y0, f->y1, lay_w);
-    for (size_t i = (size_t)f->y0 * PW, e = (size_t)f->y1 * PW; i < e; i++) {
-      const uint32_t b = fb[i], w = lay_w[i], a = 255 - (((w >> 8) & 255) - ((b >> 8) & 255));
-      lay_rgba[i] = a << 24 | (b & 255) << 16 | (b & 0xFF00) | ((b >> 16) & 255);   // bytes R, G, B, A
+static bool lay_full;    // the next frame is drawn whole: the window was just made (the texture holds nothing yet)
+static uint32_t* lay_w;   // the rows rendered with white holes
+static size_t lay_n;
+static GLuint lay_tex;   // the software frame (two in turn uploaded no faster on Tegra 3: 11 to 12 ms for the screen either way)
+static int lay_tw, lay_th;
+static void (*lay_render)(uint32_t*, int32_t, int32_t);
+static void holes_black(uint32_t* rows, int32_t y0, int32_t y1) { zrt::raster::set_layer_fill(0xFF000000); lay_render(rows, y0, y1); zrt::raster::set_layer_fill(HAL_LAYER_HOLE); }
+static void holes_white(uint32_t* rows, int32_t y0, int32_t y1) { zrt::raster::set_layer_fill(0xFFFFFF); box_rows(rows, y0, y1); zrt::raster::set_layer_fill(HAL_LAYER_HOLE); }
+constexpr int kLayOver = 16;
+static HalRect pixel_box(float a0, float b0, float a1, float b1) {
+  return HalRect{SDL_max((int32_t)SDL_floorf(a0) - 1, 0), SDL_max((int32_t)SDL_floorf(b0) - 1, 0), SDL_min((int32_t)SDL_ceilf(a1) + 1, PW), SDL_min((int32_t)SDL_ceilf(b1) + 1, PH)};
+}
+/** The union of the frame's SHADER boxes (physical pixels, within the surface), false when the frame draws none; `over` (at most kLayOver,
+ *  `nover` of them): the rectangles of it that later commands may paint over (their boxes, and the rounded clips around a shader, whose
+ *  corners are blended back), close ones joined. Several rectangles, not their union: over the music remote's lava lamp the time, the card
+ *  and the status bar cover a fifth of the screen, their union all of it. */
+static bool shader_box(const HalFrame* f, HalRect* out, HalRect* over = nullptr, int* nover = nullptr) {
+  const HalCmdList* lists[8];
+  const int32_t nl = f->frames ? f->frames(lists, 8) : 0;
+  float x0 = 1e30f, y0 = 1e30f, x1 = -1e30f, y1 = -1e30f;
+  int n = 0;
+  auto area = [](const HalRect& a) { return (int64_t)(a.x1 - a.x0) * (a.y1 - a.y0); };
+  auto join = [](const HalRect& a, const HalRect& b) { return HalRect{SDL_min(a.x0, b.x0), SDL_min(a.y0, b.y0), SDL_max(a.x1, b.x1), SDL_max(a.y1, b.y1)}; };
+  auto grow = [&](float a0, float b0, float a1, float b1) {
+    if (!over) return;
+    HalRect r = pixel_box(a0, b0, a1, b1);
+    if (r.x0 >= r.x1 || r.y0 >= r.y1) return;
+    for (bool joined = true; joined;) {   // into a rectangle whose union with it costs little more than the two
+      joined = false;
+      for (int k = 0; k < n; k++)
+        if (area(join(r, over[k])) <= area(r) + area(over[k]) + 16384) { r = join(r, over[k]); over[k] = over[--n]; joined = true; break; }
     }
-    glBindTexture(GL_TEXTURE_2D, gl_upload);
+    if (n < kLayOver) { over[n++] = r; return; }
+    int best = 0;   // full: into the one it grows least
+    for (int k = 1; k < n; k++) if (area(join(r, over[k])) - area(over[k]) < area(join(r, over[best])) - area(over[best])) best = k;
+    over[best] = join(r, over[best]);
+  };
+  const zrt::raster::Cmd* clips[16];   // the rounded clips open
+  int nclip = 0;
+  bool seen = false;
+  for (int32_t l = 0; l < nl; l++)
+    for (uint32_t i = 0; i < lists[l]->count; i++) {
+      const zrt::raster::Cmd& c = ((const zrt::raster::Cmd*)lists[l]->cmds)[i];
+      if (c.kind == zrt::raster::CLIP) { if (nclip < 16) clips[nclip++] = &c; continue; }
+      if (c.kind == zrt::raster::UNCLIP) { if (nclip > 0) nclip--; continue; }
+      if (c.kind == zrt::raster::SHADER) {
+        if (!(c.w > 0 && c.h > 0)) continue;
+        seen = true;
+        x0 = SDL_min(x0, c.x); y0 = SDL_min(y0, c.y); x1 = SDL_max(x1, c.x + c.w); y1 = SDL_max(y1, c.y + c.h);
+        for (int k = 0; k < nclip; k++) if (clips[k]->r > 0) grow(clips[k]->x, clips[k]->y, clips[k]->x + clips[k]->w, clips[k]->y + clips[k]->h);
+        continue;
+      }
+      if (!seen) continue;
+      // what a command may paint around its box: a text line's overhang, a shadow's blur (raster.cpp cmd_bounds)
+      const float e = (c.kind == zrt::raster::TEXT ? c.h * 0.5f : c.kind == zrt::raster::SHADOW ? c.s : 0) + 2;
+      grow(c.x - e, c.y - e, c.x + c.w + e, c.y + c.h + e);
+    }
+  *out = pixel_box(x0, y0, x1, y1);
+  if (nover) {   // within the shaders' box
+    int m = 0;
+    for (int k = 0; k < n; k++) {
+      const HalRect r = {SDL_max(over[k].x0, out->x0), SDL_max(over[k].y0, out->y0), SDL_min(over[k].x1, out->x1), SDL_min(over[k].y1, out->y1)};
+      if (r.x0 < r.x1 && r.y0 < r.y1) over[m++] = r;
+    }
+    *nover = m;
+  }
+  return out->x0 < out->x1 && out->y0 < out->y1;
+}
+static HalRect lay_wb;   // a box rendered with white holes too
+/** The transparency of the pixels of lay_wb, from the two renders, into the alpha byte of fb: how much of the white showed through. */
+static void lay_alpha(uint32_t* rows, int32_t y0, int32_t y1) {
+  for (int32_t y = y0; y < y1; y++) {
+    uint32_t* b = rows + (size_t)(y - y0) * PW;
+    const uint32_t* w = lay_w + (size_t)y * PW;
+    for (int32_t x = lay_wb.x0; x < lay_wb.x1; x++) b[x] = (b[x] & 0xFFFFFF) | ((((w[x] >> 8) & 255) - ((b[x] >> 8) & 255)) & 255) << 24;
+  }
+}
+/** The damaged rows rendered once with black holes: a pixel's colour, premultiplied; a hole's alpha byte says transparent (255), what the
+ *  raster paints leaves it at 0, opaque. Where later commands paint over a shader (a text, a translucent card), that box is rendered again
+ *  with white holes and a pixel's transparency is how much of the white showed through. The rows go to a texture as they are (no copy: the
+ *  shader takes B, G, R and 1 - A), which is drawn over the SHADER commands of the frame. */
+static void layers_present(const HalFrame* f, int dw, int dh) {
+  int32_t y0 = f->y0, y1 = f->y1;
+  const bool whole = lay_full;
+  lay_full = false;
+  if (whole) { y0 = 0; y1 = PH; }
+  if (y1 > y0 && (whole || f->x1 > f->x0)) {
+    if (lay_n != (size_t)PW * PH) { free(lay_w); lay_n = (size_t)PW * PH; lay_w = (uint32_t*)calloc(lay_n, 4); }
+    lay_render = f->render;
+    render_rows_parallel(holes_black, y0, y1);
+    HalRect sb, ov[kLayOver];
+    int nov = 0;
+    if (!shader_box(f, &sb, ov, &nov) || !f->render_box) nov = 0;
+    for (int k = 0; k < nov; k++) {
+      lay_wb = HalRect{ov[k].x0, SDL_max(y0, ov[k].y0), ov[k].x1, SDL_min(y1, ov[k].y1)};
+      if (lay_wb.y0 >= lay_wb.y1) continue;
+      box_fn = f->render_box; box_x0 = lay_wb.x0; box_x1 = lay_wb.x1;
+      render_rows_parallel(holes_white, lay_wb.y0, lay_wb.y1, lay_w);
+      render_rows_parallel(lay_alpha, lay_wb.y0, lay_wb.y1);
+    }
+    ps_mark(PS_RASTER);
+    if (!lay_tex) glGenTextures(1, &lay_tex);
+    glBindTexture(GL_TEXTURE_2D, lay_tex);
+    if (lay_tw != PW || lay_th != PH) {
+      glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, PW, PH, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE); glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+      lay_tw = PW; lay_th = PH;
+      if (y0 > 0 || y1 < PH) { lay_full = true; return layers_present(f, dw, dh); }   // a new texture: the whole frame
+    }
     glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
-    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, f->y0, PW, f->y1 - f->y0, GL_RGBA, GL_UNSIGNED_BYTE, lay_rgba + (size_t)f->y0 * PW);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, y0, PW, y1 - y0, GL_RGBA, GL_UNSIGNED_BYTE, fb + (size_t)y0 * PW);
+    ps_mark(PS_UPLOAD);
   }
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
   glDisable(GL_SCISSOR_TEST); glDisable(GL_DEPTH_TEST); glDisable(GL_BLEND);
@@ -1347,15 +1451,15 @@ static void layers_present(const HalFrame* f, int dw, int dh) {
     glUniform1f(gl_u_alpha, 0);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
   }
+  ps_mark(PS_DRAW);
   glEnable(GL_BLEND);
   glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
   glUseProgram(gl_prog);
   glBindBuffer(GL_ARRAY_BUFFER, gl_quad);
   glEnableVertexAttribArray(0);
   glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
-  glBindTexture(GL_TEXTURE_2D, gl_upload);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-  glUniform1f(gl_u_alpha, 1);
+  glBindTexture(GL_TEXTURE_2D, lay_tex);
+  glUniform1f(gl_u_alpha, 1); glUniform1f(gl_u_bgr, 1);
   glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
   glDisableVertexAttribArray(0);
   glDisable(GL_BLEND);
@@ -1536,25 +1640,79 @@ static void gl_present(const HalFrame* f) {
 }
 #endif
 static void present_frame(const HalFrame* f);
-static bool presented;   // a frame was shown: the kind of the window is settled
 #ifdef __ANDROID__
-// zinc:gfx shaderProgram (ZN-746): a program that makes a shader before its first frame is shown gets a GL window with a GPU layer under its
-// software frame (the window's buffer was never locked by the CPU, so EGL can still take it); ZINC_GPU_LAYERS=0 keeps the CPU window.
+// zinc:gfx shaderProgram (ZN-746): the program's shaders are drawn by GL on a layer under the software frame, while a frame draws one. The
+// window is the CPU's (anw_present: the raster straight into the window's buffer) the rest of the time, and becomes a GL window at the
+// first frame that draws a shader, then the CPU's again once the screen rests after the last (layers_follow). Why: on the GL window every damaged frame is uploaded
+// (Tegra 3: about 100 MB/s, 40 ms for the screen), where the CPU window costs no copy; the music remote's carousel swiped in 150 to 220 ms a
+// frame on the GL window and in 40 ms on the CPU's (Nexus 7, 2026-10-17). The GL context, its programs and textures are kept across.
+// ZINC_GPU_LAYERS=0: no GPU layer (shaderAvailable() is false and a program draws its own CPU picture).
+static bool layers_wanted;   // the program made a shader
+static int anw_cpu_mode;     // anw_mode of the CPU window
+static int layers_quiet;     // frames without a shader since the last one
 extern "C" void zn_hal_sdl_gpu_layers(void) {
-  if (!gfx_on || presented || layers_on || !anw_mode || (getenv("ZINC_GPU_LAYERS") && getenv("ZINC_GPU_LAYERS")[0] == '0')) return;
+  if (!gfx_on || layers_wanted || !anw_mode || (getenv("ZINC_GPU_LAYERS") && getenv("ZINC_GPU_LAYERS")[0] == '0')) return;
+  layers_wanted = true; anw_cpu_mode = anw_mode;
+  SDL_GL_LoadLibrary(nullptr);   // held: SDL unloads EGL (and loses the context) when its last GL window goes, at each return to the CPU
+  zrt::gfx::shaders_drawn = true; glr::shader_source = zrt::gfx::shaderSource;
+}
+// ANativeWindow's own interface (AOSP system/window.h; stable, the GPU drivers are built against it). ANativeWindow_lock connects the CPU to
+// the window's buffer queue and nothing public lets it go, while EGL connects only to a free queue: the GL window disconnects the CPU first.
+struct AnwPriv {
+  int magic, version; void* reserved[4]; void (*inc_ref)(void*); void (*dec_ref)(void*);
+  const uint32_t flags; const int min_swap, max_swap; const float xdpi, ydpi; intptr_t oem[4];
+  int (*set_swap_interval)(void*, int); void* deprecated[3]; int (*query)(const void*, int, int*); int (*perform)(void*, int, ...);
+};
+static bool anw_let_go() {
+  const void* nw = SDL_GetPointerProperty(SDL_GetWindowProperties(win), SDL_PROP_WINDOW_ANDROID_WINDOW_POINTER, nullptr);
+  if (!anw_locked || !anw || nw != anw) return true;   // a surface the CPU never locked (a new one since the background)
+  AnwPriv* w = (AnwPriv*)anw;
+  if (w->magic != ('_' << 24 | 'w' << 16 | 'n' << 8 | 'd')) return false;   // ANDROID_NATIVE_WINDOW_MAGIC
+  if (w->perform(anw, 14 /* NATIVE_WINDOW_API_DISCONNECT */, 2 /* NATIVE_WINDOW_API_CPU */) != 0) return false;
+  anw_locked = false;
+  return true;
+}
+/** The window made again, for GL (with the GPU layer) or for the CPU; the next frame is drawn whole. */
+static void window_kind(bool gl) {
+  const uint64_t t0 = SDL_GetTicksNS();
   int ww = 0, wh = 0;
   SDL_GetWindowSize(win, &ww, &wh);
-  SDL_DestroyWindow(win);
-  win = nullptr;
-  if (!gl_window("zinc", ww, wh)) {   // no GLES 2 context: the CPU window again
-    if (!(win = SDL_CreateWindow("zinc", ww, wh, SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_HIDDEN))) hal_panic(SDL_GetError(), "hal_sdl", __LINE__);
+  if (gl && !anw_let_go()) {   // EGL could not take the window: no GPU layer, the program draws its own picture from now on
+    layers_wanted = false; zrt::gfx::shaders_drawn = false;
+    const char* m = "zinc: the window stays on the CPU (its buffer queue could not be let go): no GPU layer\n";
+    hal_log_err(m, strlen(m));
     return;
   }
-  anw_mode = 0; gl_on = true; layers_on = true;
-  zrt::raster::shader_holes = true; zrt::gfx::shaders_drawn = true; glr::shader_source = zrt::gfx::shaderSource;
+  // a window made without the fullscreen flag takes Android's immersive mode away (SDL applies the flags it is made with), and asking for it
+  // again waits up to 500 ms for the surface to change back (SDLActivity.sendCommand)
+  const SDL_WindowFlags full = SDL_GetWindowFlags(win) & SDL_WINDOW_FULLSCREEN;
+  if (gl_on) SDL_GL_MakeCurrent(win, nullptr);   // EGL destroys a current surface only once it is no longer current
+  SDL_DestroyWindow(win);
+  win = nullptr;
+  if (gl && gl_window("zinc", ww, wh, full != 0)) { anw_mode = 0; gl_on = layers_on = lay_full = true; }
+  else {
+    if (!(win = SDL_CreateWindow("zinc", ww, wh, SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY | full))) hal_panic(SDL_GetError(), "hal_sdl", __LINE__);
+    if (gl) { layers_wanted = false; zrt::gfx::shaders_drawn = false; }   // no GLES 2 context
+    anw_mode = anw_cpu_mode; gl_on = layers_on = false; anw_w = 0;
+  }
+  zrt::raster::shader_holes = layers_on;
   surface_ok = false;
   apply_size();
-  if (getenv("ZINC_GL_STATS")) fprintf(stderr, "zinc: window renderer cpu with GPU layers\n");
+  if (getenv("ZINC_GL_STATS")) {
+    char m[96]; const int n = snprintf(m, sizeof m, "zinc: window renderer %s (%.1f ms)\n", layers_on ? "cpu with GPU layers" : "cpu", (SDL_GetTicksNS() - t0) / 1e6);
+    hal_log_err(m, (size_t)n);
+  }
+}
+/** A frame that draws a shader goes to the GL window at once. The CPU's comes back once frames without a shader rest (no damage), or after a
+ *  second of them: the change shows nothing new for about 380 ms on the Nexus 7 (the switch 30 ms, the first CPU frame 70 to 110 ms, the
+ *  compositor the rest), which a still screen hides and a moving carousel does not. */
+static void layers_follow(const HalFrame* f) {
+  HalRect sb;
+  const bool drawn = shader_box(f, &sb);
+  layers_quiet = drawn ? 0 : layers_quiet + 1;
+  const bool rest = f->y1 <= f->y0 || f->x1 <= f->x0;
+  if (drawn && !layers_on) window_kind(true);
+  else if (!drawn && layers_on && layers_quiet >= 3 && (rest || layers_quiet >= 60)) window_kind(false);
 }
 #endif
 #ifdef __APPLE__
@@ -1594,7 +1752,6 @@ void hal_present(const HalFrame* f) {
   window_background(f);
 #endif
   present_frame(f);
-  presented = true;
   if (in_watch) { live_frames++; live_w = f->w; live_h = f->h; }
   if (shown) return;
   shown = true;
@@ -1616,6 +1773,9 @@ static void steady_clocks(bool moving) {
 static void present_frame(const HalFrame* f) {
 #ifdef __ANDROID__
   steady_clocks(f->y1 > f->y0 && f->x1 > f->x0);
+#endif
+#if defined(__ANDROID__) && defined(ZN_HAL_GL)
+  if (layers_wanted) layers_follow(f);
 #endif
   ps_begin();
 #ifdef ZN_HAL_GL

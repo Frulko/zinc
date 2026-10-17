@@ -80,11 +80,11 @@ declare module 'zinc:gfx' {
   export function updateImage(image: i32, rgba: u8[]): void;
   /** A fragment program for drawShader, in GLSL ES 1.00 (WebGL 1's language): its main() sets gl_FragColor from `varying vec2 v_uv` (0..1
    *  across the box, top left first), `uniform vec2 u_size` (the box in pixels) and `uniform vec4 u_p[8]` (drawShader's uniforms, four a
-   *  vector); mediump floats are enough on every GPU (the shader runs where fragment highp is missing). Create it before the first frame:
-   *  on Android the window then puts a GPU layer under the frame. Compiled by the display at its first use; a program that does not
-   *  compile draws nothing (the error on stderr). `scale` (1 to 8): the program may be shaded at 1 / scale of the screen's resolution and
-   *  stretched, for a picture without sharp edges (a smooth field: 2 to 4), on a GPU that cannot shade the whole screen each frame (an
-   *  Android window's GPU layer takes it; a desktop GPU shades every pixel). */
+   *  vector); mediump floats are enough on every GPU (the shader runs where fragment highp is missing). On Android the window puts a GPU
+   *  layer under the frame while frames draw a shader, the CPU's window the rest of the time. Compiled by the display at its first use; a
+   *  program that does not compile draws nothing (the error on stderr). `scale` (1 to 8): the program may be shaded at 1 / scale of the
+   *  screen's resolution and stretched, for a picture without sharp edges (a smooth field: 2 to 4), on a GPU that cannot shade the whole
+   *  screen each frame (an Android window's GPU layer takes it; a desktop GPU shades every pixel). */
   export function shaderProgram(fragment: string, scale?: i32): i32;
   /** Fills the box with the program (at most 32 uniforms, u_p[0].x first), on the GPU; under it what was drawn before, over it what follows.
    *  Only where shaderAvailable(): the software raster draws nothing for it, so a program keeps its own CPU path (an imageFromPixels picture
