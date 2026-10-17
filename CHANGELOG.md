@@ -151,6 +151,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - A program that starts drawing after it started (`render()` or `onFrame` from a timer or a menu click, as a menu bar app opening its
   window) now draws: before, nothing ran but its timers.
 - A program that imports `zinc:ui` without drawing yet (a menu bar app) no longer opens an empty window at start, and quits on SIGTERM.
+- Dates under the PSP and PS2 profiles (32-bit numbers): `new Date()` was NaN on a PS2 and `Date.now()` lost up to two minutes on both;
+  they keep the millisecond now.
 - A program for the PSP or PS2 profile (`--profile psp`, `ps2`: 32-bit numbers) that read an `f64[]` from a native module into a `number[]`,
   zinc:audio's `samples()` among them, failed to compile with "Cannot find name: '__T7'".
 - Programs built for 32-bit Raspberry Pi OS (`zinc build --target armhf-linux` or `armv7-linux`, `zinc export --target rpi1` or `rpi2`) start

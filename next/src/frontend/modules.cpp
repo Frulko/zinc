@@ -2352,7 +2352,8 @@ function __dMakeTime(h: f64, mi: f64, sec: f64, ms: f64): f64 {
   if (!(h - h === 0) || !(mi - mi === 0) || !(sec - sec === 0) || !(ms - ms === 0)) return NaN;
   return Math.trunc(h) * 3600000 + Math.trunc(mi) * 60000 + Math.trunc(sec) * 1000 + Math.trunc(ms);
 }
-function __dClip(t: f64): f64 { return t - t === 0 && Math.abs(t) <= 8.64e15 ? Math.trunc(t) + 0 : NaN; }
+// t - t % 1 is Math.trunc in f64: Math's functions take `number`, 32 bits under the psp and ps2 profiles, too short for a time in ms (ZN-759)
+function __dClip(t: f64): f64 { return t - t === 0 && t <= 8.64e15 && t >= -8.64e15 ? t - t % 1 + 0 : NaN; }
 // The offset of the local zone in minutes (positive west of UTC) at a UTC time, and for a local time.
 function __dTzAt(t: f64): f64 { return t - t === 0 ? __host_tzOffset(t) : 0; }
 function __dLocalToUtc(t: f64): f64 {   // an ambiguous local time (the clock went back) is the earlier instant, one in a gap is read with the offset from before it
@@ -2384,13 +2385,14 @@ function __dZoneName(abbr: string, offMin: f64): string {
 }
 class Date {
   t: f64;
-  constructor(ms: number = Date.now(), month: number = NaN, day: number = 1, hours: number = 0, minutes: number = 0, seconds: number = 0, millis: number = 0) {
+  // f64, not number: a 32-bit number (the psp and ps2 profiles) holds a time to two minutes, and the PS2's FPU has no NaN to test month by (ZN-759)
+  constructor(ms: f64 = Date.now(), month: f64 = NaN, day: f64 = 1, hours: f64 = 0, minutes: f64 = 0, seconds: f64 = 0, millis: f64 = 0) {
     let y = ms;
     if (month - month === 0 && y - y === 0 && Math.trunc(y) >= 0 && Math.trunc(y) <= 99) y = 1900 + Math.trunc(y);   // new Date(year, month, ...): 0 to 99 is 1900 to 1999
     this.t = month - month === 0 || month === Infinity || month === -Infinity ? __dClip(__dLocalToUtc(__dMakeDay(y, month, day) * 86400000 + __dMakeTime(hours, minutes, seconds, millis))) : __dClip(ms);
   }
-  static now(): f64 { return __real ? Math.floor(__epoch + __now()) : __clock; }  // deterministic runs keep the virtual (fractional) clock the goldens froze
-  static UTC(year: number, month: number = 0, day: number = 1, hours: number = 0, minutes: number = 0, seconds: number = 0, millis: number = 0): f64 {
+  static now(): f64 { if (!__real) return __clock; const t: f64 = __epoch + __now(); return t - t % 1; }  // deterministic runs keep the virtual (fractional) clock the goldens froze; the epoch is positive: t - t % 1 is its floor in f64
+  static UTC(year: f64, month: f64 = 0, day: f64 = 1, hours: f64 = 0, minutes: f64 = 0, seconds: f64 = 0, millis: f64 = 0): f64 {
     let y = year;
     if (y - y === 0 && Math.trunc(y) >= 0 && Math.trunc(y) <= 99) y = 1900 + Math.trunc(y);
     return __dClip(__dMakeDay(y, month, day) * 86400000 + __dMakeTime(hours, minutes, seconds, millis));

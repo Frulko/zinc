@@ -20,6 +20,7 @@
     {"paths": ["targets/console/", "src/rt/alloc.cpp", "tests/t0/console_host.sh"], "tests": ["console_host", "console_core"]},
     {"paths": ["targets/console/audio_console.cpp", "targets/console/console_audio.h", "targets/console/stubs.cpp", "../plugins/audio/index.ts", "tests/t0/console_audio.sh"], "tests": ["console_audio"]},
     {"paths": ["../lib/std/hardware.ts", "src/host/sys_host.cpp", "targets/console/host_console.cpp", "tests/t0/hardware_motion.sh", "tests/t0/hardware_reartouch.sh", "tests/t0/hardware_microphone.sh", "tests/t0/hardware_stereo.sh", "tests/t0/hardware_memcard.sh"], "tests": ["hardware_motion", "hardware_reartouch", "hardware_microphone", "hardware_stereo", "hardware_vibration", "hardware_memcard"]},
+    {"paths": ["src/frontend/modules.cpp", "tests/t0/date_f32.sh"], "tests": ["date_f32"]},
     {"paths": ["src/host/gfx_host.cpp", "src/host/hal_dispatch.cpp", "../runtime/include/hal.h", "tests/t0/hardware_vibration.sh", "tests/t0/hardware_pressure.sh", "tests/t0/hardware_screen2.sh"], "tests": ["hardware_vibration", "hardware_pressure", "hardware_screen2"]},
     {"paths": ["src/host/gfx_host.cpp", "src/host/resources.cpp", "tests/t0/console_core.sh"], "tests": ["console_core"]},
     {"paths": ["src/tc/consoles.cpp", "src/tc/tc.cpp", "src/tc/tc.h", "tests/t0/console_sdks.sh"], "tests": ["console_sdks"]},
