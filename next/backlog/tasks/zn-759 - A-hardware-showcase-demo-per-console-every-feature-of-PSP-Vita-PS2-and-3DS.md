@@ -2,7 +2,8 @@
 id: ZN-759
 title: 'A hardware showcase demo per console: every feature of PSP, Vita, PS2 and 3DS'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-17 09:39'
 labels:
   - handheld
