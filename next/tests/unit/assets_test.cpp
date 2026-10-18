@@ -191,7 +191,7 @@ void textures() {
   CHECK(make(translucent, {{"format", "rgba5551"}, {"mipmaps", "false"}, {"premultiply", "false"}}) && u16(out, 16) == ((31u << 11) | 1u), "rgba5551: %04x", u16(out, 16));
   CHECK(make(translucent, {{"format", "rgba4444"}, {"maxSize", "4"}, {"pot", "true"}}) && u32(out, 8) == 4 && u32(out, 12) == 2, "maxSize 4, pot: %ux%u", u32(out, 8), u32(out, 12));
   CHECK(!make(translucent, {{"format", "bc7"}}) && err.find("basisu") != std::string::npos, "bc7 without an encoder: %s", err.c_str());
-  CHECK(!make(translucent, {{"format", "clut8"}}) && err.find("ZN-452") != std::string::npos, "clut8: %s", err.c_str());
+  CHECK(make(translucent, {{"format", "clut8"}, {"mipmaps", "false"}}) && describeImage(out, fmt, gpu) && fmt == "rgba8", "clut8 is rgba8 until its encoder (ZN-452): %s %s", fmt.c_str(), err.c_str());
   CHECK(!make(translucent, {{"format", "dxt9"}}) && err.find("not one of") != std::string::npos, "unknown: %s", err.c_str());
   CHECK(importerFor("tex/a.png", {{"tex/**", "texture", {}}}) == "texture" && importerFor("b.png", {{"tex/**", "texture", {}}}) == "image" &&
         importerFor("b.wav", {}) == "copy", "importerFor");
