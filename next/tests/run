@@ -45,6 +45,7 @@ log=$root/.logs/$(date +%Y%m%d-%H%M%S).log
 : > "$log"
 pass=0; fail=0; skip=0; seen=0
 results=${ZINC_TEST_RESULTS:-}; [ -n "$results" ] && : > "$results"   # one `STATUS name seconds` line per test: the CI report reads it
+unset ZINC_TEST_RESULTS   # a test that runs tests/run itself (desktop, runner_cwd) must not empty this file
 for t in $tiers; do
   for f in "$here/$t"/*.sh; do
     [ -e "$f" ] || continue
