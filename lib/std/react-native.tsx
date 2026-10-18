@@ -4,6 +4,7 @@
 import * as ui from 'zinc:ui';
 import { useState, useEffect, useRef, render } from 'zinc:ui/react';   // _virtual comes with the JSX helpers
 import { platform, env, device } from 'zinc:sys';
+import * as Device from 'zinc:device-info';
 import { width, height, pixelScale, stroke, quit } from 'zinc:gfx';
 import { createEffect } from 'zinc:ui/solid';
 import * as A from 'zinc:ui/animated';
@@ -179,13 +180,41 @@ export class Vibration {
 
 // ---------------------------------------------------------------- Platform, Dimensions, useWindowDimensions, PixelRatio, Appearance
 export type PlatformSelect<T> = { ios?: T; android?: T; macos?: T; windows?: T; web?: T; native?: T; default?: T };
+/** Platform.constants: React Native's iOS and Android keys in one record, from zinc:device-info ('' where the platform cannot know). */
+export class PlatformConstants {
+  /** iOS's UIDevice.userInterfaceIdiom: 'phone', 'pad', 'tv', 'mac' (a Mac), 'unknown'. */
+  interfaceIdiom: string = 'unknown';
+  /** 'iOS', 'iPadOS', 'Android', 'macOS'... */
+  systemName: string = '';
+  osVersion: string = '';
+  /** Android's Build.VERSION.RELEASE ('14'); the OS version elsewhere. */
+  Release: string = '';
+  Model: string = '';
+  Brand: string = '';
+  Manufacturer: string = '';
+  /** Android's UI mode: 'tv', 'normal' (a phone or a tablet), 'desk' (a desktop), 'unknown'. */
+  uiMode: string = 'unknown';
+  isTesting: boolean = false;
+}
+function platformConstants(): PlatformConstants {
+  const c = new PlatformConstants();
+  const t = Device.deviceType;
+  c.interfaceIdiom = t === Device.DeviceType.PHONE ? 'phone' : t === Device.DeviceType.TABLET ? 'pad' : t === Device.DeviceType.TV ? 'tv' : t === Device.DeviceType.DESKTOP && platform() === 'macos' ? 'mac' : 'unknown';
+  c.uiMode = t === Device.DeviceType.TV ? 'tv' : t === Device.DeviceType.PHONE || t === Device.DeviceType.TABLET ? 'normal' : t === Device.DeviceType.DESKTOP ? 'desk' : 'unknown';
+  c.systemName = Device.osName; c.osVersion = Device.osVersion; c.Release = Device.osVersion;
+  c.Model = Device.modelName; c.Brand = Device.brand; c.Manufacturer = Device.manufacturer;
+  return c;
+}
 export class Platform {
   /** platform() of zinc:sys: 'android', 'ios', 'macos', 'linux', 'web'; ZINC_PLATFORM=android|ios forces it on the desktop (docs/react-native.md). */
   static OS: string = platform();
   /** The OS version: Android's API level ('35'), iOS's or macOS's version ('18.0'); ZINC_PLATFORM_VERSION forces it. A string (React Native: a number on Android). */
   static Version: string = device('osversion');
-  static isPad: boolean = false;
-  static isTV: boolean = false;
+  /** An iPad (UIDevice's idiom; a tablet on iOS only, as React Native). */
+  static isPad: boolean = platform() === 'ios' && Device.deviceType === Device.DeviceType.TABLET;
+  /** A TV: Android's television UI mode, an Apple TV. */
+  static isTV: boolean = Device.deviceType === Device.DeviceType.TV;
+  static constants: PlatformConstants = platformConstants();
   /** The entry for this OS, else `native` (any non-web target), else `default`, else `fallback` (React Native returns undefined: no undefined T here). */
   static select<T>(o: PlatformSelect<T>, fallback: T): T {
     const os = Platform.OS;

@@ -1750,7 +1750,7 @@ export class Navigator {
     }
     return true;
   }
-  /** Zinc: the machine ({model, os, name}), null when unknown. */
+  /** Zinc: the machine ({model, os, name} and zinc:device-info's fields: type, brand, modelName...), null when unknown. */
   get deviceInfo(): any { return deviceJson('device'); }
 }
 export const navigator: Navigator = new Navigator();

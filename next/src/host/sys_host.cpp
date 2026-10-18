@@ -289,11 +289,163 @@ std::string osVersion() {
   struct utsname u; uname(&u); return u.release;
 #endif
 }
+// zinc:device-info (ZN-761): what the machine is, as expo-device names it, one JSON record for device('device'). Each field comes from the
+// platform's own source (iOS: the identifier of sysctl hw.machine and UIDevice's idiom; Android: Build's properties, the smallest width and
+// the UI mode; macOS: hw.model; Linux: the device tree or the DMI tables); what a platform cannot know stays "" (0 for the memory).
+// A phone forced on a desktop (ZINC_PLATFORM) is a simulated one: isDevice false, its model from ZINC_DEVICE_MODEL (an Apple identifier such
+// as iPad6,7, or an Android model name) and its kind from ZINC_DEVICE_TYPE (phone, tablet, tv) or the identifier.
+extern "C" const char* (*zn_mobile_command)(const char* q, const char* a);   // hal_dispatch.cpp, set by the phone's glue
+namespace {
+std::string jsonText(const std::string& s) {
+  std::string o = "\"";
+  for (unsigned char c : s) {
+    if (c == '"' || c == '\\') { o += '\\'; o += static_cast<char>(c); }
+    else if (c >= 0x20) o += static_cast<char>(c);
+  }
+  return o + "\"";
+}
+[[maybe_unused]] std::string fileText(const char* path) {   // the first line of a /sys or /etc file (the device tree's strings end with a NUL)
+  std::ifstream f(path);
+  std::string s;
+  std::getline(f, s);
+  return s.substr(0, s.find('\0'));
+}
+std::string appleModelName(const std::string& id) {
+  static const struct { const char* ids; const char* name; } kModels[] = {
+#include "apple_models.inc"
+  };
+  if (id.empty()) return "";
+  for (const auto& m : kModels) {
+    const std::string ids = std::string(" ") + m.ids + " ";
+    if (ids.find(" " + id + " ") != std::string::npos) return m.name;
+  }
+  return "";
+}
+std::string appleKind(const std::string& id) {   // by the identifier's family, where no idiom is at hand
+  return id.rfind("iPad", 0) == 0 ? "tablet" : id.rfind("iPhone", 0) == 0 || id.rfind("iPod", 0) == 0 ? "phone" : id.rfind("AppleTV", 0) == 0 ? "tv" : "unknown";
+}
+#ifdef __APPLE__
+[[maybe_unused]] std::string sysctlText(const char* name) {   // unused in the iOS simulator
+  char b[256] = "";
+  size_t n = sizeof b;
+  return sysctlbyname(name, b, &n, nullptr, 0) == 0 ? std::string(b) : std::string();
+}
+#endif
+#ifdef __ANDROID__
+std::string prop(const char* k) { char b[PROP_VALUE_MAX] = ""; __system_property_get(k, b); return b; }
+#endif
+}  // namespace
+
+std::string deviceRecord() {
+  std::string type = "unknown", brand, manufacturer, modelName, modelId, designName, osName, osVer = osVersion(), osBuildId, cpus;
+  double memory = 0;
+  bool isDevice = true;
+  struct utsname u; uname(&u);
+  const std::string run = zn::runPlatform();
+  if (run != zn::builtPlatform()) {   // a phone simulated on the desktop
+    isDevice = false;
+    const char* m = getenv("ZINC_DEVICE_MODEL");
+    const char* t = getenv("ZINC_DEVICE_TYPE");
+    const std::string model = m ? m : "";
+    if (run == "ios") {
+      brand = manufacturer = "Apple";
+      modelId = model;
+      modelName = appleModelName(model);
+      type = model.empty() ? "phone" : appleKind(model);
+    } else if (run == "android") {
+      osVer = "15";   // Android 15, the release of API level 35 (osVersion() of a simulated Android)
+      modelName = model;
+      type = "phone";
+    }
+    if (t && (!strcmp(t, "phone") || !strcmp(t, "tablet") || !strcmp(t, "tv"))) type = t;
+    osName = run == "ios" ? (type == "tablet" ? "iPadOS" : "iOS") : run == "android" ? "Android" : run;
+  } else {
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+    brand = manufacturer = "Apple";
+#if TARGET_OS_SIMULATOR   // the simulated model's; sysctl answers the Mac's there
+    isDevice = false;
+    if (const char* v = getenv("SIMULATOR_MODEL_IDENTIFIER")) modelId = v;
+    if (const char* v = getenv("SIMULATOR_RUNTIME_BUILD_VERSION")) osBuildId = v;
+#else
+    modelId = sysctlText("hw.machine");
+    osBuildId = sysctlText("kern.osversion");
+    std::uint64_t mem = 0; size_t len = sizeof mem;
+    if (sysctlbyname("hw.memsize", &mem, &len, nullptr, 0) == 0) memory = static_cast<double>(mem);
+#endif
+    modelName = appleModelName(modelId);
+    const char* idiom = zn_mobile_command ? zn_mobile_command("idiom", "") : nullptr;   // UIDevice.userInterfaceIdiom (ios_glue.mm)
+    type = idiom && *idiom && strcmp(idiom, "0") ? idiom : appleKind(modelId);
+    osName = type == "tablet" ? "iPadOS" : "iOS";
+    cpus = "arm64";
+#elif defined(__APPLE__)
+    brand = manufacturer = "Apple";
+    modelId = sysctlText("hw.model");   // MacBookPro16,1; an Apple silicon Mac says Mac14,2
+    static const char* const kFamilies[][2] = {{"MacBookPro", "MacBook Pro"}, {"MacBookAir", "MacBook Air"}, {"MacBook", "MacBook"}, {"iMacPro", "iMac Pro"},
+                                               {"iMac", "iMac"}, {"Macmini", "Mac mini"}, {"MacPro", "Mac Pro"}};
+    for (const auto& f : kFamilies) if (modelId.rfind(f[0], 0) == 0) { modelName = f[1]; break; }   // ponytail: the family; Apple silicon's names when a program needs them
+    type = "desktop";
+    osName = "macOS";
+    osBuildId = sysctlText("kern.osversion");
+    std::uint64_t mem = 0; size_t len = sizeof mem;
+    if (sysctlbyname("hw.memsize", &mem, &len, nullptr, 0) == 0) memory = static_cast<double>(mem);
+    int arm = 0; len = sizeof arm;
+    cpus = sysctlbyname("hw.optional.arm64", &arm, &len, nullptr, 0) == 0 && arm ? "arm64" : u.machine;   // the machine's, also under Rosetta
+#elif defined(__ANDROID__)
+    brand = prop("ro.product.brand");
+    manufacturer = prop("ro.product.manufacturer");
+    modelName = prop("ro.product.model");
+    designName = prop("ro.product.device");
+    osName = "Android";
+    osVer = prop("ro.build.version.release");
+    osBuildId = prop("ro.build.id");
+    cpus = prop("ro.product.cpu.abilist");
+    const std::string hw = prop("ro.hardware");
+    isDevice = prop("ro.kernel.qemu") != "1" && prop("ro.boot.qemu") != "1" && hw != "goldfish" && hw != "ranchu";
+    // the activity's answer: tv (UI_MODE_TYPE_TELEVISION), tablet (smallest width of 600 dp and more), phone (ZincActivity.idiom)
+    const char* idiom = zn_mobile_command ? zn_mobile_command("idiom", "") : nullptr;
+    if (idiom && (!strcmp(idiom, "phone") || !strcmp(idiom, "tablet") || !strcmp(idiom, "tv"))) type = idiom;
+    memory = static_cast<double>(sysconf(_SC_PHYS_PAGES)) * static_cast<double>(sysconf(_SC_PAGESIZE));
+#else
+    modelName = fileText("/sys/firmware/devicetree/base/model");   // a board: Raspberry Pi 3 Model B Plus Rev 1.3
+    if (!modelName.empty()) modelId = fileText("/sys/firmware/devicetree/base/compatible");   // its first entry: raspberrypi,3-model-b-plus
+    else {
+      modelName = fileText("/sys/class/dmi/id/product_name");   // a PC
+      manufacturer = fileText("/sys/class/dmi/id/sys_vendor");
+      const std::string chassis = fileText("/sys/class/dmi/id/chassis_type");   // SMBIOS: 30 tablet, 32 detachable
+      if (!modelName.empty() || !chassis.empty()) type = chassis == "30" || chassis == "32" ? "tablet" : "desktop";
+    }
+    std::ifstream rel("/etc/os-release");
+    for (std::string l; std::getline(rel, l);) {
+      auto value = [&](const char* k) { const std::string v = l.substr(std::strlen(k)); return v.size() >= 2 && v.front() == '"' ? v.substr(1, v.size() - 2) : v; };
+      if (l.rfind("NAME=", 0) == 0) osName = value("NAME=");
+      else if (l.rfind("VERSION_ID=", 0) == 0) osVer = value("VERSION_ID=");
+    }
+    if (osName.empty()) osName = u.sysname;
+    osBuildId = u.release;   // the kernel's
+    cpus = u.machine;
+    memory = static_cast<double>(sysconf(_SC_PHYS_PAGES)) * static_cast<double>(sysconf(_SC_PAGESIZE));
+#endif
+  }
+  std::string arch = "[";
+  for (size_t at = 0; at < cpus.size();) {
+    size_t end = cpus.find(',', at);
+    if (end == std::string::npos) end = cpus.size();
+    if (end > at) arch += (arch.size() > 1 ? "," : "") + jsonText(cpus.substr(at, end - at));
+    at = end + 1;
+  }
+  char mem[32];
+  std::snprintf(mem, sizeof mem, "%.0f", memory);
+  // model and os: navigator.deviceInfo's two fields of before (lib/std/web.ts)
+  const std::string model = !modelName.empty() ? modelName : !modelId.empty() ? modelId : std::string(u.machine);
+  return "{\"type\":" + jsonText(type) + ",\"brand\":" + jsonText(brand) + ",\"manufacturer\":" + jsonText(manufacturer) + ",\"modelName\":" + jsonText(modelName) +
+         ",\"modelId\":" + jsonText(modelId) + ",\"designName\":" + jsonText(designName) + ",\"osName\":" + jsonText(osName) + ",\"osVersion\":" + jsonText(osVer) +
+         ",\"osBuildId\":" + jsonText(osBuildId) + ",\"totalMemory\":" + mem + ",\"cpuArchitectures\":" + arch + "],\"isDevice\":" + (isDevice ? "true" : "false") +
+         ",\"model\":" + jsonText(model) + ",\"os\":" + jsonText(osName + (osVer.empty() ? "" : " " + osVer)) + "}";
+}
 // What a program asks of a phone's system UI: haptics (zinc:ui/haptics), the status bar (StatusBar), the system's back (BackHandler.exitApp),
 // the text input connection (zinc:ui's fields, ZN-626), steady clocks (zinc:webos setPerformance: Android's sustained performance mode, "0"
 // where the device has none, ZN-750), the screen reader's tree (zinc:ui's changes, ZN-630), the screen's orientation (screen.orientation.lock, a script's rotate on a phone). The Android activity (src/app/android, through JNI) or the iOS glue (src/app/ios_glue.mm) does it; a
 // desktop does nothing and answers "0". ZINC_DEVICE_LOG=file appends each call as `query arg` (the tests read it).
-extern "C" const char* (*zn_mobile_command)(const char* q, const char* a);   // hal_dispatch.cpp, set by the phone's glue
 extern "C" void zn_hal_set_text_traits(const char* t);
 bool mobileCommand(const std::string& q, const std::string& a, std::string& out) {
   if (q != "haptic" && q != "statusbar" && q != "exitapp" && q != "textinput" && q != "keyboard-traits" && q != "performance" && q != "a11y" && q != "orientation") return false;
@@ -337,9 +489,8 @@ std::string desktopDevice(const std::string& q, const std::string& a) {
   if (q == "accent") return systemAccent();
   if (q == "osversion") return osVersion();
   if (std::string out; mobileCommand(q, a, out)) return out;
-  if (q == "osversion") return osVersion();
   if (q == "visibility") return "visible";   // ponytail: a desktop window is taken as visible; its minimised state when a program needs it
-  if (q == "device") { struct utsname u; uname(&u); return std::string("{\"model\":\"") + u.machine + "\",\"os\":\"" + u.sysname + " " + u.release + "\"}"; }
+  if (q == "device") return deviceRecord();
   if (q == "network") {
     bool up = false;
     struct ifaddrs* all = nullptr;

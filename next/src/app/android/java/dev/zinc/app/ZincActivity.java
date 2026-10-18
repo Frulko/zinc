@@ -220,8 +220,16 @@ public class ZincActivity extends SDLActivity {
         final ZincActivity act = self;
         if (act == null) return "0";
         if (q.equals("battery")) return battery(act);   // a query: answered here, on the program's thread
+        if (q.equals("idiom")) return idiom(act);
         act.runOnUiThread(new Runnable() { @Override public void run() { act.command(q, a); } });
         return q.equals("performance") && !sustainedSupported(act) ? "0" : "1";
+    }
+
+    /** zinc:device-info's kind (sys_host.cpp deviceRecord): tv in the television UI mode, tablet from a smallest width of 600 dp (Android's sw600dp), else phone. */
+    static String idiom(android.content.Context c) {
+        android.app.UiModeManager ui = (android.app.UiModeManager) c.getSystemService(android.content.Context.UI_MODE_SERVICE);
+        if (ui != null && ui.getCurrentModeType() == android.content.res.Configuration.UI_MODE_TYPE_TELEVISION) return "tv";
+        return c.getResources().getConfiguration().smallestScreenWidthDp >= 600 ? "tablet" : "phone";
     }
 
     /** navigator.getBattery()'s answer from the sticky ACTION_BATTERY_CHANGED intent: "" without a battery. */

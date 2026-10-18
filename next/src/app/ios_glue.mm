@@ -7,6 +7,7 @@
 #include <TargetConditionals.h>
 #if TARGET_OS_IPHONE
 #import <UIKit/UIKit.h>
+#include <atomic>
 #include <string>
 
 extern "C" void zn_hal_signal(const char* line);
@@ -236,8 +237,20 @@ static void run(const std::string& q, const std::string& a) {
   // exitapp: an iOS app does not leave by itself (Apple's guidelines); nothing to do
 }
 
+// zinc:device-info's kind (sys_host.cpp deviceRecord): UIDevice.userInterfaceIdiom, read on the main thread (the program's on iOS, SDL's main);
+// from another thread, the value read when the glue started
+static std::atomic<const char*> gIdiom{""};
+static const char* idiom() {
+  if (NSThread.isMainThread) {
+    const UIUserInterfaceIdiom i = UIDevice.currentDevice.userInterfaceIdiom;
+    gIdiom = i == UIUserInterfaceIdiomPad ? "tablet" : i == UIUserInterfaceIdiomPhone ? "phone" : i == UIUserInterfaceIdiomTV ? "tv" : i == UIUserInterfaceIdiomMac ? "desktop" : "unknown";
+  }
+  return gIdiom;
+}
+
 static const char* command(const char* q, const char* a) {
   const std::string qs = q, as = a;
+  if (qs == "idiom") return idiom();   // a query: answered here
   dispatch_async(dispatch_get_main_queue(), ^{ run(qs, as); });
   return qs == "performance" ? "0" : "1";   // steady clocks: iOS has no request for them (Android's sustained mode, ZN-750)
 }
@@ -271,6 +284,7 @@ extern "C" void zn_mobile_glue_init(void) {
   zn_mobile_command = command;
   dispatch_async(dispatch_get_main_queue(), ^{
     NSNotificationCenter* nc = NSNotificationCenter.defaultCenter;
+    idiom();
     signal([NSString stringWithFormat:@"fontscale %g", fontScale()]);
     signal(UIAccessibilityIsReduceMotionEnabled() ? @"reducemotion 1" : @"reducemotion 0");
     zn_ios_a11y_init();

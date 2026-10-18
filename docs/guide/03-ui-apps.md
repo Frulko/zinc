@@ -317,6 +317,33 @@ const preview = openWindow('Preview', 640, 360, (dt) => {
   A `ZINC_INPUT` script (one `<frame> <event>` per line: `move X Y`, `down`, `up`, `key NAME`, `text STRING`...) sends the
   events after `window N` in a frame to window N, and `close` closes that window, as the user would.
 
+## The device
+
+`zinc:device-info` says what the program runs on, as Expo's `expo-device` does: a phone, a tablet, a desktop or a TV, its maker, its model and its
+system. A layout that changes for a tablet asks it once:
+
+```ts
+import * as Device from 'zinc:device-info';
+
+const wide = Device.deviceType === Device.DeviceType.TABLET || Device.deviceType === Device.DeviceType.DESKTOP;
+console.log(`${Device.modelName} (${Device.modelId}), ${Device.osName} ${Device.osVersion}`);   // iPad Pro (12.9-inch) (1st generation) (iPad6,7), iPadOS 16.7
+```
+
+| Field | iOS | Android | macOS | Linux |
+| --- | --- | --- | --- | --- |
+| deviceType | the system's idiom (an iPad is a tablet) | TV in the television mode, tablet from a smallest width of 600 dp, else phone | desktop | desktop on a PC, unknown on a board |
+| brand, manufacturer | Apple | Build.BRAND, Build.MANUFACTURER | Apple | the PC's maker (DMI) |
+| modelName | the name Apple sells it under | Build.MODEL | the family (MacBook Pro, iMac...) | the board's model (Raspberry Pi 3 Model B Plus Rev 1.3) or the PC's product name |
+| modelId | iPad6,7, iPhone18,3 | (empty) | MacBookPro16,1 | the board's compatible string |
+| designName | (empty) | Build.DEVICE | (empty) | (empty) |
+| osName, osVersion, osBuildId | iOS or iPadOS, 16.7, 20H240 | Android, 14, Build.ID | macOS, 15.6, its build | the distribution's NAME and VERSION_ID, the kernel |
+| totalMemory, supportedCpuArchitectures, isDevice | bytes, arm64, false in the simulator | bytes, the ABIs, false in the emulator | bytes, the machine's | bytes, the machine's |
+
+A field the platform cannot know is `''` (0 for `totalMemory`), never a guess: a new iPhone missing from Zinc's table of names has its
+`modelId` and an empty `modelName`. `Platform.isPad`, `Platform.isTV` and `Platform.constants` of `zinc:react-native` come from the same
+record, and so does `navigator.deviceInfo`. On the desktop, `ZINC_PLATFORM=ios` or `android` answers a simulated phone (`isDevice` false);
+`ZINC_DEVICE_MODEL=iPad6,7` makes it that iPad, `ZINC_DEVICE_TYPE=tablet` or `tv` an Android tablet or TV.
+
 ## Per-target constraints
 
 | target | constraint |

@@ -142,7 +142,8 @@ extern "C" const char* zgl_backend_device(const char* query, const char* arg) {
     std::string n;
     for (const char* c = b; *c; ++c) if (*c != '"' && *c != '\\') n += *c;
     // the accelerometer's axes are the tablet's natural (portrait) frame; the program's screen is landscape: a quarter turn
-    return give("{\"model\":\"HP TouchPad\",\"os\":\"HP webOS 3\",\"name\":\"" + n + "\",\"natural\":\"landscape\",\"sensorAngle\":" + std::to_string(kSensorAngle) + "}");
+    return give("{\"type\":\"tablet\",\"brand\":\"HP\",\"manufacturer\":\"HP\",\"modelName\":\"HP TouchPad\",\"osName\":\"webOS\",\"isDevice\":true,"   // zinc:device-info (ZN-761)
+                "\"model\":\"HP TouchPad\",\"os\":\"HP webOS 3\",\"name\":\"" + n + "\",\"natural\":\"landscape\",\"sensorAngle\":" + std::to_string(kSensorAngle) + "}");
   }
   return nullptr;
 }

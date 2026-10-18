@@ -19,6 +19,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Web target: the page no longer asks for `/favicon.ico` (a 404 in every console) when the app has no icon, and an error thrown on every frame is reported once, not sixty times a second.
 
 ### Added
+- `zinc:device-info` tells what the app runs on, as Expo's expo-device: phone, tablet, desktop or TV, brand, maker, model name (`iPad Pro (12.9-inch) (1st generation)`) and identifier,
+  system name, version and build, memory, CPU architectures, and whether it is a simulator. `Platform.isPad` and `Platform.isTV` now answer for real, and `Platform.constants` is there.
 - PS Vita: zinc:gfx frames are drawn by the Vita's GPU (GXM) at 960x544 instead of the CPU, so games such as Meadow Run run at the screen's rate. A frame
   with shapes the GPU path does not draw yet (rounded corners, gradients, paths) is rasterized in software and shown by the GPU; `ZINC_VITA_GPU=0` keeps the old path.
 - `@zinc/vite` (`packages/vite-plugin-zinc`): a Vite plugin that builds and develops a Zinc app for the web with Vite's own resolver, hot module replacement and bundling; `zinc dev --target web --prepare <dir>` is the step
