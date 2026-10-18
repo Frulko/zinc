@@ -8,6 +8,7 @@
 # framebuffer the display scans out), the hello's blue on most of it and its yellow square; the text program on the graphics core keeps its
 # line on the screen (the text screen) instead of a black screen or an app that closes; breakout's pad session built into the core ends on the
 # interpreter's frame (tests/golden/breakout/pad.hashes) and prints its frame times.
+[ -z "$ZINC_CI" ] || { echo "skipped: windowed emulators and their screenshots need a desktop session (the console targets come with the cross-platform pass)"; exit 77; }
 cd "$(dirname "$0")/../.." || exit 2
 Z=${ZINC:-build/zinc}; case $Z in /*) ;; *) Z=$PWD/$Z ;; esac
 export ZINC="$Z"
