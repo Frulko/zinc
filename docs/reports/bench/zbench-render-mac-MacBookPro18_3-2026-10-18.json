@@ -1,0 +1,8291 @@
+{
+ "schema": "zbench/1",
+ "suite": "render",
+ "date": "2026-10-18T23:32:31",
+ "tool": {
+  "rev": "f7da60ed",
+  "dirty": true
+ },
+ "device": {
+  "id": "mac",
+  "before": {
+   "model": "MacBookPro18,3",
+   "cpu": "Apple M1 Pro",
+   "cores": "10",
+   "os": "macOS 15.7.4",
+   "gpu": [
+    "Apple M1 Pro"
+   ],
+   "thermal": "Note: No thermal warning level has been recorded Note: No performance warning level has been recorded Note: No CPU power status has been recorded",
+   "power": "Now drawing from 'AC Power'",
+   "load": "5.04 6.42 8.92"
+  },
+  "after": {
+   "model": "MacBookPro18,3",
+   "cpu": "Apple M1 Pro",
+   "cores": "10",
+   "os": "macOS 15.7.4",
+   "gpu": [
+    "Apple M1 Pro"
+   ],
+   "thermal": "Note: No thermal warning level has been recorded Note: No performance warning level has been recorded Note: No CPU power status has been recorded",
+   "power": "Now drawing from 'AC Power'",
+   "load": "7.17 6.25 8.39"
+  }
+ },
+ "config": {
+  "frames": 240,
+  "skip": 30,
+  "runs": 3,
+  "modes": [
+   "uncapped"
+  ],
+  "size": "1024x768"
+ },
+ "modes": {
+  "uncapped": {
+   "scenes": {
+    "fill_opaque": {
+     "runs": 3,
+     "ok_runs": 3,
+     "work_p50_us": 4,
+     "work_p99_us": 9,
+     "interval_p50_us": 9798,
+     "interval_p99_us": 12319,
+     "raster_p50_us": 0,
+     "present_p50_us": 1803,
+     "frames": 239,
+     "window": [
+      1024,
+      768
+     ],
+     "drawn": [
+      [
+       1024,
+       768
+      ]
+     ],
+     "late_work_gt_16_7": 0,
+     "late_interval_gt_25": 0,
+     "fps": 102.1,
+     "spread": 0.0198,
+     "vsync_locked": false,
+     "frame_hashes": [
+      "4792796c7c9d0383"
+     ],
+     "retried_runs": 0,
+     "gpu": {
+      "gl_cpu_submit_us": 821.0,
+      "gl_depth_bits": 32.0,
+      "gl_draw_calls_per_frame": 1.0,
+      "gl_family": "Apple",
+      "gl_frames_idle": 0.0,
+      "gl_frames_replayed": 270.0,
+      "gl_glyph_uploads": 0.0,
+      "gl_gpu_samples": 266.0,
+      "gl_gpu_samples_lost": 0.0,
+      "gl_gpu_us": 492.0,
+      "gl_max_texture": 16384.0,
+      "gl_occlusion_frames": 270.0,
+      "gl_program_build_ms": 5.0,
+      "gl_programs_built": 1.0,
+      "gl_quads_per_frame": 9.0,
+      "gl_renderer": "Apple M1 Pro",
+      "gl_timer_source": "GL_TIME_ELAPSED",
+      "gl_vendor": "Apple",
+      "gl_version": "4.1 Metal - 89.4",
+      "renderer": "gl"
+     }
+    },
+    "fill_blend": {
+     "runs": 3,
+     "ok_runs": 3,
+     "work_p50_us": 4,
+     "work_p99_us": 16,
+     "interval_p50_us": 9149,
+     "interval_p99_us": 15172,
+     "raster_p50_us": 0,
+     "present_p50_us": 5869,
+     "frames": 240,
+     "window": [
+      1024,
+      768
+     ],
+     "drawn": [
+      [
+       1024,
+       768
+      ]
+     ],
+     "late_work_gt_16_7": 0,
+     "late_interval_gt_25": 0,
+     "fps": 109.3,
+     "spread": 0.0238,
+     "vsync_locked": false,
+     "frame_hashes": [
+      "9c5feaa15a1d0383"
+     ],
+     "retried_runs": 0,
+     "gpu": {
+      "gl_cpu_submit_us": 737.0,
+      "gl_depth_bits": 32.0,
+      "gl_draw_calls_per_frame": 1.0,
+      "gl_family": "Apple",
+      "gl_frames_idle": 0.0,
+      "gl_frames_replayed": 270.0,
+      "gl_glyph_uploads": 0.0,
+      "gl_gpu_samples": 270.0,
+      "gl_gpu_samples_lost": 0.0,
+      "gl_gpu_us": 3983.0,
+      "gl_max_texture": 16384.0,
+      "gl_occlusion_frames": 1.0,
+      "gl_program_build_ms": 5.0,
+      "gl_programs_built": 1.0,
+      "gl_quads_per_frame": 8.0,
+      "gl_renderer": "Apple M1 Pro",
+      "gl_timer_source": "GL_TIME_ELAPSED",
+      "gl_vendor": "Apple",
+      "gl_version": "4.1 Metal - 89.4",
+      "renderer": "gl"
+     }
+    },
+    "quads_10k": {
+     "runs": 3,
+     "ok_runs": 3,
+     "work_p50_us": 158,
+     "work_p99_us": 493,
+     "interval_p50_us": 9535,
+     "interval_p99_us": 12410,
+     "raster_p50_us": 0,
+     "present_p50_us": 2624,
+     "frames": 240,
+     "window": [
+      1024,
+      768
+     ],
+     "drawn": [
+      [
+       1024,
+       768
+      ]
+     ],
+     "late_work_gt_16_7": 0,
+     "late_interval_gt_25": 0,
+     "fps": 104.9,
+     "spread": 0.0259,
+     "vsync_locked": false,
+     "frame_hashes": [
+      "b3a81229ea92c5d3"
+     ],
+     "retried_runs": 0,
+     "gpu": {
+      "gl_cpu_submit_us": 1172.0,
+      "gl_depth_bits": 32.0,
+      "gl_draw_calls_per_frame": 1.0,
+      "gl_family": "Apple",
+      "gl_frames_idle": 0.0,
+      "gl_frames_replayed": 270.0,
+      "gl_glyph_uploads": 0.0,
+      "gl_gpu_samples": 270.0,
+      "gl_gpu_samples_lost": 0.0,
+      "gl_gpu_us": 774.0,
+      "gl_max_texture": 16384.0,
+      "gl_occlusion_frames": 269.0,
+      "gl_program_build_ms": 5.0,
+      "gl_programs_built": 1.0,
+      "gl_quads_per_frame": 3734.0,
+      "gl_renderer": "Apple M1 Pro",
+      "gl_timer_source": "GL_TIME_ELAPSED",
+      "gl_vendor": "Apple",
+      "gl_version": "4.1 Metal - 89.4",
+      "renderer": "gl"
+     }
+    },
+    "rounded_shadow": {
+     "runs": 3,
+     "ok_runs": 3,
+     "work_p50_us": 14,
+     "work_p99_us": 40,
+     "interval_p50_us": 9436,
+     "interval_p99_us": 12046,
+     "raster_p50_us": 0,
+     "present_p50_us": 3546,
+     "frames": 240,
+     "window": [
+      1024,
+      768
+     ],
+     "drawn": [
+      [
+       1024,
+       768
+      ]
+     ],
+     "late_work_gt_16_7": 0,
+     "late_interval_gt_25": 0,
+     "fps": 106.0,
+     "spread": 0.0085,
+     "vsync_locked": false,
+     "frame_hashes": [
+      "b8a1e1070229e3e8"
+     ],
+     "retried_runs": 0,
+     "gpu": {
+      "gl_cpu_submit_us": 712.0,
+      "gl_depth_bits": 32.0,
+      "gl_draw_calls_per_frame": 2.0,
+      "gl_family": "Apple",
+      "gl_frames_idle": 0.0,
+      "gl_frames_replayed": 270.0,
+      "gl_glyph_uploads": 0.0,
+      "gl_gpu_samples": 270.0,
+      "gl_gpu_samples_lost": 0.0,
+      "gl_gpu_us": 1785.0,
+      "gl_max_texture": 16384.0,
+      "gl_occlusion_frames": 270.0,
+      "gl_program_build_ms": 5.0,
+      "gl_programs_built": 1.0,
+      "gl_quads_per_frame": 1689.0,
+      "gl_renderer": "Apple M1 Pro",
+      "gl_timer_source": "GL_TIME_ELAPSED",
+      "gl_vendor": "Apple",
+      "gl_version": "4.1 Metal - 89.4",
+      "renderer": "gl"
+     }
+    },
+    "gradients": {
+     "runs": 3,
+     "ok_runs": 3,
+     "work_p50_us": 8,
+     "work_p99_us": 27,
+     "interval_p50_us": 9131,
+     "interval_p99_us": 17232,
+     "raster_p50_us": 0,
+     "present_p50_us": 7545,
+     "frames": 240,
+     "window": [
+      1024,
+      768
+     ],
+     "drawn": [
+      [
+       1024,
+       768
+      ]
+     ],
+     "late_work_gt_16_7": 0,
+     "late_interval_gt_25": 0,
+     "fps": 109.5,
+     "spread": 0.0079,
+     "vsync_locked": false,
+     "frame_hashes": [
+      "a39d0d1d76fe2005"
+     ],
+     "retried_runs": 0,
+     "gpu": {
+      "gl_cpu_submit_us": 632.0,
+      "gl_depth_bits": 32.0,
+      "gl_draw_calls_per_frame": 1.0,
+      "gl_family": "Apple",
+      "gl_frames_idle": 0.0,
+      "gl_frames_replayed": 270.0,
+      "gl_glyph_uploads": 0.0,
+      "gl_gpu_samples": 270.0,
+      "gl_gpu_samples_lost": 0.0,
+      "gl_gpu_us": 5412.0,
+      "gl_max_texture": 16384.0,
+      "gl_occlusion_frames": 1.0,
+      "gl_program_build_ms": 5.0,
+      "gl_programs_built": 1.0,
+      "gl_quads_per_frame": 46.0,
+      "gl_renderer": "Apple M1 Pro",
+      "gl_timer_source": "GL_TIME_ELAPSED",
+      "gl_vendor": "Apple",
+      "gl_version": "4.1 Metal - 89.4",
+      "renderer": "gl"
+     }
+    },
+    "text_static": {
+     "runs": 3,
+     "ok_runs": 3,
+     "work_p50_us": 37,
+     "work_p99_us": 113,
+     "interval_p50_us": 9599,
+     "interval_p99_us": 12301,
+     "raster_p50_us": 0,
+     "present_p50_us": 2090,
+     "frames": 240,
+     "window": [
+      1024,
+      768
+     ],
+     "drawn": [
+      [
+       1024,
+       768
+      ]
+     ],
+     "late_work_gt_16_7": 0,
+     "late_interval_gt_25": 0,
+     "fps": 104.2,
+     "spread": 0.0307,
+     "vsync_locked": false,
+     "frame_hashes": [
+      "50b1db33fe4e9a2b"
+     ],
+     "retried_runs": 0,
+     "gpu": {
+      "gl_cpu_submit_us": 881.0,
+      "gl_depth_bits": 32.0,
+      "gl_draw_calls_per_frame": 1.0,
+      "gl_family": "Apple",
+      "gl_frames_idle": 0.0,
+      "gl_frames_replayed": 270.0,
+      "gl_glyph_uploads": 111.0,
+      "gl_gpu_samples": 270.0,
+      "gl_gpu_samples_lost": 0.0,
+      "gl_gpu_us": 557.0,
+      "gl_max_texture": 16384.0,
+      "gl_occlusion_frames": 0.0,
+      "gl_program_build_ms": 5.0,
+      "gl_programs_built": 1.0,
+      "gl_quads_per_frame": 2581.0,
+      "gl_renderer": "Apple M1 Pro",
+      "gl_timer_source": "GL_TIME_ELAPSED",
+      "gl_vendor": "Apple",
+      "gl_version": "4.1 Metal - 89.4",
+      "renderer": "gl"
+     }
+    },
+    "text_churn": {
+     "runs": 3,
+     "ok_runs": 3,
+     "work_p50_us": 48,
+     "work_p99_us": 131,
+     "interval_p50_us": 9684,
+     "interval_p99_us": 13166,
+     "raster_p50_us": 0,
+     "present_p50_us": 1846,
+     "frames": 240,
+     "window": [
+      1024,
+      768
+     ],
+     "drawn": [
+      [
+       1024,
+       768
+      ]
+     ],
+     "late_work_gt_16_7": 0,
+     "late_interval_gt_25": 0,
+     "fps": 103.3,
+     "spread": 0.0138,
+     "vsync_locked": false,
+     "frame_hashes": [
+      "1f738a1ec4569524"
+     ],
+     "retried_runs": 0,
+     "gpu": {
+      "gl_cpu_submit_us": 829.0,
+      "gl_depth_bits": 32.0,
+      "gl_draw_calls_per_frame": 1.0,
+      "gl_family": "Apple",
+      "gl_frames_idle": 0.0,
+      "gl_frames_replayed": 270.0,
+      "gl_glyph_uploads": 114.0,
+      "gl_gpu_samples": 270.0,
+      "gl_gpu_samples_lost": 0.0,
+      "gl_gpu_us": 343.0,
+      "gl_max_texture": 16384.0,
+      "gl_occlusion_frames": 0.0,
+      "gl_program_build_ms": 5.0,
+      "gl_programs_built": 1.0,
+      "gl_quads_per_frame": 1403.0,
+      "gl_renderer": "Apple M1 Pro",
+      "gl_timer_source": "GL_TIME_ELAPSED",
+      "gl_vendor": "Apple",
+      "gl_version": "4.1 Metal - 89.4",
+      "renderer": "gl"
+     }
+    },
+    "clip_nested": {
+     "runs": 3,
+     "ok_runs": 3,
+     "work_p50_us": 23,
+     "work_p99_us": 61,
+     "interval_p50_us": 8804,
+     "interval_p99_us": 17886,
+     "raster_p50_us": 0,
+     "present_p50_us": 6918,
+     "frames": 240,
+     "window": [
+      1024,
+      768
+     ],
+     "drawn": [
+      [
+       1024,
+       768
+      ]
+     ],
+     "late_work_gt_16_7": 0,
+     "late_interval_gt_25": 2,
+     "fps": 113.6,
+     "spread": 0.0125,
+     "vsync_locked": false,
+     "frame_hashes": [
+      "403fce4d68d7d3f4"
+     ],
+     "retried_runs": 0,
+     "gpu": {
+      "gl_cpu_submit_us": 6076.0,
+      "gl_depth_bits": 32.0,
+      "gl_draw_calls_per_frame": 48.8,
+      "gl_family": "Apple",
+      "gl_frames_idle": 0.0,
+      "gl_frames_replayed": 270.0,
+      "gl_glyph_uploads": 114.0,
+      "gl_gpu_samples": 270.0,
+      "gl_gpu_samples_lost": 0.0,
+      "gl_gpu_us": 5714.0,
+      "gl_max_texture": 16384.0,
+      "gl_occlusion_frames": 269.0,
+      "gl_program_build_ms": 5.0,
+      "gl_programs_built": 1.0,
+      "gl_quads_per_frame": 580.0,
+      "gl_renderer": "Apple M1 Pro",
+      "gl_timer_source": "GL_TIME_ELAPSED",
+      "gl_vendor": "Apple",
+      "gl_version": "4.1 Metal - 89.4",
+      "renderer": "gl"
+     }
+    },
+    "poly": {
+     "runs": 3,
+     "ok_runs": 3,
+     "work_p50_us": 30,
+     "work_p99_us": 87,
+     "interval_p50_us": 9584,
+     "interval_p99_us": 11126,
+     "raster_p50_us": 0,
+     "present_p50_us": 2194,
+     "frames": 240,
+     "window": [
+      1024,
+      768
+     ],
+     "drawn": [
+      [
+       1024,
+       768
+      ]
+     ],
+     "late_work_gt_16_7": 0,
+     "late_interval_gt_25": 0,
+     "fps": 104.3,
+     "spread": 0.0194,
+     "vsync_locked": false,
+     "frame_hashes": [
+      "aa2f461e3be126fb"
+     ],
+     "retried_runs": 0,
+     "gpu": {
+      "gl_cpu_submit_us": 856.0,
+      "gl_depth_bits": 32.0,
+      "gl_draw_calls_per_frame": 200.4,
+      "gl_family": "Apple",
+      "gl_frames_idle": 0.0,
+      "gl_frames_replayed": 270.0,
+      "gl_glyph_uploads": 114.0,
+      "gl_gpu_samples": 270.0,
+      "gl_gpu_samples_lost": 0.0,
+      "gl_gpu_us": 936.0,
+      "gl_max_texture": 16384.0,
+      "gl_occlusion_frames": 270.0,
+      "gl_program_build_ms": 5.0,
+      "gl_programs_built": 1.0,
+      "gl_quads_per_frame": 202.0,
+      "gl_renderer": "Apple M1 Pro",
+      "gl_timer_source": "GL_TIME_ELAPSED",
+      "gl_vendor": "Apple",
+      "gl_version": "4.1 Metal - 89.4",
+      "renderer": "gl"
+     }
+    },
+    "scroll_list": {
+     "runs": 3,
+     "ok_runs": 3,
+     "work_p50_us": 27,
+     "work_p99_us": 103,
+     "interval_p50_us": 9758,
+     "interval_p99_us": 12300,
+     "raster_p50_us": 0,
+     "present_p50_us": 1859,
+     "frames": 240,
+     "window": [
+      1024,
+      768
+     ],
+     "drawn": [
+      [
+       1024,
+       768
+      ]
+     ],
+     "late_work_gt_16_7": 0,
+     "late_interval_gt_25": 0,
+     "fps": 102.5,
+     "spread": 0.0272,
+     "vsync_locked": false,
+     "frame_hashes": [
+      "77cd4a49822b2ec4"
+     ],
+     "retried_runs": 0,
+     "gpu": {
+      "gl_cpu_submit_us": 767.0,
+      "gl_depth_bits": 32.0,
+      "gl_draw_calls_per_frame": 36.9,
+      "gl_family": "Apple",
+      "gl_frames_idle": 0.0,
+      "gl_frames_replayed": 270.0,
+      "gl_glyph_uploads": 115.0,
+      "gl_gpu_samples": 270.0,
+      "gl_gpu_samples_lost": 0.0,
+      "gl_gpu_us": 525.0,
+      "gl_max_texture": 16384.0,
+      "gl_occlusion_frames": 270.0,
+      "gl_program_build_ms": 5.0,
+      "gl_programs_built": 1.0,
+      "gl_quads_per_frame": 318.0,
+      "gl_renderer": "Apple M1 Pro",
+      "gl_timer_source": "GL_TIME_ELAPSED",
+      "gl_vendor": "Apple",
+      "gl_version": "4.1 Metal - 89.4",
+      "renderer": "gl"
+     }
+    },
+    "image_update": {
+     "runs": 3,
+     "ok_runs": 3,
+     "work_p50_us": 641,
+     "work_p99_us": 1295,
+     "interval_p50_us": 9596,
+     "interval_p99_us": 11915,
+     "raster_p50_us": 0,
+     "present_p50_us": 1881,
+     "frames": 240,
+     "window": [
+      1024,
+      768
+     ],
+     "drawn": [
+      [
+       1024,
+       768
+      ]
+     ],
+     "late_work_gt_16_7": 0,
+     "late_interval_gt_25": 0,
+     "fps": 104.2,
+     "spread": 0.0031,
+     "vsync_locked": false,
+     "frame_hashes": [
+      "a6a17d846c7a5fc3"
+     ],
+     "retried_runs": 0,
+     "gpu": {
+      "gl_cpu_submit_us": 815.0,
+      "gl_depth_bits": 32.0,
+      "gl_draw_calls_per_frame": 1.1,
+      "gl_family": "Apple",
+      "gl_frames_idle": 0.0,
+      "gl_frames_replayed": 270.0,
+      "gl_glyph_uploads": 115.0,
+      "gl_gpu_samples": 270.0,
+      "gl_gpu_samples_lost": 0.0,
+      "gl_gpu_us": 440.0,
+      "gl_max_texture": 16384.0,
+      "gl_occlusion_frames": 1.0,
+      "gl_program_build_ms": 5.0,
+      "gl_programs_built": 1.0,
+      "gl_quads_per_frame": 5.0,
+      "gl_renderer": "Apple M1 Pro",
+      "gl_timer_source": "GL_TIME_ELAPSED",
+      "gl_vendor": "Apple",
+      "gl_version": "4.1 Metal - 89.4",
+      "renderer": "gl"
+     }
+    },
+    "image_fill_only": {
+     "runs": 3,
+     "ok_runs": 3,
+     "work_p50_us": 590,
+     "work_p99_us": 1652,
+     "interval_p50_us": 9722,
+     "interval_p99_us": 12057,
+     "raster_p50_us": 0,
+     "present_p50_us": 546,
+     "frames": 240,
+     "window": [
+      1024,
+      768
+     ],
+     "drawn": [
+      [
+       1024,
+       768
+      ]
+     ],
+     "late_work_gt_16_7": 0,
+     "late_interval_gt_25": 0,
+     "fps": 102.9,
+     "spread": 0.0322,
+     "vsync_locked": false,
+     "frame_hashes": [
+      "0cfd888a7c9d0383"
+     ],
+     "retried_runs": 0,
+     "gpu": {
+      "gl_cpu_submit_us": 41.0,
+      "gl_depth_bits": 32.0,
+      "gl_draw_calls_per_frame": 0.0,
+      "gl_family": "Apple",
+      "gl_frames_idle": 0.0,
+      "gl_frames_replayed": 270.0,
+      "gl_glyph_uploads": 115.0,
+      "gl_gpu_samples": 270.0,
+      "gl_gpu_samples_lost": 0.0,
+      "gl_gpu_us": 7.0,
+      "gl_max_texture": 16384.0,
+      "gl_occlusion_frames": 0.0,
+      "gl_program_build_ms": 5.0,
+      "gl_programs_built": 1.0,
+      "gl_quads_per_frame": 0.0,
+      "gl_renderer": "Apple M1 Pro",
+      "gl_timer_source": "GL_TIME_ELAPSED",
+      "gl_vendor": "Apple",
+      "gl_version": "4.1 Metal - 89.4",
+      "renderer": "gl"
+     }
+    },
+    "image_upload_only": {
+     "runs": 3,
+     "ok_runs": 3,
+     "work_p50_us": 56,
+     "work_p99_us": 170,
+     "interval_p50_us": 9655,
+     "interval_p99_us": 11158,
+     "raster_p50_us": 0,
+     "present_p50_us": 2052,
+     "frames": 240,
+     "window": [
+      1024,
+      768
+     ],
+     "drawn": [
+      [
+       1024,
+       768
+      ]
+     ],
+     "late_work_gt_16_7": 0,
+     "late_interval_gt_25": 0,
+     "fps": 103.6,
+     "spread": 0.0131,
+     "vsync_locked": false,
+     "frame_hashes": [
+      "a6a17d846c7a5fc3"
+     ],
+     "retried_runs": 0,
+     "gpu": {
+      "gl_cpu_submit_us": 881.0,
+      "gl_depth_bits": 32.0,
+      "gl_draw_calls_per_frame": 1.0,
+      "gl_family": "Apple",
+      "gl_frames_idle": 0.0,
+      "gl_frames_replayed": 270.0,
+      "gl_glyph_uploads": 115.0,
+      "gl_gpu_samples": 270.0,
+      "gl_gpu_samples_lost": 0.0,
+      "gl_gpu_us": 446.0,
+      "gl_max_texture": 16384.0,
+      "gl_occlusion_frames": 0.0,
+      "gl_program_build_ms": 5.0,
+      "gl_programs_built": 1.0,
+      "gl_quads_per_frame": 4.0,
+      "gl_renderer": "Apple M1 Pro",
+      "gl_timer_source": "GL_TIME_ELAPSED",
+      "gl_vendor": "Apple",
+      "gl_version": "4.1 Metal - 89.4",
+      "renderer": "gl"
+     }
+    },
+    "damage_small": {
+     "runs": 3,
+     "ok_runs": 3,
+     "work_p50_us": 10,
+     "work_p99_us": 41,
+     "interval_p50_us": 9491,
+     "interval_p99_us": 12395,
+     "raster_p50_us": 0,
+     "present_p50_us": 880,
+     "frames": 240,
+     "window": [
+      1024,
+      768
+     ],
+     "drawn": [
+      [
+       1024,
+       768
+      ]
+     ],
+     "late_work_gt_16_7": 0,
+     "late_interval_gt_25": 0,
+     "fps": 105.4,
+     "spread": 0.0185,
+     "vsync_locked": false,
+     "frame_hashes": [
+      "de1e87d05e77f573"
+     ],
+     "retried_runs": 0,
+     "gpu": {
+      "gl_cpu_submit_us": 293.0,
+      "gl_depth_bits": 24.0,
+      "gl_draw_calls_per_frame": 1.0,
+      "gl_family": "Apple",
+      "gl_frames_idle": 0.0,
+      "gl_frames_replayed": 270.0,
+      "gl_glyph_uploads": 115.0,
+      "gl_gpu_samples": 270.0,
+      "gl_gpu_samples_lost": 0.0,
+      "gl_gpu_us": 249.0,
+      "gl_max_texture": 16384.0,
+      "gl_occlusion_frames": 269.0,
+      "gl_program_build_ms": 5.0,
+      "gl_programs_built": 1.0,
+      "gl_quads_per_frame": 301.0,
+      "gl_renderer": "Apple M1 Pro",
+      "gl_timer_source": "GL_TIME_ELAPSED",
+      "gl_vendor": "Apple",
+      "gl_version": "4.1 Metal - 89.4",
+      "renderer": "gl"
+     }
+    },
+    "ui_scroll_fling": {
+     "runs": 3,
+     "ok_runs": 3,
+     "work_p50_us": 359,
+     "work_p99_us": 1547,
+     "interval_p50_us": 9128,
+     "interval_p99_us": 11570,
+     "raster_p50_us": 0,
+     "present_p50_us": 2816,
+     "frames": 240,
+     "window": [
+      1024,
+      768
+     ],
+     "drawn": [
+      [
+       1024,
+       768
+      ]
+     ],
+     "late_work_gt_16_7": 0,
+     "late_interval_gt_25": 0,
+     "fps": 109.6,
+     "spread": 0.0263,
+     "vsync_locked": false,
+     "frame_hashes": [
+      "53a37dd0334b724b",
+      "5904a88580539bc1",
+      "70c38c46c6c06ea2"
+     ],
+     "retried_runs": 0,
+     "gpu": {
+      "gl_cpu_submit_us": 834.0,
+      "gl_depth_bits": 32.0,
+      "gl_draw_calls_per_frame": 3.0,
+      "gl_family": "Apple",
+      "gl_frames_idle": 0.0,
+      "gl_frames_replayed": 270.0,
+      "gl_glyph_uploads": 116.0,
+      "gl_gpu_samples": 270.0,
+      "gl_gpu_samples_lost": 0.0,
+      "gl_gpu_us": 778.0,
+      "gl_max_texture": 16384.0,
+      "gl_occlusion_frames": 270.0,
+      "gl_program_build_ms": 5.0,
+      "gl_programs_built": 1.0,
+      "gl_quads_per_frame": 680.0,
+      "gl_renderer": "Apple M1 Pro",
+      "gl_timer_source": "GL_TIME_ELAPSED",
+      "gl_vendor": "Apple",
+      "gl_version": "4.1 Metal - 89.4",
+      "renderer": "gl"
+     }
+    },
+    "ui_scroll_wheel": {
+     "runs": 3,
+     "ok_runs": 3,
+     "work_p50_us": 342,
+     "work_p99_us": 889,
+     "interval_p50_us": 9168,
+     "interval_p99_us": 10133,
+     "raster_p50_us": 0,
+     "present_p50_us": 2078,
+     "frames": 240,
+     "window": [
+      1024,
+      768
+     ],
+     "drawn": [
+      [
+       1024,
+       768
+      ]
+     ],
+     "late_work_gt_16_7": 0,
+     "late_interval_gt_25": 0,
+     "fps": 109.1,
+     "spread": 0.0039,
+     "vsync_locked": false,
+     "frame_hashes": [
+      "b224fc572f4a014f",
+      "f5b8d211d7df5de3",
+      "fa7be2c1356fba3f"
+     ],
+     "retried_runs": 0,
+     "gpu": {
+      "gl_cpu_submit_us": 783.0,
+      "gl_depth_bits": 32.0,
+      "gl_draw_calls_per_frame": 3.0,
+      "gl_family": "Apple",
+      "gl_frames_idle": 0.0,
+      "gl_frames_replayed": 270.0,
+      "gl_glyph_uploads": 116.0,
+      "gl_gpu_samples": 270.0,
+      "gl_gpu_samples_lost": 0.0,
+      "gl_gpu_us": 760.0,
+      "gl_max_texture": 16384.0,
+      "gl_occlusion_frames": 270.0,
+      "gl_program_build_ms": 5.0,
+      "gl_programs_built": 1.0,
+      "gl_quads_per_frame": 694.0,
+      "gl_renderer": "Apple M1 Pro",
+      "gl_timer_source": "GL_TIME_ELAPSED",
+      "gl_vendor": "Apple",
+      "gl_version": "4.1 Metal - 89.4",
+      "renderer": "gl"
+     }
+    },
+    "ui_anim_transform": {
+     "runs": 3,
+     "ok_runs": 3,
+     "work_p50_us": 76,
+     "work_p99_us": 798,
+     "interval_p50_us": 9226,
+     "interval_p99_us": 13644,
+     "raster_p50_us": 0,
+     "present_p50_us": 2009,
+     "frames": 240,
+     "window": [
+      1024,
+      768
+     ],
+     "drawn": [
+      [
+       1024,
+       768
+      ]
+     ],
+     "late_work_gt_16_7": 0,
+     "late_interval_gt_25": 0,
+     "fps": 108.4,
+     "spread": 0.012,
+     "vsync_locked": false,
+     "frame_hashes": [
+      "593b634dcf3b4a6b",
+      "62669d14d144b677",
+      "6682199faa2d13e3"
+     ],
+     "retried_runs": 0,
+     "gpu": {
+      "gl_cpu_submit_us": 859.0,
+      "gl_depth_bits": 32.0,
+      "gl_draw_calls_per_frame": 2.0,
+      "gl_family": "Apple",
+      "gl_frames_idle": 0.0,
+      "gl_frames_replayed": 270.0,
+      "gl_glyph_uploads": 116.0,
+      "gl_gpu_samples": 270.0,
+      "gl_gpu_samples_lost": 0.0,
+      "gl_gpu_us": 640.0,
+      "gl_max_texture": 16384.0,
+      "gl_occlusion_frames": 270.0,
+      "gl_program_build_ms": 5.0,
+      "gl_programs_built": 1.0,
+      "gl_quads_per_frame": 751.0,
+      "gl_renderer": "Apple M1 Pro",
+      "gl_timer_source": "GL_TIME_ELAPSED",
+      "gl_vendor": "Apple",
+      "gl_version": "4.1 Metal - 89.4",
+      "renderer": "gl"
+     }
+    },
+    "ui_anim_layout": {
+     "runs": 3,
+     "ok_runs": 3,
+     "work_p50_us": 47,
+     "work_p99_us": 198,
+     "interval_p50_us": 9400,
+     "interval_p99_us": 11333,
+     "raster_p50_us": 0,
+     "present_p50_us": 815,
+     "frames": 240,
+     "window": [
+      1024,
+      768
+     ],
+     "drawn": [
+      [
+       1024,
+       768
+      ]
+     ],
+     "late_work_gt_16_7": 0,
+     "late_interval_gt_25": 0,
+     "fps": 106.4,
+     "spread": 0.0339,
+     "vsync_locked": false,
+     "frame_hashes": [
+      "397ed58ff1646063",
+      "80262d1f09916d03",
+      "93a3f6b6c16e5543"
+     ],
+     "retried_runs": 0,
+     "gpu": {
+      "gl_cpu_submit_us": 294.0,
+      "gl_depth_bits": 24.0,
+      "gl_draw_calls_per_frame": 3.0,
+      "gl_family": "Apple",
+      "gl_frames_idle": 0.0,
+      "gl_frames_replayed": 270.0,
+      "gl_glyph_uploads": 116.0,
+      "gl_gpu_samples": 270.0,
+      "gl_gpu_samples_lost": 0.0,
+      "gl_gpu_us": 248.0,
+      "gl_max_texture": 16384.0,
+      "gl_occlusion_frames": 270.0,
+      "gl_program_build_ms": 5.0,
+      "gl_programs_built": 1.0,
+      "gl_quads_per_frame": 115.0,
+      "gl_renderer": "Apple M1 Pro",
+      "gl_timer_source": "GL_TIME_ELAPSED",
+      "gl_vendor": "Apple",
+      "gl_version": "4.1 Metal - 89.4",
+      "renderer": "gl"
+     }
+    },
+    "ui_list_update": {
+     "runs": 3,
+     "ok_runs": 3,
+     "work_p50_us": 217,
+     "work_p99_us": 672,
+     "interval_p50_us": 9390,
+     "interval_p99_us": 10556,
+     "raster_p50_us": 0,
+     "present_p50_us": 1011,
+     "frames": 240,
+     "window": [
+      1024,
+      768
+     ],
+     "drawn": [
+      [
+       1024,
+       768
+      ]
+     ],
+     "late_work_gt_16_7": 0,
+     "late_interval_gt_25": 0,
+     "fps": 106.5,
+     "spread": 0.0174,
+     "vsync_locked": false,
+     "frame_hashes": [
+      "c12e544b5a84fc04"
+     ],
+     "retried_runs": 0,
+     "gpu": {
+      "gl_cpu_submit_us": 305.0,
+      "gl_depth_bits": 24.0,
+      "gl_draw_calls_per_frame": 2.0,
+      "gl_family": "Apple",
+      "gl_frames_idle": 0.0,
+      "gl_frames_replayed": 270.0,
+      "gl_glyph_uploads": 116.0,
+      "gl_gpu_samples": 270.0,
+      "gl_gpu_samples_lost": 0.0,
+      "gl_gpu_us": 235.0,
+      "gl_max_texture": 16384.0,
+      "gl_occlusion_frames": 270.0,
+      "gl_program_build_ms": 5.0,
+      "gl_programs_built": 1.0,
+      "gl_quads_per_frame": 516.0,
+      "gl_renderer": "Apple M1 Pro",
+      "gl_timer_source": "GL_TIME_ELAPSED",
+      "gl_vendor": "Apple",
+      "gl_version": "4.1 Metal - 89.4",
+      "renderer": "gl"
+     }
+    }
+   },
+   "problems": [
+    {
+     "scene": "ui_scroll_fling",
+     "kind": "frame_hash_unstable",
+     "detail": "the last frame differs between runs: 53a37dd0334b724b, 5904a88580539bc1, 70c38c46c6c06ea2"
+    },
+    {
+     "scene": "ui_scroll_wheel",
+     "kind": "frame_hash_unstable",
+     "detail": "the last frame differs between runs: b224fc572f4a014f, f5b8d211d7df5de3, fa7be2c1356fba3f"
+    },
+    {
+     "scene": "ui_anim_transform",
+     "kind": "frame_hash_unstable",
+     "detail": "the last frame differs between runs: 593b634dcf3b4a6b, 62669d14d144b677, 6682199faa2d13e3"
+    },
+    {
+     "scene": "ui_anim_layout",
+     "kind": "frame_hash_unstable",
+     "detail": "the last frame differs between runs: 397ed58ff1646063, 80262d1f09916d03, 93a3f6b6c16e5543"
+    }
+   ],
+   "raw": {
+    "fill_opaque": [
+     {
+      "profile": {
+       "schema": 1,
+       "section": "fill_opaque",
+       "frame_hash": "4792796c7c9d0383",
+       "hash_size": "2048x1536",
+       "frames": 239,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 3,
+         "p99": 5,
+         "max": 6,
+         "mean": 2
+        },
+        "diff": {
+         "p50": 2,
+         "p99": 3,
+         "max": 28,
+         "mean": 1
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 1719,
+         "p99": 10987,
+         "max": 16956,
+         "mean": 3104
+        },
+        "work": {
+         "p50": 4,
+         "p99": 9,
+         "max": 33,
+         "mean": 4
+        },
+        "interval": {
+         "p50": 9798,
+         "p99": 15660,
+         "max": 17463,
+         "mean": 9755
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 3,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "1.0",
+        "gl_quads_per_frame": "9",
+        "gl_cpu_submit_us": "811",
+        "gl_gpu_us": "492",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "266",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "16.0",
+        "gl_occlusion_frames": "270",
+        "gl_depth_bits": "32",
+        "gl_glyph_uploads": "0"
+       }
+      },
+      "frame_hash": "4792796c7c9d0383",
+      "hash_size": "2048x1536",
+      "scene": "fill_opaque",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "fill_opaque",
+       "frame_hash": "4792796c7c9d0383",
+       "hash_size": "2048x1536",
+       "frames": 239,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 3,
+         "p99": 6,
+         "max": 14,
+         "mean": 2
+        },
+        "diff": {
+         "p50": 2,
+         "p99": 4,
+         "max": 26,
+         "mean": 1
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 2307,
+         "p99": 8458,
+         "max": 9835,
+         "mean": 3099
+        },
+        "work": {
+         "p50": 4,
+         "p99": 9,
+         "max": 30,
+         "mean": 4
+        },
+        "interval": {
+         "p50": 9654,
+         "p99": 10705,
+         "max": 13804,
+         "mean": 9578
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 0,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "1.0",
+        "gl_quads_per_frame": "9",
+        "gl_cpu_submit_us": "821",
+        "gl_gpu_us": "532",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "266",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "5.0",
+        "gl_occlusion_frames": "270",
+        "gl_depth_bits": "32",
+        "gl_glyph_uploads": "0"
+       }
+      },
+      "frame_hash": "4792796c7c9d0383",
+      "hash_size": "2048x1536",
+      "scene": "fill_opaque",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "fill_opaque",
+       "frame_hash": "4792796c7c9d0383",
+       "hash_size": "2048x1536",
+       "frames": 239,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 3,
+         "p99": 5,
+         "max": 25,
+         "mean": 2
+        },
+        "diff": {
+         "p50": 2,
+         "p99": 3,
+         "max": 19,
+         "mean": 1
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 1803,
+         "p99": 10864,
+         "max": 16660,
+         "mean": 3391
+        },
+        "work": {
+         "p50": 4,
+         "p99": 9,
+         "max": 27,
+         "mean": 4
+        },
+        "interval": {
+         "p50": 9848,
+         "p99": 12319,
+         "max": 17328,
+         "mean": 9691
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 1,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "1.0",
+        "gl_quads_per_frame": "9",
+        "gl_cpu_submit_us": "821",
+        "gl_gpu_us": "491",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "266",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "4.6",
+        "gl_occlusion_frames": "270",
+        "gl_depth_bits": "32",
+        "gl_glyph_uploads": "0"
+       }
+      },
+      "frame_hash": "4792796c7c9d0383",
+      "hash_size": "2048x1536",
+      "scene": "fill_opaque",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     }
+    ],
+    "fill_blend": [
+     {
+      "profile": {
+       "schema": 1,
+       "section": "fill_blend",
+       "frame_hash": "9c5feaa15a1d0383",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 3,
+         "p99": 7,
+         "max": 55,
+         "mean": 3
+        },
+        "diff": {
+         "p50": 1,
+         "p99": 4,
+         "max": 20,
+         "mean": 1
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 5893,
+         "p99": 13681,
+         "max": 16009,
+         "mean": 6613
+        },
+        "work": {
+         "p50": 4,
+         "p99": 26,
+         "max": 56,
+         "mean": 4
+        },
+        "interval": {
+         "p50": 9149,
+         "p99": 15172,
+         "max": 16645,
+         "mean": 9651
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 0,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "1.0",
+        "gl_quads_per_frame": "8",
+        "gl_cpu_submit_us": "756",
+        "gl_gpu_us": "3993",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "16.0",
+        "gl_occlusion_frames": "1",
+        "gl_depth_bits": "32",
+        "gl_glyph_uploads": "0"
+       }
+      },
+      "frame_hash": "9c5feaa15a1d0383",
+      "hash_size": "2048x1536",
+      "scene": "fill_blend",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "fill_blend",
+       "frame_hash": "9c5feaa15a1d0383",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 3,
+         "p99": 9,
+         "max": 15,
+         "mean": 2
+        },
+        "diff": {
+         "p50": 2,
+         "p99": 3,
+         "max": 102,
+         "mean": 2
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 5869,
+         "p99": 10752,
+         "max": 24251,
+         "mean": 6213
+        },
+        "work": {
+         "p50": 4,
+         "p99": 16,
+         "max": 106,
+         "mean": 5
+        },
+        "interval": {
+         "p50": 9019,
+         "p99": 11418,
+         "max": 24938,
+         "mean": 9164
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 1,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "1.0",
+        "gl_quads_per_frame": "8",
+        "gl_cpu_submit_us": "737",
+        "gl_gpu_us": "3926",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "5.0",
+        "gl_occlusion_frames": "1",
+        "gl_depth_bits": "32",
+        "gl_glyph_uploads": "0"
+       }
+      },
+      "frame_hash": "9c5feaa15a1d0383",
+      "hash_size": "2048x1536",
+      "scene": "fill_blend",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "fill_blend",
+       "frame_hash": "9c5feaa15a1d0383",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 3,
+         "p99": 7,
+         "max": 30,
+         "mean": 3
+        },
+        "diff": {
+         "p50": 1,
+         "p99": 4,
+         "max": 10,
+         "mean": 1
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 5832,
+         "p99": 16568,
+         "max": 17626,
+         "mean": 6999
+        },
+        "work": {
+         "p50": 4,
+         "p99": 11,
+         "max": 31,
+         "mean": 4
+        },
+        "interval": {
+         "p50": 9237,
+         "p99": 17161,
+         "max": 18121,
+         "mean": 9886
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 5,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "1.0",
+        "gl_quads_per_frame": "8",
+        "gl_cpu_submit_us": "728",
+        "gl_gpu_us": "3983",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "4.6",
+        "gl_occlusion_frames": "1",
+        "gl_depth_bits": "32",
+        "gl_glyph_uploads": "0"
+       }
+      },
+      "frame_hash": "9c5feaa15a1d0383",
+      "hash_size": "2048x1536",
+      "scene": "fill_blend",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     }
+    ],
+    "quads_10k": [
+     {
+      "profile": {
+       "schema": 1,
+       "section": "quads_10k",
+       "frame_hash": "b3a81229ea92c5d3",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 104,
+         "p99": 363,
+         "max": 1494,
+         "mean": 128
+        },
+        "diff": {
+         "p50": 53,
+         "p99": 125,
+         "max": 366,
+         "mean": 62
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 2310,
+         "p99": 10911,
+         "max": 25385,
+         "mean": 4007
+        },
+        "work": {
+         "p50": 158,
+         "p99": 493,
+         "max": 1751,
+         "mean": 190
+        },
+        "interval": {
+         "p50": 9535,
+         "p99": 12410,
+         "max": 28304,
+         "mean": 9653
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 3,
+        "interval_gt_25": 1,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "1.0",
+        "gl_quads_per_frame": "3734",
+        "gl_cpu_submit_us": "1180",
+        "gl_gpu_us": "774",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "16.0",
+        "gl_occlusion_frames": "269",
+        "gl_depth_bits": "32",
+        "gl_glyph_uploads": "0"
+       }
+      },
+      "frame_hash": "b3a81229ea92c5d3",
+      "hash_size": "2048x1536",
+      "scene": "quads_10k",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "quads_10k",
+       "frame_hash": "b3a81229ea92c5d3",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 104,
+         "p99": 233,
+         "max": 338,
+         "mean": 120
+        },
+        "diff": {
+         "p50": 53,
+         "p99": 155,
+         "max": 193,
+         "mean": 63
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 2791,
+         "p99": 8484,
+         "max": 10130,
+         "mean": 3327
+        },
+        "work": {
+         "p50": 158,
+         "p99": 359,
+         "max": 531,
+         "mean": 183
+        },
+        "interval": {
+         "p50": 9432,
+         "p99": 12097,
+         "max": 18778,
+         "mean": 9494
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 1,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "1.0",
+        "gl_quads_per_frame": "3734",
+        "gl_cpu_submit_us": "1147",
+        "gl_gpu_us": "762",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "5.0",
+        "gl_occlusion_frames": "269",
+        "gl_depth_bits": "32",
+        "gl_glyph_uploads": "0"
+       }
+      },
+      "frame_hash": "b3a81229ea92c5d3",
+      "hash_size": "2048x1536",
+      "scene": "quads_10k",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "quads_10k",
+       "frame_hash": "b3a81229ea92c5d3",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 112,
+         "p99": 346,
+         "max": 668,
+         "mean": 140
+        },
+        "diff": {
+         "p50": 58,
+         "p99": 157,
+         "max": 178,
+         "mean": 70
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 2624,
+         "p99": 11604,
+         "max": 13705,
+         "mean": 4136
+        },
+        "work": {
+         "p50": 171,
+         "p99": 493,
+         "max": 722,
+         "mean": 211
+        },
+        "interval": {
+         "p50": 9679,
+         "p99": 13854,
+         "max": 15160,
+         "mean": 9693
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 0,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "1.0",
+        "gl_quads_per_frame": "3734",
+        "gl_cpu_submit_us": "1172",
+        "gl_gpu_us": "785",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "4.6",
+        "gl_occlusion_frames": "269",
+        "gl_depth_bits": "32",
+        "gl_glyph_uploads": "0"
+       }
+      },
+      "frame_hash": "b3a81229ea92c5d3",
+      "hash_size": "2048x1536",
+      "scene": "quads_10k",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     }
+    ],
+    "rounded_shadow": [
+     {
+      "profile": {
+       "schema": 1,
+       "section": "rounded_shadow",
+       "frame_hash": "b8a1e1070229e3e8",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 10,
+         "p99": 32,
+         "max": 50,
+         "mean": 12
+        },
+        "diff": {
+         "p50": 4,
+         "p99": 10,
+         "max": 23,
+         "mean": 4
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 3546,
+         "p99": 11152,
+         "max": 14983,
+         "mean": 4621
+        },
+        "work": {
+         "p50": 14,
+         "p99": 40,
+         "max": 55,
+         "mean": 16
+        },
+        "interval": {
+         "p50": 9429,
+         "p99": 12829,
+         "max": 15474,
+         "mean": 9564
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 0,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "2.0",
+        "gl_quads_per_frame": "1689",
+        "gl_cpu_submit_us": "712",
+        "gl_gpu_us": "1780",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "16.0",
+        "gl_occlusion_frames": "270",
+        "gl_depth_bits": "32",
+        "gl_glyph_uploads": "0"
+       }
+      },
+      "frame_hash": "b8a1e1070229e3e8",
+      "hash_size": "2048x1536",
+      "scene": "rounded_shadow",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "rounded_shadow",
+       "frame_hash": "b8a1e1070229e3e8",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 10,
+         "p99": 35,
+         "max": 169,
+         "mean": 12
+        },
+        "diff": {
+         "p50": 4,
+         "p99": 8,
+         "max": 43,
+         "mean": 4
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 3607,
+         "p99": 8268,
+         "max": 11965,
+         "mean": 4080
+        },
+        "work": {
+         "p50": 14,
+         "p99": 59,
+         "max": 173,
+         "mean": 17
+        },
+        "interval": {
+         "p50": 9436,
+         "p99": 11449,
+         "max": 12915,
+         "mean": 9383
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 0,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "2.0",
+        "gl_quads_per_frame": "1689",
+        "gl_cpu_submit_us": "754",
+        "gl_gpu_us": "1799",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "5.0",
+        "gl_occlusion_frames": "270",
+        "gl_depth_bits": "32",
+        "gl_glyph_uploads": "0"
+       }
+      },
+      "frame_hash": "b8a1e1070229e3e8",
+      "hash_size": "2048x1536",
+      "scene": "rounded_shadow",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "rounded_shadow",
+       "frame_hash": "b8a1e1070229e3e8",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 10,
+         "p99": 29,
+         "max": 40,
+         "mean": 11
+        },
+        "diff": {
+         "p50": 4,
+         "p99": 9,
+         "max": 21,
+         "mean": 4
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 3527,
+         "p99": 10727,
+         "max": 11610,
+         "mean": 4663
+        },
+        "work": {
+         "p50": 14,
+         "p99": 38,
+         "max": 52,
+         "mean": 15
+        },
+        "interval": {
+         "p50": 9509,
+         "p99": 12046,
+         "max": 12952,
+         "mean": 9532
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 0,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "2.0",
+        "gl_quads_per_frame": "1689",
+        "gl_cpu_submit_us": "709",
+        "gl_gpu_us": "1785",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "4.6",
+        "gl_occlusion_frames": "270",
+        "gl_depth_bits": "32",
+        "gl_glyph_uploads": "0"
+       }
+      },
+      "frame_hash": "b8a1e1070229e3e8",
+      "hash_size": "2048x1536",
+      "scene": "rounded_shadow",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     }
+    ],
+    "gradients": [
+     {
+      "profile": {
+       "schema": 1,
+       "section": "gradients",
+       "frame_hash": "a39d0d1d76fe2005",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 6,
+         "p99": 20,
+         "max": 189,
+         "mean": 7
+        },
+        "diff": {
+         "p50": 2,
+         "p99": 4,
+         "max": 9,
+         "mean": 2
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 7517,
+         "p99": 14820,
+         "max": 15859,
+         "mean": 7930
+        },
+        "work": {
+         "p50": 8,
+         "p99": 22,
+         "max": 191,
+         "mean": 9
+        },
+        "interval": {
+         "p50": 9131,
+         "p99": 15895,
+         "max": 16483,
+         "mean": 9868
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 0,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "1.0",
+        "gl_quads_per_frame": "46",
+        "gl_cpu_submit_us": "632",
+        "gl_gpu_us": "5294",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "16.0",
+        "gl_occlusion_frames": "1",
+        "gl_depth_bits": "32",
+        "gl_glyph_uploads": "0"
+       }
+      },
+      "frame_hash": "a39d0d1d76fe2005",
+      "hash_size": "2048x1536",
+      "scene": "gradients",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "gradients",
+       "frame_hash": "a39d0d1d76fe2005",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 6,
+         "p99": 21,
+         "max": 59,
+         "mean": 6
+        },
+        "diff": {
+         "p50": 2,
+         "p99": 5,
+         "max": 19,
+         "mean": 2
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 7888,
+         "p99": 17038,
+         "max": 26941,
+         "mean": 8363
+        },
+        "work": {
+         "p50": 7,
+         "p99": 31,
+         "max": 61,
+         "mean": 8
+        },
+        "interval": {
+         "p50": 9196,
+         "p99": 17977,
+         "max": 27454,
+         "mean": 10423
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 13,
+        "interval_gt_25": 1,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "1.0",
+        "gl_quads_per_frame": "46",
+        "gl_cpu_submit_us": "685",
+        "gl_gpu_us": "5446",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "5.0",
+        "gl_occlusion_frames": "1",
+        "gl_depth_bits": "32",
+        "gl_glyph_uploads": "0"
+       }
+      },
+      "frame_hash": "a39d0d1d76fe2005",
+      "hash_size": "2048x1536",
+      "scene": "gradients",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "gradients",
+       "frame_hash": "a39d0d1d76fe2005",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 6,
+         "p99": 23,
+         "max": 55,
+         "mean": 6
+        },
+        "diff": {
+         "p50": 2,
+         "p99": 6,
+         "max": 18,
+         "mean": 2
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 7545,
+         "p99": 16338,
+         "max": 20974,
+         "mean": 8093
+        },
+        "work": {
+         "p50": 8,
+         "p99": 27,
+         "max": 60,
+         "mean": 9
+        },
+        "interval": {
+         "p50": 9124,
+         "p99": 17232,
+         "max": 21556,
+         "mean": 9984
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 6,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "1.0",
+        "gl_quads_per_frame": "46",
+        "gl_cpu_submit_us": "596",
+        "gl_gpu_us": "5412",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "4.6",
+        "gl_occlusion_frames": "1",
+        "gl_depth_bits": "32",
+        "gl_glyph_uploads": "0"
+       }
+      },
+      "frame_hash": "a39d0d1d76fe2005",
+      "hash_size": "2048x1536",
+      "scene": "gradients",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     }
+    ],
+    "text_static": [
+     {
+      "profile": {
+       "schema": 1,
+       "section": "text_static",
+       "frame_hash": "50b1db33fe4e9a2b",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 34,
+         "p99": 110,
+         "max": 154,
+         "mean": 43
+        },
+        "diff": {
+         "p50": 3,
+         "p99": 8,
+         "max": 70,
+         "mean": 3
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 2090,
+         "p99": 7555,
+         "max": 18189,
+         "mean": 2836
+        },
+        "work": {
+         "p50": 37,
+         "p99": 113,
+         "max": 160,
+         "mean": 46
+        },
+        "interval": {
+         "p50": 9850,
+         "p99": 10509,
+         "max": 18740,
+         "mean": 9742
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 2,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "1.0",
+        "gl_quads_per_frame": "2581",
+        "gl_cpu_submit_us": "962",
+        "gl_gpu_us": "542",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "16.0",
+        "gl_occlusion_frames": "0",
+        "gl_depth_bits": "32",
+        "gl_glyph_uploads": "111"
+       }
+      },
+      "frame_hash": "50b1db33fe4e9a2b",
+      "hash_size": "2048x1536",
+      "scene": "text_static",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "text_static",
+       "frame_hash": "50b1db33fe4e9a2b",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 33,
+         "p99": 111,
+         "max": 139,
+         "mean": 38
+        },
+        "diff": {
+         "p50": 2,
+         "p99": 7,
+         "max": 22,
+         "mean": 2
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 1812,
+         "p99": 9625,
+         "max": 10184,
+         "mean": 3378
+        },
+        "work": {
+         "p50": 35,
+         "p99": 123,
+         "max": 144,
+         "mean": 40
+        },
+        "interval": {
+         "p50": 9555,
+         "p99": 13219,
+         "max": 15033,
+         "mean": 9597
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 0,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "1.0",
+        "gl_quads_per_frame": "2581",
+        "gl_cpu_submit_us": "881",
+        "gl_gpu_us": "559",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "5.0",
+        "gl_occlusion_frames": "0",
+        "gl_depth_bits": "32",
+        "gl_glyph_uploads": "111"
+       }
+      },
+      "frame_hash": "50b1db33fe4e9a2b",
+      "hash_size": "2048x1536",
+      "scene": "text_static",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "text_static",
+       "frame_hash": "50b1db33fe4e9a2b",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 35,
+         "p99": 86,
+         "max": 122,
+         "mean": 40
+        },
+        "diff": {
+         "p50": 2,
+         "p99": 5,
+         "max": 14,
+         "mean": 2
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 2282,
+         "p99": 7074,
+         "max": 14567,
+         "mean": 2826
+        },
+        "work": {
+         "p50": 37,
+         "p99": 92,
+         "max": 125,
+         "mean": 43
+        },
+        "interval": {
+         "p50": 9599,
+         "p99": 12301,
+         "max": 17765,
+         "mean": 9628
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 1,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "1.0",
+        "gl_quads_per_frame": "2581",
+        "gl_cpu_submit_us": "860",
+        "gl_gpu_us": "557",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "4.6",
+        "gl_occlusion_frames": "0",
+        "gl_depth_bits": "32",
+        "gl_glyph_uploads": "111"
+       }
+      },
+      "frame_hash": "50b1db33fe4e9a2b",
+      "hash_size": "2048x1536",
+      "scene": "text_static",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     }
+    ],
+    "text_churn": [
+     {
+      "profile": {
+       "schema": 1,
+       "section": "text_churn",
+       "frame_hash": "1f738a1ec4569524",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 45,
+         "p99": 97,
+         "max": 127,
+         "mean": 51
+        },
+        "diff": {
+         "p50": 2,
+         "p99": 5,
+         "max": 5,
+         "mean": 2
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 1846,
+         "p99": 7231,
+         "max": 8189,
+         "mean": 2652
+        },
+        "work": {
+         "p50": 48,
+         "p99": 101,
+         "max": 131,
+         "mean": 53
+        },
+        "interval": {
+         "p50": 9779,
+         "p99": 10434,
+         "max": 14085,
+         "mean": 9654
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 0,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "1.0",
+        "gl_quads_per_frame": "1403",
+        "gl_cpu_submit_us": "869",
+        "gl_gpu_us": "343",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "16.0",
+        "gl_occlusion_frames": "0",
+        "gl_depth_bits": "32",
+        "gl_glyph_uploads": "114"
+       }
+      },
+      "frame_hash": "1f738a1ec4569524",
+      "hash_size": "2048x1536",
+      "scene": "text_churn",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "text_churn",
+       "frame_hash": "1f738a1ec4569524",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 47,
+         "p99": 128,
+         "max": 173,
+         "mean": 53
+        },
+        "diff": {
+         "p50": 2,
+         "p99": 4,
+         "max": 6,
+         "mean": 2
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 1750,
+         "p99": 13110,
+         "max": 14320,
+         "mean": 3522
+        },
+        "work": {
+         "p50": 49,
+         "p99": 131,
+         "max": 176,
+         "mean": 56
+        },
+        "interval": {
+         "p50": 9684,
+         "p99": 13827,
+         "max": 28467,
+         "mean": 9728
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 1,
+        "interval_gt_25": 1,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "1.0",
+        "gl_quads_per_frame": "1403",
+        "gl_cpu_submit_us": "780",
+        "gl_gpu_us": "325",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "5.0",
+        "gl_occlusion_frames": "0",
+        "gl_depth_bits": "32",
+        "gl_glyph_uploads": "114"
+       }
+      },
+      "frame_hash": "1f738a1ec4569524",
+      "hash_size": "2048x1536",
+      "scene": "text_churn",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "text_churn",
+       "frame_hash": "1f738a1ec4569524",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 44,
+         "p99": 201,
+         "max": 413,
+         "mean": 57
+        },
+        "diff": {
+         "p50": 2,
+         "p99": 11,
+         "max": 72,
+         "mean": 3
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 2225,
+         "p99": 12298,
+         "max": 13736,
+         "mean": 2849
+        },
+        "work": {
+         "p50": 46,
+         "p99": 204,
+         "max": 485,
+         "mean": 60
+        },
+        "interval": {
+         "p50": 9645,
+         "p99": 13166,
+         "max": 14681,
+         "mean": 9675
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 0,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "1.0",
+        "gl_quads_per_frame": "1403",
+        "gl_cpu_submit_us": "829",
+        "gl_gpu_us": "343",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "4.6",
+        "gl_occlusion_frames": "0",
+        "gl_depth_bits": "32",
+        "gl_glyph_uploads": "114"
+       }
+      },
+      "frame_hash": "1f738a1ec4569524",
+      "hash_size": "2048x1536",
+      "scene": "text_churn",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     }
+    ],
+    "clip_nested": [
+     {
+      "profile": {
+       "schema": 1,
+       "section": "clip_nested",
+       "frame_hash": "403fce4d68d7d3f4",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 18,
+         "p99": 49,
+         "max": 110,
+         "mean": 19
+        },
+        "diff": {
+         "p50": 5,
+         "p99": 12,
+         "max": 19,
+         "mean": 5
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 6918,
+         "p99": 17111,
+         "max": 49287,
+         "mean": 8131
+        },
+        "work": {
+         "p50": 23,
+         "p99": 61,
+         "max": 115,
+         "mean": 24
+        },
+        "interval": {
+         "p50": 8761,
+         "p99": 20300,
+         "max": 49890,
+         "mean": 9732
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 5,
+        "interval_gt_25": 3,
+        "interval_gt_33_3": 1,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "48.8",
+        "gl_quads_per_frame": "580",
+        "gl_cpu_submit_us": "6263",
+        "gl_gpu_us": "5920",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "16.0",
+        "gl_occlusion_frames": "269",
+        "gl_depth_bits": "32",
+        "gl_glyph_uploads": "114"
+       }
+      },
+      "frame_hash": "403fce4d68d7d3f4",
+      "hash_size": "2048x1536",
+      "scene": "clip_nested",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "clip_nested",
+       "frame_hash": "403fce4d68d7d3f4",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 18,
+         "p99": 86,
+         "max": 688,
+         "mean": 24
+        },
+        "diff": {
+         "p50": 5,
+         "p99": 11,
+         "max": 112,
+         "mean": 5
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 6949,
+         "p99": 16760,
+         "max": 28018,
+         "mean": 8425
+        },
+        "work": {
+         "p50": 23,
+         "p99": 123,
+         "max": 749,
+         "mean": 29
+        },
+        "interval": {
+         "p50": 8871,
+         "p99": 17886,
+         "max": 30233,
+         "mean": 10147
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 5,
+        "interval_gt_25": 2,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "48.8",
+        "gl_quads_per_frame": "580",
+        "gl_cpu_submit_us": "6076",
+        "gl_gpu_us": "5714",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "5.0",
+        "gl_occlusion_frames": "269",
+        "gl_depth_bits": "32",
+        "gl_glyph_uploads": "114"
+       }
+      },
+      "frame_hash": "403fce4d68d7d3f4",
+      "hash_size": "2048x1536",
+      "scene": "clip_nested",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "clip_nested",
+       "frame_hash": "403fce4d68d7d3f4",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 18,
+         "p99": 29,
+         "max": 127,
+         "mean": 18
+        },
+        "diff": {
+         "p50": 5,
+         "p99": 7,
+         "max": 28,
+         "mean": 4
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 6729,
+         "p99": 14223,
+         "max": 17068,
+         "mean": 7480
+        },
+        "work": {
+         "p50": 23,
+         "p99": 43,
+         "max": 133,
+         "mean": 23
+        },
+        "interval": {
+         "p50": 8804,
+         "p99": 14689,
+         "max": 17679,
+         "mean": 9303
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 1,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "48.8",
+        "gl_quads_per_frame": "580",
+        "gl_cpu_submit_us": "6072",
+        "gl_gpu_us": "5658",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "4.6",
+        "gl_occlusion_frames": "269",
+        "gl_depth_bits": "32",
+        "gl_glyph_uploads": "114"
+       }
+      },
+      "frame_hash": "403fce4d68d7d3f4",
+      "hash_size": "2048x1536",
+      "scene": "clip_nested",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     }
+    ],
+    "poly": [
+     {
+      "profile": {
+       "schema": 1,
+       "section": "poly",
+       "frame_hash": "aa2f461e3be126fb",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 26,
+         "p99": 81,
+         "max": 104,
+         "mean": 32
+        },
+        "diff": {
+         "p50": 4,
+         "p99": 10,
+         "max": 16,
+         "mean": 4
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 2194,
+         "p99": 10166,
+         "max": 11607,
+         "mean": 3606
+        },
+        "work": {
+         "p50": 30,
+         "p99": 87,
+         "max": 109,
+         "mean": 36
+        },
+        "interval": {
+         "p50": 9584,
+         "p99": 11126,
+         "max": 12088,
+         "mean": 9516
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 0,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "200.4",
+        "gl_quads_per_frame": "202",
+        "gl_cpu_submit_us": "918",
+        "gl_gpu_us": "942",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "16.0",
+        "gl_occlusion_frames": "270",
+        "gl_depth_bits": "32",
+        "gl_glyph_uploads": "114"
+       }
+      },
+      "frame_hash": "aa2f461e3be126fb",
+      "hash_size": "2048x1536",
+      "scene": "poly",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "poly",
+       "frame_hash": "aa2f461e3be126fb",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 26,
+         "p99": 79,
+         "max": 88,
+         "mean": 30
+        },
+        "diff": {
+         "p50": 4,
+         "p99": 11,
+         "max": 14,
+         "mean": 4
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 2545,
+         "p99": 10083,
+         "max": 12241,
+         "mean": 3253
+        },
+        "work": {
+         "p50": 30,
+         "p99": 87,
+         "max": 99,
+         "mean": 35
+        },
+        "interval": {
+         "p50": 9651,
+         "p99": 12248,
+         "max": 33749,
+         "mean": 9667
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 1,
+        "interval_gt_25": 1,
+        "interval_gt_33_3": 1,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "200.4",
+        "gl_quads_per_frame": "202",
+        "gl_cpu_submit_us": "853",
+        "gl_gpu_us": "936",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "5.0",
+        "gl_occlusion_frames": "270",
+        "gl_depth_bits": "32",
+        "gl_glyph_uploads": "114"
+       }
+      },
+      "frame_hash": "aa2f461e3be126fb",
+      "hash_size": "2048x1536",
+      "scene": "poly",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "poly",
+       "frame_hash": "aa2f461e3be126fb",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 27,
+         "p99": 87,
+         "max": 127,
+         "mean": 30
+        },
+        "diff": {
+         "p50": 4,
+         "p99": 7,
+         "max": 45,
+         "mean": 4
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 2095,
+         "p99": 9797,
+         "max": 10216,
+         "mean": 3575
+        },
+        "work": {
+         "p50": 31,
+         "p99": 93,
+         "max": 153,
+         "mean": 34
+        },
+        "interval": {
+         "p50": 9465,
+         "p99": 10745,
+         "max": 12841,
+         "mean": 9465
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 0,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "200.4",
+        "gl_quads_per_frame": "202",
+        "gl_cpu_submit_us": "856",
+        "gl_gpu_us": "923",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "4.6",
+        "gl_occlusion_frames": "270",
+        "gl_depth_bits": "32",
+        "gl_glyph_uploads": "114"
+       }
+      },
+      "frame_hash": "aa2f461e3be126fb",
+      "hash_size": "2048x1536",
+      "scene": "poly",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     }
+    ],
+    "scroll_list": [
+     {
+      "profile": {
+       "schema": 1,
+       "section": "scroll_list",
+       "frame_hash": "77cd4a49822b2ec4",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 23,
+         "p99": 71,
+         "max": 114,
+         "mean": 26
+        },
+        "diff": {
+         "p50": 3,
+         "p99": 9,
+         "max": 23,
+         "mean": 3
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 1732,
+         "p99": 10112,
+         "max": 11566,
+         "mean": 3402
+        },
+        "work": {
+         "p50": 27,
+         "p99": 80,
+         "max": 130,
+         "mean": 29
+        },
+        "interval": {
+         "p50": 9550,
+         "p99": 11211,
+         "max": 12964,
+         "mean": 9533
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 0,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "36.9",
+        "gl_quads_per_frame": "318",
+        "gl_cpu_submit_us": "767",
+        "gl_gpu_us": "525",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "16.0",
+        "gl_occlusion_frames": "270",
+        "gl_depth_bits": "32",
+        "gl_glyph_uploads": "115"
+       }
+      },
+      "frame_hash": "77cd4a49822b2ec4",
+      "hash_size": "2048x1536",
+      "scene": "scroll_list",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "scroll_list",
+       "frame_hash": "77cd4a49822b2ec4",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 24,
+         "p99": 87,
+         "max": 126,
+         "mean": 28
+        },
+        "diff": {
+         "p50": 3,
+         "p99": 13,
+         "max": 72,
+         "mean": 4
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 2048,
+         "p99": 9845,
+         "max": 13413,
+         "mean": 2766
+        },
+        "work": {
+         "p50": 27,
+         "p99": 103,
+         "max": 149,
+         "mean": 32
+        },
+        "interval": {
+         "p50": 9815,
+         "p99": 12300,
+         "max": 16613,
+         "mean": 9745
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 0,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "36.9",
+        "gl_quads_per_frame": "318",
+        "gl_cpu_submit_us": "815",
+        "gl_gpu_us": "518",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "5.0",
+        "gl_occlusion_frames": "270",
+        "gl_depth_bits": "32",
+        "gl_glyph_uploads": "115"
+       }
+      },
+      "frame_hash": "77cd4a49822b2ec4",
+      "hash_size": "2048x1536",
+      "scene": "scroll_list",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "scroll_list",
+       "frame_hash": "77cd4a49822b2ec4",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 24,
+         "p99": 146,
+         "max": 272,
+         "mean": 31
+        },
+        "diff": {
+         "p50": 3,
+         "p99": 11,
+         "max": 220,
+         "mean": 4
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 1859,
+         "p99": 10188,
+         "max": 14484,
+         "mean": 3360
+        },
+        "work": {
+         "p50": 28,
+         "p99": 153,
+         "max": 398,
+         "mean": 35
+        },
+        "interval": {
+         "p50": 9758,
+         "p99": 14525,
+         "max": 15951,
+         "mean": 9775
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 0,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "36.9",
+        "gl_quads_per_frame": "318",
+        "gl_cpu_submit_us": "760",
+        "gl_gpu_us": "526",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "4.6",
+        "gl_occlusion_frames": "270",
+        "gl_depth_bits": "32",
+        "gl_glyph_uploads": "115"
+       }
+      },
+      "frame_hash": "77cd4a49822b2ec4",
+      "hash_size": "2048x1536",
+      "scene": "scroll_list",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     }
+    ],
+    "image_update": [
+     {
+      "profile": {
+       "schema": 1,
+       "section": "image_update",
+       "frame_hash": "a6a17d846c7a5fc3",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 632,
+         "p99": 1293,
+         "max": 2255,
+         "mean": 751
+        },
+        "diff": {
+         "p50": 1,
+         "p99": 3,
+         "max": 3,
+         "mean": 1
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 1881,
+         "p99": 10356,
+         "max": 12920,
+         "mean": 3472
+        },
+        "work": {
+         "p50": 634,
+         "p99": 1295,
+         "max": 2257,
+         "mean": 752
+        },
+        "interval": {
+         "p50": 9597,
+         "p99": 11915,
+         "max": 14095,
+         "mean": 9556
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 0,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "1.1",
+        "gl_quads_per_frame": "5",
+        "gl_cpu_submit_us": "815",
+        "gl_gpu_us": "440",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "16.0",
+        "gl_occlusion_frames": "1",
+        "gl_depth_bits": "32",
+        "gl_glyph_uploads": "115"
+       }
+      },
+      "frame_hash": "a6a17d846c7a5fc3",
+      "hash_size": "2048x1536",
+      "scene": "image_update",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "image_update",
+       "frame_hash": "a6a17d846c7a5fc3",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 676,
+         "p99": 1266,
+         "max": 1434,
+         "mean": 746
+        },
+        "diff": {
+         "p50": 1,
+         "p99": 4,
+         "max": 17,
+         "mean": 1
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 2317,
+         "p99": 7078,
+         "max": 8280,
+         "mean": 2783
+        },
+        "work": {
+         "p50": 677,
+         "p99": 1268,
+         "max": 1436,
+         "mean": 748
+        },
+        "interval": {
+         "p50": 9596,
+         "p99": 10097,
+         "max": 11139,
+         "mean": 9453
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 0,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "1.1",
+        "gl_quads_per_frame": "5",
+        "gl_cpu_submit_us": "858",
+        "gl_gpu_us": "458",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "5.0",
+        "gl_occlusion_frames": "1",
+        "gl_depth_bits": "32",
+        "gl_glyph_uploads": "115"
+       }
+      },
+      "frame_hash": "a6a17d846c7a5fc3",
+      "hash_size": "2048x1536",
+      "scene": "image_update",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "image_update",
+       "frame_hash": "a6a17d846c7a5fc3",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 640,
+         "p99": 1790,
+         "max": 4734,
+         "mean": 804
+        },
+        "diff": {
+         "p50": 1,
+         "p99": 3,
+         "max": 4,
+         "mean": 1
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 1853,
+         "p99": 10137,
+         "max": 11740,
+         "mean": 3330
+        },
+        "work": {
+         "p50": 641,
+         "p99": 1794,
+         "max": 4738,
+         "mean": 806
+        },
+        "interval": {
+         "p50": 9567,
+         "p99": 14181,
+         "max": 16322,
+         "mean": 9633
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 0,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "1.1",
+        "gl_quads_per_frame": "5",
+        "gl_cpu_submit_us": "781",
+        "gl_gpu_us": "435",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "4.6",
+        "gl_occlusion_frames": "1",
+        "gl_depth_bits": "32",
+        "gl_glyph_uploads": "115"
+       }
+      },
+      "frame_hash": "a6a17d846c7a5fc3",
+      "hash_size": "2048x1536",
+      "scene": "image_update",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     }
+    ],
+    "image_fill_only": [
+     {
+      "profile": {
+       "schema": 1,
+       "section": "image_fill_only",
+       "frame_hash": "0cfd888a7c9d0383",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 589,
+         "p99": 1651,
+         "max": 6156,
+         "mean": 714
+        },
+        "diff": {
+         "p50": 1,
+         "p99": 2,
+         "max": 4,
+         "mean": 1
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 512,
+         "p99": 8408,
+         "max": 11908,
+         "mean": 2023
+        },
+        "work": {
+         "p50": 590,
+         "p99": 1652,
+         "max": 6158,
+         "mean": 715
+        },
+        "interval": {
+         "p50": 9582,
+         "p99": 10818,
+         "max": 14172,
+         "mean": 9597
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 0,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "0.0",
+        "gl_quads_per_frame": "0",
+        "gl_cpu_submit_us": "37",
+        "gl_gpu_us": "8",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "16.0",
+        "gl_occlusion_frames": "0",
+        "gl_depth_bits": "32",
+        "gl_glyph_uploads": "115"
+       }
+      },
+      "frame_hash": "0cfd888a7c9d0383",
+      "hash_size": "2048x1536",
+      "scene": "image_fill_only",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "image_fill_only",
+       "frame_hash": "0cfd888a7c9d0383",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 573,
+         "p99": 1425,
+         "max": 1651,
+         "mean": 737
+        },
+        "diff": {
+         "p50": 1,
+         "p99": 3,
+         "max": 5,
+         "mean": 1
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 546,
+         "p99": 8344,
+         "max": 12909,
+         "mean": 1667
+        },
+        "work": {
+         "p50": 574,
+         "p99": 1426,
+         "max": 1654,
+         "mean": 738
+        },
+        "interval": {
+         "p50": 9895,
+         "p99": 12057,
+         "max": 14594,
+         "mean": 9773
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 0,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "0.0",
+        "gl_quads_per_frame": "0",
+        "gl_cpu_submit_us": "41",
+        "gl_gpu_us": "7",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "5.0",
+        "gl_occlusion_frames": "0",
+        "gl_depth_bits": "32",
+        "gl_glyph_uploads": "115"
+       }
+      },
+      "frame_hash": "0cfd888a7c9d0383",
+      "hash_size": "2048x1536",
+      "scene": "image_fill_only",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "image_fill_only",
+       "frame_hash": "0cfd888a7c9d0383",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 642,
+         "p99": 2138,
+         "max": 2703,
+         "mean": 771
+        },
+        "diff": {
+         "p50": 1,
+         "p99": 3,
+         "max": 71,
+         "mean": 1
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 608,
+         "p99": 9106,
+         "max": 9986,
+         "mean": 2118
+        },
+        "work": {
+         "p50": 644,
+         "p99": 2140,
+         "max": 2704,
+         "mean": 772
+        },
+        "interval": {
+         "p50": 9722,
+         "p99": 12168,
+         "max": 13845,
+         "mean": 9722
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 0,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "0.0",
+        "gl_quads_per_frame": "0",
+        "gl_cpu_submit_us": "42",
+        "gl_gpu_us": "7",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "4.6",
+        "gl_occlusion_frames": "0",
+        "gl_depth_bits": "32",
+        "gl_glyph_uploads": "115"
+       }
+      },
+      "frame_hash": "0cfd888a7c9d0383",
+      "hash_size": "2048x1536",
+      "scene": "image_fill_only",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     }
+    ],
+    "image_upload_only": [
+     {
+      "profile": {
+       "schema": 1,
+       "section": "image_upload_only",
+       "frame_hash": "a6a17d846c7a5fc3",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 55,
+         "p99": 159,
+         "max": 610,
+         "mean": 68
+        },
+        "diff": {
+         "p50": 2,
+         "p99": 3,
+         "max": 24,
+         "mean": 1
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 2052,
+         "p99": 11577,
+         "max": 13430,
+         "mean": 2907
+        },
+        "work": {
+         "p50": 56,
+         "p99": 162,
+         "max": 612,
+         "mean": 70
+        },
+        "interval": {
+         "p50": 9655,
+         "p99": 12983,
+         "max": 14303,
+         "mean": 9659
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 0,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "1.0",
+        "gl_quads_per_frame": "4",
+        "gl_cpu_submit_us": "945",
+        "gl_gpu_us": "484",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "16.0",
+        "gl_occlusion_frames": "0",
+        "gl_depth_bits": "32",
+        "gl_glyph_uploads": "115"
+       }
+      },
+      "frame_hash": "a6a17d846c7a5fc3",
+      "hash_size": "2048x1536",
+      "scene": "image_upload_only",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "image_upload_only",
+       "frame_hash": "a6a17d846c7a5fc3",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 54,
+         "p99": 231,
+         "max": 6042,
+         "mean": 86
+        },
+        "diff": {
+         "p50": 1,
+         "p99": 8,
+         "max": 49,
+         "mean": 1
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 1673,
+         "p99": 9375,
+         "max": 13668,
+         "mean": 3123
+        },
+        "work": {
+         "p50": 55,
+         "p99": 235,
+         "max": 6043,
+         "mean": 88
+        },
+        "interval": {
+         "p50": 9633,
+         "p99": 11158,
+         "max": 19629,
+         "mean": 9629
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 2,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "1.0",
+        "gl_quads_per_frame": "4",
+        "gl_cpu_submit_us": "878",
+        "gl_gpu_us": "445",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "5.0",
+        "gl_occlusion_frames": "0",
+        "gl_depth_bits": "32",
+        "gl_glyph_uploads": "115"
+       }
+      },
+      "frame_hash": "a6a17d846c7a5fc3",
+      "hash_size": "2048x1536",
+      "scene": "image_upload_only",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "image_upload_only",
+       "frame_hash": "a6a17d846c7a5fc3",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 55,
+         "p99": 168,
+         "max": 259,
+         "mean": 66
+        },
+        "diff": {
+         "p50": 2,
+         "p99": 4,
+         "max": 6,
+         "mean": 1
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 2327,
+         "p99": 9749,
+         "max": 11157,
+         "mean": 2782
+        },
+        "work": {
+         "p50": 57,
+         "p99": 170,
+         "max": 261,
+         "mean": 67
+        },
+        "interval": {
+         "p50": 9759,
+         "p99": 10722,
+         "max": 14161,
+         "mean": 9632
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 0,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "1.0",
+        "gl_quads_per_frame": "4",
+        "gl_cpu_submit_us": "881",
+        "gl_gpu_us": "446",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "4.6",
+        "gl_occlusion_frames": "0",
+        "gl_depth_bits": "32",
+        "gl_glyph_uploads": "115"
+       }
+      },
+      "frame_hash": "a6a17d846c7a5fc3",
+      "hash_size": "2048x1536",
+      "scene": "image_upload_only",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     }
+    ],
+    "damage_small": [
+     {
+      "profile": {
+       "schema": 1,
+       "section": "damage_small",
+       "frame_hash": "de1e87d05e77f573",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 7,
+         "p99": 29,
+         "max": 154,
+         "mean": 8
+        },
+        "diff": {
+         "p50": 4,
+         "p99": 12,
+         "max": 48,
+         "mean": 4
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 913,
+         "p99": 7635,
+         "max": 17720,
+         "mean": 1803
+        },
+        "work": {
+         "p50": 10,
+         "p99": 50,
+         "max": 170,
+         "mean": 12
+        },
+        "interval": {
+         "p50": 9491,
+         "p99": 12395,
+         "max": 17813,
+         "mean": 9454
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 1,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "1.0",
+        "gl_quads_per_frame": "301",
+        "gl_cpu_submit_us": "265",
+        "gl_gpu_us": "236",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "16.0",
+        "gl_occlusion_frames": "269",
+        "gl_depth_bits": "24",
+        "gl_glyph_uploads": "115"
+       }
+      },
+      "frame_hash": "de1e87d05e77f573",
+      "hash_size": "2048x1536",
+      "scene": "damage_small",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "damage_small",
+       "frame_hash": "de1e87d05e77f573",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 7,
+         "p99": 33,
+         "max": 138,
+         "mean": 8
+        },
+        "diff": {
+         "p50": 4,
+         "p99": 19,
+         "max": 118,
+         "mean": 4
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 880,
+         "p99": 9760,
+         "max": 11166,
+         "mean": 2537
+        },
+        "work": {
+         "p50": 10,
+         "p99": 38,
+         "max": 216,
+         "mean": 12
+        },
+        "interval": {
+         "p50": 9317,
+         "p99": 10128,
+         "max": 11236,
+         "mean": 9247
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 0,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "1.0",
+        "gl_quads_per_frame": "301",
+        "gl_cpu_submit_us": "293",
+        "gl_gpu_us": "265",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "5.0",
+        "gl_occlusion_frames": "269",
+        "gl_depth_bits": "24",
+        "gl_glyph_uploads": "115"
+       }
+      },
+      "frame_hash": "de1e87d05e77f573",
+      "hash_size": "2048x1536",
+      "scene": "damage_small",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "damage_small",
+       "frame_hash": "de1e87d05e77f573",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 7,
+         "p99": 26,
+         "max": 59,
+         "mean": 8
+        },
+        "diff": {
+         "p50": 4,
+         "p99": 13,
+         "max": 1189,
+         "mean": 9
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 872,
+         "p99": 9049,
+         "max": 31511,
+         "mean": 1937
+        },
+        "work": {
+         "p50": 11,
+         "p99": 41,
+         "max": 1206,
+         "mean": 17
+        },
+        "interval": {
+         "p50": 9493,
+         "p99": 12790,
+         "max": 31597,
+         "mean": 9577
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 2,
+        "interval_gt_25": 1,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "1.0",
+        "gl_quads_per_frame": "301",
+        "gl_cpu_submit_us": "300",
+        "gl_gpu_us": "249",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "4.6",
+        "gl_occlusion_frames": "269",
+        "gl_depth_bits": "24",
+        "gl_glyph_uploads": "115"
+       }
+      },
+      "frame_hash": "de1e87d05e77f573",
+      "hash_size": "2048x1536",
+      "scene": "damage_small",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     }
+    ],
+    "ui_scroll_fling": [
+     {
+      "profile": {
+       "schema": 1,
+       "section": "ui_scroll_fling",
+       "frame_hash": "53a37dd0334b724b",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 3,
+         "p99": 164,
+         "max": 219,
+         "mean": 12
+        },
+        "input": {
+         "p50": 74,
+         "p99": 194,
+         "max": 285,
+         "mean": 79
+        },
+        "anim": {
+         "p50": 1,
+         "p99": 4,
+         "max": 12,
+         "mean": 1
+        },
+        "layout": {
+         "p50": 1,
+         "p99": 2,
+         "max": 5,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 259,
+         "p99": 615,
+         "max": 833,
+         "mean": 311
+        },
+        "effects": {
+         "p50": 0,
+         "p99": 2,
+         "max": 2,
+         "mean": 0
+        },
+        "diff": {
+         "p50": 10,
+         "p99": 24,
+         "max": 40,
+         "mean": 11
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 2816,
+         "p99": 7951,
+         "max": 9218,
+         "mean": 3224
+        },
+        "work": {
+         "p50": 359,
+         "p99": 831,
+         "max": 1112,
+         "mean": 418
+        },
+        "interval": {
+         "p50": 9128,
+         "p99": 9621,
+         "max": 9798,
+         "mean": 9038
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 0,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "3.0",
+        "gl_quads_per_frame": "680",
+        "gl_cpu_submit_us": "834",
+        "gl_gpu_us": "778",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "16.0",
+        "gl_occlusion_frames": "270",
+        "gl_depth_bits": "32",
+        "gl_glyph_uploads": "116"
+       }
+      },
+      "frame_hash": "53a37dd0334b724b",
+      "hash_size": "2048x1536",
+      "scene": "ui_scroll_fling",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "ui_scroll_fling",
+       "frame_hash": "5904a88580539bc1",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 3,
+         "p99": 120,
+         "max": 812,
+         "mean": 13
+        },
+        "input": {
+         "p50": 75,
+         "p99": 336,
+         "max": 431,
+         "mean": 89
+        },
+        "anim": {
+         "p50": 1,
+         "p99": 3,
+         "max": 10,
+         "mean": 1
+        },
+        "layout": {
+         "p50": 1,
+         "p99": 3,
+         "max": 15,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 259,
+         "p99": 1120,
+         "max": 2003,
+         "mean": 357
+        },
+        "effects": {
+         "p50": 0,
+         "p99": 2,
+         "max": 68,
+         "mean": 0
+        },
+        "diff": {
+         "p50": 10,
+         "p99": 29,
+         "max": 37,
+         "mean": 12
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 2099,
+         "p99": 11737,
+         "max": 16172,
+         "mean": 3841
+        },
+        "work": {
+         "p50": 364,
+         "p99": 1547,
+         "max": 2369,
+         "mean": 476
+        },
+        "interval": {
+         "p50": 9316,
+         "p99": 13007,
+         "max": 16581,
+         "mean": 9284
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 0,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "3.0",
+        "gl_quads_per_frame": "680",
+        "gl_cpu_submit_us": "772",
+        "gl_gpu_us": "737",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "5.0",
+        "gl_occlusion_frames": "270",
+        "gl_depth_bits": "32",
+        "gl_glyph_uploads": "116"
+       }
+      },
+      "frame_hash": "5904a88580539bc1",
+      "hash_size": "2048x1536",
+      "scene": "ui_scroll_fling",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "ui_scroll_fling",
+       "frame_hash": "70c38c46c6c06ea2",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 3,
+         "p99": 78,
+         "max": 672,
+         "mean": 12
+        },
+        "input": {
+         "p50": 73,
+         "p99": 445,
+         "max": 490,
+         "mean": 82
+        },
+        "anim": {
+         "p50": 1,
+         "p99": 3,
+         "max": 9,
+         "mean": 1
+        },
+        "layout": {
+         "p50": 1,
+         "p99": 2,
+         "max": 3,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 254,
+         "p99": 1544,
+         "max": 2730,
+         "mean": 315
+        },
+        "effects": {
+         "p50": 0,
+         "p99": 2,
+         "max": 3,
+         "mean": 0
+        },
+        "diff": {
+         "p50": 10,
+         "p99": 28,
+         "max": 92,
+         "mean": 11
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 2862,
+         "p99": 8071,
+         "max": 12302,
+         "mean": 3409
+        },
+        "work": {
+         "p50": 357,
+         "p99": 2041,
+         "max": 3624,
+         "mean": 424
+        },
+        "interval": {
+         "p50": 9076,
+         "p99": 11570,
+         "max": 16493,
+         "mean": 9037
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 0,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "3.0",
+        "gl_quads_per_frame": "681",
+        "gl_cpu_submit_us": "863",
+        "gl_gpu_us": "779",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "4.6",
+        "gl_occlusion_frames": "270",
+        "gl_depth_bits": "32",
+        "gl_glyph_uploads": "116"
+       }
+      },
+      "frame_hash": "70c38c46c6c06ea2",
+      "hash_size": "2048x1536",
+      "scene": "ui_scroll_fling",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     }
+    ],
+    "ui_scroll_wheel": [
+     {
+      "profile": {
+       "schema": 1,
+       "section": "ui_scroll_wheel",
+       "frame_hash": "b224fc572f4a014f",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 3,
+         "p99": 141,
+         "max": 208,
+         "mean": 19
+        },
+        "input": {
+         "p50": 45,
+         "p99": 141,
+         "max": 182,
+         "mean": 44
+        },
+        "anim": {
+         "p50": 1,
+         "p99": 2,
+         "max": 17,
+         "mean": 1
+        },
+        "layout": {
+         "p50": 1,
+         "p99": 2,
+         "max": 2,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 259,
+         "p99": 839,
+         "max": 1616,
+         "mean": 293
+        },
+        "effects": {
+         "p50": 0,
+         "p99": 2,
+         "max": 23,
+         "mean": 0
+        },
+        "diff": {
+         "p50": 10,
+         "p99": 26,
+         "max": 42,
+         "mean": 10
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 2078,
+         "p99": 9684,
+         "max": 12845,
+         "mean": 3213
+        },
+        "work": {
+         "p50": 336,
+         "p99": 1034,
+         "max": 1771,
+         "mean": 371
+        },
+        "interval": {
+         "p50": 9168,
+         "p99": 10133,
+         "max": 13301,
+         "mean": 9064
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 0,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "3.0",
+        "gl_quads_per_frame": "696",
+        "gl_cpu_submit_us": "795",
+        "gl_gpu_us": "737",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "16.0",
+        "gl_occlusion_frames": "270",
+        "gl_depth_bits": "32",
+        "gl_glyph_uploads": "116"
+       }
+      },
+      "frame_hash": "b224fc572f4a014f",
+      "hash_size": "2048x1536",
+      "scene": "ui_scroll_wheel",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "ui_scroll_wheel",
+       "frame_hash": "f5b8d211d7df5de3",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 2,
+         "p99": 146,
+         "max": 182,
+         "mean": 19
+        },
+        "input": {
+         "p50": 43,
+         "p99": 99,
+         "max": 151,
+         "mean": 42
+        },
+        "anim": {
+         "p50": 1,
+         "p99": 2,
+         "max": 11,
+         "mean": 1
+        },
+        "layout": {
+         "p50": 1,
+         "p99": 2,
+         "max": 2,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 262,
+         "p99": 754,
+         "max": 3930,
+         "mean": 331
+        },
+        "effects": {
+         "p50": 0,
+         "p99": 2,
+         "max": 19,
+         "mean": 0
+        },
+        "diff": {
+         "p50": 10,
+         "p99": 25,
+         "max": 47,
+         "mean": 11
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 2530,
+         "p99": 10246,
+         "max": 10494,
+         "mean": 3534
+        },
+        "work": {
+         "p50": 342,
+         "p99": 889,
+         "max": 4099,
+         "mean": 407
+        },
+        "interval": {
+         "p50": 9134,
+         "p99": 10776,
+         "max": 11633,
+         "mean": 9055
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 0,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "3.0",
+        "gl_quads_per_frame": "694",
+        "gl_cpu_submit_us": "730",
+        "gl_gpu_us": "760",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "5.0",
+        "gl_occlusion_frames": "270",
+        "gl_depth_bits": "32",
+        "gl_glyph_uploads": "116"
+       }
+      },
+      "frame_hash": "f5b8d211d7df5de3",
+      "hash_size": "2048x1536",
+      "scene": "ui_scroll_wheel",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "ui_scroll_wheel",
+       "frame_hash": "fa7be2c1356fba3f",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 3,
+         "p99": 167,
+         "max": 456,
+         "mean": 21
+        },
+        "input": {
+         "p50": 43,
+         "p99": 108,
+         "max": 201,
+         "mean": 43
+        },
+        "anim": {
+         "p50": 1,
+         "p99": 3,
+         "max": 6,
+         "mean": 1
+        },
+        "layout": {
+         "p50": 1,
+         "p99": 2,
+         "max": 22,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 275,
+         "p99": 579,
+         "max": 796,
+         "mean": 308
+        },
+        "effects": {
+         "p50": 0,
+         "p99": 2,
+         "max": 117,
+         "mean": 0
+        },
+        "diff": {
+         "p50": 11,
+         "p99": 24,
+         "max": 435,
+         "mean": 13
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 1931,
+         "p99": 9412,
+         "max": 10620,
+         "mean": 3158
+        },
+        "work": {
+         "p50": 353,
+         "p99": 797,
+         "max": 1107,
+         "mean": 389
+        },
+        "interval": {
+         "p50": 9170,
+         "p99": 9942,
+         "max": 10892,
+         "mean": 9080
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 0,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "3.0",
+        "gl_quads_per_frame": "694",
+        "gl_cpu_submit_us": "783",
+        "gl_gpu_us": "792",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "4.6",
+        "gl_occlusion_frames": "270",
+        "gl_depth_bits": "32",
+        "gl_glyph_uploads": "116"
+       }
+      },
+      "frame_hash": "fa7be2c1356fba3f",
+      "hash_size": "2048x1536",
+      "scene": "ui_scroll_wheel",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     }
+    ],
+    "ui_anim_transform": [
+     {
+      "profile": {
+       "schema": 1,
+       "section": "ui_anim_transform",
+       "frame_hash": "62669d14d144b677",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 3,
+         "p99": 231,
+         "max": 310,
+         "mean": 9
+        },
+        "input": {
+         "p50": 11,
+         "p99": 110,
+         "max": 4110,
+         "mean": 32
+        },
+        "anim": {
+         "p50": 34,
+         "p99": 291,
+         "max": 4461,
+         "mean": 60
+        },
+        "layout": {
+         "p50": 1,
+         "p99": 2,
+         "max": 6,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 19,
+         "p99": 95,
+         "max": 273,
+         "mean": 24
+        },
+        "effects": {
+         "p50": 0,
+         "p99": 1,
+         "max": 45,
+         "mean": 0
+        },
+        "diff": {
+         "p50": 15,
+         "p99": 41,
+         "max": 51,
+         "mean": 15
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 1919,
+         "p99": 11642,
+         "max": 13425,
+         "mean": 3520
+        },
+        "work": {
+         "p50": 80,
+         "p99": 602,
+         "max": 4651,
+         "mean": 144
+        },
+        "interval": {
+         "p50": 9226,
+         "p99": 12178,
+         "max": 13544,
+         "mean": 9180
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 0,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "2.0",
+        "gl_quads_per_frame": "751",
+        "gl_cpu_submit_us": "883",
+        "gl_gpu_us": "638",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "16.0",
+        "gl_occlusion_frames": "270",
+        "gl_depth_bits": "32",
+        "gl_glyph_uploads": "116"
+       }
+      },
+      "frame_hash": "62669d14d144b677",
+      "hash_size": "2048x1536",
+      "scene": "ui_anim_transform",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "ui_anim_transform",
+       "frame_hash": "6682199faa2d13e3",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 2,
+         "p99": 290,
+         "max": 469,
+         "mean": 10
+        },
+        "input": {
+         "p50": 10,
+         "p99": 36,
+         "max": 130,
+         "mean": 10
+        },
+        "anim": {
+         "p50": 30,
+         "p99": 364,
+         "max": 551,
+         "mean": 39
+        },
+        "layout": {
+         "p50": 1,
+         "p99": 2,
+         "max": 2,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 17,
+         "p99": 74,
+         "max": 3819,
+         "mean": 35
+        },
+        "effects": {
+         "p50": 0,
+         "p99": 1,
+         "max": 2,
+         "mean": 0
+        },
+        "diff": {
+         "p50": 14,
+         "p99": 46,
+         "max": 85,
+         "mean": 15
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 2170,
+         "p99": 11228,
+         "max": 25196,
+         "mean": 2837
+        },
+        "work": {
+         "p50": 74,
+         "p99": 798,
+         "max": 3904,
+         "mean": 113
+        },
+        "interval": {
+         "p50": 9238,
+         "p99": 13644,
+         "max": 25363,
+         "mean": 9248
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 1,
+        "interval_gt_25": 1,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "2.0",
+        "gl_quads_per_frame": "751",
+        "gl_cpu_submit_us": "811",
+        "gl_gpu_us": "640",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "5.0",
+        "gl_occlusion_frames": "270",
+        "gl_depth_bits": "32",
+        "gl_glyph_uploads": "116"
+       }
+      },
+      "frame_hash": "6682199faa2d13e3",
+      "hash_size": "2048x1536",
+      "scene": "ui_anim_transform",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "ui_anim_transform",
+       "frame_hash": "593b634dcf3b4a6b",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 3,
+         "p99": 263,
+         "max": 785,
+         "mean": 13
+        },
+        "input": {
+         "p50": 10,
+         "p99": 71,
+         "max": 125,
+         "mean": 12
+        },
+        "anim": {
+         "p50": 33,
+         "p99": 613,
+         "max": 1389,
+         "mean": 54
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 2,
+         "max": 33,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 18,
+         "p99": 199,
+         "max": 282,
+         "mean": 24
+        },
+        "effects": {
+         "p50": 0,
+         "p99": 1,
+         "max": 3,
+         "mean": 0
+        },
+        "diff": {
+         "p50": 15,
+         "p99": 43,
+         "max": 158,
+         "mean": 16
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 2009,
+         "p99": 14092,
+         "max": 17555,
+         "mean": 3678
+        },
+        "work": {
+         "p50": 76,
+         "p99": 832,
+         "max": 2206,
+         "mean": 122
+        },
+        "interval": {
+         "p50": 9127,
+         "p99": 15014,
+         "max": 18035,
+         "mean": 9230
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 2,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "2.0",
+        "gl_quads_per_frame": "751",
+        "gl_cpu_submit_us": "859",
+        "gl_gpu_us": "643",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "4.6",
+        "gl_occlusion_frames": "270",
+        "gl_depth_bits": "32",
+        "gl_glyph_uploads": "116"
+       }
+      },
+      "frame_hash": "593b634dcf3b4a6b",
+      "hash_size": "2048x1536",
+      "scene": "ui_anim_transform",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     }
+    ],
+    "ui_anim_layout": [
+     {
+      "profile": {
+       "schema": 1,
+       "section": "ui_anim_layout",
+       "frame_hash": "397ed58ff1646063",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 2,
+         "p99": 18,
+         "max": 274,
+         "mean": 4
+        },
+        "input": {
+         "p50": 5,
+         "p99": 13,
+         "max": 56,
+         "mean": 5
+        },
+        "anim": {
+         "p50": 5,
+         "p99": 17,
+         "max": 52,
+         "mean": 6
+        },
+        "layout": {
+         "p50": 19,
+         "p99": 107,
+         "max": 1978,
+         "mean": 33
+        },
+        "paint": {
+         "p50": 11,
+         "p99": 35,
+         "max": 2959,
+         "mean": 24
+        },
+        "effects": {
+         "p50": 0,
+         "p99": 1,
+         "max": 2,
+         "mean": 0
+        },
+        "diff": {
+         "p50": 4,
+         "p99": 11,
+         "max": 18,
+         "mean": 4
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 716,
+         "p99": 10924,
+         "max": 15442,
+         "mean": 2437
+        },
+        "work": {
+         "p50": 47,
+         "p99": 188,
+         "max": 4961,
+         "mean": 78
+        },
+        "interval": {
+         "p50": 9281,
+         "p99": 11022,
+         "max": 20490,
+         "mean": 9286
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 1,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "3.0",
+        "gl_quads_per_frame": "115",
+        "gl_cpu_submit_us": "288",
+        "gl_gpu_us": "248",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "16.0",
+        "gl_occlusion_frames": "270",
+        "gl_depth_bits": "24",
+        "gl_glyph_uploads": "116"
+       }
+      },
+      "frame_hash": "397ed58ff1646063",
+      "hash_size": "2048x1536",
+      "scene": "ui_anim_layout",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "ui_anim_layout",
+       "frame_hash": "93a3f6b6c16e5543",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 2,
+         "p99": 16,
+         "max": 50,
+         "mean": 3
+        },
+        "input": {
+         "p50": 5,
+         "p99": 23,
+         "max": 269,
+         "mean": 7
+        },
+        "anim": {
+         "p50": 6,
+         "p99": 25,
+         "max": 648,
+         "mean": 8
+        },
+        "layout": {
+         "p50": 20,
+         "p99": 81,
+         "max": 453,
+         "mean": 26
+        },
+        "paint": {
+         "p50": 11,
+         "p99": 40,
+         "max": 66,
+         "mean": 12
+        },
+        "effects": {
+         "p50": 0,
+         "p99": 2,
+         "max": 4,
+         "mean": 0
+        },
+        "diff": {
+         "p50": 4,
+         "p99": 11,
+         "max": 20,
+         "mean": 4
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 815,
+         "p99": 9945,
+         "max": 12610,
+         "mean": 1867
+        },
+        "work": {
+         "p50": 49,
+         "p99": 198,
+         "max": 991,
+         "mean": 62
+        },
+        "interval": {
+         "p50": 9600,
+         "p99": 11333,
+         "max": 18333,
+         "mean": 9430
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 1,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "3.0",
+        "gl_quads_per_frame": "115",
+        "gl_cpu_submit_us": "329",
+        "gl_gpu_us": "258",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "5.0",
+        "gl_occlusion_frames": "270",
+        "gl_depth_bits": "24",
+        "gl_glyph_uploads": "116"
+       }
+      },
+      "frame_hash": "93a3f6b6c16e5543",
+      "hash_size": "2048x1536",
+      "scene": "ui_anim_layout",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "ui_anim_layout",
+       "frame_hash": "80262d1f09916d03",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 2,
+         "p99": 19,
+         "max": 47,
+         "mean": 3
+        },
+        "input": {
+         "p50": 5,
+         "p99": 16,
+         "max": 70,
+         "mean": 5
+        },
+        "anim": {
+         "p50": 5,
+         "p99": 49,
+         "max": 2294,
+         "mean": 15
+        },
+        "layout": {
+         "p50": 19,
+         "p99": 99,
+         "max": 291,
+         "mean": 25
+        },
+        "paint": {
+         "p50": 11,
+         "p99": 135,
+         "max": 191,
+         "mean": 15
+        },
+        "effects": {
+         "p50": 0,
+         "p99": 1,
+         "max": 2,
+         "mean": 0
+        },
+        "diff": {
+         "p50": 4,
+         "p99": 11,
+         "max": 27,
+         "mean": 4
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 883,
+         "p99": 9949,
+         "max": 13354,
+         "mean": 2533
+        },
+        "work": {
+         "p50": 46,
+         "p99": 291,
+         "max": 2406,
+         "mean": 70
+        },
+        "interval": {
+         "p50": 9400,
+         "p99": 13683,
+         "max": 16643,
+         "mean": 9413
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 0,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "3.0",
+        "gl_quads_per_frame": "115",
+        "gl_cpu_submit_us": "294",
+        "gl_gpu_us": "245",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "4.6",
+        "gl_occlusion_frames": "270",
+        "gl_depth_bits": "24",
+        "gl_glyph_uploads": "116"
+       }
+      },
+      "frame_hash": "80262d1f09916d03",
+      "hash_size": "2048x1536",
+      "scene": "ui_anim_layout",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     }
+    ],
+    "ui_list_update": [
+     {
+      "profile": {
+       "schema": 1,
+       "section": "ui_list_update",
+       "frame_hash": "c12e544b5a84fc04",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 69,
+         "p99": 238,
+         "max": 307,
+         "mean": 83
+        },
+        "input": {
+         "p50": 7,
+         "p99": 28,
+         "max": 204,
+         "mean": 9
+        },
+        "anim": {
+         "p50": 1,
+         "p99": 3,
+         "max": 6,
+         "mean": 1
+        },
+        "layout": {
+         "p50": 96,
+         "p99": 287,
+         "max": 318,
+         "mean": 114
+        },
+        "paint": {
+         "p50": 36,
+         "p99": 119,
+         "max": 5458,
+         "mean": 68
+        },
+        "effects": {
+         "p50": 0,
+         "p99": 1,
+         "max": 3,
+         "mean": 0
+        },
+        "diff": {
+         "p50": 3,
+         "p99": 9,
+         "max": 11,
+         "mean": 3
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 816,
+         "p99": 9291,
+         "max": 11376,
+         "mean": 2529
+        },
+        "work": {
+         "p50": 217,
+         "p99": 672,
+         "max": 6220,
+         "mean": 281
+        },
+        "interval": {
+         "p50": 9266,
+         "p99": 10556,
+         "max": 13780,
+         "mean": 9227
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 0,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "2.0",
+        "gl_quads_per_frame": "516",
+        "gl_cpu_submit_us": "284",
+        "gl_gpu_us": "235",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "16.0",
+        "gl_occlusion_frames": "270",
+        "gl_depth_bits": "24",
+        "gl_glyph_uploads": "116"
+       }
+      },
+      "frame_hash": "c12e544b5a84fc04",
+      "hash_size": "2048x1536",
+      "scene": "ui_list_update",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "ui_list_update",
+       "frame_hash": "c12e544b5a84fc04",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 69,
+         "p99": 256,
+         "max": 364,
+         "mean": 83
+        },
+        "input": {
+         "p50": 7,
+         "p99": 17,
+         "max": 43,
+         "mean": 8
+        },
+        "anim": {
+         "p50": 1,
+         "p99": 4,
+         "max": 7,
+         "mean": 1
+        },
+        "layout": {
+         "p50": 94,
+         "p99": 293,
+         "max": 398,
+         "mean": 113
+        },
+        "paint": {
+         "p50": 36,
+         "p99": 103,
+         "max": 140,
+         "mean": 44
+        },
+        "effects": {
+         "p50": 0,
+         "p99": 1,
+         "max": 2,
+         "mean": 0
+        },
+        "diff": {
+         "p50": 3,
+         "p99": 7,
+         "max": 20,
+         "mean": 3
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 1062,
+         "p99": 7002,
+         "max": 8709,
+         "mean": 1826
+        },
+        "work": {
+         "p50": 217,
+         "p99": 617,
+         "max": 702,
+         "mean": 255
+        },
+        "interval": {
+         "p50": 9429,
+         "p99": 9902,
+         "max": 10173,
+         "mean": 9295
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 0,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "2.0",
+        "gl_quads_per_frame": "516",
+        "gl_cpu_submit_us": "309",
+        "gl_gpu_us": "234",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "5.0",
+        "gl_occlusion_frames": "270",
+        "gl_depth_bits": "24",
+        "gl_glyph_uploads": "116"
+       }
+      },
+      "frame_hash": "c12e544b5a84fc04",
+      "hash_size": "2048x1536",
+      "scene": "ui_list_update",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "ui_list_update",
+       "frame_hash": "c12e544b5a84fc04",
+       "hash_size": "2048x1536",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1024,
+        768
+       ],
+       "phases": {
+        "app": {
+         "p50": 67,
+         "p99": 325,
+         "max": 489,
+         "mean": 87
+        },
+        "input": {
+         "p50": 7,
+         "p99": 35,
+         "max": 1746,
+         "mean": 15
+        },
+        "anim": {
+         "p50": 1,
+         "p99": 3,
+         "max": 46,
+         "mean": 1
+        },
+        "layout": {
+         "p50": 94,
+         "p99": 425,
+         "max": 597,
+         "mean": 115
+        },
+        "paint": {
+         "p50": 35,
+         "p99": 209,
+         "max": 2695,
+         "mean": 54
+        },
+        "effects": {
+         "p50": 0,
+         "p99": 1,
+         "max": 3,
+         "mean": 0
+        },
+        "diff": {
+         "p50": 3,
+         "p99": 8,
+         "max": 21,
+         "mean": 3
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 1011,
+         "p99": 9131,
+         "max": 10853,
+         "mean": 2611
+        },
+        "work": {
+         "p50": 210,
+         "p99": 838,
+         "max": 5332,
+         "mean": 278
+        },
+        "interval": {
+         "p50": 9390,
+         "p99": 11044,
+         "max": 12538,
+         "mean": 9276
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 0,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Apple",
+        "gl_renderer": "Apple M1 Pro",
+        "gl_version": "4.1 Metal - 89.4",
+        "gl_max_texture": "16384",
+        "gl_family": "Apple",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "2.0",
+        "gl_quads_per_frame": "516",
+        "gl_cpu_submit_us": "305",
+        "gl_gpu_us": "239",
+        "gl_timer_source": "GL_TIME_ELAPSED",
+        "gl_gpu_samples": "270",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "4.6",
+        "gl_occlusion_frames": "270",
+        "gl_depth_bits": "24",
+        "gl_glyph_uploads": "116"
+       }
+      },
+      "frame_hash": "c12e544b5a84fc04",
+      "hash_size": "2048x1536",
+      "scene": "ui_list_update",
+      "size": [
+       1024,
+       768
+      ],
+      "drawn": [
+       1024,
+       768
+      ]
+     }
+    ]
+   }
+  }
+ }
+}

@@ -1,0 +1,5916 @@
+{
+ "schema": "zbench/1",
+ "suite": "render",
+ "date": "2026-10-18T23:46:57",
+ "tool": {
+  "rev": "f7da60ed",
+  "dirty": true
+ },
+ "device": {
+  "id": "pi",
+  "before": {
+   "model": "Raspberry Pi 3 Model B Plus Rev 1.3",
+   "os": "linux",
+   "raw": "Raspberry Pi 3 Model B Plus Rev 1.3\n6.12.75+rpt-rpi-v8 aarch64\nfrequency(48)=1400000000\ntemp=50.5'C\nthrottled=0x0\nMem:             905         336         162          15         478         569\n1024x768\nondemand"
+  },
+  "after": {
+   "model": "Raspberry Pi 3 Model B Plus Rev 1.3",
+   "os": "linux",
+   "raw": "Raspberry Pi 3 Model B Plus Rev 1.3\n6.12.75+rpt-rpi-v8 aarch64\nfrequency(48)=1400000000\ntemp=52.6'C\nthrottled=0x0\nMem:             905         261         237          16         479         644\n1024x768\nondemand"
+  }
+ },
+ "config": {
+  "set": {
+   "ZINC_GL_CORNERS": "0"
+  },
+  "frames": 240,
+  "skip": 30,
+  "runs": 2,
+  "modes": [
+   "uncapped/pi1080"
+  ],
+  "size": "native"
+ },
+ "modes": {
+  "uncapped/pi1080": {
+   "scenes": {
+    "fill_opaque": {
+     "runs": 2,
+     "ok_runs": 2,
+     "work_p50_us": 25.0,
+     "work_p99_us": 40.5,
+     "interval_p50_us": 16691.5,
+     "interval_p99_us": 33462.0,
+     "raster_p50_us": 0.0,
+     "present_p50_us": 16606.5,
+     "frames": 239,
+     "window": [
+      1920,
+      1080
+     ],
+     "drawn": [
+      [
+       1920,
+       1080
+      ]
+     ],
+     "late_work_gt_16_7": 0,
+     "late_interval_gt_25": 70,
+     "fps": 59.9,
+     "spread": 0.0007,
+     "vsync_locked": true,
+     "frame_hashes": [
+      "4f759fdabe8bc383"
+     ],
+     "retried_runs": 0,
+     "gpu": {
+      "gl_cpu_submit_us": 287.0,
+      "gl_depth_bits": 24.0,
+      "gl_draw_calls_per_frame": 1.0,
+      "gl_family": "VideoCore IV",
+      "gl_frames_idle": 0.0,
+      "gl_frames_replayed": 269.0,
+      "gl_glyph_uploads": 0.0,
+      "gl_gpu_samples": 0.0,
+      "gl_gpu_samples_lost": 0.0,
+      "gl_gpu_us": 0.0,
+      "gl_max_texture": 2048.0,
+      "gl_occlusion_frames": 269.0,
+      "gl_program_build_ms": 25.2,
+      "gl_programs_built": 1.0,
+      "gl_quads_per_frame": 9.0,
+      "gl_renderer": "VC4 V3D 2.1",
+      "gl_timer_source": "none",
+      "gl_vendor": "Broadcom",
+      "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+      "renderer": "gl"
+     }
+    },
+    "fill_blend": {
+     "runs": 2,
+     "ok_runs": 2,
+     "work_p50_us": 24.0,
+     "work_p99_us": 37.0,
+     "interval_p50_us": 133290.5,
+     "interval_p99_us": 133762.0,
+     "raster_p50_us": 0.0,
+     "present_p50_us": 133188.0,
+     "frames": 83,
+     "window": [
+      1920,
+      1080
+     ],
+     "drawn": [
+      [
+       1920,
+       1080
+      ]
+     ],
+     "late_work_gt_16_7": 0,
+     "late_interval_gt_25": 83,
+     "fps": 7.5,
+     "spread": 0.0002,
+     "vsync_locked": false,
+     "frame_hashes": [
+      "d056f4ed3b8de383"
+     ],
+     "retried_runs": 0,
+     "gpu": {
+      "gl_cpu_submit_us": 304.0,
+      "gl_depth_bits": 24.0,
+      "gl_draw_calls_per_frame": 1.0,
+      "gl_family": "VideoCore IV",
+      "gl_frames_idle": 0.0,
+      "gl_frames_replayed": 96.0,
+      "gl_glyph_uploads": 0.0,
+      "gl_gpu_samples": 0.0,
+      "gl_gpu_samples_lost": 0.0,
+      "gl_gpu_us": 0.0,
+      "gl_max_texture": 2048.0,
+      "gl_occlusion_frames": 1.0,
+      "gl_program_build_ms": 25.2,
+      "gl_programs_built": 1.0,
+      "gl_quads_per_frame": 8.0,
+      "gl_renderer": "VC4 V3D 2.1",
+      "gl_timer_source": "none",
+      "gl_vendor": "Broadcom",
+      "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+      "renderer": "gl"
+     }
+    },
+    "quads_10k": {
+     "runs": 2,
+     "ok_runs": 2,
+     "work_p50_us": 4730.5,
+     "work_p99_us": 6994.0,
+     "interval_p50_us": 16714.0,
+     "interval_p99_us": 33459.5,
+     "raster_p50_us": 0.0,
+     "present_p50_us": 12001.0,
+     "frames": 240,
+     "window": [
+      1920,
+      1080
+     ],
+     "drawn": [
+      [
+       1920,
+       1080
+      ]
+     ],
+     "late_work_gt_16_7": 0,
+     "late_interval_gt_25": 69,
+     "fps": 59.8,
+     "spread": 0.0006,
+     "vsync_locked": true,
+     "frame_hashes": [
+      "d6255bcf990d8935"
+     ],
+     "retried_runs": 0,
+     "gpu": {
+      "gl_cpu_submit_us": 6474.5,
+      "gl_depth_bits": 24.0,
+      "gl_draw_calls_per_frame": 1.0,
+      "gl_family": "VideoCore IV",
+      "gl_frames_idle": 0.0,
+      "gl_frames_replayed": 270.0,
+      "gl_glyph_uploads": 0.0,
+      "gl_gpu_samples": 0.0,
+      "gl_gpu_samples_lost": 0.0,
+      "gl_gpu_us": 0.0,
+      "gl_max_texture": 2048.0,
+      "gl_occlusion_frames": 269.0,
+      "gl_program_build_ms": 25.2,
+      "gl_programs_built": 1.0,
+      "gl_quads_per_frame": 7578.0,
+      "gl_renderer": "VC4 V3D 2.1",
+      "gl_timer_source": "none",
+      "gl_vendor": "Broadcom",
+      "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+      "renderer": "gl"
+     }
+    },
+    "rounded_shadow": {
+     "runs": 2,
+     "ok_runs": 2,
+     "work_p50_us": 154.5,
+     "work_p99_us": 259.0,
+     "interval_p50_us": 33334.0,
+     "interval_p99_us": 50060.5,
+     "raster_p50_us": 0.0,
+     "present_p50_us": 33100.0,
+     "frames": 240,
+     "window": [
+      1920,
+      1080
+     ],
+     "drawn": [
+      [
+       1920,
+       1080
+      ]
+     ],
+     "late_work_gt_16_7": 0,
+     "late_interval_gt_25": 240,
+     "fps": 30.0,
+     "spread": 0.0001,
+     "vsync_locked": false,
+     "frame_hashes": [
+      "3cc4a0f483d04683"
+     ],
+     "retried_runs": 0,
+     "gpu": {
+      "gl_cpu_submit_us": 9631.5,
+      "gl_depth_bits": 24.0,
+      "gl_draw_calls_per_frame": 598.8,
+      "gl_family": "VideoCore IV",
+      "gl_frames_idle": 0.0,
+      "gl_frames_replayed": 270.0,
+      "gl_glyph_uploads": 0.0,
+      "gl_gpu_samples": 0.0,
+      "gl_gpu_samples_lost": 0.0,
+      "gl_gpu_us": 0.0,
+      "gl_max_texture": 2048.0,
+      "gl_occlusion_frames": 270.0,
+      "gl_program_build_ms": 101.2,
+      "gl_programs_built": 4.0,
+      "gl_quads_per_frame": 1703.0,
+      "gl_renderer": "VC4 V3D 2.1",
+      "gl_timer_source": "none",
+      "gl_vendor": "Broadcom",
+      "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+      "renderer": "gl"
+     }
+    },
+    "gradients": {
+     "runs": 2,
+     "ok_runs": 2,
+     "work_p50_us": 54.5,
+     "work_p99_us": 104.5,
+     "interval_p50_us": 366653.5,
+     "interval_p99_us": 366836.5,
+     "raster_p50_us": 0.0,
+     "present_p50_us": 366515.0,
+     "frames": 30,
+     "window": [
+      1920,
+      1080
+     ],
+     "drawn": [
+      [
+       1920,
+       1080
+      ]
+     ],
+     "late_work_gt_16_7": 0,
+     "late_interval_gt_25": 30,
+     "fps": 2.7,
+     "spread": 0.0,
+     "vsync_locked": false,
+     "frame_hashes": [
+      "14c434730810a6f2"
+     ],
+     "retried_runs": 0,
+     "gpu": {
+      "gl_cpu_submit_us": 988.5,
+      "gl_depth_bits": 24.0,
+      "gl_draw_calls_per_frame": 18.1,
+      "gl_family": "VideoCore IV",
+      "gl_frames_idle": 0.0,
+      "gl_frames_replayed": 35.0,
+      "gl_glyph_uploads": 0.0,
+      "gl_gpu_samples": 0.0,
+      "gl_gpu_samples_lost": 0.0,
+      "gl_gpu_us": 0.0,
+      "gl_max_texture": 2048.0,
+      "gl_occlusion_frames": 1.0,
+      "gl_program_build_ms": 101.2,
+      "gl_programs_built": 4.0,
+      "gl_quads_per_frame": 87.0,
+      "gl_renderer": "VC4 V3D 2.1",
+      "gl_timer_source": "none",
+      "gl_vendor": "Broadcom",
+      "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+      "renderer": "gl"
+     }
+    },
+    "text_static": {
+     "runs": 2,
+     "ok_runs": 2,
+     "work_p50_us": 319.0,
+     "work_p99_us": 457.0,
+     "interval_p50_us": 16667.0,
+     "interval_p99_us": 16788.0,
+     "raster_p50_us": 0.0,
+     "present_p50_us": 16268.5,
+     "frames": 240,
+     "window": [
+      1920,
+      1080
+     ],
+     "drawn": [
+      [
+       1920,
+       1080
+      ]
+     ],
+     "late_work_gt_16_7": 0,
+     "late_interval_gt_25": 0,
+     "fps": 60.0,
+     "spread": 0.0,
+     "vsync_locked": true,
+     "frame_hashes": [
+      "417b5864f19599db"
+     ],
+     "retried_runs": 0,
+     "gpu": {
+      "gl_cpu_submit_us": 3382.0,
+      "gl_depth_bits": 24.0,
+      "gl_draw_calls_per_frame": 1.0,
+      "gl_family": "VideoCore IV",
+      "gl_frames_idle": 0.0,
+      "gl_frames_replayed": 270.0,
+      "gl_glyph_uploads": 1.0,
+      "gl_gpu_samples": 0.0,
+      "gl_gpu_samples_lost": 0.0,
+      "gl_gpu_us": 0.0,
+      "gl_max_texture": 2048.0,
+      "gl_occlusion_frames": 0.0,
+      "gl_program_build_ms": 122.3,
+      "gl_programs_built": 5.0,
+      "gl_quads_per_frame": 2690.0,
+      "gl_renderer": "VC4 V3D 2.1",
+      "gl_timer_source": "none",
+      "gl_vendor": "Broadcom",
+      "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+      "renderer": "gl"
+     }
+    },
+    "text_churn": {
+     "runs": 2,
+     "ok_runs": 2,
+     "work_p50_us": 368.0,
+     "work_p99_us": 557.5,
+     "interval_p50_us": 16666.5,
+     "interval_p99_us": 16877.0,
+     "raster_p50_us": 0.0,
+     "present_p50_us": 16228.5,
+     "frames": 240,
+     "window": [
+      1920,
+      1080
+     ],
+     "drawn": [
+      [
+       1920,
+       1080
+      ]
+     ],
+     "late_work_gt_16_7": 0,
+     "late_interval_gt_25": 0,
+     "fps": 60.0,
+     "spread": 0.0001,
+     "vsync_locked": true,
+     "frame_hashes": [
+      "9f2ad18e10e22d70"
+     ],
+     "retried_runs": 0,
+     "gpu": {
+      "gl_cpu_submit_us": 1682.5,
+      "gl_depth_bits": 24.0,
+      "gl_draw_calls_per_frame": 1.0,
+      "gl_family": "VideoCore IV",
+      "gl_frames_idle": 0.0,
+      "gl_frames_replayed": 270.0,
+      "gl_glyph_uploads": 2.0,
+      "gl_gpu_samples": 0.0,
+      "gl_gpu_samples_lost": 0.0,
+      "gl_gpu_us": 0.0,
+      "gl_max_texture": 2048.0,
+      "gl_occlusion_frames": 0.0,
+      "gl_program_build_ms": 122.3,
+      "gl_programs_built": 5.0,
+      "gl_quads_per_frame": 1404.0,
+      "gl_renderer": "VC4 V3D 2.1",
+      "gl_timer_source": "none",
+      "gl_vendor": "Broadcom",
+      "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+      "renderer": "gl"
+     }
+    },
+    "clip_nested": {
+     "runs": 2,
+     "ok_runs": 2,
+     "work_p50_us": 209.5,
+     "work_p99_us": 342.0,
+     "interval_p50_us": 16665.5,
+     "interval_p99_us": 16784.5,
+     "raster_p50_us": 0.0,
+     "present_p50_us": 16393.5,
+     "frames": 240,
+     "window": [
+      1920,
+      1080
+     ],
+     "drawn": [
+      [
+       1920,
+       1080
+      ]
+     ],
+     "late_work_gt_16_7": 0,
+     "late_interval_gt_25": 0,
+     "fps": 60.0,
+     "spread": 0.0001,
+     "vsync_locked": true,
+     "frame_hashes": [
+      "42bb582f73ce220d"
+     ],
+     "retried_runs": 0,
+     "gpu": {
+      "gl_cpu_submit_us": 1255.5,
+      "gl_depth_bits": 24.0,
+      "gl_draw_calls_per_frame": 24.9,
+      "gl_family": "VideoCore IV",
+      "gl_frames_idle": 0.0,
+      "gl_frames_replayed": 270.0,
+      "gl_glyph_uploads": 2.0,
+      "gl_gpu_samples": 0.0,
+      "gl_gpu_samples_lost": 0.0,
+      "gl_gpu_us": 0.0,
+      "gl_max_texture": 2048.0,
+      "gl_occlusion_frames": 269.0,
+      "gl_program_build_ms": 122.3,
+      "gl_programs_built": 5.0,
+      "gl_quads_per_frame": 484.0,
+      "gl_renderer": "VC4 V3D 2.1",
+      "gl_timer_source": "none",
+      "gl_vendor": "Broadcom",
+      "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+      "renderer": "gl"
+     }
+    },
+    "poly": {
+     "runs": 2,
+     "ok_runs": 2,
+     "work_p50_us": 575.0,
+     "work_p99_us": 891.0,
+     "interval_p50_us": 16667.0,
+     "interval_p99_us": 16817.0,
+     "raster_p50_us": 0.0,
+     "present_p50_us": 16012.5,
+     "frames": 240,
+     "window": [
+      1920,
+      1080
+     ],
+     "drawn": [
+      [
+       1920,
+       1080
+      ]
+     ],
+     "late_work_gt_16_7": 0,
+     "late_interval_gt_25": 0,
+     "fps": 60.0,
+     "spread": 0.0001,
+     "vsync_locked": true,
+     "frame_hashes": [
+      "5057a5769f6b8dc9"
+     ],
+     "retried_runs": 0,
+     "gpu": {
+      "gl_cpu_submit_us": 1397.0,
+      "gl_depth_bits": 24.0,
+      "gl_draw_calls_per_frame": 2.1,
+      "gl_family": "VideoCore IV",
+      "gl_frames_idle": 0.0,
+      "gl_frames_replayed": 270.0,
+      "gl_glyph_uploads": 2.0,
+      "gl_gpu_samples": 0.0,
+      "gl_gpu_samples_lost": 0.0,
+      "gl_gpu_us": 0.0,
+      "gl_max_texture": 2048.0,
+      "gl_occlusion_frames": 270.0,
+      "gl_program_build_ms": 141.8,
+      "gl_programs_built": 6.0,
+      "gl_quads_per_frame": 991.0,
+      "gl_renderer": "VC4 V3D 2.1",
+      "gl_timer_source": "none",
+      "gl_vendor": "Broadcom",
+      "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+      "renderer": "gl"
+     }
+    },
+    "scroll_list": {
+     "runs": 2,
+     "ok_runs": 2,
+     "work_p50_us": 221.5,
+     "work_p99_us": 347.5,
+     "interval_p50_us": 16667.0,
+     "interval_p99_us": 17050.5,
+     "raster_p50_us": 0.0,
+     "present_p50_us": 16366.5,
+     "frames": 240,
+     "window": [
+      1920,
+      1080
+     ],
+     "drawn": [
+      [
+       1920,
+       1080
+      ]
+     ],
+     "late_work_gt_16_7": 0,
+     "late_interval_gt_25": 0,
+     "fps": 60.0,
+     "spread": 0.0001,
+     "vsync_locked": true,
+     "frame_hashes": [
+      "fed35b1924d83dbe"
+     ],
+     "retried_runs": 0,
+     "gpu": {
+      "gl_cpu_submit_us": 5737.5,
+      "gl_depth_bits": 24.0,
+      "gl_draw_calls_per_frame": 148.2,
+      "gl_family": "VideoCore IV",
+      "gl_frames_idle": 0.0,
+      "gl_frames_replayed": 270.0,
+      "gl_glyph_uploads": 3.0,
+      "gl_gpu_samples": 0.0,
+      "gl_gpu_samples_lost": 0.0,
+      "gl_gpu_us": 0.0,
+      "gl_max_texture": 2048.0,
+      "gl_occlusion_frames": 270.0,
+      "gl_program_build_ms": 141.8,
+      "gl_programs_built": 6.0,
+      "gl_quads_per_frame": 840.0,
+      "gl_renderer": "VC4 V3D 2.1",
+      "gl_timer_source": "none",
+      "gl_vendor": "Broadcom",
+      "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+      "renderer": "gl"
+     }
+    },
+    "image_update": {
+     "runs": 2,
+     "ok_runs": 2,
+     "work_p50_us": 10788.0,
+     "work_p99_us": 13863.5,
+     "interval_p50_us": 16668.5,
+     "interval_p99_us": 17370.0,
+     "raster_p50_us": 0.0,
+     "present_p50_us": 5560.5,
+     "frames": 240,
+     "window": [
+      1920,
+      1080
+     ],
+     "drawn": [
+      [
+       1920,
+       1080
+      ]
+     ],
+     "late_work_gt_16_7": 0,
+     "late_interval_gt_25": 0,
+     "fps": 60.0,
+     "spread": 0.0001,
+     "vsync_locked": true,
+     "frame_hashes": [
+      "f96a4b0a27f40383"
+     ],
+     "retried_runs": 0,
+     "gpu": {
+      "gl_cpu_submit_us": 1174.5,
+      "gl_depth_bits": 24.0,
+      "gl_draw_calls_per_frame": 1.6,
+      "gl_family": "VideoCore IV",
+      "gl_frames_idle": 0.0,
+      "gl_frames_replayed": 270.0,
+      "gl_glyph_uploads": 3.0,
+      "gl_gpu_samples": 0.0,
+      "gl_gpu_samples_lost": 0.0,
+      "gl_gpu_us": 0.0,
+      "gl_max_texture": 2048.0,
+      "gl_occlusion_frames": 1.0,
+      "gl_program_build_ms": 178.1,
+      "gl_programs_built": 7.0,
+      "gl_quads_per_frame": 7.0,
+      "gl_renderer": "VC4 V3D 2.1",
+      "gl_timer_source": "none",
+      "gl_vendor": "Broadcom",
+      "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+      "renderer": "gl"
+     }
+    },
+    "image_fill_only": {
+     "runs": 2,
+     "ok_runs": 2,
+     "work_p50_us": 8579.0,
+     "work_p99_us": 11415.5,
+     "interval_p50_us": 16667.0,
+     "interval_p99_us": 16823.5,
+     "raster_p50_us": 0.0,
+     "present_p50_us": 8025.5,
+     "frames": 240,
+     "window": [
+      1920,
+      1080
+     ],
+     "drawn": [
+      [
+       1920,
+       1080
+      ]
+     ],
+     "late_work_gt_16_7": 0,
+     "late_interval_gt_25": 0,
+     "fps": 60.0,
+     "spread": 0.0,
+     "vsync_locked": true,
+     "frame_hashes": [
+      "acd39361c50bc383"
+     ],
+     "retried_runs": 0,
+     "gpu": {
+      "gl_cpu_submit_us": 153.5,
+      "gl_depth_bits": 24.0,
+      "gl_draw_calls_per_frame": 0.0,
+      "gl_family": "VideoCore IV",
+      "gl_frames_idle": 0.0,
+      "gl_frames_replayed": 270.0,
+      "gl_glyph_uploads": 3.0,
+      "gl_gpu_samples": 0.0,
+      "gl_gpu_samples_lost": 0.0,
+      "gl_gpu_us": 0.0,
+      "gl_max_texture": 2048.0,
+      "gl_occlusion_frames": 0.0,
+      "gl_program_build_ms": 178.1,
+      "gl_programs_built": 7.0,
+      "gl_quads_per_frame": 0.0,
+      "gl_renderer": "VC4 V3D 2.1",
+      "gl_timer_source": "none",
+      "gl_vendor": "Broadcom",
+      "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+      "renderer": "gl"
+     }
+    },
+    "image_upload_only": {
+     "runs": 2,
+     "ok_runs": 2,
+     "work_p50_us": 1490.0,
+     "work_p99_us": 2520.0,
+     "interval_p50_us": 16667.0,
+     "interval_p99_us": 16808.0,
+     "raster_p50_us": 0.0,
+     "present_p50_us": 15116.0,
+     "frames": 240,
+     "window": [
+      1920,
+      1080
+     ],
+     "drawn": [
+      [
+       1920,
+       1080
+      ]
+     ],
+     "late_work_gt_16_7": 0,
+     "late_interval_gt_25": 0,
+     "fps": 60.0,
+     "spread": 0.0,
+     "vsync_locked": true,
+     "frame_hashes": [
+      "f96a4b0a27f40383"
+     ],
+     "retried_runs": 0,
+     "gpu": {
+      "gl_cpu_submit_us": 955.5,
+      "gl_depth_bits": 24.0,
+      "gl_draw_calls_per_frame": 1.0,
+      "gl_family": "VideoCore IV",
+      "gl_frames_idle": 0.0,
+      "gl_frames_replayed": 270.0,
+      "gl_glyph_uploads": 3.0,
+      "gl_gpu_samples": 0.0,
+      "gl_gpu_samples_lost": 0.0,
+      "gl_gpu_us": 0.0,
+      "gl_max_texture": 2048.0,
+      "gl_occlusion_frames": 0.0,
+      "gl_program_build_ms": 178.1,
+      "gl_programs_built": 7.0,
+      "gl_quads_per_frame": 4.0,
+      "gl_renderer": "VC4 V3D 2.1",
+      "gl_timer_source": "none",
+      "gl_vendor": "Broadcom",
+      "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+      "renderer": "gl"
+     }
+    },
+    "damage_small": {
+     "runs": 2,
+     "ok_runs": 2,
+     "work_p50_us": 245.0,
+     "work_p99_us": 452.0,
+     "interval_p50_us": 33867.5,
+     "interval_p99_us": 50322.0,
+     "raster_p50_us": 0.0,
+     "present_p50_us": 40946.5,
+     "frames": 240,
+     "window": [
+      1920,
+      1080
+     ],
+     "drawn": [
+      [
+       1920,
+       1080
+      ]
+     ],
+     "late_work_gt_16_7": 0,
+     "late_interval_gt_25": 240,
+     "fps": 29.5,
+     "spread": 0.0074,
+     "vsync_locked": false,
+     "frame_hashes": [
+      "684bf1e9a4357e73"
+     ],
+     "retried_runs": 0,
+     "gpu": {
+      "gl_cpu_submit_us": 1014.5,
+      "gl_depth_bits": 24.0,
+      "gl_draw_calls_per_frame": 1.0,
+      "gl_family": "VideoCore IV",
+      "gl_frames_idle": 0.0,
+      "gl_frames_replayed": 270.0,
+      "gl_glyph_uploads": 3.0,
+      "gl_gpu_samples": 0.0,
+      "gl_gpu_samples_lost": 0.0,
+      "gl_gpu_us": 0.0,
+      "gl_max_texture": 2048.0,
+      "gl_occlusion_frames": 269.0,
+      "gl_program_build_ms": 178.1,
+      "gl_programs_built": 7.0,
+      "gl_quads_per_frame": 301.0,
+      "gl_renderer": "VC4 V3D 2.1",
+      "gl_timer_source": "none",
+      "gl_vendor": "Broadcom",
+      "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+      "renderer": "gl"
+     }
+    },
+    "ui_scroll_fling": {
+     "runs": 2,
+     "ok_runs": 2,
+     "work_p50_us": 5704.5,
+     "work_p99_us": 9573.5,
+     "interval_p50_us": 16667.5,
+     "interval_p99_us": 33413.5,
+     "raster_p50_us": 0.0,
+     "present_p50_us": 10892.5,
+     "frames": 240,
+     "window": [
+      1920,
+      1080
+     ],
+     "drawn": [
+      [
+       1920,
+       1080
+      ]
+     ],
+     "late_work_gt_16_7": 0,
+     "late_interval_gt_25": 28,
+     "fps": 60.0,
+     "spread": 0.0002,
+     "vsync_locked": true,
+     "frame_hashes": [
+      "2ea014f80f4c9c10",
+      "fb1de99801aecc27"
+     ],
+     "retried_runs": 0,
+     "gpu": {
+      "gl_cpu_submit_us": 2482.5,
+      "gl_depth_bits": 24.0,
+      "gl_draw_calls_per_frame": 52.2,
+      "gl_family": "VideoCore IV",
+      "gl_frames_idle": 0.0,
+      "gl_frames_replayed": 270.0,
+      "gl_glyph_uploads": 4.0,
+      "gl_gpu_samples": 0.0,
+      "gl_gpu_samples_lost": 0.0,
+      "gl_gpu_us": 0.0,
+      "gl_max_texture": 2048.0,
+      "gl_occlusion_frames": 270.0,
+      "gl_program_build_ms": 178.1,
+      "gl_programs_built": 7.0,
+      "gl_quads_per_frame": 944.5,
+      "gl_renderer": "VC4 V3D 2.1",
+      "gl_timer_source": "none",
+      "gl_vendor": "Broadcom",
+      "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+      "renderer": "gl"
+     }
+    },
+    "ui_scroll_wheel": {
+     "runs": 2,
+     "ok_runs": 2,
+     "work_p50_us": 5502.0,
+     "work_p99_us": 8036.0,
+     "interval_p50_us": 16668.5,
+     "interval_p99_us": 33383.0,
+     "raster_p50_us": 0.0,
+     "present_p50_us": 11122.0,
+     "frames": 240,
+     "window": [
+      1920,
+      1080
+     ],
+     "drawn": [
+      [
+       1920,
+       1080
+      ]
+     ],
+     "late_work_gt_16_7": 0,
+     "late_interval_gt_25": 25,
+     "fps": 60.0,
+     "spread": 0.0002,
+     "vsync_locked": true,
+     "frame_hashes": [
+      "65adcc0ca6966a11",
+      "88d77bbfe7b5c367"
+     ],
+     "retried_runs": 0,
+     "gpu": {
+      "gl_cpu_submit_us": 2281.0,
+      "gl_depth_bits": 24.0,
+      "gl_draw_calls_per_frame": 52.4,
+      "gl_family": "VideoCore IV",
+      "gl_frames_idle": 0.0,
+      "gl_frames_replayed": 270.0,
+      "gl_glyph_uploads": 4.0,
+      "gl_gpu_samples": 0.0,
+      "gl_gpu_samples_lost": 0.0,
+      "gl_gpu_us": 0.0,
+      "gl_max_texture": 2048.0,
+      "gl_occlusion_frames": 270.0,
+      "gl_program_build_ms": 178.1,
+      "gl_programs_built": 7.0,
+      "gl_quads_per_frame": 970.0,
+      "gl_renderer": "VC4 V3D 2.1",
+      "gl_timer_source": "none",
+      "gl_vendor": "Broadcom",
+      "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+      "renderer": "gl"
+     }
+    },
+    "ui_anim_transform": {
+     "runs": 2,
+     "ok_runs": 2,
+     "work_p50_us": 3361.5,
+     "work_p99_us": 3603.0,
+     "interval_p50_us": 3825260.5,
+     "interval_p99_us": 3896716.5,
+     "raster_p50_us": 0.0,
+     "present_p50_us": 3821341.0,
+     "frames": 5,
+     "window": [
+      1920,
+      1080
+     ],
+     "drawn": [
+      [
+       1920,
+       1080
+      ]
+     ],
+     "late_work_gt_16_7": 0,
+     "late_interval_gt_25": 4,
+     "fps": 0.3,
+     "spread": 0.0068,
+     "vsync_locked": false,
+     "frame_hashes": [
+      "a4acc7083607ba2f",
+      "c1be3f6ec734375b"
+     ],
+     "retried_runs": 0,
+     "gpu": {
+      "gl_cpu_submit_us": 2391725.5,
+      "gl_depth_bits": 24.0,
+      "gl_draw_calls_per_frame": 269.9,
+      "gl_family": "VideoCore IV",
+      "gl_frames_idle": 0.0,
+      "gl_frames_replayed": 8.0,
+      "gl_glyph_uploads": 4.0,
+      "gl_gpu_samples": 0.0,
+      "gl_gpu_samples_lost": 0.0,
+      "gl_gpu_us": 0.0,
+      "gl_max_texture": 2048.0,
+      "gl_occlusion_frames": 8.0,
+      "gl_program_build_ms": 178.1,
+      "gl_programs_built": 7.0,
+      "gl_quads_per_frame": 779.0,
+      "gl_renderer": "VC4 V3D 2.1",
+      "gl_timer_source": "none",
+      "gl_vendor": "Broadcom",
+      "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+      "renderer": "gl"
+     }
+    },
+    "ui_anim_layout": {
+     "runs": 2,
+     "ok_runs": 2,
+     "work_p50_us": 33.0,
+     "work_p99_us": 1515.5,
+     "interval_p50_us": 16674.5,
+     "interval_p99_us": 83169.5,
+     "raster_p50_us": 0.0,
+     "present_p50_us": 16600.0,
+     "frames": 240,
+     "window": [
+      1920,
+      1080
+     ],
+     "drawn": [
+      [
+       1920,
+       1080
+      ]
+     ],
+     "late_work_gt_16_7": 0,
+     "late_interval_gt_25": 70,
+     "fps": 60.0,
+     "spread": 0.0001,
+     "vsync_locked": true,
+     "frame_hashes": [
+      "7bc5571c73ffafdc"
+     ],
+     "retried_runs": 0,
+     "gpu": {
+      "gl_cpu_submit_us": 74244.0,
+      "gl_depth_bits": 24.0,
+      "gl_draw_calls_per_frame": 40.1,
+      "gl_family": "VideoCore IV",
+      "gl_frames_idle": 186.0,
+      "gl_frames_replayed": 84.0,
+      "gl_glyph_uploads": 4.0,
+      "gl_gpu_samples": 0.0,
+      "gl_gpu_samples_lost": 0.0,
+      "gl_gpu_us": 0.0,
+      "gl_max_texture": 2048.0,
+      "gl_occlusion_frames": 84.0,
+      "gl_program_build_ms": 367.6,
+      "gl_programs_built": 12.0,
+      "gl_quads_per_frame": 121.0,
+      "gl_renderer": "VC4 V3D 2.1",
+      "gl_timer_source": "none",
+      "gl_vendor": "Broadcom",
+      "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+      "renderer": "gl"
+     }
+    },
+    "ui_list_update": {
+     "runs": 2,
+     "ok_runs": 2,
+     "work_p50_us": 6519.0,
+     "work_p99_us": 11358.0,
+     "interval_p50_us": 48013.5,
+     "interval_p99_us": 50427.5,
+     "raster_p50_us": 0.0,
+     "present_p50_us": 37343.0,
+     "frames": 240,
+     "window": [
+      1920,
+      1080
+     ],
+     "drawn": [
+      [
+       1920,
+       1080
+      ]
+     ],
+     "late_work_gt_16_7": 0,
+     "late_interval_gt_25": 240,
+     "fps": 20.8,
+     "spread": 0.0416,
+     "vsync_locked": false,
+     "frame_hashes": [
+      "8a5c7cdcbb519774"
+     ],
+     "retried_runs": 0,
+     "gpu": {
+      "gl_cpu_submit_us": 2484.0,
+      "gl_depth_bits": 24.0,
+      "gl_draw_calls_per_frame": 2.0,
+      "gl_family": "VideoCore IV",
+      "gl_frames_idle": 1.0,
+      "gl_frames_replayed": 269.0,
+      "gl_glyph_uploads": 4.0,
+      "gl_gpu_samples": 0.0,
+      "gl_gpu_samples_lost": 0.0,
+      "gl_gpu_us": 0.0,
+      "gl_max_texture": 2048.0,
+      "gl_occlusion_frames": 269.0,
+      "gl_program_build_ms": 367.6,
+      "gl_programs_built": 12.0,
+      "gl_quads_per_frame": 719.0,
+      "gl_renderer": "VC4 V3D 2.1",
+      "gl_timer_source": "none",
+      "gl_vendor": "Broadcom",
+      "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+      "renderer": "gl"
+     }
+    }
+   },
+   "problems": [
+    {
+     "scene": "fill_opaque",
+     "kind": "stutter",
+     "detail": "70 frames longer than 25 ms while paced"
+    },
+    {
+     "scene": "fill_blend",
+     "kind": "frames_missing",
+     "detail": "83 frames measured, 210 asked"
+    },
+    {
+     "scene": "quads_10k",
+     "kind": "stutter",
+     "detail": "69 frames longer than 25 ms while paced"
+    },
+    {
+     "scene": "gradients",
+     "kind": "frames_missing",
+     "detail": "30 frames measured, 210 asked"
+    },
+    {
+     "scene": "ui_scroll_fling",
+     "kind": "frame_hash_unstable",
+     "detail": "the last frame differs between runs: 2ea014f80f4c9c10, fb1de99801aecc27"
+    },
+    {
+     "scene": "ui_scroll_fling",
+     "kind": "stutter",
+     "detail": "28 frames longer than 25 ms while paced"
+    },
+    {
+     "scene": "ui_scroll_wheel",
+     "kind": "frame_hash_unstable",
+     "detail": "the last frame differs between runs: 65adcc0ca6966a11, 88d77bbfe7b5c367"
+    },
+    {
+     "scene": "ui_scroll_wheel",
+     "kind": "stutter",
+     "detail": "25 frames longer than 25 ms while paced"
+    },
+    {
+     "scene": "ui_anim_transform",
+     "kind": "frame_hash_unstable",
+     "detail": "the last frame differs between runs: a4acc7083607ba2f, c1be3f6ec734375b"
+    },
+    {
+     "scene": "ui_anim_transform",
+     "kind": "frames_missing",
+     "detail": "5 frames measured, 210 asked"
+    },
+    {
+     "scene": "ui_anim_layout",
+     "kind": "stutter",
+     "detail": "70 frames longer than 25 ms while paced"
+    }
+   ],
+   "raw": {
+    "fill_opaque": [
+     {
+      "profile": {
+       "schema": 1,
+       "section": "fill_opaque",
+       "frame_hash": "4f759fdabe8bc383",
+       "hash_size": "1920x1080",
+       "frames": 239,
+       "skipped": 30,
+       "window": [
+        1920,
+        1080
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 13,
+         "p99": 25,
+         "max": 57,
+         "mean": 12
+        },
+        "diff": {
+         "p50": 11,
+         "p99": 18,
+         "max": 24,
+         "mean": 10
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 16611,
+         "p99": 33344,
+         "max": 33592,
+         "mean": 22428
+        },
+        "work": {
+         "p50": 25,
+         "p99": 42,
+         "max": 67,
+         "mean": 23
+        },
+        "interval": {
+         "p50": 16697,
+         "p99": 33463,
+         "max": 33684,
+         "mean": 22523
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 157,
+        "interval_gt_25": 84,
+        "interval_gt_33_3": 41,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Broadcom",
+        "gl_renderer": "VC4 V3D 2.1",
+        "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+        "gl_max_texture": "2048",
+        "gl_family": "VideoCore IV",
+        "renderer": "gl",
+        "gl_frames_replayed": "269",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "1.0",
+        "gl_quads_per_frame": "9",
+        "gl_cpu_submit_us": "290",
+        "gl_gpu_us": "0",
+        "gl_timer_source": "none",
+        "gl_gpu_samples": "0",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "25.2",
+        "gl_occlusion_frames": "269",
+        "gl_depth_bits": "24",
+        "gl_glyph_uploads": "0"
+       }
+      },
+      "frame_hash": "4f759fdabe8bc383",
+      "hash_size": "1920x1080",
+      "scene": "fill_opaque",
+      "size": [
+       1920,
+       1080
+      ],
+      "drawn": [
+       1920,
+       1080
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "fill_opaque",
+       "frame_hash": "4f759fdabe8bc383",
+       "hash_size": "1920x1080",
+       "frames": 239,
+       "skipped": 30,
+       "window": [
+        1920,
+        1080
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 13,
+         "p99": 23,
+         "max": 45,
+         "mean": 13
+        },
+        "diff": {
+         "p50": 11,
+         "p99": 19,
+         "max": 54,
+         "mean": 11
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 16602,
+         "p99": 33343,
+         "max": 34500,
+         "mean": 20547
+        },
+        "work": {
+         "p50": 25,
+         "p99": 39,
+         "max": 99,
+         "mean": 24
+        },
+        "interval": {
+         "p50": 16686,
+         "p99": 33461,
+         "max": 34619,
+         "mean": 20641
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 148,
+        "interval_gt_25": 57,
+        "interval_gt_33_3": 26,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Broadcom",
+        "gl_renderer": "VC4 V3D 2.1",
+        "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+        "gl_max_texture": "2048",
+        "gl_family": "VideoCore IV",
+        "renderer": "gl",
+        "gl_frames_replayed": "269",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "1.0",
+        "gl_quads_per_frame": "9",
+        "gl_cpu_submit_us": "284",
+        "gl_gpu_us": "0",
+        "gl_timer_source": "none",
+        "gl_gpu_samples": "0",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "25.3",
+        "gl_occlusion_frames": "269",
+        "gl_depth_bits": "24",
+        "gl_glyph_uploads": "0"
+       }
+      },
+      "frame_hash": "4f759fdabe8bc383",
+      "hash_size": "1920x1080",
+      "scene": "fill_opaque",
+      "size": [
+       1920,
+       1080
+      ],
+      "drawn": [
+       1920,
+       1080
+      ]
+     }
+    ],
+    "fill_blend": [
+     {
+      "profile": {
+       "schema": 1,
+       "section": "fill_blend",
+       "frame_hash": "d056f4ed3b8de383",
+       "hash_size": "1920x1080",
+       "frames": 83,
+       "skipped": 30,
+       "window": [
+        1920,
+        1080
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 14,
+         "p99": 21,
+         "max": 59,
+         "mean": 15
+        },
+        "diff": {
+         "p50": 9,
+         "p99": 18,
+         "max": 19,
+         "mean": 10
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 133177,
+         "p99": 133369,
+         "max": 133436,
+         "mean": 127409
+        },
+        "work": {
+         "p50": 24,
+         "p99": 37,
+         "max": 75,
+         "mean": 25
+        },
+        "interval": {
+         "p50": 133301,
+         "p99": 133472,
+         "max": 133543,
+         "mean": 127711
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 83,
+        "interval_gt_25": 83,
+        "interval_gt_33_3": 83,
+        "interval_gt_50": 83,
+        "interval_gt_100": 83
+       },
+       "info": {
+        "gl_vendor": "Broadcom",
+        "gl_renderer": "VC4 V3D 2.1",
+        "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+        "gl_max_texture": "2048",
+        "gl_family": "VideoCore IV",
+        "renderer": "gl",
+        "gl_frames_replayed": "96",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "1.0",
+        "gl_quads_per_frame": "8",
+        "gl_cpu_submit_us": "305",
+        "gl_gpu_us": "0",
+        "gl_timer_source": "none",
+        "gl_gpu_samples": "0",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "25.2",
+        "gl_occlusion_frames": "1",
+        "gl_depth_bits": "24",
+        "gl_glyph_uploads": "0"
+       }
+      },
+      "frame_hash": "d056f4ed3b8de383",
+      "hash_size": "1920x1080",
+      "scene": "fill_blend",
+      "size": [
+       1920,
+       1080
+      ],
+      "drawn": [
+       1920,
+       1080
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "fill_blend",
+       "frame_hash": "d056f4ed3b8de383",
+       "hash_size": "1920x1080",
+       "frames": 83,
+       "skipped": 30,
+       "window": [
+        1920,
+        1080
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 14,
+         "p99": 19,
+         "max": 26,
+         "mean": 13
+        },
+        "diff": {
+         "p50": 10,
+         "p99": 13,
+         "max": 25,
+         "mean": 9
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 133199,
+         "p99": 133936,
+         "max": 134285,
+         "mean": 127411
+        },
+        "work": {
+         "p50": 24,
+         "p99": 37,
+         "max": 41,
+         "mean": 23
+        },
+        "interval": {
+         "p50": 133280,
+         "p99": 134052,
+         "max": 134397,
+         "mean": 127710
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 83,
+        "interval_gt_25": 83,
+        "interval_gt_33_3": 83,
+        "interval_gt_50": 83,
+        "interval_gt_100": 83
+       },
+       "info": {
+        "gl_vendor": "Broadcom",
+        "gl_renderer": "VC4 V3D 2.1",
+        "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+        "gl_max_texture": "2048",
+        "gl_family": "VideoCore IV",
+        "renderer": "gl",
+        "gl_frames_replayed": "96",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "1.0",
+        "gl_quads_per_frame": "8",
+        "gl_cpu_submit_us": "303",
+        "gl_gpu_us": "0",
+        "gl_timer_source": "none",
+        "gl_gpu_samples": "0",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "25.3",
+        "gl_occlusion_frames": "1",
+        "gl_depth_bits": "24",
+        "gl_glyph_uploads": "0"
+       }
+      },
+      "frame_hash": "d056f4ed3b8de383",
+      "hash_size": "1920x1080",
+      "scene": "fill_blend",
+      "size": [
+       1920,
+       1080
+      ],
+      "drawn": [
+       1920,
+       1080
+      ]
+     }
+    ],
+    "quads_10k": [
+     {
+      "profile": {
+       "schema": 1,
+       "section": "quads_10k",
+       "frame_hash": "d6255bcf990d8935",
+       "hash_size": "1920x1080",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1920,
+        1080
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 3033,
+         "p99": 4675,
+         "max": 6109,
+         "mean": 3158
+        },
+        "diff": {
+         "p50": 1645,
+         "p99": 3319,
+         "max": 4299,
+         "mean": 1769
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 11970,
+         "p99": 28642,
+         "max": 28668,
+         "mean": 16445
+        },
+        "work": {
+         "p50": 4727,
+         "p99": 7291,
+         "max": 9314,
+         "mean": 4928
+        },
+        "interval": {
+         "p50": 16709,
+         "p99": 33494,
+         "max": 34927,
+         "mean": 21526
+        }
+       },
+       "late": {
+        "work_gt_8_3": 1,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 165,
+        "interval_gt_25": 70,
+        "interval_gt_33_3": 17,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Broadcom",
+        "gl_renderer": "VC4 V3D 2.1",
+        "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+        "gl_max_texture": "2048",
+        "gl_family": "VideoCore IV",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "1.0",
+        "gl_quads_per_frame": "7578",
+        "gl_cpu_submit_us": "6290",
+        "gl_gpu_us": "0",
+        "gl_timer_source": "none",
+        "gl_gpu_samples": "0",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "25.2",
+        "gl_occlusion_frames": "269",
+        "gl_depth_bits": "24",
+        "gl_glyph_uploads": "0"
+       }
+      },
+      "frame_hash": "d6255bcf990d8935",
+      "hash_size": "1920x1080",
+      "scene": "quads_10k",
+      "size": [
+       1920,
+       1080
+      ],
+      "drawn": [
+       1920,
+       1080
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "quads_10k",
+       "frame_hash": "d6255bcf990d8935",
+       "hash_size": "1920x1080",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1920,
+        1080
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 3039,
+         "p99": 4800,
+         "max": 5426,
+         "mean": 3134
+        },
+        "diff": {
+         "p50": 1643,
+         "p99": 2779,
+         "max": 3051,
+         "mean": 1723
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 12032,
+         "p99": 28602,
+         "max": 28658,
+         "mean": 16518
+        },
+        "work": {
+         "p50": 4734,
+         "p99": 6697,
+         "max": 8401,
+         "mean": 4857
+        },
+        "interval": {
+         "p50": 16719,
+         "p99": 33425,
+         "max": 34585,
+         "mean": 21458
+        }
+       },
+       "late": {
+        "work_gt_8_3": 1,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 177,
+        "interval_gt_25": 69,
+        "interval_gt_33_3": 13,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Broadcom",
+        "gl_renderer": "VC4 V3D 2.1",
+        "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+        "gl_max_texture": "2048",
+        "gl_family": "VideoCore IV",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "1.0",
+        "gl_quads_per_frame": "7578",
+        "gl_cpu_submit_us": "6659",
+        "gl_gpu_us": "0",
+        "gl_timer_source": "none",
+        "gl_gpu_samples": "0",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "1",
+        "gl_program_build_ms": "25.3",
+        "gl_occlusion_frames": "269",
+        "gl_depth_bits": "24",
+        "gl_glyph_uploads": "0"
+       }
+      },
+      "frame_hash": "d6255bcf990d8935",
+      "hash_size": "1920x1080",
+      "scene": "quads_10k",
+      "size": [
+       1920,
+       1080
+      ],
+      "drawn": [
+       1920,
+       1080
+      ]
+     }
+    ],
+    "rounded_shadow": [
+     {
+      "profile": {
+       "schema": 1,
+       "section": "rounded_shadow",
+       "frame_hash": "3cc4a0f483d04683",
+       "hash_size": "1920x1080",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1920,
+        1080
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 115,
+         "p99": 215,
+         "max": 232,
+         "mean": 127
+        },
+        "diff": {
+         "p50": 38,
+         "p99": 62,
+         "max": 68,
+         "mean": 40
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 33105,
+         "p99": 49805,
+         "max": 49864,
+         "mean": 35170
+        },
+        "work": {
+         "p50": 152,
+         "p99": 272,
+         "max": 286,
+         "mean": 168
+        },
+        "interval": {
+         "p50": 33335,
+         "p99": 50028,
+         "max": 50095,
+         "mean": 35416
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 240,
+        "interval_gt_25": 240,
+        "interval_gt_33_3": 126,
+        "interval_gt_50": 20,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Broadcom",
+        "gl_renderer": "VC4 V3D 2.1",
+        "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+        "gl_max_texture": "2048",
+        "gl_family": "VideoCore IV",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "598.8",
+        "gl_quads_per_frame": "1703",
+        "gl_cpu_submit_us": "9289",
+        "gl_gpu_us": "0",
+        "gl_timer_source": "none",
+        "gl_gpu_samples": "0",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "4",
+        "gl_program_build_ms": "101.4",
+        "gl_occlusion_frames": "270",
+        "gl_depth_bits": "24",
+        "gl_glyph_uploads": "0"
+       }
+      },
+      "frame_hash": "3cc4a0f483d04683",
+      "hash_size": "1920x1080",
+      "scene": "rounded_shadow",
+      "size": [
+       1920,
+       1080
+      ],
+      "drawn": [
+       1920,
+       1080
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "rounded_shadow",
+       "frame_hash": "3cc4a0f483d04683",
+       "hash_size": "1920x1080",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1920,
+        1080
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 118,
+         "p99": 189,
+         "max": 261,
+         "mean": 136
+        },
+        "diff": {
+         "p50": 39,
+         "p99": 61,
+         "max": 92,
+         "mean": 43
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 33095,
+         "p99": 49819,
+         "max": 49962,
+         "mean": 35222
+        },
+        "work": {
+         "p50": 157,
+         "p99": 246,
+         "max": 353,
+         "mean": 179
+        },
+        "interval": {
+         "p50": 33333,
+         "p99": 50093,
+         "max": 50200,
+         "mean": 35485
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 240,
+        "interval_gt_25": 240,
+        "interval_gt_33_3": 118,
+        "interval_gt_50": 22,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Broadcom",
+        "gl_renderer": "VC4 V3D 2.1",
+        "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+        "gl_max_texture": "2048",
+        "gl_family": "VideoCore IV",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "598.8",
+        "gl_quads_per_frame": "1703",
+        "gl_cpu_submit_us": "9974",
+        "gl_gpu_us": "0",
+        "gl_timer_source": "none",
+        "gl_gpu_samples": "0",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "4",
+        "gl_program_build_ms": "101.1",
+        "gl_occlusion_frames": "270",
+        "gl_depth_bits": "24",
+        "gl_glyph_uploads": "0"
+       }
+      },
+      "frame_hash": "3cc4a0f483d04683",
+      "hash_size": "1920x1080",
+      "scene": "rounded_shadow",
+      "size": [
+       1920,
+       1080
+      ],
+      "drawn": [
+       1920,
+       1080
+      ]
+     }
+    ],
+    "gradients": [
+     {
+      "profile": {
+       "schema": 1,
+       "section": "gradients",
+       "frame_hash": "14c434730810a6f2",
+       "hash_size": "1920x1080",
+       "frames": 30,
+       "skipped": 30,
+       "window": [
+        1920,
+        1080
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 43,
+         "p99": 85,
+         "max": 87,
+         "mean": 50
+        },
+        "diff": {
+         "p50": 11,
+         "p99": 17,
+         "max": 26,
+         "mean": 12
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 366528,
+         "p99": 366596,
+         "max": 366655,
+         "mean": 365411
+        },
+        "work": {
+         "p50": 54,
+         "p99": 104,
+         "max": 107,
+         "mean": 63
+        },
+        "interval": {
+         "p50": 366657,
+         "p99": 366807,
+         "max": 366853,
+         "mean": 365551
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 30,
+        "interval_gt_25": 30,
+        "interval_gt_33_3": 30,
+        "interval_gt_50": 30,
+        "interval_gt_100": 30
+       },
+       "info": {
+        "gl_vendor": "Broadcom",
+        "gl_renderer": "VC4 V3D 2.1",
+        "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+        "gl_max_texture": "2048",
+        "gl_family": "VideoCore IV",
+        "renderer": "gl",
+        "gl_frames_replayed": "35",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "18.1",
+        "gl_quads_per_frame": "87",
+        "gl_cpu_submit_us": "977",
+        "gl_gpu_us": "0",
+        "gl_timer_source": "none",
+        "gl_gpu_samples": "0",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "4",
+        "gl_program_build_ms": "101.4",
+        "gl_occlusion_frames": "1",
+        "gl_depth_bits": "24",
+        "gl_glyph_uploads": "0"
+       }
+      },
+      "frame_hash": "14c434730810a6f2",
+      "hash_size": "1920x1080",
+      "scene": "gradients",
+      "size": [
+       1920,
+       1080
+      ],
+      "drawn": [
+       1920,
+       1080
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "gradients",
+       "frame_hash": "14c434730810a6f2",
+       "hash_size": "1920x1080",
+       "frames": 30,
+       "skipped": 30,
+       "window": [
+        1920,
+        1080
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 44,
+         "p99": 84,
+         "max": 87,
+         "mean": 57
+        },
+        "diff": {
+         "p50": 12,
+         "p99": 22,
+         "max": 26,
+         "mean": 14
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 366502,
+         "p99": 366674,
+         "max": 366698,
+         "mean": 365394
+        },
+        "work": {
+         "p50": 55,
+         "p99": 105,
+         "max": 106,
+         "mean": 71
+        },
+        "interval": {
+         "p50": 366650,
+         "p99": 366866,
+         "max": 366919,
+         "mean": 365560
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 30,
+        "interval_gt_25": 30,
+        "interval_gt_33_3": 30,
+        "interval_gt_50": 30,
+        "interval_gt_100": 30
+       },
+       "info": {
+        "gl_vendor": "Broadcom",
+        "gl_renderer": "VC4 V3D 2.1",
+        "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+        "gl_max_texture": "2048",
+        "gl_family": "VideoCore IV",
+        "renderer": "gl",
+        "gl_frames_replayed": "35",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "18.1",
+        "gl_quads_per_frame": "87",
+        "gl_cpu_submit_us": "1000",
+        "gl_gpu_us": "0",
+        "gl_timer_source": "none",
+        "gl_gpu_samples": "0",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "4",
+        "gl_program_build_ms": "101.1",
+        "gl_occlusion_frames": "1",
+        "gl_depth_bits": "24",
+        "gl_glyph_uploads": "0"
+       }
+      },
+      "frame_hash": "14c434730810a6f2",
+      "hash_size": "1920x1080",
+      "scene": "gradients",
+      "size": [
+       1920,
+       1080
+      ],
+      "drawn": [
+       1920,
+       1080
+      ]
+     }
+    ],
+    "text_static": [
+     {
+      "profile": {
+       "schema": 1,
+       "section": "text_static",
+       "frame_hash": "417b5864f19599db",
+       "hash_size": "1920x1080",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1920,
+        1080
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 317,
+         "p99": 406,
+         "max": 443,
+         "mean": 309
+        },
+        "diff": {
+         "p50": 65,
+         "p99": 83,
+         "max": 276,
+         "mean": 62
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 16195,
+         "p99": 16411,
+         "max": 16450,
+         "mean": 16211
+        },
+        "work": {
+         "p50": 384,
+         "p99": 483,
+         "max": 517,
+         "mean": 371
+        },
+        "interval": {
+         "p50": 16667,
+         "p99": 16781,
+         "max": 16861,
+         "mean": 16666
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 112,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Broadcom",
+        "gl_renderer": "VC4 V3D 2.1",
+        "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+        "gl_max_texture": "2048",
+        "gl_family": "VideoCore IV",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "1.0",
+        "gl_quads_per_frame": "2690",
+        "gl_cpu_submit_us": "3722",
+        "gl_gpu_us": "0",
+        "gl_timer_source": "none",
+        "gl_gpu_samples": "0",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "5",
+        "gl_program_build_ms": "119.8",
+        "gl_occlusion_frames": "0",
+        "gl_depth_bits": "24",
+        "gl_glyph_uploads": "1"
+       }
+      },
+      "frame_hash": "417b5864f19599db",
+      "hash_size": "1920x1080",
+      "scene": "text_static",
+      "size": [
+       1920,
+       1080
+      ],
+      "drawn": [
+       1920,
+       1080
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "text_static",
+       "frame_hash": "417b5864f19599db",
+       "hash_size": "1920x1080",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1920,
+        1080
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 214,
+         "p99": 358,
+         "max": 382,
+         "mean": 230
+        },
+        "diff": {
+         "p50": 41,
+         "p99": 76,
+         "max": 83,
+         "mean": 44
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 16342,
+         "p99": 16454,
+         "max": 16514,
+         "mean": 16320
+        },
+        "work": {
+         "p50": 254,
+         "p99": 431,
+         "max": 456,
+         "mean": 274
+        },
+        "interval": {
+         "p50": 16667,
+         "p99": 16795,
+         "max": 16862,
+         "mean": 16666
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 112,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Broadcom",
+        "gl_renderer": "VC4 V3D 2.1",
+        "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+        "gl_max_texture": "2048",
+        "gl_family": "VideoCore IV",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "1.0",
+        "gl_quads_per_frame": "2690",
+        "gl_cpu_submit_us": "3042",
+        "gl_gpu_us": "0",
+        "gl_timer_source": "none",
+        "gl_gpu_samples": "0",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "5",
+        "gl_program_build_ms": "124.8",
+        "gl_occlusion_frames": "0",
+        "gl_depth_bits": "24",
+        "gl_glyph_uploads": "1"
+       }
+      },
+      "frame_hash": "417b5864f19599db",
+      "hash_size": "1920x1080",
+      "scene": "text_static",
+      "size": [
+       1920,
+       1080
+      ],
+      "drawn": [
+       1920,
+       1080
+      ]
+     }
+    ],
+    "text_churn": [
+     {
+      "profile": {
+       "schema": 1,
+       "section": "text_churn",
+       "frame_hash": "9f2ad18e10e22d70",
+       "hash_size": "1920x1080",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1920,
+        1080
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 347,
+         "p99": 658,
+         "max": 747,
+         "mean": 382
+        },
+        "diff": {
+         "p50": 22,
+         "p99": 38,
+         "max": 90,
+         "mean": 24
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 16228,
+         "p99": 16297,
+         "max": 16713,
+         "mean": 16185
+        },
+        "work": {
+         "p50": 368,
+         "p99": 696,
+         "max": 785,
+         "mean": 406
+        },
+        "interval": {
+         "p50": 16666,
+         "p99": 16797,
+         "max": 17230,
+         "mean": 16666
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 97,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Broadcom",
+        "gl_renderer": "VC4 V3D 2.1",
+        "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+        "gl_max_texture": "2048",
+        "gl_family": "VideoCore IV",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "1.0",
+        "gl_quads_per_frame": "1404",
+        "gl_cpu_submit_us": "1709",
+        "gl_gpu_us": "0",
+        "gl_timer_source": "none",
+        "gl_gpu_samples": "0",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "5",
+        "gl_program_build_ms": "119.8",
+        "gl_occlusion_frames": "0",
+        "gl_depth_bits": "24",
+        "gl_glyph_uploads": "2"
+       }
+      },
+      "frame_hash": "9f2ad18e10e22d70",
+      "hash_size": "1920x1080",
+      "scene": "text_churn",
+      "size": [
+       1920,
+       1080
+      ],
+      "drawn": [
+       1920,
+       1080
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "text_churn",
+       "frame_hash": "9f2ad18e10e22d70",
+       "hash_size": "1920x1080",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1920,
+        1080
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 347,
+         "p99": 397,
+         "max": 443,
+         "mean": 351
+        },
+        "diff": {
+         "p50": 21,
+         "p99": 29,
+         "max": 42,
+         "mean": 22
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 16229,
+         "p99": 16504,
+         "max": 17742,
+         "mean": 16221
+        },
+        "work": {
+         "p50": 368,
+         "p99": 419,
+         "max": 464,
+         "mean": 373
+        },
+        "interval": {
+         "p50": 16667,
+         "p99": 16957,
+         "max": 18216,
+         "mean": 16666
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 112,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Broadcom",
+        "gl_renderer": "VC4 V3D 2.1",
+        "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+        "gl_max_texture": "2048",
+        "gl_family": "VideoCore IV",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "1.0",
+        "gl_quads_per_frame": "1404",
+        "gl_cpu_submit_us": "1656",
+        "gl_gpu_us": "0",
+        "gl_timer_source": "none",
+        "gl_gpu_samples": "0",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "5",
+        "gl_program_build_ms": "124.8",
+        "gl_occlusion_frames": "0",
+        "gl_depth_bits": "24",
+        "gl_glyph_uploads": "2"
+       }
+      },
+      "frame_hash": "9f2ad18e10e22d70",
+      "hash_size": "1920x1080",
+      "scene": "text_churn",
+      "size": [
+       1920,
+       1080
+      ],
+      "drawn": [
+       1920,
+       1080
+      ]
+     }
+    ],
+    "clip_nested": [
+     {
+      "profile": {
+       "schema": 1,
+       "section": "clip_nested",
+       "frame_hash": "42bb582f73ce220d",
+       "hash_size": "1920x1080",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1920,
+        1080
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 161,
+         "p99": 177,
+         "max": 184,
+         "mean": 162
+        },
+        "diff": {
+         "p50": 44,
+         "p99": 61,
+         "max": 123,
+         "mean": 46
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 16402,
+         "p99": 16480,
+         "max": 16764,
+         "mean": 16396
+        },
+        "work": {
+         "p50": 206,
+         "p99": 235,
+         "max": 291,
+         "mean": 208
+        },
+        "interval": {
+         "p50": 16666,
+         "p99": 16768,
+         "max": 17052,
+         "mean": 16666
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 105,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Broadcom",
+        "gl_renderer": "VC4 V3D 2.1",
+        "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+        "gl_max_texture": "2048",
+        "gl_family": "VideoCore IV",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "24.9",
+        "gl_quads_per_frame": "484",
+        "gl_cpu_submit_us": "1083",
+        "gl_gpu_us": "0",
+        "gl_timer_source": "none",
+        "gl_gpu_samples": "0",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "5",
+        "gl_program_build_ms": "119.8",
+        "gl_occlusion_frames": "269",
+        "gl_depth_bits": "24",
+        "gl_glyph_uploads": "2"
+       }
+      },
+      "frame_hash": "42bb582f73ce220d",
+      "hash_size": "1920x1080",
+      "scene": "clip_nested",
+      "size": [
+       1920,
+       1080
+      ],
+      "drawn": [
+       1920,
+       1080
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "clip_nested",
+       "frame_hash": "42bb582f73ce220d",
+       "hash_size": "1920x1080",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1920,
+        1080
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 164,
+         "p99": 357,
+         "max": 516,
+         "mean": 210
+        },
+        "diff": {
+         "p50": 48,
+         "p99": 103,
+         "max": 268,
+         "mean": 60
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 16385,
+         "p99": 16505,
+         "max": 17301,
+         "mean": 16325
+        },
+        "work": {
+         "p50": 213,
+         "p99": 449,
+         "max": 568,
+         "mean": 271
+        },
+        "interval": {
+         "p50": 16665,
+         "p99": 16801,
+         "max": 17639,
+         "mean": 16665
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 108,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Broadcom",
+        "gl_renderer": "VC4 V3D 2.1",
+        "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+        "gl_max_texture": "2048",
+        "gl_family": "VideoCore IV",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "24.9",
+        "gl_quads_per_frame": "484",
+        "gl_cpu_submit_us": "1428",
+        "gl_gpu_us": "0",
+        "gl_timer_source": "none",
+        "gl_gpu_samples": "0",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "5",
+        "gl_program_build_ms": "124.8",
+        "gl_occlusion_frames": "269",
+        "gl_depth_bits": "24",
+        "gl_glyph_uploads": "2"
+       }
+      },
+      "frame_hash": "42bb582f73ce220d",
+      "hash_size": "1920x1080",
+      "scene": "clip_nested",
+      "size": [
+       1920,
+       1080
+      ],
+      "drawn": [
+       1920,
+       1080
+      ]
+     }
+    ],
+    "poly": [
+     {
+      "profile": {
+       "schema": 1,
+       "section": "poly",
+       "frame_hash": "5057a5769f6b8dc9",
+       "hash_size": "1920x1080",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1920,
+        1080
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 328,
+         "p99": 697,
+         "max": 1120,
+         "mean": 409
+        },
+        "diff": {
+         "p50": 100,
+         "p99": 195,
+         "max": 461,
+         "mean": 126
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 16166,
+         "p99": 16224,
+         "max": 18259,
+         "mean": 16054
+        },
+        "work": {
+         "p50": 426,
+         "p99": 887,
+         "max": 1581,
+         "mean": 535
+        },
+        "interval": {
+         "p50": 16666,
+         "p99": 16848,
+         "max": 19119,
+         "mean": 16666
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 107,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Broadcom",
+        "gl_renderer": "VC4 V3D 2.1",
+        "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+        "gl_max_texture": "2048",
+        "gl_family": "VideoCore IV",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "2.1",
+        "gl_quads_per_frame": "991",
+        "gl_cpu_submit_us": "1320",
+        "gl_gpu_us": "0",
+        "gl_timer_source": "none",
+        "gl_gpu_samples": "0",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "6",
+        "gl_program_build_ms": "139.3",
+        "gl_occlusion_frames": "270",
+        "gl_depth_bits": "24",
+        "gl_glyph_uploads": "2"
+       }
+      },
+      "frame_hash": "5057a5769f6b8dc9",
+      "hash_size": "1920x1080",
+      "scene": "poly",
+      "size": [
+       1920,
+       1080
+      ],
+      "drawn": [
+       1920,
+       1080
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "poly",
+       "frame_hash": "5057a5769f6b8dc9",
+       "hash_size": "1920x1080",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1920,
+        1080
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 557,
+         "p99": 690,
+         "max": 823,
+         "mean": 497
+        },
+        "diff": {
+         "p50": 164,
+         "p99": 266,
+         "max": 381,
+         "mean": 150
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 15859,
+         "p99": 16271,
+         "max": 16443,
+         "mean": 15934
+        },
+        "work": {
+         "p50": 724,
+         "p99": 895,
+         "max": 968,
+         "mean": 648
+        },
+        "interval": {
+         "p50": 16668,
+         "p99": 16786,
+         "max": 17065,
+         "mean": 16666
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 123,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Broadcom",
+        "gl_renderer": "VC4 V3D 2.1",
+        "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+        "gl_max_texture": "2048",
+        "gl_family": "VideoCore IV",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "2.1",
+        "gl_quads_per_frame": "991",
+        "gl_cpu_submit_us": "1474",
+        "gl_gpu_us": "0",
+        "gl_timer_source": "none",
+        "gl_gpu_samples": "0",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "6",
+        "gl_program_build_ms": "144.2",
+        "gl_occlusion_frames": "270",
+        "gl_depth_bits": "24",
+        "gl_glyph_uploads": "2"
+       }
+      },
+      "frame_hash": "5057a5769f6b8dc9",
+      "hash_size": "1920x1080",
+      "scene": "poly",
+      "size": [
+       1920,
+       1080
+      ],
+      "drawn": [
+       1920,
+       1080
+      ]
+     }
+    ],
+    "scroll_list": [
+     {
+      "profile": {
+       "schema": 1,
+       "section": "scroll_list",
+       "frame_hash": "fed35b1924d83dbe",
+       "hash_size": "1920x1080",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1920,
+        1080
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 188,
+         "p99": 344,
+         "max": 428,
+         "mean": 195
+        },
+        "diff": {
+         "p50": 33,
+         "p99": 62,
+         "max": 67,
+         "mean": 34
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 16369,
+         "p99": 16964,
+         "max": 17979,
+         "mean": 16353
+        },
+        "work": {
+         "p50": 221,
+         "p99": 401,
+         "max": 492,
+         "mean": 230
+        },
+        "interval": {
+         "p50": 16668,
+         "p99": 17300,
+         "max": 18358,
+         "mean": 16666
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 123,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Broadcom",
+        "gl_renderer": "VC4 V3D 2.1",
+        "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+        "gl_max_texture": "2048",
+        "gl_family": "VideoCore IV",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "148.2",
+        "gl_quads_per_frame": "840",
+        "gl_cpu_submit_us": "5754",
+        "gl_gpu_us": "0",
+        "gl_timer_source": "none",
+        "gl_gpu_samples": "0",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "6",
+        "gl_program_build_ms": "139.3",
+        "gl_occlusion_frames": "270",
+        "gl_depth_bits": "24",
+        "gl_glyph_uploads": "3"
+       }
+      },
+      "frame_hash": "fed35b1924d83dbe",
+      "hash_size": "1920x1080",
+      "scene": "scroll_list",
+      "size": [
+       1920,
+       1080
+      ],
+      "drawn": [
+       1920,
+       1080
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "scroll_list",
+       "frame_hash": "fed35b1924d83dbe",
+       "hash_size": "1920x1080",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1920,
+        1080
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 188,
+         "p99": 249,
+         "max": 276,
+         "mean": 191
+        },
+        "diff": {
+         "p50": 33,
+         "p99": 75,
+         "max": 88,
+         "mean": 35
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 16364,
+         "p99": 16459,
+         "max": 16629,
+         "mean": 16358
+        },
+        "work": {
+         "p50": 222,
+         "p99": 294,
+         "max": 316,
+         "mean": 227
+        },
+        "interval": {
+         "p50": 16666,
+         "p99": 16801,
+         "max": 17046,
+         "mean": 16667
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 117,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Broadcom",
+        "gl_renderer": "VC4 V3D 2.1",
+        "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+        "gl_max_texture": "2048",
+        "gl_family": "VideoCore IV",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "148.2",
+        "gl_quads_per_frame": "840",
+        "gl_cpu_submit_us": "5721",
+        "gl_gpu_us": "0",
+        "gl_timer_source": "none",
+        "gl_gpu_samples": "0",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "6",
+        "gl_program_build_ms": "144.2",
+        "gl_occlusion_frames": "270",
+        "gl_depth_bits": "24",
+        "gl_glyph_uploads": "3"
+       }
+      },
+      "frame_hash": "fed35b1924d83dbe",
+      "hash_size": "1920x1080",
+      "scene": "scroll_list",
+      "size": [
+       1920,
+       1080
+      ],
+      "drawn": [
+       1920,
+       1080
+      ]
+     }
+    ],
+    "image_update": [
+     {
+      "profile": {
+       "schema": 1,
+       "section": "image_update",
+       "frame_hash": "f96a4b0a27f40383",
+       "hash_size": "1920x1080",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1920,
+        1080
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 10774,
+         "p99": 15258,
+         "max": 15678,
+         "mean": 11108
+        },
+        "diff": {
+         "p50": 13,
+         "p99": 23,
+         "max": 67,
+         "mean": 13
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 5552,
+         "p99": 6270,
+         "max": 6404,
+         "mean": 5326
+        },
+        "work": {
+         "p50": 10787,
+         "p99": 15270,
+         "max": 15690,
+         "mean": 11121
+        },
+        "interval": {
+         "p50": 16669,
+         "p99": 17379,
+         "max": 17437,
+         "mean": 16667
+        }
+       },
+       "late": {
+        "work_gt_8_3": 240,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 121,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Broadcom",
+        "gl_renderer": "VC4 V3D 2.1",
+        "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+        "gl_max_texture": "2048",
+        "gl_family": "VideoCore IV",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "1.6",
+        "gl_quads_per_frame": "7",
+        "gl_cpu_submit_us": "1152",
+        "gl_gpu_us": "0",
+        "gl_timer_source": "none",
+        "gl_gpu_samples": "0",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "7",
+        "gl_program_build_ms": "173.7",
+        "gl_occlusion_frames": "1",
+        "gl_depth_bits": "24",
+        "gl_glyph_uploads": "3"
+       }
+      },
+      "frame_hash": "f96a4b0a27f40383",
+      "hash_size": "1920x1080",
+      "scene": "image_update",
+      "size": [
+       1920,
+       1080
+      ],
+      "drawn": [
+       1920,
+       1080
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "image_update",
+       "frame_hash": "f96a4b0a27f40383",
+       "hash_size": "1920x1080",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1920,
+        1080
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 10775,
+         "p99": 12444,
+         "max": 16695,
+         "mean": 10946
+        },
+        "diff": {
+         "p50": 13,
+         "p99": 20,
+         "max": 23,
+         "mean": 13
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 5569,
+         "p99": 6323,
+         "max": 7880,
+         "mean": 5490
+        },
+        "work": {
+         "p50": 10789,
+         "p99": 12457,
+         "max": 16707,
+         "mean": 10960
+        },
+        "interval": {
+         "p50": 16668,
+         "p99": 17361,
+         "max": 22247,
+         "mean": 16690
+        }
+       },
+       "late": {
+        "work_gt_8_3": 240,
+        "work_gt_16_7": 1,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 121,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Broadcom",
+        "gl_renderer": "VC4 V3D 2.1",
+        "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+        "gl_max_texture": "2048",
+        "gl_family": "VideoCore IV",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "1.6",
+        "gl_quads_per_frame": "7",
+        "gl_cpu_submit_us": "1197",
+        "gl_gpu_us": "0",
+        "gl_timer_source": "none",
+        "gl_gpu_samples": "0",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "7",
+        "gl_program_build_ms": "182.6",
+        "gl_occlusion_frames": "1",
+        "gl_depth_bits": "24",
+        "gl_glyph_uploads": "3"
+       }
+      },
+      "frame_hash": "f96a4b0a27f40383",
+      "hash_size": "1920x1080",
+      "scene": "image_update",
+      "size": [
+       1920,
+       1080
+      ],
+      "drawn": [
+       1920,
+       1080
+      ]
+     }
+    ],
+    "image_fill_only": [
+     {
+      "profile": {
+       "schema": 1,
+       "section": "image_fill_only",
+       "frame_hash": "acd39361c50bc383",
+       "hash_size": "1920x1080",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1920,
+        1080
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 8566,
+         "p99": 13002,
+         "max": 13111,
+         "mean": 8744
+        },
+        "diff": {
+         "p50": 15,
+         "p99": 24,
+         "max": 26,
+         "mean": 15
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 8022,
+         "p99": 8114,
+         "max": 8357,
+         "mean": 7838
+        },
+        "work": {
+         "p50": 8584,
+         "p99": 13018,
+         "max": 13127,
+         "mean": 8759
+        },
+        "interval": {
+         "p50": 16667,
+         "p99": 16785,
+         "max": 17079,
+         "mean": 16666
+        }
+       },
+       "late": {
+        "work_gt_8_3": 240,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 119,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Broadcom",
+        "gl_renderer": "VC4 V3D 2.1",
+        "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+        "gl_max_texture": "2048",
+        "gl_family": "VideoCore IV",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "0.0",
+        "gl_quads_per_frame": "0",
+        "gl_cpu_submit_us": "154",
+        "gl_gpu_us": "0",
+        "gl_timer_source": "none",
+        "gl_gpu_samples": "0",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "7",
+        "gl_program_build_ms": "173.7",
+        "gl_occlusion_frames": "0",
+        "gl_depth_bits": "24",
+        "gl_glyph_uploads": "3"
+       }
+      },
+      "frame_hash": "acd39361c50bc383",
+      "hash_size": "1920x1080",
+      "scene": "image_fill_only",
+      "size": [
+       1920,
+       1080
+      ],
+      "drawn": [
+       1920,
+       1080
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "image_fill_only",
+       "frame_hash": "acd39361c50bc383",
+       "hash_size": "1920x1080",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1920,
+        1080
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 8559,
+         "p99": 9797,
+         "max": 11767,
+         "mean": 8649
+        },
+        "diff": {
+         "p50": 15,
+         "p99": 27,
+         "max": 157,
+         "mean": 16
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 8029,
+         "p99": 8131,
+         "max": 8747,
+         "mean": 7935
+        },
+        "work": {
+         "p50": 8574,
+         "p99": 9813,
+         "max": 11781,
+         "mean": 8665
+        },
+        "interval": {
+         "p50": 16667,
+         "p99": 16862,
+         "max": 18070,
+         "mean": 16666
+        }
+       },
+       "late": {
+        "work_gt_8_3": 240,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 119,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Broadcom",
+        "gl_renderer": "VC4 V3D 2.1",
+        "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+        "gl_max_texture": "2048",
+        "gl_family": "VideoCore IV",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "0.0",
+        "gl_quads_per_frame": "0",
+        "gl_cpu_submit_us": "153",
+        "gl_gpu_us": "0",
+        "gl_timer_source": "none",
+        "gl_gpu_samples": "0",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "7",
+        "gl_program_build_ms": "182.6",
+        "gl_occlusion_frames": "0",
+        "gl_depth_bits": "24",
+        "gl_glyph_uploads": "3"
+       }
+      },
+      "frame_hash": "acd39361c50bc383",
+      "hash_size": "1920x1080",
+      "scene": "image_fill_only",
+      "size": [
+       1920,
+       1080
+      ],
+      "drawn": [
+       1920,
+       1080
+      ]
+     }
+    ],
+    "image_upload_only": [
+     {
+      "profile": {
+       "schema": 1,
+       "section": "image_upload_only",
+       "frame_hash": "f96a4b0a27f40383",
+       "hash_size": "1920x1080",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1920,
+        1080
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 1502,
+         "p99": 2546,
+         "max": 2850,
+         "mean": 1615
+        },
+        "diff": {
+         "p50": 13,
+         "p99": 18,
+         "max": 22,
+         "mean": 13
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 15103,
+         "p99": 15217,
+         "max": 15268,
+         "mean": 14967
+        },
+        "work": {
+         "p50": 1514,
+         "p99": 2561,
+         "max": 2864,
+         "mean": 1628
+        },
+        "interval": {
+         "p50": 16667,
+         "p99": 16800,
+         "max": 16860,
+         "mean": 16666
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 113,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Broadcom",
+        "gl_renderer": "VC4 V3D 2.1",
+        "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+        "gl_max_texture": "2048",
+        "gl_family": "VideoCore IV",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "1.0",
+        "gl_quads_per_frame": "4",
+        "gl_cpu_submit_us": "942",
+        "gl_gpu_us": "0",
+        "gl_timer_source": "none",
+        "gl_gpu_samples": "0",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "7",
+        "gl_program_build_ms": "173.7",
+        "gl_occlusion_frames": "0",
+        "gl_depth_bits": "24",
+        "gl_glyph_uploads": "3"
+       }
+      },
+      "frame_hash": "f96a4b0a27f40383",
+      "hash_size": "1920x1080",
+      "scene": "image_upload_only",
+      "size": [
+       1920,
+       1080
+      ],
+      "drawn": [
+       1920,
+       1080
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "image_upload_only",
+       "frame_hash": "f96a4b0a27f40383",
+       "hash_size": "1920x1080",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1920,
+        1080
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 1453,
+         "p99": 2463,
+         "max": 2867,
+         "mean": 1584
+        },
+        "diff": {
+         "p50": 13,
+         "p99": 23,
+         "max": 23,
+         "mean": 13
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 15129,
+         "p99": 15239,
+         "max": 15318,
+         "mean": 14999
+        },
+        "work": {
+         "p50": 1466,
+         "p99": 2479,
+         "max": 2878,
+         "mean": 1598
+        },
+        "interval": {
+         "p50": 16667,
+         "p99": 16816,
+         "max": 17559,
+         "mean": 16666
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 106,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Broadcom",
+        "gl_renderer": "VC4 V3D 2.1",
+        "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+        "gl_max_texture": "2048",
+        "gl_family": "VideoCore IV",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "1.0",
+        "gl_quads_per_frame": "4",
+        "gl_cpu_submit_us": "969",
+        "gl_gpu_us": "0",
+        "gl_timer_source": "none",
+        "gl_gpu_samples": "0",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "7",
+        "gl_program_build_ms": "182.6",
+        "gl_occlusion_frames": "0",
+        "gl_depth_bits": "24",
+        "gl_glyph_uploads": "3"
+       }
+      },
+      "frame_hash": "f96a4b0a27f40383",
+      "hash_size": "1920x1080",
+      "scene": "image_upload_only",
+      "size": [
+       1920,
+       1080
+      ],
+      "drawn": [
+       1920,
+       1080
+      ]
+     }
+    ],
+    "damage_small": [
+     {
+      "profile": {
+       "schema": 1,
+       "section": "damage_small",
+       "frame_hash": "684bf1e9a4357e73",
+       "hash_size": "1920x1080",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1920,
+        1080
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 151,
+         "p99": 354,
+         "max": 449,
+         "mean": 180
+        },
+        "diff": {
+         "p50": 64,
+         "p99": 150,
+         "max": 217,
+         "mean": 69
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 33333,
+         "p99": 49926,
+         "max": 50664,
+         "mean": 40765
+        },
+        "work": {
+         "p50": 210,
+         "p99": 479,
+         "max": 556,
+         "mean": 249
+        },
+        "interval": {
+         "p50": 33743,
+         "p99": 50266,
+         "max": 51473,
+         "mean": 41111
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 240,
+        "interval_gt_25": 240,
+        "interval_gt_33_3": 211,
+        "interval_gt_50": 23,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Broadcom",
+        "gl_renderer": "VC4 V3D 2.1",
+        "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+        "gl_max_texture": "2048",
+        "gl_family": "VideoCore IV",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "1.0",
+        "gl_quads_per_frame": "301",
+        "gl_cpu_submit_us": "981",
+        "gl_gpu_us": "0",
+        "gl_timer_source": "none",
+        "gl_gpu_samples": "0",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "7",
+        "gl_program_build_ms": "173.7",
+        "gl_occlusion_frames": "269",
+        "gl_depth_bits": "24",
+        "gl_glyph_uploads": "3"
+       }
+      },
+      "frame_hash": "684bf1e9a4357e73",
+      "hash_size": "1920x1080",
+      "scene": "damage_small",
+      "size": [
+       1920,
+       1080
+      ],
+      "drawn": [
+       1920,
+       1080
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "damage_small",
+       "frame_hash": "684bf1e9a4357e73",
+       "hash_size": "1920x1080",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1920,
+        1080
+       ],
+       "phases": {
+        "app": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "input": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "anim": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "effects": {
+         "p50": 196,
+         "p99": 314,
+         "max": 476,
+         "mean": 195
+        },
+        "diff": {
+         "p50": 79,
+         "p99": 155,
+         "max": 335,
+         "mean": 79
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 48560,
+         "p99": 49899,
+         "max": 53571,
+         "mean": 41283
+        },
+        "work": {
+         "p50": 280,
+         "p99": 425,
+         "max": 599,
+         "mean": 274
+        },
+        "interval": {
+         "p50": 33992,
+         "p99": 50378,
+         "max": 53965,
+         "mean": 41668
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 240,
+        "interval_gt_25": 240,
+        "interval_gt_33_3": 209,
+        "interval_gt_50": 29,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Broadcom",
+        "gl_renderer": "VC4 V3D 2.1",
+        "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+        "gl_max_texture": "2048",
+        "gl_family": "VideoCore IV",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "1.0",
+        "gl_quads_per_frame": "301",
+        "gl_cpu_submit_us": "1048",
+        "gl_gpu_us": "0",
+        "gl_timer_source": "none",
+        "gl_gpu_samples": "0",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "7",
+        "gl_program_build_ms": "182.6",
+        "gl_occlusion_frames": "269",
+        "gl_depth_bits": "24",
+        "gl_glyph_uploads": "3"
+       }
+      },
+      "frame_hash": "684bf1e9a4357e73",
+      "hash_size": "1920x1080",
+      "scene": "damage_small",
+      "size": [
+       1920,
+       1080
+      ],
+      "drawn": [
+       1920,
+       1080
+      ]
+     }
+    ],
+    "ui_scroll_fling": [
+     {
+      "profile": {
+       "schema": 1,
+       "section": "ui_scroll_fling",
+       "frame_hash": "fb1de99801aecc27",
+       "hash_size": "1920x1080",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1920,
+        1080
+       ],
+       "phases": {
+        "app": {
+         "p50": 14,
+         "p99": 1391,
+         "max": 5306,
+         "mean": 134
+        },
+        "input": {
+         "p50": 1076,
+         "p99": 1534,
+         "max": 1960,
+         "mean": 1076
+        },
+        "anim": {
+         "p50": 4,
+         "p99": 29,
+         "max": 47,
+         "mean": 5
+        },
+        "layout": {
+         "p50": 4,
+         "p99": 9,
+         "max": 12,
+         "mean": 4
+        },
+        "paint": {
+         "p50": 4308,
+         "p99": 5561,
+         "max": 7143,
+         "mean": 4357
+        },
+        "effects": {
+         "p50": 8,
+         "p99": 14,
+         "max": 174,
+         "mean": 8
+        },
+        "diff": {
+         "p50": 273,
+         "p99": 464,
+         "max": 662,
+         "mean": 283
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 10898,
+         "p99": 27692,
+         "max": 42884,
+         "mean": 12728
+        },
+        "work": {
+         "p50": 5697,
+         "p99": 8901,
+         "max": 10284,
+         "mean": 5870
+        },
+        "interval": {
+         "p50": 16666,
+         "p99": 33453,
+         "max": 49897,
+         "mean": 18680
+        }
+       },
+       "late": {
+        "work_gt_8_3": 5,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 110,
+        "interval_gt_25": 28,
+        "interval_gt_33_3": 12,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Broadcom",
+        "gl_renderer": "VC4 V3D 2.1",
+        "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+        "gl_max_texture": "2048",
+        "gl_family": "VideoCore IV",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "52.2",
+        "gl_quads_per_frame": "945",
+        "gl_cpu_submit_us": "2507",
+        "gl_gpu_us": "0",
+        "gl_timer_source": "none",
+        "gl_gpu_samples": "0",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "7",
+        "gl_program_build_ms": "173.7",
+        "gl_occlusion_frames": "270",
+        "gl_depth_bits": "24",
+        "gl_glyph_uploads": "4"
+       }
+      },
+      "frame_hash": "fb1de99801aecc27",
+      "hash_size": "1920x1080",
+      "scene": "ui_scroll_fling",
+      "size": [
+       1920,
+       1080
+      ],
+      "drawn": [
+       1920,
+       1080
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "ui_scroll_fling",
+       "frame_hash": "2ea014f80f4c9c10",
+       "hash_size": "1920x1080",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1920,
+        1080
+       ],
+       "phases": {
+        "app": {
+         "p50": 12,
+         "p99": 1279,
+         "max": 5536,
+         "mean": 135
+        },
+        "input": {
+         "p50": 1072,
+         "p99": 1482,
+         "max": 1821,
+         "mean": 1093
+        },
+        "anim": {
+         "p50": 5,
+         "p99": 10,
+         "max": 12,
+         "mean": 5
+        },
+        "layout": {
+         "p50": 4,
+         "p99": 9,
+         "max": 10,
+         "mean": 4
+        },
+        "paint": {
+         "p50": 4326,
+         "p99": 6390,
+         "max": 8312,
+         "mean": 4416
+        },
+        "effects": {
+         "p50": 8,
+         "p99": 15,
+         "max": 61,
+         "mean": 8
+        },
+        "diff": {
+         "p50": 263,
+         "p99": 439,
+         "max": 773,
+         "mean": 274
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 10887,
+         "p99": 27590,
+         "max": 27639,
+         "mean": 12592
+        },
+        "work": {
+         "p50": 5712,
+         "p99": 10246,
+         "max": 10631,
+         "mean": 5938
+        },
+        "interval": {
+         "p50": 16669,
+         "p99": 33374,
+         "max": 37328,
+         "mean": 18611
+        }
+       },
+       "late": {
+        "work_gt_8_3": 5,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 128,
+        "interval_gt_25": 28,
+        "interval_gt_33_3": 7,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Broadcom",
+        "gl_renderer": "VC4 V3D 2.1",
+        "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+        "gl_max_texture": "2048",
+        "gl_family": "VideoCore IV",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "52.2",
+        "gl_quads_per_frame": "944",
+        "gl_cpu_submit_us": "2458",
+        "gl_gpu_us": "0",
+        "gl_timer_source": "none",
+        "gl_gpu_samples": "0",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "7",
+        "gl_program_build_ms": "182.6",
+        "gl_occlusion_frames": "270",
+        "gl_depth_bits": "24",
+        "gl_glyph_uploads": "4"
+       }
+      },
+      "frame_hash": "2ea014f80f4c9c10",
+      "hash_size": "1920x1080",
+      "scene": "ui_scroll_fling",
+      "size": [
+       1920,
+       1080
+      ],
+      "drawn": [
+       1920,
+       1080
+      ]
+     }
+    ],
+    "ui_scroll_wheel": [
+     {
+      "profile": {
+       "schema": 1,
+       "section": "ui_scroll_wheel",
+       "frame_hash": "65adcc0ca6966a11",
+       "hash_size": "1920x1080",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1920,
+        1080
+       ],
+       "phases": {
+        "app": {
+         "p50": 12,
+         "p99": 2520,
+         "max": 2892,
+         "mean": 348
+        },
+        "input": {
+         "p50": 698,
+         "p99": 1033,
+         "max": 1150,
+         "mean": 713
+        },
+        "anim": {
+         "p50": 4,
+         "p99": 11,
+         "max": 60,
+         "mean": 5
+        },
+        "layout": {
+         "p50": 4,
+         "p99": 11,
+         "max": 41,
+         "mean": 4
+        },
+        "paint": {
+         "p50": 4401,
+         "p99": 5831,
+         "max": 6962,
+         "mean": 4422
+        },
+        "effects": {
+         "p50": 8,
+         "p99": 13,
+         "max": 15,
+         "mean": 8
+        },
+        "diff": {
+         "p50": 274,
+         "p99": 384,
+         "max": 1185,
+         "mean": 285
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 11135,
+         "p99": 27936,
+         "max": 27976,
+         "mean": 12604
+        },
+        "work": {
+         "p50": 5492,
+         "p99": 8640,
+         "max": 9775,
+         "mean": 5787
+        },
+        "interval": {
+         "p50": 16667,
+         "p99": 33370,
+         "max": 33507,
+         "mean": 18472
+        }
+       },
+       "late": {
+        "work_gt_8_3": 5,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 117,
+        "interval_gt_25": 26,
+        "interval_gt_33_3": 6,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Broadcom",
+        "gl_renderer": "VC4 V3D 2.1",
+        "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+        "gl_max_texture": "2048",
+        "gl_family": "VideoCore IV",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "52.4",
+        "gl_quads_per_frame": "971",
+        "gl_cpu_submit_us": "2289",
+        "gl_gpu_us": "0",
+        "gl_timer_source": "none",
+        "gl_gpu_samples": "0",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "7",
+        "gl_program_build_ms": "173.7",
+        "gl_occlusion_frames": "270",
+        "gl_depth_bits": "24",
+        "gl_glyph_uploads": "4"
+       }
+      },
+      "frame_hash": "65adcc0ca6966a11",
+      "hash_size": "1920x1080",
+      "scene": "ui_scroll_wheel",
+      "size": [
+       1920,
+       1080
+      ],
+      "drawn": [
+       1920,
+       1080
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "ui_scroll_wheel",
+       "frame_hash": "88d77bbfe7b5c367",
+       "hash_size": "1920x1080",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1920,
+        1080
+       ],
+       "phases": {
+        "app": {
+         "p50": 12,
+         "p99": 2112,
+         "max": 2936,
+         "mean": 344
+        },
+        "input": {
+         "p50": 714,
+         "p99": 1262,
+         "max": 1626,
+         "mean": 735
+        },
+        "anim": {
+         "p50": 5,
+         "p99": 11,
+         "max": 16,
+         "mean": 5
+        },
+        "layout": {
+         "p50": 4,
+         "p99": 11,
+         "max": 85,
+         "mean": 4
+        },
+        "paint": {
+         "p50": 4411,
+         "p99": 5624,
+         "max": 6447,
+         "mean": 4445
+        },
+        "effects": {
+         "p50": 8,
+         "p99": 16,
+         "max": 64,
+         "mean": 8
+        },
+        "diff": {
+         "p50": 264,
+         "p99": 437,
+         "max": 530,
+         "mean": 275
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 11109,
+         "p99": 27838,
+         "max": 28038,
+         "mean": 12572
+        },
+        "work": {
+         "p50": 5512,
+         "p99": 7432,
+         "max": 8604,
+         "mean": 5819
+        },
+        "interval": {
+         "p50": 16670,
+         "p99": 33396,
+         "max": 33522,
+         "mean": 18402
+        }
+       },
+       "late": {
+        "work_gt_8_3": 2,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 127,
+        "interval_gt_25": 25,
+        "interval_gt_33_3": 11,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Broadcom",
+        "gl_renderer": "VC4 V3D 2.1",
+        "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+        "gl_max_texture": "2048",
+        "gl_family": "VideoCore IV",
+        "renderer": "gl",
+        "gl_frames_replayed": "270",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "52.4",
+        "gl_quads_per_frame": "969",
+        "gl_cpu_submit_us": "2273",
+        "gl_gpu_us": "0",
+        "gl_timer_source": "none",
+        "gl_gpu_samples": "0",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "7",
+        "gl_program_build_ms": "182.6",
+        "gl_occlusion_frames": "270",
+        "gl_depth_bits": "24",
+        "gl_glyph_uploads": "4"
+       }
+      },
+      "frame_hash": "88d77bbfe7b5c367",
+      "hash_size": "1920x1080",
+      "scene": "ui_scroll_wheel",
+      "size": [
+       1920,
+       1080
+      ],
+      "drawn": [
+       1920,
+       1080
+      ]
+     }
+    ],
+    "ui_anim_transform": [
+     {
+      "profile": {
+       "schema": 1,
+       "section": "ui_anim_transform",
+       "frame_hash": "a4acc7083607ba2f",
+       "hash_size": "1920x1080",
+       "frames": 5,
+       "skipped": 8,
+       "window": [
+        1920,
+        1080
+       ],
+       "phases": {
+        "app": {
+         "p50": 46,
+         "p99": 48,
+         "max": 58,
+         "mean": 42
+        },
+        "input": {
+         "p50": 935,
+         "p99": 1087,
+         "max": 1153,
+         "mean": 871
+        },
+        "anim": {
+         "p50": 1138,
+         "p99": 1579,
+         "max": 1651,
+         "mean": 1158
+        },
+        "layout": {
+         "p50": 14,
+         "p99": 21,
+         "max": 21,
+         "mean": 14
+        },
+        "paint": {
+         "p50": 813,
+         "p99": 1089,
+         "max": 1093,
+         "mean": 816
+        },
+        "effects": {
+         "p50": 18,
+         "p99": 20,
+         "max": 22,
+         "mean": 15
+        },
+        "diff": {
+         "p50": 158,
+         "p99": 174,
+         "max": 260,
+         "mean": 167
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 3834422,
+         "p99": 3837903,
+         "max": 4009406,
+         "mean": 3860420
+        },
+        "work": {
+         "p50": 3371,
+         "p99": 3581,
+         "max": 4254,
+         "mean": 3085
+        },
+        "interval": {
+         "p50": 3838311,
+         "p99": 3841473,
+         "max": 4013946,
+         "mean": 3101457
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 5,
+        "interval_gt_25": 4,
+        "interval_gt_33_3": 4,
+        "interval_gt_50": 4,
+        "interval_gt_100": 4
+       },
+       "info": {
+        "gl_vendor": "Broadcom",
+        "gl_renderer": "VC4 V3D 2.1",
+        "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+        "gl_max_texture": "2048",
+        "gl_family": "VideoCore IV",
+        "renderer": "gl",
+        "gl_frames_replayed": "8",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "270.0",
+        "gl_quads_per_frame": "777",
+        "gl_cpu_submit_us": "2397842",
+        "gl_gpu_us": "0",
+        "gl_timer_source": "none",
+        "gl_gpu_samples": "0",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "7",
+        "gl_program_build_ms": "173.7",
+        "gl_occlusion_frames": "8",
+        "gl_depth_bits": "24",
+        "gl_glyph_uploads": "4"
+       }
+      },
+      "frame_hash": "a4acc7083607ba2f",
+      "hash_size": "1920x1080",
+      "scene": "ui_anim_transform",
+      "size": [
+       1920,
+       1080
+      ],
+      "drawn": [
+       1920,
+       1080
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "ui_anim_transform",
+       "frame_hash": "c1be3f6ec734375b",
+       "hash_size": "1920x1080",
+       "frames": 5,
+       "skipped": 8,
+       "window": [
+        1920,
+        1080
+       ],
+       "phases": {
+        "app": {
+         "p50": 47,
+         "p99": 49,
+         "max": 55,
+         "mean": 44
+        },
+        "input": {
+         "p50": 944,
+         "p99": 1127,
+         "max": 1133,
+         "mean": 917
+        },
+        "anim": {
+         "p50": 1152,
+         "p99": 1642,
+         "max": 1711,
+         "mean": 1285
+        },
+        "layout": {
+         "p50": 13,
+         "p99": 16,
+         "max": 23,
+         "mean": 15
+        },
+        "paint": {
+         "p50": 800,
+         "p99": 846,
+         "max": 1091,
+         "mean": 822
+        },
+        "effects": {
+         "p50": 16,
+         "p99": 17,
+         "max": 18,
+         "mean": 14
+        },
+        "diff": {
+         "p50": 160,
+         "p99": 160,
+         "max": 263,
+         "mean": 173
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 3808260,
+         "p99": 3948494,
+         "max": 3962299,
+         "mean": 3840487
+        },
+        "work": {
+         "p50": 3352,
+         "p99": 3625,
+         "max": 4288,
+         "mean": 3272
+        },
+        "interval": {
+         "p50": 3812210,
+         "p99": 3951960,
+         "max": 3966887,
+         "mean": 3088872
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 5,
+        "interval_gt_25": 5,
+        "interval_gt_33_3": 4,
+        "interval_gt_50": 4,
+        "interval_gt_100": 4
+       },
+       "info": {
+        "gl_vendor": "Broadcom",
+        "gl_renderer": "VC4 V3D 2.1",
+        "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+        "gl_max_texture": "2048",
+        "gl_family": "VideoCore IV",
+        "renderer": "gl",
+        "gl_frames_replayed": "8",
+        "gl_frames_idle": "0",
+        "gl_draw_calls_per_frame": "269.9",
+        "gl_quads_per_frame": "781",
+        "gl_cpu_submit_us": "2385609",
+        "gl_gpu_us": "0",
+        "gl_timer_source": "none",
+        "gl_gpu_samples": "0",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "7",
+        "gl_program_build_ms": "182.6",
+        "gl_occlusion_frames": "8",
+        "gl_depth_bits": "24",
+        "gl_glyph_uploads": "4"
+       }
+      },
+      "frame_hash": "c1be3f6ec734375b",
+      "hash_size": "1920x1080",
+      "scene": "ui_anim_transform",
+      "size": [
+       1920,
+       1080
+      ],
+      "drawn": [
+       1920,
+       1080
+      ]
+     }
+    ],
+    "ui_anim_layout": [
+     {
+      "profile": {
+       "schema": 1,
+       "section": "ui_anim_layout",
+       "frame_hash": "7bc5571c73ffafdc",
+       "hash_size": "1920x1080",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1920,
+        1080
+       ],
+       "phases": {
+        "app": {
+         "p50": 10,
+         "p99": 73,
+         "max": 106,
+         "mean": 15
+        },
+        "input": {
+         "p50": 10,
+         "p99": 154,
+         "max": 229,
+         "mean": 35
+        },
+        "anim": {
+         "p50": 4,
+         "p99": 213,
+         "max": 228,
+         "mean": 30
+        },
+        "layout": {
+         "p50": 4,
+         "p99": 773,
+         "max": 931,
+         "mean": 143
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 440,
+         "max": 735,
+         "mean": 80
+        },
+        "effects": {
+         "p50": 3,
+         "p99": 15,
+         "max": 18,
+         "mean": 4
+        },
+        "diff": {
+         "p50": 0,
+         "p99": 74,
+         "max": 333,
+         "mean": 14
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 16598,
+         "p99": 81538,
+         "max": 82946,
+         "mean": 31808
+        },
+        "work": {
+         "p50": 33,
+         "p99": 1560,
+         "max": 2148,
+         "mean": 325
+        },
+        "interval": {
+         "p50": 16674,
+         "p99": 83115,
+         "max": 84062,
+         "mean": 32221
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 141,
+        "interval_gt_25": 70,
+        "interval_gt_33_3": 70,
+        "interval_gt_50": 70,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Broadcom",
+        "gl_renderer": "VC4 V3D 2.1",
+        "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+        "gl_max_texture": "2048",
+        "gl_family": "VideoCore IV",
+        "renderer": "gl",
+        "gl_frames_replayed": "84",
+        "gl_frames_idle": "186",
+        "gl_draw_calls_per_frame": "40.1",
+        "gl_quads_per_frame": "121",
+        "gl_cpu_submit_us": "74710",
+        "gl_gpu_us": "0",
+        "gl_timer_source": "none",
+        "gl_gpu_samples": "0",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "12",
+        "gl_program_build_ms": "355.5",
+        "gl_occlusion_frames": "84",
+        "gl_depth_bits": "24",
+        "gl_glyph_uploads": "4"
+       }
+      },
+      "frame_hash": "7bc5571c73ffafdc",
+      "hash_size": "1920x1080",
+      "scene": "ui_anim_layout",
+      "size": [
+       1920,
+       1080
+      ],
+      "drawn": [
+       1920,
+       1080
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "ui_anim_layout",
+       "frame_hash": "7bc5571c73ffafdc",
+       "hash_size": "1920x1080",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1920,
+        1080
+       ],
+       "phases": {
+        "app": {
+         "p50": 10,
+         "p99": 73,
+         "max": 122,
+         "mean": 16
+        },
+        "input": {
+         "p50": 11,
+         "p99": 134,
+         "max": 260,
+         "mean": 33
+        },
+        "anim": {
+         "p50": 4,
+         "p99": 175,
+         "max": 240,
+         "mean": 29
+        },
+        "layout": {
+         "p50": 4,
+         "p99": 728,
+         "max": 845,
+         "mean": 132
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 393,
+         "max": 467,
+         "mean": 75
+        },
+        "effects": {
+         "p50": 4,
+         "p99": 15,
+         "max": 28,
+         "mean": 5
+        },
+        "diff": {
+         "p50": 0,
+         "p99": 71,
+         "max": 95,
+         "mean": 12
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 16602,
+         "p99": 81979,
+         "max": 84705,
+         "mean": 31830
+        },
+        "work": {
+         "p50": 33,
+         "p99": 1471,
+         "max": 1849,
+         "mean": 304
+        },
+        "interval": {
+         "p50": 16675,
+         "p99": 83224,
+         "max": 86245,
+         "mean": 32221
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 142,
+        "interval_gt_25": 70,
+        "interval_gt_33_3": 70,
+        "interval_gt_50": 70,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Broadcom",
+        "gl_renderer": "VC4 V3D 2.1",
+        "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+        "gl_max_texture": "2048",
+        "gl_family": "VideoCore IV",
+        "renderer": "gl",
+        "gl_frames_replayed": "84",
+        "gl_frames_idle": "186",
+        "gl_draw_calls_per_frame": "40.1",
+        "gl_quads_per_frame": "121",
+        "gl_cpu_submit_us": "73778",
+        "gl_gpu_us": "0",
+        "gl_timer_source": "none",
+        "gl_gpu_samples": "0",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "12",
+        "gl_program_build_ms": "379.6",
+        "gl_occlusion_frames": "84",
+        "gl_depth_bits": "24",
+        "gl_glyph_uploads": "4"
+       }
+      },
+      "frame_hash": "7bc5571c73ffafdc",
+      "hash_size": "1920x1080",
+      "scene": "ui_anim_layout",
+      "size": [
+       1920,
+       1080
+      ],
+      "drawn": [
+       1920,
+       1080
+      ]
+     }
+    ],
+    "ui_list_update": [
+     {
+      "profile": {
+       "schema": 1,
+       "section": "ui_list_update",
+       "frame_hash": "8a5c7cdcbb519774",
+       "hash_size": "1920x1080",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1920,
+        1080
+       ],
+       "phases": {
+        "app": {
+         "p50": 1785,
+         "p99": 2793,
+         "max": 4158,
+         "mean": 1774
+        },
+        "input": {
+         "p50": 186,
+         "p99": 472,
+         "max": 500,
+         "mean": 211
+        },
+        "anim": {
+         "p50": 11,
+         "p99": 28,
+         "max": 143,
+         "mean": 11
+        },
+        "layout": {
+         "p50": 3586,
+         "p99": 5770,
+         "max": 7324,
+         "mean": 3573
+        },
+        "paint": {
+         "p50": 988,
+         "p99": 2212,
+         "max": 2842,
+         "mean": 1168
+        },
+        "effects": {
+         "p50": 11,
+         "p99": 24,
+         "max": 31,
+         "mean": 11
+        },
+        "diff": {
+         "p50": 63,
+         "p99": 169,
+         "max": 304,
+         "mean": 67
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 37833,
+         "p99": 44692,
+         "max": 46725,
+         "mean": 34879
+        },
+        "work": {
+         "p50": 6766,
+         "p99": 10274,
+         "max": 12118,
+         "mean": 6819
+        },
+        "interval": {
+         "p50": 49013,
+         "p99": 50523,
+         "max": 52656,
+         "mean": 41943
+        }
+       },
+       "late": {
+        "work_gt_8_3": 36,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 240,
+        "interval_gt_25": 240,
+        "interval_gt_33_3": 216,
+        "interval_gt_50": 23,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Broadcom",
+        "gl_renderer": "VC4 V3D 2.1",
+        "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+        "gl_max_texture": "2048",
+        "gl_family": "VideoCore IV",
+        "renderer": "gl",
+        "gl_frames_replayed": "269",
+        "gl_frames_idle": "1",
+        "gl_draw_calls_per_frame": "2.0",
+        "gl_quads_per_frame": "719",
+        "gl_cpu_submit_us": "2509",
+        "gl_gpu_us": "0",
+        "gl_timer_source": "none",
+        "gl_gpu_samples": "0",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "12",
+        "gl_program_build_ms": "355.5",
+        "gl_occlusion_frames": "269",
+        "gl_depth_bits": "24",
+        "gl_glyph_uploads": "4"
+       }
+      },
+      "frame_hash": "8a5c7cdcbb519774",
+      "hash_size": "1920x1080",
+      "scene": "ui_list_update",
+      "size": [
+       1920,
+       1080
+      ],
+      "drawn": [
+       1920,
+       1080
+      ]
+     },
+     {
+      "profile": {
+       "schema": 1,
+       "section": "ui_list_update",
+       "frame_hash": "8a5c7cdcbb519774",
+       "hash_size": "1920x1080",
+       "frames": 240,
+       "skipped": 30,
+       "window": [
+        1920,
+        1080
+       ],
+       "phases": {
+        "app": {
+         "p50": 1683,
+         "p99": 2863,
+         "max": 7053,
+         "mean": 1764
+        },
+        "input": {
+         "p50": 177,
+         "p99": 559,
+         "max": 1454,
+         "mean": 212
+        },
+        "anim": {
+         "p50": 11,
+         "p99": 25,
+         "max": 43,
+         "mean": 11
+        },
+        "layout": {
+         "p50": 3177,
+         "p99": 7292,
+         "max": 9492,
+         "mean": 3579
+        },
+        "paint": {
+         "p50": 939,
+         "p99": 2488,
+         "max": 3439,
+         "mean": 1151
+        },
+        "effects": {
+         "p50": 11,
+         "p99": 25,
+         "max": 30,
+         "mean": 11
+        },
+        "diff": {
+         "p50": 60,
+         "p99": 95,
+         "max": 209,
+         "mean": 62
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 36853,
+         "p99": 44650,
+         "max": 44717,
+         "mean": 34839
+        },
+        "work": {
+         "p50": 6272,
+         "p99": 12442,
+         "max": 14961,
+         "mean": 6794
+        },
+        "interval": {
+         "p50": 47014,
+         "p99": 50332,
+         "max": 51446,
+         "mean": 41805
+        }
+       },
+       "late": {
+        "work_gt_8_3": 45,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 240,
+        "interval_gt_25": 240,
+        "interval_gt_33_3": 216,
+        "interval_gt_50": 29,
+        "interval_gt_100": 0
+       },
+       "info": {
+        "gl_vendor": "Broadcom",
+        "gl_renderer": "VC4 V3D 2.1",
+        "gl_version": "OpenGL ES 2.0 Mesa 25.0.7-2+rpt4",
+        "gl_max_texture": "2048",
+        "gl_family": "VideoCore IV",
+        "renderer": "gl",
+        "gl_frames_replayed": "269",
+        "gl_frames_idle": "1",
+        "gl_draw_calls_per_frame": "2.0",
+        "gl_quads_per_frame": "719",
+        "gl_cpu_submit_us": "2459",
+        "gl_gpu_us": "0",
+        "gl_timer_source": "none",
+        "gl_gpu_samples": "0",
+        "gl_gpu_samples_lost": "0",
+        "gl_programs_built": "12",
+        "gl_program_build_ms": "379.6",
+        "gl_occlusion_frames": "269",
+        "gl_depth_bits": "24",
+        "gl_glyph_uploads": "4"
+       }
+      },
+      "frame_hash": "8a5c7cdcbb519774",
+      "hash_size": "1920x1080",
+      "scene": "ui_list_update",
+      "size": [
+       1920,
+       1080
+      ],
+      "drawn": [
+       1920,
+       1080
+      ]
+     }
+    ]
+   }
+  }
+ }
+}
