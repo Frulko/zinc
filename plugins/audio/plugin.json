@@ -7,7 +7,8 @@
   "targets": {
     "macos": { "sources": ["vendor/miniaudio_impl.c"], "defines": ["MA_NO_ENCODING", "MA_NO_RESOURCE_MANAGER"] },
     "linux": { "sources": ["vendor/miniaudio_impl.c"], "defines": ["MA_NO_ENCODING", "MA_NO_RESOURCE_MANAGER"], "libs": ["m", "dl"], "linkFlags": ["-pthread"] },
-    "ios": { "sources": ["native/miniaudio.ios.m"], "defines": ["MA_NO_ENCODING", "MA_NO_RESOURCE_MANAGER"], "frameworks": ["AudioToolbox", "AVFoundation", "CoreAudio"] }
+    "ios": { "sources": ["native/miniaudio.ios.m"], "defines": ["MA_NO_ENCODING", "MA_NO_RESOURCE_MANAGER"], "frameworks": ["AudioToolbox", "AVFoundation", "CoreAudio"] },
+    "windows": { "sources": ["vendor/miniaudio_impl.c"], "defines": ["MA_NO_ENCODING", "MA_NO_RESOURCE_MANAGER"] }
   },
   "web": { "native": "Audio", "impl": "web/audio.js", "needs": ["audio"] }
 }

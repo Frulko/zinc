@@ -1,0 +1,353 @@
+; The engine symbols the plugins' native code links against on Windows (docs/reports/zinc-windows-port.md): a PE .dll
+; resolves nothing at load, so zinc.exe exports them (this file at its link, with ENABLE_EXPORTS) and its import
+; library libzinc.dll.a (written beside zinc.exe by --out-implib) is what every plugin.dll links. C++ symbols carry
+; their Itanium mangling: the list is the defined external zrt/hal surface of the runtime and HAL (libzn_host_gfx.a's
+; symbol index), the only names a plugin.dll can import. When a plugin link still fails on an engine symbol, add it
+; here (the exe link fails on a name that does not exist, which is the drift test).
+LIBRARY zinc.exe
+EXPORTS
+  _ZN3zrt10add_pollerEPNS_6PollerE
+  _ZN3zrt10arena_ownsEPKv
+  _ZN3zrt10arena_takeEy
+  _ZN3zrt10finish_runEv
+  _ZN3zrt10pool_slabsE DATA
+  _ZN3zrt10prev_inputE DATA
+  _ZN3zrt10StrBuilder2chEc
+  _ZN3zrt10StrBuilder3rawEPKcj
+  _ZN3zrt10StrBuilder4cstrEPKc
+  _ZN3zrt10StrBuilder5buildEv
+  _ZN3zrt11alloc_countE DATA
+  _ZN3zrt11clear_timerEi
+  _ZN3zrt11heap_budgetEv
+  _ZN3zrt11insp_objectINS_6ObjectEEEvRNS_10StrBuilderERNS_4InspEPKT_PKc
+  _ZN3zrt11parse_floatERKNS_6StringE
+  _ZN3zrt11str_destroyEPNS_6StrObjE
+  _ZN3zrt12arena_forgetEPNS_6ObjectE
+  _ZN3zrt12console_timeERKNS_6StringE
+  _ZN3zrt12live_objectsE DATA
+  _ZN3zrt12poll_pollersEv
+  _ZN3zrt13console_countERKNS_6StringE
+  _ZN3zrt13inspector_logE DATA
+  _ZN3zrt13promises_headE DATA
+  _ZN3zrt13telemetry_logE DATA
+  _ZN3zrt14display_driverE DATA
+  _ZN3zrt14from_char_codeEi
+  _ZN3zrt14quit_requestedE DATA
+  _ZN3zrt15console_timeEndERKNS_6StringE
+  _ZN3zrt15console_timeLogERKNS_6StringE
+  _ZN3zrt15telemetry_frameE DATA
+  _ZN3zrt15track_rejectionEPNS_11PromiseBaseE
+  _ZN3zrt16drain_microtasksEv
+  _ZN3zrt17replacement_bytesERKNS_6StringES2_S2_by
+  _ZN3zrt3catIJNS_6StringES1_EEES1_DpRKT_
+  _ZN3zrt3gfx10beginImageEi
+  _ZN3zrt3gfx10drawShaderEiddddPKdj
+  _ZN3zrt3gfx10fontAscentEi
+  _ZN3zrt3gfx10imageWidthEi
+  _ZN3zrt3gfx10lineHeightEi
+  _ZN3zrt3gfx10log_bannerEiPKcj
+  _ZN3zrt3gfx10openWindowERKNS_6StringEii
+  _ZN3zrt3gfx10pixelScaleEv
+  _ZN3zrt3gfx10touchCountEv
+  _ZN3zrt3gfx10wasPressedEi
+  _ZN3zrt3gfx10windowOpenEi
+  _ZN3zrt3gfx11begin_frameEv
+  _ZN3zrt3gfx11beginWindowEi
+  _ZN3zrt3gfx11capture_pngEPyii
+  _ZN3zrt3gfx11closeWindowEi
+  _ZN3zrt3gfx11createImageEii
+  _ZN3zrt3gfx11escapeByAppEb
+  _ZN3zrt3gfx11gpu_strokesE DATA
+  _ZN3zrt3gfx11imageHeightEi
+  _ZN3zrt3gfx11penPressureEi
+  _ZN3zrt3gfx11png_encoderE DATA
+  _ZN3zrt3gfx11pointerDownEv
+  _ZN3zrt3gfx11scrollPhaseEv
+  _ZN3zrt3gfx11shaderScaleEi
+  _ZN3zrt3gfx12buttonEventXEi
+  _ZN3zrt3gfx12buttonEventYEi
+  _ZN3zrt3gfx12commandCountEv
+  _ZN3zrt3gfx12commandsFreeEv
+  _ZN3zrt3gfx12crash_screenEPKcj
+  _ZN3zrt3gfx12destroyImageEi
+  _ZN3zrt3gfx12grow_enabledE DATA
+  _ZN3zrt3gfx12scene_replayEPKcS2_
+  _ZN3zrt3gfx12setTransformEdddddd
+  _ZN3zrt3gfx12shaderSourceEi
+  _ZN3zrt3gfx12sync_surfaceEv
+  _ZN3zrt3gfx13clipboardTextEv
+  _ZN3zrt3gfx13drawImageRectEiddddddddiidji
+  _ZN3zrt3gfx13escapeDefaultEv
+  _ZN3zrt3gfx13gradientPaintEdddddPKdji
+  _ZN3zrt3gfx13shaderProgramERKNS_6StringEi
+  _ZN3zrt3gfx13shaders_drawnE DATA
+  _ZN3zrt3gfx13stopTextInputEv
+  _ZN3zrt3gfx14pointerButtonsEv
+  _ZN3zrt3gfx14resetTransformEv
+  _ZN3zrt3gfx14startTextInputEdddd
+  _ZN3zrt3gfx15buttonEventDownEi
+  _ZN3zrt3gfx15present_overlayEv
+  _ZN3zrt3gfx16buttonEventCountEv
+  _ZN3zrt3gfx16encode_webp_hookE DATA
+  _ZN3zrt3gfx16setClipboardTextERKNS_6StringE
+  _ZN3zrt3gfx17buttonEventButtonEi
+  _ZN3zrt3gfx4clipEddddd
+  _ZN3zrt3gfx4emitEhPKfj
+  _ZN3zrt3gfx4fontERKNS_6StringEi
+  _ZN3zrt3gfx4keepEv
+  _ZN3zrt3gfx4lineEddddj
+  _ZN3zrt3gfx4pathEPKdjji
+  _ZN3zrt3gfx4pathERKNS_5ArrayIdEEji
+  _ZN3zrt3gfx4penXEi
+  _ZN3zrt3gfx4penYEi
+  _ZN3zrt3gfx4quitEv
+  _ZN3zrt3gfx4rectEddddj
+  _ZN3zrt3gfx4textEddRKNS_6StringEji
+  _ZN3zrt3gfx5clearEj
+  _ZN3zrt3gfx5frameEv
+  _ZN3zrt3gfx5imageERKNS_6StringE
+  _ZN3zrt3gfx5pinchEv
+  _ZN3zrt3gfx5rrectEdddddji
+  _ZN3zrt3gfx5traceEb
+  _ZN3zrt3gfx5wheelEv
+  _ZN3zrt3gfx5widthEv
+  _ZN3zrt3gfx6borderEddddddji
+  _ZN3zrt3gfx6heightEv
+  _ZN3zrt3gfx6isDownEi
+  _ZN3zrt3gfx6shadowEddddddji
+  _ZN3zrt3gfx6strokeEPKdjdjib
+  _ZN3zrt3gfx6strokeERKNS_5ArrayIdEEdjib
+  _ZN3zrt3gfx6touchXEi
+  _ZN3zrt3gfx6touchYEi
+  _ZN3zrt3gfx6unclipEv
+  _ZN3zrt3gfx6wheelXEv
+  _ZN3zrt3gfx7captureERKNS_6StringE
+  _ZN3zrt3gfx7keyKindEi
+  _ZN3zrt3gfx7keyModsEi
+  _ZN3zrt3gfx7keyNameEi
+  _ZN3zrt3gfx7onFrameENS_2FnIFvdEEE
+  _ZN3zrt3gfx7polygonEPKdjji
+  _ZN3zrt3gfx7polygonERKNS_5ArrayIdEEji
+  _ZN3zrt3gfx7touchIdEi
+  _ZN3zrt3gfx8drawTextEiddRKNS_6StringEjid
+  _ZN3zrt3gfx8endImageEv
+  _ZN3zrt3gfx8gradientEdddddjjbi
+  _ZN3zrt3gfx8hud_infoE DATA
+  _ZN3zrt3gfx8keyCountEv
+  _ZN3zrt3gfx8loadFontERKNS_6StringEd
+  _ZN3zrt3gfx8onResizeENS_2FnIFviiEEE
+  _ZN3zrt3gfx8penCountEv
+  _ZN3zrt3gfx8penFlagsEi
+  _ZN3zrt3gfx8penTiltXEi
+  _ZN3zrt3gfx8penTiltYEi
+  _ZN3zrt3gfx8pointerXEv
+  _ZN3zrt3gfx8pointerYEv
+  _ZN3zrt3gfx8profMarkEi
+  _ZN3zrt3gfx8scrollDXEv
+  _ZN3zrt3gfx8scrollDYEv
+  _ZN3zrt3gfx9drawImageEiddddid
+  _ZN3zrt3gfx9end_frameEv
+  _ZN3zrt3gfx9endWindowEv
+  _ZN3zrt3gfx9modifiersEv
+  _ZN3zrt3gfx9profilingEv
+  _ZN3zrt3gfx9setCursorEi
+  _ZN3zrt3gfx9textWidthEiRKNS_6StringEd
+  _ZN3zrt3gfx9translateEdd
+  _ZN3zrt3mem5Arena11zrt_disposeEv
+  _ZN3zrt3mem5Arena5frameEd
+  _ZN3zrt3mem5ArenaD0Ev
+  _ZN3zrt3mem5ArenaD1Ev
+  _ZN3zrt3mem5ArenaD2Ev
+  _ZN3zrt4hashERKNS_6StringE
+  _ZN3zrt4math4seedEj
+  _ZN3zrt4math6randomEv
+  _ZN3zrt4to_sERNS_10StrBuilderEx
+  _ZN3zrt5allocEy
+  _ZN3zrt5ArrayINS_2FnIFvvEEEE4dropEPNS_6ArrObjIS3_EE
+  _ZN3zrt5ArrayINS_3RefINS_11PromiseBaseEEEE4dropEPNS_6ArrObjIS3_EE
+  _ZN3zrt5g_errE DATA
+  _ZN3zrt5inputE DATA
+  _ZN3zrt5mfreeEPv
+  _ZN3zrt5panicEPKc
+  _ZN3zrt5startERK9HalConfigiPPc
+  _ZN3zrt5statsE DATA
+  _ZN3zrt6finishEv
+  _ZN3zrt6now_msEv
+  _ZN3zrt6Object10zrt_deleteEv
+  _ZN3zrt6Object7zrt_setERKNS_6StringERKNS_3DynE
+  _ZN3zrt6ObjectD0Ev
+  _ZN3zrt6ObjectD2Ev
+  _ZN3zrt6raster10bounds_allERKNS0_5FrameEii
+  _ZN3zrt6raster10diff_rectsERKNS0_5FrameES3_iiPNS0_4RectEiPjj
+  _ZN3zrt6raster10dyn_blocksEiPjPPKvS1_Pb
+  _ZN3zrt6raster10dyn_createEii
+  _ZN3zrt6raster10dyn_pixelsEi
+  _ZN3zrt6raster10dyn_resizeEiii
+  _ZN3zrt6raster10dyn_updateEiPKji
+  _ZN3zrt6raster10exact_fontEPKcji
+  _ZN3zrt6raster10find_imageEPKcj
+  _ZN3zrt6raster10font_countE DATA
+  _ZN3zrt6raster10frame_hashERKNS0_5FrameE
+  _ZN3zrt6raster10free_tilesERNS0_5TilesE
+  _ZN3zrt6raster10image_sizeEiPiS1_
+  _ZN3zrt6raster10layer_rectERKNS0_3CmdERKNS0_7PictureEii
+  _ZN3zrt6raster10sign_frameERKNS0_5FrameEiiPNS0_6CmdSigE
+  _ZN3zrt6raster11dyn_destroyEi
+  _ZN3zrt6raster11dyn_pictureEi
+  _ZN3zrt6raster11image_countE DATA
+  _ZN3zrt6raster11move_pixelsEPjiRKNS0_4MoveE
+  _ZN3zrt6raster11render_fontEPKcji
+  _ZN3zrt6raster11scaled_fontEii
+  _ZN3zrt6raster11shape_hooksE DATA
+  _ZN3zrt6raster12dyn_picturesE DATA
+  _ZN3zrt6raster12render_tilesERKNS0_5FrameERKNS0_5TilesEPjiiiNS0_4RectE
+  _ZN3zrt6raster12runtime_fontEi
+  _ZN3zrt6raster12shader_holesE DATA
+  _ZN3zrt6raster12text_advanceEiPKcjf
+  _ZN3zrt6raster13add_font_fileEPKcjPKhj
+  _ZN3zrt6raster13dyn_set_alphaEib
+  _ZN3zrt6raster13image_versionEi
+  _ZN3zrt6raster13runtime_glyphEij
+  _ZN3zrt6raster13strokes_builtE DATA
+  _ZN3zrt6raster14diff_rects_sigEPKNS0_6CmdSigEjRKNS0_5FrameEiiPNS0_4RectEi
+  _ZN3zrt6raster14dyn_set_blocksEijPKvjb
+  _ZN3zrt6raster14set_layer_fillEj
+  _ZN3zrt6raster15dyn_set_pictureEiPNS0_7PictureE
+  _ZN3zrt6raster15stroke_contoursEPKfjfbPfj
+  _ZN3zrt6raster3binERKNS0_5FrameEiiRNS0_5TilesE
+  _ZN3zrt6raster4diffERKNS0_5FrameES3_ii
+  _ZN3zrt6raster5fontsE DATA
+  _ZN3zrt6raster6imagesE DATA
+  _ZN3zrt6raster6renderERKNS0_5FrameEPjiiiNS0_4RectE
+  _ZN3zrt6raster7font_atEi
+  _ZN3zrt6raster8dyn_viewEiPPKjPiS4_S4_
+  _ZN3zrt6raster8dyn_wrapEiiPKji
+  _ZN3zrt6raster9cull_listERKNS0_5FrameEiiiRNS0_5TilesEPj
+  _ZN3zrt6raster9cull_packERKNS0_5FrameEjjiiiPy
+  _ZN3zrt6raster9cull_tileERKNS0_5FrameE
+  _ZN3zrt6raster9cull_walkERKNS0_5FrameEPKyiiiRNS0_5TilesEPj
+  _ZN3zrt6raster9diff_moveERKNS0_5FrameES3_iiPNS0_4RectEiPNS0_4MoveE
+  _ZN3zrt6raster9dyn_alphaEi
+  _ZN3zrt6raster9find_fontEPKcji
+  _ZN3zrt6raster9font_fileEi
+  _ZN3zrt6raster9has_glyphEij
+  _ZN3zrt6raster9text_fontEiPKcj
+  _ZN3zrt6raster9ttf_countE DATA
+  _ZN3zrt6raster9ttf_filesE DATA
+  _ZN3zrt6String4fromEPKcj
+  _ZN3zrt6StringD2Ev
+  _ZN3zrt6surf_hE DATA
+  _ZN3zrt6surf_wE DATA
+  _ZN3zrt7destroyEPNS_6ObjectE
+  _ZN3zrt7loc_topE DATA
+  _ZN3zrt7str_cmpERKNS_6StringES2_
+  _ZN3zrt7str_numERNS_10StrBuilderEd
+  _ZN3zrt8app_mainERK9HalConfigiPPcPFvvES6_
+  _ZN3zrt8det_modeE DATA
+  _ZN3zrt8frame_cbE DATA
+  _ZN3zrt8frame_noE DATA
+  _ZN3zrt8json_strERNS_10StrBuilderERKNS_6StringE
+  _ZN3zrt8loc_rootE DATA
+  _ZN3zrt8log_emitEiRNS_10StrBuilderE
+  _ZN3zrt8panic_atEPKcS1_i
+  _ZN3zrt8run_loopEv
+  _ZN3zrt8sreleaseEPNS_6StrObjE
+  _ZN3zrt8to_fixedEdi
+  _ZN3zrt8uncaughtERKNS_3RefINS_5ErrorEEE
+  _ZN3zrt8zrt_argcE DATA
+  _ZN3zrt8zrt_argvE DATA
+  _ZN3zrt9at_finishEPFvvE
+  _ZN3zrt9heap_usedEv
+  _ZN3zrt9insp_joinERNS_10StrBuilderEPKcS3_S3_RNS_9InspPartsEibb
+  _ZN3zrt9lit_commaE DATA
+  _ZN3zrt9loc_namesE DATA
+  _ZN3zrt9loc_throwEv
+  _ZN3zrt9log_colorEv
+  _ZN3zrt9log_flushERNS_10StrBuilderE
+  _ZN3zrt9loop_onceEv
+  _ZN3zrt9microtaskENS_2FnIFvvEEE
+  _ZN3zrt9parse_intERKNS_6StringEi
+  _ZN3zrt9poll_hostERb
+  _ZN3zrt9pool_giveEPv
+  _ZN3zrt9set_timerENS_2FnIFvvEEEdb
+  _ZN3zrteqERKNS_6StringES2_
+  _ZNK3zrt5ArrayINS_3RefINS_11PromiseBaseEEEE8push_rawERKS3_
+  _ZNK3zrt5ArrayINS_6StringEE4growEi
+  _ZNK3zrt5ArrayINS_6StringEE8push_rawERKS1_
+  _ZNK3zrt6Object10zrt_fieldsERNS_10StrBuilderERb
+  _ZNK3zrt6Object11zrt_ifieldsERNS_9InspPartsERNS_4InspE
+  _ZNK3zrt6Object11zrt_inspectERNS_10StrBuilderERNS_4InspE
+  _ZNK3zrt6Object7zrt_getERKNS_6StringERNS_3DynE
+  _ZNK3zrt6Object7zrt_isaEj
+  _ZNK3zrt6Object7zrt_strERNS_10StrBuilderE
+  _ZNK3zrt6Object8zrt_jsonERNS_10StrBuilderE
+  _ZNK3zrt6String10charCodeAtEi
+  _ZNK3zrt6String10replaceAllERKS0_S2_
+  _ZNK3zrt6String10startsWithERKS0_
+  _ZNK3zrt6String10startsWithERKS0_i
+  _ZNK3zrt6String11lastIndexOfERKS0_i
+  _ZNK3zrt6String11toLowerCaseEv
+  _ZNK3zrt6String11toUpperCaseEv
+  _ZNK3zrt6String2atEi
+  _ZNK3zrt6String4trimEv
+  _ZNK3zrt6String5sliceEii
+  _ZNK3zrt6String5splitERKS0_
+  _ZNK3zrt6String6concatERKS0_
+  _ZNK3zrt6String6padEndEi
+  _ZNK3zrt6String6padEndEiRKS0_
+  _ZNK3zrt6String6repeatEi
+  _ZNK3zrt6String7indexOfERKS0_i
+  _ZNK3zrt6String7replaceERKS0_S2_
+  _ZNK3zrt6String7trimEndEv
+  _ZNK3zrt6String8endsWithERKS0_
+  _ZNK3zrt6String8endsWithERKS0_i
+  _ZNK3zrt6String8padStartEi
+  _ZNK3zrt6String8padStartEiRKS0_
+  _ZNK3zrt6String9substringEii
+  _ZNK3zrt6String9trimStartEv
+  _ZTVN3zrt3mem5ArenaE DATA
+  _ZTVN3zrt6ObjectE DATA
+  hal_alloc
+  hal_clipboard_get
+  hal_clipboard_set
+  hal_display DATA
+  hal_env
+  hal_escape
+  hal_escape_by_app
+  hal_fixed_dt
+  hal_frame_begin
+  hal_frame_end
+  hal_free
+  hal_heap_region
+  hal_heap_region_more
+  hal_init
+  hal_isatty
+  hal_log
+  hal_log_err
+  hal_panic
+  hal_pen_push
+  hal_pixel_scale
+  hal_poll_input
+  hal_present
+  hal_run
+  hal_set_close_handler
+  hal_set_cursor
+  hal_set_drop_handler
+  hal_set_resize
+  hal_set_window_config
+  hal_shutdown
+  hal_sleep_us
+  hal_surface_size
+  hal_text_input
+  hal_time_us
+  hal_trap_faults
+  hal_win_close
+  hal_win_current
+  hal_win_input
+  hal_win_open
+  hal_win_present
+  hal_win_state
+  hal_window_handle
+  zn_host_fs_grant
+  zn_host_fs_scope
+  zn_host_update

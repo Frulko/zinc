@@ -1,6 +1,7 @@
-#include "monocypher-ed25519.h"
+﻿#include "monocypher-ed25519.h"
 #include "tc/tc.h"
 #include "tc/policy.h"
+#include "platform/platform.h"
 
 #include <algorithm>
 #include <atomic>
@@ -41,6 +42,9 @@ constexpr Pin kZigPins[] = {
     // a Pi 2 or later on a 32-bit OS runs it, a Pi 1 or Zero does not (measured: qemu -cpu arm1176 stops on an illegal instruction)
     {"arm-linux", "zig-arm-linux-0.15.2.tar.xz", "7d8401495065dae45d6249c68d5faf10508f8203c86362ccb698aeaafc66b7cd"},
     {"x86-linux", "zig-x86-linux-0.15.2.tar.xz", "4c6e23f39daa305e274197bfdff0d56ffd1750fc1de226ae10505c0eff52d7a5"},
+    // Windows hosts (docs/targets/windows.md): the plan's pins, the same version and SHA-256 (the zip of the pinned 0.15.2)
+    {"x86_64-windows", "zig-x86_64-windows-0.15.2.zip", "3a0ed1e8799a2f8ce2a6e6290a9ff22e6906f8227865911fb7ddedc3cc14cb0c"},
+    {"aarch64-windows", "zig-aarch64-windows-0.15.2.zip", "b926465f8872bf983422257cd9ec248bb2b270996fbe8d57872cca13b56fc370"},
 };
 constexpr const char* kEsptoolVersion = "v5.4.0";  // checksums: the digests GitHub lists for the release assets
 constexpr Pin kEsptoolPins[] = {
@@ -141,7 +145,15 @@ std::string quote(const std::string& s) {
 }
 
 bool run(const std::string& cmd, std::string& err, const char* what) {
+#ifdef _WIN32
+  // the lines are POSIX shell (`'...'` quoting, /dev/null, pipes): Git for Windows' sh runs them whole; cmd.exe would
+  // break on both and std::system cannot quote, so the argv goes through zn::plat::run, never a shell line
+  const std::string sh = zn::plat::shellPath();
+  if (sh.empty()) { err = std::string(what) + " runs a shell line and this Windows machine has no sh.exe: install Git for Windows"; return false; }
+  int rc = zn::plat::run({sh, "-c", cmd});
+#else
   int rc = std::system(cmd.c_str());
+#endif
   if (rc != 0) { err = std::string(what) + " failed: " + cmd; return false; }
   return true;
 }
@@ -222,8 +234,8 @@ std::vector<PinnedTool> pinnedTools() {
 
 std::string home() {
   if (const char* h = std::getenv("ZINC_HOME")) return h;
-  const char* u = std::getenv("HOME");
-  return std::string(u ? u : ".") + "/.zinc";
+  const std::string h = zn::plat::homeDir();   // $HOME on POSIX; %USERPROFILE% on Windows, where HOME is usually unset
+  return (h.empty() ? std::string(".") : h) + "/.zinc";
 }
 
 std::string hostName() {
@@ -410,6 +422,7 @@ void offerXcodeTools(const char* why) {
 }
 
 bool ensureZig(std::string& zigPath, std::string& err) {
+  const char* marker = hostName() == "x86_64-windows" || hostName() == "aarch64-windows" ? "zig.exe" : "zig";   // the unzipped program's name on each host
   if (const char* z = std::getenv("ZINC_ZIG")) {
     if (!fs::exists(z)) { err = std::string("ZINC_ZIG points to a missing file: ") + z; return false; }
     zigPath = z;
@@ -420,8 +433,8 @@ bool ensureZig(std::string& zigPath, std::string& err) {
   if (!pin) { err = "no pinned zig for this machine (" + hostName() + "); set ZINC_ZIG to a zig " + kVersion + " you installed"; return false; }
   fs::path dir = fs::path(home()) / "toolchains" / (std::string("zig-") + pin->host + "-" + kVersion);
   std::string base = std::getenv("ZINC_TC_MIRROR") ? std::getenv("ZINC_TC_MIRROR") : std::string("https://ziglang.org/download/") + kVersion;
-  if (!fetchTool("the toolchain", *pin, base + "/" + pin->file, dir, "zig", err)) return false;
-  zigPath = (dir / "zig").string();
+  if (!fetchTool("the toolchain", *pin, base + "/" + pin->file, dir, marker, err)) return false;
+  zigPath = (dir / marker).string();
   return true;
 }
 

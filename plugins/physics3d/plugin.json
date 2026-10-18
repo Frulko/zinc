@@ -8,6 +8,7 @@
   "license": "MIT",
   "targets": {
     "macos": { "sources": ["vendor/jolt_1.cpp", "vendor/jolt_2.cpp", "vendor/jolt_3.cpp", "vendor/jolt_4.cpp"], "flags": ["-I./vendor/jolt"], "defines": ["JPH_CROSS_PLATFORM_DETERMINISTIC", "NDEBUG"] },
-    "linux": { "sources": ["vendor/jolt_1.cpp", "vendor/jolt_2.cpp", "vendor/jolt_3.cpp", "vendor/jolt_4.cpp"], "flags": ["-I./vendor/jolt"], "defines": ["JPH_CROSS_PLATFORM_DETERMINISTIC", "NDEBUG"], "linkFlags": ["-pthread"] }
+    "linux": { "sources": ["vendor/jolt_1.cpp", "vendor/jolt_2.cpp", "vendor/jolt_3.cpp", "vendor/jolt_4.cpp"], "flags": ["-I./vendor/jolt"], "defines": ["JPH_CROSS_PLATFORM_DETERMINISTIC", "NDEBUG"], "linkFlags": ["-pthread"] },
+    "windows": { "sources": ["vendor/jolt_1.cpp", "vendor/jolt_2.cpp", "vendor/jolt_3.cpp", "vendor/jolt_4.cpp"], "flags": ["-I./vendor/jolt"], "defines": ["JPH_CROSS_PLATFORM_DETERMINISTIC", "NDEBUG"] }
   }
 }

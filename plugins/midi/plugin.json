@@ -8,6 +8,7 @@
   "web": { "native": "Midi", "impl": "web/midi.js", "needs": ["webmidi"] },
   "targets": {
     "macos": { "sources": ["vendor/RtMidi.cpp"], "flags": ["-fexceptions"], "defines": ["__MACOSX_CORE__"], "frameworks": ["CoreMIDI", "CoreAudio", "CoreFoundation"] },
-    "linux": { "sources": ["vendor/RtMidi.cpp"], "flags": ["-fexceptions"], "defines": ["__LINUX_ALSA__"], "libs": ["asound"], "linkFlags": ["-pthread"], "packages": ["libasound2-dev"] }
+    "linux": { "sources": ["vendor/RtMidi.cpp"], "flags": ["-fexceptions"], "defines": ["__LINUX_ALSA__"], "libs": ["asound"], "linkFlags": ["-pthread"], "packages": ["libasound2-dev"] },
+    "windows": { "sources": ["vendor/RtMidi.cpp"], "flags": ["-fexceptions"], "defines": ["__WINDOWS_MM__"], "libs": ["winmm"] }
   }
 }

@@ -1,4 +1,4 @@
-// zinc:system backend of the desktop targets (ZN-232): the permission gate and the recording simulator. The simulator is what runs in deterministic and headless runs: it answers
+﻿// zinc:system backend of the desktop targets (ZN-232): the permission gate and the recording simulator. The simulator is what runs in deterministic and headless runs: it answers
 // every op from the table (ops.gen.h) and writes one line per call, `[system] <op> <json>` (stdout with ZINC_SYSTEM_LOG=- or in a deterministic run, a file with ZINC_SYSTEM_LOG=path);
 // ZINC_SYSTEM_SCRIPT=file delivers events at the stated tick, one line `<tick> <event> args...` (a tick is one pass of the event loop: one frame in a UI app).
 // C-style on purpose: the runtime header (zrt.h) defines placement new, which the standard containers redefine.
@@ -12,10 +12,17 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <sys/stat.h>
+#ifdef _WIN32
+#include <direct.h>
+#include <windows.h>
+#define zn_mkdir(p) _mkdir(p)
+#else
 #include <sys/file.h>
 #include <sys/socket.h>
-#include <sys/stat.h>
 #include <sys/un.h>
+#define zn_mkdir(p) mkdir(p, 0755)
+#endif
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
 #endif
@@ -277,6 +284,15 @@ struct Sim : NativeSystem, zrt::Poller {
     char id[96] = "", lock[300], sock[300];
     jsonString(args, "id", id, sizeof id);
     if (!id[0]) return reply("{\"error\":{\"code\":\"failed\",\"message\":\"instance.lock needs the app id\"}}");
+#ifdef _WIN32
+    (void)lock; (void)sock;
+    char name[160];
+    snprintf(name, sizeof name, "Local\\zinc-instance-%s", id);
+    HANDLE m = CreateMutexA(nullptr, FALSE, name);
+    if (!m) return reply("{\"error\":{\"code\":\"failed\",\"message\":\"cannot open the instance mutex\"}}");
+    if (GetLastError() == ERROR_ALREADY_EXISTS) { CloseHandle(m); return reply("{\"first\":false}"); }
+    return reply("{\"first\":true}");
+#else
     runtimePath(lock, sizeof lock, id, "lock");
     runtimePath(sock, sizeof sock, id, "sock");
     int fd = open(lock, O_CREAT | O_RDWR | O_CLOEXEC, 0600);
@@ -299,7 +315,7 @@ struct Sim : NativeSystem, zrt::Poller {
     char msg[4096] = "{\"cwd\":";
     appendJson(msg, sizeof msg, cwd);
     strcat(msg, ",\"argv\":[");
-    for (int i = 0; i < n; i++) { if (i) strcat(msg, ","); appendJson(msg, sizeof msg, argv[i]); }
+    for (int i = 0; i < n; i++) { if (i) strcat(msg, ","); appendJson(msg, sizeof argv[i], argv[i]); }
     strcat(msg, "]}\n");
     for (int attempt = 0; attempt < 20; attempt++) {   // the first may still be binding
       int s = socket(AF_UNIX, SOCK_STREAM, 0);
@@ -311,9 +327,13 @@ struct Sim : NativeSystem, zrt::Poller {
       usleep(50000);
     }
     return reply("{\"first\":false}");   // the holder never answered: still not the first
+#endif
   }
   /** Accepts second-instance messages: one JSON line each, delivered as the event second-instance [cwd, argv...]. Returns true while listening. */
   bool serveInstance() {
+#ifdef _WIN32
+    return false;
+#else
     if (listenFd < 0) return false;
     for (;;) {
       int c = accept(listenFd, nullptr, nullptr);
@@ -338,6 +358,7 @@ struct Sim : NativeSystem, zrt::Poller {
       deliver(ev);
     }
     return true;
+#endif
   }
   /** autostart.set / .get: a LaunchAgent plist (macOS) or an XDG autostart .desktop (Linux) under $HOME, so a temporary HOME makes it testable. */
   zrt::String autostart(const char* name, const char* args) {
@@ -361,17 +382,20 @@ struct Sim : NativeSystem, zrt::Poller {
 #ifdef __APPLE__
     uint32_t sz = sizeof exe;
     if (_NSGetExecutablePath(exe, &sz) != 0) exe[0] = 0;
+#elif defined(_WIN32)
+    DWORD l = GetModuleFileNameA(nullptr, exe, sizeof exe - 1);
+    exe[l > 0 && l < sizeof exe ? l : 0] = 0;
 #else
     ssize_t l = readlink("/proc/self/exe", exe, sizeof exe - 1);
     exe[l > 0 ? l : 0] = 0;
 #endif
     char extra[8][160];
     int n = jsonStrings(args, "args", extra, 8);
-    mkdir(home, 0755);
+    zn_mkdir(home);
     char parent[400];
     snprintf(parent, sizeof parent, "%s", dir);
-    for (char* q = parent + 1; *q; q++) if (*q == '/') { *q = 0; mkdir(parent, 0755); *q = '/'; }
-    mkdir(dir, 0755);
+    for (char* q = parent + 1; *q; q++) if (*q == '/') { *q = 0; zn_mkdir(parent); *q = '/'; }
+    zn_mkdir(dir);
     FILE* f = fopen(path, "w");
     if (!f) return reply("{\"error\":{\"code\":\"failed\",\"message\":\"cannot write the autostart entry\"}}");
 #ifdef __APPLE__
@@ -426,11 +450,16 @@ struct Sim : NativeSystem, zrt::Poller {
     else snprintf(dir, sizeof dir, "%s/.local/share/applications", getenv("HOME") ? getenv("HOME") : "/tmp");
     char parent[400];
     snprintf(parent, sizeof parent, "%s", dir);
-    for (char* q = parent + 1; *q; q++) if (*q == '/') { *q = 0; mkdir(parent, 0755); *q = '/'; }
-    mkdir(dir, 0755);
+    for (char* q = parent + 1; *q; q++) if (*q == '/') { *q = 0; zn_mkdir(parent); *q = '/'; }
+    zn_mkdir(dir);
     snprintf(path, sizeof path, "%s/%s.desktop", dir, id);
+#ifdef _WIN32
+    DWORD l = GetModuleFileNameA(nullptr, exe, sizeof exe - 1);
+    exe[l > 0 && l < sizeof exe ? l : 0] = 0;
+#else
     ssize_t l = readlink("/proc/self/exe", exe, sizeof exe - 1);
     exe[l > 0 ? l : 0] = 0;
+#endif
     FILE* f = fopen(path, "w");
     if (!f) return reply("{\"ok\":false,\"reason\":\"cannot write the desktop entry\"}");
     fprintf(f, "[Desktop Entry]\nType=Application\nName=%s\nExec=%s %%u\nMimeType=x-scheme-handler/%s;\nNoDisplay=true\n", title[0] ? title : id, exe, scheme);

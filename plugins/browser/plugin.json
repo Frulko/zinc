@@ -4,6 +4,6 @@
   "module": "zinc:browser",
   "entry": "index.ts",
   "description": "What the browser a web export runs in offers (WebUSB, getUserMedia, Web Audio, WebGPU...), which browser it is, and the ZnUnsupported error; false everywhere on a desktop build",
-  "targets": { "macos": {}, "linux": {}, "rpi1": {}, "wasm": {}, "esp32": {}, "ps2": {}, "android": {}, "ios": {} },
+  "targets": { "macos": {}, "linux": {}, "windows": {}, "rpi1": {}, "wasm": {}, "esp32": {}, "ps2": {}, "android": {}, "ios": {} },
   "web": { "entry": "web/index.ts" }
 }

@@ -1,9 +1,10 @@
-#include "platform/platform.h"
+﻿#include "platform/platform.h"
 
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <thread>
 
 #ifdef _WIN32
@@ -161,6 +162,31 @@ std::string homeDir() {
   if (const char* h = std::getenv("HOME"); h && *h) return h;
   return "";
 }
+std::string shellPath() {
+  if (const char* p = std::getenv("PATH"); p && *p) {
+    std::string seg;
+    for (const char* c = p;; ++c) {
+      if (*c == ';' || *c == 0) {
+        if (!seg.empty()) {
+          const std::string f = seg + (seg.back() == '\\' || seg.back() == '/' ? "" : "\\") + "sh.exe";
+          std::error_code ec;
+          if (std::filesystem::exists(f, ec)) return f;
+        }
+        seg.clear();
+        if (!*c) break;
+      } else seg += *c;
+    }
+  }
+  // Git for Windows' usr\bin is not on the PATH of a barely configured machine: the usual install places
+  static const char* const bases[] = {std::getenv("ProgramW6432"), std::getenv("ProgramFiles"), "C:\\Program Files"};
+  for (const char* b : bases) {
+    if (!b || !*b) continue;
+    const std::string p = std::string(b) + "\\Git\\usr\\bin\\sh.exe";
+    std::error_code ec;
+    if (std::filesystem::exists(p, ec)) return p;
+  }
+  return "";
+}
 bool isTerminal(int fd) { return _isatty(fd) != 0; }
 bool fileStamp(const std::string& path, long long& size, long long& mtimeNs) {
   WIN32_FILE_ATTRIBUTE_DATA d;
@@ -257,6 +283,7 @@ std::string homeDir() {
   const char* h = std::getenv("HOME");
   return h ? h : "";
 }
+std::string shellPath() { return "/bin/sh"; }
 bool isTerminal(int fd) { return ::isatty(fd) != 0; }
 bool fileStamp(const std::string& path, long long& size, long long& mtimeNs) {
   struct stat st;

@@ -32,25 +32,32 @@ namespace zn::frontend {
 namespace {
 
 std::string dirOf(const std::string& p) {
-  std::size_t s = p.rfind('/');
+  std::size_t s = p.find_last_of("/\\");
   return s == std::string::npos ? "" : p.substr(0, s);
 }
 
-// "a/b/../c/./d" -> "a/c/d"
+// "a/b/../c/./d" -> "a/c/d"; backslashes become forward slashes first, a Windows drive ("C:") counts as a root
 std::string normalize(const std::string& p) {
+  std::string plain;
+  plain.reserve(p.size());
+  for (char c : p) plain += c == '\\' ? '/' : c;
+  const bool winDrive = plain.size() > 1 && (plain[0] >= 'a' && plain[0] <= 'z' || plain[0] >= 'A' && plain[0] <= 'Z') && plain[1] == ':';
   std::vector<std::string> parts;
-  std::size_t i = 0;
-  bool abs = !p.empty() && p[0] == '/';
-  while (i <= p.size()) {
-    std::size_t j = p.find('/', i);
-    if (j == std::string::npos) j = p.size();
-    std::string seg = p.substr(i, j - i);
-    if (seg == "..") { if (!parts.empty() && parts.back() != "..") parts.pop_back(); else if (!abs) parts.push_back(seg); }
-    else if (!seg.empty() && seg != ".") parts.push_back(seg);
+  std::size_t i = winDrive ? 2 : 0;
+  bool abs = !plain.empty() && plain[0] == '/';
+  while (i <= plain.size()) {
+    std::size_t j = plain.find('/', i);
+    if (j == std::string::npos) j = plain.size();
+    std::string seg = plain.substr(i, j - i);
+    if (!seg.empty() && seg != "/") {
+      if (seg == "..") { if (!parts.empty() && parts.back() != "..") parts.pop_back(); else if (!abs && !winDrive) parts.push_back(seg); }
+      else if (seg != ".") parts.push_back(seg);
+    }
     i = j + 1;
   }
-  std::string r = abs ? "/" : "";
-  for (std::size_t k = 0; k < parts.size(); ++k) r += (k ? "/" : "") + parts[k];
+  // the drive stays in place and takes a forward slash like every join after it (Windows accepts '/')
+  std::string r = winDrive ? plain.substr(0, 2) : abs ? "/" : "";
+  for (std::size_t k = 0; k < parts.size(); ++k) r += (r.empty() || r.back() == '/' ? "" : "/") + parts[k];
   return r;
 }
 

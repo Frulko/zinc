@@ -4,5 +4,5 @@
   "module": "zinc:leapmotion",
   "entry": "index.ts",
   "description": "Ultraleap hand tracking: hands, finger joints and pinch strength through LeapC, with an explicit simulator",
-  "targets": { "macos": {} }
+  "targets": { "macos": {}, "windows": {} }
 }

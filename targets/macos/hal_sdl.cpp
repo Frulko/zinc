@@ -1,4 +1,4 @@
-// SDL3 HAL for macos and linux (TGT-MAC-02, D-05): window, renderer, keyboard/mouse input.
+﻿// SDL3 HAL for macos and linux (TGT-MAC-02, D-05): window, renderer, keyboard/mouse input.
 #include <string>
 #include "hal.h"
 #include "hal_window.h"
@@ -95,13 +95,15 @@ static bool zgl_load() { return true; }
 #define GLAD_API_CALL static
 #include <glad/gl.h>
 #define ZGL_FUNCS(X) X(ActiveTexture) X(AttachShader) X(BindAttribLocation) X(BindBuffer) X(BindFramebuffer) X(BindRenderbuffer) X(BindTexture) \
-  X(BindVertexArray) X(BlendFunc) X(BufferData) X(CheckFramebufferStatus) X(Clear) X(ClearColor) X(ClearDepth) X(CompileShader) X(CopyTexSubImage2D) \
-  X(CreateProgram) X(CreateShader) X(DeleteProgram) X(DeleteShader) X(DeleteTextures) X(DepthFunc) X(DepthMask) X(Disable) X(DisableVertexAttribArray) \
-  X(DrawArrays) X(DrawArraysInstanced) X(DrawElements) X(Enable) X(EnableVertexAttribArray) X(Finish) X(FramebufferRenderbuffer) X(FramebufferTexture2D) \
-  X(GenBuffers) X(GenFramebuffers) X(GenRenderbuffers) X(GenTextures) X(GenVertexArrays) X(GetAttribLocation) X(GetFramebufferAttachmentParameteriv) \
-  X(GetIntegerv) X(GetProgramiv) X(GetShaderInfoLog) X(GetShaderiv) X(GetString) X(GetUniformLocation) X(LinkProgram) X(PixelStorei) X(ReadPixels) \
-  X(RenderbufferStorage) X(Scissor) X(ShaderSource) X(TexImage2D) X(TexParameteri) X(TexSubImage2D) X(Uniform1f) X(Uniform1i) X(Uniform2f) X(UseProgram) \
-  X(VertexAttribDivisor) X(VertexAttribPointer) X(Viewport)
+  X(BindVertexArray) X(BlendFunc) X(BufferData) X(BufferSubData) X(CheckFramebufferStatus) X(Clear) X(ClearColor) X(ClearDepth) X(ClearStencil) \
+  X(ColorMask) X(CompileShader) X(CompressedTexImage2D) X(CopyTexSubImage2D) X(CreateProgram) X(CreateShader) X(DeleteProgram) X(DeleteShader) \
+  X(DeleteTextures) X(DepthFunc) X(DepthMask) X(Disable) X(DisableVertexAttribArray) X(DrawArrays) X(DrawArraysInstanced) X(DrawElements) \
+  X(Enable) X(EnableVertexAttribArray) X(Finish) X(FramebufferRenderbuffer) X(FramebufferTexture2D) X(GenBuffers) X(GenFramebuffers) \
+  X(GenRenderbuffers) X(GenTextures) X(GenVertexArrays) X(GetAttribLocation) X(GetError) X(GetFramebufferAttachmentParameteriv) X(GetIntegerv) \
+  X(GetProgramiv) X(GetShaderInfoLog) X(GetShaderiv) X(GetString) X(GetUniformLocation) X(LinkProgram) X(PixelStorei) X(ReadPixels) \
+  X(RenderbufferStorage) X(Scissor) X(ShaderSource) X(StencilFunc) X(StencilMask) X(StencilOp) X(StencilOpSeparate) X(TexImage2D) \
+  X(TexParameteri) X(TexSubImage2D) X(Uniform1f) X(Uniform1fv) X(Uniform1i) X(Uniform2f) X(Uniform3f) X(Uniform3fv) X(Uniform4f) X(Uniform4fv) \
+  X(UseProgram) X(VertexAttribDivisor) X(VertexAttribPointer) X(Viewport)
 /** After the context is current: false when a function is missing (the window then stays on SDL_Renderer). */
 static bool zgl_load() {
   bool ok = true;
@@ -1100,7 +1102,12 @@ static void start_workers() {
   int n = e ? atoi(e) : SDL_GetNumLogicalCPUCores();
   if (n > 8) n = 8;   // ponytail: memory bandwidth, not cores, limits past ~8 bands
   if (const char* st = getenv("ZINC_RENDER_STRIPE")) if (atoi(st) >= 8) kStripe = atoi(st);   // rows per stripe, for measuring
+#ifdef _WIN32   // windows: SDL's own threads (_beginthreadex); zig's winpthreads std::thread errs here ("Bad file descriptor")
+  if (getenv("ZN_USB_DEBUG")) fprintf(stderr, "start_workers n=%d stripe=%d\n", n, kStripe);
+  for (int i = 1; i < n; i++) SDL_DetachThread(SDL_CreateThread([](void* p) -> int { band_worker(static_cast<int>((size_t)p)); return 0; }, "zinc-band", (void*)(size_t)i));
+#else
   for (int i = 1; i < n; i++) std::thread(band_worker, i).detach();
+#endif
   workers = n > 1 ? n - 1 : 0;
 }
 static void render_rows_parallel(void (*fn)(uint32_t*, int32_t, int32_t), int32_t y0, int32_t y1, uint32_t* px = nullptr) {

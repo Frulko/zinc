@@ -8,6 +8,7 @@
   "targets": {
     "macos": {},
     "linux": {},
+    "windows": {},
     "rpi1": {}
   }
 }

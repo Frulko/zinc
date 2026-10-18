@@ -1,4 +1,4 @@
-{
+﻿{
   "name": "spotify",
   "kind": "module",
   "module": "zinc:spotify",
@@ -8,6 +8,7 @@
   "targets": {
     "macos": {},
     "linux": {},
+    "windows": {},
     "android": {},
     "ios": {},
     "rpi1": {},

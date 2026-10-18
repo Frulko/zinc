@@ -9,6 +9,7 @@
   "targets": {
     "macos": { "pkg": ["libavformat", "libavcodec", "libavutil", "libswscale"] },
     "linux": { "pkg": ["libavformat", "libavcodec", "libavutil", "libswscale"], "packages": ["pkg-config", "libavformat-dev", "libavcodec-dev", "libavutil-dev", "libswscale-dev"], "linkFlags": ["-pthread"] },
+    "windows": { "pkg": ["libavformat", "libavcodec", "libavutil", "libswscale"] },
     "rpi1": { "pkg": ["libavformat", "libavcodec", "libavutil", "libswscale"], "packages": ["ffmpeg-dev"], "linkFlags": ["-pthread"] },
     "webos": { "linkFlags": ["-ldl", "-pthread"] },
     "android": { "libs": ["mediandk", "android", "log"] },

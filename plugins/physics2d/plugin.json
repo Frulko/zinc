@@ -30,6 +30,18 @@
       "defines": [
         "NDEBUG"
       ]
+    },
+    "windows": {
+      "sources": [
+        "vendor/box2d.c"
+      ],
+      "flags": [
+        "-I./vendor/box2d/include",
+        "-ffp-contract=off"
+      ],
+      "defines": [
+        "NDEBUG"
+      ]
     }
   },
   "web": {

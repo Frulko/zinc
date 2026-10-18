@@ -10,6 +10,7 @@
   "targets": {
     "macos": {},
     "linux": {},
+    "windows": {},
     "android": {},
     "ios": {},
     "rpi1": {},

@@ -1,4 +1,4 @@
-#include "tc/plugin_build.h"
+﻿#include "tc/plugin_build.h"
 #include "tc/policy.h"
 #include "zn/log.h"
 #include "tc/tlog.h"
@@ -67,16 +67,30 @@ std::string q(const std::string& s) {   // shell quoting
   return r + "'";
 }
 
-// stdout of a command, and whether it succeeded
-bool capture(const std::string& cmd, std::string& out) {
+// stdout of a POSIX-shaped shell line (its own redirects merge the rest in), and its exit status (-1 when the shell
+// itself cannot run): on Windows the whole line is one argv element of Git for Windows' sh, run by zn::plat::capture
+// (cmd.exe would mangle both the '...' quoting of the tools and a "C:\Program Files" path, and its /C strips the
+// line's outer quotes); elsewhere the host shell runs it directly
+static int captureSh(const std::string& cmd, std::string& out) {
   out.clear();
-  FILE* f = popen((cmd + " 2>/dev/null").c_str(), "r");
-  if (!f) return false;
+#ifdef _WIN32
+  const std::string sh = zn::plat::shellPath();
+  if (sh.empty()) return -1;   // no Git for Windows: install it (zinc needs bash for the tests anyway)
+  return zn::plat::capture({sh, "-c", cmd}, out);
+#else
+  FILE* f = ::popen(cmd.c_str(), "r");
+  if (!f) return -1;
   char buf[512];
   std::size_t n;
   while ((n = std::fread(buf, 1, sizeof buf, f)) > 0) out.append(buf, n);
-  int st = pclose(f);
-  while (!out.empty() && (out.back() == '\n' || out.back() == ' ')) out.pop_back();
+  return ::pclose(f);
+#endif
+}
+
+// stdout of a command, and whether it succeeded
+bool capture(const std::string& cmd, std::string& out) {
+  const int st = captureSh(cmd + " 2>/dev/null", out);
+  while (!out.empty() && (out.back() == '\n' || out.back() == '\r' || out.back() == ' ')) out.pop_back();
   return st == 0;
 }
 
@@ -141,18 +155,31 @@ bool compilers(bool system, std::string& cxx, std::string& cc, std::string& id, 
   return true;
 }
 
+// The import library of zinc.exe next to it (or under a build directory under engineRoot): the plugins' native code
+// calls the engine's hal_*/zrt_*/registry directly (docs/reports/zinc-windows-port.md), which a PE cannot resolve at
+// load without one. "" when none: the plugin then refuses with a plain message.
+static std::string zincImplib(const std::string& engineRoot) {
+  if (const char* e = std::getenv("ZINC_IMPLIB"); e && *e) { if (fs::exists(e)) return e; }
+  const std::string exe = executablePath();
+  if (!exe.empty()) {
+    const fs::path dir = fs::path(exe).parent_path();
+    if (fs::exists(dir / "libzinc.dll.a")) return (dir / "libzinc.dll.a").string();
+  }
+  for (const char* b : {"build-win", "build", "build-dbgsym"}) {
+    const fs::path p = fs::path(engineRoot) / b / "libzinc.dll.a";
+    if (fs::exists(p)) return p.string();
+  }
+  return "";
+}
+
 std::string arTool() { return gAr; }
 
 bool run(const std::string& cmd, std::string& err, const std::string& what) {
   log::Phase phase("plugin", what, "plugin", what);
-  std::string log = cmd + " 2>&1";
-  FILE* f = popen(log.c_str(), "r");
-  if (!f) { err = "cannot run " + what; return false; }
   std::string out;
-  char buf[512];
-  std::size_t n;
-  while ((n = std::fread(buf, 1, sizeof buf, f)) > 0) out.append(buf, n);
-  if (pclose(f) != 0) {
+  const int st = captureSh(cmd + " 2>&1", out);
+  if (st < 0) { err = "cannot run " + what; return false; }
+  if (st != 0) {
     err = what + " failed:\n" + out.substr(0, 3000);
     if ((out.find("framework") != std::string::npos || out.find("SDK") != std::string::npos) && !xcodeToolsInstalled())
       err += "\nthis plugin links macOS frameworks, which come from the SDK of the Xcode command line tools, not installed on this Mac: run `xcode-select --install`, then this command again";
@@ -169,6 +196,8 @@ void clearCrossTarget() { gCross = Cross{}; }
 std::string pluginTarget() {
 #if defined(__APPLE__)
   return "macos";
+#elif defined(_WIN32)
+  return "windows";
 #else
   return "linux";
 #endif
@@ -244,7 +273,7 @@ void fetchPrebuilt(const std::string& name, const std::string& key, const std::s
 
 // The defines a plugin is compiled with: the runtime's own, the manifest's, the options as ZP_ defines.
 std::vector<std::string> buildDefines(const frontend::FoundPlugin& p, const frontend::PluginTarget& ts, const std::string& engineRoot, const std::string& projectDir, const std::string& target) {
-  std::vector<std::string> defines{"ZRT_HEAP_BYTES=536870912u", gCross.on || pluginTarget() == "linux" ? "ZRT_PLATFORM=\"linux\"" : "ZRT_PLATFORM=\"macos\"", "ZRT_POINT_POOL=262144", "ZRT_GROW_DRAW_CMDS"};
+  std::vector<std::string> defines{"ZRT_HEAP_BYTES=536870912u", pluginTarget() == "macos" ? "ZRT_PLATFORM=\"macos\"" : pluginTarget() == "windows" ? "ZRT_PLATFORM=\"windows\"" : "ZRT_PLATFORM=\"linux\"", "ZRT_POINT_POOL=262144", "ZRT_GROW_DRAW_CMDS"};
   for (const std::string& d : ts.defines) defines.push_back(d);
   for (const std::string& d : frontend::pluginDefines(p, projectDir, engineRoot + "/..", target)) defines.push_back(d);
   return defines;
@@ -348,7 +377,8 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
   auto rel = [&](const std::string& t) {
     size_t at = t.rfind("-I", 0) == 0 || t.rfind("-L", 0) == 0 ? 2 : 0;
     if (t.compare(at, 2, "./") != 0 && t.compare(at, 3, "../") != 0) return t;
-    return t.substr(0, at) + (fs::path(p.dir) / t.substr(at)).lexically_normal().string();
+    const std::string pth = (fs::path(p.dir) / t.substr(at)).lexically_normal().generic_string();
+    return t.substr(0, at) + (at ? q(pth) : pth);
   };
   for (const std::string& f : ts.frameworks) { libs.push_back("-framework " + f); }
   for (const std::string& l : ts.libs) libs.push_back(l.rfind("-", 0) == 0 ? rel(l) : l.rfind(".", 0) == 0 ? q(rel(l)) : "-l" + l);
@@ -375,8 +405,8 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
     const fs::path pre = fs::path(p.dir) / "prebuilt" / (gCross.on ? gCross.name : target);
     std::string key;
     if (readAll((pre / "key").string(), key)) {
-      while (!key.empty() && (key.back() == '\n' || key.back() == ' ')) key.pop_back();
-      const std::string ext = pluginTarget() == "macos" ? ".dylib" : ".so";
+      while (!key.empty() && (key.back() == '\n' || key.back() == '\r' || key.back() == ' ')) key.pop_back();
+      const std::string ext = pluginTarget() == "macos" ? ".dylib" : pluginTarget() == "windows" ? ".dll" : ".so";
       if (key == out.key && fs::exists(pre / "plugin.a") && (gCross.on || fs::exists(pre / ("plugin" + ext)))) {
         out.shared = (pre / ("plugin" + ext)).string();
         out.archive = (pre / "plugin.a").string();
@@ -407,6 +437,7 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
   h.add(display ? "display" : "module");
   for (const std::string& s : own) { std::string t; readAll(s, t); h.add(relToPlugin(s)); h.add(t); }
   for (const std::string& hp : {root + "/include/zn/native.h", root + "/src/native/zrt_compat.h", runtime + "/zrt.h", runtime + "/zrt_raster.h", runtime + "/gl_replay.cpp", runtime + "/gl_replay_shaders.h", runtime + "/include/hal.h"}) h.add(sha256File(hp));
+  if (pluginTarget() == "windows") h.add(sha256File(zincImplib(engineRoot)));   // DATA vs code exports in libzinc.dll.a change the DLL's import table
   for (const std::string& s : own) {   // the files beside the sources, in name order: headers, and sources one of them #includes (display-gl's gl_renderer.cpp)
     std::vector<std::string> hs;
     std::error_code e2;
@@ -424,7 +455,8 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
   std::string dir = cache + "/" + m.name + "-" + keyHex;
   std::string vdir = cache + "/" + m.name + "-vendor-" + vh.hex();
   bool dyn = true;
-  std::string ext = pluginTarget() == "macos" ? ".dylib" : ".so";
+  const bool windowsHost = pluginTarget() == "windows";
+  std::string ext = pluginTarget() == "macos" ? ".dylib" : windowsHost ? ".dll" : ".so";
   out.shared = dir + "/plugin" + ext;
   out.archive = dir + "/plugin.a";
   if (!vendored.empty()) out.vendor = vdir + "/vendor.a";
@@ -454,7 +486,7 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
   // trust: the digest written after the build must still match the library (a tampered cache entry is refused, never loaded); an entry without one is rebuilt
   std::string digestFile = dir + "/plugin.sha256", recorded;
   if (fs::exists(out.shared) && readAll(digestFile, recorded)) {
-    while (!recorded.empty() && (recorded.back() == '\n' || recorded.back() == ' ')) recorded.pop_back();
+    while (!recorded.empty() && (recorded.back() == '\n' || recorded.back() == '\r' || recorded.back() == ' ')) recorded.pop_back();
     if (recorded != sha256File(out.shared) + " " + sha256File(out.archive)) {
       err = "the native library of plugin '" + m.name + "' in " + dir + " does not match its recorded digest: refused (delete the directory to rebuild it)";
       return false;
@@ -489,7 +521,14 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
     for (const std::string& o : objs) list += " " + q(o);
     std::string linkLibs;
     for (const std::string& l : libs) linkLibs += " " + l;
-    std::string undefined = pluginTarget() == "macos" ? " -undefined dynamic_lookup -Wl,-install_name,@rpath/plugin.dylib -Wl,-S" : "";   // zrt and the registry come from the zinc that loads it; a fixed install name, not the cache path, and no debug stabs naming the objects (ZN-333)
+    std::string undefined;
+    if (pluginTarget() == "macos")
+      undefined = " -undefined dynamic_lookup -Wl,-install_name,@rpath/plugin.dylib -Wl,-S";   // zrt and the registry come from the zinc that loads it; a fixed install name, not the cache path, and no debug stabs naming the objects (ZN-333)
+    else if (windowsHost) {   // a PE dll exports nothing on its own: all symbols, and the engine's import library to resolve zrt/hal against
+      const std::string implib = zincImplib(engineRoot);
+      if (implib.empty()) { err = "plugin '" + m.name + "' needs the import library of zinc (libzinc.dll.a beside the zinc that loads it, or ZINC_IMPLIB)"; return false; }
+      undefined = " -Wl,--export-all-symbols " + q(implib);
+    }
     std::string vend = out.vendor.empty() ? "" : " " + q(out.vendor);
     if (!gCross.on && !run(cxx + " -shared -fPIC" + undefined + " -o " + q(out.shared) + list + vend + linkLibs, err, "linking " + m.name)) return false;
     fs::remove(out.archive, ec);
@@ -549,6 +588,7 @@ std::vector<std::string> stampInputs(const frontend::FoundPlugin& p, const std::
   std::vector<std::string> in{(fs::path(p.dir) / "plugin.json").string(), executablePath()};
   const std::string root = engineRoot, runtime = root + "/../runtime";
   for (const std::string& hp : {root + "/include/zn/native.h", root + "/src/native/zrt_compat.h", runtime + "/zrt.h", runtime + "/zrt_raster.h", runtime + "/gl_replay.cpp", runtime + "/gl_replay_shaders.h", runtime + "/include/hal.h"}) in.push_back(hp);
+  if (target == "windows") { const std::string im = zincImplib(engineRoot); if (!im.empty()) in.push_back(im); }
   std::vector<std::string> dirs;
   std::error_code ec;
   if (m.kind != "display") {
@@ -586,7 +626,7 @@ void writeStamp(const std::string& path, const PluginLib& out, const std::vector
   for (const std::string& f : inputs) { const std::string st = statLine(f, false); t += "in " + (st.empty() ? "- - -" : st) + " " + f + "\n"; }
   std::error_code ec;
   fs::create_directories(fs::path(path).parent_path(), ec);
-  { std::ofstream(path + ".tmp") << t; }
+  { std::ofstream(path + ".tmp", std::ios::binary) << t; }
   fs::rename(path + ".tmp", path, ec);
 }
 /** The stamp's results, when every input and library is as it was. */
@@ -595,10 +635,13 @@ bool readStamp(const std::string& path, PluginLib& out) {
   if (!readAll(path, t)) return false;
   std::istringstream ls(t);
   std::string line;
-  if (!std::getline(ls, line) || line != "zinc-plugin-stamp 1") return false;
+  if (!std::getline(ls, line)) return false;
+  if (!line.empty() && line.back() == '\r') line.pop_back();
+  if (line != "zinc-plugin-stamp 1") return false;
   PluginLib r;
   r.plugin = out.plugin;
   while (std::getline(ls, line)) {
+    if (!line.empty() && line.back() == '\r') line.pop_back();
     const std::size_t sp = line.find(' ');
     const std::string tag = line.substr(0, sp), rest = sp == std::string::npos ? "" : line.substr(sp + 1);
     if (tag == "module") r.module = rest;

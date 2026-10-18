@@ -1,8 +1,8 @@
-{
+﻿{
   "name": "tilemap",
   "kind": "module",
   "module": "zinc:tilemap",
   "entry": "index.ts",
   "description": "Levels of Tiled and LDtk maps imported by the asset build (zinc.json \"as\": \"tilemap\" rules): layers, IntGrid values, objects, tiles drawn from an atlas",
-  "targets": { "macos": {}, "linux": {}, "rpi1": {}, "wasm": {}, "esp32": {}, "ps2": {} }
+  "targets": { "macos": {}, "linux": {}, "windows": {}, "rpi1": {}, "wasm": {}, "esp32": {}, "ps2": {} }
 }

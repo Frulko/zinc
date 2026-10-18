@@ -8,6 +8,7 @@
   "targets": {
     "esp32": { "idf": ["esp_hw_support"] },
     "macos": {},
-    "linux": {}
+    "linux": {},
+    "windows": {}
   }
 }

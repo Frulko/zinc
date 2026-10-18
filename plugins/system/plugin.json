@@ -24,6 +24,7 @@
       "defines": ["ZN_SYSTEM_LIVE"]
     },
     "linux": {},
+    "windows": {},
     "android": {
       "sources": ["native/system.android.cpp", "native/android/SystemBackend.java"],
       "defines": ["ZN_SYSTEM_LIVE"],

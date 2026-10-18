@@ -508,6 +508,10 @@ else()
   target_compile_definitions(zinc PRIVATE ZN_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
 endif()
 set_target_properties(zinc PROPERTIES ENABLE_EXPORTS ON)   # a plugin loaded with dlopen finds zrt and the native registry in this binary
+if(WIN32)   # plugins as .dll: the def exports the engine's C symbols their native code calls, so --out-implib (ENABLE_EXPORTS) writes libzinc.dll.a beside zinc.exe and the plugin links it (docs/reports/zinc-windows-port.md)
+  set_target_properties(zinc PROPERTIES LINK_FLAGS "${CMAKE_CURRENT_SOURCE_DIR}/src/zinc.def")
+  set_property(TARGET zinc APPEND PROPERTY LINK_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/zinc.def)
+endif()
 if(APPLE)   # but not zinc's own C++ (zn::), harfbuzz's or the libc++ templates it instantiates: exported weak definitions cost dyld a coalescing bind each
   # at every launch (629, 388 of them for one template) and the libc++ ones a patch of the shared cache; no plugin or module imports them (ZN-592.01)
   target_link_options(zinc PRIVATE "LINKER:-unexported_symbols_list,${CMAKE_CURRENT_SOURCE_DIR}/tools/zinc-unexported.txt")
