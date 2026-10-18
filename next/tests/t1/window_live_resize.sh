@@ -1,3 +1,4 @@
+[ -z "$ZINC_CI" ] || { echo "skipped: the runner's virtual screen is smaller than the 900x700 window the size limits need"; exit 77; }
 #!/bin/sh
 # A live resize on macOS: while the window's edge is dragged, AppKit holds the event loop in its tracking loop and the window HAL draws the
 # program's frames from SDL's event watcher (zrt_redraw, the engine's frame step). ZINC_LIVE_RESIZE=n drives that path without a mouse: n size

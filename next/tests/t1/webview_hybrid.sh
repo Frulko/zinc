@@ -1,3 +1,4 @@
+[ -z "$ZINC_CI" ] || { echo "skipped: no display on the hosted runner: AppKit gives the WKWebView no real window frame"; exit 77; }
 #!/bin/sh
 # ZN-749: examples/webview/hybrid through <NativeView> on macOS. The real WKWebView takes the layout node's box (beside the 256 px sidebar),
 # the page and the program talk both ways (invoke, postMessage), and in the phone layout (HYBRID_PHONE=1) a scroll moves the view up under
