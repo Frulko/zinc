@@ -6,6 +6,7 @@ import { View, Text, TextInput, Platform, PixelRatio, Keyboard, KeyboardEvent, S
 import { openLink } from '../links';
 import { setClipboardText, clipboardText } from 'zinc:gfx';
 import { PROFILE, TIER } from 'zinc:platform';
+import * as Device from 'zinc:device-info';
 import { theme, SP, R_CONTROL, T_BODY } from '../theme';
 import { tr, language, setLanguage } from '../i18n';
 import { Screen, Section, ActionButton, Badge, Line, toast, s as k } from '../parts';
@@ -60,6 +61,9 @@ export function PlatformScreen() {
           <View style={k.pad}>
             <Line k="Platform.OS" v={Platform.OS} />
             <Line k="Platform.Version" v={`${Platform.Version}` !== "" ? `${Platform.Version}` : "n/a"} />
+            <Line k="Model" v={Device.modelName !== '' ? Device.modelName : Device.modelId !== '' ? Device.modelId : 'n/a'} />
+            <Line k="System" v={`${Device.osName} ${Device.osVersion}`} />
+            <Line k="isPad · isTV" v={`${Platform.isPad} · ${Platform.isTV}`} />
             <Line k="Profile · tier" v={`${PROFILE} · T${TIER}`} />
             <Line k="Window" v={`${Math.round(win.width)} × ${Math.round(win.height)} @${PixelRatio.get()}x`} />
             <Line k="Colour scheme" v={scheme} />

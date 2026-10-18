@@ -7,7 +7,7 @@ status: Backlog
 assignee:
   - '@parallel'
 created_date: '2026-10-18 10:55'
-updated_date: '2026-10-18 11:12'
+updated_date: '2026-10-18 11:24'
 labels:
   - mobile
   - platform
@@ -41,4 +41,6 @@ Owner, 2026-10-18 (after rn-showcase ran on an iPad Pro): a real platform layer 
 - Module: zinc:device-info (lib/std/device-info.ts), not zinc:device: that name is taken by plugins/device (board services: backlight, memory, frame stats) and a plugin wins the resolution; renaming it would break the board demos. DeviceType enum, deviceType, getDeviceTypeAsync (async, already settled: Zinc refuses `await` on a non-promise), brand ... isDevice; '' / 0 for unknown, never null. Platform.isPad (ios && TABLET), isTV, Platform.constants (PlatformConstants: interfaceIdiom, systemName, osVersion, Release, Model, Brand, Manufacturer, uiMode, isTesting) from it. Docs: docs/react-native.md (Platform, Device rows), docs/guide/03-ui-apps.md "The device".
 - Proofs: tests/t0/device_info.sh PASS (Mac record vs sysctl hw.model, sw_vers, hw.memsize: MacBookPro18,3, macOS 15.7.4 24G517; ios phone, ios iPad6,7 -> TABLET 'iPad Pro (12.9-inch) (1st generation)' iPadOS isPad=true also on --engine quickjs, iPhone18,3 -> 'iPhone 17', unknown iPad99,1 -> empty name, android phone/tablet/tv); --native run of the iPad case gives the same lines. platform_identity, system_signals, modules, rn_idle, qjs_demos PASS. Syntax-only checks: sys_host.cpp against the iOS and iOS-simulator SDKs, the NDK (android26) clean with -Wall -Wextra; the Linux branch with bionic headers fails only on an unrelated getloadavg; ios_glue.mm against the simulator SDK; ZincActivity.java with javac + android-36.jar (only the pre-existing ZincEdit symbol is missing).
 - Open: #1 and #4 on a real run of iOS/Android (Linux is the cross-platform pass), #5 the simulator and emulator apps. Commands: copy tests/golden/device-info/main.tsx into a project (zinc new, replace src), then `zinc export <dir> --target ios -o dist/dev-ios` and the cmake -G Xcode / xcodebuild -sdk iphonesimulator / `xcrun simctl boot "iPad Pro 13-inch (M4)"` / simctl install / `xcrun simctl launch --console-pty booted <bundle id>` of docs/reports/zinc-next-ios.md (expect type tablet, modelId iPad16,5, isPad=true; then "iPhone 17": phone, isPad=false); Android: `zinc export <dir> --target android`, install on the AVD Pixel_10 (adb install), `adb logcat -s zinc` for the record (phone; a Pixel Tablet AVD: tablet; an Android TV AVD: tv).
+
+2026-10-18, real device: rn-showcase's Platform screen on the owner's iPad Pro 12.9 (iPad6,7, iOS 16.7.16) shows Model 'iPad Pro (12.9-inch) (1st generation)', System 'iPadOS 16.7.16', isPad true, isTV false (owner confirmed). Criterion 3 ticked on that run; the iPhone half of 1 and 5, and Android (4), stay open.
 <!-- SECTION:NOTES:END -->
