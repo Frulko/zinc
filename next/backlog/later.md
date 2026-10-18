@@ -397,6 +397,9 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-470: Meadow Run's work peaks of about 8 ms on the Vita (garbage collection or asset decoding?): profile them with ZINC_TRACE on hardware if a heavier game needs the headroom.
 - console host: `host.assetsStat` is not served (logged once on every Vita run).
 - compiler: a local `let cur` (a string) in one function breaks the narrowing of a module-level `let cur: Play | null` in other functions of the module (Z0107 "must be narrowed first"); examples/music/src/notify.ts renamed its local to `word`. Narrowing should key on the declaration, not the name.
+- ZN-761: map `import * as Device from 'expo-device'` to zinc:device-info under the react-native preset (rewriteReactNativeImports), so Expo code runs unchanged.
+- ZN-761: Apple silicon Macs report only a family name (Mac14,2 gets no name): read IOKit's product-name from IODeviceTree:/product.
+- ZN-761: deviceYearClass is missing (expo derives it from memory and CPU); add it when a program needs it.
 
 ## Demos
 - Owner 2026-10-17: every game demo uses Kenney's assets (kenney.nl, CC0), adapted per platform: re-skin pinball, pinball3d and pocket-hero with Kenney packs as they are next worked on (breakout in ZN-753, platformer and marble in ZN-754).
@@ -750,3 +753,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-?: zinc:sprite, zinc:link and zinc:udp should answer "unavailable" quietly on the web instead of apps logging console.error (music)
 - ZN-?: `zinc export` of a raw template folder should say "run `zinc new` first" instead of the reverse-DNS id error
 - ZN-?: `web_dom` prerender waits a fixed six seconds and flakes under a load of 30 ("the app drew nothing"); wait on the first frame instead
+- ZN-761: check the device record on Linux (a Raspberry Pi's device tree, a PC's DMI), Windows (no record yet: WMI or the registry) and the web (navigator.userAgentData).
