@@ -247,6 +247,27 @@ jobs:
       - name: Quiet the runner
         # Spotlight indexes the fresh checkout and the build tree on a 3-core runner: the tests run under it
         run: sudo mdutil -a -i off >/dev/null 2>&1 || true
+      - name: Restore the plugin and asset cache
+        id: zcache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.zinc/cache
+          key: zinc-cache-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('plugins/webrtc/**', 'examples/marble/**', 'next/src/tc/**', 'next/src/assets/**') }}
+      - name: Warm the cache
+        # on an empty cache, webrtc's native libraries and marble's assets are built inside a test's timeout and the test times out
+        # (docs/reports/ci-runner-failures-2026-10-18.md): built once here, before the clock of any test starts
+        if: steps.zcache.outputs.cache-hit != 'true'
+        run: |
+          build/zinc plugin-build webrtc ../examples/webrtc-call >/dev/null
+          build/zinc plugin-build webrtc ../examples/webrtc-chat >/dev/null
+          build/zinc assets build ../examples/marble >/dev/null
+      - name: Save the plugin and asset cache
+        if: steps.zcache.outputs.cache-hit != 'true'
+        continue-on-error: true   # six shards save the same key: the first one wins
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.zinc/cache
+          key: ${{ steps.zcache.outputs.cache-primary-key }}
       - name: Tests
         env:
           ZINC_TEST_HOME: ${{ runner.temp }}/zinc-home
@@ -285,7 +306,7 @@ jobs:
           ZINC_CI: '1'
         run: |
           mkdir -p "$RUNNER_TEMP/out"
-          export ZINC="$PWD/build/zinc" ZINC_DETERMINISTIC=1 ZINC_STEPS=0
+          export ZINC="$PWD/build/zinc" ZINC_DETERMINISTIC=1 ZINC_STEPS=0 ZN_WAIT_SCALE=4 PYTHONPATH="$PWD/tests/ci"   # as tests/run sets them on CI
           for name in $(grep '^FAIL' "$RUNNER_TEMP/results-${{ matrix.shard }}.txt" 2>/dev/null | awk '{print $2}' | head -8); do
             for f in tests/t*/"$name".sh; do   # a name may exist in two tiers (package): the trace of each
               [ -e "$f" ] || continue
