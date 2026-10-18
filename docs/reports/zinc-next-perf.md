@@ -863,7 +863,7 @@ Zinc loop and a JavaScript loop as references. One warm-up run and 5 timed runs 
 (`tools/bench-bridge show` prints them side by side). Run with `tools/bench-bridge mac|android|webos`.
 Microseconds per unit, medians. The Mac was not quiet (load average 4 to 7 from other sessions; spread under 3%); Android and webOS ran on the device alone.
 
-| Case | Mac x86_64 AOT | Nexus 7 (Tegra 3, API 25, AOT) | TouchPad (webOS, AOT) |
+| Case | Mac (Apple M1 Pro, arm64) AOT | Nexus 7 (Tegra 3, API 25, AOT) | TouchPad (webOS, AOT) |
 |---|---|---|---|
 | ref: typed Zinc loop | 0.014 | 0.065 | 0.210 |
 | ref: JavaScript loop | 0.041 | 0.705 | 0.645 |

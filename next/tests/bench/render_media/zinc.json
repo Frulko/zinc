@@ -1,0 +1,6 @@
+{
+  "name": "render_media",
+  "entry": "src/main.ts",
+  "app": { "name": "Render media bench", "id": "dev.zinc.bench.rendermedia", "version": "1.0.0", "orientation": "landscape" },
+  "requires": ["display"]
+}

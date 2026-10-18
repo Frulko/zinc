@@ -1,0 +1,6 @@
+{
+  "name": "render_suite",
+  "entry": "src/main.ts",
+  "app": { "name": "Render suite bench", "id": "dev.zinc.bench.rendersuite", "version": "1.0.0" },
+  "requires": ["display"]
+}

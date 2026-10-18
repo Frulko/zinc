@@ -148,7 +148,7 @@ def ios(app_id, no_build):
         r = sh([zinc, "export", os.path.join(work, "proj"), "--target", "ios", "-o", out], env=env, timeout=900)
         if r.returncode: sys.exit("export failed:\n" + (r.stdout + r.stderr)[-1500:])
         if not os.path.isdir(os.path.join(out, "build-device")):
-            r = sh(["cmake", "-S", out, "-B", os.path.join(out, "build-device"), "-G", "Xcode", "-DCMAKE_SYSTEM_NAME=iOS", "-DZINC_TEAM=" + team], timeout=1800)
+            r = sh(["cmake", "-S", out, "-B", os.path.join(out, "build-device"), "-G", "Xcode", "-DCMAKE_SYSTEM_NAME=iOS", "-DZINC_TEAM=" + team], timeout=1800, env={k: v for k, v in os.environ.items() if k not in ("SDKROOT", "CPATH", "LIBRARY_PATH")})   # the Xcode python shim sets SDKROOT to the macOS SDK
             if r.returncode: sys.exit("cmake failed:\n" + (r.stdout + r.stderr)[-1500:])
         r = sh(["xcodebuild", "-quiet", "-project", os.path.join(out, "build-device", "script_bridge.xcodeproj"), "-scheme", "script_bridge", "-configuration", "Release", "-sdk", "iphoneos",
                 "-derivedDataPath", os.path.join(out, "build-device", "dd"), "CODE_SIGN_STYLE=Automatic", "PROVISIONING_PROFILE_SPECIFIER=", "DEVELOPMENT_TEAM=" + team,
