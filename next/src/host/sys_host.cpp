@@ -26,6 +26,8 @@
 #else
 #include <sys/wait.h>
 #include <dirent.h>
+#include <dlfcn.h>
+#include <sys/utsname.h>
 #include <pwd.h>
 #include <grp.h>
 #include <net/if.h>

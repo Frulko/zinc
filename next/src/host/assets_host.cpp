@@ -9,6 +9,8 @@
 #include <fcntl.h>
 #ifdef _WIN32
 #include "posix_shims.h"   // the mmap below is a file mapping
+#else
+#include <sys/mman.h>
 #endif
 #include <sys/stat.h>
 #include <unistd.h>

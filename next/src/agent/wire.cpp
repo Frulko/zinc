@@ -10,6 +10,7 @@
 #include <netdb.h>
 #include <netinet/tcp.h>
 #endif
+#include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
