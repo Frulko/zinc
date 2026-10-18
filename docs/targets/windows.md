@@ -11,7 +11,17 @@ machine, build, test and debug, and the milestones to a working `zinc run exampl
 | Console programs (`zinc build --target x86_64-windows prog.ts -o prog.exe`, from a Mac or Linux) | cross-built since ZN-714; never run on Windows |
 | `zinc.exe` itself, headless (checker, interpreter, QuickJS, ZBC; no window, no event loop) | cross-built from the Mac with `next/cmake/zig-windows.cmake`; `--version`, `run`, `run --engine quickjs`, `check`, `doctor` work under Wine 11; never run on Windows |
 | `zinc build` on Windows, serial ports, `zinc dev`'s live reload, the profiler | report that they are not there yet |
-| The host library (event loop, window, sockets, processes), plugins, installers | not started: see the milestones below |
+| `zinc.exe` built natively on Windows with the window (SDL3, OpenGL through WGL or the CPU renderer), the event loop and the plugins that build as DLLs | `zinc run examples/hero` runs on the GPU and on the CPU renderer; `zinc doctor` names the Windows profile |
+| The package and the installer | `tools/package` makes `zinc-<version>-windows-x86_64.zip`, `tools/install.ps1` installs it, the `package-windows-x86_64` CI job builds, tests and releases it (experimental, unsigned) |
+| Plugins without a Windows build yet (camera, devtools, process, serial, socket; video needs FFmpeg), the device agent, installers (MSI), code signing | not started: see the milestones below |
+
+## Which graphics card
+
+A laptop with two GPUs (Intel for the desktop, NVIDIA or AMD for games) gives the window the faster one by default: `zinc.exe` exports the
+`NvOptimusEnablement` and `AmdPowerXpressRequestHighPerformance` variables the drivers read. `ZINC_GPU=integrated` asks for the integrated one
+(battery); `ZINC_GPU=discrete` or nothing asks for the discrete one. Windows' own page (Settings > System > Display > Graphics) overrides both.
+`ZINC_RENDERER=cpu` skips the GPU and draws with the CPU renderer (`ZINC_RENDER_THREADS=n` sets its threads); `ZINC_GL_STATS=1` prints the card in use.
+A program exported with `zinc export` does not carry the exports yet.
 
 ## Smoke tests from the Mac, under Wine
 

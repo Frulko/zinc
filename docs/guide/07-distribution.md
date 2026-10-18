@@ -421,8 +421,13 @@ Each release has two downloads per Mac (arm64 and x86_64), each with its own lin
 | `zinc-<version>-macos-<arch>.tar.gz` | the CLI: `bin/zinc` with its window and WebGL modules, and `share/zinc` (lib/std, lib/fonts, templates, the plugins with their native libraries, `targets/capabilities.json`, the runtime headers and sources for cross builds, the core firmware, the sources of Atelier and the inspector). No `.app`. | a terminal: `curl ... install.sh \| sh`, or unpacked anywhere with `bin/zinc` linked onto the `PATH` |
 | `Zinc-Atelier-<version>-macos-<arch>.zip` | `Zinc Atelier.app`: the same engine in `Contents/MacOS`, the same `share/zinc` in `Contents/Resources/zinc`, a launcher (`zinc-atelier`) that opens Atelier on `~/Zinc` | the Finder: unzip, drag to Applications, double-click; or `install.sh --atelier` |
 
-Linux keeps its one archive, `zinc-<version>-linux-<arch>.tar.gz`, with the same layout as the macOS CLI (the Linux and Windows
-jobs are off for now). The CLI finds its files beside the binary: `zinc` resolves its own path through symlinks and reads
+Windows has `zinc-<version>-windows-x86_64.zip` (`bin\zinc.exe`, `share\zinc`: the standard library, templates and the plugins that build there)
+and `install.ps1`, which checks `SHA256SUMS`, unpacks it into `%USERPROFILE%\.zinc\engine` and adds `bin` to the user `PATH`
+(`irm https://github.com/zinc-engine/zinc/releases/latest/download/install.ps1 | iex`). The `package-windows-x86_64` job of the workflow builds
+it on a Windows runner with the pinned zig (no Visual Studio), smoke tests the unpacked archive and the installer, and a `v*` tag attaches it to the
+release; the job is experimental (its failure does not stop the macOS release) and the binary is not signed yet, so SmartScreen may ask to confirm.
+
+Linux keeps its one archive, `zinc-<version>-linux-<arch>.tar.gz`, with the same layout as the macOS CLI (the Linux jobs are off for now). The CLI finds its files beside the binary: `zinc` resolves its own path through symlinks and reads
 `<bin>/../share/zinc/next` (`tc::sourceRoot`), so the archive works wherever it is unpacked and through a link on the `PATH`.
 
 Why the app embeds the engine rather than calling the CLI of the same release: an app started from the Finder gets a bare
@@ -519,7 +524,7 @@ running keeps them), and the `zinc` link on the `PATH` points at `~/.zinc/engine
 signature that does not verify, an unsigned manifest, a new zinc that does not start or a directory it cannot write change
 nothing. `install.sh` marks the engine it installs with `.zinc-install` (where it came from, the channel); a zinc without it (a
 source build, a package manager, the copy inside Zinc Atelier.app) refuses and says how to update it instead: `git pull` and
-`tools/build zinc`, the package manager's upgrade, or the new app zip. Linux uses the same path; Windows has no update yet.
+`tools/build zinc`, the package manager's upgrade, or the new app zip. Linux uses the same path; Windows has no `zinc update` yet: run `install.ps1` again.
 
 **Zinc Atelier.** Help > Check for Updates… runs `zinc update --check` with the zinc the app runs on and shows the answer
 on the status line; Help > Install the Update runs `zinc update`. The zinc inside the app bundle does not replace itself (a

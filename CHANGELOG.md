@@ -14,6 +14,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ### Added
 - Windows: `zinc.exe` builds natively on a Windows machine (zig's mingw target, no Visual Studio) with the window, the event loop and the console: console programs run and the graphics host renders offscreen. `next/tools/windows-setup.ps1` installs a machine (git, CMake, Ninja, Python, zig 0.15.2), `docs/targets/windows.md` says how; `zinc doctor` names the Windows profile now, and libuv's and SDL3's Windows sources are vendored.
+- Windows: a release now carries `zinc-<version>-windows-x86_64.zip` and `install.ps1` (`irm https://github.com/zinc-engine/zinc/releases/latest/download/install.ps1 | iex`), built and tested on a Windows runner; not signed yet, so SmartScreen may ask you to confirm.
+- Windows: `ZINC_GPU=integrated|discrete` picks the graphics card of a laptop with two (the discrete one is the default, `ZINC_GL_STATS=1` prints the card in use).
 
 ### Fixed
 - Windows: the CPU renderer (`ZINC_RENDERER=cpu`) no longer crashes with several render threads, a laptop with two graphics cards now draws on the NVIDIA or AMD one instead of the integrated one, and `zinc doctor` no longer prints "the system cannot find the path".

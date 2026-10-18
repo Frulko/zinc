@@ -1,6 +1,7 @@
 # Zinc Next, by branch (owner, 2026-10-16): feature/* branches are built and tested only through their pull request into develop (affected T0/T1 tests, no package);
 # a push to develop does the same; a push to main (a merge from develop) and every nightly, manual or `v*` tag run does the whole tier T2 and the package; only a tag releases.
-# macOS only for now (owner, 2026-10-15): the Linux and Windows jobs are out of the matrix; windows-cross and windows-console stay below, switched off.
+# macOS first (owner, 2026-10-15): the Linux jobs are out of the matrix; Windows has its own package job (package-windows, experimental: a zip and install.ps1);
+# windows-cross and windows-console (the cross build from Linux) stay below, switched off.
 # A `v*` tag also makes a release (ZN-329): each OS job signs its package when the signing secrets exist and writes a signed update manifest,
 # then the release job attaches everything to a GitHub Release. The secrets and the tag command: docs/guide/07-distribution.md, "Releases".
 name: zinc-next
@@ -378,6 +379,86 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: (cd report && zip -qr ../test-report.zip .) && gh release upload "$GITHUB_REF_NAME" test-report.zip --clobber
+  package-windows:
+    # zinc.exe built natively on a Windows runner with the pinned zig (no Visual Studio: next/cmake/zig-windows.cmake, docs/targets/windows.md), with the graphics
+    # host, packaged as zinc-<version>-windows-x86_64.zip by tools/package, smoke tested unpacked (CLI, doctor, a program, hero headless), and, on a v* tag,
+    # given its update manifest. The runner has no GPU: the renderer under test is the CPU one. Experimental like the Intel Mac: its failure does not stop a release.
+    name: package-windows-x86_64
+    needs: plan
+    if: needs.plan.outputs.package == 'true' || startsWith(github.ref, 'refs/tags/v')
+    runs-on: windows-latest
+    continue-on-error: true
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Cache pinned toolchains and zig's compile cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.zinc/toolchains
+            ~/AppData/Local/zig
+          key: windows-zig-${{ hashFiles('next/src/tc/tc.cpp', 'next/tools/windows-setup.ps1') }}-${{ github.sha }}
+          restore-keys: windows-zig-${{ hashFiles('next/src/tc/tc.cpp', 'next/tools/windows-setup.ps1') }}-
+      - name: Tools and the pinned zig
+        shell: pwsh
+        run: powershell -ExecutionPolicy Bypass -File next\tools\windows-setup.ps1 -NoBuild
+      - name: Build zinc.exe
+        run: |   # the version zinc reports: the tag's (v1.2.0 -> 1.2.0), else git describe; the update key is next/update.pub
+          ver=(); if [ "$GITHUB_REF_TYPE" = tag ]; then ver=(-DZN_VERSION="${GITHUB_REF_NAME#v}"); fi
+          zig=$(ls -d "$USERPROFILE"/.zinc/toolchains/zig-*-windows-*/zig.exe | head -1)
+          cmake -S next -B next/build -G Ninja -DCMAKE_TOOLCHAIN_FILE="$PWD/next/cmake/zig-windows.cmake" -DZIG="$zig" -DCMAKE_BUILD_TYPE=Release -DZN_HOST_GFX=ON "${ver[@]}"
+          cmake --build next/build --target zinc
+      - name: Package
+        working-directory: next
+        run: |
+          python tools/package --out dist   # the version the binary reports
+          ls dist/zinc-*-windows-*.zip
+      - name: Smoke test of the archive, unpacked, no compiler on the PATH
+        run: |
+          mkdir smoke && cd smoke && python -m zipfile -e ../next/dist/zinc-*-windows-*.zip . && cd zinc-*
+          unset ZINC_ROOT; export ZINC_HOME="$RUNNER_TEMP/zinc-home" ZINC_BACKGROUND=1 ZINC_HEADLESS=1
+          ./bin/zinc.exe --version
+          ./bin/zinc.exe doctor
+          printf 'console.log(6 * 7);\n' > "$RUNNER_TEMP/answer.ts"
+          [ "$(./bin/zinc.exe run "$RUNNER_TEMP/answer.ts" | tr -d '\r' | tail -1)" = 42 ]
+          ZINC_FRAMES=20 ./bin/zinc.exe run "$GITHUB_WORKSPACE/examples/hero"
+          ZINC_FRAMES=20 ZINC_RENDERER=cpu ZINC_HEADLESS= ./bin/zinc.exe run "$GITHUB_WORKSPACE/examples/hero" || echo "::warning::no window on this runner: the CPU window run failed"
+      - name: Test the installer against the archive
+        shell: pwsh
+        run: |
+          $rel = Join-Path $env:RUNNER_TEMP 'rel'; New-Item -ItemType Directory $rel | Out-Null
+          $zip = Get-ChildItem next\dist\zinc-*-windows-*.zip | Select-Object -First 1; Copy-Item $zip $rel
+          "$((Get-FileHash -Algorithm SHA256 $zip).Hash.ToLower())  $($zip.Name)" | Set-Content (Join-Path $rel SHA256SUMS)
+          $env:ZINC_INSTALL_URL = "file:///$($rel -replace '\\','/')"; $env:ZINC_INSTALL_DIR = Join-Path $env:RUNNER_TEMP 'installed'; $env:ZINC_NO_MODIFY_PATH = '1'
+          powershell -ExecutionPolicy Bypass -File next\tools\install.ps1
+          & (Join-Path $env:ZINC_INSTALL_DIR 'bin\zinc.exe') --version
+      - name: Update manifest (release)
+        # zinc-windows-x86_64.manifest (stable) and zinc-windows-x86_64-beta.manifest, as the macOS jobs write them (the same signature, ZINC_UPDATE_SEED)
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          ZINC_UPDATE_SEED: ${{ secrets.ZINC_UPDATE_SEED }}
+        run: |
+          cd next
+          pkg=$(ls dist/zinc-*-windows-*.zip | head -1)
+          v=${GITHUB_REF_NAME#v} file=$(basename "$pkg") sum=$(sha256sum "$pkg" | cut -d' ' -f1)
+          manifest() {   # manifest <channel> <url> <out>
+            printf 'channel=%s\nversion=%s\nurl=%s\nsha256=%s\nnotes=%s\n' "$1" "$v" "$2" "$sum" "Zinc $GITHUB_REF_NAME" > "$RUNNER_TEMP/m"
+            if [ -n "$ZINC_UPDATE_SEED" ]; then build/zinc.exe update-sign "$RUNNER_TEMP/m" "$ZINC_UPDATE_SEED" > "$3"
+            else { echo "signature=none"; cat "$RUNNER_TEMP/m"; } > "$3"; fi
+          }
+          [ -n "$ZINC_UPDATE_SEED" ] || echo "::warning::no ZINC_UPDATE_SEED: the update manifests of windows-x86_64 are unsigned (signature=none)"
+          case "$v" in
+            *-*) manifest beta "${GITHUB_SERVER_URL:-https://github.com}/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/$file" "dist/zinc-windows-x86_64-beta.manifest" ;;
+            *) manifest stable "$file" "dist/zinc-windows-x86_64.manifest"; manifest beta "$file" "dist/zinc-windows-x86_64-beta.manifest" ;;
+          esac
+      - uses: actions/upload-artifact@v4
+        with:
+          name: package-windows-x86_64
+          path: next/dist/
   windows-cross:
     # ZN-714: zinc does not build on Windows yet, its programs do: the console programs of tests/golden/run are cross-built here (zinc build --target x86_64-windows,
     # the pinned zig) and handed to windows-console with their frozen outputs. Never run yet, so it does not block.
@@ -494,8 +575,8 @@ jobs:
     # ZN-329: on a v* tag, the downloads of every OS job (the zinc CLI archive, the Zinc Atelier app on macOS; signed for macOS when the secrets exist)
     # and their update manifests on a GitHub Release
     name: release
-    needs: package
-    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [package, package-windows]
+    if: ${{ !cancelled() && needs.package.result == 'success' && startsWith(github.ref, 'refs/tags/v') }}   # the Windows package is experimental: released when it built
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -513,6 +594,7 @@ jobs:
         # ZN-718: install.sh reads SHA256SUMS beside it (curl -fsSL .../releases/latest/download/install.sh | sh), so both are release assets
         run: |
           cp next/tools/install.sh release/
+          cp next/tools/install.ps1 release/   # Windows: irm .../install.ps1 | iex
           cd release
           # one line per download: the CLI archives (zinc-<version>-<os>-<arch>.tar.gz, .zip on Windows) and the apps (Zinc-Atelier-<version>-macos-<arch>.zip)
           for f in zinc-*.tar.gz zinc-*.zip Zinc-Atelier-*.zip; do if [ -f "$f" ]; then shasum -a 256 "$f"; fi; done > SHA256SUMS
@@ -529,10 +611,12 @@ jobs:
           notes="Zinc ${GITHUB_REF_NAME}${nl}${nl}${changelog:+$changelog$nl$nl}## Downloads${nl}${nl}Install the zinc CLI: \`curl -fsSL https://github.com/${GH_REPO}/releases/latest/download/install.sh | sh\` (add \`-s -- --atelier\` for the app too).${nl}${nl}"
           notes="$notes- \`zinc-<version>-macos-<arch>.tar.gz\`: the zinc CLI (bin/zinc, the standard library, templates, plugins with their native libraries); unpack anywhere and link bin/zinc onto your PATH.${nl}"
           notes="$notes- \`Zinc-Atelier-<version>-macos-<arch>.zip\`: the Zinc Atelier app, the engine inside; unzip and drag it to Applications.${nl}"
+          if ls release/zinc-*-windows-*.zip >/dev/null 2>&1; then notes="$notes- \`zinc-<version>-windows-x86_64.zip\`: the zinc CLI for Windows 10/11 (bin\\zinc.exe, the standard library, templates); install it with \`irm https://github.com/${GH_REPO}/releases/latest/download/install.ps1 | iex\` in PowerShell. Not signed yet: SmartScreen may ask you to confirm.${nl}"; fi
           notes="$notes- \`install.sh\`, \`SHA256SUMS\`: the installer and the checksums it checks; \`zinc-<os>-<arch>[-beta].manifest\`: what \`zinc update\` reads (stable and beta channels); \`plugins.lock\`: the plugin mirrors.${nl}"
           if [ ! -f release/.signed ]; then notes="$notes${nl}The macOS downloads are not signed or notarized (no signing secrets): right-click > Open on the app the first time."; echo "::warning::releasing unsigned macOS downloads"; fi
           if grep -L '^sig=' release/*.manifest 2>/dev/null | grep -q .; then notes="$notes${nl}The update manifests are unsigned (no ZINC_UPDATE_SEED secret): zinc update refuses them unless ZINC_UPDATE_ALLOW_UNSIGNED=1."; echo "::warning::unsigned update manifests"; fi
-          files=(release/zinc-* release/install.sh release/SHA256SUMS)   # the CLI archives and the manifests, not the size reports
+          files=(release/zinc-* release/install.sh release/SHA256SUMS)
+          [ ! -f release/install.ps1 ] || files+=(release/install.ps1)   # the CLI archives and the manifests, not the size reports
           for f in release/Zinc-Atelier-* release/plugins.lock; do if [ -f "$f" ]; then files+=("$f"); fi; done
           pre=(); case "$GITHUB_REF_NAME" in *-*) pre=(--prerelease) ;; esac   # v1.3.0-beta.1: not the latest release, the beta channel only
           gh release create "$GITHUB_REF_NAME" --title "Zinc ${GITHUB_REF_NAME}" --notes "$notes" "${pre[@]}" "${files[@]}"

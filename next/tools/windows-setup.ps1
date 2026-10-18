@@ -108,7 +108,7 @@ Step 'configure and build next\build (zinc.exe)'
 $build = Join-Path $repo 'next\build'
 if (-not (Test-Path (Join-Path $build 'CMakeCache.txt'))) {
   Act "cmake -S next -B next\build -G Ninja -DCMAKE_TOOLCHAIN_FILE=next\cmake\zig-windows.cmake" {
-    cmake -S (Join-Path $repo 'next') -B $build -G Ninja "-DCMAKE_TOOLCHAIN_FILE=$(Join-Path $repo 'next\cmake\zig-windows.cmake')" "-DZIG=$zigExe" -DCMAKE_BUILD_TYPE=Release -DZN_HOST_GFX=OFF
+    cmake -S (Join-Path $repo 'next') -B $build -G Ninja "-DCMAKE_TOOLCHAIN_FILE=$(Join-Path $repo 'next\cmake\zig-windows.cmake')" "-DZIG=$zigExe" -DCMAKE_BUILD_TYPE=Release -DZN_HOST_GFX=ON
     if ($LASTEXITCODE) { throw 'cmake configure failed' }
   }
 } else { Write-Host "    $build is configured" }
