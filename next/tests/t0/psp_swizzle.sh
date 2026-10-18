@@ -1,6 +1,7 @@
 #!/bin/sh
-BUILD=${BUILD:-build}
-cat > /tmp/scratchpad/sw.cpp <<'EOF'
+# the PSP texture swizzle (ZN-452) undoes itself: pspUnswizzle8(pspSwizzle8(x)) == x
+tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+cat > "$tmp/sw.cpp" <<'EOF'
 #include "assets/console_tex.h"
 #include <cassert>
 #include <cstdio>
@@ -16,4 +17,4 @@ int main() {
   printf("ok\n"); return 0;
 }
 EOF
-g++ -std=c++20 -I/Users/mowmow/Lab/zinc/next/src -I/Users/mowmow/Lab/zinc/next/include /tmp/scratchpad/sw.cpp /Users/mowmow/Lab/zinc/next/src/assets/console_tex.cpp -o /tmp/scratchpad/sw && /tmp/scratchpad/sw
+c++ -std=c++20 -w -Isrc -Iinclude -Ithird_party/rg_etc1 "$tmp/sw.cpp" src/assets/console_tex.cpp third_party/rg_etc1/rg_etc1.cpp -o "$tmp/sw" && "$tmp/sw"

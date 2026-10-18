@@ -1,6 +1,7 @@
 #!/bin/sh
-BUILD=${BUILD:-build}
-cat > /tmp/scratchpad/et.cpp <<'EOF'
+# rg_etc1 (ZN-452) packs a block and unpacks it again
+tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+cat > "$tmp/et.cpp" <<'EOF'
 #include "rg_etc1.h"
 #include <cstdio>
 int main() {
@@ -17,4 +18,4 @@ int main() {
   return ok ? 0 : 1;
 }
 EOF
-g++ -std=c++20 -I/Users/mowmow/Lab/zinc/next/third_party/rg_etc1 /tmp/scratchpad/et.cpp /Users/mowmow/Lab/zinc/next/third_party/rg_etc1/rg_etc1.cpp -o /tmp/scratchpad/et && /tmp/scratchpad/et
+c++ -std=c++20 -w -Ithird_party/rg_etc1 "$tmp/et.cpp" third_party/rg_etc1/rg_etc1.cpp -o "$tmp/et" && "$tmp/et"
