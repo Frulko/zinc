@@ -545,6 +545,7 @@ static zn::rt::Result runHot(std::unique_ptr<zn::dev::hot::Unit> unit, zn::zbc::
 }
 
 extern "C" const ZnModule* zn_module_QuickJS(void);   // src/qjs/script_native.cpp: zinc:script on the engine's QuickJS-ng
+extern "C" const ZnModule* zn_module_QuickJSFast(void);   // the same file: zinc:script/fast, numbers only
 #ifdef ZN_NATIVE_FIXTURE
 extern "C" const ZnModule* fixture_module(void);
 #endif
@@ -790,7 +791,7 @@ static int buildNative(const char* argv0, const char* entry, const char* out, zn
     return 0;
   }
   bool usesScript = false;
-  for (const auto& nt : zm.natives) usesScript = usesScript || nt.module == "QuickJS";
+  for (const auto& nt : zm.natives) usesScript = usesScript || nt.module == "QuickJS" || nt.module == "QuickJSFast";
   std::string nativeLibs = usesScript ? " '" + (libs / "libzn_script.a").string() + "' '" + (libs / "libzn_qjs_ext.a").string() + "' '" + (libs / "libzn_quickjs.a").string() + "'" : std::string();  // the plugins' native code that the program calls: their static archives and the libraries they need (and the host library, for zrt)
   nativeLibs += shapedLibs;
   for (const zn::tc::PluginLib& pl : gPlugins) {
@@ -1349,7 +1350,7 @@ int main(int argc, char** argv) {
     argc -= drop;
     --k;
   }
-  { char e[256]; zn_register_module(zn_module_QuickJS(), e, sizeof e); }
+  { char e[256]; zn_register_module(zn_module_QuickJS(), e, sizeof e); zn_register_module(zn_module_QuickJSFast(), e, sizeof e); }
 #ifdef ZN_NATIVE_FIXTURE
   { char e[256]; zn_register_module(fixture_module(), e, sizeof e); }   // a test module in C99 (tests/native/fixture.c): what the native-call fixtures call
 #endif
@@ -1956,7 +1957,7 @@ int main(int argc, char** argv) {
       {   // a compiled program (a .zapp's, a fused app's) loads the native plugins it calls, as a compile would have (ZN-324.03)
         installNativeProvider(path.c_str());
         std::set<std::string> mods;
-        for (const auto& nt : zm.natives) if (nt.module != "QuickJS" && nt.module != "Fixture") mods.insert(nt.module);
+        for (const auto& nt : zm.natives) if (nt.module != "QuickJS" && nt.module != "QuickJSFast" && nt.module != "Fixture") mods.insert(nt.module);
         for (const std::string& m : mods) {
           std::string why;
           if (!zn::frontend::gNativeProvider(m, why)) { std::fprintf(stderr, "zinc: %s: the native module '%s' cannot be loaded: %s\n", argv[2], m.c_str(), why.c_str()); return 1; }

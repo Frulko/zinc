@@ -1,0 +1,17 @@
+[1,0,1.5,0.1,1e+21,2147483648,-9007199254740991,null,null]
+["a\"b\\c\n\t\u0001é€😀","",true,null,null]
+1 0 1.5 0.1 1e+21 2147483648 -9007199254740991 null null "a\"b\\c\n\t\u0001é€😀" "" true null null
+[ 42, 6, null, 'x:1.25', 'é:-3', true, false ]
+[[1,"two",[3]],{"a":1,"b":"x","c":[true,null]},{"n":{"m":2}}]
+["number","string","boolean",1,"two",true]
+["number","string","object",-2.5,"a,b]",null]
+["object","object","string",{"k":1},[2],"x"]
+["string","string","string","quote\"inside","back\\slash","nl\nline"]
+["undefined","undefined","undefined",null,null,null]
+42 "s\"q" null true {"a":[1,2]} 0.30000000000000004 123456789012345680
+[ 10, 3.5, 0, 2.5, 4, 10 ]
+boom -> Error Error: bad 7
+14 NaN NaN
+NaN NaN
+thrower -> TypeError TypeError: no
+6

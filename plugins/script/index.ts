@@ -55,6 +55,8 @@ export class ScriptError extends Error {
  */
 export interface ScriptEngine {
   readonly name: string;
+  /** The engine's native handle (zinc:script/fast uses it). */
+  readonly h: i32;
   eval(src: string, file: string): unknown;
   evalAsync(src: string, file: string): Promise<unknown>;
   define(name: string, src: string): void;
@@ -173,6 +175,9 @@ class QuickJSEngine implements ScriptEngine {
     for (const reject of pending) reject(hostError('zinc:script: the script was disposed'));
   }
 }
+
+/** The error the last failed call of the engine with handle `h` left (zinc:script/fast). */
+export function scriptError(h: i32): ScriptError { return new ScriptError(Q.error(h) as ErrorInfo); }
 
 // ---------------------------------------------------------------- the host-facing API
 /** A function of the script, callable from the host until released. */

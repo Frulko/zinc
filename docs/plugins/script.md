@@ -310,3 +310,23 @@ MIR, with a Tier 0 interpreter on the supported host platforms. The following re
 
 Once those capabilities are implemented, `createEngine` in `plugins/script/index.ts` can select a real
 `ZincVmEngine implements ScriptEngine`; enabling the branch before then would misrepresent the contract.
+
+## zinc:script/fast: numbers across the boundary without text
+
+`expose` and `call` pass values as JSON text, which costs about 1 us a call on a desktop and 60 to 95 us on a 2012 tablet (docs/reports/script-boundary-optimisation.md).
+For the hot calls of a script host, `zinc:script/fast` takes up to four numbers and returns one, in both directions, with no text, no Dyn value and no engine context:
+
+```ts
+import { Script } from 'zinc:script';
+import { exposeNum, callNum } from 'zinc:script/fast';
+
+const vm = new Script({ timeLimitMs: 1000 });
+exposeNum(vm, 'setX', (id: number, x: number, b: number, c: number) => { nodes[id].x = x; return 0; });   // the script calls setX(id, x)
+vm.eval('function tick(dt) { return dt * 2; }');
+const tick = vm.fn('tick')!;
+const r = callNum(tick, 1, 0.016, 0, 0, 0);                  // n = how many of the four numbers are real
+```
+
+The script's arguments are read with `Number()` (a missing one is 0); the result is a number. A throw in the host function becomes an Error in the script; a throw in the script function
+is thrown by `callNum` as a ScriptError; a script function that returns something that is not a number gives NaN. Measured (`tools/bench-bridge`): 0.06 us (Mac), 1.4 us (Nexus 7), 2.6 us (TouchPad)
+per script -> host call, 0.14, 2.8 and 5.2 us per host -> script call. The generic path stays for strings, objects and arrays. Next only (the prototype has no such module).

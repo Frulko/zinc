@@ -10,6 +10,8 @@
 #include <stdlib.h>
 #include <time.h>
 
+#include <charconv>
+#include <cmath>
 #include <string>
 #include <vector>
 
@@ -46,6 +48,8 @@ struct Vm {
   std::vector<Mod> mods;                   // defined module sources
   std::vector<JSValue> ns;                 // namespaces of loaded modules, in load order
   std::vector<uint64_t> fns, asyncFns;     // callbacks of exposed functions
+  std::vector<uint64_t> numFns;            // callbacks of zinc:script/fast numeric functions (QuickJSFast)
+  bool failed = false;                     // the last callRefNum failed (its error is in err)
   uint64_t resolver = 0;
   int32_t nextId = 0;
   std::vector<int32_t> pending;            // followed promises not settled yet
@@ -70,6 +74,84 @@ std::string jsonString(const char* s) {   // a JSON string literal
     else r += static_cast<char>(c);
   }
   return r + "\"";
+}
+
+// ---------------------------------------------------------------- scalar fast paths
+// A value that is a number, string, boolean, null or undefined crosses without the generic JSON machinery (no temporary array, no replacer function, no
+// JS_ParseJSON): the text is written and read by hand. Anything else (object, array, function, symbol, bigint) takes the generic path, so the semantics are those of JSON.
+void appendNumber(std::string& out, double x) {
+  char b[40];
+  if (!std::isfinite(x)) { out += "null"; return; }
+  if (x == std::floor(x) && std::fabs(x) < 1e15) { auto r = std::to_chars(b, b + sizeof b, static_cast<long long>(x)); out.append(b, static_cast<size_t>(r.ptr - b)); return; }   // -0 prints 0, as JSON.stringify does
+  auto r = std::to_chars(b, b + sizeof b, x);   // the shortest text that reads back as the same double
+  out.append(b, static_cast<size_t>(r.ptr - b));
+}
+// false when the bytes hold an encoded lone surrogate (JSON.stringify escapes those; the generic path does it)
+bool appendJsonString(std::string& out, const char* s, size_t n) {
+  out += '"';
+  for (size_t i = 0; i < n; ++i) {
+    unsigned char c = static_cast<unsigned char>(s[i]);
+    if (c == '"' || c == '\\') { out += '\\'; out += static_cast<char>(c); }
+    else if (c == '\n') out += "\\n";
+    else if (c == '\r') out += "\\r";
+    else if (c == '\t') out += "\\t";
+    else if (c == '\b') out += "\\b";
+    else if (c == '\f') out += "\\f";
+    else if (c < 0x20) { char b[8]; snprintf(b, sizeof b, "\\u%04x", c); out += b; }
+    else if (c == 0xED && i + 1 < n && (static_cast<unsigned char>(s[i + 1]) & 0xE0) == 0xA0) return false;
+    else out += static_cast<char>(c);
+  }
+  out += '"';
+  return true;
+}
+// One primitive as JSON text, appended; false when v is not a primitive (or needs the generic path). undefined inside an array is null, as in JSON.
+bool scalarJson(JSContext* ctx, JSValueConst v, std::string& out) {
+  switch (JS_VALUE_GET_NORM_TAG(v)) {
+    case JS_TAG_INT: { char b[16]; auto r = std::to_chars(b, b + sizeof b, JS_VALUE_GET_INT(v)); out.append(b, static_cast<size_t>(r.ptr - b)); return true; }
+    case JS_TAG_FLOAT64: appendNumber(out, JS_VALUE_GET_FLOAT64(v)); return true;
+    case JS_TAG_BOOL: out += JS_VALUE_GET_BOOL(v) ? "true" : "false"; return true;
+    case JS_TAG_NULL: case JS_TAG_UNDEFINED: out += "null"; return true;
+    case JS_TAG_STRING: {
+      size_t n; const char* p = JS_ToCStringLen(ctx, &n, v);
+      if (!p) { JS_FreeValue(ctx, JS_GetException(ctx)); return false; }
+      bool ok = appendJsonString(out, p, n);
+      JS_FreeCString(ctx, p);
+      return ok;
+    }
+    default: return false;
+  }
+}
+// The JSON text to a primitive without going through JS_ParseJSON; JS_UNINITIALIZED when the text is anything else.
+JSValue scalarFromJson(JSContext* ctx, const char* p, size_t n) {
+  if (n == 0) return JS_UNINITIALIZED;
+  char c = p[0];
+  if (c == '"') {
+    if (n < 2 || p[n - 1] != '"') return JS_UNINITIALIZED;
+    for (size_t i = 1; i + 1 < n; ++i) if (p[i] == '\\' || p[i] == '"') return JS_UNINITIALIZED;
+    return JS_NewStringLen(ctx, p + 1, n - 2);
+  }
+  if (n == 4 && !memcmp(p, "true", 4)) return JS_TRUE;
+  if (n == 5 && !memcmp(p, "false", 5)) return JS_FALSE;
+  if (n == 4 && !memcmp(p, "null", 4)) return JS_NULL;
+  if (c != '-' && (c < '0' || c > '9')) return JS_UNINITIALIZED;
+  bool plain = true;
+  size_t i = c == '-' ? 1 : 0;
+  if (i >= n) return JS_UNINITIALIZED;
+  for (size_t k = i; k < n; ++k) { char d = p[k]; if (d < '0' || d > '9') { plain = false; if (d != '.' && d != 'e' && d != 'E' && d != '+' && d != '-') return JS_UNINITIALIZED; } }
+  if (plain && n - i <= 15) {   // an integer: exact in a double and in a long long
+    long long x = 0;
+    for (size_t k = i; k < n; ++k) x = x * 10 + (p[k] - '0');
+    if (c == '-') x = -x;
+    if (x >= INT32_MIN && x <= INT32_MAX) return JS_NewInt32(ctx, static_cast<int32_t>(x));
+    return JS_NewFloat64(ctx, static_cast<double>(x));
+  }
+  char buf[64];
+  if (n >= sizeof buf) return JS_UNINITIALIZED;
+  memcpy(buf, p, n); buf[n] = 0;
+  char* end = nullptr;
+  double d = strtod(buf, &end);
+  if (end != buf + n) return JS_UNINITIALIZED;
+  return JS_NewFloat64(ctx, d);
 }
 
 // ---------------------------------------------------------------- function handles
@@ -102,6 +184,9 @@ bool toJson(Vm* vm, JSValueConst v, std::string& out) {
   JSContext* ctx = vm->ctx;
   if (JS_IsUndefined(v)) { out.clear(); return true; }
   if (JS_IsFunction(ctx, v)) { out = "{\"__zn_fn\":" + std::to_string(refAdd(vm, v)) + "}"; return true; }
+  out.clear();
+  if (scalarJson(ctx, v, out)) return true;   // a primitive: no replacer function, no JSON.stringify
+  out.clear();
   JSValue rep = JS_NewCFunctionData(ctx, fnReplacer, 2, 0, 0, nullptr);
   JSValue s = JS_JSONStringify(ctx, v, rep, JS_UNDEFINED);
   JS_FreeValue(ctx, rep);
@@ -153,6 +238,7 @@ JSValue revive(Vm* vm, JSValue v, int depth) {
 // JSON text -> JS ("" is undefined)
 JSValue fromJson(Vm* vm, const char* p, size_t n) {
   if (n == 0) return JS_UNDEFINED;
+  { JSValue q = scalarFromJson(vm->ctx, p, n); if (!JS_IsUninitialized(q)) return q; }
   JSValue v = JS_ParseJSON(vm->ctx, p, n, "<host>");
   if (JS_IsException(v)) return v;
   return revive(vm, v, 0);
@@ -332,6 +418,12 @@ int32_t follow(Vm* vm, Entry& en, JSValue v) {
 // The script's arguments as one JSON array text.
 bool argsJson(Vm* vm, int argc, JSValueConst* argv, std::string& out) {
   JSContext* ctx = vm->ctx;
+  out.clear();
+  out += '[';
+  bool plain = true;
+  for (int i = 0; i < argc && plain; ++i) { if (i) out += ','; plain = scalarJson(ctx, argv[i], out); }
+  if (plain) { out += ']'; return true; }
+  out.clear();
   JSValue arr = JS_NewArray(ctx);
   for (int i = 0; i < argc; ++i) JS_SetPropertyUint32(ctx, arr, static_cast<uint32_t>(i), JS_DupValue(ctx, argv[i]));
   bool ok = toJson(vm, arr, out);
@@ -418,6 +510,7 @@ void freeVm(Vm* vm) {
   for (JSValue n : vm->ns) JS_FreeValue(ctx, n);
   for (uint64_t cb : vm->fns) H->cb_release(cb);
   for (uint64_t cb : vm->asyncFns) H->cb_release(cb);
+  for (uint64_t cb : vm->numFns) H->cb_release(cb);
   if (vm->resolver) H->cb_release(vm->resolver);
   JS_FreeContext(ctx);
   JS_FreeRuntime(vm->rt);
@@ -492,9 +585,38 @@ int32_t qLoad(void*, ZnCtx*, Args a, ZnVal* r) {
   return ZN_OK;
 }
 // Calls f (a function value, consumed) with the JSON array of arguments.
+// The arguments when the text is a flat array of primitives: no temporary array. False (nothing kept in av) for anything else.
+bool fastArgs(JSContext* ctx, const std::string& t, std::vector<JSValue>& av) {
+  size_t n = t.size();
+  if (n < 2 || t[0] != '[' || t[n - 1] != ']') return false;
+  size_t i = 1;
+  if (i == n - 1) return true;   // []
+  while (i < n - 1) {
+    size_t e = i;
+    if (t[i] == '"') { for (++e; e < n - 1 && t[e] != '"'; ++e) if (t[e] == '\\') { e = n; break; } if (e >= n - 1) goto bail; ++e; }
+    else { while (e < n - 1 && t[e] != ',') { if (t[e] == '[' || t[e] == '{' || t[e] == '"') goto bail; ++e; } }
+    { JSValue v = scalarFromJson(ctx, t.data() + i, e - i);
+      if (JS_IsUninitialized(v)) goto bail;
+      av.push_back(v); }
+    if (e < n - 1 && t[e] == ',') ++e; else if (e < n - 1) goto bail;
+    i = e;
+  }
+  return true;
+bail:
+  for (JSValue x : av) JS_FreeValue(ctx, x);
+  av.clear();
+  return false;
+}
 JSValue invoke(Vm* vm, JSValue f, const std::string& name, const std::string& argsText) {
   JSContext* ctx = vm->ctx;
   if (!JS_IsFunction(ctx, f)) { JS_FreeValue(ctx, f); return JS_ThrowTypeError(ctx, "%s is not a function", name.c_str()); }
+  { std::vector<JSValue> fav;
+    if (fastArgs(ctx, argsText, fav)) {
+      JSValue res = JS_Call(ctx, f, JS_UNDEFINED, static_cast<int>(fav.size()), fav.data());
+      for (JSValue x : fav) JS_FreeValue(ctx, x);
+      JS_FreeValue(ctx, f);
+      return res;
+    } }
   JSValue arr = fromJson(vm, argsText.data(), argsText.size());
   if (JS_IsException(arr)) { JS_FreeValue(ctx, f); return arr; }
   std::vector<JSValue> av;
@@ -657,7 +779,69 @@ void qShutdown(void*) {
   if (onEventCb) { H->cb_release(onEventCb); onEventCb = 0; }
 }
 
+// ---------------------------------------------------------------- QuickJSFast: numbers only (plugins/script/fast.ts, zinc:script/fast)
+// A function that takes up to four numbers and returns one, in either direction, with no text, no Dyn and no context: the arguments are read with JS_ToFloat64
+// (a missing one is 0), the callback gets them as four doubles, the result goes back as a number. The generic path stays for every other value.
+JSValue hostCallNum(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv, int magic, JSValueConst*) {
+  Vm* vm = static_cast<Vm*>(JS_GetContextOpaque(ctx));
+  ZnVal v[4], r;
+  for (int i = 0; i < 4; ++i) {
+    v[i].d = 0;
+    if (i < argc) { if (JS_VALUE_GET_NORM_TAG(argv[i]) == JS_TAG_INT) v[i].d = JS_VALUE_GET_INT(argv[i]); else if (JS_ToFloat64(ctx, &v[i].d, argv[i]) < 0) return JS_EXCEPTION; }
+  }
+  r.d = 0;
+  if (H->cb_call(vm->numFns[static_cast<size_t>(magic)], v, 4, &r) != 0) return rethrow(ctx);
+  return JS_NewFloat64(ctx, r.d);
+}
+int32_t qExposeNum(void*, ZnCtx*, Args a, ZnVal*) {
+  Vm* vm = vmOf(a[0].i);
+  if (!vm) return ZN_OK;
+  vm->numFns.push_back(H->cb_retain(a[2].h));
+  defineFn(vm, str(a[1]), hostCallNum, static_cast<int>(vm->numFns.size() - 1));
+  return ZN_OK;
+}
+// callRefNum(h, ref, n, a, b, c, d): the function behind handle `ref` called with the first n numbers; NaN with failed(h) true when it threw or did not return a number.
+int32_t qCallRefNum(void*, ZnCtx*, Args a, ZnVal* r) {
+  Vm* vm = vmOf(a[0].i);
+  r->d = NAN;
+  if (!vm) return ZN_OK;
+  vm->failed = true;
+  int64_t ref = a[1].i;
+  if (ref < 0 || ref >= static_cast<int64_t>(vm->refs.size()) || JS_IsUninitialized(vm->refs[static_cast<size_t>(ref)])) { hostError(vm, "TypeError", "released function handle"); return ZN_OK; }
+  Entry en(vm);
+  JSContext* ctx = vm->ctx;
+  int n = static_cast<int>(a[2].i);
+  JSValue av[4];
+  if (n < 0) n = 0;
+  if (n > 4) n = 4;
+  for (int i = 0; i < n; ++i) av[i] = JS_NewFloat64(ctx, a[3 + i].d);
+  JSValue res = JS_Call(ctx, vm->refs[static_cast<size_t>(ref)], JS_UNDEFINED, n, av);
+  if (JS_IsException(res)) { takeError(vm, JS_GetException(ctx)); en.finish(); return ZN_OK; }
+  double d = NAN;
+  if (JS_VALUE_GET_NORM_TAG(res) == JS_TAG_INT) d = JS_VALUE_GET_INT(res);
+  else if (JS_ToFloat64(ctx, &d, res) < 0) { JS_FreeValue(ctx, res); takeError(vm, JS_GetException(ctx)); en.finish(); return ZN_OK; }
+  JS_FreeValue(ctx, res);
+  if (!en.finish()) return ZN_OK;
+  r->d = d;
+  vm->failed = false;
+  return ZN_OK;
+}
+int32_t qFailed(void*, ZnCtx*, Args a, ZnVal* r) { Vm* vm = vmOf(a[0].i); r->i = vm ? vm->failed : 0; return ZN_OK; }
+const ZnExport kFastExports[] = {{"exposeNum", "isc(dddd>d)>n", qExposeNum, 0}, {"callRefNum", "iiidddd>d", qCallRefNum, ZN_PURE_SCALAR}, {"failed", "i>b", qFailed, ZN_PURE_SCALAR}};
+int32_t fInit(const ZnHostApi* host, void** self) { H = host; *self = nullptr; return ZN_OK; }
+
 }  // namespace
+
+extern "C" const ZnModule* zn_module_QuickJSFast(void) {
+  static ZnModule m;
+  m.abi = ZN_ABI_VERSION;
+  m.size = static_cast<uint32_t>(sizeof m);
+  m.name = "QuickJSFast";
+  m.exports = kFastExports;
+  m.nexports = static_cast<uint32_t>(sizeof kFastExports / sizeof kFastExports[0]);
+  m.init = fInit;
+  return &m;
+}
 
 extern "C" const ZnModule* zn_module_QuickJS(void) {
   static ZnModule m;

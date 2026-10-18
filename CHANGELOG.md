@@ -8,6 +8,10 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ## [Unreleased]
 
+### Added
+- `zinc:script/fast`: `exposeNum` and `callNum` call across the QuickJS boundary with up to four numbers and a number back, without text conversion. A call costs
+  about 0.06 us on a desktop and 1.3 to 2.6 us on a 2012 tablet, where `expose` and `call` cost 60 to 95 us. Use it for the hot calls of a script host (a UI mutation, a cell of a map).
+
 ### Changed (breaking)
 - JSX is real JSX: write `className`, never `class`, and capitalised components (`<View>`, `<Text>`, `<Button>`, `<ScrollView>`, `<Image>`, `<Input>`).
   The engine refuses the old spelling with errors Z0006 and Z0007. Migrate a project with `zinc migrate --apply`.
@@ -20,11 +24,12 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ### Fixed
 - Windows: the CPU renderer (`ZINC_RENDERER=cpu`) no longer crashes with several render threads, a laptop with two graphics cards now draws on the NVIDIA or AMD one instead of the integrated one, and `zinc doctor` no longer prints "the system cannot find the path".
 - Windows is named as itself everywhere: `zinc doctor`, the default target, the lint and the platform the UI kit sees (`platform()` is `windows`, so a PC with a mouse is no longer taken for a touch screen).
+- `zinc:script` now links in a cross build (`--target armv7-webos`, the Linux targets) and in an exported Android or iOS project; it failed with an undefined `zn_module_QuickJS`.
+- `zinc:script` host calls and results that are plain numbers, strings, booleans or null are about twice as fast (no JSON machinery for them); other values behave as before.
 - iOS: `fetch` and every HTTPS connection failed on a device with `UNABLE_TO_VERIFY_LEAF_SIGNATURE`; the certificate is now checked by iOS itself (its roots and the profiles you installed).
 - iOS export: an app icon that is not 1024 x 1024 (a 512 px PNG, an SVG) no longer stops the Xcode build; it is resampled to 1024.
 - Web target: a screen could go blank after the window was resized (a tab you had left still reacted to the new size and wrote over the screen on show); the same fault could hit a desktop app.
 - Web target: a letter typed into a text field of a canvas page arrived twice.
-- `zinc:script` now links in a cross build (`--target armv7-webos`, the Linux targets) and in an exported Android or iOS project; it failed with an undefined `zn_module_QuickJS`.
 - Web target, DOM mode: a program that draws with `zinc:gfx` or three.js and has no `zinc:ui` tree showed a blank page; it now gets a window-sized canvas and takes mouse and keys.
 - Web target: the page no longer asks for `/favicon.ico` (a 404 in every console) when the app has no icon, and an error thrown on every frame is reported once, not sixty times a second.
 

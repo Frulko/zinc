@@ -4,6 +4,7 @@
   "deterministic": true,
   "module": "zinc:script",
   "entry": "index.ts",
+  "modules": { "zinc:script/fast": "fast.ts" },
   "description": "Runtime scripting: sandboxed JavaScript (QuickJS-ng) with typed host functions, time / memory limits, ES modules, promises",
   "requires": ["heap>=4M"],
   "targets": {
