@@ -18,7 +18,7 @@ option(ZN_REPRODUCIBLE "do not compile the checkout's path into zinc (release pa
 option(ZN_SANITIZE "Build with ASan and UBSan" OFF)
 option(ZN_FUZZ "Build the libFuzzer targets of tests/fuzz (needs a clang with libFuzzer: Homebrew llvm; see docs/reports/zinc-next-fuzzing.md)" OFF)
 
-add_compile_options(-Wall -Wextra -ffp-contract=off)  # no fused multiply-add: the interpreter, the AOT programs and every host must round the same way
+add_compile_options(-Wall -Wextra -ffp-contract=off -Wno-error=date-time)  # no fused multiply-add: the interpreter, the AOT programs and every host must round the same way; the cache key of qjs.cpp stamps this build with __DATE__ (zig cc would err otherwise)
 if(WIN32)   # mingw-w64 through the pinned zig (cmake/zig-windows.cmake, docs/reports/zinc-windows-port.md): M_PI under -std=c++20, no min/max macros (zig targets Windows 10 itself: _WIN32_WINNT)
   add_compile_definitions(_USE_MATH_DEFINES NOMINMAX)
 endif()
@@ -45,7 +45,11 @@ foreach(line IN LISTS ZN_UV_LINES)
     continue()
   elseif(line MATCHES "^\\[(.*)\\]$")
     set(ZN_UV_SECTION "${CMAKE_MATCH_1}")
-  elseif(ZN_UV_SECTION STREQUAL "common" OR ZN_UV_SECTION STREQUAL "unix" OR (ZN_UV_SECTION STREQUAL "darwin" AND APPLE) OR (ZN_UV_SECTION STREQUAL "linux" AND (CMAKE_SYSTEM_NAME STREQUAL "Linux" OR ANDROID)))
+  elseif((ZN_UV_SECTION STREQUAL "common")
+      OR (ZN_UV_SECTION STREQUAL "unix" AND NOT WIN32)
+      OR (ZN_UV_SECTION STREQUAL "darwin" AND APPLE)
+      OR (ZN_UV_SECTION STREQUAL "linux" AND (CMAKE_SYSTEM_NAME STREQUAL "Linux" OR ANDROID))
+      OR (ZN_UV_SECTION STREQUAL "win" AND WIN32))
     list(APPEND ZN_UV_SOURCES third_party/libuv/${line})
   endif()
 endforeach()
@@ -77,6 +81,9 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   target_compile_definitions(zn_uv PRIVATE _GNU_SOURCE _POSIX_C_SOURCE=200112)
   target_sources(zn_uv PRIVATE src/host/glibc_compat.c)   # what an old glibc lacks (webOS 3: 2.8); empty on a current one
   target_link_libraries(zn_uv PUBLIC dl rt)
+elseif(WIN32)   # Windows (cmake/zig-windows.cmake): libuv's win back end, the Winsock sip stack and the session's environment
+  target_sources(zn_uv PRIVATE src/host/win_sync_shim.c)          # the wait-on-address calls of libuv's win back end: no libsynchronization in zig's mingw
+  target_link_libraries(zn_uv PUBLIC ws2_32 iphlpapi psapi userenv dbghelp ole32 uuid)
 elseif(ANDROID)   # bionic: libuv's linux sources, dlopen in libdl, clock_gettime in libc (ZN-622)
   # posix_spawn is in bionic since API 28: declared weak below it (the NDK's mechanism); an app never spawns (ZN_APP_LIBRARY) and the linker drops uv_spawn
   target_compile_definitions(zn_uv PRIVATE _GNU_SOURCE __ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__)
@@ -154,9 +161,13 @@ endif()
 option(ZN_HOST_GFX "link the graphics host (zinc:gfx)" ON)
 set(ZN_RUNTIME_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../runtime)
 if(ZN_HOST_GFX AND EXISTS ${ZN_RUNTIME_DIR}/gfx.cpp)
+  set(ZN_HAL_PLATFORM ${CMAKE_CURRENT_SOURCE_DIR}/../targets/common/hal_posix.cpp)
+  if(WIN32)   # docs/targets/windows.md: targets/windows/hal_windows.cpp, the Win32 stand-in
+    set(ZN_HAL_PLATFORM ${CMAKE_CURRENT_SOURCE_DIR}/../targets/windows/hal_windows.cpp)
+  endif()
   add_library(zn_host_gfx STATIC src/host/loop.cpp src/host/osc.cpp src/host/mqtt.cpp src/host/netlog.cpp src/host/http.cpp src/host/tls.cpp src/host/crypto.cpp src/host/regexp.cpp src/host/sock.cpp src/host/sys_host.cpp src/host/assets_host.cpp src/host/permissions.cpp src/host/gfx_host.cpp src/host/ui_log.cpp src/host/render_bench.cpp src/host/backend_sw.cpp src/host/resources.cpp src/host/splash.cpp
     ${ZN_RUNTIME_DIR}/zrt.cpp ${ZN_RUNTIME_DIR}/host.cpp ${ZN_RUNTIME_DIR}/raster.cpp ${ZN_RUNTIME_DIR}/ttf.cpp ${ZN_RUNTIME_DIR}/gfx.cpp
-    src/host/hal_dispatch.cpp ${CMAKE_CURRENT_SOURCE_DIR}/../targets/null/hal_null.cpp ${CMAKE_CURRENT_SOURCE_DIR}/../targets/common/hal_posix.cpp)
+    src/host/hal_dispatch.cpp ${CMAKE_CURRENT_SOURCE_DIR}/../targets/null/hal_null.cpp ${ZN_HAL_PLATFORM})
   # the headless and the window HAL live in one binary: their hal_* functions are renamed, src/host/hal_dispatch.cpp picks one at run time
   set(ZN_HAL_FUNCS init shutdown frame_begin frame_end poll_input present surface_size fixed_dt)
   set(ZN_NULL_DEFS "")
@@ -173,7 +184,7 @@ if(ZN_HOST_GFX AND EXISTS ${ZN_RUNTIME_DIR}/gfx.cpp)
     set(SDL_TEST_LIBRARY OFF CACHE BOOL "" FORCE)
     set(SDL_INSTALL OFF CACHE BOOL "" FORCE)
     set(SDL_EXAMPLES OFF CACHE BOOL "" FORCE)
-    foreach(sub AUDIO CAMERA GPU HAPTIC SENSOR POWER DIALOG TRAY VULKAN)   # what the HAL does not use: video, events, clipboard, touch, pen, GL, and for gamepads joysticks with HIDAPI, as SDL builds them by default (ZN-574)
+    foreach(sub AUDIO CAMERA GPU HAPTIC SENSOR POWER DIALOG TRAY VULKAN RENDER_D3D RENDER_D3D11 RENDER_D3D12 DIRECTX)   # what the HAL does not use: video, events, clipboard, touch, pen, GL, and for gamepads joysticks with HIDAPI, as SDL builds them by default (ZN-574); the Direct3D render drivers are Windows-only and not vendored (docs/targets/windows.md)
       set(SDL_${sub} OFF CACHE BOOL "" FORCE)
     endforeach()
     foreach(sub JOYSTICK HIDAPI VIRTUAL_JOYSTICK)   # forced on: a build directory older than ZN-574 has them cached off
@@ -231,6 +242,11 @@ if(ZN_HOST_GFX AND EXISTS ${ZN_RUNTIME_DIR}/gfx.cpp)
       foreach(t ${ZN_WINDOW_TARGETS})
         target_include_directories(${t} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/glad/include)
       endforeach()
+    elseif(WIN32)   # Windows (docs/reports/zinc-windows-port.md): the same WGL path through SDL, glad's table
+      list(APPEND ZN_SDL_DEFS ZN_HAL_GL)
+      foreach(t ${ZN_WINDOW_TARGETS})
+        target_include_directories(${t} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/glad/include)
+      endforeach()
     elseif(ANDROID)   # Android (ZN-622): OpenGL ES 2 and the replay's GLES 2 path, libGLESv2 linked; ZINC_RENDERER=cpu keeps SDL_Renderer
       list(APPEND ZN_SDL_DEFS ZN_HAL_GL)
       foreach(t ${ZN_WINDOW_TARGETS})
@@ -272,6 +288,9 @@ if(ZN_HOST_GFX AND EXISTS ${ZN_RUNTIME_DIR}/gfx.cpp)
     message(STATUS "zinc: SDL3 not found, apps run headless only")
   endif()
   target_link_libraries(zn_host_gfx PUBLIC zn_uv zn_llhttp zn_mbedtls zn_regexp zn_codec zn_zpk)   # zn_zpk: the packs of zinc:assets (ZN-436)
+  if(WIN32)
+    target_link_libraries(zn_host_gfx PUBLIC crypt32)   # the system's certificate store (src/host/tls.cpp)
+  endif()
   target_include_directories(zn_host_gfx PRIVATE third_party/bcdec third_party/etcdec)   # the CPU decoders of compressed textures (ZN-439)
   if(NOT ZN_TLS)
     target_compile_definitions(zn_host_gfx PRIVATE ZN_NO_TLS)
@@ -512,7 +531,7 @@ if(TARGET zn_host_gfx)
           set(ZN_HOST_LIBS_LINE "${ZN_HOST_LIBS_LINE} -framework ${fw}")
         endforeach()
         set(ZN_HOST_LIBS_LINE "${ZN_HOST_LIBS_LINE} -lobjc")
-      else()
+      elseif(NOT WIN32)
         set(ZN_HOST_LIBS_LINE "${ZN_HOST_LIBS_LINE} -ldl -lm")
       endif()
     endif()
@@ -520,14 +539,17 @@ if(TARGET zn_host_gfx)
   endif()
   target_link_libraries(zinc PRIVATE zn_host_gfx)
   # the device agent (ZN-729): zinc agent and zinc device, compiled into zinc like the rest of its commands. Its TLS sessions are those of
-  # src/host/tls.cpp (zn_host_gfx); discovery is mjansson/mdns (third_party/mdns, one header)
-  target_sources(zinc PRIVATE src/agent/wire.cpp src/agent/mdns.cpp src/agent/server.cpp src/agent/client.cpp src/agent/inspect.cpp)
-  target_sources(zinc PRIVATE src/agent/dev.cpp)   # zinc dev --device (ZN-729.03)
-  target_sources(zinc PRIVATE src/net/dnssd.cpp)   # DNS-SD, shared with plugins/link (ZN-756), which compiles it into its own library
-  target_include_directories(zinc SYSTEM PRIVATE third_party)   # "mdns/mdns.h"
-  target_compile_definitions(zinc PRIVATE ZN_AGENT)
-  target_sources(zinc PRIVATE src/agent/ota.cpp)   # the agent as a service, signed app updates with rollback (ZN-729.04)
-  if(NOT APPLE)
+  # src/host/tls.cpp (zn_host_gfx); discovery is mjansson/mdns (third_party/mdns, one header). On Windows the daemon is
+  # the POSIX pass yet (a serial server, termios, a pty): its commands say it (docs/targets/windows.md).
+  if(NOT WIN32)
+    target_sources(zinc PRIVATE src/agent/wire.cpp src/agent/mdns.cpp src/agent/server.cpp src/agent/client.cpp src/agent/inspect.cpp)
+    target_sources(zinc PRIVATE src/agent/dev.cpp)   # zinc dev --device (ZN-729.03)
+    target_sources(zinc PRIVATE src/net/dnssd.cpp)   # DNS-SD, shared with plugins/link (ZN-756), which compiles it into its own library
+    target_include_directories(zinc SYSTEM PRIVATE third_party)   # "mdns/mdns.h"
+    target_compile_definitions(zinc PRIVATE ZN_AGENT)
+    target_sources(zinc PRIVATE src/agent/ota.cpp)   # the agent as a service, signed app updates with rollback (ZN-729.04)
+  endif()
+  if(NOT APPLE AND NOT WIN32)
     target_link_libraries(zinc PRIVATE util)   # forkpty
   endif()
   if(TARGET zn_window)   # the window host is a module beside zinc (ZN-592.01): src/host/window_module.cpp loads it; programs link zn_host_window
@@ -626,6 +648,8 @@ if(TARGET zn_host_gfx AND SDL3_FOUND)
     target_link_libraries(zn_app_host PUBLIC "-framework Metal" "-framework QuartzCore" "-framework Security")   # Security: tls.cpp's verifier
   elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_include_directories(zn_app_host PRIVATE third_party/glad/include)
+  elseif(WIN32)   # Windows: the same WGL path through SDL, glad's table
+    target_include_directories(zn_app_host PRIVATE third_party/glad/include)
   elseif(ANDROID)
     target_link_libraries(zn_app_host PUBLIC GLESv2)
   endif()
@@ -694,6 +718,9 @@ target_compile_definitions(zn_glslang PRIVATE ENABLE_OPT=0)
 target_compile_options(zn_glslang PRIVATE -w -O2)
 # WebGL foundation (ZN-203.01): the merged glad loader (third_party/glad) and the offscreen context helper over SDL3; a test executable, not linked into zinc yet.
 option(ZN_WEBGL "build the WebGL module libzn_webgl beside zinc (off: about 16 s less to build; QuickJS programs run without WebGL)" ON)
+if(WIN32)   # the module dlopen'ed beside zinc: its undefined JS_*/SDL_* resolve at load only on ELF and Mach-O; the PE pass builds it with the import library later (docs/targets/windows.md)
+  set(ZN_WEBGL OFF)
+endif()
 if(TARGET SDL3::SDL3 AND ZN_WEBGL)
   add_library(zn_glad STATIC third_party/glad/src/gl.c)
   target_include_directories(zn_glad PUBLIC third_party/glad/include)

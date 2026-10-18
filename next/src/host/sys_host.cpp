@@ -20,14 +20,21 @@
 #define ETCDEC_STATIC
 #define ETCDEC_IMPLEMENTATION
 #include "etcdec.h"
+#ifdef _WIN32
+#include "posix_shims.h"   // the POSIX side of this file, behind Windows calls
+#include <winsock2.h>
+#else
 #include <sys/wait.h>
 #include <dirent.h>
-#include <dlfcn.h>
-#include <fcntl.h>
 #include <pwd.h>
+#include <grp.h>
+#include <net/if.h>
+#include <arpa/inet.h>
+#include <ifaddrs.h>
+#endif
+#include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/time.h>
-#include <sys/utsname.h>
 #include <unistd.h>
 
 #include <algorithm>
@@ -39,21 +46,20 @@
 #include <cmath>
 #include <fstream>
 #include <array>
-#include <net/if.h>
-#include <arpa/inet.h>
-#include <ifaddrs.h>
 #include <map>
 #include <random>
 #include <sstream>
 #include <string>
 #include <vector>
 
-#ifdef __APPLE__
+#if defined(__APPLE__)
 #include <TargetConditionals.h>
 #include <mach-o/dyld.h>
 #include <mach/mach.h>
 #include <sys/sysctl.h>
 #include <net/if_dl.h>
+#elif defined(_WIN32)
+#include <psapi.h>   // GetProcessMemoryInfo of the resource stats
 #else
 #include <linux/if_packet.h>
 #endif
@@ -285,6 +291,15 @@ std::string osVersion() {
   char b[64] = "";
   size_t n = sizeof b;
   return sysctlbyname("kern.osproductversion", b, &n, nullptr, 0) == 0 ? std::string(b) : std::string();
+#elif defined(_WIN32)
+  // RtlGetVersion's Major.Minor.Build: the honest numbers regardless of the manifest's compat tabs
+  using RtlGetVersion_t = long (WINAPI*)(RTL_OSVERSIONINFOW*);
+  const RTL_OSVERSIONINFOW* base = nullptr;
+  RTL_OSVERSIONINFOW v{}; v.dwOSVersionInfoSize = sizeof v;
+  if (const HMODULE ntdll = GetModuleHandleA("ntdll.dll"))
+    if (reinterpret_cast<RtlGetVersion_t>(GetProcAddress(ntdll, "RtlGetVersion"))(&v) == 0)
+      return std::to_string(v.dwMajorVersion) + "." + std::to_string(v.dwMinorVersion) + "." + std::to_string(v.dwBuildNumber);
+  return "";
 #else
   struct utsname u; uname(&u); return u.release;
 #endif
@@ -490,6 +505,21 @@ std::string desktopDevice(const std::string& q, const std::string& a) {
   if (q == "osversion") return osVersion();
   if (std::string out; mobileCommand(q, a, out)) return out;
   if (q == "visibility") return "visible";   // ponytail: a desktop window is taken as visible; its minimised state when a program needs it
+#ifdef _WIN32
+  if (q == "device") { return "{\"model\":\"" + std::string(getenv("COMPUTERNAME") ? getenv("COMPUTERNAME") : "") + "\",\"os\":\"Windows\"}"; }   // later: the motherboard's SMBORG2 (embedded service, ZN-752)
+  if (q == "network") {
+    bool up = false;
+    ULONG size = 4096;
+    std::vector<unsigned char> buf(size);
+    if (GetAdaptersAddresses(AF_INET, GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_DNS_SERVER, nullptr, reinterpret_cast<IP_ADAPTER_ADDRESSES*>(buf.data()), &size) == ERROR_BUFFER_OVERFLOW) {
+      buf.resize(size); size = static_cast<ULONG>(buf.size());
+    }
+    if (GetAdaptersAddresses(AF_INET, GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_DNS_SERVER, nullptr, reinterpret_cast<IP_ADAPTER_ADDRESSES*>(buf.data()), &size) == NO_ERROR)
+      for (IP_ADAPTER_ADDRESSES* a = reinterpret_cast<IP_ADAPTER_ADDRESSES*>(buf.data()); a; a = a->Next)
+        if (a->OperStatus == IfOperStatusUp && a->IfType != IF_TYPE_SOFTWARE_LOOPBACK) up = true;
+    return std::string("{\"online\":") + (up ? "true" : "false") + ",\"type\":\"" + (up ? "unknown" : "none") + "\"}";
+  }
+#else
   if (q == "device") return deviceRecord();
   if (q == "network") {
     bool up = false;
@@ -501,6 +531,7 @@ std::string desktopDevice(const std::string& q, const std::string& a) {
     }
     return std::string("{\"online\":") + (up ? "true" : "false") + ",\"type\":\"" + (up ? "unknown" : "none") + "\"}";
   }
+#endif  // _WIN32: device and network above
 #ifdef __ANDROID__   // SDL3 is linked in the app (src/app/shell_sdl.cpp): the screen kept on is its screen saver off (FLAG_KEEP_SCREEN_ON)
   if (q == "wakelock") return (a == "1" ? SDL_DisableScreenSaver() : SDL_EnableScreenSaver()) ? "1" : "0";
   // the screen dark, or back at the system's brightness (zinc:webos setBacklight): the window's own brightness, set on the UI thread
@@ -686,16 +717,27 @@ bool mkdirs(const std::string& path) {
 }
 
 std::string tmpdirPath() {
+#ifdef _WIN32
+  std::string t = getenv("TMP") ? getenv("TMP") : getenv("TEMP") ? getenv("TEMP") : getenv("LOCALAPPDATA") ? getenv("LOCALAPPDATA") : "C:\\Windows\\Temp";
+  while (t.size() > 1 && (t.back() == '/' || t.back() == '\\')) t.pop_back();
+  return t;
+#else
   std::string t = getenv("TMPDIR") ? getenv("TMPDIR") : "/tmp";
   while (t.size() > 1 && t.back() == '/') t.pop_back();
   return t;
+#endif
 }
 
 // storage: a file of `key TAB value` lines (backslash, tab and newline escaped), read and rewritten whole: the stores are small
 std::string storagePath() {
   if (const char* p = getenv("ZINC_STORAGE")) return p;
   const char* h = getenv("ZINC_HOME");
+#ifdef _WIN32
+  const char* userHome = h ? h : getenv("USERPROFILE");
+  return (userHome ? std::string(userHome) : std::string(".")) + "/.zinc" + "/storage.kv";
+#else
   return (h ? std::string(h) : std::string(getenv("HOME") ? getenv("HOME") : ".") + "/.zinc") + "/storage.kv";
+#endif
 }
 std::string esc(const std::string& s) { std::string r; for (char c : s) { if (c == '\\') r += "\\\\"; else if (c == '\t') r += "\\t"; else if (c == '\n') r += "\\n"; else r += c; } return r; }
 std::string unesc(const std::string& s) { std::string r; for (size_t i = 0; i < s.size(); ++i) { if (s[i] == '\\' && i + 1 < s.size()) { char c = s[++i]; r += c == 't' ? '\t' : c == 'n' ? '\n' : c; } else r += s[i]; } return r; }
@@ -741,6 +783,27 @@ void listAssets(const std::string& dir, const std::string& pre, std::vector<std:
 // IANA name `zone`, or the host's (TZ, else the system's); a deterministic run (ZINC_DETERMINISTIC) is UTC unless TZ is set.
 double tzOffsetMinutes(double ms, const char* zone, std::string* abbr) {
   if (!zone && std::getenv("ZINC_DETERMINISTIC") && !std::getenv("TZ")) { if (abbr) *abbr = "UTC"; return 0; }
+#ifdef _WIN32
+  // The system's zone only (TZ and the given IANA name would need a Windows tz database mapping, later): the offset
+  // at that instant is the difference between the local time and its UTC source (SystemTimeToTzSpecificLocalTime
+  // honours DST of the zone's rules), negative east of the zone.
+  if (abbr) *abbr = "UTC";
+  _tzset();
+  if (abbr) *abbr = tzname[0] && *tzname[0] ? tzname[0] : "UTC";
+  // A tz like the Windows current one: the offset at the instant, not the whatever-bias
+  const std::time_t t = static_cast<std::time_t>(std::floor(ms / 1000.0));
+  SYSTEMTIME st{}, lt{};
+  ULARGE_INTEGER u = {static_cast<DWORD>(t), 0};   // seconds since the epoch: each one is a 10-million usec count in FILETIME
+  u.QuadPart = static_cast<unsigned long long>(t) * 10000000ull + 116444736000000000ull;
+  FILETIME ft{u.LowPart, u.HighPart};
+  if (!FileTimeToSystemTime(&ft, &st)) return 0;
+  if (!SystemTimeToTzSpecificLocalTime(nullptr, &st, &lt)) return 0;
+  FILETIME flt;
+  if (!SystemTimeToFileTime(&lt, &flt)) return 0;
+  ULARGE_INTEGER l = {flt.dwLowDateTime, flt.dwHighDateTime};
+  const double diffSec = (static_cast<double>(l.QuadPart) - static_cast<double>(u.QuadPart)) / 10000000.0;
+  return -std::lround(diffSec / 60.0);   // positive west (UTC−x gives +x): the local time is behind there
+#else
   std::string saved;
   bool had = false;
   if (zone) { if (const char* old = std::getenv("TZ")) { saved = old; had = true; } setenv("TZ", zone, 1); tzset(); }
@@ -751,6 +814,7 @@ double tzOffsetMinutes(double ms, const char* zone, std::string* abbr) {
   else if (abbr) *abbr = "UTC";
   if (zone) { if (had) setenv("TZ", saved.c_str(), 1); else unsetenv("TZ"); tzset(); }
   return off == 0 ? 0 : off;
+#endif
 }
 
 // An array of bytes (one slot each) as a string, unchanged.
@@ -878,9 +942,13 @@ void call(int id, const HostArg* a, HostArg* r) {
       if (denyByPermission("fs:read", p)) { r->i = 0; break; }
       int rc = a[1].i ? lstat(p.c_str(), &st) : stat(p.c_str(), &st);
       if (rc != 0) { fail("stat", p); r->i = 0; break; }
-#ifdef __APPLE__
+#if defined(__APPLE__)
       gStat = {static_cast<double>(st.st_size), st.st_mtimespec.tv_sec * 1e3 + st.st_mtimespec.tv_nsec / 1e6, st.st_atimespec.tv_sec * 1e3 + st.st_atimespec.tv_nsec / 1e6,
                st.st_ctimespec.tv_sec * 1e3 + st.st_ctimespec.tv_nsec / 1e6, static_cast<int>(st.st_mode & 07777), S_ISREG(st.st_mode), S_ISDIR(st.st_mode), S_ISLNK(st.st_mode)};
+#elif defined(_WIN32)
+      // MSVCRT's struct stat: times in seconds, no ns (a plain 1 ms); the mode's bits: 0777, dir, read-only
+      gStat = {static_cast<double>(st.st_size), st.st_mtime * 1e3, st.st_atime * 1e3, st.st_ctime * 1e3,
+               static_cast<int>(st.st_mode & 0777), S_ISREG(st.st_mode), S_ISDIR(st.st_mode), S_ISLNK(st.st_mode)};
 #else
       gStat = {static_cast<double>(st.st_size), st.st_mtim.tv_sec * 1e3 + st.st_mtim.tv_nsec / 1e6, st.st_atim.tv_sec * 1e3 + st.st_atim.tv_nsec / 1e6,
                st.st_ctim.tv_sec * 1e3 + st.st_ctim.tv_nsec / 1e6, static_cast<int>(st.st_mode & 07777), S_ISREG(st.st_mode), S_ISDIR(st.st_mode), S_ISLNK(st.st_mode)};
@@ -997,6 +1065,8 @@ void call(int id, const HostArg* a, HostArg* r) {
       timeval bt; size_t len = sizeof bt; int mib[2] = {CTL_KERN, KERN_BOOTTIME};
       timeval now; gettimeofday(&now, nullptr);
       r->d = sysctl(mib, 2, &bt, &len, nullptr, 0) == 0 ? static_cast<double>(now.tv_sec - bt.tv_sec) : 0;
+#elif defined(_WIN32)
+      r->d = static_cast<double>(GetTickCount64()) / 1000.0;
 #else
       double up = 0; if (FILE* f = fopen("/proc/uptime", "r")) { if (fscanf(f, "%lf", &up) != 1) up = 0; fclose(f); } r->d = up;
 #endif
@@ -1005,6 +1075,8 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostOsTotalmem: {
 #ifdef __APPLE__
       std::uint64_t mem = 0; size_t len = sizeof mem; sysctlbyname("hw.memsize", &mem, &len, nullptr, 0); r->d = static_cast<double>(mem);
+#elif defined(_WIN32)
+      MEMORYSTATUSEX m{}; m.dwLength = sizeof m; GlobalMemoryStatusEx(&m); r->d = static_cast<double>(m.ullTotalPhys);
 #else
       r->d = static_cast<double>(sysconf(_SC_PHYS_PAGES)) * static_cast<double>(sysconf(_SC_PAGESIZE));
 #endif
@@ -1014,12 +1086,20 @@ void call(int id, const HostArg* a, HostArg* r) {
 #ifdef __APPLE__
       vm_statistics64_data_t vm; mach_msg_type_number_t cnt = HOST_VM_INFO64_COUNT;
       r->d = host_statistics64(mach_host_self(), HOST_VM_INFO64, reinterpret_cast<host_info64_t>(&vm), &cnt) == KERN_SUCCESS ? static_cast<double>(vm.free_count) * static_cast<double>(vm_page_size) : 0;
+#elif defined(_WIN32)
+      MEMORYSTATUSEX m{}; m.dwLength = sizeof m; GlobalMemoryStatusEx(&m); r->d = static_cast<double>(m.ullAvailPhys);
 #else
       r->d = static_cast<double>(sysconf(_SC_AVPHYS_PAGES)) * static_cast<double>(sysconf(_SC_PAGESIZE));
 #endif
       break;
     }
-    case Rt::HostOsCpus: r->i = sysconf(_SC_NPROCESSORS_ONLN); break;
+    case Rt::HostOsCpus:
+#ifdef _WIN32
+      { SYSTEM_INFO si; GetSystemInfo(&si); r->i = si.dwNumberOfProcessors; }
+#else
+      r->i = sysconf(_SC_NPROCESSORS_ONLN);
+#endif
+      break;
     case Rt::HostProcSpawn: if (refused("process", s(0))) { r->i = -1; break; } r->i = procSpawn(s(0)); break;
     case Rt::HostProcRead: ret(r, procRead(n(0))); break;
     case Rt::HostProcStatus: r->i = procStatus(n(0)); break;
@@ -1127,6 +1207,14 @@ void call(int id, const HostArg* a, HostArg* r) {
 #if defined(__APPLE__)
       char b[256]; size_t len = sizeof b;
       if (sysctlbyname("machdep.cpu.brand_string", b, &len, nullptr, 0) == 0) model = b;
+#elif defined(_WIN32)
+      char b[256] = "";
+      if (HKEY k; RegOpenKeyExA(HKEY_LOCAL_MACHINE, "HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0", 0, KEY_READ, &k) == ERROR_SUCCESS) {
+        DWORD sz = sizeof b;
+        if (RegQueryValueExA(k, "ProcessorNameString", nullptr, nullptr, reinterpret_cast<LPBYTE>(b), &sz) != ERROR_SUCCESS) b[0] = 0;
+        RegCloseKey(k);
+      }
+      model = b;
 #else
       std::ifstream in("/proc/cpuinfo"); std::string line;
       while (model.empty() && std::getline(in, line)) if (line.rfind("model name", 0) == 0 && line.find(':') != std::string::npos) model = line.substr(line.find(':') + 2);
@@ -1136,6 +1224,39 @@ void call(int id, const HostArg* a, HostArg* r) {
     }
     case Rt::HostOsNetList: {
       gNets.clear();
+#ifdef _WIN32
+      static ULONG size = 8192;
+      std::vector<unsigned char> buf(size);
+      IP_ADAPTER_ADDRESSES* adds = nullptr;
+      if (GetAdaptersAddresses(AF_UNSPEC, GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_DNS_SERVER, nullptr, reinterpret_cast<IP_ADAPTER_ADDRESSES*>(buf.data()), &size) == ERROR_BUFFER_OVERFLOW) {
+        buf.resize(size); adds = reinterpret_cast<IP_ADAPTER_ADDRESSES*>(buf.data());
+        if (GetAdaptersAddresses(AF_UNSPEC, GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_DNS_SERVER, nullptr, adds, &size) != NO_ERROR) adds = nullptr;
+      } else adds = reinterpret_cast<IP_ADAPTER_ADDRESSES*>(buf.data());
+      if (adds) {
+        for (IP_ADAPTER_ADDRESSES* a = adds; a; a = a->Next) {
+          const std::string name = std::string(a->AdapterName);   // the GUID; FriendlyName would be the "name" a user reads (WCHAR-Alt, later)
+          char mac[24];
+          if (a->PhysicalAddressLength == 6) std::snprintf(mac, sizeof mac, "%02x:%02x:%02x:%02x:%02x:%02x", a->PhysicalAddress[0], a->PhysicalAddress[1], a->PhysicalAddress[2], a->PhysicalAddress[3], a->PhysicalAddress[4], a->PhysicalAddress[5]);
+          else std::strcpy(mac, "00:00:00:00:00:00");
+          for (IP_ADAPTER_UNICAST_ADDRESS* u = a->FirstUnicastAddress; u; u = u->Next) {
+            const int fam = static_cast<sockaddr*>(u->Address.lpSockaddr) ? u->Address.lpSockaddr->sa_family : 0;
+            if (fam != AF_INET && fam != AF_INET6) continue;
+            char addr[INET6_ADDRSTRLEN] = "";
+            const void* src = fam == AF_INET ? static_cast<void*>(&reinterpret_cast<sockaddr_in*>(u->Address.lpSockaddr)->sin_addr)
+                                             : static_cast<void*>(&reinterpret_cast<sockaddr_in6*>(u->Address.lpSockaddr)->sin6_addr);
+            inet_ntop(fam, src, addr, sizeof addr);
+            char mask[INET6_ADDRSTRLEN] = "";
+            if (u->OnLinkPrefixLength > 0 && u->OnLinkPrefixLength < 129) {   // the prefix of the address as a mask, dotted for v4
+              if (fam == AF_INET) {
+                const std::uint32_t m = u->OnLinkPrefixLength >= 32 ? 0xffffffffu : htonl(~((1u << (32 - u->OnLinkPrefixLength)) - 1));
+                std::snprintf(mask, sizeof mask, "%u.%u.%u.%u", m >> 24 & 255, m >> 16 & 255, m >> 8 & 255, m & 255);
+              } else std::snprintf(mask, sizeof mask, "/%d", u->OnLinkPrefixLength);
+            }
+            gNets.push_back({name, addr, mask, fam == AF_INET ? "IPv4" : "IPv6", mac, a->IfType == IF_TYPE_SOFTWARE_LOOPBACK ? "1" : "0"});
+          }
+        }
+      }
+#else
       struct ifaddrs* all = nullptr;
       if (getifaddrs(&all) == 0) {
         std::map<std::string, std::string> macs;
@@ -1158,6 +1279,7 @@ void call(int id, const HostArg* a, HostArg* r) {
         }
         freeifaddrs(all);
       }
+#endif
       r->i = static_cast<std::int64_t>(gNets.size());
       break;
     }

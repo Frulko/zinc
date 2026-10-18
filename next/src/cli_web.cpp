@@ -1084,7 +1084,7 @@ void connection(Dev* d, int fd) {
 int serve(Dev& d, int port, bool lan) {
   const int lfd = ::socket(AF_INET, SOCK_STREAM, 0);
   const int one = 1;
-  setsockopt(lfd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one);
+  setsockopt(lfd, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char*>(&one), sizeof one);   // Winsock takes const char*
   sockaddr_in addr{};
   addr.sin_family = AF_INET;
   addr.sin_addr.s_addr = htonl(lan ? INADDR_ANY : INADDR_LOOPBACK);
@@ -1100,7 +1100,7 @@ int serve(Dev& d, int port, bool lan) {
       const int c = static_cast<int>(::accept(lfd, nullptr, nullptr));
       if (c < 0) { if (gStop) return; continue; }
       const timeval wait{5, 0};
-      setsockopt(c, SOL_SOCKET, SO_SNDTIMEO, &wait, sizeof wait);
+      setsockopt(c, SOL_SOCKET, SO_SNDTIMEO, reinterpret_cast<const char*>(&wait), sizeof wait);   // Winsock takes const char*
       std::thread(connection, &d, c).detach();
     }
   }).detach();

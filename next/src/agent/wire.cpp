@@ -5,13 +5,11 @@
 #include "../net/frame.h"
 #include "yyjson.h"
 
-#include <arpa/inet.h>
-#include <fcntl.h>
+#include "platform/socket.h"   // the BSD socket headers, or Winsock 2 on Windows (plus WSAPoll and the four calls that differ)
+#ifndef _WIN32
 #include <netdb.h>
-#include <netinet/in.h>
 #include <netinet/tcp.h>
-#include <poll.h>
-#include <sys/socket.h>
+#endif
 #include <sys/stat.h>
 #include <unistd.h>
 

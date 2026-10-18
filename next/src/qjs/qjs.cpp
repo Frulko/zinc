@@ -62,17 +62,31 @@ bool readFile(const std::string& path, std::string& out) {
 bool endsWith(const std::string& s, const char* suffix) { std::size_t n = std::strlen(suffix); return s.size() >= n && s.compare(s.size() - n, n, suffix) == 0; }
 
 std::string dirOf(const std::string& p) { auto k = p.find_last_of('/'); return k == std::string::npos ? "" : p.substr(0, k); }
+// An absolute path for the resolver's tests: a POSIX '/accessories start' or a Windows drive letter ('C:' — the paths
+// arrive as they came: backslashes from std::filesystem, forward slashes from the usual joins)
+static bool pathAbs(const std::string& p) {
+  if (p.empty()) return false;
+  if (p[0] == '/') return true;
+  if (p.size() > 1 && (p[0] >= 'a' && p[0] <= 'z' || p[0] >= 'A' && p[0] <= 'Z') && p[1] == ':') return true;
+  return false;
+}
 std::string normalize(const std::string& p) {
+  // both separators split; backslashes become forward slashes (the output is a plain join, Windows accepts '/') and a
+  // Windows drive's "C:" survives as the root (".." cannot cross it)
+  std::string plain;
+  plain.reserve(p.size());
+  for (char c : p) plain += c == '\\' ? '/' : c;
+  const bool winDrive = plain.size() > 1 && (plain[0] >= 'a' && plain[0] <= 'z' || plain[0] >= 'A' && plain[0] <= 'Z') && plain[1] == ':';
+  bool abs = !plain.empty() && plain[0] == '/';
   std::vector<std::string> parts;
-  std::stringstream ss(p);
+  std::stringstream ss(plain);
   std::string seg;
-  bool abs = !p.empty() && p[0] == '/';
   while (std::getline(ss, seg, '/')) {
     if (seg.empty() || seg == ".") continue;
     if (seg == ".." && !parts.empty() && parts.back() != "..") parts.pop_back(); else parts.push_back(seg);
   }
-  std::string r = abs ? "/" : "";
-  for (std::size_t i = 0; i < parts.size(); ++i) r += (i ? "/" : "") + parts[i];
+  std::string r = winDrive ? plain.substr(0, 2) + "/" : abs ? "/" : "";
+  for (std::size_t i = winDrive ? 1 : 0; i < parts.size(); ++i) r += (i ? "/" : "") + parts[i];
   return r;
 }
 
@@ -210,7 +224,10 @@ bool moduleText(Engine& e, const std::string& name, std::string& js, std::string
       path = e.stdRoot + "/" + std::string(f);
       if (!readFile(path, src)) { err = "cannot read " + path; return false; }
     }
-  } else if (!readFile(path, src)) { err = "cannot load module " + name; return false; }
+  } else if (!readFile(path, src)) {
+    if (std::getenv("ZN_QJS_DEBUG")) std::fprintf(stderr, "qjs: module failli: name=<%s> path=<%s>\n", name.c_str(), path.c_str());
+    err = "cannot load module " + name; return false;
+  }
   const std::string file = name.rfind("zinc:", 0) == 0 && !endsWith(path, ".tsx") ? name : path;
   // ponytail: the cache is never pruned (one small file per version of a module); prune by age if ~/.zinc/cache/qjs grows
   // the transform stage of the bundler (.tsx too), cached by content: the source, its name and what the transform reads besides (the UI preset and
@@ -349,7 +366,7 @@ char* normalizeName(JSContext* ctx, const char* base, const char* name, void* op
   if (r == n && (n.rfind("./", 0) == 0 || n.rfind("../", 0) == 0)) {
     r = normalize(dir + "/" + n);
     if (std::string f = probe(r); !f.empty()) r = f;
-  } else if (e && r == n && n[0] != '/') {   // a bare specifier or a zinc: module: a plugin, then (bare) tsconfig.json paths, the compat packages, node_modules
+  } else if (e && r == n && !pathAbs(n)) {   // a bare specifier or a zinc: module: a plugin, then (bare) tsconfig.json paths, the compat packages, node_modules
     std::string f = pluginEntry(*e, n);
     if (f.empty() && n.rfind("zinc:", 0) != 0) {
       f = byTsconfig(dir, n);
@@ -366,7 +383,7 @@ char* normalizeName(JSContext* ctx, const char* base, const char* name, void* op
 // import.meta.url of a module (QuickJS leaves import.meta empty for the host to fill): file:// and the path, or the zinc: name
 void setMeta(JSContext* ctx, JSModuleDef* m, const std::string& name) {
   JSValue meta = JS_GetImportMeta(ctx, m);
-  if (JS_IsObject(meta)) JS_SetPropertyStr(ctx, meta, "url", JS_NewString(ctx, (name[0] == '/' ? "file://" + name : name).c_str()));
+  if (JS_IsObject(meta)) JS_SetPropertyStr(ctx, meta, "url", JS_NewString(ctx, (pathAbs(name) ? (name[0] == '/' ? "file://" + name : "file:///" + name) : name).c_str()));
   JS_FreeValue(ctx, meta);
 }
 
@@ -672,7 +689,7 @@ int run(const Options& o) {
   }
 
   std::string entry = o.entry;
-  if (!entry.empty() && entry[0] != '/') { char b[4096]; if (getcwd(b, sizeof b)) entry = normalize(std::string(b) + "/" + entry); }
+  if (!entry.empty() && !pathAbs(entry)) { char b[4096]; if (getcwd(b, sizeof b)) entry = normalize(std::string(b) + "/" + entry); }
   e.entry = entry;
   if (!webEnv(e.ctx, e.stdRoot, entry)) return 101;
   {   // importmap.json next to the entry: {"imports": {"three": "../../third_party/three/build/three.module.js"}} (paths relative to the file)

@@ -8,6 +8,9 @@
 #include <cstdlib>
 #include <deque>
 #include <ctime>
+#ifdef _WIN32
+#include <time.h>   // gmtime_s in place of gmtime_r
+#endif
 #include <fstream>
 #include <map>
 #include <utility>
@@ -316,7 +319,11 @@ void parseFrames(Entry& e, std::string& buf, bool sent) {
 std::string isoDate(double wall) {
   std::time_t s = static_cast<std::time_t>(wall);
   std::tm tm{};
+#ifdef _WIN32
+  gmtime_s(&tm, &s);
+#else
   gmtime_r(&s, &tm);
+#endif
   char b[40], out[48];
   std::strftime(b, sizeof b, "%Y-%m-%dT%H:%M:%S", &tm);
   std::snprintf(out, sizeof out, "%s.%03dZ", b, static_cast<int>((wall - static_cast<double>(s)) * 1000));

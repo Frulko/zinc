@@ -1,5 +1,5 @@
-# libuv 1.53.0: the sources the engine builds (the upstream CMakeLists.txt lists, for macOS and Linux only; the build system itself is not vendored).
-# [common] every platform, [unix] every Unix, [darwin] macOS, [linux] Linux.
+# libuv 1.53.0: the sources the engine builds (the upstream CMakeLists.txt lists, for macOS, Linux and Windows; the build system itself is not vendored).
+# [common] every platform, [unix] every Unix, [darwin] macOS, [linux] Linux, [win] Windows.
 [common]
 src/fs-poll.c
 src/idna.c
@@ -45,3 +45,29 @@ src/unix/linux.c
 src/unix/procfs-exepath.c
 src/unix/random-getrandom.c
 src/unix/random-sysctl-linux.c
+[win]
+src/win/async.c
+src/win/core.c
+src/win/detect-wakeup.c
+src/win/dl.c
+src/win/error.c
+src/win/fs-event.c
+src/win/fs.c
+src/win/getaddrinfo.c
+src/win/getnameinfo.c
+src/win/handle.c
+src/win/loop-watcher.c
+src/win/pipe.c
+src/win/poll.c
+src/win/process.c
+src/win/process-stdio.c
+src/win/signal.c
+src/win/snprintf.c
+src/win/stream.c
+src/win/tcp.c
+src/win/thread.c
+src/win/tty.c
+src/win/udp.c
+src/win/util.c
+src/win/winapi.c
+src/win/winsock.c

@@ -7,7 +7,9 @@
 #include "zrt_assets_dir.h"
 
 #include <fcntl.h>
-#include <sys/mman.h>
+#ifdef _WIN32
+#include "posix_shims.h"   // the mmap below is a file mapping
+#endif
 #include <sys/stat.h>
 #include <unistd.h>
 #include <uv.h>
@@ -34,7 +36,13 @@ struct Pack {
   void* map = nullptr;
   std::size_t size = 0;
   zpk::Reader reader;
-  ~Pack() { if (map) munmap(map, size); }
+  ~Pack() {
+#ifdef _WIN32
+    if (map) UnmapViewOfFile(map);
+#else
+    if (map) munmap(map, size);
+#endif
+  }
 };
 
 struct Job {
@@ -135,9 +143,13 @@ int addPack(Manager& g, const std::string& file, std::vector<std::unique_ptr<Pac
   struct stat st;
   if (fd < 0 || fstat(fd, &st) != 0) { if (fd >= 0) close(fd); err = "assets: cannot open " + file; return 0; }
   p->size = static_cast<std::size_t>(st.st_size);
+#ifdef _WIN32
+  void* m = p->size ? mmap_file_shim(fd, p->size) : nullptr;
+#else
   void* m = p->size ? mmap(nullptr, p->size, PROT_READ, MAP_PRIVATE, fd, 0) : MAP_FAILED;
+#endif
   close(fd);
-  if (m == MAP_FAILED) { err = "assets: cannot map " + file; return 0; }
+  if (m == nullptr) { err = "assets: cannot map " + file; return 0; }
   p->map = m;
   std::string why;
   if (!p->reader.open(m, p->size, why)) { err = "assets: " + file + ": " + why; return 0; }
@@ -211,7 +223,9 @@ void onDevRead(uv_stream_t* s, ssize_t n, const uv_buf_t* buf) {
 // The socket is the program's alone: the processes it starts (a zinc it runs) neither inherit it nor look for it.
 void devListen(Manager& g, int fd) {
   unsetenv("ZINC_DEV_FD");
-  fcntl(fd, F_SETFD, FD_CLOEXEC);
+#ifndef _WIN32
+  fcntl(fd, F_SETFD, FD_CLOEXEC);   // a Windows child does not inherit a pipe handle (all handles beyond the startup's are reordered by default)
+#endif
   auto* p = new uv_pipe_t;   // the life of the process
   uv_pipe_init(static_cast<uv_loop_t*>(zn::loop::uvLoop()), p, 0);
   if (uv_pipe_open(p, fd) != 0) return;
@@ -233,6 +247,8 @@ Manager& ready() {
     const char* t = std::getenv("ZINC_PACK_TARGET");
 #ifdef __APPLE__
     list = zrt_program_packs_dir(t ? t : "macos");
+#elif defined(_WIN32)
+    list = zrt_program_packs_dir(t ? t : "windows");
 #else
     list = zrt_program_packs_dir(t ? t : "linux");
 #endif

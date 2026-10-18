@@ -29,8 +29,15 @@ const std::string& error(Conn*) { static const std::string e = "this build has n
 
 #include <cstdio>
 #include <string>
-#ifdef __linux__
+#if defined(__linux__) || defined(_WIN32)
 #include <unistd.h>
+#endif
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#include <wincrypt.h>   // the system's certificate store below; crypt32 is linked in CMakeLists.txt
 #endif
 #include <cstdlib>
 #include <cstring>
@@ -82,6 +89,27 @@ mbedtls_x509_crt* roots() {
       std::string dir(exe, n > 0 ? static_cast<size_t>(n) : 0);
       dir.erase(dir.find_last_of('/') == std::string::npos ? 0 : dir.find_last_of('/'));
       if (!dir.empty() && mbedtls_x509_crt_parse_file(c, (dir + "/cacert.pem").c_str()) >= 0) return c;
+    }
+#endif
+#ifdef _WIN32
+    {  // the system's store: "Root" and "CA" (HKLM and HKCU together at that call), each DER certificate parsed and chained
+      for (LPCSTR storeName : {"Root", "CA"}) {
+        if (HCERTSTORE h = CertOpenSystemStoreA(0, storeName)) {
+          mbedtls_x509_crt* head = nullptr;
+          for (PCCERT_CONTEXT ctx = nullptr; (ctx = CertEnumCertificatesInStore(h, ctx));) {
+            auto* node = new mbedtls_x509_crt;
+            mbedtls_x509_crt_init(node);
+            if (mbedtls_x509_crt_parse_der(node, ctx->pbCertEncoded, ctx->cbCertEncoded) == 0) { node->next = head; head = node; }
+            else { mbedtls_x509_crt_free(node); delete node; }
+          }
+          if (head) {   // append the chain to the store's own list (c's free takes them)
+            mbedtls_x509_crt* tail = c;
+            while (tail->next) tail = tail->next;
+            tail->next = head;
+          }
+          CertCloseStore(h, 0);
+        }
+      }
     }
 #endif
     for (const char* f : {"/etc/ssl/cert.pem", "/etc/ssl/certs/ca-certificates.crt", "/etc/pki/tls/certs/ca-bundle.crt", "/etc/ssl/ca-bundle.pem", "/etc/ssl/certs/ca-bundle.crt"})

@@ -10,7 +10,14 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <filesystem>
 #include <string>
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>   // the executable's path (no /proc on Windows)
+#endif
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
 #endif
@@ -18,22 +25,32 @@
 // The directories a built program looks in, in order: its executable's, the bundle's Resources, the one above; the working directory with `cwd`.
 inline int zrt_program_bases(bool cwd, std::string (&bases)[4]) {
   int n = 0;
-  char exe[PATH_MAX], real[PATH_MAX];
+  char exe[PATH_MAX];
+  std::string real;
 #ifdef __APPLE__
   uint32_t size = sizeof exe;
   const bool have = _NSGetExecutablePath(exe, &size) == 0;
+#elif defined(_WIN32)
+  const DWORD len = GetModuleFileNameA(nullptr, exe, static_cast<DWORD>(sizeof exe));
+  const bool have = len > 0 && len < sizeof exe;
+  if (have) exe[len] = 0;
 #else
   const ssize_t len = readlink("/proc/self/exe", exe, sizeof exe - 1);
   const bool have = len > 0;
   if (have) exe[len] = 0;
 #endif
-  if (have && realpath(exe, real)) {
+  if (have) {
+    std::error_code ec;
+    std::filesystem::path canon = std::filesystem::weakly_canonical(exe, ec);
+    if (!ec) real = canon.make_preferred().string();
+  }
+  if (!real.empty()) {
     const std::string path = real, dir = path.substr(0, path.find_last_of('/')), up = dir.substr(0, dir.find_last_of('/'));
     bases[n++] = dir;
     bases[n++] = up + "/Resources";
     bases[n++] = up;
   }
-  if (cwd && getcwd(real, sizeof real)) bases[n++] = real;
+  if (cwd) { char w[PATH_MAX]; if (getcwd(w, sizeof w)) bases[n++] = w; }
   return n;
 }
 

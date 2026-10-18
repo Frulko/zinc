@@ -1066,7 +1066,7 @@ static int exec(const fs::path& app, bool built, const std::string& entry, const
   assetsEnv(entry);   // as for the interpreter's run below main's compile
   printPlugins();
   zn::log::step("run", built ? "native" : "native, cached build (--interp to interpret)");
-  if (!projectDir.empty()) { std::error_code ec; setenv("ZINC_LAUNCH_DIR", fs::current_path(ec).c_str(), 0); fs::current_path(projectDir, ec); }   // sys.launchDir (ZN-687)
+  if (!projectDir.empty()) { std::error_code ec; setenv("ZINC_LAUNCH_DIR", std::string(fs::current_path(ec).string()).c_str(), 0); fs::current_path(projectDir, ec); }   // sys.launchDir (ZN-687)
   // The process list, the Dock and the app menu show the executable's file name: the program starts through a link named after
   // the project, beside `app` (ZN-733). Not when the name is one of the cache's own files.
   fs::path named = app;
@@ -1081,7 +1081,7 @@ static int exec(const fs::path& app, bool built, const std::string& entry, const
   av.insert(av.end(), progArgs.begin(), progArgs.end());
   std::fflush(nullptr);
   zn::plat::replaceProcess(named.string(), av);
-  std::fprintf(stderr, "zinc: cannot start %s: %s; interpreting\n", app.c_str(), std::strerror(errno));
+  std::fprintf(stderr, "zinc: cannot start %s: %s; interpreting\n", std::string(app.string()).c_str(), std::strerror(errno));
   return -1;
 }
 }  // namespace runcache
@@ -1109,7 +1109,7 @@ static int runCompiled(zn::zbc::Module& zm, const std::string& entry, const std:
   fs::remove(dir / "inputs", ec);   // stale until this build is done
   RunBuild rb;
   if (fs::exists(app)) { std::ifstream k(keyFile); std::getline(k, rb.have); }
-  if (buildNative(exe.c_str(), entry.c_str(), (dir / "app.new").c_str(), zm, std::chrono::steady_clock::now(), &rb) != 0) { std::fprintf(stderr, "zinc: the compiled run failed to build; interpreting\n"); return -1; }
+  if (buildNative(exe.c_str(), entry.c_str(), std::string((dir / "app.new").string()).c_str(), zm, std::chrono::steady_clock::now(), &rb) != 0) { std::fprintf(stderr, "zinc: the compiled run failed to build; interpreting\n"); return -1; }
   if (!rb.reused) {
     fs::rename(dir / "app.new", app, ec);
     if (ec) return -1;
@@ -1509,6 +1509,8 @@ int main(int argc, char** argv) {
     const zn::frontend::Profile* tp = gProfile ? gProfile : zn::frontend::findProfile(
 #if defined(__APPLE__)
         "macos"
+#elif defined(_WIN32)
+        "windows"
 #else
         "linux"
 #endif
@@ -1913,7 +1915,7 @@ int main(int argc, char** argv) {
 #if defined(__APPLE__)
         const std::vector<std::string> granted = have ? zn::frontend::permissionsFor(project, "macos") : std::vector<std::string>{};
 #else
-        const std::vector<std::string> granted = have ? zn::frontend::permissionsFor(project, "linux") : std::vector<std::string>{};
+        const std::vector<std::string> granted = have ? zn::frontend::permissionsFor(project, "windows") : std::vector<std::string>{};
 #endif
         const char* mode = std::getenv("ZINC_PERMISSIONS");
         zn::host::perm::configure(granted, have && project.permissionsDeclared, mode && !std::strcmp(mode, "enforce"), projectDir.empty() ? "." : projectDir);

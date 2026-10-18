@@ -5,6 +5,12 @@
 #include <cstdlib>
 #include <set>
 #include <unistd.h>
+#ifdef _WIN32
+#include "posix_shims.h"   // realpath through _fullpath; PATH_MAX comes below
+#ifndef PATH_MAX
+#define PATH_MAX 4096
+#endif
+#endif
 
 namespace zn::host::perm {
 namespace {

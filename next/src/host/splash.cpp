@@ -6,10 +6,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <unistd.h>
+#ifdef _WIN32
+#include "posix_shims.h"   // the mmap below is a file mapping
+#else
+#include <sys/mman.h>
+#endif
 
 #include <algorithm>
 #include <string>
@@ -87,6 +91,8 @@ const std::uint8_t* fromPacks(std::size_t& n, void*& map, std::size_t& size) {
     const char* t = std::getenv("ZINC_PACK_TARGET");
 #ifdef __APPLE__
     list = zrt_program_packs_dir(t ? t : "macos");
+#elif defined(_WIN32)
+    list = zrt_program_packs_dir(t ? t : "windows");
 #else
     list = zrt_program_packs_dir(t ? t : "linux");
 #endif
@@ -101,9 +107,14 @@ const std::uint8_t* fromPacks(std::size_t& n, void*& map, std::size_t& size) {
     const int fd = open(file.c_str(), O_RDONLY);
     struct stat st;
     if (fd < 0) continue;
+#ifdef _WIN32
+    void* m = nullptr;
+    if (fstat(fd, &st) == 0 && st.st_size > 0) m = mmap_file_shim(fd, static_cast<std::size_t>(st.st_size));
+#else
     void* m = fstat(fd, &st) == 0 && st.st_size > 0 ? mmap(nullptr, static_cast<std::size_t>(st.st_size), PROT_READ, MAP_PRIVATE, fd, 0) : MAP_FAILED;
+#endif
     close(fd);
-    if (m == MAP_FAILED) continue;
+    if (m == nullptr) continue;
     zn::zpk::Reader r;
     std::string err;
     const long i = r.open(m, static_cast<std::size_t>(st.st_size), err) ? r.find(".splash") : -1;

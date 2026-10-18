@@ -12,6 +12,9 @@
 #include <memory>
 #include <vector>
 
+#ifdef _WIN32
+#include "posix_shims.h"   // the signals' numbers the table lists, and ::kill as a TerminateProcess
+#endif
 extern char** environ;
 
 namespace zn::loop {
