@@ -1374,7 +1374,9 @@ std::string lowerRequireNative(const std::string& text, std::vector<Diag>& diags
     if (!ok) continue;
     std::string why;
     if (!nativeProvided(module, why)) { bad(kZNativeNotLinked, "'" + module + "'" + (why.empty() ? "" : ": " + why)); continue; }
+    // provided but not registered: a build for another machine (ZN_AOT_CPP_ONLY), whose plugin is compiled there from this Spec, so the Spec is the contract
     for (const NativeDecl& n : found) {
+      if (!zn_native_has_module(module.c_str())) break;
       const ZnExport* e = zn_native_find(module.c_str(), n.name.c_str());
       if (!e) { bad(kZNativeNotLinked, "'" + module + "' has no export '" + n.name + "'"); ok = false; break; }
       if (n.sig != e->sig) { bad(kZNativeNotLinked, "'" + module + "." + n.name + "': the Spec says '" + n.sig + "', the module has '" + e->sig + "'"); ok = false; break; }

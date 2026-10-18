@@ -116,6 +116,7 @@ static std::string gProjectDir = ".";
 // the transformed modules of --engine quickjs, one directory per build of the engine (a build stamp compiled in would break reproducible builds)
 static std::string qjsCacheDir() { return zn::tc::home() + "/cache/qjs/" + std::to_string(std::hash<std::string>{}(zn::cli::engineBuild())); }
 static std::string gBakedSize;   // "WxH" of the board, for the main of a program zinc build writes
+static const zn::frontend::Profile* gProfile = nullptr;   // --profile / zinc.json "profile"
 static std::vector<std::string> gPluginDirs;   // the directories of those plugins: inputs of a compiled run (ZN-605)
 static std::string gBundleOut;                   // `zinc build --bundle ... -o <out>.app`: the bundle to assemble once the program is linked
 static bool gFusedApp = false;                   // this is a fused executable (ZN-319): its archive's native libraries are its own code (ZN-652)
@@ -182,6 +183,14 @@ static void installNativeProvider(const char* entry) {
     const zn::frontend::FoundPlugin* p = zn::tc::pluginForModule(found, module);
     if (!p) { err = "no plugin provides it (zinc plugins lists them)"; return false; }
     zn::tc::PluginLib lib;
+    if (std::getenv("ZN_AOT_CPP_ONLY") && gProfile) {   // the C++ for another machine (zinc export to a phone): the export compiles the plugin there from its sources
+      // (and refuses one whose plugin.json has no entry for it); nothing is built or loaded here
+      lib.plugin = p->manifest.name;
+      lib.module = module;
+      gPlugins.push_back(lib);
+      gPluginDirs.push_back(p->dir);
+      return true;
+    }
     if (!zn::tc::buildPlugin(*p, gRoot, gProjectDir, zn::tc::pluginTarget(), lib, err)) return false;
     if (!registerPlugin(lib, err)) return false;
     gPluginDirs.push_back(p->dir);
@@ -332,7 +341,6 @@ static void windowEnv(const zn::frontend::TargetOptions& window) {
   if (window.kiosk) setenv("ZINC_KIOSK", "1", 0);
 }
 
-static const zn::frontend::Profile* gProfile = nullptr;   // --profile / zinc.json "profile"
 static std::string gBuildTarget;   // the machine a `run --target` / `build --target` compiles for (its ui.layout rules, ZN-285); "" = the profile or this host
 static bool gStrict = false;  // --strict (a file-local switch of the command line, set once in main)
 static bool gHint = false;    // after the diagnostics, the line that says what to do next (ZN-711): zinc run, build and check as a person types them
@@ -803,7 +811,7 @@ static int buildNative(const char* argv0, const char* entry, const char* out, zn
 #else
       nativeLibs += " -Wl,--whole-archive '" + pl.archive + "' -Wl,--no-whole-archive";
 #endif
-    } else nativeLibs += " '" + pl.archive + "'";
+    } else if (!pl.archive.empty()) nativeLibs += " '" + pl.archive + "'";   // empty: a plugin of a build for another machine, compiled there
     if (!pl.vendor.empty()) nativeLibs += " '" + pl.vendor + "'";
     for (const std::string& a : pl.linkArgs) nativeLibs += " " + a;
   }

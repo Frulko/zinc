@@ -1122,7 +1122,7 @@ static bool appProgram(const ProjectInfo& p, const char* profile, const fs::path
 static bool playerProgram(const ProjectInfo& p, const fs::path& engine, const char* profile, const fs::path& unit, std::vector<std::string>& units, std::vector<std::string>& plugins) {
   std::error_code ec;
   fs::create_directories(unit.parent_path(), ec);
-  const std::string build = q(self()) + " --emit=hot " + q(fs::absolute(p.entry).string()) + " " + q(unit.string()) + " --profile " + profile;
+  const std::string build = "ZN_AOT_CPP_ONLY=1 " + q(self()) + " --emit=hot " + q(fs::absolute(p.entry).string()) + " " + q(unit.string()) + " --profile " + profile;
   if (status(std::system(build.c_str())) != 0) { std::fprintf(stderr, "zinc export: the build of the home screen failed\n"); return false; }
   std::vector<std::string> problems;
   for (const auto& f : zn::frontend::discoverPlugins(engine.parent_path().string(), p.dir, problems)) {
