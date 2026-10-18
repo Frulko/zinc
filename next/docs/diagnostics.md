@@ -405,7 +405,7 @@ import 'zinc:ffi';
 
 ## Z5006: A system module needs a permission
 
-The modules zinc:system/<feature> (notification, menu, tray, dialog, window, shortcut, instance, deeplink, autostart, dock, power, clipboard, opener) are denied unless zinc.json lists the permission "<feature>" (or "<feature>:<operation>"); a project without "permissions" can use none.
+The modules zinc:system/<feature> (notification, menu, tray, dialog, window, shortcut, instance, deeplink, autostart, dock, power, clipboard, opener) are denied unless zinc.json lists the permission "<feature>" (or "<feature>:<operation>"); a project without "permissions" can use none. The host features (net, fs, process, serial, camera, microphone, location) are checked at run time by their modules once zinc.json has "permissions": zinc:camera's devices() and open() fail naming "camera" in an exported app.
 
 Fix: Add the id to "permissions" in zinc.json.
 
