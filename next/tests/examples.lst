@@ -43,17 +43,21 @@ led/scroll-text/src/main.ts | OK |  |
 maps/explorer/src/main.tsx | OK |  | 
 maps/navigation/src/main.tsx | OK |  | 
 maps/svg-gallery/src/main.tsx | OK |  | 
+marble/src/main.ts | OK |  | 
 midi/src/main.ts | OK |  | 
 modules-showcase/src/main.tsx | OK |  | 
 museum-table/editor/main.tsx | OK |  | 
 museum-table/src/main.ts | OK |  | 
 music/src/main.ts | OK |  | 
 native-module/src/main.ts | OK |  | 
+notify-relay/main.tsx | OK |  | 
 nuxt-ui/src/main.tsx | OK |  | 
 osc/src/main.ts | OK |  | 
+perf-compare/zinc/src/main.tsx | OK |  | 
 pinball/src/main.ts | OK |  | 
 pinball3d-editor/src/main.tsx | OK |  | 
 pinball3d/src/main.ts | OK |  | 
+platformer/src/main.ts | OK |  | 
 pocket-hero/main.tsx | OK |  | 
 process/cli/main.ts | OK |  | 
 process/shell/main.tsx | OK |  | 
@@ -95,3 +99,4 @@ webrtc-chat/src/main.tsx | OK |  |
 webview/hybrid/main.tsx | OK |  | 
 zed-editor/sample/src/main.ts | OK |  | 
 zed-editor/src/main.tsx | OK |  | 
+zinc-go/src/main.tsx | OK |  | 
