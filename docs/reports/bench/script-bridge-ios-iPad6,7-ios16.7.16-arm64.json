@@ -1,0 +1,153 @@
+{
+  "date": "2026-10-18",
+  "label": "ios-iPad6,7-ios16.7.16-arm64",
+  "machine": "iPad Pro 12.9-inch 1st gen (iPad6,7, A9X) iPadOS 16.7.16, arm64, Release AOT (app id dev.zinc.rn-showcase)",
+  "meta": "engine=quickjs sink=450090378",
+  "load_before": "3.81 7.15 8.08",
+  "cases": {
+    "ref_zinc_loop": {
+      "median_ms": 54.129,
+      "min_ms": 47.686,
+      "max_ms": 56.75,
+      "units": 2000000,
+      "unit": "iter",
+      "us_per_unit": 0.0270645
+    },
+    "ref_js_loop": {
+      "median_ms": 13.778,
+      "min_ms": 13.33,
+      "max_ms": 15.31,
+      "units": 200000,
+      "unit": "iter",
+      "us_per_unit": 0.06889
+    },
+    "host_to_script_scalar": {
+      "median_ms": 53.017,
+      "min_ms": 48.564,
+      "max_ms": 54.995,
+      "units": 20000,
+      "unit": "call",
+      "us_per_unit": 2.65085
+    },
+    "script_to_host_scalar": {
+      "median_ms": 287.632,
+      "min_ms": 285.587,
+      "max_ms": 296.899,
+      "units": 200000,
+      "unit": "call",
+      "us_per_unit": 1.43816
+    },
+    "host_to_script_string": {
+      "median_ms": 53.649,
+      "min_ms": 53.49,
+      "max_ms": 59.456,
+      "units": 20000,
+      "unit": "call",
+      "us_per_unit": 2.68245
+    },
+    "script_to_host_string": {
+      "median_ms": 36.633,
+      "min_ms": 35.966,
+      "max_ms": 37.702,
+      "units": 20000,
+      "unit": "call",
+      "us_per_unit": 1.83165
+    },
+    "host_to_script_object": {
+      "median_ms": 172.401,
+      "min_ms": 171.431,
+      "max_ms": 173.682,
+      "units": 20000,
+      "unit": "call",
+      "us_per_unit": 8.62005
+    },
+    "fast_host_to_script": {
+      "median_ms": 6.248,
+      "min_ms": 6.204,
+      "max_ms": 6.263,
+      "units": 20000,
+      "unit": "call",
+      "us_per_unit": 0.3124
+    },
+    "fast_script_to_host": {
+      "median_ms": 21.348,
+      "min_ms": 21.071,
+      "max_ms": 21.559,
+      "units": 200000,
+      "unit": "call",
+      "us_per_unit": 0.10674
+    },
+    "map_per_access": {
+      "median_ms": 10.949,
+      "min_ms": 10.723,
+      "max_ms": 10.987,
+      "units": 10000,
+      "unit": "cell",
+      "us_per_unit": 1.0949
+    },
+    "fast_map_per_access": {
+      "median_ms": 1.107,
+      "min_ms": 1.101,
+      "max_ms": 1.114,
+      "units": 10000,
+      "unit": "cell",
+      "us_per_unit": 0.1107
+    },
+    "map_snapshot_dyn": {
+      "median_ms": 3.076,
+      "min_ms": 3.069,
+      "max_ms": 3.094,
+      "units": 10000,
+      "unit": "cell",
+      "us_per_unit": 0.3076
+    },
+    "map_snapshot_json": {
+      "median_ms": 4.161,
+      "min_ms": 4.097,
+      "max_ms": 4.623,
+      "units": 10000,
+      "unit": "cell",
+      "us_per_unit": 0.4161
+    },
+    "map_set_once": {
+      "median_ms": 2.35,
+      "min_ms": 2.32,
+      "max_ms": 2.55,
+      "units": 10000,
+      "unit": "cell",
+      "us_per_unit": 0.235
+    },
+    "map_read_after_set": {
+      "median_ms": 0.653,
+      "min_ms": 0.649,
+      "max_ms": 0.653,
+      "units": 10000,
+      "unit": "cell",
+      "us_per_unit": 0.0653
+    },
+    "ops_per_call": {
+      "median_ms": 6.815,
+      "min_ms": 6.755,
+      "max_ms": 6.912,
+      "units": 5000,
+      "unit": "op",
+      "us_per_unit": 1.363
+    },
+    "fast_ops_per_call": {
+      "median_ms": 0.562,
+      "min_ms": 0.561,
+      "max_ms": 0.572,
+      "units": 5000,
+      "unit": "op",
+      "us_per_unit": 0.1124
+    },
+    "ops_batched_array": {
+      "median_ms": 5.168,
+      "min_ms": 5.116,
+      "max_ms": 5.494,
+      "units": 5000,
+      "unit": "op",
+      "us_per_unit": 1.0336
+    }
+  }
+}

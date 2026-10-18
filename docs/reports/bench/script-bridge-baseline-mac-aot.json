@@ -1,0 +1,121 @@
+{
+  "date": "2026-10-18",
+  "label": "mac-aot",
+  "machine": "macOS-15.7.4-arm64-arm-64bit arm",
+  "meta": "engine=quickjs sink=300060378",
+  "load_before": "5.83 5.66 9.58",
+  "cases": {
+    "ref_zinc_loop": {
+      "median_ms": 28.262,
+      "min_ms": 28.145,
+      "max_ms": 28.729,
+      "units": 2000000,
+      "unit": "iter",
+      "us_per_unit": 0.014131
+    },
+    "ref_js_loop": {
+      "median_ms": 8.271,
+      "min_ms": 8.136,
+      "max_ms": 8.527,
+      "units": 200000,
+      "unit": "iter",
+      "us_per_unit": 0.041355
+    },
+    "host_to_script_scalar": {
+      "median_ms": 21.384,
+      "min_ms": 21.127,
+      "max_ms": 21.74,
+      "units": 20000,
+      "unit": "call",
+      "us_per_unit": 1.0692
+    },
+    "script_to_host_scalar": {
+      "median_ms": 204.108,
+      "min_ms": 202.452,
+      "max_ms": 210.205,
+      "units": 200000,
+      "unit": "call",
+      "us_per_unit": 1.02054
+    },
+    "host_to_script_string": {
+      "median_ms": 24.715,
+      "min_ms": 24.015,
+      "max_ms": 25.156,
+      "units": 20000,
+      "unit": "call",
+      "us_per_unit": 1.23575
+    },
+    "script_to_host_string": {
+      "median_ms": 21.152,
+      "min_ms": 20.713,
+      "max_ms": 21.25,
+      "units": 20000,
+      "unit": "call",
+      "us_per_unit": 1.0576
+    },
+    "host_to_script_object": {
+      "median_ms": 47.626,
+      "min_ms": 46.498,
+      "max_ms": 48.194,
+      "units": 20000,
+      "unit": "call",
+      "us_per_unit": 2.3813
+    },
+    "map_per_access": {
+      "median_ms": 8.319,
+      "min_ms": 8.133,
+      "max_ms": 8.397,
+      "units": 10000,
+      "unit": "cell",
+      "us_per_unit": 0.8319
+    },
+    "map_snapshot_dyn": {
+      "median_ms": 1.262,
+      "min_ms": 1.242,
+      "max_ms": 1.323,
+      "units": 10000,
+      "unit": "cell",
+      "us_per_unit": 0.1262
+    },
+    "map_snapshot_json": {
+      "median_ms": 1.637,
+      "min_ms": 1.629,
+      "max_ms": 1.725,
+      "units": 10000,
+      "unit": "cell",
+      "us_per_unit": 0.1637
+    },
+    "map_set_once": {
+      "median_ms": 0.908,
+      "min_ms": 0.888,
+      "max_ms": 0.991,
+      "units": 10000,
+      "unit": "cell",
+      "us_per_unit": 0.0908
+    },
+    "map_read_after_set": {
+      "median_ms": 0.385,
+      "min_ms": 0.381,
+      "max_ms": 0.435,
+      "units": 10000,
+      "unit": "cell",
+      "us_per_unit": 0.0385
+    },
+    "ops_per_call": {
+      "median_ms": 5.577,
+      "min_ms": 5.393,
+      "max_ms": 5.787,
+      "units": 5000,
+      "unit": "op",
+      "us_per_unit": 1.1154
+    },
+    "ops_batched_array": {
+      "median_ms": 2.25,
+      "min_ms": 2.208,
+      "max_ms": 2.265,
+      "units": 5000,
+      "unit": "op",
+      "us_per_unit": 0.45
+    }
+  }
+}

@@ -1,0 +1,121 @@
+{
+  "date": "2026-10-18",
+  "label": "android-Nexus_7-api25-armeabi-v7a",
+  "machine": "Nexus 7 Android API 25 armeabi-v7a",
+  "meta": "engine=quickjs sink=300060378",
+  "load_before": "4.07 7.79 9.35",
+  "cases": {
+    "ref_zinc_loop": {
+      "median_ms": 130.302,
+      "min_ms": 129.753,
+      "max_ms": 160.683,
+      "units": 2000000,
+      "unit": "iter",
+      "us_per_unit": 0.06515099999999999
+    },
+    "ref_js_loop": {
+      "median_ms": 141.065,
+      "min_ms": 140.782,
+      "max_ms": 277.457,
+      "units": 200000,
+      "unit": "iter",
+      "us_per_unit": 0.705325
+    },
+    "host_to_script_scalar": {
+      "median_ms": 1898.124,
+      "min_ms": 1741.719,
+      "max_ms": 1937.48,
+      "units": 20000,
+      "unit": "call",
+      "us_per_unit": 94.9062
+    },
+    "script_to_host_scalar": {
+      "median_ms": 12319.358,
+      "min_ms": 12059.33,
+      "max_ms": 12818.515,
+      "units": 200000,
+      "unit": "call",
+      "us_per_unit": 61.59679
+    },
+    "host_to_script_string": {
+      "median_ms": 1847.744,
+      "min_ms": 1611.891,
+      "max_ms": 2124.309,
+      "units": 20000,
+      "unit": "call",
+      "us_per_unit": 92.3872
+    },
+    "script_to_host_string": {
+      "median_ms": 1325.249,
+      "min_ms": 1246.273,
+      "max_ms": 1925.281,
+      "units": 20000,
+      "unit": "call",
+      "us_per_unit": 66.26245
+    },
+    "host_to_script_object": {
+      "median_ms": 3834.459,
+      "min_ms": 3691.23,
+      "max_ms": 4970.472,
+      "units": 20000,
+      "unit": "call",
+      "us_per_unit": 191.72295
+    },
+    "map_per_access": {
+      "median_ms": 475.762,
+      "min_ms": 462.478,
+      "max_ms": 492.572,
+      "units": 10000,
+      "unit": "cell",
+      "us_per_unit": 47.5762
+    },
+    "map_snapshot_dyn": {
+      "median_ms": 36.614,
+      "min_ms": 36.101,
+      "max_ms": 36.998,
+      "units": 10000,
+      "unit": "cell",
+      "us_per_unit": 3.6614
+    },
+    "map_snapshot_json": {
+      "median_ms": 80.405,
+      "min_ms": 80.198,
+      "max_ms": 81.288,
+      "units": 10000,
+      "unit": "cell",
+      "us_per_unit": 8.0405
+    },
+    "map_set_once": {
+      "median_ms": 31.11,
+      "min_ms": 30.698,
+      "max_ms": 35.653,
+      "units": 10000,
+      "unit": "cell",
+      "us_per_unit": 3.111
+    },
+    "map_read_after_set": {
+      "median_ms": 7.259,
+      "min_ms": 7.24,
+      "max_ms": 7.419,
+      "units": 10000,
+      "unit": "cell",
+      "us_per_unit": 0.7259
+    },
+    "ops_per_call": {
+      "median_ms": 306.671,
+      "min_ms": 305.672,
+      "max_ms": 318.71,
+      "units": 5000,
+      "unit": "op",
+      "us_per_unit": 61.3342
+    },
+    "ops_batched_array": {
+      "median_ms": 54.979,
+      "min_ms": 54.431,
+      "max_ms": 58.907,
+      "units": 5000,
+      "unit": "op",
+      "us_per_unit": 10.9958
+    }
+  }
+}

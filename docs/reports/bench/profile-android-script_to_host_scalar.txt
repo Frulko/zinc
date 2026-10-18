@@ -1,0 +1,30 @@
+profile of script_to_host_scalar on android, 8 s, 2026-10-18, load before: 6.35 6.99 6.06
+simpleperf (cpu-clock, 1000 Hz):
+simpleperf E 29207 29207 record_file_reader.cpp:36] failed to open record file '/data/local/tmp/zb.perf.data': No such file or directory
+strace -c, 6 s:
+strace: Process 29168 attached with 16 threads
+strace: Process 29168 detached
+strace: Process 29173 detached
+strace: Process 29174 detached
+strace: Process 29175 detached
+strace: Process 29176 detached
+strace: Process 29177 detached
+strace: Process 29178 detached
+strace: Process 29179 detached
+strace: Process 29180 detached
+strace: Process 29181 detached
+strace: Process 29183 detached
+strace: Process 29185 detached
+strace: Process 29187 detached
+strace: Process 29188 detached
+strace: Process 29189 detached
+strace: Process 29190 detached
+% time     seconds  usecs/call     calls    errors syscall
+------ ----------- ----------- --------- --------- ----------------
+ 77.56    0.420326        1334       315           ioctl
+ 20.30    0.110000       22000         5           epoll_pwait
+  1.85    0.010000         238        42         4 recvfrom
+  0.21    0.001116           0     23474           clock_gettime
+  0.09    0.000482           0     23020           madvise
+  0.00    0.000000           0         3           futex
+(app stopped; no iteration count: the loop was cut by force-stop)

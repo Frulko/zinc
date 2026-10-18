@@ -1,0 +1,36 @@
+profile of script_to_host_scalar on mac, 8 s, 2026-10-18, load before: 9.54 7.16 5.84
+BENCH_DONE
+Sort by top of stack, same collapsed (when >= 5):
+        ???  (in script_bridge_aot)  load address 0x104bb4000 + 0x3a338  [0x104bee338]        569
+        _platform_memmove  (in libsystem_platform.dylib)        279
+        _platform_memset  (in libsystem_platform.dylib)        176
+        _tlv_get_addr  (in libdyld.dylib)        139
+        fastParse64  (in libsystem_c.dylib)        129
+        ???  (in script_bridge_aot)  load address 0x104bb4000 + 0x7c4e4  [0x104c304e4]        128
+        ???  (in script_bridge_aot)  load address 0x104bb4000 + 0x3b6ae0  [0x104f6aae0]        112
+        strtod  (in libsystem_c.dylib)        75
+        ???  (in script_bridge_aot)  load address 0x104bb4000 + 0x7c620  [0x104c30620]        58
+        ???  (in script_bridge_aot)  load address 0x104bb4000 + 0x92134  [0x104c46134]        46
+        ???  (in script_bridge_aot)  load address 0x104bb4000 + 0x3b7a4c  [0x104f6ba4c]        42
+        _ffpp_strtoencf64_l  (in libsystem_c.dylib)        42
+        ???  (in script_bridge_aot)  load address 0x104bb4000 + 0x7c644  [0x104c30644]        40
+        ???  (in script_bridge_aot)  load address 0x104bb4000 + 0x11e4a0  [0x104cd24a0]        37
+        ???  (in script_bridge_aot)  load address 0x104bb4000 + 0x7c568  [0x104c30568]        36
+        DYLD-STUB$$memcpy  (in script_bridge_aot)        36
+        ???  (in script_bridge_aot)  load address 0x104bb4000 + 0x8bba8  [0x104c3fba8]        32
+        ???  (in script_bridge_aot)  load address 0x104bb4000 + 0x2c19c  [0x104be019c]        30
+        ???  (in script_bridge_aot)  load address 0x104bb4000 + 0x7c510  [0x104c30510]        30
+        ???  (in script_bridge_aot)  load address 0x104bb4000 + 0x7c5f0  [0x104c305f0]        30
+        localeconv_l  (in libsystem_c.dylib)        29
+        ???  (in script_bridge_aot)  load address 0x104bb4000 + 0x3a420  [0x104bee420]        28
+        ???  (in script_bridge_aot)  load address 0x104bb4000 + 0x7c524  [0x104c30524]        28
+        ???  (in script_bridge_aot)  load address 0x104bb4000 + 0x7c578  [0x104c30578]        28
+        ???  (in script_bridge_aot)  load address 0x104bb4000 + 0x2e2b8  [0x104be22b8]        25
+        ???  (in script_bridge_aot)  load address 0x104bb4000 + 0x47334  [0x104bfb334]        24
+        ???  (in script_bridge_aot)  load address 0x104bb4000 + 0x7c5d4  [0x104c305d4]        24
+        ???  (in script_bridge_aot)  load address 0x104bb4000 + 0x2b9b8  [0x104bdf9b8]        23
+        ???  (in script_bridge_aot)  load address 0x104bb4000 + 0x85da8  [0x104c39da8]        23
+        ???  (in script_bridge_aot)  load address 0x104bb4000 + 0x7c480  [0x104c30480]        22
+        ???  (in script_bridge_aot)  load address 0x104bb4000 + 0x7c474  [0x104c30474]        20
+        ???  (in script_bridge_aot)  load address 0x104bb4000 + 0x85b7c  [0x104c39b7c]        20
+        ???  (in script_bridge_aot)  load address 0x104bb4000 + 0x3b6acc  [0x104f6aacc]        19

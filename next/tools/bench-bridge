@@ -1,0 +1,318 @@
+#!/usr/bin/env python3
+"""Runs tests/bench/script_bridge (the cost of crossing the zinc:script boundary) on a target and writes a JSON artifact.
+
+usage: tools/bench-bridge mac|android|webos [--no-build]
+       tools/bench-bridge profile mac|android|webos CASE [SECS] [--no-build]   (one case in a loop, a profiler attached; default 10 s)
+       tools/bench-bridge ios --app-id ID [--no-build]    an iPhone or iPad over USB without CoreDevice (iOS 16 and earlier too): see below
+       tools/bench-bridge floor mac|android|webos        (the floor: the same cases in C against QuickJS with direct value conversion, no JSON;
+                                                          what the boundary costs when it is done right; tests/bench/script_bridge/floor/floor.c)
+       tools/bench-bridge ingest LABEL MACHINE LOGFILE            (a log that holds BENCH lines, saved as an artifact)
+       tools/bench-bridge show FILE [FILE ...]     (a table: microseconds per unit, one column per file)
+
+mac      the interpreter (`zinc run`) and the AOT program (`zinc build`), headless.
+webos    `zinc build --target armv7-webos`, copied to the TouchPad (novacom), run there as root, stdout read back. Needs the sysroot
+         (tools/webos-sysroot, once) and `novacom -l` listing the tablet. Leaves /tmp/script_bridge on the tablet's RAM disk.
+android  `zinc export --target android`, Gradle (armeabi-v7a), install and start over adb, results read from logcat.
+         Needs one device on adb, ANDROID_HOME, the NDK. Stops the app afterwards.
+ios      builds the bench with the bundle id ID (which MUST be an app of yours already on the device whose Xcode-managed profile contains the device:
+         it is REPLACED on the device, its data kept; no id is assumed), signed with that profile by automatic signing without -allowProvisioningUpdates
+         (no contact with Apple), installs it with pymobiledevice3, launches it by DVT and reads the BENCH lines from the device's os_log (`syslog live`).
+         Needs: Xcode, `pip install pymobiledevice3` (ZINC_PYMD3 = its path, default `pymobiledevice3`), one device (ZINC_IOS_UDID else the only one), ZINC_IOS_TEAM,
+         the device in Developer Mode, unlocked, with the developer disk image mounted. Work dir: ~/.zinc/cache/bench-ios (the first configure takes 4 minutes).
+profile  runs only CASE (an id of the table) for SECS seconds (ZB_CASE, ZB_SECS) and attaches what the target has: `sample` on the Mac,
+         `simpleperf` (cpu-clock; needs root: su) and `strace -c` on the Nexus 7, `strace -c` on the TouchPad (no perf there). Prints the top of each report
+         and the system calls per iteration. Output is also written to docs/reports/bench/profile-<target>-<case>.txt.
+Artifacts go to docs/reports/bench/script-bridge-<label>.json: every case with median, min, max, units, and the machine.
+Method and the reading of the numbers: docs/reports/zinc-next-perf.md ("zinc:script boundary").
+"""
+import glob, json, os, platform, shutil, re, subprocess, sys, time, datetime
+
+here = os.path.dirname(os.path.abspath(__file__))
+nxt = os.path.dirname(here)
+repo = os.path.dirname(nxt)
+zinc = os.environ.get("ZINC", os.path.join(nxt, "build", "zinc"))
+proj = os.path.join(nxt, "tests", "bench", "script_bridge")
+outdir = os.path.join(repo, "docs", "reports", "bench")
+env = dict(os.environ, ZINC_HEADLESS="1", ZINC_BACKGROUND="1")
+
+def parse(text):
+    cases, meta = {}, ""
+    for line in text.splitlines():
+        m = re.search(r"BENCH (\w+) ([\d.]+) ([\d.]+) ([\d.]+) (\d+) (\w+)", line)
+        if m and not line.rstrip().endswith("BENCH_DONE"):
+            n, med, mn, mx, units, unit = m.groups()
+            cases[n] = {"median_ms": float(med), "min_ms": float(mn), "max_ms": float(mx), "units": int(units), "unit": unit,
+                        "us_per_unit": float(med) * 1000 / int(units)}
+        m = re.search(r"BENCH_META (.*)", line)
+        if m: meta = m.group(1)
+    return cases, meta, "BENCH_DONE" in text
+
+def sh(cmd, **kw):
+    return subprocess.run(cmd, shell=isinstance(cmd, str), capture_output=True, text=True, **kw)
+
+def load():
+    return sh("uptime").stdout.strip().split("load averages:")[-1].strip()
+
+def save(label, cases, meta, machine):
+    os.makedirs(outdir, exist_ok=True)
+    path = os.path.join(outdir, f"script-bridge-{label}.json")
+    doc = {"date": datetime.date.today().isoformat(), "label": label, "machine": machine, "meta": meta,
+           "load_before": load(), "cases": cases}
+    json.dump(doc, open(path, "w"), indent=2)
+    print(f"wrote {path}")
+    return path
+
+def mac(no_build):
+    machine = f"{platform.platform()} {platform.processor() or platform.machine()}"
+    out = {}
+    r = sh([zinc, "run", proj], env=env, timeout=900)
+    c, m, ok = parse(r.stdout + r.stderr)
+    if not ok: sys.exit("interpreter run did not finish:\n" + (r.stdout + r.stderr)[-1500:])
+    out["mac-interp"] = (c, m)
+    exe = "/tmp/script_bridge_aot"
+    if not no_build:
+        r = sh([zinc, "build", proj, "-o", exe], env=env, timeout=900)
+        if r.returncode: sys.exit("aot build failed:\n" + (r.stdout + r.stderr)[-1500:])
+    r = sh([exe], env=env, timeout=900)
+    c, m, ok = parse(r.stdout + r.stderr)
+    if not ok: sys.exit("aot run did not finish:\n" + (r.stdout + r.stderr)[-1500:])
+    out["mac-aot"] = (c, m)
+    try: os.remove(exe)
+    except OSError: pass
+    for label, (c, m) in out.items(): save(label, c, m, machine)
+
+def android(no_build):
+    dev = sh("adb devices").stdout.split("\n")[1:]
+    dev = [l.split()[0] for l in dev if l.strip().endswith("device")]
+    if len(dev) != 1: sys.exit(f"need exactly one adb device, found {len(dev)}")
+    model = sh("adb shell getprop ro.product.model").stdout.strip()
+    abi = sh("adb shell getprop ro.product.cpu.abi").stdout.strip()
+    sdk = sh("adb shell getprop ro.build.version.sdk").stdout.strip()
+    dist = os.path.join(repo, "dist", "script_bridge-android")
+    apk = os.path.join(dist, "app/build/outputs/apk/debug/app-debug.apk")
+    if not no_build:
+        r = sh([zinc, "export", proj, "--target", "android", "-o", dist], env=env, timeout=900)
+        if r.returncode: sys.exit("export failed:\n" + (r.stdout + r.stderr)[-1500:])
+        jbr = "/Applications/Android Studio.app/Contents/jbr/Contents/Home"   # Gradle 8 needs a JDK 17 to 21 (docs/reports/zinc-next-android.md)
+        genv = dict(os.environ, JAVA_HOME=os.environ.get("ZINC_ANDROID_JDK", jbr))
+        r = sh(["./gradlew", "assembleDebug", "-Pzinc.abis=" + abi], cwd=dist, timeout=3000, env=genv)
+        if r.returncode: sys.exit("gradle failed:\n" + (r.stdout + r.stderr)[-2500:])
+    r = sh(["adb", "install", "-r", apk]); print(r.stdout.strip() or r.stderr.strip())
+    pkg = "dev.zinc.bench.scriptbridge"
+    sh(["adb", "logcat", "-c"])
+    sh(["adb", "shell", "monkey", "-p", pkg, "-c", "android.intent.category.LAUNCHER", "1"])
+    text, t0 = "", time.time()
+    while time.time() - t0 < 900:
+        time.sleep(5)
+        text = sh(["adb", "logcat", "-d", "-s", "*:I"]).stdout
+        if "BENCH_DONE" in text: break
+    sh(["adb", "shell", "am", "force-stop", pkg])
+    c, m, ok = parse(text)
+    if not ok: sys.exit("no BENCH_DONE in logcat after 15 minutes; last lines:\n" + "\n".join(text.splitlines()[-15:]))
+    save(f"android-{model.replace(' ', '_')}-api{sdk}-{abi}", c, m, f"{model} Android API {sdk} {abi}")
+
+def webos(no_build):
+    if not sh("novacom -l").stdout.strip(): sys.exit("no webOS device on novacom")
+    exe = "/tmp/script_bridge_webos"
+    if not no_build:
+        r = sh([zinc, "build", "--target", "armv7-webos", proj, "-o", exe], env=dict(env, ZINC_DISPLAY="", ZINC_NATIVE="real"), timeout=1800)
+        if r.returncode: sys.exit("webos build failed:\n" + (r.stdout + r.stderr)[-1500:])
+    with open(exe, "rb") as f: r = subprocess.run(["novacom", "put", "file:///tmp/script_bridge"], stdin=f, capture_output=True)
+    if r.returncode: sys.exit("novacom put failed")
+    info = subprocess.run(["novacom", "run", "file://bin/sh"], input=b"chmod 755 /tmp/script_bridge; grep -m1 Processor /proc/cpuinfo; cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq\n", capture_output=True).stdout.decode()
+    r = subprocess.run(["novacom", "run", "file://bin/sh"], input=b"ZINC_HEADLESS=1 /tmp/script_bridge 2>&1\n", capture_output=True, timeout=3600)
+    text = r.stdout.decode(errors="replace")
+    c, m, ok = parse(text)
+    if not ok: sys.exit("no BENCH_DONE from the tablet; last lines:\n" + "\n".join(text.splitlines()[-15:]))
+    save("webos-touchpad-armv7", c, m, "HP TouchPad webOS 3.0.0 (" + " ".join(info.split()) + ")")
+    try: os.remove(exe)
+    except OSError: pass
+
+def ingest(label, machine, logfile):
+    c, m, ok = parse(open(logfile, errors="replace").read())
+    if not ok: sys.exit("no BENCH_DONE in " + logfile)
+    save(label, c, m, machine)
+
+def ios(app_id, no_build):
+    team = os.environ.get("ZINC_IOS_TEAM") or sys.exit("set ZINC_IOS_TEAM to your Apple team id")
+    pm = os.environ.get("ZINC_PYMD3", "pymobiledevice3")
+    udid = os.environ.get("ZINC_IOS_UDID", "")
+    ud = ["--udid", udid] if udid else []
+    work = os.path.expanduser(os.path.join(os.environ.get("ZINC_HOME", "~/.zinc"), "cache", "bench-ios"))
+    os.makedirs(work, exist_ok=True)
+    out = os.path.join(work, "out"); app = os.path.join(out, "build-device", "Release-iphoneos", "script_bridge.app")
+    if not no_build:
+        shutil.rmtree(os.path.join(work, "proj"), ignore_errors=True)
+        shutil.copytree(proj, os.path.join(work, "proj"), ignore=shutil.ignore_patterns("floor"))
+        zj = os.path.join(work, "proj", "zinc.json"); t = open(zj).read().replace("dev.zinc.bench.scriptbridge", app_id); open(zj, "w").write(t)
+        r = sh([zinc, "export", os.path.join(work, "proj"), "--target", "ios", "-o", out], env=env, timeout=900)
+        if r.returncode: sys.exit("export failed:\n" + (r.stdout + r.stderr)[-1500:])
+        if not os.path.isdir(os.path.join(out, "build-device")):
+            r = sh(["cmake", "-S", out, "-B", os.path.join(out, "build-device"), "-G", "Xcode", "-DCMAKE_SYSTEM_NAME=iOS", "-DZINC_TEAM=" + team], timeout=1800)
+            if r.returncode: sys.exit("cmake failed:\n" + (r.stdout + r.stderr)[-1500:])
+        r = sh(["xcodebuild", "-quiet", "-project", os.path.join(out, "build-device", "script_bridge.xcodeproj"), "-scheme", "script_bridge", "-configuration", "Release", "-sdk", "iphoneos",
+                "-derivedDataPath", os.path.join(out, "build-device", "dd"), "CODE_SIGN_STYLE=Automatic", "PROVISIONING_PROFILE_SPECIFIER=", "DEVELOPMENT_TEAM=" + team,
+                "CODE_SIGN_IDENTITY=Apple Development", "build"], timeout=3600)
+        if r.returncode or not os.path.isdir(app): sys.exit("xcodebuild failed (is there an Xcode-managed profile for %s that lists the device?):\n" % app_id + (r.stdout + r.stderr)[-2000:])
+    info = sh([pm, "lockdown", "info"] + ud).stdout
+    try: li = json.loads(info[info.index("{"):])
+    except ValueError: sys.exit("pymobiledevice3 sees no paired device:\n" + info[-500:])
+    model, osv = li.get("ProductType", "ios"), li.get("ProductVersion", "")
+    r = sh([pm, "apps", "install", app] + ud, timeout=600)
+    if "Installation succeed" not in r.stdout + r.stderr: sys.exit("install failed:\n" + (r.stdout + r.stderr)[-1200:])
+    log = os.path.join(work, "syslog.txt")
+    with open(log, "w") as lf: sl = subprocess.Popen([pm, "syslog", "live"] + ud, stdout=lf, stderr=subprocess.STDOUT)
+    time.sleep(5)
+    r = sh([pm, "developer", "dvt", "launch", app_id, "--kill-existing"] + ud, timeout=120)
+    text = ""
+    for _ in range(180):
+        time.sleep(2)
+        text = open(log, errors="replace").read()
+        if "BENCH_DONE" in text: break
+    sl.terminate()
+    c, m, ok = parse(text)
+    if not ok: sys.exit("no BENCH_DONE in the device log (is the screen unlocked?). Launch: " + (r.stdout + r.stderr)[-300:])
+    save(f"ios-{model}-ios{osv}-arm64", c, m, f"{model} iOS {osv} arm64 (app id {app_id})")
+
+def top(text, marker, n=28):
+    ls = text.splitlines()
+    for i, l in enumerate(ls):
+        if marker in l: return "\n".join(ls[i:i + n])
+    return "(no '%s' in the report)" % marker
+
+def save_profile(target, case, text):
+    os.makedirs(outdir, exist_ok=True)
+    path = os.path.join(outdir, f"profile-{target}-{case}.txt")
+    open(path, "w").write(text)
+    print(text); print(f"wrote {path}")
+
+def profile(target, case, secs, no_build):
+    out = [f"profile of {case} on {target}, {secs} s, {datetime.date.today().isoformat()}, load before: {load()}"]
+    if target == "mac":
+        exe = "/tmp/script_bridge_aot"
+        if not no_build:
+            r = sh([zinc, "build", proj, "-o", exe], env=env, timeout=900)
+            if r.returncode: sys.exit("aot build failed:\n" + (r.stdout + r.stderr)[-1500:])
+        p = subprocess.Popen([exe], env=dict(env, ZB_CASE=case, ZB_SECS=str(secs + 4)), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        time.sleep(2)
+        r = sh(["sample", str(p.pid), str(secs), "-f", "/tmp/script_bridge.sample"], timeout=secs + 120)
+        res = p.communicate(timeout=300)[0]
+        rep = open("/tmp/script_bridge.sample", errors="replace").read()
+        out += [res.strip().splitlines()[-1] if res.strip() else "", top(rep, "Sort by top of stack", 34)]
+        for f in (exe, "/tmp/script_bridge.sample"):
+            try: os.remove(f)
+            except OSError: pass
+    elif target == "android":
+        pkg = "dev.zinc.bench.scriptbridge"
+        sh(["adb", "shell", "am", "force-stop", pkg]); sh(["adb", "logcat", "-c"])
+        r = sh(["adb", "shell", "am", "start", "-n", pkg + "/.ScriptbridgeActivity", "--es", "zinc.env", f"ZB_CASE={case} ZB_SECS={secs + 12}"])
+        time.sleep(4)
+        pid = sh(["adb", "shell", "pidof", pkg]).stdout.strip().split()[0] if sh(["adb", "shell", "pidof", pkg]).stdout.strip() else ""
+        if not pid: sys.exit("the app did not start (is the debug APK installed? run `tools/bench-bridge android` once):\n" + r.stdout + r.stderr)
+        sh(["adb", "shell", "su", "-c", f"simpleperf record -e cpu-clock -f 1000 -p {pid} --duration {secs} -o /data/local/tmp/zb.perf.data"], timeout=secs + 60)
+        rep = sh(["adb", "shell", "su", "-c", "simpleperf report -i /data/local/tmp/zb.perf.data --sort dso,symbol 2>&1 | head -60"]).stdout
+        out += ["simpleperf (cpu-clock, 1000 Hz):", rep.strip()]
+        st = sh(["adb", "shell", "su", "-c", f"timeout -s INT 6 strace -c -f -p {pid} 2>&1 | head -25"], timeout=60).stdout
+        out += ["strace -c, 6 s:", st.strip()]
+        text = sh(["adb", "logcat", "-d", "-s", "*:I"]).stdout
+        m = re.search(r"BENCH_PROFILE_START", text)
+        sh(["adb", "shell", "am", "force-stop", pkg]); sh(["adb", "shell", "rm", "-f", "/data/local/tmp/zb.perf.data"])
+        out.append("(app stopped; no iteration count: the loop was cut by force-stop)")
+    elif target == "webos":
+        if not sh("novacom -l").stdout.strip(): sys.exit("no webOS device on novacom")
+        exe = "/tmp/script_bridge_webos"
+        if not no_build:
+            r = sh([zinc, "build", "--target", "armv7-webos", proj, "-o", exe], env=dict(env, ZINC_DISPLAY="", ZINC_NATIVE="real"), timeout=1800)
+            if r.returncode: sys.exit("webos build failed:\n" + (r.stdout + r.stderr)[-1500:])
+        with open(exe, "rb") as f: subprocess.run(["novacom", "put", "file:///tmp/script_bridge"], stdin=f, capture_output=True, check=True)
+        script = f"""chmod 755 /tmp/script_bridge
+ZINC_HEADLESS=1 ZB_CASE={case} ZB_SECS={secs + 10} /tmp/script_bridge > /tmp/zb.out 2>&1 &
+PID=$!
+sleep 3
+strace -c -f -o /tmp/zb.strace -p $PID &
+SP=$!
+sleep {secs}
+kill -INT $SP
+sleep 2
+wait $PID
+cat /tmp/zb.strace | head -25
+echo ----
+cat /tmp/zb.out
+rm -f /tmp/zb.strace /tmp/zb.out /tmp/script_bridge
+"""
+        res = subprocess.run(["novacom", "run", "file://bin/sh"], input=script.encode(), capture_output=True, timeout=secs + 300).stdout.decode(errors="replace")
+        out += ["strace -c -f (system calls over the sampled seconds):", res.strip()]
+        try: os.remove(exe)
+        except OSError: pass
+    else: sys.exit("unknown target " + target)
+    save_profile(target, case, "\n".join(out) + "\n")
+
+def floor(target):
+    src = os.path.join(proj, "floor", "floor.c"); q = os.path.join(nxt, "third_party", "quickjs-ng")
+    files = [src] + [os.path.join(q, f) for f in ("quickjs.c", "dtoa.c", "libregexp.c", "libunicode.c")]
+    flags = ["-O2", "-w", "-DQUICKJS_NG_BUILD", "-I", q]
+    exe = "/tmp/zb_floor_" + target
+    if target == "mac":
+        r = sh(["clang"] + flags + files + ["-lm", "-lpthread", "-o", exe]); machine = platform.platform()
+        run = lambda: sh([exe], timeout=900).stdout
+    elif target == "android":
+        ndk = os.path.expanduser("~/Library/Android/sdk/ndk/29.0.14206865/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang")
+        r = sh([ndk, "--target=armv7-none-linux-androideabi24", "-mfpu=neon"] + flags + files + ["-lm", "-o", exe])
+        machine = sh("adb shell getprop ro.product.model").stdout.strip() + " Android armeabi-v7a"
+        def run():
+            sh(["adb", "push", exe, "/data/local/tmp/zb_floor"]); out = sh("adb shell 'chmod 755 /data/local/tmp/zb_floor && /data/local/tmp/zb_floor; rm -f /data/local/tmp/zb_floor'", timeout=900).stdout
+            return out
+    elif target == "webos":
+        zig = sorted(glob.glob(os.path.expanduser("~/.zinc/toolchains/zig-*/zig")))[0]
+        r = sh([zig, "cc", "-target", "arm-linux-gnueabi.2.8", "-mcpu=cortex_a8+neon", "-mfloat-abi=softfp", "-Xclang", "-target-feature", "-Xclang", "+vfp2"] + flags + files + ["-lm", "-lpthread", "-ldl", "-o", exe])
+        machine = "HP TouchPad webOS armv7"
+        def run():
+            with open(exe, "rb") as f: subprocess.run(["novacom", "put", "file:///tmp/zb_floor"], stdin=f, capture_output=True, check=True)
+            return subprocess.run(["novacom", "run", "file://bin/sh"], input=b"chmod 755 /tmp/zb_floor; /tmp/zb_floor 2>&1; rm -f /tmp/zb_floor\n", capture_output=True, timeout=900).stdout.decode(errors="replace")
+    else: sys.exit("unknown target " + target)
+    if r.returncode: sys.exit("floor build failed:\n" + (r.stderr or r.stdout)[-1500:])
+    text = run()
+    cases = {}
+    for m in re.finditer(r"FLOOR (\w+)\s+median\s+([\d.]+) ms\s+([\d.]+) us/unit\s+\(min ([\d.]+) max ([\d.]+)\)", text):
+        n, med, us, mn, mx = m.groups()
+        cases[n] = {"median_ms": float(med), "min_ms": float(mn), "max_ms": float(mx), "us_per_unit": float(us), "units": 0, "unit": ""}
+    if not cases: sys.exit("no FLOOR lines:\n" + text[-800:])
+    save("floor-" + target, cases, "direct conversion, no JSON", machine)
+    try: os.remove(exe)
+    except OSError: pass
+
+def show(files):
+    docs = [json.load(open(f)) for f in files]
+    names = sorted({n for d in docs for n in d["cases"]}, key=lambda n: list(docs[0]["cases"]).index(n) if n in docs[0]["cases"] else 99)
+    print(f'{"case":28}' + "".join(f'{d["label"][:22]:>24}' for d in docs) + "   (microseconds per unit)")
+    for n in names:
+        print(f"{n:28}" + "".join(f'{d["cases"][n]["us_per_unit"]:24.3f}' if n in d["cases"] else f'{"-":>24}' for d in docs))
+    print("\nratios to the reference JavaScript iteration (crossing cost in script iterations):")
+    for n in names:
+        row = ""
+        for d in docs:
+            ref = d["cases"].get("ref_js_loop", {}).get("us_per_unit")
+            row += f'{d["cases"][n]["us_per_unit"] / ref:24.1f}' if ref and n in d["cases"] and not n.startswith("ref_") else f'{"-":>24}'
+        print(f"{n:28}{row}")
+    print("\nframe budget at 60 Hz (16.7 ms): what 1 ms buys")
+    for d in docs:
+        c = d["cases"]
+        if "script_to_host_scalar" in c and "ops_batched_array" in c:
+            print(f'  {d["label"]:40} per-call crossings/ms: {1000 / c["script_to_host_scalar"]["us_per_unit"]:8.0f}   batched ops/ms: {1000 / c["ops_batched_array"]["us_per_unit"]:8.0f}')
+
+if __name__ == "__main__":
+    a = sys.argv[1:]
+    if not a or a[0] in ("-h", "--help"): print(__doc__); sys.exit(0)
+    if a[0] == "show": show(a[1:])
+    elif a[0] == "mac": mac("--no-build" in a)
+    elif a[0] == "android": android("--no-build" in a)
+    elif a[0] == "webos": webos("--no-build" in a)
+    elif a[0] == "ingest": ingest(a[1], a[2], a[3])
+    elif a[0] == "floor": floor(a[1])
+    elif a[0] == "ios":
+        if "--app-id" not in a: sys.exit("ios needs --app-id <bundle id of an app already on the device>: that app is replaced")
+        ios(a[a.index("--app-id") + 1], "--no-build" in a)
+    elif a[0] == "profile":
+        rest = [x for x in a[3:] if not x.startswith("--")]
+        profile(a[1], a[2], int(rest[0]) if rest else 10, "--no-build" in a)
+    else: sys.exit("unknown target " + a[0])

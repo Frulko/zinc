@@ -1,0 +1,6 @@
+{
+  "name": "script_bridge",
+  "entry": "src/main.ts",
+  "app": { "name": "Script bridge bench", "id": "dev.zinc.bench.scriptbridge", "version": "1.0.0" },
+  "requires": ["display"]
+}

@@ -855,3 +855,51 @@ Emulators only; no number from real hardware yet.
 Real hardware (ZINC_PROFILE through ux0:data/ZINC00011/zinc.log, 7 windows of 600 frames): 60 fps, no missed vblank in 4,200 frames,
 frame p50 16.68 ms (max 17.9), work p50 3.2-3.7 ms (max 8.8), GXM replay CPU p50 0.3-0.44 ms, about 12.5 ms waiting for the vblank. The
 software path at 960x544 costs 28 ms a frame in Vita3K on the Mac's clock (30 fps); its hardware number is pending one measuring launch.
+
+## 2026-10-18: the zinc:script boundary on four machines (`next/tools/bench-bridge`, `next/tests/bench/script_bridge`)
+
+What it measures: the cost of crossing between typed Zinc and QuickJS through `zinc:script` (values cross as Dyn), by traffic shape, with a typed
+Zinc loop and a JavaScript loop as references. One warm-up run and 5 timed runs per case, median; artifacts in `docs/reports/bench/script-bridge-*.json`
+(`tools/bench-bridge show` prints them side by side). Run with `tools/bench-bridge mac|android|webos`.
+Microseconds per unit, medians. The Mac was not quiet (load average 4 to 7 from other sessions; spread under 3%); Android and webOS ran on the device alone.
+
+| Case | Mac x86_64 AOT | Nexus 7 (Tegra 3, API 25, AOT) | TouchPad (webOS, AOT) |
+|---|---|---|---|
+| ref: typed Zinc loop | 0.014 | 0.065 | 0.210 |
+| ref: JavaScript loop | 0.041 | 0.705 | 0.645 |
+| host -> script, scalar | 1.07 | 94.9 | 84.1 |
+| script -> host, scalar | 1.02 | 61.6 | 82.1 |
+| host -> script, 64-char string | 1.24 | 92.4 | 93.2 |
+| host -> script, small object | 2.38 | 191.7 | 181.8 |
+| 10k-cell map, one call per cell | 0.83 | 47.6 | 69.8 |
+| 10k-cell map, one Dyn snapshot | 0.126 | 3.66 | 6.00 |
+| 10k-cell map, JSON | 0.164 | 8.04 | 8.50 |
+| 5,000 UI ops, one call each | 1.12 | 61.3 | 100.2 |
+| 5,000 UI ops, one flat array | 0.45 | 11.0 | 17.8 |
+
+Reading: a crossing costs about 26 JavaScript iterations on the Mac and 87 to 145 on the two ARMv7 tablets: the JavaScript loop is 16 to 17 times slower there, the crossing 60 to 90 times, so
+the glue is the part that scales badly (not profiled yet). The typed Zinc loop is 4.6 times slower on the Nexus 7 but 15 times on the TouchPad, whose build uses cortex_a8 softfp flags. Grouping calls
+pays more on the tablets (x5.6 on both) than on the Mac (x2.5); a 10,000-value Dyn snapshot is 6.6 (Mac), 13 (Nexus 7) and 11.6 (TouchPad) times cheaper than one call per value; JSON and Dyn are within
+1.3 to 2.2 times of each other. At 60 Hz, 1 ms buys about 1,000 per-call crossings on the Mac, 16 on the Nexus 7, 12 on the TouchPad; batched mutations 2,200, 91 and 56. Not measured: typed arrays and host objects (the API has none), strings through objects, memory. iPad: not reachable (offline).
+Two engine gaps found and fixed on the way: `zinc:script` was not linked in cross builds (`--target armv7-webos`: undefined `zn_module_QuickJS`) nor in the exported Android project.
+
+Addendum, same day: the boundary written directly against QuickJS (no JSON text, `next/tests/bench/script_bridge/floor/floor.c`, `tools/bench-bridge floor`) costs 0.040 us (Mac), 0.72 us (Nexus 7) and
+1.07 us (TouchPad) per script -> host call, against 1.02, 61.6 and 82.1 us through `zinc:script`: 25, 86 and 77 times less. The "JSON and Dyn within 1.3 to 2.2 times" line above compares two
+paths that are both JSON text (D22) and says nothing about the format; the floor does. Where the time goes, what others do and the changes proposed: `docs/reports/script-boundary-optimisation.md`.
+
+### 2026-10-18, after the boundary changes (same bench, same machines; `docs/reports/bench/script-bridge-baseline-*.json` hold the before)
+
+Changes: plain values (number, string, boolean, null) cross by hand-written text instead of JSON.stringify with a replacer and JS_ParseJSON; `zinc:script/fast` (`exposeNum`, `callNum`) crosses numbers with no text.
+Microseconds per unit, medians; "floor" is `floor.c` (QuickJS C API, no JSON).
+
+| Case | Mac before | generic | fast | floor | Nexus 7 before | generic | fast | floor | TouchPad before | generic | fast | floor |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| script -> host call | 1.02 | 0.51 | 0.057 | 0.040 | 61.6 | 35.8 | 1.45 | 0.72 | 82.1 | 42.2 | 2.74 | 1.07 |
+| host -> script call | 1.07 | 0.93 | 0.142 | - | 94.9 | 74.5 | 2.64 | - | 84.1 | 62.1 | 5.07 | - |
+| script -> host, 20-char string | 1.06 | 0.61 | - | - | 66.3 | 43.1 | - | - | 77.8 | 46.9 | - | - |
+| 10k-cell map, a call per cell | 0.83 | 0.42 | 0.057 | 0.041 | 47.6 | 26.6 | 1.45 | 0.73 | 69.8 | 38.6 | 1.74 | 0.83 |
+| 5,000 UI ops, a call each | 1.12 | 0.51 | 0.057 | 0.040 | 61.3 | 37.3 | 1.34 | 0.78 | 100.2 | 37.8 | 1.97 | 0.85 |
+
+The fast path is 8 to 51 times faster than before and within 1.4 to 2.3 times of the floor (the rest is the Zinc side's callback entry and the `Entry` bookkeeping). The generic path is about 2 times
+faster for primitives. 5,000 UI mutations cost 6.7 ms on the Nexus 7 and 9.8 ms on the TouchPad through the fast path (307 and 501 ms before). Not changed: objects, arrays and
+the Zinc-side JSON of the generic path (`JSON.stringify` / `JSON.parse` on Dyn values), which is what the generic host -> script call still pays.

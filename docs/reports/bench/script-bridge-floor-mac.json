@@ -1,0 +1,81 @@
+{
+  "date": "2026-10-18",
+  "label": "floor-mac",
+  "machine": "macOS-15.7.4-arm64-arm-64bit",
+  "meta": "direct conversion, no JSON",
+  "load_before": "4.37 6.11 5.85",
+  "cases": {
+    "ref_js_loop": {
+      "median_ms": 6.428,
+      "min_ms": 6.019,
+      "max_ms": 7.022,
+      "us_per_unit": 0.0321,
+      "units": 0,
+      "unit": ""
+    },
+    "script_to_host_float": {
+      "median_ms": 8.022,
+      "min_ms": 7.731,
+      "max_ms": 8.325,
+      "us_per_unit": 0.0401,
+      "units": 0,
+      "unit": ""
+    },
+    "script_to_host_int32": {
+      "median_ms": 8.037,
+      "min_ms": 8.009,
+      "max_ms": 8.095,
+      "us_per_unit": 0.0402,
+      "units": 0,
+      "unit": ""
+    },
+    "map_per_access": {
+      "median_ms": 0.41,
+      "min_ms": 0.403,
+      "max_ms": 0.42,
+      "us_per_unit": 0.041,
+      "units": 0,
+      "unit": ""
+    },
+    "map_snapshot_direct_array": {
+      "median_ms": 0.31,
+      "min_ms": 0.295,
+      "max_ms": 0.364,
+      "us_per_unit": 0.031,
+      "units": 0,
+      "unit": ""
+    },
+    "map_shared_buffer_zero_copy": {
+      "median_ms": 0.419,
+      "min_ms": 0.418,
+      "max_ms": 0.433,
+      "us_per_unit": 0.0419,
+      "units": 0,
+      "unit": ""
+    },
+    "ops_per_call": {
+      "median_ms": 0.198,
+      "min_ms": 0.198,
+      "max_ms": 0.202,
+      "us_per_unit": 0.0396,
+      "units": 0,
+      "unit": ""
+    },
+    "ops_array_direct": {
+      "median_ms": 0.702,
+      "min_ms": 0.668,
+      "max_ms": 0.715,
+      "us_per_unit": 0.1404,
+      "units": 0,
+      "unit": ""
+    },
+    "ops_typed_array_zero_copy": {
+      "median_ms": 0.612,
+      "min_ms": 0.601,
+      "max_ms": 0.626,
+      "us_per_unit": 0.1224,
+      "units": 0,
+      "unit": ""
+    }
+  }
+}

@@ -1,0 +1,153 @@
+{
+  "date": "2026-10-18",
+  "label": "webos-touchpad-armv7",
+  "machine": "HP TouchPad webOS 3.0.0 (Processor : ARMv7 Processor rev 2 (v7l) 1188000)",
+  "meta": "engine=quickjs sink=450090378",
+  "load_before": "4.54 9.93 8.60",
+  "cases": {
+    "ref_zinc_loop": {
+      "median_ms": 434.277,
+      "min_ms": 415.834,
+      "max_ms": 467.616,
+      "units": 2000000,
+      "unit": "iter",
+      "us_per_unit": 0.2171385
+    },
+    "ref_js_loop": {
+      "median_ms": 96.943,
+      "min_ms": 85.18,
+      "max_ms": 107.505,
+      "units": 200000,
+      "unit": "iter",
+      "us_per_unit": 0.484715
+    },
+    "host_to_script_scalar": {
+      "median_ms": 1242.356,
+      "min_ms": 1121.146,
+      "max_ms": 1260.008,
+      "units": 20000,
+      "unit": "call",
+      "us_per_unit": 62.1178
+    },
+    "script_to_host_scalar": {
+      "median_ms": 8439.44,
+      "min_ms": 8200.832,
+      "max_ms": 9510.039,
+      "units": 200000,
+      "unit": "call",
+      "us_per_unit": 42.1972
+    },
+    "host_to_script_string": {
+      "median_ms": 1438.172,
+      "min_ms": 1226.831,
+      "max_ms": 1532.741,
+      "units": 20000,
+      "unit": "call",
+      "us_per_unit": 71.9086
+    },
+    "script_to_host_string": {
+      "median_ms": 937.741,
+      "min_ms": 863.414,
+      "max_ms": 1037.485,
+      "units": 20000,
+      "unit": "call",
+      "us_per_unit": 46.88705
+    },
+    "host_to_script_object": {
+      "median_ms": 3473.767,
+      "min_ms": 3001.093,
+      "max_ms": 3802.312,
+      "units": 20000,
+      "unit": "call",
+      "us_per_unit": 173.68835
+    },
+    "fast_host_to_script": {
+      "median_ms": 101.417,
+      "min_ms": 94.78,
+      "max_ms": 141.465,
+      "units": 20000,
+      "unit": "call",
+      "us_per_unit": 5.07085
+    },
+    "fast_script_to_host": {
+      "median_ms": 547.917,
+      "min_ms": 469.621,
+      "max_ms": 599.039,
+      "units": 200000,
+      "unit": "call",
+      "us_per_unit": 2.739585
+    },
+    "map_per_access": {
+      "median_ms": 386.163,
+      "min_ms": 347.908,
+      "max_ms": 431.883,
+      "units": 10000,
+      "unit": "cell",
+      "us_per_unit": 38.6163
+    },
+    "fast_map_per_access": {
+      "median_ms": 17.353,
+      "min_ms": 17.127,
+      "max_ms": 26.358,
+      "units": 10000,
+      "unit": "cell",
+      "us_per_unit": 1.7353
+    },
+    "map_snapshot_dyn": {
+      "median_ms": 35.167,
+      "min_ms": 32.561,
+      "max_ms": 48.616,
+      "units": 10000,
+      "unit": "cell",
+      "us_per_unit": 3.5167
+    },
+    "map_snapshot_json": {
+      "median_ms": 59.552,
+      "min_ms": 46.585,
+      "max_ms": 63.161,
+      "units": 10000,
+      "unit": "cell",
+      "us_per_unit": 5.9552
+    },
+    "map_set_once": {
+      "median_ms": 37.576,
+      "min_ms": 34.059,
+      "max_ms": 39.713,
+      "units": 10000,
+      "unit": "cell",
+      "us_per_unit": 3.7576
+    },
+    "map_read_after_set": {
+      "median_ms": 8.345,
+      "min_ms": 6.949,
+      "max_ms": 10.105,
+      "units": 10000,
+      "unit": "cell",
+      "us_per_unit": 0.8345
+    },
+    "ops_per_call": {
+      "median_ms": 188.926,
+      "min_ms": 180.602,
+      "max_ms": 189.958,
+      "units": 5000,
+      "unit": "op",
+      "us_per_unit": 37.7852
+    },
+    "fast_ops_per_call": {
+      "median_ms": 9.836,
+      "min_ms": 8.588,
+      "max_ms": 11.731,
+      "units": 5000,
+      "unit": "op",
+      "us_per_unit": 1.9672
+    },
+    "ops_batched_array": {
+      "median_ms": 68.128,
+      "min_ms": 66.19,
+      "max_ms": 72.863,
+      "units": 5000,
+      "unit": "op",
+      "us_per_unit": 13.6256
+    }
+  }
+}

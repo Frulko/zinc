@@ -1,0 +1,81 @@
+{
+  "date": "2026-10-18",
+  "label": "floor-android",
+  "machine": "Nexus 7 Android armeabi-v7a",
+  "meta": "direct conversion, no JSON",
+  "load_before": "5.47 6.28 5.92",
+  "cases": {
+    "ref_js_loop": {
+      "median_ms": 126.185,
+      "min_ms": 125.89,
+      "max_ms": 126.442,
+      "us_per_unit": 0.6309,
+      "units": 0,
+      "unit": ""
+    },
+    "script_to_host_float": {
+      "median_ms": 143.128,
+      "min_ms": 142.638,
+      "max_ms": 147.836,
+      "us_per_unit": 0.7156,
+      "units": 0,
+      "unit": ""
+    },
+    "script_to_host_int32": {
+      "median_ms": 152.942,
+      "min_ms": 152.677,
+      "max_ms": 153.214,
+      "us_per_unit": 0.7647,
+      "units": 0,
+      "unit": ""
+    },
+    "map_per_access": {
+      "median_ms": 7.281,
+      "min_ms": 7.189,
+      "max_ms": 8.401,
+      "us_per_unit": 0.7281,
+      "units": 0,
+      "unit": ""
+    },
+    "map_snapshot_direct_array": {
+      "median_ms": 6.456,
+      "min_ms": 6.347,
+      "max_ms": 6.813,
+      "us_per_unit": 0.6456,
+      "units": 0,
+      "unit": ""
+    },
+    "map_shared_buffer_zero_copy": {
+      "median_ms": 7.949,
+      "min_ms": 7.903,
+      "max_ms": 9.133,
+      "us_per_unit": 0.7949,
+      "units": 0,
+      "unit": ""
+    },
+    "ops_per_call": {
+      "median_ms": 3.892,
+      "min_ms": 3.868,
+      "max_ms": 4.002,
+      "us_per_unit": 0.7784,
+      "units": 0,
+      "unit": ""
+    },
+    "ops_array_direct": {
+      "median_ms": 11.167,
+      "min_ms": 10.95,
+      "max_ms": 11.439,
+      "us_per_unit": 2.2334,
+      "units": 0,
+      "unit": ""
+    },
+    "ops_typed_array_zero_copy": {
+      "median_ms": 9.961,
+      "min_ms": 9.793,
+      "max_ms": 10.175,
+      "us_per_unit": 1.9922,
+      "units": 0,
+      "unit": ""
+    }
+  }
+}

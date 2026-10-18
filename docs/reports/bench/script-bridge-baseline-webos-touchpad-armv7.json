@@ -1,0 +1,121 @@
+{
+  "date": "2026-10-18",
+  "label": "webos-touchpad-armv7",
+  "machine": "HP TouchPad webOS 3.0.0, ARMv7 rev 2 (v7l), 1.19 GHz at idle (governor ondemandtcl), 919 MB; built armv7-webos (glibc 2.8, softfp, cortex_a8+neon flags)",
+  "meta": "engine=quickjs sink=300060378",
+  "load_before": "7.63 8.27 9.71",
+  "cases": {
+    "ref_zinc_loop": {
+      "median_ms": 420.82,
+      "min_ms": 412.824,
+      "max_ms": 436.517,
+      "units": 2000000,
+      "unit": "iter",
+      "us_per_unit": 0.21041
+    },
+    "ref_js_loop": {
+      "median_ms": 129.096,
+      "min_ms": 123.593,
+      "max_ms": 171.463,
+      "units": 200000,
+      "unit": "iter",
+      "us_per_unit": 0.64548
+    },
+    "host_to_script_scalar": {
+      "median_ms": 1682.797,
+      "min_ms": 1652.08,
+      "max_ms": 1816.9,
+      "units": 20000,
+      "unit": "call",
+      "us_per_unit": 84.13985
+    },
+    "script_to_host_scalar": {
+      "median_ms": 16413.233,
+      "min_ms": 16324.834,
+      "max_ms": 16868.727,
+      "units": 200000,
+      "unit": "call",
+      "us_per_unit": 82.066165
+    },
+    "host_to_script_string": {
+      "median_ms": 1864.227,
+      "min_ms": 1807.251,
+      "max_ms": 1920.734,
+      "units": 20000,
+      "unit": "call",
+      "us_per_unit": 93.21135
+    },
+    "script_to_host_string": {
+      "median_ms": 1556.855,
+      "min_ms": 1509.176,
+      "max_ms": 1582.176,
+      "units": 20000,
+      "unit": "call",
+      "us_per_unit": 77.84275
+    },
+    "host_to_script_object": {
+      "median_ms": 3636.491,
+      "min_ms": 3409.751,
+      "max_ms": 3964.457,
+      "units": 20000,
+      "unit": "call",
+      "us_per_unit": 181.82455
+    },
+    "map_per_access": {
+      "median_ms": 697.569,
+      "min_ms": 631.901,
+      "max_ms": 791.835,
+      "units": 10000,
+      "unit": "cell",
+      "us_per_unit": 69.7569
+    },
+    "map_snapshot_dyn": {
+      "median_ms": 60.025,
+      "min_ms": 37.894,
+      "max_ms": 124.752,
+      "units": 10000,
+      "unit": "cell",
+      "us_per_unit": 6.0025
+    },
+    "map_snapshot_json": {
+      "median_ms": 84.947,
+      "min_ms": 69.031,
+      "max_ms": 120.586,
+      "units": 10000,
+      "unit": "cell",
+      "us_per_unit": 8.4947
+    },
+    "map_set_once": {
+      "median_ms": 50.529,
+      "min_ms": 34.674,
+      "max_ms": 59.604,
+      "units": 10000,
+      "unit": "cell",
+      "us_per_unit": 5.0529
+    },
+    "map_read_after_set": {
+      "median_ms": 7.984,
+      "min_ms": 6.752,
+      "max_ms": 22.137,
+      "units": 10000,
+      "unit": "cell",
+      "us_per_unit": 0.7984
+    },
+    "ops_per_call": {
+      "median_ms": 501.204,
+      "min_ms": 483.484,
+      "max_ms": 532.306,
+      "units": 5000,
+      "unit": "op",
+      "us_per_unit": 100.2408
+    },
+    "ops_batched_array": {
+      "median_ms": 89.029,
+      "min_ms": 72.942,
+      "max_ms": 92.088,
+      "units": 5000,
+      "unit": "op",
+      "us_per_unit": 17.8058
+    }
+  }
+}
