@@ -753,20 +753,24 @@ function odometerFace(W: number, H: number): void {
   odometer(W / 2, H * 0.42, d.getHours(), d.getMinutes());
   nowCard((W - 480) / 2, H - 150, 480);
 }
-/** What plays, as a card: a touch opens the player, the button plays or pauses. */
+/** What plays, as a card: a touch opens the player; previous, play or pause and next (owner 2026-10-18) on the right, or on a second row
+ *  when the card is narrow (the clock faces' column). */
 function nowCard(x: number, y: number, w: number): void {
   if (group === null) return;
   const g = group as Group, t = g.track;
   if (t.title === '' && t.station === '') return;
-  rrect(x, y, w, 92, 18, 0xffffff, isPressed('clock/now') ? 40 : 22);
+  const narrow = w < 440, h = narrow ? 156 : 92, tw = narrow ? w - 106 : w - 290;
+  rrect(x, y, w, h, 18, 0xffffff, isPressed('clock/now') ? 40 : 22);
   cover(artOf(g), t.title !== '' ? t.title : t.station, x + 14, y + 14, 64, 10, t.source === 'radio' && t.art === '');
-  label(F.smallB, x + 92, y + 22, t.title !== '' ? t.title : t.station, TEXT, w - 170);
-  label(F.small, x + 92, y + 48, t.artist !== '' ? t.artist : g.name(), TEXT2, w - 170);
-  onTap('clock/now', x, y, w - 70, 92, () => { slide = PLAYER; remember(); });
-  const bx = x + w - 42, by = y + 46;
+  label(F.smallB, x + 92, y + 22, t.title !== '' ? t.title : t.station, TEXT, tw);
+  label(F.small, x + 92, y + 48, t.artist !== '' ? t.artist : g.name(), TEXT2, tw);
+  onTap('clock/now', x, y, narrow ? w : w - 190, narrow ? 92 : h, () => { slide = PLAYER; remember(); });
+  const bx = narrow ? x + w / 2 : x + w - 98, by = narrow ? y + 118 : y + 46;
+  transport('prev', bx - 60, by, 20, isPressed('clock/prev') ? TEXT2 : TEXT); onTap('clock/prev', bx - 88, by - 30, 56, 60, () => act('Précédent', (s, z) => s.previous(z)));
   rrect(bx - 24, by - 24, 48, 48, 24, isPressed('clock/play') ? 0xd1d1d6 : 0xffffff, 255);
   transport(g.playing() ? 'pause' : 'play', g.playing() ? bx : bx + 2, by, 18, 0x000000);
   onTap('clock/play', bx - 30, by - 30, 60, 60, togglePlay);
+  transport('next', bx + 60, by, 20, isPressed('clock/next') ? TEXT2 : TEXT); onTap('clock/next', bx + 32, by - 30, 56, 60, () => act('Suivant', (s, z) => s.next(z)));
 }
 
 /** Every room's volume as a ring of the Apple Watch's activity rings, and beside each its number and slider. */
@@ -851,11 +855,18 @@ function contextSheet(W: number, H: number): void {
     if (on) rrect(px + 12, y, pw - 24, rowH - 8, 14, 0xffffff, 22);
     else if (isPressed(id)) rrect(px + 12, y, pw - 24, rowH - 8, 14, 0xffffff, 12);
     cover(artOf(g), g.track.title !== '' ? g.track.title : g.track.station, px + 24, y + 12, 60, 8);
-    label(F.bodyB, px + 100, y + 14, g.name(), on ? ACCENT : TEXT, pw - 220);
+    label(F.bodyB, px + 100, y + 14, g.name(), on ? ACCENT : TEXT, pw - 330);
     const line = g.track.title !== '' ? g.track.title + (g.track.artist !== '' ? ' · ' + g.track.artist : '') : g.track.station !== '' ? g.track.station : 'Rien en lecture';
-    label(F.small, px + 100, y + 44, (g.playing() ? '' : g.state === 'PAUSED_PLAYBACK' ? 'En pause · ' : '') + line, TEXT2, pw - 220);
-    onTap(id, px + 12, y, pw - 110, rowH - 8, () => { select(gg); contextOpen = false; page = NOW; });
-    const bx = px + pw - 60, by = y + 42;
+    label(F.small, px + 100, y + 44, (g.playing() ? '' : g.state === 'PAUSED_PLAYBACK' ? 'En pause · ' : '') + line, TEXT2, pw - 330);
+    onTap(id, px + 12, y, pw - 230, rowH - 8, () => { select(gg); contextOpen = false; page = NOW; });
+    const bx = px + pw - 120, by = y + 42;
+    const step = (what: string, f: (s: System, g: Group) => Promise<void>): void => {
+      attempt(what, async (): Promise<void> => { await f(s, gg); await sleep(400); await s.update(gg); });
+    };
+    transport('prev', bx - 60, by, 20, isPressed('ctx/b/' + g.id) ? TEXT2 : TEXT);
+    onTap('ctx/b/' + g.id, bx - 88, by - 30, 56, 60, () => step('Précédent', (z, x) => z.previous(x)));
+    transport('next', bx + 60, by, 20, isPressed('ctx/n/' + g.id) ? TEXT2 : TEXT);
+    onTap('ctx/n/' + g.id, bx + 32, by - 30, 56, 60, () => step('Suivant', (z, x) => z.next(x)));
     rrect(bx - 26, by - 26, 52, 52, 26, isPressed('ctx/p/' + g.id) ? 0xd1d1d6 : 0xffffff, 255);
     transport(g.playing() ? 'pause' : 'play', g.playing() ? bx : bx + 2, by, 20, 0x000000);
     onTap('ctx/p/' + g.id, bx - 30, by - 30, 60, 60, () => {
