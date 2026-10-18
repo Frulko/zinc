@@ -108,12 +108,17 @@ function handle(n: Notif): void {
 }
 
 let focusTicks = 0;
+let watchMode = false;
 function tick(): void {
   const wasProblem = capture.problem;
   if (focusTicks++ % 3 === 0) {
     const f = focus.now();
     if (f.id !== focusNow.id) { focusNow = f; console.log(f.id === '' ? 'focus off' : 'focus on'); dirty = true; }
   }
+  // Always poll on a safety fallback (every 5th tick ≈ 500 ms) so a missed file event never drops a notification.
+  const safety = (focusTicks % 5 === 0);
+  // Research (wechat-priority-notifier, AgentMonitors): no push API exists for other apps' notifications, and file watching
+  // on TCC-protected paths is fragile (WAL writes often do not fire VNODE events). Short polling is the field consensus.
   for (const n of capture.poll()) handle(n);
   if (dirty) { save(); changed(); }
   else if (wasProblem !== capture.problem) changed();
@@ -209,8 +214,13 @@ export function start(): void {
   link.init({ name: 'Zinc Relay · ' + computerName(), store: env('LINK_STORE') });
   relay.start();
   scripted();
+  const watch = args().indexOf('--watch') >= 0 || env('RELAY_WATCH') === '1';
+  watchMode = watch;
+  if (watch) mac.watchDb(DB);
+  const pollMs = watch ? 100 : (parseInt(env('RELAY_POLL_MS')) > 0 ? parseInt(env('RELAY_POLL_MS')) : 1000);
+  console.log('capture mode: ' + (watch ? 'watch (file events + ' + pollMs + 'ms fallback)' : 'poll ' + pollMs + 'ms'));
   tick();   // the first poll sets where the news start
-  setInterval(() => tick(), 1000);
+  setInterval(() => tick(), pollMs);
   let lastState = '';
   onChange(() => { if (relay.state !== lastState) { lastState = relay.state; console.log('tablet ' + relay.state); } });
   console.log('ready pid ' + pid() + (capture.problem !== '' ? ' capture: ' + capture.problem : ''));

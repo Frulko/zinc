@@ -13,6 +13,7 @@
 #import <UserNotifications/UserNotifications.h>
 #import <objc/message.h>
 #import <dlfcn.h>
+#include <atomic>
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -318,6 +319,54 @@ struct MacNotify : NativeNotifyMac {
       return str(ok ? @"" : (e.localizedDescription ?: @"refused"));
     }
     return str(@"unavailable");
+  }
+  std::atomic<bool> dbChangedFlag{false};
+  dispatch_source_t dbSource = nil;
+  void watchDbImpl(const std::string& path) {
+    if (dbSource) return;
+    int fd = ::open(path.c_str(), O_RDONLY | O_EVTONLY);
+    if (fd < 0) return;
+    dispatch_queue_t q = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);
+    dbSource = dispatch_source_create(DISPATCH_SOURCE_TYPE_VNODE, fd, DISPATCH_VNODE_WRITE | DISPATCH_VNODE_EXTEND | DISPATCH_VNODE_ATTRIB, q);
+    dispatch_source_set_event_handler(dbSource, ^{ dbChangedFlag.store(true); });
+    dispatch_source_set_cancel_handler(dbSource, ^{ ::close(fd); });
+    dispatch_resume(dbSource);
+    // also watch the WAL file
+    std::string wal = path + "-wal";
+    int wfd = ::open(wal.c_str(), O_RDONLY | O_EVTONLY);
+    if (wfd >= 0) {
+      dispatch_source_t wsrc = dispatch_source_create(DISPATCH_SOURCE_TYPE_VNODE, wfd, DISPATCH_VNODE_WRITE | DISPATCH_VNODE_EXTEND, q);
+      dispatch_source_set_event_handler(wsrc, ^{ dbChangedFlag.store(true); });
+      dispatch_source_set_cancel_handler(wsrc, ^{ ::close(wfd); });
+      dispatch_resume(wsrc);
+    }
+  }
+  void watchDb(zrt::String path) override {
+    @autoreleasepool {
+      const std::string p(path.ptr(), path.bytes());
+      watchDbImpl(p);
+    }
+  }
+  bool dbChanged() override {
+    return dbChangedFlag.exchange(false);
+  }
+  zrt::Array<uint8_t> emojiPng(zrt::String text, int32_t px) override {
+    @autoreleasepool {
+      if (px <= 0 || px > 256) return bytes(nil);
+      NSString* t = ns(text);
+      if (t.length == 0) return bytes(nil);
+      NSFont* f = [NSFont fontWithName:@"Apple Color Emoji" size:px * 0.85];
+      if (!f) f = [NSFont systemFontOfSize:px * 0.85];
+      NSDictionary* a = @{NSFontAttributeName: f};
+      NSSize s = [t sizeWithAttributes:a];
+      if (s.width <= 0 || s.height <= 0) return bytes(nil);
+      // centre the glyph in a square
+      int side = (int)ceil(MAX(s.width, s.height));
+      if (side < px) side = px;
+      return bytes(render(side, ^(NSRect r) {
+        [t drawAtPoint:NSMakePoint((side - s.width) / 2, (side - s.height) / 2) withAttributes:a];
+      }));
+    }
   }
   zrt::String localNetwork() override {
     // the first LAN interface with an IPv4 address; a send of mDNS's question on it fails with EHOSTUNREACH when access is refused

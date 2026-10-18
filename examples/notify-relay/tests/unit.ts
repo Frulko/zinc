@@ -5,6 +5,7 @@ import * as mac from 'zinc:notifymac';
 import { utf8Encode, exit } from 'zinc:sys';
 import { avatarSources, communicationSender, initials, gradientOf, GRADIENTS, hostIn, domainOf, fromRecord, isImage, Notif, Settings, FocusState, keysOf, FOCUS_HOLD, FOCUS_FOLLOW } from '../src/model';
 import { modesOf, activeOf } from '../src/focus';
+import { extract } from '../src/emoji';
 import { base64Decode, base64Encode } from 'zinc:web';
 
 let failed = 0;
@@ -47,6 +48,8 @@ eq(plain.kind, 'other', 'an app icon alone does not make a message');
   const cs = communicationSender(uncc);
   check(cs[0] === 'Léa Martin' && cs[1] === '+33600000000' && cs[2] === 'ABCD-1234:ABPerson', 'the communication context names the sender: ' + cs.join('|'));
   check(communicationSender(null)[0] === '', 'no context, no sender'); }
+{ const e = extract('Salut 👋🏽 ok 👨‍👩‍👧 🇫🇷 fin');
+  check(e.images.length === 3 && e.text === 'Salut \uFFFC ok \uFFFC \uFFFC fin', 'emoji become placeholders with one image each (skin tone, family, flag): ' + e.images.length); }
 eq(fromRecord('ef', 'com.apple.mobilesms', plistOf('<dict><key>req</key><dict><key>titl</key><string>Léa</string></dict></dict>'), 1, true).kind, 'message', 'Messages as Notification Center records it (lower case)');
 check(!plain.presented, 'presented comes from the row');
 eq(keysOf({ a: 1, b: { c: 2 }, d: 'x' }).join(','), 'a,b,d', 'keysOf');

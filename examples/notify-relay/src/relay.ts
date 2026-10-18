@@ -6,6 +6,7 @@ import * as link from 'zinc:link';
 import * as mac from 'zinc:notifymac';
 import { sha256, base64Encode } from 'zinc:web';
 import { Notif } from './model';
+import { extract } from './emoji';
 
 /** Notifications kept while the tablet is away; older ones are dropped first. */
 export const QUEUE_MAX: i32 = 100;
@@ -156,8 +157,10 @@ export class Relay {
 
   /** Sends a notification that passed the filters (or keeps it until the tablet is back); `avatar` is the hash of the sender's image. */
   relay(n: Notif, appName: string, domain: string, avatar: string): void {
-    const m: any = { t: 'notif', id: n.id, app: { id: n.app, name: appName, icon: this.icon(n.app) }, title: n.title, subtitle: n.subtitle, body: n.body,
-      date: n.date, domain: domain === '' ? null : domain, thread: n.thread, kind: n.kind, sender: n.kind === 'message' ? n.sender : '', avatar: avatar === '' ? null : avatar };
+    const et = extract(n.title), es = extract(n.subtitle), eb = extract(n.body);
+    const m: any = { t: 'notif', id: n.id, app: { id: n.app, name: appName, icon: this.icon(n.app) }, title: et.text, subtitle: es.text, body: eb.text,
+      date: n.date, domain: domain === '' ? null : domain, thread: n.thread, kind: n.kind, sender: n.kind === 'message' ? n.sender : '', avatar: avatar === '' ? null : avatar,
+      emoji: et.images.concat(es.images).concat(eb.images) };
     this.recent.set(n.id, [n.app, n.url]);
     this.recentIds.push(n.id);
     while (this.recentIds.length > RECENT_MAX) this.recent.delete(this.recentIds.shift() as string);

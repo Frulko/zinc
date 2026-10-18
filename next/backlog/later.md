@@ -396,6 +396,7 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-471: a runtime image that changes is rewritten in place in CDRAM while up to two queued frames may still read it: double-buffer video textures.
 - ZN-470: Meadow Run's work peaks of about 8 ms on the Vita (garbage collection or asset decoding?): profile them with ZINC_TRACE on hardware if a heavier game needs the headroom.
 - console host: `host.assetsStat` is not served (logged once on every Vita run).
+- compiler: a local `let cur` (a string) in one function breaks the narrowing of a module-level `let cur: Play | null` in other functions of the module (Z0107 "must be narrowed first"); examples/music/src/notify.ts renamed its local to `word`. Narrowing should key on the declaration, not the name.
 
 ## Demos
 - Owner 2026-10-17: every game demo uses Kenney's assets (kenney.nl, CC0), adapted per platform: re-skin pinball, pinball3d and pocket-hero with Kenney packs as they are next worked on (breakout in ZN-753, platformer and marble in ZN-754).

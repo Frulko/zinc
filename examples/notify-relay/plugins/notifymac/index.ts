@@ -35,3 +35,6 @@ export function open(bundleId: string, url: string): boolean { return N.open(bun
 export function loginStatus(): string { return N.loginStatus(); }
 export function setLogin(on: boolean): string { return N.setLogin(on); }
 export function localNetwork(): string { return N.localNetwork(); }
+export function emojiPng(text: string, px: i32): u8[] { return N.emojiPng(text, px); }
+export function watchDb(path: string): void { N.watchDb(path); }
+export function dbChanged(): boolean { return N.dbChanged(); }
