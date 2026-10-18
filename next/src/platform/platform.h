@@ -54,6 +54,14 @@ int exitStatus(int systemResult);
 std::string quoteWindowsArg(const std::string& arg);
 
 // ---- the machine
+/** The null device in a shell command line: "NUL" for cmd.exe, "/dev/null" elsewhere (cmd answers "the system cannot find the path" to /dev/null). */
+inline const char* shellNull() {
+#ifdef _WIN32
+  return "NUL";
+#else
+  return "/dev/null";
+#endif
+}
 const char* osName();                                      // "macos", "linux", "windows": the names of the release archives
 std::string machine();                                     // uname -m: "arm64", "x86_64", "aarch64"...
 long long maxRssBytes();                                   // peak resident memory of this process

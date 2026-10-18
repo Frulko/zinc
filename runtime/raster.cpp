@@ -20,7 +20,7 @@ namespace zrt { namespace raster {
 
 static inline float fabsf_(float v) { return v < 0 ? -v : v; }
 static inline float clampf(float v, float a, float b) { return v < a ? a : v > b ? b : v; }
-#if (defined(__APPLE__) || defined(__linux__)) && !defined(ESP_PLATFORM)
+#if (defined(__APPLE__) || defined(__linux__) || defined(_WIN32)) && !defined(ESP_PLATFORM)   // each band thread of the CPU renderer needs its own scratch buffers (Windows too: SDL threads)
 #define ZRT_TLS thread_local
 #else
 #define ZRT_TLS

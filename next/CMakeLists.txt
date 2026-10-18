@@ -511,6 +511,7 @@ else()
 endif()
 set_target_properties(zinc PROPERTIES ENABLE_EXPORTS ON)   # a plugin loaded with dlopen finds zrt and the native registry in this binary
 if(WIN32)   # plugins as .dll: the def exports the engine's C symbols their native code calls, so --out-implib (ENABLE_EXPORTS) writes libzinc.dll.a beside zinc.exe and the plugin links it (docs/reports/zinc-windows-port.md)
+  target_sources(zinc PRIVATE src/host/gpu_select_win.cpp)   # a laptop with two GPUs gives the window the NVIDIA or AMD one, not the integrated one
   set_target_properties(zinc PROPERTIES LINK_FLAGS "${CMAKE_CURRENT_SOURCE_DIR}/src/zinc.def")
   set_property(TARGET zinc APPEND PROPERTY LINK_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/zinc.def)
 endif()

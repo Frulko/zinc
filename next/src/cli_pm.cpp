@@ -1,4 +1,5 @@
 // npm packages for the web target: the package manager of a project and the commands that call it (cli_pm.h).
+#include "platform/platform.h"
 #include "cli_pm.h"
 
 #include <cstdio>
@@ -19,7 +20,11 @@ namespace zn::cli {
 namespace {
 
 std::string readAll(const fs::path& p) { std::ifstream in(p, std::ios::binary); std::stringstream ss; ss << in.rdbuf(); return ss.str(); }
+#ifdef _WIN32   // cmd.exe does not know single quotes: a quoted path with a backslash is "the system cannot find the path"
+std::string q(const std::string& s) { return zn::plat::quoteWindowsArg(s); }
+#else
 std::string q(const std::string& s) { std::string r = "'"; for (char c : s) { if (c == '\'') r += "'\\''"; else r += c; } return r + "'"; }
+#endif
 int status(int rc) {
 #ifdef _WIN32
   return rc;
@@ -59,7 +64,7 @@ std::string missingTool(const PackageManager& pm) {
 }
 
 std::string versionOf(const std::string& exe) {
-  FILE* p = popen((q(exe) + " --version 2>/dev/null").c_str(), "r");
+  FILE* p = popen((q(exe) + " --version 2>" + zn::plat::shellNull()).c_str(), "r");
   if (!p) return "";
   char b[128] = {0};
   std::string v;

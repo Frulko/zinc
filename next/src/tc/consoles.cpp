@@ -1,5 +1,6 @@
 // The SDKs of the consoles and the old iPhone (ZN-456): pinned like the zig, checked before anything is unpacked. Only a maintainer rebuilding a
 // console core (next/targets/console) or an AOT build needs them; docs/targets/handhelds.md says how to use each.
+#include "platform/platform.h"
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
@@ -49,7 +50,7 @@ const HostPin* pinOf(const std::string& target) {
   return nullptr;
 }
 std::string sdkDir(const ConsoleSdk& s) { return (fs::path(home()) / "toolchains" / (std::string(s.sdk) + "-" + hostName() + "-" + s.version)).string(); }
-bool ok(const std::string& cmd) { return std::system((cmd + " >/dev/null 2>&1").c_str()) == 0; }
+bool ok(const std::string& cmd) { const std::string nul = zn::plat::shellNull(); return std::system((cmd + " >" + nul + " 2>&1").c_str()) == 0; }
 std::string quoted(const std::string& s) { std::string r = "'"; for (char c : s) r += c == '\'' ? std::string("'\\''") : std::string(1, c); return r + "'"; }
 
 // an iPhoneOS SDK whose libSystem stubs still list armv7 (the iOS 9 of the iPhone 4S): ZINC_IOS_LEGACY_SDK, else one of an installed Xcode
