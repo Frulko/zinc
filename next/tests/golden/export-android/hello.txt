@@ -9,7 +9,7 @@
 ./app/proguard-rules.pro a0d17050053f5ffa
 ./app/src/main/AndroidManifest.xml 0183781a57bfedb8
 ./app/src/main/java/dev/zinc/app/ZincAccessibility.java 4595b979c92dba4a
-./app/src/main/java/dev/zinc/app/ZincActivity.java 800cc2e232f40075
+./app/src/main/java/dev/zinc/app/ZincActivity.java 502960ea0a21c0db
 ./app/src/main/java/dev/zinc/app/ZincCallback.java 69ff214bb9014b9c
 ./app/src/main/java/dev/zinc/app/ZincLifecycle.java a708d19bd83e76ac
 ./app/src/main/java/dev/zinc/app/ZincNativeView.java d0407421a424816d
