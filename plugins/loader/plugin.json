@@ -1,4 +1,4 @@
-﻿{
+{
   "name": "loader",
   "kind": "module",
   "module": "zinc:loader",

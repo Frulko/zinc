@@ -438,7 +438,12 @@ std::string deviceRecord() {
     if (osName.empty()) osName = u.sysname;
     osBuildId = u.release;   // the kernel's
     cpus = u.machine;
+#ifdef _WIN32
+    MEMORYSTATUSEX ms{}; ms.dwLength = sizeof ms;
+    if (GlobalMemoryStatusEx(&ms)) memory = static_cast<double>(ms.ullTotalPhys);
+#else
     memory = static_cast<double>(sysconf(_SC_PHYS_PAGES)) * static_cast<double>(sysconf(_SC_PAGESIZE));
+#endif
 #endif
   }
   std::string arch = "[";
