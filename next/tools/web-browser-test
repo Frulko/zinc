@@ -2,6 +2,7 @@
 """A web export in headless Chrome (docs/targets/web.md; tests/t1/web_export.sh): serves a folder over HTTP, opens it, waits for frames, prints one JSON line.
 usage: web-browser-test <dir> [--wait SECONDS] [--shot out.png] [--eval EXPR] [--size WxH] [--path /index.html] [--click X,Y] [--expect-text TEXT] [--init JS]
 --init: a script that runs in the page before any of its own (Page.addScriptToEvaluateOnNewDocument).
+--click-text and --expect-text poll for their text up to 10 s x ZN_WAIT_SCALE (a slow runner boots the page later), so --wait and --after are minimums, not deadlines.
 The JSON: {"console": [...], "errors": [...], "frames": N, "eval": value, "nonblank": fraction of pixels not equal to the first, "text": document text}
 Exit 77 (skip) without Chrome. Chrome only: Firefox and Safari are not tested here."""
 import base64, functools, http.server, json, os, sys, threading, time
@@ -18,6 +19,7 @@ while args:
     opt[k] = args.pop(0)
 if not find_chrome():
     print("SKIP no Chrome"); sys.exit(77)
+POLL = 10 * float(os.environ.get("ZN_WAIT_SCALE", "1"))   # seconds to wait for a text after --wait/--after
 
 class Quiet(http.server.SimpleHTTPRequestHandler):
     extensions_map = dict(http.server.SimpleHTTPRequestHandler.extensions_map, **{".js": "text/javascript", ".mjs": "text/javascript", ".wasm": "application/wasm", ".webmanifest": "application/manifest+json"})
@@ -53,7 +55,9 @@ with Chrome(["--window-size=%d,%d" % (w, h), "--use-fake-ui-for-media-stream", "
     for kind, p in clicks:
         if kind == "xy": x, y = (float(v) for v in p.split(","))
         else:
-            r = c.eval("(() => { const w = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT); let n, r = null; while ((n = w.nextNode())) if (n.children.length === 0 && n.textContent === %s && getComputedStyle(n).visibility !== 'hidden') { const b = n.getBoundingClientRect(); r = [b.x + b.width / 2, b.y + b.height / 2]; } return r; })()" % json.dumps(p))
+            find = "(() => { const w = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT); let n, r = null; while ((n = w.nextNode())) if (n.children.length === 0 && n.textContent === %s && getComputedStyle(n).visibility !== 'hidden') { const b = n.getBoundingClientRect(); r = [b.x + b.width / 2, b.y + b.height / 2]; } return r; })()" % json.dumps(p)
+            t0 = time.time()
+            while not (r := c.eval(find)) and time.time() - t0 < POLL: c._recv(-1, 0.2)
             if not r: sys.exit("no element with the text " + p)
             x, y = r
         click(x, y)
@@ -63,6 +67,9 @@ with Chrome(["--window-size=%d,%d" % (w, h), "--use-fake-ui-for-media-stream", "
         c.eval("(() => { const f = window.requestAnimationFrame.bind(window); const n = %s; const t = () => { if ((globalThis.__zincFrames || 0) >= n) { window.requestAnimationFrame = () => 0; } }; window.requestAnimationFrame = (cb) => f((x) => { cb(x); t(); }); })()" % int(opt["--frame-pause"]))
         t0 = time.time()
         while time.time() - t0 < 1.0: c._recv(-1, 0.2)
+    if opt["--expect-text"]:
+        t0 = time.time()
+        while opt["--expect-text"] not in (c.eval("document.body.innerText") or "") and time.time() - t0 < POLL: c._recv(-1, 0.2)
     if opt["--eval"]: out["eval"] = c.eval(opt["--eval"])
     out["text"] = (c.eval("document.body.innerText") or "")[:2000]
     shot = c.call("Page.captureScreenshot", {"format": "png"})
