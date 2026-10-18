@@ -35,6 +35,13 @@ const std::string& error(Conn*) { static const std::string e = "this build has n
 #include <cstdlib>
 #include <cstring>
 #include <memory>
+#ifdef __APPLE__
+#include <TargetConditionals.h>
+#if TARGET_OS_IPHONE
+#include <Security/Security.h>
+#define ZN_OS_TRUST 1
+#endif
+#endif
 
 namespace zn::ZN_TLS_NS {
 
@@ -46,6 +53,7 @@ struct Conn {
   std::string in, out, err;
   std::function<std::string(const std::string&)> pskLookup;
   std::string pskId;
+  std::string host;   // a client's server name, for the system's verifier (ZN_OS_TRUST)
   bool server = false, done = false, failed = false, closed = false;
 };
 
@@ -82,6 +90,28 @@ mbedtls_x509_crt* roots() {
   }();
   return store;
 }
+
+#ifdef ZN_OS_TRUST
+// iOS gives an app no file of its roots: a chain mbedTLS could not verify goes to the system's own verifier (its roots, the profiles the
+// user installed, the host name). ponytail: synchronous, so a chain missing an intermediate may wait on the network here
+bool osTrusted(Conn* c) {
+  CFMutableArrayRef certs = CFArrayCreateMutable(nullptr, 0, &kCFTypeArrayCallBacks);
+  for (const mbedtls_x509_crt* crt = mbedtls_ssl_get_peer_cert(&c->ssl); crt; crt = crt->next) {
+    CFDataRef der = CFDataCreate(nullptr, crt->raw.p, static_cast<CFIndex>(crt->raw.len));
+    if (SecCertificateRef sc = SecCertificateCreateWithData(nullptr, der)) { CFArrayAppendValue(certs, sc); CFRelease(sc); }
+    CFRelease(der);
+  }
+  CFStringRef host = CFStringCreateWithCString(nullptr, c->host.c_str(), kCFStringEncodingUTF8);
+  SecPolicyRef policy = SecPolicyCreateSSL(true, host);
+  SecTrustRef trust = nullptr;
+  const bool ok = CFArrayGetCount(certs) > 0 && SecTrustCreateWithCertificates(certs, policy, &trust) == errSecSuccess && SecTrustEvaluateWithError(trust, nullptr);
+  if (trust) CFRelease(trust);
+  CFRelease(policy);
+  CFRelease(host);
+  CFRelease(certs);
+  return ok;
+}
+#endif
 
 int sendCb(void* ctx, const unsigned char* buf, size_t n) { static_cast<Conn*>(ctx)->out.append(reinterpret_cast<const char*>(buf), n); return static_cast<int>(n); }
 int recvCb(void* ctx, unsigned char* buf, size_t n) {
@@ -127,7 +157,12 @@ Conn* make(bool server, std::string& err) {
 Conn* openClient(const std::string& serverName, std::string& err, bool tls12) {
   Conn* c = make(false, err);
   if (!c) return nullptr;
+#ifdef ZN_OS_TRUST
+  mbedtls_ssl_conf_authmode(&c->conf, MBEDTLS_SSL_VERIFY_OPTIONAL);   // step() hands a chain mbedTLS rejects to the system's verifier
+  c->host = serverName;
+#else
   mbedtls_ssl_conf_authmode(&c->conf, MBEDTLS_SSL_VERIFY_REQUIRED);
+#endif
   mbedtls_ssl_conf_ca_chain(&c->conf, roots(), nullptr);
   if (tls12) mbedtls_ssl_conf_max_tls_version(&c->conf, MBEDTLS_SSL_VERSION_TLS1_2);
   int rc = mbedtls_ssl_setup(&c->ssl, &c->conf);
@@ -233,6 +268,9 @@ State step(Conn* c) {
   if (c->failed) return State::Failed;
   if (c->done) return State::Ready;
   int rc = mbedtls_ssl_handshake(&c->ssl);
+#ifdef ZN_OS_TRUST
+  if (rc == 0 && !c->host.empty() && mbedtls_ssl_get_verify_result(&c->ssl) != 0 && !osTrusted(c)) rc = MBEDTLS_ERR_X509_CERT_VERIFY_FAILED;
+#endif
   if (rc == 0) { c->done = true; return State::Ready; }
   if (rc == MBEDTLS_ERR_SSL_WANT_READ || rc == MBEDTLS_ERR_SSL_WANT_WRITE) return State::Handshaking;
   c->failed = true;

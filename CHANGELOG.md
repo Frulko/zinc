@@ -13,6 +13,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
   The engine refuses the old spelling with errors Z0006 and Z0007. Migrate a project with `zinc migrate --apply`.
 
 ### Fixed
+- iOS: `fetch` and every HTTPS connection failed on a device with `UNABLE_TO_VERIFY_LEAF_SIGNATURE`; the certificate is now checked by iOS itself (its roots and the profiles you installed).
 - iOS export: an app icon that is not 1024 x 1024 (a 512 px PNG, an SVG) no longer stops the Xcode build; it is resampled to 1024.
 - Web target: a screen could go blank after the window was resized (a tab you had left still reacted to the new size and wrote over the screen on show); the same fault could hit a desktop app.
 - Web target: a letter typed into a text field of a canvas page arrived twice.

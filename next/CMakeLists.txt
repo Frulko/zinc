@@ -623,7 +623,7 @@ if(TARGET zn_host_gfx AND SDL3_FOUND)
   if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")   # macOS: hal_sdl.cpp presents with OpenGL there (ZN_HAL_GL); iOS is APPLE too and has no OpenGL.framework
     target_link_libraries(zn_app_host PUBLIC "-framework OpenGL")
   elseif(CMAKE_SYSTEM_NAME STREQUAL "iOS")   # hal_metal.mm
-    target_link_libraries(zn_app_host PUBLIC "-framework Metal" "-framework QuartzCore")
+    target_link_libraries(zn_app_host PUBLIC "-framework Metal" "-framework QuartzCore" "-framework Security")   # Security: tls.cpp's verifier
   elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_include_directories(zn_app_host PRIVATE third_party/glad/include)
   elseif(ANDROID)
