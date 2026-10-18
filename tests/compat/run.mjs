@@ -140,6 +140,9 @@ const zincRewrite = (s) => s.replace(/(^|[;{}(\s])var(\s)/g, '$1let$2')
   .replace(/\b(assert\.throws|assert_throws_js|assertThrows)\(\s*([A-Z]\w*Error)\s*,/g, "$1('$2',");
 const T262_ZINC_INCLUDES = new Set(['compareArray.js', 'asyncHelpers.js', 'doneprintHandle.js']);
 const PRINT_SHIM = "if (typeof print === 'undefined') globalThis.print = (...a) => console.log(...a);\n";
+// test262 assumes a host whose HostPromiseRejectionTracker does nothing: a promise left rejected (Promise.race(poisoned)) is not the test's verdict.
+// `zinc run --engine quickjs` ends the program there as Node does (ZN-566); the web environment's hook gives these runs a browser's behaviour.
+const T262_QJS_HOST = "Object.defineProperty(globalThis, '__zincUnhandledRejection', { value: () => true });\n";
 
 function meta262(src) {
   const y = /\/\*---([\s\S]*?)---\*\//.exec(src)?.[1] ?? '';
@@ -412,7 +415,7 @@ async function runCase(c, engines, exhaustive) {
   const r = res.r = {};
   for (const name of engines) {
     const e = ENGINES[name];
-    if (e.next && e.qjs) { r[name] = await runNext(c, e, p.ref.text); continue; }
+    if (e.next && e.qjs) { r[name] = await runNext(c, e, (c.suite === 'test262' ? T262_QJS_HOST : '') + p.ref.text); continue; }
     if (e.zinc) {
       if (p.zinc.unsupported) { r[name] = ['unsupported', p.zinc.unsupported, 0]; continue; }
       // a program zinc-sim rejects is rejected by every Zinc variant (same front end; strict only adds errors)
