@@ -279,4 +279,6 @@ bool describeImage(std::string_view head, std::string& format, std::uint64_t& gp
   return true;
 }
 
+void resizeRgba(const std::vector<std::uint8_t>& rgba, int w, int h, std::vector<std::uint8_t>& out, int dw, int dh) { resize(rgba, w, h, out, dw, dh, false); }
+
 }  // namespace zn::assets

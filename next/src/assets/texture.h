@@ -20,6 +20,9 @@ using ToolPath = std::function<bool(std::string& path, std::string& err)>;
 bool decodeImage(const std::string& name, const std::string& in, const std::map<std::string, std::string>& opts, int& w, int& h, int& scale,
                  std::vector<std::uint8_t>& rgba, std::string& err);
 
+/** `rgba` (w x h, straight alpha, sRGB) resampled to dw x dh. */
+void resizeRgba(const std::vector<std::uint8_t>& rgba, int w, int h, std::vector<std::uint8_t>& out, int dw, int dh);
+
 /** The texture of `in`. Options: `format` (formats in preference order, `a|b`: an image with alpha takes the first that has alpha, an opaque
  *  one the first, or a later one without alpha that is smaller), `maxSize`, `pot`, `mipmaps` (true), `premultiply` (true), `linear` (false:
  *  colour in sRGB). `basisu` is asked for only when a block format is chosen. */

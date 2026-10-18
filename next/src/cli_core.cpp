@@ -40,6 +40,8 @@
 
 #include "assets/assets.h"
 #include "assets/cook.h"
+#include "assets/texture.h"
+#include "res/codec.h"
 #include "frontend/diagnostics.h"
 #include "frontend/modules.h"
 #include "frontend/plugin_manifest.h"
@@ -1534,7 +1536,19 @@ static int exportIos(const ProjectInfo& p, const fs::path& out, const std::strin
   writeFile(out / "Assets.xcassets/Contents.json", "{\n  \"info\" : {\n    \"author\" : \"xcode\",\n    \"version\" : 1\n  }\n}\n");
   if (icon) {
     fs::create_directories(out / "Assets.xcassets/AppIcon.appiconset", ec);
-    fs::copy_file(fs::path(p.dir) / proj.app.icon, out / "Assets.xcassets/AppIcon.appiconset/icon.png", fs::copy_options::overwrite_existing, ec);
+    // actool refuses any other size ("did not have any applicable content"): a smaller or SVG icon is drawn at 1024
+    std::ifstream in(fs::path(p.dir) / proj.app.icon, std::ios::binary);
+    const std::string bytes((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    int w = 0, h = 0, scale = 1;
+    std::vector<std::uint8_t> rgba, sized;
+    std::string ierr;
+    if (zn::assets::decodeImage(proj.app.icon, bytes, {{"scale", "8"}}, w, h, scale, rgba, ierr) && (w != 1024 || h != 1024)) {
+      zn::assets::resizeRgba(rgba, w, h, sized, 1024, 1024);
+      const std::vector<std::uint8_t> png = zn::res::encodePng(sized.data(), 1024, 1024, 4);
+      writeFile(out / "Assets.xcassets/AppIcon.appiconset/icon.png", std::string(png.begin(), png.end()));
+    } else {
+      fs::copy_file(fs::path(p.dir) / proj.app.icon, out / "Assets.xcassets/AppIcon.appiconset/icon.png", fs::copy_options::overwrite_existing, ec);
+    }
     writeFile(out / "Assets.xcassets/AppIcon.appiconset/Contents.json", "{\n  \"images\" : [\n    {\n      \"filename\" : \"icon.png\",\n      \"idiom\" : \"universal\",\n      \"platform\" : \"ios\",\n"
               "      \"size\" : \"1024x1024\"\n    }\n  ],\n  \"info\" : {\n    \"author\" : \"xcode\",\n    \"version\" : 1\n  }\n}\n");
   }

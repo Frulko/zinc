@@ -22,6 +22,12 @@
       "flags": ["-I../../next/third_party/mbedtls/include", "-I../../next/third_party/mbedtls/tf-psa-crypto/include", "-I../../next/third_party/mbedtls/tf-psa-crypto/drivers/builtin/include"],
       "lifecycle": "dev.zinc.plugins.link.LinkLife",
       "manifest": { "permissions": ["INTERNET", "CHANGE_WIFI_MULTICAST_STATE"] }
+    },
+    "ios": {
+      "sources": ["../../next/src/net/dnssd.cpp", "../../next/src/host/tls.cpp"],
+      "defines": ["ZN_TLS_NS=linktls"],
+      "flags": ["-I../../next/third_party/mbedtls/include", "-I../../next/third_party/mbedtls/tf-psa-crypto/include", "-I../../next/third_party/mbedtls/tf-psa-crypto/drivers/builtin/include"],
+      "plist": { "NSLocalNetworkUsageDescription": "Pairs with your other devices on this network.", "NSBonjourServices": ["_zinclink._tcp"] }
     }
   }
 }
