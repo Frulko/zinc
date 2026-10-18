@@ -179,6 +179,9 @@ function appIcon(n: Notif, x: number, y: number, s: number): void {
 }
 
 // ---------------------------------------------------------------- the relay's messages
+let shown = true;
+/** The settings' "Notifications" (owner 2026-10-18): off, they arrive silently, kept in the list but never shown over the views nor waking the screen. */
+export function setNotificationsShown(on: boolean): void { shown = on; }
 function received(m: any, ch: link.Channel | null): void {
   const t = str(m.t);
   if (t === 'hello') { relayName = str(m.host) !== '' ? str(m.host) : ch !== null ? ch.peer.name : 'Mac'; ui.dirty = true; return; }
@@ -193,7 +196,7 @@ function received(m: any, ch: link.Channel | null): void {
   save();
   if (ch !== null) ch.send({ t: 'ack', id: n.id });   // stored: the Mac's assistant proves the path end to end with it
   for (const h of [n.icon, n.avatar, n.attachment]) if (h !== '' && ch !== null && !haveIcon(h) && !asked.has(h)) { asked.set(h, true); ch.send({ t: 'need-icon', hash: h }); }
-  present(n);
+  if (shown) present(n);
   ui.dirty = true;
 }
 

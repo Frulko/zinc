@@ -22,6 +22,8 @@ export class Screen {
   standby: boolean = false;
   /** Lit for notifications only (owner 2026-10-17): the backlight on over a black screen while they play, off again after; still asleep for the rest. */
   peeking: boolean = false;
+  /** The clock slide's glances (StandBy's wake every few minutes): the settings can turn them off (owner 2026-10-18). */
+  glances: boolean = true;
   /** 0..1: the black the program draws over everything as the screen fades out before going off and in after waking. */
   veil: number = 0;
   private dimming: number = 0;   // seconds left of the fade out, 0 when none
@@ -74,7 +76,7 @@ export class Screen {
     if (document.hidden) { this.idle = 0; if (this.asleep) { this.asleep = false; this.light(true); } return false; }
     if (this.delay <= 0) return false;
     if (this.asleep) {   // a glance every GLANCE_EVERY_S from the first off, whatever the glances in between lasted
-      if (this.standby && !this.peeking && this.t >= this.nextGlance) { this.nextGlance += GLANCE_EVERY_S; this.wake(GLANCE_S); }
+      if (this.standby && this.glances && !this.peeking && this.t >= this.nextGlance) { this.nextGlance += GLANCE_EVERY_S; this.wake(GLANCE_S); }
       return false;
     }
     if (this.dimming === 0 && this.veil > 0) this.veil = FADE_S > 0 ? Math.max(0, this.veil - dt / FADE_S) : 0;   // waking: fade in

@@ -16,10 +16,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import gsap, { Timeline } from 'gsap';
 import { setPlace, placeName, weatherTick, weatherSlide, Place, foundPlaces, searchState, searchPlaces } from './weather';
 import { openPort } from 'zinc:webos';
-import { startRelay, notifyTick, overlay, overlayActive, overlayStill, notifSlide, rowWantsCarousel, Notif } from './notify';
+import { startRelay, setNotificationsShown, notifyTick, overlay, overlayActive, overlayStill, notifSlide, rowWantsCarousel, Notif } from './notify';
 
 // ---------------------------------------------------------------- settings beside the program
-class Config { sleep: number = 120; group: string = ''; seed: string = ''; spotifySn: i32 = 0; full: boolean = false; lat: number = 0; lon: number = 0; city: string = ''; battery: boolean = true; batteryPct: boolean = true; }
+class Config { sleep: number = 120; group: string = ''; seed: string = ''; spotifySn: i32 = 0; full: boolean = false; lat: number = 0; lon: number = 0; city: string = ''; battery: boolean = true; batteryPct: boolean = true; glances: boolean = true; notify: boolean = true; }
 function loadConfig(): Config {
   const c = new Config();
   if (!exists('config.json')) return c;
@@ -32,13 +32,15 @@ function loadConfig(): Config {
     if (j.full !== undefined) c.full = j.full === true;
     if (j.battery !== undefined) c.battery = j.battery === true;
     if (j.batteryPct !== undefined) c.batteryPct = j.batteryPct === true;
+    if (j.glances !== undefined) c.glances = j.glances === true;
+    if (j.notify !== undefined) c.notify = j.notify === true;
     if (j.lat !== undefined && j.lon !== undefined) { c.lat = j.lat as number; c.lon = j.lon as number; c.city = j.city !== undefined ? '' + j.city : ''; }
   } catch (e) { console.error('music: config.json unreadable, defaults used'); }
   return c;
 }
 const cfg = loadConfig();
 function saveConfig(): void {
-  try { writeText('config.json', JSON.stringify({ sleep: cfg.sleep, group: cfg.group, seed: cfg.seed, spotifySn: cfg.spotifySn, full: cfg.full, lat: cfg.lat, lon: cfg.lon, city: cfg.city, battery: cfg.battery, batteryPct: cfg.batteryPct }) + '\n'); } catch (e) { console.error(`music: config.json: ${e.message}`); }
+  try { writeText('config.json', JSON.stringify({ sleep: cfg.sleep, group: cfg.group, seed: cfg.seed, spotifySn: cfg.spotifySn, full: cfg.full, lat: cfg.lat, lon: cfg.lon, city: cfg.city, battery: cfg.battery, batteryPct: cfg.batteryPct, glances: cfg.glances, notify: cfg.notify }) + '\n'); } catch (e) { console.error(`music: config.json: ${e.message}`); }
 }
 
 // ---------------------------------------------------------------- state
@@ -77,6 +79,8 @@ let sys: System | null = null;
 let group: Group | null = null;
 let status = 'Recherche des enceintes…';
 const screen = new Screen(cfg.sleep);
+screen.glances = cfg.glances;
+setNotificationsShown(cfg.notify);
 const spotify = new Spotify('spotify.json');
 let spotifyUser = '';
 let spPlayback = new Playback();
@@ -1143,7 +1147,7 @@ function settingsPage(W: number, H: number): void {
   beginScroll(sc, SIDE, 96, W - SIDE, H - 96);
   let y = 104 - sc.y;
   drawText(F.tinyB, x0 + 4, y, 'ÉCRAN', TEXT2, 255, 0); y += 24;
-  card(x0, y, w, 120);
+  card(x0, y, w, 190);
   drawText(F.label, x0 + 20, y + 18, 'Éteindre l\'écran sans contact après', TEXT, 255, 0);
   const delays: number[] = [30, 60, 120, 300, 600, 0];
   let sel: i32 = 2;
@@ -1151,7 +1155,16 @@ function settingsPage(W: number, H: number): void {
   segmented('set/sleep', x0 + 20, y + 58, ['30 s', '1 min', '2 min', '5 min', '10 min', 'Jamais'], sel, (i: i32) => {
     cfg.sleep = delays[i]; screen.delay = cfg.sleep; saveConfig();
   }, (w - 44) / 6);
-  y += 144;
+  separator(x0 + 20, y + 112, w - 40);
+  label(F.label, x0 + 20, y + 140, 'Réveil automatique sur l\'horloge', TEXT, w - 300);
+  segmented('set/glances', x0 + w - 250, y + 130, ['Activé', 'Désactivé'], cfg.glances ? 0 : 1, (i: i32) => { cfg.glances = i === 0; screen.glances = cfg.glances; saveConfig(); });
+  y += 214;
+  drawText(F.tinyB, x0 + 4, y, 'NOTIFICATIONS DU MAC', TEXT2, 255, 0); y += 24;
+  card(x0, y, w, 64);
+  glyph('bell', x0 + 20, y + 20, 24, cfg.notify ? TEXT2 : TEXT3);
+  label(F.label, x0 + 58, y + 21, cfg.notify ? 'Affichées et réveillent l\'écran' : 'Gardées dans la liste, sans s\'afficher', TEXT, w - 330);
+  segmented('set/notify', x0 + w - 250, y + 14, ['Activées', 'Désactivées'], cfg.notify ? 0 : 1, (i: i32) => { cfg.notify = i === 0; setNotificationsShown(cfg.notify); saveConfig(); });
+  y += 88;
   drawText(F.tinyB, x0 + 4, y, 'BATTERIE', TEXT2, 255, 0); y += 24;
   card(x0, y, w, 64);
   glyph(batteryCharging ? 'battery-charging' : 'battery', x0 + 20, y + 20, 24, batteryLevel < 0 ? TEXT3 : TEXT2);
