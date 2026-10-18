@@ -18,6 +18,7 @@ int main() {
   const std::string pre_vs = "#version 100\n";
   const std::string pre_fs = "#version 100\n#ifdef GL_FRAGMENT_PRECISION_HIGH\nprecision highp float;\n#else\nprecision mediump float;\n#endif\n";
   struct Program { std::string name, vs, fs; };
+  const std::string rc = "#define ZN_RCLIP 1\n";   // the variants that clip rounded corners in the shader (gl_replay.cpp: key + 64)
   // GLES 2 has no instancing: the occlusion pass compiles without INSTANCED there (gl_replay.cpp init)
   std::vector<Program> programs = {{"occlusion", glr::SVS, glr::SFS}, {"stencil", glr::FVS, glr::FFS}};
   static char fs[8192];   // the size gl_replay.cpp gives fs_source
@@ -25,9 +26,13 @@ int main() {
   for (int mode = -1; mode < glr::MODES; mode++)
     for (int paint = 0; paint < 2; paint++) {
       const std::string name = (mode < 0 ? "every mode" : "mode " + std::to_string(mode)) + (paint ? " with paint" : "");
-      if (glr::fs_source(mode < 0 ? ~0u : 1u << mode, paint, fs, sizeof fs)) programs.push_back({name, glr::VS, fs});
+      if (glr::fs_source(mode < 0 ? ~0u : 1u << mode, paint, fs, sizeof fs)) {
+        programs.push_back({name, glr::VS, fs});
+        programs.push_back({name + " with rounded clips", rc + glr::VS, rc + fs});
+      }
       else { std::printf("%s: the source does not fit the replay's buffer\n", name.c_str()); bad++; }
     }
+  for (int l = 0; l < glr::LEANS; l++) programs.push_back({"lean program " + std::to_string(l), l < glr::LEAN_FILL ? glr::LVS : glr::LBVS, glr::LFS[l]});   // ZINC_GL_LEAN
   for (const Program& p : programs) {
     const std::string vs = pre_vs + p.vs, fs = pre_fs + p.fs;
     std::string vpre, fpre, expanded;

@@ -13,7 +13,7 @@ Options (`"display": { "driver": "gl", ... }` or `plugins.display-gl`):
 |---|---|---|
 | `key` | `0` | UI pixels of exactly this colour (`0xRRGGBB` as a decimal number) are transparent; `-1` makes the UI opaque |
 | `fullscreen` | `false` | macOS: start fullscreen (F toggles it at run time). The Pi is always fullscreen |
-| `mode` | `""` | Pi: display mode `"1920x1080"`; default is the connector's preferred mode |
+| `mode` | `""` | Pi: display mode `"1920x1080"`; default is the connector's preferred mode. `ZINC_GL_MODE=1280x720` in the environment overrides it at run time |
 
 On a KMS screen a program that names no size (no `width` x `height` for the target, no board, no `ZINC_SIZE`) is
 drawn at the mode's size, pixel for pixel, as on the framebuffer (`docs/plugins/display-fbdev.md`, "The surface's
@@ -170,6 +170,10 @@ Three changes, each behind an environment switch so one binary can be compared w
 | cheap quads | `ZINC_GL_SPLIT=1` (on) | an opaque interior needs no coverage maths: a filled rounded rect becomes one solid quad plus four bands for the rim, a border only its four bands, a shadow a solid quad for the box shrunk by blur / 2 plus four falloff bands. Quads that fall outside the current clip are no longer submitted |
 | damage-limited replay | `ZINC_GL_DMG=0` (off) | scissors the replay into the surface texture to the damage rectangle. **Off: suspected of hanging the VC4 GPU (see below)** |
 | occlusion | `ZINC_GL_OCCLUDE=1` (on) | with a depth buffer (24 bits on desktop and with `OES_depth24`, 16 bits up to 16k commands), the opaque square RECTs and CLEARs outside clips are drawn first, front to back with depth writes, through a program of their own (one 24-byte instance a rectangle on desktop GL, four 16-byte vertices on GLES 2); every other command is then depth-tested at its place in the paint order, so what they hide costs no fragment shading (ZN-412.01) |
+| rounded clips in the shader | `ZINC_GL_RCLIP=1` (on for a tiling GPU, off elsewhere) | the corners of a CLIP with a radius are clipped by the fragment shader (two open at once; a third falls back to the copy), instead of copying the corners out of the framebuffer, which on a tiling GPU draws and reloads everything recorded so far: `clip_nested` 3 -> 60 fps on a Pi 3 at 1080p ([pi-1080p](../reports/pi-1080p.md)) |
+| occlusion threshold | `ZINC_GL_OCCLUDE_RATIO=0.5` | the occlusion pass starts when the opaque square rectangles, summed, cover this fraction of the surface (it writes and stores a depth buffer: not worth it for a few small rectangles) |
+| screen mode at run time (`kms.cpp`) | `ZINC_GL_MODE=1280x720` | picks the KMS mode when the build did not (the `mode` option is compiled in); a program that names a smaller size is scaled by the GPU |
+| lean programs | `ZINC_GL_LEAN=1` (on for VideoCore IV, Adreno 2xx, Tegra 3) | plain premultiplied blend and no distance where the box needs none; a square box on whole pixels is written without blending when opaque |
 | culling | `ZINC_GL_CULL=1` (on) | a list of 2048 commands or more first goes through `zrt::raster::cull_pack` (each command's tile range in 8 bytes, on 4 threads) and `cull_walk` (from the last command back, a tile closed under an opaque rectangle, tiles of 2/3 the opaque rectangles' size, 4 to 32 px): the commands covered whole are not submitted at all. On a tiling GPU the primitives cost even when hidden: bouncing-ball's 200k balls 4.0 ms of GPU without, 0.66 ms with (7.9k quads), for 1.5 ms of CPU (ZN-412.05) |
 | vsync | `ZINC_VSYNC=1` (on) | `0`: swaps without waiting for the display (measurements) |
 | one program per mode (GLES 2) | always; `ZINC_GL_GROUPS="0,1,7;2"` regroups modes to measure | a GPU without branches runs every mode of a single fragment shader for each pixel: on GLES 2 a batch is drawn run by run, each run by the program of its mode, built at first use. Desktop GL keeps one program (ZN-725) |

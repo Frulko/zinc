@@ -13,6 +13,9 @@ enum Mode { FILL, BORDER_M, TEXT_M, IMAGE_RGBA, IMAGE_BGR, SOLID, RESTORE, SHADO
 static const char* VS =
   "attribute vec4 a_pos; attribute vec4 a_box; attribute vec4 a_par; attribute vec4 a_c1; attribute vec4 a_c2; attribute float a_z;\n"
   "uniform vec2 u_res; uniform float u_flip;\n"
+  "#ifdef ZN_RCLIP\n"   // rounded clips drawn by the shader (no framebuffer read): the position relative to the centre of each of the two active clips
+  "uniform vec4 u_ca0, u_ca1; varying vec4 v_cs;\n"
+  "#endif\n"
   "#ifdef ZN_PAINT_UNIFORM\n"
   "uniform vec4 u_g0;\n"
   "#endif\n"
@@ -29,11 +32,19 @@ static const char* VS =
   "  vec2 so = seg ? o : vec2(0.0);\n"
   "  v_pos = vec4(a_pos.xy - o, a_pos.zw - so); v_box = vec4(a_box.xy - o, a_box.zw - so); v_par = vec4(a_par.x, a_par.y - so.x, a_par.z, a_par.w - so.y);\n"
   "  v_c1 = a_c1; v_c2 = a_c2;\n"
+  "#ifdef ZN_RCLIP\n"
+  "  v_cs = vec4(a_pos.xy - u_ca0.xy, a_pos.xy - u_ca1.xy);\n"
+  "#endif\n"
   "  gl_Position = vec4(a_pos.x / u_res.x * 2.0 - 1.0, (a_pos.y / u_res.y * 2.0 - 1.0) * u_flip, a_z, 1.0); }\n";  // row 0 = top, like the CPU (u_flip -1: drawn into the window)
 static const char* const FS_HEAD =
   "varying vec4 v_pos; varying vec4 v_box; varying vec4 v_par; varying vec4 v_c1; varying vec4 v_c2;\n"
   "uniform sampler2D u_tex; uniform vec3 u_edge;\n"   // u_edge: the EDGE pass (side test, left side, inside); RAMP: z is the sign of |t|
   "uniform vec4 u_g0, u_g1, u_gc[8]; uniform float u_go[8];\n"   // a POLY's canvas gradient paint (ZN-590.04): (x0, y0, r0, kind), (x1, y1, r1, n), stops (rgb, alpha 0..255; offset)
+  "#ifdef ZN_RCLIP\n"
+  "varying vec4 v_cs; uniform vec4 u_ca0, u_ca1; uniform vec2 u_cr;\n"   // the two active rounded clips: centre (xy), half size (zw), radius (u_cr)
+  // only in the corner squares: the straight sides stay the scissor's whole pixels, like the software raster's clip (a fractional box does not blur its sides)
+  "float rcov(vec2 p, vec2 h, float r) { vec2 q = abs(p) - (h - r); float c = clamp(0.5 - (length(max(q, 0.0)) - r), 0.0, 1.0); return q.x > 0.0 && q.y > 0.0 ? c : 1.0; }\n"
+  "#endif\n"
   "uniform vec3 u_cv[8]; uniform float u_cvn;\n"   // a convex POLY (ZN-679): its edges as (nx, ny, c), the signed distance n.p + c positive inside
   "float sdf(vec2 p, vec2 c, vec2 h, float r) {\n"
   "  vec2 q = abs(p - c) - (h - r);\n"
@@ -158,7 +169,7 @@ static const char* const FS_BLEND =
 // and nothing else: two or three varyings in place of five vectors, no distance, no branch, a plain premultiplied blend in place of the
 // raster's integer one (a unit of difference at most on a channel). On an Adreno 220 the general program takes 16 ms to fill 1024x768
 // with one colour and 32 ms with an image; a program of this kind takes 2 ms (docs/reports/hardware/hp-touchpad-webos.md).
-enum Lean { LEAN_SOLID, LEAN_TEXT, LEAN_IMAGE, LEAN_FILL, LEAN_RADIAL, LEAN_BORDER, LEAN_SHADOW, LEANS };
+enum Lean { LEAN_SOLID, LEAN_TEXT, LEAN_IMAGE, LEAN_FILL, LEAN_RADIAL, LEAN_BORDER, LEAN_SHADOW, LEAN_FILLSQ, LEANS };
 static const char* LVS =
   "attribute vec4 a_pos; attribute vec4 a_par; attribute vec4 a_c1; attribute float a_z;\n"
   "uniform vec2 u_res; uniform float u_flip;\n"
@@ -197,7 +208,16 @@ static const char* const LFS[LEANS] = {
   // SHADOW: a blurred box
   LB_HEAD "void main() { vec2 d = abs(v_q) - (v_h.xy - v_h.z); float s = length(max(d, 0.0)) + min(max(d.x, d.y), 0.0) - v_h.z;\n"
   "  float k = clamp(1.0 - (s + v_h.w * 0.5) / (v_h.w * 1.5), 0.0, 1.0), a = k * k * (3.0 - 2.0 * k) * v_col.a; gl_FragColor = vec4(v_col.rgb * a, a); }\n",
+  // FILL of a square box on whole pixels, one colour or a linear gradient: every pixel is covered, no distance (the vertices carry the gradient's place)
+  LB_HEAD "void main() { float a = v_col.a; gl_FragColor = vec4(mix(v_col.rgb, v_c2.rgb, clamp(v_c2.a, 0.0, 1.0)) * a, a); }\n",
 };
+// The coverage of the rounded clips that are open (CLIP with a radius): the same distance as RESTORE's, so the pixels equal the ones the copy of the
+// corners gave, without reading the framebuffer in the middle of the frame (a tiling GPU draws what was recorded and loads it back for that read:
+// a whole pass per rounded clip, 50 ms a frame at 1080p on a Pi 3). An unused slot has a huge box.
+static const char* const FS_RCLIP =
+  "#ifdef ZN_RCLIP\n"
+  "  cov *= rcov(v_cs.xy, u_ca0.zw, u_cr.x) * rcov(v_cs.zw, u_ca1.zw, u_cr.y);\n"
+  "#endif\n";
 /** The fragment shader of the modes of `mask` (bit m: mode m), with the paint block or not, into `out`: one mode's block alone, or the
  *  blocks behind a ladder of ifs on the vertex's mode (every mode: desktop GL). A GPU without branches runs every block of a ladder
  *  for each pixel, and its driver takes as long to build the whole ladder whatever is kept of it (100 ms on a Pi 3 at 600 MHz, 30 to
@@ -214,7 +234,7 @@ static bool fs_source(unsigned mask, bool paint, char* out, size_t cap) {
     if (m != last) snprintf(test, sizeof test, "if (mode < %d.5) ", m);
     n += (size_t)snprintf(out + n, cap - n, "  %s%s{\n%s  }\n", m != first ? "else " : "", test, FS_MODE[m]);
   }
-  if (n < cap) n += (size_t)snprintf(out + n, cap - n, "%s%s", paint ? FS_PAINT : "", FS_BLEND);
+  if (n < cap) n += (size_t)snprintf(out + n, cap - n, "%s%s%s", paint ? FS_PAINT : "", FS_RCLIP, FS_BLEND);
   return n < cap;
 }
 

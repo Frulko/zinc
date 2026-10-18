@@ -43,7 +43,7 @@ int main() {
     glcaps::Caps c;
     glcaps::fill(c, in);
     CHECK(c.family == glcaps::VC4); CHECK(c.npot); CHECK(c.vao); CHECK(c.uint_index); CHECK(c.packed_ds); CHECK(c.depth24);
-    CHECK(c.buffer_age); CHECK(c.tiler); CHECK(!c.lean); CHECK(!c.fb_fetch);
+    CHECK(c.buffer_age); CHECK(c.tiler); CHECK(c.lean); CHECK(!c.fb_fetch);
   }
   {
     const char* name = "Adreno 220";

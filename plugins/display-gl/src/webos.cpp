@@ -170,7 +170,7 @@ void loadEnv() {
   if (done) return;
   done = true;
   if (FILE* f = fopen("/tmp/zinc/env", "r")) {
-    char line[256];
+    char line[2048];   // a benchmark's list of scenes is longer than 255 characters (tools/zbench)
     while (fgets(line, sizeof line, f)) {
       line[strcspn(line, "\r\n")] = 0;
       if (char* eq = strchr(line, '=')) { *eq = 0; if (*line) setenv(line, eq + 1, 1); }

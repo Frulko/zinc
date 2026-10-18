@@ -67,10 +67,12 @@ static inline Family family_of(const char* vendor, const char* renderer) {
 /** The tuning table: a row per family that differs from the default (an immediate-mode GPU, the full programs). Why each row:
  *  - tilers: VideoCore IV, Adreno, Mali, PowerVR and Apple GPUs draw in tiles (a clear before a full draw costs nothing there);
  *  - lean: an Adreno 220 fills 1024x768 in 16 ms with the full program and 2 ms with a lean one (docs/reports/hardware/hp-touchpad-webos.md);
- *    Tegra 3 replays a scroll's strip and the perf panel in about half the GPU time with them (ZN-741 notes). */
+ *    Tegra 3 replays a scroll's strip and the perf panel in about half the GPU time with them (ZN-741 notes);
+ *    VideoCore IV at 1080p (Pi 3B+, 2026-10-19): gradients 3 -> 20 fps, translucent full-screen layers 8 -> 20, shadows 30 -> 60, with at most 23 levels
+ *    of difference from the software frame (docs/reports/pi-1080p.md). */
 struct Tune { Family family; bool tiler, lean; };
 static const Tune tune[] = {
-  {VC4, true, false}, {ADRENO2, true, true}, {ADRENO, true, false}, {TEGRA3, false, true}, {MALI_UTGARD, true, false}, {MALI, true, false},
+  {VC4, true, true}, {ADRENO2, true, true}, {ADRENO, true, false}, {TEGRA3, false, true}, {MALI_UTGARD, true, false}, {MALI, true, false},
   {POWERVR, true, false}, {APPLE, true, false},
 };
 

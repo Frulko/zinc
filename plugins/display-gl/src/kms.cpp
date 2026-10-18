@@ -46,7 +46,8 @@ static bool open_card() {
       if (!k) continue;
       if (k->connection == DRM_MODE_CONNECTED && k->count_modes > 0) {
         int want_w = 0, want_h = 0;  // option "mode": "1920x1080" picks that size; else the preferred mode
-        sscanf(ZP_DISPLAY_GL_MODE, "%dx%d", &want_w, &want_h);
+        const char* want_mode = getenv("ZINC_GL_MODE");   // at run time too: a benchmark compares several modes of one build
+        sscanf(want_mode && *want_mode ? want_mode : ZP_DISPLAY_GL_MODE, "%dx%d", &want_w, &want_h);
         mode = k->modes[0];
         for (int m = 0; m < k->count_modes; m++) {
           bool hit = want_w ? (k->modes[m].hdisplay == want_w && k->modes[m].vdisplay == want_h) : (k->modes[m].type & DRM_MODE_TYPE_PREFERRED);

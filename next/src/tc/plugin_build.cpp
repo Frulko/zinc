@@ -436,7 +436,7 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
   h.add(gen.cppHeader); h.add(gen.thunk);
   h.add(display ? "display" : "module");
   for (const std::string& s : own) { std::string t; readAll(s, t); h.add(relToPlugin(s)); h.add(t); }
-  for (const std::string& hp : {root + "/include/zn/native.h", root + "/src/native/zrt_compat.h", runtime + "/zrt.h", runtime + "/zrt_raster.h", runtime + "/gl_replay.cpp", runtime + "/gl_replay_shaders.h", runtime + "/include/hal.h"}) h.add(sha256File(hp));
+  for (const std::string& hp : {root + "/include/zn/native.h", root + "/src/native/zrt_compat.h", runtime + "/zrt.h", runtime + "/zrt_raster.h", runtime + "/gl_replay.cpp", runtime + "/gl_replay_shaders.h", runtime + "/gl_caps.h", runtime + "/include/hal.h"}) h.add(sha256File(hp));
   if (pluginTarget() == "windows") h.add(sha256File(zincImplib(engineRoot)));   // DATA vs code exports in libzinc.dll.a change the DLL's import table
   for (const std::string& s : own) {   // the files beside the sources, in name order: headers, and sources one of them #includes (display-gl's gl_renderer.cpp)
     std::vector<std::string> hs;
@@ -587,7 +587,7 @@ std::vector<std::string> stampInputs(const frontend::FoundPlugin& p, const std::
   const frontend::PluginTarget& ts = m.targetSettings.at(target);
   std::vector<std::string> in{(fs::path(p.dir) / "plugin.json").string(), executablePath()};
   const std::string root = engineRoot, runtime = root + "/../runtime";
-  for (const std::string& hp : {root + "/include/zn/native.h", root + "/src/native/zrt_compat.h", runtime + "/zrt.h", runtime + "/zrt_raster.h", runtime + "/gl_replay.cpp", runtime + "/gl_replay_shaders.h", runtime + "/include/hal.h"}) in.push_back(hp);
+  for (const std::string& hp : {root + "/include/zn/native.h", root + "/src/native/zrt_compat.h", runtime + "/zrt.h", runtime + "/zrt_raster.h", runtime + "/gl_replay.cpp", runtime + "/gl_replay_shaders.h", runtime + "/gl_caps.h", runtime + "/include/hal.h"}) in.push_back(hp);
   if (target == "windows") { const std::string im = zincImplib(engineRoot); if (!im.empty()) in.push_back(im); }
   std::vector<std::string> dirs;
   std::error_code ec;

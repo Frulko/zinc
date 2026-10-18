@@ -59,15 +59,15 @@ static GLuint vbo, ibo, fbo, fbo_tex, fbo_depth, white, atlas, corner_tex, cur_t
 // 181 ms for a map frame that takes 65 this way (docs/reports/raspberry-pi.md). A batch is then drawn run by run, a run being its consecutive quads of one
 // program, so the paint order stays. Uniforms belong to a program: use_prog() gives it the frame's (size, flip) at its first use in the
 // frame, and the code that draws a mode sets that mode's own (edge, paint, convex) on the program use_prog() returns.
-struct Prog { GLuint id; GLint u_res, u_flip, u_edge, u_g0, u_g1, u_gc, u_go, u_cv, u_cvn; uint32_t stamp; bool tried; };
-static Prog progs[32 + 8];    // by key (key_of): 0 on desktop GL; on GLES 2 the mode, + 16 with the paint block; from 32 the lean programs
+struct Prog { GLuint id; GLint u_res, u_flip, u_edge, u_g0, u_g1, u_gc, u_go, u_cv, u_cvn, u_ca0, u_ca1, u_cr; uint32_t stamp, cgen; bool tried; };
+static Prog progs[64 + 40];    // by key (key_of): 0 on desktop GL; on GLES 2 the mode, + 16 with the paint block; from 32 the lean programs; + 64 with the rounded clips (rclip)
 static bool lean_on;          // ZINC_GL_LEAN=1 (GLES 2): the lean programs for the quads they can draw (gl_replay_shaders.h)
 static Prog* cur_prog;        // the program in use, nullptr after another one was (occlusion, stencil)
 static uint32_t pstamp;       // the frame's number, for Prog::stamp
 static bool paint_on;         // a gradient paint is set (set_paint): the quads take the program with the paint block
 static int only = -1;         // ZINC_GL_ONLY=<mode>: every quad drawn as that mode (wrong pixels: what a mode's shader costs)
 static bool strips = !GLR_CORE;   // the edges of STROKE and POLY as RAMP quads (below); ZINC_GL_STRIPS=0 / 1
-struct Run { int first; uint8_t key; };
+struct Run { int first; uint8_t key; bool opaque; };   // opaque: every pixel of the run is written whole, no blending (a tiling GPU skips reading the destination)
 enum { A_BOX = 2, A_PAR, A_C1, A_C2, A_Z };   // attribute locations, the same in every program (zgl_program binds the names; a_pos is 0)
 static float cur_z;          // NDC depth of the command being drawn: later commands are nearer (GL_LESS)
 static GLuint sprog, svbo;    // the occlusion pass's program and buffer
@@ -97,31 +97,97 @@ static Run runs[MAXQ];
 static int nruns;
 static Rect clip, applied, base;
 static Rect cstack[16];
-struct RC { float x, y, w, h, r; int R; bool on; };
+struct RC { float x, y, w, h, r; int R; bool on; bool an; };   // on: the corners are restored from a copy of the framebuffer; an: the shader clips them (rclip)
 static RC rstack[16];
 static int sp;
+// Rounded clips drawn by the shader: up to two open at once (a card in a card); the quads of a run drawn while one is open take the program with the
+// rclip block (key + 64) and their coverage is multiplied by the clips'. ZINC_GL_RCLIP=0|1, else the tuning table (a tiling GPU: the copy it replaces
+// flushes the tile pass). A third open rounded clip, or the switch off, falls back to the copy of the corners.
+struct RClip { float cx, cy, hw, hh, r; };
+static RClip rcs[2];
+static int nrc;
+static uint32_t clip_gen = 1;   // changes when the set of open rounded clips does: a program re-reads its uniforms
+static bool rclip_on;
 static uint32_t warned, unsupported;
-static struct { uint32_t frames, idle, draws, quads, glyphs, ptiles, blocks, decoded, progs, atlas_ups; double us, cull_us, prog_us, glyph_us; uint64_t hidden, block_bytes; } st;
-#if defined(__APPLE__) && GLR_CORE
-// GPU time of the replays (ZINC_GL_STATS, ZN-679): a timer query per frame, read four frames later so the CPU never waits for the GPU
+static struct { uint32_t frames, idle, occl_frames, draws, quads, glyphs, ptiles, blocks, decoded, progs, atlas_ups; double us, cull_us, prog_us, glyph_us; uint64_t hidden, block_bytes; } st;
+// GPU time of the replays (ZINC_GL_STATS, ZN-679; ZINC_PROFILE=json publishes it). The sources, in the order they are tried, and the name each publishes as gl_timer_source:
+//   GL_TIME_ELAPSED          desktop core GL (macOS): a timer query per frame, read four frames later so the CPU never waits for the GPU
+//   EXT_disjoint_timer_query GLES 2 and 3 where the driver has the extension (found at run time through eglGetProcAddress): the same, plus the disjoint check
+//   glFinish                 only when asked (ZINC_GL_TIMER=finish): the wall time from the start of the replay to glFinish. It is the CPU's submit time plus the GPU's completion with the
+//                            pipeline serialised, an upper bound and not the same measure: a number from it must never share an axis with a query's
+//   none                     no timer on this GPU (the Tegra 3 driver, probably others): gl_gpu_us is 0
+// ZINC_GL_TIMER=query|finish|off forces one. A tile-based GPU (Adreno, Mali, PowerVR, VideoCore) times a frame or a pass, not a draw: the number is per replayed frame.
+static double now_us_early() { timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return t.tv_sec * 1e6 + t.tv_nsec / 1e3; }
+static const char* gpu_source = "none";
 static GLuint gq[4];
-static uint32_t gq_n = 0, gpu_n = 0;
-static double gpu_us = 0;
-static bool gpu_stats() { static const bool on = getenv("ZINC_GL_STATS") != nullptr; return on; }
+static uint32_t gq_n = 0, gpu_n = 0, gpu_lost = 0;
+static double gpu_us = 0, gpu_t0 = 0;
+static int gpu_mode = -1;   // -1 not decided, 0 none, 1 core query, 2 EXT query (GLES), 3 glFinish
+static bool gpu_stats() { static const bool on = getenv("ZINC_GL_STATS") != nullptr || getenv("ZINC_GL_TIMER") != nullptr; return on; }
+#if !GLR_CORE
+#include <dlfcn.h>
+static void (*pGenQ)(int, GLuint*);
+static void (*pBeginQ)(GLenum, GLuint);
+static void (*pEndQ)(GLenum);
+static void (*pGetQ)(GLuint, GLenum, GLuint*);
+static void (*pGetQ64)(GLuint, GLenum, unsigned long long*);
+static void* gl_proc(const char* n) {
+  typedef void* (*GP)(const char*);
+  static GP gp = (GP)dlsym(RTLD_DEFAULT, "eglGetProcAddress");
+  static bool tried;
+  if (!gp && !tried) { tried = true; void* h = dlopen("libEGL.so", RTLD_LAZY); if (!h) h = dlopen("libEGL.so.1", RTLD_LAZY); if (h) gp = (GP)dlsym(h, "eglGetProcAddress"); }
+  return gp ? gp(n) : nullptr;
+}
+#endif
+static void gpu_init() {
+  gpu_mode = 0;
+  const char* want = getenv("ZINC_GL_TIMER");
+  if (want && !strcmp(want, "off")) return;
+  const bool finish = want && !strcmp(want, "finish");
+#if GLR_CORE && defined(__APPLE__)
+  if (!finish) { gpu_mode = 1; gpu_source = "GL_TIME_ELAPSED"; return; }
+#else
+  const char* ext = (const char*)glGetString(GL_EXTENSIONS);
+  if (!finish && ext && strstr(ext, "GL_EXT_disjoint_timer_query")) {
+    pGenQ = (void (*)(int, GLuint*))gl_proc("glGenQueriesEXT"); pBeginQ = (void (*)(GLenum, GLuint))gl_proc("glBeginQueryEXT"); pEndQ = (void (*)(GLenum))gl_proc("glEndQueryEXT");
+    pGetQ = (void (*)(GLuint, GLenum, GLuint*))gl_proc("glGetQueryObjectuivEXT"); pGetQ64 = (void (*)(GLuint, GLenum, unsigned long long*))gl_proc("glGetQueryObjectui64vEXT");
+    if (pGenQ && pBeginQ && pEndQ && pGetQ && pGetQ64) { gpu_mode = 2; gpu_source = "EXT_disjoint_timer_query"; return; }
+  }
+#endif
+  if (finish) { gpu_mode = 3; gpu_source = "glFinish"; }
+}
 static void gpu_begin() {
   if (!gpu_stats()) return;
-  if (!gq[0]) glGenQueries(4, gq);
+  if (gpu_mode < 0) gpu_init();
+  if (gpu_mode <= 0) return;
+  gpu_t0 = now_us_early();
+  if (gpu_mode == 3) return;
   const uint32_t k = gq_n % 4;
+#if GLR_CORE && defined(__APPLE__)
+  if (!gq[0]) glGenQueries(4, gq);
   if (gq_n >= 4) { GLuint64 ns = 0; glGetQueryObjectui64v(gq[k], GL_QUERY_RESULT, &ns); gpu_us += ns / 1000.0; gpu_n++; }
   glBeginQuery(GL_TIME_ELAPSED, gq[k]);
-}
-static void gpu_end() { if (gpu_stats()) { glEndQuery(GL_TIME_ELAPSED); gq_n++; } }
 #else
-static void gpu_begin() {}
-static void gpu_end() {}
-static const uint32_t gpu_n = 0;
-static const double gpu_us = 0;
+  const GLenum TIME_ELAPSED = 0x88BF, RESULT = 0x8866, AVAILABLE = 0x8867, DISJOINT = 0x8FBB;
+  if (!gq[0]) pGenQ(4, gq);
+  if (gq_n >= 4) {   // the query of four frames ago: read it when it is there and the GPU was not disjoint (a clock change, a context loss), else count it lost
+    GLuint ok = 0; pGetQ(gq[k], AVAILABLE, &ok);
+    GLint dis = 0; glGetIntegerv(DISJOINT, &dis);
+    if (ok && !dis) { unsigned long long ns = 0; pGetQ64(gq[k], RESULT, &ns); gpu_us += ns / 1000.0; gpu_n++; } else gpu_lost++;
+  }
+  pBeginQ(TIME_ELAPSED, gq[k]);
 #endif
+}
+static void gpu_end() {
+  if (!gpu_stats() || gpu_mode <= 0) return;
+  if (gpu_mode == 3) { glFinish(); gpu_us += now_us_early() - gpu_t0; gpu_n++; return; }
+#if GLR_CORE && defined(__APPLE__)
+  glEndQuery(GL_TIME_ELAPSED);
+#else
+  pEndQ(0x88BF);
+#endif
+  gq_n++;
+}
 // ZINC_GL_TRACE=1: a line before each texture upload, framebuffer copy and clear of a frame, to tell which one a driver's own report
 // follows (Mesa vc4: VC4_DEBUG=perf prints "Blocking on resource BO for bo map" when a call waits for the GPU)
 static bool tracing;
@@ -159,6 +225,12 @@ static const GLenum A_IFMT = GL_LUMINANCE, A_FMT = GL_LUMINANCE;
 #endif
 
 // ---- the context's capability record (gl_caps.h), filled once by init(); the provider gives its EGL extensions first when it has EGL
+extern "C" __attribute__((weak)) void zrt_prof_info(const char* key, const char* val);   // runtime/gfx.cpp
+extern "C" { extern void (*zrt_gl_info_hook)(); }   // runtime/gfx.cpp: ZINC_PROFILE=json asks the renderer for its counters
+static void gl_info_hook();
+static GLint occl_bits;   // the depth bits of the target the last frame was drawn to (published: the occlusion pass needs 16)
+extern "C" { extern void (*zrt_gl_info_reset_hook)(); }   // runtime/gfx.cpp: a profile section ended (zinc:gfx profSection): the counters start again
+static void gl_info_reset() { st.frames = st.idle = st.occl_frames = st.draws = st.quads = 0; st.us = 0; gpu_us = 0; gpu_n = 0; gpu_lost = 0; }
 static glcaps::Caps caps;
 static const char* egl_extensions;
 static void probe() {
@@ -180,6 +252,12 @@ static void probe() {
   glGetIntegerv(GL_DEPTH_BITS, &in.depth_bits); glGetIntegerv(GL_STENCIL_BITS, &in.stencil_bits);
 #endif
   glcaps::fill(caps, in);
+  zrt_gl_info_hook = gl_info_hook; zrt_gl_info_reset_hook = gl_info_reset;
+  if (zrt_prof_info) {   // ZINC_PROFILE=json prints what the GPU is with the numbers (weak: absent where the profiler is not linked)
+    zrt_prof_info("gl_vendor", in.vendor ? in.vendor : "?"); zrt_prof_info("gl_renderer", in.renderer ? in.renderer : "?"); zrt_prof_info("gl_version", in.version ? in.version : "?");
+    char b[16]; snprintf(b, sizeof b, "%d", in.max_texture); zrt_prof_info("gl_max_texture", b);
+    zrt_prof_info("gl_family", glcaps::family_names[caps.family]);
+  }
   if (getenv("ZINC_GL_INFO")) { char b[1024]; glcaps::print(caps, b, sizeof b); fputs(b, stderr); }
 }
 /** The FBO's depth (and stencil) storage at W x H: depth 24 / stencil 8 where the API has it (desktop GL, GLES 2 with
@@ -219,9 +297,9 @@ static void set_groups(const char* spec) {
 static inline uint8_t key_of(int mode) {
 #if GLR_CORE
   (void)mode;
-  return 0;
+  return nrc > 0 ? 64 : 0;
 #else
-  return (uint8_t)((only >= 0 ? only : group[mode & 15]) | (paint_on && only < 0 ? 16 : 0));   // & 15: a box drawn through a matrix has 16 added to its mode
+  return (uint8_t)((only >= 0 ? only : group[mode & 15]) | (paint_on && only < 0 ? 16 : 0) | (nrc > 0 ? 64 : 0));   // & 15: a box drawn through a matrix has 16 added to its mode
 #endif
 }
 static Prog& use_prog(uint8_t key) {
@@ -230,19 +308,21 @@ static Prog& use_prog(uint8_t key) {
     p.tried = true;
     static char fs[8192];
     const double t0 = now_us();
-    const unsigned modes = key >= 32 ? 0 : only >= 0 ? 1u << only : GLR_CORE ? ~0u : gmask[key & 15];
-    char defs[96];   // VS: positions absolute under a paint; FS: ZINC_GL_MEDIUMP's precision
+    const uint8_t k0 = key & 63;   // 64: the rclip variant of k0
+    const unsigned modes = k0 >= 32 ? 0 : only >= 0 ? 1u << only : GLR_CORE ? ~0u : gmask[k0 & 15];
+    char defs[128];   // VS: positions absolute under a paint; FS: ZINC_GL_MEDIUMP's precision
     const char* mpb = getenv("ZINC_GL_MEDIUMP");
-    snprintf(defs, sizeof defs, "%s%s%s%s", GLR_CORE ? "#define ZN_PAINT_UNIFORM 1\n" : key & 16 ? "#define ZN_PAINT 1\n" : "",
+    snprintf(defs, sizeof defs, "%s%s%s%s%s", GLR_CORE ? "#define ZN_PAINT_UNIFORM 1\n" : k0 & 16 ? "#define ZN_PAINT 1\n" : "", key & 64 ? "#define ZN_RCLIP 1\n" : "",
              mpb ? "#define ZN_MP " : "", mpb ? mpb : "", mpb ? ".0\n" : "");
-    p.id = key >= 32 ? zgl_program("", key - 32 < LEAN_FILL ? LVS : LBVS, LFS[key - 32]) : fs_source(modes, GLR_CORE ? only < 0 : (key & 16) != 0, fs, sizeof fs) ? zgl_program(defs, VS, fs) : 0;
+    p.id = k0 >= 32 ? zgl_program("", k0 - 32 < LEAN_FILL ? LVS : LBVS, LFS[k0 - 32]) : fs_source(modes, GLR_CORE ? only < 0 : (k0 & 16) != 0, fs, sizeof fs) ? zgl_program(defs, VS, fs) : 0;
     st.prog_us += now_us() - t0;
-    if (getenv("ZINC_GL_STATS")) fprintf(stderr, "display-gl renderer gl: program of modes 0x%x%s built in %.0f ms (frame %u)\n", modes & ((1u << MODES) - 1), key & 16 ? " with paint" : "", (now_us() - t0) / 1e3, st.frames);
+    if (getenv("ZINC_GL_STATS")) fprintf(stderr, "display-gl renderer gl: program of modes 0x%x%s built in %.0f ms (frame %u)\n", modes & ((1u << MODES) - 1), key & 16 ? (key & 64 ? " with paint and rounded clips" : " with paint") : key & 64 ? " with rounded clips" : "", (now_us() - t0) / 1e3, st.frames);
     if (!p.id) fprintf(stderr, "display-gl: renderer gl: the program of modes 0x%x does not build: their quads are not drawn\n", modes & ((1u << MODES) - 1));
     else {
       p.u_flip = glGetUniformLocation(p.id, "u_flip"); p.u_res = glGetUniformLocation(p.id, "u_res"); p.u_edge = glGetUniformLocation(p.id, "u_edge");
       p.u_g0 = glGetUniformLocation(p.id, "u_g0"); p.u_g1 = glGetUniformLocation(p.id, "u_g1"); p.u_gc = glGetUniformLocation(p.id, "u_gc"); p.u_go = glGetUniformLocation(p.id, "u_go");
       p.u_cv = glGetUniformLocation(p.id, "u_cv"); p.u_cvn = glGetUniformLocation(p.id, "u_cvn");
+      p.u_ca0 = glGetUniformLocation(p.id, "u_ca0"); p.u_ca1 = glGetUniformLocation(p.id, "u_ca1"); p.u_cr = glGetUniformLocation(p.id, "u_cr"); p.cgen = 0;
       glUseProgram(p.id);
       glUniform1i(glGetUniformLocation(p.id, "u_tex"), 0);
       glUniform3f(p.u_edge, 0, 0, -1);   // RAMP: w - |t|, but in the pass over the pixels inside a fill (edge_draw)
@@ -251,6 +331,12 @@ static Prog& use_prog(uint8_t key) {
   }
   if (cur_prog != &p) { glUseProgram(p.id); cur_prog = &p; }
   if (p.stamp != pstamp && p.id) { p.stamp = pstamp; glUniform1f(p.u_flip, flipy ? -1.f : 1.f); glUniform2f(p.u_res, (float)W, (float)H); }
+  if (p.id && (key & 64) && p.cgen != clip_gen) {   // the open rounded clips; an unused slot is a box too big to touch a pixel
+    p.cgen = clip_gen;
+    static const RClip none = {0.f, 0.f, 16000.f, 16000.f, 0.f};
+    const RClip& a = rcs[0], &b = nrc > 1 ? rcs[1] : none;
+    glUniform4f(p.u_ca0, a.cx, a.cy, a.hw, a.hh); glUniform4f(p.u_ca1, b.cx, b.cy, b.hw, b.hh); glUniform2f(p.u_cr, a.r, b.r);
+  }
   return p;
 }
 /** GLES 2: builds the next command program not built yet, the common modes first, then the lean ones when they are on, so no frame waits
@@ -269,6 +355,14 @@ static bool warm() {
     return true;
   }
   for (int l = 0; lean_on && l < LEANS; l++) if (!progs[32 + l].tried) { use_prog((uint8_t)(32 + l)); return true; }
+  static const uint8_t clipped[] = {FILL, TEXT_M, SOLID, IMAGE_RGBA, BORDER_M};   // the variants with the rounded clips, for the modes a card holds
+  for (uint8_t m : clipped) {
+    if (!rclip_on) break;
+    const uint8_t k = (uint8_t)(group[m] | 64);
+    if (progs[k].tried) continue;
+    use_prog(k);
+    return true;
+  }
   return false;
 #endif
 }
@@ -276,6 +370,7 @@ static bool init(int32_t w, int32_t h) {
   W = w; H = h;
   if (const char* e = getenv("ZINC_GL_ONLY")) only = atoi(e) % MODES;
   probe();
+  rclip_on = getenv("ZINC_GL_RCLIP") ? atoi(getenv("ZINC_GL_RCLIP")) != 0 : caps.tiler;
   lean_on = !GLR_CORE && (getenv("ZINC_GL_LEAN") ? atoi(getenv("ZINC_GL_LEAN")) != 0 : caps.lean);   // the tuning table's choice unless asked
   set_groups(getenv("ZINC_GL_GROUPS"));
   tracing = getenv("ZINC_GL_TRACE") != nullptr;
@@ -367,11 +462,12 @@ static void attribs(size_t base) {
   glEnableVertexAttribArray(A_Z); glVertexAttribPointer(A_Z, 1, GL_FLOAT, GL_FALSE, S, (void*)(base + 56));
 }
 /** The quad about to be added to the batch is of `mode`: it starts a run when the last one is drawn by another program. */
-static inline void run_of(int mode, int lean = -1) {
-  const uint8_t k = lean >= 0 ? (uint8_t)(32 + lean) : key_of(mode);
-  if (!nruns || runs[nruns - 1].key != k) runs[nruns++] = Run{nq, k};
+static inline void run_of(int mode, int lean = -1, bool opaque = false) {
+  const uint8_t k = lean >= 0 && nrc == 0 ? (uint8_t)(32 + lean) : key_of(mode);   // a lean program has no clip block
+  if (!nruns || runs[nruns - 1].key != k || runs[nruns - 1].opaque != opaque) runs[nruns++] = Run{nq, k, opaque};
 }
 static void atlas_sync();
+static bool blend_gl = true;   // GL_BLEND as flush() left it (it always leaves it on)
 static void flush() {
   if (!nq) return;
   atlas_sync();
@@ -384,9 +480,11 @@ static void flush() {
   for (int r = 0; r < nruns; r++) {   // desktop GL: one run
     const int q0 = runs[r].first, q1 = r + 1 < nruns ? runs[r + 1].first : nq;
     if (!use_prog(runs[r].key).id) continue;
+    if (runs[r].opaque == blend_gl) { if (runs[r].opaque) glDisable(GL_BLEND); else glEnable(GL_BLEND); blend_gl = !runs[r].opaque; }
     glDrawElements(GL_TRIANGLES, (q1 - q0) * 6, GL_UNSIGNED_SHORT, (void*)((size_t)q0 * 6 * sizeof(uint16_t)));
     st.draws++;
   }
+  if (!blend_gl) { glEnable(GL_BLEND); blend_gl = true; }
   st.quads += (uint32_t)nq;
   nq = 0; nruns = 0;
 }
@@ -411,7 +509,7 @@ static void set_filter(Tex2& t, bool nearest) {
   t.nearest = nearest;
 }
 static void setc(uint8_t* o, uint32_t c, uint32_t a) { o[0] = (uint8_t)(c >> 16); o[1] = (uint8_t)(c >> 8); o[2] = (uint8_t)c; o[3] = (uint8_t)a; }
-struct Q { float x0, y0, x1, y1, u0, v0, u1, v1, bx, by, bw, bh, r, p1; int mode, grad; uint32_t c1, c2; uint32_t alpha; };
+struct Q { float x0, y0, x1, y1, u0, v0, u1, v1, bx, by, bw, bh, r, p1; int mode, grad; uint32_t c1, c2; uint32_t alpha; bool full; };   // full: every pixel of the quad is inside its box (the interior of a split rounded rect)
 // XFORM (ZN-263.01): while it is on, quads are given in a box's own coordinates and their corners go through this matrix; the boxes'
 // distance functions get their own coordinates in (u, v), with 16 added to the mode, and images and glyphs keep their texture coordinates.
 static bool xf_on;
@@ -436,13 +534,21 @@ static void quad(const Q& q) {
   V* v = &verts[nq * 4];
   const int m15 = mode & 15;
   int lean = -1;   // the lean program that draws this quad, when there is one (gl_replay_shaders.h)
+  // A square box on whole pixels covers each of its pixels fully or not at all: no distance to work out, and when its colour is opaque no blending (a
+  // tiling GPU then neither reads nor merges the destination: a Pi 3 fills 56 Mpixel/s of gradient with the distance and the blend, far more without)
+  static const bool whole_on = !getenv("ZINC_GL_WHOLE") || atoi(getenv("ZINC_GL_WHOLE")) != 0;   // 0: every box through the general coverage maths (to compare)
+  const bool whole = whole_on && !xf_on && !paint_on && only < 0 && nrc == 0 && (m15 == FILL || m15 == SOLID) && q.grad <= 2 &&
+                     (q.full || (q.r <= 0 && q.bw > 0 && q.bh > 0 && q.bx - q.bw == floorf(q.bx - q.bw) && q.by - q.bh == floorf(q.by - q.bh) && q.bx + q.bw == floorf(q.bx + q.bw) && q.by + q.bh == floorf(q.by + q.bh)));
+  static const bool whole_translucent = getenv("ZINC_GL_WHOLE_TRANSLUCENT") && atoi(getenv("ZINC_GL_WHOLE_TRANSLUCENT")) != 0;
+  const bool opaque = whole && q.alpha >= 255;
   if (lean_on && only < 0 && !paint_on) {
-    if (m15 == FILL) lean = q.grad <= 2 ? LEAN_FILL : q.grad == 3 ? LEAN_RADIAL : -1;
+    if (whole && (opaque || whole_translucent)) lean = LEAN_FILLSQ;   // a translucent one measured slower than LEAN_FILL on a Tegra 3 (16 fps against 22 for eight screens)
+    else if (m15 == FILL) lean = q.grad <= 2 ? LEAN_FILL : q.grad == 3 ? LEAN_RADIAL : -1;
     else if (m15 == BORDER_M) lean = LEAN_BORDER;
     else if (m15 == SHADOW_M) lean = LEAN_SHADOW;
     else if (q.r <= 0) lean = m15 == SOLID ? LEAN_SOLID : m15 == TEXT_M ? LEAN_TEXT : (m15 == IMAGE_RGBA || m15 == IMAGE_BGR) && q.grad != 2 && q.p1 == 0 ? LEAN_IMAGE : -1;
   }
-  run_of(mode, lean);
+  run_of(mode, lean, opaque);
   nq++;
   for (int i = 0; i < 4; i++) {
     v[i] = V{xs[i], ys[i], us[i], vs[i], q.bx, q.by, q.bw, q.bh, q.r, q.p1, (float)mode, (float)q.grad, {0, 0, 0, 0}, {0, 0, 0, 0}, cur_z};
@@ -1377,12 +1483,12 @@ static void draw_xform(const Cmd& c, const float* p, const char* text, const flo
 }
 
 // b minus in as four non-overlapping quads (top, bottom, left, right), drawn with `mode` and the box of c
-static void bands(const Cmd& c, const Rect& b, const Rect& in, int mode, float p1) {
+static void bands(const Cmd& c, const Rect& b, const Rect& in, int mode, float p1, int grad = 0) {
   const Rect r[4] = {{b.x0, b.y0, b.x1, in.y0}, {b.x0, in.y1, b.x1, b.y1}, {b.x0, in.y0, in.x0, in.y1}, {in.x1, in.y0, b.x1, in.y1}};
   for (const Rect& k : r) {
     if (k.x0 >= k.x1 || k.y0 >= k.y1) continue;
     Q q = box_q(c, k, mode);
-    q.p1 = p1;
+    q.p1 = p1; q.grad = grad;
     quad(q);
   }
 }
@@ -1494,6 +1600,19 @@ static void occlusion_pass(const Frame& f) {
 static bool any_occluder(const Frame& f) {
   for (uint32_t i = 0; i < f.count; i++) { const Cmd& c = f.cmds[i]; if (c.kind == RECT && c.r <= 0 && !c.grad && c.alpha == 255) return true; }
   return false;
+}
+// The occlusion pass pays for itself where opaque rectangles pile up: it writes and then stores a depth buffer (a tiling GPU stores it to memory
+// every frame) and draws the rectangles twice. 300 small rectangles that hardly touch each other (a moving square over a static decoration)
+// run 24 fps with it and 30 without on a Pi 3 at 1080p; eight full-screen panels run 40 fps with it and 15 without. So the pass starts when
+// the opaque square RECTs, summed (each one at most the surface), cover at least half the surface (ZINC_GL_OCCLUDE_RATIO, default 0.5).
+static float opaque_ratio(const Cmd* cmds, uint32_t count) {
+  double area = 0;
+  const double full = (double)W * H;
+  for (uint32_t i = 0; i < count; i++) {
+    const Cmd& c = cmds[i];
+    if (c.kind == RECT && c.r <= 0 && !c.grad && c.alpha == 255) { const double a = (double)c.w * c.h; area += a < full ? a : full; if (area >= full) break; }
+  }
+  return (float)(area / full);
 }
 // ---- SHADER (ZN-746): a box filled by a program's own fragment shader (gfx::shaderProgram), compiled at its first use behind the varyings and
 // uniforms every such program reads, and drawn alone in paint order. The includer gives the sources (shader_source); without it SHADER draws
@@ -1693,7 +1812,7 @@ static uint64_t verify(const HalFrame* f, Rect* box) {
 }
 
 static void run(const Frame& f, bool first) {
-  sp = 0;
+  sp = 0; nrc = 0; clip_gen++;
   clip = base;
   const uint32_t nw = walk_count(f, first);
   for (uint32_t k = 0; k < nw; k++) {
@@ -1724,6 +1843,15 @@ static void run(const Frame& f, bool first) {
           float r = clampf(c.r, 0, c.w < c.h ? c.w * 0.5f : c.h * 0.5f);
           Rect in = isect(Rect{iceil(c.x + r), iceil(c.y + r), ifloor(c.x + c.w - r), ifloor(c.y + c.h - r)}, b);
           if (in.x0 < in.x1 && in.y0 < in.y1) { solid_and_bands(c, b, in, FILL, 0); break; }
+        }
+        if (c.grad >= 1 && c.grad <= 2 && split && !paint_on) {   // a linear gradient: the interior is covered whole (no distance), only the rim needs the coverage maths
+          const float r = clampf(c.r, 0, c.w < c.h ? c.w * 0.5f : c.h * 0.5f);
+          const Rect in = isect(Rect{iceil(c.x + r), iceil(c.y + r), ifloor(c.x + c.w - r), ifloor(c.y + c.h - r)}, b);
+          if (in.x1 - in.x0 >= 16 && in.y1 - in.y0 >= 16) {   // a small box costs more in quads than it saves
+            Q q = box_q(c, in, FILL); q.grad = c.grad; q.full = true; quad(q);
+            bands(c, b, in, FILL, 0, c.grad);
+            break;
+          }
         }
         if (c.grad == 5) { draw_paint_rect(c, f.pts + c.off, b); break; }
         Q q = box_q(c, b, plain ? SOLID : FILL);
@@ -1795,7 +1923,11 @@ static void run(const Frame& f, bool first) {
         // ZINC_GL_CORNERS=0: every clip is square. The copies below read the framebuffer in the middle of a frame; a GPU that draws in tiles
         // (Adreno, Mali, VideoCore) then draws everything recorded so far and loads it back for what follows: a whole pass per rounded clip
         static const bool corners = !getenv("ZINC_GL_CORNERS") || atoi(getenv("ZINC_GL_CORNERS")) != 0;
-        if (corners && k.R > 0 && k.R <= CORNER && x0 >= 0 && y0 >= 0 && x1 <= W && y1 <= H) {   // ponytail: larger radii or clips off screen stay square
+        if (rclip_on && corners && c.r > 0 && nrc < 2) {   // no copy of the framebuffer: the shader clips the corners of what is drawn from here to the UNCLIP
+          const float rr = c.r < hw2 ? (c.r < hh2 ? c.r : hh2) : (hw2 < hh2 ? hw2 : hh2);
+          rcs[nrc++] = RClip{c.x + hw2, c.y + hh2, hw2, hh2, rr};
+          k.an = true; clip_gen++;
+        } else if (corners && k.R > 0 && k.R <= CORNER && x0 >= 0 && y0 >= 0 && x1 <= W && y1 <= H) {   // ponytail: larger radii or clips off screen stay square
           const int32_t cx[4] = {x0, x1 - k.R, x0, x1 - k.R}, cy[4] = {y0, y0, y1 - k.R, y1 - k.R};
           GLR_TRACE("corners of a rounded CLIP copied from the framebuffer, radius %d, %d quads drawn so far\n", k.R, st.quads - trace_q0);
           glBindFramebuffer(GL_FRAMEBUFFER, flipy ? 0 : fbo);
@@ -1814,6 +1946,7 @@ static void run(const Frame& f, bool first) {
         flush();
         const RC k = rstack[--sp];
         clip = cstack[sp];
+        if (k.an) { nrc--; clip_gen++; }
         if (k.on) {
           float hw = k.w / 2, hh = k.h / 2;
           int32_t x0 = ifloor(k.x), y0 = ifloor(k.y), x1 = iceil(k.x + k.w), y1 = iceil(k.y + k.h);
@@ -1843,6 +1976,9 @@ static void run(const Frame& f, bool first) {
  *  limits it to `dmg`. ponytail: off by default, that scissored replay is the prime suspect of GPU hangs seen on the
  *  Pi 3B+ (Kit / Forms: partial damage, "Resetting GPU"); see docs/plugins/display-gl.md. */
 static bool dmg_default = false;   // the includer's choice when ZINC_GL_DMG is not set (the Android window, ZN-741)
+/** Whether a replay into the surface texture is limited to the damage. When it is not, the texture keeps nothing the next frame needs, and drawing
+ *  into it and then copying it to the window is a full-surface pass for nothing (3 GPU jobs a frame on a Pi 3, 33 ms at 1080p for a square that moves). */
+static bool damage_limited() { return getenv("ZINC_GL_DMG") ? atoi(getenv("ZINC_GL_DMG")) != 0 : dmg_default; }
 static void frame(const HalFrame* f, bool direct, Rect dmg) {
   static const bool dmg_on = getenv("ZINC_GL_DMG") ? atoi(getenv("ZINC_GL_DMG")) != 0 : dmg_default;
   if (direct) ring_off = 0;   // the window gets the whole frame: the texture is drawn again whole after it
@@ -1878,6 +2014,7 @@ static void frame_in(const HalFrame* f, bool direct, Rect box, int32_t ty) {
   clip = base;
   apply_clip();   // the clear stays inside the base rectangle
   // occlusion (ZN-412.01) when the framebuffer has a depth buffer that tells the commands apart (16 bits: up to 16k commands); ZINC_GL_OCCLUDE=0 turns it off
+  static const float occl_ratio = getenv("ZINC_GL_OCCLUDE_RATIO") ? (float)atof(getenv("ZINC_GL_OCCLUDE_RATIO")) : 0.5f;
   static const bool occl_on = !getenv("ZINC_GL_OCCLUDE") || atoi(getenv("ZINC_GL_OCCLUDE")) != 0;
   // asked once per target (a query each pass made a driver validate the framebuffer: a scroll replays several rectangles a frame)
   GLint& bits = target_bits[direct][0];
@@ -1895,7 +2032,9 @@ static void frame_in(const HalFrame* f, bool direct, Rect box, int32_t ty) {
   stencil_ok = gpu_poly && sbits >= 8;
   const uint32_t first_n = n > 0 ? lists[0]->count : 0;
   // and only over most of the surface: for a small rectangle (a scroll's strip) the pass costs more than the overdraw it saves
-  occl = occl_on && bits >= 16 && first_n >= 64 && (uint64_t)first_n * 4 < (1ull << (bits > 24 ? 24 : bits)) && (int64_t)(base.x1 - base.x0) * (base.y1 - base.y0) * 4 >= (int64_t)W * H;
+  occl = occl_on && bits >= 16 && (first_n >= 2 && opaque_ratio((const Cmd*)lists[0]->cmds, lists[0]->count) >= occl_ratio) && (uint64_t)first_n * 4 < (1ull << (bits > 24 ? 24 : bits)) && (int64_t)(base.x1 - base.x0) * (base.y1 - base.y0) * 4 >= (int64_t)W * H;
+  if (occl) st.occl_frames++;
+  occl_bits = bits;
   glClearColor(0, 0, 0, 1);
 #if GLR_CORE
   glClearDepth(1.0);
@@ -1911,7 +2050,7 @@ static void frame_in(const HalFrame* f, bool direct, Rect box, int32_t ty) {
   pstamp++; cur_prog = nullptr;   // another user of the context may have bound its program since the last frame
   glActiveTexture(GL_TEXTURE0);
   cur_tex = white;
-  glEnable(GL_BLEND);
+  glEnable(GL_BLEND); blend_gl = true;
   glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);   // premultiplied: the fragment shader writes the raster's blend (ZN-412.03)
   cur_blend = BLEND_NORMAL;
 #if !GLR_CORE
@@ -1957,6 +2096,17 @@ static void frame_in(const HalFrame* f, bool direct, Rect box, int32_t ty) {
   st.us += now_us() - t0;
 }
 static void idle() { st.idle++; }
+// ZINC_PROFILE=json: what the GL renderer did, published just before the summary prints (runtime/gfx.cpp). gl_gpu_us is the GL_TIME_ELAPSED average where the GPU has the query (0: it has not).
+static void gl_info_hook() {
+  if (!zrt_prof_info || !st.frames) return;
+  double n = st.frames;
+  char b[40];
+  auto put = [&](const char* k, double v, const char* f) { snprintf(b, sizeof b, f, v); zrt_prof_info(k, b); };
+  put("gl_frames_replayed", st.frames, "%.0f"); put("gl_frames_idle", st.idle, "%.0f"); put("gl_draw_calls_per_frame", st.draws / n, "%.1f"); put("gl_quads_per_frame", st.quads / n, "%.0f");
+  put("gl_cpu_submit_us", st.us / n, "%.0f"); put("gl_gpu_us", gpu_n ? gpu_us / gpu_n : 0.0, "%.0f"); zrt_prof_info("gl_timer_source", gpu_source); put("gl_gpu_samples", gpu_n, "%.0f"); put("gl_gpu_samples_lost", gpu_lost, "%.0f"); put("gl_programs_built", st.progs, "%.0f"); put("gl_program_build_ms", st.prog_us / 1e3, "%.1f");
+  put("gl_occlusion_frames", st.occl_frames, "%.0f"); put("gl_depth_bits", occl_bits, "%.0f");
+  put("gl_glyph_uploads", GLR_CORE ? st.glyphs : st.atlas_ups, "%.0f");
+}
 static void report() {
   if (!getenv("ZINC_GL_STATS")) return;
   double n = st.frames ? st.frames : 1;

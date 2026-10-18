@@ -1,6 +1,7 @@
 // display-gl: GPU screen driver (HalDisplay). Every frame: GPU layers (zgl_layers, e.g. zinc:mapping), then the
 // software UI framebuffer as an overlay texture (only damaged rows are uploaded); pixels equal to the key colour
 // are transparent. The backend (sdl.cpp on macOS, kms.cpp on Raspberry Pi) owns the context and input.
+extern "C" __attribute__((weak)) void zrt_prof_info(const char* key, const char* val);   // runtime/gfx.cpp
 #include "hal.h"
 #include "zgl.h"
 #include "render_bands.h"
@@ -100,6 +101,7 @@ static void choose_renderer(const HalFrame* f) {
   if (!r || !*r) r = ZP_DISPLAY_GL_RENDERER;
   bool gl = !strcmp(r, "gl"), autor = !strcmp(r, "auto");
   glr_state = -1;
+  if (zrt_prof_info) zrt_prof_info("renderer", "cpu");   // ZINC_PROFILE=json: replaced by "gl" below when the GPU renderer comes up
   if (!gl && !autor) return;
   if (!f->frames) { fprintf(stderr, "display-gl: renderer %s: the runtime gives no command lists, using cpu\n", r); return; }
   int32_t rw = 0, rh = 0;
@@ -108,6 +110,7 @@ static void choose_renderer(const HalFrame* f) {
   if (!glr::init(f->w, f->h)) { fprintf(stderr, "display-gl: renderer %s: GL setup failed, using cpu\n", r); return; }
   glr_tex = glr::texture();
   glr_state = 1;
+  if (zrt_prof_info) zrt_prof_info("renderer", "gl");
   zrt::gfx::gpu_strokes = true;   // strokes are recorded as polylines from the next frame on, drawn by the replay (ZN-590.01)
   zrt::gfx::shaders_drawn = true; glr::shader_source = zrt::gfx::shaderSource;   // and the programs' shaders (ZN-746)
 }
@@ -295,7 +298,7 @@ static void present(const HalFrame* f) {
     static bool tex_ok = false;   // the texture holds the last frame
     bool can = !screen && dw == PW && dh == PH && !zgl_layers && !placed;
     int64_t area = damaged ? (int64_t)(f->x1 - f->x0) * (f->y1 - f->y0) : 0;
-    direct = can && damaged && (mode == 1 || (mode == 2 && area * 2 >= (int64_t)PW * PH));
+    direct = can && damaged && (mode == 1 || (mode == 2 && (!glr::damage_limited() || area * 2 >= (int64_t)PW * PH)));   // a whole-frame replay gains nothing from the texture
     if (direct) { glr::frame(f, true, glr::Rect{0, 0, PW, PH}); tex_ok = false; }
     else if (damaged || !tex_ok) {
       glr::frame(f, false, tex_ok && damaged ? glr::Rect{f->x0, f->y0, f->x1, f->y1} : glr::Rect{0, 0, PW, PH});
