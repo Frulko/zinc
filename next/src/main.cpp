@@ -2334,7 +2334,7 @@ int main(int argc, char** argv) {
         if (!pl.vendor.empty()) cmd += " '" + pl.vendor + "'";
         for (const std::string& a : pl.linkArgs) cmd += " " + a;
       }
-      for (const char* lib : {"zn_rt", "zn_mimalloc", "zn_zbc", "zn_ir", "zn_frontend", "zn_native", "zn_host_gfx", "zn_layout", "zn_yoga", "zn_codec", "zn_uv", "zn_llhttp", "zn_mbedtls", "zn_regexp", "zn_zpk", "zn_lz4", "zn_zstd", "zn_sha256", "zn_yyjson"}) if (fs::exists(L + "lib" + lib + ".a")) cmd += " '" + L + "lib" + lib + ".a'";
+      for (const char* lib : {"zn_script", "zn_qjs_ext", "zn_quickjs", "zn_rt", "zn_mimalloc", "zn_zbc", "zn_ir", "zn_frontend", "zn_native", "zn_host_gfx", "zn_layout", "zn_yoga", "zn_codec", "zn_uv", "zn_llhttp", "zn_mbedtls", "zn_regexp", "zn_zpk", "zn_lz4", "zn_zstd", "zn_sha256", "zn_yyjson"}) if (fs::exists(L + "lib" + lib + ".a")) cmd += " '" + L + "lib" + lib + ".a'";
       cmd += " -lpthread -o '" + std::string(argv[6]) + "'";
       writeComponents(std::string(argv[6]) + ".components", cmd, crossPlugins);   // ZN-323
       ok = std::system(cmd.c_str()) == 0;

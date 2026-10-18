@@ -674,6 +674,7 @@ if(TARGET zn_host_gfx AND SDL3_FOUND)
   set_target_properties(zn_app PROPERTIES POSITION_INDEPENDENT_CODE ON)
   target_include_directories(zn_app PUBLIC include src)
   target_link_libraries(zn_app PUBLIC zn_app_host zn_layout zn_native zn_mimalloc zn_regexp)
+  target_link_libraries(zn_app PUBLIC zn_script)   # zinc:script (QuickJS) for a program that imports it: a static archive, so a program that does not import it pulls no object
   # Zinc Go, the player (ZN-631, src/app/player.cpp): the interpreter, Fast Refresh's swap and the link to zinc dev --lan; linked into a
   # player's package only (zinc.json "player": true), never into a user's app, whose AOT program defines Machine::exec itself
   add_library(zn_app_player STATIC src/app/player.cpp src/dev/hot_swap.cpp src/vm/vm.cpp)

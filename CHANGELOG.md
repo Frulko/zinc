@@ -24,6 +24,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - iOS export: an app icon that is not 1024 x 1024 (a 512 px PNG, an SVG) no longer stops the Xcode build; it is resampled to 1024.
 - Web target: a screen could go blank after the window was resized (a tab you had left still reacted to the new size and wrote over the screen on show); the same fault could hit a desktop app.
 - Web target: a letter typed into a text field of a canvas page arrived twice.
+- `zinc:script` now links in a cross build (`--target armv7-webos`, the Linux targets) and in an exported Android or iOS project; it failed with an undefined `zn_module_QuickJS`.
 - Web target, DOM mode: a program that draws with `zinc:gfx` or three.js and has no `zinc:ui` tree showed a blank page; it now gets a window-sized canvas and takes mouse and keys.
 - Web target: the page no longer asks for `/favicon.ico` (a 404 in every console) when the app has no icon, and an error thrown on every frame is reported once, not sixty times a second.
 
