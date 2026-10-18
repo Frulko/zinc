@@ -99,7 +99,7 @@ function handle(n: Notif): void {
   const why = settings.decide(n, name, domain, focusNow);
   if (why === '') {
     const avatar = n.kind === 'message' ? relay.keep(avatars.of(n)) : '';
-    relay.relay(n, name, domain, avatar);
+    relay.relay(n, name, domain, avatar, relay.keep(avatars.attachment(n)));
     counts.relayed++;
   } else if (why === 'paused') counts.paused++;
   else if (why === 'focus') counts.focus++;

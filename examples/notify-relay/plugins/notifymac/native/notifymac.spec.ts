@@ -46,6 +46,8 @@ export interface Spec extends NativeModule {
   localNetwork(): string;
   /** Renders a single emoji (or sequence) as a px x px PNG using the system's colour-emoji font; [] when it cannot. */
   emojiPng(text: string, px: i32): u8[];
+  /** An image (as imagePng's sources) fitted in maxPx x maxPx, its aspect kept, as a JPEG; [] when it cannot. */
+  imageFit(source: string, maxPx: i32): u8[];
   /** Watches the usernoted database file (and its WAL) for writes; sets a flag a later dbChanged() reads. Call once. */
   watchDb(path: string): void;
   /** True (and clears) when the watched database has been written since the last call. */

@@ -13,6 +13,8 @@ import * as mac from 'zinc:notifymac';
 import { Notif, MAC_EPOCH, initials, gradientOf, GRADIENTS } from './model';
 
 export const AVATAR_PX: i32 = 128;
+/** The longest side of an attachment sent to the tablet (a JPEG, about 50 to 120 KB). */
+export const ATTACHMENT_PX: i32 = 640;
 
 function home(): string { return env('HOME'); }
 /** The attachment stores of Notification Center (macOS 15's group container, and the per-user directory of earlier systems). */
@@ -57,6 +59,22 @@ export class Avatars {
       }
       const png = mac.imagePng(s, AVATAR_PX);
       if (png.length > 0) return png;
+    }
+    return [];
+  }
+
+  /** The first image a message carries (Notification Center's attachment store, a path, or bytes), fitted in ATTACHMENT_PX as a JPEG; [] when none. */
+  attachment(n: Notif): u8[] {
+    for (const s of n.attachments) {
+      if (s.startsWith('uuid:')) {
+        for (const d of attachmentDirs(this.dbPath)) {
+          const f = findAttachment(d, s.slice(5), 0);
+          if (f !== '') { const jpg = mac.imageFit(f, ATTACHMENT_PX); if (jpg.length > 0) return jpg; }
+        }
+        continue;
+      }
+      const jpg = mac.imageFit(s, ATTACHMENT_PX);
+      if (jpg.length > 0) return jpg;
     }
     return [];
   }

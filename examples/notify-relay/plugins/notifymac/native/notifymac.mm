@@ -157,16 +157,36 @@ struct MacNotify : NativeNotifyMac {
       return bytes(render(px, ^(NSRect r) { [icon drawInRect:r fromRect:NSZeroRect operation:NSCompositingOperationCopy fraction:1.0]; }));
     }
   }
+  static NSImage* loadSource(NSString* s) {   // an image file's path, a file URL, an Intents proxy URL, or base64 bytes
+    if ([s hasPrefix:@"file://"]) return [[NSImage alloc] initWithContentsOfURL:[NSURL URLWithString:s]];
+    if ([s hasPrefix:@"/"]) return [[NSImage alloc] initWithContentsOfFile:s];
+    if ([s hasPrefix:@"intents-remote-image-proxy:"]) return intentsProxyImage(s);
+    NSData* d = [[NSData alloc] initWithBase64EncodedString:s options:0];
+    return d ? [[NSImage alloc] initWithData:d] : nil;
+  }
   zrt::Array<uint8_t> imagePng(zrt::String source, int32_t px) override {
     @autoreleasepool {
       if (px <= 0 || px > 1024) return bytes(nil);
-      NSString* s = ns(source);
-      NSImage* img = nil;
-      if ([s hasPrefix:@"file://"]) img = [[NSImage alloc] initWithContentsOfURL:[NSURL URLWithString:s]];
-      else if ([s hasPrefix:@"/"]) img = [[NSImage alloc] initWithContentsOfFile:s];
-      else if ([s hasPrefix:@"intents-remote-image-proxy:"]) img = intentsProxyImage(s);
-      else { NSData* d = [[NSData alloc] initWithBase64EncodedString:s options:0]; if (d) img = [[NSImage alloc] initWithData:d]; }
-      return bytes(squarePng(img, px));
+      return bytes(squarePng(loadSource(ns(source)), px));
+    }
+  }
+  zrt::Array<uint8_t> imageFit(zrt::String source, int32_t maxPx) override {
+    @autoreleasepool {
+      if (maxPx <= 0 || maxPx > 2048) return bytes(nil);
+      NSImage* img = loadSource(ns(source));
+      NSBitmapImageRep* src = img ? [[NSBitmapImageRep alloc] initWithData:[img TIFFRepresentation]] : nil;
+      if (!src || src.pixelsWide <= 0 || src.pixelsHigh <= 0) return bytes(nil);
+      const double k = MIN(1.0, (double)maxPx / MAX(src.pixelsWide, src.pixelsHigh));
+      const NSInteger w = MAX(1, (NSInteger)lround(src.pixelsWide * k)), h = MAX(1, (NSInteger)lround(src.pixelsHigh * k));
+      NSBitmapImageRep* out = [[NSBitmapImageRep alloc] initWithBitmapDataPlanes:nil pixelsWide:w pixelsHigh:h bitsPerSample:8 samplesPerPixel:4
+                                hasAlpha:YES isPlanar:NO colorSpaceName:NSCalibratedRGBColorSpace bytesPerRow:0 bitsPerPixel:0];
+      [NSGraphicsContext saveGraphicsState];
+      [NSGraphicsContext setCurrentContext:[NSGraphicsContext graphicsContextWithBitmapImageRep:out]];
+      [NSGraphicsContext currentContext].imageInterpolation = NSImageInterpolationHigh;
+      [[NSColor blackColor] set]; NSRectFill(NSMakeRect(0, 0, w, h));   // a JPEG has no alpha: on the tablet's black
+      [src drawInRect:NSMakeRect(0, 0, w, h)];
+      [NSGraphicsContext restoreGraphicsState];
+      return bytes([out representationUsingType:NSBitmapImageFileTypeJPEG properties:@{NSImageCompressionFactor: @0.82}]);
     }
   }
   zrt::Array<uint8_t> monogram(zrt::String text, int32_t top, int32_t bottom, int32_t px) override {

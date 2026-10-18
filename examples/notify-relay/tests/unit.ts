@@ -3,7 +3,7 @@
 // the Focus policies, the Focus files' parsing. Made-up data only. Prints one line per failure and "unit ok" at the end.
 import * as mac from 'zinc:notifymac';
 import { utf8Encode, exit } from 'zinc:sys';
-import { avatarSources, communicationSender, initials, gradientOf, GRADIENTS, hostIn, domainOf, fromRecord, isImage, Notif, Settings, FocusState, keysOf, FOCUS_HOLD, FOCUS_FOLLOW } from '../src/model';
+import { avatarSources, attachmentSources, communicationSender, initials, gradientOf, GRADIENTS, hostIn, domainOf, fromRecord, isImage, Notif, Settings, FocusState, keysOf, FOCUS_HOLD, FOCUS_FOLLOW } from '../src/model';
 import { modesOf, activeOf } from '../src/focus';
 import { extract } from '../src/emoji';
 import { base64Decode, base64Encode } from 'zinc:web';
@@ -27,10 +27,10 @@ const rec = plistOf('<dict><key>app</key><string>net.whatsapp.WhatsApp</string><
   '<key>cnta</key><dict><key>identityImageData</key><data>' + pngB64 + '</data><key>note</key><data>aGVsbG8gd29ybGQgaGVsbG8gd29ybGQ=</data></dict></dict></dict>');
 check(rec !== null, 'the XML record parses');
 const src = avatarSources(rec);
-check(src.length === 3, 'three image sources (identity, attachment, icon): ' + src.length);
+check(src.length === 2, 'two image sources for the avatar (identity, icon), the attachment apart: ' + src.length);
 check(src.length > 0 && src[0].startsWith('0:') && src[0].slice(2) === pngB64, 'the identity image first');
-check(src.length > 1 && src[1] === '1:uuid:0B1E2A3C-4D5E-6F70-8192-A3B4C5D6E7F8', 'then the attachment: ' + (src.length > 1 ? src[1] : ''));
-check(src.length > 2 && src[2].startsWith('3:'), 'the icon last');
+{ const att = attachmentSources(rec); check(att.length === 1 && att[0] === 'uuid:0B1E2A3C-4D5E-6F70-8192-A3B4C5D6E7F8', 'the attachment is what the message carries, never the avatar: ' + att.join(',')); }
+check(src.length > 1 && src[1].startsWith('3:'), 'the icon last');
 const n = fromRecord('ab', 'net.whatsapp.WhatsApp', rec, 800000000, true);
 eq(n.kind, 'message', 'a messaging app gives a message');
 eq(n.sender, 'Anna Martin', 'the sender is the title');

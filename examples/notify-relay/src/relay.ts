@@ -118,7 +118,7 @@ export class Relay {
     }
   }
 
-  /** Keeps a PNG (an icon, an avatar) to send by its hash; the hash ('' for no PNG). */
+  /** Keeps an image (an icon or an avatar as PNG, an attachment as JPEG) to send by its hash; the hash ('' for none). */
   keep(png: u8[]): string {
     if (png.length === 0) return '';
     const hash = hex(sha256(png));
@@ -147,6 +147,7 @@ export class Relay {
     if (!this.connected()) { if (this.peer !== null) this.wait(m); return; }   // no tablet yet: nothing to keep them for
     this.giveIcon('' + m.app.icon, false);
     if (m.avatar !== null) this.giveIcon('' + m.avatar, false);
+    if (m.attachment !== undefined && m.attachment !== null) this.giveIcon('' + m.attachment, false);
     if ((this.ch as link.Channel).send(m)) this.sent++;
     else this.wait(m);
   }
@@ -156,11 +157,11 @@ export class Relay {
   }
 
   /** Sends a notification that passed the filters (or keeps it until the tablet is back); `avatar` is the hash of the sender's image. */
-  relay(n: Notif, appName: string, domain: string, avatar: string): void {
+  relay(n: Notif, appName: string, domain: string, avatar: string, attachment: string = ''): void {
     const et = extract(n.title), es = extract(n.subtitle), eb = extract(n.body);
     const m: any = { t: 'notif', id: n.id, app: { id: n.app, name: appName, icon: this.icon(n.app) }, title: et.text, subtitle: es.text, body: eb.text,
       date: n.date, domain: domain === '' ? null : domain, thread: n.thread, kind: n.kind, sender: n.kind === 'message' ? n.sender : '', avatar: avatar === '' ? null : avatar,
-      emoji: et.images.concat(es.images).concat(eb.images) };
+      emoji: et.images.concat(es.images).concat(eb.images), attachment: attachment === '' ? null : attachment };
     this.recent.set(n.id, [n.app, n.url]);
     this.recentIds.push(n.id);
     while (this.recentIds.length > RECENT_MAX) this.recent.delete(this.recentIds.shift() as string);

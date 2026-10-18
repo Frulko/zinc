@@ -5,7 +5,7 @@
 // kept in notifications.json beside the program and the icons and avatars in notif-icons/ (one PNG per hash, asked once with need-icon).
 // Not paired yet: the same slide is the pairing assistant.
 // ZINC_MUSIC_RELAY=<file> replaces the link for the tests: lines "<seconds> <message JSON>" given to the app as if the Mac sent them.
-import { rrect, drawImage, drawText, imageFromBytes, textWidth, fontAscent, font } from 'zinc:gfx';
+import { rrect, drawImage, drawText, imageFromBytes, imageWidth, imageHeight, textWidth, fontAscent, font } from 'zinc:gfx';
 import { exists, readText, writeText, readBytes, writeBytes, mkdir } from 'zinc:fs';
 import { env } from 'zinc:sys';
 import { base64Decode } from 'zinc:web';
@@ -18,6 +18,8 @@ export class Notif {
   title: string = ''; subtitle: string = ''; body: string = ''; date: number = 0; domain: string = ''; thread: string = ''; emoji: string[] = [];
   /** 'message' (a person wrote: sender and avatar) or 'other'. */
   kind: string = 'other'; sender: string = ''; avatar: string = '';
+  /** The hash of a photo the message carries (a JPEG fitted in 640 px), '' when none. */
+  attachment: string = '';
 }
 
 const MAX = 50, FILE = 'notifications.json', ICONS = 'notif-icons';
@@ -43,14 +45,14 @@ function load(): Notif[] {
 function fromJson(j: any): Notif {
   const n = new Notif();
   n.id = str(j.id); n.title = str(j.title); n.subtitle = str(j.subtitle); n.body = str(j.body); n.domain = str(j.domain); n.thread = str(j.thread); n.emoji = Array.isArray(j.emoji) ? j.emoji as string[] : [];
-  n.kind = str(j.kind) === 'message' ? 'message' : 'other'; n.sender = str(j.sender); n.avatar = str(j.avatar);
+  n.kind = str(j.kind) === 'message' ? 'message' : 'other'; n.sender = str(j.sender); n.avatar = str(j.avatar); n.attachment = str(j.attachment);
   n.date = j.date !== undefined && j.date !== null ? j.date as number : Date.now() / 1000;
   if (j.app !== undefined && j.app !== null) { n.appId = str(j.app.id); n.appName = str(j.app.name); n.icon = str(j.app.icon); }
   return n;
 }
 function save(): void {
   const a: any[] = [];
-  for (const n of list) a.push({ id: n.id, app: { id: n.appId, name: n.appName, icon: n.icon }, title: n.title, subtitle: n.subtitle, body: n.body, date: n.date, domain: n.domain, thread: n.thread, kind: n.kind, sender: n.sender, avatar: n.avatar, emoji: n.emoji });
+  for (const n of list) a.push({ id: n.id, app: { id: n.appId, name: n.appName, icon: n.icon }, title: n.title, subtitle: n.subtitle, body: n.body, date: n.date, domain: n.domain, thread: n.thread, kind: n.kind, sender: n.sender, avatar: n.avatar, emoji: n.emoji, attachment: n.attachment });
   try { writeText(FILE, JSON.stringify(a) + '\n'); } catch (e) { console.error(`music: ${FILE}: ${e.message}`); }
 }
 /** The notifications kept, newest first. */
@@ -61,6 +63,8 @@ export function clearNotifs(): void { list = []; save(); ui.dirty = true; }
 // ---------------------------------------------------------------- emoji images, decoded once per notification
 function placeholders(s: string): i32 { let k: i32 = 0; for (let i = 0; i < s.length; i++) if (s.charAt(i) === '\uFFFC') k++; return k; }
 function plain(s: string): string { return s.replace(/\uFFFC/g, ''); }
+/** The width drawInline takes: the text without its placeholders, plus one emoji of `h` (and 2 px) for each. */
+function inlineWidth(f: i32, s: string, h: number): number { return textWidth(f, plain(s), 0) + placeholders(s) * (h + 2); }
 const emojiImgs = new Map<string, i32[]>();
 function emojiImages(n: Notif): i32[] {
   const key = n.id;
@@ -73,22 +77,21 @@ function emojiImages(n: Notif): i32[] {
   return out;
 }
 /** Draws a string whose '\uFFFC' placeholders are replaced by the emoji images of `n`, on one line starting at x. */
-function drawInline(x: number, y: number, s: string, n: Notif, f: i32, color: u32, h: number): number {
+function drawInline(x: number, y: number, s: string, n: Notif, f: i32, color: u32, h: number, alpha: i32 = 255, first: i32 = 0): number {
   const imgs = emojiImages(n);
-  let ei = 0, px = x;
+  let ei = first, px = x;
   const parts = s.split('\uFFFC');
   for (let i = 0; i < parts.length; i++) {
-    if (parts[i] !== '') { drawText(f, px, y, parts[i], color, 255, 0); px += textWidth(f, parts[i], 0); }
+    if (parts[i] !== '') { drawText(f, px, y, parts[i], color, alpha, 0); px += textWidth(f, parts[i], 0); }
     if (i < parts.length - 1) {
       const img = ei < imgs.length ? imgs[ei++] : -1;
-      if (img >= 0) { drawImage(img, px, y, h, h, 255, h * 0.15); px += h + 2; }
-      else { px += textWidth(f, '\uFFFC', 0); }
+      if (img >= 0) { drawImage(img, px, y, h, h, alpha, h * 0.15); px += h + 2; }
     }
   }
   return px;
 }
 /** Like wrap, but renders '\uFFFC' placeholders as the emoji images of `n` inline. */
-function wrapInline(f: i32, x: number, y: number, s: string, n: Notif, color: u32, w: number, lines: i32, lh: number, first: i32 = 0): number {
+function wrapInline(f: i32, x: number, y: number, s: string, n: Notif, color: u32, w: number, lines: i32, lh: number, first: i32 = 0, alpha: i32 = 255): number {
   const imgs = emojiImages(n);
   // tokenize: words and emoji
   const tokens: string[] = [];
@@ -108,21 +111,21 @@ function wrapInline(f: i32, x: number, y: number, s: string, n: Notif, color: u3
     const tw = tokenW(t);
     if (width + tw <= w || line.length === 0) { line.push(t); width += tw; continue; }
     if (lineTokens.length === lines - 1) { line = line.concat(tokens.slice(tokens.indexOf(t))); break; }
-    lineTokens.push(line); line = [t]; width = tw;
+    lineTokens.push(line); line = t === ' ' ? [] : [t]; width = t === ' ' ? 0 : tw;   // a line never starts with the space it broke at
   }
   if (line.length > 0) lineTokens.push(line);
   let nLines = 0, ei = first;   // `first`: the images the title used before this text
   for (let li = 0; li < Math.min(lineTokens.length, lines); li++) {
     let px = x;
+    const last = li === lines - 1, dots = textWidth(f, '…', 0);
     for (const t of lineTokens[li]) {
+      const tw = t === '\uFFFC' ? fontAscent(f) + 2 : textWidth(f, t, 0);
+      if (last && px + tw > x + w - (t === ' ' ? 0 : dots)) { drawText(f, px, y + li * lh, '…', color, alpha, 0); break; }   // the rest does not fit
       if (t === '\uFFFC') {
         const img = ei < imgs.length ? imgs[ei++] : -1;
-        if (img >= 0) { drawImage(img, px, y + li * lh, fontAscent(f), fontAscent(f), 255, fontAscent(f) * 0.15); px += fontAscent(f) + 2; }
-      } else if (t === ' ') {
-        drawText(f, px, y + li * lh, ' ', color, 255, 0); px += textWidth(f, ' ', 0);
-      } else {
-        drawText(f, px, y + li * lh, t, color, 255, 0); px += textWidth(f, t, 0);
-      }
+        if (img >= 0) drawImage(img, px, y + li * lh, fontAscent(f), fontAscent(f), alpha, fontAscent(f) * 0.15);
+      } else drawText(f, px, y + li * lh, t, color, alpha, 0);
+      px += tw;
     }
     nLines++;
   }
@@ -175,7 +178,7 @@ function received(m: any, ch: link.Channel | null): void {
   if (list.length > MAX) list = list.slice(0, MAX);
   save();
   if (ch !== null) ch.send({ t: 'ack', id: n.id });   // stored: the Mac's assistant proves the path end to end with it
-  for (const h of [n.icon, n.avatar]) if (h !== '' && ch !== null && !haveIcon(h) && !asked.has(h)) { asked.set(h, true); ch.send({ t: 'need-icon', hash: h }); }
+  for (const h of [n.icon, n.avatar, n.attachment]) if (h !== '' && ch !== null && !haveIcon(h) && !asked.has(h)) { asked.set(h, true); ch.send({ t: 'need-icon', hash: h }); }
   present(n);
   ui.dirty = true;
 }
@@ -291,6 +294,11 @@ function A(x: number): i32 { return Math.round(255 * Math.max(0, Math.min(1, x))
 function lerp(a: number, b: number, t: number): number { return a + (b - a) * t; }
 function msg(n: Notif): boolean { return n.kind === 'message'; }
 function who(n: Notif): string { return plain(msg(n) && n.sender !== '' ? n.sender : n.title !== '' ? n.title : n.appName); }
+/** Who it is from and what it says as the relay sent them, emoji placeholders kept; the excerpt's emoji start after the title's (n.emoji
+ *  holds the title's, the subtitle's and the body's, in that order). */
+function whoRaw(n: Notif): string { return msg(n) && n.sender !== '' ? n.sender : n.title !== '' ? n.title : n.appName; }
+function excerptRaw(n: Notif): string { return msg(n) ? n.body : (n.subtitle !== '' ? n.subtitle + ' · ' : '') + n.body; }
+function excerptFirst(n: Notif): i32 { return placeholders(n.title) + (msg(n) ? placeholders(n.subtitle) : 0); }
 function excerpt(n: Notif): string { return plain(msg(n) ? n.body : (n.subtitle !== '' ? n.subtitle + ' · ' : '') + n.body); }
 /** The app's icon (a rounded square), else a bell on a tint. */
 function appIconA(n: Notif, x: number, y: number, s: number, alpha: i32): void {
@@ -329,13 +337,23 @@ export function overlay(W: number, H: number, top: number): void {
   const d = lerp(D1 * (0.5 + 0.5 * p.p1), D2, p.p2), cx = lerp(W / 2, c2x, p.p2), cy = lerp(H / 2 - 60, H / 2, p.p2);
   face(n, cx, cy, d, A(shown), 0x000000);
   if (labels > 0.01) {
-    centered(DK.name, cx, cy + d / 2 + 28, who(n), TEXT, A(labels));
+    const wr = whoRaw(n), nh = fontAscent(DK.name), nw = Math.min(W - 80, inlineWidth(DK.name, wr, nh));
+    drawInline(cx - nw / 2, cy + d / 2 + 28, wr, n, DK.name, TEXT, nh, A(labels));
     centered(DK.app, cx, cy + d / 2 + 74, n.appName, TEXT2, A(labels));
   }
-  const tx = c2x + D2 / 2 + 44, tw = W - tx - 90, y0 = H / 2 - 92;
+  // a photo the message carries: on the right, its shape kept, as the text comes in (owner 2026-10-18)
+  const att = n.attachment !== '' ? iconOf(n.attachment) : -1;
+  let aw = 0, ah = 0;
+  if (att >= 0) { const iw = imageWidth(att), ih = imageHeight(att), sc = Math.min(Math.min(260, W * 0.25) / iw, (H - 180) / ih); aw = iw * sc; ah = ih * sc; }
+  const tx = c2x + D2 / 2 + 44, tw = W - tx - (aw > 0 ? 60 + aw + 32 : 90), y0 = H / 2 - 92;
   if (p.a > 0) label(DK.time, tx, y0 + (1 - p.a) * 18, ago(n.date), TEXT2, tw, A(p.a * k));
-  if (p.b > 0) label(DK.from, tx, y0 + 34 + (1 - p.b) * 18, who(n), TEXT, tw, A(p.b * k));
-  if (p.c > 0) wrap(DK.text, tx, y0 + 108 + (1 - p.c) * 18, excerpt(n), TEXT2, tw, 2, 42, A(p.c * k));
+  if (p.b > 0) {
+    const wr = whoRaw(n), fh = fontAscent(DK.from), yb = y0 + 34 + (1 - p.b) * 18;
+    if (inlineWidth(DK.from, wr, fh) <= tw) drawInline(tx, yb, wr, n, DK.from, TEXT, fh, A(p.b * k));
+    else label(DK.from, tx, yb, plain(wr), TEXT, tw, A(p.b * k));
+  }
+  if (p.c > 0) wrapInline(DK.text, tx, y0 + 108 + (1 - p.c) * 18, excerptRaw(n), n, TEXT2, tw, 2, 42, excerptFirst(n), A(p.c * k));
+  if (att >= 0 && p.c > 0) drawImage(att, W - 60 - aw, H / 2 - ah / 2 + (1 - p.c) * 18, aw, ah, A(p.c * k), 18);
 }
 
 /** Time passes: the feed of the tests. */
@@ -549,12 +567,13 @@ function bannerLayer(W: number, H: number, top: number): void {
     const b = banners[i], n = b.n;
     const w = 560, s = 44, pad = 16;
     const fa = F.tinyB, ft = F.smallB, fb = F.small, lh = 20;
-    const x = (W - w) / 2, tx = x + pad + s + 14, tw = w - (tx - x) - pad;
+    const att = n.attachment !== '' ? iconOf(n.attachment) : -1;   // a photo the message carries: a thumbnail on the right, as iOS does
+    const x = (W - w) / 2, tx = x + pad + s + 14, tw = w - (tx - x) - pad - (att >= 0 ? s + 12 : 0);
     // Emoji arrive as '\uFFFC' placeholders with their PNGs in n.emoji; the canvas text engine has no inline images, so strip them
     // here (no tofu) and keep n.emoji for a future inline pass. shortcut: no inline emoji rendering yet.
     const strip = (s: string) => s.replace(/\uFFFC/g, '');
     const text = strip((n.subtitle !== '' ? n.subtitle + ' · ' : '') + n.body), lines = text === '' ? 0 : textWidth(fb, text, 0) > tw ? 2 : 1;
-    const h = Math.max(s, fontAscent(fa) + 8 + fontAscent(ft) + (lines > 0 ? 8 : 0) + lh * lines) + pad * 2;
+    const h = Math.max(s + (att >= 0 ? fontAscent(fa) + 8 : 0), fontAscent(fa) + 8 + fontAscent(ft) + (lines > 0 ? 8 : 0) + lh * lines) + pad * 2;
     const by = y + b.y * (h + top + 20);
     cardShadow(x, by, w, h, 22);
     rrect(x, by, w, h, 22, 0x2c2c2e, 255);
@@ -563,6 +582,10 @@ function bannerLayer(W: number, H: number, top: number): void {
     label(fa, tx, by + pad, appLine(n).toUpperCase(), TEXT2, tw - textWidth(fa, when, 0) - 12);
     label(fa, x + w - pad - textWidth(fa, when, 0), by + pad, when, TEXT2);
     let ty = by + pad + fontAscent(fa) + 8;
+    if (att >= 0) {   // fitted in the square, its shape kept
+      const iw = imageWidth(att), ih = imageHeight(att), sc = Math.min(s / iw, s / ih);
+      drawImage(att, x + w - pad - s + (s - iw * sc) / 2, ty + (s - ih * sc) / 2, iw * sc, ih * sc, 255, 8);
+    }
     drawInline(tx, ty, (n.title !== '' ? n.title : n.appName), n, ft, TEXT, fontAscent(ft));
     ty += fontAscent(ft) + 8;
     if (lines > 0) wrapInline(fb, tx, ty, (n.subtitle !== '' ? n.subtitle + ' · ' : '') + n.body, n, TEXT, tw, 2, lh, placeholders(n.title !== '' ? n.title : n.appName));

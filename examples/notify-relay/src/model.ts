@@ -22,6 +22,8 @@ export class Notif {
   /** Where the sender's image may be, best first (avatarSources). */
   avatars: string[] = [];
   /** From the communication context (`uncc`): the sender's handle (a phone or an address, '' when the app has no service), Contacts identifier. */
+  /** What the message carries (a photo sent with it): Notification Center's attachments, never the sender's picture. */
+  attachments: string[] = [];
   senderHandle: string = '';
   senderContact: string = '';
   constructor(id: string, app: string) { this.id = id; this.app = app; }
@@ -73,6 +75,7 @@ export function fromRecord(id: string, bundleId: string, plist: any, delivered: 
     if (u.indexOf(':') > 0) n.url = u;
   }
   n.avatars = avatarSources(plist);
+  n.attachments = attachmentSources(plist);
   const cs = req !== undefined && req !== null && typeof req === 'object' ? communicationSender(req.uncc) : ['', '', ''];
   if (cs[0] !== '') { n.kind = 'message'; n.sender = cs[0]; n.senderHandle = cs[1]; n.senderContact = cs[2]; }
   const imageOfSomeone = n.avatars.length > 0 && !n.avatars[0].startsWith('3:');
@@ -139,6 +142,12 @@ function rank(path: string): i32 {
 }
 function scan(v: any, path: string, out: string[]): void {
   if (v === null || v === undefined || out.length > 16) return;
+  if (typeof v === 'string' && path.toLowerCase().indexOf('/atta') >= 0) {   // an attachment: what the message carries, not who sent it
+    const s = v as string, low = s.toLowerCase();
+    if (isUuid(s)) { out.push('a:uuid:' + s.toUpperCase()); return; }
+    if (s.startsWith('/') || s.startsWith('file://')) for (const e of IMAGE_EXT) if (low.endsWith(e)) { out.push('a:' + s); return; }
+    return;
+  }
   if (typeof v === 'string') {
     const s = v as string;
     const low = s.toLowerCase();
@@ -152,12 +161,20 @@ function scan(v: any, path: string, out: string[]): void {
   }
   if (Array.isArray(v)) { const a = v as any[]; for (let i = 0; i < a.length; i++) scan(a[i], path + '/' + i, out); return; }
   if (typeof v !== 'object') return;
-  if (typeof v['$data'] === 'string') { const b = v['$data'] as string; if (isImage(b64Head(b))) out.push(rank(path) + ':' + b); return; }
+  if (typeof v['$data'] === 'string') { const b = v['$data'] as string; if (isImage(b64Head(b))) out.push((path.toLowerCase().indexOf('/atta') >= 0 ? 'a' : '' + rank(path)) + ':' + b); return; }
   if (v['$plist'] !== undefined) { scan(v['$plist'], path + '/$plist', out); return; }
   if (Array.isArray(v['$keys'])) for (const k of v['$keys'] as string[]) scan(v[k], path + '/' + k, out);
 }
 /** The places a record holds an image of the sender, best first, each as '<rank>:' and a source: base64 bytes, an image file's path,
  *  or 'uuid:<UUID>' (an attachment in Notification Center's attachment store). The record's own plist, keyed archives inside it included. */
+/** The images a record carries as attachments (a photo sent in a message), as 'uuid:<UUID>' or a file's path, in order. */
+export function attachmentSources(plist: any): string[] {
+  const found: string[] = [];
+  scan(plist, '', found);
+  const out: string[] = [];
+  for (const f of found) if (f.startsWith('a:')) out.push(f.slice(2));
+  return out;
+}
 export function avatarSources(plist: any): string[] {
   const found: string[] = [];
   scan(plist, '', found);
