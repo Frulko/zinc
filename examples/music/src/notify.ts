@@ -298,6 +298,8 @@ function who(n: Notif): string { return plain(msg(n) && n.sender !== '' ? n.send
  *  holds the title's, the subtitle's and the body's, in that order). */
 function whoRaw(n: Notif): string { return msg(n) && n.sender !== '' ? n.sender : n.title !== '' ? n.title : n.appName; }
 function excerptRaw(n: Notif): string { return msg(n) ? n.body : (n.subtitle !== '' ? n.subtitle + ' · ' : '') + n.body; }
+/** Where the name's emoji start in n.emoji: the sender's come after the title's, subtitle's and body's (the relay's order). */
+function whoFirst(n: Notif): i32 { return msg(n) && n.sender !== '' ? placeholders(n.title) + placeholders(n.subtitle) + placeholders(n.body) : 0; }
 function excerptFirst(n: Notif): i32 { return placeholders(n.title) + (msg(n) ? placeholders(n.subtitle) : 0); }
 function excerpt(n: Notif): string { return plain(msg(n) ? n.body : (n.subtitle !== '' ? n.subtitle + ' · ' : '') + n.body); }
 /** The app's icon (a rounded square), else a bell on a tint. */
@@ -333,27 +335,27 @@ export function overlay(W: number, H: number, top: number): void {
   rrect(0, 0, W, H, 0, 0x000000, A(0.86 * ov.dim));
   onTap('overlay', 0, 0, W, H, tapped);
   const shown = Math.min(1, p.p1 * 1.6) * k, labels = p.p1 * Math.max(0, 1 - p.p2 * 2) * k;
-  const D1 = 210, D2 = 128, c2x = 90 + D2 / 2;
+  // a photo the message carries: large on the right, its shape kept, as the text comes in (owner 2026-10-18); the face and margins shrink for it
+  const att = n.attachment !== '' ? iconOf(n.attachment) : -1;
+  const D1 = 210, D2 = att >= 0 ? 100 : 128, c2x = (att >= 0 ? 56 : 90) + D2 / 2;
   const d = lerp(D1 * (0.5 + 0.5 * p.p1), D2, p.p2), cx = lerp(W / 2, c2x, p.p2), cy = lerp(H / 2 - 60, H / 2, p.p2);
   face(n, cx, cy, d, A(shown), 0x000000);
   if (labels > 0.01) {
     const wr = whoRaw(n), nh = fontAscent(DK.name), nw = Math.min(W - 80, inlineWidth(DK.name, wr, nh));
-    drawInline(cx - nw / 2, cy + d / 2 + 28, wr, n, DK.name, TEXT, nh, A(labels));
+    drawInline(cx - nw / 2, cy + d / 2 + 28, wr, n, DK.name, TEXT, nh, A(labels), whoFirst(n));
     centered(DK.app, cx, cy + d / 2 + 74, n.appName, TEXT2, A(labels));
   }
-  // a photo the message carries: on the right, its shape kept, as the text comes in (owner 2026-10-18)
-  const att = n.attachment !== '' ? iconOf(n.attachment) : -1;
   let aw = 0, ah = 0;
-  if (att >= 0) { const iw = imageWidth(att), ih = imageHeight(att), sc = Math.min(Math.min(260, W * 0.25) / iw, (H - 180) / ih); aw = iw * sc; ah = ih * sc; }
-  const tx = c2x + D2 / 2 + 44, tw = W - tx - (aw > 0 ? 60 + aw + 32 : 90), y0 = H / 2 - 92;
+  if (att >= 0) { const iw = imageWidth(att), ih = imageHeight(att), sc = Math.min(Math.min(460, W * 0.44) / iw, (H - 120) / ih); aw = iw * sc; ah = ih * sc; }
+  const tx = c2x + D2 / 2 + (att >= 0 ? 32 : 44), tw = W - tx - (aw > 0 ? 48 + aw + 32 : 90), y0 = H / 2 - 92;
   if (p.a > 0) label(DK.time, tx, y0 + (1 - p.a) * 18, ago(n.date), TEXT2, tw, A(p.a * k));
   if (p.b > 0) {
     const wr = whoRaw(n), fh = fontAscent(DK.from), yb = y0 + 34 + (1 - p.b) * 18;
-    if (inlineWidth(DK.from, wr, fh) <= tw) drawInline(tx, yb, wr, n, DK.from, TEXT, fh, A(p.b * k));
+    if (inlineWidth(DK.from, wr, fh) <= tw) drawInline(tx, yb, wr, n, DK.from, TEXT, fh, A(p.b * k), whoFirst(n));
     else label(DK.from, tx, yb, plain(wr), TEXT, tw, A(p.b * k));
   }
   if (p.c > 0) wrapInline(DK.text, tx, y0 + 108 + (1 - p.c) * 18, excerptRaw(n), n, TEXT2, tw, 2, 42, excerptFirst(n), A(p.c * k));
-  if (att >= 0 && p.c > 0) drawImage(att, W - 60 - aw, H / 2 - ah / 2 + (1 - p.c) * 18, aw, ah, A(p.c * k), 18);
+  if (att >= 0 && p.c > 0) drawImage(att, W - 48 - aw, H / 2 - ah / 2 + (1 - p.c) * 18, aw, ah, A(p.c * k), 20);
 }
 
 /** Time passes: the feed of the tests. */

@@ -158,10 +158,10 @@ export class Relay {
 
   /** Sends a notification that passed the filters (or keeps it until the tablet is back); `avatar` is the hash of the sender's image. */
   relay(n: Notif, appName: string, domain: string, avatar: string, attachment: string = ''): void {
-    const et = extract(n.title), es = extract(n.subtitle), eb = extract(n.body);
+    const et = extract(n.title), es = extract(n.subtitle), eb = extract(n.body), ew = extract(n.kind === 'message' ? n.sender : '');
     const m: any = { t: 'notif', id: n.id, app: { id: n.app, name: appName, icon: this.icon(n.app) }, title: et.text, subtitle: es.text, body: eb.text,
-      date: n.date, domain: domain === '' ? null : domain, thread: n.thread, kind: n.kind, sender: n.kind === 'message' ? n.sender : '', avatar: avatar === '' ? null : avatar,
-      emoji: et.images.concat(es.images).concat(eb.images), attachment: attachment === '' ? null : attachment };
+      date: n.date, domain: domain === '' ? null : domain, thread: n.thread, kind: n.kind, sender: ew.text, avatar: avatar === '' ? null : avatar,
+      emoji: et.images.concat(es.images).concat(eb.images).concat(ew.images), attachment: attachment === '' ? null : attachment };   // emoji: title, subtitle, body, sender (the tablet counts in this order)
     this.recent.set(n.id, [n.app, n.url]);
     this.recentIds.push(n.id);
     while (this.recentIds.length > RECENT_MAX) this.recent.delete(this.recentIds.shift() as string);
