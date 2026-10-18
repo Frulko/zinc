@@ -287,7 +287,7 @@ phones with 16 KB pages refuse it). The engine and the plugins compiled from sou
 
   | Mode | How it is built | Code in the package | Store |
   | --- | --- | --- | --- |
-  | Your app (`zinc export --target android\|ios`, release) | AOT: the program compiled to native code | only your program and its plugins; no interpreter, no Fast Refresh, no link to `zinc dev` (`tests/t0/app_library.sh` checks it with `nm`) | Google Play, the App Store |
+  | Your app (`zinc export --target android` or `--target ios`, release) | AOT: the program compiled to native code | only your program and its plugins; no interpreter, no Fast Refresh, no link to `zinc dev` (`tests/t0/app_library.sh` checks it with `nm`) | Google Play, the App Store |
   | Your app, debug (`--apk`, `--ipa --simulator`) | the same | the same; `zinc.env` launch variables are read | your devices and simulators |
   | Your app, release APK (`--apk --release`) | the same | the same; only the timing switches `ZINC_PRESENT_STATS` and `ZINC_GL_STATS` are read, from `zinc.env` in the app's external files directory (`adb push zinc.env /sdcard/Android/data/<id>/files/`) | your devices |
   | A player (`"player": true`, Zinc Go: `examples/zinc-go`) | the home screen as bytecode, the interpreter, every plugin made for the platform | runs projects sent by `zinc dev --lan` | a development tool: install it yourself (`adb install`, Xcode, TestFlight internal testing), as Expo Go's own builds; not for the stores |
