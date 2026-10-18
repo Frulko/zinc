@@ -92,8 +92,8 @@ Chrome runs, and most checks pass (web_dom 63/64, web_video 16/18). The runner h
   - In the test, poll until the position is stable instead of one read after 0.8 s.
   - Likely, not proven: confirm with one CI run.
 - **web_video.** "Seek moves the playhead 0" and "Next loads the AV1 file" (src still the VP9 clip). Play, pause, volume, rate and controls pass.
-  - Seek needs HTTP Range on a streamed WebM once the clip is not fully buffered. The test's `SimpleHTTPRequestHandler` (`tools/web-video-test`) does not serve Range (locally the 1 s of play buffers the whole tiny clip). The AV1 step then follows from the media element being stuck in seeking.
-  - **FIX (test):** serve `Range`/`206` in the test server and poll the checks with a deadline instead of the fixed `pump(0.5)`/`pump(1.5)`.
+  - Corrected after the fix: the test server already serves Range (`tools/rangehttp.py`). The VP9 clip lasts 2 s and the playlist loops: on the slow runner the clip ended before Pause, the player moved on to the AV1 file, Seek acted on it (0) and Next wrapped back to VP9. Reproduced locally by delaying Pause by 2.6 s.
+  - **FIXED (test):** the clip plays at 0.25x until the Rate step, and every step polls with a deadline × `ZN_WAIT_SCALE`.
   - Likely, not proven: confirm with one CI run.
 
 ## A display the hosted runner does not have (window_live_resize, webview_hybrid)
@@ -116,7 +116,7 @@ Chrome runs, and most checks pass (web_dom 63/64, web_video 16/18). The runner h
 | agent_ota | FIX | `src/agent/ota.cpp:224` wall-clock deadline; `src/agent/client.cpp:97` run timeout above the trial |
 | web_physics2d | FIX (test) | `tools/web-browser-test:51-57` polls for the text |
 | web_dom | FIX | `overflow-anchor: none` on the virtual list's scroller; poll in `tools/web-dom-test:176-180` (likely, not proven) |
-| web_video | FIX (test) | Range support and polling in `tools/web-video-test` (likely, not proven) |
+| web_video | FIXED (test) | slower clip and polling in `tools/web-video-test` (the clip ended before Pause; reproduced) |
 | window_live_resize | SKIP-ON-CI | "the runner's virtual screen is smaller than the 900x700 window the size limits need" |
 | webview_hybrid | SKIP-ON-CI | "no display on the hosted runner: AppKit gives the WKWebView no real window frame" |
 
