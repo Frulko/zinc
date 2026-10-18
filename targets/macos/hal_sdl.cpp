@@ -1,6 +1,7 @@
 ﻿// SDL3 HAL for macos and linux (TGT-MAC-02, D-05): window, renderer, keyboard/mouse input.
 #include <string>
 #include "hal.h"
+extern "C" __attribute__((weak)) void zrt_prof_info(const char* key, const char* val);   // runtime/gfx.cpp: what ZINC_PROFILE=json prints about the machine
 #include "hal_window.h"
 #include "zrt_raster.h"   // move_pixels (HalFrame.move, ZN-744)
 #include <SDL3/SDL.h>
@@ -518,6 +519,7 @@ void hal_init(const HalConfig* cfg) {
     const bool want_gl = !(rr && !strcmp(rr, "cpu"));
 #endif
     if (want_gl && !(wcfg_set && wcfg.transparent) && !hal_display) gl_on = gl_window(cfg->title, ww, wh);
+    if (zrt_prof_info) zrt_prof_info("renderer", gl_on ? "gl" : "cpu");   // ZINC_PROFILE=json says which renderer drew the frames
     zrt::gfx::gpu_strokes = gl_on;   // the replay draws strokes on the GPU (ZN-590.01)
     zrt::gfx::shaders_drawn = gl_on; glr::shader_source = zrt::gfx::shaderSource;   // and the programs' shaders (ZN-746)
   }

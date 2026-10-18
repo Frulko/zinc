@@ -174,6 +174,8 @@ export function shaderProgram(fragment: string, scale: i32 = 1): i32 { return __
 export function drawShader(program: i32, x: number, y: number, w: number, h: number, uniforms: number[]): void { __host_gfxDrawShader(program, x, y, w, h, uniforms); }
 export function shaderAvailable(): boolean { return __host_gfxShaderAvailable() !== 0; }
 /** The system's signals waiting for this frame (safe area, theme, font scale, back, keyboard, IME composition; docs/ui.md): zinc:ui reads them. */
+/** Ends the current ZINC_PROFILE section (prints its numbers and the hash of the last frame) and starts the next one: a benchmark that runs scenes one after the other (tools/zbench). */
+export function profSection(label: string): string { return __host_gfxProfSection(label); }
 export function signalCount(): i32 { return __host_gfxSignalCount(); }
 /** The next signal as `kind args` ('safearea 47 0 34 0', 'theme dark', 'back'), '' when none waits. */
 export function signalNext(): string { return __host_gfxSignalNext(); }

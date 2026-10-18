@@ -843,6 +843,7 @@ int32_t commandsFree();             // draw commands the frame still takes
 bool profiling();                   // profiler (gfx.cpp): ZINC_PROFILE / ZINC_TRACE / DevTools Tracing
 extern const char* (*hud_info)();   // ZINC_PERF_HUD (ZN-375): the panel's engine line, set by a host (Zinc Next: the engine and its allocation counters)
 bool scene_replay(const char* scene, const char* out);  // ZN-170: rasterize a ZINC_SCENE_DUMP file into a png/bmp with the installed fonts and images
+String profSection(const String& label);                // ZINC_PROFILE: prints the numbers of the frames since the last section (and the last frame's hash), then starts a new section
 void profMark(int32_t phase);       // attributes the time since the previous mark to `phase`
 String trace(bool on);              // DevTools Tracing.start (true) / Tracing.end (false: the trace events JSON)
 double wheelX();

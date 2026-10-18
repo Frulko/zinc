@@ -377,9 +377,15 @@ struct State {
   uint32_t acc[N];
   Span spans[ZRT_PROF_SPANS];
   uint64_t band[ZRT_PROF_BANDS][2];  // raster band spans of this frame (SDL HAL worker threads)
-  uint64_t frame_t0, last;
-  bool summary, tracing, hud;
+  uint64_t frame_t0, last, prev_t0;
+  uint32_t interval[ZRT_PROF_FRAMES];   // microseconds between the start of a frame and the start of the one before it (0 for the first)
+  uint64_t sec_t0;                      // when the section's first frame ended: the warm-up skip ends after 1.5 s whatever the frame count (a scene at 1 fps would never record)
+  uint32_t skip, seen;                  // ZINC_PROFILE_SKIP: the first frames (shader builds, glyph uploads) are not recorded
+  bool summary, tracing, hud, json;
 };
+static char g_info[24][2][96];            // key / value pairs the display drivers publish (the GPU's strings): ZINC_PROFILE=json prints them; static because the GL context exists before the first frame
+static uint32_t g_ninfo;
+extern "C" { void (*zrt_gl_info_hook)() = nullptr; }   // set by runtime/gl_replay.cpp when a GL renderer runs: publishes its counters just before the summary   // runtime/gl_replay.cpp: publishes the GL renderer's counters just before the summary
 static State* st = nullptr;
 static const char* trace_file = nullptr;
 static bool active() { return st && (st->summary || st->tracing || st->hud); }
@@ -422,8 +428,70 @@ static void stat_line(StrBuilder& sb, int32_t col) {
   sb.cstr(" ms\n");
   hal_free(v);
 }
+static void sort_us(uint32_t* v, uint32_t n) {   // shell sort: no libc
+  for (uint32_t gap = n / 2; gap > 0; gap /= 2)
+    for (uint32_t i = gap; i < n; i++) for (uint32_t j = i; j >= gap && v[j - gap] > v[j]; j -= gap) { uint32_t t = v[j]; v[j] = v[j - gap]; v[j - gap] = t; }
+}
+static void jstr(StrBuilder& sb, const char* s) { sb.ch('"'); for (; *s; s++) { if (*s == '"' || *s == '\\') sb.ch('\\'); if ((unsigned char)*s >= 0x20) sb.ch(*s); } sb.ch('"'); }
+/** One column as {"p50":us,"p90":us,"p95":us,"p99":us,"max":us,"mean":us} (microseconds; col N: work, col N + 1: the interval between frames). */
+static void json_col(StrBuilder& sb, int32_t col) {
+  uint32_t n = st->nframes < ZRT_PROF_FRAMES ? st->nframes : ZRT_PROF_FRAMES;
+  uint32_t* v = (uint32_t*)hal_alloc((n ? n : 1) * sizeof(uint32_t));
+  if (!v) { sb.cstr("{}"); return; }
+  uint64_t sum = 0;
+  for (uint32_t i = 0; i < n; i++) {
+    uint32_t x = 0;
+    if (col == N + 1) x = st->interval[i]; else if (col < N) x = st->us[i][col]; else for (int32_t p = 0; p < PRESENT; p++) x += st->us[i][p];
+    v[i] = x; sum += x;
+  }
+  sort_us(v, n);
+  static const struct { const char* k; uint32_t pc; } P[] = {{"p50", 50}, {"p99", 99}};
+  sb.ch('{');
+  for (const auto& q : P) { sb.ch('"'); sb.cstr(q.k); sb.cstr("\":"); to_s(sb, n ? v[(n - 1) * q.pc / 100] : 0); sb.ch(','); }
+  sb.cstr("\"max\":"); to_s(sb, n ? v[n - 1] : 0); sb.cstr(",\"mean\":"); to_s(sb, n ? (uint32_t)(sum / n) : 0); sb.ch('}');
+  hal_free(v);
+}
+/** Frames above a threshold in a column: how many (late frames, the jank count). */
+static uint32_t over(int32_t col, uint32_t us) {
+  uint32_t n = st->nframes < ZRT_PROF_FRAMES ? st->nframes : ZRT_PROF_FRAMES, k = 0;
+  for (uint32_t i = 0; i < n; i++) {
+    uint32_t x = 0;
+    if (col == N + 1) x = st->interval[i]; else for (int32_t p = 0; p < PRESENT; p++) x += st->us[i][p];
+    if (x > us) k++;
+  }
+  return k;
+}
+static String last_json;   // the JSON object of the last section closed
+static const String* section = nullptr;   // zinc:gfx profSection: the name of the section being closed, and the hash of the frame on screen goes with it
+static uint64_t (*section_hash)(uint32_t* w, uint32_t* h) = nullptr;   // set by profSection: hashes the frame as ZINC_FRAMEHASH does
+static void summary_json() {
+  StrBuilder sb;
+  sb.cstr("zinc profile json: {\"schema\":1,");
+  if (section && section_hash) {
+    sb.cstr("\"section\":"); jstr(sb, section->ptr()); sb.ch(',');
+    uint32_t hw = 0, hh = 0; uint64_t hv = section_hash(&hw, &hh);
+    sb.cstr("\"frame_hash\":\""); for (int sh = 60; sh >= 0; sh -= 4) sb.ch("0123456789abcdef"[(hv >> sh) & 15]);
+    sb.cstr("\",\"hash_size\":\""); to_s(sb, hw); sb.ch('x'); to_s(sb, hh); sb.cstr("\",");
+  }
+  sb.cstr("\"frames\":"); to_s(sb, st->nframes);
+  sb.cstr(",\"skipped\":"); to_s(sb, st->skip < st->seen ? st->skip : st->seen);
+  sb.cstr(",\"window\":["); to_s(sb, (uint32_t)width()); sb.ch(','); to_s(sb, (uint32_t)height()); sb.cstr("],\"phases\":{");
+  for (int32_t p = 0; p < N; p++) { jstr(sb, NAMES[p]); sb.ch(':'); json_col(sb, p); sb.ch(','); }
+  sb.cstr("\"work\":"); json_col(sb, N); sb.cstr(",\"interval\":"); json_col(sb, N + 1);
+  sb.cstr("},\"late\":{\"work_gt_8_3\":"); to_s(sb, over(N, 8333)); sb.cstr(",\"work_gt_16_7\":"); to_s(sb, over(N, 16667));
+  sb.cstr(",\"work_gt_33_3\":"); to_s(sb, over(N, 33333)); sb.cstr(",\"work_gt_50\":"); to_s(sb, over(N, 50000));
+  sb.cstr(",\"interval_gt_16_7\":"); to_s(sb, over(N + 1, 16667)); sb.cstr(",\"interval_gt_25\":"); to_s(sb, over(N + 1, 25000));
+  sb.cstr(",\"interval_gt_33_3\":"); to_s(sb, over(N + 1, 33333)); sb.cstr(",\"interval_gt_50\":"); to_s(sb, over(N + 1, 50000));
+  sb.cstr(",\"interval_gt_100\":"); to_s(sb, over(N + 1, 100000)); sb.cstr("},\"info\":{");
+  if (zrt_gl_info_hook) zrt_gl_info_hook();
+  for (uint32_t i = 0; i < g_ninfo; i++) { if (i) sb.ch(','); jstr(sb, g_info[i][0]); sb.ch(':'); jstr(sb, g_info[i][1]); }
+  sb.cstr("}}\n");
+  hal_log_err(sb.buf, sb.len);
+  if (section && sb.len > 20) last_json = String::from(sb.buf + 19, sb.len - 20);   // after "zinc profile json: ", without the newline   // the section's numbers, for profSection's caller
+}
 static void summary() {
   if (!st || !st->nframes) return;
+  if (st->json) { summary_json(); return; }
   StrBuilder sb;
   sb.cstr("zinc profile: frames="); to_s(sb, st->nframes); sb.ch(' ');
   stat_line(sb, N);
@@ -468,7 +536,8 @@ static void begin() {
     if (const char* rs = hal_env("ZINC_RENDER_STATS")) if (*rs && *rs != '0') e = rs;   // ZN-170: one switch for the phase timings, the counters of the last frame (render_stats) and the GL stats
     const char* t = hal_env("ZINC_TRACE");
     if ((e && *e && *e != '0') || (t && *t)) enable();
-    if (st && e && *e && *e != '0') { st->summary = true; at_finish(summary); }
+    if (st && e && *e && *e != '0') { st->summary = true; st->json = e[0] == 'j'; at_finish(summary); }
+    if (st) if (const char* sk = hal_env("ZINC_PROFILE_SKIP")) { uint32_t v = 0; for (; *sk >= '0' && *sk <= '9'; sk++) v = v * 10 + (uint32_t)(*sk - '0'); st->skip = v; }
     if (st && t && *t) { st->tracing = true; trace_file = t; at_finish(write_trace); }
   }
   if (!active()) return;
@@ -491,9 +560,16 @@ static void end() {
   st->acc[RASTER] += raster;
   st->acc[PRESENT] += (uint32_t)(t - st->last) - raster;
   st->last = t;
-  __builtin_memcpy(st->us[st->nframes % ZRT_PROF_FRAMES], st->acc, sizeof st->acc);
-  st->nframes++;
   span(st->frame_t0, t, N, 1);
+  uint32_t gap = st->prev_t0 ? (uint32_t)(st->frame_t0 - st->prev_t0) : 0;
+  st->prev_t0 = st->frame_t0;
+  if (st->seen++ < st->skip) {   // warm-up frames are not part of the numbers: at most 1.5 s of them
+    if (!st->sec_t0) st->sec_t0 = t;
+    if (t - st->sec_t0 < 1500000) return;
+  }
+  __builtin_memcpy(st->us[st->nframes % ZRT_PROF_FRAMES], st->acc, sizeof st->acc);
+  st->interval[st->nframes % ZRT_PROF_FRAMES] = gap;
+  st->nframes++;
 }
 }  // namespace prof
 bool profiling() { return prof::active(); }
@@ -507,6 +583,15 @@ int32_t commandsFree() {
 #endif
 }
 void profMark(int32_t phase) { if (prof::active() && phase >= 0 && phase < prof::N) prof::mark(phase); }
+/** A display driver or renderer publishes a fact about the machine (the GPU's strings); ZINC_PROFILE=json prints them with the numbers. Kept only while profiling. */
+extern "C" void zrt_prof_info(const char* key, const char* val) {
+  if (!key || !val) return;
+  uint32_t i = 0;
+  for (; i < prof::g_ninfo; i++) { uint32_t k = 0; while (key[k] && prof::g_info[i][0][k] == key[k]) k++; if (!key[k] && !prof::g_info[i][0][k]) break; }   // the same key again replaces its value
+  if (i == prof::g_ninfo) { if (i >= 24) return; prof::g_ninfo++; for (uint32_t k = 0; k < 95 && key[k]; k++) prof::g_info[i][0][k] = key[k]; prof::g_info[i][0][95] = 0; }
+  for (uint32_t k = 0; k < 96; k++) prof::g_info[i][1][k] = 0;
+  for (uint32_t k = 0; k < 95 && val[k]; k++) prof::g_info[i][1][k] = val[k];
+}
 
 // ---------- ZINC_PERF_HUD (ZN-375, docs/dev-mode.md): a performance panel over the program, like React Native's perf monitor ----------
 // Shown with ZINC_PERF_HUD=1 (zinc.json "dev": {"perfHud": true}) or toggled with Cmd/Ctrl+Shift+P. It is an overlay drawn after the
@@ -948,6 +1033,28 @@ static void frame_hash(int32_t n) {
   hal_log_err(sb.buf, sb.len);
 }
 static void frame_hash_last() { frame_hash(frame_no); }
+/** Ends a profile section: its numbers, the hash of the frame on screen, and the counters start again (the warm-up skip too), so one run can
+ *  measure several scenes one after the other (tools/zbench). Does nothing without ZINC_PROFILE. */
+extern "C" { void (*zrt_gl_info_reset_hook)() = nullptr; }
+String profSection(const String& label) {
+  if (!prof::active()) return String();
+  prof::last_json = String();
+  prof::section = &label;
+  prof::section_hash = [](uint32_t* w, uint32_t* h) -> uint64_t {
+    uint32_t* px = grab();
+    if (!px) { *w = *h = 0; return 0; }
+    uint64_t hv = 1469598103934665603ull;
+    for (size_t i = 0, k = (size_t)pw * ph; i < k; i++) for (int b = 0; b < 4; b++) { hv ^= (px[i] >> (8 * b)) & 255; hv *= 1099511628211ull; }
+    hal_free(px); *w = (uint32_t)pw; *h = (uint32_t)ph;
+    return hv;
+  };
+  prof::summary();
+  prof::section = nullptr;
+  prof::st->nframes = 0; prof::st->seen = 0; prof::st->prev_t0 = 0; prof::st->sec_t0 = 0;
+  for (auto& a : prof::st->acc) a = 0;
+  if (zrt_gl_info_reset_hook) zrt_gl_info_reset_hook();
+  return prof::last_json;
+}
 static bool scene_write(const char* path, const Buf& b);
 static const char* scene_path = nullptr;
 static void scene_last() { if (shown) scene_write(scene_path, *shown); }

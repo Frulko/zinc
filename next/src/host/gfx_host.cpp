@@ -242,6 +242,7 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostGfxShaderProgram: r->i = g::shaderProgram(str(a[0]), n(1)); zn_hal_sdl_gpu_layers(); break;   // a window that can still put a GPU layer under its frame does
     case Rt::HostGfxDrawShader: g::drawShader(n(0), a[1].d, a[2].d, a[3].d, a[4].d, static_cast<const double*>(a[5].p), a[5].n); break;
     case Rt::HostGfxShaderAvailable: r->i = g::shaders_drawn ? 1 : 0; break;
+    case Rt::HostGfxProfSection: { zrt::String j = g::profSection(str(a[0])); answer(r, j.ptr(), j.bytes()); break; }
     case Rt::HostGfxSignalCount: r->i = zn_hal_signal_count(); break;
     case Rt::HostGfxSignalNext: { const char* s = zn_hal_signal_next(); answer(r, s, strlen(s)); break; }
     case Rt::HostGfxClip: g::clip(a[0].d, a[1].d, a[2].d, a[3].d, a[4].d); break;

@@ -97,6 +97,8 @@ declare module 'zinc:gfx' {
   export function signalCount(): i32;
   /** The next signal as `kind args` ('safearea 47 0 34 0', 'theme dark', 'back'), '' when none waits. */
   export function signalNext(): string;
+  /** Ends the current ZINC_PROFILE section named `label` (prints its numbers and the last frame's hash) and starts the next one; returns the same numbers as one JSON object ('' without ZINC_PROFILE). */
+  export function profSection(label: string): string;
   /** Clips the following draws to the box until unclip(); radius > 0 also clips to its rounded corners (anti-aliased). */
   export function clip(x: number, y: number, w: number, h: number, radius?: number): void;
   export function unclip(): void;
