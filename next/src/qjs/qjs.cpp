@@ -231,11 +231,11 @@ bool moduleText(Engine& e, const std::string& name, std::string& js, std::string
   const std::string file = name.rfind("zinc:", 0) == 0 && !endsWith(path, ".tsx") ? name : path;
   // ponytail: the cache is never pruned (one small file per version of a module); prune by age if ~/.zinc/cache/qjs grows
   // the transform stage of the bundler (.tsx too), cached by content: the source, its name and what the transform reads besides (the UI preset and
-  // layout of zinc.json, this build of the engine)
+  // layout of zinc.json; the directory is per build of the engine)
   std::string cached;
   if (!e.cacheDir.empty()) {
     std::uint64_t h = 1469598103934665603ull;
-    for (const std::string& part : {src, file, zn::frontend::uiPreset(), zn::frontend::uiLayout(), std::string(__DATE__ __TIME__), std::string(std::getenv("ZINC_WEB_HOT") ? "hot" : ""), std::string(zn::frontend::currentProfile() ? zn::frontend::currentProfile()->name : "")})
+    for (const std::string& part : {src, file, zn::frontend::uiPreset(), zn::frontend::uiLayout(), std::string(std::getenv("ZINC_WEB_HOT") ? "hot" : ""), std::string(zn::frontend::currentProfile() ? zn::frontend::currentProfile()->name : "")})
       for (unsigned char c : part + '\0') { h ^= c; h *= 1099511628211ull; }
     char key[40];
     std::snprintf(key, sizeof key, "/%016llx-%zx.js", static_cast<unsigned long long>(h), src.size());

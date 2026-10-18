@@ -18,7 +18,7 @@ option(ZN_REPRODUCIBLE "do not compile the checkout's path into zinc (release pa
 option(ZN_SANITIZE "Build with ASan and UBSan" OFF)
 option(ZN_FUZZ "Build the libFuzzer targets of tests/fuzz (needs a clang with libFuzzer: Homebrew llvm; see docs/reports/zinc-next-fuzzing.md)" OFF)
 
-add_compile_options(-Wall -Wextra -ffp-contract=off -Wno-error=date-time)  # no fused multiply-add: the interpreter, the AOT programs and every host must round the same way; the cache key of qjs.cpp stamps this build with __DATE__ (zig cc would err otherwise)
+add_compile_options(-Wall -Wextra -ffp-contract=off)  # no fused multiply-add: the interpreter, the AOT programs and every host must round the same way
 if(WIN32)   # mingw-w64 through the pinned zig (cmake/zig-windows.cmake, docs/reports/zinc-windows-port.md): M_PI under -std=c++20, no min/max macros (zig targets Windows 10 itself: _WIN32_WINNT)
   add_compile_definitions(_USE_MATH_DEFINES NOMINMAX)
 endif()

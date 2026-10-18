@@ -113,6 +113,8 @@ static bool readFile(const std::string& path, std::string& out) {
 // Loads the entry file and the files it imports, checks the program; diagnostics are printed. Returns false on errors.
 static std::vector<zn::tc::PluginLib> gPlugins;  // the native plugins built and loaded for this program, for the link line of zinc build
 static std::string gProjectDir = ".";
+// the transformed modules of --engine quickjs, one directory per build of the engine (a build stamp compiled in would break reproducible builds)
+static std::string qjsCacheDir() { return zn::tc::home() + "/cache/qjs/" + std::to_string(std::hash<std::string>{}(zn::cli::engineBuild())); }
 static std::string gBakedSize;   // "WxH" of the board, for the main of a program zinc build writes
 static std::vector<std::string> gPluginDirs;   // the directories of those plugins: inputs of a compiled run (ZN-605)
 static std::string gBundleOut;                   // `zinc build --bundle ... -o <out>.app`: the bundle to assemble once the program is linked
@@ -1596,7 +1598,7 @@ int main(int argc, char** argv) {
     const auto preparedAt = std::chrono::steady_clock::now();
     zn::log::step("prepare", "project, plugins and resources...");
     qo.stdRoot = gRoot + "/../lib/std";
-    qo.cacheDir = zn::tc::home() + "/cache/qjs";
+    qo.cacheDir = qjsCacheDir();
     qo.profileHz = qjsProfileHz;
     if (!loadManifestPermissions(argv[2])) return 2;   // zinc.json "ui" (UI_LAYOUT of zinc:platform) and the permissions, as for the typed engines
 #ifdef ZN_HOST_GFX
@@ -1688,7 +1690,7 @@ int main(int argc, char** argv) {
     }
     bo.out = fs::absolute(bo.out).lexically_normal().string();
     bo.work = zn::tc::home() + "/cache/bundle/" + std::to_string(std::hash<std::string>{}(bo.out));
-    bo.cacheDir = zn::tc::home() + "/cache/qjs";
+    bo.cacheDir = qjsCacheDir();
     if (!bo.check && bo.stageDir.empty()) {
       std::string err;
       if (!zn::tc::ensureEsbuild(bo.esbuild, err)) {
