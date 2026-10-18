@@ -13,6 +13,7 @@ if len(sys.argv) < 3: sys.exit(__doc__)
 if not find_chrome():
     print("SKIP no Chrome"); sys.exit(77)
 what, root = sys.argv[1], sys.argv[2]
+SCALE = float(os.environ.get("ZN_WAIT_SCALE", "1"))   # a slow runner (CI sets 4): the polls below wait longer, a fast machine goes on at once
 
 from rangehttp import RangeHandler, Srv
 srv = Srv(("127.0.0.1", 0), functools.partial(RangeHandler, directory=root))
@@ -28,15 +29,17 @@ with Chrome(["--window-size=900,600", "--enable-unsafe-swiftshader", "--autoplay
         t0 = time.time()
         while time.time() - t0 < s: c._recv(-1, 0.1)
     def ev(js): return c.eval(js)
+    def until(js, s):   # poll a condition up to s seconds x ZN_WAIT_SCALE; returns its last value
+        t0 = time.time()
+        while not (v := ev(js)) and time.time() - t0 < s * SCALE: pump(0.1)
+        return v
     def click_text(t):
         r = ev("(() => { const e = [...document.querySelectorAll('button')].find(b => b.textContent === %s); if (!e) return null; const b = e.getBoundingClientRect(); return [b.x + b.width / 2, b.y + b.height / 2]; })()" % json.dumps(t))
         if not r: return False
         for ty in ("mouseMoved", "mousePressed", "mouseReleased"):
             c.call("Input.dispatchMouseEvent", {"type": ty, "x": r[0], "y": r[1], "button": "left", "buttons": 1 if ty == "mousePressed" else 0, "clickCount": 1}); pump(0.12)
         return True
-    for _ in range(60):   # the page boots, the app builds its first frame
-        pump(0.25)
-        if ev("document.querySelector('.zdb') !== null"): break
+    until("document.querySelector('.zdb') !== null", 15)   # the page boots, the app builds its first frame
     pump(0.5)
     if what == "video":
         v = "document.querySelector('video')"
@@ -45,20 +48,25 @@ with Chrome(["--window-size=900,600", "--enable-unsafe-swiftshader", "--autoplay
         check("a file was loaded from its address (streamed, not downloaded first)", ev("%s.currentSrc.endsWith('.webm') && !%s.currentSrc.startsWith('blob:')" % (v, v)), ev("%s.currentSrc" % v))
         check("the browser decoded the VP9 stream", ev("%s.videoWidth" % v) == 160, ev("%s.videoWidth + ' ' + (%s.error && %s.error.code)" % (v, v, v)))
         check("not playing before play()", ev("%s.paused" % v))
-        click_text("Play"); pump(1.0)
-        check("Play plays", ev("!%s.paused && %s.currentTime > 0.1" % (v, v)), ev("%s.currentTime + ' ' + %s.paused" % (v, v)))
-        click_text("Pause"); pump(0.3)
-        check("Pause pauses", ev("%s.paused" % v))
-        click_text("Seek"); pump(0.5)
-        check("Seek moves the playhead", ev("%s.currentTime" % v) >= 0.9, ev("%s.currentTime" % v))
-        click_text("Half volume"); pump(0.3)
-        check("volume reaches the element", abs(ev("%s.volume" % v) - 0.5) < 0.01 and ev("!%s.muted" % v), ev("%s.volume" % v))
-        click_text("Rate 2"); pump(0.3)
-        check("rate reaches the element", ev("%s.playbackRate" % v) == 2, ev("%s.playbackRate" % v))
-        click_text("Controls"); pump(0.3)
-        check("the browser's controls come on", ev("%s.controls" % v) is True)
+        # the clip lasts 2 s and the playlist loops: on a slow runner the clicks lag enough for it to end before Pause, and the player moves on to the AV1 file (then Seek
+        # acts on that file and Next wraps back to VP9). A quarter speed gives the clicks 8 s; the Rate 2 step below sets the rate through the API again.
+        ev("%s.playbackRate = 0.25" % v)
+        click_text("Play")
+        check("Play plays", until("!%s.paused && %s.currentTime > 0.1" % (v, v), 5), ev("%s.currentTime + ' ' + %s.paused" % (v, v)))
+        click_text("Pause")
+        check("Pause pauses", until("%s.paused" % v, 3))
+        check("the first clip is still the one playing", ev("%s.currentSrc.includes('vp9')" % v), ev("%s.currentSrc" % v))
+        click_text("Seek")
+        check("Seek moves the playhead", until("%s.currentTime >= 0.9 && !%s.seeking" % (v, v), 5), ev("%s.currentTime" % v))
+        click_text("Half volume")
+        check("volume reaches the element", until("Math.abs(%s.volume - 0.5) < 0.01 && !%s.muted" % (v, v), 3), ev("%s.volume" % v))
+        click_text("Rate 2")
+        check("rate reaches the element", until("%s.playbackRate === 2" % v, 3), ev("%s.playbackRate" % v))
+        click_text("Controls")
+        check("the browser's controls come on", until("%s.controls === true" % v, 3))
         check("controls are the browser's (a control bar is part of the element)", ev("getComputedStyle(%s).display" % v) != "none")
-        click_text("Next"); pump(1.5)
+        click_text("Next")
+        until("%s.currentSrc.includes('av1') && (%s.videoWidth > 0 || %s.error !== null)" % (v, v, v), 5)
         check("Next loads the AV1 file", ev("%s.currentSrc.includes('av1')" % v), ev("%s.currentSrc" % v))
         check("the browser decodes AV1 (or says it cannot, with a message)", ev("%s.videoWidth > 0" % v) or ev("document.querySelector('.zn-fallback') !== null"), ev("%s.videoWidth + ' ' + (%s.error && %s.error.code)" % (v, v, v)))
         fb = "document.querySelector('.zn-fallback')"
@@ -68,9 +76,7 @@ with Chrome(["--window-size=900,600", "--enable-unsafe-swiftshader", "--autoplay
         check("the page itself has no error", not [m for m in c.console if m.startswith("EXCEPTION")], c.console[:3])
     else:
         sv = "document.querySelector('.zdb svg')"
-        for _ in range(40):
-            if ev("%s !== null" % sv): break
-            pump(0.25)
+        until("%s !== null" % sv, 10)
         check("lottie-web was loaded by the app, not by the page", ev("typeof window.lottie") == "object")
         check("an svg animation sits in the box of the node", ev("%s !== null" % sv), ev("document.body.innerHTML.length"))
         check("it has the animation's shapes", ev("%s.querySelectorAll('path').length" % sv) >= 1, ev("%s && %s.innerHTML.length" % (sv, sv)))
