@@ -1,114 +1,220 @@
+node/test-buffer-concat-compare.js	next	fail	Uncaught ReferenceError: require is not defined
 node/test-buffer-concat-compare.js	next-qjs	fail	Uncaught ReferenceError: require is not defined
+node/test-buffer-from-tostring.js	next	fail	Uncaught ReferenceError: require is not defined
 node/test-buffer-from-tostring.js	next-qjs	fail	Uncaught ReferenceError: require is not defined
+node/test-crypto-hash.js	next	fail	Uncaught ReferenceError: require is not defined
 node/test-crypto-hash.js	next-qjs	fail	Uncaught ReferenceError: require is not defined
+node/test-events-emitter.js	next	fail	Uncaught ReferenceError: require is not defined
 node/test-events-emitter.js	next-qjs	fail	Uncaught ReferenceError: require is not defined
+node/test-events-once-promise.js	next	fail	Uncaught ReferenceError: require is not defined
 node/test-events-once-promise.js	next-qjs	fail	Uncaught ReferenceError: require is not defined
+node/test-fs-mkdir-stat.js	next	fail	Uncaught ReferenceError: require is not defined
 node/test-fs-mkdir-stat.js	next-qjs	fail	Uncaught ReferenceError: require is not defined
+node/test-fs-promises.js	next	fail	Uncaught ReferenceError: require is not defined
 node/test-fs-promises.js	next-qjs	fail	Uncaught ReferenceError: require is not defined
+node/test-fs-write-read.js	next	fail	Uncaught ReferenceError: require is not defined
 node/test-fs-write-read.js	next-qjs	fail	Uncaught ReferenceError: require is not defined
+node/test-os.js	next	fail	Uncaught ReferenceError: require is not defined
 node/test-os.js	next-qjs	fail	Uncaught ReferenceError: require is not defined
+node/test-path-basename-dirname-extname.js	next	fail	Uncaught ReferenceError: require is not defined
 node/test-path-basename-dirname-extname.js	next-qjs	fail	Uncaught ReferenceError: require is not defined
+node/test-path-join-normalize.js	next	fail	Uncaught ReferenceError: require is not defined
 node/test-path-join-normalize.js	next-qjs	fail	Uncaught ReferenceError: require is not defined
+node/test-path-parse-format.js	next	fail	Uncaught ReferenceError: require is not defined
 node/test-path-parse-format.js	next-qjs	fail	Uncaught ReferenceError: require is not defined
+node/test-path-resolve-relative.js	next	fail	Uncaught ReferenceError: require is not defined
 node/test-path-resolve-relative.js	next-qjs	fail	Uncaught ReferenceError: require is not defined
+node/test-process-env-argv.js	next	fail	Uncaught ReferenceError: require is not defined
 node/test-process-env-argv.js	next-qjs	fail	Uncaught ReferenceError: require is not defined
+node/test-process-hrtime.js	next	fail	Uncaught ReferenceError: require is not defined
 node/test-process-hrtime.js	next-qjs	fail	Uncaught ReferenceError: require is not defined
+node/test-process-next-tick.js	next	fail	Uncaught ReferenceError: require is not defined
 node/test-process-next-tick.js	next-qjs	fail	Uncaught ReferenceError: require is not defined
+node/test-timers-interval-immediate.js	next	fail	Uncaught ReferenceError: require is not defined
 node/test-timers-interval-immediate.js	next-qjs	fail	Uncaught ReferenceError: require is not defined
+node/test-timers-ordering.js	next	fail	Uncaught ReferenceError: require is not defined
 node/test-timers-ordering.js	next-qjs	fail	Uncaught ReferenceError: require is not defined
+node/test-util-text-encoding.js	next	fail	Uncaught ReferenceError: require is not defined
 node/test-util-text-encoding.js	next-qjs	fail	Uncaught ReferenceError: require is not defined
+quickjs/test_bigint.js#test_bigint_map	next	fail	Uncaught Error: assertion failed: got |undefined|, expected |true|
+quickjs/test_builtin.js#test_date	next	fail	Uncaught SyntaxError: invalid redefinition of lexical identifier
 quickjs/test_builtin.js#test_date	next-qjs	fail	Uncaught ReferenceError: os is not defined
-quickjs/test_builtin.js#test_exception_prepare_stack	next	fail	exit -1
+quickjs/test_builtin.js#test_enum	next	fail	Uncaught Error: assertion failed: got |1,4294967294,x,18014398509481984,9007199254740992,9007199254740991,4294967296,4294967295,y|, expected |1,4294967294,x,18014398509481984,90071
+quickjs/test_builtin.js#test_exception_prepare_stack	next	fail	Uncaught Error: assertion failed: got |false|, expected |true|
 quickjs/test_builtin.js#test_exception_prepare_stack	next-qjs	fail	Uncaught Error: assertion failed: got |false|, expected |true|
+quickjs/test_builtin.js#test_exception_source_pos	next	fail	Uncaught Error: assertion failed: got |false|, expected |true|
 quickjs/test_builtin.js#test_exception_source_pos	next-qjs	fail	Uncaught Error: assertion failed: got |false|, expected |true|
-quickjs/test_builtin.js#test_exception_stack_size_limit	next	fail	exit -1
+quickjs/test_builtin.js#test_exception_stack_size_limit	next	fail	Uncaught Error: assertion failed: got |false|, expected |true|
 quickjs/test_builtin.js#test_exception_stack_size_limit	next-qjs	fail	Uncaught Error: assertion failed: got |false|, expected |true|
+quickjs/test_builtin.js#test_function	next	fail	Uncaught Error: assertion failed: got |1,2,3|, expected |1,2,3|
+quickjs/test_builtin.js#test_function_source_pos	next	fail	Uncaught Error: assertion failed: got |9:1|, expected |19:1|
 quickjs/test_builtin.js#test_function_source_pos	next-qjs	fail	Uncaught Error: assertion failed: got |55:1|, expected |19:1|
+quickjs/test_builtin.js#test_proxy_is_array	next	fail	Uncaught ReferenceError: r is not defined
+quickjs/test_builtin.js#test_regexp	next	fail	Uncaught Error: assertion failed: got |zaacbbbcac,z,ac,a,,c|, expected |zaacbbbcac,z,ac,a,,c|
+quickjs/test_builtin.js#test_string	next	fail	Uncaught Error: assertion failed: got |a,b,c|, expected |a,b,c|
 quickjs/test_builtin.js#test_string	next-qjs	fail	Uncaught ReferenceError: qjs is not defined
+quickjs/test_builtin.js#test_symbol	next	fail	Uncaught Error: assertion failed: got |undefined|, expected |true|
+quickjs/test_builtin.js#test_typed_array	next	fail	Uncaught SyntaxError: invalid redefinition of lexical identifier
+quickjs/test_closure.js#test_with	next	fail	Uncaught SyntaxError: invalid keyword: with
 quickjs/test_closure.js#test_with	next-qjs	fail	Uncaught SyntaxError: invalid keyword: with
+quickjs/test_language.js#test_argument_scope	next	fail	Uncaught SyntaxError: invalid variable name in strict mode
 quickjs/test_language.js#test_argument_scope	next-qjs	fail	Uncaught SyntaxError: invalid variable name in strict mode
+quickjs/test_language.js#test_arguments	next	fail	Uncaught ReferenceError: gc is not defined
 quickjs/test_language.js#test_arguments	next-qjs	fail	Uncaught ReferenceError: gc is not defined
+quickjs/test_language.js#test_await_using	next	fail	Uncaught (in promise) Error: assertion failed: got |undefined|, expected |true|
+quickjs/test_language.js#test_destructuring	next	fail	Uncaught Error: assertion failed: got |undefined|, expected |true|
+quickjs/test_language.js#test_function_expr_name	next	fail	Uncaught TypeError: 'myfunc' is read-only
 quickjs/test_language.js#test_function_expr_name	next-qjs	fail	Uncaught TypeError: 'myfunc' is read-only
+quickjs/test_language.js#test_labels	next	fail	Uncaught SyntaxError: invalid keyword: with
 quickjs/test_language.js#test_labels	next-qjs	fail	Uncaught SyntaxError: invalid keyword: with
+quickjs/test_language.js#test_number_literals	next	fail	Uncaught SyntaxError: Octal literals are not allowed in strict mode
 quickjs/test_language.js#test_number_literals	next-qjs	fail	Uncaught SyntaxError: Octal literals are not allowed in strict mode
+quickjs/test_language.js#test_object_literal	next	fail	Uncaught ReferenceError: async is not defined
 quickjs/test_language.js#test_object_literal	next-qjs	fail	Uncaught ReferenceError: async is not defined
+quickjs/test_language.js#test_reserved_names	next	fail	Uncaught SyntaxError: unexpected token in expression: 'yield'
 quickjs/test_language.js#test_reserved_names	next-qjs	fail	Uncaught SyntaxError: unexpected token in expression: 'yield'
+quickjs/test_loop.js#test_for	next	fail	Uncaught ReferenceError: j is not defined
+quickjs/test_loop.js#test_for_in	next	fail	Uncaught SyntaxError: a declaration in the head of a for-in loop can't have an initializer
 quickjs/test_loop.js#test_for_in	next-qjs	fail	Uncaught SyntaxError: a declaration in the head of a for-in loop can't have an initializer
+quickjs/test_loop.js#test_for_in2	next	fail	Uncaught ReferenceError: tab is not defined
 quickjs/test_loop.js#test_for_in2	next-qjs	fail	Uncaught ReferenceError: tab is not defined
-quickjs/test_queue_microtask.js#test_types	next-qjs	fail	Uncaught Error: assertion failed: got |false|, expected |true| (exception expected)
+quickjs/test_queue_microtask.js#test_async_order	next	fail	Uncaught ReferenceError: assertArrayEquals is not defined
+test262/built-ins/Array/prototype/filter/15.4.4.20-9-c-ii-7.js	next	fail	Uncaught Test262Error: Expected a function Error() {
 test262/built-ins/Array/prototype/forEach/15.4.4.18-7-b-16.js	next-qjs	fail	Uncaught TypeError: not configurable
+test262/built-ins/Array/prototype/push/S15.4.4.7_A2_T1.js	next	fail	Uncaught SyntaxError: invalid redefinition of global identifier
+test262/built-ins/Array/prototype/reverse/S15.4.4.8_A2_T1.js	next	fail	Uncaught SyntaxError: invalid redefinition of global identifier
+test262/built-ins/Array/prototype/shift/S15.4.4.9_A2_T4.js	next	fail	Uncaught SyntaxError: invalid redefinition of global identifier
 test262/built-ins/Array/prototype/some/15.4.4.17-5-25.js	next-qjs	fail	Uncaught TypeError: cannot read property '_15_4_4_17_5_25' of undefined
+test262/built-ins/Array/prototype/splice/S15.4.4.12_A4_T1.js	next	fail	Uncaught SyntaxError: invalid redefinition of global identifier
+test262/built-ins/Array/prototype/unshift/S15.4.4.13_A2_T2.js	next	fail	Uncaught SyntaxError: invalid redefinition of global identifier
+test262/built-ins/JSON/parse/reviver-forward-modifies-object.js	next	fail	Uncaught SyntaxError: invalid redefinition of global identifier in module code
 test262/built-ins/JSON/parse/reviver-forward-modifies-object.js	next-qjs	fail	Uncaught SyntaxError: invalid redefinition of global identifier in module code
 test262/built-ins/JSON/prop-desc.js	next-qjs	fail	Uncaught TypeError: Cannot convert undefined or null to object
 test262/built-ins/Map/map.js	next-qjs	fail	Uncaught TypeError: Cannot convert undefined or null to object
+test262/built-ins/Map/prototype/getOrInsertComputed/callbackfn-throws.js	next	fail	Uncaught Test262Error: Expected a function Error() {
+test262/built-ins/Math/round/S15.8.2.15_A6.js	next	fail	Uncaught ReferenceError: i is not defined
 test262/built-ins/Number/prop-desc.js	next-qjs	fail	Uncaught TypeError: Cannot convert undefined or null to object
-test262/built-ins/Promise/all/invoke-resolve-on-promises-every-iteration-of-custom.js	next	fail	exit -1
+test262/built-ins/Number/prototype/toPrecision/exponential.js	next	fail	Uncaught SyntaxError: invalid redefinition of global identifier
+test262/built-ins/Promise/all/iter-next-val-err-no-close.js	next	fail	Uncaught (in promise) Test262Error
+test262/built-ins/Promise/allKeyed/capability-resolve-throws-reject.js	next	fail	TypeError: cannot read property 'call' of undefined
 test262/built-ins/Promise/allKeyed/capability-resolve-throws-reject.js	next-qjs	fail	Uncaught Test262Error: asyncTest called without async flag
+test262/built-ins/Promise/allKeyed/get-value-not-called-for-non-enumerable.js	next	fail	TypeError: not a function
 test262/built-ins/Promise/allKeyed/get-value-not-called-for-non-enumerable.js	next-qjs	fail	Uncaught Test262Error: asyncTest called without async flag
+test262/built-ins/Promise/allKeyed/invoke-resolve-custom.js	next	fail	Uncaught TypeError: cannot read property 'call' of undefined
 test262/built-ins/Promise/allKeyed/invoke-resolve-custom.js	next-qjs	fail	Uncaught TypeError: cannot read property 'call' of undefined
+test262/built-ins/Promise/allKeyed/invoke-then-error-reject.js	next	fail	TypeError: not a function
 test262/built-ins/Promise/allKeyed/invoke-then-error-reject.js	next-qjs	fail	Uncaught Test262Error: asyncTest called without async flag
 test262/built-ins/Promise/allKeyed/length.js	next-qjs	fail	Uncaught TypeError: Cannot convert undefined or null to object
+test262/built-ins/Promise/allKeyed/reject-first.js	next	fail	Uncaught TypeError: not a function
 test262/built-ins/Promise/allKeyed/reject-first.js	next-qjs	fail	Uncaught TypeError: not a function
 test262/built-ins/Promise/allKeyed/result-property-descriptors.js	next-qjs	fail	Uncaught Test262Error: asyncTest called without async flag
+test262/built-ins/Promise/allSettledKeyed/ctx-ctor-throws.js	next	fail	Uncaught Test262Error: Expected a Test262Error but got a TypeError
 test262/built-ins/Promise/allSettledKeyed/ctx-ctor-throws.js	next-qjs	fail	Uncaught Test262Error: Expected a Test262Error but got a TypeError
+test262/built-ins/Promise/allSettledKeyed/get-value-throws-reject.js	next	fail	TypeError: not a function
 test262/built-ins/Promise/allSettledKeyed/get-value-throws-reject.js	next-qjs	fail	Uncaught Test262Error: asyncTest called without async flag
+test262/built-ins/Promise/allSettledKeyed/invoke-resolve-error-reject.js	next	fail	TypeError: not a function
 test262/built-ins/Promise/allSettledKeyed/invoke-resolve-error-reject.js	next-qjs	fail	Uncaught Test262Error: asyncTest called without async flag
+test262/built-ins/Promise/allSettledKeyed/invoke-then-get-error-reject.js	next	fail	TypeError: not a function
 test262/built-ins/Promise/allSettledKeyed/invoke-then-get-error-reject.js	next-qjs	fail	Uncaught Test262Error: asyncTest called without async flag
+test262/built-ins/Promise/allSettledKeyed/non-enumerable-properties-ignored.js	next	fail	TypeError: not a function
 test262/built-ins/Promise/allSettledKeyed/non-enumerable-properties-ignored.js	next-qjs	fail	Uncaught Test262Error: asyncTest called without async flag
+test262/built-ins/Promise/allSettledKeyed/proto.js	next	fail	Uncaught TypeError: not an object
 test262/built-ins/Promise/allSettledKeyed/proto.js	next-qjs	fail	Uncaught TypeError: not an object
+test262/built-ins/Promise/allSettledKeyed/resolve-from-same-thenable.js	next	fail	Uncaught TypeError: cannot read property 'call' of undefined
 test262/built-ins/Promise/allSettledKeyed/resolve-from-same-thenable.js	next-qjs	fail	Uncaught TypeError: cannot read property 'call' of undefined
+test262/built-ins/Promise/allSettledKeyed/resolved-all-rejected.js	next	fail	TypeError: not a function
 test262/built-ins/Promise/allSettledKeyed/resolved-all-rejected.js	next-qjs	fail	Uncaught Test262Error: asyncTest called without async flag
+test262/built-ins/Promise/any/call-reject-element-items.js	next	fail	Uncaught TypeError: not a function
+test262/built-ins/Promise/prototype/then/capability-executor-not-callable.js	next	fail	Uncaught SyntaxError: invalid redefinition of global identifier
+test262/built-ins/Promise/race/capability-executor-not-callable.js	next	fail	Uncaught SyntaxError: invalid redefinition of global identifier
+test262/built-ins/Promise/race/invoke-resolve-error-close.js	next	fail	Uncaught (in promise) ReferenceError: err is not defined
+test262/built-ins/Promise/race/iter-step-err-no-close.js	next	fail	Uncaught (in promise) Test262Error
+test262/built-ins/Promise/race/same-resolve-function.js	next	fail	Uncaught TypeError: not a function
+test262/built-ins/Promise/reject/capability-executor-called-twice.js	next	fail	Uncaught SyntaxError: invalid redefinition of global identifier
+test262/built-ins/Promise/resolve/capability-executor-not-callable.js	next	fail	Uncaught SyntaxError: invalid redefinition of global identifier
+test262/built-ins/Promise/try/avoids-wrap.js	next	fail	Uncaught Test262Error: Expected SameValue(«[object Promise]», «[object Promise]») to be true
 test262/built-ins/Promise/try/avoids-wrap.js	next-qjs	fail	Uncaught Test262Error: Expected SameValue(«[object Promise]», «[object Promise]») to be true
-test262/built-ins/String/prototype/repeat/count-less-than-zero-throws.js	next	fail	runtime error: RangeError: Invalid count value
+test262/built-ins/Set/prototype/forEach/throws-when-callback-throws.js	next	fail	Uncaught Test262Error: Expected a function Error() {
+test262/built-ins/Set/set-get-add-method-failure.js	next	fail	Uncaught Test262Error: Expected a MyError but got a undefined
+test262/built-ins/Set/set-iterator-close-after-add-failure.js	next	fail	Uncaught Test262Error: Expected a function Error() {
+test262/built-ins/Set/set-iterator-value-failure.js	next	fail	Uncaught Test262Error: Expected a MyError but got a undefined
+test262/built-ins/String/prototype/concat/S15.5.4.6_A1_T6.js	next	fail	Uncaught ReferenceError: x is not initialized
 test262/language/expressions/assignment/dstr/ident-name-prop-name-literal-void-escaped.js	next-qjs	fail	Uncaught ReferenceError: x is not defined
+test262/language/expressions/await/await-BindingIdentifier-in-global.js	next	fail	Uncaught SyntaxError: function name expected
 test262/language/expressions/await/await-BindingIdentifier-in-global.js	next-qjs	fail	Uncaught SyntaxError: function name expected
 test262/language/expressions/await/await-awaits-thenables-that-throw.js	next-qjs	fail	Uncaught Test262Error: asyncTest called without async flag
+test262/language/expressions/await/await-in-generator.js	next	fail	Uncaught SyntaxError: missing formal parameter
 test262/language/expressions/await/await-in-generator.js	next-qjs	fail	Uncaught SyntaxError: missing formal parameter
+test262/language/expressions/await/await-in-nested-generator.js	next	fail	Uncaught SyntaxError: variable name expected
 test262/language/expressions/await/await-in-nested-generator.js	next-qjs	fail	Uncaught SyntaxError: variable name expected
 test262/language/expressions/await/syntax-await-has-UnaryExpression-with-MultiplicativeExpression.js	next-qjs	fail	Uncaught Test262Error: asyncTest called without async flag
+test262/language/expressions/bitwise-not/S9.5_A3.1_T4.js	next	fail	Uncaught SyntaxError: invalid redefinition of global identifier
+test262/language/expressions/comma/S11.14_A2.1_T1.js	next	fail	Uncaught SyntaxError: invalid redefinition of global identifier
+test262/language/expressions/comma/S11.14_A3.js	next	fail	Uncaught SyntaxError: invalid redefinition of global identifier
+test262/language/expressions/compound-assignment/S11.13.2_A2.1_T1.11.js	next	fail	Uncaught SyntaxError: invalid redefinition of global identifier
 test262/language/expressions/compound-assignment/S11.13.2_A5.9_T2.js	next-qjs	fail	Uncaught SyntaxError: invalid keyword: with
+test262/language/expressions/conditional/S11.12_A4_T1.js	next	fail	Uncaught SyntaxError: invalid redefinition of global identifier
+test262/language/expressions/conditional/S11.12_A4_T3.js	next	fail	Uncaught SyntaxError: invalid redefinition of global identifier
 test262/language/expressions/delete/11.4.1-0-1.js	next-qjs	fail	Uncaught SyntaxError: cannot delete a direct reference in strict mode
 test262/language/expressions/delete/S11.4.1_A3.3_T1.js	next-qjs	fail	Uncaught SyntaxError: cannot delete a direct reference in strict mode
 test262/language/expressions/delete/S8.12.7_A1.js	next-qjs	fail	Uncaught TypeError: could not delete property
-test262/language/expressions/exponentiation/exp-operator-syntax-error-plus-unary-expression-base.js	next	fail	panic: Uncaught Test262Error: Test262: This statement should not be evaluated.
+test262/language/expressions/does-not-equals/S11.9.2_A2.4_T1.js	next	fail	Uncaught SyntaxError: invalid redefinition of global identifier
 test262/language/expressions/generators/arguments-with-arguments-fn.js	next-qjs	fail	Uncaught SyntaxError: invalid function name in strict code
 test262/language/expressions/generators/scope-param-elem-var-close.js	next-qjs	fail	Uncaught Test262Error: Expected SameValue(«"outside"», «"inside"») to be true
 test262/language/expressions/grouping/S11.1.6_A2_T2.js	next-qjs	fail	Uncaught SyntaxError: cannot delete a direct reference in strict mode
 test262/language/expressions/grouping/S11.1.6_A3_T6.js	next-qjs	fail	Uncaught SyntaxError: cannot delete a direct reference in strict mode
+test262/language/expressions/in/S11.8.7_A4.js	next	fail	Uncaught SyntaxError: invalid redefinition of global identifier
+test262/language/expressions/in/private-field-rhs-await-absent.js	next	fail	Uncaught SyntaxError: function name expected
 test262/language/expressions/in/private-field-rhs-await-absent.js	next-qjs	fail	Uncaught SyntaxError: function name expected
+test262/language/expressions/less-than-or-equal/S11.8.3_A2.1_T1.js	next	fail	Uncaught SyntaxError: invalid redefinition of global identifier
+test262/language/expressions/logical-and/S11.11.1_A4_T2.js	next	fail	Uncaught SyntaxError: invalid redefinition of global identifier
+test262/language/expressions/logical-or/S11.11.2_A3_T2.js	next	fail	Uncaught SyntaxError: invalid redefinition of global identifier
+test262/language/expressions/logical-or/S11.11.2_A4_T2.js	next	fail	Uncaught SyntaxError: invalid redefinition of global identifier
 test262/language/expressions/new.target/unary-expr.js	next-qjs	fail	Uncaught Test262Error: asyncTest called without async flag
 test262/language/expressions/optional-chaining/optional-chain-async-optional-chain-square-brackets.js	next-qjs	fail	Uncaught Test262Error: asyncTest called without async flag
+test262/language/expressions/postfix-decrement/S11.3.2_A3_T1.js	next	fail	Uncaught SyntaxError: invalid redefinition of global identifier
+test262/language/expressions/postfix-decrement/S11.3.2_A4_T1.js	next	fail	Uncaught SyntaxError: invalid redefinition of global identifier
+test262/language/expressions/postfix-decrement/S11.3.2_A4_T5.js	next	fail	Uncaught SyntaxError: invalid redefinition of global identifier
+test262/language/expressions/postfix-decrement/S11.3.2_A6_T2.js	next	fail	Uncaught Test262Error: Expected a DummyError but got a undefined
 test262/language/expressions/postfix-decrement/eval-nostrict.js	next-qjs	fail	Uncaught SyntaxError: invalid lvalue in strict mode
+test262/language/expressions/postfix-increment/S11.3.1_A2.2_T1.js	next	fail	Uncaught SyntaxError: invalid redefinition of global identifier
+test262/language/expressions/postfix-increment/S11.3.1_A3_T5.js	next	fail	Uncaught SyntaxError: invalid redefinition of global identifier
+test262/language/expressions/postfix-increment/S11.3.1_A4_T5.js	next	fail	Uncaught SyntaxError: invalid redefinition of global identifier
+test262/language/expressions/postfix-increment/S11.3.1_A6_T2.js	next	fail	Uncaught Test262Error: Expected a DummyError but got a undefined
+test262/language/expressions/prefix-decrement/S11.4.5_A2.2_T1.js	next	fail	Uncaught SyntaxError: invalid redefinition of global identifier
+test262/language/expressions/prefix-decrement/S11.4.5_A3_T4.js	next	fail	Uncaught SyntaxError: invalid redefinition of global identifier
+test262/language/expressions/prefix-decrement/S11.4.5_A4_T3.js	next	fail	Uncaught SyntaxError: invalid redefinition of global identifier
 test262/language/expressions/prefix-decrement/S11.4.5_A5_T3.js	next-qjs	fail	Uncaught SyntaxError: invalid keyword: with
 test262/language/expressions/prefix-decrement/arguments-nostrict.js	next-qjs	fail	Uncaught SyntaxError: invalid lvalue in strict mode
+test262/language/expressions/prefix-increment/S11.4.4_A3_T1.js	next	fail	Uncaught SyntaxError: invalid redefinition of global identifier
+test262/language/expressions/prefix-increment/S11.4.4_A3_T5.js	next	fail	Uncaught SyntaxError: invalid redefinition of global identifier
+test262/language/expressions/prefix-increment/S11.4.4_A4_T4.js	next	fail	Uncaught SyntaxError: invalid redefinition of global identifier
 test262/language/expressions/prefix-increment/S11.4.4_A5_T3.js	next-qjs	fail	Uncaught SyntaxError: invalid keyword: with
 test262/language/expressions/prefix-increment/arguments-nostrict.js	next-qjs	fail	Uncaught SyntaxError: invalid lvalue in strict mode
+test262/language/expressions/relational/S9.1_A1_T4.js	next	fail	Uncaught SyntaxError: invalid redefinition of global identifier
 test262/language/expressions/right-shift/S11.7.2_A2.4_T4.js	next-qjs	fail	Uncaught ReferenceError: y is not defined
 test262/language/expressions/strict-does-not-equals/S11.9.5_A2.4_T4.js	next-qjs	fail	Uncaught ReferenceError: y is not defined
 test262/language/expressions/strict-equals/S11.9.4_A2.4_T4.js	next-qjs	fail	Uncaught ReferenceError: y is not defined
 test262/language/expressions/subtraction/S11.6.2_A2.4_T4.js	next-qjs	fail	Uncaught ReferenceError: y is not defined
 test262/language/expressions/tagged-template/template-object-frozen-non-strict.js	next-qjs	fail	Uncaught TypeError: object is not extensible
-test262/language/expressions/template-literal/invalid-unicode-escape-sequence-1.js	next	fail	panic: Uncaught Test262Error: Test262: This statement should not be evaluated.
-test262/language/expressions/template-literal/invalid-unicode-escape-sequence-8.js	next	fail	panic: Uncaught Test262Error: Test262: This statement should not be evaluated.
+test262/language/expressions/this/11.1.1-1.js	next	fail	Uncaught Test262Error: Expected SameValue(«undefined», «undefined») to be false
 test262/language/expressions/this/11.1.1-1.js	next-qjs	fail	Uncaught Test262Error: Expected SameValue(«undefined», «undefined») to be false
+test262/language/expressions/this/S11.1.1_A4.1.js	next	fail	Uncaught Test262Error: #1: let MyFunction = new Function("return this"); MyFunction() === this. Actual: [object global]
 test262/language/expressions/this/S11.1.1_A4.1.js	next-qjs	fail	Uncaught Test262Error: #1: var MyFunction = new Function("return this"); MyFunction() === this. Actual: [object global]
+test262/language/expressions/typeof/built-in-exotic-objects-no-call.js	next	fail	Uncaught Test262Error: typeof this === "object" Expected SameValue(«undefined», «object») to be true
 test262/language/expressions/typeof/built-in-exotic-objects-no-call.js	next-qjs	fail	Uncaught Test262Error: typeof this === "object" Expected SameValue(«"undefined"», «"object"») to be true
+test262/language/expressions/typeof/get-value.js	next	fail	Uncaught TypeError: Object.defineProperties called on non-object
 test262/language/expressions/typeof/get-value.js	next-qjs	fail	Uncaught TypeError: Object.defineProperties called on non-object
+test262/language/expressions/unary-plus/S11.4.6_A2.1_T1.js	next	fail	Uncaught SyntaxError: invalid redefinition of global identifier
+test262/language/expressions/unary-plus/S11.4.6_A2.2_T1.js	next	fail	Uncaught SyntaxError: invalid redefinition of global identifier
+test262/language/expressions/void/S11.4.2_A2_T1.js	next	fail	Uncaught SyntaxError: invalid redefinition of global identifier
+test262/language/expressions/void/S11.4.2_A4_T1.js	next	fail	Uncaught SyntaxError: invalid redefinition of global identifier
+test262/language/expressions/void/S11.4.2_A4_T2.js	next	fail	Uncaught SyntaxError: invalid redefinition of global identifier
+test262/language/expressions/void/S11.4.2_A4_T3.js	next	fail	Uncaught SyntaxError: invalid redefinition of global identifier
+test262/language/expressions/void/S11.4.2_A4_T4.js	next	fail	Uncaught SyntaxError: invalid redefinition of global identifier
+test262/language/expressions/void/S11.4.2_A4_T5.js	next	fail	Uncaught SyntaxError: invalid redefinition of global identifier
 test262/language/expressions/yield/from-with.js	next-qjs	fail	Uncaught SyntaxError: invalid keyword: with
-test262/language/literals/numeric/legacy-octal-integery-005-strict.js	next	fail	panic: Uncaught Test262Error: Test262: This statement should not be evaluated.
-test262/language/literals/numeric/numeric-separators/numeric-separator-literal-bil-nsl-bd-dunder-err.js	next	fail	panic: Uncaught Test262Error: Test262: This statement should not be evaluated.
-test262/language/literals/numeric/numeric-separators/numeric-separator-literal-dd-nsl-dds-dunder-err.js	next	fail	panic: Uncaught Test262Error: Test262: This statement should not be evaluated.
-test262/language/literals/numeric/numeric-separators/numeric-separator-literal-dil-dot-nsl-dd-err.js	next	fail	panic: Uncaught Test262Error: Test262: This statement should not be evaluated.
-test262/language/literals/numeric/numeric-separators/numeric-separator-literal-lol-07-err.js	next	fail	panic: Uncaught Test262Error: Test262: This statement should not be evaluated.
-test262/language/literals/numeric/numeric-separators/numeric-separator-literal-nonoctal-0_9-err.js	next	fail	panic: Uncaught Test262Error: Test262: This statement should not be evaluated.
-test262/language/literals/numeric/numeric-separators/numeric-separator-literal-oil-nsl-od-dunder-err.js	next	fail	panic: Uncaught Test262Error: Test262: This statement should not be evaluated.
-test262/language/literals/regexp/invalid-braced-quantifier-lower.js	next	fail	panic: Uncaught Test262Error: Test262: This statement should not be evaluated.
-test262/language/literals/regexp/regexp-first-char-no-paragraph-separator.js	next	fail	panic: Uncaught Test262Error: Test262: This statement should not be evaluated.
-test262/language/literals/regexp/u-invalid-extended-pattern-char.js	next	fail	panic: Uncaught Test262Error: Test262: This statement should not be evaluated.
-test262/language/literals/regexp/u-invalid-oob-decimal-escape.js	next	fail	panic: Uncaught Test262Error: Test262: This statement should not be evaluated.
-test262/language/literals/regexp/u-invalid-range-lookahead.js	next	fail	panic: Uncaught Test262Error: Test262: This statement should not be evaluated.
-test262/language/literals/string/S7.8.4_A7.2_T3.js	next	fail	panic: Uncaught Test262Error: Test262: This statement should not be evaluated.
-test262/language/literals/string/legacy-octal-escape-sequence-strict.js	next	fail	panic: Uncaught Test262Error: Test262: This statement should not be evaluated.
+test262/language/statements/async-function/evaluation-body.js	next	fail	Uncaught (in promise) TypeError: not a function
 test262/language/statements/await-using/Symbol.asyncDispose-getter.js	next-qjs	fail	Uncaught Test262Error: asyncTest called without async flag
 test262/language/statements/await-using/await-using-allows-undefined-initializer.js	next-qjs	fail	Uncaught Test262Error: asyncTest called without async flag
 test262/language/statements/await-using/fn-name-cover.js	next-qjs	fail	Uncaught Test262Error: asyncTest called without async flag
@@ -117,24 +223,34 @@ test262/language/statements/await-using/initializer-Symbol.asyncDispose-called-a
 test262/language/statements/await-using/initializer-Symbol.dispose-called-at-end-of-asyncgeneratorbody.js	next-qjs	fail	Uncaught Test262Error: asyncTest called without async flag
 test262/language/statements/await-using/puts-initializer-on-top-of-disposableresourcestack-multiple-bindings.js	next-qjs	fail	Uncaught Test262Error: asyncTest called without async flag
 test262/language/statements/await-using/syntax/await-using-invalid-arraybindingpattern-does-not-break-element-access.js	next-qjs	fail	Uncaught Test262Error: asyncTest called without async flag
+test262/language/statements/await-using/throws-if-initializer-Symbol.asyncDispose-property-is-null.js	next	fail	TypeError: not a function
 test262/language/statements/await-using/throws-if-initializer-Symbol.asyncDispose-property-is-null.js	next-qjs	fail	Uncaught Test262Error: asyncTest called without async flag
-test262/language/statements/const/syntax/with-initializer-if-expression-statement-else-statement.js	next	fail	panic: Uncaught Test262Error: Test262: This statement should not be evaluated.
-test262/language/statements/do-while/decl-fun.js	next	fail	panic: Uncaught Test262Error: Test262: This statement should not be evaluated.
+test262/language/statements/break/S12.8_A3.js	next	fail	Uncaught SyntaxError: lexical declarations can't appear in single-statement context
+test262/language/statements/break/S12.8_A4_T1.js	next	fail	Uncaught SyntaxError: lexical declarations can't appear in single-statement context
+test262/language/statements/break/S12.8_A4_T3.js	next	fail	Uncaught SyntaxError: lexical declarations can't appear in single-statement context
+test262/language/statements/break/line-terminators.js	next	fail	Uncaught ReferenceError: i is not defined
+test262/language/statements/do-while/S12.6.1_A4_T4.js	next	fail	Uncaught ReferenceError: __in__do__before__break is not defined
 test262/language/statements/for-await-of/async-func-decl-dstr-obj-prop-elem-init-yield-ident-valid.js	next-qjs	fail	Uncaught SyntaxError: variable name expected
+test262/language/statements/for-in/scope-body-var-none.js	next	fail	Uncaught SyntaxError: lexical declarations can't appear in single-statement context
 test262/language/statements/function/S13.2.1_A7_T3.js	next-qjs	fail	Uncaught Test262Error: #1: var __x=__func() does not lead to throwing exception. Actual: exception is ReferenceError: x is not defined
 test262/language/statements/function/S13_A15_T1.js	next-qjs	fail	Uncaught SyntaxError: invalid argument name in strict code
 test262/language/statements/generators/arguments-with-arguments-fn.js	next-qjs	fail	Uncaught SyntaxError: invalid function name in strict code
 test262/language/statements/generators/yield-as-generator-declaration-binding-identifier.js	next-qjs	fail	Uncaught SyntaxError: function name expected
-test262/language/statements/if/if-fun-no-else-strict.js	next	fail	panic: Uncaught Test262Error: Test262: This statement should not be evaluated.
-test262/language/statements/if/if-stmt-else-decl-strict.js	next	fail	panic: Uncaught Test262Error: Test262: This statement should not be evaluated.
 test262/language/statements/labeled/let-block-with-newline.js	next-qjs	fail	Uncaught SyntaxError: lexical declarations can't appear in single-statement context
+test262/language/statements/labeled/value-await-non-module-escaped.js	next	fail	Uncaught SyntaxError: 'await' is a reserved identifier
 test262/language/statements/labeled/value-await-non-module-escaped.js	next-qjs	fail	Uncaught SyntaxError: 'await' is a reserved identifier
 test262/language/statements/labeled/value-yield-non-strict-escaped.js	next-qjs	fail	Uncaught SyntaxError: 'yield' is a reserved identifier
-test262/language/statements/let/syntax/with-initialisers-in-statement-positions-for-statement.js	next	fail	panic: Uncaught Test262Error: Test262: This statement should not be evaluated.
-test262/language/statements/using/static-init-await-binding-valid.js	next	fail	exit -1
+test262/language/statements/throw/S12.13_A2_T3.js	next	fail	Uncaught SyntaxError: invalid redefinition of global identifier
+test262/language/statements/throw/S12.13_A3_T1.js	next	fail	Uncaught SyntaxError: invalid redefinition of global identifier
+test262/language/statements/try/S12.14_A18_T4.js	next	fail	Uncaught SyntaxError: invalid redefinition of global identifier
+test262/language/statements/using/initializer-disposed-if-subsequent-initializer-throws-in-forstatement-head.js	next	fail	Uncaught Test262Error: for Expected a function Error() {
+test262/language/statements/using/static-init-await-binding-valid.js	next	fail	Uncaught SyntaxError: expecting ';'
 test262/language/statements/using/static-init-await-binding-valid.js	next-qjs	fail	Uncaught SyntaxError: expecting ';'
 test262/language/statements/using/syntax/using-declaring-let-split-across-two-lines.js	next-qjs	fail	Uncaught SyntaxError: variable name expected
-test262/language/statements/while/decl-cls.js	next	fail	panic: Uncaught Test262Error: Test262: This statement should not be evaluated.
+test262/language/statements/variable/S12.2_A7.js	next	fail	Uncaught Test262Error: #1: Variable declaration inside "for" loop is admitted
+test262/language/statements/while/S12.6.2_A14_T1.js	next	fail	Uncaught ReferenceError: __reached is not defined
+test262/language/statements/while/S12.6.2_A4_T2.js	next	fail	Uncaught ReferenceError: __in__do__before__break is not initialized
+test262/language/statements/while/S12.6.2_A9.js	next	fail	Uncaught ReferenceError: x is not defined
 test262/language/statements/with/12.10-0-1.js	next-qjs	fail	Uncaught SyntaxError: invalid keyword: with
 test262/language/statements/with/S12.10_A1.11_T5.js	next-qjs	fail	Uncaught SyntaxError: cannot delete a direct reference in strict mode
 test262/language/statements/with/S12.10_A1.3_T2.js	next-qjs	fail	Uncaught SyntaxError: invalid keyword: with
@@ -144,219 +260,396 @@ test262/language/statements/with/S12.10_A3.1_T1.js	next-qjs	fail	Uncaught Syntax
 test262/language/statements/with/S12.10_A3.4_T4.js	next-qjs	fail	Uncaught SyntaxError: invalid keyword: with
 test262/language/statements/with/S12.10_A3.8_T1.js	next-qjs	fail	Uncaught SyntaxError: invalid keyword: with
 test262/language/statements/with/S12.10_A5_T2.js	next-qjs	fail	Uncaught TypeError: cannot set property 'p1' of undefined
+test262/language/types/boolean/S8.3_A1_T1.js	next	fail	Uncaught ReferenceError: x is not initialized
 test262/language/types/number/S8.5_A9.js	next-qjs	fail	Uncaught TypeError: 'NaN' is read-only
 test262/language/types/object/S8.6.1_A1.js	next-qjs	fail	Uncaught TypeError: 'E' is read-only
 test262/language/types/object/S8.6.1_A3.js	next-qjs	fail	Uncaught TypeError: could not delete property
+test262/language/types/object/S8.6.2_A5_T2.js	next	fail	Uncaught TypeError: cannot set property 'position' of undefined
 test262/language/types/object/S8.6.2_A5_T2.js	next-qjs	fail	Uncaught TypeError: cannot set property 'position' of undefined
+test262/language/types/object/S8.6.2_A5_T4.js	next	fail	Uncaught TypeError: cannot set property 'beep' of undefined
 test262/language/types/object/S8.6.2_A5_T4.js	next-qjs	fail	Uncaught TypeError: cannot set property 'beep' of undefined
 test262/language/types/reference/S8.7.1_A2.js	next-qjs	fail	Uncaught SyntaxError: cannot delete a direct reference in strict mode
 test262/language/types/reference/S8.7_A5_T1.js	next-qjs	fail	Uncaught SyntaxError: cannot delete a direct reference in strict mode
+wpt/FileAPI/blob/Blob-array-buffer.any.js	next	fail	incomplete: Uncaught ReferenceError: self is not defined
 wpt/FileAPI/blob/Blob-array-buffer.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/FileAPI/blob/Blob-bytes.any.js	next	fail	incomplete: Uncaught ReferenceError: self is not defined
 wpt/FileAPI/blob/Blob-bytes.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/FileAPI/blob/Blob-constructor-endings.any.js	next	fail	Valid "endings" value: "transparent": assert_class_string is not defined
 wpt/FileAPI/blob/Blob-constructor-endings.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
 wpt/FileAPI/blob/Blob-constructor.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/FileAPI/blob/Blob-slice-overflow.any.js	next	fail	slice start is negative, relativeStart will be max((size + start), 0): Blob is not defined
 wpt/FileAPI/blob/Blob-slice-overflow.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/FileAPI/blob/Blob-slice.any.js	next	fail	incomplete: Uncaught ReferenceError: self is not defined
 wpt/FileAPI/blob/Blob-slice.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/FileAPI/blob/Blob-stream.any.js	next	fail	incomplete: Uncaught ReferenceError: self is not defined
 wpt/FileAPI/blob/Blob-stream.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/FileAPI/blob/Blob-text.any.js	next	fail	incomplete: Uncaught ReferenceError: self is not defined
 wpt/FileAPI/blob/Blob-text.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/FileAPI/file/File-constructor-endings.any.js	next	fail	Valid "endings" value: "transparent": assert_class_string is not defined
 wpt/FileAPI/file/File-constructor-endings.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/FileAPI/file/File-constructor.any.js	next	fail	File interface object exists: globalThis should have a File property.: expected true got false
 wpt/FileAPI/file/File-constructor.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/WebCryptoAPI/digest/digest.https.any.js	next	fail	incomplete: Uncaught ReferenceError: crypto is not defined
 wpt/WebCryptoAPI/digest/digest.https.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/WebCryptoAPI/encrypt_decrypt/aes_gcm.https.any.js	next	fail	incomplete: Uncaught ReferenceError: self is not defined
 wpt/WebCryptoAPI/encrypt_decrypt/aes_gcm.https.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/WebCryptoAPI/generateKey/successes_HMAC.https.any.js	next	fail	incomplete: Uncaught ReferenceError: location is not defined
 wpt/WebCryptoAPI/generateKey/successes_HMAC.https.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/WebCryptoAPI/getRandomValues.any.js	next	fail	Float16 arrays: Float16Array: expected TypeMismatchError but got ReferenceError
 wpt/WebCryptoAPI/getRandomValues.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/WebCryptoAPI/randomUUID.https.any.js	next	fail	namespace format: self is not defined
 wpt/WebCryptoAPI/randomUUID.https.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/WebCryptoAPI/sign_verify/hmac.https.any.js	next	fail	incomplete: Uncaught ReferenceError: setup is not defined
 wpt/WebCryptoAPI/sign_verify/hmac.https.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/compression/compression-bad-chunks.any.js	next	fail	chunk of type undefined should error the stream for deflate: CompressionStream is not defined
 wpt/compression/compression-bad-chunks.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/compression/compression-constructor-error.any.js	next	fail	"a" should cause the constructor to throw: constructor should throw: expected TypeError but got ReferenceError
 wpt/compression/compression-constructor-error.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/compression/compression-including-empty-chunk.any.js	next	fail	incomplete: Uncaught ReferenceError: l is not defined
 wpt/compression/compression-including-empty-chunk.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/compression/compression-multiple-chunks.any.js	next	fail	incomplete: Uncaught ReferenceError: l is not defined
 wpt/compression/compression-multiple-chunks.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/compression/compression-output-length.any.js	next	fail	the length of deflate data should be shorter than that of the original data: fetch is not defined
 wpt/compression/compression-output-length.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/compression/compression-stream.any.js	next	fail	incomplete: Uncaught ReferenceError: l is not defined
 wpt/compression/compression-stream.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/compression/decompression-bad-chunks.any.js	next	fail	chunk of type undefined should error the stream for deflate: DecompressionStream is not defined
 wpt/compression/decompression-bad-chunks.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/compression/decompression-buffersource.any.js	next	fail	chunk of type ArrayBuffer should work for deflate: DecompressionStream is not defined
 wpt/compression/decompression-buffersource.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/compression/decompression-constructor-error.any.js	next	fail	"a" should cause the constructor to throw: constructor should throw: expected TypeError but got ReferenceError
 wpt/compression/decompression-constructor-error.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/compression/decompression-correct-input.any.js	next	fail	decompressing deflate input should work: DecompressionStream is not defined
 wpt/compression/decompression-correct-input.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/compression/decompression-corrupt-input.any.js	next	fail	the unchanged input for 'deflate' should decompress successfully: DecompressionStream is not defined
 wpt/compression/decompression-corrupt-input.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/compression/decompression-empty-input.any.js	next	fail	decompressing gzip empty input should work: DecompressionStream is not defined
 wpt/compression/decompression-empty-input.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/compression/decompression-extra-input.any.js	next	fail	decompressing deflate input with extra pad should still give the output: DecompressionStream is not defined
 wpt/compression/decompression-extra-input.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/compression/decompression-split-chunk.any.js	next	fail	decompressing splitted chunk into pieces of size 1 should work in deflate: DecompressionStream is not defined
 wpt/compression/decompression-split-chunk.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/compression/decompression-uint8array-output.any.js	next	fail	decompressing deflate output should give Uint8Array chunks: DecompressionStream is not defined
 wpt/compression/decompression-uint8array-output.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/console/console-is-a-namespace.any.js	next	fail	console exists on the global object: self is not defined
 wpt/console/console-is-a-namespace.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/console/console-label-conversion.any.js	next	fail	console.count() throws exceptions generated by erroneous label.toString() conversion: count must re-throw any exceptions thrown by label.toString() conversion: expected function Er
 wpt/console/console-label-conversion.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/console/console-log-large-array.any.js	next	fail	incomplete: [
 wpt/console/console-log-large-array.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
 wpt/console/console-log-symbol.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/console/console-namespace-object-class-string.any.js	next	fail	@@toStringTag exists on the namespace object with the appropriate descriptor: assert_own_property is not defined
 wpt/console/console-namespace-object-class-string.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
 wpt/console/console-tests-historical.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
 wpt/dom/abort/AbortSignal.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
 wpt/dom/abort/abort-signal-any.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
 wpt/dom/abort/event.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
 wpt/dom/abort/timeout.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/dom/events/AddEventListenerOptions-once.any.js	next	fail	Once listener should be invoked only once: EventTarget is not defined
 wpt/dom/events/AddEventListenerOptions-once.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
 wpt/dom/events/AddEventListenerOptions-passive.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/dom/events/AddEventListenerOptions-signal.any.js	next	fail	Passing an AbortSignal to addEventListener options should allow removing a listener: EventTarget is not defined
 wpt/dom/events/AddEventListenerOptions-signal.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/dom/events/Event-constructors.any.js	next	fail	test 1: Calling Event constructor without 'new' must throw: expected TypeError but got ReferenceError
 wpt/dom/events/Event-constructors.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/dom/events/Event-isTrusted.any.js	next	fail	test 1: Event is not defined
 wpt/dom/events/Event-isTrusted.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/dom/events/EventTarget-add-remove-listener.any.js	next	fail	Removing an event listener without explicit capture arg should succeed: EventTarget is not defined
 wpt/dom/events/EventTarget-add-remove-listener.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/dom/events/EventTarget-addEventListener.any.js	next	fail	Adding a null event listener should succeed: EventTarget is not defined
 wpt/dom/events/EventTarget-addEventListener.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/dom/events/EventTarget-constructible.any.js	next	fail	A constructed EventTarget can be used as expected: EventTarget is not defined
 wpt/dom/events/EventTarget-constructible.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/dom/events/EventTarget-removeEventListener.any.js	next	fail	removing a null event listener should succeed: not a function
 wpt/dom/events/EventTarget-removeEventListener.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/encoding/api-basics.any.js	next	fail	Decode sample: utf-16le: expected z¢水𝄞􏿽￾ but got z � 4l4؞ݿ𿛽߾�
 wpt/encoding/api-basics.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/encoding/api-invalid-label.any.js	next	fail	incomplete: Uncaught ReferenceError: location is not defined
 wpt/encoding/api-invalid-label.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/encoding/api-replacement-encodings.any.js	next	fail	Label for "replacement" should be rejected by API: csiso2022kr: function did not throw
 wpt/encoding/api-replacement-encodings.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/encoding/api-surrogates-utf8.any.js	next	fail	Invalid surrogates encoded into UTF-8: Surrogate half (low): expected 239 but got 237 at index 0
 wpt/encoding/api-surrogates-utf8.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/encoding/encodeInto.any.js	next	fail	encodeInto() into ArrayBuffer with Hi and destination length 0, offset 0, filler 0: not a function
 wpt/encoding/encodeInto.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/encoding/replacement-encodings.any.js	next	fail	csiso2022kr - non-empty input decodes to one replacement character.: XMLHttpRequest is not defined
 wpt/encoding/replacement-encodings.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/encoding/streams/decode-attributes.any.js	next	fail	encoding attribute should have correct value for 'unicode-1-1-utf-8': TextDecoderStream is not defined
 wpt/encoding/streams/decode-attributes.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/encoding/streams/decode-bad-chunks.any.js	next	fail	chunk of type undefined should error the stream: TextDecoderStream is not defined
 wpt/encoding/streams/decode-bad-chunks.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/encoding/streams/decode-ignore-bom.any.js	next	fail	ignoreBOM should work for encoding utf-8, split at character 0: ReadableStream is not defined
 wpt/encoding/streams/decode-ignore-bom.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/encoding/streams/decode-incomplete-input.any.js	next	fail	incomplete input with error mode "replacement" should end with a replacement character: ReadableStream is not defined
 wpt/encoding/streams/decode-incomplete-input.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/encoding/streams/decode-non-utf8.any.js	next	fail	TextDecoderStream should be able to decode UTF-16BE: TextDecoderStream is not defined
 wpt/encoding/streams/decode-non-utf8.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/encoding/streams/decode-split-character.any.js	next	fail	a code point split between chunks should not be emitted until all bytes are available; split point = 2: ReadableStream is not defined
 wpt/encoding/streams/decode-split-character.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/encoding/streams/decode-utf8.any.js	next	fail	incomplete: Uncaught TypeError: not a function
 wpt/encoding/streams/decode-utf8.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/encoding/streams/encode-bad-chunks.any.js	next	fail	a chunk that cannot be converted to a string should error the streams: TextEncoderStream is not defined
 wpt/encoding/streams/encode-bad-chunks.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/encoding/streams/encode-utf8.any.js	next	fail	encoding one string of UTF-8 should give one complete chunk: ReadableStream is not defined
 wpt/encoding/streams/encode-utf8.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/encoding/streams/readable-writable-properties.any.js	next	fail	TextEncoderStream readable and writable properties must pass brand checks: TextEncoderStream is not defined
 wpt/encoding/streams/readable-writable-properties.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/encoding/textdecoder-arguments.any.js	next	fail	TextDecoder decode() with explicit undefined: Undefined as first arg should flush the stream: expected � but got 
 wpt/encoding/textdecoder-arguments.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/encoding/textdecoder-byte-order-marks.any.js	next	fail	Byte-order marks: utf-8: Sequence with BOM should decode successfully (with no BOM present in output): expected z¢水𝄞􏿽 but got ﻿z¢水𝄞􏿽
 wpt/encoding/textdecoder-byte-order-marks.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/encoding/textdecoder-copy.any.js	next	fail	Modify buffer after passing it in (ArrayBuffer): expected  but got ��
 wpt/encoding/textdecoder-copy.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/encoding/textdecoder-eof.any.js	next	fail	TextDecoder end-of-queue handling: expected � but got ��
 wpt/encoding/textdecoder-eof.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/encoding/textdecoder-fatal-single-byte.any.js	next	fail	incomplete: Uncaught ReferenceError: location is not defined
 wpt/encoding/textdecoder-fatal-single-byte.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/encoding/textdecoder-fatal-streaming.any.js	next	fail	Fatal flag, non-streaming cases: Unterminated utf-8 sequence should throw if fatal flag is set: function did not throw
 wpt/encoding/textdecoder-fatal-streaming.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/encoding/textdecoder-fatal.any.js	next	fail	Fatal flag: utf-8 - invalid code: function did not throw
 wpt/encoding/textdecoder-fatal.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/encoding/textdecoder-ignorebom.any.js	next	fail	BOM is ignored if ignoreBOM option is specified: utf-8: utf-8: BOM should be absent from decoded string if not ignored: expected abc but got ﻿abc
 wpt/encoding/textdecoder-ignorebom.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/encoding/textdecoder-labels.any.js	next	fail	unicode-1-1-utf-8 => UTF-8: label for encoding should match: expected utf-8 but got unicode-1-1-utf-8
 wpt/encoding/textdecoder-labels.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/encoding/textdecoder-streaming.any.js	next	fail	Streaming decode: utf-8, 1 byte window (ArrayBuffer): expected  123ABCabcÿĀက�𐀀􏿿 but got  123ABCabc��������������������
 wpt/encoding/textdecoder-streaming.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/encoding/textdecoder-utf16-surrogates.any.js	next	fail	utf-16le - lone surrogate lead: expected � but got  �
 wpt/encoding/textdecoder-utf16-surrogates.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
 wpt/encoding/textencoder-constructor-non-utf.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/encoding/textencoder-utf16-surrogates.any.js	next	fail	USVString handling: lone surrogate lead: expected � but got ���
 wpt/encoding/textencoder-utf16-surrogates.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/encoding/unsupported-encodings.any.js	next	fail	UTF-7 should not be supported: XMLHttpRequest is not defined
 wpt/encoding/unsupported-encodings.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/fetch/api/headers/header-setcookie.any.js	next	fail	Headers.prototype.get combines set-cookie headers in order: Headers is not defined
 wpt/fetch/api/headers/header-setcookie.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
 wpt/fetch/api/headers/header-values-normalize.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
 wpt/fetch/api/headers/header-values.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/fetch/api/headers/headers-basic.any.js	next	fail	Create headers from no parameter: Headers is not defined
 wpt/fetch/api/headers/headers-basic.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/fetch/api/headers/headers-casing.any.js	next	fail	Create headers, names use characters with different case: Headers is not defined
 wpt/fetch/api/headers/headers-casing.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/fetch/api/headers/headers-combine.any.js	next	fail	Create headers using same name for different values: Headers is not defined
 wpt/fetch/api/headers/headers-combine.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/fetch/api/headers/headers-errors.any.js	next	fail	Create headers giving an array having one string as init argument: expected TypeError but got ReferenceError
 wpt/fetch/api/headers/headers-errors.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/fetch/api/headers/headers-normalize.any.js	next	fail	Create headers with not normalized values: Headers is not defined
 wpt/fetch/api/headers/headers-normalize.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/fetch/api/headers/headers-record.any.js	next	fail	incomplete: Uncaught ReferenceError: setup is not defined
 wpt/fetch/api/headers/headers-record.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/fetch/api/headers/headers-structure.any.js	next	fail	incomplete: Uncaught ReferenceError: Headers is not defined
 wpt/fetch/api/headers/headers-structure.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/fetch/api/request/forbidden-method.any.js	next	fail	Request() with a forbidden method CONNECT must throw.: expected TypeError but got ReferenceError
 wpt/fetch/api/request/forbidden-method.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/fetch/api/request/request-consume-empty.any.js	next	fail	incomplete: Uncaught ReferenceError: Blob is not defined
 wpt/fetch/api/request/request-consume-empty.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/fetch/api/request/request-consume.any.js	next	fail	incomplete: Uncaught ReferenceError: Blob is not defined
 wpt/fetch/api/request/request-consume.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/fetch/api/request/request-disturbed.any.js	next	fail	incomplete: Uncaught ReferenceError: Request is not defined
 wpt/fetch/api/request/request-disturbed.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/fetch/api/request/request-error.any.js	next	fail	RequestInit's window is not null: Expect TypeError exception: expected TypeError but got ReferenceError
 wpt/fetch/api/request/request-error.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/fetch/api/request/request-headers.any.js	next	fail	Adding valid request header "Content-Type: OK": Request is not defined
 wpt/fetch/api/request/request-headers.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/fetch/api/request/request-init-002.any.js	next	fail	Initialize Request with headers values: Headers is not defined
 wpt/fetch/api/request/request-init-002.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/fetch/api/request/request-structure.any.js	next	fail	incomplete: Uncaught ReferenceError: Request is not defined
 wpt/fetch/api/request/request-structure.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/fetch/api/response/json.any.js	next	fail	Ensure the correct JSON parser is used: fetch is not defined
 wpt/fetch/api/response/json.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/fetch/api/response/response-clone.any.js	next	fail	incomplete: Uncaught SyntaxError: invalid redefinition of global identifier
 wpt/fetch/api/response/response-clone.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/fetch/api/response/response-consume-empty.any.js	next	fail	incomplete: Uncaught ReferenceError: Blob is not defined
 wpt/fetch/api/response/response-consume-empty.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/fetch/api/response/response-error.any.js	next	fail	Throws RangeError when responseInit's status is 0: Expect RangeError exception when status is 0: expected RangeError but got ReferenceError
 wpt/fetch/api/response/response-error.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/fetch/api/response/response-init-001.any.js	next	fail	incomplete: Uncaught ReferenceError: Response is not defined
 wpt/fetch/api/response/response-init-001.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/fetch/api/response/response-init-002.any.js	next	fail	Initialize Response with headers values: Headers is not defined
 wpt/fetch/api/response/response-init-002.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/fetch/api/response/response-static-error.any.js	next	fail	Check response returned by static method error(): Response is not defined
 wpt/fetch/api/response/response-static-error.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/fetch/api/response/response-static-json.any.js	next	fail	Throws TypeError when calling static json() with a status of 204: expected TypeError but got ReferenceError
 wpt/fetch/api/response/response-static-json.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/fetch/api/response/response-static-redirect.any.js	next	fail	Check default redirect response: Response is not defined
 wpt/fetch/api/response/response-static-redirect.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
 wpt/hr-time/basic.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/hr-time/monotonic-clock.any.js	next	fail	self.performance.now() returns a positive number: self is not defined
 wpt/hr-time/monotonic-clock.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/html/webappapis/atob/base64.any.js	next	fail	incomplete: Uncaught ReferenceError: format_value is not defined
 wpt/html/webappapis/atob/base64.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
 wpt/html/webappapis/microtask-queuing/queue-microtask-exceptions.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
 wpt/html/webappapis/microtask-queuing/queue-microtask.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
 wpt/html/webappapis/scripting/reporterror.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/html/webappapis/structured-clone/structured-clone.any.js	next	fail	incomplete: Uncaught ReferenceError: structuredCloneBatteryOfTests is not defined
 wpt/html/webappapis/structured-clone/structured-clone.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
 wpt/html/webappapis/timers/clearinterval-from-callback.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
 wpt/html/webappapis/timers/cleartimeout-clearinterval.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
 wpt/html/webappapis/timers/evil-spec-example.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
 wpt/html/webappapis/timers/missing-timeout-setinterval.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/html/webappapis/timers/negative-setinterval.any.js	next	fail	incomplete: Uncaught ReferenceError: setup is not defined
 wpt/html/webappapis/timers/negative-setinterval.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/html/webappapis/timers/negative-settimeout.any.js	next	fail	incomplete: Uncaught ReferenceError: setup is not defined
 wpt/html/webappapis/timers/negative-settimeout.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
 wpt/html/webappapis/timers/setinterval-settimeout-clamping.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/html/webappapis/timers/type-long-setinterval.any.js	next	fail	incomplete: Uncaught ReferenceError: setup is not defined
 wpt/html/webappapis/timers/type-long-setinterval.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/html/webappapis/timers/type-long-settimeout.any.js	next	fail	incomplete: Uncaught ReferenceError: setup is not defined
 wpt/html/webappapis/timers/type-long-settimeout.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
 wpt/streams/piping/general.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/streams/piping/pipe-through.any.js	next	fail	incomplete: Uncaught ReferenceError: self is not defined
 wpt/streams/piping/pipe-through.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/streams/queuing-strategies.any.js	next	fail	incomplete: Uncaught ReferenceError: CountQueuingStrategy is not defined
 wpt/streams/queuing-strategies.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
 wpt/streams/readable-byte-streams/bad-buffers-and-views.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/streams/readable-byte-streams/construct-byob-request.any.js	next	fail	incomplete: Uncaught ReferenceError: self is not defined
 wpt/streams/readable-byte-streams/construct-byob-request.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
 wpt/streams/readable-byte-streams/general.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
 wpt/streams/readable-byte-streams/read-min.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
 wpt/streams/readable-byte-streams/tee.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/streams/readable-streams/async-iterator.any.js	next	fail	incomplete: Uncaught ReferenceError: self is not defined
 wpt/streams/readable-streams/async-iterator.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/streams/readable-streams/bad-strategies.any.js	next	fail	Readable stream: throwing strategy.size getter: assert_throws_exactly is not defined
 wpt/streams/readable-streams/bad-strategies.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/streams/readable-streams/bad-underlying-sources.any.js	next	fail	Underlying source start: throwing getter: assert_throws_exactly is not defined
 wpt/streams/readable-streams/bad-underlying-sources.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
 wpt/streams/readable-streams/cancel.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/streams/readable-streams/constructor.any.js	next	fail	underlyingSource argument should be converted after queuingStrategy argument: assert_throws_exactly is not defined
 wpt/streams/readable-streams/constructor.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/streams/readable-streams/count-queuing-strategy-integration.any.js	next	fail	Can construct a readable stream with a valid CountQueuingStrategy: ReadableStream is not defined
 wpt/streams/readable-streams/count-queuing-strategy-integration.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/streams/readable-streams/default-reader.any.js	next	fail	incomplete: Uncaught ReferenceError: self is not defined
 wpt/streams/readable-streams/default-reader.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/streams/readable-streams/floating-point-total-queue-size.any.js	next	fail	Floating point arithmetic must manifest near NUMBER.MAX_SAFE_INTEGER (total ends up positive): ReadableStream is not defined
 wpt/streams/readable-streams/floating-point-total-queue-size.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/streams/readable-streams/from.any.js	next	fail	incomplete: Uncaught ReferenceError: self is not defined
 wpt/streams/readable-streams/from.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
 wpt/streams/readable-streams/general.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
 wpt/streams/readable-streams/reentrant-strategies.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
 wpt/streams/readable-streams/tee.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
 wpt/streams/readable-streams/templated.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/streams/transform-streams/backpressure.any.js	next	fail	incomplete: Uncaught ReferenceError: self is not defined
 wpt/streams/transform-streams/backpressure.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/streams/transform-streams/cancel.any.js	next	fail	incomplete: Uncaught ReferenceError: self is not defined
 wpt/streams/transform-streams/cancel.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/streams/transform-streams/errors.any.js	next	fail	incomplete: Uncaught ReferenceError: self is not defined
 wpt/streams/transform-streams/errors.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/streams/transform-streams/flush.any.js	next	fail	incomplete: Uncaught ReferenceError: self is not defined
 wpt/streams/transform-streams/flush.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/streams/transform-streams/general.any.js	next	fail	incomplete: Uncaught ReferenceError: self is not defined
 wpt/streams/transform-streams/general.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/streams/transform-streams/properties.any.js	next	fail	transformer method start should be called with the right number of arguments: TransformStream is not defined
 wpt/streams/transform-streams/properties.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/streams/transform-streams/strategies.any.js	next	fail	incomplete: Uncaught ReferenceError: self is not defined
 wpt/streams/transform-streams/strategies.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/streams/transform-streams/terminate.any.js	next	fail	incomplete: Uncaught ReferenceError: self is not defined
 wpt/streams/transform-streams/terminate.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/streams/writable-streams/aborting.any.js	next	fail	incomplete: Uncaught ReferenceError: self is not defined
 wpt/streams/writable-streams/aborting.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/streams/writable-streams/bad-strategies.any.js	next	fail	Writable stream: throwing strategy.size getter: assert_throws_exactly is not defined
 wpt/streams/writable-streams/bad-strategies.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/streams/writable-streams/bad-underlying-sinks.any.js	next	fail	incomplete: Uncaught ReferenceError: self is not defined
 wpt/streams/writable-streams/bad-underlying-sinks.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/streams/writable-streams/close.any.js	next	fail	incomplete: Uncaught ReferenceError: self is not defined
 wpt/streams/writable-streams/close.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/streams/writable-streams/constructor.any.js	next	fail	WritableStream should be constructible with no arguments: WritableStream is not defined
 wpt/streams/writable-streams/constructor.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/streams/writable-streams/count-queuing-strategy.any.js	next	fail	Can construct a writable stream with a valid CountQueuingStrategy: WritableStream is not defined
 wpt/streams/writable-streams/count-queuing-strategy.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/streams/writable-streams/error.any.js	next	fail	controller.error() on erroring stream should not throw: WritableStream is not defined
 wpt/streams/writable-streams/error.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/streams/writable-streams/general.any.js	next	fail	desiredSize on a released writer: WritableStream is not defined
 wpt/streams/writable-streams/general.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/streams/writable-streams/properties.any.js	next	fail	sink method start should be called with the right number of arguments: WritableStream is not defined
 wpt/streams/writable-streams/properties.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/streams/writable-streams/write.any.js	next	fail	incomplete: Uncaught ReferenceError: self is not defined
 wpt/streams/writable-streams/write.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/url/historical.any.js	next	fail	incomplete: Uncaught ReferenceError: self is not defined
 wpt/url/historical.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/url/url-constructor.any.js	next	fail	incomplete: Uncaught ReferenceError: location is not defined
 wpt/url/url-constructor.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/url/url-origin.any.js	next	fail	Origin parsing: <http://example	.
 wpt/url/url-origin.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/url/url-searchparams.any.js	next	fail	URL.searchParams getter: URL is not defined
 wpt/url/url-searchparams.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/url/url-setters-stripping.any.js	next	fail	Setting protocol with leading U+0000 (https:): URL is not defined
 wpt/url/url-setters-stripping.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/url/url-setters.any.js	next	fail	incomplete: Uncaught ReferenceError: location is not defined
 wpt/url/url-setters.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/url/url-statics-canparse.any.js	next	fail	URL.canParse(undefined, undefined): URL is not defined
 wpt/url/url-statics-canparse.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/url/url-statics-parse.any.js	next	fail	URL.parse(undefined, undefined): URL is not defined
 wpt/url/url-statics-parse.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/url/url-tojson.any.js	next	fail	test 1: URL is not defined
 wpt/url/url-tojson.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/url/urlencoded-parser.any.js	next	fail	URLSearchParams constructed with: test: URLSearchParams is not defined
 wpt/url/urlencoded-parser.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/url/urlsearchparams-append.any.js	next	fail	Append same name: URLSearchParams is not defined
 wpt/url/urlsearchparams-append.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/url/urlsearchparams-constructor.any.js	next	fail	Basic URLSearchParams construction: URLSearchParams is not defined
 wpt/url/urlsearchparams-constructor.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/url/urlsearchparams-delete.any.js	next	fail	Delete basics: URLSearchParams is not defined
 wpt/url/urlsearchparams-delete.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/url/urlsearchparams-foreach.any.js	next	fail	ForEach Check: URLSearchParams is not defined
 wpt/url/urlsearchparams-foreach.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/url/urlsearchparams-get.any.js	next	fail	Get basics: URLSearchParams is not defined
 wpt/url/urlsearchparams-get.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/url/urlsearchparams-getall.any.js	next	fail	incomplete: Uncaught SyntaxError: invalid redefinition of lexical identifier
 wpt/url/urlsearchparams-getall.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/url/urlsearchparams-has.any.js	next	fail	Has basics: URLSearchParams is not defined
 wpt/url/urlsearchparams-has.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/url/urlsearchparams-set.any.js	next	fail	Set basics: URLSearchParams is not defined
 wpt/url/urlsearchparams-set.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/url/urlsearchparams-size.any.js	next	fail	URLSearchParams's size and deletion: URLSearchParams is not defined
 wpt/url/urlsearchparams-size.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/url/urlsearchparams-sort.any.js	next	fail	Parse and sort: z=b&a=b&z=a&a=a: URLSearchParams is not defined
 wpt/url/urlsearchparams-sort.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/url/urlsearchparams-stringifier.any.js	next	fail	Serialize space: URLSearchParams is not defined
 wpt/url/urlsearchparams-stringifier.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/urlpattern/urlpattern-constructor.any.js	next	fail	Test unclosed token: expected TypeError but got ReferenceError
 wpt/urlpattern/urlpattern-constructor.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/urlpattern/urlpattern-hasregexpgroups.any.js	next	fail	test 1: assert_implements is not defined
 wpt/urlpattern/urlpattern-hasregexpgroups.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/urlpattern/urlpattern.any.js	next	fail	Pattern: [{"pathname":"/foo/bar"}] Inputs: [{"pathname":"/foo/bar"}]: URLPattern is not defined
 wpt/urlpattern/urlpattern.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/wasm/jsapi/constructor/compile.any.js	next	fail	incomplete: Uncaught ReferenceError: setup is not defined
 wpt/wasm/jsapi/constructor/compile.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/wasm/jsapi/constructor/instantiate.any.js	next	fail	incomplete: Uncaught ReferenceError: setup is not defined
 wpt/wasm/jsapi/constructor/instantiate.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/wasm/jsapi/constructor/validate.any.js	next	fail	incomplete: Uncaught ReferenceError: setup is not defined
 wpt/wasm/jsapi/constructor/validate.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/wasm/jsapi/exception/constructor.tentative.any.js	next	fail	name: WebAssembly is not defined
 wpt/wasm/jsapi/exception/constructor.tentative.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/wasm/jsapi/global/constructor.any.js	next	fail	name: WebAssembly is not defined
 wpt/wasm/jsapi/global/constructor.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/wasm/jsapi/global/value-get-set.any.js	next	fail	Branding: WebAssembly is not defined
 wpt/wasm/jsapi/global/value-get-set.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/wasm/jsapi/instance/constructor.any.js	next	fail	incomplete: Uncaught ReferenceError: setup is not defined
 wpt/wasm/jsapi/instance/constructor.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/wasm/jsapi/instance/exports.any.js	next	fail	incomplete: Uncaught ReferenceError: setup is not defined
 wpt/wasm/jsapi/instance/exports.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/wasm/jsapi/memory/constructor.any.js	next	fail	name: WebAssembly is not defined
 wpt/wasm/jsapi/memory/constructor.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/wasm/jsapi/memory/grow.any.js	next	fail	Missing arguments: WebAssembly is not defined
 wpt/wasm/jsapi/memory/grow.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/wasm/jsapi/module/constructor.any.js	next	fail	incomplete: Uncaught ReferenceError: setup is not defined
 wpt/wasm/jsapi/module/constructor.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/wasm/jsapi/module/exports.any.js	next	fail	incomplete: Uncaught ReferenceError: setup is not defined
 wpt/wasm/jsapi/module/exports.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/wasm/jsapi/table/constructor.any.js	next	fail	name: WebAssembly is not defined
 wpt/wasm/jsapi/table/constructor.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/wasm/jsapi/table/get-set.any.js	next	fail	incomplete: Uncaught ReferenceError: setup is not defined
 wpt/wasm/jsapi/table/get-set.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/wasm/jsapi/tag/constructor.tentative.any.js	next	fail	name: WebAssembly is not defined
 wpt/wasm/jsapi/tag/constructor.tentative.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/webidl/ecmascript-binding/es-exceptions/DOMException-constants.any.js	next	fail	Constant INDEX_SIZE_ERR on DOMException constructor object: assert_own_property is not defined
 wpt/webidl/ecmascript-binding/es-exceptions/DOMException-constants.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/webidl/ecmascript-binding/es-exceptions/DOMException-constructor-and-prototype.any.js	next	fail	existence and property descriptor of DOMException: assert_own_property is not defined
 wpt/webidl/ecmascript-binding/es-exceptions/DOMException-constructor-and-prototype.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
 wpt/webidl/ecmascript-binding/es-exceptions/DOMException-constructor-behavior.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
 wpt/webidl/ecmascript-binding/es-exceptions/DOMException-custom-bindings.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
 wpt/webmessaging/Channel_postMessage_event_properties.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/webmessaging/MessageEvent.any.js	next	fail	mozInitMessageEvent on the prototype: MessageEvent is not defined
 wpt/webmessaging/MessageEvent.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
 wpt/webmessaging/MessagePort_initial_disabled.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
 wpt/webmessaging/MessagePort_onmessage_start.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
@@ -364,12 +657,21 @@ wpt/webmessaging/message-channels/basics.any.js	next-qjs	fail	incomplete: Uncaug
 wpt/webmessaging/message-channels/close.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
 wpt/webmessaging/message-channels/implied-start.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
 wpt/webmessaging/message-channels/no-start.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/xhr/formdata/append.any.js	next	fail	testFormDataAppend1: FormData is not defined
 wpt/xhr/formdata/append.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/xhr/formdata/constructor.any.js	next	fail	Constructors should throw a type error: expected TypeError but got ReferenceError
 wpt/xhr/formdata/constructor.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/xhr/formdata/delete.any.js	next	fail	testFormDataDelete: FormData is not defined
 wpt/xhr/formdata/delete.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/xhr/formdata/foreach.any.js	next	fail	incomplete: Uncaught ReferenceError: FormData is not defined
 wpt/xhr/formdata/foreach.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/xhr/formdata/get.any.js	next	fail	testFormDataGet: FormData is not defined
 wpt/xhr/formdata/get.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/xhr/formdata/has.any.js	next	fail	testFormDataHas: FormData is not defined
 wpt/xhr/formdata/has.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/xhr/formdata/iteration.any.js	next	fail	Iteration skips elements removed while iterating: FormData is not defined
 wpt/xhr/formdata/iteration.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/xhr/formdata/set-blob.any.js	next	fail	incomplete: Uncaught ReferenceError: FormData is not defined
 wpt/xhr/formdata/set-blob.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
+wpt/xhr/formdata/set.any.js	next	fail	testFormDataSet1: FormData is not defined
 wpt/xhr/formdata/set.any.js	next-qjs	fail	incomplete: Uncaught ReferenceError: window is not defined
