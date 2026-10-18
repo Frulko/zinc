@@ -155,7 +155,8 @@ if (import.meta.hot) {
       s.watcher.on('change', changed).on('add', changed).on('unlink', changed);
     },
     resolveId(id) {
-      if (id === 'zinc:native') return { id, external: true };
+      // the build leaves it to the page's import map; the dev server rewrites every import to a URL of its own (it ignores `external`), so it gets the file the import map names
+      if (id === 'zinc:native') return isBuild ? { id, external: true } : path.join(siteDir(), 'native.js');
       if (id === V_MAIN || id === V_ENTRY || id === V_HOT) return '\0' + id;
     },
     load(id) {

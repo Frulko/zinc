@@ -31,6 +31,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Web target: a screen could go blank after the window was resized (a tab you had left still reacted to the new size and wrote over the screen on show); the same fault could hit a desktop app.
 - Web target: a letter typed into a text field of a canvas page arrived twice.
 - Web target, DOM mode: a program that draws with `zinc:gfx` or three.js and has no `zinc:ui` tree showed a blank page; it now gets a window-sized canvas and takes mouse and keys.
+- `@zinc/vite`: under `vite` (the dev server) an app that uses `zinc:gl`, a runtime shader or a plugin's native side no longer stops with "Failed to fetch dynamically imported module: /@id/zinc:native".
 - Web target: the page no longer asks for `/favicon.ico` (a 404 in every console) when the app has no icon, and an error thrown on every frame is reported once, not sixty times a second.
 
 ### Added
