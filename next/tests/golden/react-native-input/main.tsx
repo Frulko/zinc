@@ -41,7 +41,7 @@ render(App, 0xffffff, (dt: number) => {
   if (f === 7) {
     console.log(`keyboard: ${log.join(' | ')} visible ${Keyboard.isVisible()} height ${Keyboard.metrics().height}`);
     let pad = -1, lift = 0;
-    for (let h = 0; h < 400; h++) { const n = ui.inspectNode(h); if (n !== null && n.pb === 300) pad = n.pb; if (n !== null && n.ty !== 0) lift = n.ty; }
+    for (let h = 0; h < 400; h++) { const n = ui.inspectNode(h); if (n !== null && n.pb > pad) pad = n.pb; if (n !== null && n.ty !== 0) lift = n.ty; }
     console.log(`avoiding: padding ${pad} lift ${lift}`);
     log.length = 0; Keyboard.dismiss(); ui.setKeyboardInset(0);
   }
