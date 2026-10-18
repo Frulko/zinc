@@ -221,10 +221,13 @@ bool otaRolledBack(const std::string& home, const std::string& name, long pid, s
   // The time an update must hold. A slow board may need more to reach its first frame than the 5 s the engine's own trial uses (ZN-324.02).
   const char* knob = std::getenv("ZINC_AGENT_TRIAL_MS");
   const int window = knob && std::atoi(knob) > 0 ? std::atoi(knob) : 5000;
-  int waited = 0;
-  for (; waited < window && readFile(pidFile, text) && std::atol(text.c_str()) == pid; waited += 50) std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  // wall time, not a count of sleeps: on a loaded machine each 50 ms sleep lasts longer, and the trial stretched past what the client waits
+  const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(window);
+  bool ended = false;
+  while (!(ended = !readFile(pidFile, text) || std::atol(text.c_str()) != pid) && std::chrono::steady_clock::now() < deadline)
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
   int status = 0;
-  if (waited < window) {   // it ended: its status is the line the agent wrote at the end of its log, before it removed the pid file
+  if (ended) {   // it ended: its status is the line the agent wrote at the end of its log, before it removed the pid file
     readFile(home + "/logs/" + name + ".log", log);
     const size_t at = log.rfind("[exited ");
     status = at == std::string::npos ? -1 : std::atoi(log.c_str() + at + 8);

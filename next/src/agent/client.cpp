@@ -89,12 +89,12 @@ std::unique_ptr<Chan> openSession(Device& d, std::string& err, bool mayLook = tr
 }
 
 // A session with `req` sent and the device's answer read into `answer`; null, with the reason said, when the device refuses.
-std::unique_ptr<Chan> request(Device& d, const std::string& req, std::string& answer, bool mayLook = true) {
+std::unique_ptr<Chan> request(Device& d, const std::string& req, std::string& answer, bool mayLook = true, int timeoutMs = 30000) {
   std::string err;
   std::unique_ptr<Chan> c = openSession(d, err, mayLook);
   char type = 0;
   if (!c) { fail(err); return nullptr; }
-  if (!send(*c, kJson, req) || !recv(*c, type, answer, 30000) || type != kJson) { fail("the session with " + d.name + " ended early"); return nullptr; }
+  if (!send(*c, kJson, req) || !recv(*c, type, answer, timeoutMs) || type != kJson) { fail("the session with " + d.name + " ended early"); return nullptr; }
   const Doc a(answer);
   if (!a.flag("ok")) { fail(a.str("error").empty() ? "the device refused" : a.str("error")); return nullptr; }
   return c;
@@ -372,7 +372,9 @@ int run(Device& d, const std::string& name, const Launch& l) {
   Obj env;
   for (const auto& kv : l.env) env.str(kv.first, kv.second);
   std::string answer;
-  if (!request(d, Obj().str("op", "run").str("name", name).raw("args", array(args)).raw("env", env.done()).done(), answer)) return 1;
+  // the device answers once an update on trial has held (ZINC_AGENT_TRIAL_MS on the device, 5 s by default), so the wait covers a long trial
+  // ponytail: a fixed 10 min, above any trial a slow board needs; a "trial running" frame from the agent if one ever needs more
+  if (!request(d, Obj().str("op", "run").str("name", name).raw("args", array(args)).raw("env", env.done()).done(), answer, true, 600000)) return 1;
   const Doc a(answer);
   std::fprintf(stderr, "started %s on %s (pid %lld)\n", name.c_str(), d.name.c_str(), a.num("pid"));
   return l.follow ? logs(d, name, true) : 0;
