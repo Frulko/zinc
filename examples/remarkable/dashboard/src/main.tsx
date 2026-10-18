@@ -3,6 +3,7 @@
 // refreshes small rectangles with its fast waveform and upgrades them once the screen is idle.
 import { RemarkableBar } from 'zinc:remarkable';
 import { render } from 'zinc:ui/solid';
+import { setPressFeedback } from 'zinc:ui';
 import { InkCanvas, Ink } from 'zinc:ink';
 import { PAGE, LABEL } from './eink';
 import { everySecond } from './state';
@@ -34,5 +35,7 @@ function App(): i32 {
   </View>;
 }
 
+// a pressed button fading in and out would ghost on e-paper and cost a dozen refreshes: it keeps its look while pressed
+setPressFeedback(false);
 setInterval(everySecond, 1000);
 render(App, 0xffffff, null);
