@@ -64,7 +64,7 @@ export function clearNotifs(): void { list = []; save(); ui.dirty = true; }
 function placeholders(s: string): i32 { let k: i32 = 0; for (let i = 0; i < s.length; i++) if (s.charAt(i) === '\uFFFC') k++; return k; }
 function plain(s: string): string { return s.replace(/\uFFFC/g, ''); }
 /** The width drawInline takes: the text without its placeholders, plus one emoji of `h` (and 2 px) for each. */
-function inlineWidth(f: i32, s: string, h: number): number { return textWidth(f, plain(s), 0) + placeholders(s) * (h + 2); }
+function inlineWidth(f: i32, s: string, h: number): number { return textWidth(f, plain(s), 0) + placeholders(s) * (emojiSize(f) + 3); }
 const emojiImgs = new Map<string, i32[]>();
 function emojiImages(n: Notif): i32[] {
   const key = n.id;
@@ -77,15 +77,29 @@ function emojiImages(n: Notif): i32[] {
   return out;
 }
 /** Draws a string whose '\uFFFC' placeholders are replaced by the emoji images of `n`, on one line starting at x. */
-function drawInline(x: number, y: number, s: string, n: Notif, f: i32, color: u32, h: number, alpha: i32 = 255, first: i32 = 0): number {
+/** Where an emoji of a line of font `f` starting at `y` goes: centred on the capitals (they are 3/4 of the ascent), a little taller than them. */
+function emojiSize(f: i32): number { return Math.round(fontAscent(f) * 0.92); }
+function emojiY(f: i32, y: number): number { return y + fontAscent(f) * 0.62 - emojiSize(f) / 2; }
+function drawInline(x: number, y: number, s: string, n: Notif, f: i32, color: u32, h: number, alpha: i32 = 255, first: i32 = 0, maxW: number = 0): number {
   const imgs = emojiImages(n);
   let ei = first, px = x;
+  const end = maxW > 0 && inlineWidth(f, s, h) > maxW ? x + maxW - textWidth(f, '…', 0) : 1e9;   // too long: past it the rest is cut with an ellipsis
   const parts = s.split('\uFFFC');
   for (let i = 0; i < parts.length; i++) {
-    if (parts[i] !== '') { drawText(f, px, y, parts[i], color, alpha, 0); px += textWidth(f, parts[i], 0); }
+    if (parts[i] !== '') {
+      if (px + textWidth(f, parts[i], 0) > end) {   // cut the words that fit, then '…'
+        let k = parts[i].length;
+        while (k > 0 && px + textWidth(f, parts[i].slice(0, k), 0) > end) k--;
+        drawText(f, px, y, parts[i].slice(0, k).trimEnd() + '…', color, alpha, 0);
+        return end;
+      }
+      drawText(f, px, y, parts[i], color, alpha, 0); px += textWidth(f, parts[i], 0);
+    }
     if (i < parts.length - 1) {
       const img = ei < imgs.length ? imgs[ei++] : -1;
-      if (img >= 0) { drawImage(img, px, y, h, h, alpha, h * 0.15); px += h + 2; }
+      const es = emojiSize(f);
+      if (px + es > end) { drawText(f, px, y, '…', color, alpha, 0); return end; }
+      if (img >= 0) { drawImage(img, px, emojiY(f, y), es, es, alpha, es * 0.15); px += es + 3; }
     }
   }
   return px;
@@ -103,7 +117,7 @@ function wrapInline(f: i32, x: number, y: number, s: string, n: Notif, color: u3
     else word += ch;
   }
   if (word !== '') tokens.push(word);
-  const tokenW = (t: string) => t === '\uFFFC' ? fontAscent(f) + 2 : t === ' ' ? textWidth(f, ' ', 0) : textWidth(f, t, 0);
+  const tokenW = (t: string) => t === '\uFFFC' ? emojiSize(f) + 3 : t === ' ' ? textWidth(f, ' ', 0) : textWidth(f, t, 0);
   // build lines
   const lineTokens: string[][] = [];
   let line: string[] = [], width = 0;
@@ -119,11 +133,11 @@ function wrapInline(f: i32, x: number, y: number, s: string, n: Notif, color: u3
     let px = x;
     const last = li === lines - 1, dots = textWidth(f, '…', 0);
     for (const t of lineTokens[li]) {
-      const tw = t === '\uFFFC' ? fontAscent(f) + 2 : textWidth(f, t, 0);
+      const tw = t === '\uFFFC' ? emojiSize(f) + 3 : textWidth(f, t, 0);
       if (last && px + tw > x + w - (t === ' ' ? 0 : dots)) { drawText(f, px, y + li * lh, '…', color, alpha, 0); break; }   // the rest does not fit
       if (t === '\uFFFC') {
         const img = ei < imgs.length ? imgs[ei++] : -1;
-        if (img >= 0) drawImage(img, px, y + li * lh, fontAscent(f), fontAscent(f), alpha, fontAscent(f) * 0.15);
+        if (img >= 0) drawImage(img, px, emojiY(f, y + li * lh), emojiSize(f), emojiSize(f), alpha, emojiSize(f) * 0.15);
       } else drawText(f, px, y + li * lh, t, color, alpha, 0);
       px += tw;
     }
@@ -342,7 +356,7 @@ export function overlay(W: number, H: number, top: number): void {
   face(n, cx, cy, d, A(shown), 0x000000);
   if (labels > 0.01) {
     const wr = whoRaw(n), nh = fontAscent(DK.name), nw = Math.min(W - 80, inlineWidth(DK.name, wr, nh));
-    drawInline(cx - nw / 2, cy + d / 2 + 28, wr, n, DK.name, TEXT, nh, A(labels), whoFirst(n));
+    drawInline(cx - nw / 2, cy + d / 2 + 28, wr, n, DK.name, TEXT, nh, A(labels), whoFirst(n), nw);
     centered(DK.app, cx, cy + d / 2 + 74, n.appName, TEXT2, A(labels));
   }
   let aw = 0, ah = 0;
@@ -351,8 +365,8 @@ export function overlay(W: number, H: number, top: number): void {
   if (p.a > 0) label(DK.time, tx, y0 + (1 - p.a) * 18, ago(n.date), TEXT2, tw, A(p.a * k));
   if (p.b > 0) {
     const wr = whoRaw(n), fh = fontAscent(DK.from), yb = y0 + 34 + (1 - p.b) * 18;
-    if (inlineWidth(DK.from, wr, fh) <= tw) drawInline(tx, yb, wr, n, DK.from, TEXT, fh, A(p.b * k), whoFirst(n));
-    else label(DK.from, tx, yb, plain(wr), TEXT, tw, A(p.b * k));
+    const ff = inlineWidth(DK.from, wr, fh) <= tw ? DK.from : DK.name;   // a long name takes the smaller size before it is cut
+    drawInline(tx, yb + (ff === DK.from ? 0 : (fh - fontAscent(ff)) / 2), wr, n, ff, TEXT, fontAscent(ff), A(p.b * k), whoFirst(n), tw);
   }
   if (p.c > 0) wrapInline(DK.text, tx, y0 + 108 + (1 - p.c) * 18, excerptRaw(n), n, TEXT2, tw, 2, 42, excerptFirst(n), A(p.c * k));
   if (att >= 0 && p.c > 0) drawImage(att, W - 48 - aw, H / 2 - ah / 2 + (1 - p.c) * 18, aw, ah, A(p.c * k), 20);
@@ -588,7 +602,7 @@ function bannerLayer(W: number, H: number, top: number): void {
       const iw = imageWidth(att), ih = imageHeight(att), sc = Math.min(s / iw, s / ih);
       drawImage(att, x + w - pad - s + (s - iw * sc) / 2, ty + (s - ih * sc) / 2, iw * sc, ih * sc, 255, 8);
     }
-    drawInline(tx, ty, (n.title !== '' ? n.title : n.appName), n, ft, TEXT, fontAscent(ft));
+    drawInline(tx, ty, (n.title !== '' ? n.title : n.appName), n, ft, TEXT, fontAscent(ft), 255, 0, tw);
     ty += fontAscent(ft) + 8;
     if (lines > 0) wrapInline(fb, tx, ty, (n.subtitle !== '' ? n.subtitle + ' · ' : '') + n.body, n, TEXT, tw, 2, lh, placeholders(n.title !== '' ? n.title : n.appName));
     const bb = b;
