@@ -78,7 +78,7 @@ masked = probe.ws(inspector, "/zinc", [{"id": 30, "method": "Network.getResponse
                                        {"id": 31, "method": "Network.getRequestPostData", "params": {"requestId": login["requestId"]}},
                                        {"id": 32, "method": "Network.getResponseBody", "params": {"requestId": form["requestId"]}}])
 need([masked[0]["result"]["body"], masked[1]["result"]["postData"], masked[2]["result"]["body"]] == ['{"echo":%s}' % LOGIN, LOGIN, FORM], "masked bodies: %s" % masked)
-for s in SECRETS: need(s not in json.dumps(events) and s not in json.dumps(bodies + masked), "the events expose %s" % s)
+for s in SECRETS: need(s not in json.dumps(net) and s not in json.dumps(bodies + masked), "the events expose %s" % s)
 cdp_urls = sorted([p["request"]["url"] for p in of("requestWillBeSent")] + list(sockets))
 print("AC1 ok: %d requests in the Network domain (fetch with bodies, redirect, failure, WebSocket and MQTT frames)" % len(cdp_urls))
 if tls: print("AC3 ok: TLS timing dns %.1f connect %.1f ssl %.1f..%.1f first byte %.1f ms; Authorization, Cookie, Set-Cookie masked" % (st["dnsEnd"], st["sslStart"], st["sslStart"], st["sslEnd"], st["receiveHeadersEnd"]))
