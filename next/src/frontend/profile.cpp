@@ -6,6 +6,7 @@ namespace {
 constexpr Profile kProfiles[] = {
     {"macos", Num::f64, 320, 240, false, 512ull << 20, false},
     {"linux", Num::f64, 320, 240, false, 512ull << 20, false},
+    {"windows", Num::f64, 320, 240, false, 512ull << 20, false},
     {"sim", Num::f64, 320, 240, false, 512ull << 20, false},
     {"wasm", Num::f64, 320, 240, false, 64ull << 20, false},
     // the browser (docs/targets/web.md): the app runs on the page's own JavaScript engine; the surface follows the window

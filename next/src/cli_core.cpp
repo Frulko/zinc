@@ -257,11 +257,7 @@ std::string devtoolsPort(const std::string& entry) {
   if (pf.empty()) return "";
   zn::frontend::FoundPlugin devtools;   // the name is enough: the layers of the project are merged over no default
   devtools.manifest.name = "devtools";
-#if defined(__APPLE__)
-  const char* host = "macos";
-#else
-  const char* host = "linux";
-#endif
+  const char* host = zn::plat::osName();
   // ponytail: no engine root here, so a board file's plugins.devtools is not read; pass the root when a board sets the port
   for (const zn::frontend::PluginOption& o : zn::frontend::pluginOptions(devtools, fs::path(pf).parent_path().string(), "", host))
     if (o.key == "port" && !o.cpp.empty() && o.cpp.find_first_not_of("0123456789") == std::string::npos) return o.cpp;
@@ -1736,11 +1732,7 @@ int exportApp(const std::vector<std::string>& args, const std::string& engineRoo
   if (!resolveProject(o.entry, p, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 2; }
   if (has(o, "--inspect")) p.entry = inspectEntry(p.dir, p.entry);   // a debug build for a device (zinc device deploy --inspect)
   for (char c : p.name) if (!(std::isalnum(static_cast<unsigned char>(c)) || c == '.' || c == '_' || c == '-')) { std::fprintf(stderr, "zinc export: zinc.json name \"%s\" is not usable in a file name (letters, digits, '.', '_', '-')\n", p.name.c_str()); return 2; }
-#if defined(__APPLE__)
-  const std::string target = o.v.count("--target") ? o.v["--target"] : "macos";
-#else
-  const std::string target = o.v.count("--target") ? o.v["--target"] : "linux";
-#endif
+  const std::string target = o.v.count("--target") ? o.v["--target"] : zn::plat::osName();
   if (target == "web") {   // the program as JavaScript on the browser's own engine (docs/targets/web.md)
     WebArgs w;
     w.dir = p.dir; w.entry = p.entry; w.name = p.name; w.version = p.version; w.engineRoot = engineRoot;
@@ -3601,11 +3593,7 @@ int assets(const std::vector<std::string>& args, const std::string& engineRoot) 
   if (o.bad) { std::fprintf(stderr, "zinc assets: unknown option %s\n%s", o.badArg.c_str(), usage); return 2; }
   const fs::path project = fs::absolute(o.entry.empty() ? "." : o.entry).lexically_normal();
   if (args[2] == "info") return assetsInfo(project, o.v.count("--target") ? o.v["--target"] : "", engineRoot);
-#if defined(__APPLE__)
-  const std::string target = o.v.count("--target") ? o.v["--target"] : "macos";
-#else
-  const std::string target = o.v.count("--target") ? o.v["--target"] : "linux";
-#endif
+  const std::string target = o.v.count("--target") ? o.v["--target"] : zn::plat::osName();
   zn::frontend::Project proj;
   std::string err, line;
   if (!readProject(project, proj, err)) { std::fprintf(stderr, "zinc assets: %s\n", err.c_str()); return 2; }

@@ -9,7 +9,7 @@ import F from './native/ffi.spec';
 import { platform } from 'zinc:sys';
 
 /** Shared library suffix of this platform ('so' on the sim). */
-export const suffix: string = platform() === 'macos' ? 'dylib' : 'so';
+export const suffix: string = platform() === 'macos' ? 'dylib' : platform() === 'windows' ? 'dll' : 'so';
 
 const TYPES = ['void', 'i32', 'u32', 'i64', 'f64', 'ptr', 'string', 'f32'];
 function retCode(t: string): i32 {

@@ -206,7 +206,7 @@ function platformConstants(): PlatformConstants {
   return c;
 }
 export class Platform {
-  /** platform() of zinc:sys: 'android', 'ios', 'macos', 'linux', 'web'; ZINC_PLATFORM=android|ios forces it on the desktop (docs/react-native.md). */
+  /** platform() of zinc:sys: 'android', 'ios', 'macos', 'linux', 'windows', 'web'; ZINC_PLATFORM=android|ios forces it on the desktop (docs/react-native.md). */
   static OS: string = platform();
   /** The OS version: Android's API level ('35'), iOS's or macOS's version ('18.0'); ZINC_PLATFORM_VERSION forces it. A string (React Native: a number on Android). */
   static Version: string = device('osversion');

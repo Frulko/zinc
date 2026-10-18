@@ -312,11 +312,7 @@ static std::string appWindowConfig(const std::string& json, zn::frontend::Target
 // The window of the target this machine runs (zinc.json targets.macos or linux, else sim; app.window gives a size the target does not),
 // then its settings as environment for the HAL: the typed engines and QuickJS
 static zn::frontend::TargetOptions hostWindow(const zn::frontend::Project& project) {
-#if defined(__APPLE__)
-  const char* order[] = {"macos", "sim"};
-#else
-  const char* order[] = {"linux", "sim"};
-#endif
+  const char* order[] = {zn::plat::osName(), "sim"};
   zn::frontend::TargetOptions window;
   for (const char* t : order) { auto it = project.targets.find(t); if (it != project.targets.end()) { window = it->second; break; } }
 #ifdef ZN_HOST_GFX
@@ -746,7 +742,7 @@ static int buildNative(const char* argv0, const char* entry, const char* out, zn
     std::string perr;
     if (!pf.empty()) { std::ifstream in(pf); std::stringstream ss; ss << in.rdbuf(); zn::frontend::parseProject(ss.str(), proj, perr); }
     {   // zinc.json targets.<this machine>.resize, as zinc run passes it: a built program keeps the project's choice (ZN-608)
-      auto t = proj.targets.find(zn::tc::hostName().find("macos") != std::string::npos ? "macos" : "linux");
+      auto t = proj.targets.find(zn::plat::osName());
       if (t != proj.targets.end() && !t->second.resize.empty()) {
         std::string text;
         { std::ifstream in(cpp); std::stringstream ss; ss << in.rdbuf(); text = ss.str(); }
@@ -776,7 +772,7 @@ static int buildNative(const char* argv0, const char* entry, const char* out, zn
       }
     }
   }
-  if (zn::aot::usesHost(zm)) injectPermissions(cpp.string(), entry, zn::tc::hostName().find("macos") != std::string::npos ? "macos" : "linux");   // ZN-322.03
+  if (zn::aot::usesHost(zm)) injectPermissions(cpp.string(), entry, zn::plat::osName());   // ZN-322.03
   const bool cppOnly = std::getenv("ZN_AOT_CPP_ONLY") != nullptr;   // the C++ units and the plugins' archives for another build: an app library (ZN-620), zinc export --target android
   if ((!haveLibs || !haveCxx) && !cppOnly) {  // a packaged zinc on a machine without a compiler: the pinned zig builds the program for this machine (no graphics host in that path)
     if (zn::aot::usesHost(zm)) {
@@ -1400,11 +1396,7 @@ int main(int argc, char** argv) {
   // `zinc run <file> --target sim` (or this machine's own target): the prototype's "here"; its simulator is the sim profile (ZN-155)
   if (argc >= 4 && !std::strcmp(argv[1], "run"))
     for (int k = 2; k + 1 < argc && std::strcmp(argv[k], "--"); ++k) {
-#if defined(__APPLE__)
-      const char* here = "macos";
-#else
-      const char* here = "linux";
-#endif
+      const char* here = zn::plat::osName();
       if (std::strcmp(argv[k], "--target") || (std::strcmp(argv[k + 1], "sim") && std::strcmp(argv[k + 1], here))) continue;
       if (!std::strcmp(argv[k + 1], "sim")) gProfile = zn::frontend::findProfile("sim");
       for (int j = k; j + 2 <= argc; ++j) argv[j] = argv[j + 2];
@@ -1484,11 +1476,7 @@ int main(int argc, char** argv) {
   if (gProfile) { zn::frontend::applyProfile(*gProfile); if (gProfile->strict && argc > 1 && !std::strcmp(argv[1], "build")) gStrict = true; }   // `run` keeps gradual typing on the host (the .f32 goldens run so); a build for the target is strict
   if (argc >= 2 && !std::strcmp(argv[1], "doctor")) {   // zinc doctor: the engine, the renderer of this machine, the pinned tools, the host tools (ZN-138, ZN-175)
     const zn::frontend::Profile* hp = gProfile ? gProfile : zn::frontend::findProfile(
-#if defined(__APPLE__)
-        "macos"
-#else
-        "linux"
-#endif
+        zn::plat::osName()
     );
     zn::frontend::Caps caps = zn::frontend::capsFor(*hp, gRoot);
     std::string gpu = caps["gpu"], tier = caps["tier"], note;
@@ -1507,13 +1495,7 @@ int main(int argc, char** argv) {
   }
   if (argc >= 2 && !std::strcmp(argv[1], "test")) {   // zinc test [--profile P] [dir]: the conformance programs against the goldens of the profile (ZN-122)
     const zn::frontend::Profile* tp = gProfile ? gProfile : zn::frontend::findProfile(
-#if defined(__APPLE__)
-        "macos"
-#elif defined(_WIN32)
-        "windows"
-#else
-        "linux"
-#endif
+        zn::plat::osName()
     );
     if (tp != gProfile) zn::frontend::applyProfile(*tp);
     char* self = realpath(argv[0], nullptr);
@@ -1785,11 +1767,7 @@ int main(int argc, char** argv) {
       else if (!std::strcmp(argv[k], "--target") && k + 1 < argc) target = argv[++k];
       else { std::fprintf(stderr, "zinc fuse: unknown option %s\nusage: zinc fuse app.zapp [--target T] [-o app]\n", argv[k]); return 2; }
     }
-#if defined(__APPLE__)
-    const char* host = "macos";
-#else
-    const char* host = "linux";
-#endif
+    const char* host = zn::plat::osName();
     if (!target.empty() && target != host) { std::fprintf(stderr, "zinc fuse: only this machine's target (%s) for now: a prebuilt runtime for %s is not available yet (ZN-392); zinc export --target %s builds it with the AOT\n", host, target.c_str(), target.c_str()); return 2; }
     std::ifstream zf(in, std::ios::binary);
     std::stringstream zs; zs << zf.rdbuf();
@@ -1929,11 +1907,7 @@ int main(int argc, char** argv) {
         if (!project.scheme.empty()) setenv("ZINC_SCHEME", project.scheme.c_str(), 0);   // zinc.json "scheme" (ZN-271)
         window = hostWindow(project);   // the profile of the target this machine runs: macos, linux, else the simulator's
 #ifdef ZN_HOST_GFX
-#if defined(__APPLE__)
-        const char* here = "macos";
-#else
-        const char* here = "linux";
-#endif
+        const char* here = zn::plat::osName();
         if (path.size() <= 4 || path.substr(path.size() - 4) != ".zbc") splashEnv(project, projectDir, here);   // a .zapp brings its splash in its packs
 #endif
       }

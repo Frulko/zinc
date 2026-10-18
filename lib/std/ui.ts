@@ -1833,7 +1833,7 @@ function a11yScroll(arg: string): void {
   if ((n.scroll & 1) !== 0) scrollTo(h, n.sx, n.sy + dir * n.lh * 0.8); else scrollTo(h, n.sx + dir * n.lw * 0.8, n.sy);
 }
 // ---- media and container queries, env() lengths (ZN-272)
-let envUsed = false, varUsed = false, coarse = platform() !== 'macos' && platform() !== 'linux' && platform() !== 'wasm', cqAny = false, inSettle = false, settlePasses: i32 = 0;
+let envUsed = false, varUsed = false, coarse = platform() !== 'macos' && platform() !== 'linux' && platform() !== 'windows' && platform() !== 'wasm', cqAny = false, inSettle = false, settlePasses: i32 = 0;
 let kbInset: number = 0, safeT: number = 0, safeR: number = 0, safeB: number = 0, safeL: number = 0;
 function envValue(name: string): number {
   return name === 'keyboard-inset' ? kbInset : name === 'safe-area-inset-top' ? safeT : name === 'safe-area-inset-right' ? safeR : name === 'safe-area-inset-bottom' ? safeB : name === 'safe-area-inset-left' ? safeL : 0;
@@ -4491,7 +4491,7 @@ function dragScrolls(): boolean {
   if (pointerPolicy === 'mouse') return touchSeen;
   if (synthetic || env('ZINC_HEADLESS') !== '' || env('ZINC_DETERMINISTIC') !== '') return true;   // test hooks, headless and deterministic runs have no device to tell: the pointer is a finger
   const p = platform();
-  return touchSeen || (p !== 'macos' && p !== 'linux');
+  return touchSeen || (p !== 'macos' && p !== 'linux' && p !== 'windows');
 }
 let dragScroller: i32 = -1, dragging = false, dragX: number = 0, dragY: number = 0, lastX: number = 0, lastY: number = 0;
 let focusShown: i32 = -1;

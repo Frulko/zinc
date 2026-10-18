@@ -58,6 +58,8 @@ const char* kProfile = "android";
 const char* kProfile = "ios";
 #elif defined(__APPLE__)
 const char* kProfile = "macos";
+#elif defined(_WIN32)
+const char* kProfile = "windows";
 #else
 const char* kProfile = "linux";
 #endif

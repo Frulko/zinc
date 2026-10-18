@@ -2,6 +2,7 @@
 // file of the path; target rules load the program once per target with that profile in force (its platform files, its plugin checks) and
 // compare what it uses with targets/capabilities.json, the zinc.json of the project and the plugin.json of each plugin it imports.
 #include "lint/lint.h"
+#include "platform/platform.h"
 
 #include <algorithm>
 #include <cctype>
@@ -367,11 +368,7 @@ int lint(const std::vector<std::string>& args, const std::string& engineRoot) {
       else std::fprintf(stderr, "zinc lint: zinc.json target %s has no profile: not checked\n", t.c_str());
     }
     if (!L.project.profile.empty() && fe::findProfile(L.project.profile) && std::find(inForce.begin(), inForce.end(), L.project.profile) == inForce.end()) inForce.push_back(L.project.profile);
-#if defined(__APPLE__)
-    if (inForce.empty()) inForce.push_back("macos");
-#else
-    if (inForce.empty()) inForce.push_back("linux");
-#endif
+    if (inForce.empty()) inForce.push_back(zn::plat::osName());
   }
   run = inForce;
   if (all) {
