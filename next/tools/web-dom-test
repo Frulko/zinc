@@ -38,6 +38,7 @@ def check(name, ok, detail=""):
     checks.append([name, bool(ok), "" if ok else str(detail)[:300]])
 
 W, H = 1000, 700
+SCALE = float(os.environ.get("ZN_WAIT_SCALE", "1"))   # a slow runner (CI sets 4): the deadlines of the polls below grow, a fast machine still goes on at once
 with Chrome(["--window-size=%d,%d" % (W, H), "--enable-unsafe-swiftshader"]) as c:
     c.call("Emulation.setDeviceMetricsOverride", {"width": W, "height": H, "deviceScaleFactor": 1, "mobile": False})
     c.open("http://127.0.0.1:%d/" % srv.server_address[1])
@@ -45,6 +46,10 @@ with Chrome(["--window-size=%d,%d" % (W, H), "--enable-unsafe-swiftshader"]) as 
         t0 = time.time()
         while time.time() - t0 < s: c._recv(-1, 0.1)
     def ev(js): return c.eval(js)
+    def until(js, s):   # poll a condition up to s seconds x ZN_WAIT_SCALE; returns its last value
+        t0 = time.time()
+        while not (v := ev(js)) and time.time() - t0 < s * SCALE: pump(0.1)
+        return v
     def key(k, text=None, code=None, vk=None, mods=0):
         p = {"type": "keyDown", "key": k, "modifiers": mods}
         if text: p["text"] = text
@@ -61,7 +66,7 @@ with Chrome(["--window-size=%d,%d" % (W, H), "--enable-unsafe-swiftshader"]) as 
         for ty in ("mouseMoved", "mousePressed", "mouseReleased"):
             c.call("Input.dispatchMouseEvent", {"type": ty, "x": r[0], "y": r[1], "button": "left", "buttons": 1 if ty == "mousePressed" else 0, "clickCount": 1}); pump(0.12)
         return True
-    pump(1.5)
+    until("!!document.querySelector('h1')", 10); pump(0.3)
     app = "document.getElementById('zinc-root')"
 
     # ---- structure
@@ -163,9 +168,7 @@ with Chrome(["--window-size=%d,%d" % (W, H), "--enable-unsafe-swiftshader"]) as 
         c.call("Emulation.setFocusEmulationEnabled", {"enabled": True})
         c.open("http://127.0.0.1:%d/" % lsrv.server_address[1])
         c.call("Page.bringToFront")
-        for _ in range(40):
-            pump(0.25)
-            if ev("!!document.querySelector('main > div') && document.querySelectorAll('li').length > 0"): break
+        until("!!document.querySelector('main > div') && document.querySelectorAll('li').length > 0", 10)
         lst = "document.querySelector('main > div')"
         n = ev("document.querySelectorAll('li').length")
         if n == 0: print("list page:", ev("document.body.innerText.slice(0, 200)"), c.console[-5:], file=sys.stderr)
@@ -173,12 +176,23 @@ with Chrome(["--window-size=%d,%d" % (W, H), "--enable-unsafe-swiftshader"]) as 
         check("the page stays small with 1 200 boxes and 10 000 rows", ev("document.getElementById('zinc-root').getElementsByTagName('*').length") < 1700, ev("document.getElementById('zinc-root').getElementsByTagName('*').length"))
         sh = ev("%s ? %s.scrollHeight : -1" % (lst, lst))
         check("the scroller is as tall as 10 000 rows", sh is not None and abs(sh - 320000) < 40, [sh, ev("location.href"), ev("document.title")])
-        ev("%s.scrollTop = 160000" % lst); pump(0.8)
+        check("the list's scroller turns off scroll anchoring", ev("getComputedStyle(%s).overflowAnchor" % lst) == "none", ev("getComputedStyle(%s).overflowAnchor" % lst))
+        ev("%s.scrollTop = 160000" % lst)
+        row5000 = "(() => { const e = [...document.querySelectorAll('li')].find(e => e.textContent.includes('Row number 5000')); const l = %s.getBoundingClientRect(); return e ? Math.round(e.getBoundingClientRect().top - l.top) : null; })()" % lst
+        # the rows are built a frame or more after the scroll: wait for row 5000, then until its place holds for 0.3 s
+        until(row5000 + " !== null", 5)
+        t0, last = time.time(), None
+        while time.time() - t0 < 5 * SCALE:
+            pump(0.3)
+            p = ev(row5000)
+            if p is not None and p == last: break
+            last = p
         top = ev("(() => { const r = [...document.querySelectorAll('li')].map(e => e.querySelector('span').textContent); return r[0] + '..' + r[r.length - 1]; })()")
         check("scrolling the scroller builds the rows there", ev("[...document.querySelectorAll('li')].some(e => e.textContent.includes('Row number 5000'))"), top)
-        pos = ev("(() => { const e = [...document.querySelectorAll('li')].find(e => e.textContent.includes('Row number 5000')); const l = %s.getBoundingClientRect(); return e ? Math.round(e.getBoundingClientRect().top - l.top) : null; })()" % lst)
+        pos = ev(row5000)
         check("the row is where 5000 rows of 32 px put it", pos is not None and abs(pos) <= 32, pos)
-        ev("%s.focus()" % lst); key("End", code="End", vk=35); pump(3.0)   # (a long keyboard scroll is animated)
+        ev("%s.focus()" % lst); key("End", code="End", vk=35)
+        until("[...document.querySelectorAll('li')].some(e => e.textContent.includes('Row number 9999'))", 5)   # (a long keyboard scroll is animated)
         check("End scrolls to the last row", ev("[...document.querySelectorAll('li')].some(e => e.textContent.includes('Row number 9999'))"), ev("%s.scrollTop" % lst))
         wd = ev("[...document.querySelectorAll('nav div')].filter(e => e.style.getPropertyValue('--width')).length")
         check("an animated width is a custom property of the element", wd >= 10, wd)
@@ -189,9 +203,7 @@ with Chrome(["--window-size=%d,%d" % (W, H), "--enable-unsafe-swiftshader"]) as 
     if nsrv:
         c.open("http://127.0.0.1:%d/" % nsrv.server_address[1])
         c.call("Page.bringToFront")
-        for _ in range(40):
-            pump(0.25)
-            if ev("document.body.innerText.includes('Screen home')"): break
+        until("document.body.innerText.includes('Screen home')", 10)
         check("a Stack shows its first screen at its address", ev("location.pathname") == "/home", ev("location.pathname"))
         check("a link is a real anchor", ev("document.querySelector('a[href=\"#top\"]') !== null"))
         click_el("[...document.querySelectorAll('button')].find(b => b.textContent === 'Open detail')"); pump(1.2)

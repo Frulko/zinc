@@ -54,6 +54,7 @@ export function makeDomHost(env) {
     ':where(button.z,a.z,label.z,summary.z){font:inherit;color:inherit;text-align:inherit;text-decoration:none;background:transparent;appearance:none;-webkit-appearance:none;cursor:default;-webkit-user-select:none;user-select:none}',
     ':where(a.zt){color:inherit;text-decoration:none}',
     '.zs{overscroll-behavior:auto;-webkit-overflow-scrolling:touch;flex-shrink:1}',
+    '.zvl{overflow-anchor:none}',   // a virtual list swaps rows and spacers as it scrolls: the browser's scroll anchoring would move scrollTop under the person on a slow frame
     '.zi{font:inherit;color:inherit;background:transparent;appearance:none;-webkit-appearance:none;outline:none;resize:none;margin:0;text-align:start;flex-shrink:0}',
     '.zi::placeholder{color:#64748b;opacity:1}',
     '.zi:focus{outline:2px solid #3b82f6;outline-offset:-1px}',
@@ -487,7 +488,7 @@ export function makeDomHost(env) {
     }
     const list = st.list || [];
     const base = tag === 'canvas' || tag === 'img' || tag === 'input' || tag === 'textarea' ? (n.tag === INPUT || n.tag === TEXTAREA ? 'zr zi' : 'zr') : n.tag === TEXT ? 'zt' : 'z';
-    let c = base + (n.tag === SCROLL || n.scroll ? ' zs' : '') + (base === 'z' && interactive(n) ? ' zk' : '') + (n.onClick !== null && !(n.hs !== null && n.hs.noPress) ? ' zpf' : '') + (n.group ? ' zg' : '') + (n.peer ? ' zp' : '') + (n.rg.outNone ? ' zn-ring-none' : '') + (n.hs !== null && (n.hs.drag !== null || n.hs.down !== null || n.hs.pinch !== null) ? ' zdrag' : '');
+    let c = base + (n.tag === SCROLL || n.scroll ? ' zs' : '') + (n.virt !== null ? ' zvl' : '') + (base === 'z' && interactive(n) ? ' zk' : '') + (n.onClick !== null && !(n.hs !== null && n.hs.noPress) ? ' zpf' : '') + (n.group ? ' zg' : '') + (n.peer ? ' zp' : '') + (n.rg.outNone ? ' zn-ring-none' : '') + (n.hs !== null && (n.hs.drag !== null || n.hs.down !== null || n.hs.pinch !== null) ? ' zdrag' : '');
     if (list.length) c += ' ' + list.join(' ');
     if (c !== st.cls) { st.cls = c; el.className = c; changed++; }
     if (n.scroll !== 0 && !st.scrolls) { st.scrolls = true; liveScrollers.add(h); st.sx = n.sx; st.sy = n.sy; if (n.sx || n.sy) pendingScroll.push(h); }
