@@ -1,7 +1,7 @@
 #include "tls.h"
 
 #ifdef ZN_NO_TLS   // a build without mbedTLS (cmake -DZN_TLS=OFF): https, TLS brokers and crypto.subtle report that they are missing
-namespace zn::ZN_TLS_NS {
+namespace zn::TLS_NS {
 Conn* openClient(const std::string&, std::string& err, bool) { err = "this build has no TLS (ZN_TLS=OFF)"; return nullptr; }
 bool isTls13(Conn*) { return false; }
 Conn* openServer(const std::string&, const std::string&, std::string& err) { err = "this build has no TLS (ZN_TLS=OFF)"; return nullptr; }
@@ -18,7 +18,7 @@ bool write(Conn*, const std::string&) { return false; }
 State read(Conn*, std::string&) { return State::Failed; }
 void close(Conn*) {}
 const std::string& error(Conn*) { static const std::string e = "this build has no TLS (ZN_TLS=OFF)"; return e; }
-}  // namespace zn::ZN_TLS_NS
+}  // namespace zn::TLS_NS
 #else
 
 #include <mbedtls/error.h>
@@ -46,11 +46,11 @@ const std::string& error(Conn*) { static const std::string e = "this build has n
 #include <TargetConditionals.h>
 #if TARGET_OS_IPHONE
 #include <Security/Security.h>
-#define ZN_OS_TRUST 1
+#define TLS_OS_TRUST 1
 #endif
 #endif
 
-namespace zn::ZN_TLS_NS {
+namespace zn::TLS_NS {
 
 struct Conn {
   mbedtls_ssl_context ssl;
@@ -60,7 +60,7 @@ struct Conn {
   std::string in, out, err;
   std::function<std::string(const std::string&)> pskLookup;
   std::string pskId;
-  std::string host;   // a client's server name, for the system's verifier (ZN_OS_TRUST)
+  std::string host;   // a client's server name, for the system's verifier (TLS_OS_TRUST)
   bool server = false, done = false, failed = false, closed = false;
 };
 
@@ -119,7 +119,7 @@ mbedtls_x509_crt* roots() {
   return store;
 }
 
-#ifdef ZN_OS_TRUST
+#ifdef TLS_OS_TRUST
 // iOS gives an app no file of its roots: a chain mbedTLS could not verify goes to the system's own verifier (its roots, the profiles the
 // user installed, the host name). ponytail: synchronous, so a chain missing an intermediate may wait on the network here
 bool osTrusted(Conn* c) {
@@ -185,7 +185,7 @@ Conn* make(bool server, std::string& err) {
 Conn* openClient(const std::string& serverName, std::string& err, bool tls12) {
   Conn* c = make(false, err);
   if (!c) return nullptr;
-#ifdef ZN_OS_TRUST
+#ifdef TLS_OS_TRUST
   mbedtls_ssl_conf_authmode(&c->conf, MBEDTLS_SSL_VERIFY_OPTIONAL);   // step() hands a chain mbedTLS rejects to the system's verifier
   c->host = serverName;
 #else
@@ -296,7 +296,7 @@ State step(Conn* c) {
   if (c->failed) return State::Failed;
   if (c->done) return State::Ready;
   int rc = mbedtls_ssl_handshake(&c->ssl);
-#ifdef ZN_OS_TRUST
+#ifdef TLS_OS_TRUST
   if (rc == 0 && !c->host.empty() && mbedtls_ssl_get_verify_result(&c->ssl) != 0 && !osTrusted(c)) rc = MBEDTLS_ERR_X509_CERT_VERIFY_FAILED;
 #endif
   if (rc == 0) { c->done = true; return State::Ready; }
@@ -339,11 +339,11 @@ bool isTls13(Conn* c) { return c->done && mbedtls_ssl_get_version_number(&c->ssl
 
 void close(Conn* c) { if (c->done && !c->failed && !c->closed) mbedtls_ssl_close_notify(&c->ssl); }
 
-}  // namespace zn::ZN_TLS_NS
+}  // namespace zn::TLS_NS
 
 // Plugins link against this binary's mbedTLS (zinc:webrtc's DTLS, plugins/webrtc): the certificate writer, which nothing here calls, would
 // be left out of the link; these references keep it, exported like the rest of the library.
-#ifdef ZN_TLS_ENGINE
+#ifdef TLS_ENGINE_COPY
 extern "C" __attribute__((used, visibility("default"))) void* const zn_tls_plugin_symbols[] = {
     (void*)&mbedtls_x509write_crt_init, (void*)&mbedtls_x509write_crt_free, (void*)&mbedtls_x509write_crt_der,
     (void*)&mbedtls_x509write_crt_set_version, (void*)&mbedtls_x509write_crt_set_serial_raw, (void*)&mbedtls_x509write_crt_set_validity,

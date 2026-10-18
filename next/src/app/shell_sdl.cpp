@@ -18,7 +18,7 @@
 #include <TargetConditionals.h>   // TARGET_OS_IOS: __APPLE__ is true on macOS too
 #endif
 #if defined(__ANDROID__) || (defined(TARGET_OS_IOS) && TARGET_OS_IOS)
-#define ZN_PHONE 1   // an app of a phone or tablet: no environment, no terminal, its own data directory
+#define SHELL_PHONE 1   // an app of a phone or tablet: no environment, no terminal, its own data directory
 #include <pthread.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -179,7 +179,7 @@ static void android_setup() {
     }
   }
 }
-#elif defined(ZN_PHONE)
+#elif defined(SHELL_PHONE)
 // iOS: the bundle is read-only (SDL makes it the working directory) and holds the project's assets/; the program's files (zinc.storage, what it
 // writes by relative paths) go to Library/Application Support/zinc, which becomes the working directory as the files directory does on
 // Android, with assets/ there a link to the bundle's. The environment: what Xcode's scheme or `xcrun simctl launch` (SIMCTL_CHILD_*) gives,
@@ -208,7 +208,7 @@ static void ios_setup() {
 }
 #endif
 
-#ifdef ZN_PHONE
+#ifdef SHELL_PHONE
 static void phone_setup() {
 #ifdef __ANDROID__
   android_setup();
@@ -249,7 +249,7 @@ extern "C" void zn_mobile_open_url(const char* url);
 #endif
 
 SDL_AppResult SDL_AppInit(void**, int argc, char** argv) {
-#ifdef ZN_PHONE
+#ifdef SHELL_PHONE
   phone_setup();
 #endif
 #if defined(__ANDROID__) || (defined(__APPLE__) && TARGET_OS_IPHONE)
@@ -312,7 +312,7 @@ SDL_AppResult SDL_AppEvent(void*, SDL_Event* e) {
 
 void SDL_AppQuit(void*, SDL_AppResult) {
   zn_app_quit();
-#ifdef ZN_PHONE
+#ifdef SHELL_PHONE
   log_drain();
 #endif
 }

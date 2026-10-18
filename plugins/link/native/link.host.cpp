@@ -35,7 +35,7 @@
 #include <string>
 #include <vector>
 
-namespace tls = zn::ZN_TLS_NS;
+namespace tls = zn::TLS_NS;
 
 namespace {
 
