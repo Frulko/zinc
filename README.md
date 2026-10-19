@@ -69,7 +69,7 @@ brew install frulko/zinc/zinc
 Without Homebrew, the `zinc` CLI on your `PATH` with one command (`-s -- --atelier` adds the Zinc Atelier app on a Mac):
 
 ```sh
-curl -fsSL https://github.com/zinc-engine/zinc/releases/latest/download/install.sh | sh
+curl -fsSL https://github.com/Frulko/zinc/releases/latest/download/install.sh | sh
 ```
 
 Then `zinc update` installs each new release (`--check`, `--rollback`, `--channel beta`: [Updating](docs/guide/01-getting-started.md#updating)).

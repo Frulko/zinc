@@ -1,8 +1,8 @@
 #!/bin/sh
 # Installs zinc with nothing to compile (ZN-718): the engine, its libraries, the templates and the plugins' native libraries, as released for this machine.
 #
-#   curl -fsSL https://github.com/zinc-engine/zinc/releases/latest/download/install.sh | sh                  # the zinc CLI
-#   curl -fsSL https://github.com/zinc-engine/zinc/releases/latest/download/install.sh | sh -s -- --atelier  # and the Zinc Atelier app (macOS: the .app; Linux: an applications menu entry)
+#   curl -fsSL https://github.com/Frulko/zinc/releases/latest/download/install.sh | sh                  # the zinc CLI
+#   curl -fsSL https://github.com/Frulko/zinc/releases/latest/download/install.sh | sh -s -- --atelier  # and the Zinc Atelier app (macOS: the .app; Linux: an applications menu entry)
 #
 # It reads SHA256SUMS beside it, downloads the CLI archive of this system (zinc-<version>-<os>-<arch>.tar.gz: macOS arm64 / x86_64, Linux x86_64 / aarch64),
 # checks its SHA-256, unpacks it into ~/.zinc/engine and links `zinc` into /usr/local/bin when you can write there, else into ~/.local/bin (added to your PATH
@@ -11,13 +11,13 @@
 # menu (~/.local/share/applications/zinc-atelier.desktop, on bin/zinc-atelier of the engine).
 # Needs curl and what every Mac and Linux has (shasum or sha256sum, tar, ditto on a Mac); no compiler, no CMake, no Xcode, no administrator password.
 # `zinc update` updates it (or run this again); `rm -rf ~/.zinc/engine ~/.zinc/engine.prev` and the link (and the app) to uninstall.
-#   ZINC_INSTALL_URL   where SHA256SUMS and the archives are (default: the latest release of $ZINC_REPO, default zinc-engine/zinc; file:// works)
+#   ZINC_INSTALL_URL   where SHA256SUMS and the archives are (default: the latest release of $ZINC_REPO, default Frulko/zinc; file:// works)
 #   ZINC_INSTALL_DIR   where the engine goes (default ~/.zinc/engine)
 #   ZINC_BIN_DIR       where the `zinc` link goes
 #   ZINC_APP_DIR       where the app goes (default /Applications, else ~/Applications)
 #   ZINC_NO_MODIFY_PATH=1   never write to a shell profile: the line to add is printed instead
 set -eu
-url=${ZINC_INSTALL_URL:-https://github.com/${ZINC_REPO:-zinc-engine/zinc}/releases/latest/download}
+url=${ZINC_INSTALL_URL:-https://github.com/${ZINC_REPO:-Frulko/zinc}/releases/latest/download}
 dir=${ZINC_INSTALL_DIR:-$HOME/.zinc/engine}
 atelier=${ZINC_INSTALL_ATELIER:-0}
 for a in "$@"; do case "$a" in --atelier) atelier=1 ;; *) echo "zinc install: unknown option $a (--atelier also installs the app)" >&2; exit 2 ;; esac; done

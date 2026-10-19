@@ -16,7 +16,7 @@ brew install frulko/zinc/zinc
 `brew upgrade zinc` installs each new release (`zinc update` sends you there). Without Homebrew:
 
 ```sh
-curl -fsSL https://github.com/zinc-engine/zinc/releases/latest/download/install.sh | sh
+curl -fsSL https://github.com/Frulko/zinc/releases/latest/download/install.sh | sh
 ```
 
 It downloads the `zinc` CLI made for your machine (a Mac, Apple silicon or Intel; Linux, x86_64 or aarch64; about 27 MB), checks its
@@ -39,11 +39,11 @@ Add `--atelier` to get Zinc Atelier too, the app that edits and runs projects wi
 `/Applications`, or `~/Applications` when you cannot write there; on Linux it is added to the applications menu:
 
 ```sh
-curl -fsSL https://github.com/zinc-engine/zinc/releases/latest/download/install.sh | sh -s -- --atelier
+curl -fsSL https://github.com/Frulko/zinc/releases/latest/download/install.sh | sh -s -- --atelier
 ```
 
 By hand instead, each release has these downloads on its
-[releases page](https://github.com/zinc-engine/zinc/releases):
+[releases page](https://github.com/Frulko/zinc/releases):
 
 - `zinc-<version>-macos-<arch>.tar.gz` (or `-linux-<arch>.tar.gz`): the CLI. Unpack it anywhere and link its `bin/zinc`
   into a directory of your `PATH` (`ln -s "$PWD/zinc-<version>-macos-arm64/bin/zinc" ~/.local/bin/zinc`); it finds the
@@ -80,7 +80,7 @@ On Windows (no download yet), or to work on Zinc itself, you build the `zinc` pr
 Nothing else: the window library (SDL3), the fonts and the other libraries are in the repository, and Node.js is not needed.
 
 ```sh
-git clone https://github.com/zinc-engine/zinc.git
+git clone https://github.com/Frulko/zinc.git
 cd zinc/next
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 tools/build zinc                        # 6 to 8 minutes the first time on a 2019 laptop

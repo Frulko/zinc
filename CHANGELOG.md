@@ -16,6 +16,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc:spotify`: `Login` logs in from the app on a computer with a browser (the redirect served on port 8765), `reload()` reads the login file again and `logout()` forgets the account (the client id stays); the music example connects Spotify from its Spotify page on macOS, and checks or logs out the account in its settings; with a client id built in (src/spotify-client.ts) it logs in on a computer that never ran zinc.
 
 ### Fixed
+- The one-line installers (`curl -fsSL https://github.com/Frulko/zinc/releases/latest/download/install.sh | sh`, `install.ps1`) and `zinc update` now download from the releases that exist; they pointed to a repository that does not exist yet.
 - `zinc export --target android` and `--target ios`: a plugin imported from several files of a program no longer stops the native build (CMake: "another target with the same name already exists").
 - `zinc build --bundle` adds `.app` to an output without it, and a build whose output is a folder says so instead of a linker error (errno=21).
 

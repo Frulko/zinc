@@ -1,18 +1,18 @@
 # Installs zinc on Windows with nothing to compile: the engine, its libraries, the templates and the plugins' native libraries, as released.
 #
-#   irm https://github.com/zinc-engine/zinc/releases/latest/download/install.ps1 | iex
+#   irm https://github.com/Frulko/zinc/releases/latest/download/install.ps1 | iex
 #
 # It reads SHA256SUMS beside it, downloads zinc-<version>-windows-x86_64.zip, checks its SHA-256, unpacks it into %USERPROFILE%\.zinc\engine and adds
 # its bin folder to your user PATH (open a new terminal afterwards). No administrator rights, no Visual Studio, no CMake: `zinc build` downloads its own
 # pinned compiler the first time. Run it again to update; delete %USERPROFILE%\.zinc\engine and the PATH entry to uninstall.
-#   ZINC_INSTALL_URL        where SHA256SUMS and the archive are (default: the latest release of $env:ZINC_REPO, default zinc-engine/zinc; file:// works)
+#   ZINC_INSTALL_URL        where SHA256SUMS and the archive are (default: the latest release of $env:ZINC_REPO, default Frulko/zinc; file:// works)
 #   ZINC_INSTALL_DIR        where the engine goes (default %USERPROFILE%\.zinc\engine)
 #   ZINC_NO_MODIFY_PATH=1   never touch the PATH: the folder to add is printed instead
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'   # Invoke-WebRequest is much faster without its progress bar
 function Die($msg) { throw "zinc install: $msg" }
 
-$repo = if ($env:ZINC_REPO) { $env:ZINC_REPO } else { 'zinc-engine/zinc' }
+$repo = if ($env:ZINC_REPO) { $env:ZINC_REPO } else { 'Frulko/zinc' }
 $url = if ($env:ZINC_INSTALL_URL) { $env:ZINC_INSTALL_URL.TrimEnd('/') } else { "https://github.com/$repo/releases/latest/download" }
 $dir = if ($env:ZINC_INSTALL_DIR) { $env:ZINC_INSTALL_DIR } else { Join-Path $env:USERPROFILE '.zinc\engine' }
 

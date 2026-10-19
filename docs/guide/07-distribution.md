@@ -423,7 +423,7 @@ Each release has two downloads per Mac (arm64 and x86_64), each with its own lin
 
 Windows has `zinc-<version>-windows-x86_64.zip` (`bin\zinc.exe`, `share\zinc`: the standard library, templates and the plugins that build there)
 and `install.ps1`, which checks `SHA256SUMS`, unpacks it into `%USERPROFILE%\.zinc\engine` and adds `bin` to the user `PATH`
-(`irm https://github.com/zinc-engine/zinc/releases/latest/download/install.ps1 | iex`). The `package-windows-x86_64` job of the workflow builds
+(`irm https://github.com/Frulko/zinc/releases/latest/download/install.ps1 | iex`). The `package-windows-x86_64` job of the workflow builds
 it on a Windows runner with the pinned zig (no Visual Studio), smoke tests the unpacked archive and the installer, and a `v*` tag attaches it to the
 release; the job is experimental (its failure does not stop the macOS release) and the binary is not signed yet, so SmartScreen may ask to confirm.
 
@@ -515,7 +515,7 @@ zinc update --channel beta     # follow the betas from now on (--channel stable 
 ```
 
 What it does: it reads the manifest of this machine's CLI archive (`zinc-<os>-<arch>.manifest`, `-beta.manifest` on the beta
-channel) where `install.sh` installed from (by default `https://github.com/zinc-engine/zinc/releases/latest/download`;
+channel) where `install.sh` installed from (by default `https://github.com/Frulko/zinc/releases/latest/download`;
 `ZINC_UPDATE_REPO=<owner/repo>` takes another repository's latest release, `ZINC_UPDATE_URL` or an argument a whole manifest
 URL), checks its Ed25519 signature with the key compiled in (and `ZINC_UPDATE_PUBKEY`, `~/.zinc/update-keys`), downloads the
 archive beside the engine (`~/.zinc/engine.incoming`, the same filesystem), checks its SHA-256, unpacks it, checks that its

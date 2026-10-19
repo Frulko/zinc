@@ -38,7 +38,7 @@ const char* releaseKey() { return kBuildReleaseKey; }
 
 namespace {
 const char* const kMarker = ".zinc-install";   // written by install.sh: url=<where it installed from>, channel=<stable|beta>
-const char* const kRepo = "zinc-engine/zinc";
+const char* const kRepo = "Frulko/zinc";
 
 bool envOn(const char* name) { const char* v = std::getenv(name); return v && *v && std::strcmp(v, "0") != 0; }
 std::string repo() { const char* r = std::getenv("ZINC_UPDATE_REPO"); return r && *r ? r : kRepo; }
