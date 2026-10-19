@@ -357,7 +357,9 @@
   /* and the next one as `kind args`; graphics rows, appended */ \
   X(HostGfxSignalCount, "host.gfxSignalCount", ">i", 2) X(HostGfxSignalNext, "host.gfxSignalNext", ">s", 2) \
   /* zinc:gfx profSection (benchmarks): ends a ZINC_PROFILE section (prints its numbers) and starts the next; graphics row, appended */ \
-  X(HostGfxProfSection, "host.gfxProfSection", "s>s", 2)
+  X(HostGfxProfSection, "host.gfxProfSection", "s>s", 2) \
+  /* zinc:socket connectTls (wss): a TLS client stream on the sockets of ZN-088; system row, appended */ \
+  X(HostSockConnectTls, "host.sockConnectTls", "si>i", 2)
 
 namespace zn {
 

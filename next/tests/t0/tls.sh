@@ -27,3 +27,14 @@ if command -v python3 >/dev/null 2>&1; then
   kill "$bpid" 2>/dev/null; wait "$bpid" 2>/dev/null
   [ "$out" = "[ 'secure/a=hello over tls' ]" ] || { echo "mqtt over TLS: $out"; exit 1; }
 fi
+
+# wss:// in zinc:socket against a python echo server over TLS: the test CA trusted, then a CA the client does not trust (skips without python3)
+if command -v python3 >/dev/null 2>&1; then
+  port=$(python3 tests/free_ports.py)
+  python3 tests/wss_echo.py "$port" "$tmp/good.pem" "$tmp/good.key" > "$tmp/wss.log" 2>&1 & wpid=$!
+  for _ in 1 2 3 4 5 6 7 8 9 10; do grep -q ready "$tmp/wss.log" 2>/dev/null && break; sleep 0.3; done
+  { ZINC_CA_FILE="$tmp/ca.pem" timeout 30 "$ZINC" run tests/golden/host/wss.ts -- "$port" 2>&1
+    ZINC_CA_FILE="$tmp/stranger.pem" timeout 30 "$ZINC" run tests/golden/host/wss.ts -- "$port" 2>&1; } | sed "s/:$port/:PORT/g" > "$tmp/wss.out"
+  kill "$wpid" 2>/dev/null; wait "$wpid" 2>/dev/null
+  diff -u tests/golden/host/wss.out "$tmp/wss.out" || { echo "wss output differs"; exit 1; }
+fi

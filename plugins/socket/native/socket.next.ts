@@ -8,6 +8,7 @@ const NONE: u8[] = [];
 
 export default {
   connect(h: string, port: i32): i32 { return host.connect(h, port); },
+  connectTls(h: string, port: i32): i32 { return host.connectTls(h, port); },
   connectUnix(path: string): i32 { return host.connectUnix(path); },
   listen(h: string, port: i32): i32 { return host.listen(h, port); },
   listenUnix(path: string): i32 { return host.listenUnix(path); },

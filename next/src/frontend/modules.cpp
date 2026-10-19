@@ -876,6 +876,7 @@ export function call(op: i32, arg: string): string { return __host_netLog(op, ar
 )ZN";
 const char* kHostSockModule = R"ZN(
 export function connect(host: string, port: i32): i32 { return __host_sockConnect(host, port); }
+export function connectTls(host: string, port: i32): i32 { return __host_sockConnectTls(host, port); }
 export function connectUnix(path: string): i32 { return __host_sockConnectUnix(path); }
 export function listen(host: string, port: i32): i32 { return __host_sockListen(host, port); }
 export function listenUnix(path: string): i32 { return __host_sockListenUnix(path); }

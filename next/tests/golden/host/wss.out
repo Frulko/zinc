@@ -1,0 +1,5 @@
+text hello over wss
+binary 1,2,255
+close 1000 true
+error tls UNABLE_TO_VERIFY_LEAF_SIGNATURE localhost:PORT
+close 1006 false

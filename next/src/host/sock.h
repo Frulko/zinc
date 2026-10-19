@@ -11,6 +11,9 @@ namespace zn::sock {
 
 // Each returns a handle (>= 1), or -1 with the reason in error().
 int connectTcp(const std::string& host, int port);
+// A TLS client stream (wss): the server's certificate is verified for `host` against the system's roots, as https does (tls.h; ZINC_CA_FILE in tests).
+// The open event follows the handshake, a certificate that does not verify is an error event (Node's words: UNABLE_TO_VERIFY_LEAF_SIGNATURE...).
+int connectTls(const std::string& host, int port);
 int connectUnix(const std::string& path);
 int listenTcp(const std::string& host, int port);   // port 0: any free port (localPort)
 int listenUnix(const std::string& path);

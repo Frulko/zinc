@@ -2,6 +2,7 @@
 import * as net from 'node:net';
 import * as dgram from 'node:dgram';
 import * as dns from 'node:dns';
+import * as tls from 'node:tls';
 
 type Cb = (h: number, kind: number, a: number, text: string, bytes: number[]) => void;
 const DATA = 0, OPEN = 1, ACCEPT = 2, CLOSE = 3, ERROR = 4, DGRAM = 5, LOOKUP = 6, LOOKUP_ERROR = 7;
@@ -18,13 +19,14 @@ const alloc = (x: net.Socket | net.Server | dgram.Socket): number => {
 };
 const v4 = (a: string | undefined): string => (a ?? '').replace(/^::ffff:/, '');
 
-function wire(h: number, s: net.Socket, target: string, connecting: boolean): void {
+function wire(h: number, s: net.Socket, target: string, connecting: boolean, openOn = 'connect'): void {
   s.setNoDelay(true);
-  if (connecting) s.on('connect', () => { if (hs[h] === s) emit(h, OPEN); });
+  let up = false;
+  if (connecting) s.on(openOn, () => { up = true; if (hs[h] === s) emit(h, OPEN); });
   s.on('data', (b: Buffer) => { if (hs[h] === s) emit(h, DATA, 0, '', Array.from(b)); });
   s.on('error', (e: NodeJS.ErrnoException) => {
     if (hs[h] !== s) return;
-    if (s.connecting || connecting && !s.remoteAddress) { hs[h] = null; emit(h, ERROR, 0, `connect ${e.code ?? 'EIO'} ${target}`); return; }
+    if (s.connecting || connecting && (!s.remoteAddress || !up)) { hs[h] = null; emit(h, ERROR, 0, `${s.connecting || openOn === 'connect' ? 'connect' : 'tls'} ${e.code ?? 'EIO'} ${target}`); return; }
     emit(h, ERROR, 0, `read ${e.code ?? 'EIO'}`);
   });
   s.on('close', () => { if (hs[h] === s) { hs[h] = null; emit(h, CLOSE); } });
@@ -53,6 +55,12 @@ export default {
   connect(host: string, port: number): number {
     const ip = net.isIP(host) ? host : host === 'localhost' ? '127.0.0.1' : host;
     return connectWith({ host: ip, port, family: net.isIP(ip) === 6 ? 6 : 4 }, `${ip}:${port}`);
+  },
+  connectTls(host: string, port: number): number {   // Node's verifier and roots (NODE_EXTRA_CA_CERTS for a test CA), the name as SNI
+    const s = tls.connect({ host: host === 'localhost' ? '127.0.0.1' : host, port, servername: net.isIP(host) ? undefined : host });
+    const h = alloc(s);
+    wire(h, s, `${host}:${port}`, true, 'secureConnect');
+    return h;
   },
   connectUnix(path: string): number { return connectWith({ path }, path); },
   listen(host: string, port: number): number {

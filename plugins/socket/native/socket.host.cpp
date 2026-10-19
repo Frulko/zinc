@@ -128,6 +128,8 @@ struct HostSocket : NativeSocket, zrt::Poller {
     snprintf(target, sizeof target, "%s:%d", ip, port);
     return connect_to((sockaddr*)&ss, len, fam, target);
   }
+  // ponytail: no TLS in the prototype's native socket; wss runs on the Zinc Next engine (src/host/sock.cpp, mbedTLS)
+  int32_t connectTls(zrt::String, int32_t) override { strcpy(err_msg, "tls: not available on this engine (use Zinc Next)"); return -1; }
   int32_t connectUnix(zrt::String path) override {
     sockaddr_un a{}; a.sun_family = AF_UNIX;
     if (path.bytes() >= sizeof a.sun_path) { strcpy(err_msg, "unix socket path too long"); return -1; }

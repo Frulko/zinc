@@ -193,6 +193,9 @@ function pending(h: i32): Promise<Socket> {
 }
 /** Opens a TCP connection; rejects with e.g. 'connect ECONNREFUSED 127.0.0.1:9' or 'getaddrinfo ENOTFOUND host'. */
 export function connect(host: string, port: i32): Promise<Socket> { listen0(); return pending(S.connect(host, port)); }
+/** Opens a TLS connection, the server's certificate verified for `host` against the system's roots (as fetch does for
+ *  https); rejects with e.g. 'tls UNABLE_TO_VERIFY_LEAF_SIGNATURE host:443'. Zinc Next only. */
+export function connectTls(host: string, port: i32): Promise<Socket> { listen0(); return pending(S.connectTls(host, port)); }
 /** Opens a Unix domain stream connection. */
 export function connectUnix(path: string): Promise<Socket> { listen0(); return pending(S.connectUnix(path)); }
 /** TCP server; port 0 picks a free port (see Server.port); host '' = all interfaces. Resolves once listening;
@@ -268,7 +271,7 @@ function headerValue(head: string, name: string): string {
 }
 function acceptKey(key: string): string { return base64Encode(sha1(utf8Encode(key + GUID))); }
 
-/** RFC 6455 WebSocket over zinc:socket (ws:// only; no TLS). Browser-style: set onopen / onmessage / onclose /
+/** RFC 6455 WebSocket over zinc:socket (ws://, and wss:// over connectTls). Browser-style: set onopen / onmessage / onclose /
  *  onerror, or addEventListener('open' | 'message' | 'close' | 'error'). */
 export class WebSocket extends EventTarget {
   readonly url: string;
@@ -287,7 +290,7 @@ export class WebSocket extends EventTarget {
   closeSent: boolean = false;
   closeFired: boolean = false;
 
-  /** Connects to ws://host[:port]/path. Server-side sockets are created by serveWebSocket. */
+  /** Connects to ws://host[:port]/path or wss://host[:port]/path. Server-side sockets are created by serveWebSocket. */
   constructor(url: string, server: Socket | null = null) {
     super();
     this.url = url;
@@ -296,15 +299,16 @@ export class WebSocket extends EventTarget {
     if (server !== null) { this.attach(server); this.readyState = OPEN_STATE; return; }
     let u: URL;
     try { u = new URL(url); } catch (e) { this.fail('invalid URL ' + url); return; }
-    if (u.protocol !== 'ws:') { this.fail(`unsupported scheme ${u.protocol} (only ws:)`); return; }
-    const port: i32 = u.port.length > 0 ? parseInt(u.port) : 80;
+    const secure = u.protocol === 'wss:';
+    if (!secure && u.protocol !== 'ws:') { this.fail(`unsupported scheme ${u.protocol} (ws: or wss:)`); return; }
+    const port: i32 = u.port.length > 0 ? parseInt(u.port) : secure ? 443 : 80;
     const path = (u.pathname.length > 0 ? u.pathname : '/') + u.search;
     this.key = base64Encode(randomBytes(16));
-    this.start(u.hostname, port, u.host, path);
+    this.start(u.hostname, port, u.host, path, secure);
   }
-  async start(host: string, port: i32, hostHeader: string, path: string): Promise<void> {
+  async start(host: string, port: i32, hostHeader: string, path: string, secure: boolean): Promise<void> {
     let s: Socket;
-    try { s = await connect(host, port); } catch (e) { this.fail(e.message); return; }
+    try { s = await (secure ? connectTls(host, port) : connect(host, port)); } catch (e) { this.fail(e.message); return; }
     if (this.readyState !== CONNECTING) { s.close(); return; }
     this.attach(s);
     s.write(`GET ${path} HTTP/1.1\r\nHost: ${hostHeader}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: ${this.key}\r\nSec-WebSocket-Version: 13\r\n\r\n`);

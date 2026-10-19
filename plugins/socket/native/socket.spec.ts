@@ -5,6 +5,10 @@ import { NativeModule, requireNative } from 'zinc:native';
 export interface Spec extends NativeModule {
   /** TCP connection (host name or IP, resolved with getaddrinfo); OPEN or ERROR follows. -1: see error(). */
   connect(host: string, port: i32): i32;
+  /** TLS client stream (wss): like connect, with the server's certificate verified for `host` against the system's
+   *  roots and the name sent as SNI; OPEN once the handshake is done, ERROR (e.g. 'tls UNABLE_TO_VERIFY_LEAF_SIGNATURE
+   *  host:port') when it fails. -1: see error(). */
+  connectTls(host: string, port: i32): i32;
   /** Unix domain stream socket. */
   connectUnix(path: string): i32;
   /** TCP server on host ('' = all interfaces) and port (0 = any free port): OPEN once listening (or ERROR), then

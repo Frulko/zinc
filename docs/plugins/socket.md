@@ -32,6 +32,7 @@ main();
 | API | |
 |---|---|
 | `connect(host, port): Promise<Socket>` | Resolves the host (IPv4 preferred). Rejects with `connect ECONNREFUSED 127.0.0.1:9` or `getaddrinfo ENOTFOUND host`. |
+| `connectTls(host, port): Promise<Socket>` | The same over TLS, the certificate verified for `host` (Zinc Next). Rejects with `tls UNABLE_TO_VERIFY_LEAF_SIGNATURE host:port` when it does not verify. |
 | `connectUnix(path): Promise<Socket>` | A Unix domain stream socket. |
 | `listen(port, onConnection, host = ''): Promise<Server>` | Port 0 picks a free port (see `server.port`). Host `''` means all interfaces. Rejects with `listen EADDRINUSE …`. |
 | `listenUnix(path, onConnection): Promise<Server>` | The file must not exist. |
@@ -53,7 +54,7 @@ main();
 
 ## WebSocket (RFC 6455)
 
-- **Client.** `new WebSocket('ws://host:port/path')` has a browser-like API:
+- **Client.** `new WebSocket('ws://host:port/path')` (or `wss://`, see below) has a browser-like API:
   - handlers `onopen`, `onmessage`, `onclose` and `onerror`, or `addEventListener`;
   - `send(text)`, `sendBytes(u8[])`, `close(code, reason)` and `readyState`.
 - **Server.** `serveWebSocket(port, (ws, req) => …)` answers the HTTP upgrade and gives you the same `WebSocket` object
@@ -65,7 +66,11 @@ main();
 
 ## Limits
 
-- **No TLS.** There is no `wss://` and no TLS sockets. HTTPS goes through `fetch`, which uses libcurl.
+- **TLS on Zinc Next only.** `wss://` and `connectTls(host, port)` use the engine's mbedTLS, as `fetch` does for https: the
+  server's certificate is verified against the system's roots (`ZINC_CA_FILE` names a PEM bundle instead) and the host
+  name is sent as SNI; there is no way to switch verification off. A certificate that does not verify fails the
+  connection (`tls UNABLE_TO_VERIFY_LEAF_SIGNATURE host:port`). The prototype's engine has no TLS socket, and there is
+  no TLS server (`serveWebSocket` speaks `ws://`).
 - **DNS blocks.** `lookup` and `connect` resolve names with getaddrinfo on the loop thread. That is instant for
   literals, `localhost` and cached names, and blocks the loop on a slow DNS server.
 - **At most 256 sockets.** Frames are limited to 2 GiB.

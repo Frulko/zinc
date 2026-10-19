@@ -5,6 +5,7 @@
 
 struct NativeSocket : zrt::Object {
   virtual int32_t connect(zrt::String host, int32_t port) = 0;
+  virtual int32_t connectTls(zrt::String host, int32_t port) = 0;
   virtual int32_t connectUnix(zrt::String path) = 0;
   virtual int32_t listen(zrt::String host, int32_t port) = 0;
   virtual int32_t listenUnix(zrt::String path) = 0;

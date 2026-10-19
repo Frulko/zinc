@@ -1192,6 +1192,7 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostHttpStop: zn::http::stop(); break;
     case Rt::HostHttpReply: zn::http::reply(n(0), n(1), s(2), s(3)); break;
     case Rt::HostSockConnect: r->i = refused("net", s(0)) ? -1 : zn::sock::connectTcp(s(0), n(1)); break;   // zinc.json permissions (ZN-322)
+    case Rt::HostSockConnectTls: r->i = refused("net", s(0)) ? -1 : zn::sock::connectTls(s(0), n(1)); break;
     case Rt::HostSockConnectUnix: r->i = refused("net", "unix:" + s(0)) ? -1 : zn::sock::connectUnix(s(0)); break;
     case Rt::HostSockListen: r->i = refused("net", "*") ? -1 : zn::sock::listenTcp(s(0), n(1)); break;
     case Rt::HostSockListenUnix: r->i = refused("net", "unix:" + s(0)) ? -1 : zn::sock::listenUnix(s(0)); break;

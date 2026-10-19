@@ -8,6 +8,7 @@
 #include <memory>
 
 #include "netlog.h"
+#include "tls.h"
 #include "zn/loop.h"
 
 namespace zn::sock {
@@ -26,6 +27,9 @@ struct Sock {
   uv_connect_t creq;
   std::string target;   // "host:port" or the path, for error messages
   int log = 0;          // the entry of the network log (netlog.h): outgoing TCP only
+  tls::Conn* tls = nullptr;   // a TLS client (connectTls): the stream carries its records, the events its plain bytes
+  bool tlsOpen = false;       // its handshake is done (the open event went out)
+  ~Sock() { tls::destroy(tls); }
 };
 std::map<int, Sock*> gSocks;
 int gNext = 1;
@@ -65,10 +69,45 @@ void failOpen(Sock* s, const char* what, int rc) {
   loop::pushEvent(id, kError, t);
 }
 
+struct WriteReq { uv_write_t req; std::string data; };
+bool rawWrite(Sock* s, const std::string& bytes) {
+  if (bytes.empty()) return true;
+  auto* w = new WriteReq{{}, bytes};
+  uv_buf_t b = uv_buf_init(w->data.data(), static_cast<unsigned>(w->data.size()));
+  if (uv_write(&w->req, s->stream(), &b, 1, [](uv_write_t* r, int) { delete reinterpret_cast<WriteReq*>(r); }) != 0) { delete w; return false; }
+  return true;
+}
+void failWith(Sock* s, const std::string& why) { int id = s->id; release(s); loop::pushEvent(id, kError, why); }
+
+// The records that arrived on a TLS stream: the handshake goes on (open once it is done, an error before it rejects the connect), then the plain bytes are data.
+void onTlsRead(Sock* s, const char* data, size_t n) {
+  tls::feed(s->tls, data, n);
+  if (!s->tlsOpen) {
+    tls::State st = tls::step(s->tls);
+    rawWrite(s, tls::takeOutput(s->tls));
+    if (st == tls::State::Failed) { failWith(s, "tls " + tls::error(s->tls) + " " + s->target); return; }
+    if (st != tls::State::Ready) return;
+    s->tlsOpen = true;
+    loop::pushEvent(s->id, kOpen, "");
+  }
+  std::string plain;
+  tls::State rs = tls::read(s->tls, plain);
+  rawWrite(s, tls::takeOutput(s->tls));
+  if (!plain.empty()) loop::pushEvent(s->id, kData, "", plain);
+  if (rs == tls::State::Ready) return;
+  int id = s->id;
+  std::string why = rs == tls::State::Failed ? "tls " + tls::error(s->tls) : "";
+  release(s);
+  if (!why.empty()) loop::pushEvent(id, kError, why);
+  loop::pushEvent(id, kPeerClosed, "");
+}
+
 void onRead(uv_stream_t* st, ssize_t n, const uv_buf_t* b) {
   auto* s = static_cast<Sock*>(st->data);
-  if (n > 0 && !s->closing) { if (s->log) netlog::bytes(s->log, false, std::string(b->base, static_cast<size_t>(n))); loop::pushEvent(s->id, kData, "", std::string(b->base, static_cast<size_t>(n))); }
+  if (n > 0 && !s->closing && s->tls) onTlsRead(s, b->base, static_cast<size_t>(n));
+  else if (n > 0 && !s->closing) { if (s->log) netlog::bytes(s->log, false, std::string(b->base, static_cast<size_t>(n))); loop::pushEvent(s->id, kData, "", std::string(b->base, static_cast<size_t>(n))); }
   if (b->base) std::free(b->base);
+  if (n < 0 && !s->closing && s->tls && !s->tlsOpen) { failWith(s, "tls handshake " + errName(static_cast<int>(n)) + " " + s->target); return; }
   if (n < 0 && !s->closing) {
     int id = s->id;
     bool reset = n != UV_EOF;
@@ -97,12 +136,21 @@ void onConnection(uv_stream_t* srv, int status) {
 
 const std::string& error() { return gError; }
 
-int connectTcp(const std::string& host, int port) {
+namespace {
+int connectStream(const std::string& host, int port, bool secure) {
   sockaddr_in a;
   std::string target = host + ":" + std::to_string(port);
   if (!loop::resolveHost(host == "localhost" ? "127.0.0.1" : host, port, &a)) return fail("connect ENOTFOUND " + target);
+  tls::Conn* conn = nullptr;
+  if (secure) {   // verifies the server's certificate for `host` against the system's roots, as https does (tls.h); the name goes out as SNI
+    std::string err;
+    conn = tls::openClient(host, err);
+    if (!conn) return fail("tls " + err + " " + target);
+  }
   Sock* s = make(Kind::Client, false, target);
-  s->log = netlog::open("tcp", "tcp://" + target, "TCP", "", "");
+  s->tls = conn;
+  // ponytail: a TLS stream is not in the network log yet (its bytes would read as plain TCP); ZN-634 adds wss there
+  if (!secure) s->log = netlog::open("tcp", "tcp://" + target, "TCP", "", "");
   netlog::mark(s->log, netlog::Dns);
   initClient(s, false);
   s->creq.data = s;
@@ -112,11 +160,16 @@ int connectTcp(const std::string& host, int port) {
     if (status != 0) { failOpen(k, "connect", status); return; }
     netlog::mark(k->log, netlog::Connect);
     startReading(k);
-    loop::pushEvent(k->id, kOpen, "");
+    if (!k->tls) { loop::pushEvent(k->id, kOpen, ""); return; }
+    tls::step(k->tls);   // the ClientHello; open follows the handshake (onTlsRead)
+    rawWrite(k, tls::takeOutput(k->tls));
   });
-  if (rc != 0) { int id = s->id; release(s); gError = "connect " + errName(rc) + " " + target; (void)id; return -1; }
+  if (rc != 0) { release(s); gError = "connect " + errName(rc) + " " + target; return -1; }
   return s->id;
 }
+}  // namespace
+int connectTcp(const std::string& host, int port) { return connectStream(host, port, false); }
+int connectTls(const std::string& host, int port) { return connectStream(host, port, true); }
 int connectUnix(const std::string& path) {
   Sock* s = make(Kind::Client, true, path);
   initClient(s, true);
@@ -175,17 +228,12 @@ int udp(const std::string& host, int port) {
   return s->id;
 }
 
-namespace {
-struct WriteReq { uv_write_t req; std::string data; };
-}
 bool write(int h, const std::string& bytes) {
   Sock* s = at(h);
   if (!s || s->kind != Kind::Client || s->ended) return false;
+  if (s->tls) return s->tlsOpen && tls::write(s->tls, bytes) && rawWrite(s, tls::takeOutput(s->tls));
   netlog::bytes(s->log, true, bytes);
-  auto* w = new WriteReq{{}, bytes};
-  uv_buf_t b = uv_buf_init(w->data.data(), static_cast<unsigned>(w->data.size()));
-  if (uv_write(&w->req, s->stream(), &b, 1, [](uv_write_t* r, int) { delete reinterpret_cast<WriteReq*>(r); }) != 0) { delete w; return false; }
-  return true;
+  return rawWrite(s, bytes);
 }
 bool sendTo(int h, const std::string& host, int port, const std::string& bytes) {
   Sock* s = at(h);
@@ -199,6 +247,7 @@ void end(int h) {
   Sock* s = at(h);
   if (!s || s->kind != Kind::Client || s->ended) return;
   s->ended = true;
+  if (s->tls) { tls::close(s->tls); rawWrite(s, tls::takeOutput(s->tls)); }   // close_notify before the FIN
   auto* r = new uv_shutdown_t;
   if (uv_shutdown(r, s->stream(), [](uv_shutdown_t* q, int) { delete q; }) != 0) delete r;
 }
