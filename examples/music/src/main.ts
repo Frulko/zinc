@@ -8,6 +8,7 @@ import { utf8Decode, device, platform } from 'zinc:sys';
 import { discover, System, Group, Speaker, serviceId, accountOf, playSpotify as sonosSpotify, queueSpotify } from 'zinc:sonos';
 import { Spotify, Item, Playback, Login, sharedLoginFile } from 'zinc:spotify';
 import { SPOTIFY_CLIENT_ID } from './spotify-client';
+import { SpotifyPage, SpotifyHost } from './spotify-ui';
 import { openUrl } from 'zinc:system/opener';
 import { spinner, tabular, tabularWidth, decodeStats, decodeOne, picturesTick, prefetch, ui, F, BG, CARD, CARD2, FILL, TEXT, TEXT2, TEXT3, ACCENT, GREEN, Scroll, Zone, zoneAt, wheelScroll, resetZones, onTap, beginScroll, endScroll, label, centered, wrap, clock, glyph, transport, cover, backdrop, iconButton, pill, segmented, slider, card, separator, cardShadow, isPressed } from './ui';
 import { Station, loadMine, saveMine, indexOf, directory } from './radios';
@@ -17,7 +18,7 @@ import { arc, watchFace, lava, odometer, lampPalette, setLampPalette, LAMP_NAMES
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import gsap, { Timeline } from 'gsap';
 import { setPlace, placeName, weatherTick, weatherSlide, Place, foundPlaces, searchState, searchPlaces } from './weather';
-import { openPort } from 'zinc:webos';
+import { openPort, isWebOS } from 'zinc:webos';
 import { startRelay, showTrack, setNotificationsShown, notifyTick, overlay, overlayActive, overlayStill, notifSlide, rowWantsCarousel, Notif } from './notify';
 
 // ---------------------------------------------------------------- settings beside the program
@@ -88,6 +89,8 @@ let spotifyUser = '';
 // a Mac has a browser: the Spotify page logs in from here (zinc:spotify Login), with the client id of the last login; a tablet keeps the
 // instructions for the computer (spotifyPage)
 const browserHere = platform() === 'macos';
+// the keyboard drawn on the screen: a tablet's (webOS, Android, iOS); a computer types with its own (main.ts reads its keys)
+const touchKeyboard = isWebOS() || platform() === 'android' || platform() === 'ios';
 let spLogin: Login | null = null;
 /** What to tell about a failed Spotify call: a 403 is an account the Spotify app does not let in (development mode: 5 accounts, each added
  *  under User Management on developer.spotify.com). */
@@ -122,7 +125,7 @@ async function checkSpotify(): Promise<void> {
 }
 function logoutSpotify(): void {
   spotify.logout(); spotifyUser = ''; spCheck = ''; spLogoutAsked = 0;
-  spState = ['', '', '', '', ''];
+  spPage.reset();
   toast('Spotify déconnecté');
 }
 /** The login ended in the browser: on success the account is read again and the page loads. */
@@ -131,8 +134,7 @@ function spotifyLoginTick(): void {
   if ((spLogin as Login).status === 'done') {
     spLogin = null;
     spotify.reload(); spotifyUser = '';
-    spState = ['', '', '', '', ''];
-    if (page === SPOTIFY && spTab < 4) loadSpotify(spTab, true);
+    spPage.reset(); spPage.preload();
   }
   ui.dirty = true;
 }
@@ -144,13 +146,9 @@ let popular: Station[] = [], found: Station[] = [];
 let popularState = '', foundState = '';
 let radioTab: i32 = 0, editRadios = false;
 
-let spTab: i32 = 0;
-let spLists: Item[][] = [[], [], [], [], []];
-let spState: string[] = ['', '', '', '', ''];   // '' not loaded, 'loading', 'ok' or an error
-// Pages of SP_PAGE items (owner, 2026-10-15: 50 at once made the tablet lag and ran it out of memory): the next page is read when the list
-// is scrolled near its end, while a spinner shows under it.
-const SP_PAGE: i32 = 20;
-let spMore: boolean[] = [false, false, false, false, false], spPaging: boolean[] = [false, false, false, false, false];
+// the Spotify page (spotify-ui.ts): what it plays goes through the actions below, on the group chosen here
+const spHost = new SpotifyHost();
+const spPage = new SpotifyPage(spotify, spHost);
 
 let query = '', typing = false;
 let citySearch = false, cityQuery = '';   // the settings' search of the weather's city
@@ -369,7 +367,11 @@ function playSpotify(it: Item): void {
     if (spotifyUser === '') spotifyUser = await spotify.me();
     const dev = await spotify.device(gg.coordinator.name);
     if (dev !== null && !dev.restricted) await spotify.play(it, dev.id);
-    else await playThroughSonos(s, gg, it);
+    else if ((it.kind === 'track' || it.kind === 'episode') && it.context !== '' && !it.context.startsWith('spotify:artist:')) {
+      const pb = new Playback();   // a song inside its album or playlist, from its start (resumeThroughSonos finds it in the queue)
+      pb.item = it; pb.context = it.context;
+      await resumeThroughSonos(s, gg, pb);
+    } else await playThroughSonos(s, gg, it);
     toast(`${it.name} sur ${gg.name()}`);
     home();
     await sleep(800); await pollGroup(); await pollSpotify();
@@ -450,6 +452,41 @@ async function resumeThroughSonos(s: System, g: Group, pb: Playback): Promise<vo
   if (secs > 3 && (pb.durationMs <= 0 || secs < pb.durationMs / 1000 - 3)) await s.seek(g, secs);
   if (pb.shuffle && at > 0) await s.setPlayMode(g, 'SHUFFLE_NOREPEAT');   // Spotify played the list in shuffle: the speakers go on so
 }
+/** Adds a song (or an album, a playlist) to the speakers' queue: after the song that plays (`next`) or at its end. The queue is the
+ *  speakers' own: a Spotify Connect session a phone left on them goes on in it first (the same song and second), else the song is added
+ *  to a queue nobody listens to; with nothing playing, the song just plays. */
+function queueOnSpeakers(it: Item, next: boolean): void {
+  const g = g0();
+  if (sys === null || g === null) { toast('Aucune enceinte'); return; }
+  const gg = g as Group, s = sys as System;
+  attempt(next ? 'Lire ensuite' : 'File d\'attente', async (): Promise<void> => {
+    if (spotifySid < 0) spotifySid = await serviceId(s, 'Spotify');
+    await s.update(gg);
+    if (gg.track.number === 0) {
+      if (gg.track.source !== 'spotify' || !spPlayback.active || !ourSpeakers(spPlayback.device.name)) { playSpotify(it); return; }
+      toast('La lecture passe dans la file des enceintes…');
+      await resumeThroughSonos(s, gg, await spotify.playback());
+      await s.update(gg);
+    }
+    await queueSpotify(s, gg, it.uri, it.name, spotifySid, cfg.spotifySn > 0 ? cfg.spotifySn : 1, next);
+    toast(next ? `${it.name} : à la suite` : `${it.name} : ajouté à la file`);
+    await pollGroup();
+  });
+}
+/** Spotify's radio of a song or an artist on the group (the songs Spotify picks after it), through the speakers' Spotify service. */
+function playRadio(it: Item): void {
+  const g = g0();
+  if (sys === null || g === null) { toast('Aucune enceinte'); return; }
+  const gg = g as Group, s = sys as System, r = new Item();
+  r.kind = 'playlist'; r.name = it.name;
+  r.uri = (it.kind === 'artist' ? 'spotify:artistRadio:' : 'spotify:trackRadio:') + (it.uri.split(':').pop() as string);
+  toast(`Radio : ${it.name}…`);
+  attempt('Radio', async (): Promise<void> => { await playThroughSonos(s, gg, r); toast(`Radio de ${it.name} sur ${gg.name()}`); await sleep(800); await pollGroup(); });
+}
+spHost.play = (it: Item) => playSpotify(it);
+spHost.queue = (it: Item, next: boolean) => queueOnSpeakers(it, next);
+spHost.radio = (it: Item) => playRadio(it);
+spHost.toast = (t: string) => toast(t);
 let spotifySid: i32 = -1;
 async function playThroughSonos(s: System, g: Group, it: Item): Promise<void> {
   if (spotifySid < 0) spotifySid = await serviceId(s, 'Spotify');
@@ -491,68 +528,16 @@ function searchRadios(): void {
     try { found = await directory(q); foundState = found.length === 0 ? 'Aucune radio trouvée' : 'ok'; } catch (e) { foundState = 'Annuaire injoignable : ' + e.message; }
   });
 }
-function loadSpotify(tab: i32, force: boolean): void {
-  if (!spotify.ready() || (!force && spState[tab] !== '')) return;
-  spState[tab] = 'loading';
-  const q = query;
-  attempt('Spotify', async (): Promise<void> => {
-    try {
-      if (spotifyUser === '') spotifyUser = await spotify.me();
-      const list = await spotifyPageOf(tab, 0, q);
-      spLists[tab] = list; spMore[tab] = tab <= 2 && list.length === SP_PAGE;
-      spState[tab] = list.length === 0 ? 'Rien ici pour le moment' : 'ok';
-    } catch (e) { spState[tab] = spotifyWhy(e.message); }
-  });
-}
-async function spotifyPageOf(tab: i32, offset: i32, q: string): Promise<Item[]> {
-  if (tab === 0) return await spotify.playlists(offset, SP_PAGE);
-  if (tab === 1) return await spotify.albums(offset, SP_PAGE);
-  if (tab === 2) return await spotify.likedTracks(offset, SP_PAGE);
-  if (tab === 3) return await spotify.recent();
-  return await spotify.search(q);
-}
-/** The next page of a list, added at its end. */
-function moreSpotify(tab: i32): void {
-  if (!spMore[tab] || spPaging[tab] || spState[tab] !== 'ok') return;
-  spPaging[tab] = true;
-  const at = spLists[tab].length as i32;
-  attempt('Spotify', async (): Promise<void> => {
-    try {
-      const page = await spotifyPageOf(tab, at, '');
-      for (const it of page) spLists[tab].push(it);
-      spMore[tab] = page.length === SP_PAGE;
-    } catch (e) { spMore[tab] = false; toast(e.message); }
-    spPaging[tab] = false; ui.dirty = true;
-  });
-}
-/** Grey shapes where the list will be, and a spinner, while its first page loads. */
-function skeleton(grid: boolean, top: number, bottom: number, W: number): void {
-  const x0 = SIDE + P, w = W - SIDE - P * 2;
-  if (grid) {
-    const cols: i32 = 4, gap = 24, s = (w - gap * (cols - 1)) / cols;
-    for (let i = 0; i < cols * 2; i++) {
-      const x = x0 + (i % cols) * (s + gap), y = top + 8 + Math.floor(i / cols) * (s + 62);
-      if (y > bottom) break;
-      rrect(x, y, s, s, 14, CARD, 255); rrect(x, y + s + 12, s * 0.7, 14, 7, CARD, 255); rrect(x, y + s + 34, s * 0.4, 10, 5, CARD, 255);
-    }
-  } else {
-    for (let i = 0; i < 8; i++) {
-      const y = top + i * 68;
-      if (y + 68 > bottom) break;
-      rrect(x0, y + 10, 48, 48, 6, CARD, 255); rrect(x0 + 64, y + 16, 260 - (i % 3) * 40, 14, 7, CARD, 255); rrect(x0 + 64, y + 40, 160, 10, 5, CARD, 255);
-    }
-  }
-  spinner(SIDE + (W - SIDE) / 2, top + 120, 18);
-}
 function typed(k: string): void {
   const city = page === SETTINGS && citySearch;
   let q = city ? cityQuery : query;
   if (k === 'back') q = q.slice(0, Math.max(0, q.length - 1));
   else if (k === 'enter') {
     typing = false;
-    if (!city && q.trim() !== '') { if (page === RADIOS) searchRadios(); else loadSpotify(4, true); }
+    if (!city && q.trim() !== '' && page === RADIOS) searchRadios();
   } else q += k;
   if (city) { if (q !== cityQuery) searchPlaces(q); cityQuery = q; } else query = q;
+  if (page === SPOTIFY) spPage.setQuery(query);   // it searches once the typing pauses
   ui.dirty = true;
 }
 
@@ -758,7 +743,7 @@ function home(): void { page = NOW; slide = PLAYER; slideX = 0; remember(); }
 function go(k: i32): void {
   page = k; typing = false; volumeOpen = false; contextOpen = false; citySearch = false;
   if (k === RADIOS && radioTab === 1) loadPopular();
-  if (k === SPOTIFY) loadSpotify(spTab, false);
+  if (k === SPOTIFY) spPage.preload();
   if (k === ROOMS) pollRooms();
 }
 
@@ -1134,7 +1119,7 @@ function radiosPage(W: number, H: number): void {
     radioTab = i; typing = i === 2 && query === ''; editRadios = false;
     if (i === 1) loadPopular();
   }, 126);
-  const bottom = H - (typing ? KEYBOARD_H : 0);
+  const bottom = H - (typing && touchKeyboard ? KEYBOARD_H : 0);
   if (radioTab === 0) {
     pill('radio/edit', segX - 150, 34, editRadios ? 'Terminé' : 'Modifier', editRadios ? 0x000000 : TEXT, editRadios ? 0xffffff : FILL, () => { editRadios = !editRadios; }, '', 40);
     stationGrid(mine, 'mine', 100, bottom, W, scrolls[RADIOS], true, 'Ajoute des radios depuis Populaires ou Rechercher');
@@ -1147,38 +1132,8 @@ function radiosPage(W: number, H: number): void {
     if (foundState === 'loading') centered(F.label, SIDE + (W - SIDE) / 2, 230, 'Recherche…', TEXT2);
     else if (foundState !== '' && foundState !== 'ok') centered(F.label, SIDE + (W - SIDE) / 2, 230, foundState, TEXT2);
     else stationGrid(found, 'found', 166, bottom, W, scrolls[RADIOS], false, '');
-    if (typing) keyboard(SIDE, H - KEYBOARD_H, W - SIDE, typed);
+    if (typing && touchKeyboard) keyboard(SIDE, H - KEYBOARD_H, W - SIDE, typed);
   }
-}
-
-function itemRows(list: Item[], top: number, bottom: number, W: number, scroll: Scroll, head: string, more: boolean = false): void {
-  const x0 = SIDE + P, w = W - SIDE - P * 2, rowH = 68;
-  beginScroll(scroll, SIDE, top, W - SIDE, bottom - top);
-  const extra = head !== '' ? 1 : 0;
-  scroll.content = (list.length + extra) * rowH + 24 + (more ? 72 : 0);
-  if (more) spinner(SIDE + (W - SIDE) / 2, top + (list.length + extra) * rowH + 36 - scroll.y, 14);
-  if (head !== '') {
-    const y = top - scroll.y, id = 'rows/head';
-    if (isPressed(id)) rrect(x0 - 10, y, w + 20, rowH, 10, CARD2, 255);
-    rrect(x0, y + 10, 48, 48, 8, ACCENT, 255);
-    glyph('heart', x0 + 12, y + 22, 24, TEXT);
-    drawText(F.bodyB, x0 + 64, y + 22, head, TEXT, 255, 0);
-    const it = new Item(); it.kind = 'liked'; it.name = 'Titres likés';
-    onTap(id, x0, y, w, rowH, () => playSpotify(it));
-  }
-  for (let i = 0; i < list.length; i++) {
-    const it = list[i], y = top + (i + extra) * rowH - scroll.y;
-    if (y > bottom || y + rowH < top) continue;
-    const id = 'rows/' + i;
-    if (isPressed(id)) rrect(x0 - 10, y, w + 20, rowH, 10, CARD2, 255);
-    cover(it.thumb !== '' ? it.thumb : it.art, it.name, x0, y + 10, 48, it.kind === 'artist' ? 24 : 6);
-    label(F.label, x0 + 64, y + 13, it.name, TEXT, w - 200);
-    const kind = it.kind === 'track' ? 'Titre' : it.kind === 'playlist' ? 'Playlist' : it.kind === 'album' ? 'Album' : it.kind === 'artist' ? 'Artiste' : 'Épisode';
-    label(F.small, x0 + 64, y + 38, kind + (it.subtitle !== '' ? ' · ' + it.subtitle : ''), TEXT2, w - 200);
-    if (i < list.length - 1) separator(x0 + 64, y + rowH - 1, w - 64);
-    onTap(id, x0, y, w, rowH, () => playSpotify(it));
-  }
-  endScroll();
 }
 
 /** The Spotify page of a Mac that is not logged in: one button opens the consent page in the browser; the app follows the answer. */
@@ -1199,7 +1154,10 @@ function spotifyConnect(W: number): void {
 }
 
 function spotifyPage(W: number, H: number): void {
-  header('Spotify');
+  if (spotify.ready() && spPage.canGoBack()) {   // a page of the browser: back, and its title
+    iconButton('sp/back', 'chevron-left', SIDE + P + 16, 50, 28, TEXT, () => { spPage.back(); typing = false; }, FILL, 255);
+    label(F.hero, SIDE + P + 52, 30, spPage.title(), TEXT, W - SIDE - P * 2 - 60);
+  } else header('Spotify');
   if (!spotify.ready() && browserHere && spotifyClientId() !== '') { spotifyConnect(W); return; }
   if (!spotify.ready() && browserHere) {   // a build without a client id (src/spotify-client.ts): nothing a person can do from the app
     const x = SIDE + P, w = W - SIDE - P * 2;
@@ -1223,30 +1181,12 @@ function spotifyPage(W: number, H: number): void {
     for (let i = 0; i < lines.length; i++) label(F.small, x + 24, 196 + i * 34, lines[i], i === 0 ? TEXT : TEXT2, w - 48);
     return;
   }
-  const tabs = ['Playlists', 'Albums', 'Titres likés', 'Récents', 'Rechercher'];
-  segmented('sp/tab', W - P - 560, 34, tabs, spTab, (i: i32) => { spTab = i; typing = i === 4 && query === ''; scrolls[SPOTIFY].y = 0; if (i < 4) loadSpotify(i, false); }, 112);
-  const bottom = H - (typing ? KEYBOARD_H : 0);
-  let top = 100;
-  if (spTab === 4) { searchField(SIDE + P, 100, W - SIDE - P * 2, 'Titres, artistes, albums, playlists', query, clearQuery); top = 166; }
-  const st = spState[spTab];
-  if (st === 'loading') skeleton(spTab <= 1, top, bottom, W);
-  else if (st !== '' && st !== 'ok') wrap(F.label, SIDE + P, top + 80, st, TEXT2, W - SIDE - P * 2, 3, 30);   // an error can be long: wrapped, not cut at the edges
-  else if (spTab <= 1) {
-    const list = spLists[spTab], x0 = SIDE + P, w = W - SIDE - P * 2, cols: i32 = 4, gap = 24;
-    const s = (w - gap * (cols - 1)) / cols, rowH = s + 62, sc = scrolls[SPOTIFY];
-    beginScroll(sc, SIDE, top, W - SIDE, bottom - top);
-    sc.content = Math.ceil(list.length / cols) * rowH + 24 + (spMore[spTab] ? 72 : 0);
-    if (spMore[spTab]) spinner(SIDE + (W - SIDE) / 2, top + Math.ceil(list.length / cols) * rowH + 36 - sc.y, 14);
-    for (let i = 0; i < list.length; i++) {
-      const it = list[i], x = x0 + (i % cols) * (s + gap), y = top + 8 + Math.floor(i / cols) * rowH - sc.y;
-      if (y > bottom || y + rowH < top) continue;
-      tile('sp/' + i, x, y, s, it.art, it.name, it.subtitle, false, false, () => playSpotify(it));
-    }
-    endScroll();
-  } else itemRows(spLists[spTab], top, bottom, W, scrolls[SPOTIFY], spTab === 2 ? 'Lire tous les titres likés' : '', spMore[spTab]);
-  const sc = scrolls[SPOTIFY];
-  if (st === 'ok' && sc.y + sc.view > sc.content - 600) moreSpotify(spTab);   // near the end: the next page
-  if (typing) keyboard(SIDE, H - KEYBOARD_H, W - SIDE, typed);
+  const bottom = H - (typing && touchKeyboard ? KEYBOARD_H : 0), x0 = SIDE + P, w = W - SIDE - P * 2;
+  if (spPage.searching()) {
+    searchField(x0, 100, w, 'Titres, artistes, albums, playlists', query, () => { query = ''; spPage.setQuery(''); });
+    spPage.draw(x0, 166, w, bottom, () => {});
+  } else spPage.draw(x0, 100, w, bottom, () => { spPage.open('search', new Item()); query = ''; spPage.setQuery(''); typing = true; });
+  if (typing && touchKeyboard) keyboard(SIDE, H - KEYBOARD_H, W - SIDE, typed);
 }
 
 function roomsPage(W: number, H: number): void {
@@ -1317,7 +1257,7 @@ function roomsPage(W: number, H: number): void {
 function cityPage(W: number, H: number): void {
   header('Ville de la météo');
   pill('city/cancel', W - P - 120, 34, 'Annuler', TEXT, FILL, () => { citySearch = false; typing = false; }, '', 40);
-  const x0 = SIDE + P, w = W - SIDE - P * 2, top = 166, bottom = H - (typing ? KEYBOARD_H : 0), rowH = 66;
+  const x0 = SIDE + P, w = W - SIDE - P * 2, top = 166, bottom = H - (typing && touchKeyboard ? KEYBOARD_H : 0), rowH = 66;
   const places = foundPlaces(), placesState = searchState();
   searchField(x0, 100, w, 'Nom d\'une ville', cityQuery, () => { cityQuery = ''; searchPlaces(''); });
   if (placesState === 'loading' && places.length === 0) spinner(SIDE + (W - SIDE) / 2, top + 60, 16);
@@ -1340,7 +1280,7 @@ function cityPage(W: number, H: number): void {
     onTap(id, x0, y, w, rowH, () => chooseCity(pl));
   }
   endScroll();
-  if (typing) keyboard(SIDE, H - KEYBOARD_H, W - SIDE, typed);
+  if (typing && touchKeyboard) keyboard(SIDE, H - KEYBOARD_H, W - SIDE, typed);
 }
 function chooseCity(pl: Place): void {
   cfg.lat = pl.lat; cfg.lon = pl.lon; cfg.city = pl.name; saveConfig();
@@ -1534,11 +1474,7 @@ async function preload(): Promise<void> {
   preloaded = true;
   await sleep(2000);   // the first frames and the speakers first
   loadPopular();
-  for (let t: i32 = 0; t < 4; t++) {
-    loadSpotify(t, false);
-    while (spState[t] === 'loading') await sleep(200);
-    await sleep(300);
-  }
+  if (spotify.ready()) await spPage.preload();
   while (popularState === 'loading') await sleep(200);
   for (const k of [NOW * 10 + CLOCK, NOW * 10 + WEATHER, NOW * 10 + RINGS_SLIDE, NOW * 10 + NOTIFS, RADIOS * 10, RADIOS * 10 + 1, SPOTIFY * 10, SPOTIFY * 10 + 1, SPOTIFY * 10 + 2, SPOTIFY * 10 + 3, ROOMS * 10, SETTINGS * 10]) warmQueue.push(k);
 }
@@ -1547,22 +1483,22 @@ let warmImg: i32 = -1;
 function warmOne(W: number, H: number): void {
   const k = warmQueue.shift() as i32;
   if (warmImg < 0) warmImg = createImage(W as i32, H as i32);
-  const p = page, rt = radioTab, st = spTab, ty = typing, vo = volumeOpen, co = contextOpen, sx = slideX;
+  const p = page, rt = radioTab, st = spPage.libTab, ty = typing, vo = volumeOpen, co = contextOpen, sx = slideX;
   page = Math.floor(k / 10) as i32;
   if (page === NOW) slideX = k % 10;
   if (page === RADIOS) radioTab = k % 10;
-  if (page === SPOTIFY) spTab = k % 10;
+  if (page === SPOTIFY) spPage.libTab = k % 10;
   typing = false; volumeOpen = false; contextOpen = false;
   beginImage(warmImg); draw(W, H); endImage();
   if (warmQueue.length === 0) { destroyImage(warmImg); warmImg = -1; }   // a screen of pixels and its texture, kept for nothing after
-  page = p; radioTab = rt; spTab = st; typing = ty; volumeOpen = vo; contextOpen = co; slideX = sx;
+  page = p; radioTab = rt; spPage.libTab = st; typing = ty; volumeOpen = vo; contextOpen = co; slideX = sx;
   ui.dirty = true;   // the zones of the page on the screen are made again
 }
 /** Covers and logos of the pages not shown, fetched one at a time while the screen is idle. */
 function prefetchSome(): void {
   const lists: Station[][] = [mine, popular];
   for (const l of lists) for (const st of l) if (!prefetch(st.art)) return;
-  for (let t = 0; t < 4; t++) for (const it of spLists[t]) if (!prefetch(t < 2 ? it.art : it.thumb)) return;
+  for (const u of spPage.covers()) if (!prefetch(u)) return;
 }
 
 // ---------------------------------------------------------------- the loop
@@ -1575,6 +1511,7 @@ onFrame((dt: number) => {
   const W = width(), H = height();
   clockS += dt;
   picturesTick();
+  if (page === SPOTIFY) spPage.tick();   // a search once the typing pauses
   const wasAsleep = screen.asleep;
   input(dt);
   screen.standby = page === NOW && slide === CLOCK;   // StandBy: off after 2 minutes, a glance every 5 (screen.ts)

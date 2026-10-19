@@ -23,6 +23,19 @@ export class Item {
   thumb: string = '';
   /** A track: its album or playlist, to play the track inside it (the next ones follow). */
   context: string = '';
+  /** The first artist's id (a track, an album), to open the artist; '' when none. */
+  artistId: string = '';
+  /** A track: its length; an album: its year. */
+  durationMs: number = 0;
+  year: string = '';
+}
+
+/** What a search finds, 10 of each kind at most (Spotify's limit for an app in development mode). */
+export class Found {
+  tracks: Item[] = [];
+  artists: Item[] = [];
+  albums: Item[] = [];
+  playlists: Item[] = [];
 }
 
 /** A Spotify Connect device. `restricted`: Spotify accepts no command for it (some Sonos speakers). */
@@ -69,9 +82,11 @@ function names(artists: any): string {
   if (artists !== undefined && artists !== null) for (let i = 0; i < artists.length; i++) out.push('' + artists[i].name);
   return out.join(', ');
 }
+function firstArtist(artists: any): string { return artists !== undefined && artists !== null && artists.length > 0 ? '' + artists[0].id : ''; }
 function trackItem(t: any): Item {
   const it = new Item();
-  it.kind = '' + t.type; it.uri = '' + t.uri; it.name = '' + t.name; it.subtitle = names(t.artists);
+  it.kind = '' + t.type; it.uri = '' + t.uri; it.name = '' + t.name; it.subtitle = names(t.artists); it.artistId = firstArtist(t.artists);
+  if (t.duration_ms !== undefined && t.duration_ms !== null) it.durationMs = t.duration_ms as number;
   if (t.album !== undefined && t.album !== null) { it.art = pickArt(t.album.images); it.thumb = pickArt(t.album.images, 64); it.context = '' + t.album.uri; }
   else if (t.images !== undefined) { it.art = pickArt(t.images); it.thumb = pickArt(t.images, 64); }   // an episode
   return it;
@@ -80,8 +95,16 @@ function listItem(p: any): Item {
   const it = new Item();
   it.kind = '' + p.type; it.uri = '' + p.uri; it.name = '' + p.name; it.art = pickArt(p.images); it.thumb = pickArt(p.images, 64);
   if (p.type === 'playlist') it.subtitle = p.owner !== undefined && p.owner !== null ? '' + p.owner.display_name : '';
-  else it.subtitle = names(p.artists);
+  else if (p.type === 'artist') it.subtitle = 'Artiste';
+  else { it.subtitle = names(p.artists); it.artistId = firstArtist(p.artists); }
+  if (p.release_date !== undefined && p.release_date !== null) { const d: string = '' + p.release_date; it.year = d.slice(0, 4); }
   return it;
+}
+function itemsOf(part: any, track: boolean): Item[] {
+  const out: Item[] = [];
+  if (part === undefined || part === null || part.items === undefined || part.items === null) return out;
+  for (let i = 0; i < part.items.length; i++) if (part.items[i] !== null) out.push(track ? trackItem(part.items[i]) : listItem(part.items[i]));
+  return out;
 }
 
 /** One account. `file` holds { client_id, refresh_token } and is rewritten when Spotify rotates the token. */
@@ -202,6 +225,59 @@ export class Spotify {
       if (seen.indexOf(it.uri) >= 0) continue;
       seen.push(it.uri); out.push(it);
     }
+    return out;
+  }
+  /** Each kind of what matches the words, 10 of each (Spotify's limit). */
+  async find(q: string): Promise<Found> {
+    const j = await this.call('GET', `/search?q=${encodeURIComponent(q)}&type=track,artist,album,playlist&limit=10`);
+    const f = new Found();
+    f.tracks = itemsOf(j.tracks, true); f.artists = itemsOf(j.artists, false); f.albums = itemsOf(j.albums, false); f.playlists = itemsOf(j.playlists, false);
+    return f;
+  }
+  /** One kind ('track', 'artist', 'album', 'playlist') of what matches, 10 from `offset`. */
+  async findMore(q: string, kind: string, offset: i32): Promise<Item[]> {
+    const j = await this.call('GET', `/search?q=${encodeURIComponent(q)}&type=${kind}&limit=10&offset=${offset}`);
+    return itemsOf(j[kind + 's'], kind === 'track');
+  }
+  /** An artist (its picture and name), its albums and singles (10 from `offset`, newest first) and its songs: Spotify does not give an app
+   *  in development mode an artist's top tracks, so they are the search of its name's tracks. */
+  async artist(id: string): Promise<Item> { return listItem(await this.call('GET', `/artists/${id}`)); }
+  async artistAlbums(id: string, offset: i32 = 0): Promise<Item[]> {
+    return itemsOf(await this.call('GET', `/artists/${id}/albums?include_groups=album,single&limit=10&offset=${offset}`), false);
+  }
+  async artistTracks(name: string, offset: i32 = 0): Promise<Item[]> {
+    const all = itemsOf((await this.call('GET', `/search?q=${encodeURIComponent('artist:"' + name + '"')}&type=track&limit=10&offset=${offset}`)).tracks, true);
+    const out: Item[] = [], seen: string[] = [];
+    for (const it of all) { const k = it.name.toLowerCase(); if (seen.indexOf(k) < 0) { seen.push(k); out.push(it); } }   // one song once (a single and its album)
+    return out;
+  }
+  /** An album and its tracks (each with the album as its context, the album's covers). */
+  async album(id: string): Promise<Item[]> {
+    const j = await this.call('GET', `/albums/${id}`);
+    const head = listItem(j), out: Item[] = [head];
+    const tr = j.tracks !== undefined && j.tracks !== null ? j.tracks.items : null;
+    if (tr !== null) for (let i = 0; i < tr.length; i++) {
+      const t = trackItem(tr[i]);
+      t.art = head.art; t.thumb = head.thumb; t.context = head.uri;
+      out.push(t);
+    }
+    return out;
+  }
+  /** A playlist (first) and 50 of its tracks from `offset`; only the head for a playlist the account neither owns nor collaborates on
+   *  (Spotify gives an app in development mode no other's items, since February 2026: the speakers still play it whole). */
+  async playlist(id: string, offset: i32 = 0): Promise<Item[]> {
+    const out: Item[] = [];
+    if (offset === 0) out.push(listItem(await this.call('GET', `/playlists/${id}`)));
+    try {
+      const j = await this.call('GET', `/playlists/${id}/items?limit=50&offset=${offset}`);
+      for (let i = 0; i < j.items.length; i++) {
+        const e = j.items[i], t = e.item !== undefined && e.item !== null ? e.item : e.track;
+        if (t === undefined || t === null) continue;
+        const it = trackItem(t);
+        it.context = 'spotify:playlist:' + id;
+        out.push(it);
+      }
+    } catch (e) { if (offset > 0) throw e; }
     return out;
   }
   /** Tracks, playlists, albums and artists matching the words (10 of each, Spotify's limit). */
