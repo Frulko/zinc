@@ -1,4 +1,4 @@
-// The iOS present of the software raster through Metal (ZN-627): the frame is memory the GPU reads as it is (a shared MTLBuffer: Apple GPUs
+// The iOS and macOS (ZN-764) present of the software raster through Metal (ZN-627): the frame is memory the GPU reads as it is (a shared MTLBuffer: Apple GPUs
 // have one memory for CPU and GPU), so the raster's damaged rows reach the screen without a copy on the CPU. Each present is one GPU blit of
 // the buffer into the CAMetalLayer's drawable (a drawable's content is undefined when it is taken, so the whole frame goes in; on the GPU it
 // is a fraction of a millisecond). What it replaces: SDL_Renderer's SDL_UpdateTexture, a staging texture made, filled by the CPU and blitted
@@ -6,7 +6,9 @@
 #import <Metal/Metal.h>
 #import <QuartzCore/CAMetalLayer.h>
 #include <SDL3/SDL.h>
+#include <TargetConditionals.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 static SDL_MetalView view;
 static CAMetalLayer* layer;
@@ -16,7 +18,7 @@ static int fw, fh;
 static id<MTLCommandBuffer> reading;   // the last present: the GPU reads the frame until it completes
 
 /** The window's CAMetalLayer (the window has SDL_WINDOW_METAL): false keeps the SDL_Renderer path. */
-extern "C" bool hal_mtl_open(SDL_Window* w) {
+extern "C" bool hal_mtl_open(SDL_Window* w, bool nearest) {
   id<MTLDevice> dev = MTLCreateSystemDefaultDevice();
   if (!dev || !(view = SDL_Metal_CreateView(w))) return false;
   layer = (__bridge CAMetalLayer*)SDL_Metal_GetLayer(view);
@@ -26,6 +28,13 @@ extern "C" bool hal_mtl_open(SDL_Window* w) {
   layer.framebufferOnly = NO;                     // the drawable is a blit destination
   layer.opaque = YES;                             // the raster leaves the alpha byte at 0
   layer.contentsGravity = kCAGravityResizeAspect; // a fixed surface (a deterministic run) is letterboxed, as SDL's logical presentation did
+  if (nearest) layer.magnificationFilter = kCAFilterNearest;   // ZINC_PIXEL_SCALE=logical: pixel art keeps square pixels
+#if TARGET_OS_OSX
+  // two drawables, not three: each is a buffer of the window's size (13.7 MB for 1180x760 at density 2); the raster's frame is the third.
+  // A frame that misses the display waits for the next one instead of queueing. ZINC_DRAWABLES=3 to compare
+  layer.maximumDrawableCount = 2;
+  if (const char* e = getenv("ZINC_DRAWABLES")) layer.maximumDrawableCount = (NSUInteger)SDL_clamp(atoi(e), 2, 3);
+#endif
   queue = [dev newCommandQueue];
   return queue != nil;
 }

@@ -5,6 +5,7 @@ to take or a check on another target is one line here, not a task. `- ZN-n: what
 The next backlog review turns lines into tasks or deletes them.
 
 ## Engine and tools
+- ZN-764: the macOS window could show the raster with no drawable at all: two IOSurfaces as the layer's contents, drawn in turn (one window buffer less, ~14 MB at 1180x760 density 2, against the frame plus 2 drawables plus the one WindowServer holds today).
 
 - Live resize (owner, 2026-10-16): the frame drawn from the watcher resets the HAL's per-frame input (keys, clicks) that the outer poll had read before AppKit's loop began: a key pressed in the same 8 ms as the mouse-down on the edge is lost. Keep the outer poll's events for the nested frame.
 - Live resize (owner, 2026-10-16): present the frame inside AppKit's resize transaction (a CAMetalLayer with presentsWithTransaction, or the GL layer's display synced to the window's frame) if the hand check shows a one-frame lag or flicker at the moving edge; today the frame is swapped in windowDidResize before AppKit commits.
@@ -524,6 +525,7 @@ The next backlog review turns lines into tasks or deletes them.
 
 
 ## Cross-platform pass
+- ZN-764: the GL window (Linux, Windows) now makes its software rows and their texture only for the splash and frees them when the replay draws: check the splash and a window resize on both, and `tools/window-memory`-like numbers (smem/Task Manager).
 
 - Linux cross builds (owner, 2026-10-17): on the Pi 3B+ rig (`docs/reports/raspberry-pi.md`), the archives of `tools/build-linux`: aarch64 on the 64-bit Raspberry Pi OS and armhf on a 32-bit one (Bullseye, glibc 2.31, and the 64-bit kernel that 32-bit Pi OS boots on a Pi 4): `zinc --version`, `zinc run examples/hero` in a window under the desktop (X11) and on the console (KMS/DRM, `video`, `input`, `tty` groups), the GPU (`ZINC_GL_STATS=1` names V3D or VC4, not llvmpipe), touch, and the first plugin compile on the device (the zig download, zinc:sqlite).
 - Linux cross builds: a Pi Zero or Pi 1 (ARMv6) with the armhf archive: start time, `zinc run --interp` on a UI program, memory (512 MB), and whether ARMv6 is fast enough for `zinc run` or only for programs built with `zinc build --target armhf-linux`; only emulated so far (qemu `-cpu arm1176` on Raspbian Buster).

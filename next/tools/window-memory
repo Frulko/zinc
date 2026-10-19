@@ -1,0 +1,35 @@
+#!/bin/sh
+# window-memory: the physical footprint (what Activity Monitor shows as Memory) of programs with a window, macOS (ZN-764).
+# usage: tools/window-memory [--max MB] [--wait S] <project>...
+# Runs each project with $ZINC (default build/zinc) in the background, reads `footprint` after S seconds (default 8), stops it.
+# Exits 1 when one is above --max. By hand only, never in a tier: the number depends on the screen's density and on the machine's memory
+# pressure (owner, 2026-10-20). Compare renderers with ZINC_RENDERER=gl or ZINC_PRESENT=texture in the environment.
+cd "$(dirname "$0")/.." || exit 2
+ZINC=${ZINC:-build/zinc}
+max=0 wait=8 fail=0
+while [ $# -gt 0 ]; do
+  case $1 in
+    --max) max=$2; shift 2 ;;
+    --wait) wait=$2; shift 2 ;;
+    *) break ;;
+  esac
+done
+[ $# -gt 0 ] || { sed -n '3p' "$0"; exit 2; }
+command -v footprint >/dev/null || { echo "window-memory: needs macOS's footprint"; exit 2; }
+for p in "$@"; do
+  ZINC_BACKGROUND=1 "$ZINC" run "$p" >/dev/null 2>&1 &
+  pid=$!
+  sleep "$wait"
+  kids=$(pgrep -P $pid)
+  bytes=0
+  for q in $pid $kids; do
+    b=$(footprint -f bytes --noCategories $q 2>/dev/null | awk '{ for (i = 1; i < NF; i++) if ($i == "Footprint:") { print $(i + 1); exit } }')
+    bytes=$((bytes + ${b:-0}))
+  done
+  kill $pid $kids 2>/dev/null; wait $pid 2>/dev/null
+  mb=$((bytes / 1048576))
+  [ "$mb" -gt 0 ] || { echo "$p: no window after ${wait} s (did it exit?)"; fail=1; continue; }
+  over=""; [ "$max" -gt 0 ] && [ "$mb" -gt "$max" ] && { over="  above $max MB"; fail=1; }
+  echo "$p: $mb MB$over"
+done
+exit $fail

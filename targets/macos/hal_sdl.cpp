@@ -65,15 +65,18 @@ static bool anw_bgra;         // ask for HAL format 5 (BGRA_8888, the raster's b
 static ANativeWindow* anw;    // our reference to the window's surface (SDL releases its own when the surface goes away)
 static bool anw_locked;       // the CPU is connected to the surface's buffer queue (a lock since the surface came or was let go, window_kind)
 #endif
-#ifdef SDL_PLATFORM_IOS
+#if defined(SDL_PLATFORM_IOS) || defined(SDL_PLATFORM_MACOS)
 // The software raster draws into memory the GPU reads, shown through the window's CAMetalLayer (ZN-627, hal_metal.mm): no SDL_Renderer, no
-// texture upload. ZINC_PRESENT=texture keeps SDL_Renderer.
-extern "C" bool hal_mtl_open(SDL_Window* w);
+// texture upload. ZINC_PRESENT=texture keeps SDL_Renderer. macOS too since ZN-764: the window's default, three surface-sized buffers in all
+// (the frame and two drawables) where the GL replay held nine (216 MB of footprint for a 1180x760 window at density 2, 68 MB here)
+extern "C" bool hal_mtl_open(SDL_Window* w, bool nearest);
 extern "C" uint32_t* hal_mtl_pixels(int w, int h);
 extern "C" void hal_mtl_wait(void);
 extern "C" void hal_mtl_present(void);
 extern "C" void hal_mtl_close(void);
 static bool mtl_on;
+#else
+static const bool mtl_on = false;
 #endif
 
 #ifdef ZN_HAL_GL
@@ -300,9 +303,13 @@ static void alloc_surface() {
   if (gl_on) {   // the software rows (frames without command lists) and the replay follow the surface
     GlCurrent cur;
     free(fb);
+#ifdef ZGL_ES
     fb = (uint32_t*)calloc((size_t)PW * PH, 4);
     glBindTexture(GL_TEXTURE_2D, gl_upload);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, PW, PH, 0, GL_RGBA, GL_UNSIGNED_BYTE, fb);
+#else   // the rows and their texture are made by the first frame of rows alone (the splash) and freed once the replay draws (ZN-764)
+    fb = nullptr;
+#endif
     glr_stale = true;   // the replay follows at the next present: set up once the program's fonts and images are installed
     gl_tex_ok = false;
     return;
@@ -311,7 +318,7 @@ static void alloc_surface() {
 #ifdef __ANDROID__
   if (anw_mode) { free(fb); fb = nullptr; return; }   // made by the first present at this size (anw_present)
 #endif
-#ifdef SDL_PLATFORM_IOS
+#if defined(SDL_PLATFORM_IOS) || defined(SDL_PLATFORM_MACOS)
   if (mtl_on) { fb = hal_mtl_pixels(PW, PH); return; }   // the buffer the GPU reads (hal_metal.mm); not freed here
 #endif
   if (tex) SDL_DestroyTexture(tex);
@@ -515,6 +522,9 @@ void hal_init(const HalConfig* cfg) {
 #ifdef ZGL_ES   // Android: the software raster unless ZINC_RENDERER=gl. On the Nexus 7 2012 (Tegra 3) the GLES 2 replay presents rn-showcase in 89 ms
     // (p50) against 15 ms for the raster uploaded through SDL_Renderer (ZN-622): the replay is not faster there yet
     const bool want_gl = rr && !strcmp(rr, "gl");
+#elif defined(SDL_PLATFORM_MACOS)   // the software raster through Metal unless ZINC_RENDERER=gl (ZN-764, D154): a UI app's memory is its window's
+    // buffers; a simulated device keeps GL, the only path that turns the picture
+    const bool want_gl = rr ? !strcmp(rr, "gl") : getenv("ZINC_SIM_STATE") != nullptr;
 #else
     const bool want_gl = !(rr && !strcmp(rr, "cpu"));
 #endif
@@ -537,8 +547,18 @@ void hal_init(const HalConfig* cfg) {
 #ifdef SDL_PLATFORM_IOS
   if (!(getenv("ZINC_PRESENT") && !strcmp(getenv("ZINC_PRESENT"), "texture"))) {
     if (!(win = SDL_CreateWindow(cfg->title, ww, wh, SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_HIDDEN | SDL_WINDOW_METAL))) hal_panic(SDL_GetError(), "hal_sdl", __LINE__);
-    if (!(mtl_on = hal_mtl_open(win)) && !(ren = SDL_CreateRenderer(win, nullptr))) hal_panic(SDL_GetError(), "hal_sdl", __LINE__);
+    if (!(mtl_on = hal_mtl_open(win, logical_px)) && !(ren = SDL_CreateRenderer(win, nullptr))) hal_panic(SDL_GetError(), "hal_sdl", __LINE__);
   } else
+#endif
+#ifdef SDL_PLATFORM_MACOS
+  // the Metal present (ZN-764) for every window but a transparent one and a display plugin's (both drawn by SDL_Renderer)
+  const bool mtl = !hal_display && !(wcfg_set && wcfg.transparent) && !(getenv("ZINC_PRESENT") && !strcmp(getenv("ZINC_PRESENT"), "texture"));
+  if (mtl && !wcfg_set) {
+    if (!(win = SDL_CreateWindow(cfg->title, ww, wh, SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_HIDDEN | SDL_WINDOW_METAL))) hal_panic(SDL_GetError(), "hal_sdl", __LINE__);
+    if (!(mtl_on = hal_mtl_open(win, logical_px)) && !(ren = SDL_CreateRenderer(win, nullptr))) hal_panic(SDL_GetError(), "hal_sdl", __LINE__);
+  } else
+#else
+  const bool mtl = false;
 #endif
   if (!wcfg_set) {
     if (!SDL_CreateWindowAndRenderer(cfg->title, ww, wh, SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_HIDDEN, &win, &ren))
@@ -554,10 +574,14 @@ void hal_init(const HalConfig* cfg) {
     SDL_SetBooleanProperty(props, SDL_PROP_WINDOW_CREATE_ALWAYS_ON_TOP_BOOLEAN, wcfg.always_on_top != 0);
     SDL_SetBooleanProperty(props, SDL_PROP_WINDOW_CREATE_TRANSPARENT_BOOLEAN, wcfg.transparent != 0);
     SDL_SetBooleanProperty(props, SDL_PROP_WINDOW_CREATE_HIDDEN_BOOLEAN, true);
+    SDL_SetBooleanProperty(props, SDL_PROP_WINDOW_CREATE_METAL_BOOLEAN, mtl);
     if (wcfg.has_position) { SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_X_NUMBER, wcfg.x); SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_Y_NUMBER, wcfg.y); }
     win = SDL_CreateWindowWithProperties(props);
     SDL_DestroyProperties(props);
-    if (!win || !(ren = SDL_CreateRenderer(win, nullptr))) hal_panic(SDL_GetError(), "hal_sdl", __LINE__);
+#if defined(SDL_PLATFORM_MACOS)
+    if (win && mtl) mtl_on = hal_mtl_open(win, logical_px);
+#endif
+    if (!win || (!mtl_on && !(ren = SDL_CreateRenderer(win, nullptr)))) hal_panic(SDL_GetError(), "hal_sdl", __LINE__);
     window_limits(win);
 #ifdef __APPLE__
     if (wcfg.transparent) hal_sdl_transparent_layers(SDL_GetPointerProperty(SDL_GetWindowProperties(win), SDL_PROP_WINDOW_COCOA_WINDOW_POINTER, nullptr));
@@ -593,7 +617,7 @@ void hal_shutdown(void) {
 #ifdef __ANDROID__
   if (anw) ANativeWindow_release(anw);
 #endif
-#ifdef SDL_PLATFORM_IOS
+#if defined(SDL_PLATFORM_IOS) || defined(SDL_PLATFORM_MACOS)
   if (mtl_on) hal_mtl_close();
 #endif
   if (ren) SDL_DestroyRenderer(ren);
@@ -1625,6 +1649,12 @@ static void gl_present(const HalFrame* f) {
     if (!gl_moved(f)) { glr::frame(f, false, gl_tex_ok ? glr::Rect{f->x0, f->y0, f->x1, f->y1} : glr::Rect{0, 0, PW, PH}); gl_mark(PS_RASTER); }
     gl_tex_ok = true;
 #else
+    if (fb) {   // two surface-sized buffers (13.7 MB each for 1180x760 at density 2) the replay never reads. ponytail: a program that alternates
+      // frames of rows and command lists makes them again each time; none does (rows alone are the splash)
+      free(fb); fb = nullptr;
+      glBindTexture(GL_TEXTURE_2D, gl_upload);
+      glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    }
     const int64_t area = damaged ? (int64_t)(f->x1 - f->x0) * (f->y1 - f->y0) : 0;
     if (damaged && gl_moved(f)) {}   // a scroll: the texture's pixels moved, the rest replayed
     else if (dw == PW && dh == PH && !sim_turn && damaged && area * 2 >= (int64_t)PW * PH) {   // straight into the window: no texture, no copy
@@ -1637,7 +1667,13 @@ static void gl_present(const HalFrame* f) {
     else glr::idle();
 #endif
   } else {
-    if (damaged) {
+    if (!fb) {   // the first frame of rows at this size: the whole surface
+      fb = (uint32_t*)calloc((size_t)PW * PH, 4);
+      glBindTexture(GL_TEXTURE_2D, gl_upload);
+      glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, PW, PH, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+      render_rows_parallel(f->render, 0, PH);
+      glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, PW, PH, GL_RGBA, GL_UNSIGNED_BYTE, fb);
+    } else if (damaged) {
       render_rows_parallel(f->render_damage ? f->render_damage : f->render, f->y0, f->y1);   // fb keeps the previous frame
       glBindTexture(GL_TEXTURE_2D, gl_upload);
       glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
@@ -1793,7 +1829,7 @@ static void present_frame(const HalFrame* f) {
 #ifdef __ANDROID__
   if (anw_mode) { anw_present(f); ps_end(); return; }
 #endif
-#ifdef SDL_PLATFORM_IOS
+#if defined(SDL_PLATFORM_IOS) || defined(SDL_PLATFORM_MACOS)
   if (mtl_on) {   // a frame without damage presents nothing: the layer keeps the last one and the display link paces the loop
     if (f->y1 <= f->y0 || f->x1 <= f->x0) return;
     hal_mtl_wait();   // the GPU is still copying the previous frame out of fb: almost never, a blit takes a fraction of a frame

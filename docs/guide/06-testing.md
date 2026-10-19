@@ -135,8 +135,11 @@ What is still not deterministic:
   already (1/60, esp32 1/30), but timers follow the hardware clock.
 - **Pixel density**: frames are rasterized at the window's physical size (`ZINC_SCALE`, Retina × zoom); captures pin
   `ZINC_SCALE=1` so goldens do not depend on the screen.
-- **Window renderer**: on macOS and Linux the window draws the frame's commands with OpenGL when the machine has a GPU (`ZINC_RENDERER=auto`,
-  the default; `gl` forces it, `cpu` keeps the software raster; Mesa's llvmpipe counts as no GPU) and waits for the display between frames
+- **Window renderer**: on macOS the window shows the software raster through Metal, the frame in memory the GPU reads (`ZINC_RENDERER=auto`, the
+  default: three buffers of the window's size where OpenGL held nine, about 80 MB for a 1180x760 window at density 2 instead of 210;
+  `tools/window-memory` measures it; `--simulate` keeps OpenGL, which turns the picture; `ZINC_PRESENT=texture` takes SDL_Renderer). On Linux
+  the window draws the frame's commands with OpenGL when the machine has a GPU (`ZINC_RENDERER=auto`,
+  the default; `gl` forces it, on macOS too, `cpu` keeps the software raster; Mesa's llvmpipe counts as no GPU) and waits for the display between frames
   (`ZINC_VSYNC=0` to measure without it). `ZINC_GL_STATS=1` names the renderer and prints the replay's counters at exit, with the GPU time per frame on macOS (a timer query). Transparent windows and display plugins use the software raster. Captures, goldens and headless
   runs always use the software raster: it is the reference the GL output is compared with (`tests/t1/gl_renderer.sh`).
 
