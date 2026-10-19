@@ -86,6 +86,14 @@ export function beginScroll(s: Scroll, x: number, y: number, w: number, h: numbe
   clip(x, y, w, h);
 }
 export function endScroll(): void { unclip(); }
+/** A mouse wheel or two fingers on a trackpad over a scrolling area, `dy` pixels (+ = up): every area declared with beginScroll takes it,
+ *  nothing to add to a page. False when no area is under the pointer (the page's own swipes get it). */
+export function wheelScroll(px: number, py: number, dy: number): boolean {
+  const z = zoneAt(px, py, false);
+  if (z === null) return false;
+  if (dy !== 0) { const s = z.scroll as Scroll; s.vel = 0; s.y -= dy; s.clamp(); ui.dirty = true; }
+  return true;
+}
 
 // ---------------------------------------------------------------- text
 /** The text cut with an ellipsis to fit the width. */

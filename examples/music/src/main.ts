@@ -1,13 +1,13 @@
 // Musique: a wall remote for Sonos speakers, made for an HP TouchPad on its charger (README.md). What plays, Spotify (zinc:spotify), radios,
 // rooms and groups, volumes; the screen goes off when nobody touches it and a touch wakes it. Drawn with zinc:gfx at 1024x768, a frame
 // only when something changed.
-import { onFrame, width, height, keep, clear, rect, rrect, gradient, setTransform, resetTransform, createImage, destroyImage, beginImage, endImage, drawText, textWidth, fontAscent, pointerX, pointerY, pointerDown, keyCount, keyKind, keyName, KeyKind } from 'zinc:gfx';
+import { onFrame, width, height, keep, clear, rect, rrect, gradient, setTransform, resetTransform, createImage, destroyImage, beginImage, endImage, drawText, textWidth, fontAscent, pointerX, pointerY, pointerDown, wheel, wheelX, scrollDX, scrollDY, keyCount, keyKind, keyName, KeyKind } from 'zinc:gfx';
 import { exists, readText, writeText, appendText, stat } from 'zinc:fs';
 import { udp } from 'zinc:socket';
 import { utf8Decode, device } from 'zinc:sys';
 import { discover, System, Group, Speaker, serviceId, accountOf, playSpotify as sonosSpotify } from 'zinc:sonos';
 import { Spotify, Item, Playback } from 'zinc:spotify';
-import { spinner, tabular, tabularWidth, decodeStats, decodeOne, picturesTick, prefetch, ui, F, BG, CARD, CARD2, FILL, TEXT, TEXT2, TEXT3, ACCENT, GREEN, Scroll, Zone, zoneAt, resetZones, onTap, beginScroll, endScroll, label, centered, wrap, clock, glyph, transport, cover, backdrop, iconButton, pill, segmented, slider, card, separator, cardShadow, isPressed } from './ui';
+import { spinner, tabular, tabularWidth, decodeStats, decodeOne, picturesTick, prefetch, ui, F, BG, CARD, CARD2, FILL, TEXT, TEXT2, TEXT3, ACCENT, GREEN, Scroll, Zone, zoneAt, wheelScroll, resetZones, onTap, beginScroll, endScroll, label, centered, wrap, clock, glyph, transport, cover, backdrop, iconButton, pill, segmented, slider, card, separator, cardShadow, isPressed } from './ui';
 import { Station, loadMine, saveMine, indexOf, directory } from './radios';
 import { keyboard, KEYBOARD_H } from './keyboard';
 import { Screen } from './screen';
@@ -450,6 +450,31 @@ async function listenRemote(): Promise<void> {
 let wasDown = false, swallow = false, moved = false, idleFor = 0;
 let downX = 0, downY = 0, lastY = 0, scrollStart = 0;
 let dragZone: Zone | null = null, tapZone: Zone | null = null, scrolling: Scroll | null = null;
+// a mouse wheel (steps) or two fingers on a trackpad (pixels, scrollDX/DY: macOS sends them apart) do what a finger's swipe does: a list
+// scrolls (ui.ts), the carousel and the clock's faces move one step per gesture (a trackpad's swipe and its momentum come as many small
+// moves; 0.25 s without one ends the gesture). 40 px of a trackpad count as a wheel step, as zinc:ui counts them.
+let wheelY = 0, wheelXs = 0, wheelQuiet = 0, wheelStepped = false;
+
+function wheelInput(dt: number, x: number, y: number): void {
+  const pdx = scrollDX(), pdy = scrollDY();
+  const wy = wheel() + pdy / 40, wx = wheelX() - pdx / 40;
+  if (wy === 0 && wx === 0) { wheelQuiet += dt; if (wheelQuiet > 0.25) { wheelY = 0; wheelXs = 0; wheelStepped = false; } return; }
+  wheelQuiet = 0; idleFor = 0;
+  if (screen.touched() || pointerDown()) return;   // it woke the screen, or a finger already moves things
+  wheelY += wy; wheelXs += wx;
+  const sideways = Math.abs(wheelXs) > Math.abs(wheelY);
+  if (!sideways && wheelScroll(x, y, wheel() * 48 + pdy)) return;
+  if (page !== NOW || volumeOpen || contextOpen || wheelStepped) return;
+  if (sideways && Math.abs(wheelXs) >= 1) {   // + = right: the next slide
+    slide = Math.max(0, Math.min(SLIDES - 1, slide + (wheelXs > 0 ? 1 : -1))) as i32;
+    if (slide === RINGS_SLIDE) tRooms = 99;
+    wheelStepped = true; remember();
+  } else if (!sideways && Math.abs(wheelY) >= 1 && slide === CLOCK && Math.round(slideX) === CLOCK) {   // + = up: the face above
+    face = Math.max(0, Math.min(FACES - 1, face + (wheelY > 0 ? -1 : 1))) as i32;
+    wheelStepped = true; remember();
+  }
+  ui.dirty = true;
+}
 
 function input(dt: number): void {
   const down = pointerDown(), x = pointerX(), y = pointerY();
@@ -515,6 +540,7 @@ function input(dt: number): void {
     dragZone = null; tapZone = null; ui.pressed = ''; ui.dirty = true;
   }
   wasDown = down;
+  wheelInput(dt, x, y);
   if (typing) {   // a desktop's keyboard types too
     for (let i = 0; i < keyCount(); i++) {
       const k = keyKind(i), n = keyName(i);
