@@ -60,7 +60,13 @@ build/zinc new desktop-app ../my-app && cd ../my-app
 ../next/build/zinc dev                        # a window opens; edit, save: it updates and keeps its state
 ```
 
-Or, from a release, nothing to compile: the `zinc` CLI on your `PATH` with one command (`-s -- --atelier` adds the Zinc Atelier app on a Mac):
+Or, from a release, nothing to compile, with [Homebrew](https://brew.sh) on macOS or Linux (`brew upgrade zinc` installs each new release):
+
+```sh
+brew install frulko/zinc/zinc
+```
+
+Without Homebrew, the `zinc` CLI on your `PATH` with one command (`-s -- --atelier` adds the Zinc Atelier app on a Mac):
 
 ```sh
 curl -fsSL https://github.com/zinc-engine/zinc/releases/latest/download/install.sh | sh

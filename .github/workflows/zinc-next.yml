@@ -700,6 +700,23 @@ jobs:
           if [ ${#pre[@]} -gt 0 ]; then   # the beta manifests go on the latest release, where zinc update --channel beta reads them
             latest=$(gh release view --json tagName -q .tagName) && gh release upload "$latest" release/*-beta.manifest --clobber
           fi
+      - name: Homebrew tap
+        # brew install frulko/zinc/zinc: the formula of this release (tools/homebrew-formula) pushed to <owner>/homebrew-zinc with its deploy key; stable tags only
+        if: ${{ !contains(github.ref_name, '-') }}
+        env:
+          HOMEBREW_TAP_KEY: ${{ secrets.HOMEBREW_TAP_KEY }}
+        run: |
+          [ -n "$HOMEBREW_TAP_KEY" ] || { echo "::warning::no HOMEBREW_TAP_KEY secret: the Homebrew formula stays at the previous version"; exit 0; }
+          printf '%s\n' "$HOMEBREW_TAP_KEY" > "$RUNNER_TEMP/tap_key" && chmod 600 "$RUNNER_TEMP/tap_key"
+          export GIT_SSH_COMMAND="ssh -i $RUNNER_TEMP/tap_key -o StrictHostKeyChecking=accept-new"
+          git clone --depth 1 "git@github.com:${GITHUB_REPOSITORY_OWNER}/homebrew-zinc.git" "$RUNNER_TEMP/tap"
+          mkdir -p "$RUNNER_TEMP/tap/Formula"
+          next/tools/homebrew-formula "${GITHUB_REF_NAME#v}" release/SHA256SUMS "$GITHUB_REPOSITORY" > "$RUNNER_TEMP/tap/Formula/zinc.rb"
+          cd "$RUNNER_TEMP/tap"
+          git add Formula/zinc.rb
+          git diff --cached --quiet && exit 0
+          git -c user.name=github-actions -c user.email=github-actions@users.noreply.github.com commit -m "zinc ${GITHUB_REF_NAME#v}"
+          git push
   plugin-mirrors:
     # ZN-335, D37: each plugins/<name> changed on main is split (git subtree, history kept) and pushed to zinc-engine/plugin-<name>
     name: plugin-mirrors

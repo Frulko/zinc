@@ -1,0 +1,52 @@
+#!/bin/sh
+# The Homebrew formula of a release (brew install frulko/zinc/zinc): the zinc CLI archives of that release, by OS and architecture, checked by SHA-256.
+#   tools/homebrew-formula <version> <SHA256SUMS> [owner/repo]   > Formula/zinc.rb
+# The release job runs it on each stable tag and pushes the result to <owner>/homebrew-zinc (secret HOMEBREW_TAP_KEY), so `brew upgrade` follows the releases.
+# An archive missing from SHA256SUMS (the Linux ones are experimental) leaves its platform out of the formula.
+set -eu
+[ $# -ge 2 ] || { sed -n '2,5p' "$0"; exit 2; }
+version=$1 sums=$2 repo=${3:-Frulko/zinc}
+base="https://github.com/$repo/releases/download/v$version"
+sha() { sed -n "s/^\([0-9a-f]\{64\}\)  [*]\{0,1\}zinc-$version-$1.tar.gz\$/\1/p" "$sums"; }
+# block <os> <brew arch> <archive arch>
+block() {
+  s=$(sha "$1-$3")
+  [ -n "$s" ] || return 0
+  printf '    on_%s do\n      url "%s/zinc-%s-%s-%s.tar.gz"\n      sha256 "%s"\n    end\n' "$2" "$base" "$version" "$1" "$3" "$s"
+}
+[ -n "$(sha macos-arm64)$(sha macos-x86_64)" ] || { echo "homebrew-formula: no macOS archive of $version in $sums" >&2; exit 1; }
+cat <<EOF
+# Written by tools/homebrew-formula in $repo on each release: do not edit by hand.
+class Zinc < Formula
+  desc "Strict, typed subset of TypeScript for apps, games and boards"
+  homepage "https://github.com/$repo"
+  version "$version"
+
+  on_macos do
+$(block macos arm arm64)
+$(block macos intel x86_64)
+  end
+
+  on_linux do
+$(block linux arm aarch64)
+$(block linux intel x86_64)
+  end
+
+  def install
+    # the engine finds its files beside bin/zinc (share/zinc, the plugins' libraries): the whole archive goes in libexec
+    libexec.install Dir["*"]
+    bin.install_symlink libexec/"bin/zinc"
+  end
+
+  def caveats
+    <<~TXT
+      Update zinc with: brew upgrade zinc   (zinc update is for the install.sh install)
+      Zinc Atelier, the app: https://github.com/$repo/releases/latest
+    TXT
+  end
+
+  test do
+    assert_match version.to_s, shell_output("#{bin}/zinc --version")
+  end
+end
+EOF

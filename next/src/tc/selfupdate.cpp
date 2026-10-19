@@ -60,6 +60,8 @@ Install installOf() {
   if (app != std::string::npos)
     in.why = "this zinc is the one inside " + exe.substr(0, app + 4) + ": download the new Zinc-Atelier-<version>-macos-<arch>.zip from " + releases() +
              " and put it in place of the app (the zinc CLI installed with install.sh updates itself with zinc update)";
+  else if (exe.find("/Cellar/zinc/") != std::string::npos)   // the formula of tools/homebrew-formula: Homebrew owns the files
+    in.why = "this zinc was installed by Homebrew: update it with  brew upgrade zinc";
   else if (!fs::exists(in.engine / kMarker, ec))
     in.why = "this zinc was not installed by install.sh (it runs from " + in.engine.string() + "): update it the way it was installed (a source build: git pull, then "
              "tools/build zinc; a package manager: its upgrade command), or install the release with  curl -fsSL " + releases() + "/download/install.sh | sh";

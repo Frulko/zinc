@@ -6,7 +6,14 @@ The project commands and the error messages of this walk are run by `next/tests/
 
 ## Install
 
-One command, and nothing to compile: no compiler, no CMake, no Xcode, no administrator password.
+One command, and nothing to compile: no compiler, no CMake, no Xcode, no administrator password. With
+[Homebrew](https://brew.sh), on macOS or Linux:
+
+```sh
+brew install frulko/zinc/zinc
+```
+
+`brew upgrade zinc` installs each new release (`zinc update` sends you there). Without Homebrew:
 
 ```sh
 curl -fsSL https://github.com/zinc-engine/zinc/releases/latest/download/install.sh | sh
@@ -62,7 +69,8 @@ zinc update --rollback   # back to the previous version
 `zinc dev` print one dim line when a newer zinc exists, and `zinc doctor` says whether yours is up to date; the check runs in
 the background and never slows a command. Turn it off with `export ZINC_NO_UPDATE_CHECK=1` (it is already off in CI and
 when the output is not a terminal). Zinc Atelier has Help > Check for Updates…; the app itself is updated by downloading its
-new zip (or `install.sh --atelier` again). A zinc built from the sources updates with `git pull` and `tools/build zinc`.
+new zip (or `install.sh --atelier` again). A zinc built from the sources updates with `git pull` and `tools/build zinc`. A zinc installed with Homebrew updates with
+`brew upgrade zinc`.
 Details: [Updating zinc](07-distribution.md#updating-zinc).
 
 ### From the sources

@@ -51,6 +51,10 @@ refused() {   # refused <manifest> <expected message> <what>
   [ $rc -eq 1 ] && echo "$out" | grep -q "$2" || { echo "$3 is not refused ($rc): $out"; fail=1; }
   unchanged "$3"
 }
+# a zinc of the Homebrew formula (tools/homebrew-formula) points to brew upgrade, even beside an install.sh marker
+H="$tmp/brew/Cellar/zinc/$V/libexec"
+mkdir -p "$H/bin" && cp "$ZINC" "$H/bin/zinc" && cp "$E/.zinc-install" "$H/"
+out=$("$H/bin/zinc" update "file://$tmp/rel/$m.manifest" 2>&1); [ $? -eq 1 ] && echo "$out" | grep -q "brew upgrade zinc" || { echo "a Homebrew zinc is not sent to brew upgrade: $out"; fail=1; }
 manifest "$tmp/rel/badsum.manifest" 99.0.0 "$(printf '%064d' 0)" "$seed"
 refused "$tmp/rel/badsum.manifest" "checksum mismatch" "a wrong checksum"
 manifest "$tmp/rel/badsig.manifest" 99.0.0 "$sum" "$other"

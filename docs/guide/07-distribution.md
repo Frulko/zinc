@@ -484,6 +484,7 @@ The owner's steps, once (Settings > Secrets and variables > Actions):
 | `ZINC_SIGN_IDENTITY` | `Developer ID Application: Name (TEAMID)` |
 | `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD` | the notarization account: Apple ID, team ID, an app-specific password |
 | `ZINC_UPDATE_SEED` | the seed of `zinc update-keygen` that signs the update manifests; its public key is `next/update.pub` |
+| `HOMEBREW_TAP_KEY` | the private half of a write deploy key of `<owner>/homebrew-zinc`: each stable release pushes its formula there (`next/tools/homebrew-formula`), so `brew upgrade zinc` follows; without it the formula stays at the previous version |
 
 The release key, once: `zinc update-keygen` prints `seed=` (the secret above) and `public=`; the public key goes into
 `next/update.pub` (one line, 64 hex digits), committed: a public key is not secret, and a source build then trusts the same key
