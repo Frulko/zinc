@@ -8,6 +8,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-19
+
 ### Added
 - Zinc Atelier for Windows: `Zinc-Atelier-<version>-windows-x86_64.zip` on each release; unzip it and open "Zinc Atelier.exe".
 - The zinc CLI for Linux (x86_64, aarch64, armhf, i686) on each release, updated by `zinc update`; `install.sh --atelier` adds Zinc Atelier to the applications menu.
@@ -262,7 +264,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
   window shows, and a photo appears at once while its PNG is saved in the background.
 - A `truncate` text in a row that shrinks it (a long name beside a badge) ends with "…" at its final width instead of running over its neighbours.
 
-[Unreleased]: https://github.com/Frulko/zinc/compare/v0.2.3...HEAD
+[Unreleased]: https://github.com/Frulko/zinc/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/Frulko/zinc/compare/v0.2.3...v0.3.0
 [0.2.3]: https://github.com/Frulko/zinc/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/Frulko/zinc/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/Frulko/zinc/compare/v0.2.0...v0.2.1
