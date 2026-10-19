@@ -312,7 +312,8 @@ bool write(Conn* c, const std::string& plain) {
   while (off < plain.size()) {
     int rc = mbedtls_ssl_write(&c->ssl, reinterpret_cast<const unsigned char*>(plain.data()) + off, plain.size() - off);
     if (rc > 0) { off += static_cast<size_t>(rc); continue; }
-    if (rc == MBEDTLS_ERR_SSL_WANT_READ || rc == MBEDTLS_ERR_SSL_WANT_WRITE) continue;
+    // a TLS 1.3 NewSessionTicket that read() left pending is processed by this write's handshake step, which reports it like an error
+    if (rc == MBEDTLS_ERR_SSL_WANT_READ || rc == MBEDTLS_ERR_SSL_WANT_WRITE || rc == MBEDTLS_ERR_SSL_RECEIVED_NEW_SESSION_TICKET) continue;
     c->failed = true;
     c->err = describe(c, rc);
     return false;
@@ -323,12 +324,20 @@ bool write(Conn* c, const std::string& plain) {
 State read(Conn* c, std::string& out) {
   if (c->failed) return State::Failed;
   unsigned char buf[16384];
+  bool retried = false;
   for (;;) {
+    const size_t before = c->in.size();
     int rc = mbedtls_ssl_read(&c->ssl, buf, sizeof buf);
-    if (rc > 0) { out.append(reinterpret_cast<char*>(buf), static_cast<size_t>(rc)); continue; }
+    if (rc > 0) { out.append(reinterpret_cast<char*>(buf), static_cast<size_t>(rc)); retried = false; continue; }
     if (rc == 0 || rc == MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY) { c->closed = true; return State::Closed; }
-    if (rc == MBEDTLS_ERR_SSL_RECEIVED_NEW_SESSION_TICKET) continue;   // a TLS 1.3 message of its own: the bytes fed after it are still to read
-    if (rc == MBEDTLS_ERR_SSL_WANT_READ || rc == MBEDTLS_ERR_SSL_WANT_WRITE) return State::Ready;
+    if (rc == MBEDTLS_ERR_SSL_RECEIVED_NEW_SESSION_TICKET) { retried = false; continue; }   // a TLS 1.3 message of its own: the bytes fed after it are still to read
+    if (rc == MBEDTLS_ERR_SSL_WANT_READ || rc == MBEDTLS_ERR_SSL_WANT_WRITE) {
+      // WANT_READ does not always mean "no more bytes": on a TLS 1.3 NewSessionTicket mbedTLS keeps the message, answers WANT_READ and processes it on
+      // the next call, and the records fed behind it (often the server's first reply) would wait for the next bytes from the network (ZN-762).
+      // So read again while the call took bytes and more are fed, and once when the ticket is pending: every retry takes bytes or is the only one.
+      if ((c->in.size() < before && !c->in.empty()) || (!mbedtls_ssl_is_handshake_over(&c->ssl) && !retried)) { retried = true; continue; }
+      return State::Ready;
+    }
     c->failed = true;
     c->err = describe(c, rc);
     return State::Failed;

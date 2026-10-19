@@ -28,13 +28,22 @@ if command -v python3 >/dev/null 2>&1; then
   [ "$out" = "[ 'secure/a=hello over tls' ]" ] || { echo "mqtt over TLS: $out"; exit 1; }
 fi
 
-# wss:// in zinc:socket against a python echo server over TLS: the test CA trusted, then a CA the client does not trust (skips without python3)
-if command -v python3 >/dev/null 2>&1; then
-  port=$(python3 tests/free_ports.py)
-  python3 tests/wss_echo.py "$port" "$tmp/good.pem" "$tmp/good.key" > "$tmp/wss.log" 2>&1 & wpid=$!
-  for _ in 1 2 3 4 5 6 7 8 9 10; do grep -q ready "$tmp/wss.log" 2>/dev/null && break; sleep 0.3; done
-  { ZINC_CA_FILE="$tmp/ca.pem" timeout 30 "$ZINC" run tests/golden/host/wss.ts -- "$port" 2>&1
-    ZINC_CA_FILE="$tmp/stranger.pem" timeout 30 "$ZINC" run tests/golden/host/wss.ts -- "$port" 2>&1; } | sed "s/:$port/:PORT/g" > "$tmp/wss.out"
-  kill "$wpid" 2>/dev/null; wait "$wpid" 2>/dev/null
-  diff -u tests/golden/host/wss.out "$tmp/wss.out" || { echo "wss output differs"; exit 1; }
+# wss:// in zinc:socket against a node echo server over TLS 1.2 and 1.3 (1.3 sends its session tickets close to the first reply, ZN-762): the test CA
+# trusted, then a CA the client does not trust (skips without node)
+if command -v node >/dev/null 2>&1; then
+  for v in TLSv1.2 TLSv1.3; do
+    port=$(python3 tests/free_ports.py 2>/dev/null || echo 18853)
+    node tests/wss_echo.mjs "$port" "$tmp/good.pem" "$tmp/good.key" "$v" > "$tmp/wss.log" 2>&1 & wpid=$!
+    for _ in $(seq 30); do grep -q ready "$tmp/wss.log" 2>/dev/null && break; sleep 0.3; done
+    { ZINC_CA_FILE="$tmp/ca.pem" timeout 30 "$ZINC" run tests/golden/host/wss.ts -- "$port" 2>&1
+      ZINC_CA_FILE="$tmp/stranger.pem" timeout 30 "$ZINC" run tests/golden/host/wss.ts -- "$port" 2>&1; } | sed "s/:$port/:PORT/g" > "$tmp/wss.out"
+    kill "$wpid" 2>/dev/null; wait "$wpid" 2>/dev/null
+    sed "s/VERSION/$v/" tests/golden/host/wss.out | diff -u - "$tmp/wss.out" || { echo "wss over $v differs"; exit 1; }
+    port=$(python3 tests/free_ports.py 2>/dev/null || echo 18854)
+    node tests/wss_echo.mjs "$port" "$tmp/good.pem" "$tmp/good.key" "$v" first > "$tmp/first.log" 2>&1 & wpid=$!
+    for _ in $(seq 30); do grep -q ready "$tmp/first.log" 2>/dev/null && break; sleep 0.3; done
+    out=$(ZINC_REALTIME=1 ZINC_CA_FILE="$tmp/ca.pem" timeout 10 "$ZINC" run tests/golden/host/tls_first.ts -- "$port" 2>&1)
+    kill "$wpid" 2>/dev/null; wait "$wpid" 2>/dev/null
+    [ "$out" = "got server first over $v" ] || { echo "server-first line over $v: $out"; exit 1; }
+  done
 fi
