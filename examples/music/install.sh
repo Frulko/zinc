@@ -18,9 +18,10 @@ ZINC_DISPLAY= ZINC_NATIVE=real "$ZINC" build --target armv7-webos "$here/src/mai
 rm -f "$work/music.components"
 [ -z "$strip" ] || "$strip" "$work/music"
 sips -z 64 64 "$here/icon.png" --out "$work/icon64.png" > /dev/null
+version=$(sed -n 's/^ *"version": *"\([^"]*\)".*/\1/p' "$here/zinc.json" | head -1)   # the app's version, zinc.json app.version
 # requiredMemory: the MB webOS's MemoryMonitor allows a native card (64 warned at 111 for Musique, 2026-10-15: a GL program with its
 # images and buffers)
-printf '{\n\t"title": "Musique",\n\t"type": "pdk",\n\t"main": "music",\n\t"id": "%s",\n\t"version": "1.0.0",\n\t"vendor": "Zinc",\n\t"icon": "icon64.png",\n\t"requiredMemory": 160\n}\n' "$ID" > "$work/appinfo.json"
+printf '{\n\t"title": "Musique",\n\t"type": "pdk",\n\t"main": "music",\n\t"id": "%s",\n\t"version": "%s",\n\t"vendor": "Zinc",\n\t"icon": "icon64.png",\n\t"requiredMemory": 160\n}\n' "$ID" "$version" > "$work/appinfo.json"
 
 echo "install: copying to $APP" >&2
 remote "killall music 2>/dev/null; sleep 1; killall -9 music 2>/dev/null; mkdir -p $APP && chmod 777 $APP"   # the program writes its settings there
