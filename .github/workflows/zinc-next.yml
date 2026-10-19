@@ -346,7 +346,7 @@ jobs:
       - name: Unpack the build
         run: tar xzf build.tgz && rm build.tgz && ls build/zinc
       - name: Dependencies (macOS)
-        run: brew install cmake sdl3 coreutils quickjs pixman libgcrypt sdl2 ccache llvm
+        run: brew install cmake sdl3 coreutils quickjs pixman libgcrypt sdl2 ccache llvm lld   # lld: tools/fuzz links with it (the runner's ld refuses newer LLVM objects)
       - name: Fuzz
         env:
           ZINC_CI: '1'
@@ -595,7 +595,7 @@ jobs:
     # ZN-329: on a v* tag, the downloads of every OS job (the zinc CLI archive, the Zinc Atelier app on macOS; signed for macOS when the secrets exist)
     # and their update manifests on a GitHub Release
     name: release
-    needs: [package, package-windows, test]   # the test shards too: the CI runs only on a release (owner, 2026-10-19), so a FAIL keeps it from being published
+    needs: [package, package-windows, linux-cross, test]   # the test shards too: the CI runs only on a release (owner, 2026-10-19), so a FAIL keeps it from being published
     if: ${{ !cancelled() && needs.package.result == 'success' && startsWith(github.ref, 'refs/tags/v') }}   # the Windows package is experimental: released when it built
     runs-on: ubuntu-24.04
     permissions:
@@ -617,6 +617,12 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           pattern: package-*
+          path: release
+          merge-multiple: true
+      - uses: actions/download-artifact@v4
+        # the Linux CLI archives of linux-cross (zinc-<version>-linux-<arch>.tar.gz); experimental: released when they built
+        with:
+          pattern: linux-*
           path: release
           merge-multiple: true
       - name: plugins.lock (ZN-335)
@@ -642,6 +648,7 @@ jobs:
           notes="Zinc ${GITHUB_REF_NAME}${nl}${nl}${changelog:+$changelog$nl$nl}## Downloads${nl}${nl}Install the zinc CLI: \`curl -fsSL https://github.com/${GH_REPO}/releases/latest/download/install.sh | sh\` (add \`-s -- --atelier\` for the app too).${nl}${nl}"
           notes="$notes- \`zinc-<version>-macos-<arch>.tar.gz\`: the zinc CLI (bin/zinc, the standard library, templates, plugins with their native libraries); unpack anywhere and link bin/zinc onto your PATH.${nl}"
           notes="$notes- \`Zinc-Atelier-<version>-macos-<arch>.zip\`: the Zinc Atelier app, the engine inside; unzip and drag it to Applications.${nl}"
+          if ls release/zinc-*-linux-*.tar.gz >/dev/null 2>&1; then notes="$notes- \`zinc-<version>-linux-<arch>.tar.gz\`: the zinc CLI for Linux (x86_64, aarch64, armhf, i686; glibc 2.28 or later), the same layout as macOS; \`install.sh\` picks it. Zinc Atelier is not packaged for Linux yet: \`zinc run \"\$(zinc --root)/app/atelier/main.tsx\"\`.${nl}"; fi
           if ls release/zinc-*-windows-*.zip >/dev/null 2>&1; then notes="$notes- \`zinc-<version>-windows-x86_64.zip\`: the zinc CLI for Windows 10/11 (bin\\zinc.exe, the standard library, templates); install it with \`irm https://github.com/${GH_REPO}/releases/latest/download/install.ps1 | iex\` in PowerShell. Not signed yet: SmartScreen may ask you to confirm.${nl}"; fi
           notes="$notes- \`install.sh\`, \`SHA256SUMS\`: the installer and the checksums it checks; \`zinc-<os>-<arch>[-beta].manifest\`: what \`zinc update\` reads (stable and beta channels); \`plugins.lock\`: the plugin mirrors.${nl}"
           if [ ! -f release/.signed ]; then notes="$notes${nl}The macOS downloads are not signed or notarized (no signing secrets): right-click > Open on the app the first time."; echo "::warning::releasing unsigned macOS downloads"; fi

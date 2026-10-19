@@ -5,12 +5,18 @@
 cd "$(dirname "$0")/.." || exit 2
 target=${1:-all}; secs=${2:-60}; [ $# -gt 2 ] && { shift 2; [ "$1" = "--" ] && shift; extra="$*"; }
 LLVM=${LLVM:-$(brew --prefix llvm 2>/dev/null)}
+link=
 if [ -x "$LLVM/bin/clang++" ]; then cc="$LLVM/bin/clang"; cxx="$LLVM/bin/clang++"; libfuzzer=
+  # Homebrew's clang is newer than the Xcode of a CI runner, whose ld refuses its objects ("invalid r_symbolnum"): LLVM's archiver and,
+  # when installed (brew install lld), LLVM's linker
+  link="-DCMAKE_AR=$LLVM/bin/llvm-ar -DCMAKE_RANLIB=$LLVM/bin/llvm-ranlib"
+  lld=$(brew --prefix lld 2>/dev/null)/bin/ld64.lld
+  [ -x "$lld" ] && link="$link -DCMAKE_EXE_LINKER_FLAGS=--ld-path=$lld -DCMAKE_SHARED_LINKER_FLAGS=--ld-path=$lld"
 elif [ "$(uname)" = Darwin ]; then cc=clang; cxx=clang++; libfuzzer=$(tools/libfuzzer) || exit 2   # Apple's clang and a libFuzzer built from compiler-rt
 else echo "tools/fuzz: needs a clang with libFuzzer (brew install llvm, or set LLVM=<prefix>)"; exit 2
 fi
 if [ ! -f build-fuzz/CMakeCache.txt ]; then
-  cmake -S . -B build-fuzz -DCMAKE_C_COMPILER="$cc" -DCMAKE_CXX_COMPILER="$cxx" -DZN_LIBFUZZER="$libfuzzer" -DZN_SANITIZE=ON -DZN_FUZZ=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo >/dev/null || exit 2
+  cmake -S . -B build-fuzz -DCMAKE_C_COMPILER="$cc" -DCMAKE_CXX_COMPILER="$cxx" -DZN_LIBFUZZER="$libfuzzer" -DZN_SANITIZE=ON -DZN_FUZZ=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo $link >/dev/null || exit 2
 fi
 list=$target; [ "$target" = all ] && list="parse check zbc native zpk"
 BUILD_DIR="$PWD/build-fuzz" tools/build $(for t in $list; do printf 'fuzz_%s ' $t; done) >/dev/null || { echo "tools/fuzz: the fuzz targets do not build"; exit 2; }
