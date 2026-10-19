@@ -162,6 +162,11 @@ std::string homeDir() {
   if (const char* h = std::getenv("HOME"); h && *h) return h;
   return "";
 }
+std::string exePath() {
+  char buf[MAX_PATH];
+  const DWORD n = GetModuleFileNameA(nullptr, buf, MAX_PATH);
+  return n > 0 && n < MAX_PATH ? std::string(buf, n) : std::string();
+}
 std::string shellPath() {
   if (const char* p = std::getenv("PATH"); p && *p) {
     std::string seg;
@@ -283,6 +288,7 @@ std::string homeDir() {
   const char* h = std::getenv("HOME");
   return h ? h : "";
 }
+std::string exePath() { return ""; }
 std::string shellPath() { return "/bin/sh"; }
 bool isTerminal(int fd) { return ::isatty(fd) != 0; }
 bool fileStamp(const std::string& path, long long& size, long long& mtimeNs) {

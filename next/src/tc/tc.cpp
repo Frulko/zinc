@@ -368,7 +368,15 @@ static bool fetchTool(const char* what, const Pin& pin, const std::string& url, 
   fs::path tmp = dir.parent_path() / (std::string("extract-") + dir.filename().string());
   fs::remove_all(tmp, ec);
   fs::create_directories(tmp, ec);
+#ifdef _WIN32
+  // Windows' own tar (bsdtar, Windows 10 1803 and later) reads a .zip and D:\ paths; the GNU tar of Git's sh, which run() would reach, reads no
+  // zip and takes "D:" for a remote host ("Cannot connect to D: resolve failed")
+  const char* sysRoot = std::getenv("SystemRoot");
+  const std::string tarExe = std::string(sysRoot && *sysRoot ? sysRoot : "C:\\Windows") + "\\System32\\tar.exe";
+  if (zn::plat::run({tarExe, "-xf", archive.string(), "-C", tmp.string()}) != 0) { err = "unpacking failed: " + tarExe + " -xf " + archive.string(); fs::remove_all(tmp, ec); return false; }
+#else
   if (!run("tar -xf " + quote(archive.string()) + " -C " + quote(tmp.string()), err, "unpacking")) { fs::remove_all(tmp, ec); return false; }
+#endif
   fs::path inner;
   for (auto& e : fs::directory_iterator(tmp)) inner = e.path();
   if (inner.empty() || !fs::exists(inner / marker)) { err = std::string("the archive has no ") + marker; fs::remove_all(tmp, ec); return false; }
@@ -708,6 +716,8 @@ std::string executablePath() {
     std::error_code ec;
     fs::path p = fs::canonical(buf, ec);
     return ec ? std::string(buf) : p.string();
+#elif defined(_WIN32)
+    return zn::plat::exePath();   // no /proc: without it the package around zinc.exe was never found (sourceRoot fell back to the checkout's path)
 #else
     std::error_code ec;
     fs::path p = fs::read_symlink("/proc/self/exe", ec);

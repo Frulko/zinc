@@ -13,6 +13,7 @@ std::string homeDir();                                     // $HOME; %USERPROFIL
 /** The POSIX shell that runs the toolchain's shell lines (`'...'` quoting, /dev/null, pipes, `command -v`): Git for
  *  Windows' sh.exe on Windows, /bin/sh elsewhere; "" when the machine has none. The lines keep one spelling on both. */
 std::string shellPath();
+std::string exePath();                                      // this program's file on Windows (GetModuleFileName); "" elsewhere: tc::executablePath reads /proc or dyld
 bool isTerminal(int fd);                                   // isatty
 /** Size and modification time (ns since the epoch) of a file: the stamps of the caches. False when it cannot be read. */
 bool fileStamp(const std::string& path, long long& size, long long& mtimeNs);
