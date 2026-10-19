@@ -28,6 +28,7 @@ import {
   selectActiveSonosGroup,
   navigateToPage,
   runSafeNetworkAction,
+  skipGroupTrack,
   sleepMilliseconds,
 } from '../state';
 
@@ -94,7 +95,7 @@ export class ContextSheetNode extends DisplayObject {
         rowY + 14,
         group.name(),
         isSelectedGroup ? COLOR_ACCENT : COLOR_TEXT_PRIMARY,
-        sheetWidth - 220
+        sheetWidth - 330
       );
 
       const trackLine =
@@ -115,17 +116,39 @@ export class ContextSheetNode extends DisplayObject {
         rowY + 44,
         statePrefix + trackLine,
         COLOR_TEXT_SECONDARY,
-        sheetWidth - 220
+        sheetWidth - 330
       );
 
-      registerTapZone(rowZoneId, sheetX + 12, rowY, sheetWidth - 110, rowHeight - 8, () => {
+      registerTapZone(rowZoneId, sheetX + 12, rowY, sheetWidth - 230, rowHeight - 8, () => {
         selectActiveSonosGroup(capturedGroup);
         appState.isContextSheetOpen = false;
         appState.currentPage = PAGE_NOW_PLAYING;
       });
 
-      const playButtonCenterX = sheetX + sheetWidth - 60;
+      const playButtonCenterX = sheetX + sheetWidth - 120;
       const playButtonCenterY = rowY + 42;
+      const previousZoneId = 'ctx/b/' + group.id;
+      const nextZoneId = 'ctx/n/' + group.id;
+      drawTransportIcon(
+        'prev',
+        playButtonCenterX - 60,
+        playButtonCenterY,
+        20,
+        isZonePressed(previousZoneId) ? COLOR_TEXT_SECONDARY : COLOR_TEXT_PRIMARY
+      );
+      registerTapZone(previousZoneId, playButtonCenterX - 88, playButtonCenterY - 30, 56, 60, () =>
+        skipGroupTrack(capturedGroup, -1)
+      );
+      drawTransportIcon(
+        'next',
+        playButtonCenterX + 60,
+        playButtonCenterY,
+        20,
+        isZonePressed(nextZoneId) ? COLOR_TEXT_SECONDARY : COLOR_TEXT_PRIMARY
+      );
+      registerTapZone(nextZoneId, playButtonCenterX + 32, playButtonCenterY - 30, 56, 60, () =>
+        skipGroupTrack(capturedGroup, 1)
+      );
       const playZoneId = 'ctx/p/' + group.id;
       rrect(
         playButtonCenterX - 26,

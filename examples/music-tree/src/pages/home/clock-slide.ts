@@ -46,6 +46,7 @@ import {
 } from './clock-faces';
 import {
   appState,
+  executeGroupCommand,
   getGroupArtworkUrl,
   lavaHintGsapTarget,
   lavaHintTimeline,
@@ -71,8 +72,8 @@ function drawDateBlock(x: number, y: number, maxWidth: number): void {
 }
 
 /**
- * Dessine la carte compacte du morceau en cours de lecture sur les cadrans d'horloge.
- * Un appui sur la carte ramène au lecteur ; le bouton rond met en pause ou reprend.
+ * What plays, as a card on the clock faces: a tap opens the player; previous, play or pause and next on the right,
+ * or on a second row when the card is narrow (the column beside the analog and rings faces).
  */
 function drawCompactNowPlayingCard(x: number, y: number, width: number): void {
   if (appState.activeGroup === null) return;
@@ -80,7 +81,10 @@ function drawCompactNowPlayingCard(x: number, y: number, width: number): void {
   const track = group.track;
   if (track.title === '' && track.station === '') return;
 
-  rrect(x, y, width, 92, 18, 0xffffff, isZonePressed('clock/now') ? 40 : 22);
+  const isNarrow = width < 440;
+  const cardHeight = isNarrow ? 156 : 92;
+  const textWidth = isNarrow ? width - 106 : width - 290;
+  rrect(x, y, width, cardHeight, 18, 0xffffff, isZonePressed('clock/now') ? 40 : 22);
   drawCoverArt(
     getGroupArtworkUrl(group),
     track.title !== '' ? track.title : track.station,
@@ -96,7 +100,7 @@ function drawCompactNowPlayingCard(x: number, y: number, width: number): void {
     y + 22,
     track.title !== '' ? track.title : track.station,
     COLOR_TEXT_PRIMARY,
-    width - 170
+    textWidth
   );
   drawLabel(
     Fonts.small,
@@ -104,15 +108,25 @@ function drawCompactNowPlayingCard(x: number, y: number, width: number): void {
     y + 48,
     track.artist !== '' ? track.artist : group.name(),
     COLOR_TEXT_SECONDARY,
-    width - 170
+    textWidth
   );
-  registerTapZone('clock/now', x, y, width - 70, 92, () => {
+  registerTapZone('clock/now', x, y, isNarrow ? width : width - 190, isNarrow ? 92 : cardHeight, () => {
     appState.targetSlideIndex = SLIDE_PLAYER;
     saveCarouselAndClockPreferences();
   });
 
-  const playButtonX = x + width - 42;
-  const playButtonY = y + 46;
+  const playButtonX = isNarrow ? x + width / 2 : x + width - 98;
+  const playButtonY = isNarrow ? y + 118 : y + 46;
+  drawTransportIcon(
+    'prev',
+    playButtonX - 60,
+    playButtonY,
+    20,
+    isZonePressed('clock/prev') ? COLOR_TEXT_SECONDARY : COLOR_TEXT_PRIMARY
+  );
+  registerTapZone('clock/prev', playButtonX - 88, playButtonY - 30, 56, 60, () =>
+    executeGroupCommand('Précédent', (system, targetGroup) => system.previous(targetGroup))
+  );
   rrect(
     playButtonX - 24,
     playButtonY - 24,
@@ -130,6 +144,16 @@ function drawCompactNowPlayingCard(x: number, y: number, width: number): void {
     0x000000
   );
   registerTapZone('clock/play', playButtonX - 30, playButtonY - 30, 60, 60, togglePlayPause);
+  drawTransportIcon(
+    'next',
+    playButtonX + 60,
+    playButtonY,
+    20,
+    isZonePressed('clock/next') ? COLOR_TEXT_SECONDARY : COLOR_TEXT_PRIMARY
+  );
+  registerTapZone('clock/next', playButtonX + 32, playButtonY - 30, 56, 60, () =>
+    executeGroupCommand('Suivant', (system, targetGroup) => system.next(targetGroup))
+  );
 }
 
 /**

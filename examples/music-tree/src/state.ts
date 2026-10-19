@@ -547,6 +547,21 @@ export function executeGroupCommand(
   });
 }
 
+/** Plays the previous (`direction` -1) or next (+1) track of any group, then reads that group back. */
+export function skipGroupTrack(group: Group, direction: i32): void {
+  if (appState.sonosSystem === null) return;
+  const system = appState.sonosSystem as System;
+  runSafeNetworkAction(direction < 0 ? 'Précédent' : 'Suivant', async (): Promise<void> => {
+    if (direction < 0) {
+      await system.previous(group);
+    } else {
+      await system.next(group);
+    }
+    await sleepMilliseconds(400);
+    await system.update(group);
+  });
+}
+
 export function togglePlayPause(): void {
   if (appState.activeGroup === null) return;
   const group = appState.activeGroup as Group;
