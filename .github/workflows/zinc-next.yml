@@ -444,6 +444,8 @@ jobs:
           mkdir smoke && cd smoke && python -m zipfile -e ../next/dist/zinc-*-windows-*.zip . && cd zinc-*
           unset ZINC_ROOT; export ZINC_HOME="$RUNNER_TEMP/zinc-home" ZINC_BACKGROUND=1 ZINC_HEADLESS=1
           ./bin/zinc.exe --version
+          root=$(./bin/zinc.exe --root | tr -d '\r')   # the package around zinc.exe, not the checkout's path compiled in (on a user's machine that path does not exist)
+          case "$root" in *smoke*) ;; *) echo "::error::zinc.exe does not find the package around it: its root is $root"; exit 1 ;; esac
           ./bin/zinc.exe doctor
           printf 'console.log(6 * 7);\n' > "$RUNNER_TEMP/answer.ts"
           [ "$(./bin/zinc.exe run "$RUNNER_TEMP/answer.ts" | tr -d '\r' | tail -1)" = 42 ]
