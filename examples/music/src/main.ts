@@ -93,7 +93,7 @@ let spLogin: Login | null = null;
  *  under User Management on developer.spotify.com). */
 function spotifyWhy(m: string): string {
   return m.indexOf(': 403') >= 0 || m.endsWith(' 403') || m.indexOf('Forbidden') >= 0 || m.indexOf('not be registered') >= 0
-    ? 'ce compte Spotify n\'est pas autorisé dans l\'app : demande à son propriétaire de l\'ajouter (User Management)' : m;
+    ? 'Spotify refuse ce compte : le propriétaire de l\'app Spotify doit l\'ajouter dans developer.spotify.com, User Management (avec l\'e-mail du compte), puis se déconnecter et se reconnecter dans les réglages.' : m;
 }
 /** The client id to log in with: the login file's (an earlier login), else the one built into the app. */
 function spotifyClientId(): string { return spotify.clientId !== '' ? spotify.clientId : SPOTIFY_CLIENT_ID; }
@@ -1126,7 +1126,7 @@ function spotifyPage(W: number, H: number): void {
   if (spTab === 4) { searchField(SIDE + P, 100, W - SIDE - P * 2, 'Titres, artistes, albums, playlists', query, clearQuery); top = 166; }
   const st = spState[spTab];
   if (st === 'loading') skeleton(spTab <= 1, top, bottom, W);
-  else if (st !== '' && st !== 'ok') centered(F.label, SIDE + (W - SIDE) / 2, top + 100, st, TEXT2);
+  else if (st !== '' && st !== 'ok') wrap(F.label, SIDE + P, top + 80, st, TEXT2, W - SIDE - P * 2, 3, 30);   // an error can be long: wrapped, not cut at the edges
   else if (spTab <= 1) {
     const list = spLists[spTab], x0 = SIDE + P, w = W - SIDE - P * 2, cols: i32 = 4, gap = 24;
     const s = (w - gap * (cols - 1)) / cols, rowH = s + 62, sc = scrolls[SPOTIFY];
