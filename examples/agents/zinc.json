@@ -1,0 +1,16 @@
+{
+  "name": "agents",
+  "entry": "src/main.tsx",
+  "app": {
+    "name": "Agents",
+    "id": "dev.zinc.agents",
+    "version": "0.1.0"
+  },
+  "targets": {
+    "macos": { "width": 1180, "height": 760, "resize": "fill" },
+    "linux": { "width": 1180, "height": 760, "resize": "fill" }
+  },
+  "requires": ["keyboard", "pointer", "fs"],
+  "permissions": ["fs", "process"],
+  "icons": ["folder", "file-text", "lock", "send", "square"]
+}
