@@ -10,7 +10,6 @@ import {
   COLOR_FILL,
   COLOR_TEXT_PRIMARY,
   COLOR_TEXT_SECONDARY,
-  KEYBOARD_HEIGHT,
   PAGE_PADDING,
   PAGE_SETTINGS,
 } from '../../constants';
@@ -29,7 +28,7 @@ import {
   drawSeparatorLine,
 } from '../../components/primitives';
 import { drawActivitySpinner } from '../../components/slider';
-import { VirtualKeyboardNode } from '../../components/keyboard';
+import { VirtualKeyboardNode, getTouchKeyboardHeight } from '../../components/keyboard';
 import {
   PageHeaderBarNode,
   PillButtonNode,
@@ -101,7 +100,7 @@ export class CitySearchSubpageNode extends DisplayObject {
     const contentStartX = sidebarWidth + PAGE_PADDING;
     const contentWidth = viewWidth - sidebarWidth - PAGE_PADDING * 2;
     const listTopY = 166;
-    const listBottomY = viewHeight - (appState.isKeyboardVisible ? KEYBOARD_HEIGHT : 0);
+    const listBottomY = viewHeight - getTouchKeyboardHeight();
     const placeRowHeight = 66;
 
     const matchingPlaces = getFoundPlaces();

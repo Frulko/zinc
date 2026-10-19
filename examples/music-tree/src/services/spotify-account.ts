@@ -11,16 +11,15 @@ import { Login, sharedLoginFile } from 'zinc:spotify';
 import { openUrl } from 'zinc:system/opener';
 import { exists } from 'zinc:fs';
 import { platform } from 'zinc:sys';
-import { PAGE_SPOTIFY } from '../constants';
 import { uiState } from '../core/input';
 import { SPOTIFY_CLIENT_ID } from '../spotify-client';
 import {
   appState,
   explainSpotifyError,
   formatPlural,
-  loadSpotifyTab,
   showToast,
 } from '../state';
+import { spotifyCatalog } from './spotify-catalog';
 
 const LOGOUT_CONFIRM_SECONDS = 4;
 
@@ -67,7 +66,7 @@ export function cancelSpotifyLogin(): void {
 
 function forgetSpotifyLists(): void {
   appState.spotifyUserName = '';
-  appState.spotifyTabStates = ['', '', '', '', ''];
+  spotifyCatalog.reset();
 }
 
 let lastSeenLoginStatus = '';
@@ -83,9 +82,7 @@ export function tickSpotifyAccount(deltaSeconds: number): void {
     spotifyLogin = null;
     appState.spotifyClient.reload();
     forgetSpotifyLists();
-    if (appState.currentPage === PAGE_SPOTIFY && appState.activeSpotifyTab < 4) {
-      loadSpotifyTab(appState.activeSpotifyTab, true);
-    }
+    spotifyCatalog.preload();
   }
   if (spotifyLogoutConfirmSeconds > 0) {
     spotifyLogoutConfirmSeconds -= deltaSeconds;

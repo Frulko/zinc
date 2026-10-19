@@ -15,7 +15,6 @@ import {
   COLOR_TEXT_SECONDARY,
   GRID_COLUMNS,
   GRID_GAP,
-  KEYBOARD_HEIGHT,
   PAGE_PADDING,
   PAGE_RADIOS,
 } from '../../constants';
@@ -32,7 +31,7 @@ import {
   drawGlyph,
 } from '../../components/primitives';
 import { drawMediaTile } from '../../components/cover';
-import { VirtualKeyboardNode } from '../../components/keyboard';
+import { VirtualKeyboardNode, getTouchKeyboardHeight } from '../../components/keyboard';
 import {
   PageHeaderBarNode,
   PillButtonNode,
@@ -141,7 +140,7 @@ export class RadiosPageNode extends DisplayObject {
   override onDraw(viewWidth: number, viewHeight: number): void {
     const sidebarWidth = appState.sidebarWidth;
     const contentBottomY =
-      viewHeight - (appState.isKeyboardVisible ? KEYBOARD_HEIGHT : 0);
+      viewHeight - getTouchKeyboardHeight();
     const radiosScrollBox = appState.pageScrollBoxes[PAGE_RADIOS];
 
     if (appState.activeRadioTab === 0) {

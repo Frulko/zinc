@@ -43,7 +43,8 @@ src/
 │   ├── remote-udp.ts                # Commandes physiques UDP sur le port 7777
 │   ├── weather-service.ts           # Prévisions Open-Meteo et géocodage des villes
 │   ├── spotify-account.ts           # Compte Spotify : connexion depuis un Mac, vérification, déconnexion
-│   ├── spotify-on-sonos.ts          # Spotify sur les enceintes : lecture, « Reprendre ici », la file qui continue
+│   ├── spotify-on-sonos.ts          # Spotify sur les enceintes : lecture, « Reprendre ici », file d'attente, radios
+│   ├── spotify-catalog.ts           # Les réponses de l'API Spotify gardées par clé, pages suivantes, recherche après la frappe
 │   └── notify-service.ts            # Relais de notifications macOS (zinc:link) et cache d'icônes
 ├── components/
 │   ├── layout-nodes.ts              # Nœuds Flexbox : VBox, HBox, SpacerNode, CardBox, ScrollContainerNode, LabelNode, IconNode, PillButtonNode, SegmentedControlNode, SliderNode, CoverArtNode...
@@ -72,7 +73,9 @@ src/
     ├── radios/
     │   └── radios-page.ts           # RadiosPageNode : Mes radios, Populaires, Rechercher
     ├── spotify/
-    │   └── spotify-page.ts          # SpotifyPageNode : Playlists, Albums, Titres likés, Récents, Rechercher
+    │   ├── spotify-page.ts          # SpotifyPageNode : en-tête (retour, titre), cartes de connexion, la vue du dessus
+    │   ├── spotify-views.ts         # La pile de vues : bibliothèque, recherche, artiste, album, playlist
+    │   └── spotify-pieces.ts        # Grilles, lignes de titres, tuiles et menu d'un titre
     ├── rooms/
     │   └── rooms-page.ts            # RoomsPageNode : Groupes, volumes et regroupement en arbre Flexbox
     └── settings/

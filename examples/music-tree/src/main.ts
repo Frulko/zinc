@@ -47,10 +47,9 @@ import {
   keyName,
   KeyKind,
 } from 'zinc:gfx';
-import { platform } from 'zinc:sys';
-import { isWebOS } from 'zinc:webos';
 import { exists, appendText } from 'zinc:fs';
 import { Group } from 'zinc:sonos';
+import { Item } from 'zinc:spotify';
 import gsap from 'gsap';
 import {
   CLOCK_FACE_COUNT,
@@ -104,7 +103,9 @@ import {
 } from './services/notify-service';
 import { tickSpotifyAccount } from './services/spotify-account';
 import { tickQueueContinuation } from './services/spotify-on-sonos';
+import { LIBRARY_KEYS, spotifyCatalog } from './services/spotify-catalog';
 import { SidebarNode } from './components/sidebar';
+import { hasTouchKeyboardOnly } from './components/keyboard';
 import { StatusBarNode, getCurrentClockParts } from './components/status-bar';
 import { VolumePopoverNode } from './components/volume-popover';
 import { ContextSheetNode } from './components/context-sheet';
@@ -125,7 +126,6 @@ import {
   discoverSonosSystem,
   handleTypedKeyboardKey,
    loadPopularRadios,
-  loadSpotifyTab,
   pollActiveGroupMemberVolumes,
   pollActiveSonosGroup,
   pollAllRoomVolumes,
@@ -363,7 +363,6 @@ function processWheelInput(deltaSeconds: number, pointerAtX: number, pointerAtY:
 
 // A computer's keyboard types in the search fields: the window's text input is on while a field takes the typing (else no
 // character comes, only keys). A tablet keeps the app's own keyboard: no system keyboard over it.
-const hasTouchKeyboardOnly = isWebOS() || platform() === 'android' || platform() === 'ios';
 let isWindowTextInputOn = false;
 
 function processDesktopKeyboard(): void {
@@ -648,12 +647,8 @@ async function preloadCatalogListsAndQueueWarmup(): Promise<void> {
   await sleepMilliseconds(2000);
 
   loadPopularRadios();
-  for (let spotifyTab: i32 = 0; spotifyTab < 4; spotifyTab++) {
-    loadSpotifyTab(spotifyTab, false);
-    while (appState.spotifyTabStates[spotifyTab] === 'loading') {
-      await sleepMilliseconds(200);
-    }
-    await sleepMilliseconds(300);
+  if (appState.spotifyClient.ready()) {
+    await spotifyCatalog.preload();
   }
   while (appState.popularStationsState === 'loading') {
     await sleepMilliseconds(200);
@@ -709,10 +704,12 @@ function warmRenderSinglePageOffscreen(screenWidth: number, screenHeight: number
   warmPageNode.width = screenWidth;
   warmPageNode.height = contentHeight;
   const touchZonesOnScreen = takeTouchZones();
+  spotifyCatalog.isOffline = true;
   beginImage(warmRenderOffscreenImage);
   clear(COLOR_BACKGROUND);
   warmPageNode.layoutAndRender(screenWidth, contentHeight, 0, STATUS_BAR_HEIGHT);
   endImage();
+  spotifyCatalog.isOffline = false;
   restoreTouchZones(touchZonesOnScreen);
   uiState.animating = wasAnimating;
   appState.sidebarWidth = savedSidebarWidth;
@@ -740,12 +737,14 @@ function prefetchNextIdleArtwork(): void {
       if (!prefetchPicture(stationList[stationIndex].artworkUrl)) return;
     }
   }
-  for (let tabIndex = 0; tabIndex < 4; tabIndex++) {
-    const items = appState.spotifyTabLists[tabIndex];
+  for (let tabIndex = 0; tabIndex < LIBRARY_KEYS.length; tabIndex++) {
+    const loaded = spotifyCatalog.loadedList(LIBRARY_KEYS[tabIndex]);
+    if (loaded === null) continue;
+    const items = loaded as Item[];
     for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
       const item = items[itemIndex];
-      const targetUrl = tabIndex < 2 ? item.art : item.thumb;
-      if (!prefetchPicture(targetUrl)) return;
+      // the grids (playlists, albums) show the large covers, the rows the small ones
+      if (!prefetchPicture(tabIndex < 2 ? item.art : item.thumb)) return;
     }
   }
 }

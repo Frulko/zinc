@@ -1,68 +1,35 @@
 // ============================================================================
-// pages/spotify/spotify-page.ts — Page Bibliothèque et Recherche Spotify
+// pages/spotify/spotify-page.ts — The Spotify page
 // ============================================================================
-// Construite avec l'arbre `DisplayObject` et ses composants Flexbox :
-// - `headerBar` (`PageHeaderBarNode` : titre + `SpacerNode(1)` + 5 onglets)
-// - `disconnectedCard` (`CardBox` : instructions de connexion si non connecté)
+// Built once with the display tree:
+// - `headerBar` (an `HBox`: the back button, the title of the view on top)
+// - `disconnectedCard` (`CardBox`: how to log in from a computer, on a tablet)
 // - `loginCard` (`CardBox`: on a Mac, the login from the app, or why it cannot)
-// - `searchFieldNode` (`SearchFieldNode`)
-// - `keyboardNode` (`VirtualKeyboardNode`)
+// - `spotifyBrowser.viewHost` (the view on top: library, search, artist, album, playlist; spotify-views.ts)
+// - `songMenuNode` (a song's actions) and `keyboardNode` (`VirtualKeyboardNode`, a tablet's)
 
-import { rrect, drawText } from 'zinc:gfx';
-import { Item } from 'zinc:spotify';
 import {
-  COLOR_ACCENT,
-  COLOR_CARD_ELEVATED,
+  COLOR_FILL,
   COLOR_GREEN,
   COLOR_TEXT_PRIMARY,
   COLOR_TEXT_SECONDARY,
   COLOR_TEXT_TERTIARY,
-  GRID_COLUMNS,
-  GRID_GAP,
-  KEYBOARD_HEIGHT,
-  LIST_ROW_HEIGHT,
   PAGE_PADDING,
-  PAGE_SPOTIFY,
 } from '../../constants';
 import { Fonts } from '../../fonts';
 import { DisplayObject } from '../../core/display';
-import {
-  ScrollBox,
-  beginScrollBox,
-  endScrollBox,
-  isZonePressed,
-  registerTapZone,
-} from '../../core/input';
-import {
-  drawGlyph,
-  drawLabel,
-  drawSeparatorLine,
-  drawWrappedText,
-} from '../../components/primitives';
-import { drawActivitySpinner } from '../../components/slider';
-import {
-  drawCoverArt,
-  drawLoadingSkeleton,
-  drawMediaTile,
-} from '../../components/cover';
 import { VirtualKeyboardNode } from '../../components/keyboard';
 import {
   CardBox,
   HBox,
+  IconButtonNode,
   IconNode,
   LabelNode,
-  PageHeaderBarNode,
   PillButtonNode,
   SpinnerNode,
-  SearchFieldNode,
-  SegmentedControlNode,
 } from '../../components/layout-nodes';
-import {
-  appState,
-  loadMoreSpotifyItems,
-  loadSpotifyTab,
-} from '../../state';
-import { playSpotifyItem } from '../../services/spotify-on-sonos';
+import { appState } from '../../state';
+import { spotifyCatalog } from '../../services/spotify-catalog';
 import {
   canLogInFromThisDevice,
   cancelSpotifyLogin,
@@ -71,18 +38,13 @@ import {
   isSpotifyLoginWaiting,
   startSpotifyLogin,
 } from '../../services/spotify-account';
-
-const SPOTIFY_TAB_LABELS: string[] = [
-  'Playlists',
-  'Albums',
-  'Titres likés',
-  'Récents',
-  'Rechercher',
-];
+import { spotifyBrowser } from './spotify-views';
+import { SongMenuNode, spotifyNavigation } from './spotify-pieces';
 
 export class SpotifyPageNode extends DisplayObject {
-  readonly headerBar: PageHeaderBarNode;
-  readonly tabsSegmentedNode: SegmentedControlNode;
+  readonly headerBar: HBox;
+  readonly backButton: IconButtonNode;
+  readonly titleLabel: LabelNode;
   readonly disconnectedCard: CardBox;
   readonly disconnectedHeadingLabel: LabelNode;
   readonly disconnectedLeadLabel: LabelNode;
@@ -94,28 +56,24 @@ export class SpotifyPageNode extends DisplayObject {
   readonly loginButton: PillButtonNode;
   readonly loginSpinner: SpinnerNode;
   readonly loginCancelButton: PillButtonNode;
-  readonly searchFieldNode: SearchFieldNode;
+  readonly songMenuNode: SongMenuNode;
   readonly keyboardNode: VirtualKeyboardNode;
 
   constructor() {
     super('SpotifyPage');
 
-    // Barre d'en-tête Flexbox
-    this.headerBar = new PageHeaderBarNode('Spotify', 14);
-    this.tabsSegmentedNode = new SegmentedControlNode(
-      'sp/tab',
-      SPOTIFY_TAB_LABELS,
-      (selectedTab: i32) => {
-        appState.activeSpotifyTab = selectedTab;
-        appState.isKeyboardVisible = selectedTab === 4 && appState.searchQuery === '';
-        appState.pageScrollBoxes[PAGE_SPOTIFY].scrollY = 0;
-        if (selectedTab < 4) {
-          loadSpotifyTab(selectedTab, false);
-        }
-      },
-      112
-    );
-    this.headerBar.addChild(this.tabsSegmentedNode);
+    // The header: the back button (a view over the library) and the title of the view on top
+    this.headerBar = new HBox(16, 'SpotifyHeader');
+    this.headerBar.y = 30;
+    this.headerBar.height = 48;
+    this.headerBar.autoHeight = false;
+    this.backButton = new IconButtonNode('sp/back', 'chevron-left', 28, COLOR_TEXT_PRIMARY, () => spotifyBrowser.back(), 48);
+    this.backButton.backgroundColor = COLOR_FILL;
+    this.backButton.backgroundAlpha = 255;
+    this.titleLabel = new LabelNode(Fonts.hero, 'Spotify', COLOR_TEXT_PRIMARY, 40);
+    this.titleLabel.flex = 1;
+    this.headerBar.addChild(this.backButton);
+    this.headerBar.addChild(this.titleLabel);
 
     // Carte d'instructions Flexbox affichée lorsque Spotify n'est pas connecté
     this.disconnectedCard = new CardBox('column', 250, 'SpotifySetupCard');
@@ -196,43 +154,34 @@ export class SpotifyPageNode extends DisplayObject {
     this.loginActionsRow.addChild(this.loginCancelButton);
     this.loginCard.addChild(this.loginActionsRow);
 
-    // Champ de recherche (onglet Rechercher)
-    this.searchFieldNode = new SearchFieldNode(
-      'Titres, artistes, albums, playlists',
-      () => {
-        appState.isKeyboardVisible = true;
-      },
-      () => {
-        appState.searchQuery = '';
-      }
-    );
-    this.searchFieldNode.y = 100;
-
-    // Clavier virtuel AZERTY
+    this.songMenuNode = new SongMenuNode();
     this.keyboardNode = new VirtualKeyboardNode();
 
     this.addChild(this.headerBar);
     this.addChild(this.disconnectedCard);
     this.addChild(this.loginCard);
-    this.addChild(this.searchFieldNode);
+    this.addChild(spotifyBrowser.viewHost);
+    this.addChild(this.songMenuNode);
     this.addChild(this.keyboardNode);
   }
 
-  override onAddedToStage(): void {
-    loadSpotifyTab(appState.activeSpotifyTab, false);
+  /** Each frame while the page is shown: the search field's words (a search once the typing pauses), a reset of the account. */
+  override onUpdate(deltaSeconds: number): void {
+    if (!appState.spotifyClient.ready()) return;
+    spotifyBrowser.followCatalog();
+    if (spotifyBrowser.isSearching()) spotifyCatalog.tick(appState.searchQuery);
   }
 
   override onMeasure(): void {
     const sidebarWidth = appState.sidebarWidth;
     const pageWidth = this.width > 0 ? this.width : 1024;
+    const pageHeight = this.height > 0 ? this.height : 738;
     const isConnected = appState.spotifyClient.ready();
 
-    this.headerBar.x = sidebarWidth;
-    this.headerBar.width = pageWidth - sidebarWidth;
-    this.headerBar.setPaddingSymmetric(PAGE_PADDING, 0);
-
-    this.tabsSegmentedNode.visible = isConnected;
-    this.tabsSegmentedNode.selectedIndex = appState.activeSpotifyTab;
+    this.headerBar.x = sidebarWidth + PAGE_PADDING;
+    this.headerBar.width = pageWidth - sidebarWidth - PAGE_PADDING * 2;
+    this.backButton.visible = isConnected && spotifyBrowser.canGoBack();
+    this.titleLabel.text = isConnected ? spotifyBrowser.top().title() : 'Spotify';
 
     this.disconnectedCard.visible = !isConnected && !canLogInFromThisDevice;
     this.disconnectedCard.x = sidebarWidth + PAGE_PADDING;
@@ -252,13 +201,12 @@ export class SpotifyPageNode extends DisplayObject {
         : 'Une seule connexion, faite depuis un ordinateur :';
     }
 
-    this.searchFieldNode.visible = isConnected && appState.activeSpotifyTab === 4;
-    this.searchFieldNode.x = sidebarWidth + PAGE_PADDING;
-    this.searchFieldNode.width = pageWidth - sidebarWidth - PAGE_PADDING * 2;
-    this.searchFieldNode.currentText = appState.searchQuery;
-    this.searchFieldNode.isTypingActive = appState.isKeyboardVisible;
-
-    this.keyboardNode.visible = isConnected && appState.isKeyboardVisible;
+    const topView = spotifyBrowser.top();
+    spotifyBrowser.viewHost.visible = isConnected;
+    topView.width = pageWidth;
+    topView.height = pageHeight;
+    this.songMenuNode.visible = isConnected && spotifyNavigation.menuSong !== null;
+    this.keyboardNode.visible = isConnected && spotifyBrowser.isSearching();
   }
 
   private measureLoginCard(): void {
@@ -289,277 +237,5 @@ export class SpotifyPageNode extends DisplayObject {
     this.loginSpinner.visible = isWaiting;
     this.loginCancelButton.visible = isWaiting;
     this.loginCard.height = hasClientId ? 180 : 132;
-  }
-
-  override onDraw(viewWidth: number, viewHeight: number): void {
-    if (!appState.spotifyClient.ready()) return;
-
-    const sidebarWidth = appState.sidebarWidth;
-    const contentBottomY =
-      viewHeight - (appState.isKeyboardVisible ? KEYBOARD_HEIGHT : 0);
-    const listTopY = appState.activeSpotifyTab === 4 ? 166 : 100;
-
-    const currentTabState = appState.spotifyTabStates[appState.activeSpotifyTab];
-    const spotifyScrollBox = appState.pageScrollBoxes[PAGE_SPOTIFY];
-
-    if (currentTabState === 'loading') {
-      drawLoadingSkeleton(
-        appState.activeSpotifyTab <= 1,
-        listTopY,
-        contentBottomY,
-        viewWidth,
-        sidebarWidth
-      );
-    } else if (currentTabState !== '' && currentTabState !== 'ok') {
-      // an error can be long: wrapped, not cut at the edges
-      drawWrappedText(
-        Fonts.label,
-        sidebarWidth + PAGE_PADDING,
-        listTopY + 80,
-        currentTabState,
-        COLOR_TEXT_SECONDARY,
-        viewWidth - sidebarWidth - PAGE_PADDING * 2,
-        3,
-        30
-      );
-    } else if (appState.activeSpotifyTab <= 1) {
-      this.drawSpotifyTileGrid(
-        appState.spotifyTabLists[appState.activeSpotifyTab],
-        listTopY,
-        contentBottomY,
-        viewWidth,
-        spotifyScrollBox,
-        appState.spotifyTabHasMore[appState.activeSpotifyTab]
-      );
-    } else {
-      this.drawSpotifyItemRows(
-        appState.spotifyTabLists[appState.activeSpotifyTab],
-        listTopY,
-        contentBottomY,
-        viewWidth,
-        spotifyScrollBox,
-        appState.activeSpotifyTab === 2 ? 'Lire tous les titres likés' : '',
-        appState.spotifyTabHasMore[appState.activeSpotifyTab]
-      );
-    }
-
-    if (
-      currentTabState === 'ok' &&
-      spotifyScrollBox.scrollY + spotifyScrollBox.viewportHeight >
-        spotifyScrollBox.contentHeight - 600
-    ) {
-      loadMoreSpotifyItems(appState.activeSpotifyTab);
-    }
-  }
-
-  private drawSpotifyTileGrid(
-    itemsList: Item[],
-    topY: number,
-    bottomY: number,
-    viewWidth: number,
-    scrollBox: ScrollBox,
-    hasMorePages: boolean
-  ): void {
-    const sidebarWidth = appState.sidebarWidth;
-    const contentStartX = sidebarWidth + PAGE_PADDING;
-    const contentWidth = viewWidth - sidebarWidth - PAGE_PADDING * 2;
-    const tileSize = (contentWidth - GRID_GAP * (GRID_COLUMNS - 1)) / GRID_COLUMNS;
-    const rowHeight = tileSize + 62;
-
-    beginScrollBox(
-      scrollBox,
-      sidebarWidth,
-      topY,
-      viewWidth - sidebarWidth,
-      bottomY - topY
-    );
-    const totalRows = Math.ceil(itemsList.length / GRID_COLUMNS);
-    scrollBox.contentHeight =
-      totalRows * rowHeight + 24 + (hasMorePages ? 72 : 0);
-
-    if (hasMorePages) {
-      drawActivitySpinner(
-        sidebarWidth + (viewWidth - sidebarWidth) / 2,
-        topY + totalRows * rowHeight + 36 - scrollBox.scrollY,
-        14
-      );
-    }
-
-    for (let index = 0; index < itemsList.length; index++) {
-      const item = itemsList[index];
-      const columnIndex = index % GRID_COLUMNS;
-      const rowIndex = Math.floor(index / GRID_COLUMNS);
-      const tileX = contentStartX + columnIndex * (tileSize + GRID_GAP);
-      const tileY = topY + 8 + rowIndex * rowHeight - scrollBox.scrollY;
-      if (tileY > bottomY || tileY + rowHeight < topY) continue;
-
-      drawMediaTile(
-        'sp/' + index,
-        tileX,
-        tileY,
-        tileSize,
-        item.art,
-        item.name,
-        item.subtitle,
-        false,
-        false,
-        () => playSpotifyItem(item)
-      );
-    }
-
-    endScrollBox();
-  }
-
-  private drawSpotifyItemRows(
-    itemsList: Item[],
-    topY: number,
-    bottomY: number,
-    viewWidth: number,
-    scrollBox: ScrollBox,
-    headerActionLabel: string,
-    hasMorePages: boolean
-  ): void {
-    const sidebarWidth = appState.sidebarWidth;
-    const contentStartX = sidebarWidth + PAGE_PADDING;
-    const contentWidth = viewWidth - sidebarWidth - PAGE_PADDING * 2;
-
-    beginScrollBox(
-      scrollBox,
-      sidebarWidth,
-      topY,
-      viewWidth - sidebarWidth,
-      bottomY - topY
-    );
-    const headerRowCount = headerActionLabel !== '' ? 1 : 0;
-    scrollBox.contentHeight =
-      (itemsList.length + headerRowCount) * LIST_ROW_HEIGHT +
-      24 +
-      (hasMorePages ? 72 : 0);
-
-    if (hasMorePages) {
-      drawActivitySpinner(
-        sidebarWidth + (viewWidth - sidebarWidth) / 2,
-        topY +
-          (itemsList.length + headerRowCount) * LIST_ROW_HEIGHT +
-          36 -
-          scrollBox.scrollY,
-        14
-      );
-    }
-
-    if (headerActionLabel !== '') {
-      const headerRowY = topY - scrollBox.scrollY;
-      const headerZoneId = 'rows/head';
-      if (isZonePressed(headerZoneId)) {
-        rrect(
-          contentStartX - 10,
-          headerRowY,
-          contentWidth + 20,
-          LIST_ROW_HEIGHT,
-          10,
-          COLOR_CARD_ELEVATED,
-          255
-        );
-      }
-      rrect(contentStartX, headerRowY + 10, 48, 48, 8, COLOR_ACCENT, 255);
-      drawGlyph('heart', contentStartX + 12, headerRowY + 22, 24, COLOR_TEXT_PRIMARY);
-      drawText(
-        Fonts.bodyBold,
-        contentStartX + 64,
-        headerRowY + 22,
-        headerActionLabel,
-        COLOR_TEXT_PRIMARY,
-        255,
-        0
-      );
-      const likedCollectionItem = new Item();
-      likedCollectionItem.kind = 'liked';
-      likedCollectionItem.name = 'Titres likés';
-      registerTapZone(
-        headerZoneId,
-        contentStartX,
-        headerRowY,
-        contentWidth,
-        LIST_ROW_HEIGHT,
-        () => playSpotifyItem(likedCollectionItem)
-      );
-    }
-
-    for (let index = 0; index < itemsList.length; index++) {
-      const item = itemsList[index];
-      const rowY =
-        topY + (index + headerRowCount) * LIST_ROW_HEIGHT - scrollBox.scrollY;
-      if (rowY > bottomY || rowY + LIST_ROW_HEIGHT < topY) continue;
-
-      const rowZoneId = 'rows/' + index;
-      if (isZonePressed(rowZoneId)) {
-        rrect(
-          contentStartX - 10,
-          rowY,
-          contentWidth + 20,
-          LIST_ROW_HEIGHT,
-          10,
-          COLOR_CARD_ELEVATED,
-          255
-        );
-      }
-
-      const thumbUrl = item.thumb !== '' ? item.thumb : item.art;
-      drawCoverArt(
-        thumbUrl,
-        item.name,
-        contentStartX,
-        rowY + 10,
-        48,
-        item.kind === 'artist' ? 24 : 6
-      );
-      drawLabel(
-        Fonts.label,
-        contentStartX + 64,
-        rowY + 13,
-        item.name,
-        COLOR_TEXT_PRIMARY,
-        contentWidth - 200
-      );
-
-      const kindLabel =
-        item.kind === 'track'
-          ? 'Titre'
-          : item.kind === 'playlist'
-          ? 'Playlist'
-          : item.kind === 'album'
-          ? 'Album'
-          : item.kind === 'artist'
-          ? 'Artiste'
-          : 'Épisode';
-      const subtitleText =
-        kindLabel + (item.subtitle !== '' ? ' · ' + item.subtitle : '');
-      drawLabel(
-        Fonts.small,
-        contentStartX + 64,
-        rowY + 38,
-        subtitleText,
-        COLOR_TEXT_SECONDARY,
-        contentWidth - 200
-      );
-
-      if (index < itemsList.length - 1) {
-        drawSeparatorLine(
-          contentStartX + 64,
-          rowY + LIST_ROW_HEIGHT - 1,
-          contentWidth - 64
-        );
-      }
-      registerTapZone(
-        rowZoneId,
-        contentStartX,
-        rowY,
-        contentWidth,
-        LIST_ROW_HEIGHT,
-        () => playSpotifyItem(item)
-      );
-    }
-
-    endScrollBox();
   }
 }

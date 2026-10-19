@@ -5,9 +5,10 @@
 // speakers, else through the speakers' own Spotify service (a queue the Sonos
 // app could have made). "Reprendre ici": the account plays on another device
 // (a Mac, an iPhone, the speakers of another house); one touch moves it to the
-// group chosen here, at the same song and moment. And the speakers' queue of
-// Spotify songs goes on like Spotify does: on its last song, Spotify's radio of
-// that song is added after it.
+// group chosen here, at the same song and moment. A song's menu adds it to the
+// speakers' queue or plays its radio (a song's or an artist's). And the
+// speakers' queue of Spotify songs goes on like Spotify does: on its last song,
+// Spotify's radio of that song is added after it.
 
 import { System, Group, serviceId, accountOf, playSpotify as playSpotifyOnSonos, queueSpotify } from 'zinc:sonos';
 import { Item, Playback } from 'zinc:spotify';
@@ -43,8 +44,16 @@ export function playSpotifyItem(item: Item): void {
       appState.spotifyUserName = await client.me();
     }
     const connectDevice = await client.device(group.coordinator.name);
+    const isSongInList =
+      (item.kind === 'track' || item.kind === 'episode') && item.context !== '' && !item.context.startsWith('spotify:artist:');
     if (connectDevice !== null && !connectDevice.restricted) {
       await client.play(item, connectDevice.id);
+    } else if (isSongInList) {
+      // a song inside its album or playlist, from its start: the next songs follow
+      const fromStart = new Playback();
+      fromStart.item = item;
+      fromStart.context = item.context;
+      await resumeThroughSonos(system, group, fromStart);
     } else {
       await playThroughSonosService(system, group, item);
     }
@@ -115,6 +124,58 @@ async function playThroughSonosService(system: System, group: Group, item: Item)
       lastErrorMessage !== '' ? ' (' + lastErrorMessage + ')' : ''
     }. Dans l'app Sonos, ajoute Spotify aux services (Réglages, Services et voix) et une playlist Spotify aux favoris, puis réessaie.`
   );
+}
+
+/**
+ * Adds a song (or an album, a playlist) to the speakers' queue: after the song that plays (`next`) or at its end. The queue is the
+ * speakers' own: a Spotify Connect session a phone left on them goes into it first (the same song and second), else the song would be
+ * added to a queue nobody listens to; with nothing playing, the song just plays.
+ */
+export function queueOnSpeakers(item: Item, next: boolean): void {
+  if (appState.sonosSystem === null || appState.activeGroup === null) {
+    showToast('Aucune enceinte');
+    return;
+  }
+  const group = appState.activeGroup as Group;
+  const system = appState.sonosSystem as System;
+  runSafeNetworkAction(next ? 'Lire ensuite' : "File d'attente", async (): Promise<void> => {
+    const spotifyServiceId = await findSpotifyServiceId(system);
+    await system.update(group);
+    if (group.track.number === 0) {
+      const playback = appState.spotifyPlayback;
+      if (group.track.source !== 'spotify' || !playback.active || !isOurSpeakers(playback.device.name)) {
+        playSpotifyItem(item);
+        return;
+      }
+      showToast('La lecture passe dans la file des enceintes…');
+      await resumeThroughSonos(system, group, await appState.spotifyClient.playback());
+      await system.update(group);
+    }
+    await queueSpotify(system, group, item.uri, item.name, spotifyServiceId, knownSpotifyAccountSerial(), next);
+    showToast(next ? `${item.name} : à la suite` : `${item.name} : ajouté à la file`);
+    await pollActiveSonosGroup();
+  });
+}
+
+/** Spotify's radio of a song or an artist on the group (the songs Spotify picks after it), through the speakers' Spotify service. */
+export function playSpotifyRadio(item: Item): void {
+  if (appState.sonosSystem === null || appState.activeGroup === null) {
+    showToast('Aucune enceinte');
+    return;
+  }
+  const group = appState.activeGroup as Group;
+  const system = appState.sonosSystem as System;
+  const radio = new Item();
+  radio.kind = 'playlist';
+  radio.name = item.name;
+  radio.uri = (item.kind === 'artist' ? 'spotify:artistRadio:' : 'spotify:trackRadio:') + (item.uri.split(':').pop() as string);
+  showToast(`Radio : ${item.name}…`);
+  runSafeNetworkAction('Radio', async (): Promise<void> => {
+    await playThroughSonosService(system, group, radio);
+    showToast(`Radio de ${item.name} sur ${group.name()}`);
+    await sleepMilliseconds(800);
+    await pollActiveSonosGroup();
+  });
 }
 
 // ----------------------------------------------------------------------------

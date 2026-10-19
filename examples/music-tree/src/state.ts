@@ -15,7 +15,6 @@ import { Timeline } from 'gsap';
 import {
   PAGE_NOW_PLAYING,
   PAGE_RADIOS,
-  PAGE_SPOTIFY,
   PAGE_ROOMS,
   PAGE_SETTINGS,
   SLIDE_PLAYER,
@@ -23,7 +22,6 @@ import {
   CLOCK_FACE_COUNT,
   SSDP_PORT,
   REMOTE_UDP_PORT,
-  SPOTIFY_PAGE_SIZE,
   SIDEBAR_WIDTH_DEFAULT,
 } from './constants';
 import { ScrollBox, uiState } from './core/input';
@@ -130,11 +128,8 @@ export class ApplicationState {
   isPollingSpotify: boolean = false;
   spotifyServiceIdOnSonos: i32 = -1;
 
+  /** The Spotify library's tab: playlists, albums, liked songs, recent plays. */
   activeSpotifyTab: i32 = 0;
-  spotifyTabLists: Item[][] = [[], [], [], [], []];
-  spotifyTabStates: string[] = ['', '', '', '', ''];
-  spotifyTabHasMore: boolean[] = [false, false, false, false, false];
-  spotifyTabIsPaging: boolean[] = [false, false, false, false, false];
 
   // ---- État Radios ----
   myStations: RadioStation[] = loadMyRadioStations();
@@ -307,9 +302,6 @@ export function navigateToPage(targetPageId: i32): void {
 
   if (targetPageId === PAGE_RADIOS && appState.activeRadioTab === 1) {
     loadPopularRadios();
-  }
-  if (targetPageId === PAGE_SPOTIFY) {
-    loadSpotifyTab(appState.activeSpotifyTab, false);
   }
   if (targetPageId === PAGE_ROOMS) {
     pollAllRoomVolumes();
@@ -790,7 +782,6 @@ export function loadPopularRadios(): void {
 
 // Request ids: an answer is only applied when no newer request was sent since (a slow search never overwrites a newer one)
 let latestRadioSearchId: i32 = 0;
-const latestSpotifyTabRequestIds: i32[] = [0, 0, 0, 0, 0];
 
 export function searchRadiosByQuery(): void {
   appState.searchedStationsState = 'loading';
@@ -825,76 +816,6 @@ export function explainSpotifyError(message: string): string {
     : message;
 }
 
-export function loadSpotifyTab(tabIndex: i32, forceReload: boolean): void {
-  if (!appState.spotifyClient.ready() || (!forceReload && appState.spotifyTabStates[tabIndex] !== '')) {
-    return;
-  }
-  appState.spotifyTabStates[tabIndex] = 'loading';
-  const currentQuery = appState.searchQuery;
-  const requestId = ++latestSpotifyTabRequestIds[tabIndex];
-
-  runSafeNetworkAction('Spotify', async (): Promise<void> => {
-    try {
-      if (appState.spotifyUserName === '') {
-        appState.spotifyUserName = await appState.spotifyClient.me();
-      }
-      const itemsPage = await fetchSpotifyPageItems(tabIndex, 0, currentQuery);
-      if (requestId !== latestSpotifyTabRequestIds[tabIndex]) return;
-      appState.spotifyTabLists[tabIndex] = itemsPage;
-      appState.spotifyTabHasMore[tabIndex] =
-        tabIndex <= 2 && itemsPage.length === SPOTIFY_PAGE_SIZE;
-      appState.spotifyTabStates[tabIndex] =
-        itemsPage.length === 0 ? 'Rien ici pour le moment' : 'ok';
-    } catch (error) {
-      if (requestId !== latestSpotifyTabRequestIds[tabIndex]) return;
-      appState.spotifyTabStates[tabIndex] = explainSpotifyError(error.message);
-    }
-  });
-}
-
-async function fetchSpotifyPageItems(
-  tabIndex: i32,
-  offset: i32,
-  searchQuery: string
-): Promise<Item[]> {
-  if (tabIndex === 0) return await appState.spotifyClient.playlists(offset, SPOTIFY_PAGE_SIZE);
-  if (tabIndex === 1) return await appState.spotifyClient.albums(offset, SPOTIFY_PAGE_SIZE);
-  if (tabIndex === 2) return await appState.spotifyClient.likedTracks(offset, SPOTIFY_PAGE_SIZE);
-  if (tabIndex === 3) return await appState.spotifyClient.recent();
-  return await appState.spotifyClient.search(searchQuery);
-}
-
-export function loadMoreSpotifyItems(tabIndex: i32): void {
-  if (
-    !appState.spotifyTabHasMore[tabIndex] ||
-    appState.spotifyTabIsPaging[tabIndex] ||
-    appState.spotifyTabStates[tabIndex] !== 'ok'
-  ) {
-    return;
-  }
-  appState.spotifyTabIsPaging[tabIndex] = true;
-  const pagedList = appState.spotifyTabLists[tabIndex];
-  const currentOffset = pagedList.length as i32;
-
-  runSafeNetworkAction('Spotify', async (): Promise<void> => {
-    try {
-      const nextItems = await fetchSpotifyPageItems(tabIndex, currentOffset, '');
-      // The list was replaced meanwhile (a reload): this page belongs to the old one
-      if (appState.spotifyTabLists[tabIndex] === pagedList) {
-        for (let index = 0; index < nextItems.length; index++) {
-          pagedList.push(nextItems[index]);
-        }
-        appState.spotifyTabHasMore[tabIndex] = nextItems.length === SPOTIFY_PAGE_SIZE;
-      }
-    } catch (error) {
-      appState.spotifyTabHasMore[tabIndex] = false;
-      showToast(error.message);
-    }
-    appState.spotifyTabIsPaging[tabIndex] = false;
-    uiState.dirty = true;
-  });
-}
-
 // ----------------------------------------------------------------------------
 // Saisie clavier (virtuel AZERTY ou clavier physique de bureau)
 // ----------------------------------------------------------------------------
@@ -908,12 +829,9 @@ export function handleTypedKeyboardKey(keyToken: string): void {
     currentText = currentText.slice(0, Math.max(0, currentText.length - 1));
   } else if (keyToken === 'enter') {
     appState.isKeyboardVisible = false;
-    if (!isEditingCity && currentText.trim() !== '') {
-      if (appState.currentPage === PAGE_RADIOS) {
-        searchRadiosByQuery();
-      } else {
-        loadSpotifyTab(4, true);
-      }
+    // Spotify searches by itself once the typing pauses (services/spotify-catalog.ts)
+    if (!isEditingCity && currentText.trim() !== '' && appState.currentPage === PAGE_RADIOS) {
+      searchRadiosByQuery();
     }
   } else {
     currentText += keyToken;

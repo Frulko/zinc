@@ -6,6 +6,8 @@
 // lettres/chiffres (`123` / `ABC`), touche effacer et bouton `Rechercher`.
 
 import { rrect, fontAscent } from 'zinc:gfx';
+import { platform } from 'zinc:sys';
+import { isWebOS } from 'zinc:webos';
 import {
   COLOR_ACCENT,
   COLOR_TEXT_PRIMARY,
@@ -21,6 +23,14 @@ const LETTER_ROWS: string[] = ['azertyuiop', 'qsdfghjklm', "wxcvbné'", ''];
 const NUMBER_ROWS: string[] = ['1234567890', '-/:;()&@"', 'àçùè.,?!', ''];
 
 let isSymbolsModeActive: boolean = false;
+
+/** The keyboard drawn on the screen is a tablet's (webOS, Android, iOS); a computer types with its own (main.ts reads its keys). */
+export const hasTouchKeyboardOnly = isWebOS() || platform() === 'android' || platform() === 'ios';
+
+/** The height the app's keyboard takes at the bottom of a page now: none while nobody types, none on a computer. */
+export function getTouchKeyboardHeight(): number {
+  return appState.isKeyboardVisible && hasTouchKeyboardOnly ? KEYBOARD_HEIGHT : 0;
+}
 
 /**
  * Dessine le clavier virtuel dans le rectangle `(x, y, width, KEYBOARD_HEIGHT)`
@@ -167,7 +177,7 @@ export class VirtualKeyboardNode extends DisplayObject {
   }
 
   override onDraw(stageWidth: number, stageHeight: number): void {
-    if (!appState.isKeyboardVisible) return;
+    if (getTouchKeyboardHeight() === 0) return;
     drawVirtualKeyboard(
       appState.sidebarWidth,
       stageHeight - KEYBOARD_HEIGHT,
