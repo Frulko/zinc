@@ -303,7 +303,8 @@ struct Gpu : Engine {
   }
 
   int32_t target(int32_t id, int32_t w, int32_t h) override {
-    w = w / ZP_3D_SCALE; h = h / ZP_3D_SCALE;
+    const int32_t d = ZP_3D_SCALE > 0 ? ZP_3D_SCALE : 1;   // 0 (auto) is for the software renderer: the GPU draws the full size
+    w = w / d; h = h / d;
     if (w < 1) w = 1;
     if (h < 1) h = 1;
     GTarget* t = gtargets.at(id);

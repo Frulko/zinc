@@ -23,7 +23,7 @@
 #endif
 #endif
 #ifndef ZP_3D_SCALE
-#define ZP_3D_SCALE 1
+#define ZP_3D_SCALE 0
 #endif
 #ifndef ZP_3D_DITHER
 #define ZP_3D_DITHER 0
@@ -386,8 +386,19 @@ struct Engine : NativeRender3D {
     meshes.p[id] = nullptr;
   }
 
+  // scale 0 (auto): the smallest divisor that keeps the internal picture under AUTO_PIXELS, so a 1080p screen is drawn at 640x360 and scaled up.
+  // Measured on a Pi 3B+: 85 ms a frame at 1920x1080, 24 ms at 640x360 (docs/plugins/3d.md). A deterministic run (goldens) keeps scale 1.
+  static int32_t divisor(int32_t w, int32_t h) {
+    if (ZP_3D_SCALE > 0) return ZP_3D_SCALE;
+    static const bool det = getenv("ZINC_DETERMINISTIC") != nullptr;
+    const int64_t AUTO_PIXELS = 400000;
+    int32_t d = 1;
+    while (!det && d < 8 && (int64_t)(w / d) * (h / d) > AUTO_PIXELS) d++;
+    return d;
+  }
   int32_t target(int32_t id, int32_t w, int32_t h) override {
-    w = w / ZP_3D_SCALE; h = h / ZP_3D_SCALE;
+    const int32_t d = divisor(w, h);
+    w = w / d; h = h / d;
     if (w < 1) w = 1;
     if (h < 1) h = 1;
     Target* t = targets.at(id);

@@ -16,7 +16,11 @@ extern "C" __attribute__((weak)) void zrt_prof_info(const char* key, const char*
 // renderer: "cpu" (software UI, uploaded as a texture: the default), "gl" (the command lists are replayed by
 // runtime/gl_replay.cpp) or "auto" (gl, else cpu). zinc.json: "display": { "driver": "gl", "renderer": "gl" }; ZINC_RENDERER overrides.
 #ifndef ZP_DISPLAY_GL_RENDERER
+#ifdef __APPLE__
 #define ZP_DISPLAY_GL_RENDERER "cpu"
+#else
+#define ZP_DISPLAY_GL_RENDERER "auto"   // KMS and webOS: the GPU replay, which falls back to the CPU when the context cannot run it (Pi 3B+, 1080p: present 33 -> 3 ms)
+#endif
 #endif
 
 // backend

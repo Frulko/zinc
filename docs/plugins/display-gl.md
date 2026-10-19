@@ -44,7 +44,7 @@ libraries ship with the OS).
   `#version 150` + `attribute/varying/texture2D/gl_FragColor` macros on desktop GL, or `#version 100` + precision on
   GLES. Attribute 0 is `a_pos`, 1 is `a_uv`. Textures from runtime images are B,G,R,0 bytes: sample `.bgr`.
 - Input: SDL events on macOS (keyboard, mouse, trackpad pinch/wheel, touch); on the Pi every `/dev/input/event*`
-  device: keys, relative mouse, absolute touchscreen (single pointer). Esc quits.
+  device: keys, relative mouse, absolute touchscreen (single pointer). Esc quits. A mouse shows an arrow on the display's cursor plane (no GPU cost, no redraw).
 - `ZINC_FRAMES=n` stops after n frames and `ZINC_SHOT=out.bmp` saves the last frame, GPU layers included. While it is
   set, each frame is composed into an offscreen framebuffer of the surface's pixels (the zoom before any fit to the screen,
   times the density) and the screenshot reads it: its size does not depend on the window or the screen (a small screen

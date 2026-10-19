@@ -9,6 +9,9 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- `zinc:3d`'s software renderer picks its own resolution (`scale: 0`, the new default): a big screen is drawn at under 400,000 pixels and scaled up, so a 3D scene at 1080p on a Raspberry Pi 3B+ goes from 12 to about 40 frames a second. Set `scale` to keep a fixed divisor.
+- `display-gl` draws the interface on the GPU by default on the Pi and other Linux boards (`renderer: "auto"`; the CPU when the GPU cannot): 1080p presents in 3 ms instead of 33.
+- On a Raspberry Pi with a mouse, `display-gl` now shows a mouse pointer (the display's cursor plane, no GPU cost).
 - `zinc:gfx` `profSection(label)` ends a `ZINC_PROFILE` section and returns its numbers as JSON, so one run can measure several scenes in turn; `next/tools/zbench` uses it to run a whole suite in one launch on any device and write a report file the app produces itself.
 - `ZINC_PROFILE=json` prints the frame profile as one JSON line (p50 / p99 / max / mean per phase, the interval between frames, late-frame counts, the GPU's name and the GL renderer's counters
   including the GPU time where the driver has it); `ZINC_PROFILE_SKIP=n` leaves the warm-up frames out. `next/tools/zbench` uses them to measure rendering on a Mac, an Android tablet, a webOS tablet or an iPhone or iPad.
