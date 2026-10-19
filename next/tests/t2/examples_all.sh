@@ -4,5 +4,5 @@
 cd "$(dirname "$0")/../.." || exit 2
 ZINC_BIN="${ZINC:-build/zinc}"
 case "$ZINC_BIN" in /*) ;; *) ZINC_BIN="$PWD/$ZINC_BIN" ;; esac
-out=$(tools/examples-status --check --zinc "$ZINC_BIN" 2>&1); rc=$?
+out=$(tools/examples-status --check --timeout $((40 * ${ZN_WAIT_SCALE:-1})) --zinc "$ZINC_BIN" 2>&1); rc=$?
 [ $rc -eq 0 ] || { echo "$out" | grep -E "^(NEW|REGRESSED|UNEXPECTED|CHANGED|MISSING|INCOMPLETE)"; exit 1; }
