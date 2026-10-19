@@ -124,7 +124,7 @@ A program the engine starts while someone is working (a test, a demo, a capture,
 
 Every commit goes on `develop` (or a branch merged into it); nobody commits on `main`. Pushing `develop` runs no CI and no test on GitHub: the CI runs only on a release.
 
-- `make release` runs from `develop`: it writes the changelog section, fast-forwards `main` to `develop`, pushes both and the `v*` tag; the tag's workflow is the CI (the whole tier T2, the packages) and publishes the GitHub release. `main` is always the last release.
+- `make release` runs from `develop`: it writes the changelog section, fast-forwards `main` to `develop`, pushes both and the `v*` tag; the tag's workflow is the CI (the whole tier T2, the packages) and publishes the GitHub release only when no test failed (`make release` waits for it and says which). `main` is always the last release.
 - A test failure found at a release is fixed on `develop`, then released again. A run of the whole CI without releasing: `gh workflow run zinc-next --ref develop`.
 
 ## The changelog: `CHANGELOG.md` is kept as the work goes (owner, 2026-10-16)

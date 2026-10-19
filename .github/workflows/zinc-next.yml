@@ -595,7 +595,7 @@ jobs:
     # ZN-329: on a v* tag, the downloads of every OS job (the zinc CLI archive, the Zinc Atelier app on macOS; signed for macOS when the secrets exist)
     # and their update manifests on a GitHub Release
     name: release
-    needs: [package, package-windows]
+    needs: [package, package-windows, test]   # the test shards too: the CI runs only on a release (owner, 2026-10-19), so a FAIL keeps it from being published
     if: ${{ !cancelled() && needs.package.result == 'success' && startsWith(github.ref, 'refs/tags/v') }}   # the Windows package is experimental: released when it built
     runs-on: ubuntu-24.04
     permissions:
@@ -603,6 +603,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }   # the plugins' split commits need the history
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: test-results-*
+          path: test-results
+      - name: Every test passed
+        # the shards never fail their job (continue-on-error): their results files say it. No result, or one FAIL, and nothing is published
+        run: |
+          cat test-results/*/results-*.txt > all-results.txt 2>/dev/null || true
+          [ -s all-results.txt ] || { echo "::error::no test results: the release waits for the tests"; exit 1; }
+          if grep '^FAIL' all-results.txt; then echo "::error::tests failed: nothing is released (fix them on develop, make release-undo, release again)"; exit 1; fi
+          echo "$(grep -c '^PASS' all-results.txt) passed, $(grep -c '^SKIP' all-results.txt) skipped"
       - uses: actions/download-artifact@v4
         with:
           pattern: package-*
