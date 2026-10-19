@@ -2,8 +2,8 @@
 # examples/music-tree against a made-up house (tests/data/music-tree/fake_house.py: Sonos speakers and the Spotify Web API on one local
 # port), headless. The test's copy of the demo gets a copy of zinc:sonos pointed at that port (a project's plugins/ shadows the engine's),
 # a stub Spotify client calling it, a fake login file (else zinc:spotify reads ~/.zinc/spotify.json) and a counter of drawn frames.
-# Run rooms: (a) the Rooms page left alone draws no more frames than it polls the speakers (a poll asks for a frame only when what is
-# shown changed); (b) the list scrolled so a room's slider lies under the header, a tap on "Actualiser" sends
+# Run rooms: (a) the Rooms page left alone, against a house that does not change, draws at most 2 frames while it polls the speakers
+# (a poll asks for a frame only when what is shown changed: 0 or 1 measured, one per poll before); (b) the list scrolled so a room's slider lies under the header, a tap on "Actualiser" sends
 # no SetVolume. Run home: (c) "Reprendre ici" (the account plays on a Mac) moves the song to the speakers through their Spotify service:
 # the album queued, its queue searched for the song, the song's radio when it is not there, the moment in the song, the Mac paused.
 # KEEP=dir keeps the frames and the logs.
@@ -69,7 +69,7 @@ fail=0
 drawn=$(awk '$1 == "drawn" && $2 >= 300 && $2 < 900' "$tmp/rooms.out" | wc -l | tr -d ' ')
 polls=$(awk '$1 == "poll" && $3 >= 300 && $3 < 900' "$tmp/rooms.out" | wc -l | tr -d ' ')
 [ "$polls" -ge 3 ] || { echo "music-tree: the Rooms page polled the speakers $polls times in 600 frames"; fail=1; }
-[ "$drawn" -le "$polls" ] || { echo "music-tree: the idle Rooms page drew $drawn frames for $polls polls (frames 300-899)"; fail=1; }
+[ "$drawn" -le 2 ] || { echo "music-tree: the idle Rooms page drew $drawn frames for $polls polls (frames 300-899, at most 2)"; fail=1; }
 # (b) the list dragged up 315 px (Bureau's slider under the header: frame 945), "Actualiser" tapped at frame 1001: a refresh, no volume
 awk '$1 == "poll" && $2 == "topology" && $3 >= 1001 && $3 <= 1005 { f = 1 } END { exit !f }' "$tmp/rooms.out" || { echo "music-tree: the tap on Actualiser did not refresh the rooms"; fail=1; }
 grep -q 'Volume' "$tmp/rooms.log" && { echo "music-tree: the tap on Actualiser over the scrolled list sent $(grep 'Volume' "$tmp/rooms.log" | head -1)"; fail=1; }
